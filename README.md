@@ -1,6 +1,6 @@
 # KnoxCoder
 
-KnoxCoder is a code editor based on [KnoxCoder](https://code.visualstudio.com) open source.
+KnoxCoder is a code editor based on [Visual Studio Code](https://code.visualstudio.com) open source.
 
 ## Documentation
 
