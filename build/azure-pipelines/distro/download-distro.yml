@@ -1,0 +1,90 @@
+steps:
+  # Check out the private microsoft/vscode-distro repository using the agent's
+  # GitHub App (Monaco) credentials. This avoids the need for a long-lived PAT.
+  # The repository resource is declared in the top-level pipeline (resources.repositories)
+  # and is checked out into .build/distro so that mixin-npm.ts / mixin-quality.ts can
+  # consume it from there (`.build/distro/npm`, `.build/distro/mixin/<quality>`).
+  - checkout: distro
+    path: s/.build/distro
+    fetchDepth: 0
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode-distro
+
+  - pwsh: |
+      $ErrorActionPreference = "Stop"
+      $DistroVersion = (Get-Content -Path package.json -Raw | ConvertFrom-Json).distro
+      Write-Host "Checking out distro commit $DistroVersion"
+      git -C .build/distro checkout $DistroVersion
+    displayName: Checkout distro commit
+
+  - script: git lfs install --local
+    displayName: Initialize Git LFS
+
+  - script: git lfs pull
+    displayName: Pull Git LFS objects
+
+  # Check out the private microsoft/vscode-encrypt, microsoft/vsda and
+  # microsoft/vscode-regexp-languagedetection repositories using the agent's GitHub
+  # App (Monaco) credentials. The distro's npm dependencies reference vsda and
+  # vscode-regexp-languagedetection as git dependencies, and the CLI cargo patches
+  # reference vsda and vscode-encrypt; npm resolves these over ssh while cargo
+  # resolves them over https. We redirect both public GitHub URLs to these local
+  # checkouts via git's insteadOf so no PAT is required to resolve them.
+  - checkout: encrypt
+    path: s/.build/vscode-encrypt
+    fetchDepth: 0
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode-encrypt
+
+  - checkout: vsda
+    path: s/.build/vsda
+    fetchDepth: 0
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vsda
+
+  - checkout: regexp
+    path: s/.build/vscode-regexp-languagedetection
+    fetchDepth: 0
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode-regexp-languagedetection
+
+  # Redirect the private git dependencies to the local checkouts above, so no PAT
+  # is required to resolve them. npm resolves these over ssh while cargo resolves
+  # them over https, with and without a trailing `.git`, so we register every
+  # form. This step runs on the agent directly and must work in both bash and
+  # cmd.exe (Windows), so it uses plain `git config` invocations.
+  - script: |
+      git config --global url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "https://github.com/microsoft/vscode-encrypt"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "https://github.com/microsoft/vscode-encrypt.git"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "ssh://git@github.com/microsoft/vscode-encrypt"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-encrypt".insteadOf "ssh://git@github.com/microsoft/vscode-encrypt.git"
+      git config --global url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "https://github.com/microsoft/vsda"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "https://github.com/microsoft/vsda.git"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "ssh://git@github.com/microsoft/vsda"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vsda".insteadOf "ssh://git@github.com/microsoft/vsda.git"
+      git config --global url."file://$(Build.SourcesDirectory)/.build/vscode-regexp-languagedetection".insteadOf "https://github.com/microsoft/vscode-regexp-languagedetection"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-regexp-languagedetection".insteadOf "https://github.com/microsoft/vscode-regexp-languagedetection.git"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-regexp-languagedetection".insteadOf "ssh://git@github.com/microsoft/vscode-regexp-languagedetection"
+      git config --global --add url."file://$(Build.SourcesDirectory)/.build/vscode-regexp-languagedetection".insteadOf "ssh://git@github.com/microsoft/vscode-regexp-languagedetection.git"
+    displayName: Redirect private git dependencies to local checkouts
+
+  # The Alpine server build installs the distro's npm dependencies inside a docker
+  # container that mounts the sources at /root/vscode, so the host redirects above
+  # (which use agent paths) do not apply there. Emit a container-pathed gitconfig
+  # that postinstall.ts bind-mounts as /root/.gitconfig. Only needed (and only
+  # bash-compatible) on Linux agents.
+  - script: |
+      set -e
+      CONTAINER_GITCONFIG="$(Build.SourcesDirectory)/.build/.gitconfig-distro"
+      rm -f "$CONTAINER_GITCONFIG"
+      for repo in vscode-encrypt vsda vscode-regexp-languagedetection; do
+        for url in \
+          "https://github.com/microsoft/$repo" \
+          "https://github.com/microsoft/$repo.git" \
+          "ssh://git@github.com/microsoft/$repo" \
+          "ssh://git@github.com/microsoft/$repo.git"; do
+          git config --file "$CONTAINER_GITCONFIG" --add url."file:///root/vscode/.build/$repo".insteadOf "$url"
+        done
+      done
+    condition: and(succeeded(), eq(variables['Agent.OS'], 'Linux'))
+    displayName: Write container git redirects for Alpine

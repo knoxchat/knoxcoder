@@ -1,0 +1,35 @@
+{
+  "name": "theme-defaults",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "categories": [
+    "Themes"
+  ],
+  "version": "10.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "contributes": {
+    "themes": [
+      {
+        "id": "Light",
+        "label": "%lightThemeLabel%",
+        "uiTheme": "vs",
+        "path": "./themes/light.json"
+      }
+    ],
+    "iconThemes": [
+      {
+        "id": "vs-minimal",
+        "label": "%minimalIconThemeLabel%",
+        "path": "./fileicons/vs_minimal-icon-theme.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}
