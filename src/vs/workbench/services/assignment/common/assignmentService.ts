@@ -21,7 +21,7 @@ import { IWorkbenchEnvironmentService } from '../../environment/common/environme
 import { importAMDNodeModule } from '../../../../amdX.js';
 import { timeout } from '../../../../base/common/async.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { CopilotAssignmentFilterProvider } from './assignmentFilters.js';
+import { AssistAssignmentFilterProvider } from './assignmentFilters.js';
 import { AssignmentContextFilter } from './assignmentContextFilter.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -252,7 +252,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			this.environmentService.isSessionsWindow ? WindowKind.Agents : WindowKind.Editor
 		);
 
-		const extensionsFilterProvider = this.instantiationService.createInstance(CopilotAssignmentFilterProvider);
+		const extensionsFilterProvider = this.instantiationService.createInstance(AssistAssignmentFilterProvider);
 		this.tasSetupDisposables.add(extensionsFilterProvider);
 		this.tasSetupDisposables.add(extensionsFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
 

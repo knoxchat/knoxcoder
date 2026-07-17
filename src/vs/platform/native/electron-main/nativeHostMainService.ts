@@ -297,13 +297,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				forceTempProfile: options.forceTempProfile,
 			});
 
-			// Hand off a chat session to the opened window so it restores both the
+			// Hand off a assist session to the opened window so it restores both the
 			// folder and the session (e.g. the Agents window "Open in VS Code" flow).
 			// Only meaningful when exactly one window is opened so the session is
 			// not sent to an ambiguous target.
-			const chatSessionToOpen = options.chatSessionToOpen;
-			if (chatSessionToOpen && windows.length === 1) {
-				windows[0].sendWhenReady('vscode:openChatSession', CancellationToken.None, URI.revive(chatSessionToOpen).toString());
+			const assistSessionToOpen = options.assistSessionToOpen;
+			if (assistSessionToOpen && windows.length === 1) {
+				windows[0].sendWhenReady('vscode:openAssistSession', CancellationToken.None, URI.revive(assistSessionToOpen).toString());
 			}
 		}
 	}

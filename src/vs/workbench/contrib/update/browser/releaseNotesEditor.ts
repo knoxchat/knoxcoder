@@ -517,7 +517,7 @@ export class ReleaseNotesManager extends Disposable {
 						min-width: 0;
 					}
 
-					/* Responsive breakpoint - Hide TOC on smaller screens */
+					/* Responsive breakpoint - Hide TOC on smaller screens */,
 					@media (max-width: 576px) {
 						#toc-nav {
 							display: none;

@@ -392,7 +392,7 @@ function testConfiguration(external: IExternalTaskRunnerConfiguration, builder: 
 	const reporter = new ProblemReporter();
 	const result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService());
 	if (reporter.receivedMessage) {
-		assert.ok(false, reporter.lastMessage);
+		assert.ok(false, reporter.lastMessage ?? '');
 	}
 	assertConfiguration(result, builder.result);
 }

@@ -15,14 +15,14 @@ export const IAccessibleViewService = createDecorator<IAccessibleViewService>('a
 
 export const enum AccessibleViewProviderId {
 	Terminal = 'terminal',
-	TerminalChat = 'terminal-chat',
+	TerminalChat = 'terminal-assist',
 	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
 	MergeEditor = 'mergeEditor',
 	PanelChat = 'panelChat',
 	ChatTerminalOutput = 'chatTerminalOutput',
 	ChatThinking = 'chatThinking',
-	InlineChat = 'inlineChat',
+	InlineAssist = 'inlineAssist',
 	AgentChat = 'agentChat',
 	QuickChat = 'quickChat',
 	InlineCompletions = 'inlineCompletions',

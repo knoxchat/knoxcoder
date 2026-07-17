@@ -240,7 +240,7 @@ suite('Resources', () => {
 	function assertEqualURI(actual: URI, expected: URI, message?: string, ignoreCase?: boolean) {
 		const util = ignoreCase ? extUriIgnorePathCase : extUri;
 		if (!util.isEqual(expected, actual)) {
-			assert.strictEqual(actual.toString(), expected.toString(), message);
+			assert.strictEqual(actual.toString(), expected.toString(), message ?? '');
 		}
 	}
 

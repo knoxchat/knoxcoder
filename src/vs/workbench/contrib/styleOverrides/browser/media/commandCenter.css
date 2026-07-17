@@ -8,7 +8,7 @@
  *
  * Mirrors the Agents window title-bar styling (see
  * src/vs/sessions/contrib/sessions/browser/media/sessionsTitleBarWidget.css and
- * src/vs/workbench/contrib/chat/browser/agentSessions/experiments/media/agenttitlebarstatuswidget.css):
+ * src/vs/workbench/contrib/assist/browser/agentSessions/experiments/media/agenttitlebarstatuswidget.css):
  * the command center and agent-status input sit on a transparent background at
  * rest and only reveal the command-center active background/border on hover,
  * instead of carrying a solid fill the whole time.
@@ -39,7 +39,7 @@
 }
 
 /*
- * Connected badge segments (sparkle / chat toggle dropdown, status sections and
+ * Connected badge segments (sparkle / assist toggle dropdown, status sections and
  * the command-center toolbar) also default to the indicator background. Clear
  * it so the whole pill reads transparent at rest; each segment's own `:hover`
  * rule still reveals the active background, and the `filtered` state keeps its

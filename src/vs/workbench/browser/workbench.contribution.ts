@@ -516,18 +516,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.commandPalette.experimental.askChatLocation': {
 				'type': 'string',
 				tags: ['experimental'],
-				'description': localize('askChatLocation', "Controls where the command palette should ask chat questions."),
-				'default': 'chatView',
-				enum: ['chatView', 'quickChat'],
+				'description': localize('askChatLocation', "Controls where the command palette should ask assist questions."),
+				'default': 'assistView',
+				enum: ['assistView', 'quickChat'],
 				enumDescriptions: [
-					localize('askChatLocation.chatView', "Ask chat questions in the Chat view."),
-					localize('askChatLocation.quickChat', "Ask chat questions in Quick Chat.")
+					localize('askChatLocation.assistView', "Ask assist questions in the assist view."),
+					localize('askChatLocation.quickChat', "Ask assist questions in Quick assist.")
 				]
 			},
 			'workbench.commandPalette.showAskInChat': {
 				'type': 'boolean',
 				tags: ['experimental'],
-				'description': localize('showAskInChat', "Controls whether the command palette shows 'Ask in Chat' option at the bottom."),
+				'description': localize('showAskInChat', "Controls whether the command palette shows 'Ask in assist' option at the bottom."),
 				'default': true
 			},
 			'workbench.commandPalette.experimental.enableNaturalLanguageSearch': {

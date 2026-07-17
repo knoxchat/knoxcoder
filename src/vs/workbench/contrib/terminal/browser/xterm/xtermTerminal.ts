@@ -277,7 +277,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				getCellSizePixels: true,
 				getWinSizeChars: true,
 			},
-		}));
+		} as any));
 		this._updateSmoothScrolling();
 		interface ITerminalWithCore extends RawXtermTerminal {
 			_core: IXtermCore;
@@ -319,7 +319,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._updateUnicodeVersion();
 		this._markNavigationAddon = this._instantiationService.createInstance(MarkNavigationAddon, options.capabilities);
 		this.raw.loadAddon(this._markNavigationAddon);
-		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, resource, this._capabilities);
+		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._register(this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e)));
 		this._register(this._decorationAddon.onDidRequestCopyAsHtml(e => this._onDidRequestCopyAsHtml.fire(e)));
 		this.raw.loadAddon(this._decorationAddon);
@@ -599,11 +599,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.macOptionClickForcesSelection = config.macOptionClickForcesSelection;
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
-		this.raw.options.scrollbar = this._getScrollbarOptions();
+		(this.raw.options as any).scrollbar = this._getScrollbarOptions();
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
 		this.raw.options.allowTransparency = config.enableImages;
-		this.raw.options.vtExtensions = {
+		(this.raw.options as any).vtExtensions = {
 			kittyKeyboard: config.enableKittyKeyboardProtocol,
 			win32InputMode: config.enableWin32InputMode,
 		};
@@ -688,10 +688,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 					this._lastFindResult = results;
 					this._onDidChangeFindResults.fire(results);
 				}));
-				this._store.add(this._searchAddon.onBeforeSearch(() => {
+				this._store.add((this._searchAddon as any).onBeforeSearch(() => {
 					this._onBeforeSearch.fire();
 				}));
-				this._store.add(this._searchAddon.onAfterSearch(() => {
+				this._store.add((this._searchAddon as any).onAfterSearch(() => {
 					this._onAfterSearch.fire();
 				}));
 				return this._searchAddon;
@@ -854,7 +854,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	private _setTextBlinking(enabled: boolean): void {
 		const blinkIntervalDuration = enabled ? TextBlinkConstants.IntervalDuration : 0;
-		const options = this.raw.options;
+		const options = this.raw.options as any;
 		if (options.blinkIntervalDuration !== blinkIntervalDuration) {
 			options.blinkIntervalDuration = blinkIntervalDuration;
 		}
@@ -892,9 +892,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._webglAddonCustomGlyphs = this._terminalConfigurationService.config.customGlyphs;
 
 		const Addon = await this._xtermAddonLoader.importAddon('webgl');
-		this._webglAddon = new Addon({
-			customGlyphs: this._terminalConfigurationService.config.customGlyphs
-		});
+		this._webglAddon = new Addon(this._terminalConfigurationService.config.customGlyphs);
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
@@ -975,7 +973,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 					comment: 'Tracks when the xterm.js image addon is loaded, including dynamic enablement';
 				};
 				this._telemetryService.publicLog2<{}, TerminalImageAddonActivatedClassification>('terminal/imageAddonActivated');
-				this._register(this._imageAddon.onImageAdded(() => {
+				this._register((this._imageAddon as any).onImageAdded(() => {
 					type TerminalImageAddedClassification = {
 						owner: 'anthonykim1';
 						comment: 'Tracks when an image is added to the terminal via the image addon';

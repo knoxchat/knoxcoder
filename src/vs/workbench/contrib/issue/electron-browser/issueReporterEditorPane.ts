@@ -35,7 +35,6 @@ import product from '../../../../platform/product/common/product.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { ChatMessageRole, ILanguageModelsService, getTextResponseFromStream } from '../../chat/common/languageModels.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -91,13 +90,12 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(IssueReporterEditorPane.ID, group, telemetryService, themeService, storageService);
@@ -366,51 +364,9 @@ export class IssueReporterEditorPane extends EditorPane {
 			}
 		}));
 
-		// Wire AI title generation
-		this.inputDisposables.add(this.wizard.onDidRequestGenerateTitle(async (description) => {
-			try {
-				// Wait for installed extensions to be registered so the Copilot Chat
-				// extension has had a chance to contribute its `copilot` language
-				// model vendor before we try to resolve a model. (Other call sites
-				// like the chat thinking title generator are reached after Copilot
-				// has already activated; we're the only place that can be invoked
-				// before it has.)
-				await this.extensionService.whenInstalledExtensionsRegistered();
-
-				// `copilot-utility-small` matches what other utility callers in the
-				// workbench use (chat thinking summaries, tool-risk assessment,
-				// chat-edit explanations). The earlier `copilot-fast` id never
-				// existed and was the root cause of the empty-result regression.
-				const modelIds = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
-				if (modelIds.length === 0) {
-					this.logService.warn('[IssueReporterEditorPane] No language models available for title generation');
-					this.wizard?.resetGenerateButton();
-					return;
-				}
-				const modelId = modelIds[0];
-				const response = await this.languageModelsService.sendChatRequest(
-					modelId,
-					undefined,
-					[{
-						role: ChatMessageRole.User,
-						content: [{
-							type: 'text',
-							value: `Generate a concise issue title (max 10 words, no quotes, no prefix like "Bug:" or "Feature:") for this bug report description:\n\n${description}`,
-						}],
-					}],
-					{},
-					CancellationToken.None,
-				);
-				const title = (await getTextResponseFromStream(response)).trim().replace(/^["']|["']$/g, '');
-				if (title && this.wizard) {
-					this.wizard.setGeneratedTitle(title);
-				} else {
-					this.wizard?.resetGenerateButton();
-				}
-			} catch (err) {
-				this.logService.error('[IssueReporterEditorPane] Title generation failed:', err);
-				this.wizard?.resetGenerateButton();
-			}
+		// AI title generation is not available without assist language models
+		this.inputDisposables.add(this.wizard.onDidRequestGenerateTitle(async () => {
+			this.wizard?.resetGenerateButton();
 		}));
 	}
 

@@ -17,7 +17,7 @@ import { ILocalizedString } from '../../../platform/action/common/action.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../platform/quickinput/common/quickAccess.js';
 import { Codicon } from '../../../base/common/codicons.js';
 
-const UNIFIED_AGENTS_BAR_SETTING = 'chat.unifiedAgentsBar.enabled';
+const UNIFIED_AGENTS_BAR_SETTING = 'assist.unifiedAgentsBar.enabled';
 
 //#region Quick access management commands and keys
 
@@ -179,7 +179,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 
 		const configurationService = accessor.get(IConfigurationService);
 		const commandService = accessor.get(ICommandService);
-		const aiFeaturesDisabled = configurationService.getValue<boolean>('chat.disableAIFeatures') === true;
+		const aiFeaturesDisabled = configurationService.getValue<boolean>('assist.disableAIFeatures') === true;
 		const useUnifiedQuickAccess = !aiFeaturesDisabled && configurationService.getValue<boolean>(UNIFIED_AGENTS_BAR_SETTING) === true;
 		if (useUnifiedQuickAccess) {
 			try {

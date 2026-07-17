@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { gulp, filter } from './lib/gulp/facade.ts';
+import { gulp, filter, merge} from './lib/gulp/facade.ts';
 import path from 'path';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
@@ -129,9 +129,9 @@ function toExternalDTS(contents: string) {
 }
 
 const finalEditorResourcesTask = task.define('final-editor-resources', () => {
-	return es.merge(
+	return merge(
 		// other assets
-		es.merge(
+		merge(
 			gulp.src('build/monaco/LICENSE'),
 			gulp.src('build/monaco/ThirdPartyNotices.txt'),
 			gulp.src('src/vs/monaco.d.ts')

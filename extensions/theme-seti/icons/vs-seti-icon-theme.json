@@ -1980,7 +1980,7 @@
 		"blade": "_php",
 		"prompt": "_markdown",
 		"instructions": "_markdown",
-		"chatagent": "_markdown",
+		"promptagent": "_markdown",
 		"skill": "_markdown"
 	},
 	"light": {
@@ -2306,7 +2306,7 @@
 			"blade": "_php_light",
 			"prompt": "_markdown_light",
 			"instructions": "_markdown_light",
-			"chatagent": "_markdown_light",
+			"promptagent": "_markdown_light",
 			"skill": "_markdown_light"
 		},
 		"fileNames": {

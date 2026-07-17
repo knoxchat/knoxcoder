@@ -1173,28 +1173,28 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 	}
 
-	async $resolveHistoryItemChatContext(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<string | undefined> {
+	async $resolveHistoryItemAssistContext(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<string | undefined> {
 		try {
 			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-			const chatContext = await historyProvider?.resolveHistoryItemChatContext(historyItemId, token);
+			const assistContext = await historyProvider?.resolveHistoryItemAssistContext(historyItemId, token);
 
-			return chatContext ?? undefined;
+			return assistContext ?? undefined;
 		}
 		catch (err) {
-			this.logService.error('ExtHostSCM#$resolveHistoryItemChatContext', err);
+			this.logService.error('ExtHostSCM#$resolveHistoryItemAssistContext', err);
 			return undefined;
 		}
 	}
 
-	async $resolveHistoryItemChangeRangeChatContext(sourceControlHandle: number, historyItemId: string, historyItemParentId: string, path: string, token: CancellationToken): Promise<string | undefined> {
+	async $resolveHistoryItemChangeRangeAssistContext(sourceControlHandle: number, historyItemId: string, historyItemParentId: string, path: string, token: CancellationToken): Promise<string | undefined> {
 		try {
 			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-			const chatContext = await historyProvider?.resolveHistoryItemChangeRangeChatContext?.(historyItemId, historyItemParentId, path, token);
+			const assistContext = await historyProvider?.resolveHistoryItemChangeRangeAssistContext?.(historyItemId, historyItemParentId, path, token);
 
-			return chatContext ?? undefined;
+			return assistContext ?? undefined;
 		}
 		catch (err) {
-			this.logService.error('ExtHostSCM#$resolveHistoryItemChangeRangeChatContext', err);
+			this.logService.error('ExtHostSCM#$resolveHistoryItemChangeRangeAssistContext', err);
 			return undefined;
 		}
 	}

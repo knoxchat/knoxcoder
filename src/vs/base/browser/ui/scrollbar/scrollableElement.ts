@@ -291,7 +291,7 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		// Subscribe to global default size changes, but only for axes whose size
 		// was NOT explicitly provided. Elements with explicit sizes (editor,
-		// menus, peek, chat input, etc.) use a fixed size and must not be updated.
+		// menus, peek, assist input, etc.) use a fixed size and must not be updated.
 		const hSizeExplicit = typeof options.horizontalScrollbarSize !== 'undefined';
 		const vSizeExplicit = typeof options.verticalScrollbarSize !== 'undefined';
 		if (!hSizeExplicit || !vSizeExplicit) {

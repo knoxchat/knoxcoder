@@ -14336,7 +14336,7 @@
 		}
 	},
 	{
-		"c": "chat-feature-container",
+		"c": "feature-container",
 		"t": "source.css meta.selector.css entity.other.attribute-name.class.css",
 		"r": {
 			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",

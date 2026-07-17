@@ -25,8 +25,8 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
-const AI_DISABLED_SETTING = 'chat.disableAIFeatures';
-const AGENT_STATUS_ENABLED_SETTING = 'chat.agentsControl.enabled';
+const AI_DISABLED_SETTING = 'assist.disableAIFeatures';
+const AGENT_STATUS_ENABLED_SETTING = 'assist.agentsControl.enabled';
 
 export class CommandCenterControl {
 

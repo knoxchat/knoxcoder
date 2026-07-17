@@ -114,7 +114,7 @@ export const BROWSER_RESTRICTED_PORTS: Record<number, boolean> = {
 	515: true,    // printer
 	526: true,    // tempo
 	530: true,    // courier
-	531: true,    // chat
+	531: true,    // assist
 	532: true,    // netnews
 	540: true,    // uucp
 	548: true,    // AFP (Apple Filing Protocol)

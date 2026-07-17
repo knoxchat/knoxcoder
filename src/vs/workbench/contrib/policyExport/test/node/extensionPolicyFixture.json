@@ -1,24 +1,24 @@
 {
 	"extensionConfigurationPolicy": {
-		"github.copilot.nextEditSuggestions.enabled": {
-			"name": "CopilotNextEditSuggestions",
+		"github.assist.nextEditSuggestions.enabled": {
+			"name": "AssistNextEditSuggestions",
 			"minimumVersion": "1.99",
 			"category": "InteractiveSession",
 			"description": "Whether to enable next edit suggestions (NES). NES can propose a next edit based on your recent changes."
 		},
-		"github.copilot.chat.reviewSelection.enabled": {
-			"name": "CopilotReviewSelection",
+		"github.assist.assist.reviewSelection.enabled": {
+			"name": "AssistReviewSelection",
 			"minimumVersion": "1.104",
 			"category": "InteractiveSession",
 			"description": "Enables code review on current selection."
 		},
-		"github.copilot.chat.reviewAgent.enabled": {
-			"name": "CopilotReviewAgent",
+		"github.assist.assist.reviewAgent.enabled": {
+			"name": "AssistReviewAgent",
 			"minimumVersion": "1.104",
 			"category": "InteractiveSession",
 			"description": "Enables the code review agent."
 		},
-		"github.copilot.chat.claudeAgent.enabled": {
+		"github.assist.assist.claudeAgent.enabled": {
 			"policyReference": {
 				"name": "Claude3PIntegration"
 			}

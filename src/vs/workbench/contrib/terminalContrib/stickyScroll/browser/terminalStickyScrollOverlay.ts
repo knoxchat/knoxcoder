@@ -50,8 +50,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 	private readonly _xtermAddonLoader = new XtermAddonImporter();
 	private _serializeAddon?: SerializeAddonType;
-	private readonly _webglAddon: MutableDisposable<WebglAddonType> = this._register(new MutableDisposable());
-	private _webglAddonCustomGlyphs?: boolean;
+	private _webglAddon: MutableDisposable<WebglAddonType> = this._register(new MutableDisposable());
 	private _ligaturesAddon?: LigaturesAddonType;
 
 	private _element?: HTMLElement;
@@ -201,7 +200,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			this._hide();
 		}
 	}
-
 	@debounce(100)
 	private _show(): void {
 		if (this._pendingShowOperation) {
@@ -468,7 +466,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._register(addStandardDisposableListener(hoverOverlay, 'mouseover', () => overlay.options.theme = this._getTheme(true)));
 		this._register(addStandardDisposableListener(hoverOverlay, 'mouseleave', () => overlay.options.theme = this._getTheme(false)));
 	}
-
 	@throttle(0)
 	private _syncOptions() {
 		if (!this._stickyScrollOverlay) {
@@ -497,21 +494,17 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			drawBoldTextInBrightColors: o.drawBoldTextInBrightColors,
 			minimumContrastRatio: o.minimumContrastRatio,
 			tabStopWidth: o.tabStopWidth,
+			customGlyphs: o.customGlyphs,
 		};
 	}
-
 	@throttle(0)
 	private async _refreshGpuAcceleration() {
-		if (this._shouldLoadWebgl() && (!this._webglAddon.value || this._webglAddonCustomGlyphs !== this._terminalConfigurationService.config.customGlyphs)) {
+		if (this._shouldLoadWebgl() && !this._webglAddon.value) {
 			const WebglAddon = await this._xtermAddonLoader.importAddon('webgl');
 			if (this._store.isDisposed) {
 				return;
 			}
-			// Dispose of existing addon before creating a new one to avoid leaking WebGL contexts
-			this._webglAddon.value = new WebglAddon({
-				customGlyphs: this._terminalConfigurationService.config.customGlyphs
-			});
-			this._webglAddonCustomGlyphs = this._terminalConfigurationService.config.customGlyphs;
+			this._webglAddon.value = new WebglAddon();
 			this._stickyScrollOverlay?.loadAddon(this._webglAddon.value);
 		} else if (!this._shouldLoadWebgl() && this._webglAddon.value) {
 			this._webglAddon.clear();

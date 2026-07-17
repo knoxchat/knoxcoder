@@ -214,7 +214,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			}
 		}
 
-		// Menu-contributed actions (e.g. fix with inline chat)
+		// Menu-contributed actions (e.g. fix with inline assist)
 		const menuActions: MenuItemAction[] = [];
 		for (const [, actions] of this._menuService.getMenuActions(MenuId.MarkerHoverStatusBar, this._contextKeyService)) {
 			for (const action of actions) {
@@ -309,7 +309,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						}
 					});
 				} else {
-					// Only show menu-contributed actions (e.g. inline chat Fix) when there
+					// Only show menu-contributed actions (e.g. inline assist Fix) when there
 					// is no AI code action, to avoid duplicate Fix entry points.
 					renderMenuActions();
 				}

@@ -69,7 +69,7 @@ class ManagedTestSocket extends Disposable implements ISocket {
 
 	constructor(private readonly _socket: import('net').Socket) {
 		super();
-		this._socket.on('data', d => this._onData.fire(VSBuffer.wrap(d)));
+		this._socket.on('data', d => this._onData.fire(VSBuffer.wrap(Buffer.isBuffer(d) ? d : Buffer.from(d))));
 		this._socket.on('end', () => this._onEnd.fire());
 		this._socket.on('close', hadError => this._onClose.fire({ type: SocketCloseEventType.NodeSocketCloseEvent, hadError, error: undefined }));
 		// Swallow transport errors; they surface to the proxy as a close event.
@@ -478,7 +478,7 @@ suite('TunnelProxy', () => {
 		socket.write(`GET /tunneled HTTP/1.1\r\nHost: 127.0.0.1:${targetPort}\r\nConnection: close\r\n\r\n`);
 		const body = await new Promise<string>((resolve, reject) => {
 			const chunks: Buffer[] = [];
-			socket.on('data', c => chunks.push(c));
+			socket.on('data', c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
 			socket.on('end', () => resolve(Buffer.concat(chunks).toString()));
 			socket.on('error', reject);
 		});
@@ -704,7 +704,7 @@ suite('TunnelProxy', () => {
 			socket.write(`GET /managed-tunnel HTTP/1.1\r\nHost: 127.0.0.1:${targetPort}\r\nConnection: close\r\n\r\n`);
 			const body = await new Promise<string>((resolve, reject) => {
 				const chunks: Buffer[] = [];
-				socket.on('data', c => chunks.push(c));
+				socket.on('data', c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
 				socket.on('end', () => resolve(Buffer.concat(chunks).toString()));
 				socket.on('error', reject);
 			});

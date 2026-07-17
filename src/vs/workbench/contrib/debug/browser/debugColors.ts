@@ -167,7 +167,7 @@ export function registerColors() {
 				color: ${debugViewExceptionLabelForegroundColor};
 			}
 
-			/* Animation of changed values in Debug viewlet */
+			/* Animation of changed values in Debug viewlet */,
 			@keyframes debugViewletValueChanged {
 				0%   { background-color: ${debugViewValueChangedHighlightColor.transparent(0)} }
 				5%   { background-color: ${debugViewValueChangedHighlightColor.transparent(0.9)} }

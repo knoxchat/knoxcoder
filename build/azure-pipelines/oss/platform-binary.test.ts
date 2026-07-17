@@ -40,7 +40,6 @@ const archYes = [
 	'@napi-rs/canvas-linux-arm-gnueabihf',
 	'@parcel/watcher-linux-x64-glibc',
 	'@parcel/watcher-win32-ia32',
-	'@github/copilot-linuxmusl-arm64',
 	'@esbuild/linux-x64',
 	'@esbuild/darwin-arm64',
 	'@esbuild/win32-x64',
@@ -55,7 +54,6 @@ const archNo = [
 	'sharp',
 	'@napi-rs/canvas',
 	'@parcel/watcher',
-	'@github/copilot',
 	'esbuild',
 	'react',
 ];

@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IFileService } from '../../../files/common/files.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
+import { AgentNetworkDomainSettingId } from '../../common/terminalSandboxEngine.js';
 import type { ISandboxDependencyStatus, IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, IWindowsMxcPolicyContainment, IWindowsMxcSandboxPolicy } from '../../common/sandboxHelperService.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../common/settings.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../common/terminalSandboxEngine.js';

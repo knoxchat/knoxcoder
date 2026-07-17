@@ -1268,7 +1268,7 @@ configurationRegistry.registerConfiguration({
 			default: 'fullCell'
 		},
 		[NotebookSetting.cellGenerate]: {
-			markdownDescription: nls.localize('notebook.cellGenerate', "Enable experimental generate action to create code cell with inline chat enabled."),
+			markdownDescription: nls.localize('notebook.cellGenerate', "Enable experimental generate action to create code cell with inline assist enabled."),
 			type: 'boolean',
 			default: true
 		},

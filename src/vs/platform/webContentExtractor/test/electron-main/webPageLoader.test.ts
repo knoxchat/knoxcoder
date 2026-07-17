@@ -5,12 +5,10 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { IAgentNetworkFilterService } from '../../../networkFilter/common/networkFilterService.js';
 import { AXNode } from '../../electron-main/cdpAccessibilityDomain.js';
 import { WebPageLoader } from '../../electron-main/webPageLoader.js';
 import { IWebContentExtractorOptions } from '../../common/webContentExtractor.js';
@@ -121,17 +119,11 @@ suite('WebPageLoader', () => {
 	});
 
 	function createWebPageLoader(uri: URI, options?: IWebContentExtractorOptions, isTrustedDomain?: (uri: URI) => boolean, isDomainAllowed?: (uri: URI) => boolean): WebPageLoader {
-		const agentNetworkFilterService: IAgentNetworkFilterService = {
-			_serviceBrand: undefined,
-			onDidChange: Event.None,
-			isUriAllowed: isDomainAllowed ?? (() => true),
-			formatError: (u) => `Access to ${u.authority} is blocked by network domain policy.`,
-		};
 		const loader = new WebPageLoader((options) => {
 			window = new MockBrowserWindow(options);
 			// eslint-disable-next-line local/code-no-any-casts
 			return window as any;
-		}, new NullLogService(), uri, options, isTrustedDomain ?? (() => false), agentNetworkFilterService);
+		}, new NullLogService(), uri, options, isTrustedDomain ?? (() => false));
 		disposables.add(loader);
 		return loader;
 	}

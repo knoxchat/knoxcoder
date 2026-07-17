@@ -24,15 +24,12 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { ExtensionHostKind } from '../../services/extensions/common/extensionHostKind.js';
 import { IURLService } from '../../../platform/url/common/url.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
-import { fetchAuthorizationServerMetadata, IAuthorizationTokenResponse } from '../../../base/common/oauth.js';
+import { IAuthorizationTokenResponse } from '../../../base/common/oauth.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../platform/secrets/common/secrets.js';
-import { mcpOAuthClientSecretStorageKey } from '../../contrib/mcp/common/mcpTypes.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { IMcpEnterpriseManagedAuthIdpConfig, mcpEnterpriseManagedAuthIdpSection } from '../../contrib/mcp/common/mcpConfiguration.js';
 
 export interface AuthenticationInteractiveOptions {
 	detail?: string;
@@ -135,7 +132,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IDynamicAuthenticationProviderStorageService private readonly dynamicAuthProviderStorageService: IDynamicAuthenticationProviderStorageService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 	) {
 		super();
@@ -185,36 +181,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					initialTokens
 				);
 			},
-			createXaa: async (issuer) => {
-				// XAA providers are keyed by issuer alone so they can be reused across many enterprise-managed servers.
-				const authProviderId = `xaa:${issuer.toString(true)}`;
-				const { metadata: serverMetadata } = await fetchAuthorizationServerMetadata(issuer.toString(true));
-
-				// Prefer the user-configured IdP client_id / client_secret over any cached registration.
-				// XAA requires a pre-provisioned (admin-approved) client_id at the IdP — there is no DCR
-				// fallback — so an explicit setting is the most reliable source. Typically delivered via
-				// enterprise policy; developers may hand-edit settings.json for local testing.
-				const configuredIdp = this.configurationService.getValue<IMcpEnterpriseManagedAuthIdpConfig | undefined>(mcpEnterpriseManagedAuthIdpSection) ?? {};
-				const configuredClientId = configuredIdp.clientId?.trim() || undefined;
-				const configuredClientSecret = configuredIdp.clientSecret?.trim() || undefined;
-				const cached = await this.dynamicAuthProviderStorageService.getClientRegistration(authProviderId);
-				const clientId = configuredClientId ?? cached?.clientId;
-				const clientSecret = configuredClientSecret ?? cached?.clientSecret;
-				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
-				if (clientId) {
-					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(authProviderId, clientId);
-				}
-				// Note: XAA does NOT use CIMD or DCR — the requesting app must be pre-registered with the
-				// IdP under an admin-approved cross-app-access trust relationship. The ext-host side
-				// (`$registerXaaAuthProvider`) prompts the user for client_id + client_secret when there
-				// is no cached registration and no configured value.
-				return await this._proxy.$registerXaaAuthProvider(
-					issuer,
-					serverMetadata,
-					clientId,
-					clientSecret,
-					initialTokens
-				);
+			createXaa: async (_issuer) => {
+				throw new Error('Cross-app authentication is not supported');
 			}
 		}));
 	}
@@ -696,8 +664,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $promptForResourceClientSecret(resourceClientId: string, resource: string): Promise<string | undefined> {
 		// Surface to the user that whatever they enter (including blank == none) will be remembered
-		// in OS secret storage, scoped to the MCP server URL + the resource client_id. This means:
-		//   - the codelens above `oauth.clientId` in mcp.json will flip to "Replace Client Secret"
+		// in OS secret storage, scoped to the tool server URL + the resource client_id. This means:
+		//   - the codelens above `oauth.clientId` in tool.json will flip to "Replace Client Secret"
 		//   - subsequent runs read the secret directly from storage and never re-prompt.
 		//
 		// Return contract:
@@ -709,7 +677,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			title: nls.localize('xaaResourceSecretTitle', "Resource Client Secret Required"),
 			prompt: nls.localize(
 				'xaaResourceSecretPrompt',
-				"The resource at '{0}' uses a per-resource client identifier '{1}'. Enter the matching client secret (leave blank if none). The value is saved in OS secret storage; manage it later via the 'Set Client Secret' code lens in mcp.json.",
+				"The resource at '{0}' uses a per-resource client identifier '{1}'. Enter the matching client secret (leave blank if none). The value is saved in OS secret storage; manage it later via the 'Set Client Secret' code lens in tool.json.",
 				resource,
 				resourceClientId,
 			),
@@ -722,7 +690,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			return undefined;
 		}
 		const trimmed = value.trim();
-		const key = mcpOAuthClientSecretStorageKey(resource, resourceClientId);
+		const key = `auth.resourceClientSecret.${resource}.${resourceClientId}`;
 		try {
 			if (trimmed.length === 0) {
 				// Blank-on-confirm means "no client secret" (e.g. token_endpoint_auth_method=none).

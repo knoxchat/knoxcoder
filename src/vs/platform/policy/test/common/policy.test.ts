@@ -24,7 +24,7 @@ suite('AbstractPolicyService', () => {
 		await service.updatePolicyDefinitions({
 			'WithCallback': {
 				type: 'boolean',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+				value: (policyData) => policyData.preview_features_enabled === false ? false : undefined,
 				restrictedValue: false,
 			},
 			'PlainDefinition': {

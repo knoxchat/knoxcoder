@@ -95,9 +95,6 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 		}
 
 		const uri = this.client.toResource(item.file);
-		if (fileSchemes.isOfScheme(uri, fileSchemes.chatCodeBlock)) {
-			return;
-		}
 
 		const label = TypeScriptWorkspaceSymbolProvider.getLabel(item);
 		const info = new vscode.SymbolInformation(

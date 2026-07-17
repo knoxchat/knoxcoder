@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import es from 'event-stream';
+import { merge } from '../lib/merge.ts';
 import Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
 import { filter, gzip, azureStorage } from '../lib/gulp/facade.ts';
@@ -98,7 +99,7 @@ async function main(): Promise<void> {
 		.pipe(filter(f => !MimeTypesToCompress.has(mime.lookup(f.path))))
 		.pipe(azureStorage.upload(options(false)));
 
-	const out = es.merge(compressed, uncompressed)
+	const out = merge(compressed, uncompressed)
 		.pipe(es.through(function (f) {
 			console.log('Uploaded:', f.relative);
 			files.push(f.relative);

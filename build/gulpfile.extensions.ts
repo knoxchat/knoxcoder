@@ -11,7 +11,7 @@ import es from 'event-stream';
 import fancyLog from 'fancy-log';
 import * as fs from 'fs';
 import glob from 'glob';
-import { gulp, filter, plumber, sourcemaps } from './lib/gulp/facade.ts';
+import { gulp, filter, plumber, sourcemaps, merge} from './lib/gulp/facade.ts';
 import * as path from 'path';
 import * as nodeUtil from 'util';
 import * as ext from './lib/extensions.ts';
@@ -122,7 +122,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const srcRoot = path.dirname(tsconfigFile);
 	const srcBase = path.join(srcRoot, 'src');
 	const src = path.join(srcBase, '**');
-	const srcOpts = { cwd: root, base: srcBase, dot: true };
+	const srcOpts = { cwd: root, base: srcBase, dot: true, resolveSymlinks: false };
 
 	const out = path.join(srcRoot, 'out');
 	const baseUrl = getBaseUrl(out);
@@ -180,7 +180,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const transpileTask = task.define(`transpile-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false, true, true);
 		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
-		const input = es.merge(nonts, pipeline.tsProjectSrc());
+		const input = merge(nonts, pipeline.tsProjectSrc());
 
 		return input
 			.pipe(pipeline())
@@ -218,7 +218,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 			});
 			return result;
 		}, 200));
-		const watchStream = es.merge(nonts.pipe(gulp.dest(out)), watchNonTs, tsgoStream);
+		const watchStream = merge(nonts.pipe(gulp.dest(out)), watchNonTs, tsgoStream);
 
 		return watchStream;
 	}));
@@ -281,13 +281,6 @@ task.task(compileNonNativeExtensionsBuildTask);
  */
 export const compileNativeExtensionsBuildTask = task.define('compile-native-extensions-build', () => ext.packageNativeLocalExtensionsStream(false, false).pipe(gulp.dest('.build')));
 task.task(compileNativeExtensionsBuildTask);
-
-/**
- * Compiles the built-in copilot extension for the build.
- * Used by non-CI local builds where copilot is not downloaded as a VSIX.
- */
-export const compileCopilotExtensionBuildTask = task.define('compile-copilot-extension-build', () => ext.packageCopilotExtensionStream(false).pipe(gulp.dest('.build')));
-task.task(compileCopilotExtensionBuildTask);
 
 /**
  * Compiles the extensions for the build.

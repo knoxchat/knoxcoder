@@ -48,7 +48,7 @@ suite('Release notes renderer', () => {
 	<nav id="toc-nav">
 		<div>In this update</div>
 		<ul>
-			<li><a href="#chat">test</a></li>
+			<li><a href="#assist">test</a></li>
 		</ul>
 	</nav>
 	<div class="notes-main">

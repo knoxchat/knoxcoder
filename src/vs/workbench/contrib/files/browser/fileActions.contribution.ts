@@ -761,7 +761,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 });
 
 
-// Chat used attachment anchor context menu
+// assist used attachment anchor context menu
 
 MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	group: 'navigation',
@@ -791,9 +791,9 @@ MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	when: ResourceContextKey.IsFileSystemResource
 });
 
-// Chat resource anchor attachments/anchors context menu
+// assist resource anchor attachments/anchors context menu
 
-for (const menuId of [MenuId.ChatInlineResourceAnchorContext, MenuId.ChatInputResourceAttachmentContext]) {
+for (const menuId of [MenuId.ChatInlineResourceAnchorContext, MenuId.AssistInputResourceAttachmentContext]) {
 	MenuRegistry.appendMenuItem(menuId, {
 		group: 'navigation',
 		order: 10,

@@ -8,7 +8,7 @@ import * as cp from 'child_process';
 import * as playwright from '@playwright/test';
 import * as url from 'url';
 import * as tmp from 'tmp';
-import * as rimraf from 'rimraf';
+import { rimraf } from 'rimraf';
 import { URI } from 'vscode-uri';
 import kill from 'tree-kill';
 import minimist from 'minimist';

@@ -551,7 +551,7 @@ impl Auth {
 	}
 
 	/// Runs the device-flow login for a specific provider with custom OAuth
-	/// scopes. Unlike [`login`], this is purpose-built for agent host auth
+	/// scopes. Unlike [`login`], this is purpose-built for supervisor auth
 	/// where the scopes are dictated by the server's protected resource
 	/// metadata rather than hardcoded defaults.
 	pub async fn login_with_scopes(

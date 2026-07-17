@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
-import { normalizeManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { normalizeManagedSettings } from '../../../../platform/policy/common/managedSettings.js';
 
 /**
- * Response shape from the Copilot `/copilot_internal/managed_settings` endpoint.
- * The endpoint returns `.github/copilot/settings.json` content from the
+ * Response shape from the Assist `/assist_internal/managed_settings` endpoint.
+ * The endpoint returns `.github/assist/settings.json` content from the
  * enterprise's source org. An empty response (`{}`) is success and means
  * "no policy file present".
  *

@@ -53,7 +53,7 @@ export const GRANT_TYPE_JWT_BEARER = 'urn:ietf:params:oauth:grant-type:jwt-beare
  * @param audience the *authorization server* URL of the resource (the issuer
  *   that will redeem the ID-JAG). Required.
  * @param resource the resource indicator (RFC 8707) — the URL of the actual
- *   protected resource (e.g. the MCP server URL). Optional but typically required
+ *   protected resource (e.g. the tool server URL). Optional but typically required
  *   in practice.
  * @param scopes scopes the requesting app wants granted at the resource.
  */
@@ -1189,7 +1189,7 @@ export interface IFetchResourceMetadataOptions {
 /**
  * Fetches and validates OAuth 2.0 protected resource metadata from the given URL.
  *
- * @param targetResource The target resource URL to compare origins with (e.g., the MCP server URL)
+ * @param targetResource The target resource URL to compare origins with (e.g., the tool server URL)
  * @param resourceMetadataUrl Optional URL to fetch the resource metadata from. If not provided, will try well-known URIs.
  * @param options Configuration options for the fetch operation
  * @returns Promise that resolves to an object containing the validated resource metadata and any errors encountered during discovery

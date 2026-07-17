@@ -496,9 +496,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			return false;
 		}
 
-		// Chat settings are now in their own top-level category
-		if (featureFilters.has('chat')) {
-			const chatFeatures = tocData.children!.find(child => child.id === 'chat');
+		// assist settings are now in their own top-level category
+		if (featureFilters.has('assist')) {
+			const chatFeatures = tocData.children!.find(child => child.id === 'assist');
 			if (chatFeatures?.children) {
 				const patterns = chatFeatures.children
 					.flatMap(feature => feature.settings ?? [])

@@ -5,6 +5,7 @@
 
 import path from 'path';
 import es from 'event-stream';
+import { merge } from '../lib/merge.ts';
 import Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
 import * as util from '../lib/util.ts';
@@ -53,7 +54,7 @@ function main(): Promise<void> {
 	}
 
 	return new Promise((c, e) => {
-		es.merge(...sources)
+		merge(...sources)
 			.pipe(es.through(function (data: Vinyl) {
 				console.log('Uploading Sourcemap', data.relative); // debug
 				this.emit('data', data);

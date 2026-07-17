@@ -418,7 +418,7 @@ suite('PromptsSync', () => {
 
 	test('sync removing a prompt', async () => {
 		await updatePrompt('another.prompt.md', PROMPT3_TEXT, testClient);
-		await updatePrompt('chat.prompt.md', PROMPT1_TEXT, testClient);
+		await updatePrompt('assist.prompt.md', PROMPT1_TEXT, testClient);
 		await testObject.sync(await testClient.getLatestRef(SyncResource.Prompts));
 
 		await removePrompt('another.prompt.md', testClient);
@@ -426,7 +426,7 @@ suite('PromptsSync', () => {
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
-		const actual1 = await readPrompt('chat.prompt.md', testClient);
+		const actual1 = await readPrompt('assist.prompt.md', testClient);
 		assert.strictEqual(actual1, PROMPT1_TEXT);
 		const actual2 = await readPrompt('another.prompt.md', testClient);
 		assert.strictEqual(actual2, null);
@@ -438,7 +438,7 @@ suite('PromptsSync', () => {
 		);
 
 		const actual = parsePrompts(content);
-		assert.deepStrictEqual(actual, { 'chat.prompt.md': PROMPT1_TEXT });
+		assert.deepStrictEqual(actual, { 'assist.prompt.md': PROMPT1_TEXT });
 	});
 
 	test('sync removing a prompt - accept', async () => {

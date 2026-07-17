@@ -171,7 +171,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			if (result?.error) {
 				throw result.error;
 			}
-			// Extension might have been redirected due to deprecation (e.g., github.copilot -> github.copilot-chat)
+			// Extension might have been redirected due to deprecation (e.g., github.assist -> github.assist-assist)
 			// In this case, the result will have the redirected extension's identifier
 			const redirectedResult = results[0];
 			if (redirectedResult?.local) {
@@ -982,9 +982,6 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 
 	private getAllPackExtensionsToUninstall(extension: ILocalExtension, installed: ILocalExtension[], checked: ILocalExtension[] = []): ILocalExtension[] {
 		if (checked.indexOf(extension) !== -1) {
-			return [];
-		}
-		if (this.productService.defaultChatAgent?.extensionId && areSameExtensions(extension.identifier, { id: this.productService.defaultChatAgent.extensionId })) {
 			return [];
 		}
 		checked.push(extension);

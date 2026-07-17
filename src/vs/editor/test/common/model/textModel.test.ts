@@ -28,8 +28,8 @@ function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: numb
 	const r = m.getOptions();
 	m.dispose();
 
-	assert.strictEqual(r.insertSpaces, expectedInsertSpaces, msg);
-	assert.strictEqual(r.tabSize, expectedTabSize, msg);
+	assert.strictEqual(r.insertSpaces, expectedInsertSpaces, msg ?? '');
+	assert.strictEqual(r.tabSize, expectedTabSize, msg ?? '');
 }
 
 function assertGuess(expectedInsertSpaces: boolean | undefined, expectedTabSize: number | undefined | [number], text: string[], msg?: string): void {

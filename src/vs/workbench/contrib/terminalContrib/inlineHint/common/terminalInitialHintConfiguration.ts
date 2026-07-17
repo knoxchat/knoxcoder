@@ -10,7 +10,7 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 
 export const enum TerminalInitialHintSettingId {
 	Enabled = 'terminal.integrated.initialHint',
-	CopilotCli = 'terminal.integrated.initialHintCopilotCli',
+	AssistCli = 'terminal.integrated.initialHintAssistCli',
 }
 
 export const terminalInitialHintConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -21,9 +21,9 @@ export const terminalInitialHintConfiguration: IStringDictionary<IConfigurationP
 		default: true,
 		agentsWindow: { default: false },
 	},
-	[TerminalInitialHintSettingId.CopilotCli]: {
+	[TerminalInitialHintSettingId.AssistCli]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.initialHintCopilotCli', "When enabled, the terminal initial hint will suggest using Copilot CLI by typing {0} instead of opening Copilot Chat.", '`copilot`'),
+		markdownDescription: localize('terminal.integrated.initialHintAssistCli', "When enabled, the terminal initial hint will suggest using Assist CLI by typing {0} instead of opening Assist assist.", '`assist`'),
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],

@@ -262,7 +262,7 @@ export function autorunSelfDisposable(fn: (reader: IReaderWithDispose) => void, 
 /**
  * An autorun with a `dispose()` method on its `reader` which cancels the autorun.
  * It it safe to call `dispose()` synchronously.
- * TODO@hediet/copilot: rename to delete autorunSelfDisposable, and rename autorunSelfDisposable2 to autorunSelfDisposable.
+ * TODO@hediet/assist: rename to delete autorunSelfDisposable, and rename autorunSelfDisposable2 to autorunSelfDisposable.
  */
 export function registerAutorunSelfDisposable(store: DisposableStore, fn: (reader: IReaderWithDispose) => void, debugLocation = DebugLocation.ofCaller()): void {
 	let ar: IDisposable | undefined;

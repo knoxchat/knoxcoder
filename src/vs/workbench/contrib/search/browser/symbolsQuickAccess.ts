@@ -24,8 +24,6 @@ import { prepareQuery, IPreparedQuery, scoreFuzzy2, pieceToQuery } from '../../.
 import { IMatch } from '../../../../base/common/filters.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { ISymbolVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 
 export interface ISymbolQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
 	score?: number;
@@ -66,8 +64,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super(SymbolsQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
@@ -214,26 +211,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					return TriggerAction.CLOSE_PICKER;
 				},
 				accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
-				attach: (keyMods, event) => {
-					// Only support adding context to chat when shift is pressed
-					if (keyMods.shift) {
-						const widget = this.chatWidgetService.lastFocusedWidget;
-						if (widget) {
-							const entry: ISymbolVariableEntry = {
-								kind: 'symbol',
-								id: JSON.stringify({ uri: symbolUri.toString(), range: symbol.location.range }),
-								name: symbol.name,
-								value: symbol.location,
-								symbolKind: symbol.kind,
-							};
-							widget.attachmentModel.addContext(entry);
-						}
-						return;
-					}
-
-					// Fallback to accept behavior.
-					this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground });
-				},
+				attach: (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
 			});
 
 		}

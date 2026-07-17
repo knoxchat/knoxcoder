@@ -31,7 +31,7 @@ async function assertRanges(lines: string[], expected: ExpectedIndentRange[], me
 			actualRanges[i] = r(actual[i].startLine, actual[i].endLine, actual[i].kind);
 		}
 		actualRanges = actualRanges.sort((r1, r2) => r1.startLine - r2.startLine);
-		assert.deepStrictEqual(actualRanges, expected, message);
+		assert.deepStrictEqual(actualRanges, expected, message ?? '');
 	} finally {
 		languageModes.dispose();
 	}

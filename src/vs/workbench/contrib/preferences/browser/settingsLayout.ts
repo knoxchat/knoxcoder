@@ -31,11 +31,9 @@ const COMMONLY_USED_SETTINGS: readonly string[] = [
 	'editor.fontSize',
 	'editor.formatOnSave',
 	'files.autoSave',
-	'GitHub.copilot-chat.manageExtension',
 	'editor.defaultFormatter',
 	'editor.fontFamily',
 	'editor.wordWrap',
-	'chat.agent.maxRequests',
 	'files.exclude',
 	'workbench.colorTheme',
 	'editor.tabSize',
@@ -174,113 +172,6 @@ export const tocData: ITOCEntry<string> = {
 					label: localize('newWindow', "New Window"),
 					settings: ['window.*newwindow*']
 				}
-			]
-		},
-		{
-			id: 'chat',
-			label: localize('chat', "Chat"),
-			children: [
-				{
-					id: 'chat/agent',
-					label: localize('chatAgent', "Agent"),
-					settings: [
-						'chat.agent.*',
-						'chat.checkpoints.*',
-						'chat.editRequests',
-						'chat.requestQueuing.*',
-						'chat.undoRequests.*',
-						'chat.customAgentInSubagent.*',
-						'chat.editing.autoAcceptDelay',
-						'chat.editing.confirmEditRequest*',
-						'chat.planAgent.defaultModel'
-					]
-				},
-				{
-					id: 'chat/appearance',
-					label: localize('chatAppearance', "Appearance"),
-					settings: [
-						'chat.editor.*',
-						'chat.fontFamily',
-						'chat.fontSize',
-						'chat.math.*',
-						'chat.agentsControl.*',
-						'chat.alternativeToolAction.*',
-						'chat.codeBlock.*',
-						'chat.editing.explainChanges.enabled',
-						'chat.editorAssociations',
-						'chat.extensionUnification.*',
-						'chat.inlineReferences.*',
-						'chat.notifyWindow*',
-						'chat.statusWidget.*',
-						'chat.tips.*',
-						'chat.unifiedAgentsBar.*',
-						'accessibility.signals.chatUserActionRequired',
-						'accessibility.signals.chatResponseReceived'
-					]
-				},
-				{
-					id: 'chat/sessions',
-					label: localize('chatSessions', "Sessions"),
-					settings: [
-						'chat.agentSessionProjection.*',
-						'chat.sessions.*',
-						'chat.viewProgressBadge.*',
-						'chat.viewSessions.*',
-						'chat.restoreLastPanelSession',
-						'chat.exitAfterDelegation',
-						'chat.repoInfo.*'
-					]
-				},
-				{
-					id: 'chat/tools',
-					label: localize('chatTools', "Tools"),
-					settings: [
-						'chat.tools.*',
-						'chat.extensionTools.*'
-					]
-				},
-				{
-					id: 'chat/mcp',
-					label: localize('chatMcp', "MCP"),
-					settings: ['mcp', 'chat.mcp.*', 'mcp.*']
-				},
-				{
-					id: 'chat/context',
-					label: localize('chatContext', "Context"),
-					settings: [
-						'chat.detectParticipant.*',
-						'chat.experimental.detectParticipant.*',
-						'chat.implicitContext.*',
-						'chat.promptFilesLocations',
-						'chat.instructionsFilesLocations',
-						'chat.modeFilesLocations',
-						'chat.agentFilesLocations',
-						'chat.agentSkillsLocations',
-						'chat.hookFilesLocations',
-						'chat.promptFilesRecommendations',
-						'chat.useAgentsMdFile',
-						'chat.useNestedAgentsMdFiles',
-						'chat.useAgentSkills',
-						'chat.experimental.useSkillAdherencePrompt',
-						'chat.useHooks',
-						'chat.includeApplyingInstructions',
-						'chat.includeReferencedInstructions',
-						'chat.useClaudeMdFile'
-					]
-				},
-				{
-					id: 'chat/inlineChat',
-					label: localize('chatInlineChat', "Inline Chat"),
-					settings: ['inlineChat.*']
-				},
-				{
-					id: 'chat/miscellaneous',
-					label: localize('chatMiscellaneous', "Miscellaneous"),
-					settings: [
-						'chat.disableAIFeatures',
-						'chat.allowAnonymousAccess'
-					]
-				},
 			]
 		},
 		{

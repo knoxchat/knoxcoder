@@ -319,7 +319,7 @@ fn read_pager_key(_term: &Term) -> PagerKey {
 /// ```
 ///
 /// Forces ANSI colors on for the banner regardless of TTY detection: the
-/// `code agent host` supervisor runs detached without a controlling
+/// `code supervisor` runs detached without a controlling
 /// terminal, but its stdout is captured by the foreground CLI and
 /// re-emitted to the user's real terminal, so we want styling on
 /// the produced text. Modern Windows terminals (Terminal, conhost with

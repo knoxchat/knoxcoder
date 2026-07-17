@@ -113,7 +113,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	constructor(
 		readonly resource: URI,
 		private preferredEncoding: string | undefined,		// encoding as chosen by the user
-		private preferredLanguageId: string | undefined,	// language id as chosen by the user
+		private preferredLanguageId: string | undefined,	// language id as chosen by the user,
 		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
 		@IFileService private readonly fileService: IFileService,

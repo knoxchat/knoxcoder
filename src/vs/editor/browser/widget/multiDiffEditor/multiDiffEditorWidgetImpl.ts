@@ -288,7 +288,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				// is driven by the last `setViewModel` call: an editor opened
 				// with `preserveFocus` (e.g. restored in the background or on a
 				// session switch) must not steal focus from wherever the user is
-				// (such as the chat input), while a normal user-initiated open
+				// (such as the assist input), while a normal user-initiated open
 				// focuses the first change so the editor is ready to use.
 				this._navigateToChange('next', !this._preserveFocusOnLoad);
 			}

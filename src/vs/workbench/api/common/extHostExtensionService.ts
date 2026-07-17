@@ -8,6 +8,7 @@ import * as path from '../../../base/common/path.js';
 import * as performance from '../../../base/common/performance.js';
 import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { asPromise, Barrier, IntervalTimer, timeout } from '../../../base/common/async.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -34,8 +35,6 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IExtHostTunnelService } from './extHostTunnelService.js';
 import { IExtHostTerminalService } from './extHostTerminalService.js';
-import { IExtHostLanguageModels } from './extHostLanguageModels.js';
-import { Emitter, Event } from '../../../base/common/event.js';
 import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from '../../services/extensions/common/workspaceContains.js';
 import { ExtHostSecretState, IExtHostSecretState } from './extHostSecretState.js';
 import { ExtensionSecrets } from './extHostSecrets.js';
@@ -136,7 +135,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
 		@IExtHostLocalizationService extHostLocalizationService: IExtHostLocalizationService,
 		@IExtHostManagedSockets private readonly _extHostManagedSockets: IExtHostManagedSockets,
-		@IExtHostLanguageModels private readonly _extHostLanguageModels: IExtHostLanguageModels,
 	) {
 		super();
 		this._hostUtils = hostUtils;
@@ -524,7 +522,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	private _loadExtensionContext(extensionDescription: IExtensionDescription, extensionInternalStore: DisposableStore): Promise<vscode.ExtensionContext> {
 
-		const languageModelAccessInformation = this._extHostLanguageModels.createLanguageModelAccessInformation(extensionDescription);
+		const textModelApiAccessInformation: vscode.TextModelApiAccessInformation = {
+			onDidChange: Event.None,
+			canSendRequest: () => undefined,
+		};
 		const globalState = extensionInternalStore.add(new ExtensionGlobalMemento(extensionDescription, this._storage));
 		const workspaceState = extensionInternalStore.add(new ExtensionMemento(extensionDescription.identifier.value, false, this._storage));
 		const secrets = extensionInternalStore.add(new ExtensionSecrets(extensionDescription, this._secretState));
@@ -553,7 +554,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				workspaceState,
 				secrets,
 				subscriptions: [],
-				get languageModelAccessInformation() { return languageModelAccessInformation; },
+				get textModelApiAccessInformation() { return textModelApiAccessInformation; },
 				get extensionUri() { return extensionDescription.extensionLocation; },
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				asAbsolutePath(relativePath: string) { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },

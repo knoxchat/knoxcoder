@@ -1008,7 +1008,7 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 	}
 
 	// Find the last "interesting" token, skipping trailing `space` and `html`
-	// tokens. Callers like the chat content renderer wrap markdown in
+	// tokens. Callers like the assist content renderer wrap markdown in
 	// `<body>...</body>` (so dompurify keeps leading comments), which leaves
 	// `</body>` as the literal last token — without this skip, the
 	// paragraph / list fixups never fire for that content.

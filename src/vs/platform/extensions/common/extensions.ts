@@ -169,7 +169,7 @@ export interface ILocalizationContribution {
 	minimalTranslations?: { [key: string]: string };
 }
 
-export interface IChatParticipantContribution {
+export interface IAssistParticipantContribution {
 	id: string;
 	name: string;
 	fullName: string;
@@ -193,13 +193,13 @@ export interface IToolSetContribution {
 	tools: string[];
 }
 
-export interface IMcpCollectionContribution {
+export interface IToolCollectionContribution {
 	readonly id: string;
 	readonly label: string;
 	readonly when?: string;
 }
 
-export interface IChatFileContribution {
+export interface IAssistFileContribution {
 	readonly path: string;
 	readonly name?: string;
 	readonly description?: string;
@@ -233,15 +233,15 @@ export interface IExtensionContributions {
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
-	readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
-	readonly chatPromptFiles?: ReadonlyArray<IChatFileContribution>;
-	readonly chatInstructions?: ReadonlyArray<IChatFileContribution>;
-	readonly chatAgents?: ReadonlyArray<IChatFileContribution>;
-	readonly chatSkills?: ReadonlyArray<IChatFileContribution>;
-	readonly chatPlugins?: ReadonlyArray<IChatFileContribution>;
-	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
-	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
-	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;
+	readonly assistParticipants?: ReadonlyArray<IAssistParticipantContribution>;
+	readonly chatPromptFiles?: ReadonlyArray<IAssistFileContribution>;
+	readonly chatInstructions?: ReadonlyArray<IAssistFileContribution>;
+	readonly assistAgents?: ReadonlyArray<IAssistFileContribution>;
+	readonly chatSkills?: ReadonlyArray<IAssistFileContribution>;
+	readonly chatPlugins?: ReadonlyArray<IAssistFileContribution>;
+	readonly textModelApiTools?: ReadonlyArray<IToolContribution>;
+	readonly textModelApiToolSets?: ReadonlyArray<IToolSetContribution>;
+	readonly toolServerDefinitionProviders?: ReadonlyArray<IToolCollectionContribution>;
 }
 
 export interface IExtensionCapabilities {
@@ -277,7 +277,7 @@ export interface IExtensionIdentifier {
 export const EXTENSION_CATEGORIES = [
 	'AI',
 	'Azure',
-	'Chat',
+	'assist',
 	'Data Science',
 	'Debuggers',
 	'Extension Packs',

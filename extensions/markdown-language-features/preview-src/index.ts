@@ -628,13 +628,8 @@ function getDiffMarkerPairs(root: Element): DiffMarkerPair[] {
 
 
 
-document.addEventListener('dblclick', event => {
+	document.addEventListener('dblclick', event => {
 	if (!settings.settings.doubleClickToSwitchToEditor) {
-		return;
-	}
-
-	// Disable double-click to switch editor for .copilotmd files
-	if (documentResource.endsWith('.copilotmd')) {
 		return;
 	}
 

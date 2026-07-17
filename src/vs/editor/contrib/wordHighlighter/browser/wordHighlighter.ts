@@ -604,7 +604,7 @@ class WordHighlighter {
 			if (!diffModel) {
 				continue;
 			}
-			if (model === diffModel.modified) { // embedded inline chat diff would pass this, allowing highlights
+			if (model === diffModel.modified) { // embedded inline assist diff would pass this, allowing highlights
 				//? currentModels.push(diffModel.original);
 				currentModels.push(diffModel.modified);
 			}

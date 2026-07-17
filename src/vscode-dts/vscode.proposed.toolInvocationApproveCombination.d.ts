@@ -7,7 +7,7 @@
 
 declare module 'vscode' {
 
-	export interface LanguageModelToolConfirmationMessages {
+	export interface TextModelApiToolConfirmationMessages {
 		/**
 		 * When set, a button will be shown allowing the user to approve this particular
 		 * combination of tool and arguments.

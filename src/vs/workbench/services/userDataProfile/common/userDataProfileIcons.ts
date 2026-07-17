@@ -53,7 +53,7 @@ export const ICONS = [
 	Codicon.github,
 	Codicon.azure,
 	Codicon.vscode,
-	Codicon.copilot,
+	Codicon.assist,
 
 	/* misc */
 	Codicon.gift,

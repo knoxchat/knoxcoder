@@ -140,6 +140,13 @@ jobs:
 
       - script: |
           set -e
+          APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+          APP_NAME="`ls $APP_ROOT | head -n 1`"
+          bash build/darwin/refresh-app-timestamps.sh "$APP_ROOT/$APP_NAME"
+        displayName: Refresh app timestamps
+
+      - script: |
+          set -e
           DMG_OUT="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_dmg"
           mkdir -p $DMG_OUT
           node build/darwin/create-dmg.ts $(agent.builddirectory) $DMG_OUT
@@ -150,7 +157,7 @@ jobs:
       - script: |
           set -e
           mkdir -p $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive
-          pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
+          pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -y $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
         displayName: Archive build
 
       - task: UseDotNet@2

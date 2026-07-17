@@ -399,7 +399,7 @@ class RenameSymbolRunnable {
 
 	private async sendNesRenameRequest(textModel: ITextModel, position: Position, oldName: string, newName: string, lastSymbolRename: IRange | undefined): Promise<WorkspaceEdit & Rejection> {
 		try {
-			const result = await this._commandService.executeCommand<RenameGroup[]>('github.copilot.nes.postRename', textModel.uri, position, oldName, newName, lastSymbolRename);
+			const result = await this._commandService.executeCommand<RenameGroup[]>('github.assist.nes.postRename', textModel.uri, position, oldName, newName, lastSymbolRename);
 			if (result === undefined) {
 				return { rejectReason: 'Rename failed', edits: [] };
 			}
@@ -541,7 +541,7 @@ export class RenameSymbolProcessor extends Disposable {
 	private async checkRenamePrecondition(suggestItem: InlineSuggestionItem, textModel: ITextModel, position: Position, oldName: string, newName: string, lastSymbolRename: IRange | undefined): Promise<PrepareNesRenameResult> {
 		const no: PrepareNesRenameResult.No = { canRename: RenameKind.no, timedOut: false };
 		try {
-			const result = await this._commandService.executeCommand<RenameKind | PrepareNesRenameResult>('github.copilot.nes.prepareRename', textModel.uri, position, oldName, newName, suggestItem.requestUuid, lastSymbolRename);
+			const result = await this._commandService.executeCommand<RenameKind | PrepareNesRenameResult>('github.assist.nes.prepareRename', textModel.uri, position, oldName, newName, suggestItem.requestUuid, lastSymbolRename);
 			if (result === undefined) {
 				return no;
 			} else if (typeof result === 'string') {

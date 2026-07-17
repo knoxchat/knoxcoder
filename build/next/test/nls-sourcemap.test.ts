@@ -101,7 +101,7 @@ async function bundleWithNLS(
 		// Adjust source map for NLS edits
 		if (nlsProcessed.edits.length > 0) {
 			const mapJson = JSON.parse(mapContent);
-			const adjusted = adjustSourceMap(mapJson, preNLSCode, nlsProcessed.edits);
+			const adjusted = await adjustSourceMap(mapJson, preNLSCode, nlsProcessed.edits);
 			mapContent = JSON.stringify(adjusted);
 		}
 	}
@@ -110,7 +110,7 @@ async function bundleWithNLS(
 	assert.ok(mapContent, 'Expected source map output');
 
 	const mapJson = JSON.parse(mapContent);
-	const map = new SourceMapConsumer(mapJson);
+	const map = await new SourceMapConsumer(mapJson);
 	const cleanup = () => {
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 	};

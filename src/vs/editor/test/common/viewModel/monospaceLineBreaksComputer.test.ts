@@ -142,7 +142,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assert.deepStrictEqual(a.breakOffsets, b.breakOffsets);
 		assert.deepStrictEqual(a.wrappedTextIndentLength, b.wrappedTextIndentLength);
 		for (let i = 0; i < a.breakOffsetsVisibleColumn.length; i++) {
-			const diff = a.breakOffsetsVisibleColumn[i] - b.breakOffsetsVisibleColumn[i];
+			const diff: number = a.breakOffsetsVisibleColumn[i] - b.breakOffsetsVisibleColumn[i];
 			assert.ok(diff < 0.001);
 		}
 	}

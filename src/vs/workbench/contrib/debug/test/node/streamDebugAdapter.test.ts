@@ -68,7 +68,7 @@ suite('Debug - StreamDebugAdapter', () => {
 			const response: DebugProtocol.Response = await sendInitializeRequest(debugAdapter);
 			assert.strictEqual(response.command, 'initialize');
 			assert.strictEqual(response.request_seq, 1);
-			assert.strictEqual(response.success, true, response.message);
+			assert.strictEqual(response.success, true, response.message ?? '');
 		} finally {
 			await debugAdapter.stopSession();
 			server.close();
@@ -90,7 +90,7 @@ suite('Debug - StreamDebugAdapter', () => {
 			const response: DebugProtocol.Response = await sendInitializeRequest(debugAdapter);
 			assert.strictEqual(response.command, 'initialize');
 			assert.strictEqual(response.request_seq, 1);
-			assert.strictEqual(response.success, true, response.message);
+			assert.strictEqual(response.success, true, response.message ?? '');
 		} finally {
 			await debugAdapter.stopSession();
 			server.close();

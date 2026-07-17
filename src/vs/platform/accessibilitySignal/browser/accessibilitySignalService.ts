@@ -581,24 +581,24 @@ export class AccessibilitySignal {
 	});
 
 	public static readonly chatEditModifiedFile = AccessibilitySignal.register({
-		name: localize('accessibilitySignals.chatEditModifiedFile', 'Chat Edit Modified File'),
+		name: localize('accessibilitySignals.chatEditModifiedFile', 'assist Edit Modified File'),
 		sound: Sound.chatEditModifiedFile,
-		announcementMessage: localize('accessibility.signals.chatEditModifiedFile', 'File Modified from Chat Edits'),
+		announcementMessage: localize('accessibility.signals.chatEditModifiedFile', 'File Modified from assist Edits'),
 		settingsKey: 'accessibility.signals.chatEditModifiedFile',
 	});
 
-	public static readonly chatRequestSent = AccessibilitySignal.register({
-		name: localize('accessibilitySignals.chatRequestSent', 'Chat Request Sent'),
+	public static readonly assistRequestSent = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.assistRequestSent', 'assist Request Sent'),
 		sound: Sound.requestSent,
-		legacySoundSettingsKey: 'audioCues.chatRequestSent',
-		legacyAnnouncementSettingsKey: 'accessibility.alert.chatRequestSent',
-		announcementMessage: localize('accessibility.signals.chatRequestSent', 'Chat Request Sent'),
-		settingsKey: 'accessibility.signals.chatRequestSent',
+		legacySoundSettingsKey: 'audioCues.assistRequestSent',
+		legacyAnnouncementSettingsKey: 'accessibility.alert.assistRequestSent',
+		announcementMessage: localize('accessibility.signals.assistRequestSent', 'assist Request Sent'),
+		settingsKey: 'accessibility.signals.assistRequestSent',
 	});
 
-	public static readonly chatResponseReceived = AccessibilitySignal.register({
-		name: localize('accessibilitySignals.chatResponseReceived', 'Chat Response Received'),
-		legacySoundSettingsKey: 'audioCues.chatResponseReceived',
+	public static readonly assistResponseReceived = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.assistResponseReceived', 'assist Response Received'),
+		legacySoundSettingsKey: 'audioCues.assistResponseReceived',
 		sound: {
 			randomOneOf: [
 				Sound.responseReceived1,
@@ -607,7 +607,7 @@ export class AccessibilitySignal {
 				Sound.responseReceived4
 			]
 		},
-		settingsKey: 'accessibility.signals.chatResponseReceived'
+		settingsKey: 'accessibility.signals.assistResponseReceived'
 	});
 
 	public static readonly codeActionTriggered = AccessibilitySignal.register({
@@ -630,7 +630,7 @@ export class AccessibilitySignal {
 	public static readonly progress = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.progress', 'Progress'),
 		sound: Sound.progress,
-		legacySoundSettingsKey: 'audioCues.chatResponsePending',
+		legacySoundSettingsKey: 'audioCues.assistResponsePending',
 		legacyAnnouncementSettingsKey: 'accessibility.alert.progress',
 		announcementMessage: localize('accessibility.signals.progress', 'Progress'),
 		settingsKey: 'accessibility.signals.progress'
@@ -692,9 +692,9 @@ export class AccessibilitySignal {
 	});
 
 	public static readonly chatUserActionRequired = AccessibilitySignal.register({
-		name: localize('accessibilitySignals.chatUserActionRequired', 'Chat User Action Required'),
+		name: localize('accessibilitySignals.chatUserActionRequired', 'assist User Action Required'),
 		sound: Sound.chatUserActionRequired,
-		announcementMessage: localize('accessibility.signals.chatUserActionRequired', 'Chat User Action Required'),
+		announcementMessage: localize('accessibility.signals.chatUserActionRequired', 'assist User Action Required'),
 		settingsKey: 'accessibility.signals.chatUserActionRequired'
 	});
 }

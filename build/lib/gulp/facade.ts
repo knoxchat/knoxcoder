@@ -28,6 +28,7 @@ import vinylZip_ from 'gulp-vinyl-zip';
 import svgmin_ from 'gulp-svgmin';
 import sort_ from 'gulp-sort';
 import g from 'gulp';
+import { merge as merge_ } from '../merge.ts';
 
 export const filter = filter_;
 export type { FileFunction } from 'gulp-filter';
@@ -46,6 +47,7 @@ export const buffer = buffer_;
 export const vinylZip = vinylZip_;
 export const svgmin = svgmin_;
 export const sort = sort_;
+export const merge = merge_;
 
 export const gulp = {
 	// Import task, sequence and parallel from "../lib/task"!

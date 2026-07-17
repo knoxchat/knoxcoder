@@ -25,7 +25,7 @@ export interface IAuthenticationUsageStats {
  */
 export interface IActiveEntities {
 	readonly extensions: string[];
-	readonly mcpServers: string[];
+	readonly toolServers: string[];
 }
 
 /**
@@ -49,11 +49,11 @@ export interface IAccountQuery extends IBaseQuery {
 	extension(extensionId: string): IAccountExtensionQuery;
 
 	/**
-	 * Get operations for a specific MCP server on this account
-	 * @param mcpServerId The MCP server id
-	 * @returns An account-MCP server query interface
+	 * Get operations for a specific tool server on this account
+	 * @param toolServerId The tool server id
+	 * @returns An account-tool server query interface
 	 */
-	mcpServer(mcpServerId: string): IAccountMcpServerQuery;
+	toolServer(toolServerId: string): IAccountToolServerQuery;
 
 	/**
 	 * Get operations for all extensions on this account
@@ -62,13 +62,13 @@ export interface IAccountQuery extends IBaseQuery {
 	extensions(): IAccountExtensionsQuery;
 
 	/**
-	 * Get operations for all MCP servers on this account
-	 * @returns An account-MCP servers query interface
+	 * Get operations for all tool servers on this account
+	 * @returns An account-tool servers query interface
 	 */
-	mcpServers(): IAccountMcpServersQuery;
+	toolServers(): IAccountToolServersQuery;
 
 	/**
-	 * Get operations for all entities (extensions and MCP servers) on this account
+	 * Get operations for all entities (extensions and tool servers) on this account
 	 * @returns An account-entities query interface for type-agnostic operations
 	 */
 	entities(): IAccountEntitiesQuery;
@@ -140,61 +140,61 @@ export interface IAccountExtensionQuery extends IBaseQuery {
 }
 
 /**
- * Query interface for operations on a specific MCP server within a specific account
+ * Query interface for operations on a specific tool server within a specific account
  */
-export interface IAccountMcpServerQuery extends IBaseQuery {
+export interface IAccountToolServerQuery extends IBaseQuery {
 	readonly accountName: string;
-	readonly mcpServerId: string;
+	readonly toolServerId: string;
 
 	/**
-	 * Check if this MCP server is allowed to access this account
+	 * Check if this tool server is allowed to access this account
 	 * @returns True if allowed, false if denied, undefined if not yet decided
 	 */
 	isAccessAllowed(): boolean | undefined;
 
 	/**
-	 * Set access permission for this MCP server on this account
+	 * Set access permission for this tool server on this account
 	 * @param allowed True to allow, false to deny access
-	 * @param mcpServerName Optional MCP server name for display purposes
+	 * @param toolServerName Optional tool server name for display purposes
 	 */
-	setAccessAllowed(allowed: boolean, mcpServerName?: string): void;
+	setAccessAllowed(allowed: boolean, toolServerName?: string): void;
 
 	/**
-	 * Add usage record for this MCP server on this account
+	 * Add usage record for this tool server on this account
 	 * @param scopes The scopes that were used
-	 * @param mcpServerName The MCP server name for display purposes
+	 * @param toolServerName The tool server name for display purposes
 	 */
-	addUsage(scopes: readonly string[], mcpServerName: string): void;
+	addUsage(scopes: readonly string[], toolServerName: string): void;
 
 	/**
-	 * Get usage history for this MCP server on this account
+	 * Get usage history for this tool server on this account
 	 * @returns Array of usage records
 	 */
 	getUsage(): {
-		readonly mcpServerId: string;
-		readonly mcpServerName: string;
+		readonly toolServerId: string;
+		readonly toolServerName: string;
 		readonly scopes: readonly string[];
 		readonly lastUsed: number;
 	}[];
 
 	/**
-	 * Remove all usage data for this MCP server on this account
+	 * Remove all usage data for this tool server on this account
 	 */
 	removeUsage(): void;
 
 	/**
-	 * Set this account as the preferred account for this MCP server
+	 * Set this account as the preferred account for this tool server
 	 */
 	setAsPreferred(): void;
 
 	/**
-	 * Check if this account is the preferred account for this MCP server
+	 * Check if this account is the preferred account for this tool server
 	 */
 	isPreferred(): boolean;
 
 	/**
-	 * Check if this MCP server is trusted (defined in product.json)
-	 * @returns True if the MCP server is trusted, false otherwise
+	 * Check if this tool server is trusted (defined in product.json)
+	 * @returns True if the tool server is trusted, false otherwise
 	 */
 	isTrusted(): boolean;
 }
@@ -231,56 +231,56 @@ export interface IAccountExtensionsQuery extends IBaseQuery {
 }
 
 /**
- * Query interface for operations on all MCP servers within a specific account
+ * Query interface for operations on all tool servers within a specific account
  */
-export interface IAccountMcpServersQuery extends IBaseQuery {
+export interface IAccountToolServersQuery extends IBaseQuery {
 	readonly accountName: string;
 
 	/**
-	 * Get all MCP servers that have access to this account with their trusted state
-	 * @returns Array of objects containing MCP server data including trusted state
+	 * Get all tool servers that have access to this account with their trusted state
+	 * @returns Array of objects containing tool server data including trusted state
 	 */
-	getAllowedMcpServers(): { id: string; name: string; allowed?: boolean; lastUsed?: number; trusted?: boolean; url?: string; agentHost?: { authority: string; label: string } }[];
+	getAllowedToolServers(): { id: string; name: string; allowed?: boolean; lastUsed?: number; trusted?: boolean; url?: string; sandboxHost?: { authority: string; label: string } }[];
 
 	/**
-	 * Grant access to this account for all specified MCP servers
-	 * @param mcpServerIds Array of MCP server IDs to grant access to
+	 * Grant access to this account for all specified tool servers
+	 * @param toolServerIds Array of tool server IDs to grant access to
 	 */
-	allowAccess(mcpServerIds: string[]): void;
+	allowAccess(toolServerIds: string[]): void;
 
 	/**
-	 * Remove access to this account for all specified MCP servers
-	 * @param mcpServerIds Array of MCP server IDs to remove access from
+	 * Remove access to this account for all specified tool servers
+	 * @param toolServerIds Array of tool server IDs to remove access from
 	 */
-	removeAccess(mcpServerIds: string[]): void;
+	removeAccess(toolServerIds: string[]): void;
 
 	/**
-	 * Execute a callback for each MCP server that has used this account
-	 * @param callback Function to execute for each MCP server
+	 * Execute a callback for each tool server that has used this account
+	 * @param callback Function to execute for each tool server
 	 */
-	forEach(callback: (mcpServerQuery: IAccountMcpServerQuery) => void): void;
+	forEach(callback: (toolServerQuery: IAccountToolServerQuery) => void): void;
 }
 
 /**
- * Query interface for type-agnostic operations on all entities (extensions and MCP servers) within a specific account
+ * Query interface for type-agnostic operations on all entities (extensions and tool servers) within a specific account
  */
 export interface IAccountEntitiesQuery extends IBaseQuery {
 	readonly accountName: string;
 
 	/**
-	 * Check if this account has been used by any entity (extension or MCP server)
+	 * Check if this account has been used by any entity (extension or tool server)
 	 * @returns True if the account has been used, false otherwise
 	 */
 	hasAnyUsage(): boolean;
 
 	/**
 	 * Get the total count of entities that have used this account
-	 * @returns Object with counts for extensions and MCP servers
+	 * @returns Object with counts for extensions and tool servers
 	 */
-	getEntityCount(): { extensions: number; mcpServers: number; total: number };
+	getEntityCount(): { extensions: number; toolServers: number; total: number };
 
 	/**
-	 * Remove access to this account for all entities (extensions and MCP servers)
+	 * Remove access to this account for all entities (extensions and tool servers)
 	 */
 	removeAllAccess(): void;
 
@@ -288,7 +288,7 @@ export interface IAccountEntitiesQuery extends IBaseQuery {
 	 * Execute a callback for each entity that has used this account
 	 * @param callback Function to execute for each entity
 	 */
-	forEach(callback: (entityId: string, entityType: 'extension' | 'mcpServer') => void): void;
+	forEach(callback: (entityId: string, entityType: 'extension' | 'toolServer') => void): void;
 }
 
 /**
@@ -316,36 +316,36 @@ export interface IProviderExtensionQuery extends IBaseQuery {
 }
 
 /**
- * Query interface for operations on a specific MCP server within a provider
+ * Query interface for operations on a specific tool server within a provider
  */
-export interface IProviderMcpServerQuery extends IBaseQuery {
-	readonly mcpServerId: string;
+export interface IProviderToolServerQuery extends IBaseQuery {
+	readonly toolServerId: string;
 
 	/**
-	 * Get the last used account for this MCP server within a provider
+	 * Get the last used account for this tool server within a provider
 	 * @returns The account name, or undefined if no preference is set
 	 */
 	getLastUsedAccount(): Promise<string | undefined>;
 
 	/**
-	 * Get the preferred account for this MCP server within a provider
+	 * Get the preferred account for this tool server within a provider
 	 * @returns The account name, or undefined if no preference is set
 	 */
 	getPreferredAccount(): string | undefined;
 
 	/**
-	 * Set the preferred account for this MCP server within a provider
+	 * Set the preferred account for this tool server within a provider
 	 * @param account The account to set as preferred
 	 */
 	setPreferredAccount(account: AuthenticationSessionAccount): void;
 
 	/**
-	 * Remove the account preference for this MCP server within a provider
+	 * Remove the account preference for this tool server within a provider
 	 */
 	removeAccountPreference(): void;
 
 	/**
-	 * Get all accounts that this MCP server has used within this provider
+	 * Get all accounts that this tool server has used within this provider
 	 * @returns Array of account names
 	 */
 	getUsedAccounts(): Promise<string[]>;
@@ -370,14 +370,14 @@ export interface IProviderQuery extends IBaseQuery {
 	extension(extensionId: string): IProviderExtensionQuery;
 
 	/**
-	 * Get operations for a specific MCP server within this provider
-	 * @param mcpServerId The MCP server id
-	 * @returns A provider-MCP server query interface
+	 * Get operations for a specific tool server within this provider
+	 * @param toolServerId The tool server id
+	 * @returns A provider-tool server query interface
 	 */
-	mcpServer(mcpServerId: string): IProviderMcpServerQuery;
+	toolServer(toolServerId: string): IProviderToolServerQuery;
 
 	/**
-	 * Get information about active entities (extensions and MCP servers) within this provider
+	 * Get information about active entities (extensions and tool servers) within this provider
 	 * @returns Information about entities that have used authentication
 	 */
 	getActiveEntities(): Promise<IActiveEntities>;
@@ -430,31 +430,31 @@ export interface IExtensionQuery {
 }
 
 /**
- * Query interface for MCP server-scoped operations (cross-provider)
+ * Query interface for tool server-scoped operations (cross-provider)
  */
-export interface IMcpServerQuery {
-	readonly mcpServerId: string;
+export interface IToolServerQuery {
+	readonly toolServerId: string;
 
 	/**
-	 * Get all providers where this MCP server has access
+	 * Get all providers where this tool server has access
 	 * @param includeInternal Whether to include internal providers (starting with INTERNAL_AUTH_PROVIDER_PREFIX)
 	 * @returns Array of provider IDs
 	 */
 	getProvidersWithAccess(includeInternal?: boolean): Promise<string[]>;
 
 	/**
-	 * Get account preferences for this MCP server across all providers
+	 * Get account preferences for this tool server across all providers
 	 * @param includeInternal Whether to include internal providers (starting with INTERNAL_AUTH_PROVIDER_PREFIX)
 	 * @returns Map of provider ID to account name
 	 */
 	getAllAccountPreferences(includeInternal?: boolean): Map<string, string>;
 
 	/**
-	 * Get operations for this MCP server within a specific provider
+	 * Get operations for this tool server within a specific provider
 	 * @param providerId The provider ID
-	 * @returns A provider-MCP server query interface
+	 * @returns A provider-tool server query interface
 	 */
-	provider(providerId: string): IProviderMcpServerQuery;
+	provider(providerId: string): IProviderToolServerQuery;
 }
 
 /**
@@ -469,7 +469,7 @@ export interface IAuthenticationQueryService {
 	 */
 	readonly onDidChangePreferences: Event<{
 		readonly providerId: string;
-		readonly entityType: 'extension' | 'mcpServer';
+		readonly entityType: 'extension' | 'toolServer';
 		readonly entityIds: string[];
 	}>;
 
@@ -496,11 +496,11 @@ export interface IAuthenticationQueryService {
 	extension(extensionId: string): IExtensionQuery;
 
 	/**
-	 * Get operations for a specific MCP server across all providers
-	 * @param mcpServerId The MCP server id
-	 * @returns An MCP server query interface
+	 * Get operations for a specific tool server across all providers
+	 * @param toolServerId The tool server id
+	 * @returns An tool server query interface
 	 */
-	mcpServer(mcpServerId: string): IMcpServerQuery;
+	toolServer(toolServerId: string): IToolServerQuery;
 
 	/**
 	 * Get all available provider IDs

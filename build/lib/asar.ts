@@ -44,9 +44,14 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 	const filesystem = new Filesystem(folderPath);
 	const out: Buffer[] = [];
 
-	// Keep track of pending inserts
+	// Keep track of pending inserts. asar's Filesystem.insertFile assigns
+	// `offset` then `await`s integrity hashing before incrementing `offset`.
+	// Concurrent inserts therefore race and scramble file contents in the
+	// archive (e.g. package.json bytes replaced by another file). Serialize
+	// every insert so offsets stay in lockstep with `out.push` order.
 	let pendingInserts = 0;
 	let onFileInserted = () => { pendingInserts--; };
+	let insertChain: Promise<void> = Promise.resolve();
 
 	// Do not insert twice the same directory
 	const seenDir: { [key: string]: boolean } = {};
@@ -81,7 +86,10 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 		pendingInserts++;
 		// Do not pass `onFileInserted` directly because it gets overwritten below.
 		// Create a closure capturing `onFileInserted`.
-		filesystem.insertFile(relativePath, shouldUnpack, { stat: stat }, {}).then(() => onFileInserted(), () => onFileInserted());
+		insertChain = insertChain
+			.catch(() => undefined)
+			.then(() => filesystem.insertFile(relativePath, shouldUnpack, { stat: stat }, {}))
+			.then(() => onFileInserted(), () => onFileInserted());
 	};
 
 	return es.through(function (file) {

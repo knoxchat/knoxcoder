@@ -5,10 +5,6 @@
 
 declare module 'vscode' {
 
-	export interface SpeechToTextOptions {
-		readonly language?: string;
-	}
-
 	export enum SpeechToTextStatus {
 		Started = 1,
 		Recognizing = 2,
@@ -22,12 +18,8 @@ declare module 'vscode' {
 		readonly text?: string;
 	}
 
-	export interface SpeechToTextSession {
+	export interface SpeechToTextSession extends Disposable {
 		readonly onDidChange: Event<SpeechToTextEvent>;
-	}
-
-	export interface TextToSpeechOptions {
-		readonly language?: string;
 	}
 
 	export enum TextToSpeechStatus {
@@ -41,15 +33,15 @@ declare module 'vscode' {
 		readonly text?: string;
 	}
 
-	export interface TextToSpeechSession {
+	export interface TextToSpeechSession extends Disposable {
 		readonly onDidChange: Event<TextToSpeechEvent>;
-
-		synthesize(text: string): void;
+		synthesize(text: string): Promise<void>;
 	}
 
 	export enum KeywordRecognitionStatus {
 		Recognized = 1,
-		Stopped = 2
+		Stopped = 2,
+		Canceled = 3,
 	}
 
 	export interface KeywordRecognitionEvent {
@@ -57,18 +49,17 @@ declare module 'vscode' {
 		readonly text?: string;
 	}
 
-	export interface KeywordRecognitionSession {
+	export interface KeywordRecognitionSession extends Disposable {
 		readonly onDidChange: Event<KeywordRecognitionEvent>;
 	}
 
 	export interface SpeechProvider {
-		provideSpeechToTextSession(token: CancellationToken, options?: SpeechToTextOptions): ProviderResult<SpeechToTextSession>;
-		provideTextToSpeechSession(token: CancellationToken, options?: TextToSpeechOptions): ProviderResult<TextToSpeechSession>;
+		provideSpeechToTextSession(token: CancellationToken, options?: { language?: string }): ProviderResult<SpeechToTextSession>;
+		provideTextToSpeechSession(token: CancellationToken, options?: { language?: string }): ProviderResult<TextToSpeechSession>;
 		provideKeywordRecognitionSession(token: CancellationToken): ProviderResult<KeywordRecognitionSession>;
 	}
 
 	export namespace speech {
-
 		export function registerSpeechProvider(id: string, provider: SpeechProvider): Disposable;
 	}
 }

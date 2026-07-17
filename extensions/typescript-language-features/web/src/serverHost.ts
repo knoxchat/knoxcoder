@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ApiClient, FileStat, FileType, Requests } from '@vscode/sync-api-client';
+import { ApiClient, ApiClientConnection, FileStat, FileType, Requests } from '@vscode/sync-api-client';
 import { ClientConnection } from '@vscode/sync-api-common/browser';
 import { basename } from 'path';
-import type * as ts from 'typescript/lib/tsserverlibrary';
+import type * as ts from '@typescript/typescript6/lib/tsserverlibrary';
 import { FileWatcherManager } from './fileWatcherManager';
 import { Logger } from './logging';
 import { PathMapper, looksLikeNodeModules, mapUri } from './pathMapper';
@@ -41,9 +41,10 @@ interface TsInternals extends TsModule {
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 
 function createServerHost(
-	ts: typeof import('typescript/lib/tsserverlibrary'),
+	ts: typeof import('@typescript/typescript6/lib/tsserverlibrary'),
 	logger: Logger,
 	apiClient: ApiClient | undefined,
+	stdio: ApiClientConnection.ReadyParams['stdio'] | undefined,
 	args: readonly string[],
 	watchManager: FileWatcherManager,
 	pathMapper: PathMapper,
@@ -116,7 +117,9 @@ function createServerHost(
 		newLine: '\n',
 		useCaseSensitiveFileNames: true,
 		write: s => {
-			apiClient?.vscode.terminal.write(s);
+			if (apiClient && stdio) {
+				apiClient.tty.write(stdio.stdout.uri, textEncoder.encode(s));
+			}
 		},
 		writeOutputIsTTY() {
 			return true;
@@ -438,7 +441,7 @@ function createServerHost(
 }
 
 export async function createSys(
-	ts: typeof import('typescript/lib/tsserverlibrary'),
+	ts: typeof import('@typescript/typescript6/lib/tsserverlibrary'),
 	args: readonly string[],
 	fsPort: MessagePort,
 	logger: Logger,
@@ -448,15 +451,15 @@ export async function createSys(
 ) {
 	if (hasArgument(args, '--enableProjectWideIntelliSenseOnWeb')) {
 		const enabledExperimentalTypeAcquisition = hasArgument(args, '--experimentalTypeAcquisition');
-		const connection = new ClientConnection<Requests>(fsPort);
-		await connection.serviceReady();
-
+		const connection = new ClientConnection<Requests, ApiClientConnection.ReadyParams>(fsPort);
 		const apiClient = new ApiClient(connection);
+		const { stdio } = await apiClient.serviceReady();
+
 		const fs = apiClient.vscode.workspace.fileSystem;
-		const sys = createServerHost(ts, logger, apiClient, args, watchManager, pathMapper, enabledExperimentalTypeAcquisition, onExit);
+		const sys = createServerHost(ts, logger, apiClient, stdio, args, watchManager, pathMapper, enabledExperimentalTypeAcquisition, onExit);
 		return { sys, fs };
 	} else {
-		return { sys: createServerHost(ts, logger, undefined, args, watchManager, pathMapper, false, onExit) };
+		return { sys: createServerHost(ts, logger, undefined, undefined, args, watchManager, pathMapper, false, onExit) };
 	}
 }
 

@@ -64,9 +64,8 @@ import { IPolicyService, NullPolicyService } from '../../platform/policy/common/
 import { NativePolicyService } from '../../platform/policy/node/nativePolicyService.js';
 import { FilePolicyService } from '../../platform/policy/common/filePolicyService.js';
 import { MultiplexPolicyService } from '../../platform/policy/common/multiplexPolicyService.js';
-import { GITHUB_COPILOT_MACOS_BUNDLE_ID, GITHUB_COPILOT_WIN32_POLICY_NAME, GITHUB_COPILOT_WIN32_REGISTRY_PATH, INativeManagedSettingsService, IFileManagedSettingsService, MANAGED_SETTINGS_FILE_NAME, MANAGED_SETTINGS_LINUX_FILE_PATH, MANAGED_SETTINGS_MACOS_FILE_PATH, MANAGED_SETTINGS_WINDOWS_DIR, NullNativeManagedSettingsService, NullFileManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
+import { INativeManagedSettingsService, IFileManagedSettingsService, MANAGED_SETTINGS_FILE_NAME, MANAGED_SETTINGS_LINUX_FILE_PATH, MANAGED_SETTINGS_MACOS_FILE_PATH, MANAGED_SETTINGS_WINDOWS_DIR, NullNativeManagedSettingsService, NullFileManagedSettingsService } from '../../platform/policy/common/managedSettings.js';
 import { FileManagedSettingsService } from '../../platform/policy/common/fileManagedSettingsService.js';
-import { NativeManagedSettingsService } from '../../platform/policy/node/nativeManagedSettingsService.js';
 import { DisposableStore } from '../../base/common/lifecycle.js';
 import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
@@ -230,17 +229,7 @@ class CodeMain {
 			policyServices.push(disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService)));
 		}
 
-		let nativeManagedSettingsService: NativeManagedSettingsService | undefined;
-		if (isWindows) {
-			nativeManagedSettingsService = disposables.add(new NativeManagedSettingsService(logService, GITHUB_COPILOT_WIN32_POLICY_NAME, { registryPath: GITHUB_COPILOT_WIN32_REGISTRY_PATH }));
-		} else if (isMacintosh) {
-			nativeManagedSettingsService = disposables.add(new NativeManagedSettingsService(logService, GITHUB_COPILOT_MACOS_BUNDLE_ID));
-		}
-		if (nativeManagedSettingsService) {
-			services.set(INativeManagedSettingsService, nativeManagedSettingsService);
-		} else {
-			services.set(INativeManagedSettingsService, new NullNativeManagedSettingsService());
-		}
+		services.set(INativeManagedSettingsService, new NullNativeManagedSettingsService());
 
 		// File-based managed settings
 		let fileManagedSettingsPath: string | undefined;
@@ -597,28 +586,10 @@ class CodeMain {
 			if (waitMarkerFilePath) {
 				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
 				args.waitMarkerFilePath = waitMarkerFilePath;
-			}
 		}
+	}
 
-		if (args.chat) {
-			if (args.chat['new-window']) {
-				// Apply `--new-window` flag to the main arguments
-				args['new-window'] = true;
-			} else if (args.chat['reuse-window']) {
-				// Apply `--reuse-window` flag to the main arguments
-				args['reuse-window'] = true;
-			} else if (args.chat['profile']) {
-				// Apply `--profile` flag to the main arguments
-				args['profile'] = args.chat['profile'];
-			} else {
-				// Unless we are started with specific instructions about
-				// new windows or reusing existing ones, always take the
-				// current working directory as workspace to open.
-				args._ = [cwd()];
-			}
-		}
-
-		return args;
+	return args;
 	}
 
 	private validatePaths(args: NativeParsedArgs): NativeParsedArgs {

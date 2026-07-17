@@ -10,7 +10,7 @@ import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js
 import { equals } from '../../../base/common/objects.js';
 import { IManagedSettingsPolicyDefinitions, ManagedSettingsData } from '../../../base/common/policy.js';
 import { ILogService } from '../../log/common/log.js';
-import { collectManagedSettingsDefinitions, INativeManagedSettingsService } from '../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, INativeManagedSettingsService } from '../common/managedSettings.js';
 import { PolicyDefinition, PolicyValue } from '../common/policy.js';
 import type { Watcher } from '@vscode/policy-watcher';
 

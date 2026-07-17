@@ -2553,12 +2553,12 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 
 	setup(() => {
 		setupTest(disposables);
-		instantiationService.stub(IProductService, { defaultChatAgent: { chatExtensionId: 'GitHub.copilot-chat' } } as Partial<IProductService>);
+		instantiationService.stub(IProductService, { defaultAssistAgent: { chatExtensionId: 'GitHub.assist-assist' } } as Partial<IProductService>);
 	});
 
 	test('test enable AI in workspace updates workspace setting when AI is disabled globally', async () => {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-		configurationService.setUserConfiguration('chat.disableAIFeatures', true);
+		configurationService.setUserConfiguration('assist.disableAIFeatures', true);
 
 		let updatedValue: { key: string; value: unknown; target: unknown } | undefined;
 		const originalUpdateValue = configurationService.updateValue.bind(configurationService);
@@ -2567,25 +2567,25 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 			return originalUpdateValue(key, value);
 		};
 
-		const chatExtension = aLocalExtension('copilot-chat', { publisher: 'GitHub' }, { type: ExtensionType.System });
+		const chatExtension = aLocalExtension('assist-assist', { publisher: 'GitHub' }, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [chatExtension]);
 
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		await workbenchService.queryLocal();
 
 		const extensions = workbenchService.local;
-		const copilotChat = extensions.find(e => e.identifier.id === 'github.copilot-chat');
-		assert.ok(copilotChat);
+		const assistChat = extensions.find(e => e.identifier.id === 'github.assist-assist');
+		assert.ok(assistChat);
 
 		const testObject: ExtensionsActions.EnableAIFeaturesInWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableAIFeaturesInWorkspaceAction));
 		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
-		testObject.extension = copilotChat;
+		testObject.extension = assistChat;
 		assert.ok(testObject.enabled);
 
 		await testObject.run();
 
 		assert.ok(updatedValue, 'updateValue should have been called');
-		assert.strictEqual(updatedValue.key, 'chat.disableAIFeatures');
+		assert.strictEqual(updatedValue.key, 'assist.disableAIFeatures');
 		assert.strictEqual(updatedValue.value, false, 'workspace setting should be set to false');
 	});
 

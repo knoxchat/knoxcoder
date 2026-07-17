@@ -708,9 +708,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none'
 			};
-			if (config.isSessionsWindow) {
-				webPreferences.backgroundThrottling = false; // keep agents window responsive when in background
-			}
 
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
 
@@ -1210,8 +1207,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		let windowUrl: string;
 		if (process.env.VSCODE_DEV && process.env.VSCODE_DEV_SERVER_URL) {
 			windowUrl = process.env.VSCODE_DEV_SERVER_URL; // support URL override for development
-		} else if (configuration.isSessionsWindow) {
-			windowUrl = FileAccess.asBrowserUri(`vs/sessions/electron-browser/sessions${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true);
 		} else {
 			windowUrl = FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true);
 		}

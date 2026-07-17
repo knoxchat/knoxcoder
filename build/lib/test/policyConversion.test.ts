@@ -78,20 +78,6 @@ const policies: ExportedPolicyDataDto = {
 			}
 		},
 		{
-			key: 'IntegratedTerminal',
-			name: {
-				key: 'terminalIntegratedConfigurationTitle',
-				value: 'Integrated Terminal'
-			}
-		},
-		{
-			key: 'InteractiveSession',
-			name: {
-				key: 'interactiveSessionConfigurationTitle',
-				value: 'Chat'
-			}
-		},
-		{
 			key: 'Telemetry',
 			name: {
 				key: 'telemetryConfigurationTitle',
@@ -107,20 +93,6 @@ const policies: ExportedPolicyDataDto = {
 		}
 	],
 	policies: [
-		{
-			key: 'chat.mcp.gallery.serviceUrl',
-			name: 'McpGalleryServiceUrl',
-			category: 'InteractiveSession',
-			minimumVersion: '1.101',
-			localization: {
-				description: {
-					key: 'mcp.gallery.serviceUrl',
-					value: 'Configure the MCP Gallery service URL to connect to'
-				}
-			},
-			type: 'string',
-			default: ''
-		},
 		{
 			key: 'extensions.gallery.serviceUrl',
 			name: 'ExtensionGalleryServiceUrl',
@@ -148,109 +120,6 @@ const policies: ExportedPolicyDataDto = {
 			},
 			type: 'object',
 			default: '*'
-		},
-		{
-			key: 'chat.tools.global.autoApprove',
-			name: 'ChatToolsAutoApprove',
-			category: 'InteractiveSession',
-			minimumVersion: '1.99',
-			localization: {
-				description: {
-					key: 'autoApprove2.description',
-					value: 'Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.'
-				}
-			},
-			type: 'boolean',
-			default: false
-		},
-		{
-			key: 'chat.mcp.access',
-			name: 'ChatMCP',
-			category: 'InteractiveSession',
-			minimumVersion: '1.99',
-			localization: {
-				description: {
-					key: 'chat.mcp.access',
-					value: 'Controls access to installed Model Context Protocol servers.'
-				},
-				enumDescriptions: [
-					{
-						key: 'chat.mcp.access.none',
-						value: 'No access to MCP servers.'
-					},
-					{
-						key: 'chat.mcp.access.registry',
-						value: 'Allows access to MCP servers installed from the registry that VS Code is connected to.'
-					},
-					{
-						key: 'chat.mcp.access.any',
-						value: 'Allow access to any installed MCP server.'
-					}
-				]
-			},
-			type: 'string',
-			default: 'all',
-			enum: [
-				'none',
-				'registry',
-				'all'
-			]
-		},
-		{
-			key: 'chat.extensionTools.enabled',
-			name: 'ChatAgentExtensionTools',
-			category: 'InteractiveSession',
-			minimumVersion: '1.99',
-			localization: {
-				description: {
-					key: 'chat.extensionToolsEnabled',
-					value: 'Enable using tools contributed by third-party extensions.'
-				}
-			},
-			type: 'boolean',
-			default: true
-		},
-		{
-			key: 'chat.agent.enabled',
-			name: 'ChatAgentMode',
-			category: 'InteractiveSession',
-			minimumVersion: '1.99',
-			localization: {
-				description: {
-					key: 'chat.agent.enabled.description',
-					value: 'Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view.'
-				}
-			},
-			type: 'boolean',
-			default: true
-		},
-		{
-			key: 'chat.promptFiles',
-			name: 'ChatPromptFiles',
-			category: 'InteractiveSession',
-			minimumVersion: '1.99',
-			localization: {
-				description: {
-					key: 'chat.promptFiles.policy',
-					value: 'Enables reusable prompt and instruction files in Chat sessions.'
-				}
-			},
-			type: 'boolean',
-			default: true
-		},
-		{
-			key: 'chat.tools.terminal.enableAutoApprove',
-			name: 'ChatToolsTerminalEnableAutoApprove',
-			category: 'IntegratedTerminal',
-			minimumVersion: '1.104',
-			localization: {
-				description: {
-					key: 'autoApproveMode.description',
-					value: 'Controls whether to allow auto approval in the run in terminal tool.'
-				}
-			},
-			type: 'boolean',
-			default: true
 		},
 		{
 			key: 'update.mode',
@@ -358,25 +227,11 @@ const frenchTranslations = [
 		languageId: 'fr-fr',
 		languageTranslations: {
 			'': {
-				'interactiveSessionConfigurationTitle': 'Session interactive',
 				'extensionsConfigurationTitle': 'Extensions',
-				'terminalIntegratedConfigurationTitle': 'Terminal intégré',
 				'telemetryConfigurationTitle': 'Télémétrie',
 				'updateConfigurationTitle': 'Mettre à jour',
-				'chat.extensionToolsEnabled': 'Autorisez l’utilisation d’outils fournis par des extensions tierces.',
-				'chat.agent.enabled.description': 'Activez le mode Assistant pour la conversation. Lorsque cette option est activée, le mode Assistant peut être activé via la liste déroulante de la vue.',
-				'chat.mcp.access': 'Contrôle l’accès aux serveurs de protocole de contexte du modèle.',
-				'chat.mcp.access.none': 'Aucun accès aux serveurs MCP.',
-				'chat.mcp.access.registry': `Autorise l’accès aux serveurs MCP installés à partir du registre auquel VS Code est connecté.`,
-				'chat.mcp.access.any': 'Autorisez l’accès à tout serveur MCP installé.',
-				'chat.promptFiles.policy': 'Active les fichiers d’instruction et de requête réutilisables dans les sessions Conversation.',
-				'autoApprove2.description': `L’approbation automatique globale, également appelée « mode YOLO », désactive complètement l’approbation manuelle pour tous les outils dans tous les espaces de travail, permettant à l’agent d’agir de manière totalement autonome. Ceci est extrêmement dangereux et est *jamais* recommandé, même dans des environnements conteneurisés comme [Codespaces](https://github.com/features/codespaces) et [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers), où des clés utilisateur sont transférées dans le conteneur et pourraient être compromises.
-
-Cette fonctionnalité désactive [les protections de sécurité critiques](https://code.visualstudio.com/docs/copilot/security) et facilite considérablement la compromission de la machine par un attaquant.`,
-				'mcp.gallery.serviceUrl': 'Configurer l’URL du service de la galerie MCP à laquelle se connecter',
 				'extensions.allowed.policy': 'Spécifiez une liste d’extensions autorisées. Cela permet de maintenir un environnement de développement sécurisé et cohérent en limitant l’utilisation d’extensions non autorisées. Plus d’informations : https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions',
 				'extensions.gallery.serviceUrl': 'Configurer l’URL du service Place de marché à laquelle se connecter',
-				'autoApproveMode.description': 'Contrôle s’il faut autoriser l’approbation automatique lors de l’exécution dans l’outil terminal.',
 				'telemetry.feedback.enabled': 'Activez les mécanismes de commentaires tels que le système de rapport de problèmes, les sondages et autres options de commentaires.',
 				'telemetry.telemetryLevel.policyDescription': 'Contrôle le niveau de télémétrie.',
 				'telemetry.telemetryLevel.default': `Envoie les données d'utilisation, les erreurs et les rapports d'erreur.`,
@@ -523,8 +378,8 @@ suite('Policy E2E conversion', () => {
 	test('ObjectPolicy.from accepts a union type (e.g. array | null)', () => {
 		const category: CategoryDto = { key: 'Extensions', name: { key: 'Extensions', value: 'Extensions' } };
 		const policy: PolicyDto = {
-			key: 'chat.plugins.strictMarketplaces',
-			name: 'ChatStrictMarketplaces',
+			key: 'extensions.allowed',
+			name: 'AllowedExtensions',
 			category: 'Extensions',
 			minimumVersion: '1.0',
 			localization: { description: { key: 'desc', value: 'desc' } },
@@ -536,31 +391,31 @@ suite('Policy E2E conversion', () => {
 
 	test('descriptions containing angle brackets are escaped in ADML output (#320551)', () => {
 		const policyData: ExportedPolicyDataDto = {
-			categories: [{ key: 'InteractiveSession', name: { key: 'interactiveSessionConfigurationTitle', value: 'Chat' } }],
+			categories: [{ key: 'Extensions', name: { key: 'extensionsConfigurationTitle', value: 'Extensions' } }],
 			policies: [
 				{
-					key: 'chat.plugins.enabledPlugins',
-					name: 'ChatEnabledPlugins',
-					category: 'InteractiveSession',
+					key: 'extensions.allowed',
+					name: 'AllowedExtensions',
+					category: 'Extensions',
 					minimumVersion: '1.122',
 					localization: {
 						description: {
-							key: 'chat.plugins.enabledPlugins.policy',
-							value: 'Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin.'
+							key: 'extensions.allowed.policy',
+							value: 'Allowed extensions. Keys are extension IDs in `<publisher>.<name>` form; values enable or disable the extension.'
 						}
 					},
 					type: 'object',
 					default: {},
 				},
 				{
-					key: 'chat.plugins.extraMarketplaces',
-					name: 'ChatExtraMarketplaces',
-					category: 'InteractiveSession',
+					key: 'extensions.gallery.serviceUrl',
+					name: 'ExtensionGalleryServiceUrl',
+					category: 'Extensions',
 					minimumVersion: '1.122',
 					localization: {
 						description: {
-							key: 'chat.plugins.extraMarketplaces.policy',
-							value: 'Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`).'
+							key: 'extensions.gallery.serviceUrl',
+							value: 'Configure the Marketplace service URL to connect to `<url>` endpoints.'
 						}
 					},
 					type: 'object',
@@ -575,9 +430,9 @@ suite('Policy E2E conversion', () => {
 		assert.ok(enUs, 'en-us ADML should exist');
 
 		// Angle brackets must be escaped so the output is valid XML
-		assert.ok(enUs.contents.includes('&lt;plugin&gt;@&lt;marketplace&gt;'), 'angle brackets in descriptions must be XML-escaped');
+		assert.ok(enUs.contents.includes('&lt;publisher&gt;.&lt;name&gt;'), 'angle brackets in descriptions must be XML-escaped');
 		assert.ok(enUs.contents.includes('&lt;url&gt;'), 'angle brackets in descriptions must be XML-escaped');
-		assert.ok(!enUs.contents.includes('<plugin>'), 'raw angle brackets must not appear in ADML output');
+		assert.ok(!enUs.contents.includes('<publisher>'), 'raw angle brackets must not appear in ADML output');
 		assert.ok(!enUs.contents.includes('<url>'), 'raw angle brackets must not appear in ADML output');
 	});
 

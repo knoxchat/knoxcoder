@@ -137,7 +137,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		description: localize('terminal.integrated.tabs.focusMode', "Controls whether focusing the terminal of a tab happens on double or single click.")
 	},
 	[TerminalSettingId.TabsAllowAgentCliTitle]: {
-		description: localize('terminal.integrated.tabs.allowAgentCliTitle', "Controls whether agentic CLIs (such as Claude Code, Codex, GitHub Copilot CLI, and Gemini CLI) are allowed to set the terminal tab title via escape sequences. When disabled, the configured tab title template is used instead."),
+		description: localize('terminal.integrated.tabs.allowAgentCliTitle', "Controls whether agentic CLIs (such as Claude Code, Codex, Assist CLI, and Gemini CLI) are allowed to set the terminal tab title via escape sequences. When disabled, the configured tab title template is used instead."),
 		type: 'boolean',
 		default: true,
 	},
@@ -741,9 +741,9 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 	}, {
 		key: TerminalContribSettingId.DeprecatedAgentSandboxEnabled,
 		migrateFn: (value: unknown, valueAccessor) => {
-			// The deprecated key `chat.agent.sandbox` is now also a namespace prefix
-			// for new settings such as `chat.agent.sandbox.enabled` and
-			// `chat.agent.sandbox.fileSystem.mac`. As a result, inspecting the
+			// The deprecated key `assist.agent.sandbox` is now also a namespace prefix
+			// for new settings such as `assist.agent.sandbox.enabled` and
+			// `assist.agent.sandbox.fileSystem.mac`. As a result, inspecting the
 			// deprecated key may return an object representing the namespace tree
 			// (e.g. `{ fileSystem: { mac: {...} } }`) even when the user never set
 			// the original boolean setting. Only migrate when the value is actually
@@ -757,26 +757,6 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxEnabled, { value: value ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off }]);
 			}
 			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxEnabled, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
-	}, {
-		key: TerminalContribSettingId.DeprecatedAgentSandboxLinuxFileSystem,
-		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxLinuxFileSystem) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxLinuxFileSystem, { value }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxLinuxFileSystem, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
-	}, {
-		key: TerminalContribSettingId.DeprecatedAgentSandboxMacFileSystem,
-		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxMacFileSystem) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxMacFileSystem, { value }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxMacFileSystem, { value: undefined }]);
 			return configurationKeyValuePairs;
 		}
 	}, {

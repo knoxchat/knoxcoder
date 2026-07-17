@@ -35,6 +35,8 @@ if [[ ! -d "$APP_PATH" ]]; then
 	exit 1
 fi
 
+bash "$ROOT/build/darwin/refresh-app-timestamps.sh" "$APP_PATH"
+
 echo
 echo "Build complete!"
 echo "  $APP_PATH"
@@ -43,4 +45,4 @@ echo "Open directly:"
 echo "  open \"$APP_PATH\""
 echo
 echo "Install to Applications (optional):"
-echo "  cp -R \"$APP_PATH\" /Applications/"
+echo "  ditto \"$APP_PATH\" \"/Applications/KnoxCoder.app\""

@@ -161,7 +161,7 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 		});
 		const createOverviewDecoration = (overviewRulerColor: string, minimapColor: string) => {
 			return ModelDecorationOptions.createDynamic({
-				description: 'chat-editing-decoration',
+				description: 'assist-editing-decoration',
 				overviewRuler: { color: themeColorFromId(overviewRulerColor), position: OverviewRulerLane.Left },
 				minimap: { color: themeColorFromId(minimapColor), position: MinimapPosition.Gutter },
 			});
@@ -239,7 +239,7 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 				}
 
 				const domNode = document.createElement('div');
-				domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
+				domNode.className = 'assist-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
 				const result = renderLines(source, renderOptions, decorations, domNode);
 
 				if (!isCreatedContent) {
@@ -248,7 +248,7 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 						afterLineNumber: diffEntry.modified.startLineNumber - 1,
 						heightInLines: result.heightInLines,
 						domNode,
-						ordinal: 50000 + 2 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
+						ordinal: 50000 + 2 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineAssist/browser/inlineAssistZoneWidget.ts#L42
 					};
 
 					this._viewZones.push(viewZoneChangeAccessor.addZone(viewZoneData));

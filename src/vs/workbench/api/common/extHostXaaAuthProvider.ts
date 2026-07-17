@@ -158,7 +158,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 				throw new Error('Enterprise-managed authentication requires `options.audience` (the resource\'s authorization server URL) but none was provided.');
 			}
 			if (!resource) {
-				throw new Error('Enterprise-managed authentication requires `options.resource` (the resource indicator / MCP server URL) but none was provided.');
+				throw new Error('Enterprise-managed authentication requires `options.resource` (the resource indicator / tool server URL) but none was provided.');
 			}
 
 			// Ensure IdP session via the base class (may interact). Don't pass the XAA options through —
@@ -176,7 +176,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 				// if the prompt is dismissed we still try the redemption with `undefined` (valid for
 				// `token_endpoint_auth_method=none`). So in practice this branch is unreachable for
 				// silent=false — guard defensively anyway.
-				throw new Error('Failed to mint a resource access token for the enterprise-managed MCP server.');
+				throw new Error('Failed to mint a resource access token for the enterprise-managed tool server.');
 			}
 			return toSession(minted.token, minted.scopes, minted.account);
 		}
@@ -212,7 +212,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 			// `client_id` claim identifying the requesting app to the resource AS. This is often
 			// distinct from the IdP `client_id` (xaa.dev for example uses a
 			// `{idp_client_id}-at-{resource}` form), so we extract it from the assertion rather than
-			// reusing `this._clientId`. Caller-supplied `options.clientId` (from the MCP server's
+			// reusing `this._clientId`. Caller-supplied `options.clientId` (from the tool server's
 			// `oauth.clientId` config) takes precedence over the JAG-extracted value.
 			let resourceClientId = this._clientId;
 			let resourceClientIdFromJag = false;
@@ -235,9 +235,9 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 			// Leg 4 prep: resolve the resource client_secret.
 			// If the resource AS uses a distinct client_id, it will reject `this._clientSecret`
 			// (the IdP secret) with `invalid_client`. The caller may supply the resource secret
-			// directly via `options.clientSecret` (resolved in `mainThreadMcp` from URL-scoped
+			// directly via `options.clientSecret` (resolved from URL-scoped
 			// secret storage via the "Set Client Secret" code lens above `oauth.clientId` in
-			// mcp.json); otherwise we fall back to a cached per-resource secret or prompt the
+			// tool.json); otherwise we fall back to a cached per-resource secret or prompt the
 			// user. We pass `undefined` if the user leaves the prompt blank — that's valid for
 			// clients registered with `token_endpoint_auth_method=none`.
 			let resourceClientSecret: string | undefined = this._clientSecret;

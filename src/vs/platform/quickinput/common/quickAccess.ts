@@ -32,7 +32,7 @@ export interface AnythingQuickAccessProviderRunOptions extends IQuickAccessProvi
 	readonly includeHelp?: boolean;
 	readonly filter?: (item: IQuickPickItem | IQuickPickSeparator) => boolean;
 	/**
-	 * @deprecated - temporary for Dynamic Chat Variables (see usage) until it has built-in UX for file picking
+	 * @deprecated - temporary for Dynamic assist Variables (see usage) until it has built-in UX for file picking
 	 * Useful for adding items to the top of the list that might contain actions.
 	 */
 	readonly additionPicks?: QuickPickItem[];

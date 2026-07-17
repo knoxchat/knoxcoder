@@ -41,8 +41,8 @@ export class MdLanguageClient implements IDisposable {
 		return this.#client.sendRequest(proto.resolveLinkTarget, { linkText, uri: uri.toString() });
 	}
 
-	getEditForFileRenames(files: ReadonlyArray<{ oldUri: string; newUri: string }>, token: vscode.CancellationToken) {
-		return this.#client.sendRequest(proto.getEditForFileRenames, files, token);
+	getEditForFileRenames(files: ReadonlyArray<{ oldUri: string; newUri: string }>, token: vscode.CancellationToken): Promise<{ participatingRenames: readonly lsp.FileRename[]; edit: lsp.WorkspaceEdit } | undefined> {
+		return this.#client.sendRequest<{ participatingRenames: readonly lsp.FileRename[]; edit: lsp.WorkspaceEdit }>(proto.getEditForFileRenames.method, [...files], token);
 	}
 
 	getReferencesToFileInWorkspace(resource: vscode.Uri, token: vscode.CancellationToken) {

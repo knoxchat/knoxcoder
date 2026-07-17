@@ -5,10 +5,10 @@
 
 import es from 'event-stream';
 import _debounce from 'debounce';
-import { filter as _filter, rename } from './gulp/facade.ts';
+import { filter as _filter, rename, merge} from './gulp/facade.ts';
 import path from 'path';
 import fs from 'fs';
-import _rimraf from 'rimraf';
+import { rimraf as rimrafFn } from 'rimraf';
 import VinylFile from 'vinyl';
 import through from 'through';
 import sm from 'source-map';
@@ -179,7 +179,7 @@ export function cleanNodeModules(rulePath: string): NodeJS.ReadWriteStream {
 	const includes = rules.filter(line => /^!/.test(line)).map(line => `**/node_modules/${line.substr(1)}`);
 
 	const input = es.through();
-	const output = es.merge(
+	const output = merge(
 		input.pipe(_filter(['**', ...excludes])),
 		input.pipe(_filter(includes))
 	);
@@ -293,25 +293,23 @@ export function rewriteSourceMappingURL(sourceMappingURLBase: string): NodeJS.Re
 }
 
 export function rimraf(dir: string): () => Promise<void> {
-	const result = () => new Promise<void>((c, e) => {
+	const result = async () => {
 		let retries = 0;
 
-		const retry = () => {
-			_rimraf(dir, { maxBusyTries: 1 }, (err: any) => {
-				if (!err) {
-					return c();
-				}
-
+		while (true) {
+			try {
+				await rimrafFn(dir, { maxRetries: 0 });
+				return;
+			} catch (err: any) {
 				if ((err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM') && ++retries < 5) {
-					return setTimeout(() => retry(), 10);
+					await new Promise(resolve => setTimeout(resolve, 10));
+					continue;
 				}
 
-				return e(err);
-			});
-		};
-
-		retry();
-	});
+				throw err;
+			}
+		}
+	};
 
 	result.taskName = `clean-${path.basename(dir).toLowerCase()}`;
 	return result;

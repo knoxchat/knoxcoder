@@ -421,18 +421,18 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}
 	}
 
-	async resolveHistoryItemChatContext(historyItemId: string): Promise<string | undefined> {
+	async resolveHistoryItemAssistContext(historyItemId: string, _token: CancellationToken): Promise<string | undefined> {
 		try {
 			const changes = await this.repository.showChanges(historyItemId);
 			return changes;
 		} catch (err) {
-			this.logger.error(`[GitHistoryProvider][resolveHistoryItemChatContext] Failed to resolve history item '${historyItemId}': ${err}`);
+			this.logger.error(`[GitHistoryProvider][resolveHistoryItemAssistContext] Failed to resolve history item '${historyItemId}': ${err}`);
 		}
 
 		return undefined;
 	}
 
-	async resolveHistoryItemChangeRangeChatContext(historyItemId: string, historyItemParentId: string, path: string, token: CancellationToken): Promise<string | undefined> {
+	async resolveHistoryItemChangeRangeAssistContext(historyItemId: string, historyItemParentId: string, path: string, token: CancellationToken): Promise<string | undefined> {
 		try {
 			const changes = await this.repository.showChangesBetween(historyItemParentId, historyItemId, path);
 
@@ -442,7 +442,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 			return `Output of git log -p ${historyItemParentId}..${historyItemId} -- ${path}:\n\n${changes}`;
 		} catch (err) {
-			this.logger.error(`[GitHistoryProvider][resolveHistoryItemChangeRangeChatContext] Failed to resolve history item change range '${historyItemId}' for '${path}': ${err}`);
+			this.logger.error(`[GitHistoryProvider][resolveHistoryItemChangeRangeAssistContext] Failed to resolve history item change range '${historyItemId}' for '${path}': ${err}`);
 		}
 
 		return undefined;

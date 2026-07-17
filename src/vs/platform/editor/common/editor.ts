@@ -286,7 +286,7 @@ export interface IEditorOptions {
 	/**
 	 * Indicates whether the editor is being opened due to an explicit user
 	 * action (`true`) or automatically (`false`) as a side effect of another
-	 * action (e.g. the chat agent opening files it has edited).
+	 * action (e.g. the assist agent opening files it has edited).
 	 *
 	 * When omitted, callers should be treated as explicit. Layout logic may
 	 * use this to decide whether to react to the visibility change (for

@@ -13,14 +13,13 @@ import { cloneAndChange } from '../../../../../base/common/objects.js';
 import { derived, IObservable, IObservableWithChange, ITransaction, observableValue, recordChangesLazy, runOnChange, transaction } from '../../../../../base/common/observable.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { observableReducerSettable } from '../../../../../base/common/observableInternal/experimental/reducer.js';
-import { isDefined, isObject } from '../../../../../base/common/types.js';
+import { isDefined } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
+import { DataChannelForwardingTelemetryService, forwardToChannelIf, isAssistLikeExtension } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import product from '../../../../../platform/product/common/product.js';
 import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -111,27 +110,9 @@ export class InlineCompletionsSource extends Disposable {
 
 		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
 
-		const enablementSetting = product.defaultChatAgent?.completionsEnablementSetting ?? undefined;
-		if (enablementSetting) {
-			this._updateCompletionsEnablement(enablementSetting);
-			this._register(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(enablementSetting)) {
-					this._updateCompletionsEnablement(enablementSetting);
-				}
-			}));
-		}
-
 		this._state.recomputeInitiallyAndOnChange(this._store);
 	}
 
-	private _updateCompletionsEnablement(enalementSetting: string) {
-		const result = this._configurationService.getValue<Record<string, boolean>>(enalementSetting);
-		if (!isObject(result)) {
-			this._completionsEnabled = undefined;
-		} else {
-			this._completionsEnabled = result;
-		}
-	}
 
 	public readonly clearOperationOnTextModelChange = derived(this, reader => {
 		this._versionId.read(reader);
@@ -493,7 +474,7 @@ export class InlineCompletionsSource extends Disposable {
 			return;
 		}
 
-		if (!requestResponseInfo.providers.some(p => isCopilotLikeExtension(p.providerId?.extensionId))) {
+		if (!requestResponseInfo.providers.some(p => isAssistLikeExtension(p.providerId?.extensionId))) {
 			return;
 		}
 
@@ -513,7 +494,7 @@ export class InlineCompletionsSource extends Disposable {
 			languageId: requestResponseInfo.requestInfo.languageId,
 			selectedSuggestionInfo: !!requestResponseInfo.context.selectedSuggestionInfo,
 			availableProviders: requestResponseInfo.providers.map(p => p.providerId?.toString()).filter(isDefined).join(','),
-			...forwardToChannelIf(requestResponseInfo.providers.some(p => isCopilotLikeExtension(p.providerId?.extensionId))),
+			...forwardToChannelIf(requestResponseInfo.providers.some(p => isAssistLikeExtension(p.providerId?.extensionId))),
 			timeUntilProviderRequest: undefined,
 			timeUntilProviderResponse: undefined,
 			viewKind: undefined,

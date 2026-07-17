@@ -250,13 +250,14 @@ const createServerInstance = (ipcAddress: string) =>
 		const s = createServer(socket => {
 			const data: Buffer[] = [];
 			socket.on('data', async chunk => {
-				if (chunk[chunk.length - 1] !== 0) {
+				const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+				if (buffer[buffer.length - 1] !== 0) {
 					// terminated with NUL byte
-					data.push(chunk);
+					data.push(buffer);
 					return;
 				}
 
-				data.push(chunk.slice(0, -1));
+				data.push(buffer.subarray(0, -1));
 
 				try {
 					await vscode.commands.executeCommand(

@@ -12,7 +12,7 @@ import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { IFileManagedSettingsService, normalizeManagedSettings } from './copilotManagedSettings.js';
+import { IFileManagedSettingsService, normalizeManagedSettings } from './managedSettings.js';
 
 /**
  * Upper bound on the size of `managed-settings.json` we will read into the main process. A

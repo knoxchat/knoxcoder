@@ -42,7 +42,7 @@ export const ITerminalEditorService = createDecorator<ITerminalEditorService>('t
 export const ITerminalEditingService = createDecorator<ITerminalEditingService>('terminalEditingService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
-export const ITerminalChatService = createDecorator<ITerminalChatService>('terminalChatService');
+export const ITerminalAssistService = createDecorator<ITerminalAssistService>('terminalAssistService');
 
 /**
  * A terminal contribution that gets created whenever a terminal is created. A contribution has
@@ -116,10 +116,10 @@ export interface IAhpTerminalCommandSource extends IDisposable {
 }
 
 /**
- * Service enabling communication between the chat tool implementation in terminal contrib and workbench contribs.
- * Acts as a communication mechanism for chat-related terminal features.
+ * Service enabling communication between the assist tool implementation in terminal contrib and workbench contribs.
+ * Acts as a communication mechanism for assist-related terminal features.
  */
-export interface IChatTerminalToolProgressPart {
+export interface IAssistTerminalToolProgressPart {
 	readonly elementIndex: number;
 	readonly contentIndex: number;
 	focusTerminal(): Promise<void>;
@@ -130,12 +130,12 @@ export interface IChatTerminalToolProgressPart {
 	getCommandAndOutputAsText(): string | undefined;
 }
 
-export interface ITerminalChatService {
+export interface ITerminalAssistService {
 	readonly _serviceBrand: undefined;
 
 	/**
 	 * Fired when a terminal instance is registered for a tool session id. This can happen after
-	 * the chat UI first renders, enabling late binding of the focus action.
+	 * the assist UI first renders, enabling late binding of the focus action.
 	 */
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance>;
 
@@ -179,19 +179,19 @@ export interface ITerminalChatService {
 	getToolSessionIdForInstance(instance: ITerminalInstance): string | undefined;
 
 	/**
-	 * Associate a chat session with a terminal instance. This is used to retrieve the chat
+	 * Associate a assist session with a terminal instance. This is used to retrieve the assist
 	 * session title for display purposes.
-	 * @param chatSessionResource The chat session resource URI
+	 * @param assistSessionResource The assist session resource URI
 	 * @param instance The terminal instance
 	 */
-	registerTerminalInstanceWithChatSession(chatSessionResource: URI, instance: ITerminalInstance): void;
+	registerTerminalInstanceWithAssistSession(assistSessionResource: URI, instance: ITerminalInstance): void;
 
 	/**
-	 * Returns the chat session resource for a given terminal instance, if it has been registered.
+	 * Returns the assist session resource for a given terminal instance, if it has been registered.
 	 * @param instance The terminal instance to look up
-	 * @returns The chat session resource if found, undefined otherwise
+	 * @returns The assist session resource if found, undefined otherwise
 	 */
-	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined;
+	getAssistSessionResourceForInstance(instance: ITerminalInstance): URI | undefined;
 
 	/**
 	 * Check if a terminal is a background terminal (tool-driven terminal that may be hidden from
@@ -202,64 +202,64 @@ export interface ITerminalChatService {
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
 
 	/**
-	 * Register a chat terminal tool progress part for tracking and focus management.
+	 * Register a assist terminal tool progress part for tracking and focus management.
 	 * @param part The progress part to register
 	 * @returns A disposable that unregisters the progress part when disposed
 	 */
-	registerProgressPart(part: IChatTerminalToolProgressPart): IDisposable;
+	registerProgressPart(part: IAssistTerminalToolProgressPart): IDisposable;
 
 	/**
 	 * Set the currently focused progress part.
 	 * @param part The progress part to focus
 	 */
-	setFocusedProgressPart(part: IChatTerminalToolProgressPart): void;
+	setFocusedProgressPart(part: IAssistTerminalToolProgressPart): void;
 
 	/**
 	 * Clear the focused state from a progress part.
 	 * @param part The progress part to clear focus from
 	 */
-	clearFocusedProgressPart(part: IChatTerminalToolProgressPart): void;
+	clearFocusedProgressPart(part: IAssistTerminalToolProgressPart): void;
 
 	/**
 	 * Get the currently focused progress part, if any.
 	 * @returns The focused progress part or undefined if none is focused
 	 */
-	getFocusedProgressPart(): IChatTerminalToolProgressPart | undefined;
+	getFocusedProgressPart(): IAssistTerminalToolProgressPart | undefined;
 
 	/**
 	 * Get the most recently registered progress part, if any.
 	 * @returns The most recent progress part or undefined if none exist
 	 */
-	getMostRecentProgressPart(): IChatTerminalToolProgressPart | undefined;
+	getMostRecentProgressPart(): IAssistTerminalToolProgressPart | undefined;
 
 	/**
 	 * Enable or disable auto approval for all commands in a specific session.
-	 * @param chatSessionResource The chat session resource URI
+	 * @param assistSessionResource The assist session resource URI
 	 * @param enabled Whether to enable or disable session auto approval
 	 */
-	setChatSessionAutoApproval(chatSessionResource: URI, enabled: boolean): void;
+	setAssistSessionAutoApproval(assistSessionResource: URI, enabled: boolean): void;
 
 	/**
 	 * Check if a session has auto approval enabled for all commands.
-	 * @param chatSessionResource The chat session resource URI
+	 * @param assistSessionResource The assist session resource URI
 	 * @returns True if the session has auto approval enabled
 	 */
-	hasChatSessionAutoApproval(chatSessionResource: URI): boolean;
+	hasAssistSessionAutoApproval(assistSessionResource: URI): boolean;
 
 	/**
 	 * Add a session-scoped auto-approve rule.
-	 * @param chatSessionResource The chat session resource URI
+	 * @param assistSessionResource The assist session resource URI
 	 * @param key The rule key (command or regex pattern)
 	 * @param value The rule value (approval boolean or object with approve and matchCommandLine)
 	 */
-	addSessionAutoApproveRule(chatSessionResource: URI, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void;
+	addSessionAutoApproveRule(assistSessionResource: URI, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void;
 
 	/**
-	 * Get all session-scoped auto-approve rules for a specific chat session.
-	 * @param chatSessionResource The chat session resource URI
+	 * Get all session-scoped auto-approve rules for a specific assist session.
+	 * @param assistSessionResource The assist session resource URI
 	 * @returns A record of all session-scoped auto-approve rules for the session
 	 */
-	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
+	getSessionAutoApproveRules(assistSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
 
 	/**
 	 * Signal that a foreground terminal tool invocation should continue in the background.

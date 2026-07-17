@@ -13,7 +13,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ITextFileService } from '../../textfile/common/textfiles.js';
 import { IConfigurationUpdateOptions, IConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
-import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES, MCP_CONFIGURATION_KEY } from './configuration.js';
+import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES, TOOLS_CONFIGURATION_KEY } from './configuration.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../platform/files/common/files.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -279,7 +279,7 @@ export class ConfigurationEditing {
 	private onInvalidConfigurationError(error: ConfigurationEditingError, operation: IConfigurationEditOperation,): void {
 		const openStandAloneConfigurationActionLabel = operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY ? nls.localize('openTasksConfiguration', "Open Tasks Configuration")
 			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
-				: operation.workspaceStandAloneConfigurationKey === MCP_CONFIGURATION_KEY ? nls.localize('openMcpConfiguration', "Open MCP Configuration")
+				: operation.workspaceStandAloneConfigurationKey === TOOLS_CONFIGURATION_KEY ? nls.localize('openToolsConfiguration', "Open tool Configuration")
 					: null;
 		if (openStandAloneConfigurationActionLabel) {
 			this.notificationService.prompt(Severity.Error, error.message,
@@ -385,8 +385,8 @@ export class ConfigurationEditing {
 				if (operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY) {
 					return nls.localize('errorInvalidLaunchConfiguration', "Unable to write into the launch configuration file. Please open it to correct errors/warnings in it and try again.");
 				}
-				if (operation.workspaceStandAloneConfigurationKey === MCP_CONFIGURATION_KEY) {
-					return nls.localize('errorInvalidMCPConfiguration', "Unable to write into the MCP configuration file. Please open it to correct errors/warnings in it and try again.");
+				if (operation.workspaceStandAloneConfigurationKey === TOOLS_CONFIGURATION_KEY) {
+					return nls.localize('errorInvalidToolConfiguration', "Unable to write into the tool configuration file. Please open it to correct errors/warnings in it and try again.");
 				}
 				switch (target) {
 					case EditableConfigurationTarget.USER_LOCAL:
@@ -416,8 +416,8 @@ export class ConfigurationEditing {
 				if (operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY) {
 					return nls.localize('errorLaunchConfigurationFileDirty', "Unable to write into launch configuration file because the file has unsaved changes. Please save it first and then try again.");
 				}
-				if (operation.workspaceStandAloneConfigurationKey === MCP_CONFIGURATION_KEY) {
-					return nls.localize('errorMCPConfigurationFileDirty', "Unable to write into MCP configuration file because the file has unsaved changes. Please save it first and then try again.");
+				if (operation.workspaceStandAloneConfigurationKey === TOOLS_CONFIGURATION_KEY) {
+					return nls.localize('errorToolConfigurationFileDirty', "Unable to write into tool configuration file because the file has unsaved changes. Please save it first and then try again.");
 				}
 				switch (target) {
 					case EditableConfigurationTarget.USER_LOCAL:
@@ -447,8 +447,8 @@ export class ConfigurationEditing {
 				if (operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY) {
 					return nls.localize('errorLaunchConfigurationFileModifiedSince', "Unable to write into launch configuration file because the content of the file is newer.");
 				}
-				if (operation.workspaceStandAloneConfigurationKey === MCP_CONFIGURATION_KEY) {
-					return nls.localize('errorMCPConfigurationFileModifiedSince', "Unable to write into MCP configuration file because the content of the file is newer.");
+				if (operation.workspaceStandAloneConfigurationKey === TOOLS_CONFIGURATION_KEY) {
+					return nls.localize('errorToolConfigurationFileModifiedSince', "Unable to write into tool configuration file because the content of the file is newer.");
 				}
 				switch (target) {
 					case EditableConfigurationTarget.USER_LOCAL:
@@ -531,7 +531,7 @@ export class ConfigurationEditing {
 
 		if (operation.workspaceStandAloneConfigurationKey) {
 			// Global launches are not supported
-			if ((operation.workspaceStandAloneConfigurationKey !== TASKS_CONFIGURATION_KEY) && (operation.workspaceStandAloneConfigurationKey !== MCP_CONFIGURATION_KEY) && (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE)) {
+			if ((operation.workspaceStandAloneConfigurationKey !== TASKS_CONFIGURATION_KEY) && (operation.workspaceStandAloneConfigurationKey !== TOOLS_CONFIGURATION_KEY) && (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE)) {
 				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET, target, operation);
 			}
 		}
@@ -628,8 +628,8 @@ export class ConfigurationEditing {
 		if (target === EditableConfigurationTarget.USER_LOCAL) {
 			if (key === TASKS_CONFIGURATION_KEY) {
 				return this.userDataProfileService.currentProfile.tasksResource;
-			} if (key === MCP_CONFIGURATION_KEY) {
-				return this.userDataProfileService.currentProfile.mcpResource;
+			} if (key === TOOLS_CONFIGURATION_KEY) {
+				return this.userDataProfileService.currentProfile.toolsConfigResource;
 			} else {
 				if (!this.userDataProfileService.currentProfile.isDefault && this.configurationService.isSettingAppliedForAllProfiles(key)) {
 					return this.userDataProfilesService.defaultProfile.settingsResource;

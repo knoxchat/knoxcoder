@@ -190,14 +190,14 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 
 	private async _getUnresolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		// If agent host shell is allowed, prefer that.
-		if (options.allowAgentHostShell) {
-			const raw = this._configurationService.getValue(`terminal.integrated.agentHostProfile.${this._getOsKey(options.os)}`);
+		if (options.allowSandboxHostShell) {
+			const raw = this._configurationService.getValue(`terminal.integrated.sandboxHostProfile.${this._getOsKey(options.os)}`);
 			if (isString(raw)) {
 				await this._terminalProfileService.profilesReady;
 			}
-			const agentHostShellProfile = this._getUnresolvedAgentHostShellProfile(options);
-			if (agentHostShellProfile) {
-				return agentHostShellProfile;
+			const sandboxHostShellProfile = this._getUnresolvedSandboxHostShellProfile(options);
+			if (sandboxHostShellProfile) {
+				return sandboxHostShellProfile;
 			}
 		}
 
@@ -283,15 +283,15 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		return undefined;
 	}
 
-	private _getUnresolvedAgentHostShellProfile(options: IShellLaunchConfigResolveOptions): ITerminalProfile | undefined {
-		const agentHostProfile = this._configurationService.getValue(`terminal.integrated.agentHostProfile.${this._getOsKey(options.os)}`);
+	private _getUnresolvedSandboxHostShellProfile(options: IShellLaunchConfigResolveOptions): ITerminalProfile | undefined {
+		const sandboxHostProfile = this._configurationService.getValue(`terminal.integrated.sandboxHostProfile.${this._getOsKey(options.os)}`);
 
 		// Allow a string value as a reference to a named profile under
 		// `terminal.integrated.profiles.<os>` — same convention as
 		// `terminal.integrated.defaultProfile.<os>` — so users don't have
 		// to inline the path when they already have the profile defined.
-		if (isString(agentHostProfile)) {
-			const named = this._terminalProfileService.availableProfiles.find(p => p.profileName === agentHostProfile && !p.isAutoDetected);
+		if (isString(sandboxHostProfile)) {
+			const named = this._terminalProfileService.availableProfiles.find(p => p.profileName === sandboxHostProfile && !p.isAutoDetected);
 			if (named) {
 				const cloned = deepClone(named);
 				cloned.icon = this._getCustomIcon(cloned.icon) || Codicon.tools;
@@ -300,9 +300,9 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 			return undefined;
 		}
 
-		if (this._isValidAutomationProfile(agentHostProfile, options.os)) {
-			agentHostProfile.icon = this._getCustomIcon(agentHostProfile.icon) || Codicon.tools;
-			return agentHostProfile;
+		if (this._isValidAutomationProfile(sandboxHostProfile, options.os)) {
+			sandboxHostProfile.icon = this._getCustomIcon(sandboxHostProfile.icon) || Codicon.tools;
+			return sandboxHostProfile;
 		}
 
 		return undefined;

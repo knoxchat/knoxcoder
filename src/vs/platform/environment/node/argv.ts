@@ -15,7 +15,7 @@ const helpCategories = {
 	o: localize('optionsUpperCase', "Options"),
 	e: localize('extensionsManagement', "Extensions Management"),
 	t: localize('troubleshooting', "Troubleshooting"),
-	m: localize('mcp', "Model Context Protocol")
+	m: localize('tools', "Tools")
 };
 
 export interface Option<OptionType> {
@@ -45,35 +45,12 @@ export type OptionDescriptions<T> = {
 	Subcommand<T[P]>
 };
 
-export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web', 'agent'] as const;
+export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web'] as const;
 
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
-	'chat': {
-		type: 'subcommand',
-		description: 'Pass in a prompt to run in a chat session in the current working directory.',
-		options: {
-			'_': { type: 'string[]', description: localize('prompt', "The prompt to use as chat.") },
-			'mode': { type: 'string', cat: 'o', alias: 'm', args: 'mode', description: localize('chatMode', "The mode to use for the chat session. Available options: 'ask', 'edit', 'agent', or the identifier of a custom mode. Defaults to 'agent'.") },
-			'add-file': { type: 'string[]', cat: 'o', alias: 'a', args: 'path', description: localize('addFile', "Add files as context to the chat session.") },
-			'maximize': { type: 'boolean', cat: 'o', description: localize('chatMaximize', "Maximize the chat session view.") },
-			'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindowForChat', "Force to use the last active window for the chat session.") },
-			'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindowForChat', "Force to open an empty window for the chat session.") },
-			'profile': { type: 'string', 'cat': 'o', args: 'profileName', description: localize('profileName', "Opens the provided folder or workspace with the given profile and associates the profile with the workspace. If the profile does not exist, a new empty one is created.") },
-			'help': { type: 'boolean', alias: 'h', description: localize('help', "Print usage.") }
-		}
-	},
 	'serve-web': {
 		type: 'subcommand',
 		description: 'Run a server that displays the editor UI in browsers.',
-		options: {
-			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
-			'disable-telemetry': { type: 'boolean' },
-			'telemetry-level': { type: 'string' },
-		}
-	},
-	'agent': {
-		type: 'subcommand',
-		description: 'Start and interact with AI agent hosts.',
 		options: {
 			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
 			'disable-telemetry': { type: 'boolean' },
@@ -132,7 +109,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'update-extensions': { type: 'boolean', cat: 'e', description: localize('updateExtensions', "Update the installed extensions.") },
 	'enable-proposed-api': { type: 'string[]', allowEmptyValue: true, cat: 'e', args: 'ext-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
-	'add-mcp': { type: 'string[]', cat: 'm', args: 'json', description: localize('addMcp', "Adds a Model Context Protocol server definition to the user profile. Accepts JSON input in the form '{\"name\":\"server-name\",\"command\":...}'") },
+	'add-tool': { type: 'string[]', cat: 'm', args: 'json', description: localize('addTool', "Adds a tool server definition to the user profile. Accepts JSON input in the form '{\"name\":\"server-name\",\"command\":...}'") },
 
 	'version': { type: 'boolean', cat: 't', alias: 'v', description: localize('version', "Print version.") },
 	'verbose': { type: 'boolean', cat: 't', global: true, description: localize('verbose', "Print verbose output (implies --wait).") },
@@ -171,8 +148,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'debugRenderer': { type: 'boolean' },
 	'inspect-ptyhost': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-ptyhost': { type: 'string', allowEmptyValue: true },
-	'inspect-agenthost': { type: 'string', allowEmptyValue: true },
-	'inspect-brk-agenthost': { type: 'string', allowEmptyValue: true },
+	'inspect-sandboxhost': { type: 'string', allowEmptyValue: true },
+	'inspect-brk-sandboxhost': { type: 'string', allowEmptyValue: true },
 	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
@@ -464,7 +441,7 @@ function wrapText(text: string, columns: number): string[] {
 export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<unknown> | Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'> | Subcommand<Record<string, unknown>>>, capabilities?: { noPipe?: boolean; noInputFiles?: boolean; isChat?: boolean }): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
 	const inputFiles = capabilities?.noInputFiles ? '' : capabilities?.isChat ? ` [${localize('cliPrompt', 'prompt')}]` : ` [${localize('paths', 'paths')}...]`;
-	const subcommand = capabilities?.isChat ? ' chat' : '';
+	const subcommand = capabilities?.isChat ? ' assist' : '';
 
 	const help = [`${productName} ${version}`];
 	help.push('');
@@ -516,13 +493,13 @@ export function buildStdinMessage(executableName: string, isChat?: boolean): str
 	let example: string;
 	if (isWindows) {
 		if (isChat) {
-			example = `echo Hello World | ${executableName} chat <prompt> -`;
+			example = `echo Hello World | ${executableName} assist <prompt> -`;
 		} else {
 			example = `echo Hello World | ${executableName} -`;
 		}
 	} else {
 		if (isChat) {
-			example = `ps aux | grep code | ${executableName} chat <prompt> -`;
+			example = `ps aux | grep code | ${executableName} assist <prompt> -`;
 		} else {
 			example = `ps aux | grep code | ${executableName} -`;
 		}

@@ -77,7 +77,7 @@ suite('XaaAuthProvider toSession', () => {
 		// authoritative identity. The fallback account comes from a different (IdP) token response and
 		// must only fill in when this token carries no id_token of its own.
 		const token: IAuthorizationTokenResponse = { access_token: 'opaque', token_type: 'Bearer', id_token: jwt({ sub: 'session-sub', preferred_username: 'session@contoso.com' }) };
-		const session = toSession(token, ['mcp:proxy'], { id: 'idp-sub', label: 'idp@contoso.com' });
+		const session = toSession(token, ['tool:proxy'], { id: 'idp-sub', label: 'idp@contoso.com' });
 		assert.deepStrictEqual(session.account, { id: 'session-sub', label: 'session@contoso.com' });
 	});
 
@@ -85,7 +85,7 @@ suite('XaaAuthProvider toSession', () => {
 		// The common resource-session case: the resource token carries no id_token, so the session adopts
 		// the IdP identity — keeping it aligned with account enumeration (getAccounts).
 		const token: IAuthorizationTokenResponse = { access_token: 'opaque-resource-token', token_type: 'Bearer' };
-		const session = toSession(token, ['mcp:proxy'], { id: 'idp-sub', label: 'user@contoso.com' });
+		const session = toSession(token, ['tool:proxy'], { id: 'idp-sub', label: 'user@contoso.com' });
 		assert.deepStrictEqual(session.account, { id: 'idp-sub', label: 'user@contoso.com' });
 	});
 
@@ -93,7 +93,7 @@ suite('XaaAuthProvider toSession', () => {
 		// The access token is a bearer credential for the resource server, opaque to us by design. Even when
 		// it is a JWT with identity claims and there is neither an id_token nor a fallback, we must not read it.
 		const token: IAuthorizationTokenResponse = { access_token: jwt({ sub: 'resource-sub', preferred_username: 'do-not-use' }), token_type: 'Bearer' };
-		const session = toSession(token, ['mcp:proxy']);
+		const session = toSession(token, ['tool:proxy']);
 		assert.deepStrictEqual(session.account, { id: 'unknown', label: 'XAA' });
 	});
 });

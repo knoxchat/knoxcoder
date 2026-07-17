@@ -110,22 +110,12 @@ jobs:
 
       - template: ../common/install-builtin-extensions.yml@self
 
-      - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Download Copilot VSIX (background)
-
       - template: ../common/mixin-vscode-capi.yml@self
 
       - script: npm run gulp core-ci
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Compile
-
-      - script: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Download Copilot VSIX
 
       - script: |
           set -e

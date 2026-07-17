@@ -328,7 +328,7 @@ suite('multi-root workspace', () => {
 
 	test('stripPathSegments strips leading path segments', () => {
 		labelService.registerFormatter({
-			scheme: 'vscode-agent-host',
+			scheme: 'vscode-custom-scheme',
 			formatting: {
 				label: '${path}',
 				separator: '/',
@@ -336,14 +336,14 @@ suite('multi-root workspace', () => {
 			}
 		});
 
-		const uri = URI.from({ scheme: 'vscode-agent-host', authority: 'my-server', path: '/file//home/user/project/file.ts' });
+		const uri = URI.from({ scheme: 'vscode-custom-scheme', authority: 'my-server', path: '/file//home/user/project/file.ts' });
 		const generated = labelService.getUriLabel(uri, { relative: false });
 		assert.strictEqual(generated, '/home/user/project/file.ts');
 	});
 
 	test('stripPathSegments combined with stripPathStartingSeparator', () => {
 		labelService.registerFormatter({
-			scheme: 'vscode-agent-host',
+			scheme: 'vscode-custom-scheme',
 			formatting: {
 				label: '${path}',
 				separator: '/',
@@ -352,7 +352,7 @@ suite('multi-root workspace', () => {
 			}
 		});
 
-		const uri = URI.from({ scheme: 'vscode-agent-host', authority: 'my-server', path: '/file//home/user/file.ts' });
+		const uri = URI.from({ scheme: 'vscode-custom-scheme', authority: 'my-server', path: '/file//home/user/file.ts' });
 		const generated = labelService.getUriLabel(uri, { relative: false });
 		assert.strictEqual(generated, 'home/user/file.ts');
 	});

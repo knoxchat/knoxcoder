@@ -46,7 +46,7 @@ import { IDefaultAccountService } from '../../../platform/defaultAccount/common/
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';
-import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingResolution, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, ManagedSettingsSource, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
+import { MANAGED_ENABLED_PLUGINS_KEY, MANAGED_EXTRA_MARKETPLACES_KEY, MANAGED_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingResolution, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, ManagedSettingsSource, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/managedSettings.js';
 import { IManagedSettingPolicyDefinition, ManagedSettingValue, ManagedSettingsData } from '../../../base/common/policy.js';
 import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 import { adaptManagedSettings, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
@@ -876,7 +876,7 @@ class PolicyDiagnosticsAction extends Action2 {
 
 			content += '### GitHub Server API\n\n';
 			content += PROPERTY_VALUE_TABLE_HEADER;
-			content += '| Endpoint | `/copilot_internal/managed_settings` |\n';
+			content += '| Endpoint | `/assist_internal/managed_settings` |\n';
 			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
 			content += `| Last fetch | ${fetchStatus === null ? '*never*' : `\`${fetchStatus}\``} |\n`;
 			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
@@ -949,7 +949,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			// JSON payloads: the structured keys carry a JSON string that PolicyConfiguration parses
 			// back into the object/array-typed setting on read. Re-parse exactly those keys with the
 			// same jsonc parser so a malformed value surfaces here instead of being silently rejected.
-			for (const key of [COPILOT_ENABLED_PLUGINS_KEY, COPILOT_STRICT_MARKETPLACES_KEY, COPILOT_EXTRA_MARKETPLACES_KEY]) {
+			for (const key of [MANAGED_ENABLED_PLUGINS_KEY, MANAGED_STRICT_MARKETPLACES_KEY, MANAGED_EXTRA_MARKETPLACES_KEY]) {
 				const value = effective[key];
 				if (typeof value !== 'string') {
 					continue;

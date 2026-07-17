@@ -127,8 +127,8 @@ interface IInitialEditorsState {
 }
 
 const COMMAND_CENTER_SETTINGS = [
-	'chat.agentsControl.enabled',
-	'chat.unifiedAgentsBar.enabled',
+	'assist.agentsControl.enabled',
+	'assist.unifiedAgentsBar.enabled',
 	'workbench.navigationControl.enabled',
 	'workbench.experimental.share.enabled',
 ];
@@ -361,7 +361,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			if (this.isAuxiliaryBarMaximized()) {
 				// Do not unmaximize the auxiliary side bar when the editor was
-				// opened automatically (e.g. by the chat agent applying edits).
+				// opened automatically (e.g. by the assist agent applying edits).
 				// Only an explicit user action should disrupt the chosen layout.
 				if (explicitUserAction !== false) {
 					this.toggleMaximizedAuxiliaryBar();
@@ -3005,7 +3005,7 @@ class LayoutStateModel extends Disposable {
 			if (
 				this.isNew[StorageScope.APPLICATION] &&
 				configuration.value !== 'hidden' &&
-				!this.configurationService.getValue<boolean>('chat.disableAIFeatures')
+				!this.configurationService.getValue<boolean>('assist.disableAIFeatures')
 			) {
 				return false;
 			}

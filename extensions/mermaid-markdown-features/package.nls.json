@@ -1,6 +1,6 @@
 {
 	"displayName": "Mermaid Markdown Features",
-	"description": "Adds Mermaid diagram support to built-in chats, Markdown previews, and notebooks.",
+	"description": "Adds Mermaid diagram support to Markdown previews and notebooks.",
 	"command.resetPanZoom.title": "Reset Pan and Zoom",
 	"command.openInEditor.title": "Open Diagram in Editor",
 	"command.copySource.title": "Copy Diagram Source",

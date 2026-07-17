@@ -170,7 +170,7 @@ CommandsRegistry.registerCommand({
 		// reading the registry, otherwise extension settings may be missing.
 		await extensionService.whenInstalledExtensionsRegistered();
 
-		// Some built-in extensions (e.g. Copilot when chat setup is incomplete) may be
+		// Some built-in extensions (e.g. Assist when assist setup is incomplete) may be
 		// disabled and therefore not contribute their configuration. Enable any disabled
 		// built-in extensions and wait for them to register so their settings are dumped too.
 		const installed = await extensionManagementService.getInstalled();

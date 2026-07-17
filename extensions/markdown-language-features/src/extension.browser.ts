@@ -33,6 +33,6 @@ function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promi
 	worker.postMessage({ i10lLocation: vscode.l10n.uri?.toString() ?? '' });
 
 	return startClient((id: string, name: string, clientOptions: LanguageClientOptions) => {
-		return new LanguageClient(id, name, clientOptions, worker);
+		return new LanguageClient(id, name, worker, clientOptions);
 	}, parser);
 }

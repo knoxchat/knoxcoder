@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { FileSystem } from '@vscode/sync-api-client';
-import type * as ts from 'typescript/lib/tsserverlibrary';
+import type * as ts from '@typescript/typescript6/lib/tsserverlibrary';
 import { Logger } from './logging';
 import { WebTypingsInstallerClient } from './typingsInstaller/typingsInstaller';
 import { hrtime } from './util/hrtime';
@@ -29,7 +29,7 @@ interface TsServerInternals extends ServerModule {
 }
 
 export function startWorkerSession(
-	ts: typeof import('typescript/lib/tsserverlibrary'),
+	ts: typeof import('@typescript/typescript6/lib/tsserverlibrary'),
 	host: ts.server.ServerHost,
 	fs: FileSystem | undefined,
 	options: StartSessionOptions,

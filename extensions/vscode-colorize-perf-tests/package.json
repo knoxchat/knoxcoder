@@ -19,10 +19,10 @@
     "compile": "gulp compile-extension:vscode-colorize-perf-tests"
   },
   "dependencies": {
-    "jsonc-parser": "^3.2.0"
+    "jsonc-parser": "^3.3.1"
   },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/node": "26.x"
   },
   "repository": {
     "type": "git",

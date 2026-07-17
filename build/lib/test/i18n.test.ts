@@ -43,7 +43,7 @@ suite('XLF Parser Tests', () => {
 			workbenchParts = { name: 'vs/workbench/contrib/html', project: workbenchProject },
 			workbenchServices = { name: 'vs/workbench/services/textfile', project: workbenchProject },
 			workbench = { name: 'vs/workbench', project: workbenchProject },
-			sessionsContrib = { name: 'vs/sessions/contrib/chat', project: sessionsProject },
+			sessionsContrib = { name: 'vs/sessions/browser', project: sessionsProject },
 			sessions = { name: 'vs/sessions', project: sessionsProject };
 
 		assert.deepStrictEqual(i18n.getResource('vs/platform/actions/browser/menusExtensionPoint'), platform);
@@ -54,7 +54,7 @@ suite('XLF Parser Tests', () => {
 		assert.deepStrictEqual(i18n.getResource('vs/workbench/contrib/html/browser/webview'), workbenchParts);
 		assert.deepStrictEqual(i18n.getResource('vs/workbench/services/textfile/node/testFileService'), workbenchServices);
 		assert.deepStrictEqual(i18n.getResource('vs/workbench/browser/parts/panel/panelActions'), workbench);
-		assert.deepStrictEqual(i18n.getResource('vs/sessions/contrib/chat/browser/chatWidget'), sessionsContrib);
+		assert.deepStrictEqual(i18n.getResource('vs/sessions/browser/layoutActions'), sessionsContrib);
 		assert.deepStrictEqual(i18n.getResource('vs/sessions/browser/layoutActions'), sessions);
 	});
 });

@@ -42,7 +42,7 @@ suite('HTML Embedded Formatting', () => {
 			const result = await format(languageModes, document, range, formatOptions, undefined, { css: true, javascript: true });
 
 			const actual = TextDocument.applyEdits(document, result);
-			assert.strictEqual(actual, expected, message);
+			assert.strictEqual(actual, expected, message ?? '');
 		} finally {
 			languageModes.dispose();
 		}

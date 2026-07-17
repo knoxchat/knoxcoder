@@ -8,7 +8,7 @@ import { Disposable, dispose, IDisposable } from '../../../../base/common/lifecy
 import { Event } from '../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITerminalChatService, ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState, TerminalDataTransfers } from './terminal.js';
+import { ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState, TerminalDataTransfers } from './terminal.js';
 import { TerminalTabsListSizes, TerminalTabList } from './terminalTabsList.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
@@ -23,11 +23,9 @@ import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { getInstanceHoverInfo } from './terminalTooltip.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { TerminalTabsChatEntry } from './terminalTabsChatEntry.js';
 import { containsDragType } from '../../../../platform/dnd/browser/dnd.js';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from './terminalUri.js';
 import type { IProcessDetails } from '../../../../platform/terminal/common/terminalProcess.js';
-import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
 
 const $ = dom.$;
 
@@ -54,7 +52,6 @@ export class TerminalTabbedView extends Disposable {
 	private _sashDisposables: IDisposable[] | undefined;
 
 	private _plusButton: HTMLElement | undefined;
-	private _chatEntry: TerminalTabsChatEntry | undefined;
 
 	private _tabTreeIndex: number;
 	private _terminalContainerIndex: number;
@@ -77,7 +74,6 @@ export class TerminalTabbedView extends Disposable {
 	constructor(
 		parentElement: HTMLElement,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -103,7 +99,6 @@ export class TerminalTabbedView extends Disposable {
 
 		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement));
 		this._tabListDomElement = this._tabList.getHTMLElement();
-		this._chatEntry = this._register(this._instantiationService.createInstance(TerminalTabsChatEntry, tabListContainer, this._tabContainer));
 
 		const terminalOuterContainer = $('.terminal-outer-container');
 		this._terminalContainer = $('.terminal-groups-container');
@@ -135,20 +130,9 @@ export class TerminalTabbedView extends Disposable {
 		}));
 		this._register(Event.any(this._terminalGroupService.onDidChangeInstances, this._terminalGroupService.onDidChangeGroups)(() => {
 			this._refreshShowTabs();
-			this._updateChatTerminalsEntry();
-		}));
+			}));
 
-		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidChangeInstances, this._terminalService.onDidDisposeInstance)(() => {
-			this._refreshShowTabs();
-			this._updateChatTerminalsEntry();
-		}));
 
-		this._register(contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([TerminalContribContextKeyStrings.ChatHasHiddenTerminals]))) {
-				this._refreshShowTabs();
-				this._updateChatTerminalsEntry();
-			}
-		}));
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
 		this._register(this._terminalGroupService.onDidChangePanelOrientation((orientation) => {
@@ -162,18 +146,13 @@ export class TerminalTabbedView extends Disposable {
 
 		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL, proportionalLayout: false });
 		this._setupSplitView(terminalOuterContainer);
-		this._updateChatTerminalsEntry();
 	}
 
 	private _shouldShowTabs(): boolean {
 		const enabled = this._terminalConfigurationService.config.tabs.enabled;
 		const hide = this._terminalConfigurationService.config.tabs.hideCondition;
-		const hiddenChatTerminals = this._terminalChatService.getToolSessionTerminalInstances(true);
 		if (!enabled) {
 			return false;
-		}
-		if (hiddenChatTerminals.length > 0) {
-			return true;
 		}
 
 		switch (hide) {
@@ -210,9 +189,6 @@ export class TerminalTabbedView extends Disposable {
 		}
 	}
 
-	private _updateChatTerminalsEntry(): void {
-		this._chatEntry?.update();
-	}
 
 	private _getLastListWidth(): number {
 		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TerminalStorageKeys.TabsListWidthVertical : TerminalStorageKeys.TabsListWidthHorizontal;
@@ -342,12 +318,10 @@ export class TerminalTabbedView extends Disposable {
 		const hasText = this._tabListElement.clientWidth > TerminalTabsListSizes.MidpointViewWidth;
 		this._tabContainer.classList.toggle('has-text', hasText);
 		this._terminalIsTabsNarrowContextKey.set(!hasText);
-		this._updateChatTerminalsEntry();
 	}
 
 	layout(width: number, height: number): void {
-		const chatItemHeight = this._chatEntry?.element.style.display === 'none' ? 0 : this._chatEntry?.element.clientHeight;
-		this._height = height - (chatItemHeight ?? 0);
+		this._height = height;
 		this._width = width;
 		this._splitView.layout(width);
 		if (this._shouldShowTabs()) {
@@ -485,7 +459,6 @@ export class TerminalTabbedView extends Disposable {
 	private _setEmptyAreaDropState(active: boolean): void {
 		this._tabListContainer.classList.toggle('drop-target', active);
 		this._tabContainer.classList.toggle('drop-target', active);
-		this._chatEntry?.element.classList.toggle('drop-target', active);
 	}
 
 	private _resetEmptyAreaDropState(): void {

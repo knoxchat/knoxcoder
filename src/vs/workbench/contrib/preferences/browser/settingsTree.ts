@@ -77,7 +77,7 @@ const $ = DOM.$;
 
 const multiGroupTocSettings = new Set([
 	'accessibility.signals.chatUserActionRequired',
-	'accessibility.signals.chatResponseReceived'
+	'accessibility.signals.assistResponseReceived'
 ]);
 
 function getIncludeExcludeDisplayValue(element: SettingsTreeSettingElement): IIncludeExcludeDataItem[] {

@@ -7,10 +7,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService } from '../../common/authentication.js';
 import { IAuthenticationUsageService } from '../../browser/authenticationUsageService.js';
-import { IAuthenticationMcpUsageService } from '../../browser/authenticationMcpUsageService.js';
 import { IAuthenticationAccessService } from '../../browser/authenticationAccessService.js';
-import { IAuthenticationMcpAccessService, urlsEqual } from '../../browser/authenticationMcpAccessService.js';
-import { IAuthenticationMcpService } from '../../browser/authenticationMcpService.js';
 
 /**
  * Helper function to create a mock authentication provider
@@ -131,31 +128,6 @@ export class TestUsageService extends BaseTestService implements IAuthentication
 	async extensionUsesAuth(extensionId: string): Promise<boolean> { return false; }
 }
 
-export class TestMcpUsageService extends BaseTestService implements IAuthenticationMcpUsageService {
-	declare readonly _serviceBrand: undefined;
-
-	readAccountUsages(providerId: string, accountName: string): any[] {
-		this.trackCall('readAccountUsages', providerId, accountName);
-		return this.data.get(this.getKey(providerId, accountName)) || [];
-	}
-
-	addAccountUsage(providerId: string, accountName: string, scopes: readonly string[], mcpServerId: string, mcpServerName: string): void {
-		this.trackCall('addAccountUsage', providerId, accountName, scopes, mcpServerId, mcpServerName);
-		const key = this.getKey(providerId, accountName);
-		const usages = this.data.get(key) || [];
-		usages.push({ mcpServerId, mcpServerName, scopes: [...scopes], lastUsed: Date.now() });
-		this.data.set(key, usages);
-	}
-
-	removeAccountUsage(providerId: string, accountName: string): void {
-		this.trackCall('removeAccountUsage', providerId, accountName);
-		this.data.delete(this.getKey(providerId, accountName));
-	}
-
-	// Stub implementations for missing methods
-	async initializeUsageCache(): Promise<void> { }
-	async hasUsedAuth(mcpServerId: string): Promise<boolean> { return false; }
-}
 
 export class TestAccessService extends BaseTestService implements IAuthenticationAccessService {
 	declare readonly _serviceBrand: undefined;
@@ -200,65 +172,6 @@ export class TestAccessService extends BaseTestService implements IAuthenticatio
 	}
 }
 
-export class TestMcpAccessService extends BaseTestService implements IAuthenticationMcpAccessService {
-	declare readonly _serviceBrand: undefined;
-	private readonly _onDidChangeMcpSessionAccess = this._register(new Emitter<any>());
-	onDidChangeMcpSessionAccess = this._onDidChangeMcpSessionAccess.event;
-
-	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string): boolean | undefined {
-		this.trackCall('isAccessAllowed', providerId, accountName, mcpServerId);
-		return this._isAccessAllowed(providerId, accountName, mcpServerId, undefined);
-	}
-
-	isAccessAllowedForUrl(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl: string): boolean | undefined {
-		this.trackCall('isAccessAllowedForUrl', providerId, accountName, mcpServerId, mcpServerUrl);
-		return this._isAccessAllowed(providerId, accountName, mcpServerId, mcpServerUrl);
-	}
-
-	private _isAccessAllowed(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl: string | undefined): boolean | undefined {
-		const servers = this.data.get(this.getKey(providerId, accountName)) || [];
-		const server = servers.find((s: any) => s.id === mcpServerId);
-		if (!server) {
-			return undefined;
-		}
-		if (mcpServerUrl !== undefined && !urlsEqual(server.url, mcpServerUrl)) {
-			return undefined;
-		}
-		// Matches production: presence in the list with an undefined `allowed` indicates allowance.
-		return server.allowed !== undefined ? server.allowed : true;
-	}
-
-	readAllowedMcpServers(providerId: string, accountName: string): any[] {
-		this.trackCall('readAllowedMcpServers', providerId, accountName);
-		return this.data.get(this.getKey(providerId, accountName)) || [];
-	}
-
-	updateAllowedMcpServers(providerId: string, accountName: string, mcpServers: any[]): void {
-		this.trackCall('updateAllowedMcpServers', providerId, accountName, mcpServers);
-		const key = this.getKey(providerId, accountName);
-		const existing = this.data.get(key) || [];
-
-		// Merge with existing data, updating or adding MCP servers
-		const merged = [...existing];
-		for (const server of mcpServers) {
-			const existingIndex = merged.findIndex(s => s.id === server.id);
-			if (existingIndex >= 0) {
-				merged[existingIndex] = server;
-			} else {
-				merged.push(server);
-			}
-		}
-
-		this.data.set(key, merged);
-		this._onDidChangeMcpSessionAccess.fire({ providerId, accountName });
-	}
-
-	removeAllowedMcpServers(providerId: string, accountName: string): void {
-		this.trackCall('removeAllowedMcpServers', providerId, accountName);
-		this.data.delete(this.getKey(providerId, accountName));
-		this._onDidChangeMcpSessionAccess.fire({ providerId, accountName });
-	}
-}
 
 export class TestPreferencesService extends BaseTestService {
 	private readonly _onDidChangeAccountPreference = this._register(new Emitter<any>());
@@ -290,21 +203,7 @@ export class TestExtensionsService extends TestPreferencesService implements IAu
 	updateNewSessionRequests(): void { }
 }
 
-export class TestMcpService extends TestPreferencesService implements IAuthenticationMcpService {
-	declare readonly _serviceBrand: undefined;
 
-	// Stub implementations for methods we don't test
-	updateSessionPreference(): void { }
-	getSessionPreference(): string | undefined { return undefined; }
-	removeSessionPreference(): void { }
-	selectSession(): Promise<any> { return Promise.resolve(createSession()); }
-	requestSessionAccess(): void { }
-	requestNewSession(): Promise<void> { return Promise.resolve(); }
-}
-
-/**
- * Minimal authentication service mock that only implements what we need
- */
 export class TestAuthenticationService extends BaseTestService implements IAuthenticationService {
 	declare readonly _serviceBrand: undefined;
 

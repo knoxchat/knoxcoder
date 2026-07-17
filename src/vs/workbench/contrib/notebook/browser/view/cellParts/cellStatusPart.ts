@@ -150,8 +150,8 @@ export class CellEditorStatusBar extends CellContentPart {
 					element.focusMode = CellFocusMode.Editor;
 				} else {
 					const currentMode = element.focusMode;
-					if (currentMode === CellFocusMode.ChatInput) {
-						element.focusMode = CellFocusMode.ChatInput;
+					if (currentMode === CellFocusMode.AssistInput) {
+						element.focusMode = CellFocusMode.AssistInput;
 					} else if (currentMode === CellFocusMode.Output && this._notebookEditor.hasWebviewFocus()) {
 						element.focusMode = CellFocusMode.Output;
 					} else {

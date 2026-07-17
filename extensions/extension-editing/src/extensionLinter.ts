@@ -67,9 +67,9 @@ export class ExtensionLinter {
 	private folderToPackageJsonInfo: Record<string, PackageJsonInfo> = {};
 	private packageJsonQ = new Set<TextDocument>();
 	private readmeQ = new Set<TextDocument>();
-	private timer: NodeJS.Timeout | undefined;
+	private timer: ReturnType<typeof setTimeout> | undefined;
 	private markdownIt: MarkdownIt | undefined;
-	private parse5: typeof import('parse5') | undefined;
+	private SAXParser: typeof import('parse5-sax-parser').SAXParser | undefined;
 
 	constructor() {
 		this.disposables.push(
@@ -350,30 +350,30 @@ export class ExtensionLinter {
 			let svgStart: Diagnostic;
 			for (const tnp of tokensAndPositions) {
 				if (tnp.token.type === 'text' && tnp.token.content) {
-					if (!this.parse5) {
-						this.parse5 = await import('parse5');
+					if (!this.SAXParser) {
+						this.SAXParser = (await import('parse5-sax-parser')).SAXParser;
 					}
-					const parser = new this.parse5.SAXParser({ locationInfo: true });
-					parser.on('startTag', (name, attrs, _selfClosing, location) => {
-						if (name === 'img') {
+					const parser = new this.SAXParser({ sourceCodeLocationInfo: true });
+					parser.on('startTag', ({ tagName, attrs, sourceCodeLocation }) => {
+						if (tagName === 'img') {
 							const src = attrs.find(a => a.name === 'src');
-							if (src && src.value && location) {
-								const begin = text.indexOf(src.value, tnp.begin + location.startOffset);
+							if (src && src.value && sourceCodeLocation) {
+								const begin = text.indexOf(src.value, tnp.begin + sourceCodeLocation.startOffset);
 								if (begin !== -1 && begin < tnp.end) {
 									this.addDiagnostics(diagnostics, document, begin, begin + src.value.length, src.value, Context.MARKDOWN, info);
 								}
 							}
-						} else if (name === 'svg' && location) {
-							const begin = tnp.begin + location.startOffset;
-							const end = tnp.begin + location.endOffset;
+						} else if (tagName === 'svg' && sourceCodeLocation) {
+							const begin = tnp.begin + sourceCodeLocation.startOffset;
+							const end = tnp.begin + sourceCodeLocation.endOffset;
 							const range = new Range(document.positionAt(begin), document.positionAt(end));
 							svgStart = new Diagnostic(range, embeddedSvgsNotValid, DiagnosticSeverity.Warning);
 							diagnostics.push(svgStart);
 						}
 					});
-					parser.on('endTag', (name, location) => {
-						if (name === 'svg' && svgStart && location) {
-							const end = tnp.begin + location.endOffset;
+					parser.on('endTag', ({ tagName, sourceCodeLocation }) => {
+						if (tagName === 'svg' && svgStart && sourceCodeLocation) {
+							const end = tnp.begin + sourceCodeLocation.endOffset;
 							svgStart.range = new Range(svgStart.range.start, document.positionAt(end));
 						}
 					});

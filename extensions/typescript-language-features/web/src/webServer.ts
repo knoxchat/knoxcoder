@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 /// <reference lib='webworker' />
 
-import ts from 'typescript/lib/tsserverlibrary';
+import ts from '@typescript/typescript6/lib/tsserverlibrary';
 import { URI } from 'vscode-uri';
 import { FileWatcherManager } from './fileWatcherManager';
 import { Logger, parseLogLevel } from './logging';

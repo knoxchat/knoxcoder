@@ -383,7 +383,7 @@ impl DevTunnels {
 	}
 
 	/// Connects to a tunnel by name as a client, returning a raw connection
-	/// to the tunnel's agent host port. The caller is responsible for doing
+	/// to the tunnel's supervisor port. The caller is responsible for doing
 	/// the WebSocket upgrade over the returned stream.
 	///
 	/// The returned [`ClientRelayHandle`] must be kept alive for the duration

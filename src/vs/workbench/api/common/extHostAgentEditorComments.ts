@@ -8,13 +8,28 @@ import { Emitter } from '../../../base/common/event.js';
 import { ExtHostAgentEditorCommentsShape, IAgentEditorCommentDto, IMainContext, MainContext, MainThreadAgentEditorCommentsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
 
-class ExtHostAgentEditorCommentsProvider implements vscode.AgentEditorCommentsProvider {
+interface AgentEditorComment {
+	readonly id: string;
+	readonly range: vscode.Range;
+	readonly body: string;
+	readonly author: string | undefined;
+}
+
+interface AgentEditorCommentsProvider extends vscode.Disposable {
+	readonly onDidChange: vscode.Event<void>;
+	readonly comments: readonly AgentEditorComment[];
+	readonly acceptsComments: boolean;
+	addComment(range: vscode.Range, body: string): void;
+	deleteComment(id: string): void;
+}
+
+class ExtHostAgentEditorCommentsProvider implements AgentEditorCommentsProvider {
 
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange = this._onDidChange.event;
 
-	private _comments: readonly vscode.AgentEditorComment[] = [];
-	get comments(): readonly vscode.AgentEditorComment[] { return this._comments; }
+	private _comments: readonly AgentEditorComment[] = [];
+	get comments(): readonly AgentEditorComment[] { return this._comments; }
 
 	private _acceptsComments = false;
 	get acceptsComments(): boolean { return this._acceptsComments; }
@@ -31,7 +46,7 @@ class ExtHostAgentEditorCommentsProvider implements vscode.AgentEditorCommentsPr
 			range: typeConvert.Range.to(comment.range),
 			body: comment.body,
 			author: comment.author,
-		} satisfies vscode.AgentEditorComment));
+		} satisfies AgentEditorComment));
 		this._acceptsComments = acceptsComments;
 		this._onDidChange.fire();
 	}
@@ -61,7 +76,7 @@ export class ExtHostAgentEditorComments implements ExtHostAgentEditorCommentsSha
 		this.proxy = mainContext.getProxy(MainContext.MainThreadAgentEditorComments);
 	}
 
-	createAgentEditorComments(uri: vscode.Uri): vscode.AgentEditorCommentsProvider {
+	createAgentEditorComments(uri: vscode.Uri): AgentEditorCommentsProvider {
 		const handle = ExtHostAgentEditorComments.handlePool++;
 		const provider = new ExtHostAgentEditorCommentsProvider(handle, this.proxy, h => this.providers.delete(h));
 		this.providers.set(handle, provider);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import es from 'event-stream';
+import { merge } from '../lib/merge.ts';
 import Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
 import { mergeJson, gzip, azureStorage } from '../lib/gulp/facade.ts';
@@ -22,11 +23,11 @@ interface NlsMetadata {
 
 function main(): Promise<void> {
 	return new Promise((c, e) => {
-		const combinedMetadataJson = es.merge(
+		const combinedMetadataJson = merge(
 			// vscode: we are not using `out-build/nls.metadata.json` here because
 			// it includes metadata for translators for `keys`. but for our purpose
 			// we want only the `keys` and `messages` as `string`.
-			es.merge(
+			merge(
 				vfs.src('out-build/nls.keys.json', { base: 'out-build' }),
 				vfs.src('out-build/nls.messages.json', { base: 'out-build' }))
 				.pipe(mergeJson({
@@ -112,7 +113,7 @@ function main(): Promise<void> {
 
 		const nlsMessagesJs = vfs.src('out-build/nls.messages.js', { base: 'out-build' });
 
-		es.merge(combinedMetadataJson, nlsMessagesJs)
+		merge(combinedMetadataJson, nlsMessagesJs)
 			.pipe(gzip({ append: false }))
 			.pipe(vfs.dest('./nlsMetadata'))
 			.pipe(es.through(function (data: Vinyl) {

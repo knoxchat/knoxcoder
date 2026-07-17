@@ -18,19 +18,19 @@
     "prepublishOnly": "npm run copy-package-version"
   },
   "dependencies": {
-    "axe-core": "^4.10.2",
+    "axe-core": "^4.12.1",
     "ncp": "^2.0.0",
     "tmp": "0.2.7",
     "tree-kill": "1.2.2",
-    "vscode-uri": "3.0.2"
+    "vscode-uri": "3.1.0"
   },
   "devDependencies": {
-    "@types/ncp": "2.0.1",
-    "@types/node": "24.x",
-    "@types/tmp": "0.2.2",
-    "cpx2": "3.0.0",
-    "nodemon": "^3.1.9",
-    "npm-run-all2": "^8.0.4"
+    "@types/ncp": "2.0.8",
+    "@types/node": "26.x",
+    "@types/tmp": "0.2.6",
+    "cpx2": "9.0.0",
+    "nodemon": "^3.1.14",
+    "npm-run-all2": "^9.0.2"
   },
   "allowScripts": {
     "fsevents@2.3.3": true

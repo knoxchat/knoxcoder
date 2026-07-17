@@ -18,31 +18,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ahp"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fa7af01c6ff90f8b54fa169a71de21cc26e5a98621249ad882a5b2e137f57c0"
-dependencies = [
- "ahp-types",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "ahp-types"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1632209b0398b17c4a9928d71eaad0ced329d3617ffcbe32be789f59b1d65c70"
-dependencies = [
- "serde",
- "serde_json",
- "serde_repr",
-]
-
-[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -410,8 +385,6 @@ checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 name = "code-cli"
 version = "0.1.0"
 dependencies = [
- "ahp",
- "ahp-types",
  "base64",
  "bytes",
  "cfg-if",

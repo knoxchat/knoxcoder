@@ -436,14 +436,6 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
 				}>('extensions.autoRestart', { settingValue: this.getValueToReport(key, target), source });
 				return;
-			case TerminalContribSettingId.OutputLocation:
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'meganrogge';
-					comment: 'This is used to know the output location for chat terminals';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('terminal.integrated.chatAgentTools.outputLocation', { settingValue: this.getValueToReport(key, target), source });
-				return;
 			case TerminalContribSettingId.SuggestEnabled:
 
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
@@ -460,7 +452,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					comment: 'This is used to know if agent sandbox is enabled or not';
 					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('chat.agent.sandbox', { settingValue: this.getValueToReport(key, target), source });
+				}>('assist.agent.sandbox', { settingValue: this.getValueToReport(key, target), source });
 				return;
 		}
 	}

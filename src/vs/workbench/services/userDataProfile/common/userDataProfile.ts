@@ -59,7 +59,7 @@ export interface IUserDataProfileTemplate {
 	readonly snippets?: string;
 	readonly globalState?: string;
 	readonly extensions?: string;
-	readonly mcp?: string;
+	readonly tool?: string;
 }
 
 export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTemplate {
@@ -69,7 +69,7 @@ export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataPro
 		&& (isUndefined(candidate.settings) || typeof candidate.settings === 'string')
 		&& (isUndefined(candidate.globalState) || typeof candidate.globalState === 'string')
 		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string')
-		&& (isUndefined(candidate.mcp) || typeof candidate.mcp === 'string'));
+		&& (isUndefined(candidate.tool) || typeof candidate.tool === 'string'));
 }
 
 export const PROFILE_URL_AUTHORITY = 'profile';

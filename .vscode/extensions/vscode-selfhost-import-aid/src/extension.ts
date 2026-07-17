@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 import * as path from 'path';
 
 export async function activate(context: vscode.ExtensionContext) {

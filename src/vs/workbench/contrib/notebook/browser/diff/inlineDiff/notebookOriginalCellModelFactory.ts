@@ -28,7 +28,7 @@ export class OriginalNotebookCellModelReferenceCollection extends ReferenceColle
 	}
 
 	protected override createReferencedObject(_key: string, uri: URI, cellValue: string, language: string, cellKind: CellKind): ITextModel {
-		const scheme = `${uri.scheme}-chat-edit`;
+		const scheme = `${uri.scheme}-assist-edit`;
 		const originalCellUri = URI.from({ scheme, fragment: uri.fragment, path: uri.path });
 		const languageSelection = this._languageService.getLanguageIdByLanguageName(language) ? this._languageService.createById(language) : cellKind === CellKind.Markup ? this._languageService.createById('markdown') : null;
 		return this.modelService.createModel(cellValue, languageSelection, originalCellUri);

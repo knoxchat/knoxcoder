@@ -10,7 +10,7 @@ import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { ExtensionsRegistry, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope, EXTENSION_UNIFICATION_EXTENSION_IDS, overrideIdentifiersFromKey } from '../../../platform/configuration/common/configurationRegistry.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../platform/jsonschemas/common/jsonContributionRegistry.js';
-import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId, mcpSchemaId } from '../../services/configuration/common/configuration.js';
+import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId, toolSchemaId } from '../../services/configuration/common/configuration.js';
 import { hasKey, isObject, isUndefined } from '../../../base/common/types.js';
 import { ExtensionIdentifierMap, IExtensionManifest } from '../../../platform/extensions/common/extensions.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
@@ -19,7 +19,6 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
 import { MarkdownString } from '../../../base/common/htmlContent.js';
 import product from '../../../platform/product/common/product.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -323,8 +322,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 						mode: 'startup'
 					};
 				}
-				if (propertyConfiguration.agentsWindow && !isProposedApiEnabled(extension.description, 'agentsWindowConfiguration')) {
-					extension.collector.error(nls.localize('config.property.agentsWindow.proposed', "Extension '{0}' CANNOT use 'agentsWindow' property on configuration '{1}' without enabling the 'agentsWindowConfiguration' API proposal.", extension.description.identifier.value, key));
+				if (propertyConfiguration.agentsWindow) {
 					delete propertyConfiguration.agentsWindow;
 				}
 				seenProperties.add(key);
@@ -428,19 +426,19 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			description: nls.localize('workspaceConfig.tasks.description', "Workspace task configurations"),
 			$ref: tasksSchemaId
 		},
-		'mcp': {
+		'tool': {
 			type: 'object',
 			default: {
 				inputs: [],
 				servers: {
-					'mcp-server-time': {
+					'tool-server-time': {
 						command: 'uvx',
-						args: ['mcp_server_time', '--local-timezone=America/Los_Angeles']
+						args: ['tool_server_time', '--local-timezone=America/Los_Angeles']
 					}
 				}
 			},
-			description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
-			$ref: mcpSchemaId
+			description: nls.localize('workspaceConfig.tool.description', "Tool server configurations"),
+			$ref: toolSchemaId
 		},
 		'extensions': {
 			type: 'object',

@@ -30,13 +30,13 @@ suite('adaptManagedSettings', () => {
 	test('carries enabledPlugins as a canonical JSON string under a single key', () => {
 		const response: IManagedSettingsResponse = {
 			enabledPlugins: {
-				'assign-issue-to-copilot@agent-skills': true,
+				'assign-issue-to-assist@agent-skills': true,
 				'my-plugin@acme': false,
 			},
 		};
 		assert.deepStrictEqual(adaptManagedSettings(response), {
 			managedSettings: {
-				enabledPlugins: '{"assign-issue-to-copilot@agent-skills":true,"my-plugin@acme":false}',
+				enabledPlugins: '{"assign-issue-to-assist@agent-skills":true,"my-plugin@acme":false}',
 			},
 		});
 	});
@@ -61,14 +61,14 @@ suite('adaptManagedSettings', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			telemetry: {
 				enabled: true,
-				serviceName: 'acme-copilot',
+				serviceName: 'acme-assist',
 				resourceAttributes: { 'deployment.environment': 'prod', 'service.namespace': 'acme' },
 				headers: { 'x-api-key': 'secret' },
 			},
 		}), {
 			managedSettings: {
 				'telemetry.enabled': true,
-				'telemetry.serviceName': 'acme-copilot',
+				'telemetry.serviceName': 'acme-assist',
 				'telemetry.resourceAttributes': '{"deployment.environment":"prod","service.namespace":"acme"}',
 				'telemetry.headers': '{"x-api-key":"secret"}',
 			},

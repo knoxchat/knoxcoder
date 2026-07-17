@@ -291,7 +291,7 @@
 
 /*
  * Auxiliary bar only: give its composite icon items a shorter 24px height so the
- * single Chat item reads as a compact, balanced chip. Scoped to the auxiliary
+ * single assist item reads as a compact, balanced chip. Scoped to the auxiliary
  * bar so the primary activity bar keeps its default item height.
  */
 .style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon,

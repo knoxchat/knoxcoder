@@ -56,13 +56,13 @@
 	border-color: var(--vscode-agentsPanel-border, color-mix(in srgb, var(--vscode-foreground) 12%, transparent)) !important;
 }
 
-.monaco-workbench.style-override .chat-view-position-left > .voice-agent-controls-wrapper {
+.monaco-workbench.style-override .assist-view-position-left > .voice-agent-controls-wrapper {
 	.agent-sessions-container {
 		border-right-color: var(--vscode-agentsPanel-border, color-mix(in srgb, var(--vscode-foreground) 12%, transparent)) !important;
 	}
 }
 
-.monaco-workbench.style-override .chat-view-position-right > .voice-agent-controls-wrapper {
+.monaco-workbench.style-override .assist-view-position-right > .voice-agent-controls-wrapper {
 	.agent-sessions-container {
 		border-left-color: var(--vscode-agentsPanel-border, color-mix(in srgb, var(--vscode-foreground) 12%, transparent)) !important;
 	}

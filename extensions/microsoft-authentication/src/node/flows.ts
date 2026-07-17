@@ -36,7 +36,7 @@ interface IMsalFlowTriggerOptions {
 	uriHandler: UriEventHandler;
 	claims?: string;
 	/**
-	 * Resource indicator (RFC 8707) for MCP-style flows. When provided, MSAL forwards
+	 * Resource indicator (RFC 8707) for scoped auth flows. When provided, MSAL forwards
 	 * this as the `resource` parameter to the authorization & token endpoints so the
 	 * issued token is bound to the requested resource.
 	 */

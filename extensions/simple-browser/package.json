@@ -78,12 +78,12 @@
     "watch-typecheck-web": "tsgo --project ./tsconfig.json --noEmit --watch"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.8"
+    "@vscode/extension-telemetry": "^1.5.2"
   },
   "devDependencies": {
-    "@types/node": "24.x",
-    "@types/vscode-webview": "^1.57.0",
-    "@vscode/codicons": "^0.0.36"
+    "@types/node": "26.x",
+    "@types/vscode-webview": "^1.57.5",
+    "@vscode/codicons": "^0.0.45"
   },
   "repository": {
     "type": "git",

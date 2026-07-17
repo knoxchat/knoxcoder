@@ -90,7 +90,7 @@ export function assertEditorContents(editor: vscode.TextEditor, expectedDocConte
 	assert.strictEqual(
 		editor.document.getText(),
 		expectedDocContent.replace(CURSOR, ''),
-		message);
+		message ?? '');
 
 	if (cursorIndex >= 0) {
 		const expectedCursorPos = editor.document.positionAt(cursorIndex);

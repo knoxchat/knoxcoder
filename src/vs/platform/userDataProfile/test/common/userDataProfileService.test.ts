@@ -220,11 +220,11 @@ suite('UserDataProfileService (Common)', () => {
 	});
 
 	test('profile using default profile for language models', async () => {
-		const profile = await testObject.createNamedProfile('name', { useDefaultFlags: { languageModels: true } });
+		const profile = await testObject.createNamedProfile('name', { useDefaultFlags: { textModelApis: true } });
 
 		assert.strictEqual(profile.isDefault, false);
-		assert.deepStrictEqual(profile.useDefaultFlags, { languageModels: true });
-		assert.strictEqual(profile.languageModelsResource.toString(), testObject.defaultProfile.languageModelsResource.toString());
+		assert.deepStrictEqual(profile.useDefaultFlags, { textModelApis: true });
+		assert.strictEqual(profile.textModelApisResource.toString(), testObject.defaultProfile.textModelApisResource.toString());
 	});
 
 	test('update profile using default profile for keybindings', async () => {

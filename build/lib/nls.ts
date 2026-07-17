@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript';
+import * as ts from './typescript.ts';
 import lazy from 'lazy.js';
 import eventStream from 'event-stream';
 import File from 'vinyl';

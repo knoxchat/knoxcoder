@@ -81,7 +81,7 @@ export class QuickFixAction extends EditorAction2 {
 				weight: KeybindingWeight.EditorContrib
 			},
 			menu: {
-				id: MenuId.InlineChatEditorAffordance,
+				id: MenuId.InlineAssistEditorAffordance,
 				group: '1_quickfix',
 				order: 0,
 				when: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider)

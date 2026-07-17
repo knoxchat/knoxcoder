@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import es from 'event-stream';
-import { gulp, filter, sourcemaps, svgmin } from './gulp/facade.ts';
+import { gulp, filter, sourcemaps, svgmin, merge} from './gulp/facade.ts';
 import path from 'path';
 import fs from 'fs';
 import pump from 'pump';
@@ -193,7 +193,7 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 		gulp.src(opts.resources ?? [], { base: `${opts.src}`, allowEmpty: true }).pipe(resourcesStream);
 	});
 
-	const result = es.merge(
+	const result = merge(
 		bundlesStream,
 		resourcesStream
 	);

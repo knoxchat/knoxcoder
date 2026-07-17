@@ -33,7 +33,7 @@
 	background-position: center;
 	background-size: cover;
 	background-repeat: no-repeat;
-	/* Default: VS Code "copilot free" gradient (recreated with layered radial gradients) */
+	/* Default: VS Code "assist free" gradient (recreated with layered radial gradients) */
 	background-color: #0b1020;
 	background-image:
 		radial-gradient(ellipse 60% 80% at 12% 90%, rgba(132, 204, 22, 0.55), transparent 60%),

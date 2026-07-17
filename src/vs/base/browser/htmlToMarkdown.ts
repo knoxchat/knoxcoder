@@ -9,7 +9,7 @@
  * Handles common inline and block elements so that content pasted from
  * web pages keeps its basic structure (headings, links, bold, italic,
  * code, lists) when inserted into a Markdown-aware surface such as the
- * chat input.
+ * assist input.
  */
 
 import { createTrustedTypesPolicy } from './trustedTypes.js';

@@ -60,7 +60,6 @@ export class MatchImpl implements ISearchTreeMatch {
 	range(): Range {
 		return this._range;
 	}
-
 	@memoize
 	preview(): { before: string; fullBefore: string; inside: string; after: string } {
 		const fullBefore = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1), before = lcut(fullBefore, 26, '…');

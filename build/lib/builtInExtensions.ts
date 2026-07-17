@@ -6,9 +6,9 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import rimraf from 'rimraf';
+import { rimraf } from 'rimraf';
 import es from 'event-stream';
-import { rename } from './gulp/facade.ts';
+import { rename, merge} from './gulp/facade.ts';
 import vfs from 'vinyl-fs';
 import * as ext from './extensions.ts';
 import fancyLog from 'fancy-log';
@@ -175,7 +175,7 @@ export function getBuiltInExtensions(): Promise<void> {
 	writeControlFile(control);
 
 	return new Promise((resolve, reject) => {
-		es.merge(streams)
+		merge(streams)
 			.on('error', reject)
 			.on('end', resolve);
 	});

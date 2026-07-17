@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 import * as vscode from 'vscode';
 import { TestCase, TestConstruct, TestSuite, VSCodeTest } from './testTree';
 

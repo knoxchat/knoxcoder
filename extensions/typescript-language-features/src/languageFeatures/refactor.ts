@@ -21,7 +21,6 @@ import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService
 import { coalesce } from '../utils/arrays';
 import { nulToken } from '../utils/cancellation';
 import FormattingOptionsManager from './fileConfigurationManager';
-import { CompositeCommand, EditorChatFollowUp } from './util/copilot';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
 function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
@@ -395,18 +394,12 @@ class InlinedCodeAction extends vscode.CodeAction {
 			// Disable renames in interactive playground https://github.com/microsoft/vscode/issues/75137
 			if (this.document.uri.scheme !== fileSchemes.walkThroughSnippet) {
 				this.command = {
-					command: CompositeCommand.ID,
+					command: 'editor.action.rename',
 					title: '',
-					arguments: coalesce([
-						this.command,
-						{
-							command: 'editor.action.rename',
-							arguments: [[
-								this.document.uri,
-								typeConverters.Position.fromLocation(response.body.renameLocation)
-							]]
-						},
-					])
+					arguments: [[
+						this.document.uri,
+						typeConverters.Position.fromLocation(response.body.renameLocation)
+					]]
 				};
 			}
 		}
@@ -506,10 +499,8 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		const didApplyRefactoringCommand = new DidApplyRefactoringCommand(telemetryReporter);
 		commandManager.register(didApplyRefactoringCommand);
 
-		commandManager.register(new CompositeCommand());
 		commandManager.register(new SelectRefactorCommand(this.client));
 		commandManager.register(new MoveToFileRefactorCommand(this.client, didApplyRefactoringCommand));
-		commandManager.register(new EditorChatFollowUp(this.client, telemetryReporter));
 	}
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { gulp, rename, filter, jsonEditor } from './lib/gulp/facade.ts';
+import { gulp, rename, filter, jsonEditor, merge} from './lib/gulp/facade.ts';
 import * as path from 'path';
 import * as cp from 'child_process';
 import es from 'event-stream';
@@ -113,7 +113,6 @@ const vscodeWebEntryPoints = [
 	buildfile.workerBackgroundTokenization,
 	buildfile.keyboardMaps,
 	buildfile.workbenchWeb,
-	buildfile.sessionsWeb,
 ].flat();
 
 /**
@@ -174,12 +173,13 @@ function packageTask(sourceFolderName: string, destinationFolderName: string) {
 	const destination = path.join(BUILD_ROOT, destinationFolderName);
 
 	return () => {
-		const src = gulp.src(sourceFolderName + '/**', { base: '.' })
+		const binarySrcOptions = { encoding: false as const };
+		const src = gulp.src(sourceFolderName + '/**', { base: '.', ...binarySrcOptions })
 			.pipe(rename(function (path) { path.dirname = path.dirname!.replace(new RegExp('^' + sourceFolderName), 'out'); }));
 
-		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true });
+		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true, ...binarySrcOptions });
 
-		const sources = es.merge(src, extensions)
+		const sources = merge(src, extensions)
 			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }));
 
 		const name = product.nameShort;
@@ -189,20 +189,20 @@ function packageTask(sourceFolderName: string, destinationFolderName: string) {
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 
 		const productionDependencies = getProductionDependencies(WEB_FOLDER);
-		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
+		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/**/.bin/**`]).flat();
 
-		const deps = gulp.src(dependenciesSrc, { base: 'remote/web', dot: true })
+		const deps = gulp.src(dependenciesSrc, { base: 'remote/web', dot: true, ...binarySrcOptions })
 			.pipe(filter(['**', '!**/package-lock.json']))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.webignore')));
 
-		const favicon = gulp.src('resources/server/favicon.ico', { base: 'resources/server' });
+		const favicon = gulp.src('resources/server/favicon.ico', { base: 'resources/server', ...binarySrcOptions });
 		const manifest = gulp.src('resources/server/manifest.json', { base: 'resources/server' });
-		const pwaicons = es.merge(
-			gulp.src('resources/server/code-192.png', { base: 'resources/server' }),
-			gulp.src('resources/server/code-512.png', { base: 'resources/server' })
+		const pwaicons = merge(
+			gulp.src('resources/server/code-192.png', { base: 'resources/server', ...binarySrcOptions }),
+			gulp.src('resources/server/code-512.png', { base: 'resources/server', ...binarySrcOptions })
 		);
 
-		const all = es.merge(
+		const all = merge(
 			packageJsonStream,
 			license,
 			sources,
@@ -216,7 +216,7 @@ function packageTask(sourceFolderName: string, destinationFolderName: string) {
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions());
 
-		return result.pipe(vfs.dest(destination));
+		return result.pipe(vfs.dest(destination, { encoding: false }));
 	};
 }
 

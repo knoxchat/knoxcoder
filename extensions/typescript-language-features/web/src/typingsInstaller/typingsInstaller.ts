@@ -25,7 +25,7 @@
 
 import { PackageManager, PackageType } from '@vscode/ts-package-manager';
 import { join } from 'path';
-import * as ts from 'typescript/lib/tsserverlibrary';
+import * as ts from '@typescript/typescript6/lib/tsserverlibrary';
 import { NameValidationResult, validatePackageNameWorker } from './jsTyping';
 
 type InstallerResponse = ts.server.PackageInstalledResponse | ts.server.SetTypings | ts.server.InvalidateCachedTypings | ts.server.BeginInstallTypes | ts.server.EndInstallTypes | ts.server.WatchTypingLocations;

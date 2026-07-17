@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import ts from 'typescript';
+import ts from '../lib/typescript.ts';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname, join } from 'path';
 import minimatch from 'minimatch';
@@ -55,12 +55,6 @@ const RULES: IRule[] = [
 	// Common: vs/base/parts/sandbox/electron-browser/preload{,-aux}.ts
 	{
 		target: '**/vs/base/parts/sandbox/electron-browser/preload{,-aux}.ts',
-		disallowedTypes: NATIVE_TYPES,
-	},
-
-	// Browser view preload script
-	{
-		target: '**/vs/platform/browserView/electron-browser/preload-browserView.ts',
 		disallowedTypes: NATIVE_TYPES,
 	},
 

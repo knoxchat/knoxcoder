@@ -244,6 +244,9 @@ if [[ "$SKIP_SIGN" == "false" ]]; then
 	verify_app_signature
 fi
 
+echo ">>> Refreshing app bundle timestamps..."
+bash build/darwin/refresh-app-timestamps.sh "$APP_PATH"
+
 if should_notarize && [[ "$DMG_ONLY" == "false" ]]; then
 	echo ">>> Notarizing app..."
 	rm -f "$NOTARIZE_ZIP"

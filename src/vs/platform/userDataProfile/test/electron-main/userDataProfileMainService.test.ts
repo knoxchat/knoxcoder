@@ -124,8 +124,8 @@ suite('UserDataProfileMainService', () => {
 			settings: true,
 			keybindings: true,
 			prompts: true,
-			mcp: true,
-			languageModels: true,
+			tool: true,
+			textModelApis: true,
 			snippets: true,
 			tasks: true,
 			extensions: true,
@@ -136,8 +136,8 @@ suite('UserDataProfileMainService', () => {
 		assert.strictEqual(profile.tasksResource.toString(), testObject.defaultProfile.tasksResource.toString());
 		assert.strictEqual(profile.extensionsResource.toString(), testObject.defaultProfile.extensionsResource.toString());
 		assert.strictEqual(profile.promptsHome.toString(), testObject.defaultProfile.promptsHome.toString());
-		assert.strictEqual(profile.mcpResource.toString(), testObject.defaultProfile.mcpResource.toString());
-		assert.strictEqual(profile.languageModelsResource.toString(), testObject.defaultProfile.languageModelsResource.toString());
+		assert.strictEqual(profile.toolsConfigResource.toString(), testObject.defaultProfile.toolsConfigResource.toString());
+		assert.strictEqual(profile.textModelApisResource.toString(), testObject.defaultProfile.textModelApisResource.toString());
 	});
 
 });

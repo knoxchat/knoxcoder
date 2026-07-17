@@ -10,11 +10,18 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { ExtHostEmbeddingsShape, IMainContext, MainContext, MainThreadEmbeddingsShape } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
 
+interface Embedding {
+	readonly values: number[];
+}
+
+interface EmbeddingsProvider {
+	provideEmbeddings(input: string[], token: vscode.CancellationToken): vscode.ProviderResult<Embedding[]>;
+}
 
 export class ExtHostEmbeddings implements ExtHostEmbeddingsShape {
 
 	private readonly _proxy: MainThreadEmbeddingsShape;
-	private readonly _provider = new Map<number, { id: string; provider: vscode.EmbeddingsProvider }>();
+	private readonly _provider = new Map<number, { id: string; provider: EmbeddingsProvider }>();
 
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -28,7 +35,7 @@ export class ExtHostEmbeddings implements ExtHostEmbeddingsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadEmbeddings);
 	}
 
-	registerEmbeddingsProvider(_extension: IExtensionDescription, embeddingsModel: string, provider: vscode.EmbeddingsProvider): IDisposable {
+	registerEmbeddingsProvider(_extension: IExtensionDescription, embeddingsModel: string, provider: EmbeddingsProvider): IDisposable {
 		if (this._allKnownModels.has(embeddingsModel)) {
 			throw new Error('An embeddings provider for this model is already registered');
 		}
@@ -45,9 +52,9 @@ export class ExtHostEmbeddings implements ExtHostEmbeddingsShape {
 		});
 	}
 
-	async computeEmbeddings(embeddingsModel: string, input: string, token?: vscode.CancellationToken): Promise<vscode.Embedding>;
-	async computeEmbeddings(embeddingsModel: string, input: string[], token?: vscode.CancellationToken): Promise<vscode.Embedding[]>;
-	async computeEmbeddings(embeddingsModel: string, input: string | string[], token?: vscode.CancellationToken): Promise<vscode.Embedding[] | vscode.Embedding> {
+	async computeEmbeddings(embeddingsModel: string, input: string, token?: vscode.CancellationToken): Promise<Embedding>;
+	async computeEmbeddings(embeddingsModel: string, input: string[], token?: vscode.CancellationToken): Promise<Embedding[]>;
+	async computeEmbeddings(embeddingsModel: string, input: string | string[], token?: vscode.CancellationToken): Promise<Embedding[] | Embedding> {
 
 		token ??= CancellationToken.None;
 

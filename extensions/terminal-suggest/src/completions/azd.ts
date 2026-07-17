@@ -577,15 +577,6 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
-												},
-											],
-										},
-										{
 											name: ['--file', '-f'],
 											description: 'Remote file or directory path to delete',
 											args: [
@@ -628,15 +619,6 @@ const completionSpec: Fig.Spec = {
 											args: [
 												{
 													name: 'agent-name',
-												},
-											],
-										},
-										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
 												},
 											],
 										},
@@ -692,15 +674,6 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
-												},
-											],
-										},
-										{
 											name: ['--output', '-o'],
 											description: 'The output format',
 											args: [
@@ -740,15 +713,6 @@ const completionSpec: Fig.Spec = {
 											args: [
 												{
 													name: 'agent-name',
-												},
-											],
-										},
-										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
 												},
 											],
 										},
@@ -795,15 +759,6 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
-												},
-											],
-										},
-										{
 											name: ['--output', '-o'],
 											description: 'The output format',
 											args: [
@@ -843,15 +798,6 @@ const completionSpec: Fig.Spec = {
 											args: [
 												{
 													name: 'agent-name',
-												},
-											],
-										},
-										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
 												},
 											],
 										},
@@ -1020,15 +966,6 @@ const completionSpec: Fig.Spec = {
 									],
 								},
 								{
-									name: ['--chat-isolation-key'],
-									description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-									args: [
-										{
-											name: 'chat-isolation-key',
-										},
-									],
-								},
-								{
 									name: ['--conversation-id'],
 									description: 'Explicit conversation ID override',
 									args: [
@@ -1128,15 +1065,6 @@ const completionSpec: Fig.Spec = {
 							name: ['monitor'],
 							description: 'Monitor logs from a hosted agent.',
 							options: [
-								{
-									name: ['--chat-isolation-key'],
-									description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-									args: [
-										{
-											name: 'chat-isolation-key',
-										},
-									],
-								},
 								{
 									name: ['--follow', '-f'],
 									description: 'Stream logs in real-time',
@@ -1567,15 +1495,6 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
-												},
-											],
-										},
-										{
 											name: ['--isolation-key'],
 											description: 'Session ownership isolation key header value (x-session-isolation-key; derived from Entra token by default)',
 											args: [
@@ -1637,15 +1556,6 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
-												},
-											],
-										},
-										{
 											name: ['--isolation-key'],
 											description: 'Session ownership isolation key header value (x-session-isolation-key; derived from Entra token by default)',
 											args: [
@@ -1675,15 +1585,6 @@ const completionSpec: Fig.Spec = {
 											args: [
 												{
 													name: 'agent-name',
-												},
-											],
-										},
-										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
 												},
 											],
 										},
@@ -1736,15 +1637,6 @@ const completionSpec: Fig.Spec = {
 											args: [
 												{
 													name: 'agent-name',
-												},
-											],
-										},
-										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
 												},
 											],
 										},
@@ -4652,7 +4544,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['show'],
-							description: 'Show a toolbox version, including its computed MCP endpoint.',
+							description: 'Show a toolbox version, including its computed service endpoint.',
 							options: [
 								{
 									name: ['--output', '-o'],
@@ -4982,68 +4874,6 @@ const completionSpec: Fig.Spec = {
 			],
 		},
 		{
-			name: ['coding-agent'],
-			description: 'This extension configures GitHub Copilot Coding Agent access to Azure',
-			subcommands: [
-				{
-					name: ['config'],
-					description: 'Configure the GitHub Copilot coding agent to access Azure resources via the Azure MCP',
-					options: [
-						{
-							name: ['--branch-name'],
-							description: 'The branch name to use when pushing changes to the copilot-setup-steps.yml',
-							args: [
-								{
-									name: 'branch-name',
-								},
-							],
-						},
-						{
-							name: ['--github-host-name'],
-							description: 'The hostname to use with GitHub commands',
-							args: [
-								{
-									name: 'github-host-name',
-								},
-							],
-						},
-						{
-							name: ['--managed-identity-name'],
-							description: 'The name to use for the managed identity, if created.',
-							args: [
-								{
-									name: 'managed-identity-name',
-								},
-							],
-						},
-						{
-							name: ['--remote-name'],
-							description: 'The name of the git remote where the Copilot Coding Agent will run (ex: <owner>/<repo>)',
-							args: [
-								{
-									name: 'remote-name',
-								},
-							],
-						},
-						{
-							name: ['--roles'],
-							description: 'The roles to assign to the service principal or managed identity. By default, the service principal or managed identity will be granted the Reader role.',
-							isRepeatable: true,
-							args: [
-								{
-									name: 'roles',
-								},
-							],
-						},
-					],
-				},
-				{
-					name: ['version'],
-					description: 'Prints the version of the application',
-				},
-			],
-		},
-		{
 			name: ['completion'],
 			description: 'Generate shell completion scripts.',
 			subcommands: [
@@ -5162,196 +4992,6 @@ const completionSpec: Fig.Spec = {
 			],
 		},
 		{
-			name: ['copilot'],
-			description: 'Manage GitHub Copilot agent settings. (Preview)',
-			subcommands: [
-				{
-					name: ['consent'],
-					description: 'Manage tool consent.',
-					subcommands: [
-						{
-							name: ['grant'],
-							description: 'Grant consent trust rules.',
-							options: [
-								{
-									name: ['--action'],
-									description: 'Action type: \'all\' or \'readonly\'',
-									args: [
-										{
-											name: 'action',
-											suggestions: ['all', 'readonly'],
-										},
-									],
-								},
-								{
-									name: ['--global'],
-									description: 'Apply globally to all servers',
-								},
-								{
-									name: ['--operation'],
-									description: 'Operation type: \'tool\' or \'sampling\'',
-									args: [
-										{
-											name: 'operation',
-											suggestions: ['tool', 'sampling'],
-										},
-									],
-								},
-								{
-									name: ['--permission'],
-									description: 'Permission: \'allow\', \'deny\', or \'prompt\'',
-									args: [
-										{
-											name: 'permission',
-											suggestions: ['allow', 'deny', 'prompt'],
-										},
-									],
-								},
-								{
-									name: ['--scope'],
-									description: 'Rule scope: \'global\', or \'project\'',
-									args: [
-										{
-											name: 'scope',
-											suggestions: ['global', 'project'],
-										},
-									],
-								},
-								{
-									name: ['--server'],
-									description: 'Server name',
-									args: [
-										{
-											name: 'server',
-										},
-									],
-								},
-								{
-									name: ['--tool'],
-									description: 'Specific tool name (requires --server)',
-									args: [
-										{
-											name: 'tool',
-										},
-									],
-								},
-							],
-						},
-						{
-							name: ['list'],
-							description: 'List consent rules.',
-							options: [
-								{
-									name: ['--action'],
-									description: 'Action type to filter by (all, readonly)',
-									args: [
-										{
-											name: 'action',
-											suggestions: ['all', 'readonly'],
-										},
-									],
-								},
-								{
-									name: ['--operation'],
-									description: 'Operation to filter by (tool, sampling)',
-									args: [
-										{
-											name: 'operation',
-											suggestions: ['tool', 'sampling'],
-										},
-									],
-								},
-								{
-									name: ['--permission'],
-									description: 'Permission to filter by (allow, deny, prompt)',
-									args: [
-										{
-											name: 'permission',
-											suggestions: ['allow', 'deny', 'prompt'],
-										},
-									],
-								},
-								{
-									name: ['--scope'],
-									description: 'Consent scope to filter by (global, project). If not specified, lists rules from all scopes.',
-									args: [
-										{
-											name: 'scope',
-											suggestions: ['global', 'project'],
-										},
-									],
-								},
-								{
-									name: ['--target'],
-									description: 'Specific target to operate on (server/tool format)',
-									args: [
-										{
-											name: 'target',
-										},
-									],
-								},
-							],
-						},
-						{
-							name: ['revoke'],
-							description: 'Revoke consent rules.',
-							options: [
-								{
-									name: ['--action'],
-									description: 'Action type to filter by (all, readonly)',
-									args: [
-										{
-											name: 'action',
-											suggestions: ['all', 'readonly'],
-										},
-									],
-								},
-								{
-									name: ['--operation'],
-									description: 'Operation to filter by (tool, sampling)',
-									args: [
-										{
-											name: 'operation',
-											suggestions: ['tool', 'sampling'],
-										},
-									],
-								},
-								{
-									name: ['--permission'],
-									description: 'Permission to filter by (allow, deny, prompt)',
-									args: [
-										{
-											name: 'permission',
-											suggestions: ['allow', 'deny', 'prompt'],
-										},
-									],
-								},
-								{
-									name: ['--scope'],
-									description: 'Consent scope to filter by (global, project). If not specified, revokes rules from all scopes.',
-									args: [
-										{
-											name: 'scope',
-											suggestions: ['global', 'project'],
-										},
-									],
-								},
-								{
-									name: ['--target'],
-									description: 'Specific target to operate on (server/tool format)',
-									args: [
-										{
-											name: 'target',
-										},
-									],
-								},
-							],
-						},
-					],
-				},
-			],
-		},
-		{
 			name: ['demo'],
 			description: 'This extension provides examples of the azd extension framework.',
 			subcommands: [
@@ -5392,16 +5032,6 @@ const completionSpec: Fig.Spec = {
 				{
 					name: ['listen'],
 					description: 'Starts the extension and listens for events.',
-				},
-				{
-					name: ['mcp'],
-					description: 'MCP server commands for demo extension',
-					subcommands: [
-						{
-							name: ['start'],
-							description: 'Start MCP server with demo tools',
-						},
-					],
 				},
 				{
 					name: ['prompt'],
@@ -6006,16 +5636,6 @@ const completionSpec: Fig.Spec = {
 			],
 		},
 		{
-			name: ['mcp'],
-			description: 'Manage Model Context Protocol (MCP) server. (Alpha)',
-			subcommands: [
-				{
-					name: ['start'],
-					description: 'Starts the MCP server.',
-				},
-			],
-		},
-		{
 			name: ['monitor'],
 			description: 'Monitor a deployed project.',
 			options: [
@@ -6346,7 +5966,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['--host'],
-							description: 'Install the skill for the specified agent host(s): copilot, claude. Use --host all for every detected host (skill tools only)',
+							description: 'Install the skill for the specified host(s): claude. Use --host all for every detected host (skill tools only)',
 							isRepeatable: true,
 							args: [
 								{
@@ -6385,7 +6005,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['--host'],
-							description: 'Uninstall the skill from the specified agent host(s): copilot, claude. Use --host all (or omit --host) to remove the skill from every host it is installed through (skill tools only)',
+							description: 'Uninstall the skill from the specified host(s): claude. Use --host all (or omit --host) to remove the skill from every host it is installed through (skill tools only)',
 							isRepeatable: true,
 							args: [
 								{
@@ -6409,7 +6029,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['--host'],
-							description: 'Upgrade the skill for the specified agent host(s): copilot, claude. Use --host all for every detected host (skill tools only)',
+							description: 'Upgrade the skill for the specified host(s): claude. Use --host all for every detected host (skill tools only)',
 							isRepeatable: true,
 							args: [
 								{
@@ -6510,7 +6130,7 @@ const completionSpec: Fig.Spec = {
 					options: [
 						{
 							name: ['--capabilities'],
-							description: 'The list of capabilities for the extension (e.g., custom-commands,lifecycle-events,mcp-server,service-target-provider,framework-service-provider,metadata,provisioning-provider).',
+							description: 'The list of capabilities for the extension (e.g., custom-commands,lifecycle-events,service-target-provider,framework-service-provider,metadata,provisioning-provider).',
 							isRepeatable: true,
 							args: [
 								{

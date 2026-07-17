@@ -1127,8 +1127,8 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	readonly onDidChangePolicyData: Event<IPolicyData | null> = Event.None;
 	readonly policyData: IPolicyData | null = null;
 	readonly currentDefaultAccount: IDefaultAccount | null = null;
-	readonly copilotTokenInfo = null;
-	readonly onDidChangeCopilotTokenInfo: Event<null> = Event.None;
+	readonly accountTokenInfo = null;
+	readonly onDidChangeAccountTokenInfo: Event<null> = Event.None;
 	readonly managedSettingsFetchStatus: null = null;
 	readonly managedSettingsFetchedAt: null = null;
 	readonly managedSettingsRawResponse: unknown = null;

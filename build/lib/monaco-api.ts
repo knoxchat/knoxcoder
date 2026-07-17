@@ -8,7 +8,7 @@ import path from 'path';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import { type IFileMap, TypeScriptLanguageServiceHost } from './typeScriptLanguageServiceHost.ts';
-import ts from 'typescript';
+import ts from './typescript.ts';
 
 import tsfmt from '../../tsfmt.json' with { type: 'json' };
 

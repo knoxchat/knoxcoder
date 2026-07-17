@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TextDocument, SemanticTokenData } from './languageModes.js';
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
 export function getSemanticTokenLegend() {
 	if (tokenTypes.length !== TokenType._) {

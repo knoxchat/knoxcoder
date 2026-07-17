@@ -270,7 +270,7 @@ class Editor extends Disposable {
 
 		// Restore scroll last: content height settles over a few frames (async parse,
 		// syntax highlighting, mermaid), so re-apply until it sticks.
-		// TODO@copilot: Consider using a more robust method for restoring scroll position, e.g. by waiting for the editor to stabilize
+		// Consider using a more robust method for restoring scroll position, e.g. by waiting for the editor to stabilize
 		this.#restoreScroll(host, savedViewState.scrollTop);
 	}
 

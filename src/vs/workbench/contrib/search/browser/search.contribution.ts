@@ -24,7 +24,6 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { assertType } from '../../../../base/common/types.js';
 import { getWorkspaceSymbols, IWorkspaceSymbol, searchConfigurationNode } from '../common/search.js';
 import * as Constants from '../common/constants.js';
-import { SearchChatContextContribution } from './searchChatContext.js';
 
 import './searchActionsCopy.js';
 import './searchActionsFind.js';
@@ -36,15 +35,12 @@ import './searchQuickAccess.contribution.js';
 import './search.common.contribution.js';
 import { TEXT_SEARCH_QUICK_ACCESS_PREFIX, TextSearchQuickAccess } from './quickTextSearch/textSearchQuickAccess.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SearchAccessibilityHelp } from './searchAccessibilityHelp.js';
 
 registerSingleton(ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService, InstantiationType.Delayed);
 
 searchWidgetContributions();
-
-registerWorkbenchContribution2(SearchChatContextContribution.ID, SearchChatContextContribution, WorkbenchPhase.AfterRestored);
 
 AccessibleViewRegistry.register(new SearchAccessibilityHelp());
 

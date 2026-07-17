@@ -10,7 +10,6 @@ import { hash } from '../../../base/common/hash.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { BrowserSession } from '../../browserView/electron-main/browserSession.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEncryptionMainService } from '../../encryption/common/encryptionService.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
@@ -76,13 +75,6 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 	private async onLogin({ event, webContents, authInfo, callback }: LoginEvent): Promise<Credentials | undefined> {
 		if (!authInfo.isProxy) {
 			return; // only for proxy
-		}
-
-		// Browser view webContents have their own login handler that
-		// supplies tunnel proxy credentials directly. Skip the global
-		// handler so we don't race with it or show a dialog.
-		if (webContents && BrowserSession.isBrowserViewWebContents(webContents)) {
-			return;
 		}
 
 		// Signal we handle this event on our own, otherwise

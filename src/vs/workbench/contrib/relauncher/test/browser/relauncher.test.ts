@@ -70,56 +70,56 @@ suite('SettingsChangeRelauncher', () => {
 		disposables.clear();
 	});
 
-	test('prompts to restart when chat.agentHost.claudeAgent.enabled changes', async () => {
+	test('prompts to restart when assist.sandboxHost.claudeAgent.enabled changes', async () => {
 		confirmResult = true;
 		await changeSetting(
-			'chat.agentHost.claudeAgent.enabled',
-			() => ({ chat: { agentHost: { claudeAgent: { enabled: true } } } }),
-			c => c.chat.agentHost.claudeAgent.enabled = false);
+			'assist.sandboxHost.claudeAgent.enabled',
+			() => ({ assist: { sandboxHost: { claudeAgent: { enabled: true } } } }),
+			c => c.assist.sandboxHost.claudeAgent.enabled = false);
 
 		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
 	});
 
-	test('prompts to restart when chat.agentHost.codexAgent.enabled changes', async () => {
+	test('prompts to restart when assist.sandboxHost.codexAgent.enabled changes', async () => {
 		confirmResult = true;
 		await changeSetting(
-			'chat.agentHost.codexAgent.enabled',
-			() => ({ chat: { agentHost: { codexAgent: { enabled: true } } } }),
-			c => c.chat.agentHost.codexAgent.enabled = false);
+			'assist.sandboxHost.codexAgent.enabled',
+			() => ({ assist: { sandboxHost: { codexAgent: { enabled: true } } } }),
+			c => c.assist.sandboxHost.codexAgent.enabled = false);
 
 		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
 	});
 
-	test('prompts to restart when chat.agentHost.byokModels.enabled changes', async () => {
+	test('prompts to restart when assist.sandboxHost.byokModels.enabled changes', async () => {
 		confirmResult = true;
 		await changeSetting(
-			'chat.agentHost.byokModels.enabled',
-			() => ({ chat: { agentHost: { byokModels: { enabled: true } } } }),
-			c => c.chat.agentHost.byokModels.enabled = false);
+			'assist.sandboxHost.byokModels.enabled',
+			() => ({ assist: { sandboxHost: { byokModels: { enabled: true } } } }),
+			c => c.assist.sandboxHost.byokModels.enabled = false);
 
 		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
 	});
 
-	test('prompts to restart when chat.agents.claude.preferAgentHost changes', async () => {
+	test('prompts to restart when assist.agents.claude.preferSandboxHost changes', async () => {
 		confirmResult = true;
 		await changeSetting(
-			'chat.agents.claude.preferAgentHost',
-			() => ({ chat: { agents: { claude: { preferAgentHost: true } } } }),
-			c => c.chat.agents.claude.preferAgentHost = false);
+			'assist.agents.claude.preferSandboxHost',
+			() => ({ assist: { agents: { claude: { preferSandboxHost: true } } } }),
+			c => c.assist.agents.claude.preferSandboxHost = false);
 
 		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
 	});
 
-	test('prompts to restart when chat.editor.claude.preferAgentHost changes', async () => {
+	test('prompts to restart when assist.editor.claude.preferSandboxHost changes', async () => {
 		confirmResult = true;
 		await changeSetting(
-			'chat.editor.claude.preferAgentHost',
-			() => ({ chat: { editor: { claude: { preferAgentHost: true } } } }),
-			c => c.chat.editor.claude.preferAgentHost = false);
+			'assist.editor.claude.preferSandboxHost',
+			() => ({ assist: { editor: { claude: { preferSandboxHost: true } } } }),
+			c => c.assist.editor.claude.preferSandboxHost = false);
 
 		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
@@ -128,9 +128,9 @@ suite('SettingsChangeRelauncher', () => {
 	test('does not restart when the confirmation is declined', async () => {
 		confirmResult = false;
 		await changeSetting(
-			'chat.agentHost.claudeAgent.enabled',
-			() => ({ chat: { agentHost: { claudeAgent: { enabled: true } } } }),
-			c => c.chat.agentHost.claudeAgent.enabled = false);
+			'assist.sandboxHost.claudeAgent.enabled',
+			() => ({ assist: { sandboxHost: { claudeAgent: { enabled: true } } } }),
+			c => c.assist.sandboxHost.claudeAgent.enabled = false);
 
 		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
 		assert.strictEqual(restartCount, 0, 'should not restart when declined');
@@ -139,9 +139,9 @@ suite('SettingsChangeRelauncher', () => {
 	test('does not prompt when only the default value changes', async () => {
 		confirmResult = true;
 		await changeSetting(
-			'chat.agentHost.claudeAgent.enabled',
-			() => ({ chat: { agentHost: { claudeAgent: { enabled: true } } } }),
-			c => c.chat.agentHost.claudeAgent.enabled = false,
+			'assist.sandboxHost.claudeAgent.enabled',
+			() => ({ assist: { sandboxHost: { claudeAgent: { enabled: true } } } }),
+			c => c.assist.sandboxHost.claudeAgent.enabled = false,
 			ConfigurationTarget.DEFAULT);
 
 		assert.strictEqual(confirmCount, 0, 'should not prompt for default changes');

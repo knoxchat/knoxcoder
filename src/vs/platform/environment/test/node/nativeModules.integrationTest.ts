@@ -102,13 +102,13 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('http-proxy-agent', async () => {
-		const { default: mod } = await import('http-proxy-agent');
-		assert.ok(typeof mod.HttpProxyAgent === 'function', testErrorMessage('http-proxy-agent'));
+		const { HttpProxyAgent } = await import('http-proxy-agent');
+		assert.ok(typeof HttpProxyAgent === 'function', testErrorMessage('http-proxy-agent'));
 	});
 
 	test('https-proxy-agent', async () => {
-		const { default: mod } = await import('https-proxy-agent');
-		assert.ok(typeof mod.HttpsProxyAgent === 'function', testErrorMessage('https-proxy-agent'));
+		const { HttpsProxyAgent } = await import('https-proxy-agent');
+		assert.ok(typeof HttpsProxyAgent === 'function', testErrorMessage('https-proxy-agent'));
 	});
 
 	test('@vscode/proxy-agent', async () => {

@@ -15,14 +15,31 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { matchesDomainPattern, normalizeDomain } from '../../networkFilter/common/domainMatcher.js';
-import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { ISandboxDependencyStatus, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from './sandboxHelperService.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue, normalizeAgentSandboxEnabledValue, type AgentSandboxEnabledSettingValue } from './settings.js';
 import { IWindowsMxcTerminalSandboxRuntime } from './terminalSandboxMxcRuntime.js';
 import { getTerminalSandboxReadAllowListForCommands } from './terminalSandboxReadAllowList.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from './terminalSandboxRuntimeConfigurationPerOperation.js';
 import { ITerminalSandboxCommand, ITerminalSandboxFileAccessCheckResult, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxFileAccessPermission, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from './terminalSandboxService.js';
+
+export const enum AgentNetworkDomainSettingId {
+	AllowedNetworkDomains = 'assist.agent.allowedDomains',
+	DeniedNetworkDomains = 'assist.agent.deniedDomains',
+}
+
+function normalizeDomain(domain: string, _preservePort?: boolean): string {
+	return domain.toLowerCase();
+}
+
+function matchesDomainPattern(domain: string, pattern: string): boolean {
+	const normalizedDomain = normalizeDomain(domain);
+	const normalizedPattern = normalizeDomain(pattern);
+	if (normalizedPattern.startsWith('*.')) {
+		const suffix = normalizedPattern.slice(1);
+		return normalizedDomain.endsWith(suffix) || normalizedDomain === normalizedPattern.slice(2);
+	}
+	return normalizedDomain === normalizedPattern;
+}
 
 interface ITerminalSandboxFileSystemSetting {
 	denyRead?: string[];
@@ -122,7 +139,7 @@ export interface ITerminalSandboxEngineHost {
  * Hosts (workbench / agent host) construct an engine with a host adapter that
  * supplies workspace/remote-specific data, then forward their public service
  * methods to the engine and add their own host-specific concerns
- * (chat elicitation, lifecycle hooks, …) on top.
+ * (assist elicitation, lifecycle hooks, …) on top.
  */
 export class TerminalSandboxEngine extends Disposable {
 	private static readonly _urlRegex = /(?:https?|wss?):\/\/[^\s'"`|&;<>]+/gi;

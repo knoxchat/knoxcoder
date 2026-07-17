@@ -6,7 +6,7 @@
 import { createReadStream, promises } from 'fs';
 import type * as http from 'http';
 import * as url from 'url';
-import * as cookie from 'cookie';
+import { parseCookie, stringifySetCookie } from 'cookie';
 import * as crypto from 'crypto';
 import { isEqualOrParent } from '../../base/common/extpath.js';
 import { getMediaMime } from '../../base/common/mime.js';
@@ -272,14 +272,12 @@ export class WebClientServer {
 			// We got a connection token as a query parameter.
 			// We want to have a clean URL, so we strip it
 			const responseHeaders: Record<string, string> = Object.create(null);
-			responseHeaders['Set-Cookie'] = cookie.serialize(
-				connectionTokenCookieName,
-				queryConnectionToken,
-				{
-					sameSite: 'lax',
-					maxAge: 60 * 60 * 24 * 7 /* 1 week */
-				}
-			);
+			responseHeaders['Set-Cookie'] = stringifySetCookie({
+				name: connectionTokenCookieName,
+				value: queryConnectionToken,
+				sameSite: 'lax',
+				maxAge: 60 * 60 * 24 * 7 /* 1 week */
+			});
 
 			const newQuery = Object.create(null);
 			for (const key in parsedUrl.query) {
@@ -379,7 +377,7 @@ export class WebClientServer {
 			callbackRoute: callbackRoute
 		};
 
-		const cookies = cookie.parse(req.headers.cookie || '');
+		const cookies = parseCookie(req.headers.cookie || '');
 		const locale = cookies['vscode.nls.locale'] || req.headers['accept-language']?.split(',')[0]?.toLowerCase() || 'en';
 		let WORKBENCH_NLS_BASE_URL: string | undefined;
 		let WORKBENCH_NLS_URL: string;
@@ -450,14 +448,12 @@ export class WebClientServer {
 			// At this point we know the client has a valid cookie
 			// and we want to set it prolong it to ensure that this
 			// client is valid for another 1 week at least
-			headers['Set-Cookie'] = cookie.serialize(
-				connectionTokenCookieName,
-				this._connectionToken.value,
-				{
-					sameSite: 'lax',
-					maxAge: 60 * 60 * 24 * 7 /* 1 week */
-				}
-			);
+			headers['Set-Cookie'] = stringifySetCookie({
+				name: connectionTokenCookieName,
+				value: this._connectionToken.value,
+				sameSite: 'lax',
+				maxAge: 60 * 60 * 24 * 7 /* 1 week */
+			});
 		}
 
 		res.writeHead(200, headers);

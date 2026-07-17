@@ -12,12 +12,12 @@
   },
   "dependencies": {
     "ncp": "^2.0.0",
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "@types/ncp": "2.0.1",
-    "@types/node": "24.x",
-    "@types/node-fetch": "^2.5.10",
-    "npm-run-all2": "^8.0.4"
+    "@types/ncp": "2.0.8",
+    "@types/node": "26.1.1",
+    "@types/node-fetch": "^2.6.13",
+    "npm-run-all2": "^9.0.2"
   }
 }

@@ -47,10 +47,10 @@
 		"build-notebook": "node ./esbuild.notebook.mts"
 	},
 	"devDependencies": {
-		"@types/jsdom": "^21.1.0",
-		"@types/node": "24.x",
-		"@types/vscode-notebook-renderer": "^1.60.0",
-		"jsdom": "^28.1.0"
+		"@types/jsdom": "^28.0.3",
+		"@types/node": "26.x",
+		"@types/vscode-notebook-renderer": "^1.72.4",
+		"jsdom": "^29.1.1"
 	},
 	"repository": {
 		"type": "git",

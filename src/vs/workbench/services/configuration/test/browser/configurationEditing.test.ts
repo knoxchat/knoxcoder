@@ -339,11 +339,11 @@ suite('ConfigurationEditing', () => {
 		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
-	test('write user standalone mcp setting - existing file', async () => {
-		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['mcp']);
+	test('write user standalone tool setting - existing file', async () => {
+		const target = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tool']);
 		await fileService.writeFile(target, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
 
-		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'mcp.service.testSetting', value: 'value' });
+		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tool.service.testSetting', value: 'value' });
 
 		const contents = await fileService.readFile(target);
 		const parsed = json.parse(contents.value.toString());

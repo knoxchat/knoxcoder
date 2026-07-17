@@ -17,7 +17,6 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../accounts/browser/defaultAccount.js';
-import { IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
 import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, ChatAccountPolicyGateActiveContext, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../common/accountPolicyService.js';
 
 const NOTIFICATION_DISMISSED_KEY = 'accountPolicy.gateNotificationDismissed';
@@ -56,7 +55,6 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 	constructor(
 		@IAccountPolicyGateService private readonly gateService: IAccountPolicyGateService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -69,9 +67,6 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		this.contextKey = ChatAccountPolicyGateActiveContext.bindTo(contextKeyService);
 		this.lastInfo = this.gateService.gateInfo;
 
-		// Apply context key + setForceHidden immediately (fail-closed), but defer the
-		// notification until either the first onDidChangeGateInfo or a 5s timeout —
-		// without this, a startup race shows "sign in" before the default account loads.
 		this.apply(this.lastInfo, /*forceTelemetry*/ true, /*showNotification*/ false);
 
 		this._register(this.gateService.onDidChangeGateInfo(info => {
@@ -91,12 +86,9 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		const stateChanged = forceTelemetry || info.state !== this.lastInfo.state || info.reason !== this.lastInfo.reason;
 		this.lastInfo = info;
 
-		// Suppress the context key during the transient `policyNotResolved` state
-		// (user IS in approved org, just waiting for data) so the UI doesn't flash.
 		const isRestricted = info.state === AccountPolicyGateState.Restricted
 			&& info.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
 		this.contextKey.set(isRestricted);
-		this.chatEntitlementService.setForceHidden(isRestricted);
 		this.logService.info(`[AccountPolicyGate] apply: state=${info.state}, reason=${info.reason}, isRestricted=${isRestricted}`);
 
 		if (stateChanged) {
@@ -122,7 +114,6 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		// Composite key so swapping accounts (while still blocked) re-shows the notification.
 		const accountName = this.defaultAccountService.currentDefaultAccount?.accountName;
 		const notificationKey = `${info.reason ?? ''}:${accountName ?? ''}`;
 
@@ -149,7 +140,6 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		const approvedOrgs = info.approvedOrganizations ?? [];
 		const hasConcreteOrgs = approvedOrgs.length > 0 && !approvedOrgs.includes('*');
 
-		// Notifications render as plain inline text — comma-separate orgs.
 		const orgList = approvedOrgs.join(', ');
 		let message: string;
 		if (accountName && hasConcreteOrgs) {

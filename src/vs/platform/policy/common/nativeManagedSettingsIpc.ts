@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../base/common/collections.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { INativeManagedSettingsService, ManagedSettingsData } from './copilotManagedSettings.js';
+import { INativeManagedSettingsService, ManagedSettingsData } from './managedSettings.js';
 import { PolicyDefinition } from './policy.js';
 
 export class NativeManagedSettingsChannel implements IServerChannel {

@@ -8570,9 +8570,9 @@ declare module 'vscode' {
 		/**
 		 * An object that keeps information about how this extension can use language models.
 		 *
-		 * @see {@link LanguageModelChat.sendRequest}
+		 * @see {@link TextModelApiChat.sendRequest}
 		 */
-		readonly languageModelAccessInformation: LanguageModelAccessInformation;
+		readonly textModelApiAccessInformation: TextModelApiAccessInformation;
 	}
 
 	/**
@@ -19593,21 +19593,21 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a user request in chat history.
+	 * Represents a user request in assist history.
 	 */
-	export class ChatRequestTurn {
+	export class AssistRequestTurn {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about references used in this request is stored in {@link ChatRequestTurn.references}.
+		 * Information about references used in this request is stored in {@link AssistRequestTurn.references}.
 		 *
-		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
+		 * *Note* that the {@link AssistParticipant.name name} of the participant and the {@link ChatCommand.name command}
 		 * are not part of the prompt.
 		 */
 		readonly prompt: string;
 
 		/**
-		 * The id of the chat participant to which this request was directed.
+		 * The id of the assist participant to which this request was directed.
 		 */
 		readonly participant: string;
 
@@ -19624,30 +19624,30 @@ declare module 'vscode' {
 		/**
 		 * The list of tools were attached to this request.
 		 */
-		readonly toolReferences: readonly ChatLanguageModelToolReference[];
+		readonly toolReferences: readonly ChatTextModelApiToolReference[];
 
 		/**
 		 * @hidden
 		 */
-		private constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[]);
+		private constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatTextModelApiToolReference[]);
 	}
 
 	/**
-	 * Represents a chat participant's response in chat history.
+	 * Represents a assist participant's response in assist history.
 	 */
-	export class ChatResponseTurn {
+	export class AssistResponseTurn {
 		/**
-		 * The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
+		 * The content that was received from the assist participant. Only the stream parts that represent actual content (not metadata) are represented.
 		 */
-		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>;
+		readonly response: ReadonlyArray<AssistResponseMarkdownPart | AssistResponseFileTreePart | AssistResponseAnchorPart | AssistResponseCommandButtonPart>;
 
 		/**
-		 * The result that was received from the chat participant.
+		 * The result that was received from the assist participant.
 		 */
 		readonly result: ChatResult;
 
 		/**
-		 * The id of the chat participant that this response came from.
+		 * The id of the assist participant that this response came from.
 		 */
 		readonly participant: string;
 
@@ -19659,21 +19659,21 @@ declare module 'vscode' {
 		/**
 		 * @hidden
 		 */
-		private constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatResult, participant: string);
+		private constructor(response: ReadonlyArray<AssistResponseMarkdownPart | AssistResponseFileTreePart | AssistResponseAnchorPart | AssistResponseCommandButtonPart>, result: ChatResult, participant: string);
 	}
 
 	/**
 	 * Extra context passed to a participant.
 	 */
-	export interface ChatContext {
+	export interface AssistContext {
 		/**
-		 * All of the chat messages so far in the current chat session. Currently, only chat messages for the current participant are included.
+		 * All of the assist messages so far in the current assist session. Currently, only assist messages for the current participant are included.
 		 */
-		readonly history: ReadonlyArray<ChatRequestTurn | ChatResponseTurn>;
+		readonly history: ReadonlyArray<AssistRequestTurn | AssistResponseTurn>;
 	}
 
 	/**
-	 * Represents an error result from a chat request.
+	 * Represents an error result from a assist request.
 	 */
 	export interface ChatErrorDetails {
 		/**
@@ -19688,7 +19688,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The result of a chat request.
+	 * The result of a assist request.
 	 */
 	export interface ChatResult {
 		/**
@@ -19738,7 +19738,7 @@ declare module 'vscode' {
 	 */
 	export interface ChatFollowup {
 		/**
-		 * The message to send to the chat.
+		 * The message to send to the assist.
 		 */
 		prompt: string;
 
@@ -19760,7 +19760,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Will be invoked once after each request to get suggested followup questions to show the user. The user can click the followup to send it to the chat.
+	 * Will be invoked once after each request to get suggested followup questions to show the user. The user can click the followup to send it to the assist.
 	 */
 	export interface ChatFollowupProvider {
 		/**
@@ -19770,19 +19770,19 @@ declare module 'vscode' {
 		 * @param context Extra context passed to a participant.
 		 * @param token A cancellation token.
 		 */
-		provideFollowups(result: ChatResult, context: ChatContext, token: CancellationToken): ProviderResult<ChatFollowup[]>;
+		provideFollowups(result: ChatResult, context: AssistContext, token: CancellationToken): ProviderResult<ChatFollowup[]>;
 	}
 
 	/**
-	 * A chat request handler is a callback that will be invoked when a request is made to a chat participant.
+	 * A assist request handler is a callback that will be invoked when a request is made to a assist participant.
 	 */
-	export type ChatRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
+	export type AssistRequestHandler = (request: AssistRequest, context: AssistContext, response: AssistResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
 	/**
-	 * A chat participant can be invoked by the user in a chat session, using the `@` prefix. When it is invoked, it handles the chat request and is solely
-	 * responsible for providing a response to the user. A ChatParticipant is created using {@link chat.createChatParticipant}.
+	 * A assist participant can be invoked by the user in a assist session, using the `@` prefix. When it is invoked, it handles the assist request and is solely
+	 * responsible for providing a response to the user. A AssistParticipant is created using {@link assist.createAssistParticipant}.
 	 */
-	export interface ChatParticipant {
+	export interface AssistParticipant {
 		/**
 		 * A unique ID for this participant.
 		 */
@@ -19796,7 +19796,7 @@ declare module 'vscode' {
 		/**
 		 * The handler for requests to this participant.
 		 */
-		requestHandler: ChatRequestHandler;
+		requestHandler: AssistRequestHandler;
 
 		/**
 		 * This provider will be called once after each request to retrieve suggested followup questions.
@@ -19808,7 +19808,7 @@ declare module 'vscode' {
 		 * a result.
 		 *
 		 * The passed {@link ChatResultFeedback.result result} is guaranteed to have the same properties as the result that was
-		 * previously returned from this chat participant's handler.
+		 * previously returned from this assist participant's handler.
 		 */
 		readonly onDidReceiveFeedback: Event<ChatResultFeedback>;
 
@@ -19819,7 +19819,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A reference to a value that the user added to their chat request.
+	 * A reference to a value that the user added to their assist request.
 	 */
 	export interface ChatPromptReference {
 		/**
@@ -19828,7 +19828,7 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * The start and end index of the reference in the {@link ChatRequest.prompt prompt}. When undefined, the reference was not part of the prompt text.
+		 * The start and end index of the reference in the {@link AssistRequest.prompt prompt}. When undefined, the reference was not part of the prompt text.
 		 *
 		 * *Note* that the indices take the leading `#`-character into account which means they can
 		 * used to modify the prompt as-is.
@@ -19847,15 +19847,15 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A request to a chat participant.
+	 * A request to a assist participant.
 	 */
-	export interface ChatRequest {
+	export interface AssistRequest {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about references used in this request is stored in {@link ChatRequest.references}.
+		 * Information about references used in this request is stored in {@link AssistRequest.references}.
 		 *
-		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
+		 * *Note* that the {@link AssistParticipant.name name} of the participant and the {@link ChatCommand.name command}
 		 * are not part of the prompt.
 		 */
 		readonly prompt: string;
@@ -19879,44 +19879,44 @@ declare module 'vscode' {
 		/**
 		 * The list of tools that the user attached to their request.
 		 *
-		 * When a tool reference is present, the chat participant should make a chat request using
-		 * {@link LanguageModelChatToolMode.Required} to force the language model to generate input for the tool. Then, the
+		 * When a tool reference is present, the assist participant should make a assist request using
+		 * {@link TextModelApiAssistToolMode.Required} to force the language model to generate input for the tool. Then, the
 		 * participant can use {@link lm.invokeTool} to use the tool attach the result to its request for the user's prompt. The
 		 * tool may contribute useful extra context for the user's request.
 		 */
-		readonly toolReferences: readonly ChatLanguageModelToolReference[];
+		readonly toolReferences: readonly ChatTextModelApiToolReference[];
 
 		/**
-		 * A token that can be passed to {@link lm.invokeTool} when invoking a tool inside the context of handling a chat request.
-		 * This associates the tool invocation to a chat session.
+		 * A token that can be passed to {@link lm.invokeTool} when invoking a tool inside the context of handling a assist request.
+		 * This associates the tool invocation to a assist session.
 		 */
-		readonly toolInvocationToken: ChatParticipantToolToken;
+		readonly toolInvocationToken: AssistParticipantToolToken;
 
 		/**
-		 * This is the model that is currently selected in the UI. Extensions can use this or use {@link lm.selectChatModels} to
+		 * This is the model that is currently selected in the UI. Extensions can use this or use {@link lm.selectAssistModels} to
 		 * pick another model. Don't hold onto this past the lifetime of the request.
 		 */
-		readonly model: LanguageModelChat;
+		readonly model: TextModelApiChat;
 	}
 
 	/**
-	 * The ChatResponseStream is how a participant is able to return content to the chat view. It provides several methods for streaming different types of content
-	 * which will be rendered in an appropriate way in the chat view. A participant can use the helper method for the type of content it wants to return, or it
-	 * can instantiate a {@link ChatResponsePart} and use the generic {@link ChatResponseStream.push} method to return it.
+	 * The AssistResponseStream is how a participant is able to return content to the assist view. It provides several methods for streaming different types of content
+	 * which will be rendered in an appropriate way in the assist view. A participant can use the helper method for the type of content it wants to return, or it
+	 * can instantiate a {@link AssistResponsePart} and use the generic {@link AssistResponseStream.push} method to return it.
 	 */
-	export interface ChatResponseStream {
+	export interface AssistResponseStream {
 		/**
 		 * Push a markdown part to this stream. Short-hand for
-		 * `push(new ChatResponseMarkdownPart(value))`.
+		 * `push(new AssistResponseMarkdownPart(value))`.
 		 *
-		 * @see {@link ChatResponseStream.push}
+		 * @see {@link AssistResponseStream.push}
 		 * @param value A markdown string or a string that should be interpreted as markdown. The boolean form of {@link MarkdownString.isTrusted} is NOT supported.
 		 */
 		markdown(value: string | MarkdownString): void;
 
 		/**
 		 * Push an anchor part to this stream. Short-hand for
-		 * `push(new ChatResponseAnchorPart(value, title))`.
+		 * `push(new AssistResponseAnchorPart(value, title))`.
 		 * An anchor is an inline reference to some type of resource.
 		 *
 		 * @param value A uri or location.
@@ -19926,7 +19926,7 @@ declare module 'vscode' {
 
 		/**
 		 * Push a command button part to this stream. Short-hand for
-		 * `push(new ChatResponseCommandButtonPart(value, title))`.
+		 * `push(new AssistResponseCommandButtonPart(value, title))`.
 		 *
 		 * @param command A Command that will be executed when the button is clicked.
 		 */
@@ -19934,16 +19934,16 @@ declare module 'vscode' {
 
 		/**
 		 * Push a filetree part to this stream. Short-hand for
-		 * `push(new ChatResponseFileTreePart(value))`.
+		 * `push(new AssistResponseFileTreePart(value))`.
 		 *
 		 * @param value File tree data.
 		 * @param baseUri The base uri to which this file tree is relative.
 		 */
-		filetree(value: ChatResponseFileTree[], baseUri: Uri): void;
+		filetree(value: AssistResponseFileTree[], baseUri: Uri): void;
 
 		/**
 		 * Push a progress part to this stream. Short-hand for
-		 * `push(new ChatResponseProgressPart(value))`.
+		 * `push(new AssistResponseProgressPart(value))`.
 		 *
 		 * @param value A progress message
 		 */
@@ -19951,7 +19951,7 @@ declare module 'vscode' {
 
 		/**
 		 * Push a reference to this stream. Short-hand for
-		 * `push(new ChatResponseReferencePart(value))`.
+		 * `push(new AssistResponseReferencePart(value))`.
 		 *
 		 * *Note* that the reference is not rendered inline with the response.
 		 *
@@ -19965,20 +19965,20 @@ declare module 'vscode' {
 		 *
 		 * @param part A response part, rendered or metadata
 		 */
-		push(part: ChatResponsePart): void;
+		push(part: AssistResponsePart): void;
 	}
 
 	/**
-	 * Represents a part of a chat response that is formatted as Markdown.
+	 * Represents a part of a assist response that is formatted as Markdown.
 	 */
-	export class ChatResponseMarkdownPart {
+	export class AssistResponseMarkdownPart {
 		/**
 		 * A markdown string or a string that should be interpreted as markdown.
 		 */
 		value: MarkdownString;
 
 		/**
-		 * Create a new ChatResponseMarkdownPart.
+		 * Create a new AssistResponseMarkdownPart.
 		 *
 		 * @param value A markdown string or a string that should be interpreted as markdown. The boolean form of {@link MarkdownString.isTrusted} is NOT supported.
 		 */
@@ -19986,9 +19986,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a file tree structure in a chat response.
+	 * Represents a file tree structure in a assist response.
 	 */
-	export interface ChatResponseFileTree {
+	export interface AssistResponseFileTree {
 		/**
 		 * The name of the file or directory.
 		 */
@@ -19997,17 +19997,17 @@ declare module 'vscode' {
 		/**
 		 * An array of child file trees, if the current file tree is a directory.
 		 */
-		children?: ChatResponseFileTree[];
+		children?: AssistResponseFileTree[];
 	}
 
 	/**
-	 * Represents a part of a chat response that is a file tree.
+	 * Represents a part of a assist response that is a file tree.
 	 */
-	export class ChatResponseFileTreePart {
+	export class AssistResponseFileTreePart {
 		/**
 		 * File tree data.
 		 */
-		value: ChatResponseFileTree[];
+		value: AssistResponseFileTree[];
 
 		/**
 		 * The base uri to which this file tree is relative
@@ -20015,17 +20015,17 @@ declare module 'vscode' {
 		baseUri: Uri;
 
 		/**
-		 * Create a new ChatResponseFileTreePart.
+		 * Create a new AssistResponseFileTreePart.
 		 * @param value File tree data.
 		 * @param baseUri The base uri to which this file tree is relative.
 		 */
-		constructor(value: ChatResponseFileTree[], baseUri: Uri);
+		constructor(value: AssistResponseFileTree[], baseUri: Uri);
 	}
 
 	/**
-	 * Represents a part of a chat response that is an anchor, that is rendered as a link to a target.
+	 * Represents a part of a assist response that is an anchor, that is rendered as a link to a target.
 	 */
-	export class ChatResponseAnchorPart {
+	export class AssistResponseAnchorPart {
 		/**
 		 * The target of this anchor.
 		 */
@@ -20037,7 +20037,7 @@ declare module 'vscode' {
 		title?: string;
 
 		/**
-		 * Create a new ChatResponseAnchorPart.
+		 * Create a new AssistResponseAnchorPart.
 		 * @param value A uri or location.
 		 * @param title An optional title that is rendered with value.
 		 */
@@ -20045,25 +20045,25 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a part of a chat response that is a progress message.
+	 * Represents a part of a assist response that is a progress message.
 	 */
-	export class ChatResponseProgressPart {
+	export class AssistResponseProgressPart {
 		/**
 		 * The progress message
 		 */
 		value: string;
 
 		/**
-		 * Create a new ChatResponseProgressPart.
+		 * Create a new AssistResponseProgressPart.
 		 * @param value A progress message
 		 */
 		constructor(value: string);
 	}
 
 	/**
-	 * Represents a part of a chat response that is a reference, rendered separately from the content.
+	 * Represents a part of a assist response that is a reference, rendered separately from the content.
 	 */
-	export class ChatResponseReferencePart {
+	export class AssistResponseReferencePart {
 		/**
 		 * The reference target.
 		 */
@@ -20075,7 +20075,7 @@ declare module 'vscode' {
 		iconPath?: IconPath;
 
 		/**
-		 * Create a new ChatResponseReferencePart.
+		 * Create a new AssistResponseReferencePart.
 		 * @param value A uri or location
 		 * @param iconPath Icon for the reference shown in UI
 		 */
@@ -20083,48 +20083,48 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a part of a chat response that is a button that executes a command.
+	 * Represents a part of a assist response that is a button that executes a command.
 	 */
-	export class ChatResponseCommandButtonPart {
+	export class AssistResponseCommandButtonPart {
 		/**
 		 * The command that will be executed when the button is clicked.
 		 */
 		value: Command;
 
 		/**
-		 * Create a new ChatResponseCommandButtonPart.
+		 * Create a new AssistResponseCommandButtonPart.
 		 * @param value A Command that will be executed when the button is clicked.
 		 */
 		constructor(value: Command);
 	}
 
 	/**
-	 * Represents the different chat response types.
+	 * Represents the different assist response types.
 	 */
-	export type ChatResponsePart = ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart
-		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart;
+	export type AssistResponsePart = AssistResponseMarkdownPart | AssistResponseFileTreePart | AssistResponseAnchorPart
+		| AssistResponseProgressPart | AssistResponseReferencePart | AssistResponseCommandButtonPart;
 
 
 	/**
-	 * Namespace for chat functionality. Users interact with chat participants by sending messages
-	 * to them in the chat view. Chat participants can respond with markdown or other types of content
-	 * via the {@link ChatResponseStream}.
+	 * Namespace for assist functionality. Users interact with assist participants by sending messages
+	 * to them in the assist view. assist participants can respond with markdown or other types of content
+	 * via the {@link AssistResponseStream}.
 	 */
-	export namespace chat {
+	export namespace assist {
 		/**
-		 * Create a new {@link ChatParticipant chat participant} instance.
+		 * Create a new {@link AssistParticipant assist participant} instance.
 		 *
 		 * @param id A unique identifier for the participant.
 		 * @param handler A request handler for the participant.
-		 * @returns A new chat participant
+		 * @returns A new assist participant
 		 */
-		export function createChatParticipant(id: string, handler: ChatRequestHandler): ChatParticipant;
+		export function createAssistParticipant(id: string, handler: AssistRequestHandler): AssistParticipant;
 	}
 
 	/**
-	 * Represents the role of a chat message. This is either the user or the assistant.
+	 * Represents the role of a assist message. This is either the user or the assistant.
 	 */
-	export enum LanguageModelChatMessageRole {
+	export enum TextModelApiAssistMessageRole {
 		/**
 		 * The user role, e.g the human interacting with a language model.
 		 */
@@ -20137,9 +20137,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a message in a chat. Can assume different roles, like user or assistant.
+	 * Represents a message in a assist. Can assume different roles, like user or assistant.
 	 */
-	export class LanguageModelChatMessage {
+	export class TextModelApiAssistMessage {
 
 		/**
 		 * Utility to create a new user message.
@@ -20147,7 +20147,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelDataPart>, name?: string): LanguageModelChatMessage;
+		static User(content: string | Array<TextModelApiTextPart | TextModelApiToolResultPart | TextModelApiDataPart>, name?: string): TextModelApiAssistMessage;
 
 		/**
 		 * Utility to create a new assistant message.
@@ -20155,18 +20155,18 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart>, name?: string): LanguageModelChatMessage;
+		static Assistant(content: string | Array<TextModelApiTextPart | TextModelApiToolCallPart | TextModelApiDataPart>, name?: string): TextModelApiAssistMessage;
 
 		/**
 		 * The role of this message.
 		 */
-		role: LanguageModelChatMessageRole;
+		role: TextModelApiAssistMessageRole;
 
 		/**
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		content: Array<LanguageModelInputPart>;
+		content: Array<TextModelApiInputPart>;
 
 		/**
 		 * The optional name of a user for this message.
@@ -20180,21 +20180,21 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelInputPart>, name?: string);
+		constructor(role: TextModelApiAssistMessageRole, content: string | Array<TextModelApiInputPart>, name?: string);
 	}
 
 	/**
 	 * Represents a language model response.
 	 *
-	 * @see {@link ChatRequest}
+	 * @see {@link AssistRequest}
 	 */
-	export interface LanguageModelChatResponse {
+	export interface TextModelApiAssistResponse {
 
 		/**
 		 * An async iterable that is a stream of text and tool-call parts forming the overall response. A
-		 * {@link LanguageModelTextPart} is part of the assistant's response to be shown to the user. A
-		 * {@link LanguageModelToolCallPart} is a request from the language model to call a tool. The latter will
-		 * only be returned if tools were passed in the request via {@link LanguageModelChatRequestOptions.tools}. The
+		 * {@link TextModelApiTextPart} is part of the assistant's response to be shown to the user. A
+		 * {@link TextModelApiToolCallPart} is a request from the language model to call a tool. The latter will
+		 * only be returned if tools were passed in the request via {@link TextModelApiAssistRequestOptions.tools}. The
 		 * `unknown`-type is used as a placeholder for future parts, like image data parts.
 		 *
 		 * *Note* that this stream will error when during data receiving an error occurs. Consumers of the stream should handle
@@ -20208,9 +20208,9 @@ declare module 'vscode' {
 		 * try {
 		 *   // consume stream
 		 *   for await (const chunk of response.stream) {
-		 *      if (chunk instanceof LanguageModelTextPart) {
+		 *      if (chunk instanceof TextModelApiTextPart) {
 		 *        console.log("TEXT", chunk);
-		 *      } else if (chunk instanceof LanguageModelToolCallPart) {
+		 *      } else if (chunk instanceof TextModelApiToolCallPart) {
 		 *        console.log("TOOL CALL", chunk);
 		 *      }
 		 *   }
@@ -20221,22 +20221,22 @@ declare module 'vscode' {
 		 * }
 		 * ```
 		 */
-		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | unknown>;
+		stream: AsyncIterable<TextModelApiTextPart | TextModelApiToolCallPart | TextModelApiDataPart | unknown>;
 
 		/**
-		 * This is equivalent to filtering everything except for text parts from a {@link LanguageModelChatResponse.stream}.
+		 * This is equivalent to filtering everything except for text parts from a {@link TextModelApiAssistResponse.stream}.
 		 *
-		 * @see {@link LanguageModelChatResponse.stream}
+		 * @see {@link TextModelApiAssistResponse.stream}
 		 */
 		text: AsyncIterable<string>;
 	}
 
 	/**
-	 * Represents a language model for making chat requests.
+	 * Represents a language model for making assist requests.
 	 *
-	 * @see {@link lm.selectChatModels}
+	 * @see {@link lm.selectAssistModels}
 	 */
-	export interface LanguageModelChat {
+	export interface TextModelApiChat {
 
 		/**
 		 * Human-readable name of the language model.
@@ -20249,8 +20249,8 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * A well-known identifier of the vendor of the language model. An example is `copilot`, but
-		 * values are defined by extensions contributing chat models and need to be looked up with them.
+		 * A well-known identifier of the vendor of the language model. An example is `assist`, but
+		 * values are defined by extensions contributing assist models and need to be looked up with them.
 		 */
 		readonly vendor: string;
 
@@ -20272,31 +20272,31 @@ declare module 'vscode' {
 		readonly maxInputTokens: number;
 
 		/**
-		 * Make a chat request using a language model.
+		 * Make a assist request using a language model.
 		 *
 		 * *Note* that language model use may be subject to access restrictions and user consent. Calling this function
 		 * for the first time (for an extension) will show a consent dialog to the user and because of that this function
-		 * must _only be called in response to a user action!_ Extensions can use {@link LanguageModelAccessInformation.canSendRequest}
+		 * must _only be called in response to a user action!_ Extensions can use {@link TextModelApiAccessInformation.canSendRequest}
 		 * to check if they have the necessary permissions to make a request.
 		 *
 		 * This function will return a rejected promise if making a request to the language model is not
 		 * possible. Reasons for this can be:
 		 *
-		 * - user consent not given, see {@link LanguageModelError.NoPermissions `NoPermissions`}
-		 * - model does not exist anymore, see {@link LanguageModelError.NotFound `NotFound`}
-		 * - quota limits exceeded, see {@link LanguageModelError.Blocked `Blocked`}
-		 * - other issues in which case extension must check {@link LanguageModelError.cause `LanguageModelError.cause`}
+		 * - user consent not given, see {@link TextModelApiError.NoPermissions `NoPermissions`}
+		 * - model does not exist anymore, see {@link TextModelApiError.NotFound `NotFound`}
+		 * - quota limits exceeded, see {@link TextModelApiError.Blocked `Blocked`}
+		 * - other issues in which case extension must check {@link TextModelApiError.cause `TextModelApiError.cause`}
 		 *
 		 * An extension can make use of language model tool calling by passing a set of tools to
-		 * {@link LanguageModelChatRequestOptions.tools}. The language model will return a {@link LanguageModelToolCallPart} and
+		 * {@link TextModelApiAssistRequestOptions.tools}. The language model will return a {@link TextModelApiToolCallPart} and
 		 * the extension can invoke the tool and make another request with the result.
 		 *
 		 * @param messages An array of message instances.
 		 * @param options Options that control the request.
 		 * @param token A cancellation token which controls the request. See {@link CancellationTokenSource} for how to create one.
-		 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
+		 * @returns A thenable that resolves to a {@link TextModelApiAssistResponse}. The promise will reject when the request couldn't be made.
 		 */
-		sendRequest(messages: LanguageModelChatMessage[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
+		sendRequest(messages: TextModelApiAssistMessage[], options?: TextModelApiAssistRequestOptions, token?: CancellationToken): Thenable<TextModelApiAssistResponse>;
 
 		/**
 		 * Count the number of tokens in a message using the model specific tokenizer-logic.
@@ -20305,37 +20305,37 @@ declare module 'vscode' {
 		 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
 		 * @returns A thenable that resolves to the number of tokens.
 		 */
-		countTokens(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
+		countTokens(text: string | TextModelApiAssistMessage, token?: CancellationToken): Thenable<number>;
 	}
 
 	/**
-	 * Describes how to select language models for chat requests.
+	 * Describes how to select language models for assist requests.
 	 *
-	 * @see {@link lm.selectChatModels}
+	 * @see {@link lm.selectAssistModels}
 	 */
-	export interface LanguageModelChatSelector {
+	export interface TextModelApiChatSelector {
 
 		/**
 		 * A vendor of language models.
-		 * @see {@link LanguageModelChat.vendor}
+		 * @see {@link TextModelApiChat.vendor}
 		 */
 		vendor?: string;
 
 		/**
 		 * A family of language models.
-		 * @see {@link LanguageModelChat.family}
+		 * @see {@link TextModelApiChat.family}
 		 */
 		family?: string;
 
 		/**
 		 * The version of a language model.
-		 * @see {@link LanguageModelChat.version}
+		 * @see {@link TextModelApiChat.version}
 		 */
 		version?: string;
 
 		/**
 		 * The identifier of a language model.
-		 * @see {@link LanguageModelChat.id}
+		 * @see {@link TextModelApiChat.id}
 		 */
 		id?: string;
 	}
@@ -20344,32 +20344,32 @@ declare module 'vscode' {
 	 * An error type for language model specific errors.
 	 *
 	 * Consumers of language models should check the code property to determine specific
-	 * failure causes, like `if(someError.code === vscode.LanguageModelError.NotFound.name) {...}`
+	 * failure causes, like `if(someError.code === vscode.TextModelApiError.NotFound.name) {...}`
 	 * for the case of referring to an unknown language model. For unspecified errors the `cause`-property
 	 * will contain the actual error.
 	 */
-	export class LanguageModelError extends Error {
+	export class TextModelApiError extends Error {
 
 		/**
 		 * The requestor does not have permissions to use this
 		 * language model
 		 */
-		static NoPermissions(message?: string): LanguageModelError;
+		static NoPermissions(message?: string): TextModelApiError;
 
 		/**
 		 * The requestor is blocked from using this language model.
 		 */
-		static Blocked(message?: string): LanguageModelError;
+		static Blocked(message?: string): TextModelApiError;
 
 		/**
 		 * The language model does not exist.
 		 */
-		static NotFound(message?: string): LanguageModelError;
+		static NotFound(message?: string): TextModelApiError;
 
 		/**
 		 * A code that identifies this error.
 		 *
-		 * Possible values are names of errors, like {@linkcode LanguageModelError.NotFound NotFound},
+		 * Possible values are names of errors, like {@linkcode TextModelApiError.NotFound NotFound},
 		 * or `Unknown` for unspecified errors from the language model itself. In the latter case the
 		 * `cause`-property will contain the actual error.
 		 */
@@ -20377,11 +20377,11 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options for making a chat request using a language model.
+	 * Options for making a assist request using a language model.
 	 *
-	 * @see {@link LanguageModelChat.sendRequest}
+	 * @see {@link TextModelApiChat.sendRequest}
 	 */
-	export interface LanguageModelChatRequestOptions {
+	export interface TextModelApiAssistRequestOptions {
 
 		/**
 		 * A human-readable message that explains why access to a language model is needed and what feature is enabled by it.
@@ -20398,28 +20398,28 @@ declare module 'vscode' {
 		 * An optional list of tools that are available to the language model. These could be registered tools available via
 		 * {@link lm.tools}, or private tools that are just implemented within the calling extension.
 		 *
-		 * If the LLM requests to call one of these tools, it will return a {@link LanguageModelToolCallPart} in
-		 * {@link LanguageModelChatResponse.stream}. It's the caller's responsibility to invoke the tool. If it's a tool
+		 * If the LLM requests to call one of these tools, it will return a {@link TextModelApiToolCallPart} in
+		 * {@link TextModelApiAssistResponse.stream}. It's the caller's responsibility to invoke the tool. If it's a tool
 		 * registered in {@link lm.tools}, that means calling {@link lm.invokeTool}.
 		 *
-		 * Then, the tool result can be provided to the LLM by creating an Assistant-type {@link LanguageModelChatMessage} with a
-		 * {@link LanguageModelToolCallPart}, followed by a User-type message with a {@link LanguageModelToolResultPart}.
+		 * Then, the tool result can be provided to the LLM by creating an Assistant-type {@link TextModelApiAssistMessage} with a
+		 * {@link TextModelApiToolCallPart}, followed by a User-type message with a {@link TextModelApiToolResultPart}.
 		 */
-		tools?: LanguageModelChatTool[];
+		tools?: TextModelApiAssistTool[];
 
 		/**
-		 * 	The tool-selecting mode to use. {@link LanguageModelChatToolMode.Auto} by default.
+		 * 	The tool-selecting mode to use. {@link TextModelApiAssistToolMode.Auto} by default.
 		 */
-		toolMode?: LanguageModelChatToolMode;
+		toolMode?: TextModelApiAssistToolMode;
 	}
 
 	/**
-	 * McpStdioServerDefinition represents an MCP server available by running
+	 * StdioToolServerDefinition represents a tool server available by running
 	 * a local process and operating on its stdin and stdout streams. The process
 	 * will be spawned as a child process of the extension host and by default
 	 * will not run in a shell environment.
 	 */
-	export class McpStdioServerDefinition {
+	export class StdioToolServerDefinition {
 		/**
 		 * The human-readable name of the server.
 		 */
@@ -20465,10 +20465,10 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * McpHttpServerDefinition represents an MCP server available using the
+	 * HttpToolServerDefinition represents a tool server available using the
 	 * Streamable HTTP transport.
 	 */
-	export class McpHttpServerDefinition {
+	export class HttpToolServerDefinition {
 		/**
 		 * The human-readable name of the server.
 		 */
@@ -20500,35 +20500,35 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Definitions that describe different types of Model Context Protocol servers,
-	 * which can be returned from the {@link McpServerDefinitionProvider}.
+	 * Definitions that describe different types of tool servers,
+	 * which can be returned from the {@link ToolServerDefinitionProvider}.
 	 */
-	export type McpServerDefinition = McpStdioServerDefinition | McpHttpServerDefinition;
+	export type ToolServerDefinition = StdioToolServerDefinition | HttpToolServerDefinition;
 
 	/**
-	 * A type that can provide Model Context Protocol server definitions. This
-	 * should be registered using {@link lm.registerMcpServerDefinitionProvider}
+	 * A type that can provide tool server definitions. This
+	 * should be registered using {@link lm.registerToolServerDefinitionProvider}
 	 * during extension activation.
 	 */
-	export interface McpServerDefinitionProvider<T extends McpServerDefinition = McpServerDefinition> {
+	export interface ToolServerDefinitionProvider<T extends ToolServerDefinition = ToolServerDefinition> {
 		/**
 		 * Optional event fired to signal that the set of available servers has changed.
 		 */
-		readonly onDidChangeMcpServerDefinitions?: Event<void>;
+		readonly onDidChangeToolServerDefinitions?: Event<void>;
 
 		/**
-		 * Provides available MCP servers. The editor will call this method eagerly
+		 * Provides available tool servers. The editor will call this method eagerly
 		 * to ensure the availability of servers for the language model, and so
 		 * extensions should not take actions which would require user
 		 * interaction, such as authentication.
 		 *
 		 * @param token A cancellation token.
-		 * @returns An array of MCP available MCP servers
+		 * @returns An array of tool available tool servers
 		 */
-		provideMcpServerDefinitions(token: CancellationToken): ProviderResult<T[]>;
+		provideToolServerDefinitions(token: CancellationToken): ProviderResult<T[]>;
 
 		/**
-		 * This function will be called when the editor needs to start a MCP server.
+		 * This function will be called when the editor needs to start a tool server.
 		 * At this point, the extension may take any actions which may require user
 		 * interaction, such as authentication. Any non-`readonly` property of the
 		 * server may be modified, and the extension should return the resolved server.
@@ -20538,18 +20538,18 @@ declare module 'vscode' {
 		 * call, the editor will cancel it and return an error message to the
 		 * language model.
 		 *
-		 * @param server The MCP server to resolve
+		 * @param server The tool server to resolve
 		 * @param token A cancellation token.
 		 * @returns The resolved server or thenable that resolves to such. This may
 		 * be the given `server` definition with non-readonly properties filled in.
 		 */
-		resolveMcpServerDefinition?(server: T, token: CancellationToken): ProviderResult<T>;
+		resolveToolServerDefinition?(server: T, token: CancellationToken): ProviderResult<T>;
 	}
 
 	/**
-	 * The provider version of {@linkcode LanguageModelChatRequestOptions}
+	 * The provider version of {@linkcode TextModelApiAssistRequestOptions}
 	 */
-	export interface ProvideLanguageModelChatResponseOptions {
+	export interface ProvideTextModelApiAssistResponseOptions {
 		/**
 		 * A set of options that control the behavior of the language model. These options are specific to the language model.
 		 */
@@ -20559,25 +20559,25 @@ declare module 'vscode' {
 		 * An optional list of tools that are available to the language model. These could be registered tools available via
 		 * {@link lm.tools}, or private tools that are just implemented within the calling extension.
 		 *
-		 * If the LLM requests to call one of these tools, it will return a {@link LanguageModelToolCallPart} in
-		 * {@link LanguageModelChatResponse.stream}. It's the caller's responsibility to invoke the tool. If it's a tool
+		 * If the LLM requests to call one of these tools, it will return a {@link TextModelApiToolCallPart} in
+		 * {@link TextModelApiAssistResponse.stream}. It's the caller's responsibility to invoke the tool. If it's a tool
 		 * registered in {@link lm.tools}, that means calling {@link lm.invokeTool}.
 		 *
-		 * Then, the tool result can be provided to the LLM by creating an Assistant-type {@link LanguageModelChatMessage} with a
-		 * {@link LanguageModelToolCallPart}, followed by a User-type message with a {@link LanguageModelToolResultPart}.
+		 * Then, the tool result can be provided to the LLM by creating an Assistant-type {@link TextModelApiAssistMessage} with a
+		 * {@link TextModelApiToolCallPart}, followed by a User-type message with a {@link TextModelApiToolResultPart}.
 		 */
-		readonly tools?: readonly LanguageModelChatTool[];
+		readonly tools?: readonly TextModelApiAssistTool[];
 
 		/**
 		 * 	The tool-selecting mode to use. The provider must implement respecting this.
 		 */
-		readonly toolMode: LanguageModelChatToolMode;
+		readonly toolMode: TextModelApiAssistToolMode;
 	}
 
 	/**
-	 * Represents a language model provided by a {@linkcode LanguageModelChatProvider}.
+	 * Represents a language model provided by a {@linkcode TextModelApiAssistProvider}.
 	 */
-	export interface LanguageModelChatInformation {
+	export interface TextModelApiChatInformation {
 
 		/**
 		 * Unique identifier for the language model. Must be unique per provider, but not required to be globally unique.
@@ -20607,7 +20607,7 @@ declare module 'vscode' {
 
 		/**
 		 * Opaque version string of the model.
-		 * This is used as a lookup value in {@linkcode LanguageModelChatSelector.version}
+		 * This is used as a lookup value in {@linkcode TextModelApiChatSelector.version}
 		 * An example is how GPT 4o has multiple versions like 2024-11-20 and 2024-08-06
 		 */
 		readonly version: string;
@@ -20625,13 +20625,13 @@ declare module 'vscode' {
 		/**
 		 * Various features that the model supports such as tool calling or image input.
 		 */
-		readonly capabilities: LanguageModelChatCapabilities;
+		readonly capabilities: TextModelApiChatCapabilities;
 	}
 
 	/**
-	 * Various features that the {@link LanguageModelChatInformation} supports such as tool calling or image input.
+	 * Various features that the {@link TextModelApiChatInformation} supports such as tool calling or image input.
 	 */
-	export interface LanguageModelChatCapabilities {
+	export interface TextModelApiChatCapabilities {
 		/**
 		 * Whether image input is supported by the model.
 		 * Common supported images are jpg and png, but each model will vary in supported mimetypes.
@@ -20646,19 +20646,19 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The provider version of {@linkcode LanguageModelChatMessage}.
+	 * The provider version of {@linkcode TextModelApiAssistMessage}.
 	 */
-	export interface LanguageModelChatRequestMessage {
+	export interface TextModelApiAssistRequestMessage {
 		/**
 		 * The role of this message.
 		 */
-		readonly role: LanguageModelChatMessageRole;
+		readonly role: TextModelApiAssistMessageRole;
 
 		/**
 		 * A heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		readonly content: ReadonlyArray<LanguageModelInputPart | unknown>;
+		readonly content: ReadonlyArray<TextModelApiInputPart | unknown>;
 
 		/**
 		 * The optional name of a user for this message.
@@ -20667,25 +20667,25 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The various message types which a {@linkcode LanguageModelChatProvider} can emit in the chat response stream
+	 * The various message types which a {@linkcode TextModelApiAssistProvider} can emit in the assist response stream
 	 */
-	export type LanguageModelResponsePart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart;
+	export type TextModelApiResponsePart = TextModelApiTextPart | TextModelApiToolResultPart | TextModelApiToolCallPart | TextModelApiDataPart;
 
 	/**
-	 * The various message types which can be sent via {@linkcode LanguageModelChat.sendRequest } and processed by a {@linkcode LanguageModelChatProvider}
+	 * The various message types which can be sent via {@linkcode TextModelApiChat.sendRequest } and processed by a {@linkcode TextModelApiAssistProvider}
 	 */
-	export type LanguageModelInputPart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart;
+	export type TextModelApiInputPart = TextModelApiTextPart | TextModelApiToolResultPart | TextModelApiToolCallPart | TextModelApiDataPart;
 
 	/**
-	 * A LanguageModelChatProvider implements access to language models, which users can then use through the chat view, or through extension API by acquiring a LanguageModelChat.
+	 * A TextModelApiAssistProvider implements access to language models, which users can then use through the assist view, or through extension API by acquiring a TextModelApiChat.
 	 * An example of this would be an OpenAI provider that provides models like gpt-5, o3, etc.
 	 */
-	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
+	export interface TextModelApiAssistProvider<T extends TextModelApiChatInformation = TextModelApiChatInformation> {
 
 		/**
 		 * An optional event fired when the available set of language models changes.
 		 */
-		readonly onDidChangeLanguageModelChatInformation?: Event<void>;
+		readonly onDidChangeTextModelApiChatInformation?: Event<void>;
 
 		/**
 		 * Get the list of available language models provided by this provider
@@ -20693,11 +20693,11 @@ declare module 'vscode' {
 		 * @param token A cancellation token
 		 * @returns The list of available language models
 		 */
-		provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
+		provideTextModelApiChatInformation(options: PrepareTextModelApiAssistModelOptions, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
-		 * Returns the response for a chat request, passing the results to the progress callback.
-		 * The {@linkcode LanguageModelChatProvider} must emit the response parts to the progress callback as they are received from the language model.
+		 * Returns the response for a assist request, passing the results to the progress callback.
+		 * The {@linkcode TextModelApiAssistProvider} must emit the response parts to the progress callback as they are received from the language model.
 		 * @param model The language model to use
 		 * @param messages The messages to include in the request
 		 * @param options Options for the request
@@ -20705,7 +20705,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token
 		 * @returns A promise that resolves when the response is complete. Results are actually passed to the progress callback.
 		 */
-		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart>, token: CancellationToken): Thenable<void>;
+		provideTextModelApiAssistResponse(model: T, messages: readonly TextModelApiAssistRequestMessage[], options: ProvideTextModelApiAssistResponseOptions, progress: Progress<TextModelApiResponsePart>, token: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns the number of tokens for a given text using the model-specific tokenizer logic
@@ -20714,13 +20714,13 @@ declare module 'vscode' {
 		 * @param token A cancellation token
 		 * @returns The number of tokens
 		 */
-		provideTokenCount(model: T, text: string | LanguageModelChatRequestMessage, token: CancellationToken): Thenable<number>;
+		provideTokenCount(model: T, text: string | TextModelApiAssistRequestMessage, token: CancellationToken): Thenable<number>;
 	}
 
 	/**
-	 * The list of options passed into {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}
+	 * The list of options passed into {@linkcode TextModelApiAssistProvider.provideTextModelApiChatInformation}
 	 */
-	export interface PrepareLanguageModelChatModelOptions {
+	export interface PrepareTextModelApiAssistModelOptions {
 		/**
 		 * Whether or not the user should be prompted via some UI flow, or if models should be attempted to be resolved silently.
 		 * If silent is true, all models may not be resolved due to lack of info such as API keys.
@@ -20734,22 +20734,22 @@ declare module 'vscode' {
 	export namespace lm {
 
 		/**
-		 * An event that is fired when the set of available chat models changes.
+		 * An event that is fired when the set of available assist models changes.
 		 */
-		export const onDidChangeChatModels: Event<void>;
+		export const onDidChangeAssistModels: Event<void>;
 
 		/**
-		 * Select chat models by a {@link LanguageModelChatSelector selector}. This can yield multiple or no chat models and
-		 * extensions must handle these cases, esp. when no chat model exists, gracefully.
+		 * Select assist models by a {@link TextModelApiChatSelector selector}. This can yield multiple or no assist models and
+		 * extensions must handle these cases, esp. when no assist model exists, gracefully.
 		 *
 		 * ```ts
-		 * const models = await vscode.lm.selectChatModels({ family: 'gpt-3.5-turbo' });
+		 * const models = await vscode.lm.selectAssistModels({ family: 'gpt-3.5-turbo' });
 		 * if (models.length > 0) {
 		 * 	const [first] = models;
 		 * 	const response = await first.sendRequest(...)
 		 * 	// ...
 		 * } else {
-		 * 	// NO chat models available
+		 * 	// NO assist models available
 		 * }
 		 * ```
 		 *
@@ -20758,99 +20758,99 @@ declare module 'vscode' {
 		 * different models.
 		 *
 		 * *Note* that extensions can hold on to the results returned by this function and use them later. However, when the
-		 * {@link onDidChangeChatModels}-event is fired the list of chat models might have changed and extensions should re-query.
+		 * {@link onDidChangeAssistModels}-event is fired the list of assist models might have changed and extensions should re-query.
 		 *
-		 * @param selector A chat model selector. When omitted all chat models are returned.
-		 * @returns An array of chat models, can be empty!
+		 * @param selector A assist model selector. When omitted all assist models are returned.
+		 * @returns An array of assist models, can be empty!
 		 */
-		export function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[]>;
+		export function selectAssistModels(selector?: TextModelApiChatSelector): Thenable<TextModelApiChat[]>;
 
 		/**
-		 * Register a LanguageModelTool. The tool must also be registered in the package.json `languageModelTools` contribution
+		 * Register a TextModelApiTool. The tool must also be registered in the package.json `textModelApiTools` contribution
 		 * point. A registered tool is available in the {@link lm.tools} list for any extension to see. But in order for it to
-		 * be seen by a language model, it must be passed in the list of available tools in {@link LanguageModelChatRequestOptions.tools}.
+		 * be seen by a language model, it must be passed in the list of available tools in {@link TextModelApiAssistRequestOptions.tools}.
 		 * @returns A {@link Disposable} that unregisters the tool when disposed.
 		 */
-		export function registerTool<T>(name: string, tool: LanguageModelTool<T>): Disposable;
+		export function registerTool<T>(name: string, tool: TextModelApiTool<T>): Disposable;
 
 		/**
 		 * A list of all available tools that were registered by all extensions using {@link lm.registerTool}. They can be called
 		 * with {@link lm.invokeTool} with input that match their declared `inputSchema`.
 		 */
-		export const tools: readonly LanguageModelToolInformation[];
+		export const tools: readonly TextModelApiToolInformation[];
 
 		/**
 		 * Invoke a tool listed in {@link lm.tools} by name with the given input. The input will be validated against
 		 * the schema declared by the tool
 		 *
-		 * A tool can be invoked by a chat participant, in the context of handling a chat request, or globally by any extension in
+		 * A tool can be invoked by a assist participant, in the context of handling a assist request, or globally by any extension in
 		 * any custom flow.
 		 *
 		 * In the former case, the caller shall pass the
-		 * {@link LanguageModelToolInvocationOptions.toolInvocationToken toolInvocationToken}, which comes from a
-		 * {@link ChatRequest.toolInvocationToken chat request}. This makes sure the chat UI shows the tool invocation for the
+		 * {@link TextModelApiToolInvocationOptions.toolInvocationToken toolInvocationToken}, which comes from a
+		 * {@link AssistRequest.toolInvocationToken assist request}. This makes sure the assist UI shows the tool invocation for the
 		 * correct conversation.
 		 *
-		 * A tool {@link LanguageModelToolResult result} is an array of {@link LanguageModelTextPart text-} and
-		 * {@link LanguageModelPromptTsxPart prompt-tsx}-parts. If the tool caller is using `@vscode/prompt-tsx`, it can
+		 * A tool {@link TextModelApiToolResult result} is an array of {@link TextModelApiTextPart text-} and
+		 * {@link TextModelApiPromptTsxPart prompt-tsx}-parts. If the tool caller is using `@vscode/prompt-tsx`, it can
 		 * incorporate the response parts into its prompt using a `ToolResult`. If not, the parts can be passed along to the
-		 * {@link LanguageModelChat} via a user message with a {@link LanguageModelToolResultPart}.
+		 * {@link TextModelApiChat} via a user message with a {@link TextModelApiToolResultPart}.
 		 *
-		 * If a chat participant wants to preserve tool results for requests across multiple turns, it can store tool results in
+		 * If a assist participant wants to preserve tool results for requests across multiple turns, it can store tool results in
 		 * the {@link ChatResult.metadata} returned from the handler and retrieve them on the next turn from
-		 * {@link ChatResponseTurn.result}.
+		 * {@link AssistResponseTurn.result}.
 		 *
 		 * @param name The name of the tool to call.
 		 * @param options The options to use when invoking the tool.
 		 * @param token A cancellation token. See {@link CancellationTokenSource} for how to create one.
 		 * @returns The result of the tool invocation.
 		 */
-		export function invokeTool(name: string, options: LanguageModelToolInvocationOptions<object>, token?: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(name: string, options: TextModelApiToolInvocationOptions<object>, token?: CancellationToken): Thenable<TextModelApiToolResult>;
 
 		/**
-		 * Registers a provider that publishes Model Context Protocol servers for the editor to
-		 * consume. This allows MCP servers to be dynamically provided to the editor in
+		 * Registers a provider that publishes tool servers for the editor to
+		 * consume. This allows tool servers to be dynamically provided to the editor in
 		 * addition to those the user creates in their configuration files.
 		 *
-		 * Before calling this method, extensions must register the `contributes.mcpServerDefinitionProviders`
+		 * Before calling this method, extensions must register the `contributes.toolServerDefinitionProviders`
 		 * extension point with the corresponding {@link id}, for example:
 		 *
 		 * ```js
 		 * 	"contributes": {
-		 * 		"mcpServerDefinitionProviders": [
+		 * 		"toolServerDefinitionProviders": [
 		 * 			{
-		 * 				"id": "cool-cloud-registry.mcp-servers",
+		 * 				"id": "cool-cloud-registry.tool-servers",
 		 * 				"label": "Cool Cloud Registry",
 		 * 			}
 		 * 		]
 		 * 	}
 		 * ```
 		 *
-		 * When a new McpServerDefinitionProvider is available, the editor will, by default,
-		 * automatically invoke it to discover new servers and tools when a chat message is
+		 * When a new ToolServerDefinitionProvider is available, the editor will, by default,
+		 * automatically invoke it to discover new servers and tools when a assist message is
 		 * submitted. To enable this flow, extensions should call
-		 * `registerMcpServerDefinitionProvider` during activation.
+		 * `registerToolServerDefinitionProvider` during activation.
 		 *
 		 * @param id The ID of the provider, which is unique to the extension.
 		 * @param provider The provider to register
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerMcpServerDefinitionProvider(id: string, provider: McpServerDefinitionProvider): Disposable;
+		export function registerToolServerDefinitionProvider(id: string, provider: ToolServerDefinitionProvider): Disposable;
 
 		/**
-		 * Registers a {@linkcode LanguageModelChatProvider}
-		 * Note: You must also define the language model chat provider via the `languageModelChatProviders` contribution point in package.json
-		 * @param vendor The vendor for this provider. Must be globally unique. An example is `copilot` or `openai`.
+		 * Registers a {@linkcode TextModelApiAssistProvider}
+		 * Note: You must also define the language model assist provider via the `textModelApiAssistProviders` contribution point in package.json
+		 * @param vendor The vendor for this provider. Must be globally unique. An example is `assist` or `openai`.
 		 * @param provider The provider to register
 		 * @returns A disposable that unregisters the provider when disposed
 		 */
-		export function registerLanguageModelChatProvider(vendor: string, provider: LanguageModelChatProvider): Disposable;
+		export function registerTextModelApiAssistProvider(vendor: string, provider: TextModelApiAssistProvider): Disposable;
 	}
 
 	/**
 	 * Represents extension specific information about the access to language models.
 	 */
-	export interface LanguageModelAccessInformation {
+	export interface TextModelApiAccessInformation {
 
 		/**
 		 * An event that fires when access information changes.
@@ -20862,18 +20862,18 @@ declare module 'vscode' {
 		 *
 		 * *Note* that calling this function will not trigger a consent UI but just checks for a persisted state.
 		 *
-		 * @param chat A language model chat object.
+		 * @param assist A language model assist object.
 		 * @return `true` if a request can be made, `false` if not, `undefined` if the language
 		 * model does not exist or consent hasn't been asked for.
 		 */
-		canSendRequest(chat: LanguageModelChat): boolean | undefined;
+		canSendRequest(assist: TextModelApiChat): boolean | undefined;
 	}
 
 	/**
-	 * A tool that is available to the language model via {@link LanguageModelChatRequestOptions}. A language model uses all the
+	 * A tool that is available to the language model via {@link TextModelApiAssistRequestOptions}. A language model uses all the
 	 * properties of this interface to decide which tool to call, and how to call it.
 	 */
-	export interface LanguageModelChatTool {
+	export interface TextModelApiAssistTool {
 		/**
 		 * The name of the tool.
 		 */
@@ -20893,7 +20893,7 @@ declare module 'vscode' {
 	/**
 	 * A tool-calling mode for the language model to use.
 	 */
-	export enum LanguageModelChatToolMode {
+	export enum TextModelApiAssistToolMode {
 		/**
 		 * The language model can choose to call a tool or generate a message. Is the default.
 		 */
@@ -20907,12 +20907,12 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A language model response part indicating a tool call, returned from a {@link LanguageModelChatResponse}, and also can be
-	 * included as a content part on a {@link LanguageModelChatMessage}, to represent a previous tool call in a chat request.
+	 * A language model response part indicating a tool call, returned from a {@link TextModelApiAssistResponse}, and also can be
+	 * included as a content part on a {@link TextModelApiAssistMessage}, to represent a previous tool call in a assist request.
 	 */
-	export class LanguageModelToolCallPart {
+	export class TextModelApiToolCallPart {
 		/**
-		 * The ID of the tool call. This is a unique identifier for the tool call within the chat request.
+		 * The ID of the tool call. This is a unique identifier for the tool call within the assist request.
 		 */
 		callId: string;
 
@@ -20927,7 +20927,7 @@ declare module 'vscode' {
 		input: object;
 
 		/**
-		 * Create a new LanguageModelToolCallPart.
+		 * Create a new TextModelApiToolCallPart.
 		 *
 		 * @param callId The ID of the tool call.
 		 * @param name The name of the tool to call.
@@ -20937,33 +20937,33 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The result of a tool call. This is the counterpart of a {@link LanguageModelToolCallPart tool call} and
+	 * The result of a tool call. This is the counterpart of a {@link TextModelApiToolCallPart tool call} and
 	 * it can only be included in the content of a User message
 	 */
-	export class LanguageModelToolResultPart {
+	export class TextModelApiToolResultPart {
 		/**
 		 * The ID of the tool call.
 		 *
-		 * *Note* that this should match the {@link LanguageModelToolCallPart.callId callId} of a tool call part.
+		 * *Note* that this should match the {@link TextModelApiToolCallPart.callId callId} of a tool call part.
 		 */
 		callId: string;
 
 		/**
 		 * The value of the tool result.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>;
+		content: Array<TextModelApiTextPart | TextModelApiPromptTsxPart | TextModelApiDataPart | unknown>;
 
 		/**
 		 * @param callId The ID of the tool call.
 		 * @param content The content of the tool result.
 		 */
-		constructor(callId: string, content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>);
+		constructor(callId: string, content: Array<TextModelApiTextPart | TextModelApiPromptTsxPart | TextModelApiDataPart | unknown>);
 	}
 
 	/**
-	 * A language model response part containing a piece of text, returned from a {@link LanguageModelChatResponse}.
+	 * A language model response part containing a piece of text, returned from a {@link TextModelApiAssistResponse}.
 	 */
-	export class LanguageModelTextPart {
+	export class TextModelApiTextPart {
 		/**
 		 * The text content of the part.
 		 */
@@ -20978,9 +20978,9 @@ declare module 'vscode' {
 
 	/**
 	 * A language model response part containing a PromptElementJSON from `@vscode/prompt-tsx`.
-	 * @see {@link LanguageModelToolResult}
+	 * @see {@link TextModelApiToolResult}
 	 */
-	export class LanguageModelPromptTsxPart {
+	export class TextModelApiPromptTsxPart {
 		/**
 		 * The value of the part.
 		 */
@@ -20996,35 +20996,35 @@ declare module 'vscode' {
 	/**
 	 * A result returned from a tool invocation. If using `@vscode/prompt-tsx`, this result may be rendered using a `ToolResult`.
 	 */
-	export class LanguageModelToolResult {
+	export class TextModelApiToolResult {
 		/**
 		 * A list of tool result content parts. Includes `unknown` because this list may be extended with new content types in
 		 * the future.
 		 * @see {@link lm.invokeTool}.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>;
+		content: Array<TextModelApiTextPart | TextModelApiPromptTsxPart | TextModelApiDataPart | unknown>;
 
 		/**
-		 * Create a LanguageModelToolResult
+		 * Create a TextModelApiToolResult
 		 * @param content A list of tool result content parts
 		 */
-		constructor(content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown>);
+		constructor(content: Array<TextModelApiTextPart | TextModelApiPromptTsxPart | TextModelApiDataPart | unknown>);
 	}
 
 	/**
-	 * A language model response part containing arbitrary data. Can be used in {@link LanguageModelChatResponse responses},
-	 * {@link LanguageModelChatMessage chat messages}, {@link LanguageModelToolResult tool results}, and other language model interactions.
+	 * A language model response part containing arbitrary data. Can be used in {@link TextModelApiAssistResponse responses},
+	 * {@link TextModelApiAssistMessage assist messages}, {@link TextModelApiToolResult tool results}, and other language model interactions.
 	 */
-	export class LanguageModelDataPart {
+	export class TextModelApiDataPart {
 		/**
-		 * Create a new {@linkcode LanguageModelDataPart} for an image.
+		 * Create a new {@linkcode TextModelApiDataPart} for an image.
 		 * @param data Binary image data
 		 * @param mime The MIME type of the image. Common values are `image/png` and `image/jpeg`.
 		 */
-		static image(data: Uint8Array, mime: string): LanguageModelDataPart;
+		static image(data: Uint8Array, mime: string): TextModelApiDataPart;
 
 		/**
-		 * Create a new {@linkcode LanguageModelDataPart} for a json.
+		 * Create a new {@linkcode TextModelApiDataPart} for a json.
 		 *
 		 * *Note* that this function is not expecting "stringified JSON" but
 		 * an object that can be stringified. This function will throw an error
@@ -21032,16 +21032,16 @@ declare module 'vscode' {
 		 * @param value  A JSON-stringifyable value.
 		 * @param mime Optional MIME type, defaults to `application/json`
 		 */
-		static json(value: any, mime?: string): LanguageModelDataPart;
+		static json(value: any, mime?: string): TextModelApiDataPart;
 
 		/**
-		 * Create a new {@linkcode LanguageModelDataPart} for text.
+		 * Create a new {@linkcode TextModelApiDataPart} for text.
 		 *
 		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
 		 * @param value Text data
 		 * @param mime The MIME type if any. Common values are `text/plain` and `text/markdown`.
 		 */
-		static text(value: string, mime?: string): LanguageModelDataPart;
+		static text(value: string, mime?: string): TextModelApiDataPart;
 
 		/**
 		 * The mime type which determines how the data property is interpreted.
@@ -21062,31 +21062,31 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A token that can be passed to {@link lm.invokeTool} when invoking a tool inside the context of handling a chat request.
+	 * A token that can be passed to {@link lm.invokeTool} when invoking a tool inside the context of handling a assist request.
 	 */
-	export type ChatParticipantToolToken = never;
+	export type AssistParticipantToolToken = never;
 
 	/**
 	 * Options provided for tool invocation.
 	 */
-	export interface LanguageModelToolInvocationOptions<T> {
+	export interface TextModelApiToolInvocationOptions<T> {
 		/**
-		 * An opaque object that ties a tool invocation to a chat request from a {@link ChatParticipant chat participant}.
+		 * An opaque object that ties a tool invocation to a assist request from a {@link AssistParticipant assist participant}.
 		 *
-		 * The _only_ way to get a valid tool invocation token is using the provided {@link ChatRequest.toolInvocationToken toolInvocationToken}
-		 * from a chat request. In that case, a progress bar will be automatically shown for the tool invocation in the chat response view, and if
-		 * the tool requires user confirmation, it will show up inline in the chat view.
+		 * The _only_ way to get a valid tool invocation token is using the provided {@link AssistRequest.toolInvocationToken toolInvocationToken}
+		 * from a assist request. In that case, a progress bar will be automatically shown for the tool invocation in the assist response view, and if
+		 * the tool requires user confirmation, it will show up inline in the assist view.
 		 *
-		 * If the tool is being invoked outside of a chat request, `undefined` should be passed instead, and no special UI except for
+		 * If the tool is being invoked outside of a assist request, `undefined` should be passed instead, and no special UI except for
 		 * confirmations will be shown.
 		 *
 		 * *Note* that a tool that invokes another tool during its invocation, can pass along the `toolInvocationToken` that it received.
 		 */
-		toolInvocationToken: ChatParticipantToolToken | undefined;
+		toolInvocationToken: AssistParticipantToolToken | undefined;
 
 		/**
 		 * The input with which to invoke the tool. The input must match the schema defined in
-		 * {@link LanguageModelToolInformation.inputSchema}
+		 * {@link TextModelApiToolInformation.inputSchema}
 		 */
 		input: T;
 
@@ -21094,13 +21094,13 @@ declare module 'vscode' {
 		 * Options to hint at how many tokens the tool should return in its response, and enable the tool to count tokens
 		 * accurately.
 		 */
-		tokenizationOptions?: LanguageModelToolTokenizationOptions;
+		tokenizationOptions?: TextModelApiToolTokenizationOptions;
 	}
 
 	/**
 	 * Options related to tokenization for a tool invocation.
 	 */
-	export interface LanguageModelToolTokenizationOptions {
+	export interface TextModelApiToolTokenizationOptions {
 		/**
 		 * If known, the maximum number of tokens the tool should emit in its result.
 		 */
@@ -21118,7 +21118,7 @@ declare module 'vscode' {
 	/**
 	 * Information about a registered tool available in {@link lm.tools}.
 	 */
-	export interface LanguageModelToolInformation {
+	export interface TextModelApiToolInformation {
 		/**
 		 * A unique name for the tool.
 		 */
@@ -21142,9 +21142,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options for {@link LanguageModelTool.prepareInvocation}.
+	 * Options for {@link TextModelApiTool.prepareInvocation}.
 	 */
-	export interface LanguageModelToolInvocationPrepareOptions<T> {
+	export interface TextModelApiToolInvocationPrepareOptions<T> {
 		/**
 		 * The input that the tool is being invoked with.
 		 */
@@ -21152,15 +21152,15 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A tool that can be invoked by a call to a {@link LanguageModelChat}.
+	 * A tool that can be invoked by a call to a {@link TextModelApiChat}.
 	 */
-	export interface LanguageModelTool<T> {
+	export interface TextModelApiTool<T> {
 		/**
 		 * Invoke the tool with the given input and return a result.
 		 *
-		 * The provided {@link LanguageModelToolInvocationOptions.input} has been validated against the declared schema.
+		 * The provided {@link TextModelApiToolInvocationOptions.input} has been validated against the declared schema.
 		 */
-		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
+		invoke(options: TextModelApiToolInvocationOptions<T>, token: CancellationToken): ProviderResult<TextModelApiToolResult>;
 
 		/**
 		 * Called once before a tool is invoked. It's recommended to implement this to customize the progress message that appears
@@ -21170,14 +21170,14 @@ declare module 'vscode' {
 		 * * *Note 1:* Must be free of side-effects.
 		 * * *Note 2:* A call to `prepareInvocation` is not necessarily followed by a call to `invoke`.
 		 */
-		prepareInvocation?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedToolInvocation>;
+		prepareInvocation?(options: TextModelApiToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedToolInvocation>;
 	}
 
 	/**
 	 * When this is returned in {@link PreparedToolInvocation}, the user will be asked to confirm before running the tool. These
 	 * messages will be shown with buttons that say "Continue" and "Cancel".
 	 */
-	export interface LanguageModelToolConfirmationMessages {
+	export interface TextModelApiToolConfirmationMessages {
 		/**
 		 * The title of the confirmation message.
 		 */
@@ -21190,7 +21190,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The result of a call to {@link LanguageModelTool.prepareInvocation}.
+	 * The result of a call to {@link TextModelApiTool.prepareInvocation}.
 	 */
 	export interface PreparedToolInvocation {
 		/**
@@ -21202,21 +21202,21 @@ declare module 'vscode' {
 		 * The presence of this property indicates that the user should be asked to confirm before running the tool. The user
 		 * should be asked for confirmation for any tool that has a side-effect or may potentially be dangerous.
 		 */
-		confirmationMessages?: LanguageModelToolConfirmationMessages;
+		confirmationMessages?: TextModelApiToolConfirmationMessages;
 	}
 
 	/**
 	 * A reference to a tool that the user manually attached to their request, either using the `#`-syntax inline, or as an
 	 * attachment via the paperclip button.
 	 */
-	export interface ChatLanguageModelToolReference {
+	export interface ChatTextModelApiToolReference {
 		/**
 		 * The tool name. Refers to a tool listed in {@link lm.tools}.
 		 */
 		readonly name: string;
 
 		/**
-		 * The start and end index of the reference in the {@link ChatRequest.prompt prompt}. When undefined, the reference was
+		 * The start and end index of the reference in the {@link AssistRequest.prompt prompt}. When undefined, the reference was
 		 * not part of the prompt text.
 		 *
 		 * *Note* that the indices take the leading `#`-character into account which means they can be used to modify the prompt

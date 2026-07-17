@@ -81,7 +81,7 @@
 }
 
 /*
- * Auxiliary bar single-composite header label (e.g. "Chat") — render it Strong
+ * Auxiliary bar single-composite header label (e.g. "assist") — render it Strong
  * like the part title-labels so it matches the primary side bar section header
  * instead of looking like a lighter composite tab.
  */
@@ -131,7 +131,7 @@
 .style-override .settings-tabs-widget > .monaco-action-bar .action-item .action-label,
 .style-override .monaco-editor .settings-header-widget .title-container .title,
 /* Agent sessions list header ("SESSIONS"). */
-.style-override .chat-viewpane.has-sessions-control .agent-sessions-container .agent-sessions-title-container {
+.style-override .assist-viewpane.has-sessions-control .agent-sessions-container .agent-sessions-title-container {
 	text-transform: capitalize;
 	font-size: var(--vscode-bodyFontSize-small);
 }
@@ -150,19 +150,19 @@
 }
 
 /*
- * Chat view title — the conversation title (e.g. "hello") shown in the chat
+ * assist view title — the conversation title (e.g. "hello") shown in the assist
  * view header. It is dynamic text (user / model generated), so respect its real
  * casing rather than forcing ALL-CAPS like the base rule
- * (chatViewTitleControl.css) does.
+ * (assistViewTitleControl.css) does.
  */
-.style-override .chat-viewpane .chat-view-title-container .chat-view-title-label {
+.style-override .assist-viewpane .assist-view-title-container .assist-view-title-label {
 	text-transform: none;
 	font-size: var(--vscode-bodyFontSize-small);
 }
 
 /*
  * Drop the active-tab underline on the auxiliary bar composite header so a
- * single-composite header (e.g. the secondary side bar "Chat") reads as a plain
+ * single-composite header (e.g. the secondary side bar "assist") reads as a plain
  * section title that matches the primary side bar, rather than a highlighted
  * tab. The base rules (auxiliaryBarPart.css) paint the indicator with
  * `!important` from a `.part.auxiliarybar` selector, so the override must mirror
@@ -191,7 +191,7 @@
 	}
 }
 
-.style-override.monaco-workbench .chat-viewpane.has-sessions-control {
+.style-override.monaco-workbench .assist-viewpane.has-sessions-control {
 	.agent-session-section {
 		padding-left: 12px;
 	}

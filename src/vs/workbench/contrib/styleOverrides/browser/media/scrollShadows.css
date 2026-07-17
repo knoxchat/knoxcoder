@@ -50,7 +50,7 @@
  * Editor area. The main editor viewport scrolls inside `.editor-scrollable`;
  * pin the fades to that scrollable element so they share the scrollbar's
  * stacking context and sit below it. Scope to the editor / panel parts so the
- * fade never leaks onto inline editors such as the chat input.
+ * fade never leaks onto inline editors such as the assist input.
  * ========================================================================== */
 .style-override .part.editor .monaco-editor .editor-scrollable::after {
 	content: "";
@@ -100,7 +100,7 @@
 }
 
 /* =============================================================================
- * Interactive input editors (e.g. the chat input) also live inside the editor
+ * Interactive input editors (e.g. the assist input) also live inside the editor
  * part but should read as plain inputs, not as scrolling editor surfaces.
  * Suppress the edge fades there so the input keeps a flat background and never
  * shows the editor-coloured rectangle.

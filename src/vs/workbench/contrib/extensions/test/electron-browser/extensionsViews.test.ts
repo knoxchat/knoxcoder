@@ -256,8 +256,8 @@ suite('ExtensionsViews Tests', () => {
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@updates searchText'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@agentPlugins @installed'), false);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@agentPlugins @installed searchText'), false);
-		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@mcp @installed'), false);
-		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@mcp @installed searchText'), false);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@tool @installed'), false);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@tool @installed searchText'), false);
 	});
 
 	test('Test empty query equates to sort by install count', async () => {

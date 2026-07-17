@@ -75,8 +75,8 @@ export function isAiEdit(source: TextModelEditSource): boolean {
 	switch (source.metadata.source) {
 		case 'inlineCompletionAccept':
 		case 'inlineCompletionPartialAccept':
-		case 'inlineChat.applyEdits':
-		case 'Chat.applyEdits':
+		case 'inlineAssist.applyEdits':
+		case 'assist.applyEdits':
 			return true;
 	}
 	return false;
@@ -110,7 +110,7 @@ export const EditSources = {
 		codeBlockSuggestionId: EditSuggestionId | undefined;
 	}) {
 		return createEditSource({
-			source: 'Chat.applyEdits',
+			source: 'assist.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
@@ -122,8 +122,8 @@ export const EditSources = {
 		} as const);
 	},
 
-	chatUndoEdits: () => createEditSource({ source: 'Chat.undoEdits' } as const),
-	chatReset: () => createEditSource({ source: 'Chat.reset' } as const),
+	chatUndoEdits: () => createEditSource({ source: 'assist.undoEdits' } as const),
+	chatReset: () => createEditSource({ source: 'assist.reset' } as const),
 
 	inlineCompletionAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId; correlationId: string | undefined }) {
 		return createEditSource({
@@ -148,9 +148,9 @@ export const EditSources = {
 		} as const);
 	},
 
-	inlineChatApplyEdit(data: { modelId: string | undefined; requestId: string | undefined; sessionId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
+	inlineAssistApplyEdit(data: { modelId: string | undefined; requestId: string | undefined; sessionId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
 		return createEditSource({
-			source: 'inlineChat.applyEdits',
+			source: 'inlineAssist.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,

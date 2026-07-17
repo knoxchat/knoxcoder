@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { join, relative } from 'path';
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 import { TextDecoder } from 'util';
 import * as vscode from 'vscode';
 import { Action, extractTestFromNode } from './sourceUtils';

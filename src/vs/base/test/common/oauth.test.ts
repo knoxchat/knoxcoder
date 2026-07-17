@@ -2266,7 +2266,7 @@ suite('OAuth', () => {
 				'<id_token>',
 				'https://auth.resource.example.com',
 				'https://api.resource.example.com',
-				['todos.read', 'mcp.access'],
+				['todos.read', 'tool.access'],
 			);
 
 			assert.strictEqual(body.get('client_id'), 'my_idp_client_id');
@@ -2277,7 +2277,7 @@ suite('OAuth', () => {
 			assert.strictEqual(body.get('requested_token_type'), 'urn:ietf:params:oauth:token-type:id-jag');
 			assert.strictEqual(body.get('audience'), 'https://auth.resource.example.com');
 			assert.strictEqual(body.get('resource'), 'https://api.resource.example.com');
-			assert.strictEqual(body.get('scope'), 'todos.read mcp.access');
+			assert.strictEqual(body.get('scope'), 'todos.read tool.access');
 		});
 
 		test('buildIdJagExchangeBody omits client_secret when not provided', () => {
@@ -2301,7 +2301,7 @@ suite('OAuth', () => {
 				'secret_xyz',
 				'<id_jag>',
 				'https://api.resource.example.com',
-				['todos.read', 'mcp.access'],
+				['todos.read', 'tool.access'],
 			);
 
 			assert.strictEqual(body.get('client_id'), 'my_idp_client_id-at-todo0');
@@ -2309,7 +2309,7 @@ suite('OAuth', () => {
 			assert.strictEqual(body.get('grant_type'), 'urn:ietf:params:oauth:grant-type:jwt-bearer');
 			assert.strictEqual(body.get('assertion'), '<id_jag>');
 			assert.strictEqual(body.get('resource'), 'https://api.resource.example.com');
-			assert.strictEqual(body.get('scope'), 'todos.read mcp.access');
+			assert.strictEqual(body.get('scope'), 'todos.read tool.access');
 		});
 	});
 });

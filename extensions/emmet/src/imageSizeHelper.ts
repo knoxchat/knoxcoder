@@ -10,7 +10,8 @@ import * as http from 'http';
 import * as https from 'https';
 import { URL } from 'url';
 import { imageSize } from 'image-size';
-import { ISizeCalculationResult } from 'image-size/dist/types/interface';
+import { imageSizeFromFile } from 'image-size/fromFile';
+import type { ISizeCalculationResult } from 'image-size/types/interface';
 
 const reUrl = /^https?:/;
 export type ImageInfoWithScale = {
@@ -32,28 +33,16 @@ export function getImageSize(file: string): Promise<ImageInfoWithScale | undefin
 /**
  * Get image size from file on local file system
  */
-function getImageSizeFromFile(file: string): Promise<ImageInfoWithScale | undefined> {
-	return new Promise((resolve, reject) => {
-		const isDataUrl = file.match(/^data:.+?;base64,/);
+async function getImageSizeFromFile(file: string): Promise<ImageInfoWithScale | undefined> {
+	const isDataUrl = file.match(/^data:.+?;base64,/);
 
-		if (isDataUrl) {
-			// NB should use sync version of `sizeOf()` for buffers
-			try {
-				const data = Buffer.from(file.slice(isDataUrl[0].length), 'base64');
-				return resolve(sizeForFileName('', imageSize(data)));
-			} catch (err) {
-				return reject(err);
-			}
-		}
+	if (isDataUrl) {
+		const data = Buffer.from(file.slice(isDataUrl[0].length), 'base64');
+		return sizeForFileName('', imageSize(data));
+	}
 
-		imageSize(file, (err: Error | null, size?: ISizeCalculationResult) => {
-			if (err) {
-				reject(err);
-			} else {
-				resolve(sizeForFileName(path.basename(file), size));
-			}
-		});
-	});
+	const size = await imageSizeFromFile(file);
+	return sizeForFileName(path.basename(file), size);
 }
 
 /**

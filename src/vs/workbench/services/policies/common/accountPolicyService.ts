@@ -11,12 +11,12 @@ import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INativeManagedSettingsService, IFileManagedSettingsService, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { INativeManagedSettingsService, IFileManagedSettingsService, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/managedSettings.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
 /**
- * Policy name (declared by `chat.approvedAccountOrganizations`) holding the list of
+ * Policy name (declared by `assist.approvedAccountOrganizations`) holding the list of
  * GitHub organization logins that satisfy the gate. The token `*` is a wildcard.
  */
 export const APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME = 'ChatApprovedAccountOrganizations';
@@ -123,7 +123,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
 		this.logService.trace(`AccountPolicyService#_updatePolicyDefinitions: Got ${Object.keys(policyDefinitions).length} policy definitions`);
-		const managedSettings = await this.updateCopilotManagedSettingDefinitions(policyDefinitions);
+		const managedSettings = await this.updateAssistManagedSettingDefinitions(policyDefinitions);
 
 		const updated: string[] = [];
 		const policyData = this.getPolicyData(managedSettings);
@@ -140,7 +140,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		// org but account-side policy data hasn't loaded yet. We don't force restricted
 		// values here — `policy.value(policyData)` naturally returns undefined when
 		// `policyData` is null, so no account overrides slip through. Forcing
-		// `restrictedValue` would transiently flip `chat.disableAIFeatures = true`,
+		// `restrictedValue` would transiently flip `assist.disableAIFeatures = true`,
 		// surfacing confusing "Unable to write" errors and a UI flash.
 		const gateRestricted = this._gateInfo.state === AccountPolicyGateState.Restricted
 			&& this._gateInfo.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
@@ -177,7 +177,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		}
 	}
 
-	private async updateCopilotManagedSettingDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData | undefined> {
+	private async updateAssistManagedSettingDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData | undefined> {
 		if (!this.nativeManagedSettingsService || !hasManagedSettingsDefinitions(policyDefinitions)) {
 			return this.nativeManagedSettingsService?.managedSettings;
 		}

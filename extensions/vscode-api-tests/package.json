@@ -9,13 +9,9 @@
     "authSession",
     "browser",
     "environmentPower",
-    "chatParticipantPrivate",
-    "chatPromptFiles",
-    "chatProvider",
     "contribStatusBarItems",
     "contribViewsRemote",
     "customEditorMove",
-    "defaultChatParticipant",
     "diffCommand",
     "documentFiltersExclusive",
     "documentSyntaxHighlighting",
@@ -31,7 +27,6 @@
     "fsChunks",
     "interactive",
     "languageStatusText",
-    "mcpServerDefinitions",
     "nativeWindowHandle",
     "notebookDeprecated",
     "notebookLiveShare",
@@ -57,9 +52,7 @@
     "tunnels",
     "workspaceTrust",
     "inlineCompletionsAdditions",
-    "devDeviceId",
-    "languageModelProxy",
-    "agentSessionsWorkspace"
+    "devDeviceId"
   ],
   "private": true,
   "activationEvents": [],
@@ -69,52 +62,6 @@
   },
   "icon": "media/icon.png",
   "contributes": {
-    "languageModelChatProviders": [
-      {
-        "vendor": "test-lm-vendor",
-        "displayName": "Test LM Vendor"
-      },
-      {
-        "vendor": "copilot",
-        "displayName": "Test Copilot LM Vendor"
-      }
-    ],
-    "chatParticipants": [
-      {
-        "id": "api-test.participant",
-        "name": "participant",
-        "description": "test",
-        "isDefault": true,
-        "commands": [
-          {
-            "name": "hello",
-            "description": "Hello"
-          }
-        ],
-        "modes": [
-          "agent",
-          "ask",
-          "edit"
-        ]
-      },
-      {
-        "id": "api-test.participant2",
-        "name": "participant2",
-        "description": "test",
-        "commands": []
-      }
-    ],
-    "languageModelTools": [
-      {
-        "name": "requires_confirmation_tool",
-        "toolReferenceName": "requires_confirmation_tool",
-        "displayName": "Requires Confirmation Tool",
-        "modelDescription": "A noop tool to trigger confirmation.",
-        "canBeReferencedInPrompt": true,
-        "icon": "$(files)",
-        "inputSchema": {}
-      }
-    ],
     "configuration": {
       "type": "object",
       "title": "Test Config",
@@ -231,12 +178,6 @@
         ]
       }
     ],
-    "interactiveSession": [
-      {
-        "id": "provider",
-        "label": "Provider"
-      }
-    ],
     "notebooks": [
       {
         "type": "notebookCoreTest",
@@ -286,8 +227,8 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "24.x",
-    "@types/node-forge": "^1.3.11",
+    "@types/node": "26.x",
+    "@types/node-forge": "^1.3.14",
     "node-forge": "^1.4.0",
     "straightforward": "^4.2.2"
   },

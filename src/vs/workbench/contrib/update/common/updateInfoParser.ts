@@ -63,7 +63,7 @@ export interface IParsedUpdateInfoInput {
  *   "bannerImageUrl": "https://example.com/banner.png",
  *   "buttons": [
  *     { "label": "Release Notes", "commandId": "update.showCurrentReleaseNotes", "style": "secondary" },
- *     { "label": "Open Sessions", "commandId": "workbench.action.chat.open", "style": "primary" }
+ *     { "label": "Open Sessions", "commandId": "workbench.action.assist.open", "style": "primary" }
  *   ],
  *   "features": [
  *     { "icon": "$(sparkle)", "title": "Feature", "description": "Short description" }

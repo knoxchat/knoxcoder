@@ -507,8 +507,8 @@ suite('Workbench - TerminalInstance', () => {
 		});
 		test('should use ${sequence} for agent CLI shell types', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
-			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Copilot, sequence: 'Copilot Agent', processName: 'copilot' }));
-			strictEqual(terminalLabelComputer.title, 'Copilot Agent');
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Assist, sequence: 'Assist Agent', processName: 'assist' }));
+			strictEqual(terminalLabelComputer.title, 'Assist Agent');
 		});
 		test('should use ${sequence} for Gemini agent CLI shell type', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
@@ -517,13 +517,13 @@ suite('Workbench - TerminalInstance', () => {
 		});
 		test('should prefer shellLaunchConfig.titleTemplate over agent CLI shell type override', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
-			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Copilot, sequence: 'Copilot Agent', processName: 'copilot', shellLaunchConfig: { titleTemplate: '${process}' } }));
-			strictEqual(terminalLabelComputer.title, 'copilot');
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Assist, sequence: 'Assist Agent', processName: 'assist', shellLaunchConfig: { titleTemplate: '${process}' } }));
+			strictEqual(terminalLabelComputer.title, 'assist');
 		});
 		test('should fall back to configured title when allowAgentCliTitle is disabled', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: false } } } });
-			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Copilot, sequence: 'Copilot Agent', processName: 'copilot' }));
-			strictEqual(terminalLabelComputer.title, 'copilot');
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Assist, sequence: 'Assist Agent', processName: 'assist' }));
+			strictEqual(terminalLabelComputer.title, 'assist');
 		});
 		test('should provide cwdFolder for all cwds only when in multi-root', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } } } });

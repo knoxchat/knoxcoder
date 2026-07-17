@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import * as ts from 'typescript';
+import * as ts from './typescript.ts';
 import * as path from 'path';
 import * as fs from 'fs';
 

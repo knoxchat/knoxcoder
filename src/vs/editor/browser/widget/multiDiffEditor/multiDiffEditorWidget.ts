@@ -63,7 +63,7 @@ export class MultiDiffEditorWidget extends Disposable {
 	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined, options?: { readonly preserveFocus?: boolean; readonly viewState?: IMultiDiffEditorViewState }): void {
 		// An editor opened with `preserveFocus` (e.g. restored in the background
 		// or on a session switch) must not have its automatic first-change
-		// selection steal keyboard focus from elsewhere (such as the chat input).
+		// selection steal keyboard focus from elsewhere (such as the assist input).
 		this._widgetImpl.get().setPreserveFocusOnLoad(!!options?.preserveFocus);
 
 		// Apply the view model and the (optional) restored view state in a single

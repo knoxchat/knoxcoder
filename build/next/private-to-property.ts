@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript';
+import * as ts from '../lib/typescript.ts';
 import { type RawSourceMap, type Mapping, SourceMapConsumer, SourceMapGenerator } from 'source-map';
 
 /**
@@ -256,11 +256,11 @@ function isIdentifierChar(ch: number): boolean {
  * @param edits The sorted edits that were applied.
  * @returns A new source map JSON object with adjusted generated columns.
  */
-export function adjustSourceMap(
+export async function adjustSourceMap(
 	sourceMapJson: RawSourceMap,
 	originalCode: string,
 	edits: readonly TextEdit[]
-): RawSourceMap {
+): Promise<RawSourceMap> {
 	if (edits.length === 0) {
 		return sourceMapJson;
 	}
@@ -324,51 +324,55 @@ export function adjustSourceMap(
 		return { line: lo, col: offset - lineStarts[lo] };
 	}
 
-	// Use source-map library to read, adjust, and write
-	const consumer = new SourceMapConsumer(sourceMapJson);
-	const generator = new SourceMapGenerator({ file: sourceMapJson.file, sourceRoot: sourceMapJson.sourceRoot });
+	// source-map >= 0.7 returns a Promise from SourceMapConsumer
+	const consumer = await new SourceMapConsumer(sourceMapJson);
+	try {
+		const generator = new SourceMapGenerator({ file: sourceMapJson.file, sourceRoot: sourceMapJson.sourceRoot });
 
-	// Copy sourcesContent
-	for (let i = 0; i < sourceMapJson.sources.length; i++) {
-		const content = sourceMapJson.sourcesContent?.[i];
-		if (content !== null && content !== undefined) {
-			generator.setSourceContent(sourceMapJson.sources[i], content);
-		}
-	}
-
-	// Walk every mapping, convert old generated position → byte offset → adjust → new position
-	consumer.eachMapping(mapping => {
-		const oldLine0 = mapping.generatedLine - 1; // 0-based
-		const oldOff = (oldLine0 < oldLineStarts.length
-			? oldLineStarts[oldLine0]
-			: oldLineStarts[oldLineStarts.length - 1]) + mapping.generatedColumn;
-
-		const newOff = adjustOffset(oldOff);
-		const newPos = offsetToLineCol(newLineStarts, newOff);
-
-		if (mapping.source !== null && mapping.originalLine !== null && mapping.originalColumn !== null) {
-			const newMapping: Mapping = {
-				generated: { line: newPos.line + 1, column: newPos.col },
-				original: { line: mapping.originalLine, column: mapping.originalColumn },
-				source: mapping.source,
-			};
-			if (mapping.name !== null) {
-				newMapping.name = mapping.name;
+		// Copy sourcesContent
+		for (let i = 0; i < sourceMapJson.sources.length; i++) {
+			const content = sourceMapJson.sourcesContent?.[i];
+			if (content !== null && content !== undefined) {
+				generator.setSourceContent(sourceMapJson.sources[i], content);
 			}
-			generator.addMapping(newMapping);
-		} else {
-			// Preserve unmapped segments (generated-only mappings with no original
-			// position). These create essential "gaps" that prevent
-			// originalPositionFor() from wrongly interpolating between distant
-			// valid mappings on the same line in minified output.
-			// eslint-disable-next-line local/code-no-dangerous-type-assertions
-			generator.addMapping({
-				generated: { line: newPos.line + 1, column: newPos.col },
-			} as Mapping);
 		}
-	});
 
-	return JSON.parse(generator.toString());
+		// Walk every mapping, convert old generated position → byte offset → adjust → new position
+		consumer.eachMapping(mapping => {
+			const oldLine0 = mapping.generatedLine - 1; // 0-based
+			const oldOff = (oldLine0 < oldLineStarts.length
+				? oldLineStarts[oldLine0]
+				: oldLineStarts[oldLineStarts.length - 1]) + mapping.generatedColumn;
+
+			const newOff = adjustOffset(oldOff);
+			const newPos = offsetToLineCol(newLineStarts, newOff);
+
+			if (mapping.source !== null && mapping.originalLine !== null && mapping.originalColumn !== null) {
+				const newMapping: Mapping = {
+					generated: { line: newPos.line + 1, column: newPos.col },
+					original: { line: mapping.originalLine, column: mapping.originalColumn },
+					source: mapping.source,
+				};
+				if (mapping.name !== null) {
+					newMapping.name = mapping.name;
+				}
+				generator.addMapping(newMapping);
+			} else {
+				// Preserve unmapped segments (generated-only mappings with no original
+				// position). These create essential "gaps" that prevent
+				// originalPositionFor() from wrongly interpolating between distant
+				// valid mappings on the same line in minified output.
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
+				generator.addMapping({
+					generated: { line: newPos.line + 1, column: newPos.col },
+				} as Mapping);
+			}
+		});
+
+		return JSON.parse(generator.toString());
+	} finally {
+		consumer.destroy();
+	}
 }
 
 function buildLineStarts(text: string): number[] {

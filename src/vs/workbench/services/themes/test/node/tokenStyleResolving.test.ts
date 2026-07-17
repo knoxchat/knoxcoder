@@ -49,7 +49,7 @@ function tokenStyleAsString(ts: TokenStyle | undefined | null) {
 }
 
 function assertTokenStyle(actual: TokenStyle | undefined | null, expected: TokenStyle | undefined | null, message?: string) {
-	assert.strictEqual(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
+	assert.strictEqual(tokenStyleAsString(actual), tokenStyleAsString(expected), message ?? '');
 }
 
 function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | undefined, expected: TokenStyle | undefined | null, message = '') {

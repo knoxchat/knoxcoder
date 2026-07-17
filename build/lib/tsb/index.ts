@@ -6,7 +6,7 @@
 import Vinyl from 'vinyl';
 import through from 'through';
 import * as builder from './builder.ts';
-import ts from 'typescript';
+import ts from '../typescript.ts';
 import { Readable, Writable, Duplex } from 'stream';
 import { dirname } from 'path';
 import { strings } from './utils.ts';

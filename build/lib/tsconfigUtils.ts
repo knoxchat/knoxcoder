@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { dirname } from 'path';
-import ts from 'typescript';
+import ts from './typescript.ts';
 
 /**
  * Get the target (e.g. 'ES2024') from a tsconfig.json file.

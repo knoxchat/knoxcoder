@@ -33,7 +33,7 @@ export async function initialize(injectPath: string): Promise<void> {
 			// Determine the entry point: prefer exports["."].import for ESM, then main.
 			// Handle conditional export targets where exports["."].import/default
 			// can be a string or an object with a string `default` field.
-			// (Added for copilot-sdk)
+			// (Added for external SDK redirect)
 			let main: string | undefined;
 			if (pkgJson.exports?.['.']) {
 				const dotExport = pkgJson.exports['.'];

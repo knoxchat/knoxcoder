@@ -50,7 +50,7 @@ export const PolicyCategoryData: {
 	},
 	[PolicyCategory.InteractiveSession]: {
 		name: {
-			key: 'interactiveSessionConfigurationTitle', value: localize('interactiveSessionConfigurationTitle', "Chat"),
+			key: 'interactiveSessionConfigurationTitle', value: localize('interactiveSessionConfigurationTitle', "assist"),
 		}
 	},
 	[PolicyCategory.Telemetry]: {
@@ -109,7 +109,7 @@ export interface IPolicy {
 	readonly value?: (policyData: IPolicyData) => string | number | boolean | undefined;
 
 	/**
-	 * Declares Copilot managed-settings keys this policy's value callback reads.
+	 * Declares Assist managed-settings keys this policy's value callback reads.
 	 * Keys are dot-separated managed-settings paths, for example
 	 * `permissions.disableBypassPermissionsMode`.
 	 */

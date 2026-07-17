@@ -15,7 +15,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, managedModelValue, normalizeManagedSettings } from '../../common/copilotManagedSettings.js';
+import { MANAGED_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, MANAGED_ENABLED_PLUGINS_KEY, MANAGED_EXTRA_MARKETPLACES_KEY, MANAGED_MODEL_KEY, managedModelValue, normalizeManagedSettings } from '../../common/managedSettings.js';
 import { FileManagedSettingsService } from '../../common/fileManagedSettingsService.js';
 import { FileManagedSettingsChannelClient } from '../../common/fileManagedSettingsIpc.js';
 
@@ -37,35 +37,35 @@ suite('normalizeManagedSettings', () => {
 	test('JSON-stringifies structured keys (enabledPlugins)', () => {
 		const plugins = { 'plugin@marketplace': false };
 		const result = normalizeManagedSettings({
-			[COPILOT_ENABLED_PLUGINS_KEY]: plugins
+			[MANAGED_ENABLED_PLUGINS_KEY]: plugins
 		});
 		assert.deepStrictEqual(result, {
-			[COPILOT_ENABLED_PLUGINS_KEY]: JSON.stringify(plugins)
+			[MANAGED_ENABLED_PLUGINS_KEY]: JSON.stringify(plugins)
 		});
 	});
 
 	test('normalizes extraKnownMarketplaces from schema format to config dict', () => {
 		const result = normalizeManagedSettings({
-			[COPILOT_EXTRA_MARKETPLACES_KEY]: {
+			[MANAGED_EXTRA_MARKETPLACES_KEY]: {
 				'a': { source: { source: 'github', repo: 'github/agent-skills' } },
 				'b': { source: { source: 'git', url: 'https://example.com/repo.git', ref: 'v1' } },
 			}
 		});
 		assert.deepStrictEqual(result, {
-			[COPILOT_EXTRA_MARKETPLACES_KEY]: '{"a":"github/agent-skills","b":"https://example.com/repo.git#v1"}',
+			[MANAGED_EXTRA_MARKETPLACES_KEY]: '{"a":"github/agent-skills","b":"https://example.com/repo.git#v1"}',
 		});
 	});
 
 	test('drops malformed marketplace entries with warning', () => {
 		const warnings: string[] = [];
 		const result = normalizeManagedSettings({
-			[COPILOT_EXTRA_MARKETPLACES_KEY]: {
+			[MANAGED_EXTRA_MARKETPLACES_KEY]: {
 				'good': { source: { source: 'github', repo: 'a/b' } },
 				'bad': {} as Record<string, unknown>,
 			}
 		}, msg => warnings.push(msg));
 		assert.deepStrictEqual(result, {
-			[COPILOT_EXTRA_MARKETPLACES_KEY]: '{"good":"a/b"}',
+			[MANAGED_EXTRA_MARKETPLACES_KEY]: '{"good":"a/b"}',
 		});
 		assert.strictEqual(warnings.length, 1);
 	});
@@ -74,12 +74,12 @@ suite('normalizeManagedSettings', () => {
 		const result = normalizeManagedSettings({
 			permissions: { disableBypassPermissionsMode: 'disable' },
 			strictKnownMarketplaces: ['github/foo'],
-			[COPILOT_ENABLED_PLUGINS_KEY]: { 'plugin': true },
+			[MANAGED_ENABLED_PLUGINS_KEY]: { 'plugin': true },
 		});
 		assert.deepStrictEqual(result, {
 			'permissions.disableBypassPermissionsMode': 'disable',
 			'strictKnownMarketplaces': '["github/foo"]',
-			[COPILOT_ENABLED_PLUGINS_KEY]: '{"plugin":true}',
+			[MANAGED_ENABLED_PLUGINS_KEY]: '{"plugin":true}',
 		});
 	});
 
@@ -93,7 +93,7 @@ suite('normalizeManagedSettings', () => {
 		assert.deepStrictEqual(result, {
 			'permissions.model': 'auto'
 		});
-		assert.strictEqual(COPILOT_MODEL_KEY, 'permissions.model');
+		assert.strictEqual(MANAGED_MODEL_KEY, 'permissions.model');
 		assert.strictEqual(managedModelValue()({ managedSettings: result }), 'auto');
 	});
 
@@ -103,7 +103,7 @@ suite('normalizeManagedSettings', () => {
 
 	test('drops a structured key whose value is not an object', () => {
 		const result = normalizeManagedSettings({
-			[COPILOT_ENABLED_PLUGINS_KEY]: 'already-a-string'
+			[MANAGED_ENABLED_PLUGINS_KEY]: 'already-a-string'
 		});
 		assert.deepStrictEqual(result, {});
 	});
@@ -279,11 +279,11 @@ suite('FileManagedSettingsChannelClient', () => {
 
 		// A change event arrives before the initial getManagedSettings call resolves; the later,
 		// stale snapshot must not clobber the newer event-delivered state.
-		channel.fire({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
-		channel.resolveInitialSnapshot({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable' });
+		channel.fire({ [MANAGED_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
+		channel.resolveInitialSnapshot({ [MANAGED_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable' });
 		await channel.initialSnapshot;
 
-		assert.deepStrictEqual(client.managedSettings, { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
+		assert.deepStrictEqual(client.managedSettings, { [MANAGED_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
 	});
 });
 

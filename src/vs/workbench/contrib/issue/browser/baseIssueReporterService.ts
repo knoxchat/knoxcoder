@@ -287,7 +287,7 @@ export class BaseIssueReporterService extends Disposable {
 			container.appendChild(filingNote);
 		}
 
-		filingNote.textContent = escape(localize('internalPreviewMessage', 'If your copilot debug logs contain private information:'));
+		filingNote.textContent = escape(localize('internalPreviewMessage', 'If your assist debug logs contain private information:'));
 	}
 
 	private updatePublicGithubButton(container: HTMLElement): void {

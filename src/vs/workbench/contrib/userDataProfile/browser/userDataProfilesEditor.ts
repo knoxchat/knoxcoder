@@ -885,10 +885,7 @@ class AbstractProfileResourceTreeRenderer extends Disposable {
 			case ProfileResourceType.Snippets:
 				return localize('snippets', "Snippets");
 			case ProfileResourceType.Tasks:
-				return localize('tasks', "Tasks");
-			case ProfileResourceType.Mcp:
-				return localize('mcp', "MCP Servers");
-			case ProfileResourceType.Extensions:
+				return localize('tasks', "Tasks");			case ProfileResourceType.Extensions:
 				return localize('extensions', "Extensions");
 		}
 		return '';
@@ -2134,7 +2131,7 @@ class ChangeProfileAction implements IAction {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
-		this.enabled = !uriIdentityService.extUri.isEqual(item.workspace, environmentService.agentSessionsWorkspace);
+		this.enabled = !uriIdentityService.extUri.isEqual(item.workspace, URI.file(""));
 	}
 
 	run(): void { }
@@ -2215,7 +2212,7 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 	}
 
 	private createDeleteAction(item: WorkspaceTableElement): IAction {
-		const isAgentSessionsWorkspace = this.uriIdentityService.extUri.isEqual(item.workspace, this.environmentService.agentSessionsWorkspace);
+		const isAgentSessionsWorkspace = false;
 		return {
 			label: '',
 			class: ThemeIcon.asClassName(removeIcon),

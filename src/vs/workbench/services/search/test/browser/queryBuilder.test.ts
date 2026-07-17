@@ -1258,7 +1258,7 @@ export function assertEqualQueries(actual: ITextQuery | IFileQuery, expected: IT
 
 export function assertEqualSearchPathResults(actual: ISearchPathsInfo, expected: ISearchPathsInfo, message?: string): void {
 	cleanUndefinedQueryValues(actual);
-	assert.deepStrictEqual({ ...actual.pattern }, { ...expected.pattern }, message);
+	assert.deepStrictEqual({ ...actual.pattern }, { ...expected.pattern }, message ?? '');
 
 	assert.strictEqual(actual.searchPaths && actual.searchPaths.length, expected.searchPaths && expected.searchPaths.length);
 	if (actual.searchPaths) {

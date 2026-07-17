@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import fs from 'fs';
 import path from 'path';
-import ts from 'typescript';
+import ts from './typescript.ts';
 
 
 class LanguageServiceHost implements ts.LanguageServiceHost {

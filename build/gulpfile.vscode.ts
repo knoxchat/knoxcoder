@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { gulp, rename, replace, filter, jsonEditor } from './lib/gulp/facade.ts';
+import { gulp, rename, replace, filter, jsonEditor, merge} from './lib/gulp/facade.ts';
 import * as fs from 'fs';
 import * as path from 'path';
 import es from 'event-stream';
@@ -26,20 +26,17 @@ import { config } from './lib/electron.ts';
 import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
-import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
+import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
-import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
-import { readAgentSdkResults } from './agent-sdk/common.ts';
+import { getMxcExcludeFilter, getRipgrepExcludeFilter } from './lib/packagingFilters.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
-import rceditCallback from 'rcedit';
+import { rcedit } from 'rcedit';
 import { spawnTsgo } from './lib/tsgo.ts';
 import { runEsbuildTranspile, runEsbuildBundle } from './lib/esbuild.ts';
 
-
 const glob = promisify(globCallback);
-const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 
@@ -65,12 +62,10 @@ const vscodeResourceIncludes = [
 
 	// Workbench
 	'out-build/vs/code/electron-browser/workbench/workbench.html',
-	'out-build/vs/sessions/electron-browser/sessions.html',
 
 	// Electron Preload
 	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
 	'out-build/vs/base/parts/sandbox/electron-browser/preload-aux.js',
-	'out-build/vs/platform/browserView/electron-browser/preload-browserView.js',
 
 	// Node Scripts
 	'out-build/vs/base/node/{terminateProcess.sh,cpuUsage.sh,ps.sh}',
@@ -96,13 +91,6 @@ const vscodeResourceIncludes = [
 	// Welcome
 	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
 	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
-
-	// Sessions
-	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
-	'out-build/vs/sessions/contrib/welcome/browser/media/*.svg',
-	'out-build/vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg',
-	'out-build/vs/sessions/prompts/*.prompt.md',
-	'out-build/vs/sessions/skills/**/SKILL.md',
 
 	// Extensions
 	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
@@ -156,7 +144,7 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 					...bootstrapEntryPoints
 				],
 				resources: vscodeResources,
-				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench' || entryPoint === 'vs/sessions/electron-browser/sessions'
+				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench'
 			}
 		}
 	)
@@ -234,11 +222,35 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
+function ensureBuildArtifacts(platform: string): void {
+	const telemetryDir = path.join(root, '.build', 'telemetry');
+	fs.mkdirSync(telemetryDir, { recursive: true });
+
+	for (const file of ['telemetry-core.json', 'telemetry-extensions.json']) {
+		const filePath = path.join(telemetryDir, file);
+		if (!fs.existsSync(filePath)) {
+			fs.writeFileSync(filePath, '{}');
+		}
+	}
+
+	const policyPlatform = platform === 'darwin' ? 'darwin' : platform === 'win32' ? 'win32' : platform === 'linux' ? 'linux' : undefined;
+	if (!policyPlatform) {
+		return;
+	}
+
+	const policyDir = path.join(root, '.build', 'policies', policyPlatform);
+	if (!fs.existsSync(policyDir)) {
+		cp.execSync('npm run copy-policy-dto', { cwd: path.join(root, 'build'), stdio: 'inherit' });
+		cp.execSync(`node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc ${policyPlatform}`, { cwd: root, stdio: 'inherit' });
+	}
+}
+
 function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
 
 	const task = () => {
+		ensureBuildArtifacts(platform);
 		const out = sourceFolderName;
 		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
 
@@ -248,14 +260,15 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
 			'vs/code/electron-browser/workbench/workbench.html',
-			'vs/code/electron-browser/workbench/workbench.js',
-			'vs/sessions/sessions.desktop.main.js',
-			'vs/sessions/sessions.desktop.main.css',
-			'vs/sessions/electron-browser/sessions.html',
-			'vs/sessions/electron-browser/sessions.js'
+			'vs/code/electron-browser/workbench/workbench.js'
 		]);
 
-		const src = gulp.src(out + '/**', { base: '.' })
+		// Gulp 5 defaults streams to UTF-8, which corrupts native binaries
+		// (.node), wasm, images, and other non-text assets. Disable encoding
+		// for every packaging source that may include binary files.
+		const binarySrcOptions = { encoding: false as const };
+
+		const src = gulp.src(out + '/**', { base: '.', ...binarySrcOptions })
 			.pipe(rename(function (path) { path.dirname = path.dirname!.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
 
@@ -268,12 +281,12 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			return !set.has(platform);
 		}).map(ext => `!.build/extensions/${ext.name}/**`);
 
-		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
+		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true, ...binarySrcOptions });
 
 		const sourceFilterPattern = stripSourceMapsInPackagingTasks
 			? ['**', '!**/*.{js,css}.map']
 			: ['**'];
-		const sources = es.merge(src, extensions)
+		const sources = merge(src, extensions)
 			.pipe(filter(sourceFilterPattern, { dot: true }));
 
 		let version = packageJson.version;
@@ -305,13 +318,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				json.date = readISODate(out);
 				json.checksums = checksums;
 				json.version = version;
-				// Stamp agentSdks from the per-platform results file produced
-				// by `build/agent-sdk/produce.ts` (an earlier pipeline step).
-				// Local dev: file absent → empty → not stamped.
-				const agentSdks = readAgentSdkResults();
-				if (Object.keys(agentSdks).length > 0) {
-					json.agentSdks = agentSdks;
-				}
 				return json;
 			}))
 			.pipe(es.through(function (file) {
@@ -319,7 +325,12 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				this.emit('data', file);
 			}));
 
-		const license = gulp.src([product.licenseFileName, 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
+		const licenseSources = [product.licenseFileName, 'ThirdPartyNotices.txt'];
+		const licensesDir = path.join(path.dirname(import.meta.dirname), 'licenses');
+		if (fs.existsSync(licensesDir) && fs.readdirSync(licensesDir).length > 0) {
+			licenseSources.push('licenses/**');
+		}
+		const license = gulp.src(licenseSources, { base: '.', allowEmpty: true });
 
 		// TODO the API should be copied to `out` during compile, not here
 		const api = gulp.src('src/vscode-dts/vscode.d.ts').pipe(rename('out/vscode-dts/vscode.d.ts'));
@@ -329,22 +340,18 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(import.meta.dirname, '..'));
 		const productionDependencies = getProductionDependencies(root);
-		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat().concat('!**/*.mk');
+		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/**/.bin/**`]).flat().concat('!**/*.mk');
 
 		const depFilterPattern = ['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock'];
 		if (stripSourceMapsInPackagingTasks) {
 			depFilterPattern.push('!**/*.{js,css}.map');
 		}
 
-		const cleanedDeps = gulp.src(dependenciesSrc, { base: '.', dot: true })
+		const cleanedDeps = gulp.src(dependenciesSrc, { base: '.', dot: true, ...binarySrcOptions })
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
-		ensureCopilotPlatformPackage(platform, arch);
-		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
-		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds)
-			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
-			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
+		const deps = cleanedDeps
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getMxcExcludeFilter(arch)))
 			.pipe(jsFilter)
@@ -353,15 +360,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
 				'**/*.node',
 				'**/@vscode/ripgrep-universal/bin/**',
-				// Only the platform-specific Copilot CLI packages (`@github/copilot-<os>-<arch>`)
-				// need to be unpacked: the CLI is spawned as a subprocess and is a
-				// self-locating bundle that memory-maps files and resolves its native
-				// addons / sub-binaries relative to its own on-disk location, so it cannot
-				// run from inside the archive. `@github/copilot-sdk` is intentionally NOT
-				// matched here — it is pure JavaScript that the agent host loads via
-				// `import` (ASAR-aware), so it stays in the archive.
-				'**/@github/copilot-{darwin,linux,linuxmusl,win32}-*/**',
-				'**/@microsoft/mxc-sdk/bin/**',
 				'**/node-pty/build/Release/*',
 				'**/node-pty/build/Release/conpty/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
@@ -380,13 +378,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**/*.mk',
 			], [
 				'node_modules/vsda/**', // retain copy of `vsda` in node_modules for internal use
-				// The sandbox runtime is spawned as a standalone Node subprocess (no ASAR
-				// resolution hook), so it and its transitive JS dependencies must remain as
-				// real files under `node_modules`. Keep them duplicated out of the archive.
-				'node_modules/@vscode/sandbox-runtime/**', // includes its nested `commander`
-				'node_modules/@pondwader/socks5-server/**',
-				'node_modules/shell-quote/**',
-				'node_modules/zod/**'
 			], 'node_modules.asar'));
 
 		const mergeStreams = [
@@ -398,10 +389,10 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			sources,
 			deps
 		];
-		let all = es.merge(...mergeStreams);
+		let all = merge(...mergeStreams);
 
 		if (platform === 'win32') {
-			all = es.merge(all, gulp.src([
+			all = merge(all, gulp.src([
 				'resources/win32/bower.ico',
 				'resources/win32/c.ico',
 				'resources/win32/code.ico',
@@ -436,7 +427,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		} else if (platform === 'linux') {
 			const policyDest = gulp.src('.build/policies/linux/**', { base: '.build/policies/linux' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
-			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }), policyDest);
+			all = merge(all, gulp.src('resources/linux/code.png', { base: '.' }), policyDest);
 		} else if (platform === 'darwin') {
 			const shortcut = gulp.src('resources/darwin/bin/code.sh')
 				.pipe(replace('@@APPNAME@@', product.applicationName))
@@ -444,7 +435,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				.pipe(rename('bin/code'));
 			const policyDest = gulp.src('.build/policies/darwin/**', { base: '.build/policies/darwin' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
-			all = es.merge(all, shortcut, policyDest);
+			all = merge(all, shortcut, policyDest);
 		}
 
 		const electronConfig = {
@@ -468,25 +459,25 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			], { dot: true }));
 
 		if (platform === 'linux') {
-			result = es.merge(result, gulp.src('resources/completions/bash/code', { base: '.' })
+			result = merge(result, gulp.src('resources/completions/bash/code', { base: '.' })
 				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename(function (f) { f.basename = product.applicationName; })));
 
-			result = es.merge(result, gulp.src('resources/completions/zsh/_code', { base: '.' })
+			result = merge(result, gulp.src('resources/completions/zsh/_code', { base: '.' })
 				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename(function (f) { f.basename = '_' + product.applicationName; })));
 		}
 
 		if (platform === 'win32') {
-			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
+			result = merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
 
 			if (versionedResourcesFolder) {
-				result = es.merge(result, gulp.src('resources/win32/versioned/bin/code.cmd', { base: 'resources/win32/versioned' })
+				result = merge(result, gulp.src('resources/win32/versioned/bin/code.cmd', { base: 'resources/win32/versioned' })
 					.pipe(replace('@@NAME@@', product.nameShort))
 					.pipe(replace('@@VERSIONFOLDER@@', versionedResourcesFolder))
 					.pipe(rename(function (f) { f.basename = product.applicationName; })));
 
-				result = es.merge(result, gulp.src('resources/win32/versioned/bin/code.sh', { base: 'resources/win32/versioned' })
+				result = merge(result, gulp.src('resources/win32/versioned/bin/code.sh', { base: 'resources/win32/versioned' })
 					.pipe(replace('@@NAME@@', product.nameShort))
 					.pipe(replace('@@PRODNAME@@', product.nameLong))
 					.pipe(replace('@@VERSION@@', version))
@@ -497,11 +488,11 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 					.pipe(replace('@@QUALITY@@', quality!))
 					.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
 			} else {
-				result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
+				result = merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
 					.pipe(replace('@@NAME@@', product.nameShort))
 					.pipe(rename(function (f) { f.basename = product.applicationName; })));
 
-				result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
+				result = merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
 					.pipe(replace('@@NAME@@', product.nameShort))
 					.pipe(replace('@@PRODNAME@@', product.nameLong))
 					.pipe(replace('@@VERSION@@', version))
@@ -512,18 +503,18 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 					.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
 			}
 
-			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
+			result = merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
 				.pipe(replace('@@VERSIONFOLDER@@', versionedResourcesFolder ? `${versionedResourcesFolder}\\` : ''))
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
 
-			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
+			result = merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
 
 			if (quality === 'stable' || quality === 'insider') {
-				result = es.merge(result, gulp.src('.build/win32/appx/**', { base: '.build/win32' }));
+				result = merge(result, gulp.src('.build/win32/appx/**', { base: '.build/win32' }));
 				const rawVersion = version.replace(/-\w+$/, '').split('.');
 				const appxVersion = `${rawVersion[0]}.0.${rawVersion[1]}.${rawVersion[2]}`;
-				result = es.merge(result, gulp.src('resources/win32/appx/AppxManifest.xml', { base: '.' })
+				result = merge(result, gulp.src('resources/win32/appx/AppxManifest.xml', { base: '.' })
 					.pipe(replace('@@AppxPackageName@@', product.win32AppUserModelId))
 					.pipe(replace('@@AppxPackageVersion@@', appxVersion))
 					.pipe(replace('@@AppxPackageDisplayName@@', product.nameLong))
@@ -536,7 +527,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 					.pipe(rename(f => f.dirname = `appx/manifest`)));
 			}
 		} else if (platform === 'linux') {
-			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
+			result = merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
 				.pipe(replace('@@PRODNAME@@', product.nameLong))
 				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/' + product.applicationName)));
@@ -548,7 +539,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			productJsonFn: () => productJsonContents
 		});
 
-		return result.pipe(vfs.dest(destination));
+		return result.pipe(vfs.dest(destination, { encoding: false }));
 	};
 	task.taskName = `package-${platform}-${arch}`;
 	return task;
@@ -625,23 +616,6 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 	};
 }
 
-function prepareCopilotRipgrepShimTask(platform: string, arch: string, destinationFolderName: string) {
-	const outputDir = path.join(path.dirname(root), destinationFolderName);
-
-	return async () => {
-		// On Windows with win32VersionedUpdate, app resources live under a
-		// commit-hash prefix: {output}/{commitHash}/resources/app/
-		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
-		const appBase = platform === 'darwin'
-			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
-			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
-		const appNodeModulesDir = path.join(appBase, 'node_modules.asar.unpacked');
-
-		const builtInCopilotExtensionDir = path.join(appBase, 'extensions', 'copilot');
-		prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);
-	};
-}
-
 const buildRoot = path.dirname(root);
 
 const BUILD_TARGETS = [
@@ -667,7 +641,6 @@ BUILD_TARGETS.forEach(buildTarget => {
 			compileNativeExtensionsBuildTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts),
-			prepareCopilotRipgrepShimTask(platform, arch, destinationFolderName)
 		];
 
 		if (platform === 'win32') {
@@ -693,7 +666,6 @@ BUILD_TARGETS.forEach(buildTarget => {
 				copyCodiconsTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
-				compileCopilotExtensionBuildTask,
 				compileExtensionMediaBuildTask,
 				writeISODate('out-build'),
 				esbuildBundleTask,
@@ -704,7 +676,6 @@ BUILD_TARGETS.forEach(buildTarget => {
 				minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
-				compileCopilotExtensionBuildTask,
 				compileExtensionMediaBuildTask,
 				minified ? minifyVSCodeTask : bundleVSCodeTask,
 				vscodeTaskCI
@@ -733,7 +704,7 @@ task.task(task.define(
 			const pathToExtensions = '.build/extensions/*';
 			const pathToSetup = 'build/win32/i18n/messages.en.isl';
 
-			return es.merge(
+			return merge(
 				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
 				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
 				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
@@ -749,7 +720,7 @@ task.task('vscode-translations-import', function () {
 			location: '../vscode-translations-import'
 		}
 	});
-	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
+	return merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
 		const id = language.id;
 		return gulp.src(`${options.location}/${id}/vscode-setup/messages.xlf`)
 			.pipe(i18n.prepareIslFiles(language))

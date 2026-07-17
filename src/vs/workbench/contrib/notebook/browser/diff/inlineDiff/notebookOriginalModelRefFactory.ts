@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AsyncReferenceCollection, IReference, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
-import { IModifiedFileEntry } from '../../../../chat/common/editing/chatEditingService.js';
+import { URI } from '../../../../../../base/common/uri.js';
+
+interface IModifiedFileEntry {
+	originalURI: URI;
+}
 import { INotebookService } from '../../../common/notebookService.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';

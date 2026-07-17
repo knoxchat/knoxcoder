@@ -7,20 +7,20 @@
  * Setting IDs for agent sandboxing.
  */
 export const enum AgentSandboxSettingId {
-	AgentSandboxEnabled = 'chat.agent.sandbox.enabled',
-	AgentSandboxWindowsEnabled = 'chat.agent.sandbox.enabledWindows',
-	AgentSandboxAllowNetwork = 'chat.agent.sandbox.allowNetwork',
-	AgentSandboxAllowUnsandboxedCommands = 'chat.agent.sandbox.allowUnsandboxedCommands',
-	AgentSandboxRetryWithAllowNetworkRequests = 'chat.agent.sandbox.retryWithAllowNetworkRequests',
-	AgentSandboxAllowAutoApprove = 'chat.agent.sandbox.allowAutoApprove',
-	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
-	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
-	AgentSandboxWindowsFileSystem = 'chat.agent.sandbox.fileSystem.windows',
-	AgentSandboxWindowsSchemaVersion = 'chat.agent.sandbox.advanced.windows.schemaVersion',
-	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
-	DeprecatedAgentSandboxEnabled = 'chat.agent.sandbox',
-	DeprecatedAgentSandboxLinuxFileSystem = 'chat.agent.sandboxFileSystem.linux',
-	DeprecatedAgentSandboxMacFileSystem = 'chat.agent.sandboxFileSystem.mac',
+	AgentSandboxEnabled = 'assist.agent.sandbox.enabled',
+	AgentSandboxWindowsEnabled = 'assist.agent.sandbox.enabledWindows',
+	AgentSandboxAllowNetwork = 'assist.agent.sandbox.allowNetwork',
+	AgentSandboxAllowUnsandboxedCommands = 'assist.agent.sandbox.allowUnsandboxedCommands',
+	AgentSandboxRetryWithAllowNetworkRequests = 'assist.agent.sandbox.retryWithAllowNetworkRequests',
+	AgentSandboxAllowAutoApprove = 'assist.agent.sandbox.allowAutoApprove',
+	AgentSandboxLinuxFileSystem = 'assist.agent.sandbox.fileSystem.linux',
+	AgentSandboxMacFileSystem = 'assist.agent.sandbox.fileSystem.mac',
+	AgentSandboxWindowsFileSystem = 'assist.agent.sandbox.fileSystem.windows',
+	AgentSandboxWindowsSchemaVersion = 'assist.agent.sandbox.advanced.windows.schemaVersion',
+	AgentSandboxAdvancedRuntime = 'assist.agent.sandbox.advanced.runtime',
+	DeprecatedAgentSandboxEnabled = 'assist.agent.sandbox',
+	DeprecatedAgentSandboxLinuxFileSystem = 'assist.agent.sandboxFileSystem.linux',
+	DeprecatedAgentSandboxMacFileSystem = 'assist.agent.sandboxFileSystem.mac',
 }
 
 export const enum AgentSandboxEnabledValue {

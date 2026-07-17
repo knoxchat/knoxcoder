@@ -1025,8 +1025,8 @@ export class TokenStore implements Disposable {
 			accessToken: token.access_token,
 			account: {
 				id: claims?.sub || 'unknown',
-				// TODO: Don't say MCP...
-				label: claims?.preferred_username || claims?.name || claims?.email || 'MCP',
+				// TODO: Don't say tool...
+				label: claims?.preferred_username || claims?.name || claims?.email || 'tool',
 			},
 			scopes: scopes,
 			idToken: token.id_token

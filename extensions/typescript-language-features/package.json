@@ -47,19 +47,20 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/sync-api-client": "^0.7.2",
-    "@vscode/sync-api-common": "^0.7.2",
-    "@vscode/sync-api-service": "^0.7.3",
+    "@vscode/extension-telemetry": "^1.5.2",
+    "@vscode/sync-api-client": "^0.9.1",
+    "@vscode/sync-api-common": "^0.9.1",
+    "@vscode/sync-api-service": "^0.9.1",
     "@vscode/ts-package-manager": "^0.0.2",
-    "jsonc-parser": "^3.2.0",
-    "semver": "7.5.2",
-    "vscode-tas-client": "^0.1.84",
-    "vscode-uri": "^3.0.3"
+    "jsonc-parser": "^3.3.1",
+    "semver": "7.8.5",
+    "vscode-tas-client": "^0.2.1",
+    "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
-    "@types/node": "24.x",
-    "@types/semver": "^5.5.0"
+    "@types/node": "26.x",
+    "@types/semver": "^7.7.1",
+    "@typescript/typescript6": "^6.0.2"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:typescript-language-features",

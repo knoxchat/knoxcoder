@@ -7,7 +7,7 @@ import v8 from 'node:v8';
 import fs from 'fs';
 import path from 'path';
 import { type Mapping, SourceMapGenerator } from 'source-map';
-import ts from 'typescript';
+import ts from '../typescript.ts';
 import { pathToFileURL } from 'url';
 import workerpool from 'workerpool';
 import { StaticLanguageServiceHost } from './staticLanguageServiceHost.ts';
@@ -321,7 +321,6 @@ const skippedExportMangledFiles = [
 		buildfile.workerBackgroundTokenization,
 		buildfile.workbenchDesktop,
 		buildfile.workbenchWeb,
-		buildfile.sessionsWeb,
 		buildfile.code,
 		buildfile.codeWeb
 	].flat().map(x => x.name),

@@ -57,7 +57,6 @@ export const dirs = [
 	'test/integration/browser',
 	'test/monaco',
 	'test/smoke',
-	'test/mcp',
 	'.vscode/extensions/vscode-selfhost-import-aid',
 	'.vscode/extensions/vscode-selfhost-test-provider',
 	'.vscode/extensions/vscode-extras',

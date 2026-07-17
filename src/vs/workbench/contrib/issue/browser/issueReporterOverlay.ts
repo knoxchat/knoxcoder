@@ -947,7 +947,7 @@ export class IssueReporterOverlay {
 		// plus extension `data`/`uri`, propagate that data onto the selected
 		// extension and the model so it shows up in the issue body. Doing this
 		// before the built-in early-return is important: extensions bundled with
-		// the dev build (Copilot, etc.) are flagged `isBuiltin`, which triggers
+		// the dev build (Assist, etc.) are flagged `isBuiltin`, which triggers
 		// the source switch to VSCode and returns — otherwise the preset data
 		// would be silently lost for every built-in caller. We guard on
 		// `!this.includeExtensionData` (rather than `!extension.data`) because

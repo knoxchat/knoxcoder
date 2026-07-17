@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as ts from 'typescript/lib/tsserverlibrary';
+import type * as ts from '@typescript/typescript6/lib/tsserverlibrary';
 import { URI } from 'vscode-uri';
 import { Logger } from './logging';
 import { PathMapper, fromResource, looksLikeLibDtsPath, looksLikeNodeModules, mapUri } from './pathMapper';

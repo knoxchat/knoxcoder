@@ -15,24 +15,10 @@
 				<string>47827DD9-4734-49A0-AF80-7E19B11495CC</string>
 				<key>PayloadVersion</key>
 				<integer>1</integer>
-				<key>ChatAgentExtensionTools</key>
-				<false/>
-				<key>ChatAgentMode</key>
-				<false/>
-				<key>ChatMCP</key>
-				<string>none</string>
-				<key>ChatPromptFiles</key>
-				<false/>
-				<key>ChatToolsAutoApprove</key>
-				<false/>
-				<key>McpGalleryServiceUrl</key>
-				<string></string>
 				<key>AllowedExtensions</key>
 				<string></string>
 				<key>ExtensionGalleryServiceUrl</key>
 				<string></string>
-				<key>ChatToolsTerminalEnableAutoApprove</key>
-				<false/>
 				<key>EnableFeedback</key>
 				<false/>
 				<key>TelemetryLevel</key>

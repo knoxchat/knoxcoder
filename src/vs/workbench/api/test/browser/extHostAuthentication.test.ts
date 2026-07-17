@@ -28,7 +28,7 @@ suite('TokenStore', () => {
 		return disposables.add(new TokenStore(persistence, initialTokens, new NullLogger()));
 	}
 
-	// Regression for the MCP sign-in loop: an explicit empty `token.scope` must derive empty session scopes, not the granted scopes from the JWT claims, else empty-scope lookups never match their own session.
+	// Regression for the tool sign-in loop: an explicit empty `token.scope` must derive empty session scopes, not the granted scopes from the JWT claims, else empty-scope lookups never match their own session.
 	test('derives session scopes from the stored token.scope, falling back to JWT claims only when scope is absent', () => {
 		const store = createStore([
 			// Explicit empty scope must win over the scopes embedded in the JWT claims.

@@ -336,7 +336,7 @@
 	text-align: left;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-assist-entry {
 	flex-shrink: 0;
 	height: 22px;
 	line-height: 22px;
@@ -348,7 +348,7 @@
 	color: inherit;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-entry {
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-assist-entry .terminal-tabs-entry {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -360,7 +360,7 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-entry:hover {
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-assist-entry .terminal-tabs-entry:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
@@ -368,23 +368,23 @@
 	background-color: var(--vscode-list-dropBackground);
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-label {
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-assist-entry .terminal-tabs-assist-entry-label {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .terminal-tabs-chat-entry .terminal-tabs-entry {
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .terminal-tabs-assist-entry .terminal-tabs-entry {
 	justify-content: flex-start;
 	padding: 0 10px;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-label:empty {
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-assist-entry .terminal-tabs-assist-entry-label:empty {
 	display: none;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-delete {
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-assist-entry .terminal-tabs-assist-entry-delete {
 	display: none;
 	align-items: center;
 	justify-content: center;
@@ -397,20 +397,20 @@
 	flex-shrink: 0;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry:hover .terminal-tabs-chat-entry-delete,
-.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry:focus-within .terminal-tabs-chat-entry-delete {
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-assist-entry:hover .terminal-tabs-assist-entry-delete,
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-assist-entry:focus-within .terminal-tabs-assist-entry-delete {
 	display: flex;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-chat-entry-delete:hover {
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-assist-entry .terminal-tabs-assist-entry-delete:hover {
 	opacity: 1;
 	background-color: var(--vscode-toolbar-hoverBackground);
 	border-radius: 3px;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry .terminal-tabs-chat-entry-delete,
-.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry:hover .terminal-tabs-chat-entry-delete,
-.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-chat-entry:focus-within .terminal-tabs-chat-entry-delete {
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-assist-entry .terminal-tabs-assist-entry-delete,
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-assist-entry:hover .terminal-tabs-assist-entry-delete,
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-assist-entry:focus-within .terminal-tabs-assist-entry-delete {
 	display: none;
 }
 

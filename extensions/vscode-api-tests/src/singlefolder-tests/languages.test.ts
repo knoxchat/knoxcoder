@@ -23,7 +23,7 @@ suite('vscode API - languages', () => {
 	}
 
 	function assertEqualRange(actual: vscode.Range, expected: vscode.Range, message?: string) {
-		assert.strictEqual(rangeToString(actual), rangeToString(expected), message);
+		assert.strictEqual(rangeToString(actual), rangeToString(expected), message ?? '');
 	}
 
 	test('setTextDocumentLanguage -> close/open event', async function () {

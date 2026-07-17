@@ -12,7 +12,7 @@
     "@vscode/component-explorer": "^0.2.1-58",
     "@vscode/component-explorer-vite-plugin": "^0.2.1-58",
     "@vscode/rollup-plugin-esm-url": "^1.0.1-1",
-    "rollup": "*",
+    "rollup": "^4.62.2",
     "vite": "npm:rolldown-vite@latest"
   },
   "allowScripts": {

@@ -8,7 +8,6 @@ import { Limiter } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { isURLDomainTrusted } from '../../url/common/trustedDomains.js';
 import { IWebContentExtractorOptions, IWebContentExtractorService, WebContentExtractResult } from '../common/webContentExtractor.js';
 import { WebContentCache } from './webContentCache.js';
@@ -24,10 +23,8 @@ export class NativeWebContentExtractorService extends Disposable implements IWeb
 
 	constructor(
 		@ILogService private readonly _logger: ILogService,
-		@IAgentNetworkFilterService private readonly _agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		super();
-		this._register(this._agentNetworkFilterService.onDidChange(() => this._webContentsCache.clear()));
 	}
 
 	extract(uris: URI[], options?: IWebContentExtractorOptions): Promise<WebContentExtractResult[]> {
@@ -51,8 +48,7 @@ export class NativeWebContentExtractorService extends Disposable implements IWeb
 			this._logger,
 			uri,
 			options,
-			(uri) => isURLDomainTrusted(uri, options?.trustedDomains || []),
-			this._agentNetworkFilterService);
+			(uri) => isURLDomainTrusted(uri, options?.trustedDomains || []));
 
 		try {
 			const result = await loader.load();

@@ -580,7 +580,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			'editor.defaultFormatter',
 			'editor.fontFamily',
 			'editor.wordWrap',
-			'chat.agent.maxRequests',
+			'assist.agent.maxRequests',
 			'files.exclude',
 			'workbench.colorTheme',
 			'editor.tabSize',

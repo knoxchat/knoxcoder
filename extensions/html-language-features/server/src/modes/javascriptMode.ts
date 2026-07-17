@@ -14,7 +14,7 @@ import { MarkupKind } from 'vscode-languageserver';
 import { getWordAtText, isWhitespaceOnly, repeat } from '../utils/strings.js';
 import { HTMLDocumentRegions } from './embeddedSupport.js';
 
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens.js';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;

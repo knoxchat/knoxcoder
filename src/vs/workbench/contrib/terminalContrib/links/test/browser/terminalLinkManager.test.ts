@@ -141,7 +141,7 @@ suite('TerminalLinkManager', () => {
 		const xtermWithCore = xterm as unknown as XtermWithCore;
 		const origRenderService = xtermWithCore._core?._renderService;
 		if (!xtermWithCore._core) { (xtermWithCore as XtermWithCore)._core = {} as IXtermCore; }
-		xtermWithCore._core._renderService = { dimensions: { css: { cell: { width: 8, height: 16 } } }, _renderer: {} };
+		xtermWithCore._core._renderService = { dimensions: { css: { cell: { width: 8, height: 16 }, canvas: { width: 80, height: 160 } } }, _renderer: {} };
 		return {
 			dispose: () => { xtermWithCore._core._renderService = origRenderService!; }
 		};

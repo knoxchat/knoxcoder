@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env, SourceControlHistoryItem } from 'vscode';
-import { basename, dirname, normalize, sep, relative } from 'path';
+import { dirname, normalize, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import byline from 'byline';
@@ -867,6 +867,3 @@ export function getStashDescription(stash: Stash): string | undefined {
 	return descriptionSegments.join(' \u2022 ');
 }
 
-export function isCopilotWorktreeFolder(path: string): boolean {
-	return basename(path).startsWith('copilot-') || basename(path).startsWith('agents-');
-}

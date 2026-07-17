@@ -12,7 +12,6 @@ use std::sync::LazyLock;
 use crate::options::Quality;
 
 pub const CONTROL_PORT: u16 = 31545;
-pub const AGENT_HOST_PORT: u16 = 31546;
 
 /// Protocol version sent to clients. This can be used to indicate new or
 /// changed capabilities that clients may wish to leverage.
@@ -21,7 +20,7 @@ pub const AGENT_HOST_PORT: u16 = 31546;
 ///      are compressed bidirectionally.
 ///  3 - The server's connection token is set to a SHA256 hash of the tunnel ID
 ///  4 - The server's msgpack messages are no longer length-prefixed
-///  5 - The server now exposes an agent host connection
+///  5 - The server now exposes an supervisor connection
 pub const PROTOCOL_VERSION: u32 = 5;
 
 /// Prefix for the tunnel tag that includes the version.
@@ -94,7 +93,7 @@ pub const DEFAULT_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_DATA_FOL
 
 /// Canonical, machine-wide parent directory used to coordinate the agent
 /// host across CLI invocations. Mirrors the `serverDataFolderName` in
-/// `product.json` so the lockfile/log written by `code agent host` lines
+/// `product.json` so the lockfile/log written by `code supervisor` lines
 /// up with the directory the SSH `command-shell` entry point already uses
 /// (otherwise local + remote would race on different lockfiles).
 pub const SERVER_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_SERVER_DATA_FOLDER_NAME") {

@@ -8,7 +8,7 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { ManagedSettingsData } from '../../../base/common/policy.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { IFileManagedSettingsService } from './copilotManagedSettings.js';
+import { IFileManagedSettingsService } from './managedSettings.js';
 
 export class FileManagedSettingsChannel implements IServerChannel {
 

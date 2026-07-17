@@ -106,7 +106,7 @@ export class KeybindingResolver {
 
 			// Use implication instead of strict equality so that a removal still matches
 			// when the default keybinding's when clause becomes more specific across
-			// updates (e.g. "inChatInput" → "inChatInput && !withinEditSessionDiff").
+			// updates (e.g. "inAssistInput" → "inAssistInput && !withinEditSessionDiff").
 			// See https://github.com/microsoft/vscode/issues/293802
 			const defaultWhen = defaultKb.when.substituteConstants();
 			const removalWhen = when.substituteConstants();

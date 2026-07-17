@@ -6,7 +6,7 @@
 declare module 'vscode' {
 
 	/**
-	 * A progress update during an {@link LanguageModelTool.invoke} call.
+	 * A progress update during an {@link TextModelApiTool.invoke} call.
 	 */
 	export interface ToolProgressStep {
 		/**
@@ -19,7 +19,7 @@ declare module 'vscode' {
 		increment?: number;
 	}
 
-	export interface LanguageModelTool<T> {
-		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken, progress: Progress<ToolProgressStep>): ProviderResult<LanguageModelToolResult>;
+	export interface TextModelApiTool<T> {
+		invoke(options: TextModelApiToolInvocationOptions<T>, token: CancellationToken, progress: Progress<ToolProgressStep>): ProviderResult<TextModelApiToolResult>;
 	}
 }

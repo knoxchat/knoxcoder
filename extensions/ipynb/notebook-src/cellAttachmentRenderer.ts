@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as MarkdownIt from 'markdown-it';
-import type * as MarkdownItToken from 'markdown-it/lib/token';
+import type MarkdownIt from 'markdown-it';
+import type Token from 'markdown-it/lib/token.mjs';
 import type { RendererContext } from 'vscode-notebook-renderer';
 
 interface MarkdownItRenderer {
@@ -19,10 +19,10 @@ export async function activate(ctx: RendererContext<void>) {
 
 	markdownItRenderer.extendMarkdownIt((md: MarkdownIt) => {
 		const original = md.renderer.rules.image;
-		md.renderer.rules.image = (tokens: MarkdownItToken[], idx: number, options, env, self) => {
+		md.renderer.rules.image = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
 			const token = tokens[idx];
 			const src = token.attrGet('src');
-			const attachments: Record<string, Record<string, string>> | undefined = env.outputItem.metadata?.attachments;
+			const attachments: Record<string, Record<string, string>> | undefined = env.outputItem?.metadata?.attachments;
 			if (attachments && src && src.startsWith('attachment:')) {
 				const imageAttachment = attachments[tryDecodeURIComponent(src.replace('attachment:', ''))];
 				if (imageAttachment) {

@@ -10,7 +10,7 @@ import {
 	originalPositionFor,
 	TraceMap,
 } from '@jridgewell/trace-mapping';
-import * as styles from 'ansi-styles';
+import styles from 'ansi-styles';
 import { ChildProcessWithoutNullStreams } from 'child_process';
 import * as vscode from 'vscode';
 import { istanbulCoverageContext, PerTestCoverageTracker } from './coverageProvider';

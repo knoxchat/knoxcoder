@@ -97,7 +97,7 @@ export interface IShellLaunchConfigResolveOptions {
 	remoteAuthority: string | undefined;
 	os: OperatingSystem;
 	allowAutomationShell?: boolean;
-	allowAgentHostShell?: boolean;
+	allowSandboxHostShell?: boolean;
 }
 
 export type FontWeight = 'normal' | 'bold' | number;
@@ -648,17 +648,17 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.zoomReset',
 	'notification.acceptPrimaryAction',
 	'runCommands',
-	'workbench.action.terminal.chat.start',
-	'workbench.action.terminal.chat.close',
-	'workbench.action.terminal.chat.discard',
-	'workbench.action.terminal.chat.makeRequest',
-	'workbench.action.terminal.chat.cancel',
-	'workbench.action.terminal.chat.feedbackHelpful',
-	'workbench.action.terminal.chat.feedbackUnhelpful',
-	'workbench.action.terminal.chat.feedbackReportIssue',
-	'workbench.action.terminal.chat.runCommand',
-	'workbench.action.terminal.chat.insertCommand',
-	'workbench.action.terminal.chat.viewInChat',
+	'workbench.action.terminal.assist.start',
+	'workbench.action.terminal.assist.close',
+	'workbench.action.terminal.assist.discard',
+	'workbench.action.terminal.assist.makeRequest',
+	'workbench.action.terminal.assist.cancel',
+	'workbench.action.terminal.assist.feedbackHelpful',
+	'workbench.action.terminal.assist.feedbackUnhelpful',
+	'workbench.action.terminal.assist.feedbackReportIssue',
+	'workbench.action.terminal.assist.runCommand',
+	'workbench.action.terminal.assist.insertCommand',
+	'workbench.action.terminal.assist.viewInChat',
 	...defaultTerminalContribCommandsToSkipShell,
 ];
 

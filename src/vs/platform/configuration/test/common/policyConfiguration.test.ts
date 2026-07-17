@@ -330,7 +330,7 @@ suite('PolicyConfiguration', () => {
 
 	test('change: a late-registering owner supersedes an earlier reference definition', async () => {
 		// Only the reference for `PolicyOrphanReference` is registered initially (models the editor
-		// window: the agent-host reference loads eagerly while the extension policy owner loads later).
+		// window: the sandbox-host reference loads eagerly while the extension policy owner loads later).
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyOrphanReference': false })));
 		await testObject.initialize();
 

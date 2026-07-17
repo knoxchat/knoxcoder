@@ -7,7 +7,7 @@ import es from 'event-stream';
 import fs from 'fs';
 import cp from 'child_process';
 import glob from 'glob';
-import { gulp, filter, rename, buffer, vinylZip, jsonEditor } from './gulp/facade.ts';
+import { gulp, filter, rename, buffer, vinylZip, jsonEditor, merge} from './gulp/facade.ts';
 import path from 'path';
 import crypto from 'crypto';
 import { Stream } from 'stream';
@@ -68,7 +68,7 @@ function fromLocal(extensionPath: string, forWeb: boolean, _disableMangle: boole
 
 	let hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
 
-	// Fallback: check for .esbuild.mts/.esbuild.ts (used by extensions with their own build system, e.g. copilot)
+	// Fallback: check for .esbuild.mts/.esbuild.ts (used by extensions with their own build system)
 	if (!hasEsbuild && !forWeb) {
 		for (const fallback of ['.esbuild.mts', '.esbuild.ts']) {
 			if (fs.existsSync(path.join(extensionPath, fallback))) {
@@ -85,7 +85,7 @@ function fromLocal(extensionPath: string, forWeb: boolean, _disableMangle: boole
 	if (hasEsbuild) {
 		const isStandardEsbuild = !esbuildConfigFileName.startsWith('.');
 		input = isStandardEsbuild
-			? es.merge(
+			? merge(
 				fromLocalEsbuild(extensionPath, esbuildConfigFileName),
 				// Standard esbuild extensions need a separate type check step
 				...getBuildRootsForExtension(extensionPath).map(root => typeCheckExtensionStream(root, forWeb)),
@@ -244,6 +244,12 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 		checksumSha256: sha256
 	})
 		.pipe(vinylZip.src())
+		// Convert stream contents to buffers right away: downstream plugins
+		// (e.g. gulp-rename) clone vinyl files, and cloning a file with stream
+		// contents splits the stream in two. The branch left on the discarded
+		// original is never consumed, which stalls the pipeline once its
+		// buffer fills up and the stream never ends.
+		.pipe(buffer())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
 		.pipe(packageJsonFilter)
@@ -269,6 +275,8 @@ export function fromVsix(vsixPath: string, { name: extensionName, version, sha25
 			return f;
 		}))
 		.pipe(vinylZip.src())
+		// See fromMarketplace: buffer zip entries before any plugin clones them.
+		.pipe(buffer())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
 		.pipe(packageJsonFilter)
@@ -290,6 +298,8 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
 	})
 		.pipe(buffer())
 		.pipe(vinylZip.src())
+		// See fromMarketplace: buffer zip entries before any plugin clones them.
+		.pipe(buffer())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
 		.pipe(packageJsonFilter)
@@ -308,7 +318,6 @@ const nativeExtensions = [
 ];
 
 const excludedExtensions = [
-	'copilot',
 	'github-authentication',
 	'vscode-api-tests',
 	'vscode-colorize-tests',
@@ -396,7 +405,7 @@ export function packageNativeLocalExtensionsStream(forWeb: boolean, disableMangl
  * @returns a stream
  */
 export function packageAllLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
-	return es.merge([
+	return merge([
 		packageNonNativeLocalExtensionsStream(forWeb, disableMangle),
 		packageNativeLocalExtensionsStream(forWeb, disableMangle)
 	]);
@@ -424,7 +433,7 @@ function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean,
 	);
 
 	const localExtensionsStream = minifyExtensionResources(
-		es.merge(
+		merge(
 			...localExtensionsDescriptions.map(extension => {
 				return fromLocal(extension.path, forWeb, disableMangle)
 					.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
@@ -441,7 +450,7 @@ function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean,
 		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 
 		if (dependenciesSrc.length) {
-			result = es.merge(
+			result = merge(
 				localExtensionsStream,
 				gulp.src(dependenciesSrc, { base: '.' })
 					.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
@@ -457,40 +466,13 @@ function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean,
 	);
 }
 
-/**
- * Package the built-in copilot extension specifically.
- * This is used by non-CI local builds where copilot is not downloaded as a VSIX
- * but must be compiled from source and included in the build.
- */
-export function packageCopilotExtensionStream(disableMangle: boolean): Stream {
-	const extensionPath = path.join(root, 'extensions', 'copilot');
-	if (!fs.existsSync(extensionPath)) {
-		return es.readArray([]);
-	}
-
-	const localExtensionsStream = minifyExtensionResources(
-		fromLocal(extensionPath, false, disableMangle)
-			.pipe(rename(p => p.dirname = `extensions/copilot/${p.dirname}`))
-	);
-
-	const productionDependencies = getProductionDependencies('extensions/copilot');
-	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
-
-	return es.merge(
-		localExtensionsStream,
-		gulp.src(dependenciesSrc, { base: '.' })
-			.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
-			.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)))
-	).pipe(util2.setExecutableBit(['**/*.sh']));
-}
-
 export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
 	const marketplaceExtensionsDescriptions = [
 		...builtInExtensions.filter(({ name }) => (forWeb ? !marketplaceWebExtensionsExclude.has(name) : true)),
 		...(forWeb ? webBuiltInExtensions : [])
 	];
 	const marketplaceExtensionsStream = minifyExtensionResources(
-		es.merge(
+		merge(
 			...marketplaceExtensionsDescriptions
 				.map(extension => {
 					const src = getExtensionStream(extension).pipe(rename(p => p.dirname = `extensions/${p.dirname}`));

@@ -813,9 +813,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .code-cell-row div.cell.code { margin-left: ${getCellEditorContainerLeftMargin}px; }`);
-		// Chat Edit, deleted Cell Overlay
+		// assist Edit, deleted Cell Overlay
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .view-zones .code-cell-row div.cell.code { margin-left: ${getCellEditorContainerLeftMargin}px; }`);
-		// Chat Edit, deleted Cell Overlay
+		// assist Edit, deleted Cell Overlay
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .view-zones .code-cell-row div.cell { margin-right: ${cellRightMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell { margin-right: ${cellRightMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .cell-inner-container { padding-top: ${cellTopMargin}px; }`);
@@ -905,9 +905,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 		`);
 
-		// chat
+		// assist
 		styleSheets.push(`
-		.monaco-workbench .notebookOverlay .cell-chat-part {
+		.monaco-workbench .notebookOverlay .cell-assist-part {
 			margin: 0 ${cellRightMargin}px 6px 4px;
 		}
 		`);

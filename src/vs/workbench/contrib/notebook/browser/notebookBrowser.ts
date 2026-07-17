@@ -908,7 +908,7 @@ export enum CellFocusMode {
 	Container,
 	Editor,
 	Output,
-	ChatInput
+	AssistInput
 }
 
 export enum CursorAtBoundary {

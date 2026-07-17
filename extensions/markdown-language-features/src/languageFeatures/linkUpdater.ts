@@ -184,7 +184,9 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 		for (const change of result.edit.documentChanges as TextDocumentEdit[]) {
 			const uri = vscode.Uri.parse(change.textDocument.uri);
 			for (const edit of change.edits) {
-				workspaceEdit.replace(uri, convertRange(edit.range), edit.newText);
+				if ('newText' in edit) {
+					workspaceEdit.replace(uri, convertRange(edit.range), edit.newText);
+				}
 			}
 		}
 

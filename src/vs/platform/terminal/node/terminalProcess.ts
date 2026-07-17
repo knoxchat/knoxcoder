@@ -71,7 +71,7 @@ const posixShellTypeMap = new Map<string, PosixShellType>([
 const generalShellTypeMap = new Map<string, GeneralShellType>([
 	['claude', GeneralShellType.Claude],
 	['codex', GeneralShellType.Codex],
-	['copilot', GeneralShellType.Copilot],
+	['assist', GeneralShellType.Assist],
 	['gemini', GeneralShellType.Gemini],
 	['pwsh', GeneralShellType.PowerShell],
 	['powershell', GeneralShellType.PowerShell],
@@ -555,10 +555,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 			this._logService.trace('node-pty.IPty#resize', cols, rows);
 			try {
-				const pixelSize = pixelWidth !== undefined && pixelHeight !== undefined
-					? { width: pixelWidth, height: pixelHeight }
-					: undefined;
-				this._ptyProcess.resize(cols, rows, pixelSize);
+				this._ptyProcess.resize(cols, rows);
 			} catch (e) {
 				// Swallow error if the pty has already exited
 				this._logService.trace('node-pty.IPty#resize exception ' + e.message);

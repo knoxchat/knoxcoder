@@ -63,6 +63,6 @@
     "url": "https://github.com/microsoft/vscode.git"
   },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/node": "26.x"
   }
 }

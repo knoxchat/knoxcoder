@@ -506,7 +506,7 @@
 	padding: 6px 12px 6px 6px;
 	/* No horizontal margin so the rounded box matches the item hover outline. */
 	margin-bottom: 2px;
-	background-color: var(--vscode-chat-requestBubbleBackground);
+	background-color: var(--vscode-assist-requestBubbleBackground);
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 

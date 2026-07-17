@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::async_pipe::get_socket_rw_stream;
-use crate::commands::agent_host::{ensure_supervisor_running, ActiveAgentHost};
-use crate::constants::{AGENT_HOST_PORT, CONTROL_PORT, PRODUCT_NAME_LONG};
+use crate::constants::{CONTROL_PORT, PRODUCT_NAME_LONG};
 use crate::log;
 use crate::msgpack_rpc::{new_msgpack_rpc, start_msgpack_rpc, MsgPackCodec, MsgPackSerializer};
 use crate::options::Quality;
@@ -27,9 +26,8 @@ use crate::util::machine::kill_pid;
 use crate::util::os::os_release;
 use crate::util::sync::{new_barrier, Barrier, BarrierOpener};
 
-use futures::future::{BoxFuture, Shared};
+use futures::future::FutureExt;
 use futures::stream::FuturesUnordered;
-use futures::FutureExt;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -43,7 +41,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, DuplexStream};
 use tokio::sync::{mpsc, Mutex};
 
-use super::agent_host::forward_tunnel_connection_to_existing_ah;
+
 use super::challenge::{create_challenge, sign_challenge, verify_challenge};
 use super::code_server::{
 	download_cli_into_cache, AnyCodeServer, CodeServerArgs, ServerBuilder, ServerParamsRaw,
@@ -71,14 +69,6 @@ use super::socket_signal::{
 type HttpRequestsMap = Arc<std::sync::Mutex<HashMap<u32, DelegatedHttpRequest>>>;
 type CodeServerCell = Arc<Mutex<Option<SocketCodeServer>>>;
 
-/// Shared, cloneable future that resolves once the agent host supervisor
-/// is up. We kick it off from `serve()` so the tunnel can start accepting
-/// connections immediately and only block on the supervisor in places
-/// that actually need it (currently `handle_serve` and the agent-host
-/// port forwarder).
-pub type SharedActiveAgentHost =
-	Shared<BoxFuture<'static, Result<Arc<ActiveAgentHost>, Arc<AnyError>>>>;
-
 struct HandlerContext {
 	/// Log handle for the server
 	log: log::Logger,
@@ -104,11 +94,6 @@ struct HandlerContext {
 	http: Arc<FallbackSimpleHttp>,
 	/// requests being served by the client
 	http_requests: HttpRequestsMap,
-	/// Shared handle to the background `ensure_supervisor_running` task,
-	/// awaited in `handle_serve` to mix the bridge info into the spawned
-	/// server's args. `None` for callers (e.g. `command-shell`) that
-	/// already applied the bridge eagerly.
-	active_agent_host: Option<SharedActiveAgentHost>,
 }
 
 /// Handler auth state.
@@ -195,34 +180,9 @@ pub async fn serve(
 	mut shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<ServerTermination, AnyError> {
 	let mut port = tunnel.add_port_direct(CONTROL_PORT).await?;
-	let mut agent_host_port = tunnel.add_port_direct(AGENT_HOST_PORT).await?;
 	let mut forwarding = PortForwardingProcessor::new();
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
 	let (exit_barrier, signal_exit) = new_barrier();
-
-	// Kick off the agent host supervisor in the background. The supervisor
-	// is the only process that binds the user-facing TCP listener and owns
-	// the canonical lockfile; we never spawn an in-process sidecar here.
-	// We deliberately do NOT await this here — the tunnel needs to start
-	// accepting connections immediately. Consumers that need the
-	// supervisor's endpoint (currently `handle_serve` for the
-	// `agentHostProxy` bridge, and the `agent-host` port forwarder below)
-	// await this shared future when they actually need it. Driving a
-	// clone with `tokio::spawn` ensures the work makes progress even if no
-	// one is currently awaiting it.
-	let active_agent_host: SharedActiveAgentHost = {
-		let launcher_paths = launcher_paths.clone();
-		let log = log.clone();
-		async move {
-			ensure_supervisor_running(&launcher_paths, &log)
-				.await
-				.map(Arc::new)
-				.map_err(Arc::new)
-		}
-		.boxed()
-		.shared()
-	};
-	tokio::spawn(active_agent_host.clone());
 
 	let code_server_args = code_server_args.clone();
 
@@ -271,31 +231,6 @@ pub async fn serve(
 			Some(w) = forwarding.recv() => {
 				forwarding.process(w, &mut tunnel).await;
 			},
-			Some(socket) = agent_host_port.recv() => {
-				let log = log.clone();
-				let active_agent_host = active_agent_host.clone();
-				tokio::spawn(async move {
-					let active = match active_agent_host.await {
-						Ok(a) => a,
-						Err(e) => {
-							warning!(
-								log,
-								"Cannot forward agent-host tunnel connection; supervisor unavailable: {}",
-								e
-							);
-							return;
-						}
-					};
-					forward_tunnel_connection_to_existing_ah(
-						log,
-						socket.into_rw(),
-						active.dial_host().to_string(),
-						active.port,
-						active.token.clone(),
-					)
-					.await;
-				});
-			},
 			l = port.recv() => {
 				let socket = match l {
 					Some(p) => p,
@@ -314,7 +249,6 @@ pub async fn serve(
 				let own_exit = exit_barrier.clone();
 				let own_code_server_args = code_server_args.clone();
 				let own_forwarding = forwarding.handle();
-				let own_active_agent_host = active_agent_host.clone();
 
 				tokio::spawn(async move {
 					debug!(own_log, "Serving new connection");
@@ -327,7 +261,6 @@ pub async fn serve(
 						platform,
 						exit_barrier: own_exit,
 						requires_auth: AuthRequired::None,
-						active_agent_host: Some(own_active_agent_host),
 					}).await;
 				});
 			}
@@ -350,7 +283,6 @@ pub struct ServeStreamParams {
 	pub platform: Platform,
 	pub requires_auth: AuthRequired,
 	pub exit_barrier: Barrier<ShutdownSignal>,
-	pub active_agent_host: Option<SharedActiveAgentHost>,
 }
 
 pub async fn serve_stream(
@@ -382,7 +314,6 @@ fn make_socket_rpc(
 	requires_auth: AuthRequired,
 	platform: Platform,
 	http_requests: HttpRequestsMap,
-	active_agent_host: Option<SharedActiveAgentHost>,
 ) -> RpcDispatcher<MsgPackSerializer, HandlerContext> {
 	let server_bridges = ServerMultiplexer::new();
 	let mut rpc = RpcBuilder::new(MsgPackSerializer {}).methods(HandlerContext {
@@ -405,7 +336,6 @@ fn make_socket_rpc(
 			http_delegated,
 		)),
 		http_requests,
-		active_agent_host,
 	});
 
 	rpc.register_sync("ping", |_: EmptyObject, _| Ok(EmptyObject {}));
@@ -585,7 +515,6 @@ async fn process_socket(
 		code_server_args,
 		platform,
 		requires_auth,
-		active_agent_host,
 	} = params;
 
 	let (http_delegated, mut http_rx) = DelegatedSimpleHttp::new(log.clone());
@@ -604,7 +533,6 @@ async fn process_socket(
 		requires_auth,
 		platform,
 		http_requests.clone(),
-		active_agent_host,
 	);
 
 	{
@@ -788,21 +716,6 @@ async fn handle_serve(
 	let mut csa = c.code_server_args.clone();
 	csa.connection_token = params.connection_token.or(csa.connection_token);
 	csa.install_extensions.extend(params.extensions);
-
-	// Mix in the agent-host bridge info now that we actually need to spawn
-	// the VS Code server. The supervisor was started in the background by
-	// `serve()`, so this only blocks if it hasn't finished yet. If it
-	// failed we still serve — the renderer just won't see `agentHostProxy`.
-	if let Some(ah_fut) = c.active_agent_host.clone() {
-		match ah_fut.await {
-			Ok(a) => a.apply_to_bridge(&mut csa),
-			Err(e) => warning!(
-				c.log,
-				"Agent host supervisor unavailable; renderer will not see agentHostProxy: {}",
-				e
-			),
-		}
-	}
 
 	let params_raw = ServerParamsRaw {
 		commit_id: params.commit_id,

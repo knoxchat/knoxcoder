@@ -27,19 +27,19 @@
  * vertical scrollbar is a sibling of the rows inside `.monaco-scrollable-element`
  * (not a child of the rows), so it stays pinned to the pane edge.
  *
- * The chat & agent-sessions UI is excluded: `ChatViewPane` adds the
- * `chat-viewpane` class directly onto its `.pane-body`.
+ * The assist & agent-sessions UI is excluded: `AssistViewPane` adds the
+ * `assist-viewpane` class directly onto its `.pane-body`.
  */
 
 /* Header: inset the section title / actions to line up with the rows below. */
-.style-override .monaco-pane-view .pane:not(:has(> .pane-body.chat-viewpane)) > .pane-header {
+.style-override .monaco-pane-view .pane:not(:has(> .pane-body.assist-viewpane)) > .pane-header {
 	padding-left: var(--vscode-spacing-size40, 4px);
 	padding-right: 0;
 	margin: 0 var(--vscode-spacing-size40, 4px);
 }
 
 /* Body: inset each row box, leaving the scrollbar pinned to the pane edge. */
-.style-override .monaco-pane-view .pane-body:not(.chat-viewpane) .monaco-list-row {
+.style-override .monaco-pane-view .pane-body:not(.assist-viewpane) .monaco-list-row {
 	left: var(--vscode-spacing-size40, 4px);
 	right: var(--vscode-spacing-size40, 4px);
 	width: auto;
@@ -104,17 +104,17 @@
 	padding: 0 6px;
 }
 
-.style-override.monaco-workbench .chat-viewpane {
+.style-override.monaco-workbench .assist-viewpane {
 	.agent-session-item .agent-session-title-toolbar .actions-container {
 		gap: 4px;
 	}
-	&.chat-view-location-auxiliarybar {
-		.chat-view-title-inner {
+	&.assist-view-location-auxiliarybar {
+		.assist-view-title-inner {
 			padding: var(--vscode-spacing-size40, 4px);
 		}
 	}
-	&.chat-view-location-sidebar, &.chat-view-location-panel {
-		.chat-view-title-inner {
+	&.assist-view-location-sidebar, &.assist-view-location-panel {
+		.assist-view-title-inner {
 			padding: 0 var(--vscode-spacing-size40, 4px) 0 var(--vscode-spacing-size80, 8px);
 		}
 	}
@@ -124,7 +124,7 @@
 	margin-right: 0px;
 }
 
-.style-override.monaco-workbench .chat-viewpane.has-sessions-control .agent-sessions-container {
+.style-override.monaco-workbench .assist-viewpane.has-sessions-control .agent-sessions-container {
 	.agent-sessions-title-container {
 		padding: 0 0 4px 12px;
 	}

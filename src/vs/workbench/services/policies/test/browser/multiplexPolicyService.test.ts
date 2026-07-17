@@ -39,8 +39,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 
 	readonly onDidChangeDefaultAccount = Event.None;
 	readonly onDidChangePolicyData = Event.None;
-	readonly copilotTokenInfo = null;
-	readonly onDidChangeCopilotTokenInfo = Event.None;
+	readonly accountTokenInfo = null;
+	readonly onDidChangeAccountTokenInfo = Event.None;
 	readonly managedSettingsFetchStatus: null = null;
 	readonly managedSettingsFetchedAt: null = null;
 	readonly managedSettingsRawResponse: unknown = null;
@@ -104,7 +104,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: policyData => policyData.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
+					value: policyData => policyData.preview_features_enabled === false ? 'policyValueB' : undefined,
 				}
 			},
 			'setting.C': {
@@ -115,7 +115,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: policyData => policyData.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
+					value: policyData => policyData.preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
 				}
 			},
 			'setting.D': {
@@ -126,7 +126,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: policyData => policyData.chat_preview_features_enabled === false ? false : undefined,
+					value: policyData => policyData.preview_features_enabled === false ? false : undefined,
 				}
 			},
 			'setting.E': {
@@ -152,7 +152,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: policyData => policyData.chat_preview_features_enabled === false ? JSON.stringify(['policyValueG1', 'policyValueG2']) : undefined,
+					value: policyData => policyData.preview_features_enabled === false ? JSON.stringify(['policyValueG1', 'policyValueG2']) : undefined,
 				}
 			},
 			'setting.H': {
@@ -163,7 +163,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: policyData => policyData.chat_preview_features_enabled === false ? JSON.stringify([]) : undefined,
+					value: policyData => policyData.preview_features_enabled === false ? JSON.stringify([]) : undefined,
 				}
 			},
 		}
@@ -274,7 +274,7 @@ suite('MultiplexPolicyService', () => {
 	test('policy from default account only', async () => {
 		await clear();
 
-		const policyData: IPolicyData = { chat_preview_features_enabled: false };
+		const policyData: IPolicyData = { preview_features_enabled: false };
 		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
 		await defaultAccountService.refresh();
 
@@ -315,7 +315,7 @@ suite('MultiplexPolicyService', () => {
 	test('policy from file and default account', async () => {
 		await clear();
 
-		const policyData: IPolicyData = { chat_preview_features_enabled: false };
+		const policyData: IPolicyData = { preview_features_enabled: false };
 		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
 		await defaultAccountService.refresh();
 
@@ -395,7 +395,7 @@ suite('MultiplexPolicyService', () => {
 	test('union-typed (array | null) policy registers and parses JSON string value', async () => {
 		await clear();
 
-		const policyData: IPolicyData = { chat_preview_features_enabled: false };
+		const policyData: IPolicyData = { preview_features_enabled: false };
 		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
 		await defaultAccountService.refresh();
 
@@ -409,7 +409,7 @@ suite('MultiplexPolicyService', () => {
 		await clear();
 
 		// Policy set to an empty array (e.g. a lockdown allowlist): must round-trip to `[]`, not `undefined`.
-		const setPolicyData: IPolicyData = { chat_preview_features_enabled: false };
+		const setPolicyData: IPolicyData = { preview_features_enabled: false };
 		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, setPolicyData));
 		await defaultAccountService.refresh();
 		await policyConfiguration.initialize();

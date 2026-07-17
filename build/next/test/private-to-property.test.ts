@@ -490,15 +490,15 @@ suite('adjustSourceMap', () => {
 		return JSON.parse(gen.toString());
 	}
 
-	test('no edits - returns mappings unchanged', () => {
+	test('no edits - returns mappings unchanged', async () => {
 		const code = 'class Foo { x = 1; }';
 		const map = createIdentitySourceMap(code, 'test.js');
 		const originalMappings = map.mappings;
-		const result = adjustSourceMap(map, code, []);
+		const result = await adjustSourceMap(map, code, []);
 		assert.strictEqual(result.mappings, originalMappings);
 	});
 
-	test('single edit shrinks token - columns after edit shift left', () => {
+	test('single edit shrinks token - columns after edit shift left', async () => {
 		// "var #longName = 1; var y = 2;"
 		//  0   4         14     22
 		// After: "var $a = 1; var y = 2;"
@@ -519,9 +519,9 @@ suite('adjustSourceMap', () => {
 		gen.addMapping({ generated: { line: 1, column: 23 }, original: { line: 1, column: 23 }, source: 'test.js' });
 		const map = JSON.parse(gen.toString());
 
-		const result = adjustSourceMap(map, code, [{ start: 4, end: 13, newText: '$a' }]);
+		const result = await adjustSourceMap(map, code, [{ start: 4, end: 13, newText: '$a' }]);
 
-		const consumer = new SourceMapConsumer(result);
+		const consumer = await new SourceMapConsumer(result);
 		// 'y' was at gen col 23, edit shrunk 9->2 chars (delta -7), so now at gen col 16
 		const pos = consumer.originalPositionFor({ line: 1, column: 16 });
 		assert.strictEqual(pos.column, 23, 'y should map back to original column 23');
@@ -531,21 +531,21 @@ suite('adjustSourceMap', () => {
 		assert.strictEqual(pos2.column, 14, '= should map back to original column 14');
 	});
 
-	test('edit on line does not affect other lines', () => {
+	test('edit on line does not affect other lines', async () => {
 		const code = 'class Foo {\n  #x = 1;\n  get() { return 42; }\n}';
 		const map = createIdentitySourceMap(code, 'test.js');
 
 		const hashPos = code.indexOf('#x');
-		const result = adjustSourceMap(map, code, [{ start: hashPos, end: hashPos + 2, newText: '$a' }]);
+		const result = await adjustSourceMap(map, code, [{ start: hashPos, end: hashPos + 2, newText: '$a' }]);
 
-		const consumer = new SourceMapConsumer(result);
+		const consumer = await new SourceMapConsumer(result);
 		// Line 3 (1-based) should be completely unaffected
 		const pos = consumer.originalPositionFor({ line: 3, column: 0 });
 		assert.strictEqual(pos.line, 3);
 		assert.strictEqual(pos.column, 0);
 	});
 
-	test('multiple edits on same line accumulate shifts', () => {
+	test('multiple edits on same line accumulate shifts', async () => {
 		// "this.#aaa + this.#bbb + this.#ccc;"
 		//  0    5      11   17      23   29
 		const code = 'this.#aaa + this.#bbb + this.#ccc;';
@@ -568,9 +568,9 @@ suite('adjustSourceMap', () => {
 			{ start: 17, end: 21, newText: '$b' },  // #bbb(4) -> $b(2), delta -2
 			{ start: 29, end: 33, newText: '$c' },  // #ccc(4) -> $c(2), delta -2
 		];
-		const result = adjustSourceMap(map, code, edits);
+		const result = await adjustSourceMap(map, code, edits);
 
-		const consumer = new SourceMapConsumer(result);
+		const consumer = await new SourceMapConsumer(result);
 		// After edits: "this.$a + this.$b + this.$c;"
 		// '#ccc' was at gen col 29, now at 29-2-2=25
 		const pos = consumer.originalPositionFor({ line: 1, column: 25 });
@@ -581,7 +581,7 @@ suite('adjustSourceMap', () => {
 		assert.strictEqual(pos2.column, 22, 'plus after second edit should map correctly');
 	});
 
-	test('end-to-end: convertPrivateFields + adjustSourceMap', () => {
+	test('end-to-end: convertPrivateFields + adjustSourceMap', async () => {
 		const code = [
 			'class MyWidget {',
 			'  #count = 0;',
@@ -597,8 +597,8 @@ suite('adjustSourceMap', () => {
 		assert.ok(!result.code.includes('#count'), 'should not contain #count');
 
 		// Adjust the source map
-		const adjusted = adjustSourceMap(map, code, result.edits);
-		const consumer = new SourceMapConsumer(adjusted);
+		const adjusted = await adjustSourceMap(map, code, result.edits);
+		const consumer = await new SourceMapConsumer(adjusted);
 
 		// Find 'getValue' in the edited output and verify it maps back correctly
 		const editedLines = result.code.split('\n');
@@ -615,7 +615,7 @@ suite('adjustSourceMap', () => {
 		assert.strictEqual(pos.column, origGetValueCol, 'getValue column should match original');
 	});
 
-	test('multi-line edit: removing newlines shifts subsequent lines up', () => {
+	test('multi-line edit: removing newlines shifts subsequent lines up', async () => {
 		// Simulates the NLS scenario: a template literal with embedded newlines
 		// is replaced with `null`, collapsing 3 lines into 1.
 		const code = [
@@ -633,8 +633,8 @@ suite('adjustSourceMap', () => {
 		const tplEnd = code.indexOf('line3`') + 'line3`'.length;
 		const edits = [{ start: tplStart, end: tplEnd, newText: 'null' }];
 
-		const result = adjustSourceMap(map, code, edits);
-		const consumer = new SourceMapConsumer(result);
+		const result = await adjustSourceMap(map, code, edits);
+		const consumer = await new SourceMapConsumer(result);
 
 		// After edit, code is:
 		// "var a = \"hello\";\nvar b = null;\nvar c = \"world\";"
@@ -650,13 +650,13 @@ suite('adjustSourceMap', () => {
 		assert.strictEqual(posA.line, 1, 'var a should still map to original line 1');
 	});
 
-	test('brand check: #field in obj -> string replacement adjusts map', () => {
+	test('brand check: #field in obj -> string replacement adjusts map', async () => {
 		const code = 'class C { #x; check(o) { return #x in o; } }';
 		const map = createIdentitySourceMap(code, 'test.js');
 
 		const result = convertPrivateFields(code, 'test.js');
-		const adjusted = adjustSourceMap(map, code, result.edits);
-		const consumer = new SourceMapConsumer(adjusted);
+		const adjusted = await adjustSourceMap(map, code, result.edits);
+		const consumer = await new SourceMapConsumer(adjusted);
 
 		// 'check' method should still map correctly
 		const editedCheckCol = result.code.indexOf('check');

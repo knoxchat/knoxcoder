@@ -289,7 +289,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			if (document) {
 				await dataProvidersReady;
 				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).doCodeActions2(document, codeActionParams.range, codeActionParams.context, stylesheet);
+				return getLanguageService(document).doCodeActions2(document, codeActionParams.range, codeActionParams.context as unknown as Parameters<LanguageService['doCodeActions2']>[2], stylesheet);
 			}
 			return [];
 		}, [], `Error while computing code actions for ${codeActionParams.textDocument.uri}`, token);

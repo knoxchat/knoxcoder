@@ -96,7 +96,6 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 
 	// Apply extraEnv last so caller-provided env truly has final precedence
 	// over anything resolveElectronConfiguration sets (e.g. TESTRESOLVER_*).
-	// Copilot review feedback #317545.
 	if (extraEnv) {
 		for (const [key, value] of Object.entries(extraEnv)) {
 			if (value === undefined) {

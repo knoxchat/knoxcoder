@@ -262,10 +262,10 @@ suite('KeybindingResolver', () => {
 
 		test('issue #293802: removal still matches when default when clause becomes more specific', () => {
 			const defaults = [
-				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.and(ContextKeyExpr.has('inChatInput'), ContextKeyExpr.not('withinEditSessionDiff')), true),
+				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.and(ContextKeyExpr.has('inAssistInput'), ContextKeyExpr.not('withinEditSessionDiff')), true),
 			];
 			const overrides = [
-				kbItem(KeyCode.KeyA, '-command1', null, ContextKeyExpr.has('inChatInput'), false),
+				kbItem(KeyCode.KeyA, '-command1', null, ContextKeyExpr.has('inAssistInput'), false),
 			];
 			const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
 			assert.deepStrictEqual(actual, []);
@@ -273,14 +273,14 @@ suite('KeybindingResolver', () => {
 
 		test('removal with more specific when clause does not match broader default', () => {
 			const defaults = [
-				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.has('inChatInput'), true),
+				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.has('inAssistInput'), true),
 			];
 			const overrides = [
-				kbItem(KeyCode.KeyA, '-command1', null, ContextKeyExpr.and(ContextKeyExpr.has('inChatInput'), ContextKeyExpr.not('withinEditSessionDiff')), false),
+				kbItem(KeyCode.KeyA, '-command1', null, ContextKeyExpr.and(ContextKeyExpr.has('inAssistInput'), ContextKeyExpr.not('withinEditSessionDiff')), false),
 			];
 			const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
 			assert.deepStrictEqual(actual, [
-				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.has('inChatInput'), true),
+				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.has('inAssistInput'), true),
 			]);
 		});
 

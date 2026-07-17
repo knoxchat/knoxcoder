@@ -18,7 +18,7 @@ export const unsupportedSchemas = new Set([
 	Schemas.vscodeSourceControl,
 	Schemas.walkThrough,
 	Schemas.walkThroughSnippet,
-	Schemas.vscodeChatCodeBlock,
+	Schemas.vscodeAssistantCodeBlock,
 	Schemas.vscodeTerminal
 ]);
 

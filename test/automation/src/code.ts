@@ -42,7 +42,7 @@ export interface LaunchOptions {
 	 * Extra environment variables merged on top of the inherited `process.env`
 	 * when launching the Electron child process. Set a value to `undefined`
 	 * to unset the variable. Used by tests that need to inject env-based
-	 * mocks (e.g. `VSCODE_COPILOT_CHAT_TOKEN`).
+	 * mocks (e.g. custom auth tokens).
 	 */
 	readonly extraEnv?: Readonly<Record<string, string | undefined>>;
 }

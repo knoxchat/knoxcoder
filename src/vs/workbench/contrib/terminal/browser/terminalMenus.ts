@@ -23,7 +23,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
 
 export const enum TerminalContextMenuGroup {
-	Chat = '0_chat',
+	assist = '0_chat',
 	Create = '1_create',
 	Edit = '3_edit',
 	Clear = '5_clear',
@@ -865,17 +865,12 @@ function splitContributedProfiles(contributedProfiles: readonly IExtensionTermin
 }
 
 function isAiContributedProfile(profile: IExtensionTerminalProfile): boolean {
-	const extensionIdentifier = profile.extensionIdentifier.toLowerCase();
-	if (extensionIdentifier === 'github.copilot-chat' || extensionIdentifier === 'anthropic.claude-code') {
-		return true;
-	}
-
 	return isAiProfileName(profile.title);
 }
 
 function isAiProfileName(name: string): boolean {
 	const lowerCaseName = name.toLowerCase();
-	return lowerCaseName.includes('copilot') || lowerCaseName.includes('claude');
+	return lowerCaseName.includes('assist') || lowerCaseName.includes('claude');
 }
 
 function addProfileActions(

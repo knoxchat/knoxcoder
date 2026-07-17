@@ -133,7 +133,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 
 	/**
 	 * When set, the dialog is scoped to a specific URI authority (e.g.
-	 * for browsing an `agenthost://{authority}/...` filesystem that
+	 * for browsing an `sandboxhost://{authority}/...` filesystem that
 	 * uses per-connection authorities rather than the global
 	 * {@link remoteAuthority}).
 	 */
@@ -261,7 +261,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		if (!path.startsWith('\\\\')) {
 			path = path.replace(/\\/g, '/');
 		}
-		// When scoped to a specific authority (e.g. agenthost://host/...),
+		// When scoped to a specific authority (e.g. sandboxhost://host/...),
 		// construct the URI directly with the authority to avoid
 		// toLocalResource stripping or replacing it.
 		if (this.scopedAuthority) {
@@ -290,7 +290,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 
 	/**
 	 * Returns the per-URI authority from {@link defaultUri} if the dialog
-	 * should be scoped to a specific authority (e.g. `agenthost://host/...`).
+	 * should be scoped to a specific authority (e.g. `sandboxhost://host/...`).
 	 *
 	 * Returns `undefined` when the authority matches the global
 	 * {@link remoteAuthority} (standard SSH remotes), since that path is

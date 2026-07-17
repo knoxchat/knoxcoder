@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 /// <reference lib='webworker' />
 import { ServiceConnection } from '@vscode/sync-api-common/browser';
-import { ApiService, Requests } from '@vscode/sync-api-service';
+import { ApiService, ApiServiceConnection, Requests } from '@vscode/sync-api-service';
 import * as vscode from 'vscode';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { Logger } from '../logging/logger';
@@ -149,9 +149,9 @@ class WorkerServerProcess implements TsServerProcess {
 			[syncChannel.port1, tsserverChannel.port1, watcherChannel.port1]
 		);
 
-		const connection = new ServiceConnection<Requests>(syncChannel.port2);
-		new ApiService('vscode-wasm-typescript', connection);
-		connection.signalReady();
+		const connection = new ServiceConnection<Requests, ApiServiceConnection.ReadyParams>(syncChannel.port2);
+		const apiService = new ApiService('vscode-wasm-typescript', connection);
+		apiService.signalReady();
 	}
 
 	write(serverRequest: Proto.Request): void {

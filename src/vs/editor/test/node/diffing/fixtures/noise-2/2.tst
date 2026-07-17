@@ -1,9 +1,9 @@
 
 const maxPersistedSessions = 25;
 
-export class ChatService extends Disposable implements IChatService {
+export class AssistService extends Disposable implements IAssistService {
 
-	private async _sendRequestAsync(model: ChatModel, provider: IChatProvider, message: string | IChatReplyFollowup, usedSlashCommand?: ISlashCommand): Promise<void> {
+	private async _sendRequestAsync(model: AssistModel, provider: IAssistProvider, message: string | IAssistReplyFollowup, usedSlashCommand?: ISlashCommand): Promise<void> {
 		const request = model.addRequest(message);
 
 		const resolvedCommand = typeof message === 'string' && message.startsWith('/') ? await this.handleSlashCommand(model.sessionId, message) : message;
@@ -14,7 +14,7 @@ export class ChatService extends Disposable implements IChatService {
 			'followup';
 
 		const rawResponsePromise = createCancelablePromise<void>(async token => {
-			const progressCallback = (progress: IChatProgress) => {
+			const progressCallback = (progress: IAssistProgress) => {
 				if (token.isCancellationRequested) {
 					return;
 				}
@@ -32,7 +32,7 @@ export class ChatService extends Disposable implements IChatService {
 			const stopWatch = new StopWatch(false);
 			token.onCancellationRequested(() => {
 				this.trace('sendRequest', `Request for session ${model.sessionId} was cancelled`);
-				this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
+				this.telemetryService.publicLog2<AssistProviderInvokedEvent, AssistProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 					providerId: provider.id,
 					timeToFirstProgress: -1,
 					// Normally timings happen inside the EH around the actual provider. For cancellation we can measure how long the user waited before cancelling
@@ -48,20 +48,20 @@ export class ChatService extends Disposable implements IChatService {
 				this._onDidSubmitSlashCommand.fire({ slashCommand: usedSlashCommand.command, sessionId: model.sessionId });
 			}
 
-			let rawResponse: IChatResponse | null | undefined;
+			let rawResponse: IAssistResponse | null | undefined;
 
-			if ((typeof resolvedCommand === 'string' && typeof message === 'string' && this.chatSlashCommandService.hasCommand(resolvedCommand))) {
+			if ((typeof resolvedCommand === 'string' && typeof message === 'string' && this.assistSlashCommandService.hasCommand(resolvedCommand))) {
 				// contributed slash commands
 				// TODO: spell this out in the UI
-				const history: IChatMessage[] = [];
+				const history: IAssistMessage[] = [];
 				for (const request of model.getRequests()) {
 					if (typeof request.message !== 'string' || !request.response) {
 						continue;
 					}
-					history.push({ role: ChatMessageRole.User, content: request.message });
-					history.push({ role: ChatMessageRole.Assistant, content: request.response?.response.value });
+					history.push({ role: AssistMessageRole.User, content: request.message });
+					history.push({ role: AssistMessageRole.Assistant, content: request.response?.response.value });
 				}
-				await this.chatSlashCommandService.executeCommand(resolvedCommand, message.substring(resolvedCommand.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => progressCallback(p)), history, token);
+				await this.assistSlashCommandService.executeCommand(resolvedCommand, message.substring(resolvedCommand.length + 1).trimStart(), new Progress<IAssistSlashFragment>(p => progressCallback(p)), history, token);
 				rawResponse = { session: model.session! };
 
 			} else {
@@ -80,7 +80,7 @@ export class ChatService extends Disposable implements IChatService {
 					rawResponse.errorDetails && gotProgress ? 'errorWithOutput' :
 						rawResponse.errorDetails ? 'error' :
 							'success';
-				this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
+				this.telemetryService.publicLog2<AssistProviderInvokedEvent, AssistProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 					providerId: provider.id,
 					timeToFirstProgress: rawResponse.timings?.firstProgress ?? 0,
 					totalTime: rawResponse.timings?.totalElapsed ?? 0,
@@ -91,7 +91,7 @@ export class ChatService extends Disposable implements IChatService {
 				model.setResponse(request, rawResponse);
 				this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
 
-				// TODO refactor this or rethink the API https://github.com/microsoft/vscode-copilot/issues/593
+				// TODO refactor this or rethink the API https://github.com/microsoft/vscode-assist/issues/593
 				if (provider.provideFollowups) {
 					Promise.resolve(provider.provideFollowups(model.session!, CancellationToken.None)).then(followups => {
 						model.setFollowups(request, withNullAsUndefined(followups));

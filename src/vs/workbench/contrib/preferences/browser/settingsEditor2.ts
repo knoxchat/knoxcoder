@@ -51,7 +51,6 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorMemento, IEditorOpenContext, IEditorPane } from '../../../common/editor.js';
-import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -148,7 +147,7 @@ export class SettingsEditor2 extends EditorPane {
 		`@${FEATURE_SETTING_TAG}remote`,
 		`@${FEATURE_SETTING_TAG}timeline`,
 		`@${FEATURE_SETTING_TAG}notebook`,
-		`@${FEATURE_SETTING_TAG}chat`,
+		`@${FEATURE_SETTING_TAG}assist`,
 		`@${POLICY_SETTING_TAG}`
 	];
 
@@ -277,7 +276,6 @@ export class SettingsEditor2 extends EditorPane {
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
@@ -318,9 +316,6 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}));
 
-		this._register(chatEntitlementService.onDidChangeSentiment(() => {
-			this.updateAiSearchToggleVisibility();
-		}));
 
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
 			e.join(this.whenCurrentProfileChanged());
@@ -415,7 +410,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const showAiToggle = this.configurationService.getValue<boolean>(WorkbenchSettingsEditorSettings.ShowAISearchToggle);
 		const enableNaturalLanguageSearch = this.configurationService.getValue<boolean>(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch);
-		const chatHidden = this.chatEntitlementService.sentiment.hidden || this.chatEntitlementService.sentiment.disabled;
+		const chatHidden = true;
 		const canShowToggle = showAiToggle && enableNaturalLanguageSearch && !chatHidden;
 
 		const alreadyVisible = this.searchInputActionBar.hasAction(this.showAiResultsAction);
@@ -1481,7 +1476,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const additionalGroups: ISettingsGroup[] = [];
 		let setAdditionalGroups = false;
-		const toggleData = await getExperimentalExtensionToggleData(this.chatEntitlementService, this.extensionGalleryService, this.productService);
+		const toggleData = await getExperimentalExtensionToggleData(this.extensionGalleryService, this.productService);
 		if (toggleData && groups.filter(g => g.extensionInfo).length && Object.keys(toggleData.settingsEditorRecommendedExtensions).length) {
 			// Refresh installed extensions once per onConfigUpdate invocation for performance,
 			// instead of per extension. The installed list may still change while iterating.

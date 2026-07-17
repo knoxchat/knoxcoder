@@ -5,7 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import * as ts from 'typescript';
+import * as ts from './typescript.ts';
 
 // --- Graph (extracted from build/lib/tsb/utils.ts) ---
 

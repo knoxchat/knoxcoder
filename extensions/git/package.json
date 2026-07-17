@@ -3756,23 +3756,7 @@
           "default": false,
           "description": "%config.alwaysSignOff%"
         },
-        "git.addAICoAuthor": {
-          "type": "string",
-          "enum": [
-            "off",
-            "chatAndAgent",
-            "all"
-          ],
-          "enumDescriptions": [
-            "%config.addAICoAuthor.off%",
-            "%config.addAICoAuthor.chatAndAgent%",
-            "%config.addAICoAuthor.all%"
-          ],
-          "scope": "resource",
-          "default": "off",
-          "description": "%config.addAICoAuthor%"
-        },
-        "git.ignoreSubmodules": {
+        "git.alwaysSignOff": {
           "type": "boolean",
           "scope": "resource",
           "default": false,
@@ -4379,20 +4363,20 @@
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.2.0",
-    "@vscode/extension-telemetry": "^0.9.8",
+    "@vscode/extension-telemetry": "^1.5.2",
     "@vscode/fs-copyfile": "2.0.0",
     "byline": "^5.0.0",
-    "file-type": "21.3.2",
-    "picomatch": "2.3.2",
-    "vscode-uri": "^2.0.0",
-    "which": "4.0.0"
+    "file-type": "22.0.1",
+    "picomatch": "4.0.5",
+    "vscode-uri": "^3.1.0",
+    "which": "7.0.0"
   },
   "devDependencies": {
-    "@types/byline": "4.2.31",
+    "@types/byline": "4.2.36",
     "@types/mocha": "^10.0.10",
-    "@types/node": "24.x",
-    "@types/picomatch": "2.3.0",
-    "@types/which": "3.0.0"
+    "@types/node": "26.x",
+    "@types/picomatch": "4.0.3",
+    "@types/which": "3.0.4"
   },
   "repository": {
     "type": "git",

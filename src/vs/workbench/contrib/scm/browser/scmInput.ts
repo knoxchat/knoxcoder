@@ -8,12 +8,12 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { append, $, Dimension, trackFocus } from '../../../../base/browser/dom.js';
 import { InputValidationType, ISCMInput, IInputValidation, ISCMViewService, SCMInputChangeReason, ISCMInputValueProviderContext } from '../common/scm.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextViewService, IContextMenuService, IOpenContextView } from '../../../../platform/contextview/browser/contextView.js';
-import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { MenuItemAction, IMenuService, registerAction2, MenuId, Action2 } from '../../../../platform/actions/common/actions.js';
+import { MenuItemAction, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IAction, ActionRunner, Action } from '../../../../base/common/actions.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
@@ -68,9 +68,6 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import product from '../../../../platform/product/common/product.js';
-import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 
 export const SCMInputContextKeys = {
 	SCMInputHasValidationMessage: new RawContextKey<boolean>('scmInputHasValidationMessage', false),
@@ -128,10 +125,7 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 			// Save last action
 			if (this._runningActions.size === 0) {
-				const actionId = action.id === SCMInputWidgetCommandId.SetupAction
-					? product.defaultChatAgent?.generateCommitMessageCommand ?? action.id
-					: action.id;
-				this.storageService.store(SCMInputWidgetStorageKey.LastActionId, actionId, StorageScope.PROFILE, StorageTarget.USER);
+				this.storageService.store(SCMInputWidgetStorageKey.LastActionId, action.id, StorageScope.PROFILE, StorageTarget.USER);
 			}
 		}
 	}
@@ -837,40 +831,5 @@ export class SCMInputWidget {
 	}
 }
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: SCMInputWidgetCommandId.SetupAction,
-			title: localize('scmInputGenerateCommitMessage', "Generate Commit Message"),
-			icon: Codicon.sparkle,
-			f1: false,
-			menu: {
-				id: MenuId.SCMInputBox,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.Setup.hidden.negate(),
-					ChatContextKeys.Setup.disabledInWorkspace.negate(),
-					ChatContextKeys.Setup.completed.negate(),
-					ContextKeyExpr.equals('scmProvider', 'git')
-				)
-			}
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-
-		const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
-		if (!result) {
-			return;
-		}
-
-		const command = product.defaultChatAgent?.generateCommitMessageCommand;
-		if (!command) {
-			return;
-		}
-
-		await commandService.executeCommand(command, ...args);
-	}
-});
 
 setupSimpleEditorSelectionStyling('.scm-view .scm-editor-container');

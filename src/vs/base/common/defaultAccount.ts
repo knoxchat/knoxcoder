@@ -21,43 +21,43 @@ export interface IQuotaSnapshotData {
 
 export interface ILegacyQuotaSnapshotData {
 	readonly limited_user_quotas?: {
-		readonly chat: number;
+		readonly assist: number;
 		readonly completions: number;
 	};
 	readonly monthly_quotas?: {
-		readonly chat: number;
+		readonly assist: number;
 		readonly completions: number;
 	};
 }
 
 export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly access_type_sku: string;
-	readonly chat_enabled: boolean;
+	readonly assistant_enabled: boolean;
 	readonly assigned_date: string;
 	readonly can_signup_for_limited: boolean;
-	readonly copilot_plan: string;
+	readonly subscription_plan: string;
 	readonly organization_login_list: string[];
 	readonly analytics_tracking_id: string;
-	readonly limited_user_reset_date?: string; 	// for Copilot Free
-	readonly quota_reset_date?: string; 		// for all other Copilot SKUs
-	readonly quota_reset_date_utc?: string; 	// for all other Copilot SKUs (includes time)
+	readonly limited_user_reset_date?: string; 	// for free tier
+	readonly quota_reset_date?: string; 		// for all other subscription SKUs
+	readonly quota_reset_date_utc?: string; 	// for all other subscription SKUs (includes time)
 	readonly token_based_billing?: boolean;
 	readonly can_upgrade_plan?: boolean;
 	readonly cloud_session_storage_enabled?: boolean;
 	readonly quota_snapshots?: {
-		chat?: IQuotaSnapshotData;
+		assist?: IQuotaSnapshotData;
 		completions?: IQuotaSnapshotData;
 		premium_interactions?: IQuotaSnapshotData;
 	};
 }
 
 export interface IPolicyData {
-	readonly mcp?: boolean;
-	readonly chat_preview_features_enabled?: boolean;
-	readonly chat_agent_enabled?: boolean;
+	readonly tool?: boolean;
+	readonly preview_features_enabled?: boolean;
+	readonly assistant_agent_enabled?: boolean;
 	readonly cloud_session_storage_enabled?: boolean;
-	readonly mcpRegistryUrl?: string;
-	readonly mcpAccess?: 'allow_all' | 'registry_only';
+	readonly toolRegistryUrl?: string;
+	readonly toolAccess?: 'allow_all' | 'registry_only';
 
 	/**
 	 * Normalized enterprise-managed settings, keyed by dot-separated managed-settings
@@ -70,7 +70,7 @@ export interface IPolicyData {
 	readonly managedSettings?: ManagedSettingsData;
 }
 
-export interface ICopilotTokenInfo {
+export interface IAccountTokenInfo {
 	readonly sn?: string;
 	readonly fcv1?: string;
 }

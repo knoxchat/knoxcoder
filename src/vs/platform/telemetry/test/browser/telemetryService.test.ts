@@ -219,11 +219,11 @@ suite('TelemetryService', () => {
 		}, new TestConfigurationService(), TestProductService);
 
 		service.publicLog('eventBeforeSet');
-		service.setCommonProperty('common.copilotTrackingId', 'test-tracking-id');
+		service.setCommonProperty('common.assistTrackingId', 'test-tracking-id');
 		service.publicLog('eventAfterSet');
 
-		assert.strictEqual(testAppender.events[0].data['common.copilotTrackingId'], undefined);
-		assert.strictEqual(testAppender.events[1].data['common.copilotTrackingId'], 'test-tracking-id');
+		assert.strictEqual(testAppender.events[0].data['common.assistTrackingId'], undefined);
+		assert.strictEqual(testAppender.events[1].data['common.assistTrackingId'], 'test-tracking-id');
 
 		service.dispose();
 	});

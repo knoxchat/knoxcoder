@@ -147,7 +147,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			const [item] = picker.selectedItems;
 			if (item && item.range) {
 				// When shift is held and attach is available, delegate to attach
-				// (e.g. to add to chat context) instead of navigating
+				// (e.g. to add to assist context) instead of navigating
 				if (picker.keyMods.shift && item.attach) {
 					item.attach(picker.keyMods, event);
 					return;

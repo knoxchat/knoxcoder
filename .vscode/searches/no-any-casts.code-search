@@ -781,52 +781,41 @@ src/vs/workbench/contrib/bulkEdit/test/browser/bulkCellEdits.test.ts:
   29: 		// eslint-disable-next-line local/code-no-any-casts
   39: 		// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/contrib/chat/browser/chatSessions.contribution.ts:
   923: 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/browser/chatWidget.ts:
   174: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/browser/actions/chatCodeblockActions.ts:
    88: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   625: 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
   646: 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
   699: 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/browser/actions/chatContextActions.ts:
   261: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingActions.ts:
    56: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
    63: // eslint-disable-next-line @typescript-eslint/no-explicit-any
   101: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingServiceImpl.ts:
    85: 		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
    87: 		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
   107: 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
   111: 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/browser/chatSessions/common.ts:
    71: 		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
   112: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   114: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/browser/chatSessions/view/sessionsTreeRenderer.ts:
   89: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables.ts:
   180: // eslint-disable-next-line @typescript-eslint/no-explicit-any
   198: // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/common/chatModel.ts:
    672: 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
   1396: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
   1815: 				// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
   2108: 					// eslint-disable-next-line @typescript-eslint/no-explicit-any
   2128: 								// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/common/chatService.ts:
    45: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   277: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   324: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -835,19 +824,15 @@ src/vs/workbench/contrib/chat/common/chatService.ts:
   928: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   930: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/common/chatServiceImpl.ts:
   553: 		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/common/chatSessionsService.ts:
   129: 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
   141: 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
   182: 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/common/chatWidgetHistoryService.ts:
   24: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   87: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/common/languageModels.ts:
    55: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   135: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   143: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -857,7 +842,6 @@ src/vs/workbench/contrib/chat/common/languageModels.ts:
   286: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   557: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/common/languageModelToolsService.ts:
   129: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   150: // eslint-disable-next-line @typescript-eslint/no-explicit-any
   156: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -865,14 +849,11 @@ src/vs/workbench/contrib/chat/common/languageModelToolsService.ts:
   198: // eslint-disable-next-line @typescript-eslint/no-explicit-any
   270: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/common/promptSyntax/service/promptsServiceImpl.ts:
   390: 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/common/tools/manageTodoListTool.ts:
    33: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   124: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/test/browser/chatEditingModifiedNotebookEntry.test.ts:
     30: 			// eslint-disable-next-line local/code-no-any-casts
     35: 			// eslint-disable-next-line local/code-no-any-casts
     63: 				// eslint-disable-next-line local/code-no-any-casts
@@ -893,10 +874,8 @@ src/vs/workbench/contrib/chat/test/browser/chatEditingModifiedNotebookEntry.test
   1532: 			// eslint-disable-next-line local/code-no-any-casts
   1537: 			// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/contrib/chat/test/browser/chatEditingSessionStorage.test.ts:
   41: 			// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/contrib/chat/test/common/chatRequestParser.test.ts:
    75: 		// eslint-disable-next-line local/code-no-any-casts
    87: 		// eslint-disable-next-line local/code-no-any-casts
    99: 		// eslint-disable-next-line local/code-no-any-casts
@@ -920,13 +899,10 @@ src/vs/workbench/contrib/chat/test/common/chatRequestParser.test.ts:
   322: 		// eslint-disable-next-line local/code-no-any-casts
   338: 		// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/contrib/chat/test/common/languageModels.ts:
   53: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/test/common/mockLanguageModelToolsService.ts:
   52: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/test/common/mockPromptsService.ts:
   36: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   38: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   41: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -935,7 +911,6 @@ src/vs/workbench/contrib/chat/test/common/mockPromptsService.ts:
   50: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
   52: 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-src/vs/workbench/contrib/chat/test/common/tools/manageTodoListTool.test.ts:
   16: 		// eslint-disable-next-line local/code-no-any-casts
 
 src/vs/workbench/contrib/debug/browser/debugSession.ts:
@@ -988,7 +963,7 @@ src/vs/workbench/contrib/files/test/browser/editorAutoSave.test.ts:
 src/vs/workbench/contrib/files/test/browser/explorerView.test.ts:
   94: 			// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/contrib/inlineChat/test/browser/inlineChatController.test.ts:
+src/vs/workbench/contrib/assist/test/browser/assistController.test.ts:
   163: 					// eslint-disable-next-line local/code-no-any-casts
   673: 				// eslint-disable-next-line local/code-no-any-casts
   722: 				// eslint-disable-next-line local/code-no-any-casts
@@ -999,7 +974,6 @@ src/vs/workbench/contrib/markdown/test/browser/markdownSettingRenderer.test.ts:
 src/vs/workbench/contrib/markers/test/browser/markersModel.test.ts:
   145: 		// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/contrib/mcp/common/modelContextProtocol.ts:
   100: 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
   116: 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
@@ -1079,11 +1053,9 @@ src/vs/workbench/contrib/tasks/test/browser/taskTerminalStatus.test.ts:
 src/vs/workbench/contrib/terminalContrib/accessibility/test/browser/bufferContentTracker.test.ts:
   71: 		// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/contrib/terminalContrib/chatAgentTools/test/browser/outputMonitor.test.ts:
   45: 				// eslint-disable-next-line local/code-no-any-casts
   61: 				// eslint-disable-next-line local/code-no-any-casts
 
-src/vs/workbench/contrib/terminalContrib/chatAgentTools/test/electron-browser/runInTerminalTool.test.ts:
   402: 			// eslint-disable-next-line local/code-no-any-casts
   924: 			// eslint-disable-next-line local/code-no-any-casts
   948: 			// eslint-disable-next-line local/code-no-any-casts
@@ -1259,11 +1231,8 @@ test/automation/src/code.ts:
 test/automation/src/terminal.ts:
   315: 		// eslint-disable-next-line local/code-no-any-casts
 
-test/mcp/src/application.ts:
   250: 		// eslint-disable-next-line local/code-no-any-casts
 
-test/mcp/src/playwright.ts:
   17: 		// eslint-disable-next-line local/code-no-any-casts
 
-test/mcp/src/automationTools/problems.ts:
   76: 			// eslint-disable-next-line local/code-no-any-casts

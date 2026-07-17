@@ -142,7 +142,7 @@ suite('SuggestModel - Context', function () {
 		const pos = model.getPositionAt(offset);
 		const editor = createMockEditor(model, new LanguageFeaturesService());
 		editor.setPosition(pos);
-		assert.strictEqual(LineContext.shouldAutoTrigger(editor), expected, message);
+		assert.strictEqual(LineContext.shouldAutoTrigger(editor), expected, message ?? '');
 		editor.dispose();
 	};
 

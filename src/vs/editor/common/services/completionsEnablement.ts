@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from '../../../platform/product/common/product.js';
 import { isObject } from '../../../base/common/types.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ITextResourceConfigurationService } from './textResourceConfiguration.js';
@@ -13,11 +12,11 @@ import { URI } from '../../../base/common/uri.js';
  * Get the completions enablement setting name from product configuration.
  */
 function getCompletionsEnablementSettingName(): string | undefined {
-	return product.defaultChatAgent?.completionsEnablementSetting;
+	return undefined;
 }
 
 /**
- * Checks if completions (e.g., Copilot) are enabled for a given language ID
+ * Checks if completions (e.g., Assist) are enabled for a given language ID
  * using `IConfigurationService`.
  *
  * @param configurationService The configuration service to read settings from.
@@ -37,7 +36,7 @@ export function isCompletionsEnabled(configurationService: IConfigurationService
 }
 
 /**
- * Checks if completions (e.g., Copilot) are enabled for a given language ID
+ * Checks if completions (e.g., Assist) are enabled for a given language ID
  * using `ITextResourceConfigurationService`.
  *
  * @param configurationService The text resource configuration service to read settings from.

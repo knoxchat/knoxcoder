@@ -142,7 +142,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 		};
 		type TerminalShellTypeChangedTelemetryClassification = {
 			owner: 'anthonykim1';
-			comment: 'Track when the detected shell type for a terminal changes, including detection of agent CLIs (e.g. claude, copilot, gemini)';
+			comment: 'Track when the detected shell type for a terminal changes, including detection of agent CLIs (e.g. claude, assist, gemini)';
 
 			shellType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new detected shell type for the terminal.' };
 			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
@@ -198,7 +198,7 @@ const enum AllowedShellType {
 	// AI CLIs
 	Claude = 'claude',
 	Codex = 'codex',
-	Copilot = 'copilot',
+	Assist = 'assist',
 	Gemini = 'gemini',
 
 	// Lanugage REPLs

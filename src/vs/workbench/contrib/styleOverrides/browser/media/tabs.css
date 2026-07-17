@@ -140,7 +140,7 @@
 }
 
 /*
- * Auxiliary bar (secondary side bar) composite tabs (e.g. CHAT, EXTENSIONS).
+ * Auxiliary bar (secondary side bar) composite tabs (e.g. assist, EXTENSIONS).
  * Same composite-bar action items as the panel tabs, but the active view
  * switcher can live under `.title` or the activity-bar `.header-or-footer`
  * depending on the activity bar position, so both locations are covered. Give
@@ -248,7 +248,7 @@
 	padding-right: 8px;
 }
 
-.style-override.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
+.style-override.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-assist-entry {
 	padding: 4px;
 }
 
