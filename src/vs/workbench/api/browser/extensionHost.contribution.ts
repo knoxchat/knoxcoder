@@ -48,6 +48,7 @@ import './mainThreadOutputService.js';
 import './mainThreadProgress.js';
 import './mainThreadQuickDiff.js';
 import './mainThreadDocumentDiff.js';
+import './mainThreadEmbeddings.js';
 import './mainThreadQuickOpen.js';
 import './mainThreadRemoteConnectionData.js';
 import './mainThreadSaveParticipant.js';
