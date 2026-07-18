@@ -25,6 +25,14 @@ done
 # Requires build/node_modules for scripts such as build/linux/libcxx-fetcher.ts.
 source ./build/azure-pipelines/linux/setup-env.sh
 
+# npm install scripts for packages like @vscode/policy-watcher must not inherit the
+# Chromium client toolchain flags (-flto=thin, -fuse-ld=lld, etc.).
+VSCODE_CI_CC="${CC:-}"
+VSCODE_CI_CXX="${CXX:-}"
+VSCODE_CI_CXXFLAGS="${CXXFLAGS:-}"
+VSCODE_CI_LDFLAGS="${LDFLAGS:-}"
+unset CC CXX CXXFLAGS LDFLAGS
+
 node build/npm/preinstall.ts
 
 echo "Installing npm dependencies..."
@@ -38,6 +46,12 @@ for i in {1..5}; do
 	fi
 	echo "Retrying npm ci ($i/5)..."
 done
+
+export CC="$VSCODE_CI_CC"
+export CXX="$VSCODE_CI_CXX"
+export CXXFLAGS="$VSCODE_CI_CXXFLAGS"
+export LDFLAGS="$VSCODE_CI_LDFLAGS"
+unset VSCODE_CI_CC VSCODE_CI_CXX VSCODE_CI_CXXFLAGS VSCODE_CI_LDFLAGS
 
 echo "Downloading built-in extensions..."
 node build/lib/builtInExtensions.ts
