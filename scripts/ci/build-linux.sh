@@ -9,10 +9,7 @@ export npm_config_arch="${npm_config_arch:-x64}"
 
 echo "Building KnoxCoder for Linux (${VSCODE_ARCH})..."
 
-# Native module toolchain and sysroots (see build/azure-pipelines/linux/setup-env.sh).
-source ./build/azure-pipelines/linux/setup-env.sh
-
-echo "Installing npm dependencies..."
+echo "Installing build npm dependencies..."
 for i in {1..5}; do
 	if (cd build && npm ci); then
 		break
@@ -24,8 +21,13 @@ for i in {1..5}; do
 	echo "Retrying build/ npm ci ($i/5)..."
 done
 
+# Native module toolchain and sysroots (see build/azure-pipelines/linux/setup-env.sh).
+# Requires build/node_modules for scripts such as build/linux/libcxx-fetcher.ts.
+source ./build/azure-pipelines/linux/setup-env.sh
+
 node build/npm/preinstall.ts
 
+echo "Installing npm dependencies..."
 for i in {1..5}; do
 	if npm ci; then
 		break
