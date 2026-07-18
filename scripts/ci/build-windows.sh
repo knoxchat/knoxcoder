@@ -26,19 +26,6 @@ fi
 
 echo "Installing npm dependencies..."
 for i in {1..5}; do
-	if (cd build && npm ci); then
-		break
-	fi
-	if [ "$i" -eq 5 ]; then
-		echo "npm ci failed in build/ after 5 attempts" >&2
-		exit 1
-	fi
-	echo "Retrying build/ npm ci ($i/5)..."
-done
-
-node build/npm/preinstall.ts
-
-for i in {1..5}; do
 	if npm ci; then
 		break
 	fi
