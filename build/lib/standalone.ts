@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import * as tss from './treeshaking.ts';
-import ts from './typescript.ts';
+import ts from 'typescript';
 
 const dirCache: { [dir: string]: boolean } = {};
 

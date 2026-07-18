@@ -16,7 +16,7 @@
  * to regenerate the extension points file, or imported for use in gulp build tasks.
  */
 
-import ts from './typescript.ts';
+import ts from 'typescript';
 import path from 'path';
 import fs from 'fs';
 

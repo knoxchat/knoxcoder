@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import ts from './typescript.ts';
+import ts from 'typescript';
 import fs from 'node:fs';
 import { normalize } from 'node:path';
 

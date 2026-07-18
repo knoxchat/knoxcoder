@@ -18,7 +18,7 @@ import File from 'vinyl';
 import * as task from './gulp/task.ts';
 import { Mangler } from './mangle/index.ts';
 import type { RawSourceMap } from 'source-map';
-import ts from './typescript.ts';
+import ts from 'typescript';
 import watch from './watch/index.ts';
 import * as tsb from './tsb/index.ts';
 import { createTsgoStream, spawnTsgo } from './tsgo.ts';

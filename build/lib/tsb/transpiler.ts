@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import esbuild from 'esbuild';
-import ts from '../typescript.ts';
+import ts from 'typescript';
 import threads from 'node:worker_threads';
 import Vinyl from 'vinyl';
 import { cpus } from 'node:os';

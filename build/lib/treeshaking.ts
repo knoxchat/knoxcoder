@@ -5,7 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import * as ts from './typescript.ts';
+import * as ts from 'typescript';
 import { type IFileMap, TypeScriptLanguageServiceHost } from './typeScriptLanguageServiceHost.ts';
 
 const ShakeLevel = Object.freeze({

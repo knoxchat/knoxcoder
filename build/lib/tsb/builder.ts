@@ -8,7 +8,7 @@ import path from 'path';
 import crypto from 'crypto';
 import * as utils from './utils.ts';
 import colors from 'ansi-colors';
-import ts from '../typescript.ts';
+import ts from 'typescript';
 import Vinyl from 'vinyl';
 import { type RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map';
 
