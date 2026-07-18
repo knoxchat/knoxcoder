@@ -62,6 +62,50 @@ npm run gulp core-ci
 echo "Packaging desktop app..."
 npm run gulp "vscode-linux-${VSCODE_ARCH}-min-ci"
 
+# Build the CLI (tunnel binary) and place it next to the desktop app, like the
+# upstream "Mix in CLI" step. The deb dependency generator requires it.
+echo "Building CLI (tunnel binary)..."
+if ! command -v cargo > /dev/null 2>&1; then
+	echo "Installing Rust toolchain..."
+	curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+	source "$HOME/.cargo/env"
+fi
+
+# Static OpenSSL, same package/version as the upstream CLI pipelines.
+OPENSSL_ROOT="$ROOT/.build/openssl"
+if [ ! -d "$OPENSSL_ROOT/out" ]; then
+	mkdir -p "$OPENSSL_ROOT"
+	(cd "$OPENSSL_ROOT" && npm pack @vscode/openssl-prebuilt@0.0.11 && tar -xzf vscode-openssl-prebuilt-*.tgz --strip-components=1)
+fi
+
+# Link against the glibc 2.28 sysroot (downloaded by setup-env.sh) so the
+# generated .deb dependencies stay compatible with older distros.
+CLI_TARGET="x86_64-unknown-linux-gnu"
+if command -v rustup > /dev/null 2>&1; then
+	rustup target add "$CLI_TARGET" > /dev/null
+fi
+(
+	cd cli
+	# The Chromium client toolchain flags exported above must not leak into
+	# crate build scripts.
+	unset CC CXX CXXFLAGS LDFLAGS
+	export VSCODE_CLI_COMMIT="$(git rev-parse HEAD)"
+	export OPENSSL_LIB_DIR="$OPENSSL_ROOT/out/x64-linux/lib"
+	export OPENSSL_INCLUDE_DIR="$OPENSSL_ROOT/out/x64-linux/include"
+	export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="$VSCODE_CLIENT_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-gcc"
+	export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_CLIENT_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot -C link-arg=-L$VSCODE_CLIENT_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/lib/x86_64-linux-gnu"
+	export CC_x86_64_unknown_linux_gnu="$VSCODE_CLIENT_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-gcc --sysroot=$VSCODE_CLIENT_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
+	export CXX_x86_64_unknown_linux_gnu="$VSCODE_CLIENT_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-g++ --sysroot=$VSCODE_CLIENT_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
+	export PKG_CONFIG_LIBDIR_x86_64_unknown_linux_gnu="$VSCODE_CLIENT_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/lib/x86_64-linux-gnu/pkgconfig:$VSCODE_CLIENT_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/share/pkgconfig"
+	export PKG_CONFIG_SYSROOT_DIR_x86_64_unknown_linux_gnu="$VSCODE_CLIENT_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
+	cargo build --release --target "$CLI_TARGET" --bin=code
+)
+
+TUNNEL_APP_NAME="$(node -p "require('./product.json').tunnelApplicationName")"
+mkdir -p "../VSCode-linux-${VSCODE_ARCH}/bin"
+cp "cli/target/$CLI_TARGET/release/code" "../VSCode-linux-${VSCODE_ARCH}/bin/$TUNNEL_APP_NAME"
+chmod +x "../VSCode-linux-${VSCODE_ARCH}/bin/$TUNNEL_APP_NAME"
+
 echo "Building .deb package..."
 npm run gulp "vscode-linux-${VSCODE_ARCH}-prepare-deb"
 npm run gulp "vscode-linux-${VSCODE_ARCH}-build-deb"

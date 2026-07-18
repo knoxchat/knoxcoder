@@ -139,8 +139,9 @@ defineWin32SetupTasks('arm64', 'user');
 
 function copyInnoUpdater(arch: string) {
 	return () => {
-		return gulp.src('build/win32/{inno_updater.exe,vcruntime140.dll}', { base: 'build/win32' })
-			.pipe(vfs.dest(path.join(buildPath(arch), 'tools')));
+		// Gulp 5 defaults streams to UTF-8, which corrupts binaries.
+		return gulp.src('build/win32/{inno_updater.exe,vcruntime140.dll}', { base: 'build/win32', encoding: false })
+			.pipe(vfs.dest(path.join(buildPath(arch), 'tools'), { encoding: false }));
 	};
 }
 

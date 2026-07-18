@@ -24,6 +24,11 @@ const commit = getVersion(root);
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
+// Gulp 5 defaults streams to UTF-8, which corrupts binaries (executables,
+// shared libraries, images, ...). Disable encoding for every source and
+// destination that may include binary files.
+const binaryStreamOptions = { encoding: false as const };
+
 function getDebPackageArch(arch: string): string {
 	switch (arch) {
 		case 'x64': return 'amd64';
@@ -66,7 +71,7 @@ function prepareDebPackage(arch: string) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('usr/share/mime/packages/' + product.applicationName + '-workspace.xml'));
 
-		const icon = gulp.src('resources/linux/code.png', { base: '.' })
+		const icon = gulp.src('resources/linux/code.png', { base: '.', ...binaryStreamOptions })
 			.pipe(rename('usr/share/pixmaps/' + product.linuxIconName + '.png'));
 
 		const bash_completion = gulp.src('resources/completions/bash/code')
@@ -77,7 +82,7 @@ function prepareDebPackage(arch: string) {
 			.pipe(replace('@@APPNAME@@', product.applicationName))
 			.pipe(rename('usr/share/zsh/vendor-completions/_' + product.applicationName));
 
-		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
+		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir, ...binaryStreamOptions })
 			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));
 
 		let size = 0;
@@ -115,7 +120,7 @@ function prepareDebPackage(arch: string) {
 
 		const all = merge(control, templates, postinst, postrm, prerm, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, code);
 
-		return all.pipe(vfs.dest(destination));
+		return all.pipe(vfs.dest(destination, binaryStreamOptions));
 	};
 }
 
@@ -176,7 +181,7 @@ function prepareRpmPackage(arch: string) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('BUILD/usr/share/mime/packages/' + product.applicationName + '-workspace.xml'));
 
-		const icon = gulp.src('resources/linux/code.png', { base: '.' })
+		const icon = gulp.src('resources/linux/code.png', { base: '.', ...binaryStreamOptions })
 			.pipe(rename('BUILD/usr/share/pixmaps/' + product.linuxIconName + '.png'));
 
 		const bash_completion = gulp.src('resources/completions/bash/code')
@@ -187,7 +192,7 @@ function prepareRpmPackage(arch: string) {
 			.pipe(replace('@@APPNAME@@', product.applicationName))
 			.pipe(rename('BUILD/usr/share/zsh/site-functions/_' + product.applicationName));
 
-		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
+		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir, ...binaryStreamOptions })
 			.pipe(rename(function (p) { p.dirname = 'BUILD/usr/share/' + product.applicationName + '/' + p.dirname; }));
 
 		const spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
@@ -210,7 +215,7 @@ function prepareRpmPackage(arch: string) {
 
 		const all = merge(code, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, spec, specIcon);
 
-		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch)));
+		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch), binaryStreamOptions));
 	};
 }
 
@@ -253,10 +258,10 @@ function prepareSnapPackage(arch: string) {
 			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
 		// An icon that is placed in snap/gui will be placed into meta/gui verbatim.
-		const icon = gulp.src('resources/linux/code.png', { base: '.' })
+		const icon = gulp.src('resources/linux/code.png', { base: '.', ...binaryStreamOptions })
 			.pipe(rename(`snap/gui/${product.linuxIconName}.png`));
 
-		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
+		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir, ...binaryStreamOptions })
 			.pipe(rename(function (p) { p.dirname = `usr/share/${product.applicationName}/${p.dirname}`; }));
 
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
@@ -271,7 +276,7 @@ function prepareSnapPackage(arch: string) {
 
 		const all = merge(desktops, icon, code, snapcraft, electronLaunch);
 
-		return all.pipe(vfs.dest(destination));
+		return all.pipe(vfs.dest(destination, binaryStreamOptions));
 	};
 }
 

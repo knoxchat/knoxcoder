@@ -84,10 +84,11 @@ const acquireBuiltOpenSSL = (callback: (err?: unknown) => void) => {
 		{ stdio: ['ignore', 'ignore', 'inherit'], cwd: dir }
 	);
 
-	gulp.src('*.tgz', { cwd: dir })
+	// Gulp 5 defaults streams to UTF-8, which corrupts binaries.
+	gulp.src('*.tgz', { cwd: dir, encoding: false })
 		.pipe(gunzip())
 		.pipe(untar())
-		.pipe(gulp.dest(`${root}/openssl`))
+		.pipe(gulp.dest(`${root}/openssl`, { encoding: false }))
 		.on('error', callback)
 		.on('end', () => {
 			rmSync(dir, { recursive: true, force: true });

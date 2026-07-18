@@ -46,6 +46,30 @@ echo "Packaging desktop app..."
 npm run gulp "vscode-win32-${VSCODE_ARCH}-min-ci"
 npm run gulp "vscode-win32-${VSCODE_ARCH}-inno-updater"
 
+# Build the CLI (tunnel binary) and place it next to the desktop app, like the
+# upstream "Move VS Code CLI" step, so the archive and installers include it.
+echo "Building CLI (tunnel binary)..."
+
+# Static OpenSSL, same package/version as the upstream CLI pipelines.
+OPENSSL_ROOT="$ROOT/.build/openssl"
+if [ ! -d "$OPENSSL_ROOT/out" ]; then
+	mkdir -p "$OPENSSL_ROOT"
+	(cd "$OPENSSL_ROOT" && npm pack @vscode/openssl-prebuilt@0.0.11 && tar -xzf vscode-openssl-prebuilt-*.tgz --strip-components=1)
+fi
+
+(
+	cd cli
+	export VSCODE_CLI_COMMIT="$(git rev-parse HEAD)"
+	# Rust build scripts need Windows-style paths.
+	export OPENSSL_LIB_DIR="$(cygpath -m "$OPENSSL_ROOT/out/${VSCODE_ARCH}-windows-static/lib")"
+	export OPENSSL_INCLUDE_DIR="$(cygpath -m "$OPENSSL_ROOT/out/${VSCODE_ARCH}-windows-static/include")"
+	cargo build --release --bin=code
+)
+
+TUNNEL_APP_NAME="$(node -p "require('./product.json').tunnelApplicationName")"
+mkdir -p "$(dirname "$ROOT")/VSCode-win32-${VSCODE_ARCH}/bin"
+cp "cli/target/release/code.exe" "$(dirname "$ROOT")/VSCode-win32-${VSCODE_ARCH}/bin/${TUNNEL_APP_NAME}.exe"
+
 echo "Building installers..."
 npm run gulp "vscode-win32-${VSCODE_ARCH}-system-setup"
 npm run gulp "vscode-win32-${VSCODE_ARCH}-user-setup"
