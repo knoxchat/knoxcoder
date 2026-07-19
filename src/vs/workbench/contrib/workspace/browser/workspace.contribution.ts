@@ -798,7 +798,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		properties: {
 			[WORKSPACE_TRUST_ENABLED]: {
 				type: 'boolean',
-				default: true,
+				default: false,
 				description: localize('workspace.trust.description', "Controls whether or not Workspace Trust is enabled within KnoxCoder."),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
@@ -818,7 +818,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			[WORKSPACE_TRUST_BANNER]: {
 				type: 'string',
-				default: 'untilDismissed',
+				default: 'never',
 				description: localize('workspace.trust.banner.description', "Controls when the restricted mode banner is shown."),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
@@ -831,7 +831,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			[WORKSPACE_TRUST_UNTRUSTED_FILES]: {
 				type: 'string',
-				default: 'prompt',
+				default: 'open',
 				markdownDescription: localize('workspace.trust.untrustedFiles.description', "Controls how to handle opening untrusted files in a trusted workspace. This setting also applies to opening files in an empty window which is trusted via `#{0}#`.", WORKSPACE_TRUST_EMPTY_WINDOW),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
