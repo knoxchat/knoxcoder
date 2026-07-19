@@ -44,12 +44,11 @@ import { IPaneCompositePartService } from '../../../services/panecomposite/brows
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from '../../files/common/files.js';
 import { ITestService } from '../../testing/common/testService.js';
-import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_HAS_DEBUGGED, CONTEXT_IN_DEBUG_MODE, DEBUG_MEMORY_SCHEME, DEBUG_SCHEME, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, IGuessedDebugger, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, debuggerDisabledMessage, getStateLabel } from '../common/debug.js';
+import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_HAS_DEBUGGED, CONTEXT_IN_DEBUG_MODE, DEBUG_MEMORY_SCHEME, DEBUG_SCHEME, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGuessedDebugger, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, debuggerDisabledMessage, getStateLabel } from '../common/debug.js';
 import { DebugCompoundRoot } from '../common/debugCompoundRoot.js';
 import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions, InstructionBreakpoint } from '../common/debugModel.js';
 import { Source } from '../common/debugSource.js';
 import { DebugStorage, IChosenEnvironment } from '../common/debugStorage.js';
-import { DebugTelemetry } from '../common/debugTelemetry.js';
 import { getExtensionHostDebugSession, saveAllBeforeDebugStart } from '../common/debugUtils.js';
 import { ViewModel } from '../common/debugViewModel.js';
 import { DisassemblyViewInput } from '../common/disassemblyViewInput.js';
@@ -71,7 +70,6 @@ export class DebugService implements IDebugService {
 	private debugStorage: DebugStorage;
 	private model: DebugModel;
 	private viewModel: ViewModel;
-	private telemetry: DebugTelemetry;
 	private taskRunner: DebugTaskRunner;
 	private configurationManager: ConfigurationManager;
 	private adapterManager: AdapterManager;
@@ -134,7 +132,6 @@ export class DebugService implements IDebugService {
 		this.chosenEnvironments = this.debugStorage.loadChosenEnvironments();
 
 		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
-		this.telemetry = this.instantiationService.createInstance(DebugTelemetry, this.model);
 
 		this.viewModel = this.disposables.add(new ViewModel(contextKeyService));
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
@@ -708,8 +705,6 @@ export class DebugService implements IDebugService {
 		try {
 			await session.initialize(dbgr!);
 			await session.launchOrAttach(session.configuration);
-			const launchJsonExists = !!session.root && !!this.configurationService.getValue<IGlobalConfig>('launch', { resource: session.root.uri });
-			await this.telemetry.logDebugSessionStart(dbgr!, launchJsonExists);
 
 			if (forceFocus || !this.viewModel.focusedSession || (session.parentSession === this.viewModel.focusedSession && session.compact)) {
 				await this.focusStackFrame(undefined, undefined, session);
@@ -751,7 +746,6 @@ export class DebugService implements IDebugService {
 				if (adapterExitEvent.error) {
 					this.notificationService.error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly ({0})", adapterExitEvent.error.message || adapterExitEvent.error.toString()));
 				}
-				this.telemetry.logDebugSessionStop(session, adapterExitEvent);
 			}
 
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905

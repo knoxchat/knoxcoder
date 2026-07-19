@@ -47,7 +47,6 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "@vscode/extension-telemetry": "^1.5.2",
     "@vscode/sync-api-client": "^0.9.1",
     "@vscode/sync-api-common": "^0.9.1",
     "@vscode/sync-api-service": "^0.9.1",

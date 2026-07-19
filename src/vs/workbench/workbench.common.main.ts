@@ -113,7 +113,7 @@ import './services/authentication/browser/dynamicAuthenticationProviderStorageSe
 import './services/authentication/browser/authenticationQueryService.js';
 import '../platform/hover/browser/hoverService.js';
 import '../platform/userInteraction/browser/userInteractionServiceImpl.js';
-import './services/assignment/common/assignmentService.js';
+import './services/assignment/common/nullAssignmentService.js';
 import './services/outline/browser/outlineService.js';
 import './services/languageDetection/browser/languageDetectionWorkerServiceImpl.js';
 import '../editor/common/services/languageFeaturesService.js';
@@ -176,7 +176,6 @@ registerSingleton(IWebWorkerService, WebWorkerService, InstantiationType.Delayed
 //#region --- workbench contributions
 
 // Telemetry
-import './contrib/telemetry/browser/telemetry.contribution.js';
 
 // Preferences
 import './contrib/preferences/browser/preferences.contribution.js';
@@ -386,7 +385,6 @@ import './contrib/list/browser/list.contribution.js';
 import './contrib/accessibilitySignals/browser/accessibilitySignal.contribution.js';
 
 // Bracket Pair Colorizer 2 Telemetry
-import './contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution.js';
 
 // Accessibility
 import './contrib/accessibility/browser/accessibility.contribution.js';

@@ -10,17 +10,20 @@ import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } f
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { xhr, XHRResponse, getErrorStatusDescription, Headers } from 'request-light';
-
-import { TelemetryReporter } from '@vscode/extension-telemetry';
 import { JSONSchemaCache } from './schemaCache';
+
+class NoopTelemetryReporter {
+	sendTelemetryEvent(_eventName?: string, _properties?: { [key: string]: string }, _measurements?: { [key: string]: number }): void { }
+	sendTelemetryErrorEvent(_eventName?: string, _properties?: { [key: string]: string }, _measurements?: { [key: string]: number }): void { }
+	dispose(): void { }
+}
 
 let client: AsyncDisposable | undefined;
 
 // this method is called when vs code is activated
 export async function activate(context: ExtensionContext) {
 	const clientPackageJSON = await getPackageInfo(context);
-	const telemetry = new TelemetryReporter(clientPackageJSON.aiKey);
-	context.subscriptions.push(telemetry);
+	const telemetry = new NoopTelemetryReporter();
 
 	const logOutputChannel = window.createOutputChannel(languageServerDescription, { log: true });
 	context.subscriptions.push(logOutputChannel);

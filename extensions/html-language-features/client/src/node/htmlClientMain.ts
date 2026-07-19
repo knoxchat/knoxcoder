@@ -8,17 +8,21 @@ import { Disposable, ExtensionContext, l10n } from 'vscode';
 import { startClient, LanguageClientConstructor, AsyncDisposable } from '../htmlClient';
 import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
 import * as fs from 'fs';
-import { TelemetryReporter } from '@vscode/extension-telemetry';
 
+class NoopTelemetryReporter {
+	sendTelemetryEvent(_eventName?: string, _properties?: { [key: string]: string }, _measurements?: { [key: string]: number }): void { }
+	sendTelemetryErrorEvent(_eventName?: string, _properties?: { [key: string]: string }, _measurements?: { [key: string]: number }): void { }
+	dispose(): void { }
+}
 
-let telemetry: TelemetryReporter | undefined;
+let telemetry: NoopTelemetryReporter | undefined;
 let client: AsyncDisposable | undefined;
 
 // this method is called when vs code is activated
 export async function activate(context: ExtensionContext) {
 
 	const clientPackageJSON = getPackageInfo(context);
-	telemetry = new TelemetryReporter(clientPackageJSON.aiKey);
+	telemetry = new NoopTelemetryReporter();
 
 	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/htmlServerMain`;
 	const serverModule = context.asAbsolutePath(serverMain);

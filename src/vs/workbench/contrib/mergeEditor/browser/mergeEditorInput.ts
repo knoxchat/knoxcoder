@@ -19,7 +19,6 @@ import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorI
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
 import { AbstractTextResourceEditorInput } from '../../../common/editor/textResourceEditorInput.js';
 import { IMergeEditorInputModel, TempFileMergeEditorModeFactory, WorkspaceMergeEditorModeFactory } from './mergeEditorInputModel.js';
-import { MergeEditorTelemetry } from './telemetry.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ILanguageSupport, ITextFileSaveOptions, ITextFileService } from '../../../services/textfile/common/textfiles.js';
@@ -79,7 +78,6 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 			this.useWorkingCopy
 				? TempFileMergeEditorModeFactory
 				: WorkspaceMergeEditorModeFactory,
-			this._instaService.createInstance(MergeEditorTelemetry),
 		);
 	}
 

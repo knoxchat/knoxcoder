@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { Event, Emitter } from '../../../base/common/event.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ExtHostTelemetryShape } from './extHost.protocol.js';
 import { ICommonProperties, TelemetryLevel } from '../../../platform/telemetry/common/telemetry.js';
 import { ILogger, ILoggerService } from '../../../platform/log/common/log.js';
@@ -16,6 +16,12 @@ import { cleanData, cleanRemoteAuthority, TelemetryLogGroup } from '../../../pla
 import { mixin } from '../../../base/common/objects.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
+
+type ExtHostTelemetryConfiguration = {
+	isCrashEnabled: boolean;
+	isErrorsEnabled: boolean;
+	isUsageEnabled: boolean;
+};
 
 type ExtHostTelemetryEventData = Record<string, any> & {
 	properties?: Record<string, any>;
@@ -29,8 +35,8 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 	private readonly _onDidChangeTelemetryEnabled = this._register(new Emitter<boolean>());
 	readonly onDidChangeTelemetryEnabled: Event<boolean> = this._onDidChangeTelemetryEnabled.event;
 
-	private readonly _onDidChangeTelemetryConfiguration = this._register(new Emitter<vscode.TelemetryConfiguration>());
-	readonly onDidChangeTelemetryConfiguration: Event<vscode.TelemetryConfiguration> = this._onDidChangeTelemetryConfiguration.event;
+	private readonly _onDidChangeTelemetryConfiguration = this._register(new Emitter<ExtHostTelemetryConfiguration>());
+	readonly onDidChangeTelemetryConfiguration: Event<ExtHostTelemetryConfiguration> = this._onDidChangeTelemetryConfiguration.event;
 
 	private _productConfig: { usage: boolean; error: boolean } = { usage: true, error: true };
 	private _level: TelemetryLevel = TelemetryLevel.NONE;
@@ -59,7 +65,7 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 		return this._level === TelemetryLevel.USAGE;
 	}
 
-	getTelemetryDetails(): vscode.TelemetryConfiguration {
+	getTelemetryDetails(): ExtHostTelemetryConfiguration {
 		return {
 			isCrashEnabled: this._level >= TelemetryLevel.CRASH,
 			isErrorsEnabled: this._productConfig.error ? this._level >= TelemetryLevel.ERROR : false,

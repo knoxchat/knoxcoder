@@ -228,15 +228,6 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 			this.showNonConflictingChanges,
 		);
 
-		model.telemetry.reportMergeEditorOpened({
-			combinableConflictCount: model.combinableConflictCount,
-			conflictCount: model.conflictCount,
-
-			baseTop: this._layoutModeObs.get().showBaseAtTop,
-			baseVisible: this._layoutModeObs.get().showBase,
-			isColumnView: this._layoutModeObs.get().kind === 'columns',
-		});
-
 		transaction(tx => {
 			this._viewModel.set(viewModel, tx);
 			this._inputModel.set(inputModel, tx);
@@ -569,11 +560,6 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		if (JSON.stringify(value) === JSON.stringify(newLayout)) {
 			return;
 		}
-		this.model?.telemetry.reportLayoutChange({
-			baseTop: newLayout.showBaseAtTop,
-			baseVisible: newLayout.showBase,
-			isColumnView: newLayout.kind === 'columns',
-		});
 		this.applyLayout(newLayout);
 	}
 

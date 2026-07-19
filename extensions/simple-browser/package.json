@@ -78,7 +78,6 @@
     "watch-typecheck-web": "tsgo --project ./tsconfig.json --noEmit --watch"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^1.5.2"
   },
   "devDependencies": {
     "@types/node": "26.x",

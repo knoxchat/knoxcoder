@@ -10,11 +10,8 @@ import { Proxied } from '../../../base/common/worker/webWorker.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IWebWorkerService } from '../../webWorker/browser/webWorkerService.js';
-import { ILogService } from '../../log/common/log.js';
 import { IV8Profile } from '../common/profiling.js';
 import { BottomUpSample } from '../common/profilingModel.js';
-import { reportSample } from '../common/profilingTelemetrySpec.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { FileAccess } from '../../../base/common/network.js';
 
 export const enum ProfilingOutput {
@@ -43,8 +40,6 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 	declare _serviceBrand: undefined;
 
 	constructor(
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ILogService private readonly _logService: ILogService,
 		@IWebWorkerService private readonly _webWorkerService: IWebWorkerService,
 	) { }
 
@@ -69,13 +64,7 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 		return this._withWorker(async worker => {
 			const result = await worker.$analyseBottomUp(profile);
 			if (result.kind === ProfilingOutput.Interesting) {
-				for (const sample of result.samples) {
-					reportSample({
-						sample,
-						perfBaseline,
-						source: callFrameClassifier(sample.url)
-					}, this._telemetryService, this._logService, sendAsErrorTelemtry);
-				}
+				// Telemetry removed
 			}
 			return result.kind;
 		});

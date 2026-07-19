@@ -102,7 +102,6 @@ export class ResultCodeEditorView extends CodeEditorView {
 				id: 'nextConflict',
 				label: text,
 				run() {
-					vm.model.telemetry.reportConflictCounterClicked();
 					vm.goToNextModifiedBaseRange(m => !model.isHandled(m).read(undefined));
 				},
 				tooltip: count > 0

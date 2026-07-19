@@ -16,7 +16,6 @@ import { observableReducerSettable } from '../../../../../base/common/observable
 import { isDefined } from '../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { DataChannelForwardingTelemetryService, forwardToChannelIf, isAssistLikeExtension } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
@@ -27,12 +26,10 @@ import { Command, InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKi
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { offsetEditFromContentChanges } from '../../../../common/model/textModelStringEdit.js';
-import { isCompletionsEnabledFromObject } from '../../../../common/services/completionsEnablement.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { ITextModelService } from '../../../../common/services/resolverService.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { formatRecordableLogEntry, IRecordableEditorLogEntry, IRecordableLogEntry, StructuredLogger } from '../structuredLogger.js';
-import { InlineCompletionEndOfLifeEvent, sendInlineCompletionsEndOfLifeTelemetry } from '../telemetry.js';
 import { wait } from '../utils.js';
 import { InlineSuggestionIdentity, InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { InlineCompletionContextWithoutUuid, InlineSuggestRequestInfo, provideInlineCompletions, runWhenCancelled } from './provideInlineCompletions.js';
@@ -45,7 +42,6 @@ export class InlineCompletionsSource extends Disposable {
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 
 	private readonly _loggingEnabled;
-	private readonly _sendRequestData;
 
 	private readonly _structuredFetchLogger;
 
@@ -82,8 +78,6 @@ export class InlineCompletionsSource extends Disposable {
 
 	private readonly _renameProcessor: RenameSymbolProcessor;
 
-	private _completionsEnabled: Record<string, boolean> | undefined = undefined;
-
 	constructor(
 		private readonly _textModel: ITextModel,
 		private readonly _versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
@@ -98,7 +92,6 @@ export class InlineCompletionsSource extends Disposable {
 	) {
 		super();
 		this._loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
-		this._sendRequestData = observableConfigValue('editor.inlineSuggest.emptyResponseInformation', true, this._configurationService).recomputeInitiallyAndOnChange(this._store);
 		this._structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
 			{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
 			| { kind: 'end'; error: unknown; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
@@ -459,80 +452,8 @@ export class InlineCompletionsSource extends Disposable {
 	}
 
 	private _sendInlineCompletionsRequestTelemetry(
-		requestResponseInfo: RequestResponseData
+		_requestResponseInfo: RequestResponseData
 	): void {
-		if (!this._sendRequestData.get() && !this._contextKeyService.getContextKeyValue<boolean>('isRunningUnificationExperiment')) {
-			return;
-		}
-
-		if (requestResponseInfo.requestUuid === undefined || requestResponseInfo.hasProducedSuggestion) {
-			return;
-		}
-
-
-		if (!isCompletionsEnabledFromObject(this._completionsEnabled, this._textModel.getLanguageId())) {
-			return;
-		}
-
-		if (!requestResponseInfo.providers.some(p => isAssistLikeExtension(p.providerId?.extensionId))) {
-			return;
-		}
-
-		const emptyEndOfLifeEvent: InlineCompletionEndOfLifeEvent = {
-			opportunityId: requestResponseInfo.requestUuid,
-			noSuggestionReason: requestResponseInfo.noSuggestionReason ?? 'unknown',
-			extensionId: 'vscode-core',
-			extensionVersion: '0.0.0',
-			groupId: 'empty',
-			shown: false,
-			skuPlan: requestResponseInfo.requestInfo.sku?.plan,
-			skuType: requestResponseInfo.requestInfo.sku?.type,
-			editorType: requestResponseInfo.requestInfo.editorType,
-			requestReason: requestResponseInfo.requestInfo.reason,
-			typingInterval: requestResponseInfo.requestInfo.typingInterval,
-			typingIntervalCharacterCount: requestResponseInfo.requestInfo.typingIntervalCharacterCount,
-			languageId: requestResponseInfo.requestInfo.languageId,
-			selectedSuggestionInfo: !!requestResponseInfo.context.selectedSuggestionInfo,
-			availableProviders: requestResponseInfo.providers.map(p => p.providerId?.toString()).filter(isDefined).join(','),
-			...forwardToChannelIf(requestResponseInfo.providers.some(p => isAssistLikeExtension(p.providerId?.extensionId))),
-			timeUntilProviderRequest: undefined,
-			timeUntilProviderResponse: undefined,
-			viewKind: undefined,
-			preceeded: undefined,
-			superseded: undefined,
-			reason: undefined,
-			acceptedAlternativeAction: undefined,
-			correlationId: undefined,
-			shownDuration: undefined,
-			shownDurationUncollapsed: undefined,
-			timeUntilShown: undefined,
-			partiallyAccepted: undefined,
-			partiallyAcceptedCountSinceOriginal: undefined,
-			partiallyAcceptedRatioSinceOriginal: undefined,
-			partiallyAcceptedCharactersSinceOriginal: undefined,
-			cursorColumnDistance: undefined,
-			cursorLineDistance: undefined,
-			lineCountOriginal: undefined,
-			lineCountModified: undefined,
-			characterCountOriginal: undefined,
-			characterCountModified: undefined,
-			disjointReplacements: undefined,
-			sameShapeReplacements: undefined,
-			longDistanceHintVisible: undefined,
-			longDistanceHintDistance: undefined,
-			isForAnotherDocument: undefined,
-			notShownReason: undefined,
-			renameCreated: false,
-			renameDuration: undefined,
-			renameTimedOut: false,
-			renameDroppedOtherEdits: undefined,
-			renameDroppedRenameEdits: undefined,
-			performanceMarkers: undefined,
-			editKind: undefined,
-		};
-
-		const dataChannel = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
-		sendInlineCompletionsEndOfLifeTelemetry(dataChannel, emptyEndOfLifeEvent);
 	}
 
 	public clearSuggestWidgetInlineCompletions(tx: ITransaction): void {

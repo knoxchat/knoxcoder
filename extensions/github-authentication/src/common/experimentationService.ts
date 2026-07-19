@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TelemetryReporter } from '@vscode/extension-telemetry';
+import { NoopTelemetryReporter } from './noopTelemetryReporter';
 import { getExperimentationService, IExperimentationService, IExperimentationTelemetry, TargetPopulation } from 'vscode-tas-client';
 
 export class ExperimentationTelemetry implements IExperimentationTelemetry {
 	private sharedProperties: Record<string, string> = {};
 	private experimentationServicePromise: Promise<IExperimentationService> | undefined;
 
-	constructor(private readonly context: vscode.ExtensionContext, private baseReporter: TelemetryReporter) { }
+	constructor(private readonly context: vscode.ExtensionContext, private baseReporter: NoopTelemetryReporter) { }
 
 	private async createExperimentationService(): Promise<IExperimentationService> {
 		let targetPopulation: TargetPopulation;

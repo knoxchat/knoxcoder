@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TelemetryReporter } from '@vscode/extension-telemetry';
+import { NoopTelemetryReporter } from './common/noopTelemetryReporter';
 import { Keychain } from './common/keychain';
 import { GitHubServer, IGitHubServer } from './githubServer';
 import { PromiseAdapter, arrayEquals, promiseFromEvent } from './common/utils';
@@ -143,8 +143,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		uriHandler: UriEventHandler,
 		ghesUri?: vscode.Uri
 	) {
-		const { aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
-		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(aiKey));
+		this._telemetryReporter = new ExperimentationTelemetry(context, new NoopTelemetryReporter());
 
 		const type = ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
 

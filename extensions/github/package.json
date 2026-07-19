@@ -224,8 +224,7 @@
     "@octokit/graphql": "9.0.3",
     "@octokit/graphql-schema": "15.26.1",
     "@octokit/rest": "22.0.1",
-    "tunnel": "^0.0.6",
-    "@vscode/extension-telemetry": "^1.5.2"
+    "tunnel": "^0.0.6"
   },
   "devDependencies": {
     "@types/node": "26.x"

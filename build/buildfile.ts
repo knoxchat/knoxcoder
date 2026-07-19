@@ -21,7 +21,6 @@ export const workerOutputLinks = createModuleDescription('vs/workbench/contrib/o
 export const workerBackgroundTokenization = createModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.workerMain');
 
 export const workbenchDesktop = [
-	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
 	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),

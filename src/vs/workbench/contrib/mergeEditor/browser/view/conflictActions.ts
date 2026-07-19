@@ -129,7 +129,6 @@ export class ActionsSource {
 									inputNumber,
 									tx
 								);
-								model.telemetry.reportAcceptInvoked(inputNumber, state.includesInput(otherInputNumber));
 							});
 						}, localize('acceptTooltip', "Accept {0} in the result document.", inputData.title))
 					);
@@ -150,7 +149,6 @@ export class ActionsSource {
 										true,
 										tx
 									);
-									model.telemetry.reportSmartCombinationInvoked(state.includesInput(otherInputNumber));
 								});
 							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document.")),
 						);
@@ -165,7 +163,6 @@ export class ActionsSource {
 									inputNumber,
 									tx
 								);
-								model.telemetry.reportAcceptInvoked(inputNumber, state.includesInput(otherInputNumber));
 							});
 						}, localize('appendTooltip', "Append {0} to the result document.", inputData.title))
 					);
@@ -180,7 +177,6 @@ export class ActionsSource {
 										inputNumber,
 										tx
 									);
-									model.telemetry.reportSmartCombinationInvoked(state.includesInput(otherInputNumber));
 								});
 							}, localize('acceptBothTooltip', "Accept an automatic combination of both sides in the result document.")),
 						);
@@ -261,7 +257,6 @@ export class ActionsSource {
 								true,
 								tx
 							);
-							model.telemetry.reportRemoveInvoked(1, state.includesInput(2));
 						});
 					},
 					localize('removeTooltip', 'Remove {0} from the result document.', model.input1.title)
@@ -280,7 +275,6 @@ export class ActionsSource {
 								true,
 								tx
 							);
-							model.telemetry.reportRemoveInvoked(2, state.includesInput(1));
 						});
 					},
 					localize('removeTooltip', 'Remove {0} from the result document.', model.input2.title)
@@ -307,7 +301,6 @@ export class ActionsSource {
 								true,
 								tx
 							);
-							model.telemetry.reportResetToBaseInvoked();
 						});
 					},
 					localize('resetToBaseTooltip', 'Reset this conflict to the common ancestor of both the right and left changes.')

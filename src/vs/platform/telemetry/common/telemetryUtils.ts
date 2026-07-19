@@ -12,7 +12,6 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { LoggerGroup } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { getRemoteName } from '../../remote/common/remoteHosts.js';
-import { verifyMicrosoftInternalDomain } from './commonProperties.js';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from './telemetry.js';
 
 /**
@@ -93,12 +92,8 @@ export interface URIDescriptor {
  * @param environmentService
  * @returns false - telemetry is completely disabled, true - telemetry is logged locally, but may not be sent
  */
-export function supportsTelemetry(productService: IProductService, environmentService: IEnvironmentService): boolean {
-	// If it's OSS and telemetry isn't disabled via the CLI we will allow it for logging only purposes
-	if (!environmentService.isBuilt && !environmentService.disableTelemetry) {
-		return true;
-	}
-	return !(environmentService.disableTelemetry || !productService.enableTelemetry);
+export function supportsTelemetry(_productService: IProductService, _environmentService: IEnvironmentService): boolean {
+	return false;
 }
 
 /**
@@ -264,10 +259,8 @@ function flatten(obj: unknown, result: Record<string, unknown>, order: number = 
  * @param configService The config servivce
  * @returns true if internal, false otherwise
  */
-export function isInternalTelemetry(productService: IProductService, configService: IConfigurationService) {
-	const msftInternalDomains = productService.msftInternalDomains || [];
-	const internalTesting = configService.getValue<boolean>('telemetry.internalTesting');
-	return verifyMicrosoftInternalDomain(msftInternalDomains) || internalTesting;
+export function isInternalTelemetry(_productService: IProductService, _configService: IConfigurationService) {
+	return false;
 }
 
 interface IPathEnvironment {

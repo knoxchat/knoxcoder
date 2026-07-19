@@ -3,20 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import type { IKeyValueStorage, IExperimentationTelemetry, ExperimentationService as TASClient } from 'tas-client';
 import { Memento } from '../../../common/memento.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryData } from '../../../../base/common/actions.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, AssignmentFilterProvider, IAssignmentService, TargetPopulation, WindowKind } from '../../../../platform/assignment/common/assignment.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { importAMDNodeModule } from '../../../../amdX.js';
 import { timeout } from '../../../../base/common/async.js';
@@ -25,8 +20,6 @@ import { AssistAssignmentFilterProvider } from './assignmentFilters.js';
 import { AssignmentContextFilter } from './assignmentContextFilter.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { experimentsEnabled } from '../../telemetry/common/workbenchTelemetryUtils.js';
-
 export interface IAssignmentFilter {
 	/**
 	 * Stable identifier for this filter. Used to persist and reconcile the set of
@@ -156,7 +149,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	) {
 		super();
 
-		this.experimentsEnabled = experimentsEnabled(configurationService, productService, this.environmentService);
+		this.experimentsEnabled = false;
 
 		if (this.experimentsEnabled) {
 			this.tasClient = this.setupTASClient();
@@ -338,19 +331,4 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	}
 }
 
-registerSingleton(IWorkbenchAssignmentService, WorkbenchAssignmentService, InstantiationType.Delayed);
-
-const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-registry.registerConfiguration({
-	...workbenchConfigurationNodeBase,
-	'properties': {
-		'workbench.enableExperiments': {
-			'type': 'boolean',
-			'description': localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
-			'default': true,
-			'scope': ConfigurationScope.APPLICATION,
-			'restricted': true,
-			'tags': ['usesOnlineServices']
-		}
-	}
-});
+// Registration moved to nullAssignmentService.ts

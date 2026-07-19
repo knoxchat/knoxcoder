@@ -44,7 +44,7 @@ import './services/extensions/browser/extensionsScannerService.js';
 import './services/extensionManagement/browser/webExtensionsScannerService.js';
 import './services/extensionManagement/common/extensionManagementServerService.js';
 import './services/extensionManagement/browser/extensionGalleryManifestService.js';
-import './services/telemetry/browser/telemetryService.js';
+import '../platform/telemetry/common/nullTelemetryRegistration.js';
 import './services/url/browser/urlService.js';
 import './services/update/browser/updateService.js';
 import './services/workspaces/browser/workspacesService.js';
@@ -88,8 +88,6 @@ import { UserDataSyncService } from '../platform/userDataSync/common/userDataSyn
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from '../platform/userDataSync/common/userDataSyncAccount.js';
 import { UserDataAutoSyncService } from '../platform/userDataSync/common/userDataAutoSyncService.js';
 import { AccessibilityService } from '../platform/accessibility/browser/accessibilityService.js';
-import { ICustomEndpointTelemetryService } from '../platform/telemetry/common/telemetry.js';
-import { NullEndpointTelemetryService } from '../platform/telemetry/common/telemetryUtils.js';
 import { ITitleService } from './services/title/browser/titleService.js';
 import { BrowserTitleService } from './browser/parts/titlebar/titlebarPart.js';
 import { ITimerService, TimerService } from './services/timer/browser/timerService.js';
@@ -112,7 +110,6 @@ registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, Instantiati
 registerSingleton(ITitleService, BrowserTitleService, InstantiationType.Eager);
 registerSingleton(IExtensionTipsService, ExtensionTipsService, InstantiationType.Delayed);
 registerSingleton(ITimerService, TimerService, InstantiationType.Delayed);
-registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, InstantiationType.Delayed);
 registerSingleton(IDiagnosticsService, NullDiagnosticsService, InstantiationType.Delayed);
 registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationType.Delayed);
 registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);

@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, Details, globalShortcut, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, globalShortcut, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
-import { hostname, release } from 'os';
 import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
 import { parse } from '../../base/common/jsonc.js';
 import { getPathLabel } from '../../base/common/labels.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { join, posix } from '../../base/common/path.js';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
@@ -31,7 +30,7 @@ import { IBackupMainService } from '../../platform/backup/electron-main/backup.j
 import { BackupMainService } from '../../platform/backup/electron-main/backupMainService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ElectronExtensionHostDebugBroadcastChannel } from '../../platform/debug/electron-main/extensionHostDebugIpc.js';
-import { IDiagnosticsService, IGPULogMessage } from '../../platform/diagnostics/common/diagnostics.js';
+import { IDiagnosticsService } from '../../platform/diagnostics/common/diagnostics.js';
 import { DiagnosticsMainService, IDiagnosticsMainService } from '../../platform/diagnostics/electron-main/diagnosticsMainService.js';
 import { DialogMainService, IDialogMainService } from '../../platform/dialogs/electron-main/dialogMainService.js';
 import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
@@ -72,11 +71,6 @@ import { ISignService } from '../../platform/sign/common/sign.js';
 import { IStateService } from '../../platform/state/node/state.js';
 import { StorageDatabaseChannel } from '../../platform/storage/electron-main/storageIpc.js';
 import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from '../../platform/storage/electron-main/storageMainService.js';
-import { resolveCommonProperties } from '../../platform/telemetry/common/commonProperties.js';
-import { ITelemetryService, TelemetryLevel } from '../../platform/telemetry/common/telemetry.js';
-import { TelemetryAppenderClient } from '../../platform/telemetry/common/telemetryIpc.js';
-import { ITelemetryServiceConfig, TelemetryService } from '../../platform/telemetry/common/telemetryService.js';
-import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
 import { IUpdateService } from '../../platform/update/common/update.js';
 import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
 import { NotAvailableUpdateDialog } from '../../platform/update/electron-main/notAvailableUpdateDialog.js';
@@ -112,6 +106,8 @@ import { ExtensionsScannerService } from '../../platform/extensionManagement/nod
 import { UserDataProfilesHandler } from '../../platform/userDataProfile/electron-main/userDataProfilesHandler.js';
 import { ProfileStorageChangesListenerChannel } from '../../platform/userDataProfile/electron-main/userDataProfileStorageIpc.js';
 import { Promises, RunOnceScheduler, runWhenGlobalIdle } from '../../base/common/async.js';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
 import { resolveMachineId, resolveSqmId, resolveDevDeviceId, validateDevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
@@ -131,8 +127,6 @@ import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cs
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
-import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
-
 /**
  * The main KnoxCoder application. There will only ever be one instance,
  * even if the user starts many instances (e.g. from the command line).
@@ -643,14 +637,6 @@ export class CodeApplication extends Disposable {
 		// Services
 		const appInstantiationService = await this.initServices(machineId, sqmId, devDeviceId, sharedProcessReady);
 
-		// Error telemetry
-		appInstantiationService.invokeFunction(accessor => this._register(new ErrorTelemetry(accessor.get(ILogService), accessor.get(ITelemetryService))));
-
-		// Metered connection telemetry
-		appInstantiationService.invokeFunction(accessor => {
-			(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService).setTelemetryService(accessor.get(ITelemetryService));
-		});
-
 		// Auth Handler
 		appInstantiationService.invokeFunction(accessor => accessor.get(IProxyAuthService));
 
@@ -1158,18 +1144,7 @@ export class CodeApplication extends Disposable {
 		services.set(IURLService, new SyncDescriptor(NativeURLService, undefined, false /* proxied to other processes */));
 
 		// Telemetry
-		if (supportsTelemetry(this.productService, this.environmentMainService)) {
-			const isInternal = isInternalTelemetry(this.productService, this.configurationService);
-			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
-			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date);
-			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
-			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
-
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config], false));
-		} else {
-			services.set(ITelemetryService, NullTelemetryService);
-		}
+		services.set(ITelemetryService, NullTelemetryService);
 
 		// Default Extensions Profile Init
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
@@ -1477,97 +1452,6 @@ export class CodeApplication extends Disposable {
 			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 		}
 
-		// Power telemetry
-		instantiationService.invokeFunction(accessor => {
-			const telemetryService = accessor.get(ITelemetryService);
-
-			type PowerEvent = {
-				readonly idleState: string;
-				readonly idleTime: number;
-				readonly thermalState: string;
-				readonly onBattery: boolean;
-			};
-			type PowerEventClassification = {
-				idleState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The system idle state (active, idle, locked, unknown).' };
-				idleTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The system idle time in seconds.' };
-				thermalState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The system thermal state (unknown, nominal, fair, serious, critical).' };
-				onBattery: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the system is running on battery power.' };
-				owner: 'chrmarti';
-				comment: 'Tracks OS power suspend and resume events for reliability insights.';
-			};
-
-			const getPowerEventData = (): PowerEvent => ({
-				idleState: powerMonitor.getSystemIdleState(60),
-				idleTime: powerMonitor.getSystemIdleTime(),
-				thermalState: powerMonitor.getCurrentThermalState(),
-				onBattery: powerMonitor.isOnBatteryPower()
-			});
-
-			this._register(Event.fromNodeEventEmitter(powerMonitor, 'suspend')(() => {
-				telemetryService.publicLog2<PowerEvent, PowerEventClassification>('power.suspend', getPowerEventData());
-			}));
-
-			this._register(Event.fromNodeEventEmitter(powerMonitor, 'resume')(() => {
-				telemetryService.publicLog2<PowerEvent, PowerEventClassification>('power.resume', getPowerEventData());
-			}));
-		});
-
-		// GPU crash telemetry for skia graphite out of order recording failures
-		// Refs https://github.com/microsoft/vscode/issues/284162
-		if (isMacintosh) {
-			instantiationService.invokeFunction(accessor => {
-				const telemetryService = accessor.get(ITelemetryService);
-				type GPUFeatureStatusWithSkiaGraphite = GPUFeatureStatus & {
-					skia_graphite: string;
-				};
-				const initialGpuFeatureStatus = app.getGPUFeatureStatus() as GPUFeatureStatusWithSkiaGraphite;
-				const skiaGraphiteEnabled: string = initialGpuFeatureStatus['skia_graphite'];
-				if (skiaGraphiteEnabled === 'enabled') {
-					const gpuInfoUpdate = Event.fromNodeEventEmitter(app, 'gpu-info-update');
-					const pendingGpuInfoListener = this._register(new MutableDisposable());
-					this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
-						if (details.type === 'GPU' && details.reason === 'crashed') {
-							// Wait for gpu-info-update which fires after the GPU process
-							// restarts and the feature status is refreshed. At the time
-							// child-process-gone fires, getGPUFeatureStatus() still
-							// returns the pre-crash status.
-							pendingGpuInfoListener.value = Event.once(gpuInfoUpdate)(() => {
-								const currentGpuFeatureStatus = app.getGPUFeatureStatus();
-								const currentRasterizationStatus: string = currentGpuFeatureStatus['rasterization'];
-								if (currentRasterizationStatus !== 'enabled') {
-									// Get last 10 GPU log messages (only the message field)
-									let gpuLogMessages: string[] = [];
-									type AppWithGPULogMethod = typeof app & {
-										getGPULogMessages(): IGPULogMessage[];
-									};
-									const customApp = app as AppWithGPULogMethod;
-									if (typeof customApp.getGPULogMessages === 'function') {
-										gpuLogMessages = customApp.getGPULogMessages().slice(-10).map(log => log.message);
-									}
-
-									type GpuCrashEvent = {
-										readonly gpuFeatureStatus: string;
-										readonly gpuLogMessages: string;
-									};
-									type GpuCrashClassification = {
-										gpuFeatureStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Current GPU feature status.' };
-										gpuLogMessages: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Last 10 GPU log messages collected after the crash and GPU process restart.' };
-										owner: 'deepak1556';
-										comment: 'Tracks GPU process crashes that would result in fallback mode.';
-									};
-
-									telemetryService.publicLog2<GpuCrashEvent, GpuCrashClassification>('gpu.crash.fallback', {
-										gpuFeatureStatus: JSON.stringify(currentGpuFeatureStatus),
-										gpuLogMessages: JSON.stringify(gpuLogMessages)
-									});
-								}
-							});
-						}
-					}));
-				}
-			});
-		}
-
 		{
 			interface NetworkProcessLaunchedDetails {
 				readonly pid: number;
@@ -1586,38 +1470,13 @@ export class CodeApplication extends Disposable {
 
 			const customApp = app as AppWithNetworkProcessEvents;
 
-			instantiationService.invokeFunction(accessor => {
-				const telemetryService = accessor.get(ITelemetryService);
+			this._register(Event.fromNodeEventEmitter<NetworkProcessLaunchedDetails>(customApp, 'network-process-launched', (_event, details) => details)(details => {
+				this.logService.info(`[network process] launched with pid ${details.pid}`);
+			}));
 
-				type NetworkProcessLaunchedClassification = {
-					owner: 'deepak1556';
-					comment: 'Tracks network process launch events.';
-				};
-
-				type NetworkProcessGoneClassification = {
-					exitCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the network process.' };
-					crashed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the network process crashed.' };
-					crashedPreIPC: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the network process crashed before IPC was established.' };
-					owner: 'deepak1556';
-					comment: 'Tracks network process gone events for reliability insights.';
-				};
-
-				this._register(Event.fromNodeEventEmitter<NetworkProcessLaunchedDetails>(customApp, 'network-process-launched', (_event, details) => details)(details => {
-					this.logService.info(`[network process] launched with pid ${details.pid}`);
-
-					telemetryService.publicLog2<{}, NetworkProcessLaunchedClassification>('networkProcess.launched', {});
-				}));
-
-				this._register(Event.fromNodeEventEmitter<NetworkProcessGoneDetails>(customApp, 'network-process-gone', (_event, details) => details)(details => {
-					this.logService.info(`[network process] gone - pid: ${details.pid}, exitCode: ${details.exitCode}, crashed: ${details.crashed}, crashedPreIPC: ${details.crashedPreIPC}`);
-
-					telemetryService.publicLog2<{ exitCode: number; crashed: boolean; crashedPreIPC: boolean }, NetworkProcessGoneClassification>('networkProcess.gone', {
-						exitCode: details.exitCode,
-						crashed: details.crashed,
-						crashedPreIPC: details.crashedPreIPC
-					});
-				}));
-			});
+			this._register(Event.fromNodeEventEmitter<NetworkProcessGoneDetails>(customApp, 'network-process-gone', (_event, details) => details)(details => {
+				this.logService.info(`[network process] gone - pid: ${details.pid}, exitCode: ${details.exitCode}, crashed: ${details.crashed}, crashedPreIPC: ${details.crashedPreIPC}`);
+			}));
 		}
 
 	}
@@ -1660,8 +1519,7 @@ export class CodeApplication extends Disposable {
 			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
 			const argvString = argvContent.value.toString();
 			const argvJSON = parse<{ 'enable-crash-reporter'?: boolean }>(argvString);
-			const telemetryLevel = getTelemetryLevel(this.configurationService);
-			const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
+			const enableCrashReporter = false;
 
 			// Initial startup
 			if (argvJSON['enable-crash-reporter'] === undefined) {

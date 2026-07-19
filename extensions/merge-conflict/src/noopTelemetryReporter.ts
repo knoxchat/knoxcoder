@@ -3,18 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface TelemetryReporter {
-	dispose(): void;
-	sendTelemetryEvent(eventName: string, properties?: {
-		[key: string]: string;
-	}): void;
-}
-
-class NoopTelemetryReporter implements TelemetryReporter {
-	sendTelemetryEvent(): void { }
+export class NoopTelemetryReporter {
+	sendTelemetryEvent(_eventName?: string, _properties?: { [key: string]: string }, _measurements?: { [key: string]: number }): void { }
+	sendTelemetryErrorEvent(_eventName?: string, _properties?: { [key: string]: string }, _measurements?: { [key: string]: number }): void { }
 	dispose(): void { }
 }
 
-export function loadDefaultTelemetryReporter(): TelemetryReporter {
-	return new NoopTelemetryReporter();
-}
+export type TelemetryReporter = NoopTelemetryReporter;

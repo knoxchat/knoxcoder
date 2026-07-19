@@ -9,7 +9,7 @@ import { getOctokit } from './auth.js';
 import { GitErrorCodes } from './typings/git.constants.js';
 import type { PushErrorHandler, Remote, Repository } from './typings/git.d.ts';
 import * as path from 'path';
-import { TelemetryReporter } from '@vscode/extension-telemetry';
+import { TelemetryReporter } from './noopTelemetryReporter.js';
 
 
 

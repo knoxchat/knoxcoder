@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { commands, Disposable, ExtensionContext, extensions, l10n, LogLevel, LogOutputChannel, window } from 'vscode';
-import { TelemetryReporter } from '@vscode/extension-telemetry';
+import { NoopTelemetryReporter, TelemetryReporter } from './noopTelemetryReporter.js';
 import { GithubRemoteSourceProvider } from './remoteSourceProvider.js';
 import type { API, GitExtension } from './typings/git.d.ts';
 import { registerCommands } from './commands.js';
@@ -32,9 +32,7 @@ export function activate(context: ExtensionContext): void {
 	disposables.push(logger.onDidChangeLogLevel(onDidChangeLogLevel));
 	onDidChangeLogLevel(logger.logLevel);
 
-	const { aiKey } = context.extension.packageJSON as { aiKey: string };
-	const telemetryReporter = new TelemetryReporter(aiKey);
-	disposables.push(telemetryReporter);
+	const telemetryReporter = new NoopTelemetryReporter();
 
 	const octokitService = new OctokitService();
 	disposables.push(octokitService);

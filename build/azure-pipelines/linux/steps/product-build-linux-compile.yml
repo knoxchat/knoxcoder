@@ -191,9 +191,6 @@ steps:
     displayName: Compile
 
   - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
-    - script: node build/azure-pipelines/common/extract-telemetry.ts
-      displayName: Generate lists of telemetry events
-
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - script: |
         set -e

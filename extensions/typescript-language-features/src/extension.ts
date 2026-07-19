@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TelemetryReporter as VsCodeTelemetryReporter } from '@vscode/extension-telemetry';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
@@ -44,9 +43,8 @@ export function activate(
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
 	if (packageInfo) {
-		const { name: id, version, aiKey } = packageInfo;
-		const vscTelemetryReporter = new VsCodeTelemetryReporter(aiKey);
-		experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
+		const { name: id, version } = packageInfo;
+		experimentTelemetryReporter = new ExperimentationTelemetryReporter();
 		context.subscriptions.push(experimentTelemetryReporter);
 
 		const experimentationService = new ExperimentationService(experimentTelemetryReporter, id, version, context.globalState);

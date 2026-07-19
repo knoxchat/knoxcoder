@@ -23,7 +23,6 @@ import { MergeEditorInputData } from './mergeEditorInput.js';
 import { conflictMarkers } from './mergeMarkers/mergeMarkersController.js';
 import { MergeDiffComputer } from './model/diffComputer.js';
 import { InputData, MergeEditorModel } from './model/mergeEditorModel.js';
-import { MergeEditorTelemetry } from './telemetry.js';
 import { StorageCloseWithConflicts } from '../common/mergeEditor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITextFileEditorModel, ITextFileSaveOptions, ITextFileService } from '../../../services/textfile/common/textfiles.js';
@@ -68,7 +67,6 @@ export interface IMergeEditorInputModel extends IDisposable {
 
 export class TempFileMergeEditorModeFactory implements IMergeEditorInputModelFactory {
 	constructor(
-		private readonly _mergeEditorTelemetry: MergeEditorTelemetry,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
@@ -116,7 +114,6 @@ export class TempFileMergeEditorModeFactory implements IMergeEditorInputModelFac
 			{
 				resetResult: true,
 			},
-			this._mergeEditorTelemetry,
 		);
 		store.add(model);
 
@@ -274,7 +271,6 @@ class TempFileMergeEditorInputModel extends EditorModel implements IMergeEditorI
 
 export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFactory {
 	constructor(
-		private readonly _mergeEditorTelemetry: MergeEditorTelemetry,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -343,13 +339,12 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 			{
 				resetResult
 			},
-			this._mergeEditorTelemetry,
 		);
 		store.add(model);
 
 		await model.onInitialized;
 
-		return this._instantiationService.createInstance(WorkspaceMergeEditorInputModel, model, store, resultTextFileModel, this._mergeEditorTelemetry);
+		return this._instantiationService.createInstance(WorkspaceMergeEditorInputModel, model, store, resultTextFileModel);
 	}
 }
 
@@ -357,13 +352,11 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 	public readonly isDirty;
 
 	private reported;
-	private readonly dateTimeOpened;
 
 	constructor(
 		public readonly model: MergeEditorModel,
 		private readonly disposableStore: DisposableStore,
 		private readonly resultTextFileModel: ITextFileEditorModel,
-		private readonly telemetry: MergeEditorTelemetry,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
@@ -373,7 +366,6 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 			() => /** @description isDirty */ this.resultTextFileModel.isDirty()
 		);
 		this.reported = false;
-		this.dateTimeOpened = new Date();
 	}
 
 	public override dispose(): void {
@@ -383,34 +375,8 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 		this.reportClose(false);
 	}
 
-	private reportClose(accepted: boolean): void {
+	private reportClose(_accepted: boolean): void {
 		if (!this.reported) {
-			const remainingConflictCount = this.model.unhandledConflictsCount.get();
-			const durationOpenedMs = new Date().getTime() - this.dateTimeOpened.getTime();
-			this.telemetry.reportMergeEditorClosed({
-				durationOpenedSecs: durationOpenedMs / 1000,
-				remainingConflictCount,
-				accepted,
-
-				conflictCount: this.model.conflictCount,
-				combinableConflictCount: this.model.combinableConflictCount,
-
-				conflictsResolvedWithBase: this.model.conflictsResolvedWithBase,
-				conflictsResolvedWithInput1: this.model.conflictsResolvedWithInput1,
-				conflictsResolvedWithInput2: this.model.conflictsResolvedWithInput2,
-				conflictsResolvedWithSmartCombination: this.model.conflictsResolvedWithSmartCombination,
-
-				manuallySolvedConflictCountThatEqualNone: this.model.manuallySolvedConflictCountThatEqualNone,
-				manuallySolvedConflictCountThatEqualSmartCombine: this.model.manuallySolvedConflictCountThatEqualSmartCombine,
-				manuallySolvedConflictCountThatEqualInput1: this.model.manuallySolvedConflictCountThatEqualInput1,
-				manuallySolvedConflictCountThatEqualInput2: this.model.manuallySolvedConflictCountThatEqualInput2,
-
-				manuallySolvedConflictCountThatEqualNoneAndStartedWithBase: this.model.manuallySolvedConflictCountThatEqualNoneAndStartedWithBase,
-				manuallySolvedConflictCountThatEqualNoneAndStartedWithInput1: this.model.manuallySolvedConflictCountThatEqualNoneAndStartedWithInput1,
-				manuallySolvedConflictCountThatEqualNoneAndStartedWithInput2: this.model.manuallySolvedConflictCountThatEqualNoneAndStartedWithInput2,
-				manuallySolvedConflictCountThatEqualNoneAndStartedWithBothNonSmart: this.model.manuallySolvedConflictCountThatEqualNoneAndStartedWithBothNonSmart,
-				manuallySolvedConflictCountThatEqualNoneAndStartedWithBothSmart: this.model.manuallySolvedConflictCountThatEqualNoneAndStartedWithBothSmart,
-			});
 			this.reported = true;
 		}
 	}

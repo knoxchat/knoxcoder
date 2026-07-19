@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSharedProcessRemoteService } from '../../ipc/electron-browser/services.js';
-import { ICustomEndpointTelemetryService } from '../common/telemetry.js';
-
-registerSharedProcessRemoteService(ICustomEndpointTelemetryService, 'customEndpointTelemetry');
+export class NoopTelemetryReporter {
+	sendTelemetryEvent(_eventName?: string, _properties?: Record<string, string>, _measurements?: Record<string, number>): void { }
+	sendTelemetryErrorEvent(_eventName?: string, _properties?: Record<string, string>, _measurements?: Record<string, number>): void { }
+	dispose(): void | Promise<void> { }
+}

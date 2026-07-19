@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hostname, release } from 'os';
 import { Emitter, Event } from '../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../base/common/lifecycle.js';
+import { DisposableStore } from '../../base/common/lifecycle.js';
 import { Schemas } from '../../base/common/network.js';
 import * as path from '../../base/common/path.js';
 import { IURITransformer } from '../../base/common/uriIpc.js';
@@ -41,19 +40,16 @@ import { RemoteAgentConnectionContext } from '../../platform/remote/common/remot
 import { IRequestService } from '../../platform/request/common/request.js';
 import { RequestChannel } from '../../platform/request/common/requestIpc.js';
 import { RequestService } from '../../platform/request/node/requestService.js';
-import { resolveCommonProperties } from '../../platform/telemetry/common/commonProperties.js';
-import { ITelemetryService, TelemetryLevel } from '../../platform/telemetry/common/telemetry.js';
-import { ITelemetryServiceConfig } from '../../platform/telemetry/common/telemetryService.js';
-import { getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, ITelemetryAppender, NullAppender, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
-import ErrorTelemetry from '../../platform/telemetry/node/errorTelemetry.js';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { NullAppender } from '../../platform/telemetry/common/telemetryUtils.js';
+import { ServerTelemetryChannel } from '../../platform/telemetry/common/remoteTelemetryChannel.js';
+import { IServerTelemetryService, ServerNullTelemetryService } from '../../platform/telemetry/common/serverTelemetryService.js';
 import { IPtyService, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
 import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
 import { RemoteAgentEnvironmentChannel } from './remoteAgentEnvironmentImpl.js';
 import { RemoteAgentFileSystemProviderChannel } from './remoteFileSystemProviderServer.js';
-import { ServerTelemetryChannel } from '../../platform/telemetry/common/remoteTelemetryChannel.js';
-import { IServerTelemetryService, ServerNullTelemetryService, ServerTelemetryService } from '../../platform/telemetry/common/serverTelemetryService.js';
 import { RemoteTerminalChannel } from './remoteTerminalChannel.js';
 import { createURITransformer } from '../../base/common/uriTransformer.js';
 import { ServerConnectionToken } from './serverConnectionToken.js';
@@ -66,7 +62,6 @@ import { ExtensionsScannerService } from './extensionsScannerService.js';
 import { IExtensionsProfileScannerService } from '../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
 import { NullPolicyService } from '../../platform/policy/common/policy.js';
-import { OneDataSystemAppender } from '../../platform/telemetry/node/1dsAppender.js';
 import { LoggerService } from '../../platform/log/node/loggerService.js';
 import { ServerUserDataProfilesService } from '../../platform/userDataProfile/node/userDataProfile.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
@@ -80,13 +75,10 @@ import { NodePtyHostStarter } from '../../platform/terminal/node/nodePtyHostStar
 import { IServerLifetimeService, ServerLifetimeService } from './serverLifetimeService.js';
 import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
-import { TelemetryLogAppender } from '../../platform/telemetry/common/telemetryLogAppender.js';
 import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestIPCService } from '../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
 import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannel } from '../../platform/sandbox/common/sandboxHelperIpc.js';
 import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelper.js';
-
-const eventPrefix = 'monacoworkbench';
 
 export async function setupServerServices(connectionToken: ServerConnectionToken, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, disposables: DisposableStore) {
 	const services = new ServiceCollection();
@@ -143,7 +135,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
 	// Initialize
-	const [, , machineId, sqmId, devDeviceId] = await Promise.all([
+	await Promise.all([
 		configurationService.initialize(),
 		userDataProfilesService.init(),
 		getMachineId(logService.error.bind(logService)),
@@ -158,35 +150,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const requestService = new RequestService('remote', configurationService, environmentService, logService);
 	services.set(IRequestService, requestService);
 
-	let oneDsAppender: ITelemetryAppender = NullAppender;
-	const isInternal = isInternalTelemetry(productService, configurationService);
-	if (supportsTelemetry(productService, environmentService)) {
-		if (!isLoggingOnly(productService, environmentService) && productService.aiConfig?.ariaKey) {
-			oneDsAppender = new OneDataSystemAppender(requestService, isInternal, eventPrefix, null, productService.aiConfig.ariaKey);
-			disposables.add(toDisposable(() => oneDsAppender?.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
-		}
-
-		const config: ITelemetryServiceConfig = {
-			appenders: [oneDsAppender, new TelemetryLogAppender('', true, loggerService, environmentService, productService)],
-			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, devDeviceId, isInternal, productService.date, 'remoteAgent'),
-			piiPaths: getPiiPathsFromEnvironment(environmentService)
-		};
-		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];
-		let injectedTelemetryLevel: TelemetryLevel = TelemetryLevel.USAGE;
-		// Convert the passed in CLI argument into a telemetry level for the telemetry service
-		if (initialTelemetryLevelArg === 'all') {
-			injectedTelemetryLevel = TelemetryLevel.USAGE;
-		} else if (initialTelemetryLevelArg === 'error') {
-			injectedTelemetryLevel = TelemetryLevel.ERROR;
-		} else if (initialTelemetryLevelArg === 'crash') {
-			injectedTelemetryLevel = TelemetryLevel.CRASH;
-		} else if (initialTelemetryLevelArg !== undefined) {
-			injectedTelemetryLevel = TelemetryLevel.NONE;
-		}
-		services.set(IServerTelemetryService, new SyncDescriptor(ServerTelemetryService, [config, injectedTelemetryLevel]));
-	} else {
-		services.set(IServerTelemetryService, ServerNullTelemetryService);
-	}
+	services.set(IServerTelemetryService, ServerNullTelemetryService);
 
 	services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(socketServer, logService, productService));
 	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
@@ -228,7 +192,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, userDataProfilesService, extensionHostStatusService, logService);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
-		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), oneDsAppender);
+		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), NullAppender);
 		socketServer.registerChannel('telemetry', telemetryChannel);
 
 		socketServer.registerChannel(SANDBOX_HELPER_CHANNEL_NAME, new SandboxHelperChannel(new SandboxHelperService()));
@@ -248,8 +212,6 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		// clean up extensions folder
 		remoteExtensionsScanner.whenExtensionsReady().then(() => extensionManagementService.cleanUp());
-
-		disposables.add(new ErrorTelemetry(accessor.get(ITelemetryService)));
 
 		return {
 			telemetryService: accessor.get(ITelemetryService)

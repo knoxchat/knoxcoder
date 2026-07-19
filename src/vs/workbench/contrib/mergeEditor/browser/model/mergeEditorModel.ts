@@ -17,7 +17,6 @@ import { IMergeDiffComputer } from './diffComputer.js';
 import { MergeEditorLineRange } from './lineRange.js';
 import { DetailedLineRangeMapping, DocumentLineRangeMap, DocumentRangeMap, LineRangeMapping } from './mapping.js';
 import { TextModelDiffChangeReason, TextModelDiffs, TextModelDiffState } from './textModelDiffs.js';
-import { MergeEditorTelemetry } from '../telemetry.js';
 import { leftJoin } from '../utils.js';
 import { InputNumber, ModifiedBaseRange, ModifiedBaseRangeState, ModifiedBaseRangeStateKind } from './modifiedBaseRange.js';
 
@@ -45,7 +44,6 @@ export class MergeEditorModel extends EditorModel {
 		readonly resultTextModel: ITextModel,
 		private readonly diffComputer: IMergeDiffComputer,
 		private readonly options: { resetResult: boolean },
-		public readonly telemetry: MergeEditorTelemetry,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {

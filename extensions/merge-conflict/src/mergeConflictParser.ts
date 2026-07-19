@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import * as interfaces from './interfaces';
 import { DocumentMergeConflict } from './documentMergeConflict';
-import { TelemetryReporter } from '@vscode/extension-telemetry';
+import { TelemetryReporter } from './noopTelemetryReporter';
 
 const startHeaderMarker = '<<<<<<<';
 const commonAncestorsMarker = '|||||||';

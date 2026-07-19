@@ -97,7 +97,6 @@ const desktopWorkerEntryPoints = [
 // Desktop workbench and code entry points
 const desktopEntryPoints = [
 	'vs/workbench/workbench.desktop.main',
-	'vs/workbench/contrib/debug/node/telemetryApp',
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
 	'vs/workbench/api/node/extensionHostProcess',
