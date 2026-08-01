@@ -5,13 +5,13 @@
 
 import * as fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const extensionsRoot = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(extensionsRoot, 'node_modules', 'typescript');
 
 async function resolvePlatformLibDir() {
-	const getExePathModule = await import(path.join(root, 'lib', 'getExePath.js'));
+	const getExePathModule = await import(pathToFileURL(path.join(root, 'lib', 'getExePath.js')));
 	const getExePath = getExePathModule.default;
 	const exePath = getExePath();
 	return path.dirname(exePath);
