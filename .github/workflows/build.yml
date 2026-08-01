@@ -74,10 +74,36 @@ jobs:
             fakeroot \
             dpkg-dev
 
+      - name: Prepare node_modules cache key
+        run: |
+          mkdir -p .build
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux x64 "$(node -p process.arch)" > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v4
+        id: node-modules-cache
+        with:
+          path: .build/node_modules_cache
+          key: node-modules-linux-x64-${{ hashFiles('.build/packagelockhash') }}
+          restore-keys: |
+            node-modules-linux-x64-
+
+      - name: Extract node_modules cache
+        if: steps.node-modules-cache.outputs.cache-hit == 'true'
+        run: bash ./scripts/ci/node-modules-cache.sh extract
+
       - name: Build KnoxCoder (Linux)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_MODULES_RESTORED: ${{ steps.node-modules-cache.outputs.cache-hit }}
         run: bash ./scripts/ci/build-linux.sh
+
+      - name: Save node_modules cache
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .build/node_modules_cache
+          key: node-modules-linux-x64-${{ hashFiles('.build/packagelockhash') }}
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -117,10 +143,39 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Prepare node_modules cache key
+        run: |
+          mkdir -p .build
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 x64 "$(node -p process.arch)" > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v4
+        id: node-modules-cache
+        with:
+          path: .build/node_modules_cache
+          key: node-modules-win32-x64-${{ hashFiles('.build/packagelockhash') }}
+          restore-keys: |
+            node-modules-win32-x64-
+
+      - name: Extract node_modules cache
+        if: steps.node-modules-cache.outputs.cache-hit == 'true'
+        run: bash ./scripts/ci/node-modules-cache.sh extract
+
       - name: Build KnoxCoder (Windows)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_MODULES_RESTORED: ${{ steps.node-modules-cache.outputs.cache-hit }}
         run: bash ./scripts/ci/build-windows.sh
+
+      - name: Save node_modules cache
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .build/node_modules_cache
+          key: node-modules-win32-x64-${{ hashFiles('.build/packagelockhash') }}
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4

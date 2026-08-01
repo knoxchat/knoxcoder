@@ -9,49 +9,57 @@ export npm_config_arch="${npm_config_arch:-x64}"
 
 echo "Building KnoxCoder for Linux (${VSCODE_ARCH})..."
 
-echo "Installing build npm dependencies..."
-for i in {1..5}; do
-	if (cd build && npm ci); then
-		break
-	fi
-	if [ "$i" -eq 5 ]; then
-		echo "npm ci failed in build/ after 5 attempts" >&2
-		exit 1
-	fi
-	echo "Retrying build/ npm ci ($i/5)..."
-done
+if [ "${NODE_MODULES_RESTORED:-}" = "true" ]; then
+	echo "Skipping npm ci — node_modules restored from cache"
+else
+	echo "Installing build npm dependencies..."
+	for i in {1..5}; do
+		if (cd build && npm ci); then
+			break
+		fi
+		if [ "$i" -eq 5 ]; then
+			echo "npm ci failed in build/ after 5 attempts" >&2
+			exit 1
+		fi
+		echo "Retrying build/ npm ci ($i/5)..."
+	done
+fi
 
 # Native module toolchain and sysroots (see build/azure-pipelines/linux/setup-env.sh).
 # Requires build/node_modules for scripts such as build/linux/libcxx-fetcher.ts.
 source ./build/azure-pipelines/linux/setup-env.sh
 
-# npm install scripts for packages like @vscode/policy-watcher must not inherit the
-# Chromium client toolchain flags (-flto=thin, -fuse-ld=lld, etc.).
-VSCODE_CI_CC="${CC:-}"
-VSCODE_CI_CXX="${CXX:-}"
-VSCODE_CI_CXXFLAGS="${CXXFLAGS:-}"
-VSCODE_CI_LDFLAGS="${LDFLAGS:-}"
-unset CC CXX CXXFLAGS LDFLAGS
+if [ "${NODE_MODULES_RESTORED:-}" != "true" ]; then
+	# npm install scripts for packages like @vscode/policy-watcher must not inherit the
+	# Chromium client toolchain flags (-flto=thin, -fuse-ld=lld, etc.).
+	VSCODE_CI_CC="${CC:-}"
+	VSCODE_CI_CXX="${CXX:-}"
+	VSCODE_CI_CXXFLAGS="${CXXFLAGS:-}"
+	VSCODE_CI_LDFLAGS="${LDFLAGS:-}"
+	unset CC CXX CXXFLAGS LDFLAGS
 
-node build/npm/preinstall.ts
+	node build/npm/preinstall.ts
 
-echo "Installing npm dependencies..."
-for i in {1..5}; do
-	if npm ci; then
-		break
-	fi
-	if [ "$i" -eq 5 ]; then
-		echo "npm ci failed after 5 attempts" >&2
-		exit 1
-	fi
-	echo "Retrying npm ci ($i/5)..."
-done
+	echo "Installing npm dependencies..."
+	for i in {1..5}; do
+		if npm ci; then
+			break
+		fi
+		if [ "$i" -eq 5 ]; then
+			echo "npm ci failed after 5 attempts" >&2
+			exit 1
+		fi
+		echo "Retrying npm ci ($i/5)..."
+	done
 
-export CC="$VSCODE_CI_CC"
-export CXX="$VSCODE_CI_CXX"
-export CXXFLAGS="$VSCODE_CI_CXXFLAGS"
-export LDFLAGS="$VSCODE_CI_LDFLAGS"
-unset VSCODE_CI_CC VSCODE_CI_CXX VSCODE_CI_CXXFLAGS VSCODE_CI_LDFLAGS
+	export CC="$VSCODE_CI_CC"
+	export CXX="$VSCODE_CI_CXX"
+	export CXXFLAGS="$VSCODE_CI_CXXFLAGS"
+	export LDFLAGS="$VSCODE_CI_LDFLAGS"
+	unset VSCODE_CI_CC VSCODE_CI_CXX VSCODE_CI_CXXFLAGS VSCODE_CI_LDFLAGS
+
+	bash ./scripts/ci/node-modules-cache.sh save
+fi
 
 echo "Downloading built-in extensions..."
 node build/lib/builtInExtensions.ts

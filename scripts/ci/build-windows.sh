@@ -24,17 +24,39 @@ else
 	echo "Warning: signtool not found; Windows packaging may fail if signed binaries are present." >&2
 fi
 
-echo "Installing npm dependencies..."
-for i in {1..5}; do
-	if npm ci; then
-		break
-	fi
-	if [ "$i" -eq 5 ]; then
-		echo "npm ci failed after 5 attempts" >&2
-		exit 1
-	fi
-	echo "Retrying npm ci ($i/5)..."
-done
+if [ "${NODE_MODULES_RESTORED:-}" = "true" ]; then
+	echo "Skipping npm ci — node_modules restored from cache"
+else
+	echo "Installing build npm dependencies..."
+	for i in {1..5}; do
+		if (cd build && npm ci); then
+			break
+		fi
+		if [ "$i" -eq 5 ]; then
+			echo "npm ci failed in build/ after 5 attempts" >&2
+			exit 1
+		fi
+		echo "Retrying build/ npm ci ($i/5)..."
+	done
+
+	# Run preinstall before root dependencies so Electron/v8 headers are ready for
+	# native modules (same as upstream Windows/Linux CI).
+	node build/npm/preinstall.ts
+
+	echo "Installing npm dependencies..."
+	for i in {1..5}; do
+		if npm ci; then
+			break
+		fi
+		if [ "$i" -eq 5 ]; then
+			echo "npm ci failed after 5 attempts" >&2
+			exit 1
+		fi
+		echo "Retrying npm ci ($i/5)..."
+	done
+
+	bash ./scripts/ci/node-modules-cache.sh save
+fi
 
 echo "Downloading built-in extensions..."
 node build/lib/builtInExtensions.ts
