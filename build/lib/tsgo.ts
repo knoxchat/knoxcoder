@@ -8,12 +8,17 @@ import * as cp from 'child_process';
 import es from 'event-stream';
 import fancyLog from 'fancy-log';
 import * as path from 'path';
+import { nativeTscPath } from './nativeTsc.ts';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
-const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const ansiRegex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 const timestampRegex = /^\[\d{2}:\d{2}:\d{2}\]\s*/;
 
+/**
+ * Invokes the TypeScript 7 native (Go) compiler via {@link nativeTscPath}.
+ * Despite the historical "tsgo" naming in callers, this always runs the native
+ * `tsc` binary — never the legacy JavaScript compiler from `@typescript/typescript6`.
+ */
 export function spawnTsgo(projectPath: string, config: { taskName: string; noEmit?: boolean }, onComplete?: () => Promise<void> | void): Promise<void> {
 	function runReporter(output: string) {
 		const lines = (output || '').split('\n');
@@ -24,16 +29,15 @@ export function spawnTsgo(projectPath: string, config: { taskName: string; noEmi
 		}
 	}
 
-	const args = ['tsgo', '--project', projectPath, '--pretty', 'false', '--incremental'];
+	const args = [nativeTscPath, '--project', projectPath, '--pretty', 'false', '--incremental'];
 	if (config.noEmit) {
 		args.push('--noEmit');
 	} else {
 		args.push('--sourceMap', '--inlineSources');
 	}
-	const child = cp.spawn(npx, args, {
+	const child = cp.spawn(process.execPath, args, {
 		cwd: root,
-		stdio: ['ignore', 'pipe', 'pipe'],
-		shell: true
+		stdio: ['ignore', 'pipe', 'pipe']
 	});
 
 	let stdoutData = '';
@@ -61,7 +65,7 @@ export function spawnTsgo(projectPath: string, config: { taskName: string; noEmi
 			if (code === 0) {
 				Promise.resolve(onComplete?.()).then(() => resolve(), reject);
 			} else {
-				reject(new Error(`tsgo exited with code ${code ?? 'unknown'}`));
+				reject(new Error(`tsc exited with code ${code ?? 'unknown'}`));
 			}
 		});
 

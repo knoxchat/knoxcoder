@@ -206,7 +206,7 @@ verify_app() {
 	fi
 }
 
-# VS Code 1.129.0 requires Node.js v24.18.0+ (see .nvmrc)
+# VS Code 1.130.0 requires Node.js v24.18.0+ (see .nvmrc)
 if [ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]; then
 	# shellcheck disable=SC1091
 	source "${NVM_DIR:-$HOME/.nvm}/nvm.sh"

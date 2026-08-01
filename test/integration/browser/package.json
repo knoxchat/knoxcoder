@@ -4,7 +4,7 @@
   "license": "MIT",
   "main": "./index.js",
   "scripts": {
-    "compile": "node ../../../node_modules/typescript/bin/tsc"
+    "compile": "node ../../../node_modules/@typescript/native/lib/tsc.js"
   },
   "devDependencies": {
     "@types/node": "26.x",

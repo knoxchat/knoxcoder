@@ -2,6 +2,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsgo -p tsconfig.json --noEmit"
+    "typecheck": "node ../node_modules/@typescript/native/lib/tsc.js -p tsconfig.json --noEmit"
   }
 }

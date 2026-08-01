@@ -7,7 +7,7 @@ import v8 from 'node:v8';
 import fs from 'fs';
 import path from 'path';
 import { type Mapping, SourceMapGenerator } from 'source-map';
-import ts from 'typescript';
+import ts from '@typescript/typescript6';
 import { pathToFileURL } from 'url';
 import workerpool from 'workerpool';
 import { StaticLanguageServiceHost } from './staticLanguageServiceHost.ts';

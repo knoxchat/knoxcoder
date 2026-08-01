@@ -16,6 +16,7 @@ import * as cp from 'child_process';
 import * as compilation from './lib/compilation.ts';
 import * as monacoapi from './lib/monaco-api.ts';
 import * as fs from 'fs';
+import { nativeTscPath } from './lib/nativeTsc.ts';
 import { createReporter } from './lib/reporter.ts';
 import monacoPackage from './monaco/package.json' with { type: 'json' };
 
@@ -235,7 +236,7 @@ task.task('monacodts', task.define('monacodts', () => {
 function createTscCompileTask(watch: boolean) {
 	return () => {
 		return new Promise((resolve, reject) => {
-			const args = ['./node_modules/.bin/tsc', '-p', './src/tsconfig.monaco.json', '--noEmit'];
+			const args = [nativeTscPath, '-p', './src/tsconfig.monaco.json', '--noEmit'];
 			if (watch) {
 				args.push('-w');
 			}

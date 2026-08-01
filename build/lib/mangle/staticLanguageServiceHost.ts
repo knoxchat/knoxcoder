@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import ts from 'typescript';
+import ts from '@typescript/typescript6';
 import path from 'path';
 
 export class StaticLanguageServiceHost implements ts.LanguageServiceHost {

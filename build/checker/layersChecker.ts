@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import ts from 'typescript';
+import ts from '@typescript/typescript6';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname, join } from 'path';
 import minimatch from 'minimatch';
