@@ -7,7 +7,6 @@ import { spawn, spawnSync, SpawnSyncReturns } from 'child_process';
 import { createHash } from 'crypto';
 import fs from 'fs';
 import { test } from 'mocha';
-import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
 import { Browser, chromium, ElectronApplication, Page, webkit } from 'playwright';
@@ -297,7 +296,7 @@ export class TestContext {
 	 * @param url The URL to fetch.
 	 * @returns The fetch Response object.
 	 */
-	public async fetchNoErrors(url: string): Promise<Response & { body: NodeJS.ReadableStream }> {
+	public async fetchNoErrors(url: string): Promise<Response> {
 		const maxRetries = 5;
 		let lastError: Error | undefined;
 
@@ -320,7 +319,7 @@ export class TestContext {
 					continue;
 				}
 
-				return response as Response & { body: NodeJS.ReadableStream };
+				return response;
 			} catch (error) {
 				lastError = error instanceof Error ? error : new Error(String(error));
 				this.warn(`Fetch attempt ${attempt + 1} failed: ${lastError.message}`);

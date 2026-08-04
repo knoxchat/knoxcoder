@@ -1,9 +1,8 @@
 declare module "event-stream" {
 	import { Stream } from 'stream';
-	import { ThroughStream as _ThroughStream } from 'through';
 	import File from 'vinyl';
 
-	export interface ThroughStream extends _ThroughStream {
+	export interface ThroughStream extends NodeJS.ReadWriteStream {
 		queue(data: File | null): any;
 		push(data: File | null): any;
 		paused: boolean;

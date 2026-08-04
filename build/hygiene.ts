@@ -216,7 +216,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 					eslint((results) => {
 						errorCount += results.warningCount;
 						errorCount += results.errorCount;
-					})
+					}) as NodeJS.ReadWriteStream
 				)
 		);
 	}

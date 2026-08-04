@@ -116,7 +116,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 		function emitSoon(fileName: string): Promise<{ fileName: string; signature?: string; files: Vinyl[] }> {
 
 			return new Promise(resolve => {
-				process.nextTick(function () {
+				process.nextTick(async () => {
 
 					if (/\.d\.ts$/.test(fileName)) {
 						// if it's already a d.ts file just emit it signature
@@ -175,72 +175,77 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 								// in step 2 we apply the line edits to the typescript source map
 								const snapshot = host.getScriptSnapshot(fileName);
 								if (snapshot instanceof VinylScriptSnapshot && snapshot.sourceMap) {
-									const inputSMC = new SourceMapConsumer(snapshot.sourceMap);
-									const tsSMC = new SourceMapConsumer(sourceMap);
-									let didChange = false;
-									const smg = new SourceMapGenerator({
-										file: sourceMap.file,
-										sourceRoot: sourceMap.sourceRoot
-									});
-
-									// step 1
-									const lineEdits = new Map<number, [from: number, to: number][]>();
-									inputSMC.eachMapping(m => {
-										if (m.originalLine === m.generatedLine) {
-											// same line mapping
-											let array = lineEdits.get(m.originalLine);
-											if (!array) {
-												array = [];
-												lineEdits.set(m.originalLine, array);
-											}
-											array.push([m.originalColumn, m.generatedColumn]);
-										} else {
-											// NOT SUPPORTED
-										}
-									});
-
-									// step 2
-									tsSMC.eachMapping(m => {
-										didChange = true;
-										const edits = lineEdits.get(m.originalLine);
-										let originalColumnDelta = 0;
-										if (edits) {
-											for (const [from, to] of edits) {
-												if (to >= m.originalColumn) {
-													break;
-												}
-												originalColumnDelta = from - to;
-											}
-										}
-										smg.addMapping({
-											source: m.source,
-											name: m.name,
-											generated: { line: m.generatedLine, column: m.generatedColumn },
-											original: { line: m.originalLine, column: m.originalColumn + originalColumnDelta }
+									const inputSMC = await new SourceMapConsumer(snapshot.sourceMap);
+									const tsSMC = await new SourceMapConsumer(sourceMap);
+									try {
+										let didChange = false;
+										const smg = new SourceMapGenerator({
+											file: sourceMap.file,
+											sourceRoot: sourceMap.sourceRoot
 										});
-									});
 
-									if (didChange) {
-
-										interface SourceMapGeneratorWithSources extends SourceMapGenerator {
-											_sources: { add(source: string): void };
-										}
-
-										[tsSMC, inputSMC].forEach((consumer) => {
-											(consumer as SourceMapConsumer & { sources: string[] }).sources.forEach((sourceFile: string) => {
-												(smg as SourceMapGeneratorWithSources)._sources.add(sourceFile);
-												const sourceContent = consumer.sourceContentFor(sourceFile);
-												if (sourceContent !== null) {
-													smg.setSourceContent(sourceFile, sourceContent);
+										// step 1
+										const lineEdits = new Map<number, [from: number, to: number][]>();
+										inputSMC.eachMapping(m => {
+											if (m.originalLine === m.generatedLine) {
+												// same line mapping
+												let array = lineEdits.get(m.originalLine);
+												if (!array) {
+													array = [];
+													lineEdits.set(m.originalLine, array);
 												}
-											});
-										}); sourceMap = JSON.parse(smg.toString());
+												array.push([m.originalColumn, m.generatedColumn]);
+											} else {
+												// NOT SUPPORTED
+											}
+										});
 
-										// const filename = '/Users/jrieken/Code/vscode/src2/' + vinyl.relative + '.map';
-										// fs.promises.mkdir(path.dirname(filename), { recursive: true }).then(async () => {
-										// 	await fs.promises.writeFile(filename, smg.toString());
-										// 	await fs.promises.writeFile('/Users/jrieken/Code/vscode/src2/' + vinyl.relative, vinyl.contents);
-										// });
+										// step 2
+										tsSMC.eachMapping(m => {
+											didChange = true;
+											const edits = lineEdits.get(m.originalLine);
+											let originalColumnDelta = 0;
+											if (edits) {
+												for (const [from, to] of edits) {
+													if (to >= m.originalColumn) {
+														break;
+													}
+													originalColumnDelta = from - to;
+												}
+											}
+											smg.addMapping({
+												source: m.source,
+												name: m.name,
+												generated: { line: m.generatedLine, column: m.generatedColumn },
+												original: { line: m.originalLine, column: m.originalColumn + originalColumnDelta }
+											});
+										});
+
+										if (didChange) {
+
+											interface SourceMapGeneratorWithSources extends SourceMapGenerator {
+												_sources: { add(source: string): void };
+											}
+
+											[tsSMC, inputSMC].forEach((consumer) => {
+												(consumer as SourceMapConsumer & { sources: string[] }).sources.forEach((sourceFile: string) => {
+													(smg as SourceMapGeneratorWithSources)._sources.add(sourceFile);
+													const sourceContent = consumer.sourceContentFor(sourceFile);
+													if (sourceContent !== null) {
+														smg.setSourceContent(sourceFile, sourceContent);
+													}
+												});
+											}); sourceMap = JSON.parse(smg.toString());
+
+											// const filename = '/Users/jrieken/Code/vscode/src2/' + vinyl.relative + '.map';
+											// fs.promises.mkdir(path.dirname(filename), { recursive: true }).then(async () => {
+											// 	await fs.promises.writeFile(filename, smg.toString());
+											// 	await fs.promises.writeFile('/Users/jrieken/Code/vscode/src2/' + vinyl.relative, vinyl.contents);
+											// });
+										}
+									} finally {
+										inputSMC.destroy();
+										tsSMC.destroy();
 									}
 								}
 

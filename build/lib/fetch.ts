@@ -134,9 +134,9 @@ export function fetchGithub(repo: string, options: IGitHubAssetOptions): Stream 
 		base: 'https://api.github.com',
 		verbose: options.verbose,
 		nodeFetchOptions: { headers: ghApiHeaders }
-	}).pipe(through2.obj(async function (file, _enc, callback) {
+	}).pipe(through2.obj(async function (file: VinylFile, _enc: BufferEncoding, callback: (error?: Error | null, file?: VinylFile) => void) {
 		const assetFilter = typeof options.name === 'string' ? (name: string) => name === options.name : options.name;
-		const asset = JSON.parse(file.contents.toString()).assets.find((a: { name: string }) => assetFilter(a.name));
+		const asset = JSON.parse(file.contents!.toString()).assets.find((a: { name: string }) => assetFilter(a.name));
 		if (!asset) {
 			return callback(new Error(`Could not find asset in release of ${repo} @ ${options.version}`));
 		}

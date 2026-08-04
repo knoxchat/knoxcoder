@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Readable } from 'streamx';
+import type { EventEmitter } from 'events';
 
-type SourceStream = NodeJS.ReadableStream & {
+type MergeableStream = EventEmitter & {
 	pause?: () => void;
 	resume?: () => void;
+	destroy?: (err?: Error) => void;
 };
 
 /**
@@ -24,15 +26,15 @@ type SourceStream = NodeJS.ReadableStream & {
  * Data from all sources is interleaved (same as `event-stream.merge`), not
  * strictly ordered.
  */
-export function merge(...streams: Array<NodeJS.ReadableStream | NodeJS.ReadableStream[]>): NodeJS.ReadWriteStream {
-	const sources = streams.flat().filter((stream): stream is SourceStream => !!stream);
+export function merge(...streams: Array<MergeableStream | MergeableStream[]>): NodeJS.ReadWriteStream {
+	const sources = streams.flat().filter((stream): stream is MergeableStream => !!stream);
 
 	let ended = 0;
 	let destroyed = false;
 
 	const out = new Readable({
 		highWaterMark: 16,
-		read(cb: (err?: Error | null) => void) {
+		read(this: Readable, cb: (err: Error | null) => void) {
 			for (const source of sources) {
 				source.resume?.();
 			}
@@ -41,7 +43,7 @@ export function merge(...streams: Array<NodeJS.ReadableStream | NodeJS.ReadableS
 		predestroy() {
 			destroyed = true;
 			for (const source of sources) {
-				(source as NodeJS.ReadableStream & { destroy?: (err?: Error) => void }).destroy?.();
+				source.destroy?.();
 			}
 		},
 	});

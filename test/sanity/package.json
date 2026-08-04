@@ -5,23 +5,21 @@
   "type": "module",
   "main": "./out/index.js",
   "scripts": {
-    "compile": "tsc",
+    "compile": "node ../../node_modules/@typescript/native/lib/tsc.js",
     "start": "node ./out/index.js"
   },
   "dependencies": {
     "minimist": "^1.2.8",
-    "mocha": "^11.7.6",
+    "mocha": "^11.8.0",
     "mocha-junit-reporter": "^2.2.1",
-    "node-fetch": "^3.3.2",
-    "playwright": "^1.61.1"
+    "playwright": "^1.62.1"
   },
   "devDependencies": {
     "@types/minimist": "^1.2.5",
     "@types/mocha": "^10.0.10",
-    "@types/node": "26.x",
-    "typescript": "7.1.0-dev.20260731.1"
+    "@types/node": "26.1.2"
   },
   "overrides": {
-    "serialize-javascript": "^7.0.3"
+    "serialize-javascript": "^7.0.7"
   }
 }

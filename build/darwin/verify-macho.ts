@@ -7,7 +7,7 @@ import assert from 'assert';
 import path from 'path';
 import { open, stat, readdir, realpath } from 'fs/promises';
 import { spawn, ExitCodeError } from '@malept/cross-spawn-promise';
-import minimatch from 'minimatch';
+import { minimatch } from 'minimatch';
 
 const MACHO_PREFIX = 'Mach-O ';
 const MACHO_64_MAGIC_LE = 0xfeedfacf;

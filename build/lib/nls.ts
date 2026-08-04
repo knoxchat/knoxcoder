@@ -5,7 +5,7 @@
 
 import * as ts from '@typescript/typescript6';
 import lazy from 'lazy.js';
-import eventStream from 'event-stream';
+import es from 'event-stream';
 import File from 'vinyl';
 import sm from 'source-map';
 import path from 'path';
@@ -19,10 +19,12 @@ type FileWithSourcemap = File & { sourceMap: sm.RawSourceMap };
  */
 export function nls(options: { preserveEnglish: boolean }): NodeJS.ReadWriteStream {
 	let base: string;
-	const input = eventStream.through();
+	let pending = 0;
+	let ended = false;
+	const input = es.through();
 	const output = input
 		.pipe(sort()) // IMPORTANT: to ensure stable NLS metadata generation, we must sort the files because NLS messages are globally extracted and indexed across all files
-		.pipe(eventStream.through(function (f: FileWithSourcemap) {
+		.pipe(es.through(function (f: FileWithSourcemap) {
 			if (!f.sourceMap) {
 				return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
 			}
@@ -43,43 +45,57 @@ export function nls(options: { preserveEnglish: boolean }): NodeJS.ReadWriteStre
 			}
 
 			base = f.base;
-			this.emit('data', _nls.patchFile(f, typescript, options));
+			pending++;
+			const stream = this;
+			_nls.patchFile(f, typescript, options).then(result => {
+				stream.emit('data', result);
+				if (--pending === 0 && ended) {
+					emitMetadataFiles(stream, base);
+					stream.emit('end');
+				}
+			}).catch(err => stream.emit('error', err));
 		}, function () {
-			for (const file of [
-				new File({
-					contents: Buffer.from(JSON.stringify({
-						keys: _nls.moduleToNLSKeys,
-						messages: _nls.moduleToNLSMessages,
-					}, null, '\t')),
-					base,
-					path: `${base}/nls.metadata.json`
-				}),
-				new File({
-					contents: Buffer.from(JSON.stringify(_nls.allNLSMessages)),
-					base,
-					path: `${base}/nls.messages.json`
-				}),
-				new File({
-					contents: Buffer.from(JSON.stringify(_nls.allNLSModulesAndKeys)),
-					base,
-					path: `${base}/nls.keys.json`
-				}),
-				new File({
-					contents: Buffer.from(`/*---------------------------------------------------------
+			ended = true;
+			if (pending === 0) {
+				emitMetadataFiles(this, base);
+				this.emit('end');
+			}
+		}));
+
+	return es.duplex(input, output) as NodeJS.ReadWriteStream;
+}
+
+function emitMetadataFiles(stream: NodeJS.EventEmitter, base: string): void {
+	for (const file of [
+		new File({
+			contents: Buffer.from(JSON.stringify({
+				keys: _nls.moduleToNLSKeys,
+				messages: _nls.moduleToNLSMessages,
+			}, null, '\t')),
+			base,
+			path: `${base}/nls.metadata.json`
+		}),
+		new File({
+			contents: Buffer.from(JSON.stringify(_nls.allNLSMessages)),
+			base,
+			path: `${base}/nls.messages.json`
+		}),
+		new File({
+			contents: Buffer.from(JSON.stringify(_nls.allNLSModulesAndKeys)),
+			base,
+			path: `${base}/nls.keys.json`
+		}),
+		new File({
+			contents: Buffer.from(`/*---------------------------------------------------------
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 globalThis._VSCODE_NLS_MESSAGES=${JSON.stringify(_nls.allNLSMessages)};`),
-					base,
-					path: `${base}/nls.messages.js`
-				})
-			]) {
-				this.emit('data', file);
-			}
-
-			this.emit('end');
-		}));
-
-	return eventStream.duplex(input, output);
+			base,
+			path: `${base}/nls.messages.js`
+		})
+	]) {
+		stream.emit('data', file);
+	}
 }
 
 const _nls = (() => {
@@ -117,7 +133,10 @@ const _nls = (() => {
 		return { source, line: lc.line + 1, column: lc.character };
 	}
 
-	function lcFrom(position: sm.Position): ts.LineAndCharacter {
+	function lcFrom(position: sm.NullablePosition): ts.LineAndCharacter {
+		if (position.line === null || position.column === null) {
+			throw new Error('Could not map position in source map');
+		}
 		return { line: position.line - 1, character: position.column };
 	}
 
@@ -168,14 +187,17 @@ const _nls = (() => {
 			smg.addMapping({ source, name: m.name, original, generated });
 		}, null, sm.SourceMapConsumer.GENERATED_ORDER);
 
-		if (source) {
-			smg.setSourceContent(source, smc.sourceContentFor(source));
+		if (source !== null) {
+			const content = smc.sourceContentFor(source);
+			if (content !== null) {
+				smg.setSourceContent(source, content);
+			}
 		}
 
 		return JSON.parse(smg.toString());
 	}
 
-	function patch(typescript: string, javascript: string, sourcemap: sm.RawSourceMap, options: { preserveEnglish: boolean }): INlsPatchResult {
+	async function patch(typescript: string, javascript: string, sourcemap: sm.RawSourceMap, options: { preserveEnglish: boolean }): Promise<INlsPatchResult> {
 		const localizeCalls = analyzeLocalizeCalls(typescript, 'localize');
 		const localize2Calls = analyzeLocalizeCalls(typescript, 'localize2');
 
@@ -185,8 +207,12 @@ const _nls = (() => {
 
 		const nlsKeys = localizeCalls.map(lc => parseLocalizeKeyOrValue(lc.key)).concat(localize2Calls.map(lc => parseLocalizeKeyOrValue(lc.key)));
 		const nlsMessages = localizeCalls.map(lc => parseLocalizeKeyOrValue(lc.value) as string).concat(localize2Calls.map(lc => parseLocalizeKeyOrValue(lc.value) as string));
-		const smc = new sm.SourceMapConsumer(sourcemap);
-		const positionFrom = mappedPositionFrom.bind(null, sourcemap.sources[0]);
+		const sourceFile = sourcemap.sources[0];
+		if (!sourceFile) {
+			throw new Error('Source map is missing sources[0]');
+		}
+		const smc = await new sm.SourceMapConsumer(sourcemap);
+		const positionFrom = mappedPositionFrom.bind(null, sourceFile);
 
 		// build patches
 		const toPatch = (c: { range: ISpan; content: string }): IPatch => {
@@ -227,20 +253,22 @@ const _nls = (() => {
 			}
 		});
 
-		javascript = patchJavascript(patches, javascript);
-
-		sourcemap = patchSourcemap(patches, sourcemap, smc);
-
-		return { javascript, sourcemap, nlsKeys, nlsMessages };
+		try {
+			javascript = patchJavascript(patches, javascript);
+			sourcemap = patchSourcemap(patches, sourcemap, smc);
+			return { javascript, sourcemap, nlsKeys, nlsMessages };
+		} finally {
+			smc.destroy();
+		}
 	}
 
-	function patchFile(javascriptFile: File, typescript: string, options: { preserveEnglish: boolean }): File {
+	async function patchFile(javascriptFile: File, typescript: string, options: { preserveEnglish: boolean }): Promise<File> {
 		// hack?
 		const moduleId = javascriptFile.relative
 			.replace(/\.js$/, '')
 			.replace(/\\/g, '/');
 
-		const { javascript, sourcemap, nlsKeys, nlsMessages } = patch(
+		const { javascript, sourcemap, nlsKeys, nlsMessages } = await patch(
 			typescript,
 			javascriptFile.contents!.toString(),
 			javascriptFile.sourceMap,

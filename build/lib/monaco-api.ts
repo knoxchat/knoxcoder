@@ -27,7 +27,7 @@ type SourceFileGetter = (moduleId: string) => ts.SourceFile | null;
 type TSTopLevelDeclaration = ts.InterfaceDeclaration | ts.EnumDeclaration | ts.ClassDeclaration | ts.TypeAliasDeclaration | ts.FunctionDeclaration | ts.ModuleDeclaration;
 type TSTopLevelDeclare = TSTopLevelDeclaration | ts.VariableStatement;
 
-function isDeclaration(ts: typeof import('typescript'), a: TSTopLevelDeclare): a is TSTopLevelDeclaration {
+function isDeclaration(ts: typeof import('@typescript/typescript6'), a: TSTopLevelDeclare): a is TSTopLevelDeclaration {
 	return (
 		a.kind === ts.SyntaxKind.InterfaceDeclaration
 		|| a.kind === ts.SyntaxKind.EnumDeclaration
@@ -38,7 +38,7 @@ function isDeclaration(ts: typeof import('typescript'), a: TSTopLevelDeclare): a
 	);
 }
 
-function visitTopLevelDeclarations(ts: typeof import('typescript'), sourceFile: ts.SourceFile, visitor: (node: TSTopLevelDeclare) => boolean): void {
+function visitTopLevelDeclarations(ts: typeof import('@typescript/typescript6'), sourceFile: ts.SourceFile, visitor: (node: TSTopLevelDeclare) => boolean): void {
 	let stop = false;
 
 	const visit = (node: ts.Node): void => {
@@ -67,7 +67,7 @@ function visitTopLevelDeclarations(ts: typeof import('typescript'), sourceFile: 
 }
 
 
-function getAllTopLevelDeclarations(ts: typeof import('typescript'), sourceFile: ts.SourceFile): TSTopLevelDeclare[] {
+function getAllTopLevelDeclarations(ts: typeof import('@typescript/typescript6'), sourceFile: ts.SourceFile): TSTopLevelDeclare[] {
 	const all: TSTopLevelDeclare[] = [];
 	visitTopLevelDeclarations(ts, sourceFile, (node) => {
 		if (node.kind === ts.SyntaxKind.InterfaceDeclaration || node.kind === ts.SyntaxKind.ClassDeclaration || node.kind === ts.SyntaxKind.ModuleDeclaration) {
@@ -91,7 +91,7 @@ function getAllTopLevelDeclarations(ts: typeof import('typescript'), sourceFile:
 }
 
 
-function getTopLevelDeclaration(ts: typeof import('typescript'), sourceFile: ts.SourceFile, typeName: string): TSTopLevelDeclare | null {
+function getTopLevelDeclaration(ts: typeof import('@typescript/typescript6'), sourceFile: ts.SourceFile, typeName: string): TSTopLevelDeclare | null {
 	let result: TSTopLevelDeclare | null = null;
 	visitTopLevelDeclarations(ts, sourceFile, (node) => {
 		if (isDeclaration(ts, node) && node.name) {
@@ -128,21 +128,21 @@ function hasModifier(modifiers: readonly ts.ModifierLike[] | undefined, kind: ts
 	return false;
 }
 
-function isStatic(ts: typeof import('typescript'), member: ts.ClassElement | ts.TypeElement): boolean {
+function isStatic(ts: typeof import('@typescript/typescript6'), member: ts.ClassElement | ts.TypeElement): boolean {
 	if (ts.canHaveModifiers(member)) {
 		return hasModifier(ts.getModifiers(member), ts.SyntaxKind.StaticKeyword);
 	}
 	return false;
 }
 
-function isDefaultExport(ts: typeof import('typescript'), declaration: ts.InterfaceDeclaration | ts.ClassDeclaration): boolean {
+function isDefaultExport(ts: typeof import('@typescript/typescript6'), declaration: ts.InterfaceDeclaration | ts.ClassDeclaration): boolean {
 	return (
 		hasModifier(declaration.modifiers, ts.SyntaxKind.DefaultKeyword)
 		&& hasModifier(declaration.modifiers, ts.SyntaxKind.ExportKeyword)
 	);
 }
 
-function getMassagedTopLevelDeclarationText(ts: typeof import('typescript'), sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[], enums: IEnumEntry[]): string {
+function getMassagedTopLevelDeclarationText(ts: typeof import('@typescript/typescript6'), sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[], enums: IEnumEntry[]): string {
 	let result = getNodeText(sourceFile, declaration);
 	if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
 		const interfaceDeclaration = declaration as ts.InterfaceDeclaration | ts.ClassDeclaration;
@@ -212,7 +212,7 @@ interface Formatting<TContext> {
 	formatDocument(file: ts.SourceFile, ruleProvider: TContext, options: ts.FormatCodeSettings): ts.TextChange[];
 }
 
-type Typescript = typeof import('typescript') & { readonly formatting: Formatting<unknown> };
+type Typescript = typeof import('@typescript/typescript6') & { readonly formatting: Formatting<unknown> };
 
 function format(ts: Typescript, text: string, endl: string): string {
 	const REALLY_FORMAT = false;
@@ -616,7 +616,7 @@ class CacheEntry {
 
 export class DeclarationResolver {
 
-	public readonly ts: typeof import('typescript');
+	public readonly ts: typeof import('@typescript/typescript6');
 	private _sourceFileCache: { [moduleId: string]: CacheEntry | null };
 	private readonly _fsProvider: FSProvider;
 

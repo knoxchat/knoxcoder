@@ -50,7 +50,8 @@
     "Other"
   ],
   "activationEvents": [
-    "*",
+    "onStartupFinished",
+    "onUri",
     "onEditSession:file",
     "onFileSystem:git",
     "onFileSystem:git-show"
@@ -3756,7 +3757,7 @@
           "default": false,
           "description": "%config.alwaysSignOff%"
         },
-        "git.alwaysSignOff": {
+        "git.ignoreSubmodules": {
           "type": "boolean",
           "scope": "resource",
           "default": false,
@@ -4363,7 +4364,7 @@
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.2.0",
-    "@vscode/fs-copyfile": "2.0.0",
+    "@vscode/fs-copyfile": "3.0.0",
     "byline": "^5.0.0",
     "file-type": "22.0.1",
     "picomatch": "4.0.5",
@@ -4373,7 +4374,7 @@
   "devDependencies": {
     "@types/byline": "4.2.36",
     "@types/mocha": "^10.0.10",
-    "@types/node": "26.x",
+    "@types/node": "26.1.2",
     "@types/picomatch": "4.0.3",
     "@types/which": "3.0.4"
   },
@@ -4382,6 +4383,6 @@
     "url": "https://github.com/microsoft/vscode.git"
   },
   "allowScripts": {
-    "@vscode/fs-copyfile@2.0.0": true
+    "@vscode/fs-copyfile@3.0.0": true
   }
 }

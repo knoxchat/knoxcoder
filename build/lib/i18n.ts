@@ -238,7 +238,7 @@ export class XLF {
 
 			const files: { messages: Record<string, string>; name: string; language: string }[] = [];
 
-			parser.parseString(xlfString, function (err: Error | undefined, result: any) {
+			parser.parseString(xlfString, function (err: Error | null, result: any) {
 				if (err) {
 					reject(new Error(`XLF parsing error: Failed to parse XLIFF string. ${err}`));
 				}
@@ -416,8 +416,8 @@ export function getResource(sourceFile: string): Resource {
 		return { name: resource, project: workbenchProject };
 	} else if (/^vs\/workbench/.test(sourceFile)) {
 		return { name: 'vs/workbench', project: workbenchProject };
-	} else if (/^vs\/sessions\/contrib/.test(sourceFile)) {
-		resource = sourceFile.split('/', 4).join('/');
+	} else if (/^vs\/sessions\/browser/.test(sourceFile)) {
+		resource = sourceFile.split('/', 3).join('/');
 		return { name: resource, project: sessionsProject };
 	} else if (/^vs\/sessions/.test(sourceFile)) {
 		return { name: 'vs/sessions', project: sessionsProject };
@@ -534,7 +534,7 @@ function createL10nBundleForExtension(extensionFolderName: string, prefixWithBui
 			fileName: `extensions/${extensionFolderName}/bundle.l10n.json`,
 			jsonSpace: '',
 			concatArrays: true
-		}));
+		})) as NodeJS.ReadWriteStream;
 }
 
 export const EXTERNAL_EXTENSIONS = [

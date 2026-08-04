@@ -55,6 +55,6 @@ suite('XLF Parser Tests', () => {
 		assert.deepStrictEqual(i18n.getResource('vs/workbench/services/textfile/node/testFileService'), workbenchServices);
 		assert.deepStrictEqual(i18n.getResource('vs/workbench/browser/parts/panel/panelActions'), workbench);
 		assert.deepStrictEqual(i18n.getResource('vs/sessions/browser/layoutActions'), sessionsContrib);
-		assert.deepStrictEqual(i18n.getResource('vs/sessions/browser/layoutActions'), sessions);
+		assert.deepStrictEqual(i18n.getResource('vs/sessions/common/layoutState'), sessions);
 	});
 });

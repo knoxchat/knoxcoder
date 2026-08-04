@@ -3,7 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'rcedit' {
-	export function rcedit(exePath: string, options: object): Promise<void>;
-	export function rcedit(exePath: string, options: object, cb: (err?: Error) => void): void;
+export {};
+
+declare module 'vinyl-fs' {
+	interface SrcOptions {
+		encoding?: string | false;
+		silent?: boolean;
+		follow?: boolean;
+	}
+
+	interface DestOptions {
+		encoding?: string | false;
+	}
+}
+
+declare module 'glob-stream' {
+	interface Options {
+		follow?: boolean;
+		silent?: boolean;
+	}
 }
