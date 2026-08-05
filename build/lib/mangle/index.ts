@@ -277,7 +277,7 @@ class ClassData {
 	}
 }
 
-declare module '@typescript/typescript6' {
+declare module 'typescript' {
 	interface SourceFile {
 		identifiers?: Map<string, true>;
 	}
@@ -414,7 +414,7 @@ export class Mangler {
 	private readonly allClassDataByKey = new Map<string, ClassData>();
 	private readonly allExportedSymbols = new Set<DeclarationData>();
 
-	private readonly renameWorkerPool: workerpool.Pool;
+	private readonly renameWorkerPool: workerpool.WorkerPool;
 
 	private readonly projectPath: string;
 	private readonly log: typeof console.log;

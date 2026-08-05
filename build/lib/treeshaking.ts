@@ -106,7 +106,7 @@ export function shake(options: ITreeShakingOptions): ITreeShakingResult {
 }
 
 //#region Discovery, LanguageService & Setup
-function createTypeScriptLanguageService(ts: typeof import('@typescript/typescript6'), options: ITreeShakingOptions): ts.LanguageService {
+function createTypeScriptLanguageService(ts: typeof import('typescript'), options: ITreeShakingOptions): ts.LanguageService {
 	// Discover referenced files
 	const FILES: IFileMap = new Map();
 
@@ -146,7 +146,7 @@ type NodeColor = typeof NodeColor[keyof typeof NodeColor];
 
 type ObjectLiteralElementWithName = ts.ObjectLiteralElement & { name: ts.PropertyName; parent: ts.ObjectLiteralExpression | ts.JsxAttributes };
 
-declare module '@typescript/typescript6' {
+declare module 'typescript' {
 	interface Node {
 		$$$color?: NodeColor;
 		$$$neededSourceFile?: boolean;
@@ -196,7 +196,7 @@ function isSymbolWithDeclarations(symbol: ts.Symbol | undefined | null): symbol 
 	return !!(symbol && symbol.declarations);
 }
 
-function isVariableStatementWithSideEffects(ts: typeof import('@typescript/typescript6'), node: ts.Node): boolean {
+function isVariableStatementWithSideEffects(ts: typeof import('typescript'), node: ts.Node): boolean {
 	if (!ts.isVariableStatement(node)) {
 		return false;
 	}
@@ -219,7 +219,7 @@ function isVariableStatementWithSideEffects(ts: typeof import('@typescript/types
 	return hasSideEffects;
 }
 
-function isStaticMemberWithSideEffects(ts: typeof import('@typescript/typescript6'), node: ts.ClassElement | ts.TypeElement): boolean {
+function isStaticMemberWithSideEffects(ts: typeof import('typescript'), node: ts.ClassElement | ts.TypeElement): boolean {
 	if (!ts.isPropertyDeclaration(node)) {
 		return false;
 	}
@@ -244,7 +244,7 @@ function isStaticMemberWithSideEffects(ts: typeof import('@typescript/typescript
 	return hasSideEffects;
 }
 
-function markNodes(ts: typeof import('@typescript/typescript6'), languageService: ts.LanguageService, options: ITreeShakingOptions) {
+function markNodes(ts: typeof import('typescript'), languageService: ts.LanguageService, options: ITreeShakingOptions) {
 	const program = languageService.getProgram();
 	if (!program) {
 		throw new Error('Could not get program from language service');
@@ -570,7 +570,7 @@ function nodeIsInItsOwnDeclaration(nodeSourceFile: ts.SourceFile, node: ts.Node,
 	return false;
 }
 
-function generateResult(ts: typeof import('@typescript/typescript6'), languageService: ts.LanguageService, shakeLevel: ShakeLevel): ITreeShakingResult {
+function generateResult(ts: typeof import('typescript'), languageService: ts.LanguageService, shakeLevel: ShakeLevel): ITreeShakingResult {
 	const program = languageService.getProgram();
 	if (!program) {
 		throw new Error('Could not get program from language service');
@@ -725,7 +725,7 @@ function generateResult(ts: typeof import('@typescript/typescript6'), languageSe
 
 //#region Utils
 
-function isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts: typeof import('@typescript/typescript6'), program: ts.Program, checker: ts.TypeChecker, declaration: ts.ClassDeclaration | ts.InterfaceDeclaration): boolean {
+function isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts: typeof import('typescript'), program: ts.Program, checker: ts.TypeChecker, declaration: ts.ClassDeclaration | ts.InterfaceDeclaration): boolean {
 	if (!program.isSourceFileDefaultLibrary(declaration.getSourceFile()) && declaration.heritageClauses) {
 		for (const heritageClause of declaration.heritageClauses) {
 			for (const type of heritageClause.types) {
@@ -742,7 +742,7 @@ function isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts: typeof import(
 	return false;
 }
 
-function findSymbolFromHeritageType(ts: typeof import('@typescript/typescript6'), checker: ts.TypeChecker, type: ts.ExpressionWithTypeArguments | ts.Expression | ts.PrivateIdentifier): ts.Symbol | null {
+function findSymbolFromHeritageType(ts: typeof import('typescript'), checker: ts.TypeChecker, type: ts.ExpressionWithTypeArguments | ts.Expression | ts.PrivateIdentifier): ts.Symbol | null {
 	if (ts.isExpressionWithTypeArguments(type)) {
 		return findSymbolFromHeritageType(ts, checker, type.expression);
 	}
@@ -772,7 +772,7 @@ class SymbolImportTuple {
 /**
  * Returns the node's symbol and the `import` node (if the symbol resolved from a different module)
  */
-function getRealNodeSymbol(ts: typeof import('@typescript/typescript6'), checker: ts.TypeChecker, node: ts.Node): SymbolImportTuple[] {
+function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChecker, node: ts.Node): SymbolImportTuple[] {
 
 	// Go to the original declaration for cases:
 	//
@@ -902,7 +902,7 @@ function getRealNodeSymbol(ts: typeof import('@typescript/typescript6'), checker
 }
 
 /** Get the token whose text contains the position */
-function getTokenAtPosition(ts: typeof import('@typescript/typescript6'), sourceFile: ts.SourceFile, position: number, allowPositionInLeadingTrivia: boolean, includeEndPosition: boolean): ts.Node {
+function getTokenAtPosition(ts: typeof import('typescript'), sourceFile: ts.SourceFile, position: number, allowPositionInLeadingTrivia: boolean, includeEndPosition: boolean): ts.Node {
 	let current: ts.Node = sourceFile;
 	outer: while (true) {
 		// find the child that contains 'position'

@@ -10,9 +10,10 @@ EventEmitter.defaultMaxListeners = 100;
 import es from 'event-stream';
 import fancyLog from 'fancy-log';
 import * as fs from 'fs';
-import { glob } from 'glob';
+import glob from 'glob';
 import { gulp, filter, plumber, sourcemaps, merge} from './lib/gulp/facade.ts';
 import * as path from 'path';
+import * as nodeUtil from 'util';
 import * as ext from './lib/extensions.ts';
 import { getVersion } from './lib/getVersion.ts';
 import { createReporter } from './lib/reporter.ts';
@@ -306,7 +307,7 @@ async function buildWebExtensions(isWatch: boolean): Promise<void> {
 	const extensionsPath = path.join(root, 'extensions');
 
 	// Find all esbuild.browser.mts files
-	const esbuildConfigLocations = await glob(
+	const esbuildConfigLocations = await nodeUtil.promisify(glob)(
 		path.join(extensionsPath, '**', 'esbuild.browser.mts'),
 		{ ignore: ['**/node_modules'] }
 	);
@@ -316,9 +317,9 @@ async function buildWebExtensions(isWatch: boolean): Promise<void> {
 	// Esbuild for extensions
 	if (esbuildConfigLocations.length > 0) {
 		promises.push(
-			ext.esbuildExtensions('packaging web extension (esbuild)', isWatch, esbuildConfigLocations.map((script: string) => ({ script }))),
+			ext.esbuildExtensions('packaging web extension (esbuild)', isWatch, esbuildConfigLocations.map(script => ({ script }))),
 			// Also run type check on extensions
-			...esbuildConfigLocations.flatMap((script: string) => {
+			...esbuildConfigLocations.flatMap(script => {
 				const roots = ext.getBuildRootsForExtension(path.dirname(script));
 				return roots.map(root => ext.typeCheckExtension(root, true));
 			})

@@ -6,7 +6,9 @@
 import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
-import { glob } from 'glob';
+import { promisify } from 'util';
+
+import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
@@ -16,6 +18,8 @@ import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
+
+const globAsync = promisify(glob);
 
 // ============================================================================
 // Configuration
@@ -518,14 +522,14 @@ async function copyAllNonTsFiles(outDir: string, excludeTests: boolean): Promise
 		ignorePatterns.push('**/test/**');
 	}
 
-	const files = await glob('**/*', {
+	const files = await globAsync('**/*', {
 		cwd: path.join(REPO_ROOT, SRC_DIR),
 		nodir: true,
 		ignore: ignorePatterns,
 	});
 
 	// Re-include .d.ts files that were excluded by the *.ts ignore
-	const dtsFiles = await glob('**/*.d.ts', {
+	const dtsFiles = await globAsync('**/*.d.ts', {
 		cwd: path.join(REPO_ROOT, SRC_DIR),
 		ignore: excludeTests ? ['**/test/**'] : [],
 	});
@@ -554,7 +558,7 @@ async function copyResources(outDir: string, target: BuildTarget): Promise<void>
 
 	const resourcePatterns = getResourcePatternsForTarget(target);
 	for (const pattern of resourcePatterns) {
-		const files = await glob(pattern, {
+		const files = await globAsync(pattern, {
 			cwd: path.join(REPO_ROOT, SRC_DIR),
 			ignore: ignorePatterns,
 		});
@@ -721,7 +725,7 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 		ignorePatterns.push('**/test/**');
 	}
 
-	const files = await glob('**/*.ts', {
+	const files = await globAsync('**/*.ts', {
 		cwd: path.join(REPO_ROOT, SRC_DIR),
 		ignore: ignorePatterns,
 	});
@@ -729,7 +733,7 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 	console.log(`[transpile] Found ${files.length} files`);
 
 	// Transpile all files in parallel using esbuild.transform (fastest approach)
-	await Promise.all(files.map((file: string) => {
+	await Promise.all(files.map(file => {
 		const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
 		const destPath = path.join(REPO_ROOT, outDir, file.replace(/\.ts$/, '.js'));
 		return transpileFile(srcPath, destPath);

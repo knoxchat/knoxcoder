@@ -6,7 +6,7 @@
 import ts from '@typescript/typescript6';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname, join } from 'path';
-import { minimatch } from 'minimatch';
+import minimatch from 'minimatch';
 
 //
 // #############################################################################################

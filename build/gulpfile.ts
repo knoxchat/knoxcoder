@@ -5,7 +5,7 @@
 import { EventEmitter } from 'events';
 EventEmitter.defaultMaxListeners = 100;
 
-import { globSync } from 'glob';
+import glob from 'glob';
 import { createRequire } from 'node:module';
 import { monacoTypecheckTask /* , monacoTypecheckWatchTask */ } from './gulpfile.editor.ts';
 import { compileExtensionMediaTask, compileExtensionsTask, watchExtensionsTask } from './gulpfile.extensions.ts';
@@ -55,7 +55,7 @@ process.on('unhandledRejection', (reason, p) => {
 });
 
 // Load all the gulpfiles only if running tasks other than the editor tasks
-globSync('gulpfile.*.ts', { cwd: import.meta.dirname })
-	.forEach((f: string) => {
+glob.sync('gulpfile.*.ts', { cwd: import.meta.dirname })
+	.forEach(f => {
 		return require(`./${f}`);
 	});

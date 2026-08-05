@@ -8,7 +8,7 @@ import es from 'event-stream';
 import pickle from 'chromium-pickle-js';
 import Filesystem from 'asar/lib/filesystem.js';
 import VinylFile from 'vinyl';
-import { minimatch } from 'minimatch';
+import minimatch from 'minimatch';
 
 export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs: string[], duplicateGlobs: string[], destFilename: string): NodeJS.ReadWriteStream {
 

@@ -210,7 +210,7 @@ class MonacoGenerator {
 
 	constructor(isWatch: boolean) {
 		this._isWatch = isWatch;
-		this.stream = es.through() as NodeJS.ReadWriteStream;
+		this.stream = es.through();
 		this._watchedFiles = {};
 		const onWillReadFile = (moduleId: string, filePath: string) => {
 			if (!this._isWatch) {

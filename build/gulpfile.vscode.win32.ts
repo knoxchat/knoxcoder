@@ -148,7 +148,7 @@ function copyInnoUpdater(arch: string) {
 function updateIcon(executablePath: string): task.CallbackTask {
 	return cb => {
 		const icon = path.join(repoPath, 'resources', 'win32', 'code.ico');
-		rcedit(executablePath, { icon }).then(() => cb?.(), err => cb?.(err));
+		rcedit(executablePath, { icon }).then(() => cb(), cb);
 	};
 }
 

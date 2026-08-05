@@ -30,11 +30,13 @@ import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, 
 import { copyCodiconsTask } from './lib/compilation.ts';
 import { getMxcExcludeFilter, getRipgrepExcludeFilter } from './lib/packagingFilters.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
-import { glob } from 'glob';
+import { promisify } from 'util';
+import globCallback from 'glob';
 import { rcedit } from 'rcedit';
 import { spawnTsgo } from './lib/tsgo.ts';
 import { runEsbuildTranspile, runEsbuildBundle } from './lib/esbuild.ts';
 
+const glob = promisify(globCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 

@@ -6,6 +6,7 @@
 import { gulp, rename, filter, jsonEditor, merge} from './lib/gulp/facade.ts';
 import * as path from 'path';
 import * as cp from 'child_process';
+import es from 'event-stream';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/gulp/task.ts';

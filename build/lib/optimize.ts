@@ -18,6 +18,17 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 
+declare module 'gulp-sourcemaps' {
+	interface WriteOptions {
+		addComment?: boolean;
+		includeContent?: boolean;
+		sourceRoot?: string | WriteMapper;
+		sourceMappingURL?: ((f: any) => string);
+		sourceMappingURLPrefix?: string | WriteMapper;
+		clone?: boolean | CloneOptions;
+	}
+}
+
 const REPO_ROOT_PATH = path.join(import.meta.dirname, '../..');
 
 export interface IBundleESMTaskOpts {

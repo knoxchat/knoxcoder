@@ -10,6 +10,7 @@ import path from 'path';
 import fs from 'fs';
 import { rimraf as rimrafFn } from 'rimraf';
 import VinylFile from 'vinyl';
+import through from 'through';
 import sm from 'source-map';
 import { pathToFileURL } from 'url';
 import ternaryStream from 'ternary-stream';
@@ -77,7 +78,7 @@ export function incremental(streamProvider: IStreamProvider, initial: NodeJS.Rea
 	return es.duplex(input, output);
 }
 
-export function debounce(task: () => NodeJS.ReadWriteStream | es.ThroughStream, duration = 500): es.ThroughStream {
+export function debounce(task: () => NodeJS.ReadWriteStream, duration = 500): NodeJS.ReadWriteStream {
 	const input = es.through();
 	const output = es.through();
 	let state = 'idle';
@@ -214,8 +215,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 
 			if (!lastMatch) {
 				f.sourceMap = {
-					version: 3,
-					file: f.relative.replace(/\\/g, '/'),
+					version: '3',
 					names: [],
 					mappings: '',
 					sources: [f.relative.replace(/\\/g, '/')],
@@ -348,7 +348,7 @@ export function rebase(count: number): NodeJS.ReadWriteStream {
 }
 
 export interface FilterStream extends NodeJS.ReadWriteStream {
-	restore: es.ThroughStream;
+	restore: through.ThroughStream;
 }
 
 export function filter(fn: (data: any) => boolean): FilterStream {
@@ -360,7 +360,7 @@ export function filter(fn: (data: any) => boolean): FilterStream {
 		}
 	}) as unknown as FilterStream;
 
-	result.restore = es.through() as es.ThroughStream;
+	result.restore = es.through();
 	return result;
 }
 
@@ -436,7 +436,7 @@ export class VinylStat implements fs.Stats {
 }
 
 export function untar(): Transform {
-	return es.through(function (this: es.ThroughStream, f: VinylFile) {
+	return es.through(function (this: through.ThroughStream, f: VinylFile) {
 		if (!f.contents || !Buffer.isBuffer(f.contents)) {
 			this.emit('error', new Error('Expected file with Buffer contents'));
 			return;
@@ -468,5 +468,5 @@ export function untar(): Transform {
 
 		parser.on('error', (err: Error) => self.emit('error', err));
 		parser.end(f.contents);
-	}) as unknown as Transform;
+	}) as Transform;
 }

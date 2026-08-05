@@ -140,7 +140,7 @@ const compileCliTask = task.define('compile-cli', () => {
 const watchCliTask = task.define('watch-cli', () => {
 	warnIfRustNotInstalled();
 	return watcher(`${src}/**`, { read: false })
-		.pipe(debounce(() => compileCliTask() as unknown as es.ThroughStream));
+		.pipe(debounce(compileCliTask as task.StreamTask));
 });
 
 task.task(compileCliTask);

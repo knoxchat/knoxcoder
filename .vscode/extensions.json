@@ -6,7 +6,7 @@
 		"github.vscode-pull-request-github",
 		"ms-vscode.vscode-github-issue-notebooks",
 		"ms-vscode.extension-test-runner",
-		"typescriptteam.vscode-typescript",
+		"typescriptteam.native-preview",
 		"ms-vscode.ts-customized-language-service",
 		"connor4312.esbuild-problem-matchers"
 	]

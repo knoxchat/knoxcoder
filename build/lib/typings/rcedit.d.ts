@@ -4,6 +4,5 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'rcedit' {
-	export function rcedit(exePath: string, options: object): Promise<void>;
-	export function rcedit(exePath: string, options: object, cb: (err?: Error) => void): void;
+	export default function rcedit(exePath, options, cb): Promise<void>;
 }
