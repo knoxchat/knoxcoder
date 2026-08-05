@@ -444,6 +444,24 @@ function copyCodiconsImpl() {
 			fs.copyFileSync(codiconSource, codiconDest);
 			const sourceLabel = codiconSource === knoxLucideCodiconSource ? 'knox/lucide' : '@vscode/codicons';
 			fancyLog(ansiColors.blue('[codicons]'), `Copied codicon.ttf from ${sourceLabel}`);
+
+			// Dev launches (`./scripts/code.sh`) serve from `out/`. Keep the
+			// runtime font in sync when out already exists so regenerating
+			// Knox Lucide icons does not leave empty tofu squares until a
+			// full recompile.
+			const outCodiconDest = path.join(root, 'out', 'vs', 'base', 'browser', 'ui', 'codicons', 'codicon', 'codicon.ttf');
+			const outKnoxLucideDir = path.join(root, 'out', 'vs', 'workbench', 'browser', 'media', 'knox', 'lucide');
+			if (fs.existsSync(path.join(root, 'out'))) {
+				fs.mkdirSync(path.dirname(outCodiconDest), { recursive: true });
+				fs.copyFileSync(codiconSource, outCodiconDest);
+				fs.mkdirSync(outKnoxLucideDir, { recursive: true });
+				fs.copyFileSync(codiconSource, path.join(outKnoxLucideDir, 'codicon.ttf'));
+				const iconMapSrc = path.join(path.dirname(knoxLucideCodiconSource), 'icon-map.json');
+				if (fs.existsSync(iconMapSrc)) {
+					fs.copyFileSync(iconMapSrc, path.join(outKnoxLucideDir, 'icon-map.json'));
+				}
+				fancyLog(ansiColors.blue('[codicons]'), `Synced codicon.ttf into out/`);
+			}
 		} else {
 			fancyLog(ansiColors.red('[codicons]'), `codicon.ttf not found. Run 'npm run generate-knox-icons' or 'npm install'.`);
 		}

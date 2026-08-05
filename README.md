@@ -2,6 +2,12 @@
 
 KnoxCoder is a code editor based on [Visual Studio Code](https://code.visualstudio.com) open source.
 
+| ![](./media/dark-theme.png) |
+|-|
+
+| ![](./media/light-theme.png) |
+|-|
+
 ## Documentation
 
 * [KnoxCoder documentation](https://code.visualstudio.com/docs)

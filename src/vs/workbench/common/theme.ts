@@ -20,8 +20,9 @@ export function WORKBENCH_BACKGROUND(theme: IColorTheme): Color {
 		case ColorScheme.HIGH_CONTRAST_DARK:
 			return Color.fromHex('#000000');
 		default:
-			// KnoxCoder enterprise shell plane — darker than floating cards / editor.
-			return Color.fromHex('#0f1218');
+			// KnoxCoder shell plane — slightly under One Dark Pro chrome (#21252b)
+			// so floating cards still read elevated without a near-black void.
+			return Color.fromHex('#1a1f28');
 	}
 }
 

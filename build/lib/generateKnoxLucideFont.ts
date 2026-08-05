@@ -672,16 +672,33 @@ async function main(): Promise<void> {
 	fs.copyFileSync(generatedTtf, runtimeTtfPath);
 
 	const size = fs.statSync(knoxTtfPath).size;
+	const outputs = [knoxTtfPath, runtimeTtfPath];
+
+	// Keep compiled out/ in sync for ./scripts/code.sh without a full recompile.
+	const outDirRoot = path.join(root, 'out');
+	if (fs.existsSync(outDirRoot)) {
+		const outRuntimeTtf = path.join(outDirRoot, 'vs', 'base', 'browser', 'ui', 'codicons', 'codicon', 'codicon.ttf');
+		const outKnoxDir = path.join(outDirRoot, 'vs', 'workbench', 'browser', 'media', 'knox', 'lucide');
+		fs.mkdirSync(path.dirname(outRuntimeTtf), { recursive: true });
+		fs.mkdirSync(outKnoxDir, { recursive: true });
+		fs.copyFileSync(generatedTtf, outRuntimeTtf);
+		fs.copyFileSync(generatedTtf, path.join(outKnoxDir, 'codicon.ttf'));
+		outputs.push(outRuntimeTtf, path.join(outKnoxDir, 'codicon.ttf'));
+	}
+
 	const iconMap = {
 		generatedAt: new Date().toISOString(),
 		total: entries.length,
 		mapped: mappedCount,
 		fallback: fallbackCount,
 		ttfBytes: size,
-		outputs: [knoxTtfPath, runtimeTtfPath],
+		outputs,
 		icons: mapDetails,
 	};
 	fs.writeFileSync(iconMapPath, JSON.stringify(iconMap, null, '\t') + '\n', 'utf8');
+	if (fs.existsSync(outDirRoot)) {
+		fs.copyFileSync(iconMapPath, path.join(outDirRoot, 'vs', 'workbench', 'browser', 'media', 'knox', 'lucide', 'icon-map.json'));
+	}
 
 	console.log(`[knox-lucide] mapped: ${mappedCount}`);
 	console.log(`[knox-lucide] fallback: ${fallbackCount}`);
