@@ -653,7 +653,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			[LayoutSettings.ACTIVITY_BAR_LOCATION]: {
 				'type': 'string',
 				'enum': ['default', 'top', 'bottom', 'hidden'],
-				'default': 'default',
+				'default': 'top',
 				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar relative to the Primary and Secondary Side Bars."),
 				'enumDescriptions': [
 					localize('workbench.activityBar.location.default', "Show the Activity Bar on the side of the Primary Side Bar and on top of the Secondary Side Bar."),
@@ -812,10 +812,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			[LayoutSettings.MODERN_UI]: {
 				'type': 'boolean',
-				'default': false,
-				'tags': ['experimental'],
-				'description': localize('modernUI', "Controls whether the experimental Modern UI Update is enabled. When on, the side bars and bottom panel are shown as floating cards with rounded corners and gaps, and a set of refreshed workbench styles is applied, matching the Agents window design."),
-				experiment: { mode: 'auto' },
+				'default': true,
+				'description': localize('modernUI', "Controls whether the KnoxCoder enterprise UI is enabled. When on, side bars and the bottom panel are shown as floating cards with rounded corners, Lucide-styled chrome is applied, and the workbench shell is refined while keeping the editor theme unchanged."),
 			},
 		}
 	});

@@ -318,7 +318,6 @@ const nativeExtensions = [
 ];
 
 const excludedExtensions = [
-	'github-authentication',
 	'vscode-api-tests',
 	'vscode-colorize-tests',
 	'vscode-colorize-perf-tests',

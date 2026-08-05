@@ -1,6 +1,6 @@
 {
   "name": "knoxcoder-dev",
-  "version": "1.130.0",
+  "version": "1.131.0",
   "distro": "ac355fb4d039edb8cc28e1f8e45c6d5d8c437fe2",
   "author": {
     "name": "Microsoft Corporation"
@@ -85,7 +85,8 @@
     "update-build-ts-version": "npm install -D @typescript/native@npm:typescript@next && npm install -D typescript@next && (cd build && npm run typecheck)",
     "install-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-0.1.0.tgz ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-cli-0.1.0.tgz --no-save && cd build/rspack && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-webpack-plugin-0.1.0.tgz --no-save && cd ../vite && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-vite-plugin-0.1.0.tgz --no-save",
     "symlink-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/packages/explorer ../vscode-packages/js-component-explorer/packages/cli --no-save && cd build/rspack && npm install ../../../vscode-packages/js-component-explorer/packages/webpack-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save && cd ../vite && npm install ../../../vscode-packages/js-component-explorer/packages/vite-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save",
-    "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/rspack && npm install @vscode/component-explorer-webpack-plugin@next @vscode/component-explorer@next && cd ../vite && npm install @vscode/component-explorer-vite-plugin@next @vscode/component-explorer@next"
+    "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/rspack && npm install @vscode/component-explorer-webpack-plugin@next @vscode/component-explorer@next && cd ../vite && npm install @vscode/component-explorer-vite-plugin@next @vscode/component-explorer@next",
+    "generate-knox-icons": "node --experimental-strip-types build/lib/generateKnoxLucideFont.ts"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^4.4.3",
@@ -205,6 +206,7 @@
     "eslint-plugin-jsdoc": "^63.3.2",
     "event-stream": "4.0.1",
     "fancy-log": "^2.0.0",
+    "fantasticon": "^4.1.0",
     "glob": "^13.0.6",
     "gulp": "^5.0.1",
     "gulp-azure-storage": "^0.12.1",
@@ -229,6 +231,7 @@
     "istanbul-reports": "^3.2.0",
     "js-yaml": "^5.2.2",
     "lazy.js": "^0.5.1",
+    "lucide-static": "^1.28.0",
     "merge-options": "^3.0.4",
     "mime": "^4.1.0",
     "minimatch": "^10.2.6",
@@ -237,6 +240,7 @@
     "mocha-multi-reporters": "^1.5.1",
     "npm-run-all2": "^9.0.3",
     "os-browserify": "^0.3.0",
+    "oslllo-svg-fixer": "^6.0.1",
     "p-all": "^5.0.1",
     "path-browserify": "^1.0.1",
     "pump": "^3.0.4",

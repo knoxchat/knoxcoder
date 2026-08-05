@@ -90,7 +90,7 @@ export class ExperimentationTelemetry implements IExperimentationTelemetry {
 		this.sendTelemetryEvent(eventName, event);
 	}
 
-	dispose(): Promise<any> {
-		return this.baseReporter.dispose();
+	async dispose(): Promise<void> {
+		await this.baseReporter.dispose();
 	}
 }

@@ -35,8 +35,9 @@ await Promise.all([
 			external: ['vscode', 'typescript', 'fs'],
 			banner: {
 				// `@vscode/l10n` is bundled as CommonJS and still calls `require('fs')` internally.
-				// Provide Node's `require` in the generated ESM output so those imports keep working.
-				js: `import { createRequire } from 'module'; const require = createRequire(import.meta.url);`,
+				// `@typescript/typescript6` (bundled for script tags in HTML) also uses `__filename`/`__dirname`
+				// at module init for filesystem case-sensitivity checks. Those CJS globals are missing in ESM.
+				js: `import { createRequire } from 'module'; import { fileURLToPath } from 'url'; import { dirname } from 'path'; const require = createRequire(import.meta.url); const __filename = fileURLToPath(import.meta.url); const __dirname = dirname(__filename);`,
 			},
 		},
 	}, process.argv),

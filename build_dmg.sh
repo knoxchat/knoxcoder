@@ -206,7 +206,28 @@ verify_app() {
 	fi
 }
 
-# VS Code 1.130.0 requires Node.js v24.18.0+ (see .nvmrc)
+# Apple's timestamp authority flakes under load; Electron signing hits it per nested file.
+codesign_with_retry() {
+	local max_attempts=5
+	local attempt=1
+	local delay=2
+
+	while true; do
+		if "$@"; then
+			return 0
+		fi
+		local status=$?
+		if (( attempt >= max_attempts )); then
+			return "$status"
+		fi
+		echo "codesign attempt ${attempt}/${max_attempts} failed (likely Apple timestamp flake); retrying in ${delay}s..."
+		sleep "$delay"
+		attempt=$((attempt + 1))
+		delay=$((delay * 2))
+	done
+}
+
+# VS Code 1.131.0 requires Node.js v24.18.0+ (see .nvmrc)
 if [ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]; then
 	# shellcheck disable=SC1091
 	source "${NVM_DIR:-$HOME/.nvm}/nvm.sh"
@@ -286,7 +307,7 @@ verify_dmg_app
 if [[ "$SKIP_SIGN" == "false" || "$DMG_ONLY" == "true" ]]; then
 	verify_signing_identity
 	echo ">>> Signing DMG..."
-	codesign --force --sign "$APPLE_SIGNING_IDENTITY" --timestamp "$DMG_PATH"
+	codesign_with_retry codesign --force --sign "$APPLE_SIGNING_IDENTITY" --timestamp "$DMG_PATH"
 	codesign --verify --verbose=2 "$DMG_PATH"
 fi
 

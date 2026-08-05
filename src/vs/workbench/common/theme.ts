@@ -20,7 +20,8 @@ export function WORKBENCH_BACKGROUND(theme: IColorTheme): Color {
 		case ColorScheme.HIGH_CONTRAST_DARK:
 			return Color.fromHex('#000000');
 		default:
-			return Color.fromHex('#252526');
+			// KnoxCoder enterprise shell plane — darker than floating cards / editor.
+			return Color.fromHex('#0f1218');
 	}
 }
 
@@ -652,6 +653,19 @@ export const SIDE_BAR_STICKY_SCROLL_BACKGROUND = registerColor('sideBarStickyScr
 export const SIDE_BAR_STICKY_SCROLL_BORDER = registerColor('sideBarStickyScroll.border', null, localize('sideBarStickyScrollBorder', "Border color of sticky scroll in the side bar."));
 
 export const SIDE_BAR_STICKY_SCROLL_SHADOW = registerColor('sideBarStickyScroll.shadow', scrollbarShadow, localize('sideBarStickyScrollShadow', "Shadow color of sticky scroll in the side bar."));
+
+// < --- Agents / floating panel cards --- >
+
+export const AGENTS_PANEL_BACKGROUND = registerColor('agentsPanel.background', SIDE_BAR_BACKGROUND, localize('agentsPanelBackground', "Background color for floating side bar and auxiliary bar cards when Modern UI is enabled."));
+
+export const AGENTS_PANEL_FOREGROUND = registerColor('agentsPanel.foreground', SIDE_BAR_FOREGROUND, localize('agentsPanelForeground', "Foreground color for floating side bar and auxiliary bar cards when Modern UI is enabled."));
+
+export const AGENTS_PANEL_BORDER = registerColor('agentsPanel.border', {
+	dark: Color.fromHex('#FFFFFF').transparent(0.08),
+	light: Color.fromHex('#000000').transparent(0.08),
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('agentsPanelBorder', "Border color for floating side bar, panel, and editor cards when Modern UI is enabled."));
 
 // < --- Title Bar --- >
 

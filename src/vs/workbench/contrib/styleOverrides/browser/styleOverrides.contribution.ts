@@ -26,6 +26,7 @@ import './media/commandCenter.css';
 import './media/editorBorder.css';
 import './media/fontRamp.css';
 import './media/keyboardFocusOnly.css';
+import './media/knoxShell.css';
 import './media/notificationsDialogs.css';
 import './media/padding.css';
 import './media/paneHeaders.css';
@@ -69,6 +70,7 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 	{ id: 'editorBorder' },
 	{ id: 'fontRamp' },
 	{ id: 'keyboardFocusOnly' },
+	{ id: 'knoxShell' },
 	{ id: 'padding' },
 	{ id: 'paneHeaders', layoutAffecting: true },
 	{ id: 'roundedCorners' },

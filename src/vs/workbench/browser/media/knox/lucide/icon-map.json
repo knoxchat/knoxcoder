@@ -1,0 +1,3685 @@
+{
+	"generatedAt": "2026-08-05T07:46:17.136Z",
+	"total": 612,
+	"mapped": 612,
+	"fallback": 0,
+	"ttfBytes": 131760,
+	"outputs": [
+		"/Users/knox/Desktop/knoxcoder/src/vs/workbench/browser/media/knox/lucide/codicon.ttf",
+		"/Users/knox/Desktop/knoxcoder/src/vs/base/browser/ui/codicons/codicon/codicon.ttf"
+	],
+	"icons": [
+		{
+			"id": "add",
+			"codepoint": "0xea60",
+			"lucide": "plus",
+			"mapped": true
+		},
+		{
+			"id": "lightbulb",
+			"codepoint": "0xea61",
+			"lucide": "lightbulb",
+			"mapped": true
+		},
+		{
+			"id": "repo",
+			"codepoint": "0xea62",
+			"lucide": "book-marked",
+			"mapped": true
+		},
+		{
+			"id": "gist-fork",
+			"codepoint": "0xea63",
+			"lucide": "git-fork",
+			"mapped": true
+		},
+		{
+			"id": "git-pull-request",
+			"codepoint": "0xea64",
+			"lucide": "git-pull-request",
+			"mapped": true
+		},
+		{
+			"id": "record-keys",
+			"codepoint": "0xea65",
+			"lucide": "keyboard",
+			"mapped": true
+		},
+		{
+			"id": "tag",
+			"codepoint": "0xea66",
+			"lucide": "tag",
+			"mapped": true
+		},
+		{
+			"id": "person",
+			"codepoint": "0xea67",
+			"lucide": "user",
+			"mapped": true
+		},
+		{
+			"id": "source-control",
+			"codepoint": "0xea68",
+			"lucide": "git-branch",
+			"mapped": true
+		},
+		{
+			"id": "mirror",
+			"codepoint": "0xea69",
+			"lucide": "copy",
+			"mapped": true
+		},
+		{
+			"id": "star",
+			"codepoint": "0xea6a",
+			"lucide": "star",
+			"mapped": true
+		},
+		{
+			"id": "comment",
+			"codepoint": "0xea6b",
+			"lucide": "message-square",
+			"mapped": true
+		},
+		{
+			"id": "alert",
+			"codepoint": "0xea6c",
+			"lucide": "triangle-alert",
+			"mapped": true
+		},
+		{
+			"id": "search",
+			"codepoint": "0xea6d",
+			"lucide": "search",
+			"mapped": true
+		},
+		{
+			"id": "log-out",
+			"codepoint": "0xea6e",
+			"lucide": "log-out",
+			"mapped": true
+		},
+		{
+			"id": "log-in",
+			"codepoint": "0xea6f",
+			"lucide": "log-in",
+			"mapped": true
+		},
+		{
+			"id": "eye",
+			"codepoint": "0xea70",
+			"lucide": "eye",
+			"mapped": true
+		},
+		{
+			"id": "circle-filled",
+			"codepoint": "0xea71",
+			"lucide": "circle",
+			"mapped": true
+		},
+		{
+			"id": "primitive-square",
+			"codepoint": "0xea72",
+			"lucide": "square",
+			"mapped": true
+		},
+		{
+			"id": "edit",
+			"codepoint": "0xea73",
+			"lucide": "pencil",
+			"mapped": true
+		},
+		{
+			"id": "info",
+			"codepoint": "0xea74",
+			"lucide": "info",
+			"mapped": true
+		},
+		{
+			"id": "gist-private",
+			"codepoint": "0xea75",
+			"lucide": "lock",
+			"mapped": true
+		},
+		{
+			"id": "close",
+			"codepoint": "0xea76",
+			"lucide": "x",
+			"mapped": true
+		},
+		{
+			"id": "repo-sync",
+			"codepoint": "0xea77",
+			"lucide": "refresh-cw",
+			"mapped": true
+		},
+		{
+			"id": "clone",
+			"codepoint": "0xea78",
+			"lucide": "copy",
+			"mapped": true
+		},
+		{
+			"id": "beaker",
+			"codepoint": "0xea79",
+			"lucide": "flask-conical",
+			"mapped": true
+		},
+		{
+			"id": "vm",
+			"codepoint": "0xea7a",
+			"lucide": "monitor",
+			"mapped": true
+		},
+		{
+			"id": "file",
+			"codepoint": "0xea7b",
+			"lucide": "file",
+			"mapped": true
+		},
+		{
+			"id": "more",
+			"codepoint": "0xea7c",
+			"lucide": "ellipsis",
+			"mapped": true
+		},
+		{
+			"id": "mail-reply",
+			"codepoint": "0xea7d",
+			"lucide": "reply",
+			"mapped": true
+		},
+		{
+			"id": "organization",
+			"codepoint": "0xea7e",
+			"lucide": "users",
+			"mapped": true
+		},
+		{
+			"id": "new-file",
+			"codepoint": "0xea7f",
+			"lucide": "file-plus",
+			"mapped": true
+		},
+		{
+			"id": "new-folder",
+			"codepoint": "0xea80",
+			"lucide": "folder-plus",
+			"mapped": true
+		},
+		{
+			"id": "trash",
+			"codepoint": "0xea81",
+			"lucide": "trash-2",
+			"mapped": true
+		},
+		{
+			"id": "history",
+			"codepoint": "0xea82",
+			"lucide": "history",
+			"mapped": true
+		},
+		{
+			"id": "folder",
+			"codepoint": "0xea83",
+			"lucide": "folder",
+			"mapped": true
+		},
+		{
+			"id": "logo-github",
+			"codepoint": "0xea84",
+			"lucide": "code-2",
+			"mapped": true
+		},
+		{
+			"id": "terminal",
+			"codepoint": "0xea85",
+			"lucide": "terminal",
+			"mapped": true
+		},
+		{
+			"id": "zap",
+			"codepoint": "0xea86",
+			"lucide": "zap",
+			"mapped": true
+		},
+		{
+			"id": "error",
+			"codepoint": "0xea87",
+			"lucide": "circle-x",
+			"mapped": true
+		},
+		{
+			"id": "variable",
+			"codepoint": "0xea88",
+			"lucide": "variable",
+			"mapped": true
+		},
+		{
+			"id": "array",
+			"codepoint": "0xea8a",
+			"lucide": "brackets",
+			"mapped": true
+		},
+		{
+			"id": "symbol-module",
+			"codepoint": "0xea8b",
+			"lucide": "boxes",
+			"mapped": true
+		},
+		{
+			"id": "symbol-method",
+			"codepoint": "0xea8c",
+			"lucide": "box",
+			"mapped": true
+		},
+		{
+			"id": "symbol-boolean",
+			"codepoint": "0xea8f",
+			"lucide": "toggle-left",
+			"mapped": true
+		},
+		{
+			"id": "symbol-numeric",
+			"codepoint": "0xea90",
+			"lucide": "hash",
+			"mapped": true
+		},
+		{
+			"id": "symbol-structure",
+			"codepoint": "0xea91",
+			"lucide": "braces",
+			"mapped": true
+		},
+		{
+			"id": "symbol-parameter",
+			"codepoint": "0xea92",
+			"lucide": "sliders-horizontal",
+			"mapped": true
+		},
+		{
+			"id": "symbol-key",
+			"codepoint": "0xea93",
+			"lucide": "key",
+			"mapped": true
+		},
+		{
+			"id": "symbol-reference",
+			"codepoint": "0xea94",
+			"lucide": "link-2",
+			"mapped": true
+		},
+		{
+			"id": "symbol-enum",
+			"codepoint": "0xea95",
+			"lucide": "list",
+			"mapped": true
+		},
+		{
+			"id": "symbol-ruler",
+			"codepoint": "0xea96",
+			"lucide": "ruler",
+			"mapped": true
+		},
+		{
+			"id": "activate-breakpoints",
+			"codepoint": "0xea97",
+			"lucide": "circle-dot",
+			"mapped": true
+		},
+		{
+			"id": "archive",
+			"codepoint": "0xea98",
+			"lucide": "archive",
+			"mapped": true
+		},
+		{
+			"id": "arrow-both",
+			"codepoint": "0xea99",
+			"lucide": "arrow-left-right",
+			"mapped": true
+		},
+		{
+			"id": "arrow-down",
+			"codepoint": "0xea9a",
+			"lucide": "arrow-down",
+			"mapped": true
+		},
+		{
+			"id": "arrow-left",
+			"codepoint": "0xea9b",
+			"lucide": "arrow-left",
+			"mapped": true
+		},
+		{
+			"id": "arrow-right",
+			"codepoint": "0xea9c",
+			"lucide": "arrow-right",
+			"mapped": true
+		},
+		{
+			"id": "arrow-small-down",
+			"codepoint": "0xea9d",
+			"lucide": "arrow-down",
+			"mapped": true
+		},
+		{
+			"id": "arrow-small-left",
+			"codepoint": "0xea9e",
+			"lucide": "arrow-left",
+			"mapped": true
+		},
+		{
+			"id": "arrow-small-right",
+			"codepoint": "0xea9f",
+			"lucide": "arrow-right",
+			"mapped": true
+		},
+		{
+			"id": "arrow-small-up",
+			"codepoint": "0xeaa0",
+			"lucide": "arrow-up",
+			"mapped": true
+		},
+		{
+			"id": "arrow-up",
+			"codepoint": "0xeaa1",
+			"lucide": "arrow-up",
+			"mapped": true
+		},
+		{
+			"id": "bell",
+			"codepoint": "0xeaa2",
+			"lucide": "bell",
+			"mapped": true
+		},
+		{
+			"id": "bold",
+			"codepoint": "0xeaa3",
+			"lucide": "bold",
+			"mapped": true
+		},
+		{
+			"id": "book",
+			"codepoint": "0xeaa4",
+			"lucide": "book",
+			"mapped": true
+		},
+		{
+			"id": "bookmark",
+			"codepoint": "0xeaa5",
+			"lucide": "bookmark",
+			"mapped": true
+		},
+		{
+			"id": "debug-breakpoint-conditional-unverified",
+			"codepoint": "0xeaa6",
+			"lucide": "circle-help",
+			"mapped": true
+		},
+		{
+			"id": "debug-breakpoint-conditional",
+			"codepoint": "0xeaa7",
+			"lucide": "circle-help",
+			"mapped": true
+		},
+		{
+			"id": "debug-breakpoint-data-unverified",
+			"codepoint": "0xeaa8",
+			"lucide": "circle-dot",
+			"mapped": true
+		},
+		{
+			"id": "debug-breakpoint-data",
+			"codepoint": "0xeaa9",
+			"lucide": "circle-dot",
+			"mapped": true
+		},
+		{
+			"id": "debug-breakpoint-log-unverified",
+			"codepoint": "0xeaaa",
+			"lucide": "circle-dot",
+			"mapped": true
+		},
+		{
+			"id": "debug-breakpoint-log",
+			"codepoint": "0xeaab",
+			"lucide": "circle-dot",
+			"mapped": true
+		},
+		{
+			"id": "briefcase",
+			"codepoint": "0xeaac",
+			"lucide": "briefcase",
+			"mapped": true
+		},
+		{
+			"id": "broadcast",
+			"codepoint": "0xeaad",
+			"lucide": "radio",
+			"mapped": true
+		},
+		{
+			"id": "browser",
+			"codepoint": "0xeaae",
+			"lucide": "globe",
+			"mapped": true
+		},
+		{
+			"id": "bug",
+			"codepoint": "0xeaaf",
+			"lucide": "bug",
+			"mapped": true
+		},
+		{
+			"id": "calendar",
+			"codepoint": "0xeab0",
+			"lucide": "calendar",
+			"mapped": true
+		},
+		{
+			"id": "case-sensitive",
+			"codepoint": "0xeab1",
+			"lucide": "case-sensitive",
+			"mapped": true
+		},
+		{
+			"id": "check",
+			"codepoint": "0xeab2",
+			"lucide": "check",
+			"mapped": true
+		},
+		{
+			"id": "checklist",
+			"codepoint": "0xeab3",
+			"lucide": "list-checks",
+			"mapped": true
+		},
+		{
+			"id": "chevron-down",
+			"codepoint": "0xeab4",
+			"lucide": "chevron-down",
+			"mapped": true
+		},
+		{
+			"id": "chevron-left",
+			"codepoint": "0xeab5",
+			"lucide": "chevron-left",
+			"mapped": true
+		},
+		{
+			"id": "chevron-right",
+			"codepoint": "0xeab6",
+			"lucide": "chevron-right",
+			"mapped": true
+		},
+		{
+			"id": "chevron-up",
+			"codepoint": "0xeab7",
+			"lucide": "chevron-up",
+			"mapped": true
+		},
+		{
+			"id": "chrome-close",
+			"codepoint": "0xeab8",
+			"lucide": "x",
+			"mapped": true
+		},
+		{
+			"id": "chrome-maximize",
+			"codepoint": "0xeab9",
+			"lucide": "square",
+			"mapped": true
+		},
+		{
+			"id": "chrome-minimize",
+			"codepoint": "0xeaba",
+			"lucide": "minus",
+			"mapped": true
+		},
+		{
+			"id": "chrome-restore",
+			"codepoint": "0xeabb",
+			"lucide": "copy",
+			"mapped": true
+		},
+		{
+			"id": "circle-outline",
+			"codepoint": "0xeabc",
+			"lucide": "circle",
+			"mapped": true
+		},
+		{
+			"id": "circle-slash",
+			"codepoint": "0xeabd",
+			"lucide": "circle-off",
+			"mapped": true
+		},
+		{
+			"id": "circuit-board",
+			"codepoint": "0xeabe",
+			"lucide": "circuit-board",
+			"mapped": true
+		},
+		{
+			"id": "clear-all",
+			"codepoint": "0xeabf",
+			"lucide": "brush-cleaning",
+			"mapped": true
+		},
+		{
+			"id": "clippy",
+			"codepoint": "0xeac0",
+			"lucide": "clipboard",
+			"mapped": true
+		},
+		{
+			"id": "close-all",
+			"codepoint": "0xeac1",
+			"lucide": "x",
+			"mapped": true
+		},
+		{
+			"id": "cloud-download",
+			"codepoint": "0xeac2",
+			"lucide": "cloud-download",
+			"mapped": true
+		},
+		{
+			"id": "cloud-upload",
+			"codepoint": "0xeac3",
+			"lucide": "cloud-upload",
+			"mapped": true
+		},
+		{
+			"id": "code",
+			"codepoint": "0xeac4",
+			"lucide": "code",
+			"mapped": true
+		},
+		{
+			"id": "collapse-all",
+			"codepoint": "0xeac5",
+			"lucide": "fold-vertical",
+			"mapped": true
+		},
+		{
+			"id": "color-mode",
+			"codepoint": "0xeac6",
+			"lucide": "sun-moon",
+			"mapped": true
+		},
+		{
+			"id": "comment-discussion",
+			"codepoint": "0xeac7",
+			"lucide": "messages-square",
+			"mapped": true
+		},
+		{
+			"id": "credit-card",
+			"codepoint": "0xeac9",
+			"lucide": "credit-card",
+			"mapped": true
+		},
+		{
+			"id": "dash",
+			"codepoint": "0xeacc",
+			"lucide": "minus",
+			"mapped": true
+		},
+		{
+			"id": "dashboard",
+			"codepoint": "0xeacd",
+			"lucide": "layout-dashboard",
+			"mapped": true
+		},
+		{
+			"id": "database",
+			"codepoint": "0xeace",
+			"lucide": "database",
+			"mapped": true
+		},
+		{
+			"id": "debug-continue",
+			"codepoint": "0xeacf",
+			"lucide": "play",
+			"mapped": true
+		},
+		{
+			"id": "debug-disconnect",
+			"codepoint": "0xead0",
+			"lucide": "unplug",
+			"mapped": true
+		},
+		{
+			"id": "debug-pause",
+			"codepoint": "0xead1",
+			"lucide": "pause",
+			"mapped": true
+		},
+		{
+			"id": "debug-restart",
+			"codepoint": "0xead2",
+			"lucide": "rotate-cw",
+			"mapped": true
+		},
+		{
+			"id": "debug-start",
+			"codepoint": "0xead3",
+			"lucide": "play",
+			"mapped": true
+		},
+		{
+			"id": "debug-step-into",
+			"codepoint": "0xead4",
+			"lucide": "arrow-down-to-line",
+			"mapped": true
+		},
+		{
+			"id": "debug-step-out",
+			"codepoint": "0xead5",
+			"lucide": "arrow-up-from-line",
+			"mapped": true
+		},
+		{
+			"id": "debug-step-over",
+			"codepoint": "0xead6",
+			"lucide": "arrow-right-to-line",
+			"mapped": true
+		},
+		{
+			"id": "debug-stop",
+			"codepoint": "0xead7",
+			"lucide": "square",
+			"mapped": true
+		},
+		{
+			"id": "debug",
+			"codepoint": "0xead8",
+			"lucide": "bug",
+			"mapped": true
+		},
+		{
+			"id": "device-camera-video",
+			"codepoint": "0xead9",
+			"lucide": "video",
+			"mapped": true
+		},
+		{
+			"id": "device-camera",
+			"codepoint": "0xeada",
+			"lucide": "camera",
+			"mapped": true
+		},
+		{
+			"id": "device-mobile",
+			"codepoint": "0xeadb",
+			"lucide": "smartphone",
+			"mapped": true
+		},
+		{
+			"id": "diff-added",
+			"codepoint": "0xeadc",
+			"lucide": "plus",
+			"mapped": true
+		},
+		{
+			"id": "diff-ignored",
+			"codepoint": "0xeadd",
+			"lucide": "eye-off",
+			"mapped": true
+		},
+		{
+			"id": "diff-modified",
+			"codepoint": "0xeade",
+			"lucide": "pencil",
+			"mapped": true
+		},
+		{
+			"id": "diff-removed",
+			"codepoint": "0xeadf",
+			"lucide": "minus",
+			"mapped": true
+		},
+		{
+			"id": "diff-renamed",
+			"codepoint": "0xeae0",
+			"lucide": "arrow-right-left",
+			"mapped": true
+		},
+		{
+			"id": "diff",
+			"codepoint": "0xeae1",
+			"lucide": "diff",
+			"mapped": true
+		},
+		{
+			"id": "discard",
+			"codepoint": "0xeae2",
+			"lucide": "undo-2",
+			"mapped": true
+		},
+		{
+			"id": "editor-layout",
+			"codepoint": "0xeae3",
+			"lucide": "panels-top-left",
+			"mapped": true
+		},
+		{
+			"id": "empty-window",
+			"codepoint": "0xeae4",
+			"lucide": "square-dashed",
+			"mapped": true
+		},
+		{
+			"id": "exclude",
+			"codepoint": "0xeae5",
+			"lucide": "circle-off",
+			"mapped": true
+		},
+		{
+			"id": "extensions",
+			"codepoint": "0xeae6",
+			"lucide": "blocks",
+			"mapped": true
+		},
+		{
+			"id": "eye-closed",
+			"codepoint": "0xeae7",
+			"lucide": "eye-off",
+			"mapped": true
+		},
+		{
+			"id": "file-binary",
+			"codepoint": "0xeae8",
+			"lucide": "file-digit",
+			"mapped": true
+		},
+		{
+			"id": "file-code",
+			"codepoint": "0xeae9",
+			"lucide": "file-code",
+			"mapped": true
+		},
+		{
+			"id": "file-media",
+			"codepoint": "0xeaea",
+			"lucide": "file-image",
+			"mapped": true
+		},
+		{
+			"id": "file-pdf",
+			"codepoint": "0xeaeb",
+			"lucide": "file-text",
+			"mapped": true
+		},
+		{
+			"id": "file-submodule",
+			"codepoint": "0xeaec",
+			"lucide": "file-code",
+			"mapped": true
+		},
+		{
+			"id": "file-symlink-directory",
+			"codepoint": "0xeaed",
+			"lucide": "folder-symlink",
+			"mapped": true
+		},
+		{
+			"id": "file-symlink-file",
+			"codepoint": "0xeaee",
+			"lucide": "file-symlink",
+			"mapped": true
+		},
+		{
+			"id": "file-zip",
+			"codepoint": "0xeaef",
+			"lucide": "file-archive",
+			"mapped": true
+		},
+		{
+			"id": "files",
+			"codepoint": "0xeaf0",
+			"lucide": "folder-tree",
+			"mapped": true
+		},
+		{
+			"id": "filter",
+			"codepoint": "0xeaf1",
+			"lucide": "funnel",
+			"mapped": true
+		},
+		{
+			"id": "flame",
+			"codepoint": "0xeaf2",
+			"lucide": "flame",
+			"mapped": true
+		},
+		{
+			"id": "fold-down",
+			"codepoint": "0xeaf3",
+			"lucide": "chevrons-down",
+			"mapped": true
+		},
+		{
+			"id": "fold-up",
+			"codepoint": "0xeaf4",
+			"lucide": "chevrons-up",
+			"mapped": true
+		},
+		{
+			"id": "fold",
+			"codepoint": "0xeaf5",
+			"lucide": "fold-vertical",
+			"mapped": true
+		},
+		{
+			"id": "folder-active",
+			"codepoint": "0xeaf6",
+			"lucide": "folder",
+			"mapped": true
+		},
+		{
+			"id": "folder-opened",
+			"codepoint": "0xeaf7",
+			"lucide": "folder-open",
+			"mapped": true
+		},
+		{
+			"id": "gear",
+			"codepoint": "0xeaf8",
+			"lucide": "settings",
+			"mapped": true
+		},
+		{
+			"id": "gift",
+			"codepoint": "0xeaf9",
+			"lucide": "gift",
+			"mapped": true
+		},
+		{
+			"id": "gist-secret",
+			"codepoint": "0xeafa",
+			"lucide": "lock",
+			"mapped": true
+		},
+		{
+			"id": "gist",
+			"codepoint": "0xeafb",
+			"lucide": "code",
+			"mapped": true
+		},
+		{
+			"id": "git-commit",
+			"codepoint": "0xeafc",
+			"lucide": "git-commit-horizontal",
+			"mapped": true
+		},
+		{
+			"id": "git-compare",
+			"codepoint": "0xeafd",
+			"lucide": "git-compare",
+			"mapped": true
+		},
+		{
+			"id": "git-merge",
+			"codepoint": "0xeafe",
+			"lucide": "git-merge",
+			"mapped": true
+		},
+		{
+			"id": "github-action",
+			"codepoint": "0xeaff",
+			"lucide": "zap",
+			"mapped": true
+		},
+		{
+			"id": "github-alt",
+			"codepoint": "0xeb00",
+			"lucide": "code-2",
+			"mapped": true
+		},
+		{
+			"id": "globe",
+			"codepoint": "0xeb01",
+			"lucide": "globe",
+			"mapped": true
+		},
+		{
+			"id": "grabber",
+			"codepoint": "0xeb02",
+			"lucide": "grip",
+			"mapped": true
+		},
+		{
+			"id": "graph",
+			"codepoint": "0xeb03",
+			"lucide": "chart-bar",
+			"mapped": true
+		},
+		{
+			"id": "gripper",
+			"codepoint": "0xeb04",
+			"lucide": "grip-vertical",
+			"mapped": true
+		},
+		{
+			"id": "heart",
+			"codepoint": "0xeb05",
+			"lucide": "heart",
+			"mapped": true
+		},
+		{
+			"id": "home",
+			"codepoint": "0xeb06",
+			"lucide": "home",
+			"mapped": true
+		},
+		{
+			"id": "horizontal-rule",
+			"codepoint": "0xeb07",
+			"lucide": "minus",
+			"mapped": true
+		},
+		{
+			"id": "hubot",
+			"codepoint": "0xeb08",
+			"lucide": "bot",
+			"mapped": true
+		},
+		{
+			"id": "inbox",
+			"codepoint": "0xeb09",
+			"lucide": "inbox",
+			"mapped": true
+		},
+		{
+			"id": "issue-reopened",
+			"codepoint": "0xeb0b",
+			"lucide": "refresh-cw",
+			"mapped": true
+		},
+		{
+			"id": "issues",
+			"codepoint": "0xeb0c",
+			"lucide": "circle-dot",
+			"mapped": true
+		},
+		{
+			"id": "italic",
+			"codepoint": "0xeb0d",
+			"lucide": "italic",
+			"mapped": true
+		},
+		{
+			"id": "jersey",
+			"codepoint": "0xeb0e",
+			"lucide": "shirt",
+			"mapped": true
+		},
+		{
+			"id": "json",
+			"codepoint": "0xeb0f",
+			"lucide": "braces",
+			"mapped": true
+		},
+		{
+			"id": "kebab-vertical",
+			"codepoint": "0xeb10",
+			"lucide": "ellipsis-vertical",
+			"mapped": true
+		},
+		{
+			"id": "key",
+			"codepoint": "0xeb11",
+			"lucide": "key",
+			"mapped": true
+		},
+		{
+			"id": "law",
+			"codepoint": "0xeb12",
+			"lucide": "scale",
+			"mapped": true
+		},
+		{
+			"id": "lightbulb-autofix",
+			"codepoint": "0xeb13",
+			"lucide": "lightbulb",
+			"mapped": true
+		},
+		{
+			"id": "link-external",
+			"codepoint": "0xeb14",
+			"lucide": "external-link",
+			"mapped": true
+		},
+		{
+			"id": "link",
+			"codepoint": "0xeb15",
+			"lucide": "link",
+			"mapped": true
+		},
+		{
+			"id": "list-ordered",
+			"codepoint": "0xeb16",
+			"lucide": "list-ordered",
+			"mapped": true
+		},
+		{
+			"id": "list-unordered",
+			"codepoint": "0xeb17",
+			"lucide": "list",
+			"mapped": true
+		},
+		{
+			"id": "live-share",
+			"codepoint": "0xeb18",
+			"lucide": "share-2",
+			"mapped": true
+		},
+		{
+			"id": "loading",
+			"codepoint": "0xeb19",
+			"lucide": "loader-circle",
+			"mapped": true
+		},
+		{
+			"id": "location",
+			"codepoint": "0xeb1a",
+			"lucide": "map-pin",
+			"mapped": true
+		},
+		{
+			"id": "mail-read",
+			"codepoint": "0xeb1b",
+			"lucide": "mail-open",
+			"mapped": true
+		},
+		{
+			"id": "mail",
+			"codepoint": "0xeb1c",
+			"lucide": "mail",
+			"mapped": true
+		},
+		{
+			"id": "markdown",
+			"codepoint": "0xeb1d",
+			"lucide": "book-open-text",
+			"mapped": true
+		},
+		{
+			"id": "megaphone",
+			"codepoint": "0xeb1e",
+			"lucide": "megaphone",
+			"mapped": true
+		},
+		{
+			"id": "mention",
+			"codepoint": "0xeb1f",
+			"lucide": "at-sign",
+			"mapped": true
+		},
+		{
+			"id": "milestone",
+			"codepoint": "0xeb20",
+			"lucide": "milestone",
+			"mapped": true
+		},
+		{
+			"id": "mortar-board",
+			"codepoint": "0xeb21",
+			"lucide": "graduation-cap",
+			"mapped": true
+		},
+		{
+			"id": "move",
+			"codepoint": "0xeb22",
+			"lucide": "move",
+			"mapped": true
+		},
+		{
+			"id": "multiple-windows",
+			"codepoint": "0xeb23",
+			"lucide": "app-window",
+			"mapped": true
+		},
+		{
+			"id": "mute",
+			"codepoint": "0xeb24",
+			"lucide": "volume-x",
+			"mapped": true
+		},
+		{
+			"id": "no-newline",
+			"codepoint": "0xeb25",
+			"lucide": "corner-down-left",
+			"mapped": true
+		},
+		{
+			"id": "note",
+			"codepoint": "0xeb26",
+			"lucide": "sticky-note",
+			"mapped": true
+		},
+		{
+			"id": "octoface",
+			"codepoint": "0xeb27",
+			"lucide": "code-2",
+			"mapped": true
+		},
+		{
+			"id": "open-preview",
+			"codepoint": "0xeb28",
+			"lucide": "eye",
+			"mapped": true
+		},
+		{
+			"id": "package",
+			"codepoint": "0xeb29",
+			"lucide": "package",
+			"mapped": true
+		},
+		{
+			"id": "paintcan",
+			"codepoint": "0xeb2a",
+			"lucide": "paint-bucket",
+			"mapped": true
+		},
+		{
+			"id": "pin",
+			"codepoint": "0xeb2b",
+			"lucide": "pin",
+			"mapped": true
+		},
+		{
+			"id": "play",
+			"codepoint": "0xeb2c",
+			"lucide": "play",
+			"mapped": true
+		},
+		{
+			"id": "plug",
+			"codepoint": "0xeb2d",
+			"lucide": "plug",
+			"mapped": true
+		},
+		{
+			"id": "preserve-case",
+			"codepoint": "0xeb2e",
+			"lucide": "case-sensitive",
+			"mapped": true
+		},
+		{
+			"id": "preview",
+			"codepoint": "0xeb2f",
+			"lucide": "eye",
+			"mapped": true
+		},
+		{
+			"id": "project",
+			"codepoint": "0xeb30",
+			"lucide": "folder-kanban",
+			"mapped": true
+		},
+		{
+			"id": "pulse",
+			"codepoint": "0xeb31",
+			"lucide": "activity",
+			"mapped": true
+		},
+		{
+			"id": "question",
+			"codepoint": "0xeb32",
+			"lucide": "circle-help",
+			"mapped": true
+		},
+		{
+			"id": "quote",
+			"codepoint": "0xeb33",
+			"lucide": "quote",
+			"mapped": true
+		},
+		{
+			"id": "radio-tower",
+			"codepoint": "0xeb34",
+			"lucide": "radio-tower",
+			"mapped": true
+		},
+		{
+			"id": "reactions",
+			"codepoint": "0xeb35",
+			"lucide": "smile",
+			"mapped": true
+		},
+		{
+			"id": "references",
+			"codepoint": "0xeb36",
+			"lucide": "link-2",
+			"mapped": true
+		},
+		{
+			"id": "refresh",
+			"codepoint": "0xeb37",
+			"lucide": "refresh-cw",
+			"mapped": true
+		},
+		{
+			"id": "regex",
+			"codepoint": "0xeb38",
+			"lucide": "regex",
+			"mapped": true
+		},
+		{
+			"id": "remote-explorer",
+			"codepoint": "0xeb39",
+			"lucide": "hard-drive",
+			"mapped": true
+		},
+		{
+			"id": "remote",
+			"codepoint": "0xeb3a",
+			"lucide": "cloud",
+			"mapped": true
+		},
+		{
+			"id": "remove",
+			"codepoint": "0xeb3b",
+			"lucide": "minus",
+			"mapped": true
+		},
+		{
+			"id": "replace-all",
+			"codepoint": "0xeb3c",
+			"lucide": "replace-all",
+			"mapped": true
+		},
+		{
+			"id": "replace",
+			"codepoint": "0xeb3d",
+			"lucide": "replace",
+			"mapped": true
+		},
+		{
+			"id": "repo-clone",
+			"codepoint": "0xeb3e",
+			"lucide": "copy",
+			"mapped": true
+		},
+		{
+			"id": "repo-force-push",
+			"codepoint": "0xeb3f",
+			"lucide": "upload",
+			"mapped": true
+		},
+		{
+			"id": "repo-pull",
+			"codepoint": "0xeb40",
+			"lucide": "download",
+			"mapped": true
+		},
+		{
+			"id": "repo-push",
+			"codepoint": "0xeb41",
+			"lucide": "upload",
+			"mapped": true
+		},
+		{
+			"id": "report",
+			"codepoint": "0xeb42",
+			"lucide": "flag",
+			"mapped": true
+		},
+		{
+			"id": "request-changes",
+			"codepoint": "0xeb43",
+			"lucide": "message-square-warning",
+			"mapped": true
+		},
+		{
+			"id": "rocket",
+			"codepoint": "0xeb44",
+			"lucide": "rocket",
+			"mapped": true
+		},
+		{
+			"id": "root-folder-opened",
+			"codepoint": "0xeb45",
+			"lucide": "folder-open",
+			"mapped": true
+		},
+		{
+			"id": "root-folder",
+			"codepoint": "0xeb46",
+			"lucide": "folder",
+			"mapped": true
+		},
+		{
+			"id": "rss",
+			"codepoint": "0xeb47",
+			"lucide": "rss",
+			"mapped": true
+		},
+		{
+			"id": "ruby",
+			"codepoint": "0xeb48",
+			"lucide": "gem",
+			"mapped": true
+		},
+		{
+			"id": "save-all",
+			"codepoint": "0xeb49",
+			"lucide": "save-all",
+			"mapped": true
+		},
+		{
+			"id": "save-as",
+			"codepoint": "0xeb4a",
+			"lucide": "save",
+			"mapped": true
+		},
+		{
+			"id": "save",
+			"codepoint": "0xeb4b",
+			"lucide": "save",
+			"mapped": true
+		},
+		{
+			"id": "screen-full",
+			"codepoint": "0xeb4c",
+			"lucide": "maximize",
+			"mapped": true
+		},
+		{
+			"id": "screen-normal",
+			"codepoint": "0xeb4d",
+			"lucide": "minimize",
+			"mapped": true
+		},
+		{
+			"id": "search-stop",
+			"codepoint": "0xeb4e",
+			"lucide": "search-x",
+			"mapped": true
+		},
+		{
+			"id": "server",
+			"codepoint": "0xeb50",
+			"lucide": "server",
+			"mapped": true
+		},
+		{
+			"id": "settings-gear",
+			"codepoint": "0xeb51",
+			"lucide": "settings",
+			"mapped": true
+		},
+		{
+			"id": "settings",
+			"codepoint": "0xeb52",
+			"lucide": "settings",
+			"mapped": true
+		},
+		{
+			"id": "shield",
+			"codepoint": "0xeb53",
+			"lucide": "shield",
+			"mapped": true
+		},
+		{
+			"id": "smiley",
+			"codepoint": "0xeb54",
+			"lucide": "smile",
+			"mapped": true
+		},
+		{
+			"id": "sort-precedence",
+			"codepoint": "0xeb55",
+			"lucide": "arrow-up-down",
+			"mapped": true
+		},
+		{
+			"id": "split-horizontal",
+			"codepoint": "0xeb56",
+			"lucide": "separator-horizontal",
+			"mapped": true
+		},
+		{
+			"id": "split-vertical",
+			"codepoint": "0xeb57",
+			"lucide": "separator-vertical",
+			"mapped": true
+		},
+		{
+			"id": "squirrel",
+			"codepoint": "0xeb58",
+			"lucide": "squirrel",
+			"mapped": true
+		},
+		{
+			"id": "star-full",
+			"codepoint": "0xeb59",
+			"lucide": "star",
+			"mapped": true
+		},
+		{
+			"id": "star-half",
+			"codepoint": "0xeb5a",
+			"lucide": "star-half",
+			"mapped": true
+		},
+		{
+			"id": "symbol-class",
+			"codepoint": "0xeb5b",
+			"lucide": "component",
+			"mapped": true
+		},
+		{
+			"id": "symbol-color",
+			"codepoint": "0xeb5c",
+			"lucide": "palette",
+			"mapped": true
+		},
+		{
+			"id": "symbol-constant",
+			"codepoint": "0xeb5d",
+			"lucide": "pi",
+			"mapped": true
+		},
+		{
+			"id": "symbol-enum-member",
+			"codepoint": "0xeb5e",
+			"lucide": "list",
+			"mapped": true
+		},
+		{
+			"id": "symbol-field",
+			"codepoint": "0xeb5f",
+			"lucide": "rectangle-ellipsis",
+			"mapped": true
+		},
+		{
+			"id": "symbol-file",
+			"codepoint": "0xeb60",
+			"lucide": "file",
+			"mapped": true
+		},
+		{
+			"id": "symbol-interface",
+			"codepoint": "0xeb61",
+			"lucide": "waypoints",
+			"mapped": true
+		},
+		{
+			"id": "symbol-keyword",
+			"codepoint": "0xeb62",
+			"lucide": "key-round",
+			"mapped": true
+		},
+		{
+			"id": "symbol-misc",
+			"codepoint": "0xeb63",
+			"lucide": "shapes",
+			"mapped": true
+		},
+		{
+			"id": "symbol-operator",
+			"codepoint": "0xeb64",
+			"lucide": "sigma",
+			"mapped": true
+		},
+		{
+			"id": "symbol-property",
+			"codepoint": "0xeb65",
+			"lucide": "wrench",
+			"mapped": true
+		},
+		{
+			"id": "symbol-snippet",
+			"codepoint": "0xeb66",
+			"lucide": "scissors",
+			"mapped": true
+		},
+		{
+			"id": "tasklist",
+			"codepoint": "0xeb67",
+			"lucide": "list-todo",
+			"mapped": true
+		},
+		{
+			"id": "telescope",
+			"codepoint": "0xeb68",
+			"lucide": "telescope",
+			"mapped": true
+		},
+		{
+			"id": "text-size",
+			"codepoint": "0xeb69",
+			"lucide": "a-large-small",
+			"mapped": true
+		},
+		{
+			"id": "three-bars",
+			"codepoint": "0xeb6a",
+			"lucide": "menu",
+			"mapped": true
+		},
+		{
+			"id": "thumbsdown",
+			"codepoint": "0xeb6b",
+			"lucide": "thumbs-down",
+			"mapped": true
+		},
+		{
+			"id": "thumbsup",
+			"codepoint": "0xeb6c",
+			"lucide": "thumbs-up",
+			"mapped": true
+		},
+		{
+			"id": "tools",
+			"codepoint": "0xeb6d",
+			"lucide": "wrench",
+			"mapped": true
+		},
+		{
+			"id": "triangle-down",
+			"codepoint": "0xeb6e",
+			"lucide": "triangle",
+			"mapped": true
+		},
+		{
+			"id": "triangle-left",
+			"codepoint": "0xeb6f",
+			"lucide": "triangle",
+			"mapped": true
+		},
+		{
+			"id": "triangle-right",
+			"codepoint": "0xeb70",
+			"lucide": "triangle-right",
+			"mapped": true
+		},
+		{
+			"id": "triangle-up",
+			"codepoint": "0xeb71",
+			"lucide": "triangle",
+			"mapped": true
+		},
+		{
+			"id": "twitter",
+			"codepoint": "0xeb72",
+			"lucide": "megaphone",
+			"mapped": true
+		},
+		{
+			"id": "unfold",
+			"codepoint": "0xeb73",
+			"lucide": "unfold-vertical",
+			"mapped": true
+		},
+		{
+			"id": "unlock",
+			"codepoint": "0xeb74",
+			"lucide": "lock-open",
+			"mapped": true
+		},
+		{
+			"id": "unmute",
+			"codepoint": "0xeb75",
+			"lucide": "volume-2",
+			"mapped": true
+		},
+		{
+			"id": "unverified",
+			"codepoint": "0xeb76",
+			"lucide": "badge-help",
+			"mapped": true
+		},
+		{
+			"id": "verified",
+			"codepoint": "0xeb77",
+			"lucide": "badge-check",
+			"mapped": true
+		},
+		{
+			"id": "versions",
+			"codepoint": "0xeb78",
+			"lucide": "history",
+			"mapped": true
+		},
+		{
+			"id": "vm-active",
+			"codepoint": "0xeb79",
+			"lucide": "monitor",
+			"mapped": true
+		},
+		{
+			"id": "vm-outline",
+			"codepoint": "0xeb7a",
+			"lucide": "monitor",
+			"mapped": true
+		},
+		{
+			"id": "vm-running",
+			"codepoint": "0xeb7b",
+			"lucide": "monitor-play",
+			"mapped": true
+		},
+		{
+			"id": "watch",
+			"codepoint": "0xeb7c",
+			"lucide": "watch",
+			"mapped": true
+		},
+		{
+			"id": "whitespace",
+			"codepoint": "0xeb7d",
+			"lucide": "space",
+			"mapped": true
+		},
+		{
+			"id": "whole-word",
+			"codepoint": "0xeb7e",
+			"lucide": "whole-word",
+			"mapped": true
+		},
+		{
+			"id": "window",
+			"codepoint": "0xeb7f",
+			"lucide": "app-window",
+			"mapped": true
+		},
+		{
+			"id": "word-wrap",
+			"codepoint": "0xeb80",
+			"lucide": "wrap-text",
+			"mapped": true
+		},
+		{
+			"id": "zoom-in",
+			"codepoint": "0xeb81",
+			"lucide": "zoom-in",
+			"mapped": true
+		},
+		{
+			"id": "zoom-out",
+			"codepoint": "0xeb82",
+			"lucide": "zoom-out",
+			"mapped": true
+		},
+		{
+			"id": "list-filter",
+			"codepoint": "0xeb83",
+			"lucide": "list-filter",
+			"mapped": true
+		},
+		{
+			"id": "list-flat",
+			"codepoint": "0xeb84",
+			"lucide": "list",
+			"mapped": true
+		},
+		{
+			"id": "list-selection",
+			"codepoint": "0xeb85",
+			"lucide": "list-checks",
+			"mapped": true
+		},
+		{
+			"id": "list-tree",
+			"codepoint": "0xeb86",
+			"lucide": "list-tree",
+			"mapped": true
+		},
+		{
+			"id": "debug-breakpoint-function-unverified",
+			"codepoint": "0xeb87",
+			"lucide": "circle-dot",
+			"mapped": true
+		},
+		{
+			"id": "debug-breakpoint-function",
+			"codepoint": "0xeb88",
+			"lucide": "circle-dot",
+			"mapped": true
+		},
+		{
+			"id": "debug-stackframe-active",
+			"codepoint": "0xeb89",
+			"lucide": "bookmark",
+			"mapped": true
+		},
+		{
+			"id": "circle-small-filled",
+			"codepoint": "0xeb8a",
+			"lucide": "circle",
+			"mapped": true
+		},
+		{
+			"id": "debug-stackframe",
+			"codepoint": "0xeb8b",
+			"lucide": "bookmark",
+			"mapped": true
+		},
+		{
+			"id": "debug-breakpoint-unsupported",
+			"codepoint": "0xeb8c",
+			"lucide": "circle-off",
+			"mapped": true
+		},
+		{
+			"id": "symbol-string",
+			"codepoint": "0xeb8d",
+			"lucide": "whole-word",
+			"mapped": true
+		},
+		{
+			"id": "debug-reverse-continue",
+			"codepoint": "0xeb8e",
+			"lucide": "play",
+			"mapped": true
+		},
+		{
+			"id": "debug-step-back",
+			"codepoint": "0xeb8f",
+			"lucide": "arrow-left-to-line",
+			"mapped": true
+		},
+		{
+			"id": "debug-restart-frame",
+			"codepoint": "0xeb90",
+			"lucide": "rotate-cw",
+			"mapped": true
+		},
+		{
+			"id": "debug-alt",
+			"codepoint": "0xeb91",
+			"lucide": "bug-play",
+			"mapped": true
+		},
+		{
+			"id": "call-incoming",
+			"codepoint": "0xeb92",
+			"lucide": "phone-incoming",
+			"mapped": true
+		},
+		{
+			"id": "call-outgoing",
+			"codepoint": "0xeb93",
+			"lucide": "phone-outgoing",
+			"mapped": true
+		},
+		{
+			"id": "menu",
+			"codepoint": "0xeb94",
+			"lucide": "menu",
+			"mapped": true
+		},
+		{
+			"id": "expand-all",
+			"codepoint": "0xeb95",
+			"lucide": "unfold-vertical",
+			"mapped": true
+		},
+		{
+			"id": "feedback",
+			"codepoint": "0xeb96",
+			"lucide": "message-circle",
+			"mapped": true
+		},
+		{
+			"id": "group-by-ref-type",
+			"codepoint": "0xeb97",
+			"lucide": "group",
+			"mapped": true
+		},
+		{
+			"id": "ungroup-by-ref-type",
+			"codepoint": "0xeb98",
+			"lucide": "ungroup",
+			"mapped": true
+		},
+		{
+			"id": "account",
+			"codepoint": "0xeb99",
+			"lucide": "circle-user",
+			"mapped": true
+		},
+		{
+			"id": "bell-dot",
+			"codepoint": "0xeb9a",
+			"lucide": "bell",
+			"mapped": true
+		},
+		{
+			"id": "debug-console",
+			"codepoint": "0xeb9b",
+			"lucide": "terminal",
+			"mapped": true
+		},
+		{
+			"id": "library",
+			"codepoint": "0xeb9c",
+			"lucide": "library",
+			"mapped": true
+		},
+		{
+			"id": "output",
+			"codepoint": "0xeb9d",
+			"lucide": "panel-bottom",
+			"mapped": true
+		},
+		{
+			"id": "run-all",
+			"codepoint": "0xeb9e",
+			"lucide": "play",
+			"mapped": true
+		},
+		{
+			"id": "sync-ignored",
+			"codepoint": "0xeb9f",
+			"lucide": "refresh-cw-off",
+			"mapped": true
+		},
+		{
+			"id": "pinned",
+			"codepoint": "0xeba0",
+			"lucide": "pin",
+			"mapped": true
+		},
+		{
+			"id": "github-inverted",
+			"codepoint": "0xeba1",
+			"lucide": "code-2",
+			"mapped": true
+		},
+		{
+			"id": "server-process",
+			"codepoint": "0xeba2",
+			"lucide": "server",
+			"mapped": true
+		},
+		{
+			"id": "server-environment",
+			"codepoint": "0xeba3",
+			"lucide": "server",
+			"mapped": true
+		},
+		{
+			"id": "pass",
+			"codepoint": "0xeba4",
+			"lucide": "circle-check",
+			"mapped": true
+		},
+		{
+			"id": "stop-circle",
+			"codepoint": "0xeba5",
+			"lucide": "stop-circle",
+			"mapped": true
+		},
+		{
+			"id": "play-circle",
+			"codepoint": "0xeba6",
+			"lucide": "play-circle",
+			"mapped": true
+		},
+		{
+			"id": "record",
+			"codepoint": "0xeba7",
+			"lucide": "circle",
+			"mapped": true
+		},
+		{
+			"id": "debug-alt-small",
+			"codepoint": "0xeba8",
+			"lucide": "bug-play",
+			"mapped": true
+		},
+		{
+			"id": "vm-connect",
+			"codepoint": "0xeba9",
+			"lucide": "monitor-up",
+			"mapped": true
+		},
+		{
+			"id": "cloud",
+			"codepoint": "0xebaa",
+			"lucide": "cloud",
+			"mapped": true
+		},
+		{
+			"id": "merge",
+			"codepoint": "0xebab",
+			"lucide": "merge",
+			"mapped": true
+		},
+		{
+			"id": "export",
+			"codepoint": "0xebac",
+			"lucide": "upload",
+			"mapped": true
+		},
+		{
+			"id": "graph-left",
+			"codepoint": "0xebad",
+			"lucide": "chart-bar",
+			"mapped": true
+		},
+		{
+			"id": "magnet",
+			"codepoint": "0xebae",
+			"lucide": "magnet",
+			"mapped": true
+		},
+		{
+			"id": "notebook",
+			"codepoint": "0xebaf",
+			"lucide": "notebook",
+			"mapped": true
+		},
+		{
+			"id": "redo",
+			"codepoint": "0xebb0",
+			"lucide": "redo",
+			"mapped": true
+		},
+		{
+			"id": "check-all",
+			"codepoint": "0xebb1",
+			"lucide": "check-check",
+			"mapped": true
+		},
+		{
+			"id": "pinned-dirty",
+			"codepoint": "0xebb2",
+			"lucide": "pin",
+			"mapped": true
+		},
+		{
+			"id": "pass-filled",
+			"codepoint": "0xebb3",
+			"lucide": "circle-check",
+			"mapped": true
+		},
+		{
+			"id": "circle-large-filled",
+			"codepoint": "0xebb4",
+			"lucide": "circle",
+			"mapped": true
+		},
+		{
+			"id": "circle-large",
+			"codepoint": "0xebb5",
+			"lucide": "circle",
+			"mapped": true
+		},
+		{
+			"id": "combine",
+			"codepoint": "0xebb6",
+			"lucide": "combine",
+			"mapped": true
+		},
+		{
+			"id": "table",
+			"codepoint": "0xebb7",
+			"lucide": "table",
+			"mapped": true
+		},
+		{
+			"id": "variable-group",
+			"codepoint": "0xebb8",
+			"lucide": "variable",
+			"mapped": true
+		},
+		{
+			"id": "type-hierarchy",
+			"codepoint": "0xebb9",
+			"lucide": "network",
+			"mapped": true
+		},
+		{
+			"id": "type-hierarchy-sub",
+			"codepoint": "0xebba",
+			"lucide": "network",
+			"mapped": true
+		},
+		{
+			"id": "type-hierarchy-super",
+			"codepoint": "0xebbb",
+			"lucide": "network",
+			"mapped": true
+		},
+		{
+			"id": "git-pull-request-create",
+			"codepoint": "0xebbc",
+			"lucide": "git-pull-request-create",
+			"mapped": true
+		},
+		{
+			"id": "run-above",
+			"codepoint": "0xebbd",
+			"lucide": "play",
+			"mapped": true
+		},
+		{
+			"id": "run-below",
+			"codepoint": "0xebbe",
+			"lucide": "play",
+			"mapped": true
+		},
+		{
+			"id": "notebook-template",
+			"codepoint": "0xebbf",
+			"lucide": "book-template",
+			"mapped": true
+		},
+		{
+			"id": "debug-rerun",
+			"codepoint": "0xebc0",
+			"lucide": "rotate-cw",
+			"mapped": true
+		},
+		{
+			"id": "workspace-trusted",
+			"codepoint": "0xebc1",
+			"lucide": "shield-check",
+			"mapped": true
+		},
+		{
+			"id": "workspace-untrusted",
+			"codepoint": "0xebc2",
+			"lucide": "shield-alert",
+			"mapped": true
+		},
+		{
+			"id": "workspace-unknown",
+			"codepoint": "0xebc3",
+			"lucide": "shield-question",
+			"mapped": true
+		},
+		{
+			"id": "terminal-cmd",
+			"codepoint": "0xebc4",
+			"lucide": "terminal",
+			"mapped": true
+		},
+		{
+			"id": "terminal-debian",
+			"codepoint": "0xebc5",
+			"lucide": "terminal",
+			"mapped": true
+		},
+		{
+			"id": "terminal-linux",
+			"codepoint": "0xebc6",
+			"lucide": "terminal",
+			"mapped": true
+		},
+		{
+			"id": "terminal-powershell",
+			"codepoint": "0xebc7",
+			"lucide": "terminal",
+			"mapped": true
+		},
+		{
+			"id": "terminal-tmux",
+			"codepoint": "0xebc8",
+			"lucide": "terminal",
+			"mapped": true
+		},
+		{
+			"id": "terminal-ubuntu",
+			"codepoint": "0xebc9",
+			"lucide": "terminal",
+			"mapped": true
+		},
+		{
+			"id": "terminal-bash",
+			"codepoint": "0xebca",
+			"lucide": "terminal",
+			"mapped": true
+		},
+		{
+			"id": "arrow-swap",
+			"codepoint": "0xebcb",
+			"lucide": "arrow-left-right",
+			"mapped": true
+		},
+		{
+			"id": "copy",
+			"codepoint": "0xebcc",
+			"lucide": "copy",
+			"mapped": true
+		},
+		{
+			"id": "person-add",
+			"codepoint": "0xebcd",
+			"lucide": "user-plus",
+			"mapped": true
+		},
+		{
+			"id": "filter-filled",
+			"codepoint": "0xebce",
+			"lucide": "funnel",
+			"mapped": true
+		},
+		{
+			"id": "wand",
+			"codepoint": "0xebcf",
+			"lucide": "wand",
+			"mapped": true
+		},
+		{
+			"id": "debug-line-by-line",
+			"codepoint": "0xebd0",
+			"lucide": "list-ordered",
+			"mapped": true
+		},
+		{
+			"id": "inspect",
+			"codepoint": "0xebd1",
+			"lucide": "scan-search",
+			"mapped": true
+		},
+		{
+			"id": "layers",
+			"codepoint": "0xebd2",
+			"lucide": "layers",
+			"mapped": true
+		},
+		{
+			"id": "layers-dot",
+			"codepoint": "0xebd3",
+			"lucide": "layers",
+			"mapped": true
+		},
+		{
+			"id": "layers-active",
+			"codepoint": "0xebd4",
+			"lucide": "layers",
+			"mapped": true
+		},
+		{
+			"id": "compass",
+			"codepoint": "0xebd5",
+			"lucide": "compass",
+			"mapped": true
+		},
+		{
+			"id": "compass-dot",
+			"codepoint": "0xebd6",
+			"lucide": "compass",
+			"mapped": true
+		},
+		{
+			"id": "compass-active",
+			"codepoint": "0xebd7",
+			"lucide": "compass",
+			"mapped": true
+		},
+		{
+			"id": "azure",
+			"codepoint": "0xebd8",
+			"lucide": "cloud",
+			"mapped": true
+		},
+		{
+			"id": "issue-draft",
+			"codepoint": "0xebd9",
+			"lucide": "circle-dashed",
+			"mapped": true
+		},
+		{
+			"id": "git-pull-request-closed",
+			"codepoint": "0xebda",
+			"lucide": "git-pull-request-closed",
+			"mapped": true
+		},
+		{
+			"id": "git-pull-request-draft",
+			"codepoint": "0xebdb",
+			"lucide": "git-pull-request-draft",
+			"mapped": true
+		},
+		{
+			"id": "debug-all",
+			"codepoint": "0xebdc",
+			"lucide": "bug",
+			"mapped": true
+		},
+		{
+			"id": "debug-coverage",
+			"codepoint": "0xebdd",
+			"lucide": "pie-chart",
+			"mapped": true
+		},
+		{
+			"id": "run-errors",
+			"codepoint": "0xebde",
+			"lucide": "circle-alert",
+			"mapped": true
+		},
+		{
+			"id": "folder-library",
+			"codepoint": "0xebdf",
+			"lucide": "library",
+			"mapped": true
+		},
+		{
+			"id": "debug-continue-small",
+			"codepoint": "0xebe0",
+			"lucide": "play",
+			"mapped": true
+		},
+		{
+			"id": "beaker-stop",
+			"codepoint": "0xebe1",
+			"lucide": "flask-conical-off",
+			"mapped": true
+		},
+		{
+			"id": "graph-line",
+			"codepoint": "0xebe2",
+			"lucide": "chart-line",
+			"mapped": true
+		},
+		{
+			"id": "graph-scatter",
+			"codepoint": "0xebe3",
+			"lucide": "chart-scatter",
+			"mapped": true
+		},
+		{
+			"id": "pie-chart",
+			"codepoint": "0xebe4",
+			"lucide": "pie-chart",
+			"mapped": true
+		},
+		{
+			"id": "bracket-dot",
+			"codepoint": "0xebe5",
+			"lucide": "brackets",
+			"mapped": true
+		},
+		{
+			"id": "bracket-error",
+			"codepoint": "0xebe6",
+			"lucide": "brackets",
+			"mapped": true
+		},
+		{
+			"id": "lock-small",
+			"codepoint": "0xebe7",
+			"lucide": "lock",
+			"mapped": true
+		},
+		{
+			"id": "azure-devops",
+			"codepoint": "0xebe8",
+			"lucide": "cloud",
+			"mapped": true
+		},
+		{
+			"id": "verified-filled",
+			"codepoint": "0xebe9",
+			"lucide": "badge-check",
+			"mapped": true
+		},
+		{
+			"id": "newline",
+			"codepoint": "0xebea",
+			"lucide": "corner-down-left",
+			"mapped": true
+		},
+		{
+			"id": "layout",
+			"codepoint": "0xebeb",
+			"lucide": "layout",
+			"mapped": true
+		},
+		{
+			"id": "layout-activitybar-left",
+			"codepoint": "0xebec",
+			"lucide": "panel-left",
+			"mapped": true
+		},
+		{
+			"id": "layout-activitybar-right",
+			"codepoint": "0xebed",
+			"lucide": "panel-right",
+			"mapped": true
+		},
+		{
+			"id": "layout-panel-left",
+			"codepoint": "0xebee",
+			"lucide": "layout-panel-left",
+			"mapped": true
+		},
+		{
+			"id": "layout-panel-center",
+			"codepoint": "0xebef",
+			"lucide": "panel-bottom",
+			"mapped": true
+		},
+		{
+			"id": "layout-panel-justify",
+			"codepoint": "0xebf0",
+			"lucide": "panel-bottom",
+			"mapped": true
+		},
+		{
+			"id": "layout-panel-right",
+			"codepoint": "0xebf1",
+			"lucide": "panel-right",
+			"mapped": true
+		},
+		{
+			"id": "layout-panel",
+			"codepoint": "0xebf2",
+			"lucide": "panel-bottom",
+			"mapped": true
+		},
+		{
+			"id": "layout-sidebar-left",
+			"codepoint": "0xebf3",
+			"lucide": "panel-left",
+			"mapped": true
+		},
+		{
+			"id": "layout-sidebar-right",
+			"codepoint": "0xebf4",
+			"lucide": "panel-right",
+			"mapped": true
+		},
+		{
+			"id": "layout-statusbar",
+			"codepoint": "0xebf5",
+			"lucide": "panel-bottom",
+			"mapped": true
+		},
+		{
+			"id": "layout-menubar",
+			"codepoint": "0xebf6",
+			"lucide": "panel-top",
+			"mapped": true
+		},
+		{
+			"id": "layout-centered",
+			"codepoint": "0xebf7",
+			"lucide": "focus",
+			"mapped": true
+		},
+		{
+			"id": "target",
+			"codepoint": "0xebf8",
+			"lucide": "target",
+			"mapped": true
+		},
+		{
+			"id": "indent",
+			"codepoint": "0xebf9",
+			"lucide": "indent",
+			"mapped": true
+		},
+		{
+			"id": "record-small",
+			"codepoint": "0xebfa",
+			"lucide": "circle",
+			"mapped": true
+		},
+		{
+			"id": "error-small",
+			"codepoint": "0xebfb",
+			"lucide": "circle-x",
+			"mapped": true
+		},
+		{
+			"id": "arrow-circle-down",
+			"codepoint": "0xebfc",
+			"lucide": "circle-arrow-down",
+			"mapped": true
+		},
+		{
+			"id": "arrow-circle-left",
+			"codepoint": "0xebfd",
+			"lucide": "circle-arrow-left",
+			"mapped": true
+		},
+		{
+			"id": "arrow-circle-right",
+			"codepoint": "0xebfe",
+			"lucide": "circle-arrow-right",
+			"mapped": true
+		},
+		{
+			"id": "arrow-circle-up",
+			"codepoint": "0xebff",
+			"lucide": "circle-arrow-up",
+			"mapped": true
+		},
+		{
+			"id": "layout-sidebar-right-off",
+			"codepoint": "0xec00",
+			"lucide": "panel-right-close",
+			"mapped": true
+		},
+		{
+			"id": "layout-panel-off",
+			"codepoint": "0xec01",
+			"lucide": "panel-bottom-close",
+			"mapped": true
+		},
+		{
+			"id": "layout-sidebar-left-off",
+			"codepoint": "0xec02",
+			"lucide": "panel-left-close",
+			"mapped": true
+		},
+		{
+			"id": "blank",
+			"codepoint": "0xec03",
+			"lucide": "circle",
+			"mapped": true
+		},
+		{
+			"id": "heart-filled",
+			"codepoint": "0xec04",
+			"lucide": "heart",
+			"mapped": true
+		},
+		{
+			"id": "map",
+			"codepoint": "0xec05",
+			"lucide": "map",
+			"mapped": true
+		},
+		{
+			"id": "map-filled",
+			"codepoint": "0xec06",
+			"lucide": "map",
+			"mapped": true
+		},
+		{
+			"id": "circle-small",
+			"codepoint": "0xec07",
+			"lucide": "circle-small",
+			"mapped": true
+		},
+		{
+			"id": "bell-slash",
+			"codepoint": "0xec08",
+			"lucide": "bell-off",
+			"mapped": true
+		},
+		{
+			"id": "bell-slash-dot",
+			"codepoint": "0xec09",
+			"lucide": "bell-off",
+			"mapped": true
+		},
+		{
+			"id": "comment-unresolved",
+			"codepoint": "0xec0a",
+			"lucide": "message-square-dot",
+			"mapped": true
+		},
+		{
+			"id": "git-pull-request-go-to-changes",
+			"codepoint": "0xec0b",
+			"lucide": "git-pull-request-arrow",
+			"mapped": true
+		},
+		{
+			"id": "git-pull-request-new-changes",
+			"codepoint": "0xec0c",
+			"lucide": "git-pull-request-create",
+			"mapped": true
+		},
+		{
+			"id": "search-fuzzy",
+			"codepoint": "0xec0d",
+			"lucide": "search",
+			"mapped": true
+		},
+		{
+			"id": "comment-draft",
+			"codepoint": "0xec0e",
+			"lucide": "message-square-dashed",
+			"mapped": true
+		},
+		{
+			"id": "send",
+			"codepoint": "0xec0f",
+			"lucide": "send",
+			"mapped": true
+		},
+		{
+			"id": "sparkle",
+			"codepoint": "0xec10",
+			"lucide": "sparkles",
+			"mapped": true
+		},
+		{
+			"id": "insert",
+			"codepoint": "0xec11",
+			"lucide": "between-horizontal-start",
+			"mapped": true
+		},
+		{
+			"id": "mic",
+			"codepoint": "0xec12",
+			"lucide": "mic",
+			"mapped": true
+		},
+		{
+			"id": "thumbsdown-filled",
+			"codepoint": "0xec13",
+			"lucide": "thumbs-down",
+			"mapped": true
+		},
+		{
+			"id": "thumbsup-filled",
+			"codepoint": "0xec14",
+			"lucide": "thumbs-up",
+			"mapped": true
+		},
+		{
+			"id": "coffee",
+			"codepoint": "0xec15",
+			"lucide": "coffee",
+			"mapped": true
+		},
+		{
+			"id": "snake",
+			"codepoint": "0xec16",
+			"lucide": "snail",
+			"mapped": true
+		},
+		{
+			"id": "game",
+			"codepoint": "0xec17",
+			"lucide": "gamepad-2",
+			"mapped": true
+		},
+		{
+			"id": "vr",
+			"codepoint": "0xec18",
+			"lucide": "glasses",
+			"mapped": true
+		},
+		{
+			"id": "chip",
+			"codepoint": "0xec19",
+			"lucide": "cpu",
+			"mapped": true
+		},
+		{
+			"id": "piano",
+			"codepoint": "0xec1a",
+			"lucide": "piano",
+			"mapped": true
+		},
+		{
+			"id": "music",
+			"codepoint": "0xec1b",
+			"lucide": "music",
+			"mapped": true
+		},
+		{
+			"id": "mic-filled",
+			"codepoint": "0xec1c",
+			"lucide": "mic",
+			"mapped": true
+		},
+		{
+			"id": "repo-fetch",
+			"codepoint": "0xec1d",
+			"lucide": "download",
+			"mapped": true
+		},
+		{
+			"id": "assistant",
+			"codepoint": "0xec1e",
+			"lucide": "bot",
+			"mapped": true
+		},
+		{
+			"id": "lightbulb-sparkle",
+			"codepoint": "0xec1f",
+			"lucide": "sparkles",
+			"mapped": true
+		},
+		{
+			"id": "robot",
+			"codepoint": "0xec20",
+			"lucide": "bot",
+			"mapped": true
+		},
+		{
+			"id": "sparkle-filled",
+			"codepoint": "0xec21",
+			"lucide": "sparkles",
+			"mapped": true
+		},
+		{
+			"id": "diff-single",
+			"codepoint": "0xec22",
+			"lucide": "file-diff",
+			"mapped": true
+		},
+		{
+			"id": "diff-multiple",
+			"codepoint": "0xec23",
+			"lucide": "files",
+			"mapped": true
+		},
+		{
+			"id": "surround-with",
+			"codepoint": "0xec24",
+			"lucide": "parentheses",
+			"mapped": true
+		},
+		{
+			"id": "share",
+			"codepoint": "0xec25",
+			"lucide": "share",
+			"mapped": true
+		},
+		{
+			"id": "git-stash",
+			"codepoint": "0xec26",
+			"lucide": "archive",
+			"mapped": true
+		},
+		{
+			"id": "git-stash-apply",
+			"codepoint": "0xec27",
+			"lucide": "archive-restore",
+			"mapped": true
+		},
+		{
+			"id": "git-stash-pop",
+			"codepoint": "0xec28",
+			"lucide": "archive-restore",
+			"mapped": true
+		},
+		{
+			"id": "vscode",
+			"codepoint": "0xec29",
+			"lucide": "code",
+			"mapped": true
+		},
+		{
+			"id": "vscode-insiders",
+			"codepoint": "0xec2a",
+			"lucide": "code",
+			"mapped": true
+		},
+		{
+			"id": "code-oss",
+			"codepoint": "0xec2b",
+			"lucide": "code",
+			"mapped": true
+		},
+		{
+			"id": "run-coverage",
+			"codepoint": "0xec2c",
+			"lucide": "pie-chart",
+			"mapped": true
+		},
+		{
+			"id": "run-all-coverage",
+			"codepoint": "0xec2d",
+			"lucide": "pie-chart",
+			"mapped": true
+		},
+		{
+			"id": "coverage",
+			"codepoint": "0xec2e",
+			"lucide": "pie-chart",
+			"mapped": true
+		},
+		{
+			"id": "github-project",
+			"codepoint": "0xec2f",
+			"lucide": "folder-kanban",
+			"mapped": true
+		},
+		{
+			"id": "map-vertical",
+			"codepoint": "0xec30",
+			"lucide": "map",
+			"mapped": true
+		},
+		{
+			"id": "map-vertical-filled",
+			"codepoint": "0xec31",
+			"lucide": "map",
+			"mapped": true
+		},
+		{
+			"id": "go-to-search",
+			"codepoint": "0xec32",
+			"lucide": "search",
+			"mapped": true
+		},
+		{
+			"id": "percentage",
+			"codepoint": "0xec33",
+			"lucide": "percent",
+			"mapped": true
+		},
+		{
+			"id": "attach",
+			"codepoint": "0xec34",
+			"lucide": "paperclip",
+			"mapped": true
+		},
+		{
+			"id": "go-to-editing-session",
+			"codepoint": "0xec35",
+			"lucide": "pencil",
+			"mapped": true
+		},
+		{
+			"id": "edit-session",
+			"codepoint": "0xec36",
+			"lucide": "pencil",
+			"mapped": true
+		},
+		{
+			"id": "code-review",
+			"codepoint": "0xec37",
+			"lucide": "file-search",
+			"mapped": true
+		},
+		{
+			"id": "assistant-warning",
+			"codepoint": "0xec38",
+			"lucide": "bot",
+			"mapped": true
+		},
+		{
+			"id": "python",
+			"codepoint": "0xec39",
+			"lucide": "file-code",
+			"mapped": true
+		},
+		{
+			"id": "assistant-large",
+			"codepoint": "0xec3a",
+			"lucide": "bot",
+			"mapped": true
+		},
+		{
+			"id": "assistant-warning-large",
+			"codepoint": "0xec3b",
+			"lucide": "bot",
+			"mapped": true
+		},
+		{
+			"id": "keyboard-tab",
+			"codepoint": "0xec3c",
+			"lucide": "arrow-right-to-line",
+			"mapped": true
+		},
+		{
+			"id": "assistant-blocked",
+			"codepoint": "0xec3d",
+			"lucide": "bot-off",
+			"mapped": true
+		},
+		{
+			"id": "assistant-not-connected",
+			"codepoint": "0xec3e",
+			"lucide": "bot-off",
+			"mapped": true
+		},
+		{
+			"id": "flag",
+			"codepoint": "0xec3f",
+			"lucide": "flag",
+			"mapped": true
+		},
+		{
+			"id": "lightbulb-empty",
+			"codepoint": "0xec40",
+			"lucide": "lightbulb",
+			"mapped": true
+		},
+		{
+			"id": "symbol-method-arrow",
+			"codepoint": "0xec41",
+			"lucide": "box",
+			"mapped": true
+		},
+		{
+			"id": "assistant-unavailable",
+			"codepoint": "0xec42",
+			"lucide": "bot-off",
+			"mapped": true
+		},
+		{
+			"id": "repo-pinned",
+			"codepoint": "0xec43",
+			"lucide": "book-marked",
+			"mapped": true
+		},
+		{
+			"id": "keyboard-tab-above",
+			"codepoint": "0xec44",
+			"lucide": "arrow-up-to-line",
+			"mapped": true
+		},
+		{
+			"id": "keyboard-tab-below",
+			"codepoint": "0xec45",
+			"lucide": "arrow-down-to-line",
+			"mapped": true
+		},
+		{
+			"id": "git-pull-request-done",
+			"codepoint": "0xec46",
+			"lucide": "git-pull-request",
+			"mapped": true
+		},
+		{
+			"id": "tool",
+			"codepoint": "0xec47",
+			"lucide": "wrench",
+			"mapped": true
+		},
+		{
+			"id": "extensions-large",
+			"codepoint": "0xec48",
+			"lucide": "blocks",
+			"mapped": true
+		},
+		{
+			"id": "layout-panel-dock",
+			"codepoint": "0xec49",
+			"lucide": "panel-bottom",
+			"mapped": true
+		},
+		{
+			"id": "layout-sidebar-left-dock",
+			"codepoint": "0xec4a",
+			"lucide": "panel-left",
+			"mapped": true
+		},
+		{
+			"id": "layout-sidebar-right-dock",
+			"codepoint": "0xec4b",
+			"lucide": "panel-right",
+			"mapped": true
+		},
+		{
+			"id": "assistant-in-progress",
+			"codepoint": "0xec4c",
+			"lucide": "loader-circle",
+			"mapped": true
+		},
+		{
+			"id": "assistant-error",
+			"codepoint": "0xec4d",
+			"lucide": "bot",
+			"mapped": true
+		},
+		{
+			"id": "assistant-success",
+			"codepoint": "0xec4e",
+			"lucide": "bot",
+			"mapped": true
+		},
+		{
+			"id": "assist-sparkle",
+			"codepoint": "0xec4f",
+			"lucide": "sparkles",
+			"mapped": true
+		},
+		{
+			"id": "search-sparkle",
+			"codepoint": "0xec50",
+			"lucide": "search",
+			"mapped": true
+		},
+		{
+			"id": "edit-sparkle",
+			"codepoint": "0xec51",
+			"lucide": "sparkles",
+			"mapped": true
+		},
+		{
+			"id": "assistant-snooze",
+			"codepoint": "0xec52",
+			"lucide": "bot",
+			"mapped": true
+		},
+		{
+			"id": "send-to-remote-agent",
+			"codepoint": "0xec53",
+			"lucide": "send",
+			"mapped": true
+		},
+		{
+			"id": "comment-discussion-sparkle",
+			"codepoint": "0xec54",
+			"lucide": "messages-square",
+			"mapped": true
+		},
+		{
+			"id": "assist-sparkle-warning",
+			"codepoint": "0xec55",
+			"lucide": "sparkles",
+			"mapped": true
+		},
+		{
+			"id": "assist-sparkle-error",
+			"codepoint": "0xec56",
+			"lucide": "sparkles",
+			"mapped": true
+		},
+		{
+			"id": "collection",
+			"codepoint": "0xec57",
+			"lucide": "library",
+			"mapped": true
+		},
+		{
+			"id": "new-collection",
+			"codepoint": "0xec58",
+			"lucide": "library",
+			"mapped": true
+		},
+		{
+			"id": "thinking",
+			"codepoint": "0xec59",
+			"lucide": "brain",
+			"mapped": true
+		},
+		{
+			"id": "build",
+			"codepoint": "0xec5a",
+			"lucide": "hammer",
+			"mapped": true
+		},
+		{
+			"id": "comment-discussion-quote",
+			"codepoint": "0xec5b",
+			"lucide": "messages-square",
+			"mapped": true
+		},
+		{
+			"id": "cursor",
+			"codepoint": "0xec5c",
+			"lucide": "mouse-pointer-2",
+			"mapped": true
+		},
+		{
+			"id": "eraser",
+			"codepoint": "0xec5d",
+			"lucide": "eraser",
+			"mapped": true
+		},
+		{
+			"id": "file-text",
+			"codepoint": "0xec5e",
+			"lucide": "file-text",
+			"mapped": true
+		},
+		{
+			"id": "quotes",
+			"codepoint": "0xec60",
+			"lucide": "quote",
+			"mapped": true
+		},
+		{
+			"id": "rename",
+			"codepoint": "0xec61",
+			"lucide": "pencil",
+			"mapped": true
+		},
+		{
+			"id": "run-with-deps",
+			"codepoint": "0xec62",
+			"lucide": "play",
+			"mapped": true
+		},
+		{
+			"id": "debug-connected",
+			"codepoint": "0xec63",
+			"lucide": "bug",
+			"mapped": true
+		},
+		{
+			"id": "strikethrough",
+			"codepoint": "0xec64",
+			"lucide": "strikethrough",
+			"mapped": true
+		},
+		{
+			"id": "open-in-product",
+			"codepoint": "0xec65",
+			"lucide": "external-link",
+			"mapped": true
+		},
+		{
+			"id": "index-zero",
+			"codepoint": "0xec66",
+			"lucide": "list-ordered",
+			"mapped": true
+		},
+		{
+			"id": "agent",
+			"codepoint": "0xec67",
+			"lucide": "bot",
+			"mapped": true
+		},
+		{
+			"id": "edit-code",
+			"codepoint": "0xec68",
+			"lucide": "square-pen",
+			"mapped": true
+		},
+		{
+			"id": "repo-selected",
+			"codepoint": "0xec69",
+			"lucide": "book-marked",
+			"mapped": true
+		},
+		{
+			"id": "skip",
+			"codepoint": "0xec6a",
+			"lucide": "fast-forward",
+			"mapped": true
+		},
+		{
+			"id": "merge-into",
+			"codepoint": "0xec6b",
+			"lucide": "git-merge",
+			"mapped": true
+		},
+		{
+			"id": "git-branch-changes",
+			"codepoint": "0xec6c",
+			"lucide": "git-branch",
+			"mapped": true
+		},
+		{
+			"id": "git-branch-staged-changes",
+			"codepoint": "0xec6d",
+			"lucide": "git-branch",
+			"mapped": true
+		},
+		{
+			"id": "git-branch-conflicts",
+			"codepoint": "0xec6e",
+			"lucide": "git-branch",
+			"mapped": true
+		},
+		{
+			"id": "git-branch",
+			"codepoint": "0xec6f",
+			"lucide": "git-branch",
+			"mapped": true
+		},
+		{
+			"id": "search-large",
+			"codepoint": "0xec70",
+			"lucide": "search",
+			"mapped": true
+		},
+		{
+			"id": "terminal-git-bash",
+			"codepoint": "0xec71",
+			"lucide": "terminal",
+			"mapped": true
+		},
+		{
+			"id": "window-active",
+			"codepoint": "0xec72",
+			"lucide": "app-window",
+			"mapped": true
+		},
+		{
+			"id": "forward",
+			"codepoint": "0xec73",
+			"lucide": "forward",
+			"mapped": true
+		},
+		{
+			"id": "download",
+			"codepoint": "0xec74",
+			"lucide": "download",
+			"mapped": true
+		},
+		{
+			"id": "clockface",
+			"codepoint": "0xec75",
+			"lucide": "clock",
+			"mapped": true
+		},
+		{
+			"id": "unarchive",
+			"codepoint": "0xec76",
+			"lucide": "archive-restore",
+			"mapped": true
+		},
+		{
+			"id": "session-in-progress",
+			"codepoint": "0xec77",
+			"lucide": "loader-circle",
+			"mapped": true
+		},
+		{
+			"id": "collection-small",
+			"codepoint": "0xec78",
+			"lucide": "library",
+			"mapped": true
+		},
+		{
+			"id": "vm-small",
+			"codepoint": "0xec79",
+			"lucide": "monitor",
+			"mapped": true
+		},
+		{
+			"id": "cloud-small",
+			"codepoint": "0xec7a",
+			"lucide": "cloud",
+			"mapped": true
+		},
+		{
+			"id": "add-small",
+			"codepoint": "0xec7b",
+			"lucide": "plus",
+			"mapped": true
+		},
+		{
+			"id": "remove-small",
+			"codepoint": "0xec7c",
+			"lucide": "minus",
+			"mapped": true
+		},
+		{
+			"id": "worktree-small",
+			"codepoint": "0xec7d",
+			"lucide": "folder-tree",
+			"mapped": true
+		},
+		{
+			"id": "worktree",
+			"codepoint": "0xec7e",
+			"lucide": "folder-tree",
+			"mapped": true
+		},
+		{
+			"id": "screen-cut",
+			"codepoint": "0xec7f",
+			"lucide": "scissors",
+			"mapped": true
+		},
+		{
+			"id": "ask",
+			"codepoint": "0xec80",
+			"lucide": "message-circle-question",
+			"mapped": true
+		},
+		{
+			"id": "openai",
+			"codepoint": "0xec81",
+			"lucide": "sparkles",
+			"mapped": true
+		},
+		{
+			"id": "claude",
+			"codepoint": "0xec82",
+			"lucide": "sparkles",
+			"mapped": true
+		},
+		{
+			"id": "open-in-window",
+			"codepoint": "0xec83",
+			"lucide": "app-window",
+			"mapped": true
+		},
+		{
+			"id": "new-session",
+			"codepoint": "0xec84",
+			"lucide": "plus",
+			"mapped": true
+		},
+		{
+			"id": "terminal-secure",
+			"codepoint": "0xec85",
+			"lucide": "terminal",
+			"mapped": true
+		},
+		{
+			"id": "assist-import",
+			"codepoint": "0xec86",
+			"lucide": "download",
+			"mapped": true
+		},
+		{
+			"id": "assist-export",
+			"codepoint": "0xec87",
+			"lucide": "upload",
+			"mapped": true
+		},
+		{
+			"id": "share-window",
+			"codepoint": "0xec88",
+			"lucide": "share-2",
+			"mapped": true
+		},
+		{
+			"id": "circle-slash-compact",
+			"codepoint": "0xec89",
+			"lucide": "circle-off",
+			"mapped": true
+		},
+		{
+			"id": "assistant-compact",
+			"codepoint": "0xec8a",
+			"lucide": "bot",
+			"mapped": true
+		},
+		{
+			"id": "folder-opened-compact",
+			"codepoint": "0xec8b",
+			"lucide": "folder-open",
+			"mapped": true
+		},
+		{
+			"id": "folder-compact",
+			"codepoint": "0xec8c",
+			"lucide": "folder",
+			"mapped": true
+		},
+		{
+			"id": "gear-compact",
+			"codepoint": "0xec8d",
+			"lucide": "settings",
+			"mapped": true
+		},
+		{
+			"id": "git-branch-compact",
+			"codepoint": "0xec8e",
+			"lucide": "git-branch",
+			"mapped": true
+		},
+		{
+			"id": "library-compact",
+			"codepoint": "0xec8f",
+			"lucide": "library",
+			"mapped": true
+		},
+		{
+			"id": "record-keys-compact",
+			"codepoint": "0xec90",
+			"lucide": "keyboard",
+			"mapped": true
+		},
+		{
+			"id": "remote-compact",
+			"codepoint": "0xec91",
+			"lucide": "cloud",
+			"mapped": true
+		},
+		{
+			"id": "repo-forked-compact",
+			"codepoint": "0xec92",
+			"lucide": "git-fork",
+			"mapped": true
+		},
+		{
+			"id": "repo-compact",
+			"codepoint": "0xec93",
+			"lucide": "book-marked",
+			"mapped": true
+		},
+		{
+			"id": "shield-compact",
+			"codepoint": "0xec94",
+			"lucide": "shield",
+			"mapped": true
+		},
+		{
+			"id": "sparkle-compact",
+			"codepoint": "0xec95",
+			"lucide": "sparkles",
+			"mapped": true
+		},
+		{
+			"id": "symbol-color-compact",
+			"codepoint": "0xec96",
+			"lucide": "palette",
+			"mapped": true
+		},
+		{
+			"id": "window-compact",
+			"codepoint": "0xec97",
+			"lucide": "app-window",
+			"mapped": true
+		},
+		{
+			"id": "error-compact",
+			"codepoint": "0xec98",
+			"lucide": "circle-x",
+			"mapped": true
+		},
+		{
+			"id": "warning-compact",
+			"codepoint": "0xec99",
+			"lucide": "triangle-alert",
+			"mapped": true
+		},
+		{
+			"id": "pass-compact",
+			"codepoint": "0xec9a",
+			"lucide": "circle-check",
+			"mapped": true
+		},
+		{
+			"id": "important",
+			"codepoint": "0xec9b",
+			"lucide": "circle-alert",
+			"mapped": true
+		},
+		{
+			"id": "important-compact",
+			"codepoint": "0xec9c",
+			"lucide": "circle-alert",
+			"mapped": true
+		},
+		{
+			"id": "rocket-compact",
+			"codepoint": "0xec9d",
+			"lucide": "rocket",
+			"mapped": true
+		},
+		{
+			"id": "unpin",
+			"codepoint": "0xec9e",
+			"lucide": "pin-off",
+			"mapped": true
+		},
+		{
+			"id": "add-compact",
+			"codepoint": "0xec9f",
+			"lucide": "plus",
+			"mapped": true
+		},
+		{
+			"id": "attach-compact",
+			"codepoint": "0xeca0",
+			"lucide": "paperclip",
+			"mapped": true
+		},
+		{
+			"id": "beaker-compact",
+			"codepoint": "0xeca1",
+			"lucide": "flask-conical",
+			"mapped": true
+		},
+		{
+			"id": "check-compact",
+			"codepoint": "0xeca2",
+			"lucide": "check",
+			"mapped": true
+		},
+		{
+			"id": "checklist-compact",
+			"codepoint": "0xeca3",
+			"lucide": "list-checks",
+			"mapped": true
+		},
+		{
+			"id": "chevron-down-compact",
+			"codepoint": "0xeca4",
+			"lucide": "chevron-down",
+			"mapped": true
+		},
+		{
+			"id": "chevron-left-compact",
+			"codepoint": "0xeca5",
+			"lucide": "chevron-left",
+			"mapped": true
+		},
+		{
+			"id": "chevron-right-compact",
+			"codepoint": "0xeca6",
+			"lucide": "chevron-right",
+			"mapped": true
+		},
+		{
+			"id": "chevron-up-compact",
+			"codepoint": "0xeca7",
+			"lucide": "chevron-up",
+			"mapped": true
+		},
+		{
+			"id": "circle-filled-compact",
+			"codepoint": "0xeca8",
+			"lucide": "circle",
+			"mapped": true
+		},
+		{
+			"id": "circle-small-filled-compact",
+			"codepoint": "0xeca9",
+			"lucide": "circle-small",
+			"mapped": true
+		},
+		{
+			"id": "close-compact",
+			"codepoint": "0xecaa",
+			"lucide": "x",
+			"mapped": true
+		},
+		{
+			"id": "collapse-all-compact",
+			"codepoint": "0xecab",
+			"lucide": "fold-vertical",
+			"mapped": true
+		},
+		{
+			"id": "comment-compact",
+			"codepoint": "0xecac",
+			"lucide": "message-square",
+			"mapped": true
+		},
+		{
+			"id": "comment-unresolved-compact",
+			"codepoint": "0xecad",
+			"lucide": "message-square-dot",
+			"mapped": true
+		},
+		{
+			"id": "debug-connected-compact",
+			"codepoint": "0xecae",
+			"lucide": "bug",
+			"mapped": true
+		},
+		{
+			"id": "debug-disconnect-compact",
+			"codepoint": "0xecaf",
+			"lucide": "unplug",
+			"mapped": true
+		},
+		{
+			"id": "edit-compact",
+			"codepoint": "0xecb0",
+			"lucide": "pencil",
+			"mapped": true
+		},
+		{
+			"id": "file-media-compact",
+			"codepoint": "0xecb1",
+			"lucide": "file-image",
+			"mapped": true
+		},
+		{
+			"id": "git-fetch",
+			"codepoint": "0xecb2",
+			"lucide": "download",
+			"mapped": true
+		},
+		{
+			"id": "lightbulb-compact",
+			"codepoint": "0xecb3",
+			"lucide": "lightbulb",
+			"mapped": true
+		},
+		{
+			"id": "loading-compact",
+			"codepoint": "0xecb4",
+			"lucide": "loader-circle",
+			"mapped": true
+		},
+		{
+			"id": "pass-filled-compact",
+			"codepoint": "0xecb5",
+			"lucide": "circle-check",
+			"mapped": true
+		},
+		{
+			"id": "project-compact",
+			"codepoint": "0xecb6",
+			"lucide": "folder-kanban",
+			"mapped": true
+		},
+		{
+			"id": "refresh-compact",
+			"codepoint": "0xecb7",
+			"lucide": "refresh-cw",
+			"mapped": true
+		},
+		{
+			"id": "search-compact",
+			"codepoint": "0xecb8",
+			"lucide": "search",
+			"mapped": true
+		},
+		{
+			"id": "session-in-progress-compact",
+			"codepoint": "0xecb9",
+			"lucide": "loader-circle",
+			"mapped": true
+		},
+		{
+			"id": "sync-compact",
+			"codepoint": "0xecba",
+			"lucide": "refresh-cw",
+			"mapped": true
+		},
+		{
+			"id": "terminal-compact",
+			"codepoint": "0xecbb",
+			"lucide": "terminal",
+			"mapped": true
+		},
+		{
+			"id": "vm-pending",
+			"codepoint": "0xecbc",
+			"lucide": "monitor",
+			"mapped": true
+		},
+		{
+			"id": "worktree-compact",
+			"codepoint": "0xecbd",
+			"lucide": "folder-tree",
+			"mapped": true
+		},
+		{
+			"id": "developer-tools",
+			"codepoint": "0xecbe",
+			"lucide": "wrench",
+			"mapped": true
+		},
+		{
+			"id": "cloud-compact",
+			"codepoint": "0xecbf",
+			"lucide": "cloud",
+			"mapped": true
+		},
+		{
+			"id": "agent-compact",
+			"codepoint": "0xecc0",
+			"lucide": "bot",
+			"mapped": true
+		},
+		{
+			"id": "ask-compact",
+			"codepoint": "0xecc1",
+			"lucide": "message-circle-question",
+			"mapped": true
+		},
+		{
+			"id": "settings-compact",
+			"codepoint": "0xecc2",
+			"lucide": "settings",
+			"mapped": true
+		},
+		{
+			"id": "vm-compact",
+			"codepoint": "0xecc3",
+			"lucide": "monitor",
+			"mapped": true
+		},
+		{
+			"id": "run-compact",
+			"codepoint": "0xecc4",
+			"lucide": "play",
+			"mapped": true
+		},
+		{
+			"id": "git-pull-request-comment",
+			"codepoint": "0xecc5",
+			"lucide": "git-pull-request",
+			"mapped": true
+		},
+		{
+			"id": "git-pull-request-error",
+			"codepoint": "0xecc6",
+			"lucide": "git-pull-request",
+			"mapped": true
+		},
+		{
+			"id": "right-panel-hide",
+			"codepoint": "0xecc7",
+			"lucide": "panel-right-close",
+			"mapped": true
+		},
+		{
+			"id": "right-panel-show",
+			"codepoint": "0xecc8",
+			"lucide": "panel-right-open",
+			"mapped": true
+		},
+		{
+			"id": "vscode-insiders-outline",
+			"codepoint": "0xecc9",
+			"lucide": "code",
+			"mapped": true
+		},
+		{
+			"id": "vscode-outline",
+			"codepoint": "0xecca",
+			"lucide": "code",
+			"mapped": true
+		},
+		{
+			"id": "voice-mode",
+			"codepoint": "0xeccb",
+			"lucide": "mic",
+			"mapped": true
+		},
+		{
+			"id": "voice-mode-compact",
+			"codepoint": "0xeccc",
+			"lucide": "mic",
+			"mapped": true
+		}
+	]
+}

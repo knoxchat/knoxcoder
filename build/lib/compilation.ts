@@ -210,7 +210,8 @@ class MonacoGenerator {
 
 	constructor(isWatch: boolean) {
 		this._isWatch = isWatch;
-		this.stream = es.through();
+		// event-stream's ThroughStream and @types/node ReadWriteStream disagree on `compose`.
+		this.stream = es.through() as unknown as NodeJS.ReadWriteStream;
 		this._watchedFiles = {};
 		const onWillReadFile = (moduleId: string, filePath: string) => {
 			if (!this._isWatch) {
@@ -431,16 +432,20 @@ export const watchApiProposalNamesTask = task.define('watch-api-proposal-names',
 
 // Codicons
 const root = path.dirname(path.dirname(import.meta.dirname));
-const codiconSource = path.join(root, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.ttf');
+const knoxLucideCodiconSource = path.join(root, 'src', 'vs', 'workbench', 'browser', 'media', 'knox', 'lucide', 'codicon.ttf');
+const vscodeCodiconSource = path.join(root, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.ttf');
 const codiconDest = path.join(root, 'src', 'vs', 'base', 'browser', 'ui', 'codicons', 'codicon', 'codicon.ttf');
 
 function copyCodiconsImpl() {
 	try {
+		const codiconSource = fs.existsSync(knoxLucideCodiconSource) ? knoxLucideCodiconSource : vscodeCodiconSource;
 		if (fs.existsSync(codiconSource)) {
 			fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
 			fs.copyFileSync(codiconSource, codiconDest);
+			const sourceLabel = codiconSource === knoxLucideCodiconSource ? 'knox/lucide' : '@vscode/codicons';
+			fancyLog(ansiColors.blue('[codicons]'), `Copied codicon.ttf from ${sourceLabel}`);
 		} else {
-			fancyLog(ansiColors.red('[codicons]'), `codicon.ttf not found in node_modules. Please run 'npm install' to install dependencies.`);
+			fancyLog(ansiColors.red('[codicons]'), `codicon.ttf not found. Run 'npm run generate-knox-icons' or 'npm install'.`);
 		}
 	} catch (e) {
 		fancyLog(ansiColors.red('[codicons]'), `Error copying codicon.ttf: ${e}`);
@@ -455,7 +460,9 @@ task.task(copyCodiconsTask);
 
 export const watchCodiconsTask = task.define('watch-codicons', () => {
 	copyCodiconsImpl();
-	return watch('node_modules/@vscode/codicons/dist/**', { readDelay: 200 })
+	const knoxLucideGlob = 'src/vs/workbench/browser/media/knox/lucide/**';
+	const vscodeCodiconsGlob = 'node_modules/@vscode/codicons/dist/**';
+	return watch([knoxLucideGlob, vscodeCodiconsGlob], { readDelay: 200 })
 		.on('data', () => copyCodiconsImpl());
 });
 task.task(watchCodiconsTask);
