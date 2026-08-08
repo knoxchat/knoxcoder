@@ -553,7 +553,8 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 
 	return async () => {
 		const deps = (await Promise.all([
-			promisify(glob)('**/*.node', { cwd }),
+			// Skip multi-arch npm prebuilds: rcedit can only load PE binaries.
+			promisify(glob)('**/*.node', { cwd, ignore: '**/prebuilds/**' }),
 			promisify(glob)('**/rg.exe', { cwd }),
 			promisify(glob)('**/tgrep.exe', { cwd }),
 		])).flatMap(o => o);

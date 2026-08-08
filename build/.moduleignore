@@ -117,6 +117,14 @@ bufferutil/build/**
 bufferutil/prebuilds/**
 bufferutil/src/**
 
+# foundry-local-sdk ships prebuilds for every platform plus large foundry-local-core
+# libraries. Packaging them breaks cross-platform builds (rcedit fails on non-PE
+# .node files; dpkg-shlibdeps fails on foreign-arch ELFs) and would also raise the
+# product's glibc floor. Keep the JS SDK; fetch the native runtime on demand
+# (see src/vs/platform/localTranscription/node/foundryLocalRuntime.ts).
+foundry-local-sdk/prebuilds/**
+foundry-local-sdk/foundry-local-core/**
+
 ssh2/lib/protocol/crypto/binding.gyp
 ssh2/lib/protocol/crypto/build/**
 ssh2/lib/protocol/crypto/src/**

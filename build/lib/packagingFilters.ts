@@ -57,3 +57,21 @@ export function getRipgrepExcludeFilter(platform: string, arch: string): string[
 
 	return ['**', ...excludes];
 }
+
+/**
+ * foundry-local-sdk ships a prebuilt N-API addon (`foundry_local_napi.node`)
+ * for every platform inside its tarball, and its native core libraries are
+ * fetched per-RID into `foundry-local-core/<platform>-<arch>/` at install time.
+ * The addon requires a newer glibc than VS Code's minimum supported Linux
+ * distros, so we deliberately do NOT ship any of this native payload: it is
+ * downloaded on demand at runtime (see foundryLocalRuntime.ts). Packaging the
+ * multi-arch prebuilds also breaks cross-platform CI (rcedit on non-PE files,
+ * dpkg-shlibdeps on foreign-arch ELFs).
+ */
+export function getFoundryLocalExcludeFilter(): string[] {
+	return [
+		'**',
+		'!**/foundry-local-sdk/prebuilds/**',
+		'!**/foundry-local-sdk/foundry-local-core/**',
+	];
+}

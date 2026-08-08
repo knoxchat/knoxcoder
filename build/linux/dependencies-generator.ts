@@ -57,8 +57,13 @@ export async function getDependencies(packageType: 'deb' | 'rpm', buildDir: stri
 	}
 
 	const appPath = path.join(buildDir, applicationName);
-	// Add the native modules
-	const files = findResult.stdout.toString().trimEnd().split('\n');
+	// Add the native modules. Skip npm `prebuilds/` trees entirely: packages
+	// like foundry-local-sdk ship every RID's .node in one tarball, and
+	// dpkg-shlibdeps fails hard on foreign-arch ELFs (e.g. linux-arm64 during
+	// an amd64 package build). Host-built natives live under build/Release/.
+	const files = findResult.stdout.toString().trimEnd().split('\n').filter(file => {
+		return !!file && !file.includes(`${path.sep}prebuilds${path.sep}`);
+	});
 	// Add the tunnel binary.
 	files.push(path.join(buildDir, 'bin', product.tunnelApplicationName));
 	// Add the main executable.
