@@ -116,8 +116,7 @@ const webEntryPoints = [
 ];
 
 // Additional web-only entry points (CDN build only, not in server-web)
-const webOnlyEntryPoints = [
-];
+const webOnlyEntryPoints: string[] = [];
 
 const keyboardMapEntryPoints = [
 	'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux',
@@ -1009,10 +1008,10 @@ ${tslib}`,
 		if (mangle || nls) {
 			let mapJson = JSON.parse(mapFile.text);
 			if (mangle) {
-				mapJson = adjustSourceMap(mapJson, mangle.preMangleCode, mangle.edits);
+				mapJson = await adjustSourceMap(mapJson, mangle.preMangleCode, mangle.edits);
 			}
 			if (nls) {
-				mapJson = adjustSourceMap(mapJson, nls.preNLSCode, nls.edits);
+				mapJson = await adjustSourceMap(mapJson, nls.preNLSCode, nls.edits);
 			}
 			await fs.promises.writeFile(mapFile.path, JSON.stringify(mapJson));
 		} else {

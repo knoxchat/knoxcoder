@@ -161,10 +161,21 @@ async function getTranslations(): Promise<Translations> {
 	const version = parseVersion(packageJson.version);
 	const languageIds = Object.keys(Languages);
 
-	return await Promise.all(languageIds.map(
-		languageId => getNLS(extensionGalleryServiceUrl, resourceUrlTemplate, languageId, version)
-			.then(languageTranslations => ({ languageId, languageTranslations }))
-	));
+	// Open VSX and other non-Marketplace galleries do not implement the VS Marketplace
+	// extensionquery API used for language packs. Prefer English-only policies over
+	// failing the entire package build when localization packs cannot be fetched.
+	const translations = await Promise.all(languageIds.map(async languageId => {
+		try {
+			const languageTranslations = await getNLS(extensionGalleryServiceUrl, resourceUrlTemplate, languageId, version);
+			return { languageId, languageTranslations };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			console.warn(`Skipping policy localization for '${languageId}': ${message}`);
+			return undefined;
+		}
+	}));
+
+	return translations.filter((t): t is NonNullable<typeof t> => t !== undefined);
 }
 
 async function windowsMain(policies: Policy[], translations: Translations) {

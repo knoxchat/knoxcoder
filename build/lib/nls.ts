@@ -20,16 +20,56 @@ type FileWithSourcemap = File & { sourceMap: sm.RawSourceMap };
 export function nls(options: { preserveEnglish: boolean }): NodeJS.ReadWriteStream {
 	let base: string;
 	const input = eventStream.through();
+	let inflight = 0;
+	let ending = false;
+
+	const flush = (stream: NodeJS.EventEmitter) => {
+		for (const file of [
+			new File({
+				contents: Buffer.from(JSON.stringify({
+					keys: _nls.moduleToNLSKeys,
+					messages: _nls.moduleToNLSMessages,
+				}, null, '\t')),
+				base,
+				path: `${base}/nls.metadata.json`
+			}),
+			new File({
+				contents: Buffer.from(JSON.stringify(_nls.allNLSMessages)),
+				base,
+				path: `${base}/nls.messages.json`
+			}),
+			new File({
+				contents: Buffer.from(JSON.stringify(_nls.allNLSModulesAndKeys)),
+				base,
+				path: `${base}/nls.keys.json`
+			}),
+			new File({
+				contents: Buffer.from(`/*---------------------------------------------------------
+ * Copyright (C) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------*/
+globalThis._VSCODE_NLS_MESSAGES=${JSON.stringify(_nls.allNLSMessages)};`),
+				base,
+				path: `${base}/nls.messages.js`
+			})
+		]) {
+			stream.emit('data', file);
+		}
+
+		stream.emit('end');
+	};
+
 	const output = input
 		.pipe(sort()) // IMPORTANT: to ensure stable NLS metadata generation, we must sort the files because NLS messages are globally extracted and indexed across all files
 		.pipe(eventStream.through(function (f: FileWithSourcemap) {
 			if (!f.sourceMap) {
-				return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
+				this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
+				return;
 			}
 
 			let source = f.sourceMap.sources[0];
 			if (!source) {
-				return this.emit('error', new Error(`File ${f.relative} does not have a source in the source map.`));
+				this.emit('error', new Error(`File ${f.relative} does not have a source in the source map.`));
+				return;
 			}
 
 			const root = f.sourceMap.sourceRoot;
@@ -39,47 +79,30 @@ export function nls(options: { preserveEnglish: boolean }): NodeJS.ReadWriteStre
 
 			const typescript = f.sourceMap.sourcesContent![0];
 			if (!typescript) {
-				return this.emit('error', new Error(`File ${f.relative} does not have the original content in the source map.`));
+				this.emit('error', new Error(`File ${f.relative} does not have the original content in the source map.`));
+				return;
 			}
 
 			base = f.base;
-			this.emit('data', _nls.patchFile(f, typescript, options));
-		}, function () {
-			for (const file of [
-				new File({
-					contents: Buffer.from(JSON.stringify({
-						keys: _nls.moduleToNLSKeys,
-						messages: _nls.moduleToNLSMessages,
-					}, null, '\t')),
-					base,
-					path: `${base}/nls.metadata.json`
-				}),
-				new File({
-					contents: Buffer.from(JSON.stringify(_nls.allNLSMessages)),
-					base,
-					path: `${base}/nls.messages.json`
-				}),
-				new File({
-					contents: Buffer.from(JSON.stringify(_nls.allNLSModulesAndKeys)),
-					base,
-					path: `${base}/nls.keys.json`
-				}),
-				new File({
-					contents: Buffer.from(`/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
-globalThis._VSCODE_NLS_MESSAGES=${JSON.stringify(_nls.allNLSMessages)};`),
-					base,
-					path: `${base}/nls.messages.js`
-				})
-			]) {
+			inflight++;
+			void _nls.patchFile(f, typescript, options).then(file => {
 				this.emit('data', file);
+				inflight--;
+				if (ending && inflight === 0) {
+					flush(this);
+				}
+			}, err => {
+				this.emit('error', err);
+			});
+		}, function () {
+			ending = true;
+			if (inflight === 0) {
+				flush(this);
 			}
-
-			this.emit('end');
 		}));
 
-	return eventStream.duplex(input, output);
+	// event-stream's duplex return type predates Node's ReadWriteStream.compose typing
+	return eventStream.duplex(input, output) as unknown as NodeJS.ReadWriteStream;
 }
 
 const _nls = (() => {
@@ -117,7 +140,10 @@ const _nls = (() => {
 		return { source, line: lc.line + 1, column: lc.character };
 	}
 
-	function lcFrom(position: sm.Position): ts.LineAndCharacter {
+	function lcFrom(position: sm.Position | sm.NullablePosition): ts.LineAndCharacter {
+		if (position.line === null || position.column === null) {
+			throw new Error('Expected mapped generated position from source map');
+		}
 		return { line: position.line - 1, character: position.column };
 	}
 
@@ -169,13 +195,16 @@ const _nls = (() => {
 		}, null, sm.SourceMapConsumer.GENERATED_ORDER);
 
 		if (source) {
-			smg.setSourceContent(source, smc.sourceContentFor(source));
+			const content = smc.sourceContentFor(source);
+			if (content !== null) {
+				smg.setSourceContent(source, content);
+			}
 		}
 
 		return JSON.parse(smg.toString());
 	}
 
-	function patch(typescript: string, javascript: string, sourcemap: sm.RawSourceMap, options: { preserveEnglish: boolean }): INlsPatchResult {
+	async function patch(typescript: string, javascript: string, sourcemap: sm.RawSourceMap, options: { preserveEnglish: boolean }): Promise<INlsPatchResult> {
 		const localizeCalls = analyzeLocalizeCalls(typescript, 'localize');
 		const localize2Calls = analyzeLocalizeCalls(typescript, 'localize2');
 
@@ -185,62 +214,63 @@ const _nls = (() => {
 
 		const nlsKeys = localizeCalls.map(lc => parseLocalizeKeyOrValue(lc.key)).concat(localize2Calls.map(lc => parseLocalizeKeyOrValue(lc.key)));
 		const nlsMessages = localizeCalls.map(lc => parseLocalizeKeyOrValue(lc.value) as string).concat(localize2Calls.map(lc => parseLocalizeKeyOrValue(lc.value) as string));
-		const smc = new sm.SourceMapConsumer(sourcemap);
 		const positionFrom = mappedPositionFrom.bind(null, sourcemap.sources[0]);
 
-		// build patches
-		const toPatch = (c: { range: ISpan; content: string }): IPatch => {
-			const start = lcFrom(smc.generatedPositionFor(positionFrom(c.range.start)));
-			const end = lcFrom(smc.generatedPositionFor(positionFrom(c.range.end)));
-			return { span: { start, end }, content: c.content };
-		};
+		// source-map >= 0.7 returns a Promise from SourceMapConsumer
+		return sm.SourceMapConsumer.with(sourcemap, null, smc => {
+			// build patches
+			const toPatch = (c: { range: ISpan; content: string }): IPatch => {
+				const start = lcFrom(smc.generatedPositionFor(positionFrom(c.range.start)));
+				const end = lcFrom(smc.generatedPositionFor(positionFrom(c.range.end)));
+				return { span: { start, end }, content: c.content };
+			};
 
-		const localizePatches = lazy(localizeCalls)
-			.map(lc => (
-				options.preserveEnglish ? [
-					{ range: lc.keySpan, content: `${allNLSMessagesIndex++}` } 	// localize('key', "message") => localize(<index>, "message")
-				] : [
-					{ range: lc.keySpan, content: `${allNLSMessagesIndex++}` }, // localize('key', "message") => localize(<index>, null)
-					{ range: lc.valueSpan, content: 'null' }
-				]))
-			.flatten()
-			.map(toPatch);
+			const localizePatches = lazy(localizeCalls)
+				.map(lc => (
+					options.preserveEnglish ? [
+						{ range: lc.keySpan, content: `${allNLSMessagesIndex++}` } 	// localize('key', "message") => localize(<index>, "message")
+					] : [
+						{ range: lc.keySpan, content: `${allNLSMessagesIndex++}` }, // localize('key', "message") => localize(<index>, null)
+						{ range: lc.valueSpan, content: 'null' }
+					]))
+				.flatten()
+				.map(toPatch);
 
-		const localize2Patches = lazy(localize2Calls)
-			.map(lc => (
-				{ range: lc.keySpan, content: `${allNLSMessagesIndex++}` } // localize2('key', "message") => localize(<index>, "message")
-			))
-			.map(toPatch);
+			const localize2Patches = lazy(localize2Calls)
+				.map(lc => (
+					{ range: lc.keySpan, content: `${allNLSMessagesIndex++}` } // localize2('key', "message") => localize(<index>, "message")
+				))
+				.map(toPatch);
 
-		// Sort patches by their start position
-		const patches = localizePatches.concat(localize2Patches).toArray().sort((a, b) => {
-			if (a.span.start.line < b.span.start.line) {
-				return -1;
-			} else if (a.span.start.line > b.span.start.line) {
-				return 1;
-			} else if (a.span.start.character < b.span.start.character) {
-				return -1;
-			} else if (a.span.start.character > b.span.start.character) {
-				return 1;
-			} else {
-				return 0;
-			}
+			// Sort patches by their start position
+			const patches = localizePatches.concat(localize2Patches).toArray().sort((a, b) => {
+				if (a.span.start.line < b.span.start.line) {
+					return -1;
+				} else if (a.span.start.line > b.span.start.line) {
+					return 1;
+				} else if (a.span.start.character < b.span.start.character) {
+					return -1;
+				} else if (a.span.start.character > b.span.start.character) {
+					return 1;
+				} else {
+					return 0;
+				}
+			});
+
+			javascript = patchJavascript(patches, javascript);
+			sourcemap = patchSourcemap(patches, sourcemap, smc);
+
+			return { javascript, sourcemap, nlsKeys, nlsMessages };
 		});
-
-		javascript = patchJavascript(patches, javascript);
-
-		sourcemap = patchSourcemap(patches, sourcemap, smc);
-
-		return { javascript, sourcemap, nlsKeys, nlsMessages };
 	}
 
-	function patchFile(javascriptFile: File, typescript: string, options: { preserveEnglish: boolean }): File {
+	async function patchFile(javascriptFile: File, typescript: string, options: { preserveEnglish: boolean }): Promise<File> {
 		// hack?
 		const moduleId = javascriptFile.relative
 			.replace(/\.js$/, '')
 			.replace(/\\/g, '/');
 
-		const { javascript, sourcemap, nlsKeys, nlsMessages } = patch(
+		const { javascript, sourcemap, nlsKeys, nlsMessages } = await patch(
 			typescript,
 			javascriptFile.contents!.toString(),
 			javascriptFile.sourceMap,

@@ -2,6 +2,51 @@
 
 All notable changes to KnoxCoder are documented in this file.
 
+## [1.132.0] - 2026-08-08
+
+### Changed
+
+- **Upgrade to VS Code 1.132.0**
+  Merged upstream `microsoft/vscode` 1.132.0 while preserving Knox branding, Open VSX gallery, native TypeScript tooling, and Knox-specific customizations.
+
+- Bumped product version to **1.132.0** (`package.json` / related product metadata).
+
+### Fixed
+
+- **`core-ci` esbuild bundle crash (`"version" is a required argument`)**
+  Minified NLS + mangle-privates builds called async `adjustSourceMap` without `await`, so a Promise was passed into `SourceMapConsumer` and CI failed on Linux/Windows during `esbuild-vscode-reh-min`.
+  **Change:** await both mangle and NLS source-map adjustments in `build/next/index.ts`.
+
+- **Policy packaging failure against Open VSX**
+  Language-pack fetches used the VS Marketplace `extensionquery` API, which Open VSX does not implement, aborting the whole policy build.
+  **Change:** skip failed policy localizations with a warning and continue with English-only policies (`build/lib/policies/policyGenerator.ts`).
+
+- **Stale `agentHost` esbuild entry points**
+  Removed deleted `agentHostMain` / `diffWorkerMain` bundle entries so `core-ci` can bundle again after those mains were dropped.
+
+- **Build TypeScript / source-map 0.8 compatibility**
+  - Pin `@types/glob` to 7.x and `@types/minimatch` to 5.x (stub v9/v6 resolved against modern package types and broke default imports).
+  - Add explicit `glob` dependency for the build package.
+  - Update `build/lib/nls.ts` and `build/lib/tsb/builder.ts` for async `SourceMapConsumer`.
+  - Type empty `webOnlyEntryPoints` as `string[]`.
+
+### Removed
+
+- **Telemetry / AI relevance plumbing**
+  Dropped orphaned telemetry senders, AI related-information/settings search, OTLP/sqlite otel paths, inline-completions telemetry helpers, and related eslint/i18n wiring that no longer belongs in this product.
+
+### Files touched in this release
+
+| Path | Action |
+|------|--------|
+| `build/next/index.ts` | Modified (await source-map adjust; entry cleanup) |
+| `build/lib/policies/policyGenerator.ts` | Modified (Open VSX-safe localization) |
+| `build/lib/nls.ts` | Modified (async SourceMapConsumer) |
+| `build/lib/tsb/builder.ts` | Modified (async SourceMapConsumer) |
+| `build/package.json` / `build/package-lock.json` | Modified (glob types + dep pins) |
+| Telemetry / otel / agentHost-related sources | Removed or cleaned |
+| Upstream VS Code 1.132.0 merge surface | Updated |
+
 ## [1.131.0] - 2026-08-05
 
 ### Fixed
