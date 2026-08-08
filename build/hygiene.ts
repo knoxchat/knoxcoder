@@ -6,7 +6,7 @@
 import cp from 'child_process';
 import es from 'event-stream';
 import fs from 'fs';
-import { filter, merge} from './lib/gulp/facade.ts';
+import { filter } from './lib/gulp/facade.ts';
 import pall from 'p-all';
 import path from 'path';
 import VinylFile from 'vinyl';
@@ -25,6 +25,25 @@ const copyrightHeaderLines = [
 
 interface VinylFileWithLines extends VinylFile {
 	__lines: string[];
+}
+
+/**
+ * Checks that engines.vscode in extensions/copilot/package.json matches ^{version} from the root package.json.
+ * Returns an error message if mismatched, or undefined if OK.
+ */
+export function checkCopilotEnginesVersion(repoRoot: string): string | undefined {
+	const copilotPkgPath = path.join(repoRoot, 'extensions/copilot/package.json');
+	if (!fs.existsSync(copilotPkgPath)) {
+		return undefined;
+	}
+	const rootPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+	const copilotPkg = JSON.parse(fs.readFileSync(copilotPkgPath, 'utf8'));
+	const expected = `^${rootPkg.version}`;
+	const actual = copilotPkg?.engines?.vscode;
+	if (actual !== expected) {
+		return `engines.vscode in 'extensions/copilot/package.json' must be "${expected}" (the version from the root package.json), but found "${actual ?? '<missing>'}"`;
+	}
+	return undefined;
 }
 
 /**
@@ -68,15 +87,17 @@ export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined 
  * Main hygiene function that runs checks on files
  */
 export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, runEslint = true): NodeJS.ReadWriteStream {
-	console.log('Starting hygiene...');
+	const started = Date.now();
+	const requestedPaths = Array.isArray(some) ? some : undefined;
+	const scope = requestedPaths ? `${requestedPaths.length} requested path${requestedPaths.length === 1 ? '' : 's'}` : some ? 'provided file stream' : 'full repository';
+	console.log(`Starting hygiene (${scope})...`);
 	let errorCount = 0;
 
 	const productJson = es.through(function (file: VinylFile) {
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
-		// KnoxCoder uses Open VSX as its extension marketplace.
-		if (product.extensionsGallery && product.extensionsGallery.serviceUrl !== 'https://open-vsx.org/vscode/gallery') {
-			console.error(`product.json: Unexpected 'extensionsGallery' configuration`);
+		if (product.extensionsGallery) {
+			console.error(`product.json: Contains 'extensionsGallery'`);
 			errorCount++;
 		}
 
@@ -188,30 +209,39 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const snapshotFilter = filter(['**', '!**/*.snap', '!**/*.snap.actual']);
 	const yarnLockFilter = filter(['**', '!**/yarn.lock']);
 	const unicodeFilterStream = filter(Array.from(unicodeFilter), { restore: true });
+	const checkedFiles = new Set<string>();
+	const trackCheckedFile = () => es.through(function (file: VinylFile) {
+		checkedFiles.add(file.relative);
+		this.emit('data', file);
+	});
 
 	const result = input
 		.pipe(filter((f) => Boolean(f.stat && !f.stat.isDirectory())))
 		.pipe(snapshotFilter)
 		.pipe(yarnLockFilter)
 		.pipe(productJsonFilter)
-		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
+		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : trackCheckedFile().pipe(productJson))
 		.pipe(productJsonFilter.restore)
 		.pipe(unicodeFilterStream)
+		.pipe(trackCheckedFile())
 		.pipe(unicode)
 		.pipe(unicodeFilterStream.restore)
 		.pipe(filter(Array.from(indentationFilter)))
+		.pipe(trackCheckedFile())
 		.pipe(indentation)
 		.pipe(filter(Array.from(copyrightFilter)))
+		.pipe(trackCheckedFile())
 		.pipe(copyrights);
 
 	const streams: NodeJS.ReadWriteStream[] = [
-		result.pipe(filter(Array.from(tsFormattingFilter))).pipe(formatting)
+		result.pipe(filter(Array.from(tsFormattingFilter))).pipe(trackCheckedFile()).pipe(formatting)
 	];
 
 	if (runEslint) {
 		streams.push(
 			result
 				.pipe(filter(Array.from(eslintFilter)))
+				.pipe(trackCheckedFile())
 				.pipe(
 					eslint((results) => {
 						errorCount += results.warningCount;
@@ -222,18 +252,18 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	}
 
 	streams.push(
-		result.pipe(filter(Array.from(stylelintFilter))).pipe(gulpstylelint(((message: string, isError: boolean) => {
+		result.pipe(filter(Array.from(stylelintFilter))).pipe(trackCheckedFile()).pipe(gulpstylelint(((message: string, isError: boolean) => {
 			if (isError) {
 				console.error(message);
 				errorCount++;
 			} else {
 				console.warn(message);
 			}
-		})))
+		}), false, false))
 	);
 
 	let count = 0;
-	return merge(...streams).pipe(
+	return es.merge(...streams).pipe(
 		es.through(
 			function (data: unknown) {
 				count++;
@@ -244,7 +274,10 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 			},
 			function () {
 				process.stdout.write('\n');
-				if (errorCount > 0) {
+				console.log(`Hygiene checked ${checkedFiles.size} file${checkedFiles.size === 1 ? '' : 's'} in ${Date.now() - started}ms.`);
+				if (requestedPaths && checkedFiles.size === 0) {
+					this.emit('error', `No hygiene-eligible files matched the requested paths: ${requestedPaths.join(', ')}`);
+				} else if (errorCount > 0) {
 					this.emit(
 						'error',
 						'Hygiene failed with ' +
@@ -324,6 +357,15 @@ if (import.meta.main) {
 				const some = out.split(/\r?\n/).filter((l) => !!l);
 
 				if (some.length > 0) {
+					// Check copilot engines.vscode version if relevant files are staged
+					if (some.some(f => f === 'package.json' || f.startsWith('extensions/copilot/'))) {
+						const copilotError = checkCopilotEnginesVersion(process.cwd());
+						if (copilotError) {
+							console.error(copilotError);
+							process.exit(1);
+						}
+					}
+
 					// Check that no new .js/.cjs/.mjs files are being added outside of the allowlist
 					if (some.some(f => /\.(js|cjs|mjs)$/.test(f) || f === '.eslint-allowed-javascript-files')) {
 						const jsAllowlistError = checkNoNewJavaScriptFiles(process.cwd());
@@ -333,7 +375,7 @@ if (import.meta.main) {
 						}
 					}
 
-					console.log('Reading git index versions...');
+					console.log(`Reading ${some.length} git index version${some.length === 1 ? '' : 's'}...`);
 
 					createGitIndexVinyls(some)
 						.then(
@@ -350,6 +392,9 @@ if (import.meta.main) {
 							console.error(err);
 							process.exit(1);
 						});
+				} else {
+					console.error('No staged files found. Pass file paths to check unstaged files.');
+					process.exit(1);
 				}
 			}
 		);

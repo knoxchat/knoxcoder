@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import { gulp } from './lib/gulp/facade.ts';
 import * as path from 'path';
-import { rcedit } from 'rcedit';
+import rcedit from 'rcedit';
 import vfs from 'vinyl-fs';
 import pkg from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
@@ -75,7 +75,8 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 		const useVersionedUpdate = (product as typeof product & { win32VersionedUpdate?: boolean })?.win32VersionedUpdate;
 		const versionedResourcesFolder = useVersionedUpdate ? commit!.substring(0, 10) : '';
 		const issPath = path.join(import.meta.dirname, 'win32', 'code.iss');
-		const originalProductJsonPath = path.join(sourcePath, versionedResourcesFolder, 'resources/app/product.json');
+		const productJsonRelativePath = path.join(versionedResourcesFolder, 'resources/app/product.json');
+		const originalProductJsonPath = path.join(sourcePath, productJsonRelativePath);
 		const productJsonPath = path.join(outputPath, 'product.json');
 		const productJson = JSON.parse(fs.readFileSync(originalProductJsonPath, 'utf8'));
 		productJson['target'] = target;
@@ -106,6 +107,7 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			RepoDir: repoPath,
 			OutputDir: outputPath,
 			InstallTarget: target,
+			ProductJsonRelativePath: productJsonRelativePath,
 			ProductJsonPath: productJsonPath,
 			VersionedResourcesFolder: versionedResourcesFolder,
 			Quality: quality
@@ -139,16 +141,15 @@ defineWin32SetupTasks('arm64', 'user');
 
 function copyInnoUpdater(arch: string) {
 	return () => {
-		// Gulp 5 defaults streams to UTF-8, which corrupts binaries.
-		return gulp.src('build/win32/{inno_updater.exe,vcruntime140.dll}', { base: 'build/win32', encoding: false })
-			.pipe(vfs.dest(path.join(buildPath(arch), 'tools'), { encoding: false }));
+		return gulp.src('build/win32/{inno_updater.exe,vcruntime140.dll}', { base: 'build/win32' })
+			.pipe(vfs.dest(path.join(buildPath(arch), 'tools')));
 	};
 }
 
 function updateIcon(executablePath: string): task.CallbackTask {
 	return cb => {
 		const icon = path.join(repoPath, 'resources', 'win32', 'code.ico');
-		rcedit(executablePath, { icon }).then(() => cb(), cb);
+		rcedit(executablePath, { icon }, cb);
 	};
 }
 

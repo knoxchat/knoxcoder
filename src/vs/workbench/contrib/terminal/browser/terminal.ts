@@ -35,6 +35,7 @@ import type { IEditorOptions } from '../../../../platform/editor/common/editor.j
 import type { TerminalEditorInput } from './terminalEditorInput.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
 import { isNumber, type SingleOrMany } from '../../../../base/common/types.js';
+import type { ToolConfirmationAction } from '../../chat/common/tools/languageModelToolsService.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -42,7 +43,7 @@ export const ITerminalEditorService = createDecorator<ITerminalEditorService>('t
 export const ITerminalEditingService = createDecorator<ITerminalEditingService>('terminalEditingService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
-export const ITerminalAssistService = createDecorator<ITerminalAssistService>('terminalAssistService');
+export const ITerminalChatService = createDecorator<ITerminalChatService>('terminalChatService');
 
 /**
  * A terminal contribution that gets created whenever a terminal is created. A contribution has
@@ -116,10 +117,10 @@ export interface IAhpTerminalCommandSource extends IDisposable {
 }
 
 /**
- * Service enabling communication between the assist tool implementation in terminal contrib and workbench contribs.
- * Acts as a communication mechanism for assist-related terminal features.
+ * Service enabling communication between the chat tool implementation in terminal contrib and workbench contribs.
+ * Acts as a communication mechanism for chat-related terminal features.
  */
-export interface IAssistTerminalToolProgressPart {
+export interface IChatTerminalToolProgressPart {
 	readonly elementIndex: number;
 	readonly contentIndex: number;
 	focusTerminal(): Promise<void>;
@@ -130,14 +131,22 @@ export interface IAssistTerminalToolProgressPart {
 	getCommandAndOutputAsText(): string | undefined;
 }
 
-export interface ITerminalAssistService {
+/** A read-only output stream rendered by chat without a workbench terminal instance. */
+export interface IChatTerminalOutputSource {
+	readonly onDidChange: Event<void>;
+	readonly output: string;
+	readonly exitCode: number | undefined;
+}
+
+export interface ITerminalChatService {
 	readonly _serviceBrand: undefined;
 
 	/**
 	 * Fired when a terminal instance is registered for a tool session id. This can happen after
-	 * the assist UI first renders, enabling late binding of the focus action.
+	 * the chat UI first renders, enabling late binding of the focus action.
 	 */
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance>;
+	readonly onDidRegisterOutputSource: Event<string>;
 
 	/**
 	 * Associate a tool session id with a terminal instance. The association is automatically
@@ -179,19 +188,19 @@ export interface ITerminalAssistService {
 	getToolSessionIdForInstance(instance: ITerminalInstance): string | undefined;
 
 	/**
-	 * Associate a assist session with a terminal instance. This is used to retrieve the assist
+	 * Associate a chat session with a terminal instance. This is used to retrieve the chat
 	 * session title for display purposes.
-	 * @param assistSessionResource The assist session resource URI
+	 * @param chatSessionResource The chat session resource URI
 	 * @param instance The terminal instance
 	 */
-	registerTerminalInstanceWithAssistSession(assistSessionResource: URI, instance: ITerminalInstance): void;
+	registerTerminalInstanceWithChatSession(chatSessionResource: URI, instance: ITerminalInstance): void;
 
 	/**
-	 * Returns the assist session resource for a given terminal instance, if it has been registered.
+	 * Returns the chat session resource for a given terminal instance, if it has been registered.
 	 * @param instance The terminal instance to look up
-	 * @returns The assist session resource if found, undefined otherwise
+	 * @returns The chat session resource if found, undefined otherwise
 	 */
-	getAssistSessionResourceForInstance(instance: ITerminalInstance): URI | undefined;
+	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined;
 
 	/**
 	 * Check if a terminal is a background terminal (tool-driven terminal that may be hidden from
@@ -201,65 +210,82 @@ export interface ITerminalAssistService {
 	 */
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
 
+	registerOutputSource(terminalToolSessionId: string, source: IChatTerminalOutputSource): IDisposable;
+	getOutputSource(terminalToolSessionId: string | undefined): IChatTerminalOutputSource | undefined;
+
 	/**
-	 * Register a assist terminal tool progress part for tracking and focus management.
+	 * Register a chat terminal tool progress part for tracking and focus management.
 	 * @param part The progress part to register
 	 * @returns A disposable that unregisters the progress part when disposed
 	 */
-	registerProgressPart(part: IAssistTerminalToolProgressPart): IDisposable;
+	registerProgressPart(part: IChatTerminalToolProgressPart): IDisposable;
 
 	/**
 	 * Set the currently focused progress part.
 	 * @param part The progress part to focus
 	 */
-	setFocusedProgressPart(part: IAssistTerminalToolProgressPart): void;
+	setFocusedProgressPart(part: IChatTerminalToolProgressPart): void;
 
 	/**
 	 * Clear the focused state from a progress part.
 	 * @param part The progress part to clear focus from
 	 */
-	clearFocusedProgressPart(part: IAssistTerminalToolProgressPart): void;
+	clearFocusedProgressPart(part: IChatTerminalToolProgressPart): void;
 
 	/**
 	 * Get the currently focused progress part, if any.
 	 * @returns The focused progress part or undefined if none is focused
 	 */
-	getFocusedProgressPart(): IAssistTerminalToolProgressPart | undefined;
+	getFocusedProgressPart(): IChatTerminalToolProgressPart | undefined;
 
 	/**
 	 * Get the most recently registered progress part, if any.
 	 * @returns The most recent progress part or undefined if none exist
 	 */
-	getMostRecentProgressPart(): IAssistTerminalToolProgressPart | undefined;
+	getMostRecentProgressPart(): IChatTerminalToolProgressPart | undefined;
 
 	/**
 	 * Enable or disable auto approval for all commands in a specific session.
-	 * @param assistSessionResource The assist session resource URI
+	 * @param chatSessionResource The chat session resource URI
 	 * @param enabled Whether to enable or disable session auto approval
 	 */
-	setAssistSessionAutoApproval(assistSessionResource: URI, enabled: boolean): void;
+	setChatSessionAutoApproval(chatSessionResource: URI, enabled: boolean): void;
 
 	/**
 	 * Check if a session has auto approval enabled for all commands.
-	 * @param assistSessionResource The assist session resource URI
+	 * @param chatSessionResource The chat session resource URI
 	 * @returns True if the session has auto approval enabled
 	 */
-	hasAssistSessionAutoApproval(assistSessionResource: URI): boolean;
+	hasChatSessionAutoApproval(chatSessionResource: URI): boolean;
 
 	/**
 	 * Add a session-scoped auto-approve rule.
-	 * @param assistSessionResource The assist session resource URI
+	 * @param chatSessionResource The chat session resource URI
 	 * @param key The rule key (command or regex pattern)
 	 * @param value The rule value (approval boolean or object with approve and matchCommandLine)
 	 */
-	addSessionAutoApproveRule(assistSessionResource: URI, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void;
+	addSessionAutoApproveRule(chatSessionResource: URI, key: string, value: boolean | { approve: boolean; matchCommandLine?: boolean }): void;
 
 	/**
-	 * Get all session-scoped auto-approve rules for a specific assist session.
-	 * @param assistSessionResource The assist session resource URI
+	 * Get all session-scoped auto-approve rules for a specific chat session.
+	 * @param chatSessionResource The chat session resource URI
 	 * @returns A record of all session-scoped auto-approve rules for the session
 	 */
-	getSessionAutoApproveRules(assistSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
+	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
+
+	/**
+	 * Generate auto-approve rule actions for a command line that was not evaluated by the
+	 * built-in run in terminal tool, such as terminal confirmations surfaced by agent host
+	 * sessions. The command line is parsed into sub-commands and evaluated against the
+	 * persisted configuration rules only (never workbench session rules, which agent hosts
+	 * do not consume) to produce the same persistent-rule suggestions the built-in tool
+	 * offers.
+	 * @param commandLine The full command line being confirmed
+	 * @param language The language to parse the command line with
+	 * @returns The actions to show in the confirmation dropdown, or undefined if the command
+	 * line could not be analyzed
+	 */
+	getAutoApproveActions(commandLine: string, language: 'shellscript' | 'powershell'): Promise<ToolConfirmationAction[] | undefined>;
 
 	/**
 	 * Signal that a foreground terminal tool invocation should continue in the background.
@@ -280,7 +306,7 @@ export interface ITerminalAssistService {
 	 * @param source The AHP command source
 	 * @returns A disposable that unregisters the source when disposed
 	 */
-	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource): IDisposable;
+	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource, promisedTerminal: Promise<ITerminalInstance>): IDisposable;
 
 	/**
 	 * Retrieve the AHP command source for a given tool session.
@@ -409,7 +435,7 @@ export interface IDetachedXTermOptions {
 /**
  * A generic interface implemented in both the {@link ITerminalInstance} (an
  * interface used for terminals attached to the terminal panel or editor) and
- * {@link IDetachedTerminalInstance} (a terminal used elsewhere in KnoxCoder UI).
+ * {@link IDetachedTerminalInstance} (a terminal used elsewhere in VS Code UI).
  */
 export interface IBaseTerminalInstance {
 	readonly capabilities: ITerminalCapabilityStore;
@@ -461,7 +487,7 @@ export interface IBaseTerminalInstance {
 /**
  * A {@link ITerminalInstance}-like object that emulates a subset of
  * capabilities. This instance is returned from {@link ITerminalService.createDetachedTerminal}
- * to represent terminals that appear in other parts of the KnoxCoder UI outside
+ * to represent terminals that appear in other parts of the VS Code UI outside
  * of the "Terminal" view or editors.
  */
 export interface IDetachedTerminalInstance extends IDisposable, IBaseTerminalInstance {
@@ -974,7 +1000,16 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly onIconChanged: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 
 	/**
-	 * An event that fires when the terminal instance is disposed.
+	 * An event that fires just before the terminal instance is disposed, while `xterm.js` and
+	 * other instance-owned resources are still alive. Subscribe here if you need to clean up
+	 * state that depends on those resources (e.g. xterm.js addons). For "the instance is gone"
+	 * notifications, use {@link onDisposed} instead.
+	 */
+	readonly onWillDispose: Event<ITerminalInstance>;
+
+	/**
+	 * An event that fires when the terminal instance is disposed, after `xterm.js` has been
+	 * disposed.
 	 */
 	readonly onDisposed: Event<ITerminalInstance>;
 
@@ -1468,7 +1503,7 @@ export interface IXtermTerminal extends IDisposable {
 	selectAll(): void;
 
 	/**
-	 * Selects the content between the two markers by their KnoxCoder OSC `SetMarker`
+	 * Selects the content between the two markers by their VS Code OSC `SetMarker`
 	 * ID. It's a no-op if either of the two markers are not found.
 	 *
 	 * @param fromMarkerId Start marker ID
@@ -1569,7 +1604,7 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	updateTheme(): void;
 
 	/**
-	 * Updates the xterm log level to match the given KnoxCoder log level.
+	 * Updates the xterm log level to match the given VS Code log level.
 	 */
 	updateLogLevel(): void;
 

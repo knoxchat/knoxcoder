@@ -51,6 +51,11 @@ export interface ISubmenuItem {
 		 * on the action that was last run.
 		 */
 		togglePrimaryAction: true;
+		/**
+		 * Restricts which submenu commands can become the primary action.
+		 * Running an eligible command outside the submenu also updates the primary action.
+		 */
+		primaryActionIds?: readonly string[];
 	};
 }
 
@@ -252,53 +257,53 @@ export class MenuId {
 	static readonly MergeInputResultToolbar = new MenuId('MergeToolbarResultToolbar');
 	static readonly InlineSuggestionToolbar = new MenuId('InlineSuggestionToolbar');
 	static readonly InlineEditToolbar = new MenuId('InlineEditToolbar');
-	static readonly AssistContext = new MenuId('AssistContext');
-	static readonly AssistCodeBlock = new MenuId('ChatCodeblock');
+	static readonly ChatContext = new MenuId('ChatContext');
+	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
 	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
-	static readonly AssistMessageTitle = new MenuId('AssistMessageTitle');
+	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
 	static readonly ChatWelcomeContext = new MenuId('ChatWelcomeContext');
-	static readonly AssistMessageFooter = new MenuId('AssistMessageFooter');
+	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
 	static readonly ChatSubagentContent = new MenuId('ChatSubagentContent');
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatExecuteQueue = new MenuId('ChatExecuteQueue');
-	static readonly AssistInput = new MenuId('AssistInput');
-	static readonly AssistInputSecondary = new MenuId('AssistInputSecondary');
-	static readonly AssistInputStatus = new MenuId('AssistInputStatus');
-	static readonly AssistInputSide = new MenuId('AssistInputSide');
+	static readonly ChatInput = new MenuId('ChatInput');
+	static readonly ChatInputSecondary = new MenuId('ChatInputSecondary');
+	static readonly ChatInputStatus = new MenuId('ChatInputStatus');
+	static readonly ChatInputSide = new MenuId('ChatInputSide');
 	static readonly AutomationsDialogInput = new MenuId('AutomationsDialogInput');
 	static readonly ChatModePicker = new MenuId('ChatModePicker');
-	static readonly AssistEditingWidgetToolbar = new MenuId('AssistEditingWidgetToolbar');
-	static readonly AssistEditingSessionChangesToolbar = new MenuId('AssistEditingSessionChangesToolbar');
-	static readonly AssistEditingSessionTitleToolbar = new MenuId('AssistEditingSessionTitleToolbar');
-	static readonly AssistEditingSessionChangesVersionsSubmenu = new MenuId('AssistEditingSessionChangesVersionsSubmenu');
-	static readonly AssistEditingSessionChangesFileHeaderToolbar = new MenuId('AssistEditingSessionChangesFileHeaderToolbar');
-	static readonly AssistEditingSessionChangesFileHeaderRightToolbar = new MenuId('AssistEditingSessionChangesFileHeaderRightToolbar');
-	static readonly AssistEditingEditorContent = new MenuId('AssistEditingEditorContent');
-	static readonly AssistEditingEditorHunk = new MenuId('AssistEditingEditorHunk');
-	static readonly AssistEditingDeletedNotebookCell = new MenuId('AssistEditingDeletedNotebookCell');
-	static readonly AssistInputAttachmentToolbar = new MenuId('AssistInputAttachmentToolbar');
-	static readonly AssistEditingWidgetModifiedFilesToolbar = new MenuId('AssistEditingWidgetModifiedFilesToolbar');
-	static readonly AssistInputResourceAttachmentContext = new MenuId('AssistInputResourceAttachmentContext');
-	static readonly AssistInputSymbolAttachmentContext = new MenuId('AssistInputSymbolAttachmentContext');
+	static readonly ChatEditingWidgetToolbar = new MenuId('ChatEditingWidgetToolbar');
+	static readonly ChatEditingSessionChangesToolbar = new MenuId('ChatEditingSessionChangesToolbar');
+	static readonly ChatEditingSessionTitleToolbar = new MenuId('ChatEditingSessionTitleToolbar');
+	static readonly ChatEditingSessionChangesVersionsSubmenu = new MenuId('ChatEditingSessionChangesVersionsSubmenu');
+	static readonly ChatEditingSessionChangesFileHeaderToolbar = new MenuId('ChatEditingSessionChangesFileHeaderToolbar');
+	static readonly ChatEditingSessionChangesFileHeaderRightToolbar = new MenuId('ChatEditingSessionChangesFileHeaderRightToolbar');
+	static readonly ChatEditingEditorContent = new MenuId('ChatEditingEditorContent');
+	static readonly ChatEditingEditorHunk = new MenuId('ChatEditingEditorHunk');
+	static readonly ChatEditingDeletedNotebookCell = new MenuId('ChatEditingDeletedNotebookCell');
+	static readonly ChatInputAttachmentToolbar = new MenuId('ChatInputAttachmentToolbar');
+	static readonly ChatEditingWidgetModifiedFilesToolbar = new MenuId('ChatEditingWidgetModifiedFilesToolbar');
+	static readonly ChatInputResourceAttachmentContext = new MenuId('ChatInputResourceAttachmentContext');
+	static readonly ChatInputSymbolAttachmentContext = new MenuId('ChatInputSymbolAttachmentContext');
 	static readonly ChatInlineResourceAnchorContext = new MenuId('ChatInlineResourceAnchorContext');
 	static readonly ChatInlineSymbolAnchorContext = new MenuId('ChatInlineSymbolAnchorContext');
-	static readonly AssistMessageCheckpoint: MenuId = new MenuId('AssistMessageCheckpoint');
-	static readonly AssistMessageRestoreCheckpoint: MenuId = new MenuId('AssistMessageRestoreCheckpoint');
+	static readonly ChatMessageCheckpoint: MenuId = new MenuId('ChatMessageCheckpoint');
+	static readonly ChatMessageRestoreCheckpoint: MenuId = new MenuId('ChatMessageRestoreCheckpoint');
 	static readonly ChatNewMenu = new MenuId('ChatNewMenu');
-	static readonly AssistEditingCodeBlockContext = new MenuId('AssistEditingCodeBlockContext');
+	static readonly ChatEditingCodeBlockContext = new MenuId('ChatEditingCodeBlockContext');
 	static readonly ChatTitleBarMenu = new MenuId('ChatTitleBarMenu');
 	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
 	static readonly ChatTipContext = new MenuId('ChatTipContext');
 	static readonly ChatTipToolbar = new MenuId('ChatTipToolbar');
-	static readonly AssistToolOutputResourceToolbar = new MenuId('AssistToolOutputResourceToolbar');
+	static readonly ChatToolOutputResourceToolbar = new MenuId('ChatToolOutputResourceToolbar');
 	static readonly ChatTextEditorMenu = new MenuId('ChatTextEditorMenu');
-	static readonly AssistToolOutputResourceContext = new MenuId('AssistToolOutputResourceContext');
+	static readonly ChatToolOutputResourceContext = new MenuId('ChatToolOutputResourceContext');
 	static readonly ChatMultiDiffContext = new MenuId('ChatMultiDiffContext');
 	static readonly ChatConfirmationMenu = new MenuId('ChatConfirmationMenu');
-	static readonly AssistEditorInlineMenu = new MenuId('AssistEditorInlineGutter');
-	static readonly AssistEditorInlineExecute = new MenuId('AssistEditorInputExecute');
-	static readonly AssistEditorInlineInputSide = new MenuId('AssistEditorInputSide');
-	static readonly InlineAssistEditorAffordance = new MenuId('InlineAssistEditorAffordance');
+	static readonly ChatEditorInlineMenu = new MenuId('ChatEditorInlineGutter');
+	static readonly ChatEditorInlineExecute = new MenuId('ChatEditorInputExecute');
+	static readonly ChatEditorInlineInputSide = new MenuId('ChatEditorInputSide');
+	static readonly InlineChatEditorAffordance = new MenuId('InlineChatEditorAffordance');
 
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorContent = new MenuId('MultiDiffEditorContent');
@@ -307,7 +312,7 @@ export class MenuId {
 	static readonly DiffEditorSelectionToolbar = new MenuId('DiffEditorSelectionToolbar');
 	static readonly BrowserNavigationToolbar = new MenuId('BrowserNavigationToolbar');
 	static readonly BrowserActionsToolbar = new MenuId('BrowserActionsToolbar');
-	static readonly BrowserAssistActionsMenu = new MenuId('BrowserAssistActionsMenu');
+	static readonly BrowserChatActionsMenu = new MenuId('BrowserChatActionsMenu');
 	static readonly BrowserEmulationToolbar = new MenuId('BrowserEmulationToolbar');
 	static readonly AgentSessionsViewerFilterSubMenu = new MenuId('AgentSessionsViewerFilterSubMenu');
 	static readonly AgentSessionsContext = new MenuId('AgentSessionsContext');
@@ -322,9 +327,9 @@ export class MenuId {
 	static readonly AgentsChangesToolbar = new MenuId('AgentsChangesToolbar');
 	static readonly AgentsChangesPrimaryActionSubMenu = new MenuId('AgentsChangesPrimaryActionSubMenu');
 	static readonly AgentsChangeInlineToolbar = new MenuId('AgentsChangeInlineToolbar');
-	static readonly AssistViewSessionTitleNavigationToolbar = new MenuId('AssistViewSessionTitleNavigationToolbar');
-	static readonly AssistViewSessionTitleToolbar = new MenuId('AssistViewSessionTitleToolbar');
-	static readonly AssistContextUsageActions = new MenuId('AssistContextUsageActions');
+	static readonly ChatViewSessionTitleNavigationToolbar = new MenuId('ChatViewSessionTitleNavigationToolbar');
+	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
+	static readonly ChatContextUsageActions = new MenuId('ChatContextUsageActions');
 	static readonly MarkerHoverStatusBar = new MenuId('MarkerHoverParticipant.StatusBar');
 
 	/**

@@ -6,7 +6,7 @@
 import { createReadStream, promises } from 'fs';
 import type * as http from 'http';
 import * as url from 'url';
-import { parseCookie, stringifySetCookie } from 'cookie';
+import * as cookie from 'cookie';
 import * as crypto from 'crypto';
 import { isEqualOrParent } from '../../base/common/extpath.js';
 import { getMediaMime } from '../../base/common/mime.js';
@@ -272,12 +272,14 @@ export class WebClientServer {
 			// We got a connection token as a query parameter.
 			// We want to have a clean URL, so we strip it
 			const responseHeaders: Record<string, string> = Object.create(null);
-			responseHeaders['Set-Cookie'] = stringifySetCookie({
-				name: connectionTokenCookieName,
-				value: queryConnectionToken,
-				sameSite: 'lax',
-				maxAge: 60 * 60 * 24 * 7 /* 1 week */
-			});
+			responseHeaders['Set-Cookie'] = cookie.serialize(
+				connectionTokenCookieName,
+				queryConnectionToken,
+				{
+					sameSite: 'lax',
+					maxAge: 60 * 60 * 24 * 7 /* 1 week */
+				}
+			);
 
 			const newQuery = Object.create(null);
 			for (const key in parsedUrl.query) {
@@ -338,6 +340,7 @@ export class WebClientServer {
 
 		const staticRoute = posix.join(basePath, this._productPath, STATIC_PATH);
 		const callbackRoute = posix.join(basePath, this._productPath, CALLBACK_PATH);
+		const webExtensionRoute = posix.join(basePath, this._productPath, WEB_EXTENSION_PATH);
 
 		const resolveWorkspaceURI = (defaultLocation?: string) => defaultLocation && URI.file(resolve(defaultLocation)).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
@@ -351,10 +354,15 @@ export class WebClientServer {
 
 		const productConfiguration: Partial<Mutable<IProductConfiguration>> = {
 			embedderIdentifier: 'server-distro',
-			extensionsGallery: process.env['EXTENSIONS_GALLERY']
-				? JSON.parse(process.env['EXTENSIONS_GALLERY'])
-				: this._productService.extensionsGallery,
-			linkProtectionTrustedDomains: this._productService.linkProtectionTrustedDomains,
+			voiceWsUrl: this._productService.voiceWsUrl,
+			extensionsGallery: this._webExtensionResourceUrlTemplate && this._productService.extensionsGallery ? {
+				...this._productService.extensionsGallery,
+				resourceUrlTemplate: this._webExtensionResourceUrlTemplate.with({
+					scheme: 'http',
+					authority: remoteAuthority,
+					path: `${webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
+				}).toString(true)
+			} : undefined
 		};
 
 		if (!this._environmentService.isBuilt) {
@@ -371,13 +379,14 @@ export class WebClientServer {
 			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined, logLevel: this._logService.getLevel() },
 			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
+			enabledExtensionProposedApi: this._environmentService.args['enable-proposed-api'],
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
 			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
 			productConfiguration,
 			callbackRoute: callbackRoute
 		};
 
-		const cookies = parseCookie(req.headers.cookie || '');
+		const cookies = cookie.parse(req.headers.cookie || '');
 		const locale = cookies['vscode.nls.locale'] || req.headers['accept-language']?.split(',')[0]?.toLowerCase() || 'en';
 		let WORKBENCH_NLS_BASE_URL: string | undefined;
 		let WORKBENCH_NLS_URL: string;
@@ -448,12 +457,14 @@ export class WebClientServer {
 			// At this point we know the client has a valid cookie
 			// and we want to set it prolong it to ensure that this
 			// client is valid for another 1 week at least
-			headers['Set-Cookie'] = stringifySetCookie({
-				name: connectionTokenCookieName,
-				value: this._connectionToken.value,
-				sameSite: 'lax',
-				maxAge: 60 * 60 * 24 * 7 /* 1 week */
-			});
+			headers['Set-Cookie'] = cookie.serialize(
+				connectionTokenCookieName,
+				this._connectionToken.value,
+				{
+					sameSite: 'lax',
+					maxAge: 60 * 60 * 24 * 7 /* 1 week */
+				}
+			);
 		}
 
 		res.writeHead(200, headers);

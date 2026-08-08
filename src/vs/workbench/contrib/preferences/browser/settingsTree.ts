@@ -77,7 +77,7 @@ const $ = DOM.$;
 
 const multiGroupTocSettings = new Set([
 	'accessibility.signals.chatUserActionRequired',
-	'accessibility.signals.assistResponseReceived'
+	'accessibility.signals.chatResponseReceived'
 ]);
 
 function getIncludeExcludeDisplayValue(element: SettingsTreeSettingElement): IIncludeExcludeDataItem[] {
@@ -950,7 +950,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
-		const toolbar = this.renderSettingToolbar(toolbarContainer);
+		const toolbar = toDispose.add(this.renderSettingToolbar(toolbarContainer));
 
 		const template: ISettingItemTemplate = {
 			toDispose,

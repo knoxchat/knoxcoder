@@ -18,6 +18,7 @@ import { getGalleryExtensionId } from '../../../../../platform/extensionManageme
 import { TestExtensionEnablementService } from '../../../../services/extensionManagement/test/browser/extensionEnablementService.test.js';
 import { ExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionGalleryService.js';
 import { IURLService } from '../../../../../platform/url/common/url.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IPager } from '../../../../../base/common/paging.js';
@@ -2553,12 +2554,12 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 
 	setup(() => {
 		setupTest(disposables);
-		instantiationService.stub(IProductService, { defaultAssistAgent: { chatExtensionId: 'GitHub.assist-assist' } } as Partial<IProductService>);
+		instantiationService.stub(IProductService, { defaultChatAgent: { chatExtensionId: 'GitHub.copilot-chat' } } as Partial<IProductService>);
 	});
 
 	test('test enable AI in workspace updates workspace setting when AI is disabled globally', async () => {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-		configurationService.setUserConfiguration('assist.disableAIFeatures', true);
+		configurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
 
 		let updatedValue: { key: string; value: unknown; target: unknown } | undefined;
 		const originalUpdateValue = configurationService.updateValue.bind(configurationService);
@@ -2567,25 +2568,25 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 			return originalUpdateValue(key, value);
 		};
 
-		const chatExtension = aLocalExtension('assist-assist', { publisher: 'GitHub' }, { type: ExtensionType.System });
+		const chatExtension = aLocalExtension('copilot-chat', { publisher: 'GitHub' }, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [chatExtension]);
 
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		await workbenchService.queryLocal();
 
 		const extensions = workbenchService.local;
-		const assistChat = extensions.find(e => e.identifier.id === 'github.assist-assist');
-		assert.ok(assistChat);
+		const copilotChat = extensions.find(e => e.identifier.id === 'github.copilot-chat');
+		assert.ok(copilotChat);
 
 		const testObject: ExtensionsActions.EnableAIFeaturesInWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableAIFeaturesInWorkspaceAction));
 		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
-		testObject.extension = assistChat;
+		testObject.extension = copilotChat;
 		assert.ok(testObject.enabled);
 
 		await testObject.run();
 
 		assert.ok(updatedValue, 'updateValue should have been called');
-		assert.strictEqual(updatedValue.key, 'assist.disableAIFeatures');
+		assert.strictEqual(updatedValue.key, ChatAIDisabledSettingId);
 		assert.strictEqual(updatedValue.value, false, 'workspace setting should be set to false');
 	});
 

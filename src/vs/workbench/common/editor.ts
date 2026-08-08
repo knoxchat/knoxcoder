@@ -880,7 +880,14 @@ export const enum EditorInputCapabilities {
 	 * part. This is honored unless the user has explicitly opted
 	 * out of modal editors via `workbench.editor.useModal: 'off'`.
 	 */
-	RequiresModal = 1 << 11
+	RequiresModal = 1 << 11,
+
+	/**
+	 * Signals that the editor is exempt from the opened editors
+	 * limit (`workbench.editor.limit`): it never counts towards the
+	 * limit and is never auto-closed to satisfy it.
+	 */
+	ExcludeFromEditorLimit = 1 << 12
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
@@ -957,6 +964,19 @@ export function isDiffEditorInput(editor: unknown): editor is IDiffEditorInput {
 	const candidate = editor as IDiffEditorInput | undefined;
 
 	return isEditorInput(candidate?.modified) && isEditorInput(candidate?.original);
+}
+
+export interface IEditorInputWithDiffResources extends EditorInput {
+	readonly diffResources: {
+		readonly original: URI;
+		readonly modified: URI;
+	};
+}
+
+export function isEditorInputWithDiffResources(editor: unknown): editor is IEditorInputWithDiffResources {
+	const candidate = editor as IEditorInputWithDiffResources | undefined;
+
+	return URI.isUri(candidate?.diffResources?.original) && URI.isUri(candidate.diffResources.modified);
 }
 
 export interface IUntypedFileEditorInput extends ITextResourceEditorInput {
@@ -1189,7 +1209,7 @@ export interface IActiveEditorChangeEvent {
 	/**
 	 * Indicates whether the editor change is the result of an explicit
 	 * user action (`true`) or happened automatically as a side effect
-	 * (e.g. the assist agent opening files it has edited).
+	 * (e.g. the chat agent opening files it has edited).
 	 *
 	 * When omitted, callers should treat the change as explicit.
 	 */

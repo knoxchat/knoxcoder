@@ -8,28 +8,15 @@ import { Emitter } from '../../../base/common/event.js';
 import { ExtHostAgentEditorCommentsShape, IAgentEditorCommentDto, IMainContext, MainContext, MainThreadAgentEditorCommentsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
 
-interface AgentEditorComment {
-	readonly id: string;
-	readonly range: vscode.Range;
-	readonly body: string;
-	readonly author: string | undefined;
-}
-
-interface AgentEditorCommentsProvider extends vscode.Disposable {
-	readonly onDidChange: vscode.Event<void>;
-	readonly comments: readonly AgentEditorComment[];
-	readonly acceptsComments: boolean;
-	addComment(range: vscode.Range, body: string): void;
-	deleteComment(id: string): void;
-}
-
-class ExtHostAgentEditorCommentsProvider implements AgentEditorCommentsProvider {
+class ExtHostAgentEditorCommentsProvider implements vscode.AgentEditorCommentsProvider {
 
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange = this._onDidChange.event;
+	private readonly _onDidRevealComment = new Emitter<string>();
+	readonly onDidRevealComment = this._onDidRevealComment.event;
 
-	private _comments: readonly AgentEditorComment[] = [];
-	get comments(): readonly AgentEditorComment[] { return this._comments; }
+	private _comments: readonly vscode.AgentEditorComment[] = [];
+	get comments(): readonly vscode.AgentEditorComment[] { return this._comments; }
 
 	private _acceptsComments = false;
 	get acceptsComments(): boolean { return this._acceptsComments; }
@@ -46,9 +33,13 @@ class ExtHostAgentEditorCommentsProvider implements AgentEditorCommentsProvider 
 			range: typeConvert.Range.to(comment.range),
 			body: comment.body,
 			author: comment.author,
-		} satisfies AgentEditorComment));
+		} satisfies vscode.AgentEditorComment));
 		this._acceptsComments = acceptsComments;
 		this._onDidChange.fire();
+	}
+
+	$revealComment(id: string): void {
+		this._onDidRevealComment.fire(id);
 	}
 
 	addComment(range: vscode.Range, body: string): void {
@@ -62,6 +53,7 @@ class ExtHostAgentEditorCommentsProvider implements AgentEditorCommentsProvider 
 	dispose(): void {
 		this.proxy.$disposeAgentEditorComments(this.handle);
 		this._onDidChange.dispose();
+		this._onDidRevealComment.dispose();
 		this.onDispose(this.handle);
 	}
 }
@@ -76,7 +68,7 @@ export class ExtHostAgentEditorComments implements ExtHostAgentEditorCommentsSha
 		this.proxy = mainContext.getProxy(MainContext.MainThreadAgentEditorComments);
 	}
 
-	createAgentEditorComments(uri: vscode.Uri): AgentEditorCommentsProvider {
+	createAgentEditorComments(uri: vscode.Uri): vscode.AgentEditorCommentsProvider {
 		const handle = ExtHostAgentEditorComments.handlePool++;
 		const provider = new ExtHostAgentEditorCommentsProvider(handle, this.proxy, h => this.providers.delete(h));
 		this.providers.set(handle, provider);
@@ -86,5 +78,9 @@ export class ExtHostAgentEditorComments implements ExtHostAgentEditorCommentsSha
 
 	$acceptAgentEditorComments(handle: number, comments: IAgentEditorCommentDto[], acceptsComments: boolean): void {
 		this.providers.get(handle)?.$acceptComments(comments, acceptsComments);
+	}
+
+	$revealAgentEditorComment(handle: number, id: string): void {
+		this.providers.get(handle)?.$revealComment(id);
 	}
 }

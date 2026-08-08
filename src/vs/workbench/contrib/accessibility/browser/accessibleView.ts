@@ -45,6 +45,8 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { FloatingEditorClickMenu } from '../../../browser/codeeditor.js';
+import { IChatCodeBlockContextProviderService } from '../../chat/browser/chat.js';
+import { ICodeBlockActionContext } from '../../chat/browser/widget/chatContentParts/codeBlockPart.js';
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { AccessibilityCommandId } from '../common/accessibilityCommands.js';
 import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewHasAssignedKeybindings, accessibleViewHasUnassignedKeybindings, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from './accessibilityConfiguration.js';
@@ -56,14 +58,6 @@ const enum DIMENSIONS {
 	MAX_HEIGHT_RATIO = 0.6
 }
 
-interface ICodeBlockActionContext {
-	code: string;
-	languageId?: string;
-	codeBlockIndex: number;
-	element: undefined;
-	assistSessionResource: URI | undefined;
-}
-
 export type AccesibleViewContentProvider = AccessibleContentProvider | ExtensionContentProvider;
 
 interface ICodeBlock {
@@ -71,7 +65,7 @@ interface ICodeBlock {
 	endLine: number;
 	code: string;
 	languageId?: string;
-	assistSessionResource: URI | undefined;
+	chatSessionResource: URI | undefined;
 }
 
 export class AccessibleView extends Disposable {
@@ -118,6 +112,7 @@ export class AccessibleView extends Disposable {
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IChatCodeBlockContextProviderService private readonly _codeBlockContextProviderService: IChatCodeBlockContextProviderService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
@@ -263,7 +258,7 @@ export class AccessibleView extends Disposable {
 		if (!codeBlock || codeBlockIndex === undefined) {
 			return;
 		}
-		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined, assistSessionResource: codeBlock.assistSessionResource };
+		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined, chatSessionResource: codeBlock.chatSessionResource };
 	}
 
 	navigateToCodeBlock(type: 'next' | 'previous'): void {
@@ -345,6 +340,9 @@ export class AccessibleView extends Disposable {
 			// only cache a provider with an ID so that it will eventually be cleared.
 			this._lastProvider = provider;
 		}
+		if (provider.id === AccessibleViewProviderId.PanelChat || provider.id === AccessibleViewProviderId.QuickChat) {
+			this._register(this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView'));
+		}
 		if (provider instanceof ExtensionContentProvider) {
 			this._storageService.store(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${provider.id}`, true, StorageScope.APPLICATION, StorageTarget.USER);
 		}
@@ -412,7 +410,7 @@ export class AccessibleView extends Disposable {
 				inBlock = false;
 				const endLine = i;
 				const code = lines.slice(startLine, endLine).join('\n');
-				this._codeBlocks?.push({ startLine, endLine, code, languageId, assistSessionResource: undefined });
+				this._codeBlocks?.push({ startLine, endLine, code, languageId, chatSessionResource: undefined });
 			}
 		});
 		this._accessibleViewContainsCodeBlocks.set(this._codeBlocks.length > 0);
@@ -594,6 +592,7 @@ export class AccessibleView extends Disposable {
 	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
 		const isSameProvider = this._currentProvider?.id === provider.id;
 		const previousPosition = isSameProvider ? this._editorWidget.getPosition() : undefined;
+		const previousScrollTop = isSameProvider ? this._editorWidget.getScrollTop() : undefined;
 		this._currentProvider = provider;
 		this._accessibleViewCurrentProviderId.set(provider.id);
 		const verbose = this._verbosityEnabled();
@@ -643,8 +642,23 @@ export class AccessibleView extends Disposable {
 			if (this._currentProvider?.options.position) {
 				const position = this._editorWidget.getPosition();
 				const isDefaultPosition = position?.lineNumber === 1 && position.column === 1;
-				if (this._currentProvider.options.position === 'bottom' || this._currentProvider.options.position === 'initial-bottom' && isDefaultPosition) {
-					const lastLine = this.editorWidget.getModel()?.getLineCount();
+				const lineCount = this.editorWidget.getModel()?.getLineCount();
+				const savedPosition = this._lastProviderPosition.get(provider.id);
+				const preservedPosition = this._currentProvider.options.position === 'initial-bottom-preserve'
+					? previousPosition ?? savedPosition
+					: this._currentProvider.options.position === 'initial-bottom' && !isSameProvider ? savedPosition : undefined;
+				if (preservedPosition && preservedPosition.lineNumber <= (lineCount ?? 0)) {
+					this._editorWidget.setPosition(preservedPosition);
+					// When always preserving the cursor position, keep the current scroll
+					// position on content updates instead of revealing the cursor, which
+					// would cause the view to jump while the user is scrolling.
+					if (this._currentProvider.options.position === 'initial-bottom-preserve' && previousScrollTop !== undefined) {
+						this._editorWidget.setScrollTop(previousScrollTop);
+					} else {
+						this._editorWidget.revealLine(preservedPosition.lineNumber);
+					}
+				} else if (this._currentProvider.options.position === 'bottom' || this._currentProvider.options.position === 'initial-bottom-preserve' || this._currentProvider.options.position === 'initial-bottom' && isDefaultPosition) {
+					const lastLine = lineCount;
 					const position = lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;
 					if (position) {
 						this._editorWidget.setPosition(position);
@@ -862,9 +876,9 @@ export class AccessibleView extends Disposable {
 		if (this._currentProvider?.id !== AccessibleViewProviderId.PanelChat && this._currentProvider?.id !== AccessibleViewProviderId.QuickChat) {
 			return;
 		}
-		return [localize('insertAtCursor', " - Insert the code block at the cursor{0}.", '<keybinding:workbench.action.assist.insertCodeBlock>'),
-		localize('insertIntoNewFile', " - Insert the code block into a new file{0}.", '<keybinding:workbench.action.assist.insertIntoNewFile>'),
-		localize('runInTerminal', " - Run the code block in the terminal{0}.\n", '<keybinding:workbench.action.assist.runInTerminal>')].join('\n');
+		return [localize('insertAtCursor', " - Insert the code block at the cursor{0}.", '<keybinding:workbench.action.chat.insertCodeBlock>'),
+		localize('insertIntoNewFile', " - Insert the code block into a new file{0}.", '<keybinding:workbench.action.chat.insertIntoNewFile>'),
+		localize('runInTerminal', " - Run the code block in the terminal{0}.\n", '<keybinding:workbench.action.chat.runInTerminal>')].join('\n');
 	}
 
 	private _navigationHint(): string {

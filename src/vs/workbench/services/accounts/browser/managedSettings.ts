@@ -4,11 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
-import { normalizeManagedSettings } from '../../../../platform/policy/common/managedSettings.js';
+import { normalizeManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
 /**
- * Response shape from the Assist `/assist_internal/managed_settings` endpoint.
- * The endpoint returns `.github/assist/settings.json` content from the
+ * A single MCP server matcher entry in the `allowedMcpServers` / `deniedMcpServers` managed
+ * settings, identifying a server by exactly one strategy: name, remote URL pattern, or local
+ * command invocation.
+ */
+export type IManagedMcpServerMatcher =
+	| { readonly serverName: string }
+	| { readonly serverUrl: string }
+	| { readonly serverCommand: readonly string[] };
+
+/**
+ * Response shape from the Copilot `/copilot_internal/managed_settings` endpoint.
+ * The endpoint returns `.github/copilot/settings.json` content from the
  * enterprise's source org. An empty response (`{}`) is success and means
  * "no policy file present".
  *
@@ -28,6 +38,11 @@ export interface IManagedSettingsResponse {
 		| { readonly source: 'git'; readonly url: string; readonly ref?: string };
 	}>;
 	readonly strictKnownMarketplaces?: readonly unknown[];
+	readonly allowedMcpServers?: ReadonlyArray<IManagedMcpServerMatcher>;
+	readonly deniedMcpServers?: ReadonlyArray<IManagedMcpServerMatcher>;
+	readonly strictPluginOnlyCustomization?: boolean;
+	readonly allowManagedMcpServersOnly?: boolean;
+	readonly allowManagedHooksOnly?: boolean;
 	readonly telemetry?: {
 		readonly enabled?: boolean;
 		readonly endpoint?: string;

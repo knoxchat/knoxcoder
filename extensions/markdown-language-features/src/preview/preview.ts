@@ -10,7 +10,7 @@ import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { MdLinkOpener } from '../util/openDocumentLink';
-import { areUrisEqual, WebviewResourceProvider } from '../util/resources';
+import { areUrisEqual, getMarkdownLocalResourceRoots, WebviewResourceProvider } from '../util/resources';
 import { urlToUri } from '../util/url';
 import { ImageInfo, MdDocumentRenderer } from './documentRenderer';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
@@ -162,7 +162,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
 			this._register(watcher.onDidChange(uri => {
 				if (this.isPreviewOf(uri)) {
-					// Only use the file system event when KnoxCoder does not already know about the file.
+					// Only use the file system event when VS Code does not already know about the file.
 					// This is needed to avoid duplicate refreshes
 					if (!vscode.workspace.textDocuments.some(doc => areUrisEqual(doc.uri, uri))) {
 						this.refresh();
@@ -464,19 +464,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	}
 
 	#getLocalResourceRoots(): ReadonlyArray<vscode.Uri> {
-		const baseRoots = Array.from(this.#contributionProvider.contributions.previewResourceRoots);
-
-		const folder = vscode.workspace.getWorkspaceFolder(this.#resource);
-		if (folder) {
-			const workspaceRoots = vscode.workspace.workspaceFolders?.map(folder => folder.uri);
-			if (workspaceRoots) {
-				baseRoots.push(...workspaceRoots);
-			}
-		} else {
-			baseRoots.push(uri.Utils.dirname(this.#resource));
-		}
-
-		return baseRoots;
+		return getMarkdownLocalResourceRoots(this.#resource, this.#contributionProvider.contributions.previewResourceRoots);
 	}
 
 	async #onDidClickPreviewLink(href: string) {

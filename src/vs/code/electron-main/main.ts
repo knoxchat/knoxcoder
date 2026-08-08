@@ -60,18 +60,20 @@ import { IStateReadService, IStateService } from '../../platform/state/node/stat
 import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
 import { IThemeMainService } from '../../platform/theme/electron-main/themeMainService.js';
 import { IUserDataProfilesMainService, UserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
+import { isInnoSetupInstall } from '../../platform/update/electron-main/win32UpdateType.js';
 import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
 import { NativePolicyService } from '../../platform/policy/node/nativePolicyService.js';
 import { FilePolicyService } from '../../platform/policy/common/filePolicyService.js';
 import { MultiplexPolicyService } from '../../platform/policy/common/multiplexPolicyService.js';
-import { INativeManagedSettingsService, IFileManagedSettingsService, MANAGED_SETTINGS_FILE_NAME, MANAGED_SETTINGS_LINUX_FILE_PATH, MANAGED_SETTINGS_MACOS_FILE_PATH, MANAGED_SETTINGS_WINDOWS_DIR, NullNativeManagedSettingsService, NullFileManagedSettingsService } from '../../platform/policy/common/managedSettings.js';
+import { GITHUB_COPILOT_MACOS_BUNDLE_ID, GITHUB_COPILOT_WIN32_POLICY_NAME, GITHUB_COPILOT_WIN32_REGISTRY_PATH, INativeManagedSettingsService, IFileManagedSettingsService, MANAGED_SETTINGS_FILE_NAME, MANAGED_SETTINGS_LINUX_FILE_PATH, MANAGED_SETTINGS_MACOS_FILE_PATH, MANAGED_SETTINGS_WINDOWS_DIR, NullNativeManagedSettingsService, NullFileManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
 import { FileManagedSettingsService } from '../../platform/policy/common/fileManagedSettingsService.js';
+import { NativeManagedSettingsService } from '../../platform/policy/node/nativeManagedSettingsService.js';
 import { DisposableStore } from '../../base/common/lifecycle.js';
 import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
 import { ILoggerMainService, LoggerMainService } from '../../platform/log/electron-main/loggerService.js';
 import { LogService } from '../../platform/log/common/logService.js';
-import { massageMessageBoxOptions } from '../../platform/dialogs/common/dialogs.js';
+import { massageMessageBoxOptions } from '../../platform/dialogs/electron-main/dialogMainUtils.js';
 import { SaveStrategy, StateService } from '../../platform/state/node/stateService.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
@@ -79,11 +81,11 @@ import { ThemeMainService } from '../../platform/theme/electron-main/themeMainSe
 import { LINUX_SYSTEM_POLICY_FILE_PATH } from '../../base/common/policy.js';
 
 /**
- * The main KnoxCoder entry point.
+ * The main VS Code entry point.
  *
- * Note: This class can exist more than once for example when KnoxCoder is already
+ * Note: This class can exist more than once for example when VS Code is already
  * running and a second instance is started from the command line. It will always
- * try to communicate with an existing instance to prevent that 2 KnoxCoder instances
+ * try to communicate with an existing instance to prevent that 2 VS Code instances
  * are running at the same time.
  */
 class CodeMain {
@@ -128,7 +130,7 @@ class CodeMain {
 
 				// Create the main IPC server by trying to be the server
 				// If this throws an error it means we are not the first
-				// instance of KnoxCoder running and so we would quit.
+				// instance of VS Code running and so we would quit.
 				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
 
 				// Write a lockfile to indicate an instance is running
@@ -229,7 +231,17 @@ class CodeMain {
 			policyServices.push(disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService)));
 		}
 
-		services.set(INativeManagedSettingsService, new NullNativeManagedSettingsService());
+		let nativeManagedSettingsService: NativeManagedSettingsService | undefined;
+		if (isWindows) {
+			nativeManagedSettingsService = disposables.add(new NativeManagedSettingsService(logService, GITHUB_COPILOT_WIN32_POLICY_NAME, { registryPath: GITHUB_COPILOT_WIN32_REGISTRY_PATH }));
+		} else if (isMacintosh) {
+			nativeManagedSettingsService = disposables.add(new NativeManagedSettingsService(logService, GITHUB_COPILOT_MACOS_BUNDLE_ID));
+		}
+		if (nativeManagedSettingsService) {
+			services.set(INativeManagedSettingsService, nativeManagedSettingsService);
+		} else {
+			services.set(INativeManagedSettingsService, new NullNativeManagedSettingsService());
+		}
 
 		// File-based managed settings
 		let fileManagedSettingsPath: string | undefined;
@@ -351,7 +363,7 @@ class CodeMain {
 		} catch (error) {
 
 			// Handle unexpected errors (the only expected error is EADDRINUSE that
-			// indicates another instance of KnoxCoder is running)
+			// indicates another instance of VS Code is running)
 			if (error.code !== 'EADDRINUSE') {
 
 				// Show a dialog for errors that can be resolved by the user
@@ -533,7 +545,7 @@ class CodeMain {
 	}
 
 	private async checkInnoSetupMutex(productService: IProductService, logService: ILogService): Promise<boolean> {
-		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate)) {
+		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate && isInnoSetupInstall())) {
 			return false;
 		}
 
@@ -581,18 +593,40 @@ class CodeMain {
 			// is closed and then exit the waiting process.
 			//
 			// Note: we are not doing this if the wait marker has been already
-			// added as argument. This can happen if KnoxCoder was started from CLI.
+			// added as argument. This can happen if VS Code was started from CLI.
 			const waitMarkerFilePath = createWaitMarkerFileSync(args.verbose);
 			if (waitMarkerFilePath) {
 				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
 				args.waitMarkerFilePath = waitMarkerFilePath;
+			}
 		}
-	}
 
-	return args;
+		if (args.chat) {
+			if (args.chat['new-window']) {
+				// Apply `--new-window` flag to the main arguments
+				args['new-window'] = true;
+			} else if (args.chat['reuse-window']) {
+				// Apply `--reuse-window` flag to the main arguments
+				args['reuse-window'] = true;
+			} else if (args.chat['profile']) {
+				// Apply `--profile` flag to the main arguments
+				args['profile'] = args.chat['profile'];
+			} else {
+				// Unless we are started with specific instructions about
+				// new windows or reusing existing ones, always take the
+				// current working directory as workspace to open.
+				args._ = [cwd()];
+			}
+		}
+
+		return args;
 	}
 
 	private validatePaths(args: NativeParsedArgs): NativeParsedArgs {
+		const defaultKeybindingsExportPath = args['export-default-keybindings'];
+		if (defaultKeybindingsExportPath) {
+			args['export-default-keybindings'] = sanitizeFilePath(defaultKeybindingsExportPath, cwd());
+		}
 
 		// Track URLs if they're going to be used
 		if (args['open-url']) {

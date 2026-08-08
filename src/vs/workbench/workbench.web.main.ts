@@ -43,8 +43,9 @@ import './services/extensionManagement/browser/extensionsProfileScannerService.j
 import './services/extensions/browser/extensionsScannerService.js';
 import './services/extensionManagement/browser/webExtensionsScannerService.js';
 import './services/extensionManagement/common/extensionManagementServerService.js';
+import './services/mcp/browser/mcpWorkbenchManagementService.js';
 import './services/extensionManagement/browser/extensionGalleryManifestService.js';
-import '../platform/telemetry/common/nullTelemetryRegistration.js';
+import './services/telemetry/browser/telemetryService.js';
 import './services/url/browser/urlService.js';
 import './services/update/browser/updateService.js';
 import './services/workspaces/browser/workspacesService.js';
@@ -70,6 +71,7 @@ import './services/configurationResolver/browser/configurationResolverService.js
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import './services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import './services/power/browser/powerService.js';
+import './services/localTranscription/browser/localTranscriptionService.js';
 import '../platform/sandbox/browser/sandboxHelperService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -88,6 +90,8 @@ import { UserDataSyncService } from '../platform/userDataSync/common/userDataSyn
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from '../platform/userDataSync/common/userDataSyncAccount.js';
 import { UserDataAutoSyncService } from '../platform/userDataSync/common/userDataAutoSyncService.js';
 import { AccessibilityService } from '../platform/accessibility/browser/accessibilityService.js';
+import { ICustomEndpointTelemetryService } from '../platform/telemetry/common/telemetry.js';
+import { NullEndpointTelemetryService } from '../platform/telemetry/common/telemetryUtils.js';
 import { ITitleService } from './services/title/browser/titleService.js';
 import { BrowserTitleService } from './browser/parts/titlebar/titlebarPart.js';
 import { ITimerService, TimerService } from './services/timer/browser/timerService.js';
@@ -95,7 +99,14 @@ import { IDiagnosticsService, NullDiagnosticsService } from '../platform/diagnos
 import { ILanguagePackService } from '../platform/languagePacks/common/languagePacks.js';
 import { WebLanguagePacksService } from '../platform/languagePacks/browser/languagePacks.js';
 import { IWebContentExtractorService, NullWebContentExtractorService, ISharedWebContentExtractorService, NullSharedWebContentExtractorService } from '../platform/webContentExtractor/common/webContentExtractor.js';
+import { IMcpGalleryManifestService } from '../platform/mcp/common/mcpGalleryManifest.js';
+import { WorkbenchMcpGalleryManifestService } from './services/mcp/browser/mcpGalleryManifestService.js';
 import { UserDataSyncResourceProviderService } from '../platform/userDataSync/common/userDataSyncResourceProvider.js';
+import { IAgentHostService } from '../platform/agentHost/common/agentService.js';
+import { EditorRemoteAgentHostServiceClient } from './services/agentHost/browser/editorRemoteAgentHostServiceClient.js';
+import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
+import { BrowserAgentHostDebugLogsExportService, IAgentHostDebugLogsExportService } from './contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
+import './services/agentHost/browser/webAgentHostEnablementService.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -110,10 +121,15 @@ registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, Instantiati
 registerSingleton(ITitleService, BrowserTitleService, InstantiationType.Eager);
 registerSingleton(IExtensionTipsService, ExtensionTipsService, InstantiationType.Delayed);
 registerSingleton(ITimerService, TimerService, InstantiationType.Delayed);
+registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, InstantiationType.Delayed);
 registerSingleton(IDiagnosticsService, NullDiagnosticsService, InstantiationType.Delayed);
 registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationType.Delayed);
 registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
+registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService, InstantiationType.Delayed);
+registerSingleton(IAgentHostService, EditorRemoteAgentHostServiceClient, InstantiationType.Delayed);
+registerSingleton(IRemoteAgentHostService, NullRemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IAgentHostDebugLogsExportService, BrowserAgentHostDebugLogsExportService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -158,6 +174,9 @@ import './contrib/tags/browser/workspaceTagsService.js';
 // Issues
 import './contrib/issue/browser/issue.contribution.js';
 
+// Surveys
+import './contrib/surveys/browser/survey.contribution.js';
+
 // Splash
 import './contrib/splash/browser/splash.contribution.js';
 
@@ -166,5 +185,8 @@ import './contrib/remote/browser/remoteStartEntry.contribution.js';
 
 // Process Explorer
 import './contrib/processExplorer/browser/processExplorer.web.contribution.js';
+
+// Browser View
+import './contrib/browserView/browser/browserView.contribution.js';
 
 //#endregion

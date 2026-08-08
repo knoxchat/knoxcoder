@@ -15,14 +15,14 @@ export const IAccessibleViewService = createDecorator<IAccessibleViewService>('a
 
 export const enum AccessibleViewProviderId {
 	Terminal = 'terminal',
-	TerminalChat = 'terminal-assist',
+	TerminalChat = 'terminal-chat',
 	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
 	MergeEditor = 'mergeEditor',
 	PanelChat = 'panelChat',
 	ChatTerminalOutput = 'chatTerminalOutput',
 	ChatThinking = 'chatThinking',
-	InlineAssist = 'inlineAssist',
+	InlineChat = 'inlineChat',
 	AgentChat = 'agentChat',
 	QuickChat = 'quickChat',
 	InlineCompletions = 'inlineCompletions',
@@ -50,6 +50,7 @@ export const enum AccessibleViewProviderId {
 	SessionsChanges = 'sessionsChanges',
 	Survey = 'survey',
 	Automations = 'automations',
+	BrowserElementCommenting = 'browserElementCommenting',
 }
 
 export const enum AccessibleViewType {
@@ -71,10 +72,11 @@ export interface IAccessibleViewOptions {
 	type: AccessibleViewType;
 	/**
 	 * By default, places the cursor on the top line of the accessible view.
-	 * If set to 'initial-bottom', places the cursor on the bottom line of the accessible view and preserves it henceforth.
+	 * If set to 'initial-bottom', places the cursor on the bottom line initially and returns it to the bottom when the content changes.
+	 * If set to 'initial-bottom-preserve', places the cursor on the bottom line initially and preserves its position when the content changes.
 	 * If set to 'bottom', places the cursor on the bottom line of the accessible view.
 	 */
-	position?: 'bottom' | 'initial-bottom';
+	position?: 'bottom' | 'initial-bottom' | 'initial-bottom-preserve';
 	/**
 	 * @returns a string that will be used as the content of the help dialog
 	 * instead of the one provided by default.

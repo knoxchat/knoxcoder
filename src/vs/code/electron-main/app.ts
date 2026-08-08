@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, globalShortcut, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, Details, globalShortcut, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
+import { hostname, release } from 'os';
 import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
 import { parse } from '../../base/common/jsonc.js';
 import { getPathLabel } from '../../base/common/labels.js';
-import { Disposable, DisposableStore, toDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { join, posix } from '../../base/common/path.js';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
@@ -30,11 +31,15 @@ import { IBackupMainService } from '../../platform/backup/electron-main/backup.j
 import { BackupMainService } from '../../platform/backup/electron-main/backupMainService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ElectronExtensionHostDebugBroadcastChannel } from '../../platform/debug/electron-main/extensionHostDebugIpc.js';
-import { IDiagnosticsService } from '../../platform/diagnostics/common/diagnostics.js';
+import { IDiagnosticsService, IGPULogMessage } from '../../platform/diagnostics/common/diagnostics.js';
 import { DiagnosticsMainService, IDiagnosticsMainService } from '../../platform/diagnostics/electron-main/diagnosticsMainService.js';
 import { DialogMainService, IDialogMainService } from '../../platform/dialogs/electron-main/dialogMainService.js';
 import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
 import { EncryptionMainService } from '../../platform/encryption/electron-main/encryptionMainService.js';
+import { ipcBrowserViewChannelName } from '../../platform/browserView/common/browserView.js';
+import { ipcBrowserViewGroupChannelName } from '../../platform/browserView/common/browserViewGroup.js';
+import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
+import { BrowserViewGroupMainService, IBrowserViewGroupMainService } from '../../platform/browserView/electron-main/browserViewGroupMainService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
@@ -58,6 +63,7 @@ import { ILaunchMainService, LaunchMainService } from '../../platform/launch/ele
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
 import { ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import { IMenubarMainService, MenubarMainService } from '../../platform/menubar/electron-main/menubarMainService.js';
+import type { IOSProxyConfig } from '../../platform/native/common/native.js';
 import { INativeHostMainService, NativeHostMainService } from '../../platform/native/electron-main/nativeHostMainService.js';
 import { GlobalKeybindingsMainService, IGlobalKeybindingsMainService } from '../../platform/globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
@@ -71,6 +77,11 @@ import { ISignService } from '../../platform/sign/common/sign.js';
 import { IStateService } from '../../platform/state/node/state.js';
 import { StorageDatabaseChannel } from '../../platform/storage/electron-main/storageIpc.js';
 import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from '../../platform/storage/electron-main/storageMainService.js';
+import { resolveCommonProperties } from '../../platform/telemetry/common/commonProperties.js';
+import { ITelemetryService, TelemetryLevel } from '../../platform/telemetry/common/telemetry.js';
+import { TelemetryAppenderClient } from '../../platform/telemetry/common/telemetryIpc.js';
+import { ITelemetryServiceConfig, TelemetryService } from '../../platform/telemetry/common/telemetryService.js';
+import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
 import { IUpdateService } from '../../platform/update/common/update.js';
 import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
 import { NotAvailableUpdateDialog } from '../../platform/update/electron-main/notAvailableUpdateDialog.js';
@@ -78,6 +89,7 @@ import { DarwinUpdateService } from '../../platform/update/electron-main/updateS
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
 import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
 import { Win32UpdateService } from '../../platform/update/electron-main/updateService.win32.js';
+import { isInnoSetupInstall } from '../../platform/update/electron-main/win32UpdateType.js';
 import { IOpenURLOptions, IURLService } from '../../platform/url/common/url.js';
 import { URLHandlerChannelClient, URLHandlerRouter } from '../../platform/url/common/urlIpc.js';
 import { NativeURLService } from '../../platform/url/common/urlService.js';
@@ -95,7 +107,7 @@ import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from '../
 import { WorkspacesMainService } from '../../platform/workspaces/electron-main/workspacesMainService.js';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from '../../platform/workspaces/electron-main/workspacesManagementMainService.js';
 import { IPolicyService } from '../../platform/policy/common/policy.js';
-import { INativeManagedSettingsService, IFileManagedSettingsService } from '../../platform/policy/common/managedSettings.js';
+import { INativeManagedSettingsService, IFileManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
 import { NativeManagedSettingsChannel } from '../../platform/policy/common/nativeManagedSettingsIpc.js';
 import { FileManagedSettingsChannel } from '../../platform/policy/common/fileManagedSettingsIpc.js';
 import { PolicyChannel } from '../../platform/policy/common/policyIpc.js';
@@ -106,8 +118,7 @@ import { ExtensionsScannerService } from '../../platform/extensionManagement/nod
 import { UserDataProfilesHandler } from '../../platform/userDataProfile/electron-main/userDataProfilesHandler.js';
 import { ProfileStorageChangesListenerChannel } from '../../platform/userDataProfile/electron-main/userDataProfileStorageIpc.js';
 import { Promises, RunOnceScheduler, runWhenGlobalIdle } from '../../base/common/async.js';
-import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
+import { CancellationToken } from '../../base/common/cancellation.js';
 import { resolveMachineId, resolveSqmId, resolveDevDeviceId, validateDevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
@@ -118,17 +129,79 @@ import { ipcUtilityProcessWorkerChannelName } from '../../platform/utilityProces
 import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/electronPtyHostStarter.js';
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
+import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
+import { AgentHostProcessManager } from '../../platform/agentHost/node/agentHostService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
 import { Lazy } from '../../base/common/lazy.js';
 import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
 import { normalizeNFC } from '../../base/common/normalization.js';
 import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
+import { INativeMcpDiscoveryHelperService, NativeMcpDiscoveryHelperChannelName } from '../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
+import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeMcpDiscoveryHelperService.js';
+import { IMcpGatewayService, McpGatewayChannelName } from '../../platform/mcp/common/mcpGateway.js';
+import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js';
+import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
+import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../platform/networkFilter/common/networkFilterService.js';
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
+import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
+
+type OSProxyConfigEvent = {
+	readonly success: boolean;
+	readonly durationMs: number;
+	readonly platformKind?: string;
+	readonly autoDetect?: boolean;
+	readonly httpProxyEnvironmentState?: string;
+	readonly httpsProxyEnvironmentState?: string;
+	readonly allProxyEnvironmentState?: string;
+	readonly noProxyEnvironmentState?: string;
+	readonly wpadDhcpState?: string;
+	readonly wpadDnsState?: string;
+	readonly configuredPacState?: string;
+	readonly hasConfiguredPac?: boolean;
+	readonly hasLoadedPac?: boolean;
+	readonly pacSource?: string;
+	readonly pacScriptCharacterCount?: number;
+	readonly pacScriptLineCount?: number;
+	readonly pacScriptReturnCount?: number;
+	readonly hasHttpProxy?: boolean;
+	readonly hasHttpsProxy?: boolean;
+	readonly hasSocksProxy?: boolean;
+	readonly hasBypassRules?: boolean;
+	readonly excludeSimpleHostnames?: boolean;
+};
+
+type OSProxyConfigClassification = {
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether reading the operating system proxy configuration completed successfully.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock duration of the operating system proxy configuration read in milliseconds.' };
+	platformKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The operating system proxy configuration source (windows, macos, linux, unknown, or none).' };
+	autoDetect?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether automatic proxy discovery is enabled.' };
+	httpProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective HTTP proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	httpsProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective HTTPS proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	allProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective all-proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	noProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective no-proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	wpadDhcpState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The DHCP WPAD inspection state. Discovered URLs and errors are not collected.' };
+	wpadDnsState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The DNS WPAD inspection state. Discovered URLs and errors are not collected.' };
+	configuredPacState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configured PAC inspection state. Configured URLs and errors are not collected.' };
+	hasConfiguredPac?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the operating system has a PAC URL configured. The URL is not collected.' };
+	hasLoadedPac?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a PAC script was discovered and loaded. The URL and script contents are not collected.' };
+	pacSource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the loaded PAC script was selected (wpad-dhcp, wpad-dns, configured, unknown, or none).' };
+	pacScriptCharacterCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of characters in the loaded PAC script. The script contents are not collected.' };
+	pacScriptLineCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of lines in the loaded PAC script. The script contents are not collected.' };
+	pacScriptReturnCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of return keyword occurrences in the loaded PAC script. The script contents are not collected.' };
+	hasHttpProxy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether normalized static HTTP proxy settings are present. Proxy addresses are not collected.' };
+	hasHttpsProxy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether normalized static HTTPS proxy settings are present. Proxy addresses are not collected.' };
+	hasSocksProxy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether normalized static SOCKS proxy settings are present. Proxy addresses are not collected.' };
+	hasBypassRules?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether operating system proxy bypass rules are present. Bypass entries are not collected.' };
+	excludeSimpleHostnames?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether macOS excludes simple hostnames from proxying. Undefined on other platforms.' };
+	owner: 'chrmarti';
+	comment: 'Tracks categorized operating system proxy configuration after startup without collecting proxy addresses, URLs, scripts, bypass entries, or error text.';
+};
+
 /**
- * The main KnoxCoder application. There will only ever be one instance,
+ * The main VS Code application. There will only ever be one instance,
  * even if the user starts many instances (e.g. from the command line).
  */
 export class CodeApplication extends Disposable {
@@ -278,6 +351,14 @@ export class CodeApplication extends Disposable {
 		// But allow them if they are made from inside an webview
 		const isSafeFrame = (requestFrame: WebFrameMain | null | undefined): boolean => {
 			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
+				// The render frame backing this WebFrameMain may already be disposed
+				// (e.g. the originating webview/window was closed or navigated away)
+				// by the time this webRequest callback runs. Accessing any property
+				// of a disposed frame throws "Render frame was disposed before
+				// WebFrameMain could be accessed", so guard before reading it.
+				if (frame.isDestroyed()) {
+					return false;
+				}
 				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
 					return true;
 				}
@@ -291,7 +372,7 @@ export class CodeApplication extends Disposable {
 
 		const isAllowedVsCodeFileRequest = (details: Electron.OnBeforeRequestListenerDetails) => {
 			const frame = details.frame;
-			if (!frame || !this.windowsMainService) {
+			if (!frame || frame.isDestroyed() || !this.windowsMainService) {
 				return false;
 			}
 
@@ -312,7 +393,7 @@ export class CodeApplication extends Disposable {
 			}
 
 			const frame = details.frame;
-			if (!frame || !this.windowsMainService) {
+			if (!frame || frame.isDestroyed() || !this.windowsMainService) {
 				return false;
 			}
 
@@ -473,6 +554,10 @@ export class CodeApplication extends Disposable {
 
 			// Handle any in-page navigation
 			contents.on('will-navigate', event => {
+				if (BrowserViewMainService.isBrowserViewWebContents(contents)) {
+					return; // Allow navigation in integrated browser views
+				}
+
 				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
 
 				event.preventDefault(); // Prevent any in-page navigation
@@ -599,7 +684,7 @@ export class CodeApplication extends Disposable {
 
 		// Fix native tabs on macOS 10.13
 		// macOS enables a compatibility patch for any bundle ID beginning with
-		// "com.microsoft.", which breaks native tabs for KnoxCoder when using this
+		// "com.microsoft.", which breaks native tabs for VS Code when using this
 		// identifier (from the official build).
 		// Explicitly opt out of the patch here before creating any windows.
 		// See: https://github.com/microsoft/vscode/issues/35361#issuecomment-399794085
@@ -637,6 +722,25 @@ export class CodeApplication extends Disposable {
 		// Services
 		const appInstantiationService = await this.initServices(machineId, sqmId, devDeviceId, sharedProcessReady);
 
+		// Error telemetry
+		appInstantiationService.invokeFunction(accessor => this._register(new ErrorTelemetry(accessor.get(ILogService), accessor.get(ITelemetryService))));
+
+		// Agent Host
+		// Always instantiate the starter + manager. They are cheap (the
+		// constructors only register an IPC listener and emitters) and the agent
+		// host utility process is spawned lazily on the first window connection
+		// request. The renderer is the gate: it only requests a connection when
+		// `chat.agentHost.enabled` resolves to `true` and AI features are enabled
+		// there (honoring experiment overrides + policy + web), which the main
+		// process cannot fully observe.
+		const agentHostStarter = new ElectronAgentHostStarter({ machineId, sqmId, devDeviceId }, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
+		this._register(appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter));
+
+		// Metered connection telemetry
+		appInstantiationService.invokeFunction(accessor => {
+			(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService).setTelemetryService(accessor.get(ITelemetryService));
+		});
+
 		// Auth Handler
 		appInstantiationService.invokeFunction(accessor => accessor.get(IProxyAuthService));
 
@@ -672,7 +776,7 @@ export class CodeApplication extends Disposable {
 				this.lifecycleMainService.phase = LifecycleMainPhase.Eventually;
 
 				// Eventually Post Open Window Tasks
-				this.eventuallyAfterWindowOpen();
+				this.eventuallyAfterWindowOpen(appInstantiationService);
 			}, 2500));
 		}, 2500));
 		eventuallyPhaseScheduler.schedule();
@@ -964,6 +1068,15 @@ export class CodeApplication extends Disposable {
 			this.environmentMainService.continueOn = continueOn ?? undefined;
 		}
 
+		// Extract session parameter to open a specific chat session in the target window
+		const session = params.get('session');
+		if (session !== null) {
+			this.logService.trace(`app#handleProtocolUrl() found 'session' as parameter:`, uri.toString(true));
+
+			params.delete('session');
+			uri = uri.with({ query: params.toString() });
+		}
+
 		// Check if the protocol URL is a window openable to open...
 		const windowOpenableFromProtocolUrl = this.getWindowOpenableFromProtocolUrl(uri);
 		if (windowOpenableFromProtocolUrl) {
@@ -984,6 +1097,11 @@ export class CodeApplication extends Disposable {
 				})).at(0);
 
 				window?.focus(); // this should help ensuring that the right window gets focus when multiple are opened
+
+				// Open chat session in the target window if requested
+				if (window && session) {
+					window.sendWhenReady('vscode:openChatSession', CancellationToken.None, session);
+				}
 
 				return true;
 			}
@@ -1076,6 +1194,10 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
+		// Browser View
+		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, false /* proxied to other processes */));
+		services.set(IBrowserViewGroupMainService, new SyncDescriptor(BrowserViewGroupMainService, undefined, false /* proxied to other processes */));
+
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
@@ -1091,6 +1213,7 @@ export class CodeApplication extends Disposable {
 
 		// Web Contents Extractor
 		services.set(ITerminalSandboxService, new SyncDescriptor(NullTerminalSandboxService));
+		services.set(IAgentNetworkFilterService, new SyncDescriptor(AgentNetworkFilterService, undefined, true));
 		services.set(IWebContentExtractorService, new SyncDescriptor(NativeWebContentExtractorService, undefined, false /* proxied to other processes */));
 
 		// Webview Manager
@@ -1144,7 +1267,18 @@ export class CodeApplication extends Disposable {
 		services.set(IURLService, new SyncDescriptor(NativeURLService, undefined, false /* proxied to other processes */));
 
 		// Telemetry
-		services.set(ITelemetryService, NullTelemetryService);
+		if (supportsTelemetry(this.productService, this.environmentMainService)) {
+			const isInternal = isInternalTelemetry(this.productService, this.configurationService);
+			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
+			const appender = new TelemetryAppenderClient(channel);
+			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date);
+			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
+			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
+
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config], false));
+		} else {
+			services.set(ITelemetryService, NullTelemetryService);
+		}
 
 		// Default Extensions Profile Init
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
@@ -1155,6 +1289,10 @@ export class CodeApplication extends Disposable {
 
 		// Proxy Auth
 		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
+
+		// MCP
+		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
+		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
@@ -1227,6 +1365,16 @@ export class CodeApplication extends Disposable {
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
 
+		// Browser View
+		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewMainService), disposables);
+		mainProcessElectronServer.registerChannel(ipcBrowserViewChannelName, browserViewChannel);
+		sharedProcessClient.then(client => client.registerChannel(ipcBrowserViewChannelName, browserViewChannel));
+
+		// Browser View Group
+		const browserViewGroupChannel = ProxyChannel.fromService(accessor.get(IBrowserViewGroupMainService), disposables);
+		mainProcessElectronServer.registerChannel(ipcBrowserViewGroupChannelName, browserViewGroupChannel);
+		sharedProcessClient.then(client => client.registerChannel(ipcBrowserViewGroupChannelName, browserViewGroupChannel));
+
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService), disposables);
 		mainProcessElectronServer.registerChannel('sign', signChannel);
@@ -1237,7 +1385,10 @@ export class CodeApplication extends Disposable {
 
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
-		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables);
+		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables, {
+			// This event has main-process consumers but no IPC consumer, so its buffer would never drain.
+			unbufferedEvents: ['onDidBlurMainWindow']
+		});
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
@@ -1282,6 +1433,12 @@ export class CodeApplication extends Disposable {
 		const sandboxHelperChannel = ProxyChannel.fromService(accessor.get(ISandboxHelperMainService), disposables);
 		mainProcessElectronServer.registerChannel('sandboxHelper', sandboxHelperChannel);
 
+		// MCP
+		const mcpDiscoveryChannel = ProxyChannel.fromService(accessor.get(INativeMcpDiscoveryHelperService), disposables);
+		mainProcessElectronServer.registerChannel(NativeMcpDiscoveryHelperChannelName, mcpDiscoveryChannel);
+		const mcpGatewayChannel = this._register(new McpGatewayChannel(mainProcessElectronServer, accessor.get(IMcpGatewayService), accessor.get(ILoggerMainService)));
+		mainProcessElectronServer.registerChannel(McpGatewayChannelName, mcpGatewayChannel);
+
 		// Logger
 		const loggerChannel = this._register(new LoggerChannel(accessor.get(ILoggerMainService)));
 		mainProcessElectronServer.registerChannel('logger', loggerChannel);
@@ -1306,6 +1463,15 @@ export class CodeApplication extends Disposable {
 
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;
+
+		// Handle agents window first based on context
+		if (args['agents']) {
+			return windowsMainService.openAgentsWindow({
+				context,
+				cli: args,
+				initialStartup: true
+			});
+		}
 
 		// Then check for windows from protocol links to open
 		if (initialProtocolUrls) {
@@ -1452,6 +1618,97 @@ export class CodeApplication extends Disposable {
 			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 		}
 
+		// Power telemetry
+		instantiationService.invokeFunction(accessor => {
+			const telemetryService = accessor.get(ITelemetryService);
+
+			type PowerEvent = {
+				readonly idleState: string;
+				readonly idleTime: number;
+				readonly thermalState: string;
+				readonly onBattery: boolean;
+			};
+			type PowerEventClassification = {
+				idleState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The system idle state (active, idle, locked, unknown).' };
+				idleTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The system idle time in seconds.' };
+				thermalState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The system thermal state (unknown, nominal, fair, serious, critical).' };
+				onBattery: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the system is running on battery power.' };
+				owner: 'chrmarti';
+				comment: 'Tracks OS power suspend and resume events for reliability insights.';
+			};
+
+			const getPowerEventData = (): PowerEvent => ({
+				idleState: powerMonitor.getSystemIdleState(60),
+				idleTime: powerMonitor.getSystemIdleTime(),
+				thermalState: powerMonitor.getCurrentThermalState(),
+				onBattery: powerMonitor.isOnBatteryPower()
+			});
+
+			this._register(Event.fromNodeEventEmitter(powerMonitor, 'suspend')(() => {
+				telemetryService.publicLog2<PowerEvent, PowerEventClassification>('power.suspend', getPowerEventData());
+			}));
+
+			this._register(Event.fromNodeEventEmitter(powerMonitor, 'resume')(() => {
+				telemetryService.publicLog2<PowerEvent, PowerEventClassification>('power.resume', getPowerEventData());
+			}));
+		});
+
+		// GPU crash telemetry for skia graphite out of order recording failures
+		// Refs https://github.com/microsoft/vscode/issues/284162
+		if (isMacintosh) {
+			instantiationService.invokeFunction(accessor => {
+				const telemetryService = accessor.get(ITelemetryService);
+				type GPUFeatureStatusWithSkiaGraphite = GPUFeatureStatus & {
+					skia_graphite: string;
+				};
+				const initialGpuFeatureStatus = app.getGPUFeatureStatus() as GPUFeatureStatusWithSkiaGraphite;
+				const skiaGraphiteEnabled: string = initialGpuFeatureStatus['skia_graphite'];
+				if (skiaGraphiteEnabled === 'enabled') {
+					const gpuInfoUpdate = Event.fromNodeEventEmitter(app, 'gpu-info-update');
+					const pendingGpuInfoListener = this._register(new MutableDisposable());
+					this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
+						if (details.type === 'GPU' && details.reason === 'crashed') {
+							// Wait for gpu-info-update which fires after the GPU process
+							// restarts and the feature status is refreshed. At the time
+							// child-process-gone fires, getGPUFeatureStatus() still
+							// returns the pre-crash status.
+							pendingGpuInfoListener.value = Event.once(gpuInfoUpdate)(() => {
+								const currentGpuFeatureStatus = app.getGPUFeatureStatus();
+								const currentRasterizationStatus: string = currentGpuFeatureStatus['rasterization'];
+								if (currentRasterizationStatus !== 'enabled') {
+									// Get last 10 GPU log messages (only the message field)
+									let gpuLogMessages: string[] = [];
+									type AppWithGPULogMethod = typeof app & {
+										getGPULogMessages(): IGPULogMessage[];
+									};
+									const customApp = app as AppWithGPULogMethod;
+									if (typeof customApp.getGPULogMessages === 'function') {
+										gpuLogMessages = customApp.getGPULogMessages().slice(-10).map(log => log.message);
+									}
+
+									type GpuCrashEvent = {
+										readonly gpuFeatureStatus: string;
+										readonly gpuLogMessages: string;
+									};
+									type GpuCrashClassification = {
+										gpuFeatureStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Current GPU feature status.' };
+										gpuLogMessages: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Last 10 GPU log messages collected after the crash and GPU process restart.' };
+										owner: 'deepak1556';
+										comment: 'Tracks GPU process crashes that would result in fallback mode.';
+									};
+
+									telemetryService.publicLog2<GpuCrashEvent, GpuCrashClassification>('gpu.crash.fallback', {
+										gpuFeatureStatus: JSON.stringify(currentGpuFeatureStatus),
+										gpuLogMessages: JSON.stringify(gpuLogMessages)
+									});
+								}
+							});
+						}
+					}));
+				}
+			});
+		}
+
 		{
 			interface NetworkProcessLaunchedDetails {
 				readonly pid: number;
@@ -1470,20 +1727,45 @@ export class CodeApplication extends Disposable {
 
 			const customApp = app as AppWithNetworkProcessEvents;
 
-			this._register(Event.fromNodeEventEmitter<NetworkProcessLaunchedDetails>(customApp, 'network-process-launched', (_event, details) => details)(details => {
-				this.logService.info(`[network process] launched with pid ${details.pid}`);
-			}));
+			instantiationService.invokeFunction(accessor => {
+				const telemetryService = accessor.get(ITelemetryService);
 
-			this._register(Event.fromNodeEventEmitter<NetworkProcessGoneDetails>(customApp, 'network-process-gone', (_event, details) => details)(details => {
-				this.logService.info(`[network process] gone - pid: ${details.pid}, exitCode: ${details.exitCode}, crashed: ${details.crashed}, crashedPreIPC: ${details.crashedPreIPC}`);
-			}));
+				type NetworkProcessLaunchedClassification = {
+					owner: 'deepak1556';
+					comment: 'Tracks network process launch events.';
+				};
+
+				type NetworkProcessGoneClassification = {
+					exitCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the network process.' };
+					crashed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the network process crashed.' };
+					crashedPreIPC: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the network process crashed before IPC was established.' };
+					owner: 'deepak1556';
+					comment: 'Tracks network process gone events for reliability insights.';
+				};
+
+				this._register(Event.fromNodeEventEmitter<NetworkProcessLaunchedDetails>(customApp, 'network-process-launched', (_event, details) => details)(details => {
+					this.logService.info(`[network process] launched with pid ${details.pid}`);
+
+					telemetryService.publicLog2<{}, NetworkProcessLaunchedClassification>('networkProcess.launched', {});
+				}));
+
+				this._register(Event.fromNodeEventEmitter<NetworkProcessGoneDetails>(customApp, 'network-process-gone', (_event, details) => details)(details => {
+					this.logService.info(`[network process] gone - pid: ${details.pid}, exitCode: ${details.exitCode}, crashed: ${details.crashed}, crashedPreIPC: ${details.crashedPreIPC}`);
+
+					telemetryService.publicLog2<{ exitCode: number; crashed: boolean; crashedPreIPC: boolean }, NetworkProcessGoneClassification>('networkProcess.gone', {
+						exitCode: details.exitCode,
+						crashed: details.crashed,
+						crashedPreIPC: details.crashedPreIPC
+					});
+				}));
+			});
 		}
 
 	}
 
 	private async installMutex(): Promise<void> {
 		const win32MutexName = this.productService.win32MutexName;
-		if (isWindows && win32MutexName) {
+		if (isWindows && win32MutexName && isInnoSetupInstall()) {
 			try {
 				const WindowsMutex = await import('@vscode/windows-mutex');
 				const mutex = new WindowsMutex.Mutex(win32MutexName);
@@ -1519,7 +1801,8 @@ export class CodeApplication extends Disposable {
 			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
 			const argvString = argvContent.value.toString();
 			const argvJSON = parse<{ 'enable-crash-reporter'?: boolean }>(argvString);
-			const enableCrashReporter = false;
+			const telemetryLevel = getTelemetryLevel(this.configurationService);
+			const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
 
 			// Initial startup
 			if (argvJSON['enable-crash-reporter'] === undefined) {
@@ -1554,10 +1837,79 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	private eventuallyAfterWindowOpen(): void {
+	private eventuallyAfterWindowOpen(instantiationService: IInstantiationService): void {
 
 		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
 		// Refs: https://github.com/microsoft/vscode/issues/234064
 		validateDevDeviceId(this.stateService, this.logService);
+
+		instantiationService.invokeFunction(accessor => {
+			const telemetryService = accessor.get(ITelemetryService);
+			if (telemetryService.telemetryLevel < TelemetryLevel.USAGE) {
+				return;
+			}
+
+			const nativeHostMainService = accessor.get(INativeHostMainService);
+			void this.logOSProxyConfigTelemetry(nativeHostMainService, telemetryService);
+		});
 	}
+
+	private async logOSProxyConfigTelemetry(nativeHostMainService: INativeHostMainService, telemetryService: ITelemetryService): Promise<void> {
+		const startTime = Date.now();
+		try {
+			const config = await nativeHostMainService.readProxyConfigWithPackage(undefined);
+			const durationMs = Date.now() - startTime;
+			const pacScriptStats = config.pac ? getPACScriptStats(config.pac.content) : undefined;
+			telemetryService.publicLog2<OSProxyConfigEvent, OSProxyConfigClassification>('osProxyConfig', {
+				success: true,
+				durationMs,
+				platformKind: config.platform?.kind ?? 'none',
+				autoDetect: config.autoDetect,
+				httpProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.httpProxy),
+				httpsProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.httpsProxy),
+				allProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.allProxy),
+				noProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.noProxy),
+				wpadDhcpState: config.wpadDhcp.state,
+				wpadDnsState: config.wpadDns.state,
+				configuredPacState: config.configuredPac.state,
+				hasConfiguredPac: !!config.pacUrl,
+				hasLoadedPac: !!config.pac,
+				pacSource: config.pac?.source ?? 'none',
+				pacScriptCharacterCount: pacScriptStats?.characterCount,
+				pacScriptLineCount: pacScriptStats?.lineCount,
+				pacScriptReturnCount: pacScriptStats?.returnCount,
+				hasHttpProxy: !!config.staticRules?.http,
+				hasHttpsProxy: !!config.staticRules?.https,
+				hasSocksProxy: !!config.staticRules?.socks,
+				hasBypassRules: hasOSProxyBypassRules(config),
+				excludeSimpleHostnames: config.platform?.kind === 'macos' ? config.platform.excludeSimpleHostnames : undefined,
+			});
+		} catch {
+			telemetryService.publicLog2<OSProxyConfigEvent, OSProxyConfigClassification>('osProxyConfig', {
+				success: false,
+				durationMs: Date.now() - startTime,
+			});
+		}
+	}
+}
+
+function hasOSProxyBypassRules(config: IOSProxyConfig): boolean {
+	switch (config.platform?.kind) {
+		case 'windows': return !!config.platform.proxyBypass;
+		case 'macos': return config.platform.excludeSimpleHostnames || config.platform.exceptions.length > 0;
+		case 'linux': return config.platform.ignoreHosts.length > 0;
+		default: return false;
+	}
+}
+
+function getOSProxyEnvironmentState(status: IOSProxyConfig['environment']['httpProxy']): 'unset' | 'configured' | 'invalid' {
+	return status ? status.error ? 'invalid' : 'configured' : 'unset';
+}
+
+function getPACScriptStats(content: string): { characterCount: number; lineCount: number; returnCount: number } {
+	return {
+		characterCount: content.length,
+		lineCount: content.length === 0 ? 0 : content.split(/\r\n|\r|\n/).length,
+		returnCount: content.match(/\breturn\b/g)?.length ?? 0,
+	};
 }

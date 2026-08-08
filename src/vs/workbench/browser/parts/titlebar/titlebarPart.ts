@@ -8,7 +8,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { MultiWindowParts, Part } from '../../part.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { getWCOTitlebarAreaRect, getZoomFactor, isWCOEnabled } from '../../../../base/browser/browser.js';
-import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getWindowControlsStyle, WindowControlsStyle, TitlebarStyle, MenuSettings, hasNativeMenu } from '../../../../platform/window/common/window.js';
+import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getWindowControlsStyle, useWindowControlsOverlay, WindowControlsStyle, TitlebarStyle, MenuSettings, hasNativeMenu } from '../../../../platform/window/common/window.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
@@ -34,7 +34,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activity.js';
-import { AccountsActivityActionViewItem, SimpleAccountActivityActionViewItem, SimpleGlobalActivityActionViewItem } from '../globalCompositeBar.js';
+import { AccountsActivityActionViewItem, isAccountsActionVisible, SimpleAccountActivityActionViewItem, SimpleGlobalActivityActionViewItem } from '../globalCompositeBar.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IEditorGroupsContainer, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
@@ -48,7 +48,7 @@ import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { EditorCommandsContextActionRunner } from '../editor/editorTabsControl.js';
 import { IEditorCommandsContext, IEditorPartOptionsChangeEvent, IToolbarActions } from '../../../common/editor.js';
 import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
-import { GLOBAL_ACTIVITY_TITLE_ACTION, TitleBarLeadingActionsGroup } from './titlebarActions.js';
+import { ACCOUNTS_ACTIVITY_TILE_ACTION, GLOBAL_ACTIVITY_TITLE_ACTION, TitleBarLeadingActionsGroup } from './titlebarActions.js';
 import { IView } from '../../../../base/browser/ui/grid/grid.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -57,6 +57,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { safeIntl } from '../../../../base/common/date.js';
 import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { WORKBENCH_MENU_MOTION_CLASS, workbenchMenuCloseAnimation } from '../../actions/menuMotion.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -265,6 +266,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private rightContent!: HTMLElement;
 
 	protected readonly customMenubar = this._register(new MutableDisposable<CustomMenubarControl>());
+	private readonly customMenubarDisposables = this._register(new DisposableStore());
 	protected appIcon: HTMLElement | undefined;
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
@@ -372,6 +374,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
+		if (event.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+			this.updateStyles();
+		}
 
 		// Custom menu bar (disabled if auxiliary)
 		if (!this.isAuxiliary && !hasNativeMenu(this.configurationService, this.titleBarStyle) && (!isMacintosh || isWeb)) {
@@ -425,18 +430,20 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			return; // If the menubar is already installed, skip
 		}
 
-		this.customMenubar.value = this.instantiationService.createInstance(CustomMenubarControl);
+		const customMenubar = this.instantiationService.createInstance(CustomMenubarControl);
+		this.customMenubar.value = customMenubar;
 
 		this.menubar = append(this.leftContent, $('div.menubar'));
 		this.menubar.setAttribute('role', 'menubar');
 
-		this._register(this.customMenubar.value.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+		this.customMenubarDisposables.add(customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
 
-		this.customMenubar.value.create(this.menubar);
+		customMenubar.create(this.menubar);
 	}
 
 	private uninstallMenubar(): void {
-		this.customMenubar.value = undefined;
+		this.customMenubarDisposables.clear();
+		this.customMenubar.clear();
 
 		this.menubar?.remove();
 		this.menubar = undefined;
@@ -673,6 +680,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			getKeyBinding: action => this.getKeybinding(action),
 			overflowBehavior: { maxItems: 12, exempted: [ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, ...EDITOR_CORE_NAVIGATION_COMMANDS] },
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+			dropdownMenuClassName: WORKBENCH_MENU_MOTION_CLASS,
+			dropdownMenuCloseAnimation: workbenchMenuCloseAnimation,
 			telemetrySource: 'titlePart',
 			highlightToggledItems: this.isAuxiliary, // Only show toggled state for auxiliary title bars
 			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
@@ -743,6 +752,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 			// --- Activity Actions (always at the end)
 			if (this.activityActionsEnabled) {
+				if (isAccountsActionVisible(this.storageService)) {
+					actions.primary.push(ACCOUNTS_ACTIVITY_TILE_ACTION);
+				}
+
 				actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
 			}
 
@@ -814,13 +827,15 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				this.element.classList.remove('inactive');
 			}
 
-			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND, (color, theme) => {
-				// LCD Rendering Support: the title bar part is a defining its own GPU layer.
-				// To benefit from LCD font rendering, we must ensure that we always set an
-				// opaque background color. As such, we compute an opaque color given we know
-				// the background color is the workbench background.
-				return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
-			}) || '';
+			const titleBackground = isNative && isWindows && useWindowControlsOverlay(this.configurationService) && this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true
+				? WORKBENCH_BACKGROUND(this.theme).toString()
+				: this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND, (color, theme) => {
+					// LCD Rendering Support: the title bar part is a defining its own GPU layer.
+					// To benefit from LCD font rendering, we must ensure that we always set an
+					// opaque background color. As such, we compute an opaque color given we know
+					// the background color is the workbench background.
+					return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
+				}) || '';
 			this.element.style.backgroundColor = titleBackground;
 
 			if (this.appIconBadge) {
