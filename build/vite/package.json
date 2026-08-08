@@ -9,11 +9,11 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "@vscode/component-explorer": "^0.2.1-58",
-    "@vscode/component-explorer-vite-plugin": "^0.2.1-58",
-    "@vscode/rollup-plugin-esm-url": "^1.0.1-1",
-    "rollup": "^4.62.2",
-    "vite": "npm:rolldown-vite@latest"
+    "@vscode/component-explorer": "^0.2.1-107",
+    "@vscode/component-explorer-vite-plugin": "^0.2.1-106",
+    "@vscode/rollup-plugin-esm-url": "^1.0.1-12",
+    "rollup": "^4.62.4",
+    "vite": "^8.2.1"
   },
   "allowScripts": {
     "fsevents@2.3.3": true

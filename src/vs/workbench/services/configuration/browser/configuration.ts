@@ -172,7 +172,7 @@ export class UserConfiguration extends Disposable {
 	constructor(
 		private settingsResource: URI,
 		private tasksResource: URI | undefined,
-		private toolsConfigResource: URI | undefined,
+		private mcpResource: URI | undefined,
 		private configurationParseOptions: ConfigurationParseOptions,
 		private readonly fileService: IFileService,
 		private readonly uriIdentityService: IUriIdentityService,
@@ -184,10 +184,10 @@ export class UserConfiguration extends Disposable {
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.userConfiguration.value!.loadConfiguration().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 	}
 
-	async reset(settingsResource: URI, tasksResource: URI | undefined, toolsConfigResource: URI | undefined, configurationParseOptions: ConfigurationParseOptions): Promise<ConfigurationModel> {
+	async reset(settingsResource: URI, tasksResource: URI | undefined, mcpResource: URI | undefined, configurationParseOptions: ConfigurationParseOptions): Promise<ConfigurationModel> {
 		this.settingsResource = settingsResource;
 		this.tasksResource = tasksResource;
-		this.toolsConfigResource = toolsConfigResource;
+		this.mcpResource = mcpResource;
 		this.configurationParseOptions = configurationParseOptions;
 		return this.doReset();
 	}
@@ -198,8 +198,8 @@ export class UserConfiguration extends Disposable {
 		if (this.tasksResource) {
 			standAloneConfigurationResources.push([TASKS_CONFIGURATION_KEY, this.tasksResource]);
 		}
-		if (this.toolsConfigResource) {
-			standAloneConfigurationResources.push([TOOLS_CONFIGURATION_KEY, this.toolsConfigResource]);
+		if (this.mcpResource) {
+			standAloneConfigurationResources.push([TOOLS_CONFIGURATION_KEY, this.mcpResource]);
 		}
 		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), this.settingsResource, standAloneConfigurationResources, this.configurationParseOptions, this.fileService, this.uriIdentityService, this.logService);
 		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration(settingsConfiguration);

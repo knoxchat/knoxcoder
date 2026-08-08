@@ -8,7 +8,6 @@ import { Repository as GitHubRepository, RepositoryRuleset } from '@octokit/grap
 import { AuthenticationError, OctokitService } from './auth.js';
 import type { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git.d.ts';
 import { DisposableStore, getRepositoryFromUrl } from './util.js';
-import { TelemetryReporter } from '@vscode/extension-telemetry';
 
 const REPOSITORY_QUERY = `
 	query repositoryPermissions($owner: String!, $repo: String!) {
@@ -79,8 +78,7 @@ export class GitHubBranchProtectionProviderManager {
 		private readonly gitAPI: API,
 		private readonly globalState: Memento,
 		private readonly octokitService: OctokitService,
-		private readonly logger: LogOutputChannel,
-		private readonly telemetryReporter: TelemetryReporter) {
+		private readonly logger: LogOutputChannel) {
 		this.disposables.add(this.gitAPI.onDidOpenRepository(repository => {
 			if (this._enabled) {
 				this.registerProvider(repository);
@@ -104,7 +102,7 @@ export class GitHubBranchProtectionProviderManager {
 		const key = repository.rootUri.toString();
 		this.disposeProvider(key);
 
-		const provider = new GitHubBranchProtectionProvider(repository, this.globalState, this.octokitService, this.logger, this.telemetryReporter);
+		const provider = new GitHubBranchProtectionProvider(repository, this.globalState, this.octokitService, this.logger);
 		const registration = this.gitAPI.registerBranchProtectionProvider(repository.rootUri, provider);
 
 		this.providers.set(key, new Disposable(() => {
@@ -151,8 +149,7 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 		private readonly repository: Repository,
 		private readonly globalState: Memento,
 		private readonly octokitService: OctokitService,
-		private readonly logger: LogOutputChannel,
-		private readonly telemetryReporter: TelemetryReporter
+		private readonly logger: LogOutputChannel
 	) {
 		this.globalStateKey = `branchProtection:${this.repository.rootUri.toString()}`;
 
@@ -244,14 +241,6 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 			// Save branch protection to global state
 			await this.globalState.update(this.globalStateKey, branchProtection);
 			this.logger.trace(`[GitHubBranchProtectionProvider][updateRepositoryBranchProtection] Branch protection for "${this.repository.rootUri.toString()}": ${JSON.stringify(branchProtection)}.`);
-
-			/* __GDPR__
-				"branchProtection" : {
-					"owner": "lszomoru",
-					"rulesetCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of repository rulesets" }
-				}
-			*/
-			this.telemetryReporter.sendTelemetryEvent('branchProtection', undefined, { rulesetCount: this.branchProtection.length });
 		} catch (err) {
 			this.logger.warn(`[GitHubBranchProtectionProvider][updateRepositoryBranchProtection] Failed to update repository branch protection: ${err.message}`);
 

@@ -89,6 +89,8 @@ export namespace Schemas {
 
 	/** Scheme used for the assist input part */
 	export const vscodeAssistantInput = 'assistantSessionInput';
+	export const vscodeLocalChatSession = 'vscode-local-chat-session';
+	export const copilotPr = 'copilot-pr';
 
 	/** Scheme used for local assist session content */
 	export const vscodeLocalAssistantSession = 'vscode-assistant-session';

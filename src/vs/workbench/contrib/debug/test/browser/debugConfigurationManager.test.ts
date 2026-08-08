@@ -140,7 +140,7 @@ suite('debugConfigurationManager', () => {
 					execPath: '/remote/app/node',
 					tmpDir: URI.file('/remote/tmp'),
 					settingsPath: URI.file('/remote/settings.json'),
-					toolsConfigResource: URI.file('/remote/tool.json'),
+					mcpResource: URI.file('/remote/tool.json'),
 					logsPath: URI.file('/remote/logs'),
 					extensionHostLogsPath: URI.file('/remote/ext-logs'),
 					globalStorageHome: URI.file('/remote/global-storage'),

@@ -10,8 +10,8 @@
     "test:debug": "playwright test --debug"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
-    "@types/node": "26.x",
-    "typescript": "7.1.0-dev.20260731.1"
+    "@playwright/test": "^1.62.1",
+    "@types/node": "26.1.2",
+    "typescript": "7.1.0-dev.20260808.1"
   }
 }

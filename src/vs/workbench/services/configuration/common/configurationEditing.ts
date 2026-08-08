@@ -629,7 +629,7 @@ export class ConfigurationEditing {
 			if (key === TASKS_CONFIGURATION_KEY) {
 				return this.userDataProfileService.currentProfile.tasksResource;
 			} if (key === TOOLS_CONFIGURATION_KEY) {
-				return this.userDataProfileService.currentProfile.toolsConfigResource;
+				return this.userDataProfileService.currentProfile.mcpResource;
 			} else {
 				if (!this.userDataProfileService.currentProfile.isDefault && this.configurationService.isSettingAppliedForAllProfiles(key)) {
 					return this.userDataProfilesService.defaultProfile.settingsResource;

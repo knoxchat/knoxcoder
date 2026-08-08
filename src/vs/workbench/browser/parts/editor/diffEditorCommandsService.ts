@@ -16,14 +16,22 @@ import { TextDiffEditor } from './textDiffEditor.js';
 
 export const IDiffEditorCommandsService = createDecorator<IDiffEditorCommandsService>('diffEditorCommandsService');
 
+export enum FocusTextDiffEditorMode {
+	Original,
+	Modified,
+	Toggle
+}
+
 /**
  * Backs the diff-editor commands (see {@link registerDiffEditorCommands}). The Agents window
- * overrides this to also drive its multi-diff Changes editor. Only the actions needed there
- * live here today; the remaining diff-editor command handlers are still inline pending a move.
+ * overrides this to also drive its multi-diff Changes editor.
  */
 export interface IDiffEditorCommandsService {
 	readonly _serviceBrand: undefined;
 
+	navigateInDiffEditor(args: unknown[], next: boolean): void;
+	focusInDiffEditor(args: unknown[], mode: FocusTextDiffEditorMode): void;
+	toggleDiffIgnoreTrimWhitespace(args: unknown[]): Promise<void>;
 	/** Toggles inline vs. side-by-side rendering for the active diff editor. */
 	toggleRenderSideBySide(args: unknown[]): Promise<void>;
 }
@@ -37,6 +45,48 @@ export class DiffEditorCommandsService implements IDiffEditorCommandsService {
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) { }
+
+	navigateInDiffEditor(args: unknown[], next: boolean): void {
+		const activeTextDiffEditor = getActiveTextDiffEditor(this.editorService, args);
+
+		if (activeTextDiffEditor) {
+			activeTextDiffEditor.getControl()?.goToDiff(next ? 'next' : 'previous');
+		}
+	}
+
+	focusInDiffEditor(args: unknown[], mode: FocusTextDiffEditorMode): void {
+		const activeTextDiffEditor = getActiveTextDiffEditor(this.editorService, args);
+
+		if (activeTextDiffEditor) {
+			switch (mode) {
+				case FocusTextDiffEditorMode.Original:
+					activeTextDiffEditor.getControl()?.getOriginalEditor().focus();
+					break;
+				case FocusTextDiffEditorMode.Modified:
+					activeTextDiffEditor.getControl()?.getModifiedEditor().focus();
+					break;
+				case FocusTextDiffEditorMode.Toggle:
+					if (activeTextDiffEditor.getControl()?.getModifiedEditor().hasWidgetFocus()) {
+						return this.focusInDiffEditor(args, FocusTextDiffEditorMode.Original);
+					} else {
+						return this.focusInDiffEditor(args, FocusTextDiffEditorMode.Modified);
+					}
+			}
+		}
+	}
+
+	async toggleDiffIgnoreTrimWhitespace(args: unknown[]): Promise<void> {
+		const activeTextDiffEditor = getActiveTextDiffEditor(this.editorService, args);
+
+		const m = activeTextDiffEditor?.getControl()?.getModifiedEditor()?.getModel();
+		if (!m) {
+			return;
+		}
+
+		const key = 'diffEditor.ignoreTrimWhitespace';
+		const val = this.textResourceConfigurationService.getValue(m.uri, key);
+		await this.textResourceConfigurationService.updateValue(m.uri, key, !val);
+	}
 
 	async toggleRenderSideBySide(args: unknown[]): Promise<void> {
 		const modifiedResource = getActiveDiffModifiedResource(this.editorService, this.contextKeyService, args);

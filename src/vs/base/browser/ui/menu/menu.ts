@@ -26,7 +26,7 @@ import { isLinux, isMacintosh } from '../../../common/platform.js';
 import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import * as strings from '../../../common/strings.js';
 import { AnchorAlignment, layout, LayoutAnchorPosition } from '../../../common/layout.js';
-import { CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE } from '../contextview/contextview.js';
+const CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE = '--vscode-menu-shadow';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;

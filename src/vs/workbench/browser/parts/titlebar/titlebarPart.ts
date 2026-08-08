@@ -57,7 +57,6 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { safeIntl } from '../../../../base/common/date.js';
 import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { WORKBENCH_MENU_MOTION_CLASS, workbenchMenuCloseAnimation } from '../../actions/menuMotion.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -680,8 +679,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			getKeyBinding: action => this.getKeybinding(action),
 			overflowBehavior: { maxItems: 12, exempted: [ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, ...EDITOR_CORE_NAVIGATION_COMMANDS] },
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
-			dropdownMenuClassName: WORKBENCH_MENU_MOTION_CLASS,
-			dropdownMenuCloseAnimation: workbenchMenuCloseAnimation,
 			telemetrySource: 'titlePart',
 			highlightToggledItems: this.isAuxiliary, // Only show toggled state for auxiliary title bars
 			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),

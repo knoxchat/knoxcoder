@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
-import { normalizeManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { normalizeManagedSettings } from '../../../../platform/policy/common/managedSettings.js';
 
 /**
  * A single MCP server matcher entry in the `allowedMcpServers` / `deniedMcpServers` managed

@@ -35,7 +35,7 @@ import type { IEditorOptions } from '../../../../platform/editor/common/editor.j
 import type { TerminalEditorInput } from './terminalEditorInput.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
 import { isNumber, type SingleOrMany } from '../../../../base/common/types.js';
-import type { ToolConfirmationAction } from '../../chat/common/tools/languageModelToolsService.js';
+import type { ToolConfirmationAction } from '../../../common/languageModelToolsStub.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');

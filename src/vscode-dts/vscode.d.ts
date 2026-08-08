@@ -21224,6 +21224,9 @@ declare module 'vscode' {
 		 */
 		readonly range?: [start: number, end: number];
 	}
+
+	
+
 }
 
 /**

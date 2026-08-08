@@ -13,14 +13,16 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityHelpAction } from './accessibleViewActions.js';
-import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { ChatContextKeys } from '../../../common/chatContextKeysStub.js';
 import { HasSpeechProvider } from '../../speech/common/speechService.js';
 import { CommentAccessibilityHelpNLS } from '../../comments/browser/commentsAccessibility.js';
 import { CommentContextKeys } from '../../comments/common/commentContextKeys.js';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../files/browser/fileConstants.js';
 import { IAccessibleViewService, IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibilityVerbositySettingId } from './accessibilityConfiguration.js';
-import { ctxHasEditorModification, ctxHasRequestInProgress } from '../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+const ctxHasEditorModification = new RawContextKey<boolean>('chatEditing.hasEditorModifications', false);
+const ctxHasRequestInProgress = new RawContextKey<boolean>('chatEditing.requestInProgress', false);
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 

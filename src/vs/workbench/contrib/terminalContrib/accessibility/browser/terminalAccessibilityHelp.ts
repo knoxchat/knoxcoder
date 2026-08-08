@@ -22,7 +22,7 @@ import { TerminalHistoryCommandId } from '../../history/common/terminal.history.
 import { TerminalSuggestCommandId } from '../../suggest/common/terminal.suggest.js';
 import { TerminalSuggestSettingId } from '../../suggest/common/terminalSuggestConfiguration.js';
 import { HasSpeechProvider } from '../../../speech/common/speechService.js';
-import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { ChatContextKeys } from '../../../../common/chatContextKeysStub.js';
 
 export const enum ClassName {
 	Active = 'active',

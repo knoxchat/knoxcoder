@@ -228,6 +228,8 @@ export interface IProductConfiguration {
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
 
 	readonly assistSessionRecommendations?: IAssistSessionRecommendation[];
+	readonly defaultChatAgent?: IDefaultChatAgent;
+	readonly sessionsWindowAllowedExtensions?: readonly string[];
 	readonly emergencyAlertUrl?: string;
 
 	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
@@ -371,4 +373,44 @@ export interface IAiGeneratedWorkspaceTrust {
 	readonly trustOption: string;
 	readonly dontTrustOption: string;
 	readonly startupTrustRequestLearnMore: string;
+}
+
+export interface IDefaultChatAgent {
+	readonly extensionId: string;
+	readonly chatExtensionId: string;
+	readonly chatExtensionOutputId: string;
+	readonly chatExtensionOutputExtensionStateCommand: string;
+	readonly documentationUrl: string;
+	readonly skusDocumentationUrl: string;
+	readonly optimizeUsageDocumentationUrl: string;
+	readonly publicCodeMatchesUrl: string;
+	readonly managePlanUrl: string;
+	readonly upgradePlanUrl: string;
+	readonly signUpUrl: string;
+	readonly termsStatementUrl: string;
+	readonly privacyStatementUrl: string;
+	readonly provider: {
+		default: { id: string; name: string };
+		enterprise: { id: string; name: string };
+		google: { id: string; name: string };
+		apple: { id: string; name: string };
+	};
+	readonly providerExtensionId: string;
+	readonly providerUriSetting: string;
+	readonly providerScopes: string[][];
+	readonly entitlementUrl: string;
+	readonly entitlementSignupLimitedUrl: string;
+	readonly tokenEntitlementUrl: string;
+	readonly mcpRegistryDataUrl: string;
+	readonly managedSettingsUrl: string;
+	readonly chatQuotaExceededContext: string;
+	readonly completionsQuotaExceededContext: string;
+	readonly walkthroughCommand: string;
+	readonly completionsMenuCommand: string;
+	readonly chatRefreshTokenCommand: string;
+	readonly generateCommitMessageCommand: string;
+	readonly resolveMergeConflictsCommand: string;
+	readonly completionsAdvancedSetting: string;
+	readonly completionsEnablementSetting: string;
+	readonly nextEditSuggestionsSetting: string;
 }

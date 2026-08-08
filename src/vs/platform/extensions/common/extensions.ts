@@ -242,6 +242,7 @@ export interface IExtensionContributions {
 	readonly textModelApiTools?: ReadonlyArray<IToolContribution>;
 	readonly textModelApiToolSets?: ReadonlyArray<IToolSetContribution>;
 	readonly toolServerDefinitionProviders?: ReadonlyArray<IToolCollectionContribution>;
+	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
 }
 
 export interface IExtensionCapabilities {

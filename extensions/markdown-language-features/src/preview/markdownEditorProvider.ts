@@ -243,56 +243,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	}
 
 	/**
-	 * Bridges the workbench's agent/session comments (the same store the code
-	 * editor renders its comments from) to the webview: existing comments are
-	 * forwarded for rendering, and comments the user adds in the Markdown editor
-	 * are written back to the shared store so they appear in the code editor too.
-	 * Comment ranges are converted between {@link vscode.Range} and the source
-	 * character offsets the webview works in.
+	 * Agent/session editor comments are not part of Isolated AI Context; no-op.
 	 */
-	#wireComments(document: vscode.TextDocument, webview: vscode.Webview): vscode.Disposable {
-		const commentsProvider = vscode.window.createAgentEditorComments(document.uri);
-		let webviewReady = false;
-		let revealedCommentId: string | undefined;
-
-		const postComments = () => {
-			const comments = commentsProvider.comments.map(comment => ({
-				id: comment.id,
-				start: document.offsetAt(comment.range.start),
-				endExclusive: document.offsetAt(comment.range.end),
-				body: comment.body,
-				author: comment.author,
-			}));
-			webview.postMessage({ type: 'comments', comments, acceptsComments: commentsProvider.acceptsComments });
-		};
-		const postReveal = () => {
-			if (webviewReady && revealedCommentId) {
-				webview.postMessage({ type: 'revealComment', id: revealedCommentId });
-			}
-		};
-
-		const onChange = commentsProvider.onDidChange(postComments);
-		const onDidRevealComment = commentsProvider.onDidRevealComment(id => {
-			revealedCommentId = id;
-			postReveal();
-		});
-		const onMessage = webview.onDidReceiveMessage((message) => {
-			if (message.type === 'ready') {
-				webviewReady = true;
-				postComments();
-				postReveal();
-			} else if (message.type === 'addComment') {
-				const range = new vscode.Range(
-					document.positionAt(message.start),
-					document.positionAt(message.endExclusive),
-				);
-				commentsProvider.addComment(range, message.text);
-			} else if (message.type === 'deleteComment') {
-				commentsProvider.deleteComment(message.id);
-			}
-		});
-
-		return vscode.Disposable.from(commentsProvider, onChange, onDidRevealComment, onMessage);
+	#wireComments(_document: vscode.TextDocument, _webview: vscode.Webview): vscode.Disposable {
+		return new vscode.Disposable(() => { });
 	}
 
 

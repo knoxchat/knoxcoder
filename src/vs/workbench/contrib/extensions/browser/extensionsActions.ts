@@ -26,7 +26,7 @@ import { IExtensionService, toExtension, toExtensionDescription } from '../../..
 import { URI } from '../../../../base/common/uri.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/configuration/common/aiFeaturesSettings.js';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator, buttonSecondaryBorder } from '../../../../platform/theme/common/colorRegistry.js';
@@ -75,7 +75,6 @@ import { IAuthenticationUsageService } from '../../../services/authentication/br
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import { getWorkbenchMenuMotionContextMenuOptions } from '../../../browser/actions/menuMotion.js';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -1224,7 +1223,7 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 		if (this.element) {
 			const actions = this.getActions(menuActionGroups);
 			this.contextMenuService.showContextMenu({
-				...getWorkbenchMenuMotionContextMenuOptions(this.element),
+				getAnchor: () => this.element!,
 				getActions: () => actions,
 				actionRunner: this.actionRunner,
 				onHide: () => disposeIfDisposable(actions)

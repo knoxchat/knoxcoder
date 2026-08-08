@@ -157,6 +157,8 @@ export const enum GeneralShellType {
 	Claude = 'claude',
 	Codex = 'codex',
 	Assist = 'assist',
+	Copilot = 'copilot',
+	CommandCode = 'commandCode',
 	Gemini = 'gemini',
 	PowerShell = 'pwsh',
 	Python = 'python',

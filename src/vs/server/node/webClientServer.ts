@@ -272,7 +272,7 @@ export class WebClientServer {
 			// We got a connection token as a query parameter.
 			// We want to have a clean URL, so we strip it
 			const responseHeaders: Record<string, string> = Object.create(null);
-			responseHeaders['Set-Cookie'] = cookie.serialize(
+			responseHeaders['Set-Cookie'] = (cookie as any).serialize(
 				connectionTokenCookieName,
 				queryConnectionToken,
 				{
@@ -354,7 +354,6 @@ export class WebClientServer {
 
 		const productConfiguration: Partial<Mutable<IProductConfiguration>> = {
 			embedderIdentifier: 'server-distro',
-			voiceWsUrl: this._productService.voiceWsUrl,
 			extensionsGallery: this._webExtensionResourceUrlTemplate && this._productService.extensionsGallery ? {
 				...this._productService.extensionsGallery,
 				resourceUrlTemplate: this._webExtensionResourceUrlTemplate.with({
@@ -386,7 +385,7 @@ export class WebClientServer {
 			callbackRoute: callbackRoute
 		};
 
-		const cookies = cookie.parse(req.headers.cookie || '');
+		const cookies = (cookie as any).parse(req.headers.cookie || '');
 		const locale = cookies['vscode.nls.locale'] || req.headers['accept-language']?.split(',')[0]?.toLowerCase() || 'en';
 		let WORKBENCH_NLS_BASE_URL: string | undefined;
 		let WORKBENCH_NLS_URL: string;
@@ -457,7 +456,7 @@ export class WebClientServer {
 			// At this point we know the client has a valid cookie
 			// and we want to set it prolong it to ensure that this
 			// client is valid for another 1 week at least
-			headers['Set-Cookie'] = cookie.serialize(
+			headers['Set-Cookie'] = (cookie as any).serialize(
 				connectionTokenCookieName,
 				this._connectionToken.value,
 				{

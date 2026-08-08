@@ -6,7 +6,7 @@
 import { isWeb, isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ISetting, ISettingsGroup } from '../../../services/preferences/common/preferences.js';
-import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/configuration/common/aiFeaturesSettings.js';
 
 export interface ITOCFilter {
 	include?: {

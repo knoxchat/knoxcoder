@@ -96,6 +96,11 @@ export function create(
 		});
 	}
 
+	// Only transpile files that belong to the tsconfig project. gulp.src walks the
+	// whole tree, including paths excluded from tsconfig (e.g. sessions/chat), and
+	// getOutputFileNames asserts that every input is in cmdLine.fileNames.
+	const projectFileNames = new Set(cmdLine.fileNames.map(f => ts.normalizePath(f)));
+
 	// TRANSPILE ONLY stream doing just TS to JS conversion
 	function createTranspileStream(transpiler: ITranspiler): Readable & Writable {
 		return through(function (this: through.ThroughStream & { queue(a: any): void }, file: Vinyl) {
@@ -108,6 +113,9 @@ export function create(
 				return;
 			}
 			if (!config.transpileOnlyIncludesDts && file.path.endsWith('.d.ts')) {
+				return;
+			}
+			if (!projectFileNames.has(ts.normalizePath(file.path))) {
 				return;
 			}
 

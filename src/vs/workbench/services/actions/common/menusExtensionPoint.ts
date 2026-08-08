@@ -145,7 +145,7 @@ const apiMenus: IAPIMenu[] = [
 	},
 	{
 		key: 'assist/input/status',
-		id: MenuId.AssistInputStatus,
+		id: MenuId.ChatInputStatus,
 		description: localize('menus.assistInputStatus', "The status indicator area at the rightmost end of the toolbar shown beneath the assist input"),
 		supportsSubmenus: false
 	},

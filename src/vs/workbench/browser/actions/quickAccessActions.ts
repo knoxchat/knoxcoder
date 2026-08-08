@@ -11,7 +11,7 @@ import { IQuickInputService, ItemActivation, QuickInputHideReason } from '../../
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { ChatAIDisabledSettingId } from '../../../platform/chat/common/chatSettings.js';
+import { ChatAIDisabledSettingId } from '../../../platform/configuration/common/aiFeaturesSettings.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from '../quickaccess.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';

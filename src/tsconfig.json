@@ -34,6 +34,26 @@
 		"./vscode-dts/vscode.d.ts"
 	],
 	"exclude": [
-		"vs/workbench/contrib/webview/browser/pre/service-worker.js"
+		"vs/platform/agentHost/**",
+		"vs/platform/chat/**",
+		"vs/platform/mcp/**",
+		"vs/platform/telemetry/test/**",
+		"vs/workbench/contrib/agentsVoice/**",
+		"vs/workbench/contrib/chat/**",
+		"vs/workbench/contrib/editTelemetry/**",
+		"vs/workbench/contrib/inlineChat/**",
+		"vs/workbench/contrib/mcp/**",
+		"vs/workbench/contrib/remoteCodingAgents/**",
+		"vs/workbench/contrib/terminalContrib/chat/**",
+		"vs/workbench/contrib/terminalContrib/chatAgentTools/**",
+		"vs/workbench/contrib/terminalContrib/voice/**",
+		"vs/workbench/contrib/webview/browser/pre/service-worker.js",
+		"vs/workbench/contrib/welcomeAgentSessions/**",
+		"vs/workbench/services/agentEditorComments/**",
+		"vs/workbench/services/agentHost/**",
+		"vs/workbench/services/chat/**",
+		"vs/workbench/services/localTranscription/**",
+		"vs/workbench/services/mcp/**",
+		"vs/workbench/test/browser/componentFixtures/**"
 	]
 }

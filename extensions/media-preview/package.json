@@ -164,7 +164,6 @@
     "watch-typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.8",
     "vscode-uri": "^3.0.6"
   },
   "devDependencies": {

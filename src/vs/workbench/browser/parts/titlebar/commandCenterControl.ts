@@ -24,7 +24,7 @@ import { WindowTitle } from './windowTitle.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/configuration/common/aiFeaturesSettings.js';
 
 const AGENT_STATUS_ENABLED_SETTING = 'chat.agentsControl.enabled';
 

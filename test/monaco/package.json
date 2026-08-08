@@ -18,10 +18,10 @@
     "file-loader": "^6.2.0",
     "style-loader": "^4.0.0",
     "warnings-to-errors-webpack-plugin": "^2.3.0",
-    "webpack": "^5.108.4",
-    "webpack-cli": "^7.2.1"
+    "webpack": "^5.109.2",
+    "webpack-cli": "^7.2.2"
   },
   "dependencies": {
-    "postcss": "^8.5.19"
+    "postcss": "^8.5.26"
   }
 }

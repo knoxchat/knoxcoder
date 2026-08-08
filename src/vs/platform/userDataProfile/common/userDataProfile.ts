@@ -27,7 +27,8 @@ const AGENTS_WINDOW_PROFILE_FLAGS: UseDefaultProfileFlags = {
 	settings: true,
 	keybindings: true,
 	prompts: true,
-	textModelApis: true,
+	mcp: true,
+	languageModels: true,
 	snippets: true,
 	tasks: true,
 	extensions: true,
@@ -41,7 +42,8 @@ export const enum ProfileResourceType {
 	Tasks = 'tasks',
 	Extensions = 'extensions',
 	GlobalState = 'globalState',
-	TextModelApis = 'textModelApis',
+	Mcp = 'mcp',
+	LanguageModels = 'languageModels',
 }
 
 /**
@@ -65,8 +67,8 @@ export interface IUserDataProfile {
 	readonly snippetsHome: URI;
 	readonly promptsHome: URI;
 	readonly extensionsResource: URI;
-	readonly toolsConfigResource: URI;
-	readonly textModelApisResource: URI;
+	readonly mcpResource: URI;
+	readonly languageModelsResource: URI;
 	readonly agentPluginsHome: URI;
 	readonly cacheHome: URI;
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
@@ -91,8 +93,8 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 		&& URI.isUri(candidate.snippetsHome)
 		&& URI.isUri(candidate.promptsHome)
 		&& URI.isUri(candidate.extensionsResource)
-		&& URI.isUri(candidate.toolsConfigResource)
-		&& URI.isUri(candidate.textModelApisResource)
+		&& URI.isUri(candidate.mcpResource)
+		&& URI.isUri(candidate.languageModelsResource)
 		&& URI.isUri(candidate.agentPluginsHome)
 	);
 }
@@ -171,8 +173,8 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 		snippetsHome: URI.revive(profile.snippetsHome).with({ scheme }),
 		promptsHome: URI.revive(profile.promptsHome).with({ scheme }),
 		extensionsResource: URI.revive(profile.extensionsResource).with({ scheme }),
-		toolsConfigResource: URI.revive(profile.toolsConfigResource).with({ scheme }),
-		textModelApisResource: URI.revive(profile.textModelApisResource).with({ scheme }),
+		mcpResource: URI.revive(profile.mcpResource).with({ scheme }),
+		languageModelsResource: URI.revive(profile.languageModelsResource).with({ scheme }),
 		agentPluginsHome: URI.revive(profile.agentPluginsHome),
 		cacheHome: URI.revive(profile.cacheHome).with({ scheme }),
 		useDefaultFlags: profile.useDefaultFlags,
@@ -198,8 +200,8 @@ export function toUserDataProfile(id: string, name: string, location: URI, profi
 		snippetsHome: defaultProfile && options?.useDefaultFlags?.snippets ? defaultProfile.snippetsHome : joinPath(location, 'snippets'),
 		promptsHome: defaultProfile && options?.useDefaultFlags?.prompts ? defaultProfile.promptsHome : joinPath(location, 'prompts'),
 		extensionsResource: defaultProfile && options?.useDefaultFlags?.extensions ? defaultProfile.extensionsResource : joinPath(location, 'extensions.json'),
-		toolsConfigResource: joinPath(location, 'tool.json'),
-		textModelApisResource: defaultProfile && options?.useDefaultFlags?.textModelApis ? defaultProfile.textModelApisResource : joinPath(location, 'chatTextModelApis.json'),
+		mcpResource: defaultProfile && options?.useDefaultFlags?.mcp ? defaultProfile.mcpResource : joinPath(location, 'mcp.json'),
+		languageModelsResource: defaultProfile && options?.useDefaultFlags?.languageModels ? defaultProfile.languageModelsResource : joinPath(location, 'chatLanguageModels.json'),
 		agentPluginsHome: defaultProfile ? defaultProfile.agentPluginsHome : joinPath(location, 'agent-plugins'),
 		cacheHome: joinPath(profilesCacheHome, id),
 		useDefaultFlags: options?.useDefaultFlags,
@@ -592,6 +594,10 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	getProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier): IUserDataProfile | undefined {
 		const workspace = this.getWorkspace(workspaceIdentifier);
+
+		if (URI.isUri(workspace) && this.uriIdentityService.extUri.isEqual(workspace, (this.environmentService as any).agentSessionsWorkspace)) {
+			return this.profiles.find(p => p.isAgentsWindowProfile);
+		}
 
 		return URI.isUri(workspace)
 			? this.profiles.find(p => p.workspaces?.some(w => this.uriIdentityService.extUri.isEqual(w, workspace)))

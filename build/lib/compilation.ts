@@ -438,11 +438,11 @@ const codiconDest = path.join(root, 'src', 'vs', 'base', 'browser', 'ui', 'codic
 
 function copyCodiconsImpl() {
 	try {
-		const codiconSource = fs.existsSync(knoxLucideCodiconSource) ? knoxLucideCodiconSource : vscodeCodiconSource;
+		const codiconSource = fs.existsSync(vscodeCodiconSource) ? vscodeCodiconSource : knoxLucideCodiconSource;
 		if (fs.existsSync(codiconSource)) {
 			fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
 			fs.copyFileSync(codiconSource, codiconDest);
-			const sourceLabel = codiconSource === knoxLucideCodiconSource ? 'knox/lucide' : '@vscode/codicons';
+			const sourceLabel = codiconSource === vscodeCodiconSource ? '@vscode/codicons' : 'knox/lucide';
 			fancyLog(ansiColors.blue('[codicons]'), `Copied codicon.ttf from ${sourceLabel}`);
 
 			// Dev launches (`./scripts/code.sh`) serve from `out/`. Keep the

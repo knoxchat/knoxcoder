@@ -18,7 +18,7 @@ import { getGalleryExtensionId } from '../../../../../platform/extensionManageme
 import { TestExtensionEnablementService } from '../../../../services/extensionManagement/test/browser/extensionEnablementService.test.js';
 import { ExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionGalleryService.js';
 import { IURLService } from '../../../../../platform/url/common/url.js';
-import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/configuration/common/aiFeaturesSettings.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IPager } from '../../../../../base/common/paging.js';

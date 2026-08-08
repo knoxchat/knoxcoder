@@ -20,9 +20,9 @@ import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 
-interface ElectronAuthenticationResponseDetails extends AuthenticationResponseDetails {
+type ElectronAuthenticationResponseDetails = AuthenticationResponseDetails & {
 	firstAuthAttempt?: boolean; // https://github.com/electron/electron/blob/84a42a050e7d45225e69df5bd2d2bf9f1037ea41/shell/browser/login_handler.cc#L70
-}
+};
 
 type LoginEvent = {
 	event?: ElectronEvent;

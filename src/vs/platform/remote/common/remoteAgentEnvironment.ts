@@ -15,7 +15,7 @@ export interface IRemoteAgentEnvironment {
 	execPath: string;
 	tmpDir: URI;
 	settingsPath: URI;
-	toolsConfigResource: URI;
+	mcpResource: URI;
 	logsPath: URI;
 	extensionHostLogsPath: URI;
 	globalStorageHome: URI;

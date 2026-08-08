@@ -332,7 +332,7 @@ export class TerminalSandboxEngine extends Disposable {
 		if (!(await this._checkSandboxDependencies(forceRefresh))) {
 			const missingDependencies = await this.getMissingSandboxDependencies();
 			if (missingDependencies.length === 0 && this._sandboxDependencyStatus?.bubblewrapUsable === false) {
-				if (this._sandboxDependencyStatus.apparmorRestrictsUnprivilegedUserNamespaces !== true || (forceRefresh && this._apparmorRemediationRequested)) {
+				if ((this._sandboxDependencyStatus as any).apparmorRestrictsUnprivilegedUserNamespaces !== true || (forceRefresh && this._apparmorRemediationRequested)) {
 					if (!this._enableWeakerNestedSandbox) {
 						this._enableWeakerNestedSandbox = true;
 						await this.getSandboxConfigPath(true, precheckInputs);
@@ -357,8 +357,7 @@ export class TerminalSandboxEngine extends Disposable {
 				sandboxConfigPath,
 				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
 				missingDependencies,
-				canInstallMissingDependencies: !!this._sandboxDependencyStatus?.dependencyInstallCommand,
-			};
+			} as any;
 		}
 
 		return {
