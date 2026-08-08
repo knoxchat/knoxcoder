@@ -20,8 +20,6 @@ import { IBrowserHistoryItemHandle } from '../common/browserHistory.js';
 import { ISerializedBrowserPermissionsSnapshot, PermissionCategory } from '../common/browserPermissions.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { logBrowserOpen } from '../common/browserViewTelemetry.js';
 
 enum NewPageLocation {
 	Foreground = 'foreground',
@@ -122,7 +120,6 @@ export class BrowserView extends Disposable {
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
 		@ILogService private readonly logService: ILogService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -189,14 +186,6 @@ export class BrowserView extends Disposable {
 			return {
 				action: 'allow',
 				createWindow: (options) => {
-					logBrowserOpen(this.telemetryService, (() => {
-						switch (location) {
-							case NewPageLocation.NewWindow: return 'browserLinkNewWindow';
-							case NewPageLocation.Background: return 'browserLinkBackground';
-							case NewPageLocation.Foreground: return 'browserLinkForeground';
-						}
-					})());
-
 					const childView = createChildView(details.url, options, {
 						pinned: true,
 						background: location === NewPageLocation.Background,

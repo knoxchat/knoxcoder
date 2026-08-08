@@ -254,7 +254,6 @@ export default defineConfig(
 			'src/vs/platform/configuration/common/configurationModels.ts',
 			'src/vs/platform/contextkey/browser/contextKeyService.ts',
 			'src/vs/platform/contextkey/test/common/scanner.test.ts',
-			'src/vs/platform/dataChannel/browser/forwardingTelemetryService.ts',
 			'src/vs/platform/hover/browser/hoverService.ts',
 			'src/vs/platform/hover/browser/hoverWidget.ts',
 			'src/vs/platform/instantiation/common/instantiationService.ts',
@@ -304,7 +303,6 @@ export default defineConfig(
 			'src/vs/workbench/contrib/debug/common/debugger.ts',
 			'src/vs/workbench/contrib/debug/common/replAccessibilityAnnouncer.ts',
 			'src/vs/workbench/contrib/editSessions/browser/editSessionsStorageService.ts',
-			'src/vs/workbench/contrib/editTelemetry/browser/helpers/documentWithAnnotatedEdits.ts',
 			'src/vs/workbench/contrib/extensions/common/extensionQuery.ts',
 			'src/vs/workbench/contrib/interactive/browser/interactiveEditorInput.ts',
 			'src/vs/workbench/contrib/issue/browser/issueFormService.ts',
@@ -497,7 +495,6 @@ export default defineConfig(
 			'src/vs/platform/observable/common/wrapInHotClass.ts',
 			'src/vs/platform/observable/common/wrapInReloadableClass.ts',
 			'src/vs/platform/policy/common/policyIpc.ts',
-			'src/vs/platform/profiling/common/profilingTelemetrySpec.ts',
 			'src/vs/platform/quickinput/browser/quickInputActions.ts',
 			'src/vs/platform/quickinput/common/quickInput.ts',
 			'src/vs/platform/registry/common/platform.ts',
@@ -512,10 +509,7 @@ export default defineConfig(
 			'src/vs/platform/request/common/requestIpc.ts',
 			'src/vs/platform/request/electron-utility/requestService.ts',
 			'src/vs/platform/request/node/proxy.ts',
-			'src/vs/platform/telemetry/browser/errorTelemetry.ts',
-			'src/vs/platform/telemetry/common/errorTelemetry.ts',
 			'src/vs/platform/telemetry/common/remoteTelemetryChannel.ts',
-			'src/vs/platform/telemetry/node/errorTelemetry.ts',
 			'src/vs/platform/theme/common/iconRegistry.ts',
 			'src/vs/platform/theme/common/tokenClassificationRegistry.ts',
 			'src/vs/platform/update/common/updateIpc.ts',
@@ -554,7 +548,6 @@ export default defineConfig(
 			'src/vs/editor/contrib/gotoSymbol/browser/goToCommands.ts',
 			'src/vs/editor/contrib/gotoSymbol/browser/symbolNavigation.ts',
 			'src/vs/editor/contrib/hover/browser/hoverActions.ts',
-			'src/vs/editor/contrib/inlineCompletions/browser/structuredLogger.ts',
 			'src/vs/editor/contrib/inlineCompletions/browser/utils.ts',
 			'src/vs/editor/contrib/smartSelect/browser/smartSelect.ts',
 			'src/vs/editor/contrib/stickyScroll/browser/stickyScrollModelProvider.ts',
@@ -661,9 +654,6 @@ export default defineConfig(
 			'src/vs/workbench/contrib/debug/common/replModel.ts',
 			'src/vs/workbench/contrib/debug/test/common/mockDebug.ts',
 			'src/vs/workbench/contrib/editSessions/common/workspaceStateSync.ts',
-			'src/vs/workbench/contrib/editTelemetry/browser/helpers/documentWithAnnotatedEdits.ts',
-			'src/vs/workbench/contrib/editTelemetry/browser/helpers/utils.ts',
-			'src/vs/workbench/contrib/editTelemetry/browser/telemetry/arcTelemetrySender.ts',
 			'src/vs/workbench/contrib/extensions/browser/extensionEditor.ts',
 			'src/vs/workbench/contrib/extensions/browser/extensionRecommendationNotificationService.ts',
 			'src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts',
@@ -1659,36 +1649,6 @@ export default defineConfig(
 					]
 				},
 				{
-					'target': 'src/vs/platform/agentHost/node/diffWorkerMain.ts',
-					'layer': 'node',
-					'restrictions': [
-						'vs/base/~',
-						'vs/base/parts/*/~',
-						'vs/platform/*/~',
-						'vs/editor/common/diff/**', // diffing logic used by the agent host
-					]
-				},
-				{
-					'target': 'src/vs/platform/agentHost/~',
-					'restrictions': [
-						'vs/base/~',
-						'vs/base/parts/*/~',
-						'vs/platform/*/~',
-						'tas-client', // node module allowed even in /common/
-						'@microsoft/1ds-core-js', // node module allowed even in /common/
-						'@microsoft/1ds-post-js', // node module allowed even in /common/
-						'@xterm/headless', // node module allowed even in /common/
-						'@vscode/fs-copyfile', // used by agentHost for file copying after worktree creation
-						'@vscode/tree-sitter-wasm', // used by agentHost for command auto-approval
-						'@vscode/copilot-api', // used by agentHost for Copilot API requests
-						'@anthropic-ai/sdk', // used by agentHost for Anthropic API requests
-						'@anthropic-ai/claude-agent-sdk', // used by agentHost for Claude Agent SDK session enumeration / queries
-						'@modelcontextprotocol/sdk/**/*', // used by agentHost for Claude client-tool MCP result types (Phase 10)
-						'@github/copilot-sdk',
-						'zod' // used by agentHost for Claude client-tool MCP input schemas
-					]
-				},
-				{
 					'target': 'src/vs/platform/*/~',
 					'restrictions': [
 						'vs/base/~',
@@ -1698,7 +1658,6 @@ export default defineConfig(
 						'@microsoft/1ds-core-js', // node module allowed even in /common/
 						'@microsoft/1ds-post-js', // node module allowed even in /common/
 						'@xterm/headless', // node module allowed even in /common/
-						'@vscode/tree-sitter-wasm' // used by agentHost for command auto-approval
 					]
 				},
 				{

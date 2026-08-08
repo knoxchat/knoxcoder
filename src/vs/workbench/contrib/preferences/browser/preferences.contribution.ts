@@ -43,7 +43,7 @@ import { PreferencesEditorInput, SettingsEditor2Input } from '../../../services/
 import { SettingsEditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { CURRENT_PROFILE_CONTEXT, IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { ExplorerFolderContext, ExplorerRootContext } from '../../files/common/files.js';
-import { CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH } from '../common/preferences.js';
+import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from '../common/preferences.js';
 import { PreferencesContribution } from '../common/preferencesContribution.js';
 import { KeybindingsEditor } from './keybindingsEditor.js';
 import { ConfigureLanguageBasedSettingsAction } from './preferencesActions.js';
@@ -69,7 +69,6 @@ const SETTINGS_EDITOR_COMMAND_FILTER_ONLINE = 'settings.filterByOnline';
 const SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED = 'settings.filterUntrusted';
 
 const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
-const SETTINGS_COMMAND_FILTER_TELEMETRY = 'settings.filterByTelemetry';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -495,51 +494,12 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH,
-					precondition: CONTEXT_SETTINGS_EDITOR,
-					keybinding: {
-						primary: KeyMod.CtrlCmd | KeyCode.KeyI,
-						weight: KeybindingWeight.EditorContrib,
-						when: CONTEXT_AI_SETTING_RESULTS_AVAILABLE
-					},
-					category,
-					f1: true,
-					title: nls.localize2('settings.toggleAiSearch', "Toggle AI Settings Search")
-				});
-			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof SettingsEditor2) {
-					editorPane.toggleAiSearch();
-				}
-			}
-		}));
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
 					id: SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED,
 					title: nls.localize2('filterUntrusted', "Show untrusted workspace settings"),
 				});
 			}
 			run(accessor: ServicesAccessor) {
 				accessor.get(IPreferencesService).openWorkspaceSettings({ jsonEditor: false, query: `@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}` });
-			}
-		}));
-
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_COMMAND_FILTER_TELEMETRY,
-					title: nls.localize({ key: 'miOpenTelemetrySettings', comment: ['&& denotes a mnemonic'] }, "&&Telemetry Settings")
-				});
-			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof SettingsEditor2) {
-					editorPane.focusSearch(`@tag:telemetry`);
-				} else {
-					accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:telemetry' });
-				}
 			}
 		}));
 

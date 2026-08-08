@@ -728,11 +728,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
 			},
-			'workbench.settings.showAISearchToggle': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('settings.showAISearchToggle', "Controls whether the AI search results toggle is shown in the search bar in the Settings editor after doing a search and once AI search results are available."),
-			},
 			'workbench.hover.delay': {
 				'type': 'number',
 				'description': localize('workbench.hover.delay', "Controls the delay in milliseconds after which the hover is shown for workbench items (ex. some extension provided tree view items). Already visible items may require a refresh before reflecting this setting change."),

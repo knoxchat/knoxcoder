@@ -52,7 +52,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'_extensionsGallery.enablePPE',
 		'security.restrictUNCAccess',
 		'accessibility.verbosity.debug',
-		'telemetry.feedback.enabled',
 		'assist.extensionUnification.enabled',
 	];
 
@@ -68,7 +67,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 	private readonly restrictUNCAccess = new ChangeObserver('boolean');
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
-	private readonly telemetryFeedbackEnabled = new ChangeObserver('boolean');
 	private readonly extensionUnificationEnabled = new ChangeObserver('boolean');
 
 	constructor(
@@ -155,9 +153,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 		// Profiles
 		processChanged(this.productService.quality !== 'stable' && this.enablePPEExtensionsGallery.handleChange(config._extensionsGallery?.enablePPE));
-
-		// Enable Feedback
-		processChanged(this.telemetryFeedbackEnabled.handleChange(config.telemetry?.feedback?.enabled));
 
 		// Extension Unification (only when turning on)
 		processChanged(this.extensionUnificationEnabled.handleChange(config.assist?.extensionUnification?.enabled) && config.assist?.extensionUnification?.enabled === true);

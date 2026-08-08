@@ -239,10 +239,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/surveys",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/tasks",
 			"project": "vscode-workbench"
 		},
@@ -348,10 +344,6 @@
 		},
 		{
 			"name": "vs/workbench/contrib/accessibilitySignals",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/contrib/bracketPairColorizer2Telemetry",
 			"project": "vscode-workbench"
 		},
 		{
@@ -591,10 +583,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/editTelemetry",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/inlineCompletions",
 			"project": "vscode-workbench"
 		},
@@ -612,10 +600,6 @@
 		},
 		{
 			"name": "vs/workbench/contrib/remoteCodingAgents",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/contrib/telemetry",
 			"project": "vscode-workbench"
 		},
 		{

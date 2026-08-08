@@ -16,8 +16,6 @@ import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserSession } from './browserSession.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { IPermissionCategoryState } from '../common/browserPermissions.js';
-import { IntegratedBrowserOpenSource, logBrowserOpen } from '../common/browserViewTelemetry.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { localize } from '../../../nls.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { htmlAttributeEncodeValue } from '../../../base/common/strings.js';
@@ -62,7 +60,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
 	) {
@@ -112,7 +109,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			owner,
 			session: browserSession,
 			openOptions: { preserveFocus: true },
-			source: 'cdpCreated'
 		});
 	}
 
@@ -468,12 +464,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			owner,
 			session,
 			openOptions,
-			source
 		}: {
 			owner: IBrowserViewOwner;
 			session: BrowserSession | undefined;
 			openOptions: IBrowserViewOpenOptions | undefined;
-			source: IntegratedBrowserOpenSource;
 		}
 	): Promise<BrowserView> {
 		const targetId = generateUuid();
@@ -482,8 +476,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (url) {
 			void view.loadURL(url).catch(() => { });
 		}
-
-		logBrowserOpen(this.telemetryService, source);
 
 		// Fire creation event so the workbench can open an editor tab
 		const info = this._getViewInfo(view);
@@ -519,7 +511,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 						owner: view.owner,
 						session: view.session,
 						openOptions: { preserveFocus: true, background: true },
-						source: 'browserLinkBackground'
 					});
 				}
 			}));
@@ -550,7 +541,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 						owner: view.owner,
 						session: view.session,
 						openOptions: { preserveFocus: true, background: true },
-						source: 'browserLinkBackground'
 					});
 				}
 			}));

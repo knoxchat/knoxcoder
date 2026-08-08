@@ -83,10 +83,6 @@ class NativeIssueContribution extends BaseIssueContribution {
 	) {
 		super(productService, configurationService);
 
-		if (!configurationService.getValue<boolean>('telemetry.feedback.enabled')) {
-			return;
-		}
-
 		if (productService.reportIssueUrl) {
 			this._register(registerAction2(ReportPerformanceIssueUsingReporterAction));
 		}

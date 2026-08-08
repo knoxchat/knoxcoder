@@ -53,10 +53,6 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		this._remoteSearchProvider.setFilter(filter);
 		return this._remoteSearchProvider;
 	}
-
-	getAiSearchProvider(_filter: string): undefined {
-		return undefined;
-	}
 }
 
 function cleanFilter(filter: string): string {

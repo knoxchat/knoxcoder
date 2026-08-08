@@ -34,7 +34,6 @@ import { FIND_IDS } from '../../../find/browser/findModel.js';
 import { NextMarkerAction, NextMarkerInFilesAction, PrevMarkerAction, PrevMarkerInFilesAction } from '../../../gotoError/browser/gotoError.js';
 import { InsertLineAfterAction, InsertLineBeforeAction } from '../../../linesOperations/browser/linesOperations.js';
 import { InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
-import { TextModelChangeRecorder } from '../model/changeRecorder.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { ObservableSuggestWidgetAdapter } from '../model/suggestWidgetAdapter.js';
 import { ObservableContextKeyService } from '../utils.js';
@@ -422,8 +421,6 @@ export class InlineCompletionsController extends Disposable {
 			}
 			return firstPartPos.equals(cursorPos);
 		}));
-
-		this._register(this._instantiationService.createInstance(TextModelChangeRecorder, this.editor));
 	}
 
 	private _isEditorDictationInProgress(): boolean {

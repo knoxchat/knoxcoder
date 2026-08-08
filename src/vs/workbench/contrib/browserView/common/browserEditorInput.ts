@@ -18,8 +18,6 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IBrowserViewModel } from '../common/browserView.js';
 import { hasKey } from '../../../../base/common/types.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -96,7 +94,6 @@ export class BrowserEditorInput extends EditorInput {
 		private _resolveModel: () => Promise<IBrowserViewModel>,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
 		super();
@@ -319,8 +316,6 @@ export class BrowserEditorInput extends EditorInput {
 	 * This is used during Copy into New Window.
 	 */
 	override copy(): EditorInput {
-		logBrowserOpen(this.telemetryService, 'copyToNewWindow');
-
 		return this.instantiationService.invokeFunction((accessor) => {
 			const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
 			return browserViewWorkbenchService.getOrCreateLazy(generateUuid(), {

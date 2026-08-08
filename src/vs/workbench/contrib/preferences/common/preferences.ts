@@ -40,7 +40,6 @@ export interface IPreferencesSearchService {
 
 	getLocalSearchProvider(filter: string): ISearchProvider;
 	getRemoteSearchProvider(filter: string, newExtensionsOnly?: boolean): ISearchProvider | undefined;
-	getAiSearchProvider(filter: string): IAiSearchProvider | undefined;
 }
 
 export interface ISearchProvider {
@@ -51,16 +50,10 @@ export interface IRemoteSearchProvider extends ISearchProvider {
 	setFilter(filter: string): void;
 }
 
-export interface IAiSearchProvider extends IRemoteSearchProvider {
-	getLLMRankedResults(token: CancellationToken): Promise<ISearchResult | null>;
-}
-
 export const PREFERENCES_EDITOR_COMMAND_OPEN = 'workbench.preferences.action.openPreferencesEditor';
 export const CONTEXT_PREFERENCES_SEARCH_FOCUS = new RawContextKey<boolean>('inPreferencesSearch', false);
 
 export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';
-export const SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS = 'settings.action.showAIResults';
-export const SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH = 'settings.action.toggleAiSearch';
 export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
 export const SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS = 'settings.action.suggestFilters';
 
@@ -75,7 +68,6 @@ export const CONTEXT_KEYBINDINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inKe
 export const CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE = new RawContextKey<boolean>('keybindingsSearchHasValue', false);
 export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
 export const CONTEXT_WHEN_FOCUS = new RawContextKey<boolean>('whenFocus', false);
-export const CONTEXT_AI_SETTING_RESULTS_AVAILABLE = new RawContextKey<boolean>('aiSettingResultsAvailable', false);
 
 export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
 export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.editor.clearSearchResults';
@@ -119,13 +111,6 @@ export const EXTENSION_FETCH_TIMEOUT_MS = 1000;
 export const STRING_MATCH_SEARCH_PROVIDER_NAME = 'local';
 export const TF_IDF_SEARCH_PROVIDER_NAME = 'tfIdf';
 export const FILTER_MODEL_SEARCH_PROVIDER_NAME = 'filterModel';
-export const EMBEDDINGS_SEARCH_PROVIDER_NAME = 'embeddingsFull';
-export const LLM_RANKED_SEARCH_PROVIDER_NAME = 'llmRanked';
-
-export enum WorkbenchSettingsEditorSettings {
-	ShowAISearchToggle = 'workbench.settings.showAISearchToggle',
-	EnableNaturalLanguageSearch = 'workbench.settings.enableNaturalLanguageSearch',
-}
 
 export type ExtensionToggleData = {
 	settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations>;

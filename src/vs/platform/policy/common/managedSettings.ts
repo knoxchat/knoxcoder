@@ -43,40 +43,6 @@ export const MANAGED_STRICT_MARKETPLACES_KEY = 'strictKnownMarketplaces';
  */
 export const MANAGED_MODEL_KEY = 'permissions.model';
 
-/**
- * Enterprise OTel managed-settings keys. These are the scalar leaves of the canonical
- * `telemetry` block from the cross-client managed-settings schema (see the CLI
- * `ManagedTelemetrySettings`); they flatten to dot-path bag keys via
- * {@link normalizeManagedSettings}, so no {@link STRUCTURED_MANAGED_SETTINGS} entry is needed.
- * The `telemetry.resourceAttributes` and `telemetry.headers` map fields are structured
- * ({@link STRUCTURED_MANAGED_SETTINGS} rows carry them as JSON-encoded objects under their nested
- * keys); `telemetry.serviceName` is a scalar.
- */
-
-/** Managed-settings key for enterprise OTel enablement. */
-export const MANAGED_OTEL_ENABLED_KEY = 'telemetry.enabled';
-
-/** Managed-settings key for the enterprise OTLP collector endpoint. */
-export const MANAGED_OTEL_ENDPOINT_KEY = 'telemetry.endpoint';
-
-/** Managed-settings key for the enterprise OTLP protocol (`http/json`, `http/protobuf`, or `grpc`). */
-export const MANAGED_OTEL_PROTOCOL_KEY = 'telemetry.protocol';
-
-/** Managed-settings key for enterprise OTel content capture. */
-export const MANAGED_OTEL_CAPTURE_CONTENT_KEY = 'telemetry.captureContent';
-
-/** Managed-settings key that prevents users from enabling OTel content capture themselves. */
-export const MANAGED_OTEL_LOCK_CAPTURE_CONTENT_KEY = 'telemetry.lockCaptureContent';
-
-/** Managed-settings key for the OTel `service.name` resource attribute. */
-export const MANAGED_OTEL_SERVICE_NAME_KEY = 'telemetry.serviceName';
-
-/** Managed-settings key for additional OTel resource attributes (a `{ [k]: string }` map). */
-export const MANAGED_OTEL_RESOURCE_ATTRIBUTES_KEY = 'telemetry.resourceAttributes';
-
-/** Managed-settings key for extra OTLP exporter headers (a `{ [k]: string }` map). */
-export const MANAGED_OTEL_HEADERS_KEY = 'telemetry.headers';
-
 const managedSettingValueCallbacks = new Map<string, (policyData: IPolicyData) => ManagedSettingValue | undefined>();
 
 /**
@@ -377,29 +343,6 @@ interface IStructuredManagedSetting {
 	readonly encode: (value: unknown, onWarn?: (msg: string) => void) => unknown;
 }
 
-/**
- * Encode a managed-settings value into a canonical `{ [k]: string }` map: keeps string values
- * as-is and coerces number/boolean values to strings; drops keys with non-primitive values.
- * Returns `undefined` for a non-object input so the structured key is omitted.
- */
-function encodeStringMap(value: unknown): Record<string, string> | undefined {
-	if (!isObject(value)) {
-		return undefined;
-	}
-	const out: Record<string, string> = {};
-	for (const [k, v] of Object.entries(value)) {
-		if (k === '__proto__' || k === 'constructor' || k === 'prototype') {
-			continue; // defend the shared normalizer against prototype pollution
-		}
-		if (isString(v)) {
-			out[k] = v;
-		} else if (typeof v === 'number' || typeof v === 'boolean') {
-			out[k] = String(v);
-		}
-	}
-	return out;
-}
-
 /** Pass an object value through unchanged; omit the key for any non-object value. */
 function encodeObject(value: unknown): object | undefined {
 	return isObject(value) ? value : undefined;
@@ -432,23 +375,12 @@ const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 		key: MANAGED_EXTRA_MARKETPLACES_KEY,
 		encode: encodeExtraMarketplaces,
 	},
-	{
-		// Nested under `telemetry`; carried as a JSON-encoded `{ [k]: string }` map. Non-string
-		// primitive values are coerced to strings; non-primitive values are dropped.
-		key: MANAGED_OTEL_RESOURCE_ATTRIBUTES_KEY,
-		encode: encodeStringMap,
-	},
-	{
-		// Nested under `telemetry`; carried as a JSON-encoded `{ [k]: string }` map of OTLP headers.
-		key: MANAGED_OTEL_HEADERS_KEY,
-		encode: encodeStringMap,
-	},
 ];
 
 /**
  * Read a (possibly nested) dot-separated key from a parsed managed-settings object, e.g.
- * `telemetry.resourceAttributes`. Returns `undefined` if any path segment is missing or not an
- * object. Single-segment keys behave like a plain property read.
+ * `permissions.model`. Returns `undefined` if any path segment is missing or not an object.
+ * Single-segment keys behave like a plain property read.
  */
 function readNestedManagedKey(obj: Record<string, unknown>, dottedKey: string): unknown {
 	let current: unknown = obj;
@@ -506,7 +438,7 @@ export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn
 	// Spread + delete (not for..in + assignment) so the scalar remainder keeps exact `{ ...rest }`
 	// semantics: it never triggers the inherited `__proto__` setter for a source-sent own
 	// `__proto__` key, matching a destructuring rest. Structured keys may be nested (e.g.
-	// `telemetry.resourceAttributes`), so removal clones only the touched path.
+	// `extraKnownMarketplaces` under a parent object), so removal clones only the touched path.
 	let scalarRest: Record<string, unknown> = { ...parsed };
 	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
 		scalarRest = withNestedManagedKeyDeleted(scalarRest, setting.key);

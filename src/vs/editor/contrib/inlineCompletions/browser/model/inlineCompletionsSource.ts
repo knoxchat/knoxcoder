@@ -29,7 +29,6 @@ import { offsetEditFromContentChanges } from '../../../../common/model/textModel
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { ITextModelService } from '../../../../common/services/resolverService.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
-import { formatRecordableLogEntry, IRecordableEditorLogEntry, IRecordableLogEntry, StructuredLogger } from '../structuredLogger.js';
 import { wait } from '../utils.js';
 import { InlineSuggestionIdentity, InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { InlineCompletionContextWithoutUuid, InlineSuggestRequestInfo, provideInlineCompletions, runWhenCancelled } from './provideInlineCompletions.js';
@@ -42,8 +41,6 @@ export class InlineCompletionsSource extends Disposable {
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 
 	private readonly _loggingEnabled;
-
-	private readonly _structuredFetchLogger;
 
 	private readonly _state = observableReducerSettable(this, {
 		initial: () => ({
@@ -92,12 +89,6 @@ export class InlineCompletionsSource extends Disposable {
 	) {
 		super();
 		this._loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
-		this._structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
-			{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
-			| { kind: 'end'; error: unknown; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
-		>(),
-			'editor.inlineSuggest.logFetch.commandId'
-		));
 
 		this._renameProcessor = this._store.add(this._instantiationService.createInstance(RenameSymbolProcessor));
 
@@ -113,14 +104,10 @@ export class InlineCompletionsSource extends Disposable {
 		return undefined; // always constant
 	});
 
-	private _log(entry:
-		{ sourceId: string; kind: 'start'; requestId: number; context: unknown; provider: string | undefined } & IRecordableEditorLogEntry
-		| { sourceId: string; kind: 'end'; error: unknown; durationMs: number; result: unknown; requestId: number; didAllProvidersReturn: boolean } & IRecordableLogEntry
-	) {
+	private _log(entry: unknown): void {
 		if (this._loggingEnabled.get()) {
-			this._logService.info(formatRecordableLogEntry(entry));
+			this._logService.info(`[InlineCompletions.fetch] ${JSON.stringify(entry)}`);
 		}
-		this._structuredFetchLogger.log(entry);
 	}
 
 	private readonly _loadingCount = observableValue(this, 0);
@@ -189,12 +176,12 @@ export class InlineCompletionsSource extends Disposable {
 				}
 
 				const requestId = InlineCompletionsSource._requestId++;
-				if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
+				if (this._loggingEnabled.get()) {
 					this._log({
 						sourceId: 'InlineCompletions.fetch',
 						kind: 'start',
 						requestId,
-						modelUri: this._textModel.uri,
+						modelUri: this._textModel.uri.toString(),
 						modelVersion: this._textModel.getVersionId(),
 						context: { triggerKind: context.triggerKind, suggestInfo: context.selectedSuggestionInfo ? true : undefined },
 						time: Date.now(),
@@ -279,7 +266,7 @@ export class InlineCompletionsSource extends Disposable {
 
 				providerResult.cancelAndDispose({ kind: 'lostRace' });
 
-				if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
+				if (this._loggingEnabled.get()) {
 					const didAllProvidersReturn = providerResult.didAllProvidersReturn;
 					let error: string | undefined = undefined;
 					if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
@@ -389,7 +376,6 @@ export class InlineCompletionsSource extends Disposable {
 			} finally {
 				store.dispose();
 				decreaseLoadingCount();
-				this._sendInlineCompletionsRequestTelemetry(requestResponseInfo);
 			}
 
 			return true;
@@ -449,11 +435,6 @@ export class InlineCompletionsSource extends Disposable {
 		}, tx);
 		s.inlineCompletions.dispose();
 		s.suggestWidgetInlineCompletions.dispose();
-	}
-
-	private _sendInlineCompletionsRequestTelemetry(
-		_requestResponseInfo: RequestResponseData
-	): void {
 	}
 
 	public clearSuggestWidgetInlineCompletions(tx: ITransaction): void {

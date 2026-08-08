@@ -175,8 +175,6 @@ registerSingleton(IWebWorkerService, WebWorkerService, InstantiationType.Delayed
 
 //#region --- workbench contributions
 
-// Telemetry
-
 // Preferences
 import './contrib/preferences/browser/preferences.contribution.js';
 import './contrib/preferences/browser/keybindingsEditorContribution.js';
@@ -383,8 +381,6 @@ import './contrib/list/browser/list.contribution.js';
 
 // Accessibility Signals
 import './contrib/accessibilitySignals/browser/accessibilitySignal.contribution.js';
-
-// Bracket Pair Colorizer 2 Telemetry
 
 // Accessibility
 import './contrib/accessibility/browser/accessibility.contribution.js';

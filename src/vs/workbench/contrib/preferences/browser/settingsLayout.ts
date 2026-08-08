@@ -401,11 +401,6 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['update.*']
 				},
 				{
-					id: 'application/telemetry',
-					label: localize('telemetry', "Telemetry"),
-					settings: ['telemetry.*']
-				},
-				{
 					id: 'application/settingsSync',
 					label: localize('settingsSync', "Settings Sync"),
 					settings: ['settingsSync.*']

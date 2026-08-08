@@ -21,7 +21,6 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../p
 import { IJSONSchema } from '../../base/common/jsonSchema.js';
 import { InstallShellScriptAction, UninstallShellScriptAction } from './actions/installActions.js';
 import { EditorsVisibleContext, SingleEditorGroupsContext } from '../common/contextkeys.js';
-import { TELEMETRY_SETTING_ID } from '../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ShutdownReason } from '../services/lifecycle/common/lifecycle.js';
 import { NativeWindow } from './window.js';
@@ -333,23 +332,6 @@ import product from '../../platform/product/common/product.js';
 					return windowBorderDescription;
 				})(),
 				'included': isWindows
-			}
-		}
-	});
-
-	// Telemetry
-	registry.registerConfiguration({
-		'id': 'telemetry',
-		'order': 110,
-		title: localize('telemetryConfigurationTitle', "Telemetry"),
-		'type': 'object',
-		'properties': {
-			'telemetry.enableCrashReporter': {
-				'type': 'boolean',
-				'description': localize('telemetry.enableCrashReporting', "Enable crash reports to be collected. This helps us improve stability. \nThis option requires restart to take effect."),
-				'default': true,
-				'tags': ['usesOnlineServices', 'telemetry'],
-				'markdownDeprecationMessage': localize('enableCrashReporterDeprecated', "If this setting is false, no telemetry will be sent regardless of the new setting's value. Deprecated due to being combined into the {0} setting.", `\`#${TELEMETRY_SETTING_ID}#\``),
 			}
 		}
 	});
