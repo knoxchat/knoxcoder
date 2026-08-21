@@ -857,9 +857,7 @@ pub fn get_tunnel_web_url(tunnel_name: &str) -> Option<url::Url> {
 	Some(addr)
 }
 
-/// Prints the tunnel's ready banner. `show_editor_link` must be `false` for a
-/// tunnel that does not serve the control port (`--agent-host-only`): the
-/// editor URL would 404, since nothing is listening behind it.
+/// Prints the tunnel's ready banner.
 pub fn print_listening(log: &log::Logger, tunnel_name: &str, show_editor_link: bool) {
 	use crate::commands::output;
 	use console::style;

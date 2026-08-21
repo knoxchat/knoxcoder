@@ -17,7 +17,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ActiveTunnelMode, TunnelMode, TunnelStatus } from '../../common/remoteTunnel.js';
 import { TunnelMachineStatus } from '../../common/tunnelMachineStatus.js';
 import { RemoteTunnelService } from '../../node/remoteTunnelService.js';
-import { IAgentHostSharingRequest, ITunnelProcessCoordinator, ITunnelProcessMachineStatus, ITunnelProcessOutput, ITunnelProcessStatus, TunnelProcessConnectionState, TunnelProcessMode } from '../../node/tunnelProcessCoordinator.js';
+import { ITunnelProcessCoordinator, ITunnelProcessMachineStatus, ITunnelProcessOutput, ITunnelProcessStatus, TunnelProcessConnectionState, TunnelProcessMode } from '../../node/tunnelProcessCoordinator.js';
 import sinon from 'sinon';
 
 class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
@@ -45,10 +45,6 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 	}
 
 	setRemoteAccess(_mode: TunnelMode, _logLevel: LogLevel): Promise<void> {
-		return Promise.resolve();
-	}
-
-	setAgentHostSharing(_request: IAgentHostSharingRequest | undefined): Promise<void> {
 		return Promise.resolve();
 	}
 

@@ -101,11 +101,8 @@ pub const DEFAULT_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_DATA_FOL
 	None => ".vscode-oss",
 };
 
-/// Canonical, machine-wide parent directory used to coordinate the agent
-/// host across CLI invocations. Mirrors the `serverDataFolderName` in
-/// `product.json` so the lockfile/log written by `code supervisor` lines
-/// up with the directory the SSH `command-shell` entry point already uses
-/// (otherwise local + remote would race on different lockfiles).
+/// Canonical, machine-wide parent directory used by the remote server.
+/// Mirrors `serverDataFolderName` in `product.json`.
 pub const SERVER_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_SERVER_DATA_FOLDER_NAME") {
 	Some(n) => n,
 	None => ".vscode-server-oss",
@@ -161,8 +158,8 @@ mod tests {
 
 	#[test]
 	fn protocol_version_tag_matches_bumped_version() {
-		assert_eq!(PROTOCOL_VERSION, 6);
-		assert_eq!(PROTOCOL_VERSION_TAG, "protocolv6");
+		assert_eq!(PROTOCOL_VERSION, 5);
+		assert_eq!(PROTOCOL_VERSION_TAG, "protocolv5");
 		assert!(PROTOCOL_VERSION_TAG.starts_with(PROTOCOL_VERSION_TAG_PREFIX));
 	}
 }

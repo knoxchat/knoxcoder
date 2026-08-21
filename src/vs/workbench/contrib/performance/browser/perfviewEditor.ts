@@ -154,8 +154,6 @@ export class PerfModelContentProvider implements ITextModelContentProvider {
 				md.blank();
 				this._addPerfMarksTable('Terminal Stats', md, this._timerService.getPerformanceMarks().find(e => e[0] === 'renderer')?.[1].filter(e => e.name.startsWith('code/terminal/')));
 				md.blank();
-				this._addAgentHostPerfMarksTable(md);
-				md.blank();
 				this._addWorkbenchContributionsPerfMarksTable(md);
 				md.blank();
 				this._addRawPerfMarks(md);
@@ -272,14 +270,6 @@ export class PerfModelContentProvider implements ITextModelContentProvider {
 			md.heading(2, name);
 		}
 		md.table(['Name', 'Timestamp', 'Delta', 'Total'], table);
-	}
-
-	private _addAgentHostPerfMarksTable(md: MarkdownBuilder): void {
-		const marks = perf.getMarks();
-		if (!marks.some(mark => mark.name.startsWith('code/agentHost/'))) {
-			return;
-		}
-		this._addPerfMarksTable('Agent Host Startup', md, marks.filter(mark => mark.name === 'code/timeOrigin' || mark.name.startsWith('code/agentHost/')));
 	}
 
 	private _addWorkbenchContributionsPerfMarksTable(md: MarkdownBuilder): void {

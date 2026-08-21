@@ -143,11 +143,6 @@ export class LaunchMainService implements ILaunchMainService {
 			await this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, baseConfig);
 		}
 
-		// Agents window
-		else if (args['agents']) {
-			usedWindows = await this.windowsMainService.openAgentsWindow(baseConfig);
-		}
-
 		// Start without file/folder arguments
 		else if (!args._.length && !args['folder-uri'] && !args['file-uri']) {
 			let openNewWindow = false;

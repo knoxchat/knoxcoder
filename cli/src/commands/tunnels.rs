@@ -622,7 +622,7 @@ async fn serve_with_csa(
 					shutdown: shutdown.clone(),
 					stream,
 					machine_status_enabled: gateway_args.machine_status,
-					has_editor_link: !gateway_args.agent_host_only,
+					has_editor_link: true,
 				})
 				.await;
 				if should_exit {
@@ -652,13 +652,8 @@ async fn serve_with_csa(
 		{
 			dt.start_existing_tunnel(t).await
 		} else {
-			let ports = if gateway_args.agent_host_only {
-				vec![AGENT_HOST_PORT]
-			} else {
-				vec![CONTROL_PORT, AGENT_HOST_PORT]
-			};
 			tokio::select! {
-				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &ports) => t,
+				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &[CONTROL_PORT]) => t,
 				_ = shutdown.wait() => return Ok(1),
 			}
 		}?;
@@ -671,9 +666,6 @@ async fn serve_with_csa(
 			paths: &paths,
 			code_server_args: &csa,
 			platform,
-			user_data_dir: gateway_args.user_data_dir.clone(),
-			agent_host_only: gateway_args.agent_host_only,
-			delegate_to_editor: gateway_args.delegate_to_editor,
 			log_broadcast: &log_broadcast,
 			shutdown: shutdown.clone(),
 			server: &mut server,

@@ -83,10 +83,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/agentEditorComments",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/services/assignment",
 			"project": "vscode-workbench"
 		},
@@ -171,19 +167,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/inlineChat",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/imageCarousel",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/contrib/agentsVoice",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/contrib/chat",
 			"project": "vscode-workbench"
 		},
 		{
@@ -356,10 +340,6 @@
 		},
 		{
 			"name": "vs/workbench/services/actions",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/services/agentHost",
 			"project": "vscode-workbench"
 		},
 		{
@@ -595,10 +575,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/mcp",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/meteredConnection",
 			"project": "vscode-workbench"
 		},
@@ -607,15 +583,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/remoteCodingAgents",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/services/accounts",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/services/chat",
 			"project": "vscode-workbench"
 		},
 		{

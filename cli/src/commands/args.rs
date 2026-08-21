@@ -681,19 +681,6 @@ pub struct TunnelServeArgs {
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
 
-	/// Overrides the resolved user data directory used to home the local
-	/// agent-host endpoint registry
-	/// (`<user-data-dir>/agent-host/local-endpoint/entries/`, the directory of
-	/// per-instance entry files editor windows also publish to). Defaults to
-	/// the platform user data directory (honoring `VSCODE_PORTABLE` /
-	/// `VSCODE_APPDATA` when set), matching the editor's own resolution rules.
-	#[clap(long, hide = true)]
-	pub user_data_dir: Option<String>,
-
-	/// Serve only the agent-host tunnel port, without granting remote editor access.
-	#[clap(long, hide = true)]
-	pub agent_host_only: bool,
-
 	/// Emit machine-readable status lines on stdout for a parent process
 	/// (the editor) to consume, in addition to the human-readable banner.
 	#[clap(
@@ -708,13 +695,9 @@ pub struct TunnelServeArgs {
 	)]
 	pub machine_status: bool,
 
-	/// Serve only the editor's own agent host through this tunnel: the
-	/// selection gateway pins every client to the live `editor` endpoint in
-	/// the registry and refuses to start a dedicated agent host. Intended for
-	/// tunnels whose lifetime is bound to the editor that started them, where
-	/// a dedicated agent host would outlive the tunnel and be unreachable.
+	/// Optional user data directory override for the tunnel process.
 	#[clap(long, hide = true)]
-	pub delegate_to_editor: bool,
+	pub user_data_dir: Option<String>,
 }
 
 #[derive(Args, Debug, Clone, Default)]
