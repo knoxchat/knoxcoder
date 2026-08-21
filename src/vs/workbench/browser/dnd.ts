@@ -395,6 +395,7 @@ export interface ICompositeDragAndDrop {
 	drop(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent, before?: Before2D): void;
 	onDragOver(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent): boolean;
 	onDragEnter(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent): boolean;
+	canDrag?(id: string): boolean;
 }
 
 export interface ICompositeDragAndDropObserverCallbacks {

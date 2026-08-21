@@ -138,6 +138,12 @@ export interface IViewContainerDescriptor {
 	readonly rejectAddedViews?: boolean;
 
 	/**
+	 * When false, the view container cannot be dragged to another location.
+	 * Defaults to true.
+	 */
+	readonly canMove?: boolean;
+
+	/**
 	 * Specifies in which window this view container should be enabled.
 	 * Defaults to WindowEnablement.Editor
 	 */

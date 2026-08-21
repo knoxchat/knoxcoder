@@ -53,6 +53,8 @@ import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.
 import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ProcessMainService } from '../../platform/process/electron-main/processMainService.js';
+import { DeepSeekHarnessMainService } from '../../platform/deepseekHarness/electron-main/deepseekHarnessMainService.js';
+import { DEEPSEEK_HARNESS_CHANNEL_NAME } from '../../platform/deepseekHarness/common/deepseekHarness.js';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from '../../platform/keyboardLayout/electron-main/keyboardLayoutMainService.js';
 import { ILaunchMainService, LaunchMainService } from '../../platform/launch/electron-main/launchMainService.js';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
@@ -1226,6 +1228,9 @@ export class CodeApplication extends Disposable {
 		// Process
 		const processChannel = ProxyChannel.fromService(new ProcessMainService(this.logService, accessor.get(IDiagnosticsService), accessor.get(IDiagnosticsMainService)), disposables);
 		mainProcessElectronServer.registerChannel('process', processChannel);
+
+		const deepseekHarnessChannel = ProxyChannel.fromService(this._register(new DeepSeekHarnessMainService(this.logService, this.environmentMainService, this.lifecycleMainService)), disposables);
+		mainProcessElectronServer.registerChannel(DEEPSEEK_HARNESS_CHANNEL_NAME, deepseekHarnessChannel);
 
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);

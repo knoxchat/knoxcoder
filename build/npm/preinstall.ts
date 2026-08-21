@@ -42,6 +42,11 @@ if (process.env.npm_execpath?.includes('yarn')) {
 	throw new Error();
 }
 
+if (process.env.npm_execpath?.includes('pnpm') || process.env.npm_config_user_agent?.includes('pnpm')) {
+	console.error('\x1b[1;31m*** pnpm is not supported at the KnoxCoder/VS Code repo root. Native addons will not be built. Use `npm i` here; pnpm is only for `third_party/deepseek-harness`. ***\x1b[0;0m');
+	throw new Error();
+}
+
 const npmUserAgent = process.env.npm_config_user_agent;
 const npmVersionMatch = npmUserAgent?.match(/npm\/(\d+)\.(\d+)\.(\d+)/);
 if (npmVersionMatch) {

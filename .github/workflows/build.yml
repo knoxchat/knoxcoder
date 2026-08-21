@@ -44,8 +44,16 @@ jobs:
     timeout-minutes: 180
 
     steps:
+      - name: Prefer HTTPS for GitHub submodules
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Ensure DeepSeek Harness checkout
+        run: bash ./scripts/ensure-deepseek-harness.sh checkout-only
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -55,6 +63,20 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             build/package-lock.json
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Cache DeepSeek Harness
+        uses: actions/cache@v4
+        with:
+          path: third_party/deepseek-harness/node_modules
+          key: dsh-node-modules-${{ runner.os }}-${{ hashFiles('third_party/deepseek-harness/pnpm-lock.yaml') }}
+          restore-keys: |
+            dsh-node-modules-${{ runner.os }}-
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -126,8 +148,16 @@ jobs:
         shell: bash
 
     steps:
+      - name: Prefer HTTPS for GitHub submodules
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Ensure DeepSeek Harness checkout
+        run: bash ./scripts/ensure-deepseek-harness.sh checkout-only
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -137,6 +167,20 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             build/package-lock.json
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Cache DeepSeek Harness
+        uses: actions/cache@v4
+        with:
+          path: third_party/deepseek-harness/node_modules
+          key: dsh-node-modules-${{ runner.os }}-${{ hashFiles('third_party/deepseek-harness/pnpm-lock.yaml') }}
+          restore-keys: |
+            dsh-node-modules-${{ runner.os }}-
 
       - name: Setup Python
         uses: actions/setup-python@v5

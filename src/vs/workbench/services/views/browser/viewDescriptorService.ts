@@ -352,7 +352,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number, reason?: string): void {
-		if (!this.canMoveViews()) {
+		if (!this.canMoveViews() || viewContainer.canMove === false) {
 			return;
 		}
 		this.logger.value.trace(`moveViewContainerToLocation: viewContainer:${viewContainer.id} location:${location} reason:${reason}`);
@@ -370,7 +370,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation, reason?: string): void {
-		if (!this.canMoveViews()) {
+		if (!this.canMoveViews() || view.canMoveView === false) {
 			return;
 		}
 		this.logger.value.trace(`moveViewToLocation: view:${view.id} location:${location} reason:${reason}`);

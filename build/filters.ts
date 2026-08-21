@@ -28,6 +28,7 @@ export const all = Object.freeze<string[]>([
 	'!test/**/out/**',
 	'!**/node_modules/**',
 	'!**/*.js.map',
+	'!third_party/**',
 ]);
 
 export const unicodeFilter = Object.freeze<string[]>([

@@ -10,6 +10,9 @@ export npm_config_foreground_scripts="${npm_config_foreground_scripts:-true}"
 
 echo "Building KnoxCoder for Windows (${VSCODE_ARCH})..."
 
+echo "Preparing DeepSeek Harness (clone submodule, pnpm install, build)..."
+bash "$ROOT/scripts/ensure-deepseek-harness.sh"
+
 # patchWin32DependenciesTask uses signtool from the Windows SDK when stripping signatures.
 SDK_BIN=""
 for candidate in /c/Program\ Files\ \(x86\)/Windows\ Kits/10/bin/*/x64; do
@@ -82,6 +85,13 @@ npm run gulp core-ci
 echo "Packaging desktop app..."
 npm run gulp "vscode-win32-${VSCODE_ARCH}-min-ci"
 npm run gulp "vscode-win32-${VSCODE_ARCH}-inno-updater"
+
+DSH_BIN="$(dirname "$ROOT")/VSCode-win32-${VSCODE_ARCH}/resources/app/third_party/deepseek-harness/apps/cli/lib/bin.js"
+if [ ! -f "$DSH_BIN" ]; then
+	echo "Packaged DeepSeek Harness is missing at $DSH_BIN" >&2
+	exit 1
+fi
+echo "Bundled DeepSeek Harness: $DSH_BIN"
 
 # Build the CLI (tunnel binary) and place it next to the desktop app, like the
 # upstream "Move VS Code CLI" step, so the archive and installers include it.

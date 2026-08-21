@@ -53,3 +53,7 @@ dist
 .v[0-9]*/
 # Local agent validation evidence
 .agent-validation/
+
+# DeepSeek Harness is a git submodule cloned via .gitmodules. Never vendor
+# its working tree, node_modules, or build output in this repository.
+/third_party/deepseek-harness/**

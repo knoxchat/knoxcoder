@@ -586,6 +586,10 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 			}
 		}));
 
+		if (this.dndHandler.canDrag && !this.dndHandler.canDrag(this.compositeBarActionItem.id)) {
+			this.container.draggable = false;
+		}
+
 		// Activate on drag over to reveal targets
 		[this.badge, this.label].forEach(element => this._register(new DelayedDragHandler(element, () => {
 			if (!this.action.checked) {

@@ -892,7 +892,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 
 		if (this.viewDescriptorService.canMoveViews()) {
 
-			if (pane.draggableElement) {
+			if (pane.draggableElement && this.viewDescriptorService.getViewDescriptorById(pane.id)?.canMoveView !== false) {
 				store.add(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, () => { return { type: 'view', id: pane.id }; }, {}));
 			}
 

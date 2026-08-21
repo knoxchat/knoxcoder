@@ -5,12 +5,44 @@
 
 import fs from 'fs';
 import path from 'path';
+import childProcess from 'node:child_process';
 import { sign, type SignOptions } from '@electron/osx-sign';
 import { spawn } from '@malept/cross-spawn-promise';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 const baseDir = path.dirname(import.meta.dirname);
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+
+// @electron/osx-sign buffers `codesign --verify --deep --verbose=2`. Bundling
+// DeepSeek Harness makes that output larger than Node's default 1MB maxBuffer.
+const CODESIGN_MAX_BUFFER_BYTES = 512 * 1024 * 1024;
+
+function installCodesignMaxBufferPatch(): void {
+	const originalExecFile = childProcess.execFile.bind(childProcess);
+	childProcess.execFile = function (file: string, ...rest: unknown[]) {
+		if (file === 'codesign') {
+			let patched = false;
+			for (let i = 0; i < rest.length; i++) {
+				const arg = rest[i];
+				if (arg && typeof arg === 'object' && !Array.isArray(arg)) {
+					rest[i] = { ...(arg as object), maxBuffer: CODESIGN_MAX_BUFFER_BYTES };
+					patched = true;
+					break;
+				}
+			}
+			if (!patched) {
+				const callbackIndex = rest.findIndex(arg => typeof arg === 'function');
+				const options = { maxBuffer: CODESIGN_MAX_BUFFER_BYTES };
+				if (callbackIndex >= 0) {
+					rest.splice(callbackIndex, 0, options);
+				} else {
+					rest.push(options);
+				}
+			}
+		}
+		return originalExecFile(file, ...rest as Parameters<typeof originalExecFile>);
+	} as typeof childProcess.execFile;
+}
 
 function getElectronVersion(): string {
 	const npmrc = fs.readFileSync(path.join(root, '.npmrc'), 'utf8');
@@ -104,6 +136,8 @@ async function main(buildDir?: string): Promise<void> {
 	if (!identity) {
 		throw new Error('$CODESIGN_IDENTITY or $APPLE_SIGNING_IDENTITY not set');
 	}
+
+	installCodesignMaxBufferPatch();
 
 	const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
 	const appName = product.nameLong + '.app';

@@ -9,6 +9,9 @@ export npm_config_arch="${npm_config_arch:-x64}"
 
 echo "Building KnoxCoder for Linux (${VSCODE_ARCH})..."
 
+echo "Preparing DeepSeek Harness (clone submodule, pnpm install, build)..."
+bash "$ROOT/scripts/ensure-deepseek-harness.sh"
+
 if [ "${NODE_MODULES_RESTORED:-}" = "true" ]; then
 	echo "Skipping npm ci — node_modules restored from cache"
 else
@@ -84,6 +87,13 @@ npm run gulp core-ci
 
 echo "Packaging desktop app..."
 npm run gulp "vscode-linux-${VSCODE_ARCH}-min-ci"
+
+DSH_BIN="$(dirname "$ROOT")/VSCode-linux-${VSCODE_ARCH}/resources/app/third_party/deepseek-harness/apps/cli/lib/bin.js"
+if [ ! -f "$DSH_BIN" ]; then
+	echo "Packaged DeepSeek Harness is missing at $DSH_BIN" >&2
+	exit 1
+fi
+echo "Bundled DeepSeek Harness: $DSH_BIN"
 
 # Build the CLI (tunnel binary) and place it next to the desktop app, like the
 # upstream "Mix in CLI" step. The deb dependency generator requires it.

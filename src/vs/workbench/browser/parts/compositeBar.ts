@@ -49,6 +49,9 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 		if (dragData.type === 'composite') {
 			const currentContainer = this.viewDescriptorService.getViewContainerById(dragData.id)!;
+			if (currentContainer.canMove === false) {
+				return;
+			}
 			const currentLocation = this.viewDescriptorService.getViewContainerLocation(currentContainer);
 			let moved = false;
 
@@ -106,6 +109,11 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 		return items.filter(item => item.visible).findIndex(item => item.id === targetId) + (before ? 0 : 1);
 	}
 
+	canDrag(id: string): boolean {
+		const container = this.viewDescriptorService.getViewContainerById(id);
+		return container?.canMove !== false;
+	}
+
 	private canDrop(data: CompositeDragAndDropData, targetCompositeId: string | undefined): boolean {
 		const dragData = data.getData();
 
@@ -113,6 +121,9 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 			// Dragging a composite
 			const currentContainer = this.viewDescriptorService.getViewContainerById(dragData.id)!;
+			if (currentContainer.canMove === false) {
+				return false;
+			}
 			const currentLocation = this.viewDescriptorService.getViewContainerLocation(currentContainer);
 
 			// ... to the same composite location

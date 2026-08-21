@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
 # macOS production build: compile, sign, create DMG, and optionally notarize.
+# The gulp packaging step bundles DeepSeek Harness. ./scripts/ensure-deepseek-harness.sh
+# clones the submodule, runs pnpm install, and builds the CLI automatically.
 # Configuration is loaded from .env.signing in the repo root.
 #
 # Usage:
@@ -171,7 +173,7 @@ verify_dmg_app() {
 	fi
 
 	echo ">>> Verifying app inside DMG..."
-	if ! codesign --verify --deep --strict --verbose=2 "$mounted_app"; then
+	if ! codesign --verify --deep --strict "$mounted_app"; then
 		hdiutil detach "$mount_point" >/dev/null 2>&1 || true
 		echo "The DMG contains an invalid app copy. Delete the DMG and retry after freeing disk space."
 		exit 1
@@ -190,7 +192,8 @@ verify_dmg_app() {
 
 verify_app_signature() {
 	echo ">>> Verifying app signature..."
-	codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+	# Avoid --verbose=2: the bundled DeepSeek Harness tree makes that output huge.
+	codesign --verify --deep --strict "$APP_PATH"
 }
 
 verify_app_notarization() {
@@ -244,6 +247,9 @@ echo "  Notarize:        $(should_notarize && echo yes || echo no)"
 echo
 
 if [[ "$SKIP_BUILD" == "false" ]]; then
+	echo ">>> Preparing DeepSeek Harness (clone submodule, pnpm install, build)..."
+	bash "$ROOT/scripts/ensure-deepseek-harness.sh"
+
 	echo ">>> Building production app ($GULP_TASK)..."
 	echo "    This can take 20-40 minutes on the first run."
 	echo
@@ -254,6 +260,19 @@ if [[ ! -d "$APP_PATH" ]]; then
 	echo "App bundle not found at:"
 	echo "  $APP_PATH"
 	exit 1
+fi
+
+APP_RESOURCES="$APP_PATH/Contents/Resources/app"
+if [[ "$DMG_ONLY" == "false" ]]; then
+	echo ">>> Copying DeepSeek Harness into the app bundle..."
+	node --experimental-strip-types --no-warnings "$ROOT/build/lib/deepseekHarness.ts" copy "$APP_RESOURCES"
+	DSH_BIN="$APP_RESOURCES/third_party/deepseek-harness/apps/cli/lib/bin.js"
+	if [[ ! -f "$DSH_BIN" ]]; then
+		echo "Packaged DeepSeek Harness is missing at:"
+		echo "  $DSH_BIN"
+		exit 1
+	fi
+	echo ">>> Bundled DeepSeek Harness: $DSH_BIN"
 fi
 
 if [[ "$SKIP_SIGN" == "false" ]]; then

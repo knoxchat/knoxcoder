@@ -289,6 +289,9 @@ import './contrib/relauncher/browser/relauncher.contribution.js';
 // Modern UI (experimental)
 import './contrib/modernUI/browser/modernUI.contribution.js';
 
+// DeepSeek Harness
+import './contrib/deepseekHarness/browser/deepseekHarness.contribution.js';
+
 // Tasks
 import './contrib/tasks/browser/task.contribution.js';
 

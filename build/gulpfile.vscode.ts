@@ -35,10 +35,30 @@ import globCallback from 'glob';
 import { rcedit } from 'rcedit';
 import { spawnTsgo } from './lib/tsgo.ts';
 import { runEsbuildTranspile, runEsbuildBundle } from './lib/esbuild.ts';
+import { buildDeepSeekHarness, copyDeepSeekHarnessToAppRoot } from './lib/deepseekHarness.ts';
 
 const glob = promisify(globCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
+
+const compileDeepSeekHarnessTask = task.define('compile-deepseek-harness', () => buildDeepSeekHarness());
+task.task(compileDeepSeekHarnessTask);
+
+function copyDeepSeekHarnessTask(destinationFolderName: string, platform: string): task.Task {
+	const copyTask = async () => {
+		const destination = path.join(path.dirname(root), destinationFolderName);
+		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
+		const appRoot = platform === 'darwin'
+			? path.join(destination, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
+			: versionedResourcesFolder
+				? path.join(destination, versionedResourcesFolder, 'resources', 'app')
+				: path.join(destination, 'resources', 'app');
+		await copyDeepSeekHarnessToAppRoot(appRoot);
+	};
+	copyTask.taskName = `copy-deepseek-harness-${platform}-${destinationFolderName}`;
+	return copyTask;
+}
+
 const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8')) as {
 	readonly packages?: Readonly<Record<string, { readonly version?: string }>>;
 };
@@ -586,7 +606,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 		const deps = (await Promise.all([
 			// Skip multi-arch npm prebuilds (e.g. foundry-local-sdk): rcedit can only
 			// load PE binaries and fails hard on Mach-O / ELF .node files.
-			glob('**/*.node', { cwd, ignore: ['extensions/node_modules/@parcel/watcher/**', '**/prebuilds/**'] }),
+			glob('**/*.node', { cwd, ignore: ['extensions/node_modules/@parcel/watcher/**', '**/prebuilds/**', '**/third_party/deepseek-harness/**'] }),
 			glob('**/rg.exe', { cwd }),
 			glob('**/tgrep.exe', { cwd }),
 			glob('**/*explorer_command*.dll', { cwd }),
@@ -641,9 +661,10 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
 		const packageTasks: task.Task[] = [
-			compileNativeExtensionsBuildTask,
+			task.parallel(compileDeepSeekHarnessTask, compileNativeExtensionsBuildTask),
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts),
+			copyDeepSeekHarnessTask(destinationFolderName, platform),
 		];
 
 		if (platform === 'win32') {

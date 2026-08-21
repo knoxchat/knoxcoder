@@ -89,6 +89,7 @@ import '../platform/extensionManagement/electron-browser/extensionsProfileScanne
 import '../platform/sandbox/electron-browser/sandboxHelperService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
 import './services/process/electron-browser/processService.js';
+import '../platform/deepseekHarness/electron-browser/deepseekHarnessService.js';
 import './services/power/electron-browser/powerService.js';
 
 import { registerSingleton } from '../platform/instantiation/common/extensions.js';

@@ -210,6 +210,17 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private onDidOpen(composite: IComposite): void {
 		this.activePaneContextKey.set(composite.getId());
+		this.updateTitleDrag();
+	}
+
+	private updateTitleDrag(): void {
+		if (!this.titleLabelElement) {
+			return;
+		}
+
+		const active = this.getActivePaneComposite();
+		const container = active ? this.viewDescriptorService.getViewContainerById(active.getId()) : undefined;
+		this.titleLabelElement.draggable = this.viewDescriptorService.canMoveViews() && container?.canMove !== false;
 	}
 
 	private onDidClose(composite: IComposite): void {
@@ -369,12 +380,13 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.titleContainer = parent;
 
 		const titleLabel = super.createTitleLabel(parent);
-		this.titleLabelElement!.draggable = this.viewDescriptorService.canMoveViews();
+		this.updateTitleDrag();
 		const draggedItemProvider = (): { type: 'view' | 'composite'; id: string } => {
 			const activeViewlet = this.getActivePaneComposite()!;
 			return { type: 'composite', id: activeViewlet.getId() };
 		};
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
+		this.updateTitleDrag();
 
 		return titleLabel;
 	}
