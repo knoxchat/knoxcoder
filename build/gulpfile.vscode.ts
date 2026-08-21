@@ -39,6 +39,18 @@ import { runEsbuildTranspile, runEsbuildBundle } from './lib/esbuild.ts';
 const glob = promisify(globCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
+const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8')) as {
+	readonly packages?: Readonly<Record<string, { readonly version?: string }>>;
+};
+
+function getLockedPackageVersion(packageName: string): string {
+	const version = packageLock.packages?.[`node_modules/${packageName}`]?.version;
+	if (!version) {
+		throw new Error(`Package ${packageName} is missing a version in package-lock.json.`);
+	}
+
+	return version;
+}
 
 // Build
 const vscodeEntryPoints = [

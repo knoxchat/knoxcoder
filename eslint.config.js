@@ -3,20 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
+import { fixupPluginRules } from '@eslint/compat';
 import { defineConfig } from 'eslint/config';
 import fs from 'fs';
 import { builtinModules } from 'module';
 import path from 'path';
 import tseslint from 'typescript-eslint';
 
-import stylisticTs from '@stylistic/eslint-plugin-ts';
+import stylistic from '@stylistic/eslint-plugin';
 import * as pluginLocal from './.eslint-plugin-local/index.ts';
-import * as pluginCopilotLocal from './extensions/copilot/.eslintplugin/index.ts';
 import pluginImport from 'eslint-plugin-import';
 import pluginJsdoc from 'eslint-plugin-jsdoc';
 
 import pluginHeader from 'eslint-plugin-header';
 pluginHeader.rules.header.meta.schema = false;
+
+const pluginCopilotLocal = { rules: {} };
 
 const ignores = fs.readFileSync(path.join(import.meta.dirname, '.eslint-ignore'), 'utf8')
 	.toString()
@@ -44,7 +46,7 @@ export default defineConfig(
 		},
 		plugins: {
 			'local': pluginLocal,
-			'header': pluginHeader,
+			'header': fixupPluginRules(/** @type {any} */ (pluginHeader)),
 		},
 		rules: {
 			'constructor-super': 'warn',
@@ -152,7 +154,7 @@ export default defineConfig(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'@stylistic/ts': stylisticTs,
+			'@stylistic': stylistic,
 			'@typescript-eslint': tseslint.plugin,
 			'local': pluginLocal,
 			'jsdoc': pluginJsdoc,
@@ -160,8 +162,8 @@ export default defineConfig(
 		rules: {
 			// Disable built-in semi rules in favor of stylistic
 			'semi': 'off',
-			'@stylistic/ts/semi': 'warn',
-			'@stylistic/ts/member-delimiter-style': 'warn',
+			'@stylistic/semi': 'warn',
+			'@stylistic/member-delimiter-style': 'warn',
 			'local/code-no-unused-expressions': [
 				'warn',
 				{
@@ -1563,7 +1565,6 @@ export default defineConfig(
 						'stream',
 						'string_decoder',
 						'tar',
-						'tas-client',
 						'tls',
 						'undici',
 						'undici-types',
@@ -1654,9 +1655,6 @@ export default defineConfig(
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
-						'tas-client', // node module allowed even in /common/
-						'@microsoft/1ds-core-js', // node module allowed even in /common/
-						'@microsoft/1ds-post-js', // node module allowed even in /common/
 						'@xterm/headless', // node module allowed even in /common/
 					]
 				},
@@ -1773,7 +1771,6 @@ export default defineConfig(
 							'when': 'test',
 							'pattern': 'vs/workbench/contrib/*/~'
 						}, // TODO@layers
-						'tas-client', // node module allowed even in /common/
 						'vscode-textmate', // node module allowed even in /common/
 						'@vscode/vscode-languagedetection', // node module allowed even in /common/
 						'@vscode/tree-sitter-wasm', // type import
@@ -2198,7 +2195,6 @@ export default defineConfig(
 							'when': 'test',
 							'pattern': 'vs/workbench/contrib/*/~'
 						}, // TODO@layers
-						'tas-client', // node module allowed even in /common/
 						'vscode-textmate', // node module allowed even in /common/
 						'@vscode/vscode-languagedetection', // node module allowed even in /common/
 						'@vscode/tree-sitter-wasm', // type import
@@ -2491,7 +2487,7 @@ export default defineConfig(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'import': pluginImport,
+			'import': fixupPluginRules(pluginImport),
 			'copilot-local': pluginCopilotLocal,
 		},
 		rules: {

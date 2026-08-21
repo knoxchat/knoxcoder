@@ -112,6 +112,9 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+  - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+    displayName: Verify native optional dependency binaries
+
   - script: node build/azure-pipelines/distro/mixin-npm.ts
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Mixin distro node modules
@@ -164,9 +167,6 @@ steps:
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Compile
-
-  - script: node build/azure-pipelines/common/extract-telemetry.ts
-    displayName: Generate lists of telemetry events
 
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - script: |

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as tas from 'vscode-tas-client';
 
-export interface IExperimentationTelemetryReporter extends tas.IExperimentationTelemetry, vscode.Disposable {
+export interface IExperimentationTelemetryReporter extends vscode.Disposable {
+	setSharedProperty(name: string, value: string): void;
+	postEvent(eventName: string, props: Map<string, string>): void;
 	postEventObj(eventName: string, props: { [prop: string]: string }): void;
 }
 

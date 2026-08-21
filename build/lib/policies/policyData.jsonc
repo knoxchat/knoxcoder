@@ -187,8 +187,7 @@
             "default": true,
             "included": true,
             "referencedSettings": [
-                "github.copilot.chat.claudeAgent.enabled",
-                "sessions.chat.claudeAgent.enabled"
+                "github.copilot.chat.claudeAgent.enabled"
             ]
         },
         {
@@ -435,6 +434,21 @@
             },
             "type": "string",
             "default": "",
+            "included": true
+        },
+        {
+            "key": "chat.editor.preferCopilotHarness",
+            "name": "ChatEditorPreferCopilotHarness",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.134",
+            "localization": {
+                "description": {
+                    "key": "chat.editor.preferCopilotHarness.policy",
+                    "value": "Configure whether VS Code uses the Agent Host Copilot SDK instead of the local harness for new editor chat sessions."
+                }
+            },
+            "type": "boolean",
+            "default": false,
             "included": true
         },
         {
@@ -776,7 +790,7 @@
                 }
             },
             "type": "number",
-            "default": 2,
+            "default": 12,
             "included": true
         },
         {
@@ -867,45 +881,6 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
-        },
-        {
-            "key": "telemetry.telemetryLevel",
-            "name": "TelemetryLevel",
-            "category": "Telemetry",
-            "minimumVersion": "1.99",
-            "localization": {
-                "description": {
-                    "key": "telemetry.telemetryLevel.policyDescription",
-                    "value": "Controls the level of telemetry."
-                },
-                "enumDescriptions": [
-                    {
-                        "key": "telemetry.telemetryLevel.default",
-                        "value": "Sends usage data, errors, and crash reports."
-                    },
-                    {
-                        "key": "telemetry.telemetryLevel.error",
-                        "value": "Sends general error telemetry and crash reports."
-                    },
-                    {
-                        "key": "telemetry.telemetryLevel.crash",
-                        "value": "Sends OS level crash reports."
-                    },
-                    {
-                        "key": "telemetry.telemetryLevel.off",
-                        "value": "Disables all product telemetry."
-                    }
-                ]
-            },
-            "type": "string",
-            "default": "all",
-            "enum": [
-                "all",
-                "error",
-                "crash",
-                "off"
-            ],
             "included": true
         },
         {

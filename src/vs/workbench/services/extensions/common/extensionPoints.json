@@ -16,6 +16,7 @@
 	"jsonValidation",
 	"keybindings",
 	"languages",
+	"linkPresentationProviders",
 	"localizations",
 	"menus",
 	"notebookPreload",

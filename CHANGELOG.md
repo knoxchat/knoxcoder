@@ -2,6 +2,29 @@
 
 All notable changes to KnoxCoder are documented in this file.
 
+## [1.134.0] - 2026-08-21
+
+### Changed
+
+- **Upgrade to VS Code 1.134.0**
+  Merged upstream `microsoft/vscode` 1.134.0 while preserving Knox branding, Open VSX gallery, native TypeScript tooling, and Knox-specific customizations (no Copilot/chat/agent-host surfaces).
+
+- Bumped product version to **1.134.0** (`package.json` / related product metadata).
+
+- Adopted VS Code 1.134 Modern UI (`contrib/modernUI`), including Knox shell and scroll-shadow styles previously kept under `styleOverrides`.
+
+- Enabled the 1.134 incremental `build-fast` pipeline, skipping Copilot compile when that extension is not present.
+
+### Files touched in this release
+
+| Path | Action |
+|------|--------|
+| Upstream VS Code 1.134.0 merge surface | Updated |
+| `package.json` / `package-lock.json` | Modified (version 1.134.0, Knox toolchain preserved) |
+| `src/vs/workbench/contrib/modernUI/**` | Added/updated (Knox CSS ported from styleOverrides) |
+| `src/vs/workbench/contrib/styleOverrides/**` | Removed (renamed upstream to modernUI) |
+| `CHANGELOG.md` | Modified |
+
 ## [1.132.0] - 2026-08-08
 
 ### Changed

@@ -48,6 +48,7 @@ use super::code_server::{
 	SocketCodeServer,
 };
 use super::dev_tunnels::ActiveTunnel;
+use super::machine_status;
 use super::paths::prune_stopped_servers;
 use super::port_forwarder::{PortForwarding, PortForwardingProcessor};
 use super::protocol::{
@@ -168,6 +169,19 @@ async fn preload_extensions(
 	sb.install_extensions().await
 }
 
+/// Options controlling how a tunnel serves the agent host, all supplied by the
+/// editor that started the tunnel.
+#[derive(Clone, Debug, Default)]
+pub struct AgentHostServeOptions {
+	/// Overrides the user data directory whose agent-host endpoint registry the
+	/// selection gateway reads. `None` uses the platform default.
+	pub user_data_dir: Option<String>,
+	/// Serves only the agent-host port, without the control port.
+	pub agent_host_only: bool,
+	/// Pins the selection gateway to the live editor agent host.
+	pub delegate_to_editor: bool,
+}
+
 // Runs the launcher server. Exits on a ctrl+c or when requested by a user.
 // Note that client connections may not be closed when this returns; use
 // `close_all_clients()` on the ServerTermination to make this happen.
@@ -177,6 +191,7 @@ pub async fn serve(
 	launcher_paths: &LauncherPaths,
 	code_server_args: &CodeServerArgs,
 	platform: Platform,
+	agent_host_options: AgentHostServeOptions,
 	mut shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<ServerTermination, AnyError> {
 	let mut port = tunnel.add_port_direct(CONTROL_PORT).await?;
@@ -205,6 +220,8 @@ pub async fn serve(
 			}
 		});
 	}
+
+	machine_status::emit_connected(&tunnel.name, Some(&tunnel.id), false, !agent_host_only);
 
 	loop {
 		tokio::select! {

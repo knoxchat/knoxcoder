@@ -108,12 +108,16 @@ export const EditSources = {
 		mode: string | undefined;
 		extensionId: VersionedExtensionId | undefined;
 		codeBlockSuggestionId: EditSuggestionId | undefined;
+		origin?: 'agentHost';
+		harness?: string;
 	}) {
 		return createEditSource({
 			source: 'assist.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
+			$harness: data.harness,
+			$origin: data.origin,
 			$$languageId: data.languageId,
 			$$sessionId: data.sessionId,
 			$$requestId: data.requestId,

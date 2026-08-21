@@ -1,0 +1,147 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) KnoxCoder contributors. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * KnoxCoder enterprise shell polish.
+ *
+ * Applied with the other Modern UI modules when `.modern-ui` is present.
+ * Keeps the editor surface on One Dark Pro; only chrome around it is refined.
+ */
+
+/* Deep window plane so floating cards read as elevated surfaces. */
+.modern-ui.monaco-workbench {
+	--knox-shell-accent: color-mix(in srgb, var(--vscode-focusBorder, #5b8def) 85%, transparent);
+	--knox-shell-hairline: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	--knox-shell-elevated: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
+}
+
+/* Title bar: quiet, flush chrome with no heavy fill bands. */
+.modern-ui.monaco-workbench .part.titlebar {
+	background-color: transparent !important;
+	box-shadow: none !important;
+}
+
+.modern-ui.monaco-workbench .part.titlebar .window-title {
+	letter-spacing: 0.01em;
+}
+
+/* Activity bar: icon rail that blends into the window, not a solid strip. */
+.modern-ui.monaco-workbench .part.activitybar {
+	background-color: transparent !important;
+	border: none !important;
+	box-shadow: none !important;
+}
+
+.modern-ui .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+}
+
+/*
+ * Drop the vertical seam from the side activity-bar rail. When Modern UI floating
+ * cards are on, leave sidebar/panel borders to floatingPanels.css so cards keep
+ * their hairline frame.
+ */
+.modern-ui.monaco-workbench .part.activitybar {
+	border-color: transparent !important;
+	outline: none !important;
+}
+
+.modern-ui.monaco-workbench:not(.floating-panels) .part.sidebar {
+	border-left: none !important;
+	border-right: none !important;
+	border-color: transparent !important;
+}
+
+/* When the activity bar sits in the sidebar header, no hairline under the icons. */
+.modern-ui.monaco-workbench .part.sidebar > .header,
+.modern-ui.monaco-workbench .part.auxiliarybar > .header,
+.modern-ui.monaco-workbench .pane-composite-part:not(.empty) > .header {
+	border-bottom: none !important;
+}
+
+/* Sidebar / panel titles: quieter enterprise hierarchy. */
+.modern-ui.monaco-workbench .part.sidebar > .title,
+.modern-ui.monaco-workbench .part.auxiliarybar > .title,
+.modern-ui.monaco-workbench .part.panel > .title {
+	border-bottom: 1px solid var(--knox-shell-hairline) !important;
+}
+
+.modern-ui.monaco-workbench .part > .title > .title-label h2,
+.modern-ui .monaco-pane-view .pane > .pane-header .title {
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	letter-spacing: 0.02em;
+	text-transform: none;
+}
+
+/* Explorer / list rows: soft selection chips, not flat VS Code bars. */
+.modern-ui .monaco-list .monaco-list-row.selected,
+.modern-ui .monaco-list .monaco-list-row.focused,
+.modern-ui .monaco-list .monaco-list-row:hover {
+	border-radius: var(--vscode-cornerRadius-small, 4px) !important;
+}
+
+/* Status bar: compact professional footer on the window plane. */
+.modern-ui.monaco-workbench .part.statusbar {
+	background-color: transparent !important;
+	border-top: 1px solid var(--knox-shell-hairline) !important;
+	box-shadow: none !important;
+}
+
+.modern-ui .part.statusbar > .items-container > .statusbar-item {
+	font-size: 12px;
+}
+
+/* Command center: restrained resting state, clear hover affordance. */
+.modern-ui.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
+	border: 1px solid transparent !important;
+	border-radius: var(--vscode-cornerRadius-medium, 6px) !important;
+	transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.modern-ui.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover {
+	background-color: var(--knox-shell-elevated) !important;
+	border-color: var(--knox-shell-hairline) !important;
+}
+
+/* Quick input / overlays: slightly stronger elevation for enterprise modals. */
+.modern-ui .quick-input-widget {
+	border: 1px solid var(--knox-shell-hairline) !important;
+	box-shadow: var(--vscode-shadow-xl, 0 16px 48px rgba(0, 0, 0, 0.45)) !important;
+}
+
+.modern-ui .monaco-dialog-box {
+	border: 1px solid var(--knox-shell-hairline) !important;
+	box-shadow: var(--vscode-shadow-xl, 0 16px 48px rgba(0, 0, 0, 0.45)) !important;
+}
+
+/* Floating cards: hairline border + soft depth without neon glow. */
+.monaco-workbench.modern-ui.floating-panels .part.sidebar,
+.monaco-workbench.modern-ui.floating-panels .part.auxiliarybar,
+.monaco-workbench.modern-ui.floating-panels .part.panel,
+.monaco-workbench.modern-ui.floating-panels .part.editor {
+	box-shadow: 0 1px 0 color-mix(in srgb, var(--vscode-foreground) 4%, transparent),
+		0 8px 24px rgba(0, 0, 0, 0.22);
+}
+
+/* Editor card keeps One Dark Pro fill; only frame the chrome around it. */
+.modern-ui .monaco-grid-view .part.editor:not(.modal-editor-part) > .content {
+	background-color: var(--vscode-editor-background);
+}
+
+/* Empty editor watermark: quieter brand presence. */
+.modern-ui .editor-group-container .editor-group-watermark .letterpress {
+	opacity: 0.14;
+	filter: saturate(0.85);
+}
+
+/* Scrollbars: thinner enterprise track. */
+.modern-ui .monaco-scrollable-element > .scrollbar > .slider {
+	background: color-mix(in srgb, var(--vscode-foreground) 22%, transparent) !important;
+}
+
+.modern-ui .monaco-scrollable-element > .scrollbar > .slider:hover {
+	background: color-mix(in srgb, var(--vscode-foreground) 34%, transparent) !important;
+}

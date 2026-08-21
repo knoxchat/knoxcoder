@@ -211,10 +211,6 @@ export class TypeScriptServerSpawner {
 			args.push('--disableAutomaticTypingAcquisition');
 		}
 
-		if (kind === TsServerProcessKind.Semantic || kind === TsServerProcessKind.Main) {
-			args.push('--enableTelemetry');
-		}
-
 		if (cancellationPipeName) {
 			args.push('--cancellationPipeName', cancellationPipeName + '*');
 		}

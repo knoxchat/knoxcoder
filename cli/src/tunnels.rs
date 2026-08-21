@@ -15,6 +15,8 @@ pub mod singleton_server;
 
 mod challenge;
 mod control_server;
+pub mod idle_timeout;
+pub(crate) mod machine_status;
 mod nosleep;
 #[cfg(target_os = "linux")]
 mod nosleep_linux;
@@ -33,6 +35,7 @@ mod service_macos;
 #[cfg(target_os = "windows")]
 mod service_windows;
 mod socket_signal;
+pub mod user_data_path;
 mod wsl_detect;
 
 pub use control_server::{serve, serve_stream, AuthRequired, Next, ServeStreamParams};

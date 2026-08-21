@@ -11,7 +11,7 @@ import { InMemoryDocument } from './inMemoryDocument';
 import { ResourceMap } from '../util/resourceMap';
 
 /**
- * Provides set of markdown files known to KnoxCoder.
+ * Provides set of markdown files known to VS Code.
  *
  * This includes both opened text documents and markdown files in the workspace.
  */

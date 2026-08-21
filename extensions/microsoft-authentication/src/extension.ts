@@ -54,7 +54,7 @@ async function initMicrosoftSovereignCloudAuthProvider(
 
 	const authProvider = await MsalAuthProvider.create(
 		context,
-		new MicrosoftSovereignCloudAuthenticationTelemetryReporter(context.extension.packageJSON.aiKey),
+		new MicrosoftSovereignCloudAuthenticationTelemetryReporter(),
 		window.createOutputChannel(l10n.t('Microsoft Sovereign Cloud Authentication'), { log: true }),
 		uriHandler,
 		env
@@ -70,7 +70,7 @@ async function initMicrosoftSovereignCloudAuthProvider(
 }
 
 export async function activate(context: ExtensionContext) {
-	const mainTelemetryReporter = new MicrosoftAuthenticationTelemetryReporter(context.extension.packageJSON.aiKey);
+	const mainTelemetryReporter = new MicrosoftAuthenticationTelemetryReporter();
 	implementation = getImplementation();
 	context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
 		if (!e.affectsConfiguration('microsoft-authentication')) {

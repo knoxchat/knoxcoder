@@ -66,6 +66,16 @@ pub const QUALITYLESS_PRODUCT_NAME: &str = match option_env!("VSCODE_CLI_QUALITY
 	None => "Code",
 };
 
+/// Short product name, mirroring `product.json`'s `nameShort` (e.g. `Code -
+/// OSS`, `Visual Studio Code`). Used as the leaf directory name when
+/// resolving the platform user data directory, matching the TypeScript
+/// resolver in `src/vs/platform/environment/node/userDataPath.ts` (which is
+/// passed `product.nameShort`).
+pub const PRODUCT_NAME_SHORT: &str = match option_env!("VSCODE_CLI_NAME_SHORT") {
+	Some(n) => n,
+	None => "Code - OSS",
+};
+
 /// Name of the application without quality information.
 pub const QUALITYLESS_SERVER_NAME: &str = concatcp!(QUALITYLESS_PRODUCT_NAME, " Server");
 
@@ -144,3 +154,15 @@ pub static IS_INTERACTIVE_CLI: LazyLock<bool> =
 pub static WIN32_APP_IDS: LazyLock<Option<Vec<String>>> = LazyLock::new(|| {
 	option_env!("VSCODE_CLI_WIN32_APP_IDS").map(|s| s.split(',').map(|s| s.to_string()).collect())
 });
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn protocol_version_tag_matches_bumped_version() {
+		assert_eq!(PROTOCOL_VERSION, 6);
+		assert_eq!(PROTOCOL_VERSION_TAG, "protocolv6");
+		assert!(PROTOCOL_VERSION_TAG.starts_with(PROTOCOL_VERSION_TAG_PREFIX));
+	}
+}

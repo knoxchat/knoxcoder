@@ -17,11 +17,8 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isDebuggerMainContribution } from './debugUtils.js';
 import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { ITelemetryEndpoint } from '../../../../platform/telemetry/common/telemetry.js';
-import { cleanRemoteAuthority } from '../../../../platform/telemetry/common/telemetryUtils.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { filter } from '../../../../base/common/objects.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class Debugger implements IDebugger, IDebuggerMetadata {
@@ -40,10 +37,8 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		this.debuggerContribution = { type: dbgContribution.type };
@@ -225,17 +220,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 	}
 
 	getCustomTelemetryEndpoint(): ITelemetryEndpoint | undefined {
-		const aiKey = this.debuggerContribution.aiKey;
-		if (!aiKey) {
-			return undefined;
-		}
-
-		const sendErrorTelemtry = cleanRemoteAuthority(this.environmentService.remoteAuthority, this.productService) !== 'other';
-		return {
-			id: `${this.getMainExtensionDescriptor().publisher}.${this.type}`,
-			aiKey,
-			sendErrorTelemetry: sendErrorTelemtry
-		};
+		return undefined;
 	}
 
 	getSchemaAttributes(definitions: IJSONSchemaMap): IJSONSchema[] | null {

@@ -5,50 +5,13 @@
 
 import * as vscode from 'vscode';
 import { NoopTelemetryReporter } from './noopTelemetryReporter';
-import { getExperimentationService, IExperimentationService, IExperimentationTelemetry, TargetPopulation } from 'vscode-tas-client';
 
-export class ExperimentationTelemetry implements IExperimentationTelemetry {
+export class ExperimentationTelemetry {
 	private sharedProperties: Record<string, string> = {};
-	private experimentationServicePromise: Promise<IExperimentationService> | undefined;
 
-	constructor(private readonly context: vscode.ExtensionContext, private baseReporter: NoopTelemetryReporter) { }
+	constructor(_context: vscode.ExtensionContext, private baseReporter: NoopTelemetryReporter) { }
 
-	private async createExperimentationService(): Promise<IExperimentationService> {
-		let targetPopulation: TargetPopulation;
-		switch (vscode.env.uriScheme) {
-			case 'vscode':
-				targetPopulation = TargetPopulation.Public;
-				break;
-			case 'vscode-insiders':
-				targetPopulation = TargetPopulation.Insiders;
-				break;
-			case 'vscode-exploration':
-				targetPopulation = TargetPopulation.Internal;
-				break;
-			case 'code-oss':
-				targetPopulation = TargetPopulation.Team;
-				break;
-			default:
-				targetPopulation = TargetPopulation.Public;
-				break;
-		}
-
-		const id = this.context.extension.id;
-		const version = this.context.extension.packageJSON.version;
-		const experimentationService = getExperimentationService(id, version, targetPopulation, this, this.context.globalState);
-		await experimentationService.initialFetch;
-		return experimentationService;
-	}
-
-	/**
-	 * @returns A promise that you shouldn't need to await because this is just telemetry.
-	 */
 	async sendTelemetryEvent(eventName: string, properties?: Record<string, string>, measurements?: Record<string, number>) {
-		if (!this.experimentationServicePromise) {
-			this.experimentationServicePromise = this.createExperimentationService();
-		}
-		await this.experimentationServicePromise;
-
 		this.baseReporter.sendTelemetryEvent(
 			eventName,
 			{
@@ -59,19 +22,11 @@ export class ExperimentationTelemetry implements IExperimentationTelemetry {
 		);
 	}
 
-	/**
-	 * @returns A promise that you shouldn't need to await because this is just telemetry.
-	 */
 	async sendTelemetryErrorEvent(
 		eventName: string,
 		properties?: Record<string, string>,
 		_measurements?: Record<string, number>
 	) {
-		if (!this.experimentationServicePromise) {
-			this.experimentationServicePromise = this.createExperimentationService();
-		}
-		await this.experimentationServicePromise;
-
 		this.baseReporter.sendTelemetryErrorEvent(eventName, {
 			...this.sharedProperties,
 			...properties,

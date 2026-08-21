@@ -10,8 +10,8 @@ export interface TelemetryReporter {
 	}): void;
 }
 
-class NoopTelemetryReporter implements TelemetryReporter {
-	sendTelemetryEvent(): void { }
+export class NoopTelemetryReporter implements TelemetryReporter {
+	sendTelemetryEvent(_eventName?: string, _properties?: { [key: string]: string }): void { }
 	dispose(): void { }
 }
 

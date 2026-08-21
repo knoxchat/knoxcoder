@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AuthError } from '@azure/msal-node';
-import { IExperimentationTelemetry } from 'vscode-tas-client';
 
 export const enum MicrosoftAccountType {
 	AAD = 'aad',
@@ -18,11 +17,11 @@ class NoopTelemetryReporter {
 	dispose(): void { }
 }
 
-export class MicrosoftAuthenticationTelemetryReporter implements IExperimentationTelemetry {
+export class MicrosoftAuthenticationTelemetryReporter {
 	private sharedProperties: Record<string, string> = {};
 	protected _telemetryReporter = new NoopTelemetryReporter();
 
-	constructor(_aiKey: string) { }
+	constructor() { }
 
 	get telemetryReporter(): NoopTelemetryReporter {
 		return this._telemetryReporter;

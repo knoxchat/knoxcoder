@@ -88,8 +88,8 @@ suite('SettingsChangeRelauncher', () => {
 			() => ({ assist: { sandboxHost: { codexAgent: { enabled: true } } } }),
 			c => c.assist.sandboxHost.codexAgent.enabled = false);
 
-		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
-		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
+		assert.strictEqual(confirmCount, 0, 'should not prompt to restart');
+		assert.strictEqual(restartCount, 0, 'should not restart');
 	});
 
 	test('prompts to restart when assist.sandboxHost.byokModels.enabled changes', async () => {

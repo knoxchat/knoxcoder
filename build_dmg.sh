@@ -227,11 +227,10 @@ codesign_with_retry() {
 	done
 }
 
-# VS Code 1.132.0 requires Node.js v24.18.0+ (see .nvmrc)
 if [ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]; then
 	# shellcheck disable=SC1091
 	source "${NVM_DIR:-$HOME/.nvm}/nvm.sh"
-	nvm use 2>/dev/null || nvm use 24.18.0
+	nvm use 2>/dev/null || nvm use 24.19.0
 fi
 
 mkdir -p "$DIST_DIR"

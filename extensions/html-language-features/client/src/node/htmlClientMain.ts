@@ -65,7 +65,6 @@ export async function deactivate(): Promise<void> {
 interface IPackageInfo {
 	name: string;
 	version: string;
-	aiKey: string;
 	main: string;
 }
 
@@ -75,6 +74,6 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo {
 		return JSON.parse(fs.readFileSync(location).toString());
 	} catch (e) {
 		console.log(`Problems reading ${location}: ${e}`);
-		return { name: '', version: '', aiKey: '', main: '' };
+		return { name: '', version: '', main: '' };
 	}
 }

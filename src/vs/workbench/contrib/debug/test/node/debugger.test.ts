@@ -145,7 +145,7 @@ suite('Debug - Debugger', () => {
 	const testResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
 
 	setup(() => {
-		_debugger = new Debugger(adapterManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
+		_debugger = new Debugger(adapterManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!, undefined!);
 	});
 
 	teardown(() => {
@@ -213,7 +213,7 @@ suite('Debug - Debugger', () => {
 				}
 			}
 		};
-		const malformedDebugger = new Debugger(adapterManager, malformedContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!, undefined!, undefined!, logService);
+		const malformedDebugger = new Debugger(adapterManager, malformedContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!, logService);
 		const definitions: IJSONSchemaMap = { common: { properties: {} } };
 
 		const attributes = malformedDebugger.getSchemaAttributes(definitions);

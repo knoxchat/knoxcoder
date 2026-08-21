@@ -36,8 +36,7 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 		|| !!argv['install-extension']
 		|| !!argv['uninstall-extension']
 		|| !!argv['update-extensions']
-		|| !!argv['locate-extension']
-		|| !!argv['telemetry'];
+		|| !!argv['locate-extension'];
 }
 
 export async function main(argv: string[]): Promise<void> {
