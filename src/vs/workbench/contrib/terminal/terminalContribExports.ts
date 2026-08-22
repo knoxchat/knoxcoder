@@ -8,7 +8,6 @@ import { TerminalAccessibilityCommandId, defaultTerminalAccessibilityCommandsToS
 import { terminalAccessibilityConfiguration } from '../terminalContrib/accessibility/common/terminalAccessibilityConfiguration.js';
 import { terminalAutoRepliesConfiguration } from '../terminalContrib/autoReplies/common/terminalAutoRepliesConfiguration.js';
 import { terminalInitialHintConfiguration } from '../terminalContrib/inlineHint/common/terminalInitialHintConfiguration.js';
-import { AgentSandboxSettingId } from '../../../platform/sandbox/common/settings.js';
 import { terminalCommandGuideConfiguration } from '../terminalContrib/commandGuide/common/terminalCommandGuideConfiguration.js';
 import { TerminalDeveloperCommandId } from '../terminalContrib/developer/common/terminal.developer.js';
 import { defaultTerminalFindCommandToSkipShell } from '../terminalContrib/find/common/terminal.find.js';
@@ -35,15 +34,6 @@ export const enum TerminalContribCommandId {
 export const enum TerminalContribSettingId {
 	StickyScrollEnabled = TerminalStickyScrollSettingId.Enabled,
 	SuggestEnabled = TerminalSuggestSettingId.Enabled,
-	AgentSandboxEnabled = AgentSandboxSettingId.AgentSandboxEnabled,
-	AgentSandboxWindowsEnabled = AgentSandboxSettingId.AgentSandboxWindowsEnabled,
-	AgentSandboxAllowNetwork = AgentSandboxSettingId.AgentSandboxAllowNetwork,
-	AgentSandboxAllowUnsandboxedCommands = AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
-	AgentSandboxRetryWithAllowNetworkRequests = AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,
-	AgentSandboxAllowAutoApprove = AgentSandboxSettingId.AgentSandboxAllowAutoApprove,
-	AgentSandboxLinuxFileSystem = AgentSandboxSettingId.AgentSandboxLinuxFileSystem,
-	AgentSandboxMacFileSystem = AgentSandboxSettingId.AgentSandboxMacFileSystem,
-	AgentSandboxWindowsFileSystem = AgentSandboxSettingId.AgentSandboxWindowsFileSystem,
 }
 
 // Export configuration schemes from terminalContrib - this is an exception to the eslint rule since

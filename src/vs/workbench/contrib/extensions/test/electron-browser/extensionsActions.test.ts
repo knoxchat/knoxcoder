@@ -18,7 +18,6 @@ import { getGalleryExtensionId } from '../../../../../platform/extensionManageme
 import { TestExtensionEnablementService } from '../../../../services/extensionManagement/test/browser/extensionEnablementService.test.js';
 import { ExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionGalleryService.js';
 import { IURLService } from '../../../../../platform/url/common/url.js';
-import { ChatAIDisabledSettingId } from '../../../../../platform/configuration/common/aiFeaturesSettings.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IPager } from '../../../../../base/common/paging.js';
@@ -2548,49 +2547,6 @@ suite('LocalInstallAction', () => {
 
 });
 
-suite('EnableAIFeaturesInWorkspaceAction', () => {
-
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	setup(() => {
-		setupTest(disposables);
-		instantiationService.stub(IProductService, { defaultChatAgent: { chatExtensionId: 'GitHub.copilot-chat' } } as Partial<IProductService>);
-	});
-
-	test('test enable AI in workspace updates workspace setting when AI is disabled globally', async () => {
-		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-		configurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
-
-		let updatedValue: { key: string; value: unknown; target: unknown } | undefined;
-		const originalUpdateValue = configurationService.updateValue.bind(configurationService);
-		configurationService.updateValue = async (key: string, value: unknown, target?: any) => {
-			updatedValue = { key, value, target };
-			return originalUpdateValue(key, value);
-		};
-
-		const chatExtension = aLocalExtension('copilot-chat', { publisher: 'GitHub' }, { type: ExtensionType.System });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [chatExtension]);
-
-		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		await workbenchService.queryLocal();
-
-		const extensions = workbenchService.local;
-		const copilotChat = extensions.find(e => e.identifier.id === 'github.copilot-chat');
-		assert.ok(copilotChat);
-
-		const testObject: ExtensionsActions.EnableAIFeaturesInWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableAIFeaturesInWorkspaceAction));
-		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
-		testObject.extension = copilotChat;
-		assert.ok(testObject.enabled);
-
-		await testObject.run();
-
-		assert.ok(updatedValue, 'updateValue should have been called');
-		assert.strictEqual(updatedValue.key, ChatAIDisabledSettingId);
-		assert.strictEqual(updatedValue.value, false, 'workspace setting should be set to false');
-	});
-
-});
 
 function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
 	manifest = { name, publisher: 'pub', version: '1.0.0', ...manifest };

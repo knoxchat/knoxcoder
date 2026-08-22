@@ -77,8 +77,6 @@ import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cs
 import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
 import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestIPCService } from '../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
-import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannel } from '../../platform/sandbox/common/sandboxHelperIpc.js';
-import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelper.js';
 
 export async function setupServerServices(connectionToken: ServerConnectionToken, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, disposables: DisposableStore) {
 	const services = new ServiceCollection();
@@ -194,8 +192,6 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), NullAppender);
 		socketServer.registerChannel('telemetry', telemetryChannel);
-
-		socketServer.registerChannel(SANDBOX_HELPER_CHANNEL_NAME, new SandboxHelperChannel(new SandboxHelperService()));
 
 		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyHostService, productService, extensionManagementService, configurationService));
 

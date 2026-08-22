@@ -24,7 +24,6 @@ jobs:
           parameters:
             VSCODE_ARCH: arm64
             VSCODE_CIBUILD: true
-            VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: true
       archiveWorkspaceSteps:
         - script: |
             set -e

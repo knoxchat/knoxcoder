@@ -23,10 +23,6 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { WindowTitle } from './windowTitle.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ChatAIDisabledSettingId } from '../../../../platform/configuration/common/aiFeaturesSettings.js';
-
-const AGENT_STATUS_ENABLED_SETTING = 'chat.agentsControl.enabled';
 
 export class CommandCenterControl {
 
@@ -104,7 +100,6 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
 		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
-		@IConfigurationService private _configurationService: IConfigurationService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
@@ -163,15 +158,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							container.role = 'button';
 							container.setAttribute('aria-description', this.getTooltip());
 
-							// When agent control mode is 'compact', hide search icon and left-align the label
-							// Backward compat: the old boolean setting (true) and the new default (undefined) both map to compact
-							const aiFeaturesDisabled = that._configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true;
-							const aiCustomizationsDisabled = that._configurationService.getValue<boolean>('disableAICustomizations') === true
-								|| that._configurationService.getValue<boolean>('workbench.disableAICustomizations') === true;
-							const forcedHidden = aiFeaturesDisabled && aiCustomizationsDisabled;
-							const agentControlValue = that._configurationService.getValue(AGENT_STATUS_ENABLED_SETTING);
-							const isCompactMode = !forcedHidden && (agentControlValue === true || agentControlValue === undefined || agentControlValue === 'compact');
-							container.classList.toggle('compact-mode', isCompactMode);
+							container.classList.remove('compact-mode');
 
 							const action = this.action;
 
@@ -186,11 +173,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							const labelElement = document.createElement('span');
 							labelElement.classList.add('search-label');
 							labelElement.textContent = label;
-							if (isCompactMode) {
-								reset(container, labelElement);
-							} else {
-								reset(container, searchIcon, labelElement);
-							}
+							reset(container, searchIcon, labelElement);
 
 							const hover = this._store.add(that._hoverService.setupManagedHover(that._hoverDelegate, container, this.getTooltip()));
 

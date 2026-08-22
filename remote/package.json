@@ -3,11 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@github/copilot": "^1.0.78",
-    "@github/copilot-sdk": "^1.0.9",
-    "@microsoft/mxc-sdk": "0.7.0",
     "@parcel/watcher": "^2.6.0",
-    "@vscode/copilot-api": "^0.5.1",
     "@vscode/deviceid": "^0.1.5",
     "@vscode/fs-copyfile": "3.0.0",
     "@vscode/iconv-lite-umd": "0.7.1",

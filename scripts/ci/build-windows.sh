@@ -43,10 +43,6 @@ else
 	# native modules (same as upstream Windows/Linux CI).
 	node build/npm/preinstall.ts
 
-	# Skip foundry-local-sdk's install script (NuGet core download). Natives are
-	# excluded from the product package and fetched on demand at runtime.
-	node build/azure-pipelines/common/disableFoundryLocalInstall.ts
-
 	echo "Installing npm dependencies..."
 	for i in {1..5}; do
 		if npm ci; then
@@ -59,19 +55,8 @@ else
 		echo "Retrying npm ci ($i/5)..."
 	done
 
-	# Strip before cache save so restored caches stay clean too.
-	rm -rf node_modules/foundry-local-sdk/prebuilds \
-		node_modules/foundry-local-sdk/foundry-local-core
-
 	bash ./scripts/ci/node-modules-cache.sh save
 fi
-
-# foundry-local-sdk tarball always includes multi-arch prebuilds; its install
-# script may also fetch foundry-local-core. Strip both before packaging so
-# prepare-deb/rcedit never see foreign-arch .node files (see .moduleignore /
-# getFoundryLocalExcludeFilter). Also covers older caches that still have them.
-rm -rf node_modules/foundry-local-sdk/prebuilds \
-	node_modules/foundry-local-sdk/foundry-local-core
 
 echo "Downloading built-in extensions..."
 node build/lib/builtInExtensions.ts

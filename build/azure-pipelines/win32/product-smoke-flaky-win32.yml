@@ -27,7 +27,6 @@ jobs:
             VSCODE_ARCH: x64
             VSCODE_CIBUILD: true
             VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
-            VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: true
       archiveWorkspaceSteps:
         - powershell: |
             . build/azure-pipelines/win32/exec.ps1

@@ -17,8 +17,6 @@ RUN_GLOB=""
 GREP_PATTERN=""
 SUITE_FILTER=""
 HELP=false
-AGENT_HOST_E2E_GLOB="**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js"
-
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--help|-h)
@@ -171,12 +169,7 @@ if [[ -z "$SUITE_FILTER" ]]; then
 	echo "### node.js integration tests"
 	echo
 	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
-		if [[ "$VSCODE_SKIP_AGENT_HOST_E2E" == "1" ]]; then
-			echo "Skipping Agent Host E2E tests because no relevant files changed."
-		else
-			node ./scripts/test-agent-host-e2e.ts "${EXTRA_ARGS[@]}"
-		fi
-		VSCODE_SKIP_PRELAUNCH=1 ./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeRunGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
+		VSCODE_SKIP_PRELAUNCH=1 ./scripts/test.sh --runGlob "**/*.integrationTest.js" "${EXTRA_ARGS[@]}"
 	else
 		./scripts/test.sh "${EXTRA_ARGS[@]}"
 	fi

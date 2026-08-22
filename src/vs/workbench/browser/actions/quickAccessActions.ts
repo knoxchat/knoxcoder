@@ -9,16 +9,12 @@ import { KeyMod, KeyCode } from '../../../base/common/keyCodes.js';
 import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, ItemActivation, QuickInputHideReason } from '../../../platform/quickinput/common/quickInput.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { ChatAIDisabledSettingId } from '../../../platform/configuration/common/aiFeaturesSettings.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from '../quickaccess.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../platform/quickinput/common/quickAccess.js';
 import { Codicon } from '../../../base/common/codicons.js';
-
-const UNIFIED_AGENTS_BAR_SETTING = 'chat.unifiedAgentsBar.enabled';
 
 //#region Quick access management commands and keys
 
@@ -166,32 +162,15 @@ registerAction2(class QuickAccessAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const openClassicQuickAccess = (): void => {
-			const quickInputService = accessor.get(IQuickInputService);
-			const providerOptions: AnythingQuickAccessProviderRunOptions = {
-				includeHelp: true,
-				from: 'commandCenter',
-			};
-			quickInputService.quickAccess.show(undefined, {
-				preserveValue: true,
-				providerOptions
-			});
+		const quickInputService = accessor.get(IQuickInputService);
+		const providerOptions: AnythingQuickAccessProviderRunOptions = {
+			includeHelp: true,
+			from: 'commandCenter',
 		};
-
-		const configurationService = accessor.get(IConfigurationService);
-		const commandService = accessor.get(ICommandService);
-		const aiFeaturesDisabled = configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true;
-		const useUnifiedQuickAccess = !aiFeaturesDisabled && configurationService.getValue<boolean>(UNIFIED_AGENTS_BAR_SETTING) === true;
-		if (useUnifiedQuickAccess) {
-			try {
-				await commandService.executeCommand('workbench.action.unifiedQuickAccess');
-			} catch {
-				openClassicQuickAccess();
-			}
-			return;
-		}
-
-		openClassicQuickAccess();
+		quickInputService.quickAccess.show(undefined, {
+			preserveValue: true,
+			providerOptions
+		});
 	}
 });
 

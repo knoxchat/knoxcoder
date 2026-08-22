@@ -127,14 +127,8 @@ if defined RUN_GLOB (
 ) else if defined RUN_FILE (
 	call .\scripts\test.bat %*
 ) else (
-	if "%VSCODE_SKIP_AGENT_HOST_E2E%"=="1" (
-		echo Skipping Agent Host E2E tests because no relevant files changed.
-	) else (
-		call node .\scripts\test-agent-host-e2e.ts %*
-		if errorlevel 1 goto :failed
-	)
 	set VSCODE_SKIP_PRELAUNCH=1
-	call .\scripts\test.bat --runGlob **\*.integrationTest.js --excludeRunGlob "**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js" %*
+	call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
 )
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_nodejs_tests
