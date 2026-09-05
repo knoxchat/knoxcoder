@@ -35,13 +35,14 @@ function code() {
 	if [[ "$@" == *"--extensionTestsPath"* ]]; then
 		DISABLE_TEST_EXTENSION=""
 	fi
+	DISABLE_GITHUB_EXTENSIONS="--disable-extension=vscode.github --disable-extension=vscode.github-authentication"
 
 	ELECTRON_RUN_AS_NODE=1 \
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
 	ELECTRON_ENABLE_LOGGING=1 \
 	ELECTRON_ENABLE_STACK_DUMPING=1 \
-	"$CODE" --inspect=5874 "$ROOT/out/cli.js" . $DISABLE_TEST_EXTENSION "$@"
+	"$CODE" --inspect=5874 "$ROOT/out/cli.js" . $DISABLE_TEST_EXTENSION $DISABLE_GITHUB_EXTENSIONS "$@"
 }
 
 code "$@"

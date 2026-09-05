@@ -222,6 +222,7 @@ export interface IWindowSettings {
 
 export interface IDensitySettings {
 	readonly editorTabHeight: 'default' | 'compact';
+	readonly layout: 'default' | 'compact';
 }
 
 export const enum TitleBarSetting {

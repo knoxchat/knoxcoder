@@ -166,6 +166,8 @@ extends:
         enabled: false
       sourceAnalysisPool: 1es-windows-2022-x64
       createAdoIssuesForJustificationsForDisablement: false
+    settings:
+      networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
       - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
         - stage: Linux

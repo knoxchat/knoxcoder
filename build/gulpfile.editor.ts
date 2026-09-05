@@ -75,7 +75,7 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 	const out = 'out-monaco-editor-core/esm';
 
 	const compile = compilation.createCompile(src, { build: true, emitError: true, transpileOnly: false, preserveEnglish: true });
-	const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
+	const srcPipe = gulp.src(`${src}/**`, { base: `${src}`, encoding: false });
 
 	return (
 		srcPipe
@@ -86,7 +86,7 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 				languages: [...i18n.defaultLanguages, ...i18n.extraLanguages],
 			}))
 			.pipe(filter(['**', '!**/inlineEntryPoint*', '!**/tsconfig.json']))
-			.pipe(gulp.dest(out))
+			.pipe(gulp.dest(out, { encoding: false }))
 	);
 });
 

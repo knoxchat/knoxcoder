@@ -48,7 +48,7 @@ async function getElectron() {
 
 async function isExpectedElectronInstalled(): Promise<boolean> {
 	try {
-		const { getElectronVersion } = await import('./util.ts');
+		const { getElectronVersion } = await import('./electronVersion.ts');
 		const { electronVersion } = getElectronVersion();
 		const installedVersion = (await fs.readFile(path.join(rootDir, '.build', 'electron', 'version'), 'utf8')).trim().replace(/^v/, '');
 		return installedVersion === electronVersion;
@@ -63,31 +63,13 @@ async function ensureCompiled() {
 	}
 }
 
-/**
- * Built-in extensions under `extensions/` are gitignored for `out/`, so a fresh
- * clone can boot the workbench and still fail activating e.g. GitHub Auth.
- * Compile the ones KnoxCoder activates by default when their entry is missing.
- */
-async function ensureCriticalExtensionsCompiled() {
-	const critical: { outEntry: string; gulpTask: string }[] = [
-		{
-			outEntry: 'extensions/github-authentication/out/extension.js',
-			gulpTask: 'compile-extension:github-authentication',
-		},
-	];
-
-	for (const { outEntry, gulpTask } of critical) {
-		if (!(await exists(outEntry))) {
-			await runProcess(npm, ['run', 'gulp', '--', gulpTask]);
-		}
-	}
-}
-
 async function main() {
 	await ensureNodeModules();
 	await getElectron();
+	if (process.argv.includes('--only-electron')) {
+		return;
+	}
 	await ensureCompiled();
-	await ensureCriticalExtensionsCompiled();
 
 	// Can't require this until after dependencies are installed
 	const { getBuiltInExtensions } = await import('./builtInExtensions.ts');

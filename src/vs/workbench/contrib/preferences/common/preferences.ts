@@ -50,7 +50,10 @@ export interface IRemoteSearchProvider extends ISearchProvider {
 	setFilter(filter: string): void;
 }
 
-export const PREFERENCES_EDITOR_COMMAND_OPEN = 'workbench.preferences.action.openPreferencesEditor';
+export interface IAiSearchProvider extends IRemoteSearchProvider {
+	getLLMRankedResults(token: CancellationToken): Promise<ISearchResult | null>;
+}
+
 export const CONTEXT_PREFERENCES_SEARCH_FOCUS = new RawContextKey<boolean>('inPreferencesSearch', false);
 
 export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';

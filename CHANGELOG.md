@@ -2,6 +2,29 @@
 
 All notable changes to KnoxCoder are documented in this file.
 
+## [1.136.1] - 2026-09-06
+
+### Changed
+
+- **Upgrade to VS Code 1.136.1**
+  Merged upstream `microsoft/vscode` 1.136.1 while preserving Knox branding, Open VSX gallery, native TypeScript tooling, and Knox-specific customizations.
+
+- Bumped product version to **1.136.1** (`package.json` / related product metadata).
+
+### Removed
+
+- **Chat, Copilot, and agent-host surfaces**
+  Dropped upstream Copilot/chat/agent-host/MCP/sessions additions from 1.135–1.136 so KnoxCoder stays a VS Code fork with an isolated AI context.
+
+### Files touched in this release
+
+| Path | Action |
+|------|--------|
+| Upstream VS Code 1.136.1 merge surface | Updated |
+| `package.json` / related product metadata | Modified (version 1.136.1, Knox toolchain preserved) |
+| Copilot / chat / agent-host / sessions sources | Removed or not adopted |
+| `CHANGELOG.md` | Modified |
+
 ## [1.134.0] - 2026-08-21
 
 ### Changed

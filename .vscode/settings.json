@@ -1,4 +1,13 @@
 {
+	// --- Chat ---
+	"inlineChat.affordance": "editor",
+	"chat.tools.terminal.autoApprove": {
+		"scripts/test.bat": true,
+		"scripts/test.sh": true,
+		"scripts/test-integration.bat": true,
+		"scripts/test-integration.sh": true,
+	},
+	"chat.editing.explainChanges.enabled": true,
 	// --- Editor ---
 	"editor.insertSpaces": false,
 	"editor.experimental.asyncTokenization": true,

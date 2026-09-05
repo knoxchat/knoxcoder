@@ -30,9 +30,10 @@ for %%A in (%*) do (
 		set DISABLE_TEST_EXTENSION=""
 	)
 )
+set DISABLE_GITHUB_EXTENSIONS=--disable-extension=vscode.github --disable-extension=vscode.github-authentication
 
 :: Launch Code
-%CODE% --inspect=5874 out\cli.js %~dp0.. %DISABLE_TEST_EXTENSION% %*
+%CODE% --inspect=5874 out\cli.js %~dp0.. %DISABLE_TEST_EXTENSION% %DISABLE_GITHUB_EXTENSIONS% %*
 goto end
 
 :builtin

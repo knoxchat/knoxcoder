@@ -19,7 +19,7 @@
     "@types/minimist": "^1.2.5",
     "@types/mocha": "^10.0.10",
     "@types/node": "26.1.2",
-    "typescript": "7.1.0-dev.20260819.1"
+    "typescript": "7.1.0-dev.20260905.1"
   },
   "overrides": {
     "serialize-javascript": "^7.1.0"

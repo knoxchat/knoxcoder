@@ -2135,6 +2135,8 @@ export default defineConfig(
 						'vs/sessions/contrib/*/~',
 						'vs/sessions/contrib/providers/*/~',
 						'vs/sessions/services/*/~',
+						'@microsoft/dev-tunnels-connections', // type-only browser bundle conformance check
+						'@microsoft/dev-tunnels-management', // type-only browser bundle conformance check
 					]
 				},
 				{
@@ -2246,9 +2248,21 @@ export default defineConfig(
 					]
 				},
 				{
+					'target': 'test/scenario/**',
+					'restrictions': [
+						'test/automation',
+						'test/scenario/**',
+						'@vscode/*',
+						'@parcel/*',
+						'@playwright/*',
+						'*' // node modules
+					]
+				},
+				{
 					'target': 'test/mcp/**',
 					'restrictions': [
 						'test/automation',
+						'test/scenario',
 						'test/mcp/**',
 						'@vscode/*',
 						'@parcel/*',

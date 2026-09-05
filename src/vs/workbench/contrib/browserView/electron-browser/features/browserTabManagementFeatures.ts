@@ -20,6 +20,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
+import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
@@ -37,6 +38,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { match } from '../../../../../base/common/glob.js';
 import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup, IBrowserEditorWidget, IBrowserUrlSuggestion, IBrowserUrlSuggestionProvider } from '../browserEditor.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -86,6 +88,7 @@ class BrowserTabQuickPick extends Disposable {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IQuickInputService quickInputService: IQuickInputService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
 	) {
 		super();
@@ -112,6 +115,7 @@ class BrowserTabQuickPick extends Disposable {
 				return;
 			}
 			if (selected === this._openNewTabPick) {
+				logBrowserOpen(telemetryService, 'quickOpenWithoutUrl');
 				this._quickPick.hide();
 				await this._editorService.openEditor({
 					resource: BrowserViewUri.forId(generateUuid()),
@@ -279,6 +283,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Parse arguments
@@ -321,6 +326,8 @@ class OpenIntegratedBrowserAction extends Action2 {
 				return;
 			}
 		}
+
+		logBrowserOpen(telemetryService, options.url ? 'commandWithUrl' : 'commandWithoutUrl');
 
 		const editorPane = await editorService.openEditor({ resource, options: { viewState: { url: options.url } } }, group);
 
@@ -369,6 +376,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, resource?: URI): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Resolve the file URI from the context or the active editor
@@ -376,6 +384,8 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		if (!fileUri) {
 			return;
 		}
+
+		logBrowserOpen(telemetryService, 'openFileCommand');
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
 		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } }, await browserViewService.getPreferredGroup());
@@ -407,8 +417,11 @@ class NewTabAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, _browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 		const resource = BrowserViewUri.forId(generateUuid());
+
+		logBrowserOpen(telemetryService, 'newTabCommand');
 
 		await editorService.openEditor({ resource }, await browserViewService.getPreferredGroup());
 	}
@@ -576,6 +589,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
 		super();
@@ -604,6 +618,8 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		} catch {
 			return false;
 		}
+
+		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
 
 		// Check whether the setting was explicitly set by the user or is still at its default value.
 		// When it is a default, tag the viewState so that the hint pill can be shown.

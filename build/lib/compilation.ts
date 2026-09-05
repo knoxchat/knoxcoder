@@ -104,16 +104,19 @@ export function createCompile(src: string, { build, emitError, transpileOnly, pr
 	return pipeline;
 }
 
+// gulp 5 / vinyl-fs 4 default to utf8, which corrupts binary assets (ttf, png, ...).
+const binaryFileOptions = { encoding: false as const };
+
 export function transpileTask(src: string, out: string, esbuild?: boolean): task.StreamTask {
 
 	const task = () => {
 
 		const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { esbuild: !!esbuild }, preserveEnglish: false });
-		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
+		const srcPipe = gulp.src(`${src}/**`, { base: `${src}`, ...binaryFileOptions });
 
 		return srcPipe
 			.pipe(transpile())
-			.pipe(gulp.dest(out));
+			.pipe(gulp.dest(out, binaryFileOptions));
 	};
 
 	task.taskName = `transpile-${path.basename(src)}`;
@@ -131,7 +134,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 		// For dev builds we can transpile with esbuild for speed and type-check with tsgo (no emit).
 		// For `build`, keep the full tsb pipeline because the NLS step requires `file.sourceMap`.
 		const compile = createCompile(src, { build, emitError: true, transpileOnly: build ? false : { esbuild: true }, preserveEnglish: !!options.preserveEnglish });
-		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
+		const srcPipe = gulp.src(`${src}/**`, { base: `${src}`, ...binaryFileOptions });
 		const generator = new MonacoGenerator(false);
 		if (src === 'src') {
 			generator.execute();
@@ -164,7 +167,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 			.pipe(mangleStream)
 			.pipe(generator.stream)
 			.pipe(compile())
-			.pipe(gulp.dest(out)));
+			.pipe(gulp.dest(out, binaryFileOptions)));
 
 		const typecheck = spawnTsgo(compile.projectPath, { taskName: `compile-${path.basename(src)}`, noEmit: true });
 
@@ -438,7 +441,7 @@ const codiconDest = path.join(root, 'src', 'vs', 'base', 'browser', 'ui', 'codic
 
 function copyCodiconsImpl() {
 	try {
-		const codiconSource = fs.existsSync(vscodeCodiconSource) ? vscodeCodiconSource : knoxLucideCodiconSource;
+		const codiconSource = fs.existsSync(knoxLucideCodiconSource) ? knoxLucideCodiconSource : vscodeCodiconSource;
 		if (fs.existsSync(codiconSource)) {
 			fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
 			fs.copyFileSync(codiconSource, codiconDest);

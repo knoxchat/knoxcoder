@@ -73,7 +73,7 @@ else {
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.132.0-dev',
+			version: '1.136.1-dev',
 			nameShort: 'KnoxCoder Dev',
 			nameLong: 'KnoxCoder Dev',
 			applicationName: 'knoxcoder',

@@ -47,9 +47,10 @@ function code() {
 	if [[ "$@" == *"--extensionTestsPath"* ]]; then
 		DISABLE_TEST_EXTENSION=""
 	fi
+	DISABLE_GITHUB_EXTENSIONS="--disable-extension=vscode.github --disable-extension=vscode.github-authentication"
 
 	# Launch Code
-	exec "$CODE" . $DISABLE_TEST_EXTENSION "$@"
+	exec "$CODE" . $DISABLE_TEST_EXTENSION $DISABLE_GITHUB_EXTENSIONS "$@"
 }
 
 function code-wsl()

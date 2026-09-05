@@ -53,7 +53,7 @@ import { RemoteAgentFileSystemProviderChannel } from './remoteFileSystemProvider
 import { RemoteTerminalChannel } from './remoteTerminalChannel.js';
 import { createURITransformer } from '../../base/common/uriTransformer.js';
 import { ServerConnectionToken } from './serverConnectionToken.js';
-import { ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
+import { getRedactedServerParsedArgs, ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { REMOTE_TERMINAL_CHANNEL_NAME } from '../../workbench/contrib/terminal/common/remote/remoteTerminalChannel.js';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from '../../workbench/services/remote/common/remoteFileSystemProviderClient.js';
 import { ExtensionHostStatusService, IExtensionHostStatusService } from './extensionHostStatusService.js';
@@ -100,7 +100,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	disposables.add(logService.onDidChangeLogLevel(logLevel => log(logService, logLevel, `Log level changed to ${LogLevelToString(logService.getLevel())}`)));
 
 	logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
-	logService.trace('process arguments:', environmentService.args);
+	logService.trace('process arguments:', getRedactedServerParsedArgs(environmentService.args));
 	if (Array.isArray(productService.serverGreeting)) {
 		logService.info(`\n\n${productService.serverGreeting.join('\n')}\n\n`);
 	}

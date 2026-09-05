@@ -982,6 +982,10 @@ class StandaloneUriLabelService implements ILabelService {
 		throw new Error('Not implemented');
 	}
 
+	public getUriHome(): undefined {
+		return undefined;
+	}
+
 	public registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		return this.registerFormatter(formatter);
 	}
@@ -1005,14 +1009,14 @@ class StandaloneContextViewService extends ContextViewService {
 		super(layoutService);
 	}
 
-	override showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IOpenContextView {
+	override showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean, useWindowContainerForShadowRoot?: boolean): IOpenContextView {
 		if (!container) {
 			const codeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
 			if (codeEditor) {
 				container = codeEditor.getContainerDomNode();
 			}
 		}
-		return super.showContextView(delegate, container, shadowRoot);
+		return super.showContextView(delegate, container, shadowRoot, useWindowContainerForShadowRoot);
 	}
 }
 
@@ -1134,8 +1138,6 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	readonly managedSettingsFetchStatus: null = null;
 	readonly managedSettingsFetchedAt: null = null;
 	readonly managedSettingsRawResponse: unknown = null;
-	readonly managedSettingsCompatibilityError = null;
-	readonly onDidChangeManagedSettingsCompatibilityError = Event.None;
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> {
 		return null;

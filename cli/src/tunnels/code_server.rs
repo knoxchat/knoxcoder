@@ -161,6 +161,10 @@ impl CodeServerArgs {
 		}
 		args
 	}
+
+	fn apply_to_command(&self, command: &mut Command) {
+		command.args(self.command_arguments());
+	}
 }
 
 /// Base server params that can be `resolve()`d to a `ResolvedServerParams`.
@@ -613,7 +617,11 @@ impl<'a> ServerBuilder<'a> {
 	async fn spawn_server_process(&self, mut cmd: Command) -> Result<Child, AnyError> {
 		info!(self.logger, "Starting server...");
 
-		debug!(self.logger, "Starting server with command... {:?}", cmd);
+		debug!(
+			self.logger,
+			"Starting server process: {:?}",
+			cmd.as_std().get_program()
+		);
 
 		// On Windows spawning a code-server binary will run cmd.exe /c C:\path\to\code-server.cmd...
 		// This spawns a cmd.exe window for the user, which if they close will kill the code-server process
@@ -671,8 +679,10 @@ impl<'a> ServerBuilder<'a> {
 
 	fn get_base_command(&self) -> Command {
 		let mut cmd = new_script_command(&self.server_paths.executable);
-		cmd.stdin(std::process::Stdio::null())
-			.args(self.server_params.code_server_args.command_arguments());
+		cmd.stdin(std::process::Stdio::null());
+		self.server_params
+			.code_server_args
+			.apply_to_command(&mut cmd);
 		cmd
 	}
 }
