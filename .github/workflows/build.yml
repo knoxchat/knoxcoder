@@ -62,10 +62,15 @@ jobs:
             package-lock.json
             build/package-lock.json
 
+      # Pin 3.12: `3.x` resolved to 3.14, which dropped distutils and breaks
+      # node-gyp when Knox sqlite3 compiles for Electron.
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.12'
+
+      - name: Install Python setuptools
+        run: python -m pip install --upgrade setuptools
 
       - name: Install Linux build dependencies
         run: |
@@ -144,10 +149,15 @@ jobs:
             package-lock.json
             build/package-lock.json
 
+      # Pin 3.12: `3.x` resolved to 3.14, which dropped distutils and breaks
+      # node-gyp when Knox sqlite3 compiles for Electron.
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.12'
+
+      - name: Install Python setuptools
+        run: python -m pip install --upgrade setuptools
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2

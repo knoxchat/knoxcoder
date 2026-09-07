@@ -87,6 +87,9 @@
 		"system-ca": "^3.0.0",
 		"win-ca": "^3.5.1"
 	},
+	"overrides": {
+		"sqlite3": "$sqlite3"
+	},
 	"contributes": {
 		"languages": [
 			{

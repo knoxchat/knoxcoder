@@ -175,16 +175,33 @@ function getNpmrcConfigKeys(npmrcPath: string): string[] {
 	return keys;
 }
 
-function clearInheritedNpmrcConfig(dir: string, env: NodeJS.ProcessEnv): void {
-	const dirNpmrcPath = path.join(root, dir, '.npmrc');
-	if (fs.existsSync(dirNpmrcPath)) {
+function applyNpmrcToEnv(npmrcPath: string, env: NodeJS.ProcessEnv): void {
+	if (!fs.existsSync(npmrcPath)) {
 		return;
 	}
+	const lines = fs.readFileSync(npmrcPath, 'utf8').split('\n');
+	for (const line of lines) {
+		const trimmedLine = line.trim();
+		if (trimmedLine && !trimmedLine.startsWith('#')) {
+			const eqIndex = trimmedLine.indexOf('=');
+			if (eqIndex > 0) {
+				const key = trimmedLine.substring(0, eqIndex).trim().replace(/-/g, '_');
+				const value = trimmedLine.substring(eqIndex + 1).trim().replace(/^"(.*)"$/, '$1');
+				env[`npm_config_${key}`] = value;
+			}
+		}
+	}
+}
 
+function clearInheritedNpmrcConfig(dir: string, env: NodeJS.ProcessEnv): void {
+	// Root `npm ci` exports .npmrc as npm_config_* (runtime=electron,
+	// build_from_source=true). Env wins over a subdirectory .npmrc, so Knox
+	// sqlite3 was compiling against Electron 42 with node-gyp 8 during install.
 	for (const key of rootNpmrcConfigKeys) {
 		const envKey = `npm_config_${key.replace(/-/g, '_')}`;
 		delete env[envKey];
 	}
+	applyNpmrcToEnv(path.join(root, dir, '.npmrc'), env);
 }
 
 function ensureAgentHarnessLink(sourceRelativePath: string, linkPath: string): 'existing' | 'skipped' | 'junction' | 'symlink' | 'hard link' {

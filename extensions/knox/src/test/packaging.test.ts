@@ -117,6 +117,22 @@ suite('Knox packaging (tests are not runtime deps)', () => {
 		assert.ok(extensionsTs.includes('ensureKnoxPackagingArtifacts'));
 	});
 
+	test('sqlite3 override prevents dbinfoz from nesting sqlite3 5.x', () => {
+		const pkg = JSON.parse(
+			fs.readFileSync(path.join(knoxExtensionRoot(), 'package.json'), 'utf8'),
+		) as {
+			optionalDependencies?: Record<string, string>;
+			overrides?: Record<string, string>;
+		};
+		assert.ok(pkg.optionalDependencies?.sqlite3?.startsWith('^6.'));
+		assert.strictEqual(pkg.overrides?.sqlite3, '$sqlite3');
+		const lock = JSON.parse(
+			fs.readFileSync(path.join(knoxExtensionRoot(), 'package-lock.json'), 'utf8'),
+		) as { packages?: Record<string, { version?: string }> };
+		assert.strictEqual(lock.packages?.['node_modules/dbinfoz/node_modules/sqlite3'], undefined);
+		assert.ok(lock.packages?.['node_modules/sqlite3']?.version?.startsWith('6.'));
+	});
+
 	test('nativeExtensions in the gulp packer lists knox', () => {
 		const extensionsTs = fs.readFileSync(
 			path.join(knoxExtensionRoot(), '..', '..', 'build', 'lib', 'extensions.ts'),
