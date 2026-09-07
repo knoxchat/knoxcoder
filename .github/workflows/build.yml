@@ -27,6 +27,12 @@ on:
 permissions:
   contents: read
 
+# Knox is listed in nativeExtensions. vscode-*-min-ci runs
+# compile-native-extensions-build (sqlite3 Electron ABI rebuild) and
+# compile-extension-media-build (gui/). scripts/ci/verify-knox-package.sh
+# checks the packaged app for dist/ + gui/ + node_sqlite3.node.
+# macOS is ./build_dmg.sh (no job here). No Rust toolchain for Knox
+# (TS checkpoints).
 env:
   VSCODE_ARCH: x64
   npm_config_arch: x64

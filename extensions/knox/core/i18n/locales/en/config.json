@@ -1,0 +1,22 @@
+{
+  "modelsFieldArray": "The 'models' field should be an array",
+  "invalidModelTitle": "Invalid or missing 'title' for model at index {{index}}",
+  "invalidModelProvider": "Invalid 'provider' for model at index {{index}}",
+  "modelTokenWarning": "Model \"{{title}}\" has a contextLength of {{contextLength}} and maxTokens of {{maxTokens}}. This leaves only {{difference}} tokens for the input context, and may result in your input being truncated.",
+  "slashCommandsArray": "If defined, the 'slashCommands' field should be an array",
+  "invalidSlashCommandName": "Invalid or missing 'name' for slash command at index {{index}}",
+  "invalidSlashCommandDesc": "Invalid or missing 'description' for slash command at index {{index}}",
+  "contextProvidersArray": "If defined, the 'contextProviders' field should be an array",
+  "invalidContextProviderName": "Invalid or missing 'name' for context provider at index {{index}}",
+  "booleanFieldError": "If defined, the '{{flag}}' field should be a boolean",
+  "customCommandsDeprecated": "'customCommands' in config.json is deprecated and will be removed in V1.4. Migrate each entry to YAML `prompts` or a `.prompt` file under ~/.knox/prompts or .prompts/.",
+  "cannotParseConfig": "Cannot parse config.json: {{error}}",
+  "esbuildInstallPrompt": "You are using a custom 'config.ts' file that requires 'esbuild' to be installed. Would you like to install it now?",
+  "installEsbuild": "Install esbuild",
+  "dismiss": "Dismiss",
+  "esbuildInstalled": "'esbuild' has been installed to {{path}}",
+  "buildErrorCheckConfig": "Build error, please check your ~/.knox/config.ts file: {{error}}",
+  "configTsNoModifyConfig": "config.ts does not export a modifyConfig function",
+  "unableToLoadConfigTs": "Unable to load config.ts as a file URL",
+  "methodNotImplemented": "Method not implemented."
+}

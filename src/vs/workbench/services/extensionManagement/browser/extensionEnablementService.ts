@@ -62,6 +62,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	// Sessions window allow-list (lowercased extension ids)
 	private readonly _sessionsWindowAllowedExtensions: ReadonlySet<string>;
 
+	/** Marketplace ids replaced by a bundled system extension (`product.json` `excludedMarketplaceExtensions`). */
+	private readonly _excludedMarketplaceExtensionIds: ReadonlySet<string>;
+
 	private _maliciousExtensionsCache: ReadonlyArray<MaliciousExtensionInfo> | undefined;
 
 	constructor(
@@ -113,6 +116,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		this._completionsExtensionId = productService.defaultChatAgent?.extensionId.toLowerCase();
 		this._chatExtensionId = productService.defaultChatAgent?.chatExtensionId.toLowerCase();
 		this._sessionsWindowAllowedExtensions = new Set<string>((productService.sessionsWindowAllowedExtensions ?? []).map(id => id.toLowerCase()));
+		this._excludedMarketplaceExtensionIds = new Set<string>((productService.excludedMarketplaceExtensions ?? []).map(id => id.toLowerCase()));
 		const unificationExtensions = [this._completionsExtensionId, this._chatExtensionId].filter(id => !!id);
 
 		// Disabling extension unification should immediately disable the unified extension flow
@@ -501,6 +505,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		// Check if this is the better merge extension which was migrated to a built-in extension
 		if (areSameExtensions({ id: BetterMergeId.value }, extension.identifier)) {
+			return true;
+		}
+
+		// User-installed marketplace copy of a first-party system extension (T6.3).
+		if (extension.type === ExtensionType.User && this._excludedMarketplaceExtensionIds.has(extension.identifier.id.toLowerCase())) {
 			return true;
 		}
 

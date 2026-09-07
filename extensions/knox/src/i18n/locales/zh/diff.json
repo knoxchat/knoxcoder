@@ -1,0 +1,13 @@
+{
+  "diff.streamError": "流式差异错误：{{error}}",
+  "diff.foundIssuesFixing": "发现代码问题，助手正在尝试自动修复...",
+  "diff.fixedSuccess": "已成功修复代码问题。{{remaining}}",
+  "diff.remainingWarnings": "仍有 {{count}} 个警告。",
+  "diff.fixFailed": "无法修复所有代码问题。请查看问题列表。",
+  "diff.fileWarnings": "文件有警告。请查看问题列表。",
+  "diff.noActiveEditor": "没有活动的编辑器来应用编辑",
+  "diff.failedLoadConfig": "加载配置失败",
+  "diff.modelNotFound": "在配置中未找到模型 {{title}}",
+  "diff.noActiveEditorApply": "没有活动的编辑器来应用编辑",
+  "diff.deleteFileFailed": "删除 {{filepath}} 失败"
+}

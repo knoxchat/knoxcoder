@@ -1,0 +1,42 @@
+{
+  "refactoring.errorRename": "Error renaming symbol: {{message}}",
+  "refactoring.errorExtractMethod": "Error extracting method: {{message}}",
+  "refactoring.errorMoveFile": "Error moving file: {{message}}",
+  "refactoring.errorExtractInterface": "Error extracting interface: {{message}}",
+  "refactoring.missingNames": "Both old and new symbol names are required",
+  "refactoring.symbolNotFound": "Could not find symbol \"{{name}}\" to rename",
+  "refactoring.renameProviderUnavailable": "No rename provider available for this symbol/language",
+  "refactoring.emptySelection": "Selected code range is empty",
+  "refactoring.emptyLlmResult": "Model returned empty refactoring result",
+  "refactoring.sourceMissing": "Source file does not exist: {{path}}",
+  "refactoring.llmUnavailable": "LLM completion unavailable for refactoring",
+
+  "test.noActiveFile": "No active file open to generate tests for",
+  "test.generatingTests": "Generating tests for {{file}}",
+  "test.analyzingSource": "Analyzing source code...",
+  "test.processing": "Processing generated tests...",
+  "test.success": "Tests generated successfully!",
+  "test.errorGenerating": "Error generating tests: {{message}}",
+  "test.emptyResult": "Test generation returned no result",
+
+  "webview.addApiKey": "Add API Key",
+  "webview.useLocalModel": "Use Local Model",
+  "webview.exceededUsageHint": " To keep using KnoxChat, set up a local model or use your own API key.",
+
+  "ideUtils.enterSecret": "Enter the secret for {{key}}, or press Enter to skip.",
+
+  "inlineTip.chat": "Chat ",
+  "inlineTip.edit": "Edit ",
+
+  "connection.timeout": "Connection timed out. If you expect the connection to take a long time, you can increase the timeout in config.json by setting \"requestOptions\": { \"timeout\": 10000 }. For details: https://docs.knox.chat/reference/config",
+  "connection.refused": "Connection refused. There may not be a server running at the URL specified. If you are running your own server, you need to set the \"apiBase\" parameter in config.json. You can set up an OpenAI-compatible server like this: https://docs.knox.chat/reference/Model%20Providers/openai#openai-compatible-servers--apis",
+  "connection.requestFailed": "Request failed with \"{{name}}\": {{message}}. If you are having trouble setting up KnoxChat, see the troubleshooting guide for assistance.",
+
+  "ide.showLog": "Show Log",
+
+  "quickEdit.selectModel": "Please select a model",
+  "quickEdit.selectPreviousPrompt": "Select previous prompt",
+
+  "screenshot.captured": "Screenshot captured and added to chat",
+  "screenshot.failed": "Screenshot failed: {{message}}"
+}

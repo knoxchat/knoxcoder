@@ -2,6 +2,23 @@
 
 All notable changes to KnoxCoder are documented in this file.
 
+## [1.136.2] - 2026-09-07
+
+### Added
+
+- **Knox Agent (`vscode.knox`)**
+  Knox ships inside the editor as a system extension (same class as Git): host `dist/`, webview `gui/`, and platform sqlite3. Linux/Windows CI packages it via `packageNativeLocalExtensionsStream` and verifies those artifacts. macOS uses `./build_dmg.sh` (no GitHub Actions macOS job). Disable it in the Extensions view if you need to; it cannot be uninstalled.
+
+### Changed
+
+- Bumped product version to **1.136.2** (`package.json` / related product metadata).
+- Marketplace Knox (`knoxchat.knoxchat`) is not required in KnoxCoder and is hidden/blocked. This fork does **not** publish a KnoxCoder-dependent VSIX to Open VSX. Store Knox for vanilla VS Code remains in the **kc** product tree.
+
+### Removed
+
+- Dropped leftover `onnxruntime-node` embeddings stubs. Memory and code search use BM25 + product ripgrep.
+- No Rust neon checkpoint crates; checkpoints stay TypeScript.
+
 ## [1.136.1] - 2026-09-06
 
 ### Changed

@@ -256,6 +256,9 @@ if [[ ! -d "$APP_PATH" ]]; then
 	exit 1
 fi
 
+echo ">>> Verifying bundled Knox (dist + gui + sqlite)..."
+bash "$ROOT/scripts/ci/verify-knox-package.sh" "$APP_PATH"
+
 if [[ "$SKIP_SIGN" == "false" ]]; then
 	verify_signing_identity
 

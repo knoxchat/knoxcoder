@@ -1,0 +1,61 @@
+import i18n from "../../../i18n";
+import { InputDescriptor } from "./providers";
+
+export const completionParamsInputs: Record<string, InputDescriptor> = {
+  contextLength: {
+    inputType: "number",
+    key: "contextLength",
+    label: i18n.t('contextLength'),
+    defaultValue: undefined,
+    required: false,
+  },
+  temperature: {
+    inputType: "number",
+    key: "completionOptions.temperature",
+    label: i18n.t('temperature'),
+    defaultValue: undefined,
+    required: false,
+    min: 0.0,
+    max: 1.0,
+    step: 0.01,
+  },
+  topP: {
+    inputType: "number",
+    key: "completionOptions.topP",
+    label: i18n.t('topP'),
+    defaultValue: undefined,
+    required: false,
+    min: 0,
+    max: 1,
+    step: 0.01,
+  },
+  topK: {
+    inputType: "number",
+    key: "completionOptions.topK",
+    label: i18n.t('topK'),
+    defaultValue: undefined,
+    required: false,
+    min: 0,
+    step: 1,
+  },
+  presencePenalty: {
+    inputType: "number",
+    key: "completionOptions.presencePenalty",
+    label: i18n.t('presencePenalty'),
+    defaultValue: undefined,
+    required: false,
+    min: 0,
+    max: 1,
+    step: 0.01,
+  },
+  frequencyPenalty: {
+    inputType: "number",
+    key: "completionOptions.frequencyPenalty",
+    label: i18n.t('frequencyPenalty'),
+    defaultValue: undefined,
+    required: false,
+    min: 0,
+    max: 1,
+    step: 0.01,
+  },
+};

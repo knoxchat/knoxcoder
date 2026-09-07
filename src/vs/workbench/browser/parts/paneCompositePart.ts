@@ -254,7 +254,9 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.emptyPaneMessageElement = $('.empty-pane-message-area');
 
 		const messageElement = $('.empty-pane-message');
-		messageElement.textContent = localize('pane.emptyMessage', "Drag a view here to display.");
+		messageElement.textContent = this.location === ViewContainerLocation.AuxiliaryBar
+			? localize('knox.auxiliaryBarEmpty', "Knox")
+			: localize('pane.emptyMessage', "Drag a view here to display.");
 
 		this.emptyPaneMessageElement.appendChild(messageElement);
 		parent.appendChild(this.emptyPaneMessageElement);
@@ -273,7 +275,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			this.emptyPaneMessageElement!.style.backgroundColor = backgroundColor;
 		};
 
-		if (this.viewDescriptorService.canMoveViews()) {
+		if (this.viewDescriptorService.canMoveViews() && this.location !== ViewContainerLocation.AuxiliaryBar) {
 			this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
 				onDragOver: (e) => {
 					EventHelper.stop(e.eventData, true);
@@ -370,12 +372,15 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.titleContainer = parent;
 
 		const titleLabel = super.createTitleLabel(parent);
-		this.titleLabelElement!.draggable = this.viewDescriptorService.canMoveViews();
-		const draggedItemProvider = (): { type: 'view' | 'composite'; id: string } => {
-			const activeViewlet = this.getActivePaneComposite()!;
-			return { type: 'composite', id: activeViewlet.getId() };
-		};
-		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
+		const canDragTitle = this.viewDescriptorService.canMoveViews() && this.location !== ViewContainerLocation.AuxiliaryBar;
+		this.titleLabelElement!.draggable = canDragTitle;
+		if (canDragTitle) {
+			const draggedItemProvider = (): { type: 'view' | 'composite'; id: string } => {
+				const activeViewlet = this.getActivePaneComposite()!;
+				return { type: 'composite', id: activeViewlet.getId() };
+			};
+			this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
+		}
 
 		return titleLabel;
 	}

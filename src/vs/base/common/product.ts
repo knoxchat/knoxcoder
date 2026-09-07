@@ -89,6 +89,13 @@ export interface IProductConfiguration {
 	readonly sharedDataFolderName: string; // location for shared data (e.g. ~/.vscode-insiders-shared)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
+	/**
+	 * Marketplace extension ids that this product already ships as a
+	 * first-party system extension (e.g. `knoxchat.knoxchat` vs `vscode.knox`).
+	 * Hidden from gallery search, blocked from install, and disabled if a user
+	 * copy is already present.
+	 */
+	readonly excludedMarketplaceExtensions?: readonly string[];
 	readonly walkthroughMetadata?: IProductWalkthrough[];
 	readonly featuredExtensions?: IFeaturedExtension[];
 

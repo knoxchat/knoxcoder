@@ -1,0 +1,21 @@
+{
+  "commands.errorExplain": "Please explain the cause of this error and how to solve it: {{message}}",
+  "commands.writeComments": "Write comments for this code. Do not change anything about the code itself.",
+  "commands.writeDocstring": "Write a docstring for this code. Do not change anything about the code itself.",
+  "commands.fixCode": "Fix this code. If it is already 100% correct, simply rewrite the code.",
+  "commands.optimizeCode": "Optimize this code",
+  "commands.fixGrammar": "If there are any grammar or spelling mistakes in this writing, fix them. Do not make other large changes to the writing.",
+  "commands.debugTerminal": "I got the following error, can you please help explain how to fix it?\n\n{{contents}}",
+  "commands.configNotLoaded": "Configuration not loaded",
+  "commands.enterSessionId": "Enter the Session ID",
+  "commands.noFilesSelected": "No files were selected",
+  "commands.enterCheckpointDesc": "Enter a description for this checkpoint",
+  "commands.checkpointDescPlaceholder": "e.g., Before refactoring authentication",
+  "commands.manualCheckpointCreated": "✅ Manual checkpoint created: {{id}}...",
+  "commands.manualCheckpointFailed": "Failed to create checkpoint - no changes detected or conflicts occurred",
+  "commands.failedCreateCheckpoint": "Failed to create checkpoint: {{error}}",
+  "commands.checkpointNotInitialized": "Checkpoint system not initialized",
+  "commands.noCheckpointsAvailable": "No checkpoints available",
+  "commands.selectCheckpointRestore": "Select a checkpoint to restore",
+  "commands.openChat": "$(comment) Open Chat"
+}

@@ -1,0 +1,21 @@
+{
+  "conversationHistory": "会话",
+  "conversation": "个会话",
+  "conversations": "个会话",
+  "searchConversations": "搜索会话...",
+  "noConversationsFound": "未找到会话",
+  "noConversationsMessage": "要创建新会话，请点击 + 按钮或使用快捷键：",
+  "today": "今天",
+  "thisWeek": "本周",
+  "thisMonth": "本月",
+  "earlierConversations": "更早的会话",
+  "item": "项",
+  "items": "项",
+  "conversationsDataStoredAt": "会话数据存储在: ~/.knox/sessions",
+  "deleteConversations": "删除会话",
+  "confirmDeleteConversations": "确定要删除 {{count}}",
+  "actionCannotBeUndone": "此操作无法撤销。",
+  "download": "下载",
+  "sessionExported": "会话已导出到 {{filename}}",
+  "failedToExportSession": "导出会话失败: {{error}}"
+}

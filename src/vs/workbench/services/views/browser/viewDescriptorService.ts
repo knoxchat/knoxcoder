@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ViewContainerLocation, IViewDescriptorService, ViewContainer, IViewsRegistry, IViewContainersRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewVisibilityState, defaultViewIcon, ViewContainerLocationToString, VIEWS_LOG_ID, VIEWS_LOG_NAME, WindowEnablement } from '../../../common/views.js';
+import { isKnoxExclusiveAuxiliaryBar, isKnoxView, isKnoxViewContainer, KNOX_VIEW_CONTAINER_ID } from '../../../common/knox.js';
 import { IContextKey, RawContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -206,12 +207,52 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 	}
 
+	private pinKnoxToAuxiliaryBar(): void {
+		const knox = this.getViewContainerById(KNOX_VIEW_CONTAINER_ID);
+		if (knox) {
+			this.viewContainersCustomLocations.delete(knox.id);
+			const extras = this.getViewContainerModel(knox).allViewDescriptors.filter(view => !isKnoxView(view.id));
+			for (const view of extras) {
+				const defaultContainer = this.getDefaultContainerById(view.id);
+				if (defaultContainer && defaultContainer !== knox) {
+					this.moveViewsWithoutSaving([view], knox, defaultContainer);
+				}
+			}
+		}
+
+		for (const container of this.viewContainers) {
+			if (isKnoxViewContainer(container.id)) {
+				continue;
+			}
+			if (this.viewContainersCustomLocations.get(container.id) === ViewContainerLocation.AuxiliaryBar) {
+				this.viewContainersCustomLocations.delete(container.id);
+			}
+			if (this.isGeneratedContainerId(container.id) && this.viewContainersRegistry.getViewContainerLocation(container) === ViewContainerLocation.AuxiliaryBar) {
+				const views = [...this.getViewContainerModel(container).allViewDescriptors];
+				for (const view of views) {
+					const defaultContainer = this.getDefaultContainerById(view.id);
+					if (defaultContainer && defaultContainer !== container) {
+						this.moveViewsWithoutSaving([view], container, defaultContainer);
+					}
+				}
+				this.cleanUpGeneratedViewContainer(container.id);
+			}
+		}
+
+		for (const [viewId, containerId] of [...this.viewDescriptorsCustomLocations.entries()]) {
+			if (isKnoxView(viewId) || isKnoxViewContainer(containerId)) {
+				this.viewDescriptorsCustomLocations.delete(viewId);
+			}
+		}
+	}
+
 	whenExtensionsRegistered(): void {
 
 		// Handle those views whose custom parent view container does not exist anymore
 		// May be the extension contributing this view container is no longer installed
 		// Or the parent view container is generated and no longer available.
 		this.moveOrphanViewsToDefaultLocation();
+		this.pinKnoxToAuxiliaryBar();
 
 		// Clean up empty generated view containers
 		for (const viewContainerId of [...this.viewContainersCustomLocations.keys()]) {
@@ -296,7 +337,14 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			return null;
 		}
 
+		if (isKnoxView(viewId)) {
+			return this.getViewContainerById(KNOX_VIEW_CONTAINER_ID) ?? this.getDefaultContainerById(viewId);
+		}
+
 		const containerId = this.viewDescriptorsCustomLocations.get(viewId);
+		if (containerId && isKnoxViewContainer(containerId)) {
+			return this.getDefaultContainerById(viewId);
+		}
 
 		return containerId ?
 			this.getViewContainerById(containerId) :
@@ -304,7 +352,14 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation {
-		return this.viewContainersCustomLocations.get(viewContainer.id) ?? this.getDefaultViewContainerLocation(viewContainer);
+		if (isKnoxViewContainer(viewContainer.id)) {
+			return ViewContainerLocation.AuxiliaryBar;
+		}
+		const custom = this.viewContainersCustomLocations.get(viewContainer.id);
+		if (custom === ViewContainerLocation.AuxiliaryBar) {
+			return this.getDefaultViewContainerLocation(viewContainer);
+		}
+		return custom ?? this.getDefaultViewContainerLocation(viewContainer);
 	}
 
 	getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation {
@@ -351,8 +406,22 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		return !this.isSessionsWindow;
 	}
 
+	private canMoveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation): boolean {
+		if (isKnoxViewContainer(viewContainer.id)) {
+			return location === ViewContainerLocation.AuxiliaryBar;
+		}
+		return !isKnoxExclusiveAuxiliaryBar(location);
+	}
+
+	private canMoveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer): boolean {
+		if (isKnoxViewContainer(viewContainer.id) || isKnoxExclusiveAuxiliaryBar(this.getViewContainerLocation(viewContainer))) {
+			return views.every(view => isKnoxView(view.id));
+		}
+		return !views.some(view => isKnoxView(view.id));
+	}
+
 	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number, reason?: string): void {
-		if (!this.canMoveViews()) {
+		if (!this.canMoveViews() || !this.canMoveViewContainerToLocation(viewContainer, location)) {
 			return;
 		}
 		this.logger.value.trace(`moveViewContainerToLocation: viewContainer:${viewContainer.id} location:${location} reason:${reason}`);
@@ -370,7 +439,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation, reason?: string): void {
-		if (!this.canMoveViews()) {
+		if (!this.canMoveViews() || isKnoxExclusiveAuxiliaryBar(location) || isKnoxView(view.id)) {
 			return;
 		}
 		this.logger.value.trace(`moveViewToLocation: view:${view.id} location:${location} reason:${reason}`);
@@ -383,7 +452,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			return;
 		}
 
-		if (!this.canMoveViews()) {
+		if (!this.canMoveViews() || !this.canMoveViewsToContainer(views, viewContainer)) {
 			return;
 		}
 
@@ -552,6 +621,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private registerGeneratedViewContainer(location: ViewContainerLocation, existingId?: string): ViewContainer {
+		if (isKnoxExclusiveAuxiliaryBar(location)) {
+			location = ViewContainerLocation.Sidebar;
+		}
 		const id = existingId || this.generateContainerId(location);
 
 		const container = this.viewContainersRegistry.registerViewContainer({

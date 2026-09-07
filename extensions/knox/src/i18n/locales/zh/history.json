@@ -1,0 +1,20 @@
+{
+  "history.nothingToUndo": "没有可撤销的操作",
+  "history.undoing": "正在撤销：{{description}}...",
+  "history.undid": "已撤销：{{description}}",
+  "history.failedUndo": "撤销失败：{{message}}",
+  "history.nothingToRedo": "没有可重做的操作",
+  "history.redoing": "正在重做：{{description}}...",
+  "history.redid": "已重做：{{description}}",
+  "history.failedRedo": "重做失败：{{message}}",
+  "history.noOperations": "记录中没有操作",
+  "history.operationHistory": "操作记录（最新在前）",
+  "history.cleared": "操作记录已清除",
+  "history.undoFileEdit": "撤销文件编辑：{{file}}",
+  "history.undoSearchReplace": "撤销搜索/替换：{{file}}",
+  "history.undoFileDeletion": "撤销文件删除：{{file}}",
+  "history.changeNone": "文件无变化",
+  "history.changeCreated": "已创建（{{bytes}} 字节）",
+  "history.changeDeleted": "已删除（原 {{bytes}} 字节）",
+  "history.changeModified": "已修改（{{before}} → {{after}} 字节）"
+}

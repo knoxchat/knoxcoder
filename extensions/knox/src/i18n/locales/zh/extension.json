@@ -1,0 +1,5 @@
+{
+  "ext.activationError": "Knox 扩展激活错误：{{message}}",
+  "ext.viewLogs": "查看日志",
+  "ext.retry": "重试"
+}

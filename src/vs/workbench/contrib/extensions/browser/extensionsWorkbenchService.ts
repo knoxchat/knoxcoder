@@ -29,7 +29,7 @@ import {
 	IGalleryExtensionVersion
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry, isExcludedMarketplaceExtension } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -1469,13 +1469,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const pager = await this.galleryService.query(options, token);
-		this.syncInstalledExtensionsWithGallery(pager.firstPage);
+		const visibleFirstPage = pager.firstPage.filter(gallery => !this.shouldHideMarketplaceExtension(gallery));
+		this.syncInstalledExtensionsWithGallery(visibleFirstPage);
 		return {
-			firstPage: pager.firstPage.map(gallery => this.fromGallery(gallery, extensionsControlManifest)),
-			total: pager.total,
+			firstPage: visibleFirstPage.map(gallery => this.fromGallery(gallery, extensionsControlManifest)),
+			total: Math.max(0, pager.total - (pager.firstPage.length - visibleFirstPage.length)),
 			pageSize: pager.pageSize,
 			getPage: async (pageIndex, token) => {
-				const page = await pager.getPage(pageIndex, token);
+				const page = (await pager.getPage(pageIndex, token)).filter(gallery => !this.shouldHideMarketplaceExtension(gallery));
 				this.syncInstalledExtensionsWithGallery(page);
 				return page.map(gallery => this.fromGallery(gallery, extensionsControlManifest));
 			}
@@ -1666,6 +1667,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			});
 		}
 		return text.substr(0, 350);
+	}
+
+	private shouldHideMarketplaceExtension(gallery: IGalleryExtension): boolean {
+		return isExcludedMarketplaceExtension(gallery.identifier.id, this.productService.excludedMarketplaceExtensions);
 	}
 
 	private fromGallery(gallery: IGalleryExtension, extensionsControlManifest: IExtensionsControlManifest): IExtension {

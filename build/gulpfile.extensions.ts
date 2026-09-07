@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import glob from 'glob';
 import { gulp, filter, plumber, sourcemaps, merge} from './lib/gulp/facade.ts';
 import * as path from 'path';
+import * as cp from 'child_process';
 import * as nodeUtil from 'util';
 import * as ext from './lib/extensions.ts';
 import { getVersion } from './lib/getVersion.ts';
@@ -45,6 +46,43 @@ function onExtensionCompilationEnd(): void {
 	}
 }
 
+/**
+ * Knox host imports `core/*` via tsconfig paths. tsc does not rewrite those
+ * specifiers, so the editor loads the esbuild bundle from `dist/`.
+ */
+function bundleKnoxExtension(extensionPath: string): Promise<void> {
+	const esbuildScript = path.join(extensionPath, 'esbuild.mts');
+	fancyLog('Bundling Knox extension with esbuild');
+	return new Promise<void>((resolve, reject) => {
+		const child = cp.spawn(process.execPath, [esbuildScript], {
+			cwd: extensionPath,
+			stdio: ['ignore', 'pipe', 'pipe'],
+		});
+		let stderr = '';
+		child.stdout?.on('data', (data: Buffer) => {
+			const text = data.toString().trim();
+			if (text) {
+				fancyLog(text);
+			}
+		});
+		child.stderr?.on('data', (data: Buffer) => {
+			stderr += data.toString();
+		});
+		child.on('exit', code => {
+			if (code === 0) {
+				fancyLog('Finished bundling Knox extension');
+				resolve();
+			} else {
+				if (stderr) {
+					fancyLog.error(stderr);
+				}
+				reject(new Error(`knox esbuild exited with code ${code ?? 'unknown'}`));
+			}
+		});
+		child.on('error', reject);
+	});
+}
+
 // To save 250ms for each gulp startup, we are caching the result here
 // const compilations = glob.sync('**/tsconfig.json', {
 // 	cwd: extensionsPath,
@@ -68,7 +106,9 @@ const compilations = [
 	'extensions/jake/tsconfig.json',
 	'extensions/json-language-features/client/tsconfig.json',
 	'extensions/json-language-features/server/tsconfig.json',
+	'extensions/knox/tsconfig.json',
 	'extensions/markdown-language-features/tsconfig.json',
+
 	'extensions/markdown-math/tsconfig.json',
 	'extensions/media-preview/tsconfig.json',
 	'extensions/merge-conflict/tsconfig.json',
@@ -192,6 +232,9 @@ const tasks = compilations.map(function (tsconfigFile) {
 		const tsgo = spawnTsgo(absolutePath, { taskName: 'extensions' }, () => rewriteTsgoSourceMappingUrlsIfNeeded(false, out, baseUrl));
 
 		await Promise.all([copyNonTs, tsgo]);
+		if (name === 'knox') {
+			await bundleKnoxExtension(path.join(root, srcRoot));
+		}
 	}));
 
 	const watchTask = task.define(`watch-extension:${name}`, task.series(cleanTask, () => {
@@ -208,8 +251,18 @@ const tasks = compilations.map(function (tsconfigFile) {
 			// runReporter, so swallowing the stream error is safe.
 			const result = es.through();
 			stream.on('end', () => {
-				onExtensionCompilationEnd();
-				result.emit('end');
+				const finish = () => {
+					onExtensionCompilationEnd();
+					result.emit('end');
+				};
+				if (name === 'knox') {
+					bundleKnoxExtension(path.join(root, srcRoot)).then(finish, err => {
+						fancyLog.error(err);
+						finish();
+					});
+					return;
+				}
+				finish();
 			});
 			stream.on('error', () => {
 				onExtensionCompilationEnd();
@@ -296,6 +349,10 @@ task.task(compileAllExtensionsBuildTask);
 
 //#endregion
 
+/**
+ * Browser-only extension builds (`esbuild.browser.mts`). Knox has `main` and no
+ * `browser` field, so it is not a web extension and is not compiled here.
+ */
 export const compileWebExtensionsTask = task.define('compile-web', () => buildWebExtensions(false));
 task.task(compileWebExtensionsTask);
 

@@ -1,0 +1,5 @@
+{
+  "ext.activationError": "Error activating Knox extension: {{message}}",
+  "ext.viewLogs": "View Logs",
+  "ext.retry": "Retry"
+}

@@ -1,0 +1,150 @@
+/* One Dark Pro tokens — same family as Pierre/Shiki checkpoint diffs.
+   Dark is the default; light follows Atom One Light / One Dark Pro light. */
+
+:root {
+  --odp-fg: #abb2bf;
+  --odp-comment: #5c6370;
+  --odp-red: #e06c75;
+  --odp-green: #98c379;
+  --odp-yellow: #e5c07b;
+  --odp-blue: #61afef;
+  --odp-purple: #c678dd;
+  --odp-cyan: #56b6c2;
+  --odp-orange: #d19a66;
+}
+
+body.vscode-light,
+body.vscode-high-contrast-light,
+html[data-vscode-theme-kind="vscode-light"],
+html[data-vscode-theme-kind="vscode-high-contrast-light"],
+html[data-vscode-theme-kind="vscode-light"] body,
+html[data-vscode-theme-kind="vscode-high-contrast-light"] body,
+.checkpoint-odp-light {
+  --odp-fg: #383a42;
+  --odp-comment: #a0a1a7;
+  --odp-red: #e45649;
+  --odp-green: #50a14f;
+  --odp-yellow: #c18401;
+  --odp-blue: #4078f2;
+  --odp-purple: #a626a4;
+  --odp-cyan: #0184bc;
+  --odp-orange: #986801;
+}
+
+.odp-text-fg { color: var(--odp-fg); }
+.odp-text-comment { color: var(--odp-comment); }
+.odp-text-red { color: var(--odp-red); }
+.odp-text-green { color: var(--odp-green); }
+.odp-text-yellow { color: var(--odp-yellow); }
+.odp-text-blue { color: var(--odp-blue); }
+.odp-text-purple { color: var(--odp-purple); }
+.odp-text-cyan { color: var(--odp-cyan); }
+.odp-text-orange { color: var(--odp-orange); }
+
+.odp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--odp-comment) 35%, transparent);
+  background: color-mix(in srgb, var(--odp-fg) 6%, transparent);
+  color: var(--odp-fg);
+  padding: 0.125rem 0.375rem;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.odp-chip-green {
+  color: var(--odp-green);
+  background: color-mix(in srgb, var(--odp-green) 14%, transparent);
+  border-color: color-mix(in srgb, var(--odp-green) 32%, transparent);
+}
+.odp-chip-yellow {
+  color: var(--odp-yellow);
+  background: color-mix(in srgb, var(--odp-yellow) 14%, transparent);
+  border-color: color-mix(in srgb, var(--odp-yellow) 32%, transparent);
+}
+.odp-chip-orange {
+  color: var(--odp-orange);
+  background: color-mix(in srgb, var(--odp-orange) 14%, transparent);
+  border-color: color-mix(in srgb, var(--odp-orange) 32%, transparent);
+}
+.odp-chip-red {
+  color: var(--odp-red);
+  background: color-mix(in srgb, var(--odp-red) 14%, transparent);
+  border-color: color-mix(in srgb, var(--odp-red) 32%, transparent);
+}
+.odp-chip-blue {
+  color: var(--odp-blue);
+  background: color-mix(in srgb, var(--odp-blue) 14%, transparent);
+  border-color: color-mix(in srgb, var(--odp-blue) 32%, transparent);
+}
+.odp-chip-purple {
+  color: var(--odp-purple);
+  background: color-mix(in srgb, var(--odp-purple) 14%, transparent);
+  border-color: color-mix(in srgb, var(--odp-purple) 32%, transparent);
+}
+.odp-chip-cyan {
+  color: var(--odp-cyan);
+  background: color-mix(in srgb, var(--odp-cyan) 14%, transparent);
+  border-color: color-mix(in srgb, var(--odp-cyan) 32%, transparent);
+}
+.odp-chip-muted {
+  color: var(--odp-comment);
+  background: color-mix(in srgb, var(--odp-comment) 12%, transparent);
+  border-color: color-mix(in srgb, var(--odp-comment) 28%, transparent);
+}
+
+.odp-callout {
+  border-radius: 0.375rem;
+  border: 1px solid color-mix(in srgb, var(--odp-comment) 30%, transparent);
+  background: color-mix(in srgb, var(--odp-fg) 5%, transparent);
+  padding: 0.5rem 0.625rem;
+  font-size: 11px;
+}
+.odp-callout-blue {
+  color: var(--odp-blue);
+  background: color-mix(in srgb, var(--odp-blue) 10%, transparent);
+  border-color: color-mix(in srgb, var(--odp-blue) 28%, transparent);
+}
+.odp-callout-purple {
+  color: var(--odp-purple);
+  background: color-mix(in srgb, var(--odp-purple) 10%, transparent);
+  border-color: color-mix(in srgb, var(--odp-purple) 28%, transparent);
+}
+
+.odp-type-manual,
+.odp-type-auto,
+.odp-type-ai,
+.odp-type-merge,
+.odp-type-branch {
+  border-width: 1.5px;
+  border-style: solid;
+}
+.odp-type-manual {
+  color: var(--odp-green);
+  background: color-mix(in srgb, var(--odp-green) 12%, transparent);
+  border-color: color-mix(in srgb, var(--odp-green) 45%, transparent);
+}
+.odp-type-auto {
+  color: var(--odp-yellow);
+  background: color-mix(in srgb, var(--odp-yellow) 12%, transparent);
+  border-color: color-mix(in srgb, var(--odp-yellow) 45%, transparent);
+}
+.odp-type-ai {
+  color: var(--odp-purple);
+  background: color-mix(in srgb, var(--odp-purple) 12%, transparent);
+  border-color: color-mix(in srgb, var(--odp-purple) 45%, transparent);
+}
+.odp-type-merge {
+  color: var(--odp-cyan);
+  background: color-mix(in srgb, var(--odp-cyan) 12%, transparent);
+  border-color: color-mix(in srgb, var(--odp-cyan) 45%, transparent);
+}
+.odp-type-branch {
+  color: var(--odp-blue);
+  background: color-mix(in srgb, var(--odp-blue) 12%, transparent);
+  border-color: color-mix(in srgb, var(--odp-blue) 45%, transparent);
+}
+

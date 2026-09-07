@@ -1,0 +1,13 @@
+{
+	"name": "knoxdev-package",
+	"version": "2.0.0",
+	"private": true,
+	"description": "Vendored Knox config-yaml, fetch, and openai-adapters. Resolved via tsconfig paths and esbuild alias, not a root npm workspace.",
+	"license": "Apache-2.0",
+	"exports": {
+		"./config-yaml": "./src/config-yaml/index.ts",
+		"./fetch": "./src/fetch/index.ts",
+		"./openai-adapters": "./src/openai-adapters/index.ts",
+		"./openai-adapters/apis/base": "./src/openai-adapters/apis/base.ts"
+	}
+}

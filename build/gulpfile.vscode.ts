@@ -284,6 +284,9 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			return !set.has(platform);
 		}).map(ext => `!.build/extensions/${ext.name}/**`);
 
+		// Local + marketplace extensions, including native Knox (`sqlite3` `.node`,
+		// `gui/`). These files stay on disk under resources/app/extensions/; they are
+		// not packed into node_modules.asar (createAsar below only wraps app node_modules).
 		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true, ...binarySrcOptions });
 
 		const sourceFilterPattern = stripSourceMapsInPackagingTasks

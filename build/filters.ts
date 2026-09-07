@@ -63,6 +63,10 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/**/out/**',
 	'!extensions/**/snippets/**',
 	'!extensions/**/colorize-fixtures/**',
+	'!extensions/knox/gui-src/**',
+	'!extensions/knox/core/**',
+	'!extensions/knox/knoxdev-package/**',
+	'!extensions/knox/src/**',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
 
 	'!src/vs/base/browser/dompurify/**',
@@ -133,6 +137,10 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!extensions/**/syntaxes/**',
 	'!extensions/**/themes/**',
 	'!extensions/**/colorize-fixtures/**',
+	'!extensions/knox/gui-src/**',
+	'!extensions/knox/core/**',
+	'!extensions/knox/knoxdev-package/**',
+	'!extensions/knox/src/**',
 
 	// except specific file types
 	'!src/vs/*/**/*.d.ts',
@@ -215,6 +223,12 @@ export const copyrightFilter = Object.freeze<string[]>([
 	// vendored third-party libraries
 	'!src/vs/base/common/lit-html/**',
 	'!src/vs/base/common/signals-core/**',
+
+	// Vendored Knox product sources (ported from kc 1.4.6)
+	'!extensions/knox/gui-src/**',
+	'!extensions/knox/core/**',
+	'!extensions/knox/knoxdev-package/**',
+	'!extensions/knox/src/**',
 ]);
 
 export const tsFormattingFilter = Object.freeze<string[]>([
@@ -234,6 +248,10 @@ export const tsFormattingFilter = Object.freeze<string[]>([
 	'!extensions/html-language-features/server/lib/jquery.d.ts',
 	'!extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
+	'!extensions/knox/gui-src/**',
+	'!extensions/knox/core/**',
+	'!extensions/knox/knoxdev-package/**',
+	'!extensions/knox/src/**',
 ]);
 
 export const eslintFilter = Object.freeze<string[]>([

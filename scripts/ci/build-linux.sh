@@ -70,6 +70,10 @@ npm run gulp core-ci
 echo "Packaging desktop app..."
 npm run gulp "vscode-linux-${VSCODE_ARCH}-min-ci"
 
+CLIENT_DIR="$(dirname "$ROOT")/VSCode-linux-${VSCODE_ARCH}"
+echo "Verifying bundled Knox (dist + gui + sqlite)..."
+bash "$ROOT/scripts/ci/verify-knox-package.sh" "$CLIENT_DIR"
+
 # Build the CLI (tunnel binary) and place it next to the desktop app, like the
 # upstream "Mix in CLI" step. The deb dependency generator requires it.
 echo "Building CLI (tunnel binary)..."

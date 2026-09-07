@@ -31,7 +31,10 @@ export const dirs = [
 	'extensions/jake',
 	'extensions/json-language-features',
 	'extensions/json-language-features/server',
+	'extensions/knox',
+	'extensions/knox/gui-src',
 	'extensions/markdown-language-features',
+
 	'extensions/markdown-math',
 	'extensions/media-preview',
 	'extensions/merge-conflict',

@@ -1,0 +1,24 @@
+src/**
+test/**
+out/**
+tsconfig*.json
+**/*.tsbuildinfo
+build/**
+!build/Release/
+!build/Release/*.node
+esbuild*.mts
+package-lock.json
+gui-src/**
+scripts/**
+core/**
+knoxdev-package/**
+# dist/ and gui/ are gitignored build output; force-include for vsce/fromLocal
+!dist/
+!dist/**
+!gui/
+!gui/**
+# native .node copies next to the bundle (repo gitignore has extensions/knox/**/*.node)
+!dist/**/*.node
+# tree-sitter queries are source; WASM copies land in dist/ at pack time
+!tree-sitter/**
+!tag-qry/**

@@ -992,13 +992,6 @@ class MoveFocusedViewAction extends Action2 {
 			});
 		}
 
-		if (!(isViewSolo && currentLocation === ViewContainerLocation.AuxiliaryBar)) {
-			items.push({
-				id: '_.auxiliarybar.newcontainer',
-				label: localize('moveFocusedView.newContainerInSidePanel', "New Secondary Side Bar Entry")
-			});
-		}
-
 		items.push({
 			type: 'separator',
 			label: localize('sidebar', "Side Bar")
@@ -1041,27 +1034,6 @@ class MoveFocusedViewAction extends Action2 {
 				};
 			}));
 
-		items.push({
-			type: 'separator',
-			label: localize('secondarySideBar', "Secondary Side Bar")
-		});
-
-		const pinnedAuxPanels = paneCompositePartService.getPinnedPaneCompositeIds(ViewContainerLocation.AuxiliaryBar);
-		items.push(...pinnedAuxPanels
-			.filter(panel => {
-				if (panel === viewDescriptorService.getViewContainerByViewId(focusedViewId)!.id) {
-					return false;
-				}
-
-				return !viewDescriptorService.getViewContainerById(panel)!.rejectAddedViews;
-			})
-			.map(panel => {
-				return {
-					id: panel,
-					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!).title
-				};
-			}));
-
 		quickPick.items = items;
 
 		disposables.add(quickPick.onDidAccept(() => {
@@ -1072,9 +1044,6 @@ class MoveFocusedViewAction extends Action2 {
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id === '_.sidebar.newcontainer') {
 				viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Sidebar, this.desc.id);
-				viewsService.openView(focusedViewId, true);
-			} else if (destination.id === '_.auxiliarybar.newcontainer') {
-				viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.AuxiliaryBar, this.desc.id);
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id) {
 				viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getViewContainerById(destination.id)!, undefined, this.desc.id);

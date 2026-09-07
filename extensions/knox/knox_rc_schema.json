@@ -1,0 +1,1583 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "config.json",
+  "$ref": "#/$defs/SerializedKnoxConfig",
+  "$defs": {
+    "BaseCompletionOptions": {
+      "title": "BaseCompletionOptions",
+      "type": "object",
+      "properties": {
+        "stream": {
+          "title": "Stream",
+          "description": "Whether to stream the LLM response. Currently only respected by the 'anthropic' provider. Otherwise will always stream.",
+          "type": "boolean",
+          "default": true
+        },
+        "temperature": {
+          "title": "Temperature",
+          "description": "The temperature of the completion.",
+          "type": "number"
+        },
+        "topP": {
+          "title": "Top P",
+          "description": "The topP of the completion.",
+          "type": "number"
+        },
+        "topK": {
+          "title": "Top K",
+          "description": "The topK of the completion.",
+          "type": "integer"
+        },
+        "presencePenalty": {
+          "title": "Presence Penalty",
+          "description": "The presence penalty Aof the completion.",
+          "type": "number"
+        },
+        "frequencyPenalty": {
+          "title": "Frequency Penalty",
+          "description": "The frequency penalty of the completion.",
+          "type": "number"
+        },
+        "mirostat": {
+          "title": "Mirostat",
+          "description": "Enable Mirostat sampling, controlling perplexity during text generation (default: 0, 0 = disabled, 1 = Mirostat, 2 = Mirostat 2.0).",
+          "type": "number"
+        },
+        "stop": {
+          "title": "Stop",
+          "description": "The stop tokens of the completion.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "maxTokens": {
+          "title": "Max Tokens",
+          "description": "The maximum number of tokens to generate.",
+          "default": 600,
+          "type": "integer"
+        },
+        "numThreads": {
+          "title": "Number of threads",
+          "description": "The number of threads used in the generation process.",
+          "type": "integer"
+        },
+        "useMmap": {
+          "title": "Use Memory Map",
+          "description": "Allows the model to be mapped into memory. If disabled can enhance response time on low end devices.",
+          "type": "boolean"
+        },
+        "keepAlive": {
+          "title": "Keep Alive",
+          "description": "The number of seconds after no requests are made to unload the model from memory. Defaults to 60*30 = 30min",
+          "type": "integer"
+        }
+      }
+    },
+    "ClientCertificateOptions": {
+      "title": "ClientCertificateOptions",
+      "type": "object",
+      "properties": {
+        "cert": {
+          "title": "Cert Path",
+          "description": "Path to the client certificate file",
+          "type": "string"
+        },
+        "key": {
+          "title": "Key Path",
+          "description": "Path to the client certificate key file",
+          "type": "string"
+        },
+        "passphrase": {
+          "title": "Passphrase",
+          "description": "Passphrase for the client certificate key file",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cert",
+        "key"
+      ]
+    },
+    "RequestOptions": {
+      "title": "RequestOptions",
+      "type": "object",
+      "properties": {
+        "timeout": {
+          "title": "Timeout",
+          "description": "Set the timeout for each request to the LLM. If you are running a local LLM that takes a while to respond, you might want to set this to avoid timeouts.",
+          "default": 7200,
+          "type": "integer"
+        },
+        "verifySsl": {
+          "title": "Verify Ssl",
+          "description": "Whether to verify SSL certificates for requests.",
+          "type": "boolean"
+        },
+        "caBundlePath": {
+          "title": "Ca Bundle Path",
+          "description": "Path to a custom CA bundle to use when making the HTTP request",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "proxy": {
+          "title": "Proxy",
+          "description": "Proxy URL to use when making the HTTP request",
+          "type": "string"
+        },
+        "headers": {
+          "title": "Headers",
+          "description": "Headers to use when making the HTTP request",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "extraBodyProperties": {
+          "title": "Extra Body Properties",
+          "description": "This object will be merged with the body when making the HTTP requests",
+          "type": "object"
+        },
+        "noProxy": {
+          "title": "No Proxy",
+          "description": "A list of hostnames for which Knox should not use the proxy specified in requestOptions.proxy",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "clientCertificate": {
+          "title": "Client Certificate",
+          "description": "Client certificate to use when making the HTTP request",
+          "$ref": "#/$defs/ClientCertificateOptions"
+        }
+      }
+    },
+    "ModelDescription": {
+      "title": "ModelDescription",
+      "type": "object",
+      "properties": {
+        "title": {
+          "title": "Title",
+          "description": "The title you wish to give your model.",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "description": "The provider of the model. This is used to determine the type of model, and how to interact with it.",
+          "enum": [
+            "openai",
+            "anthropic",
+            "knoxchat"
+          ],
+          "markdownEnumDescriptions": [
+            "### OpenAI\nUse gpt-4, gpt-3.5-turbo, or any other OpenAI model. See [here](https://openai.com/product#made-for-developers) to obtain an API key.\n\n> [Reference](https://docs.knox.chat/reference/Model%20Providers/openai)",
+            "### Anthropic\nTo get started with Anthropic models, you first need to sign up for the open beta [here](https://claude.ai/login) to obtain an API key.\n> [Reference](https://docs.knox.chat/reference/Model%20Providers/anthropicllm)",
+            "### KnoxChat\nKnoxChat offers a single API to access almost any language model. To get started, obtain an API key from their console."
+          ],
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "description": "The name of the model. Used to autodetect prompt template.",
+          "type": "string"
+        },
+        "apiKey": {
+          "title": "Api Key",
+          "description": "OpenAI or Anthropic API key",
+          "type": "string"
+        },
+        "apiBase": {
+          "title": "Api Base",
+          "description": "The base URL of the LLM API.",
+          "type": "string"
+        },
+        "contextLength": {
+          "title": "Context Length",
+          "description": "Maximum context window for the model (from KnoxChat /v1/models metadata or your override). Used with a local char÷4 budget estimate for compaction — not for billing.",
+          "default": 2048,
+          "type": "integer"
+        },
+        "maxStopWords": {
+          "title": "Max Stop Words",
+          "description": "The maximum number of stop words that the API will accept. You can set this if you are receiving an error about the number of stop words, but otherwise should leave it undefined.",
+          "type": "integer"
+        },
+        "template": {
+          "title": "Template",
+          "description": "The chat template used to format messages. This is auto-detected for most models, but can be overridden here. Choose none if you are using KnoxChat or another server that automatically handles prompting.",
+          "enum": [
+            "anthropic",
+            "none"
+          ],
+          "type": "string"
+        },
+        "promptTemplates": {
+          "title": "Prompt Templates",
+          "markdownDescription": "A mapping of prompt template name ('edit' is currently the only one used in Knox) to a string giving the prompt template. See [here](https://docs.knox.chat/model-setup/configuration#customizing-the-edit-prompt) for an example.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "completionOptions": {
+          "title": "Completion Options",
+          "description": "Options for the completion endpoint. Read more about the completion options in the documentation.",
+          "default": {
+            "temperature": null,
+            "topP": null,
+            "topK": null,
+            "presencePenalty": null,
+            "frequencyPenalty": null,
+            "stop": null,
+            "maxTokens": 2048
+          },
+          "allOf": [
+            {
+              "$ref": "#/$defs/BaseCompletionOptions"
+            }
+          ]
+        },
+        "systemMessage": {
+          "title": "System Message",
+          "description": "A system message that will always be followed by the LLM",
+          "type": "string"
+        },
+        "requestOptions": {
+          "title": "Request Options",
+          "description": "Options for the HTTP request to the LLM.",
+          "default": {
+            "timeout": 7200,
+            "verifySsl": null,
+            "caBundlePath": null,
+            "proxy": null,
+            "headers": null,
+            "extraBodyProperties": null
+          },
+          "allOf": [
+            {
+              "$ref": "#/$defs/RequestOptions"
+            }
+          ]
+        },
+        "apiType": {
+          "title": "Api Type",
+          "markdownDescription": "OpenAI API type",
+          "enum": [
+            "openai"
+          ]
+        },
+        "capabilities": {
+          "type": "object",
+          "description": "We will attempt to automatically detect the capabilities of the model based on its title and provider, but this may not always be accurate. You can override the model's capabilities here.",
+          "properties": {
+            "uploadImage": {
+              "type": "boolean",
+              "description": "Indicates whether the model can upload images."
+            },
+            "tools": {
+              "type": "boolean",
+              "description": "Indicates whether the model can use tools"
+            },
+            "reasoning": {
+              "type": "boolean",
+              "description": "Indicates whether the model supports reasoning / thinking traces"
+            },
+            "webSearch": {
+              "type": "boolean",
+              "description": "Indicates whether the model supports provider-native web search"
+            },
+            "imageOutput": {
+              "type": "boolean",
+              "description": "Indicates whether the model can generate or edit images"
+            }
+          }
+        }
+      },
+      "required": [
+        "title",
+        "provider",
+        "model"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "type": "array"
+              }
+            },
+            "not": {
+              "required": [
+                "provider"
+              ]
+            }
+          },
+          "then": {
+            "properties": {
+              "model": {
+                "description": "Choose a provider first, then model options will be shown here."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "enum": [
+                  "openai",
+                  "anthropic"
+                ]
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "required": [
+              "apiKey"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "enum": [
+                  "openai"
+                ]
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "properties": {
+              "deployment": {
+                "type": "string"
+              },
+              "apiType": {
+                "type": "string"
+              },
+              "apiVersion": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "enum": [
+                  "openai"
+                ]
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "properties": {
+              "model": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "gpt-3.5-turbo",
+                      "gpt-3.5-turbo-16k",
+                      "gpt-4o",
+                      "gpt-4o-mini",
+                      "gpt-4",
+                      "gpt-3.5-turbo-0613",
+                      "gpt-4-32k",
+                      "gpt-4-0125-preview",
+                      "gpt-4-turbo",
+                      "AUTODETECT"
+                    ]
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "enum": [
+                  "openai"
+                ]
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "properties": {
+              "model": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "gpt-4o",
+                      "gpt-4o-mini",
+                      "gpt-5",
+                      "gpt-4-32k",
+                      "gpt-4-turbo",
+                      "gpt-4-vision-preview",
+                      "codeup-13b",
+                      "stable-code-3b",
+                      "starcoder-1b",
+                      "starcoder-3b",
+                      "starcoder2-3b",
+                      "AUTODETECT"
+                    ]
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "enum": [
+                  "anthropic"
+                ]
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "properties": {
+              "cacheBehavior": {
+                "title": "Caching Behavior",
+                "description": "Options for the prompt caching",
+                "properties": {
+                  "cacheSystemMessage": {
+                    "type": "boolean"
+                  },
+                  "cacheConversation": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "model": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "claude-haiku-4.5",
+                      "claude-sonnet-4.6",
+                      "claude-opus-4.6",
+                      "claude-opus-4.7",
+                      "claude-opus-4.8",
+                      "claude-opus-5"
+                    ]
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "enum": [
+                  "openai"
+                ]
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "properties": {
+              "useLegacyCompletionsEndpoint": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "SlashCommand": {
+      "title": "SlashCommand",
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "anyOf": [
+            {
+              "enum": [
+                "issue",
+                "share",
+                "cmd",
+                "edit",
+                "comment",
+                "http",
+                "commit",
+                "review"
+              ],
+              "type": "string",
+              "markdownEnumDescriptions": [
+                "Generate a link to a drafted GitHub issue",
+                "Export the current chat session to markdown",
+                "Generate a terminal command and paste it into the terminal",
+                "Edit the highlighted code with given instructions",
+                "Add comments to the highlighted code",
+                "Write a custom slash command at your own HTTP endpoint. Set 'url' in the params object for the endpoint you have setup.",
+                "Generate a commit message for the current changes",
+                "Review code and give feedback"
+              ]
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "step": {
+          "title": "Step",
+          "description": "This property is no longer required and has no effect. To use a built-in slash command, instead set the 'name' property to one of the pre-configured options.",
+          "type": "string"
+        },
+        "params": {
+          "title": "Params",
+          "default": {},
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "issue"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "repositoryUrl": {
+                    "type": "string",
+                    "description": "Enter the URL of the GitHub repository for which you want to generate the issue."
+                  }
+                },
+                "required": [
+                  "repositoryUrl"
+                ]
+              }
+            },
+            "required": [
+              "params"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "edit"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "recap": {
+                    "type": "boolean",
+                    "markdownDescription": "If recap is set to `true`, Knox will generate a summary of the changes after making the edit."
+                  },
+                  "tokenLimit": {
+                    "type": "integer",
+                    "description": "By default, Knox doesn't let you edit extremely large ranges (beyond 1,200 tokens), because the LLM is unlikely to succeed. But if you would like to override this limit with the understanding of possible failure you may do so here."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "share"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "outputDir": {
+                    "type": "string",
+                    "markdownDescription": "If outputDir is set to `.` or begins with `./` or `.\\`, file will be saved to the current workspace or a subdirectory thereof, respectively. `~` can similarly be used to specify the user's home directory."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "commit"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "includeUnstaged": {
+                    "type": "boolean",
+                    "markdownDescription": "If set to `true`, then unstaged changes are also included in the prompt, otherwise only staged changes are included. Default is `false`."
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "required": [
+        "name",
+        "description"
+      ]
+    },
+    "CustomCommand": {
+      "title": "CustomCommand",
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "prompt": {
+          "title": "Prompt",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "prompt",
+        "description"
+      ]
+    },
+    "ContextProviderWithParams": {
+      "title": "ContextProviderWithParams",
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "anyOf": [
+            {
+              "enum": [
+                "file",
+                "diff",
+                "problems",
+                "repo-map",
+                "terminal",
+                "memory",
+                "currentFile",
+                "open",
+                "clipboard",
+                "commit",
+                "tree",
+                "search",
+                "os",
+                "url",
+                "debugger",
+                "google",
+                "http",
+                "issue",
+                "postgres",
+                "database",
+                "greptile",
+                "web",
+                "discord",
+                "folder",
+                "code"
+              ],
+              "markdownEnumDescriptions": [
+                "Core: browse and attach workspace files/folders",
+                "Core: git diff of current changes",
+                "Core: lint problems in the open file",
+                "Core: repository map with symbols",
+                "Core: recent terminal output",
+                "Core: project memory search",
+                "Active editor file contents",
+                "All open or pinned files",
+                "Clipboard contents",
+                "Previous git commits",
+                "Workspace file tree",
+                "Ripgrep codebase search",
+                "OS / CPU information",
+                "Fetch a URL as context",
+                "Integration: debugger locals (requires debug session)",
+                "Integration: Google via Serper (requires serperApiKey)",
+                "Integration: custom HTTP context endpoint (requires url)",
+                "Integration: GitHub issues (requires githubToken)",
+                "Integration: PostgreSQL schemas (requires host/database)",
+                "Integration: database connections (requires connections)",
+                "Integration: Greptile index query",
+                "Integration: web search context (prefer search_web tool)",
+                "Integration: Discord channel messages (requires discordKey)",
+                "Legacy folder provider alias",
+                "Legacy code provider alias"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "params": {
+          "title": "Params",
+          "default": {},
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "discord"
+                ]
+              }
+            }
+          },
+          "then": {
+            "allOf": [
+              {
+                "properties": {
+                  "params": {
+                    "properties": {
+                      "discordKey": {
+                        "type": "string",
+                        "description": "Your Discord bot token to access the Discord API. Required to fetch messages from servers."
+                      },
+                      "guildId": {
+                        "type": "string",
+                        "description": "The ID of the guild (server) from which to fetch channels and messages."
+                      },
+                      "channels": {
+                        "type": "array",
+                        "description": "A list of channel objects to search for messages",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "The unique ID of the channel"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "The name of the channel"
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "discordKey"
+                    ]
+                  }
+                }
+              },
+              {
+                "oneOf": [
+                  {
+                    "properties": {
+                      "params": {
+                        "required": [
+                          "guildId"
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "params": {
+                        "required": [
+                          "channels"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "google"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "serperApiKey": {
+                    "type": "string",
+                    "description": "Your API key for https://serper.dev in order to get Google search results"
+                  }
+                },
+                "required": [
+                  "serperApiKey"
+                ]
+              }
+            },
+            "required": [
+              "params"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "web"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "n": {
+                    "title": "N",
+                    "description": "The number of results to return",
+                    "default": 6,
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "open"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "onlyPinned": {
+                    "type": "boolean",
+                    "description": "If set to true, only 'pinned' files will be included.",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "repo-map"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "includeSignatures": {
+                    "type": "boolean",
+                    "description": "Include message signatures from repo-map",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "debugger"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "stackDepth": {
+                    "title": "Stack Depth",
+                    "description": "Stack trace depth to include in context",
+                    "default": 3,
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "diff"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "includeUnstaged": {
+                    "type": "boolean",
+                    "description": "Include diff from unstaged files",
+                    "default": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "issue"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "githubToken": {
+                    "type": "string",
+                    "description": "Your GitHub token to access the GitHub API. Required for private repositories."
+                  },
+                  "repos": {
+                    "type": "array",
+                    "description": "A list of repositories to search for issues",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "owner": {
+                          "type": "string",
+                          "description": "The owner of the repository"
+                        },
+                        "repo": {
+                          "type": "string",
+                          "description": "The name of the repository"
+                        },
+                        "type": {
+                          "type": "string",
+                          "description": "The type of issues to search for",
+                          "enum": [
+                            "open",
+                            "closed",
+                            "all"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "owner",
+                        "repo"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "repos"
+                ]
+              }
+            },
+            "required": [
+              "params"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "database"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "connections": {
+                    "type": "array",
+                    "description": "A list of database connections",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "A unique name for this database connection"
+                        },
+                        "connection_type": {
+                          "type": "string",
+                          "description": "The type of database (e.g., 'postgres', 'mysql')",
+                          "enum": [
+                            "postgres",
+                            "mysql",
+                            "sqlite",
+                            "mssql"
+                          ]
+                        },
+                        "connection": {
+                          "type": "object",
+                          "properties": {
+                            "user": {
+                              "type": "string",
+                              "description": "The database user name"
+                            },
+                            "host": {
+                              "type": "string",
+                              "description": "The host address of the database server"
+                            },
+                            "database": {
+                              "type": "string",
+                              "description": "The name of the database to connect to"
+                            },
+                            "password": {
+                              "type": "string",
+                              "description": "The password for the database user"
+                            },
+                            "port": {
+                              "type": "integer",
+                              "description": "The port number to connect to at the host"
+                            },
+                            "filename": {
+                              "type": "string",
+                              "description": "File location for simple file DB's"
+                            }
+                          },
+                          "required": []
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "connection_type",
+                        "connection"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "connections"
+                ]
+              }
+            },
+            "required": [
+              "params"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "http"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "description": "The HTTP endpoint of your context provider server."
+                  },
+                  "options": {
+                    "title": "Custom Options",
+                    "description": "Additional options to pass to your custom HTTP server.",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            },
+            "required": [
+              "params"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "folder"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "nFinal": {
+                    "title": "N Final",
+                    "description": "Final number of results to use",
+                    "default": 10,
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "postgres"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "host": {
+                    "title": "Host",
+                    "description": "Database host",
+                    "default": "localhost",
+                    "type": "string"
+                  },
+                  "port": {
+                    "title": "Port",
+                    "description": "Database port",
+                    "default": 5432,
+                    "type": "integer"
+                  },
+                  "user": {
+                    "title": "User",
+                    "description": "Database user",
+                    "default": "postgres",
+                    "type": "string"
+                  },
+                  "password": {
+                    "title": "Password",
+                    "description": "Database password",
+                    "type": "string"
+                  },
+                  "database": {
+                    "title": "Database",
+                    "description": "Database name",
+                    "default": "postgres",
+                    "type": "string"
+                  },
+                  "schema": {
+                    "title": "Schema",
+                    "description": "Database schema",
+                    "default": "public",
+                    "type": "string"
+                  },
+                  "sampleRows": {
+                    "title": "Sample Rows",
+                    "description": "Number of rows to sample from the database",
+                    "default": 3,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "host",
+                  "port",
+                  "user",
+                  "password",
+                  "database"
+                ]
+              }
+            },
+            "required": [
+              "params"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "greptile"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "GithubToken": {
+                    "title": "GithubToken",
+                    "description": "Your github access token",
+                    "default": "",
+                    "type": "string"
+                  },
+                  "GreptileToken": {
+                    "title": "GreptileToken",
+                    "description": "Your greptile access token",
+                    "default": "",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "GreptileToken",
+                  "GithubToken"
+                ]
+              }
+            },
+            "required": [
+              "params"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "commit"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "Depth": {
+                    "title": "depth",
+                    "description": "How many previous commits should be loaded",
+                    "default": 50,
+                    "type": "number"
+                  },
+                  "LastXCommitsDepth": {
+                    "title": "LastXCommitsDepth",
+                    "description": "how many commits should be included when querying all recent commits",
+                    "default": 10,
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            "required": [
+              "params"
+            ]
+          }
+        }
+      ],
+      "required": [
+        "name"
+      ]
+    },
+    "SerializedKnoxConfig": {
+      "title": "config.json",
+      "type": "object",
+      "properties": {
+        "models": {
+          "title": "Models",
+          "markdownDescription": "Learn about setting up models in [the documentation](https://docs.knox.chat/model-setup/overview).",
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ModelDescription"
+          }
+        },
+        "systemMessage": {
+          "title": "System Message",
+          "description": "A system message that will always be followed by the LLM",
+          "type": "string"
+        },
+        "completionOptions": {
+          "title": "Completion Options",
+          "description": "Default options for completion. These will be overriden by any options set for a specific model.",
+          "default": {
+            "temperature": null,
+            "topP": null,
+            "topK": null,
+            "presencePenalty": null,
+            "frequencyPenalty": null,
+            "stop": null,
+            "maxTokens": 600
+          },
+          "allOf": [
+            {
+              "$ref": "#/$defs/BaseCompletionOptions"
+            }
+          ]
+        },
+        "requestOptions": {
+          "title": "Request Options",
+          "description": "Default request options for all fetch requests from models and context providers. These will be overriden by any model-specific request options.",
+          "allOf": [
+            {
+              "$ref": "#/$defs/RequestOptions"
+            }
+          ]
+        },
+        "slashCommands": {
+          "title": "Slash Commands",
+          "markdownDescription": "An array of slash commands that let you take custom actions from the sidebar. Learn more in the [documentation](https://docs.knox.chat/customization/slash-commands).",
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SlashCommand"
+          }
+        },
+        "customCommands": {
+          "title": "Custom Commands (deprecated)",
+          "markdownDescription": "**Deprecated — removed in V1.4.** Prefer YAML `prompts` or `.prompt` files under `~/.knox/prompts` / `.prompts/`. Still loaded until then; config validation emits a non-fatal warning.",
+          "default": [],
+          "deprecated": true,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CustomCommand"
+          }
+        },
+        "contextProviders": {
+          "title": "Context Providers",
+          "markdownDescription": "A list of ContextProvider objects that can be used to provide context to the LLM by typing '@'. Read more about ContextProviders in [the documentation](https://docs.knox.chat/customization/context-providers).",
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContextProviderWithParams"
+          }
+        },
+        "disableSessionTitles": {
+          "title": "Disable Session Titles",
+          "markdownDescription": "If set to `true`, Knox will not make extra requests to the LLM to generate a summary title of each session.",
+          "default": false,
+          "type": "boolean"
+        },
+        "ui": {
+          "type": "object",
+          "properties": {
+            "codeBlockToolbarPosition": {
+              "enum": [
+                "top",
+                "bottom"
+              ],
+              "default": "top",
+              "description": "Whether to show the copy and apply code buttons at the top or bottom of code blocks in the sidebar."
+            },
+            "fontSize": {
+              "type": "number"
+            },
+            "displayRawMarkdown": {
+              "type": "boolean",
+              "description": "If set to true, we will display the model output as raw markdown.",
+              "default": false
+            },
+            "showChatScrollbar": {
+              "title": "Show Chat Scrollbar",
+              "markdownDescription": "If set to `true`, a scrollbar will be displayed in the chat window to navigate through messages.",
+              "default": false,
+              "type": "boolean"
+            },
+            "codeWrap": {
+              "type": "boolean",
+              "description": "If set to true, code in pre blocks will wrap.",
+              "default": false
+            }
+          }
+        },
+        "experimental": {
+          "type": "object",
+          "title": "Experimental",
+          "description": "Experimental properties are subject to change.",
+          "properties": {
+            "defaultContext": {
+              "type": "array",
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/ContextProviderWithParams"
+                  },
+                  {
+                    "properties": {
+                      "query": {
+                        "type": "string",
+                        "description": "Required for certain context providers, like 'url' in order to specify the input, or which of the dropdown items to select."
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "modelRoles": {
+              "type": "object",
+              "properties": {
+                "inlineEdit": {
+                  "description": "The 'title' property of the model you wish to use for inline edits",
+                  "type": "string"
+                },
+                "applyCodeBlock": {
+                  "description": "The 'title' property of the model you wish to use for applying code blocks",
+                  "type": "string"
+                },
+                "repoMapFileSelection": {
+                  "description": "The 'title' property of the model you wish to use for repo map file selections",
+                  "type": "string"
+                }
+              }
+            },
+            "promptPath": {
+              "type": "string"
+            },
+            "quickActions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "The title of the quick action that will display in the Code Lens."
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "The prompt that will be sent to the model when the quick action is invoked, with the function or class body concatenated."
+                  },
+                  "sendToChat": {
+                    "type": "boolean",
+                    "description": "If true, the result of the quick action will be sent to the chat panel. If false, the streamed result will be inserted into the document.",
+                    "default": false
+                  }
+                },
+                "required": [
+                  "prompt",
+                  "title"
+                ]
+              },
+              "description": "Quick actions are a way to add custom commands to the Code Lens of function and class declarations."
+            },
+            "contextMenuPrompts": {
+              "type": "object",
+              "properties": {
+                "comment": {
+                  "type": "string",
+                  "default": "Write comments for this code. Do not change anything about the code itself."
+                },
+                "docstring": {
+                  "type": "string",
+                  "default": "Write a docstring for this code. Do not change anything about the code itself."
+                },
+                "fix": {
+                  "type": "string",
+                  "default": "Fix Code"
+                },
+                "optimize": {
+                  "type": "string",
+                  "default": "Optimize Code"
+                },
+                "fixGrammar": {
+                  "type": "string",
+                  "default": "If there are any grammar or spelling mistakes in this writing, fix them. Do not make other large changes to the writing."
+                }
+              }
+            }
+          }
+        },
+        "mergeBehavior": {
+          "type": "string",
+          "enum": [
+            "merge",
+            "overwrite"
+          ],
+          "default": "merge",
+          "title": "Merge behavior",
+          "markdownDescription": "If set to 'merge', .knoxrc.json will be applied on top of config.json (arrays and objects are merged). If set to 'overwrite', then every top-level property of .knoxrc.json will overwrite that property from config.json."
+        }
+      }
+    }
+  }
+}

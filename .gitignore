@@ -49,6 +49,12 @@ dist
 .agents/skills/.local/
 .github/skills/.local/
 
+# Knox webview production assets and native addons (build output)
+extensions/knox/gui/
+extensions/knox/**/*.node
+extensions/knox/build/
+
+
 # Throwaway Code OSS dev profiles created by the launch skill
 .v[0-9]*/
 # Local agent validation evidence

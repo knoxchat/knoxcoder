@@ -1,0 +1,21 @@
+{
+  "oopsSomethingWentWrong": "Oops! Something went wrong",
+  "errorExclamation": "Error!",
+  "failedToLoadConfiguration": "Failed to load configuration",
+  "learnMore": "Learn more",
+  "configErrors": "Config Errors",
+  "pleaseResolveConfigErrors": "Please resolve the following errors in your assistant configuration.",
+  "fatalError": "Fatal Error:",
+  "warning": "Warning:",
+  "noConfigErrorsFound": "No configuration errors found.",
+  "error": "Error",
+  "rateLimited": "This might mean your {{model}} usage has been rate limited by {{provider}}.",
+  "likelyCauses": "Likely causes:",
+  "invalidApiBase": "Invalid",
+  "modelNotFound": "Model/deployment not found",
+  "refreshHubSecrets": "If your hub secret values may have changed, refresh your assistants",
+  "refreshAssistantSecrets": "Refresh assistant secrets",
+  "invalidApiKey": "It's possible that your API key is invalid.",
+  "serverOverloaded": "Most likely, the provider's server(s) are overloaded and streaming was interrupted. Try again later",
+  "provider": "Provider: "
+}

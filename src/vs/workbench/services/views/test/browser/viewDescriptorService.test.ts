@@ -11,6 +11,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ViewDescriptorService } from '../../browser/viewDescriptorService.js';
+import { KNOX_VIEW_CONTAINER_ID, KNOX_VIEW_ID } from '../../../../common/knox.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -39,8 +40,11 @@ suite('ViewDescriptorService', () => {
 
 	teardown(() => {
 		for (const viewContainer of ViewContainersRegistry.all) {
-			if (viewContainer.id.startsWith(viewContainerIdPrefix)) {
+			if (viewContainer.id.startsWith(viewContainerIdPrefix) || viewContainer.id === KNOX_VIEW_CONTAINER_ID) {
 				ViewsRegistry.deregisterViews(ViewsRegistry.getViews(viewContainer), viewContainer);
+			}
+			if (viewContainer.id === KNOX_VIEW_CONTAINER_ID) {
+				ViewContainersRegistry.deregisterViewContainer(viewContainer);
 			}
 		}
 	});
@@ -338,7 +342,7 @@ suite('ViewDescriptorService', () => {
 		const viewsCustomizations = {
 			viewContainerLocations: {
 				[generateViewContainer1]: ViewContainerLocation.Sidebar,
-				[viewContainer1.id]: ViewContainerLocation.AuxiliaryBar
+				[viewContainer1.id]: ViewContainerLocation.Panel
 			},
 			viewLocations: {
 				'view1': generateViewContainer1
@@ -385,7 +389,7 @@ suite('ViewDescriptorService', () => {
 		assert.deepStrictEqual(generatedViewContainerViews.allViewDescriptors.map(v => v.id), ['view1']);
 
 		const viewContainer1Views = testObject.getViewContainerModel(viewContainer1);
-		assert.deepStrictEqual(testObject.getViewContainerLocation(viewContainer1), ViewContainerLocation.AuxiliaryBar);
+		assert.deepStrictEqual(testObject.getViewContainerLocation(viewContainer1), ViewContainerLocation.Panel);
 		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id), ['view4']);
 	});
 
@@ -429,7 +433,7 @@ suite('ViewDescriptorService', () => {
 		const viewsCustomizations = {
 			viewContainerLocations: {
 				[generateViewContainer1]: ViewContainerLocation.Sidebar,
-				[viewContainer1.id]: ViewContainerLocation.AuxiliaryBar
+				[viewContainer1.id]: ViewContainerLocation.Panel
 			},
 			viewLocations: {
 				'view1': generateViewContainer1
@@ -444,7 +448,7 @@ suite('ViewDescriptorService', () => {
 		assert.deepStrictEqual(generatedViewContainerViews.allViewDescriptors.map(v => v.id), ['view1']);
 
 		const viewContainer1Views = testObject.getViewContainerModel(viewContainer1);
-		assert.deepStrictEqual(testObject.getViewContainerLocation(viewContainer1), ViewContainerLocation.AuxiliaryBar);
+		assert.deepStrictEqual(testObject.getViewContainerLocation(viewContainer1), ViewContainerLocation.Panel);
 		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id), ['view4']);
 	});
 
@@ -534,7 +538,7 @@ suite('ViewDescriptorService', () => {
 		const viewsCustomizations = {
 			viewContainerLocations: {
 				[generateViewContainer1]: ViewContainerLocation.Sidebar,
-				[viewContainer1.id]: ViewContainerLocation.AuxiliaryBar
+				[viewContainer1.id]: ViewContainerLocation.Panel
 			},
 			viewLocations: {
 				'view1': generateViewContainer1
@@ -585,7 +589,7 @@ suite('ViewDescriptorService', () => {
 		assert.deepStrictEqual(generatedViewContainerViews.allViewDescriptors.map(v => v.id), ['view1']);
 
 		const viewContainer1Views = testObject.getViewContainerModel(viewContainer1);
-		assert.deepStrictEqual(testObject.getViewContainerLocation(viewContainer1), ViewContainerLocation.AuxiliaryBar);
+		assert.deepStrictEqual(testObject.getViewContainerLocation(viewContainer1), ViewContainerLocation.Panel);
 		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id), ['view4']);
 	});
 
@@ -597,7 +601,7 @@ suite('ViewDescriptorService', () => {
 		const viewsCustomizations = {
 			viewContainerLocations: {
 				[generateViewContainer1]: ViewContainerLocation.Sidebar,
-				[viewContainer1.id]: ViewContainerLocation.AuxiliaryBar
+				[viewContainer1.id]: ViewContainerLocation.Panel
 			},
 			viewLocations: {
 				'view5': generateViewContainer1
@@ -620,7 +624,7 @@ suite('ViewDescriptorService', () => {
 		testObject.whenExtensionsRegistered();
 
 		const viewContainer1Views = testObject.getViewContainerModel(viewContainer1);
-		assert.deepStrictEqual(testObject.getViewContainerLocation(viewContainer1), ViewContainerLocation.AuxiliaryBar);
+		assert.deepStrictEqual(testObject.getViewContainerLocation(viewContainer1), ViewContainerLocation.Panel);
 		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id), ['view1']);
 
 		const actual = JSON.parse(storageService.get('views.customizations', StorageScope.PROFILE)!);
@@ -631,10 +635,10 @@ suite('ViewDescriptorService', () => {
 		const storageService = instantiationService.get(IStorageService);
 		const testObject = aViewDescriptorService();
 
-		const generateViewContainerId = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar)}.${generateUuid()}`;
+		const generateViewContainerId = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Panel)}.${generateUuid()}`;
 		const viewsCustomizations = {
 			viewContainerLocations: {
-				[generateViewContainerId]: ViewContainerLocation.AuxiliaryBar,
+				[generateViewContainerId]: ViewContainerLocation.Panel,
 			},
 			viewLocations: {
 				'view1': generateViewContainerId
@@ -666,7 +670,7 @@ suite('ViewDescriptorService', () => {
 		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id), ['view2']);
 
 		const generateViewContainer = testObject.getViewContainerById(generateViewContainerId)!;
-		assert.deepStrictEqual(testObject.getViewContainerLocation(generateViewContainer), ViewContainerLocation.AuxiliaryBar);
+		assert.deepStrictEqual(testObject.getViewContainerLocation(generateViewContainer), ViewContainerLocation.Panel);
 		const generatedViewContainerModel = testObject.getViewContainerModel(generateViewContainer);
 		assert.deepStrictEqual(generatedViewContainerModel.allViewDescriptors.map(v => v.id), ['view1']);
 	});
@@ -699,10 +703,10 @@ suite('ViewDescriptorService', () => {
 		const viewContainer1Views = testObject.getViewContainerModel(viewContainer);
 		viewContainer1Views.setVisible('view1', false);
 
-		const generateViewContainerId = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar)}.${generateUuid()}`;
+		const generateViewContainerId = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Panel)}.${generateUuid()}`;
 		const viewsCustomizations = {
 			viewContainerLocations: {
-				[generateViewContainerId]: ViewContainerLocation.AuxiliaryBar,
+				[generateViewContainerId]: ViewContainerLocation.Panel,
 			},
 			viewLocations: {
 				'view1': generateViewContainerId
@@ -714,7 +718,7 @@ suite('ViewDescriptorService', () => {
 		const generatedViewContainerModel = testObject.getViewContainerModel(generateViewContainer);
 
 		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id), ['view2']);
-		assert.deepStrictEqual(testObject.getViewContainerLocation(generateViewContainer), ViewContainerLocation.AuxiliaryBar);
+		assert.deepStrictEqual(testObject.getViewContainerLocation(generateViewContainer), ViewContainerLocation.Panel);
 		assert.deepStrictEqual(generatedViewContainerModel.allViewDescriptors.map(v => v.id), ['view1']);
 
 		storageService.store('views.customizations', JSON.stringify({}), StorageScope.PROFILE, StorageTarget.USER);
@@ -722,6 +726,51 @@ suite('ViewDescriptorService', () => {
 		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id).sort((a, b) => compare(a, b)), ['view1', 'view2']);
 		assert.deepStrictEqual(viewContainer1Views.visibleViewDescriptors.map(v => v.id), ['view2']);
 		assert.deepStrictEqual(generatedViewContainerModel.allViewDescriptors.map(v => v.id), []);
+	});
+
+	test('Knox stays on the auxiliary bar and other containers cannot move there', () => {
+		// eslint-disable-next-line local/code-no-any-casts
+		const knoxContainer = ViewContainersRegistry.registerViewContainer({
+			id: KNOX_VIEW_CONTAINER_ID,
+			title: nls.localize2('knox', 'Knox'),
+			ctorDescriptor: new SyncDescriptor(<any>{}),
+			rejectAddedViews: true,
+		}, ViewContainerLocation.AuxiliaryBar, { isDefault: true });
+
+		const knoxView: IViewDescriptor = {
+			id: KNOX_VIEW_ID,
+			ctorDescriptor: null!,
+			name: nls.localize2('knox', 'Knox'),
+			canMoveView: false
+		};
+		const otherView: IViewDescriptor = {
+			id: 'view-not-knox',
+			ctorDescriptor: null!,
+			name: nls.localize2('Test View', 'Test View'),
+			canMoveView: true
+		};
+		ViewsRegistry.registerViews([knoxView], knoxContainer);
+		ViewsRegistry.registerViews([otherView], sidebarContainer);
+
+		const testObject = aViewDescriptorService();
+		testObject.moveViewContainerToLocation(knoxContainer, ViewContainerLocation.Sidebar);
+		assert.strictEqual(testObject.getViewContainerLocation(knoxContainer), ViewContainerLocation.AuxiliaryBar);
+
+		testObject.moveViewContainerToLocation(sidebarContainer, ViewContainerLocation.AuxiliaryBar);
+		assert.strictEqual(testObject.getViewContainerLocation(sidebarContainer), ViewContainerLocation.Sidebar);
+
+		testObject.moveViewToLocation(otherView, ViewContainerLocation.AuxiliaryBar);
+		assert.strictEqual(testObject.getViewLocationById(otherView.id), ViewContainerLocation.Sidebar);
+
+		testObject.moveViewsToContainer([otherView], knoxContainer);
+		assert.strictEqual(testObject.getViewContainerByViewId(otherView.id)?.id, sidebarContainer.id);
+
+		testObject.moveViewsToContainer([knoxView], sidebarContainer);
+		assert.strictEqual(testObject.getViewContainerByViewId(knoxView.id)?.id, KNOX_VIEW_CONTAINER_ID);
+
+		ViewsRegistry.deregisterViews([knoxView], knoxContainer);
+		ViewsRegistry.deregisterViews([otherView], sidebarContainer);
+		ViewContainersRegistry.deregisterViewContainer(knoxContainer);
 	});
 
 });

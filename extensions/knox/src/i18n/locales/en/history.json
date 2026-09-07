@@ -1,0 +1,20 @@
+{
+  "history.nothingToUndo": "Nothing to undo",
+  "history.undoing": "Undoing: {{description}}...",
+  "history.undid": "Undid: {{description}}",
+  "history.failedUndo": "Failed to undo: {{message}}",
+  "history.nothingToRedo": "Nothing to redo",
+  "history.redoing": "Redoing: {{description}}...",
+  "history.redid": "Redid: {{description}}",
+  "history.failedRedo": "Failed to redo: {{message}}",
+  "history.noOperations": "No operations in history",
+  "history.operationHistory": "Operation History (newest first)",
+  "history.cleared": "Operation history cleared",
+  "history.undoFileEdit": "Undo for file edit: {{file}}",
+  "history.undoSearchReplace": "Undo for search/replace in {{file}}",
+  "history.undoFileDeletion": "Undo for file deletion: {{file}}",
+  "history.changeNone": "No file change",
+  "history.changeCreated": "Created ({{bytes}} bytes)",
+  "history.changeDeleted": "Deleted (was {{bytes}} bytes)",
+  "history.changeModified": "Modified ({{before}} → {{after}} bytes)"
+}

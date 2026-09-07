@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knox Agent View</title>
+    <link rel="stylesheet" href="${webview.cspSource}/media/agentView.css">
+</head>
+<body>
+    <div class="container">
+        <div class="toolbar">
+            <div class="toolbar-title">
+                <h3>Knox Agent Operations</h3>
+            </div>
+            <div class="toolbar-actions">
+                <button id="toggleAutoScroll">
+                    <i class="fas fa-arrow-down"></i> Auto-scroll
+                </button>
+                <button id="clearOperations">
+                    <i class="fas fa-trash"></i> Clear
+                </button>
+            </div>
+        </div>
+        
+        <div class="status-bar">
+            <div class="status-indicator status-idle" id="statusIndicator"></div>
+            <span id="statusText">Idle</span>
+            <div class="multi-operation-indicator" id="multiOperationIndicator">
+                <i class="fas fa-list-check"></i>
+                <span class="indicator-text" id="operationCount">0 operations</span>
+            </div>
+        </div>
+        
+        <div class="operations-container" id="operationsContainer">
+            <div class="no-operations" id="noOperationsMessage">
+                No operations have been performed yet
+            </div>
+        </div>
+    </div>
+    
+    <script src="${webview.cspSource}/media/agentView.js"></script>
+    <script>
+        // Initialize the WebView once loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            // Acquire vscode API
+            const vscode = acquireVsCodeApi();
+            
+            // Initialize the WebView operations
+            initializeWebview(vscode);
+        });
+    </script>
+</body>
+</html> 

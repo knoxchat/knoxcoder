@@ -1,0 +1,79 @@
+import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+
+import { vscBackground } from "../../components";
+import { useAppSelector } from "../../redux/hooks";
+import { ArrowLeftIcon, ExclamationCircleIcon, ExclamationTriangleIcon } from "../../svg-icons";
+import { ROUTES } from "../../util/navigation";
+
+export default function ConfigErrorPage() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const configError = useAppSelector((state) => state.config.configError);
+
+  const sortedErrors = configError
+    ? [...configError].sort((a, b) => (b.fatal ? 1 : 0) - (a.fatal ? 1 : 0))
+    : [];
+
+  return (
+    <div className="overflow-y-scroll">
+      <div
+        onClick={() => navigate(ROUTES.HOME)}
+        className="sticky top-0 m-0 flex cursor-pointer items-center border-0 border-b border-solid border-b-zinc-700 bg-inherit p-0"
+        style={{
+          backgroundColor: vscBackground,
+        }}
+      >
+        <span className="ml-3 inline-block h-3 w-3 cursor-pointer">
+          <ArrowLeftIcon />
+        </span>
+        <span className="m-2 inline-block text-sm font-bold">{t('backToChat')}</span>
+      </div>
+
+      <div className="gap-2 divide-x-0 divide-y-2 divide-solid divide-zinc-700 px-4">
+        <div className="py-5">
+          <h3 className="mb-2 mt-0 text-xl">{t('configErrors')}</h3>
+          <p className="text-md mb-4">
+            {t('pleaseResolveConfigErrors')}
+          </p>
+          <div className="flex flex-col gap-5">
+            {sortedErrors.length > 0 ? (
+              <ul className="m-0 list-none space-y-4 p-0">
+                {sortedErrors.map((error, index) => (
+                  <li
+                    key={index}
+                    className={`flex items-start rounded-md p-2 text-sm shadow-md ${
+                      error.fatal
+                        ? "bg-red-100 text-red-800"
+                        : "bg-yellow-100 text-yellow-800"
+                    }`}
+                  >
+                    {error.fatal ? (
+                      <span className="mr-2 h-5 w-5">
+                        <ExclamationCircleIcon />
+                      </span>
+                    ) : (
+                      <span className="mr-2 h-5 w-5">
+                        <ExclamationTriangleIcon />
+                      </span>
+                    )}
+                    <p className="m-0 whitespace-pre-wrap">
+                      <strong>
+                      {error.fatal ? t('fatalError') : t('warning')}
+                    </strong>{" "}
+                      {error.message}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="rounded-md bg-green-100 p-4 text-sm text-green-700">
+                {t('noConfigErrorsFound')}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

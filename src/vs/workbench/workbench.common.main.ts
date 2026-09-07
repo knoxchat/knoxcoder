@@ -221,6 +221,9 @@ import './contrib/inlineCompletions/browser/renameSymbolTrackerService.js';
 import './contrib/search/browser/search.contribution.js';
 import './contrib/search/browser/searchView.js';
 
+// Knox (first-party Secondary Side Bar)
+import './contrib/knox/browser/knox.contribution.js';
+
 // Search Editor
 import './contrib/searchEditor/browser/searchEditor.contribution.js';
 

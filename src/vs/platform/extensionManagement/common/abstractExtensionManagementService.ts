@@ -24,7 +24,7 @@ import {
 	ExtensionSignatureVerificationCode,
 	IAllowedExtensionsService
 } from './extensionManagement.js';
-import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, isMalicious } from './extensionManagementUtil.js';
+import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, isExcludedMarketplaceExtension, isMalicious } from './extensionManagementUtil.js';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -75,6 +75,10 @@ export abstract class CommontExtensionManagementService extends Disposable imple
 		const allowedToInstall = this.allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName });
 		if (allowedToInstall !== true) {
 			return new MarkdownString(nls.localize('not allowed to install', "This extension cannot be installed because {0}", allowedToInstall.value));
+		}
+
+		if (isExcludedMarketplaceExtension(extension.identifier.id, this.productService.excludedMarketplaceExtensions)) {
+			return new MarkdownString(nls.localize('excludedMarketplaceExtension', "This extension is bundled with {0} and cannot be installed from the marketplace.", this.productService.nameLong));
 		}
 
 		if (!(await this.isExtensionPlatformCompatible(extension))) {
@@ -709,6 +713,10 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
 		}
 
+		if (isExcludedMarketplaceExtension(extension.identifier.id, this.productService.excludedMarketplaceExtensions)) {
+			throw new ExtensionManagementError(nls.localize('excludedMarketplaceExtensionInstall', "Can't install '{0}' because it is bundled with {1}.", extension.identifier.id, this.productService.nameLong), ExtensionManagementErrorCode.Deprecated);
+		}
+
 		const deprecationInfo = extensionsControlManifest.deprecated[extension.identifier.id.toLowerCase()];
 		if (deprecationInfo?.extension?.autoMigrate) {
 			this.logService.info(`The '${extension.identifier.id}' extension is deprecated, fetching the compatible '${deprecationInfo.extension.id}' extension instead.`);
@@ -1004,11 +1012,29 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 	private async updateControlCache(): Promise<IExtensionsControlManifest> {
 		try {
 			this.logService.trace('ExtensionManagementService.updateControlCache');
-			return await this.galleryService.getExtensionsControlManifest();
+			const manifest = await this.galleryService.getExtensionsControlManifest();
+			return this.applyExcludedMarketplaceExtensions(manifest);
 		} catch (err) {
 			this.logService.trace('ExtensionManagementService.refreshControlCache - failed to get extension control manifest', getErrorMessage(err));
-			return { malicious: [], deprecated: {}, search: [] };
+			return this.applyExcludedMarketplaceExtensions({ malicious: [], deprecated: {}, search: [] });
 		}
+	}
+
+	private applyExcludedMarketplaceExtensions(manifest: IExtensionsControlManifest): IExtensionsControlManifest {
+		const excluded = this.productService.excludedMarketplaceExtensions;
+		if (!excluded?.length) {
+			return manifest;
+		}
+		const deprecated = { ...manifest.deprecated };
+		for (const id of excluded) {
+			const key = id.toLowerCase();
+			deprecated[key] = {
+				...deprecated[key],
+				disallowInstall: true,
+				additionalInfo: nls.localize('excludedMarketplaceAdditionalInfo', "This extension is bundled with {0} and is not installed from the marketplace.", this.productService.nameLong)
+			};
+		}
+		return { ...manifest, deprecated };
 	}
 
 	protected abstract getCurrentExtensionsManifestLocation(): URI;

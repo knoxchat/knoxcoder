@@ -73,7 +73,7 @@ else {
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.136.1-dev',
+			version: '1.136.2-dev',
 			nameShort: 'KnoxCoder Dev',
 			nameLong: 'KnoxCoder Dev',
 			applicationName: 'knoxcoder',
@@ -96,6 +96,9 @@ else {
 			linkProtectionTrustedDomains: [
 				'https://open-vsx.org',
 				'https://openvsx.eclipsecontent.org'
+			],
+			excludedMarketplaceExtensions: [
+				'knoxchat.knoxchat'
 			],
 		});
 	}

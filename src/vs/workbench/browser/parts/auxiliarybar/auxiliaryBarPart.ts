@@ -32,7 +32,6 @@ import { IMenuService, MenuId } from '../../../../platform/actions/common/action
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
 
 interface IAuxiliaryBarPartConfiguration {
@@ -79,7 +78,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	readonly priority = LayoutPriority.Low;
 
 	private configuration: IAuxiliaryBarPartConfiguration;
-	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -129,10 +127,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			configurationService,
 		);
 
-		// Track visible view containers for auto-hide
-		this.visibleViewContainersTracker = this._register(instantiationService.createInstance(VisibleViewContainersTracker, ViewContainerLocation.AuxiliaryBar));
-		this._register(this.visibleViewContainersTracker.onDidChange((e) => this.onDidChangeAutoHideViewContainers(e)));
-
 		this.configuration = this.resolveConfiguration();
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
@@ -142,22 +136,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			} else if (e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
 				this.configuration = this.resolveConfiguration();
 				this.updateCompositeBar(true);
-			} else if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_AUTO_HIDE)) {
-				this.onDidChangeActivityBarLocation();
 			}
 		}));
-	}
-
-	private onDidChangeAutoHideViewContainers(e: { before: number; after: number }): void {
-		// Only update if auto-hide is enabled and composite bar would show
-		const autoHide = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_AUTO_HIDE);
-		if (autoHide && (this.configuration.position === ActivityBarPosition.TOP || this.configuration.position === ActivityBarPosition.BOTTOM)) {
-			const visibleBefore = e.before > 1;
-			const visibleAfter = e.after > 1;
-			if (visibleBefore !== visibleAfter) {
-				this.onDidChangeActivityBarLocation();
-			}
-		}
 	}
 
 	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {
@@ -261,26 +241,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	protected shouldShowCompositeBar(): boolean {
-		if (this.configuration.position === ActivityBarPosition.HIDDEN) {
-			return false;
-		}
-
-		// Check if auto-hide is enabled and there's only one visible view container
-		// while the activity bar is configured to be top or bottom.
-		if (this.configuration.position === ActivityBarPosition.TOP || this.configuration.position === ActivityBarPosition.BOTTOM) {
-			const autoHide = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_AUTO_HIDE);
-			if (autoHide) {
-				// Use visible composite count from the composite bar if available (considers pinned state),
-				// otherwise fall back to the tracker's count (based on active view descriptors).
-				// Note: We access paneCompositeBar directly to avoid circular calls with getVisiblePaneCompositeIds()
-				const visibleCount = this.visibleViewContainersTracker.visibleCount;
-				if (visibleCount <= 1) {
-					return false;
-				}
-			}
-		}
-
-		return true;
+		// Knox owns the Secondary Side Bar. There is never a second view
+		// container to switch, so the activity-bar icon row is unused chrome.
+		return false;
 	}
 
 	protected getCompositeBarPosition(): CompositeBarPosition {

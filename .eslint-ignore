@@ -44,3 +44,9 @@
 # Vendored third-party libraries
 src/vs/base/common/lit-html/**
 src/vs/base/common/signals-core/**
+
+# Vendored Knox product sources (ported from kc 1.4.6; not Microsoft-headered)
+**/extensions/knox/gui-src/**
+**/extensions/knox/core/**
+**/extensions/knox/knoxdev-package/**
+**/extensions/knox/src/**

@@ -1,0 +1,920 @@
+@import 'tailwindcss';
+@import './components/Checkpoints/checkpointTheme.css';
+@import "streamdown/styles.css";
+/*
+  ---break---
+*/
+@plugin 'tailwindcss-animate';
+@import "tw-animate-css";
+/* Streamdown styles for AI streaming markdown */
+@source "../node_modules/streamdown/dist/*.js";
+/*
+  ---break---
+*/
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --breakpoint-*: initial;
+  --breakpoint-2xs: 170px;
+  --breakpoint-xs: 250px;
+  --breakpoint-sm: 330px;
+  --breakpoint-int: 380px;
+  --breakpoint-md: 460px;
+  --breakpoint-lg: 590px;
+  --breakpoint-xl: 720px;
+  --breakpoint-2xl: 860px;
+  --breakpoint-3xl: 1000px;
+  --breakpoint-4xl: 1180px;
+
+  --animate-spin-slow: spin 6s linear infinite;
+
+  --color-knoxcyan: #159994;
+  --color-secgray: #636674;
+  --color-orange: #fd7e14;
+  --color-red: #f1416c;
+  --color-green: #50cd89;
+  --color-purple: #7239ea;
+  --color-blue: #009ef7;
+  --color-yellow: #ffc700;
+  --color-cyan: #0dcaf0;
+  --color-lightgray: #6e6e77;
+  --color-vsc-input-background: var(--vscode-input-background, rgb(45 45 45));
+  --color-vsc-button-background: var(--vscode-button-background, #159994);
+  --color-vsc-button-foreground: var(--vscode-button-foreground, #ffffff);
+  --color-vsc-background: var(--vscode-sideBar-background, rgb(30 30 30));
+  --color-vsc-foreground: var(--vscode-editor-foreground, #fff);
+  --color-vsc-editor-background: var(
+    --vscode-editor-background,
+    var(--vscode-sideBar-background, rgb(30 30 30))
+  );
+  --color-vsc-input-border: var(--vscode-input-border, #999998);
+  --color-find-match-selected: var(
+    --vscode-editor-findMatchHighlightBackground,
+    rgba(255, 223, 0)
+  );
+  --color-list-active: var(--vscode-list-activeSelectionBackground, #1bbe84);
+  --color-list-active-foreground: var(
+    --vscode-quickInputList-focusForeground,
+    var(--vscode-editor-foreground)
+  );
+}
+
+/*
+  The default border color has changed to `currentColor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-600, currentColor);
+  }
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/Inter/InterDisplay-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+}
+
+:root {
+  --example-var: rgb(30, 30, 30);
+  --radius: 0.625rem;
+
+  /* Brand button tokens — tuned for dark (default) and light themes */
+  --knox-button-bg: #159994;
+  --knox-button-bg-hover: #1ab3ad;
+  --knox-button-fg: #ffffff;
+  --knox-button-soft: rgba(21, 153, 148, 0.2);
+  
+  /* Map shadcn/ui variables to VS Code theme variables */
+  --background: var(--vscode-editor-background, #1e1e1e);
+  --foreground: var(--vscode-editor-foreground, #d4d4d4);
+  
+  --card: var(--vscode-sideBar-background, #252526);
+  --card-foreground: var(--vscode-sideBar-foreground, #cccccc);
+  
+  --popover: var(--vscode-dropdown-background, #3c3c3c);
+  --popover-foreground: var(--vscode-dropdown-foreground, #cccccc);
+  
+  --primary: var(--knox-button-bg);
+  --primary-foreground: var(--knox-button-fg);
+  
+  --secondary: var(--vscode-button-secondaryBackground, #3a3d41);
+  --secondary-foreground: var(--vscode-button-secondaryForeground, #cccccc);
+  
+  --muted: var(--vscode-input-background, #3c3c3c);
+  --muted-foreground: var(--vscode-descriptionForeground, #9d9d9d);
+  
+  --accent: var(--knox-button-soft);
+  --accent-foreground: var(--knox-button-bg);
+  
+  --destructive: var(--vscode-errorForeground, #f14c4c);
+  --destructive-foreground: #ffffff;
+  
+  --border: var(--vscode-panel-border, #3c3c3c);
+  --input: var(--vscode-input-background, #3c3c3c);
+  --ring: var(--knox-button-bg);
+  
+  --popover: var(--vscode-quickInput-background, var(--vscode-editor-background, #2d2d30));
+  --popover-foreground: var(--vscode-quickInput-foreground, var(--vscode-editor-foreground, #cccccc));
+  
+  /* Chart colors using VS Code theme colors */
+  --chart-1: var(--vscode-charts-red, #f14c4c);
+  --chart-2: var(--vscode-charts-blue, #3794ff);
+  --chart-3: var(--vscode-charts-yellow, #ffcc02);
+  --chart-4: var(--vscode-charts-green, #89d185);
+  --chart-5: var(--vscode-charts-purple, #b180d7);
+  
+  /* Sidebar specific mappings */
+  --sidebar: var(--vscode-sideBar-background, #252526);
+  --sidebar-foreground: var(--vscode-sideBar-foreground, #cccccc);
+  --sidebar-primary: var(--knox-button-bg);
+  --sidebar-primary-foreground: var(--knox-button-fg);
+  --sidebar-accent: var(--knox-button-soft);
+  --sidebar-accent-foreground: var(--knox-button-bg);
+  --sidebar-border: var(--vscode-sideBar-border, #3c3c3c);
+  --sidebar-ring: var(--knox-button-bg);
+}
+
+/*
+  Override host IDE blue button tokens on body (where VS Code injects them)
+  so Knox actions use brand teal in both themes.
+*/
+body {
+  --vscode-button-background: var(--knox-button-bg) !important;
+  --vscode-button-hoverBackground: var(--knox-button-bg-hover) !important;
+  --vscode-button-foreground: var(--knox-button-fg) !important;
+  --vscode-focusBorder: var(--knox-button-bg) !important;
+}
+
+/* Light theme: slightly deeper teal for contrast on pale surfaces */
+body.vscode-light,
+body.vscode-high-contrast-light,
+html[data-vscode-theme-kind="vscode-light"],
+html[data-vscode-theme-kind="vscode-high-contrast-light"],
+html[data-vscode-theme-kind="vscode-light"] body,
+html[data-vscode-theme-kind="vscode-high-contrast-light"] body {
+  --knox-button-bg: #0f7a76;
+  --knox-button-bg-hover: #128a85;
+  --knox-button-fg: #ffffff;
+  --knox-button-soft: rgba(15, 122, 118, 0.14);
+
+  --primary: var(--knox-button-bg);
+  --primary-foreground: var(--knox-button-fg);
+  --accent: var(--knox-button-soft);
+  --accent-foreground: var(--knox-button-bg);
+  --ring: var(--knox-button-bg);
+  --sidebar-primary: var(--knox-button-bg);
+  --sidebar-primary-foreground: var(--knox-button-fg);
+  --sidebar-accent: var(--knox-button-soft);
+  --sidebar-accent-foreground: var(--knox-button-bg);
+  --sidebar-ring: var(--knox-button-bg);
+}
+
+/* Light theme fallbacks - these will be overridden by VS Code theme variables */
+:root {
+  --background-light: var(--vscode-editor-background, #ffffff);
+  --foreground-light: var(--vscode-editor-foreground, #383a42);
+  --card-light: var(--vscode-sideBar-background, #f8f8f8);
+  --card-foreground-light: var(--vscode-sideBar-foreground, #383a42);
+  --muted-light: var(--vscode-input-background, #f3f3f3);
+  --muted-foreground-light: var(--vscode-descriptionForeground, #6c6c6c);
+  --border-light: var(--vscode-panel-border, #e5e5e5);
+  --primary-light: var(--knox-button-bg);
+  --destructive-light: var(--vscode-errorForeground, #e45649);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  line-height: 1.3;
+  background-color: var(--vscode-editor-background);
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Open Sans",
+    "Helvetica Neue",
+    sans-serif;
+}
+
+body {
+  padding: 0;
+  color: var(--vscode-editor-foreground);
+  padding: 0px;
+  margin: 0px;
+  height: 100%;
+  /* Ensure proper stacking context for webview overlays */
+  position: relative;
+}
+
+/* VS Code theme integration classes */
+.vscode-theme-integration {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* Ensure VS Code theme variables are properly applied to shadcn components */
+.shadcn-card {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border-color: var(--border);
+}
+
+.shadcn-button-primary {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* Modal and overlay enhancements for better VSCode theme integration */
+[data-radix-dialog-overlay],
+[data-radix-alert-dialog-overlay],
+[role="dialog"][data-state] ~ [data-radix-popper-content-wrapper] {
+  backdrop-filter: blur(2px);
+}
+
+/* Ensure modals have proper contrast and visibility */
+[data-radix-dialog-content],
+[data-radix-alert-dialog-content] {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* Placeholder text color that works in both themes */
+::placeholder {
+  color: var(--vscode-input-placeholderForeground, rgba(255, 255, 255, 0.5));
+  opacity: 1;
+}
+
+/* Textarea styling for VSCode theme */
+textarea {
+  background-color: var(--vscode-input-background, rgb(45, 45, 45));
+  color: var(--vscode-editor-foreground, #fff);
+  border-color: var(--vscode-input-border, #6e6e77);
+}
+
+textarea:focus {
+  border-color: var(--vscode-focusBorder, #159994);
+  outline: none;
+}
+
+/* Select and input elements theme support */
+select,
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+input[type="search"] {
+  background-color: var(--vscode-input-background, rgb(45, 45, 45));
+  color: var(--vscode-editor-foreground, #fff);
+  border-color: var(--vscode-input-border, #6e6e77);
+}
+
+select:focus,
+input:focus {
+  border-color: var(--vscode-focusBorder, #159994);
+  outline: none;
+}
+
+/* Popover and dropdown content theme support */
+[data-radix-popper-content-wrapper],
+[role="menu"],
+[role="listbox"],
+[role="dialog"]:not([data-state]) {
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+  border-color: var(--border);
+}
+
+/* Ensure dropdown menus and context menus use VSCode colors */
+[data-radix-dropdown-menu-content],
+[data-radix-context-menu-content],
+[data-radix-select-content] {
+  background-color: var(--vscode-quickInput-background, var(--vscode-editor-background, #2d2d30)) !important;
+  color: var(--vscode-editor-foreground, #cccccc) !important;
+  border-color: var(--vscode-input-border, #6e6e77) !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* Menu items hover state */
+[data-radix-dropdown-menu-item]:hover,
+[data-radix-context-menu-item]:hover,
+[data-radix-select-item]:hover {
+  background-color: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.1)) !important;
+  color: var(--vscode-list-hoverForeground, var(--vscode-editor-foreground, #fff)) !important;
+}
+
+/* Selected/focused menu items */
+[data-radix-dropdown-menu-item][data-highlighted],
+[data-radix-context-menu-item][data-highlighted],
+[data-radix-select-item][data-state="checked"],
+[data-radix-select-item][data-highlighted] {
+  background-color: var(--vscode-list-activeSelectionBackground, #159994) !important;
+  color: var(--vscode-list-activeSelectionForeground, #fff) !important;
+}
+
+/* Smooth scrolling for better UX */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4)) transparent;
+  scroll-behavior: smooth;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4));
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
+}
+
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background-color: var(--vscode-scrollbarSlider-activeBackground, rgba(21, 153, 148, 0.5));
+}
+
+/* Minimal horizontal scrollbar for header bars - very subtle until hovered */
+.scrollbar-header {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.scrollbar-header::-webkit-scrollbar {
+  height: 3px;
+}
+
+.scrollbar-header::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-header::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 2px;
+}
+
+.scrollbar-header:hover::-webkit-scrollbar-thumb {
+  background-color: var(--vscode-scrollbarSlider-background, rgba(94, 99, 112, 0.5));
+}
+
+.scrollbar-header:hover {
+  scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(94, 99, 112, 0.5)) transparent;
+}
+
+.shadcn-button-secondary {
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+}
+
+.shadcn-muted {
+  background-color: var(--muted);
+  color: var(--muted-foreground);
+}
+
+/* To override the default `-webkit-focus-ring-color` that is an ugly orange */
+*:focus {
+  outline: none;
+}
+
+/* Ensure webview overlays are always on top */
+.webview-overlay,
+.image-preview-overlay,
+[data-webview-overlay="true"] {
+  z-index: 2147483647 !important;
+  position: fixed !important;
+  isolation: isolate;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-in-span {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.thin-scrollbar {
+  scrollbar-width: thin;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.truncate-start {
+  display: inline-block;
+  vertical-align: middle;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  direction: rtl;
+  width: 100%;
+}
+
+.scroll-container {
+  overflow-y: auto; /* Enable vertical scrolling only if needed */
+  scrollbar-width: thin; /* Firefox */
+  padding-right: 4px;
+}
+
+.scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scroll-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.scroll-container::-webkit-scrollbar-thumb {
+  background-color: #888;
+  border-radius: 4px;
+  transition: background-color 0.3s ease;
+}
+
+.scroll-container::-webkit-scrollbar-thumb:hover {
+  background-color: #555;
+}
+
+.scroll-container:is(:hover, :focus)::-webkit-scrollbar {
+  display: block; /* Show scrollbar only on hover or focus */
+}
+
+/* Chat container styles */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.chat-message-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-anchor: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  /* Instant follow while tokens arrive; explicit scrollTo({behavior:'smooth'}) still works. */
+  scroll-behavior: auto;
+  scroll-padding-bottom: 16px;
+}
+
+.chat-message-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-message-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-message-container::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.chat-message-container::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.message-container {
+  animation: fadeIn 0.3s ease;
+  max-width: 100%;
+  min-width: 0;
+  margin-bottom: 2px;
+  transition: margin 0.3s ease;
+  /* margin: 0;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: rgba(30, 30, 30, 0.4);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.message-container:hover {
+  background: rgba(30, 30, 30, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); */
+}
+
+.message-container.last-message {
+  margin-bottom: 8px;
+  border: 1px solid rgba(21, 153, 148, 0.1);
+}
+
+.input-container {
+  margin-top: auto;
+  z-index: 10;
+  background-color: var(--vscode-sideBar-background, rgb(30 30 30));
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 8px;
+  padding-bottom: 8px;
+  transition: all 0.3s ease;
+}
+
+@keyframes gradientMove {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.input-gradient-border {
+  background: linear-gradient(
+    45deg,
+    rgba(21, 153, 148, 0.5) 0%,
+    rgba(32, 201, 151, 0.5) 25%,
+    rgba(21, 153, 148, 0.5) 50%,
+    rgba(32, 201, 151, 0.5) 75%,
+    rgba(21, 153, 148, 0.5) 100%
+  );
+  background-size: 200% 200%;
+  animation: gradientMove 6s linear infinite;
+}
+
+.input-static-border {
+  background: rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+.input-static-border:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+/* Sent-message loading state: pixel-grid pulse + label shimmer */
+@keyframes knox-pixel-on {
+  0%,
+  100% {
+    opacity: 0.16;
+    box-shadow: none;
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 5px 0.5px
+      color-mix(in srgb, var(--color-knoxcyan) 55%, transparent);
+  }
+}
+
+@keyframes knox-shimmer-text {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+.knox-loading-label {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-secgray) 32%,
+    var(--vscode-editor-foreground, #e8e8e8) 48%,
+    var(--color-knoxcyan) 52%,
+    var(--color-secgray) 68%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: knox-shimmer-text 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .knox-loading-pixel {
+    animation: none !important;
+    opacity: 0.28 !important;
+    box-shadow: none !important;
+  }
+
+  .knox-loading-label {
+    animation: none !important;
+    background-image: none !important;
+    color: var(--color-secgray) !important;
+    -webkit-text-fill-color: currentColor !important;
+    background-clip: border-box;
+    -webkit-background-clip: border-box;
+  }
+}
+
+/* Collapsible status rows stacked above the chat input (activity, files, compaction, memories, jobs). */
+.attached-input-panel {
+  background: var(--vscode-input-background, rgb(45 45 45));
+  border-top: 1px solid color-mix(in srgb, var(--color-knoxcyan) 25%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--color-knoxcyan) 15%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--color-knoxcyan) 15%, transparent);
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+}
+
+.attached-input-panel + .attached-input-panel {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top-color: color-mix(in srgb, var(--color-knoxcyan) 10%, transparent);
+}
+
+/* Sent-message live border: rounded ring, traveling cyan comet, soft glow */
+@property --knox-border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.knox-sent-frame {
+  position: relative;
+  isolation: isolate;
+  padding: 1px;
+  border-radius: 0;
+  transition:
+    border-radius 0.35s ease,
+    box-shadow 0.45s ease,
+    padding 0.25s ease;
+}
+
+.knox-sent-frame--live {
+  padding: 1.5px;
+  border-radius: 10px;
+  animation: knox-border-glow 2.8s ease-in-out infinite;
+}
+
+.knox-sent-frame-ring {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--knox-border-angle),
+    color-mix(in srgb, var(--color-knoxcyan) 10%, transparent) 0deg,
+    #159994 42deg,
+    #e7fffc 62deg,
+    #20c997 96deg,
+    color-mix(in srgb, var(--color-knoxcyan) 20%, transparent) 150deg,
+    color-mix(in srgb, var(--color-knoxcyan) 6%, transparent) 210deg,
+    #159994 308deg,
+    #9af5ee 334deg,
+    color-mix(in srgb, var(--color-knoxcyan) 10%, transparent) 360deg
+  );
+  animation: knox-border-spin 2.4s linear infinite;
+}
+
+.knox-sent-frame-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--vscode-input-background, rgb(45 45 45));
+}
+
+.knox-sent-frame--live .knox-sent-frame-inner {
+  border-radius: 8.5px;
+}
+
+@keyframes knox-border-spin {
+  to {
+    --knox-border-angle: 360deg;
+  }
+}
+
+@keyframes knox-border-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--color-knoxcyan) 14%, transparent),
+      0 0 10px color-mix(in srgb, var(--color-knoxcyan) 16%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--color-knoxcyan) 34%, transparent),
+      0 0 22px color-mix(in srgb, var(--color-knoxcyan) 36%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .knox-sent-frame--live {
+    animation: none;
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--color-knoxcyan) 28%, transparent),
+      0 0 12px color-mix(in srgb, var(--color-knoxcyan) 22%, transparent);
+  }
+
+  .knox-sent-frame-ring {
+    animation: none;
+    background: linear-gradient(
+      135deg,
+      #159994 0%,
+      #7ee0db 42%,
+      #20c997 72%,
+      #159994 100%
+    );
+  }
+}
+
+/*
+  ---break---
+*/
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  /*
+  ---break---
+*/
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+  /*
+  ---break---
+*/
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+}
+
+/*
+  ---break---
+*/
+
+.dark {
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.92 0.004 286.32);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.938);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.552 0.016 285.938);
+}
+
+/*
+  ---break---
+*/
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  
+  @keyframes focus-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(21, 153, 148, 0.1); }
+    50% { box-shadow: 0 0 0 3px rgba(21, 153, 148, 0.2); }
+    100% { box-shadow: 0 0 0 0 rgba(21, 153, 148, 0.1); }
+  }
+  
+  @keyframes arrow-bounce {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(1px); }
+    100% { transform: translateY(0); }
+  }
+  
+  @keyframes ellipsis {
+    0% { content: "."; }
+    33% { content: ".."; }
+    66% { content: "..."; }
+  }
+  
+  @keyframes gradient {
+    0% { background-position: 0px 0; }
+    100% { background-position: 100em 0; }
+  }
+}
+
+/* Filepath badge styling for tool call status messages */
+.filepath-badge {
+  background-color: rgba(21, 153, 148, 0.15);
+  color: var(--vscode-editor-foreground, #e0e0e0);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  margin-left: 4px;
+  white-space: nowrap;
+}

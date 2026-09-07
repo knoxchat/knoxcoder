@@ -1,0 +1,19 @@
+{
+  "newChat": "New Chat",
+  "configNotLoaded": "Config not loaded",
+  "toolNotFound": "Tool {{name}} not found",
+  "pingIncorrect": "ping message incorrect",
+  "errorGettingContextItem": "Error getting context item {{name}}: {{error}}",
+  "configUpdated": "Config has been updated",
+  "dontShowAgain": "Don't show again",
+  "modelNotFound": "Model not found",
+  "failedToLoadConfig": "Failed to load config: ",
+  "failedToLoadLocalProfiles": "Failed to load local profiles in init: ",
+  "failedToParseAssistantFile": "Failed to parse the assistant file: ",
+  "failedToLoadSharedConfig": "Failed to load shared config, salvaging...",
+  "sessionFileNotExist": "Session file {{file}} does not exist",
+  "sessionsJsonFormatError": "It looks like there is a JSON formatting error in your sessions.json file ({{path}}). Please fix this before creating a new session.",
+  "sessionsJsonValidationError": "It looks like there is a validation error in your sessions.json file ({{path}}). Please fix this before creating a new session. Error: {{error}}",
+  "errorLoadingSession": "Error loading session: {{error}}",
+  "noNodeMatchingLazyBlock": "No node matching lazy block found"
+}

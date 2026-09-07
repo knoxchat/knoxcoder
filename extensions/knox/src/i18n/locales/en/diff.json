@@ -1,0 +1,13 @@
+{
+  "diff.streamError": "Stream diff error: {{error}}",
+  "diff.foundIssuesFixing": "Found code issues, assistant is attempting automatic repair...",
+  "diff.fixedSuccess": "Successfully fixed code issues.{{remaining}}",
+  "diff.remainingWarnings": " There are still {{count}} warnings.",
+  "diff.fixFailed": "Unable to fix all code issues. Please review the problem list.",
+  "diff.fileWarnings": "File has warnings. Please check the problem list.",
+  "diff.noActiveEditor": "No active editor to apply edits",
+  "diff.failedLoadConfig": "Failed to load configuration",
+  "diff.modelNotFound": "Model {{title}} not found in configuration",
+  "diff.noActiveEditorApply": "No active editor to apply edits to",
+  "diff.deleteFileFailed": "Failed to delete {{filepath}}"
+}

@@ -1,0 +1,12 @@
+import IconWrapper from "./Wrapper";
+
+const RawIcon = (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+    <g fill="none" stroke="#159994" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5.636 18.364A9 9 0 1 0 3 12.004V14" />
+      <path d="m1 12l2 2l2-2m6-4v5h5" />
+    </g>
+  </svg>
+);
+
+export default IconWrapper(RawIcon);

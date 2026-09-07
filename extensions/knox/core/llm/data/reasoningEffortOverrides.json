@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "note": "Versioned sidecar for KnoxChat models whose /v1/models entry advertises reasoning_effort but not reasoning.supported_efforts. Never used unless supported_parameters includes reasoning_effort (or supported_efforts is present). Prefer API metadata.reasoning when present.",
+  "models": {
+    "anthropic/claude-sonnet-4.6": {
+      "allowed": ["low", "medium", "high"],
+      "default": "high"
+    },
+    "anthropic/claude-sonnet-5": {
+      "allowed": ["low", "medium", "high", "max", "xhigh"],
+      "default": "high"
+    },
+    "anthropic/claude-opus-4.6": {
+      "allowed": ["medium", "high", "max"],
+      "default": "high"
+    },
+    "anthropic/claude-opus-4.7": {
+      "allowed": ["high", "xhigh", "max"],
+      "default": "xhigh"
+    },
+    "anthropic/claude-opus-4.8": {
+      "allowed": ["high", "xhigh", "max"],
+      "default": "xhigh"
+    },
+    "anthropic/claude-opus-5": {
+      "allowed": ["high", "xhigh", "max"],
+      "default": "xhigh"
+    },
+    "anthropic/claude-fable-5": {
+      "allowed": ["low", "medium", "high", "max"],
+      "default": "high"
+    },
+    "openai/gpt-5.4": {
+      "allowed": ["none", "low", "medium", "high", "xhigh"],
+      "default": "none"
+    },
+    "openai/gpt-5.5": {
+      "allowed": ["none", "low", "medium", "high", "xhigh"],
+      "default": "high"
+    },
+    "openai/gpt-5.6-luna": {
+      "allowed": ["none", "low", "medium", "high", "xhigh"],
+      "default": "none"
+    },
+    "openai/gpt-5.6-terra": {
+      "allowed": ["none", "low", "medium", "high", "xhigh"],
+      "default": "medium"
+    },
+    "openai/gpt-5.6-sol": {
+      "allowed": ["none", "low", "medium", "high", "xhigh"],
+      "default": "high"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "modelsFieldArray": "'models' 字段应该是一个数组",
+  "invalidModelTitle": "索引 {{index}} 处的模型缺少有效的 'title'",
+  "invalidModelProvider": "索引 {{index}} 处的模型的 'provider' 无效",
+  "modelTokenWarning": "模型 \"{{title}}\" 的 contextLength 为 {{contextLength}}，maxTokens 为 {{maxTokens}}。这只留下 {{difference}} 个 token 用于输入上下文，可能导致输入被截断。",
+  "slashCommandsArray": "如果定义了 'slashCommands' 字段，它应该是一个数组",
+  "invalidSlashCommandName": "索引 {{index}} 处的斜杠命令缺少有效的 'name'",
+  "invalidSlashCommandDesc": "索引 {{index}} 处的斜杠命令缺少有效的 'description'",
+  "contextProvidersArray": "如果定义了 'contextProviders' 字段，它应该是一个数组",
+  "invalidContextProviderName": "索引 {{index}} 处的上下文提供者缺少有效的 'name'",
+  "booleanFieldError": "如果定义了 '{{flag}}' 字段，它应该是一个布尔值",
+  "customCommandsDeprecated": "config.json 中的 'customCommands' 已弃用，将在 V1.4 移除。请将每条迁移到 YAML `prompts`，或放到 ~/.knox/prompts / .prompts/ 下的 `.prompt` 文件。",
+  "cannotParseConfig": "无法解析 config.json：{{error}}",
+  "esbuildInstallPrompt": "您正在使用需要安装 'esbuild' 的自定义 'config.ts' 文件。是否要立即安装？",
+  "installEsbuild": "安装 esbuild",
+  "dismiss": "取消",
+  "esbuildInstalled": "'esbuild' 已安装到 {{path}}",
+  "buildErrorCheckConfig": "构建错误，请检查您的 ~/.knox/config.ts 文件：{{error}}",
+  "configTsNoModifyConfig": "config.ts 未导出 modifyConfig 函数",
+  "unableToLoadConfigTs": "无法将 config.ts 作为文件 URL 加载",
+  "methodNotImplemented": "方法未实现。"
+}

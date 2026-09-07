@@ -1,0 +1,1269 @@
+{
+	"name": "knox",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"publisher": "vscode",
+	"license": "MIT",
+	"version": "10.0.0",
+	"engines": {
+		"vscode": "^1.5.0"
+	},
+	"icon": "media/icon.png",
+	"categories": [
+		"AI",
+		"Other"
+	],
+	"keywords": [
+		"chatgpt",
+		"openapi",
+		"github",
+		"copilot",
+		"claude",
+		"sonnet",
+		"codegpt",
+		"ai",
+		"knox",
+		"devops",
+		"ci/cd"
+	],
+	"extensionKind": [
+		"ui",
+		"workspace"
+	],
+	"activationEvents": [
+		"onUri",
+		"onStartupFinished",
+		"onView:knoxchat.knoxGUIView"
+	],
+	"main": "./dist/src/extension",
+	"capabilities": {
+		"virtualWorkspaces": false,
+		"untrustedWorkspaces": {
+			"supported": false
+		}
+	},
+	"scripts": {
+		"compile": "gulp compile-extension:knox",
+		"watch": "gulp watch-extension:knox",
+		"compile-gui": "node ./scripts/build-gui.mts",
+		"rebuild-native": "node ./scripts/rebuild-native.mts",
+		"test": "node ../../node_modules/mocha/bin/mocha --ui tdd --timeout 20000 --require ./src/test/vscode-stub.cjs \"./out/src/test/**/*.test.js\"",
+		"test-gui": "npm test --prefix gui-src"
+	},
+	"dependencies": {
+		"@mozilla/readability": "^0.6.0",
+		"@octokit/rest": "^22.0.1",
+		"dbinfoz": "^0.14.0",
+		"diff": "^9.0.0",
+		"dotenv": "^17.4.2",
+		"fastest-levenshtein": "^1.0.16",
+		"follow-redirects": "^1.16.0",
+		"handlebars": "^4.7.9",
+		"http-proxy-agent": "^9.1.0",
+		"https-proxy-agent": "^9.1.0",
+		"i18next": "^26.4.2",
+		"ignore": "^7.0.8",
+		"jsdom": "^30.0.1",
+		"minisearch": "^7.2.0",
+		"monaco-vscode-textmate-theme-converter": "^0.1.7",
+		"node-fetch": "^3.3.2",
+		"node-html-markdown": "^2.0.0",
+		"node-machine-id": "^1.1.12",
+		"openai": "^7.10.0",
+		"partial-json": "^0.1.7",
+		"pg": "^8.23.0",
+		"sqlite": "^5.1.1",
+		"svg-builder": "^3.0.4",
+		"systeminformation": "^5.33.8",
+		"tree-sitter-wasms": "^0.1.13",
+		"uuid": "^14.0.2",
+		"web-tree-sitter": "^0.27.0",
+		"yaml": "^2.9.0",
+		"zod": "^4.5.4"
+	},
+	"optionalDependencies": {
+		"mac-ca": "^3.1.3",
+		"sqlite3": "^6.0.1",
+		"system-ca": "^3.0.0",
+		"win-ca": "^3.5.1"
+	},
+	"contributes": {
+		"languages": [
+			{
+				"id": "promptLanguage",
+				"extensions": [
+					".prompt"
+				],
+				"aliases": [
+					"Prompt Language"
+				],
+				"configuration": "./prompt-file-language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "promptLanguage",
+				"scopeName": "source.prompt",
+				"path": "./media/prompt.tmLanguage.json"
+			}
+		],
+		"configuration": {
+			"title": "Knox",
+			"properties": {
+				"knoxchat.showInlineTip": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show inline suggestions for Knox shortcuts (e.g., \"Cmd/Ctrl L to add code to chat, Cmd/Ctrl I to edit code\")"
+				},
+				"knoxchat.debugViteGui": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Load the sidebar from a local Vite server at `http://localhost:5173` instead of packaged `gui/assets`. Also enabled when `KNOX_GUI_VITE=1`. Off by default."
+				},
+				"knoxchat.disableQuickFix": {
+					"type": "boolean",
+					"default": false,
+					"description": "Disable quick fix functionality"
+				},
+				"knoxchat.enableQuickActions": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Enable quick actions functionality"
+				},
+				"knoxchat.enablePostEditVerification": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "After mutating tool calls (create/edit/generate tests), automatically check diagnostics and attempt LLM fixes. Applies to both chat and agent mode. Ignored when `knoxchat.verifyCommand` is set or `knoxchat.agentProfile` is `systems` / `rust` (compile oracle)."
+				},
+				"knoxchat.agentProfile": {
+					"type": "string",
+					"enum": [
+						"default",
+						"systems",
+						"rust",
+						"auto"
+					],
+					"default": "default",
+					"markdownDescription": "Agent loop profile. `default`: unlimited tool rounds, LSP verify. `systems`: unlimited rounds, doom-loop 5, post-edit `make` oracle (kernel/QEMU). `rust`: unlimited rounds, doom-loop 4, `cargo check --workspace --all-targets`. `auto`: systems on Kconfig+arch / QEMU meson+target, rust on a root Cargo.toml. Stop a run with Cancel."
+				},
+				"knoxchat.verifyCommand": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Incremental build to run after Agent file edits (compile oracle). Example: `make -j8` or `cargo check --workspace --all-targets`. When set, LSP post-edit verification is skipped. Empty = LSP diagnostics (default for TS/JS)."
+				},
+				"knoxchat.verifyMode": {
+					"type": "string",
+					"enum": [
+						"diagnostics",
+						"command",
+						"off"
+					],
+					"default": "diagnostics",
+					"markdownDescription": "Post-edit oracle: `diagnostics` (LSP), `command` (`knoxchat.verifyCommand` / make), or `off`. A non-empty verifyCommand selects `command`."
+				},
+				"knoxchat.verifyMaxIterations": {
+					"type": "number",
+					"default": 8,
+					"minimum": 1,
+					"maximum": 20,
+					"markdownDescription": "Skip further auto-builds after this many identical compiler error signatures (circuit breaker)."
+				},
+				"knoxchat.enableShadowPreview": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Before applying a chat edit to an existing non-empty file, show a side-by-side shadow diff. Accept continues the normal vertical-diff apply path; Reject discards the proposal. Files over 4000 lines skip shadow unless `knoxchat.shadowPreviewLargeFiles` is true."
+				},
+				"knoxchat.shadowPreviewLargeFiles": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Allow shadow preview on files larger than 4000 lines. Default off so 10k-line C files use the vertical diff / apply_patch preview instead."
+				},
+				"knox.checkpoints.maxCheckpoints": {
+					"type": "number",
+					"default": 1000,
+					"minimum": 1,
+					"maximum": 10000,
+					"description": "Maximum number of checkpoints"
+				},
+				"knox.checkpoints.retentionDays": {
+					"type": "number",
+					"default": 7,
+					"minimum": 1,
+					"maximum": 365,
+					"description": "Checkpoint retention days"
+				},
+				"knox.checkpoints.maxStorageBytes": {
+					"type": "number",
+					"default": 1000000000,
+					"minimum": 1048576,
+					"description": "Maximum disk usage for checkpoint blobs and manifests (bytes). Oldest unpinned checkpoints are folded and deleted when the cap is exceeded."
+				},
+				"knox.checkpoints.maxFilesPerCheckpoint": {
+					"type": "number",
+					"default": 10000,
+					"minimum": 1,
+					"maximum": 100000,
+					"description": "Warn when a checkpoint captures more files than this. Files are never silently dropped — truncation would make restore incomplete."
+				},
+				"knox.checkpoints.maxFileSizeBytes": {
+					"type": "number",
+					"default": 5242880,
+					"minimum": 1024,
+					"description": "Maximum size of a single file captured in snapshots (bytes)"
+				},
+				"knox.checkpoints.captureBinaryFiles": {
+					"type": "boolean",
+					"default": true,
+					"description": "Snapshot binary files (images, fonts, PDFs, …) as base64 so they can be restored and compared"
+				},
+				"knox.checkpoints.enableCompression": {
+					"type": "boolean",
+					"default": true,
+					"description": "Gzip checkpoint file blobs larger than 4KB. Restore always round-trips the original bytes."
+				},
+				"knox.checkpoints.encryptAtRest": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Encrypt checkpoint blob files on disk with AES-GCM. The key is stored in the OS keychain (VS Code Secret Storage), never in the workspace. Manifests still list file paths. Enable compression is applied before encryption."
+				},
+				"knox.checkpoints.trackedExtensions": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"js",
+						"jsx",
+						"ts",
+						"tsx",
+						"py",
+						"java",
+						"cpp",
+						"c",
+						"cs",
+						"go",
+						"rs",
+						"php",
+						"rb",
+						"swift",
+						"kt",
+						"html",
+						"css",
+						"scss",
+						"json",
+						"yaml",
+						"yml",
+						"md",
+						"txt"
+					],
+					"description": "Tracked file extensions"
+				},
+				"knox.checkpoints.autoCleanup": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically clean up old checkpoints"
+				},
+				"knox.checkpoints.cleanupIntervalHours": {
+					"type": "number",
+					"default": 24,
+					"minimum": 1,
+					"maximum": 8760,
+					"description": "Cleanup interval (hours)"
+				},
+				"knox.checkpoints.enableAutoCheckpoints": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Create a checkpoint after AI conversation turns when workspace files changed. Default is **true**. Independent of time/file-threshold auto-checkpoints (`knox.checkpoints.auto.enabled`)."
+				},
+				"knox.checkpoints.auto.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable time- and file-threshold automatic checkpoints"
+				},
+				"knox.checkpoints.auto.minIntervalMs": {
+					"type": "number",
+					"default": 60000,
+					"minimum": 1000,
+					"description": "Minimum interval between automatic checkpoints (milliseconds)"
+				},
+				"knox.checkpoints.auto.maxIntervalMs": {
+					"type": "number",
+					"default": 300000,
+					"minimum": 1000,
+					"description": "Force an automatic checkpoint after this interval when files have changed (milliseconds)"
+				},
+				"knox.checkpoints.auto.fileChangeThreshold": {
+					"type": "number",
+					"default": 5,
+					"minimum": 1,
+					"description": "Create an automatic checkpoint after this many file changes"
+				},
+				"knox.checkpoints.auto.checkpointAfterAI": {
+					"type": "boolean",
+					"default": true,
+					"description": "Create an automatic checkpoint when an AI operation completes"
+				},
+				"knox.checkpoints.auto.checkpointBeforeRisky": {
+					"type": "boolean",
+					"default": true,
+					"description": "Create an automatic checkpoint before mutating/risky tool operations"
+				},
+				"knox.checkpoints.auto.maxUndoStack": {
+					"type": "number",
+					"default": 50,
+					"minimum": 1,
+					"maximum": 500,
+					"description": "Maximum automatic-checkpoint undo stack size"
+				},
+				"knox.checkpoints.auto.showNotifications": {
+					"type": "boolean",
+					"default": false,
+					"description": "Show a notification when an automatic checkpoint is created"
+				},
+				"knox.checkpoints.auto.debounceMs": {
+					"type": "number",
+					"default": 3000,
+					"minimum": 100,
+					"description": "Debounce file-change events before evaluating automatic checkpoints (milliseconds)"
+				},
+				"knox.checkpoints.smart.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable the smart AI-session checkpoint tracker"
+				},
+				"knox.checkpoints.smart.agentModeOnly": {
+					"type": "boolean",
+					"default": true,
+					"description": "Only track AI-session files while Agent mode is active"
+				},
+				"knox.checkpoints.smart.maxTrackedFiles": {
+					"type": "number",
+					"default": 100,
+					"minimum": 1,
+					"description": "Maximum files tracked in a smart AI session"
+				},
+				"knox.checkpoints.smart.maxMemoryUsageMB": {
+					"type": "number",
+					"default": 50,
+					"minimum": 1,
+					"description": "Memory budget for smart AI-session tracking (MB)"
+				},
+				"knox.checkpoints.smart.maxCheckpoints": {
+					"type": "number",
+					"default": 50,
+					"minimum": 1,
+					"description": "Maximum checkpoints retained for a smart AI session"
+				},
+				"knox.checkpoints.smart.maxFileSizeKB": {
+					"type": "number",
+					"default": 100,
+					"minimum": 1,
+					"description": "Skip files larger than this in smart AI-session tracking (KB)"
+				},
+				"knox.checkpoints.smart.verboseLogging": {
+					"type": "boolean",
+					"default": false,
+					"description": "Verbose logging for smart AI-session checkpoints"
+				},
+				"knox.checkpoints.smart.enableMetrics": {
+					"type": "boolean",
+					"default": true,
+					"description": "Record AI-session file, line, and rollback metrics on the Checkpoints dashboard"
+				},
+				"knox.checkpoints.inlineDiff.enabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "Show gutter and inline decorations comparing the open editor to a checkpoint (last checkpoint, or one picked via Show Inline Diff)"
+				},
+				"knox.checkpoints.inlineDiff.showLineDecorations": {
+					"type": "boolean",
+					"default": true,
+					"description": "Highlight changed lines when inline checkpoint diff is enabled"
+				},
+				"knox.checkpoints.inlineDiff.showGutterIcons": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show gutter icons for checkpoint diffs"
+				},
+				"knox.checkpoints.inlineDiff.showHoverPreviews": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show hover previews of original checkpoint content"
+				},
+				"knox.checkpoints.inlineDiff.showCodeLens": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show CodeLens actions for checkpoint inline diffs"
+				},
+				"knox.checkpoints.inlineDiff.highlightWordChanges": {
+					"type": "boolean",
+					"default": true,
+					"description": "Highlight word-level changes inside modified lines"
+				}
+			}
+		},
+		"commands": [
+			{
+				"command": "knoxchat.applyCodeFromChat",
+				"category": "Knox",
+				"title": "Apply Code from Chat",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.acceptDiff",
+				"category": "Knox",
+				"title": "Accept Diff",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.rejectDiff",
+				"category": "Knox",
+				"title": "Reject Diff",
+				"group": "Knox",
+				"icon": "media/stop.png"
+			},
+			{
+				"command": "knoxchat.acceptVerticalDiffBlock",
+				"category": "Knox",
+				"title": "Accept Vertical Diff Block",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.rejectVerticalDiffBlock",
+				"category": "Knox",
+				"title": "Reject Vertical Diff Block",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.focusEdit",
+				"category": "Knox",
+				"title": "Generate Code",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.focusKnoxInput",
+				"category": "Knox",
+				"title": "Add as Context and Clear Chat",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.focusKnoxInputWithoutClear",
+				"category": "Knox",
+				"title": "Add as Context",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.debugTerminal",
+				"category": "Knox",
+				"title": "Debug Terminal",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.exitEditMode",
+				"category": "Knox",
+				"title": "Exit Edit Mode",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.openConfigPage",
+				"category": "Knox",
+				"title": "Settings",
+				"icon": "media/config.png",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.selectFilesAsContext",
+				"category": "Knox",
+				"title": "Select Files as Context",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.newSession",
+				"category": "Knox",
+				"title": "New Conversation",
+				"icon": "media/add.png",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.viewHistory",
+				"category": "Knox",
+				"title": "View History",
+				"icon": "media/history.png",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.viewRestore",
+				"category": "Knox",
+				"title": "View Checkpoints",
+				"icon": "media/restore.png",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.viewMemory",
+				"category": "Knox",
+				"title": "View Memory",
+				"icon": {
+					"light": "media/memory.svg",
+					"dark": "media/memory.svg"
+				},
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.viewLogs",
+				"category": "Knox",
+				"title": "View Logs",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.navigateTo",
+				"category": "Knox",
+				"title": "Navigate to a Path",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.writeCommentsForCode",
+				"category": "Knox",
+				"title": "Write Comments",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.writeDocstringForCode",
+				"category": "Knox",
+				"title": "Write Docstring",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.fixCode",
+				"category": "Knox",
+				"title": "Fix Code",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.optimizeCode",
+				"category": "Knox",
+				"title": "Optimize Code",
+				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.fixGrammar",
+				"category": "Knox",
+				"title": "Fix Grammar / Spelling",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.toggleAgentMode",
+				"category": "Knox",
+				"title": "Toggle Assistant Mode",
+				"group": "Knox",
+				"icon": "media/agent.png"
+			},
+			{
+				"command": "knox.undoLastOperation",
+				"category": "Knox",
+				"title": "Undo Last Assistant Operation",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.redoLastOperation",
+				"category": "Knox",
+				"title": "Redo Last Undone Assistant Operation",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.chatoLastOperation",
+				"category": "Knox",
+				"title": "Redo Last Undone Assistant Operation",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.enhancedUndo",
+				"category": "Knox",
+				"title": "Enhanced Undo (Assistant File Change)",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.enhancedRedo",
+				"category": "Knox",
+				"title": "Enhanced Redo (Assistant File Change)",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.showOperationHistory",
+				"category": "Knox",
+				"title": "Show Assistant Operation History",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.clearOperationHistory",
+				"category": "Knox",
+				"title": "Clear Assistant Operation History",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.applyShadowChanges",
+				"category": "Knox",
+				"title": "Accept Shadow Preview Changes",
+				"group": "Knox",
+				"enablement": "knox.shadowDiffVisible"
+			},
+			{
+				"command": "knox.acceptShadowChanges",
+				"category": "Knox",
+				"title": "Accept Shadow Preview (Current File)",
+				"group": "Knox",
+				"enablement": "knox.shadowDiffVisible"
+			},
+			{
+				"command": "knox.rejectShadowChanges",
+				"category": "Knox",
+				"title": "Reject Shadow Preview Changes",
+				"group": "Knox",
+				"enablement": "knox.shadowDiffVisible"
+			},
+			{
+				"command": "knox.showDiffView",
+				"category": "Knox",
+				"title": "Show Shadow Preview Diff",
+				"group": "Knox",
+				"enablement": "knox.shadowDiffVisible"
+			},
+			{
+				"command": "knox.checkDiagnostics",
+				"category": "Knox",
+				"title": "Check Code Issues",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.fixDiagnostics",
+				"category": "Knox",
+				"title": "Fix Code Issues",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.create",
+				"category": "Knox Checkpoints",
+				"title": "Create Checkpoint",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.list",
+				"category": "Knox Checkpoints",
+				"title": "Show Checkpoints",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.restore",
+				"category": "Knox Checkpoints",
+				"title": "Restore Checkpoint",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.fileHistory",
+				"category": "Knox Checkpoints",
+				"title": "Show File History",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.showInlineDiff",
+				"category": "Knox Checkpoints",
+				"title": "Show Inline Diff",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.hideDiff",
+				"category": "Knox Checkpoints",
+				"title": "Hide Inline Diff",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.analyze",
+				"category": "Knox Checkpoints",
+				"title": "Analyze Checkpoint",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.stats",
+				"category": "Knox Checkpoints",
+				"title": "Show Statistics",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.export",
+				"category": "Knox Checkpoints",
+				"title": "Export Checkpoints",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.share",
+				"category": "Knox Checkpoints",
+				"title": "Share Checkpoints",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.import",
+				"category": "Knox Checkpoints",
+				"title": "Import Checkpoints",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.cleanup",
+				"category": "Knox Checkpoints",
+				"title": "Clean Up Old Checkpoints",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.undo",
+				"category": "Knox Checkpoints",
+				"title": "Undo Checkpoint",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.redo",
+				"category": "Knox Checkpoints",
+				"title": "Redo Checkpoint",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.toggleAuto",
+				"category": "Knox Checkpoints",
+				"title": "Toggle Auto Checkpoints",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.showUndoHistory",
+				"category": "Knox Checkpoints",
+				"title": "Show Undo History",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.createBranch",
+				"category": "Knox Checkpoints",
+				"title": "Create Checkpoint Branch",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.switchBranch",
+				"category": "Knox Checkpoints",
+				"title": "Switch Checkpoint Branch",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.mergeBranch",
+				"category": "Knox Checkpoints",
+				"title": "Merge Checkpoint Branch",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.deleteBranch",
+				"category": "Knox Checkpoints",
+				"title": "Delete Checkpoint Branch",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.health",
+				"category": "Knox Checkpoints",
+				"title": "Health Check",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.runRecovery",
+				"category": "Knox Checkpoints",
+				"title": "Run Recovery",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.showConfiguration",
+				"category": "Knox Checkpoints",
+				"title": "Show Configuration",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.createKnoxIgnore",
+				"category": "Knox Checkpoints",
+				"title": "Create global .knoxignore",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.configureScanDepth",
+				"category": "Knox Checkpoints",
+				"title": "Configure Scan Depth",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.configureMaxFileSize",
+				"category": "Knox Checkpoints",
+				"title": "Configure Max File Size",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.showScanMetrics",
+				"category": "Knox Checkpoints",
+				"title": "Show Scan Metrics",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.resetConfiguration",
+				"category": "Knox Checkpoints",
+				"title": "Reset Configuration",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.refreshTree",
+				"category": "Knox Checkpoints",
+				"title": "Refresh Checkpoint Tree",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "knox.checkpoints.loadMore",
+				"category": "Knox Checkpoints",
+				"title": "Load More Checkpoints"
+			},
+			{
+				"command": "knox.checkpoints.groupBy",
+				"category": "Knox Checkpoints",
+				"title": "Group Checkpoints By",
+				"icon": "$(list-tree)"
+			},
+			{
+				"command": "knox.checkpoints.showDetails",
+				"category": "Knox Checkpoints",
+				"title": "Show Checkpoint Details"
+			},
+			{
+				"command": "knox.checkpoints.previewRestore",
+				"category": "Knox Checkpoints",
+				"title": "Preview Restore"
+			},
+			{
+				"command": "knox.checkpoints.diffWorkspace",
+				"category": "Knox Checkpoints",
+				"title": "Diff vs Workspace"
+			},
+			{
+				"command": "knox.checkpoints.compareWith",
+				"category": "Knox Checkpoints",
+				"title": "Compare with Checkpoint"
+			},
+			{
+				"command": "knox.checkpoints.delete",
+				"category": "Knox Checkpoints",
+				"title": "Delete Checkpoint"
+			},
+			{
+				"command": "knox.checkpoints.pin",
+				"category": "Knox Checkpoints",
+				"title": "Pin / Unpin Checkpoint"
+			},
+			{
+				"command": "knox.checkpoints.copyId",
+				"category": "Knox Checkpoints",
+				"title": "Copy Checkpoint ID"
+			},
+			{
+				"command": "knox.checkpoints.exportCheckpoint",
+				"category": "Knox Checkpoints",
+				"title": "Export Checkpoint"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "knoxchat.focusKnoxInput",
+				"mac": "cmd+l",
+				"key": "ctrl+l"
+			},
+			{
+				"command": "knoxchat.focusKnoxInputWithoutClear",
+				"mac": "cmd+shift+l",
+				"key": "ctrl+shift+l"
+			},
+			{
+				"command": "knoxchat.acceptDiff",
+				"mac": "shift+cmd+enter",
+				"key": "shift+ctrl+enter",
+				"when": "knoxchat.diffVisible"
+			},
+			{
+				"command": "knoxchat.rejectDiff",
+				"mac": "shift+cmd+backspace",
+				"key": "shift+ctrl+backspace",
+				"when": "knoxchat.diffVisible"
+			},
+			{
+				"command": "knoxchat.rejectDiff",
+				"mac": "cmd+z",
+				"key": "ctrl+z",
+				"when": "knoxchat.diffVisible"
+			},
+			{
+				"command": "knoxchat.quickEditHistoryUp",
+				"mac": "up",
+				"key": "up",
+				"when": "false && knoxchat.quickEditHistoryFocused"
+			},
+			{
+				"command": "knoxchat.quickEditHistoryDown",
+				"mac": "down",
+				"key": "down",
+				"when": "false && knoxchat.quickEditHistoryFocused"
+			},
+			{
+				"command": "knoxchat.acceptVerticalDiffBlock",
+				"mac": "alt+cmd+y",
+				"key": "alt+ctrl+y"
+			},
+			{
+				"command": "knoxchat.rejectVerticalDiffBlock",
+				"mac": "alt+cmd+n",
+				"key": "alt+ctrl+n"
+			},
+			{
+				"command": "knoxchat.focusEdit",
+				"title": "Edit code with natural language",
+				"mac": "cmd+i",
+				"key": "ctrl+i"
+			},
+			{
+				"command": "knoxchat.focusEditWithoutClear",
+				"mac": "cmd+shift+i",
+				"key": "ctrl+shift+i"
+			},
+			{
+				"command": "knoxchat.exitEditMode",
+				"mac": "escape",
+				"key": "escape",
+				"when": "knoxchat.inEditMode && editorFocus"
+			},
+			{
+				"command": "knoxchat.debugTerminal",
+				"mac": "cmd+shift+r",
+				"key": "ctrl+shift+r"
+			},
+			{
+				"command": "knoxchat.applyCodeFromChat",
+				"mac": "alt+a",
+				"key": "alt+a"
+			},
+			{
+				"command": "knox.toggleAgentMode",
+				"key": "ctrl+shift+alt+a",
+				"mac": "cmd+shift+alt+a"
+			},
+			{
+				"command": "knox.undoLastOperation",
+				"key": "ctrl+shift+alt+z",
+				"mac": "cmd+shift+alt+z",
+				"when": "knoxAgentModeActive && knoxCanUndo"
+			},
+			{
+				"command": "knox.redoLastOperation",
+				"key": "ctrl+shift+alt+y",
+				"mac": "cmd+shift+alt+y",
+				"when": "knoxAgentModeActive && knoxCanRedo"
+			},
+			{
+				"command": "knox.checkpoints.create",
+				"key": "ctrl+alt+s",
+				"mac": "cmd+alt+s"
+			},
+			{
+				"command": "knox.checkpoints.undo",
+				"key": "ctrl+alt+z",
+				"mac": "cmd+alt+z"
+			},
+			{
+				"command": "knox.checkpoints.redo",
+				"key": "ctrl+alt+y",
+				"mac": "cmd+alt+y"
+			},
+			{
+				"command": "knox.checkpoints.list",
+				"key": "ctrl+alt+h",
+				"mac": "cmd+alt+h"
+			},
+			{
+				"command": "knox.checkpoints.fileHistory",
+				"key": "ctrl+alt+shift+h",
+				"mac": "cmd+alt+shift+h"
+			},
+			{
+				"command": "knox.applyShadowChanges",
+				"key": "ctrl+shift+alt+s",
+				"mac": "cmd+shift+alt+s",
+				"when": "knox.shadowDiffVisible"
+			},
+			{
+				"command": "knox.rejectShadowChanges",
+				"key": "ctrl+shift+alt+backspace",
+				"mac": "cmd+shift+alt+backspace",
+				"when": "knox.shadowDiffVisible"
+			}
+		],
+		"submenus": [
+			{
+				"id": "knoxchat.knoxSubMenu",
+				"label": "Knox"
+			}
+		],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "knoxchat.focusKnoxInput"
+				},
+				{
+					"command": "knoxchat.focusKnoxInputWithoutClear"
+				},
+				{
+					"command": "knoxchat.debugTerminal"
+				},
+				{
+					"command": "knoxchat.newSession"
+				},
+				{
+					"command": "knox.checkpoints.refreshTree",
+					"when": "false"
+				},
+				{
+					"command": "knox.checkpoints.loadMore",
+					"when": "false"
+				},
+				{
+					"command": "knox.checkpoints.groupBy",
+					"when": "false"
+				},
+				{
+					"command": "knox.checkpoints.showDetails",
+					"when": "false"
+				},
+				{
+					"command": "knox.checkpoints.previewRestore",
+					"when": "false"
+				},
+				{
+					"command": "knox.checkpoints.diffWorkspace",
+					"when": "false"
+				},
+				{
+					"command": "knox.checkpoints.compareWith",
+					"when": "false"
+				},
+				{
+					"command": "knox.checkpoints.delete",
+					"when": "false"
+				},
+				{
+					"command": "knox.checkpoints.pin",
+					"when": "false"
+				},
+				{
+					"command": "knox.checkpoints.copyId",
+					"when": "false"
+				},
+				{
+					"command": "knox.checkpoints.exportCheckpoint",
+					"when": "false"
+				}
+			],
+			"editor/context": [
+				{
+					"command": "knox.checkpoints.fileHistory",
+					"group": "1_modification@9",
+					"when": "resourceScheme == file"
+				},
+				{
+					"submenu": "knoxchat.knoxSubMenu",
+					"group": "0_aknox"
+				}
+			],
+			"editor/title/run": [
+				{
+					"command": "knoxchat.rejectDiff",
+					"group": "Knox",
+					"when": "knoxchat.streamingDiff"
+				}
+			],
+			"knoxchat.knoxSubMenu": [
+				{
+					"command": "knoxchat.focusKnoxInputWithoutClear",
+					"group": "Knox",
+					"when": "editorHasSelection"
+				},
+				{
+					"command": "knoxchat.writeCommentsForCode",
+					"group": "Knox",
+					"when": "editorHasSelection && !editorReadonly"
+				},
+				{
+					"command": "knoxchat.writeDocstringForCode",
+					"group": "Knox",
+					"when": "editorHasSelection && !editorReadonly"
+				},
+				{
+					"command": "knoxchat.fixCode",
+					"group": "Knox",
+					"when": "editorHasSelection && !editorReadonly"
+				},
+				{
+					"command": "knoxchat.optimizeCode",
+					"group": "Knox",
+					"when": "editorHasSelection && !editorReadonly"
+				},
+				{
+					"command": "knoxchat.fixGrammar",
+					"group": "Knox",
+					"when": "editorHasSelection && editorLangId == 'markdown' && !editorReadonly"
+				},
+				{
+					"command": "knox.checkpoints.fileHistory",
+					"group": "Knox@20"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "knoxchat.selectFilesAsContext",
+					"group": "1_debug@1"
+				},
+				{
+					"command": "knox.checkpoints.fileHistory",
+					"group": "3_compare@9",
+					"when": "resourceScheme == file && !explorerResourceIsFolder"
+				}
+			],
+			"view/title": [
+				{
+					"command": "knoxchat.viewMemory",
+					"group": "navigation@3",
+					"when": "view == knoxchat.knoxGUIView"
+				},
+				{
+					"command": "knoxchat.openConfigPage",
+					"group": "navigation@4",
+					"when": "view == knoxchat.knoxGUIView"
+				},
+				{
+					"command": "knox.checkpoints.create",
+					"group": "navigation@1",
+					"when": "view == knox.checkpoints.view"
+				},
+				{
+					"command": "knox.checkpoints.refreshTree",
+					"group": "navigation@2",
+					"when": "view == knox.checkpoints.view"
+				},
+				{
+					"command": "knox.checkpoints.groupBy",
+					"group": "navigation@3",
+					"when": "view == knox.checkpoints.view"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "knox.checkpoints.restore",
+					"group": "1_modify@1",
+					"when": "view == knox.checkpoints.view && viewItem =~ /checkpoint/"
+				},
+				{
+					"command": "knox.checkpoints.previewRestore",
+					"group": "1_modify@2",
+					"when": "view == knox.checkpoints.view && viewItem =~ /checkpoint/"
+				},
+				{
+					"command": "knox.checkpoints.diffWorkspace",
+					"group": "1_modify@3",
+					"when": "view == knox.checkpoints.view && viewItem =~ /checkpoint/"
+				},
+				{
+					"command": "knox.checkpoints.compareWith",
+					"group": "1_modify@4",
+					"when": "view == knox.checkpoints.view && viewItem =~ /checkpoint/"
+				},
+				{
+					"command": "knox.checkpoints.analyze",
+					"group": "1_modify@5",
+					"when": "view == knox.checkpoints.view && viewItem =~ /checkpoint/"
+				},
+				{
+					"command": "knox.checkpoints.pin",
+					"group": "2_pin@1",
+					"when": "view == knox.checkpoints.view && viewItem =~ /checkpoint/"
+				},
+				{
+					"command": "knox.checkpoints.copyId",
+					"group": "3_copy@1",
+					"when": "view == knox.checkpoints.view && viewItem =~ /checkpoint/"
+				},
+				{
+					"command": "knox.checkpoints.exportCheckpoint",
+					"group": "3_copy@2",
+					"when": "view == knox.checkpoints.view && viewItem =~ /checkpoint/"
+				},
+				{
+					"command": "knox.checkpoints.delete",
+					"group": "9_delete@1",
+					"when": "view == knox.checkpoints.view && viewItem =~ /checkpoint/"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "knoxchat.viewMemory",
+					"group": "navigation@3",
+					"when": "activeWebviewPanelId == knoxchat.knoxGUIView"
+				},
+				{
+					"command": "knox.acceptShadowChanges",
+					"group": "navigation@9",
+					"when": "knox.shadowDiffVisible"
+				},
+				{
+					"command": "knox.rejectShadowChanges",
+					"group": "navigation@10",
+					"when": "knox.shadowDiffVisible"
+				}
+			],
+			"terminal/context": [
+				{
+					"command": "knoxchat.debugTerminal",
+					"group": "navigation@top"
+				}
+			]
+		},
+		"viewsContainers": {
+			"secondarySidebar": [
+				{
+					"id": "knoxchat",
+					"title": "Knox",
+					"icon": "media/sidebar-icon.png"
+				}
+			]
+		},
+		"views": {
+			"knoxchat": [
+				{
+					"type": "webview",
+					"id": "knoxchat.knoxGUIView",
+					"name": "Knox",
+					"icon": "media/sidebar-icon.png",
+					"visibility": "visible"
+				}
+			],
+			"explorer": [
+				{
+					"id": "knox.checkpoints.view",
+					"name": "Checkpoints",
+					"icon": "$(history)",
+					"contextualTitle": "Knox Checkpoints",
+					"when": "workspaceFolderCount > 0"
+				}
+			]
+		}
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/knoxchat/knoxcoder.git"
+	},
+	"devDependencies": {
+		"@types/follow-redirects": "^1.14.4",
+		"@types/jsdom": "^30.0.0",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "26.x"
+	}
+}

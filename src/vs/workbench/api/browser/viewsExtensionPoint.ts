@@ -22,6 +22,7 @@ import { CustomTreeView, TreeViewPane } from '../../browser/parts/views/treeView
 import { ViewPaneContainer } from '../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
 import { ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../common/views.js';
+import { isKnoxExtension, isKnoxView, isKnoxViewContainer, isKnoxViewsContainerKey, KNOX_VIEW_CONTAINER_ID } from '../../common/knox.js';
 import { VIEWLET_ID as DEBUG } from '../../contrib/debug/common/debug.js';
 import { VIEWLET_ID as EXPLORER } from '../../contrib/files/common/files.js';
 import { VIEWLET_ID as REMOTE } from '../../contrib/remote/browser/remoteExplorer.js';
@@ -321,6 +322,10 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						panelOrder = this.registerCustomViewContainers(value, description, panelOrder, existingViewContainers, ViewContainerLocation.Panel);
 						break;
 					case 'secondarySidebar':
+						if (!isKnoxExtension(description.identifier)) {
+							collector.warn(localize('knox.exclusiveAuxiliaryBar', "The Secondary Side Bar is reserved for Knox. View containers from this extension were not registered there."));
+							break;
+						}
 						auxiliaryBarOrder = this.registerCustomViewContainers(value, description, auxiliaryBarOrder, existingViewContainers, ViewContainerLocation.AuxiliaryBar);
 						break;
 				}
@@ -382,7 +387,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			const icon = themeIcon || resources.joinPath(extension.extensionLocation, descriptor.icon);
 			const id = `workbench.view.extension.${descriptor.id}`;
 			const title = descriptor.title || id;
-			const viewContainer = this.registerCustomViewContainer(id, title, icon, order++, extension.identifier, location);
+			const containerLocation = isKnoxViewsContainerKey(descriptor.id) ? ViewContainerLocation.AuxiliaryBar : location;
+			if (containerLocation === ViewContainerLocation.AuxiliaryBar && !isKnoxViewsContainerKey(descriptor.id)) {
+				return;
+			}
+			const viewContainer = this.registerCustomViewContainer(id, title, icon, order++, extension.identifier, containerLocation);
 
 			// Move those views that belongs to this container
 			if (existingViewContainers.length) {
@@ -405,6 +414,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 		if (!viewContainer) {
 
+			const isKnox = isKnoxViewContainer(id);
 			viewContainer = this.viewContainersRegistry.registerViewContainer({
 				id,
 				title: { value: title, original: title },
@@ -413,10 +423,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					ViewPaneContainer,
 					[id, { mergeViewWithContainerWhenSingleView: true }]
 				),
-				hideIfEmpty: true,
-				order,
+				hideIfEmpty: !isKnox,
+				rejectAddedViews: isKnox,
+				alwaysUseContainerInfo: isKnox,
+				order: isKnox ? 0 : order,
 				icon,
-			}, location);
+			}, location, { isDefault: isKnox });
 
 		}
 
@@ -516,8 +528,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						when: ContextKeyExpr.deserialize(item.when),
 						containerIcon: icon || viewContainer?.icon,
 						containerTitle: item.contextualTitle || (viewContainer && (typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value)),
-						canToggleVisibility: true,
-						canMoveView: viewContainer?.id !== REMOTE,
+						canToggleVisibility: !isKnoxView(item.id),
+						canMoveView: viewContainer?.id !== REMOTE && !isKnoxView(item.id) && viewContainer?.id !== KNOX_VIEW_CONTAINER_ID,
 						treeView: type === ViewType.Tree ? this.instantiationService.createInstance(CustomTreeView, item.id, item.name, extension.description.identifier.value) : undefined,
 						collapsed: this.showCollapsed(container) || initialVisibility === InitialVisibility.Collapsed,
 						order: order,

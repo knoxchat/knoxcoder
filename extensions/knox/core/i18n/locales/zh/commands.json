@@ -1,0 +1,20 @@
+{
+  "generateShellCommand": "生成终端命令",
+  "cmdEmptyInput": "请提供您想要生成的终端命令的描述。例如，'/cmd 列出当前目录中的所有文件'。",
+  "generatedShellCommand": "生成的终端命令：{{cmd}}",
+  "dangerousCommandWarning": "\n\n警告：此命令可能具有潜在危险。请在粘贴到终端之前仔细检查。",
+  "generateCommitMessage": "为当前更改生成提交消息",
+  "noChangesDetected": "未检测到更改。请确保您在一个有当前更改的 git 仓库中。",
+  "draftGithubIssue": "草拟 GitHub Issue",
+  "repositoryUrlRequired": "此命令需要在配置文件中设置仓库 URL。",
+  "callHttpEndpoint": "调用 HTTP 端点以提供响应",
+  "urlNotDefined": "参数中未定义 URL",
+  "responseBodyNull": "响应体为空",
+  "reviewCode": "审查代码并提供反馈",
+  "exportChatSession": "将当前对话会话导出为 Markdown",
+  "sessionTranscriptSaved": "会话记录已保存为 Markdown 文件，路径为 `{{path}}`。",
+  "knoxSessionTranscript": "Knox 会话记录",
+  "unknownSlashCommand": "未知的斜杠命令 {{name}}",
+  "autonomousSlashCommand": "运行多步自主助理循环（集成记忆系统）",
+  "autonomousSlashCommandUsage": "用法：/autonomous <目标描述>\n\n示例：/autonomous 修复 auth.ts 中的登录 bug"
+}

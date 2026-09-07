@@ -42,6 +42,15 @@ fsevents/test/**
 @vscode/sqlite3/src/**
 !@vscode/sqlite3/build/Release/*.node
 
+sqlite3/binding.gyp
+sqlite3/deps/**
+sqlite3/src/**
+sqlite3/build/**
+sqlite3/*.md
+!sqlite3/lib/**
+!sqlite3/package.json
+!sqlite3/build/Release/*.node
+
 @vscode/windows-mutex/binding.gyp
 @vscode/windows-mutex/build/**
 @vscode/windows-mutex/src/**

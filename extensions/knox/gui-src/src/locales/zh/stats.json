@@ -1,0 +1,9 @@
+{
+  "more": "更多",
+  "dailyTokens": "每日 Token 用量",
+  "tokenConsumptionByModel": "按模型统计 Token 消耗",
+  "day": "日期",
+  "model": "模型",
+  "generatedTokens": "生成 Token",
+  "promptTokens": "提示 Token"
+}

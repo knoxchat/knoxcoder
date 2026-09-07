@@ -152,6 +152,17 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension) {
 
 export const BetterMergeId = new ExtensionIdentifier('pprice.better-merge');
 
+/**
+ * Marketplace ids listed in `product.json` `excludedMarketplaceExtensions`.
+ * Used when the product ships a first-party replacement (Better Merge pattern).
+ */
+export function isExcludedMarketplaceExtension(extensionId: string, excluded: readonly string[] | undefined): boolean {
+	if (!excluded?.length) {
+		return false;
+	}
+	return excluded.some(id => areSameExtensions({ id }, { id: extensionId }));
+}
+
 export function getExtensionDependencies(installedExtensions: ReadonlyArray<IExtension>, extension: IExtension): IExtension[] {
 	const dependencies: IExtension[] = [];
 	const extensions = extension.manifest.extensionDependencies?.slice(0) ?? [];

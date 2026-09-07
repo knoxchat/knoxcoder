@@ -1,0 +1,15 @@
+
+export default function BrainIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+      <g fill="none" stroke="#159994" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5">
+        <path d="M12 2a5 5 0 0 0-4.78 3.53A3.5 3.5 0 0 0 5 9a3.5 3.5 0 0 0-.95 3.36A4 4 0 0 0 6 20h.5a.5.5 0 0 0 .5-.5V12" />
+        <path d="M12 2a5 5 0 0 1 4.78 3.53A3.5 3.5 0 0 1 19 9a3.5 3.5 0 0 1 .95 3.36A4 4 0 0 1 18 20h-.5a.5.5 0 0 1-.5-.5V12" />
+        <path d="M12 2v20" />
+        <path d="M7 12h5m0 0h5" />
+        <path d="M8 8.5c1.333.667 2.667 1 4 1s2.667-.333 4-1" />
+        <path d="M8 15.5c1.333-.667 2.667-1 4-1s2.667.333 4 1" />
+      </g>
+    </svg>
+  );
+}

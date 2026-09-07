@@ -19,7 +19,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { URI } from '../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { productService, TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
 import { GlobalExtensionEnablementService } from '../../../../../platform/extensionManagement/common/extensionEnablementService.js';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from '../../../../../platform/userDataSync/common/userDataSyncAccount.js';
 import { IUserDataSyncEnablementService } from '../../../../../platform/userDataSync/common/userDataSync.js';
@@ -102,7 +102,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, disposables.add(new ExtensionManifestPropertiesService(TestProductService, instantiationService.get(IConfigurationService), new TestWorkspaceTrustEnablementService(), new NullLogService()))),
 			instantiationService,
 			new NullLogService(),
-			productService
+			instantiationService.get(IProductService)
 		);
 		this._register(disposables);
 	}
@@ -588,6 +588,30 @@ suite('ExtensionEnablementService Test', () => {
 
 		assert.ok(!testObject.isEnabled(extension));
 		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.DisabledByEnvironment);
+	});
+
+	test('test excluded marketplace extension is disabled by environment', async () => {
+		const extension = aLocalExtension('knoxchat.knoxchat');
+		installed.push(extension);
+
+		instantiationService.stub(IProductService, { ...TestProductService, excludedMarketplaceExtensions: ['knoxchat.knoxchat'] });
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+
+		assert.ok(!testObject.isEnabled(extension));
+		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.DisabledByEnvironment);
+		assert.strictEqual(testObject.canChangeEnablement(extension), false);
+	});
+
+	test('test excluded marketplace extension does not disable other extensions', async () => {
+		const marketplace = aLocalExtension('knoxchat.knoxchat');
+		const other = aLocalExtension('pub.a');
+		installed.push(marketplace, other);
+
+		instantiationService.stub(IProductService, { ...TestProductService, excludedMarketplaceExtensions: ['knoxchat.knoxchat'] });
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+
+		assert.ok(!testObject.isEnabled(marketplace));
+		assert.ok(testObject.isEnabled(other));
 	});
 
 	test('test extension is enabled globally when enabled in environment', async () => {

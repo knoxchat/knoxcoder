@@ -17,6 +17,7 @@ import { isUndefinedOrNull } from '../../../base/common/types.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ViewContainerLocation, IViewDescriptorService } from '../../common/views.js';
+import { isKnoxExclusiveAuxiliaryBar, isKnoxViewContainer } from '../../common/knox.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { IComposite } from '../../common/composite.js';
 import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D, toggleDropEffect, ICompositeDragAndDropObserverCallbacks } from '../dnd.js';
@@ -107,9 +108,16 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 	}
 
 	private canDrop(data: CompositeDragAndDropData, targetCompositeId: string | undefined): boolean {
+		if (isKnoxExclusiveAuxiliaryBar(this.targetContainerLocation)) {
+			return false;
+		}
+
 		const dragData = data.getData();
 
 		if (dragData.type === 'composite') {
+			if (isKnoxViewContainer(dragData.id)) {
+				return false;
+			}
 
 			// Dragging a composite
 			const currentContainer = this.viewDescriptorService.getViewContainerById(dragData.id)!;

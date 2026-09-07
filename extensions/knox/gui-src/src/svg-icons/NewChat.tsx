@@ -1,0 +1,25 @@
+import IconWrapper from "./Wrapper";
+
+const RawIcon = (
+  // <svg
+  //   xmlns="http://www.w3.org/2000/svg"
+  //   viewBox="0 0 24 24"
+  //   width="16"
+  //   height="16"
+  // >
+  //   <path
+  //     fill="#159994"
+  //     d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
+  //   />
+  // </svg>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+  >
+    <path fill="#159994" d="M7 12h4V8h1v4h4v1h-4v4h-1v-4H7zM6 4h11a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3m0 1a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/>
+  </svg>
+);
+
+export default IconWrapper(RawIcon);

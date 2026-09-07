@@ -1,0 +1,476 @@
+/* Agent View CSS Styles */
+
+:root {
+    --vscode-foreground: var(--vscode-editor-foreground);
+    --vscode-background: var(--vscode-editor-background);
+    --vscode-border: var(--vscode-panel-border);
+    --vscode-highlight: var(--vscode-editor-selectionBackground);
+    --vscode-button-background: var(--vscode-button-background);
+    --vscode-button-foreground: var(--vscode-button-foreground);
+    --vscode-button-hover-background: var(--vscode-button-hoverBackground);
+    --vscode-success: var(--vscode-testing-iconPassed);
+    --vscode-error: var(--vscode-testing-iconFailed);
+    --vscode-warning: var(--vscode-testing-iconSkipped);
+    --vscode-info: var(--vscode-testing-iconQueued);
+    --vscode-knoxcyan: #159994;
+}
+
+body {
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-foreground);
+    background-color: var(--vscode-background);
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--vscode-border);
+    background-color: var(--vscode-background);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.toolbar-actions {
+    display: flex;
+    gap: 8px;
+}
+
+button {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    border-radius: 2px;
+}
+
+button:hover {
+    background-color: var(--vscode-button-hover-background);
+}
+
+.status-bar {
+    display: flex;
+    align-items: center;
+    padding: 6px 16px;
+    border-bottom: 1px solid var(--vscode-border);
+    font-size: 12px;
+    background-color: var(--vscode-background);
+    position: sticky;
+    top: 0;
+    z-index: 99;
+}
+
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.status-idle {
+    background-color: var(--vscode-info);
+}
+
+.status-processing {
+    background-color: var(--vscode-info);
+    animation: pulse 1.5s infinite;
+}
+
+.status-completed {
+    background-color: var(--vscode-success);
+}
+
+.status-error {
+    background-color: var(--vscode-error);
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.6;
+    }
+}
+
+.multi-operation-indicator {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--vscode-info);
+}
+
+.indicator-text {
+    margin-left: 4px;
+}
+
+.operations-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    scroll-behavior: smooth;
+    scroll-padding-top: 16px;
+    position: relative;
+}
+
+/* Scroll sentinel for auto-scrolling */
+#scroll-sentinel {
+    height: 1px;
+    width: 100%;
+    opacity: 0;
+    pointer-events: none;
+    margin-top: 8px;
+}
+
+.no-operations {
+    text-align: center;
+    padding: 32px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.operation {
+    border: 1px solid var(--vscode-border);
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: var(--vscode-background);
+    transition: border-color 0.2s ease;
+    scroll-margin-top: 16px;
+}
+
+.operation-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: rgba(128, 128, 128, 0.1);
+    border-bottom: 1px solid var(--vscode-border);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.operation-type-icon {
+    margin-right: 8px;
+    font-size: 14px;
+}
+
+.operation-title {
+    flex: 1;
+    font-weight: 500;
+}
+
+.operation-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-left: 8px;
+}
+
+.operation-status-queued .operation-status-dot {
+    background-color: var(--vscode-info);
+}
+
+.operation-status-in_progress .operation-status-dot {
+    background-color: var(--vscode-info);
+    animation: pulse 1.5s infinite;
+}
+
+.operation-status-completed .operation-status-dot {
+    background-color: var(--vscode-success);
+}
+
+.operation-status-failed .operation-status-dot {
+    background-color: var(--vscode-error);
+}
+
+.operation-status-canceled .operation-status-dot {
+    background-color: var(--vscode-warning);
+}
+
+.operation-content {
+    padding: 12px;
+    max-height: 600px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.operation-description {
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+
+.operation-result, .operation-error {
+    font-size: 12px;
+    padding: 8px;
+    margin-top: 8px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.operation-result {
+    background-color: rgba(0, 128, 0, 0.1);
+    border: 1px solid rgba(0, 128, 0, 0.2);
+}
+
+.operation-error {
+    background-color: rgba(255, 0, 0, 0.1);
+    border: 1px solid rgba(255, 0, 0, 0.2);
+}
+
+.operation-action-button {
+    margin-left: 8px;
+    font-size: 11px;
+    padding: 2px 6px;
+}
+
+.retry-button {
+    background-color: var(--vscode-error);
+}
+
+.operation-details {
+    margin-top: 8px;
+    font-size: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    border: 1px solid var(--vscode-border);
+    border-radius: 3px;
+}
+
+.code-block {
+    background-color: rgba(0, 0, 0, 0.1);
+    padding: 8px;
+    border-radius: 3px;
+    white-space: pre-wrap;
+    overflow-x: auto;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.code-block::-webkit-scrollbar,
+.operation-details::-webkit-scrollbar,
+.operation-content::-webkit-scrollbar,
+.operations-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.code-block::-webkit-scrollbar-track,
+.operation-details::-webkit-scrollbar-track,
+.operation-content::-webkit-scrollbar-track,
+.operations-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.code-block::-webkit-scrollbar-thumb,
+.operation-details::-webkit-scrollbar-thumb,
+.operation-content::-webkit-scrollbar-thumb,
+.operations-container::-webkit-scrollbar-thumb {
+    background-color: var(--vscode-scrollbarSlider-background);
+    border-radius: 4px;
+}
+
+.code-block::-webkit-scrollbar-thumb:hover,
+.operation-details::-webkit-scrollbar-thumb:hover,
+.operation-content::-webkit-scrollbar-thumb:hover,
+.operations-container::-webkit-scrollbar-thumb:hover {
+    background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.operation-active {
+    border: 1px solid var(--vscode-info);
+    box-shadow: 0 0 0 1px var(--vscode-info);
+}
+
+.operation-highlighted {
+    border: 1px solid var(--vscode-highlight);
+    box-shadow: 0 0 0 1px var(--vscode-highlight);
+}
+
+.hidden {
+    display: none;
+}
+
+/* Type-specific styles */
+.operation-code_generation .operation-type-icon {
+    color: #3a9bdc;
+}
+
+.operation-file_reading .operation-type-icon {
+    color: #4caf50;
+}
+
+.operation-command_execution .operation-type-icon {
+    color: #f44336;
+}
+
+.operation-tool_call .operation-type-icon {
+    color: #ff9800;
+}
+
+.operation-context_gathering .operation-type-icon {
+    color: #9c27b0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 500px) {
+    .toolbar, .status-bar {
+        padding: 6px 8px;
+    }
+    
+    .operations-container {
+        padding: 8px;
+    }
+    
+    button {
+        padding: 3px 6px;
+        font-size: 11px;
+    }
+    
+    .operation-content {
+        max-height: 400px;
+    }
+    
+    .operation-details {
+        max-height: 300px;
+    }
+    
+    .code-block {
+        max-height: 200px;
+    }
+}
+
+/* Chevron styles */
+.chevron-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    border-radius: 3px;
+    margin-left: 8px;
+    user-select: none;
+}
+
+.chevron-container:hover {
+    background-color: rgba(128, 128, 128, 0.1);
+}
+
+.chevron {
+    font-size: 10px;
+    color: var(--vscode-knoxcyan);
+    transition: transform 0.2s ease;
+}
+
+.chevron-right {
+    transform: rotate(0deg);
+}
+
+.chevron-down {
+    transform: rotate(90deg);
+}
+
+/* Code block container */
+.code-container {
+    border: 1px solid var(--vscode-border);
+    border-radius: 3px;
+    margin-top: 8px;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.code-block {
+    background-color: rgba(0, 0, 0, 0.1);
+    padding: 8px;
+    border-radius: 3px;
+    white-space: pre-wrap;
+    overflow-x: auto;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+}
+
+.operation-details {
+    margin-top: 8px;
+    font-size: 12px;
+    overflow: auto;
+    max-height: 200px;
+}
+
+.operation-active {
+    border: 1px solid var(--vscode-info);
+}
+
+.operation-highlighted {
+    border: 1px solid var(--vscode-highlight);
+}
+
+.hidden {
+    display: none;
+}
+
+/* Type-specific styles */
+.operation-code_generation .operation-type-icon {
+    color: #3a9bdc;
+}
+
+.operation-file_reading .operation-type-icon {
+    color: #4caf50;
+}
+
+.operation-command_execution .operation-type-icon {
+    color: #f44336;
+}
+
+.operation-tool_call .operation-type-icon {
+    color: #ff9800;
+}
+
+.operation-context_gathering .operation-type-icon {
+    color: #9c27b0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 500px) {
+    .toolbar, .status-bar {
+        padding: 6px 8px;
+    }
+    
+    .operations-container {
+        padding: 8px;
+    }
+    
+    button {
+        padding: 3px 6px;
+        font-size: 11px;
+    }
+} 

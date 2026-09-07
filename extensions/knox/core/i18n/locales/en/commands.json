@@ -1,0 +1,20 @@
+{
+  "generateShellCommand": "Generate a shell command",
+  "cmdEmptyInput": "Please provide a description of the shell command you want to generate. For example, '/cmd List all files in the current directory'.",
+  "generatedShellCommand": "Generated shell command: {{cmd}}",
+  "dangerousCommandWarning": "\n\nWarning: This command may be potentially dangerous. Please double-check before pasting it in your terminal.",
+  "generateCommitMessage": "Generate a commit message for current changes",
+  "noChangesDetected": "No changes detected. Make sure you are in a git repository with current changes.",
+  "draftGithubIssue": "Draft a GitHub issue",
+  "repositoryUrlRequired": "This command requires a repository URL to be set in the config file.",
+  "callHttpEndpoint": "Call an HTTP endpoint to serve response",
+  "urlNotDefined": "URL is not defined in params",
+  "responseBodyNull": "Response body is null",
+  "reviewCode": "Review code and give feedback",
+  "exportChatSession": "Export the current chat session to markdown",
+  "sessionTranscriptSaved": "The session transcript has been saved to a markdown file at `{{path}}`.",
+  "knoxSessionTranscript": "Knox session transcript",
+  "unknownSlashCommand": "Unknown slash command {{name}}",
+  "autonomousSlashCommand": "Run a multi-step autonomous agent loop with memory integration",
+  "autonomousSlashCommandUsage": "Usage: /autonomous <goal description>\n\nExample: /autonomous Fix the login bug in auth.ts"
+}

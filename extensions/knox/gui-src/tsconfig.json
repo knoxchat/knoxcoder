@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "noEmitOnError": false,
+    "types": ["vitest/globals"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "core": ["../core/index.d.ts"],
+      "core/*": ["../core/*"],
+      "knoxdev-package/config-yaml": ["../knoxdev-package/src/config-yaml/index.ts"],
+      "knoxdev-package/fetch": ["../knoxdev-package/src/fetch/index.ts"],
+      "knoxdev-package/openai-adapters": ["../knoxdev-package/src/openai-adapters/index.ts"],
+      "knoxdev-package/openai-adapters/*": ["../knoxdev-package/src/openai-adapters/*"]
+    }
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

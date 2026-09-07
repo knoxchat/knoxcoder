@@ -1,0 +1,21 @@
+{
+  "commands.errorExplain": "请解释此错误的原因及如何解决：{{message}}",
+  "commands.writeComments": "为此代码编写注释。不要更改代码本身的任何内容。",
+  "commands.writeDocstring": "为此代码编写文档字符串。不要更改代码本身的任何内容。",
+  "commands.fixCode": "修复此代码。如果代码已经完全正确，请直接重写代码。",
+  "commands.optimizeCode": "优化此代码",
+  "commands.fixGrammar": "如果这段文字中有任何语法或拼写错误，请修复。不要对文字进行其他大的改动。",
+  "commands.debugTerminal": "我遇到了以下错误，请帮我解释如何修复？\n\n{{contents}}",
+  "commands.configNotLoaded": "配置未加载",
+  "commands.enterSessionId": "输入会话 ID",
+  "commands.noFilesSelected": "未选择任何文件",
+  "commands.enterCheckpointDesc": "输入此检查点的描述",
+  "commands.checkpointDescPlaceholder": "例如，重构认证系统之前",
+  "commands.manualCheckpointCreated": "✅ 手动检查点已创建：{{id}}...",
+  "commands.manualCheckpointFailed": "创建检查点失败——未检测到更改或发生冲突",
+  "commands.failedCreateCheckpoint": "创建检查点失败：{{error}}",
+  "commands.checkpointNotInitialized": "检查点系统未初始化",
+  "commands.noCheckpointsAvailable": "没有可用的检查点",
+  "commands.selectCheckpointRestore": "选择要恢复的检查点",
+  "commands.openChat": "$(comment) 打开对话"
+}

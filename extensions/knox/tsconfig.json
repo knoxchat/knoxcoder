@@ -1,0 +1,65 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": ".",
+		"outDir": "./out",
+		"skipLibCheck": true,
+		"resolveJsonModule": true,
+		"lib": [
+			"ES2024",
+			"DOM"
+		],
+		"noUnusedLocals": false,
+		"noUnusedParameters": false,
+		"noImplicitReturns": false,
+		"noImplicitOverride": false,
+		"paths": {
+			"core": [
+				"./core/index.d.ts"
+			],
+			"core/*": [
+				"./core/*"
+			],
+			"knoxdev-package/config-yaml": [
+				"./knoxdev-package/src/config-yaml/index.ts"
+			],
+			"knoxdev-package/fetch": [
+				"./knoxdev-package/src/fetch/index.ts"
+			],
+			"knoxdev-package/openai-adapters": [
+				"./knoxdev-package/src/openai-adapters/index.ts"
+			],
+			"knoxdev-package/openai-adapters/*": [
+				"./knoxdev-package/src/openai-adapters/*"
+			]
+		},
+		"types": [
+			"node",
+			"mocha"
+		],
+		"typeRoots": [
+			"./node_modules/@types"
+		]
+	},
+	"include": [
+		"src/**/*",
+		"core/**/*.ts",
+		"core/**/*.d.ts",
+		"knoxdev-package/src/**/*.ts",
+		"../../src/vscode-dts/vscode.d.ts"
+	],
+	"exclude": [
+		"src/test/index.ts",
+		"src/activation/proxy.ts",
+		"src/activation/languageClient.ts",
+		"core/**/*.test.ts",
+		"core/**/test-*.ts",
+		"knoxdev-package/src/**/*.test.ts",
+		"core/out",
+		"knoxdev-package/out",
+		"out",
+		"dist",
+		"gui",
+		"gui-src"
+	]
+}

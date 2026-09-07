@@ -68,6 +68,10 @@ echo "Packaging desktop app..."
 npm run gulp "vscode-win32-${VSCODE_ARCH}-min-ci"
 npm run gulp "vscode-win32-${VSCODE_ARCH}-inno-updater"
 
+CLIENT_DIR="$(dirname "$ROOT")/VSCode-win32-${VSCODE_ARCH}"
+echo "Verifying bundled Knox (dist + gui + sqlite)..."
+bash "$ROOT/scripts/ci/verify-knox-package.sh" "$CLIENT_DIR"
+
 # Build the CLI (tunnel binary) and place it next to the desktop app, like the
 # upstream "Move VS Code CLI" step, so the archive and installers include it.
 echo "Building CLI (tunnel binary)..."
@@ -100,7 +104,6 @@ VERSION="$(node -p "require('./package.json').version")"
 ARTIFACT_DIR="$ROOT/.build/ci-artifacts/win32-${VSCODE_ARCH}"
 mkdir -p "$ARTIFACT_DIR"
 
-CLIENT_DIR="$(dirname "$ROOT")/VSCode-win32-${VSCODE_ARCH}"
 if [ ! -d "$CLIENT_DIR" ]; then
 	echo "Expected client output at $CLIENT_DIR" >&2
 	exit 1

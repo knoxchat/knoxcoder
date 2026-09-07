@@ -1,0 +1,9 @@
+{
+  "more": "More",
+  "dailyTokens": "Daily Tokens",
+  "tokenConsumptionByModel": "Token Consumption by Model",
+  "day": "Day",
+  "model": "Model",
+  "generatedTokens": "Generated Tokens",
+  "promptTokens": "Prompt Tokens"
+}

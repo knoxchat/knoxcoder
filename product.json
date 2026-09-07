@@ -99,6 +99,9 @@
 			}
 		}
 	],
+	"excludedMarketplaceExtensions": [
+		"knoxchat.knoxchat"
+	],
 	"onboardingKeymaps": [
 		{
 			"id": "vscode",

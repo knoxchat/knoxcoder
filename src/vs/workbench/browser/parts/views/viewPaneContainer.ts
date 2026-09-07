@@ -421,7 +421,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 
 		let bounds: BoundingRect;
 
-		if (this.viewDescriptorService.canMoveViews()) {
+		if (this.viewDescriptorService.canMoveViews() && !this.viewContainer.rejectAddedViews) {
 			this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
 				onDragEnter: (e) => {
 					bounds = getOverlayBounds();
@@ -890,7 +890,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 
 		let overlay: ViewPaneDropOverlay | undefined;
 
-		if (this.viewDescriptorService.canMoveViews()) {
+		if (this.viewDescriptorService.canMoveViews() && !this.viewContainer.rejectAddedViews) {
 
 			if (pane.draggableElement) {
 				store.add(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, () => { return { type: 'view', id: pane.id }; }, {}));

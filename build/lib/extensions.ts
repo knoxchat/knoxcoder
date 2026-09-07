@@ -155,7 +155,9 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 	// Extensions built with esbuild can still externalize runtime dependencies.
 	// Ensure those externals are included in the packaged built-in extension.
 	const packagedDependenciesByExtension: Record<string, string[]> = {
-		'git': ['@vscode/fs-copyfile']
+		'git': ['@vscode/fs-copyfile'],
+		// sqlite3 .node is rebuilt for Electron in knox/scripts/native-assets.mts (T5.3).
+		'knox': ['sqlite3', 'jsdom'],
 	};
 	const packagedDependencies = packagedDependenciesByExtension[extensionName] ?? [];
 
@@ -194,6 +196,15 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 						const buildIndex = parts.indexOf('build');
 						if (buildIndex !== -1) {
 							return filePath.endsWith('.node');
+						}
+						// Knox sqlite3: pack JS + native binary, not amalgamation sources (T5.4).
+						if (extensionName === 'knox' && parts.includes('sqlite3')) {
+							if (parts.includes('deps') || parts.includes('src')) {
+								return false;
+							}
+							if (filePath.endsWith('.gyp') || filePath.endsWith('.gypi')) {
+								return false;
+							}
 						}
 						return true;
 					})
@@ -310,10 +321,12 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
 
 /**
  * All extensions that are known to have some native component and thus must be built on the
- * platform that is being built.
+ * platform that is being built. Knox is here so {@link packageNativeLocalExtensionsStream}
+ * includes `dist/`, sqlite3 `.node`, and (with compile-extension-media) `gui/` on each OS.
  */
-const nativeExtensions = [
+export const nativeExtensions = [
 	'git',
+	'knox',
 	'microsoft-authentication',
 ];
 
@@ -341,7 +354,7 @@ const builtInExtensions: IExtensionDefinition[] = productJson.builtInExtensions 
 const webBuiltInExtensions: IExtensionDefinition[] = productJson.webBuiltInExtensions || [];
 
 type ExtensionKind = 'ui' | 'workspace' | 'web';
-interface IExtensionManifest {
+export interface IExtensionManifest {
 	main?: string;
 	browser?: string;
 	extensionKind?: ExtensionKind | ExtensionKind[];
@@ -463,7 +476,10 @@ function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean,
 
 	return (
 		result
-			.pipe(util2.setExecutableBit(['**/*.sh']))
+			// Git: helper scripts. Knox: sqlite3 `.node` (dlopen on Unix).
+			// Extension natives live under resources/app/extensions/ — not inside
+			// node_modules.asar — so asar unpack globs in gulpfile.vscode.ts do not apply.
+			.pipe(util2.setExecutableBit(['**/*.sh', '**/*.node']))
 	);
 }
 
@@ -489,7 +505,7 @@ export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
 
 	return (
 		marketplaceExtensionsStream
-			.pipe(util2.setExecutableBit(['**/*.sh']))
+			.pipe(util2.setExecutableBit(['**/*.sh', '**/*.node']))
 	);
 }
 
@@ -613,11 +629,40 @@ const esbuildMediaScripts: { script: string; tsconfig: string }[] = [
 	{ script: 'simple-browser/esbuild.webview.mts', tsconfig: 'simple-browser/preview-src/tsconfig.json' },
 ];
 
+/**
+ * Knox GUI is Vite, not esbuild. Do not add knox/scripts/build-gui.mts to
+ * {@link esbuildMediaScripts} (that list also tsgo-typechecks a sibling tsconfig).
+ * The wrapper understands the same --watch / --outputRoot flags as esbuild media.
+ *
+ * Skip the GUI when packaging vscode-web: Knox is not a web extension (`main`
+ * without `browser`), so {@link isWebExtension} already drops it from compile-web
+ * / packageAllLocalExtensionsStream(forWeb). Building Vite into `.build/web/extensions`
+ * would leave a stray `knox/gui` folder in the web payload.
+ */
+function knoxGuiMediaScript(outputRoot?: string): { script: string; outputRoot?: string } {
+	return {
+		script: path.join(extensionsPath, 'knox/scripts/build-gui.mts'),
+		outputRoot: outputRoot ? path.join(root, outputRoot, 'knox') : undefined,
+	};
+}
+
+export function isWebExtensionsOutputRoot(outputRoot?: string): boolean {
+	if (!outputRoot) {
+		return false;
+	}
+	const normalized = outputRoot.replace(/\\/g, '/');
+	return normalized === '.build/web/extensions' || normalized.endsWith('/web/extensions');
+}
+
 export function buildExtensionMedia(isWatch: boolean, outputRoot?: string): Promise<void> {
 	const esbuildTask = esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(({ script }) => ({
 		script: path.join(extensionsPath, script),
 		outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(script)) : undefined
 	})));
+
+	const knoxGuiTask = isWebExtensionsOutputRoot(outputRoot)
+		? Promise.resolve()
+		: esbuildExtensions('building knox gui', isWatch, [knoxGuiMediaScript(outputRoot)]);
 
 	const typeCheckTasks = esbuildMediaScripts.map(({ tsconfig }) => {
 		const tsconfigPath = path.join(extensionsPath, tsconfig);
@@ -629,7 +674,7 @@ export function buildExtensionMedia(isWatch: boolean, outputRoot?: string): Prom
 		}
 	});
 
-	return Promise.all([esbuildTask, ...typeCheckTasks]).then(() => undefined);
+	return Promise.all([esbuildTask, knoxGuiTask, ...typeCheckTasks]).then(() => undefined);
 }
 
 function watchTypeCheckExtensionMedia(tsconfigPath: string, config: { taskName: string; noEmit?: boolean }): Promise<void> {
