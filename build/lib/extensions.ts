@@ -147,6 +147,52 @@ function fromLocalNormal(extensionPath: string): Stream {
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
 
+/**
+ * Knox dist/, gui/, and sqlite .node are gitignored (not vendored from kc).
+ * Native packaging (Linux/Windows CI, macOS build_dmg) must produce them here.
+ */
+function ensureKnoxPackagingArtifacts(extensionPath: string): void {
+	const distMain = path.join(extensionPath, 'dist', 'src', 'extension.js');
+	if (!fs.existsSync(distMain)) {
+		throw new Error(`Knox pack: missing ${distMain}. dist/ is gitignored and rebuilt by esbuild on this OS.`);
+	}
+
+	const sqliteCandidates = [
+		path.join(extensionPath, 'dist', 'build', 'Release', 'node_sqlite3.node'),
+		path.join(extensionPath, 'build', 'Release', 'node_sqlite3.node'),
+		path.join(extensionPath, 'node_modules', 'sqlite3', 'build', 'Release', 'node_sqlite3.node'),
+	];
+	if (!sqliteCandidates.some(candidate => fs.existsSync(candidate))) {
+		throw new Error('Knox pack: node_sqlite3.node missing. sqlite3 is gitignored and rebuilt for this OS during compile-native-extensions-build.');
+	}
+
+	const guiJs = path.join(extensionPath, 'gui', 'assets', 'index.js');
+	const guiCss = path.join(extensionPath, 'gui', 'assets', 'index.css');
+	if (fs.existsSync(guiJs) && fs.existsSync(guiCss)) {
+		return;
+	}
+
+	const stagedGui = path.join(root, '.build', 'extensions', 'knox', 'gui');
+	const stagedJs = path.join(stagedGui, 'assets', 'index.js');
+	if (fs.existsSync(stagedJs)) {
+		fancyLog('Knox pack: copying gitignored GUI from .build/extensions/knox/gui (compile-extension-media-build)');
+		fs.cpSync(stagedGui, path.join(extensionPath, 'gui'), { recursive: true });
+	} else {
+		fancyLog('Knox pack: gui/ missing; running build-gui.mts (not shipped from kc)');
+		const result = cp.spawnSync(process.argv[0], [path.join(extensionPath, 'scripts', 'build-gui.mts')], {
+			cwd: extensionPath,
+			stdio: 'inherit',
+		});
+		if (result.status !== 0) {
+			throw new Error(`Knox pack: GUI build failed with code ${result.status ?? 'unknown'}`);
+		}
+	}
+
+	if (!fs.existsSync(guiJs) || !fs.existsSync(guiCss)) {
+		throw new Error('Knox pack: gui/assets/index.js or index.css missing. gui/ is gitignored and built by compile-extension-media.');
+	}
+}
+
 function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string): Stream {
 	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
 	const result = es.through();
@@ -182,6 +228,9 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 			fancyLog(`${ansiColors.green('esbuilding')}: ${data.toString('utf8')}`);
 		});
 	}).then(() => {
+		if (extensionName === 'knox') {
+			ensureKnoxPackagingArtifacts(extensionPath);
+		}
 		// After esbuild completes, collect all files using vsce
 		return vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.None });
 	}).then(fileNames => {

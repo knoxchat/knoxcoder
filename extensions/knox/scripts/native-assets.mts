@@ -187,6 +187,12 @@ export function copyKnoxNativeAssets(outDir: string, opts?: { rebuildSqlite?: bo
 		: sqlite3BinaryPath();
 	if (sqlite && fs.existsSync(sqlite)) {
 		placeSqlite3Binary(outDir, sqlite);
+	} else {
+		const msg = `node_sqlite3.node missing after rebuild (looked at ${sqlite3BinaryPath()}). It is gitignored and must be produced on this OS.`;
+		if (process.env.CI === 'true' || opts?.rebuildSqlite === true) {
+			throw new Error(`[knox native] ${msg}`);
+		}
+		warn(msg);
 	}
 	copyTreeSitterAssets(outDir);
 }

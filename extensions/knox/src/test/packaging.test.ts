@@ -62,6 +62,23 @@ suite('Knox packaging (tests are not runtime deps)', () => {
 		assert.ok(ignore.includes('!build/Release/*.node'));
 	});
 
+	test('gitignore excludes Knox build outputs so Linux/Windows CI rebuilds them', () => {
+		const gitignore = fs.readFileSync(
+			path.join(knoxExtensionRoot(), '..', '..', '.gitignore'),
+			'utf8',
+		);
+		assert.ok(gitignore.includes('extensions/knox/gui/'));
+		assert.ok(gitignore.includes('extensions/knox/**/*.node'));
+		assert.ok(gitignore.includes('extensions/knox/build/'));
+		assert.ok(gitignore.includes('extensions/**/dist/'));
+		assert.ok(gitignore.includes('/extensions/**/out/'));
+		const extensionsTs = fs.readFileSync(
+			path.join(knoxExtensionRoot(), '..', '..', 'build', 'lib', 'extensions.ts'),
+			'utf8',
+		);
+		assert.ok(extensionsTs.includes('ensureKnoxPackagingArtifacts'));
+	});
+
 	test('nativeExtensions in the gulp packer lists knox', () => {
 		const extensionsTs = fs.readFileSync(
 			path.join(knoxExtensionRoot(), '..', '..', 'build', 'lib', 'extensions.ts'),
