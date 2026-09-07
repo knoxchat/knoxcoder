@@ -2,13 +2,13 @@
 
 KnoxCoder is a code editor based on [Visual Studio Code](https://code.visualstudio.com) open source.
 
-| ![](./media/dark-theme.png) |
+| ![](./media/dark.png) |
 |-|
 
-| ![](./media/light-theme.png) |
+| ![](./media/light.png) |
 |-|
 
-## Bundled Knox
+## Knox
 
 Knox (sidebar chat, agent, Memory Brain, checkpoints) is a **system extension** (`vscode.knox`), the same class as Git. Linux and Windows CI package it with `packageNativeLocalExtensionsStream` (host `dist/`, webview `gui/`, platform sqlite). macOS uses `./build_dmg.sh` (no GitHub Actions macOS job). It is in the editor on first launch — **no Open VSX install**.
 
