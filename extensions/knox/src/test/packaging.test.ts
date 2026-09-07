@@ -62,6 +62,44 @@ suite('Knox packaging (tests are not runtime deps)', () => {
 		assert.ok(ignore.includes('!build/Release/*.node'));
 	});
 
+	test('tsconfig typeRoots include knox @types (mocha/node)', () => {
+		const tsconfig = JSON.parse(
+			fs.readFileSync(path.join(knoxExtensionRoot(), 'tsconfig.json'), 'utf8'),
+		) as { compilerOptions?: { typeRoots?: string[]; types?: string[] } };
+		assert.ok(tsconfig.compilerOptions?.types?.includes('node'));
+		assert.ok(tsconfig.compilerOptions?.types?.includes('mocha'));
+		assert.deepStrictEqual(tsconfig.compilerOptions?.typeRoots, ['./node_modules/@types']);
+		assert.ok(
+			fs.existsSync(path.join(knoxExtensionRoot(), 'node_modules', '@types', 'node')),
+			'@types/node must be installed under extensions/knox (npm install in that folder)',
+		);
+		assert.ok(
+			fs.existsSync(path.join(knoxExtensionRoot(), 'node_modules', '@types', 'mocha')),
+			'@types/mocha must be installed under extensions/knox',
+		);
+	});
+
+	test('activation does not await setupCa (notarized macOS hang)', () => {
+		const src = fs.readFileSync(
+			path.join(knoxExtensionRoot(), 'src', 'extension.ts'),
+			'utf8',
+		);
+		assert.ok(src.includes('scheduleSetupCa'));
+		assert.ok(!/await setupCa\(/.test(src));
+		assert.ok(src.includes('tryRegisterFallbackWebview'));
+	});
+
+	test('sidebar webview uses extensionUri and a CSP', () => {
+		const src = fs.readFileSync(
+			path.join(knoxExtensionRoot(), 'src', 'KnoxGUIWebviewViewProvider.ts'),
+			'utf8',
+		);
+		assert.ok(src.includes('this.extensionContext.extensionUri'));
+		assert.ok(src.includes('Content-Security-Policy'));
+		assert.ok(src.includes('applyWebviewOptions'));
+		assert.ok(!src.includes('getExtensionUri()'));
+	});
+
 	test('gitignore excludes Knox build outputs so Linux/Windows CI rebuilds them', () => {
 		const gitignore = fs.readFileSync(
 			path.join(knoxExtensionRoot(), '..', '..', '.gitignore'),
@@ -87,5 +125,19 @@ suite('Knox packaging (tests are not runtime deps)', () => {
 		const block = /export const nativeExtensions = \[([\s\S]*?)\]/.exec(extensionsTs);
 		assert.ok(block, 'nativeExtensions export');
 		assert.ok(block[1].includes("'knox'"), block[1]);
+	});
+
+	test('packer walks the jsdom production tree (tough-cookie)', () => {
+		const extensionsTs = fs.readFileSync(
+			path.join(knoxExtensionRoot(), '..', '..', 'build', 'lib', 'extensions.ts'),
+			'utf8',
+		);
+		assert.ok(extensionsTs.includes('collectPackageProductionDirs'));
+		assert.ok(extensionsTs.includes('recursivePackagedDependencies'));
+		assert.ok(extensionsTs.includes("'jsdom'"));
+		assert.ok(
+			fs.existsSync(path.join(knoxExtensionRoot(), 'node_modules', 'tough-cookie')),
+			'tough-cookie must be installed next to jsdom so the packer can copy it',
+		);
 	});
 });

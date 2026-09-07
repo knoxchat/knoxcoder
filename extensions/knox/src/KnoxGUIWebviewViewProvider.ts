@@ -5,7 +5,7 @@ import * as vscode from "vscode";
 
 import { getTheme } from "./util/getTheme";
 import { getExtensionVersion } from "./util/util";
-import { getExtensionUri, getNonce, getUniqueId } from "./util/vscode";
+import { getNonce, getUniqueId } from "./util/vscode";
 import { VsCodeWebviewProtocol } from "./webviewProtocol";
 
 import type { FileEdit } from "core";
@@ -53,6 +53,7 @@ export class KnoxGUIWebviewViewProvider
   ): void | Thenable<void> {
     this._webviewView = webviewView;
     this._webview = webviewView.webview;
+    this.applyWebviewOptions(webviewView);
     webviewView.webview.html = this.getSidebarContent(
       this.extensionContext,
       webviewView,
@@ -116,6 +117,34 @@ export class KnoxGUIWebviewViewProvider
     );
   }
 
+  private extensionUri(): vscode.Uri {
+    return this.extensionContext.extensionUri;
+  }
+
+  private applyWebviewOptions(panel: vscode.WebviewPanel | vscode.WebviewView): void {
+    const extensionUri = this.extensionUri();
+    const viteDevGui = useViteDevGui();
+    panel.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [
+        extensionUri,
+        vscode.Uri.joinPath(extensionUri, "gui"),
+        vscode.Uri.joinPath(extensionUri, "assets"),
+      ],
+      enableCommandUris: true,
+      ...(viteDevGui
+        ? {
+            portMapping: [
+              {
+                webviewPort: 65433,
+                extensionHostPort: 65433,
+              },
+            ],
+          }
+        : {}),
+    };
+  }
+
   getSidebarContent(
     context: vscode.ExtensionContext | undefined,
     panel: vscode.WebviewPanel | vscode.WebviewView,
@@ -123,7 +152,9 @@ export class KnoxGUIWebviewViewProvider
     edits: FileEdit[] | undefined = undefined,
     isFullScreen = false,
   ): string {
-    const extensionUri = getExtensionUri();
+    const extensionUri = context?.extensionUri ?? this.extensionUri();
+    this.applyWebviewOptions(panel);
+
     const vscMediaUrl: string = panel.webview
       .asWebviewUri(vscode.Uri.joinPath(extensionUri, "gui"))
       .toString();
@@ -145,22 +176,17 @@ export class KnoxGUIWebviewViewProvider
         .toString();
     }
 
-    panel.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.joinPath(extensionUri, "gui"),
-        vscode.Uri.joinPath(extensionUri, "assets"),
-      ],
-      enableCommandUris: true,
-      portMapping: [
-        {
-          webviewPort: 65433,
-          extensionHostPort: 65433,
-        },
-      ],
-    };
-
     const nonce = getNonce();
+    const cspSource = panel.webview.cspSource;
+    const scriptSrc = viteDevGui
+      ? `${cspSource} 'nonce-${nonce}' http://localhost:5173`
+      : `${cspSource} 'nonce-${nonce}'`;
+    const styleSrc = viteDevGui
+      ? `${cspSource} 'unsafe-inline' http://localhost:5173`
+      : `${cspSource} 'unsafe-inline'`;
+    const connectSrc = viteDevGui
+      ? `${cspSource} https: http: ws: wss: http://localhost:5173 ws://localhost:5173`
+      : `${cspSource} https: http: ws: wss:`;
 
     const currentTheme = getTheme();
     vscode.workspace.onDidChangeConfiguration((e) => {
@@ -203,7 +229,8 @@ export class KnoxGUIWebviewViewProvider
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script>const vscode = acquireVsCodeApi();</script>
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${cspSource} https: data: blob:; media-src ${cspSource} data: blob:; font-src ${cspSource} data:; style-src ${styleSrc}; script-src ${scriptSrc} 'unsafe-eval'; connect-src ${connectSrc}; worker-src ${cspSource} blob:; frame-src ${cspSource} blob:;">
+        <script nonce="${nonce}">const vscode = acquireVsCodeApi();</script>
         <link href="${styleMainUri}" rel="stylesheet">
 
         <title>Knox</title>
@@ -213,7 +240,7 @@ export class KnoxGUIWebviewViewProvider
 
         ${
           viteDevGui
-            ? `<script type="module">
+            ? `<script type="module" nonce="${nonce}">
           import RefreshRuntime from "http://localhost:5173/@react-refresh"
           RefreshRuntime.injectIntoGlobalHook(window)
           window.$RefreshReg$ = () => {}
@@ -236,27 +263,27 @@ export class KnoxGUIWebviewViewProvider
           });
         </script>
 
-        <script>localStorage.setItem("ide", '"vscode"')</script>
-        <script>localStorage.setItem("extensionVersion", '"${getExtensionVersion()}"')</script>
-        <script>window.windowId = "${this.windowId}"</script>
-        <script>window.vscMachineId = "${getUniqueId()}"</script>
-        <script>window.vscMediaUrl = "${vscMediaUrl}"</script>
-        <script>window.ide = "vscode"</script>
-        <script>window.fullColorTheme = ${JSON.stringify(currentTheme)}</script>
-        <script>window.colorThemeName = "dark-plus"</script>
-        <script>window.workspacePaths = ${JSON.stringify(
+        <script nonce="${nonce}">localStorage.setItem("ide", '"vscode"')</script>
+        <script nonce="${nonce}">localStorage.setItem("extensionVersion", '"${getExtensionVersion()}"')</script>
+        <script nonce="${nonce}">window.windowId = "${this.windowId}"</script>
+        <script nonce="${nonce}">window.vscMachineId = "${getUniqueId()}"</script>
+        <script nonce="${nonce}">window.vscMediaUrl = "${vscMediaUrl}"</script>
+        <script nonce="${nonce}">window.ide = "vscode"</script>
+        <script nonce="${nonce}">window.fullColorTheme = ${JSON.stringify(currentTheme)}</script>
+        <script nonce="${nonce}">window.colorThemeName = "dark-plus"</script>
+        <script nonce="${nonce}">window.workspacePaths = ${JSON.stringify(
           vscode.workspace.workspaceFolders?.map((folder) =>
             folder.uri.toString(),
           ) || [],
         )}</script>
-        <script>window.isFullScreen = ${isFullScreen}</script>
+        <script nonce="${nonce}">window.isFullScreen = ${isFullScreen}</script>
 
         ${
           edits
-            ? `<script>window.edits = ${JSON.stringify(edits)}</script>`
+            ? `<script nonce="${nonce}">window.edits = ${JSON.stringify(edits)}</script>`
             : ""
         }
-        ${page ? `<script>window.location.pathname = "${page}"</script>` : ""}
+        ${page ? `<script nonce="${nonce}">window.location.pathname = "${page}"</script>` : ""}
       </body>
     </html>`;
   }

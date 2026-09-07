@@ -2,9 +2,6 @@ import { globalAgent } from "https";
 
 import { t } from "../i18n/index.js";
 
-// @ts-ignore
-import { systemCertsAsync } from "system-ca";
-
 export async function setupCa() {
   try {
     switch (process.platform) {
@@ -18,10 +15,12 @@ export async function setupCa() {
         const winCa = await import("win-ca");
         winCa.inject("+");
         break;
-      default:
+      default: {
         // https://www.npmjs.com/package/system-ca
+        const { systemCertsAsync } = await import("system-ca");
         globalAgent.options.ca = await systemCertsAsync();
         break;
+      }
     }
   } catch (e) {
     console.warn(t("failedToSetupCa"), e);

@@ -7,7 +7,7 @@ import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
 import { suite, test } from 'node:test';
-import { isWebExtension, isWebExtensionsOutputRoot, nativeExtensions } from '../extensions.ts';
+import { collectPackageProductionDirs, isWebExtension, isWebExtensionsOutputRoot, nativeExtensions } from '../extensions.ts';
 import type { IExtensionManifest } from '../extensions.ts';
 
 const repositoryRoot = path.join(import.meta.dirname, '../../..');
@@ -18,6 +18,17 @@ suite('Knox packaging (Phase 9)', () => {
 	test('nativeExtensions includes knox (packageNativeLocalExtensionsStream)', () => {
 		assert.ok(nativeExtensions.includes('knox'));
 		assert.ok(nativeExtensions.includes('git'));
+	});
+
+	test('jsdom production tree includes tough-cookie (packaged with the extension)', () => {
+		const knoxRoot = path.join(repositoryRoot, 'extensions/knox');
+		const jsdomPkg = path.join(knoxRoot, 'node_modules/jsdom/package.json');
+		assert.ok(fs.existsSync(jsdomPkg), 'extensions/knox/node_modules/jsdom must be installed');
+		const dirs = collectPackageProductionDirs(knoxRoot, 'jsdom');
+		assert.ok(
+			dirs.some(dir => dir.split(path.sep).includes('tough-cookie')),
+			'collectPackageProductionDirs(jsdom) must include tough-cookie so notarized apps can require() jsdom',
+		);
 	});
 
 	test('Knox is not a web extension (main without browser)', () => {

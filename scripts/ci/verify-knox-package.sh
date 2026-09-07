@@ -34,7 +34,7 @@ fail() {
 	exit 1
 }
 
-KNOX_DIR="$(resolve_knox_dir "$1")"
+KNOX_DIR="$(cd "$(resolve_knox_dir "$1")" && pwd)"
 PKG="$KNOX_DIR/package.json"
 
 KNOX_PKG="$PKG" node -e '
@@ -76,7 +76,24 @@ process.stdout.write(found);
 '
 )" || fail "node_sqlite3.node missing (platform sqlite)"
 
+[ -f "$KNOX_DIR/node_modules/jsdom/lib/api.js" ] || fail "jsdom/lib/api.js missing (esbuild external)"
+KNOX_DIR="$KNOX_DIR" node -e '
+const { createRequire } = require("module");
+const path = require("path");
+const jsdomApi = path.join(process.env.KNOX_DIR, "node_modules/jsdom/lib/api.js");
+const req = createRequire(jsdomApi);
+for (const id of ["tough-cookie", "saxes", "parse5", "whatwg-url"]) {
+	try {
+		req.resolve(id);
+	} catch {
+		console.error("jsdom cannot resolve " + id);
+		process.exit(2);
+	}
+}
+' || fail "jsdom production tree incomplete (tough-cookie and other jsdom requires)"
+
 echo "Knox native package OK: $KNOX_DIR"
 echo "  host:  dist/src/extension.js"
 echo "  gui:   gui/assets/index.js + index.css"
 echo "  sqlite: $SQLITE"
+echo "  jsdom:  node_modules/jsdom + production deps"

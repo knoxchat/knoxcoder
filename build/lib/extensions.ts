@@ -193,6 +193,100 @@ function ensureKnoxPackagingArtifacts(extensionPath: string): void {
 	}
 }
 
+/**
+ * Absolute directories for `rootName` plus its production `dependencies`
+ * (not optional/peer). jsdom is esbuild-external, so the packaged app must
+ * include hoisted modules such as `tough-cookie` that `jsdom/lib/api.js` requires.
+ */
+export function collectPackageProductionDirs(extensionPath: string, rootName: string): string[] {
+	const dirs = new Set<string>();
+	const resolvePackageJson = (fromFile: string, name: string): string | undefined => {
+		const req = createRequire(fromFile);
+		try {
+			return req.resolve(`${name}/package.json`);
+		} catch {
+			// "exports" maps often omit package.json
+		}
+		try {
+			let dir = path.dirname(req.resolve(name));
+			while (true) {
+				const candidate = path.join(dir, 'package.json');
+				if (fs.existsSync(candidate)) {
+					const pkg = JSON.parse(fs.readFileSync(candidate, 'utf8')) as { name?: string };
+					if (pkg.name === name) {
+						return candidate;
+					}
+				}
+				const parent = path.dirname(dir);
+				if (parent === dir) {
+					break;
+				}
+				dir = parent;
+			}
+		} catch {
+			return undefined;
+		}
+		return undefined;
+	};
+	const visit = (fromFile: string, name: string): void => {
+		const pkgJson = resolvePackageJson(fromFile, name);
+		if (!pkgJson) {
+			return;
+		}
+		const dir = fs.realpathSync(path.dirname(pkgJson));
+		if (dirs.has(dir)) {
+			return;
+		}
+		const rel = path.relative(extensionPath, dir);
+		if (rel.startsWith('..') || path.isAbsolute(rel)) {
+			return;
+		}
+		dirs.add(dir);
+		const pkg = JSON.parse(fs.readFileSync(pkgJson, 'utf8')) as { dependencies?: Record<string, string> };
+		for (const dep of Object.keys(pkg.dependencies ?? {})) {
+			visit(pkgJson, dep);
+		}
+	};
+	visit(path.join(extensionPath, 'package.json'), rootName);
+	return [...dirs];
+}
+
+function shouldPackKnoxDependencyFile(filePath: string): boolean {
+	const parts = filePath.split(path.sep);
+	if (parts.includes('sqlite3')) {
+		const buildIndex = parts.indexOf('build');
+		if (buildIndex !== -1) {
+			return filePath.endsWith('.node');
+		}
+		if (parts.includes('deps') || parts.includes('src')) {
+			return false;
+		}
+		if (filePath.endsWith('.gyp') || filePath.endsWith('.gypi')) {
+			return false;
+		}
+		return true;
+	}
+	// Native-addon `build/` filter is sqlite3-only. jsdom's tree is plain JS
+	// (tough-cookie, parse5, …) and must not be dropped.
+	return true;
+}
+
+function globPackagedDependencyFiles(extensionPath: string, packageDir: string, extensionName: string): string[] {
+	return glob.sync(path.join(packageDir, '**'), { nodir: true, dot: true })
+		.map(filePath => path.relative(extensionPath, filePath))
+		.filter(filePath => {
+			if (extensionName === 'knox') {
+				return shouldPackKnoxDependencyFile(filePath);
+			}
+			const parts = filePath.split(path.sep);
+			const buildIndex = parts.indexOf('build');
+			if (buildIndex !== -1) {
+				return filePath.endsWith('.node');
+			}
+			return true;
+		});
+}
+
 function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string): Stream {
 	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
 	const result = es.through();
@@ -203,9 +297,13 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 	const packagedDependenciesByExtension: Record<string, string[]> = {
 		'git': ['@vscode/fs-copyfile'],
 		// sqlite3 .node is rebuilt for Electron in knox/scripts/native-assets.mts (T5.3).
+		// jsdom is esbuild-external (default-stylesheet.css via __dirname). Pack its
+		// production tree too — vsce PackageManager.None skips gitignored node_modules,
+		// so a glob of node_modules/jsdom alone drops hoisted tough-cookie (T2.4/T8).
 		'knox': ['sqlite3', 'jsdom'],
 	};
 	const packagedDependencies = packagedDependenciesByExtension[extensionName] ?? [];
+	const recursivePackagedDependencies = extensionName === 'knox' ? ['jsdom'] : [];
 
 	const esbuildScript = path.join(extensionPath, esbuildConfigFileName);
 
@@ -235,29 +333,20 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 		return vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.None });
 	}).then(fileNames => {
 		if (packagedDependencies.length > 0) {
-			const packagedDependencyFileNames = packagedDependencies.flatMap(dependency =>
-				glob.sync(path.join(extensionPath, 'node_modules', dependency, '**'), { nodir: true, dot: true })
-					.map(filePath => path.relative(extensionPath, filePath))
-					.filter(filePath => {
-						// Exclude non-.node files from build directories to avoid timestamp-sensitive
-						// artifacts (e.g. Makefile) that break macOS universal builds due to SHA mismatches.
-						const parts = filePath.split(path.sep);
-						const buildIndex = parts.indexOf('build');
-						if (buildIndex !== -1) {
-							return filePath.endsWith('.node');
-						}
-						// Knox sqlite3: pack JS + native binary, not amalgamation sources (T5.4).
-						if (extensionName === 'knox' && parts.includes('sqlite3')) {
-							if (parts.includes('deps') || parts.includes('src')) {
-								return false;
-							}
-							if (filePath.endsWith('.gyp') || filePath.endsWith('.gypi')) {
-								return false;
-							}
-						}
-						return true;
-					})
-			);
+			const packageDirs = new Set<string>();
+			for (const dependency of packagedDependencies) {
+				if (recursivePackagedDependencies.includes(dependency)) {
+					for (const dir of collectPackageProductionDirs(extensionPath, dependency)) {
+						packageDirs.add(dir);
+					}
+				} else {
+					packageDirs.add(path.join(extensionPath, 'node_modules', dependency));
+				}
+			}
+
+			const packagedDependencyFileNames = [...packageDirs]
+				.filter(dir => fs.existsSync(dir))
+				.flatMap(dir => globPackagedDependencyFiles(extensionPath, dir, extensionName));
 
 			fileNames = Array.from(new Set([...fileNames, ...packagedDependencyFileNames]));
 		}
