@@ -45,10 +45,8 @@
 	"scripts": {
 		"compile": "gulp compile-extension:knox",
 		"watch": "gulp watch-extension:knox",
-		"compile-gui": "node ./scripts/build-gui.mts",
 		"rebuild-native": "node ./scripts/rebuild-native.mts",
-		"test": "node ../../node_modules/mocha/bin/mocha --ui tdd --timeout 20000 --require ./src/test/vscode-stub.cjs \"./out/src/test/**/*.test.js\"",
-		"test-gui": "npm test --prefix gui-src"
+		"test": "node ../../node_modules/mocha/bin/mocha --ui tdd --timeout 20000 --require ./src/test/vscode-stub.cjs \"./out/src/test/**/*.test.js\""
 	},
 	"dependencies": {
 		"@mozilla/readability": "^0.6.0",
@@ -118,10 +116,10 @@
 					"default": true,
 					"description": "Show inline suggestions for Knox shortcuts (e.g., \"Cmd/Ctrl L to add code to chat, Cmd/Ctrl I to edit code\")"
 				},
-				"knoxchat.debugViteGui": {
+				"knoxchat.nativeGui": {
 					"type": "boolean",
-					"default": false,
-					"markdownDescription": "Load the sidebar from a local Vite server at `http://localhost:5173` instead of packaged `gui/assets`. Also enabled when `KNOX_GUI_VITE=1`. Off by default."
+					"default": true,
+					"markdownDescription": "Deprecated. The Knox sidebar is always native workbench widgets. Kept so existing `settings.json` keys still load."
 				},
 				"knoxchat.disableQuickFix": {
 					"type": "boolean",
@@ -1133,16 +1131,6 @@
 			],
 			"view/title": [
 				{
-					"command": "knoxchat.viewMemory",
-					"group": "navigation@3",
-					"when": "view == knoxchat.knoxGUIView"
-				},
-				{
-					"command": "knoxchat.openConfigPage",
-					"group": "navigation@4",
-					"when": "view == knoxchat.knoxGUIView"
-				},
-				{
 					"command": "knox.checkpoints.create",
 					"group": "navigation@1",
 					"when": "view == knox.checkpoints.view"
@@ -1207,11 +1195,6 @@
 			],
 			"editor/title": [
 				{
-					"command": "knoxchat.viewMemory",
-					"group": "navigation@3",
-					"when": "activeWebviewPanelId == knoxchat.knoxGUIView"
-				},
-				{
 					"command": "knox.acceptShadowChanges",
 					"group": "navigation@9",
 					"when": "knox.shadowDiffVisible"
@@ -1229,25 +1212,7 @@
 				}
 			]
 		},
-		"viewsContainers": {
-			"secondarySidebar": [
-				{
-					"id": "knoxchat",
-					"title": "Knox",
-					"icon": "media/sidebar-icon.png"
-				}
-			]
-		},
 		"views": {
-			"knoxchat": [
-				{
-					"type": "webview",
-					"id": "knoxchat.knoxGUIView",
-					"name": "Knox",
-					"icon": "media/sidebar-icon.png",
-					"visibility": "visible"
-				}
-			],
 			"explorer": [
 				{
 					"id": "knox.checkpoints.view",

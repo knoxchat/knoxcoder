@@ -107,6 +107,25 @@ export interface MainThreadGitExtensionShape extends IDisposable {
 	$onDidChangeRepository(handle: number): Promise<void>;
 }
 
+/**
+ * Native Knox GUI ↔ Core RPC. Message names are the existing
+ * `FromWebviewProtocol` / `ToWebviewProtocol` strings; do not invent a second protocol.
+ */
+export interface KnoxGuiMessageDto {
+	messageType: string;
+	messageId: string;
+	data: unknown;
+}
+
+export interface MainThreadKnoxGuiShape extends IDisposable {
+	$push(message: KnoxGuiMessageDto): void;
+}
+
+export interface ExtHostKnoxGuiShape {
+	$request(message: KnoxGuiMessageDto): Promise<unknown>;
+	$post(message: KnoxGuiMessageDto): Promise<void>;
+}
+
 export interface MainThreadClipboardShape extends IDisposable {
 	$readText(): Promise<string>;
 	$writeText(value: string): Promise<void>;
@@ -3206,6 +3225,7 @@ export const MainContext = {
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
 	MainThreadEmbeddings: createProxyIdentifier<MainThreadEmbeddingsShape>('MainThreadEmbeddings'),
 	MainThreadGitExtension: createProxyIdentifier<MainThreadGitExtensionShape>('MainThreadGitExtension'),
+	MainThreadKnoxGui: createProxyIdentifier<MainThreadKnoxGuiShape>('MainThreadKnoxGui'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createProxyIdentifier<MainThreadCommentsShape>('MainThreadComments'),
@@ -3339,4 +3359,5 @@ export const ExtHostContext = {
 	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
 	ExtHostDataChannels: createProxyIdentifier<ExtHostDataChannelsShape>('ExtHostDataChannels'),
 	ExtHostGitExtension: createProxyIdentifier<ExtHostGitExtensionShape>('ExtHostGitExtension'),
+	ExtHostKnoxGui: createProxyIdentifier<ExtHostKnoxGuiShape>('ExtHostKnoxGui'),
 };

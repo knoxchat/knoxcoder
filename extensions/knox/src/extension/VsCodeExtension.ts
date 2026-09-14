@@ -105,16 +105,7 @@ export class VsCodeExtension {
       this.extensionContext,
     );
 
-    // Sidebar
-    context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider(
-        "knoxchat.knoxGUIView",
-        this.sidebar,
-        {
-          webviewOptions: { retainContextWhenHidden: true },
-        },
-      ),
-    );
+    // Native pane talks to Core through this protocol's native sink (T13.2).
     resolveWebviewProtocol(this.sidebar.webviewProtocol);
 
     // Config Handler with output channel
@@ -421,8 +412,7 @@ export class VsCodeExtension {
       }
     });
 
-    // After HTML is set (or if the view already resolved during register),
-    // warm agent / checkpoints / file index off the activate path (T7.3).
+    // Warm agent / checkpoints / file index off the activate path (T7.3).
     this.sidebar.onDidResolve(() => this.scheduleDeferredStartup());
     if (this.sidebar.isReady) {
       this.scheduleDeferredStartup();
@@ -469,30 +459,13 @@ export class VsCodeExtension {
       
       // Listen for streaming updates from ChatFlowCoordinator and forward to webview
       chatFlowCoordinator.onStreamingUpdate(({ content, isComplete }: { content: string; isComplete: boolean }) => {
-        // Forward the streaming update to the main webview
         this.sidebar.webviewProtocol.send('agentStreamingUpdate', {
           content,
           isComplete
         });
       });
       
-      // Listen for streaming updates from Redux middleware (webview -> extension)
-      // This allows Agent Mode to receive real-time streaming updates from Redux streamUpdate actions
-      // The webview sends these messages via vscode.postMessage when Redux dispatches streamUpdate
-      const webview = this.sidebar.webviewProtocol.webview;
-      if (webview) {
-        const disposable = webview.onDidReceiveMessage((message: any) => {
-          if (message.messageType === 'agentStreamingUpdateFromRedux') {
-            const { content, isComplete } = message.data;
-            // Forward to ChatFlowCoordinator which will emit the event
-            // This ensures code blocks update in real-time during streaming
-            chatFlowCoordinator.emitStreamingUpdate(content, isComplete);
-          }
-        });
-        this.extensionContext.subscriptions.push(disposable);
-      }
-      
-      console.log('✅ Agent Mode streaming initialized and connected to webview');
+      console.log('✅ Agent Mode streaming initialized');
     } catch (error) {
       console.warn('⚠️ Failed to initialize Agent Mode streaming:', error);
       // Don't throw - allow extension to continue without agent mode streaming

@@ -148,8 +148,9 @@ function fromLocalNormal(extensionPath: string): Stream {
 }
 
 /**
- * Knox dist/, gui/, and sqlite .node are gitignored (not vendored from kc).
+ * Knox dist/ and sqlite .node are gitignored (not vendored from kc).
  * Native packaging (Linux/Windows CI, macOS build_dmg) must produce them here.
+ * The Vite webview GUI is no longer packaged (T13.3).
  */
 function ensureKnoxPackagingArtifacts(extensionPath: string): void {
 	const distMain = path.join(extensionPath, 'dist', 'src', 'extension.js');
@@ -164,32 +165,6 @@ function ensureKnoxPackagingArtifacts(extensionPath: string): void {
 	];
 	if (!sqliteCandidates.some(candidate => fs.existsSync(candidate))) {
 		throw new Error('Knox pack: node_sqlite3.node missing. sqlite3 is gitignored and rebuilt for this OS during compile-native-extensions-build.');
-	}
-
-	const guiJs = path.join(extensionPath, 'gui', 'assets', 'index.js');
-	const guiCss = path.join(extensionPath, 'gui', 'assets', 'index.css');
-	if (fs.existsSync(guiJs) && fs.existsSync(guiCss)) {
-		return;
-	}
-
-	const stagedGui = path.join(root, '.build', 'extensions', 'knox', 'gui');
-	const stagedJs = path.join(stagedGui, 'assets', 'index.js');
-	if (fs.existsSync(stagedJs)) {
-		fancyLog('Knox pack: copying gitignored GUI from .build/extensions/knox/gui (compile-extension-media-build)');
-		fs.cpSync(stagedGui, path.join(extensionPath, 'gui'), { recursive: true });
-	} else {
-		fancyLog('Knox pack: gui/ missing; running build-gui.mts (not shipped from kc)');
-		const result = cp.spawnSync(process.argv[0], [path.join(extensionPath, 'scripts', 'build-gui.mts')], {
-			cwd: extensionPath,
-			stdio: 'inherit',
-		});
-		if (result.status !== 0) {
-			throw new Error(`Knox pack: GUI build failed with code ${result.status ?? 'unknown'}`);
-		}
-	}
-
-	if (!fs.existsSync(guiJs) || !fs.existsSync(guiCss)) {
-		throw new Error('Knox pack: gui/assets/index.js or index.css missing. gui/ is gitignored and built by compile-extension-media.');
 	}
 }
 
@@ -460,7 +435,8 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
 /**
  * All extensions that are known to have some native component and thus must be built on the
  * platform that is being built. Knox is here so {@link packageNativeLocalExtensionsStream}
- * includes `dist/`, sqlite3 `.node`, and (with compile-extension-media) `gui/` on each OS.
+ * includes `dist/` and sqlite3 `.node` on each OS. The Vite webview GUI is
+ * not packaged (T13.3).
  */
 export const nativeExtensions = [
 	'git',
@@ -767,23 +743,6 @@ const esbuildMediaScripts: { script: string; tsconfig: string }[] = [
 	{ script: 'simple-browser/esbuild.webview.mts', tsconfig: 'simple-browser/preview-src/tsconfig.json' },
 ];
 
-/**
- * Knox GUI is Vite, not esbuild. Do not add knox/scripts/build-gui.mts to
- * {@link esbuildMediaScripts} (that list also tsgo-typechecks a sibling tsconfig).
- * The wrapper understands the same --watch / --outputRoot flags as esbuild media.
- *
- * Skip the GUI when packaging vscode-web: Knox is not a web extension (`main`
- * without `browser`), so {@link isWebExtension} already drops it from compile-web
- * / packageAllLocalExtensionsStream(forWeb). Building Vite into `.build/web/extensions`
- * would leave a stray `knox/gui` folder in the web payload.
- */
-function knoxGuiMediaScript(outputRoot?: string): { script: string; outputRoot?: string } {
-	return {
-		script: path.join(extensionsPath, 'knox/scripts/build-gui.mts'),
-		outputRoot: outputRoot ? path.join(root, outputRoot, 'knox') : undefined,
-	};
-}
-
 export function isWebExtensionsOutputRoot(outputRoot?: string): boolean {
 	if (!outputRoot) {
 		return false;
@@ -798,10 +757,6 @@ export function buildExtensionMedia(isWatch: boolean, outputRoot?: string): Prom
 		outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(script)) : undefined
 	})));
 
-	const knoxGuiTask = isWebExtensionsOutputRoot(outputRoot)
-		? Promise.resolve()
-		: esbuildExtensions('building knox gui', isWatch, [knoxGuiMediaScript(outputRoot)]);
-
 	const typeCheckTasks = esbuildMediaScripts.map(({ tsconfig }) => {
 		const tsconfigPath = path.join(extensionsPath, tsconfig);
 		const config = { taskName: 'typechecking extension media (tsgo)', noEmit: true };
@@ -812,7 +767,7 @@ export function buildExtensionMedia(isWatch: boolean, outputRoot?: string): Prom
 		}
 	});
 
-	return Promise.all([esbuildTask, knoxGuiTask, ...typeCheckTasks]).then(() => undefined);
+	return Promise.all([esbuildTask, ...typeCheckTasks]).then(() => undefined);
 }
 
 function watchTypeCheckExtensionMedia(tsconfigPath: string, config: { taskName: string; noEmit?: boolean }): Promise<void> {

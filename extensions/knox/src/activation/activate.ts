@@ -60,6 +60,14 @@ export async function activateExtension(context: vscode.ExtensionContext) {
   
   const knoxPublicApi = {
     registerCustomContextProvider: api.registerCustomContextProvider.bind(api),
+    nativeGui: {
+      request: (messageType: string, data: unknown, messageId: string) =>
+        api.nativeRequest(messageType, data, messageId),
+      post: (messageType: string, data: unknown, messageId: string) =>
+        api.nativePost(messageType, data, messageId),
+      setPushHandler: (handler: (message: { messageType: string; messageId: string; data: unknown }) => void) =>
+        api.setNativePushHandler(handler),
+    },
     agentMode: {
       isAgentModeActive: () => {
         return vscode.commands.executeCommand<boolean>('knox.isAgentModeActive');

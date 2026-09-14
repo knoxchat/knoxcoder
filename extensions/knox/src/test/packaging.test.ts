@@ -26,17 +26,12 @@ suite('Knox packaging (tests are not runtime deps)', () => {
 		assert.ok(pkg.devDependencies?.['@types/mocha'], '@types/mocha is a types-only devDependency');
 	});
 
-	test('GUI vitest stays a gui-src devDependency', () => {
-		const guiPkg = JSON.parse(
-			fs.readFileSync(path.join(knoxExtensionRoot(), 'gui-src', 'package.json'), 'utf8'),
-		) as {
-			scripts?: Record<string, string>;
-			dependencies?: Record<string, string>;
-			devDependencies?: Record<string, string>;
-		};
-		assert.ok(guiPkg.scripts?.test?.includes('vitest'));
-		assert.strictEqual(guiPkg.dependencies?.vitest, undefined);
-		assert.ok(guiPkg.devDependencies?.vitest, 'vitest must be gui-src dev-only');
+	test('package.json does not keep Vite GUI scripts after T13.3', () => {
+		const pkg = JSON.parse(
+			fs.readFileSync(path.join(knoxExtensionRoot(), 'package.json'), 'utf8'),
+		) as { scripts?: Record<string, string> };
+		assert.strictEqual(pkg.scripts?.['compile-gui'], undefined);
+		assert.strictEqual(pkg.scripts?.['test-gui'], undefined);
 	});
 
 	test('system identity is vscode.knox with desktop main, not a web extension', () => {
@@ -54,9 +49,10 @@ suite('Knox packaging (tests are not runtime deps)', () => {
 		assert.strictEqual(pkg.browser, undefined, 'no browser field so compile-web skips Knox');
 	});
 
-	test('.vscodeignore force-includes gui, dist, and sqlite .node', () => {
+	test('.vscodeignore force-includes dist and sqlite .node, not gui', () => {
 		const ignore = fs.readFileSync(path.join(knoxExtensionRoot(), '.vscodeignore'), 'utf8');
-		assert.ok(ignore.includes('!gui/**'));
+		assert.ok(ignore.includes('gui/**'));
+		assert.ok(!ignore.includes('!gui/**'));
 		assert.ok(ignore.includes('!dist/**'));
 		assert.ok(ignore.includes('!dist/**/*.node'));
 		assert.ok(ignore.includes('!build/Release/*.node'));
@@ -86,18 +82,19 @@ suite('Knox packaging (tests are not runtime deps)', () => {
 		);
 		assert.ok(src.includes('scheduleSetupCa'));
 		assert.ok(!/await setupCa\(/.test(src));
-		assert.ok(src.includes('tryRegisterFallbackWebview'));
+		assert.ok(!src.includes('tryRegisterFallbackWebview'));
+		assert.ok(!src.includes('registerWebviewViewProvider'));
 	});
 
-	test('sidebar webview uses extensionUri and a CSP', () => {
+	test('protocol host is not a WebviewViewProvider', () => {
 		const src = fs.readFileSync(
 			path.join(knoxExtensionRoot(), 'src', 'KnoxGUIWebviewViewProvider.ts'),
 			'utf8',
 		);
-		assert.ok(src.includes('this.extensionContext.extensionUri'));
-		assert.ok(src.includes('Content-Security-Policy'));
-		assert.ok(src.includes('applyWebviewOptions'));
-		assert.ok(!src.includes('getExtensionUri()'));
+		assert.ok(!src.includes('implements vscode.WebviewViewProvider'));
+		assert.ok(!src.includes('Content-Security-Policy'));
+		assert.ok(!src.includes('getSidebarContent'));
+		assert.ok(src.includes('VsCodeWebviewProtocol'));
 	});
 
 	test('gitignore excludes Knox build outputs so Linux/Windows CI rebuilds them', () => {
@@ -115,6 +112,7 @@ suite('Knox packaging (tests are not runtime deps)', () => {
 			'utf8',
 		);
 		assert.ok(extensionsTs.includes('ensureKnoxPackagingArtifacts'));
+		assert.ok(!extensionsTs.includes('knox/scripts/build-gui.mts'));
 	});
 
 	test('sqlite3 override prevents dbinfoz from nesting sqlite3 5.x', () => {

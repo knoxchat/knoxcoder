@@ -38,7 +38,7 @@ suite('Knox packaging (Phase 9)', () => {
 		assert.strictEqual(isWebExtension(manifest), false);
 	});
 
-	test('vscode-web media output root skips Knox GUI', () => {
+	test('vscode-web media output root is recognized', () => {
 		assert.strictEqual(isWebExtensionsOutputRoot('.build/web/extensions'), true);
 		assert.strictEqual(isWebExtensionsOutputRoot('.build/extensions'), false);
 		assert.strictEqual(isWebExtensionsOutputRoot(undefined), false);

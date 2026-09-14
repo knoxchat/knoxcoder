@@ -33,6 +33,8 @@ type PackageJson = {
 			commandPalette?: Array<{ command: string; when?: string }>;
 			'explorer/context'?: Array<{ command: string }>;
 			'editor/context'?: Array<{ command: string }>;
+			'view/title'?: Array<{ command: string; when?: string }>;
+			'editor/title'?: Array<{ command: string; when?: string }>;
 		};
 		viewsContainers?: {
 			activitybar?: Array<{ id: string }>;
@@ -43,6 +45,9 @@ type PackageJson = {
 			explorer?: Array<{ id: string }>;
 		};
 		keybindings?: Array<{ command: string; key?: string; mac?: string }>;
+		configuration?: {
+			properties?: Record<string, { type?: string; default?: unknown }>;
+		};
 	};
 };
 
@@ -69,16 +74,27 @@ suite('Checkpoint command surface (CP-16)', () => {
 		assert.strictEqual(pkg.name, 'knox');
 	});
 
-	test('chat view is pinned to the Secondary Side Bar', () => {
+	test('chat view is hosted by the workbench contrib, not package.json', () => {
+		assert.strictEqual(pkg.contributes?.viewsContainers, undefined);
+		assert.strictEqual(pkg.contributes?.views?.knoxchat, undefined);
 		assert.ok(
-			pkg.contributes?.viewsContainers?.secondarySidebar?.some((container) => container.id === 'knoxchat'),
-			'knoxchat view container must be contributed to secondarySidebar',
+			pkg.contributes?.views?.explorer?.some((view) => view.id === CHECKPOINT_TREE_VIEW_ID),
+			'checkpoint tree stays an explorer view',
 		);
-		assert.strictEqual(pkg.contributes?.viewsContainers?.activitybar, undefined);
-		assert.ok(
-			pkg.contributes?.views?.knoxchat?.some((view) => view.id === 'knoxchat.knoxGUIView'),
-			'knoxchat.knoxGUIView must stay in the knoxchat container',
-		);
+	});
+
+	test('native GUI setting is kept as a deprecated always-native flag', () => {
+		const nativeGui = pkg.contributes?.configuration?.properties?.['knoxchat.nativeGui'];
+		assert.strictEqual(nativeGui?.type, 'boolean');
+		assert.strictEqual(nativeGui?.default, true);
+		assert.strictEqual(pkg.contributes?.configuration?.properties?.['knoxchat.debugViteGui'], undefined);
+	});
+
+	test('webview title actions are not contributed for the Knox chat view', () => {
+		const title = pkg.contributes?.menus?.['view/title'] ?? [];
+		assert.ok(!title.some((entry) => entry.when?.includes('knoxchat.knoxGUIView')));
+		const editorTitle = pkg.contributes?.menus?.['editor/title'] ?? [];
+		assert.ok(!editorTitle.some((entry) => entry.when?.includes('knoxchat.knoxGUIView')));
 	});
 
 	test('palette contributes exactly the canonical Knox Checkpoints commands', () => {

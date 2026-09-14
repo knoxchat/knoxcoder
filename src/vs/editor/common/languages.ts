@@ -645,6 +645,13 @@ export interface CompletionItem {
 	 * @internal
 	 */
 	_id?: [number, number];
+
+	/**
+	 * Extra CSS classes on the suggest icon. Used by Knox `@` / `/` to show
+	 * the same named icons as `knox/gui` instead of CompletionItemKind glyphs.
+	 * @internal
+	 */
+	extraIconClasses?: string[];
 }
 
 export interface CompletionList {

@@ -6,7 +6,6 @@ import {
   RangeInFileWithContents,
 } from "core";
 import { ConfigHandler } from "core/config/ConfigHandler";
-import { EXTENSION_NAME } from "core/config/extensionName";
 import { Core } from "core/core";
 import * as vscode from "vscode";
 
@@ -16,19 +15,9 @@ import { VerticalDiffManager } from "./diff/vertical/manager";
 import { KnoxGUIWebviewViewProvider } from "./KnoxGUIWebviewViewProvider";
 import EditDecorationManager from "./quickEdit/EditDecorationManager";
 import { QuickEdit, QuickEditShowParams } from "./quickEdit/QuickEditQuickPick";
-import { getMetaKeyLabel } from "./util/util";
 import { VsCodeIde } from "./VsCodeIde";
 
 import type { VsCodeWebviewProtocol } from "./webviewProtocol";
-
-let fullScreenPanel: vscode.WebviewPanel | undefined;
-
-function getFullScreenTab() {
-  const tabs = vscode.window.tabGroups.all.flatMap((tabGroup) => tabGroup.tabs);
-  return tabs.find((tab) =>
-    (tab.input as any)?.viewType?.endsWith("knoxchat.knoxGUIView"),
-  );
-}
 
 function addCodeToContextFromRange(
   range: vscode.Range,
@@ -132,17 +121,6 @@ function getRangeInFileWithContents(
   return null;
 }
 
-async function addHighlightedCodeToContext(
-  webviewProtocol: VsCodeWebviewProtocol | undefined,
-) {
-  const rangeInFileWithContents = getRangeInFileWithContents();
-  if (rangeInFileWithContents) {
-    webviewProtocol?.request("highlightedCode", {
-      rangeInFileWithContents,
-    });
-  }
-}
-
 async function addEntireFileToContext(
   uri: vscode.Uri,
   webviewProtocol: VsCodeWebviewProtocol | undefined,
@@ -185,27 +163,7 @@ async function addEntireFileToContext(
 }
 
 function focusGUI() {
-  const fullScreenTab = getFullScreenTab();
-  if (fullScreenTab) {
-    // focus fullscreen
-    fullScreenPanel?.reveal();
-  } else {
-    // focus sidebar
-    vscode.commands.executeCommand("knoxchat.knoxGUIView.focus");
-    // vscode.commands.executeCommand("workbench.action.focusAuxiliaryBar");
-  }
-}
-
-function hideGUI() {
-  const fullScreenTab = getFullScreenTab();
-  if (fullScreenTab) {
-    // focus fullscreen
-    fullScreenPanel?.dispose();
-  } else {
-    // focus sidebar
-    vscode.commands.executeCommand("workbench.action.closeAuxiliaryBar");
-    // vscode.commands.executeCommand("workbench.action.toggleAuxiliaryBar");
-  }
+  vscode.commands.executeCommand("knoxchat.knoxGUIView.focus");
 }
 
 async function processDiff(
@@ -252,28 +210,6 @@ async function processDiff(
 
   // Save the file
   await ide.saveFile(newOrCurrentUri);
-}
-
-function waitForSidebarReady(
-  sidebar: KnoxGUIWebviewViewProvider,
-  timeout: number,
-  interval: number,
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    const startTime = Date.now();
-
-    const checkReadyState = () => {
-      if (sidebar.isReady) {
-        resolve(true);
-      } else if (Date.now() - startTime >= timeout) {
-        resolve(false); // Timed out
-      } else {
-        setTimeout(checkReadyState, interval);
-      }
-    };
-
-    checkReadyState();
-  });
 }
 
 // Copy everything over from extension.ts
@@ -392,86 +328,16 @@ const getCommandsMap: (
       streamInlineEdit("docstring", prompt, false, range);
     },
     "knoxchat.focusKnoxInput": async () => {
-      const isKnoxInputFocused = await sidebar.webviewProtocol.request(
-        "isKnoxInputFocused",
-        undefined,
-        false,
-      );
-
-      // This is a temporary fix—sidebar.webviewProtocol.request is blocking
-      // when the GUI hasn't yet been setup and we should instead be
-      // immediately throwing an error, or returning a Result object
-      focusGUI();
-      if (!sidebar.isReady) {
-        const isReady = await waitForSidebarReady(sidebar, 5000, 100);
-        if (!isReady) {
-          return;
-        }
-      }
-
-      const historyLength = await sidebar.webviewProtocol.request(
-        "getWebviewHistoryLength",
-        undefined,
-        false,
-      );
-
-      if (isKnoxInputFocused) {
-        if (historyLength === 0) {
-          hideGUI();
-        } else {
-          void sidebar.webviewProtocol?.request(
-            "focusKnoxInputWithNewSession",
-            undefined,
-            false,
-          );
-        }
-      } else {
-        focusGUI();
-        sidebar.webviewProtocol?.request(
-          "focusKnoxInputWithNewSession",
-          undefined,
-          false,
-        );
-        void addHighlightedCodeToContext(sidebar.webviewProtocol);
-      }
+      return vscode.commands.executeCommand("knox.native.focusInputWithNewSession");
     },
     "knoxchat.focusKnoxInputWithoutClear": async () => {
-      const isKnoxInputFocused = await sidebar.webviewProtocol.request(
-        "isKnoxInputFocused",
-        undefined,
-        false,
-      );
-
-      // This is a temporary fix—sidebar.webviewProtocol.request is blocking
-      // when the GUI hasn't yet been setup and we should instead be
-      // immediately throwing an error, or returning a Result object
-      focusGUI();
-      if (!sidebar.isReady) {
-        const isReady = await waitForSidebarReady(sidebar, 5000, 100);
-        if (!isReady) {
-          return;
-        }
-      }
-
-      if (isKnoxInputFocused) {
-        hideGUI();
-      } else {
-        focusGUI();
-
-        sidebar.webviewProtocol?.request(
-          "focusKnoxInputWithoutClear",
-          undefined,
-        );
-
-        void addHighlightedCodeToContext(sidebar.webviewProtocol);
-      }
+      return vscode.commands.executeCommand("knox.native.focusInputWithoutClear");
     },
     // QuickEditShowParams are passed from CodeLens, temp fix
     // until we update to new params specific to Edit
     "knoxchat.focusEdit": async (args?: QuickEditShowParams) => {
       focusGUI();
-
-      sidebar.webviewProtocol?.request("focusEdit", undefined);
+      void vscode.commands.executeCommand("knox.native.focusEdit");
 
       const editor = vscode.window.activeTextEditor;
 
@@ -485,7 +351,7 @@ const getCommandsMap: (
 
       // If there's a diff currently being applied, then we just toggle focus back to the input
       if (existingDiff) {
-        sidebar.webviewProtocol?.request("focusKnoxInput", undefined);
+        void vscode.commands.executeCommand("knox.native.focusInput");
         return;
       }
 
@@ -529,8 +395,7 @@ const getCommandsMap: (
     },
     "knoxchat.focusEditWithoutClear": async () => {
       focusGUI();
-
-      sidebar.webviewProtocol?.request("focusEditWithoutClear", undefined);
+      void vscode.commands.executeCommand("knox.native.focusEditWithoutClear");
 
       const editor = vscode.window.activeTextEditor;
 
@@ -546,7 +411,7 @@ const getCommandsMap: (
 
       // If there's a diff currently being applied, then we just toggle focus back to the input
       if (existingDiff) {
-        sidebar.webviewProtocol?.request("focusKnoxInput", undefined);
+        void vscode.commands.executeCommand("knox.native.focusInput");
         return;
       }
 
@@ -568,7 +433,7 @@ const getCommandsMap: (
     },
     "knoxchat.exitEditMode": async () => {
       editDecorationManager.clear();
-      void sidebar.webviewProtocol?.request("exitEditMode", undefined);
+      void vscode.commands.executeCommand("knox.native.exitEditMode");
     },
 
     "knoxchat.writeCommentsForCode": async () => {
@@ -619,13 +484,10 @@ const getCommandsMap: (
 
     // Commands without keyboard shortcuts
     "knoxchat.addModel": () => {
-      vscode.commands.executeCommand("knoxchat.knoxGUIView.focus");
-      sidebar.webviewProtocol?.request("addModel", undefined);
+      return vscode.commands.executeCommand("knox.native.addModel");
     },
     "knoxchat.sendMainUserInput": (text: string) => {
-      sidebar.webviewProtocol?.request("userInput", {
-        input: text,
-      });
+      return vscode.commands.executeCommand("knox.native.sendUserInput", text);
     },
     "knoxchat.selectRange": (startLine: number, endLine: number) => {
       if (!vscode.window.activeTextEditor) {
@@ -653,16 +515,16 @@ const getCommandsMap: (
       ide.runCommand(text);
     },
     "knoxchat.newSession": () => {
-      sidebar.webviewProtocol?.request("newSession", undefined);
+      return vscode.commands.executeCommand("knox.native.newSession");
     },
     "knoxchat.viewHistory": () => {
-      vscode.commands.executeCommand("knoxchat.navigateTo", "/history", true);
+      return vscode.commands.executeCommand("knox.native.viewHistory");
     },
     "knoxchat.viewRestore": () => {
-      vscode.commands.executeCommand("knoxchat.navigateTo", "/restore", true);
+      return vscode.commands.executeCommand("knox.native.viewRestore");
     },
     "knoxchat.viewMemory": () => {
-      vscode.commands.executeCommand("knoxchat.navigateTo", "/memory", true);
+      return vscode.commands.executeCommand("knox.native.viewMemory");
     },
     "knoxchat.focusKnoxSessionId": async (
       sessionId: string | undefined,
@@ -672,15 +534,16 @@ const getCommandsMap: (
           prompt: t("commands.enterSessionId"),
         });
       }
-      void sidebar.webviewProtocol?.request("focusKnoxSessionId", {
-        sessionId,
-      });
+      if (!sessionId) {
+        return;
+      }
+      return vscode.commands.executeCommand("knox.native.focusSession", sessionId);
     },
     "knoxchat.applyCodeFromChat": () => {
-      void sidebar.webviewProtocol.request("applyCodeFromChat", undefined);
+      return vscode.commands.executeCommand("knox.native.applyCodeFromChat");
     },
     "knoxchat.openConfigPage": () => {
-      vscode.commands.executeCommand("knoxchat.navigateTo", "/config", true);
+      return vscode.commands.executeCommand("knox.native.openConfig");
     },
     "knoxchat.selectFilesAsContext": async (
       firstUri: vscode.Uri,
@@ -703,8 +566,7 @@ const getCommandsMap: (
       }
     },
     "knoxchat.navigateTo": (path: string, toggle: boolean) => {
-      sidebar.webviewProtocol?.request("navigateTo", { path, toggle });
-      focusGUI();
+      return vscode.commands.executeCommand("knox.native.navigateTo", path, toggle);
     },
 
   };

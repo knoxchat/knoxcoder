@@ -14,15 +14,31 @@ export class VsCodeWebviewProtocol
   >();
 
   private _onErrorHandlers: ((message: Message, error: Error) => void)[] = [];
+  private _nativeSink?: (msg: Message) => void;
+  private readonly _onDidReceiveMessage = new vscode.EventEmitter<Message>();
 
   send(messageType: string, data: any, messageId?: string): string {
     const id = messageId ?? uuidv4();
-    this.webview?.postMessage({
+    const payload: Message = {
       messageType,
       data,
       messageId: id,
-    });
+    };
+    this.webview?.postMessage(payload);
+    try {
+      this._nativeSink?.(payload);
+    } catch (e) {
+      console.error("webviewProtocol native sink failed", e);
+    }
     return id;
+  }
+
+  /**
+   * Core→GUI sink for the native workbench GUI. `send()` posts to this
+   * handler so Core `on()` handlers run without a webview (T1.2 / T13.2).
+   */
+  setNativeSink(sink: ((msg: Message) => void) | undefined): void {
+    this._nativeSink = sink;
   }
 
   on<T extends keyof FromWebviewProtocol>(
@@ -63,6 +79,15 @@ export class VsCodeWebviewProtocol
     return handlers[0](msg);
   }
 
+  /**
+   * Run FromWebview handlers for a native-GUI message (same path as a webview
+   * `postMessage`). Stream/request replies still go through `send()`.
+   */
+  handleNativeIncoming(msg: Message): Promise<void> {
+    this._onDidReceiveMessage.fire(msg);
+    return this.dispatchIncoming(msg);
+  }
+
   _webview?: vscode.Webview;
   _webviewListener?: vscode.Disposable;
 
@@ -74,112 +99,119 @@ export class VsCodeWebviewProtocol
     this._webview = webView;
     this._webviewListener?.dispose();
 
-    const handleMessage = async (msg: Message): Promise<void> => {
-      if (!("messageType" in msg) || !("messageId" in msg)) {
-        throw new Error(`Invalid WebView protocol message: ${JSON.stringify(msg)}`);
-      }
-
-      const respond = (message: any) =>
-        this.send(msg.messageType, message, msg.messageId);
-
-      const handlers =
-        this.listeners.get(msg.messageType as keyof FromWebviewProtocol) || [];
-      for (const handler of handlers) {
-        try {
-          const response = await handler(msg);
-          // For generator types e.g. llm/streamChat
-          if (
-            response &&
-            typeof response[Symbol.asyncIterator] === "function"
-          ) {
-            let next = await response.next();
-            while (!next.done) {
-              respond({
-                done: false,
-                content: next.value,
-                status: "success",
-              });
-              next = await response.next();
-            }
-            respond({
-              done: true,
-              content: next.value,
-              status: "success",
-            });
-          } else {
-            respond({ done: true, content: response, status: "success" });
-          }
-        } catch (e: any) {
-          const err = e instanceof Error ? e : new Error(String(e));
-          for (const errorHandler of this._onErrorHandlers) {
-            try {
-              errorHandler(msg, err);
-            } catch (handlerErr) {
-              console.error("webviewProtocol onError handler failed", handlerErr);
-            }
-          }
-
-          // Build the user-visible message first, then send ONE error
-          // response. A prior empty `{ status: "error" }` reply won the
-          // webview request() race and showed "Unknown tool call error".
-          let message = err.message || String(e);
-          if (e?.cause) {
-            if (e.cause.name === "ConnectTimeoutError") {
-              message = t("connection.timeout");
-            } else if (e.cause.code === "ECONNREFUSED") {
-              message = t("connection.refused");
-            } else {
-              message = t("connection.requestFailed", {
-                name: e.cause.name,
-                message: e.cause.message,
-              });
-            }
-          }
-
-          const quotaHit =
-            message.includes("exceeded") &&
-            (message.includes("quota") ||
-              message.includes("rate limit") ||
-              message.includes("usage"));
-          if (quotaHit) {
-            message += t("webview.exceededUsageHint");
-          }
-
-          respond({ done: true, error: message, status: "error" });
-
-          const stringified = JSON.stringify({ msg }, null, 2);
-          console.error(
-            `Error handling webview message: ${stringified}\n\n${e}`,
-          );
-
-          if (
-            stringified.includes("llm/streamChat") ||
-            stringified.includes("chatDescriber/describe")
-          ) {
-            return;
-          }
-
-          if (quotaHit) {
-            vscode.window
-              .showInformationMessage(
-                message,
-                t("webview.addApiKey"),
-                t("webview.useLocalModel"),
-              )
-              .then((selection) => {
-                if (selection === t("webview.addApiKey")) {
-                  this.request("addApiKey", undefined);
-                }
-              });
-          }
-        }
-      }
-    };
-
-    this._webviewListener = this._webview.onDidReceiveMessage(handleMessage);
+    this._webviewListener = this._webview.onDidReceiveMessage((msg: Message) => {
+      this._onDidReceiveMessage.fire(msg);
+      return this.dispatchIncoming(msg);
+    });
   }
 
   constructor(private readonly reloadConfig: () => void) {}
+
+  private hasOutgoingTarget(): boolean {
+    return !!this.webview || !!this._nativeSink;
+  }
+
+  private async dispatchIncoming(msg: Message): Promise<void> {
+    if (!("messageType" in msg) || !("messageId" in msg)) {
+      throw new Error(`Invalid WebView protocol message: ${JSON.stringify(msg)}`);
+    }
+
+    const respond = (message: any) =>
+      this.send(msg.messageType, message, msg.messageId);
+
+    const handlers =
+      this.listeners.get(msg.messageType as keyof FromWebviewProtocol) || [];
+    for (const handler of handlers) {
+      try {
+        const response = await handler(msg);
+        // For generator types e.g. llm/streamChat
+        if (
+          response &&
+          typeof response[Symbol.asyncIterator] === "function"
+        ) {
+          let next = await response.next();
+          while (!next.done) {
+            respond({
+              done: false,
+              content: next.value,
+              status: "success",
+            });
+            next = await response.next();
+          }
+          respond({
+            done: true,
+            content: next.value,
+            status: "success",
+          });
+        } else {
+          respond({ done: true, content: response, status: "success" });
+        }
+      } catch (e: any) {
+        const err = e instanceof Error ? e : new Error(String(e));
+        for (const errorHandler of this._onErrorHandlers) {
+          try {
+            errorHandler(msg, err);
+          } catch (handlerErr) {
+            console.error("webviewProtocol onError handler failed", handlerErr);
+          }
+        }
+
+        // Build the user-visible message first, then send ONE error
+        // response. A prior empty `{ status: "error" }` reply won the
+        // webview request() race and showed "Unknown tool call error".
+        let message = err.message || String(e);
+        if (e?.cause) {
+          if (e.cause.name === "ConnectTimeoutError") {
+            message = t("connection.timeout");
+          } else if (e.cause.code === "ECONNREFUSED") {
+            message = t("connection.refused");
+          } else {
+            message = t("connection.requestFailed", {
+              name: e.cause.name,
+              message: e.cause.message,
+            });
+          }
+        }
+
+        const quotaHit =
+          message.includes("exceeded") &&
+          (message.includes("quota") ||
+            message.includes("rate limit") ||
+            message.includes("usage"));
+        if (quotaHit) {
+          message += t("webview.exceededUsageHint");
+        }
+
+        respond({ done: true, error: message, status: "error" });
+
+        const stringified = JSON.stringify({ msg }, null, 2);
+        console.error(
+          `Error handling webview message: ${stringified}\n\n${e}`,
+        );
+
+        if (
+          stringified.includes("llm/streamChat") ||
+          stringified.includes("chatDescriber/describe")
+        ) {
+          return;
+        }
+
+        if (quotaHit) {
+          vscode.window
+            .showInformationMessage(
+              message,
+              t("webview.addApiKey"),
+              t("webview.useLocalModel"),
+            )
+            .then((selection) => {
+              if (selection === t("webview.addApiKey")) {
+                this.request("addApiKey", undefined);
+              }
+            });
+        }
+      }
+    }
+  }
 
   public request<T extends keyof ToWebviewProtocol>(
     messageType: T,
@@ -190,7 +222,7 @@ export class VsCodeWebviewProtocol
     return new Promise(async (resolve) => {
       if (retry) {
         let i = 0;
-        while (!this.webview) {
+        while (!this.hasOutgoingTarget()) {
           if (i >= 10) {
             resolve(undefined);
             return;
@@ -201,18 +233,17 @@ export class VsCodeWebviewProtocol
         }
       }
 
+      const disposable = this._onDidReceiveMessage.event((msg: Message) => {
+        if (msg.messageId === messageId) {
+          resolve(msg.data);
+          disposable.dispose();
+        }
+      });
+
       this.send(messageType, data, messageId);
 
-      if (this.webview) {
-        const disposable = this.webview.onDidReceiveMessage(
-          (msg: Message<ToWebviewProtocol[T][1]>) => {
-            if (msg.messageId === messageId) {
-              resolve(msg.data);
-              disposable?.dispose();
-            }
-          },
-        );
-      } else if (!retry) {
+      if (!this.hasOutgoingTarget() && !retry) {
+        disposable.dispose();
         resolve(undefined);
       }
     });

@@ -4,16 +4,16 @@
 
 Knox is the in-editor AI agent, local Memory Brain, and git-independent checkpoints. Command, view, and setting IDs stay `knoxchat.*` so existing keybindings and `settings.json` keep working. The system extension id is `vscode.knox`.
 
-Product behavior is ported from Knox 1.4.6 (`kc` SHA `af32aaa3cbf0aed8eee1fec8d37d3f6d274a5fbe`). See `knox-impl.md` in the repository root for the native-migration plan.
+Product behavior is ported from Knox 1.4.6 (`kc` SHA `af32aaa3cbf0aed8eee1fec8d37d3f6d274a5fbe`). See `knox-impl.md` in the repository root for the system-extension migration, and `knox-gui-native.md` for the native sidebar rewrite.
 
 ## Features
 
-- Sidebar chat (`knoxchat.knoxGUIView`)
+- Sidebar chat (`knoxchat.knoxGUIView`) — native workbench widgets on the Secondary Side Bar (`src/vs/workbench/contrib/knox`)
 - Agent mode, tools, and vertical diffs
 - Local Memory Brain
 - Checkpoints (explorer view + chat restore)
 
-The VS Code host (activate, webview provider, agent, checkpoints, `VsCodeIde`) runs Core **in-process** via `InProcessMessenger`. The sidebar loads packaged `gui/assets/index.js` + `index.css`, produced by `gulp compile-extension-media` (Vite wrapper at `scripts/build-gui.mts`). Vite HMR at `localhost:5173` is opt-in (`knoxchat.debugViteGui` or `KNOX_GUI_VITE=1`).
+The VS Code host (activate, Core, agent, checkpoints, `VsCodeIde`) runs Core **in-process** via `InProcessMessenger`. The sidebar view is registered by `src/vs/workbench/contrib/knox` as a native `ViewPane`. Core talks to that pane through the `nativeGui` export on `vscode.knox`. There is no webview fallback and no Vite GUI in the packaged extension.
 
 ## Native bits
 
@@ -48,10 +48,6 @@ gulp compile-extension:knox
 npm test --prefix extensions/knox
 ```
 
-GUI tests stay in `gui-src` as a **dev** script (Vitest + jsdom). `gui-src/` is not packaged (`.vscodeignore`).
-
-```sh
-npm test --prefix extensions/knox/gui-src
-```
+Native pane tests live under `src/vs/workbench/contrib/knox/test`.
 
 Smoke: `./scripts/code.sh`, open the Knox sidebar, Command Palette → **Knox: New Conversation**.

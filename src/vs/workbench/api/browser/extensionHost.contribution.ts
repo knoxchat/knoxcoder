@@ -88,6 +88,7 @@ import './mainThreadProfileContentHandlers.js';
 import './mainThreadDataChannels.js';
 import './mainThreadMeteredConnection.js';
 import './mainThreadGitExtensionService.js';
+import './mainThreadKnoxGui.js';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

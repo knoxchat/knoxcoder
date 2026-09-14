@@ -195,6 +195,10 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FOLDER),
 				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER)
 			].flat();
+		} else if (completion.extraIconClasses?.length) {
+			data.icon.className = 'icon hide';
+			data.iconContainer.className = '';
+			data.iconContainer.classList.add('suggest-icon', ...completion.extraIconClasses);
 		} else {
 			// normal icon
 			data.icon.className = 'icon hide';

@@ -307,8 +307,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		let activityBarOrder = CUSTOM_VIEWS_START_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Sidebar).length;
 		let panelOrder = 5 + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Panel).length + 1;
-		// offset by 100 because the assist view container used to have order 100 (now 1). Due to caching, we still need to account for the original order value
-		let auxiliaryBarOrder = 100 + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.AuxiliaryBar).length + 1;
 		for (const { value, collector, description } of extensionPoints) {
 			Object.entries(value).forEach(([key, value]) => {
 				if (!this.isValidViewsContainer(value, collector)) {
@@ -322,11 +320,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						panelOrder = this.registerCustomViewContainers(value, description, panelOrder, existingViewContainers, ViewContainerLocation.Panel);
 						break;
 					case 'secondarySidebar':
-						if (!isKnoxExtension(description.identifier)) {
-							collector.warn(localize('knox.exclusiveAuxiliaryBar', "The Secondary Side Bar is reserved for Knox. View containers from this extension were not registered there."));
+						if (isKnoxExtension(description.identifier)) {
+							// Knox container/view are registered by `src/vs/workbench/contrib/knox`.
 							break;
 						}
-						auxiliaryBarOrder = this.registerCustomViewContainers(value, description, auxiliaryBarOrder, existingViewContainers, ViewContainerLocation.AuxiliaryBar);
+						collector.warn(localize('knox.exclusiveAuxiliaryBar', "The Secondary Side Bar is reserved for Knox. View containers from this extension were not registered there."));
 						break;
 				}
 			});
@@ -337,6 +335,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		const removedExtensions: ExtensionIdentifierSet = extensionPoints.reduce((result, e) => { result.add(e.description.identifier); return result; }, new ExtensionIdentifierSet());
 		for (const viewContainer of viewContainersRegistry.all) {
+			if (isKnoxViewContainer(viewContainer.id)) {
+				continue;
+			}
 			if (viewContainer.extensionId && removedExtensions.has(viewContainer.extensionId)) {
 				// move all views in this container into default view container
 				const views = this.viewsRegistry.getViews(viewContainer);
@@ -468,6 +469,10 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					return;
 				}
 
+				if (isKnoxViewsContainerKey(key)) {
+					// Knox GUI views are registered by `src/vs/workbench/contrib/knox`.
+					return;
+				}
 				const viewContainer = this.getViewContainer(key);
 				if (!viewContainer) {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", key));
@@ -483,7 +488,13 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						continue;
 					}
 					if (this.viewsRegistry.getView(item.id) !== null) {
+						if (isKnoxView(item.id)) {
+							continue;
+						}
 						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered.", item.id));
+						continue;
+					}
+					if (isKnoxView(item.id)) {
 						continue;
 					}
 
@@ -575,7 +586,10 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	private removeViews(extensions: readonly IExtensionPointUser<ViewExtensionPointType>[]): void {
 		const removedExtensions: ExtensionIdentifierSet = extensions.reduce((result, e) => { result.add(e.description.identifier); return result; }, new ExtensionIdentifierSet());
 		for (const viewContainer of this.viewContainersRegistry.all) {
-			const removedViews = this.viewsRegistry.getViews(viewContainer).filter(v => (v as ICustomViewDescriptor).extensionId && removedExtensions.has((v as ICustomViewDescriptor).extensionId));
+			const removedViews = this.viewsRegistry.getViews(viewContainer).filter(v => {
+				const descriptor = v as ICustomViewDescriptor;
+				return !!descriptor.extensionId && removedExtensions.has(descriptor.extensionId) && !isKnoxView(v.id);
+			});
 			if (removedViews.length) {
 				this.viewsRegistry.deregisterViews(removedViews, viewContainer);
 				for (const view of removedViews) {

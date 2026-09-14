@@ -1,0 +1,172 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) KnoxCoder contributors. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { $, addDisposableListener, append } from '../../../../../base/browser/dom.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { forAnsiStringParts } from '../../../../../base/common/strings.js';
+import { localize } from '../../../../../nls.js';
+import { knoxGuiIconClass } from '../knoxGuiIcons.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IKnoxContextItem, IKnoxToolCallState } from '../../common/knoxChatTypes.js';
+import { IKnoxGuiBridge } from '../../common/knoxGuiProtocol.js';
+import { knoxExtractTerminalOutput } from '../../common/knoxTerminalOutput.js';
+import {
+	knoxTerminalCommandIsRunnable,
+	knoxTerminalCommandLabel,
+	knoxToolIsStreaming,
+} from '../../common/knoxToolCard.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
+
+const colorAttrRe = /^\x1b\[([0-9;]+)m$/;
+
+export function renderKnoxTerminalCard(
+	parent: HTMLElement,
+	state: IKnoxToolCallState,
+	outputItems: readonly IKnoxContextItem[],
+	services: {
+		bridge: IKnoxGuiBridge;
+		clipboard: IClipboardService;
+		hover: IHoverService;
+		terminal: ITerminalService;
+		codeWrap: boolean;
+	},
+	store: DisposableStore,
+): void {
+	const command = knoxTerminalCommandLabel(state.toolCall.function.name, state.parsedArgs);
+	const output = knoxExtractTerminalOutput(outputItems) || knoxExtractTerminalOutput(state.output);
+	const streaming = knoxToolIsStreaming(state.status);
+	const canceled = state.status === 'canceled';
+	const done = state.status === 'done';
+
+	const root = append(parent, $('.knox-term'));
+	if (streaming) {
+		root.classList.add('knox-term-running');
+	}
+
+	const header = append(root, $('.knox-term-header'));
+	const left = append(header, $('.knox-term-header-left'));
+	append(left, $('span')).className = knoxGuiIconClass('terminal');
+	append(left, $('span.knox-term-title')).textContent = localize('knox.terminal', "Terminal");
+
+	const right = append(header, $('.knox-term-header-right'));
+	if (streaming) {
+		const badge = append(right, $('span.knox-term-badge.knox-term-badge-running'));
+		append(badge, $('span.knox-term-pulse'));
+		append(badge, $('span')).textContent = localize('knox.running', "Running");
+	} else if (done) {
+		const badge = append(right, $('span.knox-term-badge.knox-term-badge-done'));
+		append(badge, $('span')).className = knoxGuiIconClass('check');
+		append(badge, $('span')).textContent = localize('knox.toolUsed', "Used");
+	} else if (canceled) {
+		const badge = append(right, $('span.knox-term-badge.knox-term-badge-canceled'));
+		append(badge, $('span')).className = knoxGuiIconClass('x');
+		append(badge, $('span')).textContent = localize('knox.toolCanceled', "Canceled");
+	}
+
+	if (command) {
+		const copy = append(right, $<HTMLButtonElement>('button.knox-icon-button'));
+		copy.type = 'button';
+		const copyHint = localize('knox.copyCommand', "Copy command");
+		copy.setAttribute('aria-label', copyHint);
+		append(copy, $('span')).className = knoxGuiIconClass('copy');
+		store.add(services.hover.setupManagedHover(getDefaultHoverDelegate('mouse'), copy, copyHint));
+		store.add(addDisposableListener(copy, 'click', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			void services.clipboard.writeText(command);
+		}));
+	}
+
+	if (knoxTerminalCommandIsRunnable(state.toolCall.function.name, command)) {
+		const run = append(right, $<HTMLButtonElement>('button.knox-icon-button'));
+		run.type = 'button';
+		const runHint = localize('knox.runInTerminal', "Run in terminal");
+		run.setAttribute('aria-label', runHint);
+		append(run, $('span')).className = knoxGuiIconClass('play');
+		store.add(services.hover.setupManagedHover(getDefaultHoverDelegate('mouse'), run, runHint));
+		store.add(addDisposableListener(run, 'click', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			void services.bridge.post('runCommand', { command }).catch(() => { });
+		}));
+	}
+
+	const open = append(right, $<HTMLButtonElement>('button.knox-icon-button'));
+	open.type = 'button';
+	const openHint = localize('knox.openTerminal', "Open in Terminal");
+	open.setAttribute('aria-label', openHint);
+	append(open, $('span')).className = knoxGuiIconClass('terminal');
+	store.add(services.hover.setupManagedHover(getDefaultHoverDelegate('mouse'), open, openHint));
+	store.add(addDisposableListener(open, 'click', e => {
+		e.preventDefault();
+		e.stopPropagation();
+		void openKnoxToolOutputInTerminal(services.terminal, command, output);
+	}));
+
+	const body = append(root, $('pre.knox-term-body'));
+	body.classList.toggle('knox-code-wrap', services.codeWrap);
+	if (command) {
+		const prompt = append(body, $('div.knox-term-prompt'));
+		append(prompt, $('span.knox-term-prompt-mark')).textContent = '❯';
+		append(prompt, $('span.knox-term-command')).textContent = command;
+	}
+	if (output) {
+		renderAnsi(append(body, $('div.knox-term-output')), output);
+	} else if (streaming) {
+		append(body, $('div.knox-term-output.knox-term-waiting')).textContent = localize('knox.running', "Running");
+	}
+}
+
+async function openKnoxToolOutputInTerminal(
+	terminalService: ITerminalService,
+	command: string,
+	output: string,
+): Promise<void> {
+	const name = command ? command.slice(0, 48) : localize('knox.terminal', "Terminal");
+	const instance = await terminalService.createTerminal({
+		config: { name: `Knox: ${name}` },
+	});
+	await terminalService.revealTerminal(instance);
+	const text = [command ? `$ ${command}` : '', output].filter(Boolean).join('\r\n');
+	if (text) {
+		const xterm = await instance.xtermReadyPromise;
+		xterm?.write(`${text.replace(/\n/g, '\r\n')}\r\n`);
+	}
+}
+
+function renderAnsi(parent: HTMLElement, text: string): void {
+	let cls: string[] = [];
+	for (const part of forAnsiStringParts(text)) {
+		if (part.isCode) {
+			const codes = colorAttrRe.exec(part.str)?.[1];
+			if (!codes) {
+				continue;
+			}
+			for (const raw of codes.split(';')) {
+				const n = Number(raw);
+				if (n === 0) {
+					cls = [];
+				} else if (n === 1) {
+					cls = cls.filter(c => c !== 'knox-ansi-bold').concat('knox-ansi-bold');
+				} else if (n === 2) {
+					cls = cls.filter(c => c !== 'knox-ansi-dim').concat('knox-ansi-dim');
+				} else if ((n >= 30 && n <= 37) || (n >= 90 && n <= 97)) {
+					cls = cls.filter(c => !c.startsWith('knox-ansi-fg')).concat(`knox-ansi-fg${n}`);
+				}
+			}
+			continue;
+		}
+		if (!part.str) {
+			continue;
+		}
+		const span = append(parent, $('span'));
+		if (cls.length) {
+			span.className = cls.join(' ');
+		}
+		span.textContent = part.str;
+	}
+}

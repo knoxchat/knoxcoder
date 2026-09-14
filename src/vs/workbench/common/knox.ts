@@ -9,13 +9,13 @@ import { ViewContainerLocation } from './views.js';
 /** System extension id for the in-tree Knox product (`extensions/knox`). */
 export const KNOX_EXTENSION_ID = 'vscode.knox';
 
-/** Extension `viewsContainers` id; the workbench prefixes it as {@link KNOX_VIEW_CONTAINER_ID}. */
+/** View-container key used before the GUI moved into the workbench contrib. The workbench prefixes it as {@link KNOX_VIEW_CONTAINER_ID}. */
 export const KNOX_VIEWS_CONTAINER_KEY = 'knoxchat';
 
-/** First-party Knox chat container. Lives only on the Secondary Side Bar. */
+/** First-party Knox chat container. Lives only on the Secondary Side Bar. Registered by `src/vs/workbench/contrib/knox`. */
 export const KNOX_VIEW_CONTAINER_ID = `workbench.view.extension.${KNOX_VIEWS_CONTAINER_KEY}`;
 
-/** Webview view contributed by `vscode.knox`. */
+/** Native Knox chat pane registered by `src/vs/workbench/contrib/knox`. `vscode.knox` still runs Core and the protocol. */
 export const KNOX_VIEW_ID = 'knoxchat.knoxGUIView';
 
 export function isKnoxExtension(identifier: ExtensionIdentifier | undefined): boolean {

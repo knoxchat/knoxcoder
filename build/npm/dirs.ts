@@ -32,7 +32,6 @@ export const dirs = [
 	'extensions/json-language-features',
 	'extensions/json-language-features/server',
 	'extensions/knox',
-	'extensions/knox/gui-src',
 	'extensions/markdown-language-features',
 
 	'extensions/markdown-math',

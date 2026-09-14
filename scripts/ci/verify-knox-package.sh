@@ -52,8 +52,9 @@ if (problems.length) {
 ' || fail "package.json identity (expected vscode.knox, main, no browser)"
 
 [ -f "$KNOX_DIR/dist/src/extension.js" ] || fail "dist/src/extension.js missing"
-[ -f "$KNOX_DIR/gui/assets/index.js" ] || fail "gui/assets/index.js missing"
-[ -f "$KNOX_DIR/gui/assets/index.css" ] || fail "gui/assets/index.css missing"
+if [ -f "$KNOX_DIR/gui/assets/index.js" ] || [ -f "$KNOX_DIR/gui/assets/index.css" ]; then
+	fail "gui/assets must not be packaged after the native sidebar cutover"
+fi
 
 SQLITE="$(
 	KNOX_DIR="$KNOX_DIR" node -e '
@@ -94,6 +95,5 @@ for (const id of ["tough-cookie", "saxes", "parse5", "whatwg-url"]) {
 
 echo "Knox native package OK: $KNOX_DIR"
 echo "  host:  dist/src/extension.js"
-echo "  gui:   gui/assets/index.js + index.css"
 echo "  sqlite: $SQLITE"
 echo "  jsdom:  node_modules/jsdom + production deps"

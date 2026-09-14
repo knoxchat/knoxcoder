@@ -1254,7 +1254,12 @@ export class CodeApplication extends Disposable {
 
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
-		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables);
+		// Main-window focus/blur is consumed in-process (menubar). Renderer
+		// listens to onDidBlurMainOrAuxiliaryWindow instead, so replay-buffering
+		// these events trips Event.buffer's unused-event leak warning at startup.
+		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables, {
+			unbufferedEvents: ['onDidBlurMainWindow', 'onDidFocusMainWindow'],
+		});
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
