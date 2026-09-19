@@ -65,8 +65,10 @@ export async function activateExtension(context: vscode.ExtensionContext) {
         api.nativeRequest(messageType, data, messageId),
       post: (messageType: string, data: unknown, messageId: string) =>
         api.nativePost(messageType, data, messageId),
-      setPushHandler: (handler: (message: { messageType: string; messageId: string; data: unknown }) => void) =>
+      setPushHandler: (handler: (message: { messageType: string; messageId: string; data: unknown }) => unknown) =>
         api.setNativePushHandler(handler),
+      respond: (messageType: string, data: unknown, messageId: string) =>
+        api.nativeRespond(messageType, data, messageId),
     },
     agentMode: {
       isAgentModeActive: () => {

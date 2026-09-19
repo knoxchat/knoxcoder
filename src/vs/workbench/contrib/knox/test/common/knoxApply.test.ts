@@ -9,6 +9,7 @@ import {
 	KnoxCodeBlockStreamIds,
 	knoxApplyActionKind,
 	knoxApplyStateByStreamId,
+	knoxApplyStatesFingerprint,
 	knoxBuildApplyToFilePayload,
 	knoxCodeBlockStreamKey,
 	knoxShouldShowAppliedFlash,
@@ -27,6 +28,13 @@ suite('knox apply states (T6.3)', () => {
 		assert.strictEqual(knoxApplyActionKind({ streamId: 's', status: 'closed', numDiffs: 0 }, true, true), 'apply');
 		assert.ok(knoxShouldShowAppliedFlash({ streamId: 's', status: 'closed', numDiffs: 0 }, false));
 		assert.ok(!knoxShouldShowAppliedFlash({ streamId: 's', status: 'closed', numDiffs: 0 }, true));
+	});
+
+	test('apply-state fingerprint changes when status or diffs change (T5.5)', () => {
+		const streaming = [{ streamId: 's1', status: 'streaming', filepath: '/tmp/a.ts' }];
+		const done = [{ streamId: 's1', status: 'done', numDiffs: 2, filepath: '/tmp/a.ts' }];
+		assert.notStrictEqual(knoxApplyStatesFingerprint(streaming), knoxApplyStatesFingerprint(done));
+		assert.strictEqual(knoxApplyStatesFingerprint(done), knoxApplyStatesFingerprint(done));
 	});
 
 	test('looks up apply state by streamId and builds applyToFile payloads', () => {

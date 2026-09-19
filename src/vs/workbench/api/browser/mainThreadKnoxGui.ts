@@ -21,7 +21,7 @@ export class MainThreadKnoxGui extends Disposable implements MainThreadKnoxGuiSh
 		this._bridge.bindExtHost(this._proxy);
 	}
 
-	$push(message: KnoxGuiMessageDto): void {
-		this._bridge.handlePush(message);
+	$push(message: KnoxGuiMessageDto): Promise<unknown> {
+		return this._bridge.handlePush(message);
 	}
 }

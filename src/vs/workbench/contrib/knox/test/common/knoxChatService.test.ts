@@ -358,7 +358,8 @@ suite('streamUpdate tool-call split', () => {
 		service.showToast('info', 'hi');
 		service.copyText('clip');
 		assert.ok(bridge.posts.some(post => post.messageType === 'showToast'));
-		assert.ok(bridge.posts.some(post => post.messageType === 'copyText'));
+		const copy = bridge.posts.find(post => post.messageType === 'copyText');
+		assert.deepStrictEqual(copy?.data, { text: 'clip' });
 
 		bridge.handlePush({
 			messageType: 'agentModeChanged',
@@ -367,5 +368,41 @@ suite('streamUpdate tool-call split', () => {
 		});
 		await Promise.resolve();
 		assert.ok(service.mode === 'chat' || service.mode === 'agent');
+	});
+
+	test('focusKnoxInput saves history without starting a new session (T1.3)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+		service.submitEditorAndInitAtIndex(0);
+		service.updateHistoryItemAtIndex(0, { message: { role: 'user', content: 'keep me', id: 'u1' } });
+		service.addCodeToEdit({ filepath: 'file:///tmp/ws/a.ts', contents: 'const a = 1;' });
+
+		const sessionId = service.sessionId;
+		await service.focusKnoxInput();
+
+		assert.strictEqual(service.sessionId, sessionId, 'focusKnoxInput must not open a new session');
+		assert.strictEqual(service.history.length, 2, 'the thread must survive');
+		assert.strictEqual(service.codeToEdit.length, 0, 'code-to-edit is cleared');
+		assert.ok(bridge.requests.some(item => item.messageType === 'history/save'));
+	});
+
+	test('focusKnoxInput on an empty thread is a no-op save (T1.3)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+		const sessionId = service.sessionId;
+
+		await service.focusKnoxInput();
+
+		assert.strictEqual(service.sessionId, sessionId);
+		assert.ok(!bridge.requests.some(item => item.messageType === 'history/save'));
+	});
+
+	test('copyText posts { text } per ideWebview.ts (T2.3)', () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		service.copyText('hello');
+		assert.deepStrictEqual(
+			bridge.posts.find(post => post.messageType === 'copyText')?.data,
+			{ text: 'hello' },
+		);
 	});
 });

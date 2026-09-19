@@ -26,12 +26,14 @@ export function renderKnoxToolOutput(
 	workspace: IWorkspaceContextService,
 	store: DisposableStore,
 	onDidChangeHeight: () => void,
+	options?: { gathering?: boolean; peekKey?: string },
 ): void {
 	const items = knoxVisibleToolOutputItems(item.contextItems);
-	if (!items.length) {
+	const gathering = options?.gathering === true;
+	if (!items.length && !gathering) {
 		return;
 	}
-	const key = item.message.toolCallId ?? item.message.id ?? 'tool-output';
+	const key = options?.peekKey ?? item.message.toolCallId ?? item.message.id ?? 'tool-output';
 	const open = ui.peekExpanded.has(key);
 	const root = append(parent, $('.knox-tool-output'));
 	const toggle = append(root, $<HTMLButtonElement>('button.knox-tool-output-toggle'));
@@ -40,11 +42,9 @@ export function renderKnoxToolOutput(
 	toggle.setAttribute('aria-expanded', String(open));
 	const chevron = append(toggle, $('span.knox-tool-output-chevron'));
 	chevron.className = knoxGuiIconClass(open ? 'lucide-chevron-down' : 'lucide-chevron-right');
-	append(toggle, $('span.knox-tool-output-label')).textContent = localize(
-		'knox.relatedContextItems',
-		"{0} related context items",
-		items.length,
-	);
+	append(toggle, $('span.knox-tool-output-label')).textContent = gathering && !items.length
+		? localize('knox.gatheringContext', "Gathering context")
+		: localize('knox.relatedContextItems', "{0} related context items", items.length);
 	store.add(addDisposableListener(toggle, 'click', e => {
 		e.preventDefault();
 		e.stopPropagation();

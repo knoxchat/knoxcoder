@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import {
 	knoxMentionTriggerInsert,
+	knoxSubmitBlockedByPendingTool,
 	knoxToolbarCanCancel,
 	knoxToolbarEnterDisabled,
 	knoxToolbarPrimaryState,
@@ -80,5 +81,23 @@ suite('knox toolbar (T5.1)', () => {
 			}),
 			{ kind: 'edit', canCancel: false, enabled: true },
 		);
+	});
+
+	test('submit is blocked only while the current tool is generated (T1.5)', () => {
+		assert.strictEqual(knoxSubmitBlockedByPendingTool(historyWithTool('generated')), true);
+		assert.strictEqual(knoxSubmitBlockedByPendingTool(historyWithTool('calling')), false);
+		assert.strictEqual(knoxSubmitBlockedByPendingTool(historyWithTool('done')), false);
+		assert.strictEqual(knoxSubmitBlockedByPendingTool([]), false);
+	});
+
+	test('knoxToolbarEnterDisabled delegates the pending-tool guard (T1.5)', () => {
+		const base = {
+			mode: 'chat' as const,
+			isStreaming: false,
+			codeToEdit: [],
+			runningJobs: 0,
+		};
+		assert.strictEqual(knoxToolbarEnterDisabled({ ...base, history: historyWithTool('generated') }), true);
+		assert.strictEqual(knoxToolbarEnterDisabled({ ...base, history: historyWithTool('done') }), false);
 	});
 });

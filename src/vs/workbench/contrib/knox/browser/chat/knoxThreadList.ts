@@ -44,19 +44,21 @@ import {
 } from '../../common/knoxThreadScroll.js';
 import {
 	buildKnoxThreadRows,
+	diffKnoxThreadRows,
 	IKnoxThreadRow,
 	knoxAssistantIsTruncated,
 	knoxThreadRowHeight,
 	KnoxThreadRowKind,
 } from '../../common/knoxThreadModel.js';
-import { IKnoxFindHit } from '../../common/knoxFind.js';
+import { IKnoxFindHit, KnoxSearchPattern } from '../../common/knoxFind.js';
+import { knoxSubmitBlockedByPendingTool } from '../../common/knoxToolbar.js';
 import { knoxHistoricalSegments, knoxExtractHistoricalChips } from '../../common/knoxHistoricalChips.js';
 import { getMentionOpenUri } from '../../common/knoxMentions.js';
 import { renderKnoxActivityTimeline } from './knoxAgentChrome.js';
 import { renderKnoxCheckpointButton } from './knoxCheckpoint.js';
 import { renderKnoxLoadingState } from './knoxLoadingState.js';
-import { renderKnoxMarkdown } from './knoxMarkdown.js';
 import { renderKnoxReasoning } from './knoxReasoning.js';
+import { knoxApplyFindMarks } from './knoxFindHighlight.js';
 import { knoxToolStatusMessage } from '../../common/knoxToolCard.js';
 import { renderKnoxAssistantMarkdown } from '../markdown/knoxMarkdownRenderer.js';
 import { IKnoxToolUiState } from '../tools/knoxToolCard.js';
@@ -81,8 +83,11 @@ interface IKnoxThreadRenderContext {
 	probeHeight(rowId: string): void;
 	timelineExpanded: Set<number>;
 	reasoningCollapsed: Map<string, boolean>;
+	thinkingStarted: Map<string, number>;
 	codeBlockExpanded: Map<string, boolean>;
 	toolUi: IKnoxToolUiState;
+	findPattern?: KnoxSearchPattern;
+	findCurrent?: IKnoxFindHit;
 	refresh(): void;
 	revealStep(step: IKnoxAgentActivityStep): void;
 	restartSession(): void;
@@ -255,6 +260,9 @@ abstract class KnoxRowRenderer implements IListRenderer<IKnoxThreadRow, IKnoxThr
 		clearNode(templateData.container);
 		try {
 			this.renderRow(element, index, templateData);
+			if (this.ctx.findPattern) {
+				knoxApplyFindMarks(templateData.container, this.ctx.findPattern, this.ctx.findCurrent, element.id);
+			}
 		} catch (error) {
 			this.renderError(templateData, error);
 		}
@@ -297,12 +305,13 @@ class UserRenderer extends KnoxRowRenderer {
 
 	constructor(
 		ctx: IKnoxThreadRenderContext,
-		@IMarkdownRendererService private readonly _markdown: IMarkdownRendererService,
+		@IKnoxChatService private readonly _chat: IKnoxChatService,
 		@IKnoxGuiBridge private readonly _bridge: IKnoxGuiBridge,
 		@IDialogService private readonly _dialog: IDialogService,
 		@INotificationService private readonly _notification: INotificationService,
 		@IHoverService private readonly _hover: IHoverService,
 		@IEditorService private readonly _editor: IEditorService,
+		@IWorkspaceContextService private readonly _workspace: IWorkspaceContextService,
 	) {
 		super(ctx);
 	}
@@ -321,10 +330,49 @@ class UserRenderer extends KnoxRowRenderer {
 		);
 		renderContextChips(template.container, item.contextItems.filter(c => !c.hidden).map(c => c.name));
 		renderImages(template.container, knoxMessageImageUrls(item.message.content));
-		if (!renderHistoricalChips(template.container, item, this._editor, template.elementDisposables)) {
-			const body = append(template.container, $('div.knox-message-body.knox-markdown'));
-			renderKnoxMarkdown(body, renderKnoxChatMessage(item.message), this._markdown, template.elementDisposables);
-		}
+		renderHistoricalChips(template.container, item, this._editor, template.elementDisposables);
+		this._renderEditor(template, element, item);
+		renderKnoxToolOutput(
+			template.container,
+			item,
+			this.ctx.toolUi,
+			this._bridge,
+			this._workspace,
+			template.elementDisposables,
+			() => this.probe(element.id),
+			{ gathering: item.isGatheringContext === true && element.isLast === true },
+		);
+	}
+
+	private _renderEditor(
+		template: IKnoxThreadTemplate,
+		element: IKnoxThreadRow,
+		item: NonNullable<IKnoxThreadRow['item']>,
+	): void {
+		const editor = append(template.container, $<HTMLTextAreaElement>('textarea.knox-user-edit'));
+		editor.value = renderKnoxChatMessage(item.message);
+		editor.rows = Math.min(8, Math.max(2, editor.value.split('\n').length));
+		editor.setAttribute('aria-label', localize('knox.editUserMessage', "Edit user message"));
+		template.elementDisposables.add(addDisposableListener(editor, 'input', () => {
+			editor.rows = Math.min(8, Math.max(2, editor.value.split('\n').length));
+			this.probe(element.id);
+		}));
+		template.elementDisposables.add(addDisposableListener(editor, 'keydown', e => {
+			if (e.key !== 'Enter' || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) {
+				return;
+			}
+			e.preventDefault();
+			e.stopPropagation();
+			const text = editor.value.trim();
+			if (!text || this._chat.isStreaming || knoxSubmitBlockedByPendingTool(this._chat.history)) {
+				return;
+			}
+			void this._chat.streamResponse({
+				content: text,
+				index: element.historyIndex,
+				editorState: item.editorState,
+			}).catch(() => { /* Stream error dialog is shown via onDidStreamError. */ });
+		}));
 	}
 }
 
@@ -357,10 +405,14 @@ class AssistantRenderer extends KnoxRowRenderer {
 
 		const reasoningHost = append(template.container, $('.knox-reasoning'));
 		reasoningHost.id = knoxActivityAnchorId(`reasoning:${messageId}`);
-		const collapsed = { value: this.ctx.reasoningCollapsed.get(element.id) === true };
-		renderKnoxReasoning(reasoningHost, item.reasoning, this._markdown, template.elementDisposables, collapsed, () => {
+		const collapsed = { value: this.ctx.reasoningCollapsed.get(element.id) !== false };
+		renderKnoxReasoning(reasoningHost, {
+			reasoning: item.reasoning,
+			text: item.reasoning?.text,
+			inProgress: item.reasoning?.active === true,
+		}, this._markdown, template.elementDisposables, collapsed, () => {
 			this.ctx.reasoningCollapsed.set(element.id, collapsed.value);
-			this.ctx.refresh();
+			this.probe(element.id);
 		});
 
 		const reply = knoxAssistantReplyText(item);
@@ -440,9 +492,7 @@ class AssistantRenderer extends KnoxRowRenderer {
 		template.elementDisposables.add(addDisposableListener(del, 'click', e => {
 			e.preventDefault();
 			e.stopPropagation();
-			const next = this._chat.history.slice();
-			next.splice(element.historyIndex, 1);
-			this._chat.replaceHistory(next);
+			void this._chat.deleteMessage(element.historyIndex);
 		}));
 
 		const copy = append(actions, $<HTMLButtonElement>('button.knox-icon-button'));
@@ -479,16 +529,29 @@ class ThinkingRenderer extends KnoxRowRenderer {
 		const messageId = item.message.id ?? item.messageId ?? String(element.historyIndex);
 		template.container.className = 'knox-thread-row knox-reasoning';
 		template.container.id = knoxActivityAnchorId(`thinking:${messageId}`);
-		const collapsed = { value: this.ctx.reasoningCollapsed.get(element.id) === true };
+		const collapsed = { value: this.ctx.reasoningCollapsed.get(element.id) !== false };
 		const inProgress = this._chat.isStreaming && element.isLast === true;
+		const redacted = !!item.message.redactedThinking;
+		let startAt = item.reasoning?.startAt ?? this.ctx.thinkingStarted.get(element.id);
+		if (startAt === undefined) {
+			startAt = Date.now();
+			this.ctx.thinkingStarted.set(element.id, startAt);
+		} else if (!this.ctx.thinkingStarted.has(element.id)) {
+			this.ctx.thinkingStarted.set(element.id, startAt);
+		}
 		renderKnoxReasoning(template.container, {
-			active: inProgress,
+			reasoning: {
+				active: inProgress,
+				text: renderKnoxChatMessage(item.message) || item.message.redactedThinking || '',
+				startAt,
+				endAt: item.reasoning?.endAt,
+			},
 			text: renderKnoxChatMessage(item.message) || item.message.redactedThinking || '',
-			startAt: item.reasoning?.startAt ?? 0,
-			endAt: item.reasoning?.endAt,
+			redacted,
+			inProgress,
 		}, this._markdown, template.elementDisposables, collapsed, () => {
 			this.ctx.reasoningCollapsed.set(element.id, collapsed.value);
-			this.ctx.refresh();
+			this.probe(element.id);
 		});
 	}
 }
@@ -631,6 +694,7 @@ export class KnoxThreadList extends Disposable {
 	private _programmaticToken = 0;
 	private readonly _timelineExpanded = new Set<number>();
 	private readonly _reasoningCollapsed = new Map<string, boolean>();
+	private readonly _thinkingStarted = new Map<string, number>();
 	private readonly _codeBlockExpanded = new Map<string, boolean>();
 	private readonly _toolUi: IKnoxToolUiState = {
 		argsExpanded: new Set<string>(),
@@ -640,7 +704,11 @@ export class KnoxThreadList extends Disposable {
 		askIndex: new Map(),
 		searchCollapsed: new Set<string>(),
 		peekExpanded: new Set<string>(),
+		terminalUnstuck: new Set<string>(),
+		terminalScrollTop: new Map<string, number>(),
 	};
+
+	private readonly _renderCtx: IKnoxThreadRenderContext;
 
 	private readonly _onDidChangeScroll = this._register(new Emitter<IKnoxThreadScrollState>());
 	readonly onDidChangeScroll = this._onDidChangeScroll.event;
@@ -657,10 +725,11 @@ export class KnoxThreadList extends Disposable {
 
 		this.element = append(parent, $('.knox-thread'));
 
-		const ctx: IKnoxThreadRenderContext = {
+		this._renderCtx = {
 			probeHeight: rowId => this._probeHeight(rowId),
 			timelineExpanded: this._timelineExpanded,
 			reasoningCollapsed: this._reasoningCollapsed,
+			thinkingStarted: this._thinkingStarted,
 			codeBlockExpanded: this._codeBlockExpanded,
 			toolUi: this._toolUi,
 			refresh: () => this.refresh(),
@@ -674,12 +743,12 @@ export class KnoxThreadList extends Disposable {
 			this.element,
 			new KnoxThreadDelegate(),
 			[
-				instantiationService.createInstance(UserRenderer, ctx),
-				instantiationService.createInstance(AssistantRenderer, ctx),
-				instantiationService.createInstance(ThinkingRenderer, ctx),
-				instantiationService.createInstance(ToolRenderer, ctx),
-				instantiationService.createInstance(TimelineRenderer, ctx),
-				new LoadingRenderer(ctx),
+				instantiationService.createInstance(UserRenderer, this._renderCtx),
+				instantiationService.createInstance(AssistantRenderer, this._renderCtx),
+				instantiationService.createInstance(ThinkingRenderer, this._renderCtx),
+				instantiationService.createInstance(ToolRenderer, this._renderCtx),
+				instantiationService.createInstance(TimelineRenderer, this._renderCtx),
+				new LoadingRenderer(this._renderCtx),
 				new SpacerRenderer(),
 			],
 			{
@@ -782,21 +851,33 @@ export class KnoxThreadList extends Disposable {
 		return this._chatService.isStreaming;
 	}
 
-	revealFindHit(hit: IKnoxFindHit): void {
+	revealFindHit(hit: IKnoxFindHit, pattern?: KnoxSearchPattern): void {
 		if (hit.rowIndex < 0 || hit.rowIndex >= this._rows.length) {
 			return;
 		}
 		this.element.classList.add('find-active');
+		this._renderCtx.findPattern = pattern;
+		this._renderCtx.findCurrent = hit;
 		this._withProgrammaticScroll(() => {
 			this._list.reveal(hit.rowIndex, 0.5);
 			this._list.setFocus([hit.rowIndex]);
 			this._list.setSelection([hit.rowIndex]);
 		});
+		this._list.splice(hit.rowIndex, 1, [this._rows[hit.rowIndex]]);
 	}
 
 	clearFindHighlight(): void {
 		this.element.classList.remove('find-active');
+		this._renderCtx.findPattern = undefined;
+		this._renderCtx.findCurrent = undefined;
 		this._list.setSelection([]);
+		if (this._rows.length) {
+			this._list.splice(0, this._list.length, [...this._rows]);
+		}
+	}
+
+	setShowScrollbar(show: boolean): void {
+		this.element.classList.toggle('knox-hide-scrollbar', !show);
 	}
 
 	revealStep(step: IKnoxAgentActivityStep): void {
@@ -816,24 +897,58 @@ export class KnoxThreadList extends Disposable {
 
 	refresh(): void {
 		try {
-			const previousHeights = new Map(this._rows.map(row => [row.id, row.measuredHeight] as const));
-			this._rows = buildKnoxThreadRows(this._chatService.history, {
+			const previousRows = this._rows;
+			const previousHeights = new Map(previousRows.map(row => [row.id, row.measuredHeight] as const));
+			const contentRows = buildKnoxThreadRows(this._chatService.history, {
 				mode: this._chatService.mode,
 				isStreaming: this._chatService.isStreaming,
 				timelineExpanded: this._timelineExpanded,
 			});
-			for (const row of this._rows) {
+			// Preserve measured heights across rebuilds so a token does not reset
+			// scroll or re-measure every row.
+			for (const row of contentRows) {
 				const height = previousHeights.get(row.id);
 				if (typeof height === 'number') {
 					row.measuredHeight = height;
 				}
 			}
-			this._rows = this._withSpacer(this._rows);
+
+			// Compare the content row set (excluding the synthetic spacer).
+			const previousContent = previousRows.filter(row => row.kind !== 'spacer');
+			const diff = diffKnoxThreadRows(previousContent, contentRows);
+			if (diff.unchangedOrder) {
+				// Same row ids: replace only the rows whose content changed (usually
+				// just the streaming assistant/tool row). Other rows keep their
+				// identity, heights, collapse state, and scroll position.
+				this._rows = this._withSpacerPreserving(contentRows, previousRows);
+				const offset = this._list.length > 0 && this._list.element(0)?.kind === 'spacer' ? 1 : 0;
+				for (const index of diff.changedIndices) {
+					const row = contentRows[index];
+					if (row) {
+						this._list.splice(index + offset, 1, [row]);
+					}
+				}
+				this._syncSpacer();
+				if (this._scroll.stickToBottom && this._rows.length) {
+					this._withProgrammaticScroll(() => this._list.reveal(this._rows.length - 1));
+				}
+				return;
+			}
+
+			this._rows = this._withSpacer(contentRows);
 			if (!this._rows.length) {
 				this._scroll = knoxResetScrollState();
 				this._onDidChangeScroll.fire(this._scroll);
+				this._list.splice(0, this._list.length, []);
+			} else {
+				// Splice only the changed span. The synthetic spacer may lead the
+				// list, so offset content mutations past it.
+				const listHasSpacer = this._list.length > 0 && this._list.element(0)?.kind === 'spacer';
+				const offset = listHasSpacer ? 1 : 0;
+				for (const splice of diff.splices) {
+					this._list.splice(splice.start + offset, splice.deleteCount, splice.rows);
+				}
 			}
-			this._list.splice(0, this._list.length, this._rows);
 			this._syncSpacer();
 			if (this._scroll.stickToBottom && this._rows.length) {
 				this._withProgrammaticScroll(() => this._list.reveal(this._rows.length - 1));
@@ -841,6 +956,16 @@ export class KnoxThreadList extends Disposable {
 		} catch (error) {
 			this._onDidCrash.fire(error);
 		}
+	}
+
+	/** Reuse the existing spacer row object when present so heights survive. */
+	private _withSpacerPreserving(rows: IKnoxThreadRow[], previous: readonly IKnoxThreadRow[]): IKnoxThreadRow[] {
+		const spacer = previous.find(row => row.kind === 'spacer');
+		if (!spacer) {
+			// Still route through _syncSpacer to add one if the viewport allows.
+			return rows;
+		}
+		return [spacer, ...rows];
 	}
 
 	private _withProgrammaticScroll(run: () => void): void {

@@ -17,6 +17,8 @@ import {
 	knoxParseDisplayRange,
 	knoxParseFenceInfo,
 	knoxParseMarkdownBlocks,
+	knoxMarkdownCodeWrap,
+	knoxMarkdownDisplayRaw,
 	knoxPrepareMarkdownSource,
 	knoxResolveWorkspaceUri,
 	knoxRifsFromHistory,
@@ -217,5 +219,11 @@ suite('knox clickable paths (T6.4)', () => {
 		assert.strictEqual(getContextItemsFromHistory(history, 0).length, 1);
 		assert.strictEqual(knoxRifsFromHistory(history).length, 2);
 		assert.strictEqual(knoxContextItemToRif(history[0].contextItems[0])?.filepath, 'file:///ws/a.ts');
+	});
+
+	test('displayRawMarkdown and codeWrap are independent UI flags (T3.5)', () => {
+		assert.strictEqual(knoxMarkdownDisplayRaw(undefined), false);
+		assert.strictEqual(knoxMarkdownDisplayRaw({ displayRawMarkdown: true }), true);
+		assert.strictEqual(knoxMarkdownCodeWrap({ codeWrap: true, displayRawMarkdown: true }), true);
 	});
 });

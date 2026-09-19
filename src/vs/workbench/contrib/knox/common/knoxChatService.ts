@@ -13,6 +13,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import {
 	KNOX_DEFAULT_PERMISSION_MODE,
+	KNOX_FTC_STORAGE_KEY,
 	KNOX_JOBS_PANEL_STORAGE_KEY,
 	KNOX_LUMP_SECTION_STORAGE_KEY,
 	KNOX_NEW_CHAT_TITLE,
@@ -59,6 +60,7 @@ import {
 	applySubmitEditorAndInitAtIndex,
 	applyUpdateApplyState,
 	applyUpdateHistoryItemAtIndex,
+	applyDeleteMessage,
 	createEmptySessionState,
 } from './knoxChatSession.js';
 import {
@@ -110,7 +112,19 @@ import {
 	waitForKnoxAskUser,
 	waitForKnoxToolApproval,
 } from './knoxGuiApproval.js';
+import { knoxCancellationTokenFromAbortSignal } from './knoxGuiBridge.js';
 import { IKnoxGuiBridge } from './knoxGuiProtocol.js';
+import {
+	IKnoxRestoreNoticePayload,
+	KnoxRestoreNoticeCache,
+	knoxFormatRestoreNotice,
+} from './knoxRestoreNotice.js';
+import {
+	KNOX_POST_TURN_MIN_CHARS,
+	knoxLastAssistantContent,
+	knoxPostTurnMemoryFor,
+	knoxPostTurnMinChars,
+} from './knoxPostTurnMemory.js';
 import {
 	knoxSessionExportFilename,
 	knoxSessionExportMarkdown,
@@ -251,6 +265,8 @@ export interface IKnoxChatService {
 	readonly symbols: Readonly<Record<string, unknown>>;
 	readonly injectedMemories: readonly IKnoxInjectedMemoryItem[];
 	readonly lastCompaction: IKnoxLastCompaction | null;
+	/** Pending workspace-restore notice for this session, if any (T2.1). */
+	readonly restoreNotice: string | null;
 	readonly sessionToolAllowlist: readonly string[];
 	readonly autonomousLoop: IKnoxAutonomousLoopState;
 	readonly toolPending: boolean;
@@ -283,6 +299,8 @@ export interface IKnoxChatService {
 	readonly toolSettings: Readonly<Record<string, KnoxToolSetting>>;
 	readonly toolGroupSettings: Readonly<Record<string, KnoxToolGroupSetting>>;
 	readonly allSessionMetadata: readonly IKnoxSessionMetadata[];
+	readonly ftc: number;
+	readonly knoxInputFocused: boolean;
 
 	readonly onDidChange: Event<void>;
 	readonly onDidStreamError: Event<unknown>;
@@ -332,6 +350,12 @@ export interface IKnoxChatService {
 	exitEditMode(): Promise<void>;
 	focusEdit(): Promise<void>;
 	focusEditWithoutClear(): Promise<void>;
+	/**
+	 * Mirrors GUI `useWebviewListeners.ts` `focusKnoxInput`: drop code-to-edit,
+	 * persist the current session when there is history (**without** opening a
+	 * new one), then focus the input. Must not wipe the thread.
+	 */
+	focusKnoxInput(): Promise<void>;
 	addCodeToEdit(entry: IKnoxCodeToEdit | readonly IKnoxCodeToEdit[]): void;
 	removeCodeToEdit(entry: IKnoxCodeToEdit): void;
 	clearCodeToEdit(): void;
@@ -366,6 +390,9 @@ export interface IKnoxChatService {
 	setLastInjectedMemories(items: IKnoxInjectedMemoryItem[]): void;
 	setLastCompaction(payload: IKnoxLastCompaction | null): void;
 	replaceHistory(history: IKnoxChatHistoryItem[]): void;
+	deleteMessage(index: number): void;
+	newSessionWithPrompt(prompt: string): Promise<void>;
+	incrementFtc(): number;
 
 	streamResponse(options: IKnoxStreamResponseOptions): Promise<void>;
 	streamNormalInput(messages: IKnoxChatMessage[], legacySlashCommandData?: unknown): Promise<void>;
@@ -396,6 +423,7 @@ export interface IKnoxChatService {
 	showToast(type: 'info' | 'warning' | 'error', message: string): void;
 	copyText(text: string): void;
 	start(): void;
+	setKnoxInputFocused(focused: boolean): void;
 }
 
 function unwrapProtocol(result: unknown): { status: string; content: unknown; error?: string } {
@@ -504,9 +532,12 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 	private _backgroundJobs: IKnoxBackgroundJob[] = [];
 	private _worktree: IKnoxWorktreeState = { ...KNOX_IDLE_WORKTREE };
 	private _injectedSystemContext: { sessionId: string; content: string } | undefined;
+	private readonly _restoreNotice = new KnoxRestoreNoticeCache();
 	private _hasLoadedConfig = false;
 	private _streamWrapperDepth = 0;
 	private _lastSaveTime = 0;
+	private _ftc = 0;
+	private _inputFocused = false;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -533,6 +564,7 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 		this._configPollScheduler = this._register(new RunOnceScheduler(() => void this._pollConfig(), KNOX_CHAT_CONFIG_POLL_MS));
 		this._autoApproveScheduler = this._register(new RunOnceScheduler(() => this._autoApprovePendingTool(), 0));
 		this._register(this._bridge.onDidReceivePush(message => this._handlePush(message.messageType, message.data)));
+		this._registerReverseRpc();
 		this._hydrateUiPrefs();
 	}
 
@@ -541,6 +573,10 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 			this._configPollScheduler.schedule(0);
 		}
 		void this._loadReasoningEffortPrefs();
+	}
+
+	setKnoxInputFocused(focused: boolean): void {
+		this._inputFocused = focused;
 	}
 
 	get sessionId(): string { return this._state.id; }
@@ -555,6 +591,8 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 	get symbols(): Readonly<Record<string, unknown>> { return this._state.symbols; }
 	get injectedMemories(): readonly IKnoxInjectedMemoryItem[] { return this._state.injectedMemories; }
 	get lastCompaction(): IKnoxLastCompaction | null { return this._state.lastCompaction; }
+	/** Pending workspace-restore notice for this session, if any (T2.1). */
+	get restoreNotice(): string | null { return this._restoreNotice.get(this._state.id); }
 	get sessionToolAllowlist(): readonly string[] { return this._state.sessionToolAllowlist; }
 	get autonomousLoop(): IKnoxAutonomousLoopState { return this._state.autonomousLoop; }
 	get toolPending(): boolean { return this._toolPending; }
@@ -598,6 +636,8 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 	get toolSettings(): Readonly<Record<string, KnoxToolSetting>> { return this._toolSettings; }
 	get toolGroupSettings(): Readonly<Record<string, KnoxToolGroupSetting>> { return this._toolGroupSettings; }
 	get allSessionMetadata(): readonly IKnoxSessionMetadata[] { return this._state.allSessionMetadata; }
+	get ftc(): number { return this._ftc; }
+	get knoxInputFocused(): boolean { return this._inputFocused; }
 
 	newSession(session?: IKnoxSession): void {
 		applyNewSession(this._state, session);
@@ -606,6 +646,7 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 		this._symbolRequests.clear();
 		this._syncToolPending();
 		this._injectedSystemContext = undefined;
+		this._restoreNotice.clear();
 		this._rememberLastActive();
 		this._fire();
 	}
@@ -995,7 +1036,7 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 	}
 
 	copyText(text: string): void {
-		void this._bridge.post('copyText', text).catch(() => { });
+		void this._bridge.post('copyText', { text }).catch(() => { });
 	}
 
 	updateSharedConfig(shared: IKnoxSharedConfig): void {
@@ -1082,6 +1123,17 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 		this._editMode = knoxFocusEditState();
 		this._state.mode = 'edit';
 		this._fire();
+	}
+
+	/**
+	 * GUI `focusKnoxInput`: clear code-to-edit, save the current session when it
+	 * has history, and keep the same session. Never opens a new chat.
+	 */
+	async focusKnoxInput(): Promise<void> {
+		this.clearCodeToEdit();
+		if (this._state.history.length > 0) {
+			await this.saveCurrentSession({ openNewSession: false, generateTitle: true });
+		}
 	}
 
 	addCodeToEdit(entry: IKnoxCodeToEdit | readonly IKnoxCodeToEdit[]): void {
@@ -1424,6 +1476,28 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 		this._fire();
 	}
 
+	deleteMessage(index: number): void {
+		applyDeleteMessage(this._state, index);
+		this._syncToolPending();
+		this._rememberLastActive();
+		this._scheduleAutoSave();
+		this._fire();
+	}
+
+	async newSessionWithPrompt(prompt: string): Promise<void> {
+		await this.startNewChat();
+		const trimmed = prompt.trim();
+		if (!trimmed) {
+			return;
+		}
+		await this.streamResponse({ content: trimmed, modifiers: { noContext: true } });
+	}
+
+	incrementFtc(): number {
+		this._incrementFtc();
+		return this._ftc;
+	}
+
 	async gatherContext(options: IKnoxStreamResponseOptions): Promise<IKnoxGatherContextResult> {
 		let content: string | IKnoxChatMessage['content'] = options.content ?? '';
 		const selectedContextItems = [...(options.contextItems ?? [])];
@@ -1593,8 +1667,9 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 
 		enterKnoxAgentLoop();
 		try {
+			const abortSignal = this._state.streamAborter.signal;
 			let nextMessages = [...messages];
-			while (this._state.isStreaming && !this._state.streamAborter.signal.aborted) {
+			while (this._state.isStreaming && !abortSignal.aborted) {
 				if (shouldDisableToolsForMaxSteps(this._state.toolLoopSteps, agentMaxSteps)) {
 					await this._streamChatOnce(nextMessages, model, legacySlashCommandData);
 					break;
@@ -1606,7 +1681,7 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 					break;
 				}
 				for (const tool of pending) {
-					if (this._state.streamAborter.signal.aborted) {
+					if (abortSignal.aborted) {
 						break;
 					}
 					const hit = detectDoomLoop(this._state.history, {
@@ -1629,7 +1704,7 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 					if (tool.toolCall.function.name === KnoxBuiltInToolName.AskUser) {
 						const output = await waitForKnoxAskUser({
 							callId: tool.toolCallId,
-							abortSignal: this._state.streamAborter.signal,
+							abortSignal,
 						});
 						if (!output) {
 							this.cancelToolCall(tool.toolCallId);
@@ -1643,7 +1718,7 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 					if (!this._isAutoApproved(tool.toolCall.function.name)) {
 						const decision = await waitForKnoxToolApproval({
 							callId: tool.toolCallId,
-							abortSignal: this._state.streamAborter.signal,
+							abortSignal,
 						});
 						if (decision.always) {
 							this.addSessionToolAllowlist(tool.toolCall.function.name);
@@ -2188,6 +2263,9 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 				applySetInactive(this._state);
 				this._syncToolPending();
 				this._fire();
+				// GUI `streamThunkWrapper.tsx`: memory finalization only on the
+				// outermost exit (nested tool rounds must not duplicate it).
+				void this._finalizeTurnMemory();
 			}
 			try {
 				await this.saveCurrentSession({ generateTitle: outermost && this._state.mode === 'chat' });
@@ -2197,31 +2275,89 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 		}
 	}
 
+	/**
+	 * GUI `streamThunkWrapper.tsx` outer-exit memory writes: record the
+	 * assistant reply, then `memory/postTurn` for a substantial turn.
+	 */
+	private async _finalizeTurnMemory(): Promise<void> {
+		if (!this._bridge) {
+			return;
+		}
+		const sessionId = this._state.id;
+		const history = this._state.history;
+		try {
+			const assistantContent = knoxLastAssistantContent(history);
+			if (assistantContent) {
+				void this._bridge.request('brain/recordMessage', {
+					sessionId,
+					role: 'assistant',
+					content: assistantContent,
+				}).catch(() => { });
+			}
+		} catch {
+			// Memory recording is best-effort.
+		}
+		try {
+			let postTurnMinChars = KNOX_POST_TURN_MIN_CHARS;
+			try {
+				const cfg = unwrapProtocol(await this._bridge.request('brain/getConfig', undefined));
+				if (cfg.status === 'success') {
+					postTurnMinChars = knoxPostTurnMinChars(cfg.content);
+				}
+			} catch {
+				// Use the default threshold.
+			}
+			const turn = knoxPostTurnMemoryFor(history, postTurnMinChars);
+			if (!turn) {
+				return;
+			}
+			void this._bridge.request('memory/postTurn', {
+				sessionId,
+				userMessage: turn.userMessage,
+				assistantMessage: turn.assistantMessage,
+				toolSummary: turn.toolSummary || undefined,
+				title: this._state.title,
+				workspaceDir: this._workspaceDirectory(),
+			}).catch(() => { });
+		} catch {
+			// Post-turn memory is best-effort.
+		}
+	}
+
 	private async _streamChatOnce(
 		messages: IKnoxChatMessage[],
 		model: IKnoxModelDescription,
 		legacySlashCommandData?: unknown,
 	): Promise<void> {
-		if (!this._bridge) {
+		if (!this._bridge || !this._state.isStreaming) {
 			return;
 		}
-		for await (const chunk of this._bridge.streamRequest('llm/streamChat', {
-			completionOptions: this._completionOptions(model),
-			title: model.title,
-			messages,
-			legacySlashCommandData,
-		}, undefined)) {
-			if (!this._state.isStreaming || this._state.streamAborter.signal.aborted) {
-				applyAbortStream(this._state);
-				break;
+		// Capture before cancelStream replaces streamAborter with a fresh controller.
+		const streamSignal = this._state.streamAborter.signal;
+		const abortLink = knoxCancellationTokenFromAbortSignal(streamSignal);
+		try {
+			for await (const chunk of this._bridge.streamRequest('llm/streamChat', {
+				completionOptions: this._completionOptions(model),
+				title: model.title,
+				messages,
+				legacySlashCommandData,
+			}, abortLink.token)) {
+				if (!this._state.isStreaming || streamSignal.aborted) {
+					if (!streamSignal.aborted) {
+						applyAbortStream(this._state);
+					}
+					break;
+				}
+				if (Array.isArray(chunk)) {
+					this.streamUpdate(chunk as IKnoxChatMessage[]);
+				} else if (chunk && typeof chunk === 'object' && 'role' in (chunk as object)) {
+					this.streamUpdate([chunk as IKnoxChatMessage]);
+				} else if (chunk && typeof chunk === 'object' && 'prompt' in (chunk as object)) {
+					this.addPromptCompletionPair([chunk as IKnoxPromptLog]);
+				}
 			}
-			if (Array.isArray(chunk)) {
-				this.streamUpdate(chunk as IKnoxChatMessage[]);
-			} else if (chunk && typeof chunk === 'object' && 'role' in (chunk as object)) {
-				this.streamUpdate([chunk as IKnoxChatMessage]);
-			} else if (chunk && typeof chunk === 'object' && 'prompt' in (chunk as object)) {
-				this.addPromptCompletionPair([chunk as IKnoxPromptLog]);
-			}
+		} finally {
+			abortLink.dispose();
 		}
 	}
 
@@ -2345,17 +2481,29 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 
 	private _messagesWithInjectedContext(): IKnoxChatMessage[] {
 		const messages = historyToMessages(this._state.history);
+		const injectedParts: string[] = [];
+		// GUI `streamResponse.ts`: the restore notice is consumed once, on the
+		// next turn after a checkpoint restore.
+		const restoreNotice = this._restoreNotice.get(this._state.id);
+		if (restoreNotice) {
+			injectedParts.push(restoreNotice);
+			this._restoreNotice.clear();
+		}
 		const injected = this._injectedSystemContext?.sessionId === this._state.id
 			? this._injectedSystemContext.content
 			: undefined;
-		if (!injected) {
+		if (injected) {
+			injectedParts.push(injected);
+		}
+		if (!injectedParts.length) {
 			return messages;
 		}
+		const merged = injectedParts.join('\n\n');
 		if (messages[0]?.role === 'system') {
 			const existing = renderKnoxChatMessage(messages[0]);
-			return [{ ...messages[0], content: `${existing}\n\n${injected}` }, ...messages.slice(1)];
+			return [{ ...messages[0], content: `${existing}\n\n${merged}` }, ...messages.slice(1)];
 		}
-		return [{ role: 'system', content: injected }, ...messages];
+		return [{ role: 'system', content: merged }, ...messages];
 	}
 
 	private _isAutoApproved(toolName: string): boolean {
@@ -2412,6 +2560,20 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 		this._lumpSection = isKnoxLumpSection(lump) ? lump : undefined;
 		this._language = knoxParseUiLanguage(this._storageService.get(KNOX_LANGUAGE_STORAGE_KEY, StorageScope.PROFILE));
 		knoxSetUiLanguage(this._language);
+		this._ftc = this._storageService.getNumber(KNOX_FTC_STORAGE_KEY, StorageScope.PROFILE, 0);
+	}
+
+	private _registerReverseRpc(): void {
+		this._register(this._bridge.registerRequestHandler('getDefaultModelTitle', () => this._defaultModelTitle ?? this._defaultModel()?.title));
+		this._register(this._bridge.registerRequestHandler('isKnoxInputFocused', () => this._inputFocused));
+		this._register(this._bridge.registerRequestHandler('getWebviewHistoryLength', () => this._state.history.length));
+		this._register(this._bridge.registerRequestHandler('getCurrentSessionId', () => this._state.id));
+		this._register(this._bridge.registerRequestHandler('incrementFtc', () => this._incrementFtc()));
+	}
+
+	private _incrementFtc(): void {
+		this._ftc += 1;
+		this._storageService.store(KNOX_FTC_STORAGE_KEY, this._ftc, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private _persistLumpSection(): void {
@@ -2568,6 +2730,23 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 			this.setLastCompaction(knoxParseLastCompaction(data));
 			return;
 		}
+		if (messageType === 'checkpointRestored' && data && typeof data === 'object') {
+			// GUI `useSetup.ts`: cache a restore notice for the next send so the
+			// model does not plan against pre-restore files.
+			const payload = data as IKnoxRestoreNoticePayload;
+			const targetSession = payload.sessionId || this._state.id;
+			if (targetSession && payload.checkpointId) {
+				this._restoreNotice.set(targetSession, knoxFormatRestoreNotice({
+					checkpointId: payload.checkpointId,
+					description: payload.description,
+					restoredFiles: payload.restoredFiles ?? [],
+					memoryRewound: payload.memoryRewound,
+					memoryMessage: payload.memoryMessage,
+				}));
+				this._fire();
+			}
+			return;
+		}
 		if (messageType === 'updateApplyState' && data && typeof data === 'object') {
 			this.updateApplyState(data as IKnoxApplyState);
 			return;
@@ -2640,6 +2819,13 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 		}
 		if (messageType === 'newSession') {
 			void this.startNewChat();
+			return;
+		}
+		if (messageType === 'newSessionWithPrompt' && data && typeof data === 'object') {
+			const prompt = (data as { prompt?: string }).prompt;
+			if (typeof prompt === 'string') {
+				void this.newSessionWithPrompt(prompt);
+			}
 			return;
 		}
 		if (messageType === 'focusKnoxSessionId' && data && typeof data === 'object') {

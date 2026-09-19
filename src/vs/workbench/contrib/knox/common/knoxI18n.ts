@@ -32,6 +32,11 @@ const KNOX_NLS_NATIVE: Record<KnoxUiLanguage, Record<string, string>> = {
 		profile: 'Profile',
 		selectProviderToConfigure: 'Select a provider to configure.',
 		clickHereToCreateApiKey: 'Click here to create an API key',
+		workspacePrompts: 'Workspace prompts',
+		promptPath: 'Prompt path',
+		promptPathHint: 'Directory of workspace prompt files, relative to the workspace.',
+		ftcThanksTitle: 'Thanks for using Knox',
+		ftcThanks: 'You have sent 300 messages in this workspace.',
 	},
 	zh: {
 		batchDiff: '批量差异',
@@ -44,6 +49,11 @@ const KNOX_NLS_NATIVE: Record<KnoxUiLanguage, Record<string, string>> = {
 		profile: '配置文件',
 		selectProviderToConfigure: '请选择要配置的提供商。',
 		clickHereToCreateApiKey: '点击此处创建 API 密钥',
+		workspacePrompts: '工作区提示词',
+		promptPath: '提示词路径',
+		promptPathHint: '工作区提示词文件目录，相对于工作区根目录。',
+		ftcThanksTitle: '感谢使用 Knox',
+		ftcThanks: '你已经在此工作区发送了 300 条消息。',
 	},
 };
 

@@ -3,28 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { KnoxChatService } from '../../common/knoxChatService.js';
-import { IKnoxGuiBridge, IKnoxGuiExtHost, IKnoxGuiMessage } from '../../common/knoxGuiProtocol.js';
+import { IKnoxGuiBridge, IKnoxGuiExtHost, IKnoxGuiMessage, IKnoxGuiRequestHandler, knoxGuiReverseReply } from '../../common/knoxGuiProtocol.js';
 
 export class FakeKnoxGuiBridge extends Disposable implements IKnoxGuiBridge {
 	declare readonly _serviceBrand: undefined;
 
 	readonly requests: { messageType: string; data: unknown }[] = [];
-	readonly posts: { messageType: string; data: unknown }[] = [];
+	readonly posts: { messageType: string; data: unknown; messageId?: string }[] = [];
 	streamChunks: unknown[] = [];
+	readonly streamTokens: CancellationToken[] = [];
 	handlers = new Map<string, (data: unknown) => unknown>();
+	private readonly _requestHandlers = new Map<string, IKnoxGuiRequestHandler>();
 
 	private readonly _onDidReceivePush = this._register(new Emitter<IKnoxGuiMessage>());
 	readonly onDidReceivePush = this._onDidReceivePush.event;
 
 	bindExtHost(_proxy: IKnoxGuiExtHost): void { }
-	handlePush(message: IKnoxGuiMessage): void {
+
+	registerRequestHandler(messageType: string, handler: IKnoxGuiRequestHandler): IDisposable {
+		const previous = this._requestHandlers.get(messageType);
+		this._requestHandlers.set(messageType, handler);
+		return toDisposable(() => {
+			if (this._requestHandlers.get(messageType) !== handler) {
+				return;
+			}
+			if (previous) {
+				this._requestHandlers.set(messageType, previous);
+			} else {
+				this._requestHandlers.delete(messageType);
+			}
+		});
+	}
+
+	async handlePush(message: IKnoxGuiMessage): Promise<unknown> {
 		this._onDidReceivePush.fire(message);
+		const handler = this._requestHandlers.get(message.messageType);
+		if (!handler) {
+			return undefined;
+		}
+		try {
+			return knoxGuiReverseReply(await handler(message.data));
+		} catch {
+			return knoxGuiReverseReply(undefined);
+		}
 	}
 
 	async request(messageType: string, data?: unknown): Promise<unknown> {
@@ -58,15 +86,21 @@ export class FakeKnoxGuiBridge extends Disposable implements IKnoxGuiBridge {
 		return { status: 'success', content: {} };
 	}
 
-	async post(messageType: string, data?: unknown): Promise<void> {
-		this.posts.push({ messageType, data });
+	async post(messageType: string, data?: unknown, messageId?: string): Promise<void> {
+		this.posts.push(messageId !== undefined ? { messageType, data, messageId } : { messageType, data });
 	}
 
 	readonly streamRequests: { messageType: string; data: unknown }[] = [];
 
-	async *streamRequest(messageType: string, data?: unknown): AsyncIterable<unknown> {
+	async *streamRequest(messageType: string, data?: unknown, token?: CancellationToken): AsyncIterable<unknown> {
 		this.streamRequests.push({ messageType, data });
+		if (token) {
+			this.streamTokens.push(token);
+		}
 		for (const chunk of this.streamChunks) {
+			if (token?.isCancellationRequested) {
+				return;
+			}
 			yield chunk;
 		}
 	}

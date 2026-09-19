@@ -39,11 +39,19 @@ export function knoxToolbarCanCancel(input: IKnoxToolbarPrimaryInput): boolean {
 		|| input.runningJobs > 0;
 }
 
+/**
+ * GUI `Chat.tsx` `sendInput`: refuse to start a new turn while the current tool
+ * is `generated` and waiting for Deny/Always/Approve. Without this, Enter (or
+ * the send command) starts a second turn while a tool is pending.
+ */
+export function knoxSubmitBlockedByPendingTool(history: readonly IKnoxChatHistoryItem[]): boolean {
+	return findCurrentToolCall(history)?.status === 'generated';
+}
+
 export function knoxToolbarEnterDisabled(input: IKnoxToolbarPrimaryInput): boolean {
-	const tool = findCurrentToolCall(input.history);
 	return !!input.disabled
 		|| knoxIsEditModeAndNoCodeToEdit(input.mode, input.codeToEdit)
-		|| tool?.status === 'generated';
+		|| knoxSubmitBlockedByPendingTool(input.history);
 }
 
 export function knoxToolbarPrimaryState(input: IKnoxToolbarPrimaryInput): IKnoxToolbarPrimaryState {

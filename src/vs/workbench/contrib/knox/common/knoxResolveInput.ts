@@ -30,6 +30,26 @@ export interface IKnoxDefaultContextProvider {
 export interface IKnoxNativeEditorState {
 	mentions?: readonly IKnoxMentionChip[];
 	slashCommands?: readonly IKnoxSlashChip[];
+	/**
+	 * Code-block context items inserted into the native input (highlighted code
+	 * from IDE quick actions). Mirrors GUI codeBlock nodes: each item carries
+	 * `filepath` + `contents` + range, and its contents are inlined into the
+	 * prompt exactly like `resolveInput.ts` does for codeBlocks.
+	 */
+	codeBlocks?: readonly IKnoxCodeBlockContextItem[];
+}
+
+/** A highlighted-code code block attached to the input (GUI `contextItem`). */
+export interface IKnoxCodeBlockContextItem {
+	id?: string;
+	name?: string;
+	description?: string;
+	content: string;
+	filepath: string;
+	range?: {
+		start: { line: number; character: number };
+		end: { line: number; character: number };
+	};
 }
 
 export interface IKnoxGetContextItemsRequest {
@@ -77,7 +97,30 @@ export function knoxParseNativeEditorState(editorState: unknown): IKnoxNativeEdi
 	return {
 		mentions: Array.isArray(record.mentions) ? record.mentions : undefined,
 		slashCommands: Array.isArray(record.slashCommands) ? record.slashCommands : undefined,
+		codeBlocks: Array.isArray(record.codeBlocks) ? record.codeBlocks : undefined,
 	};
+}
+
+/** File extension for the fenced code-block header, matching GUI `getUriFileExtension`. */
+export function knoxFileExtension(filepath: string): string {
+	const withoutQuery = filepath.split(/[?#]/)[0];
+	const lastDot = withoutQuery.lastIndexOf('.');
+	const lastSlash = withoutQuery.lastIndexOf('/');
+	if (lastDot <= lastSlash + 1) {
+		return '';
+	}
+	return withoutQuery.slice(lastDot + 1);
+}
+
+/**
+ * Inline one highlighted-code block into the prompt, mirroring
+ * `resolveInput.ts` codeBlock handling: a fenced block of the snippet with the
+ * range description as the fence title.
+ */
+export function knoxCodeBlockInPrompt(block: IKnoxCodeBlockContextItem): string {
+	const extension = knoxFileExtension(block.filepath);
+	const description = block.description ?? block.name ?? block.filepath;
+	return '\n\n' + '```' + extension + ' ' + description + '\n' + block.content + '\n```';
 }
 
 export function knoxParseDefaultContextProviders(raw: unknown): IKnoxDefaultContextProvider[] {
@@ -191,10 +234,26 @@ export function knoxUserMessageWithContext(
  */
 export async function knoxResolveInput(options: IKnoxResolveInput): Promise<IKnoxResolveInputResult> {
 	const selectedCode = [...(options.selectedCode ?? [])];
-	const mentions = knoxParseNativeEditorState(options.editorState).mentions ?? [];
+	const parsed = knoxParseNativeEditorState(options.editorState);
+	const mentions = parsed.mentions ?? [];
+	const codeBlocks = parsed.codeBlocks ?? [];
 	const slashCommandId = knoxSlashIdFromEditorState(options.editorState);
 	const fullInput = knoxFullInputForContext(options.content, slashCommandId);
 	const contextItems: IKnoxContextItem[] = [];
+
+	// Highlighted code: inline the snippet into the prompt and register the
+	// range as selectedCode, matching GUI `resolveInput.ts` codeBlock handling.
+	// GUI codeBlocks are inserted at the top of the editor, so their text
+	// precedes the paragraph text.
+	let content = options.content;
+	for (const block of codeBlocks) {
+		content = knoxPrependTextToContent(content, knoxCodeBlockInPrompt(block));
+		selectedCode.push({
+			filepath: block.filepath,
+			range: block.range ?? knoxDefaultRangeForContents(block.content),
+			contents: block.content,
+		});
+	}
 
 	for (const mention of mentions) {
 		const resolved = await options.requestContextItems({
@@ -222,8 +281,40 @@ export async function knoxResolveInput(options: IKnoxResolveInput): Promise<IKno
 	return {
 		contextItems,
 		selectedCode,
-		content: knoxPrefixSlashCommand(options.content, slashCommandId),
+		content: knoxPrefixSlashCommand(content, slashCommandId),
 		slashCommandId,
+	};
+}
+
+/** Prepend a code-block fragment so it precedes the paragraph text (GUI order). */
+export function knoxPrependTextToContent(
+	content: IKnoxMessageContent,
+	text: string,
+): IKnoxMessageContent {
+	if (!text) {
+		return content;
+	}
+	// `knoxCodeBlockInPrompt` starts with `\n\n`; trim it when the block is the
+	// first thing in the message so the prompt does not begin with blank lines.
+	const block = text.replace(/^\n+/, '');
+	if (typeof content === 'string') {
+		return content ? `${block}\n${content}` : block;
+	}
+	const parts = [...content];
+	const first = parts[0];
+	if (first?.type === 'text') {
+		parts[0] = { type: 'text', text: `${block}\n${(first as IKnoxTextPart).text}` };
+		return parts;
+	}
+	return [{ type: 'text', text: block }, ...parts];
+}
+
+/** Fallback range when a highlighted-code payload omits one. */
+export function knoxDefaultRangeForContents(contents: string): IKnoxRangeInFile['range'] {
+	const lines = contents.length ? contents.split('\n').length : 1;
+	return {
+		start: { line: 0, character: 0 },
+		end: { line: Math.max(0, lines - 1), character: 0 },
 	};
 }
 

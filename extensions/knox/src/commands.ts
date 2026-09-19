@@ -328,7 +328,15 @@ const getCommandsMap: (
       streamInlineEdit("docstring", prompt, false, range);
     },
     "knoxchat.focusKnoxInput": async () => {
-      return vscode.commands.executeCommand("knox.native.focusInputWithNewSession");
+      // GUI listener `focusKnoxInput`: save-if-history + clear code-to-edit,
+      // then focus. Must NOT start a new session (use
+      // `knoxchat.focusKnoxInputWithNewSession` for that).
+      return vscode.commands.executeCommand("knox.native.focusInput");
+    },
+    "knoxchat.focusKnoxInputWithNewSession": async () => {
+      return vscode.commands.executeCommand(
+        "knox.native.focusInputWithNewSession",
+      );
     },
     "knoxchat.focusKnoxInputWithoutClear": async () => {
       return vscode.commands.executeCommand("knox.native.focusInputWithoutClear");

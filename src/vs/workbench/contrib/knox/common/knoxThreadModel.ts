@@ -40,6 +40,8 @@ export interface IKnoxThreadRow {
 	steps?: IKnoxAgentActivityStep[];
 	startedAt?: number;
 	timelineExpanded?: boolean;
+	/** Snapshot of painted content, stamped by `buildKnoxThreadRows`. */
+	paintKey?: string;
 }
 
 export interface IKnoxThreadModelOptions {
@@ -60,6 +62,127 @@ const DEFAULT_HEIGHT: Record<KnoxThreadRowKind, number> = {
 
 export function knoxThreadRowHeight(row: IKnoxThreadRow): number {
 	return row.measuredHeight ?? DEFAULT_HEIGHT[row.kind];
+}
+
+/** A single WorkbenchList splice operation. */
+export interface IKnoxThreadSplice {
+	start: number;
+	deleteCount: number;
+	rows: IKnoxThreadRow[];
+}
+
+export interface IKnoxThreadRowDiff {
+	/**
+	 * True when the row **id sequence** is identical to the previous rows, so
+	 * the list does not need to add/remove rows — only re-render the rows whose
+	 * content changed. This is the common streaming case.
+	 */
+	unchangedOrder: boolean;
+	/** Add/remove script. Empty when `unchangedOrder` is true. */
+	splices: IKnoxThreadSplice[];
+	/**
+	 * Indices whose row content changed in place (same id, new object). The
+	 * caller splices just those rows so the list re-renders them without
+	 * resetting identity, heights, or scroll for the rest.
+	 */
+	changedIndices: number[];
+}
+
+function sameIdSequence(a: readonly IKnoxThreadRow[], b: readonly IKnoxThreadRow[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+	for (let i = 0; i < a.length; i++) {
+		if (a[i].id !== b[i].id) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function sameRowContent(a: IKnoxThreadRow, b: IKnoxThreadRow): boolean {
+	if (
+		a.kind !== b.kind
+		|| a.historyIndex !== b.historyIndex
+		|| a.isLast !== b.isLast
+		|| a.timelineExpanded !== b.timelineExpanded
+		|| a.startedAt !== b.startedAt
+		|| a.userIndex !== b.userIndex
+	) {
+		return false;
+	}
+	// Snapshot keys are stamped at build time so in-place history mutations
+	// (streaming tokens, tools/partialOutput) still dirty the row.
+	if (a.paintKey !== undefined || b.paintKey !== undefined) {
+		return a.paintKey === b.paintKey;
+	}
+	return a.item === b.item && a.toolState === b.toolState && a.steps === b.steps;
+}
+
+function computePaintKey(row: IKnoxThreadRow): string {
+	const item = row.item;
+	const tool = row.toolState;
+	const content = item ? renderKnoxChatMessage(item.message) : '';
+	const output = (tool?.output ?? []).map(entry => `${entry.name}:${entry.content}`).join('\n');
+	const steps = (row.steps ?? []).map(step => `${step.id}:${step.kind}:${step.status}:${step.detail ?? ''}`).join(',');
+	return [
+		content,
+		item?.reasoning?.text ?? '',
+		item?.reasoning?.active ? '1' : '0',
+		item?.isGatheringContext ? '1' : '0',
+		item?.message.redactedThinking ?? '',
+		tool?.status ?? '',
+		output,
+		tool ? JSON.stringify(tool.parsedArgs ?? {}) : '',
+		steps,
+	].join('\x1e');
+}
+
+/**
+ * Minimal splice script to turn `previous` into `next`, keyed by row id.
+ * Preserves list identity, measured heights, collapse maps, and scroll for the
+ * common streaming case (only the last assistant/thinking/tool row changes).
+ */
+export function diffKnoxThreadRows(
+	previous: readonly IKnoxThreadRow[],
+	next: readonly IKnoxThreadRow[],
+): IKnoxThreadRowDiff {
+	if (sameIdSequence(previous, next)) {
+		const changedIndices: number[] = [];
+		for (let i = 0; i < next.length; i++) {
+			if (!sameRowContent(previous[i], next[i])) {
+				changedIndices.push(i);
+			}
+		}
+		return { unchangedOrder: true, splices: [], changedIndices };
+	}
+
+	const previousIds = previous.map(row => row.id);
+	const nextIds = next.map(row => row.id);
+
+	// Longest common prefix and suffix bound the changed span, so appends and
+	// in-place edits produce a single small splice.
+	let prefix = 0;
+	while (prefix < previousIds.length && prefix < nextIds.length && previousIds[prefix] === nextIds[prefix]) {
+		prefix += 1;
+	}
+	let suffix = 0;
+	while (
+		suffix < previousIds.length - prefix
+		&& suffix < nextIds.length - prefix
+		&& previousIds[previousIds.length - 1 - suffix] === nextIds[nextIds.length - 1 - suffix]
+	) {
+		suffix += 1;
+	}
+
+	const deleteCount = previousIds.length - prefix - suffix;
+	const rows = next.slice(prefix, nextIds.length - suffix);
+	const splices: IKnoxThreadSplice[] = [];
+	if (deleteCount > 0 || rows.length > 0) {
+		splices.push({ start: prefix, deleteCount, rows });
+	}
+
+	return { unchangedOrder: false, splices, changedIndices: [] };
 }
 
 /** Same visible reply already shown on the previous assistant (skip thinking). */
@@ -252,6 +375,15 @@ export function buildKnoxThreadRows(
 		}
 
 		if (item.message.role === 'thinking') {
+			const prev = history[index - 1];
+			const duplicateRedacted = !!(
+				item.message.redactedThinking
+				&& prev?.message.role === 'thinking'
+				&& prev.message.redactedThinking
+			);
+			if (duplicateRedacted) {
+				continue;
+			}
 			rows.push({
 				id: rowId('thinking', historyKey(item, index)),
 				kind: 'thinking',
@@ -277,5 +409,8 @@ export function buildKnoxThreadRows(
 		});
 	}
 
+	for (const row of rows) {
+		row.paintKey = computePaintKey(row);
+	}
 	return rows;
 }

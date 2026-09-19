@@ -95,6 +95,10 @@ export class KnoxViewPane extends ViewPane {
 		this._inputFocusedKey.set(true);
 	}
 
+	canSubmitInput(): boolean {
+		return this._widget?.canSubmitInput() ?? false;
+	}
+
 	focusThread(): void {
 		this._widget?.focusThread();
 		this._inputFocusedKey.set(false);

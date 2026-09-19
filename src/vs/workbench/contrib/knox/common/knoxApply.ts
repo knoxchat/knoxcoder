@@ -84,3 +84,7 @@ export class KnoxCodeBlockStreamIds {
 		this._ids.clear();
 	}
 }
+
+export function knoxApplyStatesFingerprint(states: readonly IKnoxApplyState[]): string {
+	return states.map(state => `${state.streamId}:${state.status ?? ''}:${state.numDiffs ?? ''}:${state.filepath ?? ''}`).join('|');
+}

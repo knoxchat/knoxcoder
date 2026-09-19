@@ -64,4 +64,14 @@ suite('knox find', () => {
 		assert.strictEqual(knoxNextFindIndex(1, 2, 1), 0);
 		assert.strictEqual(knoxNextFindIndex(0, 2, -1), 1);
 	});
+
+	test('match ranges are DOM-text offsets used by find highlights (T3.4)', () => {
+		const pattern = compileKnoxSearchPattern('hello', { caseSensitive: false, useRegex: false });
+		const ranges = knoxFindMatchRanges('Say Hello there hello', pattern);
+		assert.deepStrictEqual(ranges, [
+			{ start: 4, end: 9 },
+			{ start: 16, end: 21 },
+		]);
+		assert.strictEqual(knoxTextMatchesPattern('Say Hello there hello'.slice(ranges[0].start, ranges[0].end), pattern), true);
+	});
 });

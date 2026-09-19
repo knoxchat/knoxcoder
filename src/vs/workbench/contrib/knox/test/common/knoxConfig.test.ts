@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { knoxApplySharedConfig, knoxClampFontSize, knoxReadUiBoolean, knoxSharedConfigForAgentProfile } from '../../common/knoxSharedConfig.js';
+import { knoxApplySharedConfig, knoxClampFontSize, knoxReadPromptPath, knoxReadUiBoolean, knoxSharedConfigForAgentProfile } from '../../common/knoxSharedConfig.js';
 import { knoxConfigErrorsFromProfileInfo, knoxHasFatalConfigError, knoxSortConfigErrors } from '../../common/knoxConfigUi.js';
 import { knoxNavigateTarget, knoxToggleNativeOverlay } from '../../common/knoxNavigate.js';
 import { knoxCycleProfileId, knoxSelectProfileId } from '../../common/knoxProfiles.js';
@@ -18,12 +18,16 @@ suite('knox config (T9.1–T9.2)', () => {
 		const next = knoxApplySharedConfig(undefined, {
 			showSessionTabs: true,
 			codeWrap: true,
+			showChatScrollbar: true,
+			displayRawMarkdown: true,
 			disableSessionTitles: true,
 			fontSize: 18,
 			...knoxSharedConfigForAgentProfile('rust'),
 		});
 		assert.strictEqual(knoxReadUiBoolean(next, 'showSessionTabs'), true);
 		assert.strictEqual(knoxReadUiBoolean(next, 'codeWrap'), true);
+		assert.strictEqual(knoxReadUiBoolean(next, 'showChatScrollbar'), true);
+		assert.strictEqual(knoxReadUiBoolean(next, 'displayRawMarkdown'), true);
 		assert.strictEqual(knoxReadUiBoolean(next, 'disableSessionTitles'), true);
 		assert.strictEqual(next.ui?.fontSize, 18);
 		assert.strictEqual(next.experimental?.agentProfile, 'rust');
@@ -32,6 +36,8 @@ suite('knox config (T9.1–T9.2)', () => {
 		assert.deepStrictEqual(knoxSharedConfigForAgentProfile('auto'), { agentProfile: 'auto' });
 		assert.strictEqual(knoxClampFontSize(99), 50);
 		assert.strictEqual(knoxClampFontSize(3), 7);
+		const withPrompt = knoxApplySharedConfig(next, { promptPath: '.knox/prompts' });
+		assert.strictEqual(knoxReadPromptPath(withPrompt), '.knox/prompts');
 	});
 
 	test('sorts fatal config errors first', () => {

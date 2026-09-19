@@ -94,7 +94,7 @@ export function renderKnoxToolCard(
 						hover: services.hover,
 						terminal: services.terminal,
 						codeWrap: knoxMarkdownCodeWrap(services.chat.config?.ui),
-					}, store);
+					}, store, options.ui, toolId);
 					return;
 				case 'viewSubdirectory':
 				case 'viewRepoMap':

@@ -18,6 +18,7 @@ import {
 	isSymbolNotRif,
 	knoxFileUrisNeedingSymbols,
 	knoxMarkdownCodeWrap,
+	knoxMarkdownDisplayRaw,
 	knoxParseMarkdownBlocks,
 	knoxRifsFromHistory,
 	knoxSymbolsForContext,
@@ -54,6 +55,12 @@ export function renderKnoxAssistantMarkdown(
 ): void {
 	clearNode(container);
 	container.classList.add('knox-markdown', 'knox-assistant-markdown');
+
+	if (knoxMarkdownDisplayRaw(services.chat.config?.ui)) {
+		const pre = append(container, $('pre.knox-raw-markdown'));
+		pre.textContent = options.source;
+		return;
+	}
 
 	const rifs = knoxRifsFromHistory(options.history, options.historyIndex);
 	const symbols = knoxSymbolsForContext(services.chat.symbols, rifs);

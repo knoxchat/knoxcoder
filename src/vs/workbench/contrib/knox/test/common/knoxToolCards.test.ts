@@ -30,7 +30,7 @@ import {
 	knoxDisplayArgsForToolCall,
 	knoxExtractStreamingToolCode,
 } from '../../common/knoxStreamingToolCode.js';
-import { knoxExtractTerminalOutput } from '../../common/knoxTerminalOutput.js';
+import { knoxExtractTerminalOutput, knoxTerminalIsAtBottom, knoxTerminalShouldFollow } from '../../common/knoxTerminalOutput.js';
 import {
 	knoxCreateFileMarkdown,
 	knoxFindTool,
@@ -331,6 +331,11 @@ suite('knox tool cards (T6.6–T6.16)', () => {
 			);
 			assert.strictEqual(knoxExtractTerminalOutput([{ name: 'Other', content: 'fallback' }]), 'fallback');
 			assert.strictEqual(knoxExtractTerminalOutput(undefined), '');
+			assert.strictEqual(knoxTerminalIsAtBottom(370, 400, 30), true);
+			assert.strictEqual(knoxTerminalIsAtBottom(0, 400, 30), false);
+			assert.strictEqual(knoxTerminalShouldFollow(false, true), true);
+			assert.strictEqual(knoxTerminalShouldFollow(true, true), false);
+			assert.strictEqual(knoxTerminalShouldFollow(false, false), false);
 		});
 	});
 
@@ -522,6 +527,11 @@ suite('knox tool cards (T6.6–T6.16)', () => {
 			]).map(item => item.name), ['file.ts']);
 			assert.deepStrictEqual(knoxContextItemRange('file.ts (10-20)'), { startLine: 10, endLine: 20 });
 			assert.strictEqual(knoxContextItemBasename('src/vs/workbench/file.ts extra'), 'file.ts');
+		});
+
+		test('parses single-line peek ranges for click-to-open (T3.2)', () => {
+			assert.deepStrictEqual(knoxContextItemRange('file.ts (7)'), { startLine: 7, endLine: 7 });
+			assert.strictEqual(knoxContextItemRange('file.ts'), undefined);
 		});
 	});
 });

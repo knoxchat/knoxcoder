@@ -82,6 +82,13 @@ export const KNOX_GIT_DIFF_PANEL_EXPANDED_KEY = 'knox.gitDiffPanelExpanded';
 export const KNOX_LUMP_SECTION_STORAGE_KEY = 'knox.lumpSection';
 export const KNOX_TOOL_SETTINGS_STORAGE_KEY = 'knox.toolSettings';
 export const KNOX_TOOL_GROUP_SETTINGS_STORAGE_KEY = 'knox.toolGroupSettings';
+export const KNOX_FTC_STORAGE_KEY = 'knox.chat.ftc';
+/** GUI `mainTextEntryCounter` dialog after this many sends. */
+export const KNOX_FTC_DIALOG_AT = 300;
+
+export function knoxFtcShouldPrompt(count: number): boolean {
+	return count === KNOX_FTC_DIALOG_AT;
+}
 
 const NATIVE_OVERLAY_COMMANDS: ReadonlyArray<readonly [string, KnoxNativeOverlay]> = [
 	[KNOX_NATIVE_NEW_SESSION_COMMAND_ID, 'chat'],

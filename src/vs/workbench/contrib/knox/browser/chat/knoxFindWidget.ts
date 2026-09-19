@@ -22,13 +22,14 @@ import {
 	findKnoxThreadMatches,
 	IKnoxFindHit,
 	knoxNextFindIndex,
+	KnoxSearchPattern,
 } from '../../common/knoxFind.js';
 import { IKnoxThreadRow } from '../../common/knoxThreadModel.js';
 
 export interface IKnoxFindHost {
 	getRows(): readonly IKnoxThreadRow[];
 	isStreaming(): boolean;
-	revealFindHit(hit: IKnoxFindHit): void;
+	revealFindHit(hit: IKnoxFindHit, pattern?: KnoxSearchPattern): void;
 	clearFindHighlight(): void;
 }
 
@@ -53,6 +54,7 @@ export class KnoxFindWidget extends Disposable {
 	private _hits: IKnoxFindHit[] = [];
 	private _current = -1;
 	private _visible = false;
+	private _pattern: KnoxSearchPattern | undefined;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
@@ -184,6 +186,7 @@ export class KnoxFindWidget extends Disposable {
 			wholeWord: this._findInput.getWholeWords(),
 		});
 		this._hits = query ? findKnoxThreadMatches(this._host.getRows(), pattern) : [];
+		this._pattern = query ? pattern : undefined;
 		if (!this._hits.length) {
 			this._current = -1;
 			this._host.clearFindHighlight();
@@ -192,8 +195,8 @@ export class KnoxFindWidget extends Disposable {
 		}
 		if (scrollTo === 'closest' || this._current < 0 || this._current >= this._hits.length) {
 			this._current = 0;
-			this._host.revealFindHit(this._hits[0]);
 		}
+		this._host.revealFindHit(this._hits[this._current], this._pattern);
 		this._renderCount();
 	}
 
@@ -202,7 +205,7 @@ export class KnoxFindWidget extends Disposable {
 			return;
 		}
 		this._current = knoxNextFindIndex(this._current, this._hits.length, delta);
-		this._host.revealFindHit(this._hits[this._current]);
+		this._host.revealFindHit(this._hits[this._current], this._pattern);
 		this._renderCount();
 	}
 

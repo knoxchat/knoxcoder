@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { canceled } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IKnoxGuiBridge, IKnoxGuiExtHost, IKnoxGuiMessage } from './knoxGuiProtocol.js';
+import { IKnoxGuiBridge, IKnoxGuiExtHost, IKnoxGuiMessage, IKnoxGuiRequestHandler, knoxGuiReverseReply } from './knoxGuiProtocol.js';
 
 interface IKnoxStreamPayload {
 	done?: boolean;
@@ -17,11 +17,33 @@ interface IKnoxStreamPayload {
 	error?: string;
 }
 
+/**
+ * Bridge `AbortSignal` (session `streamAborter`) onto a workbench
+ * `CancellationToken` so `streamRequest` can post Core `abort`.
+ */
+export function knoxCancellationTokenFromAbortSignal(signal: AbortSignal): { token: CancellationToken; dispose(): void } {
+	const source = new CancellationTokenSource();
+	const onAbort = () => source.cancel();
+	if (signal.aborted) {
+		source.cancel();
+	} else {
+		signal.addEventListener('abort', onAbort);
+	}
+	return {
+		token: source.token,
+		dispose() {
+			signal.removeEventListener('abort', onAbort);
+			source.dispose();
+		},
+	};
+}
+
 export class KnoxGuiBridge extends Disposable implements IKnoxGuiBridge {
 	declare readonly _serviceBrand: undefined;
 
 	private _proxy: IKnoxGuiExtHost | undefined;
 	private readonly _waiting: ((proxy: IKnoxGuiExtHost) => void)[] = [];
+	private readonly _requestHandlers = new Map<string, IKnoxGuiRequestHandler>();
 
 	private readonly _onDidReceivePush = this._register(new Emitter<IKnoxGuiMessage>());
 	readonly onDidReceivePush = this._onDidReceivePush.event;
@@ -33,8 +55,33 @@ export class KnoxGuiBridge extends Disposable implements IKnoxGuiBridge {
 		}
 	}
 
-	handlePush(message: IKnoxGuiMessage): void {
+	registerRequestHandler(messageType: string, handler: IKnoxGuiRequestHandler): IDisposable {
+		const previous = this._requestHandlers.get(messageType);
+		this._requestHandlers.set(messageType, handler);
+		return toDisposable(() => {
+			if (this._requestHandlers.get(messageType) !== handler) {
+				return;
+			}
+			if (previous) {
+				this._requestHandlers.set(messageType, previous);
+			} else {
+				this._requestHandlers.delete(messageType);
+			}
+		});
+	}
+
+	async handlePush(message: IKnoxGuiMessage): Promise<unknown> {
 		this._onDidReceivePush.fire(message);
+		const handler = this._requestHandlers.get(message.messageType);
+		if (!handler) {
+			return undefined;
+		}
+		try {
+			return knoxGuiReverseReply(await handler(message.data));
+		} catch {
+			// Never leave extension `webviewProtocol.request` hung.
+			return knoxGuiReverseReply(undefined);
+		}
 	}
 
 	async request(messageType: string, data?: unknown, token?: CancellationToken): Promise<unknown> {
@@ -49,29 +96,45 @@ export class KnoxGuiBridge extends Disposable implements IKnoxGuiBridge {
 		});
 	}
 
-	async post(messageType: string, data?: unknown): Promise<void> {
+	async post(messageType: string, data?: unknown, messageId?: string): Promise<void> {
 		const proxy = await this._getExtHost();
 		await proxy.$post({
 			messageType,
-			messageId: generateUuid(),
+			messageId: messageId ?? generateUuid(),
 			data,
 		});
 	}
 
 	async *streamRequest(messageType: string, data?: unknown, token?: CancellationToken): AsyncIterable<unknown> {
 		if (token?.isCancellationRequested) {
-			throw canceled();
+			return;
 		}
 
 		const proxy = await this._getExtHost();
+		if (token?.isCancellationRequested) {
+			return;
+		}
+
 		const messageId = generateUuid();
 		const pending: unknown[] = [];
 		let done = false;
+		let aborted = false;
 		let error: Error | undefined;
 		let signal: (() => void) | undefined;
 		const wake = () => {
 			signal?.();
 			signal = undefined;
+		};
+
+		const postAbort = () => {
+			if (aborted) {
+				return;
+			}
+			aborted = true;
+			pending.length = 0;
+			done = true;
+			// Same messageId as llm/streamChat — Core keys abortedMessageIds on it.
+			void this.post('abort', undefined, messageId).finally(wake);
 		};
 
 		const listener = this._onDidReceivePush.event(msg => {
@@ -85,7 +148,7 @@ export class KnoxGuiBridge extends Disposable implements IKnoxGuiBridge {
 				wake();
 				return;
 			}
-			if (payload.content !== undefined) {
+			if (payload.content !== undefined && !aborted) {
 				pending.push(payload.content);
 			}
 			if (payload.done) {
@@ -94,14 +157,14 @@ export class KnoxGuiBridge extends Disposable implements IKnoxGuiBridge {
 			wake();
 		});
 
-		const cancel = token?.onCancellationRequested(() => {
-			done = true;
-			wake();
-		});
+		const cancel = token?.onCancellationRequested(postAbort);
 
 		try {
 			void proxy.$post({ messageType, messageId, data });
 			while (!done || pending.length) {
+				if (aborted) {
+					break;
+				}
 				if (pending.length) {
 					yield pending.shift();
 					continue;
@@ -113,11 +176,11 @@ export class KnoxGuiBridge extends Disposable implements IKnoxGuiBridge {
 				if (error) {
 					throw error;
 				}
-				if (token?.isCancellationRequested) {
-					throw canceled();
-				}
 			}
 		} finally {
+			if (token?.isCancellationRequested) {
+				postAbort();
+			}
 			listener.dispose();
 			cancel?.dispose();
 		}

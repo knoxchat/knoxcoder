@@ -58,6 +58,7 @@ import { knoxInputKeyAction, knoxUseActiveFile } from '../../common/knoxInputKey
 import { knoxMentionTriggerInsert } from '../../common/knoxToolbar.js';
 import { IKnoxMentionChip } from '../../common/knoxMentions.js';
 import { IKnoxSlashChip } from '../../common/knoxSlash.js';
+import { IKnoxCodeBlockContextItem } from '../../common/knoxResolveInput.js';
 import { KnoxMentionController } from './knoxMentionController.js';
 import { KnoxSlashController } from './knoxSlashController.js';
 import { KnoxImageAttachments } from './knoxImageAttachments.js';
@@ -105,6 +106,7 @@ export class KnoxInputEditor extends Disposable {
 	private readonly _mentions: KnoxMentionController;
 	private readonly _slash: KnoxSlashController;
 	private readonly _images: KnoxImageAttachments;
+	private _codeBlocks: IKnoxCodeBlockContextItem[] = [];
 
 	constructor(
 		parent: HTMLElement,
@@ -213,11 +215,31 @@ export class KnoxInputEditor extends Disposable {
 		this._mentions.clearMentions();
 		this._slash.clearSlashCommands();
 		this._images.clear();
+		this._codeBlocks = [];
 		this.setValue('');
 	}
 
 	getMentions(): IKnoxMentionChip[] {
 		return this._mentions.getMentions();
+	}
+
+	getCodeBlocks(): readonly IKnoxCodeBlockContextItem[] {
+		return this._codeBlocks;
+	}
+
+	/**
+	 * Attach a highlighted-code block to the input. Duplicates by filepath +
+	 * contents are ignored, mirroring GUI `useWebviewListeners.ts` (prevent
+	 * exact duplicate code blocks).
+	 */
+	insertCodeBlock(block: IKnoxCodeBlockContextItem): boolean {
+		if (this._codeBlocks.some(existing =>
+			existing.filepath === block.filepath && existing.content === block.content)) {
+			return false;
+		}
+		this._codeBlocks = [...this._codeBlocks, block];
+		this.focus();
+		return true;
 	}
 
 	getSlashCommands(): IKnoxSlashChip[] {
@@ -246,11 +268,6 @@ export class KnoxInputEditor extends Disposable {
 		}
 		this.editor.executeEdits('knox.mention.trigger', [EditOperation.insert(position, text)]);
 		SuggestController.get(this.editor)?.triggerSuggest(undefined, true, true);
-	}
-
-	insertFileMention(filepath: string): void {
-		this._mentions.insertFileChip(filepath);
-		this.focus();
 	}
 
 	appendText(text: string): void {

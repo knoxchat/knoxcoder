@@ -32,15 +32,21 @@ export class VsCodeKnoxApi {
     await protocol.handleNativeIncoming(msg);
   }
 
-  setNativePushHandler(handler: (message: KnoxGuiMessage) => void): void {
+  setNativePushHandler(handler: (message: KnoxGuiMessage) => unknown): void {
     void this.vscodeExtension.webviewProtocolPromise.then((protocol) => {
-      protocol.setNativeSink((msg) => {
+      protocol.setNativeSink((msg) =>
         handler({
           messageType: msg.messageType,
           messageId: msg.messageId,
           data: msg.data,
-        });
-      });
+        }),
+      );
+    });
+  }
+
+  nativeRespond(messageType: string, data: unknown, messageId: string): void {
+    void this.vscodeExtension.webviewProtocolPromise.then((protocol) => {
+      protocol.receiveNativeResponse({ messageType, data, messageId });
     });
   }
 }

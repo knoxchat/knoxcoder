@@ -7,10 +7,14 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { KnoxChatService } from '../../common/knoxChatService.js';
+import { KnoxGuiBridge } from '../../common/knoxGuiBridge.js';
+import { IKnoxGuiMessage } from '../../common/knoxGuiProtocol.js';
 import type { IKnoxChatHistoryItem, IKnoxToolCallState } from '../../common/knoxChatTypes.js';
 import { hasKnoxToolApproval } from '../../common/knoxGuiApproval.js';
+import { knoxExtractTerminalOutput } from '../../common/knoxTerminalOutput.js';
 import { KnoxBuiltInToolName } from '../../common/knoxToolNames.js';
-import { createKnoxChatServiceForTest } from './knoxChatTestUtils.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { createFakeWorkspace, createKnoxChatServiceForTest } from './knoxChatTestUtils.js';
 
 function generatedReadTool(id = 'tc1'): IKnoxToolCallState {
 	return {
@@ -84,6 +88,58 @@ suite('KnoxChatService thunks', () => {
 		assert.ok(bridge.posts.some(item => item.messageType === 'tools/cancel'));
 		assert.ok(bridge.requests.some(item => item.messageType === 'agent/jobs'));
 		assert.ok(bridge.requests.some(item => item.messageType === 'brain/cancelAutonomousLoop'));
+		assert.strictEqual(service.isStreaming, false);
+	});
+
+	test('cancelStream during llm/streamChat posts abort with the stream messageId', async () => {
+		const posts: IKnoxGuiMessage[] = [];
+		let resolveStream: () => void;
+		const streamed = new Promise<void>(resolve => { resolveStream = resolve; });
+		const bridge = store.add(new KnoxGuiBridge());
+		bridge.bindExtHost({
+			async $request(message) {
+				if (message.messageType === 'config/getSerializedProfileInfo') {
+					return {
+						status: 'success',
+						content: {
+							result: {
+								config: {
+									models: [{ title: 'TestModel', provider: 'test' }],
+									slashCommands: [],
+									selectedModelByRole: { chat: { title: 'TestModel' } },
+									experimental: {},
+								},
+							},
+							profileId: 'local',
+						},
+					};
+				}
+				return { status: 'success', content: {} };
+			},
+			async $post(message) {
+				posts.push(message);
+				if (message.messageType === 'llm/streamChat') {
+					resolveStream();
+				}
+			},
+		});
+		const storage = store.add(new TestStorageService());
+		const service = store.add(new KnoxChatService(bridge, createFakeWorkspace(), storage));
+		await service.loadConfig();
+
+		const streaming = service.streamResponse({ content: 'hi', modifiers: { noContext: true } });
+		await streamed;
+		const stream = posts.find(item => item.messageType === 'llm/streamChat');
+		assert.ok(stream?.messageId);
+
+		await service.cancelStream();
+		await streaming;
+
+		const abort = posts.find(item => item.messageType === 'abort');
+		assert.ok(abort);
+		assert.strictEqual(abort.messageId, stream.messageId);
+		assert.strictEqual(abort.data, undefined);
+		assert.ok(posts.some(item => item.messageType === 'tools/cancel'));
 		assert.strictEqual(service.isStreaming, false);
 	});
 
@@ -647,6 +703,230 @@ suite('KnoxChatService thunks', () => {
 		const assistants = service.history.filter(item => item.message.role === 'assistant');
 		assert.ok(assistants.some(item => String(item.message.content).includes('done')));
 		assert.strictEqual(service.isStreaming, false);
+	});
+
+	test('checkpointRestored injects the restore notice into the next send once (T2.1)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+
+		bridge.handlePush({
+			messageType: 'checkpointRestored',
+			messageId: 'cp-push',
+			data: {
+				checkpointId: 'cp-1',
+				description: 'before refactor',
+				restoredFiles: ['src/a.ts'],
+				memoryRewound: false,
+			},
+		});
+
+		bridge.streamChunks = [[{ role: 'assistant', content: 'ok' }]];
+		await service.streamResponse({ content: 'continue', modifiers: { noContext: true } });
+
+		const first = bridge.streamRequests.filter(item => item.messageType === 'llm/streamChat').at(-1);
+		const firstMessages = (first!.data as { messages: Array<{ role: string; content: unknown }> }).messages;
+		const firstSystem = firstMessages.find(m => m.role === 'system');
+		assert.ok(String(firstSystem?.content).includes('## Workspace restore'));
+		assert.ok(String(firstSystem?.content).includes('cp-1'));
+
+		// The notice is consumed once; the next send must not repeat it.
+		bridge.streamChunks = [[{ role: 'assistant', content: 'again' }]];
+		await service.streamResponse({ content: 'next', modifiers: { noContext: true } });
+		const second = bridge.streamRequests.filter(item => item.messageType === 'llm/streamChat').at(-1);
+		const secondMessages = (second!.data as { messages: Array<{ role: string; content: unknown }> }).messages;
+		const secondSystem = secondMessages.find(m => m.role === 'system');
+		assert.ok(!String(secondSystem?.content ?? '').includes('## Workspace restore'));
+	});
+
+	test('checkpointRestored for another session does not leak into this one (T2.1)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+
+		bridge.handlePush({
+			messageType: 'checkpointRestored',
+			messageId: 'cp-other',
+			data: { checkpointId: 'cp-9', restoredFiles: [], sessionId: 'some-other-session' },
+		});
+
+		bridge.streamChunks = [[{ role: 'assistant', content: 'ok' }]];
+		await service.streamResponse({ content: 'hi', modifiers: { noContext: true } });
+
+		const stream = bridge.streamRequests.filter(item => item.messageType === 'llm/streamChat').at(-1);
+		const messages = (stream!.data as { messages: Array<{ role: string; content: unknown }> }).messages;
+		const system = messages.find(m => m.role === 'system');
+		assert.ok(!String(system?.content ?? '').includes('## Workspace restore'));
+	});
+
+	test('a new session drops a pending restore notice (T2.1)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+
+		bridge.handlePush({
+			messageType: 'checkpointRestored',
+			messageId: 'cp-push',
+			data: { checkpointId: 'cp-1', restoredFiles: ['a.ts'] },
+		});
+		service.newSession();
+
+		bridge.streamChunks = [[{ role: 'assistant', content: 'ok' }]];
+		await service.streamResponse({ content: 'hi', modifiers: { noContext: true } });
+
+		const stream = bridge.streamRequests.filter(item => item.messageType === 'llm/streamChat').at(-1);
+		const messages = (stream!.data as { messages: Array<{ role: string; content: unknown }> }).messages;
+		const system = messages.find(m => m.role === 'system');
+		assert.ok(!String(system?.content ?? '').includes('## Workspace restore'));
+	});
+
+	test('a substantial turn records the assistant reply and posts memory/postTurn (T2.2)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+		const long = 'x'.repeat(200);
+		bridge.streamChunks = [[{ role: 'assistant', content: long }]];
+
+		await service.streamResponse({ content: 'tell me about the codebase', modifiers: { noContext: true } });
+
+		// Assistant turn is recorded in the Memory Brain.
+		const record = bridge.requests.find(item =>
+			item.messageType === 'brain/recordMessage'
+			&& (item.data as { role?: string }).role === 'assistant',
+		);
+		assert.ok(record, 'assistant reply must be recorded');
+		assert.strictEqual((record!.data as { content: string }).content, long);
+
+		// Post-turn write fires once for the substantial turn.
+		const postTurn = bridge.requests.filter(item => item.messageType === 'memory/postTurn');
+		assert.strictEqual(postTurn.length, 1);
+		const payload = postTurn[0].data as { sessionId: string; assistantMessage: string; userMessage: string };
+		assert.strictEqual(payload.sessionId, service.sessionId);
+		assert.strictEqual(payload.assistantMessage, long);
+		assert.ok(payload.userMessage.includes('tell me about the codebase'));
+	});
+
+	test('a short turn without tools does not post memory/postTurn (T2.2)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+		bridge.streamChunks = [[{ role: 'assistant', content: 'ok' }]];
+
+		await service.streamResponse({ content: 'hi', modifiers: { noContext: true } });
+
+		assert.ok(!bridge.requests.some(item => item.messageType === 'memory/postTurn'));
+	});
+
+	test('nested tool rounds do not duplicate post-turn memory (T2.2)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+		service.submitEditorAndInitAtIndex(0);
+		service.updateHistoryItemAtIndex(0, { message: { role: 'user', content: 'x'.repeat(120), id: 'u1' } });
+		const tool = generatedReadTool('tc-mem');
+		service.replaceHistory([
+			...service.history,
+			{
+				message: { role: 'assistant', content: 'y'.repeat(120), id: 'a1', toolCalls: [tool.toolCall] },
+				contextItems: [],
+				toolCallState: tool,
+				toolCallStates: [tool],
+			},
+		]);
+		bridge.handlers.set('tools/call', () => ({
+			status: 'success',
+			content: { contextItems: [{ name: 'file', description: 'a.ts', content: 'ok' }] },
+		}));
+		bridge.streamChunks = [[{ role: 'assistant', content: 'z'.repeat(120) }]];
+
+		await service.callTool({ toolCallId: 'tc-mem' });
+
+		assert.strictEqual(bridge.requests.filter(item => item.messageType === 'memory/postTurn').length, 1);
+	});
+
+	test('streamResponse at a historical index resubmits from that turn (T3.1)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+		service.replaceHistory([
+			{ message: { role: 'user', content: 'first', id: 'u1' }, contextItems: [] },
+			{ message: { role: 'assistant', content: 'a', id: 'a1' }, contextItems: [] },
+			{ message: { role: 'user', content: 'second', id: 'u2' }, contextItems: [] },
+			{ message: { role: 'assistant', content: 'b', id: 'a2' }, contextItems: [] },
+		]);
+		bridge.streamChunks = [[{ role: 'assistant', content: 'edited' }]];
+
+		await service.streamResponse({ content: 'first rewritten', index: 0, modifiers: { noContext: true } });
+
+		assert.strictEqual(service.history[0].message.role, 'user');
+		assert.ok(typeof service.history[0].message.content === 'string' && service.history[0].message.content.includes('first rewritten'));
+		assert.strictEqual(service.history.length, 2);
+		assert.strictEqual(service.history[1].message.content, 'edited');
+	});
+
+	test('newSessionWithPrompt starts a new chat and sends the prompt (T2.4)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+		service.submitEditorAndInitAtIndex(0);
+		service.updateHistoryItemAtIndex(0, { message: { role: 'user', content: 'old', id: 'u1' } });
+		const previous = service.sessionId;
+		bridge.streamChunks = [[{ role: 'assistant', content: 'from prompt' }]];
+
+		await service.newSessionWithPrompt('  hello from prompt  ');
+
+		assert.notStrictEqual(service.sessionId, previous);
+		const user = service.history.find(item => item.message.role === 'user');
+		assert.ok(typeof user?.message.content === 'string' && user.message.content.includes('hello from prompt'));
+		const assistant = service.history.find(item => item.message.role === 'assistant');
+		assert.strictEqual(assistant?.message.content, 'from prompt');
+	});
+
+	test('newSessionWithPrompt push is handled on the service (T2.4)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+		bridge.streamChunks = [[{ role: 'assistant', content: 'ok' }]];
+		const previous = service.sessionId;
+
+		bridge.handlePush({
+			messageType: 'newSessionWithPrompt',
+			messageId: 'nsp-1',
+			data: { prompt: 'pushed prompt' },
+		});
+		await timeout(20);
+
+		assert.notStrictEqual(service.sessionId, previous);
+		assert.ok(service.history.some(item =>
+			item.message.role === 'user'
+			&& typeof item.message.content === 'string'
+			&& item.message.content.includes('pushed prompt'),
+		));
+	});
+
+	test('tools/partialOutput updates live tool output while calling (T4.1)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		const tool = generatedReadTool('tc-live');
+		service.replaceHistory(historyWithGeneratedTool(tool));
+		service.setCalling('tc-live');
+
+		bridge.handlePush({
+			messageType: 'tools/partialOutput',
+			messageId: 'po-1',
+			data: {
+				toolCallId: 'tc-live',
+				contextItems: [{ name: 'Terminal', description: 'Terminal command running', content: 'compiling' }],
+			},
+		});
+		assert.strictEqual(
+			knoxExtractTerminalOutput(service.history.at(-1)?.toolCallState?.output),
+			'compiling',
+		);
+
+		bridge.handlePush({
+			messageType: 'tools/partialOutput',
+			messageId: 'po-2',
+			data: {
+				toolCallId: 'tc-live',
+				contextItems: [{ name: 'Terminal', description: 'Terminal command running', content: 'compiling\ndone' }],
+			},
+		});
+		assert.strictEqual(
+			knoxExtractTerminalOutput(service.history.at(-1)?.toolCallState?.output),
+			'compiling\ndone',
+		);
+		assert.strictEqual(service.history.at(-1)?.toolCallState?.status, 'calling');
 	});
 });
 

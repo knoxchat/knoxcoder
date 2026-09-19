@@ -25,6 +25,8 @@ export interface IKnoxToolUiState {
 	askIndex: Map<string, number>;
 	searchCollapsed: Set<string>;
 	peekExpanded: Set<string>;
+	terminalUnstuck: Set<string>;
+	terminalScrollTop: Map<string, number>;
 }
 
 export function renderKnoxToolWrapper(

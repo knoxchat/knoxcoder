@@ -14,7 +14,7 @@ export class VsCodeWebviewProtocol
   >();
 
   private _onErrorHandlers: ((message: Message, error: Error) => void)[] = [];
-  private _nativeSink?: (msg: Message) => void;
+  private _nativeSink?: (msg: Message) => unknown;
   private readonly _onDidReceiveMessage = new vscode.EventEmitter<Message>();
 
   send(messageType: string, data: any, messageId?: string): string {
@@ -26,7 +26,12 @@ export class VsCodeWebviewProtocol
     };
     this.webview?.postMessage(payload);
     try {
-      this._nativeSink?.(payload);
+      const result = this._nativeSink?.(payload);
+      if (result && typeof (result as Promise<unknown>).then === "function") {
+        void (result as Promise<unknown>).catch((e) => {
+          console.error("webviewProtocol native sink failed", e);
+        });
+      }
     } catch (e) {
       console.error("webviewProtocol native sink failed", e);
     }
@@ -34,10 +39,18 @@ export class VsCodeWebviewProtocol
   }
 
   /**
+   * Complete an IDE → GUI `request()` without dispatching FromWebview handlers.
+   * Used when the native pane answers `getDefaultModelTitle` / `incrementFtc` / …
+   */
+  receiveNativeResponse(msg: Message): void {
+    this._onDidReceiveMessage.fire(msg);
+  }
+
+  /**
    * Core→GUI sink for the native workbench GUI. `send()` posts to this
    * handler so Core `on()` handlers run without a webview (T1.2 / T13.2).
    */
-  setNativeSink(sink: ((msg: Message) => void) | undefined): void {
+  setNativeSink(sink: ((msg: Message) => unknown) | undefined): void {
     this._nativeSink = sink;
   }
 

@@ -129,6 +129,11 @@ export function knoxReadFontSize(config: IKnoxSerializedConfig | undefined): num
 	return knoxClampFontSize(config?.ui?.fontSize);
 }
 
+export function knoxReadPromptPath(config: IKnoxSerializedConfig | undefined): string {
+	const raw = config?.experimental?.promptPath;
+	return typeof raw === 'string' ? raw : '';
+}
+
 export function knoxReadAgentMaxSteps(config: IKnoxSerializedConfig | undefined): number {
 	const profile = knoxResolvedAgentProfileForDefaults(config?.experimental?.agentProfile);
 	const raw = config?.experimental?.agentMaxSteps;

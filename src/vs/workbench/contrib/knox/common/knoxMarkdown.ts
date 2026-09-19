@@ -261,6 +261,10 @@ export function knoxMarkdownCodeWrap(ui: Record<string, unknown> | undefined): b
 	return ui?.codeWrap === true;
 }
 
+export function knoxMarkdownDisplayRaw(ui: Record<string, unknown> | undefined): boolean {
+	return ui?.displayRawMarkdown === true;
+}
+
 export function splitDisplayPath(filepath: string): IKnoxDisplayPath {
 	const clean = filepath.replace(/\\/g, '/').replace(/^\.\//, '');
 	const lastSlash = clean.lastIndexOf('/');

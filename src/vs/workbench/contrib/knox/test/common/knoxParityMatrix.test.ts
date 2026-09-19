@@ -33,11 +33,15 @@ import { knoxToolCardKind } from '../../common/knoxToolCard.js';
 import { KnoxBuiltInToolName } from '../../common/knoxToolNames.js';
 
 /**
- * T12.3 wiring inventory: every Appendix B live surface has a native command,
- * overlay, lump section, tool card, or tab. Live `./scripts/code.sh` still
- * ticks the matrix against a running window.
+ * Wiring inventory only (T12.3) — **not** a parity tick. These assertions
+ * check that command/overlay/tab ids are spelled as registered; they say
+ * nothing about live behavior. Per `knox-native-impl.md` T0.3, behavior
+ * parity lives in `knoxProtocolPayloads.test.ts`, `knoxChatThunks.test.ts`,
+ * `knoxGuiBridge.test.ts`, and the running-window Appendix B pass (T6.3).
+ * Untick [Appendix B](../knox-native-impl.md#appendix-b--parity-matrix) from
+ * string equality here.
  */
-suite('knox Appendix B native wiring (T12.3)', () => {
+suite('knox native id wiring inventory (not a parity tick)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('chat chrome commands exist', () => {

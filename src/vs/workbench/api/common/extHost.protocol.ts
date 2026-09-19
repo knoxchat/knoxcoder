@@ -118,7 +118,11 @@ export interface KnoxGuiMessageDto {
 }
 
 export interface MainThreadKnoxGuiShape extends IDisposable {
-	$push(message: KnoxGuiMessageDto): void;
+	/**
+	 * Core → GUI. Reverse-query handlers return `{ __knoxGuiReply: true, data }`
+	 * so ExtHost can complete `webviewProtocol.request` (T1.2).
+	 */
+	$push(message: KnoxGuiMessageDto): Promise<unknown>;
 }
 
 export interface ExtHostKnoxGuiShape {

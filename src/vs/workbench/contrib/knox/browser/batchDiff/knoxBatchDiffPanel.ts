@@ -7,6 +7,7 @@ import { $, addDisposableListener, append, clearNode } from '../../../../../base
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IKnoxGuiBridge, knoxUnwrapProtocol } from '../../common/knoxGuiProtocol.js';
 import { IKnoxChatService } from '../../common/knoxChatService.js';
+import { knoxApplyStatesFingerprint } from '../../common/knoxApply.js';
 import { knoxNls } from '../../common/knoxI18n.js';
 import {
 	IKnoxBatchDiffFile,
@@ -27,6 +28,7 @@ export class KnoxBatchDiffPanel extends Disposable {
 	private readonly _viewStore = this._register(new DisposableStore());
 	private _files: IKnoxBatchDiffFile[] = [];
 	private _busy = false;
+	private _applyFingerprint = '';
 
 	constructor(
 		parent: HTMLElement,
@@ -37,6 +39,17 @@ export class KnoxBatchDiffPanel extends Disposable {
 		this.element = append(parent, $('.knox-batch-diff'));
 		this.element.setAttribute('role', 'region');
 		this.element.setAttribute('aria-label', knoxNls('batchDiff'));
+		this._applyFingerprint = knoxApplyStatesFingerprint(this._chatService.applyStates);
+		this._register(this._chatService.onDidChange(() => this._onApplyChanged()));
+		void this.refresh();
+	}
+
+	private _onApplyChanged(): void {
+		const next = knoxApplyStatesFingerprint(this._chatService.applyStates);
+		if (next === this._applyFingerprint) {
+			return;
+		}
+		this._applyFingerprint = next;
 		void this.refresh();
 	}
 

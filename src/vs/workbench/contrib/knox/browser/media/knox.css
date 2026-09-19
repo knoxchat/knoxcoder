@@ -135,6 +135,21 @@
 	outline-offset: -1px;
 }
 
+.knox-thread.knox-hide-scrollbar .monaco-scrollable-element > .scrollbar {
+	display: none !important;
+}
+
+mark.knox-find-match {
+	background: var(--vscode-editor-findMatchHighlight, rgba(234, 92, 0, 0.33));
+	color: inherit;
+	border-radius: 2px;
+	padding: 0;
+}
+
+mark.knox-find-match-current {
+	background: var(--vscode-editor-findMatch, rgba(234, 92, 0, 0.66));
+}
+
 .knox-overlay {
 	position: relative;
 	display: flex;
@@ -1550,6 +1565,11 @@
 	border-top: 1px solid var(--vscode-panel-border);
 	font-style: normal;
 	text-align: center;
+}
+
+.knox-reasoning-redacted {
+	color: var(--knox-orange);
+	font-size: 12px;
 }
 
 .knox-timeline-row,
@@ -3253,6 +3273,38 @@ button.knox-lump-tool-badge {
 .knox-historical-chip.knox-slash-chip {
 	color: var(--vscode-textLink-foreground);
 	background: color-mix(in srgb, var(--vscode-textLink-foreground) 16%, transparent);
+}
+
+.knox-user-edit {
+	display: block;
+	width: 100%;
+	min-height: 2.5em;
+	margin: 4px 0 0;
+	padding: 6px 8px;
+	border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+	border-radius: 6px;
+	background: var(--vscode-input-background, var(--vscode-editor-background));
+	color: var(--vscode-input-foreground, var(--vscode-foreground));
+	font: inherit;
+	line-height: 1.45;
+	resize: vertical;
+}
+
+.knox-user-edit:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.knox-raw-markdown {
+	margin: 0;
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-family: var(--vscode-editor-font-family);
+	font-size: inherit;
+}
+
+.knox-input-context-peek {
+	min-width: 0;
 }
 
 .knox-historical-chip-openable {

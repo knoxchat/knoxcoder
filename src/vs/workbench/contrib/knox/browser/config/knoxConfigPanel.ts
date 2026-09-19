@@ -17,6 +17,7 @@ import {
 	knoxReadAgentMaxSteps,
 	knoxReadDoomLoopThreshold,
 	knoxReadFontSize,
+	knoxReadPromptPath,
 	knoxReadUiBoolean,
 	knoxReadViewSubdirectoryMaxFiles,
 	knoxResolveAgentProfileSetting,
@@ -96,6 +97,14 @@ export class KnoxConfigPanel extends Disposable {
 			KNOX_MIN_FONT_SIZE,
 			KNOX_MAX_FONT_SIZE,
 			value => this._update({ fontSize: value }),
+		);
+
+		this._card(knoxNls('workspacePrompts', undefined, 'Workspace prompts', lang));
+		this._text(
+			knoxNls('promptPath', undefined, 'Prompt path', lang),
+			knoxReadPromptPath(config),
+			value => this._update({ promptPath: value }),
+			knoxNls('promptPathHint', undefined, 'Directory of workspace prompt files, relative to the workspace.', lang),
 		);
 
 		this._card(t('agentSettings'));
@@ -195,6 +204,19 @@ export class KnoxConfigPanel extends Disposable {
 			}
 			onChange(next);
 		}));
+	}
+
+	private _text(label: string, value: string, onChange: (value: string) => void, hint?: string): void {
+		const wrap = append(this.element.lastElementChild as HTMLElement, $('label.knox-config-row'));
+		const text = append(wrap, $('div.knox-config-copy'));
+		append(text, $('span')).textContent = label;
+		if (hint) {
+			append(text, $('span.knox-muted')).textContent = hint;
+		}
+		const input = append(wrap, $<HTMLInputElement>('input'));
+		input.type = 'text';
+		input.value = value;
+		this._viewStore.add(addDisposableListener(input, 'change', () => onChange(input.value.trim())));
 	}
 }
 

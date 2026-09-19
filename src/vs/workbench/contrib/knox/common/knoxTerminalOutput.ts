@@ -3,6 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/** GUI `XTermTerminal` treats this many pixels as “still at the bottom”. */
+export const KNOX_TERMINAL_FOLLOW_THRESHOLD = 30;
+
+export function knoxTerminalIsAtBottom(scrollTop: number, scrollHeight: number, clientHeight: number): boolean {
+	return Math.abs(scrollHeight - scrollTop - clientHeight) < KNOX_TERMINAL_FOLLOW_THRESHOLD;
+}
+
+export function knoxTerminalShouldFollow(unstuck: boolean, streaming: boolean): boolean {
+	return streaming && !unstuck;
+}
+
 export function knoxExtractTerminalOutput(
 	items:
 		| readonly { name?: string; description?: string; content?: string }[]

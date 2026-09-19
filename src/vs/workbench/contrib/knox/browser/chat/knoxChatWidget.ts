@@ -10,9 +10,11 @@ import { localize } from '../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import {
 	KNOX_DEFAULT_NATIVE_OVERLAY,
+	knoxFtcShouldPrompt,
 	KnoxNativeOverlay,
 	KnoxScrolledUpContext,
 } from '../../common/knoxChat.js';
@@ -44,12 +46,16 @@ import { KnoxConfigPanel } from '../config/knoxConfigPanel.js';
 import { KnoxConfigErrorPanel } from '../config/knoxConfigErrorPanel.js';
 import { KnoxStatsPanel } from '../config/knoxStatsPanel.js';
 import { KnoxAddModelDialog } from '../models/knoxAddModelPanel.js';
+import { KnoxConfigureProviderPanel } from '../models/knoxConfigureProviderPanel.js';
 import { IKnoxAddModelDialogOptions } from '../../common/knoxAddModel.js';
 import { KnoxBatchDiffPanel } from '../batchDiff/knoxBatchDiffPanel.js';
 import { IKnoxGuiBridge } from '../../common/knoxGuiProtocol.js';
 import { knoxNavigateTarget, knoxToggleNativeOverlay, KNOX_WIDGET_OVERLAYS } from '../../common/knoxNavigate.js';
 import { knoxNls } from '../../common/knoxI18n.js';
-import { knoxReadFontSize } from '../../common/knoxSharedConfig.js';
+import { knoxSubmitBlockedByPendingTool } from '../../common/knoxToolbar.js';
+import { knoxReadFontSize, knoxReadUiBoolean } from '../../common/knoxSharedConfig.js';
+import { renderKnoxToolOutput } from '../tools/knoxToolOutput.js';
+import { IKnoxToolUiState } from '../tools/knoxToolCard.js';
 
 function overlayTitle(overlay: KnoxNativeOverlay, language: 'en' | 'zh' = 'en'): string {
 	const t = (key: string, fallback?: string) => knoxNls(key, undefined, fallback, language);
@@ -109,11 +115,24 @@ export class KnoxChatWidget extends Disposable {
 	private readonly _input: KnoxInputEditor;
 	private readonly _toolbar: KnoxInputToolbar;
 	private readonly _acceptReject: KnoxAcceptRejectAll;
+	private readonly _inputPeek: HTMLElement;
+	private readonly _inputPeekStore = this._register(new DisposableStore());
+	private readonly _inputPeekUi: IKnoxToolUiState = {
+		argsExpanded: new Set(),
+		treeCollapsed: new Set(),
+		treeTab: new Map(),
+		askAnswers: new Map(),
+		askIndex: new Map(),
+		searchCollapsed: new Set(),
+		peekExpanded: new Set(),
+		terminalUnstuck: new Set(),
+		terminalScrollTop: new Map(),
+	};
 	private readonly _overlay: HTMLElement;
 	private readonly _overlayTitle: HTMLElement;
 	private readonly _overlayBody: HTMLElement;
 	private readonly _overlayStore = this._register(new DisposableStore());
-	private _overlayWidget: { kind: KnoxNativeOverlay; refresh(): void } | undefined;
+	private _overlayWidget: { kind: KnoxNativeOverlay; refresh(): void; setProvider?(id: string): void } | undefined;
 	private readonly _addModelDialog: KnoxAddModelDialog;
 	private readonly _instantiationService: IInstantiationService;
 	private readonly _crash: HTMLElement;
@@ -122,6 +141,7 @@ export class KnoxChatWidget extends Disposable {
 	private readonly _scrolledUpKey: IContextKey<boolean>;
 
 	private _overlayKind: KnoxNativeOverlay = KNOX_DEFAULT_NATIVE_OVERLAY;
+	private _configureProviderId: string | undefined;
 	private _lastHeight = 0;
 	private _lastWidth = 0;
 
@@ -142,6 +162,7 @@ export class KnoxChatWidget extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKnoxGuiBridge private readonly _bridge: IKnoxGuiBridge,
+		@IWorkspaceContextService private readonly _workspace: IWorkspaceContextService,
 	) {
 		super();
 		this._instantiationService = instantiationService;
@@ -185,8 +206,14 @@ export class KnoxChatWidget extends Disposable {
 		const inputContainer = append(this._inputChrome, $('.knox-input-container'));
 		const overflowWidgets = append(this.element, $('.knox-input-overflow'));
 		this._input = this._register(instantiationService.createInstance(KnoxInputEditor, inputContainer, overflowWidgets));
-		this._register(this._input.onDidFocus(() => this._onDidFocusInput.fire()));
-		this._register(this._input.onDidBlur(() => this._onDidBlurInput.fire()));
+		this._register(this._input.onDidFocus(() => {
+			this._chatService.setKnoxInputFocused(true);
+			this._onDidFocusInput.fire();
+		}));
+		this._register(this._input.onDidBlur(() => {
+			this._chatService.setKnoxInputFocused(false);
+			this._onDidBlurInput.fire();
+		}));
 		this._register(this._input.onDidChangeHeight(() => this._layoutThread()));
 		this._register(this._input.onDidSubmit(modifiers => void this._onPrimaryAction(modifiers)));
 		this._register(this._input.onDidCancelStream(() => void this._chatService.cancelStream()));
@@ -202,6 +229,7 @@ export class KnoxChatWidget extends Disposable {
 		this._register(this._toolbar.onDidScrollToBottom(() => this.scrollToBottom()));
 		this._acceptReject = this._register(instantiationService.createInstance(KnoxAcceptRejectAll, this._inputChrome));
 		this._register(this._acceptReject.onDidChangeHeight(() => this._layoutThread()));
+		this._inputPeek = append(this._inputChrome, $('.knox-input-context-peek'));
 
 		this._overlay = append(this.element, $('.knox-overlay.hidden'));
 		this._overlay.setAttribute('role', 'region');
@@ -229,6 +257,7 @@ export class KnoxChatWidget extends Disposable {
 
 		this._register(this._chatService.onDidChange(() => this._find.refresh()));
 		this._register(this._chatService.onDidChange(() => this._syncConfigChrome()));
+		this._register(this._chatService.onDidChange(() => this._syncInputPeek()));
 		this._register(this._chatService.onDidStreamError(error => void this._showStreamError(error)));
 		this._register(this._bridge.onDidReceivePush(message => this._handleIdeEvent(message.messageType, message.data)));
 		this._register(this._threadList.onDidChangeScroll(state => {
@@ -245,6 +274,7 @@ export class KnoxChatWidget extends Disposable {
 
 		this._renderOverlay();
 		this._syncConfigChrome();
+		this._syncInputPeek();
 	}
 
 	get overlay(): KnoxNativeOverlay {
@@ -279,6 +309,11 @@ export class KnoxChatWidget extends Disposable {
 
 	isInputFocused(): boolean {
 		return this._input.hasFocus();
+	}
+
+	/** False while a generated tool waits for approval (GUI `sendInput` guard). */
+	canSubmitInput(): boolean {
+		return !knoxSubmitBlockedByPendingTool(this._chatService.history);
 	}
 
 	clearInput(): void {
@@ -324,8 +359,22 @@ export class KnoxChatWidget extends Disposable {
 	}
 
 	showOverlay(overlay: KnoxNativeOverlay, options?: { provider?: string }): void {
-		if (overlay === 'addModel' || overlay === 'configureProvider') {
+		if (overlay !== 'chat') {
+			this._chatService.setKnoxInputFocused(false);
+		}
+		if (overlay === 'addModel') {
 			this.openAddModelDialog();
+			return;
+		}
+		if (overlay === 'configureProvider') {
+			this._configureProviderId = options?.provider;
+			if (this._overlayKind === overlay) {
+				this._renderOverlay();
+				return;
+			}
+			this._overlayKind = overlay;
+			this._renderOverlay();
+			this._onDidChangeOverlay.fire(overlay);
 			return;
 		}
 		if (this._overlayKind === overlay) {
@@ -395,6 +444,9 @@ export class KnoxChatWidget extends Disposable {
 			return;
 		}
 		if (this._overlayWidget?.kind === this._overlayKind) {
+			if (this._overlayKind === 'configureProvider' && this._configureProviderId) {
+				this._overlayWidget.setProvider?.(this._configureProviderId);
+			}
 			this._overlayWidget.refresh();
 			return;
 		}
@@ -427,8 +479,21 @@ export class KnoxChatWidget extends Disposable {
 			this._overlayWidget = { kind: 'configError', refresh: () => widget.refresh() };
 			return;
 		}
-		if (this._overlayKind === 'addModel' || this._overlayKind === 'configureProvider') {
+		if (this._overlayKind === 'addModel') {
 			this.openAddModelDialog();
+			return;
+		}
+		if (this._overlayKind === 'configureProvider') {
+			const widget = this._overlayStore.add(this._instantiationService.createInstance(KnoxConfigureProviderPanel, this._overlayBody));
+			if (this._configureProviderId) {
+				widget.setProvider(this._configureProviderId);
+			}
+			this._overlayStore.add(widget.onDidAddModel(() => this.showOverlay('chat')));
+			this._overlayWidget = {
+				kind: 'configureProvider',
+				refresh: () => widget.refresh(),
+				setProvider: id => widget.setProvider(id),
+			};
 			return;
 		}
 		if (this._overlayKind === 'batchDiff') {
@@ -443,8 +508,28 @@ export class KnoxChatWidget extends Disposable {
 		}
 	}
 
+	private _syncInputPeek(): void {
+		this._inputPeekStore.clear();
+		clearNode(this._inputPeek);
+		const gathering = this._chatService.history.some(item => item.isGatheringContext);
+		if (!gathering) {
+			return;
+		}
+		renderKnoxToolOutput(
+			this._inputPeek,
+			{ message: { role: 'user', content: '', id: 'input-peek' }, contextItems: [] },
+			this._inputPeekUi,
+			this._bridge,
+			this._workspace,
+			this._inputPeekStore,
+			() => this._layoutThread(),
+			{ gathering: true, peekKey: 'input' },
+		);
+	}
+
 	private _syncConfigChrome(): void {
 		this.element.style.fontSize = `${knoxReadFontSize(this._chatService.config)}px`;
+		this._threadList.setShowScrollbar(knoxReadUiBoolean(this._chatService.config, 'showChatScrollbar'));
 		const fatal = this._chatService.hasFatalConfigError && this._overlayKind !== 'configError';
 		this._fatal.classList.toggle('hidden', !fatal);
 		if (fatal) {
@@ -465,8 +550,14 @@ export class KnoxChatWidget extends Disposable {
 			this.showOverlay(knoxToggleNativeOverlay(this._overlayKind, target.overlay, payload.toggle === true), { provider: target.provider });
 			return;
 		}
-		if (messageType === 'addModel') {
+		if (messageType === 'addModel' || messageType === 'addApiKey') {
 			this.openAddModelDialog();
+			return;
+		}
+		if (messageType === 'newSessionWithPrompt') {
+			this.showOverlay('chat');
+			this._input.clear();
+			this._input.focus();
 			return;
 		}
 		if (messageType === 'userInput' && data && typeof data === 'object') {
@@ -474,26 +565,44 @@ export class KnoxChatWidget extends Disposable {
 			if (typeof input === 'string' && input) {
 				this.showOverlay('chat');
 				this._input.appendText(input);
-				this._input.submit({ noContext: true });
+				if (this.canSubmitInput()) {
+					this._input.submit({ noContext: true });
+				}
 			}
 			return;
 		}
 		if (messageType === 'highlightedCode' && data && typeof data === 'object') {
 			const payload = data as {
-				rangeInFileWithContents?: { filepath?: string };
+				rangeInFileWithContents?: {
+					filepath?: string;
+					contents?: string;
+					description?: string;
+					range?: { start: { line: number; character: number }; end: { line: number; character: number } };
+				};
 				prompt?: string;
 				shouldRun?: boolean;
 			};
-			const filepath = payload.rangeInFileWithContents?.filepath;
+			const rif = payload.rangeInFileWithContents;
 			this.showOverlay('chat');
-			if (filepath) {
-				this._input.insertFileMention(filepath);
+			if (rif?.filepath) {
+				// GUI `highlightedCode` inserts a code block carrying the snippet
+				// (`rifWithContentsToContextItem`). File-mention-only drops the
+				// contents and is a regression.
+				const basename = rif.filepath.split(/[\\/]/).pop() || rif.filepath;
+				this._input.insertCodeBlock({
+					id: rif.filepath,
+					name: rif.description ?? basename,
+					description: rif.description,
+					filepath: rif.filepath,
+					content: rif.contents ?? '',
+					range: rif.range,
+				});
 			}
 			if (payload.prompt) {
 				this._input.appendText(payload.prompt);
 			}
 			this._input.focus();
-			if (payload.shouldRun) {
+			if (payload.shouldRun && this.canSubmitInput()) {
 				this._input.submit({ noContext: true });
 			}
 		}
@@ -507,6 +616,12 @@ export class KnoxChatWidget extends Disposable {
 		if (knoxIsEditModeAndNoCodeToEdit(this._chatService.mode, this._chatService.codeToEdit)) {
 			return;
 		}
+		// GUI `Chat.tsx` `sendInput`: a generated tool is waiting for approval;
+		// do not start a second turn.
+		if (knoxSubmitBlockedByPendingTool(this._chatService.history)) {
+			this._chatService.showToast('warning', knoxNls('cannotSubmitWhileAwaitingTool', undefined, undefined, this._chatService.language));
+			return;
+		}
 		const text = this._input.getValue().trim();
 		const images = this._input.getImages();
 		if (!text && !images.length) {
@@ -517,11 +632,16 @@ export class KnoxChatWidget extends Disposable {
 		}
 		const mentions = this._input.getMentions();
 		const slashCommands = this._input.getSlashCommands();
+		const codeBlocks = this._input.getCodeBlocks();
 		const content: IKnoxMessageContent = knoxMessageContentWithImages(text, images);
 		this._input.clear();
 		this._threadList.setStickToBottom(true);
 		this.showOverlay('chat');
-		const editorState = { mentions, slashCommands };
+		const count = this._chatService.incrementFtc();
+		if (knoxFtcShouldPrompt(count)) {
+			void this._dialogService.info(knoxNls('ftcThanksTitle'), knoxNls('ftcThanks'));
+		}
+		const editorState = { mentions, slashCommands, codeBlocks };
 		try {
 			if (knoxIsSingleRangeEditOrInsertion(this._chatService.mode, this._chatService.codeToEdit) && this._chatService.codeToEdit.length) {
 				await this._chatService.sendEditPrompt({ content, modifiers, editorState });

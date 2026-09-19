@@ -13,12 +13,17 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IKnoxContextItem, IKnoxToolCallState } from '../../common/knoxChatTypes.js';
 import { IKnoxGuiBridge } from '../../common/knoxGuiProtocol.js';
-import { knoxExtractTerminalOutput } from '../../common/knoxTerminalOutput.js';
+import {
+	knoxExtractTerminalOutput,
+	knoxTerminalIsAtBottom,
+	knoxTerminalShouldFollow,
+} from '../../common/knoxTerminalOutput.js';
 import {
 	knoxTerminalCommandIsRunnable,
 	knoxTerminalCommandLabel,
 	knoxToolIsStreaming,
 } from '../../common/knoxToolCard.js';
+import { IKnoxToolUiState } from './knoxToolCard.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 
 const colorAttrRe = /^\x1b\[([0-9;]+)m$/;
@@ -35,6 +40,8 @@ export function renderKnoxTerminalCard(
 		codeWrap: boolean;
 	},
 	store: DisposableStore,
+	ui?: IKnoxToolUiState,
+	toolId?: string,
 ): void {
 	const command = knoxTerminalCommandLabel(state.toolCall.function.name, state.parsedArgs);
 	const output = knoxExtractTerminalOutput(outputItems) || knoxExtractTerminalOutput(state.output);
@@ -119,6 +126,40 @@ export function renderKnoxTerminalCard(
 	} else if (streaming) {
 		append(body, $('div.knox-term-output.knox-term-waiting')).textContent = localize('knox.running', "Running");
 	}
+
+	if (ui && toolId) {
+		followTerminalOutput(body, streaming, ui, toolId, store);
+	}
+}
+
+function followTerminalOutput(
+	body: HTMLElement,
+	streaming: boolean,
+	ui: IKnoxToolUiState,
+	toolId: string,
+	store: DisposableStore,
+): void {
+	const restore = (): void => {
+		if (knoxTerminalShouldFollow(ui.terminalUnstuck.has(toolId), streaming)) {
+			body.scrollTop = body.scrollHeight;
+			ui.terminalScrollTop.set(toolId, body.scrollTop);
+			return;
+		}
+		const top = ui.terminalScrollTop.get(toolId);
+		if (typeof top === 'number') {
+			body.scrollTop = top;
+		}
+	};
+	restore();
+	queueMicrotask(restore);
+	store.add(addDisposableListener(body, 'scroll', () => {
+		ui.terminalScrollTop.set(toolId, body.scrollTop);
+		if (knoxTerminalIsAtBottom(body.scrollTop, body.scrollHeight, body.clientHeight)) {
+			ui.terminalUnstuck.delete(toolId);
+		} else {
+			ui.terminalUnstuck.add(toolId);
+		}
+	}));
 }
 
 async function openKnoxToolOutputInTerminal(

@@ -231,6 +231,21 @@ export function applySubmitEditorAndInitAtIndex(
 	state.isStreaming = true;
 }
 
+/**
+ * GUI `sessionSlice.deleteMessage`: remove the assistant at `index` and the
+ * previous user turn (`splice(index - 1, 2)`).
+ */
+export function applyDeleteMessage(state: IKnoxChatSessionState, index: number): void {
+	if (index < 0 || index >= state.history.length) {
+		return;
+	}
+	if (index >= 1) {
+		state.history.splice(index - 1, 2);
+	} else {
+		state.history.splice(0, 1);
+	}
+}
+
 export function applyStreamUpdate(state: IKnoxChatSessionState, messages: IKnoxChatMessage[]): void {
 	if (!state.history.length) {
 		return;

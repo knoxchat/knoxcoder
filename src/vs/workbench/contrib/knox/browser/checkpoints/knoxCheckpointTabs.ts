@@ -111,6 +111,9 @@ export class KnoxCheckpointTimelineView extends Disposable {
 			const branch = branches.find(b => b.id === item.branchId);
 			append(meta, $('span')).textContent = branch?.name ?? item.branchId;
 		}
+		if (item.parentId) {
+			append(meta, $('span')).textContent = localize('knox.parentCheckpoint', "parent {0}", item.parentId.slice(0, 8));
+		}
 		const actions = append(row, $('.knox-history-actions'));
 		this._icon(actions, 'git-branch', localize('knox.branch', "Branch"), () => void this._createBranch(item.id));
 		this._icon(actions, 'rotate-ccw', localize('knox.restore', "Restore"), () => this._list.openRestore(item.id));

@@ -21,11 +21,16 @@ export const IExtHostKnoxGui = createDecorator<IExtHostKnoxGui>('IExtHostKnoxGui
 interface IKnoxNativeGuiApi {
 	request(messageType: string, data: unknown, messageId: string): unknown;
 	post(messageType: string, data: unknown, messageId: string): Promise<void> | void;
-	setPushHandler(handler: (message: KnoxGuiMessageDto) => void): void;
+	setPushHandler(handler: (message: KnoxGuiMessageDto) => unknown): void;
+	respond?(messageType: string, data: unknown, messageId: string): void;
 }
 
 interface IKnoxExtensionExports {
 	nativeGui?: IKnoxNativeGuiApi;
+}
+
+function isKnoxGuiReverseReply(value: unknown): value is { __knoxGuiReply: true; data: unknown } {
+	return !!value && typeof value === 'object' && (value as { __knoxGuiReply?: unknown }).__knoxGuiReply === true && 'data' in (value as object);
 }
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
@@ -95,7 +100,17 @@ export class ExtHostKnoxGui extends Disposable implements IExtHostKnoxGui {
 				return;
 			}
 			this._pushAttached = true;
-			api.setPushHandler(msg => this._proxy.$push(msg));
+			api.setPushHandler(async msg => {
+				try {
+					const result = await this._proxy.$push(msg);
+					if (isKnoxGuiReverseReply(result)) {
+						api.respond?.(msg.messageType, result.data, msg.messageId);
+					}
+				} catch (err) {
+					this._logService.error('[ExtHostKnoxGui] reverse RPC $push failed', err);
+					api.respond?.(msg.messageType, undefined, msg.messageId);
+				}
+			});
 		} catch (err) {
 			this._logService.debug('[ExtHostKnoxGui] native push sink not attached', err);
 		}

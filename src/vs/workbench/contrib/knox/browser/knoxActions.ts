@@ -294,7 +294,11 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const chatService = accessor.get(IKnoxChatService);
 		const pane = await openNativePane(accessor, true);
+		// GUI `focusKnoxInput`: persist-if-history + clear code-to-edit, same session.
+		await chatService.focusKnoxInput();
+		pane?.showOverlay('chat');
 		pane?.focusInput();
 	}
 });
@@ -684,6 +688,11 @@ registerAction2(class extends Action2 {
 		}
 		const pane = await openNativePane(accessor, true);
 		pane?.showOverlay('chat');
+		// GUI `Chat.tsx` `sendInput`: a generated tool waits for approval; do not
+		// start a second turn from the command path either.
+		if (!pane?.canSubmitInput()) {
+			return;
+		}
 		await accessor.get(IKnoxChatService).streamResponse({ content: text, modifiers: { noContext: true } });
 	}
 });

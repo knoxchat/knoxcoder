@@ -9,6 +9,8 @@ import type { IKnoxContextItem } from '../../common/knoxChatTypes.js';
 import type { IKnoxMentionChip } from '../../common/knoxMentions.js';
 import {
 	IKnoxGetContextItemsRequest,
+	knoxCodeBlockInPrompt,
+	knoxFileExtension,
 	knoxFullInputForContext,
 	knoxHasSlashCommandOrContextProvider,
 	knoxParseDefaultContextProviders,
@@ -236,5 +238,76 @@ suite('knox resolveInput (T4.6)', () => {
 		assert.strictEqual(knoxHasSlashCommandOrContextProvider({
 			mentions: [mention({ id: 'file:///ws/a.ts', label: 'a.ts', itemType: 'file' })],
 		}), false);
+	});
+
+	test('highlighted code block inlines its contents into the prompt (T1.4)', async () => {
+		const { calls, requestContextItems } = mockRequest();
+		const result = await knoxResolveInput({
+			content: 'explain this',
+			editorState: {
+				codeBlocks: [{
+					filepath: 'file:///ws/src/a.ts',
+					content: 'export const a = 1;',
+					description: 'src/a.ts (1-1)',
+					range: { start: { line: 0, character: 0 }, end: { line: 0, character: 18 } },
+				}],
+			},
+			defaultContextProviders: [],
+			selectedModelTitle: 'gpt',
+			requestContextItems,
+		});
+
+		assert.strictEqual(calls.length, 0);
+		assert.ok(
+			typeof result.content === 'string' && result.content.includes('export const a = 1;'),
+			'highlighted-code contents must be in the prompt',
+		);
+		assert.ok(
+			typeof result.content === 'string' && result.content.includes('```ts src/a.ts (1-1)'),
+			'the fenced block must carry the language and range description',
+		);
+		assert.ok(typeof result.content === 'string' && result.content.endsWith('explain this'));
+		assert.strictEqual(result.selectedCode.length, 1);
+		assert.strictEqual(result.selectedCode[0].filepath, 'file:///ws/src/a.ts');
+		assert.strictEqual(result.selectedCode[0].contents, 'export const a = 1;');
+	});
+
+	test('highlighted code without contents still sends a path with an empty fence (T1.4)', async () => {
+		const { requestContextItems } = mockRequest();
+		const result = await knoxResolveInput({
+			content: '',
+			editorState: {
+				codeBlocks: [{ filepath: 'file:///ws/a.ts', content: '' }],
+			},
+			defaultContextProviders: [],
+			selectedModelTitle: 'gpt',
+			requestContextItems,
+		});
+		assert.ok(typeof result.content === 'string' && result.content.includes('```ts'));
+		assert.strictEqual(result.selectedCode[0].filepath, 'file:///ws/a.ts');
+	});
+
+	test('knoxCodeBlockInPrompt fences with the file extension and description', () => {
+		assert.strictEqual(
+			knoxCodeBlockInPrompt({ filepath: 'file:///ws/src/main.rs', content: 'fn main() {}', description: 'src/main.rs (1-1)' }),
+			'\n\n```rs src/main.rs (1-1)\nfn main() {}\n```',
+		);
+		assert.strictEqual(knoxFileExtension('file:///ws/noext'), '');
+		assert.strictEqual(knoxFileExtension('file:///ws/a.ts'), 'ts');
+	});
+
+	test('false-positive highlightedCode payloads (file only) no longer send a bare mention (T1.4)', async () => {
+		const { requestContextItems } = mockRequest();
+		// A file-mention-only regression would rely on a mention chip; codeBlocks
+		// must instead carry the snippet into the prompt.
+		const result = await knoxResolveInput({
+			content: 'fix',
+			editorState: { mentions: [], codeBlocks: [] },
+			defaultContextProviders: [],
+			selectedModelTitle: 'gpt',
+			requestContextItems,
+		});
+		assert.strictEqual(result.content, 'fix');
+		assert.deepStrictEqual(result.selectedCode, []);
 	});
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, clearNode } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append } from '../../../../../base/browser/dom.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -41,6 +41,7 @@ export class KnoxInjectedMemoriesPanel extends Disposable {
 
 	private readonly _panel: KnoxAttachedPanel;
 	private readonly _dismiss: HTMLButtonElement;
+	private readonly _restoreBanner: HTMLElement;
 	private readonly _contentStore = this._register(new DisposableStore());
 	private readonly _hoverStore = this._register(new DisposableStore());
 	private _memoryMode = 'summarized';
@@ -60,6 +61,8 @@ export class KnoxInjectedMemoriesPanel extends Disposable {
 		super();
 		this._panel = this._register(new KnoxAttachedPanel(parent, 'injected-memories-panel'));
 		this._panel.setIcon('lucide-brain');
+		this._restoreBanner = append(this._panel.body, $('.knox-restore-notice.hidden'));
+		this._restoreBanner.setAttribute('role', 'status');
 		this._dismiss = append(this._panel.extra, $<HTMLButtonElement>('button.knox-attached-dismiss'));
 		this._dismiss.type = 'button';
 		this._dismiss.setAttribute('aria-label', localize('knox.memoryInjectDismiss', "Dismiss"));
@@ -80,6 +83,29 @@ export class KnoxInjectedMemoriesPanel extends Disposable {
 		this._render();
 	}
 
+	private _clearBody(): void {
+		for (const child of Array.from(this._panel.body.children)) {
+			if (child !== this._restoreBanner) {
+				child.remove();
+			}
+		}
+	}
+
+	/** Render the pending workspace-restore notice (T2.1). */
+	private _renderRestoreNotice(): void {
+		const notice = this._chatService.restoreNotice;
+		if (!notice) {
+			this._restoreBanner.classList.add('hidden');
+			this._restoreBanner.textContent = '';
+			return;
+		}
+		this._restoreBanner.classList.remove('hidden');
+		this._restoreBanner.textContent = localize(
+			'knox.workspaceRestoreNotice',
+			"Workspace restored — the model will be reminded to re-read files before editing.",
+		);
+	}
+
 	private async _loadMemoryMode(): Promise<void> {
 		try {
 			const content = unwrapContent(await this._bridge.request('brain/getConfig', undefined));
@@ -94,9 +120,18 @@ export class KnoxInjectedMemoriesPanel extends Disposable {
 		this._contentStore.clear();
 		this._hoverStore.clear();
 		const items = this._chatService.injectedMemories;
+		const restoreNotice = this._chatService.restoreNotice;
 		this._lastCount = items.length;
-		if (!items.length) {
+		if (!items.length && !restoreNotice) {
 			this._panel.setVisible(false);
+			return;
+		}
+		this._panel.setVisible(true);
+		this._renderRestoreNotice();
+		if (!items.length) {
+			// Restore banner only; nothing else to list.
+			this._panel.title.textContent = localize('knox.workspaceRestoredTitle', "Workspace restored");
+			this._clearBody();
 			return;
 		}
 		this._panel.setVisible(true);
@@ -108,7 +143,7 @@ export class KnoxInjectedMemoriesPanel extends Disposable {
 		const { visible, collapsed } = knoxPartitionInjectedMemories(items, this._memoryMode);
 		const rendered = this._showLowScoring ? [...visible, ...collapsed] : visible;
 
-		clearNode(this._panel.body);
+		this._clearBody();
 		for (const item of rendered) {
 			this._renderItem(item);
 		}

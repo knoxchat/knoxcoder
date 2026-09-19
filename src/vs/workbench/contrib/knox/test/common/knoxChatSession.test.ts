@@ -238,4 +238,18 @@ suite('tool state machine', () => {
 		service.setLastInjectedMemories(service.injectedMemories.filter(item => item.id !== 2));
 		assert.strictEqual(service.injectedMemories.length, 1);
 	});
+
+	test('deleteMessage splices the previous user with the assistant (T2.5)', () => {
+		const { service } = createKnoxChatServiceForTest(store);
+		service.replaceHistory([
+			userItem('first', 'u1'),
+			assistantItem('ok', { id: 'a1' }),
+			userItem('second', 'u2'),
+			assistantItem('later', { id: 'a2' }),
+		]);
+		service.deleteMessage(3);
+		assert.deepStrictEqual(service.history.map(item => item.message.id), ['u1', 'a1']);
+		service.deleteMessage(1);
+		assert.strictEqual(service.history.length, 0);
+	});
 });
