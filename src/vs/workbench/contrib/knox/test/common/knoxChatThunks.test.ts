@@ -160,6 +160,72 @@ suite('KnoxChatService thunks', () => {
 		assert.strictEqual(findTool(service, 'tc1')?.status, 'done');
 	});
 
+	test('jev off does not request jev/gateTool (T9.1)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+		const tool = generatedReadTool();
+		service.replaceHistory(historyWithGeneratedTool(tool));
+		bridge.handlers.set('tools/call', () => ({
+			status: 'success',
+			content: { contextItems: [{ name: 'file', description: 'a.ts', content: 'ok' }] },
+		}));
+		bridge.streamChunks = [[{ role: 'assistant', content: 'done' }]];
+		await service.callTool({ toolCallId: 'tc1' });
+		assert.ok(!bridge.requests.some(item => item.messageType === 'jev/gateTool'));
+		assert.ok(bridge.requests.some(item => item.messageType === 'tools/call'));
+	});
+
+	test('jev deny skips tools/call and writes jev-denied (T9.1)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+		const config = (service as unknown as { _config: { experimental?: Record<string, unknown> } })._config;
+		(service as unknown as { _config: unknown })._config = {
+			...config,
+			experimental: { ...config?.experimental, jev: { enabled: true } },
+		};
+		const tool = generatedReadTool();
+		service.replaceHistory(historyWithGeneratedTool(tool));
+		bridge.handlers.set('jev/gateTool', () => ({
+			status: 'success',
+			content: { action: 'deny', reason: 'not relevant', source: 'jev' },
+		}));
+		bridge.handlers.set('tools/call', () => {
+			throw new Error('should not call');
+		});
+		bridge.streamChunks = [[{ role: 'assistant', content: 'done' }]];
+		await service.callTool({ toolCallId: 'tc1' });
+		assert.ok(bridge.requests.some(item => item.messageType === 'jev/gateTool'));
+		assert.ok(!bridge.requests.some(item => item.messageType === 'tools/call'));
+		const output = findTool(service, 'tc1')?.output?.[0];
+		assert.strictEqual(output?.description, 'jev-denied');
+		assert.ok(output?.content.includes('not relevant'));
+		assert.strictEqual(findTool(service, 'tc1')?.status, 'done');
+	});
+
+	test('jev IPC throw still allows tools/call (T9.1)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		await service.loadConfig();
+		const config = (service as unknown as { _config: { experimental?: Record<string, unknown> } })._config;
+		(service as unknown as { _config: unknown })._config = {
+			...config,
+			experimental: { ...config?.experimental, jev: { enabled: true } },
+		};
+		const tool = generatedReadTool();
+		service.replaceHistory(historyWithGeneratedTool(tool));
+		bridge.handlers.set('jev/gateTool', () => {
+			throw new Error('jev down');
+		});
+		bridge.handlers.set('tools/call', () => ({
+			status: 'success',
+			content: { contextItems: [{ name: 'file', description: 'a.ts', content: 'ok' }] },
+		}));
+		bridge.streamChunks = [[{ role: 'assistant', content: 'done' }]];
+		await service.callTool({ toolCallId: 'tc1' });
+		assert.ok(bridge.requests.some(item => item.messageType === 'jev/gateTool'));
+		assert.ok(bridge.requests.some(item => item.messageType === 'tools/call'));
+		assert.strictEqual(findTool(service, 'tc1')?.status, 'done');
+	});
+
 	test('callTool blocks when maxSteps is already reached', async () => {
 		const { service, bridge } = createKnoxChatServiceForTest(store);
 		await service.loadConfig();
@@ -927,6 +993,36 @@ suite('KnoxChatService thunks', () => {
 			'compiling\ndone',
 		);
 		assert.strictEqual(service.history.at(-1)?.toolCallState?.status, 'calling');
+	});
+
+	test('loadSession sets a dismissible large-session banner (T8.2)', async () => {
+		const { service, bridge } = createKnoxChatServiceForTest(store);
+		const full = 'z'.repeat(32_000 + 500);
+		bridge.handlers.set('history/load', () => ({
+			status: 'success',
+			content: {
+				sessionId: 'big-1',
+				title: 'Big',
+				workspaceDirectory: '/tmp/ws',
+				history: [{
+					message: { role: 'tool', content: full, toolCallId: 'c1' },
+					contextItems: [{ name: 'Terminal', description: 'out', content: full }],
+				}],
+			},
+		}));
+
+		await service.loadSession('big-1');
+		assert.strictEqual(service.sessionId, 'big-1');
+		assert.strictEqual(service.historyHydrateNotice, 'large');
+		assert.strictEqual(service.isLoadingHistory, false);
+		assert.strictEqual(service.history[0].message.content, full);
+		assert.ok((service.history[0].contextItems[0].content as string).length < full.length);
+
+		service.dismissHistoryHydrateNotice();
+		assert.strictEqual(service.historyHydrateNotice, null);
+
+		service.newSession();
+		assert.strictEqual(service.historyHydrateNotice, null);
 	});
 });
 

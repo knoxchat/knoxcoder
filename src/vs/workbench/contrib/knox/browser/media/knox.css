@@ -26,14 +26,46 @@
 	min-height: 0;
 }
 
+.knox-history-loading {
+	padding: 8px 12px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+}
+
+.knox-large-session-banner {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 8px;
+	margin: 4px 12px 2px 12px;
+	padding: 6px 8px;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--knox-cyan) 12%, transparent);
+	font-size: 12px;
+}
+
+.knox-large-session-banner-hide {
+	flex-shrink: 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	text-decoration: underline;
+	cursor: pointer;
+	padding: 0;
+	font-size: inherit;
+}
+
 .knox-chat-body.hidden,
 .knox-overlay.hidden,
 .knox-thread-empty.hidden,
+.knox-history-loading.hidden,
+.knox-large-session-banner.hidden,
 .knox-icon-button.hidden,
 .knox-turn-meter.hidden,
 .knox-turn-meter-chevron.hidden,
 .knox-turn-meter-loading.hidden,
 .knox-turn-meter-count.hidden,
+.knox-turn-meter-jev.hidden,
 .knox-turn-meter-steps.hidden,
 .knox-progress.hidden,
 .knox-autonomous-banner.hidden,
@@ -93,12 +125,49 @@
 
 .knox-thread {
 	position: relative;
+	display: flex;
+	flex-direction: column;
 	flex: 1;
 	min-height: 0;
 	outline: none;
 }
 
-.knox-thread .monaco-list {
+.knox-sticky-last-user {
+	position: relative;
+	z-index: 2;
+	flex-shrink: 0;
+	min-width: 0;
+	max-height: min(40vh, 320px);
+	overflow-x: hidden;
+	overflow-y: auto;
+	padding: 8px 10px 0 10px;
+	background: var(--vscode-sideBar-background);
+}
+
+.knox-sticky-last-user.hidden {
+	display: none;
+}
+
+.knox-sticky-last-user-fade {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 100%;
+	height: 40px;
+	pointer-events: none;
+	z-index: 1;
+	background: linear-gradient(
+		to bottom,
+		var(--vscode-sideBar-background) 0%,
+		color-mix(in srgb, var(--vscode-sideBar-background) 70%, transparent) 45%,
+		transparent 100%
+	);
+}
+
+.knox-thread > .monaco-list {
+	flex: 1 1 0;
+	min-height: 0;
+	width: 100%;
 	background: transparent;
 	/* Workbench lists default to nowrap; GUI Chat wraps streaming markdown. */
 	white-space: normal;
@@ -385,6 +454,26 @@ mark.knox-find-match-current {
 	box-sizing: border-box;
 	padding: 6px 2px 8px 2px;
 	white-space: normal;
+}
+
+.knox-load-earlier-row {
+	padding: 4px 10px 8px 10px;
+}
+
+.knox-load-earlier {
+	display: inline-block;
+	margin: 0;
+	padding: 4px 0;
+	border: none;
+	background: transparent;
+	color: var(--knox-cyan);
+	font-size: 12px;
+	cursor: pointer;
+	text-align: left;
+}
+
+.knox-load-earlier:hover {
+	text-decoration: underline;
 }
 
 .knox-thread-spacer {
@@ -2192,6 +2281,11 @@ mark.knox-find-match-current {
 	color: var(--knox-orange);
 }
 
+.knox-turn-meter-jev {
+	color: var(--knox-cyan);
+	white-space: nowrap;
+}
+
 .knox-turn-meter-steps {
 	max-height: 38vh;
 	overflow-y: auto;
@@ -3325,13 +3419,22 @@ button.knox-lump-tool-badge {
 }
 
 .knox-overlay-back {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
 	border: none;
 	background: transparent;
-	color: var(--vscode-textLink-foreground);
+	color: var(--knox-cyan);
 	cursor: pointer;
 	padding: 2px 4px;
 	font-family: inherit;
 	font-size: inherit;
+}
+
+.knox-overlay-back .knox-gui-icon {
+	width: 12px;
+	height: 12px;
+	flex-shrink: 0;
 }
 
 .knox-overlay-back:hover {
@@ -4151,6 +4254,29 @@ button.knox-lump-tool-badge {
 	font-size: 11px;
 }
 
+.knox-code-window-footer {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 8px 8px 8px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-code-window-more {
+	border: none;
+	background: transparent;
+	color: var(--knox-cyan);
+	cursor: pointer;
+	padding: 0;
+	font-family: inherit;
+	font-size: inherit;
+}
+
+.knox-code-window-more:hover {
+	text-decoration: underline;
+}
+
 .knox-code-pre {
 	margin: 0;
 	padding: 8px;
@@ -4294,6 +4420,37 @@ button.knox-lump-tool-badge {
 	min-width: 0;
 }
 
+.knox-tool-header-collapsible {
+	cursor: pointer;
+}
+
+.knox-tool-summary {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 8px;
+	width: 100%;
+	margin: 0;
+	padding: 4px 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+	text-align: left;
+	font-family: inherit;
+	font-size: 12px;
+}
+
+.knox-tool-summary-name {
+	font-weight: 600;
+	color: var(--knox-cyan);
+}
+
+.knox-tool-summary-detail,
+.knox-tool-summary-result {
+	color: var(--vscode-descriptionForeground);
+}
+
 .knox-tool-header-left {
 	display: flex;
 	align-items: flex-start;
@@ -4418,6 +4575,12 @@ button.knox-lump-tool-badge {
 	font-weight: 600;
 	font-size: 11px;
 	color: var(--knox-cyan);
+	white-space: nowrap;
+}
+
+.knox-term-truncated {
+	opacity: 0.7;
+	font-weight: 400;
 	white-space: nowrap;
 }
 

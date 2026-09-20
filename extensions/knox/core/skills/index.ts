@@ -50,5 +50,6 @@ export { buildSkillToolDescription } from "./descriptionBuilder";
 export {
   matchSkillsByIntent,
   formatMatchedSkillsHint,
+  formatJevSkillHint,
 } from "./skillMatcher";
 export type { SkillMatch } from "./skillMatcher";

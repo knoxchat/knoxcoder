@@ -54,6 +54,7 @@ export interface IKnoxSharedConfig {
 	agentPolicyCommands?: string;
 	agentPolicyExternalDirectory?: 'deny' | 'ask' | 'allow';
 	agentPolicySandboxDestructive?: boolean;
+	jevEnabled?: boolean;
 	showSessionTabs?: boolean;
 	codeBlockToolbarPosition?: 'top' | 'bottom';
 	fontSize?: number;
@@ -156,6 +157,10 @@ export function knoxReadViewSubdirectoryMaxFiles(config: IKnoxSerializedConfig |
 	return knoxClampViewSubdirectoryMaxFiles(config?.experimental?.agentViewSubdirectoryMaxFiles);
 }
 
+export function knoxReadJevEnabled(config: IKnoxSerializedConfig | undefined): boolean {
+	return config?.experimental?.jev?.enabled === true;
+}
+
 /** Optimistic GUI `modifyAnyConfigWithSharedConfig` without importing Core. */
 export function knoxApplySharedConfig(
 	config: IKnoxSerializedConfig | undefined,
@@ -214,6 +219,12 @@ export function knoxApplySharedConfig(
 	}
 	if (shared.agentVerifyMaxIterations !== undefined) {
 		next.experimental = { ...next.experimental, agentVerifyMaxIterations: shared.agentVerifyMaxIterations };
+	}
+	if (shared.jevEnabled !== undefined) {
+		next.experimental = {
+			...next.experimental,
+			jev: { ...next.experimental?.jev, enabled: shared.jevEnabled },
+		};
 	}
 
 	const hasPolicyUpdate =

@@ -56,6 +56,7 @@ import { knoxSubmitBlockedByPendingTool } from '../../common/knoxToolbar.js';
 import { knoxReadFontSize, knoxReadUiBoolean } from '../../common/knoxSharedConfig.js';
 import { renderKnoxToolOutput } from '../tools/knoxToolOutput.js';
 import { IKnoxToolUiState } from '../tools/knoxToolCard.js';
+import { appendKnoxGuiIcon } from '../knoxGuiIcons.js';
 
 function overlayTitle(overlay: KnoxNativeOverlay, language: 'en' | 'zh' = 'en'): string {
 	const t = (key: string, fallback?: string) => knoxNls(key, undefined, fallback, language);
@@ -99,6 +100,8 @@ export class KnoxChatWidget extends Disposable {
 
 	private readonly _tabBar: KnoxTabBar;
 	private readonly _body: HTMLElement;
+	private readonly _loadingHistory: HTMLElement;
+	private readonly _hydrateBanner: HTMLElement;
 	private readonly _threadList: KnoxThreadList;
 	private readonly _find: KnoxFindWidget;
 	private readonly _turnMeter: KnoxAgentTurnMeter;
@@ -119,7 +122,7 @@ export class KnoxChatWidget extends Disposable {
 	private readonly _inputPeekStore = this._register(new DisposableStore());
 	private readonly _inputPeekUi: IKnoxToolUiState = {
 		argsExpanded: new Set(),
-		treeCollapsed: new Set(),
+		treeExpanded: new Set(),
 		treeTab: new Map(),
 		askAnswers: new Map(),
 		askIndex: new Map(),
@@ -127,8 +130,11 @@ export class KnoxChatWidget extends Disposable {
 		peekExpanded: new Set(),
 		terminalUnstuck: new Set(),
 		terminalScrollTop: new Map(),
+		toolCollapsed: new Set(),
 	};
 	private readonly _overlay: HTMLElement;
+	private readonly _overlayBack: HTMLButtonElement;
+	private readonly _overlayBackLabel: HTMLElement;
 	private readonly _overlayTitle: HTMLElement;
 	private readonly _overlayBody: HTMLElement;
 	private readonly _overlayStore = this._register(new DisposableStore());
@@ -177,6 +183,12 @@ export class KnoxChatWidget extends Disposable {
 		this._register(this._tabBar.onDidChangeHeight(() => this._layoutThread()));
 
 		this._body = append(this.element, $('.knox-chat-body'));
+		this._loadingHistory = append(this._body, $('.knox-history-loading.hidden'));
+		this._loadingHistory.setAttribute('role', 'status');
+		this._loadingHistory.setAttribute('data-testid', 'chat-history-loading');
+		this._hydrateBanner = append(this._body, $('.knox-large-session-banner.hidden'));
+		this._hydrateBanner.setAttribute('role', 'status');
+		this._hydrateBanner.setAttribute('data-testid', 'large-session-banner');
 		this._threadList = this._register(instantiationService.createInstance(KnoxThreadList, this._body));
 		this._find = this._register(instantiationService.createInstance(KnoxFindWidget, this._body, this._threadList));
 
@@ -234,9 +246,11 @@ export class KnoxChatWidget extends Disposable {
 		this._overlay = append(this.element, $('.knox-overlay.hidden'));
 		this._overlay.setAttribute('role', 'region');
 		const overlayHeader = append(this._overlay, $('.knox-overlay-header'));
-		const back = append(overlayHeader, $<HTMLButtonElement>('button.knox-overlay-back'));
-		back.type = 'button';
-		back.textContent = localize('knox.overlay.back', "Back to chat");
+		this._overlayBack = append(overlayHeader, $<HTMLButtonElement>('button.knox-overlay-back'));
+		this._overlayBack.type = 'button';
+		appendKnoxGuiIcon(this._overlayBack, 'lucide-arrow-left');
+		this._overlayBackLabel = append(this._overlayBack, $('span.knox-overlay-back-label'));
+		this._syncOverlayBackLabel();
 		this._overlayTitle = append(overlayHeader, $('div.knox-overlay-title'));
 		this._overlayBody = append(this._overlay, $('.knox-overlay-body'));
 
@@ -257,6 +271,7 @@ export class KnoxChatWidget extends Disposable {
 
 		this._register(this._chatService.onDidChange(() => this._find.refresh()));
 		this._register(this._chatService.onDidChange(() => this._syncConfigChrome()));
+		this._register(this._chatService.onDidChange(() => this._syncHydrateChrome()));
 		this._register(this._chatService.onDidChange(() => this._syncInputPeek()));
 		this._register(this._chatService.onDidStreamError(error => void this._showStreamError(error)));
 		this._register(this._bridge.onDidReceivePush(message => this._handleIdeEvent(message.messageType, message.data)));
@@ -269,11 +284,12 @@ export class KnoxChatWidget extends Disposable {
 			});
 		}));
 		this._register(this._threadList.onDidCrash(error => this._showCrash(error)));
-		this._register(addDisposableListener(back, 'click', () => this.showOverlay('chat')));
+		this._register(addDisposableListener(this._overlayBack, 'click', () => this.showOverlay('chat')));
 		this._register(addDisposableListener(restart, 'click', () => this._restartAfterCrash()));
 
 		this._renderOverlay();
 		this._syncConfigChrome();
+		this._syncHydrateChrome();
 		this._syncInputPeek();
 	}
 
@@ -425,7 +441,8 @@ export class KnoxChatWidget extends Disposable {
 		const maxHeight = Math.floor(window.innerHeight * 0.7);
 		this._lump.layoutExpandedContent(Math.min(remaining, maxHeight));
 		const chrome = this._inputChrome.offsetHeight;
-		this._threadList.layout(Math.max(0, height - chrome - tabs), width);
+		const extra = this._loadingHistory.offsetHeight + this._hydrateBanner.offsetHeight;
+		this._threadList.layout(Math.max(0, height - chrome - tabs - extra), width);
 	}
 
 	private _renderOverlay(): void {
@@ -527,6 +544,36 @@ export class KnoxChatWidget extends Disposable {
 		);
 	}
 
+	private _syncHydrateChrome(): void {
+		const language = this._chatService.language;
+		const loading = this._chatService.isLoadingHistory;
+		this._loadingHistory.classList.toggle('hidden', !loading);
+		if (loading) {
+			this._loadingHistory.textContent = knoxNls('loadingConversation', undefined, 'Loading conversation…', language);
+		}
+		const large = this._chatService.historyHydrateNotice === 'large';
+		this._hydrateBanner.classList.toggle('hidden', !large);
+		if (large && !this._hydrateBanner.dataset.ready) {
+			this._hydrateBanner.dataset.ready = '1';
+			const copy = append(this._hydrateBanner, $('span.knox-large-session-banner-copy'));
+			copy.textContent = knoxNls('largeSessionBanner', undefined, undefined, language);
+			const hide = append(this._hydrateBanner, $<HTMLButtonElement>('button.knox-large-session-banner-hide'));
+			hide.type = 'button';
+			hide.textContent = knoxNls('hide', undefined, 'Hide', language);
+			this._register(addDisposableListener(hide, 'click', () => this._chatService.dismissHistoryHydrateNotice()));
+		} else if (large) {
+			const copy = this._hydrateBanner.querySelector('.knox-large-session-banner-copy');
+			if (copy) {
+				copy.textContent = knoxNls('largeSessionBanner', undefined, undefined, language);
+			}
+			const hide = this._hydrateBanner.querySelector('.knox-large-session-banner-hide');
+			if (hide) {
+				hide.textContent = knoxNls('hide', undefined, 'Hide', language);
+			}
+		}
+		this._layoutThread();
+	}
+
 	private _syncConfigChrome(): void {
 		this.element.style.fontSize = `${knoxReadFontSize(this._chatService.config)}px`;
 		this._threadList.setShowScrollbar(knoxReadUiBoolean(this._chatService.config, 'showChatScrollbar'));
@@ -538,6 +585,13 @@ export class KnoxChatWidget extends Disposable {
 		if (this._overlayKind !== 'chat') {
 			this._overlayTitle.textContent = overlayTitle(this._overlayKind, this._chatService.language);
 		}
+		this._syncOverlayBackLabel();
+	}
+
+	private _syncOverlayBackLabel(): void {
+		const label = knoxNls('backToChat', undefined, 'Back to Chat', this._chatService.language);
+		this._overlayBack.setAttribute('aria-label', label);
+		this._overlayBackLabel.textContent = label;
 	}
 
 	private _handleIdeEvent(messageType: string, data: unknown): void {

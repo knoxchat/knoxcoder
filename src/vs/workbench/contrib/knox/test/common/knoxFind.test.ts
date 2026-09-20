@@ -7,11 +7,14 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import {
 	compileKnoxSearchPattern,
+	findKnoxHistoryIndexes,
 	findKnoxThreadMatches,
 	knoxFindMatchRanges,
+	knoxHistoryItemSearchText,
 	knoxNextFindIndex,
 	knoxTextMatchesPattern,
 } from '../../common/knoxFind.js';
+import type { IKnoxChatHistoryItem } from '../../common/knoxChatTypes.js';
 import type { IKnoxThreadRow } from '../../common/knoxThreadModel.js';
 
 suite('knox find', () => {
@@ -59,10 +62,40 @@ suite('knox find', () => {
 		const hits = findKnoxThreadMatches(rows, compileKnoxSearchPattern('hello', { caseSensitive: false, useRegex: false }));
 		assert.strictEqual(hits.length, 2);
 		assert.strictEqual(hits[0].rowId, 'user:1');
+		assert.strictEqual(hits[0].historyIndex, 0);
 		assert.strictEqual(hits[1].rowId, 'assistant:1');
+		assert.strictEqual(hits[1].historyIndex, 1);
 		assert.strictEqual(knoxNextFindIndex(0, 2, 1), 1);
 		assert.strictEqual(knoxNextFindIndex(1, 2, 1), 0);
 		assert.strictEqual(knoxNextFindIndex(0, 2, -1), 1);
+	});
+
+	test('finds text in unmounted history items (T8.1)', () => {
+		const history: IKnoxChatHistoryItem[] = [
+			{ message: { role: 'user', content: 'hello world' }, contextItems: [] },
+			{ message: { role: 'assistant', content: 'later' }, contextItems: [] },
+			{
+				message: { role: 'tool', content: 'rare-token-xyz lives only in redux', toolCallId: 'c1' },
+				contextItems: [],
+			},
+		];
+		assert.deepStrictEqual(
+			findKnoxHistoryIndexes(history, compileKnoxSearchPattern('rare-token-xyz', { caseSensitive: false, useRegex: false })),
+			[2],
+		);
+	});
+
+	test('includes reasoning and context item text (T8.1)', () => {
+		const history: IKnoxChatHistoryItem[] = [{
+			message: { role: 'assistant', content: 'ok' },
+			contextItems: [],
+			reasoning: { active: false, text: 'ponder the widget', startAt: 0 },
+		}];
+		assert.ok(knoxHistoryItemSearchText(history[0]).includes('ponder the widget'));
+		assert.deepStrictEqual(
+			findKnoxHistoryIndexes(history, compileKnoxSearchPattern('widget', { caseSensitive: false, useRegex: false })),
+			[0],
+		);
 	});
 
 	test('match ranges are DOM-text offsets used by find highlights (T3.4)', () => {

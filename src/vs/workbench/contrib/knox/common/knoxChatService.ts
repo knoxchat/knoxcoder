@@ -87,6 +87,7 @@ import {
 	IKnoxSerializedConfig,
 	IKnoxSession,
 	IKnoxSessionMetadata,
+	IKnoxToolCallState,
 	KnoxExternalDirectoryMode,
 	IKnoxWorktreeState,
 	KNOX_IDLE_AUTONOMOUS_LOOP,
@@ -100,6 +101,12 @@ import {
 	buildDoomLoopBlockedMessage,
 	detectDoomLoop,
 } from './knoxDoomLoop.js';
+import {
+	knoxJevDeniedItems,
+	knoxJevEnabled,
+	knoxJevFailOpenAllow,
+	IKnoxToolGateResult,
+} from './knoxJev.js';
 import {
 	enterKnoxAgentLoop,
 	hasKnoxAskUserWaiter,
@@ -131,6 +138,7 @@ import {
 	parseKnoxSession,
 	parseKnoxSessionMetadata,
 } from './knoxHistory.js';
+import { shouldWarnLargeSession, slimSessionForGui } from './knoxDisplayCap.js';
 import {
 	resolveAgentMaxSteps,
 	resolveDoomLoopThreshold,
@@ -267,6 +275,9 @@ export interface IKnoxChatService {
 	readonly lastCompaction: IKnoxLastCompaction | null;
 	/** Pending workspace-restore notice for this session, if any (T2.1). */
 	readonly restoreNotice: string | null;
+	/** Large-session hydrate banner (T8.2). */
+	readonly historyHydrateNotice: 'large' | null;
+	readonly isLoadingHistory: boolean;
 	readonly sessionToolAllowlist: readonly string[];
 	readonly autonomousLoop: IKnoxAutonomousLoopState;
 	readonly toolPending: boolean;
@@ -307,6 +318,7 @@ export interface IKnoxChatService {
 	readonly onDidRequestApplyFromChat: Event<void>;
 
 	newSession(session?: IKnoxSession): void;
+	dismissHistoryHydrateNotice(): void;
 	setStreaming(streaming: boolean): void;
 	setMode(mode: KnoxChatMode): void;
 	setSessionMode(mode: KnoxChatMode): Promise<void>;
@@ -533,6 +545,8 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 	private _worktree: IKnoxWorktreeState = { ...KNOX_IDLE_WORKTREE };
 	private _injectedSystemContext: { sessionId: string; content: string } | undefined;
 	private readonly _restoreNotice = new KnoxRestoreNoticeCache();
+	private _historyHydrateNotice: 'large' | null = null;
+	private _isLoadingHistory = false;
 	private _hasLoadedConfig = false;
 	private _streamWrapperDepth = 0;
 	private _lastSaveTime = 0;
@@ -593,6 +607,8 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 	get lastCompaction(): IKnoxLastCompaction | null { return this._state.lastCompaction; }
 	/** Pending workspace-restore notice for this session, if any (T2.1). */
 	get restoreNotice(): string | null { return this._restoreNotice.get(this._state.id); }
+	get historyHydrateNotice(): 'large' | null { return this._historyHydrateNotice; }
+	get isLoadingHistory(): boolean { return this._isLoadingHistory; }
 	get sessionToolAllowlist(): readonly string[] { return this._state.sessionToolAllowlist; }
 	get autonomousLoop(): IKnoxAutonomousLoopState { return this._state.autonomousLoop; }
 	get toolPending(): boolean { return this._toolPending; }
@@ -647,7 +663,16 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 		this._syncToolPending();
 		this._injectedSystemContext = undefined;
 		this._restoreNotice.clear();
+		this._historyHydrateNotice = null;
 		this._rememberLastActive();
+		this._fire();
+	}
+
+	dismissHistoryHydrateNotice(): void {
+		if (!this._historyHydrateNotice) {
+			return;
+		}
+		this._historyHydrateNotice = null;
 		this._fire();
 	}
 
@@ -1788,6 +1813,16 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 			}
 		}
 
+		const gate = await this._gateTool(toolCallState);
+		if (gate.action === 'deny') {
+			const output = knoxJevDeniedItems(gate.reason);
+			this.setCalling(toolCallState.toolCallId);
+			this.setToolCallOutput({ toolCallId: toolCallState.toolCallId, output });
+			this.acceptToolCall(toolCallState.toolCallId);
+			await this._appendToolResult(toolCallState.toolCallId, output, arg?.skipContinue);
+			return;
+		}
+
 		const model = this._defaultModel();
 		if (!model) {
 			throw new Error('No model selected');
@@ -1862,6 +1897,35 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 		this.setToolCallOutput({ toolCallId, output: errorItems });
 		this.acceptToolCall(toolCallId);
 		await this._appendToolResult(toolCallId, errorItems, arg?.skipContinue);
+	}
+
+	private async _gateTool(toolCallState: IKnoxToolCallState): Promise<IKnoxToolGateResult> {
+		const fallback = knoxJevFailOpenAllow();
+		if (!knoxJevEnabled(this._config) || !this._bridge) {
+			return fallback;
+		}
+		try {
+			const result = unwrapProtocol(await this._bridge.request('jev/gateTool', {
+				toolName:
+					resolveBuiltInToolName(toolCallState.toolCall.function.name)
+					|| toolCallState.toolCall.function.name,
+				args: toolCallState.parsedArgs,
+				permissionMode: this._permissionMode,
+			}));
+			if (result.status === 'success' && result.content && typeof result.content === 'object') {
+				const gate = result.content as IKnoxToolGateResult;
+				if (gate.action === 'allow' || gate.action === 'ask' || gate.action === 'deny') {
+					return {
+						action: gate.action,
+						reason: typeof gate.reason === 'string' ? gate.reason : fallback.reason,
+						source: gate.source === 'jev' ? 'jev' : 'heuristic',
+					};
+				}
+			}
+		} catch {
+			return knoxJevFailOpenAllow('Jev IPC failed');
+		}
+		return knoxJevFailOpenAllow('Jev IPC failed');
 	}
 
 	async cancelStream(): Promise<void> {
@@ -2057,21 +2121,31 @@ export class KnoxChatService extends Disposable implements IKnoxChatService {
 		if (!this._bridge) {
 			return;
 		}
-		const previousSessionId = this._state.id;
-		const loaded = unwrapProtocol(await this._bridge.request('history/load', { id: sessionId }));
-		if (loaded.status !== 'success' || !loaded.content || typeof loaded.content !== 'object') {
-			this.newSession();
-			return;
+		this._isLoadingHistory = true;
+		this._fire();
+		try {
+			const previousSessionId = this._state.id;
+			const loaded = unwrapProtocol(await this._bridge.request('history/load', { id: sessionId }));
+			if (loaded.status !== 'success' || !loaded.content || typeof loaded.content !== 'object') {
+				this.newSession();
+				return;
+			}
+			const parsed = parseKnoxSession(loaded.content) ?? loaded.content as IKnoxSession;
+			if (previousSessionId && previousSessionId !== parsed.sessionId) {
+				void this._bridge.request('brain/dispatch', {
+					action: 'close_session',
+					session_id: previousSessionId,
+				}).catch(() => { });
+			}
+			const slim = slimSessionForGui(parsed);
+			this.newSession(slim.session);
+			this._historyHydrateNotice = slim.overBudget || shouldWarnLargeSession(slim.session) ? 'large' : null;
+			this._fire();
+			await this._trackSession();
+		} finally {
+			this._isLoadingHistory = false;
+			this._fire();
 		}
-		const session = loaded.content as IKnoxSession;
-		if (previousSessionId && previousSessionId !== session.sessionId) {
-			void this._bridge.request('brain/dispatch', {
-				action: 'close_session',
-				session_id: previousSessionId,
-			}).catch(() => { });
-		}
-		this.newSession(session);
-		await this._trackSession();
 	}
 
 	async refreshSessionMetadata(options?: { offset?: number; limit?: number }): Promise<IKnoxSessionMetadata[]> {

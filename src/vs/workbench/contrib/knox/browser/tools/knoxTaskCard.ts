@@ -5,6 +5,7 @@
 
 import { $, append } from '../../../../../base/browser/dom.js';
 import { IKnoxContextItem, IKnoxToolCallState } from '../../common/knoxChatTypes.js';
+import { capDisplayText } from '../../common/knoxDisplayCap.js';
 import { knoxTaskSubagentInfo } from '../../common/knoxTaskCard.js';
 
 export function renderKnoxTaskCard(
@@ -16,6 +17,6 @@ export function renderKnoxTaskCard(
 	const root = append(parent, $('.knox-task-card'));
 	append(root, $('div.knox-task-meta')).textContent = info.label;
 	if (info.output) {
-		append(root, $('pre.knox-task-output')).textContent = info.output;
+		append(root, $('pre.knox-task-output')).textContent = capDisplayText(info.output).text;
 	}
 }

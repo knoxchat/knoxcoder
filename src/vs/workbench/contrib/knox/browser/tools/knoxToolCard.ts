@@ -16,10 +16,15 @@ import {
 	knoxToolArgEntries,
 	knoxToolStatusMessage,
 } from '../../common/knoxToolCard.js';
+import {
+	finishedToolSummary,
+	shouldRenderToolBody,
+	toolAlwaysShowsBody,
+} from '../../common/knoxToolSummary.js';
 
 export interface IKnoxToolUiState {
 	argsExpanded: Set<string>;
-	treeCollapsed: Set<string>;
+	treeExpanded: Set<string>;
 	treeTab: Map<string, 'structure' | 'summary'>;
 	askAnswers: Map<string, Record<string, string | string[]>>;
 	askIndex: Map<string, number>;
@@ -27,6 +32,7 @@ export interface IKnoxToolUiState {
 	peekExpanded: Set<string>;
 	terminalUnstuck: Set<string>;
 	terminalScrollTop: Map<string, number>;
+	toolCollapsed: Set<string>;
 }
 
 export function renderKnoxToolWrapper(
@@ -98,7 +104,45 @@ export function renderKnoxToolWrapper(
 	}
 
 	const body = append(root, $('.knox-tool-body'));
+	const alwaysShow = toolAlwaysShowsBody(state.toolCall.function.name);
+	const userCollapsed = ui.toolCollapsed.has(toolId);
+	const showBody = shouldRenderToolBody(state.status, userCollapsed, { alwaysShow });
+	if (!showBody) {
+		const summary = finishedToolSummary(state);
+		const row = append(body, $<HTMLButtonElement>('button.knox-tool-summary'));
+		row.type = 'button';
+		row.setAttribute('aria-expanded', 'false');
+		append(row, $('span.knox-tool-summary-name')).textContent = summary.name;
+		if (summary.detail) {
+			append(row, $('span.knox-tool-summary-detail')).textContent = summary.detail;
+		}
+		if (summary.result) {
+			append(row, $('span.knox-tool-summary-result')).textContent = summary.result;
+		}
+		store.add(addDisposableListener(row, 'click', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			ui.toolCollapsed.delete(toolId);
+			onToggleArgs();
+		}));
+		return;
+	}
+	if (!alwaysShow && !isLiveStatus(state.status)) {
+		store.add(addDisposableListener(header, 'click', e => {
+			if ((e.target as HTMLElement).closest('button')) {
+				return;
+			}
+			e.preventDefault();
+			ui.toolCollapsed.add(toolId);
+			onToggleArgs();
+		}));
+		header.classList.add('knox-tool-header-collapsible');
+	}
 	renderBody(body);
+}
+
+function isLiveStatus(status: IKnoxToolCallState['status']): boolean {
+	return status === 'generating' || status === 'generated' || status === 'calling';
 }
 
 function escapeText(value: string): string {

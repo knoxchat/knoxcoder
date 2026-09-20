@@ -11,18 +11,23 @@ import { localize } from '../../../../../nls.js';
 import { knoxGuiIconClass } from '../knoxGuiIcons.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IKnoxContextItem, IKnoxToolCallState } from '../../common/knoxChatTypes.js';
 import { IKnoxGuiBridge } from '../../common/knoxGuiProtocol.js';
+import { knoxNls } from '../../common/knoxI18n.js';
 import {
+	extractLogPathFromTerminalOutput,
 	knoxExtractTerminalOutput,
 	knoxTerminalIsAtBottom,
 	knoxTerminalShouldFollow,
+	takeTerminalTail,
 } from '../../common/knoxTerminalOutput.js';
 import {
 	knoxTerminalCommandIsRunnable,
 	knoxTerminalCommandLabel,
 	knoxToolIsStreaming,
 } from '../../common/knoxToolCard.js';
+import { knoxShowFile } from '../markdown/knoxClickablePath.js';
 import { IKnoxToolUiState } from './knoxToolCard.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 
@@ -37,6 +42,7 @@ export function renderKnoxTerminalCard(
 		clipboard: IClipboardService;
 		hover: IHoverService;
 		terminal: ITerminalService;
+		workspace: IWorkspaceContextService;
 		codeWrap: boolean;
 	},
 	store: DisposableStore,
@@ -45,6 +51,8 @@ export function renderKnoxTerminalCard(
 ): void {
 	const command = knoxTerminalCommandLabel(state.toolCall.function.name, state.parsedArgs);
 	const output = knoxExtractTerminalOutput(outputItems) || knoxExtractTerminalOutput(state.output);
+	const { tail, truncated, hiddenLines } = takeTerminalTail(output);
+	const logPath = extractLogPathFromTerminalOutput(output);
 	const streaming = knoxToolIsStreaming(state.status);
 	const canceled = state.status === 'canceled';
 	const done = state.status === 'done';
@@ -57,7 +65,13 @@ export function renderKnoxTerminalCard(
 	const header = append(root, $('.knox-term-header'));
 	const left = append(header, $('.knox-term-header-left'));
 	append(left, $('span')).className = knoxGuiIconClass('terminal');
-	append(left, $('span.knox-term-title')).textContent = localize('knox.terminal', "Terminal");
+	const title = append(left, $('span.knox-term-title'));
+	title.textContent = localize('knox.terminal', "Terminal");
+	if (truncated && hiddenLines > 0) {
+		const hidden = append(left, $('span.knox-term-truncated'));
+		hidden.setAttribute('data-testid', 'xterm-truncated');
+		hidden.textContent = knoxNls('truncatedTerminalOutput', { lines: hiddenLines }, '{{lines}} earlier lines hidden');
+	}
 
 	const right = append(header, $('.knox-term-header-right'));
 	if (streaming) {
@@ -74,11 +88,41 @@ export function renderKnoxTerminalCard(
 		append(badge, $('span')).textContent = localize('knox.toolCanceled', "Canceled");
 	}
 
+	if (output) {
+		const copyOutput = append(right, $<HTMLButtonElement>('button.knox-icon-button'));
+		copyOutput.type = 'button';
+		const copyOutputHint = knoxNls('copyOutput', undefined, 'Copy output');
+		copyOutput.setAttribute('aria-label', copyOutputHint);
+		copyOutput.setAttribute('data-testid', 'xterm-copy-output');
+		append(copyOutput, $('span')).className = knoxGuiIconClass('copy');
+		store.add(services.hover.setupManagedHover(getDefaultHoverDelegate('mouse'), copyOutput, copyOutputHint));
+		store.add(addDisposableListener(copyOutput, 'click', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			void services.clipboard.writeText(output);
+		}));
+	}
+	if (logPath) {
+		const openLog = append(right, $<HTMLButtonElement>('button.knox-icon-button'));
+		openLog.type = 'button';
+		const openLogHint = knoxNls('openFullLog', undefined, 'Open full log');
+		openLog.setAttribute('aria-label', openLogHint);
+		openLog.setAttribute('data-testid', 'xterm-open-full-log');
+		append(openLog, $('span')).className = knoxGuiIconClass('file-text');
+		store.add(services.hover.setupManagedHover(getDefaultHoverDelegate('mouse'), openLog, openLogHint));
+		store.add(addDisposableListener(openLog, 'click', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			knoxShowFile(services.bridge, services.workspace, logPath);
+		}));
+	}
+
 	if (command) {
 		const copy = append(right, $<HTMLButtonElement>('button.knox-icon-button'));
 		copy.type = 'button';
-		const copyHint = localize('knox.copyCommand', "Copy command");
+		const copyHint = knoxNls('copyCommand', undefined, 'Copy command');
 		copy.setAttribute('aria-label', copyHint);
+		copy.setAttribute('data-testid', 'xterm-copy-command');
 		append(copy, $('span')).className = knoxGuiIconClass('copy');
 		store.add(services.hover.setupManagedHover(getDefaultHoverDelegate('mouse'), copy, copyHint));
 		store.add(addDisposableListener(copy, 'click', e => {
@@ -121,8 +165,8 @@ export function renderKnoxTerminalCard(
 		append(prompt, $('span.knox-term-prompt-mark')).textContent = '❯';
 		append(prompt, $('span.knox-term-command')).textContent = command;
 	}
-	if (output) {
-		renderAnsi(append(body, $('div.knox-term-output')), output);
+	if (tail) {
+		renderAnsi(append(body, $('div.knox-term-output')), tail);
 	} else if (streaming) {
 		append(body, $('div.knox-term-output.knox-term-waiting')).textContent = localize('knox.running', "Running");
 	}

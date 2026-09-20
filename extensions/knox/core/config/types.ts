@@ -348,6 +348,42 @@ declare global {
     completionOptions: CompletionOptions;
     prompt: string;
     completion: string;
+    /** Structured Jev harness answers (routing, guardrails, citations). */
+    jev?: {
+      turn?: {
+        source: "jev" | "heuristic";
+        route: string;
+        confidence: number;
+        skill?: string;
+        profile?: string;
+        reason: string;
+      };
+      guardrails?: {
+        input?: {
+          side: "input" | "output";
+          action: "pass" | "warn" | "block";
+          reason: string;
+          jailbreak: number;
+          secretExfil: number;
+          offRepoAttack: number;
+          harm: number;
+        };
+        output?: {
+          side: "input" | "output";
+          action: "pass" | "warn" | "block";
+          reason: string;
+          jailbreak: number;
+          secretExfil: number;
+          offRepoAttack: number;
+          harm: number;
+        };
+      };
+      citations?: Array<{
+        verdict: string;
+        path?: string;
+        reason: string;
+      }>;
+    };
   }
   
   type MessageModes = "chat" | "edit";
@@ -505,6 +541,7 @@ declare global {
     agentVerifyCommand?: string;
     agentVerifyMode?: "diagnostics" | "command" | "off";
     agentVerifyMaxIterations?: number;
+    jevEnabled?: boolean;
   }
   
   export interface IDE {
@@ -971,6 +1008,19 @@ declare global {
     agentPolicyFromRules?: {
       paths?: Array<{ pattern: string; action: "allow" | "ask" | "deny" }>;
       commands?: Array<{ pattern: string; action: "allow" | "ask" | "deny" }>;
+    };
+
+    /**
+     * Jev (TypeSafe System One) harness judgments. Default off.
+     * Set \`jev.apiKey\` in \`~/.knox/config.yaml\`. Fail-open to regex/token heuristics.
+     */
+    jev?: {
+      enabled?: boolean;
+      model?: string;
+      apiKey?: string;
+      timeoutMs?: number;
+      failOpen?: boolean;
+      baseUrl?: string;
     };
   }
   

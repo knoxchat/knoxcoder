@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IKnoxChatHistoryItem, IKnoxToolCallState } from '../../common/knoxChatTypes.js';
 import { KnoxBuiltInToolName } from '../../common/knoxToolNames.js';
 import {
@@ -12,6 +13,10 @@ import {
 	IKnoxThreadRow,
 	isDuplicateKnoxAssistantReply,
 	isLastKnoxUserInput,
+	knoxLastRevealIndex,
+	knoxThreadDynamicHeight,
+	knoxThreadSpacerRow,
+	knoxThreadSpacerSync,
 	knoxTurnHasVisibleProgress,
 } from '../../common/knoxThreadModel.js';
 
@@ -313,5 +318,97 @@ suite('knox thread row diff (T1.6)', () => {
 		const toolDiff = diffKnoxThreadRows(toolBefore, toolAfter);
 		assert.strictEqual(toolDiff.unchangedOrder, true);
 		assert.ok(toolDiff.changedIndices.length > 0);
+	});
+
+	test('dynamic height skips the spacer cache so streaming rows remeasure', () => {
+		assert.strictEqual(knoxThreadDynamicHeight({
+			id: 'knox-thread-spacer',
+			kind: 'spacer',
+			historyIndex: -1,
+			measuredHeight: 240,
+		}), 240);
+		assert.strictEqual(knoxThreadDynamicHeight({
+			id: 'assistant:a1',
+			kind: 'assistant',
+			historyIndex: 1,
+			measuredHeight: 88,
+		}), null);
+		assert.strictEqual(knoxThreadDynamicHeight({
+			id: 'thinking:t1',
+			kind: 'thinking',
+			historyIndex: 1,
+			measuredHeight: 64,
+		}), null);
+	});
+});
+
+suite('knox thread spacer / reveal (ListError Invalid index)', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function assistantRow(): IKnoxThreadRow {
+		return { id: 'assistant:a1', kind: 'assistant', historyIndex: 1, measuredHeight: 88 };
+	}
+
+	test('reveal index is the last list index, not _rows.length - 1', () => {
+		assert.strictEqual(knoxLastRevealIndex(0), undefined);
+		assert.strictEqual(knoxLastRevealIndex(1), 0);
+		assert.strictEqual(knoxLastRevealIndex(2), 1);
+		// Phantom spacer in `_rows` (length 2) while the list still has 1 row.
+		assert.notStrictEqual(knoxLastRevealIndex(1), 2 - 1);
+	});
+
+	test('short content without a list spacer emits insert, not a silent _rows prepend', () => {
+		const sync = knoxThreadSpacerSync({
+			viewport: 400,
+			rows: [assistantRow()],
+			listHasSpacer: false,
+		});
+		assert.strictEqual(sync.op.type, 'insert');
+		assert.strictEqual(sync.rows.length, 2);
+		assert.strictEqual(sync.rows[0].kind, 'spacer');
+		assert.strictEqual(knoxLastRevealIndex(1), 0);
+	});
+
+	test('rows that already contain a spacer still insert when the list does not', () => {
+		const sync = knoxThreadSpacerSync({
+			viewport: 400,
+			rows: [knoxThreadSpacerRow(312), assistantRow()],
+			listHasSpacer: false,
+		});
+		assert.strictEqual(sync.op.type, 'insert');
+		assert.strictEqual(sync.rows[0].kind, 'spacer');
+		assert.strictEqual(sync.rows[1].id, 'assistant:a1');
+	});
+
+	test('existing list spacer is resized, not inserted a second time', () => {
+		const sync = knoxThreadSpacerSync({
+			viewport: 400,
+			rows: [assistantRow()],
+			listHasSpacer: true,
+		});
+		assert.strictEqual(sync.op.type, 'update');
+		assert.ok(sync.op.type === 'update' && sync.op.pad > 0);
+		assert.strictEqual(sync.rows.length, 2);
+	});
+
+	test('zero viewport strips a phantom spacer instead of keeping it in _rows', () => {
+		const sync = knoxThreadSpacerSync({
+			viewport: 0,
+			rows: [knoxThreadSpacerRow(200), assistantRow()],
+			listHasSpacer: false,
+		});
+		assert.strictEqual(sync.op.type, 'none');
+		assert.deepStrictEqual(sync.rows.map(row => row.id), ['assistant:a1']);
+	});
+
+	test('content that fills the viewport removes the list spacer', () => {
+		const tall: IKnoxThreadRow = { id: 'assistant:a1', kind: 'assistant', historyIndex: 1, measuredHeight: 400 };
+		const sync = knoxThreadSpacerSync({
+			viewport: 400,
+			rows: [tall],
+			listHasSpacer: true,
+		});
+		assert.strictEqual(sync.op.type, 'remove');
+		assert.deepStrictEqual(sync.rows.map(row => row.id), ['assistant:a1']);
 	});
 });

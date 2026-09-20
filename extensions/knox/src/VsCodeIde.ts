@@ -1212,6 +1212,7 @@ class VsCodeIde implements IDE {
       agentProfile: knox.get<"default" | "systems" | "rust" | "auto">(
         "agentProfile",
       ),
+      jevEnabled: knox.get<boolean>("jev.enabled") === true,
       agentVerifyCommand: verifyCommand || undefined,
       agentVerifyMode: knox.get<"diagnostics" | "command" | "off">(
         "verifyMode",

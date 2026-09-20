@@ -132,3 +132,16 @@ export function formatMatchedSkillsHint(matches: SkillMatch[]): string {
     ...lines,
   ].join("\n");
 }
+
+/**
+ * One-skill hint used when Jev picks a roster entry (Hermes-style).
+ */
+export function formatJevSkillHint(skill: SkillInfo): string {
+  const roster = formatMatchedSkillsHint([{ skill, score: 1 }]);
+  return [
+    "<skill_relevance>",
+    `Relevant to the current request: ${skill.name}. Ignore this if it does not fit what the user actually asked for.`,
+    "</skill_relevance>",
+    roster,
+  ].join("\n");
+}

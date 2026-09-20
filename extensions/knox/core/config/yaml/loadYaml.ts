@@ -44,6 +44,7 @@ import {
   workspaceKindHints,
 } from "../agentProfile";
 import { loadAgentYamlExperimental } from "../agentYaml";
+import { loadJevYamlExperimental } from "../jevYaml";
 import { applyAgentJobsOptions } from "../../tools/shellJobs";
 
 import { enrichKnoxChatModelCapabilitiesFromApi } from "../../llm/toolSupport";
@@ -142,6 +143,10 @@ async function configYamlToKnoxConfig(
       ...loadAgentYamlExperimental(
         "",
         (config as { agent?: unknown }).agent,
+      ),
+      ...loadJevYamlExperimental(
+        "",
+        (config as { jev?: unknown }).jev,
       ),
     },
     rules: config.rules,
@@ -336,9 +341,14 @@ export async function loadKnoxConfigFromYaml(
     rawYaml,
     (configYamlResult.config as { agent?: unknown }).agent,
   );
+  const fromRawJev = loadJevYamlExperimental(
+    rawYaml,
+    (configYamlResult.config as { jev?: unknown }).jev,
+  );
   knoxConfig.experimental = {
     ...ideSettingsToExperimental(ideSettings),
     ...fromRawAgent,
+    ...fromRawJev,
     ...knoxConfig.experimental,
   };
 

@@ -25,6 +25,7 @@ import { llmStreamChat } from "./llm/streamChat";
 import { createNewPromptFileV2 } from "./promptFiles/v2/createNewPromptFile";
 import { t } from "./i18n/index.js";
 import { callTool } from "./tools/callTool";
+import { gateToolCall } from "./jev/toolGate";
 import {
   formatUnknownToolError,
   resolveBuiltInToolName,
@@ -278,6 +279,18 @@ export class Core {
           status: "killed",
         },
         jobs,
+      });
+    });
+
+    on("jev/gateTool", async (msg) => {
+      const { config } = await this.configHandler.loadConfig();
+      const toolName = resolveBuiltInToolName(msg.data.toolName) || msg.data.toolName;
+      const tool = config?.tools.find((item) => item.function.name === toolName);
+      return gateToolCall({
+        toolName,
+        args: msg.data.args,
+        toolDescription: tool?.function.description,
+        permissionMode: msg.data.permissionMode,
       });
     });
 

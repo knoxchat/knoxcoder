@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
-import { renderKnoxChatMessage } from './knoxChatTypes.js';
+import { IKnoxChatHistoryItem, renderKnoxChatMessage } from './knoxChatTypes.js';
 import { IKnoxThreadRow } from './knoxThreadModel.js';
 
 export type KnoxSearchPattern =
@@ -22,6 +22,7 @@ export interface IKnoxFindHit {
 	rowIndex: number;
 	start: number;
 	end: number;
+	historyIndex: number;
 }
 
 export interface IKnoxFindOptions {
@@ -116,7 +117,7 @@ export function knoxFindMatchRanges(
 }
 
 export function knoxThreadRowSearchText(row: IKnoxThreadRow): string {
-	if (row.kind === 'loading') {
+	if (row.kind === 'loading' || row.kind === 'loadEarlier' || row.kind === 'spacer') {
 		return '';
 	}
 	if (row.kind === 'timeline') {
@@ -163,6 +164,7 @@ export function findKnoxThreadMatches(
 			hits.push({
 				rowId: row.id,
 				rowIndex,
+				historyIndex: row.historyIndex,
 				start: range.start,
 				end: range.end,
 			});
@@ -179,4 +181,56 @@ export function knoxNextFindIndex(current: number, total: number, delta: number)
 		return delta >= 0 ? 0 : total - 1;
 	}
 	return (current + delta + total) % total;
+}
+
+/** Port of GUI `historyItemSearchText` — searches the session, not only mounted rows. */
+export function knoxHistoryItemSearchText(item: IKnoxChatHistoryItem): string {
+	const parts: string[] = [];
+	parts.push(renderKnoxChatMessage(item.message));
+	if (item.reasoning?.text) {
+		parts.push(item.reasoning.text);
+	}
+	for (const ctx of item.contextItems ?? []) {
+		if (ctx.name) {
+			parts.push(ctx.name);
+		}
+		if (ctx.description) {
+			parts.push(ctx.description);
+		}
+		if (ctx.content) {
+			parts.push(ctx.content);
+		}
+	}
+	const states = item.toolCallStates ?? (item.toolCallState ? [item.toolCallState] : []);
+	for (const state of states) {
+		const name = state.toolCall?.function?.name;
+		if (name) {
+			parts.push(name);
+		}
+		const args = state.parsedArgs;
+		if (args && typeof args === 'object') {
+			for (const value of Object.values(args as Record<string, unknown>)) {
+				if (typeof value === 'string' && value.length < 4000) {
+					parts.push(value);
+				}
+			}
+		}
+	}
+	return parts.join('\n');
+}
+
+export function findKnoxHistoryIndexes(
+	history: readonly IKnoxChatHistoryItem[],
+	pattern: KnoxSearchPattern,
+): number[] {
+	if (pattern.kind === 'invalid') {
+		return [];
+	}
+	const indexes: number[] = [];
+	for (let i = 0; i < history.length; i++) {
+		if (knoxTextMatchesPattern(knoxHistoryItemSearchText(history[i]), pattern)) {
+			indexes.push(i);
+		}
+	}
+	return indexes;
 }

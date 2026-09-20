@@ -11,6 +11,7 @@ import { knoxGuiIconClass } from '../knoxGuiIcons.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IKnoxContextItem } from '../../common/knoxChatTypes.js';
+import { capDisplayText } from '../../common/knoxDisplayCap.js';
 import { IKnoxGuiBridge } from '../../common/knoxGuiProtocol.js';
 import { knoxAsArgsRecord } from '../../common/knoxStreamingToolCode.js';
 import {
@@ -50,7 +51,7 @@ export function renderKnoxRepoTreeCard(
 		: localize('knox.retrievingRepoStructure', "Retrieving repository structure...");
 	const nodes = contents.structure ? knoxParseTreeText(contents.structure) : [];
 	const stats = knoxRepoTreeStats(nodes, contents.summary);
-	const expanded = !ui.treeCollapsed.has(toolId);
+	const expanded = ui.treeExpanded.has(toolId);
 	const tab = ui.treeTab.get(toolId) ?? 'structure';
 
 	const root = append(parent, $('.knox-tree-card'));
@@ -113,10 +114,10 @@ export function renderKnoxRepoTreeCard(
 	store.add(addDisposableListener(chevron, 'click', e => {
 		e.preventDefault();
 		e.stopPropagation();
-		if (ui.treeCollapsed.has(toolId)) {
-			ui.treeCollapsed.delete(toolId);
+		if (ui.treeExpanded.has(toolId)) {
+			ui.treeExpanded.delete(toolId);
 		} else {
-			ui.treeCollapsed.add(toolId);
+			ui.treeExpanded.add(toolId);
 		}
 		onDidChangeHeight();
 	}));
@@ -127,7 +128,7 @@ export function renderKnoxRepoTreeCard(
 
 	const body = append(panel, $('.knox-tree-body'));
 	if (tab === 'summary' && contents.summary) {
-		append(body, $('pre.knox-tree-summary')).textContent = contents.summary;
+		append(body, $('pre.knox-tree-summary')).textContent = capDisplayText(contents.summary).text;
 	} else if (!nodes.length) {
 		append(body, $('div.knox-tree-empty')).textContent = retrieving;
 	} else {

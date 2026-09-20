@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { knoxApplySharedConfig, knoxClampFontSize, knoxReadPromptPath, knoxReadUiBoolean, knoxSharedConfigForAgentProfile } from '../../common/knoxSharedConfig.js';
+import { knoxApplySharedConfig, knoxClampFontSize, knoxReadJevEnabled, knoxReadPromptPath, knoxReadUiBoolean, knoxSharedConfigForAgentProfile } from '../../common/knoxSharedConfig.js';
 import { knoxConfigErrorsFromProfileInfo, knoxHasFatalConfigError, knoxSortConfigErrors } from '../../common/knoxConfigUi.js';
 import { knoxNavigateTarget, knoxToggleNativeOverlay } from '../../common/knoxNavigate.js';
 import { knoxCycleProfileId, knoxSelectProfileId } from '../../common/knoxProfiles.js';
@@ -77,5 +77,12 @@ suite('knox navigate / profiles (T9.3 T9.7)', () => {
 		assert.strictEqual(knoxCycleProfileId(profiles, 'hub'), 'local');
 		assert.strictEqual(knoxParseUiLanguage('zh'), 'zh');
 		assert.strictEqual(knoxParseUiLanguage('nope'), 'en');
+	});
+
+	test('applies jevEnabled onto experimental.jev.enabled (T9.3)', () => {
+		const next = knoxApplySharedConfig(undefined, { jevEnabled: true });
+		assert.strictEqual(knoxReadJevEnabled(next), true);
+		const off = knoxApplySharedConfig(next, { jevEnabled: false });
+		assert.strictEqual(knoxReadJevEnabled(off), false);
 	});
 });

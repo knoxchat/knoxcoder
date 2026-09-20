@@ -16,6 +16,7 @@ import { tokenizeToString } from '../../../../../editor/common/languages/textToH
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IKnoxContextItem, IKnoxToolCallState } from '../../common/knoxChatTypes.js';
 import { IKnoxGuiBridge } from '../../common/knoxGuiProtocol.js';
+import { capDisplayText } from '../../common/knoxDisplayCap.js';
 import {
 	knoxEscapeHtml,
 	knoxExactSearchQuery,
@@ -49,7 +50,7 @@ export function renderKnoxExactSearchCard(
 ): void {
 	const query = knoxExactSearchQuery(state.parsedArgs);
 	const streaming = knoxToolIsStreaming(state.status);
-	const results = knoxParseExactSearchResults(knoxExtractExactSearchContent(output));
+	const results = knoxParseExactSearchResults(capDisplayText(knoxExtractExactSearchContent(output)).text);
 	const stats = knoxExactSearchStats(results);
 	const expanded = !ui.searchCollapsed.has(toolId);
 

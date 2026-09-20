@@ -17,6 +17,7 @@ import {
 	knoxReadAgentMaxSteps,
 	knoxReadDoomLoopThreshold,
 	knoxReadFontSize,
+	knoxReadJevEnabled,
 	knoxReadPromptPath,
 	knoxReadUiBoolean,
 	knoxReadViewSubdirectoryMaxFiles,
@@ -140,6 +141,12 @@ export class KnoxConfigPanel extends Disposable {
 			value => this._update({ agentViewSubdirectoryMaxFiles: value }),
 			t('agentViewSubdirectoryMaxFilesHint'),
 		);
+		this._toggle(
+			t('jevEnabled'),
+			knoxReadJevEnabled(config),
+			() => this._update({ jevEnabled: !knoxReadJevEnabled(config) }),
+		);
+		append(this.element, $('p.knox-muted')).textContent = t('jevEnabledHint');
 		append(this.element, $('p.knox-muted')).textContent = t('agentPolicyHint');
 	}
 

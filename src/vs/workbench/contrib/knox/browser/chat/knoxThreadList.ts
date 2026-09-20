@@ -47,9 +47,23 @@ import {
 	diffKnoxThreadRows,
 	IKnoxThreadRow,
 	knoxAssistantIsTruncated,
+	knoxLastRevealIndex,
+	knoxThreadDynamicHeight,
 	knoxThreadRowHeight,
+	knoxThreadSpacerSync,
 	KnoxThreadRowKind,
+	withKnoxLoadEarlierRow,
 } from '../../common/knoxThreadModel.js';
+import {
+	AUTO_DISPLAY_START,
+	CHAT_LOAD_EARLIER_SCROLL_TOP,
+	groupHistoryTurns,
+	knoxLastUserIndex,
+	nextExpandedStart,
+	resolveDisplayStart,
+	shouldFloatLastUser,
+} from '../../common/knoxChatHistoryWindow.js';
+import { knoxNls } from '../../common/knoxI18n.js';
 import { IKnoxFindHit, KnoxSearchPattern } from '../../common/knoxFind.js';
 import { knoxSubmitBlockedByPendingTool } from '../../common/knoxToolbar.js';
 import { knoxHistoricalSegments, knoxExtractHistoricalChips } from '../../common/knoxHistoricalChips.js';
@@ -71,8 +85,16 @@ const THINKING_TEMPLATE = 'knox-thread-thinking';
 const TOOL_TEMPLATE = 'knox-thread-tool';
 const TIMELINE_TEMPLATE = 'knox-thread-timeline';
 const LOADING_TEMPLATE = 'knox-thread-loading';
+const LOAD_EARLIER_TEMPLATE = 'knox-thread-load-earlier';
 const SPACER_TEMPLATE = 'knox-thread-spacer';
-const SPACER_ID = 'knox-thread-spacer';
+
+/** ListView owns these; assigning `className` would drop `position: absolute`. */
+const LIST_ROW_TRAITS = ['monaco-list-row', 'focused', 'selected', 'highlighted', 'drop-target', 'scrolling'];
+
+function applyRowClasses(container: HTMLElement, ...classes: string[]): void {
+	const kept = LIST_ROW_TRAITS.filter(name => container.classList.contains(name));
+	container.className = [...new Set([...kept, ...classes])].join(' ');
+}
 
 interface IKnoxThreadTemplate {
 	readonly container: HTMLElement;
@@ -91,6 +113,7 @@ interface IKnoxThreadRenderContext {
 	refresh(): void;
 	revealStep(step: IKnoxAgentActivityStep): void;
 	restartSession(): void;
+	loadEarlier(): void;
 }
 
 function roleLabel(kind: KnoxThreadRowKind): string {
@@ -101,6 +124,7 @@ function roleLabel(kind: KnoxThreadRowKind): string {
 		case 'thinking': return localize('knox.role.thinking', "Thinking");
 		case 'timeline': return localize('knox.activity.timeline', "Agent activity");
 		case 'loading': return localize('knox.activity.loading', "Working");
+		case 'loadEarlier': return knoxNls('loadEarlierMessages', { count: 0 }, 'Load earlier messages');
 		case 'spacer': return '';
 	}
 }
@@ -194,16 +218,17 @@ class KnoxThreadDelegate implements IListVirtualDelegate<IKnoxThreadRow> {
 			case 'tool': return TOOL_TEMPLATE;
 			case 'timeline': return TIMELINE_TEMPLATE;
 			case 'loading': return LOADING_TEMPLATE;
+			case 'loadEarlier': return LOAD_EARLIER_TEMPLATE;
 			case 'spacer': return SPACER_TEMPLATE;
 		}
 	}
 
-	hasDynamicHeight(): boolean {
-		return true;
+	hasDynamicHeight(element: IKnoxThreadRow): boolean {
+		return element.kind !== 'spacer';
 	}
 
 	getDynamicHeight(element: IKnoxThreadRow): number | null {
-		return element.measuredHeight ?? null;
+		return knoxThreadDynamicHeight(element);
 	}
 
 	setDynamicHeight(element: IKnoxThreadRow, height: number): void {
@@ -230,6 +255,9 @@ class KnoxThreadAccessibilityProvider implements IListAccessibilityProvider<IKno
 		}
 		if (element.kind === 'loading') {
 			return localize('knox.streaming', "Knox is responding.");
+		}
+		if (element.kind === 'loadEarlier') {
+			return knoxNls('loadEarlierMessages', { count: element.userIndex ?? 0 }, 'Load earlier messages');
 		}
 		if (element.kind === 'spacer') {
 			return '';
@@ -272,7 +300,7 @@ abstract class KnoxRowRenderer implements IListRenderer<IKnoxThreadRow, IKnoxThr
 	protected abstract renderRow(element: IKnoxThreadRow, index: number, template: IKnoxThreadTemplate): void;
 
 	private renderError(template: IKnoxThreadTemplate, error: unknown): void {
-		template.container.className = 'knox-thread-row knox-row-error';
+		applyRowClasses(template.container, 'knox-thread-row', 'knox-row-error');
 		append(template.container, $('p.knox-row-error-title')).textContent = localize('knox.somethingWentWrong', "Something went wrong:");
 		append(template.container, $('pre.knox-row-error-message')).textContent = error instanceof Error ? error.message : String(error);
 		const restart = append(template.container, $<HTMLButtonElement>('button.knox-overlay-back'));
@@ -321,7 +349,7 @@ class UserRenderer extends KnoxRowRenderer {
 		if (!item) {
 			return;
 		}
-		template.container.className = 'knox-thread-row knox-message knox-message-user';
+		applyRowClasses(template.container, 'knox-thread-row', 'knox-message', 'knox-message-user');
 		const header = append(template.container, $('.knox-message-header'));
 		append(header, $('span.knox-message-role')).textContent = roleLabel('user');
 		renderKnoxCheckpointButton(
@@ -400,7 +428,7 @@ class AssistantRenderer extends KnoxRowRenderer {
 			return;
 		}
 		const messageId = item.message.id ?? item.messageId ?? String(element.historyIndex);
-		template.container.className = 'knox-thread-row knox-message knox-message-assistant';
+		applyRowClasses(template.container, 'knox-thread-row', 'knox-message', 'knox-message-assistant');
 		template.container.id = knoxActivityAnchorId(`reply:${messageId}`);
 
 		const reasoningHost = append(template.container, $('.knox-reasoning'));
@@ -427,6 +455,7 @@ class AssistantRenderer extends KnoxRowRenderer {
 				history: this._chat.history,
 				expanded: this.ctx.codeBlockExpanded,
 				onDidChangeHeight: () => this.probe(element.id),
+				onDidToggleExpand: () => this.ctx.refresh(),
 			}, {
 				markdown: this._markdown,
 				language: this._language,
@@ -527,7 +556,7 @@ class ThinkingRenderer extends KnoxRowRenderer {
 			return;
 		}
 		const messageId = item.message.id ?? item.messageId ?? String(element.historyIndex);
-		template.container.className = 'knox-thread-row knox-reasoning';
+		applyRowClasses(template.container, 'knox-thread-row');
 		template.container.id = knoxActivityAnchorId(`thinking:${messageId}`);
 		const collapsed = { value: this.ctx.reasoningCollapsed.get(element.id) !== false };
 		const inProgress = this._chat.isStreaming && element.isLast === true;
@@ -539,7 +568,8 @@ class ThinkingRenderer extends KnoxRowRenderer {
 		} else if (!this.ctx.thinkingStarted.has(element.id)) {
 			this.ctx.thinkingStarted.set(element.id, startAt);
 		}
-		renderKnoxReasoning(template.container, {
+		const reasoningHost = append(template.container, $('.knox-reasoning'));
+		renderKnoxReasoning(reasoningHost, {
 			reasoning: {
 				active: inProgress,
 				text: renderKnoxChatMessage(item.message) || item.message.redactedThinking || '',
@@ -574,7 +604,7 @@ class ToolRenderer extends KnoxRowRenderer {
 	}
 
 	protected renderRow(element: IKnoxThreadRow, index: number, template: IKnoxThreadTemplate): void {
-		template.container.className = 'knox-thread-row knox-message knox-message-tool';
+		applyRowClasses(template.container, 'knox-thread-row', 'knox-message', 'knox-message-tool');
 		const state = element.toolState;
 		if (state && element.item) {
 			template.container.id = knoxActivityAnchorId(`tool:${state.toolCallId || state.toolCall.id}`);
@@ -585,6 +615,7 @@ class ToolRenderer extends KnoxRowRenderer {
 				ui: this.ctx.toolUi,
 				codeBlockExpanded: this.ctx.codeBlockExpanded,
 				onDidChangeHeight: () => this.probe(element.id),
+				onDidToggleUi: () => this.ctx.refresh(),
 			}, {
 				markdown: this._markdown,
 				language: this._language,
@@ -626,7 +657,7 @@ class TimelineRenderer extends KnoxRowRenderer {
 	}
 
 	protected renderRow(element: IKnoxThreadRow, _index: number, template: IKnoxThreadTemplate): void {
-		template.container.className = 'knox-thread-row knox-timeline-row';
+		applyRowClasses(template.container, 'knox-thread-row', 'knox-timeline-row');
 		const steps = element.steps ?? [];
 		const userIndex = element.userIndex ?? element.historyIndex;
 		const expanded = this.ctx.timelineExpanded.has(userIndex);
@@ -655,11 +686,29 @@ class LoadingRenderer extends KnoxRowRenderer {
 	readonly templateId = LOADING_TEMPLATE;
 
 	protected renderRow(element: IKnoxThreadRow, _index: number, template: IKnoxThreadTemplate): void {
-		template.container.className = 'knox-thread-row knox-loading-row';
+		applyRowClasses(template.container, 'knox-thread-row', 'knox-loading-row');
 		renderKnoxLoadingState(template.container, {
 			label: localize('knox.activity.loading', "Working"),
 			startedAt: element.startedAt,
 		}, template.elementDisposables);
+	}
+}
+
+class LoadEarlierRenderer extends KnoxRowRenderer {
+	readonly templateId = LOAD_EARLIER_TEMPLATE;
+
+	protected renderRow(element: IKnoxThreadRow, _index: number, template: IKnoxThreadTemplate): void {
+		applyRowClasses(template.container, 'knox-thread-row', 'knox-load-earlier-row');
+		const count = element.userIndex ?? 0;
+		const button = append(template.container, $<HTMLButtonElement>('button.knox-load-earlier'));
+		button.type = 'button';
+		button.setAttribute('data-testid', 'load-earlier-messages');
+		button.textContent = knoxNls('loadEarlierMessages', { count }, 'Load {{count}} earlier messages');
+		template.elementDisposables.add(addDisposableListener(button, 'click', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.ctx.loadEarlier();
+		}));
 	}
 }
 
@@ -692,13 +741,18 @@ export class KnoxThreadList extends Disposable {
 	private _scroll = knoxResetScrollState();
 	private _programmaticScroll = false;
 	private _programmaticToken = 0;
+	private _expandedStart = AUTO_DISPLAY_START;
+	private _sessionId: string | undefined;
+	private _loadingEarlier = false;
+	private _pendingRestoreHeight: number | null = null;
+	private _skipStickToBottom = false;
 	private readonly _timelineExpanded = new Set<number>();
 	private readonly _reasoningCollapsed = new Map<string, boolean>();
 	private readonly _thinkingStarted = new Map<string, number>();
 	private readonly _codeBlockExpanded = new Map<string, boolean>();
 	private readonly _toolUi: IKnoxToolUiState = {
 		argsExpanded: new Set<string>(),
-		treeCollapsed: new Set<string>(),
+		treeExpanded: new Set<string>(),
 		treeTab: new Map(),
 		askAnswers: new Map(),
 		askIndex: new Map(),
@@ -706,7 +760,13 @@ export class KnoxThreadList extends Disposable {
 		peekExpanded: new Set<string>(),
 		terminalUnstuck: new Set<string>(),
 		terminalScrollTop: new Map<string, number>(),
+		toolCollapsed: new Set<string>(),
 	};
+	private readonly _stickyHost: HTMLElement;
+	private readonly _stickyStore = this._register(new DisposableStore());
+	private _floatingLastUser = false;
+	private _lastLayout: { height: number; width: number } | undefined;
+	private _refreshing = false;
 
 	private readonly _renderCtx: IKnoxThreadRenderContext;
 
@@ -724,6 +784,8 @@ export class KnoxThreadList extends Disposable {
 		super();
 
 		this.element = append(parent, $('.knox-thread'));
+		this._stickyHost = append(this.element, $('.knox-sticky-last-user.hidden'));
+		this._stickyHost.setAttribute('data-testid', 'floating-sent-host');
 
 		this._renderCtx = {
 			probeHeight: rowId => this._probeHeight(rowId),
@@ -735,6 +797,7 @@ export class KnoxThreadList extends Disposable {
 			refresh: () => this.refresh(),
 			revealStep: step => this.revealStep(step),
 			restartSession: () => this._chatService.newSession(),
+			loadEarlier: () => this.loadEarlier(),
 		};
 
 		this._list = this._register(instantiationService.createInstance(
@@ -749,6 +812,7 @@ export class KnoxThreadList extends Disposable {
 				instantiationService.createInstance(ToolRenderer, this._renderCtx),
 				instantiationService.createInstance(TimelineRenderer, this._renderCtx),
 				new LoadingRenderer(this._renderCtx),
+				new LoadEarlierRenderer(this._renderCtx),
 				new SpacerRenderer(),
 			],
 			{
@@ -781,6 +845,17 @@ export class KnoxThreadList extends Disposable {
 			} else {
 				this._scroll = next;
 			}
+			if (
+				!this._programmaticScroll
+				&& this._displayStart() > 0
+				&& e.scrollTop < CHAT_LOAD_EARLIER_SCROLL_TOP
+			) {
+				this.loadEarlier();
+			}
+			const float = this._shouldFloatLastUser();
+			if (!this._programmaticScroll && float !== this._floatingLastUser) {
+				this.refresh();
+			}
 		}));
 		this._register(this._chatService.onDidChange(() => this.refresh()));
 		this.refresh();
@@ -805,7 +880,7 @@ export class KnoxThreadList extends Disposable {
 	scrollToTop(): void {
 		this._withProgrammaticScroll(() => {
 			this._list.scrollTop = 0;
-			if (this._rows.length) {
+			if (this._list.length) {
 				this._list.reveal(0);
 			}
 		});
@@ -818,21 +893,31 @@ export class KnoxThreadList extends Disposable {
 			return;
 		}
 		this._scroll = { ...this._scroll, stickToBottom: true, isAtBottom: true };
-		if (this._rows.length) {
-			this._withProgrammaticScroll(() => {
-				this._list.reveal(this._rows.length - 1);
-				this._list.scrollTop = Math.max(0, this._list.scrollHeight - this._list.renderHeight);
-			});
-		}
+		this._withProgrammaticScroll(() => {
+			this._revealLastInList();
+			this._list.scrollTop = Math.max(0, this._list.scrollHeight - this._list.renderHeight);
+		});
 		this._onDidChangeScroll.fire(this._scroll);
 	}
 
 	layout(height: number, width: number): void {
-		this._list.layout(height, width);
-		this._syncSpacer();
-		if (this._scroll.stickToBottom && this._rows.length) {
-			this._withProgrammaticScroll(() => this._list.reveal(this._rows.length - 1));
-		}
+		this._lastLayout = { height, width };
+		this._withProgrammaticScroll(() => {
+			try {
+				const sticky = this._stickyHost.classList.contains('hidden') ? 0 : this._stickyHost.offsetHeight;
+				const listHeight = Math.max(0, height - sticky);
+				this._list.getHTMLElement().style.height = `${listHeight}px`;
+				this._list.layout(listHeight, width);
+				this._syncSpacer();
+				this._reconcileList();
+				if (!this._skipStickToBottom && this._scroll.stickToBottom) {
+					this._revealLastInList();
+				}
+			} catch {
+				// Chrome onDidChangeHeight re-layouts the thread on every stream
+				// token. A list-index miss must not replace the pane with the crash overlay.
+			}
+		});
 	}
 
 	focus(): void {
@@ -847,23 +932,78 @@ export class KnoxThreadList extends Disposable {
 		return this._rows;
 	}
 
+	getHistory() {
+		return this._chatService.history;
+	}
+
+	/** Full flatten (no display window) so find can match hidden messages. */
+	getSearchRows(): readonly IKnoxThreadRow[] {
+		return buildKnoxThreadRows(this._chatService.history, {
+			mode: this._chatService.mode,
+			isStreaming: this._chatService.isStreaming,
+			timelineExpanded: this._timelineExpanded,
+			displayStart: 0,
+		});
+	}
+
 	isStreaming(): boolean {
 		return this._chatService.isStreaming;
 	}
 
-	revealFindHit(hit: IKnoxFindHit, pattern?: KnoxSearchPattern): void {
-		if (hit.rowIndex < 0 || hit.rowIndex >= this._rows.length) {
+	displayStart(): number {
+		return this._displayStart();
+	}
+
+	loadEarlier(): void {
+		const displayStart = this._displayStart();
+		if (displayStart <= 0 || this._loadingEarlier) {
 			return;
 		}
+		this._loadingEarlier = true;
+		this._skipStickToBottom = true;
+		this._pendingRestoreHeight = this._list.scrollHeight;
+		this._expandedStart = nextExpandedStart(displayStart);
+		this.refresh();
+	}
+
+	expandDisplayToHistoryIndex(index: number): void {
+		if (index < 0) {
+			return;
+		}
+		if (index >= this._displayStart()) {
+			return;
+		}
+		this._skipStickToBottom = true;
+		this._expandedStart = index;
+		this.refresh();
+		this._skipStickToBottom = false;
+	}
+
+	revealFindHit(hit: IKnoxFindHit, pattern?: KnoxSearchPattern): void {
+		if (typeof hit.historyIndex === 'number' && hit.historyIndex >= 0) {
+			this.expandDisplayToHistoryIndex(hit.historyIndex);
+		}
+		let rowIndex = this._rows.findIndex(row => row.id === hit.rowId);
+		if (rowIndex < 0 && typeof hit.historyIndex === 'number') {
+			rowIndex = this._rows.findIndex(row =>
+				row.kind !== 'spacer'
+				&& row.kind !== 'loadEarlier'
+				&& row.historyIndex === hit.historyIndex,
+			);
+		}
+		if (rowIndex < 0 || rowIndex >= this._rows.length || rowIndex >= this._list.length) {
+			return;
+		}
+		const current: IKnoxFindHit = { ...hit, rowIndex };
 		this.element.classList.add('find-active');
 		this._renderCtx.findPattern = pattern;
-		this._renderCtx.findCurrent = hit;
+		this._renderCtx.findCurrent = current;
 		this._withProgrammaticScroll(() => {
-			this._list.reveal(hit.rowIndex, 0.5);
-			this._list.setFocus([hit.rowIndex]);
-			this._list.setSelection([hit.rowIndex]);
+			this._list.reveal(rowIndex, 0.5);
+			this._list.setFocus([rowIndex]);
+			this._list.setSelection([rowIndex]);
 		});
-		this._list.splice(hit.rowIndex, 1, [this._rows[hit.rowIndex]]);
+		this._list.splice(rowIndex, 1, [this._rows[rowIndex]]);
 	}
 
 	clearFindHighlight(): void {
@@ -890,25 +1030,28 @@ export class KnoxThreadList extends Disposable {
 		const index = this._rows.findIndex(row =>
 			row.id.includes(step.id) || row.historyIndex === step.historyIndex,
 		);
-		if (index >= 0) {
+		if (index >= 0 && index < this._list.length) {
 			this._withProgrammaticScroll(() => this._list.reveal(index));
 		}
 	}
 
 	refresh(): void {
+		if (this._refreshing) {
+			return;
+		}
+		this._refreshing = true;
+		const stickyBefore = this._stickyHost.offsetHeight;
 		try {
+			this._resetWindowIfSessionChanged();
+			this._syncStickyLastUser();
 			const previousRows = this._rows;
 			const previousHeights = new Map(previousRows.map(row => [row.id, row.measuredHeight] as const));
-			const contentRows = buildKnoxThreadRows(this._chatService.history, {
-				mode: this._chatService.mode,
-				isStreaming: this._chatService.isStreaming,
-				timelineExpanded: this._timelineExpanded,
-			});
+			const contentRows = this._buildContentRows(this._displayStart());
 			// Preserve measured heights across rebuilds so a token does not reset
 			// scroll or re-measure every row.
 			for (const row of contentRows) {
 				const height = previousHeights.get(row.id);
-				if (typeof height === 'number') {
+				if (typeof height === 'number' && height > 0) {
 					row.measuredHeight = height;
 				}
 			}
@@ -920,8 +1063,8 @@ export class KnoxThreadList extends Disposable {
 				// Same row ids: replace only the rows whose content changed (usually
 				// just the streaming assistant/tool row). Other rows keep their
 				// identity, heights, collapse state, and scroll position.
-				this._rows = this._withSpacerPreserving(contentRows, previousRows);
-				const offset = this._list.length > 0 && this._list.element(0)?.kind === 'spacer' ? 1 : 0;
+				this._rows = contentRows;
+				const offset = this._contentOffset();
 				for (const index of diff.changedIndices) {
 					const row = contentRows[index];
 					if (row) {
@@ -929,43 +1072,147 @@ export class KnoxThreadList extends Disposable {
 					}
 				}
 				this._syncSpacer();
-				if (this._scroll.stickToBottom && this._rows.length) {
-					this._withProgrammaticScroll(() => this._list.reveal(this._rows.length - 1));
-				}
+				this._reconcileList();
+				this._afterRefresh();
 				return;
 			}
 
-			this._rows = this._withSpacer(contentRows);
-			if (!this._rows.length) {
+			this._rows = contentRows;
+			if (!contentRows.length) {
 				this._scroll = knoxResetScrollState();
 				this._onDidChangeScroll.fire(this._scroll);
 				this._list.splice(0, this._list.length, []);
 			} else {
 				// Splice only the changed span. The synthetic spacer may lead the
 				// list, so offset content mutations past it.
-				const listHasSpacer = this._list.length > 0 && this._list.element(0)?.kind === 'spacer';
-				const offset = listHasSpacer ? 1 : 0;
+				const offset = this._contentOffset();
 				for (const splice of diff.splices) {
 					this._list.splice(splice.start + offset, splice.deleteCount, splice.rows);
 				}
 			}
 			this._syncSpacer();
-			if (this._scroll.stickToBottom && this._rows.length) {
-				this._withProgrammaticScroll(() => this._list.reveal(this._rows.length - 1));
-			}
+			this._reconcileList();
+			this._afterRefresh();
 		} catch (error) {
 			this._onDidCrash.fire(error);
+		} finally {
+			const stickyAfter = this._stickyHost.offsetHeight;
+			this._refreshing = false;
+			if (this._lastLayout && stickyBefore !== stickyAfter) {
+				this.layout(this._lastLayout.height, this._lastLayout.width);
+			}
 		}
 	}
 
-	/** Reuse the existing spacer row object when present so heights survive. */
-	private _withSpacerPreserving(rows: IKnoxThreadRow[], previous: readonly IKnoxThreadRow[]): IKnoxThreadRow[] {
-		const spacer = previous.find(row => row.kind === 'spacer');
-		if (!spacer) {
-			// Still route through _syncSpacer to add one if the viewport allows.
-			return rows;
+	private _displayStart(): number {
+		const history = this._chatService.history;
+		return resolveDisplayStart({
+			historyLength: history.length,
+			expandedStart: this._expandedStart,
+			turns: groupHistoryTurns(history),
+		});
+	}
+
+	private _resetWindowIfSessionChanged(): void {
+		if (this._sessionId !== this._chatService.sessionId) {
+			this._sessionId = this._chatService.sessionId;
+			this._expandedStart = AUTO_DISPLAY_START;
 		}
-		return [spacer, ...rows];
+	}
+
+	private _buildContentRows(displayStart: number): IKnoxThreadRow[] {
+		const history = this._chatService.history;
+		const lastUserIndex = knoxLastUserIndex(history);
+		const float = this._shouldFloatLastUser(lastUserIndex);
+		this._floatingLastUser = float;
+		const rows = buildKnoxThreadRows(history, {
+			mode: this._chatService.mode,
+			isStreaming: this._chatService.isStreaming,
+			timelineExpanded: this._timelineExpanded,
+			displayStart,
+			lastUserIndex,
+		});
+		const windowed = withKnoxLoadEarlierRow(rows, displayStart);
+		if (!float) {
+			return windowed;
+		}
+		return windowed.filter(row => !(row.kind === 'user' && row.historyIndex === lastUserIndex));
+	}
+
+	private _shouldFloatLastUser(lastUserIndex = knoxLastUserIndex(this._chatService.history)): boolean {
+		return shouldFloatLastUser({
+			isStreaming: this._chatService.isStreaming,
+			followLive: this._scroll.stickToBottom,
+			lastUserIndex,
+		});
+	}
+
+	private _syncStickyLastUser(): void {
+		const history = this._chatService.history;
+		const lastUserIndex = knoxLastUserIndex(history);
+		const float = this._shouldFloatLastUser(lastUserIndex);
+		this._floatingLastUser = float;
+		this._stickyStore.clear();
+		clearNode(this._stickyHost);
+		this._stickyHost.classList.toggle('hidden', !float);
+		if (!float || lastUserIndex < 0) {
+			return;
+		}
+		const item = history[lastUserIndex];
+		if (!item) {
+			return;
+		}
+		const wrap = append(this._stickyHost, $('.knox-message.knox-message-user'));
+		const header = append(wrap, $('.knox-message-header'));
+		append(header, $('span.knox-message-role')).textContent = roleLabel('user');
+		append(wrap, $('div.knox-message-body')).textContent = renderKnoxChatMessage(item.message);
+		const fade = append(this._stickyHost, $('.knox-sticky-last-user-fade'));
+		fade.setAttribute('aria-hidden', 'true');
+		fade.setAttribute('data-testid', 'sticky-last-user-fade');
+	}
+
+	private _afterRefresh(): void {
+		if (this._pendingRestoreHeight != null) {
+			const previousHeight = this._pendingRestoreHeight;
+			this._pendingRestoreHeight = null;
+			this._withProgrammaticScroll(() => {
+				this._list.scrollTop += this._list.scrollHeight - previousHeight;
+			});
+			this._loadingEarlier = false;
+			this._skipStickToBottom = false;
+			return;
+		}
+		if (!this._skipStickToBottom && this._scroll.stickToBottom) {
+			this._withProgrammaticScroll(() => this._revealLastInList());
+		}
+	}
+
+	private _contentOffset(): number {
+		return this._listHasSpacer() ? 1 : 0;
+	}
+
+	private _listHasSpacer(): boolean {
+		if (this._list.length <= 0) {
+			return false;
+		}
+		try {
+			return this._list.element(0)?.kind === 'spacer';
+		} catch {
+			return false;
+		}
+	}
+
+	/** Reveal using `_list.length`, never `_rows.length`. */
+	private _revealLastInList(): void {
+		const index = knoxLastRevealIndex(this._list.length);
+		if (index === undefined) {
+			return;
+		}
+		try {
+			this._list.reveal(index);
+		} catch {
+			// List length can change between the check and reveal during layout.
+		}
 	}
 
 	private _withProgrammaticScroll(run: () => void): void {
@@ -992,73 +1239,53 @@ export class KnoxThreadList extends Disposable {
 			}
 			this._list.updateElementHeight(index, undefined);
 			this._syncSpacer();
-			if (this._scroll.stickToBottom && this._rows.length) {
-				this._withProgrammaticScroll(() => this._list.reveal(this._rows.length - 1));
+			this._reconcileList();
+			if (!this._skipStickToBottom && this._scroll.stickToBottom) {
+				this._withProgrammaticScroll(() => this._revealLastInList());
 			}
 		});
-	}
-
-	private _withSpacer(rows: IKnoxThreadRow[]): IKnoxThreadRow[] {
-		const content = rows.filter(row => row.kind !== 'spacer');
-		const viewport = this._list.renderHeight;
-		if (viewport <= 0 || !content.length) {
-			return content;
-		}
-		const contentHeight = content.reduce((sum, row) => sum + knoxThreadRowHeight(row), 0);
-		const pad = Math.max(0, viewport - contentHeight);
-		if (pad === 0) {
-			return content;
-		}
-		return [{
-			id: SPACER_ID,
-			kind: 'spacer',
-			historyIndex: -1,
-			measuredHeight: pad,
-		}, ...content];
 	}
 
 	/**
 	 * GUI Chat.tsx uses a flex `grow` spacer so short threads sit just above
 	 * the input and streaming flows upward. Mirror that with a leading list row.
+	 * `_rows` and the WorkbenchList must stay the same length — a spacer only
+	 * in `_rows` makes `reveal(_rows.length - 1)` throw ListError Invalid index.
 	 */
 	private _syncSpacer(): void {
-		const viewport = this._list.renderHeight;
-		if (viewport <= 0) {
-			return;
-		}
-		const hasSpacer = this._rows[0]?.kind === 'spacer';
-		const contentRows = hasSpacer ? this._rows.slice(1) : this._rows;
-		if (!contentRows.length) {
-			if (hasSpacer) {
-				this._rows = [];
+		const { rows, op } = knoxThreadSpacerSync({
+			viewport: this._list.renderHeight,
+			rows: this._rows,
+			listHasSpacer: this._listHasSpacer(),
+		});
+		this._rows = rows;
+		switch (op.type) {
+			case 'none':
+				return;
+			case 'clear':
 				this._list.splice(0, this._list.length, []);
-			}
+				return;
+			case 'remove':
+				if (this._list.length > 0) {
+					this._list.splice(0, 1, []);
+				}
+				return;
+			case 'insert':
+				this._list.splice(0, 0, [op.row]);
+				return;
+			case 'update':
+				if (this._list.length > 0) {
+					this._list.updateElementHeight(0, op.pad);
+				}
+				return;
+		}
+	}
+
+	/** Last-resort resync so a missed splice cannot `reveal` past `_list.length`. */
+	private _reconcileList(): void {
+		if (this._list.length === this._rows.length) {
 			return;
 		}
-		const contentHeight = contentRows.reduce((sum, row) => sum + knoxThreadRowHeight(row), 0);
-		const pad = Math.max(0, viewport - contentHeight);
-		if (pad === 0) {
-			if (hasSpacer) {
-				this._rows = contentRows;
-				this._list.splice(0, 1, []);
-			}
-			return;
-		}
-		if (hasSpacer) {
-			const spacer = this._rows[0];
-			if (spacer.measuredHeight !== pad) {
-				spacer.measuredHeight = pad;
-				this._list.updateElementHeight(0, pad);
-			}
-			return;
-		}
-		const spacer: IKnoxThreadRow = {
-			id: SPACER_ID,
-			kind: 'spacer',
-			historyIndex: -1,
-			measuredHeight: pad,
-		};
-		this._rows = [spacer, ...contentRows];
-		this._list.splice(0, 0, [spacer]);
+		this._list.splice(0, this._list.length, [...this._rows]);
 	}
 }

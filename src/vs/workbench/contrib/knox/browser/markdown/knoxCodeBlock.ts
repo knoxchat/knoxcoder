@@ -31,6 +31,9 @@ import {
 	knoxHasFileExtension,
 	shouldAutoExpandGeneratingCodeBlock,
 } from '../../common/knoxMarkdown.js';
+import { knoxVisibleCodeText } from '../../common/knoxCodeLineWindow.js';
+import { capDisplayText } from '../../common/knoxDisplayCap.js';
+import { knoxNls } from '../../common/knoxI18n.js';
 import { knoxSetTokenizedHtml } from '../knoxTrustedTypes.js';
 import { appendKnoxGuiIcon, KnoxGuiIconName, knoxGuiIconClass, setKnoxGuiIcon } from '../knoxGuiIcons.js';
 import { renderKnoxClickableFilePath } from './knoxClickablePath.js';
@@ -46,6 +49,7 @@ export interface IKnoxCodeBlockRenderOptions {
 	codeWrap: boolean;
 	expanded: Map<string, boolean>;
 	onDidChangeHeight: () => void;
+	onDidToggleExpand?: () => void;
 }
 
 export interface IKnoxCodeBlockServices {
@@ -222,7 +226,7 @@ export function renderKnoxCodeBlock(
 
 		body = append(root, $('.knox-code-body'));
 		if (!expanded) {
-			body.classList.add('hidden');
+			body.classList.add('knox-code-collapsed');
 		}
 
 		store.add(addDisposableListener(chevron, 'click', e => {
@@ -230,9 +234,9 @@ export function renderKnoxCodeBlock(
 			e.stopPropagation();
 			expanded = !expanded;
 			options.expanded.set(key, expanded);
-			body.classList.toggle('hidden', !expanded);
+			body.classList.toggle('knox-code-collapsed', !expanded);
 			chevronIcon.className = knoxGuiIconClass(expanded ? 'lucide-chevron-down' : 'lucide-chevron-right');
-			options.onDidChangeHeight();
+			(options.onDidToggleExpand ?? options.onDidChangeHeight)();
 		}));
 	} else {
 		body = append(root, $('.knox-code-body'));
@@ -257,10 +261,42 @@ export function renderKnoxCodeBlock(
 	if (isGenerating) {
 		pre.setAttribute('data-generating', 'true');
 	}
-	pre.textContent = block.code;
+	const windowed = knoxVisibleCodeText(block.code, { isGenerating, isExpanded: expanded });
+	const painted = capDisplayText(windowed.text);
+	pre.textContent = painted.text;
+	if (windowed.end < windowed.lineCount || painted.truncated) {
+		const footer = append(body, $('div.knox-code-window-footer'));
+		const hidden = Math.max(0, windowed.lineCount - (windowed.end - windowed.start));
+		if (!expanded && hidden > 0) {
+			const more = append(footer, $<HTMLButtonElement>('button.knox-code-window-more'));
+			more.type = 'button';
+			more.textContent = knoxNls('linesHiddenExpand', { hidden }, '{{hidden}} lines hidden • Expand');
+			store.add(addDisposableListener(more, 'click', e => {
+				e.preventDefault();
+				e.stopPropagation();
+				options.expanded.set(key, true);
+				(options.onDidToggleExpand ?? options.onDidChangeHeight)();
+			}));
+		} else if (expanded) {
+			append(footer, $('span.knox-code-window-count')).textContent = knoxNls(
+				'showingLinesOf',
+				{ shown: windowed.end - windowed.start, total: windowed.lineCount },
+				'Showing {{shown}} of {{total}} lines',
+			);
+			const collapse = append(footer, $<HTMLButtonElement>('button.knox-code-window-more'));
+			collapse.type = 'button';
+			collapse.textContent = knoxNls('collapseCodeBlock', undefined, 'Collapse');
+			store.add(addDisposableListener(collapse, 'click', e => {
+				e.preventDefault();
+				e.stopPropagation();
+				options.expanded.set(key, false);
+				(options.onDidToggleExpand ?? options.onDidChangeHeight)();
+			}));
+		}
+	}
 	void renderTokenizedCode(
 		pre,
-		block.code,
+		painted.text,
 		block.language,
 		block.relativeFilePath || undefined,
 		services.language,

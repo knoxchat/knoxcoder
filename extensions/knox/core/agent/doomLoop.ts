@@ -31,7 +31,7 @@ export function isRebuildToolName(name: string): boolean {
   return REBUILD_TOOL_NAMES.has(name);
 }
 
-export type DoomLoopKind = "repeat" | "fail_streak";
+export type DoomLoopKind = "repeat" | "fail_streak" | "same_strategy";
 
 export interface DoomLoopHit {
   kind: DoomLoopKind;
@@ -241,7 +241,9 @@ export function buildDoomLoopSummaryInstruction(hit: DoomLoopHit): string {
   const what =
     hit.kind === "repeat"
       ? `repeated identical ${hit.toolName ?? "tool"} calls (${hit.count} times)`
-      : `a streak of ${hit.count} failed tool calls`;
+      : hit.kind === "same_strategy"
+        ? `repeating the same failed approach (${hit.toolName ?? "tools"}, ${hit.count} recent calls)`
+        : `a streak of ${hit.count} failed tool calls`;
   return [
     `[Agent doom loop] You appear stuck: ${what}.`,
     "Do not call any tools.",
@@ -254,7 +256,9 @@ export function buildDoomLoopBlockedMessage(hit: DoomLoopHit): string {
   const what =
     hit.kind === "repeat"
       ? `identical ${hit.toolName ?? "tool"} call repeated ${hit.count} times`
-      : `${hit.count} consecutive tool failures`;
+      : hit.kind === "same_strategy"
+        ? `same failed ${hit.toolName ?? "tool"} strategy (${hit.count} recent calls)`
+        : `${hit.count} consecutive tool failures`;
   return [
     `Blocked: doom-loop detection (${what}).`,
     "This call was not executed.",

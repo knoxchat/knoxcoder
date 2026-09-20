@@ -230,6 +230,34 @@ export function resolveAgentProfile(
   return "default";
 }
 
+/** Kernel/QEMU *and* a root Cargo.toml — workspace hints pull both ways. */
+export function workspaceHintsDisagree(
+  workspace: boolean | WorkspaceProfileHints = false,
+): boolean {
+  const hints = normalizeWorkspaceHints(workspace);
+  return hints.systems && hints.cargo;
+}
+
+/**
+ * Overlay a Jev-confirmed profile when the user asked for `auto`.
+ * Explicit systems/rust/default are never changed.
+ */
+export function overlayAutoProfile(
+  experimental:
+    | {
+        agentProfile?: unknown;
+        agentProfileSetting?: unknown;
+      }
+    | undefined,
+  workspace: boolean | WorkspaceProfileHints = false,
+  confirmed?: ResolvedAgentProfile | null,
+): ResolvedAgentProfile {
+  if (experimental?.agentProfileSetting === "auto" && confirmed) {
+    return confirmed;
+  }
+  return resolveAgentProfile(experimental?.agentProfile, workspace);
+}
+
 /** Copy VS Code knoxchat.* host settings onto experimental (unset YAML wins later). */
 export function ideSettingsToExperimental(ide: {
   agentProfile?: unknown;
@@ -238,6 +266,7 @@ export function ideSettingsToExperimental(ide: {
   agentVerifyCommand?: unknown;
   agentVerifyMode?: unknown;
   agentVerifyMaxIterations?: unknown;
+  jevEnabled?: unknown;
 }): {
   agentProfile?: AgentProfileSetting;
   agentMaxSteps?: number;
@@ -245,10 +274,14 @@ export function ideSettingsToExperimental(ide: {
   agentVerifyCommand?: string;
   agentVerifyMode?: "diagnostics" | "command" | "off";
   agentVerifyMaxIterations?: number;
+  jev?: { enabled: true };
 } {
   const out: ReturnType<typeof ideSettingsToExperimental> = {};
   if (isAgentProfileSetting(ide.agentProfile)) {
     out.agentProfile = ide.agentProfile;
+  }
+  if (ide.jevEnabled === true) {
+    out.jev = { enabled: true };
   }
   if (typeof ide.agentMaxSteps === "number" && Number.isFinite(ide.agentMaxSteps)) {
     out.agentMaxSteps = ide.agentMaxSteps;
@@ -321,6 +354,7 @@ export function resolveAgentLoopSettings(
   experimental:
     | {
         agentProfile?: unknown;
+        agentProfileSetting?: unknown;
         agentMaxSteps?: unknown;
         agentDoomLoopThreshold?: unknown;
         agentVerifyMode?: unknown;
@@ -328,11 +362,9 @@ export function resolveAgentLoopSettings(
       }
     | undefined,
   workspace: boolean | WorkspaceProfileHints = false,
+  confirmed?: ResolvedAgentProfile | null,
 ): AgentLoopSettings {
-  const profile = resolveAgentProfile(
-    experimental?.agentProfile,
-    workspace,
-  );
+  const profile = overlayAutoProfile(experimental, workspace, confirmed);
   const defaults = AGENT_PROFILE_DEFAULTS[profile];
   const explicitCommand =
     typeof experimental?.agentVerifyCommand === "string"

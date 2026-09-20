@@ -32,6 +32,8 @@ export const sharedConfigSchema = z
     agentPolicyCommands: z.string(),
     agentPolicyExternalDirectory: z.enum(["deny", "ask", "allow"]),
     agentPolicySandboxDestructive: z.boolean(),
+    /** Enable Jev harness judgments (requires `jev.apiKey` in config.yaml). */
+    jevEnabled: z.boolean(),
 
     // `ui` in `KnoxConfig`
     showSessionTabs: z.boolean(),
@@ -130,6 +132,13 @@ export function modifyAnyConfigWithSharedConfig<
   if (sharedConfig.agentVerifyMaxIterations !== undefined) {
     configCopy.experimental.agentVerifyMaxIterations =
       sharedConfig.agentVerifyMaxIterations;
+  }
+
+  if (sharedConfig.jevEnabled !== undefined) {
+    configCopy.experimental.jev = {
+      ...configCopy.experimental.jev,
+      enabled: sharedConfig.jevEnabled,
+    };
   }
 
   const hasPolicyUpdate =

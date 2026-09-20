@@ -266,5 +266,6 @@ export function parseKnoxSession(value: unknown): IKnoxSession | undefined {
 		title: typeof record.title === 'string' ? record.title : '',
 		workspaceDirectory: typeof record.workspaceDirectory === 'string' ? record.workspaceDirectory : undefined,
 		history: Array.isArray(record.history) ? record.history as IKnoxSession['history'] : [],
+		guiHydrateSlimmed: record.guiHydrateSlimmed === true ? true : undefined,
 	};
 }

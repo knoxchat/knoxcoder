@@ -35,5 +35,6 @@ export function renderKnoxGenericCodePreview(
 		history: services.chat.history,
 		expanded,
 		onDidChangeHeight,
+		onDidToggleExpand: onDidChangeHeight,
 	}, services, store);
 }

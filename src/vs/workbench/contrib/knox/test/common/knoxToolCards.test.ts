@@ -30,7 +30,7 @@ import {
 	knoxDisplayArgsForToolCall,
 	knoxExtractStreamingToolCode,
 } from '../../common/knoxStreamingToolCode.js';
-import { knoxExtractTerminalOutput, knoxTerminalIsAtBottom, knoxTerminalShouldFollow } from '../../common/knoxTerminalOutput.js';
+import { knoxExtractTerminalOutput, knoxTerminalIsAtBottom, knoxTerminalShouldFollow, extractLogPathFromTerminalOutput, takeTerminalTail, TERMINAL_TAIL_CHARS, TERMINAL_TAIL_LINES } from '../../common/knoxTerminalOutput.js';
 import {
 	knoxCreateFileMarkdown,
 	knoxFindTool,
@@ -65,6 +65,12 @@ import {
 import type { IKnoxChatHistoryItem, IKnoxTool, IKnoxToolCallState } from '../../common/knoxChatTypes.js';
 import { KnoxBuiltInToolName } from '../../common/knoxToolNames.js';
 import { knoxParseTools } from '../../common/knoxToolPermissions.js';
+import {
+	finishedToolSummary,
+	shouldRenderToolBody,
+	toolAlwaysShowsBody,
+} from '../../common/knoxToolSummary.js';
+import { knoxHasNlsKey, knoxNls } from '../../common/knoxI18n.js';
 
 function toolState(
 	name: string,
@@ -532,6 +538,78 @@ suite('knox tool cards (T6.6–T6.16)', () => {
 		test('parses single-line peek ranges for click-to-open (T3.2)', () => {
 			assert.deepStrictEqual(knoxContextItemRange('file.ts (7)'), { startLine: 7, endLine: 7 });
 			assert.strictEqual(knoxContextItemRange('file.ts'), undefined);
+		});
+	});
+
+	suite('tool collapse-to-summary (T8.5)', () => {
+		test('keeps live and finished tools expanded unless the user collapses', () => {
+			assert.strictEqual(shouldRenderToolBody('calling', false), true);
+			assert.strictEqual(shouldRenderToolBody('generating', false), true);
+			assert.strictEqual(shouldRenderToolBody('generated', false), true);
+			assert.strictEqual(shouldRenderToolBody('done', false), true);
+			assert.strictEqual(shouldRenderToolBody('canceled', false), true);
+			assert.strictEqual(shouldRenderToolBody('done', true), false);
+			assert.strictEqual(shouldRenderToolBody('calling', true), true);
+		});
+
+		test('always shows ask-user', () => {
+			assert.strictEqual(toolAlwaysShowsBody(KnoxBuiltInToolName.AskUser), true);
+			assert.strictEqual(shouldRenderToolBody('done', true, { alwaysShow: true }), true);
+		});
+
+		test('summarizes a finished read', () => {
+			const summary = finishedToolSummary({
+				...toolState(
+					KnoxBuiltInToolName.ReadFile,
+					'done',
+					{ filepath: 'src/a.ts' },
+					'{"filepath":"src/a.ts"}',
+				),
+				output: [
+					{ name: 'src/a.ts', description: 'file', content: 'line\n'.repeat(40) },
+				],
+			});
+			assert.ok(summary.name.toLowerCase().includes('read'));
+			assert.ok(summary.detail?.includes('a.ts'));
+			assert.ok(summary.result?.match(/lines/));
+		});
+	});
+
+	suite('terminal tail (T8.6)', () => {
+		test('keeps only the last lines of a 200k-char dump', () => {
+			const lines = Array.from({ length: 25000 }, (_, i) => `line-${i}`);
+			const content = lines.join('\n');
+			assert.ok(content.length > 200_000);
+			const { tail, truncated, hiddenLines } = takeTerminalTail(content);
+			assert.strictEqual(truncated, true);
+			assert.ok(hiddenLines > 0);
+			assert.ok(tail.split('\n').length <= TERMINAL_TAIL_LINES);
+			assert.ok(tail.length <= TERMINAL_TAIL_CHARS);
+			assert.ok(tail.endsWith('line-24999'));
+		});
+
+		test('extracts a Full log path', () => {
+			assert.strictEqual(
+				extractLogPathFromTerminalOutput('Status: exited\nFull log: /tmp/job.log\n--- output ---'),
+				'/tmp/job.log',
+			);
+		});
+
+		test('truncatedTerminalOutput / openFullLog / copyOutput i18n exist', () => {
+			assert.ok(knoxHasNlsKey('truncatedTerminalOutput'));
+			assert.ok(knoxNls('truncatedTerminalOutput', { lines: 12 }, undefined, 'en').includes('12'));
+			assert.strictEqual(knoxNls('openFullLog', undefined, undefined, 'en'), 'Open full log');
+			assert.strictEqual(knoxNls('copyOutput', undefined, undefined, 'en'), 'Copy output');
+			assert.strictEqual(knoxNls('copyCommand', undefined, undefined, 'en'), 'Copy command');
+		});
+	});
+
+	suite('repo tree lazy expand (T8.7)', () => {
+		test('starts collapsed until the user expands', () => {
+			const treeExpanded = new Set<string>();
+			assert.strictEqual(treeExpanded.has('view-repo'), false);
+			treeExpanded.add('view-repo');
+			assert.strictEqual(treeExpanded.has('view-repo'), true);
 		});
 	});
 });

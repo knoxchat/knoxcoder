@@ -28,6 +28,7 @@ import {
 	KnoxAgentActivityStatus,
 	knoxActivityAnchorId,
 	knoxTurnElapsedMs,
+	summarizeJevPromptLogs,
 	summarizeKnoxActivity,
 	visibleKnoxActivitySteps,
 } from '../../common/knoxAgentActivity.js';
@@ -36,6 +37,7 @@ import { IKnoxChatService } from '../../common/knoxChatService.js';
 import { IKnoxAutonomousLoopState } from '../../common/knoxChatTypes.js';
 import { hasUnsettledToolCalls } from '../../common/knoxChatHistory.js';
 import { IKnoxGuiBridge } from '../../common/knoxGuiProtocol.js';
+import { knoxNls } from '../../common/knoxI18n.js';
 import { renderKnoxLoadingState } from './knoxLoadingState.js';
 
 export function knoxActivityKindLabel(kind: KnoxAgentActivityKind): string {
@@ -294,6 +296,7 @@ export class KnoxAgentTurnMeter extends Disposable {
 	private readonly _chevron: HTMLElement;
 	private readonly _loadingHost: HTMLElement;
 	private readonly _meta: HTMLElement;
+	private readonly _jev: HTMLElement;
 	private readonly _count: HTMLElement;
 	private readonly _progress: HTMLElement;
 	private readonly _progressFill: HTMLElement;
@@ -320,6 +323,8 @@ export class KnoxAgentTurnMeter extends Disposable {
 		this._chevron = append(this._toggle, $('span.knox-turn-meter-chevron'));
 		this._loadingHost = append(this._toggle, $('.knox-turn-meter-loading'));
 		this._meta = append(this._toggle, $('span.knox-turn-meter-meta'));
+		this._jev = append(this._toggle, $('span.knox-turn-meter-jev.hidden'));
+		this._jev.setAttribute('data-testid', 'agent-turn-meter-jev');
 		this._count = append(this._toggle, $('span.knox-turn-meter-count'));
 		this._progress = append(this.element, $('div.knox-progress.hidden'));
 		this._progress.setAttribute('role', 'progressbar');
@@ -425,6 +430,16 @@ export class KnoxAgentTurnMeter extends Disposable {
 		}
 		this._meta.textContent = bits.join('  ');
 		this._meta.classList.toggle('near-cap', nearCap);
+		const jevSummary = summarizeJevPromptLogs(collectKnoxTurnPromptLogs(history, userIndex));
+		if (jevSummary?.route) {
+			this._jev.classList.remove('hidden');
+			this._jev.textContent = jevSummary.skill
+				? knoxNls('activityJevSkill', { route: jevSummary.route, skill: jevSummary.skill }, 'jev {{route}} · {{skill}}')
+				: knoxNls('activityJev', { route: jevSummary.route }, 'jev {{route}}');
+		} else {
+			this._jev.classList.add('hidden');
+			this._jev.textContent = '';
+		}
 
 		this._count.textContent = canExpand ? knoxActivityRowCountLabel(steps.length) : '';
 		this._count.classList.toggle('hidden', !canExpand);

@@ -43,6 +43,7 @@ export interface IKnoxToolCardRenderOptions {
 	ui: IKnoxToolUiState;
 	codeBlockExpanded: Map<string, boolean>;
 	onDidChangeHeight: () => void;
+	onDidToggleUi?: () => void;
 }
 
 export function renderKnoxToolCard(
@@ -71,10 +72,11 @@ export function renderKnoxToolCard(
 		options.ui,
 		services.hover,
 		store,
-		options.onDidChangeHeight,
+		options.onDidToggleUi ?? options.onDidChangeHeight,
 		body => {
 			const kind = knoxToolCardKind(state.toolCall.function.name);
 			const toolId = state.toolCallId || state.toolCall.id;
+			const toggle = options.onDidToggleUi ?? options.onDidChangeHeight;
 			switch (kind) {
 				case 'createFile':
 					renderKnoxCreateFileCard(
@@ -84,7 +86,7 @@ export function renderKnoxToolCard(
 						markdownServices,
 						options.codeBlockExpanded,
 						store,
-						options.onDidChangeHeight,
+						toggle,
 					);
 					return;
 				case 'terminal':
@@ -93,6 +95,7 @@ export function renderKnoxToolCard(
 						clipboard: services.clipboard,
 						hover: services.hover,
 						terminal: services.terminal,
+						workspace: services.workspace,
 						codeWrap: knoxMarkdownCodeWrap(services.chat.config?.ui),
 					}, store, options.ui, toolId);
 					return;
@@ -111,11 +114,11 @@ export function renderKnoxToolCard(
 							hover: services.hover,
 						},
 						store,
-						options.onDidChangeHeight,
+						toggle,
 					);
 					return;
 				case 'askUser':
-					renderKnoxAskUserCard(body, state, options.ui, services.chat, store, options.onDidChangeHeight);
+					renderKnoxAskUserCard(body, state, options.ui, services.chat, store, toggle);
 					return;
 				case 'task':
 					renderKnoxTaskCard(body, state, output);
@@ -134,7 +137,7 @@ export function renderKnoxToolCard(
 							workspace: services.workspace,
 						},
 						store,
-						options.onDidChangeHeight,
+						toggle,
 					);
 					return;
 				default:
@@ -145,7 +148,7 @@ export function renderKnoxToolCard(
 						markdownServices,
 						options.codeBlockExpanded,
 						store,
-						options.onDidChangeHeight,
+						toggle,
 					);
 			}
 		},

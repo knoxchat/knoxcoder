@@ -217,6 +217,31 @@ suite('tool state machine', () => {
 		assert.strictEqual(service.toolPending, false);
 	});
 
+	test('caps live tool dumps at 32k without truncating tool message.content (T8.8)', () => {
+		const { service } = createKnoxChatServiceForTest(store);
+		service.submitEditorAndInitAtIndex(0);
+		service.streamUpdate([{
+			role: 'assistant',
+			content: '',
+			toolCalls: [{
+				id: 'tc1',
+				type: 'function',
+				function: { name: 'builtin_run_terminal_command', arguments: '{}' },
+			}],
+		}]);
+		service.setToolGenerated();
+		service.setCalling('tc1');
+		const dump = 'x'.repeat(32_000 + 400);
+		service.setToolCallOutput({
+			toolCallId: 'tc1',
+			output: [{ name: 'Terminal', description: 'out', content: dump }],
+		});
+		const output = service.history.at(-1)?.toolCallState?.output?.[0];
+		assert.ok(output);
+		assert.ok(output.content.length < dump.length);
+		assert.ok(output.description?.includes('truncated'));
+	});
+
 	test('updateApplyState upserts by streamId and advances on done', () => {
 		const { service } = createKnoxChatServiceForTest(store);
 		service.updateApplyState({ streamId: 's1', status: 'streaming', filepath: '/tmp/a.ts' });

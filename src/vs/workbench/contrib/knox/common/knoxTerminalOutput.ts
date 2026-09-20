@@ -36,3 +36,46 @@ export function knoxExtractTerminalOutput(
 	);
 	return match?.content || items[0]?.content || '';
 }
+
+export const TERMINAL_TAIL_LINES = 400;
+export const TERMINAL_TAIL_CHARS = 32_000;
+
+export function extractLogPathFromTerminalOutput(text: string): string | undefined {
+	const match = text.match(/^Full log:\s*(.+)$/m);
+	const path = match?.[1]?.trim();
+	return path || undefined;
+}
+
+export function takeTerminalTail(
+	content: string,
+	maxLines = TERMINAL_TAIL_LINES,
+	maxChars = TERMINAL_TAIL_CHARS,
+): { tail: string; truncated: boolean; hiddenLines: number } {
+	if (!content) {
+		return { tail: '', truncated: false, hiddenLines: 0 };
+	}
+
+	const lines = content.split('\n');
+	const start = Math.max(0, lines.length - maxLines);
+	let tail = lines.slice(start).join('\n');
+
+	if (tail.length > maxChars) {
+		tail = tail.slice(-maxChars);
+		const nl = tail.indexOf('\n');
+		if (nl !== -1 && nl < tail.length - 1) {
+			tail = tail.slice(nl + 1);
+		}
+		const tailLineCount = tail ? tail.split('\n').length : 0;
+		return {
+			tail,
+			truncated: true,
+			hiddenLines: Math.max(0, lines.length - tailLineCount),
+		};
+	}
+
+	return {
+		tail,
+		truncated: start > 0,
+		hiddenLines: start,
+	};
+}

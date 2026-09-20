@@ -638,6 +638,21 @@ export type ToCoreFromIdeOrWebviewProtocol = {
   /** Abort any in-flight tools/call executions (terminal kill, etc.). */
   "tools/cancel": [undefined, void];
   /**
+   * Semantic mutating-tool check (Jev). Fail-open allow when Jev is off.
+   */
+  "jev/gateTool": [
+    {
+      toolName: string;
+      args?: unknown;
+      permissionMode?: "default" | "acceptEdits" | "fullAuto";
+    },
+    {
+      action: "allow" | "ask" | "deny";
+      reason: string;
+      source: "jev" | "heuristic";
+    },
+  ];
+  /**
    * Isolate agent edits in a git worktree (Claude EnterWorktree).
    * `enter` creates/reuses; `apply` copies changed files onto the main tree;
    * `discard` removes the worktree; `status` reports current state.

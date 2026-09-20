@@ -147,6 +147,11 @@
 					"default": "default",
 					"markdownDescription": "Agent loop profile. `default`: unlimited tool rounds, LSP verify. `systems`: unlimited rounds, doom-loop 5, post-edit `make` oracle (kernel/QEMU). `rust`: unlimited rounds, doom-loop 4, `cargo check --workspace --all-targets`. `auto`: systems on Kconfig+arch / QEMU meson+target, rust on a root Cargo.toml. Stop a run with Cancel."
 				},
+				"knoxchat.jev.enabled": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Enable Jev (TypeSafe System One) harness judgments: model routing, skill hints, passage/tool gates, citation checks, and `auto` profile confirm. Put `jev.apiKey` in `~/.knox/config.yaml`. Fail-open to current heuristics. YAML `jev.enabled` overrides this."
+				},
 				"knoxchat.verifyCommand": {
 					"type": "string",
 					"default": "",

@@ -10,6 +10,7 @@ import {
 	findToolCallStateById,
 	getHistoryToolStates,
 } from './knoxChatHistory.js';
+import { capContextItems } from './knoxDisplayCap.js';
 import {
 	getMessageToolCalls,
 	IKnoxApplyState,
@@ -503,7 +504,7 @@ export function applySetToolCallOutput(
 	if (toolCallState.status === 'done' || toolCallState.status === 'canceled') {
 		return;
 	}
-	toolCallState.output = output;
+	toolCallState.output = capContextItems(output);
 }
 
 export function applySetToolStatus(

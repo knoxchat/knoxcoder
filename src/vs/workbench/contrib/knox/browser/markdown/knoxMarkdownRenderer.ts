@@ -35,6 +35,7 @@ export interface IKnoxAssistantMarkdownOptions {
 	history: readonly IKnoxChatHistoryItem[];
 	expanded: Map<string, boolean>;
 	onDidChangeHeight: () => void;
+	onDidToggleExpand?: () => void;
 }
 
 export interface IKnoxMarkdownServices {
@@ -91,6 +92,7 @@ export function renderKnoxAssistantMarkdown(
 			codeWrap,
 			expanded: options.expanded,
 			onDidChangeHeight: options.onDidChangeHeight,
+			onDidToggleExpand: options.onDidToggleExpand,
 		}, services, store);
 	}
 }

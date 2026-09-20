@@ -88,6 +88,18 @@ export interface IKnoxPromptLog {
 	prompt?: string;
 	completion?: string;
 	modelProvider?: string;
+	jev?: {
+		turn?: {
+			source?: string;
+			route?: string;
+			confidence?: number;
+			skill?: string;
+			profile?: string;
+			reason?: string;
+		};
+		guardrails?: unknown;
+		citations?: unknown;
+	};
 	[key: string]: unknown;
 }
 
@@ -152,6 +164,8 @@ export interface IKnoxSession {
 	title: string;
 	workspaceDirectory?: string;
 	history: IKnoxChatHistoryItem[];
+	/** Set when `history/load` was slimmed for display (T8.2). */
+	guiHydrateSlimmed?: boolean;
 }
 
 export interface IKnoxSessionMetadata {
@@ -298,6 +312,14 @@ export interface IKnoxSerializedConfig {
 		defaultContext?: unknown[];
 		agentPolicy?: IKnoxAgentPolicy;
 		agentPolicyFromRules?: IKnoxAgentPolicy;
+		jev?: {
+			enabled?: boolean;
+			model?: string;
+			apiKey?: string;
+			timeoutMs?: number;
+			failOpen?: boolean;
+			baseUrl?: string;
+		};
 	};
 	modelsByRole?: Partial<Record<KnoxModelRole, IKnoxModelDescription[]>>;
 	selectedModelByRole?: Partial<Record<KnoxModelRole, IKnoxModelDescription | null>>;

@@ -18,6 +18,10 @@ import {
 	renderKnoxChatMessage,
 } from './knoxChatTypes.js';
 import { knoxVisibleToolOutputItems } from './knoxToolOutput.js';
+import {
+	knoxLastUserIndex,
+	knoxVisibleHistoryIndexes,
+} from './knoxChatHistoryWindow.js';
 
 export type KnoxThreadRowKind =
 	| 'user'
@@ -26,6 +30,7 @@ export type KnoxThreadRowKind =
 	| 'tool'
 	| 'timeline'
 	| 'loading'
+	| 'loadEarlier'
 	| 'spacer';
 
 export interface IKnoxThreadRow {
@@ -48,6 +53,13 @@ export interface IKnoxThreadModelOptions {
 	mode: KnoxChatMode;
 	isStreaming: boolean;
 	timelineExpanded?: ReadonlySet<number>;
+	/**
+	 * Inclusive history index of the first mounted message. `0` (default) mounts
+	 * the full transcript. The thread list passes `resolveDisplayStart` so only
+	 * the latest window (and the live last-user prompt) is painted.
+	 */
+	displayStart?: number;
+	lastUserIndex?: number;
 }
 
 const DEFAULT_HEIGHT: Record<KnoxThreadRowKind, number> = {
@@ -57,11 +69,25 @@ const DEFAULT_HEIGHT: Record<KnoxThreadRowKind, number> = {
 	tool: 96,
 	timeline: 52,
 	loading: 32,
+	loadEarlier: 28,
 	spacer: 0,
 };
 
 export function knoxThreadRowHeight(row: IKnoxThreadRow): number {
 	return row.measuredHeight ?? DEFAULT_HEIGHT[row.kind];
+}
+
+/**
+ * Spacer height is owned by `_syncSpacer` and must not be DOM-probed (an empty
+ * row measures 0). Every other row returns `null` so ListView remeasures after
+ * each paint — returning a cached height skips the probe and clips streaming
+ * markdown behind `overflow: hidden`.
+ */
+export function knoxThreadDynamicHeight(row: IKnoxThreadRow): number | null {
+	if (row.kind === 'spacer') {
+		return row.measuredHeight ?? 0;
+	}
+	return null;
 }
 
 /** A single WorkbenchList splice operation. */
@@ -284,8 +310,14 @@ export function buildKnoxThreadRows(
 ): IKnoxThreadRow[] {
 	const rows: IKnoxThreadRow[] = [];
 	const lastIndex = history.length - 1;
+	const displayStart = options.displayStart ?? 0;
+	const lastUserIndex = options.lastUserIndex ?? knoxLastUserIndex(history);
+	const visible = new Set(knoxVisibleHistoryIndexes(history, displayStart, lastUserIndex));
 
 	for (let index = 0; index < history.length; index++) {
+		if (!visible.has(index)) {
+			continue;
+		}
 		const item = history[index];
 		const duplicateReply = isDuplicateKnoxAssistantReply(history, index);
 		const replyText = knoxAssistantReplyText(item);
@@ -413,4 +445,92 @@ export function buildKnoxThreadRows(
 		row.paintKey = computePaintKey(row);
 	}
 	return rows;
+}
+
+export const KNOX_LOAD_EARLIER_ROW_ID = 'knox-thread-load-earlier';
+
+export function knoxLoadEarlierRow(hiddenCount: number): IKnoxThreadRow {
+	return {
+		id: KNOX_LOAD_EARLIER_ROW_ID,
+		kind: 'loadEarlier',
+		historyIndex: -1,
+		measuredHeight: undefined,
+		userIndex: hiddenCount,
+		paintKey: `loadEarlier:${hiddenCount}`,
+	};
+}
+
+/** Prepend the Load-earlier control when the display window hides older messages. */
+export function withKnoxLoadEarlierRow(rows: IKnoxThreadRow[], displayStart: number): IKnoxThreadRow[] {
+	if (displayStart <= 0) {
+		return rows;
+	}
+	return [knoxLoadEarlierRow(displayStart), ...rows];
+}
+
+export const KNOX_THREAD_SPACER_ID = 'knox-thread-spacer';
+
+export function knoxThreadSpacerRow(pad: number): IKnoxThreadRow {
+	return {
+		id: KNOX_THREAD_SPACER_ID,
+		kind: 'spacer',
+		historyIndex: -1,
+		measuredHeight: pad,
+	};
+}
+
+export function knoxContentThreadRows(rows: readonly IKnoxThreadRow[]): IKnoxThreadRow[] {
+	return rows.filter(row => row.kind !== 'spacer');
+}
+
+/**
+ * Last index that `WorkbenchList.reveal` will accept. Prefer `_list.length`
+ * over `_rows.length` — a phantom leading spacer in `_rows` is how
+ * `ListError [KnoxThread] Invalid index` takes down the pane.
+ */
+export function knoxLastRevealIndex(listLength: number): number | undefined {
+	return listLength > 0 ? listLength - 1 : undefined;
+}
+
+export type KnoxSpacerListOp =
+	| { readonly type: 'none' }
+	| { readonly type: 'clear' }
+	| { readonly type: 'remove' }
+	| { readonly type: 'insert'; readonly row: IKnoxThreadRow }
+	| { readonly type: 'update'; readonly pad: number };
+
+/**
+ * Keep the synthetic flex spacer in `_rows` and the WorkbenchList in lockstep.
+ * Callers must apply `op` to the list; inventing a spacer in `_rows` without
+ * inserting it is the Invalid-index crash on send.
+ */
+export function knoxThreadSpacerSync(args: {
+	viewport: number;
+	rows: readonly IKnoxThreadRow[];
+	listHasSpacer: boolean;
+}): { rows: IKnoxThreadRow[]; op: KnoxSpacerListOp } {
+	const content = knoxContentThreadRows(args.rows);
+	if (args.viewport <= 0) {
+		return { rows: content, op: { type: 'none' } };
+	}
+	if (!content.length) {
+		if (args.listHasSpacer || args.rows.length > 0) {
+			return { rows: [], op: { type: 'clear' } };
+		}
+		return { rows: [], op: { type: 'none' } };
+	}
+	const contentHeight = content.reduce((sum, row) => sum + knoxThreadRowHeight(row), 0);
+	const pad = Math.max(0, args.viewport - contentHeight);
+	if (pad === 0) {
+		if (args.listHasSpacer) {
+			return { rows: content, op: { type: 'remove' } };
+		}
+		return { rows: content, op: { type: 'none' } };
+	}
+	const spacer = knoxThreadSpacerRow(pad);
+	const rows = [spacer, ...content];
+	if (args.listHasSpacer) {
+		return { rows, op: { type: 'update', pad } };
+	}
+	return { rows, op: { type: 'insert', row: spacer } };
 }

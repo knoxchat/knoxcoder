@@ -19,6 +19,7 @@ import {
 	knoxToolStepDetail,
 	knoxTurnElapsedMs,
 	mapKnoxToolStatus,
+	summarizeJevPromptLogs,
 	summarizeKnoxActivity,
 	visibleKnoxActivitySteps,
 } from '../../common/knoxAgentActivity.js';
@@ -295,5 +296,18 @@ suite('turn meter helpers', () => {
 		];
 		assert.strictEqual(knoxTurnElapsedMs(history, 0, Date.parse(mid), false), 10_000);
 		assert.strictEqual(knoxTurnElapsedMs(history, 0, Date.parse(start) + 25_000, true), 25_000);
+	});
+
+	test('summarizes Jev prompt-log route/skill (T9.2)', () => {
+		assert.deepStrictEqual(summarizeJevPromptLogs([
+			{ modelTitle: 'm', prompt: 'p', completion: 'c' },
+			{
+				modelTitle: 'm',
+				prompt: 'p',
+				completion: 'c',
+				jev: { turn: { source: 'jev', route: 'code', skill: 'rust', confidence: 0.9, reason: 'ok' } },
+			},
+		]), { route: 'code', skill: 'rust', source: 'jev' });
+		assert.strictEqual(summarizeJevPromptLogs([]), undefined);
 	});
 });

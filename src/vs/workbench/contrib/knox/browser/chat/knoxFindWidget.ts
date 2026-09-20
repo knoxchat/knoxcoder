@@ -17,6 +17,8 @@ import { IContextViewService } from '../../../../../platform/contextview/browser
 import { ContextScopedFindInput } from '../../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { KnoxFindVisibleContext } from '../../common/knoxChat.js';
+import { IKnoxChatHistoryItem } from '../../common/knoxChatTypes.js';
+import { IKnoxThreadRow } from '../../common/knoxThreadModel.js';
 import {
 	compileKnoxSearchPattern,
 	findKnoxThreadMatches,
@@ -24,10 +26,12 @@ import {
 	knoxNextFindIndex,
 	KnoxSearchPattern,
 } from '../../common/knoxFind.js';
-import { IKnoxThreadRow } from '../../common/knoxThreadModel.js';
 
 export interface IKnoxFindHost {
 	getRows(): readonly IKnoxThreadRow[];
+	/** Unwindowed flatten so find can match messages outside the display window (T8.1). */
+	getSearchRows(): readonly IKnoxThreadRow[];
+	getHistory(): readonly IKnoxChatHistoryItem[];
 	isStreaming(): boolean;
 	revealFindHit(hit: IKnoxFindHit, pattern?: KnoxSearchPattern): void;
 	clearFindHighlight(): void;
@@ -185,7 +189,7 @@ export class KnoxFindWidget extends Disposable {
 			useRegex: this._findInput.getRegex(),
 			wholeWord: this._findInput.getWholeWords(),
 		});
-		this._hits = query ? findKnoxThreadMatches(this._host.getRows(), pattern) : [];
+		this._hits = query ? findKnoxThreadMatches(this._host.getSearchRows(), pattern) : [];
 		this._pattern = query ? pattern : undefined;
 		if (!this._hits.length) {
 			this._current = -1;

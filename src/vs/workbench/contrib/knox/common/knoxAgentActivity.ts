@@ -437,6 +437,24 @@ export function collectKnoxTurnPromptLogs(
 	return logs;
 }
 
+export function summarizeJevPromptLogs(logs: readonly IKnoxPromptLog[]): {
+	route: string;
+	skill?: string;
+	source?: string;
+} | undefined {
+	for (const log of logs) {
+		const turn = log.jev?.turn;
+		if (turn?.route) {
+			return {
+				route: turn.route,
+				skill: turn.skill,
+				source: turn.source,
+			};
+		}
+	}
+	return undefined;
+}
+
 export function formatKnoxDurationMs(ms: number): string {
 	if (ms < 0 || !Number.isFinite(ms)) {
 		return '0s';
