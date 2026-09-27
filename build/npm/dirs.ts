@@ -29,11 +29,11 @@ export const dirs = [
 	'extensions/html-language-features/server',
 	'extensions/ipynb',
 	'extensions/jake',
+	// KN-391: Knox npm install is extensions/knox only. Never add leftover ./knox.
+	'extensions/knox',
 	'extensions/json-language-features',
 	'extensions/json-language-features/server',
-	'extensions/knox',
 	'extensions/markdown-language-features',
-
 	'extensions/markdown-math',
 	'extensions/media-preview',
 	'extensions/merge-conflict',

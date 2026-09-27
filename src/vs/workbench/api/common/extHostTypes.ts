@@ -3084,3 +3084,111 @@ export enum KeywordRecognitionStatus {
 
 //#region assist Prompt Files
 //#endregion
+
+
+//#region Text Model API (vscode.lm)
+
+export enum TextModelApiAssistMessageRole {
+	User = 1,
+	Assistant = 2
+}
+
+export enum TextModelApiAssistToolMode {
+	Auto = 1,
+	Required = 2
+}
+
+@es5ClassCompat
+export class TextModelApiTextPart {
+	constructor(public value: string) { }
+}
+
+@es5ClassCompat
+export class TextModelApiPromptTsxPart {
+	constructor(public value: unknown) { }
+}
+
+@es5ClassCompat
+export class TextModelApiToolCallPart {
+	constructor(
+		public callId: string,
+		public name: string,
+		public input: object,
+	) { }
+}
+
+@es5ClassCompat
+export class TextModelApiToolResultPart {
+	constructor(
+		public callId: string,
+		public content: Array<TextModelApiTextPart | TextModelApiPromptTsxPart | TextModelApiDataPart | unknown>,
+	) { }
+}
+
+@es5ClassCompat
+export class TextModelApiToolResult {
+	constructor(
+		public content: Array<TextModelApiTextPart | TextModelApiPromptTsxPart | TextModelApiDataPart | unknown>,
+	) { }
+}
+
+@es5ClassCompat
+export class TextModelApiDataPart {
+	static image(data: Uint8Array, mime: string): TextModelApiDataPart {
+		return new TextModelApiDataPart(data, mime);
+	}
+	static json(value: unknown, mime = 'application/json'): TextModelApiDataPart {
+		const encoded = new TextEncoder().encode(JSON.stringify(value));
+		return new TextModelApiDataPart(encoded, mime);
+	}
+	static text(value: string, mime = 'text/plain'): TextModelApiDataPart {
+		return new TextModelApiDataPart(new TextEncoder().encode(value), mime);
+	}
+	constructor(
+		public data: Uint8Array,
+		public mimeType: string,
+	) { }
+}
+
+@es5ClassCompat
+export class TextModelApiAssistMessage {
+	static User(content: string | Array<TextModelApiTextPart | TextModelApiToolResultPart | TextModelApiDataPart>, name?: string): TextModelApiAssistMessage {
+		return new TextModelApiAssistMessage(TextModelApiAssistMessageRole.User, content, name);
+	}
+	static Assistant(content: string | Array<TextModelApiTextPart | TextModelApiToolCallPart | TextModelApiDataPart>, name?: string): TextModelApiAssistMessage {
+		return new TextModelApiAssistMessage(TextModelApiAssistMessageRole.Assistant, content, name);
+	}
+
+	role: TextModelApiAssistMessageRole;
+	content: Array<vscode.TextModelApiInputPart>;
+	name: string | undefined;
+
+	constructor(role: TextModelApiAssistMessageRole, content: string | Array<vscode.TextModelApiInputPart>, name?: string) {
+		this.role = role;
+		this.content = typeof content === 'string' ? [new TextModelApiTextPart(content)] : content;
+		this.name = name;
+	}
+}
+
+@es5ClassCompat
+export class TextModelApiError extends Error {
+	static NoPermissions(message?: string): TextModelApiError {
+		return new TextModelApiError('NoPermissions', message ?? 'No permissions to use this language model');
+	}
+	static Blocked(message?: string): TextModelApiError {
+		return new TextModelApiError('Blocked', message ?? 'Blocked from using this language model');
+	}
+	static NotFound(message?: string): TextModelApiError {
+		return new TextModelApiError('NotFound', message ?? 'Language model not found');
+	}
+
+	readonly code: string;
+
+	constructor(code: string, message: string) {
+		super(message);
+		this.name = 'TextModelApiError';
+		this.code = code;
+	}
+}
+
+//#endregion

@@ -107,27 +107,15 @@ export interface MainThreadGitExtensionShape extends IDisposable {
 	$onDidChangeRepository(handle: number): Promise<void>;
 }
 
-/**
- * Native Knox GUI ↔ Core RPC. Message names are the existing
- * `FromWebviewProtocol` / `ToWebviewProtocol` strings; do not invent a second protocol.
- */
-export interface KnoxGuiMessageDto {
+export interface IKnoxGuiMessageDto {
 	messageType: string;
 	messageId: string;
 	data: unknown;
 }
 
-export interface MainThreadKnoxGuiShape extends IDisposable {
-	/**
-	 * Core → GUI. Reverse-query handlers return `{ __knoxGuiReply: true, data }`
-	 * so ExtHost can complete `webviewProtocol.request` (T1.2).
-	 */
-	$push(message: KnoxGuiMessageDto): Promise<unknown>;
-}
-
-export interface ExtHostKnoxGuiShape {
-	$request(message: KnoxGuiMessageDto): Promise<unknown>;
-	$post(message: KnoxGuiMessageDto): Promise<void>;
+export interface MainThreadKnoxExtensionShape extends IDisposable {
+	$onDidChangeAgentMode(active: boolean): void;
+	$onGuiMessage(message: IKnoxGuiMessageDto): void;
 }
 
 export interface MainThreadClipboardShape extends IDisposable {
@@ -1430,6 +1418,90 @@ export interface MainThreadEmbeddingsShape extends IDisposable {
 export interface ExtHostEmbeddingsShape {
 	$provideEmbeddings(handle: number, input: string[], token: CancellationToken): Promise<{ values: number[] }[]>;
 	$acceptEmbeddingModels(models: string[]): void;
+}
+
+export interface ITextModelApiToolDto {
+	name: string;
+	displayName?: string;
+	modelDescription: string;
+	userDescription?: string;
+	inputSchema?: object;
+	tags?: string[];
+}
+
+export interface ITextModelApiToolResultDto {
+	content: Array<{ kind: 'text'; value: string }>;
+}
+
+export interface MainThreadLanguageModelToolsShape extends IDisposable {
+	$registerTool(handle: number, tool: ITextModelApiToolDto): void;
+	$unregisterTool(handle: number): void;
+	$getTools(): Promise<ITextModelApiToolDto[]>;
+	$invokeTool(name: string, input: unknown, token: CancellationToken): Promise<ITextModelApiToolResultDto>;
+}
+
+export interface ExtHostLanguageModelToolsShape {
+	$invokeTool(handle: number, input: unknown, token: CancellationToken): Promise<ITextModelApiToolResultDto>;
+	$acceptToolList(tools: ITextModelApiToolDto[]): void;
+}
+
+export interface ITextModelApiChatInformationDto {
+	id: string;
+	name: string;
+	vendor: string;
+	family: string;
+	version: string;
+	maxInputTokens: number;
+	maxOutputTokens: number;
+	tooltip?: string;
+	detail?: string;
+	capabilities?: { imageInput?: boolean; toolCalling?: boolean | number };
+}
+
+export interface ITextModelApiChatSelectorDto {
+	vendor?: string;
+	family?: string;
+	version?: string;
+	id?: string;
+}
+
+export type ITextModelApiResponsePartDto =
+	| { kind: 'text'; value: string }
+	| { kind: 'toolCall'; callId: string; name: string; input: object };
+
+export type ITextModelApiMessagePartDto =
+	| ITextModelApiResponsePartDto
+	| { kind: 'toolResult'; callId: string; content: string };
+
+export interface ITextModelApiAssistRequestOptionsDto {
+	toolMode?: number;
+	tools?: Array<{ name: string; description: string; inputSchema?: object }>;
+}
+
+export interface ITextModelApiAssistMessageDto {
+	role: number;
+	content: string;
+	name?: string;
+	parts?: ITextModelApiMessagePartDto[];
+}
+
+export interface MainThreadLanguageModelsShape extends IDisposable {
+	$registerProvider(handle: number, vendor: string): void;
+	$unregisterProvider(handle: number): void;
+	$selectChatModels(selector: ITextModelApiChatSelectorDto | undefined): Promise<ITextModelApiChatInformationDto[]>;
+	$sendChatRequest(vendor: string, modelId: string, messages: ITextModelApiAssistMessageDto[], requestId: number, token: CancellationToken, options?: ITextModelApiAssistRequestOptionsDto): Promise<void>;
+	$countTokens(vendor: string, modelId: string, text: string, token: CancellationToken): Promise<number>;
+	$reportResponsePart(requestId: number, part: ITextModelApiResponsePartDto): void;
+	$reportResponseDone(requestId: number, errorMessage?: string): void;
+}
+
+export interface ExtHostLanguageModelsShape {
+	$provideChatInformation(handle: number, silent: boolean, token: CancellationToken): Promise<ITextModelApiChatInformationDto[]>;
+	$provideChatResponse(handle: number, modelId: string, messages: ITextModelApiAssistMessageDto[], requestId: number, token: CancellationToken, options?: ITextModelApiAssistRequestOptionsDto): Promise<void>;
+	$provideTokenCount(handle: number, modelId: string, text: string, token: CancellationToken): Promise<number>;
+	$acceptResponsePart(requestId: number, part: ITextModelApiResponsePartDto): void;
+	$acceptResponseDone(requestId: number, errorMessage?: string): void;
+	$acceptChatModelsChanged(): void;
 }
 
 
@@ -3222,14 +3294,25 @@ export interface ExtHostGitExtensionShape {
 	$diffBetweenWithStats2(handle: number, ref: string, path?: string): Promise<GitDiffChangeDto[]>;
 }
 
+export interface ExtHostKnoxExtensionShape {
+	$isKnoxExtensionAvailable(): Promise<boolean>;
+	$openChat(): Promise<void>;
+	$toggleAgentMode(): Promise<void>;
+	$isAgentModeActive(): Promise<boolean>;
+	$newSession(): Promise<void>;
+	$guiPost(message: IKnoxGuiMessageDto): Promise<void>;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
 	MainThreadAuthentication: createProxyIdentifier<MainThreadAuthenticationShape>('MainThreadAuthentication'),
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
 	MainThreadEmbeddings: createProxyIdentifier<MainThreadEmbeddingsShape>('MainThreadEmbeddings'),
+	MainThreadLanguageModelTools: createProxyIdentifier<MainThreadLanguageModelToolsShape>('MainThreadLanguageModelTools'),
+	MainThreadLanguageModels: createProxyIdentifier<MainThreadLanguageModelsShape>('MainThreadLanguageModels'),
 	MainThreadGitExtension: createProxyIdentifier<MainThreadGitExtensionShape>('MainThreadGitExtension'),
-	MainThreadKnoxGui: createProxyIdentifier<MainThreadKnoxGuiShape>('MainThreadKnoxGui'),
+	MainThreadKnoxExtension: createProxyIdentifier<MainThreadKnoxExtensionShape>('MainThreadKnoxExtension'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createProxyIdentifier<MainThreadCommentsShape>('MainThreadComments'),
@@ -3352,6 +3435,8 @@ export const ExtHostContext = {
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostSpeech: createProxyIdentifier<ExtHostSpeechShape>('ExtHostSpeech'),
 	ExtHostEmbeddings: createProxyIdentifier<ExtHostEmbeddingsShape>('ExtHostEmbeddings'),
+	ExtHostLanguageModelTools: createProxyIdentifier<ExtHostLanguageModelToolsShape>('ExtHostLanguageModelTools'),
+	ExtHostLanguageModels: createProxyIdentifier<ExtHostLanguageModelsShape>('ExtHostLanguageModels'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostManagedSockets: createProxyIdentifier<ExtHostManagedSocketsShape>('ExtHostManagedSockets'),
@@ -3363,5 +3448,5 @@ export const ExtHostContext = {
 	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
 	ExtHostDataChannels: createProxyIdentifier<ExtHostDataChannelsShape>('ExtHostDataChannels'),
 	ExtHostGitExtension: createProxyIdentifier<ExtHostGitExtensionShape>('ExtHostGitExtension'),
-	ExtHostKnoxGui: createProxyIdentifier<ExtHostKnoxGuiShape>('ExtHostKnoxGui'),
+	ExtHostKnoxExtension: createProxyIdentifier<ExtHostKnoxExtensionShape>('ExtHostKnoxExtension'),
 };

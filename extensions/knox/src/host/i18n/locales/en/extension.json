@@ -1,0 +1,9 @@
+{
+  "ext.activationError": "Error activating Knox extension: {{message}}",
+  "ext.viewLogs": "View Logs",
+  "ext.retry": "Retry",
+  "ext.marketplaceBuiltinNotice": "Knox is built into KnoxCoder; you can uninstall the marketplace extension.",
+  "ext.uninstallMarketplaceKnox": "Uninstall marketplace Knox",
+  "ext.desktopOnly": "Knox is desktop-only and does not run in vscode-web (no browser entry; sqlite and PTY are Node addons).",
+  "ext.remoteNativeMissing": "Knox native addons missing on this host ({{addons}}). Over Remote-SSH they must exist on the remote (sqlite3, ripgrep; node-pty is optional)."
+}

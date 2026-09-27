@@ -37,16 +37,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	title: localize('imageCarouselConfigurationTitle', "Images Preview"),
 	type: 'object',
 	properties: {
-		'imageCarousel.explorerContextMenu.enabled': {
+			'imageCarousel.explorerContextMenu.enabled': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('imageCarousel.explorerContextMenu.enabled', "Controls whether the **Open in Images Preview** option appears in the Explorer context menu."),
 			tags: ['experimental'],
-		},
-		'imageCarousel.chat.enabled': {
-			type: 'boolean',
-			default: true,
-			description: localize('imageCarousel.chat.enabled', "Controls whether clicking an image attachment in chat opens the Images Preview viewer."),
 		},
 	}
 });
@@ -115,7 +110,7 @@ function isSingleImageArgs(args: unknown): args is IOpenCarouselSingleImageArgs 
 class OpenImageInCarouselAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.openImageInCarousel',
+			id: 'workbench.action.imageCarousel.openImage',
 			title: localize2('openImageInCarousel', "Open in Images Preview"),
 			f1: false
 		});

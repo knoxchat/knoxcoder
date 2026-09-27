@@ -42,6 +42,7 @@ export interface IContextViewDelegate {
 	onDOMEvent?(e: any, activeElement: HTMLElement): void;
 	onHide?(data?: any): void;
 	focus?(): void;
+	layout?(): void;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;
 	anchorPosition?: AnchorPosition;

@@ -1,110 +1,299 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) KnoxCoder contributors. All rights reserved.
+ *  Copyright (c) Knox. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-
-/**
- * One Core protocol envelope. `messageType` is a `FromWebviewProtocol` /
- * `ToWebviewProtocol` name (for example `llm/streamChat`). Do not invent new names.
- */
 export interface IKnoxGuiMessage {
-	messageType: string;
-	messageId: string;
-	data: unknown;
-}
-
-/** ExtHost half of the native GUI RPC (same methods as `ExtHostKnoxGuiShape`). */
-export interface IKnoxGuiExtHost {
-	$request(message: IKnoxGuiMessage): Promise<unknown>;
-	$post(message: IKnoxGuiMessage): Promise<void>;
-}
-
-export const IKnoxGuiBridge = createDecorator<IKnoxGuiBridge>('knoxGuiBridge');
-
-export type IKnoxGuiRequestHandler = (data: unknown) => Promise<unknown> | unknown;
-
-/**
- * Renderer → Core bridge. Callers pass protocol **string** names; workbench
- * must not import `extensions/knox` `core`.
- */
-export interface IKnoxGuiBridge {
-	readonly _serviceBrand: undefined;
-
-	readonly onDidReceivePush: Event<IKnoxGuiMessage>;
-
-	request(messageType: string, data?: unknown, token?: CancellationToken): Promise<unknown>;
-
-	/** Optional `messageId` must be reused for Core `abort` of a stream. */
-	post(messageType: string, data?: unknown, messageId?: string): Promise<void>;
-
-	streamRequest(messageType: string, data?: unknown, token?: CancellationToken): AsyncIterable<unknown>;
-
-	/** Called by `MainThreadKnoxGui` when the extension host is ready. */
-	bindExtHost(proxy: IKnoxGuiExtHost): void;
-
-	/**
-	 * Core → GUI push (`protocol.send` / stream chunks). When a reverse
-	 * handler is registered, the returned `{ __knoxGuiReply, data }` completes
-	 * extension `webviewProtocol.request` with the same `messageId`.
-	 */
-	handlePush(message: IKnoxGuiMessage): Promise<unknown>;
-
-	/** IDE → GUI query (`getDefaultModelTitle`, `incrementFtc`, …). */
-	registerRequestHandler(messageType: string, handler: IKnoxGuiRequestHandler): IDisposable;
-}
-
-/** RPC-safe wrapper so `undefined` answers still complete a reverse request. */
-export interface IKnoxGuiReverseReply {
-	readonly __knoxGuiReply: true;
+	readonly messageType: string;
+	readonly messageId: string;
 	readonly data: unknown;
 }
 
-export function knoxGuiReverseReply(data: unknown): IKnoxGuiReverseReply {
-	return { __knoxGuiReply: true, data };
+export interface IKnoxGuiResponseEnvelope {
+	readonly done?: boolean;
+	readonly status?: 'success' | 'error';
+	readonly content?: unknown;
+	readonly error?: string;
 }
 
-export function knoxIsGuiReverseReply(value: unknown): value is IKnoxGuiReverseReply {
-	return !!value && typeof value === 'object' && (value as IKnoxGuiReverseReply).__knoxGuiReply === true && 'data' in (value as object);
+export const KNOX_GUI_OVERLAYS = [
+	'models',
+	'rules',
+	'prompts',
+	'context',
+	'tools',
+	'history',
+	'settings',
+] as const;
+
+export type KnoxGuiOverlay = typeof KNOX_GUI_OVERLAYS[number] | null;
+
+/** GUI `useSetup` posts `knox/heartbeat` immediately, every 5s, on focus, and on visibility. */
+export const KNOX_GUI_HEARTBEAT_MS = 5_000;
+
+export const enum KnoxGuiRoute {
+	Chat = 'chat',
+	History = 'history',
+	Stats = 'stats',
+	Config = 'config',
+	ConfigError = 'config-error',
+	AddModel = 'add-model',
+	AddModelProvider = 'add-model-provider',
+	BatchDiff = 'batch-diff',
+	Memory = 'memory',
+	CheckpointGraph = 'checkpoint-graph',
 }
 
-/** Normalize ExtHost `{ status, content }` envelopes and raw payloads. */
-export function knoxUnwrapProtocol(result: unknown): { status: string; content: unknown; error?: string } {
-	if (result && typeof result === 'object') {
-		const record = result as { status?: string; content?: unknown; error?: string };
-		if (typeof record.status === 'string') {
-			return { status: record.status, content: record.content, error: record.error };
-		}
-	}
-	return { status: 'success', content: result };
+export const LUMP_OVERLAY_BY_PATH: Record<string, Exclude<KnoxGuiOverlay, null>> = {
+	'/history': 'history',
+	'/config': 'settings',
+};
+
+export const KNOX_GUI_PATH_BY_ROUTE: Record<KnoxGuiRoute, string> = {
+	[KnoxGuiRoute.Chat]: '/',
+	[KnoxGuiRoute.History]: '/history',
+	[KnoxGuiRoute.Stats]: '/stats',
+	[KnoxGuiRoute.Config]: '/config',
+	[KnoxGuiRoute.ConfigError]: '/config-error',
+	[KnoxGuiRoute.AddModel]: '/addModel',
+	[KnoxGuiRoute.AddModelProvider]: '/addModel/provider',
+	[KnoxGuiRoute.BatchDiff]: '/batch-diff',
+	[KnoxGuiRoute.Memory]: '/memory',
+	[KnoxGuiRoute.CheckpointGraph]: '/checkpoint-graph',
+};
+
+export function lumpOverlaySectionForPath(path: string): Exclude<KnoxGuiOverlay, null> | undefined {
+	return LUMP_OVERLAY_BY_PATH[path];
 }
 
-export function knoxProtocolObject(result: unknown): Record<string, unknown> | undefined {
-	const unwrapped = knoxUnwrapProtocol(result);
-	if (unwrapped.status === 'error') {
-		return undefined;
+export function knoxGuiRouteFromPath(path: string): KnoxGuiRoute {
+	if (path === '/' || path === '/index.html') {
+		return KnoxGuiRoute.Chat;
 	}
-	if (unwrapped.content && typeof unwrapped.content === 'object' && !Array.isArray(unwrapped.content)) {
-		return unwrapped.content as Record<string, unknown>;
+	if (path === '/history') {
+		return KnoxGuiRoute.History;
 	}
-	if (result && typeof result === 'object' && !Array.isArray(result) && !('status' in (result as object))) {
-		return result as Record<string, unknown>;
+	if (path === '/stats') {
+		return KnoxGuiRoute.Stats;
 	}
-	return undefined;
+	if (path === '/config') {
+		return KnoxGuiRoute.Config;
+	}
+	if (path === '/config-error') {
+		return KnoxGuiRoute.ConfigError;
+	}
+	if (path === '/addModel') {
+		return KnoxGuiRoute.AddModel;
+	}
+	if (path.startsWith('/addModel/provider/')) {
+		return KnoxGuiRoute.AddModelProvider;
+	}
+	if (path === '/batch-diff') {
+		return KnoxGuiRoute.BatchDiff;
+	}
+	if (path === '/memory') {
+		return KnoxGuiRoute.Memory;
+	}
+	if (path === '/checkpoint-graph') {
+		return KnoxGuiRoute.CheckpointGraph;
+	}
+	return KnoxGuiRoute.Chat;
 }
 
-export function knoxProtocolSuccess(result: unknown): boolean {
-	const unwrapped = knoxUnwrapProtocol(result);
-	if (unwrapped.status === 'error') {
-		return false;
-	}
-	const record = knoxProtocolObject(result);
-	if (record && 'success' in record) {
-		return record.success !== false;
-	}
-	return true;
-}
+/** ToWebview messages the native GUI must handle (Layout + Chat + useSetup). */
+export const KNOX_GUI_HOST_INBOUND = [
+	'newSession',
+	'isKnoxInputFocused',
+	'focusKnoxInputWithNewSession',
+	'focusKnoxInput',
+	'focusKnoxInputWithoutClear',
+	'addModel',
+	'navigateTo',
+	'applyCodeFromChat',
+	'updateApplyState',
+	'setEditStatus',
+	'exitEditMode',
+	'focusEdit',
+	'focusEditWithoutClear',
+	'userInput',
+	'highlightedCode',
+	'addCodeToEdit',
+	'addContextItem',
+	'setInactive',
+	'configUpdate',
+	'didChangeAvailableProfiles',
+	'refreshSubmenuItems',
+	'agentStreamingUpdate',
+	'agent/jobUpdate',
+	'tools/partialOutput',
+	'compaction/applied',
+	'knoxchat/oauth/update',
+	'brain/memoryEvent',
+	'setTheme',
+	'setColors',
+	'gitStateChanged',
+	'agentModeChanged',
+	'checkpointListUpdated',
+	'checkpointGraphUpdated',
+	'checkpointRestored',
+	'memoryViewUpdated',
+	'guiLanguageChanged',
+	'activeChatSessionChanged',
+	'addImageAttachment',
+	'getWebviewHistoryLength',
+	'getCurrentSessionId',
+	'getDefaultModelTitle',
+	'getActiveChatSession',
+	'didCloseFiles',
+	'newSessionWithPrompt',
+	'focusKnoxSessionId',
+] as const;
+
+/** FromWebview messages the native GUI sends on setup / chat. */
+export const KNOX_GUI_HOST_OUTBOUND = [
+	'config/getSerializedProfileInfo',
+	'config/updateSharedConfig',
+	'config/listProfiles',
+	'history/list',
+	'history/load',
+	'history/save',
+	'history/delete',
+	'llm/streamChat',
+	'abort',
+	'tools/call',
+	'tools/cancel',
+	'context/getContextItems',
+	'context/loadSubmenuItems',
+	'context/searchFiles',
+	'showFile',
+	'showLines',
+	'setGuiLanguage',
+	'setActiveChatSession',
+	'stats/getTokensPerDay',
+	'stats/getTokensPerModel',
+	'knoxchat/listModels',
+	'knoxchat/oauth/status',
+	'knoxchat/oauth/start',
+	'knoxchat/oauth/cancel',
+	'knoxchat/oauth/signOut',
+	'config/addModel',
+	'config/deleteModel',
+	'openUrl',
+	'ui/updateReasoningEffortPrefs',
+	'knox/heartbeat',
+	'batch/getPendingFiles',
+	'batch/acceptAll',
+	'batch/rejectAll',
+	'batch/acceptSelected',
+	'batch/rejectSelected',
+	'brain/dashboard',
+	'brain/searchMemories',
+	'brain/pinMemories',
+	'brain/pinMemory',
+	'brain/unpinMemory',
+	'brain/deleteMemory',
+	'brain/mismatchMemory',
+	'brain/forgetMemories',
+	'brain/deleteMemories',
+	'brain/unpinMemories',
+	'brain/getEffectiveContext',
+	'brain/getMetricsTrend',
+	'brain/getPhaseStatus',
+	'brain/getReviewDue',
+	'brain/getEbbinghausStats',
+	'brain/consolidate',
+	'brain/listEntities',
+	'brain/getSessionHistory',
+	'brain/searchBacklogs',
+	'brain/getConfig',
+	'brain/export',
+	'brain/import',
+	'brain/trackSession',
+	'brain/dispatch',
+	'memory/buildContext',
+	'getGitChangedFiles',
+	'getDiff',
+	'openGitChange',
+	'agent/jobs',
+	'getMemoryViewUiState',
+	'saveMemoryViewUiState',
+	'checkpointGraph',
+	'getCheckpointGraphShell',
+	'runCheckpointGraphAction',
+	'config/updateSelectedModel',
+	'config/newPromptFile',
+	'config/addPrompt',
+	'config/openProfile',
+	'config/refreshProfiles',
+	'ui/getReasoningEffortPrefs',
+	'getCheckpointGraphUiState',
+	'getActiveChatSession',
+	'edit/exit',
+	'focusEditor',
+	'brain/exploreGraph',
+	'brain/searchEntities',
+	'brain/graphStats',
+	'brain/listSessions',
+	'brain/updateConfig',
+	'brain/stats',
+	'brain/heal',
+	'brain/optimize',
+	'checkpointWorkingTree',
+	'writeFile',
+	'openFile',
+	'showToast',
+	'getWorkspaceDirs',
+	'edit/sendPrompt',
+	'applyToFile',
+	'insertAtCursor',
+	'runCommand',
+	'acceptDiff',
+	'rejectDiff',
+	'copyText',
+	'getCheckpointForMessage',
+	'createCheckpointForMessage',
+	'restoreCheckpoint',
+	'restoreCheckpointFiles',
+	'previewRestore',
+	'computeCheckpointDiff',
+	'getCheckpointConfig',
+	'saveCheckpointConfig',
+	'getPerformanceDashboard',
+	'analyzeCheckpoint',
+	'suggestCheckpointGroups',
+	'getSharedCheckpointBundles',
+	'shareCheckpoints',
+	'importSharedBundle',
+	'revealSharedBundle',
+	'getCheckpointForStableId',
+	'setAgentMode',
+	'agent/worktree',
+	'ui/sessionAllowTool',
+	'chatDescriber/describe',
+	'pinCheckpoint',
+	'listCheckpoints',
+	'getCheckpointDetails',
+	'deleteCheckpoints',
+	'saveCheckpointGraphUiState',
+	'getCheckpointTimeline',
+	'createCheckpointBranch',
+	'setActiveCheckpointWorkspace',
+	'openCheckpointFileDiff',
+	'openCheckpointFileAtRevision',
+	'openCheckpointWorkingFile',
+	'copyCheckpointFilePath',
+	'exportCheckpoint',
+	'switchCheckpointBranch',
+	'deleteCheckpointBranch',
+	'renameCheckpointBranch',
+	'mergeCheckpointBranches',
+	'setCheckpointTag',
+] as const;
+
+/**
+ * KN-378: leftover chrome names that native GUI listed without a caller.
+ * Must stay empty — either wire a chrome caller or drop the outbound name.
+ * Dropped: memory/create|search|delete|list|cleanup (brain/*), overwriteFile
+ * (applyToFile / restoreCheckpoint / knox.enhancedUndo), config/reload (configUpdate inbound).
+ */
+export const KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME = [] as const;

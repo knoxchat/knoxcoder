@@ -17,7 +17,7 @@ import { hostname } from 'os';
 
 type TunnelCliFactory = (onLog: (message: string) => void) => CodeTunnelCli;
 
-/** The process mode selected from tunnel intent. */
+/** The process mode selected from the Remote Tunnel Access intent. */
 export type TunnelProcessMode = 'none' | 'remoteAccess' | 'service';
 /** The connection lifecycle state reported by the coordinator. */
 export type TunnelProcessConnectionState = 'disconnected' | 'connecting' | 'connected';
@@ -62,7 +62,7 @@ export interface ITunnelProcessMachineStatus {
 	cancel(): void;
 }
 
-/** The single, resolved tunnel state. */
+/** The tunnel process state shared by Remote Tunnel Access consumers. */
 export interface ITunnelProcessStatus {
 	readonly mode: TunnelProcessMode;
 	readonly tunnelName: string | undefined;
@@ -74,7 +74,7 @@ export interface ITunnelProcessStatus {
 /** Service identifier for the shared-process tunnel coordinator. */
 export const ITunnelProcessCoordinator = createDecorator<ITunnelProcessCoordinator>('tunnelProcessCoordinator');
 
-/** Coordinates the one `code tunnel` process used by both shared-process tunnel consumers. */
+/** Coordinates the `code tunnel` process used by Remote Tunnel Access. */
 export interface ITunnelProcessCoordinator {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeStatus: Event<ITunnelProcessStatus>;
@@ -87,12 +87,9 @@ export interface ITunnelProcessCoordinator {
 	setRemoteAccessStatus(status: TunnelStatus): void;
 }
 
-/** Resolves the process mode from remote-access intent. */
+/** Resolves the process mode from the Remote Tunnel Access intent. */
 export function resolveTunnelProcessMode(remoteAccess: TunnelMode): TunnelProcessMode {
-	if (remoteAccess.active) {
-		return remoteAccess.asService ? 'service' : 'remoteAccess';
-	}
-	return 'none';
+	return remoteAccess.active ? (remoteAccess.asService ? 'service' : 'remoteAccess') : 'none';
 }
 
 /**
@@ -263,9 +260,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		}
 
 		this._setStatus({ mode: target.mode, tunnelName, tunnelId: undefined, connectionState: 'connecting', serviceInstallFailed: false });
-		const isServiceInstalled = target.mode === 'service' || target.mode === 'remoteAccess'
-			? await this._isServiceInstalled(generation)
-			: false;
+		const isServiceInstalled = await this._isServiceInstalled(generation);
 		if (generation !== this._generation) {
 			return;
 		}
@@ -298,7 +293,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 
 		const args = ['tunnel'];
 		args.push('--accept-server-license-terms', '--log', LogLevelToString(target.logLevel));
-		args.push('--user-data-dir', this.environmentService.userDataPath, '--name', tunnelName!, '--parent-process-id', String(process.pid));
+		args.push('--user-data-dir', this.environmentService.userDataPath, '--delegate-to-editor', '--name', tunnelName!, '--parent-process-id', String(process.pid));
 		if (this._preventSleep()) {
 			args.push('--no-sleep');
 		}

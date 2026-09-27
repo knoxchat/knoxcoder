@@ -11,7 +11,7 @@ suite('resolveScopedTreatment', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const BARE = 'config.chat.agentHost.copilot.multiTurnContextRouting.enabled';
+	const BARE = 'config.editor.minimap.enabled';
 	const SCOPED = `/vscode/${BARE}`;
 
 	function readFrom(values: Record<string, string | number | boolean>): (name: string) => string | number | boolean | undefined {

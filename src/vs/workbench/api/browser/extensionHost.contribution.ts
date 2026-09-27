@@ -48,6 +48,8 @@ import './mainThreadProgress.js';
 import './mainThreadQuickDiff.js';
 import './mainThreadDocumentDiff.js';
 import './mainThreadEmbeddings.js';
+import './mainThreadLanguageModelTools.js';
+import './mainThreadLanguageModels.js';
 import './mainThreadQuickOpen.js';
 import './mainThreadRemoteConnectionData.js';
 import './mainThreadSaveParticipant.js';
@@ -88,7 +90,7 @@ import './mainThreadProfileContentHandlers.js';
 import './mainThreadDataChannels.js';
 import './mainThreadMeteredConnection.js';
 import './mainThreadGitExtensionService.js';
-import './mainThreadKnoxGui.js';
+import './mainThreadKnoxExtensionService.js';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

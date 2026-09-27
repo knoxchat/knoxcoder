@@ -26,7 +26,7 @@ import { IContextKey, IContextKeyService } from '../../../platform/contextkey/co
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IComposite } from '../../common/composite.js';
 import { localize } from '../../../nls.js';
-import { CompositeDragAndDropObserver, toggleDropEffect } from '../dnd.js';
+import { CompositeDragAndDropData, CompositeDragAndDropObserver, toggleDropEffect } from '../dnd.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../common/theme.js';
 import { IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
@@ -255,7 +255,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		const messageElement = $('.empty-pane-message');
 		messageElement.textContent = this.location === ViewContainerLocation.AuxiliaryBar
-			? localize('knox.auxiliaryBarEmpty', "Knox")
+			? ''
 			: localize('pane.emptyMessage', "Drag a view here to display.");
 
 		this.emptyPaneMessageElement.appendChild(messageElement);
@@ -275,13 +275,15 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			this.emptyPaneMessageElement!.style.backgroundColor = backgroundColor;
 		};
 
-		if (this.viewDescriptorService.canMoveViews() && this.location !== ViewContainerLocation.AuxiliaryBar) {
+		if (this.viewDescriptorService.canMoveViews()) {
 			this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
 				onDragOver: (e) => {
 					EventHelper.stop(e.eventData, true);
 					if (this.paneCompositeBar.value) {
 						const validDropTarget = this.paneCompositeBar.value.dndHandler.onDragEnter(e.dragAndDropData, undefined, e.eventData);
 						toggleDropEffect(e.eventData.dataTransfer, 'move', validDropTarget);
+					} else {
+						toggleDropEffect(e.eventData.dataTransfer, 'move', this.canDropOnPart(e.dragAndDropData));
 					}
 				},
 				onDragEnter: (e) => {
@@ -289,6 +291,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 					if (this.paneCompositeBar.value) {
 						const validDropTarget = this.paneCompositeBar.value.dndHandler.onDragEnter(e.dragAndDropData, undefined, e.eventData);
 						setDropBackgroundFeedback(validDropTarget);
+					} else {
+						setDropBackgroundFeedback(this.canDropOnPart(e.dragAndDropData));
 					}
 				},
 				onDragLeave: (e) => {
@@ -304,7 +308,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 					setDropBackgroundFeedback(false);
 					if (this.paneCompositeBar.value) {
 						this.paneCompositeBar.value.dndHandler.drop(e.dragAndDropData, undefined, e.eventData);
-					} else {
+					} else if (this.canDropOnPart(e.dragAndDropData)) {
 						// Allow opening views/composites if the composite bar is hidden
 						const dragData = e.dragAndDropData.getData();
 
@@ -316,20 +320,31 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 						else if (dragData.type === 'view') {
 							const viewToMove = this.viewDescriptorService.getViewDescriptorById(dragData.id)!;
-							if (viewToMove.canMoveView) {
-								this.viewDescriptorService.moveViewToLocation(viewToMove, this.location, 'dnd');
+							this.viewDescriptorService.moveViewToLocation(viewToMove, this.location, 'dnd');
 
-								const newContainer = this.viewDescriptorService.getViewContainerByViewId(viewToMove.id)!;
+							const newContainer = this.viewDescriptorService.getViewContainerByViewId(viewToMove.id)!;
 
-								this.openPaneComposite(newContainer.id, true).then(composite => {
-									composite?.openView(viewToMove.id, true);
-								});
-							}
+							this.openPaneComposite(newContainer.id, true).then(composite => {
+								composite?.openView(viewToMove.id, true);
+							});
 						}
 					}
 				},
 			}));
 		}
+	}
+
+	private canDropOnPart(data: CompositeDragAndDropData): boolean {
+		const dragData = data.getData();
+		if (dragData.type === 'composite') {
+			const container = this.viewDescriptorService.getViewContainerById(dragData.id);
+			return !!container && this.viewDescriptorService.canMoveViewContainerToLocation(container, this.location);
+		}
+		if (dragData.type === 'view') {
+			const view = this.viewDescriptorService.getViewDescriptorById(dragData.id);
+			return !!view && this.viewDescriptorService.canMoveViewToLocation(view, this.location);
+		}
+		return false;
 	}
 
 	protected override createTitleArea(parent: HTMLElement): HTMLElement | undefined {
@@ -372,15 +387,12 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.titleContainer = parent;
 
 		const titleLabel = super.createTitleLabel(parent);
-		const canDragTitle = this.viewDescriptorService.canMoveViews() && this.location !== ViewContainerLocation.AuxiliaryBar;
-		this.titleLabelElement!.draggable = canDragTitle;
-		if (canDragTitle) {
-			const draggedItemProvider = (): { type: 'view' | 'composite'; id: string } => {
-				const activeViewlet = this.getActivePaneComposite()!;
-				return { type: 'composite', id: activeViewlet.getId() };
-			};
-			this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
-		}
+		this.titleLabelElement!.draggable = this.viewDescriptorService.canMoveViews();
+		const draggedItemProvider = (): { type: 'view' | 'composite'; id: string } => {
+			const activeViewlet = this.getActivePaneComposite()!;
+			return { type: 'composite', id: activeViewlet.getId() };
+		};
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
 
 		return titleLabel;
 	}

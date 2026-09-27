@@ -1,0 +1,192 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { knoxGuiLocaleKeys, knoxGuiT } from './gui/knoxGuiI18n.js';
+
+suite('Knox native GUI i18n', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('i18n tables include chat and settings keys in en and zh', () => {
+		assert.strictEqual(knoxGuiT('en', 'askAnything').length > 0, true);
+		assert.strictEqual(knoxGuiT('zh', 'askAnything').length > 0, true);
+		assert.notStrictEqual(knoxGuiT('en', 'askAnything'), knoxGuiT('zh', 'askAnything'));
+		assert.ok(knoxGuiT('en', 'checkpointGraph.title').includes('Checkpoint'));
+		assert.ok(knoxGuiT('en', 'restoreSelectedCount', { count: 3 }).includes('3'));
+		assert.ok(knoxGuiT('en', 'restorePreviewTitle').length > 0);
+		assert.ok(knoxGuiT('en', 'checkpointDashboard.tab').length > 0);
+		assert.ok(knoxGuiT('zh', 'checkpointAnalysis.tab').length > 0);
+		assert.ok(knoxGuiT('en', 'newChat').length > 0);
+		assert.ok(knoxGuiT('en', 'sendMessage').length > 0);
+		assert.strictEqual(knoxGuiT('en', 'send'), 'Send');
+		assert.ok(knoxGuiT('en', 'webSearchTooltipInactive').includes('web search'));
+		assert.ok(knoxGuiT('en', 'agentOptions').length > 0);
+		assert.ok(knoxGuiT('en', 'loadingConversation').includes('Loading'));
+		assert.ok(knoxGuiT('zh', 'loadingConversation').length > 0);
+		assert.notStrictEqual(knoxGuiT('en', 'loadingConversation'), knoxGuiT('zh', 'loadingConversation'));
+		assert.ok(knoxGuiT('en', 'largeSessionBanner').includes('large'));
+		assert.ok(knoxGuiT('en', 'loadEarlierMessages', { count: 12 }).includes('12'));
+		assert.ok(knoxGuiT('en', 'chatTab', { number: 2 }).includes('2'));
+		assert.ok(knoxGuiT('en', 'matchCount', { current: 1, total: 4 }).includes('1'));
+		assert.ok(knoxGuiT('en', 'failedToLoadConfiguration').length > 0);
+		assert.ok(knoxGuiT('en', 'scrollToTop').length > 0);
+		assert.ok(knoxGuiT('en', 'thinkingEllipsis').includes('Thinking'));
+		assert.ok(knoxGuiT('en', 'reject').length > 0);
+		assert.ok(knoxGuiT('en', 'accept').length > 0);
+		assert.notStrictEqual(knoxGuiT('en', 'reject'), knoxGuiT('zh', 'reject'));
+		assert.ok(knoxGuiT('en', 'activityStepsUsed', { used: 2, max: 10 }).includes('2'));
+		assert.ok(knoxGuiT('en', 'activityTokens', { count: '4.2k' }).includes('4.2k'));
+		assert.ok(knoxGuiT('en', 'activityJevSkill', { route: 'view_read', skill: 'qemu' }).includes('qemu'));
+		assert.ok(knoxGuiT('en', 'activityTokensPerSecond', { count: '42' }).includes('tok/s'));
+		assert.ok(knoxGuiT('en', 'applyingChanges').length > 0);
+		assert.ok(knoxGuiT('zh', 'thinking').length > 0);
+		assert.ok(knoxGuiT('en', 'dailyTokens').includes('Daily'));
+		assert.ok(knoxGuiT('en', 'tokenConsumptionByModel').includes('Model'));
+		assert.ok(knoxGuiT('en', 'noTokenUsageYet').includes('No token'));
+		assert.notStrictEqual(knoxGuiT('en', 'noTokenUsageYet'), knoxGuiT('zh', 'noTokenUsageYet'));
+		assert.ok(knoxGuiT('en', 'tokenUsageKnoxChatBilling').includes('local completions'));
+		assert.ok(knoxGuiT('en', 'taskPlanTitle').length > 0);
+		assert.ok(knoxGuiT('en', 'jobsCount', { count: 2 }).includes('2'));
+		assert.ok(knoxGuiT('en', 'memoryInjectedTitle', { count: 3 }).includes('3'));
+		assert.ok(knoxGuiT('en', 'autonomousBannerRunning', { iteration: 2, max: 5 }).includes('2'));
+		assert.ok(knoxGuiT('en', 'worktreeApply').length > 0);
+		assert.ok(knoxGuiT('en', 'filesChanged', { count: 4 }).includes('4'));
+		assert.notStrictEqual(knoxGuiT('en', 'compactionAppliedTitle'), knoxGuiT('zh', 'compactionAppliedTitle'));
+		assert.ok(knoxGuiT('en', 'bookmark').length > 0);
+		assert.ok(knoxGuiT('en', 'applying').length > 0);
+		assert.notStrictEqual(knoxGuiT('en', 'bookmark'), knoxGuiT('zh', 'bookmark'));
+		assert.ok(knoxGuiT('en', 'promptPath').length > 0);
+		assert.ok(knoxGuiT('zh', 'batchDiff').length > 0);
+		assert.ok(knoxGuiT('en', 'enterSearchFile').length > 0);
+		assert.ok(knoxGuiT('en', 'mentionTruncated', { count: 40 }).includes('40'));
+		assert.ok(knoxGuiT('en', 'dragAndDropImages').length > 0);
+		assert.ok(knoxGuiT('en', 'retry').length > 0);
+		assert.ok(knoxGuiT('en', 'thinkingDots').includes('Thinking'));
+		assert.ok(knoxGuiT('en', 'knoxGeneration').length > 0);
+		assert.ok(knoxGuiT('en', 'errorExclamation').includes('Error'));
+		assert.ok(knoxGuiT('en', 'learnMore').length > 0);
+		assert.ok(knoxGuiT('en', 'rateLimited', { model: 'Grok', provider: 'xAI' }).includes('Grok'));
+		assert.ok(knoxGuiT('en', 'toolGenerating').includes('Generating'));
+		assert.ok(knoxGuiT('en', 'toolWouldLikeTo').length > 0);
+		assert.ok(knoxGuiT('en', 'terminal').length > 0);
+		assert.ok(knoxGuiT('en', 'copyOutput').length > 0);
+		assert.notStrictEqual(knoxGuiT('en', 'toolCanceled'), knoxGuiT('zh', 'toolCanceled'));
+		assert.ok(knoxGuiT('en', 'locallyDefinedRule').includes('Local'));
+		assert.ok(knoxGuiT('en', 'inlineRule').includes('Inline'));
+		assert.ok(knoxGuiT('en', 'explore').length > 0);
+		assert.notStrictEqual(knoxGuiT('en', 'explore'), knoxGuiT('zh', 'explore'));
+		assert.ok(knoxGuiT('en', 'add').length > 0);
+		assert.ok(knoxGuiT('en', 'rules').length > 0);
+		assert.ok(knoxGuiT('en', 'expand').length > 0);
+		assert.ok(knoxGuiT('en', 'addPrompt').includes('Prompt'));
+		assert.ok(knoxGuiT('en', 'addNewPromptFile').includes('.prompt'));
+		assert.ok(knoxGuiT('en', 'createNewPromptFile').includes('.prompt'));
+		assert.ok(knoxGuiT('en', 'commandNameTooltip').includes('slash'));
+		assert.ok(knoxGuiT('en', 'promptsCanBeUsed').length > 0);
+		assert.notStrictEqual(knoxGuiT('en', 'editPrompt'), knoxGuiT('zh', 'editPrompt'));
+		assert.ok(knoxGuiT('en', 'askOnWrite').includes('Ask'));
+		assert.ok(knoxGuiT('en', 'yoloPreset').includes('YOLO'));
+		assert.ok(knoxGuiT('en', 'policyTitle').length > 0);
+		assert.ok(knoxGuiT('en', 'groupDisabled').length > 0);
+		assert.notStrictEqual(knoxGuiT('en', 'toolRequiresApproval'), knoxGuiT('zh', 'toolRequiresApproval'));
+		assert.ok(knoxGuiT('en', 'paste').length > 0);
+		assert.ok(knoxGuiT('en', 'oopsSomethingWentWrong').includes('Oops'));
+		assert.ok(knoxGuiT('en', 'noConfigErrorsFound').length > 0);
+		assert.notStrictEqual(knoxGuiT('en', 'paste'), knoxGuiT('zh', 'paste'));
+		assert.ok(knoxGuiT('en', 'memoryOverview').length > 0);
+		assert.ok(knoxGuiT('en', 'memorySystemStatus').length > 0);
+		assert.ok(knoxGuiT('en', 'memoryLoadingDashboard').includes('Loading'));
+		assert.ok(knoxGuiT('en', 'memoryTierHot').length > 0);
+		assert.ok(knoxGuiT('en', 'memoryHealthScore').length > 0);
+		assert.ok(knoxGuiT('en', 'memoryTimeNever').length > 0);
+		assert.ok(knoxGuiT('en', 'memoryTimeMinutesAgo', { count: 3 }).includes('3'));
+		assert.notStrictEqual(knoxGuiT('en', 'memoryOverview'), knoxGuiT('zh', 'memoryOverview'));
+		assert.ok(knoxGuiT('en', 'memorySelectMultiple').length > 0);
+		assert.ok(knoxGuiT('en', 'memorySessionHistoryTitle').length > 0);
+		assert.ok(knoxGuiT('en', 'memoryExplore').length > 0);
+		assert.ok(knoxGuiT('en', 'memoryHealSystem').length > 0);
+		assert.ok(knoxGuiT('en', 'checkpointGraph.loading').includes('Loading'));
+		assert.ok(knoxGuiT('en', 'checkpointGraph.openFolder').length > 0);
+		assert.ok(knoxGuiT('en', 'checkpointGraph.retry').length > 0);
+		assert.ok(knoxGuiT('en', 'checkpointGraph.create').length > 0);
+		assert.ok(knoxGuiT('en', 'checkpointGraph.failed').length > 0);
+		assert.notStrictEqual(knoxGuiT('en', 'checkpointGraph.noWorkspace'), knoxGuiT('zh', 'checkpointGraph.noWorkspace'));
+		assert.ok(knoxGuiT('en', 'checkpointGraph.find').length > 0);
+		assert.ok(knoxGuiT('en', 'checkpointGraph.workingTree').includes('Uncheckpointed'));
+		assert.ok(knoxGuiT('en', 'checkpointGraph.menu.restore').includes('Restore'));
+		assert.ok(knoxGuiT('en', 'checkpointGraph.justNow').length > 0);
+		assert.ok(knoxGuiT('en', 'restorePreviewWillOverwrite').includes('overwrite'));
+		assert.notStrictEqual(knoxGuiT('en', 'checkpointGraph.workingTree'), knoxGuiT('zh', 'checkpointGraph.workingTree'));
+		assert.ok(knoxGuiT('en', 'oauthErrorDenied').includes('denied'));
+		assert.ok(knoxGuiT('zh', 'oauthErrorTimeout').length > 0);
+		assert.notStrictEqual(knoxGuiT('en', 'signInKnoxStudio'), knoxGuiT('zh', 'signInKnoxStudio'));
+		assert.ok(knoxGuiT('en', 'oauthErrorPortInUse').includes('8733'));
+	});
+
+	test('en and zh tables have identical keys (KN-381)', () => {
+		const enKeys = knoxGuiLocaleKeys('en');
+		const zhKeys = knoxGuiLocaleKeys('zh');
+		assert.deepStrictEqual(zhKeys, enKeys);
+		assert.ok(enKeys.includes('askAnything'));
+		assert.ok(enKeys.includes('checkpointGraph.title'));
+		assert.ok(enKeys.includes('memoryOverview'));
+		assert.ok(enKeys.length > 1000);
+	});
+
+	test('workbench CSP allows knoxGui Trusted Types policy', () => {
+		for (const name of ['workbench.html', 'workbench-dev.html']) {
+			const html = readFileSync(join(process.cwd(), 'src/vs/code/electron-browser/workbench', name), 'utf8');
+			assert.ok(/\n\s+knoxGui\n/.test(html), `${name} must allow trusted-types knoxGui`);
+		}
+	});
+
+	test('knoxGui.css keeps lump icons 14px and checkpoint graph rules', () => {
+		const css = readFileSync(join(process.cwd(), 'src/vs/workbench/contrib/knox/browser/media/knoxGui.css'), 'utf8');
+		assert.strictEqual(css.split('.knox-gui-starters {').length - 1, 1);
+		assert.strictEqual(css.split('.knox-gui-msg-hit {').length - 1, 1);
+		assert.ok(css.includes('.knox-gui-lump .knox-gui-svg'));
+		assert.ok(css.includes('width: 14px'));
+		assert.ok(css.includes('.knox-gui-job {'));
+		assert.ok(css.includes('.knox-gui-turn {'));
+		assert.ok(css.includes('.knox-gui-policy-title'));
+		assert.ok(css.includes('.knox-gui-tier {'));
+		assert.ok(css.includes('.knox-gui-raw-md'));
+		assert.ok(css.includes('.knox-gui-rule-card {'));
+		assert.ok(css.includes('.knox-gui-graph-table'));
+		assert.ok(css.includes('.knox-gui-restore-overwrite'));
+		assert.ok(css.includes('.knox-gui-meter-track'));
+		assert.ok(!/\.knox-gui-meter\s*\{[^}]*height:\s*6px/.test(css));
+		assert.ok(css.includes('.knox-gui-overlay {'));
+		assert.ok(css.includes('.knox-gui-page {'));
+		assert.ok(!css.includes('.knox-gui-overlay,\n.knox-gui-page {'));
+		assert.ok(css.includes('minmax(300px, 1fr)'));
+		assert.ok(css.includes('.knox-gui .rendered-markdown h1'));
+		assert.ok(css.includes('.knox-gui-listbox-btn'));
+		assert.ok(css.includes('.knox-gui-checkpoint-card'));
+		assert.ok(css.includes('.knox-gui-knoxchat-item'));
+		assert.ok(css.includes('.knox-gui-add-model-form'));
+		assert.ok(css.includes('.knox-gui-toggle-group'));
+		assert.ok(css.includes('.knox-gui-lump-shell'));
+		assert.ok(css.includes('.knox-gui-diff-hunk-head'));
+		assert.ok(css.includes('.knox-gui-config-card'));
+		assert.ok(css.includes('.knox-gui-chart'));
+		assert.ok(css.includes('width: 32px'));
+		assert.ok(css.includes('.knox-gui-graph-force-mount'));
+		assert.ok(css.includes('.knox-gui-diff-word-alt'));
+		assert.ok(css.includes('.knox-gui-chart-tooltip'));
+		assert.ok(css.includes('.odp-chip'));
+		assert.ok(css.includes('.pierre-diff-container'));
+		assert.ok(css.includes('.knox-gui-stats-table'));
+		assert.ok(css.includes('.knox-gui-fatal'));
+		assert.ok(css.includes('.knox-gui-tabs'));
+		assert.ok(css.includes('.knox-gui-find'));
+		assert.ok(css.includes('.knox-gui-accept-reject-all'));
+		assert.ok(css.includes('.knox-gui-accept-reject-streaming'));
+	});
+});
+

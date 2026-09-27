@@ -1,0 +1,101 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { AutoOpenBarrier } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IKnoxGuiMessage } from '../common/knoxGuiProtocol.js';
+import { IKnoxService, IKnoxExtensionDelegate } from '../common/knoxService.js';
+
+export class KnoxService extends Disposable implements IKnoxService {
+	declare readonly _serviceBrand: undefined;
+
+	private _delegate: IKnoxExtensionDelegate | undefined;
+	private readonly _delegateBarrier = new AutoOpenBarrier(10_000);
+	private readonly _onDidChangeAgentMode = this._register(new Emitter<boolean>());
+	readonly onDidChangeAgentMode: Event<boolean> = this._onDidChangeAgentMode.event;
+	private readonly _onDidReceiveGuiMessage = this._register(new Emitter<IKnoxGuiMessage>());
+	readonly onDidReceiveGuiMessage: Event<IKnoxGuiMessage> = this._onDidReceiveGuiMessage.event;
+
+	constructor(@ILogService private readonly logService: ILogService) {
+		super();
+	}
+
+	setDelegate(delegate: IKnoxExtensionDelegate): IDisposable {
+		if (this._delegate) {
+			this.logService.error('[KnoxService][setDelegate] KnoxExtension delegate is already set.');
+			throw new BugIndicatingError('KnoxExtension delegate is already set.');
+		}
+
+		this._delegate = delegate;
+		this._delegateBarrier.open();
+
+		return toDisposable(() => {
+			this._delegate = undefined;
+		});
+	}
+
+	notifyAgentModeChanged(active: boolean): void {
+		this._onDidChangeAgentMode.fire(active);
+	}
+
+	async isAvailable(): Promise<boolean> {
+		await this._delegateBarrier.wait();
+		if (!this._delegate) {
+			return false;
+		}
+		return this._delegate.isAvailable();
+	}
+
+	async openChat(): Promise<void> {
+		await this._delegateBarrier.wait();
+		if (!this._delegate) {
+			this.logService.warn('[KnoxService][openChat] KnoxExtension delegate is not set.');
+			return;
+		}
+		return this._delegate.openChat();
+	}
+
+	async toggleAgentMode(): Promise<void> {
+		await this._delegateBarrier.wait();
+		if (!this._delegate) {
+			this.logService.warn('[KnoxService][toggleAgentMode] KnoxExtension delegate is not set.');
+			return;
+		}
+		return this._delegate.toggleAgentMode();
+	}
+
+	async isAgentModeActive(): Promise<boolean> {
+		await this._delegateBarrier.wait();
+		if (!this._delegate) {
+			return false;
+		}
+		return this._delegate.isAgentModeActive();
+	}
+
+	async newSession(): Promise<void> {
+		await this._delegateBarrier.wait();
+		if (!this._delegate) {
+			this.logService.warn('[KnoxService][newSession] KnoxExtension delegate is not set.');
+			return;
+		}
+		return this._delegate.newSession();
+	}
+
+	notifyGuiMessage(message: IKnoxGuiMessage): void {
+		this._onDidReceiveGuiMessage.fire(message);
+	}
+
+	async guiPost(message: IKnoxGuiMessage): Promise<void> {
+		await this._delegateBarrier.wait();
+		if (!this._delegate) {
+			this.logService.warn('[KnoxService][guiPost] KnoxExtension delegate is not set.');
+			return;
+		}
+		return this._delegate.guiPost(message);
+	}
+}

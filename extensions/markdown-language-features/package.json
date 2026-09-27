@@ -24,8 +24,6 @@
   ],
   "activationEvents": [
     "onLanguage:markdown",
-    "onLanguage:prompt",
-    "onLanguage:instructions",
     "onCommand:markdown.api.render",
     "onCommand:markdown.api.reloadPlugins",
     "onWebviewPanel:markdown.preview"
@@ -221,13 +219,13 @@
         "command": "markdown.editor.insertLinkFromWorkspace",
         "title": "%markdown.editor.insertLinkFromWorkspace%",
         "category": "Markdown",
-        "enablement": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !activeEditorIsReadonly"
+        "enablement": "editorLangId =~ /^(markdown)$/ && !activeEditorIsReadonly"
       },
       {
         "command": "markdown.editor.insertImageFromWorkspace",
         "title": "%markdown.editor.insertImageFromWorkspace%",
         "category": "Markdown",
-        "enablement": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !activeEditorIsReadonly"
+        "enablement": "editorLangId =~ /^(markdown)$/ && !activeEditorIsReadonly"
       },
       {
         "command": "markdown.editor.cursorLeft",
@@ -521,13 +519,13 @@
       "editor/title": [
         {
           "command": "markdown.showPreviewToSide",
-          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
+          "when": "editorLangId =~ /^(markdown)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
           "alt": "markdown.showPreview",
           "group": "navigation@1"
         },
         {
           "command": "markdown.reopenAsPreview",
-          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview && !isSessionsWindow",
+          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
           "group": "navigation@2"
         },
         {
@@ -537,7 +535,7 @@
         },
         {
           "command": "markdown.reopenAsSource",
-          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor' && !activeCustomEditorTextDiff && !isSessionsWindow",
+          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor' && !activeCustomEditorTextDiff",
           "group": "navigation@2"
         },
         {
@@ -559,42 +557,42 @@
       "modalEditor/editorTitle": [
         {
           "command": "markdown.showPreviewToSide",
-          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
+          "when": "editorLangId =~ /^(markdown)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
           "alt": "markdown.showPreview",
           "group": "navigation"
         },
         {
           "command": "markdown.reopenAsPreview",
-          "when": "(activeEditor == workbench.editors.files.textFileEditor || activeEditor == workbench.editors.textDiffEditor) && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview && !isSessionsWindow",
+          "when": "(activeEditor == workbench.editors.files.textFileEditor || activeEditor == workbench.editors.textDiffEditor) && resourceLangId =~ /^(markdown)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
           "group": "navigation"
         },
         {
           "command": "markdown.reopenAsSource",
-          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor' && !activeCustomEditorTextDiff && !isSessionsWindow",
+          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor' && !activeCustomEditorTextDiff",
           "group": "navigation"
         }
       ],
       "explorer/context": [
         {
           "command": "markdown.showPreview",
-          "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !hasCustomMarkdownPreview",
+          "when": "resourceLangId =~ /^(markdown)$/ && !hasCustomMarkdownPreview",
           "group": "navigation"
         },
         {
           "command": "markdown.findAllFileReferences",
-          "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/",
+          "when": "resourceLangId =~ /^(markdown)$/",
           "group": "4_search"
         }
       ],
       "editor/title/context": [
         {
           "command": "markdown.showPreview",
-          "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !hasCustomMarkdownPreview",
+          "when": "resourceLangId =~ /^(markdown)$/ && !hasCustomMarkdownPreview",
           "group": "1_open"
         },
         {
           "command": "markdown.findAllFileReferences",
-          "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/"
+          "when": "resourceLangId =~ /^(markdown)$/"
         }
       ],
       "commandPalette": [
@@ -608,17 +606,17 @@
         },
         {
           "command": "markdown.showPreview",
-          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused",
+          "when": "editorLangId =~ /^(markdown)$/ && !notebookEditorFocused",
           "group": "navigation"
         },
         {
           "command": "markdown.showPreviewToSide",
-          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused",
+          "when": "editorLangId =~ /^(markdown)$/ && !notebookEditorFocused",
           "group": "navigation"
         },
         {
           "command": "markdown.showLockedPreviewToSide",
-          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused",
+          "when": "editorLangId =~ /^(markdown)$/ && !notebookEditorFocused",
           "group": "navigation"
         },
         {
@@ -628,7 +626,7 @@
         },
         {
           "command": "markdown.showPreviewSecuritySelector",
-          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused"
+          "when": "editorLangId =~ /^(markdown)$/ && !notebookEditorFocused"
         },
         {
           "command": "markdown.showPreviewSecuritySelector",
@@ -640,7 +638,7 @@
         },
         {
           "command": "markdown.preview.refresh",
-          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused"
+          "when": "editorLangId =~ /^(markdown)$/ && !notebookEditorFocused"
         },
         {
           "command": "markdown.preview.refresh",
@@ -648,11 +646,11 @@
         },
         {
           "command": "markdown.findAllFileReferences",
-          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/"
+          "when": "editorLangId =~ /^(markdown)$/"
         },
         {
           "command": "markdown.reopenAsPreview",
-          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/",
+          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown)$/",
           "group": "navigation"
         },
         {
@@ -662,7 +660,7 @@
         },
         {
           "command": "markdown.togglePreview",
-          "when": "resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/"
+          "when": "resourceLangId =~ /^(markdown)$/"
         },
         {
           "command": "markdown.editor.cursorLeft",
@@ -866,13 +864,13 @@
         "command": "markdown.showPreviewToSide",
         "key": "ctrl+k v",
         "mac": "cmd+k v",
-        "when": "editorFocus && editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused"
+        "when": "editorFocus && editorLangId =~ /^(markdown)$/ && !notebookEditorFocused"
       },
       {
         "command": "markdown.togglePreview",
         "key": "shift+ctrl+v",
         "mac": "shift+cmd+v",
-        "when": "!terminalFocus && ((editorFocus && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused) || activeCustomEditorId == 'vscode.markdown.preview.editor')"
+        "when": "!terminalFocus && ((editorFocus && resourceLangId =~ /^(markdown)$/ && !notebookEditorFocused) || activeCustomEditorId == 'vscode.markdown.preview.editor')"
       },
       {
         "command": "markdown.editor.cursorLeft",
@@ -1786,7 +1784,8 @@
     "watch-typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
-    "@vscode/markdown-editor": "^0.0.2-74",
+    "@vscode/extension-telemetry": "^0.9.8",
+    "@vscode/markdown-editor": "^0.0.2-95",
     "@vscode/observables": "^0.1.1-0",
     "dompurify": "^3.4.10",
     "highlight.js": "^11.8.0",

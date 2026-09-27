@@ -64,14 +64,14 @@ function createCoordinator(exitOnKill = true, ordering?: string[], installExitCo
 		const complete = args.includes('login') || args.includes('status') || args.includes('install') || args.includes('kill') || args.includes('uninstall');
 		const isTunnelProcess = args[0] === 'tunnel' && !args.includes('status') && !args.includes('login') && !args.includes('install') && !args.includes('kill') && !args.includes('uninstall');
 		if (isTunnelProcess) {
-			ordering?.push('spawn-tunnel');
+			ordering?.push('spawn-remote-access');
 		}
 		const process = createProcess(args, complete, args.includes('status') ? '{"service_installed":false,"tunnel":null}\n' : undefined, exitOnKill || complete, options.env, args.includes('install') ? installExitCode : 0);
 		if (isTunnelProcess && ordering) {
-			process.child.on('exit', () => ordering.push('exit-tunnel'));
+			process.child.on('exit', () => ordering.push('exit-remote-access'));
 			const kill = process.child.kill;
 			process.child.kill = () => {
-				ordering.push('kill-tunnel');
+				ordering.push('kill-remote-access');
 				return kill.call(process.child);
 			};
 		}
@@ -95,7 +95,7 @@ function createCoordinator(exitOnKill = true, ordering?: string[], installExitCo
 suite('TunnelProcessCoordinator', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('resolves remote-access intent modes', () => {
+	test('resolves Remote Tunnel Access modes', () => {
 		assert.deepStrictEqual([
 			resolveTunnelProcessMode(INACTIVE_TUNNEL_MODE),
 			resolveTunnelProcessMode(activeMode()),
@@ -103,26 +103,23 @@ suite('TunnelProcessCoordinator', () => {
 		], ['none', 'remoteAccess', 'service']);
 	});
 
-	test('leaves a healthy tunnel running when the resolved target is unchanged', async () => {
+	test('stops the tunnel instead of resuming a narrower mode when Remote Tunnel Access is disabled', async () => {
 		const { coordinator, processes } = createCoordinator();
 		try {
 			await coordinator.setRemoteAccess(activeMode(), LogLevel.Info);
 			const tunnel = processes.find(process => process.args.includes('--accept-server-license-terms'))!;
-
-			await coordinator.setRemoteAccess(activeMode(), LogLevel.Info);
+			await coordinator.setRemoteAccess(INACTIVE_TUNNEL_MODE, LogLevel.Info);
 
 			assert.deepStrictEqual({
-				wasKilled: tunnel.wasKilled(),
-				tunnelProcessCount: processes.filter(process => process.args[0] === 'tunnel'
-					&& !process.args.includes('status')
-					&& !process.args.includes('login')
-					&& !process.args.includes('install')
-					&& !process.args.includes('kill')
-					&& !process.args.includes('uninstall')).length,
+				tunnelWasStopped: tunnel.wasKilled(),
+				status: coordinator.getStatus(),
+				agentHostProcessStarted: processes.some(process => process.args.includes('--agent-host-only')),
 			}, {
-				wasKilled: false,
-				tunnelProcessCount: 1,
+				tunnelWasStopped: true,
+				status: { mode: 'none', tunnelName: undefined, tunnelId: undefined, connectionState: 'disconnected', serviceInstallFailed: false },
+				agentHostProcessStarted: false,
 			});
+
 		} finally {
 			for (const process of processes) {
 				process.emitExit();
@@ -249,14 +246,18 @@ suite('TunnelProcessCoordinator', () => {
 		const { coordinator, processes } = createCoordinator(false, ordering);
 		try {
 			await coordinator.setRemoteAccess(activeMode(), LogLevel.Info);
-			const first = processes.find(process => process.args.includes('--accept-server-license-terms'))!;
-			const transition = coordinator.restart();
+			const tunnel = processes.find(process => process.args.includes('--accept-server-license-terms'))!;
+			const transition = coordinator.setRemoteAccess({
+				active: true,
+				asService: false,
+				session: { providerId: 'github', sessionId: 'session', accountLabel: 'account', token: 'refreshed-token' },
+			}, LogLevel.Info);
 			await new Promise<void>(resolve => setImmediate(resolve));
-			assert.deepStrictEqual(ordering, ['spawn-tunnel', 'kill-tunnel']);
+			assert.deepStrictEqual(ordering, ['spawn-remote-access', 'kill-remote-access']);
 
-			first.emitExit();
+			tunnel.emitExit();
 			await transition;
-			assert.deepStrictEqual(ordering, ['spawn-tunnel', 'kill-tunnel', 'exit-tunnel', 'spawn-tunnel']);
+			assert.deepStrictEqual(ordering, ['spawn-remote-access', 'kill-remote-access', 'exit-remote-access', 'spawn-remote-access']);
 		} finally {
 			for (const process of processes) {
 				process.emitExit();
@@ -289,13 +290,23 @@ suite('TunnelProcessCoordinator', () => {
 		}
 	});
 
-	test('uninstalls the service when remote access stops', async () => {
+	test('uninstalls the service when a restart preempts the reconcile', async () => {
 		const { coordinator, processes } = createCoordinator();
 		try {
 			await coordinator.setRemoteAccess(activeMode(true), LogLevel.Info);
-			await coordinator.setRemoteAccess(INACTIVE_TUNNEL_MODE, LogLevel.Info);
+			// Turning the service off owes an uninstall. A restart in the same
+			// tick preempts that reconcile, so the requirement must survive.
+			const stopService = coordinator.setRemoteAccess(INACTIVE_TUNNEL_MODE, LogLevel.Info);
+			const restart = coordinator.restart();
+			await Promise.all([stopService, restart]);
 
-			assert.strictEqual(processes.some(process => process.args.includes('uninstall')), true);
+			assert.deepStrictEqual({
+				uninstalled: processes.some(process => process.args.includes('uninstall')),
+				status: coordinator.getStatus().mode,
+			}, {
+				uninstalled: true,
+				status: 'none',
+			});
 		} finally {
 			coordinator.dispose();
 		}
@@ -310,17 +321,19 @@ suite('TunnelProcessCoordinator', () => {
 		try {
 			await coordinator.setRemoteAccess(activeMode(), LogLevel.Info);
 			const tunnel = processes.find(process => process.args.includes('--accept-server-license-terms'))!;
-			tunnel.stdout.write('__VSCODE_CLI_STATUS__{"type":"connected","tunnelName":"test_host","isAttached":false}\n');
+			tunnel.stdout.write('__VSCODE_CLI_STATUS__{"type":"connected","tunnelName":"test_host","tunnelId":"tunnel-id","isAttached":false}\n');
 			await new Promise<void>(resolve => setImmediate(resolve));
 			assert.deepStrictEqual({
 				first,
 				second,
 				status: coordinator.getStatus().connectionState,
+				tunnelId: coordinator.getStatus().tunnelId,
 				machineStatusEnvironment: tunnel.env?.VSCODE_CLI_MACHINE_STATUS,
 			}, {
 				first: ['connected'],
 				second: ['connected'],
 				status: 'connected',
+				tunnelId: 'tunnel-id',
 				machineStatusEnvironment: '1',
 			});
 		} finally {

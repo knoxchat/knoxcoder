@@ -138,6 +138,18 @@ export interface IViewContainerDescriptor {
 	readonly rejectAddedViews?: boolean;
 
 	/**
+	 * When true, this container cannot be moved away from the location it was
+	 * registered at. Views inside it should also not be dragged elsewhere.
+	 */
+	readonly lockToDefaultLocation?: boolean;
+
+	/**
+	 * When true, this container exclusively owns its location: other views and
+	 * containers cannot be moved there.
+	 */
+	readonly exclusiveAtLocation?: boolean;
+
+	/**
 	 * Specifies in which window this view container should be enabled.
 	 * Defaults to WindowEnablement.Editor
 	 */
@@ -627,6 +639,8 @@ export interface IViewDescriptorService {
 
 	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }>;
 	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number, reason?: string): void;
+	canMoveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation): boolean;
+	canMoveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): boolean;
 
 	getViewContainerBadgeEnablementState(id: string): boolean;
 	setViewContainerBadgeEnablementState(id: string, badgesEnabled: boolean): void;

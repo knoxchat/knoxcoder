@@ -421,7 +421,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 
 		let bounds: BoundingRect;
 
-		if (this.viewDescriptorService.canMoveViews() && !this.viewContainer.rejectAddedViews) {
+		if (this.viewDescriptorService.canMoveViews()) {
 			this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
 				onDragEnter: (e) => {
 					bounds = getOverlayBounds();
@@ -890,10 +890,13 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 
 		let overlay: ViewPaneDropOverlay | undefined;
 
-		if (this.viewDescriptorService.canMoveViews() && !this.viewContainer.rejectAddedViews) {
+		if (this.viewDescriptorService.canMoveViews()) {
 
 			if (pane.draggableElement) {
-				store.add(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, () => { return { type: 'view', id: pane.id }; }, {}));
+				const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(pane.id);
+				if (viewDescriptor?.canMoveView) {
+					store.add(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, () => { return { type: 'view', id: pane.id }; }, {}));
+				}
 			}
 
 			store.add(CompositeDragAndDropObserver.INSTANCE.registerTarget(pane.dropTargetElement, {
@@ -1083,7 +1086,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 	}
 
 	private updateViewHeaders(): void {
-		if (this.isViewMergedWithContainer()) {
+		if (this.paneItems.length === 1 && (this.viewContainer.exclusiveAtLocation || this.isViewMergedWithContainer())) {
 			if (this.paneItems[0].pane.isExpanded()) {
 				this.lastMergedCollapsedPane = undefined;
 			} else {
@@ -1113,6 +1116,9 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 	}
 
 	isViewMergedWithContainer(): boolean {
+		if (this.viewContainer.exclusiveAtLocation && this.paneItems.length === 1) {
+			return true;
+		}
 		if (!(this.options.mergeViewWithContainerWhenSingleView && this.paneItems.length === 1)) {
 			return false;
 		}

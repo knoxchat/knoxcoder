@@ -24,7 +24,6 @@ for (const dir of dirs) {
 		dependencies: packageJson.dependencies,
 		devDependencies: packageJson.devDependencies,
 		optionalDependencies: packageJson.optionalDependencies,
-		overrides: packageJson.overrides,
 		resolutions: packageJson.resolutions,
 		distro: packageJson.distro
 	};

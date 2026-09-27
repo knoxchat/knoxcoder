@@ -1,23 +1,12 @@
 src/**
+scripts/**
 test/**
-out/**
 tsconfig*.json
 **/*.tsbuildinfo
-build/**
-!build/Release/
-!build/Release/*.node
 esbuild*.mts
+out/**
+# KN-384: ignore only the host-Node install. Native addons copied into
+# dist/node_modules (sqlite3, ripgrep, node-pty) must ship in the product.
+/node_modules/**
+.gitignore
 package-lock.json
-gui-src/**
-gui/**
-scripts/**
-core/**
-knoxdev-package/**
-# dist/ is gitignored build output; force-include for vsce/fromLocal
-!dist/
-!dist/**
-# native .node copies next to the bundle (repo gitignore has extensions/knox/**/*.node)
-!dist/**/*.node
-# tree-sitter queries are source; WASM copies land in dist/ at pack time
-!tree-sitter/**
-!tag-qry/**

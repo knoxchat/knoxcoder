@@ -20,6 +20,7 @@ export const enum AccessibleViewProviderId {
 	DiffEditor = 'diffEditor',
 	MergeEditor = 'mergeEditor',
 	PanelChat = 'panelChat',
+	CustomizationMigrations = 'customizationMigrations',
 	ChatTerminalOutput = 'chatTerminalOutput',
 	ChatThinking = 'chatThinking',
 	InlineChat = 'inlineChat',
@@ -53,7 +54,6 @@ export const enum AccessibleViewProviderId {
 	Automations = 'automations',
 	BrowserElementCommenting = 'browserElementCommenting',
 	ChatPetAchievements = 'chatPetAchievements',
-	Knox = 'knox',
 }
 
 export const enum AccessibleViewType {

@@ -107,7 +107,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 			}
 		);
 
-		for (const extension of ['html', 'htm']) {
+		for (const extension of ['html', 'htm', 'mhtml', 'mht']) {
 			editorResolverService.registerEditor(
 				`${Schemas.file}:/**/*.${extension}`,
 				{

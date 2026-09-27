@@ -17,7 +17,6 @@ import { isUndefinedOrNull } from '../../../base/common/types.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ViewContainerLocation, IViewDescriptorService } from '../../common/views.js';
-import { isKnoxExclusiveAuxiliaryBar, isKnoxViewContainer } from '../../common/knox.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { IComposite } from '../../common/composite.js';
 import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D, toggleDropEffect, ICompositeDragAndDropObserverCallbacks } from '../dnd.js';
@@ -108,19 +107,15 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 	}
 
 	private canDrop(data: CompositeDragAndDropData, targetCompositeId: string | undefined): boolean {
-		if (isKnoxExclusiveAuxiliaryBar(this.targetContainerLocation)) {
-			return false;
-		}
-
 		const dragData = data.getData();
 
 		if (dragData.type === 'composite') {
-			if (isKnoxViewContainer(dragData.id)) {
-				return false;
-			}
 
 			// Dragging a composite
-			const currentContainer = this.viewDescriptorService.getViewContainerById(dragData.id)!;
+			const currentContainer = this.viewDescriptorService.getViewContainerById(dragData.id);
+			if (!currentContainer) {
+				return false;
+			}
 			const currentLocation = this.viewDescriptorService.getViewContainerLocation(currentContainer);
 
 			// ... to the same composite location
@@ -128,19 +123,16 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 				return dragData.id !== targetCompositeId;
 			}
 
-			return true;
+			return this.viewDescriptorService.canMoveViewContainerToLocation(currentContainer, this.targetContainerLocation);
 		} else {
 
 			// Dragging an individual view
 			const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(dragData.id);
-
-			// ... that cannot move
-			if (!viewDescriptor?.canMoveView) {
+			if (!viewDescriptor) {
 				return false;
 			}
 
-			// ... to create a view container
-			return true;
+			return this.viewDescriptorService.canMoveViewToLocation(viewDescriptor, this.targetContainerLocation);
 		}
 	}
 }

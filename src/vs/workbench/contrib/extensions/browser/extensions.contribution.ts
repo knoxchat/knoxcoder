@@ -24,7 +24,8 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryAccountService } from '../../../services/extensionManagement/common/extensionGalleryAccount.js';
 import { EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, ExtensionRequestsTimeoutConfigKey, ExtensionsLocalizedLabel, FilterType, IExtensionGalleryService, IExtensionManagementService, PreferencesLocalizedLabel, SortBy, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions, getIdAndVersion } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
@@ -68,7 +69,6 @@ import { AutoRestartConfigurationKey, AutoUpdateConfigurationKey, CONTEXT_EXTENS
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '../common/extensionsFileTemplate.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { KeymapExtensions } from '../common/extensionsUtils.js';
-import { ExcludedMarketplaceExtensionsContribution } from '../common/excludedMarketplaceExtensions.js';
 import { ExtensionEditor } from './extensionEditor.js';
 import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from './extensionEnablementWorkspaceTrustTransitionParticipant.js';
 import { ExtensionRecommendationNotificationService } from './extensionRecommendationNotificationService.js';
@@ -353,6 +353,39 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 							key: 'extensions.gallery.serviceUrl',
 							value: localize('extensions.gallery.serviceUrl', "Configure the Marketplace service URL to connect to"),
 						}
+					}
+				},
+			},
+			[ExtensionGalleryAuthProviderConfigKey]: {
+				type: 'string',
+				enum: ['github', 'microsoft'],
+				enumDescriptions: [
+					localize('extensions.gallery.authProvider.github', "Authenticate to the Extensions Marketplace using GitHub."),
+					localize('extensions.gallery.authProvider.microsoft', "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."),
+				],
+				description: localize('extensions.gallery.authProvider', "Configure the authentication provider for the Extensions Marketplace"),
+				default: 'github',
+				scope: ConfigurationScope.APPLICATION,
+				included: false,
+				policy: {
+					name: 'ExtensionGalleryAuthProvider',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.137',
+					localization: {
+						description: {
+							key: 'extensions.gallery.authProvider',
+							value: localize('extensions.gallery.authProvider', "Configure the authentication provider for the Extensions Marketplace"),
+						},
+						enumDescriptions: [
+							{
+								key: 'extensions.gallery.authProvider.github',
+								value: localize('extensions.gallery.authProvider.github', "Authenticate to the Extensions Marketplace using GitHub."),
+							},
+							{
+								key: 'extensions.gallery.authProvider.microsoft',
+								value: localize('extensions.gallery.authProvider.microsoft', "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."),
+							},
+						]
 					}
 				},
 			},
@@ -2061,7 +2094,6 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, Lifecyc
 workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(ExcludedMarketplaceExtensionsContribution, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
@@ -2074,6 +2106,24 @@ if (isWeb) {
 	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
 }
 
+registerAction2(class ExtensionsGallerySignInAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.extensions.actions.gallery.signIn',
+			title: localize2('signInToMarketplace', 'Sign in to access Extensions Marketplace'),
+			menu: {
+				id: MenuId.AccountsContext,
+				when: ContextKeyExpr.or(
+					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn),
+					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied),
+				)
+			},
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IExtensionGalleryAccountService).signIn();
+	}
+});
 
 Registry.as<IConfigurationMigrationRegistry>(ConfigurationMigrationExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{

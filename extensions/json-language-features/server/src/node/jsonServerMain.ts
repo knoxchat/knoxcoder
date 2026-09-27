@@ -42,7 +42,7 @@ function getFileRequestService(): RequestService {
 		async getContent(location: string, encoding?: BufferEncoding) {
 			try {
 				const uri = Uri.parse(location);
-				return (await fs.readFile(uri.fsPath, encoding)).toString();
+				return (await fs.readFile(uri.fsPath, { encoding: encoding ?? 'utf8' })).toString();
 			} catch (e) {
 				if (e.code === 'ENOENT') {
 					throw new Error(l10n.t('Schema not found: {0}', location));

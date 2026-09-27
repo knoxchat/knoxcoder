@@ -2,52 +2,70 @@
 
 **Notice:** This extension is bundled with KnoxCoder. It can be disabled but not uninstalled.
 
-Knox is the in-editor AI agent, local Memory Brain, and git-independent checkpoints. Command, view, and setting IDs stay `knoxchat.*` so existing keybindings and `settings.json` keep working. The system extension id is `vscode.knox`.
+Knox is the editor's AI coding environment: agent, local memory, and git-independent checkpoints. Product source is this folder (`extensions/knox`: engine, tools, host) plus `src/vs/workbench/contrib/knox` (native chat, memory, and checkpoint UI). Same role as `extensions/git`: a builtin that other extensions can depend on.
 
-Product behavior is ported from Knox 1.4.6 (`kc` SHA `af32aaa3cbf0aed8eee1fec8d37d3f6d274a5fbe`). See `knox-impl.md` in the repository root for the system-extension migration, and `knox-gui-native.md` for the native sidebar rewrite.
+License: MIT. See [LICENSE.txt](../../LICENSE.txt) in the repository root.
 
-## Features
+## Develop
 
-- Sidebar chat (`knoxchat.knoxGUIView`) — native workbench widgets on the Secondary Side Bar (`src/vs/workbench/contrib/knox`)
-- Agent mode, tools, and vertical diffs
-- Local Memory Brain
-- Checkpoints (explorer view + chat restore)
-
-The VS Code host (activate, Core, agent, checkpoints, `VsCodeIde`) runs Core **in-process** via `InProcessMessenger`. The sidebar view is registered by `src/vs/workbench/contrib/knox` as a native `ViewPane`. Core talks to that pane through the `nativeGui` export on `vscode.knox`. There is no webview fallback and no Vite GUI in the packaged extension.
-
-## Native bits
-
-Knox is a **native** in-tree extension (`nativeExtensions` includes `knox`), same class as Git:
-
-- **Ripgrep** comes from the KnoxCoder product (`vscode.env.appRoot` → `@vscode/ripgrep-universal`, then `@vscode/ripgrep`). It is not vendored inside this extension.
-- **Search / Memory** use BM25 (SQLite FTS5 + MiniSearch) and product ripgrep.
-- **Checkpoints** are TypeScript. There are no Rust neon crates.
-- **node-pty** is the editor’s ABI-matched module from `appRoot`. This extension does not copy pty into `out/node_modules`.
-- **sqlite3** is rebuilt for Electron’s Node ABI (`npm run rebuild-native` in this folder, also run from `compile-native-extensions-build`). `node_sqlite3.node` is placed next to `dist/` (`dist/build/Release/` and `build/Release/`). Memory Brain needs this binary.
-- **tree-sitter** language WASMs and query files are copied into `dist/` at compile time (no runtime download).
-- Do not vendor `kc/binary` (`pkg`).
-
-Linux and Windows CI pack Knox with `packageNativeLocalExtensionsStream`. macOS uses `./build_dmg.sh` on a Darwin machine (no GitHub Actions macOS job); sqlite is rebuilt there.
-
-## Workspace trust
-
-Agent tools write files and run commands, so this extension matches Git on untrusted workspaces: `untrustedWorkspaces.supported` is `false`. Virtual workspaces are also `false` (the agent and checkpoints need a real filesystem). Open a trusted local folder to use Knox.
-
-## Marketplace Knox (`knoxchat.knoxchat`)
-
-KnoxCoder ships this extension as `vscode.knox`. Do **not** install `knoxchat.knoxchat` from Open VSX in KnoxCoder — it is hidden from the marketplace, blocked from install, and disabled if a leftover user copy is present.
-
-This fork does **not** publish `vscode.knox` (or any KnoxCoder-dependent VSIX) to Open VSX. The store extension remains for vanilla VS Code only and lives in the upstream **kc** product tree (Knox 1.4.6). After KnoxCoder ships native Knox, continue to land store/vanilla VS Code changes in `kc` first, then vendor into `extensions/knox` as needed.
-
-## Tests
-
-Host and Core unit tests use the same Mocha TDD runner as Git (`extensions/git/src/test`). They compile with `gulp compile-extension:knox` and do **not** add Mocha or Vitest as a runtime dependency of the shipped extension.
+From the repository root:
 
 ```sh
-gulp compile-extension:knox
-npm test --prefix extensions/knox
+    gulp compile-extension:knox
+    gulp compile-extension-knox-native
+    ./scripts/code.sh
 ```
 
-Native pane tests live under `src/vs/workbench/contrib/knox/test`.
+`compile-extension:knox` esbuilds the product host from `extensions/knox/src/{host,core,pkg}` into `out/extension.js` and copies sqlite3, ripgrep, tree-sitter wasm, node-pty, bundled skills, and esbuild beside the bundle. `compile-extension-knox-native` refreshes those native addons without a full esbuild. Those two gulp tasks are the only Knox compile path. Chat is the native workbench pane in `src/vs/workbench/contrib/knox`. Launch KnoxCoder itself; do **not** `code --install-extension` a VSIX into KnoxCoder — that would register a second copy of the same view id.
 
-Smoke: `./scripts/code.sh`, open the Knox sidebar, Command Palette → **Knox: New Conversation**.
+Native addons (`sqlite3`, optional `node-pty`) are rebuilt for this fork's Electron **43.3.0** (`process.versions.modules` / ABI **148**) via `@electron/rebuild` during `gulp compile-extension:knox` and `gulp compile-extension-knox-native`. System Node 24 compiles those packages to ABI 137, which will not `dlopen` in the extension host.
+
+Set `KNOX_SKIP_ELECTRON_REBUILD=1` to copy whatever bindings `npm install` already built (no compiler / Electron headers). Those binaries may fail to load under Electron 43. Set `KNOX_FORCE_ELECTRON_REBUILD=1` to rebuild even if `@electron/rebuild` thinks the module is current.
+
+## Identity
+
+| | In KnoxCoder | Marketplace VSIX (stock VS Code) |
+|---|---|---|
+| Extension id | `vscode.knox` | `knoxchat.knoxchat` |
+| Source | `extensions/knox` + `src/vs/workbench/contrib/knox` | separate marketplace package |
+| Uninstall | hidden (builtin) | normal |
+
+If both are present, the builtin wins and the marketplace activation is skipped. KnoxCoder does not recommend `knoxchat.knoxchat`.
+
+## Packaging
+
+Knox is an in-tree **native** extension (`nativeExtensions` in `build/lib/extensions.ts`), packaged per-platform with sqlite3 / ripgrep / node-pty. Gulp compile tasks are only `compile-extension:knox` and `compile-extension-knox-native`. There is no `product.json` `builtInExtensions` marketplace download for Knox (`knoxchat.knoxchat` is out of scope inside KnoxCoder). `.vscodeignore` ignores `/node_modules/**` at the extension root so `dist/node_modules` natives still ship.
+
+## Remote / SSH and web
+
+`extensionKind` is `ui` + `workspace` so the engine can run on the remote file system over SSH. sqlite3, ripgrep, and optional node-pty are copied into the bundle and packaged per-platform (`nativeExtensions` in the product build) so the Remote-SSH copy on the remote has matching addons. Activation probes those files and warns if sqlite3 or ripgrep is missing.
+
+There is no `browser` field; Knox is not a web extension (`gulp vscode-web` skips it; activation refuses `UIKind.Web`).
+
+## API
+
+The Knox extension exposes an API, reachable by any other extension.
+
+1. Copy `src/api/knox.d.ts` to your extension's sources;
+2. Include `knox.d.ts` in your extension's compilation.
+3. Get a hold of the API with the following snippet:
+
+	```ts
+	const knoxExtension = vscode.extensions.getExtension<KnoxExtension>('vscode.knox');
+	const knox = knoxExtension?.exports.getAPI(1);
+	await knox?.openChat({ prompt: 'explain the selection' });
+	```
+
+	**Note:** To ensure that the `vscode.knox` extension is activated before your extension, add `extensionDependencies` ([docs](https://code.visualstudio.com/api/references/extension-manifest)) into the `package.json` of your extension:
+
+	```json
+	"extensionDependencies": [
+		"vscode.knox"
+	]
+	```
+
+	Without that dependency, call `await knoxExtension?.activate()` before `getAPI(1)`.
+
+`getAPI(1)` returns `openChat`, `newSession`, `toggleAgentMode`, `executeToolCall`, `handleGuiMessage`, `registerCustomContextProvider`, and agent/GUI events.
+
+`vscode.lm` (KN-362): Knox registers builtin tools (`lm.invokeTool('builtin_read_file', ...)`) and a `vendor: 'knox'` assist provider (`lm.selectAssistModels({ vendor: 'knox' })`). Ghost-text inline completions (KN-363) stay off until `knoxchat.enableInlineCompletions` is enabled.

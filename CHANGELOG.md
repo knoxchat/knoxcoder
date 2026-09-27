@@ -2,6 +2,29 @@
 
 All notable changes to KnoxCoder are documented in this file.
 
+## [1.138.0]
+
+### Changed
+
+- **Upgrade to VS Code 1.138.0**
+  Merged upstream `microsoft/vscode` 1.138.0 while preserving Knox branding, Open VSX gallery, native TypeScript tooling, and Knox-specific customizations.
+
+- Bumped product version to **1.138.0** (`package.json` / related product metadata).
+
+### Removed
+
+- **Chat, Copilot, LLM, prompt, agent, MCP, and sessions surfaces**
+  Dropped upstream Copilot/chat/agent-host/MCP/sessions/LLM additions from 1.137–1.138, including the `agentsWindowActivation` proposal, `prompt-basics` language pack, and chat-only commands, so KnoxCoder stays a VS Code fork with an isolated AI context.
+
+### Files touched in this release
+
+| Path | Action |
+|------|--------|
+| Upstream VS Code 1.138.0 merge surface | Updated |
+| `package.json` / related product metadata | Modified (version 1.138.0, Knox toolchain preserved) |
+| Copilot / chat / agent-host / MCP / sessions / LLM sources | Removed or not adopted |
+| `CHANGELOG.md` | Modified |
+
 ## [1.136.2] - 2026-09-07
 
 ### Added

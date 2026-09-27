@@ -12,7 +12,6 @@ import { IProductOnboardingTheme } from '../../../../base/common/product.js';
 export const enum OnboardingStepId {
 	SignIn = 'onboarding.signIn',
 	Personalize = 'onboarding.personalize',
-	AiPreference = 'onboarding.aiPreference',
 }
 
 /**
@@ -24,8 +23,6 @@ export function getOnboardingStepTitle(stepId: OnboardingStepId): string {
 			return localize('onboarding.step.signIn', "Sign In");
 		case OnboardingStepId.Personalize:
 			return localize('onboarding.step.personalize', "Make It Yours");
-		case OnboardingStepId.AiPreference:
-			return localize('onboarding.step.aiPreference', "Your AI Style");
 	}
 }
 
@@ -38,8 +35,6 @@ export function getOnboardingStepSubtitle(stepId: OnboardingStepId): string {
 			return localize('onboarding.step.signIn.subtitle', "Sync settings and sign in to your account");
 		case OnboardingStepId.Personalize:
 			return localize('onboarding.step.personalize.subtitle', "Choose your theme and keyboard mapping");
-		case OnboardingStepId.AiPreference:
-			return localize('onboarding.step.aiPreference.subtitle', "Choose how much AI collaboration fits your workflow");
 	}
 }
 
@@ -56,49 +51,6 @@ export const ONBOARDING_STEPS: readonly OnboardingStepId[] = [
  * Sourced from product.json via `onboardingThemes`.
  */
 export type IOnboardingThemeOption = IProductOnboardingTheme;
-
-/**
- * AI collaboration preference for the AI style step.
- */
-export const enum AiCollaborationMode {
-	CodeFirst = 'code-first',
-	Balanced = 'balanced',
-	AgentForward = 'agent-forward',
-}
-
-/**
- * AI collaboration preference option.
- */
-export interface IAiPreferenceOption {
-	readonly id: AiCollaborationMode;
-	readonly label: string;
-	readonly description: string;
-	readonly icon: string;
-}
-
-/**
- * AI collaboration preference options shown in the AI style step.
- */
-export const ONBOARDING_AI_PREFERENCE_OPTIONS: readonly IAiPreferenceOption[] = [
-	{
-		id: AiCollaborationMode.CodeFirst,
-		label: localize('onboarding.aiPref.codeFirst', "I Write the Code"),
-		description: localize('onboarding.aiPref.codeFirst.desc', "AI assists with suggestions and answers questions when you ask. You stay in control of every edit."),
-		icon: 'edit',
-	},
-	{
-		id: AiCollaborationMode.Balanced,
-		label: localize('onboarding.aiPref.balanced', "Side by Side"),
-		description: localize('onboarding.aiPref.balanced.desc', "Inline suggestions plus a chat panel for deeper collaboration. A balance of writing and delegating."),
-		icon: 'layoutSidebarRight',
-	},
-	{
-		id: AiCollaborationMode.AgentForward,
-		label: localize('onboarding.aiPref.agentForward', "AI Takes the Lead"),
-		description: localize('onboarding.aiPref.agentForward.desc', "Let the agent drive — describe what you want and review the result. Great for scaffolding and exploration."),
-		icon: 'copilot',
-	},
-];
 
 /**
  * Storage key for persisting onboarding completion state.

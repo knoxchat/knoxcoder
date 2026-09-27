@@ -53,6 +53,8 @@ import { ExtHostDocuments } from './extHostDocuments.js';
 import { IExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 import { IExtHostEditorTabs } from './extHostEditorTabs.js';
 import { ExtHostEmbeddings } from './extHostEmbedding.js';
+import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
+import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { Extension, IExtHostExtensionService } from './extHostExtensionService.js';
 import { ExtHostFileSystem } from './extHostFileSystem.js';
 import { IExtHostConsumerFileSystem } from './extHostFileSystemConsumer.js';
@@ -109,7 +111,7 @@ import { IExtHostPower } from './extHostPower.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { IExtHostMeteredConnection } from './extHostMeteredConnection.js';
 import { IExtHostGitExtensionService } from './extHostGitExtensionService.js';
-import { IExtHostKnoxGui } from './extHostKnoxGui.js';
+import { IExtHostKnoxExtensionService } from './extHostKnoxExtensionService.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -160,7 +162,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDataChannels = accessor.get(IExtHostDataChannels);
 	const extHostMeteredConnection = accessor.get(IExtHostMeteredConnection);
 	const extHostGitExtensionService = accessor.get(IExtHostGitExtensionService);
-	const extHostKnoxGui = accessor.get(IExtHostKnoxGui);
+	const extHostKnoxExtensionService = accessor.get(IExtHostKnoxExtensionService);
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostFileSystemInfo, extHostFileSystemInfo);
@@ -183,7 +185,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostDataChannels, extHostDataChannels);
 	rpcProtocol.set(ExtHostContext.ExtHostMeteredConnection, extHostMeteredConnection);
 	rpcProtocol.set(ExtHostContext.ExtHostGitExtension, extHostGitExtensionService);
-	rpcProtocol.set(ExtHostContext.ExtHostKnoxGui, extHostKnoxGui);
+	rpcProtocol.set(ExtHostContext.ExtHostKnoxExtension, extHostKnoxExtensionService);
 
 	// automatically create and register addressable instances
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));
@@ -234,6 +236,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
+	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol));
+	const extHostLanguageModels = rpcProtocol.set(ExtHostContext.ExtHostLanguageModels, new ExtHostLanguageModels(rpcProtocol));
 
 	// Check that no named customers are missing
 	const expected = Object.values<ProxyIdentifier<any>>(ExtHostContext);
@@ -1038,22 +1042,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'shareProvider');
 				return extHostShare.registerShareProvider(checkSelector(selector), provider);
 			},
-			get linkPresentationRules() {
-				checkProposedApiEnabled(extension, 'linkPresentation');
-				return extHostDataChannels.linkPresentationRules;
-			},
-			get onDidChangeLinkPresentationRules() {
-				checkProposedApiEnabled(extension, 'linkPresentation');
-				return _asExtensionEvent(extHostDataChannels.onDidChangeLinkPresentationRules);
-			},
-			createLinkPresentationWatcher(id: string, resource: vscode.Uri): vscode.LinkPresentationWatcher {
-				checkProposedApiEnabled(extension, 'linkPresentation');
-				return extHostDataChannels.createLinkPresentationWatcher(extension, id, resource);
-			},
-			registerLinkPresentationProvider(id: string, provider: vscode.LinkPresentationProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension, 'linkPresentation');
-				return extHostDataChannels.registerLinkPresentationProvider(extension, id, provider);
-			},
 			get nativeHandle(): Uint8Array | undefined {
 				checkProposedApiEnabled(extension, 'nativeWindowHandle');
 				return extHostWindow.nativeHandle;
@@ -1651,6 +1639,29 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					return extHostEmbeddings.computeEmbeddings(embeddingsModel, input, token);
 				}
 			},
+			onDidChangeAssistModels: (listener, thisArgs?, disposables?) => {
+				return extHostLanguageModels.onDidChangeAssistModels(listener, thisArgs, disposables);
+			},
+			selectAssistModels(selector) {
+				return extHostLanguageModels.selectAssistModels(selector);
+			},
+			registerTool(name, tool) {
+				const contrib = (extension.contributes?.textModelApiTools ?? extension.contributes?.languageModelTools ?? [])
+					.find((entry: { name?: string }) => entry.name === name);
+				return extHostLanguageModelTools.registerTool(extension, name, tool, contrib);
+			},
+			get tools() {
+				return extHostLanguageModelTools.tools;
+			},
+			invokeTool(name, options, token) {
+				return extHostLanguageModelTools.invokeTool(name, options, token);
+			},
+			registerToolServerDefinitionProvider(_id, _provider) {
+				return extHostTypes.Disposable.from();
+			},
+			registerTextModelApiAssistProvider(vendor, provider) {
+				return extHostLanguageModels.registerTextModelApiAssistProvider(extension, vendor, provider);
+			},
 		};
 
 		// namespace: speech
@@ -1900,6 +1911,16 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineCompletionEndOfLifeReasonKind: extHostTypes.InlineCompletionEndOfLifeReasonKind,
 			InlineCompletionDisplayLocationKind: extHostTypes.InlineCompletionDisplayLocationKind,
 			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus,
+			TextModelApiAssistMessageRole: extHostTypes.TextModelApiAssistMessageRole,
+			TextModelApiAssistToolMode: extHostTypes.TextModelApiAssistToolMode,
+			TextModelApiTextPart: extHostTypes.TextModelApiTextPart,
+			TextModelApiPromptTsxPart: extHostTypes.TextModelApiPromptTsxPart,
+			TextModelApiToolCallPart: extHostTypes.TextModelApiToolCallPart,
+			TextModelApiToolResultPart: extHostTypes.TextModelApiToolResultPart,
+			TextModelApiToolResult: extHostTypes.TextModelApiToolResult,
+			TextModelApiDataPart: extHostTypes.TextModelApiDataPart,
+			TextModelApiAssistMessage: extHostTypes.TextModelApiAssistMessage,
+			TextModelApiError: extHostTypes.TextModelApiError,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
 			NewSymbolNameTriggerKind: extHostTypes.NewSymbolNameTriggerKind,

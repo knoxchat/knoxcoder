@@ -19,7 +19,6 @@ import { IExtensionService } from '../../services/extensions/common/extensions.j
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ToggleCompositePinnedAction, ICompositeBarColors, IActivityHoverOptions, ToggleCompositeBadgeAction, CompositeBarAction, ICompositeBar, ICompositeBarActionItem } from './compositeBarActions.js';
 import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation } from '../../common/views.js';
-import { isKnoxViewContainer } from '../../common/knox.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 import { isString } from '../../../base/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
@@ -164,15 +163,14 @@ export class PaneCompositeBar extends Disposable {
 
 		// Move View Container
 		const moveActions = [];
-		if (!isKnoxViewContainer(compositeId)) {
-			for (const location of [ViewContainerLocation.Sidebar, ViewContainerLocation.Panel]) {
-				if (currentLocation !== location) {
-					moveActions.push(this.createMoveAction(viewContainer, location, defaultLocation));
-				}
+		for (const location of [ViewContainerLocation.Sidebar, ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel]) {
+			if (currentLocation !== location && this.viewDescriptorService.canMoveViewContainerToLocation(viewContainer, location)) {
+				moveActions.push(this.createMoveAction(viewContainer, location, defaultLocation));
 			}
-			if (moveActions.length) {
-				actions.push(new SubmenuAction('moveToMenu', localize('moveToMenu', "Move To"), moveActions));
-			}
+		}
+
+		if (moveActions.length) {
+			actions.push(new SubmenuAction('moveToMenu', localize('moveToMenu', "Move To"), moveActions));
 		}
 
 		// Reset Location

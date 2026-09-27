@@ -16,13 +16,14 @@ const opts = minimist(args, {
 	string: ['f', 'g']
 });
 
-const suite = opts['web'] ? 'Browser Smoke Tests' : 'Desktop Smoke Tests';
+const suite = opts.web ? 'Browser Smoke Tests' : 'Desktop Smoke Tests';
 
 const options = {
 	color: true,
 	timeout: 2 * 60 * 1000,
 	slow: 30 * 1000,
-	grep: opts['f'] || opts['g']
+	grep: opts.f || opts.g,
+	failZero: opts['fail-zero']
 };
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) {

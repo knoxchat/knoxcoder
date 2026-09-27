@@ -1,4 +1,4 @@
 {
 	"displayName": "Knox",
-	"description": "AI 助理、本地记忆与检查点。随 KnoxCoder 一并提供（产品 1.4.6）。"
+	"description": "内置于 KnoxCoder 的 AI 代理、本地记忆与检查点"
 }

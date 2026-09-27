@@ -1,4 +1,4 @@
 {
 	"displayName": "Knox",
-	"description": "AI-powered agent, local memory, and checkpoints. Bundled with KnoxCoder (product 1.4.6)."
+	"description": "AI agent, local memory, and checkpoints built into KnoxCoder"
 }

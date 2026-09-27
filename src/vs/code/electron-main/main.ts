@@ -58,6 +58,7 @@ import { ISignService } from '../../platform/sign/common/sign.js';
 import { SignService } from '../../platform/sign/node/signService.js';
 import { IStateReadService, IStateService } from '../../platform/state/node/state.js';
 import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
+import { isInnoSetupInstall } from '../../platform/update/electron-main/win32UpdateType.js';
 import { IThemeMainService } from '../../platform/theme/electron-main/themeMainService.js';
 import { IUserDataProfilesMainService, UserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
 import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
@@ -533,7 +534,7 @@ class CodeMain {
 	}
 
 	private async checkInnoSetupMutex(productService: IProductService, logService: ILogService): Promise<boolean> {
-		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate)) {
+		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate && isInnoSetupInstall(productService.target))) {
 			return false;
 		}
 

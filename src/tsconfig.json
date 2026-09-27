@@ -35,8 +35,11 @@
 	],
 	"exclude": [
 		"vs/platform/agentHost/**",
+		"vs/platform/agentPlugins/**",
 		"vs/platform/chat/**",
+		"vs/platform/localTranscription/**",
 		"vs/platform/mcp/**",
+		"vs/sessions/**",
 		"vs/workbench/contrib/agentsVoice/**",
 		"vs/workbench/contrib/chat/**",
 		"vs/workbench/contrib/inlineChat/**",

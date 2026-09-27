@@ -230,6 +230,9 @@ import './contrib/sash/browser/sash.contribution.js';
 // Git
 import './contrib/git/browser/git.contributions.js';
 
+// Knox
+import './contrib/knox/browser/knox.contributions.js';
+
 // SCM
 import './contrib/scm/browser/scm.contribution.js';
 import './contrib/scm/browser/quickDiff.contribution.js';
@@ -269,9 +272,6 @@ import './contrib/webview/browser/webview.contribution.js';
 import './contrib/webviewPanel/browser/webviewPanel.contribution.js';
 import './contrib/webviewView/browser/webviewView.contribution.js';
 import './contrib/customEditor/browser/customEditor.contribution.js';
-
-// Knox GUI (first-party Secondary Side Bar; hosts knox/gui in a native webview view)
-import './contrib/knox/browser/knox.contribution.js';
 
 // External Uri Opener
 import './contrib/externalUriOpener/common/externalUriOpener.contribution.js';

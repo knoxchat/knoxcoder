@@ -1,0 +1,9 @@
+{
+  "ext.activationError": "Knox 扩展激活错误：{{message}}",
+  "ext.viewLogs": "查看日志",
+  "ext.retry": "重试",
+  "ext.marketplaceBuiltinNotice": "Knox 已内置于 KnoxCoder；可以卸载 Marketplace 上的 Knox 扩展。",
+  "ext.uninstallMarketplaceKnox": "卸载 Marketplace Knox",
+  "ext.desktopOnly": "Knox 仅支持桌面端，无法在 vscode-web 中运行（无 browser 入口；sqlite 与 PTY 为 Node 原生模块）。",
+  "ext.remoteNativeMissing": "当前主机缺少 Knox 原生模块（{{addons}}）。通过 Remote-SSH 连接时，这些模块必须存在于远程端（sqlite3、ripgrep；node-pty 可选）。"
+}

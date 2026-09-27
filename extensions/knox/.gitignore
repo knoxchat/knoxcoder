@@ -1,0 +1,8 @@
+out/
+dist/
+gui/
+gui-src/
+/core/
+build/
+node_modules/
+*.tsbuildinfo

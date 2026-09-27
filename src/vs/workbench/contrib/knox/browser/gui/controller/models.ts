@@ -1,0 +1,234 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import type { KnoxGuiController } from '../../knoxGuiController.js';
+import { asRecord, asArray } from './helpers.js';
+import { knoxGuiCatalogEntriesFromOverlayModels, knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiSeedModelCatalog } from '../../../common/knoxGuiCapabilities.js';
+import { knoxGuiSessionModeIsAgent } from '../../../common/knoxGuiAgentMode.js';
+import { addModelProviderById, buildAddModelPayload, categorizeKnoxChatModel, KNOX_CHAT_FALLBACK_MODELS, parseKnoxOAuthStatus, type IKnoxGuiAddModelPackage } from '../../../common/knoxGuiOverlays.js';
+import { KnoxGuiOverlay } from '../../../common/knoxGuiProtocol.js';
+import { IKnoxGuiModel, KnoxChatMode, KnoxModelRole } from '../../../common/knoxGuiState.js';
+
+export function setMode(controller: KnoxGuiController, mode: KnoxChatMode): void {
+	if (controller.store.state.mode === mode) {
+		return;
+	}
+	if (controller.store.state.mode === 'edit' && mode !== 'edit') {
+		void controller.exitEditMode(mode);
+		return;
+	}
+	controller.store.setMode(mode);
+	postSetAgentMode(controller);
+}
+
+/** Keep AgentModeManager on the same boolean as GUI `session.mode === "agent"`. */
+export function postSetAgentMode(controller: KnoxGuiController): void {
+	controller.messenger.post('setAgentMode', {
+		active: knoxGuiSessionModeIsAgent(controller.store.state.mode),
+		sessionId: controller.store.state.sessionId,
+	});
+}
+
+/** React ModeSelect: agent tab requires tool-calling; otherwise fall back to chat. */
+export function syncAgentTabWithModel(controller: KnoxGuiController): void {
+	if (knoxGuiSessionModeIsAgent(controller.store.state.mode) && !controller.store.state.toolsSupported) {
+		setMode(controller, 'chat');
+	}
+}
+
+export function selectModel(controller: KnoxGuiController, role: KnoxModelRole, title: string | null): void {
+	const selectedModelByRole = { ...controller.store.state.selectedModelByRole };
+	if (title) {
+		selectedModelByRole[role] = title;
+	} else {
+		delete selectedModelByRole[role];
+	}
+	controller.store.patch({
+		selectedModelByRole,
+		modelTitle: role === 'chat' ? (title ?? controller.store.state.modelTitle): controller.store.state.modelTitle,
+	});
+	controller.messenger.post('config/updateSelectedModel', { profileId: controller.store.state.profileId, role, title });
+	if (role === 'chat' && title) {
+		const selected = controller.chatModels().find(model => model.title === title);
+		const effort = knoxGuiResolveReasoningEffort(selected, controller.store.state.reasoningEffortByModel, controller.store.state.reasoningEffort);
+		controller.store.patch({
+			imagesSupported: knoxGuiModelSupportsImages(selected),
+			webSearchSupported: knoxGuiModelSupportsWebSearch(selected),
+			toolsSupported: knoxGuiModelSupportsTools(selected),
+			reasoningEfforts: knoxGuiReasoningEffortConfig(selected)?.allowed ?? [],
+			reasoningEffort: effort,
+		});
+		if (effort) {
+			controller.setReasoningEffort(effort);
+		}
+		syncAgentTabWithModel(controller);
+	}
+}
+
+export function cycleChatModel(controller: KnoxGuiController, direction: 1 | -1): void {
+	const next = knoxGuiNextModelTitle(controller.chatModels(), controller.store.state.modelTitle, direction);
+	if (next && next !== controller.store.state.modelTitle) {
+		controller.selectModel('chat', next);
+	}
+}
+
+export function deleteModel(controller: KnoxGuiController, title: string): void {
+	controller.messenger.post('config/deleteModel', { title });
+}
+
+export function chatModels(controller: KnoxGuiController): IKnoxGuiModel[] {
+	return controller.store.state.modelsByRole.chat.length ? controller.store.state.modelsByRole.chat : controller.store.state.models;
+}
+
+/** Recompute Agent-tab tools support after the /v1/models catalog arrives (KN-371). */
+export function patchSelectedModelCapabilities(controller: KnoxGuiController): void {
+	const title = controller.store.state.modelTitle;
+	const selected = controller.chatModels().find(model => model.title === title)
+		?? controller.store.state.models.find(model => model.title === title);
+	if (!selected) {
+		return;
+	}
+	controller.store.patch({
+		imagesSupported: knoxGuiModelSupportsImages(selected),
+		webSearchSupported: knoxGuiModelSupportsWebSearch(selected),
+		toolsSupported: knoxGuiModelSupportsTools(selected),
+	});
+	syncAgentTabWithModel(controller);
+}
+
+export function setReasoningEffort(controller: KnoxGuiController, effort: string): void {
+	const modelTitle = controller.store.state.modelTitle;
+	const byModel = { ...controller.store.state.reasoningEffortByModel };
+	if (modelTitle) {
+		byModel[modelTitle] = effort;
+	}
+	controller.store.patch({ reasoningEffort: effort, reasoningEffortByModel: byModel });
+	controller.messenger.post('ui/updateReasoningEffortPrefs', { lastEffort: effort, byModel });
+}
+
+export function setOverlay(controller: KnoxGuiController, overlay: KnoxGuiOverlay): void {
+	controller.store.setOverlay(overlay);
+	if (controller.store.state.overlay === 'history') {
+		void controller.refreshHistorySessions();
+	}
+}
+
+export function openSettingsOverlay(controller: KnoxGuiController): void {
+	controller.store.setOverlay('settings');
+}
+
+export function openAddModel(controller: KnoxGuiController, role: KnoxModelRole = 'chat', options?: { bulk?: boolean }): void {
+	controller.store.patch({
+		addModelRole: role,
+		addModelModal: true,
+		addModelBulk: options?.bulk === true,
+		addModelDraft: {},
+		addModelSelectedModel: undefined,
+	});
+	void controller.loadOAuthStatus();
+	void controller.loadKnoxChatModels();
+}
+
+export function closeAddModelModal(controller: KnoxGuiController): void {
+	controller.store.patch({ addModelModal: false, addModelRole: undefined, addModelSelectedModel: undefined, addModelDraft: {}, addModelBulk: false });
+}
+
+export function applyOAuthStatus(controller: KnoxGuiController, data: unknown): void {
+	const next = parseKnoxOAuthStatus(data);
+	controller.store.patch(next);
+	if (next.oauthConnected) {
+		void controller.loadKnoxChatModels();
+	}
+}
+
+export async function loadOAuthStatus(controller: KnoxGuiController): Promise<void> {
+	try {
+		const status = await controller.messenger.request<Record<string, unknown>>('knoxchat/oauth/status', undefined);
+		controller.applyOAuthStatus(status);
+	} catch {
+		// optional
+	}
+}
+
+export async function loadKnoxChatModels(controller: KnoxGuiController): Promise<void> {
+	controller.store.patch({ knoxChatModelsLoading: true });
+	try {
+		const result = await controller.messenger.request<unknown>('knoxchat/listModels', undefined);
+		const raw = asArray(asRecord(result)?.data ?? result);
+		const catalog = knoxGuiParseModelCatalog(raw);
+		knoxGuiSeedModelCatalog(catalog.length ? catalog : knoxGuiCatalogEntriesFromOverlayModels(KNOX_CHAT_FALLBACK_MODELS));
+		const models = raw.map(item => {
+			const rec = asRecord(item) ?? {};
+			const architecture = asRecord(rec.architecture);
+			const id = String(rec.id ?? rec.model ?? rec.name ?? '');
+			const title = String(rec.name ?? rec.title ?? rec.id ?? '');
+			const capabilities = asRecord(rec.capabilities);
+			const completion = asRecord(rec.completionOptions);
+			const supportedParameters = Array.isArray(rec.supported_parameters)
+				? rec.supported_parameters.map(String)
+				: Array.isArray(rec.supportedParameters)
+					? rec.supportedParameters.map(String)
+					: undefined;
+			const toolsFromParams = knoxGuiModelSupportsToolsFromSupportedParameters(supportedParameters);
+			const webFromParams = (supportedParameters ?? []).includes('web_search') || (supportedParameters ?? []).includes('web_search_options');
+			const reasoningFromParams = (supportedParameters ?? []).includes('reasoning') || (supportedParameters ?? []).includes('reasoning_effort') || (supportedParameters ?? []).includes('include_reasoning');
+			return {
+				title,
+				description: rec.description ? String(rec.description): (id ? `Model ID: ${id}` : undefined),
+				model: id,
+				contextLength: Number(rec.context_length ?? rec.contextLength ?? 128000),
+				category: categorizeKnoxChatModel({
+					id,
+					name: title,
+					title,
+					developer: rec.developer ? String(rec.developer): undefined,
+					owned_by: rec.owned_by ? String(rec.owned_by): undefined,
+					tokenizer: architecture?.tokenizer ? String(architecture.tokenizer): undefined,
+				}),
+				maxTokens: rec.max_tokens != null ? Number(rec.max_tokens): (completion?.maxTokens != null ? Number(completion.maxTokens): undefined),
+				supportsTools: capabilities?.tools === true || toolsFromParams,
+				supportsReasoning: capabilities?.reasoning === true || reasoningFromParams,
+				supportsWebSearch: capabilities?.webSearch === true || webFromParams,
+				supportedParameters,
+			};
+		}).filter(model => model.title);
+		const seen = new Set<string>();
+		const unique = [...models, ...KNOX_CHAT_FALLBACK_MODELS].filter(model => {
+			if (seen.has(model.model)) {
+				return false;
+			}
+			seen.add(model.model);
+			return true;
+		});
+		controller.store.patch({ knoxChatModels: unique.length ? unique : [...KNOX_CHAT_FALLBACK_MODELS], knoxChatModelsLoading: false });
+		patchSelectedModelCapabilities(controller);
+	} catch {
+		knoxGuiSeedModelCatalog(knoxGuiCatalogEntriesFromOverlayModels(KNOX_CHAT_FALLBACK_MODELS));
+		controller.store.patch({ knoxChatModels: [...KNOX_CHAT_FALLBACK_MODELS], knoxChatModelsLoading: false });
+		patchSelectedModelCapabilities(controller);
+	}
+}
+
+export async function addConfiguredModel(controller: KnoxGuiController, providerId: string, pack: IKnoxGuiAddModelPackage, extras?: { dimensionChoices?: string[]; selectedProvider?: string }): Promise<void> {
+	const provider = addModelProviderById(providerId);
+	if (!provider) {
+		return;
+	}
+	const { model, role } = buildAddModelPayload(provider, pack, controller.store.state.addModelDraft, controller.store.state.addModelRole, {
+		...extras,
+		bulk: controller.store.state.addModelBulk,
+	});
+	controller.messenger.post('config/addModel', { model, role });
+	if (controller.store.state.addModelRole) {
+		controller.selectModel(controller.store.state.addModelRole, String(model.title ?? pack.title));
+	} else {
+		controller.selectModel('chat', String(model.title ?? pack.title));
+	}
+	const wasModal = controller.store.state.addModelModal;
+	controller.store.patch({ addModelDraft: {}, addModelRole: undefined, addModelModal: false, addModelSelectedModel: undefined, addModelBulk: false });
+	if (!wasModal) {
+		controller.store.navigate('/');
+	}
+}

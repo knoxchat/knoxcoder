@@ -22,12 +22,13 @@ import { CustomTreeView, TreeViewPane } from '../../browser/parts/views/treeView
 import { ViewPaneContainer } from '../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
 import { ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../common/views.js';
-import { isKnoxExtension, isKnoxView, isKnoxViewContainer, isKnoxViewsContainerKey, KNOX_VIEW_CONTAINER_ID } from '../../common/knox.js';
 import { VIEWLET_ID as DEBUG } from '../../contrib/debug/common/debug.js';
 import { VIEWLET_ID as EXPLORER } from '../../contrib/files/common/files.js';
 import { VIEWLET_ID as REMOTE } from '../../contrib/remote/browser/remoteExplorer.js';
 import { VIEWLET_ID as SCM } from '../../contrib/scm/common/scm.js';
 import { WebviewViewPane } from '../../contrib/webviewView/browser/webviewViewPane.js';
+import { KnoxChatViewPane } from '../../contrib/knox/browser/knoxChatViewPane.js';
+import { KNOX_VIEW_ID, KNOX_VIEWS_CONTAINER_CONTRIBUTION_ID } from '../../common/knox.js';
 import { Extensions as ExtensionFeaturesRegistryExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../services/extensionManagement/common/extensionFeatures.js';
 import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
@@ -307,6 +308,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		let activityBarOrder = CUSTOM_VIEWS_START_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Sidebar).length;
 		let panelOrder = 5 + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Panel).length + 1;
+		// offset by 100 because the assist view container used to have order 100 (now 1). Due to caching, we still need to account for the original order value
+		let auxiliaryBarOrder = 100 + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.AuxiliaryBar).length + 1;
 		for (const { value, collector, description } of extensionPoints) {
 			Object.entries(value).forEach(([key, value]) => {
 				if (!this.isValidViewsContainer(value, collector)) {
@@ -320,11 +323,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						panelOrder = this.registerCustomViewContainers(value, description, panelOrder, existingViewContainers, ViewContainerLocation.Panel);
 						break;
 					case 'secondarySidebar':
-						if (isKnoxExtension(description.identifier)) {
-							// Knox container/view are registered by `src/vs/workbench/contrib/knox`.
-							break;
-						}
-						collector.warn(localize('knox.exclusiveAuxiliaryBar', "The Secondary Side Bar is reserved for Knox. View containers from this extension were not registered there."));
+						auxiliaryBarOrder = this.registerCustomViewContainers(value, description, auxiliaryBarOrder, existingViewContainers, ViewContainerLocation.AuxiliaryBar);
 						break;
 				}
 			});
@@ -335,9 +334,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		const removedExtensions: ExtensionIdentifierSet = extensionPoints.reduce((result, e) => { result.add(e.description.identifier); return result; }, new ExtensionIdentifierSet());
 		for (const viewContainer of viewContainersRegistry.all) {
-			if (isKnoxViewContainer(viewContainer.id)) {
-				continue;
-			}
 			if (viewContainer.extensionId && removedExtensions.has(viewContainer.extensionId)) {
 				// move all views in this container into default view container
 				const views = this.viewsRegistry.getViews(viewContainer);
@@ -388,11 +384,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			const icon = themeIcon || resources.joinPath(extension.extensionLocation, descriptor.icon);
 			const id = `workbench.view.extension.${descriptor.id}`;
 			const title = descriptor.title || id;
-			const containerLocation = isKnoxViewsContainerKey(descriptor.id) ? ViewContainerLocation.AuxiliaryBar : location;
-			if (containerLocation === ViewContainerLocation.AuxiliaryBar && !isKnoxViewsContainerKey(descriptor.id)) {
-				return;
-			}
-			const viewContainer = this.registerCustomViewContainer(id, title, icon, order++, extension.identifier, containerLocation);
+			const viewContainer = this.registerCustomViewContainer(id, title, icon, order++, extension.identifier, location, descriptor.id);
 
 			// Move those views that belongs to this container
 			if (existingViewContainers.length) {
@@ -410,12 +402,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		return order;
 	}
 
-	private registerCustomViewContainer(id: string, title: string, icon: URI | ThemeIcon, order: number, extensionId: ExtensionIdentifier | undefined, location: ViewContainerLocation): ViewContainer {
+	private registerCustomViewContainer(id: string, title: string, icon: URI | ThemeIcon, order: number, extensionId: ExtensionIdentifier | undefined, location: ViewContainerLocation, contributionId: string): ViewContainer {
 		let viewContainer = this.viewContainersRegistry.get(id);
 
 		if (!viewContainer) {
+			const isKnox = contributionId === KNOX_VIEWS_CONTAINER_CONTRIBUTION_ID;
 
-			const isKnox = isKnoxViewContainer(id);
 			viewContainer = this.viewContainersRegistry.registerViewContainer({
 				id,
 				title: { value: title, original: title },
@@ -426,10 +418,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				),
 				hideIfEmpty: !isKnox,
 				rejectAddedViews: isKnox,
+				lockToDefaultLocation: isKnox,
+				exclusiveAtLocation: isKnox,
 				alwaysUseContainerInfo: isKnox,
-				order: isKnox ? 0 : order,
+				order,
 				icon,
-			}, location, { isDefault: isKnox });
+			}, location, { isDefault: isKnox && location === ViewContainerLocation.AuxiliaryBar });
 
 		}
 
@@ -469,10 +463,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					return;
 				}
 
-				if (isKnoxViewsContainerKey(key)) {
-					// Knox GUI views are registered by `src/vs/workbench/contrib/knox`.
-					return;
-				}
 				const viewContainer = this.getViewContainer(key);
 				if (!viewContainer) {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", key));
@@ -488,13 +478,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						continue;
 					}
 					if (this.viewsRegistry.getView(item.id) !== null) {
-						if (isKnoxView(item.id)) {
-							continue;
-						}
 						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered.", item.id));
-						continue;
-					}
-					if (isKnoxView(item.id)) {
 						continue;
 					}
 
@@ -533,14 +517,16 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 					const viewDescriptor: ICustomViewDescriptor = {
 						type: type,
-						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
+						ctorDescriptor: item.id === KNOX_VIEW_ID
+							? new SyncDescriptor(KnoxChatViewPane)
+							: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
 						id: item.id,
 						name: { value: item.name, original: item.name },
 						when: ContextKeyExpr.deserialize(item.when),
 						containerIcon: icon || viewContainer?.icon,
 						containerTitle: item.contextualTitle || (viewContainer && (typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value)),
-						canToggleVisibility: !isKnoxView(item.id),
-						canMoveView: viewContainer?.id !== REMOTE && !isKnoxView(item.id) && viewContainer?.id !== KNOX_VIEW_CONTAINER_ID,
+						canToggleVisibility: !viewContainer?.lockToDefaultLocation,
+						canMoveView: viewContainer?.id !== REMOTE && !viewContainer?.lockToDefaultLocation,
 						treeView: type === ViewType.Tree ? this.instantiationService.createInstance(CustomTreeView, item.id, item.name, extension.description.identifier.value) : undefined,
 						collapsed: this.showCollapsed(container) || initialVisibility === InitialVisibility.Collapsed,
 						order: order,
@@ -586,10 +572,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	private removeViews(extensions: readonly IExtensionPointUser<ViewExtensionPointType>[]): void {
 		const removedExtensions: ExtensionIdentifierSet = extensions.reduce((result, e) => { result.add(e.description.identifier); return result; }, new ExtensionIdentifierSet());
 		for (const viewContainer of this.viewContainersRegistry.all) {
-			const removedViews = this.viewsRegistry.getViews(viewContainer).filter(v => {
-				const descriptor = v as ICustomViewDescriptor;
-				return !!descriptor.extensionId && removedExtensions.has(descriptor.extensionId) && !isKnoxView(v.id);
-			});
+			const removedViews = this.viewsRegistry.getViews(viewContainer).filter(v => (v as ICustomViewDescriptor).extensionId && removedExtensions.has((v as ICustomViewDescriptor).extensionId));
 			if (removedViews.length) {
 				this.viewsRegistry.deregisterViews(removedViews, viewContainer);
 				for (const view of removedViews) {

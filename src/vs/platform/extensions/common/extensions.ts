@@ -183,6 +183,14 @@ export interface IToolContribution {
 	displayName: string;
 	modelDescription: string;
 	userDescription?: string;
+	inputSchema?: object;
+	tags?: readonly string[];
+}
+
+export interface ITextModelApiAssistProviderContribution {
+	readonly vendor: string;
+	readonly displayName: string;
+	readonly managementCommand?: string;
 }
 
 export interface IToolSetContribution {
@@ -241,6 +249,7 @@ export interface IExtensionContributions {
 	readonly chatPlugins?: ReadonlyArray<IAssistFileContribution>;
 	readonly textModelApiTools?: ReadonlyArray<IToolContribution>;
 	readonly textModelApiToolSets?: ReadonlyArray<IToolSetContribution>;
+	readonly textModelApiAssistProviders?: ReadonlyArray<ITextModelApiAssistProviderContribution>;
 	readonly toolServerDefinitionProviders?: ReadonlyArray<IToolCollectionContribution>;
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
 }

@@ -61,6 +61,7 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 }
 
 function fromLocal(extensionPath: string, forWeb: boolean, _disableMangle: boolean): Stream {
+	const extensionName = path.basename(extensionPath);
 
 	let esbuildConfigFileName = forWeb
 		? 'esbuild.browser.mts'
@@ -84,7 +85,12 @@ function fromLocal(extensionPath: string, forWeb: boolean, _disableMangle: boole
 
 	if (hasEsbuild) {
 		const isStandardEsbuild = !esbuildConfigFileName.startsWith('.');
-		input = isStandardEsbuild
+		// KN-384: knox compiles via gulp compile-extension:knox (esbuild.mts)
+		// + compile-extension-knox-native. Product packaging runs that same
+		// esbuild.mts through fromLocalEsbuild; do not add the generic tsgo
+		// typecheck pipeline used by other standard-esbuild extensions.
+		const skipGenericTypecheck = extensionName === 'knox';
+		input = isStandardEsbuild && !skipGenericTypecheck
 			? merge(
 				fromLocalEsbuild(extensionPath, esbuildConfigFileName),
 				// Standard esbuild extensions need a separate type check step
@@ -147,121 +153,6 @@ function fromLocalNormal(extensionPath: string): Stream {
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
 
-/**
- * Knox dist/ and sqlite .node are gitignored (not vendored from kc).
- * Native packaging (Linux/Windows CI, macOS build_dmg) must produce them here.
- * The Vite webview GUI is no longer packaged (T13.3).
- */
-function ensureKnoxPackagingArtifacts(extensionPath: string): void {
-	const distMain = path.join(extensionPath, 'dist', 'src', 'extension.js');
-	if (!fs.existsSync(distMain)) {
-		throw new Error(`Knox pack: missing ${distMain}. dist/ is gitignored and rebuilt by esbuild on this OS.`);
-	}
-
-	const sqliteCandidates = [
-		path.join(extensionPath, 'dist', 'build', 'Release', 'node_sqlite3.node'),
-		path.join(extensionPath, 'build', 'Release', 'node_sqlite3.node'),
-		path.join(extensionPath, 'node_modules', 'sqlite3', 'build', 'Release', 'node_sqlite3.node'),
-	];
-	if (!sqliteCandidates.some(candidate => fs.existsSync(candidate))) {
-		throw new Error('Knox pack: node_sqlite3.node missing. sqlite3 is gitignored and rebuilt for this OS during compile-native-extensions-build.');
-	}
-}
-
-/**
- * Absolute directories for `rootName` plus its production `dependencies`
- * (not optional/peer). jsdom is esbuild-external, so the packaged app must
- * include hoisted modules such as `tough-cookie` that `jsdom/lib/api.js` requires.
- */
-export function collectPackageProductionDirs(extensionPath: string, rootName: string): string[] {
-	const dirs = new Set<string>();
-	const resolvePackageJson = (fromFile: string, name: string): string | undefined => {
-		const req = createRequire(fromFile);
-		try {
-			return req.resolve(`${name}/package.json`);
-		} catch {
-			// "exports" maps often omit package.json
-		}
-		try {
-			let dir = path.dirname(req.resolve(name));
-			while (true) {
-				const candidate = path.join(dir, 'package.json');
-				if (fs.existsSync(candidate)) {
-					const pkg = JSON.parse(fs.readFileSync(candidate, 'utf8')) as { name?: string };
-					if (pkg.name === name) {
-						return candidate;
-					}
-				}
-				const parent = path.dirname(dir);
-				if (parent === dir) {
-					break;
-				}
-				dir = parent;
-			}
-		} catch {
-			return undefined;
-		}
-		return undefined;
-	};
-	const visit = (fromFile: string, name: string): void => {
-		const pkgJson = resolvePackageJson(fromFile, name);
-		if (!pkgJson) {
-			return;
-		}
-		const dir = fs.realpathSync(path.dirname(pkgJson));
-		if (dirs.has(dir)) {
-			return;
-		}
-		const rel = path.relative(extensionPath, dir);
-		if (rel.startsWith('..') || path.isAbsolute(rel)) {
-			return;
-		}
-		dirs.add(dir);
-		const pkg = JSON.parse(fs.readFileSync(pkgJson, 'utf8')) as { dependencies?: Record<string, string> };
-		for (const dep of Object.keys(pkg.dependencies ?? {})) {
-			visit(pkgJson, dep);
-		}
-	};
-	visit(path.join(extensionPath, 'package.json'), rootName);
-	return [...dirs];
-}
-
-function shouldPackKnoxDependencyFile(filePath: string): boolean {
-	const parts = filePath.split(path.sep);
-	if (parts.includes('sqlite3')) {
-		const buildIndex = parts.indexOf('build');
-		if (buildIndex !== -1) {
-			return filePath.endsWith('.node');
-		}
-		if (parts.includes('deps') || parts.includes('src')) {
-			return false;
-		}
-		if (filePath.endsWith('.gyp') || filePath.endsWith('.gypi')) {
-			return false;
-		}
-		return true;
-	}
-	// Native-addon `build/` filter is sqlite3-only. jsdom's tree is plain JS
-	// (tough-cookie, parse5, …) and must not be dropped.
-	return true;
-}
-
-function globPackagedDependencyFiles(extensionPath: string, packageDir: string, extensionName: string): string[] {
-	return glob.sync(path.join(packageDir, '**'), { nodir: true, dot: true })
-		.map(filePath => path.relative(extensionPath, filePath))
-		.filter(filePath => {
-			if (extensionName === 'knox') {
-				return shouldPackKnoxDependencyFile(filePath);
-			}
-			const parts = filePath.split(path.sep);
-			const buildIndex = parts.indexOf('build');
-			if (buildIndex !== -1) {
-				return filePath.endsWith('.node');
-			}
-			return true;
-		});
-}
-
 function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string): Stream {
 	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
 	const result = es.through();
@@ -271,14 +162,11 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 	// Ensure those externals are included in the packaged built-in extension.
 	const packagedDependenciesByExtension: Record<string, string[]> = {
 		'git': ['@vscode/fs-copyfile'],
-		// sqlite3 .node is rebuilt for Electron in knox/scripts/native-assets.mts (T5.3).
-		// jsdom is esbuild-external (default-stylesheet.css via __dirname). Pack its
-		// production tree too — vsce PackageManager.None skips gitignored node_modules,
-		// so a glob of node_modules/jsdom alone drops hoisted tough-cookie (T2.4/T8).
-		'knox': ['sqlite3', 'jsdom'],
+		// KN-384: Knox natives are copied into dist/ by esbuild.mts /
+		// copy-native.mts. Keep this empty so packaging does not pull
+		// host-Node node_modules by accident.
 	};
 	const packagedDependencies = packagedDependenciesByExtension[extensionName] ?? [];
-	const recursivePackagedDependencies = extensionName === 'knox' ? ['jsdom'] : [];
 
 	const esbuildScript = path.join(extensionPath, esbuildConfigFileName);
 
@@ -301,27 +189,24 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 			fancyLog(`${ansiColors.green('esbuilding')}: ${data.toString('utf8')}`);
 		});
 	}).then(() => {
-		if (extensionName === 'knox') {
-			ensureKnoxPackagingArtifacts(extensionPath);
-		}
 		// After esbuild completes, collect all files using vsce
 		return vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.None });
 	}).then(fileNames => {
 		if (packagedDependencies.length > 0) {
-			const packageDirs = new Set<string>();
-			for (const dependency of packagedDependencies) {
-				if (recursivePackagedDependencies.includes(dependency)) {
-					for (const dir of collectPackageProductionDirs(extensionPath, dependency)) {
-						packageDirs.add(dir);
-					}
-				} else {
-					packageDirs.add(path.join(extensionPath, 'node_modules', dependency));
-				}
-			}
-
-			const packagedDependencyFileNames = [...packageDirs]
-				.filter(dir => fs.existsSync(dir))
-				.flatMap(dir => globPackagedDependencyFiles(extensionPath, dir, extensionName));
+			const packagedDependencyFileNames = packagedDependencies.flatMap(dependency =>
+				glob.sync(path.join(extensionPath, 'node_modules', dependency, '**'), { nodir: true, dot: true })
+					.map(filePath => path.relative(extensionPath, filePath))
+					.filter(filePath => {
+						// Exclude non-.node files from build directories to avoid timestamp-sensitive
+						// artifacts (e.g. Makefile) that break macOS universal builds due to SHA mismatches.
+						const parts = filePath.split(path.sep);
+						const buildIndex = parts.indexOf('build');
+						if (buildIndex !== -1) {
+							return filePath.endsWith('.node');
+						}
+						return true;
+					})
+			);
 
 			fileNames = Array.from(new Set([...fileNames, ...packagedDependencyFileNames]));
 		}
@@ -434,15 +319,38 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
 
 /**
  * All extensions that are known to have some native component and thus must be built on the
- * platform that is being built. Knox is here so {@link packageNativeLocalExtensionsStream}
- * includes `dist/` and sqlite3 `.node` on each OS. The Vite webview GUI is
- * not packaged (T13.3).
+ * platform that is being built.
+ *
+ * KN-365 / KN-384: `knox` (sqlite3, ripgrep, node-pty) is packaged per-platform
+ * so the Remote-SSH / REH copy on the remote has matching native addons. It is
+ * *not* a product.json `builtInExtensions` marketplace download.
  */
 export const nativeExtensions = [
 	'git',
 	'knox',
 	'microsoft-authentication',
 ];
+
+/** KN-365: never ship in vscode-web even if a `browser` field is added by mistake. */
+export const desktopOnlyExtensions = [
+	'knox',
+];
+
+/**
+ * KN-384: Knox is compiled and packaged from extensions/knox. Never download
+ * a marketplace VSIX (knoxchat.knoxchat / vscode.knox) as a builtInExtension.
+ */
+export function assertNoKnoxMarketplaceBuiltin(extensions: IExtensionDefinition[]): void {
+	const hit = extensions.filter(({ name }) => {
+		const n = name.toLowerCase();
+		return n === 'knox' || n === 'vscode.knox' || n.includes('knoxchat');
+	});
+	if (hit.length > 0) {
+		throw new Error(
+			`KN-384: Knox is an in-tree native extension. Remove ${hit.map(e => e.name).join(', ')} from product.json builtInExtensions.`,
+		);
+	}
+}
 
 const excludedExtensions = [
 	'vscode-api-tests',
@@ -466,9 +374,11 @@ const marketplaceWebExtensionsExclude = new Set([
 const productJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../product.json'), 'utf8'));
 const builtInExtensions: IExtensionDefinition[] = productJson.builtInExtensions || [];
 const webBuiltInExtensions: IExtensionDefinition[] = productJson.webBuiltInExtensions || [];
+assertNoKnoxMarketplaceBuiltin(builtInExtensions);
+assertNoKnoxMarketplaceBuiltin(webBuiltInExtensions);
 
 type ExtensionKind = 'ui' | 'workspace' | 'web';
-export interface IExtensionManifest {
+interface IExtensionManifest {
 	main?: string;
 	browser?: string;
 	extensionKind?: ExtensionKind | ExtensionKind[];
@@ -557,6 +467,7 @@ function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean,
 			.filter(({ name }) => native ? nativeExtensionsSet.has(name) : !nativeExtensionsSet.has(name))
 			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
 			.filter(({ name }) => builtInExtensions.every(b => b.name !== name))
+			.filter(({ name }) => !(forWeb && desktopOnlyExtensions.includes(name)))
 			.filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true))
 	);
 
@@ -590,10 +501,7 @@ function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean,
 
 	return (
 		result
-			// Git: helper scripts. Knox: sqlite3 `.node` (dlopen on Unix).
-			// Extension natives live under resources/app/extensions/ — not inside
-			// node_modules.asar — so asar unpack globs in gulpfile.vscode.ts do not apply.
-			.pipe(util2.setExecutableBit(['**/*.sh', '**/*.node']))
+			.pipe(util2.setExecutableBit(['**/*.sh']))
 	);
 }
 
@@ -619,7 +527,7 @@ export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
 
 	return (
 		marketplaceExtensionsStream
-			.pipe(util2.setExecutableBit(['**/*.sh', '**/*.node']))
+			.pipe(util2.setExecutableBit(['**/*.sh']))
 	);
 }
 
@@ -638,6 +546,9 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 		const extensionsFolders = fs.readdirSync(extensionsRoot);
 		for (const extensionFolder of extensionsFolders) {
 			if (exclude.indexOf(extensionFolder) >= 0) {
+				continue;
+			}
+			if (desktopOnlyExtensions.includes(extensionFolder)) {
 				continue;
 			}
 			const packageJSONPath = path.join(extensionsRoot, extensionFolder, 'package.json');
@@ -742,14 +653,6 @@ const esbuildMediaScripts: { script: string; tsconfig: string }[] = [
 	{ script: 'notebook-renderers/esbuild.notebook.mts', tsconfig: 'notebook-renderers/tsconfig.json' },
 	{ script: 'simple-browser/esbuild.webview.mts', tsconfig: 'simple-browser/preview-src/tsconfig.json' },
 ];
-
-export function isWebExtensionsOutputRoot(outputRoot?: string): boolean {
-	if (!outputRoot) {
-		return false;
-	}
-	const normalized = outputRoot.replace(/\\/g, '/');
-	return normalized === '.build/web/extensions' || normalized.endsWith('/web/extensions');
-}
 
 export function buildExtensionMedia(isWatch: boolean, outputRoot?: string): Promise<void> {
 	const esbuildTask = esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(({ script }) => ({

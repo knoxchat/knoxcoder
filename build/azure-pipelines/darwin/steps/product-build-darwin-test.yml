@@ -43,6 +43,7 @@ steps:
         compile-extension:css-language-features-server \
         compile-extension:emmet \
         compile-extension:git \
+        compile-extension:knox \
         compile-extension:html-language-features-server \
         compile-extension:ipynb \
         compile-extension:notebook-renderers \
@@ -108,6 +109,8 @@ steps:
         APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
         APP_NAME="`ls $APP_ROOT | head -n 1`"
         npm run smoketest-no-compile -- --tracing --build "$APP_ROOT/$APP_NAME"
+      env:
+        VSCODE_SMOKE_TEST_POLICY: '1'
       timeoutInMinutes: 20
       displayName: 🧪 Run smoke tests (Electron)
 

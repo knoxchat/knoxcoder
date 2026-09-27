@@ -1,0 +1,1 @@
+export const EXTENSION_NAME = "knoxchat"; // settings / files stay knoxchat.* (KN-046, KN-382)
