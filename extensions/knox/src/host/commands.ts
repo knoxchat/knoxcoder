@@ -788,9 +788,6 @@ const getCommandsMap: (
       sidebar.webviewProtocol?.request("navigateTo", { path, toggle });
       focusGUI();
     },
-    // Keybindings exist with `when: false`; register so the ids are not missing.
-    "knoxchat.quickEditHistoryUp": () => {},
-    "knoxchat.quickEditHistoryDown": () => {},
     // Public / workbench API (KN-100, KN-115, KN-364). Always focuses; does not toggle closed.
     "knox.openChat": async (options?: { prompt?: string }) => {
       focusGUI();

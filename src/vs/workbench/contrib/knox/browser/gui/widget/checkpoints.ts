@@ -894,8 +894,15 @@ export function renderCheckpointTimeline(widget: KnoxGuiWidget, body: HTMLElemen
 					DOM.append(changes, DOM.$('span.odp-text-red', undefined, `-${node.fileChanges.deleted}`));
 				}
 			}
-			if (node.isIncremental) {
-				DOM.append(DOM.append(main, DOM.$('.knox-gui-timeline-badges')), DOM.$('span.odp-chip.odp-chip-purple', { 'data-testid': 'checkpoint-timeline-delta' }, 'Δ0'));
+			if (node.isIncremental || node.timelineRisk) {
+				const badges = DOM.append(main, DOM.$('.knox-gui-timeline-badges'));
+				if (node.isIncremental) {
+					DOM.append(badges, DOM.$('span.odp-chip.odp-chip-purple', { 'data-testid': 'checkpoint-timeline-delta' }, `Δ${node.deltaDepth ?? 0}`));
+				}
+				if (node.timelineRisk) {
+					const risk = DOM.append(badges, DOM.$(`span.odp-chip.${checkpointRiskChipClass(node.timelineRisk)}`, { 'data-testid': 'checkpoint-timeline-risk' }, t(state, `checkpointAnalysis.risk.${node.timelineRisk}`)));
+					appendKnoxGuiSvg(risk, checkpointRiskIcon(node.timelineRisk), 12);
+				}
 			}
 			if (node.tags.length) {
 				const tags = DOM.append(main, DOM.$('.knox-gui-timeline-badges'));

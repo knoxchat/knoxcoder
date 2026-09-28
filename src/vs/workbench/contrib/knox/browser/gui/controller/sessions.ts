@@ -33,29 +33,83 @@ export async function newSession(controller: KnoxGuiController, options?: { gene
 	postSetAgentMode(controller);
 }
 
-export async function loadSession(controller: KnoxGuiController, id: string, options?: { saveCurrent?: boolean }): Promise<void> {
-	if (!id?.trim()) {
-		return;
+export function ensureSessionId(controller: KnoxGuiController): string {
+	const existing = controller.store.state.sessionId?.trim();
+	if (existing) {
+		return existing;
 	}
+	const sessionId = generateUuid();
+	controller.store.patch({ sessionId });
+	controller.store.syncSessionTab(sessionId, controller.store.state.sessionTitle || knoxGuiT(controller.store.state.language, 'newChat'));
+	return sessionId;
+}
+
+function sessionFromHistoryLoad(raw: unknown): Record<string, unknown> {
+	const rec = asRecord(raw);
+	if (!rec) {
+		return {};
+	}
+	const nested = asRecord(rec.session);
+	if (nested && (Array.isArray(nested.history) || Array.isArray(nested.messages) || nested.sessionId || nested.title)) {
+		return nested;
+	}
+	return rec;
+}
+
+function historyItemsFromSession(session: Record<string, unknown>): Array<Record<string, unknown>> {
+	const raw = session.history ?? session.messages;
+	return asArray(raw).map(item => asRecord(item) ?? { content: item }).filter((item): item is Record<string, unknown> => Boolean(item));
+}
+
+/**
+ * HistoryTableRow: load the listed session unless it is already current, then
+ * close the lump overlay and show chat. Empty `sessionId` is a real leftover
+ * (`~/.knox/sessions/.json`) — do not treat `'' === ''` as already loaded.
+ */
+export async function openHistorySession(controller: KnoxGuiController, sessionId: string): Promise<void> {
+	const listed = sessionId ?? '';
+	const current = controller.store.state.sessionId ?? '';
+	const alreadyOpen = current === listed && (Boolean(listed.trim()) || controller.store.state.history.length > 0);
+	if (!alreadyOpen) {
+		await controller.loadSession(listed);
+	}
+	controller.store.navigate('/');
+}
+
+export async function loadSession(controller: KnoxGuiController, id: string, options?: { saveCurrent?: boolean }): Promise<void> {
+	const requestedId = id ?? '';
 	const previous = controller.store.state.sessionId;
 	const shouldSave = options?.saveCurrent !== false;
-	if (shouldSave && previous && previous !== id && controller.store.state.history.length) {
+	if (shouldSave && previous && previous !== requestedId && controller.store.state.history.length) {
 		await controller.saveCurrentSession({ generateTitle: true });
 		controller.messenger.post('brain/dispatch', { action: 'close_session', session_id: previous });
 	}
 	controller.store.patch({ isLoadingHistory: true, overlay: null, route: KnoxGuiRoute.Chat, autoScroll: true });
 	try {
-		const session = await controller.messenger.request<Record<string, unknown>>('history/load', { id });
-		const raw = Array.isArray(session?.history) ? session.history as Array<Record<string, unknown>> : [];
-		const history = raw.map((item, index) => controller.historyFromRaw(item, index));
-		const title = String(session?.title ?? '');
+		const loaded = sessionFromHistoryLoad(await controller.messenger.request<Record<string, unknown>>('history/load', { id: requestedId }));
+		const history = historyItemsFromSession(loaded).map((item, index) => controller.historyFromRaw(item, index));
+		const title = String(loaded.title ?? '');
+		const sessionId = String(loaded.sessionId ?? requestedId);
 		controller.store.patch({
-			sessionId: String(session?.sessionId ?? id),
+			sessionId,
 			sessionTitle: title,
 			history,
 			isLoadingHistory: false,
+			isStreaming: false,
+			isGatheringContext: false,
 			historyHydrateNotice: shouldWarnLargeSession(history) ? 'large' : null,
 			fileSymbols: {},
+			injectedMemories: [],
+			compaction: undefined,
+			autonomous: undefined,
+			taskPlan: [],
+			sessionToolAllowlist: [],
+			toolLoopSteps: 0,
+			streamError: undefined,
+			applyStates: [],
+			overlay: null,
+			route: KnoxGuiRoute.Chat,
+			autoScroll: true,
 		});
 		void updateFileSymbolsFromHistory(controller);
 		controller.store.syncSessionTab(controller.store.state.sessionId, title || knoxGuiT(controller.store.state.language, 'newChat'));
@@ -152,7 +206,7 @@ export async function saveCurrentSession(controller: KnoxGuiController, options?
 	if (!controller.store.state.history.length) {
 		return;
 	}
-	const sessionId = controller.store.state.sessionId;
+	const sessionId = ensureSessionId(controller);
 	const history = controller.store.state.history.slice();
 	const language = controller.store.state.language;
 	const autoName = controller.store.state.autoNameSessionTitles;
@@ -362,7 +416,7 @@ export async function refreshHistorySessions(controller: KnoxGuiController): Pro
 		if (Array.isArray(sessions)) {
 			controller.store.patch({
 				historySessions: sessions.map(session => ({
-					id: String(session.id ?? session.sessionId ?? ''),
+					id: String(session.sessionId ?? session.id ?? ''),
 					title: String(session.title ?? 'Session'),
 					date: String(session.date ?? session.dateCreated ?? session.timestamp ?? ''),
 					workspaceDirectory: session.workspaceDirectory ? String(session.workspaceDirectory): undefined,
@@ -409,7 +463,7 @@ export async function exportSession(controller: KnoxGuiController, id: string): 
 				return { role: String(message.role ?? rec.role ?? 'assistant'), content: textFromUnknown(message.content ?? rec.content) };
 			})
 			: controller.store.state.history.map(item => ({ role: item.role, content: item.content }));
-		const markdown = formatSessionExportMarkdown({ title, workspaceDirectory: session?.workspaceDirectory ? String(session.workspaceDirectory): undefined, history });
+		const markdown = formatSessionExportMarkdown({ title, workspaceDirectory: session?.workspaceDirectory ? String(session.workspaceDirectory): undefined, history }, new Date(), key => knoxGuiT(controller.store.state.language, key));
 		const filename = sessionExportFilename(title);
 		const dirs = await controller.messenger.request<string[]>('getWorkspaceDirs', undefined).catch(() => []);
 		const workspaceDir = Array.isArray(dirs) ? String(dirs[0] ?? '').replace(/^file:\/\//, ''): '';

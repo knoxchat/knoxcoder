@@ -10,7 +10,7 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
 import { parseToolArgs, toolDisplayKind } from '../../../common/knoxGuiChat.js';
 import { knoxGuiLocalAutoApprove } from '../../../common/knoxGuiAgentRequest.js';
-import { getCategorizedToolName, toolPermissionDisplay } from '../../../common/knoxGuiTools.js';
+import { getCategorizedToolName, isSamePermissionTool, toolPermissionDisplay } from '../../../common/knoxGuiTools.js';
 import {
 	contextProviderInsertId,
 	DEFAULT_AGENT_TOOL_POLICY_TEXT,
@@ -32,7 +32,6 @@ import {
 	promptDraftFromCommand,
 	promptDraftIsEditing,
 	promptDraftIsValid,
-	promptSlashName,
 	ruleCardOpensProfile,
 	ruleCardTitleKey,
 	sortPromptsBookmarkedFirst,
@@ -75,11 +74,7 @@ export function renderModels(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 	for (const role of MODEL_OVERLAY_ROLES) {
 		const label = t(state, MODEL_ROLE_LABEL_KEY[role]);
 		const labelWrap = DOM.append(grid, DOM.$('span.knox-gui-model-role-label', undefined, label));
-		const info = DOM.append(labelWrap, DOM.$('span.knox-gui-info-hover'));
-		info.setAttribute('data-testid', `knox-gui-role-info-${role}`);
-		info.setAttribute('aria-label', t(state, MODEL_ROLE_USED_FOR_KEY[role]));
-		appendKnoxGuiSvg(info, 'info', 12);
-		widget.hover(info, t(state, MODEL_ROLE_USED_FOR_KEY[role]));
+		labelWrap.title = t(state, MODEL_ROLE_USED_FOR_KEY[role]);
 		const row = DOM.append(grid, DOM.$('.knox-gui-model-role'));
 		const models = state.modelsByRole[role];
 		const selected = state.selectedModelByRole[role] ?? (role === 'chat' ? state.modelTitle : undefined);
@@ -139,7 +134,12 @@ export function renderModels(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 		svgSize: 12,
 		label: t(state, 'openConfigFile'),
 		extraClass: 'knox-gui-ghost knox-gui-open-config',
-		onClick: () => widget.controller.messenger.post('config/openProfile', { profileId: state.profileId }),
+		testId: 'knox-gui-open-config',
+		onClick: () => {
+			if (state.profileType === 'local') {
+				widget.controller.messenger.post('config/openProfile', { profileId: state.profileId });
+			}
+		},
 	});
 }
 
@@ -235,7 +235,7 @@ export function renderPrompts(widget: KnoxGuiWidget, body: HTMLElement, state: I
 		const row = DOM.append(list, DOM.$('.knox-gui-prompt-row'));
 		row.setAttribute('data-testid', `knox-gui-prompt-row-${index}`);
 		const main = DOM.append(row, DOM.$('.knox-gui-prompt-row-main'));
-		DOM.append(main, DOM.$('span.knox-gui-prompt-name', undefined, promptSlashName(cmd.name)));
+		DOM.append(main, DOM.$('span.knox-gui-prompt-name', undefined, cmd.name));
 		DOM.append(main, DOM.$('span.knox-gui-prompt-desc', undefined, cmd.description));
 		const actions = DOM.append(row, DOM.$('.knox-gui-prompt-row-actions'));
 		widget.chromeButton(actions, {
@@ -435,7 +435,7 @@ export function renderTools(widget: KnoxGuiWidget, body: HTMLElement, state: IKn
 		widget.customSwitch(head, !excluded, () => widget.controller.toggleToolGroup(group), 12);
 		const list = DOM.append(card, DOM.$('.knox-gui-tool-group-body'));
 		for (const tool of tools) {
-			const isPending = pending === tool.name;
+			const isPending = isSamePermissionTool(pending, tool.name, state.tools);
 			const row = DOM.append(list, DOM.$('.knox-gui-tool-perm-row'));
 			row.setAttribute('data-testid', `tool-permission-row-${tool.name}`);
 			row.setAttribute('data-tool-permission', tool.name);
@@ -461,7 +461,7 @@ export function renderTools(widget: KnoxGuiWidget, body: HTMLElement, state: IKn
 			DOM.append(left, DOM.$('span.knox-gui-tool-perm-name', undefined, getCategorizedToolName(tool.name, tool.displayTitle)));
 			const idHint = DOM.append(left, DOM.$('span.knox-gui-muted.knox-gui-tool-id', undefined, `(${t(state, 'toolId')})`));
 			widget.hover(idHint, tool.name);
-			const display = toolPermissionDisplay({ toolName: tool.name, toolSettings: state.toolSettings, sessionAllowlist: state.sessionToolAllowlist });
+			const display = toolPermissionDisplay({ toolName: tool.name, toolSettings: state.toolSettings, sessionAllowlist: state.sessionToolAllowlist, tools: state.tools });
 			if (excluded) {
 				DOM.append(main, DOM.$('span.knox-gui-perm-badge', undefined, t(state, 'toolDisabled')));
 			} else {
@@ -496,7 +496,7 @@ export function renderTools(widget: KnoxGuiWidget, body: HTMLElement, state: IKn
 				}));
 			}
 			if (isPending) {
-				const pendingCall = state.history.flatMap(item => item.toolCalls ?? []).find(call => call.status === 'generated' && call.name === tool.name);
+				const pendingCall = state.history.flatMap(item => item.toolCalls ?? []).find(call => call.status === 'generated' && isSamePermissionTool(call.name, tool.name, state.tools));
 				if (pendingCall && widget.toolPermScrolledFor !== pendingCall.id) {
 					widget.toolPermScrolledFor = pendingCall.id;
 					DOM.getWindow(row).requestAnimationFrame(() => row.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
@@ -571,8 +571,9 @@ export function renderHistoryPage(widget: KnoxGuiWidget, body: HTMLElement, stat
 	if (!compact) {
 		widget.back(body, state);
 		const tab = DOM.append(body, DOM.$('.knox-gui-page-tab'));
-		appendKnoxGuiSvg(tab, 'history', 14);
-		DOM.append(tab, DOM.$('span', undefined, t(state, 'conversationHistory')));
+		const cell = DOM.append(tab, DOM.$('.knox-gui-page-tab-cell'));
+		appendKnoxGuiSvg(cell, 'history', 14);
+		DOM.append(cell, DOM.$('span', undefined, t(state, 'conversationHistory')));
 	}
 	const header = DOM.append(body, DOM.$('.knox-gui-history-header'));
 	const sessions = filterHistorySessions(state.historySessions, state.historyQuery);
@@ -586,7 +587,20 @@ export function renderHistoryPage(widget: KnoxGuiWidget, body: HTMLElement, stat
 	input.value = state.historyQuery;
 	widget.renderStore.add(DOM.addDisposableListener(input, 'input', () => widget.controller.store.patch({ historyQuery: input.value })));
 	if (state.historyQuery) {
-		widget.chromeButton(search, { svg: 'x', svgSize: 12, title: t(state, 'clear'), extraClass: 'knox-gui-history-search-clear', onClick: () => widget.controller.store.patch({ historyQuery: '' }) });
+		widget.chromeButton(search, {
+			svg: 'x',
+			svgSize: 12,
+			title: t(state, 'clear'),
+			extraClass: 'knox-gui-history-search-clear',
+			onClick: () => {
+				widget.historySearchFocus = true;
+				widget.controller.store.patch({ historyQuery: '' });
+			},
+		});
+	}
+	if (widget.historySearchFocus) {
+		input.focus();
+		widget.historySearchFocus = false;
 	}
 	if (!sessions.length) {
 		const empty = DOM.append(body, DOM.$('.knox-gui-empty.knox-gui-history-empty'));
@@ -596,6 +610,7 @@ export function renderHistoryPage(widget: KnoxGuiWidget, body: HTMLElement, stat
 		const hint = DOM.append(empty, DOM.$('p.knox-gui-muted'));
 		hint.append(`${t(state, 'noConversationsMessage')} `);
 		appendShortcut(hint, 'meta L');
+		renderHistoryFooter(body, state);
 		return;
 	}
 	const bar = DOM.append(body, DOM.$('.knox-gui-history-actions'));
@@ -606,35 +621,42 @@ export function renderHistoryPage(widget: KnoxGuiWidget, body: HTMLElement, stat
 	}
 	const actions = DOM.append(bar, DOM.$('.knox-gui-row'));
 	if (!state.historySelectionMode) {
-		widget.chromeButton(actions, { svg: 'check-square', svgSize: 12, label: t(state, 'select'), title: t(state, 'selectMultipleConversations'), onClick: () => widget.controller.store.patch({ historySelectionMode: true }) });
+		widget.chromeButton(actions, { svg: 'check-square', svgSize: 12, label: t(state, 'select'), title: t(state, 'selectMultipleConversations'), extraClass: 'knox-gui-history-label-select', onClick: () => widget.controller.store.patch({ historySelectionMode: true }) });
 	} else {
-		widget.chromeButton(actions, { svg: 'check-square', svgSize: 12, label: t(state, 'selectAll'), title: t(state, 'selectAllConversations'), onClick: () => widget.controller.store.patch({ historySelected: sessions.map(session => session.id) }) });
-		widget.chromeButton(actions, { svg: 'square', svgSize: 12, label: t(state, 'clear'), onClick: () => widget.controller.store.patch({ historySelected: [] }) });
-		widget.chromeButton(actions, {
+		widget.chromeButton(actions, { svg: 'check-square', svgSize: 12, label: t(state, 'selectAll'), title: t(state, 'selectAllConversations'), extraClass: 'knox-gui-history-label-wide', onClick: () => widget.controller.store.patch({ historySelected: sessions.map(session => session.id) }) });
+		widget.chromeButton(actions, { svg: 'square', svgSize: 12, label: t(state, 'clear'), extraClass: 'knox-gui-history-label-wide', onClick: () => widget.controller.store.patch({ historySelected: [] }) });
+		const del = widget.chromeButton(actions, {
 			svg: 'trash',
 			svgSize: 12,
-			label: `${t(state, 'delete')} (${state.historySelected.length})`,
+			label: t(state, 'delete'),
+			title: t(state, 'deleteSelectedConversations', { count: state.historySelected.length }),
 			disabled: state.historySelected.length === 0,
-			extraClass: 'knox-gui-danger',
+			extraClass: 'knox-gui-danger knox-gui-history-delete-btn',
 			onClick: () => widget.controller.store.patch({ historyConfirmDelete: true }),
 		});
-		widget.chromeButton(actions, { svg: 'x', svgSize: 12, label: t(state, 'exit'), title: t(state, 'exitSelectionMode'), onClick: () => widget.controller.store.patch({ historySelectionMode: false, historySelected: [], historyConfirmDelete: false }) });
+		del.title = t(state, 'deleteSelectedConversations', { count: state.historySelected.length });
+		DOM.append(del, DOM.$('span.knox-gui-history-delete-count', undefined, ` (${state.historySelected.length})`));
+		widget.chromeButton(actions, { svg: 'x', svgSize: 12, label: t(state, 'exit'), title: t(state, 'exitSelectionMode'), extraClass: 'knox-gui-history-label-select', onClick: () => widget.controller.store.patch({ historySelectionMode: false, historySelected: [], historyConfirmDelete: false }) });
 	}
 	for (const group of groupHistoryByDate(sessions)) {
 		const section = DOM.append(body, DOM.$('.knox-gui-history-group'));
-		const head = DOM.append(section, DOM.$('.knox-gui-row'));
+		const head = DOM.append(section, DOM.$('.knox-gui-row.knox-gui-history-group-head'));
 		DOM.append(head, DOM.$('h4', undefined, t(state, group.header)));
 		DOM.append(head, DOM.$('span.knox-gui-badge', undefined, `${group.sessions.length} ${group.sessions.length === 1 ? t(state, 'item') : t(state, 'items')}`));
 		group.sessions.forEach((session, idx) => {
 			widget.renderHistorySessionRow(section, state, session, idx);
 		});
 	}
-	const footer = DOM.append(body, DOM.$('.knox-gui-muted.knox-gui-history-footer'));
-	appendKnoxGuiSvg(footer, 'info', 12);
-	footer.append(` ${t(state, 'conversationsDataStoredAt')}`);
+	renderHistoryFooter(body, state);
 	if (state.historyConfirmDelete) {
 		widget.renderHistoryDeleteDialog(body, state);
 	}
+}
+
+function renderHistoryFooter(body: HTMLElement, state: IKnoxGuiState): void {
+	const footer = DOM.append(body, DOM.$('.knox-gui-muted.knox-gui-history-footer'));
+	appendKnoxGuiSvg(footer, 'info', 12);
+	footer.append(` ${t(state, 'conversationsDataStoredAt')}`);
 }
 
 export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, session: IKnoxGuiState['historySessions'][number], index: number): void {
@@ -642,11 +664,18 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 	const row = DOM.append(parent, DOM.$(selected ? '.knox-gui-history-row.selected' : '.knox-gui-history-row'));
 	row.setAttribute('data-testid', `history-row-${index}`);
 	if (state.historySelectionMode) {
-		const box = DOM.append(row, DOM.$('input')) as HTMLInputElement;
-		box.type = 'checkbox';
-		box.checked = selected;
-		widget.renderStore.add(DOM.addDisposableListener(box, 'click', e => e.stopPropagation()));
-		widget.renderStore.add(DOM.addDisposableListener(box, 'change', () => widget.controller.store.patch({ historySelected: toggleHistorySelection(state.historySelected, session.id, box.checked) })));
+		const box = DOM.append(row, DOM.$('button.knox-gui-check')) as HTMLButtonElement;
+		box.type = 'button';
+		box.setAttribute('role', 'checkbox');
+		box.setAttribute('aria-checked', String(selected));
+		if (selected) {
+			box.classList.add('selected');
+			appendKnoxGuiSvg(box, 'check', 12);
+		}
+		widget.renderStore.add(DOM.addDisposableListener(box, 'click', e => {
+			e.stopPropagation();
+			widget.controller.store.patch({ historySelected: toggleHistorySelection(state.historySelected, session.id, !selected) });
+		}));
 	}
 	const main = DOM.append(row, DOM.$('.knox-gui-history-main'));
 	if (widget.editingHistoryId === session.id) {
@@ -694,12 +723,23 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 		widget.chromeButton(hover, { svg: 'square-pen', svgSize: 16, title: t(state, 'edit'), onClick: () => { widget.editingHistoryId = session.id; widget.controller.store.patch({}); } });
 		widget.chromeButton(hover, { svg: 'trash', svgSize: 16, title: t(state, 'delete'), extraClass: 'knox-gui-danger', onClick: () => void widget.controller.deleteSessions([session.id]) });
 	}
-	widget.renderStore.add(DOM.addDisposableListener(row, 'click', () => {
+	row.setAttribute('role', 'button');
+	row.tabIndex = 0;
+	row.setAttribute('data-session-id', session.id);
+	row.setAttribute('aria-label', session.title);
+	const openSession = () => {
 		if (state.historySelectionMode) {
 			widget.controller.store.patch({ historySelected: toggleHistorySelection(state.historySelected, session.id, !selected) });
 			return;
 		}
-		void widget.controller.loadSession(session.id).then(() => widget.controller.store.navigate('/'));
+		void widget.controller.openHistorySession(session.id);
+	};
+	widget.renderStore.add(DOM.addDisposableListener(row, 'click', openSession));
+	widget.renderStore.add(DOM.addDisposableListener(row, 'keydown', (e: KeyboardEvent) => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			openSession();
+		}
 	}));
 }
 
@@ -733,8 +773,9 @@ export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: 
 	if (!compact) {
 		widget.back(body, state);
 		const tab = DOM.append(body, DOM.$('.knox-gui-page-tab'));
-		appendKnoxGuiSvg(tab, 'settings', 14);
-		DOM.append(tab, DOM.$('span', undefined, t(state, 'settings')));
+		const cell = DOM.append(tab, DOM.$('.knox-gui-page-tab-cell'));
+		appendKnoxGuiSvg(cell, 'settings', 14);
+		DOM.append(cell, DOM.$('span', undefined, t(state, 'settings')));
 	}
 	const card = (title: string, render: (el: HTMLElement) => void) => {
 		const wrap = DOM.append(body, DOM.$(compact ? '.knox-gui-settings-card.compact' : '.knox-gui-settings-card'));

@@ -10,8 +10,11 @@ import { timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { InMemoryStorageService } from '../../../../platform/storage/common/storage.js';
 import { DEFAULT_REASONING_EFFORT_ALLOWED, knoxGuiResetModelCatalogForTests, knoxGuiSeedModelCatalog } from '../common/knoxGuiCapabilities.js';
@@ -197,7 +200,13 @@ suite('Knox native GUI controller (GP-084)', () => {
 			}
 			override requestBasicLanguageFeatures(): void { }
 		};
-		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService, { getModel: () => null } as unknown as IModelService));
+		const markdownRendererService = new class extends mock<IMarkdownRendererService>() {
+			override render(markdown: IMarkdownString, options?: import('../../../../base/browser/markdownRenderer.js').MarkdownRenderOptions, target?: HTMLElement) {
+				return renderMarkdown(markdown, options, target);
+			}
+			override setDefaultCodeBlockRenderer(): void { }
+		};
+		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService, { getModel: () => null } as unknown as IModelService, markdownRendererService));
 		const editor = widget.root.querySelector('[data-testid="knox-gui-input"]') as HTMLElement | null;
 		assert.ok(editor);
 		editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
@@ -339,7 +348,13 @@ suite('Knox native GUI controller (GP-084)', () => {
 			}
 			override requestBasicLanguageFeatures(): void { }
 		};
-		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService, { getModel: () => null } as unknown as IModelService));
+		const markdownRendererService = new class extends mock<IMarkdownRendererService>() {
+			override render(markdown: IMarkdownString, options?: import('../../../../base/browser/markdownRenderer.js').MarkdownRenderOptions, target?: HTMLElement) {
+				return renderMarkdown(markdown, options, target);
+			}
+			override setDefaultCodeBlockRenderer(): void { }
+		};
+		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService, { getModel: () => null } as unknown as IModelService, markdownRendererService));
 		const editor = widget.root.querySelector('[data-testid="knox-gui-input"]') as HTMLElement | null;
 		assert.ok(editor);
 		editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
@@ -1228,5 +1243,119 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(!posted.some(message => message.messageType === 'acceptDiff' && (message.data as { streamId?: string }).streamId === 'diff-2'));
 		assert.strictEqual(store.state.mode, 'chat');
 		assert.ok(posted.some(message => message.messageType === 'edit/exit'));
+	});
+
+	test('openHistorySession hydrates ChatHistoryItem.message and leftover empty sessionId', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: {
+				'history/load': {
+					session: {
+						sessionId: '',
+						title: 'leftover',
+						history: [
+							{ message: { role: 'user', content: [{ type: 'text', text: 'leftover transcript' }] } },
+							{ message: { role: 'assistant', content: 'Reply' } },
+						],
+					},
+				},
+			},
+		});
+		await timeout(0);
+		store.patch({ sessionId: '', history: [], overlay: 'history' });
+		posted.length = 0;
+		await controller.openHistorySession('');
+		assert.strictEqual(store.state.overlay, null);
+		assert.strictEqual(store.state.route, KnoxGuiRoute.Chat);
+		assert.strictEqual(store.state.history[0]?.content, 'leftover transcript');
+		assert.strictEqual(store.state.history[1]?.content, 'Reply');
+		assert.ok(posted.some(message => message.messageType === 'history/load' && (message.data as { id: string }).id === ''));
+
+		store.patch({ sessionId: 's1', history: [{ id: 'u', role: 'user', content: 'already' }], overlay: 'history' });
+		posted.length = 0;
+		await controller.openHistorySession('s1');
+		assert.strictEqual(store.state.overlay, null);
+		assert.strictEqual(store.state.history[0]?.content, 'already');
+		assert.ok(!posted.some(message => message.messageType === 'history/load'));
+	});
+
+	test('KP leftover: historical resubmit cancels a pending generated tool', async () => {
+		const { controller, store, posted } = createHarness();
+		await timeout(0);
+		store.patch({
+			mode: 'chat',
+			modelTitle: 'GPT-4o',
+			isStreaming: false,
+			history: [
+				{ id: 'u0', role: 'user', content: 'old' },
+				{ id: 'a0', role: 'assistant', content: 'working', toolCalls: [{ id: 't1', name: 'builtin_edit_file', arguments: '{}', status: 'generated' }] },
+			],
+		});
+		await controller.submitEditedUser(0, inputDocFromPlainText('new'));
+		await timeout(0);
+		assert.ok(posted.some(message => message.messageType === 'abort' || message.messageType === 'tools/cancel'));
+		assert.strictEqual(store.state.history[0]?.content, 'new');
+		assert.ok(!store.state.history.some(item => item.toolCalls?.some(call => call.status === 'generated')));
+	});
+
+	test('KP leftover: git-diff fallback, calling cancel, alias session allowlist', async () => {
+		const { controller, store, posted } = createHarness();
+		await timeout(0);
+
+		posted.length = 0;
+		controller.openGitFile({
+			filename: 'a.ts',
+			filepath: 'src/a.ts',
+			displayPath: 'src/a.ts',
+			uri: 'file:///ws/a.ts',
+			additions: 1,
+			deletions: 0,
+			fileType: 'TS',
+			isBinary: false,
+			status: 'modified',
+		});
+		await timeout(0);
+		assert.ok(posted.some(message => message.messageType === 'showFile'));
+		assert.ok(posted.some(message => message.messageType === 'openGitChange' && (message.data as { uri: string }).uri === 'file:///ws/a.ts'));
+
+		posted.length = 0;
+		controller.openGitFile({
+			filename: 'gone.ts',
+			filepath: 'src/gone.ts',
+			displayPath: 'src/gone.ts',
+			uri: 'file:///ws/gone.ts',
+			additions: 0,
+			deletions: 1,
+			fileType: 'TS',
+			isBinary: false,
+			status: 'deleted',
+		});
+		await timeout(0);
+		assert.ok(posted.some(message => message.messageType === 'openGitChange'));
+		assert.ok(!posted.some(message => message.messageType === 'showFile'));
+
+		store.patch({
+			tools: [{ name: 'builtin_edit_file', group: 'Built-In' }],
+			toolSettings: { builtin_edit_file: 'allowedWithPermission' },
+			sessionToolAllowlist: ['edit'],
+		});
+		controller.cycleToolPermission('builtin_edit_file');
+		assert.deepStrictEqual(store.state.sessionToolAllowlist, []);
+
+		posted.length = 0;
+		store.patch({
+			isStreaming: true,
+			history: [{
+				id: 'a1',
+				role: 'assistant',
+				content: 'working',
+				toolCalls: [{ id: 't1', name: 'builtin_run_terminal_command', arguments: '{}', status: 'calling' }],
+			}],
+		});
+		controller.cancel();
+		await timeout(0);
+		assert.ok(posted.some(message => message.messageType === 'abort'));
+		assert.ok(posted.some(message => message.messageType === 'tools/cancel'));
+		assert.ok(posted.some(message => message.messageType === 'agent/jobs'));
+		assert.strictEqual(store.state.isStreaming, false);
 	});
 });

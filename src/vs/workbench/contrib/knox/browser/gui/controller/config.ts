@@ -43,7 +43,7 @@ export async function setup(controller: KnoxGuiController): Promise<void> {
 				lastActive: lastActiveSession(controller),
 				sessions: controller.store.state.historySessions,
 			});
-			if (startupId) {
+			if (startupId !== undefined) {
 				const overlay = controller.store.state.overlay;
 				await controller.loadSession(startupId);
 				const draft = draftSession(controller);

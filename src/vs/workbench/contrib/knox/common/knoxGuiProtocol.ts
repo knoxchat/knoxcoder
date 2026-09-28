@@ -190,7 +190,6 @@ export const KNOX_GUI_HOST_OUTBOUND = [
 	'brain/unpinMemory',
 	'brain/deleteMemory',
 	'brain/mismatchMemory',
-	'brain/forgetMemories',
 	'brain/deleteMemories',
 	'brain/unpinMemories',
 	'brain/getEffectiveContext',
@@ -248,7 +247,6 @@ export const KNOX_GUI_HOST_OUTBOUND = [
 	'brain/graphStats',
 	'brain/listSessions',
 	'brain/updateConfig',
-	'brain/stats',
 	'brain/heal',
 	'brain/optimize',
 	'checkpointWorkingTree',
@@ -307,6 +305,10 @@ export const KNOX_GUI_HOST_OUTBOUND = [
  * KN-378: leftover chrome names that native GUI listed without a caller.
  * Must stay empty — either wire a chrome caller or drop the outbound name.
  * Dropped: memory/create|search|delete|list|cleanup (brain/*), overwriteFile
- * (applyToFile / restoreCheckpoint / knox.enhancedUndo), config/reload (configUpdate inbound).
+ * (applyToFile / restoreCheckpoint / knox.enhancedUndo), config/reload (configUpdate inbound),
+ * brain/forgetMemories (brain/deleteMemory), brain/stats (brain/getConfig + brain/dashboard).
  */
 export const KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME = [] as const;
+
+/** Host requests with no GUI handler; answering keeps the host promise from hanging. */
+export const KNOX_GUI_HOST_INBOUND_EMPTY_ACK = ['didChangeIdeSettings', 'incrementFtc', 'addApiKey'] as const;

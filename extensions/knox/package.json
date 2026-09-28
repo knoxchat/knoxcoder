@@ -576,12 +576,6 @@
 				"group": "Knox"
 			},
 			{
-				"command": "knox.chatoLastOperation",
-				"category": "Knox",
-				"title": "Redo Last Undone Assistant Operation",
-				"group": "Knox"
-			},
-			{
 				"command": "knox.enhancedUndo",
 				"category": "Knox",
 				"title": "Enhanced Undo (Assistant File Change)",
@@ -896,18 +890,6 @@
 				"mac": "cmd+z",
 				"key": "ctrl+z",
 				"when": "knoxchat.diffVisible"
-			},
-			{
-				"command": "knoxchat.quickEditHistoryUp",
-				"mac": "up",
-				"key": "up",
-				"when": "false && knoxchat.quickEditHistoryFocused"
-			},
-			{
-				"command": "knoxchat.quickEditHistoryDown",
-				"mac": "down",
-				"key": "down",
-				"when": "false && knoxchat.quickEditHistoryFocused"
 			},
 			{
 				"command": "knoxchat.acceptVerticalDiffBlock",

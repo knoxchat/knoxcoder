@@ -11,16 +11,20 @@ import {
 	knoxGuiLumpLabelVisible,
 	knoxGuiRelativeFontSize,
 	knoxGuiRunningJobCount,
+	knoxGuiShowsChatScrollbar,
+	knoxGuiShowsMainComposer,
 	knoxGuiShowsScrollButtons,
+	KNOX_GUI_FIND_DEBOUNCE_MS,
+	KNOX_GUI_FIND_RESIZE_DEBOUNCE_MS,
 	KNOX_GUI_LUMP_TOOLBAR,
 	knoxGuiMetaKeyLabel,
 } from '../../../common/knoxGuiChrome.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
-import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, knoxGuiNextScrollFollow, nextExpandedStart } from '../../../common/knoxGuiChat.js';
+import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, knoxGuiFindRegexInvalid, knoxGuiNextScrollFollow, nextExpandedStart } from '../../../common/knoxGuiChat.js';
 import { createComposerInputHistory, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { visibleBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
-import { IKnoxGuiState, KnoxPermissionMode, PERMISSION_MODES, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiState, KnoxPermissionMode, PERMISSION_MODES } from '../../../common/knoxGuiState.js';
 import { pendingApplyStates } from '../../../common/knoxGuiTranscript.js';
 import { onCheckpointGraphKeyDown } from './checkpointGraph.js';
 import { checkpointTimelineEscape } from './checkpoints.js';
@@ -37,7 +41,7 @@ export function renderFatalBanner(widget: KnoxGuiWidget, state: IKnoxGuiState): 
 }
 
 export function shouldShowComposer(widget: KnoxGuiWidget, state: IKnoxGuiState): boolean {
-	return state.route === KnoxGuiRoute.Chat && !knoxGuiIsDedicatedEditor(state);
+	return knoxGuiShowsMainComposer(state);
 }
 
 export function renderToolbar(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
@@ -45,7 +49,7 @@ export function renderToolbar(widget: KnoxGuiWidget, parent: HTMLElement, state:
 	bar.setAttribute('data-testid', 'knox-gui-lump');
 	bar.setAttribute('data-composer-slot', 'lump');
 	bar.style.fontSize = `${knoxGuiRelativeFontSize(state.fontSize, -3)}px`;
-	const left = DOM.append(bar, DOM.$('.knox-gui-toolbar-left'));
+	const left = DOM.append(bar, DOM.$('.knox-gui-toolbar-left.knox-gui-xs-hide'));
 	widget.chromeButton(left, {
 		svg: 'square-plus',
 		title: t(state, 'newChat'),
@@ -212,30 +216,52 @@ export function renderAgentMenu(widget: KnoxGuiWidget, anchor: HTMLElement, stat
 export function renderFind(widget: KnoxGuiWidget, state: IKnoxGuiState): void { // KN-377
 	const row = DOM.append(widget.root, DOM.$('.knox-gui-find.find-widget-skip'));
 	row.setAttribute('data-testid', 'knox-gui-find');
+	const open = state.find.open;
+	row.classList.toggle('is-closed', !open);
+	row.setAttribute('aria-hidden', open ? 'false' : 'true');
+	if (!open) {
+		row.setAttribute('inert', '');
+	}
 	const input = DOM.append(row, DOM.$('input')) as HTMLInputElement;
 	widget.findInput = input;
-	input.value = state.find.query;
+	input.value = widget.findQueryDraft || state.find.query;
 	input.placeholder = t(state, 'search');
 	input.setAttribute('aria-label', t(state, 'search'));
 	input.setAttribute('data-knox-find-input', 'true');
-	input.disabled = state.isStreaming;
-	widget.renderStore.add(DOM.addDisposableListener(input, 'input', () => widget.controller.updateFind({ query: input.value })));
+	input.disabled = state.isStreaming || !open;
+	input.tabIndex = open ? 0 : -1;
+	widget.renderStore.add(DOM.addDisposableListener(input, 'input', () => {
+		widget.findQueryDraft = input.value;
+		if (widget.findQueryTimer) {
+			clearTimeout(widget.findQueryTimer);
+		}
+		widget.findQueryTimer = setTimeout(() => {
+			widget.findQueryTimer = undefined;
+			widget.controller.updateFind({ query: widget.findQueryDraft });
+		}, KNOX_GUI_FIND_DEBOUNCE_MS);
+	}));
 	widget.renderStore.add(DOM.addDisposableListener(input, 'keydown', (e: KeyboardEvent) => {
 		if (e.key === 'Escape') {
 			e.preventDefault();
 			widget.controller.closeFind();
 		} else if (e.key === 'Enter') {
 			e.preventDefault();
+			if (widget.findQueryTimer) {
+				clearTimeout(widget.findQueryTimer);
+				widget.findQueryTimer = undefined;
+				widget.controller.updateFind({ query: widget.findQueryDraft });
+			}
 			widget.controller.stepFind(e.shiftKey ? -1 : 1);
 		}
 	}));
-	DOM.append(row, DOM.$('span.knox-gui-find-count', undefined, state.find.total ? t(state, 'matchCount', { current: state.find.current + 1, total: state.find.total }) : t(state, 'noResults')));
+	const count = DOM.append(row, DOM.$('span.knox-gui-find-count', undefined, widget.findResizing ? t(state, 'noResults') : (state.find.total ? t(state, 'matchCount', { current: state.find.current + 1, total: state.find.total }) : t(state, 'noResults'))));
+	count.setAttribute('data-testid', 'knox-gui-find-count');
 	widget.chromeButton(row, {
 		svg: 'arrow-up',
 		svgSize: 16,
 		title: t(state, 'previousMatch'),
 		extraClass: 'knox-gui-find-nav',
-		disabled: state.find.total < 2 || state.isStreaming,
+		disabled: !open || state.find.total < 2 || state.isStreaming,
 		onClick: () => widget.controller.stepFind(-1),
 	});
 	widget.chromeButton(row, {
@@ -243,7 +269,7 @@ export function renderFind(widget: KnoxGuiWidget, state: IKnoxGuiState): void { 
 		svgSize: 16,
 		title: t(state, 'nextMatch'),
 		extraClass: 'knox-gui-find-nav',
-		disabled: state.find.total < 2 || state.isStreaming,
+		disabled: !open || state.find.total < 2 || state.isStreaming,
 		onClick: () => widget.controller.stepFind(1),
 	});
 	widget.chromeButton(row, {
@@ -251,15 +277,17 @@ export function renderFind(widget: KnoxGuiWidget, state: IKnoxGuiState): void { 
 		selected: state.find.caseSensitive,
 		title: t(state, state.find.caseSensitive ? 'closeCaseSensitive' : 'openCaseSensitive'),
 		extraClass: 'knox-gui-find-toggle',
-		disabled: state.isStreaming,
+		disabled: !open || state.isStreaming,
 		onClick: () => widget.controller.updateFind({ caseSensitive: !state.find.caseSensitive }),
 	});
+	const regexInvalid = knoxGuiFindRegexInvalid(state.find.query, state.find.regex);
 	widget.chromeButton(row, {
 		label: '.*',
 		selected: state.find.regex,
-		title: t(state, state.find.regex ? 'closeRegex' : 'openRegex'),
-		extraClass: 'knox-gui-find-toggle',
-		disabled: state.isStreaming,
+		title: t(state, regexInvalid ? 'invalidFindRegex' : (state.find.regex ? 'closeRegex' : 'openRegex')),
+		extraClass: regexInvalid ? 'knox-gui-find-toggle is-invalid' : 'knox-gui-find-toggle',
+		testId: 'knox-gui-find-regex',
+		disabled: !open || state.isStreaming,
 		onClick: () => widget.controller.updateFind({ regex: !state.find.regex }),
 	});
 	widget.chromeButton(row, {
@@ -267,8 +295,33 @@ export function renderFind(widget: KnoxGuiWidget, state: IKnoxGuiState): void { 
 		svgSize: 16,
 		title: t(state, 'close'),
 		extraClass: 'knox-gui-find-close',
+		disabled: !open,
 		onClick: () => widget.controller.closeFind(),
 	});
+}
+
+export function onPaneResize(widget: KnoxGuiWidget): void {
+	const state = widget.controller.store.state;
+	const body = widget.bodyEl;
+	if (body) {
+		const tall = knoxGuiShowsChatScrollbar(state.showChatScrollbar, Math.max(widget.root.clientHeight, window.innerHeight));
+		body.classList.toggle('knox-gui-body-scroll', tall);
+		body.classList.toggle('knox-gui-body-no-scroll', !tall);
+	}
+	if (!state.find.open) {
+		return;
+	}
+	widget.findResizing = true;
+	widget.root.classList.add('knox-gui-find-resizing');
+	if (widget.findResizeTimer) {
+		clearTimeout(widget.findResizeTimer);
+	}
+	widget.findResizeTimer = setTimeout(() => {
+		widget.findResizeTimer = undefined;
+		widget.findResizing = false;
+		widget.root.classList.remove('knox-gui-find-resizing');
+		widget.controller.updateFind({});
+	}, KNOX_GUI_FIND_RESIZE_DEBOUNCE_MS);
 }
 
 export function renderTabs(widget: KnoxGuiWidget, state: IKnoxGuiState): void { // KN-377
@@ -436,6 +489,16 @@ export function onRootKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent): void {
 		widget.controller.cancel();
 	}
 	if (e.key === 'Escape') {
+		if (widget.textDialog) {
+			e.preventDefault();
+			widget.closeTextDialog();
+			return;
+		}
+		if (widget.imageViewerUrl) {
+			e.preventDefault();
+			widget.closeImageViewer();
+			return;
+		}
 		if (widget.expandedRuleIndex !== null) {
 			e.preventDefault();
 			widget.closeRuleDialog();
@@ -482,6 +545,7 @@ export function onRootContextMenu(widget: KnoxGuiWidget, e: MouseEvent): void {
 	e.stopPropagation();
 	widget.hideOsrMenu();
 	const selection = window.getSelection();
+	widget.osrSelectedRange = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : undefined;
 	const selected = selection?.toString() ?? '';
 	const isEditable = editable.isContentEditable || editable instanceof HTMLInputElement || editable instanceof HTMLTextAreaElement;
 	const canCopy = selected.length > 0;
@@ -493,6 +557,12 @@ export function onRootContextMenu(widget: KnoxGuiWidget, e: MouseEvent): void {
 	menu.style.top = `${Math.max(4, e.clientY - rect.top)}px`;
 	const run = (command: 'cut' | 'copy' | 'paste') => {
 		editable.focus();
+		const range = widget.osrSelectedRange;
+		if (range && command !== 'paste') {
+			const next = window.getSelection();
+			next?.removeAllRanges();
+			next?.addRange(range);
+		}
 		document.execCommand(command);
 		widget.hideOsrMenu();
 	};
@@ -511,6 +581,7 @@ export function onRootContextMenu(widget: KnoxGuiWidget, e: MouseEvent): void {
 export function hideOsrMenu(widget: KnoxGuiWidget): void {
 	widget.osrMenuEl?.remove();
 	widget.osrMenuEl = undefined;
+	widget.osrSelectedRange = undefined;
 }
 
 export function toggleMenu(widget: KnoxGuiWidget, menu: 'agent' | 'model' | 'effort'): void {
@@ -528,6 +599,18 @@ export function closeMenus(widget: KnoxGuiWidget): void {
 }
 
 export function onEscape(widget: KnoxGuiWidget, e: KeyboardEvent, state: IKnoxGuiState): void {
+	if (widget.textDialog) {
+		e.preventDefault();
+		e.stopPropagation();
+		widget.closeTextDialog();
+		return;
+	}
+	if (widget.imageViewerUrl) {
+		e.preventDefault();
+		e.stopPropagation();
+		widget.closeImageViewer();
+		return;
+	}
 	if (state.addModelModal) {
 		e.preventDefault();
 		e.stopPropagation();
@@ -672,6 +755,17 @@ export function scheduleTranscriptStick(widget: KnoxGuiWidget): void {
 	});
 }
 
+/** `useEnhancedScroll`: 50ms force stick after streaming ends so the last healed block stays in view. */
+export function scheduleStreamEndStick(widget: KnoxGuiWidget): void {
+	if (widget.streamEndStickHandle !== undefined) {
+		clearTimeout(widget.streamEndStickHandle);
+	}
+	widget.streamEndStickHandle = setTimeout(() => {
+		widget.streamEndStickHandle = undefined;
+		scheduleTranscriptStick(widget);
+	}, 50);
+}
+
 export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 	if (state.route !== KnoxGuiRoute.Chat) {
 		return;
@@ -707,6 +801,10 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 	const lastRow = body.querySelector('.last-message');
 	if (lastRow) {
 		observer.observe(lastRow);
+	}
+	const markdown = body.querySelector('[data-testid="streaming-markdown"]');
+	if (markdown) {
+		observer.observe(markdown);
 	}
 	widget.renderStore.add({ dispose: () => observer.disconnect() });
 }

@@ -7,10 +7,10 @@ import type { KnoxGuiWidget } from '../knoxGuiWidget.js';
 import { t } from './t.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { knoxGuiEditSendKey } from '../../../common/knoxGuiChrome.js';
+import { knoxGuiEditSendKey, knoxGuiRelativeFontSize } from '../../../common/knoxGuiChrome.js';
 import { appendKnoxGuiSvg, KnoxGuiSvgIcon } from '../knoxGuiIcons.js';
 import { renderLoadingState } from './panels.js';
-import { setTranscriptScrollTop } from './chrome.js';
+import { scheduleTranscriptStick } from './chrome.js';
 import {
 	groupHistoryTurns,
 	lastUserHistoryIndex,
@@ -18,7 +18,10 @@ import {
 	shouldFloatLastUser,
 	visibleTurnIndexes,
 } from '../../../common/knoxGuiChat.js';
-import { appendTriggerToDoc, composerInputHistoryNext, composerInputHistoryPrev, docEndCaret, emptyInputDoc, groupMentionItems, groupSlashItems, IKnoxGuiDocCaret, inputDocIsEmpty, IKnoxGuiInputBlock, isMentionUtilityItem, knoxGuiComposerKeyAction } from '../../../common/knoxGuiInput.js';
+import { appendTriggerToDoc, composerInputHistoryNext, composerInputHistoryPrev, composerPlaceholderKey, composerUndoRecord, composerUndoStep, createComposerUndo, detectComposerTrigger, docEndCaret, emptyInputDoc, groupMentionItems, groupSlashItems, IKnoxGuiDocCaret, inputDocIsEmpty, IKnoxGuiInputBlock, isMentionUtilityItem, knoxGuiComposerKeyAction } from '../../../common/knoxGuiInput.js';
+import { hideDropOverlay, showDropOverlay } from './composer.js';
+import { patchLiveCodeFence } from './markdown.js';
+import { toolStreamFingerprint } from './tools.js';
 import { processImageFile, processImageFiles } from './images.js';
 import { visibleToolOutputPeekItems } from '../../../common/knoxGuiPanels.js';
 import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../common/knoxGuiState.js';
@@ -51,13 +54,24 @@ import {
 
 export function patchLastAssistant(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
 	const card = widget.lastAssistantCard;
-	const body = card?.querySelector('.knox-gui-stream-body') as HTMLElement | null;
 	const item = state.history[state.history.length - 1];
-	if (!card || !body || !item) {
+	if (!card || !item) {
 		widget.render();
 		return;
 	}
-	widget.renderStreamingAssistantBody(body, state, item);
+	const index = state.history.length - 1;
+	widget.patchLiveReasoning(card, state, item, index);
+	if (!patchStreamingTools(widget, card, state, item)) {
+		widget.render();
+		return;
+	}
+	const body = card.querySelector('.knox-gui-stream-body') as HTMLElement | null;
+	if (body) {
+		widget.renderStreamingAssistantBody(body, state, item);
+	} else if (assistantReplyText(item)) {
+		widget.render();
+		return;
+	}
 	const showIndicator = shouldShowThinkingIndicator({
 		isStreaming: state.isStreaming,
 		isLast: true,
@@ -74,9 +88,55 @@ export function patchLastAssistant(widget: KnoxGuiWidget, state: IKnoxGuiState):
 	} else if (!showIndicator && indicator) {
 		indicator.remove();
 	}
-	if (widget.autoScrollEnabled && widget.bodyEl) {
-		setTranscriptScrollTop(widget, widget.bodyEl, widget.bodyEl.scrollHeight);
+	if (widget.autoScrollEnabled) {
+		scheduleTranscriptStick(widget);
 	}
+}
+
+function patchStreamingTools(widget: KnoxGuiWidget, card: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem): boolean {
+	const tools = item.toolCalls ?? [];
+	if (!tools.length) {
+		return true;
+	}
+	const wrap = card.parentElement;
+	if (!wrap) {
+		return false;
+	}
+	const existing = Array.from(wrap.querySelectorAll(':scope > [data-testid="knox-gui-tool"]')) as HTMLElement[];
+	if (existing.length !== tools.length) {
+		return false;
+	}
+	for (let i = 0; i < tools.length; i++) {
+		if (existing[i].id !== activityAnchorId(`tool:${tools[i].id}`)) {
+			return false;
+		}
+	}
+	const previous = widget.listenerStore;
+	try {
+		for (let i = 0; i < tools.length; i++) {
+			const fingerprint = toolStreamFingerprint(tools[i]);
+			if (existing[i].dataset.stream === fingerprint) {
+				continue;
+			}
+			let store = widget.toolPatchStores.get(tools[i].id);
+			if (!store) {
+				store = widget.toolPatchStore.add(new DisposableStore());
+				widget.toolPatchStores.set(tools[i].id, store);
+			} else {
+				store.clear();
+			}
+			widget.listenerStore = store;
+			const host = DOM.$('div');
+			widget.renderTool(host, state, tools[i]);
+			const next = host.firstElementChild as HTMLElement | null;
+			if (next) {
+				existing[i].replaceWith(next);
+			}
+		}
+	} finally {
+		widget.listenerStore = previous;
+	}
+	return true;
 }
 
 function pastFileInfoFor(state: IKnoxGuiState, item: IKnoxGuiHistoryItem): IKnoxGuiPastFileInfo {
@@ -104,15 +164,20 @@ function streamSegments(content: string, isStreaming: boolean): StreamSegment[] 
 			}
 			continue;
 		}
-		const generating = isStreaming && fenceIndex === lastFence;
-		segments.push({ key: `fence:${fenceIndex}:${generating}:${block.closed}:${block.language}:${block.filepath ?? ''}:${block.range ?? ''}:${block.code}`, type: 'fence', fence: block, fenceIndex, generating });
+		const generating = isStreaming && fenceIndex === lastFence && !block.closed;
+		segments.push({ key: `fence:${fenceIndex}:${generating}:${block.closed}:${block.language}:${block.filepath ?? ''}:${block.range ?? ''}`, type: 'fence', fence: block, fenceIndex, generating });
 		fenceIndex += 1;
 	}
 	const last = segments[segments.length - 1];
 	if (isStreaming && last?.type === 'markdown') {
+		last.key = 'md:live';
 		last.text = healStreamingMarkdown(last.text);
 	}
 	return segments;
+}
+
+function streamPayload(segment: StreamSegment): string {
+	return segment.type === 'markdown' ? segment.text : segment.fence.code;
 }
 
 /**
@@ -123,8 +188,9 @@ export function renderStreamingAssistantBody(widget: KnoxGuiWidget, body: HTMLEl
 	const content = assistantReplyText(item) ? item.content : '';
 	const segments = content && state.markdownFormatting !== false ? streamSegments(content, state.isStreaming) : [];
 	const cache = widget.streamBlocks;
+	const anchor = body.querySelector('[data-testid="stream-anchor"]');
 	let keep = 0;
-	while (keep < cache.length && keep < segments.length - 1 && cache[keep].key === segments[keep].key && cache[keep].nodes.every(node => node.parentNode === body)) {
+	while (keep < cache.length && keep < segments.length && cache[keep].key === segments[keep].key && cache[keep].nodes.every(node => node.parentNode === body)) {
 		keep += 1;
 	}
 	for (const stale of cache.splice(keep)) {
@@ -132,33 +198,105 @@ export function renderStreamingAssistantBody(widget: KnoxGuiWidget, body: HTMLEl
 	}
 	const kept = new Set(cache.flatMap(block => block.nodes));
 	for (const child of Array.from(body.childNodes)) {
-		if (!kept.has(child)) {
-			child.remove();
+		if (child === anchor || kept.has(child)) {
+			continue;
 		}
+		child.remove();
 	}
 	if (!content) {
+		if (state.isStreaming) {
+			appendStreamAnchor(body);
+		}
 		return;
 	}
 	if (state.markdownFormatting === false) {
 		DOM.append(body, DOM.$('pre.knox-gui-raw-md', undefined, content));
+		if (state.isStreaming) {
+			appendStreamAnchor(body);
+		}
 		return;
 	}
 	const fileInfo = pastFileInfoFor(state, item);
+	if (keep === segments.length && keep > 0) {
+		refreshLiveStreamBlock(widget, body, state, item, cache[keep - 1], segments[keep - 1], fileInfo);
+	}
 	for (const segment of segments.slice(keep)) {
 		const store = widget.streamPatchStore.add(new DisposableStore());
-		const before = body.childNodes.length;
 		widget.listenerStore = store;
 		try {
-			if (segment.type === 'markdown') {
-				widget.appendMarkdown(body, segment.text, store, fileInfo);
-			} else {
-				widget.renderCodeFence(body, state, item, segment.fence, segment.fenceIndex, segment.generating);
-			}
+			const nodes = appendStreamSegment(widget, body, state, item, segment, fileInfo);
+			cache.push({ key: segment.key, nodes, store, payload: streamPayload(segment) });
 		} finally {
 			widget.listenerStore = widget.renderStore;
 		}
-		cache.push({ key: segment.key, nodes: Array.from(body.childNodes).slice(before), store });
 	}
+	if (state.isStreaming) {
+		appendStreamAnchor(body);
+	}
+}
+
+function appendStreamSegment(
+	widget: KnoxGuiWidget,
+	body: HTMLElement,
+	state: IKnoxGuiState,
+	item: IKnoxGuiHistoryItem,
+	segment: StreamSegment,
+	fileInfo: IKnoxGuiPastFileInfo,
+): ChildNode[] {
+	const anchor = body.querySelector('[data-testid="stream-anchor"]');
+	const before = Array.from(body.childNodes);
+	if (segment.type === 'markdown') {
+		widget.appendMarkdown(body, segment.text, widget.listenerStore, fileInfo, state.isStreaming);
+	} else {
+		widget.renderCodeFence(body, state, item, segment.fence, segment.fenceIndex, segment.generating);
+	}
+	const nodes = Array.from(body.childNodes).filter(node => !before.includes(node) && node !== anchor);
+	if (anchor) {
+		for (const node of nodes) {
+			body.insertBefore(node, anchor);
+		}
+	}
+	return nodes;
+}
+
+function refreshLiveStreamBlock(
+	widget: KnoxGuiWidget,
+	body: HTMLElement,
+	state: IKnoxGuiState,
+	item: IKnoxGuiHistoryItem,
+	cached: { key: string; nodes: ChildNode[]; store: DisposableStore; payload: string },
+	segment: StreamSegment,
+	fileInfo: IKnoxGuiPastFileInfo,
+): void {
+	if (cached.payload === streamPayload(segment)) {
+		return;
+	}
+	if (segment.type === 'fence' && patchLiveCodeFence(widget, cached.nodes, state, item, segment.fence, segment.fenceIndex, segment.generating)) {
+		cached.payload = streamPayload(segment);
+		return;
+	}
+	widget.streamPatchStore.delete(cached.store);
+	const store = widget.streamPatchStore.add(new DisposableStore());
+	for (const node of cached.nodes) {
+		node.remove();
+	}
+	widget.listenerStore = store;
+	try {
+		cached.store = store;
+		cached.nodes = appendStreamSegment(widget, body, state, item, segment, fileInfo);
+		cached.payload = streamPayload(segment);
+	} finally {
+		widget.listenerStore = widget.renderStore;
+	}
+}
+
+function appendStreamAnchor(body: HTMLElement): void {
+	if (body.querySelector('[data-testid="stream-anchor"]')) {
+		return;
+	}
+	const anchor = DOM.append(body, DOM.$('.knox-gui-stream-anchor'));
+	anchor.setAttribute('data-testid', 'stream-anchor');
+	anchor.setAttribute('aria-hidden', 'true');
 }
 
 /** `MarkdownBlock.tsx`: while streaming only the last fence of the reply is generating. */
@@ -168,9 +306,18 @@ function lastFenceIndex(blocks: ReturnType<typeof splitMarkdownBlocks>): number 
 
 export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 	if (state.isLoadingHistory) {
-		const loading = DOM.append(body, DOM.$('.knox-gui-empty'));
+		widget.historyLoadingStartedAt ??= Date.now();
+		const loading = DOM.append(body, DOM.$('.knox-gui-history-loading'));
 		loading.setAttribute('data-testid', 'chat-history-loading');
-		loading.textContent = t(state, 'loadingConversation');
+		renderLoadingState(widget, loading, {
+			label: t(state, 'loadingConversation'),
+			variant: 'drive',
+			startedAt: widget.historyLoadingStartedAt,
+			testId: 'sent-message-loading-state',
+			ownClock: true,
+		});
+	} else {
+		widget.historyLoadingStartedAt = undefined;
 	}
 	if (state.historyHydrateNotice === 'large') {
 		const banner = DOM.append(body, DOM.$('.knox-gui-large-banner'));
@@ -415,6 +562,7 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 	}
 	const editor = DOM.append(box, DOM.$('.knox-gui-input')) as HTMLElement;
 	editor.contentEditable = 'true';
+	editor.spellcheck = false;
 	editor.setAttribute('role', 'textbox');
 	editor.setAttribute('aria-multiline', 'true');
 	editor.setAttribute('data-testid', 'knox-gui-history-input');
@@ -428,8 +576,14 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 	widget.paintInputDoc(editor, draft.doc, onDocChange);
 	const empty = inputDocIsEmpty(draft.doc);
 	editor.dataset.empty = empty ? 'true' : 'false';
+	editor.dataset.placeholder = t(state, composerPlaceholderKey(state.mode, state.history.length));
+	if (!widget.historyUndo.has(item.id)) {
+		widget.historyUndo.set(item.id, createComposerUndo(draft.doc));
+	}
 	const bar = DOM.append(box, DOM.$('.knox-gui-input-bar'));
-	if (!focused) {
+	bar.style.fontSize = `${knoxGuiRelativeFontSize(state.fontSize, -2)}px`;
+	const keepToolbar = state.mode === 'edit';
+	if (!focused && !keepToolbar) {
 		bar.classList.add('knox-gui-input-bar--hidden');
 	}
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'focus', () => {
@@ -444,7 +598,9 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 		window.setTimeout(() => {
 			if (widget.focusedHistoryId === item.id && !box.contains(document.activeElement)) {
 				widget.focusedHistoryId = null;
-				bar.classList.add('knox-gui-input-bar--hidden');
+				if (!keepToolbar) {
+					bar.classList.add('knox-gui-input-bar--hidden');
+				}
 				if (widget.controller.suggestTarget === item.id) {
 					widget.controller.closeSuggest();
 				}
@@ -460,10 +616,19 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 		draft.doc = widget.readInputDoc(editor);
 		widget.historyDrafts.set(item.id, draft);
 		editor.dataset.empty = inputDocIsEmpty(draft.doc) ? 'true' : 'false';
-		widget.controller.onComposerInput(widget.caretDocPosition(editor), item.id);
+		if (!widget.historyUndoApplying.has(item.id)) {
+			widget.historyUndo.set(item.id, composerUndoRecord(widget.historyUndo.get(item.id) ?? createComposerUndo(draft.doc), draft.doc, Date.now()));
+		}
+		if (widget.controller.suggestTarget === item.id) {
+			widget.controller.onComposerInput(widget.caretDocPosition(editor), item.id);
+			return;
+		}
+		if (state.mode === 'edit' && detectComposerTrigger(draft.doc, undefined, { mode: 'edit' })?.kind === 'codeToEdit') {
+			widget.controller.onComposerInput(docEndCaret(draft.doc), item.id);
+		}
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'keyup', (e: KeyboardEvent) => {
-		if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') {
+		if (widget.controller.suggestTarget === item.id && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End')) {
 			recheckTrigger();
 		}
 	}));
@@ -489,6 +654,21 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 	widget.renderStore.add(DOM.addDisposableListener(box, 'dragover', (e: DragEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
+		if (widget.controller.store.state.imagesSupported) {
+			widget.historyDropOverId = item.id;
+			if (!widget.dropOverlayEl) {
+				showDropOverlay(widget, box);
+			}
+		}
+	}));
+	widget.renderStore.add(DOM.addDisposableListener(box, 'dragleave', (e: DragEvent) => {
+		if (e.relatedTarget && box.contains(e.relatedTarget as Node)) {
+			return;
+		}
+		if (widget.historyDropOverId === item.id) {
+			widget.historyDropOverId = null;
+			hideDropOverlay(widget);
+		}
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(box, 'drop', (e: DragEvent) => onHistoryEditorDrop(widget, e, item.id)));
 	widget.renderStore.add(DOM.addDisposableListener(box, 'click', () => editor.focus()));
@@ -524,6 +704,8 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 			svg: 'attach-image',
 			svgSize: 14,
 			title: t(state, 'attachImage'),
+			testId: 'knox-gui-history-attach-image',
+			extraClass: 'knox-gui-xs-hide',
 			onClick: () => file.click(),
 		});
 	}
@@ -531,6 +713,8 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 		svg: 'add-context',
 		svgSize: 13,
 		title: t(state, 'addContext'),
+		testId: 'knox-gui-history-add-context',
+		extraClass: 'knox-gui-xs-hide',
 		onClick: () => {
 			const doc = appendTriggerToDoc(widget.readInputDoc(editor), '@');
 			const caret = docEndCaret(doc);
@@ -550,6 +734,15 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 			onClick: () => widget.controller.store.patch({ webSearchEnabled: !state.webSearchEnabled }),
 		});
 	}
+	if (state.mode === 'edit') {
+		widget.chromeButton(right, {
+			label: `Esc ${t(state, 'exitEdit')}`,
+			title: t(state, 'exitEdit'),
+			testId: 'knox-gui-history-exit-edit',
+			extraClass: 'knox-gui-exit-edit knox-gui-sm-hide',
+			onClick: () => void widget.controller.exitEditMode(),
+		});
+	}
 	widget.chromeButton(right, {
 		svg: 'send',
 		svgSize: 14,
@@ -557,8 +750,8 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 		title: t(state, 'sendMessage'),
 		testId: 'knox-gui-history-send',
 		extraClass: 'knox-gui-send',
-		onClick: () => void widget.controller.submitEditedUser(index, widget.readInputDoc(editor), draft.images),
-	});
+		onClick: (_button, event) => void widget.controller.submitEditedUser(index, widget.readInputDoc(editor), draft.images, event?.altKey),
+	}).style.fontSize = `${knoxGuiRelativeFontSize(state.fontSize, -3)}px`;
 }
 
 export function readImageFileIntoDraft(widget: KnoxGuiWidget, file: File, historyId: string): void {
@@ -579,6 +772,8 @@ function addDraftImages(widget: KnoxGuiWidget, historyId: string, urls: readonly
 function onHistoryEditorDrop(widget: KnoxGuiWidget, e: DragEvent, historyId: string): void {
 	e.preventDefault();
 	e.stopPropagation();
+	widget.historyDropOverId = null;
+	hideDropOverlay(widget);
 	const state = widget.controller.store.state;
 	if (!state.imagesSupported) {
 		widget.controller.messenger.post('showToast', ['warning', t(state, 'modelNoImageSupport')]);
@@ -599,6 +794,9 @@ function onHistoryEditorDrop(widget: KnoxGuiWidget, e: DragEvent, historyId: str
 /** A picker pick in a history editor: repaint that editor and put the caret after the chip. */
 export function setHistoryDraftDoc(widget: KnoxGuiWidget, historyId: string, doc: IKnoxGuiInputBlock[], caret: IKnoxGuiDocCaret): void {
 	const draft = widget.historyDrafts.get(historyId) ?? { doc: emptyInputDoc(), images: [] };
+	if (!widget.historyUndoApplying.has(historyId)) {
+		widget.historyUndo.set(historyId, composerUndoRecord(widget.historyUndo.get(historyId) ?? createComposerUndo(draft.doc), doc, Date.now()));
+	}
 	draft.doc = doc;
 	widget.historyDrafts.set(historyId, draft);
 	const editor = widget.historyEditorEls.get(historyId);
@@ -657,6 +855,20 @@ function onHistoryEditorKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent, editor:
 		widget.controller.exitSuggestSubmenu();
 		return;
 	}
+	if (action.type === 'undo' || action.type === 'redo') {
+		e.preventDefault();
+		e.stopPropagation();
+		const current = widget.historyUndo.get(item.id) ?? createComposerUndo(draft.doc);
+		const stepped = composerUndoStep(current, action.type === 'undo' ? -1 : 1);
+		if (!stepped) {
+			return;
+		}
+		widget.historyUndoApplying.add(item.id);
+		widget.historyUndo.set(item.id, stepped.undo);
+		setHistoryDraftDoc(widget, item.id, stepped.doc, docEndCaret(stepped.doc));
+		widget.historyUndoApplying.delete(item.id);
+		return;
+	}
 	if (action.type === 'submit') {
 		e.preventDefault();
 		e.stopPropagation();
@@ -679,6 +891,10 @@ function onHistoryEditorKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent, editor:
 	if (e.key === 'Escape') {
 		e.preventDefault();
 		e.stopPropagation();
+		if (state.mode === 'edit') {
+			void widget.controller.exitEditMode();
+			return;
+		}
 		widget.controller.focusHostEditor();
 	}
 }
@@ -829,16 +1045,20 @@ export function renderAssistantTurn(widget: KnoxGuiWidget,
 		return;
 	}
 	widget.renderReasoning(card, state, item, index);
-	if (item.toolCalls?.length && !assistantReplyText(item)) {
+	if (item.toolCalls?.length && !assistantReplyText(item) && !(isLast && state.isStreaming)) {
 		if (isLast) {
 			widget.lastAssistantCard = card;
 		}
 		for (const tool of item.toolCalls) {
-			widget.renderTool(card, state, tool);
+			widget.renderTool(body, state, tool);
 		}
 		return;
 	}
-	const streamBody = DOM.append(card, DOM.$('.knox-gui-stream-body'));
+	const streamBody = DOM.append(card, DOM.$('.knox-gui-stream-body.styled-markdown-preview'));
+	streamBody.setAttribute('data-testid', 'streaming-markdown');
+	if (isLast && state.isStreaming) {
+		streamBody.setAttribute('data-streaming', 'true');
+	}
 	widget.renderAssistantBody(streamBody, state, item, isLast);
 	if (isLast) {
 		widget.lastAssistantCard = card;
@@ -866,7 +1086,7 @@ export function renderAssistantTurn(widget: KnoxGuiWidget,
 		}
 	}
 	for (const tool of item.toolCalls ?? []) {
-		widget.renderTool(card, state, tool);
+		widget.renderTool(body, state, tool);
 	}
 }
 
@@ -896,6 +1116,13 @@ export function renderAssistantBody(widget: KnoxGuiWidget, card: HTMLElement, st
 		return;
 	}
 	if (state.markdownFormatting === false) {
+		if (item.images?.length) {
+			const thumbs = DOM.append(card, DOM.$('.knox-gui-thumbs'));
+			thumbs.setAttribute('data-testid', 'knox-gui-image-thumbs');
+			for (const [imageIndex, url] of item.images.entries()) {
+				widget.renderThumb(thumbs, state, url, `assistant-${imageIndex}`, t(state, 'historicalImageAlt', { index: imageIndex + 1 }), () => undefined);
+			}
+		}
 		DOM.append(card, DOM.$('pre.knox-gui-raw-md', undefined, content));
 		return;
 	}
@@ -910,7 +1137,7 @@ export function renderAssistantBody(widget: KnoxGuiWidget, card: HTMLElement, st
 			}
 			continue;
 		}
-		widget.renderCodeFence(card, state, item, block, fenceIndex, isLast && state.isStreaming && fenceIndex === lastFence);
+		widget.renderCodeFence(card, state, item, block, fenceIndex, isLast && state.isStreaming && fenceIndex === lastFence && !block.closed);
 		fenceIndex += 1;
 	}
 }
@@ -924,7 +1151,7 @@ export function renderActivityTimeline(widget: KnoxGuiWidget, parent: HTMLElemen
 	const { visible, hiddenCount } = visibleActivitySteps(steps, expanded);
 	const wrap = DOM.append(parent, DOM.$('.knox-gui-activity'));
 	wrap.setAttribute('data-testid', 'agent-activity-timeline');
-	wrap.style.fontSize = `${Math.max(9, state.fontSize - 2)}px`;
+	wrap.style.fontSize = `${state.fontSize - 2}px`;
 	const toggle = DOM.append(wrap, DOM.$('button.knox-gui-activity-summary')) as HTMLButtonElement;
 	toggle.type = 'button';
 	widget.hover(toggle, t(state, 'activityTimeline'));
@@ -941,7 +1168,7 @@ export function renderActivityTimeline(widget: KnoxGuiWidget, parent: HTMLElemen
 	if (hiddenCount > 0) {
 		widget.chromeButton(wrap, {
 			label: t(state, 'activityShowEarlier', { count: hiddenCount }),
-			extraClass: 'knox-gui-activity-earlier',
+			extraClass: 'knox-gui-activity-earlier knox-gui-text-action',
 			onClick: () => {
 				widget.activityExpanded.add(userIndex);
 				widget.render();

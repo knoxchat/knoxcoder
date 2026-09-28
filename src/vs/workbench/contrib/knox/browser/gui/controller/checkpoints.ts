@@ -92,7 +92,16 @@ function parseCheckpointNode(item: unknown): IKnoxGuiState['checkpoints'][number
 			: undefined,
 		parents: asArray(rec.parents).map(String),
 		fileChanges: parseFileChanges(rec.fileChanges ?? rec.fileStats),
+		isIncremental: rec.isIncremental === true,
+		deltaDepth: Number.isFinite(Number(rec.deltaDepth)) ? Number(rec.deltaDepth) : undefined,
+		timelineRisk: parseTimelineRisk(rec.analysis),
 	};
+}
+
+function parseTimelineRisk(analysis: unknown): IKnoxGuiState['checkpoints'][number]['timelineRisk'] {
+	const rec = asRecord(analysis);
+	const level = asRecord(rec?.riskAssessment)?.level;
+	return level === 'Low' || level === 'Medium' || level === 'High' || level === 'Critical' ? level : undefined;
 }
 
 function parseCheckpointBranch(item: unknown): IKnoxGuiState['checkpointBranches'][number] {
@@ -713,13 +722,12 @@ export async function loadCheckpointTimeline(controller: KnoxGuiController, show
 		const result = await controller.messenger.request<Record<string, unknown>>('getCheckpointTimeline', { limit: 500 });
 		const nodes = asArray(result?.checkpoints).map(item => {
 			const rec = asRecord(item) ?? {};
-			const node = parseCheckpointNode({
+			return parseCheckpointNode({
 				...rec,
 				kind: rec.kind ?? rec.type,
 				created: rec.created ?? rec.dateCreated,
 				parents: rec.parents ?? (rec.parentId ? [rec.parentId] : []),
 			});
-			return rec.isIncremental === true ? { ...node, isIncremental: true } : node;
 		});
 		controller.store.patch({
 			checkpointTimeline: nodes,

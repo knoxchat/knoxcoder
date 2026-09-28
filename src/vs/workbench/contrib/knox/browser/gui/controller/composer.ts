@@ -376,7 +376,7 @@ export function onComposerInput(controller: KnoxGuiController, caret?: IKnoxGuiD
 		controller.closeSuggest();
 	}
 	controller.suggestTarget = target;
-	const trigger = detectComposerTrigger(targetDoc(controller), caret, { mode: target ? 'chat' : state.mode });
+	const trigger = detectComposerTrigger(targetDoc(controller), caret, { mode: state.mode });
 	if (trigger?.kind === 'mention') {
 		if (state.suggestCodeToEdit) {
 			controller.store.patch({ suggestCodeToEdit: false, suggestItems: [] });

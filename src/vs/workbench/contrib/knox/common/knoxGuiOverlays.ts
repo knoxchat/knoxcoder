@@ -83,6 +83,7 @@ export interface IKnoxGuiAddModelPackage {
 	category?: string;
 	icon?: string;
 	tags?: string[];
+	browse?: boolean;
 	providerOptions?: string[];
 	dimensions?: IKnoxGuiPackageDimension[];
 	supportsTools?: boolean;
@@ -286,7 +287,75 @@ export const ADD_MODEL_PROVIDERS: IKnoxGuiAddModelProvider[] = [
 		}],
 		params: { contextLength: 128000 },
 	},
+	{
+		id: 'openai',
+		title: 'OpenAI',
+		provider: 'openai',
+		descriptionKey: 'openaiDescription',
+		longDescriptionKey: 'openaiLongDescription',
+		icon: 'openai.svg',
+		tags: ['tagApiKeyRequired'],
+		apiKeyUrl: 'https://platform.openai.com/account/api-keys',
+		collectInputFor: [API_KEY_INPUT, ...COMPLETION_PARAMS_INPUTS],
+		packages: [
+			{ title: 'GPT-4o', description: 'An even faster version of GPT-4 with stronger multi-modal capabilities.', providerOptions: ['openai'], browse: true, params: { title: 'GPT-4o', model: 'gpt-4o', contextLength: 128000, systemMessage: 'You are an expert software developer. You give helpful and concise responses.' } },
+			{ title: 'GPT-4o Mini', description: 'A model at less than half the price of gpt-3.5-turbo, but near gpt-4 in capabilities.', providerOptions: ['openai'], params: { title: 'GPT-4o mini', model: 'gpt-4o-mini', contextLength: 128000, systemMessage: 'You are an expert software developer. You give helpful and concise responses.' } },
+			{ title: 'GPT-4 Turbo', description: 'A faster and more capable version of GPT-4 with longer context length and image support', providerOptions: ['openai'], browse: true, params: { title: 'GPT-4 Turbo', model: 'gpt-4-turbo', contextLength: 128000 } },
+			{ title: 'GPT-3.5-Turbo', description: 'A faster, cheaper OpenAI model with slightly lower capabilities', providerOptions: ['openai'], browse: true, params: { title: 'GPT-3.5-Turbo', model: 'gpt-3.5-turbo', contextLength: 8096 } },
+			{ title: 'Autodetect', description: 'Automatically populate the model list by calling the /models endpoint of the server', params: { title: 'OpenAI', model: 'AUTODETECT' } },
+		],
+		params: { contextLength: 128000 },
+	},
+	{
+		id: 'anthropic',
+		title: 'Anthropic',
+		provider: 'anthropic',
+		descriptionKey: 'anthropicDescription',
+		longDescriptionKey: 'anthropicLongDescription',
+		icon: 'anthropic.svg',
+		tags: ['tagApiKeyRequired'],
+		refPage: 'anthropicllm',
+		apiKeyUrl: 'https://console.anthropic.com/account/keys',
+		collectInputFor: [API_KEY_INPUT, ...COMPLETION_PARAMS_INPUTS, { key: 'contextLength', labelKey: 'contextLength', inputType: 'number', required: false, defaultValue: 100000 }],
+		packages: [
+			{ title: 'Claude 3.5 Sonnet', description: 'Anthropic\'s most intelligent model, but much less expensive than Claude 3 Opus', providerOptions: ['anthropic'], params: { title: 'Claude 3.5 Sonnet', model: 'claude-3-5-sonnet-latest', contextLength: 200000 } },
+			{ title: 'Claude 3 Opus', description: 'The most capable model in the Claude 3 series, beating GPT-4 on many benchmarks', providerOptions: ['anthropic'], browse: true, params: { title: 'Claude 3 Opus', model: 'claude-3-opus-20240229', contextLength: 200000 } },
+			{ title: 'Claude 3 Sonnet', description: 'The second most capable model in the Claude 3 series: ideal balance of intelligence and speed', providerOptions: ['anthropic'], browse: true, params: { title: 'Claude 3 Sonnet', model: 'claude-3-sonnet-20240229', contextLength: 200000 } },
+			{ title: 'Claude 3.5 Haiku', description: 'The fastest model in the Claude 3.5 series: a compact model for near-instant responsiveness', providerOptions: ['anthropic'], browse: true, params: { title: 'Claude 3.5 Haiku', model: 'claude-3-5-haiku-latest', contextLength: 200000 } },
+		],
+		params: { contextLength: 200000 },
+	},
 ];
+
+export function addModelPackagesByProvider(): Array<{ providerId: string; title: string; icon?: string; packages: IKnoxGuiAddModelPackage[] }> {
+	return ADD_MODEL_PROVIDERS
+		.filter(provider => provider.id !== 'knoxchat')
+		.map(provider => ({ providerId: provider.id, title: provider.title, icon: provider.icon, packages: provider.packages }));
+}
+
+/** Curated browse-by-model list from `AddNewModel.tsx` `modelsByProvider`. */
+const ADD_MODEL_BROWSE_ORDER: Record<string, string[]> = {
+	openai: ['gpt-4-turbo', 'gpt-4o', 'gpt-3.5-turbo'],
+	anthropic: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-5-haiku-latest'],
+};
+
+export function addModelBrowseGroups(): Array<{ providerId: string; title: string; icon?: string; packages: IKnoxGuiAddModelPackage[] }> {
+	return ADD_MODEL_PROVIDERS
+		.filter(provider => provider.id !== 'knoxchat')
+		.map(provider => {
+			const byModel = new Map(provider.packages.map(pack => [pack.params.model, pack]));
+			const packages = (ADD_MODEL_BROWSE_ORDER[provider.id] ?? provider.packages.filter(pack => pack.browse).map(pack => pack.params.model))
+				.map(model => byModel.get(model))
+				.filter((pack): pack is IKnoxGuiAddModelPackage => Boolean(pack));
+			return {
+				providerId: provider.id,
+				title: provider.id === 'openai' ? 'Open AI' : provider.title,
+				icon: provider.icon,
+				packages,
+			};
+		})
+		.filter(group => group.packages.length > 0);
+}
 
 export function addModelProviderById(id: string | undefined): IKnoxGuiAddModelProvider | undefined {
 	return ADD_MODEL_PROVIDERS.find(provider => provider.id === id);
@@ -1068,20 +1137,28 @@ export function formatSessionExportMarkdown(session: {
 	title: string;
 	workspaceDirectory?: string;
 	history: Array<{ role: string; content: string }>;
-}, now = new Date()): string {
-	let content = `### [Knox](https://knox.chat) Knox session transcript\n exported: ${now.toLocaleString()}`;
-	content += `\n\n**Session:** ${session.title}`;
+}, now = new Date(), t: (key: string) => string = key => ({
+		knoxSessionTranscript: 'Knox session transcript',
+		exported: 'Exported',
+		sessionLabel: 'Session',
+		workspaceLabel: 'Workspace',
+		userRole: 'User',
+		assistantRole: 'Assistant',
+		noMessagesInSession: 'No messages in this session.',
+	}[key] ?? key)): string {
+	let content = `### [Knox](https://knox.chat) ${t('knoxSessionTranscript')}\n ${t('exported')}: ${now.toLocaleString()}`;
+	content += `\n\n**${t('sessionLabel')}:** ${session.title}`;
 	if (session.workspaceDirectory) {
-		content += `\n**Workspace:** ${workspaceBasename(session.workspaceDirectory)}`;
+		content += `\n**${t('workspaceLabel')}:** ${workspaceBasename(session.workspaceDirectory)}`;
 	}
 	if (session.history.length) {
 		for (const item of session.history) {
 			const quoted = item.content.replace(/^/gm, '> ');
-			const role = item.role === 'user' ? 'user' : 'assistant';
+			const role = t(item.role === 'user' ? 'userRole' : 'assistantRole');
 			content += `\n\n#### _${role}_\n\n${quoted}`;
 		}
 	} else {
-		content += `\n\n_No messages in session_`;
+		content += `\n\n_${t('noMessagesInSession')}_`;
 	}
 	return content;
 }

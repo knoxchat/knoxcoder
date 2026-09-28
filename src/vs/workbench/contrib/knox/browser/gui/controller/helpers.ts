@@ -27,11 +27,19 @@ export function textFromUnknown(value: unknown): string {
 	if (Array.isArray(value)) {
 		return value.map(part => {
 			const rec = asRecord(part);
+			if (typeof part === 'string') {
+				return part;
+			}
 			if (rec && typeof rec.text === 'string') {
 				return rec.text;
 			}
-			return typeof part === 'string' ? part : '';
-		}).join('');
+			if (rec && (rec.type === 'imageUrl' || rec.type === 'image' || rec.imageUrl)) {
+				const image = asRecord(rec.imageUrl);
+				const url = typeof rec.imageUrl === 'string' ? rec.imageUrl : String(image?.url ?? rec.url ?? '');
+				return url ? `![image](${url})` : '';
+			}
+			return '';
+		}).filter(Boolean).join('\n');
 	}
 	const rec = asRecord(value);
 	if (rec && typeof rec.content === 'string') {

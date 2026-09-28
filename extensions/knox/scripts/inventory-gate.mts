@@ -6,7 +6,7 @@
 /**
  * KN-207: fail if fork-owned trees still import from the leftover product tree.
  * KN-390: fail if living trees still mention leftover path markers. Only
- * knox-native.md and CHANGELOG.md may keep those strings as history.
+ * knox-native.md, knox-parity.md, and CHANGELOG.md may keep those strings as history.
  * KN-391: fail if gulp or npm dirs still point at leftover ./knox.
  * KN-392: fail if the leftover product directory at repo root still exists.
  */
@@ -29,6 +29,7 @@ const TEXT_FILE_RE = /\.(ts|tsx|mts|cts|js|mjs|cjs|json|md|yml|yaml|sh|txt|html|
 
 const HISTORY_REL_PATHS = new Set([
 	'knox-native.md',
+	'knox-parity.md',
 	'CHANGELOG.md',
 ]);
 
@@ -121,7 +122,7 @@ export function assertNoLegacyKnoxPathMentions(repoRoot = defaultRepoRoot()): vo
 	const hits = findLegacyKnoxPathMentions(repoRoot);
 	if (hits.length > 0) {
 		throw new Error(
-			`KN-390: leftover path mentions remain (only knox-native.md and CHANGELOG.md are history):\n` +
+			`KN-390: leftover path mentions remain (only knox-native.md, knox-parity.md, and CHANGELOG.md are history):\n` +
 			hits.map(hit => `  ${hit}`).join('\n'),
 		);
 	}

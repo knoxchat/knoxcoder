@@ -230,5 +230,8 @@ export function knoxGuiStartupSession(params: {
 	if (last && params.sessions.some(session => session.id === last)) {
 		return last;
 	}
-	return params.workspace ? params.sessions[0]?.id || undefined : undefined;
+	if (!params.workspace) {
+		return undefined;
+	}
+	return params.sessions.length ? params.sessions[0].id : undefined;
 }

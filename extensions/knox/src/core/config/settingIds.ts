@@ -72,8 +72,6 @@ export const KNOX_SYNC_KEYBINDING_COMMANDS = [
   "knoxchat.focusKnoxInputWithoutClear",
   "knoxchat.acceptDiff",
   "knoxchat.rejectDiff",
-  "knoxchat.quickEditHistoryUp",
-  "knoxchat.quickEditHistoryDown",
   "knoxchat.acceptVerticalDiffBlock",
   "knoxchat.rejectVerticalDiffBlock",
   "knoxchat.focusEdit",

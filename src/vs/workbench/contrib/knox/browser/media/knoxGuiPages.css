@@ -16,6 +16,16 @@
 	width: 24px;
 	height: 24px;
 	flex-shrink: 0;
+	border-radius: 4px;
+}
+
+.knox-gui-role-gear:hover {
+	background: rgba(110, 110, 119, 0.2);
+}
+
+.knox-gui-model-role-label {
+	color: var(--vscode-foreground);
+	font-size: calc(1em - 3px);
 }
 
 .knox-gui-role-gear-hidden {
@@ -373,8 +383,8 @@
 }
 
 .knox-gui-provider-card:hover:not(:disabled) {
-	border-color: #159994;
-	background: rgba(21, 153, 148, 0.08);
+	border-color: #189e72;
+	background: #189e7222;
 }
 
 .knox-gui-provider-card:disabled {
@@ -560,6 +570,10 @@
 	cursor: pointer;
 }
 
+.knox-gui-tool-perm-row:not(.knox-gui-tool-excluded):not(.knox-gui-tool-pending) .knox-gui-tool-perm-main:hover {
+	background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.1));
+}
+
 .knox-gui-tool-perm-left {
 	display: flex;
 	align-items: center;
@@ -654,6 +668,46 @@
 	gap: 8px;
 }
 
+.knox-gui-history-actions {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	padding: 4px 0;
+	backdrop-filter: blur(8px);
+	background: color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 85%, transparent);
+}
+
+@container knox-gui (max-width: 329px) {
+	.knox-gui-history-actions .knox-gui-lump-label {
+		display: none;
+	}
+}
+
+.knox-gui-history-group + .knox-gui-history-group,
+.knox-gui-history-group-head {
+	border-top: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+}
+
+.knox-gui-check {
+	width: 20px;
+	height: 20px;
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: 1px solid #159994;
+	border-radius: 3px;
+	background: transparent;
+	color: #159994;
+	cursor: pointer;
+}
+
+.knox-gui-check.selected {
+	background: #159994;
+	color: #fff;
+}
+
 .knox-gui-history-search {
 	position: relative;
 	display: flex;
@@ -726,6 +780,11 @@
 	position: relative;
 }
 
+.knox-gui-history-row:focus-visible {
+	outline: 1px solid #159994;
+	outline-offset: 1px;
+}
+
 .knox-gui-history-row.selected {
 	background: rgba(21, 153, 148, 0.08);
 	border: 1px solid rgba(21, 153, 148, 0.3);
@@ -744,6 +803,10 @@
 	white-space: nowrap;
 	font-weight: 600;
 	font-size: 13px;
+}
+
+.knox-gui-history-row:hover .knox-gui-history-title {
+	padding-right: 5rem;
 }
 
 .knox-gui-history-meta {
@@ -798,10 +861,12 @@
 	position: absolute;
 	right: 8px;
 	top: 8px;
-	gap: 4px;
-	background: rgba(30, 30, 30, 0.85);
+	gap: 8px;
+	padding: 4px 6px;
 	border-radius: 999px;
-	padding: 2px 4px;
+	background: rgba(30, 30, 30, 0.85);
+	box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+	backdrop-filter: blur(4px);
 }
 
 .knox-gui-history-row:hover .knox-gui-history-hover {
@@ -822,18 +887,25 @@
 
 .knox-gui-settings-card {
 	border: 1px solid var(--vscode-widget-border);
-	border-radius: 8px;
-	padding: 16px 12px;
+	border-radius: 6px;
+	padding: 24px;
 	margin-bottom: 8px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
 }
 
 .knox-gui-settings-card.compact {
-	padding: 8px 12px;
+	padding: 16px 12px;
+	gap: 12px;
 }
 
-.knox-gui-settings-card h3 {
-	margin: 0 0 8px;
+.knox-gui-settings-card h3,
+.knox-gui-settings-card .knox-gui-cyan {
+	margin: 0;
 	font-size: 13px;
+	color: #159994;
 }
 
 .knox-gui-settings-card.compact h3 {
@@ -849,22 +921,24 @@
 .knox-gui-ok {
 	display: flex;
 	gap: 8px;
-	padding: 8px;
+	padding: 16px;
 	border-radius: 6px;
+	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
 }
 
 .knox-gui-error-card {
-	background: rgba(241, 76, 76, 0.12);
-	color: #f14c4c;
+	background: #fee2e2;
+	color: #991b1b;
 }
 
 .knox-gui-warn-card {
-	background: rgba(234, 179, 8, 0.12);
-	color: #eab308;
+	background: #fef9c3;
+	color: #854d0e;
 }
 
 .knox-gui-ok {
-	background: rgba(21, 153, 148, 0.12);
+	background: #dcfce7;
+	color: #15803d;
 }
 
 .knox-gui-provider-grid {
@@ -892,5 +966,23 @@
 
 .knox-gui-phase.selected {
 	outline: 1px solid #159994;
+}
+
+@container knox-gui (max-width: 287px) {
+	.knox-gui-history-label-select .knox-gui-lump-label {
+		display: none;
+	}
+}
+
+@container knox-gui (max-width: 319px) {
+	.knox-gui-history-delete-btn .knox-gui-lump-label {
+		display: none;
+	}
+}
+
+@container knox-gui (max-width: 447px) {
+	.knox-gui-history-label-wide .knox-gui-lump-label {
+		display: none;
+	}
 }
 

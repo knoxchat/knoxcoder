@@ -11,17 +11,21 @@ import { knoxGuiShortcutKeys } from '../../../common/knoxGuiChrome.js';
 import { appendKnoxGuiSvg, KnoxGuiSvgIcon } from '../knoxGuiIcons.js';
 import { IKnoxGuiState } from '../../../common/knoxGuiState.js';
 
-export function back(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, title?: string): void {
+export function back(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, title?: string, extraClass?: string): void {
 	const header = DOM.append(body, DOM.$('.knox-gui-page-header'));
+	header.classList.add('knox-gui-page-header-back');
+	for (const token of extraClass?.split(/\s+/).filter(Boolean) ?? []) {
+		header.classList.add(token);
+	}
+	const largeArrow = header.classList.contains('knox-gui-page-header-lg-arrow');
 	widget.chromeButton(header, {
 		svg: 'arrow-left',
-		svgSize: 12,
+		svgSize: largeArrow ? 16 : 12,
 		title: t(state, 'backToChat'),
 		extraClass: 'knox-gui-page-back',
 		onClick: () => widget.controller.store.navigate('/'),
 	});
 	DOM.append(header, DOM.$('span.knox-gui-page-title', undefined, title ?? t(state, 'backToChat')));
-	header.classList.add('knox-gui-page-header-back');
 	widget.renderStore.add(DOM.addDisposableListener(header, 'click', e => {
 		if (!(e.target as HTMLElement).closest('.knox-gui-page-back')) {
 			widget.controller.store.navigate('/');
@@ -44,20 +48,57 @@ export function toggle(widget: KnoxGuiWidget, body: HTMLElement, label: string, 
 
 export function numberField(widget: KnoxGuiWidget, body: HTMLElement, label: string, value: number, min: number, max: number, onChange: (value: number) => void, step?: number, suffix?: string): void {
 	const row = DOM.append(body, DOM.$('label.knox-gui-row'));
-	DOM.append(row, DOM.$('span', undefined, label));
+	if (label) {
+		DOM.append(row, DOM.$('span', undefined, label));
+	}
 	const field = DOM.append(row, DOM.$('.knox-gui-number-field'));
+	const current = Number.isFinite(value) ? value : min;
+	const delta = step ?? 1;
+	const emit = (next: number) => onChange(Math.min(max, Math.max(min, next)));
+	const dec = DOM.append(field, DOM.$('button.knox-gui-number-step')) as HTMLButtonElement;
+	dec.type = 'button';
+	dec.setAttribute('aria-label', t(widget.controller.store.state, 'decreaseValue'));
+	dec.disabled = current <= min;
+	dec.textContent = '−';
+	widget.listenerStore.add(DOM.addDisposableListener(dec, 'click', e => {
+		e.preventDefault();
+		e.stopPropagation();
+		emit(current - delta);
+	}));
 	const input = DOM.append(field, DOM.$('input')) as HTMLInputElement;
-	input.type = 'number';
-	input.value = String(Number.isFinite(value) ? value : min);
-	input.min = String(min);
-	input.max = String(max);
+	input.type = 'text';
+	input.inputMode = 'numeric';
+	input.value = String(current);
+	input.setAttribute('aria-label', t(widget.controller.store.state, 'numberInput'));
 	if (step != null) {
 		input.step = String(step);
 	}
+	const inc = DOM.append(field, DOM.$('button.knox-gui-number-step')) as HTMLButtonElement;
+	inc.type = 'button';
+	inc.setAttribute('aria-label', t(widget.controller.store.state, 'increaseValue'));
+	inc.disabled = current >= max;
+	inc.textContent = '+';
+	widget.listenerStore.add(DOM.addDisposableListener(inc, 'click', e => {
+		e.preventDefault();
+		e.stopPropagation();
+		emit(current + delta);
+	}));
 	if (suffix) {
 		DOM.append(field, DOM.$('span.knox-gui-field-suffix', undefined, suffix));
 	}
-	widget.listenerStore.add(DOM.addDisposableListener(input, 'change', () => onChange(Number(input.value))));
+	widget.listenerStore.add(DOM.addDisposableListener(input, 'change', () => {
+		const parsed = Number(input.value);
+		emit(Number.isFinite(parsed) ? parsed : current);
+	}));
+	widget.listenerStore.add(DOM.addDisposableListener(input, 'keydown', (e: KeyboardEvent) => {
+		if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			emit(current + delta);
+		} else if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			emit(current - delta);
+		}
+	}));
 }
 
 export function hintedNumber(widget: KnoxGuiWidget, body: HTMLElement, label: string, hint: string, value: number, min: number, max: number, onChange: (value: number) => void): void {

@@ -153,6 +153,14 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiSessions.loadSession(this, id, options);
 	}
 
+	async openHistorySession(sessionId: string): Promise<void> {
+		return knoxGuiSessions.openHistorySession(this, sessionId);
+	}
+
+	ensureSessionId(): string {
+		return knoxGuiSessions.ensureSessionId(this);
+	}
+
 	async activateTab(tabId: string): Promise<void> {
 		return knoxGuiSessions.activateTab(this, tabId);
 	}
@@ -615,6 +623,10 @@ export class KnoxGuiController extends Disposable {
 
 	saveInputHistory(kind: 'chat' | 'edit', entries: IKnoxGuiInputBlock[][]): void {
 		knoxGuiPersistence.saveInputHistory(this, kind, entries);
+	}
+
+	noteMainComposerSend(): boolean {
+		return knoxGuiPersistence.noteMainComposerSend(this);
 	}
 
 	resetPersistedState(): void {

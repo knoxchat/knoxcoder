@@ -1546,5 +1546,17 @@ export const knoxGuiStringsEn: Record<string, unknown> = {
 	"rejectSelected": "Reject selected",
 	"listModels": "List models",
 	"selected": "selected",
-	"terminal": "Terminal"
+	"terminal": "Terminal",
+	"textDialogMilestoneTitle": "You've sent 300 messages",
+	"textDialogMilestoneBody": "Thanks for using Knox. This composer milestone shows up once.",
+	"invalidFindRegex": "Invalid regular expression",
+	"addModelOption1": "Start with a provider, then pick a package.",
+	"addModelOption2": "Or jump straight to a specific model.",
+	"startWithProvider": "Start with provider",
+	"selectSpecificModel": "Select specific model",
+	"selectModelBelow": "Select a model from the most popular options below, or configure your own in config.json",
+	"openaiDescription": "GPT-4o, GPT-4 Turbo, GPT-3.5, and AUTODETECT",
+	"openaiLongDescription": "Use an OpenAI API key to add GPT models from the official API.",
+	"anthropicDescription": "Claude 3.5 Sonnet/Haiku and Claude 3 Opus/Sonnet",
+	"anthropicLongDescription": "Use an Anthropic API key to add Claude models from the official API."
 } as const;

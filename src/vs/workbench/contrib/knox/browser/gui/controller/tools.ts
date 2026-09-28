@@ -7,19 +7,21 @@ import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { parseAskQuestions } from './helpers.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ASK_USER_TOOL_NAMES, parseToolArgs } from '../../../common/knoxGuiChat.js';
-import { mergeStreamedToolCalls, toolOutputItemsFromUnknown, toolOutputText } from '../../../common/knoxGuiTools.js';
+import { isSamePermissionTool, mergeStreamedToolCalls, toolOutputItemsFromUnknown, toolOutputText } from '../../../common/knoxGuiTools.js';
 import { IKnoxGuiToolCall, KnoxPermissionMode, knoxGuiApplyToolPreset, nextPermissionMode, nextToolSetting } from '../../../common/knoxGuiState.js';
 import { isAutonomousRunning, resolveAutonomousTool } from './stream.js';
 import { KNOX_DENIED_TOOL_OUTPUT, KnoxGuiToolDecision, knoxGuiAskUserOutput, knoxGuiLocalAutoApprove, knoxGuiMissingToolOutput, knoxGuiToolIsSettled } from '../../../common/knoxGuiAgentRequest.js';
 
 export function cycleToolPermission(controller: KnoxGuiController, name: string): void {
-	if (controller.store.state.sessionToolAllowlist.includes(name)) {
-		controller.store.patch({ sessionToolAllowlist: controller.store.state.sessionToolAllowlist.filter(item => item !== name) });
+	const tools = controller.store.state.tools;
+	const allowlist = controller.store.state.sessionToolAllowlist;
+	if (allowlist.some(item => isSamePermissionTool(item, name, tools))) {
+		controller.store.patch({ sessionToolAllowlist: allowlist.filter(item => !isSamePermissionTool(item, name, tools)) });
 		return;
 	}
 	controller.cycleToolSetting(name);
 	if (controller.store.state.toolSettings[name] === 'allowedWithoutPermission') {
-		controller.store.patch({ sessionToolAllowlist: controller.store.state.sessionToolAllowlist.filter(item => item !== name) });
+		controller.store.patch({ sessionToolAllowlist: controller.store.state.sessionToolAllowlist.filter(item => !isSamePermissionTool(item, name, tools)) });
 	}
 }
 

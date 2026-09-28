@@ -59,7 +59,11 @@
 	position: relative;
 	isolation: isolate;
 	padding: 1px;
-	margin: 0 8px 10px;
+	margin: 0;
+	width: 100%;
+	min-width: 0;
+	max-width: 100%;
+	box-sizing: border-box;
 	border-radius: 0;
 	transition:
 		border-radius 0.35s ease,
@@ -99,8 +103,10 @@
 	z-index: 1;
 	display: flex;
 	width: 100%;
+	min-width: 0;
+	flex: 1 1 auto;
 	flex-direction: row;
-	align-items: center;
+	align-items: stretch;
 	overflow: hidden;
 	border-radius: inherit;
 	background: var(--vscode-input-background, rgb(45 45 45));
@@ -150,8 +156,8 @@
 }
 
 .knox-gui-reasoning {
-	margin: 6px 0;
-	border: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+	margin: 8px 0;
+	border: 1px solid var(--vscode-panel-border, #3c3c3c);
 	border-radius: 6px;
 	overflow: hidden;
 	background: var(--vscode-editor-background);
@@ -160,48 +166,96 @@
 .knox-gui-reasoning-header {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 4px;
 	width: 100%;
-	padding: 4px 8px;
+	padding: 4px 6px;
 	border: none;
 	background: var(--vscode-sideBar-background, var(--vscode-editor-background));
 	color: var(--vscode-descriptionForeground);
-	font-size: 11px;
 	cursor: pointer;
 }
 
-.knox-gui-reasoning-header.thinking::after {
+.knox-gui-reasoning:has(.knox-gui-reasoning-body) .knox-gui-reasoning-header {
+	border-bottom: 1px solid var(--vscode-panel-border, #3c3c3c);
+}
+
+.knox-gui-reasoning-title {
+	font-weight: 500;
+	font-size: inherit;
+}
+
+.knox-gui-thinking-ellipsis {
+	position: relative;
+	padding-right: 20px;
+}
+
+.knox-gui-thinking-ellipsis::after,
+.knox-gui-reasoning-header.thinking .knox-gui-thinking-ellipsis::after {
 	content: "...";
+	position: absolute;
+	width: 0;
+	display: inline-block;
 	overflow: hidden;
 	animation: knox-thinking-ellipsis 1s steps(4, end) infinite;
+}
+
+.knox-gui-reasoning-header.thinking::after {
+	content: none;
 }
 
 @keyframes knox-thinking-ellipsis {
 	0%, 100% { width: 0; }
 	33% { width: 8px; }
 	66% { width: 16px; }
+	90% { width: 24px; }
 }
 
 .knox-gui-reasoning-body {
 	max-height: 228px;
 	overflow: auto;
-	padding: 8px;
+	overflow-anchor: none;
+	contain: layout;
+	background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	scrollbar-width: thin;
+}
+
+.knox-gui-reasoning-content {
+	padding: 12px;
+}
+
+.knox-gui-reasoning-body.no-scroll {
+	max-height: none;
+	overflow: visible;
+}
+
+.knox-gui-reasoning-live {
+	scroll-behavior: auto;
 }
 
 .knox-gui-thinking-peek {
-	margin: 4px 8px;
+	margin: 0;
+	padding-left: 8px;
 }
 
 .knox-gui-thinking-chip {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
+	width: fit-content;
+	margin: 8px 6px 8px 2px;
 	padding: 4px 8px;
-	border: 0.5px solid var(--vscode-widget-border, #606060);
+	border: 0.5px solid #6e6e77;
 	border-radius: 4px;
 	background: var(--vscode-editor-background);
-	color: var(--vscode-descriptionForeground);
+	color: #6e6e77;
 	font-size: 11px;
+	cursor: pointer;
+	box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+	transition: box-shadow 0.2s ease;
+}
+
+.knox-gui-thinking-chip:hover {
+	box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
 	cursor: pointer;
 }
 
@@ -221,9 +275,15 @@
 }
 
 .knox-gui-thinking-peek-body {
-	margin: 6px 0 0 8px;
+	margin: 8px 0 8px 8px;
 	padding-left: 8px;
 	border-left: 2px solid var(--vscode-input-border, #606060);
+}
+
+.knox-gui-thinking-redacted {
+	padding-left: 16px;
+	font-size: 12px;
+	color: #fd7e14;
 }
 
 .knox-gui-code-block {
@@ -261,7 +321,7 @@
 	margin-left: auto;
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: 12px;
 }
 
 .knox-gui-code-pre {
@@ -281,9 +341,9 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	padding: 0 6px;
-	border-radius: 3px;
-	background: color-mix(in srgb, #159994 18%, transparent);
+	padding: 0 4px 0 8px;
+	border-radius: 2px;
+	background: #3f3f46;
 	color: #159994;
 	font-size: 11px;
 }
@@ -294,6 +354,28 @@
 	gap: 8px;
 	padding: 4px 12px;
 	border-bottom: 1px solid color-mix(in srgb, var(--vscode-foreground, #ccc) 25%, transparent);
+}
+
+.knox-gui-accept-reject-all .knox-gui-reject,
+.knox-gui-accept-reject-all .knox-gui-accept {
+	opacity: 0.8;
+	background: transparent;
+	border: none;
+}
+
+.knox-gui-accept-reject-all .knox-gui-reject:hover,
+.knox-gui-accept-reject-all .knox-gui-accept:hover {
+	opacity: 1;
+	filter: brightness(1.25);
+}
+
+.knox-gui-ar-short,
+.knox-gui-ar-mid {
+	display: none;
+}
+
+.knox-gui-ar-long {
+	display: inline;
 }
 
 .knox-gui-accept-reject-streaming {
@@ -317,7 +399,7 @@
 }
 
 .knox-gui-activity {
-	margin: 2px 12px 8px;
+	margin: 4px 12px 8px;
 	font-size: 11px;
 }
 
@@ -347,11 +429,16 @@
 
 .knox-gui-activity-earlier {
 	color: #159994 !important;
+	background: transparent !important;
+	border: none !important;
+	border-radius: 0 !important;
+	padding: 2px 0 !important;
+	min-height: 0 !important;
 }
 
 .knox-gui-activity-steps {
 	list-style: none;
-	margin: 2px 0 0;
+	margin: 0;
 	padding: 0;
 	display: flex;
 	flex-direction: column;
@@ -381,7 +468,7 @@
 }
 
 .knox-gui-activity-step-btn:hover {
-	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	background: color-mix(in srgb, #6e6e77 10%, transparent);
 }
 
 .knox-gui-activity-status {
@@ -450,16 +537,22 @@
 	gap: 6px;
 	width: 100%;
 	min-height: 28px;
-	padding: 4px 10px;
+	padding: 0 10px;
 	border: none;
 	background: transparent;
 	color: inherit;
 	cursor: pointer;
 	font-size: 11px;
 	text-align: left;
+	transition: opacity 0.15s ease;
 }
 
-.knox-gui-meter-toggle:disabled {
+.knox-gui-meter-toggle:hover:not(.knox-gui-meter-toggle-static) {
+	opacity: 0.8;
+}
+
+.knox-gui-meter-toggle:disabled,
+.knox-gui-meter-toggle-static {
 	cursor: default;
 }
 
@@ -489,8 +582,8 @@
 
 .knox-gui-meter-progress {
 	height: 2px;
-	margin: 0 10px 4px;
-	background: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
+	margin: 0 10px;
+	background: color-mix(in srgb, #6e6e77 20%, transparent);
 	overflow: hidden;
 }
 
@@ -506,7 +599,8 @@
 .knox-gui-meter-scroll {
 	max-height: 38vh;
 	overflow: auto;
-	padding: 4px 10px 8px;
+	overscroll-behavior: contain;
+	padding: 4px 10px;
 	border-top: 1px solid color-mix(in srgb, #159994 10%, transparent);
 }
 
@@ -685,7 +779,7 @@
 
 .knox-gui-thinking-indicator {
 	padding: 8px;
-	color: var(--vscode-descriptionForeground);
+	color: #6e6e77;
 }
 
 .knox-gui-thinking-indicator::after {
@@ -700,7 +794,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.knox-gui-thinking-indicator::after {
+	.knox-gui-thinking-indicator::after,
+	.knox-gui-thinking-ellipsis::after {
 		animation: none;
 	}
 }
@@ -746,6 +841,16 @@
 	grid-template-columns: auto 1fr;
 	gap: 6px 8px;
 	align-items: center;
+}
+
+@container knox-gui (max-width: 329px) {
+	.knox-gui-model-roles {
+		grid-template-columns: 1fr;
+	}
+
+	.knox-gui-model-role {
+		margin-top: 8px;
+	}
 }
 
 .knox-gui-model-role {

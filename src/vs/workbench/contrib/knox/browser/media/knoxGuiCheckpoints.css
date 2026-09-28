@@ -41,14 +41,27 @@
 .knox-gui-page-tab {
 	display: flex;
 	align-items: center;
-	justify-content: center;
 	gap: 6px;
 	padding: 8px;
 	margin-bottom: 8px;
-	background: var(--vscode-input-background);
-	border-radius: 6px;
+	border-bottom: 1px solid #3f3f46;
+	border-radius: 0;
+	background: transparent;
 	font-size: 12px;
+	color: var(--vscode-foreground);
+}
+
+.knox-gui-page-tab .knox-gui-svg {
 	color: #159994;
+}
+
+.knox-gui-page-tab-cell {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 10px;
+	border-radius: 6px;
+	background: var(--vscode-input-background);
 }
 
 .knox-gui-back {
@@ -126,6 +139,18 @@
 	font-size: 13px;
 }
 
+.knox-gui-batch-panel {
+	border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+	border-radius: 6px;
+	background: var(--vscode-editor-background);
+	overflow: hidden;
+}
+
+.knox-gui-batch-list {
+	max-height: 18.75rem;
+	overflow-y: auto;
+}
+
 .knox-gui-batch-row {
 	cursor: pointer;
 	opacity: 0.6;
@@ -133,6 +158,17 @@
 
 .knox-gui-batch-row.selected {
 	opacity: 1;
+	background: var(--vscode-list-activeSelectionBackground, rgba(21, 153, 148, 0.25));
+}
+
+.knox-gui-batch-reject {
+	background: var(--vscode-button-secondaryBackground, #3a3d41) !important;
+	color: var(--vscode-button-secondaryForeground, #fff) !important;
+}
+
+.knox-gui-batch-accept {
+	background: var(--vscode-button-background, #0e639c) !important;
+	color: var(--vscode-button-foreground, #fff) !important;
 }
 
 .knox-gui-batch-row > .knox-gui-ellipsis {

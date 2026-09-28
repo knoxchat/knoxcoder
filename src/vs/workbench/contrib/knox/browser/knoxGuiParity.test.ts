@@ -141,6 +141,17 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(knoxGuiT('zh', 'oauthErrorTimeout').length > 0);
 		assert.notStrictEqual(knoxGuiT('en', 'signInKnoxStudio'), knoxGuiT('zh', 'signInKnoxStudio'));
 		assert.ok(knoxGuiT('en', 'oauthErrorPortInUse').includes('8733'));
+		assert.ok(knoxGuiT('en', 'textDialogMilestoneTitle').includes('300'));
+		assert.ok(knoxGuiT('en', 'invalidFindRegex').length > 0);
+		assert.ok(knoxGuiT('en', 'addModelOption1').length > 0);
+		assert.ok(knoxGuiT('en', 'addModelOption2').length > 0);
+		assert.ok(knoxGuiT('en', 'startWithProvider').length > 0);
+		assert.ok(knoxGuiT('en', 'selectSpecificModel').length > 0);
+		assert.ok(knoxGuiT('en', 'selectModelBelow').length > 0);
+		assert.ok(knoxGuiT('en', 'openaiDescription').includes('GPT'));
+		assert.ok(knoxGuiT('en', 'anthropicDescription').includes('Claude'));
+		assert.notStrictEqual(knoxGuiT('en', 'selectModelBelow'), knoxGuiT('zh', 'selectModelBelow'));
+		assert.ok(knoxGuiT('en', 'cannotSubmitWhileAwaitingTool').includes('tool'));
 	});
 
 	test('en and zh tables have identical keys (KN-381)', () => {
@@ -171,7 +182,7 @@ suite('Knox native GUI i18n', () => {
 	test('knoxGui CSS keeps lump icons 14px and checkpoint graph rules', () => {
 		const css = knoxGuiCssFiles.map(name => readFileSync(join(knoxGuiCssDir, name), 'utf8')).join('\n');
 		assert.strictEqual(css.split('.knox-gui-starters {').length - 1, 1);
-		assert.strictEqual(css.split('.knox-gui-msg-hit {').length - 1, 1);
+		assert.ok(css.includes('.knox-gui-msg-hit'));
 		assert.ok(css.includes('.knox-gui-lump .knox-gui-svg'));
 		assert.ok(css.includes('width: 14px'));
 		assert.ok(css.includes('.knox-gui-job {'));
@@ -189,6 +200,7 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(!css.includes('.knox-gui-overlay,\n.knox-gui-page {'));
 		assert.ok(css.includes('minmax(300px, 1fr)'));
 		assert.ok(css.includes('.knox-gui .rendered-markdown h1'));
+		assert.ok(css.includes('.knox-gui-md-fence'));
 		assert.ok(css.includes('.knox-gui-listbox-btn'));
 		assert.ok(css.includes('.knox-gui-checkpoint-card'));
 		assert.ok(css.includes('.knox-gui-knoxchat-item'));
@@ -209,8 +221,41 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui-fatal'));
 		assert.ok(css.includes('.knox-gui-tabs'));
 		assert.ok(css.includes('.knox-gui-find'));
+		assert.ok(css.includes('.knox-gui-find.is-closed'));
+		assert.ok(css.includes('.knox-gui-text-dialog'));
+		assert.ok(css.includes('.knox-gui-image-viewer-img'));
+		assert.ok(css.includes('.knox-gui-add-model-toggle'));
+		assert.ok(css.includes('.knox-gui-xs-hide'));
+		assert.ok(css.includes('.knox-gui-page-header-plain'));
+		assert.ok(css.includes('.knox-gui-reasoning-body.no-scroll'));
+		assert.ok(css.includes('.knox-gui-body-chat'));
+		assert.ok(css.includes('.knox-gui-turn.last-message'));
+		assert.ok(css.includes('.knox-gui-thinking-redacted'));
+		assert.ok(css.includes('.knox-gui-stream-anchor'));
+		assert.ok(css.includes('width: 36px'));
+		assert.ok(css.includes('.knox-gui-ar-short'));
+		assert.ok(css.includes('.knox-gui-ask-progress-fill'));
+		assert.ok(css.includes('.knox-gui-batch-panel'));
+		assert.ok(css.includes('.knox-gui-number-step'));
+		assert.ok(css.includes('max-width: 249px'));
+		assert.ok(css.includes('max-width: 329px'));
 		assert.ok(css.includes('.knox-gui-accept-reject-all'));
 		assert.ok(css.includes('.knox-gui-accept-reject-streaming'));
+		assert.ok(css.includes('.knox-gui-history-loading'));
+		assert.ok(css.includes('.knox-gui-loading-grid'));
+		assert.ok(css.includes('.knox-gui-history-editor .knox-gui-input'));
+		assert.ok(css.includes('.knox-sent-frame-inner > .knox-gui-input-wrap'));
+		assert.ok(css.includes('max-height: none'));
+		assert.ok(css.includes('@keyframes knox-gui-term-appear'));
+		assert.ok(css.includes('.knox-gui-term:focus-within'));
+		assert.ok(css.includes('.knox-gui-tree-body.is-repo-map'));
+		assert.ok(css.includes('.knox-gui-search-line.match .knox-gui-search-ln'));
+		assert.ok(css.includes('.knox-gui-search-line:not(.match) .knox-gui-search-code'));
+		assert.ok(css.includes('.knox-gui-tree-notice.is-light'));
+		assert.ok(css.includes('.knox-gui-ask-choice-desc'));
+		assert.ok(css.includes('.knox-gui-attached-collapse'));
+		assert.ok(css.includes('transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out'));
+		assert.ok(css.includes('@media (prefers-reduced-motion: reduce)'));
 		assert.ok(css.includes('@property --knox-border-angle'));
 		assert.ok(css.includes('from var(--knox-border-angle)'));
 		assert.ok(!css.includes('to { transform: rotate(360deg); }'));

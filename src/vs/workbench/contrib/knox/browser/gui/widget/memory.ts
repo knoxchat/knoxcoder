@@ -631,8 +631,11 @@ export function renderMemoryBrowser(widget: KnoxGuiWidget, body: HTMLElement, st
 			if (!picked.length) {
 				return;
 			}
-			widget.controller.messenger.post('copyText', { text: format === 'json' ? memoriesToExportJson(picked) : memoriesToExportMarkdown(picked) });
-			widget.controller.showMemoryBanner('notice', { key: 'memoryExportSelectedCopied', count: picked.length });
+			const text = format === 'json' ? memoriesToExportJson(picked) : memoriesToExportMarkdown(picked);
+			void widget.controller.messenger.request('copyText', { text }).then(
+				() => widget.controller.showMemoryBanner('notice', { key: 'memoryExportSelectedCopied', count: picked.length }),
+				() => widget.controller.showMemoryBanner('error', { key: 'memoryExportSelectedFailed' }),
+			);
 		};
 		toolButton('file-json', 'JSON', t(state, 'memoryExportSelectedJson'), () => exportSelected('json'), { disabled: !selected.length });
 		toolButton('copy', 'MD', t(state, 'memoryExportSelectedMarkdown'), () => exportSelected('markdown'), { disabled: !selected.length });

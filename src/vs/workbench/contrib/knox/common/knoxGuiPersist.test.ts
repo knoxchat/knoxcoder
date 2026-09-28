@@ -68,6 +68,7 @@ suite('Knox native persistence and permission helpers', () => {
 		assert.strictEqual(knoxGuiStartupSession({ workspace: 'file:///repo', lastActive: undefined, sessions: [] }), undefined);
 		assert.strictEqual(knoxGuiStartupSession({ workspace: '', lastActive: undefined, sessions }), undefined);
 		assert.strictEqual(knoxGuiStartupSession({ workspace: '', lastActive: { sessionId: 'older', isEmpty: false }, sessions }), 'older');
+		assert.strictEqual(knoxGuiStartupSession({ workspace: 'file:///repo', lastActive: undefined, sessions: [{ id: '' }, { id: 'older' }] }), '');
 	});
 
 	test('local auto-approve follows permissions.ts ordering and guards checkpoint restore/delete', () => {

@@ -18,6 +18,8 @@
 	font-size: 13px;
 	overflow: hidden;
 	position: relative;
+	container-type: inline-size;
+	container-name: knox-gui;
 }
 
 .knox-gui.knox-gui-dedicated {
@@ -246,6 +248,27 @@
 	flex-direction: column;
 }
 
+/* Chat.tsx `chat-message-container`: no padding, overflow-anchor none, 16px scroll pad. */
+.knox-gui-body-chat {
+	padding: 0;
+	overflow-anchor: none;
+	scroll-padding-bottom: 16px;
+	scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.knox-gui-body-chat::-webkit-scrollbar {
+	width: 6px;
+}
+
+.knox-gui-body-chat::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.knox-gui-body-chat::-webkit-scrollbar-thumb {
+	background-color: rgba(255, 255, 255, 0.1);
+	border-radius: 3px;
+}
+
 /* MemoryPageView and CheckpointGraphPage (padded={false}) run edge to edge. */
 .knox-gui-body.knox-gui-memory-page,
 .knox-gui-dedicated .knox-gui-body.knox-gui-checkpoint-page {
@@ -273,7 +296,17 @@
 	flex-shrink: 0;
 	display: flex;
 	flex-direction: column;
+	margin-top: auto;
+	z-index: 10;
+	width: 100%;
+	min-width: 0;
+	max-width: 100%;
+	box-sizing: border-box;
+	overflow: hidden;
 	background: var(--vscode-sideBar-background);
+	border-top: 1px solid rgba(255, 255, 255, 0.05);
+	padding-top: 8px;
+	padding-bottom: 8px;
 }
 
 .knox-gui-attached-panels {

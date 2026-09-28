@@ -45,12 +45,32 @@ export function knoxGuiRunningJobCount(jobs: IKnoxGuiBackgroundJob[]): number {
 	return countRunningJobs(jobs);
 }
 
-export function knoxGuiCanCancel(state: { isStreaming: boolean; history: IKnoxGuiHistoryItem[] }): boolean {
+/** `InputToolbar` only cancels from the main composer. Historical Send stays Send. */
+export function knoxGuiCanCancel(state: { isStreaming: boolean; history: IKnoxGuiHistoryItem[] }, isMainInput = true): boolean {
+	if (!isMainInput) {
+		return false;
+	}
 	if (state.isStreaming) {
 		return true;
 	}
 	return state.history.some(item => item.toolCalls?.some(call =>
 		call.status === 'calling' || call.status === 'generating' || call.status === 'generated'));
+}
+
+/** `Chat.tsx`: hide the bottom composer after the first edit-mode turn. */
+export function knoxGuiShowsMainComposer(state: {
+	route: KnoxGuiRoute;
+	mode: KnoxChatMode;
+	history: readonly unknown[];
+	lockedRoute?: KnoxGuiRoute;
+}): boolean {
+	if (state.lockedRoute === KnoxGuiRoute.Memory || state.lockedRoute === KnoxGuiRoute.CheckpointGraph) {
+		return false;
+	}
+	if (state.route !== KnoxGuiRoute.Chat) {
+		return false;
+	}
+	return !(state.mode === 'edit' && state.history.length > 0);
 }
 
 /** TabBar is hidden while there is only one tab, matching TabBar. Dedicated editors never show it. */
@@ -85,17 +105,17 @@ export function knoxGuiEditSendKey(state: { mode: KnoxChatMode; applyStates?: Ar
 }
 
 /**
- * KnoxInputBox + Chat.tsx stack: lump → overlay → meter → panels → editor →
- * context peek → pending tool bar → accept/reject.
+ * Chat.tsx `input-container` then KnoxInputBox: pending tool bar → lump →
+ * overlay → meter → panels → editor → context peek → accept/reject.
  */
 export const KNOX_GUI_COMPOSER_SLOTS = [
+	'pendingToolBar',
 	'lump',
 	'overlay',
 	'agentMeter',
 	'panels',
 	'editor',
 	'contextPeek',
-	'pendingToolBar',
 	'acceptRejectAll',
 ] as const;
 
@@ -139,6 +159,14 @@ export function knoxGuiShowsChatPermissionBar(
 		return false;
 	}
 	return true;
+}
+
+/** `ToolCallButtonsDiv.tsx`: generating / calling / generated sit under the composer. */
+export function knoxGuiShowsChatToolButtons(call: IKnoxGuiToolCall | undefined): call is IKnoxGuiToolCall {
+	if (!call || ASK_USER_TOOL_NAMES.has(call.name)) {
+		return false;
+	}
+	return call.status === 'generating' || call.status === 'calling' || call.status === 'generated';
 }
 
 /** Chat.tsx sits AcceptRejectAll below the composer only for single-range edit. */
@@ -209,7 +237,55 @@ export function knoxGuiAcceptRejectLabelKeys(isSingleRange: boolean): { reject: 
 		: { reject: 'rejectAllChanges', accept: 'acceptAllChanges' };
 }
 
+/** `AcceptRejectAllButtons.tsx`: short < sm, mid sm–md, long ≥ md. */
+export function knoxGuiAcceptRejectWidthKeys(): { short: { reject: string; accept: string }; mid: { reject: string; accept: string }; long: { reject: string; accept: string } } {
+	return {
+		short: { reject: 'reject', accept: 'accept' },
+		mid: { reject: 'rejectAll', accept: 'acceptAll' },
+		long: { reject: 'rejectAllChanges', accept: 'acceptAllChanges' },
+	};
+}
+
 export function knoxGuiAcceptRejectShortcut(isMac: boolean, kind: 'accept' | 'reject'): string {
 	const meta = knoxGuiMetaKeyLabel(isMac);
 	return kind === 'accept' ? `${meta}⇧⏎` : `${meta}⇧⌫`;
+}
+
+/** `Chat.tsx` localStorage key for the main-composer send counter. */
+export const KNOX_GUI_MAIN_TEXT_ENTRY_KEY = 'mainTextEntryCounter';
+export const KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY = 'mainTextEntryDialogShown';
+export const KNOX_GUI_MAIN_TEXT_ENTRY_DIALOG_AT = 300;
+
+/** `FindWidget.tsx` SEARCH_DEBOUNCE / resize debounce. */
+export const KNOX_GUI_FIND_DEBOUNCE_MS = 300;
+export const KNOX_GUI_FIND_RESIZE_DEBOUNCE_MS = 200;
+
+/** `showChatScrollbar ?? window.innerHeight > 5000`. */
+export const KNOX_GUI_CHAT_SCROLLBAR_MIN_HEIGHT = 5000;
+
+/** Reference Tailwind `@theme` breakpoints: 2xs 170 / xs 250 / sm 330 / md 460. */
+export const KNOX_GUI_2XS_MAX_PX = 169;
+export const KNOX_GUI_XS_MAX_PX = 249;
+export const KNOX_GUI_SM_MAX_PX = 329;
+export const KNOX_GUI_MD_MAX_PX = 459;
+export const KNOX_GUI_SM_MIN_PX = 330;
+
+export function knoxGuiNextMainTextEntry(count: number, shown: boolean): { count: number; shown: boolean; open: boolean } {
+	if (shown || count >= KNOX_GUI_MAIN_TEXT_ENTRY_DIALOG_AT) {
+		return { count, shown: true, open: false };
+	}
+	const next = count + 1;
+	if (next === KNOX_GUI_MAIN_TEXT_ENTRY_DIALOG_AT) {
+		return { count: next, shown: true, open: true };
+	}
+	return { count: next, shown: false, open: false };
+}
+
+export function knoxGuiShowsChatScrollbar(showSetting: boolean, heightPx: number): boolean {
+	return showSetting || heightPx > KNOX_GUI_CHAT_SCROLLBAR_MIN_HEIGHT;
+}
+
+export function knoxGuiParseMainTextEntryCount(raw: string | undefined): number {
+	const n = Number.parseInt(raw ?? '0', 10);
+	return Number.isFinite(n) && n > 0 ? n : 0;
 }

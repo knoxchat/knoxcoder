@@ -8,7 +8,7 @@ import { asRecord, asArray, contextItemFromRaw } from './helpers.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { applyKnoxGuiAutonomousEvent, parseBackgroundJob, parseBackgroundJobs, parseCompactionPayload } from '../../../common/knoxGuiPanels.js';
 import { parseCheckpointRestored } from '../../../common/knoxGuiCheckpoints.js';
-import { IKnoxGuiMessage, KNOX_GUI_PATH_BY_ROUTE, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
+import { IKnoxGuiMessage, KNOX_GUI_HOST_INBOUND_EMPTY_ACK, KNOX_GUI_PATH_BY_ROUTE, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { knoxGuiNextEditStatus, mergeCodeToEdit, parseCodeToEditList } from '../../../common/knoxGuiEdit.js';
 import { knoxGuiHostAgentActiveFromPayload, knoxGuiModeAfterHostAgentFlag } from '../../../common/knoxGuiAgentMode.js';
 import { IKnoxGuiState, KnoxModelRole, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
@@ -66,8 +66,8 @@ const KNOX_GUI_CHAT_ONLY_INBOUND = new Set([
 /** `useNavigationListener.ts` openGUITypes: return to chat from secondary pages first. */
 const KNOX_GUI_OPEN_CHAT_INBOUND = new Set(['highlightedCode', 'focusKnoxInput', 'focusKnoxInputWithoutClear', 'newSession']);
 
-/** Host requests with no GUI handler; answering keeps the host promise from hanging. */
-const KNOX_GUI_UNHANDLED_HOST_REQUESTS = new Set(['didChangeIdeSettings', 'incrementFtc', 'addApiKey']);
+/** KP-040: host-only requests with no GUI handler; empty-ack keeps the host promise from hanging. */
+const KNOX_GUI_UNHANDLED_HOST_REQUESTS = new Set<string>(KNOX_GUI_HOST_INBOUND_EMPTY_ACK);
 
 export async function handleInbound(controller: KnoxGuiController, type: string, data: unknown, messageId: string): Promise<void> {
 	if (knoxGuiIsDedicatedEditor(controller.store.state) && KNOX_GUI_CHAT_ONLY_INBOUND.has(type)) {

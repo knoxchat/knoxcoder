@@ -99,7 +99,7 @@ export function isKnoxGuiStreamingTokenChange(prev: IKnoxGuiState, next: IKnoxGu
 	if (lastPrev.role !== 'assistant' || lastNext.role !== 'assistant' || lastPrev.id !== lastNext.id) {
 		return false;
 	}
-	if ((lastNext.toolCalls?.length ?? 0) > 0 || (lastPrev.toolCalls?.length ?? 0) > 0) {
+	if (!lastAssistantToolStreamStable(lastPrev, lastNext)) {
 		return false;
 	}
 	if (!next.isStreaming) {
@@ -122,7 +122,16 @@ export function isKnoxGuiStreamingTokenChange(prev: IKnoxGuiState, next: IKnoxGu
 			return false;
 		}
 	}
-	return lastPrev.content !== lastNext.content || lastPrev.thinking !== lastNext.thinking || prev.isStreaming !== next.isStreaming;
+	return lastPrev.content !== lastNext.content || lastPrev.thinking !== lastNext.thinking || lastPrev.toolCalls !== lastNext.toolCalls || prev.isStreaming !== next.isStreaming;
+}
+
+function lastAssistantToolStreamStable(prev: IKnoxGuiHistoryItem, next: IKnoxGuiHistoryItem): boolean {
+	const a = prev.toolCalls ?? [];
+	const b = next.toolCalls ?? [];
+	if (a.length !== b.length) {
+		return false;
+	}
+	return a.every((call, i) => call.id === b[i].id && call.name === b[i].name);
 }
 
 export function extractSlashUserInput(fullInput: string, commandName: string): string {
@@ -233,6 +242,13 @@ export function historyItemSearchText(item: IKnoxGuiHistoryItem): string {
 		}
 	}
 	return parts.join('\n');
+}
+
+export function knoxGuiFindRegexInvalid(query: string, regex: boolean): boolean {
+	if (!regex || !query) {
+		return false;
+	}
+	return compileSearchPattern(query, { caseSensitive: false, regex: true }).kind === 'invalid';
 }
 
 export function findMatchingHistoryIndexes(history: IKnoxGuiHistoryItem[], query: string, options: { caseSensitive: boolean; regex: boolean }): number[] {

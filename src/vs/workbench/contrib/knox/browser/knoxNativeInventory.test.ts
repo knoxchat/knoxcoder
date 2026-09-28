@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 const IMPORT_RE = /from\s+['"][^'"]*knox\/(core|gui|extensions|knoxdev)/;
 const SKIP = new Set(['node_modules', 'out', 'out-build', 'dist', '.git']);
 const TEXT_FILE_RE = /\.(ts|tsx|mts|cts|js|mjs|cjs|json|md|yml|yaml|sh|txt|html|css)$/i;
-const HISTORY_REL_PATHS = new Set(['knox-native.md', 'CHANGELOG.md']);
+const HISTORY_REL_PATHS = new Set(['knox-native.md', 'knox-parity.md', 'CHANGELOG.md']);
 
 /** A git-ignored directory is a local reference checkout, not part of the tree. */
 function isGitIgnored(target: string): boolean {
@@ -75,7 +75,7 @@ suite('Knox native inventory gate (KN-207 / KN-390 / KN-391 / KN-392)', () => {
 		assert.deepStrictEqual(hits, []);
 	});
 
-	test('living trees mention leftover paths only in knox-native.md and CHANGELOG.md', () => {
+	test('living trees mention leftover paths only in knox-native.md, knox-parity.md, and CHANGELOG.md', () => {
 		const root = process.cwd();
 		const files: string[] = [];
 		walk(root, files, root, TEXT_FILE_RE);

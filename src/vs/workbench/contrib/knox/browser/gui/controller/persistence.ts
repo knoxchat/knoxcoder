@@ -10,6 +10,7 @@ import { knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
 import { composerInputHistoryFromStorage, type IKnoxGuiComposerInputHistory, type IKnoxGuiInputBlock } from '../../../common/knoxGuiInput.js';
 import { KNOX_AUTOSAVE_DEBOUNCE_MS, KNOX_AUTOSAVE_MIN_INTERVAL_MS, KNOX_PERSIST_THROTTLE_MS, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, type IKnoxGuiDraftSession, type IKnoxGuiLastActiveSession, type IKnoxGuiProfilePreferences } from '../../../common/knoxGuiPersist.js';
 import { BOOKMARK_KEY } from './helpers.js';
+import { KNOX_GUI_MAIN_TEXT_ENTRY_KEY, KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY, knoxGuiNextMainTextEntry, knoxGuiParseMainTextEntryCount } from '../../../common/knoxGuiChrome.js';
 
 export const UI_STATE_KEY = 'knox.gui.uiState';
 export const TABS_KEY = 'knox.gui.tabs';
@@ -81,6 +82,20 @@ export function saveProfilePreferences(controller: KnoxGuiController): void {
 	const all = allProfilePreferences(controller);
 	all[profileId] = { bookmarkedSlashCommands: bookmarkedSlash, recentSlashCommands: recentSlash };
 	controller.storageService.store(PROFILE_PREFERENCES_KEY, JSON.stringify(all), StorageScope.PROFILE, StorageTarget.USER);
+}
+
+export function noteMainComposerSend(controller: KnoxGuiController): boolean {
+	const storage = controller.storageService;
+	const shown = storage.get(KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY, StorageScope.PROFILE) === 'true';
+	const count = knoxGuiParseMainTextEntryCount(storage.get(KNOX_GUI_MAIN_TEXT_ENTRY_KEY, StorageScope.PROFILE));
+	const next = knoxGuiNextMainTextEntry(count, shown);
+	if (next.count !== count) {
+		storage.store(KNOX_GUI_MAIN_TEXT_ENTRY_KEY, String(next.count), StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+	if (next.shown && !shown) {
+		storage.store(KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY, 'true', StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+	return next.open;
 }
 
 export function lastActiveSession(controller: KnoxGuiController): IKnoxGuiLastActiveSession | undefined {

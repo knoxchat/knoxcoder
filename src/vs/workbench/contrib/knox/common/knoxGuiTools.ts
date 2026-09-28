@@ -439,6 +439,12 @@ export function resolveGuiToolName(name: string | undefined, tools: readonly IKn
 	return tools.find(tool => tool.name === prefixed)?.name ?? trimmed;
 }
 
+export function isSamePermissionTool(left: string | undefined, right: string | undefined, tools: readonly IKnoxGuiTool[] = []): boolean {
+	const a = resolveGuiToolName(left, tools);
+	const b = resolveGuiToolName(right, tools);
+	return Boolean(a && a === b);
+}
+
 export function catalogToolForCall(tools: IKnoxGuiTool[], name: string): IKnoxGuiTool | undefined {
 	const resolved = resolveGuiToolName(name, tools);
 	if (!resolved) {
@@ -836,6 +842,14 @@ export function mergeToolArguments(previous: string, incoming: string): string {
 	if (previous.startsWith(incoming)) {
 		return previous;
 	}
+	try {
+		const parsed = JSON.parse(incoming);
+		if (parsed && typeof parsed === 'object') {
+			return incoming;
+		}
+	} catch {
+		// Streaming deltas are concatenated until they form an object.
+	}
 	return previous + incoming;
 }
 
@@ -843,15 +857,18 @@ export function toolPermissionDisplay(params: {
 	toolName: string;
 	toolSettings: Record<string, KnoxToolSetting>;
 	sessionAllowlist: string[];
+	tools?: readonly IKnoxGuiTool[];
 }): KnoxGuiToolPermissionDisplay {
-	const setting = params.toolSettings[params.toolName] ?? 'allowedWithoutPermission';
+	const tools = params.tools ?? [];
+	const resolved = resolveGuiToolName(params.toolName, tools) || params.toolName;
+	const setting = params.toolSettings[resolved] ?? params.toolSettings[params.toolName] ?? 'allowedWithoutPermission';
 	if (setting === 'disabled') {
 		return 'disabled';
 	}
 	if (setting === 'allowedWithoutPermission') {
 		return 'autoApprove';
 	}
-	if (params.sessionAllowlist.includes(params.toolName)) {
+	if (params.sessionAllowlist.some(item => isSamePermissionTool(item, params.toolName, tools))) {
 		return 'sessionAlways';
 	}
 	return 'requiresApproval';
@@ -916,14 +933,25 @@ export function isAskUserAnswered(value: string | undefined): boolean {
 	return typeof value === 'string' && value.split('\u0001').some(part => part.trim().length > 0);
 }
 
+/** `AskUser.tsx` `formatAnswer`: join multi-select + freeform with `", "`. */
+export function formatAskUserDisplayAnswer(drafts: Record<string, string> | undefined, questionId: string, submitted?: string): string {
+	const choices = (drafts?.[questionId] ?? '').split('\u0001').map(part => part.trim()).filter(Boolean);
+	const extra = (drafts?.[`${questionId}::freeform`] ?? '').trim();
+	const parts = [...choices, extra].filter(Boolean);
+	if (parts.length) {
+		return parts.join(', ');
+	}
+	return typeof submitted === 'string' ? submitted.trim() : '';
+}
+
 export function detectSearchLanguage(filePath: string): string {
 	const ext = filePath.split('.').pop()?.toLowerCase() || '';
 	const langMap: Record<string, string> = {
 		ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript', py: 'python',
 		rb: 'ruby', rs: 'rust', go: 'go', java: 'java', kt: 'kotlin', swift: 'swift', c: 'c',
 		cpp: 'cpp', h: 'c', hpp: 'cpp', cs: 'csharp', php: 'php', html: 'html', css: 'css',
-		scss: 'scss', json: 'json', yaml: 'yaml', yml: 'yaml', xml: 'xml', md: 'markdown',
-		sql: 'sql', sh: 'bash', bash: 'bash', zsh: 'bash',
+		scss: 'scss', less: 'less', json: 'json', yaml: 'yaml', yml: 'yaml', xml: 'xml', md: 'markdown',
+		sql: 'sql', sh: 'bash', bash: 'bash', zsh: 'bash', dockerfile: 'dockerfile', vue: 'vue', svelte: 'svelte',
 	};
 	return langMap[ext] || 'plaintext';
 }
@@ -1269,7 +1297,9 @@ export function treeStatsFromPlain(plain: string, summary?: string): { files: nu
 		}
 	}
 	const lines = plain.split('\n').filter(line => line.trim());
-	const folders = lines.filter(line => line.endsWith('/')).length;
+	const folders = lines.filter(line =>
+		line.endsWith('/') ||
+		(!line.includes('.') && !line.includes('└') && !line.includes('├'))).length;
 	const files = Math.max(0, lines.length - folders);
 	return { files, folders, total: lines.length };
 }

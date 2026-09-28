@@ -119,6 +119,9 @@ export function setOverlay(controller: KnoxGuiController, overlay: KnoxGuiOverla
 	if (controller.store.state.overlay === 'history') {
 		void controller.refreshHistorySessions();
 	}
+	if (overlay === 'models') {
+		controller.messenger.post('config/refreshProfiles', undefined);
+	}
 }
 
 export function openSettingsOverlay(controller: KnoxGuiController): void {

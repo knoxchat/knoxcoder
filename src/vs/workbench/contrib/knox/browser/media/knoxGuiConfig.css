@@ -35,6 +35,19 @@
 	color: #159994;
 }
 
+.knox-gui-page-header-plain .knox-gui-page-title {
+	color: var(--vscode-foreground);
+}
+
+.knox-gui-page-header-lg .knox-gui-page-title {
+	font-size: 1.125rem;
+}
+
+.knox-gui-page-header-sm .knox-gui-page-title {
+	font-size: 0.875rem;
+	font-weight: 600;
+}
+
 .knox-gui-page-back {
 	margin-left: 8px;
 }
@@ -421,5 +434,34 @@ img.knox-gui-provider-icon {
 	text-align: center;
 	font-size: 13px;
 	color: #6e6e77;
+}
+
+.knox-gui-add-model-options {
+	margin: 8px 0 12px;
+	padding-left: 20px;
+}
+
+.knox-gui-add-model-toggle {
+	display: flex;
+	width: fit-content;
+	margin: 8px auto 16px;
+	border: 1px solid #6e6e77;
+	background: var(--vscode-input-background);
+	border-radius: 0;
+	gap: 0;
+}
+
+.knox-gui-add-model-mode {
+	border-radius: 0 !important;
+	background: transparent;
+}
+
+.knox-gui-add-model-mode.selected {
+	background: var(--vscode-list-activeSelectionBackground, #159994);
+	color: var(--vscode-list-activeSelectionForeground, #fff);
+}
+
+.knox-gui-add-model-group {
+	margin-bottom: 16px;
 }
 

@@ -12,7 +12,7 @@ import { expandPromptSlashCommand, isPromptBasedSlashCommand, parseLeadingSlash 
 import { collectLatestTaskPlanSnapshot, parseInjectedMemories } from '../../../common/knoxGuiPanels.js';
 import { toolOutputItemsFromUnknown, toolOutputText } from '../../../common/knoxGuiTools.js';
 import { knoxGuiMissingSymbolUris, knoxGuiParseSymbolMap, nextCodeBlockToApply, parseStreamError, pendingApplyStates } from '../../../common/knoxGuiTranscript.js';
-import { extractMentionsFromDoc, extractSlashFromDoc, inputDocFromPlainText, inputDocToPlainText, knoxGuiShouldBlockSubmit, mentionContextProviderName, resolveComposerSlashCommand, slashCommandBareName, submitUsesActiveFile, useActiveFileFromDefaultContext } from '../../../common/knoxGuiInput.js';
+import { extractMentionsFromDoc, extractSlashFromDoc, inputDocFromPlainText, inputDocToPlainText, knoxGuiPendingToolBlocksSubmit, knoxGuiShouldBlockSubmit, mentionContextProviderName, resolveComposerSlashCommand, slashCommandBareName, submitUsesActiveFile, useActiveFileFromDefaultContext } from '../../../common/knoxGuiInput.js';
 import { editSendPromptPayload, knoxGuiMultifileEditPrompt, shouldSendEditPrompt } from '../../../common/knoxGuiEdit.js';
 import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
 import { IKnoxCoreChatHistoryItem, IKnoxCoreChatMessage, IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiDoomCall, knoxGuiEmptyStreamText, knoxGuiFlushStreamText, knoxGuiShouldSplitForTools, knoxGuiFallbackMessages, knoxGuiFormatTurnInject, knoxGuiHistoryToCoreHistory, knoxGuiMemoryGoal, knoxGuiIsCancelledToolError, knoxGuiIsRetryableToolError, knoxGuiShouldContinueTurn, knoxGuiToolFailureOutput, knoxGuiToolIsSettled, knoxGuiToolPreferredModel, knoxGuiToolRetryDelay, KNOX_TOOL_CALL_MAX_RETRIES, knoxGuiTurnDoomCalls, knoxGuiTurnMessages, knoxGuiTurnTools } from '../../../common/knoxGuiAgentRequest.js';
@@ -31,7 +31,10 @@ interface IKnoxGuiLegacySlash {
 
 export async function submit(controller: KnoxGuiController, starterPrompt?: string, modifiers?: { noContext?: boolean; altKey?: boolean; index?: number; doc?: ReturnType<typeof inputDocFromPlainText>; images?: string[] }): Promise<void> {
 	const resubmitting = typeof modifiers?.index === 'number';
-	if (resubmitting && controller.store.state.isStreaming) {
+	if (resubmitting && (controller.store.state.isStreaming || knoxGuiPendingToolBlocksSubmit({
+		isStreaming: false,
+		history: controller.store.state.history,
+	}))) {
 		controller.cancel();
 	}
 	const doc = modifiers?.doc ?? (starterPrompt ? inputDocFromPlainText(starterPrompt): controller.store.state.inputDoc);
@@ -104,6 +107,7 @@ export async function submit(controller: KnoxGuiController, starterPrompt?: stri
 	}
 	controller.store.patch({ editingUserIndex: undefined, autoScroll: true, isGatheringContext: true, streamError: undefined, toolLoopSteps: 0 });
 	controller.closeSuggest();
+	controller.ensureSessionId();
 	if (!controller.store.state.sessionTitle) {
 		const title = controller.sessionTitleFallback();
 		controller.store.patch({ sessionTitle: title });
@@ -478,6 +482,12 @@ export async function approveTool(controller: KnoxGuiController, id: string, alw
 		const language = controller.store.state.language;
 		const item = { name: knoxGuiT(language, 'doomLoopName'), description: knoxGuiT(language, 'doomLoopDescription'), content: blocked.message };
 		controller.patchTool(id, { status: 'done', outputItems: [item], output: blocked.message });
+		controller.store.appendHistory({
+			id: generateUuid(),
+			role: 'tool',
+			content: blocked.message,
+			toolCalls: [{ ...call, status: 'done', outputItems: [item], output: blocked.message }],
+		});
 		await controller.maybeContinueTurn();
 		return;
 	}

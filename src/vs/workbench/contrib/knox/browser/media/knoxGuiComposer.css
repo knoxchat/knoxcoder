@@ -6,17 +6,58 @@
 /* composer input, chips, suggest, and popovers */
 
 .knox-gui-input-wrap {
-	flex-shrink: 0;
+	min-width: 0;
 }
 
 .knox-gui-composer .knox-gui-input-wrap {
-	padding: 2px 8px;
+	padding: 0;
+	width: 100%;
+	flex: 1 1 auto;
+}
+
+.knox-gui-composer-editor-pad {
+	padding: 0 8px;
+	min-width: 0;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.knox-gui-composer-editor-pad .knox-sent-frame {
+	width: 100%;
+	min-width: 0;
+	max-width: 100%;
+}
+
+/* TipTapEditor InputBoxDiv inside GradientBorder: column, full width, no nested card. */
+.knox-sent-frame-inner > .knox-gui-input-wrap {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	align-self: stretch;
+	width: 100%;
+	min-width: 0;
+	height: auto;
+	margin: 0;
+	box-sizing: border-box;
+	padding: 2px 8px 2px;
+	border: 1px solid transparent;
+	border-radius: 0;
+	background: transparent;
+}
+
+.knox-sent-frame-inner > .knox-gui-input-wrap:focus-within {
+	outline: none;
+	border-color: var(--vscode-list-activeSelectionBackground, #1bbe84);
+	box-shadow: none;
 }
 
 .knox-gui-input {
 	width: 100%;
-	min-height: 56px;
+	min-width: 0;
+	min-height: 0;
 	max-height: 70vh;
+	flex: 1 1 auto;
+	overflow-x: hidden;
 	overflow-y: auto;
 	resize: none;
 	box-sizing: border-box;
@@ -28,6 +69,7 @@
 	font-family: inherit;
 	outline: none;
 	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 	word-wrap: break-word;
 	caret-color: #20c997;
 	line-height: 1.6;
@@ -126,16 +168,24 @@
 
 .knox-gui-input-bar {
 	display: flex;
+	flex-direction: row;
 	align-items: center;
 	justify-content: space-between;
-	gap: 6px;
-	margin-top: 4px;
+	gap: 4px;
+	width: 100%;
+	min-width: 0;
+	margin-top: 0;
+	padding-top: 4px;
+	box-sizing: border-box;
+	user-select: none;
+	background: var(--vscode-input-background, rgb(45 45 45));
 }
 
 .knox-gui-input-bar--hidden {
 	pointer-events: none;
 	height: 0;
 	margin: 0;
+	padding: 0;
 	opacity: 0;
 	overflow: hidden;
 }
@@ -144,13 +194,10 @@
 	min-width: 0;
 }
 
-.knox-gui-history-editor {
-	padding: 2px 6px 6px;
-}
-
 .knox-gui-history-editor .knox-gui-input {
 	min-height: 0;
-	padding: 8px 4px;
+	max-height: none;
+	padding: 8px 0;
 }
 
 .knox-gui-delete-orange {
@@ -159,6 +206,10 @@
 
 .knox-gui-msg-actions-slot {
 	height: 28px;
+	margin-top: 8px;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.3s;
 }
 
 .knox-gui-code-generic {
@@ -237,16 +288,20 @@
 }
 
 .knox-gui-code-scroll.generating {
+	position: relative;
 	overflow-x: scroll;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4)) transparent;
 }
 
 .knox-gui-code-scroll.generating::before {
 	content: '';
-	position: sticky;
-	display: block;
+	position: absolute;
 	top: 0;
+	left: 0;
+	right: 0;
 	height: 2px;
-	margin-bottom: -2px;
+	margin: 0;
 	background: linear-gradient(90deg, transparent, #159994, transparent);
 	background-size: 200% 100%;
 	animation: knox-gui-code-generating 1.5s linear infinite;
@@ -430,9 +485,32 @@
 .knox-gui-input-bar-left,
 .knox-gui-input-bar-right {
 	display: flex;
+	flex-direction: row;
 	align-items: center;
 	gap: 4px;
 	min-width: 0;
+}
+
+.knox-gui-input-bar-left {
+	flex: 1 1 auto;
+	overflow: hidden;
+}
+
+.knox-gui-input-bar-right {
+	flex: 0 0 auto;
+	white-space: nowrap;
+}
+
+.knox-gui-input-bar .knox-gui-icon-btn {
+	border-radius: 0;
+	padding: 2px 4px;
+	background: transparent;
+	flex-shrink: 0;
+}
+
+.knox-gui-input-bar .knox-gui-icon-btn:hover:not(:disabled) {
+	filter: brightness(1.25);
+	background: transparent;
 }
 
 .knox-gui-file {
@@ -460,23 +538,51 @@
 	position: relative;
 	display: inline-flex;
 	align-items: center;
+	min-width: 0;
+}
+
+.knox-gui-model-wrap {
+	flex: 1 1 auto;
+	max-width: 100%;
+}
+
+.knox-gui-effort-wrap {
+	flex: 0 0 auto;
 }
 
 .knox-gui-model-trigger,
 .knox-gui-effort-trigger {
 	color: #159994 !important;
-	max-width: 180px;
 	gap: 4px;
 	padding: 0 4px !important;
 	font-size: inherit;
+	height: 18px;
+}
+
+.knox-gui-model-trigger {
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+}
+
+.knox-gui-effort-trigger {
+	flex-shrink: 0;
+	max-width: 180px;
 }
 
 .knox-gui-model-trigger .knox-gui-lump-label,
 .knox-gui-effort-trigger .knox-gui-lump-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
 	max-width: 9rem;
 	color: #159994;
+}
+
+.knox-gui-model-trigger .knox-gui-lump-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	max-width: 100%;
 }
 
 .knox-gui-input-bar .knox-gui-model-trigger .knox-gui-svg {
@@ -504,6 +610,7 @@
 }
 
 .knox-gui-send {
+	flex-shrink: 0;
 	background: rgba(110, 110, 119, 0.2) !important;
 	border-radius: 4px !important;
 	color: #159994 !important;
@@ -732,10 +839,16 @@
 }
 
 .knox-gui-suggest-header {
+	position: sticky;
+	top: 0;
+	z-index: 1;
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: 4px 8px;
+	height: 28px;
+	padding: 0 6px;
+	border-bottom: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
 }
 
 .knox-gui-suggest-header-title {
@@ -749,7 +862,7 @@
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
 	opacity: 0.7;
-	color: #159994;
+	color: var(--vscode-descriptionForeground);
 }
 
 .knox-gui-suggest-back,
@@ -797,7 +910,7 @@
 
 .knox-gui-suggest-path,
 .knox-gui-suggest-desc {
-	max-width: 40%;
+	max-width: 55%;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -806,9 +919,12 @@
 }
 
 .knox-gui-suggest-match {
-	background: rgba(21, 153, 148, 0.35);
+	background: rgba(21, 153, 148, 0.25);
 	color: inherit;
 	padding: 0;
+	text-decoration: underline;
+	text-decoration-color: #159994;
+	text-underline-offset: 2px;
 }
 
 .knox-gui-suggest-empty {
@@ -836,7 +952,10 @@
 }
 
 @keyframes knox-gui-spin {
-	to { transform: rotate(360deg); }
+	from { transform: rotate(0deg); }
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 .knox-gui-suggest-truncated {
@@ -846,20 +965,38 @@
 }
 
 .knox-gui-suggest-open,
-.knox-gui-suggest-star,
+.knox-gui-suggest-star {
+	padding: 0 2px !important;
+	opacity: 0.75;
+	background: transparent;
+	border: none;
+	border-radius: 4px;
+	color: inherit;
+	cursor: pointer;
+	display: none;
+}
+
 .knox-gui-suggest-chevron {
 	padding: 0 2px !important;
 	opacity: 0.6;
 	background: transparent;
 	border: none;
 	color: inherit;
-	cursor: pointer;
 	display: flex;
 }
 
+.knox-gui-suggest-item:hover .knox-gui-suggest-open,
+.knox-gui-suggest-item:hover .knox-gui-suggest-star,
+.knox-gui-suggest-item.selected .knox-gui-suggest-open,
+.knox-gui-suggest-item.selected .knox-gui-suggest-star {
+	display: inline-flex;
+}
+
 .knox-gui-suggest-open:hover,
-.knox-gui-suggest-star:hover {
+.knox-gui-suggest-star:hover,
+.knox-gui-suggest-back:hover {
 	opacity: 1;
+	background: rgba(21, 153, 148, 0.2);
 }
 
 .knox-gui-suggest-star.is-bookmarked,

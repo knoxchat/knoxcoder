@@ -365,6 +365,8 @@ export interface IKnoxGuiCheckpointNode {
 	workingTree?: boolean;
 	/** `getCheckpointTimeline` `isIncremental`: shown as a Δ badge on timeline cards. */
 	isIncremental?: boolean;
+	deltaDepth?: number;
+	timelineRisk?: 'Low' | 'Medium' | 'High' | 'Critical';
 }
 
 export interface IKnoxGuiCheckpointBranch {

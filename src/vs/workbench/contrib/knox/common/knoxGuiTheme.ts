@@ -267,6 +267,16 @@ export function constructHljsTheme(theme: IKnoxGuiVscTheme | undefined, isLight:
 	return mapped;
 }
 
+export function knoxGuiHljsTokenColor(tokens: Record<string, string> | undefined, selectors: readonly string[], fallback: string): string {
+	for (const selector of selectors) {
+		const value = tokens?.[selector];
+		if (value) {
+			return value;
+		}
+	}
+	return fallback;
+}
+
 export function applyKnoxGuiSetTheme(state: IKnoxGuiState, data: unknown): Partial<IKnoxGuiState> | undefined {
 	const theme = parseSetThemePayload(data);
 	if (!theme) {

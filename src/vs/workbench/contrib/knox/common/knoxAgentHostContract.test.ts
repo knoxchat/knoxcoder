@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execFileSync } from 'child_process';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { KNOX_AGENT_MODE_CONTEXT_KEY } from './knoxGuiAgentMode.js';
@@ -861,7 +861,7 @@ suite('Knox agent host contract (KN-378)', () => {
 		const messenger = repoFile('extensions/knox/src/host/extension/VsCodeMessenger.ts');
 		assert.ok(protocol.includes('KN-378'));
 		assert.deepStrictEqual([...KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME], []);
-		for (const dropped of ['config/reload', 'overwriteFile', 'memory/create', 'memory/search', 'memory/delete', 'memory/list', 'memory/cleanup'] as const) {
+		for (const dropped of ['config/reload', 'overwriteFile', 'memory/create', 'memory/search', 'memory/delete', 'memory/list', 'memory/cleanup', 'brain/forgetMemories', 'brain/stats'] as const) {
 			assert.ok(!(KNOX_GUI_HOST_OUTBOUND as readonly string[]).includes(dropped), dropped);
 			assert.ok(!chrome.includes(`'${dropped}'`) && !chrome.includes(`"${dropped}"`), dropped);
 		}
@@ -883,6 +883,44 @@ suite('Knox agent host contract (KN-378)', () => {
 		assert.ok(chrome.includes("config/getSerializedProfileInfo"));
 		assert.ok(chrome.includes('configUpdate') || chrome.includes("'configUpdate'"));
 		assert.ok(chrome.includes('brain/searchMemories'));
+	});
+
+	test('KP-059 every outbound catalog name has a browser/gui caller', () => {
+		const guiDir = join(process.cwd(), 'src/vs/workbench/contrib/knox/browser/gui');
+		const files: string[] = [];
+		const walk = (dir: string) => {
+			for (const name of readdirSync(dir)) {
+				const path = join(dir, name);
+				if (statSync(path).isDirectory()) {
+					walk(path);
+				} else if (name.endsWith('.ts')) {
+					files.push(path);
+				}
+			}
+		};
+		walk(guiDir);
+		const source = files.map(path => readFileSync(path, 'utf8')).join('\n');
+		const templated = new Set([...source.matchAll(/`([a-zA-Z0-9]+)\/\$\{/g)].map(match => `${match[1]}/`));
+		const unused = [...KNOX_GUI_HOST_OUTBOUND].filter(name => {
+			if (source.includes(`'${name}'`) || source.includes(`"${name}"`)) {
+				return false;
+			}
+			return ![...templated].some(prefix => name.startsWith(prefix));
+		});
+		assert.deepStrictEqual(unused, []);
+	});
+
+	test('KP-041 Vite localhost is gone; KP-043 typo command is not contributed', () => {
+		assert.ok(!repoFile('extensions/knox/src/host/webviewHtml.ts').includes('localhost:5173'));
+		const pkg = JSON.parse(repoFile('extensions/knox/package.json')) as {
+			contributes?: { commands?: Array<{ command?: string }>; views?: { knoxchat?: Array<{ id?: string }> }; keybindings?: Array<{ command?: string }> };
+		};
+		assert.ok(!(pkg.contributes?.commands ?? []).some(entry => entry.command === 'knox.chatoLastOperation'));
+		assert.ok(!(pkg.contributes?.keybindings ?? []).some(entry => entry.command === 'knoxchat.quickEditHistoryUp' || entry.command === 'knoxchat.quickEditHistoryDown'));
+		assert.ok((pkg.contributes?.views?.knoxchat ?? []).some(entry => entry.id === 'knoxchat.knoxGUIView'));
+		const viewsPoint = repoFile('src/vs/workbench/api/browser/viewsExtensionPoint.ts');
+		assert.ok(viewsPoint.includes('KnoxChatViewPane'));
+		assert.ok(viewsPoint.includes('KNOX_VIEW_ID'));
 	});
 });
 

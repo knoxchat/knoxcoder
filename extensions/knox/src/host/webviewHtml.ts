@@ -39,7 +39,6 @@ export function renderKnoxWebviewHtml(options: {
   const {
     extensionUri,
     webview,
-    inDevelopmentMode,
     windowId,
     isFullScreen = false,
     page,
@@ -52,19 +51,13 @@ export function renderKnoxWebviewHtml(options: {
     .asWebviewUri(vscode.Uri.joinPath(extensionUri, "gui"))
     .toString();
 
-  let scriptUri: string;
-  let styleMainUri: string;
-  if (!inDevelopmentMode) {
-    scriptUri = webview
-      .asWebviewUri(vscode.Uri.joinPath(extensionUri, "gui/assets/index.js"))
-      .toString();
-    styleMainUri = webview
-      .asWebviewUri(vscode.Uri.joinPath(extensionUri, "gui/assets/index.css"))
-      .toString();
-  } else {
-    scriptUri = "http://localhost:5173/src/main.tsx";
-    styleMainUri = "http://localhost:5173/src/index.css";
-  }
+  // KP-041: native pane is the product path. Never ship the leftover Vite refresh URL.
+  const scriptUri = webview
+    .asWebviewUri(vscode.Uri.joinPath(extensionUri, "gui/assets/index.js"))
+    .toString();
+  const styleMainUri = webview
+    .asWebviewUri(vscode.Uri.joinPath(extensionUri, "gui/assets/index.css"))
+    .toString();
 
   const nonce = getNonce();
   const currentTheme = getTheme();
@@ -92,18 +85,6 @@ export function renderKnoxWebviewHtml(options: {
       </head>
       <body>
         <div id="root"></div>
-
-        ${
-          inDevelopmentMode
-            ? `<script type="module">
-          import RefreshRuntime from "http://localhost:5173/@react-refresh"
-          RefreshRuntime.injectIntoGlobalHook(window)
-          window.$RefreshReg$ = () => {}
-          window.$RefreshSig$ = () => (type) => type
-          window.__vite_plugin_react_preamble_installed__ = true
-          </script>`
-            : ""
-        }
 
         <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 

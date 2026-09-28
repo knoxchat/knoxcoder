@@ -596,6 +596,18 @@ export function knoxGuiShouldBlockSubmit(state: {
 	if (state.resubmitting) {
 		return false;
 	}
+	return knoxGuiPendingToolBlocksSubmit(state);
+}
+
+/** True when a generated (non-AskUser) tool confirm is waiting — `cannotSubmitWhileAwaitingTool`. */
+export function knoxGuiPendingToolBlocksSubmit(state: {
+	isStreaming: boolean;
+	history: Array<{ toolCalls?: IKnoxGuiToolCall[] }>;
+	resubmitting?: boolean;
+}): boolean {
+	if (state.resubmitting || (state.isStreaming && !state.resubmitting)) {
+		return false;
+	}
 	for (let i = state.history.length - 1; i >= 0; i--) {
 		const pending = state.history[i].toolCalls?.find(call => call.status === 'generated');
 		if (pending) {

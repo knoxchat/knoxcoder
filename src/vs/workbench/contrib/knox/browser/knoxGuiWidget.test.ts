@@ -10,14 +10,18 @@ import { isMacintosh } from '../../../../base/common/platform.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { InMemoryStorageService } from '../../../../platform/storage/common/storage.js';
-import { KNOX_GUI_LUMP_TOOLBAR } from '../common/knoxGuiChrome.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { KNOX_GUI_LUMP_TOOLBAR, KNOX_GUI_MAIN_TEXT_ENTRY_KEY, KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY } from '../common/knoxGuiChrome.js';
 import { IKnoxGuiMessage, KnoxGuiRoute } from '../common/knoxGuiProtocol.js';
 import { IKnoxGuiCheckpointDiffFile, IKnoxGuiCheckpointNode, IKnoxGuiGitDiffFile, IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../common/knoxGuiState.js';
 import { composerInputHistoryAdd, createComposerInputHistory, DEFAULT_MENTION_PROVIDER_TITLES, inputDocFromPlainText, SLASH_BUILTINS } from '../common/knoxGuiInput.js';
+import { knoxGuiT } from './gui/knoxGuiI18n.js';
 import { MEMORY_TAB_IDS } from '../common/knoxGuiMemory.js';
 import { IKnoxService } from '../common/knoxService.js';
 import { KnoxGuiController } from './knoxGuiController.js';
@@ -71,7 +75,13 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			}
 			override requestBasicLanguageFeatures(): void { }
 		};
-		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService, { getModel: () => null } as unknown as IModelService));
+		const markdownRendererService = new class extends mock<IMarkdownRendererService>() {
+			override render(markdown: IMarkdownString, options?: import('../../../../base/browser/markdownRenderer.js').MarkdownRenderOptions, target?: HTMLElement) {
+				return renderMarkdown(markdown, options, target);
+			}
+			override setDefaultCodeBlockRenderer(): void { }
+		};
+		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService, { getModel: () => null } as unknown as IModelService, markdownRendererService));
 		return { widget, store };
 	}
 
@@ -179,12 +189,28 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('.knox-gui-input'), null);
 	});
 
-	test('add-model provider cards use the KnoxChat PNG logo', async () => {
-		const { widget, store } = await mount();
+	test('add-model provider cards show KnoxChat, OpenAI, and Anthropic logos', async () => {
+		const posted: Array<{ type: string; data: unknown }> = [];
+		const { widget, store } = await mount(message => {
+			posted.push({ type: message.messageType, data: message.data });
+			return {};
+		});
 		store.navigate('/addModel');
 		const logos = widget.root.querySelectorAll('img.knox-gui-provider-icon');
-		assert.strictEqual(logos.length, 1);
-		assert.ok((logos[0] as HTMLImageElement).src.includes('knoxchat.png'));
+		assert.strictEqual(logos.length, 3);
+		const srcs = Array.from(logos).map(img => (img as HTMLImageElement).src);
+		assert.ok(srcs.some(src => src.includes('knoxchat.png')));
+		assert.ok(srcs.some(src => src.includes('openai.svg')));
+		assert.ok(srcs.some(src => src.includes('anthropic.svg')));
+		assert.strictEqual(widget.root.querySelectorAll('.knox-gui-add-model-options li').length, 2);
+		(widget.root.querySelector('[data-testid="knox-gui-add-model-by-model"]') as HTMLButtonElement).click();
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-model-pack-openai-gpt-4-turbo"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-model-pack-openai-gpt-4o"]'));
+		assert.ok(!widget.root.querySelector('[data-testid="knox-gui-model-pack-openai-AUTODETECT"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-page-intro h2')?.textContent);
+		assert.ok(widget.root.querySelector('.knox-gui-rule'));
+		(widget.root.querySelector('[data-testid="knox-gui-model-pack-openai-gpt-4o"]') as HTMLButtonElement).click();
+		assert.ok(posted.some(item => item.type === 'config/addModel'));
 	});
 
 	test('checkpoint graph SVG stays mounted across tab switches', async () => {
@@ -237,6 +263,32 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		});
 		assert.strictEqual(widget.root.getAttribute('data-knox-theme-kind'), 'light');
 		assert.strictEqual(widget.isLightTheme(), true);
+	});
+
+	test('KP-001 history load shows the 3x3 drive loader and keeps the elapsed origin', async () => {
+		const { widget, store } = await mount();
+		store.patch({ isLoadingHistory: true });
+		const wrap = widget.root.querySelector('[data-testid="chat-history-loading"]');
+		const state = wrap?.querySelector('[data-testid="sent-message-loading-state"]');
+		assert.ok(wrap);
+		assert.ok(state);
+		assert.strictEqual(wrap.querySelectorAll('.knox-gui-loading-pixel').length, 9);
+		assert.ok(!wrap.querySelector('.knox-gui-loading-pixel.round'));
+		assert.ok(state.querySelector('.knox-gui-loading-label')?.textContent?.includes('Loading'));
+		assert.ok(/\d+\.\d+s$/.test(state.querySelector('.knox-gui-loading-elapsed')?.textContent ?? ''));
+		assert.ok(state.getAttribute('aria-label')?.includes('Loading'));
+		const origin = widget.historyLoadingStartedAt;
+		assert.ok(typeof origin === 'number');
+		store.patch({ sessionTitle: 'still loading' });
+		assert.strictEqual(widget.historyLoadingStartedAt, origin);
+		const elapsed = widget.root.querySelector('.knox-gui-loading-elapsed');
+		assert.ok(elapsed);
+		const first = elapsed.textContent;
+		await timeout(150);
+		assert.notStrictEqual(widget.root.querySelector('.knox-gui-loading-elapsed')?.textContent, first);
+		store.patch({ isLoadingHistory: false });
+		assert.strictEqual(widget.root.querySelector('[data-testid="chat-history-loading"]'), null);
+		assert.strictEqual(widget.historyLoadingStartedAt, undefined);
 	});
 
 	test('S-14 stats page shows only the KnoxChat billing note', async () => {
@@ -292,6 +344,15 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(!row().querySelector('[data-testid="permission-action-buttons"]'));
 		store.patch({ permissionMode: 'default' });
 		assert.ok(row().querySelector('[data-testid="permission-action-buttons"]'));
+
+		store.patch({
+			tools: [{ name: 'builtin_edit_file', group: 'Built-In' }],
+			toolSettings: { builtin_edit_file: 'allowedWithPermission' },
+			sessionToolAllowlist: [],
+			history: historyWithTool({ id: 'p2', name: 'edit', arguments: '{}', status: 'generated' }),
+			overlay: 'tools',
+		});
+		assert.strictEqual(widget.root.querySelector('[data-testid="tool-permission-row-builtin_edit_file"]')?.getAttribute('data-pending'), 'true');
 	});
 
 	test('I-23 lump section fades out for 300ms after it closes', async () => {
@@ -317,9 +378,143 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		store.patch({ history: [user, { id: 'a', role: 'assistant', content: 'para one\n\npara **two** and more' }] });
 		assert.strictEqual(body().firstElementChild, first);
 		assert.ok(body().textContent?.includes('and more'));
-		store.patch({ isStreaming: false, history: [user, { id: 'a', role: 'assistant', content: 'done', thinking: 'plan\n```ts\nconst x = 1;\n```', thinkingCollapsed: false }] });
+		store.patch({ isStreaming: false, history: [user, { id: 'a', role: 'assistant', content: 'done', thinking: 'plan\n```ts\nconst x = 1;\n```', thinkingCollapsed: false, thinkingActive: true }] });
 		const reasoning = widget.root.querySelector<HTMLElement>('.knox-gui-reasoning-body')!;
 		assert.ok(reasoning.querySelector('.knox-gui-code-actions'));
+		assert.ok(reasoning.classList.contains('no-scroll'));
+		assert.ok(widget.root.querySelector('.knox-gui-reasoning-header.thinking')?.textContent?.includes('Thinking'));
+		assert.ok(!widget.root.querySelector('.knox-gui-reasoning-header.thinking')?.textContent?.includes('Thinking...'));
+	});
+
+	test('streaming patches live reasoning, closed fences drop the generating bar, and tools sit beside the reply', async () => {
+		const { widget, store } = await mount();
+		const user: IKnoxGuiHistoryItem = { id: 'u', role: 'user', content: 'go' };
+		store.patch({
+			isStreaming: true,
+			history: [user, { id: 'a', role: 'assistant', content: '', thinking: 'first', thinkingCollapsed: false, thinkingActive: true }],
+		});
+		assert.ok(widget.root.querySelector('.knox-gui-reasoning-body')?.textContent?.includes('first'));
+		const reasoning = widget.root.querySelector('.knox-gui-reasoning');
+		const anchor = widget.root.querySelector('[data-testid="stream-anchor"]');
+		store.patch({
+			history: [user, { id: 'a', role: 'assistant', content: '', thinking: 'first then more', thinkingCollapsed: false, thinkingActive: true }],
+		});
+		assert.ok(widget.root.querySelector('.knox-gui-reasoning-body')?.textContent?.includes('first then more'));
+		assert.strictEqual(widget.root.querySelector('.knox-gui-reasoning'), reasoning);
+		assert.strictEqual(widget.root.querySelector('[data-testid="stream-anchor"]'), anchor);
+
+		store.patch({
+			isStreaming: true,
+			history: [user, { id: 'a', role: 'assistant', content: '```ts app.ts\nconst x = 1' }],
+		});
+		const codeScroll = widget.root.querySelector('.knox-gui-code-scroll');
+		assert.ok(codeScroll?.classList.contains('generating'));
+		store.patch({
+			history: [user, { id: 'a', role: 'assistant', content: '```ts app.ts\nconst x = 12' }],
+		});
+		assert.strictEqual(widget.root.querySelector('.knox-gui-code-scroll'), codeScroll);
+		assert.ok(codeScroll?.textContent?.includes('const x = 12'));
+
+		store.patch({
+			isStreaming: true,
+			history: [user, { id: 'a', role: 'assistant', content: '```ts app.ts\nconst x = 1;\n```\nmore' }],
+		});
+		assert.ok(!widget.root.querySelector('.knox-gui-code-scroll.generating'));
+
+		store.patch({
+			isStreaming: true,
+			history: [user, {
+				id: 'a',
+				role: 'assistant',
+				content: '',
+				thinking: 'still thinking',
+				thinkingCollapsed: false,
+				thinkingActive: true,
+				toolCalls: [{ id: 't', name: 'builtin_read_file', arguments: '{}', status: 'calling' as const }],
+			}],
+		});
+		const liveStep = widget.root.querySelector('.knox-gui-step');
+		const liveTool = widget.root.querySelector('[data-testid="knox-gui-tool"]');
+		assert.ok(liveStep);
+		assert.ok(liveTool);
+		store.patch({
+			history: [user, {
+				id: 'a',
+				role: 'assistant',
+				content: '',
+				thinking: 'still thinking harder',
+				thinkingCollapsed: false,
+				thinkingActive: true,
+				toolCalls: [{ id: 't', name: 'builtin_read_file', arguments: '{}', status: 'calling' as const, output: 'file body' }],
+			}],
+		});
+		assert.strictEqual(widget.root.querySelector('.knox-gui-step'), liveStep);
+		assert.ok(widget.root.querySelector('.knox-gui-reasoning-body')?.textContent?.includes('still thinking harder'));
+
+		store.patch({
+			isStreaming: false,
+			history: [user, {
+				id: 'a',
+				role: 'assistant',
+				content: 'done',
+				toolCalls: [{ id: 't', name: 'builtin_read_file', arguments: '{}', status: 'done' as const }],
+			}],
+		});
+		const step = widget.root.querySelector('.knox-gui-step');
+		const tool = widget.root.querySelector('[data-testid="knox-gui-tool"]');
+		assert.ok(step);
+		assert.ok(tool);
+		assert.ok(step && tool && !step.contains(tool));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-main-sent-frame"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-body-chat'));
+	});
+
+	test('main sent frame matches KnoxInputBox GradientBorder + TipTapEditor layout', async () => {
+		const { widget } = await mount();
+		const frame = widget.root.querySelector('[data-testid="knox-gui-main-sent-frame"]') as HTMLElement | null;
+		assert.ok(frame);
+		assert.ok(frame.classList.contains('knox-sent-frame'));
+		assert.strictEqual(frame.classList.contains('knox-sent-frame--live'), false);
+		assert.strictEqual(frame.getAttribute('data-live'), 'false');
+		const inner = frame.querySelector(':scope > .knox-sent-frame-inner') as HTMLElement | null;
+		assert.ok(inner);
+		const wrap = inner.querySelector(':scope > .knox-gui-input-wrap.knox-gui-editor') as HTMLElement | null;
+		assert.ok(wrap);
+		const editor = wrap.querySelector(':scope > [data-testid="knox-gui-input"]') as HTMLElement | null;
+		const bar = wrap.querySelector(':scope > .knox-gui-input-bar') as HTMLElement | null;
+		assert.ok(editor);
+		assert.ok(bar);
+		assert.ok(editor.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING);
+		assert.ok(bar.querySelector('.knox-gui-input-bar-left'));
+		assert.ok(bar.querySelector('.knox-gui-input-bar-right'));
+		assert.ok(bar.querySelector('[data-testid="knox-gui-send"]'));
+		assert.ok(bar.style.fontSize);
+	});
+
+	test('chat and thinking markdown use native highlighting styles', async () => {
+		const { widget, store } = await mount();
+		const user: IKnoxGuiHistoryItem = { id: 'u', role: 'user', content: 'go' };
+		store.patch({
+			isStreaming: true,
+			history: [user, {
+				id: 'a',
+				role: 'assistant',
+				content: 'Use `App.tsx` and **bold**.\n\n- item one',
+				thinking: '- `signup-confirm`\n- **Create account**',
+				thinkingCollapsed: false,
+				thinkingActive: true,
+			}],
+		});
+		const reply = widget.root.querySelector('.knox-gui-stream-body');
+		assert.ok(reply?.querySelector('.rendered-markdown.styled-markdown-preview'));
+		assert.ok(reply?.querySelector('code')?.textContent?.includes('App.tsx'));
+		assert.ok(reply?.querySelector('strong')?.textContent?.includes('bold'));
+		assert.ok(Array.from(reply?.querySelectorAll('li') ?? []).some(el => el.textContent?.includes('item one')));
+		const thinking = widget.root.querySelector('.knox-gui-reasoning-content .rendered-markdown');
+		assert.ok(thinking);
+		assert.ok(thinking?.querySelector('code')?.textContent?.includes('signup-confirm'));
+		assert.ok(thinking?.querySelector('strong')?.textContent?.includes('Create account'));
+		assert.ok(thinking?.querySelectorAll('li').length === 2);
 	});
 
 	test('I-09 shortcut hints render one kbd per key with the platform meta key', async () => {
@@ -328,6 +523,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const keys = Array.from(widget.root.querySelectorAll('.knox-gui-history-empty kbd')).map(el => el.textContent);
 		assert.deepStrictEqual(keys, [isMacintosh ? '⌘' : 'Ctrl', 'L']);
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-mode-chat"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-history-footer')?.textContent);
+		assert.ok(widget.root.querySelector('.knox-gui-toolbar-left')?.classList.contains('knox-gui-xs-hide'));
 	});
 
 	function historyWithTool(tool: IKnoxGuiToolCall): IKnoxGuiHistoryItem[] {
@@ -368,6 +565,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-search"]'));
 		assert.ok(widget.root.querySelector('.knox-gui-search-query')?.textContent?.includes('hit'));
 		assert.ok(widget.root.querySelector('.knox-gui-search-line.match'));
+		assert.ok(widget.root.querySelector('.knox-gui-search-line:not(.match)'));
 
 		store.patch({
 			history: historyWithTool({
@@ -438,12 +636,32 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(submit?.disabled);
 		const choice = Array.from(widget.root.querySelectorAll('.knox-gui-ask-choice-label')).find(el => el.textContent === 'Desktop GUI (e.g. bevy/macroquad)');
 		assert.ok(choice);
-		(choice.parentElement as HTMLButtonElement).click();
+		assert.ok(choice.parentElement?.querySelector('.knox-gui-ask-choice-desc')?.textContent?.includes('a windowed native app'));
+		assert.ok(widget.root.querySelector('kbd.knox-gui-ask-kbd'));
+		(choice.closest('button') as HTMLButtonElement).click();
 		const enabled = widget.root.querySelector('[data-testid="ask-user-submit"]') as HTMLButtonElement | null;
 		assert.strictEqual(enabled?.disabled, false);
 		const askAfter = widget.root.querySelector('[data-testid="knox-gui-ask"]') as HTMLElement | null;
 		askAfter?.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true }));
 		assert.ok(widget.root.querySelector('.knox-gui-ask-choice.selected')?.textContent?.includes('Terminal game'));
+		widget.askUserDrafts.set('ask', { q1: 'Red\u0001Blue', 'q1::freeform': 'Other' });
+		store.patch({
+			history: historyWithTool({
+				id: 'ask',
+				name: 'builtin_ask_user',
+				arguments: '{}',
+				status: 'done',
+				questions: [{
+					id: 'q1',
+					prompt: 'How would you like to run/play the Rust Tetris game?',
+					options: [
+						'Terminal game (crossterm) — runs in your terminal',
+						'Desktop GUI (e.g. bevy/macroquad) — a windowed native app',
+					],
+				}],
+			}),
+		});
+		assert.ok(widget.root.querySelector('.knox-gui-ask-answer')?.textContent?.includes('Red, Blue, Other'));
 	});
 
 	test('tool titles match original Knox + status + catalog template', async () => {
@@ -668,6 +886,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const chip = editor.querySelector('[data-testid="knox-gui-mention-chip"]') as HTMLElement;
 		assert.ok(chip.classList.contains('is-openable'));
 		assert.ok(chip.querySelector('[data-testid="mention-chip-file-icon"]'));
+		assert.ok(chip.querySelector('[data-testid="mention-chip-file-icon"] .knox-gui-file-icon'));
 		assert.ok(editor.querySelector('[data-testid="slash-command-chip-icon"]'));
 
 		const text = chip.nextSibling as Text;
@@ -1001,7 +1220,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			checkpointView: 'timeline',
 			checkpointTimeline: [
 				node('cp-old-0001', '2026-09-24T10:00:00.000Z', { branchId: 'main' }),
-				node('cp-new-0003', '2026-09-26T10:00:00.000Z', { kind: 'auto', branchId: 'main', tags: ['release'], isIncremental: true, conversationContext: { role: 'user', messageContent: 'fix the bug' } }),
+				node('cp-new-0003', '2026-09-26T10:00:00.000Z', { kind: 'auto', branchId: 'main', tags: ['release'], isIncremental: true, deltaDepth: 2, timelineRisk: 'Medium', conversationContext: { role: 'user', messageContent: 'fix the bug' } }),
 				node('cp-mid-0002', '2026-09-26T08:00:00.000Z', { kind: 'merge' }),
 			],
 			checkpointTimelineBranches: [{ id: 'main', name: 'main', headCheckpointId: 'cp-new-0003', isActive: true }, { id: 'exp', name: 'experiment', headCheckpointId: 'cp-old-0001', isActive: false }],
@@ -1013,7 +1232,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const cards = [...widget.root.querySelectorAll('[data-testid="checkpoint-timeline-card"]')];
 		assert.ok(cards[0].textContent?.includes('desc cp-new-0003'), 'newest first');
 		assert.ok(cards[0].classList.contains('current'));
-		assert.ok(cards[0].querySelector('[data-testid="checkpoint-timeline-delta"]'));
+		assert.strictEqual(cards[0].querySelector('[data-testid="checkpoint-timeline-delta"]')?.textContent, 'Δ2');
+		assert.ok(cards[0].querySelector('[data-testid="checkpoint-timeline-risk"]'));
 		assert.ok(cards[0].querySelector('[data-testid="checkpoint-timeline-branch-dot"]'));
 		assert.ok(cards[0].textContent?.includes('release'));
 
@@ -1327,7 +1547,10 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 
 	test('KN-377 find widget, session tabs, fatal banner, and composer accept/reject-all', async () => {
 		const { widget, store } = await mount();
-		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-find"]'), null);
+		const closedFind = widget.root.querySelector('[data-testid="knox-gui-find"]');
+		assert.ok(closedFind);
+		assert.ok(closedFind.classList.contains('is-closed'));
+		assert.strictEqual(closedFind.getAttribute('inert'), '');
 		widget.openFind();
 		store.patch({
 			history: [
@@ -1375,5 +1598,293 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="edit-reject-button"]'));
 		store.patch({ isStreaming: true });
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-accept-reject-all"]')?.classList.contains('knox-gui-accept-reject-streaming'));
+	});
+
+	test('KP remaining widget: dialog, find, historical editor, images, jobs, settings', async () => {
+		const posted: Array<{ type: string; data: unknown }> = [];
+		const { widget, store } = await mount(message => {
+			posted.push({ type: message.messageType, data: message.data });
+			return {};
+		});
+
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-find"]')?.classList.contains('is-closed'));
+		widget.openFind();
+		const find = widget.root.querySelector('[data-testid="knox-gui-find"]')!;
+		assert.ok(!find.classList.contains('is-closed'));
+		const findInput = find.querySelector('input[data-knox-find-input]') as HTMLInputElement;
+		findInput.value = 'abc';
+		findInput.dispatchEvent(new Event('input', { bubbles: true }));
+		assert.strictEqual(store.state.find.query, '');
+		await timeout(320);
+		assert.strictEqual(store.state.find.query, 'abc');
+		widget.controller.updateFind({ query: '(', regex: true });
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-find-regex"]')?.classList.contains('is-invalid'));
+		assert.strictEqual(store.state.find.total, 0);
+		widget.controller.closeFind();
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-find"]')?.classList.contains('is-closed'));
+
+		store.patch({
+			history: [{ id: 'u1', role: 'user', content: '', images: ['data:image/png;base64,abc'] }],
+			imagesSupported: true,
+			markdownFormatting: false,
+		});
+		const historyEditor = widget.root.querySelector('[data-testid="knox-gui-history-input"]') as HTMLElement;
+		assert.ok(historyEditor);
+		assert.ok(historyEditor.dataset.placeholder);
+		assert.notStrictEqual(historyEditor.dataset.placeholder, knoxGuiT('en', 'askAnything'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-image-thumbs"]'));
+		(widget.root.querySelector('.knox-gui-thumb') as HTMLElement).click();
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-image-viewer"]'));
+		widget.closeImageViewer();
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-image-viewer"]'), null);
+
+		historyEditor.textContent = '@file';
+		historyEditor.dispatchEvent(new Event('input', { bubbles: true }));
+		assert.strictEqual(store.state.mentionOpen, false);
+		assert.strictEqual(widget.controller.suggestTarget, undefined);
+
+		const historyBox = widget.root.querySelector('.knox-gui-history-editor') as HTMLElement;
+		historyBox.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true }));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-drop-overlay"]'));
+
+		store.patch({
+			history: [{
+				id: 'u2',
+				role: 'user',
+				content: '',
+				inputDoc: [
+					{ type: 'codeBlock', code: 'const a = 1;', language: 'typescript', filepath: '/w/a.ts', range: { start: 0, end: 1 } },
+					{ type: 'codeBlock', code: 'const b = 2;', language: 'typescript', filepath: '/w/b.ts' },
+					{ type: 'paragraph', content: [] },
+				],
+			}],
+		});
+		const histChips = Array.from(widget.root.querySelectorAll<HTMLElement>('[data-testid="knox-gui-input-code-block"]'));
+		assert.strictEqual(histChips.length, 2);
+		assert.strictEqual(histChips[0].querySelector<HTMLElement>('.knox-gui-input-code-body')?.hidden, true);
+		assert.strictEqual(histChips[1].querySelector<HTMLElement>('.knox-gui-input-code-body')?.hidden, false);
+
+		store.patch({
+			history: [{ id: 'a', role: 'assistant', content: 'done', toolCalls: [{ id: 't', name: 'builtin_edit_file', arguments: '{}', status: 'generated' }] }],
+			input: 'hi',
+			inputDoc: inputDocFromPlainText('hi'),
+			isStreaming: false,
+		});
+		posted.length = 0;
+		widget.submitFromComposer(false);
+		assert.ok(posted.some(entry => entry.type === 'showToast' && JSON.stringify(entry.data).includes('Cannot submit message while awaiting tool confirmation')));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-text-dialog"]'), null);
+
+		widget.controller.storageService.store(KNOX_GUI_MAIN_TEXT_ENTRY_KEY, '299', StorageScope.PROFILE, StorageTarget.MACHINE);
+		widget.controller.storageService.remove(KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY, StorageScope.PROFILE);
+		store.patch({
+			history: [],
+			input: 'milestone',
+			inputDoc: inputDocFromPlainText('milestone'),
+			isStreaming: false,
+		});
+		widget.submitFromComposer(false);
+		widget.render();
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-text-dialog"]'));
+		widget.closeTextDialog();
+		store.patch({ input: 'again', inputDoc: inputDocFromPlainText('again') });
+		widget.submitFromComposer(false);
+		widget.render();
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-text-dialog"]'), null);
+
+		store.patch({
+			isStreaming: true,
+			jobsPanelOpen: true,
+			backgroundJobs: [{ id: 'j1', title: 'build', status: 'running', startedAt: Date.now() - 1500, kind: 'shell' }],
+		});
+		assert.ok(widget.root.querySelector('[data-testid="agent-job-kill-j1"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-send"]')?.classList.contains('knox-gui-cancel'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-history-attach-image"]')?.classList.contains('knox-gui-xs-hide')
+			|| widget.root.querySelector('[data-testid="knox-gui-attach-image"]')?.classList.contains('knox-gui-xs-hide')
+			|| widget.root.querySelector('.knox-gui-xs-hide'));
+
+		store.patch({ overlay: 'models', profileType: 'cloud', profileId: 'p1', isStreaming: false, jobsPanelOpen: false, backgroundJobs: [] });
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-open-config"]'));
+		store.patch({ profileType: 'local' });
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-open-config"]'));
+
+		store.patch({ overlay: 'settings' });
+		assert.ok(widget.root.querySelector('.knox-gui-settings-card h3.knox-gui-cyan'));
+		assert.ok(widget.root.querySelector('.knox-gui-number-step'));
+		const numberInput = widget.root.querySelector('.knox-gui-number-field input') as HTMLInputElement;
+		assert.ok(numberInput);
+		const fontSize = store.state.fontSize;
+		numberInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+		assert.strictEqual(store.state.fontSize, fontSize + 1);
+		const nextNumberInput = widget.root.querySelector('.knox-gui-number-field input') as HTMLInputElement;
+		nextNumberInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+		assert.strictEqual(store.state.fontSize, fontSize);
+	});
+
+	test('KP leftover: edit composer hide, historical Send, #, Exit Edit, spellcheck', async () => {
+		const { widget, store } = await mount();
+		const mainInput = widget.root.querySelector('[data-testid="knox-gui-input"]') as HTMLElement;
+		assert.ok(mainInput);
+		assert.strictEqual(mainInput.getAttribute('spellcheck'), 'false');
+
+		store.patch({
+			mode: 'edit',
+			history: [],
+			codeToEdit: [{ filepath: 'src/a.ts' }],
+		});
+		assert.ok(widget.root.querySelector('[data-testid="full-composer"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-exit-edit"]'));
+
+		store.patch({
+			mode: 'edit',
+			history: [{ id: 'u1', role: 'user', content: 'edit me' }],
+			codeToEdit: [{ filepath: 'src/a.ts' }],
+			isStreaming: true,
+		});
+		assert.strictEqual(widget.root.querySelector('[data-testid="full-composer"]'), null);
+		assert.ok(widget.root.querySelector('[data-testid="last-user-composer"], [data-testid="history-composer"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-history-exit-edit"]'));
+		const historySend = widget.root.querySelector('[data-testid="knox-gui-history-send"]');
+		assert.ok(historySend);
+		assert.strictEqual(historySend.classList.contains('knox-gui-cancel'), false);
+		const historyBar = widget.root.querySelector('.knox-gui-history-editor .knox-gui-input-bar');
+		assert.ok(historyBar);
+		assert.strictEqual(historyBar.classList.contains('knox-gui-input-bar--hidden'), false);
+		const historyInput = widget.root.querySelector('[data-testid="knox-gui-history-input"]') as HTMLElement;
+		assert.ok(historyInput);
+		assert.strictEqual(historyInput.getAttribute('spellcheck'), 'false');
+
+		historyInput.textContent = '#';
+		historyInput.dispatchEvent(new Event('input', { bubbles: true }));
+		assert.strictEqual(store.state.suggestCodeToEdit, true);
+
+		(widget.root.querySelector('[data-testid="knox-gui-history-exit-edit"]') as HTMLElement).click();
+		await timeout(0);
+		assert.notStrictEqual(store.state.mode, 'edit');
+
+		store.patch({
+			mode: 'edit',
+			history: [{ id: 'u1', role: 'user', content: 'edit me' }],
+			codeToEdit: [{ filepath: 'src/a.ts' }],
+			mentionOpen: false,
+			slashOpen: false,
+			suggestCodeToEdit: false,
+		});
+		const editor = widget.root.querySelector('[data-testid="knox-gui-history-input"]') as HTMLElement;
+		editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+		await timeout(0);
+		assert.notStrictEqual(store.state.mode, 'edit');
+	});
+
+	test('history row click loads the session transcript and leaves the overlay', async () => {
+		const { widget, store } = await mount(message => {
+			if (message.messageType === 'history/load') {
+				const id = String((message.data as { id?: string } | undefined)?.id ?? '');
+				if (id === 'sess-uuid') {
+					return {
+						sessionId: 'sess-uuid',
+						title: 'Workspace Terminal Demo',
+						history: [
+							{ message: { role: 'user', content: [{ type: 'text', text: 'hello from history' }] } },
+							{ message: { role: 'assistant', content: 'Hi! Ready to help.' } },
+						],
+					};
+				}
+				return {
+					sessionId: id,
+					title: 'leftover',
+					history: [{ message: { role: 'user', content: [{ type: 'text', text: 'leftover transcript' }] } }],
+				};
+			}
+			return {};
+		});
+		store.patch({
+			overlay: 'history',
+			sessionId: '',
+			history: [],
+			historySessions: [
+				{ id: '', title: 'empty-id leftover', date: String(Date.now()) },
+				{ id: 'sess-uuid', title: 'Workspace Terminal Demo', date: String(Date.now() - 60_000) },
+			],
+		});
+		const uuidRow = widget.root.querySelector('[data-testid="knox-gui-overlay-history"] [data-session-id="sess-uuid"]') as HTMLElement | null;
+		assert.ok(uuidRow);
+		uuidRow.click();
+		await timeout(0);
+		assert.strictEqual(store.state.overlay, null);
+		assert.strictEqual(store.state.sessionId, 'sess-uuid');
+		assert.ok(widget.root.textContent?.includes('hello from history'));
+		assert.ok(widget.root.textContent?.includes('Hi! Ready to help.'));
+		assert.ok(widget.root.querySelector('[data-testid="chat-virtual-list"]'));
+
+		store.patch({
+			overlay: 'history',
+			sessionId: '',
+			history: [],
+			historySessions: [
+				{ id: '', title: 'empty-id leftover', date: String(Date.now()) },
+			],
+		});
+		const leftover = widget.root.querySelector('[data-testid="knox-gui-overlay-history"] [data-session-id=""]') as HTMLElement | null;
+		assert.ok(leftover);
+		leftover.click();
+		await timeout(0);
+		assert.strictEqual(store.state.overlay, null);
+		assert.ok(widget.root.textContent?.includes('leftover transcript'));
+	});
+
+	test('KP leftover: thumbs above editor, prompts unprefixed, history delete tooltip, calling cancel', async () => {
+		const posted: string[] = [];
+		const { widget, store } = await mount(message => {
+			posted.push(message.messageType);
+		});
+		store.patch({
+			overlay: null,
+			imagesSupported: true,
+			images: [{ name: 'shot.png', imageUrl: 'data:image/png;base64,aaaa' }],
+		});
+		const wrap = widget.root.querySelector('.knox-gui-editor') as HTMLElement;
+		const thumbs = wrap.querySelector('[data-testid="knox-gui-image-thumbs"]') as HTMLElement;
+		const editor = wrap.querySelector('[data-testid="knox-gui-input"]') as HTMLElement;
+		assert.ok(thumbs && editor);
+		assert.ok(thumbs.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+		store.patch({
+			overlay: 'prompts',
+			slashCommands: [{ name: 'commit', description: 'Commit changes', prompt: 'commit the work' }],
+		});
+		assert.strictEqual(widget.root.querySelector('.knox-gui-prompt-name')?.textContent, 'commit');
+
+		store.patch({
+			overlay: 'history',
+			historySelectionMode: true,
+			historySelected: ['a', 'b'],
+			historySessions: [
+				{ id: 'a', title: 'One', date: String(Date.now()) },
+				{ id: 'b', title: 'Two', date: String(Date.now() - 1000) },
+			],
+		});
+		const del = widget.root.querySelector('.knox-gui-history-delete-btn') as HTMLButtonElement;
+		assert.ok(del);
+		assert.ok(del.title.includes('2'));
+
+		store.patch({
+			overlay: null,
+			isStreaming: true,
+			history: [{
+				id: 'a1',
+				role: 'assistant',
+				content: '',
+				toolCalls: [{ id: 't1', name: 'builtin_run_terminal_command', arguments: '{}', status: 'calling' }],
+			}],
+		});
+		const cancel = widget.root.querySelector('[data-testid="tool-calling-cancel"]') as HTMLButtonElement;
+		assert.ok(cancel);
+		posted.length = 0;
+		cancel.click();
+		await timeout(0);
+		assert.ok(posted.includes('abort'));
+		assert.ok(posted.includes('tools/cancel'));
+		assert.strictEqual(store.state.isStreaming, false);
 	});
 });

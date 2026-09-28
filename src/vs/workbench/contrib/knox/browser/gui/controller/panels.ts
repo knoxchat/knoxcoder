@@ -39,11 +39,19 @@ export function openContextItem(controller: KnoxGuiController, ctx: IKnoxGuiCont
 }
 
 export function openGitFile(controller: KnoxGuiController, file: IKnoxGuiGitDiffFile): void {
+	void openGitFileAsync(controller, file);
+}
+
+async function openGitFileAsync(controller: KnoxGuiController, file: IKnoxGuiGitDiffFile): Promise<void> {
 	if (file.status === 'deleted') {
 		controller.messenger.post('openGitChange', { uri: file.uri });
 		return;
 	}
-	controller.showFile(file.uri || file.filepath);
+	try {
+		await controller.messenger.request('showFile', { filepath: file.uri || file.filepath });
+	} catch {
+		controller.messenger.post('openGitChange', { uri: file.uri });
+	}
 }
 
 export function gitDiffExpanded(controller: KnoxGuiController): boolean {

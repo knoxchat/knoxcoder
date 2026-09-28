@@ -77,7 +77,7 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	const meter = DOM.append(parent, DOM.$('.knox-gui-meter.knox-gui-attached'));
 	meter.setAttribute('data-testid', 'agent-turn-meter');
 	meter.setAttribute('data-composer-slot', 'agentMeter');
-	meter.style.fontSize = `${Math.max(9, state.fontSize - 3)}px`;
+	meter.style.fontSize = `${state.fontSize - 3}px`;
 	if (autonomousActive && state.autonomous) {
 		widget.renderAutonomousBanner(meter, state);
 	}
@@ -93,6 +93,9 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	const outputTokens = estimateTurnOutputTokens(state.history, userIndex, logs);
 	const generating = isTurnGeneratingTokens(state.isStreaming, state.history);
 	const turnKey = `${userIndex}:${startedAt ?? ''}`;
+	if (widget.meterTurnKey !== turnKey) {
+		widget.meterFollowEnabled = true;
+	}
 	widget.meterStartedAt = startedAt;
 	widget.meterGenerating = generating;
 	widget.meterOutputTokens = outputTokens;
@@ -115,7 +118,8 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 			widget.render();
 		}));
 	} else {
-		toggle.disabled = true;
+		toggle.disabled = false;
+		toggle.classList.add('knox-gui-meter-toggle-static');
 	}
 	if (live) {
 		renderLoadingState(widget, toggle, {
@@ -191,7 +195,7 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 		scroll.setAttribute('data-testid', 'agent-turn-meter-scroll');
 		widget.renderActivitySteps(scroll, state, steps);
 		if (open) {
-			bindMeterStickToBottom(widget, scroll, live, `${steps.length}:${steps[steps.length - 1]?.id ?? ''}:${steps[steps.length - 1]?.status ?? ''}`);
+			bindMeterStickToBottom(widget, scroll, live, `${steps.length}:${steps[steps.length - 1]?.id ?? ''}:${steps[steps.length - 1]?.status ?? ''}:${steps[steps.length - 1]?.detail ?? ''}`);
 		}
 	}
 	syncMeterClock(widget, live, generating, outputTokens, turnKey, state);
@@ -204,6 +208,7 @@ export function renderLoadingState(
 ): void {
 	const loading = DOM.append(parent, DOM.$('span.knox-gui-loading-state'));
 	loading.setAttribute('role', 'status');
+	loading.setAttribute('aria-live', 'polite');
 	loading.setAttribute('data-testid', options.testId);
 	const { delays, durationMs, round } = loadingPixelDelays(options.variant);
 	const grid = DOM.append(loading, DOM.$('span.knox-gui-loading-grid'));
@@ -235,7 +240,7 @@ export function renderLoadingState(
 }
 
 function bindMeterStickToBottom(widget: KnoxGuiWidget, scroll: HTMLElement, live: boolean, _fingerprint: string): void {
-	if (widget.meterFollowEnabled) {
+	if (widget.meterFollowEnabled && live) {
 		widget.meterProgrammaticScroll = true;
 		scroll.scrollTop = scroll.scrollHeight;
 		queueMicrotask(() => {
@@ -261,7 +266,6 @@ function bindMeterStickToBottom(widget: KnoxGuiWidget, scroll: HTMLElement, live
 			widget.meterFollowEnabled = true;
 		}
 	}));
-	void live;
 }
 
 export function syncMeterClock(
@@ -492,7 +496,7 @@ export function renderWorktreePanel(widget: KnoxGuiWidget, parent: HTMLElement, 
 			label: t(state, 'worktreeApply'),
 			title: t(state, 'worktreeApplyHint'),
 			disabled: state.worktree.busy || fileCount === 0,
-			extraClass: 'knox-gui-worktree-apply',
+			extraClass: 'knox-gui-worktree-apply knox-gui-text-action',
 			onClick: () => void widget.controller.runWorktree('apply'),
 		});
 		apply.disabled = state.worktree.busy || fileCount === 0;
@@ -500,7 +504,7 @@ export function renderWorktreePanel(widget: KnoxGuiWidget, parent: HTMLElement, 
 			label: t(state, 'worktreeDiscard'),
 			title: t(state, 'worktreeDiscardHint'),
 			disabled: state.worktree.busy,
-			extraClass: 'knox-gui-worktree-discard',
+			extraClass: 'knox-gui-worktree-discard knox-gui-text-action',
 			onClick: () => void widget.controller.runWorktree('discard'),
 		});
 		discard.disabled = state.worktree.busy;
@@ -820,7 +824,8 @@ export function renderJobRow(widget: KnoxGuiWidget, parent: HTMLElement, state: 
 		widget.chromeButton(row, {
 			label: t(state, 'jobsKill'),
 			title: t(state, 'jobsKillHint'),
-			extraClass: 'knox-gui-job-kill',
+			extraClass: 'knox-gui-job-kill knox-gui-text-action',
+			testId: `agent-job-kill-${job.id}`,
 			onClick: () => void widget.controller.runJobAction('kill', job.id),
 		});
 	}

@@ -8,8 +8,9 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { knoxGuiShowsFatalBanner, knoxGuiShowsSessionTabs } from '../../common/knoxGuiChrome.js';
+import { knoxGuiShowsChatScrollbar, knoxGuiShowsFatalBanner, knoxGuiShowsSessionTabs } from '../../common/knoxGuiChrome.js';
 import { AUTO_DISPLAY_START, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange, toolDisplayKind } from '../../common/knoxGuiChat.js';
 import { composerUndoRecord, createComposerInputHistory, createComposerUndo, IKnoxGuiComposerInputHistory, IKnoxGuiComposerUndo, IKnoxGuiDocCaret, IKnoxGuiInputBlock, KnoxGuiInlineNode } from '../../common/knoxGuiInput.js';
 import type { IKnoxGuiCheckpointDetailsView } from '../../common/knoxGuiCheckpoints.js';
@@ -32,6 +33,7 @@ import * as knoxGuiOverlaysView from './widget/overlays.js';
 import * as knoxGuiPagesView from './widget/pages.js';
 import * as knoxGuiMemoryView from './widget/memory.js';
 import * as knoxGuiCheckpointsView from './widget/checkpoints.js';
+import * as knoxGuiDialogView from './widget/dialog.js';
 import { captureDomState, restoreDomState } from './widget/preserve.js';
 
 export class KnoxGuiWidget extends Disposable {
@@ -58,6 +60,7 @@ export class KnoxGuiWidget extends Disposable {
 	lastScrollTop = 0;
 	lastScrollHeight = 0;
 	stickScheduled = false;
+	streamEndStickHandle: ReturnType<typeof setTimeout> | undefined;
 	expandedStart = AUTO_DISPLAY_START;
 	displayStart = 0;
 	pendingRestoreHeight: number | null = null;
@@ -65,12 +68,14 @@ export class KnoxGuiWidget extends Disposable {
 	loadingEarlier = false;
 	agentMeterOpen = false;
 	meterFollowEnabled = true;
+	refocusComposerAfterStream = false;
 	meterProgrammaticScroll = false;
 	meterTpsClock: IKnoxGuiTpsClock = resetTpsClock(0, '');
 	meterClockTimer: ReturnType<typeof setInterval> | undefined;
 	meterElapsedEl: HTMLElement | undefined;
 	meterTpsEl: HTMLElement | undefined;
 	meterStartedAt: number | undefined;
+	historyLoadingStartedAt: number | undefined;
 	meterGenerating = false;
 	meterOutputTokens = 0;
 	meterTurnKey = '';
@@ -112,12 +117,17 @@ export class KnoxGuiWidget extends Disposable {
 	lastTaskPlanStructure = '';
 	lastAssistantCard: HTMLElement | undefined;
 	readonly streamPatchStore = this._register(new DisposableStore());
+	readonly reasoningPatchStore = this._register(new DisposableStore());
+	readonly reasoningContentStore = this._register(new DisposableStore());
+	readonly toolPatchStore = this._register(new DisposableStore());
+	readonly toolPatchStores = new Map<string, DisposableStore>();
 	/** Rendered blocks of the streaming reply, in order; see `renderStreamingAssistantBody`. */
-	streamBlocks: { key: string; nodes: ChildNode[]; store: DisposableStore }[] = [];
+	streamBlocks: { key: string; nodes: ChildNode[]; store: DisposableStore; payload: string }[] = [];
 	openMenu: 'agent' | 'model' | 'effort' | null = null;
 	openRoleMenu: KnoxModelRole | null = null;
 	expandedRuleIndex: number | null = null;
 	editingHistoryId: string | null = null;
+	historySearchFocus = false;
 	memoryExpandedId: string | null = null;
 	memorySelectedIds = new Set<string>();
 	memorySelectionMode = false;
@@ -173,7 +183,19 @@ export class KnoxGuiWidget extends Disposable {
 	readonly historyEditorBoxes = new Map<string, HTMLElement>();
 	/** Per-editor walk through the shared chat input history (`useInputHistory` per editor instance). */
 	readonly historyInputHistories = new Map<string, IKnoxGuiComposerInputHistory>();
+	readonly historyUndo = new Map<string, IKnoxGuiComposerUndo>();
+	readonly historyUndoApplying = new Set<string>();
+	historyDropOverId: string | null = null;
 	historyPendingCaret: { id: string; caret: IKnoxGuiDocCaret } | undefined;
+	textDialog: { title: string; body: string } | null = null;
+	imageViewerUrl: string | undefined;
+	findQueryDraft = '';
+	findQueryTimer: ReturnType<typeof setTimeout> | undefined;
+	findResizeTimer: ReturnType<typeof setTimeout> | undefined;
+	findResizing = false;
+	findResizeObserver: ResizeObserver | undefined;
+	osrSelectedRange: Range | undefined;
+	addModelBrowseMode: 'provider' | 'model' = 'provider';
 	readonly appliedUntil = new Map<string, number>();
 	readonly rejectedApplies = new Set<string>();
 	readonly contextPeekOpen = new Set<string>();
@@ -246,6 +268,7 @@ export class KnoxGuiWidget extends Disposable {
 		@IHoverService readonly hoverService: IHoverService,
 		@ILanguageService readonly languageService: ILanguageService,
 		@IModelService readonly modelService: IModelService,
+		@IMarkdownRendererService readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 		this.chatInputHistory = controller.loadInputHistory('chat');
@@ -274,6 +297,14 @@ export class KnoxGuiWidget extends Disposable {
 		this._register({ dispose: () => this.clearJobClock() });
 		this._register({ dispose: () => this.clearMeterClock() });
 		this._register({ dispose: () => { if (this.dragLeaveTimer) { clearTimeout(this.dragLeaveTimer); } } });
+		this._register({ dispose: () => { if (this.findQueryTimer) { clearTimeout(this.findQueryTimer); } } });
+		this._register({ dispose: () => { if (this.findResizeTimer) { clearTimeout(this.findResizeTimer); } } });
+		this._register({ dispose: () => { if (this.streamEndStickHandle) { clearTimeout(this.streamEndStickHandle); } } });
+		this._register({ dispose: () => this.findResizeObserver?.disconnect() });
+		if (typeof ResizeObserver !== 'undefined') {
+			this.findResizeObserver = new ResizeObserver(() => this.onPaneResize());
+			this.findResizeObserver.observe(this.root);
+		}
 		this._register({ dispose: () => clearTimeout(this.lumpFade.timer) });
 		this._register({ dispose: () => { if (this.checkpointListQueryTimer) { clearTimeout(this.checkpointListQueryTimer); } } });
 		this._register({ dispose: () => { if (this.memorySessionSearchTimer) { clearTimeout(this.memorySessionSearchTimer); } } });
@@ -328,6 +359,12 @@ export class KnoxGuiWidget extends Disposable {
 		if (this.lastState && !this.lastState.isStreaming && state.isStreaming) {
 			this.autoScrollEnabled = true;
 		}
+		if (this.lastState?.isStreaming && !state.isStreaming && this.autoScrollEnabled) {
+			knoxGuiChromeView.scheduleStreamEndStick(this);
+		}
+		if (this.lastState?.isStreaming && !state.isStreaming && this.shouldShowComposer(state)) {
+			this.refocusComposerAfterStream = true;
+		}
 		this.lastState = state;
 		this.render();
 	}
@@ -338,6 +375,7 @@ export class KnoxGuiWidget extends Disposable {
 		const restore = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
 			? { id: active.id, name: active.placeholder || active.className, start: active.selectionStart, end: active.selectionEnd, tag: active.tagName, type: active.type, value: active.value, find: active.hasAttribute('data-knox-find-input') }
 			: undefined;
+		const restoreJobFocus = active instanceof HTMLElement ? active.closest('[data-testid^="agent-job-"]')?.getAttribute('data-testid') ?? undefined : undefined;
 		const domSnapshot = captureDomState(this.root, this.bodyEl);
 		this.checkpointGraphMount?.remove();
 		this.renderStore.clear();
@@ -361,6 +399,10 @@ export class KnoxGuiWidget extends Disposable {
 		this.lastAssistantCard = undefined;
 		this.dropOverlayEl = undefined;
 		this.streamPatchStore.clear();
+		this.reasoningPatchStore.clear();
+		this.reasoningContentStore.clear();
+		this.toolPatchStore.clear();
+		this.toolPatchStores.clear();
 		this.streamBlocks = [];
 		const state = this.controller.store.state;
 		if (state.sessionId !== this.lastSessionId) {
@@ -392,6 +434,9 @@ export class KnoxGuiWidget extends Disposable {
 			this.termCopiedUntil.clear();
 			this.historyDrafts.clear();
 			this.historyInputHistories.clear();
+			this.historyUndo.clear();
+			this.historyUndoApplying.clear();
+			this.historyDropOverId = null;
 			this.appliedUntil.clear();
 			this.rejectedApplies.clear();
 			this.contextPeekOpen.clear();
@@ -410,9 +455,7 @@ export class KnoxGuiWidget extends Disposable {
 		this.root.classList.toggle('knox-gui-dedicated', knoxGuiIsDedicatedEditor(state));
 		this.root.style.fontSize = `${state.fontSize}px`;
 		this.themeCssVars = applyKnoxGuiThemeToElement(this.root, this.themeStyleEl, state, this.themeCssVars);
-		if (state.find.open) {
-			this.renderFind(state);
-		}
+		this.renderFind(state);
 		if (knoxGuiShowsSessionTabs(state)) {
 			this.renderTabs(state);
 		}
@@ -423,7 +466,8 @@ export class KnoxGuiWidget extends Disposable {
 		}
 		const body = DOM.append(this.root, DOM.$('.knox-gui-body'));
 		this.bodyEl = body;
-		if (state.showChatScrollbar) {
+		body.classList.toggle('knox-gui-body-chat', state.route === KnoxGuiRoute.Chat);
+		if (knoxGuiShowsChatScrollbar(state.showChatScrollbar, Math.max(this.root.clientHeight, typeof window !== 'undefined' ? window.innerHeight : 0))) {
 			body.classList.add('knox-gui-body-scroll');
 		} else {
 			body.classList.add('knox-gui-body-no-scroll');
@@ -458,6 +502,12 @@ export class KnoxGuiWidget extends Disposable {
 		if (state.streamError) {
 			this.renderStreamError(this.root, state);
 		}
+		if (this.textDialog) {
+			knoxGuiDialogView.renderMilestoneDialog(this, state);
+		}
+		if (this.imageViewerUrl) {
+			knoxGuiDialogView.renderImageViewer(this, state);
+		}
 		if (this.dragOver) {
 			this.showDropOverlay();
 		}
@@ -468,6 +518,16 @@ export class KnoxGuiWidget extends Disposable {
 			this.releaseCheckpointGraph();
 		}
 		queueMicrotask(() => {
+			if (this.textDialog || this.imageViewerUrl) {
+				return;
+			}
+			if (restoreJobFocus) {
+				const jobEl = this.root.querySelector(`[data-testid="${restoreJobFocus}"]`) as HTMLElement | null;
+				if (jobEl) {
+					jobEl.focus();
+					return;
+				}
+			}
 			if (state.find.open && this.findInput) {
 				this.findInput.focus();
 				if (restore?.find) {
@@ -484,7 +544,9 @@ export class KnoxGuiWidget extends Disposable {
 					return;
 				}
 			}
-			if (restoreEditor || state.inputFocused) {
+			const refocusAfterStream = this.refocusComposerAfterStream;
+			this.refocusComposerAfterStream = false;
+			if (restoreEditor || state.inputFocused || (refocusAfterStream && typeof document !== 'undefined' && document.hasFocus() && this.shouldShowComposer(state))) {
 				this.focusInput();
 				return;
 			}
@@ -634,6 +696,10 @@ export class KnoxGuiWidget extends Disposable {
 		knoxGuiChatView.renderHistoryContextPeek(this, parent, state, item);
 	}
 
+	renderContextItemsPeek(parent: HTMLElement, state: IKnoxGuiState, key: string, items: readonly IKnoxGuiContextItem[], gathering: boolean): void {
+		knoxGuiChatView.renderContextItemsPeek(this, parent, state, key, items, gathering);
+	}
+
 	renderContextPeekItem(parent: HTMLElement, ctx: IKnoxGuiContextItem): HTMLElement {
 		return knoxGuiChatView.renderContextPeekItem(this, parent, ctx);
 	}
@@ -666,8 +732,8 @@ export class KnoxGuiWidget extends Disposable {
 		knoxGuiChatView.renderAssistantBody(this, card, state, item, isLast);
 	}
 
-	appendMarkdown(parent: HTMLElement, source: string, store = this.renderStore, fileInfo?: IKnoxGuiPastFileInfo): void {
-		knoxGuiMarkdownView.appendMarkdown(this, parent, source, store, fileInfo);
+	appendMarkdown(parent: HTMLElement, source: string, store = this.renderStore, fileInfo?: IKnoxGuiPastFileInfo, streaming = false): void {
+		knoxGuiMarkdownView.appendMarkdown(this, parent, source, store, fileInfo, streaming);
 	}
 
 	renderCodeFence(
@@ -699,6 +765,10 @@ export class KnoxGuiWidget extends Disposable {
 
 	renderReasoning(parent: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem, index: number): void {
 		knoxGuiMarkdownView.renderReasoning(this, parent, state, item, index);
+	}
+
+	patchLiveReasoning(card: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem, index: number): void {
+		knoxGuiMarkdownView.patchLiveReasoning(this, card, state, item, index);
 	}
 
 	toggleThinking(item: IKnoxGuiHistoryItem, collapsed: boolean): void {
@@ -781,6 +851,7 @@ export class KnoxGuiWidget extends Disposable {
 
 	renderTreeCard(parent: HTMLElement, state: IKnoxGuiState, options: {
 		id: string;
+		kind?: 'subdirectory' | 'repo-map';
 		expanded: boolean;
 		theme: ReturnType<typeof treeThemeColors>;
 		title: string;
@@ -810,8 +881,8 @@ export class KnoxGuiWidget extends Disposable {
 		knoxGuiToolsView.renderAskUser(this, parent, state, tool);
 	}
 
-	appendFileIcon(parent: HTMLElement, filepath: string, size?: number): HTMLElement {
-		return knoxGuiToolsView.appendFileIcon(this, parent, filepath, size);
+	appendFileIcon(parent: HTMLElement, filepath: string, size?: number, folder?: boolean): HTMLElement {
+		return knoxGuiToolsView.appendFileIcon(this, parent, filepath, size, folder);
 	}
 
 	renderClickablePath(parent: HTMLElement, filepath: string, options?: { range?: string; startLine?: number; endLine?: number; showIcon?: boolean }): void {
@@ -1130,8 +1201,8 @@ export class KnoxGuiWidget extends Disposable {
 		return knoxGuiCheckpointsView.modal(this, parent, testId, onClose);
 	}
 
-	back(body: HTMLElement, state: IKnoxGuiState, title?: string): void {
-		knoxGuiControls.back(this, body, state, title);
+	back(body: HTMLElement, state: IKnoxGuiState, title?: string, extraClass?: string): void {
+		knoxGuiControls.back(this, body, state, title, extraClass);
 	}
 
 	section(body: HTMLElement, title: string, text: string): void {
@@ -1372,6 +1443,32 @@ export class KnoxGuiWidget extends Disposable {
 		this.checkpointGraphMount = undefined;
 		this.checkpointGraphRenderKey = undefined;
 		this.checkpointGraphFindInput = undefined;
+	}
+
+	closeTextDialog(): void {
+		if (!this.textDialog) {
+			return;
+		}
+		this.textDialog = null;
+		this.render();
+	}
+
+	openImageViewer(url: string): void {
+		this.hideImagePreview();
+		this.imageViewerUrl = url;
+		this.render();
+	}
+
+	closeImageViewer(): void {
+		if (!this.imageViewerUrl) {
+			return;
+		}
+		this.imageViewerUrl = undefined;
+		this.render();
+	}
+
+	onPaneResize(): void {
+		knoxGuiChromeView.onPaneResize(this);
 	}
 
 }

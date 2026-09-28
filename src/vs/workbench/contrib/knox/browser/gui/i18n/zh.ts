@@ -1546,5 +1546,17 @@ export const knoxGuiStringsZh: Record<string, unknown> = {
 	"rejectSelected": "拒绝所选",
 	"listModels": "列出模型",
 	"selected": "已选",
-	"terminal": "终端"
+	"terminal": "终端",
+	"textDialogMilestoneTitle": "你已发送 300 条消息",
+	"textDialogMilestoneBody": "感谢使用 Knox。此输入框里程碑只显示一次。",
+	"invalidFindRegex": "无效的正则表达式",
+	"addModelOption1": "先选择提供商，再选择模型套餐。",
+	"addModelOption2": "或直接跳到具体模型。",
+	"startWithProvider": "从提供商开始",
+	"selectSpecificModel": "选择具体模型",
+	"selectModelBelow": "从下方最热门的选项中选择模型，或在 config.json 中配置您自己的",
+	"openaiDescription": "GPT-4o、GPT-4 Turbo、GPT-3.5 和 AUTODETECT",
+	"openaiLongDescription": "使用 OpenAI API 密钥从官方接口添加 GPT 模型。",
+	"anthropicDescription": "Claude 3.5 Sonnet/Haiku 与 Claude 3 Opus/Sonnet",
+	"anthropicLongDescription": "使用 Anthropic API 密钥从官方接口添加 Claude 模型。"
 } as const;

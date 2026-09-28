@@ -28,6 +28,7 @@ import {
 	formatToolName,
 	getCategorizedToolName,
 	highlightSearchQueryInHtml,
+	formatAskUserDisplayAnswer,
 	isAskUserAnswered,
 	parseAskUserQuestionsForGui,
 	LIGHT_TERMINAL_PALETTE,
@@ -56,14 +57,19 @@ import {
 	treeThemeColors,
 } from '../../../common/knoxGuiTools.js';
 import { IKnoxGuiState, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
-import { knoxGuiStateThemeIsLight } from '../../../common/knoxGuiTheme.js';
+import { knoxGuiHljsTokenColor, knoxGuiStateThemeIsLight } from '../../../common/knoxGuiTheme.js';
 import { activityAnchorId, parseCodeFenceRange, splitDisplayPath } from '../../../common/knoxGuiTranscript.js';
+
+export function toolStreamFingerprint(tool: IKnoxGuiToolCall): string {
+	return `${tool.status}\0${tool.arguments}\0${tool.output ?? ''}\0${tool.outputItems?.length ?? 0}\0${tool.collapsed ? 1 : 0}`;
+}
 
 export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {
 	const box = DOM.append(parent, DOM.$('.knox-gui-tool'));
 	box.setAttribute('data-testid', 'knox-gui-tool');
 	box.setAttribute('data-tool-name', tool.name);
 	box.setAttribute('data-tool-status', tool.status);
+	box.dataset.stream = toolStreamFingerprint(tool);
 	box.id = activityAnchorId(`tool:${tool.id}`);
 	const kind = toolDisplayKind(tool.name);
 	const catalog = catalogToolForCall(state.tools, tool.name);
@@ -83,7 +89,6 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 		widget.collapseChevron(left, {
 			expanded: showBody,
 			title: showBody ? t(state, 'collapse') : t(state, 'expand'),
-			disabled: isLive,
 			onClick: () => {
 				if (isLive) {
 					return;
@@ -101,8 +106,10 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 	icon.setAttribute('aria-hidden', 'true');
 	const statusIcon = toolStatusIcon(tool.status);
 	if (statusIcon === 'spinner') {
+		icon.classList.add('knox-gui-tool-status-live');
 		widget.appendSpinner(icon, 16);
 	} else {
+		icon.classList.add('knox-gui-tool-status-glyph');
 		appendKnoxGuiSvg(icon, statusIcon, 14);
 	}
 	if (catalog?.faviconUrl) {
@@ -168,7 +175,8 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 		for (const [key, value] of argEntries) {
 			const row = DOM.append(list, DOM.$('.knox-gui-tool-arg'));
 			DOM.append(row, DOM.$('span.knox-gui-muted', undefined, `${key}:`));
-			DOM.append(row, DOM.$('code', undefined, typeof value === 'string' ? value : JSON.stringify(value)));
+			const valueEl = DOM.append(row, DOM.$('code.knox-gui-tool-arg-value', undefined, typeof value === 'string' ? value : JSON.stringify(value)));
+			valueEl.title = typeof value === 'string' ? value : JSON.stringify(value);
 		}
 	}
 	if (showBody) {
@@ -229,10 +237,10 @@ export function renderToolActions(widget: KnoxGuiWidget,
 		return;
 	}
 	const placement = options?.placement ?? 'overlay';
-	if (placement === 'card' && tool.status === 'generated') {
+	if (placement === 'card' && (tool.status === 'generated' || tool.status === 'generating' || tool.status === 'calling')) {
 		return;
 	}
-	if (placement === 'chat' && tool.status !== 'generated') {
+	if (placement === 'chat' && tool.status !== 'generated' && tool.status !== 'generating' && tool.status !== 'calling') {
 		return;
 	}
 	if (tool.status === 'generating') {
@@ -245,7 +253,8 @@ export function renderToolActions(widget: KnoxGuiWidget,
 		widget.chromeButton(row, {
 			label: t(state, 'cancel'),
 			extraClass: 'knox-gui-tool-deny',
-			onClick: () => widget.controller.cancelTool(tool.id),
+			testId: 'tool-calling-cancel',
+			onClick: () => widget.controller.cancel(),
 		});
 		const loading = DOM.append(row, DOM.$('span.knox-gui-muted.knox-gui-tool-loading'));
 		loading.append(t(state, 'loading'));
@@ -259,6 +268,7 @@ export function renderToolActions(widget: KnoxGuiWidget,
 		toolName: tool.name,
 		toolSettings: state.toolSettings,
 		sessionAllowlist: state.sessionToolAllowlist,
+		tools: state.tools,
 	});
 	if (permission === 'autoApprove') {
 		return;
@@ -396,9 +406,11 @@ export function renderTerminalTool(widget: KnoxGuiWidget, parent: HTMLElement, s
 	if (command) {
 		const line = DOM.append(pre, DOM.$('span.knox-gui-term-prompt-line'));
 		const prompt = DOM.append(line, DOM.$('span.knox-gui-term-prompt', undefined, '❯'));
-		prompt.style.color = palette.green;
+		prompt.classList.add('hljs-title', 'function_');
+		prompt.style.color = knoxGuiHljsTokenColor(state.vscTokenColors, ['.hljs-title.function_', '.hljs-built_in'], palette.green);
 		const cmd = DOM.append(line, DOM.$('span.knox-gui-term-command', undefined, command));
-		cmd.style.color = palette.foreground;
+		cmd.classList.add('hljs-string');
+		cmd.style.color = knoxGuiHljsTokenColor(state.vscTokenColors, ['.hljs-string'], palette.foreground);
 		cmd.setAttribute('data-testid', 'xterm-command');
 	}
 	if (tail) {
@@ -472,7 +484,7 @@ export function renderCreateFileTool(widget: KnoxGuiWidget, parent: HTMLElement,
 	const box = DOM.append(parent, DOM.$('.knox-gui-create-file'));
 	box.setAttribute('data-testid', 'knox-gui-create-file');
 	if (filepath) {
-		const row = DOM.append(box, DOM.$('.knox-gui-tool-file-row'));
+		const row = DOM.append(box, DOM.$('.knox-gui-tool-file-row.knox-gui-tool-kind-title'));
 		DOM.append(row, DOM.$('span.knox-gui-cyan', undefined, t(state, 'createdFile')));
 		widget.renderClickablePath(row, filepath);
 	}
@@ -521,14 +533,15 @@ export function renderSubdirectoryTool(widget: KnoxGuiWidget, parent: HTMLElemen
 	const shortDirName = pathLabel.split('/').filter(Boolean).pop() || pathLabel;
 	const expanded = widget.cardExpanded(tool.id, false);
 	const tab = widget.toolCardTab.get(tool.id) === 'summary' ? 'summary' : 'structure';
-	const title = DOM.append(parent, DOM.$('.knox-gui-tool-kind-title'));
-	appendKnoxGuiSvg(title, 'folder', 16);
+	const title = DOM.append(parent, DOM.$('.knox-gui-tool-kind-title.is-subdir'));
+	appendKnoxGuiSvg(title, 'folder', 16).classList.add('knox-gui-tree-folder-icon');
 	DOM.append(title, DOM.$('span.knox-gui-cyan', undefined, t(state, 'viewSubdirectory')));
 	for (const badge of badges) {
 		DOM.append(title, DOM.$('span.knox-gui-tool-badge', undefined, badge));
 	}
 	widget.renderTreeCard(parent, state, {
 		id: tool.id,
+		kind: 'subdirectory',
 		expanded,
 		theme,
 		title: shortDirName,
@@ -557,6 +570,7 @@ export function renderRepoMapTool(widget: KnoxGuiWidget, parent: HTMLElement, st
 	DOM.append(title, DOM.$('span.knox-gui-cyan', undefined, t(state, 'viewRepoStructure')));
 	widget.renderTreeCard(parent, state, {
 		id: tool.id,
+		kind: 'repo-map',
 		expanded,
 		theme,
 		title: t(state, 'repositoryStructure'),
@@ -572,6 +586,7 @@ export function renderRepoMapTool(widget: KnoxGuiWidget, parent: HTMLElement, st
 
 export function renderTreeCard(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, options: {
 	id: string;
+	kind?: 'subdirectory' | 'repo-map';
 	expanded: boolean;
 	theme: ReturnType<typeof treeThemeColors>;
 	title: string;
@@ -601,8 +616,11 @@ export function renderTreeCard(widget: KnoxGuiWidget, parent: HTMLElement, state
 		onClick: () => widget.toggleCardExpanded(options.id, false),
 	});
 	const meta = DOM.append(head, DOM.$('.knox-gui-tree-meta'));
+	if (options.kind === 'subdirectory') {
+		appendKnoxGuiSvg(meta, 'folder', 14).classList.add('knox-gui-tree-folder-icon');
+	}
 	const name = DOM.append(meta, DOM.$('span.knox-gui-tree-title', undefined, options.title));
-	name.style.color = options.theme.accent;
+	name.style.color = options.kind === 'repo-map' ? options.theme.foreground : options.theme.accent;
 	if (options.subtitle) {
 		const sub = DOM.append(meta, DOM.$('code.knox-gui-tree-sub', undefined, options.subtitle));
 		sub.style.color = options.theme.foregroundMuted;
@@ -631,11 +649,14 @@ export function renderTreeCard(widget: KnoxGuiWidget, parent: HTMLElement, state
 		preview.style.color = options.theme.foreground;
 		return card;
 	}
-	const body = DOM.append(card, DOM.$('pre.knox-gui-tree-body'));
+	const body = DOM.append(card, DOM.$(options.kind === 'repo-map' ? 'pre.knox-gui-tree-body.is-repo-map' : 'pre.knox-gui-tree-body'));
 	body.style.color = options.theme.foreground;
 	widget.appendAnsi(body, options.colorized, widget.isLightTheme() ? LIGHT_TERMINAL_PALETTE : DARK_TERMINAL_PALETTE);
 	if (options.notice) {
-		DOM.append(card, DOM.$('.knox-gui-tree-notice', undefined, options.notice));
+		const notice = DOM.append(card, DOM.$('.knox-gui-tree-notice', undefined, options.notice));
+		if (widget.isLightTheme()) {
+			notice.classList.add('is-light');
+		}
 	}
 	return card;
 }
@@ -744,7 +765,7 @@ export function renderAskUser(widget: KnoxGuiWidget, parent: HTMLElement, state:
 			DOM.append(row, DOM.$('div.knox-gui-muted', undefined, question.prompt));
 			const answer = DOM.append(row, DOM.$('.knox-gui-ask-answer'));
 			appendKnoxGuiSvg(answer, 'check', 14);
-			DOM.append(answer, DOM.$('span', undefined, drafts[question.id] || (declined ? t(state, 'askUserDeclined') : t(state, 'askUserAnswered'))));
+			DOM.append(answer, DOM.$('span', undefined, formatAskUserDisplayAnswer(drafts, question.id, tool.answers?.[question.id]) || (declined ? t(state, 'askUserDeclined') : t(state, 'askUserAnswered'))));
 		}
 		return;
 	}
@@ -756,6 +777,9 @@ export function renderAskUser(widget: KnoxGuiWidget, parent: HTMLElement, state:
 	if (questions.length > 1) {
 		const progress = DOM.append(card, DOM.$('.knox-gui-ask-progress', undefined, t(state, 'askUserProgress', { current: step + 1, total: questions.length })));
 		progress.setAttribute('data-testid', 'knox-gui-ask-progress');
+		const track = DOM.append(progress, DOM.$('.knox-gui-ask-progress-track'));
+		const fill = DOM.append(track, DOM.$('.knox-gui-ask-progress-fill'));
+		fill.style.width = `${((step + 1) / questions.length) * 100}%`;
 	}
 	const question = questions[step];
 	const item = DOM.append(card, DOM.$('.knox-gui-ask-item'));
@@ -763,6 +787,7 @@ export function renderAskUser(widget: KnoxGuiWidget, parent: HTMLElement, state:
 	if (question.allowMultiple) {
 		DOM.append(item, DOM.$('.knox-gui-muted', undefined, t(state, 'askUserMultipleHint')));
 	}
+	const freeformKey = `${question.id}::freeform`;
 	const selected = new Set((drafts[question.id] ?? '').split('\u0001').filter(Boolean));
 	const setChoice = (option: string) => {
 		if (question.allowMultiple) {
@@ -780,31 +805,44 @@ export function renderAskUser(widget: KnoxGuiWidget, parent: HTMLElement, state:
 	};
 	if (question.options?.length) {
 		const choices = DOM.append(item, DOM.$('.knox-gui-ask-choices'));
-		for (const option of question.options) {
+		question.options.forEach((option, optionIndex) => {
 			const split = splitChoiceText(option);
 			const btn = DOM.append(choices, DOM.$('button.knox-gui-ask-choice')) as HTMLButtonElement;
 			btn.type = 'button';
 			if (selected.has(option)) {
 				btn.classList.add('selected');
 			}
-			DOM.append(btn, DOM.$('span.knox-gui-ask-choice-label', undefined, split.label));
+			const row = DOM.append(btn, DOM.$('.knox-gui-ask-choice-row'));
+			const mark = DOM.append(row, DOM.$('input')) as HTMLInputElement;
+			mark.type = question.allowMultiple ? 'checkbox' : 'radio';
+			mark.checked = selected.has(option);
+			mark.tabIndex = -1;
+			const texts = DOM.append(row, DOM.$('span.knox-gui-ask-choice-texts'));
+			DOM.append(texts, DOM.$('span.knox-gui-ask-choice-label', undefined, split.label));
 			if (split.description) {
-				DOM.append(btn, DOM.$('span.knox-gui-muted', undefined, split.description));
+				DOM.append(texts, DOM.$('span.knox-gui-muted.knox-gui-ask-choice-desc', undefined, split.description));
+			}
+			if (optionIndex < 9) {
+				DOM.append(row, DOM.$('kbd.knox-gui-ask-kbd', undefined, String(optionIndex + 1)));
 			}
 			widget.renderStore.add(DOM.addDisposableListener(btn, 'click', () => setChoice(option)));
-		}
+		});
 	}
 	if (question.allowFreeform || !question.options?.length) {
 		const input = DOM.append(item, DOM.$('input.knox-gui-ask-input')) as HTMLInputElement;
 		input.placeholder = t(state, 'askUserFreeform');
 		input.setAttribute('aria-label', t(state, 'askUserFreeformLabel'));
-		input.value = question.allowMultiple ? '' : (drafts[question.id] ?? '');
+		input.value = drafts[freeformKey] ?? (question.allowMultiple || question.options?.length ? '' : (drafts[question.id] ?? ''));
 		widget.renderStore.add(DOM.addDisposableListener(input, 'input', () => {
-			drafts[question.id] = input.value;
+			if (question.allowMultiple || question.options?.length) {
+				drafts[freeformKey] = input.value;
+			} else {
+				drafts[question.id] = input.value;
+			}
 			widget.askUserDrafts.set(tool.id, drafts);
 		}));
 	}
-	const answered = isAskUserAnswered(drafts[question.id]);
+	const answered = isAskUserAnswered(drafts[question.id]) || isAskUserAnswered(drafts[freeformKey]);
 	const goNext = () => {
 		if (!answered || step >= questions.length - 1) {
 			return;
@@ -817,8 +855,11 @@ export function renderAskUser(widget: KnoxGuiWidget, parent: HTMLElement, state:
 			return;
 		}
 		const answers: Record<string, string> = {};
+		const latest = widget.askUserDrafts.get(tool.id) ?? drafts;
 		for (const q of questions) {
-			answers[q.id] = (widget.askUserDrafts.get(tool.id)?.[q.id] ?? '').split('\u0001').join(', ');
+			const choices = (latest[q.id] ?? '').split('\u0001').filter(Boolean);
+			const extra = (latest[`${q.id}::freeform`] ?? '').trim();
+			answers[q.id] = [...choices, extra].filter(Boolean).join(', ');
 		}
 		widget.controller.answerAskUser(tool.id, answers);
 	};
@@ -883,16 +924,16 @@ export function renderAskUser(widget: KnoxGuiWidget, parent: HTMLElement, state:
 }
 
 /** `FileIcon.tsx`: icon from the active file icon theme, by file name and language. */
-export function appendFileIcon(widget: KnoxGuiWidget, parent: HTMLElement, filepath: string, size = 16): HTMLElement {
+export function appendFileIcon(widget: KnoxGuiWidget, parent: HTMLElement, filepath: string, size = 16, folder = false): HTMLElement {
 	const icon = DOM.append(parent, DOM.$('span.knox-gui-file-icon'));
 	icon.style.width = `${size}px`;
 	icon.style.height = `${size}px`;
 	icon.setAttribute('aria-hidden', 'true');
 	try {
 		const resource = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(filepath) ? URI.parse(filepath) : URI.file(filepath);
-		icon.classList.add(...getIconClasses(widget.modelService, widget.languageService, resource, FileKind.FILE));
+		icon.classList.add(...getIconClasses(widget.modelService, widget.languageService, resource, folder ? FileKind.FOLDER : FileKind.FILE));
 	} catch {
-		icon.classList.add('file-icon');
+		icon.classList.add(folder ? 'folder-icon' : 'file-icon');
 	}
 	return icon;
 }

@@ -6,8 +6,9 @@
 import type { KnoxGuiWidget } from '../knoxGuiWidget.js';
 import { t } from './t.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
-import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { MarkdownRenderOptions } from '../../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { scheduleTranscriptStick } from './chrome.js';
 import { escape } from '../../../../../../base/common/strings.js';
 import { tokenizeToStringSync } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
 import { knoxGuiMetaKeyLabel, knoxGuiShowsEditResponseAcceptReject } from '../../../common/knoxGuiChrome.js';
@@ -40,6 +41,7 @@ import {
 	MAX_EXPANDED_CODE_LINES,
 	parseCodeFenceRange,
 	pendingApplyStates,
+	IKnoxGuiMarkdownFenceBlock,
 	splitMarkdownBlocks,
 	visibleCodeLineRange,
 } from '../../../common/knoxGuiTranscript.js';
@@ -48,11 +50,21 @@ import {
  * `MarkdownBlock.tsx`: `gfm` + `breaks`, link targets as tooltips, and inline
  * code that names a symbol or file from earlier context becomes a link.
  */
-export function appendMarkdown(widget: KnoxGuiWidget, parent: HTMLElement, source: string, store = widget.renderStore, fileInfo: IKnoxGuiPastFileInfo = KNOX_EMPTY_PAST_FILE_INFO): void {
-	const md = store.add(renderMarkdown(new MarkdownString(source, { supportHtml: false, isTrusted: false }), {
+export function appendMarkdown(widget: KnoxGuiWidget, parent: HTMLElement, source: string, store = widget.renderStore, fileInfo: IKnoxGuiPastFileInfo = KNOX_EMPTY_PAST_FILE_INFO, streaming = false): void {
+	const options: MarkdownRenderOptions = {
 		actionHandler: href => { void widget.openerService.open(href); },
 		markedOptions: { gfm: true, breaks: true },
-	}));
+		fillInIncompleteTokens: streaming,
+		codeBlockRendererSync: (language, value) => highlightMarkdownFence(widget, language, value),
+		asyncRenderCallback: () => {
+			if (widget.autoScrollEnabled) {
+				scheduleTranscriptStick(widget);
+			}
+		},
+	};
+	const markdown = new MarkdownString(source, { supportHtml: false, isTrusted: false });
+	const md = store.add(widget.markdownRendererService.render(markdown, options));
+	md.element.classList.add('rendered-markdown', 'styled-markdown-preview');
 	parent.appendChild(md.element);
 	for (const anchor of Array.from(md.element.querySelectorAll('a'))) {
 		const href = anchor.getAttribute('data-href') ?? anchor.getAttribute('href');
@@ -73,6 +85,16 @@ export function appendMarkdown(widget: KnoxGuiWidget, parent: HTMLElement, sourc
 			renderFilenameLink(widget, code as HTMLElement, match.ref, store);
 		}
 	}
+}
+
+/** Native editor tokenizer (`EditorMarkdownCodeBlockRenderer`) for fences left in markdown prose. */
+function highlightMarkdownFence(widget: KnoxGuiWidget, languageAlias: string, value: string): HTMLElement {
+	const pre = document.createElement('pre');
+	pre.className = 'knox-gui-md-fence monaco-tokenized-source';
+	pre.setAttribute('data-code-lang', languageAlias || '');
+	pre.classList.toggle('wrap', widget.controller.store.state.codeWrap);
+	widget.paintHighlightedCode(pre, languageAlias, value);
+	return pre;
 }
 
 /** `SymbolLink.tsx`: link-colored code; click reveals the symbol range, tooltip shows its source. */
@@ -172,7 +194,7 @@ export function renderCodeFenceBlock(widget: KnoxGuiWidget, parent: HTMLElement,
 				svg: 'terminal',
 				svgSize: 14,
 				label: t(state, 'run'),
-				extraClass: 'knox-gui-run-terminal',
+				extraClass: 'knox-gui-run-terminal knox-gui-2xs-hide',
 				onClick: () => widget.controller.messenger.post('runCommand', { command: fence.code }),
 			});
 		} else {
@@ -234,10 +256,8 @@ export interface IKnoxGuiCodeLinesOptions {
  * generating until the user scrolls up. End-anchored blocks pin to the end once and page
  * the 400-line window when scrolled to an edge.
  */
-export function renderCodeLines(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, language: string, code: string, filepath: string | undefined, options: IKnoxGuiCodeLinesOptions): HTMLElement {
+function paintCodeLineWindow(widget: KnoxGuiWidget, container: HTMLElement, state: IKnoxGuiState, language: string, code: string, filepath: string | undefined, options: IKnoxGuiCodeLinesOptions): { start: number; end: number; lineCount: number; anchor: KnoxGuiCodeLineAnchor; windowShift: number } {
 	const { key, generating } = options;
-	const container = DOM.append(parent, DOM.$('div.knox-gui-code-pre.knox-gui-code-scroll'));
-	container.setAttribute('data-testid', 'syntax-highlighted-pre');
 	container.setAttribute('data-streaming', String(generating));
 	container.classList.toggle('wrap', state.codeWrap);
 	container.classList.toggle('generating', generating);
@@ -266,15 +286,34 @@ export function renderCodeLines(widget: KnoxGuiWidget, parent: HTMLElement, stat
 	const base = parseCodeFenceRange(options.range)?.startLine ?? 1;
 	if (generating || end - start > DEFAULT_COLLAPSED_CODE_LINES) {
 		container.style.maxHeight = `${DEFAULT_COLLAPSED_CODE_LINES * CODE_LINE_HEIGHT_PX}px`;
+	} else {
+		container.style.maxHeight = '';
 	}
 	let html = '';
 	for (let i = start; i < end; i++) {
 		const cursor = generating && i === lineCount - 1 ? '<span class="knox-gui-streaming-cursor"></span>' : '';
 		html += `<div class="knox-gui-code-line" data-line="${base + i}"><span class="knox-gui-line-number">${base + i}</span><span class="knox-gui-line-content">${lines[i] || '&nbsp;'}${cursor}</span></div>`;
 	}
-	setKnoxGuiInnerHtml(container, `<div class="knox-gui-code-lines">${html}</div>`);
+	const linesRoot = container.querySelector('.knox-gui-code-lines');
+	if (linesRoot) {
+		setKnoxGuiInnerHtml(linesRoot as HTMLElement, html);
+	} else {
+		setKnoxGuiInnerHtml(container, `<div class="knox-gui-code-lines">${html}</div>`);
+	}
+	if (generating && !widget.codeUserScrolled.has(key)) {
+		container.scrollTop = container.scrollHeight;
+		widget.codeScrollTop.set(key, container.scrollTop);
+	}
+	return { start, end, lineCount, anchor, windowShift };
+}
+
+export function renderCodeLines(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, language: string, code: string, filepath: string | undefined, options: IKnoxGuiCodeLinesOptions): HTMLElement {
+	const { key, generating } = options;
+	const container = DOM.append(parent, DOM.$('div.knox-gui-code-pre.knox-gui-code-scroll'));
+	container.setAttribute('data-testid', 'syntax-highlighted-pre');
+	const { start, end, lineCount, anchor, windowShift } = paintCodeLineWindow(widget, container, state, language, code, filepath, options);
 	let ignoreScroll = false;
-	let lastScrollTop = 0;
+	let lastScrollTop = container.scrollTop;
 	const setTop = (top: number) => {
 		ignoreScroll = true;
 		container.scrollTop = top;
@@ -282,20 +321,18 @@ export function renderCodeLines(widget: KnoxGuiWidget, parent: HTMLElement, stat
 		widget.codeScrollTop.set(key, container.scrollTop);
 		queueMicrotask(() => { ignoreScroll = false; });
 	};
-	queueMicrotask(() => {
-		const adjust = widget.codeScrollAdjust.get(key);
-		if (adjust !== undefined) {
-			widget.codeScrollAdjust.delete(key);
-			setTop((widget.codeScrollTop.get(key) ?? 0) + adjust);
-		} else if (generating && !widget.codeUserScrolled.has(key)) {
-			setTop(container.scrollHeight);
-		} else if (!generating && anchor === 'end' && !widget.codePinned.has(key) && !widget.codeUserScrolled.has(key)) {
-			widget.codePinned.add(key);
-			setTop(container.scrollHeight);
-		} else if (widget.codeScrollTop.has(key) && container.scrollTop === 0) {
-			setTop(widget.codeScrollTop.get(key)!);
-		}
-	});
+	const adjust = widget.codeScrollAdjust.get(key);
+	if (adjust !== undefined) {
+		widget.codeScrollAdjust.delete(key);
+		setTop((widget.codeScrollTop.get(key) ?? 0) + adjust);
+	} else if (generating && !widget.codeUserScrolled.has(key)) {
+		setTop(container.scrollHeight);
+	} else if (!generating && anchor === 'end' && !widget.codePinned.has(key) && !widget.codeUserScrolled.has(key)) {
+		widget.codePinned.add(key);
+		setTop(container.scrollHeight);
+	} else if (widget.codeScrollTop.has(key) && container.scrollTop === 0) {
+		setTop(widget.codeScrollTop.get(key)!);
+	}
 	widget.listenerStore.add(DOM.addDisposableListener(container, 'scroll', () => {
 		if (ignoreScroll) {
 			return;
@@ -357,7 +394,8 @@ export function renderApplyActions(widget: KnoxGuiWidget, parent: HTMLElement, s
 	}
 	if (ui.kind === 'done') {
 		const pill = DOM.append(parent, DOM.$('span.knox-gui-apply-pill'));
-		pill.textContent = `${t(state, 'diffsRemaining', { count: ui.numDiffs })} ${t(state, 'remaining')}`;
+		const count = DOM.append(pill, DOM.$('span.knox-gui-apply-count', undefined, t(state, 'diffsRemaining', { count: ui.numDiffs })));
+		count.appendChild(DOM.$('span.knox-gui-md-hide', undefined, ` ${t(state, 'remaining')}`));
 		widget.chromeButton(pill, {
 			svg: 'x',
 			svgSize: 16,
@@ -379,7 +417,7 @@ export function renderApplyActions(widget: KnoxGuiWidget, parent: HTMLElement, s
 	}
 	if (ui.kind === 'applied') {
 		const pill = DOM.append(parent, DOM.$('span.knox-gui-apply-pill'));
-		pill.textContent = t(state, 'applied');
+		DOM.append(pill, DOM.$('span.knox-gui-apply-applied', undefined, t(state, 'applied')));
 		appendKnoxGuiSvg(pill, 'check', 14);
 		return;
 	}
@@ -401,36 +439,165 @@ export function renderReasoning(widget: KnoxGuiWidget, parent: HTMLElement, stat
 	const collapsed = item.thinkingCollapsed === true;
 	const wrap = DOM.append(parent, DOM.$('.knox-gui-reasoning'));
 	wrap.id = activityAnchorId(`reasoning:${item.id}`);
-	const header = DOM.append(wrap, DOM.$('button.knox-gui-reasoning-header')) as HTMLButtonElement;
-	header.type = 'button';
-	DOM.append(header, DOM.$(`span.codicon.${collapsed ? 'codicon-chevron-right' : 'codicon-chevron-down'}`));
+	wrap.dataset.collapsed = String(collapsed);
+	wrap.dataset.thinking = thinking;
+	wrap.dataset.redacted = String(Boolean(item.redactedThinking));
+	const header = DOM.append(wrap, DOM.$('.knox-gui-reasoning-header'));
+	header.setAttribute('role', 'button');
+	header.tabIndex = 0;
+	header.style.fontSize = `${state.fontSize - 2}px`;
+	widget.collapseChevron(header, {
+		expanded: !collapsed,
+		title: collapsed ? t(state, 'expand') : t(state, 'collapse'),
+		onClick: () => widget.toggleThinking(item, !collapsed),
+	});
 	const label = item.thinkingActive
-		? t(state, 'thinkingEllipsis')
+		? t(state, 'thinking')
 		: `${t(state, 'thinking')}${formatReasoningTime(item.thinkingStartAt, item.thinkingEndAt) ? ` (${formatReasoningTime(item.thinkingStartAt, item.thinkingEndAt)})` : ''}`;
-	DOM.append(header, DOM.$('span', undefined, label));
+	const title = DOM.append(header, DOM.$('span.knox-gui-reasoning-title', undefined, label));
 	if (item.thinkingActive) {
 		header.classList.add('thinking');
+		title.classList.add('knox-gui-thinking-ellipsis');
 	}
-	widget.renderStore.add(DOM.addDisposableListener(header, 'click', () => widget.toggleThinking(item, !collapsed)));
+	widget.listenerStore.add(DOM.addDisposableListener(header, 'click', () => widget.toggleThinking(item, !collapsed)));
+	widget.listenerStore.add(DOM.addDisposableListener(header, 'keydown', (e: KeyboardEvent) => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			widget.toggleThinking(item, !collapsed);
+		}
+	}));
 	if (!collapsed) {
 		const body = DOM.append(wrap, DOM.$('.knox-gui-reasoning-body'));
+		if (thinking.split('\n').length <= 12) {
+			body.classList.add('no-scroll');
+		}
 		if (item.thinkingActive) {
 			body.classList.add('knox-gui-reasoning-live');
 		}
-		if (item.redactedThinking) {
-			DOM.append(body, DOM.$('.knox-gui-muted', undefined, t(state, 'thinkingDeletedSecurity')));
-		} else if (state.markdownFormatting !== false) {
-			appendStepMarkdown(widget, body, state, thinking, `${item.id}:reasoning`, Boolean(item.thinkingActive));
-		} else {
-			DOM.append(body, DOM.$('pre', undefined, thinking));
-		}
+		const content = DOM.append(body, DOM.$('.knox-gui-reasoning-content.styled-markdown-preview'));
+		fillReasoningContent(widget, content, state, item, thinking, widget.listenerStore);
 		if (item.thinkingActive) {
-			queueMicrotask(() => {
-				body.scrollTop = body.scrollHeight;
-			});
+			body.scrollTop = body.scrollHeight;
 		}
 	}
 	void index;
+}
+
+/**
+ * `Reasoning.tsx` is memoized: the card stays mounted and only the markdown source
+ * updates. Replacing the wrapper resets scrollTop to 0 then jumps to the bottom.
+ */
+export function patchLiveReasoning(widget: KnoxGuiWidget, card: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem, index: number): void {
+	const thinking = item.thinking?.trim();
+	const old = card.querySelector('.knox-gui-reasoning') as HTMLElement | null;
+	if (!thinking) {
+		old?.remove();
+		widget.reasoningPatchStore.clear();
+		widget.reasoningContentStore.clear();
+		return;
+	}
+	const collapsed = item.thinkingCollapsed === true;
+	if (!old || old.dataset.collapsed !== String(collapsed)) {
+		widget.reasoningPatchStore.clear();
+		widget.reasoningContentStore.clear();
+		const previous = widget.listenerStore;
+		widget.listenerStore = widget.reasoningPatchStore;
+		try {
+			const host = DOM.$('div');
+			renderReasoning(widget, host, state, item, index);
+			const next = host.firstElementChild;
+			if (old && next) {
+				old.replaceWith(next);
+			} else if (next) {
+				card.insertBefore(next, card.firstChild);
+			}
+		} finally {
+			widget.listenerStore = previous;
+		}
+		return;
+	}
+	const header = old.querySelector('.knox-gui-reasoning-header') as HTMLElement | null;
+	const title = old.querySelector('.knox-gui-reasoning-title') as HTMLElement | null;
+	if (header && title) {
+		header.classList.toggle('thinking', Boolean(item.thinkingActive));
+		title.classList.toggle('knox-gui-thinking-ellipsis', Boolean(item.thinkingActive));
+		const label = item.thinkingActive
+			? t(state, 'thinking')
+			: `${t(state, 'thinking')}${formatReasoningTime(item.thinkingStartAt, item.thinkingEndAt) ? ` (${formatReasoningTime(item.thinkingStartAt, item.thinkingEndAt)})` : ''}`;
+		if (title.textContent !== label) {
+			title.textContent = label;
+		}
+	}
+	if (collapsed) {
+		return;
+	}
+	const body = old.querySelector('.knox-gui-reasoning-body') as HTMLElement | null;
+	if (!body) {
+		return;
+	}
+	body.classList.toggle('no-scroll', thinking.split('\n').length <= 12);
+	body.classList.toggle('knox-gui-reasoning-live', Boolean(item.thinkingActive));
+	const same = old.dataset.thinking === thinking && old.dataset.redacted === String(Boolean(item.redactedThinking));
+	if (!same) {
+		old.dataset.thinking = thinking;
+		old.dataset.redacted = String(Boolean(item.redactedThinking));
+		const content = old.querySelector('.knox-gui-reasoning-content') as HTMLElement | null;
+		if (content) {
+			widget.reasoningContentStore.clear();
+			fillReasoningContent(widget, content, state, item, thinking, widget.reasoningContentStore);
+		}
+	}
+	if (item.thinkingActive) {
+		body.scrollTop = body.scrollHeight;
+	}
+}
+
+function fillReasoningContent(widget: KnoxGuiWidget, content: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem, thinking: string, store: DisposableStore): void {
+	content.replaceChildren();
+	const previous = widget.listenerStore;
+	widget.listenerStore = store;
+	try {
+		if (item.redactedThinking) {
+			DOM.append(content, DOM.$('.knox-gui-thinking-redacted', undefined, t(state, 'thinkingDeletedSecurity')));
+		} else if (state.markdownFormatting !== false) {
+			appendStepMarkdown(widget, content, state, thinking, `${item.id}:reasoning`, Boolean(item.thinkingActive));
+		} else {
+			DOM.append(content, DOM.$('pre', undefined, thinking));
+		}
+	} finally {
+		widget.listenerStore = previous;
+	}
+}
+
+export function patchLiveCodeFence(
+	widget: KnoxGuiWidget,
+	nodes: ChildNode[],
+	state: IKnoxGuiState,
+	item: IKnoxGuiHistoryItem,
+	fence: IKnoxGuiMarkdownFenceBlock,
+	fenceIndex: number,
+	generating: boolean,
+): boolean {
+	const box = nodes.find((node): node is HTMLElement => node instanceof HTMLElement && node.classList.contains('knox-gui-code-block'));
+	if (!box) {
+		return false;
+	}
+	const scroll = box.querySelector('.knox-gui-code-scroll') as HTMLElement | null;
+	if (!scroll) {
+		return false;
+	}
+	const streamId = fenceApplyStreamId(item.id, fenceIndex);
+	if (generating) {
+		const lines = fence.code.split('\n').length;
+		const count = lines === 1 ? 1 : lines - 1;
+		const label = t(state, count === 1 ? 'generatedLines' : 'generatedLines_plural', { count });
+		const existing = box.querySelector('.knox-gui-generating-lines');
+		if (existing) {
+			existing.textContent = label;
+		}
+	}
+	paintCodeLineWindow(widget, scroll, state, fence.language, fence.code, fence.filepath, { key: streamId, range: fence.range, generating, anchor: 'end' });
+	return true;
 }
 
 /**
@@ -442,7 +609,7 @@ function appendStepMarkdown(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 	for (const block of splitMarkdownBlocks(source)) {
 		if (block.type === 'markdown') {
 			if (block.text.trim()) {
-				appendMarkdown(widget, parent, block.text, widget.listenerStore, fileInfo);
+				appendMarkdown(widget, parent, block.text, widget.listenerStore, fileInfo, live);
 			}
 			continue;
 		}
@@ -465,8 +632,10 @@ export function renderThinkingPeekBlock(widget: KnoxGuiWidget, parent: HTMLEleme
 	wrap.setAttribute('data-testid', 'thinking-block-peek');
 	wrap.id = activityAnchorId(`thinking:${item.id}`);
 	const open = item.thinkingCollapsed === false;
-	const chip = DOM.append(wrap, DOM.$('button.knox-gui-thinking-chip')) as HTMLButtonElement;
-	chip.type = 'button';
+	const chip = DOM.append(wrap, DOM.$('.knox-gui-thinking-chip'));
+	chip.setAttribute('role', 'button');
+	chip.tabIndex = 0;
+	chip.style.fontSize = `${state.fontSize - 2}px`;
 	const label = inProgress
 		? t(state, item.redactedThinking ? 'hiddenThinking' : 'thinking')
 		: item.redactedThinking
@@ -477,12 +646,22 @@ export function renderThinkingPeekBlock(widget: KnoxGuiWidget, parent: HTMLEleme
 	} else {
 		chip.append(label);
 	}
-	DOM.append(chip, DOM.$(`span.codicon.${open ? 'codicon-chevron-down' : 'codicon-chevron-right'}`));
-	widget.renderStore.add(DOM.addDisposableListener(chip, 'click', () => widget.toggleThinking(item, open)));
+	widget.collapseChevron(chip, {
+		expanded: open,
+		title: open ? t(state, 'collapse') : t(state, 'expand'),
+		onClick: () => widget.toggleThinking(item, open),
+	});
+	widget.listenerStore.add(DOM.addDisposableListener(chip, 'click', () => widget.toggleThinking(item, open)));
+	widget.listenerStore.add(DOM.addDisposableListener(chip, 'keydown', (e: KeyboardEvent) => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			widget.toggleThinking(item, open);
+		}
+	}));
 	if (open) {
-		const body = DOM.append(wrap, DOM.$('.knox-gui-thinking-peek-body'));
+		const body = DOM.append(wrap, DOM.$('.knox-gui-thinking-peek-body.styled-markdown-preview'));
 		if (item.redactedThinking) {
-			DOM.append(body, DOM.$('.knox-gui-muted', undefined, t(state, 'thinkingDeletedSecurity')));
+			DOM.append(body, DOM.$('.knox-gui-thinking-redacted', undefined, t(state, 'thinkingDeletedSecurity')));
 		} else {
 			appendStepMarkdown(widget, body, state, item.content || item.thinking || '', `${item.id}:thinking`, inProgress, knoxGuiPastFileInfo(state.history, index, state.fileSymbols));
 		}
@@ -532,7 +711,7 @@ export function renderCopyFeedbackButton(widget: KnoxGuiWidget, parent: HTMLElem
 		svgSize: 14,
 		label: withLabel ? t(state, copied ? 'copied' : 'copyText') : undefined,
 		title: t(state, copied ? 'copied' : 'copy'),
-		extraClass: copied ? 'knox-gui-copied' : undefined,
+		extraClass: `${withLabel ? 'knox-gui-copy-code knox-gui-2xs-hide' : ''}${copied ? ' knox-gui-copied' : ''}`.trim() || undefined,
 		onClick: () => {
 			widget.controller.copyText(text);
 			widget.termCopiedUntil.set(key, Date.now() + 2000);

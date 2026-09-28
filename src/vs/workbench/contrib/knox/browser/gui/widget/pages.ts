@@ -10,6 +10,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
 import {
 	ADD_MODEL_PROVIDERS,
+	addModelBrowseGroups,
 	addModelProviderById,
 	addModelRequiredSatisfied,
 	batchDiffTotals,
@@ -30,7 +31,7 @@ import { IKnoxGuiState } from '../../../common/knoxGuiState.js';
 import { formatTokenCount } from '../../../common/knoxGuiTranscript.js';
 
 export function renderConfigError(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
-	widget.back(body, state);
+	widget.back(body, state, undefined, 'knox-gui-page-header-plain knox-gui-page-header-sm');
 	body.classList.add('knox-gui-page');
 	DOM.append(body, DOM.$('h3.knox-gui-config-error-title', undefined, t(state, 'configErrors')));
 	DOM.append(body, DOM.$('p', undefined, t(state, 'pleaseResolveConfigErrors')));
@@ -52,7 +53,7 @@ export function renderConfigError(widget: KnoxGuiWidget, body: HTMLElement, stat
 }
 
 export function renderStats(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
-	widget.back(body, state, t(state, 'tokenUsageDashboard'));
+	widget.back(body, state, t(state, 'tokenUsageDashboard'), 'knox-gui-page-header-plain knox-gui-page-header-sm knox-gui-page-header-lg-arrow');
 	body.classList.add('knox-gui-page');
 	body.setAttribute('data-testid', 'knox-gui-stats');
 	const box = DOM.append(body, DOM.$('.knox-gui-stats-billing'));
@@ -66,10 +67,10 @@ export function renderAddModel(widget: KnoxGuiWidget, body: HTMLElement, state: 
 		widget.renderConfigureProvider(body, state);
 		return;
 	}
-	const sticky = DOM.append(body, DOM.$('.knox-gui-page-header'));
+	const sticky = DOM.append(body, DOM.$('.knox-gui-page-header.knox-gui-page-header-plain.knox-gui-page-header-lg.knox-gui-page-header-lg-arrow'));
 	widget.chromeButton(sticky, {
 		svg: 'arrow-left',
-		svgSize: 12,
+		svgSize: 16,
 		title: t(state, 'backToChat'),
 		extraClass: 'knox-gui-page-back',
 		onClick: () => widget.controller.store.navigate('/'),
@@ -77,8 +78,59 @@ export function renderAddModel(widget: KnoxGuiWidget, body: HTMLElement, state: 
 	DOM.append(sticky, DOM.$('span.knox-gui-page-title', undefined, t(state, 'addNewModel')));
 	const box = DOM.append(body, DOM.$('.knox-gui-card.knox-gui-add-model-help'));
 	DOM.append(box, DOM.$('p', undefined, t(state, 'addModelInstructions')));
+	const options = DOM.append(box, DOM.$('ul.knox-gui-add-model-options'));
+	DOM.append(options, DOM.$('li', undefined, t(state, 'addModelOption1')));
+	DOM.append(options, DOM.$('li', undefined, t(state, 'addModelOption2')));
 	const docs = widget.chromeButton(box, { label: t(state, 'visitSetupDocs'), extraClass: 'knox-gui-ghost', onClick: () => void widget.openerService.open(URI.parse('https://docs.knox.chat/model-setup/overview')) });
 	docs.insertAdjacentText('afterend', ` ${t(state, 'toLearnMore')}`);
+	const toggle = DOM.append(body, DOM.$('.knox-gui-add-model-toggle'));
+	toggle.setAttribute('data-testid', 'knox-gui-add-model-toggle');
+	widget.chromeButton(toggle, {
+		label: t(state, 'startWithProvider'),
+		selected: widget.addModelBrowseMode === 'provider',
+		testId: 'knox-gui-add-model-by-provider',
+		extraClass: 'knox-gui-add-model-mode',
+		onClick: () => {
+			widget.addModelBrowseMode = 'provider';
+			widget.render();
+		},
+	});
+	widget.chromeButton(toggle, {
+		label: t(state, 'selectSpecificModel'),
+		selected: widget.addModelBrowseMode === 'model',
+		testId: 'knox-gui-add-model-by-model',
+		extraClass: 'knox-gui-add-model-mode',
+		onClick: () => {
+			widget.addModelBrowseMode = 'model';
+			widget.render();
+		},
+	});
+	if (widget.addModelBrowseMode === 'model') {
+		const intro = DOM.append(body, DOM.$('.knox-gui-page-intro'));
+		DOM.append(intro, DOM.$('h2', undefined, t(state, 'models')));
+		DOM.append(intro, DOM.$('p', undefined, t(state, 'selectModelBelow')));
+		for (const group of addModelBrowseGroups()) {
+			const section = DOM.append(body, DOM.$('.knox-gui-add-model-group'));
+			DOM.append(section, DOM.$('h3', undefined, group.title));
+			DOM.append(section, DOM.$('hr.knox-gui-rule'));
+			const grid = DOM.append(section, DOM.$('.knox-gui-provider-grid'));
+			for (const pack of group.packages) {
+				renderModelCard(widget, grid, state, {
+					title: pack.title,
+					description: pack.description ?? pack.title,
+					icon: group.icon ?? pack.icon,
+					tags: pack.tags,
+					providerOptions: pack.providerOptions,
+					dimensions: pack.dimensions,
+					testId: `knox-gui-model-pack-${group.providerId}-${pack.params.model}`,
+					onClick: (dimensionChoices, selectedProvider) => {
+						void widget.controller.addConfiguredModel(selectedProvider ?? group.providerId, pack, { dimensionChoices, selectedProvider });
+					},
+				});
+			}
+		}
+		return;
+	}
 	const intro = DOM.append(body, DOM.$('.knox-gui-page-intro'));
 	DOM.append(intro, DOM.$('h2', undefined, t(state, 'provider')));
 	DOM.append(intro, DOM.$('p', undefined, t(state, 'selectProviderBelow')));
@@ -137,7 +189,7 @@ function renderModelCard(widget: KnoxGuiWidget, parent: HTMLElement, state: IKno
 	if (card.tags?.length) {
 		const tags = DOM.append(el, DOM.$('.knox-gui-provider-tags'));
 		for (const tag of card.tags) {
-			DOM.append(tags, DOM.$('span.knox-gui-provider-tag', undefined, t(state, tag)));
+			DOM.append(tags, DOM.$(`span.knox-gui-model-provider-tag${tag === 'tagApiKeyRequired' ? '.is-tagApiKeyRequired' : ''}`, undefined, t(state, tag)));
 		}
 	}
 	DOM.append(el, DOM.$('p', undefined, card.description));
@@ -181,7 +233,7 @@ function renderModelCard(widget: KnoxGuiWidget, parent: HTMLElement, state: IKno
 					continue;
 				}
 				const chip = DOM.append(row, DOM.$(option === selectedProvider ? 'span.knox-gui-provider-chip.selected' : 'span.knox-gui-provider-chip'));
-				chip.title = info.title;
+				chip.title = t(state, 'chooseProviderForModel');
 				chip.setAttribute('data-testid', `knox-gui-provider-chip-${option}`);
 				const chipLogo = knoxGuiProviderLogoUri(info.icon);
 				if (chipLogo) {
@@ -211,8 +263,8 @@ function renderModelCard(widget: KnoxGuiWidget, parent: HTMLElement, state: IKno
 
 export function renderConfigureProvider(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 	const provider = addModelProviderById(state.providerName);
-	const sticky = DOM.append(body, DOM.$('.knox-gui-page-header'));
-	widget.chromeButton(sticky, { svg: 'arrow-left', svgSize: 12, title: t(state, 'backToChat'), extraClass: 'knox-gui-page-back', onClick: () => widget.controller.store.navigate('/addModel') });
+	const sticky = DOM.append(body, DOM.$('.knox-gui-page-header.knox-gui-page-header-plain.knox-gui-page-header-lg.knox-gui-page-header-lg-arrow'));
+	widget.chromeButton(sticky, { svg: 'arrow-left', svgSize: 16, title: t(state, 'backToChat'), extraClass: 'knox-gui-page-back', onClick: () => widget.controller.store.navigate('/addModel') });
 	DOM.append(sticky, DOM.$('span.knox-gui-page-title', undefined, t(state, 'configureProvider')));
 	if (!provider) {
 		DOM.append(body, DOM.$('.knox-gui-empty', undefined, state.providerName ?? ''));
@@ -512,7 +564,6 @@ export function renderAddModelInput(widget: KnoxGuiWidget, body: HTMLElement, st
 }
 
 export function renderBatchDiff(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
-	widget.back(body, state, t(state, 'batchDiff'));
 	body.classList.add('knox-gui-page');
 	body.setAttribute('data-testid', 'knox-gui-batch-diff');
 	const files = state.pendingFiles;
@@ -521,7 +572,8 @@ export function renderBatchDiff(widget: KnoxGuiWidget, body: HTMLElement, state:
 		return;
 	}
 	const totals = batchDiffTotals(files);
-	const head = DOM.append(body, DOM.$('.knox-gui-batch-head'));
+	const panel = DOM.append(body, DOM.$('.knox-gui-batch-panel'));
+	const head = DOM.append(panel, DOM.$('.knox-gui-batch-head'));
 	const title = DOM.append(head, DOM.$('strong.knox-gui-batch-title'));
 	appendKnoxGuiSvg(title, 'package', 14);
 	title.append(` ${t(state, 'batchDiff')}`);
@@ -529,9 +581,10 @@ export function renderBatchDiff(widget: KnoxGuiWidget, body: HTMLElement, state:
 	const actions = DOM.append(head, DOM.$('.knox-gui-row'));
 	widget.chromeButton(actions, { label: t(state, 'selectAll'), testId: 'knox-gui-batch-select-all', onClick: () => widget.controller.store.patch({ pendingFiles: files.map(file => ({ ...file, selected: true })) }) });
 	widget.chromeButton(actions, { label: t(state, 'deselectAll'), testId: 'knox-gui-batch-deselect-all', onClick: () => widget.controller.store.patch({ pendingFiles: files.map(file => ({ ...file, selected: false })) }) });
+	const list = DOM.append(panel, DOM.$('.knox-gui-batch-list'));
 	for (const file of files) {
 		const { fileName, dirPath } = splitFilePath(file.filepath);
-		const row = DOM.append(body, DOM.$(file.selected ? 'div.knox-gui-row.knox-gui-batch-row.selected' : 'div.knox-gui-row.knox-gui-batch-row'));
+		const row = DOM.append(list, DOM.$(file.selected ? 'div.knox-gui-row.knox-gui-batch-row.selected' : 'div.knox-gui-row.knox-gui-batch-row'));
 		const toggle = () => widget.controller.store.patch({ pendingFiles: files.map(item => item.filepath === file.filepath ? { ...item, selected: !item.selected } : item) });
 		const box = DOM.append(row, DOM.$('input')) as HTMLInputElement;
 		box.type = 'checkbox';
@@ -547,19 +600,21 @@ export function renderBatchDiff(widget: KnoxGuiWidget, body: HTMLElement, state:
 		}
 		DOM.append(row, DOM.$('span.knox-gui-badge', undefined, String(file.numDiffs)));
 	}
-	const foot = DOM.append(body, DOM.$('.knox-gui-row'));
+	const foot = DOM.append(panel, DOM.$('.knox-gui-row'));
 	DOM.append(foot, DOM.$('span.knox-gui-muted', undefined, `${totals.selected}/${files.length} ${t(state, 'selected')}`));
 	const selected = files.filter(file => file.selected);
 	widget.chromeButton(foot, {
 		label: selected.length ? t(state, 'rejectSelected') : t(state, 'rejectAll'),
 		disabled: state.batchApplying,
 		testId: 'knox-gui-batch-reject',
+		extraClass: 'knox-gui-batch-reject',
 		onClick: () => void widget.controller.applyBatchDiff(selected.length ? 'rejectSelected' : 'rejectAll', selected.length ? selected.map(file => file.filepath) : undefined),
 	});
 	widget.chromeButton(foot, {
 		label: state.batchApplying ? t(state, 'applying') : (selected.length ? t(state, 'acceptSelected') : t(state, 'acceptAll')),
 		disabled: state.batchApplying,
 		testId: 'knox-gui-batch-accept',
+		extraClass: 'knox-gui-batch-accept',
 		onClick: () => void widget.controller.applyBatchDiff(selected.length ? 'acceptSelected' : 'acceptAll', selected.length ? selected.map(file => file.filepath) : undefined),
 	});
 }

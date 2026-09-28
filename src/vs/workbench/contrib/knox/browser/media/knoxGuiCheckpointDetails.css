@@ -26,7 +26,39 @@
 .knox-gui-number-field {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 0;
+}
+
+.knox-gui-number-step {
+	width: 36px;
+	height: 36px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: 1px solid var(--vscode-widget-border, var(--vscode-input-border));
+	background: var(--vscode-input-background);
+	color: inherit;
+	cursor: pointer;
+}
+
+.knox-gui-number-step:first-child {
+	border-radius: 4px 0 0 4px;
+	border-right: 0;
+}
+
+.knox-gui-number-step:last-of-type {
+	border-radius: 0 4px 4px 0;
+	border-left: 0;
+}
+
+.knox-gui-number-field input {
+	width: 80px;
+	height: 36px;
+	text-align: center;
+	border-radius: 0;
+	border-left: 0;
+	border-right: 0;
 }
 
 .knox-gui-field-suffix {
@@ -311,7 +343,10 @@ button.knox-gui-section-title .knox-gui-svg:last-child {
 }
 
 @keyframes knox-gui-cp-spin {
-	to { transform: rotate(360deg); }
+	from { transform: rotate(0deg); }
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 @keyframes knox-gui-cp-pulse {
