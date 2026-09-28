@@ -5,7 +5,7 @@
 
 import { extractCodeFences, IKnoxGuiCodeFence, lastUserHistoryIndex, parseFenceMeta, toolDisplayKind } from './knoxGuiChat.js';
 import { inputDocFromPlainText, IKnoxGuiInputBlock } from './knoxGuiInput.js';
-import { IKnoxGuiApplyState, IKnoxGuiHistoryItem, IKnoxGuiPromptLog, IKnoxGuiToolCall, KnoxChatMode, KnoxToolStatus } from './knoxGuiState.js';
+import { IKnoxGuiApplyState, IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiPromptLog, IKnoxGuiSymbol, IKnoxGuiToolCall, KnoxChatMode, KnoxToolStatus } from './knoxGuiState.js';
 
 export type KnoxGuiActivityKind =
 	| 'thinking'
@@ -162,42 +162,190 @@ export function isResponseTruncated(content: string, isStreaming: boolean): bool
 	return true;
 }
 
+/**
+ * `patchNestedMarkdown.ts`: an outer fence that wraps inner fences (e.g. a
+ * markdown file with code samples) gets one more backtick than its longest
+ * inner fence, so the inner ones stay part of its body.
+ */
+export function patchNestedMarkdown(source: string): string {
+	const ticks = source.match(/`{3,}/g);
+	if (!ticks || ticks.length < 4) {
+		return source;
+	}
+	const lines = source.split('\n');
+	const trimmed = lines.map(l => l.trim());
+	const stack: { startLine: number; fenceLength: number; nested: boolean }[] = [];
+	const patches: { startLine: number; endLine: number }[] = [];
+	for (let i = 0; i < trimmed.length; i++) {
+		const start = /^(`{3,})(\w*)?(.*)$/.exec(trimmed[i]);
+		const close = /^(`{3,})\s*$/.exec(trimmed[i]);
+		if (!start && !close) {
+			continue;
+		}
+		const fenceLength = (start ?? close)![1].length;
+		const hasLanguage = !!start?.[2];
+		if (!stack.length) {
+			stack.push({ startLine: i, fenceLength, nested: false });
+			continue;
+		}
+		const current = stack[stack.length - 1];
+		if (close && fenceLength === current.fenceLength) {
+			if (stack.length === 1 && current.nested) {
+				patches.push({ startLine: current.startLine, endLine: i });
+			}
+			stack.pop();
+		} else if (start && hasLanguage) {
+			stack[0].nested = true;
+			stack.push({ startLine: i, fenceLength, nested: false });
+		} else if (close) {
+			for (let j = stack.length - 1; j >= 0; j--) {
+				if (stack[j].fenceLength === fenceLength) {
+					const closed = stack.splice(j);
+					if (j === 0 && closed[0].nested) {
+						patches.push({ startLine: closed[0].startLine, endLine: i });
+					}
+					break;
+				}
+			}
+		} else if (start && fenceLength > current.fenceLength) {
+			stack[0].nested = true;
+			stack.push({ startLine: i, fenceLength, nested: false });
+		}
+	}
+	for (const block of patches) {
+		let inner = 3;
+		for (let i = block.startLine + 1; i < block.endLine; i++) {
+			const m = /^(`{3,})/.exec(trimmed[i]);
+			if (m) {
+				inner = Math.max(inner, m[1].length);
+			}
+		}
+		const fence = '`'.repeat(inner + 1);
+		lines[block.startLine] = lines[block.startLine].replace(/^(\s*)(`{3,})/, `$1${fence}`);
+		lines[block.endLine] = lines[block.endLine].replace(/^(\s*)(`{3,})/, `$1${fence}`);
+	}
+	return lines.join('\n');
+}
+
 export function splitMarkdownBlocks(markdown: string): KnoxGuiMarkdownBlock[] {
 	const blocks: KnoxGuiMarkdownBlock[] = [];
 	if (!markdown) {
 		return blocks;
 	}
-	const re = /```([^\n]*)\n?([\s\S]*?)(```|$)/g;
-	let last = 0;
-	let match: RegExpExecArray | null;
-	while ((match = re.exec(markdown)) !== null) {
-		if (match.index > last) {
-			const text = markdown.slice(last, match.index);
-			if (text.trim() || text.includes('\n')) {
-				blocks.push({ type: 'markdown', text });
+	const lines = patchNestedMarkdown(markdown).split('\n');
+	let text: string[] = [];
+	let fence: { ticks: number; meta: string; code: string[] } | undefined;
+	const flushText = (trailingNewline: boolean) => {
+		const value = text.join('\n') + (trailingNewline && text.length ? '\n' : '');
+		if (value.trim() || value.includes('\n')) {
+			blocks.push({ type: 'markdown', text: value });
+		}
+		text = [];
+	};
+	const pushFence = (closed: boolean) => {
+		const parsed = parseFenceMeta(fence!.meta);
+		blocks.push({ type: 'fence', language: parsed.language, filepath: parsed.filepath, range: parsed.range, code: fence!.code.join('\n'), closed });
+		fence = undefined;
+	};
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		if (fence) {
+			const close = /^\s*(`{3,})\s*$/.exec(line);
+			if (close && close[1].length >= fence.ticks) {
+				pushFence(true);
+			} else {
+				fence.code.push(line);
 			}
+			continue;
 		}
-		const parsed = parseFenceMeta(match[1]);
-		blocks.push({
-			type: 'fence',
-			language: parsed.language,
-			filepath: parsed.filepath,
-			range: parsed.range,
-			code: match[2].replace(/\n$/, ''),
-			closed: match[3] === '```',
-		});
-		last = match.index + match[0].length;
-		if (match[3] !== '```') {
-			break;
+		const open = /^\s*(`{3,})(.*)$/.exec(line);
+		if (open) {
+			flushText(true);
+			fence = { ticks: open[1].length, meta: open[2], code: [] };
+			continue;
 		}
+		text.push(line);
 	}
-	if (last < markdown.length) {
-		blocks.push({ type: 'markdown', text: markdown.slice(last) });
+	if (fence) {
+		pushFence(false);
 	}
+	flushText(false);
 	if (!blocks.length) {
 		blocks.push({ type: 'markdown', text: markdown });
 	}
 	return blocks;
+}
+
+const LIST_ITEM_RE = /^\s*([-*+]|\d+[.)])\s/;
+
+/**
+ * `streamdown` `parseMarkdownIntoBlocks` for fence-free markdown: a blank line ends a
+ * block unless the next line is indented or continues a list, so finished blocks stay
+ * byte-identical while the reply streams.
+ */
+export function splitMarkdownParagraphs(text: string): string[] {
+	const blocks: string[] = [];
+	let current: string[] = [];
+	let blanks: string[] = [];
+	for (const line of text.split('\n')) {
+		if (!line.trim()) {
+			if (current.length) {
+				blanks.push(line);
+			}
+			continue;
+		}
+		const continues = current.length > 0 && (!blanks.length || /^\s/.test(line) || (LIST_ITEM_RE.test(line) && LIST_ITEM_RE.test(current[0])));
+		if (!continues && current.length) {
+			blocks.push(current.join('\n'));
+			current = [];
+		} else {
+			current.push(...blanks);
+		}
+		blanks = [];
+		current.push(line);
+	}
+	if (current.length) {
+		blocks.push(current.join('\n'));
+	}
+	return blocks;
+}
+
+/**
+ * `remend` for the live last block: close an open inline code span, emphasis or
+ * strikethrough (innermost first), drop a marker with nothing after it, and show
+ * an unfinished link as its label.
+ */
+export function healStreamingMarkdown(source: string): string {
+	let text = source.replace(/(!?)\[([^\]\n]*)\]\([^)\s]*$/, (_match, bang: string, label: string) => bang ? '' : label);
+	const ticks = text.match(/`/g)?.length ?? 0;
+	if (ticks % 2 === 1) {
+		const pos = text.lastIndexOf('`');
+		return text.slice(pos + 1).trim() ? `${text.replace(/\s+$/, '')}\`` : text.slice(0, pos) + text.slice(pos + 1);
+	}
+	const plain = text.replace(/`[^`]*`/g, match => ' '.repeat(match.length));
+	const open: { marker: string; pos: number }[] = [];
+	for (const marker of ['~~', '**']) {
+		const positions = [...plain.matchAll(new RegExp(marker.replace(/[*]/g, '\\*'), 'g'))].map(m => m.index!);
+		if (positions.length % 2 === 1) {
+			open.push({ marker, pos: positions[positions.length - 1] });
+		}
+	}
+	const singles = [...plain.replace(/\*\*/g, '  ').matchAll(/\*/g)]
+		.map(m => m.index!)
+		.filter(pos => !/^\s*$/.test(plain.slice(plain.lastIndexOf('\n', pos - 1) + 1, pos)) || plain[pos + 1] !== ' ');
+	if (singles.length % 2 === 1) {
+		open.push({ marker: '*', pos: singles[singles.length - 1] });
+	}
+	open.sort((a, b) => b.pos - a.pos);
+	let closers = '';
+	for (const { marker, pos } of open) {
+		if (!text.slice(pos + marker.length).replace(/[*~]/g, '').trim()) {
+			text = text.slice(0, pos) + text.slice(pos + marker.length);
+		} else {
+			closers += marker;
+		}
+	}
+	return closers ? text.replace(/\s+$/, '') + closers : text;
 }
 
 export function isTerminalCodeBlock(language: string | undefined, text: string): boolean {
@@ -212,11 +360,27 @@ export function isTerminalCodeBlock(language: string | undefined, text: string):
 	return false;
 }
 
+/**
+ * `applyCodeFromChat` shortcut: the next code block of the latest reply, where
+ * "next" is `codeBlockApplyStates.curIndex` (one step per finished apply).
+ */
+export function nextCodeBlockToApply(history: readonly IKnoxGuiHistoryItem[], applyStates: readonly { streamId: string; status?: string }[]): { streamId: string; fence: IKnoxGuiMarkdownFenceBlock } | undefined {
+	const last = [...history].reverse().find(item => item.role === 'assistant' && assistantReplyText(item));
+	if (!last) {
+		return undefined;
+	}
+	const fences = splitMarkdownBlocks(last.content).filter((block): block is IKnoxGuiMarkdownFenceBlock => block.type === 'fence');
+	const done = fences.filter((_, index) => applyStates.some(state => state.streamId === fenceApplyStreamId(last.id, index) && state.status === 'done')).length;
+	const fence = fences[done];
+	return fence ? { streamId: fenceApplyStreamId(last.id, done), fence } : undefined;
+}
+
 export function fenceApplyStreamId(messageId: string, fenceIndex: number): string {
 	return `${messageId}:fence:${fenceIndex}`;
 }
 
-export function applyUiForState(apply?: IKnoxGuiApplyState): KnoxGuiApplyUi {
+/** `ApplyActions.tsx`: only a closed apply with no diffs left and no reject counts as applied. */
+export function applyUiForState(apply?: IKnoxGuiApplyState, rejected = false): KnoxGuiApplyUi {
 	if (!apply) {
 		return { kind: 'idle' };
 	}
@@ -226,11 +390,8 @@ export function applyUiForState(apply?: IKnoxGuiApplyState): KnoxGuiApplyUi {
 	if (apply.status === 'done') {
 		return { kind: 'done', numDiffs: apply.numDiffs ?? 0 };
 	}
-	if (apply.status === 'closed' && (apply.numDiffs ?? 0) === 0) {
+	if (apply.status === 'closed' && !rejected && (apply.numDiffs ?? 0) === 0) {
 		return { kind: 'applied' };
-	}
-	if (apply.status === 'closed') {
-		return { kind: 'reapply' };
 	}
 	return { kind: 'idle' };
 }
@@ -880,8 +1041,9 @@ export function resubmitHistory<T>(history: T[], index: number, replacement: T):
 	return [...history.slice(0, index), replacement];
 }
 
-export function shouldShowThinkingIndicator(args: { isStreaming: boolean; isLast: boolean; hasContent: boolean; hasReasoning: boolean }): boolean {
-	return args.isStreaming && args.isLast && !args.hasContent && !args.hasReasoning;
+/** `ThinkingIndicator.tsx`: only for reasoning models, and not while context is still gathering. */
+export function shouldShowThinkingIndicator(args: { isStreaming: boolean; isLast: boolean; hasContent: boolean; hasReasoning: boolean; isGatheringContext?: boolean; showForModel?: boolean }): boolean {
+	return args.isStreaming && args.isLast && !args.hasContent && !args.hasReasoning && !args.isGatheringContext && args.showForModel !== false;
 }
 
 export function parseCodeFenceRange(range?: string): { startLine: number; endLine?: number } | undefined {
@@ -901,6 +1063,40 @@ export function parseCodeFenceRange(range?: string): { startLine: number; endLin
 	return { startLine, endLine };
 }
 
+/** `codeLineWindow.ts`: lines shown before a code block scrolls. */
+export const DEFAULT_COLLAPSED_CODE_LINES = 12;
+/** `codeLineWindow.ts`: lines kept in the DOM; the rest are not rendered. */
+export const MAX_EXPANDED_CODE_LINES = 400;
+export const CODE_LINE_HEIGHT_PX = 19;
+
+export type KnoxGuiCodeLineAnchor = 'start' | 'end';
+
+/** Port of `visibleCodeLineRange`. */
+export function visibleCodeLineRange(
+	lineCount: number,
+	options: { isGenerating: boolean; isExpanded: boolean; anchor?: KnoxGuiCodeLineAnchor; extraLines?: number; windowShift?: number },
+): { start: number; end: number } {
+	if (lineCount <= 0) {
+		return { start: 0, end: 0 };
+	}
+	const extra = Math.max(0, options.extraLines ?? 0);
+	const collapsedSize = Math.min(lineCount, Math.min(MAX_EXPANDED_CODE_LINES, DEFAULT_COLLAPSED_CODE_LINES + extra));
+	const windowSize = options.isExpanded ? Math.min(lineCount, MAX_EXPANDED_CODE_LINES) : collapsedSize;
+	if (options.isGenerating || options.anchor === 'end') {
+		const maxShift = Math.max(0, lineCount - windowSize);
+		const shift = Math.min(maxShift, Math.max(0, options.windowShift ?? 0));
+		const end = lineCount - shift;
+		return { start: end - windowSize, end };
+	}
+	return { start: 0, end: windowSize };
+}
+
+/** Per-line HTML from `tokenizeToStringSync` output (flat spans joined by `<br/>` inside one div). */
+export function knoxGuiSplitTokenizedLines(html: string): string[] {
+	const inner = html.replace(/^<div class="monaco-tokenized-source">/, '').replace(/<\/div>$/, '');
+	return inner.split('<br/>');
+}
+
 export function splitDisplayPath(filepath: string): { dir: string; name: string } {
 	const clean = filepath.replace(/\\/g, '/').replace(/^\.\//, '');
 	const lastSlash = clean.lastIndexOf('/');
@@ -908,6 +1104,16 @@ export function splitDisplayPath(filepath: string): { dir: string; name: string 
 		return { dir: '', name: clean };
 	}
 	return { dir: clean.slice(0, lastSlash + 1), name: clean.slice(lastSlash + 1) };
+}
+
+/** `getTerminalCommand`: a leading `$ ` prompt is not part of the command. */
+export function knoxGuiTerminalCommand(text: string): string {
+	return text.startsWith('$ ') ? text.slice(2) : text;
+}
+
+/** `initialCodeBlockExpanded`: an explicit `expanded` wins, otherwise open once the block has code. */
+export function knoxGuiInitialCodeBlockExpanded(code: string, expanded: boolean | undefined): boolean {
+	return typeof expanded === 'boolean' ? expanded : code.trim().length > 0;
 }
 
 export function fenceHasFileToolbar(filepath?: string): boolean {
@@ -974,4 +1180,142 @@ export function languageIdFromFence(language: string, filepath?: string): string
 		return 'shellscript';
 	}
 	return lang || 'plaintext';
+}
+
+/** `ctxItemToRifWithContents(item, true)`: zero-based lines parsed from `name (12-30)`. */
+export interface IKnoxGuiFileRef {
+	filepath: string;
+	startLine: number;
+	endLine: number;
+}
+
+export interface IKnoxGuiPastFileInfo {
+	symbols: IKnoxGuiSymbol[];
+	rifs: IKnoxGuiFileRef[];
+}
+
+export const KNOX_EMPTY_PAST_FILE_INFO: IKnoxGuiPastFileInfo = { symbols: [], rifs: [] };
+
+function fileRefFromName(filepath: string, name: string): IKnoxGuiFileRef {
+	const lines = name.split('(')[1]?.split(')')[0]?.split('-');
+	if (!lines || lines.length < 2) {
+		return { filepath, startLine: 0, endLine: 0 };
+	}
+	return { filepath, startLine: Number.parseInt(lines[0], 10) - 1, endLine: Number.parseInt(lines[1], 10) - 1 };
+}
+
+/**
+ * `updateFileSymbols.ts` getContextItemsFromHistory: file context items and
+ * composer code blocks of every item up to and including `priorToIndex`.
+ */
+export function knoxGuiHistoryFileRefs(history: readonly IKnoxGuiHistoryItem[], priorToIndex = history.length - 1): IKnoxGuiFileRef[] {
+	const refs: IKnoxGuiFileRef[] = [];
+	for (let i = 0; i <= priorToIndex && i < history.length; i++) {
+		for (const ctx of history[i].contextItems ?? []) {
+			if (ctx.uri) {
+				refs.push(fileRefFromName(ctx.uri, ctx.name));
+			}
+		}
+	}
+	for (let i = 0; i <= priorToIndex && i < history.length; i++) {
+		for (const block of history[i].inputDoc ?? []) {
+			if (block.type === 'codeBlock' && block.filepath) {
+				refs.push(fileRefFromName(block.filepath, block.itemName ?? ''));
+			}
+		}
+	}
+	return refs;
+}
+
+/** `pastFileInfo.ts` computePastFileInfo. */
+export function knoxGuiPastFileInfo(history: readonly IKnoxGuiHistoryItem[], index: number, symbols: Readonly<Record<string, IKnoxGuiSymbol[]>>): IKnoxGuiPastFileInfo {
+	const rifs = knoxGuiHistoryFileRefs(history, index);
+	if (!rifs.length) {
+		return KNOX_EMPTY_PAST_FILE_INFO;
+	}
+	const uris = new Set(rifs.map(rif => rif.filepath));
+	return { rifs, symbols: Object.entries(symbols).filter(([uri]) => uris.has(uri)).flatMap(([, list]) => list) };
+}
+
+/** `markdown/utils.ts` matchCodeToSymbolOrFile: file basename first, then exact, then prefix symbol. */
+export function knoxGuiMatchCodeToSymbolOrFile(content: string, info: IKnoxGuiPastFileInfo): { kind: 'file'; ref: IKnoxGuiFileRef } | { kind: 'symbol'; symbol: IKnoxGuiSymbol } | undefined {
+	if (info.rifs.length && content.includes('.') && content.length > 2) {
+		const ref = info.rifs.find(rif => rif.filepath.split('/').pop() === content);
+		if (ref) {
+			return { kind: 'file', ref };
+		}
+	}
+	const symbol = info.symbols.find(s => s.name === content) ?? info.symbols.find(s => content.startsWith(s.name));
+	return symbol ? { kind: 'symbol', symbol } : undefined;
+}
+
+/** `SymbolLink.tsx`: tooltip body is the symbol source, truncated at 200 characters. */
+export function knoxGuiSymbolTooltip(symbol: IKnoxGuiSymbol): string {
+	const content = symbol.content;
+	if (!content) {
+		return symbol.filepath;
+	}
+	return content.length > 200 ? `${content.slice(0, 196)}\n...` : content;
+}
+
+/** Uris without symbols yet (`updateFileSymbolsFromHistory`). */
+export function knoxGuiMissingSymbolUris(history: readonly IKnoxGuiHistoryItem[], symbols: Readonly<Record<string, unknown>>): string[] {
+	return [...new Set(knoxGuiHistoryFileRefs(history).map(ref => ref.filepath))].filter(uri => !Object.prototype.hasOwnProperty.call(symbols, uri));
+}
+
+/** Core `FileSymbolMap`; malformed entries are dropped. */
+export function knoxGuiParseSymbolMap(value: unknown): Record<string, IKnoxGuiSymbol[]> {
+	const out: Record<string, IKnoxGuiSymbol[]> = {};
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return out;
+	}
+	for (const [uri, list] of Object.entries(value as Record<string, unknown>)) {
+		if (!Array.isArray(list)) {
+			continue;
+		}
+		out[uri] = list.flatMap(raw => {
+			const rec = raw && typeof raw === 'object' ? raw as Record<string, unknown> : undefined;
+			const range = rec?.range as { start?: { line?: unknown }; end?: { line?: unknown } } | undefined;
+			if (!rec || typeof rec.name !== 'string' || typeof range?.start?.line !== 'number' || typeof range?.end?.line !== 'number') {
+				return [];
+			}
+			return [{
+				name: rec.name,
+				type: String(rec.type ?? ''),
+				filepath: typeof rec.filepath === 'string' ? rec.filepath : uri,
+				content: typeof rec.content === 'string' ? rec.content : '',
+				range: { start: { line: range.start.line }, end: { line: range.end.line } },
+			}];
+		});
+	}
+	return out;
+}
+
+export type KnoxGuiContextOpenAction =
+	| { kind: 'url'; url: string }
+	| { kind: 'lines'; filepath: string; startLine: number; endLine: number }
+	| { kind: 'file'; filepath: string }
+	| { kind: 'virtual'; name: string; content: string };
+
+/** `ContextItemsPeek.tsx` openContextItem: URL, file range from `name (a-b)`, whole file, else a virtual document. */
+export function knoxGuiContextItemOpenAction(ctx: IKnoxGuiContextItem): KnoxGuiContextOpenAction {
+	if (ctx.url) {
+		return { kind: 'url', url: ctx.url };
+	}
+	if (ctx.uri) {
+		if (ctx.name.includes(' (') && ctx.name.endsWith(')')) {
+			const ref = fileRefFromName(ctx.uri, ctx.name);
+			return { kind: 'lines', filepath: ref.filepath, startLine: ref.startLine, endLine: ref.endLine };
+		}
+		return { kind: 'file', filepath: ctx.uri };
+	}
+	return { kind: 'virtual', name: ctx.name, content: ctx.content };
+}
+
+/** `ContextItemsPeek.tsx` getContextItemIcon file heuristic; the icon name is the description's first path. */
+export function knoxGuiContextItemFileIconName(ctx: IKnoxGuiContextItem): string | undefined {
+	if (!ctx.content.includes('```') && !ctx.uri) {
+		return undefined;
+	}
+	return (ctx.description ?? '').split(' ')[0]?.split('#')[0] || ctx.name.split(' (')[0];
 }

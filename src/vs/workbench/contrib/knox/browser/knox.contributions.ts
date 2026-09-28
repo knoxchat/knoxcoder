@@ -4,6 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/knoxGui.css';
+import './media/knoxGuiChat.css';
+import './media/knoxGuiComposer.css';
+import './media/knoxGuiPanels.css';
+import './media/knoxGuiThinking.css';
+import './media/knoxGuiPages.css';
+import './media/knoxGuiCheckpoints.css';
+import './media/knoxGuiMemory.css';
+import './media/knoxGuiGraph.css';
+import './media/knoxGuiConfig.css';
+import './media/knoxGuiCheckpointDetails.css';
 import './knoxDiffDecorations.css';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';

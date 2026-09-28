@@ -11,8 +11,8 @@ const ASK_USER_TOOL_NAMES = new Set(['builtin_ask_user', 'ask_user', 'AskUser'])
 
 export type KnoxGuiInlineNode =
 	| { type: 'text'; text: string }
-	| { type: 'mention'; id: string; label: string; itemType?: string; query?: string; renderInlineAs?: string; description?: string }
-	| { type: 'slash'; id: string; label: string };
+	| { type: 'mention'; id: string; label: string; itemType?: string; query?: string; renderInlineAs?: string; description?: string; icon?: string }
+	| { type: 'slash'; id: string; label: string; description?: string };
 
 export interface IKnoxGuiInputParagraph {
 	type: 'paragraph';
@@ -25,13 +25,49 @@ export interface IKnoxGuiInputCodeBlock {
 	filepath?: string;
 	code: string;
 	itemName?: string;
+	/** 0-based line range of a highlighted selection (`rifWithContentsToContextItem`). */
+	range?: { start: number; end: number };
+}
+
+/** `rifWithContentsToContextItem` name: `basename (start-end)` with 1-based lines. */
+export function knoxGuiCodeBlockTitle(block: IKnoxGuiInputCodeBlock): string {
+	const source = block.filepath ?? block.itemName ?? '';
+	const basename = source.split(/[/\\]/).pop() || source || 'code';
+	return block.range ? `${basename} (${block.range.start + 1}-${block.range.end + 1})` : basename;
+}
+
+export type KnoxGuiCodeBlockOpenAction =
+	| { type: 'showLines'; filepath: string; startLine: number; endLine: number }
+	| { type: 'showFile'; filepath: string }
+	| { type: 'showVirtualFile'; name: string; content: string };
+
+/** `CodeSnippetPreview.tsx` title click: code ranges reveal their lines, files open, anything else opens as a virtual file. */
+export function knoxGuiCodeBlockOpenAction(block: IKnoxGuiInputCodeBlock): KnoxGuiCodeBlockOpenAction {
+	if (block.filepath && block.range) {
+		return { type: 'showLines', filepath: block.filepath, startLine: block.range.start, endLine: block.range.end };
+	}
+	if (block.filepath && /^[a-z][a-z0-9+.-]*:\/\//i.test(block.filepath)) {
+		return { type: 'showFile', filepath: block.filepath };
+	}
+	return { type: 'showVirtualFile', name: knoxGuiCodeBlockTitle(block), content: block.code };
+}
+
+/** `newestCodeblockForInput`: only the most recently added code block starts expanded. */
+export function knoxGuiNewestCodeBlockIndex(doc: readonly IKnoxGuiInputBlock[]): number {
+	for (let i = doc.length - 1; i >= 0; i--) {
+		if (doc[i].type === 'codeBlock') {
+			return i;
+		}
+	}
+	return -1;
 }
 
 export type IKnoxGuiInputBlock = IKnoxGuiInputParagraph | IKnoxGuiInputCodeBlock;
 
 export type KnoxGuiComposerTrigger =
 	| { kind: 'mention'; query: string }
-	| { kind: 'slash'; query: string };
+	| { kind: 'slash'; query: string }
+	| { kind: 'codeToEdit'; query: string };
 
 export type KnoxGuiMentionSectionId = 'open' | 'files' | 'folders' | 'providers' | 'other';
 export type KnoxGuiSlashSectionId = 'bookmarked' | 'recent' | 'commands' | 'prompts';
@@ -142,7 +178,7 @@ export function emptyInputDoc(): IKnoxGuiInputBlock[] {
 export function cloneInputDoc(doc: IKnoxGuiInputBlock[]): IKnoxGuiInputBlock[] {
 	return doc.map(block => {
 		if (block.type === 'codeBlock') {
-			return { ...block };
+			return block.range ? { ...block, range: { ...block.range } } : { ...block };
 		}
 		return { type: 'paragraph', content: block.content.map(node => ({ ...node })) };
 	});
@@ -240,49 +276,160 @@ export function composerPlaceholderKey(mode: KnoxChatMode, historyLength: number
 	return historyLength === 0 ? 'askAnything' : 'followUpQuestion';
 }
 
-export function detectComposerTrigger(doc: IKnoxGuiInputBlock[]): KnoxGuiComposerTrigger | undefined {
-	const last = [...doc].reverse().find((block): block is IKnoxGuiInputParagraph => block.type === 'paragraph');
-	if (!last) {
-		return undefined;
-	}
-	let trailing = '';
-	for (const node of last.content) {
+/** Caret inside the composer doc: block index plus offset where each chip counts as one character. */
+export interface IKnoxGuiDocCaret {
+	block: number;
+	offset: number;
+}
+
+/** Stand-in for an inline chip when a paragraph is flattened to text. */
+export const KNOX_GUI_CHIP_CHAR = '\uFFFC';
+
+function inlineLength(node: KnoxGuiInlineNode): number {
+	return node.type === 'text' ? node.text.length : 1;
+}
+
+function paragraphLength(paragraph: IKnoxGuiInputParagraph): number {
+	return paragraph.content.reduce((sum, node) => sum + inlineLength(node), 0);
+}
+
+export function paragraphTextBefore(paragraph: IKnoxGuiInputParagraph, offset: number): string {
+	let text = '';
+	let remaining = offset;
+	for (const node of paragraph.content) {
+		if (remaining <= 0) {
+			break;
+		}
 		if (node.type === 'text') {
-			trailing += node.text;
+			text += node.text.slice(0, remaining);
+			remaining -= node.text.length;
 		} else {
-			trailing = '';
+			text += KNOX_GUI_CHIP_CHAR;
+			remaining -= 1;
 		}
 	}
-	const mention = trailing.match(/(?:^|\s)@([^\s]*)$/);
+	return text;
+}
+
+export function docEndCaret(doc: IKnoxGuiInputBlock[]): IKnoxGuiDocCaret {
+	for (let i = doc.length - 1; i >= 0; i--) {
+		const block = doc[i];
+		if (block.type === 'paragraph') {
+			return { block: i, offset: paragraphLength(block) };
+		}
+	}
+	return { block: doc.length, offset: 0 };
+}
+
+function resolveCaret(doc: IKnoxGuiInputBlock[], caret: IKnoxGuiDocCaret | undefined): IKnoxGuiDocCaret | undefined {
+	if (caret) {
+		const block = doc[caret.block];
+		if (block?.type === 'paragraph') {
+			return { block: caret.block, offset: Math.max(0, Math.min(caret.offset, paragraphLength(block))) };
+		}
+	}
+	const end = docEndCaret(doc);
+	return doc[end.block]?.type === 'paragraph' ? end : undefined;
+}
+
+function splitInlinesAt(content: KnoxGuiInlineNode[], offset: number): [KnoxGuiInlineNode[], KnoxGuiInlineNode[]] {
+	const before: KnoxGuiInlineNode[] = [];
+	const after: KnoxGuiInlineNode[] = [];
+	let remaining = offset;
+	for (const node of content) {
+		if (remaining <= 0) {
+			after.push({ ...node });
+			continue;
+		}
+		const length = inlineLength(node);
+		if (node.type === 'text' && remaining < length) {
+			before.push({ type: 'text', text: node.text.slice(0, remaining) });
+			after.push({ type: 'text', text: node.text.slice(remaining) });
+		} else {
+			before.push({ ...node });
+		}
+		remaining -= length;
+	}
+	return [before, after];
+}
+
+const MENTION_TRIGGER = /(?:^|\s)@([^\s\uFFFC]*)$/;
+const CODE_TO_EDIT_TRIGGER = /(?:^|\s)#([^\s\uFFFC]*)$/;
+const SLASH_TRIGGER = /^\/([^\s\uFFFC]*)$/;
+
+/**
+ * `@` fires after whitespace anywhere in the doc, `/` at the start of any line,
+ * and `#` (edit mode only) adds files to code-to-edit.
+ */
+export function detectComposerTrigger(doc: IKnoxGuiInputBlock[], caret?: IKnoxGuiDocCaret, options?: { mode?: KnoxChatMode }): KnoxGuiComposerTrigger | undefined {
+	const at = resolveCaret(doc, caret);
+	if (!at) {
+		return undefined;
+	}
+	const before = paragraphTextBefore(doc[at.block] as IKnoxGuiInputParagraph, at.offset);
+	const mention = before.match(MENTION_TRIGGER);
 	if (mention) {
 		return { kind: 'mention', query: mention[1] };
 	}
-	const firstParagraph = doc.find(block => block.type === 'paragraph') === last;
-	const slash = trailing.match(/^\/([^\s]*)$/);
-	if (slash && firstParagraph) {
+	if (options?.mode === 'edit') {
+		const hash = before.match(CODE_TO_EDIT_TRIGGER);
+		if (hash) {
+			return { kind: 'codeToEdit', query: hash[1] };
+		}
+		return undefined;
+	}
+	const line = before.slice(before.lastIndexOf('\n') + 1);
+	const slash = line.match(SLASH_TRIGGER);
+	if (slash) {
 		return { kind: 'slash', query: slash[1] };
 	}
 	return undefined;
 }
 
-function replaceTrailingText(paragraph: IKnoxGuiInputParagraph, pattern: RegExp, nodes: KnoxGuiInlineNode[]): IKnoxGuiInputParagraph {
-	const content = paragraph.content.slice();
-	for (let i = content.length - 1; i >= 0; i--) {
-		const node = content[i];
-		if (node.type !== 'text') {
-			break;
-		}
-		const next = node.text.replace(pattern, '');
-		if (next === node.text) {
-			continue;
-		}
-		const prefix: KnoxGuiInlineNode[] = [];
-		if (next) {
-			prefix.push({ type: 'text', text: next });
-		}
-		return { type: 'paragraph', content: [...content.slice(0, i), ...prefix, ...nodes] };
+/** Offset in `text` where a trailing trigger token (`@q`, `#q`, `/q`) starts. */
+function triggerStart(text: string, char: '@' | '#' | '/'): number {
+	const index = text.lastIndexOf(char);
+	if (index < 0 || /[\s\uFFFC]/.test(text.slice(index + 1))) {
+		return -1;
 	}
-	return { type: 'paragraph', content: [...content, ...nodes] };
+	return index;
+}
+
+/**
+ * Replace the trigger token that ends at `caret` with `nodes`; returns the new
+ * doc and the caret just after the inserted nodes.
+ */
+export function replaceTriggerAt(doc: IKnoxGuiInputBlock[], caret: IKnoxGuiDocCaret | undefined, char: '@' | '#' | '/', nodes: KnoxGuiInlineNode[]): { doc: IKnoxGuiInputBlock[]; caret: IKnoxGuiDocCaret } {
+	const next = cloneInputDoc(doc.length ? doc : emptyInputDoc());
+	const at = resolveCaret(next, caret) ?? { block: lastParagraphIndex(next), offset: 0 };
+	const paragraph = next[at.block] as IKnoxGuiInputParagraph;
+	const text = paragraphTextBefore(paragraph, at.offset);
+	const start = triggerStart(text, char);
+	const [head] = splitInlinesAt(paragraph.content, start < 0 ? at.offset : start);
+	const [, tail] = splitInlinesAt(paragraph.content, at.offset);
+	const inserted = nodes.map(node => ({ ...node }));
+	const lastInserted = inserted[inserted.length - 1];
+	const firstTail = tail[0];
+	if (lastInserted?.type === 'text' && lastInserted.text.endsWith(' ') && firstTail?.type === 'text' && firstTail.text.startsWith(' ')) {
+		firstTail.text = firstTail.text.slice(1);
+	}
+	const content = [...head, ...inserted, ...tail].filter(node => node.type !== 'text' || node.text.length > 0);
+	next[at.block] = { type: 'paragraph', content: mergeTextNodes(content) };
+	const offset = head.reduce((sum, node) => sum + inlineLength(node), 0) + inserted.reduce((sum, node) => sum + inlineLength(node), 0);
+	return { doc: next, caret: { block: at.block, offset } };
+}
+
+function mergeTextNodes(content: KnoxGuiInlineNode[]): KnoxGuiInlineNode[] {
+	const out: KnoxGuiInlineNode[] = [];
+	for (const node of content) {
+		const last = out[out.length - 1];
+		if (node.type === 'text' && last?.type === 'text') {
+			out[out.length - 1] = { type: 'text', text: last.text + node.text };
+		} else {
+			out.push(node);
+		}
+	}
+	return out;
 }
 
 export function appendTextToDoc(doc: IKnoxGuiInputBlock[], text: string): IKnoxGuiInputBlock[] {
@@ -301,17 +448,13 @@ export function appendTextToDoc(doc: IKnoxGuiInputBlock[], text: string): IKnoxG
 	return next;
 }
 
-export function applySuggestToDoc(doc: IKnoxGuiInputBlock[], item: IKnoxGuiSuggestItem, kind: 'mention' | 'slash'): IKnoxGuiInputBlock[] {
-	const next = cloneInputDoc(doc);
-	const index = lastParagraphIndex(next);
-	const paragraph = next[index] as IKnoxGuiInputParagraph;
+export function applySuggestAt(doc: IKnoxGuiInputBlock[], item: IKnoxGuiSuggestItem, kind: 'mention' | 'slash', caret?: IKnoxGuiDocCaret): { doc: IKnoxGuiInputBlock[]; caret: IKnoxGuiDocCaret } {
 	if (kind === 'slash') {
 		const id = slashCommandTitle(item.id || item.label);
-		next[index] = replaceTrailingText(paragraph, /(^|\s)\/\S*$/, [
-			{ type: 'slash', id, label: id },
+		return replaceTriggerAt(doc, caret, '/', [
+			{ type: 'slash', id, label: id, description: item.description },
 			{ type: 'text', text: ' ' },
 		]);
-		return next;
 	}
 	const chip: KnoxGuiInlineNode = {
 		type: 'mention',
@@ -321,12 +464,13 @@ export function applySuggestToDoc(doc: IKnoxGuiInputBlock[], item: IKnoxGuiSugge
 		query: item.query,
 		renderInlineAs: item.renderInlineAs,
 		description: item.description,
+		icon: item.icon,
 	};
-	next[index] = replaceTrailingText(paragraph, /(^|\s)@[^\s]*$/, [
-		chip,
-		{ type: 'text', text: ' ' },
-	]);
-	return next;
+	return replaceTriggerAt(doc, caret, '@', [chip, { type: 'text', text: ' ' }]);
+}
+
+export function applySuggestToDoc(doc: IKnoxGuiInputBlock[], item: IKnoxGuiSuggestItem, kind: 'mention' | 'slash', caret?: IKnoxGuiDocCaret): IKnoxGuiInputBlock[] {
+	return applySuggestAt(doc, item, kind, caret).doc;
 }
 
 export function appendTriggerToDoc(doc: IKnoxGuiInputBlock[], trigger: '@' | '/'): IKnoxGuiInputBlock[] {
@@ -343,12 +487,17 @@ export function appendTriggerToDoc(doc: IKnoxGuiInputBlock[], trigger: '@' | '/'
 	return next;
 }
 
-export function clearMentionQuery(doc: IKnoxGuiInputBlock[]): IKnoxGuiInputBlock[] {
-	const next = cloneInputDoc(doc);
-	const index = lastParagraphIndex(next);
-	const paragraph = next[index] as IKnoxGuiInputParagraph;
-	next[index] = replaceTrailingText(paragraph, /@[^\s]*$/, [{ type: 'text', text: '@' }]);
-	return next;
+export function clearMentionQuery(doc: IKnoxGuiInputBlock[], caret?: IKnoxGuiDocCaret): IKnoxGuiInputBlock[] {
+	return clearMentionQueryAt(doc, caret).doc;
+}
+
+export function clearMentionQueryAt(doc: IKnoxGuiInputBlock[], caret?: IKnoxGuiDocCaret): { doc: IKnoxGuiInputBlock[]; caret: IKnoxGuiDocCaret } {
+	return replaceTriggerAt(doc, caret, '@', [{ type: 'text', text: '@' }]);
+}
+
+/** Drop the `#query` token when a file is picked for code-to-edit. */
+export function removeCodeToEditTrigger(doc: IKnoxGuiInputBlock[], caret?: IKnoxGuiDocCaret): { doc: IKnoxGuiInputBlock[]; caret: IKnoxGuiDocCaret } {
+	return replaceTriggerAt(doc, caret, '#', []);
 }
 
 export function insertCodeBlock(doc: IKnoxGuiInputBlock[], block: IKnoxGuiInputCodeBlock): IKnoxGuiInputBlock[] {
@@ -456,6 +605,11 @@ export function knoxGuiShouldBlockSubmit(state: {
 	return false;
 }
 
+/** `InputToolbar.tsx` isEnterDisabled: empty input keeps Send enabled (submitting it is a no-op). */
+export function knoxGuiSendButtonDisabled(state: Parameters<typeof knoxGuiShouldBlockSubmit>[0]): boolean {
+	return knoxGuiShouldBlockSubmit({ ...state, input: state.input.trim() ? state.input : ' x' });
+}
+
 export function filterProvidersForMode(providers: IKnoxGuiContextProvider[], mode: KnoxChatMode): IKnoxGuiContextProvider[] {
 	if (mode !== 'edit') {
 		return providers;
@@ -482,13 +636,14 @@ export function contextProviderToSuggestItem(provider: IKnoxGuiContextProvider):
 		providerType: provider.type,
 		renderInlineAs: provider.renderInlineAs,
 		icon: provider.title,
+		providerCategory: provider.category,
 	};
 }
 
-export function fileHitToSuggestItem(hit: { id?: string; title?: string; path?: string; description?: string; icon?: string }): IKnoxGuiSuggestItem {
+export function fileHitToSuggestItem(hit: { id?: string; title?: string; path?: string; description?: string; icon?: string; providerTitle?: string; score?: number; metadata?: unknown }): IKnoxGuiSuggestItem {
 	const id = String(hit.id ?? hit.path ?? hit.title ?? 'file');
 	const folder = hit.icon === 'folder';
-	return {
+	const item: IKnoxGuiSuggestItem = {
 		id,
 		label: String(hit.title ?? hit.path ?? id),
 		description: hit.description,
@@ -496,6 +651,26 @@ export function fileHitToSuggestItem(hit: { id?: string; title?: string; path?: 
 		query: id,
 		icon: folder ? 'folder' : 'file',
 	};
+	if (hit.providerTitle) {
+		item.providerTitle = hit.providerTitle;
+	}
+	if (typeof hit.score === 'number') {
+		item.score = hit.score;
+	}
+	if (hit.metadata && typeof hit.metadata === 'object' && (hit.metadata as { truncated?: unknown }).truncated === true) {
+		item.truncated = true;
+	}
+	return item;
+}
+
+/** Non-file submenu rows (prompt files, repo maps, custom providers) keep their provider chip type. */
+export function submenuHitToSuggestItem(hit: Record<string, unknown>, providerTitle: string): IKnoxGuiSuggestItem {
+	const item = fileHitToSuggestItem({ ...hit, providerTitle } as Parameters<typeof fileHitToSuggestItem>[0]);
+	if (providerTitle !== 'file' && hit.icon !== 'folder') {
+		item.itemType = providerTitle;
+		item.icon = typeof hit.icon === 'string' ? hit.icon : undefined;
+	}
+	return item;
 }
 
 function dedupeSuggest(items: IKnoxGuiSuggestItem[]): IKnoxGuiSuggestItem[] {
@@ -530,7 +705,7 @@ export function buildTopLevelMentionItems(args: {
 			if (b.id === 'file') {
 				return 1;
 			}
-			return 0;
+			return Number(a.providerCategory === 'integration') - Number(b.providerCategory === 'integration');
 		});
 	if (!query) {
 		return dedupeSuggest([...args.files.slice(0, EMPTY_QUERY_FILE_LIMIT), ...providerMatches]).slice(0, limit);
@@ -801,16 +976,296 @@ export function mergeLiveMentionItems(existing: IKnoxGuiSuggestItem[], live: IKn
 	return extras.length ? [...existing, ...extras] : existing;
 }
 
+export function splitCamelCaseAndNonAlphaNumeric(value: string): string[] {
+	return value
+		.split(/(?<=[a-z0-9])(?=[A-Z])|[^a-zA-Z0-9]/)
+		.filter(token => token.length > 0)
+		.map(token => token.toLowerCase());
+}
+
+function normalizeMentionText(value: string): string {
+	return value.toLowerCase().replace(/\\/g, '/');
+}
+
+function pathMatchesQuery(path: string, query: string): 'substring' | 'segments' | false {
+	const p = normalizeMentionText(path);
+	const q = normalizeMentionText(query);
+	if (!q) {
+		return false;
+	}
+	if (p.includes(q)) {
+		return 'substring';
+	}
+	if (!q.includes('/')) {
+		return false;
+	}
+	let from = 0;
+	for (const part of q.split('/').filter(Boolean)) {
+		const found = p.indexOf(part, from);
+		if (found === -1) {
+			return false;
+		}
+		from = found + part.length;
+	}
+	return 'segments';
+}
+
+function camelTokenMatches(title: string, query: string): boolean {
+	const q = normalizeMentionText(query);
+	return splitCamelCaseAndNonAlphaNumeric(title).some(token => token === q || token.startsWith(q));
+}
+
 export function mentionItemMatchesQuery(item: { label: string; description?: string }, query: string): boolean {
-	const q = query.trim().toLowerCase();
+	const q = query.trim();
 	if (!q) {
 		return true;
 	}
-	const title = item.label.toLowerCase();
-	if (title === q || title.startsWith(q) || title.includes(q)) {
+	const title = normalizeMentionText(item.label);
+	const needle = normalizeMentionText(q);
+	if (title.includes(needle) || camelTokenMatches(item.label, q)) {
 		return true;
 	}
-	return (item.description ?? '').toLowerCase().includes(q);
+	return pathMatchesQuery(item.description ?? '', q) !== false;
+}
+
+const MENTION_SCORE_OPEN_FILE = 1_000_000;
+const MENTION_SCORE_EXACT = 100_000;
+const MENTION_SCORE_PREFIX = 50_000;
+const MENTION_SCORE_CAMEL = 25_000;
+const MENTION_SCORE_PATH_SUBSTRING = 10_000;
+const MENTION_SCORE_PATH_SEGMENTS = 5_000;
+
+export function scoreMentionItem(item: IKnoxGuiSuggestItem & { score?: number }, query: string, openFileIds: Set<string>): number {
+	let score = openFileIds.has(item.id) ? MENTION_SCORE_OPEN_FILE : 0;
+	const q = query.trim();
+	const path = item.description ?? '';
+	if (!q) {
+		return score - Math.min(path.length, 200);
+	}
+	const title = normalizeMentionText(item.label);
+	const needle = normalizeMentionText(q);
+	if (title === needle) {
+		score += MENTION_SCORE_EXACT;
+	} else if (title.startsWith(needle)) {
+		score += MENTION_SCORE_PREFIX;
+	} else if (camelTokenMatches(item.label, q)) {
+		score += MENTION_SCORE_CAMEL;
+	}
+	const pathHit = pathMatchesQuery(path, q);
+	if (pathHit === 'substring') {
+		score += MENTION_SCORE_PATH_SUBSTRING;
+	} else if (pathHit === 'segments') {
+		score += MENTION_SCORE_PATH_SEGMENTS;
+	}
+	score += Math.min(item.score ?? 0, 999);
+	return score - Math.min(path.length, 200);
+}
+
+/**
+ * File-picker order: open files, exact basename, prefix / camelCase token,
+ * path match; files beat folders on a tie, then shorter paths.
+ */
+export function rankMentionItems<T extends IKnoxGuiSuggestItem & { score?: number }>(items: T[], query: string, openFileIds: Iterable<string> = []): T[] {
+	const open = openFileIds instanceof Set ? openFileIds : new Set(openFileIds);
+	return [...items].sort((a, b) => {
+		const delta = scoreMentionItem(b, query, open) - scoreMentionItem(a, query, open);
+		if (delta !== 0) {
+			return delta;
+		}
+		const folderDelta = Number(isFolderMentionItem(a)) - Number(isFolderMentionItem(b));
+		if (folderDelta !== 0) {
+			return folderDelta;
+		}
+		const pathDelta = (a.description ?? '').length - (b.description ?? '').length;
+		if (pathDelta !== 0) {
+			return pathDelta;
+		}
+		return a.label.localeCompare(b.label);
+	});
+}
+
+function uriPath(uri: string): string {
+	return uri.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/i, '').replace(/\\/g, '/');
+}
+
+function relativePathOrBasename(uri: string, dirs: string[]): string {
+	const path = uriPath(uri);
+	for (const dir of dirs) {
+		const base = uriPath(dir).replace(/\/+$/, '');
+		if (base && path.startsWith(`${base}/`)) {
+			return path.slice(base.length + 1);
+		}
+	}
+	return path.split('/').pop() ?? path;
+}
+
+/** Last `n` segments of the workspace-relative path (`getLastNUriRelativePathParts`). */
+export function lastRelativePathParts(uri: string, dirs: string[], n: number): string {
+	return relativePathOrBasename(uri, dirs).split('/').slice(-n).join('/');
+}
+
+/** Shortest path suffix that is unique among `uris`, relative to the workspace. */
+export function shortestUniqueRelativePaths(uris: string[], dirs: string[]): Array<{ uri: string; uniquePath: string }> {
+	const counts = new Map<string, number>();
+	const info = uris.map(uri => {
+		const relative = relativePathOrBasename(uri, dirs);
+		const segments = relative.split('/');
+		const suffixes: string[] = [];
+		for (let i = segments.length - 1; i >= 0; i--) {
+			const suffix = segments.slice(i).join('/');
+			suffixes.push(suffix);
+			counts.set(suffix, (counts.get(suffix) ?? 0) + 1);
+		}
+		return { uri, relative, suffixes };
+	});
+	return info.map(({ uri, relative, suffixes }) => ({
+		uri,
+		uniquePath: suffixes.find(suffix => counts.get(suffix) === 1) ?? relative,
+	}));
+}
+
+export function openFileSuggestItems(uris: string[], dirs: string[]): IKnoxGuiSuggestItem[] {
+	return shortestUniqueRelativePaths(uris, dirs).map(({ uri, uniquePath }) => ({
+		id: uri,
+		label: uriPath(uri).split('/').pop() || uri,
+		description: uniquePath,
+		itemType: 'file',
+		query: uri,
+		icon: 'file',
+	}));
+}
+
+export function openFilesChanged(next: string[], previous: string[]): boolean {
+	if (next.length !== previous.length) {
+		return true;
+	}
+	const old = new Set(previous);
+	return next.some(uri => !old.has(uri));
+}
+
+/** Open files that match `query` and are not already in `rows`, appended for ranking. */
+export function mergeOpenFileMentions(rows: IKnoxGuiSuggestItem[], openFiles: IKnoxGuiSuggestItem[], query: string): IKnoxGuiSuggestItem[] {
+	const seen = new Set(rows.map(row => row.id));
+	const extras = openFiles.filter(open => !seen.has(open.id) && mentionItemMatchesQuery(open, query));
+	return extras.length ? [...rows, ...extras] : rows;
+}
+
+export const MENTION_FLOATING_OFFSET = 6;
+export const MENTION_FLOATING_PADDING = 8;
+export const MENTION_PANEL_MAX_WIDTH = 420;
+export const MENTION_PANEL_MAX_HEIGHT_RATIO = 0.4;
+
+export function preferredMentionPlacement(anchorBottom: number, viewportHeight: number): 'top' | 'bottom' {
+	if (viewportHeight <= 0) {
+		return 'bottom';
+	}
+	return viewportHeight - anchorBottom < viewportHeight / 3 ? 'top' : 'bottom';
+}
+
+/**
+ * `getSuggestion.ts` floating-ui setup without the library: prefer the roomier
+ * side, flip when the panel does not fit, shift inside the viewport, cap at
+ * 420px wide and 40% of the viewport tall.
+ */
+export function mentionFloatingPosition(args: {
+	anchor: { left: number; top: number; bottom: number };
+	viewport: { width: number; height: number };
+	contentHeight: number;
+}): { left: number; top: number; width: number; maxHeight: number; placement: 'top' | 'bottom' } {
+	const { anchor, viewport } = args;
+	const pad = MENTION_FLOATING_PADDING;
+	const width = Math.max(0, Math.min(viewport.width - pad * 2, MENTION_PANEL_MAX_WIDTH));
+	const above = Math.max(0, anchor.top - MENTION_FLOATING_OFFSET - pad);
+	const below = Math.max(0, viewport.height - anchor.bottom - MENTION_FLOATING_OFFSET - pad);
+	const cap = Math.max(0, viewport.height * MENTION_PANEL_MAX_HEIGHT_RATIO);
+	let placement = preferredMentionPlacement(anchor.bottom, viewport.height);
+	const wanted = Math.min(args.contentHeight, cap);
+	const room = placement === 'top' ? above : below;
+	const other = placement === 'top' ? below : above;
+	if (wanted > room && other > room) {
+		placement = placement === 'top' ? 'bottom' : 'top';
+	}
+	const maxHeight = Math.min(placement === 'top' ? above : below, cap);
+	const height = Math.min(args.contentHeight, maxHeight);
+	const left = Math.max(pad, Math.min(anchor.left, viewport.width - pad - width));
+	const top = placement === 'top' ? anchor.top - MENTION_FLOATING_OFFSET - height : anchor.bottom + MENTION_FLOATING_OFFSET;
+	return { left, top, width, maxHeight, placement };
+}
+
+export function mentionItemKey(item: IKnoxGuiSuggestItem): string {
+	return item.id || item.query || item.label;
+}
+
+/** Keep the same row selected when the list refreshes underneath it. */
+export function nextMentionSelectedIndex(items: IKnoxGuiSuggestItem[], previousItems: IKnoxGuiSuggestItem[], previousIndex: number): number {
+	if (!items.length) {
+		return 0;
+	}
+	const prev = previousItems[previousIndex];
+	if (!prev) {
+		return 0;
+	}
+	const key = mentionItemKey(prev);
+	const next = items.findIndex(item => mentionItemKey(item) === key);
+	return next >= 0 ? next : 0;
+}
+
+/** Keep the last rows while a refetch is in flight so the panel does not blink. */
+export function retainMentionItemsWhileLoading(incoming: IKnoxGuiSuggestItem[], previous: IKnoxGuiSuggestItem[], loading: boolean): IKnoxGuiSuggestItem[] {
+	const selectable = incoming.filter(item => !isMentionUtilityItem(item));
+	if (!selectable.length && previous.length && (loading || incoming.some(item => item.id === MENTION_LOADING_ID))) {
+		return previous;
+	}
+	return incoming;
+}
+
+export function isPathMentionNode(node: { itemType?: string; icon?: string }): boolean {
+	return node.itemType === 'file' || node.itemType === 'folder' || node.icon === 'file' || node.icon === 'folder';
+}
+
+export function isFolderMentionNode(node: { itemType?: string; icon?: string }): boolean {
+	return node.itemType === 'folder' || node.icon === 'folder';
+}
+
+/** File and folder chips open in the editor; provider chips (diff, problems) do not. */
+export function mentionChipOpenUri(node: { itemType?: string; icon?: string; query?: string; id?: string }): string | undefined {
+	if (!isPathMentionNode(node)) {
+		return undefined;
+	}
+	const uri = (node.query || node.id || '').trim();
+	return uri || undefined;
+}
+
+/** Chip hover text: description, else the clean path of the file URI. */
+export function mentionChipTooltip(node: { itemType?: string; icon?: string; query?: string; id?: string; description?: string }): string | undefined {
+	const description = node.description?.trim();
+	if (description) {
+		return description;
+	}
+	const uri = mentionChipOpenUri(node);
+	if (!uri) {
+		return undefined;
+	}
+	const path = uriPath(uri);
+	return path || uri;
+}
+
+export function mentionChipFilename(node: { label?: string; description?: string; id?: string }): string {
+	return node.label || node.description || node.id || '';
+}
+
+export function isSlashBookmarked(bookmarked: readonly string[], name: string): boolean {
+	const bare = slashCommandBareName(name);
+	return bookmarked.some(entry => slashCommandBareName(entry) === bare);
+}
+
+/** Bookmarks are stored by bare name so the prompts list and `/` dropdown agree. */
+export function toggleSlashBookmark(bookmarked: readonly string[], name: string): string[] {
+	const bare = slashCommandBareName(name);
+	if (isSlashBookmarked(bookmarked, bare)) {
+		return bookmarked.filter(entry => slashCommandBareName(entry) !== bare);
+	}
+	return [...bookmarked.map(entry => slashCommandBareName(entry)), bare];
 }
 
 export type MentionHighlightSegment = { text: string; matched: boolean };
@@ -924,6 +1379,37 @@ export function isDroppedImageFile(file: { type: string; name: string }): boolea
 	return file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name);
 }
 
+/** `tiptap/imageUtils.ts`: accepted MIME types (SVG is listed as `image/svg`, so real `image/svg+xml` files are refused). */
+export const KNOX_IMAGE_TYPES: readonly string[] = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/svg', 'image/webp'];
+export const KNOX_IMAGE_MAX_MB = 10;
+export const KNOX_IMAGE_RESOLUTION = 1024;
+export const KNOX_IMAGE_JPEG_QUALITY = 0.7;
+
+export function knoxGuiImageFileAccepted(file: { type: string; size: number }): boolean {
+	return KNOX_IMAGE_TYPES.includes(file.type) && file.size / 1024 / 1024 < KNOX_IMAGE_MAX_MB;
+}
+
+/** `getDataUrlForFile`: scales to fit 1024×1024, up or down. */
+export function knoxGuiImageTargetSize(width: number, height: number): { width: number; height: number } {
+	const scale = Math.min(KNOX_IMAGE_RESOLUTION / width, KNOX_IMAGE_RESOLUTION / height);
+	return { width: width * scale, height: height * scale };
+}
+
+/** `handleMultipleImageFiles` summary toast. */
+export function knoxGuiImageUploadToast(success: number, total: number, failed: number): { level: 'warning' | 'info'; key: string; params: Record<string, number> } | undefined {
+	if (failed > 0) {
+		return success > 0 ? { level: 'warning', key: 'imageUploadPartialSuccess', params: { success, total, failed } } : undefined;
+	}
+	return success > 1 ? { level: 'info', key: 'imageUploadSuccess', params: { count: success } } : undefined;
+}
+
+/** `TipTapEditor.tsx` drag handlers: only image items raise the overlay. */
+export function knoxGuiDragHasImages(items: ReadonlyArray<{ type: string }>): boolean {
+	return items.some(item => item.type.startsWith('image/'));
+}
+
+export const KNOX_DRAG_LEAVE_HIDE_MS = 1000;
+
 export const MAX_COMPOSER_INPUT_HISTORY = 100;
 
 export interface IKnoxGuiComposerInputHistory {
@@ -934,6 +1420,42 @@ export interface IKnoxGuiComposerInputHistory {
 
 export function createComposerInputHistory(): IKnoxGuiComposerInputHistory {
 	return { entries: [], index: 0, pending: emptyInputDoc() };
+}
+
+function isInlineNode(value: unknown): value is KnoxGuiInlineNode {
+	const node = value as KnoxGuiInlineNode | undefined;
+	if (!node || typeof node !== 'object') {
+		return false;
+	}
+	if (node.type === 'text') {
+		return typeof node.text === 'string';
+	}
+	return (node.type === 'mention' || node.type === 'slash') && typeof node.id === 'string' && typeof node.label === 'string';
+}
+
+function isInputBlock(value: unknown): value is IKnoxGuiInputBlock {
+	const block = value as IKnoxGuiInputBlock | undefined;
+	if (!block || typeof block !== 'object') {
+		return false;
+	}
+	if (block.type === 'paragraph') {
+		return Array.isArray(block.content) && block.content.every(isInlineNode);
+	}
+	return block.type === 'codeBlock' && typeof block.code === 'string';
+}
+
+/** `useInputHistory.ts` load: drop malformed entries, keep the last 100, start past the end. */
+export function composerInputHistoryFromStorage(raw: string | undefined): IKnoxGuiComposerInputHistory {
+	let parsed: unknown;
+	try {
+		parsed = raw ? JSON.parse(raw) : [];
+	} catch {
+		parsed = [];
+	}
+	const entries = (Array.isArray(parsed) ? parsed : [])
+		.filter((doc): doc is IKnoxGuiInputBlock[] => Array.isArray(doc) && doc.length > 0 && doc.every(isInputBlock))
+		.slice(-MAX_COMPOSER_INPUT_HISTORY);
+	return { entries, index: entries.length, pending: emptyInputDoc() };
 }
 
 function inputDocsEqual(a: IKnoxGuiInputBlock[], b: IKnoxGuiInputBlock[]): boolean {
@@ -970,6 +1492,45 @@ export function composerInputHistoryAdd(history: IKnoxGuiComposerInputHistory, d
 	return { entries, index: entries.length, pending: emptyInputDoc() };
 }
 
+/** tiptap `UndoRedo` defaults: 100 steps, edits within 500 ms form one step. */
+export const KNOX_COMPOSER_UNDO_DEPTH = 100;
+export const KNOX_COMPOSER_UNDO_GROUP_MS = 500;
+
+export interface IKnoxGuiComposerUndo {
+	/** Doc states, oldest first; `index` points at the current one. */
+	stack: IKnoxGuiInputBlock[][];
+	index: number;
+	lastAt: number;
+}
+
+export function createComposerUndo(doc: IKnoxGuiInputBlock[] = emptyInputDoc()): IKnoxGuiComposerUndo {
+	return { stack: [cloneInputDoc(doc)], index: 0, lastAt: 0 };
+}
+
+export function composerUndoRecord(undo: IKnoxGuiComposerUndo, doc: IKnoxGuiInputBlock[], now: number): IKnoxGuiComposerUndo {
+	const current = undo.stack[undo.index];
+	if (current && JSON.stringify(current) === JSON.stringify(doc)) {
+		return undo;
+	}
+	const kept = undo.stack.slice(0, undo.index + 1);
+	const grouped = undo.index > 0 && now - undo.lastAt < KNOX_COMPOSER_UNDO_GROUP_MS;
+	if (grouped) {
+		kept[kept.length - 1] = cloneInputDoc(doc);
+	} else {
+		kept.push(cloneInputDoc(doc));
+	}
+	const stack = kept.slice(-(KNOX_COMPOSER_UNDO_DEPTH + 1));
+	return { stack, index: stack.length - 1, lastAt: now };
+}
+
+export function composerUndoStep(undo: IKnoxGuiComposerUndo, delta: -1 | 1): { undo: IKnoxGuiComposerUndo; doc: IKnoxGuiInputBlock[] } | undefined {
+	const index = undo.index + delta;
+	if (index < 0 || index >= undo.stack.length) {
+		return undefined;
+	}
+	return { undo: { ...undo, index, lastAt: 0 }, doc: cloneInputDoc(undo.stack[index]) };
+}
+
 export type KnoxGuiComposerKeyAction =
 	| { type: 'submit'; altKey: boolean }
 	| { type: 'newline' }
@@ -980,6 +1541,8 @@ export type KnoxGuiComposerKeyAction =
 	| { type: 'history-next' }
 	| { type: 'suggest'; action: MentionListKeyAction }
 	| { type: 'exit-submenu' }
+	| { type: 'undo' }
+	| { type: 'redo' }
 	| { type: 'ignore' };
 
 export function knoxGuiIsMetaEquivalent(event: { metaKey: boolean; ctrlKey: boolean }): boolean {
@@ -991,6 +1554,13 @@ export function knoxGuiComposerKeyAction(
 	ctx: { suggestOpen: boolean; inSubmenu: boolean; isStreaming: boolean; caretAtStart: boolean; caretAtEnd: boolean; suggestSelected: number; suggestCount: number },
 ): KnoxGuiComposerKeyAction {
 	const meta = knoxGuiIsMetaEquivalent(event);
+	const key = event.key.toLowerCase();
+	if (meta && !event.altKey && ((key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey))) {
+		return { type: 'redo' };
+	}
+	if (meta && !event.altKey && key === 'z') {
+		return { type: 'undo' };
+	}
 	if (event.key === 'Enter' && meta && event.shiftKey) {
 		return { type: 'accept-diffs' };
 	}

@@ -5,14 +5,15 @@
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { asRecord, asArray } from './helpers.js';
-import { knoxGuiCatalogEntriesFromOverlayModels, knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiSeedModelCatalog } from '../../../common/knoxGuiCapabilities.js';
+import { knoxGuiCatalogEntriesFromOverlayModels, knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiSeedModelCatalog, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
 import { knoxGuiSessionModeIsAgent } from '../../../common/knoxGuiAgentMode.js';
-import { addModelProviderById, buildAddModelPayload, categorizeKnoxChatModel, KNOX_CHAT_FALLBACK_MODELS, parseKnoxOAuthStatus, type IKnoxGuiAddModelPackage } from '../../../common/knoxGuiOverlays.js';
+import { addModelProviderById, buildAddModelPayload, categorizeKnoxChatModel, KNOX_CHAT_FALLBACK_MODELS, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, parseKnoxOAuthStatus, type IKnoxGuiAddModelPackage } from '../../../common/knoxGuiOverlays.js';
 import { KnoxGuiOverlay } from '../../../common/knoxGuiProtocol.js';
 import { IKnoxGuiModel, KnoxChatMode, KnoxModelRole } from '../../../common/knoxGuiState.js';
 
+/** `thunks/setSessionMode.ts`: no switch while streaming; entering edit saves and opens a new session. */
 export function setMode(controller: KnoxGuiController, mode: KnoxChatMode): void {
-	if (controller.store.state.mode === mode) {
+	if (controller.store.state.mode === mode || controller.store.state.isStreaming) {
 		return;
 	}
 	if (controller.store.state.mode === 'edit' && mode !== 'edit') {
@@ -20,6 +21,10 @@ export function setMode(controller: KnoxGuiController, mode: KnoxChatMode): void
 		return;
 	}
 	controller.store.setMode(mode);
+	if (mode === 'edit' && controller.store.state.history.length) {
+		void controller.newSession({ generateTitle: false });
+		return;
+	}
 	postSetAgentMode(controller);
 }
 
@@ -57,6 +62,7 @@ export function selectModel(controller: KnoxGuiController, role: KnoxModelRole, 
 			imagesSupported: knoxGuiModelSupportsImages(selected),
 			webSearchSupported: knoxGuiModelSupportsWebSearch(selected),
 			toolsSupported: knoxGuiModelSupportsTools(selected),
+			thinkingPlaceholder: knoxGuiShowsThinkingPlaceholder(selected),
 			reasoningEfforts: knoxGuiReasoningEffortConfig(selected)?.allowed ?? [],
 			reasoningEffort: effort,
 		});
@@ -178,7 +184,7 @@ export async function loadKnoxChatModels(controller: KnoxGuiController): Promise
 				title,
 				description: rec.description ? String(rec.description): (id ? `Model ID: ${id}` : undefined),
 				model: id,
-				contextLength: Number(rec.context_length ?? rec.contextLength ?? 128000),
+				contextLength: knoxChatMetadataContextLength(rec) ?? 180000,
 				category: categorizeKnoxChatModel({
 					id,
 					name: title,
@@ -187,10 +193,13 @@ export async function loadKnoxChatModels(controller: KnoxGuiController): Promise
 					owned_by: rec.owned_by ? String(rec.owned_by): undefined,
 					tokenizer: architecture?.tokenizer ? String(architecture.tokenizer): undefined,
 				}),
-				maxTokens: rec.max_tokens != null ? Number(rec.max_tokens): (completion?.maxTokens != null ? Number(completion.maxTokens): undefined),
+				maxTokens: knoxChatRecommendedMaxTokens(rec) ?? (rec.max_tokens != null ? Number(rec.max_tokens) : (completion?.maxTokens != null ? Number(completion.maxTokens) : undefined)),
 				supportsTools: capabilities?.tools === true || toolsFromParams,
 				supportsReasoning: capabilities?.reasoning === true || reasoningFromParams,
-				supportsWebSearch: capabilities?.webSearch === true || webFromParams,
+				supportsWebSearch: capabilities?.webSearch === true || webFromParams || knoxChatPricingHasWebSearch(rec.pricing),
+				supportsImageOutput: capabilities?.imageOutput === true || asArray(architecture?.output_modalities).includes('image'),
+				modalities: Array.isArray(architecture?.input_modalities) ? architecture.input_modalities.map(String) : undefined,
+				pricing: knoxChatModelPricing(rec.pricing, rec.pricing_in_display_units),
 				supportedParameters,
 			};
 		}).filter(model => model.title);

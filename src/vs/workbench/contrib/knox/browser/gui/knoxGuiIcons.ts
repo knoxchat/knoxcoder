@@ -17,6 +17,15 @@ export function setKnoxGuiInnerHtml(el: Element, html: string): void {
 }
 
 export type KnoxGuiSvgIcon =
+	| 'save'
+	| 'git-commit'
+	| 'git-merge'
+	| 'eye'
+	| 'activity'
+	| 'trending-up'
+	| 'circle-x'
+	| 'monitor'
+	| 'circle-check'
 	| 'square-plus'
 	| 'cpu'
 	| 'square-pen'
@@ -105,7 +114,25 @@ export type KnoxGuiSvgIcon =
 	| 'panel-left-close'
 	| 'panel-left-open'
 	| 'columns-2'
-	| 'wrap-text';
+	| 'wrap-text'
+	| 'git-compare'
+	| 'clock'
+	| 'loader-2'
+	| 'type'
+	| 'file-warning'
+	| 'archive'
+	| 'shield'
+	| 'shield-check'
+	| 'shield-alert'
+	| 'file-json'
+	| 'trash-2'
+	| 'square-check-big'
+	| 'circle-check-big'
+	| 'split'
+	| 'refresh-cw'
+	| 'crosshair'
+	| 'file-down'
+	| 'upload';
 
 const STROKE = `fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
 const HAIRLINE = `fill="none" stroke="${KNOX_GUI_CYAN}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"`;
@@ -176,6 +203,15 @@ const ICONS: Record<KnoxGuiSvgIcon, string> = {
 	'external-link': `<path d="M15 3h6v6" ${STROKE}/><path d="M10 14 21 3" ${STROKE}/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" ${STROKE}/>`,
 	link: `<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" ${STROKE}/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" ${STROKE}/>`,
 	layers: `<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" ${STROKE}/><path d="m22 12.11-8.59 3.91a2 2 0 0 1-1.66 0L3.16 12.11" ${STROKE}/><path d="m22 17.11-8.59 3.91a2 2 0 0 1-1.66 0L3.16 17.11" ${STROKE}/>`,
+	monitor: `<rect width="20" height="14" x="2" y="3" rx="2" ${STROKE}/><line x1="8" x2="16" y1="21" y2="21" ${STROKE}/><line x1="12" x2="12" y1="17" y2="21" ${STROKE}/>`,
+	activity: `<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" ${STROKE}/>`,
+	'trending-up': `<polyline points="22 7 13.5 15.5 8.5 10.5 2 17" ${STROKE}/><polyline points="16 7 22 7 22 13" ${STROKE}/>`,
+	'circle-x': `<circle cx="12" cy="12" r="10" ${STROKE}/><path d="m15 9-6 6" ${STROKE}/><path d="m9 9 6 6" ${STROKE}/>`,
+	'git-commit': `<circle cx="12" cy="12" r="3" ${STROKE}/><line x1="3" x2="9" y1="12" y2="12" ${STROKE}/><line x1="15" x2="21" y1="12" y2="12" ${STROKE}/>`,
+	'git-merge': `<circle cx="18" cy="18" r="3" ${STROKE}/><circle cx="6" cy="6" r="3" ${STROKE}/><path d="M6 21V9a9 9 0 0 0 9 9" ${STROKE}/>`,
+	eye: `<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" ${STROKE}/><circle cx="12" cy="12" r="3" ${STROKE}/>`,
+	save: `<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" ${STROKE}/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" ${STROKE}/><path d="M7 3v4a1 1 0 0 0 1 1h7" ${STROKE}/>`,
+	'circle-check': `<circle cx="12" cy="12" r="10" ${STROKE}/><path d="m9 12 2 2 4-4" ${STROKE}/>`,
 	zap: `<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" ${STROKE}/>`,
 	'bar-chart-3': `<path d="M3 3v16a2 2 0 0 0 2 2h16" ${STROKE}/><path d="M18 17V9" ${STROKE}/><path d="M13 17V5" ${STROKE}/><path d="M8 17v-3" ${STROKE}/>`,
 	'clipboard-list': `<rect width="8" height="4" x="8" y="2" rx="1" ry="1" ${STROKE}/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" ${STROKE}/><path d="M12 11h4" ${STROKE}/><path d="M12 16h4" ${STROKE}/><path d="M8 11h.01" ${STROKE}/><path d="M8 16h.01" ${STROKE}/>`,
@@ -199,8 +235,72 @@ const ICONS: Record<KnoxGuiSvgIcon, string> = {
 	'panel-left-close': `<rect width="18" height="18" x="3" y="3" rx="2" ${STROKE}/><path d="M9 3v18" ${STROKE}/><path d="m16 15-3-3 3-3" ${STROKE}/>`,
 	'panel-left-open': `<rect width="18" height="18" x="3" y="3" rx="2" ${STROKE}/><path d="M9 3v18" ${STROKE}/><path d="m14 9 3 3-3 3" ${STROKE}/>`,
 	'columns-2': `<rect width="18" height="18" x="3" y="3" rx="2" ${STROKE}/><path d="M12 3v18" ${STROKE}/>`,
+	'git-compare': `<circle cx="18" cy="18" r="3" ${STROKE}/><circle cx="6" cy="6" r="3" ${STROKE}/><path d="M13 6h3a2 2 0 0 1 2 2v7" ${STROKE}/><path d="M11 18H8a2 2 0 0 1-2-2V9" ${STROKE}/>`,
+	clock: `<circle cx="12" cy="12" r="10" ${STROKE}/><polyline points="12 6 12 12 16 14" ${STROKE}/>`,
+	'loader-2': `<path d="M21 12a9 9 0 1 1-6.219-8.56" ${STROKE}/>`,
+	type: `<polyline points="4 7 4 4 20 4 20 7" ${STROKE}/><line x1="9" x2="15" y1="20" y2="20" ${STROKE}/><line x1="12" x2="12" y1="4" y2="20" ${STROKE}/>`,
+	'file-warning': `<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" ${STROKE}/><path d="M12 9v4" ${STROKE}/><path d="M12 17h.01" ${STROKE}/>`,
+	shield: `<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" ${STROKE}/>`,
+	'shield-check': `<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" ${STROKE}/><path d="m9 12 2 2 4-4" ${STROKE}/>`,
+	'shield-alert': `<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" ${STROKE}/><path d="M12 8v4" ${STROKE}/><path d="M12 16h.01" ${STROKE}/>`,
+	'file-json': `<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" ${STROKE}/><path d="M14 2v4a2 2 0 0 0 2 2h4" ${STROKE}/><path d="M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1" ${STROKE}/><path d="M14 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1 1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1" ${STROKE}/>`,
+	archive: `<rect width="20" height="5" x="2" y="3" rx="1" ${STROKE}/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" ${STROKE}/><path d="M10 12h4" ${STROKE}/>`,
 	'wrap-text': `<path d="M3 6h18" ${STROKE}/><path d="M3 12h15a3 3 0 1 1 0 6h-4" ${STROKE}/><path d="m16 16-2 2 2 2" ${STROKE}/><path d="M3 18h7" ${STROKE}/>`,
+	'trash-2': `<path d="M10 11v6" ${STROKE}/><path d="M14 11v6" ${STROKE}/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" ${STROKE}/><path d="M3 6h18" ${STROKE}/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" ${STROKE}/>`,
+	'square-check-big': `<path d="M21 10.656V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.344" ${STROKE}/><path d="m9 11 3 3L22 4" ${STROKE}/>`,
+	'circle-check-big': `<path d="M21.801 10A10 10 0 1 1 17 3.335" ${STROKE}/><path d="m9 11 3 3L22 4" ${STROKE}/>`,
+	split: `<path d="M16 3h5v5" ${STROKE}/><path d="M8 3H3v5" ${STROKE}/><path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3" ${STROKE}/><path d="m15 9 6-6" ${STROKE}/>`,
+	'refresh-cw': `<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" ${STROKE}/><path d="M21 3v5h-5" ${STROKE}/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" ${STROKE}/><path d="M8 16H3v5" ${STROKE}/>`,
+	crosshair: `<circle cx="12" cy="12" r="10" ${STROKE}/><line x1="22" x2="18" y1="12" y2="12" ${STROKE}/><line x1="6" x2="2" y1="12" y2="12" ${STROKE}/><line x1="12" x2="12" y1="6" y2="2" ${STROKE}/><line x1="12" x2="12" y1="22" y2="18" ${STROKE}/>`,
+	'file-down': `<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" ${STROKE}/><path d="M14 2v4a2 2 0 0 0 2 2h4" ${STROKE}/><path d="M12 18v-6" ${STROKE}/><path d="m9 15 3 3 3-3" ${STROKE}/>`,
+	upload: `<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" ${STROKE}/><polyline points="17 8 12 3 7 8" ${STROKE}/><line x1="12" x2="12" y1="3" y2="15" ${STROKE}/>`,
 };
+
+const NAMED_ICONS: Record<string, KnoxGuiSvgIcon> = {
+	file: 'file',
+	code: 'square-terminal',
+	terminal: 'terminal',
+	diff: 'git-branch',
+	search: 'search',
+	url: 'globe',
+	open: 'folder-open',
+	problems: 'alert-circle',
+	folder: 'folder',
+	docs: 'file-text',
+	web: 'globe',
+	clipboard: 'clipboard-list',
+	database: 'database',
+	postgres: 'database',
+	debugger: 'alert-triangle',
+	os: 'cpu',
+	tree: 'folder-tree',
+	'prompt-files': 'scroll-text',
+	'repo-map': 'folder',
+	memory: 'brain',
+	trash: 'trash',
+	at: 'hash',
+	autonomous: 'bot',
+	issue: 'alert-circle',
+	share: 'share-2',
+	cmd: 'terminal',
+	http: 'globe',
+	commit: 'git-branch',
+	review: 'search',
+	pr: 'git-branch',
+	changelog: 'file-text',
+	skills: 'sparkles',
+	plan: 'list-checks',
+	compact: 'minimize-2',
+	clear: 'trash',
+};
+
+/** Slash-command or context-provider icon by id, with or without a leading `/` (`icons.tsx` `getNamedIcon`). */
+export function knoxGuiNamedIcon(id: string | undefined): KnoxGuiSvgIcon | undefined {
+	if (!id) {
+		return undefined;
+	}
+	return NAMED_ICONS[id.replace(/^\//, '')];
+}
 
 export function appendKnoxGuiSvg(parent: HTMLElement, icon: KnoxGuiSvgIcon, size = 14): SVGSVGElement {
 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');

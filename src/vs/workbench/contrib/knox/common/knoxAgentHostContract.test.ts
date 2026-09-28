@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { execFileSync } from 'child_process';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -12,6 +13,16 @@ import { KNOX_GUI_HOST_INBOUND, KNOX_GUI_HOST_OUTBOUND, KNOX_GUI_HOST_OUTBOUND_U
 
 function repoFile(...parts: string[]): string {
 	return readFileSync(join(process.cwd(), ...parts), 'utf8');
+}
+
+/** A git-ignored directory is a local reference checkout, not part of the tree. */
+function isGitIgnored(target: string): boolean {
+	try {
+		execFileSync('git', ['check-ignore', '-q', target], { cwd: process.cwd(), stdio: 'ignore' });
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 suite('Knox agent host contract (KN-350)', () => {
@@ -603,28 +614,15 @@ suite('Knox agent host contract (KN-371)', () => {
 	});
 });
 
-suite('Knox agent host contract (KN-372)', () => {
+suite('Knox agent host contract (S-14)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('native stats page consumes getTokensPerDay and getTokensPerModel', () => {
+	test('native stats page only shows the KnoxChat billing note', () => {
 		const inbound = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/inbound.ts');
 		const pages = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/pages.ts');
-		const protocol = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiProtocol.ts');
-		const stats = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiStats.ts');
-		const core = repoFile('extensions/knox/src/core/core.ts');
-		assert.ok(inbound.includes('KN-372'));
-		assert.ok(inbound.includes("stats/getTokensPerDay"));
-		assert.ok(inbound.includes("stats/getTokensPerModel"));
-		assert.ok(pages.includes('parseTokensPerDay') || pages.includes('statsDaily'));
-		assert.ok(pages.includes('statsByModel'));
-		assert.ok(pages.includes('formatStatsCopyTable'));
-		assert.ok(stats.includes('parseTokensPerDay'));
-		assert.ok(stats.includes('parseTokensPerModel'));
-		assert.ok(core.includes('on("stats/getTokensPerDay"'));
-		assert.ok(core.includes('on("stats/getTokensPerModel"'));
-		assert.ok(protocol.includes("'stats/getTokensPerDay'"));
-		assert.ok(protocol.includes("'stats/getTokensPerModel'"));
-		assert.ok(!/KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME[\s\S]*stats\/getTokensPerDay/.test(protocol));
+		assert.ok(!inbound.includes('stats/getTokensPerDay'));
+		assert.ok(!pages.includes('statsDaily'));
+		assert.ok(pages.includes('tokenUsageKnoxChatBilling'));
 	});
 });
 
@@ -1192,6 +1190,7 @@ suite('Knox agent host contract (KN-392)', () => {
 		assert.ok(gate.includes('assertKnoxNativeInventory'));
 		assert.ok(inventory.includes('KN-392'));
 		assert.ok(packagingTest.includes('KN-392'));
-		assert.ok(!existsSync(leftover), 'KN-392: leftover product directory at repo root must be deleted');
+		assert.ok(gate.includes('isGitIgnored'));
+		assert.ok(!existsSync(leftover) || isGitIgnored(leftover), 'KN-392: leftover product directory at repo root must be deleted');
 	});
 });

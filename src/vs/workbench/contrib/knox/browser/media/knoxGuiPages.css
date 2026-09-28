@@ -1,0 +1,896 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* settings, rules, prompts, help, and policy */
+
+.knox-gui-info-hover {
+	display: inline-flex;
+	color: var(--vscode-descriptionForeground);
+	cursor: help;
+}
+
+.knox-gui-role-gear {
+	color: #159994;
+	width: 24px;
+	height: 24px;
+	flex-shrink: 0;
+}
+
+.knox-gui-role-gear-hidden {
+	opacity: 0;
+	visibility: hidden;
+}
+
+.knox-gui-open-config {
+	font-size: calc(1em - 3px);
+}
+
+.knox-gui-ghost {
+	width: 100%;
+	justify-content: center;
+	color: #159994;
+}
+
+.knox-gui-explore-blocks {
+	font-size: calc(1em - 3px);
+	margin-top: 4px;
+}
+
+.knox-gui-explore-blocks:hover:not(:disabled) {
+	color: #d1d5db;
+	filter: none;
+}
+
+.knox-gui-rule-list {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.knox-gui-rule-card {
+	border-radius: 0;
+	border: 1px solid var(--vscode-commandCenter-activeBorder, #159994);
+	padding: 4px 8px;
+	margin-bottom: 0;
+}
+
+.knox-gui-rule-card-inner {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.knox-gui-rule-card-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.knox-gui-rule-title {
+	font-size: calc(1em - 2px);
+	margin-bottom: 4px;
+	color: var(--vscode-foreground);
+}
+
+.knox-gui-rule-preview {
+	font-size: calc(1em - 3px);
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	color: #159994;
+}
+
+.knox-gui-rule-card-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.knox-gui-rule-action {
+	padding: 2px;
+	border-radius: 4px;
+	color: #159994;
+}
+
+.knox-gui-text-dialog {
+	position: absolute;
+	inset: 0;
+	z-index: 1000;
+	background: rgba(0, 0, 0, 0.7);
+	backdrop-filter: blur(2px);
+}
+
+.knox-gui-text-dialog-panel {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: 92%;
+	max-width: 600px;
+	max-height: 100%;
+	overflow: auto;
+}
+
+.knox-gui-text-dialog-body {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	color: var(--vscode-editor-foreground, #fff);
+	background: var(--vscode-editor-background, var(--vscode-sideBar-background, rgb(30, 30, 30)));
+	border: 1px solid var(--vscode-input-border, #6e6e77);
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.knox-gui-text-dialog-close {
+	position: absolute;
+	top: 10px;
+	right: 16px;
+	z-index: 1;
+	color: #6e6e77;
+	padding: 4px;
+	border-radius: 0;
+}
+
+.knox-gui-text-dialog-close .knox-gui-svg {
+	color: inherit;
+}
+
+.knox-gui-rule-dialog-content {
+	padding: 16px;
+	text-align: center;
+}
+
+.knox-gui-rule-dialog-content h3 {
+	margin: 0 0 8px;
+	font-size: 1em;
+}
+
+.knox-gui-rule-dialog-pre {
+	max-width: 100%;
+	overflow-x: auto;
+	text-align: left;
+	white-space: pre-wrap;
+	margin: 0;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: calc(1em - 1px);
+}
+
+.knox-gui-ellipsis {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.knox-gui-prompt-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.knox-gui-prompt-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	font-size: calc(1em - 3px);
+}
+
+.knox-gui-prompt-row-main {
+	display: flex;
+	min-width: 0;
+	gap: 8px;
+}
+
+.knox-gui-prompt-name {
+	flex-shrink: 0;
+	color: var(--vscode-foreground);
+}
+
+.knox-gui-prompt-desc {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: #159994;
+}
+
+.knox-gui-prompt-row-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
+}
+
+.knox-gui-prompt-edit {
+	padding: 0;
+	color: var(--vscode-foreground);
+}
+
+.knox-gui-prompt-bookmark {
+	padding: 0;
+	padding-top: 2px;
+	color: #159994;
+}
+
+.knox-gui-prompt-bookmark.is-bookmarked,
+.knox-gui-prompt-bookmark.is-bookmarked .knox-gui-svg,
+.knox-gui-prompt-bookmark.is-bookmarked .knox-gui-svg path {
+	fill: currentColor;
+}
+
+.knox-gui-add-prompt {
+	width: 100%;
+	justify-content: center;
+	font-size: calc(1em - 3px);
+	margin-top: 4px;
+	color: #159994;
+}
+
+.knox-gui-add-prompt:hover:not(:disabled) {
+	color: #d1d5db;
+	filter: none;
+}
+
+.knox-gui-prompt-dialog-form {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 16px;
+}
+
+.knox-gui-prompt-dialog-form h3 {
+	margin: 0;
+	font-size: 1em;
+}
+
+.knox-gui-prompt-dialog-help {
+	margin: 8px 0 0;
+}
+
+.knox-gui-prompt-dialog-field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-top: 12px;
+}
+
+.knox-gui-prompt-dialog-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.knox-gui-prompt-dialog-info {
+	display: inline-flex;
+	width: 14px;
+	height: 14px;
+	color: #9ca3af;
+	cursor: default;
+}
+
+.knox-gui-prompt-dialog-input {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 6px 8px;
+	border: 1px solid var(--vscode-input-border, #6e6e77);
+	border-radius: 4px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+}
+
+.knox-gui-prompt-dialog-textarea-wrap {
+	width: 100%;
+	border: 1px solid var(--vscode-input-border, #6e6e77);
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.knox-gui-prompt-dialog-textarea-wrap:focus-within {
+	border-color: #159994;
+}
+
+.knox-gui-prompt-dialog-textarea {
+	width: 100%;
+	min-height: 15rem;
+	box-sizing: border-box;
+	padding: 12px;
+	resize: vertical;
+	border: none;
+	outline: none;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 13px;
+	line-height: 1.4;
+	background: var(--vscode-input-background, rgb(45, 45, 45));
+	color: var(--vscode-editor-foreground, #d4d4d4);
+}
+
+.knox-gui-prompt-dialog-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 16px;
+}
+
+.knox-gui-prompt-dialog-btn {
+	min-width: 4rem;
+	border-radius: 0;
+	border: 1px solid var(--vscode-input-border, #6e6e77);
+	background: var(--vscode-input-background);
+	color: var(--vscode-foreground);
+	padding: 6px 12px;
+}
+
+.knox-gui-prompt-dialog-btn:hover:not(:disabled) {
+	filter: none;
+	opacity: 0.9;
+	background: var(--vscode-editor-background);
+}
+
+.knox-gui-context-provider,
+.knox-gui-help-row,
+.knox-gui-session-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	width: 100%;
+	padding: 6px 8px;
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: 6px;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+	text-align: left;
+}
+
+.knox-gui-context-provider:hover,
+.knox-gui-help-row:hover,
+.knox-gui-history-row:hover,
+.knox-gui-session-row:hover {
+	background: rgba(21, 153, 148, 0.08);
+}
+
+.knox-gui-provider-card {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 8px;
+	width: 100%;
+	padding: 16px;
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: 0;
+	background: var(--vscode-input-background);
+	color: inherit;
+	cursor: pointer;
+	text-align: left;
+}
+
+.knox-gui-provider-card:hover:not(:disabled) {
+	border-color: #159994;
+	background: rgba(21, 153, 148, 0.08);
+}
+
+.knox-gui-provider-card:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.knox-gui-preset {
+	font-size: 11px;
+	background: rgba(128, 128, 128, 0.2);
+	padding: 2px 6px;
+}
+
+.knox-gui-tool-presets {
+	padding: 0 4px;
+}
+
+.knox-gui-tools {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding-bottom: 8px;
+}
+
+.knox-gui-policy {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 0 4px 4px;
+}
+
+.knox-gui-policy-title {
+	font-size: 11px;
+	font-weight: 500;
+}
+
+.knox-gui-policy-help,
+.knox-gui-policy-label {
+	margin: 0;
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-gui-policy-textarea {
+	min-height: 52px;
+	width: 100%;
+	resize: vertical;
+	padding: 4px;
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 25%, transparent);
+	background: transparent;
+	color: inherit;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 11px;
+}
+
+.knox-gui-policy-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.knox-gui-policy-select {
+	font-size: 11px;
+}
+
+.knox-gui-policy-sandbox {
+	margin-left: auto;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-gui-switch {
+	--knox-switch-size: 12px;
+	position: relative;
+	width: calc(var(--knox-switch-size) * 2);
+	height: var(--knox-switch-size);
+	border-radius: 999px;
+	background: var(--vscode-input-background, rgba(120, 120, 120, 0.3));
+	box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.1);
+	cursor: pointer;
+	flex-shrink: 0;
+}
+
+.knox-gui-switch.is-on {
+	background: #159994;
+}
+
+.knox-gui-switch-thumb {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: calc(var(--knox-switch-size) - 4px);
+	height: calc(var(--knox-switch-size) - 4px);
+	border-radius: 50%;
+	background: var(--vscode-descriptionForeground, #9e9e9e);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+	transition: transform 0.2s ease;
+}
+
+.knox-gui-switch.is-on .knox-gui-switch-thumb {
+	background: #fff;
+	transform: translateX(calc(var(--knox-switch-size) - 4px));
+}
+
+.knox-gui-tool-group {
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.knox-gui-tool-group-disabled {
+	background: color-mix(in srgb, var(--vscode-input-background, rgb(45, 45, 45)) 30%, transparent);
+}
+
+.knox-gui-tool-group-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 4px 12px;
+	background: var(--vscode-sideBar-background, rgb(37, 37, 38));
+}
+
+.knox-gui-tool-group-title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.knox-gui-tool-group-name {
+	margin: 0;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.knox-gui-tool-count {
+	background: var(--vscode-badge-background, #159994);
+	color: var(--vscode-badge-foreground, #fff);
+}
+
+.knox-gui-tool-group-body {
+	position: relative;
+	padding: 4px 8px;
+}
+
+.knox-gui-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #159994;
+}
+
+.knox-gui-dot-error {
+	background: var(--vscode-errorForeground, #f14c4c);
+}
+
+.knox-gui-badge {
+	font-size: 10px;
+	padding: 1px 6px;
+	border-radius: 8px;
+	background: rgba(21, 153, 148, 0.2);
+	color: #159994;
+}
+
+.knox-gui-tool-perm-row {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 6px 8px;
+	margin: 2px 0;
+	border-radius: 6px;
+	font-size: 11px;
+}
+
+.knox-gui-tool-perm-main {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	cursor: pointer;
+}
+
+.knox-gui-tool-perm-left {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+
+.knox-gui-tool-perm-name {
+	font-size: 11px;
+	font-weight: 500;
+}
+
+.knox-gui-tool-id {
+	font-size: 9px;
+}
+
+.knox-gui-tool-excluded {
+	opacity: 0.5;
+}
+
+.knox-gui-tool-excluded .knox-gui-tool-perm-main,
+.knox-gui-tool-pending .knox-gui-tool-perm-main {
+	cursor: default;
+}
+
+.knox-gui-tool-pending {
+	outline: 1px solid rgba(21, 153, 148, 0.45);
+	background: rgba(21, 153, 148, 0.16);
+}
+
+.knox-gui-perm-badge {
+	font-size: 9px;
+	padding: 2px 6px;
+	border-radius: 4px;
+	margin-left: auto;
+	font-weight: 500;
+}
+
+.knox-gui-perm-requiresApproval {
+	color: #fd7e14;
+	border: 1px solid rgba(253, 126, 20, 0.3);
+	background: rgba(253, 126, 20, 0.15);
+}
+
+.knox-gui-perm-sessionAlways {
+	color: #159994;
+	border: 1px solid rgba(21, 158, 148, 0.55);
+	background: rgba(21, 158, 148, 0.22);
+}
+
+.knox-gui-perm-autoApprove {
+	color: #159994;
+	border: 1px solid rgba(21, 158, 148, 0.3);
+	background: rgba(21, 158, 148, 0.15);
+}
+
+.knox-gui-group-veil {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.3);
+	backdrop-filter: blur(1px);
+}
+
+.knox-gui-group-veil-label {
+	font-size: 12px;
+	font-weight: 500;
+	padding: 6px 12px;
+	border-radius: 4px;
+	color: var(--vscode-errorForeground, #f14c4c);
+	background: var(--vscode-errorBackground, rgba(241, 76, 76, 0.1));
+	border: 1px solid var(--vscode-errorForeground, #f14c4c);
+}
+
+.knox-gui-tool-permissions-compact {
+	gap: 4px;
+	margin: 0;
+}
+
+.knox-gui-tool-permissions-compact .knox-gui-icon-btn {
+	font-size: 10px;
+	padding: 2px 6px;
+}
+
+.knox-gui-history-header,
+.knox-gui-history-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.knox-gui-history-search {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.knox-gui-history-search-icon {
+	position: absolute;
+	left: 10px;
+	display: flex;
+	color: var(--vscode-descriptionForeground);
+	pointer-events: none;
+}
+
+.knox-gui-history-search input {
+	flex: 1;
+	min-width: 0;
+	padding-left: 28px;
+}
+
+.knox-gui-history-search-clear {
+	position: absolute;
+	right: 4px;
+}
+
+.knox-gui-history-empty {
+	text-align: center;
+	padding: 16px;
+}
+
+.knox-gui-history-empty-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 48px;
+	height: 48px;
+	margin: 0 auto 8px;
+	border-radius: 999px;
+	background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-gui-shortcut-keys {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.knox-gui-shortcut-separator {
+	opacity: 0.7;
+}
+
+.knox-gui-shortcut {
+	display: inline-block;
+	padding: 0 4px;
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 4px;
+	font-size: 11px;
+	font-family: inherit;
+}
+
+.knox-gui-history-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 8px;
+	border-radius: 8px;
+	cursor: pointer;
+	position: relative;
+}
+
+.knox-gui-history-row.selected {
+	background: rgba(21, 153, 148, 0.08);
+	border: 1px solid rgba(21, 153, 148, 0.3);
+}
+
+.knox-gui-history-main {
+	flex: 1;
+	min-width: 0;
+	container-type: inline-size;
+}
+
+.knox-gui-history-title {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: 600;
+	font-size: 13px;
+}
+
+.knox-gui-history-meta {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	font-size: 12px;
+	color: #9ca3af;
+}
+
+.knox-gui-history-workspace {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-history-meta time {
+	flex-shrink: 0;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.knox-gui-history-date-full {
+	display: none;
+}
+
+@container (min-width: 16rem) {
+	.knox-gui-history-meta {
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.knox-gui-history-meta time {
+		margin-left: auto;
+	}
+}
+
+@container (min-width: 22rem) {
+	.knox-gui-history-date-compact {
+		display: none;
+	}
+
+	.knox-gui-history-date-full {
+		display: inline;
+	}
+}
+
+.knox-gui-history-hover {
+	display: none;
+	position: absolute;
+	right: 8px;
+	top: 8px;
+	gap: 4px;
+	background: rgba(30, 30, 30, 0.85);
+	border-radius: 999px;
+	padding: 2px 4px;
+}
+
+.knox-gui-history-row:hover .knox-gui-history-hover {
+	display: flex;
+}
+
+.knox-gui-dialog {
+	border: 1px solid rgba(241, 76, 76, 0.3);
+	border-radius: 8px;
+	padding: 12px;
+	background: var(--vscode-editor-background);
+}
+
+.knox-gui-danger,
+.knox-gui-danger-text {
+	color: var(--vscode-errorForeground, #f14c4c);
+}
+
+.knox-gui-settings-card {
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 8px;
+	padding: 16px 12px;
+	margin-bottom: 8px;
+}
+
+.knox-gui-settings-card.compact {
+	padding: 8px 12px;
+}
+
+.knox-gui-settings-card h3 {
+	margin: 0 0 8px;
+	font-size: 13px;
+}
+
+.knox-gui-settings-card.compact h3 {
+	margin-bottom: 6px;
+}
+
+.knox-gui-settings-stack {
+	align-items: flex-start;
+}
+
+.knox-gui-error-card,
+.knox-gui-warn-card,
+.knox-gui-ok {
+	display: flex;
+	gap: 8px;
+	padding: 8px;
+	border-radius: 6px;
+}
+
+.knox-gui-error-card {
+	background: rgba(241, 76, 76, 0.12);
+	color: #f14c4c;
+}
+
+.knox-gui-warn-card {
+	background: rgba(234, 179, 8, 0.12);
+	color: #eab308;
+}
+
+.knox-gui-ok {
+	background: rgba(21, 153, 148, 0.12);
+}
+
+.knox-gui-provider-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	gap: 20px;
+}
+
+.knox-gui-stat-grid,
+.knox-gui-phase-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+	gap: 8px;
+}
+
+.knox-gui-stat,
+.knox-gui-phase {
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 6px;
+	padding: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.knox-gui-phase.selected {
+	outline: 1px solid #159994;
+}
+

@@ -10,6 +10,7 @@
  * KN-391: fail if gulp or npm dirs still point at leftover ./knox.
  * KN-392: fail if the leftover product directory at repo root still exists.
  */
+import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { assertNoLeftoverKnoxBuildPointers, leftoverKnoxRootNpmDir } from './packaging.mts';
@@ -140,9 +141,19 @@ export function leftoverProductDirectoryPath(repoRoot: string): string {
 	return path.join(repoRoot, leftoverKnoxRootNpmDir());
 }
 
+/** A git-ignored directory is a local reference checkout, not part of the tree. */
+function isGitIgnored(repoRoot: string, target: string): boolean {
+	try {
+		execFileSync('git', ['check-ignore', '-q', target], { cwd: repoRoot, stdio: 'ignore' });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export function leftoverProductDirectoryExists(repoRoot: string): boolean {
 	const leftover = leftoverProductDirectoryPath(repoRoot);
-	return fs.existsSync(leftover) && fs.statSync(leftover).isDirectory();
+	return fs.existsSync(leftover) && fs.statSync(leftover).isDirectory() && !isGitIgnored(repoRoot, leftover);
 }
 
 export function assertNoLeftoverKnoxDirectory(repoRoot = defaultRepoRoot()): void {

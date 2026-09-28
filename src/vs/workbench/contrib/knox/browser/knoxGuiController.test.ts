@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -14,7 +16,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { InMemoryStorageService } from '../../../../platform/storage/common/storage.js';
 import { DEFAULT_REASONING_EFFORT_ALLOWED, knoxGuiResetModelCatalogForTests, knoxGuiSeedModelCatalog } from '../common/knoxGuiCapabilities.js';
 import { IKnoxGuiMessage, KNOX_GUI_HEARTBEAT_MS, KnoxGuiRoute } from '../common/knoxGuiProtocol.js';
-import { DEFAULT_MENTION_PROVIDER_TITLES, SLASH_BUILTINS } from '../common/knoxGuiInput.js';
+import { DEFAULT_MENTION_PROVIDER_TITLES, inputDocFromPlainText, SLASH_BUILTINS } from '../common/knoxGuiInput.js';
 import { DEFAULT_PERMISSION_MODE, IKnoxGuiModel } from '../common/knoxGuiState.js';
 import { IKnoxService } from '../common/knoxService.js';
 import { KnoxGuiController } from './knoxGuiController.js';
@@ -25,7 +27,7 @@ import { KnoxGuiWidget } from './gui/knoxGuiWidget.js';
 suite('Knox native GUI controller (GP-084)', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(options?: { listModels?: unknown; replies?: Record<string, unknown>; lock?: KnoxGuiRoute }): { controller: KnoxGuiController; store: KnoxGuiStore; posted: IKnoxGuiMessage[] } {
+	function createHarness(options?: { listModels?: unknown; replies?: Record<string, unknown>; respond?: (message: IKnoxGuiMessage) => { content: unknown; chunks?: unknown[] } | { error: string } | undefined; lock?: KnoxGuiRoute; storage?: InMemoryStorageService }): { controller: KnoxGuiController; store: KnoxGuiStore; posted: IKnoxGuiMessage[] } {
 		knoxGuiResetModelCatalogForTests();
 		const incoming = disposables.add(new Emitter<IKnoxGuiMessage>());
 		const posted: IKnoxGuiMessage[] = [];
@@ -33,6 +35,18 @@ suite('Knox native GUI controller (GP-084)', () => {
 			override onDidReceiveGuiMessage = incoming.event;
 			override async guiPost(message: IKnoxGuiMessage): Promise<void> {
 				posted.push(message);
+				const custom = options?.respond?.(message);
+				if (custom) {
+					for (const chunk of 'chunks' in custom ? custom.chunks ?? [] : []) {
+						incoming.fire({ messageType: message.messageType, messageId: message.messageId, data: { done: false, status: 'success', content: [chunk] } });
+					}
+					incoming.fire({
+						messageType: message.messageType,
+						messageId: message.messageId,
+						data: 'error' in custom ? { done: true, status: 'error', error: custom.error } : { done: true, status: 'success', content: custom.content },
+					});
+					return;
+				}
 				if (options?.listModels !== undefined && message.messageType === 'knoxchat/listModels') {
 					incoming.fire({
 						messageType: message.messageType,
@@ -61,15 +75,15 @@ suite('Knox native GUI controller (GP-084)', () => {
 			store.lockView(options.lock);
 		}
 		const messenger = disposables.add(new KnoxGuiMessenger(knoxService));
-		const storage = disposables.add(new InMemoryStorageService());
+		const storage = options?.storage ?? disposables.add(new InMemoryStorageService());
 		const controller = disposables.add(new KnoxGuiController(store, messenger, storage));
 		return { controller, store, posted };
 	}
 
 	const visionModel: IKnoxGuiModel = {
 		title: 'GPT-4o',
-		provider: 'openai',
-		model: 'gpt-4o',
+		provider: 'knoxchat',
+		model: 'openai/gpt-4o',
 		capabilities: { uploadImage: true },
 		supportedParameters: ['reasoning_effort'],
 	};
@@ -183,7 +197,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 			}
 			override requestBasicLanguageFeatures(): void { }
 		};
-		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService));
+		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService, { getModel: () => null } as unknown as IModelService));
 		const editor = widget.root.querySelector('[data-testid="knox-gui-input"]') as HTMLElement | null;
 		assert.ok(editor);
 		editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
@@ -273,6 +287,29 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(posted.some(message => message.messageType === 'rejectDiff'));
 	});
 
+	test('I-08 leaving edit mode reloads the newest workspace session, else opens a new chat', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: {
+				'history/list': [{ sessionId: 'last', title: 'Last', dateCreated: '1' }],
+				'history/load': { sessionId: 'last', title: 'Last', history: [{ message: { role: 'user', content: 'hi' } }] },
+			},
+		});
+		await timeout(0);
+		controller.workspaceDirectory = '/repo';
+		store.patch({ mode: 'edit', sessionId: 'edit-session', history: [{ id: 'e', role: 'user', content: 'edit this' }] });
+		await controller.exitEditMode();
+		assert.strictEqual(store.state.mode, 'chat');
+		assert.strictEqual(store.state.sessionId, 'last');
+		assert.ok(posted.some(message => message.messageType === 'history/list'));
+
+		const bare = createHarness();
+		await timeout(0);
+		bare.store.patch({ mode: 'edit', sessionId: 'edit-session', history: [{ id: 'e', role: 'user', content: 'edit this' }] });
+		await bare.controller.exitEditMode();
+		assert.notStrictEqual(bare.store.state.sessionId, 'edit-session');
+		assert.strictEqual(bare.store.state.history.length, 0);
+	});
+
 	test('KN-346 composer Escape exits edit mode', async () => {
 		const { controller, store, posted } = createHarness();
 		await timeout(0);
@@ -302,7 +339,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 			}
 			override requestBasicLanguageFeatures(): void { }
 		};
-		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService));
+		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService, { getModel: () => null } as unknown as IModelService));
 		const editor = widget.root.querySelector('[data-testid="knox-gui-input"]') as HTMLElement | null;
 		assert.ok(editor);
 		editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
@@ -487,24 +524,17 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.vscTheme?.base, 'vs');
 	});
 
-	test('KN-372 /stats hydrates daily and per-model token tables', async () => {
-		const { controller, store, posted } = createHarness({
-			replies: {
-				'stats/getTokensPerDay': [{ day: '2026-09-26', promptTokens: 12, generatedTokens: 34 }],
-				'stats/getTokensPerModel': [{ model: 'gpt-4o', prompt_tokens: 12, tokens_generated: 34 }],
-			},
-		});
+	test('S-14 /stats does not request local token tables', async () => {
+		const { controller, posted } = createHarness();
 		await timeout(0);
 		await controller.onNavigated('/stats');
-		assert.deepStrictEqual(store.state.statsDaily, [{ day: '2026-09-26', promptTokens: 12, generatedTokens: 34 }]);
-		assert.deepStrictEqual(store.state.statsByModel, [{ model: 'gpt-4o', promptTokens: 12, generatedTokens: 34 }]);
-		assert.ok(posted.some(message => message.messageType === 'stats/getTokensPerDay'));
-		assert.ok(posted.some(message => message.messageType === 'stats/getTokensPerModel'));
+		assert.ok(!posted.some(message => message.messageType.startsWith('stats/')));
 	});
 
-	test('KN-373 answerAskUser keeps questions when calling the tool', async () => {
+	test('KN-373 answerAskUser writes the answers as tool output without tools/call', async () => {
 		const { controller, store, posted } = createHarness();
 		await timeout(0);
+		const args = JSON.stringify({ questions: [{ id: 'q1', prompt: 'Pick?', options: ['a'] }] });
 		store.patch({
 			history: [{
 				id: 'a',
@@ -513,18 +543,352 @@ suite('Knox native GUI controller (GP-084)', () => {
 				toolCalls: [{
 					id: 'ask-1',
 					name: 'builtin_ask_user',
-					arguments: JSON.stringify({ questions: [{ prompt: 'Pick?', options: ['a'] }] }),
+					arguments: args,
 					status: 'generated',
-					parsedArgs: { questions: [{ prompt: 'Pick?', options: ['a'] }] },
+					parsedArgs: { questions: [{ id: 'q1', prompt: 'Pick?', options: ['a'] }] },
+					questions: [{ id: 'q1', prompt: 'Pick?', options: ['a'] }],
 				}],
 			}],
 		});
 		controller.answerAskUser('ask-1', { q1: 'a' });
 		const call = controller.findTool('ask-1');
-		assert.ok(call?.arguments.includes('"questions"'));
-		assert.ok(call?.arguments.includes('"answers"'));
+		assert.strictEqual(call?.status, 'done');
+		assert.strictEqual(call?.arguments, args);
+		assert.deepStrictEqual(call?.answers, { q1: 'a' });
+		assert.strictEqual(call?.output, 'Q: Pick?\nA: a');
 		await timeout(0);
-		assert.ok(posted.some(message => message.messageType === 'tools/call'));
+		assert.ok(!posted.some(message => message.messageType === 'tools/call'));
+		assert.ok(posted.some(message => message.messageType === 'brain/store'));
+	});
+
+	test('denyTool writes the permission-denied output and continues the turn', async () => {
+		const { controller, store, posted } = createHarness();
+		await timeout(0);
+		store.patch({
+			history: [
+				{ id: 'u', role: 'user', content: 'go' },
+				{
+					id: 'a',
+					role: 'assistant',
+					content: '',
+					toolCalls: [{ id: 'w-1', name: 'builtin_write_file', arguments: '{}', status: 'generated' }],
+				},
+			],
+		});
+		controller.denyTool('w-1');
+		const call = controller.findTool('w-1');
+		assert.strictEqual(call?.status, 'done');
+		assert.ok(call?.output?.startsWith('Blocked: this tool was not approved.'));
+		await timeout(0);
+		const stream = posted.find(message => message.messageType === 'llm/streamChat');
+		assert.ok(stream, 'denial continues with another model round');
+		const messages = (stream.data as { messages: Array<{ role: string; toolCallId?: string; content: unknown }> }).messages;
+		assert.ok(messages.some(message => message.role === 'tool' && message.toolCallId === 'w-1'));
+	});
+
+	test('A-10 a retryable tool error is retried with role models before succeeding', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let calls = 0;
+		const { controller, store, posted } = createHarness({
+			respond: message => {
+				if (message.messageType !== 'tools/call') {
+					return undefined;
+				}
+				calls += 1;
+				return calls === 1 ? { error: 'Request timeout' } : { content: { contextItems: [{ name: 'a.ts', description: 'file', content: 'body' }] } };
+			},
+		});
+		await timeout(0);
+		const pending = { id: 'r-1', name: 'builtin_read_file', arguments: '{"filepath":"a.ts"}', status: 'generated' as const };
+		store.patch({ selectedModelByRole: { ...store.state.selectedModelByRole, viewRead: 'Reader' }, history: [{ id: 'u', role: 'user', content: 'go' }, { id: 'a', role: 'assistant', content: '', toolCalls: [pending] }] });
+		await controller.approveTool('r-1');
+		assert.strictEqual(calls, 2);
+		assert.strictEqual(controller.findTool('r-1')?.status, 'done');
+		assert.strictEqual(controller.findTool('r-1')?.output?.includes('body'), true);
+		const request = posted.find(message => message.messageType === 'tools/call')?.data as { viewReadModelTitle: string; preferredModel: string; turnId: string };
+		assert.deepStrictEqual([request.viewReadModelTitle, request.preferredModel, request.turnId], ['Reader', 'viewRead', 'u']);
+	}));
+
+	test('A-10 a non-retryable tool error fails once with the reference failure output', async () => {
+		let calls = 0;
+		const { controller, store } = createHarness({ respond: message => message.messageType === 'tools/call' ? (calls++, { error: 'File not found' }) : undefined });
+		await timeout(0);
+		const pending = { id: 'r-1', name: 'builtin_read_file', arguments: '{}', status: 'generated' as const };
+		store.patch({ history: [{ id: 'u', role: 'user', content: 'go' }, { id: 'a', role: 'assistant', content: '', toolCalls: [pending] }] });
+		await controller.approveTool('r-1');
+		assert.strictEqual(calls, 1);
+		const call = controller.findTool('r-1');
+		assert.strictEqual(call?.status, 'errored');
+		assert.ok(call?.output?.startsWith('Tool call "builtin_read_file" failed:'));
+	});
+
+	test('A-09 a hard policy deny writes the denied output without running the tool', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: { 'knox/evaluateToolPolicy': { hardDeny: true, autoApproved: false, reason: 'Path ~/.ssh/id_rsa is denied' } },
+		});
+		await timeout(0);
+		const pending = { id: 'r-1', name: 'builtin_read_file', arguments: '{"filepath":"~/.ssh/id_rsa"}', status: 'generated' as const };
+		store.patch({ history: [{ id: 'u', role: 'user', content: 'go' }, { id: 'a', role: 'assistant', content: '', toolCalls: [pending] }] });
+		await controller.resolveTools([pending]);
+		const call = controller.findTool('r-1');
+		assert.strictEqual(call?.status, 'done');
+		assert.ok(call?.output?.startsWith('Blocked: this tool was not approved.'));
+		assert.ok(!posted.some(message => message.messageType === 'tools/call'));
+		const soul = posted.find(message => message.messageType === 'brain/recordSoulEvent');
+		assert.deepStrictEqual((soul?.data as { kind: string; summary: string }).kind, 'tool_denied');
+		assert.strictEqual((soul?.data as { summary: string }).summary, 'Path ~/.ssh/id_rsa is denied');
+		const policy = posted.find(message => message.messageType === 'knox/evaluateToolPolicy');
+		assert.deepStrictEqual((policy?.data as { args: unknown }).args, { filepath: '~/.ssh/id_rsa' });
+	});
+
+	test('A-09 policy ask keeps a call pending even in fullAuto; the local fallback still guards checkpoint restore', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: { 'knox/evaluateToolPolicy': { hardDeny: false, autoApproved: false } },
+		});
+		await timeout(0);
+		const pending = { id: 'w-1', name: 'builtin_write_file', arguments: '{"filepath":"/etc/hosts"}', status: 'generated' as const };
+		store.patch({ permissionMode: 'fullAuto', history: [{ id: 'u', role: 'user', content: 'go' }, { id: 'a', role: 'assistant', content: '', toolCalls: [pending] }] });
+		await controller.resolveTools([pending]);
+		assert.strictEqual(controller.findTool('w-1')?.status, 'generated');
+		assert.ok(!posted.some(message => message.messageType === 'tools/call'));
+
+		const fallback = createHarness();
+		await timeout(0);
+		const restore = { id: 'c-1', name: 'builtin_workspace_checkpoint', arguments: '{"action":"restore"}', status: 'generated' as const };
+		fallback.store.patch({ permissionMode: 'fullAuto', history: [{ id: 'u', role: 'user', content: 'go' }, { id: 'a', role: 'assistant', content: '', toolCalls: [restore] }] });
+		await fallback.controller.resolveTools([restore]);
+		assert.strictEqual(fallback.controller.findTool('c-1')?.status, 'generated');
+	});
+
+	test('A-17 /autonomous runs the core loop, routes approvals to it and appends the final result', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: { 'brain/runAutonomousLoop': { success: true, iterations: 2, final_result: 'Fixed the panic.', cancelled: false, checkpoints_created: 0 } },
+		});
+		await timeout(0);
+		controller.applyConfig({ config: {} });
+		store.patch({ permissionMode: 'acceptEdits', toolSettings: { builtin_run_terminal_command: 'allowedWithPermission' } });
+		store.setInput('/autonomous fix boot panic');
+		await controller.submit();
+		const run = posted.find(message => message.messageType === 'brain/runAutonomousLoop');
+		assert.ok(run, 'core loop started');
+		assert.deepStrictEqual((run.data as { goal: string; permissionMode: string }).goal, 'fix boot panic');
+		assert.strictEqual((run.data as { permissionMode: string }).permissionMode, 'acceptEdits');
+		assert.ok(!posted.some(message => message.messageType === 'llm/streamChat'), 'no legacy slash stream');
+		const last = store.state.history[store.state.history.length - 1];
+		assert.strictEqual(last.role, 'assistant');
+		assert.strictEqual(last.content, 'Fixed the panic.');
+
+		store.patch({
+			autonomous: { status: 'running', iteration: 1, max: 0 },
+			history: [...store.state.history.slice(0, -1), { ...last, toolCalls: [{ id: 'auto-1', name: 'builtin_run_terminal_command', arguments: '{}', status: 'generated' }] }],
+		});
+		await controller.approveTool('auto-1', true);
+		controller.denyTool('auto-1');
+		const resolved = posted.filter(message => message.messageType === 'brain/resolveAutonomousTool').map(message => message.data as { callId: string; allow: boolean; always?: boolean });
+		assert.deepStrictEqual(resolved.map(item => [item.callId, item.allow, item.always]), [['auto-1', true, true], ['auto-1', false, undefined]]);
+		assert.ok(!posted.some(message => message.messageType === 'tools/call'));
+	});
+
+	test('A-17 /autonomous without a goal shows the usage error', async () => {
+		const { controller, store, posted } = createHarness();
+		await timeout(0);
+		controller.applyConfig({ config: {} });
+		store.setInput('/autonomous');
+		await controller.submit();
+		assert.ok(!posted.some(message => message.messageType === 'brain/runAutonomousLoop'));
+		assert.ok(JSON.stringify(store.state.streamError).includes('Usage: /autonomous <goal description>'));
+	});
+
+	test('S-01 S-02 sessions are scoped to the workspace and the last active session reopens', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const replies = {
+			'config/getSerializedProfileInfo': { config: {} },
+			getWorkspaceDirs: ['file:///repo'],
+			'history/list': [{ sessionId: 'newest', title: 'Newest' }, { sessionId: 'older', title: 'Older' }],
+			'history/load': { sessionId: 'older', title: 'Older', history: [{ role: 'user', content: 'hi' }] },
+		};
+		const first = createHarness({ replies, storage });
+		await timeout(0);
+		const list = first.posted.find(message => message.messageType === 'history/list');
+		assert.deepStrictEqual(list?.data, { workspaceDirectory: 'file:///repo' });
+		assert.deepStrictEqual((first.posted.find(message => message.messageType === 'history/load')?.data as { id: string }).id, 'newest');
+		await first.controller.loadSession('older');
+		await first.controller.saveCurrentSession();
+		const save = first.posted.find(message => message.messageType === 'history/save');
+		assert.strictEqual((save?.data as { workspaceDirectory: string }).workspaceDirectory, 'file:///repo');
+		first.store.patch({ permissionMode: 'default', toolSettings: { builtin_edit_file: 'disabled' } });
+
+		const second = createHarness({ replies, storage });
+		await timeout(0);
+		const loads = second.posted.filter(message => message.messageType === 'history/load').map(message => (message.data as { id: string }).id);
+		assert.deepStrictEqual(loads, ['older']);
+		assert.strictEqual(second.store.state.permissionMode, 'default');
+		assert.deepStrictEqual(second.store.state.toolSettings, { builtin_edit_file: 'disabled' });
+
+		second.store.newSession();
+		const third = createHarness({ replies, storage });
+		await timeout(0);
+		assert.ok(!third.posted.some(message => message.messageType === 'history/load'), 'an empty New Chat is kept');
+	});
+
+	test('S-09 deleting the current session loads the latest remaining one without re-saving it', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: { 'history/load': { sessionId: 'b', title: 'B', history: [{ role: 'user', content: 'hi' }] } },
+		});
+		await timeout(0);
+		store.patch({
+			sessionId: 'a',
+			history: [{ id: 'u', role: 'user', content: 'doomed' }],
+			historySessions: [{ id: 'a', title: 'A', date: '' }, { id: 'b', title: 'B', date: '' }],
+		});
+		await controller.deleteSessions(['a']);
+		assert.strictEqual(store.state.sessionId, 'b');
+		assert.ok(!posted.some(message => message.messageType === 'history/save'));
+	});
+
+	test('A-26 mode switch is ignored while streaming; entering edit saves and opens a new session', async () => {
+		const { controller, store, posted } = createHarness({ replies: { 'history/save': {} } });
+		await timeout(0);
+		store.patch({ mode: 'chat', isStreaming: true });
+		controller.setMode('agent');
+		assert.strictEqual(store.state.mode, 'chat');
+		store.patch({ isStreaming: false, sessionId: 'old', history: [{ id: 'u', role: 'user', content: 'hi' }] });
+		controller.setMode('edit');
+		await timeout(0);
+		assert.strictEqual(store.state.mode, 'edit');
+		assert.notStrictEqual(store.state.sessionId, 'old');
+		assert.deepStrictEqual(store.state.history, []);
+		assert.ok(posted.some(message => message.messageType === 'history/save' && (message.data as { sessionId?: string }).sessionId === 'old'));
+		assert.ok(!posted.some(message => message.messageType === 'chatDescriber/describe'));
+	});
+
+	test('I-20 Shift+Tab cycle records a soul event and re-syncs pending tools', async () => {
+		const { controller, store, posted } = createHarness();
+		await timeout(0);
+		store.patch({ mode: 'agent', permissionMode: 'default' });
+		controller.cyclePermissionMode();
+		assert.strictEqual(store.state.permissionMode, 'acceptEdits');
+		const soul = posted.find(message => message.messageType === 'brain/recordSoulEvent');
+		assert.strictEqual((soul?.data as { policy?: string; summary?: string }).policy, 'allow');
+		assert.strictEqual((soul?.data as { summary?: string }).summary, 'Permission mode → acceptEdits');
+	});
+
+	test('I-01 input history persists per mode across controllers', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const first = createHarness({ storage });
+		await timeout(0);
+		first.controller.saveInputHistory('chat', [inputDocFromPlainText('remember me')]);
+		const second = createHarness({ storage });
+		await timeout(0);
+		assert.deepStrictEqual(second.controller.loadInputHistory('chat').entries, [inputDocFromPlainText('remember me')]);
+		assert.deepStrictEqual(second.controller.loadInputHistory('edit').entries, []);
+	});
+
+	test('A-20 text tool calls in the reply are hydrated by the host after the stream', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: {
+				'knox/buildAgentRequest': { messages: [{ role: 'user', content: 'hi' }], tools: [{ type: 'function', function: { name: 'builtin_read_file' } }] },
+				'knox/hydrateAssistant': { content: 'Reading.', toolCalls: [{ id: 'h-1', type: 'function', function: { name: 'builtin_read_file', arguments: '{"filepath":"a.ts"}' } }] },
+			},
+			respond: message => message.messageType === 'llm/streamChat'
+				? { chunks: [{ role: 'assistant', content: 'Reading. <tool_call>{}</tool_call>' }], content: { prompt: 'p', completion: 'c', modelTitle: 'm' } }
+				: undefined,
+		});
+		await timeout(0);
+		store.patch({ mode: 'agent', toolsSupported: true, permissionMode: 'default' });
+		store.setInput('hi');
+		await controller.submit();
+		await timeout(0);
+		const hydrate = posted.find(message => message.messageType === 'knox/hydrateAssistant');
+		assert.ok(hydrate, 'reply text with markup is sent for hydration');
+		const last = store.state.history[store.state.history.length - 1];
+		assert.strictEqual(last.content, 'Reading.');
+		assert.deepStrictEqual(last.toolCalls?.map(call => call.id), ['h-1']);
+	});
+
+	test('streamed tool-call deltas merge by index and keep the first name', async () => {
+		const { controller, store } = createHarness({
+			replies: {
+				'knox/buildAgentRequest': { messages: [{ role: 'user', content: 'hi' }], tools: [{ type: 'function', function: { name: 'builtin_view_subdirectory' } }] },
+			},
+			respond: message => message.messageType === 'llm/streamChat'
+				? {
+					chunks: [
+						{ role: 'assistant', tool_calls: [{ index: 0, function: { name: 'view_subdirectory', arguments: '' } }] },
+						{ role: 'assistant', tool_calls: [{ index: 0, function: { name: '', arguments: '{"directory_path":' } }] },
+						{ role: 'assistant', tool_calls: [{ index: 0, function: { arguments: ' "."}' } }] },
+					],
+					content: { prompt: 'p', completion: 'c', modelTitle: 'm' },
+				}
+				: undefined,
+		});
+		await timeout(0);
+		store.patch({
+			mode: 'agent',
+			toolsSupported: true,
+			permissionMode: 'default',
+			toolSettings: { builtin_view_subdirectory: 'allowedWithPermission' },
+			tools: [{ name: 'builtin_view_subdirectory', group: 'Built-In' }],
+		});
+		store.setInput('hi');
+		await controller.submit();
+		await timeout(0);
+		const last = store.state.history[store.state.history.length - 1];
+		assert.strictEqual(last.toolCalls?.length, 1);
+		assert.strictEqual(last.toolCalls?.[0].name, 'builtin_view_subdirectory');
+		assert.strictEqual(last.toolCalls?.[0].arguments, '{"directory_path": "."}');
+		assert.deepStrictEqual(last.toolCalls?.[0].parsedArgs, { directory_path: '.' });
+	});
+
+	test('hydrate replaces empty-name streamed stubs with recovered calls', async () => {
+		const { controller, store } = createHarness({
+			replies: {
+				'knox/buildAgentRequest': { messages: [{ role: 'user', content: 'hi' }], tools: [{ type: 'function', function: { name: 'builtin_read_file' } }] },
+				'knox/hydrateAssistant': { content: 'Reading.', toolCalls: [{ id: 'h-2', type: 'function', function: { name: 'builtin_read_file', arguments: '{"filepath":"a.ts"}' } }] },
+			},
+			respond: message => message.messageType === 'llm/streamChat'
+				? {
+					chunks: [{
+						role: 'assistant',
+						content: 'Reading. <tool_call>{}</tool_call>',
+						tool_calls: [{ index: 0, function: { name: '', arguments: '{' } }],
+					}],
+					content: { prompt: 'p', completion: 'c', modelTitle: 'm' },
+				}
+				: undefined,
+		});
+		await timeout(0);
+		store.patch({
+			mode: 'agent',
+			toolsSupported: true,
+			permissionMode: 'default',
+			toolSettings: { builtin_read_file: 'allowedWithPermission' },
+		});
+		store.setInput('hi');
+		await controller.submit();
+		await timeout(0);
+		const last = store.state.history[store.state.history.length - 1];
+		assert.strictEqual(last.content, 'Reading.');
+		assert.deepStrictEqual(last.toolCalls?.map(call => ({ id: call.id, name: call.name })), [{ id: 'h-2', name: 'builtin_read_file' }]);
+	});
+
+	test('agent rounds ask the host for messages and tools', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: {
+				'knox/buildAgentRequest': { messages: [{ role: 'system', content: 'sys' }, { role: 'user', content: 'hi' }], tools: [{ type: 'function', function: { name: 'builtin_read_file' } }] },
+			},
+		});
+		await timeout(0);
+		store.patch({ mode: 'agent', toolsSupported: true });
+		store.setInput('hi');
+		await controller.submit();
+		await timeout(0);
+		const build = posted.find(message => message.messageType === 'knox/buildAgentRequest');
+		assert.ok(build);
+		assert.strictEqual((build.data as { includeTools: boolean }).includeTools, true);
+		const stream = posted.find(message => message.messageType === 'llm/streamChat');
+		const data = stream?.data as { messages: unknown[]; completionOptions: { tools?: unknown[] } };
+		assert.deepStrictEqual(data.messages, [{ role: 'system', content: 'sys' }, { role: 'user', content: 'hi' }]);
+		assert.strictEqual(data.completionOptions.tools?.length, 1);
 	});
 
 	test('KN-374 loadMentions always includes KN-300 default @ providers', async () => {
@@ -573,7 +937,12 @@ suite('Knox native GUI controller (GP-084)', () => {
 		await timeout(0);
 		const commit = posted.find(message => message.messageType === 'llm/streamChat');
 		assert.ok(commit);
-		assert.deepStrictEqual((commit.data as { legacySlashCommandData?: { command?: string; input?: string } }).legacySlashCommandData, { command: 'commit', input: '' });
+		const legacy = (commit.data as { legacySlashCommandData?: { command?: { name: string }; input?: string; historyIndex?: number; contextItems?: unknown[]; selectedCode?: unknown[] } }).legacySlashCommandData;
+		assert.strictEqual(legacy?.command?.name, 'commit');
+		assert.strictEqual(legacy?.input, '/commit');
+		assert.strictEqual(legacy?.historyIndex, 0);
+		assert.deepStrictEqual(legacy?.contextItems, []);
+		assert.deepStrictEqual(legacy?.selectedCode, []);
 
 		posted.length = 0;
 		controller.applyConfig({
@@ -697,7 +1066,9 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(posted.some(message => message.messageType === 'getPerformanceDashboard' && (message.data as { historyDays?: number }).historyDays === 30));
 
 		controller.setCheckpointTab('analysis');
-		await timeout(0);
+		for (let i = 0; i < 10 && !store.state.checkpointAnalysis; i++) {
+			await timeout(0);
+		}
 		assert.strictEqual(store.state.checkpointView, 'analysis');
 		assert.strictEqual(store.state.checkpointAnalysis?.generatedDescription, 'touched a.ts');
 		assert.strictEqual(store.state.checkpointAnalysisGroups[0]?.groupName, 'session s1');
@@ -778,20 +1149,32 @@ suite('Knox native GUI controller (GP-084)', () => {
 
 		await controller.loadMemoryConfig();
 		assert.strictEqual(store.state.memoryConfig.retrieval_threshold, 0.6);
+		assert.strictEqual(store.state.memoryConfig.post_turn_min_chars, 80, 'DEFAULT_CONFIG fills fields the host omits');
+		assert.strictEqual(store.state.memoryConfigLoading, false);
 		controller.updateMemoryConfig('retrieval_top_k', 20);
 		assert.ok(posted.some(message => message.messageType === 'brain/updateConfig' && (message.data as { key?: string }).key === 'retrieval_top_k'));
+		await timeout(0);
+		assert.strictEqual(store.state.memorySavedKey, 'retrieval_top_k');
 
 		await controller.pinMemories(['7'], true);
 		await controller.deleteMemories(['7']);
 		await controller.consolidateMemory();
 		assert.strictEqual(store.state.memoryActionMessage, 'memoryConsolidateResult');
+		await controller.runMemoryMaintenance('consolidate');
+		assert.deepStrictEqual(store.state.memorySettingsResult, { type: 'success', message: 'Consolidation complete: 1 promoted' });
+		await controller.runMemoryMaintenance('optimize');
+		assert.strictEqual(store.state.memorySettingsResult?.message, 'ok');
 		await controller.runMemoryMaintenance('heal');
-		assert.strictEqual(store.state.memoryActionMessage, 'memoryActionSuccess');
-		await controller.exportMemory();
+		assert.strictEqual(store.state.memorySettingsResult?.type, 'success');
+		assert.strictEqual(await controller.exportMemory(), true);
 		assert.ok(posted.some(message => message.messageType === 'copyText'));
-		assert.strictEqual(store.state.memoryActionMessage, 'memoryExportCopied');
-		await controller.importMemoryData('{"version":"knox-brain-v1"}');
-		assert.strictEqual(store.state.memoryActionMessage, 'memoryActionSuccess');
+		assert.match(store.state.memorySettingsResult?.message ?? '', /\(0\.0 KB\) · /);
+		assert.strictEqual(store.state.memorySettingsAction, undefined);
+		assert.strictEqual(await controller.importMemoryData('not json'), false);
+		assert.strictEqual(store.state.memorySettingsResult?.type, 'error');
+		assert.strictEqual(await controller.importMemoryData('{"version":"knox-brain-encrypted-v1"}'), false, 'encrypted backups need a password');
+		assert.strictEqual(await controller.importMemoryData('{"version":"knox-brain-v1"}'), true);
+		assert.strictEqual(store.state.memorySettingsResult?.message, 'Import complete');
 	});
 
 	test('KN-377 find, session tabs, fatal config, and accept-all exits edit mode', async () => {

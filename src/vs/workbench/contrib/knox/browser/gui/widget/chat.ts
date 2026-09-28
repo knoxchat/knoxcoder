@@ -6,8 +6,11 @@
 import type { KnoxGuiWidget } from '../knoxGuiWidget.js';
 import { t } from './t.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { knoxGuiEditSendKey } from '../../../common/knoxGuiChrome.js';
 import { appendKnoxGuiSvg, KnoxGuiSvgIcon } from '../knoxGuiIcons.js';
+import { renderLoadingState } from './panels.js';
+import { setTranscriptScrollTop } from './chrome.js';
 import {
 	groupHistoryTurns,
 	lastUserHistoryIndex,
@@ -15,9 +18,10 @@ import {
 	shouldFloatLastUser,
 	visibleTurnIndexes,
 } from '../../../common/knoxGuiChat.js';
-import { appendTriggerToDoc, emptyInputDoc, inputDocIsEmpty, IKnoxGuiInputBlock } from '../../../common/knoxGuiInput.js';
+import { appendTriggerToDoc, composerInputHistoryNext, composerInputHistoryPrev, docEndCaret, emptyInputDoc, groupMentionItems, groupSlashItems, IKnoxGuiDocCaret, inputDocIsEmpty, IKnoxGuiInputBlock, isMentionUtilityItem, knoxGuiComposerKeyAction } from '../../../common/knoxGuiInput.js';
+import { processImageFile, processImageFiles } from './images.js';
 import { visibleToolOutputPeekItems } from '../../../common/knoxGuiPanels.js';
-import { IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../common/knoxGuiState.js';
 import {
 	activityAnchorId,
 	activityKindLabelKey,
@@ -28,12 +32,19 @@ import {
 	historyUserInputDoc,
 	IKnoxGuiActivityStep,
 	isDuplicateAssistantReply,
+	itemCreatedAtMs,
 	isResponseTruncated,
 	knoxGuiShowsCodeToEditOnHistoryUser,
 	KnoxGuiActivityKind,
 	shouldShineSentFrame,
 	shouldShowThinkingIndicator,
+	IKnoxGuiPastFileInfo,
+	knoxGuiContextItemFileIconName,
+	knoxGuiPastFileInfo,
+	healStreamingMarkdown,
+	IKnoxGuiMarkdownFenceBlock,
 	splitMarkdownBlocks,
+	splitMarkdownParagraphs,
 	turnHasVisibleProgress,
 	visibleActivitySteps,
 } from '../../../common/knoxGuiTranscript.js';
@@ -46,68 +57,113 @@ export function patchLastAssistant(widget: KnoxGuiWidget, state: IKnoxGuiState):
 		widget.render();
 		return;
 	}
-	widget.streamPatchStore.clear();
-	body.replaceChildren();
 	widget.renderStreamingAssistantBody(body, state, item);
 	const showIndicator = shouldShowThinkingIndicator({
 		isStreaming: state.isStreaming,
 		isLast: true,
 		hasContent: Boolean(assistantReplyText(item)),
 		hasReasoning: Boolean(item.thinking?.trim()),
+		isGatheringContext: state.isGatheringContext,
+		showForModel: state.thinkingPlaceholder,
 	});
 	let indicator = card.querySelector('.knox-gui-thinking-indicator') as HTMLElement | null;
 	if (showIndicator && !indicator) {
 		indicator = DOM.append(card, DOM.$('.knox-gui-thinking-indicator'));
+		indicator.setAttribute('data-testid', 'knox-gui-thinking-indicator');
 		indicator.textContent = t(state, 'thinkingDots');
 	} else if (!showIndicator && indicator) {
 		indicator.remove();
 	}
 	if (widget.autoScrollEnabled && widget.bodyEl) {
-		widget.bodyEl.scrollTop = widget.bodyEl.scrollHeight;
+		setTranscriptScrollTop(widget, widget.bodyEl, widget.bodyEl.scrollHeight);
 	}
 }
 
-export function renderStreamingAssistantBody(widget: KnoxGuiWidget, card: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem): void {
+function pastFileInfoFor(state: IKnoxGuiState, item: IKnoxGuiHistoryItem): IKnoxGuiPastFileInfo {
+	const index = state.history.findIndex(h => h.id === item.id);
+	return knoxGuiPastFileInfo(state.history, index < 0 ? state.history.length : index, state.fileSymbols);
+}
+
+type StreamSegment =
+	| { key: string; type: 'markdown'; text: string }
+	| { key: string; type: 'fence'; fence: IKnoxGuiMarkdownFenceBlock; fenceIndex: number; generating: boolean };
+
+/**
+ * `streamingMarkdownBlocks.ts`: the reply as stable blocks; only the last one is
+ * healed (`remend`) and re-rendered per token.
+ */
+function streamSegments(content: string, isStreaming: boolean): StreamSegment[] {
+	const blocks = splitMarkdownBlocks(content);
+	const lastFence = lastFenceIndex(blocks);
+	const segments: StreamSegment[] = [];
+	let fenceIndex = 0;
+	for (const block of blocks) {
+		if (block.type === 'markdown') {
+			for (const text of splitMarkdownParagraphs(block.text)) {
+				segments.push({ key: `md:${text}`, type: 'markdown', text });
+			}
+			continue;
+		}
+		const generating = isStreaming && fenceIndex === lastFence;
+		segments.push({ key: `fence:${fenceIndex}:${generating}:${block.closed}:${block.language}:${block.filepath ?? ''}:${block.range ?? ''}:${block.code}`, type: 'fence', fence: block, fenceIndex, generating });
+		fenceIndex += 1;
+	}
+	const last = segments[segments.length - 1];
+	if (isStreaming && last?.type === 'markdown') {
+		last.text = healStreamingMarkdown(last.text);
+	}
+	return segments;
+}
+
+/**
+ * The live reply body. Leading blocks whose source is unchanged keep their DOM
+ * (selection, inner scroll, listeners); the rest re-render into their own stores.
+ */
+export function renderStreamingAssistantBody(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem): void {
 	const content = assistantReplyText(item) ? item.content : '';
+	const segments = content && state.markdownFormatting !== false ? streamSegments(content, state.isStreaming) : [];
+	const cache = widget.streamBlocks;
+	let keep = 0;
+	while (keep < cache.length && keep < segments.length - 1 && cache[keep].key === segments[keep].key && cache[keep].nodes.every(node => node.parentNode === body)) {
+		keep += 1;
+	}
+	for (const stale of cache.splice(keep)) {
+		widget.streamPatchStore.delete(stale.store);
+	}
+	const kept = new Set(cache.flatMap(block => block.nodes));
+	for (const child of Array.from(body.childNodes)) {
+		if (!kept.has(child)) {
+			child.remove();
+		}
+	}
 	if (!content) {
 		return;
 	}
 	if (state.markdownFormatting === false) {
-		DOM.append(card, DOM.$('pre.knox-gui-raw-md', undefined, content));
+		DOM.append(body, DOM.$('pre.knox-gui-raw-md', undefined, content));
 		return;
 	}
-	for (const block of splitMarkdownBlocks(content)) {
-		if (block.type === 'markdown') {
-			if (block.text.trim()) {
-				widget.appendMarkdown(card, block.text, widget.streamPatchStore);
+	const fileInfo = pastFileInfoFor(state, item);
+	for (const segment of segments.slice(keep)) {
+		const store = widget.streamPatchStore.add(new DisposableStore());
+		const before = body.childNodes.length;
+		widget.listenerStore = store;
+		try {
+			if (segment.type === 'markdown') {
+				widget.appendMarkdown(body, segment.text, store, fileInfo);
+			} else {
+				widget.renderCodeFence(body, state, item, segment.fence, segment.fenceIndex, segment.generating);
 			}
-			continue;
+		} finally {
+			widget.listenerStore = widget.renderStore;
 		}
-		widget.renderStreamingFencePreview(card, state, block, !block.closed);
+		cache.push({ key: segment.key, nodes: Array.from(body.childNodes).slice(before), store });
 	}
 }
 
-export function renderStreamingFencePreview(widget: KnoxGuiWidget,
-	parent: HTMLElement,
-	state: IKnoxGuiState,
-	fence: { language: string; filepath?: string; code: string; closed: boolean },
-	generating: boolean,
-): void {
-	const box = DOM.append(parent, DOM.$('.knox-gui-code-block'));
-	const head = DOM.append(box, DOM.$('.knox-gui-code-toolbar'));
-	if (fence.filepath) {
-		DOM.append(head, DOM.$('span.knox-gui-code-file', undefined, fence.filepath));
-	} else if (fence.language) {
-		DOM.append(head, DOM.$('span.knox-gui-muted', undefined, fence.language));
-	}
-	if (generating) {
-		DOM.append(head, DOM.$('span.knox-gui-muted', undefined, t(state, 'generating')));
-	}
-	const pre = DOM.append(box, DOM.$('div.knox-gui-code-pre')) as HTMLElement;
-	if (state.codeWrap) {
-		pre.classList.add('wrap');
-	}
-	widget.paintHighlightedCode(pre, fence.language, fence.code, fence.filepath);
+/** `MarkdownBlock.tsx`: while streaming only the last fence of the reply is generating. */
+function lastFenceIndex(blocks: ReturnType<typeof splitMarkdownBlocks>): number {
+	return blocks.filter(block => block.type !== 'markdown').length - 1;
 }
 
 export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
@@ -182,7 +238,6 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 				widget.renderHistoryRow(group, state, i, anyHit, currentHit, lastUserIndex, duplicateIds);
 			}
 		}
-		widget.renderStreamError(list, state);
 		if (floatLastUser && widget.floatingHostEl && lastUserIndex >= 0) {
 			const currentHit = state.find.open && state.find.matchIndexes[state.find.current] === lastUserIndex;
 			const anyHit = state.find.open && state.find.matchIndexes.includes(lastUserIndex);
@@ -278,7 +333,7 @@ export function renderMessage(widget: KnoxGuiWidget,
 		if (state.mode === 'agent' && !isLastUser) {
 			widget.renderActivityTimeline(body, state, index);
 		} else if (state.mode !== 'agent' && shouldShineSentFrame(isLastUser, state.isStreaming, turnHasVisibleProgress(state.history, index))) {
-			widget.renderTurnLoading(body, state);
+			widget.renderTurnLoading(body, state, item);
 		}
 		return;
 	}
@@ -288,6 +343,9 @@ export function renderMessage(widget: KnoxGuiWidget,
 	}
 	const isDuplicate = duplicateIds.has(item.id) || isDuplicateAssistantReply(state.history, index);
 	if (item.role === 'assistant' && isDuplicate && !isLast) {
+		for (const tool of item.toolCalls ?? []) {
+			widget.renderTool(body, state, tool);
+		}
 		return;
 	}
 	if (item.role === 'assistant' && !assistantReplyText(item) && !(isLast && state.isStreaming) && !item.thinking && !item.toolCalls?.length && !item.error) {
@@ -361,10 +419,13 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 	editor.setAttribute('aria-multiline', 'true');
 	editor.setAttribute('data-testid', 'knox-gui-history-input');
 	editor.setAttribute('data-history-id', item.id);
-	widget.paintInputDoc(editor, draft.doc, next => {
+	widget.historyEditorEls.set(item.id, editor);
+	widget.historyEditorBoxes.set(item.id, box);
+	const onDocChange = (next: IKnoxGuiInputBlock[]) => {
 		draft.doc = next;
 		widget.historyDrafts.set(item.id, draft);
-	});
+	};
+	widget.paintInputDoc(editor, draft.doc, onDocChange);
 	const empty = inputDocIsEmpty(draft.doc);
 	editor.dataset.empty = empty ? 'true' : 'false';
 	const bar = DOM.append(box, DOM.$('.knox-gui-input-bar'));
@@ -384,30 +445,67 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 			if (widget.focusedHistoryId === item.id && !box.contains(document.activeElement)) {
 				widget.focusedHistoryId = null;
 				bar.classList.add('knox-gui-input-bar--hidden');
+				if (widget.controller.suggestTarget === item.id) {
+					widget.controller.closeSuggest();
+				}
 			}
 		}, 100);
 	}));
+	const recheckTrigger = () => {
+		if (widget.controller.suggestTarget === item.id) {
+			widget.controller.onComposerInput(widget.caretDocPosition(editor), item.id);
+		}
+	};
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'input', () => {
 		draft.doc = widget.readInputDoc(editor);
 		widget.historyDrafts.set(item.id, draft);
 		editor.dataset.empty = inputDocIsEmpty(draft.doc) ? 'true' : 'false';
+		widget.controller.onComposerInput(widget.caretDocPosition(editor), item.id);
 	}));
-	widget.renderStore.add(DOM.addDisposableListener(editor, 'keydown', (e: KeyboardEvent) => {
-		if (e.key === 'Enter' && !e.shiftKey) {
-			e.preventDefault();
-			e.stopPropagation();
-			void widget.controller.submitEditedUser(index, widget.readInputDoc(editor), draft.images);
-		} else if (e.key === 'Escape') {
-			e.preventDefault();
-			editor.blur();
+	widget.renderStore.add(DOM.addDisposableListener(editor, 'keyup', (e: KeyboardEvent) => {
+		if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') {
+			recheckTrigger();
 		}
 	}));
+	widget.renderStore.add(DOM.addDisposableListener(editor, 'mouseup', recheckTrigger));
+	widget.renderStore.add(DOM.addDisposableListener(editor, 'keydown', (e: KeyboardEvent) => onHistoryEditorKeyDown(widget, e, editor, item, index, draft)));
+	widget.renderStore.add(DOM.addDisposableListener(editor, 'paste', (e: ClipboardEvent) => {
+		const files = Array.from(e.clipboardData?.items ?? []).map(entry => entry.getAsFile()).filter((file): file is File => Boolean(file));
+		if (files.length) {
+			e.preventDefault();
+			if (widget.controller.store.state.imagesSupported) {
+				for (const file of files) {
+					widget.readImageFileIntoDraft(file, item.id);
+				}
+			}
+			return;
+		}
+		const text = e.clipboardData?.getData('text/plain');
+		if (text !== undefined) {
+			e.preventDefault();
+			widget.insertPlainText(editor, text);
+		}
+	}));
+	widget.renderStore.add(DOM.addDisposableListener(box, 'dragover', (e: DragEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+	}));
+	widget.renderStore.add(DOM.addDisposableListener(box, 'drop', (e: DragEvent) => onHistoryEditorDrop(widget, e, item.id)));
 	widget.renderStore.add(DOM.addDisposableListener(box, 'click', () => editor.focus()));
 	if (focused) {
 		queueMicrotask(() => {
 			editor.focus();
-			widget.placeCaretAtEndOf(editor);
+			const pending = widget.historyPendingCaret;
+			if (pending?.id === item.id) {
+				widget.historyPendingCaret = undefined;
+				widget.placeCaretAtDocPosition(editor, pending.caret);
+			} else {
+				widget.placeCaretAtEndOf(editor);
+			}
 		});
+	}
+	if (widget.controller.suggestTarget === item.id) {
+		widget.renderSuggest(box, state);
 	}
 	const left = DOM.append(bar, DOM.$('.knox-gui-input-bar-left'));
 	const right = DOM.append(bar, DOM.$('.knox-gui-input-bar-right'));
@@ -434,13 +532,10 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 		svgSize: 13,
 		title: t(state, 'addContext'),
 		onClick: () => {
-			draft.doc = appendTriggerToDoc(widget.readInputDoc(editor), '@');
-			widget.historyDrafts.set(item.id, draft);
-			widget.paintInputDoc(editor, draft.doc, next => {
-				draft.doc = next;
-				widget.historyDrafts.set(item.id, draft);
-			});
-			editor.focus();
+			const doc = appendTriggerToDoc(widget.readInputDoc(editor), '@');
+			const caret = docEndCaret(doc);
+			setHistoryDraftDoc(widget, item.id, doc, caret);
+			widget.controller.onComposerInput(caret, item.id);
 		},
 	});
 	widget.renderModelSelect(left, state);
@@ -467,54 +562,248 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 }
 
 export function readImageFileIntoDraft(widget: KnoxGuiWidget, file: File, historyId: string): void {
-	const reader = new FileReader();
-	reader.onload = () => {
-		const url = String(reader.result ?? '');
-		if (!url) {
-			return;
-		}
-		const draft = widget.historyDrafts.get(historyId) ?? { doc: emptyInputDoc(), images: [] };
-		draft.images = [...draft.images, url];
-		widget.historyDrafts.set(historyId, draft);
-		widget.render();
-	};
-	reader.readAsDataURL(file);
+	void processImageFile(widget, file).then(url => addDraftImages(widget, historyId, url ? [url] : []));
 }
 
-export function renderHistoryContextPeek(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem): void {
-	const items = item.contextItems ?? [];
-	if (!items.length) {
+function addDraftImages(widget: KnoxGuiWidget, historyId: string, urls: readonly string[]): void {
+	if (!urls.length) {
 		return;
 	}
-	const open = widget.contextPeekOpen.has(item.id);
+	const draft = widget.historyDrafts.get(historyId) ?? { doc: emptyInputDoc(), images: [] };
+	draft.images = [...draft.images, ...urls];
+	widget.historyDrafts.set(historyId, draft);
+	widget.render();
+}
+
+/** `TipTapEditor.tsx` onDrop on a history message editor: images only, into that editor's thumbnails. */
+function onHistoryEditorDrop(widget: KnoxGuiWidget, e: DragEvent, historyId: string): void {
+	e.preventDefault();
+	e.stopPropagation();
+	const state = widget.controller.store.state;
+	if (!state.imagesSupported) {
+		widget.controller.messenger.post('showToast', ['warning', t(state, 'modelNoImageSupport')]);
+		return;
+	}
+	const files = Array.from(e.dataTransfer?.files ?? []);
+	if (!files.length) {
+		return;
+	}
+	const images = files.filter(file => file.type.startsWith('image/'));
+	if (!images.length) {
+		widget.controller.messenger.post('showToast', ['warning', t(state, 'pleaseDropImageFiles')]);
+		return;
+	}
+	void processImageFiles(widget, images).then(urls => addDraftImages(widget, historyId, urls));
+}
+
+/** A picker pick in a history editor: repaint that editor and put the caret after the chip. */
+export function setHistoryDraftDoc(widget: KnoxGuiWidget, historyId: string, doc: IKnoxGuiInputBlock[], caret: IKnoxGuiDocCaret): void {
+	const draft = widget.historyDrafts.get(historyId) ?? { doc: emptyInputDoc(), images: [] };
+	draft.doc = doc;
+	widget.historyDrafts.set(historyId, draft);
+	const editor = widget.historyEditorEls.get(historyId);
+	if (!editor) {
+		widget.historyPendingCaret = { id: historyId, caret };
+		return;
+	}
+	widget.paintInputDoc(editor, doc, next => {
+		draft.doc = next;
+		widget.historyDrafts.set(historyId, draft);
+	});
+	editor.dataset.empty = inputDocIsEmpty(doc) ? 'true' : 'false';
+	editor.focus();
+	widget.placeCaretAtDocPosition(editor, caret);
+}
+
+/**
+ * `editorConfig.ts` keys for a non-main editor: picker navigation, Enter /
+ * Mod+Enter / Alt+Enter submit, ArrowUp / ArrowDown walk the chat input
+ * history, Escape closes the picker or returns focus to the code editor.
+ */
+function onHistoryEditorKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent, editor: HTMLElement, item: IKnoxGuiHistoryItem, index: number, draft: { doc: IKnoxGuiInputBlock[]; images: string[] }): void {
+	const state = widget.controller.store.state;
+	const suggestOpen = (state.mentionOpen || state.slashOpen) && widget.controller.suggestTarget === item.id;
+	const sections = state.slashOpen
+		? groupSlashItems(state.suggestItems, { query: state.suggestQuery })
+		: groupMentionItems(state.suggestItems, { query: state.suggestQuery, inSubmenu: state.suggestSubmenu });
+	const flat = suggestOpen ? sections.flatMap(section => section.items) : [];
+	const action = knoxGuiComposerKeyAction(e, {
+		suggestOpen,
+		inSubmenu: Boolean(state.suggestSubmenu),
+		isStreaming: false,
+		caretAtStart: caretAtEdgeOf(editor, 'start'),
+		caretAtEnd: caretAtEdgeOf(editor, 'end'),
+		suggestSelected: state.suggestSelected,
+		suggestCount: flat.length,
+	});
+	if (action.type === 'suggest') {
+		e.preventDefault();
+		e.stopPropagation();
+		if (action.action.type === 'move') {
+			widget.controller.store.patch({ suggestSelected: action.action.index });
+			queueMicrotask(() => widget.suggestEl?.querySelector('.selected')?.scrollIntoView({ block: 'nearest' }));
+		} else if (action.action.type === 'select') {
+			const pick = flat[state.suggestSelected];
+			if (pick && !isMentionUtilityItem(pick)) {
+				widget.controller.applySuggest(pick);
+			}
+		} else if (action.action.type === 'close') {
+			widget.controller.closeSuggest();
+		}
+		return;
+	}
+	if (action.type === 'exit-submenu') {
+		e.preventDefault();
+		widget.controller.exitSuggestSubmenu();
+		return;
+	}
+	if (action.type === 'submit') {
+		e.preventDefault();
+		e.stopPropagation();
+		void widget.controller.submitEditedUser(index, widget.readInputDoc(editor), draft.images, action.altKey);
+		return;
+	}
+	if (action.type === 'history-prev' || action.type === 'history-next') {
+		const current = widget.historyInputHistories.get(item.id) ?? { ...widget.chatInputHistory, index: widget.chatInputHistory.entries.length };
+		const stepped = action.type === 'history-prev'
+			? composerInputHistoryPrev(current, widget.readInputDoc(editor))
+			: composerInputHistoryNext(current);
+		if (!stepped) {
+			return;
+		}
+		e.preventDefault();
+		widget.historyInputHistories.set(item.id, stepped.history);
+		setHistoryDraftDoc(widget, item.id, stepped.doc, action.type === 'history-prev' ? { block: 0, offset: 0 } : docEndCaret(stepped.doc));
+		return;
+	}
+	if (e.key === 'Escape') {
+		e.preventDefault();
+		e.stopPropagation();
+		widget.controller.focusHostEditor();
+	}
+}
+
+function caretAtEdgeOf(editor: HTMLElement, edge: 'start' | 'end'): boolean {
+	const selection = editor.ownerDocument.getSelection();
+	if (!selection || !selection.rangeCount || !editor.contains(selection.anchorNode)) {
+		return true;
+	}
+	const range = selection.getRangeAt(0);
+	if (!range.collapsed) {
+		return false;
+	}
+	const probe = editor.ownerDocument.createRange();
+	probe.selectNodeContents(editor);
+	probe.collapse(edge === 'start');
+	return range.compareBoundaryPoints(Range.START_TO_START, probe) === 0;
+}
+
+/** `ContextItemsPeek.tsx`: collapsed by default; rows open the item. The latest turn shows gathering progress. */
+export function renderHistoryContextPeek(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem): void {
+	const lastUser = [...state.history].reverse().find(h => h.role === 'user');
+	renderContextItemsPeek(widget, parent, state, item.id, item.contextItems ?? [], !!state.isGatheringContext && lastUser?.id === item.id);
+}
+
+export function renderContextItemsPeek(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, key: string, all: readonly IKnoxGuiContextItem[], gathering: boolean): void {
+	const items = all.filter(ctx => !ctx.hidden);
+	if (!items.length && !gathering) {
+		return;
+	}
+	const open = widget.contextPeekOpen.has(key);
 	const peek = DOM.append(parent, DOM.$('.knox-gui-context-peek'));
-	peek.setAttribute('data-testid', 'context-items-peek');
 	const toggle = DOM.append(peek, DOM.$('button.knox-gui-context-peek-title')) as HTMLButtonElement;
 	toggle.type = 'button';
+	toggle.setAttribute('data-testid', 'context-items-peek');
+	toggle.setAttribute('aria-expanded', String(open));
 	appendKnoxGuiSvg(toggle, open ? 'chevron-down' : 'chevron-right', 14);
-	toggle.append(t(state, 'relatedContextItems', { count: items.length }));
+	if (gathering) {
+		DOM.append(toggle, DOM.$('span.knox-gui-thinking-dots', undefined, t(state, 'gatheringContext')));
+	} else {
+		toggle.append(t(state, 'relatedContextItems', { count: items.length }));
+	}
 	widget.renderStore.add(DOM.addDisposableListener(toggle, 'click', () => {
 		if (open) {
-			widget.contextPeekOpen.delete(item.id);
+			widget.contextPeekOpen.delete(key);
 		} else {
-			widget.contextPeekOpen.add(item.id);
+			widget.contextPeekOpen.add(key);
 		}
 		widget.render();
 	}));
 	if (!open) {
 		return;
 	}
+	const list = DOM.append(peek, DOM.$('.knox-gui-context-peek-list'));
 	for (const ctx of items) {
-		const row = DOM.append(peek, DOM.$('.knox-gui-chip.knox-gui-context-chip'));
-		row.append(ctx.name);
+		renderContextPeekItem(widget, list, ctx);
 	}
 }
 
-export function renderTurnLoading(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
+/** `ContextItemsPeekItem`: icon, name, cyan description (file basename for files), arrow for URLs. */
+export function renderContextPeekItem(widget: KnoxGuiWidget, parent: HTMLElement, ctx: IKnoxGuiContextItem, store = widget.renderStore): HTMLElement {
+	const row = DOM.append(parent, DOM.$('.knox-gui-context-peek-item'));
+	row.setAttribute('data-testid', 'context-items-peek-item');
+	row.setAttribute('role', 'button');
+	row.tabIndex = 0;
+	const iconName = knoxGuiContextItemFileIconName(ctx);
+	if (ctx.icon && /^(https?:|data:image\/)/.test(ctx.icon)) {
+		const img = DOM.append(row, DOM.$('img.knox-gui-context-peek-icon')) as HTMLImageElement;
+		img.src = ctx.icon;
+		img.alt = '';
+		img.onerror = () => img.remove();
+	} else if (iconName) {
+		widget.appendFileIcon(row, iconName, 18).classList.add('knox-gui-context-peek-icon');
+	} else {
+		DOM.append(row, DOM.$(`span.knox-gui-context-peek-icon.codicon.${contextProviderCodicon(ctx.provider)}`));
+	}
+	DOM.append(row, DOM.$('span.knox-gui-context-peek-name', undefined, ctx.name));
+	const description = ctx.uri && ctx.description ? ctx.description.split('/').pop() ?? ctx.description : ctx.description ?? '';
+	DOM.append(row, DOM.$('span.knox-gui-context-peek-desc', undefined, description));
+	if (ctx.url) {
+		row.classList.add('knox-gui-context-peek-url');
+		DOM.append(row, DOM.$('span.knox-gui-context-peek-arrow.codicon.codicon-arrow-up-right'));
+	}
+	const openItem = (e: Event) => {
+		e.preventDefault();
+		widget.controller.openContextItem(ctx);
+	};
+	store.add(DOM.addDisposableListener(row, 'click', openItem));
+	store.add(DOM.addDisposableListener(row, 'keydown', (e: KeyboardEvent) => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			openItem(e);
+		}
+	}));
+	return row;
+}
+
+/** Codicons standing in for the reference provider icons (`AtMentionDropdown` getIconFromDropdownItem). */
+function contextProviderCodicon(provider: string | undefined): string {
+	switch (provider) {
+		case 'file': case 'currentFile': case 'open': return 'codicon-file';
+		case 'folder': case 'tree': return 'codicon-folder';
+		case 'codebase': case 'search': return 'codicon-search';
+		case 'terminal': return 'codicon-terminal';
+		case 'diff': case 'problems': return 'codicon-diff';
+		case 'url': case 'web': case 'docs': return 'codicon-globe';
+		case 'code': return 'codicon-symbol-method';
+		case 'os': return 'codicon-device-desktop';
+		case 'clipboard': return 'codicon-clippy';
+		case 'debugger': return 'codicon-debug';
+		default: return 'codicon-symbol-misc';
+	}
+}
+
+/** `HistoryItemRow.tsx` chat/edit turn: `LoadingState` with the user message time as the timer origin. */
+export function renderTurnLoading(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, item?: IKnoxGuiHistoryItem): void {
 	const row = DOM.append(parent, DOM.$('.knox-gui-turn-loading'));
 	row.setAttribute('data-testid', 'knox-gui-turn-loading');
-	const label = DOM.append(row, DOM.$('span.knox-gui-thinking-dots'));
-	label.textContent = t(state, 'activityLoading');
+	row.style.fontSize = `${state.fontSize - 2}px`;
+	renderLoadingState(widget, row, {
+		label: t(state, 'activityLoading'),
+		variant: 'drive',
+		startedAt: itemCreatedAtMs(item),
+		testId: 'sent-message-loading-state',
+		ownClock: true,
+	});
 }
 
 export function renderAssistantTurn(widget: KnoxGuiWidget,
@@ -540,6 +829,15 @@ export function renderAssistantTurn(widget: KnoxGuiWidget,
 		return;
 	}
 	widget.renderReasoning(card, state, item, index);
+	if (item.toolCalls?.length && !assistantReplyText(item)) {
+		if (isLast) {
+			widget.lastAssistantCard = card;
+		}
+		for (const tool of item.toolCalls) {
+			widget.renderTool(card, state, tool);
+		}
+		return;
+	}
 	const streamBody = DOM.append(card, DOM.$('.knox-gui-stream-body'));
 	widget.renderAssistantBody(streamBody, state, item, isLast);
 	if (isLast) {
@@ -550,6 +848,8 @@ export function renderAssistantTurn(widget: KnoxGuiWidget,
 		isLast,
 		hasContent: Boolean(assistantReplyText(item)),
 		hasReasoning: Boolean(item.thinking?.trim()),
+		isGatheringContext: state.isGatheringContext,
+		showForModel: state.thinkingPlaceholder,
 	})) {
 		const indicator = DOM.append(card, DOM.$('.knox-gui-thinking-indicator'));
 		indicator.setAttribute('data-testid', 'knox-gui-thinking-indicator');
@@ -587,6 +887,10 @@ export function renderErrorStep(widget: KnoxGuiWidget, card: HTMLElement, state:
 }
 
 export function renderAssistantBody(widget: KnoxGuiWidget, card: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem, isLast: boolean): void {
+	if (isLast && state.isStreaming) {
+		widget.renderStreamingAssistantBody(card, state, item);
+		return;
+	}
 	const content = assistantReplyText(item) ? item.content : '';
 	if (!content) {
 		return;
@@ -596,14 +900,17 @@ export function renderAssistantBody(widget: KnoxGuiWidget, card: HTMLElement, st
 		return;
 	}
 	let fenceIndex = 0;
-	for (const block of splitMarkdownBlocks(content)) {
+	const fileInfo = pastFileInfoFor(state, item);
+	const blocks = splitMarkdownBlocks(content);
+	const lastFence = lastFenceIndex(blocks);
+	for (const block of blocks) {
 		if (block.type === 'markdown') {
 			if (block.text.trim()) {
-				widget.appendMarkdown(card, block.text);
+				widget.appendMarkdown(card, block.text, undefined, fileInfo);
 			}
 			continue;
 		}
-		widget.renderCodeFence(card, state, item, block, fenceIndex, isLast && state.isStreaming && !block.closed);
+		widget.renderCodeFence(card, state, item, block, fenceIndex, isLast && state.isStreaming && fenceIndex === lastFence);
 		fenceIndex += 1;
 	}
 }
@@ -669,11 +976,9 @@ export function renderActivitySteps(widget: KnoxGuiWidget, parent: HTMLElement, 
 			DOM.append(row, DOM.$('code.knox-gui-muted', undefined, step.detail));
 		}
 		widget.renderStore.add(DOM.addDisposableListener(row, 'click', () => {
-			const byIndex = widget.root.querySelector(`[data-index="${step.historyIndex}"]`);
-			byIndex?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			widget.scrollToHistoryIndex(step.historyIndex);
 			requestAnimationFrame(() => {
-				const anchor = widget.root.ownerDocument.getElementById(activityAnchorId(step.id));
-				(anchor ?? byIndex)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				widget.root.ownerDocument.getElementById(activityAnchorId(step.id))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 			});
 		}));
 		if (step.workspaceCheckpointId) {
@@ -705,59 +1010,40 @@ function activityKindSvg(kind: KnoxGuiActivityKind): KnoxGuiSvgIcon {
 	}
 }
 
+/** `StreamErrorDialog` inside the Layout `TextDialog`: status title, capped message box, Close. */
 export function renderStreamError(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
 	if (!state.streamError) {
 		return;
 	}
-	const card = DOM.append(parent, DOM.$('.knox-gui-stream-error'));
-	card.setAttribute('role', 'alert');
+	const close = () => widget.controller.clearStreamError();
+	const overlay = DOM.append(parent, DOM.$('.knox-gui-text-dialog'));
+	overlay.setAttribute('role', 'presentation');
+	widget.renderStore.add(DOM.addDisposableListener(overlay, 'click', close));
+	const panel = DOM.append(overlay, DOM.$('.knox-gui-text-dialog-panel'));
+	widget.renderStore.add(DOM.addDisposableListener(panel, 'click', e => e.stopPropagation()));
+	const box = DOM.append(panel, DOM.$('.knox-gui-text-dialog-body'));
+	box.setAttribute('role', 'alertdialog');
+	box.setAttribute('aria-modal', 'true');
+	widget.chromeButton(box, { svg: 'x', svgSize: 20, title: t(state, 'close'), extraClass: 'knox-gui-text-dialog-close', onClick: close });
+	const card = DOM.append(box, DOM.$('.knox-gui-stream-error'));
 	card.setAttribute('data-testid', 'knox-gui-stream-error');
 	const code = state.streamError.statusCode ? `${state.streamError.statusCode} ` : '';
-	DOM.append(card, DOM.$('p.knox-gui-error', undefined, `${code}${t(state, 'error')}`));
+	DOM.append(card, DOM.$('p.knox-gui-stream-error-title', undefined, `${code}${t(state, 'error')}`));
 	if (state.streamError.message) {
-		DOM.append(card, DOM.$('pre', undefined, state.streamError.message));
-	}
-	if (state.streamError.kind === 'rate-limit') {
-		DOM.append(card, DOM.$('div', undefined, t(state, 'rateLimited', { model: state.modelTitle ?? t(state, 'chatModel'), provider: t(state, 'theModelProvider') })));
-	} else if (state.streamError.kind === 'not-found') {
-		DOM.append(card, DOM.$('div', undefined, t(state, 'likelyCauses')));
-		const list = DOM.append(card, DOM.$('ul.knox-gui-stream-error-list'));
-		const api = DOM.append(list, DOM.$('li'));
-		api.append(t(state, 'invalidApiBase'));
-		DOM.append(api, DOM.$('code', undefined, 'apiBase'));
-		const model = DOM.append(list, DOM.$('li'));
-		model.append(t(state, 'modelNotFound'));
-		if (state.modelTitle) {
-			model.append(`: `);
-			DOM.append(model, DOM.$('code', undefined, state.modelTitle));
-		}
-	} else if (state.streamError.kind === 'unauthorized') {
-		DOM.append(card, DOM.$('div', undefined, t(state, 'refreshHubSecrets')));
-		widget.chromeButton(card, { label: t(state, 'refreshAssistantSecrets'), onClick: () => widget.controller.messenger.post('config/refreshProfiles', undefined) });
-		DOM.append(card, DOM.$('div', undefined, t(state, 'invalidApiKey')));
-	} else if (state.streamError.kind === 'overloaded') {
-		DOM.append(card, DOM.$('div', undefined, t(state, 'serverOverloaded')));
-		if (state.modelTitle) {
-			const provider = DOM.append(card, DOM.$('div'));
-			provider.append(t(state, 'provider'));
-			DOM.append(provider, DOM.$('code', undefined, state.modelTitle));
-		}
+		const messageBox = DOM.append(card, DOM.$('.knox-gui-stream-error-message'));
+		DOM.append(messageBox, DOM.$('code', undefined, state.streamError.message));
 	}
 	const actions = DOM.append(card, DOM.$('.knox-gui-stream-error-actions'));
-	widget.chromeButton(actions, { label: t(state, 'close'), onClick: () => widget.controller.clearStreamError() });
+	widget.chromeButton(actions, { label: t(state, 'close'), extraClass: 'knox-gui-primary', onClick: close });
 }
 
 export function renderToolOutputPeek(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem): void {
 	const raw = item.toolCalls?.flatMap(call => call.outputItems ?? []) ?? [];
 	const items = visibleToolOutputPeekItems(raw.length ? raw : (item.content.trim() ? [{ name: 'Tool', content: item.content }] : []));
-	if (!items.length) {
-		return;
-	}
-	const peek = DOM.append(parent, DOM.$('.knox-gui-context-peek'));
-	peek.setAttribute('data-testid', 'knox-gui-tool-output');
-	DOM.append(peek, DOM.$('div.knox-gui-context-peek-title', undefined, t(state, 'relatedContextItems', { count: items.length })));
-	for (const output of items) {
-		const row = DOM.append(peek, DOM.$('.knox-gui-chip.knox-gui-context-chip'));
-		row.append(output.name || 'Tool');
+	const wrap = DOM.append(parent, DOM.$('div'));
+	wrap.setAttribute('data-testid', 'knox-gui-tool-output');
+	renderContextItemsPeek(widget, wrap, state, `${item.id}:tool-output`, items.map(output => ({ ...output, name: output.name || 'Tool', content: output.content ?? '' })), false);
+	if (!wrap.childElementCount) {
+		wrap.remove();
 	}
 }

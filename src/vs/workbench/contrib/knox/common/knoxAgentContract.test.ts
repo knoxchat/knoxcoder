@@ -67,7 +67,9 @@ suite('Knox agent loop contract (KN-260–267)', () => {
 
 	test('KN-267: native GUI owns /autonomous + stream adapters', () => {
 		const stream = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/stream.ts');
-		assert.ok(stream.includes("slashName === 'autonomous'"));
+		assert.ok(stream.includes("slashCommandBareName(command.name) === 'autonomous'"));
+		assert.ok(stream.includes("'brain/runAutonomousLoop'"));
+		assert.ok(stream.includes("'brain/resolveAutonomousTool'"));
 		assert.ok(repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/inbound.ts').includes('autonomous:'));
 		assert.ok(repoFile('extensions/knox/src/core/core.ts').includes('resolveAutonomousToolApproval'));
 	});

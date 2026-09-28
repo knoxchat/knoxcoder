@@ -1,0 +1,425 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* models, providers, and KnoxChat config */
+
+.knox-gui-page-header-back {
+	cursor: pointer;
+}
+
+.knox-gui-config-error-title {
+	margin: 20px 0 8px;
+	font-size: 20px;
+	font-weight: normal;
+}
+
+.knox-gui-page-header {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+	padding: 8px 0;
+	border-bottom: 0.5px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.45));
+	background: var(--vscode-editor-background);
+}
+
+.knox-gui-page-title {
+	margin: 0;
+	font-size: 1em;
+	font-weight: 700;
+	color: #159994;
+}
+
+.knox-gui-page-back {
+	margin-left: 8px;
+}
+
+.knox-gui-add-model-help {
+	margin: 16px 0;
+	padding: 8px 12px;
+	border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.45));
+	border-radius: 6px;
+}
+
+.knox-gui-page-intro {
+	text-align: center;
+	margin: 0 0 24px;
+}
+
+.knox-gui-page-intro h2 {
+	margin: 0;
+}
+
+.knox-gui-rule {
+	height: 0;
+	width: 100%;
+	margin: 0 0 16px;
+	border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.45));
+}
+
+.knox-gui-provider-card-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 8px;
+}
+
+.knox-gui-provider-card-head h3 {
+	margin: 0;
+	color: inherit;
+}
+
+.knox-gui-provider-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 2px;
+	background: rgba(21, 153, 148, 0.18);
+	color: #159994;
+	font-size: 12px;
+	font-weight: 700;
+	object-fit: contain;
+	padding: 0;
+}
+
+.knox-gui-provider-icon img,
+img.knox-gui-provider-icon {
+	padding: 2px;
+	background: transparent;
+}
+
+.knox-gui-provider-chip img {
+	width: 24px;
+	height: 24px;
+	object-fit: contain;
+	display: block;
+}
+
+.knox-gui-provider-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.knox-gui-provider-tag {
+	font-size: 11px;
+	padding: 1px 6px;
+	border: 1px solid #ff0000;
+	color: #ff0000;
+}
+
+.knox-gui-configure-provider-title {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+/* `ModelProviderTag.tsx`: tag color at 0x55 alpha, white text. */
+.knox-gui-model-provider-tag {
+	display: inline-block;
+	font-size: 0.9em;
+	color: white;
+	padding: 2px 4px;
+	margin-right: 4px;
+	border-radius: 4px;
+	background-color: #ff000055;
+}
+
+.knox-gui-model-provider-tag.is-tagLocal {
+	background-color: #00bb0055;
+}
+
+.knox-gui-model-provider-tag.is-tagOpenSource {
+	background-color: #0033ff55;
+}
+
+.knox-gui-model-provider-tag.is-tagFree {
+	background-color: #ffff0055;
+}
+
+.knox-gui-configure-provider-description {
+	margin-top: 8px;
+}
+
+.knox-gui-provider-docs {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+}
+
+.knox-gui-provider-card {
+	position: relative;
+}
+
+.knox-gui-add-model-form {
+	max-width: 28rem;
+	margin: 0 auto;
+	padding: 16px;
+}
+
+.knox-gui-add-model-form-title {
+	margin: 0 0 16px;
+	text-align: center;
+	font-size: 13px;
+	font-weight: 700;
+	color: #159994;
+}
+
+.knox-gui-add-model-form-body {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+	margin: 24px 0;
+}
+
+.knox-gui .knox-gui-add-model-label {
+	display: block;
+	margin: 0;
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.knox-gui-add-model-form-actions {
+	margin-top: 16px;
+	width: 100%;
+}
+
+/* components/index.tsx Button */
+.knox-gui-form-button {
+	margin: 8px 0;
+	padding: 6px 12px;
+	border: none;
+	border-radius: 0;
+	background: var(--vscode-editor-foreground, #fff);
+	color: var(--vscode-sideBar-background, rgb(30, 30, 30));
+	font-family: inherit;
+	font-size: 13px;
+	line-height: 20px;
+	cursor: pointer;
+}
+
+.knox-gui-form-button:hover:not(:disabled) {
+	filter: brightness(1.2);
+}
+
+.knox-gui-form-button:disabled {
+	opacity: 0.5;
+	pointer-events: none;
+	cursor: default;
+}
+
+.knox-gui-connect {
+	width: 100%;
+}
+
+/* components/index.tsx SecondaryButton */
+.knox-gui-form-button.knox-gui-form-button-secondary {
+	margin: 0;
+	border: 1px solid var(--vscode-input-border, #999998);
+	background: var(--vscode-input-background, rgb(45, 45, 45));
+	color: var(--vscode-editor-foreground, #fff);
+	filter: none;
+}
+
+.knox-gui-form-button.knox-gui-form-button-secondary:hover:not(:disabled) {
+	background: var(--vscode-sideBar-background, rgb(30, 30, 30));
+	opacity: 0.9;
+	filter: none;
+}
+
+.knox-gui-form-button.knox-gui-form-button-secondary:disabled {
+	opacity: 1;
+	color: #6b7280;
+}
+
+.knox-gui-oauth-pane {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.knox-gui-oauth-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.knox-gui-oauth-row > span {
+	font-size: 13px;
+}
+
+.knox-gui-oauth-row-spacer {
+	flex: 1;
+}
+
+.knox-gui-oauth-signed-out {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.knox-gui-oauth-signed-out .knox-gui-form-button {
+	margin: 0;
+}
+
+.knox-gui-oauth-hint {
+	margin: 0;
+	font-size: 13px;
+	color: #6e6e77;
+}
+
+.knox-gui-oauth-error {
+	margin: 0;
+	font-size: 13px;
+	color: #ef4444;
+}
+
+.knox-gui-knoxchat-search {
+	position: relative;
+	margin: 8px 0 16px;
+}
+
+.knox-gui-knoxchat-search .knox-gui-svg.knox-gui-knoxchat-search-icon {
+	position: absolute;
+	top: 50%;
+	left: 12px;
+	width: 16px;
+	height: 16px;
+	transform: translateY(-50%);
+	pointer-events: none;
+	color: #6e6e77;
+}
+
+.knox-gui-knoxchat-search-input {
+	box-sizing: border-box;
+	width: 100%;
+	padding: 10px 10px 10px 40px;
+	border: 1px solid var(--vscode-input-border, #999998);
+	border-radius: 0;
+	background: var(--vscode-input-background, rgb(45, 45, 45));
+	color: var(--vscode-editor-foreground, #fff);
+	font-family: inherit;
+	font-size: 13px;
+	line-height: 20px;
+	outline: none;
+}
+
+.knox-gui-knoxchat-search-input:focus {
+	border-color: #6e6e77;
+}
+
+.knox-gui-knoxchat-search-input::placeholder {
+	color: #6e6e77;
+}
+
+.knox-gui-knoxchat-search-input::-webkit-search-cancel-button {
+	-webkit-appearance: none;
+}
+
+.knox-gui-knoxchat-list {
+	max-height: 24rem;
+	overflow-y: auto;
+	padding-right: 8px;
+}
+
+.knox-gui-knoxchat-group {
+	margin-bottom: 16px;
+}
+
+.knox-gui .knox-gui-knoxchat-category {
+	margin: 0 0 8px;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-editor-foreground, #fff);
+}
+
+.knox-gui-knoxchat-item {
+	padding: 8px;
+	margin-bottom: 8px;
+	border: 1px solid transparent;
+	border-radius: 0;
+	background: var(--vscode-input-background, rgb(45, 45, 45));
+	color: var(--vscode-editor-foreground, #fff);
+	cursor: pointer;
+}
+
+.knox-gui-knoxchat-item:last-child {
+	margin-bottom: 0;
+}
+
+.knox-gui-knoxchat-item:hover,
+.knox-gui-knoxchat-item.is-selected {
+	background: var(--vscode-list-activeSelectionBackground, #1bbe84);
+	color: var(--vscode-quickInputList-focusForeground, var(--vscode-editor-foreground));
+}
+
+.knox-gui-knoxchat-item.is-selected {
+	border-color: #6e6e77;
+}
+
+.knox-gui-knoxchat-item-top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.knox-gui-knoxchat-title {
+	min-width: 0;
+	margin-right: 8px;
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-knoxchat-id {
+	margin-top: 4px;
+	font-size: 12px;
+	color: #6e6e77;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-knoxchat-meta {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: 4px;
+}
+
+.knox-gui-knoxchat-caps {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 6px;
+}
+
+.knox-gui-knoxchat-badge {
+	font-size: 12px;
+	line-height: 16px;
+	padding: 2px 6px;
+	border-radius: 0;
+	background: var(--vscode-sideBar-background, rgb(30, 30, 30));
+	color: #6e6e77;
+	white-space: nowrap;
+}
+
+.knox-gui-knoxchat-empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 10rem;
+	text-align: center;
+	font-size: 13px;
+	color: #6e6e77;
+}
+

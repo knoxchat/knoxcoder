@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parseAskUserQuestionsForGui } from '../../../common/knoxGuiTools.js';
-import { IKnoxGuiAskQuestion, IKnoxGuiHistoryItem, IKnoxGuiModel } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiAskQuestion, IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiModel } from '../../../common/knoxGuiState.js';
 
 export const LANGUAGE_KEY = 'knox.gui.language';
 export const BOOKMARK_KEY = 'knox.gui.bookmarkedSlash';
@@ -77,19 +77,29 @@ export function imagesFromUnknown(value: unknown): string[] | undefined {
 	return urls.length ? urls : undefined;
 }
 
-export function contextItemsFromRaw(value: unknown): IKnoxGuiHistoryItem['contextItems'] {
-	const items: NonNullable<IKnoxGuiHistoryItem['contextItems']> = [];
-	for (const item of asArray(value)) {
-		const rec = asRecord(item);
-		if (!rec) {
-			continue;
-		}
-		items.push({
-			name: String(rec.name ?? rec.description ?? 'context'),
-			content: String(rec.content ?? ''),
-			provider: rec.provider ? String(rec.provider) : undefined,
-		});
+export function contextItemFromRaw(value: unknown, fallbackProvider?: string): IKnoxGuiContextItem | undefined {
+	const rec = asRecord(value);
+	if (!rec) {
+		return undefined;
 	}
+	const uriRec = asRecord(rec.uri);
+	const uri = typeof rec.uri === 'string' ? rec.uri : uriRec?.type === 'file' && typeof uriRec.value === 'string' ? uriRec.value : undefined;
+	const url = typeof rec.url === 'string' ? rec.url : uriRec?.type === 'url' && typeof uriRec.value === 'string' ? uriRec.value : undefined;
+	const provider = rec.provider ?? asRecord(rec.id)?.providerTitle ?? fallbackProvider;
+	return {
+		name: String(rec.name ?? rec.description ?? provider ?? 'context'),
+		content: String(rec.content ?? ''),
+		provider: provider ? String(provider) : undefined,
+		...(typeof rec.description === 'string' && rec.description ? { description: rec.description } : {}),
+		...(uri ? { uri } : {}),
+		...(url ? { url } : {}),
+		...(typeof rec.icon === 'string' && rec.icon ? { icon: rec.icon } : {}),
+		...(rec.hidden === true ? { hidden: true } : {}),
+	};
+}
+
+export function contextItemsFromRaw(value: unknown): IKnoxGuiHistoryItem['contextItems'] {
+	const items = asArray(value).map(item => contextItemFromRaw(item)).filter((item): item is IKnoxGuiContextItem => !!item);
 	return items.length ? items : undefined;
 }
 

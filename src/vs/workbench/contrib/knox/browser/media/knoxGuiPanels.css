@@ -1,0 +1,1271 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* overlays, attached panels, tabs, find, and context */
+
+.knox-gui-overlay {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	max-height: 70vh;
+	overflow: auto;
+	padding: 4px 8px 8px;
+}
+
+.knox-gui-overlay-enter {
+	animation: knox-gui-overlay-enter 300ms ease-in-out both;
+}
+
+.knox-gui-overlay-leave {
+	animation: knox-gui-overlay-leave 300ms ease-in-out both;
+	pointer-events: none;
+}
+
+@keyframes knox-gui-overlay-enter {
+	from { max-height: 0; opacity: 0; }
+	to { max-height: 70vh; opacity: 1; }
+}
+
+@keyframes knox-gui-overlay-leave {
+	from { max-height: 70vh; opacity: 1; }
+	to { max-height: 0; margin: 0; padding-top: 0; padding-bottom: 0; opacity: 0; }
+}
+
+.knox-gui-page {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	flex: 1;
+	min-height: 0;
+	max-height: none;
+	overflow: auto;
+	padding: 0 16px 16px;
+}
+
+.knox-gui-stats-billing {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 576px;
+	margin: 0 auto;
+	padding: 24px;
+	font-size: 13px;
+	opacity: 0.8;
+}
+
+.knox-gui-stats-billing p {
+	margin: 0;
+}
+
+.knox-gui-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 0;
+}
+
+.knox-gui-row.selected {
+	background: rgba(21, 153, 148, 0.12);
+}
+
+.knox-gui-card {
+	border: 1px solid var(--vscode-widget-border, var(--vscode-input-border));
+	border-radius: 6px;
+	padding: 6px 8px;
+	margin-bottom: 6px;
+}
+
+.knox-gui-banner {
+	padding: 6px 8px;
+	margin: 4px 6px;
+	border-radius: 4px;
+	background: rgba(21, 153, 148, 0.15);
+}
+
+.knox-gui-meter.knox-gui-attached {
+	margin: 0 2px;
+	padding: 0;
+	height: auto;
+	overflow: hidden;
+	border-radius: 0;
+	background: var(--vscode-input-background, rgb(45 45 45));
+	border-top: 1px solid color-mix(in srgb, #159994 25%, transparent);
+	border-left: 1px solid color-mix(in srgb, #159994 15%, transparent);
+	border-right: 1px solid color-mix(in srgb, #159994 15%, transparent);
+	border-top-left-radius: 8px;
+	border-top-right-radius: 8px;
+}
+
+.knox-gui-attached {
+	margin: 0 2px;
+	overflow: hidden;
+	background: var(--vscode-input-background, rgb(45 45 45));
+	border-top: 1px solid color-mix(in srgb, #159994 25%, transparent);
+	border-left: 1px solid color-mix(in srgb, #159994 15%, transparent);
+	border-right: 1px solid color-mix(in srgb, #159994 15%, transparent);
+	border-top-left-radius: 8px;
+	border-top-right-radius: 8px;
+}
+
+.knox-gui-attached + .knox-gui-attached,
+.knox-gui-meter.knox-gui-attached + .knox-gui-attached {
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+	border-top-color: color-mix(in srgb, #159994 10%, transparent);
+}
+
+.knox-gui-attached-toggle {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	min-height: 28px;
+	padding: 0 10px;
+	cursor: pointer;
+	border: none;
+	background: transparent;
+	color: inherit;
+	text-align: left;
+}
+
+.knox-gui-attached-toggle:hover {
+	opacity: 0.8;
+}
+
+.knox-gui-attached-chevron,
+.knox-gui-attached-icon {
+	flex-shrink: 0;
+	color: #159994;
+	display: inline-flex;
+	align-items: center;
+}
+
+.knox-gui-attached-title {
+	font-size: 11px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.knox-gui-attached-stats {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-left: 4px;
+	font-size: 10px;
+	font-variant-numeric: tabular-nums;
+	min-width: 0;
+}
+
+.knox-gui-attached-current {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-attached-cyan {
+	color: #159994;
+}
+
+.knox-gui-attached-dismiss,
+.knox-gui-attached-clear {
+	margin-left: auto;
+	flex-shrink: 0;
+	cursor: pointer;
+	opacity: 0.65;
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-gui-attached-dismiss:hover,
+.knox-gui-attached-clear:hover {
+	opacity: 1;
+	color: var(--vscode-foreground);
+}
+
+.knox-gui-attached-collapse {
+	max-height: 0;
+	opacity: 0;
+	overflow: hidden;
+}
+
+.knox-gui-attached-collapse.open {
+	max-height: 40vh;
+	opacity: 1;
+}
+
+.knox-gui-attached-body {
+	max-height: 38vh;
+	overflow: auto;
+	padding: 4px 8px 6px;
+	border-top: 1px solid color-mix(in srgb, #159994 10%, transparent);
+	font-size: 12px;
+}
+
+.knox-gui-attached-pre {
+	margin: 6px 0 0;
+	padding: 6px 8px;
+	white-space: pre-wrap;
+	word-break: break-word;
+	border-radius: 4px;
+	font-size: 11px;
+	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-gui-attached-progress {
+	margin: 0 10px 2px;
+	height: 2px;
+	overflow: hidden;
+	border-radius: 999px;
+	background: color-mix(in srgb, #159994 16%, transparent);
+}
+
+.knox-gui-attached-progress-fill {
+	height: 100%;
+	border-radius: 999px;
+	background: #159994;
+	transition: width 0.4s ease-out;
+}
+
+.knox-gui-attached-progress-fill.warn {
+	background: var(--vscode-editorWarning-foreground, orange);
+}
+
+.knox-gui-diff-add {
+	color: #4ade80;
+}
+
+.knox-gui-diff-del {
+	color: #f87171;
+}
+
+.knox-gui-git-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	padding: 4px 8px;
+	border: none;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+	text-align: left;
+	font-size: 12px;
+}
+
+.knox-gui-git-row:hover {
+	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+}
+
+.knox-gui-git-type {
+	flex-shrink: 0;
+	width: 20px;
+	height: 12px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	font-size: 9px;
+	font-weight: 600;
+	line-height: 1;
+}
+
+.knox-gui-git-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-worktree {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin: 0 8px 4px;
+	padding: 2px;
+	font-size: 11px;
+}
+
+.knox-gui-worktree-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-gui-worktree-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-worktree-actions {
+	display: flex;
+	flex-shrink: 0;
+	gap: 4px;
+}
+
+.knox-gui-worktree-apply {
+	color: #159994 !important;
+}
+
+.knox-gui-worktree-discard {
+	color: var(--vscode-editorWarning-foreground, orange) !important;
+}
+
+.knox-gui-worktree-error {
+	color: var(--vscode-editorWarning-foreground, orange);
+}
+
+.knox-gui-worktree-path {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	opacity: 0.8;
+}
+
+.knox-gui-task-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 0 4px 4px;
+}
+
+.knox-gui-task-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 11px;
+	font-weight: 500;
+}
+
+.knox-gui-task-step {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 6px;
+	border-radius: 4px;
+}
+
+.knox-gui-task-step.active {
+	background: color-mix(in srgb, #159994 10%, transparent);
+}
+
+.knox-gui-task-icon {
+	display: inline-flex;
+	width: 14px;
+	height: 14px;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	color: #6e6e77;
+}
+
+.knox-gui-task-live {
+	animation: knox-task-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes knox-task-pulse {
+	50% {
+		opacity: 0.45;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.knox-gui-task-live {
+		animation: none;
+	}
+}
+
+.knox-gui-task-step-title {
+	min-width: 0;
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 11px;
+	line-height: 16px;
+}
+
+.knox-gui-task-step-title.muted {
+	opacity: 0.55;
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-gui-task-step-title.skipped {
+	text-decoration: line-through;
+}
+
+.knox-gui-memory-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 4px;
+	border-radius: 4px;
+}
+
+.knox-gui-memory-main {
+	min-width: 0;
+	flex: 1;
+}
+
+.knox-gui-memory-title {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	overflow: hidden;
+	font-weight: 500;
+}
+
+.knox-gui-memory-evidence {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 2px;
+}
+
+.knox-gui-memory-chip {
+	padding: 0 4px;
+	border-radius: 3px;
+	font-size: 10px;
+	opacity: 0.7;
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+}
+
+.knox-gui-memory-actions {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 2px;
+}
+
+.knox-gui-memory-forget:hover {
+	color: var(--vscode-errorForeground, #f87171) !important;
+}
+
+.knox-gui-attached-more {
+	width: 100%;
+	padding: 4px;
+	border: none;
+	background: transparent;
+	color: inherit;
+	text-align: left;
+	cursor: pointer;
+	opacity: 0.6;
+}
+
+.knox-gui-attached-more:hover {
+	opacity: 1;
+}
+
+.knox-gui-jobs-list {
+	margin: 0;
+	padding: 0 0 4px;
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+}
+
+.knox-gui-job-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+}
+
+.knox-gui-job-title {
+	min-width: 0;
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	border: none;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+	text-align: left;
+	padding: 0;
+	font-size: 11px;
+}
+
+.knox-gui-job-status {
+	flex-shrink: 0;
+	font-size: 10px;
+	font-variant-numeric: tabular-nums;
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-gui-job-status.failed {
+	color: #f87171;
+}
+
+.knox-gui-job-kill {
+	color: var(--vscode-editorWarning-foreground, orange) !important;
+	font-size: 10px !important;
+}
+
+.knox-gui-job-log {
+	margin: 0 8px 4px;
+	max-height: 8rem;
+	overflow: auto;
+	white-space: pre-wrap;
+	word-break: break-all;
+	font-size: 10px;
+}
+
+.knox-gui-auto-banner {
+	padding: 6px 10px 4px;
+	font-size: 11px;
+}
+
+.knox-gui-auto-banner-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-gui-auto-banner-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: 500;
+}
+
+.knox-gui-auto-banner-label.warn {
+	color: var(--vscode-editorWarning-foreground, orange);
+}
+
+.knox-gui-auto-banner-goal {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	opacity: 0.7;
+}
+
+.knox-gui-fatal {
+	background: #c42b2b;
+	color: #fff;
+	padding: 16px;
+	text-align: center;
+	cursor: pointer;
+	flex-shrink: 0;
+	z-index: 20;
+}
+
+.knox-gui-fatal-more {
+	margin-top: 4px;
+	text-decoration: underline;
+}
+
+.knox-gui-tabs {
+	display: flex;
+	flex-shrink: 0;
+	flex-wrap: wrap;
+	background: var(--vscode-tab-inactiveBackground, transparent);
+	border-bottom: 1px solid var(--vscode-tab-border, var(--vscode-widget-border, transparent));
+}
+
+.knox-gui-tab {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	padding: 0 5px 0 10px;
+	flex-grow: 1;
+	width: 100px;
+	max-width: 140px;
+	height: 22px;
+	cursor: pointer;
+	border: 1px solid var(--vscode-tab-border, transparent);
+	border-left: none;
+	user-select: none;
+	color: var(--vscode-tab-inactiveForeground, inherit);
+	background: var(--vscode-tab-inactiveBackground, transparent);
+}
+
+.knox-gui-tab.active {
+	background: var(--vscode-tab-activeBackground, transparent);
+	color: #159994;
+	border-top: 1px solid #159994;
+	border-bottom-color: transparent;
+}
+
+.knox-gui-tab:hover:not(.active) {
+	background: var(--vscode-tab-hoverBackground, transparent);
+	color: var(--vscode-tab-hoverForeground, inherit);
+}
+
+.knox-gui-tab-title {
+	flex: 1;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-size: 11px;
+}
+
+.knox-gui-tab-close {
+	width: 14px;
+	height: 14px;
+	padding: 0 !important;
+	opacity: 0;
+	flex-shrink: 0;
+}
+
+.knox-gui-tab:hover .knox-gui-tab-close,
+.knox-gui-tab.active .knox-gui-tab-close {
+	opacity: 0.8;
+}
+
+.knox-gui-tabs-rest {
+	flex: 1;
+	border-bottom: 1px solid var(--vscode-tab-border, transparent);
+}
+
+.knox-gui-find {
+	position: absolute;
+	top: 0;
+	right: 0;
+	z-index: 50;
+	display: flex;
+	gap: 6px;
+	align-items: center;
+	padding: 3px 12px 3px 3px;
+	background: var(--vscode-sideBar-background);
+	border: 1px solid var(--vscode-widget-border, var(--vscode-input-border, transparent));
+	border-top: none;
+	border-right: none;
+	border-radius: 0 0 0 8px;
+}
+
+.knox-gui-find input {
+	flex: 1;
+	min-width: 120px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border, transparent);
+	padding: 2px 6px;
+	border-radius: 4px;
+}
+
+.knox-gui-find-count {
+	font-size: 11px;
+	opacity: 0.8;
+	white-space: nowrap;
+	min-width: 4.5em;
+	text-align: center;
+}
+
+.knox-gui-find-nav .knox-gui-svg {
+	color: #159994;
+}
+
+.knox-gui-find-toggle {
+	height: 20px;
+	min-width: 24px;
+	border-radius: 999px;
+	border: 1px solid var(--vscode-widget-border, var(--vscode-input-border, transparent));
+	font-size: 11px;
+}
+
+.knox-gui-find-toggle.selected {
+	background: var(--vscode-inputOption-activeBackground, rgba(21, 153, 148, 0.2));
+}
+
+.knox-gui-find-close,
+.knox-gui-find-close .knox-gui-svg,
+.knox-gui-code-edit-remove,
+.knox-gui-code-edit-remove .knox-gui-svg {
+	color: #f87171 !important;
+}
+
+.knox-gui-drop-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 40;
+	pointer-events: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.knox-gui-drop-overlay-fill {
+	position: absolute;
+	inset: 0;
+	opacity: 0.5;
+	background: var(--vscode-badge-background, #159994);
+}
+
+.knox-gui-drop-overlay-text {
+	position: relative;
+	z-index: 1;
+	color: var(--vscode-foreground);
+	font-size: 14px;
+	text-align: center;
+	padding: 12px;
+}
+
+.knox-gui-large-banner {
+	margin: 4px 12px;
+	padding: 4px 8px;
+	border-radius: 4px;
+	background: rgba(21, 153, 148, 0.12);
+	font-size: 12px;
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.knox-gui-load-earlier {
+	align-self: flex-start;
+	margin: 4px 12px;
+	padding: 2px 0 !important;
+	color: #159994 !important;
+	text-decoration: underline;
+}
+
+.knox-gui-msg-hit {
+	outline: 2px solid color-mix(in srgb, #159994 40%, transparent);
+	outline-offset: 1px;
+}
+
+.knox-gui-msg-hit-current {
+	outline-color: #159994;
+}
+
+/* `StyledMarkdownPreview.tsx` markdown styles. */
+.knox-gui .rendered-markdown {
+	line-height: 1.6;
+}
+
+.knox-gui .rendered-markdown h1,
+.knox-gui .rendered-markdown h2,
+.knox-gui .rendered-markdown h3,
+.knox-gui .rendered-markdown h4,
+.knox-gui .rendered-markdown h5,
+.knox-gui .rendered-markdown h6 {
+	margin: 1.5em 0 0.5em;
+	font-weight: 600;
+	line-height: 1.3;
+	color: #159994;
+}
+
+.knox-gui .rendered-markdown h1 {
+	font-size: 1.5em;
+	border-bottom: 1px solid rgba(21, 153, 148, 0.3);
+	padding-bottom: 0.3em;
+	margin-top: 0.8em;
+}
+
+.knox-gui .rendered-markdown h2 {
+	font-size: 1.3em;
+	border-bottom: 1px solid rgba(21, 153, 148, 0.2);
+	padding-bottom: 0.2em;
+}
+
+.knox-gui .rendered-markdown h3 { font-size: 1.15em; }
+.knox-gui .rendered-markdown h4 { font-size: 1.05em; }
+.knox-gui .rendered-markdown h5 { font-size: 0.95em; }
+
+.knox-gui .rendered-markdown h6 {
+	font-size: 0.9em;
+	color: rgba(21, 153, 148, 0.9);
+}
+
+.knox-gui .rendered-markdown code {
+	word-wrap: break-word;
+	border-radius: 0.375rem;
+	font-size: calc(1em - 2px);
+	font-family: var(--vscode-editor-font-family);
+}
+
+.knox-gui .rendered-markdown :not(pre) > code {
+	color: #159994;
+	padding: 0.2em 0.4em;
+	border-radius: 3px;
+	background: rgba(21, 153, 148, 0.08);
+}
+
+.knox-gui .rendered-markdown p,
+.knox-gui .rendered-markdown li,
+.knox-gui .rendered-markdown ol,
+.knox-gui .rendered-markdown ul {
+	margin: 0.5em 0;
+	line-height: 1.6;
+}
+
+.knox-gui .rendered-markdown p {
+	margin-bottom: 1em;
+}
+
+.knox-gui .rendered-markdown ul,
+.knox-gui .rendered-markdown ol {
+	padding-left: 1.5em;
+}
+
+.knox-gui .rendered-markdown ul { list-style-type: disc; }
+.knox-gui .rendered-markdown ol { list-style-type: decimal; }
+.knox-gui .rendered-markdown ul ul { list-style-type: circle; }
+.knox-gui .rendered-markdown ul ul ul { list-style-type: square; }
+
+.knox-gui .rendered-markdown li {
+	margin: 0.3em 0;
+	padding-left: 0.3em;
+}
+
+.knox-gui .rendered-markdown li::marker {
+	color: #159994;
+}
+
+.knox-gui .rendered-markdown blockquote {
+	margin: 1em 0;
+	padding: 0.5em 1em;
+	border-left: 3px solid #159994;
+	background: rgba(21, 153, 148, 0.1);
+	border-radius: 4px;
+}
+
+.knox-gui .rendered-markdown a {
+	color: #159994;
+	text-decoration: none;
+	transition: all 0.2s ease;
+}
+
+.knox-gui .rendered-markdown a:hover {
+	color: #1cc1bb;
+	text-decoration: underline;
+}
+
+.knox-gui .rendered-markdown img {
+	display: block;
+	max-width: 100%;
+	margin: 1em 0;
+	border-radius: 8px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.knox-gui .rendered-markdown table {
+	width: 100%;
+	margin: 1em 0;
+	overflow: hidden;
+	border-collapse: collapse;
+	border-radius: 4px;
+}
+
+.knox-gui .rendered-markdown th,
+.knox-gui .rendered-markdown td {
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	padding: 0.7em;
+	text-align: left;
+}
+
+.knox-gui .rendered-markdown th {
+	background: rgba(21, 153, 148, 0.15);
+	font-weight: 600;
+	color: #159994;
+}
+
+.knox-gui .rendered-markdown tr:nth-child(even) {
+	background: rgba(255, 255, 255, 0.05);
+}
+
+.knox-gui .rendered-markdown tr:hover {
+	background: rgba(21, 153, 148, 0.07);
+}
+
+.knox-gui .rendered-markdown hr {
+	height: 1px;
+	margin: 1.5em 0;
+	border: 0;
+	background: rgba(21, 153, 148, 0.3);
+}
+
+.knox-gui .rendered-markdown kbd {
+	display: inline-block;
+	padding: 0.2em 0.4em;
+	border: 1px solid rgba(21, 153, 148, 0.3);
+	border-radius: 3px;
+	background-color: rgba(21, 153, 148, 0.1);
+	box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+	color: #159994;
+	font-size: 0.85em;
+	line-height: 1;
+}
+
+.knox-gui-stream-body > .rendered-markdown:first-child > :first-child {
+	margin-top: 8px;
+}
+
+.knox-gui-stream-body > .rendered-markdown:last-child > :last-child {
+	margin-bottom: 0;
+}
+
+.knox-gui-scroll-btns {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.knox-gui-scroll-btns.hidden {
+	display: none;
+}
+
+.knox-gui-error {
+	color: var(--vscode-errorForeground);
+}
+
+.knox-gui-muted {
+	opacity: 0.7;
+	font-size: 11px;
+}
+
+.knox-gui-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	padding: 4px 8px;
+}
+
+.knox-gui-thumbs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 4px 8px;
+}
+
+.knox-gui-thumb-item {
+	position: relative;
+	cursor: pointer;
+}
+
+.knox-gui-thumb {
+	height: 36px;
+	width: 36px;
+	object-fit: cover;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-widget-border, transparent);
+}
+
+.knox-gui-thumb-remove {
+	position: absolute !important;
+	top: -4px;
+	right: -4px;
+	width: 16px;
+	height: 16px;
+	padding: 0 !important;
+	background: var(--vscode-editor-background) !important;
+}
+
+.knox-gui-image-preview {
+	position: fixed;
+	z-index: 2147483647;
+	pointer-events: none;
+	padding: 6px;
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 6px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.knox-gui-image-preview img {
+	max-width: 300px;
+	max-height: 200px;
+	display: block;
+}
+
+.knox-gui-code-edit {
+	margin: 4px 8px 0;
+	padding: 4px;
+	border-radius: 6px 6px 0 0;
+	background: var(--vscode-editor-background);
+}
+
+.knox-gui-code-edit-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	color: #159994;
+	font-size: 12px;
+	padding: 4px 8px;
+}
+
+.knox-gui-code-edit-list {
+	list-style: none;
+	margin: 0 0 6px;
+	padding: 0;
+	max-height: 40vh;
+	overflow: auto;
+}
+
+.knox-gui-code-edit-item {
+	display: flex;
+	flex-direction: column;
+	cursor: pointer;
+}
+
+.knox-gui-code-edit-line {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 2px 8px;
+	border-radius: 4px;
+}
+
+.knox-gui-code-edit-line:hover,
+.knox-gui-code-edit-item.expanded > .knox-gui-code-edit-line {
+	background: color-mix(in srgb, #159994 20%, transparent);
+}
+
+.knox-gui-code-edit-main {
+	width: 80%;
+}
+
+.knox-gui-code-edit-name {
+	flex-shrink: 0;
+	font-size: 12px;
+}
+
+.knox-gui-code-edit-name:hover {
+	text-decoration: underline;
+}
+
+.knox-gui-code-edit-path {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 12px;
+	opacity: 0.6;
+	visibility: hidden;
+}
+
+.knox-gui-code-edit-actions {
+	visibility: hidden;
+}
+
+.knox-gui-code-edit-item:hover .knox-gui-code-edit-path,
+.knox-gui-code-edit-item:hover .knox-gui-code-edit-actions {
+	visibility: visible;
+}
+
+.knox-gui-add-file-split {
+	position: relative;
+	display: flex;
+	align-items: center;
+}
+
+.knox-gui-add-file-split .knox-gui-add-file-main {
+	color: #159994;
+	font-size: 10px;
+	border-right: 1px solid color-mix(in srgb, #159994 50%, transparent);
+	border-radius: 0;
+}
+
+.knox-gui-add-file-popover {
+	position: absolute;
+	right: 0;
+	bottom: 100%;
+	z-index: 20;
+	white-space: nowrap;
+	color: color-mix(in srgb, #159994 60%, transparent);
+}
+
+.knox-gui-code-edit-main,
+.knox-gui-code-edit-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+
+.knox-gui-code-edit-snippet {
+	max-height: 25vh;
+	overflow: auto;
+	margin: 4px 4px 0;
+	padding: 6px 10px;
+	cursor: text;
+	font-size: 11px;
+	background: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.12));
+}
+
+.knox-gui-context-chip {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 2px 8px;
+}
+
+.knox-gui-code-edit-name,
+.knox-gui-add-file {
+	background: transparent;
+	border: none;
+	color: inherit;
+	cursor: pointer;
+	padding: 0;
+}
+
+.knox-gui-add-file {
+	color: #159994;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	width: 100%;
+	padding: 4px 0;
+}
+
+.knox-gui-add-file-combo {
+	position: relative;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 8px 8px;
+}
+
+.knox-gui-add-file-input {
+	flex: 1;
+	min-width: 0;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 4px;
+	padding: 4px 6px;
+}
+
+.knox-gui-add-file-options {
+	position: absolute;
+	left: 8px;
+	right: 8px;
+	top: 100%;
+	z-index: 20;
+	max-height: 15rem;
+	overflow: auto;
+	background: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-widget-border, var(--vscode-input-border, transparent));
+	border-radius: 4px;
+}
+
+.knox-gui-add-file-option {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	text-align: left;
+	padding: 4px 8px;
+	background: transparent;
+	border: none;
+	color: inherit;
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.knox-gui-add-file-option.selected,
+.knox-gui-add-file-option:hover {
+	background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+}
+
+.knox-gui-add-file-empty {
+	flex-basis: 100%;
+	padding: 4px 0;
+	font-size: 12px;
+}
+
+.knox-gui-exit-edit {
+	text-decoration: underline;
+	opacity: 0.85;
+}
+
+.knox-gui-context-peek {
+	padding: 4px 8px;
+}
+
+.knox-gui-context-peek-title {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	color: #159994;
+	opacity: 0.9;
+	margin-bottom: 4px;
+	padding: 0;
+	border: none;
+	background: transparent;
+	cursor: pointer;
+}
+
+.knox-gui-context-peek-list {
+	max-height: 50vh;
+	overflow-y: auto;
+	margin-top: 4px;
+}
+
+.knox-gui-context-peek-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-right: 8px;
+	padding: 4px 6px;
+	border-radius: 2px;
+	font-size: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	cursor: pointer;
+}
+
+.knox-gui-context-peek-item:hover {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.knox-gui-context-peek-icon {
+	flex-shrink: 0;
+	width: 18px;
+	height: 18px;
+	font-size: 16px;
+	border-radius: 4px;
+}
+
+.knox-gui-context-peek-name {
+	flex-shrink: 0;
+	max-width: 50%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.knox-gui-context-peek-desc {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: #159994;
+}
+
+.knox-gui-context-peek-url:hover .knox-gui-context-peek-name,
+.knox-gui-context-peek-url:hover .knox-gui-context-peek-desc {
+	text-decoration: underline;
+}
+
+.knox-gui-context-peek-arrow {
+	flex-shrink: 0;
+	margin: 0 8px;
+	color: #159994;
+	opacity: 0;
+}
+
+.knox-gui-context-peek-item:hover .knox-gui-context-peek-arrow {
+	opacity: 1;
+}
+

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKnoxGuiCheckpointBranch, IKnoxGuiCheckpointNode } from './knoxGuiState.js';
-import { parseHistoryDate } from './knoxGuiOverlays.js';
+import { fuzzyTitleMatch, parseHistoryDate } from './knoxGuiOverlays.js';
 
 export const CHECKPOINT_GRAPH_LANE_COLORS = [
 	'#61afef', '#98c379', '#e5c07b', '#e06c75', '#c678dd', '#56b6c2', '#d19a66', '#abb2bf',
@@ -442,6 +442,29 @@ export function checkpointGraphRowTop(index: number, expand?: CheckpointGraphExp
 	return top;
 }
 
+/** Scroll that brings `[top, bottom)` fully into view (bottom first), or undefined when it already fits or nothing is measured yet. */
+export function checkpointGraphRevealScroll(top: number, bottom: number, scrollTop: number, viewport: number): number | undefined {
+	if (viewport <= 0) {
+		return undefined;
+	}
+	if (bottom > scrollTop + viewport) {
+		return bottom - viewport;
+	}
+	return top < scrollTop ? top : undefined;
+}
+
+export function checkpointGraphFindScroll(top: number, scrollTop: number, viewport: number): number | undefined {
+	return top < scrollTop || top + CHECKPOINT_GRAPH_ROW_HEIGHT > scrollTop + viewport ? top : undefined;
+}
+
+/** `GraphMenu`: flip left / up when the menu would overflow the window, keeping an 8px margin. */
+export function checkpointGraphMenuPosition(x: number, y: number, width: number, height: number, windowWidth: number, windowHeight: number): { x: number; y: number } {
+	return {
+		x: x + width > windowWidth ? Math.max(8, x - width) : x,
+		y: y + height > windowHeight ? Math.max(8, y - height) : y,
+	};
+}
+
 export function checkpointGraphWindow(
 	count: number,
 	scrollTop: number,
@@ -812,11 +835,23 @@ export function filterCheckpoints(
 		if (!query) {
 			return true;
 		}
-		return node.description.toLowerCase().includes(query)
-			|| node.shortId.toLowerCase().includes(query)
-			|| node.tags.some(tag => tag.toLowerCase().includes(query))
-			|| node.changedPaths.some(path => path.toLowerCase().includes(query));
+		return checkpointMatchesQuery(node, opts.query!.trim());
 	});
+}
+
+/**
+ * `Checkpoints/index.tsx`: MiniSearch (`fuzzy: 0.1`) over description, id,
+ * tags, session and paths, plus id prefix and substring checks.
+ */
+export function checkpointMatchesQuery(node: Pick<IKnoxGuiCheckpointNode, 'id' | 'description' | 'tags' | 'sessionId' | 'changedPaths'>, query: string): boolean {
+	const needle = query.toLowerCase();
+	const fields = [node.description, node.id, node.tags.join(' '), node.sessionId ?? '', node.changedPaths.join(' ')];
+	return fields.some(text => fuzzyTitleMatch(text, query))
+		|| node.id.toLowerCase().startsWith(needle)
+		|| node.description.toLowerCase().includes(needle)
+		|| node.tags.some(tag => tag.toLowerCase().includes(needle))
+		|| Boolean(node.sessionId?.toLowerCase().includes(needle))
+		|| node.changedPaths.some(path => path.toLowerCase().includes(needle));
 }
 
 export function checkpointShellMessageKey(state: string | undefined): string {
@@ -929,6 +964,37 @@ export function formatCheckpointAge(created: string, now = Date.now()): { key: s
 	return { key: 'checkpointGraph.daysAgo', count: days };
 }
 
+/**
+ * `CheckpointTableRow.tsx` `formatDate` (`yesterday: true`) and `CheckpointTimeline.tsx`
+ * `formatRelativeTime`: relative within a week, otherwise the caller formats `date`.
+ */
+export function checkpointRelativeAge(created: string, yesterday: boolean, now = Date.now()): { key: string; count?: number } | { date: Date } {
+	const date = parseHistoryDate(created);
+	const delta = now - date.getTime();
+	if (isNaN(delta)) {
+		return { key: 'justNow' };
+	}
+	const minutes = Math.floor(delta / 60000);
+	const hours = Math.floor(delta / 3600000);
+	const days = Math.floor(delta / 86400000);
+	if (minutes < 1) {
+		return { key: 'justNow' };
+	}
+	if (hours < 1) {
+		return { key: 'minutesAgo', count: minutes };
+	}
+	if (hours < 24) {
+		return { key: 'hoursAgo', count: hours };
+	}
+	if (yesterday && days === 1) {
+		return { key: 'yesterday' };
+	}
+	if (days < 7) {
+		return { key: 'daysAgo', count: days };
+	}
+	return { date };
+}
+
 export function activeHeadId(branches: IKnoxGuiCheckpointBranch[]): string | undefined {
 	return branches.find(branch => branch.isActive)?.headCheckpointId;
 }
@@ -1031,7 +1097,7 @@ export interface IKnoxGuiDiffHunk {
 	lines: IKnoxGuiDiffLine[];
 }
 
-export const CHECKPOINT_CHART_MIN_DAYS = 7;
+export const CHECKPOINT_CHART_MIN_DAYS = 14;
 /** KN-375: match PerformanceDashboard + KN-327 engine default. */
 export const CHECKPOINT_DASHBOARD_HISTORY_DAYS = 30;
 export const CHECKPOINT_ANALYSIS_GROUP_LIMIT = 50;
@@ -1149,6 +1215,48 @@ export function validateCheckpointConfig(config: IKnoxGuiCheckpointConfig): Part
 		autoMinIntervalMs: !(Number.isInteger(config.autoMinIntervalMs) && config.autoMinIntervalMs >= 1000 && config.autoMinIntervalMs <= 3_600_000),
 		autoFileChangeThreshold: !(Number.isInteger(config.autoFileChangeThreshold) && config.autoFileChangeThreshold >= 1 && config.autoFileChangeThreshold <= 10000),
 	};
+}
+
+/** `CheckpointConfig.tsx` `getValidationErrors`: per-field i18n keys; storage sizes are validated from the raw text. */
+export function checkpointConfigFieldErrors(config: IKnoxGuiCheckpointConfig, storageInput: string, fileSizeInput: string): Partial<Record<keyof IKnoxGuiCheckpointConfig, string>> {
+	const numeric = validateCheckpointConfig(config);
+	const errors: Partial<Record<keyof IKnoxGuiCheckpointConfig, string>> = {};
+	const fileSize = parseStorageBytes(fileSizeInput);
+	if (fileSize === null || fileSize < 1024) {
+		errors.maxFileSizeBytes = 'checkpointInvalidFileSize';
+	}
+	if (numeric.maxCheckpoints) {
+		errors.maxCheckpoints = 'checkpointInvalidMaxCheckpoints';
+	}
+	if (numeric.retentionDays) {
+		errors.retentionDays = 'checkpointInvalidRetentionDays';
+	}
+	const storage = parseStorageBytes(storageInput);
+	if (storage === null || storage < 1024 * 1024) {
+		errors.maxStorageBytes = 'checkpointInvalidStorageSize';
+	}
+	if (numeric.maxFilesPerCheckpoint) {
+		errors.maxFilesPerCheckpoint = 'checkpointInvalidMaxFiles';
+	}
+	if (numeric.autoMinIntervalMs) {
+		errors.autoMinIntervalMs = 'checkpointInvalidAutoInterval';
+	}
+	if (numeric.autoFileChangeThreshold) {
+		errors.autoFileChangeThreshold = 'checkpointInvalidAutoFileThreshold';
+	}
+	return errors;
+}
+
+/** `hasChanges`: an unparseable storage input that differs from the saved value also counts as a change. */
+export function checkpointConfigIsDirty(draft: IKnoxGuiCheckpointConfig, original: IKnoxGuiCheckpointConfig | undefined, storageInput: string): boolean {
+	const saved = original ?? DEFAULT_CHECKPOINT_CONFIG;
+	return checkpointConfigHasChanges(draft, saved) || (parseStorageBytes(storageInput) === null && storageInput.trim() !== formatCheckpointBytes(saved.maxStorageBytes));
+}
+
+/** `getNumberValue`: `parseInt`, falling back when the field is empty or non-numeric. */
+export function checkpointConfigNumber(value: string, fallback: number): number {
+	const parsed = Number.parseInt(value, 10);
+	return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 export function checkpointConfigHasErrors(errors: Partial<Record<keyof IKnoxGuiCheckpointConfig, boolean>>): boolean {
@@ -1403,6 +1511,83 @@ export function hunkWordAltRanges(lines: IKnoxGuiDiffLine[]): Array<IKnoxGuiText
 	return result;
 }
 
+export interface IKnoxGuiSplitDiffRow {
+	left?: number;
+	right?: number;
+}
+
+/** Aligned split rows: context on both sides, each removed/added run paired row by row. Values index into `lines`. */
+export function alignSplitDiffRows(lines: IKnoxGuiDiffLine[]): IKnoxGuiSplitDiffRow[] {
+	const rows: IKnoxGuiSplitDiffRow[] = [];
+	let index = 0;
+	while (index < lines.length) {
+		if (lines[index].type === 'context') {
+			rows.push({ left: index, right: index });
+			index += 1;
+			continue;
+		}
+		const removed: number[] = [];
+		const added: number[] = [];
+		while (index < lines.length && lines[index].type !== 'context') {
+			(lines[index].type === 'removed' ? removed : added).push(index);
+			index += 1;
+		}
+		for (let row = 0; row < Math.max(removed.length, added.length); row += 1) {
+			rows.push({ left: removed[row], right: added[row] });
+		}
+	}
+	return rows;
+}
+
+export interface IKnoxGuiDiffSegment {
+	kind: 'lines' | 'gap';
+	start: number;
+	end: number;
+}
+
+/** Splits a full line diff into visible runs (changes plus `context` lines) and collapsible unchanged gaps. */
+export function buildDiffSegments(lines: IKnoxGuiDiffLine[], context = 3): IKnoxGuiDiffSegment[] {
+	const visible = lines.map(() => false);
+	lines.forEach((line, index) => {
+		if (line.type !== 'context') {
+			for (let near = Math.max(0, index - context); near <= Math.min(lines.length - 1, index + context); near += 1) {
+				visible[near] = true;
+			}
+		}
+	});
+	const segments: IKnoxGuiDiffSegment[] = [];
+	lines.forEach((_line, index) => {
+		const kind = visible[index] ? 'lines' : 'gap';
+		const last = segments[segments.length - 1];
+		if (last?.kind === kind) {
+			last.end = index + 1;
+		} else {
+			segments.push({ kind, start: index, end: index + 1 });
+		}
+	});
+	return segments;
+}
+
+export function checkpointDiffChangedFiles<T extends { status: string }>(files: T[]): T[] {
+	return files.filter(file => file.status !== 'unchanged');
+}
+
+export function checkpointDiffSummary(files: Array<{ status: string; additions: number; deletions: number }>): { filesChanged: number; additions: number; deletions: number } {
+	const changed = checkpointDiffChangedFiles(files);
+	return {
+		filesChanged: changed.length,
+		additions: changed.reduce((sum, file) => sum + file.additions, 0),
+		deletions: changed.reduce((sum, file) => sum + file.deletions, 0),
+	};
+}
+
+export function checkpointDiffContentBytes(content: string | null, encoding?: string): number | undefined {
+	if (content === null) {
+		return undefined;
+	}
+	return encoding === 'base64' ? Math.floor(content.replace(/=+$/, '').length * 3 / 4) : content.length;
+}
+
 export function checkpointRiskChipClass(level: string): string {
 	switch (level) {
 		case 'Low': return 'odp-chip-green';
@@ -1472,6 +1657,63 @@ export function utcDayKey(iso: string): string {
 export function formatChartTick(isoDay: string): string {
 	const [, month, day] = isoDay.split('-');
 	return month && day ? `${Number(month)}/${Number(day)}` : isoDay;
+}
+
+/** `PerformanceDashboard.tsx` `formatDuration`. */
+export function formatCheckpointDuration(ms: number): string {
+	return ms < 1000 ? `${ms.toFixed(0)}ms` : `${(ms / 1000).toFixed(1)}s`;
+}
+
+/** `PerformanceDashboard.tsx` `formatBytes` (trailing `.0` dropped). */
+export function formatDashboardBytes(bytes: number): string {
+	if (!bytes) {
+		return '0 B';
+	}
+	const sizes = ['B', 'KB', 'MB', 'GB'];
+	const i = Math.min(sizes.length - 1, Math.max(0, Math.floor(Math.log(bytes) / Math.log(1024))));
+	return `${parseFloat((bytes / Math.pow(1024, i)).toFixed(1))} ${sizes[i]}`;
+}
+
+/** Recharts `interval` for the day axis: every label up to 8 days, then about 7 labels. */
+/** `CheckpointTimeline.tsx` filter: substring over description, id and tags, one kind, newest first, grouped by calendar day. */
+export function groupTimelineCheckpoints<T extends { id: string; description: string; created: string; kind: string; tags?: string[] }>(nodes: readonly T[], query: string, kind: string | null): { count: number; groups: Array<{ day: string; nodes: T[] }> } {
+	const term = query.toLowerCase();
+	const filtered = nodes
+		.filter(node => !term || node.description.toLowerCase().includes(term) || node.id.toLowerCase().includes(term) || (node.tags ?? []).some(tag => tag.toLowerCase().includes(term)))
+		.filter(node => !kind || node.kind === kind)
+		.sort((a, b) => Date.parse(b.created) - Date.parse(a.created));
+	const groups: Array<{ day: string; nodes: T[] }> = [];
+	for (const node of filtered) {
+		const day = new Date(node.created).toDateString();
+		if (groups[groups.length - 1]?.day !== day) {
+			groups.push({ day, nodes: [] });
+		}
+		groups[groups.length - 1].nodes.push(node);
+	}
+	return { count: filtered.length, groups };
+}
+
+export function checkpointChartTickInterval(length: number): number {
+	return length <= 8 ? 0 : Math.max(0, Math.ceil(length / 7) - 1);
+}
+
+/** Recharts `getNiceTickValues([0, max], tickCount, false)` for a `[0, 'auto']` YAxis with `allowDecimals={false}`: always `tickCount` integer ticks. */
+export function checkpointChartYTicks(max: number, tickCount = 5): number[] {
+	const count = Math.max(tickCount, 2);
+	if (!(max > 0)) {
+		return Array.from({ length: count }, (_, i) => i);
+	}
+	const precise = (value: number) => Number(value.toPrecision(12));
+	for (let correction = 0; ; correction++) {
+		const rough = max / (count - 1);
+		const digits = Math.floor(Math.log10(rough)) + 1;
+		const unit = Math.pow(10, digits);
+		const scale = digits !== 1 ? 0.05 : 0.1;
+		const step = Math.ceil(precise((Math.ceil(precise(rough / unit / scale)) + correction) * scale * unit));
+		if (Math.ceil(precise(max / step)) + 1 <= count) {
+			return Array.from({ length: count }, (_, i) => i * step);
+		}
+	}
 }
 
 export function compactAxisNumber(value: number): string {
@@ -1605,6 +1847,158 @@ export function parseRestorePreview(value: unknown): IKnoxGuiRestorePreview | un
 	};
 }
 
+export interface IKnoxGuiCheckpointDetailsSnapshot extends IKnoxGuiCheckpointFileSnapshot {
+	lastModified: string;
+}
+
+export interface IKnoxGuiCheckpointDetails {
+	id: string;
+	description: string;
+	created: string;
+	workspacePath?: string;
+	messageId?: string;
+	conversationContext?: { role: string; messageContent: string; index: number; timestamp: string };
+	fileSnapshots: IKnoxGuiCheckpointDetailsSnapshot[];
+}
+
+export type KnoxCheckpointDetailsTab = 'basic' | 'files' | 'diff';
+
+/** View state of the checkpoint details modal (`CheckpointTableRow.tsx`). */
+export interface IKnoxGuiCheckpointDetailsView {
+	id: string;
+	loading: boolean;
+	details?: IKnoxGuiCheckpointDetails;
+	tab: KnoxCheckpointDetailsTab;
+	selectedFile?: string;
+	expandedDirs: Set<string>;
+	/** `previous`, `workspace`, or a checkpoint id. */
+	compareTarget: string;
+	diff?: IKnoxGuiCheckpointDiff;
+	diffLoading: boolean;
+	diffSeq: number;
+	restoringFile?: string;
+	wrap: boolean;
+	copied: boolean;
+}
+
+/** `getCheckpointDetails` / `getPreviousCheckpoint` both answer `{ success, details }`. */
+export function parseCheckpointDetails(value: unknown): IKnoxGuiCheckpointDetails | undefined {
+	const root = rec(value);
+	if (root && root.success === false) {
+		return undefined;
+	}
+	const details = rec(root?.details) ?? (typeof root?.id === 'string' ? root : undefined);
+	if (!details || typeof details.id !== 'string') {
+		return undefined;
+	}
+	const context = rec(details.conversationContext);
+	return {
+		id: details.id,
+		description: String(details.description ?? ''),
+		created: String(details.created ?? ''),
+		workspacePath: typeof details.workspacePath === 'string' ? details.workspacePath : undefined,
+		messageId: typeof details.messageId === 'string' ? details.messageId : undefined,
+		conversationContext: context ? {
+			role: String(context.role ?? ''),
+			messageContent: String(context.messageContent ?? ''),
+			index: Number(context.index ?? 0),
+			timestamp: String(context.timestamp ?? ''),
+		} : undefined,
+		fileSnapshots: arr(details.fileSnapshots).map(item => {
+			const file = rec(item) ?? {};
+			const content = String(file.content ?? '');
+			const encoding = String(file.encoding ?? 'utf8');
+			return {
+				relativePath: String(file.relativePath ?? ''),
+				content,
+				encoding,
+				size: Number(file.size ?? content.length),
+				lastModified: String(file.lastModified ?? details.created ?? ''),
+			};
+		}).filter(file => file.relativePath),
+	};
+}
+
+export function checkpointDetailsDefaultTab(details: IKnoxGuiCheckpointDetails): KnoxCheckpointDetailsTab {
+	return details.fileSnapshots.length ? 'files' : 'basic';
+}
+
+/**
+ * `CheckpointTableRow.tsx` `loadPreviousCheckpointFallback`: when the host
+ * cannot reconstruct a diff, compare the raw snapshots of the previous
+ * checkpoint against this one.
+ */
+export function diffFromCheckpointSnapshots(oldDetails: IKnoxGuiCheckpointDetails, newDetails: IKnoxGuiCheckpointDetails): IKnoxGuiCheckpointDiff {
+	const oldByPath = new Map(oldDetails.fileSnapshots.map(file => [file.relativePath, file]));
+	const newByPath = new Map(newDetails.fileSnapshots.map(file => [file.relativePath, file]));
+	const paths = [...new Set([...oldByPath.keys(), ...newByPath.keys()])].sort();
+	return {
+		oldCheckpoint: { id: oldDetails.id, description: oldDetails.description, created: oldDetails.created },
+		newCheckpoint: { id: newDetails.id, description: newDetails.description, created: newDetails.created },
+		files: buildCheckpointDiffFiles(paths.map(relativePath => {
+			const before = oldByPath.get(relativePath);
+			const after = newByPath.get(relativePath);
+			return {
+				relativePath,
+				oldContent: before ? before.content : null,
+				newContent: after ? after.content : null,
+				oldEncoding: before?.encoding,
+				newEncoding: after?.encoding,
+			};
+		})),
+	};
+}
+
+/** `checkpointListQuery.ts`: every other checkpoint, newest first. */
+export function compareCheckpointTargets<T extends { id: string; created: string }>(catalog: readonly T[], currentId: string): T[] {
+	return catalog
+		.filter(checkpoint => checkpoint.id !== currentId)
+		.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+}
+
+/** `FileTreeView.tsx`: expand the folders leading to the first file. */
+export function checkpointTreeAncestors(relativePath: string): string[] {
+	const parts = relativePath.split('/').filter(Boolean).slice(0, -1);
+	return parts.map((_, index) => parts.slice(0, index + 1).join('/'));
+}
+
+/** `FileTreeView.tsx` / `CodeViewer.tsx` `formatFileSize`. */
+export function formatSnapshotSize(bytes: number): string {
+	if (!bytes) {
+		return '0 B';
+	}
+	const sizes = ['B', 'KB', 'MB', 'GB'];
+	const i = Math.min(sizes.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+	return `${parseFloat((bytes / Math.pow(1024, i)).toFixed(1))} ${sizes[i]}`;
+}
+
+const CHECKPOINT_IMAGE_MIME: Record<string, string> = {
+	png: 'image/png',
+	jpg: 'image/jpeg',
+	jpeg: 'image/jpeg',
+	gif: 'image/gif',
+	webp: 'image/webp',
+	ico: 'image/x-icon',
+	bmp: 'image/bmp',
+	avif: 'image/avif',
+};
+
+export function checkpointImageMime(relativePath: string, encoding: string | undefined): string | undefined {
+	if (encoding !== 'base64') {
+		return undefined;
+	}
+	return CHECKPOINT_IMAGE_MIME[relativePath.split('.').pop()?.toLowerCase() ?? ''];
+}
+
+export const CHECKPOINT_TREE_WIDTH = { default: 320, min: 200, max: 500 } as const;
+
+/** `ResizableSplitter.tsx`: bounds tighten to 15%–60% of the container. */
+export function clampCheckpointTreeWidth(width: number, containerWidth: number): number {
+	const min = Math.max(CHECKPOINT_TREE_WIDTH.min, containerWidth * 0.15);
+	const max = Math.min(CHECKPOINT_TREE_WIDTH.max, containerWidth * 0.6);
+	return Math.round(Math.max(min, Math.min(max, width)));
+}
+
 export function parseCheckpointDiff(value: unknown, fallbackNewDescription?: string): IKnoxGuiCheckpointDiff | undefined {
 	const root = rec(value);
 	const diff = rec(root?.diff) ?? root;
@@ -1647,7 +2041,7 @@ export function parsePerformanceDashboard(value: unknown): {
 	storageHistory: Array<{ timestamp: string; totalBytes: number; checkpointCount: number }>;
 	creationFrequency: Array<{ bucket: string; count: number }>;
 	restorationEvents: Array<{ timestamp: string; checkpointId: string; success: boolean; durationMs: number; filesRestored: number; filesFailed: number; error?: string }>;
-	aiSessionMetrics: Array<{ sessionId: string; startedAt: string; filesChanged: number; checkpointsCreated: number; rollbacks?: number; durationSeconds: number }>;
+	aiSessionMetrics: Array<{ sessionId: string; startedAt: string; filesChanged: number; linesAdded?: number; linesDeleted?: number; checkpointsCreated: number; rollbacks?: number; durationSeconds: number }>;
 	summary: {
 		totalCheckpointsCreated: number;
 		totalRestorations: number;
@@ -1697,6 +2091,8 @@ export function parsePerformanceDashboard(value: unknown): {
 				sessionId: String(row.sessionId ?? ''),
 				startedAt: String(row.startedAt ?? ''),
 				filesChanged: Number(row.filesChanged ?? 0),
+				linesAdded: typeof row.linesAdded === 'number' ? row.linesAdded : undefined,
+				linesDeleted: typeof row.linesDeleted === 'number' ? row.linesDeleted : undefined,
 				checkpointsCreated: Number(row.checkpointsCreated ?? 0),
 				rollbacks: row.rollbacks !== undefined ? Number(row.rollbacks) : undefined,
 				durationSeconds: Number(row.durationSeconds ?? 0),

@@ -17,6 +17,7 @@ import {
 	IKnoxGuiTool,
 	KnoxModelRole,
 } from './knoxGuiState.js';
+import { isSlashBookmarked } from './knoxGuiInput.js';
 
 /** ModelsSection roles — not embed/autocomplete. */
 export const MODEL_OVERLAY_ROLES: KnoxModelRole[] = ['chat', 'edit', 'apply', 'viewRead', 'realTimeSearch'];
@@ -40,14 +41,21 @@ export const MODEL_ROLE_USED_FOR_KEY: Record<KnoxModelRole, string> = {
 export const CHAT_FALLBACK_ROLES: KnoxModelRole[] = ['chat', 'apply', 'edit'];
 
 export const AGENT_PROFILE_DEFAULTS: Record<'default' | 'rust' | 'systems', {
+	/** 0 = unlimited. */
+	maxSteps: number;
 	doomLoopThreshold: number;
 	verifyMode: 'diagnostics' | 'command';
 	verifyCommand: string;
 }> = {
-	default: { doomLoopThreshold: 3, verifyMode: 'diagnostics', verifyCommand: '' },
-	rust: { doomLoopThreshold: 4, verifyMode: 'command', verifyCommand: 'cargo check --workspace --all-targets' },
-	systems: { doomLoopThreshold: 5, verifyMode: 'command', verifyCommand: 'make' },
+	default: { maxSteps: 0, doomLoopThreshold: 3, verifyMode: 'diagnostics', verifyCommand: '' },
+	rust: { maxSteps: 0, doomLoopThreshold: 4, verifyMode: 'command', verifyCommand: 'cargo check --workspace --all-targets' },
+	systems: { maxSteps: 0, doomLoopThreshold: 5, verifyMode: 'command', verifyCommand: 'make' },
 };
+
+/** `UserSettingsForm.tsx`: unset max steps / doom-loop fall back to the profile (`auto` uses default). */
+export function agentProfileDefaults(profile: string): typeof AGENT_PROFILE_DEFAULTS['default'] {
+	return AGENT_PROFILE_DEFAULTS[profile === 'rust' || profile === 'systems' ? profile : 'default'];
+}
 
 export interface IKnoxGuiAddModelInput {
 	key: string;
@@ -107,7 +115,94 @@ export interface IKnoxGuiKnoxChatModel {
 	supportsTools?: boolean;
 	supportsReasoning?: boolean;
 	supportsWebSearch?: boolean;
+	supportsImageOutput?: boolean;
+	/** Input modalities from `architecture.input_modalities`. */
+	modalities?: string[];
+	pricing?: IKnoxGuiModelPricing;
 	supportedParameters?: string[];
+}
+
+/** USD per 1K tokens, as in `core/llm/knoxChatModels.ts` `ModelPricingFromApi`. */
+export interface IKnoxGuiModelPricing {
+	promptPer1k: number;
+	completionPer1k: number;
+}
+
+function parsePricingNumber(raw: unknown): number | undefined {
+	if (raw === null || raw === undefined || raw === '') {
+		return undefined;
+	}
+	const value = Number(raw);
+	return Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+/** `getModelPricingFromMetadata`: display-unit prices are $/1M, otherwise $/token. */
+export function knoxChatModelPricing(pricing: unknown, inDisplayUnits: unknown): IKnoxGuiModelPricing | undefined {
+	const rec = pricing && typeof pricing === 'object' ? pricing as Record<string, unknown> : undefined;
+	const prompt = parsePricingNumber(rec?.prompt);
+	const completion = parsePricingNumber(rec?.completion);
+	if (prompt === undefined || completion === undefined) {
+		return undefined;
+	}
+	const scale = (value: number) => inDisplayUnits === true ? value / 1000 : value * 1000;
+	return { promptPer1k: scale(prompt), completionPer1k: scale(completion) };
+}
+
+function finitePositiveNumber(value: unknown): number | undefined {
+	return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function isUnlimitedContext(value: unknown): boolean {
+	return value === -1 || value === Number.POSITIVE_INFINITY;
+}
+
+/** `getMetadataContextLength`: `top_provider` wins, `-1` means unlimited. */
+export function knoxChatMetadataContextLength(metadata: Record<string, unknown>): number | undefined {
+	const topProvider = metadata.top_provider && typeof metadata.top_provider === 'object' ? metadata.top_provider as Record<string, unknown> : undefined;
+	const top = topProvider?.context_length;
+	const root = metadata.context_length ?? metadata.contextLength;
+	if (isUnlimitedContext(top) || isUnlimitedContext(root)) {
+		return Number.POSITIVE_INFINITY;
+	}
+	return finitePositiveNumber(top) ?? finitePositiveNumber(root);
+}
+
+/** `getRecommendedMaxTokens`: API max completion tokens, capped to a quarter of a finite context. */
+export function knoxChatRecommendedMaxTokens(metadata: Record<string, unknown>): number | undefined {
+	const topProvider = metadata.top_provider && typeof metadata.top_provider === 'object' ? metadata.top_provider as Record<string, unknown> : undefined;
+	const maxCompletion = finitePositiveNumber(topProvider?.max_completion_tokens) ?? finitePositiveNumber(metadata.max_completion_tokens);
+	if (maxCompletion === undefined) {
+		return undefined;
+	}
+	const contextLength = knoxChatMetadataContextLength(metadata);
+	if (contextLength !== undefined && Number.isFinite(contextLength)) {
+		return Math.min(maxCompletion, Math.floor(contextLength / 4));
+	}
+	return maxCompletion;
+}
+
+export function knoxChatPricingHasWebSearch(pricing: unknown): boolean {
+	const rec = pricing && typeof pricing === 'object' ? pricing as Record<string, unknown> : undefined;
+	return parsePricingNumber(rec?.web_search) !== undefined;
+}
+
+export function formatUsdAmount(value: number): string {
+	if (!Number.isFinite(value)) {
+		return '0';
+	}
+	if (Math.abs(value - Math.round(value)) < 1e-9) {
+		return String(Math.round(value));
+	}
+	if (Math.abs(value) >= 0.01) {
+		return value.toFixed(2).replace(/\.?0+$/, '');
+	}
+	return value.toFixed(4).replace(/\.?0+$/, '');
+}
+
+export function formatModelPricingPerMillion(pricing: IKnoxGuiModelPricing): { badge: string; title: string } {
+	const prompt = formatUsdAmount(pricing.promptPer1k * 1000);
+	const completion = formatUsdAmount(pricing.completionPer1k * 1000);
+	return { badge: `$${prompt}/${completion}`, title: `$${prompt} / $${completion} per 1M tokens` };
 }
 
 const API_KEY_INPUT: IKnoxGuiAddModelInput = {
@@ -137,45 +232,6 @@ export const COMPLETION_PARAMS_INPUTS: IKnoxGuiAddModelInput[] = [
 	{ key: 'completionOptions.frequencyPenalty', labelKey: 'frequencyPenalty', inputType: 'number', required: false, min: 0, max: 1, step: 0.01 },
 ];
 
-const GPT4O: IKnoxGuiAddModelPackage = {
-	title: 'GPT-4o',
-	description: 'An even faster version of GPT-4 with stronger multi-modal capabilities.',
-	params: { model: 'gpt-4o', contextLength: 128000, title: 'GPT-4o', systemMessage: 'You are an expert software developer. You give helpful and concise responses.' },
-	provider: 'openai',
-	icon: 'openai.png',
-	providerOptions: ['openai'],
-};
-const GPT4O_MINI: IKnoxGuiAddModelPackage = {
-	title: 'GPT-4o Mini',
-	description: 'A model at less than half the price of gpt-3.5-turbo, but near gpt-4 in capabilities.',
-	params: { model: 'gpt-4o-mini', contextLength: 128000, title: 'GPT-4o mini', systemMessage: 'You are an expert software developer. You give helpful and concise responses.' },
-	provider: 'openai',
-	icon: 'openai.png',
-	providerOptions: ['openai'],
-};
-const GPT4_TURBO: IKnoxGuiAddModelPackage = {
-	title: 'GPT-4 Turbo',
-	description: 'A faster and more capable version of GPT-4 with longer context length and image support',
-	params: { model: 'gpt-4-turbo', contextLength: 128000, title: 'GPT-4 Turbo' },
-	provider: 'openai',
-	icon: 'openai.png',
-	providerOptions: ['openai'],
-};
-const GPT35: IKnoxGuiAddModelPackage = {
-	title: 'GPT-3.5-Turbo',
-	description: 'A faster, cheaper OpenAI model with slightly lower capabilities',
-	params: { model: 'gpt-3.5-turbo', contextLength: 8096, title: 'GPT-3.5-Turbo' },
-	provider: 'openai',
-	icon: 'openai.png',
-	providerOptions: ['openai'],
-};
-const AUTODETECT: IKnoxGuiAddModelPackage = {
-	title: 'Autodetect',
-	description: 'Automatically populate the model list by calling the /models endpoint of the server',
-	params: { model: 'AUTODETECT', title: 'OpenAI' },
-	provider: 'openai',
-};
-
 export const KNOX_CHAT_FALLBACK_MODELS: IKnoxGuiKnoxChatModel[] = [{
 	title: 'Knox MS',
 	description: 'Knox Memory System Model (Unlimited Context)',
@@ -183,6 +239,7 @@ export const KNOX_CHAT_FALLBACK_MODELS: IKnoxGuiKnoxChatModel[] = [{
 	contextLength: Number.POSITIVE_INFINITY,
 	category: 'KnoxChat',
 	maxTokens: 128000,
+	modalities: ['text', 'image', 'file'],
 	supportsTools: true,
 	supportsReasoning: true,
 	supportedParameters: ['tools', 'tool_choice', 'reasoning', 'reasoning_effort'],
@@ -229,45 +286,7 @@ export const ADD_MODEL_PROVIDERS: IKnoxGuiAddModelProvider[] = [
 		}],
 		params: { contextLength: 128000 },
 	},
-	{
-		id: 'openai',
-		title: 'OpenAI',
-		provider: 'openai',
-		descriptionKey: 'openaiDescription',
-		longDescriptionKey: 'openaiLongDescription',
-		icon: 'openai.png',
-		tags: ['tagApiKeyRequired'],
-		apiKeyUrl: 'https://platform.openai.com/account/api-keys',
-		collectInputFor: [API_KEY_INPUT, ...COMPLETION_PARAMS_INPUTS],
-		packages: [GPT4O, GPT4O_MINI, GPT4_TURBO, GPT35, AUTODETECT],
-	},
-	{
-		id: 'anthropic',
-		title: 'Anthropic',
-		provider: 'anthropic',
-		descriptionKey: 'anthropicDescription',
-		longDescriptionKey: 'anthropicLongDescription',
-		icon: 'anthropic.png',
-		tags: ['tagApiKeyRequired'],
-		apiKeyUrl: 'https://console.anthropic.com/account/keys',
-		collectInputFor: [
-			API_KEY_INPUT,
-			{ ...COMPLETION_PARAMS_INPUTS[0], defaultValue: 100000 },
-			...COMPLETION_PARAMS_INPUTS.slice(1),
-		],
-		packages: [
-			{ title: 'Claude 3.5 Sonnet', description: "Anthropic's most intelligent model, but much less expensive than Claude 3 Opus", params: { model: 'claude-3-5-sonnet-latest', contextLength: 200000, title: 'Claude 3.5 Sonnet' }, provider: 'anthropic', icon: 'anthropic.png', providerOptions: ['anthropic'] },
-			{ title: 'Claude 3 Opus', description: 'The most capable model in the Claude 3 series, beating GPT-4 on many benchmarks', params: { model: 'claude-3-opus-20240229', contextLength: 200000, title: 'Claude 3 Opus' }, provider: 'anthropic', icon: 'anthropic.png', providerOptions: ['anthropic'] },
-			{ title: 'Claude 3 Sonnet', description: 'The second most capable model in the Claude 3 series: ideal balance of intelligence and speed', params: { model: 'claude-3-sonnet-20240229', contextLength: 200000, title: 'Claude 3 Sonnet' }, provider: 'anthropic', icon: 'anthropic.png', providerOptions: ['anthropic'] },
-			{ title: 'Claude 3.5 Haiku', description: 'The fastest model in the Claude 3.5 series: a compact model for near-instant responsiveness', params: { model: 'claude-3-5-haiku-latest', contextLength: 200000, title: 'Claude 3.5 Haiku' }, provider: 'anthropic', icon: 'anthropic.png', providerOptions: ['anthropic'] },
-		],
-	},
 ];
-
-export const ADD_MODEL_PACKAGES: Record<string, IKnoxGuiAddModelPackage[]> = {
-	'Open AI': ADD_MODEL_PROVIDERS.find(p => p.id === 'openai')?.packages ?? [],
-	Anthropic: ADD_MODEL_PROVIDERS.find(p => p.id === 'anthropic')?.packages ?? [],
-};
 
 export function addModelProviderById(id: string | undefined): IKnoxGuiAddModelProvider | undefined {
 	return ADD_MODEL_PROVIDERS.find(provider => provider.id === id);
@@ -600,35 +619,26 @@ export function workspaceBasename(workspaceDirectory: string | undefined): strin
 	return parts[parts.length - 1] || trimmed;
 }
 
-/** MiniSearch-like fuzzy: subsequence match plus small edit distance on titles. */
-export function fuzzyTitleMatch(title: string, query: string): boolean {
-	const q = query.trim().toLowerCase();
-	if (!q) {
-		return true;
-	}
-	const hay = title.toLowerCase();
-	if (hay.includes(q)) {
-		return true;
-	}
-	let qi = 0;
-	for (let i = 0; i < hay.length && qi < q.length; i++) {
-		if (hay[i] === q[qi]) {
-			qi++;
-		}
-	}
-	if (qi === q.length) {
-		return true;
-	}
-	return levenshteinRatio(hay, q) <= 0.1;
+const MINISEARCH_SPACE_OR_PUNCTUATION = /[\n\r\p{Z}\p{P}]+/u;
+
+function miniSearchTerms(text: string): string[] {
+	return text.split(MINISEARCH_SPACE_OR_PUNCTUATION).map(term => term.toLowerCase()).filter(Boolean);
 }
 
-function levenshteinRatio(a: string, b: string): number {
-	if (!a.length && !b.length) {
-		return 0;
+/**
+ * MiniSearch `search(query, { fuzzy: 0.1 })` over the title field: OR of query
+ * terms, each matching a title term within `round(0.1 * length)` edits (max 6).
+ */
+export function fuzzyTitleMatch(title: string, query: string): boolean {
+	const queryTerms = miniSearchTerms(query);
+	if (!queryTerms.length) {
+		return !query.trim();
 	}
-	const max = Math.max(a.length, b.length);
-	const dist = levenshtein(a, b);
-	return dist / max;
+	const titleTerms = miniSearchTerms(title);
+	return queryTerms.some(term => {
+		const maxDistance = Math.min(6, Math.round(term.length * 0.1));
+		return titleTerms.some(candidate => candidate === term || (maxDistance > 0 && Math.abs(candidate.length - term.length) <= maxDistance && levenshtein(candidate, term) <= maxDistance));
+	});
 }
 
 function levenshtein(a: string, b: string): number {
@@ -704,8 +714,8 @@ export function toggleHistorySelection(selected: string[], id: string, on: boole
 
 export function sortPromptsBookmarkedFirst(commands: IKnoxGuiSlashCommand[], bookmarked: string[]): IKnoxGuiSlashCommand[] {
 	return [...commands].sort((a, b) => {
-		const aBookmarked = bookmarked.includes(a.name);
-		const bBookmarked = bookmarked.includes(b.name);
+		const aBookmarked = isSlashBookmarked(bookmarked, a.name);
+		const bBookmarked = isSlashBookmarked(bookmarked, b.name);
 		if (aBookmarked && !bBookmarked) {
 			return -1;
 		}

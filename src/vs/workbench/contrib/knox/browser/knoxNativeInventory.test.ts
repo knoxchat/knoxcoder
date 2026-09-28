@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { execFileSync } from 'child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative, resolve } from 'path';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -12,6 +13,16 @@ const IMPORT_RE = /from\s+['"][^'"]*knox\/(core|gui|extensions|knoxdev)/;
 const SKIP = new Set(['node_modules', 'out', 'out-build', 'dist', '.git']);
 const TEXT_FILE_RE = /\.(ts|tsx|mts|cts|js|mjs|cjs|json|md|yml|yaml|sh|txt|html|css)$/i;
 const HISTORY_REL_PATHS = new Set(['knox-native.md', 'CHANGELOG.md']);
+
+/** A git-ignored directory is a local reference checkout, not part of the tree. */
+function isGitIgnored(target: string): boolean {
+	try {
+		execFileSync('git', ['check-ignore', '-q', target], { cwd: process.cwd(), stdio: 'ignore' });
+		return true;
+	} catch {
+		return false;
+	}
+}
 
 function legacyPathMarkers(): string[] {
 	return [
@@ -30,7 +41,8 @@ function walk(dir: string, files: string[], repoRoot: string, extensions: RegExp
 		return;
 	}
 	for (const name of readdirSync(dir)) {
-		if (SKIP.has(name) || name.startsWith('.')) {
+		// Electron's fs opens `.asar` files as archives and throws on invalid fixtures.
+		if (SKIP.has(name) || name.startsWith('.') || name.endsWith('.asar')) {
 			continue;
 		}
 		if (name === 'knox' && resolve(dir) === resolve(repoRoot)) {
@@ -92,6 +104,6 @@ suite('Knox native inventory gate (KN-207 / KN-390 / KN-391 / KN-392)', () => {
 
 	test('leftover product directory at repo root is gone', () => {
 		const leftover = join(process.cwd(), 'knox');
-		assert.ok(!existsSync(leftover), 'KN-392: leftover product directory at repo root must be deleted');
+		assert.ok(!existsSync(leftover) || isGitIgnored(leftover), 'KN-392: leftover product directory at repo root must be deleted');
 	});
 });

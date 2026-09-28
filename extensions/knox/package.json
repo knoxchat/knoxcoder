@@ -1008,6 +1008,13 @@
 			}
 		],
 		"menus": {
+			"view/title": [
+				{
+					"command": "knoxchat.openConfigPage",
+					"group": "navigation@4",
+					"when": "view == knoxchat.knoxGUIView"
+				}
+			],
 			"commandPalette": [
 				{
 					"command": "knoxchat.focusKnoxInput"

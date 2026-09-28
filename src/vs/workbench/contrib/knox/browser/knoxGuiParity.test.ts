@@ -4,10 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { knoxGuiLocaleKeys, knoxGuiT } from './gui/knoxGuiI18n.js';
+
+const knoxGuiCssDir = join(process.cwd(), 'src/vs/workbench/contrib/knox/browser/media');
+const knoxGuiCssFiles = [
+	'knoxGui.css',
+	'knoxGuiChat.css',
+	'knoxGuiComposer.css',
+	'knoxGuiPanels.css',
+	'knoxGuiThinking.css',
+	'knoxGuiPages.css',
+	'knoxGuiCheckpoints.css',
+	'knoxGuiMemory.css',
+	'knoxGuiGraph.css',
+	'knoxGuiConfig.css',
+	'knoxGuiCheckpointDetails.css',
+];
 
 suite('Knox native GUI i18n', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -145,8 +160,16 @@ suite('Knox native GUI i18n', () => {
 		}
 	});
 
-	test('knoxGui.css keeps lump icons 14px and checkpoint graph rules', () => {
-		const css = readFileSync(join(process.cwd(), 'src/vs/workbench/contrib/knox/browser/media/knoxGui.css'), 'utf8');
+	test('knox.contributions.ts loads knoxGui CSS files in cascade order', () => {
+		const contributions = readFileSync(join(process.cwd(), 'src/vs/workbench/contrib/knox/browser/knox.contributions.ts'), 'utf8');
+		const imports = [...contributions.matchAll(/import '\.\/media\/(knoxGui[^']*\.css)';/g)].map(match => match[1]);
+		assert.deepStrictEqual(imports, knoxGuiCssFiles);
+		const onDisk = readdirSync(knoxGuiCssDir).filter(name => /^knoxGui.*\.css$/.test(name)).sort();
+		assert.deepStrictEqual(onDisk, [...knoxGuiCssFiles].sort());
+	});
+
+	test('knoxGui CSS keeps lump icons 14px and checkpoint graph rules', () => {
+		const css = knoxGuiCssFiles.map(name => readFileSync(join(knoxGuiCssDir, name), 'utf8')).join('\n');
 		assert.strictEqual(css.split('.knox-gui-starters {').length - 1, 1);
 		assert.strictEqual(css.split('.knox-gui-msg-hit {').length - 1, 1);
 		assert.ok(css.includes('.knox-gui-lump .knox-gui-svg'));
@@ -170,7 +193,7 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui-checkpoint-card'));
 		assert.ok(css.includes('.knox-gui-knoxchat-item'));
 		assert.ok(css.includes('.knox-gui-add-model-form'));
-		assert.ok(css.includes('.knox-gui-toggle-group'));
+		assert.ok(css.includes('.knox-gui-page-intro'));
 		assert.ok(css.includes('.knox-gui-lump-shell'));
 		assert.ok(css.includes('.knox-gui-diff-hunk-head'));
 		assert.ok(css.includes('.knox-gui-config-card'));
@@ -181,12 +204,16 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui-chart-tooltip'));
 		assert.ok(css.includes('.odp-chip'));
 		assert.ok(css.includes('.pierre-diff-container'));
-		assert.ok(css.includes('.knox-gui-stats-table'));
+		assert.ok(css.includes('.knox-gui-stats-billing'));
+		assert.ok(!css.includes('.knox-gui-stats-table'));
 		assert.ok(css.includes('.knox-gui-fatal'));
 		assert.ok(css.includes('.knox-gui-tabs'));
 		assert.ok(css.includes('.knox-gui-find'));
 		assert.ok(css.includes('.knox-gui-accept-reject-all'));
 		assert.ok(css.includes('.knox-gui-accept-reject-streaming'));
+		assert.ok(css.includes('@property --knox-border-angle'));
+		assert.ok(css.includes('from var(--knox-border-angle)'));
+		assert.ok(!css.includes('to { transform: rotate(360deg); }'));
 	});
 });
 

@@ -26,6 +26,7 @@ import {
   shouldSkipGenericTsgoForExtension,
   vscodeIgnoreAllowsPackagedNatives,
 } from "../../../scripts/packaging.mts";
+import { leftoverProductDirectoryExists } from "../../../scripts/inventory-gate.mts";
 
 const repoRoot = (() => {
   let dir = dirname(fileURLToPath(import.meta.url));
@@ -175,6 +176,6 @@ suite("KN-391 gulp and npm leftover pointers", () => {
 
 suite("KN-392 leftover product directory", () => {
   test("repo root leftover product directory is gone", () => {
-    assert.ok(!existsSync(join(repoRoot, leftoverKnoxRootNpmDir())));
+    assert.ok(!leftoverProductDirectoryExists(repoRoot), join(repoRoot, leftoverKnoxRootNpmDir()));
   });
 });

@@ -20,6 +20,8 @@ From the repository root:
 
 Native addons (`sqlite3`, optional `node-pty`) are rebuilt for this fork's Electron **43.3.0** (`process.versions.modules` / ABI **148**) via `@electron/rebuild` during `gulp compile-extension:knox` and `gulp compile-extension-knox-native`. System Node 24 compiles those packages to ABI 137, which will not `dlopen` in the extension host.
 
+`npm install` at the repository root installs Knox dependencies in `extensions/knox` (listed in `build/npm/dirs.ts`), and gulp spawns the esbuild script from `extensions/knox` (KN-391). Neither points at a checkout of the original product at the repository root; if you keep one there for reference, add it to `.git/info/exclude` so the inventory gate treats it as local.
+
 Set `KNOX_SKIP_ELECTRON_REBUILD=1` to copy whatever bindings `npm install` already built (no compiler / Electron headers). Those binaries may fail to load under Electron 43. Set `KNOX_FORCE_ELECTRON_REBUILD=1` to rebuild even if `@electron/rebuild` thinks the module is current.
 
 ## Identity

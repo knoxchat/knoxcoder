@@ -5,17 +5,19 @@
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { language as platformLanguage } from '../../../../base/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { knoxGuiResolveLanguage } from '../common/knoxGuiPersist.js';
 import { createStreamUpdateCoalescer } from '../common/knoxGuiChat.js';
 import { createLatestValueCoalescer } from '../common/knoxGuiTools.js';
 import { IKnoxGuiMessage, KnoxGuiOverlay, KnoxGuiRoute } from '../common/knoxGuiProtocol.js';
-import { IKnoxGuiFindState, IKnoxGuiGitDiffFile, IKnoxGuiHistoryItem, IKnoxGuiModel, IKnoxGuiState, IKnoxGuiSuggestItem, IKnoxGuiToolCall, KnoxChatMode, KnoxCheckpointPanelTab, KnoxGuiLanguage, KnoxModelRole, KnoxPermissionMode } from '../common/knoxGuiState.js';
+import { IKnoxGuiContextItem, IKnoxGuiFindState, IKnoxGuiGitDiffFile, IKnoxGuiHistoryItem, IKnoxGuiModel, IKnoxGuiState, IKnoxGuiSuggestItem, IKnoxGuiToolCall, KnoxChatMode, KnoxCheckpointPanelTab, KnoxGuiLanguage, KnoxModelRole, KnoxPermissionMode } from '../common/knoxGuiState.js';
 import { type IKnoxGuiAddModelPackage } from '../common/knoxGuiOverlays.js';
-import { fileHitToSuggestItem, inputDocFromPlainText } from '../common/knoxGuiInput.js';
+import { fileHitToSuggestItem, inputDocFromPlainText, type IKnoxGuiComposerInputHistory, type IKnoxGuiDocCaret, type IKnoxGuiInputBlock } from '../common/knoxGuiInput.js';
 import { DEFAULT_CHECKPOINT_CONFIG } from '../common/knoxGuiCheckpoints.js';
 import { KnoxGuiMessenger } from './knoxGuiMessenger.js';
 import { KnoxGuiStore } from './knoxGuiStore.js';
-import { BOOKMARK_KEY, LANGUAGE_KEY } from './gui/controller/helpers.js';
+import { LANGUAGE_KEY } from './gui/controller/helpers.js';
 import * as knoxGuiConfig from './gui/controller/config.js';
 import * as knoxGuiInbound from './gui/controller/inbound.js';
 import * as knoxGuiSessions from './gui/controller/sessions.js';
@@ -26,10 +28,32 @@ import * as knoxGuiTools from './gui/controller/tools.js';
 import * as knoxGuiPanels from './gui/controller/panels.js';
 import * as knoxGuiMemory from './gui/controller/memory.js';
 import * as knoxGuiCheckpoints from './gui/controller/checkpoints.js';
+import * as knoxGuiPersistence from './gui/controller/persistence.js';
 
 export class KnoxGuiController extends Disposable {
 	streamCancel: CancellationTokenSource | undefined;
+	/** Set by Stop; no further rounds or tool continuations until the next submit. */
+	turnAborted = false;
+	/** Memory / restore inject built at submit, reused by every round of the turn. */
+	turnInject: { sessionId: string; content: string } | undefined;
+	/** First workspace folder URI (`window.workspacePaths[0]` in the reference); '' without a folder. */
+	workspaceDirectory = '';
 	mentionLiveTimer: ReturnType<typeof setTimeout> | undefined;
+	/** Caret of the last composer input; triggers and chips are resolved there instead of at the end. */
+	composerCaret: IKnoxGuiDocCaret | undefined;
+	/** Where the widget should put the caret after the next repaint of the composer. */
+	pendingComposerCaret: IKnoxGuiDocCaret | undefined;
+	/** History item whose message editor owns the open `@` / `/` picker; unset means the main composer. */
+	suggestTarget: string | undefined;
+	/** Draft access for history message editors, provided by the widget. */
+	historyComposer: { doc(id: string): IKnoxGuiInputBlock[]; set(id: string, doc: IKnoxGuiInputBlock[], caret: IKnoxGuiDocCaret): void } | undefined;
+	/** Bumped on every picker fetch and on close; older responses are dropped. */
+	mentionRequestSeq = 0;
+	openFilesTimer: ReturnType<typeof setInterval> | undefined;
+	openFileUris: string[] = [];
+	openFileItems: IKnoxGuiSuggestItem[] = [];
+	readonly submenuItems = new Map<string, IKnoxGuiSuggestItem[]>();
+	submenuIndexing = false;
 	pendingFilesTimer: ReturnType<typeof setTimeout> | undefined;
 	gitPollTimer: ReturnType<typeof setInterval> | undefined;
 	heartbeatTimer: ReturnType<typeof setInterval> | undefined;
@@ -39,12 +63,17 @@ export class KnoxGuiController extends Disposable {
 	lastRoute: KnoxGuiRoute | undefined;
 	lastProviderName: string | undefined;
 	checkpointGraphUiLoaded = false;
+	checkpointLoadSeq = 0;
+	checkpointAnalysisSeq = 0;
+	memoryGraphSeq = 0;
+	/** `config/listProfiles` result; null until the list has loaded. */
+	availableProfiles: Record<string, unknown>[] | null = null;
 	readonly partialOutputCoalescer = createLatestValueCoalescer<string, unknown>((id, value) => this.applyPartialToolOutput(id, value));
-	readonly streamCoalescer = createStreamUpdateCoalescer<{ content: string; toolCalls: IKnoxGuiToolCall[]; thinking?: string }>(
+	readonly streamCoalescer = createStreamUpdateCoalescer<{ content: string; toolCalls: IKnoxGuiToolCall[]; thinking?: string; thinkingMeta?: knoxGuiStream.IKnoxGuiThinkingMeta }>(
 		value => {
 			this.store.updateLastAssistant(value.content, value.toolCalls);
 			if (value.thinking) {
-				this.patchLastThinking(value.thinking);
+				this.patchLastThinking(value.thinking, value.thinkingMeta);
 			}
 		},
 		{ flushNow: value => value.toolCalls.length > 0 },
@@ -56,18 +85,28 @@ export class KnoxGuiController extends Disposable {
 		@IStorageService readonly storageService: IStorageService,
 	) {
 		super();
-		const language = this.storageService.get(LANGUAGE_KEY, StorageScope.PROFILE, 'en');
-		if (language === 'zh' || language === 'en') {
-			this.store.setLanguage(language);
+		const storedLanguage = this.storageService.get(LANGUAGE_KEY, StorageScope.PROFILE);
+		const language = knoxGuiResolveLanguage(storedLanguage, platformLanguage);
+		this.store.setLanguage(language);
+		if (storedLanguage !== language) {
+			this.storageService.store(LANGUAGE_KEY, language, StorageScope.PROFILE, StorageTarget.USER);
 		}
-		const bookmarked = this.storageService.get(BOOKMARK_KEY, StorageScope.PROFILE, '');
-		if (bookmarked) {
-			this.store.patch({ bookmarkedSlash: bookmarked.split(',').filter(Boolean) });
-		}
+		knoxGuiPersistence.restorePersistedState(this);
+		this._register(knoxGuiPersistence.installPersistence(this));
 		this.messenger.subscribeHost(message => this.onHostMessage(message));
 		this._register(store.onDidChange(state => this.onRouteChanged(state)));
+		let findStreaming = store.state.isStreaming;
+		this._register(store.onDidChange(state => {
+			if (state.isStreaming !== findStreaming) {
+				findStreaming = state.isStreaming;
+				if (state.find.open) {
+					this.updateFind({});
+				}
+			}
+		}));
 		this._register({ dispose: () => this.partialOutputCoalescer.dispose() });
 		this._register({ dispose: () => this.streamCoalescer.dispose() });
+		this._register({ dispose: () => clearInterval(this.openFilesTimer) });
 		this._register({ dispose: () => this.clearGitPoll() });
 		this._register({ dispose: () => this.clearHeartbeat() });
 		this._register({ dispose: () => {
@@ -106,8 +145,8 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiInbound.onNavigated(this, path);
 	}
 
-	async newSession(): Promise<void> {
-		return knoxGuiSessions.newSession(this);
+	async newSession(options?: { generateTitle?: boolean }): Promise<void> {
+		return knoxGuiSessions.newSession(this, options);
 	}
 
 	async loadSession(id: string, options?: { saveCurrent?: boolean }): Promise<void> {
@@ -188,6 +227,10 @@ export class KnoxGuiController extends Disposable {
 
 	setOverlay(overlay: KnoxGuiOverlay): void {
 		return knoxGuiModels.setOverlay(this, overlay);
+	}
+
+	async resolveWorkspaceDirectory(): Promise<string> {
+		return knoxGuiSessions.resolveWorkspaceDirectory(this);
 	}
 
 	async refreshHistorySessions(): Promise<void> {
@@ -274,8 +317,8 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiTools.answerAskUser(this, id, answers);
 	}
 
-	shouldAutoApprove(call: IKnoxGuiToolCall): boolean {
-		return knoxGuiTools.shouldAutoApprove(this, call);
+	evaluateToolDecision(call: IKnoxGuiToolCall): ReturnType<typeof knoxGuiTools.evaluateToolDecision> {
+		return knoxGuiTools.evaluateToolDecision(this, call);
 	}
 
 	async resolveTools(toolCalls: IKnoxGuiToolCall[]): Promise<void> {
@@ -288,6 +331,10 @@ export class KnoxGuiController extends Disposable {
 
 	async continueAfterTool(): Promise<void> {
 		return knoxGuiStream.continueAfterTool(this);
+	}
+
+	async maybeContinueTurn(): Promise<void> {
+		return knoxGuiStream.maybeContinueTurn(this);
 	}
 
 	mergeToolCalls(toolCalls: IKnoxGuiToolCall[], raw: unknown[]): void {
@@ -306,11 +353,7 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiTools.cancelInFlightTools(this);
 	}
 
-	buildMessages(extraContext?: string, images: string[] = []): Array<Record<string, unknown>> {
-		return knoxGuiStream.buildMessages(this, extraContext, images);
-	}
-
-	async gatherContext(doc: ReturnType<typeof inputDocFromPlainText>, fullInput: string, noContext: boolean): Promise<{ extra?: string }> {
+	async gatherContext(doc: ReturnType<typeof inputDocFromPlainText>, fullInput: string, noContext: boolean): Promise<{ items: NonNullable<IKnoxGuiHistoryItem['contextItems']> }> {
 		return knoxGuiStream.gatherContext(this, doc, fullInput, noContext);
 	}
 
@@ -322,8 +365,8 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiTools.patchTool(this, id, patch);
 	}
 
-	patchLastThinking(thinking: string): void {
-		return knoxGuiStream.patchLastThinking(this, thinking);
+	patchLastThinking(thinking: string, meta?: knoxGuiStream.IKnoxGuiThinkingMeta): void {
+		return knoxGuiStream.patchLastThinking(this, thinking, meta);
 	}
 
 	finishThinking(): void {
@@ -394,8 +437,28 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiComposer.exitSuggestSubmenu(this);
 	}
 
-	onComposerInput(): void {
-		return knoxGuiComposer.onComposerInput(this);
+	onComposerInput(caret?: IKnoxGuiDocCaret, target?: string): void {
+		return knoxGuiComposer.onComposerInput(this, caret, target);
+	}
+
+	submitQueryProvider(value: string): void {
+		return knoxGuiComposer.submitQueryProvider(this, value);
+	}
+
+	cancelQueryProvider(): void {
+		return knoxGuiComposer.cancelQueryProvider(this);
+	}
+
+	async refreshOpenFiles(): Promise<void> {
+		return knoxGuiComposer.refreshOpenFiles(this);
+	}
+
+	async addAllOpenFilesToEdit(): Promise<void> {
+		return knoxGuiComposer.addAllOpenFilesToEdit(this);
+	}
+
+	openCodeToEdit(code: IKnoxGuiState['codeToEdit'][number]): void {
+		return knoxGuiComposer.openCodeToEdit(this, code);
 	}
 
 	beginEditUser(index: number): void {
@@ -406,8 +469,8 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiComposer.cancelEditUser(this);
 	}
 
-	async submitEditedUser(index: number, doc: ReturnType<typeof inputDocFromPlainText>, images?: string[]): Promise<void> {
-		return knoxGuiComposer.submitEditedUser(this, index, doc, images);
+	async submitEditedUser(index: number, doc: ReturnType<typeof inputDocFromPlainText>, images?: string[], altKey?: boolean): Promise<void> {
+		return knoxGuiComposer.submitEditedUser(this, index, doc, images, altKey);
 	}
 
 	removeHistoricalImage(index: number): void {
@@ -440,6 +503,10 @@ export class KnoxGuiController extends Disposable {
 
 	showFile(filepath: string, options?: { startLine?: number; endLine?: number }): void {
 		return knoxGuiPanels.showFile(this, filepath, options);
+	}
+
+	openContextItem(ctx: IKnoxGuiContextItem): void {
+		knoxGuiPanels.openContextItem(this, ctx);
 	}
 
 	openGitFile(file: IKnoxGuiGitDiffFile): void {
@@ -522,8 +589,8 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiPanels.refreshBackgroundJobs(this);
 	}
 
-	async injectMemoryContext(userText: string): Promise<string | undefined> {
-		return knoxGuiStream.injectMemoryContext(this, userText);
+	async injectMemoryContext(userText: string, timeoutMs?: number): Promise<string | undefined> {
+		return knoxGuiStream.injectMemoryContext(this, userText, timeoutMs);
 	}
 
 	takeRestoreNotice(): string | undefined {
@@ -542,6 +609,22 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiComposer.pushCodeToEdit(this, rec);
 	}
 
+	loadInputHistory(kind: 'chat' | 'edit'): IKnoxGuiComposerInputHistory {
+		return knoxGuiPersistence.loadInputHistory(this, kind);
+	}
+
+	saveInputHistory(kind: 'chat' | 'edit', entries: IKnoxGuiInputBlock[][]): void {
+		knoxGuiPersistence.saveInputHistory(this, kind, entries);
+	}
+
+	resetPersistedState(): void {
+		knoxGuiPersistence.resetPersistedState(this);
+	}
+
+	cyclePermissionMode(): void {
+		return knoxGuiTools.cyclePermissionMode(this);
+	}
+
 	setPermissionMode(mode: KnoxPermissionMode): void {
 		return knoxGuiTools.setPermissionMode(this, mode);
 	}
@@ -558,8 +641,15 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiMemory.hydrateMemoryTab(this);
 	}
 
-	async loadMemoryOverview(): Promise<void> {
-		return knoxGuiMemory.loadMemoryOverview(this);
+	/** Set by the widget, which owns Memory selection mode. */
+	memoryRefreshBlocked: () => boolean = () => false;
+
+	refreshMemoryActiveTab(): void {
+		knoxGuiMemory.refreshMemoryActiveTab(this);
+	}
+
+	async loadMemoryOverview(options?: { showLoading?: boolean }): Promise<void> {
+		return knoxGuiMemory.loadMemoryOverview(this, options);
 	}
 
 	async loadMemories(append = false): Promise<void> {
@@ -598,28 +688,36 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiMemory.consolidateMemory(this);
 	}
 
-	async deleteMemories(ids: string[]): Promise<void> {
-		return knoxGuiMemory.deleteMemories(this, ids);
+	async deleteMemories(ids: string[], bulk?: boolean): Promise<void> {
+		return knoxGuiMemory.deleteMemories(this, ids, bulk);
 	}
 
-	async pinMemories(ids: string[], pinned: boolean): Promise<void> {
-		return knoxGuiMemory.pinMemories(this, ids, pinned);
+	async pinMemories(ids: string[], pinned: boolean, bulk?: boolean): Promise<void> {
+		return knoxGuiMemory.pinMemories(this, ids, pinned, bulk);
+	}
+
+	showMemoryBanner(kind: 'error' | 'notice', banner: { key: string; count?: number } | undefined): void {
+		knoxGuiMemory.showMemoryBanner(this, kind, banner);
 	}
 
 	async runMemoryMaintenance(action: knoxGuiMemory.KnoxMemoryMaintenanceAction): Promise<void> {
 		return knoxGuiMemory.runMemoryMaintenance(this, action);
 	}
 
-	async exportMemory(password?: string): Promise<void> {
+	async exportMemory(password?: string): Promise<boolean> {
 		return knoxGuiMemory.exportMemory(this, password);
 	}
 
-	async importMemoryData(data: string, password?: string): Promise<void> {
+	async importMemoryData(data: string, password?: string): Promise<boolean> {
 		return knoxGuiMemory.importMemoryData(this, data, password);
 	}
 
 	async loadCheckpoints(): Promise<void> {
 		return knoxGuiCheckpoints.loadCheckpoints(this);
+	}
+
+	runCheckpointGraphAction(action: string): Promise<void> {
+		return knoxGuiCheckpoints.runCheckpointGraphAction(this, action);
 	}
 
 	applyCodeFromChat(): void {
@@ -702,8 +800,8 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiCheckpoints.loadCheckpointAnalysisGroups(this);
 	}
 
-	async loadShareBundles(): Promise<void> {
-		return knoxGuiCheckpoints.loadShareBundles(this);
+	async loadShareBundles(showLoading?: boolean): Promise<void> {
+		return knoxGuiCheckpoints.loadShareBundles(this, showLoading);
 	}
 
 	async shareCheckpoints(): Promise<void> {

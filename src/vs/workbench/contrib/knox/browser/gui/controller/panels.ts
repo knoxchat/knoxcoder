@@ -7,7 +7,8 @@ import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { ACTIVITY_PANEL_EXPANDED_KEY, GIT_DIFF_EXPANDED_KEY, asRecord, asArray, withTimeout } from './helpers.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { finalizeGitDiffFiles, gitFilesFromChangedList, gitFilesFromDiffs, mergeGitChangedWithDiffs, parseBackgroundJobs } from '../../../common/knoxGuiPanels.js';
-import { IKnoxGuiGitDiffFile } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiContextItem, IKnoxGuiGitDiffFile } from '../../../common/knoxGuiState.js';
+import { knoxGuiContextItemOpenAction } from '../../../common/knoxGuiTranscript.js';
 
 export function showFile(controller: KnoxGuiController, filepath: string, options?: { startLine?: number; endLine?: number }): void {
 	if (options?.startLine != null && options.startLine > 0) {
@@ -17,6 +18,24 @@ export function showFile(controller: KnoxGuiController, filepath: string, option
 		return;
 	}
 	controller.messenger.post('showFile', { filepath });
+}
+
+export function openContextItem(controller: KnoxGuiController, ctx: IKnoxGuiContextItem): void {
+	const action = knoxGuiContextItemOpenAction(ctx);
+	switch (action.kind) {
+		case 'url':
+			controller.messenger.post('openUrl', action.url);
+			return;
+		case 'lines':
+			controller.messenger.post('showLines', { filepath: action.filepath, startLine: action.startLine, endLine: action.endLine });
+			return;
+		case 'file':
+			void controller.messenger.request('openFile', { path: action.filepath }).catch(() => undefined);
+			return;
+		case 'virtual':
+			void controller.messenger.request('showVirtualFile', { name: action.name, content: action.content }).catch(() => undefined);
+			return;
+	}
 }
 
 export function openGitFile(controller: KnoxGuiController, file: IKnoxGuiGitDiffFile): void {
@@ -81,7 +100,7 @@ export async function runJobAction(controller: KnoxGuiController, action: 'kill'
 export async function pinInjectedMemory(controller: KnoxGuiController, id: number, pinned: boolean): Promise<void> {
 	try {
 		const result = await controller.messenger.request<Record<string, unknown>>(pinned ? 'brain/unpinMemory' : 'brain/pinMemory', { id });
-		if (asRecord(result)?.success !== false) {
+		if (asRecord(result)?.success) {
 			controller.store.patch({
 				injectedMemories: controller.store.state.injectedMemories.map(item => item.id === id ? { ...item, pinned: !pinned } : item),
 			});
@@ -94,7 +113,7 @@ export async function pinInjectedMemory(controller: KnoxGuiController, id: numbe
 export async function forgetInjectedMemory(controller: KnoxGuiController, id: number): Promise<void> {
 	try {
 		const result = await controller.messenger.request<Record<string, unknown>>('brain/deleteMemory', { id });
-		if (asRecord(result)?.success !== false) {
+		if (asRecord(result)?.success) {
 			controller.store.patch({ injectedMemories: controller.store.state.injectedMemories.filter(item => item.id !== id) });
 		}
 	} catch {
@@ -105,7 +124,7 @@ export async function forgetInjectedMemory(controller: KnoxGuiController, id: nu
 export async function mismatchInjectedMemory(controller: KnoxGuiController, id: number): Promise<void> {
 	try {
 		const result = await controller.messenger.request<Record<string, unknown>>('brain/mismatchMemory', { id, sessionId: controller.store.state.sessionId });
-		if (asRecord(result)?.success !== false) {
+		if (asRecord(result)?.success) {
 			controller.store.patch({ injectedMemories: controller.store.state.injectedMemories.filter(item => item.id !== id) });
 		}
 	} catch {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { incrementalParseJson, parseToolArgs } from './knoxGuiChat.js';
 import { IKnoxGuiAskQuestion, IKnoxGuiTool, IKnoxGuiToolCall, IKnoxGuiToolOutputItem, KnoxToolSetting, KnoxToolStatus } from './knoxGuiState.js';
 import { toolStepDetail } from './knoxGuiTranscript.js';
 
@@ -207,10 +208,18 @@ export function getCategorizedToolName(name: string, displayTitle?: string): str
 	return `[Tool] ${formatted}`;
 }
 
-export function renderToolTemplate(template: string, args: Record<string, unknown>): string {
+function escapeTemplateValue(value: unknown): string {
+	return String(value ?? '').replace(/[&<>"'`=\/]/g, ch => `&#${ch.charCodeAt(0)};`);
+}
+
+/**
+ * Mustache render of a tool template to HTML, as `ToolCall.tsx` injects it. Argument values
+ * are always escaped (also for `{{{ }}}`) because they come from the model.
+ */
+export function renderToolTemplateHtml(template: string, args: Record<string, unknown>): string {
 	return template
-		.replace(/\{\{\{\s*(\w+)\s*\}\}\}/g, (_, key: string) => String(args[key] ?? ''))
-		.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => String(args[key] ?? ''))
+		.replace(/\{\{\{\s*(\w+)\s*\}\}\}/g, (_, key: string) => escapeTemplateValue(args[key]))
+		.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => escapeTemplateValue(args[key]))
 		.trim();
 }
 
@@ -282,8 +291,221 @@ export function highlightSearchQueryInHtml(html: string, query: string): string 
 	}
 }
 
+/**
+ * Core `resolveBuiltInToolName` aliases. Models drop `builtin_` or emit
+ * Claude/Codex short names; map those onto catalog names so titles, kinds,
+ * and permissions stay on the real tool.
+ */
+const GUI_TOOL_NAME_ALIASES: Record<string, string> = {
+	read: 'builtin_read_file',
+	read_file: 'builtin_read_file',
+	readfile: 'builtin_read_file',
+	read_file_line: 'builtin_read_file',
+	read_file_lines: 'builtin_read_file',
+	read_file_range: 'builtin_read_file',
+	read_lines: 'builtin_read_file',
+	read_range: 'builtin_read_file',
+	view: 'builtin_read_file',
+	view_file: 'builtin_read_file',
+	cat: 'builtin_read_file',
+	open_file: 'builtin_read_file',
+	get_file: 'builtin_read_file',
+	show_file: 'builtin_read_file',
+	write: 'builtin_write_file',
+	write_file: 'builtin_write_file',
+	writefile: 'builtin_write_file',
+	edit: 'builtin_edit_file',
+	edit_file: 'builtin_edit_file',
+	str_replace: 'builtin_edit_file',
+	strreplace: 'builtin_edit_file',
+	str_replace_editor: 'builtin_edit_file',
+	search_replace: 'builtin_edit_file',
+	apply_patch: 'builtin_apply_patch',
+	applypatch: 'builtin_apply_patch',
+	create_file: 'builtin_create_new_file',
+	create_new_file: 'builtin_create_new_file',
+	bash: 'builtin_run_terminal_command',
+	shell: 'builtin_run_terminal_command',
+	exec: 'builtin_run_terminal_command',
+	execute: 'builtin_run_terminal_command',
+	run: 'builtin_run_terminal_command',
+	terminal: 'builtin_run_terminal_command',
+	run_terminal_command: 'builtin_run_terminal_command',
+	grep: 'builtin_exact_search',
+	rg: 'builtin_exact_search',
+	ripgrep: 'builtin_exact_search',
+	exact_search: 'builtin_exact_search',
+	search: 'builtin_exact_search',
+	search_code: 'builtin_exact_search',
+	codebase_search: 'builtin_exact_search',
+	find_in_files: 'builtin_exact_search',
+	glob: 'builtin_glob',
+	find: 'builtin_glob',
+	list_dir: 'builtin_view_subdirectory',
+	list_directory: 'builtin_view_subdirectory',
+	view_subdirectory: 'builtin_view_subdirectory',
+	ls: 'builtin_view_subdirectory',
+	tree: 'builtin_view_subdirectory',
+	web_search: 'builtin_search_web',
+	search_web: 'builtin_search_web',
+	ask_user: 'builtin_ask_user',
+	task: 'builtin_task',
+	workspace_checkpoint: 'builtin_workspace_checkpoint',
+	checkpoint: 'builtin_workspace_checkpoint',
+	build: 'builtin_build',
+	compile: 'builtin_build',
+	kbuild: 'builtin_build',
+	pty: 'builtin_pty_start',
+	pty_start: 'builtin_pty_start',
+	pty_send: 'builtin_pty_send',
+	pty_read: 'builtin_pty_read',
+	qemu: 'builtin_qemu',
+	debug: 'builtin_debug',
+	gdb: 'builtin_debug',
+	dap: 'builtin_debug',
+	kconfig: 'builtin_kconfig',
+	menuconfig: 'builtin_kconfig',
+	maintainers: 'builtin_maintainers',
+	get_maintainer: 'builtin_maintainers',
+	get_maintainers: 'builtin_maintainers',
+	blame: 'builtin_git_blame',
+	git_blame: 'builtin_git_blame',
+	bisect: 'builtin_git_bisect',
+	git_bisect: 'builtin_git_bisect',
+	plan: 'builtin_plan',
+	task_plan: 'builtin_plan',
+	todo: 'builtin_plan',
+};
+
+const GUI_TOOL_NAME_PREFIX_RULES: Array<[RegExp, string]> = [
+	[/^read_file/, 'builtin_read_file'],
+	[/^read_line/, 'builtin_read_file'],
+	[/^read_range/, 'builtin_read_file'],
+	[/^view_file/, 'builtin_read_file'],
+	[/^grep/, 'builtin_exact_search'],
+	[/^ripgrep/, 'builtin_exact_search'],
+	[/^exact_search/, 'builtin_exact_search'],
+	[/^search_code/, 'builtin_exact_search'],
+	[/^find_in_files/, 'builtin_exact_search'],
+	[/^list_dir/, 'builtin_view_subdirectory'],
+	[/^str_replace/, 'builtin_edit_file'],
+];
+
+function normalizeToolNameKey(name: string): string {
+	return name
+		.trim()
+		.replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '_')
+		.replace(/^_+|_+$/g, '');
+}
+
+export function resolveGuiToolName(name: string | undefined, tools: readonly IKnoxGuiTool[] = []): string {
+	if (!name) {
+		return '';
+	}
+	const trimmed = name.trim();
+	if (!trimmed) {
+		return '';
+	}
+	const exact = tools.find(tool => tool.name === trimmed);
+	if (exact) {
+		return exact.name;
+	}
+	const lower = trimmed.toLowerCase();
+	const ci = tools.find(tool => tool.name.toLowerCase() === lower);
+	if (ci) {
+		return ci.name;
+	}
+	const normalized = normalizeToolNameKey(trimmed);
+	const prefixed = normalized.startsWith('builtin_') ? normalized : `builtin_${normalized}`;
+	const fromCatalog = tools.find(tool => {
+		const n = tool.name.toLowerCase();
+		return n === prefixed || n === normalized;
+	});
+	if (fromCatalog) {
+		return fromCatalog.name;
+	}
+	const bare = normalized.replace(/^builtin_/, '');
+	const alias = GUI_TOOL_NAME_ALIASES[normalized] ?? GUI_TOOL_NAME_ALIASES[bare] ?? GUI_TOOL_NAME_ALIASES[lower];
+	if (alias) {
+		return tools.find(tool => tool.name === alias)?.name ?? alias;
+	}
+	for (const [pattern, mapped] of GUI_TOOL_NAME_PREFIX_RULES) {
+		if (pattern.test(bare)) {
+			return tools.find(tool => tool.name === mapped)?.name ?? mapped;
+		}
+	}
+	return tools.find(tool => tool.name === prefixed)?.name ?? trimmed;
+}
+
 export function catalogToolForCall(tools: IKnoxGuiTool[], name: string): IKnoxGuiTool | undefined {
-	return tools.find(tool => tool.name === name);
+	const resolved = resolveGuiToolName(name, tools);
+	if (!resolved) {
+		return undefined;
+	}
+	return tools.find(tool => tool.name === resolved) ?? tools.find(tool => tool.name === name);
+}
+
+function asDeltaRecord(value: unknown): Record<string, unknown> | undefined {
+	return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+/**
+ * GUI `mergeToolCallDeltas` + `toolCallDeltaToState`: match by OpenAI `index`
+ * or Anthropic `id`, concatenate argument fragments, keep the first non-empty
+ * name, and incrementally parse args for live titles.
+ */
+export function mergeStreamedToolCalls(
+	toolCalls: IKnoxGuiToolCall[],
+	raw: unknown[],
+	options?: { tools?: readonly IKnoxGuiTool[]; nextId?: () => string },
+): void {
+	const tools = options?.tools ?? [];
+	let generated = 0;
+	const nextId = options?.nextId ?? (() => `call_${++generated}`);
+	for (const callUnknown of raw) {
+		const call = asDeltaRecord(callUnknown);
+		if (!call) {
+			continue;
+		}
+		const fn = asDeltaRecord(call.function);
+		const incomingIndex = typeof call.index === 'number' && call.index >= 0 ? call.index : undefined;
+		const incomingId = typeof call.id === 'string' && call.id ? call.id : undefined;
+		let target = -1;
+		if (incomingIndex !== undefined) {
+			target = incomingIndex;
+		} else if (incomingId) {
+			target = toolCalls.findIndex(item => item.id === incomingId);
+		}
+		if (target < 0) {
+			target = toolCalls.length;
+		}
+		while (toolCalls.length <= target) {
+			toolCalls.push({
+				id: nextId(),
+				name: '',
+				arguments: '',
+				status: 'generating',
+				parsedArgs: {},
+			});
+		}
+		const existing = toolCalls[target];
+		const incomingArgs = String(fn?.arguments ?? call.arguments ?? '');
+		const args = mergeToolArguments(existing.arguments ?? '', incomingArgs);
+		const incomingName = String(fn?.name ?? call.name ?? '');
+		const name = resolveGuiToolName(incomingName || existing.name, tools);
+		const parsed = parseToolArgs(args);
+		const settled = existing.status === 'calling' || existing.status === 'done' || existing.status === 'canceled' || existing.status === 'errored';
+		existing.id = incomingId || existing.id;
+		existing.name = name || existing.name;
+		existing.arguments = args;
+		existing.parsedArgs = parsed;
+		existing.questions = parseAskUserQuestionsForGui(parsed.questions);
+		if (!settled) {
+			existing.status = 'generating';
+		}
+	}
 }
 
 function lineCount(text: string | undefined): number | undefined {
@@ -436,12 +658,8 @@ export function extractStreamingToolCode(options: { parsedArgs?: unknown; rawArg
 	const raw = typeof options.rawArguments === 'string' ? options.rawArguments : '';
 	let fromRaw: Record<string, unknown> = {};
 	if (raw) {
-		try {
-			const parsedRaw = JSON.parse(raw);
-			fromRaw = asArgsRecord(parsedRaw) ?? {};
-		} catch {
-			fromRaw = {};
-		}
+		const [, incrementallyParsed] = incrementalParseJson(raw);
+		fromRaw = asArgsRecord(incrementallyParsed) ?? {};
 	}
 	const merged = { ...fromRaw, ...parsed };
 	const filepathHit = findArgByKeys(merged, FILEPATH_KEYS) ?? (raw ? extractFieldFromRaw(raw, FILEPATH_KEYS) : undefined);
@@ -463,8 +681,12 @@ export function extractStreamingToolCode(options: { parsedArgs?: unknown; rawArg
 
 export function displayArgsForToolCall(parsedArgs: unknown, rawArguments?: unknown): Record<string, unknown> {
 	const parsed = asArgsRecord(parsedArgs) ?? {};
+	const raw = typeof rawArguments === 'string' ? rawArguments : '';
+	const [, incremental] = raw ? incrementalParseJson(raw) : [false, {}];
+	const fromRaw = asArgsRecord(incremental) ?? {};
 	const extracted = extractStreamingToolCode({ parsedArgs, rawArguments });
 	return {
+		...fromRaw,
 		...parsed,
 		...(extracted.filepath ? { filepath: extracted.filepath } : {}),
 	};
@@ -595,6 +817,12 @@ export function extractLogPathFromTerminalOutput(text: string): string | undefin
 	return path || undefined;
 }
 
+/**
+ * Original `mergeToolCallDeltas` always concatenates argument fragments.
+ * Also accept a snapshot that already contains the previous prefix. Never
+ * replace on `JSON.parse` — a streamed `"path"` fragment is valid JSON and
+ * would wipe `{"directory_path": `.
+ */
 export function mergeToolArguments(previous: string, incoming: string): string {
 	if (!incoming) {
 		return previous;
@@ -608,12 +836,7 @@ export function mergeToolArguments(previous: string, incoming: string): string {
 	if (previous.startsWith(incoming)) {
 		return previous;
 	}
-	try {
-		JSON.parse(incoming);
-		return incoming;
-	} catch {
-		return previous + incoming;
-	}
+	return previous + incoming;
 }
 
 export function toolPermissionDisplay(params: {

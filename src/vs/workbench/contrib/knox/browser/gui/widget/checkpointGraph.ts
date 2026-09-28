@@ -6,10 +6,12 @@
 import type { KnoxGuiWidget } from '../knoxGuiWidget.js';
 import { t } from './t.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import {
 	activeHeadId,
 	buildCheckpointPathTree,
 	CHECKPOINT_GRAPH_DETAILS_HEIGHT,
+	CHECKPOINT_GRAPH_LANE_COLORS,
 	CHECKPOINT_GRAPH_ROW_HEIGHT,
 	CHECKPOINT_GRAPH_VERTEX_RADIUS,
 	CHECKPOINT_GRAPH_WORKING_TREE_ID,
@@ -19,18 +21,18 @@ import {
 	checkpointGraphFilterFromUi,
 	checkpointGraphGridColumns,
 	checkpointGraphHeadsById,
-	checkpointGraphLaneColor,
 	checkpointGraphMatches,
+	checkpointGraphFindScroll,
+	checkpointGraphMenuPosition,
+	checkpointGraphRevealScroll,
 	checkpointGraphRowTop,
 	checkpointGraphWindow,
 	checkpointKindClass,
 	checkpointKindI18nKey,
 	checkpointLaneNeighbor,
-	checkpointThemeIsLight,
 	drawCheckpointGraph,
 	formatCheckpointGraphTime,
 	layoutCheckpointLanes,
-	remapCheckpointBranchColor,
 	resolveCheckpointLaneColor,
 	withWorkingTreeNode,
 	type CheckpointGraphPathTreeNode,
@@ -42,6 +44,49 @@ import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 
 type GraphNode = IKnoxGuiCheckpointNode & { workingTree?: boolean };
 type GraphCompare = { kind: 'checkpoint'; id: string } | { kind: 'workspace' };
+
+/** One Dark Pro tokens in `CHECKPOINT_GRAPH_LANE_COLORS` order; `.vscode-light` swaps them to the light palette. */
+const GRAPH_THEME_VARS = ['--odp-blue', '--odp-green', '--odp-yellow', '--odp-red', '--odp-purple', '--odp-cyan', '--odp-orange', '--odp-fg'] as const;
+const GRAPH_LEGACY_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'] as const;
+const branchMenuOpen = new WeakMap<KnoxGuiWidget, boolean>();
+
+/** checkpointUi.ts `remapBranchColor`, resolved by the theme instead of at render time. */
+function themedGraphColor(color: string | undefined): string {
+	let index = color ? (CHECKPOINT_GRAPH_LANE_COLORS as readonly string[]).indexOf(color) : 0;
+	if (index < 0 && color) {
+		index = (GRAPH_LEGACY_COLORS as readonly string[]).indexOf(color);
+	}
+	return index >= 0 ? `var(${GRAPH_THEME_VARS[index]}, ${CHECKPOINT_GRAPH_LANE_COLORS[index]})` : color ?? CHECKPOINT_GRAPH_LANE_COLORS[0];
+}
+
+function graphButton(widget: KnoxGuiWidget, parent: HTMLElement, label: string, onClick: (() => void) | undefined, options: { className?: string; testId?: string; submit?: boolean } = {}): HTMLButtonElement {
+	const button = DOM.append(parent, DOM.$<HTMLButtonElement>(`button.knox-gui-graph-btn${options.className ? `.${options.className}` : ''}`, undefined, label));
+	button.type = options.submit ? 'submit' : 'button';
+	if (options.testId) {
+		button.setAttribute('data-testid', options.testId);
+	}
+	if (onClick) {
+		widget.listenerStore.add(DOM.addDisposableListener(button, 'click', e => {
+			e.stopPropagation();
+			onClick();
+		}));
+	}
+	return button;
+}
+
+function graphCheckbox(widget: KnoxGuiWidget, parent: HTMLElement, label: string, checked: boolean, onChange: (checked: boolean) => void, truncate = false): HTMLLabelElement {
+	const row = DOM.append(parent, DOM.$<HTMLLabelElement>('label.knox-gui-graph-check'));
+	const box = DOM.append(row, DOM.$<HTMLInputElement>('input'));
+	box.type = 'checkbox';
+	box.checked = checked;
+	widget.listenerStore.add(DOM.addDisposableListener(box, 'change', () => onChange(box.checked)));
+	if (truncate) {
+		DOM.append(row, DOM.$('span.knox-gui-graph-truncate', undefined, label));
+	} else {
+		row.append(label);
+	}
+	return row;
+}
 
 export function renderCheckpointGraph(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 	const headId = state.checkpointHeadId ?? activeHeadId(state.checkpointBranches);
@@ -55,7 +100,6 @@ export function renderCheckpointGraph(widget: KnoxGuiWidget, body: HTMLElement, 
 	const docked = prefs.detailsLocation === 'dock';
 	const expand = !docked && openIndex >= 0 ? { at: openIndex, y: CHECKPOINT_GRAPH_DETAILS_HEIGHT } : undefined;
 	const drawing = drawCheckpointGraph(layout, expand);
-	const range = checkpointGraphWindow(displayNodes.length, widget.checkpointGraphScrollTop, widget.checkpointGraphViewport, expand);
 	const heads = checkpointGraphHeadsById(state.checkpointBranches);
 	const ancestors = checkpointAncestorIds(state.checkpoints, headId ?? null);
 	const columns = checkpointGraphGridColumns(drawing.width, prefs.hiddenColumns, prefs.columnWidths);
@@ -63,13 +107,13 @@ export function renderCheckpointGraph(widget: KnoxGuiWidget, body: HTMLElement, 
 		const headIndex = displayNodes.findIndex(node => node.id === headId);
 		if (headIndex >= 0) {
 			widget.checkpointGraphPendingHead = false;
-			widget.checkpointGraphOpenId = headId;
 			const top = checkpointGraphRowTop(headIndex, expand);
 			widget.checkpointGraphScrollTop = Math.max(0, top - Math.max(widget.checkpointGraphViewport, CHECKPOINT_GRAPH_ROW_HEIGHT * 8) / 2 + CHECKPOINT_GRAPH_ROW_HEIGHT / 2);
 		}
 	}
-	const light = checkpointThemeIsLight();
 	const hits = graphFindHits(displayNodes, heads, widget.checkpointGraphFindQuery);
+	revealGraphTargets(widget, hits, expand);
+	const range = checkpointGraphWindow(displayNodes.length, widget.checkpointGraphScrollTop, widget.checkpointGraphViewport, expand);
 	syncGraphCompare(widget, state);
 
 	const root = DOM.append(body, DOM.$('.knox-gui-graph'));
@@ -90,6 +134,7 @@ export function renderCheckpointGraph(widget: KnoxGuiWidget, body: HTMLElement, 
 	widget.listenerStore.add(DOM.addDisposableListener(scroller, 'scroll', () => {
 		widget.checkpointGraphScrollTop = scroller.scrollTop;
 		widget.checkpointGraphViewport = scroller.clientHeight;
+		hideGraphHover(widget);
 		if (state.checkpointGraphHasMore && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 48) {
 			void widget.controller.loadMoreCheckpoints();
 		}
@@ -99,11 +144,20 @@ export function renderCheckpointGraph(widget: KnoxGuiWidget, body: HTMLElement, 
 		if (Math.abs(scroller.scrollTop - widget.checkpointGraphScrollTop) > 1) {
 			scroller.scrollTop = widget.checkpointGraphScrollTop;
 		}
-		widget.checkpointGraphViewport = scroller.clientHeight;
 	});
+	const resizeObserver = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(() => {
+		if (scroller.isConnected && scroller.clientHeight !== widget.checkpointGraphViewport) {
+			widget.checkpointGraphViewport = scroller.clientHeight;
+			widget.render();
+		}
+	});
+	if (resizeObserver) {
+		resizeObserver.observe(scroller);
+		widget.listenerStore.add(toDisposable(() => resizeObserver.disconnect()));
+	}
 	const canvas = DOM.append(scroller, DOM.$('.knox-gui-graph-canvas-wrap'));
 	canvas.style.height = `${drawing.height}px`;
-	renderGraphSvg(widget, canvas, state, drawing, displayNodes, heads, headId, light);
+	renderGraphSvg(widget, canvas, state, drawing, displayNodes, heads, headId);
 	for (let index = range.start; index < range.end; index += 1) {
 		const node = displayNodes[index];
 		if (!node) {
@@ -119,7 +173,6 @@ export function renderCheckpointGraph(widget: KnoxGuiWidget, body: HTMLElement, 
 			found: hits[widget.checkpointGraphFindIndex] === index && widget.checkpointGraphFindQuery.trim().length > 0,
 			open: node.id === widget.checkpointGraphOpenId,
 			branches: heads.get(node.id) ?? [],
-			light,
 		});
 		if (node.id === widget.checkpointGraphOpenId && !docked) {
 			renderGraphDetails(widget, canvas, state, node, top + CHECKPOINT_GRAPH_ROW_HEIGHT, drawing.width, false);
@@ -131,11 +184,7 @@ export function renderCheckpointGraph(widget: KnoxGuiWidget, body: HTMLElement, 
 			DOM.append(more, DOM.$('span', undefined, t(state, state.checkpointGraphLoadMoreError)));
 		}
 		if (state.checkpointGraphHasMore) {
-			widget.chromeButton(more, {
-				label: t(state, 'checkpointGraph.loadMore'),
-				testId: 'checkpoint-graph-load-more',
-				onClick: () => void widget.controller.loadMoreCheckpoints(),
-			});
+			graphButton(widget, more, t(state, 'checkpointGraph.loadMore'), () => void widget.controller.loadMoreCheckpoints(), { testId: 'checkpoint-graph-load-more' });
 		}
 	}
 	if (docked && openIndex >= 0 && displayNodes[openIndex]) {
@@ -147,6 +196,32 @@ export function renderCheckpointGraph(widget: KnoxGuiWidget, body: HTMLElement, 
 	}
 	if (widget.checkpointGraphPrompt) {
 		renderGraphPrompt(widget, root, state);
+	}
+}
+
+/** Keeps the open inline details and the current find hit in view, once per change (reference effects on `expand` / `hits`). */
+function revealGraphTargets(widget: KnoxGuiWidget, hits: readonly number[], expand: { at: number; y: number } | undefined): void {
+	const revealKey = expand ? `${widget.checkpointGraphOpenId}:${expand.at}` : undefined;
+	if (revealKey !== widget.checkpointGraphRevealKey) {
+		widget.checkpointGraphRevealKey = revealKey;
+		if (expand) {
+			const top = checkpointGraphRowTop(expand.at, expand);
+			const next = checkpointGraphRevealScroll(top, top + CHECKPOINT_GRAPH_ROW_HEIGHT + expand.y, widget.checkpointGraphScrollTop, widget.checkpointGraphViewport);
+			if (next !== undefined) {
+				widget.checkpointGraphScrollTop = next;
+			}
+		}
+	}
+	const hit = hits.length ? hits[Math.min(widget.checkpointGraphFindIndex, hits.length - 1)] : undefined;
+	const findKey = hit === undefined ? undefined : `${hit}:${expand?.at ?? -1}`;
+	if (findKey !== widget.checkpointGraphFindKey) {
+		widget.checkpointGraphFindKey = findKey;
+		if (hit !== undefined) {
+			const next = checkpointGraphFindScroll(checkpointGraphRowTop(hit, expand), widget.checkpointGraphScrollTop, widget.checkpointGraphViewport);
+			if (next !== undefined) {
+				widget.checkpointGraphScrollTop = next;
+			}
+		}
 	}
 }
 
@@ -316,7 +391,7 @@ function renderGraphControlBar(widget: KnoxGuiWidget, parent: HTMLElement, state
 	const bar = DOM.append(parent, DOM.$('.knox-gui-graph-bar'));
 	const folders = state.checkpointWorkspaceFolders;
 	if (folders.length > 1) {
-		const select = DOM.append(bar, DOM.$('select.knox-gui-select')) as HTMLSelectElement;
+		const select = DOM.append(bar, DOM.$('select.knox-gui-graph-select.knox-gui-graph-workspace')) as HTMLSelectElement;
 		select.setAttribute('aria-label', t(state, 'checkpointGraph.workspace'));
 		for (const folder of folders) {
 			const option = DOM.append(select, DOM.$('option')) as HTMLOptionElement;
@@ -329,62 +404,39 @@ function renderGraphControlBar(widget: KnoxGuiWidget, parent: HTMLElement, state
 		widget.listenerStore.add(DOM.addDisposableListener(select, 'change', () => void widget.controller.setCheckpointWorkspace(select.value)));
 	}
 	const filter = checkpointGraphFilterFromUi(state.checkpointGraphUi);
-	const details = DOM.append(bar, DOM.$('details.knox-gui-graph-branches'));
+	const details = DOM.append(bar, DOM.$<HTMLDetailsElement>('details.knox-gui-graph-branches'));
+	details.open = branchMenuOpen.get(widget) === true;
+	widget.listenerStore.add(DOM.addDisposableListener(details, 'toggle', () => branchMenuOpen.set(widget, details.open)));
 	const summary = DOM.append(details, DOM.$('summary'));
 	summary.textContent = filter.activeBranchOnly
 		? t(state, 'checkpointGraph.activeBranchOnly')
 		: !filter.branchIds ? t(state, 'checkpointGraph.allBranches') : t(state, 'checkpointGraph.branches');
 	const menu = DOM.append(details, DOM.$('.knox-gui-graph-branch-menu'));
 	menu.setAttribute('data-testid', 'checkpoint-graph-branches');
-	const all = DOM.append(menu, DOM.$('label.knox-gui-row'));
-	const allBox = DOM.append(all, DOM.$('input')) as HTMLInputElement;
-	allBox.type = 'checkbox';
-	allBox.checked = !filter.activeBranchOnly && !filter.branchIds;
-	widget.listenerStore.add(DOM.addDisposableListener(allBox, 'change', () => void widget.controller.setCheckpointBranchFilter({})));
-	DOM.append(all, DOM.$('span', undefined, t(state, 'checkpointGraph.allBranches')));
-	const active = DOM.append(menu, DOM.$('label.knox-gui-row'));
-	const activeBox = DOM.append(active, DOM.$('input')) as HTMLInputElement;
-	activeBox.type = 'checkbox';
-	activeBox.checked = filter.activeBranchOnly === true;
-	widget.listenerStore.add(DOM.addDisposableListener(activeBox, 'change', () => void widget.controller.setCheckpointBranchFilter({ activeBranchOnly: true })));
-	DOM.append(active, DOM.$('span', undefined, t(state, 'checkpointGraph.activeBranchOnly')));
+	graphCheckbox(widget, menu, t(state, 'checkpointGraph.allBranches'), !filter.activeBranchOnly && !filter.branchIds, () => void widget.controller.setCheckpointBranchFilter({}));
+	graphCheckbox(widget, menu, t(state, 'checkpointGraph.activeBranchOnly'), filter.activeBranchOnly === true, () => void widget.controller.setCheckpointBranchFilter({ activeBranchOnly: true }));
 	const selected = new Set(filter.branchIds ?? []);
 	for (const branch of state.checkpointBranches) {
-		const row = DOM.append(menu, DOM.$('label.knox-gui-row'));
-		const box = DOM.append(row, DOM.$('input')) as HTMLInputElement;
-		box.type = 'checkbox';
-		box.checked = !filter.activeBranchOnly && selected.has(branch.id);
-		widget.listenerStore.add(DOM.addDisposableListener(box, 'change', () => {
+		graphCheckbox(widget, menu, branch.name, !filter.activeBranchOnly && selected.has(branch.id), checked => {
 			const next = new Set(filter.activeBranchOnly ? [] : selected);
-			if (box.checked) {
+			if (checked) {
 				next.add(branch.id);
 			} else {
 				next.delete(branch.id);
 			}
 			void widget.controller.setCheckpointBranchFilter({ branchIds: [...next] });
-		}));
-		DOM.append(row, DOM.$('span', undefined, branch.name));
+		}, true);
 	}
-	widget.chromeButton(bar, { label: t(state, 'checkpointGraph.refresh'), onClick: () => void widget.controller.loadCheckpoints() });
-	widget.chromeButton(bar, {
-		label: t(state, 'checkpointGraph.find'),
-		onClick: () => {
-			widget.checkpointGraphFindOpen = true;
-			widget.render();
-			queueMicrotask(() => widget.checkpointGraphFindInput?.focus());
-		},
+	graphButton(widget, bar, t(state, 'checkpointGraph.refresh'), () => void widget.controller.loadCheckpoints());
+	graphButton(widget, bar, t(state, 'checkpointGraph.find'), () => {
+		widget.checkpointGraphFindOpen = true;
+		widget.render();
+		queueMicrotask(() => widget.checkpointGraphFindInput?.focus());
 	});
-	widget.chromeButton(bar, {
-		label: state.checkpointGraphUi.mute ? t(state, 'checkpointGraph.mute') : t(state, 'checkpointGraph.muteOff'),
-		testId: 'checkpoint-graph-mute',
-		onClick: () => void widget.controller.saveCheckpointGraphUi({ mute: !state.checkpointGraphUi.mute }),
-	});
-	widget.chromeButton(bar, {
-		label: t(state, 'checkpointGraph.settings'),
-		onClick: () => {
-			widget.checkpointGraphSettingsOpen = !widget.checkpointGraphSettingsOpen;
-			widget.render();
-		},
+	graphButton(widget, bar, state.checkpointGraphUi.mute ? t(state, 'checkpointGraph.mute') : t(state, 'checkpointGraph.muteOff'), () => void widget.controller.saveCheckpointGraphUi({ mute: !state.checkpointGraphUi.mute }), { testId: 'checkpoint-graph-mute' });
+	graphButton(widget, bar, t(state, 'checkpointGraph.settings'), () => {
+		widget.checkpointGraphSettingsOpen = !widget.checkpointGraphSettingsOpen;
+		widget.render();
 	});
 	const openNode = displayNodes.find(node => node.id === widget.checkpointGraphOpenId);
 	const compare = widget.checkpointGraphCompare;
@@ -395,13 +447,10 @@ function renderGraphControlBar(widget: KnoxGuiWidget, parent: HTMLElement, state
 		const chip = DOM.append(bar, DOM.$('span.knox-gui-graph-compare'));
 		chip.setAttribute('data-testid', 'checkpoint-graph-compare');
 		DOM.append(chip, DOM.$('span', undefined, compareLabel));
-		widget.chromeButton(chip, {
-			label: t(state, 'checkpointGraph.compareClear'),
-			onClick: () => {
-				widget.checkpointGraphCompare = null;
-				widget.checkpointGraphArmCompare = false;
-				widget.render();
-			},
+		graphButton(widget, chip, t(state, 'checkpointGraph.compareClear'), () => {
+			widget.checkpointGraphCompare = null;
+			widget.checkpointGraphArmCompare = false;
+			widget.render();
 		});
 	}
 }
@@ -410,9 +459,8 @@ function renderGraphSettings(widget: KnoxGuiWidget, parent: HTMLElement, state: 
 	const panel = DOM.append(parent, DOM.$('.knox-gui-graph-settings'));
 	panel.setAttribute('data-testid', 'checkpoint-graph-settings');
 	const prefs = state.checkpointGraphUi;
-	const details = DOM.append(panel, DOM.$('label'));
-	DOM.append(details, DOM.$('span', undefined, t(state, 'checkpointGraph.detailsLocation')));
-	const detailsSelect = DOM.append(details, DOM.$('select.knox-gui-select')) as HTMLSelectElement;
+	const details = DOM.append(panel, DOM.$('label.knox-gui-graph-field', undefined, t(state, 'checkpointGraph.detailsLocation')));
+	const detailsSelect = DOM.append(details, DOM.$('select.knox-gui-graph-select')) as HTMLSelectElement;
 	for (const value of ['inline', 'dock'] as const) {
 		const option = DOM.append(detailsSelect, DOM.$('option')) as HTMLOptionElement;
 		option.value = value;
@@ -422,9 +470,8 @@ function renderGraphSettings(widget: KnoxGuiWidget, parent: HTMLElement, state: 
 		}
 	}
 	widget.listenerStore.add(DOM.addDisposableListener(detailsSelect, 'change', () => void widget.controller.saveCheckpointGraphUi({ detailsLocation: detailsSelect.value === 'dock' ? 'dock' : 'inline' })));
-	const dates = DOM.append(panel, DOM.$('label'));
-	DOM.append(dates, DOM.$('span', undefined, t(state, 'checkpointGraph.dateStyle')));
-	const dateSelect = DOM.append(dates, DOM.$('select.knox-gui-select')) as HTMLSelectElement;
+	const dates = DOM.append(panel, DOM.$('label.knox-gui-graph-field', undefined, t(state, 'checkpointGraph.dateStyle')));
+	const dateSelect = DOM.append(dates, DOM.$('select.knox-gui-graph-select')) as HTMLSelectElement;
 	for (const value of ['relative', 'absolute'] as const) {
 		const option = DOM.append(dateSelect, DOM.$('option')) as HTMLOptionElement;
 		option.value = value;
@@ -434,10 +481,10 @@ function renderGraphSettings(widget: KnoxGuiWidget, parent: HTMLElement, state: 
 		}
 	}
 	widget.listenerStore.add(DOM.addDisposableListener(dateSelect, 'change', () => void widget.controller.saveCheckpointGraphUi({ dateStyle: dateSelect.value === 'absolute' ? 'absolute' : 'relative' })));
-	widget.toggle(panel, t(state, 'checkpointGraph.mute'), prefs.mute, value => void widget.controller.saveCheckpointGraphUi({ mute: value }));
+	graphCheckbox(widget, panel, t(state, 'checkpointGraph.mute'), prefs.mute, value => void widget.controller.saveCheckpointGraphUi({ mute: value }));
 	const colors = DOM.append(panel, DOM.$('.knox-gui-graph-colors'));
 	prefs.laneColors.forEach((color, index) => {
-		const input = DOM.append(colors, DOM.$('input')) as HTMLInputElement;
+		const input = DOM.append(colors, DOM.$('input.knox-gui-graph-color')) as HTMLInputElement;
 		input.value = color;
 		input.setAttribute('aria-label', `${t(state, 'checkpointGraph.colors')} ${index + 1}`);
 		widget.listenerStore.add(DOM.addDisposableListener(input, 'change', () => {
@@ -446,17 +493,11 @@ function renderGraphSettings(widget: KnoxGuiWidget, parent: HTMLElement, state: 
 			void widget.controller.saveCheckpointGraphUi({ laneColors: next });
 		}));
 	});
-	widget.chromeButton(panel, {
-		label: t(state, 'checkpointGraph.showConfiguration'),
-		onClick: () => widget.controller.messenger.post('runCheckpointGraphAction', { action: 'showConfiguration' }),
-	});
-	widget.chromeButton(panel, {
-		label: t(state, 'checkpointGraph.findClose'),
-		onClick: () => {
-			widget.checkpointGraphSettingsOpen = false;
-			widget.render();
-		},
-	});
+	graphButton(widget, panel, t(state, 'checkpointGraph.showConfiguration'), () => widget.controller.messenger.post('runCheckpointGraphAction', { action: 'showConfiguration' }), { className: 'knox-gui-graph-link' });
+	graphButton(widget, panel, t(state, 'checkpointGraph.findClose'), () => {
+		widget.checkpointGraphSettingsOpen = false;
+		widget.render();
+	}, { className: 'knox-gui-graph-settings-close' });
 }
 
 function renderGraphFind(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, count: number): void {
@@ -466,7 +507,7 @@ function renderGraphFind(widget: KnoxGuiWidget, parent: HTMLElement, state: IKno
 		e.preventDefault();
 		jumpGraphFind(widget, state, 1);
 	}));
-	const input = DOM.append(form, DOM.$('input')) as HTMLInputElement;
+	const input = DOM.append(form, DOM.$('input.knox-gui-graph-find-input')) as HTMLInputElement;
 	input.value = widget.checkpointGraphFindQuery;
 	input.setAttribute('aria-label', t(state, 'checkpointGraph.find'));
 	widget.checkpointGraphFindInput = input;
@@ -476,26 +517,18 @@ function renderGraphFind(widget: KnoxGuiWidget, parent: HTMLElement, state: IKno
 		widget.render();
 	}));
 	const index = count === 0 ? 0 : Math.min(widget.checkpointGraphFindIndex, count - 1) + 1;
-	const countEl = DOM.append(form, DOM.$('span.knox-gui-muted'));
+	const countEl = DOM.append(form, DOM.$('span.knox-gui-graph-dim'));
 	countEl.setAttribute('data-testid', 'checkpoint-graph-find-count');
 	countEl.textContent = t(state, 'checkpointGraph.findCount', { index, count });
-	widget.chromeButton(form, { label: t(state, 'checkpointGraph.findPrevious'), onClick: () => jumpGraphFind(widget, state, -1) });
-	widget.chromeButton(form, { label: t(state, 'checkpointGraph.findNext'), onClick: () => jumpGraphFind(widget, state, 1) });
-	const open = DOM.append(form, DOM.$('label.knox-gui-row'));
-	const box = DOM.append(open, DOM.$('input')) as HTMLInputElement;
-	box.type = 'checkbox';
-	box.checked = widget.checkpointGraphFindOpenDetails;
-	widget.listenerStore.add(DOM.addDisposableListener(box, 'change', () => {
-		widget.checkpointGraphFindOpenDetails = box.checked;
+	graphButton(widget, form, t(state, 'checkpointGraph.findPrevious'), () => jumpGraphFind(widget, state, -1), { className: 'knox-gui-graph-find-step' });
+	graphButton(widget, form, t(state, 'checkpointGraph.findNext'), undefined, { className: 'knox-gui-graph-find-step', submit: true });
+	graphCheckbox(widget, form, t(state, 'checkpointGraph.findOpenDetails'), widget.checkpointGraphFindOpenDetails, checked => {
+		widget.checkpointGraphFindOpenDetails = checked;
 		widget.render();
-	}));
-	DOM.append(open, DOM.$('span', undefined, t(state, 'checkpointGraph.findOpenDetails')));
-	widget.chromeButton(form, {
-		label: t(state, 'checkpointGraph.findClose'),
-		onClick: () => {
-			widget.checkpointGraphFindOpen = false;
-			widget.render();
-		},
+	});
+	graphButton(widget, form, t(state, 'checkpointGraph.findClose'), () => {
+		widget.checkpointGraphFindOpen = false;
+		widget.render();
 	});
 }
 
@@ -531,6 +564,7 @@ function renderGraphHeader(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 		cell.setAttribute('role', 'columnheader');
 		const handle = DOM.append(cell, DOM.$('span.knox-gui-graph-resize'));
 		handle.setAttribute('role', 'separator');
+		handle.setAttribute('aria-orientation', 'vertical');
 		handle.setAttribute('data-testid', `checkpoint-graph-resize-${column}`);
 		widget.listenerStore.add(DOM.addDisposableListener(handle, 'mousedown', e => beginColumnResize(widget, state, column, e)));
 	}
@@ -563,7 +597,6 @@ function renderGraphSvg(
 	displayNodes: readonly GraphNode[],
 	heads: Map<string, IKnoxGuiCheckpointBranch[]>,
 	headId: string | undefined,
-	light: boolean,
 ): void {
 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 	svg.setAttribute('width', String(drawing.width));
@@ -576,20 +609,20 @@ function renderGraphSvg(
 		const el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 		el.setAttribute('d', path.d);
 		el.setAttribute('fill', 'none');
-		el.setAttribute('stroke', remapCheckpointBranchColor(resolveCheckpointLaneColor(path.colorIndex, state.checkpointGraphUi.laneColors), light));
+		el.style.stroke = themedGraphColor(resolveCheckpointLaneColor(path.colorIndex, state.checkpointGraphUi.laneColors));
 		el.setAttribute('stroke-width', '2');
 		el.setAttribute('stroke-linecap', 'round');
 		el.setAttribute('stroke-linejoin', 'round');
 		svg.appendChild(el);
 	}
 	for (const vertex of drawing.vertices) {
-		const color = remapCheckpointBranchColor(resolveCheckpointLaneColor(vertex.colorIndex, state.checkpointGraphUi.laneColors), light);
+		const color = themedGraphColor(resolveCheckpointLaneColor(vertex.colorIndex, state.checkpointGraphUi.laneColors));
 		const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
 		circle.setAttribute('cx', String(vertex.cx));
 		circle.setAttribute('cy', String(vertex.cy));
 		circle.setAttribute('r', String(CHECKPOINT_GRAPH_VERTEX_RADIUS));
-		circle.setAttribute('fill', vertex.current ? 'var(--vscode-editor-background, var(--background))' : color);
-		circle.setAttribute('stroke', color);
+		circle.style.fill = vertex.current ? 'var(--vscode-editor-background)' : color;
+		circle.style.stroke = color;
 		circle.setAttribute('stroke-width', vertex.current ? '2' : '0');
 		circle.setAttribute('data-testid', 'checkpoint-graph-vertex');
 		if (vertex.current) {
@@ -635,7 +668,7 @@ function renderGraphRow(
 	widget: KnoxGuiWidget,
 	parent: HTMLElement,
 	state: IKnoxGuiState,
-	opts: { node: GraphNode; top: number; columns: string; current: boolean; muted: boolean; found: boolean; open: boolean; branches: IKnoxGuiCheckpointBranch[]; light: boolean },
+	opts: { node: GraphNode; top: number; columns: string; current: boolean; muted: boolean; found: boolean; open: boolean; branches: IKnoxGuiCheckpointBranch[] },
 ): void {
 	const row = DOM.append(parent, DOM.$('.knox-gui-graph-row'));
 	row.setAttribute('role', 'row');
@@ -672,7 +705,7 @@ function renderGraphRow(
 		chip.setAttribute('data-active', branch.isActive ? 'true' : 'false');
 		chip.title = branch.name;
 		if (branch.isActive) {
-			const color = remapCheckpointBranchColor(branch.color || checkpointGraphLaneColor(0), opts.light);
+			const color = themedGraphColor(branch.color);
 			chip.style.color = color;
 			chip.style.borderColor = color;
 			chip.classList.add('active');
@@ -699,21 +732,21 @@ function renderGraphRow(
 	title.title = opts.node.description;
 	const when = formatCheckpointGraphTime(opts.node.created);
 	if (!state.checkpointGraphUi.hiddenColumns.includes('date')) {
-		const cell = DOM.append(row, DOM.$('div.knox-gui-muted', undefined, state.checkpointGraphUi.dateStyle === 'absolute' || !when.relativeKey ? when.absolute : t(state, when.relativeKey, when.count != null ? { count: when.count } : undefined)));
+		const cell = DOM.append(row, DOM.$('div.knox-gui-graph-cell.knox-gui-graph-truncate.knox-gui-graph-dim', undefined, state.checkpointGraphUi.dateStyle === 'absolute' || !when.relativeKey ? when.absolute : t(state, when.relativeKey, when.count != null ? { count: when.count } : undefined)));
 		cell.setAttribute('role', 'cell');
 		cell.title = when.absolute;
 	}
 	if (!state.checkpointGraphUi.hiddenColumns.includes('kind')) {
-		const cell = DOM.append(row, DOM.$('div'));
+		const cell = DOM.append(row, DOM.$('div.knox-gui-graph-cell'));
 		cell.setAttribute('role', 'cell');
 		if (opts.node.workingTree) {
-			DOM.append(cell, DOM.$('span.knox-gui-muted', undefined, t(state, 'checkpointGraph.workingTree')));
+			DOM.append(cell, DOM.$('span.knox-gui-graph-dim.knox-gui-graph-working', undefined, t(state, 'checkpointGraph.workingTree')));
 		} else {
 			DOM.append(cell, DOM.$(`span.knox-gui-cp-kind.${checkpointKindClass(opts.node.kind)}`, undefined, t(state, checkpointKindI18nKey(opts.node.kind))));
 		}
 	}
 	if (!state.checkpointGraphUi.hiddenColumns.includes('id')) {
-		const cell = DOM.append(row, DOM.$('div.knox-gui-mono', undefined, opts.node.shortId));
+		const cell = DOM.append(row, DOM.$('div.knox-gui-graph-cell.knox-gui-graph-truncate.knox-gui-graph-mono', undefined, opts.node.shortId));
 		cell.setAttribute('role', 'cell');
 		if (!opts.node.workingTree) {
 			cell.title = opts.node.id;
@@ -732,43 +765,37 @@ function renderGraphDetails(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 	widget.listenerStore.add(DOM.addDisposableListener(panel, 'click', e => e.stopPropagation()));
 	const when = formatCheckpointGraphTime(node.created);
 	const dl = DOM.append(panel, DOM.$('dl.knox-gui-graph-dl'));
-	addDetail(dl, t(state, 'checkpointGraph.details.description'), node.description);
-	addDetail(dl, t(state, 'checkpointGraph.details.id'), node.workingTree ? t(state, 'checkpointGraph.hoverNone') : node.id);
-	const kindDd = addDetail(dl, t(state, 'checkpointGraph.details.kind'), '');
-	DOM.append(kindDd, DOM.$(`span.knox-gui-cp-kind.${node.workingTree ? '' : checkpointKindClass(node.kind)}`, undefined, node.workingTree ? t(state, 'checkpointGraph.workingTree') : t(state, checkpointKindI18nKey(node.kind))));
-	DOM.append(kindDd, DOM.$('span.knox-gui-muted', undefined, t(state, 'checkpointGraph.details.tags')));
-	DOM.append(kindDd, DOM.$('span', undefined, node.tags.length ? node.tags.join(', ') : t(state, 'checkpointGraph.details.noTags')));
-	DOM.append(kindDd, DOM.$('span.knox-gui-muted', undefined, t(state, 'checkpointGraph.details.session')));
-	DOM.append(kindDd, DOM.$('span.knox-gui-mono', undefined, node.sessionId || t(state, 'checkpointGraph.details.noSession')));
-	const created = addDetail(dl, t(state, 'checkpointGraph.details.created'), when.absolute);
-	DOM.append(created, DOM.$('span.knox-gui-muted', undefined, t(state, 'checkpointGraph.details.changes')));
+	const description = addDetail(dl, t(state, 'checkpointGraph.details.description'), '.knox-gui-graph-truncate', node.description);
+	description.title = node.description;
+	const id = addDetail(dl, t(state, 'checkpointGraph.details.id'), '.knox-gui-graph-truncate.knox-gui-graph-mono', node.workingTree ? t(state, 'checkpointGraph.hoverNone') : node.id);
+	id.title = node.id;
+	const kindDd = addDetail(dl, t(state, 'checkpointGraph.details.kind'), '.knox-gui-graph-dd-kind');
+	DOM.append(kindDd, DOM.$(node.workingTree ? 'span.knox-gui-cp-kind' : `span.knox-gui-cp-kind.${checkpointKindClass(node.kind)}`, undefined, node.workingTree ? t(state, 'checkpointGraph.workingTree') : t(state, checkpointKindI18nKey(node.kind))));
+	DOM.append(kindDd, DOM.$('span.knox-gui-graph-dim', undefined, t(state, 'checkpointGraph.details.tags')));
+	DOM.append(kindDd, DOM.$('span.knox-gui-graph-truncate', undefined, node.tags.length ? node.tags.join(', ') : t(state, 'checkpointGraph.details.noTags')));
+	DOM.append(kindDd, DOM.$('span.knox-gui-graph-dim', undefined, t(state, 'checkpointGraph.details.session')));
+	DOM.append(kindDd, DOM.$('span.knox-gui-graph-truncate.knox-gui-graph-mono', undefined, node.sessionId || t(state, 'checkpointGraph.details.noSession')));
+	const created = addDetail(dl, t(state, 'checkpointGraph.details.created'), '.knox-gui-graph-dd-created');
+	DOM.append(created, DOM.$('span', undefined, when.absolute));
+	DOM.append(created, DOM.$('span.knox-gui-graph-dim', undefined, t(state, 'checkpointGraph.details.changes')));
 	DOM.append(created, DOM.$('span', undefined, t(state, 'checkpointGraph.details.added', { count: node.fileChanges.added })));
 	DOM.append(created, DOM.$('span', undefined, t(state, 'checkpointGraph.details.modified', { count: node.fileChanges.modified })));
 	DOM.append(created, DOM.$('span', undefined, t(state, 'checkpointGraph.details.deleted', { count: node.fileChanges.deleted })));
 	const filesHead = DOM.append(panel, DOM.$('.knox-gui-graph-files-head'));
 	DOM.append(filesHead, DOM.$('h2', undefined, t(state, 'checkpointGraph.details.files')));
-	widget.chromeButton(filesHead, {
-		label: t(state, 'checkpointGraph.details.list'),
-		selected: state.checkpointGraphUi.fileView === 'list',
-		testId: 'checkpoint-graph-file-list',
-		onClick: () => void widget.controller.saveCheckpointGraphUi({ fileView: 'list' }),
-	});
-	widget.chromeButton(filesHead, {
-		label: t(state, 'checkpointGraph.details.tree'),
-		selected: state.checkpointGraphUi.fileView === 'tree',
-		testId: 'checkpoint-graph-view-tree',
-		onClick: () => void widget.controller.saveCheckpointGraphUi({ fileView: 'tree' }),
-	});
+	const fileView = state.checkpointGraphUi.fileView;
+	graphButton(widget, filesHead, t(state, 'checkpointGraph.details.list'), () => void widget.controller.saveCheckpointGraphUi({ fileView: 'list' }), { className: fileView === 'list' ? 'knox-gui-graph-view.selected' : 'knox-gui-graph-view', testId: 'checkpoint-graph-file-list' });
+	graphButton(widget, filesHead, t(state, 'checkpointGraph.details.tree'), () => void widget.controller.saveCheckpointGraphUi({ fileView: 'tree' }), { className: fileView === 'tree' ? 'knox-gui-graph-view.selected' : 'knox-gui-graph-view', testId: 'checkpoint-graph-view-tree' });
 	const comparing = Boolean(widget.checkpointGraphCompare && widget.checkpointGraphOpenId === node.id);
 	const paths = comparing ? widget.checkpointGraphComparePaths : node.changedPaths;
 	const error = comparing ? widget.checkpointGraphCompareError : null;
 	if (error) {
-		DOM.append(panel, DOM.$('p.knox-gui-muted', undefined, t(state, error)));
+		DOM.append(panel, DOM.$('p.knox-gui-graph-note', undefined, t(state, error)));
 	}
 	if (paths === null) {
-		DOM.append(panel, DOM.$('p.knox-gui-muted', undefined, t(state, 'checkpointGraph.loading')));
+		DOM.append(panel, DOM.$('p.knox-gui-graph-note', undefined, t(state, 'checkpointGraph.loading')));
 	} else if (!paths.length) {
-		DOM.append(panel, DOM.$('p.knox-gui-muted', undefined, t(state, 'checkpointGraph.details.noFiles')));
+		DOM.append(panel, DOM.$('p.knox-gui-graph-note', undefined, t(state, 'checkpointGraph.details.noFiles')));
 	} else if (state.checkpointGraphUi.fileView === 'tree') {
 		const tree = DOM.append(panel, DOM.$('ul.knox-gui-graph-file-tree'));
 		tree.setAttribute('data-testid', 'checkpoint-graph-file-tree');
@@ -792,45 +819,52 @@ function renderGraphDetails(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 	}
 }
 
-function addDetail(dl: HTMLElement, label: string, value: string): HTMLElement {
-	DOM.append(dl, DOM.$('dt.knox-gui-muted', undefined, label));
-	return DOM.append(dl, DOM.$('dd', undefined, value));
+function addDetail(dl: HTMLElement, label: string, classes: string, value?: string): HTMLElement {
+	DOM.append(dl, DOM.$('dt.knox-gui-graph-dim', undefined, label));
+	return DOM.append(dl, DOM.$(`dd${classes}`, undefined, value ?? ''));
 }
 
 function renderPathTree(widget: KnoxGuiWidget, state: IKnoxGuiState, parent: HTMLElement, nodes: CheckpointGraphPathTreeNode[], graphNode: GraphNode, depth: number): void {
+	const fileButton = (item: HTMLElement, node: CheckpointGraphPathTreeNode) => {
+		const btn = DOM.append(item, DOM.$('button.knox-gui-graph-path', undefined, node.name)) as HTMLButtonElement;
+		btn.type = 'button';
+		btn.setAttribute('data-testid', 'checkpoint-graph-path');
+		btn.title = node.path;
+		btn.style.paddingLeft = `${(depth + (node.children.length ? 1 : 0)) * 12}px`;
+		widget.listenerStore.add(DOM.addDisposableListener(btn, 'click', () => openGraphPath(widget, state, graphNode, node.path)));
+		widget.listenerStore.add(DOM.addDisposableListener(btn, 'contextmenu', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			widget.checkpointGraphMenu = { x: e.clientX, y: e.clientY, kind: 'file', nodeId: graphNode.id, path: node.path };
+			widget.render();
+		}));
+	};
 	for (const node of nodes) {
 		const item = DOM.append(parent, DOM.$('li'));
-		if (node.children.length) {
-			const open = widget.checkpointGraphExpandedFolders.has(node.path) || !widget.checkpointGraphExpandedFolders.size;
-			const toggle = DOM.append(item, DOM.$('button.knox-gui-muted', undefined, `${open ? '▾' : '▸'} ${node.name}`)) as HTMLButtonElement;
-			toggle.type = 'button';
-			toggle.style.paddingLeft = `${depth * 12}px`;
-			widget.listenerStore.add(DOM.addDisposableListener(toggle, 'click', () => {
-				if (widget.checkpointGraphExpandedFolders.has(node.path)) {
-					widget.checkpointGraphExpandedFolders.delete(node.path);
-				} else {
-					widget.checkpointGraphExpandedFolders.add(node.path);
-				}
-				widget.render();
-			}));
-			if (open) {
-				const nested = DOM.append(item, DOM.$('ul'));
-				renderPathTree(widget, state, nested, node.children, graphNode, depth + 1);
+		if (!node.children.length) {
+			if (node.file) {
+				fileButton(item, node);
 			}
+			continue;
 		}
-		if (node.file) {
-			const btn = DOM.append(item, DOM.$('button.knox-gui-graph-path', undefined, node.name)) as HTMLButtonElement;
-			btn.type = 'button';
-			btn.setAttribute('data-testid', 'checkpoint-graph-path');
-			btn.title = node.path;
-			btn.style.paddingLeft = `${(depth + (node.children.length ? 1 : 0)) * 12}px`;
-			widget.listenerStore.add(DOM.addDisposableListener(btn, 'click', () => openGraphPath(widget, state, graphNode, node.path)));
-			widget.listenerStore.add(DOM.addDisposableListener(btn, 'contextmenu', e => {
-				e.preventDefault();
-				e.stopPropagation();
-				widget.checkpointGraphMenu = { x: e.clientX, y: e.clientY, kind: 'file', nodeId: graphNode.id, path: node.path };
-				widget.render();
-			}));
+		const open = !widget.checkpointGraphExpandedFolders.has(node.path);
+		const toggle = DOM.append(item, DOM.$('button.knox-gui-graph-folder', undefined, `${open ? '▾' : '▸'} ${node.name}`)) as HTMLButtonElement;
+		toggle.type = 'button';
+		toggle.style.paddingLeft = `${depth * 12}px`;
+		widget.listenerStore.add(DOM.addDisposableListener(toggle, 'click', () => {
+			if (widget.checkpointGraphExpandedFolders.has(node.path)) {
+				widget.checkpointGraphExpandedFolders.delete(node.path);
+			} else {
+				widget.checkpointGraphExpandedFolders.add(node.path);
+			}
+			widget.render();
+		}));
+		if (open) {
+			const nested = DOM.append(item, DOM.$('ul'));
+			renderPathTree(widget, state, nested, node.children, graphNode, depth + 1);
+			if (node.file) {
+				fileButton(DOM.append(nested, DOM.$('li')), node);
+			}
 		}
 	}
 }
@@ -862,11 +896,26 @@ function renderGraphMenu(widget: KnoxGuiWidget, parent: HTMLElement, state: IKno
 		widget.checkpointGraphMenu = null;
 		widget.render();
 	}));
+	widget.listenerStore.add(DOM.addDisposableListener(backdrop, 'contextmenu', e => {
+		e.preventDefault();
+		widget.checkpointGraphMenu = null;
+		widget.render();
+	}));
 	const panel = DOM.append(parent, DOM.$('.knox-gui-graph-menu'));
 	panel.setAttribute('role', 'menu');
 	panel.setAttribute('data-testid', 'checkpoint-graph-menu');
 	panel.style.left = `${menu.x}px`;
 	panel.style.top = `${menu.y}px`;
+	queueMicrotask(() => {
+		if (!panel.isConnected) {
+			return;
+		}
+		const rect = panel.getBoundingClientRect();
+		const win = DOM.getWindow(panel);
+		const next = checkpointGraphMenuPosition(menu.x, menu.y, rect.width, rect.height, win.innerWidth, win.innerHeight);
+		panel.style.left = `${next.x}px`;
+		panel.style.top = `${next.y}px`;
+	});
 	for (const entry of entries) {
 		if (entry.kind === 'divider') {
 			DOM.append(panel, DOM.$('.knox-gui-graph-menu-sep'));
@@ -875,9 +924,9 @@ function renderGraphMenu(widget: KnoxGuiWidget, parent: HTMLElement, state: IKno
 		const btn = DOM.append(panel, DOM.$('button.knox-gui-graph-menu-item')) as HTMLButtonElement;
 		btn.type = 'button';
 		btn.setAttribute('role', 'menuitem');
-		DOM.append(btn, DOM.$('span', undefined, entry.label));
+		DOM.append(btn, DOM.$('span.knox-gui-graph-menu-label', undefined, entry.label));
 		if (entry.detail) {
-			DOM.append(btn, DOM.$('span.knox-gui-muted', undefined, entry.detail));
+			DOM.append(btn, DOM.$('span.knox-gui-graph-menu-detail', undefined, entry.detail));
 		}
 		widget.listenerStore.add(DOM.addDisposableListener(btn, 'click', () => {
 			widget.checkpointGraphMenu = null;
@@ -914,7 +963,7 @@ function graphMenuEntries(
 		if (node.workingTree) {
 			const headId = state.checkpointHeadId ?? activeHeadId(state.checkpointBranches);
 			return [
-				{ kind: 'action', id: 'create', label: t(state, 'checkpointGraph.menu.createCheckpoint'), run: () => widget.controller.messenger.post('runCheckpointGraphAction', { action: 'createCheckpoint' }) },
+				{ kind: 'action', id: 'create', label: t(state, 'checkpointGraph.menu.createCheckpoint'), run: () => void widget.controller.runCheckpointGraphAction('createCheckpoint') },
 				...(headId ? [
 					{ kind: 'divider' as const, id: 'd-reset' },
 					{ kind: 'action' as const, id: 'resetTree', label: t(state, 'checkpointGraph.menu.resetWorkingTree'), run: () => { widget.checkpointGraphPrompt = { kind: 'resetTree', checkpointId: headId }; } },
@@ -1020,14 +1069,21 @@ function renderGraphPrompt(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 	if (!prompt) {
 		return;
 	}
+	const close = () => {
+		widget.checkpointGraphPrompt = null;
+		widget.render();
+	};
 	if (prompt.kind === 'notice') {
-		const dialog = widget.modal(parent, 'checkpoint-graph-dialog');
+		const overlay = DOM.append(parent, DOM.$('.knox-gui-graph-overlay'));
+		overlay.setAttribute('data-testid', 'checkpoint-graph-dialog');
+		const dialog = DOM.append(overlay, DOM.$('.knox-gui-graph-dialog'));
 		DOM.append(dialog, DOM.$('h2', undefined, t(state, 'checkpointGraph.conflictsTitle')));
-		const list = DOM.append(dialog, DOM.$('ul.knox-gui-mono'));
+		const list = DOM.append(dialog, DOM.$('ul.knox-gui-graph-conflicts.knox-gui-graph-mono'));
 		for (const path of (prompt.message ?? '').split('\n').filter(Boolean)) {
 			DOM.append(list, DOM.$('li', undefined, path));
 		}
-		widget.chromeButton(dialog, { label: t(state, 'checkpointGraph.findClose'), onClick: () => { widget.checkpointGraphPrompt = null; widget.render(); } });
+		const actions = DOM.append(dialog, DOM.$('.knox-gui-graph-dialog-actions'));
+		graphButton(widget, actions, t(state, 'checkpointGraph.findClose'), close);
 		return;
 	}
 	const titles: Record<Exclude<typeof prompt.kind, 'notice'>, string> = {
@@ -1058,35 +1114,50 @@ function renderGraphPrompt(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 		deleteTag: t(state, 'checkpointGraph.menu.deleteTag'),
 	};
 	const needsValue = prompt.kind === 'branch' || prompt.kind === 'rename' || prompt.kind === 'addTag';
-	const dialog = widget.modal(parent, 'checkpoint-graph-dialog');
+	const form = DOM.append(parent, DOM.$<HTMLFormElement>('form.knox-gui-graph-prompt.knox-gui-graph-overlay'));
+	form.setAttribute('data-testid', 'checkpoint-graph-dialog');
+	const dialog = DOM.append(form, DOM.$('.knox-gui-graph-dialog'));
 	DOM.append(dialog, DOM.$('h2', undefined, titles[prompt.kind]));
 	const bodyText = bodies[prompt.kind];
 	if (bodyText) {
-		DOM.append(dialog, DOM.$('p.knox-gui-muted', undefined, bodyText));
+		DOM.append(dialog, DOM.$('p.knox-gui-graph-note', undefined, bodyText));
 	}
 	let input: HTMLInputElement | undefined;
 	if (needsValue) {
-		input = DOM.append(dialog, DOM.$('input')) as HTMLInputElement;
-		input.value = widget.checkpointGraphPromptValue || prompt.name || '';
-		input.setAttribute('aria-label', titles[prompt.kind]);
-		widget.listenerStore.add(DOM.addDisposableListener(input, 'input', () => { widget.checkpointGraphPromptValue = input!.value; }));
+		const field = DOM.append(dialog, DOM.$<HTMLInputElement>('input#knox-checkpoint-graph-prompt-input.knox-gui-graph-prompt-input'));
+		input = field;
+		field.value = widget.checkpointGraphPromptValue || prompt.name || '';
+		field.setAttribute('aria-label', titles[prompt.kind]);
+		widget.listenerStore.add(DOM.addDisposableListener(field, 'input', () => { widget.checkpointGraphPromptValue = field.value; }));
+		if (widget.checkpointGraphPromptFocused !== prompt) {
+			widget.checkpointGraphPromptFocused = prompt;
+			queueMicrotask(() => field.isConnected && field.focus());
+		}
 	}
-	const actions = DOM.append(dialog, DOM.$('.knox-gui-row'));
-	widget.chromeButton(actions, { label: t(state, 'checkpointGraph.cancel'), onClick: () => { widget.checkpointGraphPrompt = null; widget.render(); } });
-	widget.chromeButton(actions, {
-		label: confirmLabels[prompt.kind],
-		onClick: () => {
-			const value = (input?.value ?? widget.checkpointGraphPromptValue).trim();
-			const current = widget.checkpointGraphPrompt;
-			widget.checkpointGraphPrompt = null;
-			if (!current) {
-				widget.render();
-				return;
-			}
+	const confirm = () => {
+		const value = (input?.value ?? widget.checkpointGraphPromptValue).trim();
+		const current = widget.checkpointGraphPrompt;
+		widget.checkpointGraphPrompt = null;
+		if (current) {
 			runGraphPrompt(widget, current, value);
-			widget.render();
-		},
-	});
+		}
+		widget.render();
+	};
+	widget.listenerStore.add(DOM.addDisposableListener(form, 'submit', e => {
+		e.preventDefault();
+		confirm();
+	}));
+	if (input) {
+		widget.listenerStore.add(DOM.addDisposableListener(input, 'keydown', e => {
+			if (e.key === 'Enter' && !e.isComposing) {
+				e.preventDefault();
+				confirm();
+			}
+		}));
+	}
+	const actions = DOM.append(dialog, DOM.$('.knox-gui-graph-dialog-actions'));
+	graphButton(widget, actions, t(state, 'checkpointGraph.cancel'), close);
+	graphButton(widget, actions, confirmLabels[prompt.kind], confirm, { testId: 'checkpoint-graph-dialog-confirm' });
 }
 
 function runGraphPrompt(widget: KnoxGuiWidget, prompt: NonNullable<KnoxGuiWidget['checkpointGraphPrompt']>, value: string): void {

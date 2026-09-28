@@ -65,11 +65,17 @@ export const MEMORY_CATEGORY_ICONS: Record<string, string> = {
 	convention: 'ruler',
 };
 
+/** `MemoryBrowser.tsx` uses `Folder` where `MemoryOverview.tsx` uses `FolderOpen`. */
+export const MEMORY_BROWSER_CATEGORY_ICONS: Record<string, string> = {
+	...MEMORY_CATEGORY_ICONS,
+	project_context: 'folder',
+};
+
 export const MEMORY_SETTING_GROUP_ICONS: Record<string, string> = {
 	memoryGeneralSettings: 'settings',
 	memoryEbbinghausSettings: 'brain',
 	memoryCapacitySettings: 'package',
-	memoryPrecisionSettings: 'target',
+	memoryPrecisionSettings: 'crosshair',
 	memoryWorkingMemorySettings: 'brain',
 	memoryTaskRoutingSettings: 'sliders-horizontal',
 	memoryContextAssemblySettings: 'layers',
@@ -626,20 +632,86 @@ export function sortMemoryExploreEdges(edges: IKnoxGuiMemoryGraphEdge[], depths?
 	});
 }
 
-export function memoriesToExportJson(memories: IKnoxGuiMemoryItem[]): string {
-	return JSON.stringify(memories.map(memory => ({
-		id: memory.id,
-		title: memory.title,
-		content: memory.content,
-		category: memory.category,
-		tier: memory.tier,
-		pinned: memory.pinned,
-		keywords: memory.keywords,
-	})), null, 2);
+/** `KnowledgeGraphView.tsx` `exploreEdges`: only edges whose ends are both in the explore result, nearest hop first. */
+export function visibleMemoryExploreEdges(explore: IKnoxGuiMemoryGraphExplore): IKnoxGuiMemoryGraphEdge[] {
+	const ids = new Set(explore.entities.map(entity => entity.id));
+	if (explore.centerId != null) {
+		ids.add(explore.centerId);
+	}
+	return sortMemoryExploreEdges(explore.edges.filter(edge => ids.has(edge.source) && ids.has(edge.target)), explore.entityDepths);
 }
 
-export function memoriesToExportMarkdown(memories: IKnoxGuiMemoryItem[]): string {
-	return memories.map(memory => `## ${memory.title}\n\n${memory.content ?? ''}`).join('\n\n');
+/** `KnowledgeGraphView.tsx` `typeCounts` / `entityTypes`: stats counts plus unseen types at 0, most common first. */
+export function memoryGraphTypeCounts(statsTypes: Record<string, number> | undefined, entities: ReadonlyArray<{ entityType?: string }>): Array<[string, number]> {
+	const counts: Record<string, number> = { ...(statsTypes ?? {}) };
+	for (const entity of entities) {
+		if (entity.entityType && counts[entity.entityType] === undefined) {
+			counts[entity.entityType] = 0;
+		}
+	}
+	return Object.entries(counts).filter(([type]) => Boolean(type)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+/** `memoryBrowserUtils.ts` `memoriesToExportJson`. */
+export function memoriesToExportJson(memories: IKnoxGuiMemoryItem[], now = new Date()): string {
+	return JSON.stringify({
+		version: 'knox-memories-selected-v1',
+		exported_at: now.toISOString(),
+		count: memories.length,
+		memories: memories.map(memory => ({
+			id: Number.isNaN(Number(memory.id)) ? memory.id : Number(memory.id),
+			category: memory.category,
+			title: memory.title,
+			content: memory.content,
+			keywords: memory.keywords,
+			importance_score: memory.importance,
+			retrieval_count: memory.retrievalCount,
+			tier: memory.tier,
+			created_at: memory.createdAt,
+			last_accessed_at: memory.lastAccessedAt,
+			source_session_id: memory.sourceSessionId,
+			pinned: Boolean(memory.pinned),
+		})),
+	}, null, 2);
+}
+
+/** `memoryBrowserUtils.ts` `memoriesToExportMarkdown`. */
+export function memoriesToExportMarkdown(memories: IKnoxGuiMemoryItem[], now = new Date()): string {
+	const lines = [`# Memories export (${memories.length})`, '', `Exported ${now.toISOString()}`, ''];
+	for (const memory of memories) {
+		lines.push(`## ${memory.title || '(untitled)'}`, '');
+		lines.push(`- Category: ${memory.category || 'general'} · Tier: ${memory.tier || '—'} · Pin: ${memory.pinned ? 'yes' : 'no'}`);
+		if (memory.keywords) {
+			lines.push(`- Keywords: ${memory.keywords}`);
+		}
+		lines.push(`- Created: ${memory.createdAt}`, '', memory.content || '', '');
+	}
+	return lines.join('\n');
+}
+
+/** `memoryBrowserUtils.ts` `rangeSelectIds`: shift-click selects the span from the last clicked row, else toggles. */
+export function rangeSelectMemoryIds(orderedIds: readonly string[], fromId: string | null, toId: string, current: ReadonlySet<string>): Set<string> {
+	const next = new Set(current);
+	const from = fromId == null ? -1 : orderedIds.indexOf(fromId);
+	const to = orderedIds.indexOf(toId);
+	if (from < 0 || to < 0) {
+		if (next.has(toId)) {
+			next.delete(toId);
+		} else {
+			next.add(toId);
+		}
+		return next;
+	}
+	const [start, end] = from < to ? [from, to] : [to, from];
+	for (let i = start; i <= end; i++) {
+		next.add(orderedIds[i]);
+	}
+	return next;
+}
+
+/** `MemoryBrowser.tsx`: "no results" vs "nothing stored" (the category filter does not count). */
+export function memoryBrowserEmptyKey(query: string, pinned: string, tier: string): 'memoryNoResults' | 'memoryNoMemoriesStored' {
+	return query || pinned !== 'all' || tier !== 'all' ? 'memoryNoResults' : 'memoryNoMemoriesStored';
 }
 
 export type KnoxMemorySettingKind = 'toggle' | 'number' | 'select' | 'text';
@@ -653,6 +725,8 @@ export interface IKnoxGuiMemorySettingField {
 	max?: number;
 	step?: number;
 	percent?: boolean;
+	/** `FloatSetting`: wider (`w-24`) input with no suffix. */
+	float?: boolean;
 	suffixKey?: string;
 	sectionKey?: string;
 	options?: Array<{ value: string; labelKey: string }>;
@@ -702,11 +776,11 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 		titleKey: 'memoryEbbinghausSettings',
 		fields: [
 			{ key: 'ebbinghaus_base_strength', labelKey: 'memoryEbbinghausBaseStrength', descKey: 'memoryEbbinghausBaseStrengthDesc', kind: 'number', min: 0.1, max: 30, step: 0.1 },
-			{ key: 'ebbinghaus_lambda', labelKey: 'memoryEbbinghausLambda', descKey: 'memoryEbbinghausLambdaDesc', kind: 'number', min: 0.01, max: 1, step: 0.01 },
+			{ key: 'ebbinghaus_lambda', labelKey: 'memoryEbbinghausLambda', descKey: 'memoryEbbinghausLambdaDesc', kind: 'number', min: 0.01, max: 1, step: 0.01, float: true },
 			{ key: 'ebbinghaus_prune_threshold', labelKey: 'memoryEbbinghausPruneThreshold', descKey: 'memoryEbbinghausPruneThresholdDesc', kind: 'number', min: 0.05, max: 0.5, percent: true },
 			{ key: 'ebbinghaus_review_threshold', labelKey: 'memoryEbbinghausReviewThreshold', descKey: 'memoryEbbinghausReviewThresholdDesc', kind: 'number', min: 0.1, max: 0.9, percent: true },
-			{ key: 'ebbinghaus_strengthening_alpha', labelKey: 'memoryEbbinghausStrengtheningAlpha', descKey: 'memoryEbbinghausStrengtheningAlphaDesc', kind: 'number', min: 0, max: 0.5, step: 0.01 },
-			{ key: 'ebbinghaus_repetition_beta', labelKey: 'memoryEbbinghausRepetitionBeta', descKey: 'memoryEbbinghausRepetitionBetaDesc', kind: 'number', min: 0, max: 0.5, step: 0.01 },
+			{ key: 'ebbinghaus_strengthening_alpha', labelKey: 'memoryEbbinghausStrengtheningAlpha', descKey: 'memoryEbbinghausStrengtheningAlphaDesc', kind: 'number', min: 0, max: 0.5, step: 0.01, float: true },
+			{ key: 'ebbinghaus_repetition_beta', labelKey: 'memoryEbbinghausRepetitionBeta', descKey: 'memoryEbbinghausRepetitionBetaDesc', kind: 'number', min: 0, max: 0.5, step: 0.01, float: true },
 			{ key: 'ebbinghaus_salience_weight', labelKey: 'memoryEbbinghausSalienceWeight', descKey: 'memoryEbbinghausSalienceWeightDesc', kind: 'number', min: 0, max: 2, step: 0.1 },
 			{ key: 'ebbinghaus_importance_weight', labelKey: 'memoryEbbinghausImportanceWeight', descKey: 'memoryEbbinghausImportanceWeightDesc', kind: 'number', min: 0, max: 2, step: 0.1 },
 		],
@@ -717,7 +791,6 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 			{ key: 'max_hot_memories', labelKey: 'memoryMaxHot', descKey: 'memoryMaxHotDesc', kind: 'number', min: 100, max: 10000 },
 			{ key: 'max_episodic_per_session', labelKey: 'memoryMaxEpisodic', descKey: 'memoryMaxEpisodicDesc', kind: 'number', min: 100, max: 10000 },
 			{ key: 'context_max_tokens', labelKey: 'memoryContextTokens', descKey: 'memoryContextTokensDesc', kind: 'number', min: 1000, max: 10000000 },
-			{ key: 'max_context_tokens', labelKey: 'memoryMaxContextTokens', descKey: 'memoryMaxContextTokensDesc', kind: 'number', min: 1000, max: 10000000 },
 			{ key: 'memory_mode', labelKey: 'memoryMode', descKey: 'memoryModeDesc', kind: 'select', options: [
 				{ value: 'summarized', labelKey: 'memoryModeSummarized' },
 				{ value: 'full', labelKey: 'memoryModeFull' },
@@ -726,6 +799,7 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 			{ key: 'retrieval_threshold', labelKey: 'memoryRetrievalThreshold', descKey: 'memoryRetrievalThresholdDesc', kind: 'number', min: 0.1, max: 0.95, percent: true },
 			{ key: 'retrieval_top_k', labelKey: 'memoryRetrievalTopK', descKey: 'memoryRetrievalTopKDesc', kind: 'number', min: 5, max: 100 },
 			{ key: 'enable_enhanced_semantic', labelKey: 'memoryEnhancedSemantic', descKey: 'memoryEnhancedSemanticDesc', kind: 'toggle' },
+			{ key: 'max_context_tokens', labelKey: 'memoryMaxContextTokens', descKey: 'memoryMaxContextTokensDesc', kind: 'number', min: 1000, max: 10000000 },
 			{ key: 'context_goal_budget_ratio', labelKey: 'memoryGoalBudgetRatio', descKey: 'memoryGoalBudgetRatioDesc', kind: 'number', min: 0.05, max: 0.3, percent: true },
 		],
 	},
@@ -737,6 +811,8 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 			{ key: 'fts5_use_and_for_content', labelKey: 'memoryFts5AndContent', descKey: 'memoryFts5AndContentDesc', kind: 'toggle' },
 			{ key: 'topic_shift_jaccard', labelKey: 'memoryTopicShiftJaccard', descKey: 'memoryTopicShiftJaccardDesc', kind: 'number', min: 0.1, max: 0.8, percent: true },
 			{ key: 'wm_mismatch_decay', labelKey: 'memoryWmMismatchDecay', descKey: 'memoryWmMismatchDecayDesc', kind: 'number', min: 0.05, max: 0.8, percent: true },
+			{ key: 'wm_inject_min_relevance', labelKey: 'memoryWmInjectMinRelevance', descKey: 'memoryWmInjectMinRelevanceDesc', kind: 'number', min: 0.1, max: 0.8, percent: true },
+			{ key: 'summary_inject_min_overlap', labelKey: 'memorySummaryInjectMinOverlap', descKey: 'memorySummaryInjectMinOverlapDesc', kind: 'number', min: 0.05, max: 0.8, percent: true },
 			{ key: 'pinned_unmatched_cap', labelKey: 'memoryPinnedUnmatchedCap', descKey: 'memoryPinnedUnmatchedCapDesc', kind: 'number', min: 0, max: 10 },
 		],
 	},
@@ -746,9 +822,9 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 			{ key: 'working_memory_max_slots', labelKey: 'memoryWorkingMemorySlots', descKey: 'memoryWorkingMemorySlotsDesc', kind: 'number', min: 3, max: 15 },
 			{ key: 'working_memory_token_ratio', labelKey: 'memoryWorkingMemoryTokenRatio', descKey: 'memoryWorkingMemoryTokenRatioDesc', kind: 'number', min: 0.05, max: 0.5, percent: true },
 			{ key: 'working_memory_token_budget', labelKey: 'memoryWorkingMemoryTokenBudget', descKey: 'memoryWorkingMemoryTokenBudgetDesc', kind: 'number', min: 0, max: 30000 },
-			{ key: 'working_memory_decay_rate', labelKey: 'memoryWorkingMemoryDecay', descKey: 'memoryWorkingMemoryDecayDesc', kind: 'number', min: 0.0001, max: 0.01, step: 0.0001 },
+			{ key: 'working_memory_decay_rate', labelKey: 'memoryWorkingMemoryDecay', descKey: 'memoryWorkingMemoryDecayDesc', kind: 'number', min: 0.0001, max: 0.01, step: 0.0001, float: true },
 			{ key: 'working_memory_ttl_seconds', labelKey: 'memoryWorkingMemoryTtl', descKey: 'memoryWorkingMemoryTtlDesc', kind: 'number', min: 5, max: 120 },
-			{ key: 'sensory_buffer_ms', labelKey: 'memorySensoryBufferMs', descKey: 'memorySensoryBufferMsDesc', kind: 'number', min: 100, max: 2000, suffixKey: 'memoryMsSuffix' },
+			{ key: 'sensory_buffer_ms', labelKey: 'memorySensoryBufferMs', descKey: 'memorySensoryBufferMsDesc', kind: 'number', min: 100, max: 2000 },
 		],
 	},
 	{
@@ -771,6 +847,8 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 			{ key: 'context_procedure_limit', labelKey: 'memoryProcedureLimit', descKey: 'memoryProcedureLimitDesc', kind: 'number', min: 1, max: 20 },
 			{ key: 'context_pattern_limit', labelKey: 'memoryPatternLimit', descKey: 'memoryPatternLimitDesc', kind: 'number', min: 1, max: 20 },
 			{ key: 'context_pinned_limit', labelKey: 'memoryPinnedLimit', descKey: 'memoryPinnedLimitDesc', kind: 'number', min: 1, max: 50 },
+			{ key: 'context_line_compress_chars', labelKey: 'memoryLineCompressChars', descKey: 'memoryLineCompressCharsDesc', kind: 'number', min: 100, max: 1000 },
+			{ key: 'context_compress_keep_lines', labelKey: 'memoryCompressKeepLines', descKey: 'memoryCompressKeepLinesDesc', kind: 'number', min: 1, max: 10 },
 		],
 	},
 	{
@@ -809,9 +887,10 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 		fields: [
 			{ key: 'fusion_candidate_multiplier', labelKey: 'memoryFusionCandidateMultiplier', descKey: 'memoryFusionCandidateMultiplierDesc', kind: 'number', min: 2, max: 20 },
 			{ key: 'fusion_candidate_min', labelKey: 'memoryFusionCandidateMin', descKey: 'memoryFusionCandidateMinDesc', kind: 'number', min: 10, max: 200 },
-			{ key: 'recency_decay_lambda', labelKey: 'memoryRecencyDecayLambda', descKey: 'memoryRecencyDecayLambdaDesc', kind: 'number', min: 0.001, max: 0.02, step: 0.0001 },
+			{ key: 'recency_decay_lambda', labelKey: 'memoryRecencyDecayLambda', descKey: 'memoryRecencyDecayLambdaDesc', kind: 'number', min: 0.001, max: 0.02, step: 0.0001, float: true },
 			{ key: 'graph_depth_decay_gamma', labelKey: 'memoryGraphDepthDecayGamma', descKey: 'memoryGraphDepthDecayGammaDesc', kind: 'number', min: 0.3, max: 0.95, percent: true },
 			{ key: 'graph_memory_boost_factor', labelKey: 'memoryGraphMemoryBoost', descKey: 'memoryGraphMemoryBoostDesc', kind: 'number', min: 0.1, max: 0.8, percent: true },
+			{ key: 'graph_neighbor_limit', labelKey: 'memoryGraphNeighborLimit', descKey: 'memoryGraphNeighborLimitDesc', kind: 'number', min: 3, max: 50 },
 		],
 	},
 	{
@@ -843,6 +922,7 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 				{ value: 'global', labelKey: 'memoryScopeGlobal' },
 			] },
 			{ key: 'enable_knowledge_extraction', labelKey: 'memoryKnowledgeExtraction', descKey: 'memoryKnowledgeExtractionDesc', kind: 'toggle' },
+			{ key: 'post_turn_min_chars', labelKey: 'memoryPostTurnMinChars', descKey: 'memoryPostTurnMinCharsDesc', kind: 'number', min: 20, max: 2000 },
 			{ key: 'auto_summarize', labelKey: 'memoryAutoSummarize', descKey: 'memoryAutoSummarizeDesc', kind: 'toggle' },
 			{ key: 'summarize_threshold', labelKey: 'memorySummarizeThreshold', descKey: 'memorySummarizeThresholdDesc', kind: 'number', min: 10, max: 500 },
 		],
@@ -867,6 +947,74 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 		],
 	},
 ];
+
+/** `MemorySettings.tsx` `DEFAULT_CONFIG`; `brain/getConfig` values override it. */
+export const MEMORY_DEFAULT_CONFIG: Readonly<Record<string, string | number | boolean>> = {
+	auto_extract_enabled: true, consolidation_interval_hours: 24, max_hot_memories: 500, max_episodic_per_session: 1000,
+	context_max_tokens: 10_000_000, max_context_tokens: 10_000_000, context_goal_budget_ratio: 0.1, memory_mode: 'summarized',
+	retrieval_threshold: 0.6, retrieval_top_k: 20, retrieval_require_lexical: true, retrieval_continuation_expand: true,
+	fts5_use_and_for_content: true, topic_shift_jaccard: 0.35, wm_mismatch_decay: 0.25, wm_inject_min_relevance: 0.35,
+	summary_inject_min_overlap: 0.2, pinned_unmatched_cap: 2, graph_max_entities: 5000, graph_max_depth: 3, memory_scope: 'project',
+	auto_summarize: true, summarize_threshold: 50, enable_knowledge_extraction: true, post_turn_min_chars: 80,
+	hot_to_warm_hours: 24, warm_to_cold_days: 7, cold_prune_days: 90, graph_enabled: true, learning_enabled: true,
+	llm_entity_extraction_enabled: true, llm_summarization_enabled: true, llm_importance_scoring_enabled: true, llm_post_action_memory_enabled: true,
+	working_memory_max_slots: 7, working_memory_token_budget: 30000, working_memory_token_ratio: 0.125, working_memory_decay_rate: 0.001,
+	working_memory_ttl_seconds: 30, easy_model: '', medium_model: '', hard_model: '', autonomous_max_iterations: 0,
+	mode_full_semantic_multiplier: 1.25, mode_full_episodic_multiplier: 2.0, mode_full_min_importance: 0, mode_full_episodic_snippet_len: 400,
+	mode_summarized_semantic_multiplier: 0.75, mode_summarized_episodic_multiplier: 0.75, mode_summarized_min_importance: 0.3, mode_summarized_episodic_snippet_len: 150,
+	mode_selective_semantic_multiplier: 0.5, mode_selective_episodic_multiplier: 0.25, mode_selective_min_importance: 0.7, mode_selective_episodic_snippet_len: 200,
+	mode_selective_include_episodic: false, mode_selective_include_procedures: false, mode_selective_include_patterns: false,
+	context_graph_entity_search: 10, context_graph_entity_display: 5, context_graph_edge_per_entity: 3, context_graph_edge_budget_ratio: 0.7,
+	context_procedure_limit: 5, context_pattern_limit: 3, context_pinned_limit: 10, context_session_summary_min_tokens: 200,
+	context_line_truncate_chars: 300, context_line_compress_chars: 200, context_compress_keep_lines: 3,
+	budget_semantic_ratio: 0.40, budget_episodic_ratio: 0.25, budget_graph_ratio: 0.15, budget_procedures_ratio: 0.10, budget_patterns_ratio: 0.10,
+	fusion_candidate_multiplier: 5, fusion_candidate_min: 50, graph_depth_decay_gamma: 0.7, graph_memory_boost_factor: 0.3,
+	graph_entity_search_limit: 5, graph_neighbor_limit: 10, recency_decay_lambda: 0.004125,
+	compression_ratio_active: 1.0, compression_ratio_hot: 0.5, compression_ratio_warm: 0.2, compression_ratio_cold: 0.1, compression_ratio_frozen: 0.05,
+	memory_build_timeout_ms: 5000, memory_track_session_timeout_ms: 1500,
+	ebbinghaus_base_strength: 1.0, ebbinghaus_lambda: 0.03, ebbinghaus_prune_threshold: 0.1, ebbinghaus_review_threshold: 0.5,
+	ebbinghaus_strengthening_alpha: 0.1, ebbinghaus_repetition_beta: 0.1, ebbinghaus_salience_weight: 0.5, ebbinghaus_importance_weight: 0.3,
+	sensory_buffer_ms: 250, enable_enhanced_semantic: false,
+};
+
+export function withMemoryConfigDefaults(config: Record<string, unknown>): Record<string, unknown> {
+	return { ...MEMORY_DEFAULT_CONFIG, ...config };
+}
+
+/**
+ * `NumberSetting` / `DecimalSetting` / `FloatSetting` commit: percent fields take whole percents, `step` fields
+ * take floats, the rest take integers. Out-of-range or non-numeric input returns `undefined` (the field reverts).
+ */
+export function parseMemorySettingInput(field: Pick<IKnoxGuiMemorySettingField, 'min' | 'max' | 'step' | 'percent'>, raw: string): number | undefined {
+	const min = field.min ?? 0;
+	const max = field.max ?? Number.MAX_SAFE_INTEGER;
+	if (field.percent) {
+		const pct = parseInt(raw, 10);
+		if (Number.isNaN(pct)) {
+			return undefined;
+		}
+		const ratio = pct / 100;
+		return ratio >= min && ratio <= max ? Math.round(ratio * 1000) / 1000 : undefined;
+	}
+	const value = field.step != null ? parseFloat(raw) : parseInt(raw, 10);
+	return !Number.isNaN(value) && value >= min && value <= max ? value : undefined;
+}
+
+/** `MemorySettings.tsx` consolidate result: non-zero promoted / demoted / pruned / merged counts. */
+export function memoryConsolidateParts(result: unknown): string[] | undefined {
+	const rec = asRecord(result);
+	if (!rec) {
+		return undefined;
+	}
+	const parts: string[] = [];
+	for (const key of ['promoted', 'demoted', 'pruned', 'merged'] as const) {
+		const count = Number(rec[key] ?? 0);
+		if (count > 0) {
+			parts.push(`${count} ${key}`);
+		}
+	}
+	return parts;
+}
 
 export function healthStatusColor(status: string | undefined): string {
 	return MEMORY_STATUS_COLORS[status ?? ''] ?? '#6b7280';

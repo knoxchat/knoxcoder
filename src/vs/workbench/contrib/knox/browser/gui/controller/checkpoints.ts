@@ -41,6 +41,12 @@ export async function ensureCheckpoint(controller: KnoxGuiController, item: IKno
 			messageId: item.id,
 			description: `Assistant response at index ${index}`,
 			stableId,
+			conversationContext: {
+				messageContent: String(item.content ?? '').substring(0, 500),
+				role: item.role,
+				timestamp: new Date().toISOString(),
+				index,
+			},
 		});
 		const createdId = created && typeof created === 'object' ? created.checkpointId : undefined;
 		if (createdId) {
@@ -57,10 +63,11 @@ export function restoreCheckpoint(controller: KnoxGuiController, checkpointId: s
 	controller.messenger.post('restoreCheckpoint', { checkpointId, rewindMemory });
 }
 
+/** `fileChanges` or the host's `fileStats {created, modified, deleted}`. */
 function parseFileChanges(value: unknown): { added: number; modified: number; deleted: number } {
 	const rec = asRecord(value) ?? {};
 	return {
-		added: Number(rec.added ?? 0) || 0,
+		added: Number(rec.added ?? rec.created ?? 0) || 0,
 		modified: Number(rec.modified ?? 0) || 0,
 		deleted: Number(rec.deleted ?? 0) || 0,
 	};
@@ -80,8 +87,11 @@ function parseCheckpointNode(item: unknown): IKnoxGuiState['checkpoints'][number
 		pinned: Boolean(rec.pinned),
 		changedPaths: asArray(rec.changedPaths).map(String),
 		sessionId: rec.sessionId ? String(rec.sessionId) : (conversation?.sessionId ? String(conversation.sessionId) : undefined),
+		conversationContext: conversation && typeof conversation.messageContent === 'string'
+			? { role: String(conversation.role ?? ''), messageContent: conversation.messageContent }
+			: undefined,
 		parents: asArray(rec.parents).map(String),
-		fileChanges: parseFileChanges(rec.fileChanges),
+		fileChanges: parseFileChanges(rec.fileChanges ?? rec.fileStats),
 	};
 }
 
@@ -105,7 +115,14 @@ function graphRequestPayload(controller: KnoxGuiController, limit: number): Reco
 	};
 }
 
+/** `CheckpointGraphPage.tsx` `load`: a missing shell or graph payload is the failed state. */
 export async function loadCheckpoints(controller: KnoxGuiController): Promise<void> {
+	const seq = ++controller.checkpointLoadSeq;
+	const failed = () => {
+		if (seq === controller.checkpointLoadSeq) {
+			controller.store.patch({ checkpointShell: { state: 'failed', checkpointCount: 0 }, checkpoints: [], checkpointBranches: [] });
+		}
+	};
 	try {
 		if (!controller.checkpointGraphUiLoaded) {
 			try {
@@ -117,18 +134,36 @@ export async function loadCheckpoints(controller: KnoxGuiController): Promise<vo
 			controller.checkpointGraphUiLoaded = true;
 		}
 		const shell = await controller.messenger.request<Record<string, unknown>>('getCheckpointGraphShell', undefined);
-		if (shell) {
-			controller.store.patch({
-				checkpointShell: { state: String(shell.state ?? 'empty'), checkpointCount: Number(shell.checkpointCount ?? 0) },
-				checkpointWorkspaceFolders: asArray(shell.workspaceFolders).map(item => {
-					const rec = asRecord(item) ?? {};
-					return { path: String(rec.path ?? ''), name: String(rec.name ?? rec.path ?? '') };
-				}).filter(folder => folder.path),
-				checkpointActiveWorkspace: shell.activeWorkspacePath ? String(shell.activeWorkspacePath) : controller.store.state.checkpointActiveWorkspace,
-			});
+		if (seq !== controller.checkpointLoadSeq) {
+			return;
+		}
+		if (!shell) {
+			failed();
+			return;
+		}
+		const shellState = String(shell.state ?? 'empty');
+		controller.store.patch({
+			checkpointShell: { state: shellState, checkpointCount: Number(shell.checkpointCount ?? 0) },
+			checkpointWorkspaceFolders: asArray(shell.workspaceFolders).map(item => {
+				const rec = asRecord(item) ?? {};
+				return { path: String(rec.path ?? ''), name: String(rec.name ?? rec.path ?? '') };
+			}).filter(folder => folder.path),
+			checkpointActiveWorkspace: shell.activeWorkspacePath ? String(shell.activeWorkspacePath) : controller.store.state.checkpointActiveWorkspace,
+		});
+		if (shellState !== 'ready') {
+			controller.store.patch({ checkpoints: [], checkpointBranches: [], checkpointWorkingTreePaths: [] });
+			reloadActiveCheckpointTab(controller);
+			return;
 		}
 		const limit = controller.store.state.checkpointGraphLimit || CHECKPOINT_GRAPH_PAGE_SIZE;
 		const graph = await controller.messenger.request<Record<string, unknown>>('checkpointGraph', graphRequestPayload(controller, limit));
+		if (seq !== controller.checkpointLoadSeq) {
+			return;
+		}
+		if (!graph) {
+			failed();
+			return;
+		}
 		const nodes = asArray(graph?.nodes).map(parseCheckpointNode);
 		const branches = asArray(graph?.branches).map(parseCheckpointBranch);
 		controller.store.patch({
@@ -149,13 +184,33 @@ export async function loadCheckpoints(controller: KnoxGuiController): Promise<vo
 		} else {
 			controller.store.patch({ checkpointWorkingTreePaths: [] });
 		}
-		if (controller.store.state.checkpointView === 'checkpoints') {
-			void loadCheckpointList(controller);
-		} else if (controller.store.state.checkpointView === 'timeline') {
-			void loadCheckpointTimeline(controller);
-		}
+		reloadActiveCheckpointTab(controller);
 	} catch {
-		// checkpoints optional
+		failed();
+	}
+}
+
+function reloadActiveCheckpointTab(controller: KnoxGuiController): void {
+	if (controller.store.state.checkpointView === 'checkpoints') {
+		void loadCheckpointList(controller);
+	} else if (controller.store.state.checkpointView === 'timeline') {
+		void loadCheckpointTimeline(controller, false);
+	}
+}
+
+/** `CheckpointGraphPage.tsx` `run`: busy while the host runs the action, then reload. */
+export async function runCheckpointGraphAction(controller: KnoxGuiController, action: string): Promise<void> {
+	if (controller.store.state.checkpointGraphActionBusy) {
+		return;
+	}
+	controller.store.patch({ checkpointGraphActionBusy: true });
+	try {
+		await controller.messenger.request('runCheckpointGraphAction', { action });
+		await loadCheckpoints(controller);
+	} catch {
+		await loadCheckpoints(controller);
+	} finally {
+		controller.store.patch({ checkpointGraphActionBusy: false });
 	}
 }
 
@@ -166,10 +221,9 @@ export function setCheckpointTab(controller: KnoxGuiController, tab: KnoxCheckpo
 	} else if (tab === 'dashboard') {
 		void controller.loadCheckpointDashboard();
 	} else if (tab === 'analysis') {
-		void loadCheckpointAnalysisGroups(controller);
-		void controller.loadCheckpointAnalysis();
+		void openCheckpointAnalysis(controller);
 	} else if (tab === 'share') {
-		void controller.loadShareBundles();
+		void controller.loadShareBundles(true);
 	} else if (tab === 'checkpoints') {
 		void loadCheckpointList(controller);
 	} else if (tab === 'timeline') {
@@ -191,9 +245,11 @@ export async function openRestorePreview(controller: KnoxGuiController, checkpoi
 	});
 	try {
 		const result = await controller.messenger.request('previewRestore', { checkpointId });
-		const preview = parseRestorePreview(result);
+		const record = asRecord(result);
+		const preview = record?.success === false ? undefined : parseRestorePreview(result);
 		if (!preview) {
-			controller.store.patch({ checkpointRestoreLoading: false, checkpointRestoreError: 'restorePreviewFailed' });
+			const message = typeof record?.message === 'string' && record.message.trim() ? record.message : 'restorePreviewFailed';
+			controller.store.patch({ checkpointRestoreLoading: false, checkpointRestoreError: message });
 			return;
 		}
 		controller.store.patch({
@@ -236,9 +292,7 @@ export async function restoreSelectedFiles(controller: KnoxGuiController): Promi
 	if (!checkpointId || !paths.length) {
 		return;
 	}
-	await controller.messenger.request('restoreCheckpointFiles', { checkpointId, relativePaths: paths });
-	controller.closeCheckpointDialog();
-	void controller.loadCheckpoints();
+	await runRestore(controller, () => controller.messenger.request('restoreCheckpointFiles', { checkpointId, relativePaths: paths }));
 }
 
 export async function restoreAllFiles(controller: KnoxGuiController): Promise<void> {
@@ -246,9 +300,23 @@ export async function restoreAllFiles(controller: KnoxGuiController): Promise<vo
 	if (!checkpointId) {
 		return;
 	}
-	await controller.messenger.request('restoreCheckpoint', { checkpointId, rewindMemory: controller.store.state.checkpointRestoreMemory });
-	controller.closeCheckpointDialog();
-	void controller.loadCheckpoints();
+	await runRestore(controller, () => controller.messenger.request('restoreCheckpoint', { checkpointId, rewindMemory: controller.store.state.checkpointRestoreMemory }));
+}
+
+async function runRestore(controller: KnoxGuiController, request: () => Promise<unknown>): Promise<void> {
+	if (controller.store.state.checkpointRestoring) {
+		return;
+	}
+	controller.store.patch({ checkpointRestoring: true });
+	try {
+		await request();
+		controller.closeCheckpointDialog();
+		void controller.loadCheckpoints();
+	} catch {
+		// `RestorePreviewDialog` only logs a failed restore and keeps the dialog open.
+	} finally {
+		setTimeout(() => controller.store.patch({ checkpointRestoring: false }), 1500);
+	}
 }
 
 export async function toggleRestoreDiff(controller: KnoxGuiController): Promise<void> {
@@ -279,7 +347,6 @@ export function openCompare(controller: KnoxGuiController, checkpointId: string)
 }
 
 export async function openCompareDialog(controller: KnoxGuiController, leftId: string, rightId: string): Promise<void> {
-	const left = findCheckpointNode(controller, leftId);
 	const right = findCheckpointNode(controller, rightId);
 	controller.store.patch({
 		checkpointDialog: 'compare',
@@ -293,9 +360,14 @@ export async function openCompareDialog(controller: KnoxGuiController, leftId: s
 	});
 	try {
 		const result = await controller.messenger.request('computeCheckpointDiff', { checkpointId: rightId, compareToCheckpointId: leftId });
-		const diff = parseCheckpointDiff(result, right?.description);
+		const rawDiff = asRecord(asRecord(result)?.diff);
+		const diff = asRecord(result)?.success && rawDiff ? parseCheckpointDiff(result, right?.description) : undefined;
 		if (!diff) {
-			controller.store.patch({ checkpointCompareLoading: false, checkpointCompareError: left ? 'failedToCompareCheckpoints' : 'noPreviousCheckpoint' });
+			controller.store.patch({ checkpointCompareLoading: false, checkpointCompareError: 'failedToCompareCheckpoints' });
+			return;
+		}
+		if (!rawDiff?.oldCheckpoint) {
+			controller.store.patch({ checkpointCompareLoading: false, checkpointCompareError: 'noPreviousCheckpoint' });
 			return;
 		}
 		controller.store.patch({
@@ -309,6 +381,7 @@ export async function openCompareDialog(controller: KnoxGuiController, leftId: s
 }
 
 export async function loadCheckpointConfig(controller: KnoxGuiController): Promise<void> {
+	controller.store.patch({ checkpointConfigLoading: true });
 	try {
 		const result = await controller.messenger.request<Record<string, unknown>>('getCheckpointConfig', undefined);
 		const raw = asRecord(result)?.config ?? result;
@@ -317,6 +390,8 @@ export async function loadCheckpointConfig(controller: KnoxGuiController): Promi
 	} catch {
 		const config = { ...DEFAULT_CHECKPOINT_CONFIG };
 		controller.store.patch({ checkpointConfig: config, checkpointConfigDraft: { ...config }, checkpointConfigStatus: { type: 'info', messageKey: 'checkpointUseDefaultConfig' } });
+	} finally {
+		controller.store.patch({ checkpointConfigLoading: false });
 	}
 }
 
@@ -331,11 +406,22 @@ export async function saveCheckpointConfig(controller: KnoxGuiController): Promi
 		controller.store.patch({ checkpointConfigStatus: { type: 'error', messageKey: 'checkpointFixValidationErrors' } });
 		return;
 	}
+	const config = normalizeCheckpointConfig(draft);
+	controller.store.patch({ checkpointConfigLoading: true, checkpointConfigStatus: undefined });
 	try {
-		await controller.messenger.request('saveCheckpointConfig', { config: draft });
-		controller.store.patch({ checkpointConfig: { ...draft }, checkpointConfigStatus: { type: 'success', messageKey: 'checkpointConfigSaved' } });
-	} catch {
-		controller.store.patch({ checkpointConfigStatus: { type: 'error', messageKey: 'checkpointSaveFailed' } });
+		await controller.messenger.request('saveCheckpointConfig', { config });
+		const status = { type: 'success' as const, messageKey: 'checkpointConfigSaved' };
+		controller.store.patch({ checkpointConfig: { ...config }, checkpointConfigDraft: { ...config }, checkpointConfigStatus: status });
+		setTimeout(() => {
+			if (controller.store.state.checkpointConfigStatus === status) {
+				controller.store.patch({ checkpointConfigStatus: undefined });
+			}
+		}, 3000);
+	} catch (error) {
+		const detail = error instanceof Error && error.message ? error.message : undefined;
+		controller.store.patch({ checkpointConfigStatus: { type: 'error', messageKey: 'checkpointSaveFailed', detail } });
+	} finally {
+		controller.store.patch({ checkpointConfigLoading: false });
 	}
 }
 
@@ -354,27 +440,54 @@ export function cancelCheckpointConfig(controller: KnoxGuiController): void {
 	});
 }
 
+/** `ConnectedPerformanceDashboard`: spinner while loading; `success: false` or no `data` shows "No data available". */
 export async function loadCheckpointDashboard(controller: KnoxGuiController): Promise<void> { // KN-375
+	controller.store.patch({ checkpointDashboardLoading: true });
 	try {
 		const result = await controller.messenger.request('getPerformanceDashboard', { historyDays: CHECKPOINT_DASHBOARD_HISTORY_DAYS });
-		controller.store.patch({ checkpointDashboard: parsePerformanceDashboard(result) });
+		const root = asRecord(result);
+		controller.store.patch({ checkpointDashboard: root?.success === false || root?.data === null ? undefined : parsePerformanceDashboard(result) });
 	} catch {
 		controller.store.patch({ checkpointDashboard: undefined });
+	} finally {
+		controller.store.patch({ checkpointDashboardLoading: false });
 	}
 }
 
+export async function openCheckpointAnalysis(controller: KnoxGuiController): Promise<void> {
+	controller.store.patch({ checkpointAnalysisCatalogLoading: true });
+	const [listed] = await Promise.all([
+		controller.messenger.request<Record<string, unknown>>('listCheckpoints', { limit: CHECKPOINT_ANALYSIS_GROUP_LIMIT, thisSessionOnly: false }).catch(() => undefined),
+		loadCheckpointAnalysisGroups(controller),
+	]);
+	const items = !listed ? controller.store.state.checkpoints : Array.isArray(listed.compareCatalog) ? listed.compareCatalog : asArray(listed.checkpoints);
+	const catalog = items.map(item => {
+		const rec = asRecord(item) ?? {};
+		return { id: String(rec.id ?? ''), description: String(rec.description ?? '') };
+	}).filter(item => item.id);
+	const current = controller.store.state.checkpointAnalysisId;
+	const id = current && catalog.some(item => item.id === current) ? current : catalog[0]?.id;
+	controller.store.patch({ checkpointAnalysisCatalog: catalog, checkpointAnalysisCatalogLoading: false });
+	await loadCheckpointAnalysis(controller, id);
+}
+
 export async function loadCheckpointAnalysis(controller: KnoxGuiController, checkpointId?: string): Promise<void> { // KN-375
-	const id = checkpointId ?? controller.store.state.selectedCheckpointId ?? controller.store.state.checkpoints[0]?.id;
+	const id = checkpointId ?? controller.store.state.checkpointAnalysisId;
+	const seq = ++controller.checkpointAnalysisSeq;
 	if (!id) {
-		controller.store.patch({ checkpointAnalysis: undefined });
+		controller.store.patch({ checkpointAnalysis: undefined, checkpointAnalysisId: undefined, checkpointAnalysisPending: false });
 		return;
 	}
-	controller.store.patch({ selectedCheckpointId: id });
+	controller.store.patch({ checkpointAnalysisId: id, checkpointAnalysis: undefined, checkpointAnalysisPending: true });
+	let analysis: IKnoxGuiState['checkpointAnalysis'];
 	try {
-		const result = await controller.messenger.request('analyzeCheckpoint', { checkpointId: id });
-		controller.store.patch({ checkpointAnalysis: parseCheckpointAnalysis(result) });
+		const result = asRecord(await controller.messenger.request('analyzeCheckpoint', { checkpointId: id }));
+		analysis = result?.success === false ? undefined : parseCheckpointAnalysis(result);
 	} catch {
-		controller.store.patch({ checkpointAnalysis: undefined });
+		analysis = undefined;
+	}
+	if (seq === controller.checkpointAnalysisSeq) {
+		controller.store.patch({ checkpointAnalysis: analysis, checkpointAnalysisPending: false });
 	}
 }
 
@@ -387,27 +500,38 @@ export async function loadCheckpointAnalysisGroups(controller: KnoxGuiController
 	}
 }
 
-export async function loadShareBundles(controller: KnoxGuiController): Promise<void> {
+/** `ConnectedCollaborativePanel`: the first load shows a spinner; `success: false` empties both lists. */
+export async function loadShareBundles(controller: KnoxGuiController, showLoading = false): Promise<void> {
+	if (showLoading) {
+		controller.store.patch({ checkpointShareLoading: true });
+	}
 	try {
 		const result = await controller.messenger.request('getSharedCheckpointBundles', { limit: 100 });
-		const parsed = parseShareBundles(result);
+		const parsed = asRecord(result)?.success ? parseShareBundles(result) : { bundles: [], auditRecords: [] };
 		controller.store.patch({ checkpointShareBundles: parsed.bundles, checkpointShareAudit: parsed.auditRecords });
 	} catch {
 		controller.store.patch({ checkpointShareBundles: [], checkpointShareAudit: [] });
+	} finally {
+		if (showLoading) {
+			controller.store.patch({ checkpointShareLoading: false });
+		}
 	}
 }
 
+/** `CollaborativePanel.tsx`: share and import reload only on `success`. */
 export async function shareCheckpoints(controller: KnoxGuiController): Promise<void> {
-	await controller.messenger.request('shareCheckpoints', {
-		checkpointIds: controller.store.state.selectedCheckpointId ? [controller.store.state.selectedCheckpointId] : undefined,
-	});
-	await controller.loadShareBundles();
+	const result = await controller.messenger.request<{ success?: boolean }>('shareCheckpoints', {}).catch(() => undefined);
+	if (result?.success) {
+		await controller.loadShareBundles();
+	}
 }
 
 export async function importShareBundle(controller: KnoxGuiController, filePath: string): Promise<void> {
-	await controller.messenger.request('importSharedBundle', { filePath });
-	await controller.loadShareBundles();
-	void controller.loadCheckpoints();
+	const result = await controller.messenger.request<{ success?: boolean }>('importSharedBundle', { filePath }).catch(() => undefined);
+	if (result?.success) {
+		await controller.loadShareBundles();
+		void controller.loadCheckpoints();
+	}
 }
 
 export async function revealShareBundle(controller: KnoxGuiController, filePath: string): Promise<void> {
@@ -544,8 +668,15 @@ export async function loadCheckpointList(controller: KnoxGuiController, options?
 		const previous = append ? controller.store.state.checkpointListItems : [];
 		const seen = new Set(previous.map(node => node.id));
 		const merged = append ? [...previous, ...nodes.filter(node => !seen.has(node.id))] : nodes;
+		const catalog = !append && Array.isArray(result?.compareCatalog)
+			? result.compareCatalog.map(item => {
+				const rec = asRecord(item) ?? {};
+				return { id: String(rec.id ?? ''), description: String(rec.description ?? ''), created: String(rec.dateCreated ?? rec.created ?? '') };
+			}).filter(item => item.id)
+			: controller.store.state.checkpointCompareCatalog;
 		controller.store.patch({
 			checkpointListItems: merged,
+			checkpointCompareCatalog: catalog,
 			checkpointListTotal: Number(result?.total ?? merged.length),
 			checkpointListHasMore: result?.hasMore === true,
 			checkpointListLoading: false,
@@ -574,17 +705,21 @@ export async function ensureCheckpointHead(controller: KnoxGuiController): Promi
 	}
 }
 
-export async function loadCheckpointTimeline(controller: KnoxGuiController): Promise<void> {
+export async function loadCheckpointTimeline(controller: KnoxGuiController, showLoading = true): Promise<void> {
+	if (showLoading) {
+		controller.store.patch({ checkpointTimelineLoading: true });
+	}
 	try {
 		const result = await controller.messenger.request<Record<string, unknown>>('getCheckpointTimeline', { limit: 500 });
 		const nodes = asArray(result?.checkpoints).map(item => {
 			const rec = asRecord(item) ?? {};
-			return parseCheckpointNode({
+			const node = parseCheckpointNode({
 				...rec,
 				kind: rec.kind ?? rec.type,
 				created: rec.created ?? rec.dateCreated,
 				parents: rec.parents ?? (rec.parentId ? [rec.parentId] : []),
 			});
+			return rec.isIncremental === true ? { ...node, isIncremental: true } : node;
 		});
 		controller.store.patch({
 			checkpointTimeline: nodes,
@@ -595,6 +730,10 @@ export async function loadCheckpointTimeline(controller: KnoxGuiController): Pro
 			checkpointTimeline: controller.store.state.checkpoints,
 			checkpointTimelineBranches: controller.store.state.checkpointBranches,
 		});
+	} finally {
+		if (showLoading) {
+			controller.store.patch({ checkpointTimelineLoading: false });
+		}
 	}
 }
 

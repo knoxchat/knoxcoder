@@ -102,6 +102,9 @@ export const KNOX_GUI_COMPOSER_SLOTS = [
 export type KnoxGuiComposerSlot = typeof KNOX_GUI_COMPOSER_SLOTS[number];
 
 /** GUI hides lump overlays while streaming except Tools with a pending generated call. */
+/** `Lump/index.tsx` fades the section in and out over 300ms. */
+export const KNOX_LUMP_FADE_MS = 300;
+
 export function knoxGuiShowsLumpOverlay(state: {
 	overlay: KnoxGuiOverlay | null;
 	isStreaming: boolean;
@@ -159,6 +162,45 @@ export function knoxGuiRelativeFontSize(fontSize: number, delta: number): number
 
 export function knoxGuiMetaKeyLabel(isMac: boolean): string {
 	return isMac ? '⌘' : 'Ctrl';
+}
+
+export function knoxGuiAltKeyLabel(isMac: boolean): string {
+	return isMac ? '⌥' : 'Alt';
+}
+
+const SHORTCUT_META_KEYS = ['meta', '⌘', 'ctrl', 'cmd', '^', 'cmd/ctrl'];
+const SHORTCUT_ALT_KEYS = ['alt', 'option', 'opt', '⌥'];
+
+/**
+ * `gui/Shortcut.tsx` `parseShortcut`: combos split on `,`, keys on spaces; meta and alt
+ * spellings become the platform label. Unlike the reference, a bare `+` is a separator
+ * and `cmd/ctrl` is a meta key, so `shift + cmd/ctrl + p` reads Shift + ⌘ + P.
+ */
+export function knoxGuiShortcutKeys(shortcut: string, isMac: boolean): string[][] {
+	const backspace = isMac ? 'Delete ⌫' : 'Backspace ⌫';
+	const special: Record<string, string> = {
+		uparrow: 'UpArrow ↑',
+		downarrow: 'DownArrow ↓',
+		leftarrow: 'LeftArrow ←',
+		rightarrow: 'RightArrow →',
+		enter: 'Enter ⏎',
+		esc: 'Esc',
+		backspace,
+		delete: backspace,
+		'⌫': backspace,
+	};
+	return shortcut.split(',')
+		.map(combo => combo.trim().split(' ').filter(key => key && key !== '+').map(key => {
+			const lower = key.toLowerCase();
+			if (SHORTCUT_META_KEYS.includes(lower)) {
+				return knoxGuiMetaKeyLabel(isMac);
+			}
+			if (SHORTCUT_ALT_KEYS.includes(lower)) {
+				return knoxGuiAltKeyLabel(isMac);
+			}
+			return special[lower] ?? key.charAt(0).toUpperCase() + key.slice(1).toLowerCase();
+		}))
+		.filter(combo => combo.length > 0);
 }
 
 export function knoxGuiAcceptRejectLabelKeys(isSingleRange: boolean): { reject: string; accept: string } {

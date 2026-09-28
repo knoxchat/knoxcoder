@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -22,8 +20,9 @@ import { KnoxGuiMessenger } from './knoxGuiMessenger.js';
 import { KnoxGuiStore } from './knoxGuiStore.js';
 import { KnoxGuiWidget } from './gui/knoxGuiWidget.js';
 
-const memoryIcon = registerIcon('knox-memory-editor-icon', Codicon.book, localize('knoxMemoryEditorIcon', 'Knox Memory editor icon.'));
-const checkpointIcon = registerIcon('knox-checkpoint-editor-icon', Codicon.gitCommit, localize('knoxCheckpointEditorIcon', 'Knox Checkpoint Graph editor icon.'));
+// Contributed by the Knox extension (`contributes.icons`).
+const memoryIcon = ThemeIcon.fromId('knox-memory');
+const checkpointIcon = ThemeIcon.fromId('knox-checkpoint-graph');
 
 abstract class KnoxGuiEditorInputBase extends EditorInput {
 	override get capabilities(): EditorInputCapabilities {

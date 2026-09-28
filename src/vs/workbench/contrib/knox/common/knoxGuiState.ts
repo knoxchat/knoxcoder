@@ -51,6 +51,33 @@ export function nextToolSetting(current: KnoxToolSetting): KnoxToolSetting {
 	return 'allowedWithoutPermission';
 }
 
+/** `toolPermissionDefaults.ts` READ_WITHOUT_PERMISSION: auto-approved by the Safe preset. */
+export const KNOX_SAFE_READ_TOOL_NAMES = new Set<string>([
+	'builtin_read_file', 'builtin_read_currently_open_file', 'builtin_view_subdirectory', 'builtin_glob',
+	'builtin_view_repo_map', 'builtin_exact_search', 'builtin_view_diff', 'builtin_lsp', 'builtin_skill',
+	'builtin_memory', 'builtin_memory_graph', 'builtin_memory_sessions', 'builtin_memory_manage', 'builtin_memory_learn',
+	'builtin_await_shell', 'builtin_pty_read', 'builtin_git_status', 'builtin_git_diff', 'builtin_git_log',
+	'builtin_git_blame', 'builtin_kconfig', 'builtin_plan',
+]);
+
+/**
+ * `applyPresetToExistingSettings`: Safe asks for everything except reads;
+ * Yolo auto-approves. Settings for tools outside the catalog (custom/HTTP)
+ * are kept by Safe and auto-approved by Yolo.
+ */
+export function knoxGuiApplyToolPreset(current: Record<string, KnoxToolSetting>, tools: readonly { name: string; readonly?: boolean }[], preset: 'safe' | 'yolo'): Record<string, KnoxToolSetting> {
+	const next: Record<string, KnoxToolSetting> = {};
+	for (const tool of tools) {
+		next[tool.name] = preset === 'yolo' || tool.readonly || KNOX_SAFE_READ_TOOL_NAMES.has(tool.name) ? 'allowedWithoutPermission' : 'allowedWithPermission';
+	}
+	for (const [name, setting] of Object.entries(current)) {
+		if (!(name in next)) {
+			next[name] = preset === 'yolo' ? 'allowedWithoutPermission' : setting;
+		}
+	}
+	return next;
+}
+
 export interface IKnoxGuiModel {
 	title: string;
 	provider?: string;
@@ -97,6 +124,7 @@ export interface IKnoxGuiContextProvider {
 	description?: string;
 	type?: 'normal' | 'query' | 'submenu';
 	renderInlineAs?: string;
+	category?: string;
 }
 
 export interface IKnoxGuiAskQuestion {
@@ -105,6 +133,27 @@ export interface IKnoxGuiAskQuestion {
 	options?: string[];
 	allowMultiple?: boolean;
 	allowFreeform?: boolean;
+}
+
+/** Core `SymbolWithRange` from `context/getSymbolsForFiles`. */
+/** Core `ContextItemWithId`, flattened: `uri` is a file uri, `url` a `{type:'url'}` uri. */
+export interface IKnoxGuiContextItem {
+	name: string;
+	content: string;
+	provider?: string;
+	description?: string;
+	uri?: string;
+	url?: string;
+	icon?: string;
+	hidden?: boolean;
+}
+
+export interface IKnoxGuiSymbol {
+	name: string;
+	type: string;
+	filepath: string;
+	content: string;
+	range: { start: { line: number }; end: { line: number } };
 }
 
 export interface IKnoxGuiToolCall {
@@ -146,10 +195,14 @@ export interface IKnoxGuiHistoryItem {
 	thinkingStartAt?: number;
 	thinkingEndAt?: number;
 	redactedThinking?: string;
+	/** Anthropic thinking signature; the thinking block is sent back with it. */
+	thinkingSignature?: string;
 	toolCalls?: IKnoxGuiToolCall[];
 	images?: string[];
 	inputDoc?: IKnoxGuiInputBlock[];
-	contextItems?: { name: string; content: string; provider?: string }[];
+	contextItems?: IKnoxGuiContextItem[];
+	/** Sent before `content` to the model but not shown (edit-mode multifile prompt). */
+	promptPreamble?: string;
 	checkpointId?: string;
 	error?: string;
 	promptLogs?: IKnoxGuiPromptLog[];
@@ -166,20 +219,6 @@ export interface IKnoxGuiHistorySession {
 	title: string;
 	date: string;
 	workspaceDirectory?: string;
-}
-
-/** Local completion counts from Core `stats/getTokensPerDay`. */
-export interface IKnoxGuiDailyTokenStats {
-	day: string;
-	promptTokens: number;
-	generatedTokens: number;
-}
-
-/** Local completion counts from Core `stats/getTokensPerModel`. */
-export interface IKnoxGuiModelTokenStats {
-	model: string;
-	promptTokens: number;
-	generatedTokens: number;
 }
 
 export interface IKnoxGuiConfigError {
@@ -291,7 +330,10 @@ export interface IKnoxGuiSuggestItem {
 	query?: string;
 	icon?: string;
 	providerType?: 'normal' | 'query' | 'submenu';
+	providerCategory?: string;
+	providerTitle?: string;
 	renderInlineAs?: string;
+	score?: number;
 	bookmarked?: boolean;
 	recent?: boolean;
 	slashSource?: 'builtin' | 'prompt';
@@ -317,9 +359,12 @@ export interface IKnoxGuiCheckpointNode {
 	pinned: boolean;
 	changedPaths: string[];
 	sessionId?: string;
+	conversationContext?: { role: string; messageContent: string };
 	parents: string[];
 	fileChanges: { added: number; modified: number; deleted: number };
 	workingTree?: boolean;
+	/** `getCheckpointTimeline` `isIncremental`: shown as a Δ badge on timeline cards. */
+	isIncremental?: boolean;
 }
 
 export interface IKnoxGuiCheckpointBranch {
@@ -395,7 +440,7 @@ export interface IKnoxGuiCheckpointDashboard {
 	storageHistory: Array<{ timestamp: string; totalBytes: number; checkpointCount: number }>;
 	creationFrequency: Array<{ bucket: string; count: number }>;
 	restorationEvents: Array<{ timestamp: string; checkpointId: string; success: boolean; durationMs: number; filesRestored: number; filesFailed: number; error?: string }>;
-	aiSessionMetrics: Array<{ sessionId: string; startedAt: string; filesChanged: number; checkpointsCreated: number; rollbacks?: number; durationSeconds: number }>;
+	aiSessionMetrics: Array<{ sessionId: string; startedAt: string; filesChanged: number; linesAdded?: number; linesDeleted?: number; checkpointsCreated: number; rollbacks?: number; durationSeconds: number }>;
 	summary: {
 		totalCheckpointsCreated: number;
 		totalRestorations: number;
@@ -699,6 +744,8 @@ export interface IKnoxGuiState {
 	webSearchSupported: boolean;
 	imagesSupported: boolean;
 	toolsSupported: boolean;
+	/** `shouldShowThinkingPlaceholder` for the selected chat model. */
+	thinkingPlaceholder: boolean;
 	reasoningEffort?: string;
 	reasoningEfforts: string[];
 	codeWrap: boolean;
@@ -720,9 +767,6 @@ export interface IKnoxGuiState {
 	historySelectionMode: boolean;
 	historyConfirmDelete: boolean;
 	promptPath: string;
-	addModelProvidersSelected: boolean;
-	statsDaily: IKnoxGuiDailyTokenStats[];
-	statsByModel: IKnoxGuiModelTokenStats[];
 	pendingFiles: { filepath: string; numDiffs: number; selected: boolean }[];
 	tabs: IKnoxGuiSessionTab[];
 	activeTabId: string;
@@ -744,7 +788,11 @@ export interface IKnoxGuiState {
 	suggestSubmenu?: string;
 	suggestSubmenuTitle?: string;
 	suggestLoading: boolean;
-	contextItems: { name: string; content: string; provider?: string }[];
+	/** Query provider whose query box is open in the `@` picker. */
+	suggestQueryItem?: IKnoxGuiSuggestItem;
+	/** `#` picker in edit mode: picks go to code-to-edit instead of chips. */
+	suggestCodeToEdit: boolean;
+	contextItems: IKnoxGuiContextItem[];
 	codeToEdit: { filepath: string; contents?: string; range?: { start: { line: number; character?: number }; end: { line: number; character?: number } } }[];
 	editStatus: KnoxGuiEditStatus;
 	editPreviousInputs: string[];
@@ -778,6 +826,9 @@ export interface IKnoxGuiState {
 		supportsTools?: boolean;
 		supportsReasoning?: boolean;
 		supportsWebSearch?: boolean;
+		supportsImageOutput?: boolean;
+		modalities?: string[];
+		pricing?: { promptPer1k: number; completionPer1k: number };
 		supportedParameters?: string[];
 	}>;
 	knoxChatModelsLoading: boolean;
@@ -790,6 +841,28 @@ export interface IKnoxGuiState {
 	memorySortBy: 'recent' | 'importance' | 'accessed';
 	memoryHasMore: boolean;
 	memoryBusy: boolean;
+	memoryOverviewLoading: boolean;
+	memoryConsolidating: boolean;
+	memoriesLoading: boolean;
+	memoriesLoadingMore: boolean;
+	memoryBrowserBusy: boolean;
+	memoryBrowserError?: { key: string; count?: number };
+	memoryBrowserNotice?: { key: string; count?: number };
+	memorySessionsLoading: boolean;
+	memorySessionHistoryLoading: boolean;
+	memoryBacklogSearching: boolean;
+	memorySessionError?: string;
+	memoryGraphLoading: boolean;
+	memoryGraphLoadingMore: boolean;
+	memoryGraphError?: string;
+	/** `MemorySettings.tsx` `loading`: first config fetch. */
+	memoryConfigLoading: boolean;
+	/** Config key whose saved checkmark is visible (2 s). */
+	memorySavedKey?: string;
+	/** `healthAction`: the settings action whose button spins. */
+	memorySettingsAction?: string;
+	/** `actionResult`: translated result line, auto-dismissed. */
+	memorySettingsResult?: { type: 'success' | 'error'; message: string };
 	memoryActionMessage?: string;
 	memoryDashboard?: IKnoxGuiMemoryDashboard;
 	memoryEffectiveContext?: IKnoxGuiEffectiveContext;
@@ -817,6 +890,7 @@ export interface IKnoxGuiState {
 	checkpointView: KnoxCheckpointPanelTab;
 	checkpointThisSession: boolean;
 	checkpointShell?: { state: string; checkpointCount: number };
+	checkpointGraphActionBusy: boolean;
 	checkpoints: IKnoxGuiCheckpointNode[];
 	checkpointBranches: IKnoxGuiCheckpointBranch[];
 	selectedCheckpointId?: string;
@@ -824,6 +898,9 @@ export interface IKnoxGuiState {
 	checkpointRestoreId?: string;
 	checkpointRestoreMemory: boolean;
 	checkpointRestoreLoading: boolean;
+	/** A restore request is in flight; held for 1.5 s after it settles, as in `RestorePreviewDialog`. */
+	checkpointRestoring: boolean;
+	/** Either the `restorePreviewFailed` i18n key or host-provided message text. */
 	checkpointRestoreError?: string;
 	checkpointRestorePreview?: IKnoxGuiRestorePreview;
 	checkpointRestoreSelected: string[];
@@ -840,14 +917,23 @@ export interface IKnoxGuiState {
 	checkpointDiffSelectedFile?: string;
 	checkpointConfig?: IKnoxGuiCheckpointConfig;
 	checkpointConfigDraft?: IKnoxGuiCheckpointConfig;
-	checkpointConfigStatus?: { type: 'success' | 'error' | 'info'; messageKey: string };
+	checkpointConfigStatus?: { type: 'success' | 'error' | 'info'; messageKey: string; detail?: string };
+	/** `CheckpointConfig.tsx` `isLoading`: load or save in flight. */
+	checkpointConfigLoading: boolean;
 	checkpointDashboard?: IKnoxGuiCheckpointDashboard;
 	checkpointDashboardTab: 'overview' | 'storage' | 'activity' | 'ai';
+	checkpointDashboardLoading: boolean;
 	checkpointAnalysis?: IKnoxGuiCheckpointAnalysis;
 	checkpointAnalysisGroups: IKnoxGuiCheckpointAnalysisGroup[];
+	/** `listCheckpoints {limit: 50}` catalog backing the Analysis selector. */
+	checkpointAnalysisCatalog: Array<{ id: string; description: string }>;
+	checkpointAnalysisCatalogLoading: boolean;
+	checkpointAnalysisId?: string;
+	checkpointAnalysisPending: boolean;
 	checkpointShareBundles: IKnoxGuiCheckpointShareBundle[];
 	checkpointShareAudit: IKnoxGuiCheckpointAuditRecord[];
 	checkpointShareTab: 'shared' | 'audit';
+	checkpointShareLoading: boolean;
 	checkpointGraphUi: IKnoxGuiCheckpointGraphUi;
 	checkpointHeadId?: string;
 	checkpointGraphHasMore: boolean;
@@ -861,8 +947,11 @@ export interface IKnoxGuiState {
 	checkpointListLoading: boolean;
 	checkpointListLoadingMore: boolean;
 	checkpointListItems: IKnoxGuiCheckpointNode[];
+	/** `listCheckpoints` `compareCatalog`: every listable checkpoint, for compare targets and labels. */
+	checkpointCompareCatalog: Array<{ id: string; description: string; created: string }>;
 	checkpointTimeline: IKnoxGuiCheckpointNode[];
 	checkpointTimelineBranches: IKnoxGuiCheckpointBranch[];
+	checkpointTimelineLoading: boolean;
 	promptDraft?: IKnoxGuiPromptDraft;
 	restoreNotice?: { sessionId: string; content: string };
 	setupComplete: boolean;
@@ -870,6 +959,8 @@ export interface IKnoxGuiState {
 	historyHydrateNotice: 'large' | null;
 	autoScroll: boolean;
 	startersExpanded: boolean;
+	/** `session.symbols`: file uri → symbols from `context/getSymbolsForFiles`. */
+	fileSymbols: Record<string, IKnoxGuiSymbol[]>;
 }
 
 function emptyRoleModels(): Record<KnoxModelRole, IKnoxGuiModel[]> {
@@ -912,8 +1003,9 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		webSearchSupported: false,
 		imagesSupported: false,
 		toolsSupported: true,
+		thinkingPlaceholder: false,
 		reasoningEfforts: [],
-		codeWrap: true,
+		codeWrap: false,
 		codeBlockToolbarPosition: 'top',
 		showChatScrollbar: false,
 		autoNameSessionTitles: true,
@@ -931,9 +1023,6 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		historySelectionMode: false,
 		historyConfirmDelete: false,
 		promptPath: '',
-		addModelProvidersSelected: true,
-		statsDaily: [],
-		statsByModel: [],
 		pendingFiles: [],
 		tabs: [],
 		activeTabId: '',
@@ -951,6 +1040,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		suggestQuery: '',
 		suggestSelected: 0,
 		suggestLoading: false,
+		suggestCodeToEdit: false,
 		contextItems: [],
 		codeToEdit: [],
 		editStatus: 'not-started',
@@ -977,6 +1067,18 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		memorySortBy: 'recent',
 		memoryHasMore: false,
 		memoryBusy: false,
+		memoryOverviewLoading: false,
+		memoryConsolidating: false,
+		memoriesLoading: false,
+		memoriesLoadingMore: false,
+		memoryBrowserBusy: false,
+		memorySessionsLoading: false,
+		memorySessionHistoryLoading: false,
+		memoryBacklogSearching: false,
+		memoryGraphLoading: false,
+		memoryGraphLoadingMore: false,
+		memoryConfigLoading: false,
+		checkpointConfigLoading: false,
 		memoryReviewDue: [],
 		memories: [],
 		memorySessions: [],
@@ -996,18 +1098,25 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		checkpoints: [],
 		checkpointBranches: [],
 		checkpointDialog: null,
+		checkpointGraphActionBusy: false,
 		checkpointRestoreMemory: false,
 		checkpointRestoreLoading: false,
+		checkpointRestoring: false,
 		checkpointRestoreSelected: [],
 		checkpointRestoreShowDiff: false,
 		checkpointCompareLoading: false,
 		checkpointDiffView: 'split',
 		checkpointDiffWrap: true,
 		checkpointDashboardTab: 'overview',
+		checkpointDashboardLoading: false,
 		checkpointAnalysisGroups: [],
+		checkpointAnalysisCatalog: [],
+		checkpointAnalysisCatalogLoading: false,
+		checkpointAnalysisPending: false,
 		checkpointShareBundles: [],
 		checkpointShareAudit: [],
 		checkpointShareTab: 'shared',
+		checkpointShareLoading: false,
 		checkpointGraphUi: {
 			hiddenColumns: [],
 			columnWidths: { date: 152, kind: 104, id: 112 },
@@ -1026,13 +1135,16 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		checkpointListLoading: false,
 		checkpointListLoadingMore: false,
 		checkpointListItems: [],
+		checkpointCompareCatalog: [],
 		checkpointTimeline: [],
 		checkpointTimelineBranches: [],
+		checkpointTimelineLoading: false,
 		setupComplete: false,
 		fatalConfig: false,
 		historyHydrateNotice: null,
 		autoScroll: true,
 		startersExpanded: false,
+		fileSymbols: {},
 	};
 }
 

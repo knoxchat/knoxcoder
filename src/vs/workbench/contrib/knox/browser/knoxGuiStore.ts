@@ -108,6 +108,7 @@ export class KnoxGuiStore extends Disposable {
 			historyHydrateNotice: null,
 			streamError: undefined,
 			toolLoopSteps: 0,
+			fileSymbols: {},
 			find: { ...this._state.find, open: false, query: '', matchIndexes: [], total: 0, current: 0 },
 		});
 	}

@@ -290,7 +290,7 @@ suite('Knox editor host contract (KN-344)', () => {
 		assert.ok(panels.includes('`batch/${kind}`'));
 		assert.ok(pages.includes("data-testid', 'knox-gui-batch-diff'"));
 		assert.ok(pages.includes('applyBatchDiff'));
-		assert.ok(pages.includes('showFile(file.filepath)'));
+		assert.ok(pages.includes('item.filepath === file.filepath ? { ...item, selected: !item.selected }'));
 		assert.ok(composer.includes("navigate('/batch-diff')"));
 		assert.ok(composer.includes('knoxGuiShowsBatchDiffEntry'));
 		assert.ok(protocol.includes("'batch/getPendingFiles'"));
@@ -354,7 +354,7 @@ suite('Knox editor host contract (KN-345)', () => {
 		assert.ok(inbound.includes("case 'highlightedCode'"));
 		assert.ok(inbound.includes('applyHighlightedCode'));
 		assert.ok(composer.includes('rec.shouldRun'));
-		assert.ok(composer.includes('controller.submit()'));
+		assert.ok(composer.includes('controller.submit(undefined, { noContext: true })'));
 		assert.ok(protocol.includes("'highlightedCode'"));
 	});
 });

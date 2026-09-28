@@ -88,13 +88,6 @@ export class KnoxGUIWebviewViewProvider
     }
   }
 
-  sendMainUserInput(input: string) {
-    this.webview?.postMessage({
-      type: "userInput",
-      input,
-    });
-  }
-
   constructor(
     private readonly configHandlerPromise: Promise<ConfigHandler>,
     private readonly windowId: string,

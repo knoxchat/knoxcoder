@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
-import { asRecord, asArray } from './helpers.js';
+import { asRecord, asArray, contextItemFromRaw } from './helpers.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { applyKnoxGuiAutonomousEvent, parseBackgroundJob, parseBackgroundJobs, parseCompactionPayload } from '../../../common/knoxGuiPanels.js';
 import { parseCheckpointRestored } from '../../../common/knoxGuiCheckpoints.js';
@@ -13,7 +13,7 @@ import { knoxGuiNextEditStatus, mergeCodeToEdit, parseCodeToEditList } from '../
 import { knoxGuiHostAgentActiveFromPayload, knoxGuiModeAfterHostAgentFlag } from '../../../common/knoxGuiAgentMode.js';
 import { IKnoxGuiState, KnoxModelRole, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
 import { applyKnoxGuiSetColors, applyKnoxGuiSetTheme } from '../../../common/knoxGuiTheme.js';
-import { parseTokensPerDay, parseTokensPerModel } from '../../../common/knoxGuiStats.js';
+import { appendTextToDoc } from '../../../common/knoxGuiInput.js';
 
 export function onHostMessage(controller: KnoxGuiController, message: IKnoxGuiMessage): void {
 	void controller.handleInbound(message.messageType, message.data, message.messageId);
@@ -63,11 +63,20 @@ const KNOX_GUI_CHAT_ONLY_INBOUND = new Set([
 	'agentModeChanged',
 ]);
 
+/** `useNavigationListener.ts` openGUITypes: return to chat from secondary pages first. */
+const KNOX_GUI_OPEN_CHAT_INBOUND = new Set(['highlightedCode', 'focusKnoxInput', 'focusKnoxInputWithoutClear', 'newSession']);
+
+/** Host requests with no GUI handler; answering keeps the host promise from hanging. */
+const KNOX_GUI_UNHANDLED_HOST_REQUESTS = new Set(['didChangeIdeSettings', 'incrementFtc', 'addApiKey']);
+
 export async function handleInbound(controller: KnoxGuiController, type: string, data: unknown, messageId: string): Promise<void> {
 	if (knoxGuiIsDedicatedEditor(controller.store.state) && KNOX_GUI_CHAT_ONLY_INBOUND.has(type)) {
 		return;
 	}
 	const rec = asRecord(data);
+	if (KNOX_GUI_OPEN_CHAT_INBOUND.has(type)) {
+		controller.store.navigate('/');
+	}
 	switch (type) {
 		case 'newSession':
 			await controller.newSession();
@@ -86,11 +95,12 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 		case 'focusKnoxInput':
 		case 'focusKnoxInputWithoutClear':
 			if (type === 'focusKnoxInput') {
-				controller.store.setInput('');
-				controller.store.patch({ inputFocused: true });
-			} else {
-				controller.store.patch({ inputFocused: true });
+				controller.store.patch({ codeToEdit: [] });
+				if (controller.store.state.history.length) {
+					await controller.saveCurrentSession({ generateTitle: true });
+				}
 			}
+			controller.store.patch({ inputFocused: true });
 			return;
 		case 'isKnoxInputFocused':
 			controller.messenger.post(type, controller.store.state.inputFocused, messageId);
@@ -122,8 +132,8 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 			return;
 		case 'userInput':
 			if (rec && typeof rec.input === 'string') {
-				controller.store.setInput(rec.input);
-				await controller.submit();
+				controller.store.setInputDoc(appendTextToDoc(controller.store.state.inputDoc, rec.input));
+				await controller.submit(undefined, { noContext: true });
 			}
 			return;
 		case 'highlightedCode':
@@ -143,18 +153,23 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 			return;
 		}
 		case 'refreshSubmenuItems':
+			controller.submenuItems.clear();
+			controller.submenuIndexing = false;
 			if (controller.store.state.mentionOpen) {
 				void controller.loadMentions(controller.store.state.suggestQuery);
 			}
 			return;
-		case 'addContextItem':
-			if (rec) {
-				const item = asRecord(rec.item) ?? rec;
-				controller.store.patch({
-					contextItems: [...controller.store.state.contextItems, { name: String(item.name ?? 'context'), content: String(item.content ?? ''), provider: item.provider ? String(item.provider): undefined }],
+		case 'addContextItem': { // `addContextItemsAtIndex`: attach to the history item the slash command ran for
+			const item = asRecord(rec?.item);
+			const index = rec?.historyIndex;
+			const target = typeof index === 'number' ? controller.store.state.history[index] : undefined;
+			if (item && target) {
+				controller.patchHistoryItem(target.id, {
+					contextItems: [...(target.contextItems ?? []), contextItemFromRaw(item)!],
 				});
 			}
 			return;
+		}
 		case 'addImageAttachment':
 			if (rec && typeof rec.imageUrl === 'string') {
 				controller.store.patch({
@@ -242,11 +257,7 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 				controller.schedulePendingFilesReload();
 			}
 			return;
-		case 'agentStreamingUpdate':
-			if (rec && typeof rec.content === 'string') {
-				controller.store.updateLastAssistant(rec.content);
-				controller.store.setStreaming(!rec.isComplete);
-			}
+		case 'agentStreamingUpdate': // agentModeStreamingMiddleware.ts: the chat stream already renders the reply
 			return;
 		case 'tools/partialOutput':
 			if (rec && typeof rec.toolCallId === 'string') {
@@ -307,7 +318,7 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 				}
 			}
 			if (controller.store.state.route === KnoxGuiRoute.Memory) {
-				void controller.loadMemory();
+				controller.refreshMemoryActiveTab();
 			}
 			return;
 		case 'activeChatSessionChanged':
@@ -319,6 +330,9 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 			}
 			return;
 		default:
+			if (KNOX_GUI_UNHANDLED_HOST_REQUESTS.has(type)) {
+				controller.messenger.post(type, undefined, messageId);
+			}
 			return;
 	}
 }
@@ -336,9 +350,6 @@ export function onRouteChanged(controller: KnoxGuiController, state: IKnoxGuiSta
 }
 
 export async function onNavigated(controller: KnoxGuiController, path: string): Promise<void> {
-	if (path === '/stats') {
-		await loadStats(controller);
-	}
 	if (path === '/batch-diff') {
 		await controller.loadPendingFiles();
 	}
@@ -354,23 +365,5 @@ export async function onNavigated(controller: KnoxGuiController, path: string): 
 	}
 	if (path === '/checkpoint-graph') {
 		await controller.loadCheckpoints();
-	}
-}
-
-/** KN-372: hydrate the stats page from Core local token tables. */
-export async function loadStats(controller: KnoxGuiController): Promise<void> {
-	const [daily, models] = await Promise.allSettled([
-		controller.messenger.request<unknown>('stats/getTokensPerDay', undefined),
-		controller.messenger.request<unknown>('stats/getTokensPerModel', undefined),
-	]);
-	const patch: Partial<IKnoxGuiState> = {};
-	if (daily.status === 'fulfilled') {
-		patch.statsDaily = parseTokensPerDay(daily.value);
-	}
-	if (models.status === 'fulfilled') {
-		patch.statsByModel = parseTokensPerModel(models.value);
-	}
-	if (patch.statsDaily || patch.statsByModel) {
-		controller.store.patch(patch);
 	}
 }

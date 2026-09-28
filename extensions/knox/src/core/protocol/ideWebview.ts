@@ -569,6 +569,38 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
     },
     { success: boolean; stored?: number },
   ];
+
+  /**
+   * Native workbench chat: build one Agent/Chat LLM request with Core's
+   * constructMessages + agent catalog + loop guards (the webview ran these
+   * in-bundle; workbench code cannot import Core).
+   */
+  "knox/buildAgentRequest": [
+    import("./nativeAgent").NativeAgentRequestInput,
+    import("./nativeAgent").NativeAgentRequestOutput,
+  ];
+  /** Would this pending call complete a doom loop for the current turn? */
+  "knox/checkDoomLoop": [
+    import("./nativeAgent").NativeDoomLoopInput,
+    import("./nativeAgent").NativeDoomLoopOutput,
+  ];
+  /** Agent/rule policy (`isHardPolicyDeny`, `isToolAutoApproved`) for one pending call. */
+  "knox/evaluateToolPolicy": [
+    import("./nativeAgent").NativeToolPolicyInput,
+    import("./nativeAgent").NativeToolPolicyOutput,
+  ];
+  /** Track the session and record the user message before memory context is built. */
+  "knox/startTurn": [
+    import("./nativeAgent").NativeStartTurnInput,
+    import("./nativeAgent").NativeStartTurnOutput,
+  ];
+  /** Record the assistant message and run the post-turn memory write. */
+  "knox/finishTurn": [import("./nativeAgent").NativeFinishTurnInput, void];
+  /** Strip leaked DSML/XML tool markup and recover text-format tool calls (`hydrateAssistantTextToolCalls`). */
+  "knox/hydrateAssistant": [
+    import("./nativeAgent").NativeHydrateAssistantInput,
+    import("./nativeAgent").NativeHydrateAssistantOutput,
+  ];
 };
 
 export type ToWebviewFromIdeProtocol = ToWebviewFromIdeOrCoreProtocol & {

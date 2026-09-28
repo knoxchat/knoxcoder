@@ -5,8 +5,8 @@
 
 import type { IKnoxGuiModel } from './knoxGuiState.js';
 
-/** Matches llm/autodetect PROVIDER_SUPPORTS_IMAGES. */
-export const KNOX_GUI_IMAGE_PROVIDERS = ['openai', 'anthropic', 'knoxchat'];
+/** Native GUI only configures KnoxChat; vision still uses model-name hints. */
+export const KNOX_GUI_IMAGE_PROVIDERS = ['knoxchat'];
 
 /** Matches llm/autodetect MODEL_SUPPORTS_IMAGES, plus grok (KnoxChat vision). */
 export const KNOX_GUI_IMAGE_MODEL_HINTS = [
@@ -172,7 +172,7 @@ function knoxGuiCatalogToolsSupport(model: IKnoxGuiModel): boolean | undefined {
 /**
  * KN-371: port of `modelSupportsTools` against the /v1/models cache.
  * Catalog `supported_parameters` wins, then the serialized model, then explicit caps.
- * Provider name (knoxchat/openai/anthropic) is not a tools signal.
+ * Provider name is not a tools signal.
  */
 export function knoxGuiModelSupportsTools(model: IKnoxGuiModel | undefined): boolean {
 	if (!model) {
@@ -194,6 +194,32 @@ export function knoxGuiModelSupportsTools(model: IKnoxGuiModel | undefined): boo
 function hasReasoningEffortParam(model: IKnoxGuiModel): boolean {
 	const supported = model.supportedParameters ?? [];
 	return supported.includes('reasoning_effort') || supported.includes('reasoningEffort');
+}
+
+function supportsReasoningParams(supportedParameters: string[] | undefined): boolean {
+	return !!supportedParameters?.some(p => p === 'reasoning' || p === 'reasoning_effort' || p === 'include_reasoning');
+}
+
+/** Port of `modelSupportsReasoning`: catalog first, then supported parameters, then capabilities. */
+export function knoxGuiModelSupportsReasoning(model: IKnoxGuiModel | undefined): boolean {
+	if (!model) {
+		return false;
+	}
+	for (const id of [model.model, model.title].filter((id): id is string => Boolean(id))) {
+		const cached = knoxGuiFindCatalogModel(id);
+		if (cached) {
+			return supportsReasoningParams(cached.supportedParameters);
+		}
+	}
+	if (supportsReasoningParams(model.supportedParameters)) {
+		return true;
+	}
+	return model.capabilities?.reasoning === true;
+}
+
+/** Port of `shouldShowThinkingPlaceholder`. */
+export function knoxGuiShowsThinkingPlaceholder(model: IKnoxGuiModel | undefined): boolean {
+	return !!model && (!!knoxGuiReasoningEffortConfig(model) || knoxGuiModelSupportsReasoning(model));
 }
 
 /**
@@ -230,6 +256,30 @@ export function knoxGuiResolveReasoningEffort(
 		return legacySelectedEffort;
 	}
 	return config.default;
+}
+
+/** `ModelSelect.tsx`: models with an empty API key go last, order otherwise kept. */
+export function knoxGuiSortModelsByApiKey<T extends { apiKey?: string }>(models: readonly T[]): T[] {
+	return [...models.filter(model => model.apiKey !== ''), ...models.filter(model => model.apiKey === '')];
+}
+
+/** Headless UI Listbox keys: arrows wrap-free, Home/End jump. `current` is -1 when focus is outside the list. */
+export function knoxGuiListboxNextIndex(key: string, current: number, length: number): number | undefined {
+	if (!length) {
+		return undefined;
+	}
+	switch (key) {
+		case 'ArrowDown':
+			return current < 0 ? 0 : Math.min(current + 1, length - 1);
+		case 'ArrowUp':
+			return current < 0 ? length - 1 : Math.max(current - 1, 0);
+		case 'Home':
+			return 0;
+		case 'End':
+			return length - 1;
+		default:
+			return undefined;
+	}
 }
 
 export function knoxGuiModelSelectTitle(model: IKnoxGuiModel | undefined): string {

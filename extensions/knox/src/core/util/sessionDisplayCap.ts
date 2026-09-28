@@ -66,7 +66,7 @@ export function dropSettledToolCallOutputs(
 ): ChatHistoryItem[] {
   const completedIds = new Set<string>();
   for (const item of history) {
-    if (item.message.role === "tool" && item.message.toolCallId) {
+    if (item.message?.role === "tool" && item.message.toolCallId) {
       completedIds.add(item.message.toolCallId);
     }
   }
@@ -120,7 +120,7 @@ export function capToolRoleContextItems(
 ): ChatHistoryItem[] {
   let changed = false;
   const next = history.map((item) => {
-    if (item.message.role !== "tool" || !item.contextItems?.length) {
+    if (item.message?.role !== "tool" || !item.contextItems?.length) {
       return item;
     }
     const capped = capContextItems(item.contextItems);
@@ -237,9 +237,13 @@ function historyHasTruncatedDisplay(history: ChatHistoryItem[]): boolean {
  * `message.content` (model + disk save still need it).
  */
 export function slimSessionForGui(session: Session): SlimSessionResult {
-  const originalBytes = estimateSessionPayloadBytes(session);
+  const historyItems = (session?.history ?? []).filter(item => item?.message);
+  const originalBytes = estimateSessionPayloadBytes({
+    ...session,
+    history: historyItems,
+  });
   const history = normalizeHistoryForGui(
-    dropPromptLogsFromHistory(session.history ?? []),
+    dropPromptLogsFromHistory(historyItems),
   );
   const slimmed = history !== session.history;
   const resultBytes = slimmed

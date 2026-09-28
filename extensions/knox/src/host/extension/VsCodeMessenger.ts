@@ -45,6 +45,13 @@ import { getExtensionUri } from "../util/vscode";
 import { VsCodeIde } from "../VsCodeIde";
 import { VsCodeWebviewProtocol } from "../webviewProtocol";
 import { KnoxOAuthController } from "../oauth/KnoxOAuthController";
+import {
+  buildNativeAgentRequest,
+  checkNativeDoomLoop,
+  evaluateNativeToolPolicy,
+  hydrateNativeAssistant,
+} from "./nativeAgentRequest";
+import { finishNativeTurn, runMemoryPostTurn, startNativeTurn } from "./nativeTurn";
 
 
 /**
@@ -875,6 +882,35 @@ export class VsCodeMessenger {
       editDecorationManager.clear();
     });
 
+    this.onWebview("knox/buildAgentRequest", async (msg) => {
+      const { config } = await (await this.configHandlerPromise).loadConfig();
+      return buildNativeAgentRequest(msg.data, {
+        ide: this.ide,
+        configTools: config?.tools,
+        experimental: config?.experimental,
+      });
+    });
+    this.onWebview("knox/checkDoomLoop", async (msg) => {
+      const { config } = await (await this.configHandlerPromise).loadConfig();
+      return checkNativeDoomLoop(msg.data, config?.experimental);
+    });
+    this.onWebview("knox/evaluateToolPolicy", async (msg) => {
+      const { config } = await (await this.configHandlerPromise).loadConfig();
+      const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
+      return evaluateNativeToolPolicy(msg.data, config?.experimental, dirs);
+    });
+    this.onWebview("knox/hydrateAssistant", async (msg) => hydrateNativeAssistant(msg.data));
+    this.onWebview("knox/startTurn", async (msg) => {
+      const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
+      return startNativeTurn(msg.data, dirs[0] ?? "");
+    });
+    this.onWebview("knox/finishTurn", async (msg) => {
+      const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
+      await finishNativeTurn(msg.data, dirs[0] ?? "", () =>
+        MemoryView.notifyMemoryChanged(),
+      );
+    });
+
     // ── Memory Brain integration ──
     this.onWebview("memory/buildContext", async (msg) => {
       try {
@@ -898,62 +934,9 @@ export class VsCodeMessenger {
         return { context: null, items: [] };
       }
     });
-    this.onWebview("memory/postTurn", async (msg) => {
-      try {
-        const { BrainManager } = await import("core/context/memory/brain/BrainManager");
-        const { BrainStore } = await import("core/context/memory/brain/BrainStore");
-        const { MemoryPipeline } = await import("core/context/memory/brain/MemoryPipeline");
-        const sessionId = msg.data.sessionId;
-        const userMessage = msg.data.userMessage?.trim() ?? "";
-        const assistantMessage = msg.data.assistantMessage?.trim() ?? "";
-        const toolSummary = msg.data.toolSummary?.trim() ?? "";
-        const extractable = [userMessage, assistantMessage]
-          .filter(Boolean)
-          .join("\n\n");
-        const toolLooksLikeFix =
-          toolSummary.length > 0 &&
-          /fix|solved|resolved|the issue was|the problem was|the solution/i.test(
-            toolSummary,
-          );
-        await BrainStore.get();
-        const minChars = BrainStore.getConfig().post_turn_min_chars ?? 80;
-        if (
-          (!extractable || extractable.length < minChars) &&
-          !(toolLooksLikeFix && toolSummary.length >= minChars)
-        ) {
-          return { success: true, stored: 0 };
-        }
-        await BrainManager.trackSession(
-          sessionId,
-          msg.data.title?.trim() || "Chat session",
-          msg.data.workspaceDir ?? "",
-        );
-        const pipelineResult = await MemoryPipeline.runPostTurn({
-          message: assistantMessage || userMessage,
-          session_id: sessionId,
-          role: "assistant",
-          turn_content: extractable || undefined,
-          user_message: userMessage || undefined,
-          assistant_message: assistantMessage || undefined,
-          tool_summary: toolSummary || undefined,
-        });
-        const stored =
-          (pipelineResult.extracted?.semantic_count ?? 0) +
-          (pipelineResult.extracted?.entity_count ?? 0);
-        if (extractable.length > 400) {
-          await BrainManager.llmPostActionMemory(
-            userMessage.substring(0, 500) || "chat turn",
-            assistantMessage.substring(0, 2000) || "",
-            sessionId,
-          ).catch(() => {});
-        }
-        MemoryView.notifyMemoryChanged();
-        return { success: true, stored };
-      } catch (error) {
-        console.warn("[Memory] Failed post-turn write:", error);
-        return { success: false, stored: 0 };
-      }
-    });
+    this.onWebview("memory/postTurn", async (msg) =>
+      runMemoryPostTurn(msg.data, () => MemoryView.notifyMemoryChanged()),
+    );
     this.onWebview("memory/autoStore", async (msg) => {
       try {
         const { autoStoreTask } = await import("core/context/soul/recordSoulEvent");

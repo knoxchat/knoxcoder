@@ -15,10 +15,12 @@ import { knoxGuiResetEditModeState, shouldFocusEditorOnEditExit } from '../../..
 import { applyCloseTab, IKnoxGuiHistoryItem, IKnoxGuiPromptLog, IKnoxGuiToolCall, KnoxChatMode } from '../../../common/knoxGuiState.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
 import { postSetAgentMode } from './models.js';
+import { knoxGuiHistoryToSessionHistory } from '../../../common/knoxGuiAgentRequest.js';
+import { updateFileSymbolsFromHistory } from './stream.js';
 
-export async function newSession(controller: KnoxGuiController): Promise<void> {
+export async function newSession(controller: KnoxGuiController, options?: { generateTitle?: boolean }): Promise<void> {
 	if (controller.store.state.history.length) {
-		await controller.saveCurrentSession({ generateTitle: true });
+		await controller.saveCurrentSession({ generateTitle: options?.generateTitle ?? true });
 		if (controller.store.state.sessionId) {
 			controller.messenger.post('brain/dispatch', { action: 'close_session', session_id: controller.store.state.sessionId });
 		}
@@ -32,6 +34,9 @@ export async function newSession(controller: KnoxGuiController): Promise<void> {
 }
 
 export async function loadSession(controller: KnoxGuiController, id: string, options?: { saveCurrent?: boolean }): Promise<void> {
+	if (!id?.trim()) {
+		return;
+	}
 	const previous = controller.store.state.sessionId;
 	const shouldSave = options?.saveCurrent !== false;
 	if (shouldSave && previous && previous !== id && controller.store.state.history.length) {
@@ -50,11 +55,13 @@ export async function loadSession(controller: KnoxGuiController, id: string, opt
 			history,
 			isLoadingHistory: false,
 			historyHydrateNotice: shouldWarnLargeSession(history) ? 'large' : null,
+			fileSymbols: {},
 		});
+		void updateFileSymbolsFromHistory(controller);
 		controller.store.syncSessionTab(controller.store.state.sessionId, title || knoxGuiT(controller.store.state.language, 'newChat'));
 		controller.syncActiveSession();
 		postSetAgentMode(controller);
-		controller.messenger.post('brain/trackSession', { sessionId: controller.store.state.sessionId, title: controller.store.state.sessionTitle, workspaceDir: '' });
+		controller.messenger.post('brain/trackSession', { sessionId: controller.store.state.sessionId, title: controller.store.state.sessionTitle, workspaceDir: controller.workspaceDirectory });
 	} catch {
 		controller.store.patch({ isLoadingHistory: false });
 	}
@@ -94,7 +101,37 @@ export async function deleteSessions(controller: KnoxGuiController, ids: string[
 		tabs: controller.store.state.tabs.filter(tab => !tab.sessionId || !ids.includes(tab.sessionId)),
 	});
 	if (ids.includes(controller.store.state.sessionId)) {
-		await controller.newSession();
+		// `deleteSession` → `loadLastSession({ saveCurrentSession: false })`
+		const next = controller.store.state.historySessions[0]?.id;
+		if (next) {
+			await controller.loadSession(next, { saveCurrent: false });
+		} else {
+			openFreshSession(controller);
+		}
+	}
+}
+
+function openFreshSession(controller: KnoxGuiController): void {
+	controller.store.newSession();
+	controller.store.syncSessionTab(controller.store.state.sessionId, knoxGuiT(controller.store.state.language, 'chatTab', { number: controller.store.state.tabs.length + 1 }));
+	controller.syncActiveSession();
+}
+
+/**
+ * `thunks/session.ts:loadLastSession({ saveCurrentSession: false })`: reload the
+ * newest session of this workspace, or start a new chat when there is none.
+ */
+export async function loadLastSession(controller: KnoxGuiController): Promise<void> {
+	if (!controller.workspaceDirectory) {
+		openFreshSession(controller);
+		return;
+	}
+	await refreshHistorySessions(controller);
+	const last = controller.store.state.historySessions[0]?.id;
+	if (last) {
+		await controller.loadSession(last, { saveCurrent: false });
+	} else {
+		openFreshSession(controller);
 	}
 }
 
@@ -149,8 +186,8 @@ export async function saveCurrentSession(controller: KnoxGuiController, options?
 		await controller.messenger.request('history/save', {
 			sessionId,
 			title,
-			workspaceDirectory: undefined,
-			history,
+			workspaceDirectory: controller.workspaceDirectory,
+			history: knoxGuiHistoryToSessionHistory(history),
 		});
 		const existing = controller.store.state.historySessions.filter(session => session.id !== sessionId);
 		controller.store.patch({
@@ -214,7 +251,11 @@ export function historyFromRaw(controller: KnoxGuiController, item: Record<strin
 		id: String(message.id ?? item.id ?? `m-${index}`),
 		role: role === 'user' || role === 'system' || role === 'thinking' || role === 'tool' ? role : 'assistant',
 		content,
-		thinking: reasoning && typeof reasoning.text === 'string' ? reasoning.text : thinkingFromUnknown(message.content),
+		thinking: reasoning && typeof reasoning.text === 'string' ? reasoning.text : typeof item.thinking === 'string' ? item.thinking : thinkingFromUnknown(message.content),
+		thinkingStartAt: typeof item.thinkingStartAt === 'number' ? item.thinkingStartAt : typeof reasoning?.startAt === 'number' ? reasoning.startAt : undefined,
+		thinkingEndAt: typeof item.thinkingEndAt === 'number' ? item.thinkingEndAt : typeof reasoning?.endAt === 'number' ? reasoning.endAt : undefined,
+		redactedThinking: typeof item.redactedThinking === 'string' ? item.redactedThinking : typeof message.redactedThinking === 'string' ? message.redactedThinking : undefined,
+		thinkingSignature: typeof item.thinkingSignature === 'string' ? item.thinkingSignature : typeof message.signature === 'string' ? message.signature : undefined,
 		toolCalls: fromStates.length ? fromStates : fromMessage,
 		images,
 		contextItems,
@@ -297,19 +338,27 @@ export async function exitEditMode(controller: KnoxGuiController, nextMode: Knox
 		inputFocused: false,
 	});
 	postSetAgentMode(controller);
-	const last = controller.store.state.historySessions[0];
-	if (last?.id && last.id !== controller.store.state.sessionId) {
-		await controller.loadSession(last.id, { saveCurrent: false });
-	}
+	await loadLastSession(controller);
 }
 
 export function focusHostEditor(controller: KnoxGuiController): void {
 	controller.messenger.post('focusEditor', undefined);
 }
 
+export async function resolveWorkspaceDirectory(controller: KnoxGuiController): Promise<string> {
+	try {
+		const dirs = await controller.messenger.request<string[]>('getWorkspaceDirs', undefined);
+		controller.workspaceDirectory = Array.isArray(dirs) && typeof dirs[0] === 'string' ? dirs[0] : '';
+	} catch {
+		controller.workspaceDirectory = '';
+	}
+	return controller.workspaceDirectory;
+}
+
+/** `refreshSessionMetadata`: sessions of the current workspace only. */
 export async function refreshHistorySessions(controller: KnoxGuiController): Promise<void> {
 	try {
-		const sessions = await controller.messenger.request<Array<Record<string, unknown>>>('history/list', {});
+		const sessions = await controller.messenger.request<Array<Record<string, unknown>>>('history/list', { workspaceDirectory: controller.workspaceDirectory });
 		if (Array.isArray(sessions)) {
 			controller.store.patch({
 				historySessions: sessions.map(session => ({
@@ -350,7 +399,7 @@ export async function renameSession(controller: KnoxGuiController, id: string, t
 export async function exportSession(controller: KnoxGuiController, id: string): Promise<void> {
 	try {
 		const session = controller.store.state.sessionId === id
-			? { title: controller.store.state.sessionTitle, history: controller.store.state.history, workspaceDirectory: undefined as string | undefined }
+			? { title: controller.store.state.sessionTitle, history: controller.store.state.history, workspaceDirectory: controller.workspaceDirectory || undefined }
 			: await controller.messenger.request<Record<string, unknown>>('history/load', { id });
 		const title = String(session?.title ?? 'session');
 		const history = Array.isArray(session?.history)

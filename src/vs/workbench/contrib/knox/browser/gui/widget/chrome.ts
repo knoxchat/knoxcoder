@@ -13,15 +13,17 @@ import {
 	knoxGuiRunningJobCount,
 	knoxGuiShowsScrollButtons,
 	KNOX_GUI_LUMP_TOOLBAR,
+	knoxGuiMetaKeyLabel,
 } from '../../../common/knoxGuiChrome.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
-import { nextExpandedStart } from '../../../common/knoxGuiChat.js';
-import { knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
+import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, knoxGuiNextScrollFollow, nextExpandedStart } from '../../../common/knoxGuiChat.js';
+import { createComposerInputHistory, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { visibleBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { IKnoxGuiState, KnoxPermissionMode, PERMISSION_MODES, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
 import { pendingApplyStates } from '../../../common/knoxGuiTranscript.js';
 import { onCheckpointGraphKeyDown } from './checkpointGraph.js';
+import { checkpointTimelineEscape } from './checkpoints.js';
 
 export function renderFatalBanner(widget: KnoxGuiWidget, state: IKnoxGuiState): void { // KN-377 Layout.tsx footer
 	const banner = DOM.append(widget.root, DOM.$('.knox-gui-fatal'));
@@ -69,6 +71,7 @@ export function renderToolbar(widget: KnoxGuiWidget, parent: HTMLElement, state:
 export function renderMode(widget: KnoxGuiWidget, bar: HTMLElement, state: IKnoxGuiState): void {
 	const wrap = DOM.append(bar, DOM.$('.knox-gui-mode'));
 	wrap.setAttribute('data-testid', 'knox-gui-mode');
+	wrap.style.fontSize = `${state.fontSize}px`;
 	const running = knoxGuiRunningJobCount(visibleBackgroundJobs(state));
 	const streaming = state.isStreaming;
 
@@ -76,7 +79,7 @@ export function renderMode(widget: KnoxGuiWidget, bar: HTMLElement, state: IKnox
 		label: t(state, 'chat'),
 		selected: state.mode === 'chat',
 		disabled: streaming,
-		title: `${t(state, 'chatMode')} (⌘L)`,
+		title: `${t(state, 'chatMode')} (${knoxGuiMetaKeyLabel(isMacintosh)}L)`,
 		testId: 'knox-gui-mode-chat',
 		extraClass: 'knox-gui-mode-tab',
 		onClick: () => {
@@ -154,8 +157,8 @@ export function renderAgentMenu(widget: KnoxGuiWidget, anchor: HTMLElement, stat
 		const row = DOM.append(group, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
 		row.type = 'button';
 		row.disabled = state.isStreaming;
-		if (mode === 'fullAuto' && state.permissionMode === mode) {
-			row.classList.add('knox-gui-popover-auto');
+		if (state.permissionMode === mode) {
+			row.classList.add(mode === 'fullAuto' ? 'knox-gui-popover-auto' : 'knox-gui-popover-active');
 		}
 		if (state.permissionMode === mode) {
 			appendKnoxGuiSvg(row, 'check', 12);
@@ -175,6 +178,7 @@ export function renderAgentMenu(widget: KnoxGuiWidget, anchor: HTMLElement, stat
 	worktree.type = 'button';
 	worktree.disabled = state.isStreaming || state.worktree.busy;
 	if (state.worktree.enabled) {
+		worktree.classList.add('knox-gui-popover-active');
 		appendKnoxGuiSvg(worktree, 'check', 12);
 	} else {
 		DOM.append(worktree, DOM.$('span.knox-gui-popover-check-slot'));
@@ -188,6 +192,9 @@ export function renderAgentMenu(widget: KnoxGuiWidget, anchor: HTMLElement, stat
 	}));
 	const jobs = DOM.append(menu, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
 	jobs.type = 'button';
+	if (running > 0) {
+		jobs.classList.add('knox-gui-popover-active');
+	}
 	if (state.jobsPanelOpen) {
 		appendKnoxGuiSvg(jobs, 'check', 12);
 	} else {
@@ -327,6 +334,9 @@ export function renderRoute(widget: KnoxGuiWidget, body: HTMLElement, state: IKn
 			return;
 		default:
 			widget.renderChat(body, state);
+			if (state.checkpointDialog === 'restore') {
+				widget.renderRestorePreviewDialog(body, state);
+			}
 	}
 }
 
@@ -344,6 +354,8 @@ export function renderErrorFallback(widget: KnoxGuiWidget, body: HTMLElement, st
 		extraClass: widget.errorFallbackReady ? 'knox-gui-error-home' : 'knox-gui-error-home knox-gui-error-flag',
 		onClick: () => {
 			widget.controller.store.newSession();
+			widget.chatInputHistory = createComposerInputHistory();
+			widget.controller.resetPersistedState();
 			widget.controller.store.navigate('/');
 		},
 	});
@@ -386,6 +398,11 @@ export function onRootKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent): void {
 			widget.checkpointTimelineSearchInput?.focus();
 			return;
 		}
+	}
+	if (e.key === 'Tab' && e.shiftKey && !e.defaultPrevented && state.mode === 'agent' && !state.isStreaming && !(state.mentionOpen || state.slashOpen)) {
+		e.preventDefault();
+		widget.controller.cyclePermissionMode();
+		return;
 	}
 	if (meta && e.key.toLowerCase() === 'f' && !e.shiftKey) {
 		e.preventDefault();
@@ -517,10 +534,42 @@ export function onEscape(widget: KnoxGuiWidget, e: KeyboardEvent, state: IKnoxGu
 		widget.controller.closeAddModelModal();
 		return;
 	}
-	if (widget.checkpointDetailsId) {
+	if (state.streamError) {
 		e.preventDefault();
 		e.stopPropagation();
-		widget.checkpointDetailsId = null;
+		widget.controller.clearStreamError();
+		return;
+	}
+	if (state.checkpointDialog) {
+		e.preventDefault();
+		e.stopPropagation();
+		if (!state.checkpointRestoring) {
+			widget.controller.closeCheckpointDialog();
+		}
+		return;
+	}
+	if (widget.checkpointListDeleteConfirm) {
+		e.preventDefault();
+		e.stopPropagation();
+		widget.checkpointListDeleteConfirm = false;
+		widget.render();
+		return;
+	}
+	if (widget.memorySettingsConfirm) {
+		e.preventDefault();
+		e.stopPropagation();
+		widget.memorySettingsConfirm = null;
+		widget.render();
+		return;
+	}
+	if (checkpointTimelineEscape(widget, state)) {
+		e.preventDefault();
+		e.stopPropagation();
+		return;
+	}
+	if (widget.checkpointDetails) {
+		e.preventDefault();
+		e.stopPropagation();
 		widget.checkpointDetails = null;
 		widget.render();
 		return;
@@ -569,6 +618,18 @@ export function loadEarlier(widget: KnoxGuiWidget): void {
 	widget.render();
 }
 
+/** Scrolls the transcript without the scroll handler reading it as a user pause. */
+export function setTranscriptScrollTop(widget: KnoxGuiWidget, body: HTMLElement, top: number): void {
+	const target = Math.max(0, Math.min(top, body.scrollHeight - body.clientHeight));
+	if (Math.abs(body.scrollTop - target) >= 1) {
+		widget.programmaticScroll = true;
+		body.scrollTop = target;
+	}
+	widget.lastScrollTop = body.scrollTop;
+	widget.lastScrollHeight = body.scrollHeight;
+	widget.savedScrollTop = body.scrollTop;
+}
+
 export function restoreTranscriptScroll(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
 	const body = widget.bodyEl;
 	if (!body || state.route !== KnoxGuiRoute.Chat) {
@@ -577,20 +638,37 @@ export function restoreTranscriptScroll(widget: KnoxGuiWidget, state: IKnoxGuiSt
 	}
 	queueMicrotask(() => {
 		if (widget.pendingRestoreHeight != null) {
-			body.scrollTop += body.scrollHeight - widget.pendingRestoreHeight;
+			setTranscriptScrollTop(widget, body, body.scrollTop + body.scrollHeight - widget.pendingRestoreHeight);
 			widget.pendingRestoreHeight = null;
 			widget.loadingEarlier = false;
 		} else if (widget.autoScrollEnabled) {
-			body.scrollTop = body.scrollHeight;
+			setTranscriptScrollTop(widget, body, body.scrollHeight);
 		} else {
-			body.scrollTop = widget.savedScrollTop;
+			setTranscriptScrollTop(widget, body, widget.savedScrollTop);
 		}
-		widget.savedScrollTop = body.scrollTop;
 		widget.syncScrollButtons();
 		if (state.find.open && state.find.matchIndexes.length) {
 			const hit = state.find.matchIndexes[state.find.current];
+			widget.programmaticScroll = true;
 			body.querySelector<HTMLElement>(`[data-testid="history-row-${hit}"]`)?.scrollIntoView({ block: 'center' });
 		}
+	});
+}
+
+/** `useEnhancedScroll`: one rAF stick per frame while following. */
+export function scheduleTranscriptStick(widget: KnoxGuiWidget): void {
+	if (!widget.autoScrollEnabled || widget.stickScheduled) {
+		return;
+	}
+	widget.stickScheduled = true;
+	requestAnimationFrame(() => {
+		widget.stickScheduled = false;
+		const body = widget.bodyEl;
+		if (!widget.autoScrollEnabled || !body) {
+			return;
+		}
+		setTranscriptScrollTop(widget, body, body.scrollHeight);
+		widget.syncScrollButtons();
 	});
 }
 
@@ -599,14 +677,57 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 		return;
 	}
 	widget.renderStore.add(DOM.addDisposableListener(body, 'scroll', () => {
+		const programmatic = widget.programmaticScroll;
+		widget.programmaticScroll = false;
+		const next = knoxGuiNextScrollFollow(
+			{ following: widget.autoScrollEnabled, lastScrollTop: widget.lastScrollTop, lastScrollHeight: widget.lastScrollHeight },
+			{ scrollTop: body.scrollTop, scrollHeight: body.scrollHeight, clientHeight: body.clientHeight, programmatic },
+		);
+		widget.autoScrollEnabled = next.following;
+		widget.lastScrollTop = next.lastScrollTop;
+		widget.lastScrollHeight = next.lastScrollHeight;
 		widget.savedScrollTop = body.scrollTop;
-		const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 24;
-		widget.autoScrollEnabled = atBottom;
 		widget.syncScrollButtons();
-		if (body.scrollTop < 48 && widget.displayStart > 0 && !widget.loadingEarlier) {
+		if (!programmatic && body.scrollTop < 48 && widget.displayStart > 0 && !widget.loadingEarlier) {
 			widget.loadEarlier();
 		}
 	}));
+	if (typeof ResizeObserver === 'undefined') {
+		return;
+	}
+	const observer = new ResizeObserver(() => {
+		scheduleTranscriptStick(widget);
+		widget.syncScrollButtons();
+	});
+	observer.observe(body);
+	const list = body.querySelector('.knox-gui-history');
+	if (list) {
+		observer.observe(list);
+	}
+	const lastRow = body.querySelector('.last-message');
+	if (lastRow) {
+		observer.observe(lastRow);
+	}
+	widget.renderStore.add({ dispose: () => observer.disconnect() });
+}
+
+/** `ChatHistoryList.scrollToIndex`: mounts rows before the display window first, then centers the row. */
+export function scrollToHistoryIndex(widget: KnoxGuiWidget, index: number): void {
+	const history = widget.controller.store.state.history;
+	if (index < 0 || index >= history.length) {
+		return;
+	}
+	if (index < widget.displayStart) {
+		widget.expandedStart = index;
+		widget.autoScrollEnabled = false;
+		widget.render();
+	}
+	const row = widget.bodyEl?.querySelector<HTMLElement>(`[data-testid="history-row-${index}"]`);
+	if (!row) {
+		return;
+	}
+	widget.autoScrollEnabled = false;
+	row.scrollIntoView({ block: 'center', behavior: 'auto' });
 }
 
 export function scrollTranscript(widget: KnoxGuiWidget, to: 'top' | 'bottom'): void {
@@ -621,15 +742,15 @@ export function scrollTranscript(widget: KnoxGuiWidget, to: 'top' | 'bottom'): v
 			widget.render();
 			queueMicrotask(() => {
 				if (widget.bodyEl) {
-					widget.bodyEl.scrollTop = 0;
+					setTranscriptScrollTop(widget, widget.bodyEl, 0);
 				}
 			});
 			return;
 		}
-		body.scrollTop = 0;
+		setTranscriptScrollTop(widget, body, 0);
 	} else {
 		widget.autoScrollEnabled = true;
-		body.scrollTop = body.scrollHeight;
+		setTranscriptScrollTop(widget, body, body.scrollHeight);
 	}
 	widget.syncScrollButtons();
 }
@@ -643,7 +764,7 @@ export function syncScrollButtons(widget: KnoxGuiWidget): void {
 	const hasScrollable = knoxGuiShowsScrollButtons(widget.controller.store.state.history.length, body.scrollHeight > body.clientHeight + 8);
 	wrap.classList.toggle('hidden', !hasScrollable);
 	const atTop = body.scrollTop < 8;
-	const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 24;
+	const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < CHAT_SCROLL_BOTTOM_THRESHOLD_PX;
 	if (widget.scrollTopBtn) {
 		widget.scrollTopBtn.disabled = atTop;
 		widget.scrollTopBtn.classList.toggle('disabled', atTop);

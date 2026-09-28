@@ -5,12 +5,11 @@
 
 import type { KnoxGuiWidget } from '../knoxGuiWidget.js';
 import { t } from './t.js';
+import { appendShortcut } from './controls.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
-import { isMacintosh } from '../../../../../../base/common/platform.js';
-import { URI } from '../../../../../../base/common/uri.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
-import { toolDisplayKind } from '../../../common/knoxGuiChat.js';
-import { knoxGuiMetaKeyLabel } from '../../../common/knoxGuiChrome.js';
+import { parseToolArgs, toolDisplayKind } from '../../../common/knoxGuiChat.js';
+import { knoxGuiLocalAutoApprove } from '../../../common/knoxGuiAgentRequest.js';
 import { getCategorizedToolName, toolPermissionDisplay } from '../../../common/knoxGuiTools.js';
 import {
 	contextProviderInsertId,
@@ -19,6 +18,7 @@ import {
 	filterHistorySessions,
 	formatSessionDate,
 	groupHistoryByDate,
+	parseHistoryDate,
 	groupToolsByGroup,
 	MODEL_OVERLAY_ROLES,
 	MODEL_ROLE_LABEL_KEY,
@@ -41,6 +41,7 @@ import {
 	workspaceBasename,
 } from '../../../common/knoxGuiOverlays.js';
 import { KnoxGuiOverlay } from '../../../common/knoxGuiProtocol.js';
+import { isSlashBookmarked } from '../../../common/knoxGuiInput.js';
 import { IKnoxGuiState } from '../../../common/knoxGuiState.js';
 
 export function renderOverlay(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, overlay: Exclude<KnoxGuiOverlay, null>): void {
@@ -73,7 +74,12 @@ export function renderModels(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 	const grid = DOM.append(body, DOM.$('.knox-gui-model-roles'));
 	for (const role of MODEL_OVERLAY_ROLES) {
 		const label = t(state, MODEL_ROLE_LABEL_KEY[role]);
-		DOM.append(grid, DOM.$('span.knox-gui-model-role-label', undefined, label));
+		const labelWrap = DOM.append(grid, DOM.$('span.knox-gui-model-role-label', undefined, label));
+		const info = DOM.append(labelWrap, DOM.$('span.knox-gui-info-hover'));
+		info.setAttribute('data-testid', `knox-gui-role-info-${role}`);
+		info.setAttribute('aria-label', t(state, MODEL_ROLE_USED_FOR_KEY[role]));
+		appendKnoxGuiSvg(info, 'info', 12);
+		widget.hover(info, t(state, MODEL_ROLE_USED_FOR_KEY[role]));
 		const row = DOM.append(grid, DOM.$('.knox-gui-model-role'));
 		const models = state.modelsByRole[role];
 		const selected = state.selectedModelByRole[role] ?? (role === 'chat' ? state.modelTitle : undefined);
@@ -240,7 +246,7 @@ export function renderPrompts(widget: KnoxGuiWidget, body: HTMLElement, state: I
 			testId: `knox-gui-prompt-edit-${index}`,
 			onClick: () => widget.controller.store.patch({ promptDraft: promptDraftFromCommand(cmd) }),
 		});
-		const bookmarked = state.bookmarkedSlash.includes(cmd.name);
+		const bookmarked = isSlashBookmarked(state.bookmarkedSlash, cmd.name);
 		widget.chromeButton(actions, {
 			svg: 'bookmark',
 			svgSize: 12,
@@ -466,7 +472,12 @@ export function renderTools(widget: KnoxGuiWidget, body: HTMLElement, state: IKn
 						title: t(state, 'toolAlwaysThisSessionHint'),
 						extraClass: `knox-gui-perm-badge knox-gui-perm-${display}`,
 						testId: 'tool-permission-badge',
-						onClick: () => widget.controller.cycleToolPermission(tool.name),
+						disabled: isPending,
+						onClick: () => {
+							if (!isPending) {
+								widget.controller.cycleToolPermission(tool.name);
+							}
+						},
 					});
 					void badge;
 				} else {
@@ -484,9 +495,20 @@ export function renderTools(widget: KnoxGuiWidget, body: HTMLElement, state: IKn
 					widget.controller.cycleToolPermission(tool.name);
 				}));
 			}
-			if (isPending && !excluded) {
+			if (isPending) {
 				const pendingCall = state.history.flatMap(item => item.toolCalls ?? []).find(call => call.status === 'generated' && call.name === tool.name);
-				if (pendingCall) {
+				if (pendingCall && widget.toolPermScrolledFor !== pendingCall.id) {
+					widget.toolPermScrolledFor = pendingCall.id;
+					DOM.getWindow(row).requestAnimationFrame(() => row.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+				}
+				const autoApproved = pendingCall !== undefined && knoxGuiLocalAutoApprove({
+					name: pendingCall.name,
+					args: pendingCall.parsedArgs ?? parseToolArgs(pendingCall.arguments),
+					toolSettings: state.toolSettings,
+					permissionMode: state.permissionMode,
+					sessionAllowlist: state.sessionToolAllowlist,
+				});
+				if (pendingCall && !excluded && !autoApproved) {
 					widget.renderToolActions(row, state, pendingCall, toolDisplayKind(pendingCall.name), { placement: 'overlay' });
 				}
 			}
@@ -573,8 +595,7 @@ export function renderHistoryPage(widget: KnoxGuiWidget, body: HTMLElement, stat
 		DOM.append(empty, DOM.$('h3', undefined, t(state, 'noConversationsFound')));
 		const hint = DOM.append(empty, DOM.$('p.knox-gui-muted'));
 		hint.append(`${t(state, 'noConversationsMessage')} `);
-		const shortcut = DOM.append(hint, DOM.$('kbd.knox-gui-shortcut'));
-		shortcut.textContent = `${knoxGuiMetaKeyLabel(isMacintosh)}L`;
+		appendShortcut(hint, 'meta L');
 		return;
 	}
 	const bar = DOM.append(body, DOM.$('.knox-gui-history-actions'));
@@ -634,8 +655,11 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 		title.focus();
 		widget.renderStore.add(DOM.addDisposableListener(title, 'keydown', e => {
 			if (e.key === 'Enter') {
-				void widget.controller.renameSession(session.id, title.value);
+				if (title.value !== session.title) {
+					void widget.controller.renameSession(session.id, title.value);
+				}
 				widget.editingHistoryId = null;
+				widget.controller.store.patch({});
 			} else if (e.key === 'Escape') {
 				widget.editingHistoryId = null;
 				widget.controller.store.patch({});
@@ -646,15 +670,24 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 			widget.controller.store.patch({});
 		}));
 	} else {
-		DOM.append(main, DOM.$('span.knox-gui-history-title', undefined, session.title));
+		const heading = DOM.append(main, DOM.$('span.knox-gui-history-title', undefined, session.title));
+		heading.title = session.title;
 	}
 	const meta = DOM.append(main, DOM.$('.knox-gui-history-meta'));
 	const workspace = workspaceBasename(session.workspaceDirectory);
 	if (workspace) {
-		DOM.append(meta, DOM.$('span', undefined, workspace));
+		const name = DOM.append(meta, DOM.$('span.knox-gui-history-workspace', undefined, workspace));
+		name.title = workspace;
 	}
-	const date = formatSessionDate(new Date(session.date));
-	DOM.append(meta, DOM.$('time', undefined, date));
+	const parsed = parseHistoryDate(session.date);
+	const fullDate = formatSessionDate(parsed);
+	const time = DOM.append(meta, DOM.$('time')) as HTMLTimeElement;
+	time.title = fullDate;
+	if (!isNaN(parsed.getTime())) {
+		time.dateTime = parsed.toISOString();
+	}
+	DOM.append(time, DOM.$('span.knox-gui-history-date-compact', undefined, formatSessionDate(parsed, true)));
+	DOM.append(time, DOM.$('span.knox-gui-history-date-full', undefined, fullDate));
 	if (!state.historySelectionMode && widget.editingHistoryId !== session.id) {
 		const hover = DOM.append(row, DOM.$('.knox-gui-history-hover'));
 		widget.chromeButton(hover, { svg: 'download', svgSize: 16, title: t(state, 'download'), onClick: () => void widget.controller.exportSession(session.id) });
@@ -785,23 +818,6 @@ export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: 
 			widget.controller.store.patch({ jevEnabled: value });
 			void widget.controller.updateSharedConfig({ jevEnabled: value });
 		});
-		const promptRow = DOM.append(el, DOM.$('.knox-gui-row.knox-gui-settings-stack'));
-		const promptLabels = DOM.append(promptRow, DOM.$('div'));
-		DOM.append(promptLabels, DOM.$('div', undefined, t(state, 'promptPath')));
-		DOM.append(promptLabels, DOM.$('span.knox-gui-muted', undefined, t(state, 'promptPathHint')));
-		const prompt = DOM.append(promptRow, DOM.$('input')) as HTMLInputElement;
-		prompt.value = state.promptPath;
-		widget.renderStore.add(DOM.addDisposableListener(prompt, 'change', () => {
-			widget.controller.store.patch({ promptPath: prompt.value });
-			void widget.controller.updateSharedConfig({ promptPath: prompt.value });
-		}));
 		DOM.append(el, DOM.$('p.knox-gui-muted', undefined, t(state, 'agentPolicyHint')));
 	});
-	const help = DOM.append(body, DOM.$('button.knox-gui-help-row')) as HTMLButtonElement;
-	help.type = 'button';
-	const helpText = DOM.append(help, DOM.$('div'));
-	DOM.append(helpText, DOM.$('h3', undefined, t(state, 'viewDocs')));
-	DOM.append(helpText, DOM.$('span.knox-gui-muted', undefined, t(state, 'visitSetupDocs')));
-	appendKnoxGuiSvg(help, 'external-link', 16);
-	widget.renderStore.add(DOM.addDisposableListener(help, 'click', () => void widget.openerService.open(URI.parse('https://docs.knox.chat'))));
 }

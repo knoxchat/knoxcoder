@@ -7,10 +7,10 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildCheckpointFileTree, CHECKPOINT_ANALYSIS_GROUP_LIMIT, CHECKPOINT_DASHBOARD_HISTORY_DAYS, checkpointAncestorIds, checkpointConfigHasChanges, checkpointConfigHasErrors, checkpointGraphForceMountKey, CHECKPOINT_GRAPH_ROW_HEIGHT, CHECKPOINT_GRAPH_WORKING_TREE_ID, CHECKPOINT_PANEL_TABS, CHECKPOINT_TAB_ICON, checkpointGraphMatches, checkpointGraphRowTop, checkpointGraphWindow, checkpointImpactChipClass, checkpointLaneNeighbor, checkpointRiskChipClass, checkpointScopeChipClass, checkpointShellAction, checkpointShellMessageKey, checkpointShellViewState, compactAxisNumber, computeLineDiff, defaultCheckpointGraphUi, drawCheckpointGraph, fillDailyCounts, filterCheckpoints, formatCheckpointGraphTime, formatRestoreNotice, groupCheckpointsByDate, groupDiffHunks, hunkWordAltRanges, layoutCheckpointLanes, normalizeCheckpointConfig, parseCheckpointAnalysis, parseCheckpointGraphUi, parseCheckpointRestored, parsePerformanceDashboard, parseRestorePreview, parseStorageBytes, parseSuggestedCheckpointGroups, restorePreviewActionKey, selectCheckpointIdRange, validateCheckpointConfig, withWorkingTreeNode, wordAltRanges } from './knoxGuiCheckpoints.js';
 import { knoxGuiAcceptRejectLabelKeys, knoxGuiAcceptRejectShortcut, knoxGuiCanCancel, knoxGuiComposerShowsJobsButton, knoxGuiEditSendKey, knoxGuiEmptyTranscriptShowsPlaceholder, knoxGuiLumpLabelVisible, knoxGuiMetaKeyLabel, knoxGuiPermissionModeIsTopTab, knoxGuiRelativeFontSize, knoxGuiRunningJobCount, knoxGuiShowsAgentMeter, knoxGuiShowsBatchDiffEntry, knoxGuiShowsChatPermissionBar, knoxGuiShowsComposerAcceptReject, knoxGuiShowsEditResponseAcceptReject, knoxGuiShowsFatalBanner, knoxGuiShowsLumpOverlay, knoxGuiShowsScrollButtons, knoxGuiShowsSessionTabs, knoxGuiToolbarShowsAlwaysOnLabels, KNOX_GUI_COMPOSER_SLOTS, KNOX_GUI_LUMP_TOOLBAR, KNOX_GUI_MODE_TABS } from './knoxGuiChrome.js';
-import { applyCloseTab, applyNavigateTo, applySessionTabChange, createInitialKnoxGuiState, DEFAULT_PERMISSION_MODE, IKnoxGuiHistoryItem, IKnoxGuiState, nextPermissionMode } from './knoxGuiState.js';
-import { AUTO_DISPLAY_START, CHAT_DISPLAY_WINDOW, compileSearchPattern, computeDisplayStart, createStreamUpdateCoalescer, expandPromptSlashCommand, extractCodeFences, findCurrentToolCall, findMatchingHistoryIndexes, groupHistoryTurns, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange, nextExpandedStart, parseLeadingSlash, resolveDisplayStart, shouldFloatLastUser, snapStartToTurn, STREAM_COALESCE_MS, toolDisplayKind, visibleTurnIndexes } from './knoxGuiChat.js';
+import { applyCloseTab, applyNavigateTo, applySessionTabChange, createInitialKnoxGuiState, DEFAULT_PERMISSION_MODE, IKnoxGuiHistoryItem, IKnoxGuiState, IKnoxGuiToolCall, nextPermissionMode } from './knoxGuiState.js';
+import { AUTO_DISPLAY_START, CHAT_DISPLAY_WINDOW, compileSearchPattern, computeDisplayStart, createStreamUpdateCoalescer, expandPromptSlashCommand, extractCodeFences, findCurrentToolCall, findMatchingHistoryIndexes, groupHistoryTurns, incrementalParseJson, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange, nextExpandedStart, parseLeadingSlash, parseToolArgs, resolveDisplayStart, shouldFloatLastUser, snapStartToTurn, STREAM_COALESCE_MS, toolDisplayKind, visibleTurnIndexes } from './knoxGuiChat.js';
 import { activityAnchorId, activityKindLabelKey, activitySummaryLine, applyUiAfterAppliedTimeout, applyUiForState, APPLIED_PILL_MS, buildAgentActivitySteps, collectDuplicateAssistantMessageIds, collectTurnPromptLogs, countTurnToolSteps, estimateTokensFromPromptLogs, estimateTurnOutputTokens, extractSoulCheckpointId, fenceApplyStreamId, fenceHasFileToolbar, formatDurationMs, formatLoadingElapsed, formatTokenCount, formatTokenRate, hasForegroundCallingToolCalls, historyUserInputDoc, isResponseTruncated, isTerminalCodeBlock, isTurnGeneratingTokens, knoxGuiShowsCodeToEditOnEmptyComposer, knoxGuiShowsCodeToEditOnHistoryUser, loadingVariantFor, looksLikeFilePath, parseCodeFenceRange, parseStreamError, pendingApplyStates, resetTpsClock, resolveAgentMaxSteps, resubmitHistory, shouldShineSentFrame, shouldShowThinkingIndicator, splitDisplayPath, splitMarkdownBlocks, summarizeJevPromptLogs, tickTokensPerSecond, TOKEN_TPS_MIN_GENERATION_MS, tokensPerSecond, toolStepDetail, turnElapsedMs, turnHasVisibleProgress } from './knoxGuiTranscript.js';
-import { calculateFence, collapseFileToolCodePreview, createLatestValueCoalescer, displayBuildCommand, displayLanguageForFile, extractLogPathFromTerminalOutput, extractStreamingToolCode, extractTerminalOutput, finishedToolSummary, finishedToolSummaryText, formatToolName, highlightSearchQueryInHtml, isAskUserAnswered, mergeToolArguments, parseAskUserQuestionsForGui, parseSearchResults, repoMapFileAnsiColor, repoMapToTreeColorized, shouldRenderToolBody, splitChoiceText, takeTerminalTail, terminalBodyHeight, terminalCommandForTool, toolAlwaysShowsBody, toolPermissionDisplay, toolStatusFallbackKey, toolStatusIcon, toolStatusIntroKey } from './knoxGuiTools.js';
+import { calculateFence, catalogToolForCall, collapseFileToolCodePreview, createLatestValueCoalescer, displayArgsForToolCall, displayBuildCommand, displayLanguageForFile, extractLogPathFromTerminalOutput, extractStreamingToolCode, extractTerminalOutput, finishedToolSummary, finishedToolSummaryText, formatToolName, highlightSearchQueryInHtml, isAskUserAnswered, mergeStreamedToolCalls, mergeToolArguments, parseAskUserQuestionsForGui, parseSearchResults, repoMapFileAnsiColor, repoMapToTreeColorized, resolveGuiToolName, shouldRenderToolBody, splitChoiceText, takeTerminalTail, terminalBodyHeight, terminalCommandForTool, toolAlwaysShowsBody, toolPermissionDisplay, toolStatusFallbackKey, toolStatusIcon, toolStatusIntroKey } from './knoxGuiTools.js';
 import { appendMentionChip, applySuggestToDoc, appendTriggerToDoc, buildTopLevelMentionItems, composerInputHistoryAdd, composerInputHistoryNext, composerInputHistoryPrev, composerPlaceholderKey, createComposerInputHistory, DEFAULT_MENTION_PROVIDERS, DEFAULT_MENTION_PROVIDER_TITLES, detectComposerTrigger, EDIT_DISALLOWED_CONTEXT_PROVIDERS, emptyInputDoc, extractMentionsFromDoc, extractSlashFromDoc, filterProvidersForMode, groupMentionItems, groupSlashItems, highlightMentionMatch, inputDocFromPlainText, inputDocIsEmpty, inputDocToPlainText, insertCodeBlock, isDroppedImageFile, isSingleRangeEdit, knoxGuiCodeToEditTitle, knoxGuiComposerKeyAction, knoxGuiShouldBlockSubmit, MAX_COMPOSER_INPUT_HISTORY, mentionChipLabel, mentionIndexIsTruncated, mentionListKeyAction, mergeContextProvidersWithDefaults, mergeSlashCommandsWithBuiltins, parseUriList, rankSlashCommands, removeCodeBlockAt, resolveComposerSlashCommand, SLASH_BUILTINS, slashCommandTitle, submitUsesActiveFile, truncatedMentionMarker, useActiveFileFromDefaultContext } from './knoxGuiInput.js';
 import { applyKnoxGuiAutonomousEvent, applyLivePlanProgress, autonomousBannerKey, collectLatestTaskPlanSnapshot, collectLiveTaskPlan, collectRunningTaskJobs, compactionMethodKey, countFailedJobs, countRunningJobs, extractPathHints, finalizeGitDiffFiles, formatPlanText, gitDiffTotals, gitFileType, gitFilesFromDiffs, isCompactionBannerVisible, isInjectedMemoryTimeout, isTaskJobId, isVisibleTaskPlanPeekItem, mergeBackgroundJobs, mergeGitChangedWithDiffs, parseCompactionPayload, parseDiffStats, parsePlanText, shouldShowAutonomousBanner, splitSelectiveMemories, stepIntent, taskPlanFillPercent, truncateJobTitle, visibleBackgroundJobs, visibleToolOutputPeekItems } from './knoxGuiPanels.js';
 import { DEFAULT_REASONING_EFFORT, DEFAULT_REASONING_EFFORT_ALLOWED, knoxGuiFindCatalogModel, knoxGuiModelSelectTitle, knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResetModelCatalogForTests, knoxGuiResolveReasoningEffort, knoxGuiSeedModelCatalog } from './knoxGuiCapabilities.js';
@@ -20,14 +20,13 @@ import { KNOX_GUI_HEARTBEAT_MS, KNOX_GUI_HOST_INBOUND, KNOX_GUI_HOST_OUTBOUND, K
 import { isSingleRangeEditOrInsertion, knoxGuiMultifileEditPrompt, knoxGuiNextEditStatus, knoxGuiResetEditModeState, mergeCodeToEdit, parseCodeToEdit, shouldSendEditPrompt } from './knoxGuiEdit.js';
 import { KNOX_AGENT_MODE_CONTEXT_KEY, knoxGuiHostAgentActiveFromPayload, knoxGuiModeAfterHostAgentFlag, knoxGuiSessionModeIsAgent } from './knoxGuiAgentMode.js';
 import { applyKnoxGuiSetColors, applyKnoxGuiSetTheme, constructHljsTheme, cssVarsFromColorMap, knoxGuiThemeIsLight, parseSetColorsPayload, parseSetThemePayload, vscodeCssVarFromColorId } from './knoxGuiTheme.js';
-import { formatStatsCopyTable, parseTokensPerDay, parseTokensPerModel } from './knoxGuiStats.js';
 
 suite('Knox native GUI parity', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('lump overlays match native GUI overlaySections', () => {
 		assert.strictEqual(lumpOverlaySectionForPath('/history'), 'history');
-		assert.strictEqual(lumpOverlaySectionForPath('/config'), 'settings');
+		assert.strictEqual(lumpOverlaySectionForPath('/config'), undefined);
 		assert.strictEqual(lumpOverlaySectionForPath('/stats'), undefined);
 		assert.deepStrictEqual([...KNOX_GUI_OVERLAYS], ['models', 'rules', 'prompts', 'context', 'tools', 'history', 'settings']);
 	});
@@ -128,12 +127,16 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(KNOX_GUI_PATH_BY_ROUTE[KnoxGuiRoute.Chat], '/');
 	});
 
-	test('navigateTo history/config open overlays instead of leaving chat', () => {
+	test('navigateTo history opens the overlay; S-08 config opens the page and toggles back', () => {
 		const history = applyNavigateTo(createInitialKnoxGuiState(), '/history');
 		assert.strictEqual(history.route, KnoxGuiRoute.Chat);
 		assert.strictEqual(history.overlay, 'history');
 		const toggled = applyNavigateTo(history, '/history', true);
 		assert.strictEqual(toggled.overlay, null);
+		const config = applyNavigateTo(createInitialKnoxGuiState(), '/config', true);
+		assert.strictEqual(config.route, KnoxGuiRoute.Config);
+		assert.strictEqual(config.overlay, null);
+		assert.strictEqual(applyNavigateTo(config, '/config', true).route, KnoxGuiRoute.Chat);
 		const stats = applyNavigateTo(createInitialKnoxGuiState(), '/stats');
 		assert.strictEqual(stats.route, KnoxGuiRoute.Stats);
 		assert.strictEqual(stats.overlay, null);
@@ -254,6 +257,8 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(calculateFence('```rust\nfn x() {}\n```'), '````');
 		assert.strictEqual(mergeToolArguments('{"a":', ' 1}'), '{"a": 1}');
 		assert.strictEqual(mergeToolArguments('{"a": 1}', '{"a": 1, "b": 2}'), '{"a": 1, "b": 2}');
+		assert.strictEqual(mergeToolArguments('{"directory_path": ', '"."}'), '{"directory_path": "."}');
+		assert.strictEqual(mergeToolArguments('{"filepath":"a.ts","contents":', '"fn main() {}"}'), '{"filepath":"a.ts","contents":"fn main() {}"}');
 		assert.strictEqual(toolPermissionDisplay({
 			toolName: 'builtin_run_terminal_command',
 			toolSettings: { builtin_run_terminal_command: 'allowedWithPermission' },
@@ -321,6 +326,46 @@ suite('Knox native GUI parity', () => {
 		assert.deepStrictEqual(coalesced, []);
 		timers[0]();
 		assert.deepStrictEqual(coalesced, ['a:2']);
+	});
+
+	test('streamed tool calls match original GUI merge, incremental JSON, and aliases', () => {
+		assert.deepStrictEqual(incrementalParseJson('{"directory_path": "src'), [false, { directory_path: 'src' }]);
+		assert.deepStrictEqual(incrementalParseJson('{'), [false, {}]);
+		assert.deepStrictEqual(parseToolArgs('{"directory_path": "src'), { directory_path: 'src' });
+		assert.deepStrictEqual(parseToolArgs('{'), {});
+		assert.deepStrictEqual(parseToolArgs('{"filepath":"a.ts"}'), { filepath: 'a.ts' });
+		assert.strictEqual(resolveGuiToolName('view_subdirectory'), 'builtin_view_subdirectory');
+		assert.strictEqual(resolveGuiToolName('plan'), 'builtin_plan');
+		assert.strictEqual(resolveGuiToolName(''), '');
+		assert.strictEqual(catalogToolForCall(
+			[{ name: 'builtin_view_subdirectory', group: 'Built-In', wouldLikeTo: 'View directory structure for "{{{ directory_path }}}"' }],
+			'ls',
+		)?.name, 'builtin_view_subdirectory');
+		assert.strictEqual(displayArgsForToolCall({}, '{"directory_path": "src/vs').directory_path, 'src/vs');
+		const calls: IKnoxGuiToolCall[] = [];
+		mergeStreamedToolCalls(calls, [
+			{ index: 0, function: { name: 'view_subdirectory', arguments: '' } },
+			{ index: 0, function: { name: '', arguments: '{"directory_path":' } },
+			{ index: 0, function: { arguments: ' "."}' } },
+		], { nextId: () => 'stable-1' });
+		assert.strictEqual(calls.length, 1);
+		assert.strictEqual(calls[0].name, 'builtin_view_subdirectory');
+		assert.strictEqual(calls[0].arguments, '{"directory_path": "."}');
+		assert.deepStrictEqual(calls[0].parsedArgs, { directory_path: '.' });
+		const stringDelta: IKnoxGuiToolCall[] = [];
+		mergeStreamedToolCalls(stringDelta, [
+			{ index: 0, function: { name: 'builtin_view_subdirectory', arguments: '{"directory_path": ' } },
+			{ index: 0, function: { arguments: '"."' } },
+			{ index: 0, function: { arguments: '}' } },
+		], { nextId: () => 'stable-2' });
+		assert.strictEqual(stringDelta[0].arguments, '{"directory_path": "."}');
+		assert.deepStrictEqual(stringDelta[0].parsedArgs, { directory_path: '.' });
+		mergeStreamedToolCalls(calls, [
+			{ index: 1, id: 'plan-1', function: { name: 'plan', arguments: '{"action":"update"}' } },
+		]);
+		assert.strictEqual(calls.length, 2);
+		assert.strictEqual(calls[1].name, 'builtin_plan');
+		assert.strictEqual(calls[1].id, 'plan-1');
 	});
 
 	test('typing in the composer is an input-only store change', () => {
@@ -551,6 +596,9 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(fenceApplyStreamId('msg', 2), 'msg:fence:2');
 		assert.deepStrictEqual(applyUiForState({ streamId: 'a', status: 'streaming' }), { kind: 'streaming' });
 		assert.deepStrictEqual(applyUiForState({ streamId: 'a', status: 'done', numDiffs: 3 }), { kind: 'done', numDiffs: 3 });
+		assert.deepStrictEqual(applyUiForState({ streamId: 'a', status: 'closed', numDiffs: 0 }), { kind: 'applied' });
+		assert.deepStrictEqual(applyUiForState({ streamId: 'a', status: 'closed', numDiffs: 0 }, true), { kind: 'idle' });
+		assert.deepStrictEqual(applyUiForState({ streamId: 'a', status: 'closed', numDiffs: 2 }), { kind: 'idle' });
 		assert.strictEqual(parseStreamError('HTTP 429 rate limited').kind, 'rate-limit');
 		assert.strictEqual(parseStreamError('401 invalid key').kind, 'unauthorized');
 		assert.strictEqual(parseStreamError('overloaded by provider').kind, 'overloaded');
@@ -751,7 +799,7 @@ suite('Knox native GUI parity', () => {
 			{ id: '2', title: 'Kernel boot', date: new Date(Date.now() - 3 * 86400000).toISOString() },
 			{ id: '3', title: 'Old notes', date: new Date(Date.now() - 40 * 86400000).toISOString() },
 		];
-		assert.strictEqual(filterHistorySessions(sessions, 'snke')[0].id, '1');
+		assert.strictEqual(filterHistorySessions(sessions, 'snake')[0].id, '1');
 		const groups = groupHistoryByDate(filterHistorySessions(sessions, ''));
 		assert.ok(groups.some(group => group.header === 'today'));
 		assert.ok(groups.some(group => group.header === 'thisWeek' || group.header === 'thisMonth'));
@@ -835,10 +883,8 @@ suite('Knox native GUI parity', () => {
 		assert.deepStrictEqual(sortConfigErrors([{ fatal: false, message: 'w' }, { fatal: true, message: 'f' }]).map(e => e.fatal), [true, false]);
 		assert.deepStrictEqual(batchDiffTotals([{ numDiffs: 2, selected: true }, { numDiffs: 3, selected: false }]), { selected: 1, diffs: 5 });
 		assert.deepStrictEqual(splitFilePath('src/app.ts'), { fileName: 'app.ts', dirPath: 'src' });
-		assert.deepStrictEqual(ADD_MODEL_PROVIDERS.map(p => p.id), ['knoxchat', 'openai', 'anthropic']);
-		assert.ok(addModelProviderById('openai')?.packages.some(pack => pack.title === 'GPT-4o Mini'));
-		assert.ok(addModelProviderById('openai')?.packages.some(pack => pack.params.model === 'AUTODETECT'));
-		assert.ok(addModelProviderById('openai')?.collectInputFor.some(input => input.key === 'completionOptions.temperature'));
+		assert.deepStrictEqual(ADD_MODEL_PROVIDERS.map(p => p.id), ['knoxchat']);
+		assert.ok(addModelProviderById('knoxchat')?.collectInputFor.some(input => input.key === 'completionOptions.temperature'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('config/addPrompt'));
 		assert.ok(KNOX_GUI_HOST_INBOUND.includes('didChangeAvailableProfiles'));
 		assert.ok(KNOX_GUI_HOST_INBOUND.includes('didCloseFiles'));
@@ -868,10 +914,6 @@ suite('Knox native GUI parity', () => {
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('pinCheckpoint'));
 		assert.ok(KNOX_GUI_HOST_INBOUND.includes('focusKnoxSessionId'));
 		assert.strictEqual(reasoningEffortLabelKey('high'), 'reasoningEffortLevelHigh');
-		const openai = addModelProviderById('openai');
-		assert.ok(openai);
-		assert.strictEqual(addModelRequiredSatisfied(openai, {}, false), false);
-		assert.strictEqual(addModelRequiredSatisfied(openai, { apiKey: 'sk-test' }, false), true);
 		const knoxchat = addModelProviderById('knoxchat');
 		assert.ok(knoxchat);
 		assert.strictEqual(addModelRequiredSatisfied(knoxchat, {}, false), false);
@@ -908,11 +950,11 @@ suite('Knox native GUI parity', () => {
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('knoxchat/oauth/cancel'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('knoxchat/oauth/signOut'));
 		assert.ok(KNOX_GUI_HOST_INBOUND.includes('knoxchat/oauth/update'));
-		const payload = buildAddModelPayload(openai, openai.packages[0], { apiKey: 'sk-test', 'completionOptions.temperature': '0.4' }, 'chat');
-		assert.strictEqual(payload.model.provider, 'openai');
-		assert.strictEqual(payload.model.title, 'GPT-4o');
+		const payload = buildAddModelPayload(knoxchat, knoxchat.packages[0], { apiKey: 'sk-test', 'completionOptions.temperature': '0.4' }, 'chat');
+		assert.strictEqual(payload.model.provider, 'knoxchat');
+		assert.strictEqual(payload.model.title, 'KnoxChat');
 		assert.deepStrictEqual(payload.model.roles, ['chat']);
-		assert.deepStrictEqual(buildAddModelPayload(openai, openai.packages[0], { apiKey: 'sk' }, 'chat', { bulk: true }).model.roles, ['chat', 'edit', 'apply']);
+		assert.deepStrictEqual(buildAddModelPayload(knoxchat, knoxchat.packages[0], { apiKey: 'sk' }, 'chat', { bulk: true }).model.roles, ['chat', 'edit', 'apply']);
 		assert.deepStrictEqual((payload.model.completionOptions as { temperature: number }).temperature, 0.4);
 		assert.deepStrictEqual(setPathValue({ completionOptions: { temperature: 0.1 } }, 'completionOptions.topP', 0.9).completionOptions, { temperature: 0.1, topP: 0.9 });
 		assert.strictEqual(categorizeKnoxChatModel({ id: 'openai/gpt-4o', name: 'GPT-4o' }), 'OpenAI');
@@ -957,7 +999,7 @@ suite('Knox native GUI parity', () => {
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('ui/updateReasoningEffortPrefs'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('batch/getPendingFiles'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('brain/searchMemories'));
-		assert.deepStrictEqual(JSON.parse(memoriesToExportJson([{ id: '1', title: 't', content: 'c' }]))[0].title, 't');
+		assert.deepStrictEqual(JSON.parse(memoriesToExportJson([{ id: '1', title: 't', content: 'c' }])).memories[0].title, 't');
 		assert.strictEqual(unwrapBrainConfig({ config: { graph_max_depth: 4 } }).graph_max_depth, 4);
 		assert.strictEqual(parseEffectiveContext({ total_effective: 12, memory_levels: [{ id: 'm1', name: 'M1', tokens: 3 }] })?.totalEffective, 12);
 		assert.strictEqual(healthStatusColor('healthy'), '#22c55e');
@@ -1012,7 +1054,7 @@ suite('Knox native GUI parity', () => {
 		assert.ok(mode?.fields.some(field => field.key === 'mode_full_episodic_multiplier' && field.sectionKey === 'memoryModeFull'));
 		assert.ok(mode?.fields.some(field => field.key === 'mode_summarized_episodic_snippet_len'));
 		assert.ok(mode?.fields.some(field => field.key === 'mode_selective_min_importance' && field.percent));
-		assert.strictEqual(addModelProviderById('openai')?.packages[0]?.providerOptions?.[0], 'openai');
+		assert.strictEqual(addModelProviderById('knoxchat')?.provider, 'knoxchat');
 		const modeGroup = MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryModeTuningSettings');
 		assert.ok(modeGroup?.fields.some(field => field.key === 'mode_full_episodic_multiplier' && field.sectionKey === 'memoryModeFull'));
 		assert.ok(modeGroup?.fields.some(field => field.key === 'mode_summarized_episodic_snippet_len'));
@@ -1217,11 +1259,11 @@ suite('Knox native GUI parity', () => {
 		};
 		assert.deepStrictEqual(mergeDimensionOptions(dimPack.dimensions, ['13b']), { model: 'sized-13b', contextLength: 8000 });
 		assert.deepStrictEqual(mergeDimensionOptions(dimPack.dimensions, undefined), { model: 'sized-7b', contextLength: 4000 });
-		const openai = addModelProviderById('openai')!;
-		const withDim = buildAddModelPayload(openai, { ...openai.packages[0], dimensions: dimPack.dimensions }, { apiKey: 'sk' }, undefined, { dimensionChoices: ['7b'] });
+		const knoxchat = addModelProviderById('knoxchat')!;
+		const withDim = buildAddModelPayload(knoxchat, { ...knoxchat.packages[0], dimensions: dimPack.dimensions }, { apiKey: 'sk' }, undefined, { dimensionChoices: ['7b'] });
 		assert.strictEqual(withDim.model.model, 'sized-7b');
 		assert.strictEqual(withDim.model.contextLength, 4000);
-		assert.ok(knoxGuiProviderLogoUri('openai.png')?.includes('openai.png'));
+		assert.ok(knoxGuiProviderLogoUri('knoxchat.png')?.includes('knoxchat.png'));
 		const graphKeyA = checkpointGraphForceMountKey({
 			checkpoints: [],
 			branches: [],
@@ -1399,29 +1441,9 @@ suite('Knox native GUI parity', () => {
 		}
 	});
 
-	test('KN-372 stats page parses Core token rows and is no longer unused chrome', () => {
-		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('stats/getTokensPerDay'));
-		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('stats/getTokensPerModel'));
-		assert.ok(!(KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME as readonly string[]).includes('stats/getTokensPerDay'));
-		assert.ok(!(KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME as readonly string[]).includes('stats/getTokensPerModel'));
-		assert.deepStrictEqual(parseTokensPerDay([
-			{ day: '2026-09-26', promptTokens: '12', generatedTokens: 34 },
-			{ date: '2026-09-25', prompt_tokens: 1, tokens_generated: 2 },
-			{ day: '' },
-		]), [
-			{ day: '2026-09-26', promptTokens: 12, generatedTokens: 34 },
-			{ day: '2026-09-25', promptTokens: 1, generatedTokens: 2 },
-		]);
-		assert.deepStrictEqual(parseTokensPerModel({
-			content: [
-				{ model: 'gpt-4o', tokens_prompt: 8, generated_tokens: 16 },
-				{ name: 'local', promptTokens: 1, generatedTokens: 3 },
-			],
-		}), [
-			{ model: 'gpt-4o', promptTokens: 8, generatedTokens: 16 },
-			{ model: 'local', promptTokens: 1, generatedTokens: 3 },
-		]);
-		assert.strictEqual(formatStatsCopyTable(['Day', 'Generated Tokens', 'Prompt Tokens'], [['2026-09-26', 34, 12]]), 'Day\tGenerated Tokens\tPrompt Tokens\n2026-09-26\t34\t12');
+	test('S-14 stats page does not fetch local token tables', () => {
+		assert.ok(!(KNOX_GUI_HOST_OUTBOUND as readonly string[]).includes('stats/getTokensPerDay'));
+		assert.ok(!(KNOX_GUI_HOST_OUTBOUND as readonly string[]).includes('stats/getTokensPerModel'));
 	});
 
 	test('KN-373 tool-card helpers match native GUI ToolCallDiv', () => {

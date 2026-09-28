@@ -21,6 +21,8 @@ const INPUT_ONLY_KEYS: ReadonlySet<keyof IKnoxGuiState> = new Set([
 	'suggestSubmenu',
 	'suggestSubmenuTitle',
 	'suggestLoading',
+	'suggestQueryItem',
+	'suggestCodeToEdit',
 	'inputFocused',
 ]);
 
@@ -247,16 +249,91 @@ export function findMatchingHistoryIndexes(history: IKnoxGuiHistoryItem[], query
 	return indexes;
 }
 
+/**
+ * `core/util/incrementalParseJson`: complete JSON first, then close open
+ * strings/objects/arrays so streamed tool arguments fill titles before the
+ * object is finished. Unparseable input is `{}`, matching the original GUI.
+ */
+export function incrementalParseJson(raw: string): [complete: boolean, value: unknown] {
+	if (!raw || !raw.trim()) {
+		return [false, {}];
+	}
+	try {
+		return [true, JSON.parse(raw)];
+	} catch {
+		try {
+			return [false, JSON.parse(closePartialJson(raw))];
+		} catch {
+			return [false, {}];
+		}
+	}
+}
+
+function closePartialJson(raw: string): string {
+	let inString = false;
+	let escaped = false;
+	const stack: string[] = [];
+	for (let i = 0; i < raw.length; i++) {
+		const ch = raw[i];
+		if (inString) {
+			if (escaped) {
+				escaped = false;
+				continue;
+			}
+			if (ch === '\\') {
+				escaped = true;
+				continue;
+			}
+			if (ch === '"') {
+				inString = false;
+			}
+			continue;
+		}
+		if (ch === '"') {
+			inString = true;
+			continue;
+		}
+		if (ch === '{') {
+			stack.push('}');
+		} else if (ch === '[') {
+			stack.push(']');
+		} else if ((ch === '}' || ch === ']') && stack.length) {
+			stack.pop();
+		}
+	}
+	let result = raw;
+	if (escaped) {
+		result = result.slice(0, -1);
+	}
+	if (inString) {
+		result += '"';
+	}
+	result = result.replace(/\s+$/, '');
+	result = result.replace(/,\s*$/, '');
+	if (/:\s*$/.test(result)) {
+		result = result.replace(/,?\s*"(?:[^"\\]|\\.)*"\s*:\s*$/, '');
+	} else if (/([{,])\s*"(?:[^"\\]|\\.)*"?\s*$/.test(result)) {
+		result = result.replace(/([{,])\s*"(?:[^"\\]|\\.)*"?\s*$/, (_, sep: string) => sep === '{' ? '{' : '');
+	}
+	result = result.replace(/,\s*$/, '');
+	if (/[-.eE]$/.test(result)) {
+		result += '0';
+	}
+	for (let i = stack.length - 1; i >= 0; i--) {
+		result += stack[i];
+	}
+	return result;
+}
+
 export function parseToolArgs(raw: string | undefined): Record<string, unknown> {
 	if (!raw) {
 		return {};
 	}
-	try {
-		const parsed = JSON.parse(raw);
-		return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : { value: parsed };
-	} catch {
-		return { value: raw };
+	const [, parsed] = incrementalParseJson(raw);
+	if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+		return parsed as Record<string, unknown>;
 	}
+	return parsed === undefined ? {} : { value: parsed };
 }
 
 export function toolDisplayKind(name: string): 'terminal' | 'file' | 'search' | 'repo-map' | 'subdirectory' | 'create-file' | 'subagent' | 'ask-user' | 'generic' {
@@ -293,6 +370,8 @@ export const FILE_EDIT_TOOL_NAMES = new Set([
 	'builtin_edit_file',
 	'builtin_write_file',
 	'builtin_apply_patch',
+	'builtin_generate_tests',
+	'composite_smart_edit',
 	'create_new_file',
 	'edit_file',
 	'write_file',
@@ -454,4 +533,32 @@ export function estimateHistoryPayloadBytes(history: IKnoxGuiHistoryItem[]): num
 
 export function shouldWarnLargeSession(history: IKnoxGuiHistoryItem[]): boolean {
 	return estimateHistoryPayloadBytes(history) > GUI_SESSION_HYDRATE_BUDGET_BYTES;
+}
+
+export const CHAT_SCROLL_BOTTOM_THRESHOLD_PX = 24;
+
+export interface IKnoxGuiScrollFollow {
+	following: boolean;
+	lastScrollTop: number;
+	lastScrollHeight: number;
+}
+
+/**
+ * `useEnhancedScroll` scroll handler: programmatic scrolls and scrollTop clamps caused by the
+ * content shrinking keep the follow state; only an upward user scroll pauses, reaching the bottom resumes.
+ */
+export function knoxGuiNextScrollFollow(
+	prev: IKnoxGuiScrollFollow,
+	event: { scrollTop: number; scrollHeight: number; clientHeight: number; programmatic: boolean },
+): IKnoxGuiScrollFollow {
+	const heightDropped = event.scrollHeight < prev.lastScrollHeight - 1;
+	const base = { lastScrollTop: event.scrollTop, lastScrollHeight: event.scrollHeight };
+	if (event.programmatic || heightDropped) {
+		return { following: prev.following, ...base };
+	}
+	const atBottom = event.scrollTop + event.clientHeight >= event.scrollHeight - CHAT_SCROLL_BOTTOM_THRESHOLD_PX;
+	if (event.scrollTop < prev.lastScrollTop && !atBottom) {
+		return { following: false, ...base };
+	}
+	return { following: atBottom ? true : prev.following, ...base };
 }

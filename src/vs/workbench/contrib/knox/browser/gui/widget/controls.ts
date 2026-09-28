@@ -6,6 +6,8 @@
 import type { KnoxGuiWidget } from '../knoxGuiWidget.js';
 import { t } from './t.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
+import { knoxGuiShortcutKeys } from '../../../common/knoxGuiChrome.js';
 import { appendKnoxGuiSvg, KnoxGuiSvgIcon } from '../knoxGuiIcons.js';
 import { IKnoxGuiState } from '../../../common/knoxGuiState.js';
 
@@ -18,7 +20,13 @@ export function back(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiSt
 		extraClass: 'knox-gui-page-back',
 		onClick: () => widget.controller.store.navigate('/'),
 	});
-	DOM.append(header, DOM.$(title ? 'span.knox-gui-page-title' : 'span.knox-gui-page-title', undefined, title ?? t(state, 'backToChat')));
+	DOM.append(header, DOM.$('span.knox-gui-page-title', undefined, title ?? t(state, 'backToChat')));
+	header.classList.add('knox-gui-page-header-back');
+	widget.renderStore.add(DOM.addDisposableListener(header, 'click', e => {
+		if (!(e.target as HTMLElement).closest('.knox-gui-page-back')) {
+			widget.controller.store.navigate('/');
+		}
+	}));
 }
 
 export function section(widget: KnoxGuiWidget, body: HTMLElement, title: string, text: string): void {
@@ -94,6 +102,25 @@ export function textAreaSetting(widget: KnoxGuiWidget, body: HTMLElement, label:
 	area.value = value;
 	area.rows = 3;
 	widget.listenerStore.add(DOM.addDisposableListener(area, 'change', () => onChange(area.value)));
+}
+
+/** `gui/Shortcut.tsx`: one `kbd` per key, `+` between keys and `,` between combos. */
+export function appendShortcut(parent: HTMLElement, shortcut: string): HTMLElement {
+	const wrap = DOM.append(parent, DOM.$('span.knox-gui-shortcut-keys'));
+	const combos = knoxGuiShortcutKeys(shortcut, isMacintosh);
+	combos.forEach((combo, comboIndex) => {
+		combo.forEach((key, keyIndex) => {
+			const special = !/^[a-zA-Z0-9]$/.test(key) || key === '⌫';
+			DOM.append(wrap, DOM.$(`kbd.knox-gui-shortcut${special ? '.knox-gui-shortcut-special' : ''}`, undefined, key));
+			if (keyIndex < combo.length - 1) {
+				DOM.append(wrap, DOM.$('span.knox-gui-shortcut-separator', undefined, '+'));
+			}
+		});
+		if (comboIndex < combos.length - 1) {
+			DOM.append(wrap, DOM.$('span.knox-gui-shortcut-separator', undefined, ','));
+		}
+	});
+	return wrap;
 }
 
 export function iconButton(widget: KnoxGuiWidget, parent: HTMLElement, label: string, onClick: () => void, icon?: string): HTMLElement {

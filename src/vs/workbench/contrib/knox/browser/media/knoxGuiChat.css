@@ -1,0 +1,780 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* messages, tools, terminal, tree, and search cards */
+
+.knox-gui-editor {
+	margin: 0;
+	padding: 0 0 1px;
+	border: 0;
+	border-radius: 0;
+	background: var(--vscode-input-background);
+}
+
+.knox-gui-editor:focus-within {
+	outline: none;
+	box-shadow: inset 0 -0.5px 0 var(--vscode-list-focusOutline, #159994);
+}
+
+.knox-gui-empty {
+	opacity: 0.8;
+	padding: 8px;
+}
+
+.knox-gui-msg {
+	margin: 0 0 10px;
+	padding: 0;
+	border-radius: 0;
+	background: transparent;
+}
+
+.knox-gui-msg.user {
+	border-left: none;
+}
+
+.knox-gui-msg.assistant {
+	border-left: none;
+}
+
+.knox-gui-msg pre,
+.knox-gui-tool pre,
+.knox-gui-thinking pre {
+	overflow: auto;
+	padding: 8px;
+	border-radius: 4px;
+	background: var(--vscode-textCodeBlock-background);
+	white-space: pre-wrap;
+}
+
+.knox-gui-msg-actions,
+.knox-gui-code-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 4px;
+}
+
+.knox-gui-tool {
+	margin-top: 6px;
+	padding: 16px 16px 0;
+}
+
+.knox-gui-tool-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.knox-gui-tool-head-left {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	flex: 1;
+}
+
+.knox-gui-tool-status {
+	width: 16px;
+	height: 16px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	color: #159994;
+	font-weight: bolder;
+	margin-top: 1px;
+}
+
+.knox-gui-collapse-chevron {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	color: #159994;
+	cursor: pointer;
+}
+
+.knox-gui-collapse-chevron:hover:not(.disabled) {
+	filter: brightness(1.25);
+}
+
+.knox-gui-collapse-chevron.disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.knox-gui-collapse-chevron .knox-gui-svg {
+	transition: transform 0.15s ease;
+}
+
+.knox-gui-collapse-chevron .knox-gui-svg.collapsed {
+	transform: rotate(-90deg);
+}
+
+.knox-gui-spinner {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	animation: knox-gui-pulse-opacity 2s infinite ease-in-out;
+}
+
+.knox-gui-spinner-disc {
+	width: 100%;
+	height: 100%;
+	border-radius: 50%;
+	border: 2px solid rgba(255, 255, 255, 0.1);
+	border-top-color: #159994;
+	animation: knox-gui-spin 0.8s linear infinite;
+	box-sizing: border-box;
+}
+
+@keyframes knox-gui-pulse-opacity {
+	0%, 100% { opacity: 0.6; }
+	50% { opacity: 1; }
+}
+
+.knox-gui-tool-args-toggle {
+	padding: 0 !important;
+	color: #159994 !important;
+	cursor: pointer;
+	flex-shrink: 0;
+}
+
+.knox-gui-tool-args-toggle:hover {
+	opacity: 0.8;
+}
+
+.knox-gui-tool-loading {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	margin-left: auto;
+}
+
+.knox-gui-tool-favicon {
+	width: 16px;
+	height: 16px;
+	border-radius: 2px;
+}
+
+.knox-gui-tool-status-text {
+	min-width: 0;
+	flex: 1;
+	overflow-x: auto;
+	white-space: nowrap;
+	scrollbar-width: thin;
+}
+
+.knox-gui-tool-name {
+	font-size: 0.95em;
+}
+
+.knox-gui-tool-summary {
+	margin-left: 8px;
+	opacity: 0.7;
+}
+
+.knox-gui-tool-args {
+	margin: 4px 0 4px 28px;
+}
+
+.knox-gui-tool-arg {
+	display: flex;
+	gap: 8px;
+	padding: 2px 0;
+}
+
+.knox-gui-tool-body {
+	margin-top: 4px;
+}
+
+.knox-gui-tool-thinking,
+.knox-gui-tool-permission-hint {
+	margin: 8px 8px 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+}
+
+.knox-gui-tool-calling,
+.knox-gui-tool-permissions,
+.knox-gui-ask-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 8px 4px 4px;
+	align-items: center;
+}
+
+.knox-gui-tool-approve {
+	background: var(--vscode-button-background) !important;
+	color: var(--vscode-button-foreground) !important;
+	border: none !important;
+}
+
+.knox-gui-tool-deny {
+	border: 1px solid var(--vscode-descriptionForeground, var(--vscode-input-border)) !important;
+	color: var(--vscode-descriptionForeground) !important;
+	background: transparent !important;
+}
+
+.knox-gui-tool-always-active {
+	border-color: rgba(21, 153, 148, 0.5) !important;
+	background: rgba(21, 153, 148, 0.15) !important;
+	color: #159994 !important;
+}
+
+.knox-gui-cyan {
+	color: #159994;
+	font-weight: 600;
+	font-size: 12px;
+}
+
+.knox-gui-tool-kind-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 4px 6px;
+	color: #159994;
+}
+
+.knox-gui-tool-badge {
+	font-size: 10px;
+	padding: 1px 6px;
+	border-radius: 4px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.knox-gui-term,
+.knox-gui-tree-card,
+.knox-gui-search-card,
+.knox-gui-ask-card {
+	border-radius: 6px;
+	overflow: hidden;
+	background: var(--vscode-editor-background, #282c34);
+	color: var(--vscode-editor-foreground, #abb2bf);
+	outline: 1px solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-widget-border, #3e4451));
+	outline-offset: -0.5px;
+	margin-bottom: 8px;
+	min-width: 0;
+}
+
+.knox-gui-term.light,
+.knox-gui-tree-card.light {
+	background: var(--vscode-editor-background, #ffffff);
+	color: var(--vscode-editor-foreground, #383a42);
+}
+
+.knox-gui-term-running {
+	outline-color: var(--vscode-testing-iconPassed, #27c93f);
+}
+
+.knox-gui-term-head,
+.knox-gui-tree-head,
+.knox-gui-search-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 4px 6px;
+	background: inherit;
+	border-bottom: 1px solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-widget-border, #3e4451));
+	user-select: none;
+}
+
+.knox-gui-term-head.collapsed {
+	border-bottom-color: transparent;
+}
+
+.knox-gui-term-head-left {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.knox-gui-term-head-right {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 0;
+}
+
+.knox-gui-term-icon {
+	color: var(--vscode-terminal-ansiGreen, #0dbc79);
+	flex-shrink: 0;
+}
+
+.knox-gui-term-title {
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+.knox-gui-term-truncated {
+	margin-left: 8px;
+	opacity: 0.7;
+	font-weight: 400;
+}
+
+.knox-gui-term-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 1px 7px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 500;
+	line-height: 1;
+	white-space: nowrap;
+}
+
+.knox-gui-term-badge-running {
+	background: rgba(39, 201, 63, 0.12);
+	color: var(--vscode-testing-iconPassed, #27c93f);
+}
+
+.knox-gui-term-badge-done {
+	background: rgba(39, 201, 63, 0.08);
+	color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.knox-gui-term-badge-canceled {
+	background: rgba(241, 76, 76, 0.08);
+	color: var(--vscode-editorError-foreground, #f14c4c);
+}
+
+.knox-gui-term-pulse {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: currentColor;
+	display: inline-block;
+	animation: knox-gui-term-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes knox-gui-term-pulse {
+	0%, 100% { opacity: 1; transform: scale(1); }
+	50% { opacity: 0.35; transform: scale(0.85); }
+}
+
+.knox-gui-term-action,
+.knox-gui-term-copy {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: #159994;
+	cursor: pointer;
+	padding: 2px 4px;
+	font-size: inherit;
+	line-height: 1;
+	white-space: nowrap;
+}
+
+.knox-gui-term-copy {
+	width: 24px;
+	height: 24px;
+	padding: 0;
+}
+
+.knox-gui-term-action:hover,
+.knox-gui-term-copy:hover {
+	filter: brightness(1.25);
+}
+
+.knox-gui-term-copy:hover {
+	background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.knox-gui-term-action-icon {
+	width: 14px;
+	height: 14px;
+	flex-shrink: 0;
+}
+
+.knox-gui-icon-btn.knox-gui-copied {
+	color: #159994;
+}
+
+.knox-gui-term-action-label {
+	font-size: 12px;
+}
+
+.knox-gui-search-query {
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 12px;
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-term-body {
+	margin: 0;
+	height: auto;
+	min-height: 80px;
+	max-height: 400px;
+	overflow-x: auto;
+	overflow-y: auto;
+	padding: 0;
+	background: var(--vscode-editor-background);
+	scrollbar-width: thin;
+}
+
+.knox-gui-term-body.wrap {
+	overflow-x: hidden;
+}
+
+.knox-gui-term-pre {
+	margin: 0;
+	padding: 10px 14px;
+	font-family: var(--vscode-editor-font-family, ui-monospace, monospace);
+	font-size: var(--vscode-editor-font-size, 13px);
+	line-height: 1.5;
+	background: transparent;
+	white-space: pre;
+	tab-size: 4;
+}
+
+.knox-gui-term-body.wrap .knox-gui-term-pre {
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.knox-gui-term-prompt-line {
+	display: block;
+	padding-bottom: 2px;
+	margin-bottom: 2px;
+}
+
+.knox-gui-term-prompt {
+	font-weight: 700;
+	margin-right: 6px;
+	user-select: none;
+}
+
+.knox-gui-term-command {
+	font-weight: 500;
+}
+
+.knox-gui-term-output {
+	opacity: 0.88;
+}
+
+.knox-gui-term-cursor {
+	display: inline-block;
+	color: var(--vscode-terminalCursor-foreground, #aeafad);
+	animation: knox-gui-term-blink 1s step-end infinite;
+}
+
+@keyframes knox-gui-term-blink {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0; }
+}
+
+.knox-gui-tree-preview,
+.knox-gui-tree-body,
+.knox-gui-tool-output {
+	margin: 0;
+	max-height: 400px;
+	min-height: 80px;
+	overflow: auto;
+	padding: 8px 10px;
+	font-family: var(--vscode-editor-font-family, ui-monospace, monospace);
+	font-size: 11px;
+	line-height: 1.4;
+	white-space: pre-wrap;
+	background: transparent;
+}
+
+.knox-gui-code-pre.wrap {
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.knox-gui-tree-meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	flex: 1;
+	overflow: hidden;
+}
+
+.knox-gui-tree-title {
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.knox-gui-tree-sub {
+	font-size: 10px;
+	max-width: 180px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-tree-stats {
+	font-size: 10px;
+	white-space: nowrap;
+}
+
+.knox-gui-tree-tabs {
+	display: flex;
+	border: 1px solid var(--vscode-widget-border, #3e4451);
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.knox-gui-tree-tabs button {
+	font-size: 10px;
+	padding: 2px 8px;
+	border: none;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+}
+
+.knox-gui-tree-tabs button.selected {
+	background: var(--vscode-widget-border, #3e4451);
+}
+
+.knox-gui-tree-preview {
+	max-height: 160px;
+	min-height: 0;
+}
+
+.knox-gui-tree-body {
+	height: 350px;
+	min-height: 350px;
+}
+
+.knox-gui-tree-notice {
+	padding: 6px 10px;
+	font-size: 11px;
+	color: #e5c07b;
+	background: rgba(229, 192, 123, 0.1);
+	border-top: 1px solid var(--vscode-widget-border, #3e4451);
+}
+
+.knox-gui-search-card {
+	background: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+}
+
+.knox-gui-search-head {
+	background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	justify-content: flex-start;
+}
+
+.knox-gui-search-query {
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	padding: 1px 8px;
+	border-radius: 4px;
+	flex: 0 1 auto;
+}
+
+.knox-gui-search-body {
+	max-height: 400px;
+	min-height: 100px;
+	overflow: auto;
+}
+
+.knox-gui-search-empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 32px 8px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-gui-search-file + .knox-gui-search-file {
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+.knox-gui-search-file-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 8px;
+	position: sticky;
+	top: 0;
+	background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.knox-gui-search-line {
+	display: flex;
+	width: 100%;
+	text-align: left;
+	border: none;
+	border-left: 3px solid transparent;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+	padding: 0;
+	font: inherit;
+}
+
+.knox-gui-search-line:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.knox-gui-search-line.match {
+	background: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 179, 8, 0.3));
+	border-left-color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.knox-gui-search-ln {
+	min-width: 45px;
+	padding: 2px 8px;
+	text-align: right;
+	color: var(--vscode-editorLineNumber-foreground);
+	background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	border-right: 1px solid var(--vscode-widget-border);
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 11px;
+}
+
+.knox-gui-search-code {
+	flex: 1;
+	padding: 2px 8px;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: var(--vscode-editor-font-size, 12px);
+	white-space: pre;
+	overflow-x: auto;
+}
+
+.knox-gui-search-match {
+	background-color: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 179, 8, 0.3));
+	color: inherit;
+	padding: 1px 2px;
+	border-radius: 2px;
+	font-weight: 600;
+	border: 1px solid var(--vscode-editor-findMatchBorder, transparent);
+}
+
+.knox-gui-ask-card {
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	padding: 10px;
+	margin-bottom: 8px;
+}
+
+.knox-gui-ask-card[role="form"] {
+	outline: none;
+}
+
+.knox-gui-ask-progress {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 8px;
+}
+
+.knox-gui-ask-prompt {
+	font-weight: 600;
+	margin-bottom: 6px;
+}
+
+.knox-gui-ask-choices {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.knox-gui-ask-choice {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 2px;
+	padding: 8px 10px;
+	border: 1px solid var(--vscode-widget-border, var(--vscode-input-border));
+	border-radius: 6px;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+	text-align: left;
+}
+
+.knox-gui-ask-choice.selected {
+	border-color: #159994;
+	background: rgba(21, 153, 148, 0.2);
+}
+
+.knox-gui-ask-choice-label {
+	font-weight: 600;
+}
+
+.knox-gui-ask-input {
+	width: 100%;
+	margin-top: 8px;
+	box-sizing: border-box;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 4px;
+	padding: 6px 8px;
+}
+
+.knox-gui-ask-done {
+	margin-bottom: 8px;
+}
+
+.knox-gui-ask-answer {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	margin-top: 2px;
+}
+
+.knox-gui-ask-answer .knox-gui-svg {
+	color: #159994;
+	flex-shrink: 0;
+	margin-top: 2px;
+}
+
+.knox-gui-subagent {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 0 8px 8px;
+	font-size: 13px;
+}
+
+.knox-gui-subagent-meta {
+	padding: 0 4px 0;
+}
+
+.knox-gui-subagent-output {
+	margin: 0;
+	max-height: 16rem;
+	overflow: auto;
+	padding: 8px;
+	border-radius: 6px;
+	background: var(--vscode-input-background);
+	font-size: 11px;
+	white-space: pre-wrap;
+}
+
+.knox-gui-tool-file-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 2px 4px 6px;
+}
+

@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IModelService } from '../../../../editor/common/services/model.js';
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -14,7 +16,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { InMemoryStorageService } from '../../../../platform/storage/common/storage.js';
 import { KNOX_GUI_LUMP_TOOLBAR } from '../common/knoxGuiChrome.js';
 import { IKnoxGuiMessage, KnoxGuiRoute } from '../common/knoxGuiProtocol.js';
-import { IKnoxGuiCheckpointNode, IKnoxGuiGitDiffFile, IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../common/knoxGuiState.js';
+import { IKnoxGuiCheckpointDiffFile, IKnoxGuiCheckpointNode, IKnoxGuiGitDiffFile, IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../common/knoxGuiState.js';
 import { composerInputHistoryAdd, createComposerInputHistory, DEFAULT_MENTION_PROVIDER_TITLES, inputDocFromPlainText, SLASH_BUILTINS } from '../common/knoxGuiInput.js';
 import { MEMORY_TAB_IDS } from '../common/knoxGuiMemory.js';
 import { IKnoxService } from '../common/knoxService.js';
@@ -22,19 +24,23 @@ import { KnoxGuiController } from './knoxGuiController.js';
 import { KnoxGuiMessenger } from './knoxGuiMessenger.js';
 import { KnoxGuiStore } from './knoxGuiStore.js';
 import { KnoxGuiWidget } from './gui/knoxGuiWidget.js';
+import { DEFAULT_CHECKPOINT_CONFIG } from '../common/knoxGuiCheckpoints.js';
+import { checkpointTimelineEscape } from './gui/widget/checkpoints.js';
+import { onCheckpointGraphKeyDown } from './gui/widget/checkpointGraph.js';
 
 suite('Knox native GUI widget chrome (GP-083)', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function mount(): Promise<{ widget: KnoxGuiWidget; store: KnoxGuiStore }> {
+	async function mount(respond?: (message: IKnoxGuiMessage) => unknown): Promise<{ widget: KnoxGuiWidget; store: KnoxGuiStore }> {
 		const incoming = disposables.add(new Emitter<IKnoxGuiMessage>());
 		const knoxService = new class extends mock<IKnoxService>() {
 			override onDidReceiveGuiMessage = incoming.event;
 			override async guiPost(message: IKnoxGuiMessage): Promise<void> {
+				const content = respond?.(message);
 				incoming.fire({
 					messageType: message.messageType,
 					messageId: message.messageId,
-					data: { done: true, status: 'error', error: 'unhandled' },
+					data: content === undefined ? { done: true, status: 'error', error: 'unhandled' } : { done: true, status: 'success', content },
 				});
 			}
 		};
@@ -65,7 +71,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			}
 			override requestBasicLanguageFeatures(): void { }
 		};
-		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService));
+		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService, { getModel: () => null } as unknown as IModelService));
 		return { widget, store };
 	}
 
@@ -139,7 +145,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		store.patch({
 			overlay: 'models',
 			modelsByRole: {
-				chat: [{ title: 'GPT-4o', provider: 'openai', model: 'gpt-4o' }],
+				chat: [{ title: 'GPT-4o', provider: 'knoxchat', model: 'openai/gpt-4o' }],
 				edit: [],
 				apply: [],
 				viewRead: [],
@@ -173,13 +179,12 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('.knox-gui-input'), null);
 	});
 
-	test('add-model provider cards use PNG logos', async () => {
+	test('add-model provider cards use the KnoxChat PNG logo', async () => {
 		const { widget, store } = await mount();
 		store.navigate('/addModel');
 		const logos = widget.root.querySelectorAll('img.knox-gui-provider-icon');
-		assert.ok(logos.length >= 3);
-		assert.ok(Array.from(logos).some(img => (img as HTMLImageElement).src.includes('openai.png')));
-		assert.ok(Array.from(logos).some(img => (img as HTMLImageElement).src.includes('anthropic.png')));
+		assert.strictEqual(logos.length, 1);
+		assert.ok((logos[0] as HTMLImageElement).src.includes('knoxchat.png'));
 	});
 
 	test('checkpoint graph SVG stays mounted across tab switches', async () => {
@@ -234,20 +239,95 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.isLightTheme(), true);
 	});
 
-	test('KN-372 stats page renders daily and per-model tables', async () => {
+	test('S-14 stats page shows only the KnoxChat billing note', async () => {
 		const { widget, store } = await mount();
+		store.patch({ route: KnoxGuiRoute.Stats });
+		const page = widget.root.querySelector('[data-testid="knox-gui-stats"]');
+		assert.ok(page?.querySelector('.knox-gui-stats-billing'));
+		assert.ok(!page?.querySelector('table'));
+	});
+
+	test('I-05 composer code block: newest expanded, header toggles, name opens lines, X deletes', async () => {
+		const posted: string[] = [];
+		const { widget, store } = await mount(message => { posted.push(message.messageType); return undefined; });
+		store.setInputDoc([
+			{ type: 'codeBlock', code: 'const a = 1;', language: 'typescript', filepath: '/w/a.ts', range: { start: 0, end: 1 } },
+			{ type: 'codeBlock', code: 'const b = 2;', language: 'typescript', filepath: '/w/b.ts' },
+			{ type: 'paragraph', content: [] },
+		]);
+		const chips = () => Array.from(widget.root.querySelectorAll<HTMLElement>('[data-testid="knox-gui-input-code-block"]'));
+		const bodyOf = (chip: HTMLElement) => chip.querySelector<HTMLElement>('.knox-gui-input-code-body')!;
+		assert.strictEqual(chips().length, 2);
+		assert.strictEqual(bodyOf(chips()[0]).hidden, true);
+		assert.strictEqual(bodyOf(chips()[1]).hidden, false);
+		assert.ok(chips()[0].textContent?.includes('a.ts (1-2)'));
+		chips()[0].querySelector<HTMLElement>('.knox-gui-input-code-head')!.click();
+		assert.strictEqual(bodyOf(chips()[0]).hidden, false);
+		const editor = widget.root.querySelector<HTMLElement>('.knox-gui-input')!;
+		const read = widget.readInputDoc(editor);
+		assert.deepStrictEqual(read[0], { type: 'codeBlock', code: 'const a = 1;', language: 'typescript', filepath: '/w/a.ts', range: { start: 0, end: 1 } });
+		chips()[0].querySelector<HTMLElement>('[data-testid="knox-gui-input-code-open"]')!.click();
+		await timeout(0);
+		assert.ok(posted.includes('showLines'));
+		assert.strictEqual(bodyOf(chips()[0]).hidden, false);
+		chips()[0].querySelector<HTMLElement>('.knox-gui-input-code-remove')!.click();
+		assert.deepStrictEqual(store.state.inputDoc.filter(block => block.type === 'codeBlock').map(block => block.type === 'codeBlock' && block.filepath), ['/w/b.ts']);
+	});
+
+	test('I-22 pending tool row: session badge disabled, actions hidden when auto-approved', async () => {
+		const { widget, store } = await mount();
+		const pending: IKnoxGuiToolCall = { id: 'p', name: 'builtin_read_file', arguments: '{}', status: 'generated' };
 		store.patch({
-			route: KnoxGuiRoute.Stats,
-			statsDaily: [{ day: '2026-09-26', promptTokens: 12, generatedTokens: 3400 }],
-			statsByModel: [{ model: 'gpt-4o', promptTokens: 12, generatedTokens: 3400 }],
+			tools: [{ name: 'builtin_read_file', group: 'Built-In' }],
+			toolSettings: { builtin_read_file: 'allowedWithPermission' },
+			sessionToolAllowlist: ['builtin_read_file'],
+			history: historyWithTool(pending),
+			overlay: 'tools',
 		});
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-stats"]'));
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-stats-daily"]')?.textContent?.includes('2026-09-26'));
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-stats-model"]')?.textContent?.includes('gpt-4o'));
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-stats-copy-daily"]'));
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-stats-copy-model"]'));
-		store.patch({ statsDaily: [], statsByModel: [] });
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-stats-empty"]'));
+		const row = () => widget.root.querySelector<HTMLElement>('[data-testid="tool-permission-row-builtin_read_file"]')!;
+		assert.strictEqual(row().getAttribute('data-pending'), 'true');
+		assert.strictEqual((row().querySelector('[data-testid="tool-permission-badge"]') as HTMLButtonElement).disabled, true);
+		assert.ok(!row().querySelector('[data-testid="permission-action-buttons"]'));
+		store.patch({ sessionToolAllowlist: [], permissionMode: 'fullAuto' });
+		assert.ok(!row().querySelector('[data-testid="permission-action-buttons"]'));
+		store.patch({ permissionMode: 'default' });
+		assert.ok(row().querySelector('[data-testid="permission-action-buttons"]'));
+	});
+
+	test('I-23 lump section fades out for 300ms after it closes', async () => {
+		const { widget, store } = await mount();
+		store.patch({ overlay: 'rules' });
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-overlay-rules"].knox-gui-overlay-enter'));
+		store.patch({ overlay: 'prompts' });
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-overlay-prompts"]'));
+		store.patch({ overlay: null });
+		assert.ok(!widget.root.querySelector('[data-testid="knox-gui-overlay-prompts"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-overlay-leaving"].knox-gui-overlay-leave'));
+		await timeout(350);
+		assert.ok(!widget.root.querySelector('[data-testid="knox-gui-overlay-leaving"]'));
+	});
+
+	test('C-13 streaming keeps finished blocks, heals the live one, and reasoning fences get a toolbar', async () => {
+		const { widget, store } = await mount();
+		const user: IKnoxGuiHistoryItem = { id: 'u', role: 'user', content: 'hi' };
+		store.patch({ isStreaming: true, history: [user, { id: 'a', role: 'assistant', content: 'para one\n\npara **two' }] });
+		const body = () => widget.root.querySelector<HTMLElement>('.knox-gui-stream-body')!;
+		const first = body().firstElementChild;
+		assert.ok(body().querySelector('strong')?.textContent?.includes('two'));
+		store.patch({ history: [user, { id: 'a', role: 'assistant', content: 'para one\n\npara **two** and more' }] });
+		assert.strictEqual(body().firstElementChild, first);
+		assert.ok(body().textContent?.includes('and more'));
+		store.patch({ isStreaming: false, history: [user, { id: 'a', role: 'assistant', content: 'done', thinking: 'plan\n```ts\nconst x = 1;\n```', thinkingCollapsed: false }] });
+		const reasoning = widget.root.querySelector<HTMLElement>('.knox-gui-reasoning-body')!;
+		assert.ok(reasoning.querySelector('.knox-gui-code-actions'));
+	});
+
+	test('I-09 shortcut hints render one kbd per key with the platform meta key', async () => {
+		const { widget, store } = await mount();
+		store.patch({ overlay: 'history', historySessions: [] });
+		const keys = Array.from(widget.root.querySelectorAll('.knox-gui-history-empty kbd')).map(el => el.textContent);
+		assert.deepStrictEqual(keys, [isMacintosh ? '⌘' : 'Ctrl', 'L']);
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-mode-chat"]'));
 	});
 
 	function historyWithTool(tool: IKnoxGuiToolCall): IKnoxGuiHistoryItem[] {
@@ -366,6 +446,44 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('.knox-gui-ask-choice.selected')?.textContent?.includes('Terminal game'));
 	});
 
+	test('tool titles match original Knox + status + catalog template', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			tools: [{
+				name: 'builtin_view_subdirectory',
+				group: 'Built-In',
+				displayTitle: 'View Subdirectory',
+				wouldLikeTo: 'View directory structure for "{{{ directory_path }}}"',
+				isCurrently: 'Getting directory structure for "{{{ directory_path }}}"',
+				hasAlready: 'Viewed directory structure for "{{{ directory_path }}}"',
+			}],
+			history: historyWithTool({
+				id: 'dir',
+				name: 'ls',
+				arguments: '{"directory_path":"src"}',
+				status: 'canceled',
+				parsedArgs: { directory_path: 'src' },
+			}),
+		});
+		const title = widget.root.querySelector('.knox-gui-tool-status-text')?.textContent ?? '';
+		assert.ok(title.includes('Knox'), title);
+		assert.ok(title.includes('Canceled'), title);
+		assert.ok(title.includes('View directory structure for "src"'), title);
+		assert.ok(!title.includes('Agent Tool Usage'), title);
+
+		store.patch({
+			history: historyWithTool({
+				id: 'empty',
+				name: '',
+				arguments: '{',
+				status: 'errored',
+				parsedArgs: {},
+				output: 'Tool call "" failed',
+			}),
+		});
+		assert.ok(widget.root.querySelector('.knox-gui-tool-status-text')?.textContent?.includes('Agent Tool Usage'));
+	});
+
 	test('KN-374 composer @ mentions, / slash, image drop, history, and code-to-edit chips', async () => {
 		const { widget, store } = await mount();
 		const controller = widget.controller;
@@ -424,6 +542,148 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(store.state.input, 'first');
 		widget.stepInputHistory(1);
 		assert.strictEqual(store.state.input, 'second');
+	});
+
+	test('K-07 / K-12 checkpoint details modal: tabs, snapshot tree and viewer, getPreviousCheckpoint fallback', async () => {
+		const sent: string[] = [];
+		const snapshot = (content: string) => ({ relativePath: 'src/a.ts', content, encoding: 'utf8', size: content.length, lastModified: '2026-09-26T00:00:00.000Z' });
+		const { widget, store } = await mount(message => {
+			sent.push(message.messageType);
+			switch (message.messageType) {
+				case 'getCheckpointDetails':
+					return { success: true, details: { id: 'cp-2', description: '{"step":2}', created: '2026-09-26T01:00:00.000Z', workspacePath: '/ws', conversationContext: { role: 'user', messageContent: 'refactor a', index: 0, timestamp: '2026-09-26T01:00:00.000Z' }, fileSnapshots: [snapshot('const a = 2;')] } };
+				case 'computeCheckpointDiff':
+					return { success: false, diff: null };
+				case 'getPreviousCheckpoint':
+					return { success: true, details: { id: 'cp-1', description: 'first', created: '2026-09-26T00:00:00.000Z', fileSnapshots: [snapshot('const a = 1;')] } };
+				default:
+					return undefined;
+			}
+		});
+		const node = (id: string, created: string): IKnoxGuiCheckpointNode => ({
+			id, description: id, created, kind: 'manual', tags: [], shortId: id.replace('-', ''), pinned: false, changedPaths: [], parents: [], fileChanges: { added: 0, modified: 0, deleted: 0 },
+		});
+		store.navigate('/checkpoint-graph');
+		store.patch({
+			checkpointShell: { state: 'ready', checkpointCount: 2 },
+			checkpoints: [node('cp-2', '2026-09-26T01:00:00.000Z'), node('cp-1', '2026-09-26T00:00:00.000Z')],
+			checkpointView: 'checkpoints',
+		});
+		(widget.root.querySelector('[data-testid="checkpoint-row-cp2"] .knox-gui-checkpoint-details') as HTMLButtonElement).click();
+		for (let i = 0; i < 5 && !widget.checkpointDetails?.diff; i++) {
+			await timeout(5);
+		}
+		const modal = widget.root.querySelector('[data-testid="knox-gui-checkpoint-details"]');
+		assert.ok(modal);
+		assert.strictEqual(modal.querySelector('[data-testid="checkpoint-details-tab-files"]')?.getAttribute('aria-selected'), 'true');
+		assert.ok(modal.querySelector('.knox-gui-checkpoint-tree-row.selected')?.textContent?.includes('a.ts'));
+		assert.ok(modal.querySelector('[data-testid="checkpoint-code-viewer"]')?.textContent?.includes('const a = 2;'));
+		assert.ok(modal.querySelector('[data-testid="checkpoint-tree-splitter"]'));
+
+		(modal.querySelector('[data-testid="checkpoint-details-tab-basic"]') as HTMLButtonElement).click();
+		const basic = widget.root.querySelector('[data-testid="checkpoint-details-basic"]');
+		assert.ok(basic?.textContent?.includes('/ws'));
+		assert.ok(basic?.textContent?.includes('refactor a'));
+		assert.ok(basic?.querySelector('pre.knox-gui-checkpoint-json')?.textContent?.includes('"step": 2'));
+
+		assert.ok(sent.includes('getPreviousCheckpoint'));
+		(widget.root.querySelector('[data-testid="checkpoint-details-tab-diff"]') as HTMLButtonElement).click();
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-compare-target"]'));
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-diff-viewer"]')?.textContent?.includes('const a = 1;'));
+
+		(widget.root.querySelector('[data-testid="knox-gui-checkpoint-details"] .knox-gui-checkpoint-details-close') as HTMLButtonElement).click();
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-checkpoint-details"]'), null);
+	});
+
+	test('K-01 / K-04 / K-05 / K-09 checkpoint shell, list states, chronological compare, restore errors', async () => {
+		const { widget, store } = await mount(message => message.messageType === 'previewRestore' ? { success: false, message: 'Workspace is missing' } : undefined);
+		const node = (id: string, created: string): IKnoxGuiCheckpointNode => ({
+			id, description: id, created, kind: 'manual', tags: [], shortId: id.replace('-', ''), pinned: false, changedPaths: [], parents: [], fileChanges: { added: 0, modified: 0, deleted: 0 },
+		});
+		store.navigate('/checkpoint-graph');
+		store.patch({ checkpointShell: { state: 'failed', checkpointCount: 0 }, checkpointView: 'graph' });
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-graph-shell-action"]'));
+
+		store.patch({ checkpointView: 'checkpoints', checkpointActiveWorkspace: '/ws/proj' });
+		const empty = widget.root.querySelector('[data-testid="checkpoint-list-empty"]');
+		assert.ok(empty?.textContent?.includes('proj'));
+		assert.ok(empty?.querySelector('kbd'));
+
+		store.patch({
+			checkpointShell: { state: 'ready', checkpointCount: 2 },
+			checkpoints: [node('cp-2', '2026-09-26T01:00:00.000Z'), node('cp-1', '2026-09-26T00:00:00.000Z')],
+			checkpointCompareCatalog: [{ id: 'cp-2', description: 'second', created: '2026-09-26T01:00:00.000Z' }, { id: 'cp-1', description: 'first', created: '2026-09-26T00:00:00.000Z' }],
+		});
+		widget.root.querySelector('[data-testid="checkpoint-row-cp2"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
+		assert.strictEqual(widget.checkpointListSelectMode, true);
+		assert.ok(widget.checkpointListSelected.has('cp-2'));
+		widget.checkpointListSelected = new Set(['cp-2', 'cp-1']);
+		widget.render();
+		const compare = [...widget.root.querySelectorAll<HTMLButtonElement>('.knox-gui-checkpoint-list-actions button')].find(button => button.textContent?.trim() === 'Compare');
+		compare!.click();
+		assert.strictEqual(store.state.checkpointCompareLeftId, 'cp-1');
+		assert.strictEqual(store.state.checkpointCompareRightId, 'cp-2');
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-compare-dialog"]')?.textContent?.includes('first'));
+		store.patch({
+			checkpointView: 'analysis',
+			checkpointAnalysisCatalog: [{ id: 'cp-1', description: 'first' }],
+			checkpointAnalysisId: 'cp-1',
+			checkpointAnalysisPending: false,
+			checkpointAnalysis: undefined,
+		});
+		assert.strictEqual(widget.root.querySelector('[data-testid="checkpoint-analysis-unavailable"]')?.textContent, 'No analysis for this checkpoint.');
+		store.patch({
+			checkpointAnalysis: {
+				checkpointId: 'cp-1', generatedDescription: 'd',
+				riskAssessment: { level: 'Low', score: 1, factors: [], recommendations: [] },
+				impactAnalysis: { affectedFeatures: [], affectedLayers: [], scope: 'Isolated' },
+			},
+		});
+		assert.strictEqual(widget.root.querySelector('[data-testid="checkpoint-risk-badge"]')?.textContent, 'Low(1.0)');
+		store.patch({ checkpointView: 'checkpoints' });
+		widget.onEscape(new KeyboardEvent('keydown', { key: 'Escape' }), store.state);
+		assert.strictEqual(store.state.checkpointDialog, null);
+
+		widget.checkpointListSelected = new Set(['cp-1']);
+		widget.checkpointListDeleteConfirm = true;
+		widget.render();
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-list-delete"]')?.textContent?.includes('delete 1 checkpoint?'));
+		(widget.root.querySelector('[data-testid="checkpoint-list-delete"]')!.parentElement as HTMLElement).dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		assert.strictEqual(widget.checkpointListDeleteConfirm, false);
+
+		await widget.controller.openRestorePreview('cp-1');
+		assert.strictEqual(widget.root.querySelector('[data-testid="restore-preview-error"]')?.textContent, 'Workspace is missing');
+		(widget.root.querySelector('[data-testid="restore-preview-dialog"]')!.parentElement as HTMLElement).dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		assert.strictEqual(store.state.checkpointDialog, null);
+	});
+
+	test('I-11 / I-13 composer chips carry icons and dismiss, and the caret maps to doc positions', async () => {
+		const { widget, store } = await mount();
+		store.setInputDoc([{ type: 'paragraph', content: [
+			{ type: 'text', text: 'see ' },
+			{ type: 'mention', id: 'file:///ws/a.ts', label: 'a.ts', itemType: 'file', query: 'file:///ws/a.ts' },
+			{ type: 'text', text: ' @ap' },
+		] }, { type: 'paragraph', content: [{ type: 'slash', id: '/commit', label: '/commit' }] }]);
+		const editor = widget.root.querySelector('[data-testid="knox-gui-input"]') as HTMLElement;
+		const chip = editor.querySelector('[data-testid="knox-gui-mention-chip"]') as HTMLElement;
+		assert.ok(chip.classList.contains('is-openable'));
+		assert.ok(chip.querySelector('[data-testid="mention-chip-file-icon"]'));
+		assert.ok(editor.querySelector('[data-testid="slash-command-chip-icon"]'));
+
+		const text = chip.nextSibling as Text;
+		const selection = document.getSelection()!;
+		const range = document.createRange();
+		range.setStart(text, 3);
+		range.collapse(true);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		assert.deepStrictEqual(widget.caretDocPosition(editor), { block: 0, offset: 8 });
+		widget.placeCaretAtDocPosition(editor, { block: 0, offset: 5 });
+		assert.deepStrictEqual(widget.caretDocPosition(editor), { block: 0, offset: 5 });
+
+		(chip.querySelector('[data-testid="mention-chip-dismiss"]') as HTMLButtonElement).click();
+		assert.ok(!store.state.inputDoc.some(block => block.type === 'paragraph' && block.content.some(node => node.type === 'mention')));
+		assert.ok(store.state.input.startsWith('see  @ap'));
 	});
 
 	test('KN-375 checkpoint overlay restore preview, word diffs, analysis, dashboard, and branches', async () => {
@@ -525,6 +785,469 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		});
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-checkpoint-analysis"]')?.textContent?.includes('touched auth'));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-checkpoint-analysis-group"]')?.textContent?.includes('session s1'));
+	});
+
+	test('M-01 / M-02 / M-03 memory refresh, overview loading, browser selection and banners', async () => {
+		const sent: string[] = [];
+		const { widget, store } = await mount(message => {
+			sent.push(message.messageType);
+			if (message.messageType === 'brain/deleteMemories') {
+				return { deleted: 1, failed: 1 };
+			}
+			if (message.messageType === 'brain/pinMemory') {
+				return { success: false };
+			}
+			return undefined;
+		});
+		store.navigate('/memory');
+		await timeout(0);
+		store.patch({ memoryTab: 'overview', memoryOverviewLoading: true });
+		assert.ok(widget.root.querySelector('[data-testid="memory-overview-loading"]'));
+
+		const item = (id: string) => ({ id, title: `m${id}`, content: `content ${id}`, category: 'fact', createdAt: new Date().toISOString() });
+		store.patch({ memoryOverviewLoading: false, memoryTab: 'memories', memories: [item('1'), item('2'), item('3')], memoryFilterTier: 'hot' });
+		sent.length = 0;
+		widget.memorySelectionMode = true;
+		widget.controller.refreshMemoryActiveTab();
+		assert.ok(!sent.includes('brain/searchMemories'));
+
+		const tierSelect = widget.root.querySelector<HTMLSelectElement>('[data-testid="memory-filter-tier"]')!;
+		assert.strictEqual(tierSelect.selectedOptions[0].textContent, 'Hot');
+		store.patch({ memoryFilterTier: 'all' });
+		widget.root.querySelector('[data-testid="memory-row-1"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		widget.root.querySelector('[data-testid="memory-row-3"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
+		assert.deepStrictEqual([...widget.memorySelectedIds].sort(), ['1', '2', '3']);
+		assert.strictEqual(widget.root.querySelector('[data-testid="memory-select-all-header"] [role="checkbox"]')?.getAttribute('aria-checked'), 'true');
+		widget.memorySelectedIds = new Set(['1']);
+		widget.render();
+		assert.strictEqual(widget.root.querySelector('[data-testid="memory-select-all-header"] [role="checkbox"]')?.getAttribute('aria-checked'), 'mixed');
+		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+		assert.strictEqual(widget.memorySelectionMode, false);
+
+		widget.memorySelectionMode = true;
+		widget.memorySelectedIds = new Set(['1', '2']);
+		widget.memoryConfirmDeleteIds = ['1', '2'];
+		widget.memoryConfirmDeleteBulk = true;
+		widget.render();
+		(widget.root.querySelector('[data-testid="memory-confirm-delete"]') as HTMLButtonElement).click();
+		for (let i = 0; i < 5 && widget.memoryConfirmDeleteIds; i++) {
+			await timeout(0);
+		}
+		assert.deepStrictEqual(store.state.memories.map(memory => memory.id), ['3']);
+		assert.strictEqual(widget.memorySelectionMode, false);
+		assert.ok(widget.root.querySelector('[data-testid="memory-browser-error"]')?.textContent?.includes('1 memories could not be deleted'));
+
+		await widget.controller.pinMemories(['3'], true, false);
+		assert.strictEqual(store.state.memories[0].pinned, undefined);
+		assert.strictEqual(store.state.memoryBrowserError?.key, 'memoryPinFailed');
+	});
+
+	test('K-17 graph: reveal open details and find hit, hover cleared on scroll, Cmd+H only scrolls, menu flip, prompt form', async () => {
+		const sent: { type: string; data: unknown }[] = [];
+		const { widget, store } = await mount(message => {
+			sent.push({ type: message.messageType, data: message.data });
+			return undefined;
+		});
+		const nodes: IKnoxGuiCheckpointNode[] = Array.from({ length: 40 }, (_, index) => ({
+			id: `cp-${index}`,
+			description: index === 35 ? 'needle checkpoint' : `checkpoint ${index}`,
+			created: new Date(Date.UTC(2026, 8, 1, 0, 40 - index)).toISOString(),
+			kind: 'manual',
+			tags: [],
+			shortId: `c${index}`,
+			pinned: false,
+			changedPaths: [],
+			parents: index < 39 ? [`cp-${index + 1}`] : [],
+			fileChanges: { added: 0, modified: 0, deleted: 0 },
+		}));
+		store.navigate('/checkpoint-graph');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		store.patch({
+			checkpointShell: { state: 'ready', checkpointCount: nodes.length },
+			checkpoints: nodes,
+			checkpointHeadId: 'cp-0',
+			checkpointBranches: [{ id: 'main', name: 'main', headCheckpointId: 'cp-0', isActive: true }],
+			checkpointView: 'graph',
+		});
+		const row = 28;
+		widget.checkpointGraphViewport = 200;
+		widget.checkpointGraphScrollTop = 0;
+		widget.checkpointGraphOpenId = 'cp-20';
+		widget.render();
+		assert.strictEqual(widget.checkpointGraphScrollTop, 20 * row + row + 240 - 200, 'inline details scroll into view');
+
+		widget.checkpointGraphOpenId = null;
+		widget.checkpointGraphScrollTop = 0;
+		widget.checkpointGraphFindOpen = true;
+		widget.checkpointGraphFindQuery = 'needle';
+		widget.render();
+		assert.strictEqual(widget.checkpointGraphScrollTop, 35 * row, 'find hit scrolls into view');
+
+		widget.checkpointGraphFindOpen = false;
+		widget.checkpointGraphFindQuery = '';
+		widget.checkpointGraphScrollTop = 0;
+		widget.render();
+		widget.root.querySelector('[data-testid="checkpoint-graph-vertex"]')!.dispatchEvent(new MouseEvent('mouseenter', { clientX: 10, clientY: 10 }));
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-graph-hover"]'));
+		widget.root.querySelector('.knox-gui-graph-scroll')!.dispatchEvent(new Event('scroll'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="checkpoint-graph-hover"]'), null, 'scroll clears the hover tip');
+
+		assert.ok(onCheckpointGraphKeyDown(widget, new KeyboardEvent('keydown', { key: 'h', metaKey: true }), store.state));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.strictEqual(widget.checkpointGraphOpenId, null, 'Cmd+H scrolls to HEAD without opening it');
+		assert.strictEqual(widget.checkpointGraphPendingHead, false);
+
+		const win = window;
+		widget.checkpointGraphMenu = { kind: 'row', nodeId: 'cp-3', x: win.innerWidth - 4, y: win.innerHeight - 4 };
+		widget.render();
+		await Promise.resolve();
+		const menu = widget.root.querySelector('[data-testid="checkpoint-graph-menu"]') as HTMLElement;
+		assert.ok(parseFloat(menu.style.left) < win.innerWidth - 4 && parseFloat(menu.style.top) < win.innerHeight - 4, 'menu flips inside the window');
+		widget.root.querySelector('.knox-gui-graph-menu-backdrop')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		assert.strictEqual(widget.checkpointGraphMenu, null, 'right-click on the backdrop closes the menu');
+
+		widget.checkpointGraphMenu = { kind: 'row', nodeId: 'cp-3', x: 10, y: 10 };
+		widget.render();
+		([...widget.root.querySelectorAll('.knox-gui-graph-menu-item')].find(item => item.textContent?.includes('Create branch')) as HTMLButtonElement).click();
+		await Promise.resolve();
+		const input = widget.root.querySelector('#knox-checkpoint-graph-prompt-input') as HTMLInputElement;
+		assert.ok(widget.root.querySelector('form.knox-gui-graph-prompt'));
+		assert.strictEqual(document.activeElement, input, 'prompt input is focused');
+		input.value = 'feature';
+		input.dispatchEvent(new Event('input'));
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+		assert.strictEqual(widget.checkpointGraphPrompt, null);
+		assert.ok(sent.some(message => message.type === 'createCheckpointBranch' && (message.data as { name: string }).name === 'feature'));
+	});
+
+	test('K-08 diff viewer: changed files only, summary header, aligned split rows, collapsed context, folder tree chips, binary previews, empty state', async () => {
+		const { widget, store } = await mount();
+		const oldLines = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`);
+		const newLines = oldLines.map((line, index) => index === 1 ? 'line two' : index === 17 ? 'line eighteen' : line);
+		const file = (relativePath: string, status: IKnoxGuiCheckpointDiffFile['status'], extra: Partial<IKnoxGuiCheckpointDiffFile> = {}): IKnoxGuiCheckpointDiffFile => ({
+			relativePath, status, oldContent: 'x', newContent: 'x', isBinary: false, additions: 0, deletions: 0, ...extra,
+		});
+		const diff = {
+			oldCheckpoint: { id: 'a', description: 'before work', created: '' },
+			newCheckpoint: { id: 'b', description: 'after work', created: '' },
+			files: [
+				file('src/long.ts', 'modified', { oldContent: oldLines.join('\n'), newContent: newLines.join('\n'), additions: 2, deletions: 2 }),
+				file('src/same.ts', 'unchanged'),
+				file('src/new.ts', 'added', { oldContent: null, newContent: 'fresh', additions: 1 }),
+				file('logo.png', 'modified', { isBinary: true, oldEncoding: 'base64', newEncoding: 'base64', oldContent: 'AAAA', newContent: 'BBBB' }),
+			],
+		};
+		store.navigate('/checkpoint-graph');
+		store.patch({
+			checkpointShell: { state: 'ready', checkpointCount: 2 },
+			checkpointView: 'graph',
+			checkpointDialog: 'restore',
+			checkpointRestoreId: 'b',
+			checkpointRestorePreview: { checkpointId: 'b', description: 'after work', modified: 2, added: 1, deleted: 0, writePaths: [], extraPaths: [], skippedFiles: [], files: [{ relativePath: 'src/long.ts', action: 'overwrite', additions: 2, deletions: 2, hunkCount: 2 }] },
+			checkpointRestoreSelected: [],
+			checkpointRestoreShowDiff: true,
+			checkpointRestoreDiff: diff,
+			checkpointDiffSelectedFile: 'src/same.ts',
+			checkpointDiffView: 'split',
+		});
+		const viewer = () => widget.root.querySelector('[data-testid="checkpoint-diff-viewer"]')!;
+		assert.ok(viewer().textContent?.includes('before work') && viewer().textContent?.includes('after work'));
+		const summary = viewer().querySelector('[data-testid="checkpoint-diff-summary"]')!;
+		assert.ok(summary.textContent?.includes('3 files changed'));
+		assert.ok(summary.textContent?.includes('+3') && summary.textContent?.includes('-2'));
+		const tree = () => viewer().querySelector('[data-testid="checkpoint-diff-tree"]')!;
+		assert.ok(!tree().textContent?.includes('same.ts'), 'unchanged files are dropped');
+		assert.ok(tree().querySelector('.knox-gui-file-tree-row.selected')?.textContent?.includes('long.ts'), 'falls back to the first changed file');
+		assert.ok([...tree().querySelectorAll('.knox-gui-file-tree-chip')].map(chip => chip.textContent).join(',').includes('BIN'));
+		assert.ok([...tree().querySelectorAll('.knox-gui-file-tree-chip')].some(chip => chip.textContent === 'A'));
+
+		const pairedRow = [...viewer().querySelectorAll('.knox-gui-diff-split-row')].find(row => row.textContent?.includes('line 2') && row.textContent?.includes('line two'));
+		assert.ok(pairedRow, 'removed and added lines share one split row');
+		const gaps = viewer().querySelectorAll('[data-testid="checkpoint-diff-gap"]');
+		assert.strictEqual(gaps.length, 1);
+		assert.ok(gaps[0].textContent?.includes('9 lines hidden'));
+		const hasCode = (text: string) => [...viewer().querySelectorAll('.knox-gui-diff-code')].some(code => code.textContent === text);
+		assert.ok(!hasCode('line 10'));
+		(gaps[0] as HTMLButtonElement).click();
+		assert.ok(hasCode('line 10'));
+
+		const folder = [...tree().querySelectorAll('.knox-gui-file-tree-row.is-folder')].find(row => row.textContent?.includes('src')) as HTMLElement;
+		folder.click();
+		assert.ok(!tree().textContent?.includes('long.ts'), 'folder collapses');
+		(tree().querySelector('.knox-gui-file-tree-row.is-folder') as HTMLElement).click();
+		assert.ok(tree().textContent?.includes('long.ts'));
+
+		([...tree().querySelectorAll('.knox-gui-file-tree-row')].find(row => row.textContent?.includes('logo.png')) as HTMLElement).click();
+		const binary = viewer().querySelector('[data-testid="checkpoint-diff-binary"]')!;
+		assert.strictEqual(binary.querySelectorAll('img.knox-gui-diff-binary-image').length, 2);
+		assert.ok(binary.textContent?.includes('Previous Version') && binary.textContent?.includes('Current Version'));
+
+		store.patch({ checkpointRestoreDiff: { ...diff, files: [file('src/same.ts', 'unchanged')] } });
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-diff-empty"]')?.textContent?.includes('No Changes Detected'));
+	});
+
+	test('K-11 timeline: header and branches, weekday groups, badges, compare indicator, branch and delete forms, keys, empty state', async () => {
+		const sent: { type: string; data: unknown }[] = [];
+		const { widget, store } = await mount(message => {
+			sent.push({ type: message.messageType, data: message.data });
+			return message.messageType === 'createCheckpointBranch' || message.messageType === 'switchCheckpointBranch' || message.messageType === 'deleteCheckpoints' ? { success: true } : undefined;
+		});
+		const node = (id: string, created: string, extra: Partial<IKnoxGuiCheckpointNode> = {}): IKnoxGuiCheckpointNode => ({
+			id, description: `desc ${id}`, created, kind: 'manual', tags: [], shortId: id.slice(0, 7), pinned: false, changedPaths: [], parents: [], fileChanges: { added: 1, modified: 0, deleted: 0 }, ...extra,
+		});
+		store.navigate('/checkpoint-graph');
+		store.patch({
+			checkpointShell: { state: 'ready', checkpointCount: 3 },
+			checkpointView: 'timeline',
+			checkpointTimeline: [
+				node('cp-old-0001', '2026-09-24T10:00:00.000Z', { branchId: 'main' }),
+				node('cp-new-0003', '2026-09-26T10:00:00.000Z', { kind: 'auto', branchId: 'main', tags: ['release'], isIncremental: true, conversationContext: { role: 'user', messageContent: 'fix the bug' } }),
+				node('cp-mid-0002', '2026-09-26T08:00:00.000Z', { kind: 'merge' }),
+			],
+			checkpointTimelineBranches: [{ id: 'main', name: 'main', headCheckpointId: 'cp-new-0003', isActive: true }, { id: 'exp', name: 'experiment', headCheckpointId: 'cp-old-0001', isActive: false }],
+		});
+		const q = (selector: string) => widget.root.querySelector(selector);
+		assert.strictEqual(q('[data-testid="checkpoint-timeline-count"]')?.textContent, '3');
+		assert.ok(q('[data-testid="checkpoint-timeline-branch-toggle"]')?.textContent?.includes('main'));
+		assert.strictEqual(widget.root.querySelectorAll('[data-testid="checkpoint-timeline-date"]').length, 2);
+		const cards = [...widget.root.querySelectorAll('[data-testid="checkpoint-timeline-card"]')];
+		assert.ok(cards[0].textContent?.includes('desc cp-new-0003'), 'newest first');
+		assert.ok(cards[0].classList.contains('current'));
+		assert.ok(cards[0].querySelector('[data-testid="checkpoint-timeline-delta"]'));
+		assert.ok(cards[0].querySelector('[data-testid="checkpoint-timeline-branch-dot"]'));
+		assert.ok(cards[0].textContent?.includes('release'));
+
+		const chips = q('[data-testid="checkpoint-timeline-branches"]')!;
+		[...chips.querySelectorAll('button')].find(button => button.textContent?.includes('experiment'))!.click();
+		assert.ok(sent.some(message => message.type === 'switchCheckpointBranch' && (message.data as { branchId: string }).branchId === 'exp'));
+		(q('[data-testid="checkpoint-timeline-branch-toggle"]') as HTMLButtonElement).click();
+		assert.strictEqual(q('[data-testid="checkpoint-timeline-branches"]'), null);
+
+		widget.checkpointTimelineExpanded.add('cp-new-0003');
+		widget.render();
+		assert.ok(q('.knox-gui-timeline-message')?.textContent?.includes('fix the bug'));
+		(q('[data-testid="checkpoint-timeline-compare-button"]') as HTMLButtonElement).click();
+		assert.ok(q('[data-testid="checkpoint-timeline-compare"]')?.textContent?.includes('cp-new-0'));
+		assert.ok(q('.knox-gui-timeline-item.is-compare'));
+
+		(q('[data-testid="checkpoint-timeline-branch-button"]') as HTMLButtonElement).click();
+		const nameInput = q('#knox-checkpoint-branch-name') as HTMLInputElement;
+		nameInput.value = 'hotfix';
+		nameInput.dispatchEvent(new Event('input'));
+		(q('[data-testid="checkpoint-timeline-branch-create"]') as HTMLButtonElement).click();
+		assert.ok(sent.some(message => message.type === 'createCheckpointBranch' && (message.data as { name: string }).name === 'hotfix'));
+
+		(q('[data-testid="checkpoint-timeline-delete"]') as HTMLButtonElement).click();
+		assert.ok(q('[data-testid="checkpoint-timeline-delete-dialog"]'));
+		assert.ok(!sent.some(message => message.type === 'deleteCheckpoints'), 'delete waits for confirmation');
+		(q('[data-testid="checkpoint-timeline-delete-confirm"]') as HTMLButtonElement).click();
+		assert.ok(sent.some(message => message.type === 'deleteCheckpoints'));
+
+		widget.checkpointTimelineQuery = 'nothing-matches';
+		widget.render();
+		assert.ok(q('[data-testid="checkpoint-timeline-empty"]'));
+		assert.ok(checkpointTimelineEscape(widget, store.state));
+		assert.strictEqual(widget.checkpointTimelineQuery, '');
+		assert.strictEqual(store.state.checkpointComparePickId, undefined, 'Escape cancels compare');
+		window.dispatchEvent(new KeyboardEvent('keydown', { key: '/' }));
+		assert.strictEqual(document.activeElement, q('#knox-checkpoint-timeline-search'));
+	});
+
+	test('K-14 performance dashboard: loading and no-data, stat cards, storage tab, full activity list, top-5 AI sessions', async () => {
+		const { widget, store } = await mount();
+		store.navigate('/checkpoint-graph');
+		store.patch({ checkpointShell: { state: 'ready', checkpointCount: 1 }, checkpointView: 'dashboard', checkpointDashboardLoading: true });
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-dashboard-loading"]'));
+		store.patch({ checkpointDashboardLoading: false, checkpointDashboard: undefined });
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-dashboard-nodata"]'));
+
+		const session = (i: number) => ({ sessionId: `session-${i}-xyz`, startedAt: '2026-09-26T00:00:00.000Z', filesChanged: i, linesAdded: 3, linesDeleted: 1, checkpointsCreated: 1, rollbacks: i === 0 ? 2 : 0, durationSeconds: 90 });
+		store.patch({
+			checkpointDashboardTab: 'overview',
+			checkpointDashboard: {
+				currentStorage: { totalBytes: 1024 * 1024, checkpointCount: 3, blobCount: 7 },
+				storageHistory: [{ timestamp: '2026-09-26T00:00:00.000Z', totalBytes: 1024, checkpointCount: 1 }],
+				creationFrequency: [{ bucket: '2026-09-26', count: 2 }],
+				restorationEvents: Array.from({ length: 15 }, (_, i) => ({ timestamp: '2026-09-26T00:00:00.000Z', checkpointId: `checkpoint-${i}`, success: i !== 0, durationMs: 1500, filesRestored: 2, filesFailed: 0 })),
+				aiSessionMetrics: Array.from({ length: 7 }, (_, i) => session(i)),
+				summary: { totalCheckpointsCreated: 4, totalRestorations: 15, restorationSuccessRate: 80, avgCreationTimeMs: 12.4, totalAiSessions: 7, avgChangesPerSession: 2, totalRollbacks: 2 },
+			},
+		});
+		const root = () => widget.root.querySelector('[data-testid="knox-gui-checkpoint-dashboard"]')!;
+		assert.strictEqual(root().querySelectorAll('.knox-gui-dash-card-icon').length, 4);
+		assert.ok(root().textContent?.includes('12ms'));
+		assert.ok(root().textContent?.includes('1 MB'));
+		assert.ok(root().querySelector('.knox-gui-chart-grid'));
+		assert.ok(root().querySelector('.odp-chip')?.textContent?.includes('14'), 'creation chart pads to 14 days');
+
+		store.patch({ checkpointDashboardTab: 'storage' });
+		assert.ok(root().textContent?.includes('7 blobs'));
+		assert.ok(root().querySelector('.knox-gui-chart'));
+
+		store.patch({ checkpointDashboardTab: 'activity' });
+		assert.strictEqual(root().querySelectorAll('[data-testid="checkpoint-dashboard-restoration"]').length, 15);
+		assert.ok(root().querySelector('[data-testid="checkpoint-dashboard-rate"]')?.classList.contains('is-yellow'));
+		assert.ok(root().textContent?.includes('1.5s'));
+		assert.strictEqual(root().querySelector('.knox-gui-chart'), null, 'activity tab has no creation chart');
+
+		store.patch({ checkpointDashboardTab: 'ai' });
+		assert.strictEqual(root().querySelectorAll('[data-testid="checkpoint-dashboard-session"]').length, 5);
+		assert.ok(root().textContent?.includes('2.0'));
+		assert.ok(root().querySelector('.knox-gui-dash-session-stats .is-orange'));
+	});
+
+	test('K-15 share panel: loading, header and tab counts, bundle card, missing file, expandable audit rows', async () => {
+		const { widget, store } = await mount(message => message.messageType === 'getSharedCheckpointBundles' ? {
+			success: true,
+			bundles: [
+				{ id: 'b1', description: 'Release', sharedAt: '2026-09-26T00:00:00.000Z', checkpointCount: 3, filePath: '/tmp/b1.knoxbundle', machineId: 'abcdef123456', exists: true },
+				{ id: 'b2', description: '', sharedAt: '2026-09-25T00:00:00.000Z', checkpointCount: 1, filePath: '/tmp/b2.knoxbundle', machineId: 'unknown', exists: false },
+			],
+			auditRecords: [{ id: 'a1', timestamp: '2026-09-26T00:00:00.000Z', userId: 'u', machineId: 'm1', action: 'share', resourceType: 'bundle', resourceId: 'b1234567890', outcome: 'success', details: '{"n":3}' }],
+		} : undefined);
+		store.navigate('/checkpoint-graph');
+		store.patch({ checkpointShell: { state: 'ready', checkpointCount: 1 }, checkpointView: 'share', checkpointShareLoading: true });
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-share-loading"]'));
+		await widget.controller.loadShareBundles();
+		store.patch({ checkpointShareLoading: false });
+		assert.strictEqual(widget.root.querySelector('[data-testid="checkpoint-share-tab-shared"] .knox-gui-checkpoint-share-count')?.textContent, '2');
+		const bundles = widget.root.querySelectorAll('[data-testid="checkpoint-share-bundle"]');
+		assert.strictEqual(bundles.length, 2);
+		assert.ok(bundles[0].textContent?.includes('abcdef12'));
+		assert.ok(bundles[0].textContent?.includes('3 '));
+		assert.ok(bundles[1].querySelector('[data-testid="checkpoint-share-missing"]'));
+		assert.strictEqual(bundles[1].querySelectorAll('button').length, 0, 'missing bundles hide Import and Reveal');
+
+		store.patch({ checkpointShareTab: 'audit' });
+		const row = widget.root.querySelector('[data-testid="checkpoint-audit-row"] button') as HTMLButtonElement;
+		assert.ok(row.textContent?.includes('bundle/b1234567...'));
+		assert.ok(row.textContent?.includes('OK'));
+		assert.ok(row.querySelector('.knox-gui-checkpoint-audit-action.is-green'));
+		row.click();
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-audit-detail"] pre')?.textContent?.includes('"n":3'));
+	});
+
+	test('K-16 checkpoint config form: sections, help and inline errors, raw storage input, conditional rows, save flow', async () => {
+		let saved: unknown;
+		const { widget, store } = await mount(message => {
+			if (message.messageType === 'saveCheckpointConfig') {
+				saved = message.data;
+				return { success: true };
+			}
+			return undefined;
+		});
+		store.navigate('/checkpoint-graph');
+		const config = { ...DEFAULT_CHECKPOINT_CONFIG };
+		store.patch({ checkpointShell: { state: 'ready', checkpointCount: 1 }, checkpointView: 'configuration', checkpointConfig: config, checkpointConfigDraft: { ...config } });
+		const q = (selector: string) => widget.root.querySelector(selector);
+		assert.strictEqual(q('[data-testid="checkpoint-config-sections"]')?.querySelectorAll('.knox-gui-config-card').length, 4);
+		assert.strictEqual(q('[data-field="maxCheckpoints"] .knox-gui-checkpoint-config-help')?.textContent?.length !== 0, true);
+		assert.strictEqual(q('[data-testid="checkpoint-config-unsaved"]'), null);
+		assert.ok((q('[data-testid="checkpoint-config-save"]') as HTMLButtonElement).disabled);
+
+		store.patch({ checkpointConfigDraft: { ...config, autoCleanup: false } });
+		assert.strictEqual(q('[data-field="cleanupInterval"]'), null, 'cleanup interval only with auto-cleanup');
+		assert.ok(q('[data-testid="checkpoint-config-unsaved"]'));
+		store.patch({ checkpointConfigDraft: { ...config } });
+
+		const storage = () => q('#maxStorage') as HTMLInputElement;
+		storage().value = 'lots';
+		storage().dispatchEvent(new Event('input'));
+		assert.ok(q('[data-field="maxStorage"] [data-testid="checkpoint-config-error"]'));
+		assert.ok(q('[data-testid="checkpoint-config-unsaved"]'), 'an unparseable storage input is a change');
+		assert.ok((q('[data-testid="checkpoint-config-save"]') as HTMLButtonElement).disabled);
+		storage().value = '2048mb';
+		storage().dispatchEvent(new Event('input'));
+		assert.strictEqual(store.state.checkpointConfigDraft?.maxStorageBytes, 2048 * 1024 * 1024);
+		storage().dispatchEvent(new FocusEvent('blur'));
+		assert.strictEqual(storage().value, '2.0 GB', 'normalized on blur');
+
+		const maxCheckpoints = q('#maxCheckpoints') as HTMLInputElement;
+		maxCheckpoints.value = '0';
+		maxCheckpoints.dispatchEvent(new Event('input'));
+		assert.ok(q('[data-field="maxCheckpoints"] [data-testid="checkpoint-config-error"]'));
+		(q('#maxCheckpoints') as HTMLInputElement).value = '50';
+		q('#maxCheckpoints')!.dispatchEvent(new Event('input'));
+
+		(q('[data-testid="checkpoint-config-save"]') as HTMLButtonElement).click();
+		for (let i = 0; i < 5 && store.state.checkpointConfigStatus?.type !== 'success'; i++) {
+			await timeout(0);
+		}
+		assert.strictEqual((saved as { config: { maxCheckpoints: number } }).config.maxCheckpoints, 50);
+		assert.ok(q('[data-testid="checkpoint-config-status"]')?.classList.contains('is-success'));
+		assert.strictEqual(q('[data-testid="checkpoint-config-unsaved"]'), null);
+	});
+
+	test('M-04 / M-05 / M-06 graph and session states, settings validation, confirm, and result', async () => {
+		const sent: { type: string; data: unknown }[] = [];
+		const { widget, store } = await mount(message => {
+			sent.push({ type: message.messageType, data: message.data });
+			if (message.messageType === 'brain/updateConfig' || message.messageType === 'brain/heal') {
+				return { ok: true };
+			}
+			return undefined;
+		});
+		store.navigate('/memory');
+		await timeout(0);
+
+		store.patch({
+			memoryTab: 'sessions',
+			memorySessions: [{ id: 's1', title: 'Ship', messageCount: 1 }, { id: 's2', title: 'Other', messageCount: 1 }],
+			memorySessionQuery: 'ship',
+			memorySelectedSessionId: 's1',
+			memorySessionHistoryLoading: true,
+			memorySessionError: 'memorySessionHistoryLoadError',
+		});
+		assert.ok(widget.root.querySelector('[data-testid="memory-session-error"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-session-history-loading"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-session-count"]')?.textContent?.includes('1'));
+
+		const entity = (id: number, entityType: string) => ({ id, name: `E${id}`, entityType, mentionCount: 1 });
+		store.patch({
+			memoryTab: 'graph',
+			memoryGraphStats: { totalEntities: 3, totalEdges: 2, entityTypes: { concept: 2, file: 1 }, maxEntities: 5000, maxDepth: 3 },
+			memoryGraphEntities: [entity(1, 'concept')],
+			memoryExplore: {
+				centerId: 1,
+				entities: [entity(1, 'concept'), entity(2, 'file')],
+				edges: [{ id: 10, source: 1, target: 2, relationship: 'uses', weight: 1 }, { id: 11, source: 2, target: 9, relationship: 'calls', weight: 1 }],
+				entityDepths: { 1: 0, 2: 1 },
+			},
+			memoryGraphLoading: true,
+		});
+		const typeOptions = [...widget.root.querySelectorAll<HTMLOptionElement>('[data-testid="memory-graph-type"] option')].map(option => option.textContent);
+		assert.deepStrictEqual(typeOptions.slice(1), ['concept (2)', 'file (1)']);
+		assert.strictEqual(widget.root.querySelectorAll('[data-testid="memory-explore-edge"]').length, 1);
+		assert.ok(widget.root.querySelector('[data-testid="memory-graph-loading"]'));
+		store.patch({ memoryGraphLoading: false, memoryGraphError: 'boom' });
+		assert.ok(widget.root.querySelector('[data-testid="memory-graph-error"]')?.textContent?.includes('boom'));
+
+		store.patch({ memoryTab: 'settings', memoryConfig: {}, memoryConfigLoading: true });
+		assert.ok(widget.root.querySelector('[data-testid="memory-settings-loading"]'));
+		store.patch({ memoryConfigLoading: false, memoryConfig: { retrieval_top_k: 20, wm_inject_min_relevance: 0.35 } });
+		assert.strictEqual(widget.root.querySelector<HTMLInputElement>('[data-setting="wm_inject_min_relevance"] input')?.value, '35');
+		const topK = () => widget.root.querySelector<HTMLInputElement>('[data-setting="retrieval_top_k"] input')!;
+		sent.length = 0;
+		topK().value = '2';
+		topK().dispatchEvent(new FocusEvent('blur'));
+		assert.strictEqual(topK().value, '20', 'out-of-range input reverts');
+		assert.ok(!sent.some(message => message.type === 'brain/updateConfig'));
+		topK().value = '30';
+		topK().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+		assert.ok(sent.some(message => message.type === 'brain/updateConfig' && (message.data as { key?: string; value?: string }).value === '30'));
+		await timeout(0);
+		assert.ok(widget.root.querySelector('[data-setting="retrieval_top_k"] [data-testid="memory-setting-saved"]'));
+
+		(widget.root.querySelector('[data-testid="knox-gui-memory-purge"]') as HTMLButtonElement).click();
+		assert.ok(widget.root.querySelector('[data-testid="memory-settings-confirm"]'));
+		assert.ok(!sent.some(message => message.type === 'brain/heal'), 'purge waits for confirmation');
+		(widget.root.querySelector('[data-testid="memory-settings-confirm-run"]') as HTMLButtonElement).click();
+		assert.strictEqual(widget.root.querySelector('[data-testid="memory-settings-confirm"]'), null);
+		assert.ok(sent.some(message => message.type === 'brain/heal' && (message.data as { action?: string })?.action === 'prune_expired'));
+		for (let i = 0; i < 5 && !store.state.memorySettingsResult; i++) {
+			await timeout(0);
+		}
+		assert.ok(widget.root.querySelector('[data-testid="memory-settings-result"]')?.classList.contains('is-success'));
 	});
 
 	test('KN-376 Memory panel renders Overview, Memories, Sessions, Graph, and Settings', async () => {

@@ -6,9 +6,11 @@
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { LANGUAGE_KEY, asRecord, asArray, modelsFromUnknown } from './helpers.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsWebSearch, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort } from '../../../common/knoxGuiCapabilities.js';
+import { knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsWebSearch, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
 import { postSetAgentMode, syncAgentTabWithModel } from './models.js';
-import { agentProfileSharedConfig, formatPolicyLines, mergeReasoningEffortPrefs, parseYamlRules } from '../../../common/knoxGuiOverlays.js';
+import { draftSession, lastActiveSession, loadProfilePreferences } from './persistence.js';
+import { knoxGuiResolveProfileId, knoxGuiStartupSession } from '../../../common/knoxGuiPersist.js';
+import { agentProfileDefaults, agentProfileSharedConfig, formatPolicyLines, mergeReasoningEffortPrefs, parseYamlRules } from '../../../common/knoxGuiOverlays.js';
 import { KNOX_GUI_HEARTBEAT_MS, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { mergeContextProvidersWithDefaults, mergeSlashCommandsWithBuiltins } from '../../../common/knoxGuiInput.js';
 import { IKnoxGuiContextProvider, IKnoxGuiModel, IKnoxGuiSlashCommand, IKnoxGuiState, IKnoxGuiTool, KnoxGuiLanguage, KnoxModelRole, MODEL_ROLES, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
@@ -34,21 +36,21 @@ export async function setup(controller: KnoxGuiController): Promise<void> {
 			}
 			controller.startHeartbeat();
 		} else {
-			const sessions = await controller.messenger.request<Array<Record<string, unknown>>>('history/list', {});
-			if (Array.isArray(sessions)) {
-				controller.store.patch({
-					historySessions: sessions.map(session => ({
-						id: String(session.id ?? session.sessionId ?? ''),
-						title: String(session.title ?? 'Session'),
-						date: String(session.date ?? session.dateCreated ?? session.timestamp ?? ''),
-						workspaceDirectory: session.workspaceDirectory ? String(session.workspaceDirectory): undefined,
-					})),
-				});
-				const last = sessions[0];
-				const lastId = last?.id ?? last?.sessionId;
-				if (lastId) {
-					await controller.loadSession(String(lastId));
+			await controller.resolveWorkspaceDirectory();
+			await controller.refreshHistorySessions();
+			const startupId = knoxGuiStartupSession({
+				workspace: controller.workspaceDirectory,
+				lastActive: lastActiveSession(controller),
+				sessions: controller.store.state.historySessions,
+			});
+			if (startupId) {
+				const overlay = controller.store.state.overlay;
+				await controller.loadSession(startupId);
+				const draft = draftSession(controller);
+				if (draft?.history.length && draft.sessionId === controller.store.state.sessionId) {
+					controller.store.patch({ history: draft.history, sessionTitle: draft.title || controller.store.state.sessionTitle });
 				}
+				controller.store.patch({ overlay });
 			}
 			controller.messenger.post('setGuiLanguage', { language: controller.store.state.language });
 			controller.syncActiveSession();
@@ -76,6 +78,7 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 	}
 	const ui = asRecord(config.ui);
 	const experimental = asRecord(config.experimental);
+	const profileDefaults = agentProfileDefaults(String(experimental?.agentProfileSetting ?? experimental?.agentProfile ?? 'default'));
 	const models = modelsFromUnknown(config.models);
 	const modelsByRoleRaw = asRecord(config.modelsByRole);
 	const selectedRaw = asRecord(config.selectedModelByRole);
@@ -147,6 +150,7 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 			description: rec.description ? String(rec.description): undefined,
 			type,
 			renderInlineAs: rec.renderInlineAs ? String(rec.renderInlineAs): undefined,
+			category: rec.category ? String(rec.category): undefined,
 		};
 	}).filter(p => p.title);
 	const defaultContext = asArray(experimental?.defaultContext).map(item => {
@@ -183,20 +187,21 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 		yamlRules: Array.isArray(top?.yamlRules) ? top.yamlRules : controller.store.state.yamlRules,
 		showSessionTabs: Boolean(ui?.showSessionTabs),
 		fontSize: typeof ui?.fontSize === 'number' ? ui.fontSize : controller.store.state.fontSize,
-		codeWrap: ui?.codeBlockWrap === false || ui?.codeWrap === false ? false : true,
+		codeWrap: ui?.codeWrap === true || ui?.codeBlockWrap === true,
 		codeBlockToolbarPosition: ui?.codeBlockToolbarPosition === 'bottom' ? 'bottom' : 'top',
 		showChatScrollbar: Boolean(ui?.showChatScrollbar),
 		autoNameSessionTitles: config.disableSessionTitles === true || ui?.autoNameSession === false ? false : true,
 		markdownFormatting: ui?.displayRawMarkdown === true || ui?.markdownFormatting === false ? false : true,
 		agentProfile: String(experimental?.agentProfileSetting ?? experimental?.agentProfile ?? controller.store.state.agentProfile),
-		agentMaxSteps: typeof experimental?.agentMaxSteps === 'number' ? experimental.agentMaxSteps : controller.store.state.agentMaxSteps,
-		agentDoomLoopThreshold: typeof experimental?.agentDoomLoopThreshold === 'number' ? experimental.agentDoomLoopThreshold : controller.store.state.agentDoomLoopThreshold,
+		agentMaxSteps: typeof experimental?.agentMaxSteps === 'number' ? experimental.agentMaxSteps : profileDefaults.maxSteps,
+		agentDoomLoopThreshold: typeof experimental?.agentDoomLoopThreshold === 'number' ? experimental.agentDoomLoopThreshold : profileDefaults.doomLoopThreshold,
 		agentViewSubdirectoryMaxFiles: typeof experimental?.agentViewSubdirectoryMaxFiles === 'number' ? experimental.agentViewSubdirectoryMaxFiles : controller.store.state.agentViewSubdirectoryMaxFiles,
 		jevEnabled: asRecord(experimental?.jev)?.enabled === true || experimental?.jevEnabled === true,
 		promptPath: typeof experimental?.promptPath === 'string' ? experimental.promptPath : controller.store.state.promptPath,
 		webSearchSupported: knoxGuiModelSupportsWebSearch(selectedModel),
 		imagesSupported: knoxGuiModelSupportsImages(selectedModel),
 		toolsSupported: selectedModel ? knoxGuiModelSupportsTools(selectedModel): controller.store.state.toolsSupported,
+		thinkingPlaceholder: knoxGuiShowsThinkingPlaceholder(selectedModel),
 		reasoningEffort: resolvedEffort ?? controller.store.state.reasoningEffort,
 		reasoningEfforts: effortConfig?.allowed ?? [],
 		policy: {
@@ -210,25 +215,47 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 		configError: errors,
 		fatalConfig: errors.some(error => error.fatal),
 	});
+	if (top && 'profileId' in top) {
+		selectProfile(controller, top.profileId ? String(top.profileId) : null);
+	}
 	syncAgentTabWithModel(controller);
 }
 
 export function applyProfiles(controller: KnoxGuiController, payload: Record<string, unknown> | undefined): void {
 	const rec = asRecord(payload) ?? {};
 	const profiles = asArray(rec.profiles).map(asRecord).filter((profile): profile is Record<string, unknown> => Boolean(profile));
-	const selectedId = rec.selectedProfileId != null && rec.selectedProfileId !== ''
-		? String(rec.selectedProfileId)
-		: controller.store.state.profileId;
-	const selected = profiles.find(profile => String(profile.id ?? '') === selectedId) ?? profiles[0];
+	controller.availableProfiles = profiles;
+	const requested = rec.selectedProfileId != null && rec.selectedProfileId !== '' ? String(rec.selectedProfileId) : null;
+	selectProfile(controller, requested);
+}
+
+/**
+ * `profiles/thunks.ts` selectProfileThunk: an unknown or empty id falls back
+ * to the first profile; a change is reported with `didChangeSelectedProfile`.
+ * Before the profile list has loaded nothing happens.
+ */
+export function selectProfile(controller: KnoxGuiController, id: string | null): void {
+	const profiles = controller.availableProfiles;
+	if (!profiles) {
+		return;
+	}
+	const newId = knoxGuiResolveProfileId(profiles.map(profile => String(profile.id ?? '')), id);
+	const selected = profiles.find(profile => String(profile.id ?? '') === newId);
 	const rawYaml = selected && typeof selected.rawYaml === 'string' ? selected.rawYaml : undefined;
 	const profileType = selected && typeof selected.profileType === 'string'
 		? String(selected.profileType)
-		: (selectedId ? 'local' : undefined);
+		: (newId ? 'local' : undefined);
+	const changed = (newId ?? null) !== (controller.store.state.profileId ?? null);
+	const prefs = changed && newId ? loadProfilePreferences(controller, newId) : undefined;
 	controller.store.patch({
-		profileId: selectedId ?? controller.store.state.profileId,
+		profileId: newId ?? undefined,
 		profileType,
 		yamlRules: parseYamlRules(rawYaml),
+		...(prefs ? { bookmarkedSlash: prefs.bookmarkedSlashCommands, recentSlash: prefs.recentSlashCommands } : {}),
 	});
+	if (changed) {
+		controller.messenger.post('didChangeSelectedProfile', { id: newId });
+	}
 }
 
 export function startHeartbeat(controller: KnoxGuiController): void {

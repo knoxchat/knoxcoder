@@ -41,7 +41,6 @@ import {
 	activityKindLabelKey,
 	buildAgentActivitySteps,
 	collectTurnPromptLogs,
-	countTurnToolSteps,
 	currentActivityStep,
 	estimateTokensFromPromptLogs,
 	estimateTurnOutputTokens,
@@ -66,7 +65,7 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	const steps = buildAgentActivitySteps(state.history, userIndex, { inProgress: state.isStreaming });
 	const live = state.isStreaming || hasForegroundCallingToolCalls(state.history);
 	const autonomousActive = state.autonomous != null && state.autonomous.status !== 'idle';
-	const used = state.toolLoopSteps || countTurnToolSteps(state.history, userIndex);
+	const used = state.toolLoopSteps;
 	if (userIndex < 0 && !state.isStreaming && !autonomousActive) {
 		widget.clearMeterClock();
 		return;
@@ -198,10 +197,10 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	syncMeterClock(widget, live, generating, outputTokens, turnKey, state);
 }
 
-function renderLoadingState(
+export function renderLoadingState(
 	widget: KnoxGuiWidget,
 	parent: HTMLElement,
-	options: { label: string; variant: 'drive' | 'dots' | 'orbit'; startedAt?: number; testId: string },
+	options: { label: string; variant: 'drive' | 'dots' | 'orbit'; startedAt?: number; testId: string; ownClock?: boolean },
 ): void {
 	const loading = DOM.append(parent, DOM.$('span.knox-gui-loading-state'));
 	loading.setAttribute('role', 'status');
@@ -222,9 +221,17 @@ function renderLoadingState(
 	DOM.append(loading, DOM.$('span.knox-gui-loading-label', undefined, options.label));
 	const elapsed = DOM.append(loading, DOM.$('span.knox-gui-loading-elapsed'));
 	const origin = options.startedAt ?? Date.now();
-	elapsed.textContent = formatLoadingElapsed(Math.max(0, (Date.now() - origin) / 1000));
+	const tick = () => {
+		elapsed.textContent = formatLoadingElapsed(Math.max(0, (Date.now() - origin) / 1000));
+		loading.setAttribute('aria-label', `${options.label} ${elapsed.textContent}`);
+	};
+	tick();
+	if (options.ownClock) {
+		const timer = setInterval(tick, 100);
+		widget.renderStore.add({ dispose: () => clearInterval(timer) });
+		return;
+	}
 	widget.meterElapsedEl = elapsed;
-	loading.setAttribute('aria-label', `${options.label} ${elapsed.textContent}`);
 }
 
 function bindMeterStickToBottom(widget: KnoxGuiWidget, scroll: HTMLElement, live: boolean, _fingerprint: string): void {

@@ -6,6 +6,10 @@
 import type { KnoxGuiWidget } from '../knoxGuiWidget.js';
 import { t } from './t.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import { safeSetInnerHtml } from '../../../../../../base/browser/domSanitize.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { getIconClasses } from '../../../../../../editor/common/services/getIconClasses.js';
+import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { appendKnoxGuiSvg, setKnoxGuiInnerHtml } from '../knoxGuiIcons.js';
 import { toolDisplayKind } from '../../../common/knoxGuiChat.js';
 import {
@@ -30,7 +34,7 @@ import {
 	luminanceIsLight,
 	parseAnsiSpans,
 	parseSearchResults,
-	renderToolTemplate,
+	renderToolTemplateHtml,
 	repoMapOutput,
 	repoMapToTreeColorized,
 	searchOutput,
@@ -107,19 +111,19 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 		fav.alt = t(state, 'toolIcon');
 	}
 	const status = DOM.append(left, DOM.$('div.knox-gui-tool-status-text'));
-	if (!catalog) {
+	if (!catalog && !tool.name) {
 		status.append(t(state, 'agentToolUsage'));
 	} else {
 		const introKey = toolStatusIntroKey(tool.status);
 		const fallbackKey = toolStatusFallbackKey(tool.status);
-		const formatted = formatToolName(tool.name, catalog.displayTitle);
+		const formatted = formatToolName(tool.name, catalog?.displayTitle);
 		let message = '';
-		if (tool.status === 'calling' && catalog.isCurrently) {
-			message = renderToolTemplate(catalog.isCurrently, displayArgs);
-		} else if (tool.status === 'done' && catalog.hasAlready) {
-			message = renderToolTemplate(catalog.hasAlready, displayArgs);
-		} else if (catalog.wouldLikeTo && tool.status !== 'done') {
-			message = renderToolTemplate(catalog.wouldLikeTo, displayArgs);
+		if (tool.status === 'calling' && catalog?.isCurrently) {
+			message = renderToolTemplateHtml(catalog.isCurrently, displayArgs);
+		} else if (tool.status === 'done' && catalog?.hasAlready) {
+			message = renderToolTemplateHtml(catalog.hasAlready, displayArgs);
+		} else if (catalog?.wouldLikeTo && tool.status !== 'done') {
+			message = renderToolTemplateHtml(catalog.wouldLikeTo, displayArgs);
 		}
 		const copy = DOM.append(status, DOM.$('div.knox-gui-tool-status-copy'));
 		copy.append(`${t(state, 'knox')} `);
@@ -127,7 +131,7 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 			copy.append(`${t(state, introKey)} `);
 		}
 		if (message) {
-			copy.append(message);
+			safeSetInnerHtml(DOM.append(copy, DOM.$('span.knox-gui-tool-template')), message);
 		} else {
 			copy.append(`${t(state, fallbackKey)} `);
 			const code = DOM.append(copy, DOM.$('code', undefined, formatted));
@@ -352,7 +356,7 @@ export function renderTerminalTool(widget: KnoxGuiWidget, parent: HTMLElement, s
 		appendTerminalCopyAction(widget, right, state, {
 			testId: 'xterm-copy-output',
 			copyKey: `out:${tool.id}`,
-			text: raw,
+			text: tool.output || raw,
 			idleLabel: t(state, 'copy'),
 			idleTitle: t(state, 'copyOutput'),
 			showLabel: true,
@@ -477,62 +481,25 @@ export function renderCreateFileTool(widget: KnoxGuiWidget, parent: HTMLElement,
 
 export function renderGenericCodeTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {
 	const extracted = extractStreamingToolCode({ parsedArgs: tool.parsedArgs, rawArguments: tool.arguments });
-	if (!extracted.started && !extracted.codeContent && !extracted.filepath) {
-		if (tool.output) {
-			DOM.append(parent, DOM.$('pre.knox-gui-tool-output', undefined, tool.output));
-		}
+	const streaming = tool.status === 'generating' || tool.status === 'calling';
+	if ((!extracted.started && !extracted.codeContent && !extracted.filepath) || (!extracted.codeContent && !extracted.filepath && !streaming)) {
 		return;
 	}
 	const collapsePreview = collapseFileToolCodePreview(tool.name);
 	const language = displayLanguageForFile(extracted.filepath, extracted.contentKey);
 	const label = extracted.filepath || (extracted.contentKey === 'patch' || extracted.contentKey === 'diff' ? 'patch' : '');
 	widget.renderToolCodePreview(parent, state, tool, label, extracted.codeContent, language, collapsePreview);
-	if (tool.output && tool.status !== 'generating') {
-		DOM.append(parent, DOM.$('pre.knox-gui-tool-output', undefined, tool.output));
-	}
 }
 
+/** `GenericCodePreview` / `CreateFile`: the tool code is a step-container fence with the same toolbars as a reply. */
 export function renderToolCodePreview(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall, filepath: string, code: string, language: string, collapsedByDefault: boolean): void {
-	const streamId = `tool:${tool.id}:code`;
-	const collapsed = widget.fenceCollapsed.has(streamId) || (collapsedByDefault && !widget.toolCardExpanded.has(streamId));
-	const box = DOM.append(parent, DOM.$('.knox-gui-code-block'));
-	const head = DOM.append(box, DOM.$('.knox-gui-code-toolbar'));
-	widget.collapseChevron(head, {
-		expanded: !collapsed,
-		title: collapsed ? t(state, 'expand') : t(state, 'collapse'),
-		onClick: () => {
-			if (widget.fenceCollapsed.has(streamId)) {
-				widget.fenceCollapsed.delete(streamId);
-			} else {
-				widget.fenceCollapsed.add(streamId);
-			}
-			if (collapsedByDefault) {
-				if (widget.toolCardExpanded.has(streamId)) {
-					widget.toolCardExpanded.delete(streamId);
-				} else {
-					widget.toolCardExpanded.add(streamId);
-				}
-			}
-			widget.render();
-		},
+	widget.renderCodeFenceBlock(parent, state, {
+		streamId: `tool:${tool.id}:code`,
+		fence: { language, filepath: filepath || undefined, code },
+		generating: tool.status === 'generating' || tool.status === 'calling',
+		anchor: collapsedByDefault ? 'start' : 'end',
+		expanded: collapsedByDefault ? false : undefined,
 	});
-	if (filepath) {
-		widget.renderClickablePath(head, filepath);
-	} else if (language) {
-		DOM.append(head, DOM.$('span.knox-gui-muted', undefined, language));
-	}
-	if (tool.status === 'generating' || tool.status === 'calling') {
-		DOM.append(head, DOM.$('span.knox-gui-muted', undefined, t(state, 'generating')));
-	} else {
-		widget.chromeButton(head, { svg: 'copy', svgSize: 14, title: t(state, 'copyText'), onClick: () => widget.controller.copyText(code) });
-	}
-	if (!collapsed) {
-		const pre = DOM.append(box, DOM.$('div.knox-gui-code-pre')) as HTMLElement;
-		if (state.codeWrap) {
-			pre.classList.add('wrap');
-		}
-		widget.paintHighlightedCode(pre, language, code, filepath);
-	}
 }
 
 export function renderSubdirectoryTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {
@@ -915,13 +882,28 @@ export function renderAskUser(widget: KnoxGuiWidget, parent: HTMLElement, state:
 	}
 }
 
+/** `FileIcon.tsx`: icon from the active file icon theme, by file name and language. */
+export function appendFileIcon(widget: KnoxGuiWidget, parent: HTMLElement, filepath: string, size = 16): HTMLElement {
+	const icon = DOM.append(parent, DOM.$('span.knox-gui-file-icon'));
+	icon.style.width = `${size}px`;
+	icon.style.height = `${size}px`;
+	icon.setAttribute('aria-hidden', 'true');
+	try {
+		const resource = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(filepath) ? URI.parse(filepath) : URI.file(filepath);
+		icon.classList.add(...getIconClasses(widget.modelService, widget.languageService, resource, FileKind.FILE));
+	} catch {
+		icon.classList.add('file-icon');
+	}
+	return icon;
+}
+
 export function renderClickablePath(widget: KnoxGuiWidget, parent: HTMLElement, filepath: string, options?: { range?: string; startLine?: number; endLine?: number; showIcon?: boolean }): void {
 	const btn = DOM.append(parent, DOM.$('button.knox-gui-code-file')) as HTMLButtonElement;
 	btn.type = 'button';
 	btn.setAttribute('data-testid', 'clickable-file-path');
 	widget.hover(btn, filepath);
 	if (options?.showIcon) {
-		appendKnoxGuiSvg(btn, 'file', 16);
+		appendFileIcon(widget, btn, filepath);
 	}
 	const { dir, name } = splitDisplayPath(filepath);
 	if (dir) {
@@ -934,7 +916,7 @@ export function renderClickablePath(widget: KnoxGuiWidget, parent: HTMLElement, 
 	const parsed = parseCodeFenceRange(options?.range);
 	const startLine = options?.startLine ?? parsed?.startLine;
 	const endLine = options?.endLine ?? parsed?.endLine;
-	widget.renderStore.add(DOM.addDisposableListener(btn, 'click', () => widget.controller.showFile(filepath, { startLine, endLine })));
+	widget.listenerStore.add(DOM.addDisposableListener(btn, 'click', () => widget.controller.showFile(filepath, { startLine, endLine })));
 }
 
 export function appendAnsi(widget: KnoxGuiWidget, parent: HTMLElement, text: string, palette: typeof DARK_TERMINAL_PALETTE): void {

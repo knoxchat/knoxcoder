@@ -1,0 +1,1778 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* checkpoint cards, details, diffs, and charts */
+
+.knox-gui-restore-chip.is-yellow {
+	border-color: color-mix(in srgb, #eab308 45%, transparent);
+	color: #ca8a04;
+	background: color-mix(in srgb, #eab308 12%, transparent);
+}
+
+.knox-gui-restore-chip.is-green {
+	border-color: color-mix(in srgb, #22c55e 45%, transparent);
+	color: #16a34a;
+	background: color-mix(in srgb, #22c55e 12%, transparent);
+}
+
+.knox-gui-restore-chip.is-red {
+	border-color: color-mix(in srgb, #ef4444 45%, transparent);
+	color: #dc2626;
+	background: color-mix(in srgb, #ef4444 12%, transparent);
+}
+
+.knox-gui-number-field {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.knox-gui-field-suffix {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-gui-hidden-file {
+	display: none;
+}
+
+button.knox-gui-section-title {
+	width: 100%;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0 0 12px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+button.knox-gui-section-title .knox-gui-svg:last-child {
+	margin-left: auto;
+}
+
+.knox-gui-lump-shell {
+	background: var(--vscode-input-background);
+	margin: 0 2px;
+}
+
+.knox-gui-lump-shell .knox-gui-overlay {
+	padding: 4px 8px 8px;
+}
+
+.knox-gui-model-dims {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.35));
+}
+
+.knox-gui-model-dim-row,
+.knox-gui-model-dim-options {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.knox-gui-dim-option,
+.knox-gui-provider-chip {
+	padding: 2px 6px;
+	border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.45));
+	border-radius: 0;
+	font-size: 11px;
+}
+
+.knox-gui-dim-option.selected,
+.knox-gui-provider-chip.selected {
+	background: #1dae55aa;
+	color: #fff;
+	border-color: #1dae55;
+}
+
+.knox-gui-settings-section {
+	margin: 10px 0 4px;
+	font-size: 11px;
+	font-weight: 600;
+	opacity: 0.7;
+}
+
+.knox-gui-add-model-subtext {
+	display: block;
+	margin: 0;
+	font-size: 12px;
+	color: #6e6e77;
+	text-align: center;
+}
+
+.knox-gui-link {
+	display: inline;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.knox-gui {
+	--odp-fg: #abb2bf;
+	--odp-comment: #5c6370;
+	--odp-red: #e06c75;
+	--odp-green: #98c379;
+	--odp-yellow: #e5c07b;
+	--odp-blue: #61afef;
+	--odp-purple: #c678dd;
+	--odp-cyan: #56b6c2;
+	--odp-orange: #d19a66;
+}
+
+.vscode-light .knox-gui,
+.vscode-high-contrast-light .knox-gui {
+	--odp-fg: #383a42;
+	--odp-comment: #a0a1a7;
+	--odp-red: #e45649;
+	--odp-green: #50a14f;
+	--odp-yellow: #c18401;
+	--odp-blue: #4078f2;
+	--odp-purple: #a626a4;
+	--odp-cyan: #0184bc;
+	--odp-orange: #986801;
+}
+
+.odp-text-yellow { color: var(--odp-yellow); }
+.odp-text-green { color: var(--odp-green); }
+.odp-text-red { color: var(--odp-red, #e45649); }
+
+.knox-gui-link-button.knox-gui-chrome-button,
+.knox-gui-link-button {
+	border: 0;
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: underline;
+}
+
+.odp-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	border-radius: 0.25rem;
+	border: 1px solid color-mix(in srgb, var(--odp-comment) 35%, transparent);
+	background: color-mix(in srgb, var(--odp-fg) 6%, transparent);
+	color: var(--odp-fg);
+	padding: 0.125rem 0.375rem;
+	font-size: 10px;
+	font-weight: 500;
+	line-height: 1.25;
+}
+
+.odp-chip-green {
+	color: var(--odp-green);
+	background: color-mix(in srgb, var(--odp-green) 14%, transparent);
+	border-color: color-mix(in srgb, var(--odp-green) 32%, transparent);
+}
+.odp-chip-yellow {
+	color: var(--odp-yellow);
+	background: color-mix(in srgb, var(--odp-yellow) 14%, transparent);
+	border-color: color-mix(in srgb, var(--odp-yellow) 32%, transparent);
+}
+.odp-chip-orange {
+	color: var(--odp-orange);
+	background: color-mix(in srgb, var(--odp-orange) 14%, transparent);
+	border-color: color-mix(in srgb, var(--odp-orange) 32%, transparent);
+}
+.odp-chip-red {
+	color: var(--odp-red);
+	background: color-mix(in srgb, var(--odp-red) 14%, transparent);
+	border-color: color-mix(in srgb, var(--odp-red) 32%, transparent);
+}
+.odp-chip-blue {
+	color: var(--odp-blue);
+	background: color-mix(in srgb, var(--odp-blue) 14%, transparent);
+	border-color: color-mix(in srgb, var(--odp-blue) 32%, transparent);
+}
+.odp-chip-purple {
+	color: var(--odp-purple);
+	background: color-mix(in srgb, var(--odp-purple) 14%, transparent);
+	border-color: color-mix(in srgb, var(--odp-purple) 32%, transparent);
+}
+.odp-chip-muted {
+	color: var(--odp-comment);
+	background: color-mix(in srgb, var(--odp-comment) 12%, transparent);
+	border-color: color-mix(in srgb, var(--odp-comment) 28%, transparent);
+}
+
+.odp-callout {
+	border-radius: 0.375rem;
+	border: 1px solid color-mix(in srgb, var(--odp-comment) 30%, transparent);
+	background: color-mix(in srgb, var(--odp-fg) 5%, transparent);
+	padding: 0.5rem 0.625rem;
+	font-size: 11px;
+}
+.odp-callout-blue {
+	color: var(--odp-blue);
+	background: color-mix(in srgb, var(--odp-blue) 10%, transparent);
+	border-color: color-mix(in srgb, var(--odp-blue) 28%, transparent);
+}
+.odp-callout-purple {
+	color: var(--odp-purple);
+	background: color-mix(in srgb, var(--odp-purple) 10%, transparent);
+	border-color: color-mix(in srgb, var(--odp-purple) 28%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+ * Checkpoint analysis / share / configuration / dashboard tabs (reference parity)
+ * ------------------------------------------------------------------------- */
+
+.odp-text-comment { color: var(--odp-comment); }
+.odp-text-orange { color: var(--odp-orange); }
+.odp-text-blue { color: var(--odp-blue); }
+
+.odp-chip-cyan {
+	color: var(--odp-cyan);
+	background: color-mix(in srgb, var(--odp-cyan) 14%, transparent);
+	border-color: color-mix(in srgb, var(--odp-cyan) 32%, transparent);
+}
+
+.knox-gui-cp-view {
+	--knox-cp-primary: #159994;
+	--knox-cp-accent: rgba(21, 153, 148, 0.2);
+	--knox-cp-fg: var(--vscode-editor-foreground, #d4d4d4);
+	--knox-cp-bg: var(--vscode-editor-background, #1e1e1e);
+	--knox-cp-muted-fg: var(--vscode-descriptionForeground, #9d9d9d);
+	--knox-cp-border: var(--vscode-panel-border, #3c3c3c);
+	--knox-cp-input: var(--vscode-input-background, #3c3c3c);
+	--knox-cp-card: var(--vscode-sideBar-background, #252526);
+	--knox-cp-card-fg: var(--vscode-sideBar-foreground, #cccccc);
+	--knox-cp-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+	--knox-cp-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+	--knox-cp-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.vscode-light .knox-gui-cp-view,
+.vscode-high-contrast-light .knox-gui-cp-view {
+	--knox-cp-primary: #0f7a76;
+	--knox-cp-accent: rgba(15, 122, 118, 0.14);
+}
+
+.knox-gui-checkpoint-panel.knox-gui-cp-view {
+	overflow-x: hidden;
+	overflow-y: auto;
+	color: var(--knox-cp-fg);
+	line-height: 1.3;
+}
+
+.knox-gui-checkpoint-panel.knox-gui-cp-view.is-fill {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.knox-gui-cp-view .knox-gui-svg {
+	color: inherit;
+}
+
+.knox-gui-cp-view .knox-gui-cp-cyan {
+	color: #159994;
+}
+
+.knox-gui-cp-view .knox-gui-svg.odp-text-green { color: var(--odp-green); }
+.knox-gui-cp-view .knox-gui-svg.odp-text-red { color: var(--odp-red, #e45649); }
+.knox-gui-cp-view .knox-gui-svg.odp-text-yellow { color: var(--odp-yellow); }
+
+.knox-gui-cp-muted {
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-cp-faint {
+	color: color-mix(in srgb, var(--knox-cp-muted-fg) 75%, transparent);
+}
+
+.knox-gui-cp-mono {
+	font-family: var(--knox-cp-mono);
+	font-size: 12px;
+	line-height: 16px;
+}
+
+.knox-gui-cp-truncate {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+@keyframes knox-gui-cp-spin {
+	to { transform: rotate(360deg); }
+}
+
+@keyframes knox-gui-cp-pulse {
+	50% { opacity: 0.5; }
+}
+
+.knox-gui-cp-spin {
+	animation: knox-gui-cp-spin 1s linear infinite;
+}
+
+.knox-gui-cp-spinner {
+	display: block;
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	box-sizing: border-box;
+	border: 2px solid currentColor;
+	border-top-color: transparent;
+	border-radius: 50%;
+	animation: knox-gui-cp-spin 1s linear infinite;
+}
+
+.knox-gui-cp-card {
+	box-sizing: border-box;
+	min-width: 0;
+	border: 1px solid var(--knox-cp-border);
+	border-radius: 8px;
+	background: var(--knox-cp-card);
+	color: var(--knox-cp-card-fg);
+}
+
+/* buttons */
+
+.knox-gui-cp-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	height: 36px;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 8px 16px;
+	border: 0;
+	border-radius: 8px;
+	font: inherit;
+	font-size: 12px;
+	line-height: 16px;
+	font-weight: 500;
+	white-space: nowrap;
+	cursor: default;
+	transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.knox-gui-cp-btn > .knox-gui-svg {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	pointer-events: none;
+}
+
+.knox-gui-cp-btn:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 1px var(--knox-cp-primary);
+}
+
+.knox-gui-cp-btn:disabled {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+.knox-gui-cp-btn.is-default {
+	background: var(--knox-cp-primary);
+	color: #ffffff;
+	box-shadow: var(--knox-cp-shadow);
+}
+
+.knox-gui-cp-btn.is-default:hover {
+	background: color-mix(in srgb, var(--knox-cp-primary) 90%, transparent);
+}
+
+.knox-gui-cp-btn.is-outline {
+	border: 1px solid var(--knox-cp-input);
+	background: var(--knox-cp-bg);
+	color: inherit;
+	box-shadow: var(--knox-cp-shadow-sm);
+}
+
+.knox-gui-cp-btn.is-outline:hover {
+	background: var(--knox-cp-accent);
+	color: var(--knox-cp-primary);
+}
+
+.knox-gui-cp-btn.is-sm {
+	height: 28px;
+	padding: 0 8px;
+}
+
+.knox-gui-config-actions .knox-gui-cp-btn {
+	height: 32px;
+	gap: 6px;
+	padding: 8px;
+}
+
+.knox-gui-checkpoint-bundle-actions .knox-gui-cp-btn {
+	gap: 4px;
+}
+
+/* badges */
+
+.knox-gui-cp-badge {
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+	border: 1px solid transparent;
+	border-radius: 8px;
+	padding: 2px 10px;
+	font-size: 12px;
+	line-height: 16px;
+	font-weight: 600;
+	transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.knox-gui-cp-badge.is-default {
+	background: var(--knox-cp-primary);
+	color: #ffffff;
+	box-shadow: var(--knox-cp-shadow);
+}
+
+.knox-gui-cp-badge.is-default:hover {
+	background: color-mix(in srgb, var(--knox-cp-primary) 80%, transparent);
+}
+
+.knox-gui-cp-badge.is-secondary {
+	background: var(--vscode-button-secondaryBackground, #3a3d41);
+	color: var(--vscode-button-secondaryForeground, #cccccc);
+}
+
+.knox-gui-cp-badge.is-secondary:hover {
+	background: color-mix(in srgb, var(--vscode-button-secondaryBackground, #3a3d41) 80%, transparent);
+}
+
+.knox-gui-cp-badge.is-destructive {
+	background: var(--vscode-errorForeground, #f14c4c);
+	color: #ffffff;
+	box-shadow: var(--knox-cp-shadow);
+}
+
+.knox-gui-cp-badge.is-destructive:hover {
+	background: color-mix(in srgb, var(--vscode-errorForeground, #f14c4c) 80%, transparent);
+}
+
+.knox-gui-cp-badge.knox-gui-cp-unsaved {
+	flex-shrink: 0;
+	border-color: color-mix(in srgb, #ffc700 40%, transparent);
+	background: color-mix(in srgb, #ffc700 10%, transparent);
+	color: #ffc700;
+	font-size: 11px;
+	line-height: 1.3;
+}
+
+.knox-gui-cp-badge.knox-gui-checkpoint-share-count {
+	height: 16px;
+	margin-left: 2px;
+	padding: 2px 4px;
+	font-size: 10px;
+	line-height: inherit;
+}
+
+.knox-gui-cp-badge.is-tiny {
+	font-size: 10px;
+	line-height: inherit;
+}
+
+/* tabs */
+
+.knox-gui-cp-tabs {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	align-items: center;
+	flex-shrink: 0;
+	gap: 2px;
+	height: 32px;
+	box-sizing: border-box;
+	padding: 2px;
+	border-radius: 8px;
+	background: var(--knox-cp-input);
+	color: var(--knox-cp-muted-fg);
+}
+
+@container knox-checkpoint (min-width: 420px) {
+	.knox-gui-cp-tabs.knox-gui-dash-tabs {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+}
+
+.knox-gui-cp-tab {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	height: 28px;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 4px 8px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-size: 12px;
+	line-height: 16px;
+	font-weight: 500;
+	white-space: nowrap;
+	cursor: default;
+	transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.knox-gui-cp-tab > .knox-gui-svg {
+	flex-shrink: 0;
+}
+
+.knox-gui-cp-tab:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--knox-cp-bg), 0 0 0 4px var(--knox-cp-primary);
+}
+
+.knox-gui-cp-tab.is-active {
+	background: var(--knox-cp-bg);
+	color: var(--knox-cp-fg);
+	box-shadow: var(--knox-cp-shadow);
+}
+
+.knox-gui-checkpoint-share-tabs .knox-gui-cp-tab {
+	gap: 4px;
+}
+
+/* shared layout */
+
+.knox-gui-cp-loading {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 24px 0;
+	font-size: 14px;
+	line-height: 20px;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-cp-dash-loading {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px 0;
+}
+
+.knox-gui-cp-dash-loading > .knox-gui-cp-loading {
+	padding: 0;
+}
+
+.knox-gui-cp-skeleton {
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--knox-cp-primary) 10%, transparent);
+	animation: knox-gui-cp-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.knox-gui-cp-skeleton.is-title {
+	width: 192px;
+	height: 24px;
+}
+
+.knox-gui-cp-skeleton.is-bar {
+	width: 100%;
+	height: 32px;
+}
+
+.knox-gui-checkpoint-dash-nodata {
+	margin: 0;
+	padding: 32px 0;
+	font-size: 14px;
+	line-height: 20px;
+}
+
+.knox-gui-cp-view .knox-gui-cp-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 0;
+	margin: 0;
+	font-size: 16px;
+	line-height: 24px;
+	font-weight: 600;
+	color: inherit;
+}
+
+.knox-gui-cp-subtitle {
+	margin: 4px 0 0;
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-cp-note {
+	margin: 0;
+	font-size: 14px;
+	line-height: 20px;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-cp-view .knox-gui-cp-heading {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 0;
+	min-width: 0;
+	margin: 0;
+	font-size: 14px;
+	line-height: 20px;
+	font-weight: 500;
+	color: inherit;
+}
+
+.knox-gui-cp-view .knox-gui-cp-heading.is-strong {
+	font-weight: 600;
+}
+
+.knox-gui-cp-fill-root {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 12px;
+	min-height: 0;
+	padding: 8px 0;
+}
+
+.knox-gui-cp-fill-root > .knox-gui-checkpoint-analysis-header {
+	flex-shrink: 0;
+}
+
+.knox-gui-cp-tabbed {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 12px;
+	min-height: 0;
+}
+
+.knox-gui-cp-tab-content {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 12px;
+	min-height: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
+.knox-gui-cp-tab-content > * {
+	flex-shrink: 0;
+}
+
+.knox-gui-cp-tab-content.is-fill {
+	overflow: hidden;
+}
+
+.knox-gui-cp-tab-content.is-fill > .knox-gui-dash-list,
+.knox-gui-cp-tab-content.is-fill > .knox-gui-checkpoint-audit-list {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	padding-right: 2px;
+}
+
+.knox-gui-cp-section {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.knox-gui-cp-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 24px;
+	text-align: center;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-cp-empty > .knox-gui-svg {
+	width: 32px;
+	height: 32px;
+	margin-bottom: 8px;
+	opacity: 0.5;
+}
+
+.knox-gui-cp-empty > p {
+	margin: 0;
+	font-size: 14px;
+	line-height: 20px;
+}
+
+.knox-gui-cp-empty > p.knox-gui-cp-empty-hint {
+	margin-top: 4px;
+	font-size: 12px;
+	line-height: 16px;
+}
+
+/* select */
+
+.knox-gui-cp-select {
+	position: relative;
+	width: 100%;
+}
+
+.knox-gui-cp-view .knox-gui-cp-select > select {
+	-webkit-appearance: none;
+	appearance: none;
+	display: block;
+	width: 100%;
+	height: 32px;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0 36px 0 12px;
+	border: 1px solid var(--knox-cp-input);
+	border-radius: 8px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-size: 14px;
+	line-height: 20px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	box-shadow: var(--knox-cp-shadow-sm);
+	outline: none;
+	cursor: default;
+}
+
+.knox-gui-cp-view .knox-gui-cp-select > select:focus {
+	border-color: var(--knox-cp-input);
+	box-shadow: 0 0 0 1px var(--knox-cp-primary), var(--knox-cp-shadow-sm);
+}
+
+.knox-gui-cp-view .knox-gui-cp-select > select:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.knox-gui-cp-view .knox-gui-cp-select > select option {
+	background: var(--vscode-dropdown-background, var(--knox-cp-bg));
+	color: var(--vscode-dropdown-foreground, var(--knox-cp-fg));
+}
+
+.knox-gui-cp-view .knox-gui-cp-select > .knox-gui-svg {
+	position: absolute;
+	top: 50%;
+	right: 12px;
+	transform: translateY(-50%);
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+/* configuration */
+
+.knox-gui-cp-config {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px 0;
+}
+
+.knox-gui-checkpoint-config-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.knox-gui-checkpoint-config-heading {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.knox-gui-checkpoint-config-heading > .knox-gui-svg {
+	flex-shrink: 0;
+}
+
+.knox-gui-cp-view .knox-gui-checkpoint-config-heading > h1 {
+	min-width: 0;
+	margin: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 14px;
+	line-height: 20px;
+	font-weight: 600;
+	color: var(--knox-cp-fg);
+}
+
+.knox-gui-checkpoint-config-status {
+	position: relative;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 8px 12px;
+	border: 1px solid var(--knox-cp-border);
+	border-radius: 8px;
+	background: var(--knox-cp-input);
+	color: var(--knox-cp-fg);
+	font-size: 14px;
+	line-height: 1.4286;
+}
+
+.knox-gui-cp-view .knox-gui-checkpoint-config-status > .knox-gui-svg {
+	position: absolute;
+	top: 16px;
+	left: 16px;
+	color: var(--knox-cp-fg);
+}
+
+.knox-gui-checkpoint-config-status-text {
+	padding-left: 28px;
+	transform: translateY(-3px);
+	font-size: 12px;
+	line-height: 1.625;
+}
+
+.knox-gui-checkpoint-config-status.is-success {
+	border-color: color-mix(in srgb, #50cd89 40%, transparent);
+}
+
+.knox-gui-checkpoint-config-status.is-success .knox-gui-checkpoint-config-status-text {
+	color: #50cd89;
+}
+
+.knox-gui-checkpoint-config-status.is-error {
+	border-color: color-mix(in srgb, #f1416c 40%, transparent);
+}
+
+.knox-gui-checkpoint-config-status.is-error .knox-gui-checkpoint-config-status-text {
+	color: #f1416c;
+}
+
+.knox-gui-checkpoint-config-status.is-info {
+	border-color: color-mix(in srgb, #009ef7 40%, transparent);
+}
+
+.knox-gui-checkpoint-config-status.is-info .knox-gui-checkpoint-config-status-text {
+	color: #009ef7;
+}
+
+.knox-gui-cp-config-sections {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.knox-gui-config-card {
+	overflow: hidden;
+	border: 1px solid color-mix(in srgb, var(--knox-cp-border) 70%, transparent);
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--knox-cp-card) 70%, transparent);
+	color: var(--knox-cp-card-fg);
+}
+
+.knox-gui-config-card-head {
+	padding: 10px 12px;
+	border-bottom: 1px solid color-mix(in srgb, var(--knox-cp-border) 50%, transparent);
+}
+
+.knox-gui-config-card-title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	font-size: 14px;
+	line-height: 1.25;
+	font-weight: 600;
+	letter-spacing: -0.025em;
+}
+
+.knox-gui-config-card-title > .knox-gui-cp-cyan {
+	display: flex;
+	flex-shrink: 0;
+}
+
+.knox-gui-config-card-body {
+	padding: 0 12px;
+}
+
+.knox-gui-config-card-body > * + * {
+	border-top: 1px solid color-mix(in srgb, var(--knox-cp-border) 50%, transparent);
+}
+
+.knox-gui-checkpoint-config-row {
+	display: grid;
+	gap: 8px;
+	padding: 12px 0;
+}
+
+.knox-gui-checkpoint-config-text {
+	min-width: 0;
+}
+
+.knox-gui-cp-view .knox-gui-checkpoint-config-text > label {
+	display: inline;
+	margin: 0;
+	font-size: 14px;
+	line-height: 1.25;
+	font-weight: 500;
+	color: var(--knox-cp-fg);
+}
+
+.knox-gui-checkpoint-config-help,
+.knox-gui-checkpoint-config-error {
+	margin: 4px 0 0;
+	font-size: 12px;
+	line-height: 1.625;
+}
+
+.knox-gui-checkpoint-config-help {
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-checkpoint-config-error {
+	color: #f1416c;
+}
+
+.knox-gui-checkpoint-config-control {
+	width: 100%;
+	min-width: 0;
+}
+
+.knox-gui-cp-view .knox-gui-checkpoint-config-control > input {
+	display: block;
+	width: 100%;
+	height: 32px;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 4px 12px;
+	border: 1px solid var(--vscode-input-border, #6e6e77);
+	border-radius: 8px;
+	background-color: var(--vscode-input-background, #2d2d2d);
+	color: var(--knox-cp-fg);
+	font: inherit;
+	font-size: 14px;
+	line-height: 20px;
+	box-shadow: var(--knox-cp-shadow-sm);
+	outline: none;
+	transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.knox-gui-cp-view .knox-gui-checkpoint-config-control > input:focus {
+	border-color: var(--vscode-focusBorder, #159994);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder, #159994), var(--knox-cp-shadow-sm);
+}
+
+.knox-gui-cp-view .knox-gui-checkpoint-config-control > input:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.knox-gui-cp-switch-wrap {
+	display: flex;
+}
+
+.knox-gui-cp-view .knox-gui-cp-switch-wrap .knox-gui-switch {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+	width: 36px;
+	height: 20px;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+	border: 2px solid var(--vscode-input-border, #6e6e77);
+	border-radius: 9999px;
+	background: var(--knox-cp-input);
+	box-shadow: var(--knox-cp-shadow-sm);
+	cursor: pointer;
+	transition: all 0.2s ease-in-out;
+}
+
+.knox-gui-cp-view .knox-gui-cp-switch-wrap .knox-gui-switch:not(.is-on):hover {
+	background: color-mix(in srgb, var(--vscode-input-border, #6e6e77) 50%, transparent);
+}
+
+.knox-gui-cp-view .knox-gui-cp-switch-wrap .knox-gui-switch.is-on {
+	border-color: color-mix(in srgb, #159994 30%, transparent);
+	background: #159994;
+}
+
+.knox-gui-cp-view .knox-gui-cp-switch-wrap .knox-gui-switch.is-on:hover {
+	filter: brightness(1.1);
+}
+
+.knox-gui-cp-view .knox-gui-cp-switch-wrap .knox-gui-switch:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--knox-cp-bg), 0 0 0 4px currentColor;
+}
+
+.knox-gui-cp-view .knox-gui-cp-switch-wrap .knox-gui-switch[aria-disabled="true"] {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.knox-gui-cp-view .knox-gui-cp-switch-wrap .knox-gui-switch .knox-gui-switch-thumb {
+	position: static;
+	display: block;
+	width: 16px;
+	height: 16px;
+	margin: 0;
+	border-radius: 9999px;
+	background: #6e6e77;
+	box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+	transform: translateX(0);
+	transition: all 0.2s ease-in-out;
+	pointer-events: none;
+}
+
+.knox-gui-cp-view .knox-gui-cp-switch-wrap .knox-gui-switch.is-on .knox-gui-switch-thumb {
+	background: #ffffff;
+	transform: translateX(16px);
+}
+
+@container knox-checkpoint (min-width: 460px) {
+	.knox-gui-checkpoint-config-row {
+		grid-template-columns: minmax(0, 1fr) minmax(144px, 224px);
+		align-items: start;
+	}
+
+	.knox-gui-checkpoint-config-control {
+		justify-self: end;
+	}
+
+	.knox-gui-cp-switch-wrap {
+		justify-content: flex-end;
+	}
+}
+
+.knox-gui-config-actions {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 8px;
+	padding-top: 12px;
+	border-top: 1px solid color-mix(in srgb, var(--knox-cp-border) 40%, transparent);
+}
+
+@container knox-checkpoint (min-width: 330px) {
+	.knox-gui-config-actions {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
+/* dashboard */
+
+.knox-gui-dash-cards {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 8px;
+}
+
+@container knox-checkpoint (min-width: 380px) {
+	.knox-gui-dash-cards {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.knox-gui-dash-cards.is-three {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
+.knox-gui-dash-card {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px;
+}
+
+.knox-gui-dash-card-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 32px;
+	height: 32px;
+	border-radius: 8px;
+	background: var(--knox-cp-input);
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-dash-card-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.knox-gui-dash-card-text > p {
+	margin: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-dash-card-text > .knox-gui-dash-card-label {
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-dash-card-text > .knox-gui-dash-card-value {
+	font-size: 18px;
+	line-height: 1.25;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.knox-gui-dash-card-text > .knox-gui-dash-card-sub {
+	font-size: 11px;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-dash-heading {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.knox-gui-cp-view .odp-chip.knox-gui-cp-days {
+	border: 0;
+	border-radius: 9999px;
+	padding: 2px 8px;
+	background: color-mix(in srgb, var(--odp-purple) 22%, transparent);
+	color: var(--odp-purple);
+	font-size: 10px;
+	line-height: 1;
+	font-weight: 500;
+}
+
+.knox-gui-dash-empty {
+	padding: 16px;
+	text-align: center;
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-chart-card {
+	padding: 8px 12px 12px;
+}
+
+.knox-gui-chart-card.is-storage {
+	padding: 12px;
+}
+
+.knox-gui-chart-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.knox-gui-chart-head > p {
+	margin: 0;
+	font-size: 14px;
+	line-height: 20px;
+	font-weight: 500;
+}
+
+.knox-gui-cp-chart {
+	position: relative;
+	width: 100%;
+	height: 228px;
+	min-height: 200px;
+	font-size: 12px;
+	line-height: 16px;
+}
+
+.knox-gui-cp-chart > .knox-gui-chart {
+	display: block;
+	overflow: hidden;
+}
+
+.knox-gui-chart-grid-layer {
+	opacity: 0.2;
+}
+
+.knox-gui-chart-grid {
+	stroke: currentColor;
+}
+
+.knox-gui-chart-tick {
+	fill: var(--knox-cp-muted-fg);
+	font-size: 12px;
+}
+
+.knox-gui-chart-cursor {
+	fill: currentColor;
+	opacity: 0.06;
+	pointer-events: none;
+}
+
+.knox-gui-chart-footer {
+	margin: 4px 0 0;
+	font-size: 10px;
+}
+
+.knox-gui-chart-tooltip {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 10;
+	display: grid;
+	align-items: start;
+	gap: 6px;
+	min-width: 128px;
+	box-sizing: border-box;
+	padding: 6px 10px;
+	border: 1px solid color-mix(in srgb, var(--knox-cp-border) 50%, transparent);
+	border-radius: 10px;
+	background: var(--knox-cp-bg);
+	font-size: 12px;
+	line-height: 16px;
+	white-space: nowrap;
+	box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+	pointer-events: none;
+}
+
+.knox-gui-chart-tooltip[hidden] {
+	display: none;
+}
+
+.knox-gui-chart-tooltip.is-moving {
+	transition: transform 0.4s ease;
+}
+
+.knox-gui-chart-tooltip-label {
+	font-weight: 500;
+}
+
+.knox-gui-chart-tooltip-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+}
+
+.knox-gui-chart-tooltip-dot {
+	flex-shrink: 0;
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+}
+
+.knox-gui-chart-tooltip-body {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	justify-content: space-between;
+	line-height: 1;
+}
+
+.knox-gui-chart-tooltip-body.is-plain {
+	gap: 16px;
+	line-height: inherit;
+}
+
+.knox-gui-chart-tooltip-value {
+	font-family: var(--knox-cp-mono);
+	font-weight: 500;
+	font-variant-numeric: tabular-nums;
+	color: var(--knox-cp-fg);
+}
+
+.knox-gui-cp-dash-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+
+.knox-gui-cp-dash-meta > span.knox-gui-cp-muted {
+	font-size: 12px;
+	line-height: 16px;
+}
+
+.knox-gui-dash-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.knox-gui-dash-list.is-capped {
+	gap: 6px;
+	max-height: 192px;
+	overflow-y: auto;
+}
+
+.knox-gui-dash-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px;
+	font-size: 14px;
+	line-height: 20px;
+}
+
+.knox-gui-dash-row > .knox-gui-svg,
+.knox-gui-dash-row > .knox-gui-cp-muted {
+	flex-shrink: 0;
+}
+
+.knox-gui-dash-row > .knox-gui-cp-muted {
+	font-size: 12px;
+	line-height: 16px;
+}
+
+.knox-gui-dash-grow {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-dash-session {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 10px;
+	font-size: 14px;
+	line-height: 20px;
+}
+
+.knox-gui-dash-session-top {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+	font-size: 12px;
+	line-height: 16px;
+}
+
+.knox-gui-dash-session-top > .knox-gui-cp-mono {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-dash-session-top > .knox-gui-cp-muted {
+	flex-shrink: 0;
+}
+
+.knox-gui-dash-session-stats {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px 12px;
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-dash-session-stats > .is-green { color: var(--odp-green); }
+.knox-gui-dash-session-stats > .is-red { color: var(--odp-red, #e45649); }
+.knox-gui-dash-session-stats > .is-orange { color: var(--odp-orange); }
+
+/* analysis */
+
+.knox-gui-cp-analysis {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 8px 0;
+}
+
+.knox-gui-checkpoint-analysis-field {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.knox-gui-cp-view .knox-gui-checkpoint-analysis-field > label {
+	display: block;
+	margin: 0;
+	font-size: 12px;
+	line-height: 16px;
+	font-weight: 500;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-analysis-card {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 12px;
+}
+
+.knox-gui-analysis-summary {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.knox-gui-analysis-summary-head {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-weight: 500;
+}
+
+.knox-gui-analysis-summary > p {
+	margin: 0;
+	font-size: 12px;
+	line-height: 1.625;
+}
+
+.knox-gui-analysis-counts {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 4px 12px;
+	font-size: 11px;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-analysis-risks {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.knox-gui-analysis-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.knox-gui-analysis-chips.is-badges {
+	align-items: center;
+	gap: 6px;
+}
+
+.knox-gui-analysis-score {
+	font-size: 10px;
+	opacity: 0.75;
+}
+
+.knox-gui-analysis-factors {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.knox-gui-analysis-factor {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	font-size: 11px;
+}
+
+.knox-gui-analysis-factor > .knox-gui-svg {
+	flex-shrink: 0;
+	margin-top: 2px;
+}
+
+.knox-gui-analysis-factor-category {
+	font-weight: 500;
+	text-transform: capitalize;
+}
+
+.knox-gui-analysis-recs {
+	position: relative;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 8px 10px;
+	border-width: 1px;
+	border-style: solid;
+	border-radius: 10px;
+	font-size: 14px;
+	line-height: 1.4286;
+}
+
+.knox-gui-cp-view .knox-gui-analysis-recs > .knox-gui-svg {
+	position: absolute;
+	top: 10px;
+	left: 10px;
+	width: 14px;
+	height: 14px;
+	color: var(--odp-blue);
+}
+
+.knox-gui-analysis-recs > .knox-gui-svg ~ * {
+	padding-left: 24px;
+}
+
+.knox-gui-cp-view .knox-gui-analysis-recs > h5 {
+	margin: 0 0 4px;
+	font-size: 11px;
+	line-height: 1;
+	font-weight: 500;
+	letter-spacing: -0.025em;
+	color: var(--odp-blue);
+}
+
+.knox-gui-analysis-recs-body {
+	font-size: 11px;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-analysis-recs-body > ul {
+	margin: 0;
+	padding: 0;
+	list-style: disc inside;
+}
+
+.knox-gui-analysis-recs-body li + li {
+	margin-top: 2px;
+}
+
+.knox-gui-analysis-areas-head {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-bottom: 4px;
+	font-size: 12px;
+	line-height: 16px;
+	font-weight: 500;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-analysis-grouping {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.knox-gui-analysis-grouping-name {
+	font-weight: 500;
+}
+
+.knox-gui-analysis-grouping-kind {
+	margin-left: 4px;
+	font-weight: 400;
+	opacity: 0.75;
+}
+
+.knox-gui-analysis-groups {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.knox-gui-analysis-groups-head {
+	font-size: 12px;
+	line-height: 16px;
+	font-weight: 500;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-analysis-group {
+	padding: 8px;
+	font-size: 12px;
+	line-height: 16px;
+	cursor: pointer;
+	transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.knox-gui-analysis-group:hover {
+	background: color-mix(in srgb, var(--knox-cp-input) 50%, transparent);
+}
+
+.knox-gui-analysis-group-top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 4px;
+}
+
+.knox-gui-analysis-group-name {
+	font-weight: 500;
+}
+
+.knox-gui-analysis-group-kind {
+	margin-bottom: 2px;
+}
+
+.knox-gui-analysis-group > p {
+	margin: 0;
+}
+
+.knox-gui-analysis-group-confidence {
+	margin-top: 4px;
+}
+
+/* share */
+
+.knox-gui-checkpoint-share-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.knox-gui-checkpoint-bundles {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.knox-gui-checkpoint-bundle {
+	padding: 12px;
+}
+
+.knox-gui-checkpoint-bundle-top {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.knox-gui-checkpoint-bundle-info {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+
+.knox-gui-checkpoint-bundle-title {
+	margin: 0;
+	font-size: 14px;
+	line-height: 20px;
+	font-weight: 500;
+}
+
+.knox-gui-checkpoint-bundle-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-checkpoint-bundle-meta > span {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.knox-gui-checkpoint-bundle-path {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+	overflow: hidden;
+	font-size: 12px;
+	line-height: 16px;
+	white-space: nowrap;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-checkpoint-bundle-path > .knox-gui-svg {
+	flex-shrink: 0;
+}
+
+.knox-gui-checkpoint-bundle-badges {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	flex-shrink: 0;
+	gap: 4px;
+}
+
+.knox-gui-checkpoint-bundle-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 8px;
+}
+
+/* audit */
+
+.knox-gui-checkpoint-audit-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.knox-gui-checkpoint-audit-toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 8px;
+	border: 0;
+	border-radius: 7px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-size: 14px;
+	line-height: 20px;
+	cursor: default;
+	transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.knox-gui-checkpoint-audit-toggle:hover {
+	background: color-mix(in srgb, var(--knox-cp-accent) 50%, transparent);
+}
+
+.knox-gui-checkpoint-audit-toggle > .knox-gui-svg {
+	flex-shrink: 0;
+}
+
+.knox-gui-checkpoint-audit-action.is-green { color: var(--odp-green); }
+.knox-gui-checkpoint-audit-action.is-red { color: var(--odp-red, #e45649); }
+.knox-gui-checkpoint-audit-action.is-orange { color: var(--odp-orange); }
+.knox-gui-checkpoint-audit-action.is-blue { color: var(--odp-blue); }
+
+.knox-gui-checkpoint-audit-resource {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	text-align: left;
+}
+
+.knox-gui-checkpoint-audit-time {
+	flex-shrink: 0;
+	font-size: 12px;
+	line-height: 16px;
+}
+
+.knox-gui-checkpoint-audit-detail {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 4px 16px 12px;
+	border-top: 1px solid var(--knox-cp-border);
+	background: color-mix(in srgb, var(--knox-cp-input) 30%, transparent);
+	font-size: 12px;
+	line-height: 16px;
+}
+
+.knox-gui-checkpoint-audit-machine {
+	display: flex;
+	gap: 16px;
+}
+
+.knox-gui-checkpoint-audit-pre {
+	margin: 4px 0 0;
+	padding: 8px;
+	overflow-x: auto;
+	border-radius: 4px;
+	background: var(--knox-cp-input);
+	font-family: var(--knox-cp-mono);
+	font-size: 12px;
+	line-height: 16px;
+}
+
