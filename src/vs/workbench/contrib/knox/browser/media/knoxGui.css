@@ -5,8 +5,9 @@
 
 /* Split by surface. knox.contributions.ts imports these in this order (cascade order):
  * knoxGui.css, knoxGuiChat.css, knoxGuiComposer.css, knoxGuiPanels.css,
- * knoxGuiThinking.css, knoxGuiPages.css, knoxGuiCheckpoints.css, knoxGuiMemory.css,
- * knoxGuiGraph.css, knoxGuiConfig.css, knoxGuiCheckpointDetails.css.
+ * knoxGuiThinking.css, knoxGuiPages.css, knoxGuiCheckpoints/*.css (see knox.contributions.ts
+ * for the per-file order), knoxGuiMemory.css, knoxGuiGraph.css, knoxGuiConfig.css,
+ * knoxGuiCheckpointDetails.css.
  */
 
 .knox-gui {
@@ -38,7 +39,8 @@
 }
 
 .vscode-light .knox-gui,
-.vscode-high-contrast-light .knox-gui {
+.vscode-high-contrast-light .knox-gui,
+.knox-gui[data-knox-theme-kind="light"] {
 	--vscode-focusBorder: #0f7a76;
 }
 
@@ -196,8 +198,28 @@
 	position: relative;
 }
 
+/* gui/src/components/modelSelection/ModeSelect.tsx: active tab = text-knoxcyan on bg-lightgray/20,
+ * inactive = text-secgray on transparent, unsupported / no model yet = text-orange. */
+.knox-gui {
+	--knox-mode-inactive: #636674;
+	--knox-mode-active: #159994;
+	--knox-mode-warn: #fd7e14;
+	--knox-mode-active-bg: rgba(110, 110, 119, 0.2);
+	--knox-mode-hover-bg: rgba(110, 110, 119, 0.15);
+}
+
+.vscode-light .knox-gui,
+.vscode-high-contrast-light .knox-gui,
+.knox-gui[data-knox-theme-kind="light"] {
+	--knox-mode-inactive: #6b6e7c;
+	--knox-mode-active: #0f7a76;
+	--knox-mode-warn: #c2570a;
+	--knox-mode-active-bg: rgba(110, 110, 119, 0.16);
+	--knox-mode-hover-bg: rgba(110, 110, 119, 0.12);
+}
+
 .knox-gui-toolbar .knox-gui-mode-tab {
-	color: #8b8b93 !important;
+	color: var(--knox-mode-inactive) !important;
 	border-radius: 4px;
 	padding: 2px 6px;
 	gap: 2px;
@@ -209,12 +231,12 @@
 
 .knox-gui-toolbar .knox-gui-mode-tab:hover:not(:disabled) {
 	filter: none;
-	background: rgba(110, 110, 119, 0.15) !important;
+	background: var(--knox-mode-hover-bg) !important;
 }
 
 .knox-gui-toolbar .knox-gui-mode-tab.selected {
-	color: var(--vscode-foreground, #cccccc) !important;
-	background: rgba(110, 110, 119, 0.22) !important;
+	color: var(--knox-mode-active) !important;
+	background: var(--knox-mode-active-bg) !important;
 }
 
 .knox-gui-mode-tab .knox-gui-lump-label {
@@ -231,8 +253,10 @@
 	color: inherit;
 }
 
-.knox-gui-toolbar .knox-gui-mode-tab.knox-gui-mode-unsupported {
-	color: #fd7e14 !important;
+/* Agent unsupported by the model (not selected), or no model configured yet (active tab). */
+.knox-gui-toolbar .knox-gui-mode-tab.knox-gui-mode-unsupported,
+.knox-gui-toolbar .knox-gui-mode-tab.selected.knox-gui-mode-nomodel {
+	color: var(--knox-mode-warn) !important;
 }
 
 .knox-gui-mode-chevron {
@@ -244,7 +268,7 @@
 	font-size: 0.7em;
 	min-width: 0.9em;
 	text-align: center;
-	color: #159994;
+	color: inherit;
 }
 
 .knox-gui-body {

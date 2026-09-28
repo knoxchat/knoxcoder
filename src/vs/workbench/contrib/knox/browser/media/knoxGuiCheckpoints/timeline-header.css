@@ -1,0 +1,146 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Checkpoints/CheckpointTimeline.tsx: panel, header, toolbar, compare, branches */
+/* Checkpoints/CheckpointTimeline.tsx */
+.knox-gui-checkpoint-panel.knox-gui-cpl-timeline {
+	overflow: hidden;
+	line-height: 1.3;
+}
+
+.knox-gui-timeline-loading {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin: 0;
+	padding: 24px 0;
+	color: var(--kcp-muted-fg);
+	font-size: 14px;
+}
+
+.knox-gui .knox-gui-timeline-loading .knox-gui-svg {
+	color: currentColor;
+}
+
+.knox-gui-timeline-header {
+	container-type: inline-size;
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	gap: 8px;
+	padding: 8px;
+	border-bottom: 1px solid var(--kcp-border);
+}
+
+.knox-gui-timeline-title-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	min-width: 0;
+}
+
+.knox-gui-timeline-heading {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	font-size: 14px;
+	font-weight: 500;
+}
+
+.knox-gui .knox-gui-timeline-heading-icon {
+	color: var(--kcp-primary);
+}
+
+.knox-gui .knox-gui-timeline-heading .knox-gui-cpl-badge {
+	font-size: 11px;
+}
+
+.knox-gui .knox-gui-cpl-btn.knox-gui-timeline-branch-toggle {
+	flex-shrink: 1;
+	max-width: min(12rem, 50%);
+}
+
+.knox-gui-timeline-toolbar {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.knox-gui-timeline-toolbar .knox-gui-cpl-search {
+	flex: 1;
+}
+
+.knox-gui .knox-gui-cpl-search.is-timeline .knox-gui-cpl-input {
+	height: 32px;
+}
+
+.knox-gui .knox-gui-timeline-kind select {
+	height: 32px;
+	font-size: 12px;
+	line-height: 16px;
+}
+
+@container (min-width: 22rem) {
+	.knox-gui-timeline-toolbar {
+		flex-direction: row;
+		align-items: center;
+	}
+
+	.knox-gui-cpl-select.knox-gui-timeline-kind {
+		flex-shrink: 0;
+		width: 7.5rem;
+	}
+}
+
+.knox-gui-timeline-compare {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 8px;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--kcp-primary) 10%, transparent);
+	font-size: 12px;
+}
+
+.knox-gui-timeline-compare code {
+	font-family: var(--kcp-mono);
+}
+
+.knox-gui-timeline-branches {
+	flex-shrink: 0;
+	padding: 8px;
+	overflow-x: auto;
+	border-bottom: 1px solid var(--kcp-border);
+	background: color-mix(in srgb, var(--kcp-muted) 30%, transparent);
+}
+
+.knox-gui-timeline-branches-row {
+	display: flex;
+	gap: 8px;
+}
+
+.knox-gui .knox-gui-cpl-btn.knox-gui-timeline-branch-chip {
+	max-width: 10rem;
+	padding: 0 12px;
+}
+
+.knox-gui-timeline-branch-dot {
+	display: inline-block;
+	flex-shrink: 0;
+	width: 6px;
+	height: 6px;
+	margin-top: 6px;
+	border-radius: 50%;
+}
+
+.knox-gui-timeline-branch-chip .knox-gui-timeline-branch-dot {
+	width: 8px;
+	height: 8px;
+	margin: 0;
+}

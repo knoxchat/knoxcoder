@@ -1,0 +1,179 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ui/button.tsx */
+/* ui/button.tsx */
+.knox-gui .knox-gui-cpl-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	min-width: 0;
+	height: 32px;
+	padding: 0 12px;
+	border: 1px solid transparent;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--kcp-fg);
+	font-family: inherit;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 16px;
+	white-space: nowrap;
+	cursor: pointer;
+	filter: none;
+	transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.knox-gui .knox-gui-cpl-btn:hover:not(:disabled) {
+	filter: none;
+}
+
+.knox-gui .knox-gui-cpl-btn:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 1px var(--kcp-primary);
+}
+
+.knox-gui .knox-gui-cpl-btn:disabled {
+	opacity: 0.5;
+	cursor: default;
+	pointer-events: none;
+}
+
+.knox-gui .knox-gui-cpl-btn .knox-gui-svg {
+	width: 16px;
+	height: 16px;
+	color: currentColor;
+	pointer-events: none;
+}
+
+.knox-gui .knox-gui-cpl-btn .knox-gui-lump-label {
+	min-width: 0;
+	max-width: none;
+	margin: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: inherit;
+	font-size: inherit;
+}
+
+.knox-gui .knox-gui-cpl-btn.is-size-default {
+	height: 36px;
+	padding: 0 16px;
+	font-size: 14px;
+	line-height: 20px;
+}
+
+.knox-gui .knox-gui-cpl-btn.is-size-row {
+	gap: 4px;
+	padding: 0 8px;
+}
+
+.knox-gui .knox-gui-cpl-btn.is-size-xs {
+	height: 28px;
+	gap: 4px;
+	padding: 0 8px;
+}
+
+.knox-gui .knox-gui-cpl-btn.is-size-xxs {
+	height: 24px;
+	gap: 4px;
+	padding: 0 8px;
+}
+
+.knox-gui .knox-gui-cpl-btn.is-size-icon {
+	width: 36px;
+	height: 36px;
+	padding: 0;
+}
+
+.knox-gui .knox-gui-cpl-btn.is-default {
+	background: var(--kcp-primary);
+	color: var(--kcp-primary-fg);
+	box-shadow: var(--kcp-shadow);
+}
+
+.knox-gui .knox-gui-cpl-btn.is-default:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--kcp-primary) 90%, transparent);
+}
+
+.knox-gui .knox-gui-cpl-btn.is-outline {
+	border-color: var(--kcp-input);
+	background: var(--kcp-bg);
+	box-shadow: var(--kcp-shadow-sm);
+}
+
+.knox-gui .knox-gui-cpl-btn.is-outline:hover:not(:disabled),
+.knox-gui .knox-gui-cpl-btn.is-ghost:hover:not(:disabled) {
+	background: var(--kcp-accent);
+	color: var(--kcp-primary);
+}
+
+.knox-gui .knox-gui-cpl-btn.is-secondary {
+	background: var(--kcp-secondary);
+	color: var(--kcp-secondary-fg);
+	box-shadow: var(--kcp-shadow-sm);
+}
+
+.knox-gui .knox-gui-cpl-btn.is-secondary:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--kcp-secondary) 80%, transparent);
+}
+
+.knox-gui .knox-gui-cpl-btn.is-destructive {
+	background: var(--kcp-destructive);
+	color: #fff;
+	box-shadow: var(--kcp-shadow-sm);
+}
+
+.knox-gui .knox-gui-cpl-btn.is-destructive:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--kcp-destructive) 90%, transparent);
+}
+
+.knox-gui .knox-gui-cpl-btn.is-link {
+	height: auto;
+	padding: 0;
+	color: var(--kcp-primary);
+	text-underline-offset: 4px;
+}
+
+.knox-gui .knox-gui-cpl-btn.is-link:hover:not(:disabled) {
+	text-decoration: underline;
+}
+
+.knox-gui .knox-gui-cpl-btn.is-tone-yellow { --kcp-tone: var(--odp-yellow); }
+.knox-gui .knox-gui-cpl-btn.is-tone-blue { --kcp-tone: var(--odp-blue); }
+.knox-gui .knox-gui-cpl-btn.is-tone-cyan { --kcp-tone: var(--odp-cyan); }
+.knox-gui .knox-gui-cpl-btn.is-tone-purple { --kcp-tone: var(--odp-purple); }
+.knox-gui .knox-gui-cpl-btn.is-tone-red,
+.knox-gui .knox-gui-cpl-btn.is-tone-danger { --kcp-tone: var(--odp-red); }
+.knox-gui .knox-gui-cpl-btn.is-tone-destructive { --kcp-tone: var(--kcp-destructive); }
+
+.knox-gui .knox-gui-cpl-btn[class*='is-tone-'] {
+	color: var(--kcp-tone);
+}
+
+.knox-gui .knox-gui-cpl-btn[class*='is-tone-']:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--kcp-tone) 10%, transparent);
+	color: var(--kcp-tone);
+}
+
+.knox-gui .knox-gui-cpl-btn.is-tone-red:hover:not(:disabled),
+.knox-gui .knox-gui-cpl-btn.is-tone-danger:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--kcp-destructive) 10%, transparent);
+}
+
+.knox-gui .knox-gui-cpl-btn.odp-chip-blue,
+.knox-gui .knox-gui-cpl-btn.odp-chip-blue:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--odp-blue) 14%, transparent);
+	color: var(--odp-blue);
+}
+
+.knox-gui .knox-gui-cpl-btn.odp-chip-green,
+.knox-gui .knox-gui-cpl-btn.odp-chip-green:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--odp-green) 14%, transparent);
+	color: var(--odp-green);
+}

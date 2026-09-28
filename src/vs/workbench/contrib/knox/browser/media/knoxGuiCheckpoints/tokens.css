@@ -1,0 +1,63 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* shadcn-style --kcp-* tokens, odp colour helpers, spin/pulse keyframes */
+/* gui/src/index.css shadcn tokens for the checkpoint list, timeline, and dialogs */
+.knox-gui {
+	--kcp-primary: #159994;
+	--kcp-primary-fg: #fff;
+	--kcp-accent: rgba(21, 153, 148, 0.2);
+	--kcp-muted: var(--vscode-input-background);
+	--kcp-muted-fg: var(--vscode-descriptionForeground);
+	--kcp-border: var(--vscode-panel-border, var(--vscode-widget-border, rgba(128, 128, 128, 0.35)));
+	--kcp-input: var(--vscode-input-background);
+	--kcp-card: var(--vscode-sideBar-background);
+	--kcp-bg: var(--vscode-editor-background);
+	--kcp-fg: var(--vscode-foreground);
+	--kcp-secondary: var(--vscode-button-secondaryBackground);
+	--kcp-secondary-fg: var(--vscode-button-secondaryForeground);
+	--kcp-destructive: var(--vscode-errorForeground, #f14c4c);
+	--kcp-mono: var(--vscode-editor-font-family, ui-monospace, monospace);
+	--kcp-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+	--kcp-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+	--kcp-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+	--kcp-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+.vscode-light .knox-gui,
+.vscode-high-contrast-light .knox-gui,
+.knox-gui[data-knox-theme-kind="light"] {
+	--kcp-primary: #0f7a76;
+	--kcp-accent: rgba(15, 122, 118, 0.14);
+}
+
+.odp-text-blue { color: var(--odp-blue); }
+.odp-text-purple { color: var(--odp-purple); }
+.odp-text-cyan { color: var(--odp-cyan); }
+.odp-text-orange { color: var(--odp-orange); }
+
+.odp-type-manual,
+.odp-type-auto,
+.odp-type-ai,
+.odp-type-merge,
+.odp-type-branch {
+	--kcp-type: var(--odp-green);
+	color: var(--kcp-type);
+	background: color-mix(in srgb, var(--kcp-type) 12%, transparent);
+	border: 1.5px solid color-mix(in srgb, var(--kcp-type) 45%, transparent);
+}
+
+.odp-type-auto { --kcp-type: var(--odp-yellow); }
+.odp-type-ai { --kcp-type: var(--odp-purple); }
+.odp-type-merge { --kcp-type: var(--odp-cyan); }
+.odp-type-branch { --kcp-type: var(--odp-blue); }
+
+.is-spinning .knox-gui-svg {
+	animation: knox-gui-spin 1s linear infinite;
+}
+
+@keyframes knox-gui-cpl-pulse {
+	50% { opacity: 0.5; }
+}

@@ -1,0 +1,260 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* checkpoint dashboard, restore, and canvas */
+
+.knox-gui-graph-canvas,
+.knox-gui-checkpoint-canvas {
+	width: 100%;
+	background: var(--vscode-editor-background);
+	border-radius: 6px;
+}
+
+.knox-gui-graph-canvas {
+	cursor: pointer;
+}
+
+.knox-gui-meter-track {
+	height: 6px;
+	border-radius: 99px;
+	overflow: hidden;
+	background: var(--vscode-input-background);
+	margin: 4px 0 8px;
+}
+
+.knox-gui-meter-track .knox-gui-meter-fill {
+	height: 100%;
+	margin: 0;
+}
+
+.knox-gui-warn {
+	color: #eab308;
+}
+
+.knox-gui-tool-favicon {
+	width: 14px;
+	height: 14px;
+}
+
+.knox-gui-page-tab {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px;
+	margin-bottom: 8px;
+	border-bottom: 1px solid #3f3f46;
+	border-radius: 0;
+	background: transparent;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+}
+
+.knox-gui-page-tab .knox-gui-svg {
+	color: #159994;
+}
+
+.knox-gui-page-tab-cell {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 10px;
+	border-radius: 6px;
+	background: var(--vscode-input-background);
+}
+
+.knox-gui-back {
+	justify-content: flex-start;
+	font-weight: 700;
+	font-size: 13px;
+	padding: 8px 4px;
+	border-bottom: 1px solid var(--vscode-widget-border, #3f3f46);
+	border-radius: 0;
+	width: 100%;
+}
+
+.knox-gui-error-boundary {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	padding: 16px 8px;
+	text-align: center;
+}
+
+.knox-gui-error-title {
+	margin: 0 0 8px;
+	font-size: 1.5rem;
+	font-weight: 700;
+}
+
+.knox-gui-error-code {
+	max-width: 100%;
+	margin: 0 8px 8px;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.knox-gui-error-flag {
+	color: var(--vscode-errorForeground, #f14c4c);
+}
+
+.knox-gui-error-home {
+	color: #159994;
+}
+
+.knox-gui-osr-menu {
+	position: absolute;
+	z-index: 40;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 8rem;
+	padding: 6px 12px;
+	border: 1px solid var(--vscode-widget-border, #6b7280);
+	border-radius: 6px;
+	background: var(--vscode-editor-background);
+}
+
+.knox-gui-osr-item {
+	justify-content: flex-start;
+	width: 100%;
+}
+
+.knox-gui-batch-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border));
+}
+
+.knox-gui-batch-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 13px;
+}
+
+.knox-gui-batch-panel {
+	border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+	border-radius: 6px;
+	background: var(--vscode-editor-background);
+	overflow: hidden;
+}
+
+.knox-gui-batch-list {
+	max-height: 18.75rem;
+	overflow-y: auto;
+}
+
+.knox-gui-batch-row {
+	cursor: pointer;
+	opacity: 0.6;
+}
+
+.knox-gui-batch-row.selected {
+	opacity: 1;
+	background: var(--vscode-list-activeSelectionBackground, rgba(21, 153, 148, 0.25));
+}
+
+.knox-gui-batch-reject {
+	background: var(--vscode-button-secondaryBackground, #3a3d41) !important;
+	color: var(--vscode-button-secondaryForeground, #fff) !important;
+}
+
+.knox-gui-batch-accept {
+	background: var(--vscode-button-background, #0e639c) !important;
+	color: var(--vscode-button-foreground, #fff) !important;
+}
+
+.knox-gui-batch-row > .knox-gui-ellipsis {
+	flex: 1;
+	min-width: 0;
+}
+
+.knox-gui-modal {
+	position: absolute;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.45);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 20;
+	padding: 16px;
+}
+
+.knox-gui-modal-dialog {
+	max-width: 720px;
+	max-height: 85%;
+	overflow: auto;
+	width: 100%;
+	border: 1px solid var(--vscode-widget-border);
+}
+
+.knox-gui-mono {
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-bar {
+	background: rgba(21, 153, 148, 0.35);
+	border-radius: 4px;
+	padding: 2px 6px;
+	margin: 2px 0;
+	font-size: 11px;
+	min-width: 24px;
+}
+
+.knox-gui-split {
+	display: grid;
+	grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.4fr);
+	gap: 8px;
+	min-height: 0;
+}
+
+.knox-gui-split-list,
+.knox-gui-split-detail {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.knox-gui-health-banner {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 8px;
+	padding: 8px 10px;
+}
+
+.knox-gui-health-grade {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #fff;
+	font-weight: 700;
+	font-size: 13px;
+}
+
+.knox-gui-wrap {
+	flex-wrap: wrap;
+}
+
+.knox-gui-meter-fill {
+	height: 6px;
+	border-radius: 99px;
+	background: #159994;
+	margin: 4px 0 8px;
+}

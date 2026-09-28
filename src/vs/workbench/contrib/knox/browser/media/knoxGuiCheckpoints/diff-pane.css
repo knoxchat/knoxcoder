@@ -1,0 +1,186 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Checkpoints/DiffViewer.tsx: file pane, hunks, lines, gaps, empty state */
+.knox-gui-diff-pane {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.knox-gui-diff-file-head {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 12px;
+	border-bottom: 1px solid var(--kcp-border);
+	font-size: 12px;
+}
+
+.knox-gui-diff-file-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	font-family: var(--kcp-mono);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-diff-file-stats {
+	display: flex;
+	flex-shrink: 0;
+	gap: 6px;
+	font-weight: 500;
+}
+
+.knox-gui-diff-hunks {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	font-family: var(--kcp-mono);
+	font-size: 12px;
+	line-height: 20px;
+}
+
+.knox-gui-diff-hunks.wrap .knox-gui-diff-code {
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.knox-gui-diff-hunk-head {
+	padding: 0 12px;
+	background: color-mix(in srgb, var(--odp-blue) 8%, transparent);
+	color: var(--kcp-muted-fg);
+}
+
+.pierre-diff-container .knox-gui-diff-hunk-head {
+	font-family: var(--kcp-mono);
+}
+
+.knox-gui-diff-line {
+	display: grid;
+	grid-template-columns: 44px 44px 16px minmax(0, 1fr);
+}
+
+.knox-gui-diff-split-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.knox-gui-diff-split-row > :first-child {
+	border-right: 1px solid var(--kcp-border);
+}
+
+.knox-gui-diff-cell,
+.knox-gui-diff-empty {
+	display: flex;
+	gap: 8px;
+	min-width: 0;
+}
+
+.knox-gui-diff-empty {
+	background: color-mix(in srgb, var(--kcp-muted) 20%, transparent);
+}
+
+.knox-gui-diff-gutter {
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: 44px;
+	padding: 0 8px;
+	color: var(--kcp-muted-fg);
+	text-align: right;
+	opacity: 0.7;
+	user-select: none;
+}
+
+.knox-gui-diff-sign {
+	text-align: center;
+	opacity: 0.8;
+	user-select: none;
+}
+
+.knox-gui-diff-code {
+	min-width: 0;
+	padding-right: 8px;
+	white-space: pre;
+}
+
+.knox-gui-diff-code .monaco-tokenized-source {
+	display: inline;
+	white-space: inherit;
+}
+
+.knox-gui-diff-line.knox-gui-diff-added,
+.knox-gui-diff-cell.knox-gui-diff-added {
+	background: color-mix(in srgb, var(--odp-green) 12%, transparent);
+	box-shadow: inset 3px 0 0 var(--odp-green);
+}
+
+.knox-gui-diff-line.knox-gui-diff-removed,
+.knox-gui-diff-cell.knox-gui-diff-removed {
+	background: color-mix(in srgb, var(--odp-red) 12%, transparent);
+	box-shadow: inset 3px 0 0 var(--odp-red);
+}
+
+.knox-gui-diff-word-alt {
+	border-radius: 2px;
+	background: color-mix(in srgb, var(--odp-yellow) 38%, transparent);
+}
+
+.knox-gui-diff-added .knox-gui-diff-word-alt {
+	background: color-mix(in srgb, var(--odp-green) 35%, transparent);
+}
+
+.knox-gui-diff-removed .knox-gui-diff-word-alt {
+	background: color-mix(in srgb, var(--odp-red) 35%, transparent);
+}
+
+.knox-gui-diff-gap {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	box-sizing: border-box;
+	width: 100%;
+	padding: 4px 12px;
+	border: 0;
+	background: color-mix(in srgb, var(--odp-blue) 6%, transparent);
+	color: var(--kcp-muted-fg);
+	font-family: inherit;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.knox-gui-diff-gap:hover {
+	background: color-mix(in srgb, var(--odp-blue) 12%, transparent);
+	color: var(--kcp-fg);
+}
+
+.knox-gui .knox-gui-diff-gap .knox-gui-svg {
+	color: currentColor;
+}
+
+.knox-gui-diff-viewer.knox-gui-diff-viewer-empty {
+	align-items: center;
+	justify-content: center;
+	height: auto;
+	padding: 32px;
+	background: color-mix(in srgb, var(--kcp-muted) 10%, transparent);
+	text-align: center;
+}
+
+.knox-gui .knox-gui-diff-empty-icon {
+	margin-bottom: 12px;
+	color: var(--odp-green);
+	opacity: 0.5;
+}
+
+.knox-gui-diff-viewer-empty p {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 500;
+}

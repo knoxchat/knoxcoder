@@ -1,0 +1,45 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Details dialog: diff/compare tab */
+.knox-gui-checkpoint-details-diff {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.knox-gui-checkpoint-details-compare {
+	display: flex;
+	flex-shrink: 0;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 8px;
+	padding: 0 4px;
+	color: var(--kcp-muted-fg);
+	font-size: 12px;
+}
+
+.knox-gui-cpl-select.knox-gui-checkpoint-details-compare-select {
+	max-width: 256px;
+}
+
+.knox-gui .knox-gui-checkpoint-details-compare-select select {
+	height: 28px;
+	font-size: 12px;
+	line-height: 16px;
+}
+
+.knox-gui-checkpoint-details-diff-body {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.knox-gui-checkpoint-details-diff-body > .knox-gui-diff-viewer {
+	flex: 1;
+}

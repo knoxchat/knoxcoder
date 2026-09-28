@@ -1,0 +1,73 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Checkpoints/FileTree.tsx */
+.knox-gui-file-tree {
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: 224px;
+	padding: 8px;
+	overflow-y: auto;
+	border-right: 1px solid var(--kcp-border);
+	background: color-mix(in srgb, var(--kcp-muted) 5%, transparent);
+}
+
+.knox-gui-file-tree-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	padding-top: 6px;
+	padding-right: 8px;
+	padding-bottom: 6px;
+	border-left: 2px solid transparent;
+	border-radius: 4px;
+	font-size: 14px;
+	line-height: 20px;
+	cursor: pointer;
+}
+
+.knox-gui-file-tree-row.is-folder {
+	gap: 4px;
+	color: var(--kcp-muted-fg);
+	font-weight: 500;
+}
+
+.knox-gui-file-tree-row:hover {
+	background: color-mix(in srgb, var(--kcp-muted) 50%, transparent);
+}
+
+.knox-gui-file-tree-row.selected {
+	border-left-color: var(--kcp-primary);
+	background: color-mix(in srgb, var(--kcp-primary) 10%, transparent);
+}
+
+.knox-gui .knox-gui-file-tree-chevron {
+	color: var(--kcp-muted-fg);
+}
+
+.knox-gui-file-tree-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-file-tree-stats {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 4px;
+	margin-left: auto;
+	font-size: 10px;
+}
+
+.knox-gui-file-tree-chip.odp-chip {
+	box-sizing: border-box;
+	height: 16px;
+	padding: 0 4px;
+	font-size: 10px;
+}

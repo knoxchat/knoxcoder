@@ -1,0 +1,147 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Checkpoints/RestorePreviewDialog.tsx */
+/* Checkpoints/RestorePreviewDialog.tsx */
+.knox-gui-restore-body {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: 12px;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.knox-gui-restore-body > * {
+	flex-shrink: 0;
+}
+
+.knox-gui-restore-status {
+	margin: 0;
+	padding: 40px 0;
+	color: var(--kcp-muted-fg);
+	font-size: 14px;
+	text-align: center;
+}
+
+.knox-gui-restore-error {
+	margin: 0;
+	color: #f1416c;
+	font-size: 14px;
+}
+
+.knox-gui-restore-empty {
+	margin: 0;
+	color: var(--kcp-muted-fg);
+	font-size: 14px;
+}
+
+.knox-gui-restore-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.knox-gui-restore-hint,
+.knox-gui-restore-note {
+	margin: 0;
+	color: var(--kcp-muted-fg);
+	font-size: 12px;
+	overflow-wrap: anywhere;
+}
+
+.knox-gui .knox-gui-restore-all {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--kcp-muted-fg);
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.knox-gui-restore-files {
+	max-height: 256px;
+	margin: 0;
+	padding: 0;
+	overflow-y: auto;
+	border: 1px solid var(--kcp-border);
+	border-radius: 4px;
+	list-style: none;
+}
+
+.knox-gui-restore-file {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 6px 8px;
+}
+
+.knox-gui-restore-file + .knox-gui-restore-file {
+	border-top: 1px solid var(--kcp-border);
+}
+
+.knox-gui-restore-file .knox-gui-cpl-checkbox {
+	margin-top: 2px;
+}
+
+.knox-gui .knox-gui-restore-file-icon {
+	margin-top: 2px;
+	color: var(--kcp-muted-fg);
+}
+
+.knox-gui-restore-file-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.knox-gui-restore-file-path {
+	overflow: hidden;
+	font-family: var(--kcp-mono);
+	font-size: 12px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-restore-file-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	color: var(--kcp-muted-fg);
+	font-size: 11px;
+}
+
+.knox-gui-restore-overwrite {
+	color: inherit;
+}
+
+.knox-gui-restore-create {
+	color: var(--odp-green);
+}
+
+.knox-gui-restore-delete {
+	color: var(--odp-red);
+}
+
+.knox-gui .knox-gui-cpl-btn.knox-gui-restore-diff-toggle {
+	align-self: flex-start;
+	gap: 4px;
+}
+
+.knox-gui-restore-diff {
+	height: 256px;
+	overflow: hidden;
+	border: 1px solid var(--kcp-border);
+	border-radius: 4px;
+}
+
+.knox-gui-restore-diff > .knox-gui-diff-viewer {
+	border: 0;
+	border-radius: 0;
+}
+
+.knox-gui-restore-memory {
+	flex-shrink: 0;
+	font-size: 12px;
+}

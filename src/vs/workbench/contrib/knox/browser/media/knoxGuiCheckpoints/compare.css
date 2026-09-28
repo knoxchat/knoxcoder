@@ -1,0 +1,25 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Checkpoints/CompareDialog.tsx */
+/* Checkpoints/CompareDialog.tsx */
+.knox-gui-compare-body {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.knox-gui-compare-status {
+	margin: auto;
+	color: var(--kcp-muted-fg);
+	font-size: 14px;
+	text-align: center;
+}
+
+.knox-gui-compare-body > .knox-gui-diff-viewer {
+	flex: 1;
+}

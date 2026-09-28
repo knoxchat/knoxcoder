@@ -372,8 +372,36 @@ function resolveCodeLanguageId(widget: KnoxGuiWidget, language: string, filepath
 	return requested || 'plaintext';
 }
 
+/**
+ * `TokenizationRegistry.get` is sync and only knows languages whose lazy factory was already
+ * resolved (a model of that language was created). Chat code is never in a model, so without
+ * `getOrCreate` the tokenizer of e.g. `html` never loads and streaming code stays monochrome.
+ * Resolve it here, then repaint once the support is registered.
+ */
 function watchCodeTokenizer(widget: KnoxGuiWidget, el: HTMLElement, languageId: string, repaint: () => void): void {
-	if (!languageId || languageId === 'plaintext' || TokenizationRegistry.get(languageId) || el.dataset.tokenizerWatch === languageId) {
+	if (!languageId || languageId === 'plaintext' || TokenizationRegistry.get(languageId)) {
+		return;
+	}
+	try {
+		if (el.dataset.tokenizerPending !== languageId) {
+			el.dataset.tokenizerPending = languageId;
+			TokenizationRegistry.getOrCreate(languageId).then(support => {
+				if (el.dataset.tokenizerPending === languageId) {
+					delete el.dataset.tokenizerPending;
+				}
+				if (support) {
+					repaint();
+				}
+			}, () => {
+				if (el.dataset.tokenizerPending === languageId) {
+					delete el.dataset.tokenizerPending;
+				}
+			});
+		}
+	} catch {
+		delete el.dataset.tokenizerPending;
+	}
+	if (el.dataset.tokenizerWatch === languageId) {
 		return;
 	}
 	el.dataset.tokenizerWatch = languageId;
@@ -435,7 +463,7 @@ function paintCodeLineWindow(widget: KnoxGuiWidget, container: HTMLElement, stat
 		widget.codeGenerating.delete(key);
 	}
 	let lines: string[];
-	const languageId = resolveCodeLanguageId(widget, language, filepath, code, !generating);
+	const languageId = resolveCodeLanguageId(widget, language, filepath, code, !generating || Boolean(filepath));
 	try {
 		widget.languageService.requestBasicLanguageFeatures(languageId);
 		lines = knoxGuiSplitTokenizedLines(tokenizeToStringSync(widget.languageService, code, languageId));
@@ -443,7 +471,12 @@ function paintCodeLineWindow(widget: KnoxGuiWidget, container: HTMLElement, stat
 		lines = code.split('\n').map(line => escape(line));
 	}
 	watchCodeTokenizer(widget, container, languageId, () => {
-		paintCodeLineWindow(widget, container, state, language, container.dataset.code ?? code, filepath, options);
+		// Lines already in the DOM were painted without colors: drop the window cache so the
+		// incremental path cannot skip them, and follow the live generating state.
+		delete container.dataset.lineStart;
+		delete container.dataset.lineEnd;
+		const live = container.getAttribute('data-streaming') === 'true';
+		paintCodeLineWindow(widget, container, state, language, container.dataset.code ?? code, filepath, { ...options, generating: live });
 	});
 	const rawLines = code.split('\n');
 	const lineCount = lines.length;

@@ -1,0 +1,304 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Checkpoints/CheckpointTableRow.tsx details dialog: panel, tabs, basic info, JSON, context */
+/* Checkpoints/CheckpointTableRow.tsx details dialog */
+.knox-gui-checkpoint-details-overlay {
+	z-index: 19;
+}
+
+.knox-gui .knox-gui-checkpoint-details-panel {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	box-sizing: border-box;
+	width: 99%;
+	height: 99%;
+	min-width: 320px;
+	min-height: 500px;
+	padding: 24px;
+	overflow: hidden;
+	border: 1px solid var(--vscode-input-border, #6e6e77);
+	background: var(--kcp-bg);
+	color: var(--vscode-editor-foreground, var(--kcp-fg));
+	box-shadow: var(--kcp-shadow-lg);
+	line-height: 1.3;
+	transform: translate(-50%, -50%);
+}
+
+.knox-gui-checkpoint-details-head {
+	padding-right: 24px;
+}
+
+.knox-gui-checkpoint-details-tabs {
+	display: grid;
+	flex-shrink: 0;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	box-sizing: border-box;
+	height: 36px;
+	padding: 4px;
+	border-radius: 10px;
+	background: var(--kcp-muted);
+	color: var(--kcp-muted-fg);
+}
+
+.knox-gui-checkpoint-details-tab {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	min-width: 0;
+	padding: 0 4px;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: inherit;
+	font-family: inherit;
+	font-size: 12px;
+	font-weight: 500;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: color 0.15s, background-color 0.15s, box-shadow 0.15s;
+}
+
+.knox-gui-checkpoint-details-tab.selected {
+	background: var(--kcp-bg);
+	color: var(--kcp-fg);
+	box-shadow: var(--kcp-shadow);
+}
+
+.knox-gui-checkpoint-details-tab:disabled {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+.knox-gui .knox-gui-checkpoint-details-tab .knox-gui-svg {
+	color: currentColor;
+}
+
+.knox-gui-checkpoint-details-tab span {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.knox-gui-checkpoint-details-tab .knox-gui-tab-full {
+	display: none;
+}
+
+@container knox-checkpoint (min-width: 330px) {
+	.knox-gui .knox-gui-checkpoint-details-panel {
+		border-radius: 10px;
+	}
+
+	.knox-gui-checkpoint-details-tab {
+		gap: 8px;
+		padding: 0 12px;
+		font-size: 14px;
+	}
+}
+
+@container knox-checkpoint (min-width: 460px) {
+	.knox-gui-checkpoint-details-tab .knox-gui-tab-full {
+		display: inline;
+	}
+
+	.knox-gui-checkpoint-details-tab .knox-gui-tab-short {
+		display: none;
+	}
+}
+
+.knox-gui-checkpoint-details-content {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+	margin-top: -4px;
+	overflow: hidden;
+}
+
+.knox-gui-checkpoint-details-basic {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 12px;
+	min-height: 0;
+	padding-right: 8px;
+	overflow-y: auto;
+}
+
+.knox-gui-checkpoint-details-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 16px;
+}
+
+@container knox-checkpoint (min-width: 460px) {
+	.knox-gui-checkpoint-details-basic {
+		gap: 16px;
+	}
+
+	.knox-gui-checkpoint-details-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+.knox-gui-checkpoint-details-field {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-width: 0;
+}
+
+.knox-gui-checkpoint-details-field.is-wide {
+	grid-column: 1 / -1;
+}
+
+.knox-gui-checkpoint-details-label {
+	color: var(--kcp-muted-fg);
+	font-size: 14px;
+	font-weight: 500;
+	line-height: 1;
+}
+
+.knox-gui .knox-gui-checkpoint-details-value {
+	padding: 8px;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--kcp-muted) 50%, transparent);
+	font-size: 14px;
+	overflow-wrap: anywhere;
+}
+
+.knox-gui .knox-gui-checkpoint-details-value.knox-gui-mono {
+	overflow: visible;
+	font-family: var(--kcp-mono);
+	font-size: 14px;
+	white-space: normal;
+}
+
+.knox-gui-checkpoint-details-inline {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.knox-gui .knox-gui-checkpoint-details-inline .knox-gui-svg {
+	color: var(--kcp-muted-fg);
+}
+
+.knox-gui-checkpoint-details-json-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-bottom: 8px;
+	color: var(--kcp-muted-fg);
+	font-size: 12px;
+}
+
+.knox-gui .knox-gui-checkpoint-details-json-label .knox-gui-svg {
+	color: currentColor;
+}
+
+.knox-gui-checkpoint-json {
+	max-height: 160px;
+	margin: 0;
+	padding: 12px;
+	overflow: auto;
+	border: 1px solid var(--kcp-border);
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--kcp-bg) 80%, transparent);
+	font-family: var(--kcp-mono);
+	font-size: 12px;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.knox-gui-checkpoint-json.is-raw {
+	color: var(--odp-orange);
+}
+
+.knox-gui .knox-gui-checkpoint-details-context h3 {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 12px;
+	color: var(--kcp-fg);
+	font-size: 18px;
+	font-weight: 600;
+	line-height: 28px;
+}
+
+.knox-gui .knox-gui-checkpoint-details-context h3 .knox-gui-svg {
+	color: currentColor;
+}
+
+.knox-gui-checkpoint-details-message {
+	margin: 0;
+	padding: 16px;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--kcp-muted) 50%, transparent);
+	font-size: 14px;
+	line-height: 1.625;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.knox-gui-checkpoint-details-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+	margin-top: 12px;
+	color: var(--kcp-muted-fg);
+	font-size: 12px;
+}
+
+.knox-gui-checkpoint-details-empty {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 32px;
+	border: 1px solid var(--kcp-border);
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--kcp-muted) 10%, transparent);
+	color: var(--kcp-muted-fg);
+	font-size: 14px;
+	text-align: center;
+}
+
+.knox-gui .knox-gui-checkpoint-details-empty > .knox-gui-svg {
+	color: currentColor;
+	opacity: 0.5;
+}
+
+.knox-gui-checkpoint-details-empty p {
+	margin: 0;
+}
+
+.knox-gui-checkpoint-details-hint {
+	font-size: 12px;
+	opacity: 0.7;
+}
+
+.knox-gui-checkpoint-details-strong {
+	color: var(--kcp-fg);
+	font-weight: 500;
+}
+
+.knox-gui-checkpoint-details-spinner {
+	box-sizing: border-box;
+	width: 48px;
+	height: 48px;
+	border: 4px solid currentColor;
+	border-top-color: transparent;
+	border-radius: 50%;
+	opacity: 0.5;
+	animation: knox-gui-spin 1s linear infinite;
+}

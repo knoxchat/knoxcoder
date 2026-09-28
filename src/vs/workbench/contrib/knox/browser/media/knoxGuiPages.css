@@ -1205,3 +1205,130 @@
 	}
 }
 
+
+/* Modal polish for dark and light themes. Every rule reads VS Code theme tokens, and button
+ * labels inherit their color instead of the teal `.knox-gui-lump-label` default (which used to
+ * paint teal text on blue / neutral buttons). Kept last so it wins over the earlier dialog rules. */
+.knox-gui .knox-gui-text-dialog {
+	background: rgba(0, 0, 0, 0.7);
+}
+
+.vscode-light .knox-gui .knox-gui-text-dialog,
+.vscode-high-contrast-light .knox-gui .knox-gui-text-dialog,
+.knox-gui[data-knox-theme-kind="light"] .knox-gui-text-dialog {
+	background: rgba(0, 0, 0, 0.4);
+}
+
+.knox-gui .knox-gui-text-dialog-body {
+	color: var(--vscode-foreground, var(--vscode-editor-foreground));
+	background: var(--vscode-editor-background, var(--vscode-sideBar-background, #1e1e1e));
+	border: 1px solid var(--vscode-widget-border, var(--vscode-input-border, #6e6e77));
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.vscode-light .knox-gui .knox-gui-text-dialog-body,
+.vscode-high-contrast-light .knox-gui .knox-gui-text-dialog-body,
+.knox-gui[data-knox-theme-kind="light"] .knox-gui-text-dialog-body {
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.knox-gui .knox-gui-text-dialog-close {
+	color: var(--vscode-icon-foreground, var(--vscode-descriptionForeground, #8b8b93));
+	background: transparent;
+	border-radius: 4px;
+	opacity: 0.85;
+}
+
+.knox-gui .knox-gui-text-dialog-close:hover:not(:disabled) {
+	color: var(--vscode-foreground, var(--vscode-editor-foreground));
+	background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+	opacity: 1;
+	filter: none;
+}
+
+/* Primary and secondary dialog buttons (stream error Close, prompt dialog Add / Cancel). */
+.knox-gui .knox-gui-text-dialog .knox-gui-primary,
+.knox-gui .knox-gui-text-dialog .knox-gui-prompt-dialog-save {
+	justify-content: center;
+	min-width: 4rem;
+	padding: 5px 14px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 4px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.knox-gui .knox-gui-text-dialog .knox-gui-primary:hover:not(:disabled),
+.knox-gui .knox-gui-text-dialog .knox-gui-prompt-dialog-save:hover:not(:disabled) {
+	background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+	color: var(--vscode-button-foreground);
+	opacity: 1;
+	filter: none;
+}
+
+.knox-gui .knox-gui-text-dialog .knox-gui-prompt-dialog-btn:not(.knox-gui-prompt-dialog-save) {
+	justify-content: center;
+	border: 1px solid var(--vscode-button-border, var(--vscode-input-border, #6e6e77));
+	border-radius: 4px;
+	background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
+	color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+}
+
+.knox-gui .knox-gui-text-dialog .knox-gui-prompt-dialog-btn:not(.knox-gui-prompt-dialog-save):hover:not(:disabled) {
+	background: var(--vscode-button-secondaryHoverBackground, var(--vscode-input-background));
+	opacity: 1;
+	filter: none;
+}
+
+.knox-gui .knox-gui-text-dialog .knox-gui-primary .knox-gui-lump-label,
+.knox-gui .knox-gui-text-dialog .knox-gui-prompt-dialog-btn .knox-gui-lump-label {
+	max-width: none;
+	margin: 0;
+	overflow: visible;
+	color: inherit;
+	font-size: inherit;
+}
+
+.knox-gui .knox-gui-text-dialog .knox-gui-primary:focus-visible,
+.knox-gui .knox-gui-text-dialog .knox-gui-prompt-dialog-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #159994);
+	outline-offset: 2px;
+}
+
+/* Stream error dialog ("401 Error" + response body). */
+.knox-gui .knox-gui-stream-error {
+	gap: 6px;
+	padding: 20px 20px 16px;
+}
+
+.knox-gui .knox-gui-stream-error-title {
+	padding-right: 28px;
+	font-weight: 600;
+	color: var(--vscode-errorForeground, #f14c4c);
+}
+
+.knox-gui .knox-gui-stream-error-message {
+	border: 1px solid var(--vscode-widget-border, var(--vscode-input-border, #6e6e77));
+	border-radius: 4px;
+	background: var(--vscode-textCodeBlock-background, var(--vscode-input-background));
+}
+
+.knox-gui .knox-gui-stream-error-message code {
+	max-height: 160px;
+	padding: 8px;
+	color: var(--vscode-foreground, var(--vscode-editor-foreground));
+	background: transparent;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 0.9em;
+	line-height: 1.4;
+}
+
+.knox-gui .knox-gui-stream-error-actions {
+	margin-top: 12px;
+}
+
+/* History delete confirmation: keep white text readable on the theme's error color. */
+.knox-gui .knox-gui-alert-dialog-btn.is-destructive {
+	background: color-mix(in srgb, var(--vscode-errorForeground, #e06c75) 78%, #000);
+	color: #fff;
+}

@@ -106,6 +106,9 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(chat);
 		assert.ok(agent.classList.contains('selected'));
 		assert.strictEqual(chat.classList.contains('selected'), false);
+		// ModeSelect.tsx: no configured model yet marks both tabs so the active one renders in the warning color.
+		assert.ok(agent.classList.contains('knox-gui-mode-nomodel'));
+		assert.ok(chat.classList.contains('knox-gui-mode-nomodel'));
 		assert.ok(agent.querySelector('svg.knox-gui-svg'));
 		assert.strictEqual(agent.getAttribute('data-menu-trigger'), 'true');
 		agent.click();

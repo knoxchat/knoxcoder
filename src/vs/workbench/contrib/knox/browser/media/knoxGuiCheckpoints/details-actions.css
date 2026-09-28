@@ -1,0 +1,44 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Details dialog: actions and container-query overrides */
+.knox-gui-checkpoint-details-actions {
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	gap: 8px;
+	padding-top: 12px;
+	border-top: 1px solid var(--kcp-border);
+}
+
+@container knox-checkpoint (min-width: 330px) {
+	.knox-gui-checkpoint-details-actions {
+		flex-direction: row;
+	}
+}
+
+@container knox-checkpoint (max-width: 640px) {
+	.knox-gui-checkpoint-snapshots {
+		flex-direction: column;
+	}
+
+	.knox-gui-checkpoint-tree-pane {
+		width: auto !important;
+		height: 40%;
+	}
+
+	.knox-gui-checkpoint-splitter {
+		width: auto;
+		height: 4px;
+		cursor: default;
+	}
+
+	.knox-gui-checkpoint-tree-rail {
+		flex-direction: row;
+		width: auto;
+		border-right: 0;
+		border-bottom: 1px solid var(--kcp-border);
+	}
+}

@@ -1,0 +1,104 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Details dialog: snapshot file viewer */
+.knox-gui-checkpoint-viewer-head {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 6px 12px;
+	border-bottom: 1px solid var(--kcp-border);
+	background: color-mix(in srgb, var(--kcp-muted) 30%, transparent);
+}
+
+.knox-gui-checkpoint-viewer-name {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.knox-gui-checkpoint-viewer-path {
+	min-width: 0;
+	overflow: hidden;
+	font-family: var(--kcp-mono);
+	font-size: 14px;
+	font-weight: 500;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-checkpoint-viewer-tools {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 4px;
+}
+
+.knox-gui-checkpoint-viewer-code {
+	flex: 1;
+	min-height: 0;
+	margin: 0;
+	padding: 8px 12px;
+	overflow: auto;
+	font-family: var(--kcp-mono);
+	font-size: var(--vscode-editor-font-size, 13px);
+	white-space: pre;
+}
+
+.knox-gui-checkpoint-viewer-code.wrap {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.knox-gui-checkpoint-viewer-binary {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 24px;
+	overflow: auto;
+	color: var(--kcp-muted-fg);
+	text-align: center;
+}
+
+.knox-gui .knox-gui-checkpoint-viewer-binary > .knox-gui-svg {
+	color: currentColor;
+	opacity: 0.5;
+}
+
+.knox-gui-checkpoint-viewer-binary p {
+	margin: 0;
+}
+
+.knox-gui-checkpoint-viewer-binary img {
+	max-width: 100%;
+	max-height: 60vh;
+	border: 1px solid var(--kcp-border);
+	border-radius: 4px;
+}
+
+.knox-gui-checkpoint-viewer-foot {
+	display: flex;
+	flex-shrink: 0;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 6px 12px;
+	border-top: 1px solid var(--kcp-border);
+	background: color-mix(in srgb, var(--kcp-muted) 20%, transparent);
+	color: var(--kcp-muted-fg);
+	font-size: 12px;
+}
+
+.knox-gui-checkpoint-viewer-meta,
+.knox-gui .knox-gui-checkpoint-viewer-meta .knox-gui-mono {
+	font-size: 10px;
+}

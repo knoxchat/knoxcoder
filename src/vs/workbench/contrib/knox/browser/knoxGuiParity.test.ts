@@ -17,7 +17,29 @@ const knoxGuiCssFiles = [
 	'knoxGuiPanels.css',
 	'knoxGuiThinking.css',
 	'knoxGuiPages.css',
-	'knoxGuiCheckpoints.css',
+	'knoxGuiCheckpoints/base.css',
+	'knoxGuiCheckpoints/tokens.css',
+	'knoxGuiCheckpoints/ui-button.css',
+	'knoxGuiCheckpoints/ui-responsive.css',
+	'knoxGuiCheckpoints/ui-badge.css',
+	'knoxGuiCheckpoints/ui-checkbox-select.css',
+	'knoxGuiCheckpoints/ui-input.css',
+	'knoxGuiCheckpoints/ui-dialog.css',
+	'knoxGuiCheckpoints/list.css',
+	'knoxGuiCheckpoints/card.css',
+	'knoxGuiCheckpoints/timeline-header.css',
+	'knoxGuiCheckpoints/timeline-list.css',
+	'knoxGuiCheckpoints/restore.css',
+	'knoxGuiCheckpoints/compare.css',
+	'knoxGuiCheckpoints/diff-viewer.css',
+	'knoxGuiCheckpoints/file-tree.css',
+	'knoxGuiCheckpoints/diff-pane.css',
+	'knoxGuiCheckpoints/diff-binary.css',
+	'knoxGuiCheckpoints/details-dialog.css',
+	'knoxGuiCheckpoints/details-snapshots.css',
+	'knoxGuiCheckpoints/details-viewer.css',
+	'knoxGuiCheckpoints/details-compare.css',
+	'knoxGuiCheckpoints/details-actions.css',
 	'knoxGuiMemory.css',
 	'knoxGuiGraph.css',
 	'knoxGuiConfig.css',
@@ -175,7 +197,12 @@ suite('Knox native GUI i18n', () => {
 		const contributions = readFileSync(join(process.cwd(), 'src/vs/workbench/contrib/knox/browser/knox.contributions.ts'), 'utf8');
 		const imports = [...contributions.matchAll(/import '\.\/media\/(knoxGui[^']*\.css)';/g)].map(match => match[1]);
 		assert.deepStrictEqual(imports, knoxGuiCssFiles);
-		const onDisk = readdirSync(knoxGuiCssDir).filter(name => /^knoxGui.*\.css$/.test(name)).sort();
+		const onDisk = readdirSync(knoxGuiCssDir, { withFileTypes: true }).flatMap(entry => {
+			if (entry.isDirectory() && /^knoxGui/.test(entry.name)) {
+				return readdirSync(join(knoxGuiCssDir, entry.name)).filter(name => /\.css$/.test(name)).map(name => `${entry.name}/${name}`);
+			}
+			return entry.isFile() && /^knoxGui.*\.css$/.test(entry.name) ? [entry.name] : [];
+		}).sort();
 		assert.deepStrictEqual(onDisk, [...knoxGuiCssFiles].sort());
 	});
 

@@ -97,7 +97,7 @@ suite('Knox checkpoint engine contract (KN-320–332)', () => {
 	test('KN-330: messageId map, This session filter, shift-click memory rewind', () => {
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/manager/CheckpointManager.ts').includes('getCheckpointForMessage'));
 		assert.ok(repoFile('src/vs/workbench/contrib/knox/common/knoxGuiCheckpoints.ts').includes('thisSession'));
-		assert.ok(repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/chat.ts').includes('event.shiftKey'));
+		assert.ok(repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/chat/activity.ts').includes('event.shiftKey'));
 		assert.ok(repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/checkpoints.ts').includes('rewindMemory'));
 	});
 

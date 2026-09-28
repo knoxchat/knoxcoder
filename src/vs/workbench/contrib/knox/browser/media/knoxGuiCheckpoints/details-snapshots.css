@@ -1,0 +1,181 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Details dialog: snapshot tree pane, splitter, rail */
+.knox-gui-checkpoint-snapshots {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+	border: 1px solid var(--kcp-border);
+	border-radius: 10px;
+}
+
+.knox-gui-checkpoint-tree-pane {
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.knox-gui-checkpoint-tree-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 6px;
+	border-bottom: 1px solid var(--kcp-border);
+	background: color-mix(in srgb, var(--kcp-muted) 20%, transparent);
+	color: var(--kcp-muted-fg);
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.knox-gui-checkpoint-tree-head > span {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-checkpoint-tree-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	padding: 4px;
+	border: 0;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--kcp-muted-fg);
+	cursor: pointer;
+}
+
+.knox-gui-checkpoint-tree-toggle:hover {
+	background: color-mix(in srgb, var(--kcp-muted) 50%, transparent);
+}
+
+.knox-gui .knox-gui-checkpoint-tree-toggle .knox-gui-svg {
+	color: currentColor;
+}
+
+.knox-gui-checkpoint-snapshot-tree {
+	flex: 1;
+	overflow-y: auto;
+	background: var(--kcp-bg);
+}
+
+.knox-gui-checkpoint-tree-count {
+	padding: 4px 8px;
+	border-bottom: 1px solid var(--kcp-border);
+	background: color-mix(in srgb, var(--kcp-muted) 20%, transparent);
+	color: var(--kcp-muted-fg);
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.knox-gui-checkpoint-tree-row {
+	display: flex;
+	align-items: center;
+	padding: 2px 4px;
+	border-left: 2px solid transparent;
+	font-size: 12px;
+	line-height: 1.25;
+	cursor: pointer;
+}
+
+.knox-gui-checkpoint-tree-row:hover {
+	background: color-mix(in srgb, var(--kcp-muted) 40%, transparent);
+}
+
+.knox-gui-checkpoint-tree-row.selected {
+	border-left-color: var(--kcp-primary);
+	background: color-mix(in srgb, var(--kcp-primary) 10%, transparent);
+}
+
+.knox-gui .knox-gui-checkpoint-tree-chevron {
+	color: var(--kcp-muted-fg);
+}
+
+.knox-gui .knox-gui-checkpoint-tree-folder {
+	margin-left: 2px;
+	color: var(--kcp-primary);
+}
+
+.knox-gui-checkpoint-tree-spacer {
+	flex-shrink: 0;
+	width: 12px;
+}
+
+.knox-gui-checkpoint-tree-row .knox-gui-file-icon {
+	margin-left: 2px;
+}
+
+.knox-gui-checkpoint-tree-name {
+	min-width: 0;
+	margin-left: 4px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-checkpoint-splitter {
+	position: relative;
+	flex-shrink: 0;
+	width: 4px;
+	background: var(--kcp-border);
+	cursor: col-resize;
+	transition: background-color 0.15s;
+}
+
+.knox-gui-checkpoint-splitter::after {
+	content: '';
+	position: absolute;
+	inset: 0 -6px;
+}
+
+.knox-gui-checkpoint-splitter:hover {
+	background: color-mix(in srgb, var(--kcp-primary) 50%, transparent);
+}
+
+.knox-gui-checkpoint-splitter.is-dragging {
+	background: var(--kcp-primary);
+}
+
+.knox-gui-checkpoint-tree-rail {
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	width: 48px;
+	border-right: 1px solid var(--kcp-border);
+	background: color-mix(in srgb, var(--kcp-muted) 20%, transparent);
+}
+
+.knox-gui-checkpoint-tree-rail .knox-gui-checkpoint-tree-toggle {
+	height: 48px;
+	border-bottom: 1px solid var(--kcp-border);
+	border-radius: 0;
+}
+
+.knox-gui-checkpoint-snapshot-viewer {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+	overflow: hidden;
+	background: var(--kcp-bg);
+}
+
+.knox-gui-checkpoint-snapshot-viewer.is-empty {
+	background: color-mix(in srgb, var(--kcp-muted) 10%, transparent);
+}
+
+.knox-gui-checkpoint-snapshot-viewer.is-empty .knox-gui-checkpoint-details-empty {
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	font-size: 12px;
+}

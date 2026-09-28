@@ -1,0 +1,198 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Checkpoints/CheckpointList.tsx */
+/* Checkpoints/CheckpointList.tsx */
+.knox-gui-checkpoint-panel.knox-gui-cpl-list {
+	box-sizing: border-box;
+	gap: 8px;
+	padding: 8px;
+	overflow-x: hidden;
+	overflow-y: auto;
+	line-height: 1.3;
+	outline: none;
+}
+
+.knox-gui-cpl-list > * {
+	flex-shrink: 0;
+}
+
+.knox-gui-cpl-list-header {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.knox-gui-checkpoint-list-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.knox-gui .knox-gui-checkpoint-list-head h1 {
+	margin: 0;
+	color: var(--kcp-fg);
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 24px;
+}
+
+.knox-gui-checkpoint-list-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.knox-gui-cpl-workspace-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.knox-gui-cpl-workspace-row .knox-gui-cpl-label {
+	white-space: nowrap;
+}
+
+.knox-gui-cpl-select.is-workspace {
+	flex: 1;
+}
+
+.knox-gui-checkpoint-list-loading {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 24px 0;
+	color: var(--kcp-muted-fg);
+	font-size: 14px;
+}
+
+.knox-gui .knox-gui-checkpoint-list-loading .knox-gui-svg {
+	color: currentColor;
+}
+
+.knox-gui-checkpoint-list-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 16px;
+	padding: 48px 16px;
+	text-align: center;
+}
+
+.knox-gui-checkpoint-empty-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 64px;
+	height: 64px;
+	border-radius: 50%;
+	background: var(--kcp-muted);
+}
+
+.knox-gui .knox-gui-checkpoint-empty-icon .knox-gui-svg {
+	color: var(--kcp-muted-fg);
+}
+
+.knox-gui-checkpoint-empty-copy {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	max-width: 28rem;
+}
+
+.knox-gui .knox-gui-checkpoint-empty-copy h3 {
+	margin: 0;
+	color: var(--kcp-fg);
+	font-size: 18px;
+	font-weight: 600;
+	line-height: 28px;
+}
+
+.knox-gui-checkpoint-empty-copy p {
+	margin: 0;
+	color: var(--kcp-muted-fg);
+	font-size: 14px;
+	line-height: 20px;
+}
+
+.knox-gui-checkpoint-list-actions {
+	position: sticky;
+	top: 0;
+	z-index: 10;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin: 0 -8px;
+	padding: 6px 8px;
+	border-bottom: 1px solid color-mix(in srgb, var(--kcp-border) 40%, transparent);
+	background: color-mix(in srgb, var(--kcp-bg) 95%, transparent);
+	backdrop-filter: blur(8px);
+}
+
+.knox-gui-cpl-actions-group {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+
+.knox-gui-cpl-groups {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.knox-gui-checkpoint-date-group {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.knox-gui-checkpoint-date-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.knox-gui .knox-gui-checkpoint-date-head h2 {
+	margin: 0;
+	color: var(--kcp-fg);
+	font-size: 14px;
+	font-weight: 600;
+	line-height: 20px;
+}
+
+.knox-gui-cpl-cards {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.knox-gui-cpl-load-more {
+	display: flex;
+	justify-content: center;
+	padding-top: 8px;
+}
+
+.knox-gui-checkpoint-list-footer {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 8px 0;
+	color: var(--kcp-muted-fg);
+	font-size: 12px;
+	line-height: 16px;
+}
+
+.knox-gui .knox-gui-checkpoint-list-footer .knox-gui-svg {
+	color: currentColor;
+}

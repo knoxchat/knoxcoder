@@ -402,8 +402,17 @@
 }
 
 .knox-gui-term {
-	animation: knox-gui-term-appear 0.2s ease-out;
 	transition: outline-color 0.15s ease;
+}
+
+.knox-gui-term.knox-gui-term-enter {
+	animation: knox-gui-term-appear 0.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.knox-gui-term.knox-gui-term-enter {
+		animation: none;
+	}
 }
 
 .knox-gui-term:focus-within {

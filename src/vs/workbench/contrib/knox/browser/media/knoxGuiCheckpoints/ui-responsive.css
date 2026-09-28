@@ -1,0 +1,30 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Container-query show/hide utilities (knox-checkpoint container and card widths) */
+.knox-gui .knox-gui-cpl-show-sm,
+.knox-gui .knox-gui-cpl-show-md,
+.knox-gui .knox-gui-cpl-show-card-18,
+.knox-gui .knox-gui-cpl-show-card-22 {
+	display: none;
+}
+
+@container knox-checkpoint (min-width: 330px) {
+	.knox-gui .knox-gui-cpl-show-sm { display: inline; }
+	.knox-gui .knox-gui-cpl-hide-sm { display: none; }
+}
+
+@container knox-checkpoint (min-width: 460px) {
+	.knox-gui .knox-gui-cpl-show-md { display: inline; }
+	.knox-gui .knox-gui-cpl-hide-md { display: none; }
+}
+
+@container (min-width: 18rem) {
+	.knox-gui .knox-gui-cpl-show-card-18 { display: inline; }
+}
+
+@container (min-width: 22rem) {
+	.knox-gui .knox-gui-cpl-show-card-22 { display: inline; }
+}

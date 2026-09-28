@@ -1,0 +1,66 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ui/badge.tsx */
+/* ui/badge.tsx (checkpoints pass font-normal) */
+.knox-gui .knox-gui-cpl-badge {
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+	max-width: 100%;
+	padding: 2px 10px;
+	border: 1px solid transparent;
+	border-radius: 8px;
+	font-family: inherit;
+	font-size: 12px;
+	font-weight: 400;
+	line-height: 16px;
+	white-space: nowrap;
+	transition: color 0.15s, background-color 0.15s;
+}
+
+.knox-gui .knox-gui-cpl-badge .knox-gui-svg {
+	width: 12px;
+	height: 12px;
+	margin-right: 4px;
+	color: currentColor;
+}
+
+.knox-gui .knox-gui-cpl-badge.is-default {
+	background: var(--kcp-primary);
+	color: var(--kcp-primary-fg);
+	box-shadow: var(--kcp-shadow);
+}
+
+.knox-gui .knox-gui-cpl-badge.is-secondary {
+	background: var(--kcp-secondary);
+	color: var(--kcp-secondary-fg);
+}
+
+.knox-gui .knox-gui-cpl-badge.is-outline {
+	border-color: var(--kcp-border);
+	background: transparent;
+	color: var(--kcp-fg);
+}
+
+.knox-gui button.knox-gui-cpl-badge.is-clickable {
+	cursor: pointer;
+}
+
+.knox-gui button.knox-gui-cpl-badge.is-clickable:hover {
+	background: var(--kcp-muted);
+}
+
+.knox-gui .knox-gui-cpl-badge.odp-chip-green,
+.knox-gui button.knox-gui-cpl-badge.odp-chip-green:hover {
+	border-color: color-mix(in srgb, var(--odp-green) 32%, transparent);
+	background: color-mix(in srgb, var(--odp-green) 14%, transparent);
+	color: var(--odp-green);
+}
+
+.knox-gui-cpl-badge-stat {
+	margin-left: 4px;
+	font-weight: 500;
+}

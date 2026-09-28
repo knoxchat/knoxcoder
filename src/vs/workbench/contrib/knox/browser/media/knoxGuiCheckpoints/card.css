@@ -1,0 +1,92 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Checkpoints/CheckpointTableRow.tsx card */
+/* Checkpoints/CheckpointTableRow.tsx card */
+.knox-gui-checkpoint-card {
+	container-type: inline-size;
+	box-sizing: border-box;
+	border: 1px solid color-mix(in srgb, var(--kcp-border) 40%, transparent);
+	border-radius: 8px;
+	background: var(--kcp-card);
+	color: var(--kcp-fg);
+	box-shadow: var(--kcp-shadow);
+	cursor: pointer;
+	transition: box-shadow 0.2s, border-color 0.2s, background-color 0.2s;
+}
+
+.knox-gui-checkpoint-card:hover {
+	box-shadow: var(--kcp-shadow-md);
+}
+
+.knox-gui-checkpoint-card.is-selected {
+	border-color: color-mix(in srgb, var(--kcp-primary) 50%, transparent);
+	background: color-mix(in srgb, var(--kcp-primary) 5%, var(--kcp-card));
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--kcp-primary) 20%, transparent), var(--kcp-shadow);
+}
+
+.knox-gui-checkpoint-card.is-focused {
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--kcp-fg) 30%, transparent), var(--kcp-shadow);
+}
+
+.knox-gui-checkpoint-card-inner {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 10px;
+}
+
+.knox-gui-checkpoint-check-wrap {
+	display: flex;
+	padding-top: 2px;
+}
+
+.knox-gui-checkpoint-card-main {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 8px;
+	min-width: 0;
+}
+
+.knox-gui .knox-gui-checkpoint-card-title {
+	display: -webkit-box;
+	margin: 0;
+	overflow: hidden;
+	color: inherit;
+	font-size: 14px;
+	font-weight: 500;
+	line-height: 1.375;
+	overflow-wrap: anywhere;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	-webkit-box-orient: vertical;
+}
+
+.knox-gui-checkpoint-card-preview {
+	display: -webkit-box;
+	margin: -4px 0 0;
+	overflow: hidden;
+	color: var(--kcp-muted-fg);
+	font-size: 12px;
+	line-height: 16px;
+	overflow-wrap: anywhere;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	-webkit-box-orient: vertical;
+}
+
+.knox-gui-checkpoint-badges {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+
+.knox-gui-checkpoint-card-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}

@@ -393,6 +393,13 @@ export function renderTerminalTool(widget: KnoxGuiWidget, parent: HTMLElement, s
 	card.classList.toggle('light', isLight);
 	card.setAttribute('data-testid', 'knox-gui-term');
 	card.dataset.toolId = tool.id;
+	// The transcript is rebuilt wholesale on most state changes; replaying the fade/slide
+	// entrance each time made every terminal card flash. Animate only the first live mount.
+	const live = tool.status === 'generating' || tool.status === 'generated' || tool.status === 'calling';
+	if (live && !widget.termEntered.has(tool.id)) {
+		card.classList.add('knox-gui-term-enter');
+	}
+	widget.termEntered.add(tool.id);
 	const head = DOM.append(card, DOM.$('.knox-gui-term-head'));
 	const left = DOM.append(head, DOM.$('.knox-gui-term-head-left'));
 	widget.collapseChevron(left, {

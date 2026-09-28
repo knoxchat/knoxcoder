@@ -81,6 +81,9 @@ export function renderMode(widget: KnoxGuiWidget, bar: HTMLElement, state: IKnox
 	wrap.style.fontSize = `${state.fontSize}px`;
 	const running = knoxGuiRunningJobCount(visibleBackgroundJobs(state));
 	const streaming = state.isStreaming;
+	// ModeSelect.tsx: no configured model yet renders the active tab in the warning color.
+	const noModel = widget.controller.chatModels().length === 0;
+	const noModelClass = noModel ? ' knox-gui-mode-nomodel' : '';
 
 	widget.chromeButton(wrap, {
 		label: t(state, 'chat'),
@@ -88,7 +91,7 @@ export function renderMode(widget: KnoxGuiWidget, bar: HTMLElement, state: IKnox
 		disabled: streaming,
 		title: `${t(state, 'chatMode')} (${knoxGuiMetaKeyLabel(isMacintosh)}L)`,
 		testId: 'knox-gui-mode-chat',
-		extraClass: 'knox-gui-mode-tab',
+		extraClass: `knox-gui-mode-tab${noModelClass}`,
 		onClick: () => {
 			widget.closeMenus();
 			if (!streaming && state.mode !== 'chat') {
@@ -105,7 +108,7 @@ export function renderMode(widget: KnoxGuiWidget, bar: HTMLElement, state: IKnox
 		disabled: agentDisabled && state.mode !== 'agent',
 		title: !state.toolsSupported ? t(state, 'agentModeNotSupported') : state.mode === 'agent' ? t(state, 'agentOptions') : t(state, 'agentMode'),
 		testId: 'knox-gui-mode-agent',
-		extraClass: `knox-gui-mode-tab${state.toolsSupported ? '' : ' knox-gui-mode-unsupported'}`,
+		extraClass: `knox-gui-mode-tab${state.toolsSupported ? '' : ' knox-gui-mode-unsupported'}${noModelClass}`,
 		menuTrigger: true,
 		onClick: () => {
 			if (streaming) {

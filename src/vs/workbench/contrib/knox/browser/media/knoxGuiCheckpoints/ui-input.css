@@ -1,0 +1,109 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ui/input.tsx, search/field/separator/hint, skeletons */
+/* ui/input.tsx + index.css input[type=text] */
+.knox-gui .knox-gui-cpl-input {
+	box-sizing: border-box;
+	width: 100%;
+	height: 36px;
+	padding: 4px 12px;
+	border: 1px solid var(--kcp-input);
+	border-radius: 8px;
+	background: transparent;
+	color: var(--kcp-fg);
+	box-shadow: var(--kcp-shadow-sm);
+	font-family: inherit;
+	font-size: 14px;
+	line-height: 20px;
+	outline: none;
+}
+
+.knox-gui .knox-gui-cpl-input[type='text'] {
+	border-color: var(--vscode-input-border, #6e6e77);
+	background: var(--vscode-input-background);
+}
+
+.knox-gui .knox-gui-cpl-input:focus {
+	border-color: var(--vscode-focusBorder, #159994);
+	box-shadow: 0 0 0 1px var(--kcp-primary);
+}
+
+.knox-gui-cpl-search {
+	position: relative;
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.knox-gui .knox-gui-cpl-search .knox-gui-cpl-search-icon {
+	position: absolute;
+	left: 8px;
+	width: 16px;
+	height: 16px;
+	color: var(--kcp-muted-fg);
+	pointer-events: none;
+}
+
+.knox-gui .knox-gui-cpl-search .knox-gui-cpl-input {
+	padding-left: 32px;
+}
+
+.knox-gui .knox-gui-cpl-search.has-clear .knox-gui-cpl-input {
+	padding-right: 36px;
+}
+
+.knox-gui .knox-gui-cpl-btn.knox-gui-cpl-search-clear {
+	position: absolute;
+	right: 4px;
+	width: 28px;
+	height: 28px;
+}
+
+.knox-gui .knox-gui-cpl-label {
+	display: inline;
+	color: var(--kcp-fg);
+	font-size: 14px;
+	font-weight: 500;
+	line-height: 1;
+}
+
+.knox-gui-cpl-field {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.knox-gui-cpl-separator {
+	flex-shrink: 0;
+	width: 100%;
+	height: 1px;
+	background: var(--kcp-border);
+}
+
+.knox-gui-cpl-hint {
+	margin: 0;
+	color: var(--kcp-muted-fg);
+	font-size: 12px;
+	line-height: 16px;
+}
+
+.knox-gui-cpl-skeleton {
+	display: block;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--kcp-primary) 10%, transparent);
+	animation: knox-gui-cpl-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.knox-gui-cpl-skeleton-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.knox-gui-cpl-skeleton.is-title { width: 96px; height: 24px; margin-right: auto; }
+.knox-gui-cpl-skeleton.is-session { width: 80px; height: 28px; }
+.knox-gui-cpl-skeleton.is-count { width: 64px; height: 20px; }
+.knox-gui-cpl-skeleton.is-search { width: 100%; height: 36px; }

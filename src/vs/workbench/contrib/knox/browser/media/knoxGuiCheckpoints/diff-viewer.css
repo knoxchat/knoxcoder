@@ -1,0 +1,110 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Checkpoints/DiffViewer.tsx: viewer shell, toolbar, controls */
+/* Checkpoints/DiffViewer.tsx + FileTree.tsx */
+.knox-gui-diff-viewer {
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+	border: 1px solid var(--kcp-border);
+	border-radius: 10px;
+	background: var(--kcp-bg);
+}
+
+.knox-gui-diff-toolbar {
+	display: flex;
+	flex-shrink: 0;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--kcp-border);
+	background: color-mix(in srgb, var(--kcp-muted) 20%, transparent);
+}
+
+.knox-gui-diff-route {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.knox-gui .knox-gui-diff-route-icon {
+	color: var(--kcp-muted-fg);
+}
+
+.knox-gui-diff-route-text {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+	color: var(--kcp-muted-fg);
+	font-size: 12px;
+}
+
+.knox-gui .knox-gui-diff-route-text .knox-gui-svg {
+	color: currentColor;
+}
+
+.knox-gui-diff-route-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knox-gui-diff-controls,
+.knox-gui-diff-summary,
+.knox-gui-diff-toggles {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.knox-gui-diff-summary {
+	flex-wrap: nowrap;
+	font-size: 12px;
+}
+
+.knox-gui-diff-toggles {
+	gap: 4px;
+}
+
+.knox-gui-diff-summary-files {
+	color: var(--kcp-muted-fg);
+	white-space: nowrap;
+}
+
+.knox-gui-diff-summary-stat {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	font-weight: 500;
+}
+
+.knox-gui .knox-gui-diff-summary-stat .knox-gui-svg {
+	color: currentColor;
+}
+
+.knox-gui-diff-vsep {
+	flex-shrink: 0;
+	width: 1px;
+	height: 16px;
+	background: var(--kcp-border);
+}
+
+.knox-gui-diff-split {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}

@@ -1,0 +1,71 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Knox. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Checkpoints/DiffViewer.tsx: binary file diff */
+.knox-gui-diff-binary {
+	display: grid;
+	flex: 1;
+	grid-template-columns: minmax(0, 1fr);
+	align-content: start;
+	gap: 24px;
+	padding: 24px;
+	overflow: auto;
+}
+
+@container knox-checkpoint (min-width: 460px) {
+	.knox-gui-diff-binary {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+.knox-gui-diff-binary-card {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 16px;
+	border: 1px solid var(--kcp-border);
+	border-radius: 10px;
+}
+
+.knox-gui .knox-gui-diff-binary-card h4 {
+	margin: 0;
+	color: var(--kcp-muted-fg);
+	font-size: 14px;
+	font-weight: 500;
+}
+
+.knox-gui-diff-binary-image {
+	max-width: 100%;
+	max-height: 50vh;
+	margin: 0 auto;
+	object-fit: contain;
+	border: 1px solid var(--kcp-border);
+	border-radius: 4px;
+}
+
+.knox-gui-diff-binary-notice {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+	padding: 32px 0;
+	color: var(--kcp-muted-fg);
+	font-size: 14px;
+	text-align: center;
+}
+
+.knox-gui .knox-gui-diff-binary-notice > .knox-gui-svg {
+	margin-bottom: 8px;
+	color: currentColor;
+	opacity: 0.5;
+}
+
+.knox-gui-diff-binary-notice p {
+	margin: 0;
+}
+
+.knox-gui-diff-binary-size {
+	font-size: 12px;
+}
