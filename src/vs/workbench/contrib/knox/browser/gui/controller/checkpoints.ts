@@ -6,7 +6,7 @@
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { asRecord, asArray } from './helpers.js';
 import { CHECKPOINT_ANALYSIS_GROUP_LIMIT, CHECKPOINT_DASHBOARD_HISTORY_DAYS, CHECKPOINT_GRAPH_LIMIT, CHECKPOINT_GRAPH_PAGE_SIZE, CHECKPOINT_LIST_PAGE_SIZE, checkpointConfigHasErrors, DEFAULT_CHECKPOINT_CONFIG, normalizeCheckpointConfig, parseCheckpointAnalysis, parseCheckpointDiff, parseCheckpointGraphUi, parsePerformanceDashboard, parseRestorePreview, parseShareBundles, parseSuggestedCheckpointGroups, validateCheckpointConfig } from '../../../common/knoxGuiCheckpoints.js';
-import { IKnoxGuiHistoryItem, IKnoxGuiState, KnoxCheckpointPanelTab } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiHistoryItem, IKnoxGuiState, KnoxCheckpointPanelTab, knoxGuiCheckpointSessionId } from '../../../common/knoxGuiState.js';
 
 export async function ensureCheckpointForLastAssistant(controller: KnoxGuiController): Promise<void> {
 	const history = controller.store.state.history;
@@ -666,7 +666,7 @@ export async function loadCheckpointList(controller: KnoxGuiController, options?
 			query: controller.store.state.checkpointQuery.trim() || undefined,
 			offset,
 			limit: CHECKPOINT_LIST_PAGE_SIZE,
-			sessionId: controller.store.state.checkpointThisSession ? controller.store.state.sessionId : undefined,
+			sessionId: controller.store.state.checkpointThisSession ? knoxGuiCheckpointSessionId(controller.store.state) || undefined : undefined,
 			thisSessionOnly: controller.store.state.checkpointThisSession,
 		});
 		const nodes = asArray(result?.checkpoints).map(parseCheckpointNode);

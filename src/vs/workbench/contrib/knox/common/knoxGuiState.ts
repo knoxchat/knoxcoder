@@ -695,6 +695,11 @@ export function knoxGuiIsDedicatedEditor(state: { lockedRoute?: KnoxGuiRoute }):
 	return state.lockedRoute === KnoxGuiRoute.Memory || state.lockedRoute === KnoxGuiRoute.CheckpointGraph;
 }
 
+/** Session the "This session" checkpoint filter uses: the mirrored chat session in the Checkpoint Graph editor. */
+export function knoxGuiCheckpointSessionId(state: Pick<IKnoxGuiState, 'lockedRoute' | 'sessionId' | 'checkpointChatSessionId'>): string {
+	return state.lockedRoute === KnoxGuiRoute.CheckpointGraph ? state.checkpointChatSessionId : state.sessionId;
+}
+
 export function withLockedEditorRoute(state: IKnoxGuiState): IKnoxGuiState {
 	if (!knoxGuiIsDedicatedEditor({ lockedRoute: state.lockedRoute })) {
 		return state;
@@ -895,6 +900,8 @@ export interface IKnoxGuiState {
 	checkpointQuery: string;
 	checkpointView: KnoxCheckpointPanelTab;
 	checkpointThisSession: boolean;
+	/** Checkpoint Graph editor: the chat view's session (`useMirroredChatSession`); '' when there is none. */
+	checkpointChatSessionId: string;
 	checkpointShell?: { state: string; checkpointCount: number };
 	checkpointGraphActionBusy: boolean;
 	checkpoints: IKnoxGuiCheckpointNode[];
@@ -1101,6 +1108,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		checkpointQuery: '',
 		checkpointView: 'graph',
 		checkpointThisSession: true,
+		checkpointChatSessionId: '',
 		checkpoints: [],
 		checkpointBranches: [],
 		checkpointDialog: null,

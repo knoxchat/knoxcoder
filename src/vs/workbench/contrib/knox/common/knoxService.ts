@@ -39,6 +39,12 @@ export interface IKnoxService {
 	readonly onDidReceiveGuiMessage: Event<IKnoxGuiMessage>;
 	notifyGuiMessage(message: IKnoxGuiMessage): void;
 
+	/**
+	 * Chat session the chat view last posted with `setActiveChatSession` (host `historyEvents`).
+	 * Changes are re-broadcast as `activeChatSessionChanged` so the Checkpoint Graph editor can follow it.
+	 */
+	readonly activeChatSessionId: string | null;
+
 	readonly onDidChangeAgentMode: Event<boolean>;
 	notifyAgentModeChanged(active: boolean): void;
 }

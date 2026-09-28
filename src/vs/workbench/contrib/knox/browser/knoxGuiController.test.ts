@@ -30,12 +30,13 @@ import { KnoxGuiWidget } from './gui/knoxGuiWidget.js';
 suite('Knox native GUI controller (GP-084)', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(options?: { listModels?: unknown; replies?: Record<string, unknown>; respond?: (message: IKnoxGuiMessage) => { content: unknown; chunks?: unknown[] } | { error: string } | undefined; lock?: KnoxGuiRoute; storage?: InMemoryStorageService }): { controller: KnoxGuiController; store: KnoxGuiStore; posted: IKnoxGuiMessage[] } {
+	function createHarness(options?: { listModels?: unknown; replies?: Record<string, unknown>; respond?: (message: IKnoxGuiMessage) => { content: unknown; chunks?: unknown[] } | { error: string } | undefined; lock?: KnoxGuiRoute; storage?: InMemoryStorageService; activeChatSessionId?: string }): { controller: KnoxGuiController; store: KnoxGuiStore; posted: IKnoxGuiMessage[] } {
 		knoxGuiResetModelCatalogForTests();
 		const incoming = disposables.add(new Emitter<IKnoxGuiMessage>());
 		const posted: IKnoxGuiMessage[] = [];
 		const knoxService = new class extends mock<IKnoxService>() {
 			override onDidReceiveGuiMessage = incoming.event;
+			override activeChatSessionId = options?.activeChatSessionId ?? null;
 			override async guiPost(message: IKnoxGuiMessage): Promise<void> {
 				posted.push(message);
 				const custom = options?.respond?.(message);
@@ -260,6 +261,33 @@ suite('Knox native GUI controller (GP-084)', () => {
 		await controller.handleInbound('activeChatSessionChanged', { sessionId: 'other' }, 'ac-1');
 		assert.strictEqual(store.state.route, KnoxGuiRoute.Memory);
 		assert.notStrictEqual(store.state.sessionId, 'other');
+	});
+
+	test('Checkpoint Graph editor lists "This session" checkpoints for the mirrored chat session', async () => {
+		const { controller, store, posted } = createHarness({
+			lock: KnoxGuiRoute.CheckpointGraph,
+			activeChatSessionId: 'chat-1',
+			replies: { listCheckpoints: { checkpoints: [], total: 0 } },
+		});
+		await timeout(0);
+		assert.strictEqual(store.state.checkpointChatSessionId, 'chat-1');
+		store.patch({ checkpointView: 'checkpoints' });
+		await controller.loadCheckpointList();
+		const lastList = () => posted.filter(message => message.messageType === 'listCheckpoints').at(-1)?.data as { sessionId?: string; thisSessionOnly?: boolean } | undefined;
+		assert.deepStrictEqual({ sessionId: lastList()?.sessionId, thisSessionOnly: lastList()?.thisSessionOnly }, { sessionId: 'chat-1', thisSessionOnly: true });
+
+		const sessionBefore = store.state.sessionId;
+		await controller.handleInbound('activeChatSessionChanged', { sessionId: 'chat-2' }, 'ac-2');
+		await timeout(0);
+		assert.strictEqual(store.state.checkpointChatSessionId, 'chat-2');
+		assert.strictEqual(lastList()?.sessionId, 'chat-2');
+		assert.strictEqual(store.state.sessionId, sessionBefore, 'the editor does not load the chat session');
+		assert.strictEqual(store.state.route, KnoxGuiRoute.CheckpointGraph);
+		assert.ok(!posted.some(message => message.messageType === 'history/load'));
+
+		await controller.handleInbound('activeChatSessionChanged', { sessionId: null }, 'ac-3');
+		await timeout(0);
+		assert.strictEqual(lastList()?.sessionId, undefined, 'no chat session lists every checkpoint, like the reference');
 	});
 
 	test('KN-346 focusEdit / addCodeToEdit / Esc exit the native composer', async () => {

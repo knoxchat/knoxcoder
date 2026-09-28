@@ -7,6 +7,7 @@ import { AutoOpenBarrier } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IKnoxGuiMessage } from '../common/knoxGuiProtocol.js';
 import { IKnoxService, IKnoxExtensionDelegate } from '../common/knoxService.js';
@@ -20,6 +21,7 @@ export class KnoxService extends Disposable implements IKnoxService {
 	readonly onDidChangeAgentMode: Event<boolean> = this._onDidChangeAgentMode.event;
 	private readonly _onDidReceiveGuiMessage = this._register(new Emitter<IKnoxGuiMessage>());
 	readonly onDidReceiveGuiMessage: Event<IKnoxGuiMessage> = this._onDidReceiveGuiMessage.event;
+	private _activeChatSessionId: string | null = null;
 
 	constructor(@ILogService private readonly logService: ILogService) {
 		super();
@@ -90,7 +92,25 @@ export class KnoxService extends Disposable implements IKnoxService {
 		this._onDidReceiveGuiMessage.fire(message);
 	}
 
+	get activeChatSessionId(): string | null {
+		return this._activeChatSessionId;
+	}
+
+	private trackActiveChatSession(data: unknown): void {
+		const raw = data && typeof data === 'object' ? (data as { sessionId?: unknown }).sessionId : undefined;
+		const next = typeof raw === 'string' && raw ? raw : null;
+		if (next === this._activeChatSessionId) {
+			return;
+		}
+		this._activeChatSessionId = next;
+		this._onDidReceiveGuiMessage.fire({ messageType: 'activeChatSessionChanged', messageId: generateUuid(), data: { sessionId: next } });
+	}
+
 	async guiPost(message: IKnoxGuiMessage): Promise<void> {
+		// Synchronous, so the posting chat view still holds this id when the broadcast reaches it.
+		if (message.messageType === 'setActiveChatSession') {
+			this.trackActiveChatSession(message.data);
+		}
 		await this._delegateBarrier.wait();
 		if (!this._delegate) {
 			this.logService.warn('[KnoxService][guiPost] KnoxExtension delegate is not set.');

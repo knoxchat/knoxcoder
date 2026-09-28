@@ -108,6 +108,10 @@ export class KnoxGuiMessenger extends Disposable {
 		}
 	}
 
+	get activeChatSessionId(): string | null {
+		return this.knoxService.activeChatSessionId ?? null;
+	}
+
 	subscribeHost(listener: (message: IKnoxGuiMessage) => void): void {
 		this._register(this.knoxService.onDidReceiveGuiMessage(listener));
 	}

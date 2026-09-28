@@ -9,8 +9,10 @@ import { Emitter } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IKnoxGuiMessage } from '../common/knoxGuiProtocol.js';
-import { IKnoxService } from '../common/knoxService.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { IKnoxExtensionDelegate, IKnoxService } from '../common/knoxService.js';
 import { KnoxGuiMessenger } from './knoxGuiMessenger.js';
+import { KnoxService } from './knoxService.js';
 
 suite('KnoxGuiMessenger', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,5 +53,32 @@ suite('KnoxGuiMessenger', () => {
 			seen.push(...batch.map(item => item.content));
 		}
 		assert.deepStrictEqual(seen, ['Hello']);
+	});
+
+	test('KnoxService tracks setActiveChatSession and broadcasts changes synchronously', async () => {
+		const service = disposables.add(new KnoxService(new NullLogService()));
+		const forwarded: IKnoxGuiMessage[] = [];
+		disposables.add(service.setDelegate(new class extends mock<IKnoxExtensionDelegate>() {
+			override async guiPost(message: IKnoxGuiMessage): Promise<void> {
+				forwarded.push(message);
+			}
+		}));
+		const seen: unknown[] = [];
+		disposables.add(service.onDidReceiveGuiMessage(message => {
+			if (message.messageType === 'activeChatSessionChanged') {
+				seen.push(message.data);
+			}
+		}));
+		const messenger = disposables.add(new KnoxGuiMessenger(service));
+		assert.strictEqual(messenger.activeChatSessionId, null);
+
+		messenger.post('setActiveChatSession', { sessionId: 'a' });
+		assert.deepStrictEqual(seen, [{ sessionId: 'a' }]);
+		assert.strictEqual(messenger.activeChatSessionId, 'a');
+		messenger.post('setActiveChatSession', { sessionId: 'a' });
+		messenger.post('setActiveChatSession', { sessionId: null });
+		assert.deepStrictEqual(seen, [{ sessionId: 'a' }, { sessionId: null }]);
+		await timeout(0);
+		assert.strictEqual(forwarded.filter(message => message.messageType === 'setActiveChatSession').length, 3, 'the host still gets every post');
 	});
 });

@@ -1702,12 +1702,39 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(bundles[1].querySelectorAll('button').length, 0, 'missing bundles hide Import and Reveal');
 
 		store.patch({ checkpointShareTab: 'audit' });
+		assert.ok(widget.root.querySelector('.knox-gui-checkpoint-audit-root'));
 		const row = widget.root.querySelector('[data-testid="checkpoint-audit-row"] button') as HTMLButtonElement;
 		assert.ok(row.textContent?.includes('bundle/b1234567...'));
 		assert.ok(row.textContent?.includes('OK'));
 		assert.ok(row.querySelector('.knox-gui-checkpoint-audit-action.is-green'));
+		assert.ok(row.querySelector('.knox-gui-checkpoint-audit-outcome.is-default'));
+		assert.strictEqual(row.getAttribute('aria-expanded'), 'false');
 		row.click();
-		assert.ok(widget.root.querySelector('[data-testid="checkpoint-audit-detail"] pre')?.textContent?.includes('"n":3'));
+		const detail = widget.root.querySelector('[data-testid="checkpoint-audit-detail"]');
+		assert.ok(detail?.textContent?.includes('Machine'));
+		assert.ok(detail?.textContent?.includes('bundle / b1234567890'));
+		assert.ok(detail?.querySelector('pre')?.textContent?.includes('"n":3'));
+		assert.ok(detail?.textContent?.includes('success'));
+		assert.strictEqual((widget.root.querySelector('[data-testid="checkpoint-audit-row"] button') as HTMLButtonElement).getAttribute('aria-expanded'), 'true');
+		(widget.root.querySelector('[data-testid="checkpoint-audit-row"] button') as HTMLButtonElement).click();
+		assert.strictEqual(widget.root.querySelector('[data-testid="checkpoint-audit-detail"]'), null);
+
+		store.patch({
+			checkpointShareAudit: [
+				{ id: 'a2', timestamp: '2026-09-26T00:00:00.000Z', userId: 'u', machineId: '', action: 'restore', resourceType: 'checkpoint', resourceId: 'cp1', outcome: 'failure', details: '{}' },
+				{ id: 'a3', timestamp: '2026-09-26T00:00:00.000Z', userId: 'u', machineId: 'm', action: 'delete', resourceType: 'checkpoint', resourceId: 'cp2', outcome: 'partial', details: '{}' },
+			],
+		});
+		store.patch({ checkpointShareTab: 'audit' });
+		const rows = widget.root.querySelectorAll('[data-testid="checkpoint-audit-row"] button');
+		assert.ok(rows[0].querySelector('.knox-gui-checkpoint-audit-action.is-orange'));
+		assert.strictEqual(rows[0].querySelector('.knox-gui-checkpoint-audit-outcome.is-destructive')?.textContent, 'FAIL');
+		assert.ok(rows[1].querySelector('.knox-gui-checkpoint-audit-action.is-red'));
+		assert.strictEqual(rows[1].querySelector('.knox-gui-checkpoint-audit-outcome.is-secondary')?.textContent, 'PARTIAL');
+
+		store.patch({ checkpointShareAudit: [] });
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-audit-empty"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-checkpoint-audit-root .knox-gui-cp-empty'));
 	});
 
 	test('K-16 checkpoint config form: sections, help and inline errors, raw storage input, conditional rows, save flow', async () => {

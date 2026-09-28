@@ -715,11 +715,18 @@ button.knox-gui-section-title .knox-gui-svg:last-child {
 }
 
 .knox-gui-cp-tab-content.is-fill > .knox-gui-dash-list,
-.knox-gui-cp-tab-content.is-fill > .knox-gui-checkpoint-audit-list {
+.knox-gui-cp-tab-content.is-fill > .knox-gui-checkpoint-audit-root {
 	flex: 1 1 auto;
 	min-height: 0;
+}
+
+.knox-gui-cp-tab-content.is-fill > .knox-gui-dash-list {
 	overflow-y: auto;
 	padding-right: 2px;
+}
+
+.knox-gui-cp-tab-content.is-fill > .knox-gui-checkpoint-audit-root {
+	overflow: hidden;
 }
 
 .knox-gui-cp-section {
@@ -1732,12 +1739,37 @@ button.knox-gui-section-title .knox-gui-svg:last-child {
 	margin-top: 8px;
 }
 
-/* audit */
+.knox-gui-checkpoint-bundle-actions > .knox-gui-cp-btn {
+	gap: 4px;
+	font-size: 12px;
+	line-height: 16px;
+}
+
+/* audit — CollaborativePanel.tsx AuditTrailSection */
+
+.knox-gui-checkpoint-audit-root {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: 12px;
+	min-height: 0;
+}
 
 .knox-gui-checkpoint-audit-list {
 	display: flex;
+	flex: 1 1 auto;
 	flex-direction: column;
 	gap: 4px;
+	min-height: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	padding-right: 2px;
+}
+
+.knox-gui-checkpoint-audit {
+	flex-shrink: 0;
+	overflow: hidden;
+	border-radius: 6px;
 }
 
 .knox-gui-checkpoint-audit-toggle {
@@ -1749,22 +1781,37 @@ button.knox-gui-section-title .knox-gui-svg:last-child {
 	margin: 0;
 	padding: 8px;
 	border: 0;
-	border-radius: 7px;
+	border-radius: 0;
 	background: transparent;
 	color: inherit;
 	font: inherit;
 	font-size: 14px;
 	line-height: 20px;
-	cursor: default;
+	text-align: left;
+	cursor: pointer;
 	transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .knox-gui-checkpoint-audit-toggle:hover {
-	background: color-mix(in srgb, var(--knox-cp-accent) 50%, transparent);
+	background: var(--knox-cp-accent);
+}
+
+.knox-gui-checkpoint-audit-toggle:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 1px var(--knox-cp-primary);
 }
 
 .knox-gui-checkpoint-audit-toggle > .knox-gui-svg {
 	flex-shrink: 0;
+	width: 12px;
+	height: 12px;
+}
+
+.knox-gui-checkpoint-audit-action {
+	flex-shrink: 0;
+	font-family: var(--knox-cp-mono);
+	font-size: 12px;
+	line-height: 16px;
 }
 
 .knox-gui-checkpoint-audit-action.is-green { color: var(--odp-green); }
@@ -1779,12 +1826,23 @@ button.knox-gui-section-title .knox-gui-svg:last-child {
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	text-align: left;
+	color: var(--knox-cp-muted-fg);
+}
+
+.knox-gui-checkpoint-audit-outcome {
+	flex-shrink: 0;
+	height: auto;
+	border-radius: 6px;
+	padding: 2px 10px;
+	font-size: 12px;
+	line-height: 16px;
 }
 
 .knox-gui-checkpoint-audit-time {
 	flex-shrink: 0;
 	font-size: 12px;
 	line-height: 16px;
+	color: var(--knox-cp-muted-fg);
 }
 
 .knox-gui-checkpoint-audit-detail {

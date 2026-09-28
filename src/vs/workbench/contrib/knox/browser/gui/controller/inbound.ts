@@ -69,7 +69,24 @@ const KNOX_GUI_OPEN_CHAT_INBOUND = new Set(['highlightedCode', 'focusKnoxInput',
 /** KP-040: host-only requests with no GUI handler; empty-ack keeps the host promise from hanging. */
 const KNOX_GUI_UNHANDLED_HOST_REQUESTS = new Set<string>(KNOX_GUI_HOST_INBOUND_EMPTY_ACK);
 
+/** `CheckpointGraphPage` `useMirroredChatSession`: follow the chat view's session without loading it. */
+function mirrorChatSession(controller: KnoxGuiController, data: unknown): void {
+	const raw = asRecord(data)?.sessionId;
+	const next = typeof raw === 'string' ? raw : '';
+	if (next === controller.store.state.checkpointChatSessionId) {
+		return;
+	}
+	controller.store.patch({ checkpointChatSessionId: next });
+	if (controller.store.state.checkpointView === 'checkpoints') {
+		void controller.loadCheckpointList();
+	}
+}
+
 export async function handleInbound(controller: KnoxGuiController, type: string, data: unknown, messageId: string): Promise<void> {
+	if (type === 'activeChatSessionChanged' && controller.store.state.lockedRoute === KnoxGuiRoute.CheckpointGraph) {
+		mirrorChatSession(controller, data);
+		return;
+	}
 	if (knoxGuiIsDedicatedEditor(controller.store.state) && KNOX_GUI_CHAT_ONLY_INBOUND.has(type)) {
 		return;
 	}

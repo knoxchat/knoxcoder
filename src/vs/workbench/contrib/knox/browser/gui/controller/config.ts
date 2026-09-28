@@ -16,6 +16,10 @@ import { mergeContextProvidersWithDefaults, mergeSlashCommandsWithBuiltins } fro
 import { IKnoxGuiContextProvider, IKnoxGuiModel, IKnoxGuiSlashCommand, IKnoxGuiState, IKnoxGuiTool, KnoxGuiLanguage, KnoxModelRole, MODEL_ROLES, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
 
 export async function setup(controller: KnoxGuiController): Promise<void> {
+	if (controller.store.state.lockedRoute === KnoxGuiRoute.CheckpointGraph) {
+		// `useMirroredChatSession`: seed from the host before anything can list checkpoints.
+		controller.store.patch({ checkpointChatSessionId: controller.messenger.activeChatSessionId ?? '' });
+	}
 	try {
 		const profile = await controller.messenger.request<Record<string, unknown>>('config/getSerializedProfileInfo', undefined);
 		controller.applyConfig(profile);

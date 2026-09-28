@@ -59,7 +59,7 @@ import {
 	type IKnoxGuiTextRange,
 } from '../../../common/knoxGuiCheckpoints.js';
 import { languageIdFromFence } from '../../../common/knoxGuiTranscript.js';
-import { IKnoxGuiCheckpointDiffFile, IKnoxGuiCheckpointNode, IKnoxGuiState } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiCheckpointDiffFile, IKnoxGuiCheckpointNode, IKnoxGuiState, knoxGuiCheckpointSessionId } from '../../../common/knoxGuiState.js';
 import { knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { openCheckpointDetails, renderCheckpointDetailsDialog } from './checkpointDetails.js';
 import { renderCheckpointGraph } from './checkpointGraph.js';
@@ -282,7 +282,7 @@ export function renderCheckpointList(widget: KnoxGuiWidget, body: HTMLElement, s
 	body.tabIndex = 0;
 	widget.renderStore.add(DOM.addDisposableListener(body, 'keydown', e => onCheckpointListKeyDown(widget, e, state)));
 	const allNodes = filterCheckpoints(state.checkpointListItems.length ? state.checkpointListItems : state.checkpoints, {
-		sessionId: state.sessionId,
+		sessionId: knoxGuiCheckpointSessionId(state),
 		thisSession: state.checkpointThisSession,
 	});
 	const nodes = listCheckpointNodes(state);
@@ -569,7 +569,7 @@ export function syncCheckpointTimeline(widget: KnoxGuiWidget, state: IKnoxGuiSta
 function listCheckpointNodes(state: IKnoxGuiState): IKnoxGuiCheckpointNode[] {
 	return filterCheckpoints(state.checkpointListItems.length ? state.checkpointListItems : state.checkpoints, {
 		query: state.checkpointQuery,
-		sessionId: state.sessionId,
+		sessionId: knoxGuiCheckpointSessionId(state),
 		thisSession: state.checkpointThisSession,
 	});
 }
@@ -2199,40 +2199,40 @@ export function renderCheckpointShare(widget: KnoxGuiWidget, body: HTMLElement, 
 			DOM.append(path, DOM.$('span.knox-gui-ellipsis', undefined, bundle.filePath));
 		}
 		const badges = DOM.append(top, DOM.$('.knox-gui-checkpoint-bundle-badges'));
-		DOM.append(badges, DOM.$('span.knox-gui-badge', undefined, `${bundle.checkpointCount} ${t(state, 'checkpointShare.checkpointsLabel')}`));
+		cpBadge(badges, 'secondary', `${bundle.checkpointCount} ${t(state, 'checkpointShare.checkpointsLabel')}`);
 		if (!bundle.exists) {
-			DOM.append(badges, DOM.$('span.knox-gui-badge.knox-gui-restore-chip.is-red', { 'data-testid': 'checkpoint-share-missing' }, t(state, 'checkpointShare.missingFile')));
+			cpBadge(badges, 'destructive', t(state, 'checkpointShare.missingFile')).setAttribute('data-testid', 'checkpoint-share-missing');
 			continue;
 		}
-		const actions = DOM.append(card, DOM.$('.knox-gui-row.knox-gui-wrap'));
-		widget.chromeButton(actions, { svg: 'download', svgSize: 14, label: t(state, 'checkpointShare.import'), extraClass: 'knox-gui-ghost', onClick: () => void widget.controller.importShareBundle(bundle.filePath) });
-		widget.chromeButton(actions, { svg: 'folder-open', svgSize: 14, label: t(state, 'checkpointShare.reveal'), extraClass: 'knox-gui-ghost', onClick: () => void widget.controller.revealShareBundle(bundle.filePath) });
+		const actions = DOM.append(card, DOM.$('.knox-gui-checkpoint-bundle-actions'));
+		cpButton(widget, actions, { variant: 'outline', small: true, svg: 'download', label: t(state, 'checkpointShare.import'), onClick: () => void widget.controller.importShareBundle(bundle.filePath) });
+		cpButton(widget, actions, { variant: 'outline', small: true, svg: 'folder-open', label: t(state, 'checkpointShare.reveal'), onClick: () => void widget.controller.revealShareBundle(bundle.filePath) });
 	}
 }
 
+/** `CollaborativePanel.tsx` `AuditTrailSection`: heading + empty card, or a scrolling list of expandable cards. */
 function renderCheckpointShareAudit(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
-	const h3 = DOM.append(body, DOM.$('h3.knox-gui-checkpoint-share-head'));
-	appendKnoxGuiSvg(h3, 'shield', 14);
+	const root = DOM.append(body, DOM.$('.knox-gui-checkpoint-audit-root'));
+	const h3 = DOM.append(root, DOM.$('h3.knox-gui-cp-heading.is-strong'));
+	appendKnoxGuiSvg(h3, 'shield', 16);
 	DOM.append(h3, DOM.$('span', undefined, t(state, 'checkpointShare.auditTrail')));
 	if (!state.checkpointShareAudit.length) {
-		const empty = DOM.append(body, DOM.$('.knox-gui-checkpoint-list-empty', { 'data-testid': 'checkpoint-audit-empty' }));
-		appendKnoxGuiSvg(empty, 'shield', 32).classList.add('knox-gui-checkpoint-empty-icon');
-		DOM.append(empty, DOM.$('p', undefined, t(state, 'checkpointShare.noAudit')));
+		cpEmptyCard(root, 'shield', t(state, 'checkpointShare.noAudit'), undefined, 'checkpoint-audit-empty');
 		return;
 	}
-	const list = DOM.append(body, DOM.$('.knox-gui-checkpoint-audit-list'));
+	const list = DOM.append(root, DOM.$('.knox-gui-checkpoint-audit-list'));
 	for (const record of state.checkpointShareAudit) {
 		const expanded = widget.checkpointShareAuditExpanded === record.id;
-		const card = DOM.append(list, DOM.$('.knox-gui-settings-card.knox-gui-checkpoint-audit', { 'data-testid': 'checkpoint-audit-row' }));
+		const card = DOM.append(list, DOM.$('.knox-gui-cp-card.knox-gui-checkpoint-audit', { 'data-testid': 'checkpoint-audit-row' }));
 		const toggle = DOM.append(card, DOM.$('button.knox-gui-checkpoint-audit-toggle')) as HTMLButtonElement;
 		toggle.type = 'button';
 		toggle.setAttribute('aria-expanded', String(expanded));
 		appendKnoxGuiSvg(toggle, expanded ? 'chevron-down' : 'chevron-right', 12);
-		DOM.append(toggle, DOM.$(`span.knox-gui-mono.knox-gui-checkpoint-audit-action.${checkpointAuditActionClass(record.action)}`, undefined, record.action));
-		DOM.append(toggle, DOM.$('span.knox-gui-muted.knox-gui-ellipsis.knox-gui-checkpoint-audit-resource', undefined, `${record.resourceType}/${record.resourceId.slice(0, 8)}...`));
+		DOM.append(toggle, DOM.$(`span.knox-gui-checkpoint-audit-action.${checkpointAuditActionClass(record.action)}`, undefined, record.action));
+		DOM.append(toggle, DOM.$('span.knox-gui-checkpoint-audit-resource', undefined, `${record.resourceType}/${record.resourceId.slice(0, 8)}...`));
 		const outcome = checkpointAuditOutcome(record.outcome);
-		DOM.append(toggle, DOM.$(`span.knox-gui-badge.knox-gui-restore-chip.${outcome === 'OK' ? 'is-green' : outcome === 'FAIL' ? 'is-red' : 'is-yellow'}`, undefined, outcome));
-		DOM.append(toggle, DOM.$('span.knox-gui-muted', undefined, record.timestamp ? new Date(record.timestamp).toLocaleTimeString() : ''));
+		cpBadge(toggle, outcome === 'OK' ? 'default' : outcome === 'FAIL' ? 'destructive' : 'secondary', outcome).classList.add('knox-gui-checkpoint-audit-outcome');
+		DOM.append(toggle, DOM.$('span.knox-gui-checkpoint-audit-time', undefined, record.timestamp ? new Date(record.timestamp).toLocaleTimeString() : ''));
 		widget.renderStore.add(DOM.addDisposableListener(toggle, 'click', () => {
 			widget.checkpointShareAuditExpanded = expanded ? null : record.id;
 			widget.render();
@@ -2241,18 +2241,21 @@ function renderCheckpointShareAudit(widget: KnoxGuiWidget, body: HTMLElement, st
 			continue;
 		}
 		const detail = DOM.append(card, DOM.$('.knox-gui-checkpoint-audit-detail', { 'data-testid': 'checkpoint-audit-detail' }));
-		const line = (labelKey: string, value: string, parent: HTMLElement = DOM.append(detail, DOM.$('div'))) => {
-			DOM.append(parent, DOM.$('strong', undefined, `${t(state, labelKey)}:`));
-			DOM.append(parent, document.createTextNode(` ${value}`));
-		};
-		line('checkpointShare.machine', record.machineId || record.userId, DOM.append(DOM.append(detail, DOM.$('div.knox-gui-checkpoint-audit-machine')), DOM.$('span')));
-		line('checkpointShare.resource', `${record.resourceType} / ${record.resourceId}`);
+		const machine = DOM.append(detail, DOM.$('div.knox-gui-checkpoint-audit-machine'));
+		const machineLine = DOM.append(machine, DOM.$('span'));
+		DOM.append(machineLine, DOM.$('strong', undefined, `${t(state, 'checkpointShare.machine')}:`));
+		DOM.append(machineLine, document.createTextNode(` ${record.machineId || record.userId}`));
+		const resource = DOM.append(detail, DOM.$('div'));
+		DOM.append(resource, DOM.$('strong', undefined, `${t(state, 'checkpointShare.resource')}:`));
+		DOM.append(resource, document.createTextNode(` ${record.resourceType} / ${record.resourceId}`));
 		if (record.details && record.details !== '{}') {
 			const el = DOM.append(detail, DOM.$('div'));
 			DOM.append(el, DOM.$('strong', undefined, `${t(state, 'checkpointShare.details')}:`));
 			DOM.append(el, DOM.$('pre.knox-gui-checkpoint-audit-pre', undefined, record.details));
 		}
-		line('checkpointShare.outcome', record.outcome);
+		const result = DOM.append(detail, DOM.$('div'));
+		DOM.append(result, DOM.$('strong', undefined, `${t(state, 'checkpointShare.outcome')}:`));
+		DOM.append(result, document.createTextNode(` ${record.outcome}`));
 	}
 }
 

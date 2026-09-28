@@ -75,6 +75,14 @@
 	letter-spacing: inherit;
 }
 
+/* The reference renders plain <select>s with the native chevron; `.monaco-workbench select` (0,1,1) sets
+ * `appearance: none`, so restore it at (0,2,1). */
+.knox-gui-memory-page select.knox-gui-memory-dropdown,
+.knox-gui-memory-page select.knox-gui-memory-setting-input {
+	appearance: auto;
+	-webkit-appearance: auto;
+}
+
 .knox-gui-memory-page .knox-gui-svg {
 	color: currentColor;
 }
