@@ -176,13 +176,6 @@
 	min-width: 0;
 }
 
-.knox-gui-history-footer {
-	display: flex;
-	align-items: flex-start;
-	gap: 8px;
-	font-size: 12px;
-}
-
 .knox-gui-modal {
 	position: absolute;
 	inset: 0;

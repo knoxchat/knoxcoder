@@ -14,11 +14,13 @@ import {
 	knoxGuiShowsChatScrollbar,
 	knoxGuiShowsMainComposer,
 	knoxGuiShowsScrollButtons,
+	knoxGuiAnchorPopoverBox,
 	KNOX_GUI_FIND_DEBOUNCE_MS,
 	KNOX_GUI_FIND_RESIZE_DEBOUNCE_MS,
 	KNOX_GUI_LUMP_TOOLBAR,
 	knoxGuiMetaKeyLabel,
 } from '../../../common/knoxGuiChrome.js';
+import { knoxGuiListboxNextIndex } from '../../../common/knoxGuiCapabilities.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
 import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, knoxGuiFindRegexInvalid, knoxGuiNextScrollFollow, nextExpandedStart } from '../../../common/knoxGuiChat.js';
 import { createComposerInputHistory, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
@@ -28,6 +30,7 @@ import { IKnoxGuiState, KnoxPermissionMode, PERMISSION_MODES } from '../../../co
 import { pendingApplyStates } from '../../../common/knoxGuiTranscript.js';
 import { onCheckpointGraphKeyDown } from './checkpointGraph.js';
 import { checkpointTimelineEscape } from './checkpoints.js';
+import { onHistoryKeyDown } from './overlays.js';
 
 export function renderFatalBanner(widget: KnoxGuiWidget, state: IKnoxGuiState): void { // KN-377 Layout.tsx footer
 	const banner = DOM.append(widget.root, DOM.$('.knox-gui-fatal'));
@@ -119,14 +122,29 @@ export function renderMode(widget: KnoxGuiWidget, bar: HTMLElement, state: IKnox
 			widget.controller.setMode('agent');
 		},
 	});
+	agentBtn.setAttribute('aria-haspopup', 'menu');
+	agentBtn.setAttribute('aria-expanded', String(widget.openMenu === 'agent' && state.mode === 'agent'));
+	agentBtn.setAttribute('aria-controls', 'knox-gui-agent-menu');
 	if (state.mode === 'agent') {
 		if (running) {
 			DOM.append(agentBtn, DOM.$('span.knox-gui-job-count', undefined, String(running)));
 		}
 		appendKnoxGuiSvg(agentBtn, 'chevron-down', 10);
 	}
+	widget.renderStore.add(DOM.addDisposableListener(agentBtn, 'keydown', e => {
+		if (state.mode !== 'agent' || streaming || !state.toolsSupported) {
+			return;
+		}
+		if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+			e.preventDefault();
+			e.stopPropagation();
+			if (widget.openMenu !== 'agent') {
+				widget.toggleMenu('agent');
+			}
+		}
+	}));
 	if (widget.openMenu === 'agent' && state.mode === 'agent') {
-		widget.renderAgentMenu(agentWrap, state, running);
+		widget.renderAgentMenu(agentBtn, state, running);
 	}
 
 	if (state.mode === 'edit') {
@@ -141,10 +159,12 @@ export function renderMode(widget: KnoxGuiWidget, bar: HTMLElement, state: IKnox
 	}
 }
 
-export function renderAgentMenu(widget: KnoxGuiWidget, anchor: HTMLElement, state: IKnoxGuiState, running: number): void {
-	const menu = DOM.append(anchor, DOM.$('.knox-gui-popover.knox-gui-agent-menu'));
+export function renderAgentMenu(widget: KnoxGuiWidget, trigger: HTMLElement, state: IKnoxGuiState, running: number): void {
+	const menu = DOM.append(widget.root, DOM.$('.knox-gui-popover.knox-gui-agent-menu'));
+	menu.id = 'knox-gui-agent-menu';
 	menu.setAttribute('data-testid', 'knox-gui-agent-menu');
 	menu.setAttribute('role', 'menu');
+	const rows: HTMLButtonElement[] = [];
 	const group = DOM.append(menu, DOM.$('.knox-gui-popover-group'));
 	DOM.append(group, DOM.$('.knox-gui-popover-label', undefined, t(state, 'permissionModeGroup')));
 	const permissionLabel: Record<KnoxPermissionMode, string> = {
@@ -160,7 +180,10 @@ export function renderAgentMenu(widget: KnoxGuiWidget, anchor: HTMLElement, stat
 	for (const mode of PERMISSION_MODES) {
 		const row = DOM.append(group, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
 		row.type = 'button';
+		row.setAttribute('role', 'menuitemradio');
+		row.setAttribute('aria-checked', String(state.permissionMode === mode));
 		row.disabled = state.isStreaming;
+		rows.push(row);
 		if (state.permissionMode === mode) {
 			row.classList.add(mode === 'fullAuto' ? 'knox-gui-popover-auto' : 'knox-gui-popover-active');
 		}
@@ -180,7 +203,10 @@ export function renderAgentMenu(widget: KnoxGuiWidget, anchor: HTMLElement, stat
 	DOM.append(menu, DOM.$('.knox-gui-popover-sep'));
 	const worktree = DOM.append(menu, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
 	worktree.type = 'button';
+	worktree.setAttribute('role', 'menuitemcheckbox');
+	worktree.setAttribute('aria-checked', String(state.worktree.enabled));
 	worktree.disabled = state.isStreaming || state.worktree.busy;
+	rows.push(worktree);
 	if (state.worktree.enabled) {
 		worktree.classList.add('knox-gui-popover-active');
 		appendKnoxGuiSvg(worktree, 'check', 12);
@@ -196,6 +222,9 @@ export function renderAgentMenu(widget: KnoxGuiWidget, anchor: HTMLElement, stat
 	}));
 	const jobs = DOM.append(menu, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
 	jobs.type = 'button';
+	jobs.setAttribute('role', 'menuitemcheckbox');
+	jobs.setAttribute('aria-checked', String(state.jobsPanelOpen));
+	rows.push(jobs);
 	if (running > 0) {
 		jobs.classList.add('knox-gui-popover-active');
 	}
@@ -211,6 +240,20 @@ export function renderAgentMenu(widget: KnoxGuiWidget, anchor: HTMLElement, stat
 		widget.closeMenus();
 		widget.controller.store.patch({ jobsPanelOpen: !state.jobsPanelOpen });
 	}));
+	widget.renderStore.add(DOM.addDisposableListener(menu, 'keydown', e => {
+		const index = rows.indexOf(e.target as HTMLButtonElement);
+		const next = knoxGuiListboxNextIndex(e.key, index, rows.length);
+		if (next !== undefined) {
+			e.preventDefault();
+			e.stopPropagation();
+			rows[next].focus();
+		}
+	}));
+	widget.anchorPopover(menu, trigger, { minWidth: 192, align: 'end' });
+	queueMicrotask(() => {
+		const selected = rows.find(row => row.getAttribute('aria-checked') === 'true' && !row.disabled) ?? rows.find(row => !row.disabled) ?? rows[0];
+		selected?.focus();
+	});
 }
 
 export function renderFind(widget: KnoxGuiWidget, state: IKnoxGuiState): void { // KN-377
@@ -420,13 +463,15 @@ export function renderScrollButtons(widget: KnoxGuiWidget, parent: HTMLElement, 
 	}
 	const wrap = DOM.append(parent, DOM.$('.knox-gui-scroll-btns'));
 	widget.scrollTopBtn = widget.chromeButton(wrap, {
-		icon: 'codicon-chevron-up',
+		svg: 'chevron-up',
+		svgSize: 14,
 		title: t(state, 'scrollToTop'),
 		testId: 'knox-gui-scroll-top',
 		onClick: () => widget.scrollTranscript('top'),
 	});
 	widget.scrollBottomBtn = widget.chromeButton(wrap, {
-		icon: 'codicon-chevron-down',
+		svg: 'chevron-down',
+		svgSize: 14,
 		title: t(state, 'scrollToBottom'),
 		testId: 'knox-gui-scroll-bottom',
 		onClick: () => widget.scrollTranscript('bottom'),
@@ -437,6 +482,10 @@ export function onRootKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent): void {
 	const state = widget.controller.store.state;
 	const meta = knoxGuiIsMetaEquivalent(e);
 	if (onCheckpointGraphKeyDown(widget, e, state)) {
+		e.stopPropagation();
+		return;
+	}
+	if (onHistoryKeyDown(widget, e, state)) {
 		e.stopPropagation();
 		return;
 	}
@@ -584,8 +633,14 @@ export function hideOsrMenu(widget: KnoxGuiWidget): void {
 	widget.osrSelectedRange = undefined;
 }
 
-export function toggleMenu(widget: KnoxGuiWidget, menu: 'agent' | 'model' | 'effort'): void {
-	widget.openMenu = widget.openMenu === menu ? null : menu;
+export function toggleMenu(widget: KnoxGuiWidget, menu: 'agent' | 'model' | 'effort', source = 'main'): void {
+	if (widget.openMenu === menu && widget.openMenuSource === source) {
+		widget.openMenu = null;
+		widget.openMenuSource = 'main';
+	} else {
+		widget.openMenu = menu;
+		widget.openMenuSource = source;
+	}
 	widget.render();
 }
 
@@ -594,8 +649,40 @@ export function closeMenus(widget: KnoxGuiWidget): void {
 		return;
 	}
 	widget.openMenu = null;
+	widget.openMenuSource = 'main';
 	widget.openRoleMenu = null;
 	widget.render();
+}
+
+/** Headless UI / Radix portal: pin the menu to the trigger in viewport space. */
+export function anchorPopover(widget: KnoxGuiWidget, menu: HTMLElement, trigger: HTMLElement, options?: { minWidth?: number; align?: 'start' | 'end' }): void {
+	menu.classList.add('knox-gui-popover-anchored');
+	widget.root.appendChild(menu);
+	const view = DOM.getWindow(menu);
+	const place = () => {
+		const triggerRect = trigger.getBoundingClientRect();
+		menu.style.position = 'fixed';
+		menu.style.left = '0px';
+		menu.style.top = '0px';
+		menu.style.right = 'auto';
+		menu.style.bottom = 'auto';
+		menu.style.minWidth = `${Math.max(options?.minWidth ?? 160, triggerRect.width)}px`;
+		const menuRect = menu.getBoundingClientRect();
+		const box = knoxGuiAnchorPopoverBox({
+			trigger: { left: triggerRect.left, top: triggerRect.top, bottom: triggerRect.bottom, width: triggerRect.width },
+			viewport: { width: view.innerWidth, height: view.innerHeight },
+			menu: { width: menuRect.width, height: menuRect.height },
+			align: options?.align,
+		});
+		const origin = menu.getBoundingClientRect();
+		menu.style.left = `${box.left - origin.left}px`;
+		menu.style.top = `${box.top - origin.top}px`;
+		menu.style.maxHeight = `${Math.max(box.maxHeight, 80)}px`;
+		menu.dataset.placement = box.placement;
+	};
+	place();
+	widget.renderStore.add(DOM.addDisposableListener(view, 'resize', place));
+	widget.renderStore.add(DOM.addDisposableListener(widget.root, 'scroll', place, true));
 }
 
 export function onEscape(widget: KnoxGuiWidget, e: KeyboardEvent, state: IKnoxGuiState): void {
@@ -674,6 +761,37 @@ export function onEscape(widget: KnoxGuiWidget, e: KeyboardEvent, state: IKnoxGu
 		e.stopPropagation();
 		widget.controller.store.patch({ addFileOpen: false });
 		return;
+	}
+	if (state.overlay === 'history' || state.route === KnoxGuiRoute.History) {
+		if (state.historyConfirmDelete) {
+			e.preventDefault();
+			e.stopPropagation();
+			widget.controller.store.patch({ historyConfirmDelete: false });
+			return;
+		}
+		if (widget.editingHistoryId) {
+			e.preventDefault();
+			e.stopPropagation();
+			widget.editingHistoryId = null;
+			widget.controller.store.patch({});
+			return;
+		}
+		if (state.historySelectionMode) {
+			e.preventDefault();
+			e.stopPropagation();
+			widget.historyListAnchorId = null;
+			widget.historyListFocusedId = null;
+			widget.controller.store.patch({ historySelectionMode: false, historySelected: [], historyConfirmDelete: false });
+			return;
+		}
+		if (state.historyQuery) {
+			e.preventDefault();
+			e.stopPropagation();
+			widget.historySearchFocus = true;
+			widget.historySearchCaret = 0;
+			widget.controller.store.patch({ historyQuery: '' });
+			return;
+		}
 	}
 	if (!widget.autoScrollEnabled && state.route === KnoxGuiRoute.Chat) {
 		e.preventDefault();

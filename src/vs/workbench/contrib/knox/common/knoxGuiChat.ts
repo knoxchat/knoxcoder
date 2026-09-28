@@ -128,7 +128,7 @@ export function isKnoxGuiStreamingTokenChange(prev: IKnoxGuiState, next: IKnoxGu
 function lastAssistantToolStreamStable(prev: IKnoxGuiHistoryItem, next: IKnoxGuiHistoryItem): boolean {
 	const a = prev.toolCalls ?? [];
 	const b = next.toolCalls ?? [];
-	if (a.length !== b.length) {
+	if (b.length < a.length) {
 		return false;
 	}
 	return a.every((call, i) => call.id === b[i].id && call.name === b[i].name);

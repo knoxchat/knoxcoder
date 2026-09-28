@@ -146,21 +146,37 @@ export async function closeTab(controller: KnoxGuiController, tabId: string): Pr
 }
 
 export async function deleteSessions(controller: KnoxGuiController, ids: string[]): Promise<void> {
-	for (const id of ids) {
+	const unique = [...new Set(ids.filter(id => id !== undefined))];
+	if (!unique.length) {
+		return;
+	}
+	for (const id of unique) {
 		controller.messenger.post('history/delete', { id });
 	}
+	const stayInHistory = controller.store.state.overlay === 'history' || controller.store.state.route === KnoxGuiRoute.History;
+	const overlay = controller.store.state.overlay;
+	const route = controller.store.state.route;
 	controller.store.patch({
-		historySessions: controller.store.state.historySessions.filter(session => !ids.includes(session.id)),
+		historySessions: controller.store.state.historySessions.filter(session => !unique.includes(session.id)),
 		historySelected: [],
-		tabs: controller.store.state.tabs.filter(tab => !tab.sessionId || !ids.includes(tab.sessionId)),
+		historySelectionMode: false,
+		historyConfirmDelete: false,
+		tabs: controller.store.state.tabs.filter(tab => !tab.sessionId || !unique.includes(tab.sessionId)),
 	});
-	if (ids.includes(controller.store.state.sessionId)) {
-		// `deleteSession` → `loadLastSession({ saveCurrentSession: false })`
-		const next = controller.store.state.historySessions[0]?.id;
-		if (next) {
-			await controller.loadSession(next, { saveCurrent: false });
-		} else {
+	if (unique.includes(controller.store.state.sessionId)) {
+		if (stayInHistory) {
 			openFreshSession(controller);
+			controller.store.patch({
+				overlay: overlay === 'history' ? 'history' : null,
+				route: route === KnoxGuiRoute.History ? KnoxGuiRoute.History : KnoxGuiRoute.Chat,
+			});
+		} else {
+			const next = controller.store.state.historySessions[0]?.id;
+			if (next) {
+				await controller.loadSession(next, { saveCurrent: false });
+			} else {
+				openFreshSession(controller);
+			}
 		}
 	}
 }

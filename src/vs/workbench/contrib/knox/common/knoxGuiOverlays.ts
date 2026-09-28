@@ -650,7 +650,8 @@ export function isMemoryTabId(value: unknown): value is KnoxMemoryTabId {
 	return typeof value === 'string' && (MEMORY_TAB_IDS as readonly string[]).includes(value);
 }
 
-export type KnoxHistoryDateSection = 'today' | 'thisWeek' | 'thisMonth' | 'earlierConversations';
+export const HISTORY_DATE_SECTIONS = ['today', 'yesterday', 'thisWeek', 'thisMonth', 'earlierConversations'] as const;
+export type KnoxHistoryDateSection = typeof HISTORY_DATE_SECTIONS[number];
 
 export interface IKnoxHistoryDateGroup {
 	header: KnoxHistoryDateSection;
@@ -663,6 +664,39 @@ export function parseHistoryDate(date: string): Date {
 		parsed = new Date(parseInt(date, 10));
 	}
 	return parsed;
+}
+
+function startOfLocalDay(now: number): number {
+	const date = new Date(now);
+	date.setHours(0, 0, 0, 0);
+	return date.getTime();
+}
+
+function addLocalDays(start: number, days: number): number {
+	const date = new Date(start);
+	date.setDate(date.getDate() + days);
+	return date.getTime();
+}
+
+/** Calendar buckets used by History.tsx / Cursor conversation history. */
+export function historyDateSection(time: number, now = Date.now()): KnoxHistoryDateSection {
+	if (isNaN(time)) {
+		return 'earlierConversations';
+	}
+	const todayStart = startOfLocalDay(now);
+	if (time >= todayStart) {
+		return 'today';
+	}
+	if (time >= addLocalDays(todayStart, -1)) {
+		return 'yesterday';
+	}
+	if (time >= addLocalDays(todayStart, -7)) {
+		return 'thisWeek';
+	}
+	if (time >= addLocalDays(todayStart, -30)) {
+		return 'thisMonth';
+	}
+	return 'earlierConversations';
 }
 
 export function formatSessionDate(date: Date, compact = false): string {
@@ -695,8 +729,9 @@ function miniSearchTerms(text: string): string[] {
 }
 
 /**
- * MiniSearch `search(query, { fuzzy: 0.1 })` over the title field: OR of query
- * terms, each matching a title term within `round(0.1 * length)` edits (max 6).
+ * MiniSearch `search(query, { fuzzy: 0.1, prefix: true })` over a text field:
+ * OR of query terms, each matching a field term by prefix or within
+ * `round(0.1 * length)` edits (max 6).
  */
 export function fuzzyTitleMatch(title: string, query: string): boolean {
 	const queryTerms = miniSearchTerms(query);
@@ -706,7 +741,7 @@ export function fuzzyTitleMatch(title: string, query: string): boolean {
 	const titleTerms = miniSearchTerms(title);
 	return queryTerms.some(term => {
 		const maxDistance = Math.min(6, Math.round(term.length * 0.1));
-		return titleTerms.some(candidate => candidate === term || (maxDistance > 0 && Math.abs(candidate.length - term.length) <= maxDistance && levenshtein(candidate, term) <= maxDistance));
+		return titleTerms.some(candidate => candidate === term || candidate.startsWith(term) || (maxDistance > 0 && Math.abs(candidate.length - term.length) <= maxDistance && levenshtein(candidate, term) <= maxDistance));
 	});
 }
 
@@ -733,52 +768,73 @@ function levenshtein(a: string, b: string): number {
 	return dp[a.length * cols + b.length];
 }
 
+export function historySessionMatchesQuery(session: IKnoxGuiHistorySession, query: string): boolean {
+	if (!query.trim()) {
+		return true;
+	}
+	if (fuzzyTitleMatch(session.title, query)) {
+		return true;
+	}
+	const workspace = workspaceBasename(session.workspaceDirectory);
+	return Boolean(workspace) && fuzzyTitleMatch(workspace, query);
+}
+
 export function filterHistorySessions(sessions: IKnoxGuiHistorySession[], query: string): IKnoxGuiHistorySession[] {
-	const matched = sessions.filter(session => fuzzyTitleMatch(session.title, query));
+	const matched = sessions.filter(session => historySessionMatchesQuery(session, query));
 	return matched.sort((a, b) => parseHistoryDate(b.date).getTime() - parseHistoryDate(a.date).getTime());
 }
 
 export function groupHistoryByDate(sessions: IKnoxGuiHistorySession[], now = Date.now()): IKnoxHistoryDateGroup[] {
-	const yesterday = now - 1000 * 60 * 60 * 24;
-	const lastWeek = now - 1000 * 60 * 60 * 24 * 7;
-	const lastMonth = now - 1000 * 60 * 60 * 24 * 30;
-	const groups: IKnoxHistoryDateGroup[] = [];
-	let current: KnoxHistoryDateSection | '' = '';
-	let bucket: IKnoxGuiHistorySession[] = [];
-	const flush = () => {
-		if (current && bucket.length) {
-			groups.push({ header: current, sessions: bucket });
-		}
+	const buckets: Record<KnoxHistoryDateSection, IKnoxGuiHistorySession[]> = {
+		today: [],
+		yesterday: [],
+		thisWeek: [],
+		thisMonth: [],
+		earlierConversations: [],
 	};
 	for (const session of sessions) {
-		const time = parseHistoryDate(session.date).getTime();
-		let section: KnoxHistoryDateSection;
-		if (time > yesterday) {
-			section = 'today';
-		} else if (time > lastWeek) {
-			section = 'thisWeek';
-		} else if (time > lastMonth) {
-			section = 'thisMonth';
-		} else {
-			section = 'earlierConversations';
-		}
-		if (section !== current) {
-			flush();
-			current = section;
-			bucket = [session];
-		} else {
-			bucket.push(session);
-		}
+		buckets[historyDateSection(parseHistoryDate(session.date).getTime(), now)].push(session);
 	}
-	flush();
-	return groups;
+	return HISTORY_DATE_SECTIONS
+		.filter(header => buckets[header].length)
+		.map(header => ({ header, sessions: buckets[header] }));
 }
 
-export function toggleHistorySelection(selected: string[], id: string, on: boolean): string[] {
+export function toggleHistorySelection(selected: readonly string[], id: string, on: boolean): string[] {
 	if (on) {
-		return selected.includes(id) ? selected : [...selected, id];
+		return selected.includes(id) ? [...selected] : [...selected, id];
 	}
 	return selected.filter(item => item !== id);
+}
+
+export function selectHistoryIdRange(orderedIds: readonly string[], fromId: string, toId: string): string[] {
+	const startIndex = orderedIds.indexOf(fromId);
+	const endIndex = orderedIds.indexOf(toId);
+	if (startIndex < 0 && endIndex < 0) {
+		return [];
+	}
+	if (startIndex < 0) {
+		return [toId];
+	}
+	if (endIndex < 0) {
+		return [fromId];
+	}
+	const start = Math.min(startIndex, endIndex);
+	const end = Math.max(startIndex, endIndex);
+	return orderedIds.slice(start, end + 1);
+}
+
+export function applyHistoryRowSelection(
+	selected: readonly string[],
+	orderedIds: readonly string[],
+	id: string,
+	shift: boolean,
+	anchorId: string | null,
+): { selected: string[]; anchorId: string } {
+	if (shift && anchorId) {
+		return { selected: selectHistoryIdRange(orderedIds, anchorId, id), anchorId };
+	}
+	return { selected: toggleHistorySelection(selected, id, !selected.includes(id)), anchorId: id };
 }
 
 export function sortPromptsBookmarkedFirst(commands: IKnoxGuiSlashCommand[], bookmarked: string[]): IKnoxGuiSlashCommand[] {

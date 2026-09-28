@@ -6,15 +6,15 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildCheckpointFileTree, CHECKPOINT_ANALYSIS_GROUP_LIMIT, CHECKPOINT_DASHBOARD_HISTORY_DAYS, checkpointAncestorIds, checkpointConfigHasChanges, checkpointConfigHasErrors, checkpointGraphForceMountKey, CHECKPOINT_GRAPH_ROW_HEIGHT, CHECKPOINT_GRAPH_WORKING_TREE_ID, CHECKPOINT_PANEL_TABS, CHECKPOINT_TAB_ICON, checkpointGraphMatches, checkpointGraphRowTop, checkpointGraphWindow, checkpointImpactChipClass, checkpointLaneNeighbor, checkpointRiskChipClass, checkpointScopeChipClass, checkpointShellAction, checkpointShellMessageKey, checkpointShellViewState, compactAxisNumber, computeLineDiff, defaultCheckpointGraphUi, drawCheckpointGraph, fillDailyCounts, filterCheckpoints, formatCheckpointGraphTime, formatRestoreNotice, groupCheckpointsByDate, groupDiffHunks, hunkWordAltRanges, layoutCheckpointLanes, normalizeCheckpointConfig, parseCheckpointAnalysis, parseCheckpointGraphUi, parseCheckpointRestored, parsePerformanceDashboard, parseRestorePreview, parseStorageBytes, parseSuggestedCheckpointGroups, restorePreviewActionKey, selectCheckpointIdRange, validateCheckpointConfig, withWorkingTreeNode, wordAltRanges } from './knoxGuiCheckpoints.js';
-import { knoxGuiAcceptRejectLabelKeys, knoxGuiAcceptRejectShortcut, knoxGuiAcceptRejectWidthKeys, knoxGuiCanCancel, knoxGuiComposerShowsJobsButton, knoxGuiEditSendKey, knoxGuiEmptyTranscriptShowsPlaceholder, knoxGuiLumpLabelVisible, knoxGuiMetaKeyLabel, knoxGuiNextMainTextEntry, knoxGuiParseMainTextEntryCount, knoxGuiPermissionModeIsTopTab, knoxGuiRelativeFontSize, knoxGuiRunningJobCount, knoxGuiShowsAgentMeter, knoxGuiShowsBatchDiffEntry, knoxGuiShowsChatPermissionBar, knoxGuiShowsChatScrollbar, knoxGuiShowsChatToolButtons, knoxGuiShowsComposerAcceptReject, knoxGuiShowsEditResponseAcceptReject, knoxGuiShowsFatalBanner, knoxGuiShowsLumpOverlay, knoxGuiShowsMainComposer, knoxGuiShowsScrollButtons, knoxGuiShowsSessionTabs, knoxGuiToolbarShowsAlwaysOnLabels, KNOX_GUI_CHAT_SCROLLBAR_MIN_HEIGHT, KNOX_GUI_COMPOSER_SLOTS, KNOX_GUI_FIND_DEBOUNCE_MS, KNOX_GUI_FIND_RESIZE_DEBOUNCE_MS, KNOX_GUI_LUMP_TOOLBAR, KNOX_GUI_MAIN_TEXT_ENTRY_DIALOG_AT, KNOX_GUI_MODE_TABS, KNOX_GUI_SM_MIN_PX, KNOX_GUI_XS_MAX_PX } from './knoxGuiChrome.js';
+import { knoxGuiAcceptRejectLabelKeys, knoxGuiAcceptRejectShortcut, knoxGuiAcceptRejectWidthKeys, knoxGuiAnchorPopoverBox, knoxGuiCanCancel, knoxGuiComposerShowsJobsButton, knoxGuiEditSendKey, knoxGuiEmptyTranscriptShowsPlaceholder, knoxGuiLumpLabelVisible, knoxGuiMetaKeyLabel, knoxGuiNextMainTextEntry, knoxGuiParseMainTextEntryCount, knoxGuiPermissionModeIsTopTab, knoxGuiRelativeFontSize, knoxGuiRunningJobCount, knoxGuiShowsAgentMeter, knoxGuiShowsBatchDiffEntry, knoxGuiShowsChatPermissionBar, knoxGuiShowsChatScrollbar, knoxGuiShowsChatToolButtons, knoxGuiShowsComposerAcceptReject, knoxGuiShowsEditResponseAcceptReject, knoxGuiShowsFatalBanner, knoxGuiShowsLumpOverlay, knoxGuiShowsMainComposer, knoxGuiShowsScrollButtons, knoxGuiShowsSessionTabs, knoxGuiToolbarShowsAlwaysOnLabels, KNOX_GUI_CHAT_SCROLLBAR_MIN_HEIGHT, KNOX_GUI_COMPOSER_SLOTS, KNOX_GUI_FIND_DEBOUNCE_MS, KNOX_GUI_FIND_RESIZE_DEBOUNCE_MS, KNOX_GUI_LUMP_TOOLBAR, KNOX_GUI_MAIN_TEXT_ENTRY_DIALOG_AT, KNOX_GUI_MODE_TABS, KNOX_GUI_SM_MIN_PX, KNOX_GUI_XS_MAX_PX } from './knoxGuiChrome.js';
 import { applyCloseTab, applyNavigateTo, applySessionTabChange, createInitialKnoxGuiState, DEFAULT_PERMISSION_MODE, IKnoxGuiHistoryItem, IKnoxGuiState, IKnoxGuiToolCall, nextPermissionMode } from './knoxGuiState.js';
 import { AUTO_DISPLAY_START, CHAT_DISPLAY_WINDOW, compileSearchPattern, computeDisplayStart, createStreamUpdateCoalescer, expandPromptSlashCommand, extractCodeFences, findCurrentToolCall, findMatchingHistoryIndexes, groupHistoryTurns, incrementalParseJson, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange, knoxGuiFindRegexInvalid, nextExpandedStart, parseLeadingSlash, parseToolArgs, resolveDisplayStart, shouldFloatLastUser, snapStartToTurn, STREAM_COALESCE_MS, toolDisplayKind, visibleTurnIndexes } from './knoxGuiChat.js';
 import { activityAnchorId, activityKindLabelKey, activitySummaryLine, applyUiAfterAppliedTimeout, applyUiForState, APPLIED_PILL_MS, buildAgentActivitySteps, collectDuplicateAssistantMessageIds, collectTurnPromptLogs, countTurnToolSteps, estimateTokensFromPromptLogs, estimateTurnOutputTokens, extractSoulCheckpointId, fenceApplyStreamId, fenceHasFileToolbar, formatDurationMs, formatLoadingElapsed, formatTokenCount, formatTokenRate, hasForegroundCallingToolCalls, historyUserInputDoc, isResponseTruncated, isTerminalCodeBlock, isTurnGeneratingTokens, knoxGuiShowsCodeToEditOnEmptyComposer, knoxGuiShowsCodeToEditOnHistoryUser, loadingVariantFor, looksLikeFilePath, parseCodeFenceRange, parseStreamError, pendingApplyStates, resetTpsClock, resolveAgentMaxSteps, resubmitHistory, shouldShineSentFrame, shouldShowThinkingIndicator, splitDisplayPath, splitMarkdownBlocks, summarizeJevPromptLogs, tickTokensPerSecond, TOKEN_TPS_MIN_GENERATION_MS, tokensPerSecond, toolStepDetail, turnElapsedMs, turnHasVisibleProgress } from './knoxGuiTranscript.js';
 import { calculateFence, catalogToolForCall, collapseFileToolCodePreview, createLatestValueCoalescer, displayArgsForToolCall, displayBuildCommand, displayLanguageForFile, extractLogPathFromTerminalOutput, extractStreamingToolCode, extractTerminalOutput, finishedToolSummary, finishedToolSummaryText, formatAskUserDisplayAnswer, formatToolName, highlightSearchQueryInHtml, isAskUserAnswered, isSamePermissionTool, mergeStreamedToolCalls, mergeToolArguments, parseAskUserQuestionsForGui, parseSearchResults, detectSearchLanguage, repoMapFileAnsiColor, repoMapToTreeColorized, resolveGuiToolName, shouldRenderToolBody, splitChoiceText, takeTerminalTail, terminalBodyHeight, terminalCommandForTool, toolAlwaysShowsBody, toolPermissionDisplay, toolStatusFallbackKey, toolStatusIcon, toolStatusIntroKey, treeStatsFromPlain } from './knoxGuiTools.js';
 import { appendMentionChip, applySuggestToDoc, appendTriggerToDoc, buildTopLevelMentionItems, composerInputHistoryAdd, composerInputHistoryNext, composerInputHistoryPrev, composerPlaceholderKey, createComposerInputHistory, DEFAULT_MENTION_PROVIDERS, DEFAULT_MENTION_PROVIDER_TITLES, detectComposerTrigger, EDIT_DISALLOWED_CONTEXT_PROVIDERS, emptyInputDoc, extractMentionsFromDoc, extractSlashFromDoc, filterProvidersForMode, groupMentionItems, groupSlashItems, highlightMentionMatch, inputDocFromPlainText, inputDocIsEmpty, inputDocToPlainText, insertCodeBlock, isDroppedImageFile, isSingleRangeEdit, knoxGuiCodeToEditTitle, knoxGuiComposerKeyAction, knoxGuiPendingToolBlocksSubmit, knoxGuiShouldBlockSubmit, MAX_COMPOSER_INPUT_HISTORY, mentionChipLabel, mentionIndexIsTruncated, mentionListKeyAction, mergeContextProvidersWithDefaults, mergeSlashCommandsWithBuiltins, parseUriList, rankSlashCommands, removeCodeBlockAt, resolveComposerSlashCommand, SLASH_BUILTINS, slashCommandTitle, submitUsesActiveFile, truncatedMentionMarker, useActiveFileFromDefaultContext } from './knoxGuiInput.js';
 import { applyKnoxGuiAutonomousEvent, applyLivePlanProgress, autonomousBannerKey, collectLatestTaskPlanSnapshot, collectLiveTaskPlan, collectRunningTaskJobs, compactionMethodKey, countFailedJobs, countRunningJobs, extractPathHints, finalizeGitDiffFiles, formatPlanText, gitDiffTotals, gitFileType, gitFilesFromDiffs, isCompactionBannerVisible, isInjectedMemoryTimeout, isTaskJobId, isVisibleTaskPlanPeekItem, mergeBackgroundJobs, mergeGitChangedWithDiffs, parseCompactionPayload, parseDiffStats, parsePlanText, shouldShowAutonomousBanner, splitSelectiveMemories, stepIntent, taskPlanFillPercent, truncateJobTitle, visibleBackgroundJobs, visibleToolOutputPeekItems } from './knoxGuiPanels.js';
-import { DEFAULT_REASONING_EFFORT, DEFAULT_REASONING_EFFORT_ALLOWED, knoxGuiFindCatalogModel, knoxGuiModelSelectTitle, knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResetModelCatalogForTests, knoxGuiResolveReasoningEffort, knoxGuiSeedModelCatalog } from './knoxGuiCapabilities.js';
-import { ADD_MODEL_PROVIDERS, addModelBrowseGroups, addModelPackagesByProvider, addModelProviderById, addModelRequiredSatisfied, agentProfileSharedConfig, appendNewPromptFileMentionAction, batchDiffTotals, buildAddModelPayload, categorizeKnoxChatModel, DEFAULT_AGENT_TOOL_POLICY_TEXT, duplicateToolNames, emptyPromptDraft, exploreBlocksButton, filterHistorySessions, filterKnoxChatModels, formatPolicyLines, formatPromptCommandName, formatSessionExportMarkdown, groupHistoryByDate, groupKnoxChatModels, isNewPromptFileMentionAction, isPromptFileMentionSubmenu, knoxGuiOAuthErrorI18nKey, knoxGuiOAuthHandle, knoxGuiOAuthPane, knoxGuiProviderLogoUri, mergeDimensionOptions, mergeReasoningEffortPrefs, mergeRuleCards, MODEL_OVERLAY_ROLES, modelUsesChatFallback, NEW_PROMPT_FILE_ACTION_ID, parseKnoxOAuthStatus, parseYamlRules, pendingGeneratedToolName, policyEditorText, PROMPT_FILE_SUBMENU_TITLE, promptDraftFromCommand, promptDraftIsEditing, promptDraftIsValid, promptSlashName, reasoningEffortLabelKey, ruleCardOpensProfile, ruleCardTitleKey, sessionExportFilename, setPathValue, sortConfigErrors, sortPromptsBookmarkedFirst, splitFilePath, toolPermissionBadgeKey, workspaceBasename } from './knoxGuiOverlays.js';
+import { DEFAULT_REASONING_EFFORT, DEFAULT_REASONING_EFFORT_ALLOWED, knoxGuiFindCatalogModel, knoxGuiGetReasoningModelKeys, knoxGuiModelSelectTitle, knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResetModelCatalogForTests, knoxGuiResolveReasoningEffort, knoxGuiSeedModelCatalog } from './knoxGuiCapabilities.js';
+import { ADD_MODEL_PROVIDERS, addModelBrowseGroups, addModelPackagesByProvider, addModelProviderById, addModelRequiredSatisfied, agentProfileSharedConfig, appendNewPromptFileMentionAction, applyHistoryRowSelection, batchDiffTotals, buildAddModelPayload, categorizeKnoxChatModel, DEFAULT_AGENT_TOOL_POLICY_TEXT, duplicateToolNames, emptyPromptDraft, exploreBlocksButton, filterHistorySessions, filterKnoxChatModels, formatPolicyLines, formatPromptCommandName, formatSessionExportMarkdown, groupHistoryByDate, groupKnoxChatModels, historyDateSection, historySessionMatchesQuery, isNewPromptFileMentionAction, isPromptFileMentionSubmenu, knoxGuiOAuthErrorI18nKey, knoxGuiOAuthHandle, knoxGuiOAuthPane, knoxGuiProviderLogoUri, mergeDimensionOptions, mergeReasoningEffortPrefs, mergeRuleCards, MODEL_OVERLAY_ROLES, modelUsesChatFallback, NEW_PROMPT_FILE_ACTION_ID, parseKnoxOAuthStatus, parseYamlRules, pendingGeneratedToolName, policyEditorText, PROMPT_FILE_SUBMENU_TITLE, promptDraftFromCommand, promptDraftIsEditing, promptDraftIsValid, promptSlashName, reasoningEffortLabelKey, ruleCardOpensProfile, ruleCardTitleKey, selectHistoryIdRange, sessionExportFilename, setPathValue, sortConfigErrors, sortPromptsBookmarkedFirst, splitFilePath, toggleHistorySelection, toolPermissionBadgeKey, workspaceBasename } from './knoxGuiOverlays.js';
 import { filterAndSortMemories, formatBytes, formatMemoryTimeAgo, groupMemoriesByDate, healthStatusColor, hitTestMemoryGraph, isMemoryTabId, layoutMemoryGraph, MEMORY_PANEL_TAB_BRAIN_MESSAGES, MEMORY_RETRIEVAL_THRESHOLD, MEMORY_RETRIEVAL_TOP_K, MEMORY_SETTING_GROUPS, MEMORY_TAB_ICONS, MEMORY_TAB_IDS, MEMORY_TIER_COLORS, memoryConfigUpdatePayload, memoryExploreEdgeDepth, memorySnippet, parseEffectiveContext, parseExploreResult, parseMemoryDashboard, parseMetricsTrend, sortMemoryExploreEdges, unwrapBrainConfig, memoriesToExportJson } from './knoxGuiMemory.js';
 import { KNOX_GUI_HEARTBEAT_MS, KNOX_GUI_HOST_INBOUND, KNOX_GUI_HOST_INBOUND_EMPTY_ACK, KNOX_GUI_HOST_OUTBOUND, KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME, KNOX_GUI_OVERLAYS, KNOX_GUI_PATH_BY_ROUTE, KnoxGuiRoute, knoxGuiRouteFromPath, lumpOverlaySectionForPath } from './knoxGuiProtocol.js';
 import { isSingleRangeEditOrInsertion, knoxGuiMultifileEditPrompt, knoxGuiNextEditStatus, knoxGuiResetEditModeState, mergeCodeToEdit, parseCodeToEdit, shouldSendEditPrompt } from './knoxGuiEdit.js';
@@ -477,6 +477,7 @@ suite('Knox native GUI parity', () => {
 	test('Pass 3 composer document stores chips instead of raw @ / text', () => {
 		let doc = appendTriggerToDoc(emptyInputDoc(), '@');
 		assert.deepStrictEqual(detectComposerTrigger(doc), { kind: 'mention', query: '' });
+		assert.deepStrictEqual(appendTriggerToDoc(doc, '@'), doc);
 		doc = applySuggestToDoc(doc, { id: 'src/app.ts', label: 'app.ts', itemType: 'file', query: 'src/app.ts' }, 'mention');
 		assert.strictEqual(extractMentionsFromDoc(doc)[0].id, 'src/app.ts');
 		assert.ok(!inputDocToPlainText(doc).includes('@src'));
@@ -823,6 +824,16 @@ suite('Knox native GUI parity', () => {
 			{ id: '3', title: 'Old notes', date: new Date(Date.now() - 40 * 86400000).toISOString() },
 		];
 		assert.strictEqual(filterHistorySessions(sessions, 'snake')[0].id, '1');
+		assert.strictEqual(historySessionMatchesQuery({ id: 'w', title: 'Ship', date: '', workspaceDirectory: '/tmp/demo' }, 'demo'), true);
+		assert.deepStrictEqual(selectHistoryIdRange(['a', 'b', 'c'], 'a', 'c'), ['a', 'b', 'c']);
+		assert.deepStrictEqual(applyHistoryRowSelection(['a'], ['a', 'b', 'c'], 'c', true, 'a').selected, ['a', 'b', 'c']);
+		assert.deepStrictEqual(toggleHistorySelection(['a'], 'b', true), ['a', 'b']);
+		const todayStart = new Date();
+		todayStart.setHours(0, 0, 0, 0);
+		const yesterday = new Date(todayStart);
+		yesterday.setDate(yesterday.getDate() - 1);
+		assert.strictEqual(historyDateSection(Date.now()), 'today');
+		assert.strictEqual(historyDateSection(yesterday.getTime() + 60_000, todayStart.getTime() + 12 * 3600_000), 'yesterday');
 		const groups = groupHistoryByDate(filterHistorySessions(sessions, ''));
 		assert.ok(groups.some(group => group.header === 'today'));
 		assert.ok(groups.some(group => group.header === 'thisWeek' || group.header === 'thisMonth'));
@@ -1203,6 +1214,27 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(knoxGuiRelativeFontSize(14, -3), 11);
 		assert.strictEqual(knoxGuiRelativeFontSize(14, -2), 12);
 		assert.strictEqual(knoxGuiRelativeFontSize(1, -3), 1);
+		const flipped = knoxGuiAnchorPopoverBox({
+			trigger: { left: 8, top: 400, bottom: 418, width: 80 },
+			viewport: { width: 400, height: 430 },
+			menu: { width: 160, height: 200 },
+		});
+		assert.strictEqual(flipped.placement, 'top');
+		assert.ok(flipped.top < 400);
+		const below = knoxGuiAnchorPopoverBox({
+			trigger: { left: 8, top: 10, bottom: 28, width: 80 },
+			viewport: { width: 400, height: 400 },
+			menu: { width: 160, height: 80 },
+		});
+		assert.strictEqual(below.placement, 'bottom');
+		assert.ok(below.top >= 28);
+		const endAligned = knoxGuiAnchorPopoverBox({
+			trigger: { left: 200, top: 10, bottom: 28, width: 80 },
+			viewport: { width: 400, height: 400 },
+			menu: { width: 160, height: 80 },
+			align: 'end',
+		});
+		assert.strictEqual(endAligned.left, 120);
 	});
 
 	test('Pass 11 restore preview, line diff, file tree, and config validation', () => {
@@ -1256,7 +1288,7 @@ suite('Knox native GUI parity', () => {
 			...next,
 			history: [{ id: 'a', role: 'assistant', content: 'hi there', toolCalls: [{ id: 't', name: 'builtin_read_file', arguments: '{}', status: 'calling' }] }],
 		};
-		assert.strictEqual(isKnoxGuiStreamingTokenChange(next, withTool), false);
+		assert.strictEqual(isKnoxGuiStreamingTokenChange(next, withTool), true);
 		const toolOut: IKnoxGuiState = {
 			...withTool,
 			history: [{ id: 'a', role: 'assistant', content: 'hi there', thinking: 'plan more', toolCalls: [{ id: 't', name: 'builtin_read_file', arguments: '{}', status: 'calling', output: 'file body' }] }],
@@ -1427,6 +1459,36 @@ suite('Knox native GUI parity', () => {
 			[{ filename: 'a.ts', filepath: 'src/a.ts', displayPath: 'src/a.ts', uri: 'src/a.ts', additions: 4, deletions: 2, fileType: 'TS', isBinary: false, status: 'modified' }],
 		);
 		assert.deepStrictEqual({ additions: merged[0].additions, deletions: merged[0].deletions }, { additions: 4, deletions: 2 });
+		knoxGuiResetModelCatalogForTests();
+		knoxGuiSeedModelCatalog(knoxGuiParseModelCatalog([{
+			id: 'z-ai/glm-5.3-flash',
+			architecture: { input_modalities: ['text', 'image'] },
+			supported_parameters: ['reasoning_effort'],
+			reasoning: { supported_efforts: ['minimal', 'low', 'medium', 'high'], default_effort: 'minimal' },
+		}]));
+		assert.strictEqual(knoxGuiModelSupportsImages({
+			title: 'Z.ai: GLM 5.3 Flash',
+			provider: 'knoxchat',
+			model: 'z-ai/glm-5.3-flash',
+		}), true);
+		assert.deepStrictEqual(knoxGuiReasoningEffortConfig({
+			title: 'Z.ai: GLM 5.3 Flash',
+			provider: 'knoxchat',
+			model: 'z-ai/glm-5.3-flash',
+		})?.allowed, ['minimal', 'low', 'medium', 'high']);
+		assert.strictEqual(knoxGuiResolveReasoningEffort({
+			title: 'Z.ai: GLM 5.3 Flash',
+			provider: 'knoxchat',
+			model: 'z-ai/glm-5.3-flash',
+		}), 'minimal');
+		assert.deepStrictEqual(knoxGuiReasoningEffortConfig({
+			title: 'Claude',
+			provider: 'anthropic',
+			model: 'claude-sonnet-4.6',
+			supportedParameters: ['reasoning_effort'],
+		})?.allowed, ['low', 'medium', 'high']);
+		assert.ok(knoxGuiGetReasoningModelKeys({ title: 'Claude', provider: 'anthropic', model: 'claude-sonnet-4.6' }).includes('anthropic/claude-sonnet-4.6'));
+		knoxGuiResetModelCatalogForTests();
 	});
 
 	test('KN-371 knoxGuiModelSupportsTools uses /v1/models catalog not provider name', () => {

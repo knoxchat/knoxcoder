@@ -1116,6 +1116,14 @@ export function knoxGuiInitialCodeBlockExpanded(code: string, expanded: boolean 
 	return typeof expanded === 'boolean' ? expanded : code.trim().length > 0;
 }
 
+/** `shouldAutoExpandGeneratingCodeBlock`: open a file fence in place once generated code arrives. */
+export function knoxGuiShouldAutoExpandGeneratingCodeBlock(isGenerating: boolean, code: string, expanded?: boolean): boolean {
+	if (expanded === false) {
+		return false;
+	}
+	return isGenerating && code.trim().length > 0;
+}
+
 export function fenceHasFileToolbar(filepath?: string): boolean {
 	return Boolean(filepath && /\.[0-9a-z]+$/i.test(filepath));
 }

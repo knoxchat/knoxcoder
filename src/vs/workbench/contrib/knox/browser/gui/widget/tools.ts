@@ -10,7 +10,8 @@ import { safeSetInnerHtml } from '../../../../../../base/browser/domSanitize.js'
 import { URI } from '../../../../../../base/common/uri.js';
 import { getIconClasses } from '../../../../../../editor/common/services/getIconClasses.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
-import { appendKnoxGuiSvg, setKnoxGuiInnerHtml } from '../knoxGuiIcons.js';
+import { appendKnoxGuiSvg, replaceKnoxGuiSvg, setKnoxGuiInnerHtml } from '../knoxGuiIcons.js';
+import { setCollapseChevronExpanded } from './controls.js';
 import { toolDisplayKind } from '../../../common/knoxGuiChat.js';
 import {
 	catalogToolForCall,
@@ -62,6 +63,22 @@ import { activityAnchorId, parseCodeFenceRange, splitDisplayPath } from '../../.
 
 export function toolStreamFingerprint(tool: IKnoxGuiToolCall): string {
 	return `${tool.status}\0${tool.arguments}\0${tool.output ?? ''}\0${tool.outputItems?.length ?? 0}\0${tool.collapsed ? 1 : 0}`;
+}
+
+/** Update a mounted tool card in place (XTermTerminal / GenericCodePreview stay mounted). */
+export function patchLiveTool(widget: KnoxGuiWidget, box: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): boolean {
+	box.dataset.stream = toolStreamFingerprint(tool);
+	box.setAttribute('data-tool-status', tool.status);
+	const kind = toolDisplayKind(tool.name);
+	if (kind === 'terminal') {
+		const term = box.querySelector('[data-testid="knox-gui-term"]') as HTMLElement | null;
+		if (!term) {
+			return false;
+		}
+		syncTerminalCard(widget, term, state, tool);
+		return true;
+	}
+	return false;
 }
 
 export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {
@@ -307,6 +324,27 @@ export function renderToolActions(widget: KnoxGuiWidget,
 }
 
 export function renderTerminalTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {
+	const isLight = widget.isLightTheme();
+	const card = DOM.append(parent, DOM.$('.knox-gui-term'));
+	card.classList.toggle('light', isLight);
+	card.setAttribute('data-testid', 'knox-gui-term');
+	card.dataset.toolId = tool.id;
+	const head = DOM.append(card, DOM.$('.knox-gui-term-head'));
+	const left = DOM.append(head, DOM.$('.knox-gui-term-head-left'));
+	widget.collapseChevron(left, {
+		expanded: widget.cardExpanded(tool.id, true),
+		title: t(state, 'collapse'),
+		testId: 'xterm-collapse',
+		onClick: () => widget.toggleCardExpanded(tool.id, true),
+	});
+	const icon = appendKnoxGuiSvg(left, 'square-terminal', 13);
+	icon.classList.add('knox-gui-term-icon');
+	DOM.append(left, DOM.$('span.knox-gui-term-title', undefined, t(state, 'terminal')));
+	DOM.append(head, DOM.$('.knox-gui-term-head-right'));
+	syncTerminalCard(widget, card, state, tool);
+}
+
+function syncTerminalCard(widget: KnoxGuiWidget, card: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {
 	const args = tool.parsedArgs ?? {};
 	const command = terminalCommandForTool(tool.name, args, (key, vars) => t(state, key, vars));
 	const items = tool.outputItems?.length ? tool.outputItems : (tool.output ? [{ content: tool.output }] : []);
@@ -325,114 +363,130 @@ export function renderTerminalTool(widget: KnoxGuiWidget, parent: HTMLElement, s
 	}
 	widget.termPrevLen.set(tool.id, raw.length);
 
-	const card = DOM.append(parent, DOM.$('.knox-gui-term'));
 	card.classList.toggle('light', isLight);
 	card.classList.toggle('knox-gui-term-running', isStreaming);
-	card.setAttribute('data-testid', 'knox-gui-term');
-	const head = DOM.append(card, DOM.$('.knox-gui-term-head'));
-	if (!expanded) {
-		head.classList.add('collapsed');
+	card.dataset.toolId = tool.id;
+
+	const head = card.querySelector('.knox-gui-term-head') as HTMLElement | null;
+	if (head) {
+		head.classList.toggle('collapsed', !expanded);
 	}
-	const left = DOM.append(head, DOM.$('.knox-gui-term-head-left'));
-	widget.collapseChevron(left, {
-		expanded,
-		title: expanded ? t(state, 'collapse') : t(state, 'expand'),
-		testId: 'xterm-collapse',
-		onClick: () => widget.toggleCardExpanded(tool.id, true),
-	});
-	const icon = appendKnoxGuiSvg(left, 'square-terminal', 13);
-	icon.classList.add('knox-gui-term-icon');
-	const title = DOM.append(left, DOM.$('span.knox-gui-term-title', undefined, t(state, 'terminal')));
-	if (truncated) {
-		const hint = DOM.append(title, DOM.$('span.knox-gui-term-truncated', undefined, t(state, 'truncatedTerminalOutput', { lines: hiddenLines })));
-		hint.setAttribute('data-testid', 'xterm-truncated');
+	const chevron = card.querySelector('[data-testid="xterm-collapse"]') as HTMLElement | null;
+	if (chevron) {
+		setCollapseChevronExpanded(chevron, expanded, expanded ? t(state, 'collapse') : t(state, 'expand'));
+	}
+	const title = card.querySelector('.knox-gui-term-title') as HTMLElement | null;
+	if (title) {
+		let hint = title.querySelector('.knox-gui-term-truncated') as HTMLElement | null;
+		if (truncated) {
+			if (!hint) {
+				hint = DOM.append(title, DOM.$('span.knox-gui-term-truncated'));
+				hint.setAttribute('data-testid', 'xterm-truncated');
+			}
+			hint.textContent = t(state, 'truncatedTerminalOutput', { lines: hiddenLines });
+		} else {
+			hint?.remove();
+		}
 	}
 
-	const right = DOM.append(head, DOM.$('.knox-gui-term-head-right'));
-	if (isStreaming) {
-		const badge = DOM.append(right, DOM.$('.knox-gui-term-badge.knox-gui-term-badge-running'));
-		DOM.append(badge, DOM.$('span.knox-gui-term-pulse'));
-		DOM.append(badge, DOM.$('span', undefined, t(state, 'running')));
-	} else if (isDone) {
-		const badge = DOM.append(right, DOM.$('.knox-gui-term-badge.knox-gui-term-badge-done'));
-		appendKnoxGuiSvg(badge, 'check', 12);
-		DOM.append(badge, DOM.$('span', undefined, t(state, 'toolUsed')));
-	} else if (isCanceled) {
-		const badge = DOM.append(right, DOM.$('.knox-gui-term-badge.knox-gui-term-badge-canceled'));
-		appendKnoxGuiSvg(badge, 'x', 12);
-		DOM.append(badge, DOM.$('span', undefined, t(state, 'toolCanceled')));
+	const right = card.querySelector('.knox-gui-term-head-right') as HTMLElement | null;
+	if (right) {
+		syncTerminalBadge(right, state, isStreaming, isDone, isCanceled);
+		if (raw && !right.querySelector('[data-testid="xterm-copy-output"]')) {
+			appendTerminalCopyAction(widget, right, state, {
+				testId: 'xterm-copy-output',
+				copyKey: `out:${tool.id}`,
+				text: tool.output || raw,
+				idleLabel: t(state, 'copy'),
+				idleTitle: t(state, 'copyOutput'),
+				showLabel: true,
+			});
+		}
+		const copyOut = right.querySelector('[data-testid="xterm-copy-output"]') as HTMLElement | null;
+		if (copyOut && raw) {
+			copyOut.dataset.copyText = tool.output || raw;
+		}
+		if (logPath && !right.querySelector('[data-testid="xterm-open-full-log"]')) {
+			widget.chromeButton(right, {
+				svg: 'file-text',
+				svgSize: 14,
+				label: t(state, 'openFullLog'),
+				title: t(state, 'openFullLog'),
+				testId: 'xterm-open-full-log',
+				extraClass: 'knox-gui-term-action',
+				onClick: () => widget.controller.showFile(logPath),
+			});
+		}
+		if (command && !right.querySelector('[data-testid="xterm-copy-command"]')) {
+			appendTerminalCopyAction(widget, right, state, {
+				testId: 'xterm-copy-command',
+				copyKey: `cmd:${tool.id}`,
+				text: command,
+				idleLabel: t(state, 'copy'),
+				idleTitle: t(state, 'copyCommand'),
+				showLabel: false,
+			});
+		}
 	}
-	if (raw) {
-		appendTerminalCopyAction(widget, right, state, {
-			testId: 'xterm-copy-output',
-			copyKey: `out:${tool.id}`,
-			text: tool.output || raw,
-			idleLabel: t(state, 'copy'),
-			idleTitle: t(state, 'copyOutput'),
-			showLabel: true,
-		});
-	}
-	if (logPath) {
-		widget.chromeButton(right, {
-			svg: 'file-text',
-			svgSize: 14,
-			label: t(state, 'openFullLog'),
-			title: t(state, 'openFullLog'),
-			testId: 'xterm-open-full-log',
-			extraClass: 'knox-gui-term-action',
-			onClick: () => widget.controller.showFile(logPath),
-		});
-	}
-	if (command) {
-		appendTerminalCopyAction(widget, right, state, {
-			testId: 'xterm-copy-command',
-			copyKey: `cmd:${tool.id}`,
-			text: command,
-			idleLabel: t(state, 'copy'),
-			idleTitle: t(state, 'copyCommand'),
-			showLabel: false,
-		});
-	}
+
 	if (!expanded) {
+		card.querySelector('.knox-gui-term-body')?.remove();
 		return;
 	}
 
-	const body = DOM.append(card, DOM.$('.knox-gui-term-body'));
+	let body = card.querySelector('.knox-gui-term-body') as HTMLElement | null;
+	if (!body) {
+		body = DOM.append(card, DOM.$('.knox-gui-term-body'));
+		bindTerminalScroll(widget, body, tool.id);
+	}
 	body.style.height = `${height}px`;
-	if (state.codeWrap) {
-		body.classList.add('wrap');
+	body.classList.toggle('wrap', Boolean(state.codeWrap));
+	let pre = body.querySelector('pre.knox-gui-term-pre') as HTMLElement | null;
+	if (!pre) {
+		pre = DOM.append(body, DOM.$('pre.knox-gui-term-pre'));
 	}
-	const pre = DOM.append(body, DOM.$('pre.knox-gui-term-pre'));
 	if (command) {
-		const line = DOM.append(pre, DOM.$('span.knox-gui-term-prompt-line'));
-		const prompt = DOM.append(line, DOM.$('span.knox-gui-term-prompt', undefined, '❯'));
-		prompt.classList.add('hljs-title', 'function_');
-		prompt.style.color = knoxGuiHljsTokenColor(state.vscTokenColors, ['.hljs-title.function_', '.hljs-built_in'], palette.green);
-		const cmd = DOM.append(line, DOM.$('span.knox-gui-term-command', undefined, command));
-		cmd.classList.add('hljs-string');
-		cmd.style.color = knoxGuiHljsTokenColor(state.vscTokenColors, ['.hljs-string'], palette.foreground);
-		cmd.setAttribute('data-testid', 'xterm-command');
-	}
-	if (tail) {
-		const out = DOM.append(pre, DOM.$('span.knox-gui-term-output'));
-		out.setAttribute('data-testid', 'xterm-output');
-		widget.appendAnsi(out, tail, palette);
-	} else if (isStreaming) {
-		DOM.append(pre, DOM.$('span.knox-gui-term-cursor', undefined, '▋'));
-	}
-
-	widget.renderStore.add(DOM.addDisposableListener(body, 'scroll', () => {
-		const { scrollTop, scrollHeight, clientHeight } = body;
-		const atBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 30;
-		const last = widget.termScrollTop.get(tool.id) ?? 0;
-		if (scrollTop < last && !atBottom) {
-			widget.termUserScrolled.add(tool.id);
-		} else if (atBottom) {
-			widget.termUserScrolled.delete(tool.id);
+		let line = pre.querySelector('.knox-gui-term-prompt-line') as HTMLElement | null;
+		if (!line) {
+			line = DOM.append(pre, DOM.$('span.knox-gui-term-prompt-line'));
+			const prompt = DOM.append(line, DOM.$('span.knox-gui-term-prompt', undefined, '❯'));
+			prompt.classList.add('hljs-title', 'function_');
+			prompt.style.color = knoxGuiHljsTokenColor(state.vscTokenColors, ['.hljs-title.function_', '.hljs-built_in'], palette.green);
+			const cmd = DOM.append(line, DOM.$('span.knox-gui-term-command', undefined, command));
+			cmd.classList.add('hljs-string');
+			cmd.style.color = knoxGuiHljsTokenColor(state.vscTokenColors, ['.hljs-string'], palette.foreground);
+			cmd.setAttribute('data-testid', 'xterm-command');
+		} else {
+			const cmd = line.querySelector('[data-testid="xterm-command"]');
+			if (cmd && cmd.textContent !== command) {
+				cmd.textContent = command;
+			}
 		}
-		widget.termScrollTop.set(tool.id, scrollTop);
-	}));
+	}
+	let out = pre.querySelector('.knox-gui-term-output') as HTMLElement | null;
+	const cursor = pre.querySelector('.knox-gui-term-cursor') as HTMLElement | null;
+	if (tail) {
+		if (!out) {
+			out = DOM.append(pre, DOM.$('span.knox-gui-term-output'));
+			out.setAttribute('data-testid', 'xterm-output');
+		}
+		if (out.dataset.tail !== tail) {
+			out.dataset.tail = tail;
+			widget.appendAnsi(out, tail, palette);
+		}
+		cursor?.remove();
+	} else {
+		out?.remove();
+		if (isStreaming && !cursor) {
+			DOM.append(pre, DOM.$('span.knox-gui-term-cursor', undefined, '▋'));
+		} else if (!isStreaming) {
+			cursor?.remove();
+		}
+	}
 	queueMicrotask(() => {
+		if (!body) {
+			return;
+		}
 		if (widget.termUserScrolled.has(tool.id)) {
 			body.scrollTop = widget.termScrollTop.get(tool.id) ?? 0;
 		} else {
@@ -440,6 +494,50 @@ export function renderTerminalTool(widget: KnoxGuiWidget, parent: HTMLElement, s
 			widget.termScrollTop.set(tool.id, body.scrollTop);
 		}
 	});
+}
+
+function syncTerminalBadge(right: HTMLElement, state: IKnoxGuiState, isStreaming: boolean, isDone: boolean, isCanceled: boolean): void {
+	const next = isStreaming ? 'running' : isDone ? 'done' : isCanceled ? 'canceled' : '';
+	let badge = right.querySelector('.knox-gui-term-badge') as HTMLElement | null;
+	if (!next) {
+		badge?.remove();
+		return;
+	}
+	if (badge?.dataset.kind === next) {
+		return;
+	}
+	badge?.remove();
+	badge = DOM.append(right, DOM.$(`.knox-gui-term-badge.knox-gui-term-badge-${next}`));
+	badge.dataset.kind = next;
+	right.insertBefore(badge, right.firstChild);
+	if (isStreaming) {
+		DOM.append(badge, DOM.$('span.knox-gui-term-pulse'));
+		DOM.append(badge, DOM.$('span', undefined, t(state, 'running')));
+	} else if (isDone) {
+		appendKnoxGuiSvg(badge, 'check', 12);
+		DOM.append(badge, DOM.$('span', undefined, t(state, 'toolUsed')));
+	} else {
+		appendKnoxGuiSvg(badge, 'x', 12);
+		DOM.append(badge, DOM.$('span', undefined, t(state, 'toolCanceled')));
+	}
+}
+
+function bindTerminalScroll(widget: KnoxGuiWidget, body: HTMLElement, toolId: string): void {
+	if (body.dataset.scrollBound === '1') {
+		return;
+	}
+	body.dataset.scrollBound = '1';
+	widget.listenerStore.add(DOM.addDisposableListener(body, 'scroll', () => {
+		const { scrollTop, scrollHeight, clientHeight } = body;
+		const atBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 30;
+		const last = widget.termScrollTop.get(toolId) ?? 0;
+		if (scrollTop < last && !atBottom) {
+			widget.termUserScrolled.add(toolId);
+		} else if (atBottom) {
+			widget.termUserScrolled.delete(toolId);
+		}
+		widget.termScrollTop.set(toolId, scrollTop);
+	}));
 }
 
 function appendTerminalCopyAction(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, options: {
@@ -454,21 +552,30 @@ function appendTerminalCopyAction(widget: KnoxGuiWidget, parent: HTMLElement, st
 	const btn = DOM.append(parent, DOM.$(options.showLabel ? 'button.knox-gui-term-action' : 'button.knox-gui-term-copy')) as HTMLButtonElement;
 	btn.type = 'button';
 	btn.setAttribute('data-testid', options.testId);
+	btn.dataset.copyText = options.text;
 	const icon = appendKnoxGuiSvg(btn, copied ? 'check' : 'copy', 14);
 	icon.classList.add('knox-gui-term-action-icon');
 	if (options.showLabel) {
 		DOM.append(btn, DOM.$('span.knox-gui-term-action-label', undefined, copied ? t(state, 'copied') : options.idleLabel));
 	}
 	widget.hover(btn, copied ? t(state, 'copied') : options.idleTitle);
-	widget.renderStore.add(DOM.addDisposableListener(btn, 'click', e => {
+	widget.listenerStore.add(DOM.addDisposableListener(btn, 'click', e => {
 		e.stopPropagation();
-		widget.controller.copyText(options.text);
+		const text = btn.dataset.copyText || options.text;
+		widget.controller.copyText(text);
 		widget.termCopiedUntil.set(options.copyKey, Date.now() + 2000);
-		widget.render();
+		replaceKnoxGuiSvg(btn, 'check', 14).classList.add('knox-gui-term-action-icon');
+		const label = btn.querySelector('.knox-gui-term-action-label');
+		if (label) {
+			label.textContent = t(state, 'copied');
+		}
 		window.setTimeout(() => {
 			if ((widget.termCopiedUntil.get(options.copyKey) ?? 0) <= Date.now()) {
 				widget.termCopiedUntil.delete(options.copyKey);
-				widget.render();
+				replaceKnoxGuiSvg(btn, 'copy', 14).classList.add('knox-gui-term-action-icon');
+				if (label) {
+					label.textContent = options.idleLabel;
+				}
 			}
 		}, 2000);
 	}));
@@ -1007,7 +1114,41 @@ export function toggleCardExpanded(widget: KnoxGuiWidget, id: string, defaultExp
 		widget.toolBodyCollapsed.delete(`card:${id}`);
 		widget.toolCardExpanded.add(id);
 	}
+	const term = Array.from(widget.root.querySelectorAll<HTMLElement>('[data-testid="knox-gui-term"]')).find(el => el.dataset.toolId === id);
+	if (term) {
+		const tool = findToolById(widget, id);
+		if (tool) {
+			syncTerminalCard(widget, term, widget.controller.store.state, tool);
+			return;
+		}
+	}
+	const card = widget.root.querySelector(`[data-card-id="${CSS.escape(id)}"]`) as HTMLElement | null;
+	if (card) {
+		const next = widget.cardExpanded(id, defaultExpanded);
+		card.querySelector('.knox-gui-tree-head, .knox-gui-search-head, .knox-gui-term-head')?.classList.toggle('collapsed', !next);
+		const body = card.querySelector('.knox-gui-tree-body, .knox-gui-search-body, .knox-gui-term-body') as HTMLElement | null;
+		if (body) {
+			body.hidden = !next;
+		}
+		const chevron = card.querySelector('.knox-gui-collapse-chevron') as HTMLElement | null;
+		if (chevron) {
+			setCollapseChevronExpanded(chevron, next);
+		}
+		if (body || !next) {
+			return;
+		}
+	}
 	widget.render();
+}
+
+function findToolById(widget: KnoxGuiWidget, id: string): IKnoxGuiToolCall | undefined {
+	for (const item of widget.controller.store.state.history) {
+		const match = item.toolCalls?.find(tool => tool.id === id);
+		if (match) {
+			return match;
+		}
+	}
+	return undefined;
 }
 
 export function setCardTab(widget: KnoxGuiWidget, id: string, tab: string): void {

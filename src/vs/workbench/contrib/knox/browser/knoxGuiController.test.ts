@@ -760,6 +760,26 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(!posted.some(message => message.messageType === 'history/save'));
 	});
 
+	test('S-09 bulk delete from the history overlay stays on the list', async () => {
+		const { controller, store, posted } = createHarness();
+		await timeout(0);
+		store.patch({
+			overlay: 'history',
+			sessionId: 'a',
+			history: [{ id: 'u', role: 'user', content: 'doomed' }],
+			historySessions: [{ id: 'a', title: 'A', date: '' }, { id: 'b', title: 'B', date: '' }, { id: 'c', title: 'C', date: '' }],
+			historySelectionMode: true,
+			historySelected: ['a', 'c'],
+		});
+		await controller.deleteSessions(['a', 'c']);
+		assert.strictEqual(store.state.overlay, 'history');
+		assert.deepStrictEqual(store.state.historySessions.map(session => session.id), ['b']);
+		assert.notStrictEqual(store.state.sessionId, 'a');
+		assert.deepStrictEqual(store.state.history, []);
+		assert.ok(posted.filter(message => message.messageType === 'history/delete').length >= 2);
+		assert.ok(!posted.some(message => message.messageType === 'history/load'));
+	});
+
 	test('A-26 mode switch is ignored while streaming; entering edit saves and opens a new session', async () => {
 		const { controller, store, posted } = createHarness({ replies: { 'history/save': {} } });
 		await timeout(0);

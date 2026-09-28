@@ -85,34 +85,33 @@
 }
 
 .knox-gui-meter.knox-gui-attached {
-	margin: 0 2px;
+	margin: 0;
 	padding: 0;
+	width: 100%;
 	height: auto;
 	overflow: hidden;
+	box-sizing: border-box;
 	border-radius: 0;
 	background: var(--vscode-input-background, rgb(45 45 45));
 	border-top: 1px solid color-mix(in srgb, #159994 25%, transparent);
 	border-left: 1px solid color-mix(in srgb, #159994 15%, transparent);
 	border-right: 1px solid color-mix(in srgb, #159994 15%, transparent);
-	border-top-left-radius: 8px;
-	border-top-right-radius: 8px;
 }
 
 .knox-gui-attached {
-	margin: 0 2px;
+	margin: 0;
+	width: 100%;
 	overflow: hidden;
+	box-sizing: border-box;
+	border-radius: 0;
 	background: var(--vscode-input-background, rgb(45 45 45));
 	border-top: 1px solid color-mix(in srgb, #159994 25%, transparent);
 	border-left: 1px solid color-mix(in srgb, #159994 15%, transparent);
 	border-right: 1px solid color-mix(in srgb, #159994 15%, transparent);
-	border-top-left-radius: 8px;
-	border-top-right-radius: 8px;
 }
 
 .knox-gui-attached + .knox-gui-attached,
 .knox-gui-meter.knox-gui-attached + .knox-gui-attached {
-	border-top-left-radius: 0;
-	border-top-right-radius: 0;
 	border-top-color: color-mix(in srgb, #159994 10%, transparent);
 }
 
@@ -1024,11 +1023,33 @@
 .knox-gui-scroll-btns {
 	display: flex;
 	align-items: center;
-	gap: 2px;
+	gap: 4px;
 }
 
 .knox-gui-scroll-btns.hidden {
 	display: none;
+}
+
+.knox-gui-scroll-btns .knox-gui-icon-btn {
+	opacity: 0.7;
+	padding: 4px !important;
+}
+
+.knox-gui-scroll-btns .knox-gui-icon-btn:hover:not(:disabled) {
+	opacity: 1;
+	background: rgba(110, 110, 119, 0.2) !important;
+	filter: none;
+}
+
+.knox-gui-scroll-btns .knox-gui-icon-btn:disabled,
+.knox-gui-scroll-btns .knox-gui-icon-btn.disabled {
+	opacity: 0.3;
+	cursor: not-allowed;
+}
+
+.knox-gui-input-bar .knox-gui-scroll-btns .knox-gui-svg {
+	width: 14px;
+	height: 14px;
 }
 
 .knox-gui-error {
@@ -1044,7 +1065,7 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: 4px;
-	padding: 4px 8px;
+	padding: 4px 0;
 }
 
 .knox-gui-thumbs {
@@ -1332,7 +1353,7 @@
 }
 
 .knox-gui-context-peek {
-	padding: 4px 8px;
+	padding: 4px 0;
 }
 
 .knox-gui-context-peek-title {

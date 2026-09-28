@@ -124,10 +124,15 @@ export class KnoxGuiWidget extends Disposable {
 	/** Rendered blocks of the streaming reply, in order; see `renderStreamingAssistantBody`. */
 	streamBlocks: { key: string; nodes: ChildNode[]; store: DisposableStore; payload: string }[] = [];
 	openMenu: 'agent' | 'model' | 'effort' | null = null;
+	openMenuSource = 'main';
 	openRoleMenu: KnoxModelRole | null = null;
 	expandedRuleIndex: number | null = null;
 	editingHistoryId: string | null = null;
 	historySearchFocus = false;
+	historySearchCaret: number | null = null;
+	historyListFocusedId: string | null = null;
+	historyListAnchorId: string | null = null;
+	historyListSearchInput: HTMLInputElement | undefined;
 	memoryExpandedId: string | null = null;
 	memorySelectedIds = new Set<string>();
 	memorySelectionMode = false;
@@ -395,6 +400,7 @@ export class KnoxGuiWidget extends Disposable {
 		this.promptNameInput = undefined;
 		this.checkpointGraphFindInput = undefined;
 		this.checkpointListSearchInput = undefined;
+		this.historyListSearchInput = undefined;
 		this.checkpointTimelineSearchInput = undefined;
 		this.lastAssistantCard = undefined;
 		this.dropOverlayEl = undefined;
@@ -732,8 +738,8 @@ export class KnoxGuiWidget extends Disposable {
 		knoxGuiChatView.renderAssistantBody(this, card, state, item, isLast);
 	}
 
-	appendMarkdown(parent: HTMLElement, source: string, store = this.renderStore, fileInfo?: IKnoxGuiPastFileInfo, streaming = false): void {
-		knoxGuiMarkdownView.appendMarkdown(this, parent, source, store, fileInfo, streaming);
+	appendMarkdown(parent: HTMLElement, source: string, store = this.renderStore, fileInfo?: IKnoxGuiPastFileInfo, streaming = false, target?: HTMLElement): void {
+		knoxGuiMarkdownView.appendMarkdown(this, parent, source, store, fileInfo, streaming, target);
 	}
 
 	renderCodeFence(
@@ -1005,12 +1011,12 @@ export class KnoxGuiWidget extends Disposable {
 		knoxGuiComposerView.renderInput(this, parent, state);
 	}
 
-	renderModelSelect(parent: HTMLElement, state: IKnoxGuiState): void {
-		knoxGuiComposerView.renderModelSelect(this, parent, state);
+	renderModelSelect(parent: HTMLElement, state: IKnoxGuiState, source = 'main'): void {
+		knoxGuiComposerView.renderModelSelect(this, parent, state, source);
 	}
 
-	renderReasoningSelect(parent: HTMLElement, state: IKnoxGuiState): void {
-		knoxGuiComposerView.renderReasoningSelect(this, parent, state);
+	renderReasoningSelect(parent: HTMLElement, state: IKnoxGuiState, source = 'main'): void {
+		knoxGuiComposerView.renderReasoningSelect(this, parent, state, source);
 	}
 
 	renderErrorFallback(body: HTMLElement, state: IKnoxGuiState, error: unknown): void {
@@ -1081,8 +1087,8 @@ export class KnoxGuiWidget extends Disposable {
 		knoxGuiOverlaysView.renderHistoryPage(this, body, state, compact);
 	}
 
-	renderHistorySessionRow(parent: HTMLElement, state: IKnoxGuiState, session: IKnoxGuiState['historySessions'][number], index: number): void {
-		knoxGuiOverlaysView.renderHistorySessionRow(this, parent, state, session, index);
+	renderHistorySessionRow(parent: HTMLElement, state: IKnoxGuiState, session: IKnoxGuiState['historySessions'][number], index: number, sessions?: IKnoxGuiState['historySessions']): void {
+		knoxGuiOverlaysView.renderHistorySessionRow(this, parent, state, session, index, sessions);
 	}
 
 	renderHistoryDeleteDialog(body: HTMLElement, state: IKnoxGuiState): void {
@@ -1257,8 +1263,12 @@ export class KnoxGuiWidget extends Disposable {
 		knoxGuiChromeView.hideOsrMenu(this);
 	}
 
-	toggleMenu(menu: 'agent' | 'model' | 'effort'): void {
-		knoxGuiChromeView.toggleMenu(this, menu);
+	toggleMenu(menu: 'agent' | 'model' | 'effort', source = 'main'): void {
+		knoxGuiChromeView.toggleMenu(this, menu, source);
+	}
+
+	anchorPopover(menu: HTMLElement, trigger: HTMLElement, options?: { minWidth?: number; align?: 'start' | 'end' }): void {
+		knoxGuiChromeView.anchorPopover(this, menu, trigger, options);
 	}
 
 	closeMenus(): void {
@@ -1293,12 +1303,16 @@ export class KnoxGuiWidget extends Disposable {
 		knoxGuiChromeView.syncScrollButtons(this);
 	}
 
-	onEditorKeyDown(e: KeyboardEvent, state: IKnoxGuiState): void {
+	onEditorKeyDown(e: KeyboardEvent, state?: IKnoxGuiState): void {
 		knoxGuiComposerView.onEditorKeyDown(this, e, state);
 	}
 
 	submitFromComposer(altKey: boolean): void {
 		knoxGuiComposerView.submitFromComposer(this, altKey);
+	}
+
+	insertAddContext(): void {
+		knoxGuiComposerView.insertAddContext(this);
 	}
 
 	stepInputHistory(delta: number): void {

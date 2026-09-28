@@ -91,7 +91,10 @@ button.knox-gui-section-title .knox-gui-svg:last-child {
 
 .knox-gui-lump-shell {
 	background: var(--vscode-input-background);
-	margin: 0 2px;
+	margin: 0;
+	width: 100%;
+	box-sizing: border-box;
+	border-radius: 0;
 }
 
 .knox-gui-lump-shell .knox-gui-overlay {

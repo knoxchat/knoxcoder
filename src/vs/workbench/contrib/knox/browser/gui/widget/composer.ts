@@ -51,6 +51,7 @@ import {
 	inputDocToPlainText,
 	IKnoxGuiInputBlock,
 	isDroppedImageFile,
+	knoxGuiImageFileAccepted,
 	IKnoxGuiInputCodeBlock,
 	KNOX_DRAG_LEAVE_HIDE_MS,
 	knoxGuiCodeBlockOpenAction,
@@ -530,6 +531,7 @@ export function renderSuggest(widget: KnoxGuiWidget, wrap: HTMLElement, state: I
 			e.preventDefault();
 		}
 	}));
+	widget.renderStore.add(DOM.addDisposableListener(list, 'keydown', (e: KeyboardEvent) => widget.onEditorKeyDown(e, widget.controller.store.state)));
 	fillSuggest(widget, list, state);
 	positionSuggest(widget, list, wrap);
 }
@@ -822,47 +824,26 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'mouseup', recheckTrigger));
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'paste', (e: ClipboardEvent) => widget.onEditorPaste(e, state)));
-	widget.renderStore.add(DOM.addDisposableListener(editor, 'keydown', (e: KeyboardEvent) => widget.onEditorKeyDown(e, state)));
+	widget.renderStore.add(DOM.addDisposableListener(editor, 'keydown', (e: KeyboardEvent) => widget.onEditorKeyDown(e, widget.controller.store.state), true));
 	const row = DOM.append(wrap, DOM.$('.knox-gui-input-bar'));
 	row.style.fontSize = `${knoxGuiRelativeFontSize(state.fontSize, -2)}px`;
 	const left = DOM.append(row, DOM.$('.knox-gui-input-bar-left'));
 	const right = DOM.append(row, DOM.$('.knox-gui-input-bar-right'));
+	right.style.fontSize = `${knoxGuiRelativeFontSize(state.fontSize, -3)}px`;
+	const icons = DOM.append(left, DOM.$('.knox-gui-input-bar-icons'));
 
 	if (state.imagesSupported) {
-		const file = DOM.append(left, DOM.$('input.knox-gui-file')) as HTMLInputElement;
-		file.type = 'file';
-		file.accept = '.jpg,.jpeg,.png,.gif,.svg,.webp';
-		file.multiple = true;
-		widget.renderStore.add(DOM.addDisposableListener(file, 'change', () => {
-			for (const item of Array.from(file.files ?? [])) {
-				widget.readImageFile(item);
-			}
-			file.value = '';
-		}));
-		widget.chromeButton(left, {
-			svg: 'attach-image',
-			svgSize: 14,
-			title: t(state, 'attachImage'),
-			testId: 'knox-gui-attach-image',
-			extraClass: 'knox-gui-xs-hide',
-			onClick: () => file.click(),
+		renderImageAttach(widget, icons, state, 'knox-gui-attach-image', (urls, files) => {
+			widget.addImages(urls.map((imageUrl, index) => ({ name: files[index]?.name ?? 'image', imageUrl })));
 		});
 	}
-	widget.chromeButton(left, {
+	widget.chromeButton(icons, {
 		svg: 'add-context',
 		svgSize: 13,
 		title: t(state, 'addContext'),
 		testId: 'knox-gui-add-context',
 		extraClass: 'knox-gui-xs-hide',
-		onClick: () => {
-			widget.controller.suggestTarget = undefined;
-			const doc = appendTriggerToDoc(widget.controller.store.state.inputDoc, '@');
-			widget.controller.composerCaret = docEndCaret(doc);
-			widget.controller.pendingComposerCaret = widget.controller.composerCaret;
-			widget.controller.store.setInputDoc(doc);
-			void widget.controller.loadMentions('');
-			widget.controller.store.patch({ inputFocused: true });
-		},
+		onClick: () => widget.insertAddContext(),
 	});
 
 	widget.renderModelSelect(left, state);
@@ -918,44 +899,45 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 	}
 }
 
-export function renderModelSelect(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
+export function renderModelSelect(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, source = 'main'): void {
 	const models = state.modelsByRole.chat.length ? state.modelsByRole.chat : state.models;
 	const current = models.find(model => model.title === state.modelTitle) ?? models[0];
 	const wrap = DOM.append(parent, DOM.$('.knox-gui-model-wrap'));
+	const open = widget.openMenu === 'model' && widget.openMenuSource === source;
 	const trigger = widget.chromeButton(wrap, {
 		label: knoxGuiModelSelectTitle(current) || t(state, 'selectModel'),
 		svg: 'chevrons-down',
 		svgSize: 16,
 		svgAfter: true,
 		title: t(state, 'models'),
-		testId: 'knox-gui-model-select',
+		testId: source === 'main' ? 'knox-gui-model-select' : `knox-gui-model-select-${source}`,
 		extraClass: 'knox-gui-model-trigger',
 		menuTrigger: true,
-		onClick: () => widget.toggleMenu('model'),
+		onClick: () => widget.toggleMenu('model', source),
 	});
 	trigger.setAttribute('aria-haspopup', 'listbox');
-	if (widget.openMenu !== 'model') {
+	trigger.setAttribute('aria-expanded', String(open));
+	trigger.setAttribute('aria-controls', 'knox-gui-model-menu');
+	if (!open) {
 		return;
 	}
-	widget.renderStore.add(DOM.addDisposableListener(trigger, 'keydown', e => {
-		if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-			e.preventDefault();
-			e.stopPropagation();
-			const selected = menu.querySelector<HTMLButtonElement>('[aria-selected="true"]') ?? menu.querySelector<HTMLButtonElement>('[role="option"]');
-			selected?.focus();
-		}
-	}));
-	const menu = DOM.append(wrap, DOM.$('.knox-gui-popover.knox-gui-model-menu'));
+	const menu = DOM.append(widget.root, DOM.$('.knox-gui-popover.knox-gui-model-menu'));
+	menu.id = 'knox-gui-model-menu';
 	menu.setAttribute('role', 'listbox');
 	menu.setAttribute('data-testid', 'knox-gui-model-menu');
 	const rows: HTMLButtonElement[] = [];
 	for (const model of knoxGuiSortModelsByApiKey(models)) {
-		const row = DOM.append(menu, DOM.$('button.knox-gui-popover-item knox-gui-model-option')) as HTMLButtonElement;
+		const row = DOM.append(menu, DOM.$('button.knox-gui-popover-item.knox-gui-model-option')) as HTMLButtonElement;
 		row.type = 'button';
 		row.setAttribute('role', 'option');
-		row.setAttribute('aria-selected', String(model.title === current?.title));
-		rows.push(row);
 		const missingKey = model.apiKey === '';
+		row.setAttribute('aria-selected', String(model.title === current?.title));
+		row.setAttribute('aria-disabled', String(missingKey));
+		if (missingKey) {
+			row.classList.add('disabled');
+		} else {
+			rows.push(row);
+		}
 		appendKnoxGuiSvg(row, 'cpu', 14);
 		const title = DOM.append(row, DOM.$('span.knox-gui-model-option-title', undefined, knoxGuiModelSelectTitle(model)));
 		if (missingKey) {
@@ -965,29 +947,32 @@ export function renderModelSelect(widget: KnoxGuiWidget, parent: HTMLElement, st
 			appendKnoxGuiSvg(row, 'check', 14);
 		}
 		const hoverActs = DOM.append(row, DOM.$('span.knox-gui-model-option-actions'));
-		widget.chromeButton(hoverActs, {
-			svg: 'trash',
-			svgSize: 12,
-			title: t(state, 'deleteModel'),
-			extraClass: 'knox-gui-model-delete',
-			onClick: (btn, event) => {
-				event?.stopPropagation();
-				widget.controller.deleteModel(model.title);
-				widget.closeMenus();
-			},
-		});
-		widget.chromeButton(hoverActs, {
-			svg: 'gear',
-			svgSize: 12,
-			title: t(state, 'settings'),
-			onClick: (btn, event) => {
-				event?.stopPropagation();
-				widget.controller.messenger.post('config/openProfile', { profileId: state.profileId });
-				widget.closeMenus();
-			},
-		});
+		const trash = DOM.append(hoverActs, DOM.$('span.knox-gui-model-action.knox-gui-model-delete'));
+		trash.setAttribute('role', 'button');
+		trash.setAttribute('title', t(state, 'deleteModel'));
+		appendKnoxGuiSvg(trash, 'trash', 12);
+		widget.renderStore.add(DOM.addDisposableListener(trash, 'click', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			widget.controller.deleteModel(model.title);
+			widget.closeMenus();
+		}));
+		const gear = DOM.append(hoverActs, DOM.$('span.knox-gui-model-action.knox-gui-model-config'));
+		gear.setAttribute('role', 'button');
+		gear.setAttribute('title', t(state, 'configureModel'));
+		appendKnoxGuiSvg(gear, 'settings', 12);
+		widget.renderStore.add(DOM.addDisposableListener(gear, 'click', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			widget.controller.messenger.post('config/openProfile', { profileId: state.profileId });
+			widget.closeMenus();
+		}));
 		widget.renderStore.add(DOM.addDisposableListener(row, 'click', e => {
 			e.stopPropagation();
+			if (missingKey) {
+				e.preventDefault();
+				return;
+			}
 			widget.closeMenus();
 			if (model.title !== current?.title) {
 				widget.controller.selectModel('chat', model.title);
@@ -995,7 +980,7 @@ export function renderModelSelect(widget: KnoxGuiWidget, parent: HTMLElement, st
 		}));
 	}
 	if (state.profileType === 'local') {
-		const add = DOM.append(menu, DOM.$('button.knox-gui-popover-item knox-gui-model-add')) as HTMLButtonElement;
+		const add = DOM.append(menu, DOM.$('button.knox-gui-popover-item.knox-gui-model-add')) as HTMLButtonElement;
 		add.type = 'button';
 		add.setAttribute('role', 'option');
 		rows.push(add);
@@ -1007,6 +992,14 @@ export function renderModelSelect(widget: KnoxGuiWidget, parent: HTMLElement, st
 			widget.controller.openAddModel('chat', { bulk: true });
 		}));
 	}
+	widget.renderStore.add(DOM.addDisposableListener(trigger, 'keydown', e => {
+		if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+			e.preventDefault();
+			e.stopPropagation();
+			const selected = menu.querySelector<HTMLButtonElement>('[aria-selected="true"]:not([aria-disabled="true"])') ?? rows[0];
+			selected?.focus();
+		}
+	}));
 	widget.renderStore.add(DOM.addDisposableListener(menu, 'keydown', e => {
 		const index = rows.indexOf(e.target as HTMLButtonElement);
 		const next = knoxGuiListboxNextIndex(e.key, index, rows.length);
@@ -1016,39 +1009,54 @@ export function renderModelSelect(widget: KnoxGuiWidget, parent: HTMLElement, st
 			rows[next].focus();
 		}
 	}));
+	widget.anchorPopover(menu, trigger, { minWidth: 160 });
+	queueMicrotask(() => {
+		const selected = menu.querySelector<HTMLButtonElement>('[aria-selected="true"]:not([aria-disabled="true"])') ?? rows[0];
+		selected?.focus();
+	});
 }
 
-export function renderReasoningSelect(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
+export function renderReasoningSelect(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, source = 'main'): void {
 	if (!state.reasoningEfforts.length) {
 		return;
 	}
 	const wrap = DOM.append(parent, DOM.$('.knox-gui-effort-wrap'));
 	const currentKey = reasoningEffortLabelKey(state.reasoningEffort ?? '');
+	const open = widget.openMenu === 'effort' && widget.openMenuSource === source;
 	const trigger = widget.chromeButton(wrap, {
 		svg: 'brain',
 		svgSize: 12,
 		label: currentKey ? t(state, currentKey) : (state.reasoningEffort ?? t(state, 'reasoningEffortSelect')),
 		svgAfter: false,
 		title: t(state, 'reasoningEffortTooltip'),
-		testId: 'knox-gui-reasoning-select',
+		testId: source === 'main' ? 'knox-gui-reasoning-select' : `knox-gui-reasoning-select-${source}`,
 		extraClass: 'knox-gui-effort-trigger',
 		menuTrigger: true,
 		disabled: state.isStreaming,
-		onClick: () => widget.toggleMenu('effort'),
+		onClick: () => widget.toggleMenu('effort', source),
 	});
 	appendKnoxGuiSvg(trigger, 'chevron-down', 12).classList.add('knox-gui-effort-chevron');
-	if (widget.openMenu !== 'effort') {
+	trigger.setAttribute('aria-haspopup', 'listbox');
+	trigger.setAttribute('aria-expanded', String(open));
+	trigger.setAttribute('aria-controls', 'knox-gui-effort-menu');
+	if (!open) {
 		return;
 	}
-	const menu = DOM.append(wrap, DOM.$('.knox-gui-popover.knox-gui-effort-menu'));
+	const menu = DOM.append(widget.root, DOM.$('.knox-gui-popover.knox-gui-effort-menu'));
+	menu.id = 'knox-gui-effort-menu';
+	menu.setAttribute('role', 'listbox');
 	menu.setAttribute('data-testid', 'knox-gui-effort-menu');
+	const rows: HTMLButtonElement[] = [];
 	for (const effort of state.reasoningEfforts) {
-		const row = DOM.append(menu, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
+		const row = DOM.append(menu, DOM.$('button.knox-gui-popover-item.knox-gui-effort-option')) as HTMLButtonElement;
 		row.type = 'button';
+		row.setAttribute('role', 'option');
+		row.setAttribute('aria-selected', String(effort === state.reasoningEffort));
+		rows.push(row);
 		const labelKey = reasoningEffortLabelKey(effort);
-		row.append(labelKey ? t(state, labelKey) : effort);
+		DOM.append(row, DOM.$('span', undefined, labelKey ? t(state, labelKey) : effort));
 		if (effort === state.reasoningEffort) {
-			appendKnoxGuiSvg(row, 'check', 12);
+			appendKnoxGuiSvg(row, 'check', 12).classList.add('knox-gui-effort-check');
 		}
 		widget.renderStore.add(DOM.addDisposableListener(row, 'click', e => {
 			e.stopPropagation();
@@ -1056,9 +1064,36 @@ export function renderReasoningSelect(widget: KnoxGuiWidget, parent: HTMLElement
 			widget.controller.setReasoningEffort(effort);
 		}));
 	}
+	widget.renderStore.add(DOM.addDisposableListener(menu, 'keydown', e => {
+		const index = rows.indexOf(e.target as HTMLButtonElement);
+		const next = knoxGuiListboxNextIndex(e.key, index, rows.length);
+		if (next !== undefined) {
+			e.preventDefault();
+			e.stopPropagation();
+			rows[next].focus();
+		}
+	}));
+	widget.anchorPopover(menu, trigger, { minWidth: 104 });
+	queueMicrotask(() => {
+		const selected = menu.querySelector<HTMLButtonElement>('[aria-selected="true"]') ?? rows[0];
+		selected?.focus();
+	});
 }
 
-export function onEditorKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent, state: IKnoxGuiState): void {
+/** `TipTapEditor.insertCharacterWithWhitespace("@")`: focus end, insert @, open mentions. */
+export function insertAddContext(widget: KnoxGuiWidget): void {
+	widget.controller.suggestTarget = undefined;
+	const doc = appendTriggerToDoc(widget.controller.store.state.inputDoc, '@');
+	widget.controller.composerCaret = docEndCaret(doc);
+	widget.controller.pendingComposerCaret = widget.controller.composerCaret;
+	widget.controller.store.setInputDoc(doc);
+	void widget.controller.loadMentions('');
+	widget.controller.store.patch({ inputFocused: true });
+	queueMicrotask(() => widget.focusInput());
+}
+
+export function onEditorKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent, _state?: IKnoxGuiState): void {
+	const state = widget.controller.store.state;
 	const sections = state.slashOpen
 		? groupSlashItems(state.suggestItems, { query: state.suggestQuery })
 		: groupMentionItems(state.suggestItems, { query: state.suggestQuery, inSubmenu: state.suggestSubmenu });
@@ -1274,6 +1309,62 @@ export function readImageFile(widget: KnoxGuiWidget, file: File): void {
 export function addImages(widget: KnoxGuiWidget, images: ReadonlyArray<{ name: string; imageUrl: string }>): void {
 	if (images.length) {
 		widget.controller.store.patch({ images: [...widget.controller.store.state.images, ...images] });
+	}
+}
+
+const KNOX_IMAGE_FILE_ACCEPT = '.jpg,.jpeg,.png,.gif,.svg,.webp';
+
+/** Hidden file input overlay so Electron/VS Code actually opens the picker (display:none `.click()` often no-ops). */
+export function renderImageAttach(
+	widget: KnoxGuiWidget,
+	parent: HTMLElement,
+	state: IKnoxGuiState,
+	testId: string,
+	onImages: (urls: string[], files: File[]) => void,
+): void {
+	const wrap = DOM.append(parent, DOM.$('span.knox-gui-attach-wrap.knox-gui-xs-hide'));
+	const file = DOM.append(wrap, DOM.$('input.knox-gui-file')) as HTMLInputElement;
+	file.type = 'file';
+	file.accept = KNOX_IMAGE_FILE_ACCEPT;
+	file.multiple = true;
+	file.tabIndex = -1;
+	file.setAttribute('aria-hidden', 'true');
+	widget.renderStore.add(DOM.addDisposableListener(file, 'change', () => {
+		const files = Array.from(file.files ?? []);
+		file.value = '';
+		void attachPickedFiles(widget, files, onImages);
+	}));
+	widget.chromeButton(wrap, {
+		svg: 'attach-image',
+		svgSize: 14,
+		title: t(state, 'attachImage'),
+		testId,
+		extraClass: 'knox-gui-xs-hide',
+		onClick: () => file.click(),
+	});
+}
+
+async function attachPickedFiles(widget: KnoxGuiWidget, files: readonly File[], onImages: (urls: string[], files: File[]) => void): Promise<void> {
+	if (!files.length) {
+		return;
+	}
+	const images = files.filter(file => knoxGuiImageFileAccepted(file));
+	const others = files.filter(file => !knoxGuiImageFileAccepted(file));
+	if (images.length) {
+		const urls = await processImageFiles(widget, images);
+		onImages(urls, images);
+	}
+	const state = widget.controller.store.state;
+	for (const extra of others) {
+		const path = (extra as File & { path?: string }).path || extra.name;
+		if (!path) {
+			continue;
+		}
+		if (state.mode === 'edit') {
+			void widget.controller.addFilesToEdit([path]);
+		} else {
+			widget.controller.mentionDroppedFile(path);
+		}
 	}
 }
 

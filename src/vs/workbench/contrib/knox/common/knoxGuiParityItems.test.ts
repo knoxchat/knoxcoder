@@ -11,12 +11,12 @@ import { alignSplitDiffRows, buildDiffSegments, checkpointGraphFindScroll, check
 import { MEMORY_SETTING_GROUPS, memoriesToExportJson, memoriesToExportMarkdown, memoryBrowserEmptyKey, memoryConsolidateParts, memoryGraphTypeCounts, parseMemorySettingInput, rangeSelectMemoryIds, visibleMemoryExploreEdges, withMemoryConfigDefaults } from './knoxGuiMemory.js';
 import { renderToolTemplateHtml } from './knoxGuiTools.js';
 import { applySuggestAt, buildTopLevelMentionItems, detectComposerTrigger, fileHitToSuggestItem, IKnoxGuiInputBlock, inputDocToPlainText, isFolderMentionNode, isPathMentionNode, isSlashBookmarked, KNOX_GUI_CHIP_CHAR, KnoxGuiInlineNode, lastRelativePathParts, MENTION_LOADING_ID, MENTION_PANEL_MAX_WIDTH, mentionChipOpenUri, mentionChipTooltip, mentionFloatingPosition, mentionItemMatchesQuery, mergeOpenFileMentions, nextMentionSelectedIndex, openFilesChanged, openFileSuggestItems, paragraphTextBefore, rankMentionItems, removeCodeToEditTrigger, retainMentionItemsWhileLoading, shortestUniqueRelativePaths, splitCamelCaseAndNonAlphaNumeric, submenuHitToSuggestItem, toggleSlashBookmark } from './knoxGuiInput.js';
-import { agentProfileDefaults, formatModelPricingPerMillion, formatUsdAmount, fuzzyTitleMatch, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, sortPromptsBookmarkedFirst } from './knoxGuiOverlays.js';
+import { agentProfileDefaults, formatModelPricingPerMillion, formatUsdAmount, fuzzyTitleMatch, historySessionMatchesQuery, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, sortPromptsBookmarkedFirst } from './knoxGuiOverlays.js';
 import { IKnoxGuiSuggestItem } from './knoxGuiState.js';
 import { knoxGuiShortcutKeys } from './knoxGuiChrome.js';
 import { composerUndoRecord, composerUndoStep, createComposerUndo, inputDocFromPlainText, knoxGuiCodeBlockOpenAction, knoxGuiCodeBlockTitle, knoxGuiComposerKeyAction, knoxGuiDragHasImages, knoxGuiImageFileAccepted, knoxGuiImageTargetSize, knoxGuiImageUploadToast, knoxGuiNewestCodeBlockIndex, KNOX_COMPOSER_UNDO_GROUP_MS } from './knoxGuiInput.js';
 import { healStreamingMarkdown, splitMarkdownParagraphs } from './knoxGuiTranscript.js';
-import { knoxGuiInitialCodeBlockExpanded, knoxGuiSplitTokenizedLines, knoxGuiTerminalCommand, MAX_EXPANDED_CODE_LINES, shouldShowThinkingIndicator, visibleCodeLineRange } from './knoxGuiTranscript.js';
+import { knoxGuiInitialCodeBlockExpanded, knoxGuiShouldAutoExpandGeneratingCodeBlock, knoxGuiSplitTokenizedLines, knoxGuiTerminalCommand, MAX_EXPANDED_CODE_LINES, shouldShowThinkingIndicator, visibleCodeLineRange } from './knoxGuiTranscript.js';
 
 suite('Knox native parity items', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,6 +26,8 @@ suite('Knox native parity items', () => {
 			assert.strictEqual(knoxGuiImageFileAccepted({ type: 'image/png', size: 1024 }), true);
 			assert.strictEqual(knoxGuiImageFileAccepted({ type: 'image/bmp', size: 1024 }), false);
 			assert.strictEqual(knoxGuiImageFileAccepted({ type: 'image/jpeg', size: 10 * 1024 * 1024 }), false);
+			assert.strictEqual(knoxGuiImageFileAccepted({ type: '', size: 1024, name: 'shot.png' }), true);
+			assert.strictEqual(knoxGuiImageFileAccepted({ type: 'image/svg+xml', size: 1024, name: 'icon.svg' }), true);
 			assert.deepStrictEqual(knoxGuiImageTargetSize(2048, 1024), { width: 1024, height: 512 });
 			assert.deepStrictEqual(knoxGuiImageTargetSize(256, 512), { width: 512, height: 1024 });
 			assert.deepStrictEqual(knoxGuiImageUploadToast(2, 3, 1), { level: 'warning', key: 'imageUploadPartialSuccess', params: { success: 2, total: 3, failed: 1 } });
@@ -136,6 +138,10 @@ suite('Knox native parity items', () => {
 			assert.strictEqual(knoxGuiInitialCodeBlockExpanded('code', undefined), true);
 			assert.strictEqual(knoxGuiInitialCodeBlockExpanded('  ', undefined), false);
 			assert.strictEqual(knoxGuiInitialCodeBlockExpanded('code', false), false);
+			assert.strictEqual(knoxGuiShouldAutoExpandGeneratingCodeBlock(true, 'code', undefined), true);
+			assert.strictEqual(knoxGuiShouldAutoExpandGeneratingCodeBlock(true, '  ', undefined), false);
+			assert.strictEqual(knoxGuiShouldAutoExpandGeneratingCodeBlock(true, 'code', false), false);
+			assert.strictEqual(knoxGuiShouldAutoExpandGeneratingCodeBlock(false, 'code', undefined), false);
 		});
 
 		test('C-18 tool templates render to HTML with escaped arguments', () => {
@@ -443,6 +449,9 @@ suite('Knox native parity items', () => {
 			assert.strictEqual(fuzzyTitleMatch('Refactor the parser', 'pxrsxr'), false);
 			assert.strictEqual(fuzzyTitleMatch('Implementation notes', 'implementasion'), true);
 			assert.strictEqual(fuzzyTitleMatch('Implementation notes', 'zzz'), false);
+			assert.strictEqual(fuzzyTitleMatch('create a user login form', 'log'), true);
+			assert.strictEqual(historySessionMatchesQuery({ id: '1', title: 'Ship API', date: '', workspaceDirectory: '/Users/me/demo' }, 'demo'), true);
+			assert.strictEqual(historySessionMatchesQuery({ id: '1', title: 'Ship API', date: '', workspaceDirectory: '/Users/me/demo' }, 'zzz'), false);
 		});
 
 		test('S-13 unset max steps and doom loop follow the profile, auto uses default', () => {

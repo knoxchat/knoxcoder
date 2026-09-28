@@ -5,7 +5,7 @@
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { asRecord, asArray } from './helpers.js';
-import { knoxGuiCatalogEntriesFromOverlayModels, knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiSeedModelCatalog, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
+import { knoxGuiCatalogEntriesFromOverlayModels, knoxGuiGetReasoningModelKeys, knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiSeedModelCatalog, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
 import { knoxGuiSessionModeIsAgent } from '../../../common/knoxGuiAgentMode.js';
 import { addModelProviderById, buildAddModelPayload, categorizeKnoxChatModel, KNOX_CHAT_FALLBACK_MODELS, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, parseKnoxOAuthStatus, type IKnoxGuiAddModelPackage } from '../../../common/knoxGuiOverlays.js';
 import { KnoxGuiOverlay } from '../../../common/knoxGuiProtocol.js';
@@ -105,10 +105,14 @@ export function patchSelectedModelCapabilities(controller: KnoxGuiController): v
 }
 
 export function setReasoningEffort(controller: KnoxGuiController, effort: string): void {
-	const modelTitle = controller.store.state.modelTitle;
+	const selected = controller.chatModels().find(model => model.title === controller.store.state.modelTitle)
+		?? controller.store.state.models.find(model => model.title === controller.store.state.modelTitle);
 	const byModel = { ...controller.store.state.reasoningEffortByModel };
-	if (modelTitle) {
-		byModel[modelTitle] = effort;
+	for (const key of knoxGuiGetReasoningModelKeys(selected)) {
+		byModel[key] = effort;
+	}
+	if (!selected && controller.store.state.modelTitle) {
+		byModel[controller.store.state.modelTitle] = effort;
 	}
 	controller.store.patch({ reasoningEffort: effort, reasoningEffortByModel: byModel });
 	controller.messenger.post('ui/updateReasoningEffortPrefs', { lastEffort: effort, byModel });

@@ -478,6 +478,9 @@ export function appendTriggerToDoc(doc: IKnoxGuiInputBlock[], trigger: '@' | '/'
 	const index = lastParagraphIndex(next);
 	const paragraph = next[index] as IKnoxGuiInputParagraph;
 	const last = paragraph.content[paragraph.content.length - 1];
+	if (last?.type === 'text' && last.text.endsWith(trigger)) {
+		return next;
+	}
 	const prefix = last?.type === 'text' && last.text && !/\s$/.test(last.text) ? ' ' : '';
 	if (last?.type === 'text') {
 		last.text += `${prefix}${trigger}`;
@@ -1397,8 +1400,15 @@ export const KNOX_IMAGE_MAX_MB = 10;
 export const KNOX_IMAGE_RESOLUTION = 1024;
 export const KNOX_IMAGE_JPEG_QUALITY = 0.7;
 
-export function knoxGuiImageFileAccepted(file: { type: string; size: number }): boolean {
-	return KNOX_IMAGE_TYPES.includes(file.type) && file.size / 1024 / 1024 < KNOX_IMAGE_MAX_MB;
+export function knoxGuiImageFileAccepted(file: { type: string; size: number; name?: string }): boolean {
+	if (file.size / 1024 / 1024 >= KNOX_IMAGE_MAX_MB) {
+		return false;
+	}
+	if (KNOX_IMAGE_TYPES.includes(file.type) || file.type === 'image/svg+xml') {
+		return true;
+	}
+	// OS pickers often leave `type` empty; match the drop-path extension check.
+	return !file.type && isDroppedImageFile({ type: file.type, name: file.name ?? '' });
 }
 
 /** `getDataUrlForFile`: scales to fit 1024×1024, up or down. */

@@ -289,3 +289,35 @@ export function knoxGuiParseMainTextEntryCount(raw: string | undefined): number 
 	const n = Number.parseInt(raw ?? '0', 10);
 	return Number.isFinite(n) && n > 0 ? n : 0;
 }
+
+/** Headless UI `ListboxOptions anchor="bottom start"` / Radix Select portal box. `align: 'end'` matches ModeSelect `anchor="bottom end"`. */
+export function knoxGuiAnchorPopoverBox(args: {
+	trigger: { left: number; top: number; bottom: number; width: number };
+	viewport: { width: number; height: number };
+	menu: { width: number; height: number };
+	gap?: number;
+	pad?: number;
+	prefer?: 'top' | 'bottom';
+	align?: 'start' | 'end';
+	maxHeight?: number;
+}): { left: number; top: number; maxHeight: number; placement: 'top' | 'bottom' } {
+	const gap = args.gap ?? 4;
+	const pad = args.pad ?? 4;
+	const cap = args.maxHeight ?? 300;
+	const above = Math.max(0, args.trigger.top - gap - pad);
+	const below = Math.max(0, args.viewport.height - args.trigger.bottom - gap - pad);
+	let placement = args.prefer ?? 'bottom';
+	const room = placement === 'top' ? above : below;
+	const other = placement === 'top' ? below : above;
+	if (args.menu.height > room && other > room) {
+		placement = placement === 'top' ? 'bottom' : 'top';
+	}
+	const maxHeight = Math.min(placement === 'top' ? above : below, cap);
+	const height = Math.min(args.menu.height, maxHeight);
+	const startLeft = args.trigger.left;
+	const endLeft = args.trigger.left + args.trigger.width - args.menu.width;
+	const rawLeft = args.align === 'end' ? endLeft : startLeft;
+	const left = Math.max(pad, Math.min(rawLeft, args.viewport.width - pad - args.menu.width));
+	const top = placement === 'top' ? args.trigger.top - gap - height : args.trigger.bottom + gap;
+	return { left, top, maxHeight, placement };
+}

@@ -19,9 +19,9 @@ import {
 	visibleTurnIndexes,
 } from '../../../common/knoxGuiChat.js';
 import { appendTriggerToDoc, composerInputHistoryNext, composerInputHistoryPrev, composerPlaceholderKey, composerUndoRecord, composerUndoStep, createComposerUndo, detectComposerTrigger, docEndCaret, emptyInputDoc, groupMentionItems, groupSlashItems, IKnoxGuiDocCaret, inputDocIsEmpty, IKnoxGuiInputBlock, isMentionUtilityItem, knoxGuiComposerKeyAction } from '../../../common/knoxGuiInput.js';
-import { hideDropOverlay, showDropOverlay } from './composer.js';
-import { patchLiveCodeFence } from './markdown.js';
-import { toolStreamFingerprint } from './tools.js';
+import { hideDropOverlay, renderImageAttach, showDropOverlay } from './composer.js';
+import { patchLiveCodeFence, patchLiveMarkdown } from './markdown.js';
+import { patchLiveTool, toolStreamFingerprint } from './tools.js';
 import { processImageFile, processImageFiles } from './images.js';
 import { visibleToolOutputPeekItems } from '../../../common/knoxGuiPanels.js';
 import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../common/knoxGuiState.js';
@@ -103,17 +103,17 @@ function patchStreamingTools(widget: KnoxGuiWidget, card: HTMLElement, state: IK
 		return false;
 	}
 	const existing = Array.from(wrap.querySelectorAll(':scope > [data-testid="knox-gui-tool"]')) as HTMLElement[];
-	if (existing.length !== tools.length) {
+	if (existing.length > tools.length) {
 		return false;
 	}
-	for (let i = 0; i < tools.length; i++) {
+	for (let i = 0; i < existing.length; i++) {
 		if (existing[i].id !== activityAnchorId(`tool:${tools[i].id}`)) {
 			return false;
 		}
 	}
 	const previous = widget.listenerStore;
 	try {
-		for (let i = 0; i < tools.length; i++) {
+		for (let i = 0; i < existing.length; i++) {
 			const fingerprint = toolStreamFingerprint(tools[i]);
 			if (existing[i].dataset.stream === fingerprint) {
 				continue;
@@ -122,16 +122,27 @@ function patchStreamingTools(widget: KnoxGuiWidget, card: HTMLElement, state: IK
 			if (!store) {
 				store = widget.toolPatchStore.add(new DisposableStore());
 				widget.toolPatchStores.set(tools[i].id, store);
-			} else {
-				store.clear();
 			}
 			widget.listenerStore = store;
+			if (patchLiveTool(widget, existing[i], state, tools[i])) {
+				continue;
+			}
+			store.clear();
 			const host = DOM.$('div');
 			widget.renderTool(host, state, tools[i]);
 			const next = host.firstElementChild as HTMLElement | null;
 			if (next) {
 				existing[i].replaceWith(next);
 			}
+		}
+		for (let i = existing.length; i < tools.length; i++) {
+			let store = widget.toolPatchStores.get(tools[i].id);
+			if (!store) {
+				store = widget.toolPatchStore.add(new DisposableStore());
+				widget.toolPatchStores.set(tools[i].id, store);
+			}
+			widget.listenerStore = store;
+			widget.renderTool(wrap, state, tools[i]);
 		}
 	} finally {
 		widget.listenerStore = previous;
@@ -160,24 +171,23 @@ function streamSegments(content: string, isStreaming: boolean): StreamSegment[] 
 	for (const block of blocks) {
 		if (block.type === 'markdown') {
 			for (const text of splitMarkdownParagraphs(block.text)) {
-				segments.push({ key: `md:${text}`, type: 'markdown', text });
+				segments.push({ key: `md:${segments.length}`, type: 'markdown', text });
 			}
 			continue;
 		}
 		const generating = isStreaming && fenceIndex === lastFence && !block.closed;
-		segments.push({ key: `fence:${fenceIndex}:${generating}:${block.closed}:${block.language}:${block.filepath ?? ''}:${block.range ?? ''}`, type: 'fence', fence: block, fenceIndex, generating });
+		segments.push({ key: `fence:${fenceIndex}`, type: 'fence', fence: block, fenceIndex, generating });
 		fenceIndex += 1;
 	}
 	const last = segments[segments.length - 1];
 	if (isStreaming && last?.type === 'markdown') {
-		last.key = 'md:live';
 		last.text = healStreamingMarkdown(last.text);
 	}
 	return segments;
 }
 
 function streamPayload(segment: StreamSegment): string {
-	return segment.type === 'markdown' ? segment.text : segment.fence.code;
+	return segment.type === 'markdown' ? segment.text : `${segment.generating ? 1 : 0}\0${segment.fence.code}`;
 }
 
 /**
@@ -217,7 +227,7 @@ export function renderStreamingAssistantBody(widget: KnoxGuiWidget, body: HTMLEl
 		return;
 	}
 	const fileInfo = pastFileInfoFor(state, item);
-	if (keep === segments.length && keep > 0) {
+	if (keep > 0) {
 		refreshLiveStreamBlock(widget, body, state, item, cache[keep - 1], segments[keep - 1], fileInfo);
 	}
 	for (const segment of segments.slice(keep)) {
@@ -246,7 +256,7 @@ function appendStreamSegment(
 	const anchor = body.querySelector('[data-testid="stream-anchor"]');
 	const before = Array.from(body.childNodes);
 	if (segment.type === 'markdown') {
-		widget.appendMarkdown(body, segment.text, widget.listenerStore, fileInfo, state.isStreaming);
+		widget.appendMarkdown(body, segment.text, widget.listenerStore, fileInfo, false);
 	} else {
 		widget.renderCodeFence(body, state, item, segment.fence, segment.fenceIndex, segment.generating);
 	}
@@ -271,9 +281,19 @@ function refreshLiveStreamBlock(
 	if (cached.payload === streamPayload(segment)) {
 		return;
 	}
-	if (segment.type === 'fence' && patchLiveCodeFence(widget, cached.nodes, state, item, segment.fence, segment.fenceIndex, segment.generating)) {
-		cached.payload = streamPayload(segment);
-		return;
+	const previous = widget.listenerStore;
+	widget.listenerStore = cached.store;
+	try {
+		if (segment.type === 'markdown' && cached.nodes.length === 1 && patchLiveMarkdown(widget, cached.nodes[0], segment.text, cached.store, fileInfo, false)) {
+			cached.payload = streamPayload(segment);
+			return;
+		}
+		if (segment.type === 'fence' && patchLiveCodeFence(widget, cached.nodes, state, item, segment.fence, segment.fenceIndex, segment.generating)) {
+			cached.payload = streamPayload(segment);
+			return;
+		}
+	} finally {
+		widget.listenerStore = previous;
 	}
 	widget.streamPatchStore.delete(cached.store);
 	const store = widget.streamPatchStore.add(new DisposableStore());
@@ -689,27 +709,12 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 	}
 	const left = DOM.append(bar, DOM.$('.knox-gui-input-bar-left'));
 	const right = DOM.append(bar, DOM.$('.knox-gui-input-bar-right'));
+	right.style.fontSize = `${knoxGuiRelativeFontSize(state.fontSize, -3)}px`;
+	const icons = DOM.append(left, DOM.$('.knox-gui-input-bar-icons'));
 	if (state.imagesSupported) {
-		const file = DOM.append(left, DOM.$('input.knox-gui-file')) as HTMLInputElement;
-		file.type = 'file';
-		file.accept = '.jpg,.jpeg,.png,.gif,.svg,.webp';
-		file.multiple = true;
-		widget.renderStore.add(DOM.addDisposableListener(file, 'change', () => {
-			for (const itemFile of Array.from(file.files ?? [])) {
-				widget.readImageFileIntoDraft(itemFile, item.id);
-			}
-			file.value = '';
-		}));
-		widget.chromeButton(left, {
-			svg: 'attach-image',
-			svgSize: 14,
-			title: t(state, 'attachImage'),
-			testId: 'knox-gui-history-attach-image',
-			extraClass: 'knox-gui-xs-hide',
-			onClick: () => file.click(),
-		});
+		renderImageAttach(widget, icons, state, 'knox-gui-history-attach-image', urls => addDraftImages(widget, item.id, urls));
 	}
-	widget.chromeButton(left, {
+	widget.chromeButton(icons, {
 		svg: 'add-context',
 		svgSize: 13,
 		title: t(state, 'addContext'),
@@ -722,8 +727,8 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 			widget.controller.onComposerInput(caret, item.id);
 		},
 	});
-	widget.renderModelSelect(left, state);
-	widget.renderReasoningSelect(left, state);
+	widget.renderModelSelect(left, state, item.id);
+	widget.renderReasoningSelect(left, state, item.id);
 	if (state.webSearchSupported) {
 		widget.chromeButton(left, {
 			svg: 'globe',

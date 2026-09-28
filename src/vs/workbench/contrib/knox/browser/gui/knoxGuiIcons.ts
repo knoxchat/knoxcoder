@@ -313,3 +313,16 @@ export function appendKnoxGuiSvg(parent: HTMLElement, icon: KnoxGuiSvgIcon, size
 	parent.appendChild(svg);
 	return svg;
 }
+
+/** Swap an existing Knox SVG in place so copy/expand controls do not remount. */
+export function replaceKnoxGuiSvg(parent: HTMLElement, icon: KnoxGuiSvgIcon, size = 14): SVGSVGElement {
+	const previous = parent.querySelector(':scope > svg.knox-gui-svg');
+	const svg = appendKnoxGuiSvg(parent, icon, size);
+	if (previous) {
+		parent.insertBefore(svg, previous);
+		previous.remove();
+	} else if (parent.firstChild && parent.firstChild !== svg) {
+		parent.insertBefore(svg, parent.firstChild);
+	}
+	return svg;
+}

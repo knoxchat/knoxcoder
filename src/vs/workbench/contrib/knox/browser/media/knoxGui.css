@@ -29,6 +29,7 @@
 /* gui/src/index.css: Knox forces teal focus rings in both themes. */
 .knox-gui {
 	--vscode-focusBorder: #159994;
+	--knox-primary: #159994;
 }
 
 .vscode-light .knox-gui,
@@ -95,8 +96,10 @@
 	display: flex;
 	align-items: center;
 	gap: 2px;
-	padding: 4px 8px 2px;
+	padding: 4px 0 2px;
 	flex-shrink: 0;
+	width: 100%;
+	box-sizing: border-box;
 	background: transparent;
 }
 
@@ -305,13 +308,16 @@
 	overflow: hidden;
 	background: var(--vscode-sideBar-background);
 	border-top: 1px solid rgba(255, 255, 255, 0.05);
-	padding-top: 8px;
-	padding-bottom: 8px;
+	/* KnoxInputBox `px-2` + Chat.tsx input-container py-8: one inset for lump, panels, and editor. */
+	padding: 8px;
 }
 
 .knox-gui-attached-panels {
 	display: flex;
 	flex-direction: column;
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
 }
 
 .knox-gui-floating-sent-host {

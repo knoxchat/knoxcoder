@@ -927,6 +927,7 @@
 	justify-content: space-between;
 	background: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: 4px;
 	color: inherit;
 }
 
@@ -952,5 +953,6 @@
 	left: 0;
 	right: 0;
 	min-width: 10rem;
+	border-radius: 4px;
 }
 

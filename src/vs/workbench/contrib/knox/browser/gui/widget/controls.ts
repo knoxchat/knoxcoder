@@ -271,6 +271,14 @@ export function collapseChevron(widget: KnoxGuiWidget, parent: HTMLElement, opti
 	return el;
 }
 
+export function setCollapseChevronExpanded(el: HTMLElement, expanded: boolean, title?: string): void {
+	el.setAttribute('aria-expanded', String(expanded));
+	if (title) {
+		el.setAttribute('aria-label', title);
+	}
+	el.querySelector('.knox-gui-svg')?.classList.toggle('collapsed', !expanded);
+}
+
 export function appendSpinner(parent: HTMLElement, size = 16): HTMLElement {
 	const wrap = DOM.append(parent, DOM.$('span.knox-gui-spinner'));
 	wrap.style.width = `${size}px`;
