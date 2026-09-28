@@ -24,7 +24,6 @@ suite('Implementation Plan Integrations', () => {
                 maxCheckpoints: 50,
                 maxFileSizeKB: 100,
                 storagePath: '~/.knox/checkpoints',
-                debugStoragePath: '.knox-debug/checkpoints',
                 verboseLogging: false,
                 enableMetrics: true,
             };

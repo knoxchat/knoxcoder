@@ -25,7 +25,6 @@ import {
 } from '../store/checkpointIntegrity';
 import {
     DEBUG_CHECKPOINTS_GITIGNORE,
-    isCheckpointDebugStorageMode,
     isUsableCheckpointWorkspacePath,
     resolveCheckpointStoragePathFor,
     workspaceStorageKey,
@@ -47,18 +46,11 @@ import { workspacePathsEqual } from './workspace';
 const log = createKnoxLogger('Checkpoints');
 
 export function resolveCheckpointStoragePath(workspacePath: string | undefined): string {
-    const debug = isCheckpointDebugStorageMode({
-        nodeEnv: process.env.NODE_ENV,
-        vscodeDebug: process.env.VSCODE_DEBUG,
-        sessionId: vscode.env.sessionId,
-        appName: vscode.env.appName,
-    });
     const folderPaths = (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath);
     const usableWorkspace = isUsableCheckpointWorkspacePath(workspacePath)
         ? workspacePath
         : folderPaths.find(isUsableCheckpointWorkspacePath);
     return resolveCheckpointStoragePathFor(usableWorkspace, {
-        debug,
         globalCheckpointsPath: getGlobalCheckpointsPath(),
     });
 }

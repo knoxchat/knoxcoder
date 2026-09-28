@@ -11,6 +11,8 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { scheduleTranscriptStick } from './chrome.js';
 import { escape } from '../../../../../../base/common/strings.js';
 import { tokenizeToStringSync } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
+import { TokenizationRegistry } from '../../../../../../editor/common/languages.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { knoxGuiMetaKeyLabel, knoxGuiShowsEditResponseAcceptReject } from '../../../common/knoxGuiChrome.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { appendKnoxGuiSvg, replaceKnoxGuiSvg, setKnoxGuiInnerHtml } from '../knoxGuiIcons.js';
@@ -56,9 +58,8 @@ export function appendMarkdown(widget: KnoxGuiWidget, parent: HTMLElement, sourc
 	const options: MarkdownRenderOptions = {
 		actionHandler: href => { void widget.openerService.open(href); },
 		markedOptions: { gfm: true, breaks: true },
-		// Remend already closed the live block (`streamSegments`); filling again fights native marked.
 		fillInIncompleteTokens: streaming,
-		codeBlockRendererSync: (language, value) => highlightMarkdownFence(widget, language, value),
+		codeBlockRendererSync: (language, value) => highlightMarkdownFence(widget, language, value, streaming),
 		asyncRenderCallback: () => {
 			if (widget.autoScrollEnabled) {
 				scheduleTranscriptStick(widget);
@@ -108,12 +109,16 @@ export function patchLiveMarkdown(widget: KnoxGuiWidget, node: ChildNode, source
 }
 
 /** Native editor tokenizer (`EditorMarkdownCodeBlockRenderer`) for fences left in markdown prose. */
-function highlightMarkdownFence(widget: KnoxGuiWidget, languageAlias: string, value: string): HTMLElement {
+function highlightMarkdownFence(widget: KnoxGuiWidget, languageAlias: string, value: string, streaming = false): HTMLElement {
 	const pre = document.createElement('pre');
 	pre.className = 'knox-gui-md-fence monaco-tokenized-source';
 	pre.setAttribute('data-code-lang', languageAlias || '');
 	pre.classList.toggle('wrap', widget.controller.store.state.codeWrap);
-	widget.paintHighlightedCode(pre, languageAlias, value);
+	pre.classList.toggle('generating', streaming);
+	if (streaming) {
+		pre.setAttribute('data-generating', 'true');
+	}
+	widget.paintHighlightedCode(pre, languageAlias, value, undefined, !streaming);
 	return pre;
 }
 
@@ -224,12 +229,13 @@ export function renderCodeFenceBlock(widget: KnoxGuiWidget, parent: HTMLElement,
 				svgSize: 14,
 				label: t(state, 'run'),
 				extraClass: 'knox-gui-run-terminal knox-gui-2xs-hide',
-				onClick: () => widget.controller.messenger.post('runCommand', { command: fence.code }),
+				onClick: btn => postFenceRun(widget, btn, fence.code),
 			});
 		} else {
 			widget.renderApplyActions(actions, state, streamId, fence);
 		}
 	}
+	box.dataset.code = fence.code;
 	if (expanded) {
 		widget.renderCodeLines(box, state, fence.language, fence.code, fence.filepath, { key: streamId, range: fence.range, generating, anchor: options.anchor });
 	}
@@ -241,8 +247,36 @@ function readFenceFromBox(box: HTMLElement): { language: string; filepath?: stri
 		language: box.dataset.language ?? '',
 		filepath: box.dataset.filepath,
 		range: box.dataset.range,
-		code: scroll?.dataset.code ?? '',
+		code: scroll?.dataset.code ?? box.dataset.code ?? '',
 	};
+}
+
+/** Prefer the painted block so Copy / Apply / Insert / Run stay on the live fence, not a stale render closure. */
+function liveFenceCode(from: HTMLElement, fallback = ''): string {
+	const box = from.closest('.knox-gui-code-block') as HTMLElement | null;
+	if (!box) {
+		return fallback;
+	}
+	return readFenceFromBox(box).code || fallback;
+}
+
+function postFenceApply(widget: KnoxGuiWidget, from: HTMLElement, state: IKnoxGuiState, streamId: string, fence: { code: string; filepath?: string }): void {
+	const box = from.closest('.knox-gui-code-block') as HTMLElement | null;
+	const live = box ? readFenceFromBox(box) : fence;
+	widget.controller.messenger.post('applyToFile', {
+		text: live.code || fence.code,
+		streamId,
+		filepath: live.filepath ?? fence.filepath,
+		curSelectedModelTitle: state.modelTitle,
+	});
+}
+
+function postFenceInsert(widget: KnoxGuiWidget, from: HTMLElement, fallback: string): void {
+	widget.controller.messenger.post('insertAtCursor', { text: liveFenceCode(from, fallback) });
+}
+
+function postFenceRun(widget: KnoxGuiWidget, from: HTMLElement, fallback: string): void {
+	widget.controller.messenger.post('runCommand', { command: knoxGuiTerminalCommand(liveFenceCode(from, fallback)) });
 }
 
 function applyFenceExpanded(widget: KnoxGuiWidget, box: HTMLElement, state: IKnoxGuiState, expanded: boolean, options: IKnoxGuiFenceBlockOptions): void {
@@ -282,35 +316,95 @@ function renderHoverCodeBlock(widget: KnoxGuiWidget, parent: HTMLElement, state:
 		box.dataset.range = fence.range;
 	}
 	const bottom = state.codeBlockToolbarPosition === 'bottom';
+	box.dataset.code = fence.code;
 	widget.renderCodeLines(box, state, fence.language, fence.code, fence.filepath, { key: streamId, range: fence.range, generating, anchor: options.anchor });
 	if (generating) {
 		return;
 	}
 	const actions = DOM.append(box, DOM.$(bottom ? '.knox-gui-code-actions.knox-gui-code-hover.bottom' : '.knox-gui-code-actions.knox-gui-code-hover'));
 	if (isTerminalCodeBlock(fence.language, fence.code)) {
-		widget.chromeButton(actions, { svg: 'terminal', svgSize: 16, title: t(state, 'runInTerminal'), onClick: () => widget.controller.messenger.post('runCommand', { command: knoxGuiTerminalCommand(fence.code) }) });
+		widget.chromeButton(actions, { svg: 'terminal', svgSize: 16, title: t(state, 'runInTerminal'), extraClass: 'knox-gui-code-hover-btn', onClick: btn => postFenceRun(widget, btn, fence.code) });
 	}
 	widget.chromeButton(actions, {
 		svg: 'list-plus',
 		svgSize: 16,
 		title: t(state, 'apply'),
-		onClick: () => widget.controller.messenger.post('applyToFile', { streamId, text: fence.code, curSelectedModelTitle: state.modelTitle }),
+		extraClass: 'knox-gui-code-hover-btn knox-gui-apply',
+		onClick: btn => postFenceApply(widget, btn, state, streamId, fence),
 	});
-	widget.chromeButton(actions, { svg: 'file-input', svgSize: 16, title: t(state, 'insert'), onClick: () => widget.controller.messenger.post('insertAtCursor', { text: fence.code }) });
+	widget.chromeButton(actions, { svg: 'file-input', svgSize: 16, title: t(state, 'insert'), extraClass: 'knox-gui-code-hover-btn', onClick: btn => postFenceInsert(widget, btn, fence.code) });
 	renderCopyFeedbackButton(widget, actions, state, `code:${streamId}`, fence.code, false);
 }
 
-export function paintHighlightedCode(widget: KnoxGuiWidget, pre: HTMLElement, language: string, code: string, filepath?: string): void {
+export function paintHighlightedCode(widget: KnoxGuiWidget, pre: HTMLElement, language: string, code: string, filepath?: string, allowAuto = true): void {
 	try {
-		const requested = languageIdFromFence(language, filepath);
-		const languageId = widget.languageService.getLanguageIdByLanguageName(requested)
-			?? (widget.languageService.isRegisteredLanguageId(requested) ? requested : 'plaintext');
+		const languageId = resolveCodeLanguageId(widget, language, filepath, code, allowAuto);
 		widget.languageService.requestBasicLanguageFeatures(languageId);
 		const html = tokenizeToStringSync(widget.languageService, code, languageId);
 		setKnoxGuiInnerHtml(pre, html);
+		watchCodeTokenizer(widget, pre, languageId, () => paintHighlightedCode(widget, pre, language, code, filepath, allowAuto));
 	} catch {
 		pre.textContent = code;
 	}
+}
+
+function resolveCodeLanguageId(widget: KnoxGuiWidget, language: string, filepath: string | undefined, code: string, allowAuto: boolean): string {
+	const requested = languageIdFromFence(language, filepath);
+	try {
+		const named = widget.languageService.getLanguageIdByLanguageName(requested);
+		if (named) {
+			return named;
+		}
+		if (requested && requested !== 'plaintext') {
+			return requested;
+		}
+		if (allowAuto && code.trim()) {
+			const firstLine = code.split('\n', 1)[0];
+			const resource = URI.from({ scheme: 'untitled', path: `/${(filepath || 'code').replace(/^\/+/, '')}` });
+			const guessed = widget.languageService.guessLanguageIdByFilepathOrFirstLine(resource, firstLine);
+			if (guessed) {
+				return guessed;
+			}
+		}
+	} catch {
+		// tests mock a subset of ILanguageService
+	}
+	return requested || 'plaintext';
+}
+
+function watchCodeTokenizer(widget: KnoxGuiWidget, el: HTMLElement, languageId: string, repaint: () => void): void {
+	if (!languageId || languageId === 'plaintext' || TokenizationRegistry.get(languageId) || el.dataset.tokenizerWatch === languageId) {
+		return;
+	}
+	el.dataset.tokenizerWatch = languageId;
+	try {
+		widget.languageService.requestBasicLanguageFeatures(languageId);
+		const sub = TokenizationRegistry.onDidChange(e => {
+			if (!e.changedColorMap && !e.changedLanguages.includes(languageId)) {
+				return;
+			}
+			repaint();
+			if (TokenizationRegistry.get(languageId)) {
+				sub.dispose();
+			}
+		});
+		widget.listenerStore.add(sub);
+	} catch {
+		// tokenizer registry is optional in unit tests
+	}
+}
+
+function diffLineKind(language: string, raw: string): 'add' | 'del' | undefined {
+	if (language.toLowerCase() !== 'diff' && language.toLowerCase() !== 'patch') {
+		return undefined;
+	}
+	if (raw.startsWith('+') && !raw.startsWith('+++')) {
+		return 'add';
+	}
+	if (raw.startsWith('-') && !raw.startsWith('---')) {
+		return 'del';
+	}
+	return undefined;
 }
 
 export interface IKnoxGuiCodeLinesOptions {
@@ -341,15 +435,17 @@ function paintCodeLineWindow(widget: KnoxGuiWidget, container: HTMLElement, stat
 		widget.codeGenerating.delete(key);
 	}
 	let lines: string[];
+	const languageId = resolveCodeLanguageId(widget, language, filepath, code, !generating);
 	try {
-		const requested = languageIdFromFence(language, filepath);
-		const languageId = widget.languageService.getLanguageIdByLanguageName(requested)
-			?? (widget.languageService.isRegisteredLanguageId(requested) ? requested : 'plaintext');
 		widget.languageService.requestBasicLanguageFeatures(languageId);
 		lines = knoxGuiSplitTokenizedLines(tokenizeToStringSync(widget.languageService, code, languageId));
 	} catch {
 		lines = code.split('\n').map(line => escape(line));
 	}
+	watchCodeTokenizer(widget, container, languageId, () => {
+		paintCodeLineWindow(widget, container, state, language, container.dataset.code ?? code, filepath, options);
+	});
+	const rawLines = code.split('\n');
 	const lineCount = lines.length;
 	const anchor: KnoxGuiCodeLineAnchor = generating || options.anchor === 'end' ? 'end' : 'start';
 	const windowShift = widget.codeWindowShift.get(key) ?? 0;
@@ -373,17 +469,17 @@ function paintCodeLineWindow(widget: KnoxGuiWidget, container: HTMLElement, stat
 		&& prevEnd > prevStart;
 	if (canPatch) {
 		if (prevEnd > start) {
-			paintCodeLine(existing[prevEnd - start - 1], base, prevEnd - 1, lines[prevEnd - 1], generating && prevEnd === lineCount);
+			paintCodeLine(existing[prevEnd - start - 1], base, prevEnd - 1, lines[prevEnd - 1], generating && prevEnd === lineCount, diffLineKind(languageId, rawLines[prevEnd - 1] ?? ''));
 		}
 		for (let i = prevEnd; i < end; i++) {
 			const row = document.createElement('div');
-			paintCodeLine(row, base, i, lines[i], generating && i === lineCount - 1);
+			paintCodeLine(row, base, i, lines[i], generating && i === lineCount - 1, diffLineKind(languageId, rawLines[i] ?? ''));
 			linesRoot.appendChild(row);
 		}
 	} else {
 		let html = '';
 		for (let i = start; i < end; i++) {
-			html += codeLineMarkup(base, i, lines[i], generating && i === lineCount - 1);
+			html += codeLineMarkup(base, i, lines[i], generating && i === lineCount - 1, diffLineKind(languageId, rawLines[i] ?? ''));
 		}
 		setKnoxGuiInnerHtml(linesRoot, html);
 	}
@@ -391,6 +487,10 @@ function paintCodeLineWindow(widget: KnoxGuiWidget, container: HTMLElement, stat
 	container.dataset.lineEnd = String(end);
 	container.dataset.lineCount = String(lineCount);
 	container.dataset.code = code;
+	const box = container.closest('.knox-gui-code-block') as HTMLElement | null;
+	if (box) {
+		box.dataset.code = code;
+	}
 	if (generating && !widget.codeUserScrolled.has(key)) {
 		container.scrollTop = container.scrollHeight;
 		widget.codeScrollTop.set(key, container.scrollTop);
@@ -398,14 +498,20 @@ function paintCodeLineWindow(widget: KnoxGuiWidget, container: HTMLElement, stat
 	return { start, end, lineCount, anchor, windowShift };
 }
 
-function codeLineMarkup(base: number, index: number, html: string, cursor: boolean): string {
+function codeLineMarkup(base: number, index: number, html: string, cursor: boolean, diff?: 'add' | 'del'): string {
 	const cursorHtml = cursor ? '<span class="knox-gui-streaming-cursor"></span>' : '';
-	return `<div class="knox-gui-code-line" data-line="${base + index}"><span class="knox-gui-line-number">${base + index}</span><span class="knox-gui-line-content">${html || '&nbsp;'}${cursorHtml}</span></div>`;
+	const diffAttr = diff ? ` data-diff="${diff}"` : '';
+	return `<div class="knox-gui-code-line" data-line="${base + index}"${diffAttr}><span class="knox-gui-line-number">${base + index}</span><span class="knox-gui-line-content">${html || '&nbsp;'}${cursorHtml}</span></div>`;
 }
 
-function paintCodeLine(row: HTMLElement, base: number, index: number, html: string, cursor: boolean): void {
+function paintCodeLine(row: HTMLElement, base: number, index: number, html: string, cursor: boolean, diff?: 'add' | 'del'): void {
 	row.className = 'knox-gui-code-line';
 	row.dataset.line = String(base + index);
+	if (diff) {
+		row.dataset.diff = diff;
+	} else {
+		delete row.dataset.diff;
+	}
 	setKnoxGuiInnerHtml(row, `<span class="knox-gui-line-number">${base + index}</span><span class="knox-gui-line-content">${html || '&nbsp;'}${cursor ? '<span class="knox-gui-streaming-cursor"></span>' : ''}</span>`);
 }
 
@@ -472,6 +578,24 @@ export function renderCodeLines(widget: KnoxGuiWidget, parent: HTMLElement, stat
 			paintCodeLineWindow(widget, container, state, language, container.dataset.code ?? code, filepath, { ...options, generating: false });
 		}
 	}));
+	if (typeof ResizeObserver !== 'undefined') {
+		const observer = new ResizeObserver(() => {
+			if (!widget.codeGenerating.has(key) || widget.codeUserScrolled.has(key)) {
+				return;
+			}
+			container.scrollTop = container.scrollHeight;
+			widget.codeScrollTop.set(key, container.scrollTop);
+			if (widget.autoScrollEnabled) {
+				scheduleTranscriptStick(widget);
+			}
+		});
+		observer.observe(container);
+		const linesEl = container.querySelector('.knox-gui-code-lines');
+		if (linesEl) {
+			observer.observe(linesEl);
+		}
+		widget.listenerStore.add({ dispose: () => observer.disconnect() });
+	}
 	return container;
 }
 
@@ -486,12 +610,7 @@ export function renderApplyActions(widget: KnoxGuiWidget, parent: HTMLElement, s
 		widget.appliedUntil.delete(streamId);
 	}
 	ui = applyUiAfterAppliedTimeout(ui, widget.appliedUntil.get(streamId), Date.now());
-	const postApply = () => widget.controller.messenger.post('applyToFile', {
-		text: fence.code,
-		streamId,
-		filepath: fence.filepath,
-		curSelectedModelTitle: state.modelTitle,
-	});
+	const postApply = () => postFenceApply(widget, parent, state, streamId, fence);
 	if (ui.kind === 'streaming') {
 		const pill = DOM.append(parent, DOM.$('span.knox-gui-apply-pill'));
 		pill.textContent = t(state, 'applyingChanges');
@@ -581,7 +700,7 @@ export function renderReasoning(widget: KnoxGuiWidget, parent: HTMLElement, stat
 			body.classList.add('knox-gui-reasoning-live');
 		}
 		const content = DOM.append(body, DOM.$('.knox-gui-reasoning-content.styled-markdown-preview'));
-		fillReasoningContent(widget, content, state, item, thinking, widget.listenerStore);
+		fillReasoningContent(widget, content, state, item, thinking);
 		if (item.thinkingActive) {
 			body.scrollTop = body.scrollHeight;
 		}
@@ -600,12 +719,14 @@ export function patchLiveReasoning(widget: KnoxGuiWidget, card: HTMLElement, sta
 		old?.remove();
 		widget.reasoningPatchStore.clear();
 		widget.reasoningContentStore.clear();
+		widget.reasoningBlocks = [];
 		return;
 	}
 	const collapsed = item.thinkingCollapsed === true;
 	if (!old || old.dataset.collapsed !== String(collapsed)) {
 		widget.reasoningPatchStore.clear();
 		widget.reasoningContentStore.clear();
+		widget.reasoningBlocks = [];
 		const previous = widget.listenerStore;
 		widget.listenerStore = widget.reasoningPatchStore;
 		try {
@@ -649,8 +770,7 @@ export function patchLiveReasoning(widget: KnoxGuiWidget, card: HTMLElement, sta
 		old.dataset.redacted = String(Boolean(item.redactedThinking));
 		const content = old.querySelector('.knox-gui-reasoning-content') as HTMLElement | null;
 		if (content) {
-			widget.reasoningContentStore.clear();
-			fillReasoningContent(widget, content, state, item, thinking, widget.reasoningContentStore);
+			fillReasoningContent(widget, content, state, item, thinking);
 		}
 	}
 	if (item.thinkingActive) {
@@ -658,28 +778,22 @@ export function patchLiveReasoning(widget: KnoxGuiWidget, card: HTMLElement, sta
 	}
 }
 
-function fillReasoningContent(widget: KnoxGuiWidget, content: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem, thinking: string, store: DisposableStore): void {
-	const previous = widget.listenerStore;
-	widget.listenerStore = store;
-	try {
-		if (item.redactedThinking) {
-			content.replaceChildren();
-			DOM.append(content, DOM.$('.knox-gui-thinking-redacted', undefined, t(state, 'thinkingDeletedSecurity')));
-		} else if (state.markdownFormatting !== false) {
-			const existing = content.querySelector('.rendered-markdown') as HTMLElement | null;
-			if (existing && !content.querySelector('.knox-gui-code-block')) {
-				appendMarkdown(widget, content, thinking, store, knoxGuiPastFileInfo(state.history, 0, state.fileSymbols), false, existing);
-			} else {
-				content.replaceChildren();
-				appendStepMarkdown(widget, content, state, thinking, `${item.id}:reasoning`, Boolean(item.thinkingActive));
-			}
-		} else {
-			content.replaceChildren();
-			DOM.append(content, DOM.$('pre', undefined, thinking));
-		}
-	} finally {
-		widget.listenerStore = previous;
+function fillReasoningContent(widget: KnoxGuiWidget, content: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem, thinking: string): void {
+	if (item.redactedThinking) {
+		widget.reasoningBlocks = [];
+		widget.reasoningContentStore.clear();
+		content.replaceChildren();
+		DOM.append(content, DOM.$('.knox-gui-thinking-redacted', undefined, t(state, 'thinkingDeletedSecurity')));
+		return;
 	}
+	if (state.markdownFormatting === false) {
+		widget.reasoningBlocks = [];
+		widget.reasoningContentStore.clear();
+		content.replaceChildren();
+		DOM.append(content, DOM.$('pre', undefined, thinking));
+		return;
+	}
+	widget.renderStreamingReasoningBody(content, state, item, thinking);
 }
 
 export function patchLiveCodeFence(
@@ -758,7 +872,7 @@ function ensureIdleFenceActions(widget: KnoxGuiWidget, box: HTMLElement, state: 
 				svgSize: 14,
 				label: t(state, 'run'),
 				extraClass: 'knox-gui-run-terminal knox-gui-2xs-hide',
-				onClick: () => widget.controller.messenger.post('runCommand', { command: fence.code }),
+				onClick: btn => postFenceRun(widget, btn, fence.code),
 			});
 		} else {
 			widget.renderApplyActions(actions, state, streamId, fence);
@@ -766,15 +880,16 @@ function ensureIdleFenceActions(widget: KnoxGuiWidget, box: HTMLElement, state: 
 		return;
 	}
 	if (isTerminalCodeBlock(fence.language, fence.code)) {
-		widget.chromeButton(actions, { svg: 'terminal', svgSize: 16, title: t(state, 'runInTerminal'), onClick: () => widget.controller.messenger.post('runCommand', { command: knoxGuiTerminalCommand(fence.code) }) });
+		widget.chromeButton(actions, { svg: 'terminal', svgSize: 16, title: t(state, 'runInTerminal'), extraClass: 'knox-gui-code-hover-btn', onClick: btn => postFenceRun(widget, btn, fence.code) });
 	}
 	widget.chromeButton(actions, {
 		svg: 'list-plus',
 		svgSize: 16,
 		title: t(state, 'apply'),
-		onClick: () => widget.controller.messenger.post('applyToFile', { streamId, text: fence.code, curSelectedModelTitle: state.modelTitle }),
+		extraClass: 'knox-gui-code-hover-btn knox-gui-apply',
+		onClick: btn => postFenceApply(widget, btn, state, streamId, fence),
 	});
-	widget.chromeButton(actions, { svg: 'file-input', svgSize: 16, title: t(state, 'insert'), onClick: () => widget.controller.messenger.post('insertAtCursor', { text: fence.code }) });
+	widget.chromeButton(actions, { svg: 'file-input', svgSize: 16, title: t(state, 'insert'), extraClass: 'knox-gui-code-hover-btn', onClick: btn => postFenceInsert(widget, btn, fence.code) });
 	renderCopyFeedbackButton(widget, actions, state, `code:${streamId}`, fence.code, false);
 }
 
@@ -783,11 +898,15 @@ function ensureIdleFenceActions(widget: KnoxGuiWidget, box: HTMLElement, state: 
  * get the same code toolbar as the reply; an open fence generates while live.
  */
 function appendStepMarkdown(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, source: string, streamPrefix: string, live: boolean, fileInfo?: IKnoxGuiPastFileInfo): void {
+	const blocks = splitMarkdownBlocks(source);
 	let fenceIndex = 0;
-	for (const block of splitMarkdownBlocks(source)) {
+	let markdownIndex = 0;
+	const markdownCount = blocks.filter(block => block.type === 'markdown' && block.text.trim()).length;
+	for (const block of blocks) {
 		if (block.type === 'markdown') {
 			if (block.text.trim()) {
-				appendMarkdown(widget, parent, block.text, widget.listenerStore, fileInfo, live);
+				markdownIndex += 1;
+				appendMarkdown(widget, parent, block.text, widget.listenerStore, fileInfo, live && markdownIndex === markdownCount);
 			}
 			continue;
 		}
@@ -854,7 +973,8 @@ export function renderResponseActions(widget: KnoxGuiWidget, parent: HTMLElement
 	const row = DOM.append(parent, DOM.$('.knox-gui-msg-actions'));
 	if (item.checkpointId) {
 		widget.chromeButton(row, {
-			icon: 'codicon-history',
+			svg: 'restore-history',
+			svgSize: 14,
 			title: t(state, 'restoreCheckpointHint', { id: item.checkpointId.slice(0, 8) }),
 			testId: `checkpoint-restore-button-${index}`,
 			onClick: (_btn, event) => void widget.controller.openRestorePreview(item.checkpointId!, Boolean(event?.shiftKey)),
@@ -865,17 +985,17 @@ export function renderResponseActions(widget: KnoxGuiWidget, parent: HTMLElement
 	}
 	if (truncated) {
 		widget.chromeButton(row, {
-			icon: 'codicon-fold-down',
+			svg: 'continue-generation',
+			svgSize: 14,
 			title: t(state, 'knoxGeneration'),
 			onClick: () => widget.controller.continueGeneration(),
 		});
 	}
 	widget.chromeButton(row, {
-		svg: 'trash',
+		svg: 'trash-filled',
 		svgSize: 14,
 		title: t(state, 'delete'),
 		testId: `delete-button-${index}`,
-		extraClass: 'knox-gui-delete-orange',
 		onClick: () => widget.controller.deleteMessage(index),
 	});
 	renderCopyFeedbackButton(widget, row, state, `reply:${item.id}`, item.content, false);
@@ -885,13 +1005,13 @@ export function renderResponseActions(widget: KnoxGuiWidget, parent: HTMLElement
 export function renderCopyFeedbackButton(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, key: string, text: string, withLabel: boolean): void {
 	const copied = (widget.termCopiedUntil.get(key) ?? 0) > Date.now();
 	const button = widget.chromeButton(parent, {
-		svg: copied ? 'check' : 'copy',
+		svg: copied ? 'copy-check' : 'copy',
 		svgSize: 14,
 		label: withLabel ? t(state, copied ? 'copied' : 'copyText') : undefined,
 		title: t(state, copied ? 'copied' : 'copy'),
 		extraClass: `${withLabel ? 'knox-gui-copy-code knox-gui-2xs-hide' : ''}${copied ? ' knox-gui-copied' : ''}`.trim() || undefined,
-		onClick: () => {
-			widget.controller.copyText(text);
+		onClick: btn => {
+			widget.controller.copyText(liveFenceCode(btn, text) || text);
 			widget.termCopiedUntil.set(key, Date.now() + 2000);
 			applyCopyFeedback(button, state, true);
 			window.setTimeout(() => {
@@ -908,7 +1028,7 @@ export function renderCopyFeedbackButton(widget: KnoxGuiWidget, parent: HTMLElem
 function applyCopyFeedback(button: HTMLElement, state: IKnoxGuiState, copied: boolean): void {
 	button.setAttribute('data-copied', String(copied));
 	button.classList.toggle('knox-gui-copied', copied);
-	replaceKnoxGuiSvg(button, copied ? 'check' : 'copy', 14);
+	replaceKnoxGuiSvg(button, copied ? 'copy-check' : 'copy', 14);
 	const label = button.querySelector('.knox-gui-lump-label');
 	if (label) {
 		label.textContent = t(state, copied ? 'copied' : 'copyText');

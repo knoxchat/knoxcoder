@@ -26,12 +26,21 @@ const INPUT_ONLY_KEYS: ReadonlySet<keyof IKnoxGuiState> = new Set([
 	'inputFocused',
 ]);
 
+/** Overlay / page search boxes (`History.tsx`, `Checkpoints/index.tsx`, Memory) keep query in the store. */
+const FILTER_ONLY_KEYS: ReadonlySet<keyof IKnoxGuiState> = new Set([
+	'historyQuery',
+	'checkpointQuery',
+	'memoryQuery',
+	'memorySessionQuery',
+	'memoryGraphQuery',
+]);
+
 export function isKnoxGuiInputOnlyChange(prev: IKnoxGuiState, next: IKnoxGuiState): boolean {
 	if (prev === next) {
 		return true;
 	}
-	const keys = new Set([...Object.keys(prev), ...Object.keys(next)]) as Set<keyof IKnoxGuiState>;
-	for (const key of keys) {
+	const all = new Set([...Object.keys(prev), ...Object.keys(next)]) as Set<keyof IKnoxGuiState>;
+	for (const key of all) {
 		if (INPUT_ONLY_KEYS.has(key)) {
 			continue;
 		}
@@ -40,6 +49,25 @@ export function isKnoxGuiInputOnlyChange(prev: IKnoxGuiState, next: IKnoxGuiStat
 		}
 	}
 	return true;
+}
+
+/** Search/filter typing must not rebuild the whole GUI — original React keeps the input mounted. */
+export function isKnoxGuiFilterOnlyChange(prev: IKnoxGuiState, next: IKnoxGuiState): boolean {
+	if (prev === next) {
+		return false;
+	}
+	const all = new Set([...Object.keys(prev), ...Object.keys(next)]) as Set<keyof IKnoxGuiState>;
+	let sawFilter = false;
+	for (const key of all) {
+		if (prev[key] === next[key]) {
+			continue;
+		}
+		if (!FILTER_ONLY_KEYS.has(key)) {
+			return false;
+		}
+		sawFilter = true;
+	}
+	return sawFilter;
 }
 
 /** ~20 Hz — matches native coalesceStreamDispatch. */
@@ -102,7 +130,7 @@ export function isKnoxGuiStreamingTokenChange(prev: IKnoxGuiState, next: IKnoxGu
 	if (!lastAssistantToolStreamStable(lastPrev, lastNext)) {
 		return false;
 	}
-	if (!next.isStreaming) {
+	if (!prev.isStreaming && !next.isStreaming) {
 		return false;
 	}
 	const keys = new Set([...Object.keys(prev), ...Object.keys(next)]) as Set<keyof IKnoxGuiState>;

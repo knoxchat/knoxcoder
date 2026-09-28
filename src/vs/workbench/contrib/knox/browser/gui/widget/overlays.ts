@@ -628,27 +628,49 @@ export function renderHistoryPage(widget: KnoxGuiWidget, body: HTMLElement, stat
 		widget.historySearchCaret = input.selectionStart;
 		widget.controller.store.patch({ historyQuery: input.value });
 	}));
-	if (state.historyQuery) {
-		widget.chromeButton(search, {
-			svg: 'x',
-			svgSize: 12,
-			title: t(state, 'clear'),
-			extraClass: 'knox-gui-history-search-clear',
-			onClick: () => {
-				widget.historySearchFocus = true;
-				widget.historySearchCaret = 0;
-				widget.controller.store.patch({ historyQuery: '' });
-			},
-		});
-	}
+	const clear = widget.chromeButton(search, {
+		svg: 'x',
+		svgSize: 12,
+		title: t(state, 'clear'),
+		extraClass: 'knox-gui-history-search-clear',
+		onClick: () => {
+			widget.historySearchFocus = true;
+			widget.historySearchCaret = 0;
+			widget.controller.store.patch({ historyQuery: '' });
+		},
+	});
+	clear.hidden = !state.historyQuery;
 	if (widget.historySearchFocus) {
 		input.focus();
 		const caret = widget.historySearchCaret ?? input.value.length;
 		input.setSelectionRange(caret, caret);
 		widget.historySearchFocus = false;
 	}
+	const results = DOM.append(body, DOM.$('.knox-gui-history-results'));
+	paintHistoryResults(widget, results, state, countBadge);
+}
+
+export function syncHistoryList(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
+	const results = widget.root.querySelector('.knox-gui-history-results') as HTMLElement | null;
+	const countBadge = widget.root.querySelector('[data-testid="history-count"]') as HTMLElement | null;
+	const clear = widget.root.querySelector('.knox-gui-history-search-clear') as HTMLElement | null;
+	if (!results) {
+		return;
+	}
+	if (clear) {
+		clear.hidden = !state.historyQuery;
+	}
+	paintHistoryResults(widget, results, state, countBadge);
+}
+
+function paintHistoryResults(widget: KnoxGuiWidget, results: HTMLElement, state: IKnoxGuiState, countBadge: HTMLElement | null): void {
+	results.replaceChildren();
+	const sessions = visibleHistorySessions(state);
+	if (countBadge) {
+		countBadge.textContent = `${sessions.length} ${sessions.length === 1 ? t(state, 'conversation') : t(state, 'conversations')}`;
+	}
 	if (!sessions.length) {
-		const empty = DOM.append(body, DOM.$('.knox-gui-empty.knox-gui-history-empty'));
+		const empty = DOM.append(results, DOM.$('.knox-gui-empty.knox-gui-history-empty'));
 		empty.setAttribute('data-testid', 'history-empty');
 		const iconWrap = DOM.append(empty, DOM.$('.knox-gui-history-empty-icon'));
 		appendKnoxGuiSvg(iconWrap, 'search', 24);
@@ -658,10 +680,10 @@ export function renderHistoryPage(widget: KnoxGuiWidget, body: HTMLElement, stat
 			hint.append(`${t(state, 'noConversationsMessage')} `);
 			appendShortcut(hint, 'meta L');
 		}
-		renderHistoryFooter(body, state);
+		renderHistoryFooter(results, state);
 		return;
 	}
-	const bar = DOM.append(body, DOM.$('.knox-gui-history-actions'));
+	const bar = DOM.append(results, DOM.$('.knox-gui-history-actions'));
 	if (state.historySelectionMode && state.historySelected.length) {
 		const count = DOM.append(bar, DOM.$('span.knox-gui-badge.knox-gui-history-selected-count'));
 		count.setAttribute('data-testid', 'history-selected-count');
@@ -689,7 +711,7 @@ export function renderHistoryPage(widget: KnoxGuiWidget, body: HTMLElement, stat
 		del.title = t(state, 'deleteSelectedConversations', { count: state.historySelected.length });
 		widget.chromeButton(actions, { svg: 'x', svgSize: 12, label: t(state, 'exit'), title: t(state, 'exitSelectionMode'), extraClass: 'knox-gui-history-label-select', testId: 'history-exit', onClick: () => exitHistorySelection(widget) });
 	}
-	const list = DOM.append(body, DOM.$('.knox-gui-history-list'));
+	const list = DOM.append(results, DOM.$('.knox-gui-history-list'));
 	list.setAttribute('role', 'listbox');
 	list.setAttribute('aria-multiselectable', 'true');
 	list.setAttribute('aria-label', t(state, 'conversationHistory'));
@@ -704,9 +726,9 @@ export function renderHistoryPage(widget: KnoxGuiWidget, body: HTMLElement, stat
 			rowIndex += 1;
 		}
 	}
-	renderHistoryFooter(body, state);
+	renderHistoryFooter(results, state);
 	if (state.historyConfirmDelete) {
-		widget.renderHistoryDeleteDialog(body, state);
+		widget.renderHistoryDeleteDialog(results, state);
 	}
 }
 
@@ -749,7 +771,7 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 			box.classList.add('selected');
 			appendKnoxGuiSvg(box, 'check', 12);
 		}
-		widget.renderStore.add(DOM.addDisposableListener(box, 'click', e => {
+	widget.listenerStore.add(DOM.addDisposableListener(box, 'click', e => {
 			e.stopPropagation();
 			selectHistoryRow(widget, ordered, session.id, e.shiftKey);
 		}));
@@ -779,7 +801,7 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 			widget.editingHistoryId = null;
 			widget.controller.store.patch({});
 		};
-		widget.renderStore.add(DOM.addDisposableListener(title, 'keydown', e => {
+		widget.listenerStore.add(DOM.addDisposableListener(title, 'keydown', e => {
 			if (e.key === 'Enter') {
 				e.preventDefault();
 				commit();
@@ -789,8 +811,8 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 				cancel();
 			}
 		}));
-		widget.renderStore.add(DOM.addDisposableListener(title, 'blur', () => commit()));
-		widget.renderStore.add(DOM.addDisposableListener(title, 'click', e => e.stopPropagation()));
+		widget.listenerStore.add(DOM.addDisposableListener(title, 'blur', () => commit()));
+		widget.listenerStore.add(DOM.addDisposableListener(title, 'click', e => e.stopPropagation()));
 	} else {
 		const headingRow = DOM.append(main, DOM.$('.knox-gui-history-heading'));
 		const heading = DOM.append(headingRow, DOM.$('span.knox-gui-history-title', undefined, session.title));
@@ -837,13 +859,13 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 		widget.historyListFocusedId = session.id;
 		void widget.controller.openHistorySession(session.id);
 	};
-	widget.renderStore.add(DOM.addDisposableListener(row, 'click', e => {
+	widget.listenerStore.add(DOM.addDisposableListener(row, 'click', e => {
 		if ((e.target as HTMLElement).closest('button, input')) {
 			return;
 		}
 		openSession(e.shiftKey);
 	}));
-	widget.renderStore.add(DOM.addDisposableListener(row, 'keydown', (e: KeyboardEvent) => {
+	widget.listenerStore.add(DOM.addDisposableListener(row, 'keydown', (e: KeyboardEvent) => {
 		if (e.key === 'Enter' || e.key === ' ') {
 			e.preventDefault();
 			e.stopPropagation();

@@ -16,7 +16,7 @@ import {
 	batchDiffTotals,
 	knoxGuiOAuthErrorI18nKey,
 	knoxGuiOAuthPane,
-	filterKnoxChatModels,
+	knoxChatModelMatchesQuery,
 	formatModelPricingPerMillion,
 	groupKnoxChatModels,
 	knoxGuiProviderLogoUri,
@@ -362,24 +362,76 @@ export function renderKnoxChatModelList(widget: KnoxGuiWidget, body: HTMLElement
 	const search = DOM.append(searchWrap, DOM.$('input.knox-gui-knoxchat-search-input')) as HTMLInputElement;
 	search.type = 'search';
 	search.placeholder = t(state, 'searchEllipsis');
+	search.setAttribute('aria-label', t(state, 'searchEllipsis'));
+	search.setAttribute('data-testid', 'knox-gui-knoxchat-search');
 	search.value = widget.knoxChatModelQuery;
+	const list = DOM.append(body, DOM.$('.knox-gui-knoxchat-list'));
+	list.setAttribute('data-knoxchat-ready', ready ? '1' : '0');
+	list.setAttribute('data-knoxchat-select-only', options?.selectOnly ? '1' : '0');
 	widget.renderStore.add(DOM.addDisposableListener(search, 'input', () => {
 		widget.knoxChatModelQuery = search.value;
-		widget.controller.store.patch({});
+		applyKnoxChatModelFilter(list, widget.controller.store.state, widget.knoxChatModelQuery);
 	}));
-	const filtered = filterKnoxChatModels(state.knoxChatModels, widget.knoxChatModelQuery);
-	const list = DOM.append(body, DOM.$('.knox-gui-knoxchat-list'));
-	if (!filtered.length) {
-		DOM.append(list, DOM.$('.knox-gui-knoxchat-empty', undefined, t(state, 'noMatchingModelIds')));
+	widget.renderStore.add(DOM.addDisposableListener(list, 'click', e => {
+		const row = (e.target as HTMLElement).closest('.knox-gui-knoxchat-item') as HTMLElement | null;
+		const id = row?.dataset.model;
+		if (id) {
+			widget.controller.store.patch({ addModelSelectedModel: id });
+		}
+	}));
+	if (!options?.selectOnly && ready) {
+		widget.renderStore.add(DOM.addDisposableListener(list, 'dblclick', e => {
+			const row = (e.target as HTMLElement).closest('.knox-gui-knoxchat-item') as HTMLElement | null;
+			const id = row?.dataset.model;
+			const model = widget.controller.store.state.knoxChatModels.find(item => item.model === id);
+			if (model) {
+				void widget.controller.addConfiguredModel('knoxchat', knoxChatPack(model));
+			}
+		}));
+	}
+	paintKnoxChatModelRows(widget, list, state, ready, options);
+	applyKnoxChatModelFilter(list, state, widget.knoxChatModelQuery);
+}
+
+export function syncKnoxChatModelList(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
+	const list = widget.root.querySelector('.knox-gui-knoxchat-list') as HTMLElement | null;
+	if (!list) {
 		return;
 	}
-	const selectedId = state.addModelSelectedModel ?? filtered[0]?.model;
-	for (const group of groupKnoxChatModels(filtered)) {
+	applyKnoxChatModelFilter(list, state, widget.knoxChatModelQuery);
+}
+
+function applyKnoxChatModelFilter(list: HTMLElement, state: IKnoxGuiState, query: string): void {
+	const models = new Map(state.knoxChatModels.map(model => [model.model, model]));
+	let visible = 0;
+	for (const row of list.querySelectorAll<HTMLElement>('.knox-gui-knoxchat-item')) {
+		const model = models.get(row.dataset.model ?? '');
+		const show = !model || knoxChatModelMatchesQuery(model, query);
+		row.hidden = !show;
+		if (show) {
+			visible += 1;
+		}
+	}
+	for (const group of list.querySelectorAll<HTMLElement>('.knox-gui-knoxchat-group')) {
+		group.hidden = !group.querySelector('.knox-gui-knoxchat-item:not([hidden])');
+	}
+	const empty = list.querySelector<HTMLElement>('.knox-gui-knoxchat-empty');
+	if (empty) {
+		empty.hidden = visible > 0;
+		empty.textContent = t(state, 'noMatchingModelIds');
+	}
+}
+
+function paintKnoxChatModelRows(widget: KnoxGuiWidget, list: HTMLElement, state: IKnoxGuiState, ready: boolean, options?: { selectOnly?: boolean }): void {
+	list.replaceChildren();
+	const selectedId = state.addModelSelectedModel ?? state.knoxChatModels[0]?.model;
+	for (const group of groupKnoxChatModels(state.knoxChatModels)) {
 		const section = DOM.append(list, DOM.$('.knox-gui-knoxchat-group'));
 		DOM.append(section, DOM.$('h3.knox-gui-knoxchat-category', undefined, group.category === 'Other Models' ? t(state, 'otherModels') : group.category));
 		for (const model of group.models) {
 			const selected = model.model === selectedId;
 			const row = DOM.append(section, DOM.$(selected ? '.knox-gui-knoxchat-item.is-selected' : '.knox-gui-knoxchat-item'));
+			row.dataset.model = model.model;
 			row.setAttribute('data-testid', `knox-gui-add-pack-${model.title}`);
 			const top = DOM.append(row, DOM.$('.knox-gui-knoxchat-item-top'));
 			DOM.append(top, DOM.$('div.knox-gui-knoxchat-title', undefined, model.title));
@@ -415,16 +467,13 @@ export function renderKnoxChatModelList(widget: KnoxGuiWidget, body: HTMLElement
 			for (const modality of (model.modalities ?? []).filter(m => m !== 'text')) {
 				DOM.append(caps, DOM.$('span.knox-gui-knoxchat-badge', undefined, modality));
 			}
-			widget.renderStore.add(DOM.addDisposableListener(row, 'click', () => {
-				widget.controller.store.patch({ addModelSelectedModel: model.model });
-			}));
-			if (!options?.selectOnly && ready) {
-				widget.renderStore.add(DOM.addDisposableListener(row, 'dblclick', () => {
-					void widget.controller.addConfiguredModel('knoxchat', knoxChatPack(model));
-				}));
+			if (!ready && !options?.selectOnly) {
+				row.classList.add('is-disabled');
 			}
 		}
 	}
+	const empty = DOM.append(list, DOM.$('.knox-gui-knoxchat-empty', undefined, t(state, 'noMatchingModelIds')));
+	empty.hidden = true;
 }
 
 function knoxChatPack(model: IKnoxGuiState['knoxChatModels'][number]): IKnoxGuiAddModelPackage {

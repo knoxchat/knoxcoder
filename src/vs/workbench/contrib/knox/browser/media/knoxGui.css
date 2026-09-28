@@ -26,6 +26,11 @@
 	background: var(--vscode-editor-background);
 }
 
+/* Author `display:flex` would otherwise override the HTML `hidden` attribute. */
+.knox-gui [hidden] {
+	display: none !important;
+}
+
 /* gui/src/index.css: Knox forces teal focus rings in both themes. */
 .knox-gui {
 	--vscode-focusBorder: #159994;
@@ -192,9 +197,9 @@
 }
 
 .knox-gui-toolbar .knox-gui-mode-tab {
-	color: #636674 !important;
-	border-radius: 0;
-	padding: 1px 4px;
+	color: #8b8b93 !important;
+	border-radius: 4px;
+	padding: 2px 6px;
 	gap: 2px;
 	font-size: inherit;
 	white-space: nowrap;
@@ -208,8 +213,8 @@
 }
 
 .knox-gui-toolbar .knox-gui-mode-tab.selected {
-	color: #159994 !important;
-	background: rgba(110, 110, 119, 0.2) !important;
+	color: var(--vscode-foreground, #cccccc) !important;
+	background: rgba(110, 110, 119, 0.22) !important;
 }
 
 .knox-gui-mode-tab .knox-gui-lump-label {

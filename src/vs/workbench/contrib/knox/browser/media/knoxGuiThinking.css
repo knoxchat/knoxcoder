@@ -294,6 +294,30 @@
 	overflow: hidden;
 }
 
+/* StepContainerPreActionButtons sits half outside the block (`-translate-y-1/2`);
+ * overflow:hidden on the parent would clip Apply / Insert / Copy.
+ * `.knox-gui-code-actions { display:flex }` below must not un-hide the hover toolbar. */
+.knox-gui-code-block.knox-gui-code-generic {
+	overflow: visible;
+	position: relative;
+	margin: 10px 0;
+}
+
+.knox-gui-code-block.knox-gui-code-generic > .knox-gui-code-actions.knox-gui-code-hover {
+	display: none;
+	flex-wrap: nowrap;
+	align-items: center;
+	gap: 6px;
+	margin: 0;
+	padding: 2px 4px;
+	pointer-events: auto;
+}
+
+.knox-gui-code-block.knox-gui-code-generic:hover > .knox-gui-code-actions.knox-gui-code-hover,
+.knox-gui-code-block.knox-gui-code-generic:focus-within > .knox-gui-code-actions.knox-gui-code-hover {
+	display: flex;
+}
+
 .knox-gui-code-toolbar {
 	display: flex;
 	align-items: center;
@@ -343,8 +367,8 @@
 	gap: 4px;
 	padding: 0 4px 0 8px;
 	border-radius: 2px;
-	background: #3f3f46;
-	color: #159994;
+	background: var(--vscode-badge-background, #3f3f46);
+	color: var(--vscode-badge-foreground, #159994);
 	font-size: 11px;
 }
 

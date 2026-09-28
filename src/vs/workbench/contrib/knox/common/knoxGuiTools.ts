@@ -291,6 +291,62 @@ export function highlightSearchQueryInHtml(html: string, query: string): string 
 	}
 }
 
+/** Drop CSI / OSC / C1 color codes so search hits never render as tofu or icon-font leftovers. */
+export function stripAnsi(text: string): string {
+	return text
+		.replace(/\x1B\[[0-9;?]*[ -/]*[@-~]/g, '')
+		.replace(/\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/g, '')
+		.replace(/\x1B[@-Z\\-_]/g, '')
+		.replace(/\x9B[0-9;]*[ -/]*[@-~]/g, '');
+}
+
+/**
+ * `FindInFile.tsx` query badge: string args only, no control chars, no private-use
+ * icon glyphs. Arrays from sloppy tool JSON are joined.
+ */
+export function sanitizeExactSearchQuery(raw: unknown): string {
+	let text = '';
+	if (typeof raw === 'string') {
+		text = raw;
+	} else if (typeof raw === 'number' || typeof raw === 'boolean') {
+		text = String(raw);
+	} else if (Array.isArray(raw)) {
+		text = raw.filter((item): item is string => typeof item === 'string').join(' ');
+	}
+	return stripAnsi(text)
+		.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
+		.replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '')
+		.replace(/\uFFFD/g, '')
+		.replace(/[\uE000-\uF8FF]/g, '')
+		.replace(/[\u{F0000}-\u{FFFFD}\u{100000}-\u{10FFFD}]/gu, '')
+		.trim();
+}
+
+const SEARCH_QUERY_KEYS = ['query', 'pattern', 'search', 'q'] as const;
+const SEARCH_DESCRIPTION_QUERY_RE = /Exact search results for "([\s\S]*?)" - /;
+
+/** Query shown in the Exact Search badge (`nXt` `e.query`, plus streaming / description fallbacks). */
+export function exactSearchDisplayQuery(tool: { parsedArgs?: unknown; arguments?: unknown; outputItems?: IKnoxGuiToolOutputItem[] }): string {
+	const args = displayArgsForToolCall(tool.parsedArgs, tool.arguments);
+	for (const key of SEARCH_QUERY_KEYS) {
+		const value = sanitizeExactSearchQuery(args[key]);
+		if (value) {
+			return value;
+		}
+	}
+	const description = tool.outputItems?.find(item =>
+		item.description?.includes('search') ||
+		item.name?.includes('search') ||
+		item.name?.includes('Search'))?.description ?? '';
+	const match = SEARCH_DESCRIPTION_QUERY_RE.exec(description);
+	return sanitizeExactSearchQuery(match?.[1] ?? '');
+}
+
+/** `FindInFile.tsx` badge text: always wrap the query in `[]`, `...` while the query is still streaming. */
+export function exactSearchQueryBadge(query: string): string {
+	return `[${query || '...'}]`;
+}
+
 /**
  * Core `resolveBuiltInToolName` aliases. Models drop `builtin_` or emit
  * Claude/Codex short names; map those onto catalog names so titles, kinds,
@@ -957,12 +1013,13 @@ export function detectSearchLanguage(filePath: string): string {
 }
 
 export function parseSearchResults(content: string): IKnoxGuiSearchMatch[] {
-	if (!content || content === 'No matches found' || content.startsWith('Error:')) {
+	const plain = stripAnsi(content ?? '');
+	if (!plain || plain === 'No matches found' || plain.startsWith('Error:') || plain.startsWith('Search error:')) {
 		return [];
 	}
 	const results: IKnoxGuiSearchMatch[] = [];
 	let currentFile: IKnoxGuiSearchMatch | null = null;
-	for (const line of content.split('\n')) {
+	for (const line of plain.split('\n')) {
 		if (!line.trim()) {
 			continue;
 		}

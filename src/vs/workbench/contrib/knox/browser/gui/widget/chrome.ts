@@ -873,6 +873,20 @@ export function scheduleTranscriptStick(widget: KnoxGuiWidget): void {
 	});
 }
 
+/** Immediate stick plus one more rAF so late markdown/code layout is still followed. */
+export function forceTranscriptStick(widget: KnoxGuiWidget): void {
+	const run = () => {
+		const body = widget.bodyEl;
+		if (!widget.autoScrollEnabled || !body) {
+			return;
+		}
+		setTranscriptScrollTop(widget, body, body.scrollHeight);
+		widget.syncScrollButtons();
+	};
+	run();
+	requestAnimationFrame(run);
+}
+
 /** `useEnhancedScroll`: 50ms force stick after streaming ends so the last healed block stays in view. */
 export function scheduleStreamEndStick(widget: KnoxGuiWidget): void {
 	if (widget.streamEndStickHandle !== undefined) {
@@ -880,7 +894,7 @@ export function scheduleStreamEndStick(widget: KnoxGuiWidget): void {
 	}
 	widget.streamEndStickHandle = setTimeout(() => {
 		widget.streamEndStickHandle = undefined;
-		scheduleTranscriptStick(widget);
+		forceTranscriptStick(widget);
 	}, 50);
 }
 
@@ -895,11 +909,16 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 			{ following: widget.autoScrollEnabled, lastScrollTop: widget.lastScrollTop, lastScrollHeight: widget.lastScrollHeight },
 			{ scrollTop: body.scrollTop, scrollHeight: body.scrollHeight, clientHeight: body.clientHeight, programmatic },
 		);
+		const followChanged = next.following !== widget.autoScrollEnabled;
 		widget.autoScrollEnabled = next.following;
 		widget.lastScrollTop = next.lastScrollTop;
 		widget.lastScrollHeight = next.lastScrollHeight;
 		widget.savedScrollTop = body.scrollTop;
 		widget.syncScrollButtons();
+		if (followChanged && state.route === KnoxGuiRoute.Chat) {
+			widget.render();
+			return;
+		}
 		if (!programmatic && body.scrollTop < 48 && widget.displayStart > 0 && !widget.loadingEarlier) {
 			widget.loadEarlier();
 		}
@@ -912,6 +931,10 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 		widget.syncScrollButtons();
 	});
 	observer.observe(body);
+	const content = body.querySelector('[data-testid="chat-scroll-content"]');
+	if (content) {
+		observer.observe(content);
+	}
 	const list = body.querySelector('.knox-gui-history');
 	if (list) {
 		observer.observe(list);

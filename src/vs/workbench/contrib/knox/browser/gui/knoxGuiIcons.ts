@@ -132,7 +132,11 @@ export type KnoxGuiSvgIcon =
 	| 'refresh-cw'
 	| 'crosshair'
 	| 'file-down'
-	| 'upload';
+	| 'upload'
+	| 'restore-history'
+	| 'continue-generation'
+	| 'copy-check'
+	| 'trash-filled';
 
 const STROKE = `fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
 const HAIRLINE = `fill="none" stroke="${KNOX_GUI_CYAN}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"`;
@@ -174,7 +178,11 @@ const ICONS: Record<KnoxGuiSvgIcon, string> = {
 	bookmark: `<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" ${STROKE}/>`,
 	'list-plus': `<path d="M16 5H3" ${STROKE}/><path d="M16 12H3" ${STROKE}/><path d="M11 19H3" ${STROKE}/><path d="M21 16v6" ${STROKE}/><path d="M18 19h6" ${STROKE}/>`,
 	'file-input': `<path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4" ${STROKE}/><path d="M14 2v4a2 2 0 0 0 2 2h4" ${STROKE}/><path d="m3 15 3 3 3-3" ${STROKE}/><path d="M6 18v-7" ${STROKE}/>`,
-	copy: `<rect x="9" y="9" width="13" height="13" rx="2" ${STROKE}/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" ${STROKE}/>`,
+	copy: `<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M7 9.667A2.667 2.667 0 0 1 9.667 7h8.666A2.667 2.667 0 0 1 21 9.667v8.666A2.667 2.667 0 0 1 18.333 21H9.667A2.667 2.667 0 0 1 7 18.333z"/><path d="M4.012 16.737A2 2 0 0 1 3 15V5c0-1.1.9-2 2-2h10c.75 0 1.158.385 1.5 1"/></g>`,
+	'copy-check': `<path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-8.29 13.29a.996.996 0 0 1-1.41 0L5.71 12.7a.996.996 0 1 1 1.41-1.41L10 14.17l6.88-6.88a.996.996 0 1 1 1.41 1.41z"/>`,
+	'restore-history': `<path fill="currentColor" d="M12 21q-3.15 0-5.575-1.912T3.275 14.2q-.1-.375.15-.687t.675-.363q.4-.05.725.15t.45.6q.6 2.25 2.475 3.675T12 19q2.925 0 4.963-2.037T19 12t-2.037-4.962T12 5q-1.725 0-3.225.8T6.25 8H8q.425 0 .713.288T9 9t-.288.713T8 10H4q-.425 0-.712-.288T3 9V5q0-.425.288-.712T4 4t.713.288T5 5v1.35q1.275-1.6 3.113-2.475T12 3q1.875 0 3.513.713t2.85 1.924t1.925 2.85T21 12t-.712 3.513t-1.925 2.85t-2.85 1.925T12 21m0-7q-.825 0-1.412-.587T10 12t.588-1.412T12 10t1.413.588T14 12t-.587 1.413T12 14"/>`,
+	'continue-generation': `<path fill="currentColor" d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zm8 1v8.5L7.5 11l-1.42 1.42L12 18.34l5.92-5.92L16.5 11L13 14.5V6z"/>`,
+	'trash-filled': `<path fill="currentColor" d="M20 6h-4V5a3 3 0 0 0-3-3h-2a3 3 0 0 0-3 3v1H4a1 1 0 0 0 0 2h1v11a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3V8h1a1 1 0 0 0 0-2M10 5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1h-4Zm7 14a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8h10Z"/>`,
 	terminal: `<path d="m4 17 6-6-6-6" ${STROKE}/><path d="M12 19h8" ${STROKE}/>`,
 	sparkles: `<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" ${STROKE}/><path d="M20 3v4" ${STROKE}/><path d="M22 5h-4" ${STROKE}/><path d="M4 17v2" ${STROKE}/><path d="M5 18H3" ${STROKE}/>`,
 	'file-pen-line': `<path d="m18 5-2.414-2.414A2 2 0 0 0 14.172 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2" ${STROKE}/><path d="M21.378 12.626a1 1 0 0 0-3.004-3.004l-4.01 4.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z" ${STROKE}/><path d="M8 18h1" ${STROKE}/>`,
@@ -302,11 +310,19 @@ export function knoxGuiNamedIcon(id: string | undefined): KnoxGuiSvgIcon | undef
 	return NAMED_ICONS[id.replace(/^\//, '')];
 }
 
+/** Crop the 24×24 artboard so exclusive reply-action glyphs fill the same 14px slot. */
+const ICON_VIEWBOX: Partial<Record<KnoxGuiSvgIcon, string>> = {
+	'restore-history': '2.5 3.5 19 18',
+	'trash-filled': '3 2 18 20',
+	'continue-generation': '2 2 20 20',
+};
+
 export function appendKnoxGuiSvg(parent: HTMLElement, icon: KnoxGuiSvgIcon, size = 14): SVGSVGElement {
 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-	svg.setAttribute('viewBox', '0 0 24 24');
+	svg.setAttribute('viewBox', ICON_VIEWBOX[icon] ?? '0 0 24 24');
 	svg.setAttribute('width', String(size));
 	svg.setAttribute('height', String(size));
+	svg.setAttribute('overflow', 'visible');
 	svg.setAttribute('aria-hidden', 'true');
 	svg.classList.add('knox-gui-svg');
 	setKnoxGuiInnerHtml(svg, ICONS[icon]);

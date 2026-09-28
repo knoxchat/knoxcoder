@@ -219,6 +219,7 @@ export function chromeButton(widget: KnoxGuiWidget, parent: HTMLElement, options
 		appendKnoxGuiSvg(button, options.svg, options.svgSize ?? 14);
 	}
 	if (options.title) {
+		button.setAttribute('aria-label', options.title);
 		widget.hover(button, options.title);
 	}
 	widget.listenerStore.add(DOM.addDisposableListener(button, 'click', e => {

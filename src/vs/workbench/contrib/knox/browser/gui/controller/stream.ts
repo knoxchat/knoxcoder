@@ -745,7 +745,7 @@ export function rejectAllApplies(controller: KnoxGuiController): void { // KN-37
 }
 
 export function copyText(controller: KnoxGuiController, text: string): void {
-	void navigator.clipboard?.writeText(text);
+	void navigator.clipboard?.writeText(text).catch(() => undefined);
 	controller.messenger.post('copyText', { text });
 }
 

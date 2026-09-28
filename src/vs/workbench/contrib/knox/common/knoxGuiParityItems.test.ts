@@ -15,8 +15,7 @@ import { agentProfileDefaults, formatModelPricingPerMillion, formatUsdAmount, fu
 import { IKnoxGuiSuggestItem } from './knoxGuiState.js';
 import { knoxGuiShortcutKeys } from './knoxGuiChrome.js';
 import { composerUndoRecord, composerUndoStep, createComposerUndo, inputDocFromPlainText, knoxGuiCodeBlockOpenAction, knoxGuiCodeBlockTitle, knoxGuiComposerKeyAction, knoxGuiDragHasImages, knoxGuiImageFileAccepted, knoxGuiImageTargetSize, knoxGuiImageUploadToast, knoxGuiNewestCodeBlockIndex, KNOX_COMPOSER_UNDO_GROUP_MS } from './knoxGuiInput.js';
-import { healStreamingMarkdown, splitMarkdownParagraphs } from './knoxGuiTranscript.js';
-import { knoxGuiInitialCodeBlockExpanded, knoxGuiShouldAutoExpandGeneratingCodeBlock, knoxGuiSplitTokenizedLines, knoxGuiTerminalCommand, MAX_EXPANDED_CODE_LINES, shouldShowThinkingIndicator, visibleCodeLineRange } from './knoxGuiTranscript.js';
+import { healStreamingMarkdown, knoxGuiInitialCodeBlockExpanded, knoxGuiShouldAutoExpandGeneratingCodeBlock, knoxGuiSplitTokenizedLines, knoxGuiTerminalCommand, languageIdFromFence, MAX_EXPANDED_CODE_LINES, shouldShowThinkingIndicator, splitMarkdownBlocks, splitMarkdownParagraphs, stripLeakedToolMarkup, visibleCodeLineRange } from './knoxGuiTranscript.js';
 
 suite('Knox native parity items', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -86,6 +85,7 @@ suite('Knox native parity items', () => {
 				'tail',
 			]);
 			assert.deepStrictEqual(splitMarkdownParagraphs('\n\n'), []);
+			assert.deepStrictEqual(splitMarkdownParagraphs('Hello\n## Title'), ['Hello', '## Title']);
 			assert.strictEqual(healStreamingMarkdown('some **bold'), 'some **bold**');
 			assert.strictEqual(healStreamingMarkdown('some **bold '), 'some **bold**');
 			assert.strictEqual(healStreamingMarkdown('call `foo'), 'call `foo`');
@@ -95,6 +95,23 @@ suite('Knox native parity items', () => {
 			assert.strictEqual(healStreamingMarkdown('see [docs](https://exa'), 'see docs');
 			assert.strictEqual(healStreamingMarkdown('* item one\n* item **two'), '* item one\n* item **two**');
 			assert.strictEqual(healStreamingMarkdown('done **ok** and `x`'), 'done **ok** and `x`');
+			assert.strictEqual(healStreamingMarkdown('an _em'), 'an _em_');
+			assert.strictEqual(healStreamingMarkdown('snake_case stays'), 'snake_case stays');
+			assert.strictEqual(stripLeakedToolMarkup('intro\n< | DSML |  calls>\nfoo').trim(), 'intro');
+			assert.ok(!stripLeakedToolMarkup('hi <tool_calls>x').includes('tool_calls'));
+			assert.strictEqual(languageIdFromFence('ts'), 'typescript');
+			assert.strictEqual(languageIdFromFence('', 'app.rs'), 'rust');
+			assert.strictEqual(languageIdFromFence('rb'), 'ruby');
+			assert.strictEqual(languageIdFromFence('patch'), 'diff');
+			assert.strictEqual(languageIdFromFence('golang'), 'go');
+			assert.strictEqual(languageIdFromFence('mjs'), 'javascript');
+			assert.ok(!stripLeakedToolMarkup('hi <function=run>x').includes('function=run'));
+			const tilde = splitMarkdownBlocks('intro\n~~~ts\nconst x = 1;');
+			assert.strictEqual(tilde[0].type, 'markdown');
+			assert.strictEqual(tilde[1]?.type, 'fence');
+			assert.strictEqual(tilde[1].type === 'fence' && tilde[1].closed, false);
+			assert.strictEqual(tilde[1].type === 'fence' && tilde[1].code.includes('const x = 1;'), true);
+			assert.deepStrictEqual(knoxGuiSplitTokenizedLines('<div class="monaco-tokenized-source">a<br>b<br/>c</div>'), ['a', 'b', 'c']);
 		});
 	});
 

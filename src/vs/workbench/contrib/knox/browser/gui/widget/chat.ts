@@ -44,6 +44,7 @@ import {
 	IKnoxGuiPastFileInfo,
 	knoxGuiContextItemFileIconName,
 	knoxGuiPastFileInfo,
+	fenceApplyStreamId,
 	healStreamingMarkdown,
 	IKnoxGuiMarkdownFenceBlock,
 	splitMarkdownBlocks,
@@ -65,8 +66,26 @@ export function patchLastAssistant(widget: KnoxGuiWidget, state: IKnoxGuiState):
 		widget.render();
 		return;
 	}
-	const body = card.querySelector('.knox-gui-stream-body') as HTMLElement | null;
+	let body = card.querySelector('.knox-gui-stream-body') as HTMLElement | null;
+	if (!body && assistantReplyText(item)) {
+		body = DOM.$('.knox-gui-stream-body.styled-markdown-preview');
+		body.setAttribute('data-testid', 'streaming-markdown');
+		body.setAttribute('data-streaming', 'true');
+		const reasoning = card.querySelector('.knox-gui-reasoning');
+		if (reasoning?.nextSibling) {
+			card.insertBefore(body, reasoning.nextSibling);
+		} else if (reasoning) {
+			card.appendChild(body);
+		} else {
+			card.insertBefore(body, card.firstChild);
+		}
+	}
 	if (body) {
+		if (state.isStreaming) {
+			body.setAttribute('data-streaming', 'true');
+		} else {
+			body.removeAttribute('data-streaming');
+		}
 		widget.renderStreamingAssistantBody(body, state, item);
 	} else if (assistantReplyText(item)) {
 		widget.render();
@@ -88,6 +107,20 @@ export function patchLastAssistant(widget: KnoxGuiWidget, state: IKnoxGuiState):
 	} else if (!showIndicator && indicator) {
 		indicator.remove();
 	}
+	const nextRole = state.history[index + 1]?.role;
+	const hideActionSpace = nextRole === 'assistant' || nextRole === 'thinking';
+	const hideActions = hideActionSpace || state.isStreaming;
+	const actions = card.querySelector('.knox-gui-msg-actions') as HTMLElement | null;
+	if (hideActionSpace) {
+		actions?.remove();
+	} else if (hideActions) {
+		if (!actions) {
+			DOM.append(card, DOM.$('.knox-gui-msg-actions.knox-gui-msg-actions-slot'));
+		}
+	} else if (!actions || actions.classList.contains('knox-gui-msg-actions-slot')) {
+		actions?.remove();
+		widget.renderResponseActions(card, state, item, index, isResponseTruncated(item.content, false));
+	}
 	if (widget.autoScrollEnabled) {
 		scheduleTranscriptStick(widget);
 	}
@@ -95,14 +128,14 @@ export function patchLastAssistant(widget: KnoxGuiWidget, state: IKnoxGuiState):
 
 function patchStreamingTools(widget: KnoxGuiWidget, card: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem): boolean {
 	const tools = item.toolCalls ?? [];
-	if (!tools.length) {
-		return true;
-	}
 	const wrap = card.parentElement;
 	if (!wrap) {
-		return false;
+		return !tools.length;
 	}
 	const existing = Array.from(wrap.querySelectorAll(':scope > [data-testid="knox-gui-tool"]')) as HTMLElement[];
+	if (!tools.length) {
+		return existing.length === 0;
+	}
 	if (existing.length > tools.length) {
 		return false;
 	}
@@ -155,6 +188,8 @@ function pastFileInfoFor(state: IKnoxGuiState, item: IKnoxGuiHistoryItem): IKnox
 	return knoxGuiPastFileInfo(state.history, index < 0 ? state.history.length : index, state.fileSymbols);
 }
 
+export type IKnoxGuiStreamCacheBlock = { key: string; nodes: ChildNode[]; store: DisposableStore; payload: string };
+
 type StreamSegment =
 	| { key: string; type: 'markdown'; text: string }
 	| { key: string; type: 'fence'; fence: IKnoxGuiMarkdownFenceBlock; fenceIndex: number; generating: boolean };
@@ -194,17 +229,41 @@ function streamPayload(segment: StreamSegment): string {
  * The live reply body. Leading blocks whose source is unchanged keep their DOM
  * (selection, inner scroll, listeners); the rest re-render into their own stores.
  */
-export function renderStreamingAssistantBody(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem): void {
-	const content = assistantReplyText(item) ? item.content : '';
-	const segments = content && state.markdownFormatting !== false ? streamSegments(content, state.isStreaming) : [];
-	const cache = widget.streamBlocks;
+export function renderStreamingAssistantBody(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem, streaming = state.isStreaming): void {
+	renderStreamingMarkdownInto(widget, body, widget.streamBlocks, widget.streamPatchStore, state, item, assistantReplyText(item), {
+		streaming,
+		streamPrefix: item.id,
+		fileInfo: pastFileInfoFor(state, item),
+	});
+}
+
+/** Same streamdown split + live patch used by reasoning (`Reasoning.tsx` memoized markdown). */
+export function renderStreamingReasoningBody(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem, thinking: string): void {
+	renderStreamingMarkdownInto(widget, body, widget.reasoningBlocks, widget.reasoningContentStore, state, item, thinking, {
+		streaming: Boolean(item.thinkingActive),
+		streamPrefix: `${item.id}:reasoning`,
+		fileInfo: knoxGuiPastFileInfo(state.history, 0, state.fileSymbols),
+	});
+}
+
+function renderStreamingMarkdownInto(
+	widget: KnoxGuiWidget,
+	body: HTMLElement,
+	cache: IKnoxGuiStreamCacheBlock[],
+	patchStore: DisposableStore,
+	state: IKnoxGuiState,
+	item: IKnoxGuiHistoryItem,
+	content: string,
+	options: { streaming: boolean; streamPrefix: string; fileInfo: IKnoxGuiPastFileInfo },
+): void {
+	const segments = content && state.markdownFormatting !== false ? streamSegments(content, options.streaming) : [];
 	const anchor = body.querySelector('[data-testid="stream-anchor"]');
 	let keep = 0;
 	while (keep < cache.length && keep < segments.length && cache[keep].key === segments[keep].key && cache[keep].nodes.every(node => node.parentNode === body)) {
 		keep += 1;
 	}
 	for (const stale of cache.splice(keep)) {
-		widget.streamPatchStore.delete(stale.store);
+		patchStore.delete(stale.store);
 	}
 	const kept = new Set(cache.flatMap(block => block.nodes));
 	for (const child of Array.from(body.childNodes)) {
@@ -214,34 +273,42 @@ export function renderStreamingAssistantBody(widget: KnoxGuiWidget, body: HTMLEl
 		child.remove();
 	}
 	if (!content) {
-		if (state.isStreaming) {
+		if (options.streaming) {
 			appendStreamAnchor(body);
 		}
 		return;
 	}
 	if (state.markdownFormatting === false) {
-		DOM.append(body, DOM.$('pre.knox-gui-raw-md', undefined, content));
-		if (state.isStreaming) {
+		let raw = body.querySelector('pre.knox-gui-raw-md');
+		if (!raw) {
+			raw = DOM.append(body, DOM.$('pre.knox-gui-raw-md', undefined, content));
+		} else if (raw.textContent !== content) {
+			raw.textContent = content;
+		}
+		if (options.streaming) {
 			appendStreamAnchor(body);
 		}
 		return;
 	}
-	const fileInfo = pastFileInfoFor(state, item);
 	if (keep > 0) {
-		refreshLiveStreamBlock(widget, body, state, item, cache[keep - 1], segments[keep - 1], fileInfo);
+		const live = options.streaming && keep === segments.length;
+		refreshLiveStreamBlock(widget, body, state, item, cache[keep - 1], segments[keep - 1], options.fileInfo, options.streamPrefix, live, patchStore);
 	}
-	for (const segment of segments.slice(keep)) {
-		const store = widget.streamPatchStore.add(new DisposableStore());
+	for (let i = keep; i < segments.length; i++) {
+		const store = patchStore.add(new DisposableStore());
 		widget.listenerStore = store;
 		try {
-			const nodes = appendStreamSegment(widget, body, state, item, segment, fileInfo);
-			cache.push({ key: segment.key, nodes, store, payload: streamPayload(segment) });
+			const live = options.streaming && i === segments.length - 1;
+			const nodes = appendStreamSegment(widget, body, state, item, segments[i], options.fileInfo, options.streamPrefix, live);
+			cache.push({ key: segments[i].key, nodes, store, payload: streamPayload(segments[i]) });
 		} finally {
 			widget.listenerStore = widget.renderStore;
 		}
 	}
-	if (state.isStreaming) {
+	if (options.streaming) {
 		appendStreamAnchor(body);
+	} else {
+		body.querySelector('[data-testid="stream-anchor"]')?.remove();
 	}
 }
 
@@ -249,16 +316,23 @@ function appendStreamSegment(
 	widget: KnoxGuiWidget,
 	body: HTMLElement,
 	state: IKnoxGuiState,
-	item: IKnoxGuiHistoryItem,
+	_item: IKnoxGuiHistoryItem,
 	segment: StreamSegment,
 	fileInfo: IKnoxGuiPastFileInfo,
+	streamPrefix: string,
+	liveMarkdown: boolean,
 ): ChildNode[] {
 	const anchor = body.querySelector('[data-testid="stream-anchor"]');
 	const before = Array.from(body.childNodes);
 	if (segment.type === 'markdown') {
-		widget.appendMarkdown(body, segment.text, widget.listenerStore, fileInfo, false);
+		widget.appendMarkdown(body, segment.text, widget.listenerStore, fileInfo, liveMarkdown);
 	} else {
-		widget.renderCodeFence(body, state, item, segment.fence, segment.fenceIndex, segment.generating);
+		widget.renderCodeFenceBlock(body, state, {
+			streamId: fenceApplyStreamId(streamPrefix, segment.fenceIndex),
+			fence: segment.fence,
+			generating: segment.generating,
+			anchor: 'end',
+		});
 	}
 	const nodes = Array.from(body.childNodes).filter(node => !before.includes(node) && node !== anchor);
 	if (anchor) {
@@ -274,9 +348,12 @@ function refreshLiveStreamBlock(
 	body: HTMLElement,
 	state: IKnoxGuiState,
 	item: IKnoxGuiHistoryItem,
-	cached: { key: string; nodes: ChildNode[]; store: DisposableStore; payload: string },
+	cached: IKnoxGuiStreamCacheBlock,
 	segment: StreamSegment,
 	fileInfo: IKnoxGuiPastFileInfo,
+	streamPrefix: string,
+	live: boolean,
+	patchStore: DisposableStore,
 ): void {
 	if (cached.payload === streamPayload(segment)) {
 		return;
@@ -284,26 +361,26 @@ function refreshLiveStreamBlock(
 	const previous = widget.listenerStore;
 	widget.listenerStore = cached.store;
 	try {
-		if (segment.type === 'markdown' && cached.nodes.length === 1 && patchLiveMarkdown(widget, cached.nodes[0], segment.text, cached.store, fileInfo, false)) {
+		if (segment.type === 'markdown' && cached.nodes.length === 1 && patchLiveMarkdown(widget, cached.nodes[0], segment.text, cached.store, fileInfo, live)) {
 			cached.payload = streamPayload(segment);
 			return;
 		}
-		if (segment.type === 'fence' && patchLiveCodeFence(widget, cached.nodes, state, item, segment.fence, segment.fenceIndex, segment.generating)) {
+		if (segment.type === 'fence' && patchLiveCodeFence(widget, cached.nodes, state, item, segment.fence, segment.fenceIndex, segment.generating, fenceApplyStreamId(streamPrefix, segment.fenceIndex))) {
 			cached.payload = streamPayload(segment);
 			return;
 		}
 	} finally {
 		widget.listenerStore = previous;
 	}
-	widget.streamPatchStore.delete(cached.store);
-	const store = widget.streamPatchStore.add(new DisposableStore());
+	patchStore.delete(cached.store);
+	const store = patchStore.add(new DisposableStore());
 	for (const node of cached.nodes) {
 		node.remove();
 	}
 	widget.listenerStore = store;
 	try {
 		cached.store = store;
-		cached.nodes = appendStreamSegment(widget, body, state, item, segment, fileInfo);
+		cached.nodes = appendStreamSegment(widget, body, state, item, segment, fileInfo, streamPrefix, live && segment.type === 'markdown');
 		cached.payload = streamPayload(segment);
 	} finally {
 		widget.listenerStore = widget.renderStore;
@@ -373,8 +450,10 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 		turns,
 	});
 	widget.displayStart = displayStart;
+	const content = DOM.append(body, DOM.$('div'));
+	content.setAttribute('data-testid', 'chat-scroll-content');
 	if (displayStart > 0) {
-		widget.chromeButton(body, {
+		widget.chromeButton(content, {
 			label: t(state, 'loadEarlierMessages', { count: displayStart }),
 			testId: 'load-earlier-messages',
 			extraClass: 'knox-gui-load-earlier',
@@ -386,7 +465,7 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 		return;
 	}
 	try {
-		const list = DOM.append(body, DOM.$('.knox-gui-history'));
+		const list = DOM.append(content, DOM.$('.knox-gui-history'));
 		list.setAttribute('data-testid', 'chat-virtual-list');
 		const duplicateIds = collectDuplicateAssistantMessageIds(state.history, state.history.length - (state.isStreaming ? 2 : 1));
 		for (const turn of turns) {
@@ -1112,12 +1191,8 @@ export function renderErrorStep(widget: KnoxGuiWidget, card: HTMLElement, state:
 }
 
 export function renderAssistantBody(widget: KnoxGuiWidget, card: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem, isLast: boolean): void {
-	if (isLast && state.isStreaming) {
-		widget.renderStreamingAssistantBody(card, state, item);
-		return;
-	}
-	const content = assistantReplyText(item) ? item.content : '';
-	if (!content) {
+	const content = assistantReplyText(item);
+	if (!content && !(isLast && state.isStreaming)) {
 		return;
 	}
 	if (state.markdownFormatting === false) {
@@ -1128,23 +1203,28 @@ export function renderAssistantBody(widget: KnoxGuiWidget, card: HTMLElement, st
 				widget.renderThumb(thumbs, state, url, `assistant-${imageIndex}`, t(state, 'historicalImageAlt', { index: imageIndex + 1 }), () => undefined);
 			}
 		}
-		DOM.append(card, DOM.$('pre.knox-gui-raw-md', undefined, content));
+		let raw = card.querySelector('pre.knox-gui-raw-md');
+		if (!raw) {
+			raw = DOM.append(card, DOM.$('pre.knox-gui-raw-md', undefined, content));
+		} else if (raw.textContent !== content) {
+			raw.textContent = content;
+		}
 		return;
 	}
-	let fenceIndex = 0;
-	const fileInfo = pastFileInfoFor(state, item);
-	const blocks = splitMarkdownBlocks(content);
-	const lastFence = lastFenceIndex(blocks);
-	for (const block of blocks) {
-		if (block.type === 'markdown') {
-			if (block.text.trim()) {
-				widget.appendMarkdown(card, block.text, undefined, fileInfo);
-			}
-			continue;
-		}
-		widget.renderCodeFence(card, state, item, block, fenceIndex, isLast && state.isStreaming && fenceIndex === lastFence && !block.closed);
-		fenceIndex += 1;
+	const streaming = isLast && state.isStreaming;
+	if (isLast) {
+		renderStreamingMarkdownInto(widget, card, widget.streamBlocks, widget.streamPatchStore, state, item, content, {
+			streaming,
+			streamPrefix: item.id,
+			fileInfo: pastFileInfoFor(state, item),
+		});
+		return;
 	}
+	renderStreamingMarkdownInto(widget, card, [], widget.listenerStore, state, item, content, {
+		streaming: false,
+		streamPrefix: item.id,
+		fileInfo: pastFileInfoFor(state, item),
+	});
 }
 
 export function renderActivityTimeline(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, userIndex: number): void {

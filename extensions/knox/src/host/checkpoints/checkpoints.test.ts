@@ -51,7 +51,6 @@ suite('Checkpoint Managers', () => {
                 maxCheckpoints: 50,
                 maxFileSizeKB: 100,
                 storagePath: '~/.knox/checkpoints',
-                debugStoragePath: '.knox-debug/checkpoints',
                 verboseLogging: false,
                 enableMetrics: false,
             };
@@ -120,7 +119,6 @@ suite('Checkpoint Managers', () => {
                 maxCheckpoints: 1,
                 maxFileSizeKB: 1,
                 storagePath: '~/.knox/checkpoints',
-                debugStoragePath: '.knox-debug/checkpoints',
                 verboseLogging: false,
                 enableMetrics: false,
             };

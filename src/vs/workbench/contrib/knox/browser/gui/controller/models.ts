@@ -5,8 +5,8 @@
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { asRecord, asArray } from './helpers.js';
-import { knoxGuiCatalogEntriesFromOverlayModels, knoxGuiGetReasoningModelKeys, knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiSeedModelCatalog, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
-import { knoxGuiSessionModeIsAgent } from '../../../common/knoxGuiAgentMode.js';
+import { knoxGuiCatalogEntriesFromOverlayModels, knoxGuiGetReasoningModelKeys, knoxGuiModelSupportsImages, knoxGuiModelToolsSupportKnown, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiResolveToolsSupported, knoxGuiSeedModelCatalog, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
+import { knoxGuiIsSessionTabMode, knoxGuiSessionModeIsAgent } from '../../../common/knoxGuiAgentMode.js';
 import { addModelProviderById, buildAddModelPayload, categorizeKnoxChatModel, KNOX_CHAT_FALLBACK_MODELS, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, parseKnoxOAuthStatus, type IKnoxGuiAddModelPackage } from '../../../common/knoxGuiOverlays.js';
 import { KnoxGuiOverlay } from '../../../common/knoxGuiProtocol.js';
 import { IKnoxGuiModel, KnoxChatMode, KnoxModelRole } from '../../../common/knoxGuiState.js';
@@ -20,7 +20,11 @@ export function setMode(controller: KnoxGuiController, mode: KnoxChatMode): void
 		void controller.exitEditMode(mode);
 		return;
 	}
+	const previous = controller.store.state.mode;
 	controller.store.setMode(mode);
+	if (mode === 'edit' && knoxGuiIsSessionTabMode(previous)) {
+		controller.store.patch({ editReturnMode: previous });
+	}
 	if (mode === 'edit' && controller.store.state.history.length) {
 		void controller.newSession({ generateTitle: false });
 		return;
@@ -36,9 +40,18 @@ export function postSetAgentMode(controller: KnoxGuiController): void {
 	});
 }
 
-/** React ModeSelect: agent tab requires tool-calling; otherwise fall back to chat. */
+/**
+ * React ModeSelect: only leave Agent when the selected model is known not to
+ * support tools. Unknown (catalog still loading) keeps the Agent default.
+ */
 export function syncAgentTabWithModel(controller: KnoxGuiController): void {
-	if (knoxGuiSessionModeIsAgent(controller.store.state.mode) && !controller.store.state.toolsSupported) {
+	if (!knoxGuiSessionModeIsAgent(controller.store.state.mode)) {
+		return;
+	}
+	const title = controller.store.state.modelTitle;
+	const selected = controller.chatModels().find(model => model.title === title)
+		?? controller.store.state.models.find(model => model.title === title);
+	if (knoxGuiModelToolsSupportKnown(selected) === false) {
 		setMode(controller, 'chat');
 	}
 }
@@ -61,7 +74,7 @@ export function selectModel(controller: KnoxGuiController, role: KnoxModelRole, 
 		controller.store.patch({
 			imagesSupported: knoxGuiModelSupportsImages(selected),
 			webSearchSupported: knoxGuiModelSupportsWebSearch(selected),
-			toolsSupported: knoxGuiModelSupportsTools(selected),
+			toolsSupported: knoxGuiResolveToolsSupported(knoxGuiModelToolsSupportKnown(selected), controller.store.state.toolsSupported),
 			thinkingPlaceholder: knoxGuiShowsThinkingPlaceholder(selected),
 			reasoningEfforts: knoxGuiReasoningEffortConfig(selected)?.allowed ?? [],
 			reasoningEffort: effort,
@@ -99,7 +112,7 @@ export function patchSelectedModelCapabilities(controller: KnoxGuiController): v
 	controller.store.patch({
 		imagesSupported: knoxGuiModelSupportsImages(selected),
 		webSearchSupported: knoxGuiModelSupportsWebSearch(selected),
-		toolsSupported: knoxGuiModelSupportsTools(selected),
+		toolsSupported: knoxGuiResolveToolsSupported(knoxGuiModelToolsSupportKnown(selected), controller.store.state.toolsSupported),
 	});
 	syncAgentTabWithModel(controller);
 }

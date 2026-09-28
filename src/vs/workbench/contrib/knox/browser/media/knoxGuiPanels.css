@@ -914,7 +914,7 @@
 
 .knox-gui .rendered-markdown th,
 .knox-gui .rendered-markdown td {
-	border: 1px solid rgba(255, 255, 255, 0.15);
+	border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
 	padding: 0.7em;
 	text-align: left;
 }
@@ -926,7 +926,7 @@
 }
 
 .knox-gui .rendered-markdown tr:nth-child(even) {
-	background: rgba(255, 255, 255, 0.05);
+	background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.08));
 }
 
 .knox-gui .rendered-markdown tr:hover {
@@ -965,6 +965,35 @@
 	font-size: calc(1em - 2px);
 	line-height: 1.45;
 	white-space: pre;
+	position: relative;
+}
+
+.knox-gui .rendered-markdown .knox-gui-md-fence.generating {
+	overflow-x: scroll;
+}
+
+.knox-gui .rendered-markdown .knox-gui-md-fence.generating::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 2px;
+	background: linear-gradient(90deg, transparent, #159994, transparent);
+	background-size: 200% 100%;
+	animation: knox-gui-code-generating 1.5s linear infinite;
+	pointer-events: none;
+}
+
+.knox-gui .rendered-markdown .knox-gui-md-fence.generating::after {
+	content: '';
+	display: inline-block;
+	width: 2px;
+	height: 1.1em;
+	margin-left: 1px;
+	background-color: #159994;
+	vertical-align: text-bottom;
+	animation: knox-gui-cursor-blink 1s step-end infinite;
 }
 
 .knox-gui .rendered-markdown pre.wrap,

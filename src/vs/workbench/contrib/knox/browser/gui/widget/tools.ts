@@ -21,6 +21,8 @@ import {
 	DARK_TERMINAL_PALETTE,
 	displayArgsForToolCall,
 	displayLanguageForFile,
+	exactSearchDisplayQuery,
+	exactSearchQueryBadge,
 	extractLogPathFromTerminalOutput,
 	extractStreamingToolCode,
 	extractTerminalOutput,
@@ -59,7 +61,8 @@ import {
 } from '../../../common/knoxGuiTools.js';
 import { IKnoxGuiState, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
 import { knoxGuiHljsTokenColor, knoxGuiStateThemeIsLight } from '../../../common/knoxGuiTheme.js';
-import { activityAnchorId, parseCodeFenceRange, splitDisplayPath } from '../../../common/knoxGuiTranscript.js';
+import { activityAnchorId, IKnoxGuiMarkdownFenceBlock, parseCodeFenceRange, splitDisplayPath } from '../../../common/knoxGuiTranscript.js';
+import { patchLiveCodeFence } from './markdown.js';
 
 export function toolStreamFingerprint(tool: IKnoxGuiToolCall): string {
 	return `${tool.status}\0${tool.arguments}\0${tool.output ?? ''}\0${tool.outputItems?.length ?? 0}\0${tool.collapsed ? 1 : 0}`;
@@ -78,7 +81,68 @@ export function patchLiveTool(widget: KnoxGuiWidget, box: HTMLElement, state: IK
 		syncTerminalCard(widget, term, state, tool);
 		return true;
 	}
-	return false;
+	if (kind !== 'file' && kind !== 'generic' && kind !== 'create-file') {
+		return false;
+	}
+	if (tool.status === 'generated' && !box.querySelector('[data-testid="permission-action-buttons"]') && toolPermissionDisplay({
+		toolName: tool.name,
+		toolSettings: state.toolSettings,
+		sessionAllowlist: state.sessionToolAllowlist,
+		tools: state.tools,
+	}) !== 'autoApprove') {
+		return false;
+	}
+	syncToolStatusIcon(widget, box, tool);
+	const extracted = extractStreamingToolCode({ parsedArgs: tool.parsedArgs, rawArguments: tool.arguments });
+	const generating = tool.status === 'generating' || tool.status === 'calling';
+	const language = kind === 'create-file'
+		? displayLanguageForFile(String(tool.parsedArgs?.filepath ?? extracted.filepath ?? ''))
+		: displayLanguageForFile(extracted.filepath, extracted.contentKey);
+	const filepath = kind === 'create-file'
+		? String(tool.parsedArgs?.filepath ?? extracted.filepath ?? '')
+		: (extracted.filepath || (extracted.contentKey === 'patch' || extracted.contentKey === 'diff' ? 'patch' : ''));
+	const code = kind === 'create-file'
+		? String(tool.parsedArgs?.contents ?? extracted.codeContent ?? '')
+		: extracted.codeContent;
+	const codeBox = box.querySelector('.knox-gui-code-block') as HTMLElement | null;
+	if (codeBox) {
+		const fence: IKnoxGuiMarkdownFenceBlock = { type: 'fence', language, filepath: filepath || undefined, code, closed: !generating };
+		return patchLiveCodeFence(widget, [codeBox], state, { id: tool.id, role: 'assistant', content: '' }, fence, 0, generating, `tool:${tool.id}:code`);
+	}
+	if (!extracted.started && !code && !filepath) {
+		return true;
+	}
+	const body = box.querySelector('.knox-gui-tool-body') as HTMLElement | null;
+	if (!body) {
+		return false;
+	}
+	if (kind === 'create-file') {
+		widget.renderCreateFileTool(body, state, tool);
+	} else {
+		widget.renderGenericCodeTool(body, state, tool);
+	}
+	return Boolean(body.querySelector('.knox-gui-code-block'));
+}
+
+function syncToolStatusIcon(widget: KnoxGuiWidget, box: HTMLElement, tool: IKnoxGuiToolCall): void {
+	const icon = box.querySelector('.knox-gui-tool-status') as HTMLElement | null;
+	if (!icon) {
+		return;
+	}
+	const statusIcon = toolStatusIcon(tool.status);
+	const wantSpinner = statusIcon === 'spinner';
+	const hasSpinner = icon.classList.contains('knox-gui-tool-status-live');
+	if (wantSpinner === hasSpinner) {
+		return;
+	}
+	icon.replaceChildren();
+	icon.classList.toggle('knox-gui-tool-status-live', wantSpinner);
+	icon.classList.toggle('knox-gui-tool-status-glyph', !wantSpinner);
+	if (wantSpinner) {
+		widget.appendSpinner(icon, 16);
+	} else {
+		appendKnoxGuiSvg(icon, statusIcon, 14);
+	}
 }
 
 export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {
@@ -769,7 +833,7 @@ export function renderTreeCard(widget: KnoxGuiWidget, parent: HTMLElement, state
 }
 
 export function renderExactSearchTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {
-	const query = String(tool.parsedArgs?.query ?? '');
+	const query = exactSearchDisplayQuery(tool);
 	const items = tool.outputItems?.length ? tool.outputItems : (tool.output ? [{ content: tool.output }] : []);
 	const content = searchOutput(items);
 	const parsed = parseSearchResults(content);
@@ -788,7 +852,8 @@ export function renderExactSearchTool(widget: KnoxGuiWidget, parent: HTMLElement
 		onClick: () => widget.toggleCardExpanded(tool.id, true),
 	});
 	appendKnoxGuiSvg(head, 'search', 14);
-	DOM.append(head, DOM.$('code.knox-gui-search-query', undefined, query || '...'));
+	const queryEl = DOM.append(head, DOM.$('span.knox-gui-search-query', undefined, exactSearchQueryBadge(query)));
+	queryEl.title = query || t(state, 'searching');
 	const stats = DOM.append(head, DOM.$('span.knox-gui-muted'));
 	stats.textContent = streaming
 		? t(state, 'searching')

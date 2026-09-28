@@ -72,22 +72,10 @@ export function findContainingWorkspaceFolder(
     return best;
 }
 
-export function isCheckpointDebugStorageMode(env: {
-    nodeEnv?: string;
-    vscodeDebug?: string;
-    sessionId?: string;
-    appName?: string;
-}): boolean {
-    return env.nodeEnv === 'development' ||
-        env.vscodeDebug === 'true' ||
-        (env.sessionId ?? '').includes('debug') ||
-        (env.appName ?? '').includes('Insiders');
-}
-
 /**
- * Workspace roots the checkpoint store can safely write under.
- * The extension host cwd is often `/`, so empty, relative, and filesystem-root
- * paths must not be joined with `.knox-debug` (that mkdir's `/.knox-debug`).
+ * Workspace roots the checkpoint store can safely key off.
+ * Empty, relative, and filesystem-root paths are rejected — the extension
+ * host cwd is often `/`, and a root path would collide every workspace.
  */
 export function isUsableCheckpointWorkspacePath(workspacePath: string | undefined): workspacePath is string {
     if (typeof workspacePath !== 'string') {
@@ -113,19 +101,22 @@ export function isUsableCheckpointWorkspacePath(workspacePath: string | undefine
     return stripped !== root && normalized !== root;
 }
 
+/**
+ * Always `~/.knox/checkpoints/workspaces/<key>/` — same as original knox
+ * production. Native KnoxCoder launches with NODE_ENV=development, so the
+ * original debug layout (`{workspace}/.knox-debug`) would pollute every
+ * opened project. That directory is not required; leftover copies are still
+ * ignored by checkpoint capture.
+ */
 export function resolveCheckpointStoragePathFor(
     workspacePath: string | undefined,
     options: {
-        debug: boolean;
         globalCheckpointsPath: string;
     },
 ): string {
     const usableWorkspace = isUsableCheckpointWorkspacePath(workspacePath)
         ? workspacePath
         : undefined;
-    if (options.debug && usableWorkspace) {
-        return path.join(usableWorkspace, '.knox-debug', 'checkpoints');
-    }
     if (!usableWorkspace) {
         return options.globalCheckpointsPath;
     }

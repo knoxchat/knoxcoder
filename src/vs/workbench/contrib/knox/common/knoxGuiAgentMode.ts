@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KnoxChatMode } from './knoxGuiState.js';
+import { KNOX_GUI_DEFAULT_SESSION_MODE, KnoxChatMode } from './knoxGuiState.js';
 
 /**
  * KN-350: VS Code when-clause owned by AgentModeManager. Undo/redo keybindings
@@ -13,6 +13,25 @@ export const KNOX_AGENT_MODE_CONTEXT_KEY = 'knoxAgentModeActive';
 
 export function knoxGuiSessionModeIsAgent(mode: KnoxChatMode): boolean {
 	return mode === 'agent';
+}
+
+/** Chat/Agent tabs only. Edit is a temporary overlay that returns here. */
+export function knoxGuiIsSessionTabMode(mode: KnoxChatMode): mode is 'chat' | 'agent' {
+	return mode === 'chat' || mode === 'agent';
+}
+
+/**
+ * Native Composer Cmd+I: leave edit on the Chat/Agent tab you were on.
+ * First-run and a missing return tab are Agent, matching ModeSelect.
+ */
+export function knoxGuiModeAfterEditExit(returnMode?: KnoxChatMode, nextMode?: KnoxChatMode): KnoxChatMode {
+	if (nextMode && knoxGuiIsSessionTabMode(nextMode)) {
+		return nextMode;
+	}
+	if (returnMode && knoxGuiIsSessionTabMode(returnMode)) {
+		return returnMode;
+	}
+	return KNOX_GUI_DEFAULT_SESSION_MODE;
 }
 
 /**

@@ -39,7 +39,6 @@ export interface SmartCheckpointConfig {
     maxCheckpoints: number;
     maxFileSizeKB: number;
     storagePath: string;
-    debugStoragePath: string;
     verboseLogging: boolean;
     enableMetrics: boolean;
 }
@@ -495,7 +494,6 @@ export class SmartCheckpointManager {
         return {
             ...SMART_CHECKPOINT_DEFAULTS,
             storagePath: getGlobalCheckpointsPath(),
-            debugStoragePath: '.knox-debug/checkpoints',
         };
     }
 

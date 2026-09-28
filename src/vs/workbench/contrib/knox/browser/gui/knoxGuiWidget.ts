@@ -11,7 +11,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { knoxGuiShowsChatScrollbar, knoxGuiShowsFatalBanner, knoxGuiShowsSessionTabs } from '../../common/knoxGuiChrome.js';
-import { AUTO_DISPLAY_START, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange, toolDisplayKind } from '../../common/knoxGuiChat.js';
+import { AUTO_DISPLAY_START, isKnoxGuiFilterOnlyChange, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange, toolDisplayKind } from '../../common/knoxGuiChat.js';
 import { composerUndoRecord, createComposerInputHistory, createComposerUndo, IKnoxGuiComposerInputHistory, IKnoxGuiComposerUndo, IKnoxGuiDocCaret, IKnoxGuiInputBlock, KnoxGuiInlineNode } from '../../common/knoxGuiInput.js';
 import type { IKnoxGuiCheckpointDetailsView } from '../../common/knoxGuiCheckpoints.js';
 import { applyKnoxGuiThemeToElement } from '../../common/knoxGuiTheme.js';
@@ -39,6 +39,7 @@ import { captureDomState, restoreDomState } from './widget/preserve.js';
 export class KnoxGuiWidget extends Disposable {
 	readonly root: HTMLElement;
 	readonly renderStore = this._register(new DisposableStore());
+	readonly filterStore = this._register(new DisposableStore());
 	readonly checkpointGraphStore = this._register(new DisposableStore());
 	listenerStore: DisposableStore;
 	checkpointGraphMount: HTMLElement | undefined;
@@ -122,7 +123,9 @@ export class KnoxGuiWidget extends Disposable {
 	readonly toolPatchStore = this._register(new DisposableStore());
 	readonly toolPatchStores = new Map<string, DisposableStore>();
 	/** Rendered blocks of the streaming reply, in order; see `renderStreamingAssistantBody`. */
-	streamBlocks: { key: string; nodes: ChildNode[]; store: DisposableStore; payload: string }[] = [];
+	streamBlocks: knoxGuiChatView.IKnoxGuiStreamCacheBlock[] = [];
+	/** Live reasoning markdown cache; see `renderStreamingReasoningBody`. */
+	reasoningBlocks: knoxGuiChatView.IKnoxGuiStreamCacheBlock[] = [];
 	openMenu: 'agent' | 'model' | 'effort' | null = null;
 	openMenuSource = 'main';
 	openRoleMenu: KnoxModelRole | null = null;
@@ -312,6 +315,7 @@ export class KnoxGuiWidget extends Disposable {
 		}
 		this._register({ dispose: () => clearTimeout(this.lumpFade.timer) });
 		this._register({ dispose: () => { if (this.checkpointListQueryTimer) { clearTimeout(this.checkpointListQueryTimer); } } });
+		this._register({ dispose: () => { if (this.memorySearchTimer) { clearTimeout(this.memorySearchTimer); } } });
 		this._register({ dispose: () => { if (this.memorySessionSearchTimer) { clearTimeout(this.memorySessionSearchTimer); } } });
 		this._register({ dispose: () => { if (this.memoryGraphSearchTimer) { clearTimeout(this.memoryGraphSearchTimer); } } });
 		this.gitDiffExpanded = this.controller.gitDiffExpanded();
@@ -356,9 +360,21 @@ export class KnoxGuiWidget extends Disposable {
 			this.syncInput(state);
 			return;
 		}
+		if (this.lastState && isKnoxGuiFilterOnlyChange(this.lastState, state)) {
+			this.lastState = state;
+			this.syncLiveFilters(state);
+			return;
+		}
 		if (this.lastState && isKnoxGuiStreamingTokenChange(this.lastState, state) && this.lastAssistantCard) {
+			const ended = this.lastState.isStreaming && !state.isStreaming;
 			this.lastState = state;
 			this.patchLastAssistant(state);
+			if (ended && this.autoScrollEnabled) {
+				knoxGuiChromeView.scheduleStreamEndStick(this);
+			}
+			if (ended && this.shouldShowComposer(state)) {
+				this.refocusComposerAfterStream = true;
+			}
 			return;
 		}
 		if (this.lastState && !this.lastState.isStreaming && state.isStreaming) {
@@ -384,6 +400,7 @@ export class KnoxGuiWidget extends Disposable {
 		const domSnapshot = captureDomState(this.root, this.bodyEl);
 		this.checkpointGraphMount?.remove();
 		this.renderStore.clear();
+		this.filterStore.clear();
 		this.listenerStore = this.renderStore;
 		this.editorEl = undefined;
 		this.suggestEl = undefined;
@@ -410,6 +427,7 @@ export class KnoxGuiWidget extends Disposable {
 		this.toolPatchStore.clear();
 		this.toolPatchStores.clear();
 		this.streamBlocks = [];
+		this.reasoningBlocks = [];
 		const state = this.controller.store.state;
 		if (state.sessionId !== this.lastSessionId) {
 			this.lastSessionId = state.sessionId;
@@ -579,6 +597,10 @@ export class KnoxGuiWidget extends Disposable {
 
 	renderStreamingAssistantBody(card: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem): void {
 		knoxGuiChatView.renderStreamingAssistantBody(this, card, state, item);
+	}
+
+	renderStreamingReasoningBody(content: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem, thinking: string): void {
+		knoxGuiChatView.renderStreamingReasoningBody(this, content, state, item, thinking);
 	}
 
 	onDragOver(event: DragEvent): void {
@@ -761,8 +783,8 @@ export class KnoxGuiWidget extends Disposable {
 		knoxGuiMarkdownView.renderCodeFenceBlock(this, parent, state, options);
 	}
 
-	paintHighlightedCode(pre: HTMLElement, language: string, code: string, filepath?: string): void {
-		knoxGuiMarkdownView.paintHighlightedCode(this, pre, language, code, filepath);
+	paintHighlightedCode(pre: HTMLElement, language: string, code: string, filepath?: string, allowAuto?: boolean): void {
+		knoxGuiMarkdownView.paintHighlightedCode(this, pre, language, code, filepath, allowAuto);
 	}
 
 	renderApplyActions(parent: HTMLElement, state: IKnoxGuiState, streamId: string, fence: { code: string; filepath?: string }): void {
@@ -997,6 +1019,27 @@ export class KnoxGuiWidget extends Disposable {
 
 	syncInput(state: IKnoxGuiState): void {
 		knoxGuiComposerView.syncInput(this, state);
+	}
+
+	withFilterStore<T>(fn: () => T): T {
+		this.filterStore.clear();
+		const previous = this.listenerStore;
+		this.listenerStore = this.filterStore;
+		try {
+			return fn();
+		} finally {
+			this.listenerStore = previous;
+		}
+	}
+
+	syncLiveFilters(state: IKnoxGuiState): void {
+		this.withFilterStore(() => {
+			knoxGuiPagesView.syncKnoxChatModelList(this, state);
+			knoxGuiOverlaysView.syncHistoryList(this, state);
+			knoxGuiCheckpointsView.syncCheckpointList(this, state);
+			knoxGuiCheckpointsView.syncCheckpointTimeline(this, state);
+			knoxGuiMemoryView.syncMemoryFilters(this, state);
+		});
 	}
 
 	renderSuggest(wrap: HTMLElement, state: IKnoxGuiState): void {

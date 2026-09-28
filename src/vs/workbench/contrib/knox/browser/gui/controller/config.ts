@@ -6,7 +6,7 @@
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { LANGUAGE_KEY, asRecord, asArray, modelsFromUnknown } from './helpers.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsWebSearch, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
+import { knoxGuiModelSupportsImages, knoxGuiModelToolsSupportKnown, knoxGuiModelSupportsWebSearch, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiResolveToolsSupported, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
 import { postSetAgentMode, syncAgentTabWithModel } from './models.js';
 import { draftSession, lastActiveSession, loadProfilePreferences } from './persistence.js';
 import { knoxGuiResolveProfileId, knoxGuiStartupSession } from '../../../common/knoxGuiPersist.js';
@@ -200,7 +200,7 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 		promptPath: typeof experimental?.promptPath === 'string' ? experimental.promptPath : controller.store.state.promptPath,
 		webSearchSupported: knoxGuiModelSupportsWebSearch(selectedModel),
 		imagesSupported: knoxGuiModelSupportsImages(selectedModel),
-		toolsSupported: selectedModel ? knoxGuiModelSupportsTools(selectedModel): controller.store.state.toolsSupported,
+		toolsSupported: knoxGuiResolveToolsSupported(knoxGuiModelToolsSupportKnown(selectedModel), controller.store.state.toolsSupported),
 		thinkingPlaceholder: knoxGuiShowsThinkingPlaceholder(selectedModel),
 		reasoningEffort: resolvedEffort ?? controller.store.state.reasoningEffort,
 		reasoningEfforts: effortConfig?.allowed ?? [],

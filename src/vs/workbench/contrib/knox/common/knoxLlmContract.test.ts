@@ -53,6 +53,8 @@ suite('Knox LLM stack contract (KN-250–256)', () => {
 		assert.ok(messenger.includes('getKnoxChatModels'));
 		assert.ok(messenger.includes('KN-371'));
 		assert.ok(!messenger.includes('fetch(KNOX_CHAT_MODELS_URL)'));
+		assert.ok(capabilities.includes('knoxGuiModelToolsSupportKnown'));
+		assert.ok(capabilities.includes('knoxGuiResolveToolsSupported'));
 		assert.ok(models.includes('knoxGuiSeedModelCatalog'));
 		assert.ok(models.includes('patchSelectedModelCapabilities'));
 	});

@@ -103,7 +103,8 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.imagesSupported, true);
 		assert.deepStrictEqual(store.state.reasoningEfforts, [...DEFAULT_REASONING_EFFORT_ALLOWED]);
 		assert.strictEqual(store.state.webSearchSupported, false);
-		assert.strictEqual(store.state.toolsSupported, false);
+		assert.strictEqual(store.state.toolsSupported, true);
+		assert.strictEqual(store.state.mode, 'agent');
 	});
 
 	test('selectModel updates imagesSupported from uploadImage', async () => {
@@ -199,6 +200,9 @@ suite('Knox native GUI controller (GP-084)', () => {
 				return false;
 			}
 			override requestBasicLanguageFeatures(): void { }
+			override guessLanguageIdByFilepathOrFirstLine(): string | null {
+				return null;
+			}
 		};
 		const markdownRendererService = new class extends mock<IMarkdownRendererService>() {
 			override render(markdown: IMarkdownString, options?: import('../../../../base/browser/markdownRenderer.js').MarkdownRenderOptions, target?: HTMLElement) {
@@ -290,10 +294,17 @@ suite('Knox native GUI controller (GP-084)', () => {
 
 		posted.length = 0;
 		await controller.handleInbound('exitEditMode', undefined, 'ex-1');
-		assert.strictEqual(store.state.mode, 'chat');
+		assert.strictEqual(store.state.mode, 'agent');
 		assert.strictEqual(store.state.codeToEdit.length, 0);
 		assert.ok(posted.some(message => message.messageType === 'edit/exit'));
 		assert.ok(posted.some(message => message.messageType === 'rejectDiff'));
+
+		store.patch({ mode: 'chat', history: [{ id: 'u2', role: 'user', content: 'ask' }], sessionId: 'chat-prev' });
+		await controller.handleInbound('focusEdit', undefined, 'fe-2');
+		assert.strictEqual(store.state.mode, 'edit');
+		assert.strictEqual(store.state.editReturnMode, 'chat');
+		await controller.handleInbound('exitEditMode', undefined, 'ex-2');
+		assert.strictEqual(store.state.mode, 'chat');
 	});
 
 	test('I-08 leaving edit mode reloads the newest workspace session, else opens a new chat', async () => {
@@ -307,7 +318,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		controller.workspaceDirectory = '/repo';
 		store.patch({ mode: 'edit', sessionId: 'edit-session', history: [{ id: 'e', role: 'user', content: 'edit this' }] });
 		await controller.exitEditMode();
-		assert.strictEqual(store.state.mode, 'chat');
+		assert.strictEqual(store.state.mode, 'agent');
 		assert.strictEqual(store.state.sessionId, 'last');
 		assert.ok(posted.some(message => message.messageType === 'history/list'));
 
@@ -347,6 +358,9 @@ suite('Knox native GUI controller (GP-084)', () => {
 				return false;
 			}
 			override requestBasicLanguageFeatures(): void { }
+			override guessLanguageIdByFilepathOrFirstLine(): string | null {
+				return null;
+			}
 		};
 		const markdownRendererService = new class extends mock<IMarkdownRendererService>() {
 			override render(markdown: IMarkdownString, options?: import('../../../../base/browser/markdownRenderer.js').MarkdownRenderOptions, target?: HTMLElement) {
@@ -359,7 +373,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(editor);
 		editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
 		await timeout(0);
-		assert.strictEqual(store.state.mode, 'chat');
+		assert.strictEqual(store.state.mode, 'agent');
 		assert.ok(posted.some(message => message.messageType === 'edit/exit'));
 	});
 
@@ -423,13 +437,23 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.mode, 'edit');
 	});
 
-	test('KN-350 agent tab falls back to chat when the model has no tools', async () => {
+	test('KN-350 agent tab stays Agent until the model is known not to support tools', async () => {
 		const { controller, store, posted } = createHarness();
 		await timeout(0);
 		assert.strictEqual(store.state.mode, 'agent');
 		controller.applyConfig({
 			config: {
 				models: [{ title: 'Local', provider: 'ollama', model: 'llama3' }],
+				selectedModelTitle: 'Local',
+			},
+		});
+		assert.strictEqual(store.state.toolsSupported, true);
+		assert.strictEqual(store.state.mode, 'agent');
+		assert.ok(!posted.some(message => message.messageType === 'setAgentMode' && (message.data as { active?: boolean }).active === false));
+		posted.length = 0;
+		controller.applyConfig({
+			config: {
+				models: [{ title: 'Local', provider: 'ollama', model: 'llama3', capabilities: { tools: false } }],
 				selectedModelTitle: 'Local',
 			},
 		});
@@ -448,11 +472,12 @@ suite('Knox native GUI controller (GP-084)', () => {
 				selectedModelTitle: 'Grok',
 			},
 		});
-		assert.strictEqual(store.state.toolsSupported, false);
-		assert.strictEqual(store.state.mode, 'chat');
+		assert.strictEqual(store.state.toolsSupported, true);
+		assert.strictEqual(store.state.mode, 'agent');
 		knoxGuiSeedModelCatalog([{ id: 'spacexai/grok-4.7', supportedParameters: ['tools', 'tool_choice'] }]);
 		controller.selectModel('chat', 'Grok');
 		assert.strictEqual(store.state.toolsSupported, true);
+		assert.strictEqual(store.state.mode, 'agent');
 
 		const loaded = createHarness({
 			listModels: [
@@ -1261,7 +1286,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		controller.acceptAllApplies();
 		assert.ok(posted.some(message => message.messageType === 'acceptDiff' && (message.data as { streamId?: string }).streamId === 'diff-1'));
 		assert.ok(!posted.some(message => message.messageType === 'acceptDiff' && (message.data as { streamId?: string }).streamId === 'diff-2'));
-		assert.strictEqual(store.state.mode, 'chat');
+		assert.strictEqual(store.state.mode, 'agent');
 		assert.ok(posted.some(message => message.messageType === 'edit/exit'));
 	});
 

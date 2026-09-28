@@ -508,6 +508,8 @@ export function renderMemoryBrowser(widget: KnoxGuiWidget, body: HTMLElement, st
 	svg(searchWrap, 'search', 14, 'search-icon o-50');
 	widget.renderStore.add(DOM.addDisposableListener(input, 'input', () => {
 		widget.memorySearchDraft = input.value;
+		clear.hidden = !input.value;
+		applyMemoryBrowserFilter(widget, widget.controller.store.state);
 		if (widget.memorySearchTimer) {
 			clearTimeout(widget.memorySearchTimer);
 		}
@@ -516,23 +518,25 @@ export function renderMemoryBrowser(widget: KnoxGuiWidget, body: HTMLElement, st
 			reload();
 		}, 300);
 	}));
-	if (widget.memorySearchDraft || state.memoryQuery) {
-		memoryButton(widget, searchWrap, {
-			tokens: 'search-clear',
-			icon: 'x',
-			ariaLabel: t(state, 'clearSearch'),
-			onClick: () => {
-				widget.memorySearchDraft = '';
-				if (widget.memorySearchTimer) {
-					clearTimeout(widget.memorySearchTimer);
-					widget.memorySearchTimer = undefined;
-				}
-				widget.controller.store.patch({ memoryQuery: '' });
-				reload();
-				widget.root.querySelector<HTMLInputElement>('.knox-gui-memory-search input')?.focus();
-			},
-		});
-	}
+	const clear = memoryButton(widget, searchWrap, {
+		tokens: 'search-clear',
+		icon: 'x',
+		ariaLabel: t(state, 'clearSearch'),
+		onClick: () => {
+			widget.memorySearchDraft = '';
+			input.value = '';
+			clear.hidden = true;
+			if (widget.memorySearchTimer) {
+				clearTimeout(widget.memorySearchTimer);
+				widget.memorySearchTimer = undefined;
+			}
+			applyMemoryBrowserFilter(widget, widget.controller.store.state);
+			widget.controller.store.patch({ memoryQuery: '' });
+			reload();
+			input.focus();
+		},
+	});
+	clear.hidden = !(widget.memorySearchDraft || state.memoryQuery);
 
 	const filters = mk(body, 'div', 'flex flex-wrap items-center gap-2 xs');
 	const filterSelect = (options: ReadonlyArray<readonly [string, string]>, current: string, onChange: (value: string) => void): HTMLSelectElement => {
@@ -606,7 +610,8 @@ export function renderMemoryBrowser(widget: KnoxGuiWidget, body: HTMLElement, st
 		svg(badge, 'check', 10);
 		mk(badge, 'span', '', t(state, 'selectedCount', { count: widget.memorySelectedIds.size }));
 	}
-	mk(counts, 'span', '', `${memories.length} ${t(state, 'memoryMemoriesFound')}`);
+	const found = mk(counts, 'span', '', `${memories.length} ${t(state, 'memoryMemoriesFound')}`);
+	found.setAttribute('data-memory-found-count', '1');
 	const tools = mk(toolbar, 'div', 'flex flex-wrap items-center gap-1');
 	const selected = [...widget.memorySelectedIds];
 	const busy = state.memoryBrowserBusy;
@@ -685,10 +690,11 @@ export function renderMemoryBrowser(widget: KnoxGuiWidget, body: HTMLElement, st
 	}
 	if (state.memorySortBy === 'recent') {
 		for (const group of groupMemoriesByDate(memories)) {
-			const section = mk(list, 'div', 'sy-2');
+			const section = mk(list, 'div', 'sy-2 knox-gui-memory-date-group');
 			const head = mk(section, 'div', 'kv pt-1');
 			mk(head, 'h2', 'xs fw-6 o-70', t(state, group.headerKey));
-			mk(head, 'span', 't-10 o-50', t(state, 'itemsCount', { count: group.memories.length }));
+			const groupCount = mk(head, 'span', 't-10 o-50', t(state, 'itemsCount', { count: group.memories.length }));
+			groupCount.setAttribute('data-memory-group-count', '1');
 			for (const memory of group.memories) {
 				renderMemoryRow(widget, section, state, memory, orderedIds);
 			}
@@ -698,6 +704,9 @@ export function renderMemoryBrowser(widget: KnoxGuiWidget, body: HTMLElement, st
 			renderMemoryRow(widget, list, state, memory, orderedIds);
 		}
 	}
+	const empty = mk(list, 'div', 'py-8 text-center sm o-50', t(state, memoryBrowserEmptyKey(widget.memorySearchDraft || state.memoryQuery, state.memoryFilterPinned, state.memoryFilterTier)));
+	empty.setAttribute('data-memory-empty', '1');
+	applyMemoryBrowserFilter(widget, state);
 	if (state.memoryHasMore) {
 		const more = mk(body, 'div', 'flex justify-center pt-2');
 		const button = memoryButton(widget, more, {
@@ -719,6 +728,7 @@ function renderMemoryRow(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxG
 	const selected = widget.memorySelectedIds.has(memory.id);
 	const row = mk(body, 'div', selected ? 'memory-row selected' : 'memory-row');
 	row.setAttribute('data-testid', `memory-row-${memory.id}`);
+	row.setAttribute('data-memory-id', memory.id);
 	if (widget.memorySelectionMode) {
 		row.classList.add('is-selecting');
 	}
@@ -817,6 +827,7 @@ export function renderMemorySessions(widget: KnoxGuiWidget, body: HTMLElement, s
 	search.value = state.memorySessionQuery;
 	widget.renderStore.add(DOM.addDisposableListener(search, 'input', () => {
 		const value = search.value;
+		applyMemorySessionFilter(widget, value);
 		widget.controller.store.patch({ memorySessionQuery: value, ...(value.trim().length < 2 ? { memoryBacklogMatches: [] } : {}) });
 		if (widget.memorySessionSearchTimer) {
 			clearTimeout(widget.memorySessionSearchTimer);
@@ -856,8 +867,8 @@ export function renderMemorySessions(widget: KnoxGuiWidget, body: HTMLElement, s
 	const layout = mk(body, 'div', 'session-grid');
 	const list = mk(layout, 'div', 'panel session-panel');
 	const query = state.memorySessionQuery.trim().toLowerCase();
-	const sessions = state.memorySessions.filter(session => !query || session.title.toLowerCase().includes(query) || session.id.toLowerCase().includes(query) || (session.summary ?? '').toLowerCase().includes(query));
-	const listHead = mk(list, 'div', 'panel-head shrink-0', t(state, 'memorySessionHistoryList', { count: sessions.length }));
+	const sessions = state.memorySessions;
+	const listHead = mk(list, 'div', 'panel-head shrink-0', t(state, 'memorySessionHistoryList', { count: sessions.filter(session => memorySessionMatchesQuery(session, query)).length }));
 	listHead.setAttribute('data-testid', 'memory-session-count');
 	const listBody = mk(list, 'div', 'panel-scroll');
 	if (state.memorySessionsLoading) {
@@ -869,6 +880,8 @@ export function renderMemorySessions(widget: KnoxGuiWidget, body: HTMLElement, s
 		const selected = session.id === state.memorySelectedSessionId;
 		const row = mk(listBody, 'button', selected ? 'session-row selected' : 'session-row');
 		row.type = 'button';
+		row.setAttribute('data-session-id', session.id);
+		row.hidden = Boolean(query) && !memorySessionMatchesQuery(session, query);
 		svg(row, 'chevron-right', 12, selected ? 'mt-0_5 teal' : 'mt-0_5');
 		const main = mk(row, 'div', 'min-w-0 flex-1');
 		const titleRow = mk(main, 'div', 'truncate fw-5', session.title || session.id.slice(0, 12));
@@ -974,6 +987,7 @@ export function renderMemoryGraph(widget: KnoxGuiWidget, body: HTMLElement, stat
 	svg(searchWrap, 'search', 14, 'search-icon o-50');
 	widget.renderStore.add(DOM.addDisposableListener(search, 'input', () => {
 		widget.controller.store.patch({ memoryGraphQuery: search.value });
+		applyMemoryGraphFilter(widget, widget.controller.store.state);
 		if (widget.memoryGraphSearchTimer) {
 			clearTimeout(widget.memoryGraphSearchTimer);
 		}
@@ -1072,10 +1086,12 @@ export function renderMemoryGraph(widget: KnoxGuiWidget, body: HTMLElement, stat
 		return;
 	}
 	const list = mk(body, 'div', 'sy-2');
-	mk(list, 'div', 'xs o-50', t(state, 'memoryGraphShowingEntities', { shown: entities.length, total: state.memoryGraphTotal || entities.length }));
+	const shown = mk(list, 'div', 'xs o-50', t(state, 'memoryGraphShowingEntities', { shown: entities.length, total: state.memoryGraphTotal || entities.length }));
+	shown.setAttribute('data-graph-shown-count', '1');
 	for (const entity of entities) {
 		const color = graphEntityColor(entity.entityType);
 		const row = mk(list, 'div', 'entity-row');
+		row.setAttribute('data-entity-id', String(entity.id));
 		const avatar = mk(row, 'div', 'entity-avatar', (entity.entityType?.[0] ?? '?').toUpperCase());
 		avatar.style.backgroundColor = `${color}20`;
 		avatar.style.color = color;
@@ -1536,5 +1552,110 @@ function entityChip(widget: KnoxGuiWidget, parent: HTMLElement, name: string, ty
 		chip.style.color = color;
 		chip.style.border = `1px solid ${color}50`;
 		widget.renderStore.add(DOM.addDisposableListener(chip, 'click', onClick));
+	}
+}
+
+export function syncMemoryFilters(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
+	applyMemoryBrowserFilter(widget, state);
+	applyMemorySessionFilter(widget, state.memorySessionQuery);
+	applyMemoryGraphFilter(widget, state);
+}
+
+function memorySessionMatchesQuery(session: IKnoxGuiState['memorySessions'][number], query: string): boolean {
+	if (!query) {
+		return true;
+	}
+	return session.title.toLowerCase().includes(query) || session.id.toLowerCase().includes(query) || (session.summary ?? '').toLowerCase().includes(query);
+}
+
+function applyMemoryBrowserFilter(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
+	const pane = widget.root.querySelector('[data-testid="knox-gui-memory-browser"]') as HTMLElement | null;
+	if (!pane) {
+		return;
+	}
+	const matched = new Set(filterAndSortMemories(state.memories, {
+		category: state.memoryFilterCategory,
+		tier: state.memoryFilterTier,
+		pinned: state.memoryFilterPinned,
+		sortBy: state.memorySortBy,
+		query: widget.memorySearchDraft || state.memoryQuery,
+	}).map(memory => memory.id));
+	for (const row of pane.querySelectorAll<HTMLElement>('[data-memory-id]')) {
+		const id = row.getAttribute('data-memory-id');
+		row.hidden = !(id && matched.has(id));
+	}
+	for (const group of pane.querySelectorAll<HTMLElement>('.knox-gui-memory-date-group')) {
+		const visible = group.querySelectorAll('[data-memory-id]:not([hidden])').length;
+		group.hidden = visible === 0;
+		const count = group.querySelector('[data-memory-group-count]');
+		if (count) {
+			count.textContent = t(state, 'itemsCount', { count: visible });
+		}
+	}
+	const found = pane.querySelector('[data-memory-found-count]');
+	if (found) {
+		found.textContent = `${matched.size} ${t(state, 'memoryMemoriesFound')}`;
+	}
+	const empty = pane.querySelector<HTMLElement>('[data-memory-empty]');
+	if (empty) {
+		empty.hidden = matched.size > 0;
+		empty.textContent = t(state, memoryBrowserEmptyKey(widget.memorySearchDraft || state.memoryQuery, state.memoryFilterPinned, state.memoryFilterTier));
+	}
+	const clear = pane.querySelector<HTMLElement>('.knox-gui-memory-search-clear');
+	if (clear) {
+		clear.hidden = !(widget.memorySearchDraft || state.memoryQuery);
+	}
+}
+
+function applyMemorySessionFilter(widget: KnoxGuiWidget, query: string): void {
+	const pane = widget.root.querySelector('[data-testid="knox-gui-memory-sessions"]') as HTMLElement | null;
+	if (!pane) {
+		return;
+	}
+	const q = query.trim().toLowerCase();
+	const state = widget.controller.store.state;
+	let visible = 0;
+	for (const row of pane.querySelectorAll<HTMLElement>('[data-session-id]')) {
+		const id = row.getAttribute('data-session-id');
+		const session = state.memorySessions.find(item => item.id === id);
+		const show = !session || memorySessionMatchesQuery(session, q);
+		row.hidden = !show;
+		if (show) {
+			visible += 1;
+		}
+	}
+	const head = pane.querySelector('[data-testid="memory-session-count"]');
+	if (head) {
+		head.textContent = t(state, 'memorySessionHistoryList', { count: visible });
+	}
+}
+
+function memoryGraphEntityMatchesQuery(entity: IKnoxGuiState['memoryGraphEntities'][number], query: string): boolean {
+	const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+	if (!tokens.length) {
+		return true;
+	}
+	const haystack = [entity.name, entity.entityType, entity.description].filter(Boolean).join(' ').toLowerCase();
+	return tokens.every(token => haystack.includes(token));
+}
+
+function applyMemoryGraphFilter(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
+	const pane = widget.root.querySelector('[data-testid="knox-gui-memory-graph"]') as HTMLElement | null;
+	if (!pane) {
+		return;
+	}
+	let visible = 0;
+	for (const row of pane.querySelectorAll<HTMLElement>('[data-entity-id]')) {
+		const id = Number(row.getAttribute('data-entity-id'));
+		const entity = state.memoryGraphEntities.find(item => item.id === id);
+		const show = !entity || memoryGraphEntityMatchesQuery(entity, state.memoryGraphQuery);
+		row.hidden = !show;
+		if (show) {
+			visible += 1;
+		}
+	}
+	const shown = pane.querySelector('[data-graph-shown-count]');
+	if (shown) {
+		shown.textContent = t(state, 'memoryGraphShowingEntities', { shown: visible, total: state.memoryGraphTotal || state.memoryGraphEntities.length });
 	}
 }

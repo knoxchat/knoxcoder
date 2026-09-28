@@ -1814,11 +1814,11 @@ export function renderCodeToEditCard(widget: KnoxGuiWidget, parent: HTMLElement,
 			if (e.key === 'ArrowDown' && widget.addFileHits.length) {
 				e.preventDefault();
 				widget.addFileSelected = (widget.addFileSelected + 1) % widget.addFileHits.length;
-				widget.controller.store.patch({});
+				paintAddFileHits(widget);
 			} else if (e.key === 'ArrowUp' && widget.addFileHits.length) {
 				e.preventDefault();
 				widget.addFileSelected = (widget.addFileSelected - 1 + widget.addFileHits.length) % widget.addFileHits.length;
-				widget.controller.store.patch({});
+				paintAddFileHits(widget);
 			} else if (e.key === 'Enter') {
 				e.preventDefault();
 				const hit = widget.addFileHits[widget.addFileSelected];
@@ -1832,6 +1832,13 @@ export function renderCodeToEditCard(widget: KnoxGuiWidget, parent: HTMLElement,
 				widget.controller.store.patch({ addFileOpen: false });
 			}
 		}));
+		widget.renderStore.add(DOM.addDisposableListener(combobox, 'click', e => {
+			const option = (e.target as HTMLElement).closest('.knox-gui-add-file-option') as HTMLElement | null;
+			const uri = option?.dataset.uri;
+			if (uri) {
+				void pickAddFile(widget, uri);
+			}
+		}));
 		widget.chromeButton(combobox, {
 			svg: 'x',
 			svgSize: 14,
@@ -1843,24 +1850,7 @@ export function renderCodeToEditCard(widget: KnoxGuiWidget, parent: HTMLElement,
 				widget.controller.store.patch({ addFileOpen: false });
 			},
 		});
-		if (widget.addFileHits.length) {
-			const options = DOM.append(combobox, DOM.$('.knox-gui-add-file-options'));
-			for (const [index, hit] of widget.addFileHits.entries()) {
-				const option = DOM.append(options, DOM.$('button.knox-gui-add-file-option')) as HTMLButtonElement;
-				option.type = 'button';
-				if (index === widget.addFileSelected) {
-					option.classList.add('selected');
-				}
-				appendKnoxGuiSvg(option, 'file', 16);
-				DOM.append(option, DOM.$('span', undefined, hit.label));
-				if (hit.description) {
-					DOM.append(option, DOM.$('span.knox-gui-muted', undefined, hit.description));
-				}
-				widget.renderStore.add(DOM.addDisposableListener(option, 'click', () => void pickAddFile(widget, hit.query || hit.id)));
-			}
-		} else if (widget.addFileQuery) {
-			DOM.append(combobox, DOM.$('.knox-gui-add-file-empty', undefined, t(state, 'noResults')));
-		}
+		paintAddFileHits(widget);
 		queueMicrotask(() => input.focus());
 	}
 }
@@ -1870,6 +1860,10 @@ async function pickAddFile(widget: KnoxGuiWidget, uri: string): Promise<void> {
 	widget.addFileQuery = '';
 	widget.addFileHits = widget.addFileHits.filter(hit => (hit.query || hit.id) !== uri);
 	widget.addFileSelected = 0;
+	const input = widget.root.querySelector('.knox-gui-add-file-input') as HTMLInputElement | null;
+	if (input) {
+		input.value = '';
+	}
 	await widget.controller.addFilesToEdit([uri]);
 	if (widget.controller.store.state.addFileOpen) {
 		await widget.refreshAddFileHits('');
@@ -1883,7 +1877,37 @@ export async function refreshAddFileHits(widget: KnoxGuiWidget, query: string): 
 	}
 	widget.addFileHits = hits;
 	widget.addFileSelected = 0;
-	widget.controller.store.patch({});
+	if (!paintAddFileHits(widget)) {
+		widget.controller.store.patch({});
+	}
+}
+
+function paintAddFileHits(widget: KnoxGuiWidget): boolean {
+	const combobox = widget.root.querySelector('.knox-gui-add-file-combo') as HTMLElement | null;
+	if (!combobox) {
+		return false;
+	}
+	combobox.querySelectorAll('.knox-gui-add-file-options, .knox-gui-add-file-empty').forEach(node => node.remove());
+	const state = widget.controller.store.state;
+	if (widget.addFileHits.length) {
+		const options = DOM.append(combobox, DOM.$('.knox-gui-add-file-options'));
+		for (const [index, hit] of widget.addFileHits.entries()) {
+			const option = DOM.append(options, DOM.$('button.knox-gui-add-file-option')) as HTMLButtonElement;
+			option.type = 'button';
+			option.dataset.uri = hit.query || hit.id;
+			if (index === widget.addFileSelected) {
+				option.classList.add('selected');
+			}
+			appendKnoxGuiSvg(option, 'file', 16);
+			DOM.append(option, DOM.$('span', undefined, hit.label));
+			if (hit.description) {
+				DOM.append(option, DOM.$('span.knox-gui-muted', undefined, hit.description));
+			}
+		}
+	} else if (widget.addFileQuery) {
+		DOM.append(combobox, DOM.$('.knox-gui-add-file-empty', undefined, t(state, 'noResults')));
+	}
+	return true;
 }
 
 export function renderContextPeek(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {

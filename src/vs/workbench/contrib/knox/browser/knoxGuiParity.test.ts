@@ -263,6 +263,9 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui-tree-body.is-repo-map'));
 		assert.ok(css.includes('.knox-gui-search-line.match .knox-gui-search-ln'));
 		assert.ok(css.includes('.knox-gui-search-line:not(.match) .knox-gui-search-code'));
+		assert.ok(css.includes('.knox-gui-code-block.knox-gui-code-generic'));
+		assert.ok(css.includes('.knox-gui-code-block.knox-gui-code-generic:hover > .knox-gui-code-actions.knox-gui-code-hover'));
+		assert.ok(css.includes('.knox-gui.show-file-icons .knox-gui-search-query::before'));
 		assert.ok(css.includes('.knox-gui-tree-notice.is-light'));
 		assert.ok(css.includes('.knox-gui-ask-choice-desc'));
 		assert.ok(css.includes('.knox-gui-input-bar-icons'));

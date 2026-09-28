@@ -18,7 +18,7 @@ export const KNOX_GUI_LUMP_TOOLBAR = [
 	{ id: 'settings' as const, key: 'settings', svg: 'settings' as const },
 ];
 
-/** ModeSelect tabs. Edit is not a always-on tab; it appears only while in edit mode. */
+/** ModeSelect tabs. Agent is the first-run default; Edit appears only while in Cmd+I. */
 export const KNOX_GUI_MODE_TABS: KnoxChatMode[] = ['chat', 'agent'];
 
 export function knoxGuiLumpLabelVisible(overlay: KnoxGuiOverlay, id: string): boolean {

@@ -1,12 +1,9 @@
 import * as assert from 'node:assert';
-import * as fs from 'node:fs/promises';
-import * as os from 'node:os';
 import * as path from 'node:path';
 
 import {
     canonicalizeWorkspacePath,
     findContainingWorkspaceFolder,
-    isCheckpointDebugStorageMode,
     isUsableCheckpointWorkspacePath,
     resolveCheckpointStoragePathFor,
     workspacePathsEqual,
@@ -61,7 +58,18 @@ suite('workspace isolation (CP-10)', () => {
     test('production layout is workspaces/<key>/ under the global root', () => {
         const workspacePath = '/Users/knox/proj-a';
         const resolved = resolveCheckpointStoragePathFor(workspacePath, {
-            debug: false,
+            globalCheckpointsPath: '/tmp/knox-checkpoints',
+        });
+        assert.strictEqual(
+            resolved,
+            path.join('/tmp/knox-checkpoints', 'workspaces', workspaceStorageKey(workspacePath)),
+        );
+        assert.ok(!resolved.includes('.knox-debug'));
+    });
+
+    test('development does not write .knox-debug into the workspace', () => {
+        const workspacePath = '/Users/knox/proj-a';
+        const resolved = resolveCheckpointStoragePathFor(workspacePath, {
             globalCheckpointsPath: '/tmp/knox-checkpoints',
         });
         assert.strictEqual(
@@ -70,18 +78,7 @@ suite('workspace isolation (CP-10)', () => {
         );
     });
 
-    test('debug layout stays inside the workspace folder', () => {
-        const workspacePath = '/Users/knox/proj-a';
-        const resolved = resolveCheckpointStoragePathFor(workspacePath, {
-            debug: true,
-            globalCheckpointsPath: '/tmp/knox-checkpoints',
-        });
-        assert.strictEqual(resolved, path.join(workspacePath, '.knox-debug', 'checkpoints'));
-        assert.ok(isCheckpointDebugStorageMode({ nodeEnv: 'development' }));
-        assert.ok(!isCheckpointDebugStorageMode({ nodeEnv: 'production', appName: 'Visual Studio Code' }));
-    });
-
-    test('debug storage does not fall back to process.cwd or filesystem root', () => {
+    test('unusable workspace paths fall back to the global checkpoints root', () => {
         const globalCheckpointsPath = '/tmp/knox-checkpoints';
         assert.ok(!isUsableCheckpointWorkspacePath(undefined));
         assert.ok(!isUsableCheckpointWorkspacePath(''));
@@ -90,15 +87,15 @@ suite('workspace isolation (CP-10)', () => {
         assert.ok(isUsableCheckpointWorkspacePath('/Users/knox/proj-a'));
 
         assert.strictEqual(
-            resolveCheckpointStoragePathFor(undefined, { debug: true, globalCheckpointsPath }),
+            resolveCheckpointStoragePathFor(undefined, { globalCheckpointsPath }),
             globalCheckpointsPath,
         );
         assert.strictEqual(
-            resolveCheckpointStoragePathFor('/', { debug: true, globalCheckpointsPath }),
+            resolveCheckpointStoragePathFor('/', { globalCheckpointsPath }),
             globalCheckpointsPath,
         );
         assert.strictEqual(
-            resolveCheckpointStoragePathFor('', { debug: true, globalCheckpointsPath }),
+            resolveCheckpointStoragePathFor('', { globalCheckpointsPath }),
             globalCheckpointsPath,
         );
     });

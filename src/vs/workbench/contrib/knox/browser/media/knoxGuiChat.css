@@ -84,6 +84,30 @@
 	justify-content: flex-end;
 	gap: 4px;
 	margin: 8px 8px 0;
+	color: #159994;
+}
+
+.knox-gui-msg-actions .knox-gui-icon-btn {
+	box-sizing: border-box;
+	width: 18px;
+	height: 18px;
+	padding: 2px;
+	justify-content: center;
+	flex-shrink: 0;
+	color: #159994;
+}
+
+.knox-gui-msg-actions .knox-gui-svg,
+.knox-gui-msg-actions .codicon {
+	width: 14px;
+	height: 14px;
+	overflow: visible;
+	color: #159994;
+}
+
+.knox-gui-msg-actions [data-copied] .knox-gui-svg {
+	transform: scale(1.25);
+	transform-origin: center;
 }
 
 .knox-gui-tool {
@@ -564,13 +588,38 @@
 }
 
 .knox-gui-search-query {
-	font-family: var(--vscode-editor-font-family, monospace);
+	font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace) !important;
 	font-size: 12px;
+	font-weight: 600;
+	font-style: normal;
+	font-synthesis: none;
+	font-feature-settings: "liga" 0, "calt" 0;
+	font-variant-ligatures: none;
+	-webkit-font-smoothing: antialiased;
 	flex: 0 1 auto;
 	min-width: 0;
+	max-width: 50%;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	-webkit-text-fill-color: var(--vscode-badge-foreground);
+	padding: 2px 8px;
+	border-radius: 4px;
+	unicode-bidi: isolate;
+}
+
+.knox-gui.show-file-icons .knox-gui-search-query,
+.knox-gui.show-file-icons .knox-gui-search-query * {
+	font-family: var(--vscode-editor-font-family, ui-monospace, Menlo, Monaco, Consolas, monospace) !important;
+}
+
+.knox-gui.show-file-icons .knox-gui-search-query::before,
+.knox-gui.show-file-icons .knox-gui-search-query::after {
+	content: none !important;
+	display: none !important;
+	font: inherit !important;
 }
 
 .knox-gui-term-body {
@@ -774,20 +823,11 @@
 	border-radius: 8px;
 }
 
-.knox-gui-search-query {
-	background: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
-	padding: 2px 8px;
-	border-radius: 4px;
-	flex: 0 1 auto;
-	font-size: 12px;
-	font-weight: 600;
-}
-
 .knox-gui-search-head {
 	background: var(--vscode-sideBar-background, var(--vscode-editor-background));
 	justify-content: flex-start;
 	padding: 4px 6px;
+	gap: 4px;
 }
 
 .knox-gui-search-body {

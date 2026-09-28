@@ -221,6 +221,7 @@
 
 .knox-gui-code-generic > .knox-gui-code-scroll {
 	border-radius: 4px;
+	overflow: auto;
 }
 
 .knox-gui-code-hover {
@@ -235,15 +236,39 @@
 	transform: translateY(-50%);
 	background: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-widget-border, transparent));
-	border-radius: 4px;
+	border-radius: 0;
+	pointer-events: auto;
 }
 
 .knox-gui-code-hover.bottom {
 	top: 100%;
 }
 
-.knox-gui-code-generic:hover .knox-gui-code-hover {
+.knox-gui-code-block.knox-gui-code-generic > .knox-gui-code-actions.knox-gui-code-hover {
+	display: none;
+	flex-wrap: nowrap;
+}
+
+.knox-gui-code-block.knox-gui-code-generic:hover > .knox-gui-code-actions.knox-gui-code-hover,
+.knox-gui-code-block.knox-gui-code-generic:focus-within > .knox-gui-code-actions.knox-gui-code-hover {
 	display: flex;
+}
+
+.knox-gui-code-hover .knox-gui-icon-btn,
+.knox-gui-code-hover-btn {
+	width: 22px;
+	height: 22px;
+	padding: 2px;
+	border-radius: 0;
+	justify-content: center;
+	flex-shrink: 0;
+	color: #159994;
+}
+
+.knox-gui-code-hover .knox-gui-svg {
+	width: 16px;
+	height: 16px;
+	color: #159994;
 }
 
 .knox-gui-code-toolbar-file {
@@ -323,12 +348,27 @@
 
 .knox-gui-code-scroll.wrap .knox-gui-code-lines {
 	width: 100%;
+	max-width: 100%;
+}
+
+.knox-gui-code-scroll.wrap .knox-gui-code-line {
+	align-items: flex-start;
+	width: 100%;
+	min-width: 0;
 }
 
 .knox-gui-code-line {
 	display: flex;
 	min-height: 19px;
 	line-height: 19px;
+}
+
+.knox-gui-code-line[data-diff="add"] .knox-gui-line-content {
+	background: color-mix(in srgb, var(--vscode-diffEditor-insertedTextBackground, rgba(16, 185, 129, 0.28)) 80%, transparent);
+}
+
+.knox-gui-code-line[data-diff="del"] .knox-gui-line-content {
+	background: color-mix(in srgb, var(--vscode-diffEditor-removedTextBackground, rgba(239, 68, 68, 0.28)) 80%, transparent);
 }
 
 .knox-gui-line-number {
@@ -357,6 +397,8 @@
 .knox-gui-code-scroll.wrap .knox-gui-line-content {
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
+	word-break: break-word;
+	min-width: 0;
 }
 
 .knox-gui-streaming-cursor {

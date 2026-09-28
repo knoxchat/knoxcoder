@@ -591,12 +591,26 @@ export function groupKnoxChatModels<T extends { category?: string; title: string
 		.map(category => ({ category, models: grouped[category] }));
 }
 
-export function filterKnoxChatModels<T extends { title: string; model?: string }>(models: T[], query: string): T[] {
-	const needle = query.trim().toLowerCase();
-	if (!needle) {
+export function knoxChatModelMatchesQuery(
+	model: { title: string; model?: string; category?: string; description?: string; modalities?: string[] },
+	query: string,
+): boolean {
+	const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+	if (!tokens.length) {
+		return true;
+	}
+	const haystack = [model.title, model.model, model.category, model.description, ...(model.modalities ?? [])]
+		.filter(Boolean)
+		.join(' ')
+		.toLowerCase();
+	return tokens.every(token => haystack.includes(token));
+}
+
+export function filterKnoxChatModels<T extends { title: string; model?: string; category?: string; description?: string; modalities?: string[] }>(models: T[], query: string): T[] {
+	if (!query.trim()) {
 		return models;
 	}
-	return models.filter(model => (model.model ?? '').toLowerCase().includes(needle));
+	return models.filter(model => knoxChatModelMatchesQuery(model, query));
 }
 
 export function mergeReasoningEffortPrefs(

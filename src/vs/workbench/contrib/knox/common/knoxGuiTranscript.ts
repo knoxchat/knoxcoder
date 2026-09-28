@@ -82,8 +82,36 @@ const SOUL_CHECKPOINT_RE = /\[soul checkpoint=([^\s\]]+)\]/;
 const TOKEN_COUNT_SUFFIXES = ['', 'k', 'm', 'b', 't'] as const;
 export const TOKEN_TPS_MIN_GENERATION_MS = 300;
 
+/**
+ * Drop leaked DSML/XML tool markup from assistant text so it never flashes in
+ * the live reply (`chatHistoryDisplay.assistantReplyText` + `stripLeakedToolMarkup`).
+ */
+export function stripLeakedToolMarkup(text: string): string {
+	if (!text) {
+		return text;
+	}
+	const patterns = [
+		/<\s*\/?\s*[|\uFF5C]\s*DSML/i,
+		/<\s*\/?\s*tool_calls?\b/i,
+		/<\s*\/?\s*function_calls?\b/i,
+		/<\s*\/?\s*function_call\b/i,
+		/<\s*\/?\s*invoke\b/i,
+		/<\s*function\s*=/i,
+		/<\s*function\s+/i,
+	];
+	let cut = -1;
+	for (const pattern of patterns) {
+		const index = text.search(pattern);
+		if (index >= 0 && (cut < 0 || index < cut)) {
+			cut = index;
+		}
+	}
+	const sliced = cut >= 0 ? text.slice(0, cut) : text;
+	return sliced.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/^\s+$/g, '').trimEnd();
+}
+
 export function assistantReplyText(item: IKnoxGuiHistoryItem): string {
-	return (item.content ?? '').trim();
+	return stripLeakedToolMarkup(item.content ?? '').trim();
 }
 
 export function isDuplicateAssistantReply(history: IKnoxGuiHistoryItem[], index: number): boolean {
@@ -234,7 +262,7 @@ export function splitMarkdownBlocks(markdown: string): KnoxGuiMarkdownBlock[] {
 	}
 	const lines = patchNestedMarkdown(markdown).split('\n');
 	let text: string[] = [];
-	let fence: { ticks: number; meta: string; code: string[] } | undefined;
+	let fence: { ticks: number; marker: string; meta: string; code: string[] } | undefined;
 	const flushText = (trailingNewline: boolean) => {
 		const value = text.join('\n') + (trailingNewline && text.length ? '\n' : '');
 		if (value.trim() || value.includes('\n')) {
@@ -250,18 +278,18 @@ export function splitMarkdownBlocks(markdown: string): KnoxGuiMarkdownBlock[] {
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
 		if (fence) {
-			const close = /^\s*(`{3,})\s*$/.exec(line);
-			if (close && close[1].length >= fence.ticks) {
+			const close = /^\s*([`~]{3,})\s*$/.exec(line);
+			if (close && close[1][0] === fence.marker && close[1].length >= fence.ticks) {
 				pushFence(true);
 			} else {
 				fence.code.push(line);
 			}
 			continue;
 		}
-		const open = /^\s*(`{3,})(.*)$/.exec(line);
+		const open = /^\s*([`~]{3,})(.*)$/.exec(line);
 		if (open) {
 			flushText(true);
-			fence = { ticks: open[1].length, meta: open[2], code: [] };
+			fence = { ticks: open[1].length, marker: open[1][0], meta: open[2], code: [] };
 			continue;
 		}
 		text.push(line);
@@ -283,6 +311,10 @@ const LIST_ITEM_RE = /^\s*([-*+]|\d+[.)])\s/;
  * block unless the next line is indented or continues a list, so finished blocks stay
  * byte-identical while the reply streams.
  */
+const ATX_HEADING_RE = /^#{1,6}\s/;
+const TABLE_ROW_RE = /^\s*\|/;
+const THEMATIC_BREAK_RE = /^(\s*[-*_]){3,}\s*$/;
+
 export function splitMarkdownParagraphs(text: string): string[] {
 	const blocks: string[] = [];
 	let current: string[] = [];
@@ -294,7 +326,15 @@ export function splitMarkdownParagraphs(text: string): string[] {
 			}
 			continue;
 		}
-		const continues = current.length > 0 && (!blanks.length || /^\s/.test(line) || (LIST_ITEM_RE.test(line) && LIST_ITEM_RE.test(current[0])));
+		const heading = ATX_HEADING_RE.test(line);
+		const table = TABLE_ROW_RE.test(line);
+		const breakLine = THEMATIC_BREAK_RE.test(line);
+		const currentTable = current.length > 0 && TABLE_ROW_RE.test(current[0]);
+		const continues = current.length > 0
+			&& !heading
+			&& !breakLine
+			&& table === currentTable
+			&& (!blanks.length || /^\s/.test(line) || (LIST_ITEM_RE.test(line) && LIST_ITEM_RE.test(current[0])));
 		if (!continues && current.length) {
 			blocks.push(current.join('\n'));
 			current = [];
@@ -324,7 +364,7 @@ export function healStreamingMarkdown(source: string): string {
 	}
 	const plain = text.replace(/`[^`]*`/g, match => ' '.repeat(match.length));
 	const open: { marker: string; pos: number }[] = [];
-	for (const marker of ['~~', '**']) {
+	for (const marker of ['~~', '**', '__']) {
 		const positions = [...plain.matchAll(new RegExp(marker.replace(/[*]/g, '\\*'), 'g'))].map(m => m.index!);
 		if (positions.length % 2 === 1) {
 			open.push({ marker, pos: positions[positions.length - 1] });
@@ -336,10 +376,20 @@ export function healStreamingMarkdown(source: string): string {
 	if (singles.length % 2 === 1) {
 		open.push({ marker: '*', pos: singles[singles.length - 1] });
 	}
+	const underscores = [...plain.replace(/__/g, '  ').matchAll(/_/g)]
+		.map(m => m.index!)
+		.filter(pos => {
+			const prev = pos > 0 ? plain[pos - 1] : '';
+			const next = plain[pos + 1] ?? '';
+			return !(/[A-Za-z0-9]/.test(prev) && /[A-Za-z0-9]/.test(next));
+		});
+	if (underscores.length % 2 === 1) {
+		open.push({ marker: '_', pos: underscores[underscores.length - 1] });
+	}
 	open.sort((a, b) => b.pos - a.pos);
 	let closers = '';
 	for (const { marker, pos } of open) {
-		if (!text.slice(pos + marker.length).replace(/[*~]/g, '').trim()) {
+		if (!text.slice(pos + marker.length).replace(/[*~_]/g, '').trim()) {
 			text = text.slice(0, pos) + text.slice(pos + marker.length);
 		} else {
 			closers += marker;
@@ -1094,7 +1144,7 @@ export function visibleCodeLineRange(
 /** Per-line HTML from `tokenizeToStringSync` output (flat spans joined by `<br/>` inside one div). */
 export function knoxGuiSplitTokenizedLines(html: string): string[] {
 	const inner = html.replace(/^<div class="monaco-tokenized-source">/, '').replace(/<\/div>$/, '');
-	return inner.split('<br/>');
+	return inner.split(/<br\s*\/?>/i);
 }
 
 export function splitDisplayPath(filepath: string): { dir: string; name: string } {
@@ -1152,40 +1202,62 @@ export function fencesForToolbar(content: string): IKnoxGuiCodeFence[] {
 	return extractCodeFences(content);
 }
 
+const FENCE_LANGUAGE_ALIASES: Record<string, string> = {
+	ts: 'typescript',
+	tsx: 'typescript',
+	js: 'javascript',
+	jsx: 'javascript',
+	py: 'python',
+	sh: 'shellscript',
+	zsh: 'shellscript',
+	bash: 'shellscript',
+	shell: 'shellscript',
+	ps1: 'powershell',
+	pwsh: 'powershell',
+	rb: 'ruby',
+	kt: 'kotlin',
+	yml: 'yaml',
+	rs: 'rust',
+	md: 'markdown',
+	cs: 'csharp',
+	hpp: 'cpp',
+	cc: 'cpp',
+	hh: 'cpp',
+	patch: 'diff',
+	golang: 'go',
+	cjs: 'javascript',
+	mjs: 'javascript',
+	cts: 'typescript',
+	mts: 'typescript',
+	jsonc: 'jsonc',
+	dockerfile: 'dockerfile',
+	docker: 'dockerfile',
+	makefile: 'makefile',
+	make: 'makefile',
+	objc: 'objective-c',
+	mm: 'objective-c',
+	pl: 'perl',
+	hs: 'haskell',
+	fs: 'fsharp',
+	clj: 'clojure',
+	ex: 'elixir',
+	erl: 'erlang',
+	jl: 'julia',
+};
+
 export function languageIdFromFence(language: string, filepath?: string): string {
 	const lang = language.trim().toLowerCase();
 	if (!lang && filepath) {
 		const ext = filepath.split('.').pop()?.toLowerCase();
-		if (ext === 'ts' || ext === 'tsx') {
-			return 'typescript';
-		}
-		if (ext === 'js' || ext === 'jsx') {
-			return 'javascript';
-		}
-		if (ext === 'py') {
-			return 'python';
-		}
-		if (ext === 'rs') {
-			return 'rust';
+		if (ext && FENCE_LANGUAGE_ALIASES[ext]) {
+			return FENCE_LANGUAGE_ALIASES[ext];
 		}
 		if (ext === 'go') {
 			return 'go';
 		}
-		if (ext === 'md') {
-			return 'markdown';
-		}
 	}
-	if (lang === 'ts' || lang === 'tsx') {
-		return 'typescript';
-	}
-	if (lang === 'js' || lang === 'jsx') {
-		return 'javascript';
-	}
-	if (lang === 'py') {
-		return 'python';
-	}
-	if (lang === 'sh' || lang === 'zsh' || lang === 'bash') {
-		return 'shellscript';
+	if (lang && FENCE_LANGUAGE_ALIASES[lang]) {
+		return FENCE_LANGUAGE_ALIASES[lang];
 	}
 	return lang || 'plaintext';
 }

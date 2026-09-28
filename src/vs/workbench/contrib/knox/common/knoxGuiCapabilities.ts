@@ -212,13 +212,12 @@ function knoxGuiCatalogToolsSupport(model: IKnoxGuiModel): boolean | undefined {
 }
 
 /**
- * KN-371: port of `modelSupportsTools` against the /v1/models cache.
- * Catalog `supported_parameters` wins, then the serialized model, then explicit caps.
- * Provider name is not a tools signal.
+ * KN-371: catalog / serialized params / explicit caps. `undefined` means the
+ * /v1/models cache has not spoken yet — Agent stays the default tab until then.
  */
-export function knoxGuiModelSupportsTools(model: IKnoxGuiModel | undefined): boolean {
+export function knoxGuiModelToolsSupportKnown(model: IKnoxGuiModel | undefined): boolean | undefined {
 	if (!model) {
-		return false;
+		return undefined;
 	}
 	const fromCatalog = knoxGuiCatalogToolsSupport(model);
 	if (fromCatalog !== undefined) {
@@ -230,7 +229,21 @@ export function knoxGuiModelSupportsTools(model: IKnoxGuiModel | undefined): boo
 	if (model.capabilities?.tools !== undefined) {
 		return model.capabilities.tools;
 	}
-	return false;
+	return undefined;
+}
+
+/** Optimistic Agent default: unknown is the previous tab's toolsSupported. */
+export function knoxGuiResolveToolsSupported(known: boolean | undefined, previous: boolean): boolean {
+	return known ?? previous;
+}
+
+/**
+ * KN-371: port of `modelSupportsTools` against the /v1/models cache.
+ * Catalog `supported_parameters` wins, then the serialized model, then explicit caps.
+ * Provider name is not a tools signal. Unknown is false for capability badges.
+ */
+export function knoxGuiModelSupportsTools(model: IKnoxGuiModel | undefined): boolean {
+	return knoxGuiModelToolsSupportKnown(model) === true;
 }
 
 function hasReasoningEffortParam(supportedParameters: string[] | undefined): boolean {

@@ -12,6 +12,7 @@ import { inputDocFromPlainText } from '../../../common/knoxGuiInput.js';
 import { formatSessionExportMarkdown, sessionExportFilename } from '../../../common/knoxGuiOverlays.js';
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { knoxGuiResetEditModeState, shouldFocusEditorOnEditExit } from '../../../common/knoxGuiEdit.js';
+import { knoxGuiIsSessionTabMode, knoxGuiModeAfterEditExit } from '../../../common/knoxGuiAgentMode.js';
 import { applyCloseTab, IKnoxGuiHistoryItem, IKnoxGuiPromptLog, IKnoxGuiToolCall, KnoxChatMode } from '../../../common/knoxGuiState.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
 import { postSetAgentMode } from './models.js';
@@ -365,6 +366,10 @@ function promptLogsFromRaw(item: Record<string, unknown>, message: Record<string
 }
 
 export function enterEditMode(controller: KnoxGuiController, options: { clearSession: boolean }): void {
+	const current = controller.store.state.mode;
+	const editReturnMode = knoxGuiIsSessionTabMode(current)
+		? current
+		: knoxGuiModeAfterEditExit(controller.store.state.editReturnMode);
 	const hasHistory = controller.store.state.history.length > 0;
 	if (options.clearSession || hasHistory) {
 		if (hasHistory) {
@@ -382,13 +387,14 @@ export function enterEditMode(controller: KnoxGuiController, options: { clearSes
 	controller.store.patch({
 		...knoxGuiResetEditModeState(),
 		mode: 'edit',
+		editReturnMode,
 		inputFocused: true,
 		addFileOpen: false,
 	});
 	postSetAgentMode(controller);
 }
 
-export async function exitEditMode(controller: KnoxGuiController, nextMode: KnoxChatMode = 'chat'): Promise<void> {
+export async function exitEditMode(controller: KnoxGuiController, nextMode?: KnoxChatMode): Promise<void> {
 	if (controller.store.state.mode !== 'edit') {
 		controller.messenger.post('focusEditor', undefined);
 		return;
@@ -398,10 +404,12 @@ export async function exitEditMode(controller: KnoxGuiController, nextMode: Knox
 		controller.messenger.post('rejectDiff', { filepath: code.filepath });
 	}
 	controller.messenger.post('edit/exit', { shouldFocusEditor: shouldFocus });
+	const mode = knoxGuiModeAfterEditExit(controller.store.state.editReturnMode, nextMode);
 	controller.store.patch({
 		codeToEdit: [],
 		addFileOpen: false,
-		mode: nextMode,
+		mode,
+		editReturnMode: undefined,
 		editStatus: 'done',
 		editPreviousInputs: [],
 		editFileAfterEdit: undefined,

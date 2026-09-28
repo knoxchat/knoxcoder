@@ -281,8 +281,12 @@ export function renderCheckpointList(widget: KnoxGuiWidget, body: HTMLElement, s
 	body.setAttribute('data-testid', 'checkpoint-list');
 	body.tabIndex = 0;
 	widget.renderStore.add(DOM.addDisposableListener(body, 'keydown', e => onCheckpointListKeyDown(widget, e, state)));
+	const allNodes = filterCheckpoints(state.checkpointListItems.length ? state.checkpointListItems : state.checkpoints, {
+		sessionId: state.sessionId,
+		thisSession: state.checkpointThisSession,
+	});
 	const nodes = listCheckpointNodes(state);
-	if (state.checkpointListLoading && !nodes.length) {
+	if (state.checkpointListLoading && !allNodes.length) {
 		const skeleton = DOM.append(body, DOM.$('.knox-gui-cpl-skeleton-row'));
 		DOM.append(skeleton, DOM.$('span.knox-gui-cpl-skeleton.is-title'));
 		DOM.append(skeleton, DOM.$('span.knox-gui-cpl-skeleton.is-session'));
@@ -320,20 +324,19 @@ export function renderCheckpointList(widget: KnoxGuiWidget, body: HTMLElement, s
 		widget.controller.store.patch({ checkpointQuery: input.value });
 		scheduleCheckpointListQuery(widget);
 	}));
-	if (state.checkpointQuery) {
-		checkpointButton(widget, input.parentElement!, {
-			svg: 'x',
-			title: t(state, 'clear'),
-			variant: 'ghost',
-			size: 'icon',
-			extraClass: 'knox-gui-cpl-search-clear',
-			onClick: () => {
-				widget.controller.store.patch({ checkpointQuery: '' });
-				scheduleCheckpointListQuery(widget);
-				widget.checkpointListSearchInput?.focus();
-			},
-		});
-	}
+	const clear = checkpointButton(widget, input.parentElement!, {
+		svg: 'x',
+		title: t(state, 'clear'),
+		variant: 'ghost',
+		size: 'icon',
+		extraClass: 'knox-gui-cpl-search-clear',
+		onClick: () => {
+			widget.controller.store.patch({ checkpointQuery: '' });
+			scheduleCheckpointListQuery(widget);
+			widget.checkpointListSearchInput?.focus();
+		},
+	});
+	clear.hidden = !state.checkpointQuery;
 	if (state.checkpointWorkspaceFolders.length > 1) {
 		const row = DOM.append(header, DOM.$('.knox-gui-cpl-workspace-row'));
 		DOM.append(row, DOM.$('label.knox-gui-cpl-label', { for: 'checkpoint-workspace-folder' }, t(state, 'checkpointWorkspaceFolder')));
@@ -352,7 +355,7 @@ export function renderCheckpointList(widget: KnoxGuiWidget, body: HTMLElement, s
 	if (state.checkpointComparePickId) {
 		DOM.append(header, DOM.$('p.knox-gui-cpl-hint', undefined, t(state, 'selectCheckpointToCompare')));
 	}
-	if (!nodes.length) {
+	if (!allNodes.length) {
 		const workspace = state.checkpointActiveWorkspace || widget.controller.workspaceDirectory;
 		const empty = DOM.append(body, DOM.$('.knox-gui-checkpoint-list-empty'));
 		empty.setAttribute('data-testid', 'checkpoint-list-empty');
@@ -437,7 +440,7 @@ export function renderCheckpointList(widget: KnoxGuiWidget, body: HTMLElement, s
 			});
 		}
 		const groups = DOM.append(body, DOM.$('.knox-gui-cpl-groups'));
-		for (const group of groupCheckpointsByDate(nodes)) {
+		for (const group of groupCheckpointsByDate(allNodes)) {
 			const section = DOM.append(groups, DOM.$('.knox-gui-checkpoint-date-group'));
 			const dateHead = DOM.append(section, DOM.$('.knox-gui-checkpoint-date-head'));
 			DOM.append(dateHead, DOM.$('h2', undefined, t(state, group.header)));
@@ -445,7 +448,7 @@ export function renderCheckpointList(widget: KnoxGuiWidget, body: HTMLElement, s
 			DOM.append(section, DOM.$('.knox-gui-cpl-separator'));
 			const cards = DOM.append(section, DOM.$('.knox-gui-cpl-cards'));
 			for (const node of group.checkpoints) {
-				renderCheckpointListCard(widget, cards, state, nodes, node);
+				renderCheckpointListCard(widget, cards, state, allNodes, node);
 			}
 		}
 		if (state.checkpointListHasMore) {
@@ -480,6 +483,7 @@ export function renderCheckpointList(widget: KnoxGuiWidget, body: HTMLElement, s
 			},
 		});
 	}
+	syncCheckpointList(widget, state);
 }
 
 /** `Checkpoints/index.tsx`: the host query waits 250 ms; local matching is immediate. */
@@ -491,6 +495,75 @@ function scheduleCheckpointListQuery(widget: KnoxGuiWidget): void {
 		widget.checkpointListQueryTimer = undefined;
 		void widget.controller.loadCheckpointList();
 	}, 250);
+}
+
+export function syncCheckpointList(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
+	const root = widget.root.querySelector('[data-testid="checkpoint-list"]') as HTMLElement | null;
+	if (!root) {
+		return;
+	}
+	const nodes = listCheckpointNodes(state);
+	const ids = new Set(nodes.map(node => node.id));
+	let visible = 0;
+	for (const card of root.querySelectorAll<HTMLElement>('.knox-gui-checkpoint-card')) {
+		const id = card.getAttribute('data-checkpoint-id');
+		const show = Boolean(id && ids.has(id));
+		card.hidden = !show;
+		if (show) {
+			visible += 1;
+		}
+	}
+	for (const group of root.querySelectorAll<HTMLElement>('.knox-gui-checkpoint-date-group')) {
+		group.hidden = !group.querySelector('.knox-gui-checkpoint-card:not([hidden])');
+	}
+	const count = root.querySelector('.knox-gui-checkpoint-list-meta .knox-gui-cpl-badge.is-count');
+	if (count) {
+		count.textContent = t(state, 'showingCheckpoints', {
+			shown: visible,
+			total: state.checkpointListTotal || state.checkpointListItems.length || state.checkpoints.length,
+		});
+	}
+	const clear = root.querySelector('.knox-gui-cpl-search-clear') as HTMLElement | null;
+	if (clear) {
+		clear.hidden = !state.checkpointQuery;
+	}
+	const actions = root.querySelector('.knox-gui-checkpoint-list-actions') as HTMLElement | null;
+	if (actions) {
+		actions.hidden = visible === 0 && Boolean(state.checkpointQuery);
+	}
+}
+
+export function syncCheckpointTimeline(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
+	const list = widget.root.querySelector('.knox-gui-timeline-list') as HTMLElement | null;
+	if (!list) {
+		return;
+	}
+	const nodes = state.checkpointTimeline.length ? state.checkpointTimeline : state.checkpoints;
+	const { groups } = groupTimelineCheckpoints(nodes, widget.checkpointTimelineQuery, widget.checkpointTimelineKind);
+	const ids = new Set(groups.flatMap(group => group.nodes.map(node => node.id)));
+	let visible = 0;
+	for (const item of list.querySelectorAll<HTMLElement>('.knox-gui-timeline-item')) {
+		const id = item.getAttribute('data-checkpoint-id');
+		const show = !widget.checkpointTimelineQuery.trim() || Boolean(id && ids.has(id));
+		item.hidden = !show;
+		if (show) {
+			visible += 1;
+		}
+	}
+	for (const group of list.querySelectorAll<HTMLElement>('.knox-gui-timeline-group')) {
+		group.hidden = !group.querySelector('.knox-gui-timeline-item:not([hidden])');
+	}
+	let empty = list.querySelector('.knox-gui-timeline-empty') as HTMLElement | null;
+	if (!visible && widget.checkpointTimelineQuery.trim()) {
+		if (!empty) {
+			empty = DOM.append(list, DOM.$('.knox-gui-timeline-empty', { 'data-testid': 'checkpoint-timeline-empty' }));
+			appendKnoxGuiSvg(empty, 'history', 32);
+			DOM.append(empty, DOM.$('p', undefined, t(state, 'noCheckpointsFound')));
+		}
+		empty.hidden = false;
+	} else if (empty) {
+		empty.hidden = visible > 0;
+	}
 }
 
 function listCheckpointNodes(state: IKnoxGuiState): IKnoxGuiCheckpointNode[] {
@@ -513,7 +586,7 @@ function renderCheckpointListCard(widget: KnoxGuiWidget, parent: HTMLElement, st
 	if (focused && !selected) {
 		card.classList.add('is-focused');
 	}
-	widget.renderStore.add(DOM.addDisposableListener(card, 'click', e => {
+	widget.listenerStore.add(DOM.addDisposableListener(card, 'click', e => {
 		if ((e.target as HTMLElement).closest('button, input')) {
 			return;
 		}
@@ -532,7 +605,7 @@ function renderCheckpointListCard(widget: KnoxGuiWidget, parent: HTMLElement, st
 	if (widget.checkpointListSelectMode) {
 		const box = checkpointCheckbox(DOM.append(inner, DOM.$('.knox-gui-checkpoint-check-wrap')), selected, undefined, '.knox-gui-checkpoint-check');
 		widget.renderStore.add(DOM.addDisposableListener(box, 'click', e => e.stopPropagation()));
-		widget.renderStore.add(DOM.addDisposableListener(box, 'change', e => {
+		widget.listenerStore.add(DOM.addDisposableListener(box, 'change', e => {
 			selectCheckpointRow(widget, nodes, node.id, box.checked, (e as MouseEvent).shiftKey);
 		}));
 	}
@@ -792,7 +865,7 @@ export function renderCheckpointTimeline(widget: KnoxGuiWidget, body: HTMLElemen
 	widget.checkpointTimelineSearchInput = input;
 	widget.renderStore.add(DOM.addDisposableListener(input, 'input', () => {
 		widget.checkpointTimelineQuery = input.value;
-		widget.render();
+		syncCheckpointTimeline(widget, widget.controller.store.state);
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(window, 'keydown', (e: KeyboardEvent) => {
 		const target = e.target as HTMLElement | null;
@@ -857,6 +930,7 @@ export function renderCheckpointTimeline(widget: KnoxGuiWidget, body: HTMLElemen
 			const isLast = index === group.nodes.length - 1;
 			const item = DOM.append(groupNodes, DOM.$(pickId === node.id ? '.knox-gui-timeline-item.is-compare' : '.knox-gui-timeline-item'));
 			item.setAttribute('data-testid', 'checkpoint-timeline-item');
+			item.setAttribute('data-checkpoint-id', node.id);
 			const rail = DOM.append(item, DOM.$('.knox-gui-timeline-rail'));
 			rail.setAttribute('aria-hidden', 'true');
 			const lane = branchColor(node.branchId);
