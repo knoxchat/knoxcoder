@@ -88,6 +88,12 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	gitDiffExpandedPinned = false;
 	compactionOpen = false;
 	taskPlanOpen = true;
+	/** Composer editor + toolbar hidden behind a slim dock; persisted per profile. */
+	composerCollapsed = false;
+	/** Last collapse/expand toggle, so a re-render mid-animation resumes it instead of jumping. */
+	composerToggle: { dir: 'collapse' | 'expand'; at: number } | undefined;
+	/** Pending switch of the folded composer to its floating (out-of-flow) form. */
+	composerFloatTimer: ReturnType<typeof setTimeout> | undefined;
 	taskPlanDismissedKey: string | null = null;
 	memoriesOpen = false;
 	showLowScoringMemories = false;

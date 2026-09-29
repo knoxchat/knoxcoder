@@ -11,6 +11,7 @@ export const BOOKMARK_KEY = 'knox.gui.bookmarkedSlash';
 export const GIT_DIFF_EXPANDED_KEY = 'knox.gui.gitDiffPanelExpanded';
 export const ACTIVITY_PANEL_EXPANDED_KEY = 'knox.gui.activityPanelExpanded';
 export const JOBS_PANEL_EXPANDED_KEY = 'knox.gui.jobsPanelExpanded';
+export const COMPOSER_COLLAPSED_KEY = 'knox.gui.composerCollapsed';
 export const MEMORY_BUILD_TIMEOUT_MS = 5000;
 
 export function asRecord(value: unknown): Record<string, unknown> | undefined {

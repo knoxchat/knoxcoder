@@ -35,6 +35,10 @@ export abstract class KnoxGuiComposerFacade extends KnoxGuiPanelsFacade {
 		knoxGuiComposerView.renderComposer(this, state);
 	}
 
+	setComposerCollapsed(this: KnoxGuiWidget, collapsed: boolean): void {
+		knoxGuiComposerView.setComposerCollapsed(this, collapsed);
+	}
+
 	placeCaretAtEndOf(this: KnoxGuiWidget, editor: HTMLElement): void {
 		knoxGuiComposerView.placeCaretAtEndOf(this, editor);
 	}

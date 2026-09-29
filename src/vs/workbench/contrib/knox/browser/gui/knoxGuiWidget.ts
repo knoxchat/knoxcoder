@@ -81,6 +81,7 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 			this.findResizeObserver.observe(this.root);
 		}
 		this._register({ dispose: () => clearTimeout(this.lumpFade.timer) });
+		this._register({ dispose: () => clearTimeout(this.composerFloatTimer) });
 		this._register({ dispose: () => { if (this.checkpointListQueryTimer) { clearTimeout(this.checkpointListQueryTimer); } } });
 		this._register({ dispose: () => { if (this.memorySearchTimer) { clearTimeout(this.memorySearchTimer); } } });
 		this._register({ dispose: () => { if (this.memorySessionSearchTimer) { clearTimeout(this.memorySessionSearchTimer); } } });
@@ -88,6 +89,7 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		this.gitDiffExpanded = this.controller.gitDiffExpanded();
 		this.gitDiffExpandedPinned = this.controller.gitDiffExpandedPinned();
 		this.agentMeterOpen = this.controller.activityPanelExpanded();
+		this.composerCollapsed = this.controller.composerCollapsed();
 		this.render();
 	}
 
@@ -147,6 +149,12 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 	onState(state: IKnoxGuiState): void {
 		if (this.lastState && state.inputDoc !== this.lastState.inputDoc && !this.composerUndoApplying) {
 			this.composerUndo = composerUndoRecord(this.composerUndo, state.inputDoc, Date.now());
+		}
+		if (this.composerCollapsed && this.lastState && this.shouldShowComposer(state) && ((state.inputFocused && !this.lastState.inputFocused) || (state.overlay && !this.lastState.overlay))) {
+			// Something asked to type (an @ mention, a slash command, host-inserted text) or opened a settings section: reveal the hidden composer.
+			this.lastState = state;
+			this.setComposerCollapsed(false);
+			return;
 		}
 		if (this.lastState && isKnoxGuiInputOnlyChange(this.lastState, state)) {
 			this.lastState = state;

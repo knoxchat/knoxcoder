@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
-import { ACTIVITY_PANEL_EXPANDED_KEY, GIT_DIFF_EXPANDED_KEY, JOBS_PANEL_EXPANDED_KEY, asRecord, asArray, withTimeout } from './helpers.js';
+import { ACTIVITY_PANEL_EXPANDED_KEY, COMPOSER_COLLAPSED_KEY, GIT_DIFF_EXPANDED_KEY, JOBS_PANEL_EXPANDED_KEY, asRecord, asArray, withTimeout } from './helpers.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { finalizeGitDiffFiles, gitFilesFromChangedList, gitFilesFromDiffs, knoxGuiResolveOpenPath, mergeGitChangedWithDiffs, parseBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { IKnoxGuiContextItem, IKnoxGuiGitDiffFile } from '../../../common/knoxGuiState.js';
@@ -106,6 +106,15 @@ export function activityPanelExpanded(controller: KnoxGuiController): boolean {
 
 export function setActivityPanelExpanded(controller: KnoxGuiController, expanded: boolean): void {
 	controller.storageService.store(ACTIVITY_PANEL_EXPANDED_KEY, expanded ? 'true' : 'false', StorageScope.PROFILE, StorageTarget.USER);
+}
+
+/** The composer's editor + toolbar section can be tucked away to give the transcript room; remembered across reloads. */
+export function composerCollapsed(controller: KnoxGuiController): boolean {
+	return controller.storageService.get(COMPOSER_COLLAPSED_KEY, StorageScope.PROFILE) === 'true';
+}
+
+export function setComposerCollapsed(controller: KnoxGuiController, collapsed: boolean): void {
+	controller.storageService.store(COMPOSER_COLLAPSED_KEY, collapsed ? 'true' : 'false', StorageScope.PROFILE, StorageTarget.USER);
 }
 
 export function dismissCompaction(controller: KnoxGuiController): void {

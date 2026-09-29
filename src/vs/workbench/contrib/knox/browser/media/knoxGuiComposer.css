@@ -28,6 +28,438 @@
 	max-width: 100%;
 }
 
+/* ---------------------------------------------------------------------------------------------
+ * Collapsible composer: toolbar, activity, task plan and editor fold away as one section, and a
+ * single round "show" button is left behind.
+ *
+ * Height animates through `grid-template-rows` (1fr <-> 0fr) so the transcript above grows and
+ * shrinks smoothly without measuring content. Keep 360ms in sync with KNOX_COMPOSER_TOGGLE_MS.
+ *
+ *  collapse: content blurs and sucks down toward the button while a teal laser rides the closing
+ *            edge; the button spins in with a spring, its chevrons snap together and a ring bursts.
+ *  expand:   the button spins away with a ring burst, the laser rides the opening edge and the
+ *            content de-blurs into place with a tiny overshoot.
+ * ------------------------------------------------------------------------------------------- */
+
+.knox-gui-composer-collapsible,
+.knox-gui-composer-dock-shell {
+	display: grid;
+	grid-template-rows: 1fr;
+	min-width: 0;
+	width: 100%;
+}
+
+.knox-gui-composer-collapsible-inner,
+.knox-gui-composer-dock-shell > .knox-gui-composer-dock {
+	min-height: 0;
+	min-width: 0;
+}
+
+/* Same stacking the composer itself had before its children moved into the foldable section. */
+.knox-gui-composer-collapsible-inner {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	box-sizing: border-box;
+	/* Content is drawn toward the round button that lives at the bottom-right. */
+	transform-origin: 100% 100%;
+}
+
+/* Popups (mentions, slash commands) hang out of the editor, so only clip while folded or moving. */
+.knox-gui-composer-collapsible.is-collapsed,
+.knox-gui-composer-collapsible.is-collapsed > .knox-gui-composer-collapsible-inner,
+.knox-gui-composer-collapsible.is-collapsing > .knox-gui-composer-collapsible-inner,
+.knox-gui-composer-collapsible.is-expanding > .knox-gui-composer-collapsible-inner {
+	overflow: hidden;
+}
+
+.knox-gui-composer-collapsible.is-collapsed {
+	grid-template-rows: 0fr;
+}
+
+.knox-gui-composer-collapsible.is-collapsed > .knox-gui-composer-collapsible-inner {
+	visibility: hidden;
+	opacity: 0;
+	transform: translateY(14px) scale(0.94);
+	filter: blur(4px);
+	pointer-events: none;
+}
+
+/* Only positioned while moving, so popups keep their normal containing block the rest of the time. */
+.knox-gui-composer-collapsible.is-collapsing,
+.knox-gui-composer-collapsible.is-expanding {
+	position: relative;
+}
+
+.knox-gui-composer-collapsible.is-collapsing {
+	animation: knox-composer-fold 360ms cubic-bezier(0.32, 0.72, 0, 1) var(--knox-composer-toggle-delay, 0ms) both;
+}
+
+.knox-gui-composer-collapsible.is-collapsing > .knox-gui-composer-collapsible-inner {
+	animation: knox-composer-content-out 360ms cubic-bezier(0.4, 0, 0.2, 1) var(--knox-composer-toggle-delay, 0ms) both;
+}
+
+.knox-gui-composer-collapsible.is-expanding {
+	animation: knox-composer-unfold 360ms cubic-bezier(0.32, 0.72, 0, 1) var(--knox-composer-toggle-delay, 0ms) both;
+}
+
+.knox-gui-composer-collapsible.is-expanding > .knox-gui-composer-collapsible-inner {
+	animation: knox-composer-content-in 360ms cubic-bezier(0.22, 1, 0.36, 1) var(--knox-composer-toggle-delay, 0ms) both;
+}
+
+/* Laser edge: a glowing teal line rides the moving bottom edge of the section. */
+.knox-gui-composer-collapsible.is-collapsing::after,
+.knox-gui-composer-collapsible.is-expanding::after {
+	content: "";
+	position: absolute;
+	left: 4%;
+	right: 4%;
+	bottom: 0;
+	height: 2px;
+	z-index: 3;
+	border-radius: 2px;
+	pointer-events: none;
+	background: linear-gradient(90deg, transparent, #159994 14%, #e7fffc 50%, #159994 86%, transparent);
+	box-shadow: 0 0 10px 1px rgba(32, 201, 151, 0.75), 0 0 22px 2px rgba(21, 153, 148, 0.35);
+	animation: knox-composer-laser 360ms ease-in-out var(--knox-composer-toggle-delay, 0ms) both;
+}
+
+.knox-gui-composer-dock-shell:not(.is-open) {
+	visibility: hidden;
+}
+
+.knox-gui-composer-dock-shell:not(.is-open) {
+	grid-template-rows: 0fr;
+}
+
+.knox-gui-composer-dock-shell.is-opening {
+	animation: knox-composer-unfold 360ms cubic-bezier(0.32, 0.72, 0, 1) var(--knox-composer-toggle-delay, 0ms) both;
+}
+
+.knox-gui-composer-dock-shell.is-closing {
+	animation: knox-composer-dock-fold 360ms cubic-bezier(0.32, 0.72, 0, 1) var(--knox-composer-toggle-delay, 0ms) both;
+}
+
+@keyframes knox-composer-fold {
+	from { grid-template-rows: 1fr; }
+	to { grid-template-rows: 0fr; }
+}
+
+/* Dock stays visible for the whole fold, then drops out of the render tree. */
+@keyframes knox-composer-dock-fold {
+	from { grid-template-rows: 1fr; visibility: visible; }
+	to { grid-template-rows: 0fr; visibility: hidden; }
+}
+
+@keyframes knox-composer-unfold {
+	from { grid-template-rows: 0fr; }
+	to { grid-template-rows: 1fr; }
+}
+
+/* Content leaves early (first ~55%) so text never gets squashed while the box is still shrinking. */
+@keyframes knox-composer-content-out {
+	0% { opacity: 1; transform: none; filter: blur(0); visibility: visible; }
+	55% { opacity: 0; transform: translateY(14px) scale(0.94); filter: blur(4px); visibility: visible; }
+	100% { opacity: 0; transform: translateY(14px) scale(0.94); filter: blur(4px); visibility: hidden; }
+}
+
+/* ...and arrives late, de-blurring into place with a hair of overshoot. */
+@keyframes knox-composer-content-in {
+	0%, 20% { opacity: 0; transform: translateY(14px) scale(0.94); filter: blur(4px); }
+	65% { opacity: 1; transform: translateY(-2px) scale(1.004); filter: blur(0); }
+	100% { opacity: 1; transform: none; filter: blur(0); }
+}
+
+@keyframes knox-composer-laser {
+	0% { opacity: 0; transform: scaleX(0.15); }
+	25% { opacity: 1; transform: scaleX(1); }
+	70% { opacity: 1; transform: scaleX(1); }
+	100% { opacity: 0; transform: scaleX(0.4); }
+}
+
+@keyframes knox-composer-icon-pop {
+	0% { opacity: 0; transform: scale(0.4) rotate(-90deg); }
+	60% { opacity: 1; transform: scale(1.18) rotate(8deg); }
+	100% { opacity: 1; transform: none; }
+}
+
+/* The hide button in the toolbar swaps its chevrons with a springy pop after each unfold. */
+.knox-gui-toggle-pop .knox-gui-svg {
+	animation: knox-composer-icon-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) var(--knox-composer-toggle-delay, 0ms) backwards;
+}
+
+/* ---- Orb: the round glass button shared by "hide panel" (toolbar) and "show panel" (dock) ---- */
+
+.knox-gui-composer-orb,
+.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-orb {
+	position: relative;
+	display: grid;
+	place-items: center;
+	flex-shrink: 0;
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	border: 1px solid color-mix(in srgb, #159994 55%, transparent);
+	border-radius: 50%;
+	background: radial-gradient(circle at 30% 25%, color-mix(in srgb, #20c997 22%, transparent), transparent 72%);
+	color: #20c997;
+	opacity: 1;
+	cursor: pointer;
+	transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease, box-shadow 0.25s ease;
+}
+
+.knox-gui-composer-orb:hover:not(:disabled),
+.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-orb:hover:not(:disabled) {
+	transform: translateY(-1px) scale(1.1);
+	border-color: #20c997;
+	background: radial-gradient(circle at 30% 25%, color-mix(in srgb, #20c997 32%, transparent), transparent 72%);
+	box-shadow: 0 0 0 3px color-mix(in srgb, #159994 22%, transparent), 0 3px 12px color-mix(in srgb, #20c997 35%, transparent);
+	filter: none;
+}
+
+.knox-gui-composer-orb:active:not(:disabled),
+.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-orb:active:not(:disabled) {
+	transform: scale(0.92);
+}
+
+.knox-gui-composer-orb:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder, #159994);
+	outline-offset: 2px;
+}
+
+.knox-gui-composer-orb .knox-gui-svg path,
+.knox-gui-composer-toggle .knox-gui-svg path {
+	transform-box: fill-box;
+	transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Hover: the two chevrons move apart (show) or together (hide), a hint of what the click will do. */
+.knox-gui-composer-orb:hover .knox-gui-svg path:nth-child(4) {
+	transform: translateY(-1.5px);
+}
+
+.knox-gui-composer-orb:hover .knox-gui-svg path:nth-child(5) {
+	transform: translateY(1.5px);
+}
+
+.knox-gui-composer-orb[aria-expanded="true"]:hover .knox-gui-svg path:nth-child(4),
+.knox-gui-composer-toggle:hover .knox-gui-svg path:nth-child(4) {
+	transform: translateY(1.5px);
+}
+
+.knox-gui-composer-orb[aria-expanded="true"]:hover .knox-gui-svg path:nth-child(5),
+.knox-gui-composer-toggle:hover .knox-gui-svg path:nth-child(5) {
+	transform: translateY(-1.5px);
+}
+
+/* "Hide panel" in the toolbar is a plain glyph like its neighbours: no ring, no fill. */
+.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-toggle {
+	color: #20c997;
+	opacity: 0.8;
+	transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-toggle:hover:not(:disabled) {
+	opacity: 1;
+	filter: none;
+}
+
+.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-toggle:active:not(:disabled) {
+	transform: scale(0.9);
+}
+
+/* ---- Dock: one round icon button, right-aligned under the section it replaced ---- */
+
+/* Collapsed: the composer bar itself turns see-through, so only the round button floats. */
+.knox-gui-composer.is-collapsed {
+	background: transparent;
+	border-top-color: transparent;
+}
+
+.knox-gui-composer.is-collapsing {
+	animation: knox-composer-bar-clear 360ms ease-in-out var(--knox-composer-toggle-delay, 0ms) both;
+}
+
+.knox-gui-composer.is-expanding {
+	animation: knox-composer-bar-fill 360ms ease-in-out var(--knox-composer-toggle-delay, 0ms) both;
+}
+
+@keyframes knox-composer-bar-clear {
+	from { background-color: var(--vscode-sideBar-background); border-top-color: rgba(255, 255, 255, 0.05); }
+	to { background-color: transparent; border-top-color: transparent; }
+}
+
+@keyframes knox-composer-bar-fill {
+	from { background-color: transparent; border-top-color: transparent; }
+	to { background-color: var(--vscode-sideBar-background); border-top-color: rgba(255, 255, 255, 0.05); }
+}
+
+/*
+ * Floating: the folded composer leaves the layout and sits over the transcript's bottom-right corner,
+ * so only the round button is visible. The chat body gains the same height as bottom padding in the
+ * same frame (49px = 8 + 32 dock + 8 + 1 border), which keeps scroll position and content still.
+ */
+.knox-gui-composer.is-floating {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	left: auto;
+	width: auto;
+	margin: 0;
+	border: 0;
+	overflow: visible;
+	pointer-events: none;
+}
+
+.knox-gui-composer.is-floating .knox-gui-composer-dock-shell {
+	width: auto;
+}
+
+.knox-gui-composer.is-floating .knox-gui-composer-dock > * {
+	pointer-events: auto;
+}
+
+.knox-gui:has(> .knox-gui-composer.is-floating) .knox-gui-body-chat {
+	padding-bottom: 49px;
+}
+
+.knox-gui-composer-dock {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+	box-sizing: border-box;
+	padding: 4px 4px;
+}
+
+/* Sonar ring: a slow "I'm here" pulse while idle, one bigger burst on every toggle. */
+.knox-gui-composer-dock-toggle::before {
+	content: "";
+	position: absolute;
+	inset: -1px;
+	border: 1px solid #20c997;
+	border-radius: 50%;
+	opacity: 0;
+	pointer-events: none;
+	animation: knox-composer-sonar 3.4s ease-out 1.4s infinite backwards;
+}
+
+.knox-gui-composer-toggle-icon {
+	display: inline-flex;
+}
+
+/* Unsent draft: a small live dot on the button corner. */
+.knox-gui-composer-dock-badge {
+	position: absolute;
+	top: -2px;
+	right: -2px;
+	width: 8px;
+	height: 8px;
+	box-sizing: border-box;
+	border: 2px solid var(--vscode-sideBar-background, #252526);
+	border-radius: 50%;
+	background: #20c997;
+	pointer-events: none;
+	animation: knox-composer-dot-pulse 2s ease-in-out infinite;
+}
+
+.knox-gui-composer-dock .knox-gui-composer-dock-cancel {
+	flex-shrink: 0;
+}
+
+/* Arrival: spring-spin in, chevrons and lines assemble, then one ring burst. */
+.knox-gui-composer-dock-shell.is-opening .knox-gui-composer-dock-toggle {
+	animation: knox-composer-dock-pop 560ms cubic-bezier(0.34, 1.56, 0.64, 1) calc(90ms + var(--knox-composer-toggle-delay, 0ms)) backwards;
+}
+
+.knox-gui-composer-dock-shell.is-opening .knox-gui-composer-dock-toggle::before {
+	animation:
+		knox-composer-burst 620ms cubic-bezier(0.2, 0.7, 0.3, 1) calc(300ms + var(--knox-composer-toggle-delay, 0ms)) backwards,
+		knox-composer-sonar 3.4s ease-out 1.6s infinite backwards;
+}
+
+.knox-gui-composer-dock-shell.is-opening .knox-gui-svg path:nth-child(-n+3) {
+	transform-origin: left center;
+	animation: knox-composer-line-grow 380ms cubic-bezier(0.22, 1, 0.36, 1) calc(280ms + var(--knox-composer-toggle-delay, 0ms)) backwards;
+}
+
+.knox-gui-composer-dock-shell.is-opening .knox-gui-svg path:nth-child(4) {
+	animation: knox-composer-chevron-up 460ms cubic-bezier(0.34, 1.56, 0.64, 1) calc(260ms + var(--knox-composer-toggle-delay, 0ms)) backwards;
+}
+
+.knox-gui-composer-dock-shell.is-opening .knox-gui-svg path:nth-child(5) {
+	animation: knox-composer-chevron-down 460ms cubic-bezier(0.34, 1.56, 0.64, 1) calc(260ms + var(--knox-composer-toggle-delay, 0ms)) backwards;
+}
+
+/* Departure: the button spins away and throws a ring as the panel unfolds. */
+.knox-gui-composer-dock-shell.is-closing .knox-gui-composer-dock-toggle {
+	animation: knox-composer-dock-vanish 300ms cubic-bezier(0.5, 0, 0.75, 0) var(--knox-composer-toggle-delay, 0ms) both;
+}
+
+.knox-gui-composer-dock-shell.is-closing .knox-gui-composer-dock-toggle::before {
+	animation: knox-composer-burst 460ms cubic-bezier(0.2, 0.7, 0.3, 1) var(--knox-composer-toggle-delay, 0ms) both;
+}
+
+@keyframes knox-composer-dock-pop {
+	0% { opacity: 0; transform: translateY(18px) scale(0.2) rotate(-140deg); }
+	65% { opacity: 1; transform: translateY(-2px) scale(1.16) rotate(8deg); }
+	100% { opacity: 1; transform: none; }
+}
+
+@keyframes knox-composer-dock-vanish {
+	0% { opacity: 1; transform: none; }
+	100% { opacity: 0; transform: translateY(-14px) scale(0.3) rotate(120deg); }
+}
+
+@keyframes knox-composer-burst {
+	0% { opacity: 0.85; transform: scale(1); border-width: 2px; }
+	100% { opacity: 0; transform: scale(2.6); border-width: 1px; }
+}
+
+@keyframes knox-composer-sonar {
+	0% { opacity: 0.5; transform: scale(1); }
+	60%, 100% { opacity: 0; transform: scale(1.7); }
+}
+
+@keyframes knox-composer-line-grow {
+	from { transform: scaleX(0); opacity: 0; }
+	to { transform: scaleX(1); opacity: 1; }
+}
+
+@keyframes knox-composer-chevron-up {
+	from { transform: translateY(6px); opacity: 0; }
+	to { transform: none; opacity: 1; }
+}
+
+@keyframes knox-composer-chevron-down {
+	from { transform: translateY(-6px); opacity: 0; }
+	to { transform: none; opacity: 1; }
+}
+
+@keyframes knox-composer-dot-pulse {
+	0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(32, 201, 151, 0.55); }
+	50% { transform: scale(0.85); box-shadow: 0 0 0 4px rgba(32, 201, 151, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.knox-gui-composer.is-collapsing,
+	.knox-gui-composer.is-expanding,
+	.knox-gui-composer-collapsible,
+	.knox-gui-composer-collapsible::after,
+	.knox-gui-composer-collapsible > .knox-gui-composer-collapsible-inner,
+	.knox-gui-composer-dock-shell,
+	.knox-gui-composer-dock-shell *,
+	.knox-gui-composer-dock-shell *::before,
+	.knox-gui-toggle-pop .knox-gui-svg,
+	.knox-gui-composer-dock-badge {
+		animation: none !important;
+	}
+	.knox-gui-composer-orb,
+	.knox-gui-composer-orb .knox-gui-svg path {
+		transition: none;
+	}
+}
+
 /* TipTapEditor InputBoxDiv inside GradientBorder: column, full width, no nested card. */
 .knox-sent-frame-inner > .knox-gui-input-wrap {
 	display: flex;

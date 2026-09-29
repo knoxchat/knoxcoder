@@ -669,6 +669,44 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(JSON.stringify(store.state.inputDoc).includes('@'));
 	});
 
+	test('composer section toggles hidden/shown, keeps the draft, and reveals itself for @ mentions', async () => {
+		const { widget, store } = await mount();
+		const collapsible = () => widget.root.querySelector('[data-testid="knox-gui-composer-collapsible"]') as HTMLElement;
+		assert.strictEqual(collapsible().dataset.collapsed, 'false');
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-composer-dock"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-composer-collapse"]')?.getAttribute('aria-expanded'), 'true');
+
+		store.setInputDoc(inputDocFromPlainText('keep me'));
+		// The composer may re-render on input; always grab the live button.
+		(widget.root.querySelector('[data-testid="knox-gui-composer-collapse"]') as HTMLButtonElement).click();
+		assert.strictEqual(widget.composerCollapsed, true);
+		assert.strictEqual(collapsible().dataset.collapsed, 'true');
+		assert.strictEqual(collapsible().querySelector<HTMLElement>('.knox-gui-composer-collapsible-inner')?.inert, true);
+		assert.ok(collapsible().classList.contains('is-collapsing'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-composer-dock"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-composer-dock-badge'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-composer-expand"] svg.knox-gui-svg'));
+		assert.ok(store.state.input.includes('keep me'));
+
+		// Folded and settled, the composer floats over the transcript so only the round button remains.
+		const composerEl = widget.root.querySelector('[data-testid="full-composer"]') as HTMLElement;
+		assert.strictEqual(composerEl.classList.contains('is-floating'), false);
+		await timeout(450);
+		assert.strictEqual(composerEl.classList.contains('is-floating'), true);
+
+		(widget.root.querySelector('[data-testid="knox-gui-composer-expand"]') as HTMLButtonElement).click();
+		assert.strictEqual((widget.root.querySelector('[data-testid="full-composer"]') as HTMLElement).classList.contains('is-floating'), false);
+		assert.strictEqual(widget.composerCollapsed, false);
+		assert.strictEqual(collapsible().dataset.collapsed, 'false');
+		assert.ok(collapsible().classList.contains('is-expanding'));
+		assert.ok(store.state.input.includes('keep me'));
+
+		widget.setComposerCollapsed(true);
+		assert.strictEqual(widget.composerCollapsed, true);
+		store.patch({ mentionOpen: true, inputFocused: true });
+		assert.strictEqual(widget.composerCollapsed, false);
+	});
+
 	test('mention ArrowUp/Down select after @ opens without a full re-render', async () => {
 		const { widget, store } = await mount();
 		await widget.controller.loadMentions('');

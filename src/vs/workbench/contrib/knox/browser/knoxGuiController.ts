@@ -543,6 +543,14 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiPanels.setActivityPanelExpanded(this, expanded);
 	}
 
+	composerCollapsed(): boolean {
+		return knoxGuiPanels.composerCollapsed(this);
+	}
+
+	setComposerCollapsed(collapsed: boolean): void {
+		return knoxGuiPanels.setComposerCollapsed(this, collapsed);
+	}
+
 	dismissCompaction(): void {
 		return knoxGuiPanels.dismissCompaction(this);
 	}

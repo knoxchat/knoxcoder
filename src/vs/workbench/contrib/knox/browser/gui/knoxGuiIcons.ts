@@ -35,6 +35,8 @@ export type KnoxGuiSvgIcon =
 	| 'settings'
 	| 'chevrons-down'
 	| 'chevrons-up-down'
+	| 'list-chevrons-up-down'
+	| 'list-chevrons-down-up'
 	| 'chevron-down'
 	| 'chevron-up'
 	| 'arrow-right'
@@ -151,6 +153,8 @@ const ICONS: Record<KnoxGuiSvgIcon, string> = {
 	settings: `<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" ${STROKE}/><circle cx="12" cy="12" r="3" ${STROKE}/>`,
 	'chevrons-down': `<path d="m7 6 5 5 5-5" ${STROKE}/><path d="m7 13 5 5 5-5" ${STROKE}/>`,
 	'chevrons-up-down': `<path d="m7 15 5 5 5-5" ${STROKE}/><path d="m7 9 5-5 5 5" ${STROKE}/>`,
+	'list-chevrons-up-down': `<path d="M3 5h8" ${STROKE}/><path d="M3 12h8" ${STROKE}/><path d="M3 19h8" ${STROKE}/><path d="m15 8 3-3 3 3" ${STROKE}/><path d="m15 16 3 3 3-3" ${STROKE}/>`,
+	'list-chevrons-down-up': `<path d="M3 5h8" ${STROKE}/><path d="M3 12h8" ${STROKE}/><path d="M3 19h8" ${STROKE}/><path d="m15 5 3 3 3-3" ${STROKE}/><path d="m15 19 3-3 3 3" ${STROKE}/>`,
 	'chevron-down': `<path d="m6 9 6 6 6-6" ${STROKE}/>`,
 	'chevron-up': `<path d="m18 15-6-6-6 6" ${STROKE}/>`,
 	'arrow-right': `<path d="M5 12h14" ${STROKE}/><path d="m12 5 7 7-7 7" ${STROKE}/>`,
