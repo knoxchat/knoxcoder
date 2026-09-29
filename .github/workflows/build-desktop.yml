@@ -250,6 +250,40 @@ jobs:
             }
             $env:VSCMD_VER = '17.0'
             $env:GYP_MSVS_VERSION = '2022'
+
+            # LNK1181 "cannot open input file 'delayimp.lib'": make sure an
+            # arm64 delayimp.lib directory is on LIB, and log what exists.
+            $vsRoot = Split-Path (Split-Path (Split-Path (Split-Path $vcvars.FullName)))
+            Write-Host "VS root: $vsRoot"
+            Write-Host "LIB after vcvars: $env:LIB"
+            $found = Get-ChildItem (Join-Path $vsRoot 'VC\Tools\MSVC') -Recurse -Filter 'delayimp.lib' -ErrorAction SilentlyContinue
+            $found | ForEach-Object { Write-Host "delayimp.lib: $($_.FullName)" }
+            $arm64Lib = $found |
+              Where-Object { $_.DirectoryName -match '\\arm64$' -and $_.DirectoryName -notmatch 'spectre|onecore|store|arm64ec' } |
+              Select-Object -First 1
+            if (-not $arm64Lib) {
+              $arm64Lib = $found |
+                Where-Object { $_.DirectoryName -match '\\arm64$' -and $_.DirectoryName -notmatch 'arm64ec' } |
+                Select-Object -First 1
+            }
+            if ($arm64Lib) {
+              $env:LIB = "$($arm64Lib.DirectoryName);$env:LIB"
+              Write-Host "Prepended to LIB: $($arm64Lib.DirectoryName)"
+            } else {
+              Write-Host 'No arm64 delayimp.lib found under MSVC tools; installing ARM64 build tools'
+              $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+              $installPath = & (Join-Path $installer 'vswhere.exe') -latest -products * -property installationPath
+              $p = Start-Process -FilePath (Join-Path $installer 'setup.exe') -Wait -PassThru -ArgumentList @(
+                'modify', '--installPath', "`"$installPath`"",
+                '--add', 'Microsoft.VisualStudio.Component.VC.Tools.ARM64',
+                '--quiet', '--norestart', '--noUpdateInstaller'
+              )
+              Write-Host "VS installer exit code: $($p.ExitCode)"
+              $found = Get-ChildItem (Join-Path $vsRoot 'VC\Tools\MSVC') -Recurse -Filter 'delayimp.lib' -ErrorAction SilentlyContinue
+              $found | ForEach-Object { Write-Host "delayimp.lib: $($_.FullName)" }
+              $arm64Lib = $found | Where-Object { $_.DirectoryName -match '\\arm64$' } | Select-Object -First 1
+              if ($arm64Lib) { $env:LIB = "$($arm64Lib.DirectoryName);$env:LIB" }
+            }
           }
           npm ci
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
