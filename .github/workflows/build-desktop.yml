@@ -1,0 +1,207 @@
+# Cross-platform desktop builds for KnoxCoder: Linux (tar.gz, deb, rpm) and Windows (zip, system + user installers).
+#
+# macOS is intentionally NOT built here. It is built and signed locally with ./build_dmg.sh.
+#
+# Triggers
+#   - Manual run (Actions -> "Build desktop apps" -> Run workflow). Tick "arm64" to also build the arm64 targets.
+#   - Pushing a tag such as v1.138.0 builds x64 and attaches every artifact to a GitHub release.
+#
+# The gulp tasks below are the same ones the local macOS build uses (`vscode-<platform>-<arch>-min`);
+# output lands in ../VSCode-<platform>-<arch> next to the checkout, exactly like build_dmg.sh expects.
+
+name: Build desktop apps
+
+on:
+  workflow_dispatch:
+    inputs:
+      arm64:
+        description: 'Also build arm64 (needs GitHub-hosted arm64 runners: ubuntu-22.04-arm, windows-11-arm)'
+        type: boolean
+        default: false
+      publish_release:
+        description: Attach the artifacts to a draft GitHub release for the current version
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Lets the builtin-extension and sysroot downloads avoid anonymous GitHub API rate limits.
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  npm_config_fund: 'false'
+  npm_config_audit: 'false'
+
+jobs:
+  matrix:
+    name: Plan build matrix
+    runs-on: ubuntu-latest
+    outputs:
+      linux: ${{ steps.plan.outputs.linux }}
+      windows: ${{ steps.plan.outputs.windows }}
+    steps:
+      - id: plan
+        env:
+          ARM64: ${{ inputs.arm64 }}
+        run: |
+          linux='[{"arch":"x64","runner":"ubuntu-22.04"}'
+          windows='[{"arch":"x64","runner":"windows-2022"}'
+          if [ "$ARM64" = "true" ]; then
+            linux="$linux"',{"arch":"arm64","runner":"ubuntu-22.04-arm"}'
+            windows="$windows"',{"arch":"arm64","runner":"windows-11-arm"}'
+          fi
+          echo "linux=$linux]" >> "$GITHUB_OUTPUT"
+          echo "windows=$windows]" >> "$GITHUB_OUTPUT"
+
+  linux:
+    name: Linux ${{ matrix.arch }}
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.matrix.outputs.linux) }}
+    # ubuntu-22.04 (glibc 2.35) keeps the binaries runnable on a wider range of distributions than a newer image would.
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config python3 python-is-python3 \
+            libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev libgbm1 libgtk-3-0 \
+            fakeroot dpkg-dev rpm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run gulp vscode-linux-${{ matrix.arch }}-min
+
+      - name: Package tar.gz
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          mkdir -p dist
+          tar -czf "dist/KnoxCoder-${VERSION}-linux-${{ matrix.arch }}.tar.gz" -C .. "VSCode-linux-${{ matrix.arch }}"
+
+      - name: Package deb
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          npm run gulp vscode-linux-${{ matrix.arch }}-prepare-deb
+          npm run gulp vscode-linux-${{ matrix.arch }}-build-deb
+          deb="$(find .build/linux/deb -name '*.deb' | head -n 1)"
+          test -n "$deb"
+          cp "$deb" "dist/KnoxCoder-${VERSION}-linux-${{ matrix.arch }}.deb"
+
+      - name: Package rpm
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          npm run gulp vscode-linux-${{ matrix.arch }}-prepare-rpm
+          npm run gulp vscode-linux-${{ matrix.arch }}-build-rpm
+          rpm_file="$(find .build/linux/rpm -name '*.rpm' | head -n 1)"
+          test -n "$rpm_file"
+          cp "$rpm_file" "dist/KnoxCoder-${VERSION}-linux-${{ matrix.arch }}.rpm"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: knoxcoder-linux-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  windows:
+    name: Windows ${{ matrix.arch }}
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.matrix.outputs.windows) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        env:
+          GYP_MSVS_VERSION: '2022'
+        run: npm ci
+
+      - name: Build app
+        run: |
+          npm run gulp vscode-win32-${{ matrix.arch }}-min
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run gulp vscode-win32-${{ matrix.arch }}-inno-updater
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package zip
+        run: |
+          $version = node -p "require('./package.json').version"
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $source = Join-Path (Split-Path -Parent $PWD.Path) "VSCode-win32-${{ matrix.arch }}"
+          7z a -tzip -mx=5 "dist/KnoxCoder-$version-win32-${{ matrix.arch }}.zip" "$source\*"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build installers
+        run: |
+          $version = node -p "require('./package.json').version"
+          foreach ($target in 'system', 'user') {
+            npm run gulp vscode-win32-${{ matrix.arch }}-$target-setup
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $installer = Get-ChildItem ".build/win32-${{ matrix.arch }}/$target-setup" -Filter *.exe | Select-Object -First 1
+            if (-not $installer) { throw "No $target installer produced" }
+            Copy-Item $installer.FullName "dist/KnoxCoder-$version-win32-${{ matrix.arch }}-$target-setup.exe"
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: knoxcoder-windows-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Draft release
+    needs: [linux, windows]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.publish_release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: knoxcoder-*
+          path: release
+          merge-multiple: true
+
+      - name: List release files
+        run: ls -lh release
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}-build.{1}', github.run_number, github.run_attempt) }}
+          name: KnoxCoder ${{ github.ref_name }}
+          draft: true
+          files: release/*
+          fail_on_unmatched_files: true
