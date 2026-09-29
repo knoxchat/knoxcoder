@@ -25,6 +25,9 @@ import * as knoxGuiMemoryView from './widget/memory.js';
 import * as knoxGuiCheckpointsView from './widget/checkpoints.js';
 import * as knoxGuiDialogView from './widget/dialog.js';
 import { captureDomState, restoreDomState } from './widget/preserve.js';
+import { stepComposerUndo } from './widget/composer.js';
+import { stepHistoryUndo } from './widget/chat/historyEditor.js';
+import { isNativeTextInput, KnoxEditCommand, registerKnoxEditHost, selectAllContents } from './widget/editCommands.js';
 import { KnoxGuiCheckpointsFacade } from './widget/facade/checkpointsFacade.js';
 
 export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
@@ -62,6 +65,7 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		this._register(DOM.addDisposableListener(this.root, 'keydown', e => this.onRootKeyDown(e)));
 		this._register(DOM.addDisposableListener(this.root, 'mousedown', e => this.onRootMouseDown(e)));
 		this._register(DOM.addDisposableListener(this.root, 'contextmenu', e => this.onRootContextMenu(e)));
+		this._register(registerKnoxEditHost(this.root, { run: (command, active) => this.runEditCommand(command, active) }));
 		this._register({ dispose: () => this.hideImagePreview() });
 		this._register({ dispose: () => this.hideOsrMenu() });
 		this._register({ dispose: () => this.clearJobClock() });
@@ -103,6 +107,32 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 
 	isInputFocused(): boolean {
 		return Boolean(this.editorEl && this.editorEl.contains(document.activeElement));
+	}
+
+	/**
+	 * Select All / Undo / Redo for whatever is focused inside this widget, so the workbench never
+	 * redirects them to the active code editor. Native `<input>` / `<textarea>` are left to the workbench.
+	 */
+	runEditCommand(command: KnoxEditCommand, active: HTMLElement): boolean {
+		if (isNativeTextInput(active)) {
+			return false;
+		}
+		if (command === 'selectAll') {
+			// A focused contenteditable selects its own text; anywhere else in the pane selects the visible page.
+			return selectAllContents(active.isContentEditable ? active : this.bodyEl ?? this.root);
+		}
+		const delta = command === 'undo' ? -1 : 1;
+		if (this.editorEl && active === this.editorEl) {
+			stepComposerUndo(this, delta);
+			return true;
+		}
+		for (const [id, editor] of this.historyEditorEls) {
+			if (editor === active) {
+				stepHistoryUndo(this, id, delta);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	openFind(): void {

@@ -241,7 +241,7 @@ export function renderAgentMenu(widget: KnoxGuiWidget, trigger: HTMLElement, sta
 	widget.renderStore.add(DOM.addDisposableListener(jobs, 'click', e => {
 		e.stopPropagation();
 		widget.closeMenus();
-		widget.controller.store.patch({ jobsPanelOpen: !state.jobsPanelOpen });
+		widget.controller.toggleJobsPanel();
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(menu, 'keydown', e => {
 		const index = rows.indexOf(e.target as HTMLButtonElement);

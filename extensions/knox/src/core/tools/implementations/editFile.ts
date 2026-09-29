@@ -83,6 +83,82 @@ export function findClosestLines(
   return [...exact, ...sameKey].slice(0, limit);
 }
 
+/**
+ * Models often copy `read_file` output with its `  34 | ` gutter. Strip it only
+ * when every non-empty line carries one, so real code like `1 | 2` is untouched.
+ */
+export function stripLineNumberGutter(text: string): string {
+  const lines = text.split("\n");
+  const gutter = /^\s*\d+\s*\|\s?/;
+  const nonEmpty = lines.filter((l) => l.trim());
+  if (nonEmpty.length === 0 || !nonEmpty.every((l) => gutter.test(l))) {
+    return text;
+  }
+  return lines.map((l) => l.replace(gutter, "")).join("\n");
+}
+
+const leadingWs = (s: string) => s.match(/^[ \t]*/)?.[0] ?? "";
+
+/**
+ * Whole-line match that ignores leading/trailing whitespace per line (wrong
+ * indent, tabs vs spaces, trailing spaces). Only succeeds on a single unique
+ * block; returns the file's actual text plus `newString` re-indented to it.
+ */
+export function findWhitespaceInsensitiveBlock(
+  content: string,
+  oldString: string,
+  newString: string,
+): { old: string; next: string } | undefined {
+  const endsWithNewline = /\r?\n$/.test(oldString);
+  if (endsWithNewline !== /\r?\n$/.test(newString)) {
+    return undefined;
+  }
+  const trimEnd = (s: string) => s.replace(/(\r?\n)+$/, "");
+  const oldLines = trimEnd(oldString).split(/\r?\n/);
+  if (oldLines.length === 0 || oldLines.every((l) => !l.trim())) {
+    return undefined;
+  }
+  const norm = (l: string) => l.replace(/\r$/, "").trim();
+  const wanted = oldLines.map(norm);
+  const fileLines = content.split("\n");
+  const fileNorm = fileLines.map(norm);
+
+  let hit = -1;
+  for (let i = 0; i + wanted.length <= fileLines.length; i++) {
+    if (wanted.every((w, j) => fileNorm[i + j] === w)) {
+      if (hit !== -1) {
+        return undefined; // ambiguous
+      }
+      hit = i;
+    }
+  }
+  if (hit === -1) {
+    return undefined;
+  }
+
+  const block = fileLines.slice(hit, hit + wanted.length);
+  const usesCrlf = block.some((l) => l.endsWith("\r"));
+  const actualOld = block
+    .map((l, i) => (i === block.length - 1 ? l.replace(/\r$/, "") : l))
+    .join("\n");
+
+  // Re-indent: swap the model's first-line indent for the file's.
+  const modelIndent = leadingWs(oldLines.find((l) => l.trim()) ?? "");
+  const fileIndent = leadingWs(block[wanted.findIndex((w) => w)] ?? "");
+  let next = trimEnd(newString);
+  if (modelIndent !== fileIndent) {
+    next = next
+      .split(/\r?\n/)
+      .map((l) => (l.startsWith(modelIndent) ? fileIndent + l.slice(modelIndent.length) : l))
+      .join("\n");
+  }
+  if (usesCrlf) {
+    next = next.replace(/\r?\n/g, "\r\n");
+  }
+  const trailing = endsWithNewline ? (usesCrlf ? "\r\n" : "\n") : "";
+  return { old: actualOld + trailing, next: next + trailing };
+}
+
 /** Retry candidates for a missed `old_string`, most specific first. */
 function fallbackOldStrings(
   filepath: string,
@@ -110,6 +186,24 @@ function fallbackOldStrings(
     if (content.includes("\r\n") && !aligned.includes("\r\n")) {
       push(toCrlf(aligned), toCrlf(alignedNew));
     }
+  }
+  // Copied read_file gutter ("  34 | code").
+  const ungutteredOld = stripLineNumberGutter(oldString);
+  const ungutteredNew = stripLineNumberGutter(newString);
+  if (ungutteredOld !== oldString) {
+    push(ungutteredOld, ungutteredNew);
+    if (content.includes("\r\n")) {
+      push(toCrlf(ungutteredOld), toCrlf(ungutteredNew));
+    }
+  }
+  // Last resort: whole-line match ignoring indentation / trailing whitespace.
+  const fuzzy = findWhitespaceInsensitiveBlock(
+    content,
+    ungutteredOld,
+    ungutteredNew,
+  );
+  if (fuzzy) {
+    push(fuzzy.old, fuzzy.next);
   }
   return out;
 }
@@ -186,7 +280,8 @@ export const editFileImpl: ToolImpl = async (args, extras) => {
         matches = count;
         recoveredNote =
           "old_string did not match exactly; it matched after aligning " +
-          "line endings / Rust pins (edition, rust-version) with the file on disk.";
+          "line endings, Rust pins, copied line numbers, or indentation/trailing " +
+          "whitespace with the file on disk.";
         break;
       }
     }

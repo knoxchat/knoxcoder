@@ -276,6 +276,26 @@ export function setHistoryDraftDoc(widget: KnoxGuiWidget, historyId: string, doc
 	widget.placeCaretAtDocPosition(editor, caret);
 }
 
+/** Undo / redo one step in a history message editor; shared by its keydown handler and the workbench Edit commands. */
+export function stepHistoryUndo(widget: KnoxGuiWidget, historyId: string, delta: -1 | 1): void {
+	const draft = widget.historyDrafts.get(historyId);
+	if (!draft) {
+		return;
+	}
+	const current = widget.historyUndo.get(historyId) ?? createComposerUndo(draft.doc);
+	const stepped = composerUndoStep(current, delta);
+	if (!stepped) {
+		return;
+	}
+	widget.historyUndoApplying.add(historyId);
+	try {
+		widget.historyUndo.set(historyId, stepped.undo);
+		setHistoryDraftDoc(widget, historyId, stepped.doc, docEndCaret(stepped.doc));
+	} finally {
+		widget.historyUndoApplying.delete(historyId);
+	}
+}
+
 /**
  * `editorConfig.ts` keys for a non-main editor: picker navigation, Enter /
  * Mod+Enter / Alt+Enter submit, ArrowUp / ArrowDown walk the chat input
@@ -321,15 +341,7 @@ function onHistoryEditorKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent, editor:
 	if (action.type === 'undo' || action.type === 'redo') {
 		e.preventDefault();
 		e.stopPropagation();
-		const current = widget.historyUndo.get(item.id) ?? createComposerUndo(draft.doc);
-		const stepped = composerUndoStep(current, action.type === 'undo' ? -1 : 1);
-		if (!stepped) {
-			return;
-		}
-		widget.historyUndoApplying.add(item.id);
-		widget.historyUndo.set(item.id, stepped.undo);
-		setHistoryDraftDoc(widget, item.id, stepped.doc, docEndCaret(stepped.doc));
-		widget.historyUndoApplying.delete(item.id);
+		stepHistoryUndo(widget, item.id, action.type === 'undo' ? -1 : 1);
 		return;
 	}
 	if (action.type === 'submit') {

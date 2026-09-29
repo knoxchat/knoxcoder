@@ -30,6 +30,10 @@ import { KnoxGuiStore } from './knoxGuiStore.js';
 import { KnoxGuiWidget } from './gui/knoxGuiWidget.js';
 import { DEFAULT_CHECKPOINT_CONFIG } from '../common/knoxGuiCheckpoints.js';
 import { checkpointTimelineEscape } from './gui/widget/checkpoints.js';
+import { runKnoxEditCommand } from './gui/widget/editCommands.js';
+import { SelectAllCommand } from '../../../../editor/browser/editorExtensions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import './knoxGuiEditCommands.js';
 import { onCheckpointGraphKeyDown } from './gui/widget/checkpointGraph.js';
 
 suite('Knox native GUI widget chrome (GP-083)', () => {
@@ -2455,6 +2459,65 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(editor.textContent?.includes('pasted text'), 'text must not be swallowed by the file');
 		assert.strictEqual(store.state.images.length, 0, 'unsupported image files are ignored');
 	});
+	test('Cmd+A in the composer selects only the composer text, never the code editor', async () => {
+		const { widget, store } = await mount();
+		store.setInputDoc(inputDocFromPlainText('Use rust to create a snake game'));
+		const editor = widget.root.querySelector<HTMLElement>('[data-testid="knox-gui-input"]')!;
+		editor.focus();
+		assert.strictEqual(document.activeElement, editor);
+		document.getSelection()?.removeAllRanges();
+
+		// This is what `editor.action.selectAll` calls for the focused element (see knoxGuiEditCommands.ts).
+		assert.strictEqual(runKnoxEditCommand('selectAll', document.activeElement), true, 'handled inside Knox so the workbench does not fall back to the editor');
+		const selection = document.getSelection()!;
+		assert.strictEqual(selection.toString(), 'Use rust to create a snake game');
+		assert.ok(editor.contains(selection.anchorNode) && editor.contains(selection.focusNode));
+	});
+	test('Select All override is registered ahead of the workbench generic-dom fallback', async () => {
+		const { widget, store } = await mount();
+		store.setInputDoc(inputDocFromPlainText('hello world'));
+		const editor = widget.root.querySelector<HTMLElement>('[data-testid="knox-gui-input"]')!;
+		editor.focus();
+		document.getSelection()?.removeAllRanges();
+		const accessor = { get: () => ({ trace() { } }) } as unknown as ServicesAccessor;
+		SelectAllCommand.runCommand(accessor, undefined);
+		assert.strictEqual(document.getSelection()!.toString(), 'hello world');
+	});
+	test('Select All leaves native inputs to the workbench and selects the page for non-editable focus', async () => {
+		const { widget, store } = await mount();
+		store.patch({ find: { ...store.state.find, open: true } });
+		const input = widget.root.querySelector<HTMLInputElement>('input');
+		assert.ok(input, 'find input is rendered');
+		input.focus();
+		assert.strictEqual(runKnoxEditCommand('selectAll', input), false, 'native <input> keeps the workbench execCommand path');
+
+		const outside = document.createElement('button');
+		document.body.appendChild(outside);
+		disposables.add({ dispose: () => outside.remove() });
+		outside.focus();
+		assert.strictEqual(runKnoxEditCommand('selectAll', outside), false, 'focus outside Knox is not ours');
+
+		const button = widget.root.querySelector<HTMLElement>('button')!;
+		button.focus();
+		assert.strictEqual(runKnoxEditCommand('selectAll', button), true, 'focus on a Knox control selects the Knox page, not the code editor');
+		const selection = document.getSelection()!;
+		assert.ok(selection.rangeCount && widget.root.contains(selection.anchorNode));
+	});
+	test('Undo / Redo in the composer step the composer history instead of the code editor', async () => {
+		const { widget, store } = await mount();
+		const text = () => store.state.inputDoc.map(block => JSON.stringify(block)).join('');
+		store.patch({ inputFocused: true }); // real typing always follows a focus state change, which is when undo recording starts
+		const empty = text();
+		store.setInputDoc(inputDocFromPlainText('one two'));
+		const typed = text();
+		const editor = widget.editorEl!;
+		assert.ok(editor.isConnected);
+		editor.focus();
+		assert.strictEqual(runKnoxEditCommand('undo', editor), true, 'undo is handled by the composer, not the workbench editor');
+		assert.strictEqual(text(), empty);
+		assert.strictEqual(runKnoxEditCommand('redo', editor), true);
+		assert.strictEqual(text(), typed);
+	});
 	test('NP-13 a page render crash shows message + Retry and keeps the session (no persisted-state wipe)', async () => {
 		const { widget, store } = await mount();
 		const history: IKnoxGuiHistoryItem[] = [{ id: 'u', role: 'user', content: 'keep me' }];
@@ -2533,6 +2596,41 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		store.patch({ memoryTab: 'sessions', memoryTabHydrated: true });
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-memory-tab-sessions"].selected'));
 	});
+	test('background jobs panel keeps the user expand/collapse choice when jobs arrive, and remembers it', async () => {
+		const { widget, store } = await mount();
+		const controller = widget.controller;
+		const jobsPanelOpen = () => widget.root.querySelector('[data-testid="agent-jobs-panel"] .knox-gui-attached-collapse')?.classList.contains('open');
+		const sendJob = (id: string) => controller.onHostMessage({
+			messageType: 'agent/jobUpdate',
+			messageId: `job-${id}`,
+			data: { job: { id, title: `cmd ${id}`, status: 'running', kind: 'shell', startedAt: Date.now() } },
+		});
+
+		// Original default: expanded.
+		assert.strictEqual(store.state.jobsPanelOpen, true);
+		sendJob('j1');
+		assert.strictEqual(jobsPanelOpen(), true);
+
+		// User collapses; new jobs must not force it open again.
+		(widget.root.querySelector('[data-testid="agent-jobs-toggle"]') as HTMLButtonElement).click();
+		assert.strictEqual(store.state.jobsPanelOpen, false);
+		sendJob('j2');
+		controller.onHostMessage({ messageType: 'agent/jobUpdate', messageId: 'jobs-list', data: { jobs: [{ id: 'j1', title: 'a', status: 'running' }, { id: 'j3', title: 'b', status: 'running' }] } });
+		assert.strictEqual(store.state.jobsPanelOpen, false);
+		assert.strictEqual(jobsPanelOpen(), false);
+
+		// A new session keeps the preference and it is written to storage.
+		store.newSession();
+		assert.strictEqual(store.state.jobsPanelOpen, false);
+		assert.strictEqual(controller.jobsPanelExpanded(), false);
+
+		// User expands again; it stays expanded across further jobs.
+		controller.toggleJobsPanel();
+		sendJob('j4');
+		assert.strictEqual(store.state.jobsPanelOpen, true);
+		assert.strictEqual(controller.jobsPanelExpanded(), true);
+	});
+
 	test('NP-28 code fences never auto-detect a language while the reply streams (CSLD-09)', async () => {
 		const { widget } = await mount();
 		let guesses = 0;

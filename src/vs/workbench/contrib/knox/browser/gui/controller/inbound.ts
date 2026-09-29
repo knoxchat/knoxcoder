@@ -305,14 +305,15 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 			if (rec) {
 				const listed = parseBackgroundJobs(rec.jobs);
 				if (listed.length || Array.isArray(rec.jobs)) {
-					controller.store.patch({ backgroundJobs: listed, jobsPanelOpen: listed.length > 0 ? true : controller.store.state.jobsPanelOpen });
+					// Never touch `jobsPanelOpen` here: new jobs must not override the user's expand/collapse choice.
+					controller.store.patch({ backgroundJobs: listed });
 					return;
 				}
 				const job = parseBackgroundJob(rec.job ?? rec);
 				if (job) {
 					const jobs = controller.store.state.backgroundJobs.filter(existing => existing.id !== job.id);
 					jobs.push(job);
-					controller.store.patch({ backgroundJobs: jobs, jobsPanelOpen: true });
+					controller.store.patch({ backgroundJobs: jobs });
 				}
 			}
 			return;

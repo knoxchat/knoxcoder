@@ -21,7 +21,7 @@ export const PROFILE_PREFERENCES_KEY = 'knox.gui.profilePreferences';
 export function restorePersistedState(controller: KnoxGuiController): void {
 	const ui = knoxGuiParsePersistedUi(controller.storageService.get(UI_STATE_KEY, StorageScope.PROFILE));
 	const tabs = knoxGuiParsePersistedTabs(controller.storageService.get(TABS_KEY, StorageScope.WORKSPACE));
-	controller.store.patch({ ...ui, ...(tabs ?? {}) });
+	controller.store.patch({ ...ui, ...(tabs ?? {}), jobsPanelOpen: controller.jobsPanelExpanded() });
 }
 
 /** `useInputHistory.ts`: one history per composer mode, `inputHistory_chat` / `inputHistory_edit`. */

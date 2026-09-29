@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
-import { ACTIVITY_PANEL_EXPANDED_KEY, GIT_DIFF_EXPANDED_KEY, asRecord, asArray, withTimeout } from './helpers.js';
+import { ACTIVITY_PANEL_EXPANDED_KEY, GIT_DIFF_EXPANDED_KEY, JOBS_PANEL_EXPANDED_KEY, asRecord, asArray, withTimeout } from './helpers.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { finalizeGitDiffFiles, gitFilesFromChangedList, gitFilesFromDiffs, knoxGuiResolveOpenPath, mergeGitChangedWithDiffs, parseBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { IKnoxGuiContextItem, IKnoxGuiGitDiffFile } from '../../../common/knoxGuiState.js';
@@ -116,8 +116,19 @@ export function dismissInjectedMemories(controller: KnoxGuiController): void {
 	controller.store.patch({ injectedMemories: [] });
 }
 
+/** `uiSlice.jobsPanelOpen`: remembered across sessions and reloads, expanded until the user collapses it. */
+export function jobsPanelExpanded(controller: KnoxGuiController): boolean {
+	const stored = controller.storageService.get(JOBS_PANEL_EXPANDED_KEY, StorageScope.PROFILE);
+	return stored === undefined ? true : stored === 'true';
+}
+
+export function setJobsPanelOpen(controller: KnoxGuiController, open: boolean): void {
+	controller.storageService.store(JOBS_PANEL_EXPANDED_KEY, open ? 'true' : 'false', StorageScope.PROFILE, StorageTarget.USER);
+	controller.store.patch({ jobsPanelOpen: open });
+}
+
 export function toggleJobsPanel(controller: KnoxGuiController): void {
-	controller.store.patch({ jobsPanelOpen: !controller.store.state.jobsPanelOpen });
+	setJobsPanelOpen(controller, !controller.store.state.jobsPanelOpen);
 }
 
 export async function runJobAction(controller: KnoxGuiController, action: 'kill' | 'killAll' | 'dismiss' | 'clear', jobId?: string): Promise<void> {

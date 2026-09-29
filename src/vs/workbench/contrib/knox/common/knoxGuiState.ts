@@ -1045,7 +1045,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		activeTabId: '',
 		worktree: { enabled: false, busy: false, files: [] },
 		backgroundJobs: [],
-		jobsPanelOpen: false,
+		jobsPanelOpen: true,
 		taskPlan: [],
 		injectedMemories: [],
 		memoryMode: 'summarized',

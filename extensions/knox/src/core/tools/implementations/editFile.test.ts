@@ -144,6 +144,66 @@ describe("editFileImpl", () => {
     );
   });
 
+  describe("tolerant matching", () => {
+    const RUST = [
+      "impl P {",
+      "    fn step(self, dir: Dir) -> Option<Self> {",
+      "        let (dx, dy) = dir.delta();   ",
+      "        Some(self)",
+      "    }",
+      "}",
+      "",
+    ].join("\n");
+
+    it("recovers when old_string has the wrong indentation", async () => {
+      const ide = mockIde({ readFile: vi.fn(async () => RUST) });
+      await editFileImpl(
+        {
+          filepath: "src/main.rs",
+          old_string: "fn step(self, dir: Dir) -> Option<Self> {\n    let (dx, dy) = dir.delta();",
+          new_string: "fn step(self, dir: Dir) -> Option<Self> {\n    let (dx, dy) = dir.delta();\n    let _z = 0;",
+        },
+        extras(ide),
+      );
+      expect(ide.writeFile).toHaveBeenCalledWith(
+        "file:///tmp/ws/src/main.rs",
+        RUST.replace(
+          "    fn step(self, dir: Dir) -> Option<Self> {\n        let (dx, dy) = dir.delta();   ",
+          "    fn step(self, dir: Dir) -> Option<Self> {\n        let (dx, dy) = dir.delta();\n        let _z = 0;",
+        ),
+      );
+    });
+
+    it("recovers when old_string was copied with read_file line numbers", async () => {
+      const ide = mockIde();
+      await editFileImpl(
+        {
+          filepath: "a.ts",
+          old_string: "  1 | const a = 1;\n  2 | const b = 2;",
+          new_string: "const a = 1;\nconst b = 3;",
+        },
+        extras(ide),
+      );
+      expect(ide.writeFile).toHaveBeenCalledWith(
+        "file:///tmp/ws/a.ts",
+        "const a = 1;\nconst b = 3;\n",
+      );
+    });
+
+    it("refuses an ambiguous whitespace-insensitive match", async () => {
+      const ide = mockIde({
+        readFile: vi.fn(async () => "  foo();\n\tfoo();\n"),
+      });
+      await expect(
+        editFileImpl(
+          { filepath: "a.ts", old_string: "  foo();  ", new_string: "bar();" },
+          extras(ide),
+        ),
+      ).rejects.toThrow(/not found/i);
+      expect(ide.writeFile).not.toHaveBeenCalled();
+    });
+  });
+
   describe("Knox-normalized Rust pins", () => {
     const CARGO = `[package]\nname = "demo"\nversion = "0.1.0"\nedition = "2024"\nrust-version = "1.98.1"\n`;
 

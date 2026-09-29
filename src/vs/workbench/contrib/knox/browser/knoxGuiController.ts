@@ -551,6 +551,10 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiPanels.dismissInjectedMemories(this);
 	}
 
+	jobsPanelExpanded(): boolean {
+		return knoxGuiPanels.jobsPanelExpanded(this);
+	}
+
 	toggleJobsPanel(): void {
 		return knoxGuiPanels.toggleJobsPanel(this);
 	}
