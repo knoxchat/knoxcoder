@@ -78,7 +78,9 @@ if (process.arch !== os.arch()) {
 function hasSupportedVisualStudioVersion() {
 	// Translated over from
 	// https://source.chromium.org/chromium/chromium/src/+/master:build/vs_toolchain.py;l=140-175
-	const supportedVersions = ['2022', '2019'];
+	// '18' is Visual Studio 2026, which windows-11-arm currently ships
+	// at C:\Program Files\Microsoft Visual Studio\18\<edition>.
+	const supportedVersions = ['2022', '2019', '18'];
 
 	const availableVersions = [];
 	for (const version of supportedVersions) {

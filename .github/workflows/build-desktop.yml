@@ -210,29 +210,36 @@ jobs:
       - name: Disable Spectre mitigation for native modules
         if: matrix.arch == 'arm64'
         run: |
-          # windows-11-arm ships VS 18 without Spectre-mitigated MSVC libs.
-          # @vscode/deviceid and other native modules set SpectreMitigation=Spectre
-          # in binding.gyp, which then fails with MSB8040. Installing the VS
-          # components on this image is unreliable (versioned IDs, installer
-          # no-ops), so override the MSBuild property instead.
-          $xml = '<Project><PropertyGroup><SpectreMitigation>false</SpectreMitigation></PropertyGroup></Project>'
+          # windows-11-arm ships VS 18. Native modules set SpectreMitigation=Spectre
+          # in binding.gyp. The toolset MSBuild then picks (v143 / 14.44) has no
+          # lib\spectre\arm64, so the linker fails with LNK1181 delayimp.lib.
+          # Directory.Build.targets is imported after the vcxproj, so it can both
+          # clear SpectreMitigation (silences MSB8040) and prepend the plain
+          # MSVC lib folder that actually contains delayimp.lib.
+          $xml = @'
+          <Project>
+            <PropertyGroup>
+              <SpectreMitigation>false</SpectreMitigation>
+            </PropertyGroup>
+            <ItemDefinitionGroup>
+              <Link>
+                <AdditionalLibraryDirectories>$(VCToolsInstallDir)lib\$(PlatformTarget);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+              </Link>
+            </ItemDefinitionGroup>
+          </Project>
+          '@
+          $xml = ($xml -split "`n" | ForEach-Object { $_.TrimStart() }) -join "`n"
           $workspaceTargets = Join-Path $pwd 'Directory.Build.targets'
+          $workspaceProps = Join-Path $pwd 'Directory.Build.props'
           $propsPath = Join-Path $env:RUNNER_TEMP 'DisableSpectre.props'
           [System.IO.File]::WriteAllText($workspaceTargets, $xml)
+          [System.IO.File]::WriteAllText($workspaceProps, $xml)
           [System.IO.File]::WriteAllText($propsPath, $xml)
           Add-Content -Path $env:GITHUB_ENV -Value "ForceImportBeforeCppTargets=$propsPath"
+          Add-Content -Path $env:GITHUB_ENV -Value "ForceImportAfterCppProps=$propsPath"
           Write-Host "Wrote $workspaceTargets"
+          Write-Host "Wrote $workspaceProps"
           Write-Host "ForceImportBeforeCppTargets=$propsPath"
-
-          # The two files above are imported too late: MSBuild computes the
-          # linker LibraryPath (lib\spectre\arm64, which does not exist for the
-          # toolset used here -> LNK1181 delayimp.lib) before them. A global
-          # property passed via Directory.Build.rsp overrides the value in
-          # binding.gyp's generated .vcxproj. MSBuild picks the .rsp up from
-          # any parent directory of the project (node_modules/**/build/).
-          $rsp = Join-Path $pwd 'Directory.Build.rsp'
-          [System.IO.File]::WriteAllText($rsp, "/p:SpectreMitigation=false`r`n")
-          Write-Host "Wrote $rsp"
 
       - name: Install dependencies
         env:
@@ -240,13 +247,21 @@ jobs:
         run: |
           # windows-11-arm currently ships Visual Studio 18. node-gyp 11 only
           # maps VS 15/16/17, so import vcvars and report VSCMD_VER as 17.0.
+          # preinstall.ts also only looks for a 2019/2022 folder unless
+          # vs2022_install points at the VS 18 install.
           if ('${{ matrix.arch }}' -eq 'arm64') {
-            $vcvars = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\*\*\VC\Auxiliary\Build\vcvarsall.bat' -ErrorAction SilentlyContinue |
+            $vcvars = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\18\*\VC\Auxiliary\Build\vcvarsall.bat' -ErrorAction SilentlyContinue |
               Select-Object -First 1
+            if (-not $vcvars) {
+              $vcvars = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\*\*\VC\Auxiliary\Build\vcvarsall.bat' -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+            }
             if (-not $vcvars) {
               throw 'vcvarsall.bat not found; cannot compile native modules on this runner'
             }
+            $vsInstall = $vcvars.Directory.Parent.Parent.Parent.FullName
             Write-Host "Importing $($vcvars.FullName) arm64"
+            Write-Host "vs2022_install=$vsInstall"
             $setup = Join-Path $env:TEMP 'knox-vcvars.cmd'
             @(
               '@echo off',
@@ -260,7 +275,10 @@ jobs:
             }
             $env:VSCMD_VER = '17.0'
             $env:GYP_MSVS_VERSION = '2022'
-
+            $env:vs2022_install = $vsInstall
+            Add-Content -Path $env:GITHUB_ENV -Value "vs2022_install=$vsInstall"
+            Add-Content -Path $env:GITHUB_ENV -Value "GYP_MSVS_VERSION=2022"
+            Add-Content -Path $env:GITHUB_ENV -Value "VSCMD_VER=17.0"
           }
           npm ci
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
