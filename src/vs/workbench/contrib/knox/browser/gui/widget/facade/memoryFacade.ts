@@ -8,7 +8,7 @@ import { KnoxGuiPagesFacade } from './pagesFacade.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import * as knoxGuiMemoryView from '../memory.js';
 
-/** Memory pages: overview, browser, sessions, graph, settings (`widget/memory.ts`). */
+/** Memory pages: overview, browser, sessions, graph, settings (`widget/memory/`). */
 export abstract class KnoxGuiMemoryFacade extends KnoxGuiPagesFacade {
 	renderMemory(this: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 		knoxGuiMemoryView.renderMemory(this, body, state);

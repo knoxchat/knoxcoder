@@ -9,7 +9,7 @@ import { IKnoxGuiDocCaret, IKnoxGuiInputBlock, KnoxGuiInlineNode } from '../../.
 import { IKnoxGuiState, IKnoxGuiSuggestItem } from '../../../../common/knoxGuiState.js';
 import * as knoxGuiComposerView from '../composer.js';
 
-/** Composer input, suggest picker, drag/drop, images, caret and doc IO (`widget/composer.ts`). */
+/** Composer input, suggest picker, drag/drop, images, caret and doc IO (`widget/composer/`). */
 export abstract class KnoxGuiComposerFacade extends KnoxGuiPanelsFacade {
 	onDragOver(this: KnoxGuiWidget, event: DragEvent): void {
 		knoxGuiComposerView.onDragOver(this, event);

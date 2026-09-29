@@ -9,7 +9,7 @@ import { IKnoxGuiCheckpointDiffFile, IKnoxGuiState } from '../../../../common/kn
 import { KnoxGuiSvgIcon } from '../../knoxGuiIcons.js';
 import * as knoxGuiCheckpointsView from '../checkpoints.js';
 
-/** Checkpoint pages: list, restore/compare dialogs, diff viewer, dashboard, share (`widget/checkpoints.ts`). */
+/** Checkpoint pages: list, restore/compare dialogs, diff viewer, dashboard, share (`widget/checkpoints.ts` barrel over `widget/checkpoints/`). */
 export abstract class KnoxGuiCheckpointsFacade extends KnoxGuiMemoryFacade {
 	renderCheckpoints(this: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 		knoxGuiCheckpointsView.renderCheckpoints(this, body, state);

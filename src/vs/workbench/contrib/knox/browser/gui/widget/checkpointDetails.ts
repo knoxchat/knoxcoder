@@ -9,7 +9,7 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
-import { checkpointButton, checkpointDialogClose, checkpointDialogHeader, checkpointSelect } from './checkpoints.js';
+import { checkpointButton, checkpointDialogClose, checkpointDialogHeader, checkpointSelect } from './checkpoints/primitives.js';
 import {
 	buildCheckpointFileTree,
 	checkpointDetailsDefaultTab,

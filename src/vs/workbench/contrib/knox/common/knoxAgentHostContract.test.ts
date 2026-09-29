@@ -15,6 +15,30 @@ function repoFile(...parts: string[]): string {
 	return readFileSync(join(process.cwd(), ...parts), 'utf8');
 }
 
+/** A `widget/<name>.ts` barrel plus every implementation module in `widget/<name>/*.ts`. */
+function widgetBarrelSource(name: string): string {
+	const dir = `src/vs/workbench/contrib/knox/browser/gui/widget/${name}`;
+	return [
+		repoFile(`${dir}.ts`),
+		...readdirSync(join(process.cwd(), dir)).filter(file => file.endsWith('.ts')).sort().map(file => repoFile(dir, file)),
+	].join('\n');
+}
+
+/** `widget/composer.ts` is a barrel; its implementation lives in `widget/composer/*.ts`. */
+function widgetComposerSource(): string {
+	return widgetBarrelSource('composer');
+}
+
+/** `widget/checkpoints.ts` is a barrel; its implementation lives in `widget/checkpoints/*.ts`. */
+function widgetCheckpointsSource(): string {
+	return widgetBarrelSource('checkpoints');
+}
+
+/** `widget/memory.ts` is a barrel; its implementation lives in `widget/memory/*.ts`. */
+function widgetMemorySource(): string {
+	return widgetBarrelSource('memory');
+}
+
 /** A git-ignored directory is a local reference checkout, not part of the tree. */
 function isGitIgnored(target: string): boolean {
 	try {
@@ -665,7 +689,7 @@ suite('Knox agent host contract (KN-374)', () => {
 		const composer = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/composer.ts');
 		const stream = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/stream.ts');
 		const config = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/config.ts');
-		const widget = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/composer.ts');
+		const widget = widgetComposerSource();
 		const panels = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/panels.ts');
 		const defaults = repoFile('extensions/knox/src/core/context/providers/defaultProviders.ts');
 		const slash = repoFile('extensions/knox/src/core/commands/slash/index.ts');
@@ -705,7 +729,7 @@ suite('Knox agent host contract (KN-375)', () => {
 		const protocol = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiProtocol.ts');
 		const helpers = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiCheckpoints.ts');
 		const controller = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/checkpoints.ts');
-		const widget = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/checkpoints.ts');
+		const widget = widgetCheckpointsSource();
 		const graph = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/checkpointGraph.ts');
 		const hostMessenger = repoFile('extensions/knox/src/host/extension/VsCodeMessenger.ts');
 		const hostManager = repoFile('extensions/knox/src/host/checkpoints/manager/CheckpointManager.ts');
@@ -754,7 +778,7 @@ suite('Knox agent host contract (KN-376)', () => {
 	test('native Memory panel wires 5 tabs to KN-310–317 brain/* handlers', () => {
 		const helpers = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiMemory.ts');
 		const controller = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/memory.ts');
-		const widget = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/memory.ts');
+		const widget = widgetMemorySource();
 		const overlays = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiOverlays.ts');
 		const protocol = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiProtocol.ts');
 		const core = repoFile('extensions/knox/src/core/core.ts');
@@ -811,7 +835,7 @@ suite('Knox agent host contract (KN-377)', () => {
 		const actions = repoFile('src/vs/workbench/contrib/knox/browser/knoxGuiActions.ts');
 		const pane = repoFile('src/vs/workbench/contrib/knox/browser/knoxChatViewPane.ts');
 		const chrome = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/chrome.ts');
-		const composer = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/composer.ts');
+		const composer = widgetComposerSource();
 		const stream = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/stream.ts');
 		const sessions = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/sessions.ts');
 		const widget = repoFile('src/vs/workbench/contrib/knox/browser/gui/knoxGuiWidget.ts');
@@ -856,7 +880,7 @@ suite('Knox agent host contract (KN-378)', () => {
 			repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/sessions.ts'),
 			repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/composer.ts'),
 			repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/chrome.ts'),
-			repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/composer.ts'),
+			widgetComposerSource(),
 			repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/overlays.ts'),
 			repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/pages.ts'),
 			repoFile('src/vs/workbench/contrib/knox/common/knoxGuiMemory.ts'),

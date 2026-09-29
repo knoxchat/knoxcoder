@@ -4,12 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 function repoFile(...parts: string[]): string {
 	return readFileSync(join(process.cwd(), ...parts), 'utf8');
+}
+
+/** `widget/composer.ts` is a barrel; its implementation lives in `widget/composer/*.ts`. */
+function widgetComposerSource(): string {
+	const dir = 'src/vs/workbench/contrib/knox/browser/gui/widget/composer';
+	return [
+		repoFile(`${dir}.ts`),
+		...readdirSync(join(process.cwd(), dir)).filter(name => name.endsWith('.ts')).sort().map(name => repoFile(dir, name)),
+	].join('\n');
 }
 
 suite('Knox editor host contract (KN-340)', () => {
@@ -282,7 +291,7 @@ suite('Knox editor host contract (KN-344)', () => {
 		const inbound = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/inbound.ts');
 		const panels = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/panels.ts');
 		const pages = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/pages.ts');
-		const composer = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/composer.ts');
+		const composer = widgetComposerSource();
 		const protocol = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiProtocol.ts');
 		assert.ok(inbound.includes("path === '/batch-diff'"));
 		assert.ok(inbound.includes('loadPendingFiles'));
