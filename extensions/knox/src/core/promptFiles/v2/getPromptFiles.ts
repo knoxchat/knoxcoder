@@ -6,11 +6,11 @@ import { DEFAULT_PROMPTS_FOLDER_V1 } from "../v1";
 
 /**
  * Project-local prompts folder (legacy Continuum-style path).
- * Still supported; prefer `~/.knox/prompts` for new files (createNewPromptFileV2).
+ * Still supported; prefer `~/.knoxcoder/prompts` for new files (createNewPromptFileV2).
  */
 export const DEFAULT_PROMPTS_FOLDER_V2 = ".knox/prompts";
 
-/** Workspace-relative dirs scanned for `.prompt` files (in addition to ~/.knox/prompts). */
+/** Workspace-relative dirs scanned for `.prompt` files (in addition to ~/.knoxcoder/prompts). */
 const WORKSPACE_PROMPT_DIRS = [
   DEFAULT_PROMPTS_FOLDER_V1, // .prompts
   DEFAULT_PROMPTS_FOLDER_V2, // .knox/prompts
@@ -65,7 +65,7 @@ export async function getAllPromptFiles(
     await Promise.all(fullDirs.map((dir) => getPromptFilesFromDir(ide, dir)))
   ).flat();
 
-  // Global prompts (~/.knox/prompts)
+  // Global prompts (~/.knoxcoder/prompts)
   promptFiles.push(...readAllGlobalPromptFiles());
 
   // Deduplicate by path (override + default dirs can overlap)

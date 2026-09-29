@@ -15,10 +15,10 @@ function repoFile(...parts: string[]): string {
 suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('KN-310: BrainStore lives at ~/.knox/memory/brain.sqlite and migrates legacy once', () => {
+	test('KN-310: BrainStore lives at ~/.knoxcoder/memory/brain.sqlite and migrates legacy once', () => {
 		const store = repoFile('extensions/knox/src/core/context/memory/brain/BrainStore.ts');
 		assert.ok(store.includes('export class BrainStore'));
-		assert.ok(store.includes('~/.knox/memory/brain.sqlite'));
+		assert.ok(store.includes('~/.knoxcoder/memory/brain.sqlite'));
 		assert.ok(repoFile('extensions/knox/src/core/util/paths.ts').includes('path.join(getMemoryBrainPath(), "brain.sqlite")'));
 		const mgr = repoFile('extensions/knox/src/core/context/memory/MemoryManager.ts');
 		assert.ok(mgr.includes('migrateLegacyStore'));

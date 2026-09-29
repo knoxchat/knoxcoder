@@ -1,3 +1,8 @@
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { IDE, ToolExtras } from "../..";
@@ -129,3 +134,55 @@ describe("runTerminalCommandImpl background", () => {
   });
 });
 
+
+describe("cargo new pins (real cargo)", () => {
+  const hasCargo = spawnSync("cargo", ["--version"]).status === 0;
+
+  function extrasFor(dir: string): ToolExtras {
+    return extras({
+      ide: {
+        getIdeInfo: vi.fn(async () => ({ remoteName: "local" })),
+        getWorkspaceDirs: vi.fn(async () => [`file://${dir}`]),
+      } as unknown as IDE,
+    });
+  }
+
+  it.skipIf(!hasCargo)(
+    "pins a new crate but leaves an existing project's versions alone",
+    async () => {
+      const dir = fs.realpathSync(
+        fs.mkdtempSync(path.join(os.tmpdir(), "knox-real-cargo-")),
+      );
+      try {
+        const result = await runTerminalCommandImpl(
+          { command: "cargo new snake --vcs none" },
+          extrasFor(dir),
+        );
+        const manifest = fs.readFileSync(path.join(dir, "snake/Cargo.toml"), "utf8");
+        expect(manifest).toContain('edition = "2024"');
+        expect(manifest).toContain('rust-version = "1.98.1"');
+        expect(
+          fs.readFileSync(path.join(dir, "snake/rust-toolchain.toml"), "utf8"),
+        ).toContain('channel = "1.98.1"');
+        expect(result.some((i) => i.name === "Rust new crate")).toBe(true);
+
+        // Existing project: cargo init must fail / not be rewritten.
+        const old = path.join(dir, "old");
+        fs.mkdirSync(old);
+        const legacy =
+          '[package]\nname = "old"\nversion = "0.1.0"\nedition = "2021"\nrust-version = "1.70"\n';
+        fs.writeFileSync(path.join(old, "Cargo.toml"), legacy);
+        const again = await runTerminalCommandImpl(
+          { command: "cargo init old --vcs none" },
+          extrasFor(dir),
+        );
+        expect(fs.readFileSync(path.join(old, "Cargo.toml"), "utf8")).toBe(legacy);
+        expect(fs.existsSync(path.join(old, "rust-toolchain.toml"))).toBe(false);
+        expect(again.some((i) => i.name === "Rust new crate")).toBe(false);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    },
+    60_000,
+  );
+});

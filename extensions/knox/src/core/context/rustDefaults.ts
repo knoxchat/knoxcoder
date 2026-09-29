@@ -99,6 +99,65 @@ export function applyNewRustProjectFileDefaults(
 }
 
 /**
+ * Align Rust pins inside an edit snippet with what Knox actually wrote to disk.
+ *
+ * New crates are silently normalized to edition 2024 / rust-version 1.98.1, so
+ * a model that remembers writing `edition = "2021"` will send that text as
+ * `old_string` and miss. Used only as a fallback after an exact match fails.
+ */
+export function alignRustPinsInSnippet(
+  filePath: string,
+  snippet: string,
+): string {
+  if (isCargoTomlPath(filePath)) {
+    return snippet
+      .replace(
+        /(\bedition\s*=\s*["'])[^"'\r\n]*(["'])/g,
+        `$1${RUST_DEFAULT_EDITION}$2`,
+      )
+      .replace(
+        /(\brust-version\s*=\s*["'])[^"'\r\n]*(["'])/g,
+        `$1${RUST_DEFAULT_VERSION}$2`,
+      );
+  }
+  if (isRustToolchainPath(filePath)) {
+    return snippet.replace(
+      /(\bchannel\s*=\s*["'])[^"'\r\n]*(["'])/g,
+      `$1${RUST_DEFAULT_VERSION}$2`,
+    );
+  }
+  return snippet;
+}
+
+/**
+ * Tell the model when a new Cargo.toml / rust-toolchain.toml differed from what
+ * it sent, so its next edit uses the real on-disk text. Empty when unchanged.
+ */
+export function describeRustDefaultsRewrite(
+  filePath: string,
+  requested: string,
+  written: string,
+): string {
+  if (requested === written) {
+    return "";
+  }
+  if (!isCargoTomlPath(filePath) && !isRustToolchainPath(filePath)) {
+    return "";
+  }
+  const pins = written
+    .split(/\r?\n/)
+    .filter((line) => /^\s*(edition|rust-version|channel)\s*=/.test(line))
+    .map((line) => line.trim())
+    .join(", ");
+  return (
+    `Knox normalized new Rust project pins in "${filePath}" ` +
+    `(${pins || `edition ${RUST_DEFAULT_EDITION}, rust-version ${RUST_DEFAULT_VERSION}`}). ` +
+    "The file on disk differs from the text you sent: read it before editing " +
+    "and use its exact lines as old_string."
+  );
+}
+
+/**
  * `cargo new` / `cargo init` still emit edition 2021 on older cargo. Pin 2024.
  */
 export function rewriteCargoNewCommand(command: string): string {

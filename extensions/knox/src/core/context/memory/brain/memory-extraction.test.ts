@@ -97,7 +97,7 @@ describe("REL-08 heuristics", () => {
 
   it("scores explicit remember higher than heuristic hits", () => {
     const explicit = AutoMemory.extractSemanticMemories(
-      "Remember that the brain sqlite file lives under ~/.knox/memory.",
+      "Remember that the brain sqlite file lives under ~/.knoxcoder/memory.",
       "user",
     );
     expect(explicit[0].importance).toBe(EXPLICIT_REMEMBER_IMPORTANCE);

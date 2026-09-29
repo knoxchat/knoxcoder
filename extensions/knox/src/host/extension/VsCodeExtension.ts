@@ -473,7 +473,7 @@ export class VsCodeExtension {
     }
 
     // Listen for file saving - use global file watcher so that changes
-    // from outside the window are also caught (`~/.knox/config.yaml`).
+    // from outside the window are also caught (`~/.knoxcoder/config.yaml`).
     const configYamlPath = getConfigYamlPath("vscode");
     context.subscriptions.push(
       watchConfigYamlFile(

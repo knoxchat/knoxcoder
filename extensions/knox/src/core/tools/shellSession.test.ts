@@ -77,10 +77,10 @@ describe("shellSession", () => {
       cwd: "/linux",
       stdout: `${spam}\nmm/foo.c:10:1: error: boom\n`,
       stderr: "make: *** [mm/foo] Error 1\n",
-      logPath: "/tmp/.knox/jobs/sh_make.log",
+      logPath: "/tmp/.knoxcoder/jobs/sh_make.log",
     });
     expect(text).toContain("mm/foo.c:10:1");
-    expect(text).toContain("Full log: /tmp/.knox/jobs/sh_make.log");
+    expect(text).toContain("Full log: /tmp/.knoxcoder/jobs/sh_make.log");
     expect(text).not.toContain("  CC  f0.o");
     expect(text.length).toBeLessThan(4_000);
   });

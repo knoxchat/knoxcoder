@@ -84,9 +84,9 @@ suite('Knox context / slash / skills / rules contract (KN-300–307)', () => {
 		assert.ok(repoFile('extensions/knox/src/core/promptFiles/v2/slashCommandFromPromptFile.ts').includes('export'));
 	});
 
-	test('KN-305: skills discovery covers ~/.knox, project, Claude, agents, opencode, bundled', () => {
+	test('KN-305: skills discovery covers ~/.knoxcoder, project, Claude, agents, opencode, bundled', () => {
 		const index = repoFile('extensions/knox/src/core/skills/index.ts');
-		assert.ok(index.includes('~/.knox/skills/'));
+		assert.ok(index.includes('~/.knoxcoder/skills/'));
 		assert.ok(index.includes('`.claude/skills/`'));
 		assert.ok(index.includes('`.agents/skills/`'));
 		assert.ok(index.includes('`.opencode/skills/`'));
@@ -101,7 +101,7 @@ suite('Knox context / slash / skills / rules contract (KN-300–307)', () => {
 
 	test('KN-306: rules merge order is global → CLAUDE → AGENTS → .knoxrules → nested', () => {
 		const rules = repoFile('extensions/knox/src/core/config/rules.ts');
-		assert.ok(rules.includes('~/.knox/rules/*'));
+		assert.ok(rules.includes('~/.knoxcoder/rules/*'));
 		assert.ok(rules.includes('CLAUDE.md'));
 		assert.ok(rules.includes('AGENTS.md'));
 		assert.ok(rules.includes('.knoxrules'));

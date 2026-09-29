@@ -1,6 +1,6 @@
 /**
  * Predefined ignore pattern presets for different project types
- * These can be used to quickly configure ~/.knox/.knoxignore
+ * These can be used to quickly configure ~/.knoxcoder/.knoxignore
  */
 
 import { getGlobalKnoxIgnorePath } from 'core/util/paths';
@@ -477,7 +477,7 @@ export function generateKnoxIgnoreContent(preset: IgnorePreset): string {
 }
 
 /**
- * Create ~/.knox/.knoxignore with a preset (global, not per-project).
+ * Create ~/.knoxcoder/.knoxignore with a preset (global, not per-project).
  */
 export async function createKnoxIgnoreFile(
     _workspacePath: string | undefined,

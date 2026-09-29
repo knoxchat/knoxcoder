@@ -118,6 +118,98 @@ describe("editFileImpl", () => {
     ).rejects.toThrow(/identical|unchanged/i);
   });
 
+  it("lists the closest lines when old_string misses", async () => {
+    const ide = mockIde({
+      readFile: vi.fn(async () => 'const a = 1;\nconst  b   = 2;\n'),
+    });
+    await expect(
+      editFileImpl(
+        { filepath: "a.ts", old_string: "const b = 3;", new_string: "x" },
+        extras(ide),
+      ),
+    ).rejects.toThrow(/Closest lines[\s\S]*2: const {2}b/);
+  });
+
+  it("matches CRLF files when old_string uses LF", async () => {
+    const ide = mockIde({
+      readFile: vi.fn(async () => "one\r\ntwo\r\nthree\r\n"),
+    });
+    await editFileImpl(
+      { filepath: "a.txt", old_string: "one\ntwo", new_string: "1\n2" },
+      extras(ide),
+    );
+    expect(ide.writeFile).toHaveBeenCalledWith(
+      "file:///tmp/ws/a.txt",
+      "1\r\n2\r\nthree\r\n",
+    );
+  });
+
+  describe("Knox-normalized Rust pins", () => {
+    const CARGO = `[package]\nname = "demo"\nversion = "0.1.0"\nedition = "2024"\nrust-version = "1.98.1"\n`;
+
+    it("matches edition 2021 old_string against the rewritten 2024 file", async () => {
+      const ide = mockIde({ readFile: vi.fn(async () => CARGO) });
+      const result = await editFileImpl(
+        {
+          filepath: "Cargo.toml",
+          old_string: 'version = "0.1.0"\nedition = "2021"',
+          new_string: 'version = "0.2.0"\nedition = "2021"',
+        },
+        extras(ide),
+      );
+      expect(ide.writeFile).toHaveBeenCalledWith(
+        "file:///tmp/ws/Cargo.toml",
+        CARGO.replace('version = "0.1.0"', 'version = "0.2.0"'),
+      );
+      expect(result[0].content).toMatch(/aligning/);
+    });
+
+    it("treats 2021 -> 2024 on an already-2024 Cargo.toml as up to date", async () => {
+      const ide = mockIde({ readFile: vi.fn(async () => CARGO) });
+      const result = await editFileImpl(
+        {
+          filepath: "Cargo.toml",
+          old_string: 'edition = "2021"',
+          new_string: 'edition = "2024"',
+        },
+        extras(ide),
+      );
+      expect(ide.writeFile).not.toHaveBeenCalled();
+      expect(result[0].description).toMatch(/Already up to date/);
+    });
+
+    it("does not touch exact matches (existing 2021 crates stay editable)", async () => {
+      const legacy = CARGO.replace('edition = "2024"', 'edition = "2021"');
+      const ide = mockIde({ readFile: vi.fn(async () => legacy) });
+      await editFileImpl(
+        {
+          filepath: "Cargo.toml",
+          old_string: 'edition = "2021"',
+          new_string: 'edition = "2018"',
+        },
+        extras(ide),
+      );
+      expect(ide.writeFile).toHaveBeenCalledWith(
+        "file:///tmp/ws/Cargo.toml",
+        legacy.replace('edition = "2021"', 'edition = "2018"'),
+      );
+    });
+
+    it("does not align pins in non-Cargo files", async () => {
+      const ide = mockIde({ readFile: vi.fn(async () => 'edition = "2024"\n') });
+      await expect(
+        editFileImpl(
+          {
+            filepath: "notes.txt",
+            old_string: 'edition = "2021"',
+            new_string: "x",
+          },
+          extras(ide),
+        ),
+      ).rejects.toThrow(/not found/i);
+    });
+  });
+
   it("fails when the file does not exist", async () => {
     const ide = mockIde({ fileExists: vi.fn(async () => false) });
     await expect(

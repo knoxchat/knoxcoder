@@ -1,7 +1,7 @@
 /**
  * KN-356: vscode-free config.yaml watcher + `uses:` document-link helpers.
  *
- * `~/.knox/config.yaml` lives outside the workspace, so the host polls with
+ * `~/.knoxcoder/config.yaml` lives outside the workspace, so the host polls with
  * `fs.watchFile` (interval 1s) and reloads Core. YAML `uses:` slugs become
  * document links to knox.chat.
  */

@@ -19,6 +19,17 @@ import {
   parseCargoManifest,
 } from "../../context/codebaseCard";
 import { joinPathsToUri } from "../../util/uri";
+import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
+import { parseBuildOutput } from "../build/parseDiagnostics";
+import {
+  composeTestCommand,
+  detectTestRunners,
+  formatTestResults,
+  pickTestRunner,
+  testsRed,
+  type DetectedTestRunner,
+  type WorkspaceFacts,
+} from "../build/testRunner";
 import {
   formatDocLookupFallback,
   lookupRustdocSymbol,
@@ -158,8 +169,210 @@ function extrasWithBuildStream(
   };
 }
 
+/** Top-level files that decide which test runner a directory uses. */
+const TEST_PROBE_NAMES = [
+  "Cargo.toml",
+  "package.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lockb",
+  "bun.lock",
+  "pyproject.toml",
+  "setup.py",
+  "setup.cfg",
+  "requirements.txt",
+  "tox.ini",
+  "pytest.ini",
+  "conftest.py",
+  "uv.lock",
+  "poetry.lock",
+  "tests",
+  "test",
+  "go.mod",
+];
+
+async function testWorkspaceFacts(
+  ide: Parameters<ToolImpl>[1]["ide"],
+  dirUri: string,
+): Promise<WorkspaceFacts> {
+  let entries: string[] = [];
+  if (typeof ide.listDir === "function") {
+    try {
+      entries = (await ide.listDir(dirUri)).map(([name]) => name);
+    } catch {
+      entries = [];
+    }
+  }
+  if (!entries.length) {
+    for (const name of TEST_PROBE_NAMES) {
+      try {
+        if (await ide.fileExists(joinPathsToUri(dirUri, name))) {
+          entries.push(name);
+        }
+      } catch {
+        // probe is best-effort
+      }
+    }
+  }
+  return {
+    entries,
+    readText: async (name) => {
+      try {
+        const uri = joinPathsToUri(dirUri, name);
+        return (await ide.fileExists(uri)) ? await ide.readFile(uri) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+  };
+}
+
+function testArg(args: Record<string, unknown>, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = args[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
+/** `action: "test"` — detect the project's runner, run once, parse failures. */
+async function runTestAction(
+  args: Record<string, unknown>,
+  extras: Parameters<ToolImpl>[1],
+  streamed: Parameters<ToolImpl>[1],
+): Promise<ContextItem[]> {
+  const target = testArg(args, "target");
+  const filter = testArg(args, "filter", "test_name", "testName");
+  const extraArgs = testArg(args, "extraArgs", "extra_args");
+  const cwdArg = testArg(args, "cwd", "working_directory");
+  const explicit = testArg(args, "command");
+
+  const refused = destructiveBuildReason(
+    [explicit, target, filter, extraArgs].filter(Boolean).join(" "),
+  );
+  if (refused) {
+    return [{ name: "Build", description: "refused", content: refused }];
+  }
+
+  let runner: DetectedTestRunner | undefined;
+  let notes: string[] = [];
+  let command = explicit;
+  const others: string[] = [];
+
+  if (!explicit) {
+    const dirs = await extras.ide.getWorkspaceDirs();
+    const root = dirs[0] ?? "";
+    let dirUri = root;
+    if (cwdArg) {
+      try {
+        dirUri = await inferResolvedUriFromRelativePath(cwdArg, extras.ide);
+      } catch {
+        dirUri = root;
+      }
+    }
+    const detected = dirUri
+      ? await detectTestRunners(await testWorkspaceFacts(extras.ide, dirUri))
+      : [];
+    runner = pickTestRunner(detected, target);
+    if (!runner) {
+      return [
+        {
+          name: "Build",
+          description: "no test runner",
+          content:
+            "No test runner detected (looked for Cargo.toml, package.json with a test script or vitest/jest/mocha, pytest/unittest, go.mod). " +
+            "Pass `command` (e.g. `make test`) or `cwd` for a sub-project. Do not claim tests passed.",
+        },
+      ];
+    }
+    for (const other of detected) {
+      if (other !== runner) {
+        others.push(other.label);
+      }
+    }
+    const composed = composeTestCommand(runner, {
+      target,
+      filter,
+      extraArgs,
+      jobs: typeof args.jobs === "number" ? args.jobs : undefined,
+      docTests: args.docTests === true,
+    });
+    command = composed.command;
+    notes = composed.notes;
+  }
+
+  // Skip the PATH probe when the IDE cannot run subprocesses (tests, remote).
+  const canProbe = typeof extras.ide.subprocess === "function";
+  const which = (binary: string) =>
+    binaryOnPath(extras.ide.subprocess.bind(extras.ide), binary);
+  if (runner && canProbe && !(await which(runner.binary))) {
+    return [
+      {
+        name: "Build",
+        description: `missing ${runner.binary}`,
+        content: `${runner.binary} is not on PATH, so ${runner.label} did not run. Install it or pass a different \`command\`. Do not claim tests passed.`,
+      },
+    ];
+  }
+
+  const items = relabelTerminalAsBuild(
+    await runTerminalCommandImpl(
+      {
+        command,
+        working_directory: cwdArg || undefined,
+        block_until_ms: SHELL_WAIT_HARD_CAP_MS,
+      },
+      streamed,
+    ),
+  );
+  const log = items.map((item) => item.content ?? "").join("\n");
+  const withDiagnostics =
+    runner?.kind === "cargo" || parseBuildOutput(log).errors.length > 0
+      ? attachBuildDiagnostics(items)
+      : items;
+
+  if (/Status:\s*running/i.test(log)) {
+    return [
+      ...withDiagnostics,
+      {
+        name: "Test results",
+        description: "still running",
+        content:
+          "Tests are still running in the background. Use the await-shell tool to wait; do not report results yet.",
+      },
+    ];
+  }
+  const body = [
+    formatTestResults(log, runner),
+    ...notes,
+    others.length
+      ? `Other test runners detected: ${others.join(", ")}. Use \`target\`, \`cwd\` or \`command\` to run those.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return [
+    ...withDiagnostics,
+    {
+      name: "Test results",
+      description: testsRed(log) ? "failing" : "passing",
+      content: body,
+    },
+  ];
+}
+
 export const buildImpl: ToolImpl = async (args, extras) => {
   const streamed = extrasWithBuildStream(extras);
+  if (
+    args &&
+    typeof args === "object" &&
+    typeof args.action === "string" &&
+    args.action.trim().toLowerCase() === "test"
+  ) {
+    return runTestAction(args as Record<string, unknown>, extras, streamed);
+  }
   const explain =
     args && typeof args === "object" && typeof args.explain === "string"
       ? rustcExplainCommand(args.explain)

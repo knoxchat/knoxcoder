@@ -8,7 +8,7 @@ import { ExtensionContext } from "vscode";
  */
 export function cleanSlate(context: ExtensionContext) {
   // Commented just to be safe
-  // // Remove ~/.knox
+  // // Remove ~/.knoxcoder
   // const knoxPath = getKnoxGlobalPath();
   // if (fs.existsSync(knoxPath)) {
   //   fs.rmSync(knoxPath, { recursive: true, force: true });

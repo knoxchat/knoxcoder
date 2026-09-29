@@ -18,7 +18,7 @@ export const knoxGuiStringsZhHistory: Record<string, unknown> = {
 	"earlierConversations": "更早的会话",
 	"item": "项",
 	"items": "项",
-	"conversationsDataStoredAt": "会话数据存储在: ~/.knox/sessions",
+	"conversationsDataStoredAt": "会话数据存储在: ~/.knoxcoder/sessions",
 	"deleteConversations": "删除会话",
 	"confirmDeleteConversations": "确定要删除 {{count}}",
 	"actionCannotBeUndone": "此操作无法撤销。",

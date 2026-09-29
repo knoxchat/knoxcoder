@@ -29,7 +29,7 @@ export interface RepoMapOptions {
   path?: string;
   /** Boost files whose path contains this query. */
   query?: string;
-  /** Skip ~/.knox/repo-map disk cache. */
+  /** Skip ~/.knoxcoder/repo-map disk cache. */
   skipCache?: boolean;
 }
 

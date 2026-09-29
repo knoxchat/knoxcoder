@@ -870,16 +870,37 @@ export class VsCodeIdeUtils {
       { additions: number; deletions: number; isBinary: boolean }
     >();
 
+    const cwd = repo.rootUri.fsPath;
+    let repoAvailable = true;
     try {
-      const { stdout } = await asyncExec("git diff HEAD --numstat", {
-        cwd: repo.rootUri.fsPath,
-        maxBuffer: 10 * 1024 * 1024,
-      });
-      for (const [path, value] of this.parseDiffNumstat(stdout)) {
-        stats.set(path, value);
+      // A freshly `git init`-ed repo has no HEAD yet; diff against the empty tree instead.
+      let base = "HEAD";
+      try {
+        await asyncExec("git rev-parse --verify --quiet HEAD", { cwd });
+      } catch {
+        try {
+          await asyncExec("git rev-parse --git-dir", { cwd });
+          base = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+        } catch {
+          // Not a git repository (anymore), e.g. `.git` was removed while open.
+          repoAvailable = false;
+        }
+      }
+      if (repoAvailable) {
+        const { stdout } = await asyncExec(`git diff ${base} --numstat`, {
+          cwd,
+          maxBuffer: 10 * 1024 * 1024,
+        });
+        for (const [path, value] of this.parseDiffNumstat(stdout)) {
+          stats.set(path, value);
+        }
       }
     } catch (e) {
-      console.error("[getRepoDiffStats] git diff HEAD --numstat failed", e);
+      console.warn("[getRepoDiffStats] git diff --numstat failed", e);
+    }
+
+    if (!repoAvailable) {
+      return stats;
     }
 
     // Fallback: merge staged + unstaged hunk stats when numstat is unavailable.
@@ -902,7 +923,7 @@ export class VsCodeIdeUtils {
           }
         }
       } catch (e) {
-        console.error("[getRepoDiffStats] repo.diff fallback failed", e);
+        console.warn("[getRepoDiffStats] repo.diff fallback failed", e);
       }
     }
 
@@ -1048,13 +1069,19 @@ export class VsCodeIdeUtils {
     try {
       if (repos) {
         for (const repo of repos) {
-
-          const staged = await repo.diff(true);
-
-          diffs.push(staged);
-          if (includeUnstaged) {
-            const unstaged = await repo.diff(false);
-            diffs.push(unstaged);
+          // One broken repo (e.g. `.git` removed while open) must not hide the rest.
+          try {
+            const staged = await repo.diff(true);
+            diffs.push(staged);
+            if (includeUnstaged) {
+              const unstaged = await repo.diff(false);
+              diffs.push(unstaged);
+            }
+          } catch (e) {
+            console.warn(
+              `[getDiff] git diff failed for ${repo.rootUri.fsPath}`,
+              e,
+            );
           }
         }
       }
@@ -1062,7 +1089,7 @@ export class VsCodeIdeUtils {
       return diffs.flatMap((diff) => this.splitDiff(diff));
 
     } catch (e) {
-      console.error(e);
+      console.warn("[getDiff] failed", e);
       return [];
     }
 

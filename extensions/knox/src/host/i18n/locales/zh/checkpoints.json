@@ -248,7 +248,7 @@
   "checkpoint.config.perfMetricsDetail": "{{scans}} 次扫描，平均 {{duration}}ms",
   "checkpoint.config.storageLocation": "$(file-directory) 存储位置",
   "checkpoint.config.createKnoxIgnore": "$(file-add) 创建全局 .knoxignore",
-  "checkpoint.config.createKnoxIgnoreDetail": "在 ~/.knox/.knoxignore 中生成忽略模式",
+  "checkpoint.config.createKnoxIgnoreDetail": "在 ~/.knoxcoder/.knoxignore 中生成忽略模式",
   "checkpoint.config.resetDefaults": "$(refresh) 重置为默认值",
   "checkpoint.config.resetDefaultsDetail": "将所有配置重置为默认值",
   "checkpoint.config.title": "Knox 检查点配置",

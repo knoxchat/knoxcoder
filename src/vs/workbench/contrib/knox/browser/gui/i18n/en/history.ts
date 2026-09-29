@@ -18,7 +18,7 @@ export const knoxGuiStringsEnHistory: Record<string, unknown> = {
 	"earlierConversations": "Earlier Conversations",
 	"item": "item",
 	"items": "items",
-	"conversationsDataStoredAt": "Conversations data stored at: ~/.knox/sessions",
+	"conversationsDataStoredAt": "Conversations data stored at: ~/.knoxcoder/sessions",
 	"deleteConversations": "Delete Conversations",
 	"confirmDeleteConversations": "Are you sure you want to delete {{count}}",
 	"actionCannotBeUndone": "This action cannot be undone.",

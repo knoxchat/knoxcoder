@@ -121,7 +121,7 @@ export class Core {
     private readonly ide: IDE,
     private readonly onWrite: (text: string) => Promise<void> = async () => {},
   ) {
-    // Ensure global ~/.knox directory is created and migrate legacy project .knox data
+    // Ensure global ~/.knoxcoder directory is created and migrate project-local .knox data into it
     migrateV1DevDataFiles();
     void (async () => {
       try {

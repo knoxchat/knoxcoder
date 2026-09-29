@@ -6,7 +6,7 @@
  *  1. Scan external dirs (.claude/skills/, .agents/skills/) — global then project
  *     with upward directory traversal (walking parent dirs to repo root)
  *  2. Scan opencode-compat dirs (.opencode/{skill,skills}/) — global then project
- *  3. Scan Knox-native dirs (~/.knox/skills/) — global only
+ *  3. Scan Knox-native dirs (~/.knoxcoder/skills/) — global only
  *  4. Scan additional user-configured paths
  *  5. Pull remote skills from URLs
  *

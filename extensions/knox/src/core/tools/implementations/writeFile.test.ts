@@ -90,6 +90,32 @@ edition = "2021"
     expect(written).not.toContain('edition = "2021"');
   });
 
+  it("tells the model when it normalized a new Cargo.toml", async () => {
+    const ide = mockIde();
+    const result = await writeFileImpl(
+      {
+        filepath: "Cargo.toml",
+        contents: `[package]\nname = "demo"\nedition = "2021"\n`,
+      },
+      extras(ide),
+    );
+    expect(result[0].content).toMatch(/normalized new Rust project pins/);
+    expect(result[0].content).toContain('edition = "2024"');
+    expect(result[0].content).toMatch(/read it before editing/);
+  });
+
+  it("stays silent when the Cargo.toml already matched the defaults", async () => {
+    const ide = mockIde();
+    const result = await writeFileImpl(
+      {
+        filepath: "Cargo.toml",
+        contents: `[package]\nname = "demo"\nedition = "2024"\nrust-version = "1.98.1"\n`,
+      },
+      extras(ide),
+    );
+    expect(result[0].content).not.toMatch(/normalized/);
+  });
+
   it("does not rewrite edition on an existing Cargo.toml", async () => {
     const ide = mockIde({ fileExists: vi.fn(async () => true) });
     const contents = `[package]

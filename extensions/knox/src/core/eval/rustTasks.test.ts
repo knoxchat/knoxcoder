@@ -373,6 +373,50 @@ describe("rust goldens", () => {
     expect(result.files["src/lib.rs"]).toBe(LIB_E0425_FIXED);
   });
 
+  it("RL-57: write 2021 Cargo.toml then edit it by the text the model remembers", async () => {
+    const result = await runAgentEval({
+      prompt: "Create a new crate and add a dependency.",
+      catalog: RUST_EVAL_CATALOG,
+      workspace: { "src/lib.rs": LIB_ADD_FIXED },
+      script: [
+        {
+          toolCalls: [
+            {
+              name: BuiltInToolNames.WriteFile,
+              args: {
+                filepath: "Cargo.toml",
+                contents:
+                  '[package]\nname = "demo"\nversion = "0.1.0"\nedition = "2021"\n',
+              },
+            },
+          ],
+        },
+        {
+          toolCalls: [
+            {
+              name: BuiltInToolNames.EditFile,
+              args: {
+                filepath: "Cargo.toml",
+                old_string: 'edition = "2021"',
+                new_string: 'edition = "2021"\n\n[dependencies]\nserde = "1"',
+              },
+            },
+          ],
+        },
+        { content: "Added serde." },
+      ],
+    });
+
+    expect(result.stoppedReason).toBe("completed");
+    // The write tells the model its text was normalized.
+    expect(result.toolTrace[0]?.output).toMatch(/normalized new Rust project pins/);
+    // The follow-up edit succeeds instead of "old_string was not found".
+    expect(result.toolTrace[1]?.output).not.toMatch(/not found/i);
+    expect(result.files["Cargo.toml"]).toContain('edition = "2024"');
+    expect(result.files["Cargo.toml"]).toContain('rust-version = "1.98.1"');
+    expect(result.files["Cargo.toml"]).toContain('serde = "1"');
+  });
+
   it("RL-15: E0502 is fixed with mem::take, not clone", async () => {
     const result = await runAgentEval({
       prompt: "Fix the E0502 borrow error without cloning.",

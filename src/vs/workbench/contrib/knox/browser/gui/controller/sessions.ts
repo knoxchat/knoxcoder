@@ -65,7 +65,7 @@ function historyItemsFromSession(session: Record<string, unknown>): Array<Record
 /**
  * HistoryTableRow: load the listed session unless it is already current, then
  * close the lump overlay and show chat. Empty `sessionId` is a real leftover
- * (`~/.knox/sessions/.json`) — do not treat `'' === ''` as already loaded.
+ * (`~/.knoxcoder/sessions/.json`) — do not treat `'' === ''` as already loaded.
  */
 export async function openHistorySession(controller: KnoxGuiController, sessionId: string): Promise<void> {
 	const listed = sessionId ?? '';

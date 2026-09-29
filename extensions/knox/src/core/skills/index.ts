@@ -3,7 +3,7 @@
  * instructions and workflows.
  *
  * Skills are discovered from well-known directories:
- *   - `~/.knox/skills/`    (global, Knox-native)
+ *   - `~/.knoxcoder/skills/`    (global, Knox-native)
  *   - `skills/` or `skill/` (project-level, optional)
  *   - `.claude/skills/`    (project-level, Claude Code compat)
  *   - `.agents/skills/`    (project-level, shared agent compat)

@@ -65,7 +65,7 @@ import { MEMORY_CONTEXT_TOKEN_CEILING } from "./types.js";
  * - Self-management (health, optimization, config)
  * - Import/Export (backup & restore)
  *
- * Data lives at ~/.knox/memory/brain.sqlite
+ * Data lives at ~/.knoxcoder/memory/brain.sqlite
  */
 export class BrainStore {
   private static db: DatabaseConnection | null = null;

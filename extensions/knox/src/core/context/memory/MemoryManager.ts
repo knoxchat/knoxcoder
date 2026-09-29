@@ -35,8 +35,8 @@ const BRAIN_TO_LEGACY: Partial<Record<SemanticCategory, MemoryCategory>> = {
  *
  * It is now a thin adapter over the Memory Brain (BrainStore/BrainManager) so
  * that `@memory`, the `memory/*` protocol, and the Brain all share one
- * database (~/.knox/memory/brain.sqlite). Rows from the old standalone store
- * (~/.knox/dev_data/memory.sqlite) are migrated into the Brain once on first
+ * database (~/.knoxcoder/memory/brain.sqlite). Rows from the old standalone store
+ * (~/.knoxcoder/dev_data/memory.sqlite) are migrated into the Brain once on first
  * use; the legacy file is left untouched as a backup.
  */
 export class MemoryManager {

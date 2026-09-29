@@ -39,8 +39,14 @@ async function rustVerifyLibHints(
   ide: IDE,
   filePath?: string,
 ): Promise<{ isLib?: boolean; cargoToml?: string }> {
-  const dirs = await ide.getWorkspaceDirs();
-  const root = dirs[0];
+  // Hints are optional: never let a missing/failed workspace lookup skip the
+  // compile oracle that runs after the edit.
+  let root: string | undefined;
+  try {
+    root = (await ide.getWorkspaceDirs())[0];
+  } catch {
+    root = undefined;
+  }
   let cargoToml = "";
   let libRsExists = false;
   if (root) {

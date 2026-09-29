@@ -10,6 +10,9 @@ All notable changes to KnoxCoder are documented in this file.
 
 ### Changed
 
+- **Knox global directory moved from `~/.knox` to `~/.knoxcoder`**
+  The builtin Knox agent now keeps config, Memory Brain, sessions, checkpoints, rules, prompts, skills, logs, and job output in `~/.knoxcoder` so it no longer conflicts with the external Knox marketplace extension (`knoxchat.knoxchat`), which uses `~/.knox`. The global `~/.knoxrules` file is now `~/.knoxcoder/.knoxrules`. There is no legacy fallback or migration from `~/.knox`; move files manually if you want to keep them. `KNOX_GLOBAL_DIR` still overrides the location.
+
 - **Project license is now GPL-3.0-only**
   KnoxCoder (including Knox-owned sources) is licensed under the GNU GPL v3. Upstream Visual Studio Code files remain MIT; that notice is kept in `LICENSE.vscode.txt`.
 

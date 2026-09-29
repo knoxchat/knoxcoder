@@ -16,7 +16,7 @@
  * ```
  *
  * Each skill's files are downloaded relative to `<url>/<skill.name>/`.
- * Downloaded skills are cached under `~/.knox/cache/skills/`.
+ * Downloaded skills are cached under `~/.knoxcoder/cache/skills/`.
  * Optional `skills.pins` in config pins `name → sha256` and rejects mismatches.
  */
 

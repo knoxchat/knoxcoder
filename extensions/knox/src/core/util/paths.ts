@@ -10,6 +10,8 @@ import { IdeType } from "../";
 import { t } from "../i18n/index.js";
 import { defaultConfig } from "../config/default";
 
+import { KNOX_GLOBAL_DIR_NAME } from "./globalDirName";
+
 dotenv.config({ quiet: true });
 
 export function getChromiumPath(): string {
@@ -36,10 +38,12 @@ export function getGlobalKnoxIgnorePath(): string {
 }
 
 export function getKnoxGlobalPath(): string {
-  // ~/.knox, or KNOX_GLOBAL_DIR (tests / custom installs). Read env each
-  // call so vitest can point at a tmp dir after import.
+  // ~/.knoxcoder, or KNOX_GLOBAL_DIR (tests / custom installs). Read env each
+  // call so vitest can point at a tmp dir after import. Never ~/.knoxcoder (that
+  // belongs to the external Knox extension).
   const knoxPath =
-    process.env.KNOX_GLOBAL_DIR ?? path.join(os.homedir(), ".knox");
+    process.env.KNOX_GLOBAL_DIR ??
+    path.join(os.homedir(), KNOX_GLOBAL_DIR_NAME);
   if (!fs.existsSync(knoxPath)) {
     fs.mkdirSync(knoxPath, { recursive: true });
   }
@@ -274,7 +278,7 @@ function copyDirMerge(src: string, dest: string): void {
 }
 
 /**
- * One-time migration: move project-root `.knox/` data into `~/.knox/`.
+ * One-time migration: move project-root `.knox/` data into `~/.knoxcoder/`.
  * Merges files without overwriting existing global data.
  */
 export function migrateProjectKnoxToGlobal(workspaceDirs: string[]): void {

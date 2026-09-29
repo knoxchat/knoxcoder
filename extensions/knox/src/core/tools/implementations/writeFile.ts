@@ -1,11 +1,15 @@
 import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
 import { t } from "../../i18n/index.js";
 import { getUriPathBasename } from "../../util/uri";
-import { applyNewRustProjectFileDefaults } from "../../context/rustDefaults";
+import {
+  applyNewRustProjectFileDefaults,
+  describeRustDefaultsRewrite,
+} from "../../context/rustDefaults";
 import { ToolCallError, ToolCallErrorCode } from "../errors";
 
 import { ToolImpl } from ".";
 import { evaluateRustEditGuard } from "../rustEditGuard";
+import { evaluateTestEditWarnings } from "../testEditGuard";
 
 export const writeFileImpl: ToolImpl = async (args, extras) => {
   if (!args.filepath || typeof args.filepath !== "string") {
@@ -50,6 +54,9 @@ export const writeFileImpl: ToolImpl = async (args, extras) => {
   const contentsToWrite = fileExists
     ? contents
     : applyNewRustProjectFileDefaults(filepath, contents);
+  const rewriteNote = fileExists
+    ? ""
+    : describeRustDefaultsRewrite(filepath, contents, contentsToWrite);
   const rustGuard = evaluateRustEditGuard({
     filePath: filepath,
     oldText: previous,
@@ -100,12 +107,17 @@ export const writeFileImpl: ToolImpl = async (args, extras) => {
     {
       name: basename,
       description: `${action} file: ${filepath}`,
-      content: `File "${filepath}" has been ${action.toLowerCase()} successfully.\n\nPath: ${resolvedFileUri}\nSize: ${contentsToWrite.length} bytes`,
+      content: `File "${filepath}" has been ${action.toLowerCase()} successfully.\n\nPath: ${resolvedFileUri}\nSize: ${contentsToWrite.length} bytes${rewriteNote ? `\n\n${rewriteNote}` : ""}`,
       uri: {
         type: "file",
         value: resolvedFileUri,
       },
     },
     ...rustGuard.warnings,
+    ...evaluateTestEditWarnings({
+      filePath: filepath,
+      oldText: previous,
+      newText: contentsToWrite,
+    }),
   ];
 };

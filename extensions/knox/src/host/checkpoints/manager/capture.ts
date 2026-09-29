@@ -125,7 +125,7 @@ export async function initializeIgnoreFilter(host: CheckpointEngineHost): Promis
         const globalKnoxignorePath = getGlobalKnoxIgnorePath();
         if (fs.existsSync(globalKnoxignorePath)) {
             filter.add(fs.readFileSync(globalKnoxignorePath, 'utf8'));
-            log.info('✅ Loaded global ~/.knox/.knoxignore patterns for checkpoint filtering');
+            log.info('✅ Loaded global ~/.knoxcoder/.knoxignore patterns for checkpoint filtering');
         }
 
         host.ignoreFilter = filter;

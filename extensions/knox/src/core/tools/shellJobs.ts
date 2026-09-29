@@ -7,6 +7,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { KNOX_GLOBAL_DIR_NAME } from "../util/globalDirName";
+
 import { ToolCallError, ToolCallErrorCode } from "./errors";
 import { spawnNativePty } from "./nativePty";
 
@@ -59,7 +61,7 @@ export function resolveAwaitTimeoutMs(): number {
   return agentJobsOptions.awaitTimeoutMs ?? DEFAULT_AWAIT_TIMEOUT_MS;
 }
 
-/** Directory for job logs (`~/.knox/jobs` or `agent.jobs.logDir`). */
+/** Directory for job logs (`~/.knoxcoder/jobs` or `agent.jobs.logDir`). */
 export function getJobsLogDir(): string {
   return knoxJobsLogDir();
 }
@@ -250,7 +252,7 @@ function knoxJobsLogDir(): string {
     process.env.KNOX_GLOBAL_DIR ??
     (process.env.VITEST
       ? path.join(os.tmpdir(), "knox-vitest")
-      : path.join(os.homedir(), ".knox"));
+      : path.join(os.homedir(), KNOX_GLOBAL_DIR_NAME));
   return path.join(root, "jobs");
 }
 

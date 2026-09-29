@@ -19,6 +19,7 @@
   "editOldStringEmpty": "old_string cannot be empty. Read the file and copy the exact text to replace.",
   "editOldStringUnchanged": "old_string and new_string are identical; nothing would change.",
   "editOldStringNotFound": "old_string was not found in \"{{filepath}}\". Read the file and use exact text, including whitespace and indentation.",
+  "editClosestLines": "Closest lines currently in the file:\n{{lines}}",
   "editOldStringNotUnique": "old_string matched {{count}} times in \"{{filepath}}\". Provide a larger unique snippet, or set replace_all: true.",
   "patchAddFileExists": "Cannot add \"{{filepath}}\": file already exists. Use an Update File hunk or builtin_edit_file.",
   "patchMoveTargetExists": "Cannot move to \"{{filepath}}\": destination already exists.",

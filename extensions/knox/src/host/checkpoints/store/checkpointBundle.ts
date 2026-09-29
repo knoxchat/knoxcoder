@@ -72,7 +72,7 @@ export interface CheckpointBundleV1 {
     checkpoints: Array<Record<string, unknown>>;
     blobs: CheckpointBundleBlob[];
     contentSha256: string;
-    /** HMAC-SHA256 of contentSha256 using the local ~/.knox key. Optional. */
+    /** HMAC-SHA256 of contentSha256 using the local ~/.knoxcoder key. Optional. */
     hmacSha256?: string;
     /** First 16 hex chars of sha256(key); import verifies HMAC only when this matches. */
     hmacKeyId?: string;

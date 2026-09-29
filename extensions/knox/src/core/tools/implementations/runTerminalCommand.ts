@@ -3,6 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { rewriteCargoNewCommand } from "../../context/rustDefaults";
+import {
+  finalizeNewCargoProject,
+  planCargoNewFinalize,
+} from "../../context/rustNewProject";
 import { ContextItem } from "../..";
 import { ToolImpl } from ".";
 import { ToolCallError, ToolCallErrorCode } from "../errors";
@@ -274,6 +278,9 @@ export const runTerminalCommandImpl: ToolImpl = async (args, extras) => {
       }
       setShellCwd(key, cwd);
 
+      // Snapshot before running so we only pin crates this command creates.
+      const newCratePlan = planCargoNewFinalize(command, cwd, workspaceRoot);
+
       const useWrap = process.platform !== "win32";
       const toRun = useWrap ? wrapPosixCommand(command, cwd) : command;
       const spawnCwd = useWrap ? workspaceRoot : cwd;
@@ -321,12 +328,27 @@ export const runTerminalCommandImpl: ToolImpl = async (args, extras) => {
         setShellCwd(key, meta.cwd);
       }
 
-      return snapshotToContextItems(snapshot, {
+      const items = snapshotToContextItems(snapshot, {
         command,
         cwd: meta.cwd,
         stderr: meta.stderr,
         exitCode: meta.exitCode,
       });
+      if (
+        newCratePlan &&
+        snapshot.status !== "running" &&
+        meta.exitCode === 0
+      ) {
+        const note = finalizeNewCargoProject(newCratePlan);
+        if (note) {
+          items.push({
+            name: "Rust new crate",
+            description: "pinned rust-version / toolchain",
+            content: note,
+          });
+        }
+      }
+      return items;
     } catch (error: any) {
       if (
         error instanceof ToolCallError &&
@@ -357,7 +379,7 @@ export const runTerminalCommandImpl: ToolImpl = async (args, extras) => {
     throw cancelledError();
   }
 
-  await extras.ide.runCommand(args.command);
+  await extras.ide.runCommand(command);
   return [
     {
       name: "Terminal",

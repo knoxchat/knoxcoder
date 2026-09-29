@@ -12,7 +12,7 @@ import type { MemoryItem, MemoryCreateInput, MemoryQuery, MemoryCategory } from 
 /**
  * SQLite-backed persistent memory store.
  * Stores learned facts, conventions, fix patterns, and user notes.
- * Data lives at ~/.knox/dev_data/memory.sqlite.
+ * Data lives at ~/.knoxcoder/dev_data/memory.sqlite.
  */
 export class MemoryStore {
   private static db: DatabaseConnection | null = null;

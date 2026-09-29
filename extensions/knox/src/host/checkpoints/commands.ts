@@ -1150,7 +1150,7 @@ export class CheckpointChatIntegration {
                 autoShowNotifications: AUTO_CHECKPOINT_DEFAULTS.showNotifications,
             };
 
-            // Try to load from global config file first (~/.knox/checkpoint-config.json)
+            // Try to load from global config file first (~/.knoxcoder/checkpoint-config.json)
             let fileConfig = null;
             try {
                 const fs = require('fs').promises;
@@ -1162,7 +1162,7 @@ export class CheckpointChatIntegration {
                     console.log('✅ Loaded checkpoint configuration from', configPath);
                 }
             } catch (fileError) {
-                console.warn('⚠️ Failed to load configuration from ~/.knox/checkpoint-config.json:', fileError);
+                console.warn('⚠️ Failed to load configuration from ~/.knoxcoder/checkpoint-config.json:', fileError);
             }
 
             // Load from VSCode settings
@@ -1223,7 +1223,7 @@ export class CheckpointChatIntegration {
      */
     async saveConfiguration(config: any): Promise<boolean> {
         try {
-            // 1. Save to global config file (~/.knox/checkpoint-config.json)
+            // 1. Save to global config file (~/.knoxcoder/checkpoint-config.json)
             try {
                 const fs = require('fs').promises;
                 const configPath = getCheckpointConfigPath();
@@ -1237,7 +1237,7 @@ export class CheckpointChatIntegration {
                 await fs.writeFile(configPath, configContent, 'utf8');
                 console.log('✅ Checkpoint configuration saved to', configPath);
             } catch (fileError) {
-                console.error('❌ Failed to save configuration to ~/.knox/checkpoint-config.json:', fileError);
+                console.error('❌ Failed to save configuration to ~/.knoxcoder/checkpoint-config.json:', fileError);
                 // Don't fail the entire operation, continue with VSCode settings
             }
 

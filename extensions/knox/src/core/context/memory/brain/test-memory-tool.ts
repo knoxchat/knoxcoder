@@ -23,7 +23,7 @@ import path from "path";
 import type { MemoryBrainAction } from "./types.js";
 
 // ── Patch the DB path BEFORE importing any brain modules ────────────────────
-// KNOX_GLOBAL_DIR controls ~/.knox — point it to a temp dir
+// KNOX_GLOBAL_DIR controls ~/.knoxcoder — point it to a temp dir
 // Must set BEFORE dynamic imports since paths.ts reads it at module init
 const testDir = path.join(os.tmpdir(), `brain-test-${Date.now()}`);
 fs.mkdirSync(path.join(testDir, "memory"), { recursive: true });

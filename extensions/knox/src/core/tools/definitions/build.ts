@@ -14,14 +14,18 @@ export const buildTool: Tool = {
     name: BuiltInToolNames.Build,
     description: `Run an incremental project build (cargo check / make / ninja / verifyCommand) and return parsed compiler errors — not a raw CC or first-compile log.
 
-Prefer this over shell \`cargo\` / \`make\` when checking whether edits compile. Never uses \`cargo clean\`, \`cargo publish\`, \`make clean\`, \`mrproper\`, or \`distclean\`. Default command: root Cargo.toml → cargo check --workspace --all-targets (pure crates; kernel/QEMU still use make/ninja), else Makefile → make, else build.ninja → ninja, else the configured verifyCommand.`,
+Prefer this over shell \`cargo\` / \`make\` when checking whether edits compile.
+
+Unit tests: set \`action: "test"\`. The runner is auto-detected (cargo test; package.json test script or vitest / jest / mocha / node --test; pytest / unittest; go test), always runs once (never watch mode), and returns "Test results" with pass / fail counts and each failing test with file:line. Use \`target\` (file, directory, package or test id) and \`filter\` (test-name pattern) to run a subset; \`cwd\` for a sub-project; \`command\` to override (e.g. \`make test\`). Never edit, skip or delete a failing test to make it pass unless the user asked; "0 tests ran" is not a pass.
+
+Never uses \`cargo clean\`, \`cargo publish\`, \`make clean\`, \`mrproper\`, or \`distclean\`. Default command: root Cargo.toml → cargo check --workspace --all-targets (pure crates; kernel/QEMU still use make/ninja), else Makefile → make, else build.ninja → ninja, else the configured verifyCommand.`,
     parameters: {
       type: "object",
       properties: {
         target: {
           type: "string",
           description:
-            "Make/ninja target (e.g. net/ipv4/ or src/foo.o), or cargo package name (-p). Omit for the default all/first target.",
+            "Make/ninja target (e.g. net/ipv4/ or src/foo.o), or cargo package name (-p). With action=test: a test file / directory / package / test id. Omit for the default all/first target.",
         },
         jobs: {
           type: "number",
@@ -69,7 +73,12 @@ Prefer this over shell \`cargo\` / \`make\` when checking whether edits compile.
             "tree",
           ],
           description:
-            "Cargo helper. `doc` = rustdoc JSON / registry source (no docs.rs). `clippy` / `fmt` / `test` are outer gates (check stays the inner loop). `fix` is cargo fix --allow-dirty (never --broken-code). `expand` / `miri` / `deny` / `audit` require optional binaries; missing → install hint. `tree` is cargo tree.",
+            "Cargo helper. `doc` = rustdoc JSON / registry source (no docs.rs). `clippy` / `fmt` are outer Rust gates. `test` runs the project's unit tests for any supported language (see above); for Rust, check stays the inner loop. `fix` is cargo fix --allow-dirty (never --broken-code). `expand` / `miri` / `deny` / `audit` require optional binaries; missing → install hint. `tree` is cargo tree.",
+        },
+        filter: {
+          type: "string",
+          description:
+            "With action=test: only run tests whose name matches this pattern (vitest/jest -t, pytest -k, go -run, cargo test <filter>, ...).",
         },
         doc: {
           type: "string",

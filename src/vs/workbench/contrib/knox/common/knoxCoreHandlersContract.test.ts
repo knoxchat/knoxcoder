@@ -21,14 +21,15 @@ suite('Knox Core/host handler contract (KN-232–240)', () => {
 	const history = repoFile('extensions/knox/src/core/util/history.ts');
 	const service = repoFile('src/vs/workbench/contrib/knox/common/knoxService.ts');
 
-	test('KN-232: history list/load/save/delete persist under ~/.knox/sessions', () => {
+	test('KN-232: history list/load/save/delete persist under ~/.knoxcoder/sessions', () => {
 		for (const name of ['history/list', 'history/load', 'history/save', 'history/delete']) {
 			assert.ok(core.includes(`on("${name}"`), name);
 		}
 		assert.ok(history.includes('getSessionFilePath'));
 		assert.ok(history.includes('getSessionsListPath'));
 		assert.ok(paths.includes('path.join(getKnoxGlobalPath(), "sessions")'));
-		assert.ok(paths.includes('path.join(os.homedir(), ".knox")'));
+		assert.ok(paths.includes('os.homedir()') && paths.includes('KNOX_GLOBAL_DIR_NAME'));
+		assert.ok(repoFile('extensions/knox/src/core/util/globalDirName.ts').includes('KNOX_GLOBAL_DIR_NAME = ".knoxcoder"'));
 	});
 
 	test('KN-233: config handlers write config.yaml / sharedConfig.json', () => {

@@ -15,7 +15,7 @@ const SkillsSlashCommand: SlashCommand = {
     const dirs = manager.dirs();
 
     if (skills.length === 0) {
-      yield "No skills loaded.\n\nTo add skills, create `SKILL.md` files in:\n- `~/.knox/skills/` (global, Knox-native)\n- `skills/` or `skill/` in your workspace\n- `.claude/` or `.agents/` (external formats)\n- `.opencode/skill/` or `.opencode/skills/`\n\nOr configure additional paths in your Knox config under `skills.paths`.";
+      yield "No skills loaded.\n\nTo add skills, create `SKILL.md` files in:\n- `~/.knoxcoder/skills/` (global, Knox-native)\n- `skills/` or `skill/` in your workspace\n- `.claude/` or `.agents/` (external formats)\n- `.opencode/skill/` or `.opencode/skills/`\n\nOr configure additional paths in your Knox config under `skills.paths`.";
       return;
     }
 

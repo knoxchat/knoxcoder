@@ -102,7 +102,7 @@ export function isUsableCheckpointWorkspacePath(workspacePath: string | undefine
 }
 
 /**
- * Always `~/.knox/checkpoints/workspaces/<key>/` — same as original knox
+ * Always `~/.knoxcoder/checkpoints/workspaces/<key>/` — same as original knox
  * production. Native KnoxCoder launches with NODE_ENV=development, so the
  * original debug layout (`{workspace}/.knox-debug`) would pollute every
  * opened project. That directory is not required; leftover copies are still

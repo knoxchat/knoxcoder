@@ -22,8 +22,8 @@ suite("KN-356 config.yaml watcher + document links", () => {
   test("empty watch stats skip reload; config.yaml path matches", () => {
     assert.strictEqual(shouldReloadConfigFromWatch({ size: 0 }), false);
     assert.strictEqual(shouldReloadConfigFromWatch({ size: 12 }), true);
-    assert.strictEqual(isKnoxConfigYamlPath("/Users/me/.knox/config.yaml"), true);
-    assert.strictEqual(isKnoxConfigYamlPath("C:\\Users\\me\\.knox\\config.yml"), true);
+    assert.strictEqual(isKnoxConfigYamlPath("/Users/me/.knoxcoder/config.yaml"), true);
+    assert.strictEqual(isKnoxConfigYamlPath("C:\\Users\\me\\.knoxcoder\\config.yml"), true);
     assert.strictEqual(isKnoxConfigYamlPath("/tmp/other.yaml"), false);
     assert.ok(pathsReferToSameFile("/tmp/config.yaml", "/tmp/config.yaml"));
     assert.ok(pathsReferToSameFile("/tmp/config.yaml/", "/tmp/config.yaml"));
@@ -56,7 +56,7 @@ suite("KN-356 config.yaml watcher + document links", () => {
     let changes = 0;
     let listener: ((stats: { size: number }) => void) | undefined;
     const disposable = watchConfigYamlFile(
-      "/tmp/.knox/config.yaml",
+      "/tmp/.knoxcoder/config.yaml",
       (_filename, options, next) => {
         assert.strictEqual(options.interval, 1000);
         watched.push(_filename);
@@ -69,12 +69,12 @@ suite("KN-356 config.yaml watcher + document links", () => {
         changes += 1;
       },
     );
-    assert.deepStrictEqual(watched, ["/tmp/.knox/config.yaml"]);
+    assert.deepStrictEqual(watched, ["/tmp/.knoxcoder/config.yaml"]);
     listener?.({ size: 0 });
     listener?.({ size: 8 });
     await Promise.resolve();
     assert.strictEqual(changes, 1);
     disposable.dispose();
-    assert.deepStrictEqual(unwatched, ["/tmp/.knox/config.yaml"]);
+    assert.deepStrictEqual(unwatched, ["/tmp/.knoxcoder/config.yaml"]);
   });
 });

@@ -139,7 +139,7 @@ let didAttemptHydrate = false;
 let diskAdapter: KnoxChatModelsDiskAdapter | undefined;
 
 /**
- * Register Node FS persistence for `~/.knox/knoxChatModelsCache.json`.
+ * Register Node FS persistence for `~/.knoxcoder/knoxChatModelsCache.json`.
  * Call from VS Code / binary hosts only — GUI uses localStorage alone.
  */
 export function registerKnoxChatModelsDiskAdapter(

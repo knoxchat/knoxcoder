@@ -34,6 +34,15 @@ import { GitQuickDiffProvider, StagedResourceQuickDiffProvider } from './quickDi
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
+/**
+ * Runs an internal workbench command that may not exist in this build (e.g. the
+ * chat/AI-edits contributions are not shipped). Missing commands are ignored so
+ * they do not surface as unhandled rejections.
+ */
+function executeOptionalCommand(command: string, ...args: unknown[]): void {
+	Promise.resolve(commands.executeCommand(command, ...args)).catch(() => { /* command not available */ });
+}
+
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
 
 function getIconUri(iconName: string, theme: string): Uri {
@@ -1266,7 +1275,7 @@ export class Repository implements Disposable {
 				this.closeDiffEditors([], [...resources.map(r => r.fsPath)]);
 
 				// Accept working set changes across all chat sessions
-				commands.executeCommand('_chat.editSessions.accept', resources);
+				executeOptionalCommand('_chat.editSessions.accept', resources);
 			},
 			() => {
 				const resourcePaths = resources.map(r => r.fsPath);
@@ -1329,7 +1338,7 @@ export class Repository implements Disposable {
 				const uris = resources.length !== 0
 					? resources
 					: this.indexGroup.resourceStates.map(r => r.resourceUri);
-				commands.executeCommand('_aiEdits.clearAiContributions', uris);
+				executeOptionalCommand('_aiEdits.clearAiContributions', uris);
 			},
 			() => {
 				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
@@ -1413,7 +1422,7 @@ export class Repository implements Disposable {
 				this.closeDiffEditors([], [...toClean, ...toRestore]);
 
 				// Clear AI contribution tracking for discarded resources
-				commands.executeCommand('_aiEdits.clearAiContributions', resources);
+				executeOptionalCommand('_aiEdits.clearAiContributions', resources);
 			});
 	}
 
@@ -1479,10 +1488,10 @@ export class Repository implements Disposable {
 		const resources = indexResources.length !== 0
 			? indexResources.map(r => Uri.file(r))
 			: workingGroupResources.map(r => Uri.file(r));
-		commands.executeCommand('_chat.editSessions.accept', resources);
+		executeOptionalCommand('_chat.editSessions.accept', resources);
 
 		// Clear AI contribution tracking for committed resources
-		commands.executeCommand('_aiEdits.clearAiContributions', resources);
+		executeOptionalCommand('_aiEdits.clearAiContributions', resources);
 	}
 
 	private static readonly AI_CO_AUTHOR_TRAILER = 'Co-authored-by: Copilot <copilot@github.com>';
@@ -1609,7 +1618,7 @@ export class Repository implements Disposable {
 				this.closeDiffEditors([], [...toClean, ...toCheckout]);
 
 				// Clear AI contribution tracking for discarded resources
-				commands.executeCommand('_aiEdits.clearAiContributions', resources);
+				executeOptionalCommand('_aiEdits.clearAiContributions', resources);
 			},
 			() => {
 				const resourcePaths = resources.map(r => r.fsPath);
@@ -2169,7 +2178,7 @@ export class Repository implements Disposable {
 				await this.repository.checkout(treeish, [], opts);
 
 				// Clear all AI contribution tracking on branch switch
-				commands.executeCommand('_aiEdits.clearAllAiContributions');
+				executeOptionalCommand('_aiEdits.clearAllAiContributions');
 			});
 	}
 
@@ -2179,7 +2188,7 @@ export class Repository implements Disposable {
 			await this.repository.checkout(treeish, [], { ...opts, track: true });
 
 			// Clear all AI contribution tracking on branch switch
-			commands.executeCommand('_aiEdits.clearAllAiContributions');
+			executeOptionalCommand('_aiEdits.clearAllAiContributions');
 		});
 	}
 
@@ -2214,7 +2223,7 @@ export class Repository implements Disposable {
 
 			if (hard) {
 				// Clear all AI contribution tracking on hard reset
-				commands.executeCommand('_aiEdits.clearAllAiContributions');
+				executeOptionalCommand('_aiEdits.clearAllAiContributions');
 			}
 		});
 	}

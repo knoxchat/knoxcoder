@@ -1,6 +1,9 @@
 import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
 import { t } from "../../i18n/index.js";
-import { applyNewRustProjectFileDefaults } from "../../context/rustDefaults";
+import {
+  applyNewRustProjectFileDefaults,
+  describeRustDefaultsRewrite,
+} from "../../context/rustDefaults";
 import { getTemplate, detectTemplateFromExtension, detectLanguageFromExtension } from "../templates/fileTemplates";
 import { getUriPathBasename } from "../../util/uri";
 import { ToolCallError, ToolCallErrorCode } from "../errors";
@@ -98,8 +101,11 @@ export const createNewFileImpl: ToolImpl = async (args, extras) => {
     throw new Error(t("invalidContentsMustBeString"));
   }
 
+  let rewriteNote = "";
   if (!fileExists) {
+    const requested = contentToWrite;
     contentToWrite = applyNewRustProjectFileDefaults(filepath, contentToWrite);
+    rewriteNote = describeRustDefaultsRewrite(filepath, requested, contentToWrite);
   }
   
   // Validate encoding
@@ -154,7 +160,7 @@ export const createNewFileImpl: ToolImpl = async (args, extras) => {
     {
       name: basename,
       description: `${action} file: ${filepath}${templateInfo}`,
-      content: `File "${filepath}" has been ${action.toLowerCase()} successfully.\n\nPath: ${resolvedFileUri}\nLanguage: ${language}\nSize: ${contentToWrite.length} bytes\n\n${contentToWrite.substring(0, 500)}${contentToWrite.length > 500 ? '\n...(truncated)' : ''}`,
+      content: `File "${filepath}" has been ${action.toLowerCase()} successfully.\n\nPath: ${resolvedFileUri}\nLanguage: ${language}\nSize: ${contentToWrite.length} bytes\n\n${contentToWrite.substring(0, 500)}${contentToWrite.length > 500 ? '\n...(truncated)' : ''}${rewriteNote ? `\n\n${rewriteNote}` : ''}`,
       uri: {
         type: "file",
         value: resolvedFileUri,

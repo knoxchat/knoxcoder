@@ -1360,7 +1360,7 @@ export interface ExperimentalConfig {
   /** Identical compiler-error signatures before skipping further auto-builds. Default 8. */
   agentVerifyMaxIterations?: number;
 
-  /** Job artifact directory from config.yaml `agent.jobs.logDir` (default ~/.knox/jobs). */
+  /** Job artifact directory from config.yaml `agent.jobs.logDir` (default ~/.knoxcoder/jobs). */
   agentJobsLogDir?: string;
   /** Default builtin_await_shell wait from `agent.jobs.awaitTimeoutMs` (default 600000). */
   agentJobsAwaitTimeoutMs?: number;

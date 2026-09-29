@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  alignRustPinsInSnippet,
   applyNewRustProjectFileDefaults,
+  describeRustDefaultsRewrite,
   cargoPackageNameFromPath,
   rewriteCargoNewCommand,
   RUST_DEFAULT_EDITION,
@@ -48,6 +50,31 @@ edition = "2021"
     expect(applyNewRustProjectFileDefaults("src/main.rs", "fn main() {}")).toBe(
       "fn main() {}",
     );
+  });
+
+  it("aligns edition / rust-version / channel pins inside edit snippets", () => {
+    expect(
+      alignRustPinsInSnippet(
+        "app/Cargo.toml",
+        'edition = "2021"\nrust-version = "1.70"',
+      ),
+    ).toBe(`edition = "2024"\nrust-version = "1.98.1"`);
+    expect(
+      alignRustPinsInSnippet("rust-toolchain.toml", 'channel = "stable"'),
+    ).toBe('channel = "1.98.1"');
+    expect(alignRustPinsInSnippet("src/lib.rs", 'edition = "2021"')).toBe(
+      'edition = "2021"',
+    );
+  });
+
+  it("describes a rewrite only when the manifest actually changed", () => {
+    const requested = '[package]\nname = "a"\nedition = "2021"\n';
+    const written = applyNewRustProjectFileDefaults("a/Cargo.toml", requested);
+    const note = describeRustDefaultsRewrite("a/Cargo.toml", requested, written);
+    expect(note).toContain('edition = "2024"');
+    expect(note).toContain('rust-version = "1.98.1"');
+    expect(describeRustDefaultsRewrite("a/Cargo.toml", written, written)).toBe("");
+    expect(describeRustDefaultsRewrite("src/lib.rs", "a", "b")).toBe("");
   });
 
   it("adds --edition 2024 to cargo new and cargo init", () => {

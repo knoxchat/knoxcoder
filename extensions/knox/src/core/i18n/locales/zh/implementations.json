@@ -19,6 +19,7 @@
   "editOldStringEmpty": "old_string 不能为空。请先读取文件并复制要替换的精确文本。",
   "editOldStringUnchanged": "old_string 与 new_string 相同，不会产生任何更改。",
   "editOldStringNotFound": "在 \"{{filepath}}\" 中未找到 old_string。请读取文件并使用包含空白和缩进的精确文本。",
+  "editClosestLines": "文件中当前最接近的行：\n{{lines}}",
   "editOldStringNotUnique": "old_string 在 \"{{filepath}}\" 中匹配了 {{count}} 次。请提供更大的唯一片段，或设置 replace_all: true。",
   "patchAddFileExists": "无法添加 \"{{filepath}}\"：文件已存在。请使用 Update File 或 builtin_edit_file。",
   "patchMoveTargetExists": "无法移动到 \"{{filepath}}\"：目标已存在。",

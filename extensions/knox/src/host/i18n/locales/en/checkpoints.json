@@ -248,7 +248,7 @@
   "checkpoint.config.perfMetricsDetail": "{{scans}} scans, avg {{duration}}ms",
   "checkpoint.config.storageLocation": "$(file-directory) Storage Location",
   "checkpoint.config.createKnoxIgnore": "$(file-add) Create global .knoxignore",
-  "checkpoint.config.createKnoxIgnoreDetail": "Generate ignore patterns in ~/.knox/.knoxignore",
+  "checkpoint.config.createKnoxIgnoreDetail": "Generate ignore patterns in ~/.knoxcoder/.knoxignore",
   "checkpoint.config.resetDefaults": "$(refresh) Reset to Defaults",
   "checkpoint.config.resetDefaultsDetail": "Reset all configuration to default values",
   "checkpoint.config.title": "Knox Checkpoint Configuration",

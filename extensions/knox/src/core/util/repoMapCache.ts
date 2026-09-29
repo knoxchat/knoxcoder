@@ -1,6 +1,6 @@
 /**
  * Disk cache for generated repo maps (HL-20).
- * Stored under ~/.knox/repo-map/ (or KNOX_GLOBAL_DIR/repo-map in tests).
+ * Stored under ~/.knoxcoder/repo-map/ (or KNOX_GLOBAL_DIR/repo-map in tests).
  */
 
 import crypto from "node:crypto";

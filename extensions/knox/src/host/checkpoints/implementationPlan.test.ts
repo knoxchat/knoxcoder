@@ -23,7 +23,7 @@ suite('Implementation Plan Integrations', () => {
                 maxMemoryUsageMB: 50,
                 maxCheckpoints: 50,
                 maxFileSizeKB: 100,
-                storagePath: '~/.knox/checkpoints',
+                storagePath: '~/.knoxcoder/checkpoints',
                 verboseLogging: false,
                 enableMetrics: true,
             };

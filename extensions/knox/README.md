@@ -34,6 +34,10 @@ Set `KNOX_SKIP_ELECTRON_REBUILD=1` to copy whatever bindings `npm install` alrea
 
 If both are present, the builtin wins and the marketplace activation is skipped. KnoxCoder does not recommend `knoxchat.knoxchat`.
 
+### Global data directory
+
+The builtin Knox stores all global state (config, memory, sessions, checkpoints, rules, prompts, skills, logs, jobs) in **`~/.knoxcoder`**, not `~/.knox`, so it does not conflict with the marketplace extension that owns `~/.knox`. There is no legacy fallback or migration from `~/.knox`. The directory name lives in `src/core/util/globalDirName.ts`; `KNOX_GLOBAL_DIR` overrides the full path (tests / custom installs). Workspace-level files (`.knox/AGENTS.md`, `.knox/prompts`, `.knoxrules`, `.knoxignore`) are unchanged.
+
 ## Packaging
 
 Knox is an in-tree **native** extension (`nativeExtensions` in `build/lib/extensions.ts`), packaged per-platform with sqlite3 / ripgrep / node-pty. Gulp compile tasks are only `compile-extension:knox` and `compile-extension-knox-native`. There is no `product.json` `builtInExtensions` marketplace download for Knox (`knoxchat.knoxchat` is out of scope inside KnoxCoder). `.vscodeignore` ignores `/node_modules/**` at the extension root so `dist/node_modules` natives still ship.

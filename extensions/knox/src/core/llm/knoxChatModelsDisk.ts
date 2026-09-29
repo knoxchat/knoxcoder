@@ -10,12 +10,16 @@ import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
+import { KNOX_GLOBAL_DIR_NAME } from "../util/globalDirName.js";
+
 import type { KnoxChatModelsDiskAdapter } from "./knoxChatModels.js";
 
 export const KNOX_CHAT_MODELS_CACHE_FILENAME = "knoxChatModelsCache.json";
 
 function cacheFilePath(): string {
-  const dir = process.env.KNOX_GLOBAL_DIR ?? path.join(os.homedir(), ".knox");
+  const dir =
+    process.env.KNOX_GLOBAL_DIR ??
+    path.join(os.homedir(), KNOX_GLOBAL_DIR_NAME);
   return path.join(dir, KNOX_CHAT_MODELS_CACHE_FILENAME);
 }
 

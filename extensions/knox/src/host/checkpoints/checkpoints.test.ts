@@ -50,7 +50,7 @@ suite('Checkpoint Managers', () => {
                 maxMemoryUsageMB: 50,
                 maxCheckpoints: 50,
                 maxFileSizeKB: 100,
-                storagePath: '~/.knox/checkpoints',
+                storagePath: '~/.knoxcoder/checkpoints',
                 verboseLogging: false,
                 enableMetrics: false,
             };
@@ -118,7 +118,7 @@ suite('Checkpoint Managers', () => {
                 maxMemoryUsageMB: 50,
                 maxCheckpoints: 1,
                 maxFileSizeKB: 1,
-                storagePath: '~/.knox/checkpoints',
+                storagePath: '~/.knoxcoder/checkpoints',
                 verboseLogging: false,
                 enableMetrics: false,
             };

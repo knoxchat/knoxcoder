@@ -19,7 +19,7 @@ agent:
     command: "make -j8"
     maxIterations: 8
   jobs:
-    logDir: ~/.knox/jobs
+    logDir: ~/.knoxcoder/jobs
     awaitTimeoutMs: 600000
 `;
 
@@ -33,7 +33,7 @@ describe("agent YAML config surface", () => {
       agentVerifyMode: "command",
       agentVerifyCommand: "make -j8",
       agentVerifyMaxIterations: 8,
-      agentJobsLogDir: "~/.knox/jobs",
+      agentJobsLogDir: "~/.knoxcoder/jobs",
       agentJobsAwaitTimeoutMs: 600_000,
     });
   });

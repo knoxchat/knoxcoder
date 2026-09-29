@@ -293,7 +293,7 @@ export const knoxGuiStringsZhCommon: Record<string, unknown> = {
 	"thisWeek": "本周",
 	"thisMonth": "本月",
 	"earlierCheckpoints": "更早的检查点",
-	"checkpointDataSavedIn": "所有检查点数据保存在: ~/.knox/checkpoints",
+	"checkpointDataSavedIn": "所有检查点数据保存在: ~/.knoxcoder/checkpoints",
 	"deleteCheckpoints": "删除检查点",
 	"checkpoint": "个检查点",
 	"checkpointsPlural": "个检查点",

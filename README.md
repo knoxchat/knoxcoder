@@ -18,6 +18,8 @@ Knox (sidebar chat, agent, Memory Brain, checkpoints) is a **system extension** 
 
 Command, view, and setting IDs stay `knoxchat.*` so existing keybindings and `settings.json` keep working.
 
+> **Note — global data directory is `~/.knoxcoder`, not `~/.knox`.** Knox in KnoxCoder stores its global config (`config.yaml`, `sharedConfig.json`, `.env`, `.knoxignore`, `.knoxrules`), Memory Brain (`memory/`), sessions, checkpoints, rules, prompts, skills, logs, and job output under `~/.knoxcoder` so it never collides with the external Knox marketplace extension (`knoxchat.knoxchat`), which keeps using `~/.knox`. There is no fallback to or migration from `~/.knox`; copy files over manually if you want to reuse them. `KNOX_GLOBAL_DIR` still overrides the location.
+
 ## Documentation
 
 * [KnoxCoder documentation](https://code.visualstudio.com/docs)

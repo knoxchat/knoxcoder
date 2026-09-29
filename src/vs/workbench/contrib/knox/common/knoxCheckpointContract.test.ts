@@ -15,7 +15,7 @@ function repoFile(...parts: string[]): string {
 suite('Knox checkpoint engine contract (KN-320–332)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('KN-320: blob store gzip >4KB, AES-GCM, atomic write, ~/.knox/checkpoints', () => {
+	test('KN-320: blob store gzip >4KB, AES-GCM, atomic write, ~/.knoxcoder/checkpoints', () => {
 		const blobs = repoFile('extensions/knox/src/host/checkpoints/store/blobStore.ts');
 		assert.ok(blobs.includes('BLOB_COMPRESS_THRESHOLD = 4096'));
 		assert.ok(blobs.includes('encryptBlobPayload'));

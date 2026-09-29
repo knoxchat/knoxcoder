@@ -1,6 +1,9 @@
 import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
 import { t } from "../../i18n/index.js";
-import { applyNewRustProjectFileDefaults } from "../../context/rustDefaults";
+import {
+  applyNewRustProjectFileDefaults,
+  describeRustDefaultsRewrite,
+} from "../../context/rustDefaults";
 import { ToolCallError, ToolCallErrorCode } from "../errors";
 import {
   applyHunksToContent,
@@ -12,6 +15,7 @@ import {
 
 import { ToolImpl } from ".";
 import { evaluateRustEditGuard } from "../rustEditGuard";
+import { evaluateTestEditWarnings } from "../testEditGuard";
 
 interface PlannedChange {
   path: string;
@@ -22,6 +26,8 @@ interface PlannedChange {
   after: string | null;
   moveTo?: string;
   moveToUri?: string;
+  /** Set when Knox rewrote Rust pins on a new Cargo.toml / toolchain file. */
+  rewriteNote?: string;
 }
 
 async function resolvePath(
@@ -45,13 +51,15 @@ async function planOps(
       if (existed) {
         throw new Error(t("patchAddFileExists", { filepath: op.path }));
       }
+      const after = applyNewRustProjectFileDefaults(op.path, op.content);
       planned.push({
         path: op.path,
         uri,
         kind: "add",
         existed: false,
         before: null,
-        after: applyNewRustProjectFileDefaults(op.path, op.content),
+        after,
+        rewriteNote: describeRustDefaultsRewrite(op.path, op.content, after),
       });
       continue;
     }
@@ -163,7 +171,14 @@ export const applyPatchImpl: ToolImpl = async (args, extras) => {
     if (guard.block) {
       return [guard.block];
     }
-    rustWarnings.push(...guard.warnings);
+    rustWarnings.push(
+      ...guard.warnings,
+      ...evaluateTestEditWarnings({
+        filePath: change.moveTo ?? change.path,
+        oldText: change.before ?? "",
+        newText: change.after ?? "",
+      }),
+    );
   }
 
   if (extras.abortSignal?.aborted) {
@@ -212,6 +227,9 @@ export const applyPatchImpl: ToolImpl = async (args, extras) => {
 
   const summary = formatOpsSummary(ops);
   const diff = formatUnifiedDiffPreview(planned);
+  const rewriteNotes = planned
+    .map((c) => c.rewriteNote)
+    .filter((note): note is string => Boolean(note));
   const files = planned
     .map((c) => (c.moveTo ? `${c.path} -> ${c.moveTo}` : c.path))
     .join(", ");
@@ -220,7 +238,9 @@ export const applyPatchImpl: ToolImpl = async (args, extras) => {
     {
       name: "apply_patch",
       description: `Applied patch (${planned.length} file${planned.length === 1 ? "" : "s"}): ${files}`,
-      content: `Applied patch atomically.\n\n${summary}\n\n${diff}`,
+      content: `Applied patch atomically.\n\n${summary}\n\n${diff}${
+        rewriteNotes.length ? `\n\n${rewriteNotes.join("\n")}` : ""
+      }`,
     },
     ...rustWarnings,
   ];

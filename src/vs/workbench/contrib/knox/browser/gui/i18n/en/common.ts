@@ -293,7 +293,7 @@ export const knoxGuiStringsEnCommon: Record<string, unknown> = {
 	"thisWeek": "This Week",
 	"thisMonth": "This Month",
 	"earlierCheckpoints": "Earlier Checkpoints",
-	"checkpointDataSavedIn": "All checkpoint data is saved in: ~/.knox/checkpoints",
+	"checkpointDataSavedIn": "All checkpoint data is saved in: ~/.knoxcoder/checkpoints",
 	"deleteCheckpoints": "Delete Checkpoints",
 	"checkpoint": "checkpoint",
 	"checkpointsPlural": "checkpoints",

@@ -41,7 +41,7 @@ function setupTestFixtures() {
     fs.rmSync(TEST_DIR, { recursive: true, force: true });
   }
 
-  // ~/.knox/skills/test-skill/ (via global skills path — use workspace skills/ for project-level)
+  // ~/.knoxcoder/skills/test-skill/ (via global skills path — use workspace skills/ for project-level)
   writeSkill(
     path.join(TEST_DIR, "skills"),
     "test-skill",

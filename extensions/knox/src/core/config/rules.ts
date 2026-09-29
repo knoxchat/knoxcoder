@@ -23,7 +23,7 @@
  *
  * ## Precedence (low → high; later sections appended)
  *
- * 1. `~/.knoxrules` (0) and `~/.knox/rules/*` (5)
+ * 1. `~/.knoxcoder/.knoxrules` (0) and `~/.knoxcoder/rules/*` (5)
  * 2. `{workspace}/CLAUDE.md` (7) — compat
  * 3. `{workspace}/AGENTS.md` (8)
  * 4. `{workspace}/.knox/AGENTS.md` (9)
@@ -48,7 +48,7 @@ import {
   patternsToPolicy,
   type AgentToolPolicy,
 } from "../tools/toolPolicy";
-import { getGlobalRulesPath } from "../util/paths";
+import { getGlobalRulesPath, getKnoxGlobalPath } from "../util/paths";
 import { localPathOrUriToPath, localPathToUri } from "../util/pathToUri";
 import { joinPathsToUri } from "../util/uri";
 
@@ -440,7 +440,7 @@ export function walkDirsToWorkspaceRoot(
 
 /**
  * Discover and load project instructions from:
- * 1. Global: `~/.knoxrules` and `~/.knox/rules/*.{md,txt}`
+ * 1. Global: `~/.knoxcoder/.knoxrules` and `~/.knoxcoder/rules/*.{md,txt}`
  * 2. Workspace roots: `CLAUDE.md`, `AGENTS.md`, `.knox/AGENTS.md`, `.knoxrules`
  * 3. Nested `{subdir}/AGENTS.md` along the current/open file path
  *
@@ -449,9 +449,9 @@ export function walkDirsToWorkspaceRoot(
 export async function discoverRules(ide: IDE): Promise<RuleFile[]> {
   const rules: RuleFile[] = [];
 
-  // 1. Global rules: ~/.knoxrules
+  // 1. Global rules: ~/.knoxcoder/.knoxrules
   try {
-    const globalPath = path.join(os.homedir(), RULES_FILE_NAME);
+    const globalPath = path.join(getKnoxGlobalPath(), RULES_FILE_NAME);
     if (await ide.fileExists(globalPath)) {
       const content = await ide.readFile(globalPath);
       const { frontmatter, body } = parseFrontmatter(content);
@@ -468,7 +468,7 @@ export async function discoverRules(ide: IDE): Promise<RuleFile[]> {
     // Global file not found — fine
   }
 
-  // ~/.knox/rules/*.md directory
+  // ~/.knoxcoder/rules/*.md directory
   try {
     const globalRulesDir = localPathToUri(getGlobalRulesPath());
     const entries = await ide.listDir(globalRulesDir);
@@ -492,7 +492,7 @@ export async function discoverRules(ide: IDE): Promise<RuleFile[]> {
       }
     }
   } catch {
-    // ~/.knox/rules/ directory doesn't exist
+    // ~/.knoxcoder/rules/ directory doesn't exist
   }
 
   // 2. Workspace-level agent instructions + .knoxrules
