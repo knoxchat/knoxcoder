@@ -28,16 +28,38 @@ const ripgrepUniversalPlatforms = [
 	'win32-arm64', 'win32-ia32', 'win32-x64',
 ];
 
+// napi-prebuild / prebuildify folder names used by packages such as foundry-local-sdk.
+const napiPrebuildDirs = [
+	'darwin-arm64', 'darwin-x64',
+	'linux-arm', 'linux-arm64', 'linux-ia32', 'linux-x64',
+	'linuxmusl-arm', 'linuxmusl-arm64', 'linuxmusl-x64',
+	'win32-arm64', 'win32-x64',
+	'win32-arm64-msvc', 'win32-x64-msvc',
+];
+
 /**
- * Returns a glob filter that strips @vscode/ripgrep-universal bin directories
- * for architectures other than the build target.
+ * Returns a glob filter that strips native binaries for architectures other
+ * than the build target: @vscode/ripgrep-universal bins and npm `prebuilds/`
+ * trees (e.g. foundry-local-sdk). Foreign-arch ELFs make rpmbuild's
+ * `brp-strip` fail with "Unable to recognise the format of the input file".
  */
 export function getRipgrepExcludeFilter(platform: string, arch: string): string[] {
 	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
 	const target = `${nodePlatform}-${nodeArch}`;
-	const nonTargetPlatforms = ripgrepUniversalPlatforms.filter(p => p !== target);
+	const keepPrebuilds = new Set([
+		target,
+		`${target}-msvc`,
+	]);
+	if (platform === 'alpine') {
+		keepPrebuilds.add(`linuxmusl-${nodeArch}`);
+	}
 
-	const excludes = nonTargetPlatforms.map(p => `!**/node_modules/@vscode/ripgrep-universal/bin/${p}/**`);
+	const ripgrepExcludes = ripgrepUniversalPlatforms
+		.filter(p => p !== target)
+		.map(p => `!**/node_modules/@vscode/ripgrep-universal/bin/${p}/**`);
+	const prebuildExcludes = napiPrebuildDirs
+		.filter(dir => !keepPrebuilds.has(dir))
+		.map(dir => `!**/prebuilds/${dir}/**`);
 
-	return ['**', ...excludes];
+	return ['**', ...ripgrepExcludes, ...prebuildExcludes];
 }

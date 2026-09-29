@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       arm64:
-        description: 'Also build arm64 (needs GitHub-hosted arm64 runners: ubuntu-22.04-arm, windows-11-arm)'
+        description: 'Also build Linux arm64 (ubuntu-22.04-arm) and Windows arm64 (windows-11-arm)'
         type: boolean
         default: false
       publish_release:
@@ -143,10 +143,11 @@ jobs:
           cp "$rpm_file" "dist/KnoxCoder-${VERSION}-linux-${{ matrix.arch }}.rpm"
 
       - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
         with:
           name: knoxcoder-linux-${{ matrix.arch }}
           path: dist/*
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 14
 
   windows:
@@ -209,7 +210,32 @@ jobs:
       - name: Install dependencies
         env:
           GYP_MSVS_VERSION: '2022'
-        run: npm ci
+        run: |
+          # windows-11-arm currently ships Visual Studio 18. node-gyp 11 only
+          # maps VS 15/16/17, so import vcvars and report VSCMD_VER as 17.0.
+          if ('${{ matrix.arch }}' -eq 'arm64') {
+            $vcvars = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\*\*\VC\Auxiliary\Build\vcvarsall.bat' -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+            if (-not $vcvars) {
+              throw 'vcvarsall.bat not found; cannot compile native modules on this runner'
+            }
+            Write-Host "Importing $($vcvars.FullName) arm64"
+            $setup = Join-Path $env:TEMP 'knox-vcvars.cmd'
+            @(
+              '@echo off',
+              "call `"$($vcvars.FullName)`" arm64",
+              'set'
+            ) | Set-Content -Path $setup
+            & cmd.exe /c $setup | ForEach-Object {
+              if ($_ -match '^([^=]+)=(.*)$') {
+                [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
+              }
+            }
+            $env:VSCMD_VER = '17.0'
+            $env:GYP_MSVS_VERSION = '2022'
+          }
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build app
         run: |
@@ -245,10 +271,11 @@ jobs:
           }
 
       - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
         with:
           name: knoxcoder-windows-${{ matrix.arch }}
           path: dist/*
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 14
 
   release:
