@@ -6,7 +6,7 @@
 import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
-import { knoxGuiListboxNextIndex, knoxGuiModelSelectTitle, knoxGuiSortModelsByApiKey } from '../../../../common/knoxGuiCapabilities.js';
+import { knoxGuiListboxNextIndex, knoxGuiModelSelectTitle, knoxGuiModelTriggerLabel, knoxGuiSortModelsByApiKey } from '../../../../common/knoxGuiCapabilities.js';
 import { appendKnoxGuiSvg } from '../../knoxGuiIcons.js';
 import { reasoningEffortLabelKey } from '../../../../common/knoxGuiOverlays.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
@@ -17,7 +17,7 @@ export function renderModelSelect(widget: KnoxGuiWidget, parent: HTMLElement, st
 	const wrap = DOM.append(parent, DOM.$('.knox-gui-model-wrap'));
 	const open = widget.openMenu === 'model' && widget.openMenuSource === source;
 	const trigger = widget.chromeButton(wrap, {
-		label: knoxGuiModelSelectTitle(current) || t(state, 'selectModel'),
+		label: knoxGuiModelTriggerLabel(current) || t(state, 'selectModel'),
 		svg: 'chevrons-down',
 		svgSize: 16,
 		svgAfter: true,

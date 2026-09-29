@@ -436,6 +436,16 @@ export function knoxGuiModelSelectTitle(model: IKnoxGuiModel | undefined): strin
 	return model.provider ?? '';
 }
 
+/** Compact model label for the composer trigger: drops everything up to and including the first ":" (e.g. "Z.ai: GLM 5.3 Flash" -> "GLM 5.3 Flash"). */
+export function knoxGuiModelTriggerLabel(model: IKnoxGuiModel | undefined): string {
+	const full = knoxGuiModelSelectTitle(model);
+	const colon = full.indexOf(':');
+	if (colon < 0) {
+		return full;
+	}
+	return full.slice(colon + 1).trim() || full;
+}
+
 export function knoxGuiNextModelTitle(models: IKnoxGuiModel[], currentTitle: string | undefined, direction: 1 | -1): string | undefined {
 	if (!models.length) {
 		return undefined;
