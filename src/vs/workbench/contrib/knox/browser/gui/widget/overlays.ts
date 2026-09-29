@@ -346,7 +346,7 @@ export function renderPromptEditor(widget: KnoxGuiWidget, state: IKnoxGuiState):
 	}));
 	for (const field of [name, desc]) {
 		widget.renderStore.add(DOM.addDisposableListener(field, 'keydown', e => {
-			if (e.key === 'Enter') {
+			if (e.key === 'Enter' && !e.isComposing) {
 				e.preventDefault();
 				submit();
 			}
@@ -802,7 +802,7 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 			widget.controller.store.patch({});
 		};
 		widget.listenerStore.add(DOM.addDisposableListener(title, 'keydown', e => {
-			if (e.key === 'Enter') {
+			if (e.key === 'Enter' && !e.isComposing) {
 				e.preventDefault();
 				commit();
 			} else if (e.key === 'Escape') {

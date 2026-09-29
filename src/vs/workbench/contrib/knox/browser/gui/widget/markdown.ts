@@ -1005,10 +1005,14 @@ export function renderResponseActions(widget: KnoxGuiWidget, parent: HTMLElement
 	}
 	const row = DOM.append(parent, DOM.$('.knox-gui-msg-actions'));
 	if (item.checkpointId) {
+		// CheckpointButton.tsx: while this checkpoint restores the button is disabled, spins and reads "Restoring".
+		const restoring = state.checkpointRestoring && state.checkpointRestoringId === item.checkpointId;
 		widget.chromeButton(row, {
-			svg: 'restore-history',
+			svg: restoring ? 'circle-check' : 'restore-history',
 			svgSize: 14,
-			title: t(state, 'restoreCheckpointHint', { id: item.checkpointId.slice(0, 8) }),
+			disabled: restoring,
+			extraClass: restoring ? 'knox-gui-restoring' : undefined,
+			title: restoring ? t(state, 'restoring') : t(state, 'restoreCheckpointHint', { id: item.checkpointId.slice(0, 8) }),
 			testId: `checkpoint-restore-button-${index}`,
 			onClick: (_btn, event) => void widget.controller.openRestorePreview(item.checkpointId!, Boolean(event?.shiftKey)),
 		});

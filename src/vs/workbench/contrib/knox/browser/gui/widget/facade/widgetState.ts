@@ -164,8 +164,6 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	dropOverlayEl: HTMLElement | undefined;
 	focusedHistoryId: string | null = null;
 	osrMenuEl: HTMLElement | undefined;
-	errorFallbackReady = false;
-	errorFallbackTimer: ReturnType<typeof setTimeout> | undefined;
 	readonly historyDrafts = new Map<string, { doc: IKnoxGuiInputBlock[]; images: string[] }>();
 	/** Mounted history message editors (and their boxes) from the last render, by history id. */
 	readonly historyEditorEls = new Map<string, HTMLElement>();

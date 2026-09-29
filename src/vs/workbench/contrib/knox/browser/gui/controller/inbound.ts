@@ -13,7 +13,7 @@ import { knoxGuiNextEditStatus, mergeCodeToEdit, parseCodeToEditList } from '../
 import { knoxGuiHostAgentActiveFromPayload, knoxGuiModeAfterHostAgentFlag } from '../../../common/knoxGuiAgentMode.js';
 import { IKnoxGuiState, KnoxModelRole, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
 import { applyKnoxGuiSetColors, applyKnoxGuiSetTheme } from '../../../common/knoxGuiTheme.js';
-import { appendTextToDoc } from '../../../common/knoxGuiInput.js';
+import { insertTextAtCaret } from '../../../common/knoxGuiInput.js';
 
 export function onHostMessage(controller: KnoxGuiController, message: IKnoxGuiMessage): void {
 	void controller.handleInbound(message.messageType, message.data, message.messageId);
@@ -66,6 +66,9 @@ const KNOX_GUI_CHAT_ONLY_INBOUND = new Set([
 /** `useNavigationListener.ts` openGUITypes: return to chat from secondary pages first. */
 const KNOX_GUI_OPEN_CHAT_INBOUND = new Set(['highlightedCode', 'focusKnoxInput', 'focusKnoxInputWithoutClear', 'newSession']);
 
+/** `useWebviewListeners.ts` focusEditWithoutClear: `focus('end')` runs after 2 s. */
+export const KNOX_FOCUS_EDIT_WITHOUT_CLEAR_DELAY_MS = 2000;
+
 /** KP-040: host-only requests with no GUI handler; empty-ack keeps the host promise from hanging. */
 const KNOX_GUI_UNHANDLED_HOST_REQUESTS = new Set<string>(KNOX_GUI_HOST_INBOUND_EMPTY_ACK);
 
@@ -96,8 +99,17 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 	}
 	switch (type) {
 		case 'newSession':
+		{
+			// Original Layout.tsx: after saveCurrentSession({ openNewSession }) always exitEditMode() (reject diffs, edit/exit, leave Cmd+I).
+			// The original newSession reducer keeps codeToEdit, so exitEditMode still rejects those diffs; keep them across the reset.
+			const editCode = controller.store.state.mode === 'edit' ? controller.store.state.codeToEdit : undefined;
 			await controller.newSession();
+			if (editCode && controller.store.state.mode === 'edit') {
+				controller.store.patch({ codeToEdit: editCode });
+				await controller.exitEditMode(undefined, { restoreLastSession: false });
+			}
 			return;
+		}
 		case 'newSessionWithPrompt':
 			await controller.newSession();
 			if (rec && typeof rec.prompt === 'string') {
@@ -120,7 +132,8 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 			controller.store.patch({ inputFocused: true });
 			return;
 		case 'isKnoxInputFocused':
-			controller.messenger.post(type, controller.store.state.inputFocused, messageId);
+			// Layout.tsx only lets the chat page (ROUTES.HOME) answer; every other page reports false.
+			controller.messenger.post(type, controller.store.state.route === KnoxGuiRoute.Chat && controller.store.state.inputFocused, messageId);
 			return;
 		case 'getWebviewHistoryLength':
 			controller.messenger.post(type, controller.store.state.history.length, messageId);
@@ -137,6 +150,11 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 		case 'addModel':
 			controller.openAddModel(rec?.role ? String(rec.role) as KnoxModelRole : 'chat', { bulk: !rec?.role || rec.role === 'chat' });
 			return;
+		case 'addApiKey':
+			// Quota notification "Add API Key": route to the same Add Model flow as `addModel`, then answer the host request.
+			controller.openAddModel('chat', { bulk: true });
+			controller.messenger.post(type, undefined, messageId);
+			return;
 		case 'focusKnoxSessionId':
 			if (rec?.sessionId) {
 				await controller.loadSession(String(rec.sessionId));
@@ -149,7 +167,10 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 			return;
 		case 'userInput':
 			if (rec && typeof rec.input === 'string') {
-				controller.store.setInputDoc(appendTextToDoc(controller.store.state.inputDoc, rec.input));
+				// useWebviewListeners.ts: `editor.commands.insertContent(data.input)` at the caret, then onEnter({ noContext: true }).
+				const inserted = insertTextAtCaret(controller.store.state.inputDoc, controller.composerCaret, rec.input);
+				controller.composerCaret = inserted.caret;
+				controller.store.setInputDoc(inserted.doc);
 				await controller.submit(undefined, { noContext: true });
 			}
 			return;
@@ -246,8 +267,7 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 			controller.enterEditMode({ clearSession: true });
 			return;
 		case 'focusEditWithoutClear':
-			controller.enterEditMode({ clearSession: false });
-			controller.store.patch({ inputFocused: true });
+			controller.enterEditMode({ clearSession: false, deferFocusMs: KNOX_FOCUS_EDIT_WITHOUT_CLEAR_DELAY_MS });
 			return;
 		case 'agentModeChanged': {
 			const active = knoxGuiHostAgentActiveFromPayload(data);

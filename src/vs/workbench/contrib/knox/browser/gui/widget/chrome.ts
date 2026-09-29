@@ -23,7 +23,7 @@ import {
 import { knoxGuiListboxNextIndex } from '../../../common/knoxGuiCapabilities.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
 import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, knoxGuiFindRegexInvalid, knoxGuiNextScrollFollow, nextExpandedStart } from '../../../common/knoxGuiChat.js';
-import { createComposerInputHistory, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
+import { knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { visibleBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { IKnoxGuiState, KnoxPermissionMode, PERMISSION_MODES } from '../../../common/knoxGuiState.js';
@@ -290,7 +290,7 @@ export function renderFind(widget: KnoxGuiWidget, state: IKnoxGuiState): void { 
 		if (e.key === 'Escape') {
 			e.preventDefault();
 			widget.controller.closeFind();
-		} else if (e.key === 'Enter') {
+		} else if (e.key === 'Enter' && !e.isComposing) {
 			e.preventDefault();
 			if (widget.findQueryTimer) {
 				clearTimeout(widget.findQueryTimer);
@@ -439,24 +439,21 @@ export function renderRoute(widget: KnoxGuiWidget, body: HTMLElement, state: IKn
 	}
 }
 
+/**
+ * `ChatErrorBoundary.tsx` LayoutErrorFallback: a page render throw shows the message and Retry, which remounts the same
+ * session and form state. Only a route-level error (`pages/error.tsx`) wipes the session and persisted GUI state.
+ */
 export function renderErrorFallback(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, error: unknown): void {
 	const fallback = DOM.append(body, DOM.$('.knox-gui-error-boundary'));
 	fallback.setAttribute('role', 'alert');
 	fallback.setAttribute('data-testid', 'knox-gui-error-boundary');
-	DOM.append(fallback, DOM.$('h4.knox-gui-error-title', undefined, t(state, 'oopsSomethingWentWrong')));
-	const detail = error instanceof Error ? (error.message || String(error)) : String(error);
-	DOM.append(fallback, DOM.$('code.knox-gui-error-code', undefined, detail));
+	DOM.append(fallback, DOM.$('p.knox-gui-error-title', undefined, t(state, 'oopsSomethingWentWrong')));
+	const detail = error instanceof Error ? (error.message || String(error)) : String(error ?? '');
+	DOM.append(fallback, DOM.$('pre.knox-gui-error-code', undefined, detail));
 	widget.chromeButton(fallback, {
-		svg: widget.errorFallbackReady ? 'rotate-cw' : 'flag',
-		svgSize: 20,
-		label: t(state, 'knox'),
-		extraClass: widget.errorFallbackReady ? 'knox-gui-error-home' : 'knox-gui-error-home knox-gui-error-flag',
-		onClick: () => {
-			widget.controller.store.newSession();
-			widget.chatInputHistory = createComposerInputHistory();
-			widget.controller.resetPersistedState();
-			widget.controller.store.navigate('/');
-		},
+		label: t(state, 'retry'),
+		testId: 'knox-gui-error-retry',
+		onClick: () => widget.render(),
 	});
 }
 
@@ -503,6 +500,11 @@ export function onRootKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent): void {
 			widget.checkpointTimelineSearchInput?.focus();
 			return;
 		}
+	}
+	if (e.key === '.' && meta) {
+		// ModeSelect.tsx swallows Cmd/Ctrl+. so it never falls through to the editor (quick fix / parameter hints).
+		e.preventDefault();
+		e.stopPropagation();
 	}
 	if (e.key === 'Tab' && e.shiftKey && !e.defaultPrevented && state.mode === 'agent' && !state.isStreaming && !(state.mentionOpen || state.slashOpen)) {
 		e.preventDefault();
@@ -757,6 +759,8 @@ export function onEscape(widget: KnoxGuiWidget, e: KeyboardEvent, state: IKnoxGu
 		e.preventDefault();
 		e.stopPropagation();
 		widget.controller.closeSuggest();
+		// editorConfig.ts Escape: `inDropdownRef.current || !isInEditModeRef.current` -> post("focusEditor") (the suggestion plugin closes the picker too).
+		widget.controller.focusHostEditor();
 		return;
 	}
 	if (state.addFileOpen) {

@@ -845,6 +845,8 @@ export interface IKnoxGuiState {
 	knoxChatModelsLoading: boolean;
 	batchApplying: boolean;
 	memoryTab: string;
+	/** Editor-panel Memory (`MemoryPanelPage.tsx`) paints nothing until the saved tab is read. */
+	memoryTabHydrated: boolean;
 	memoryQuery: string;
 	memoryFilterCategory: string;
 	memoryFilterTier: string;
@@ -913,6 +915,8 @@ export interface IKnoxGuiState {
 	checkpointRestoreLoading: boolean;
 	/** A restore request is in flight; held for 1.5 s after it settles, as in `RestorePreviewDialog`. */
 	checkpointRestoring: boolean;
+	/** Checkpoint whose restore is in flight; only its response-row button spins (`CheckpointButton.tsx` isRestoring). */
+	checkpointRestoringId?: string;
 	/** Either the `restorePreviewFailed` i18n key or host-provided message text. */
 	checkpointRestoreError?: string;
 	checkpointRestorePreview?: IKnoxGuiRestorePreview;
@@ -1073,6 +1077,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		knoxChatModelsLoading: false,
 		batchApplying: false,
 		memoryTab: 'overview',
+		memoryTabHydrated: false,
 		memoryQuery: '',
 		memoryFilterCategory: 'all',
 		memoryFilterTier: 'all',

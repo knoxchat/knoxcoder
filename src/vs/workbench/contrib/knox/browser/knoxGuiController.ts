@@ -201,11 +201,11 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiModels.setMode(this, mode);
 	}
 
-	async exitEditMode(nextMode?: KnoxChatMode): Promise<void> {
-		return knoxGuiSessions.exitEditMode(this, nextMode);
+	async exitEditMode(nextMode?: KnoxChatMode, options?: { restoreLastSession?: boolean }): Promise<void> {
+		return knoxGuiSessions.exitEditMode(this, nextMode, options);
 	}
 
-	enterEditMode(options: { clearSession: boolean }): void {
+	enterEditMode(options: { clearSession: boolean; deferFocusMs?: number }): void {
 		return knoxGuiSessions.enterEditMode(this, options);
 	}
 

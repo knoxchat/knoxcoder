@@ -64,7 +64,6 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		this._register(DOM.addDisposableListener(this.root, 'contextmenu', e => this.onRootContextMenu(e)));
 		this._register({ dispose: () => this.hideImagePreview() });
 		this._register({ dispose: () => this.hideOsrMenu() });
-		this._register({ dispose: () => { if (this.errorFallbackTimer) { clearTimeout(this.errorFallbackTimer); } } });
 		this._register({ dispose: () => this.clearJobClock() });
 		this._register({ dispose: () => this.clearMeterClock() });
 		this._register({ dispose: () => { if (this.dragLeaveTimer) { clearTimeout(this.dragLeaveTimer); } } });
@@ -264,13 +263,6 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 			this.renderRoute(body, state);
 		} catch (error) {
 			this.renderErrorFallback(body, state, error);
-			if (!this.errorFallbackReady && !this.errorFallbackTimer) {
-				this.errorFallbackTimer = setTimeout(() => {
-					this.errorFallbackReady = true;
-					this.errorFallbackTimer = undefined;
-					this.controller.store.patch({});
-				}, 500);
-			}
 		}
 		if (this.shouldShowComposer(state)) {
 			this.renderComposer(state);

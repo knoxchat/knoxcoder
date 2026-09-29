@@ -16,12 +16,13 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { InMemoryStorageService } from '../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { DEFAULT_REASONING_EFFORT_ALLOWED, knoxGuiResetModelCatalogForTests, knoxGuiSeedModelCatalog } from '../common/knoxGuiCapabilities.js';
 import { IKnoxGuiMessage, KNOX_GUI_HEARTBEAT_MS, KnoxGuiRoute } from '../common/knoxGuiProtocol.js';
 import { DEFAULT_MENTION_PROVIDER_TITLES, inputDocFromPlainText, SLASH_BUILTINS } from '../common/knoxGuiInput.js';
 import { DEFAULT_PERMISSION_MODE, IKnoxGuiModel } from '../common/knoxGuiState.js';
 import { IKnoxService } from '../common/knoxService.js';
+import { DRAFT_SESSION_KEY } from './gui/controller/persistence.js';
 import { KnoxGuiController } from './knoxGuiController.js';
 import { KnoxGuiMessenger } from './knoxGuiMessenger.js';
 import { KnoxGuiStore } from './knoxGuiStore.js';
@@ -30,7 +31,7 @@ import { KnoxGuiWidget } from './gui/knoxGuiWidget.js';
 suite('Knox native GUI controller (GP-084)', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(options?: { listModels?: unknown; replies?: Record<string, unknown>; respond?: (message: IKnoxGuiMessage) => { content: unknown; chunks?: unknown[] } | { error: string } | undefined; lock?: KnoxGuiRoute; storage?: InMemoryStorageService; activeChatSessionId?: string }): { controller: KnoxGuiController; store: KnoxGuiStore; posted: IKnoxGuiMessage[] } {
+	function createHarness(options?: { listModels?: unknown; replies?: Record<string, unknown>; respond?: (message: IKnoxGuiMessage) => { content: unknown; chunks?: unknown[] } | { error: string } | undefined; lock?: KnoxGuiRoute; storage?: InMemoryStorageService; activeChatSessionId?: string; silent?: string[] }): { controller: KnoxGuiController; store: KnoxGuiStore; posted: IKnoxGuiMessage[] } {
 		knoxGuiResetModelCatalogForTests();
 		const incoming = disposables.add(new Emitter<IKnoxGuiMessage>());
 		const posted: IKnoxGuiMessage[] = [];
@@ -39,6 +40,9 @@ suite('Knox native GUI controller (GP-084)', () => {
 			override activeChatSessionId = options?.activeChatSessionId ?? null;
 			override async guiPost(message: IKnoxGuiMessage): Promise<void> {
 				posted.push(message);
+				if (options?.silent?.includes(message.messageType)) {
+					return; // host-reply types: the real host does not echo them back into the GUI
+				}
 				const custom = options?.respond?.(message);
 				if (custom) {
 					for (const chunk of 'chunks' in custom ? custom.chunks ?? [] : []) {
@@ -334,6 +338,88 @@ suite('Knox native GUI controller (GP-084)', () => {
 		await controller.handleInbound('exitEditMode', undefined, 'ex-2');
 		assert.strictEqual(store.state.mode, 'chat');
 	});
+
+	test('NP-02 host newSession leaves edit mode: rejects diffs, posts edit/exit, keeps the fresh session', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: {
+				'history/list': [{ sessionId: 'last', title: 'Last', dateCreated: '1' }],
+				'history/load': { sessionId: 'last', title: 'Last', history: [{ message: { role: 'user', content: 'hi' } }] },
+			},
+		});
+		await timeout(0);
+		store.patch({
+			mode: 'chat',
+			editReturnMode: 'chat',
+			sessionId: 'edit-session',
+			history: [{ id: 'e', role: 'user', content: 'edit this' }],
+		});
+		await controller.handleInbound('focusEdit', undefined, 'np02-fe');
+		assert.strictEqual(store.state.mode, 'edit');
+		store.patch({ codeToEdit: [{ filepath: 'file:///src/a.ts', contents: 'x', range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } } }] });
+		posted.length = 0;
+		await controller.handleInbound('newSession', undefined, 'np02-ns');
+		assert.strictEqual(store.state.mode, 'chat');
+		assert.strictEqual(store.state.codeToEdit.length, 0);
+		assert.ok(posted.some(message => message.messageType === 'rejectDiff'));
+		assert.ok(posted.some(message => message.messageType === 'edit/exit'));
+		assert.notStrictEqual(store.state.sessionId, 'last', 'new session must not be replaced by the last saved session');
+		assert.strictEqual(store.state.history.length, 0);
+	});
+
+	test('NP-06 highlightedCode keeps two ranges of one file but drops an exact duplicate', async () => {
+		const { controller, store } = createHarness();
+		await timeout(0);
+		const rif = (start: number, end: number) => ({ rangeInFileWithContents: { filepath: 'file:///src/a.ts', contents: 'x', range: { start: { line: start, character: 0 }, end: { line: end, character: 1 } } } });
+		await controller.handleInbound('highlightedCode', rif(0, 2), 'np06-a');
+		await controller.handleInbound('highlightedCode', rif(5, 8), 'np06-b');
+		await controller.handleInbound('highlightedCode', rif(5, 8), 'np06-c');
+		const blocks = store.state.inputDoc.filter(block => block.type === 'codeBlock');
+		assert.strictEqual(blocks.length, 2);
+		assert.deepStrictEqual(blocks.map(block => block.type === 'codeBlock' ? block.itemName : ''), ['a.ts (1-3)', 'a.ts (6-9)']);
+	});
+
+	test('NP-12 host addApiKey opens Add Model and answers the request', async () => {
+		const { controller, store, posted } = createHarness({ silent: ['addApiKey'] });
+		await timeout(0);
+		await controller.handleInbound('addApiKey', undefined, 'np12');
+		assert.strictEqual(store.state.addModelModal, true);
+		assert.ok(posted.some(message => message.messageId === 'np12'));
+	});
+
+	test('NP-07 isKnoxInputFocused only answers true on the chat page', async () => {
+		const { controller, store, posted } = createHarness({ silent: ['isKnoxInputFocused'] });
+		await timeout(0);
+		const reply = (id: string) => posted.filter(message => message.messageId === id).at(-1)?.data;
+		store.patch({ inputFocused: true });
+		await controller.handleInbound('isKnoxInputFocused', undefined, 'np07-a');
+		assert.strictEqual(reply('np07-a'), true);
+		store.navigate('/config');
+		store.patch({ inputFocused: true });
+		await controller.handleInbound('isKnoxInputFocused', undefined, 'np07-b');
+		assert.strictEqual(reply('np07-b'), false);
+	});
+
+	test('NP-22 focusEditWithoutClear enters edit mode now but focuses the composer after 2 s', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { controller, store } = createHarness();
+		await timeout(0);
+		await controller.handleInbound('focusEditWithoutClear', undefined, 'np22');
+		assert.strictEqual(store.state.mode, 'edit');
+		assert.strictEqual(store.state.inputFocused, false, 'focus waits for the delay');
+		await timeout(2100);
+		assert.strictEqual(store.state.inputFocused, true);
+	}));
+
+	test('NP-28 the draft session is not written while streaming and is flushed once the stream ends (persistControl)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const { store } = createHarness({ storage });
+		await timeout(0);
+		store.patch({ setupComplete: true, sessionId: 'persist-1', isStreaming: true, history: [{ id: 'u', role: 'user', content: 'draft body' }] });
+		await timeout(2500);
+		assert.strictEqual(storage.get(DRAFT_SESSION_KEY, StorageScope.WORKSPACE), undefined, 'no write on stream tokens');
+		store.patch({ isStreaming: false });
+		await timeout(2500);
+		assert.ok(storage.get(DRAFT_SESSION_KEY, StorageScope.WORKSPACE)?.includes('draft body'), 'the last state is flushed after streaming');
+	}));
 
 	test('I-08 leaving edit mode reloads the newest workspace session, else opens a new chat', async () => {
 		const { controller, store, posted } = createHarness({
@@ -935,11 +1021,11 @@ suite('Knox native GUI controller (GP-084)', () => {
 			},
 			respond: message => message.messageType === 'llm/streamChat'
 				? {
-					chunks: [{
-						role: 'assistant',
-						content: 'Reading. <tool_call>{}</tool_call>',
-						tool_calls: [{ index: 0, function: { name: '', arguments: '{' } }],
-					}],
+					// The empty-name stub arrives first; text after it is not split into its own reply.
+					chunks: [
+						{ role: 'assistant', content: '', tool_calls: [{ index: 0, function: { name: '', arguments: '{' } }] },
+						{ role: 'assistant', content: 'Reading. <tool_call>{}</tool_call>' },
+					],
 					content: { prompt: 'p', completion: 'c', modelTitle: 'm' },
 				}
 				: undefined,

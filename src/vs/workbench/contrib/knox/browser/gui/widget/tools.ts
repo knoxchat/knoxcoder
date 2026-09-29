@@ -22,6 +22,7 @@ import {
 	displayArgsForToolCall,
 	displayLanguageForFile,
 	exactSearchDisplayQuery,
+	capTreeTerminalLines,
 	exactSearchQueryBadge,
 	extractLogPathFromTerminalOutput,
 	extractStreamingToolCode,
@@ -829,7 +830,8 @@ export function renderTreeCard(widget: KnoxGuiWidget, parent: HTMLElement, state
 	}
 	const body = DOM.append(card, DOM.$(options.kind === 'repo-map' ? 'pre.knox-gui-tree-body.is-repo-map' : 'pre.knox-gui-tree-body'));
 	body.style.color = options.theme.foreground;
-	widget.appendAnsi(body, options.colorized, widget.isLightTheme() ? LIGHT_TERMINAL_PALETTE : DARK_TERMINAL_PALETTE);
+	// LazyColorizedTree.tsx: xterm with 5000-line scrollback; repo map 300px, subdirectory 350px.
+	widget.appendAnsi(body, capTreeTerminalLines(options.colorized, options.kind === 'repo-map' ? 300 : 350), widget.isLightTheme() ? LIGHT_TERMINAL_PALETTE : DARK_TERMINAL_PALETTE);
 	if (options.notice) {
 		const notice = DOM.append(card, DOM.$('.knox-gui-tree-notice', undefined, options.notice));
 		if (widget.isLightTheme()) {

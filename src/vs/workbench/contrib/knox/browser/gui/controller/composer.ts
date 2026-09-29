@@ -7,7 +7,7 @@ import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { asRecord, asArray } from './helpers.js';
 import { saveProfilePreferences } from './persistence.js';
 import { findMatchingHistoryIndexes } from '../../../common/knoxGuiChat.js';
-import { appendMentionChip, appendTriggerToDoc, applySuggestAt, appendTextToDoc, buildTopLevelMentionItems, clearMentionQueryAt, detectComposerTrigger, docEndCaret, EMPTY_QUERY_FILE_LIMIT, fileHitToSuggestItem, filterProvidersForMode, IKnoxGuiDocCaret, IKnoxGuiInputBlock, insertCodeBlock, inputDocFromPlainText, isFolderMentionItem, isMentionUtilityItem, isSlashBookmarked, LIVE_MENTION_DEBOUNCE_MS, LIVE_MENTION_SEARCH_CAP, mentionItemMatchesQuery, mergeContextProvidersWithDefaults, mergeLiveMentionItems, mergeOpenFileMentions, mergeSlashCommandsWithBuiltins, nextMentionSelectedIndex, openFilesChanged, openFileSuggestItems, rankMentionItems, rankSlashCommands, removeCodeToEditTrigger, shouldLiveSearchMentions, slashCommandBareName, slashCommandToSuggestItem, submenuHitToSuggestItem, toggleSlashBookmark, TOP_LEVEL_MENTION_LIMIT, truncatedMentionMarker } from '../../../common/knoxGuiInput.js';
+import { appendMentionChip, appendTriggerToDoc, applySuggestAt, appendTextToDoc, buildTopLevelMentionItems, clearMentionQueryAt, detectComposerTrigger, docEndCaret, EMPTY_QUERY_FILE_LIMIT, fileHitToSuggestItem, filterProvidersForMode, IKnoxGuiDocCaret, IKnoxGuiInputBlock, IKnoxGuiInputCodeBlock, insertCodeBlock, knoxGuiCodeBlockTitle, inputDocFromPlainText, isFolderMentionItem, isMentionUtilityItem, isSlashBookmarked, LIVE_MENTION_DEBOUNCE_MS, LIVE_MENTION_SEARCH_CAP, mentionItemMatchesQuery, mergeContextProvidersWithDefaults, mergeLiveMentionItems, mergeOpenFileMentions, mergeSlashCommandsWithBuiltins, nextMentionSelectedIndex, openFilesChanged, openFileSuggestItems, rankMentionItems, rankSlashCommands, removeCodeToEditTrigger, shouldLiveSearchMentions, slashCommandBareName, slashCommandToSuggestItem, submenuHitToSuggestItem, toggleSlashBookmark, TOP_LEVEL_MENTION_LIMIT, truncatedMentionMarker } from '../../../common/knoxGuiInput.js';
 import { mergeCodeToEdit, parseCodeToEdit } from '../../../common/knoxGuiEdit.js';
 import { appendNewPromptFileMentionAction, formatPromptCommandName, isNewPromptFileMentionAction } from '../../../common/knoxGuiOverlays.js';
 import { IKnoxGuiContextProvider, IKnoxGuiFindState, IKnoxGuiSuggestItem } from '../../../common/knoxGuiState.js';
@@ -511,13 +511,15 @@ export function applyHighlightedCode(controller: KnoxGuiController, rec: Record<
 	const range = asRecord(rif?.range);
 	const start = Number(asRecord(range?.start)?.line);
 	const end = Number(asRecord(range?.end)?.line);
-	controller.store.setInputDoc(insertCodeBlock(controller.store.state.inputDoc, {
+	const block: IKnoxGuiInputCodeBlock = {
 		type: 'codeBlock',
 		filepath,
 		code: contents,
-		itemName: filepath,
 		...(Number.isFinite(start) && Number.isFinite(end) ? { range: { start, end } } : {}),
-	}));
+	};
+	// useWebviewListeners.ts dedupes on the context-item name `basename (start-end)`, so two ranges of one file both stay.
+	block.itemName = knoxGuiCodeBlockTitle(block);
+	controller.store.setInputDoc(insertCodeBlock(controller.store.state.inputDoc, block));
 	if (typeof rec.prompt === 'string' && rec.prompt) {
 		controller.store.setInputDoc(appendTextToDoc(controller.store.state.inputDoc, rec.prompt));
 	}

@@ -86,13 +86,12 @@
 
 .knox-gui-error-title {
 	margin: 0 0 8px;
-	font-size: 1.5rem;
-	font-weight: 700;
 }
 
 .knox-gui-error-code {
 	max-width: 100%;
 	margin: 0 8px 8px;
+	color: var(--vscode-errorForeground, #ef4444);
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
 }

@@ -551,6 +551,10 @@ suite('Knox agent host contract (KN-364)', () => {
 		assert.ok(impl.includes('implements KnoxExtension'));
 		assert.ok(impl.includes('from "../../api/knox"'));
 		assert.ok(impl.includes('assertKnoxApiVersion(version)'));
+		// Original activate.ts exports shape stays available beside getAPI(1).
+		assert.ok(impl.includes('readonly registerCustomContextProvider ='));
+		assert.ok(impl.includes('readonly agentMode = {'));
+		assert.ok(impl.includes('isAgentModeActive: ()') && impl.includes('toggleAgentMode: ()') && impl.includes('executeToolCall: ('));
 		assert.ok(api.includes('KN-364'));
 		assert.ok(api.includes('class KnoxApiImpl implements API'));
 		assert.ok(api.includes('wrapCustomContextProvider'));
@@ -1230,5 +1234,31 @@ suite('Knox agent host contract (KN-392)', () => {
 		assert.ok(packagingTest.includes('KN-392'));
 		assert.ok(gate.includes('isGitIgnored'));
 		assert.ok(!existsSync(leftover) || isGitIgnored(leftover), 'KN-392: leftover product directory at repo root must be deleted');
+	});
+});
+
+suite('Knox native parity follow-ups (NP)', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('NP-26 getDebugLocals warns when there is no active debug session', () => {
+		const ideUtils = repoFile('extensions/knox/src/host/util/ideUtils.ts');
+		const start = ideUtils.indexOf('async getDebugLocals(');
+		assert.ok(start > 0);
+		const body = ideUtils.slice(start, start + 600);
+		assert.ok(body.includes('showWarningMessage'));
+		assert.ok(body.includes('No active debug session found'));
+	});
+
+	test('NP-28 the host merges the turn inject into the leading system message, else prepends one', () => {
+		const source = repoFile('extensions/knox/src/host/extension/nativeAgentRequest.ts');
+		assert.ok(source.includes('export function mergeInjectIntoMessages'));
+		assert.ok(source.includes('first?.role === "system"'));
+		assert.ok(source.includes('return [{ role: "system", content: injected }, ...messages];'));
+	});
+
+	test('NP-29 the ported openai-adapters package tests run under their own vitest config', () => {
+		assert.ok(existsSync(join(process.cwd(), 'extensions/knox/src/pkg/openai-adapters/apis/Anthropic.test.ts')));
+		assert.ok(repoFile('extensions/knox/src/pkg/vitest.config.ts').includes('**/*.test.ts'));
+		assert.ok(repoFile('extensions/knox/package.json').includes('"test:pkg"'));
 	});
 });

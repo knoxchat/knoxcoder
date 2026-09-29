@@ -107,6 +107,7 @@ export const KNOX_GUI_HOST_INBOUND = [
 	'focusKnoxInput',
 	'focusKnoxInputWithoutClear',
 	'addModel',
+	'addApiKey',
 	'navigateTo',
 	'applyCodeFromChat',
 	'updateApplyState',
@@ -311,4 +312,4 @@ export const KNOX_GUI_HOST_OUTBOUND = [
 export const KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME = [] as const;
 
 /** Host requests with no GUI handler; answering keeps the host promise from hanging. */
-export const KNOX_GUI_HOST_INBOUND_EMPTY_ACK = ['didChangeIdeSettings', 'incrementFtc', 'addApiKey'] as const;
+export const KNOX_GUI_HOST_INBOUND_EMPTY_ACK = ['didChangeIdeSettings', 'incrementFtc'] as const;

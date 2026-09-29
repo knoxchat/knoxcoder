@@ -1094,3 +1094,7 @@
 	padding: 2px 4px 6px;
 }
 
+
+.knox-gui-restoring svg {
+	animation: knox-gui-spin 1s linear infinite;
+}

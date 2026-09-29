@@ -5,6 +5,7 @@
 
 import type { KnoxGuiWidget } from '../knoxGuiWidget.js';
 import { t } from './t.js';
+import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { appendKnoxGuiSvg, KnoxGuiSvgIcon } from '../knoxGuiIcons.js';
 import {
@@ -126,6 +127,10 @@ function modalHost(body: HTMLElement): HTMLElement {
 export function renderMemory(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void { // KN-376
 	body.classList.add('knox-gui-memory-page');
 	body.setAttribute('data-testid', 'knox-gui-memory');
+	if (state.lockedRoute === KnoxGuiRoute.Memory && !state.memoryTabHydrated) {
+		// MemoryPanelPage.tsx renders nothing until the saved tab id is known, so Overview never flashes first.
+		return;
+	}
 	const bar = mk(body, 'div', 'tabbar');
 	const tabs = mk(bar, 'div', 'tabs');
 	for (const id of MEMORY_TAB_IDS) {
@@ -1293,7 +1298,7 @@ function renderMemorySettingRow(widget: KnoxGuiWidget, card: HTMLElement, state:
 	const commitOnBlurOrEnter = (input: HTMLInputElement, commit: () => void) => {
 		widget.renderStore.add(DOM.addDisposableListener(input, 'blur', commit));
 		widget.renderStore.add(DOM.addDisposableListener(input, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'Enter') {
+			if (e.key === 'Enter' && !e.isComposing) {
 				commit();
 			}
 		}));

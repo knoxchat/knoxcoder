@@ -500,6 +500,9 @@ export class VsCodeIdeUtils {
   async getDebugLocals(threadIndex = 0): Promise<string> {
     const session = vscode.debug.activeDebugSession;
     if (!session) {
+      vscode.window.showWarningMessage(
+        "No active debug session found, therefore no debug context will be provided for the llm.",
+      );
       return "";
     }
 

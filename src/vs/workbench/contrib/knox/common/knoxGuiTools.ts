@@ -342,9 +342,9 @@ export function exactSearchDisplayQuery(tool: { parsedArgs?: unknown; arguments?
 	return sanitizeExactSearchQuery(match?.[1] ?? '');
 }
 
-/** `FindInFile.tsx` badge text: always wrap the query in `[]`, `...` while the query is still streaming. */
+/** `ExactSearch.tsx` badge text: the raw query, `...` while the query is still streaming. */
 export function exactSearchQueryBadge(query: string): string {
-	return `[${query || '...'}]`;
+	return query || '...';
 }
 
 /**
@@ -1098,6 +1098,29 @@ export function treePreviewLines(plain: string, maxLines = STATIC_TREE_PREVIEW_L
 		return { text: plain, hiddenLines: 0 };
 	}
 	return { text: lines.slice(0, maxLines).join('\n'), hiddenLines: lines.length - maxLines };
+}
+
+/** `LazyColorizedTree.tsx` Terminal options: `scrollback: 5000`, `rows: max(8, floor(height / 20))`. */
+export const TREE_TERMINAL_SCROLLBACK = 5000;
+
+export function treeTerminalRows(height: number): number {
+	return Math.max(8, Math.floor(height / 20));
+}
+
+/**
+ * The original streams every line into an xterm with a 5000-line scrollback, so only the last
+ * `scrollback + rows` lines stay reachable and a trailing empty line is not written.
+ */
+export function capTreeTerminalLines(colorized: string, height: number): string {
+	if (!colorized) {
+		return '';
+	}
+	const lines = colorized.split('\n');
+	if (lines[lines.length - 1] === '') {
+		lines.pop();
+	}
+	const max = TREE_TERMINAL_SCROLLBACK + treeTerminalRows(height);
+	return (lines.length > max ? lines.slice(lines.length - max) : lines).join('\n');
 }
 
 function ansiForTheme(isLight: boolean): typeof DARK_ANSI {

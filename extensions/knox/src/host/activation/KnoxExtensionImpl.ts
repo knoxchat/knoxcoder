@@ -8,7 +8,7 @@ import { KnoxApiImpl } from "./api";
 import { assertKnoxApiVersion } from "./knoxPublicApi";
 
 import type { VsCodeExtension } from "../extension/VsCodeExtension";
-import type { API, KnoxExtension } from "../../api/knox";
+import type { API, ContextItem, CustomContextProvider, KnoxExtension, ToolCall } from "../../api/knox";
 
 /**
  * Published `vscode.knox` exports (KN-364). Git analog: `GitExtensionImpl`.
@@ -37,6 +37,22 @@ export class KnoxExtensionImpl implements KnoxExtension {
       this._onDidChangeAgentMode.event,
     );
   }
+
+  /**
+   * Original Knox public exports (`activate.ts` knoxPublicApi): extensions written
+   * against `exports.registerCustomContextProvider` / `exports.agentMode` keep working
+   * next to the versioned `getAPI(1)` surface.
+   */
+  readonly registerCustomContextProvider = (provider: CustomContextProvider): void => {
+    this.api.registerCustomContextProvider(provider);
+  };
+
+  readonly agentMode = {
+    isAgentModeActive: (): Thenable<boolean> => this.api.isAgentModeActive(),
+    toggleAgentMode: (): Thenable<void> => this.api.toggleAgentMode(),
+    executeToolCall: (toolCall: ToolCall, selectedModelTitle: string): Thenable<ContextItem[]> =>
+      this.api.executeToolCall(toolCall, selectedModelTitle),
+  };
 
   getAPI(version: number): API {
     assertKnoxApiVersion(version);

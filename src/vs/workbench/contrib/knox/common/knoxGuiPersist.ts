@@ -12,7 +12,10 @@ export interface IKnoxGuiPersistedUi {
 	toolGroupExcluded: string[];
 	webSearchEnabled: boolean;
 	permissionMode: KnoxPermissionMode;
+	/** `session.mode`, including `edit`: redux-persist keeps it "in case the window closes mid-edit". */
 	mode: KnoxChatMode;
+	/** `session.codeToEdit` (persisted together with the mode). */
+	codeToEdit: IKnoxGuiState['codeToEdit'];
 	/** `ui.selectedBlockSettingsSection`. */
 	overlay: KnoxGuiOverlay;
 }
@@ -58,7 +61,7 @@ export const KNOX_AUTOSAVE_MIN_INTERVAL_MS = 5000;
 
 const TOOL_SETTINGS = new Set<string>(['allowedWithPermission', 'allowedWithoutPermission', 'disabled']);
 const PERMISSION_MODES = new Set<string>(['default', 'acceptEdits', 'fullAuto']);
-const PERSISTED_MODES = new Set<string>(['chat', 'agent']);
+const PERSISTED_MODES = new Set<string>(['chat', 'agent', 'edit']);
 
 function parseJson(raw: string | undefined): Record<string, unknown> | undefined {
 	if (!raw) {
@@ -79,12 +82,13 @@ export function knoxGuiSerializePersistedUi(state: IKnoxGuiState): string {
 		webSearchEnabled: state.webSearchEnabled,
 		permissionMode: state.permissionMode,
 		mode: state.mode,
+		codeToEdit: state.codeToEdit,
 		overlay: state.overlay,
 	};
 	return JSON.stringify(ui);
 }
 
-/** Only well-formed fields come back; edit mode is never restored. */
+/** Only well-formed fields come back. */
 export function knoxGuiParsePersistedUi(raw: string | undefined): Partial<IKnoxGuiPersistedUi> {
 	const rec = parseJson(raw);
 	if (!rec) {
@@ -112,6 +116,12 @@ export function knoxGuiParsePersistedUi(raw: string | undefined): Partial<IKnoxG
 	}
 	if (typeof rec.mode === 'string' && PERSISTED_MODES.has(rec.mode)) {
 		out.mode = rec.mode as KnoxChatMode;
+	}
+	if (Array.isArray(rec.codeToEdit)) {
+		out.codeToEdit = rec.codeToEdit.filter((code): code is IKnoxGuiState['codeToEdit'][number] => {
+			const entry = code as Record<string, unknown> | null;
+			return Boolean(entry) && typeof entry === 'object' && typeof entry!.filepath === 'string' && entry!.filepath !== '';
+		});
 	}
 	if (rec.overlay === null || (typeof rec.overlay === 'string' && (KNOX_GUI_OVERLAYS as readonly string[]).includes(rec.overlay))) {
 		out.overlay = rec.overlay as KnoxGuiOverlay;

@@ -448,6 +448,19 @@ export function appendTextToDoc(doc: IKnoxGuiInputBlock[], text: string): IKnoxG
 	return next;
 }
 
+/** TipTap `insertContent` at the selection: text lands at the caret (end of doc when the caret is unknown). */
+export function insertTextAtCaret(doc: IKnoxGuiInputBlock[], caret: IKnoxGuiDocCaret | undefined, text: string): { doc: IKnoxGuiInputBlock[]; caret: IKnoxGuiDocCaret } {
+	if (!text) {
+		return { doc, caret: resolveCaret(doc, caret) ?? docEndCaret(doc) };
+	}
+	const next = cloneInputDoc(doc.length ? doc : emptyInputDoc());
+	const at = resolveCaret(next, caret) ?? { block: lastParagraphIndex(next), offset: 0 };
+	const paragraph = next[at.block] as IKnoxGuiInputParagraph;
+	const [head, tail] = splitInlinesAt(paragraph.content, at.offset);
+	next[at.block] = { type: 'paragraph', content: mergeTextNodes([...head, { type: 'text', text }, ...tail]) };
+	return { doc: next, caret: { block: at.block, offset: at.offset + text.length } };
+}
+
 export function applySuggestAt(doc: IKnoxGuiInputBlock[], item: IKnoxGuiSuggestItem, kind: 'mention' | 'slash', caret?: IKnoxGuiDocCaret): { doc: IKnoxGuiInputBlock[]; caret: IKnoxGuiDocCaret } {
 	if (kind === 'slash') {
 		const id = slashCommandTitle(item.id || item.label);
@@ -1572,9 +1585,13 @@ export function knoxGuiIsMetaEquivalent(event: { metaKey: boolean; ctrlKey: bool
 }
 
 export function knoxGuiComposerKeyAction(
-	event: { key: string; shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean },
+	event: { key: string; shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean; isComposing?: boolean; keyCode?: number },
 	ctx: { suggestOpen: boolean; inSubmenu: boolean; isStreaming: boolean; caretAtStart: boolean; caretAtEnd: boolean; suggestSelected: number; suggestCount: number },
 ): KnoxGuiComposerKeyAction {
+	// IME composition (CJK candidate confirm etc.) must never submit, navigate or close pickers (ProseMirror ignores keys while composing).
+	if (event.isComposing || event.keyCode === 229) {
+		return { type: 'ignore' };
+	}
 	const meta = knoxGuiIsMetaEquivalent(event);
 	const key = event.key.toLowerCase();
 	if (meta && !event.altKey && ((key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey))) {

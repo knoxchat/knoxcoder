@@ -911,7 +911,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 				outputItems: [{ name: 'Search Results', description: 'Exact search results for "signup-name" - No matches found', content: 'No matches found' }],
 			}),
 		});
-		assert.strictEqual(widget.root.querySelector('.knox-gui-search-query')?.textContent, '[signup-name]');
+		assert.strictEqual(widget.root.querySelector('.knox-gui-search-query')?.textContent, 'signup-name');
 		assert.ok(widget.root.querySelector('.knox-gui-search-empty')?.textContent?.includes('No matches found'));
 		assert.ok(!widget.root.querySelector('.knox-gui-search-query')?.textContent?.includes('\uE000'));
 
@@ -925,7 +925,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 				outputItems: [{ name: 'Search Results', content: 'No matches found' }],
 			}),
 		});
-		assert.strictEqual(widget.root.querySelector('.knox-gui-search-query')?.textContent, '[foo]');
+		assert.strictEqual(widget.root.querySelector('.knox-gui-search-query')?.textContent, 'foo');
 
 		store.patch({
 			history: historyWithTool({
@@ -2420,5 +2420,130 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('.knox-gui-memory-search input'), memorySearch);
 		assert.strictEqual((widget.root.querySelector('[data-memory-id="1"]') as HTMLElement).hidden, false);
 		assert.strictEqual((widget.root.querySelector('[data-memory-id="2"]') as HTMLElement).hidden, true);
+	});
+	test('NP-03 duplicate assistant replies hide their text even on the last row, but keep reasoning and tools', async () => {
+		const { widget, store } = await mount();
+		const user: IKnoxGuiHistoryItem = { id: 'u', role: 'user', content: 'hi' };
+		const tool = { id: 't1', name: 'builtin_read_file', arguments: '{}', status: 'done' as const };
+		store.patch({
+			isStreaming: false,
+			history: [
+				user,
+				{ id: 'a1', role: 'assistant', content: 'same reply' },
+				{ id: 'a2', role: 'assistant', content: 'same reply', thinking: 'why again', thinkingCollapsed: false, toolCalls: [tool] },
+				{ id: 'a3', role: 'assistant', content: 'same reply' },
+			],
+		});
+		const replies = widget.root.querySelectorAll('.knox-gui-msg.assistant .knox-gui-stream-body');
+		assert.strictEqual(replies.length, 1, 'only the first reply text is painted; duplicates (including the last row) are hidden');
+		assert.ok(widget.root.querySelector('#agent-activity-reasoning_a2'), 'duplicate row with tool calls still mounts its reasoning card');
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-tool"]'), 'duplicate row with tool calls still mounts its tools');
+	});
+	test('NP-09 pasting text alongside a file still inserts the text when the model has no image support', async () => {
+		const { widget, store } = await mount();
+		store.patch({ imagesSupported: false });
+		const editor = widget.root.querySelector<HTMLElement>('[data-testid="knox-gui-input"]')!;
+		editor.focus();
+		const data = new DataTransfer();
+		data.setData('text/plain', 'pasted text');
+		data.items.add(new File(['x'], 'shot.png', { type: 'image/png' }));
+		const event = new ClipboardEvent('paste', { clipboardData: data, cancelable: true, bubbles: true });
+		editor.dispatchEvent(event);
+		assert.strictEqual(event.defaultPrevented, true);
+		assert.ok(editor.textContent?.includes('pasted text'), 'text must not be swallowed by the file');
+		assert.strictEqual(store.state.images.length, 0, 'unsupported image files are ignored');
+	});
+	test('NP-13 a page render crash shows message + Retry and keeps the session (no persisted-state wipe)', async () => {
+		const { widget, store } = await mount();
+		const history: IKnoxGuiHistoryItem[] = [{ id: 'u', role: 'user', content: 'keep me' }];
+		store.patch({ sessionId: 'keep-session', history });
+		const original = widget.renderChat;
+		let broken = true;
+		widget.renderChat = function (this: KnoxGuiWidget, ...args: Parameters<KnoxGuiWidget['renderChat']>) {
+			if (broken) {
+				throw new Error('boom');
+			}
+			return original.apply(this, args);
+		};
+		widget.render();
+		const fallback = widget.root.querySelector('[data-testid="knox-gui-error-boundary"]');
+		assert.ok(fallback);
+		assert.ok(fallback.textContent?.includes('boom'));
+		const retry = fallback.querySelector<HTMLButtonElement>('[data-testid="knox-gui-error-retry"]');
+		assert.ok(retry, 'Retry, not the session-wiping Knox button');
+		assert.strictEqual(store.state.sessionId, 'keep-session');
+		broken = false;
+		retry.click();
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-error-boundary"]'), null);
+		assert.strictEqual(store.state.sessionId, 'keep-session');
+		assert.strictEqual(store.state.history.length, 1);
+	});
+	test('NP-19 the response restore button is disabled and spins only for the checkpoint being restored', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			isStreaming: false,
+			history: [
+				{ id: 'u', role: 'user', content: 'go' },
+				{ id: 'a', role: 'assistant', content: 'done', checkpointId: 'cp12345678' },
+				{ id: 'u2', role: 'user', content: 'more' },
+				{ id: 'b', role: 'assistant', content: 'again', checkpointId: 'cpabcdef00' },
+			],
+		});
+		const first = () => widget.root.querySelector<HTMLButtonElement>('[data-testid="checkpoint-restore-button-1"]')!;
+		const second = () => widget.root.querySelector<HTMLButtonElement>('[data-testid="checkpoint-restore-button-3"]')!;
+		assert.strictEqual(first().disabled, false);
+		store.patch({ checkpointRestoring: true, checkpointRestoringId: 'cp12345678' });
+		assert.strictEqual(first().disabled, true);
+		assert.ok(first().classList.contains('knox-gui-restoring'));
+		assert.strictEqual(first().getAttribute('aria-label'), 'Restoring');
+		assert.strictEqual(second().disabled, false, 'other rows are unaffected');
+		store.patch({ checkpointRestoring: false, checkpointRestoringId: undefined });
+		assert.strictEqual(first().disabled, false);
+	});
+	test('NP-20 a chat-list render crash keeps the large-session banner outside the retry card', async () => {
+		const { widget, store } = await mount();
+		const original = widget.renderHistoryRow;
+		let broken = true;
+		widget.renderHistoryRow = function (this: KnoxGuiWidget, ...args: Parameters<KnoxGuiWidget['renderHistoryRow']>) {
+			if (broken) {
+				throw new Error('row boom');
+			}
+			return original.apply(this, args);
+		};
+		store.patch({
+			isStreaming: false,
+			historyHydrateNotice: 'large',
+			history: [{ id: 'u', role: 'user', content: 'hi' }, { id: 'a', role: 'assistant', content: 'yo' }],
+		});
+		const card = widget.root.querySelector('[data-testid="chat-list-error"]');
+		assert.ok(card, 'list replaced by the error card');
+		assert.ok(widget.root.querySelector('[data-testid="large-session-banner"]'), 'banner is outside the boundary');
+		broken = false;
+		card.querySelector<HTMLButtonElement>('button')!.click();
+		assert.strictEqual(widget.root.querySelector('[data-testid="chat-list-error"]'), null);
+		assert.ok(widget.root.querySelector('[data-testid="large-session-banner"]'));
+	});
+	test('NP-24 the Memory editor paints no tabs until the saved tab id is read', async () => {
+		const { widget, store } = await mount();
+		store.patch({ lockedRoute: KnoxGuiRoute.Memory, route: KnoxGuiRoute.Memory, memoryTabHydrated: false });
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-memory"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-memory-tab-overview"]'), null, 'Overview must not flash first');
+		store.patch({ memoryTab: 'sessions', memoryTabHydrated: true });
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-memory-tab-sessions"].selected'));
+	});
+	test('NP-28 code fences never auto-detect a language while the reply streams (CSLD-09)', async () => {
+		const { widget } = await mount();
+		let guesses = 0;
+		const service = widget.languageService as unknown as { guessLanguageIdByFilepathOrFirstLine: () => string | null };
+		service.guessLanguageIdByFilepathOrFirstLine = () => {
+			guesses++;
+			return null;
+		};
+		const pre = document.createElement('pre');
+		widget.paintHighlightedCode(pre, '', 'const x = 1;', undefined, false);
+		assert.strictEqual(guesses, 0, 'streaming untagged fence skips auto-detect');
+		assert.ok(pre.textContent?.includes('const x = 1;'));
+		widget.paintHighlightedCode(pre, '', 'const x = 1;', undefined, true);
+		assert.strictEqual(guesses, 1, 'auto-detect runs once after the stream ends');
 	});
 });

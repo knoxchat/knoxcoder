@@ -86,7 +86,16 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(knoxGuiT('en', 'tokenConsumptionByModel').includes('Model'));
 		assert.ok(knoxGuiT('en', 'noTokenUsageYet').includes('No token'));
 		assert.notStrictEqual(knoxGuiT('en', 'noTokenUsageYet'), knoxGuiT('zh', 'noTokenUsageYet'));
-		assert.ok(knoxGuiT('en', 'tokenUsageKnoxChatBilling').includes('local completions'));
+		assert.ok(knoxGuiT('en', 'tokenUsageKnoxChatBilling').includes('not local token accounting'), 'stats copy matches the original (no local token tables, S-14)');
+		assert.ok(knoxGuiT('zh', 'tokenUsageKnoxChatBilling').includes('不做本地 token 计数'));
+		assert.strictEqual(knoxGuiT('en', 'loading'), 'Loading');
+		assert.strictEqual(knoxGuiT('en', 'restoring'), 'Restoring');
+		// Documented productization (the only shared GUI keys whose wording differs from the original common.json):
+		// provider blurbs describe the native Add Model catalog; restoreCheckpoint names the checkpoint id; browsingEntireRepo carries the bullet the original JSX prefixes.
+		assert.ok(knoxGuiT('en', 'accessModelsDescription').includes('KnoxChat'));
+		assert.ok(knoxGuiT('en', 'openaiDescription').includes('GPT-4o'));
+		assert.ok(knoxGuiT('en', 'anthropicDescription').includes('Claude'));
+		assert.ok(knoxGuiT('en', 'browsingEntireRepo').startsWith('• '));
 		assert.ok(knoxGuiT('en', 'taskPlanTitle').length > 0);
 		assert.ok(knoxGuiT('en', 'jobsCount', { count: 2 }).includes('2'));
 		assert.ok(knoxGuiT('en', 'memoryInjectedTitle', { count: 3 }).includes('3'));

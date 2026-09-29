@@ -82,8 +82,10 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 			onClick: () => widget.loadEarlier(),
 		});
 	}
+	// Chat.tsx: the ErrorBoundary wraps only the list; the loading row, large-session banner and spacer stay outside it.
 	if (widget.chatListFailed) {
-		widget.renderChatListError(body, state);
+		content.replaceChildren();
+		widget.renderChatListError(content, state);
 		return;
 	}
 	try {
@@ -116,8 +118,8 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 		}
 	} catch (error) {
 		widget.chatListFailed = true;
-		body.replaceChildren();
-		widget.renderChatListError(body, state, error);
+		content.replaceChildren();
+		widget.renderChatListError(content, state, error);
 	}
 }
 
@@ -210,9 +212,14 @@ export function renderMessage(widget: KnoxGuiWidget,
 		return;
 	}
 	const isDuplicate = duplicateIds.has(item.id) || isDuplicateAssistantReply(state.history, index);
-	if (item.role === 'assistant' && isDuplicate && !isLast) {
-		for (const tool of item.toolCalls ?? []) {
-			widget.renderTool(body, state, tool);
+	if (item.role === 'assistant' && isDuplicate) {
+		// HistoryItemRow.tsx: a duplicate reply never repeats its text (even on the last row), but a row with tool calls still
+		// mounts Reasoning (`item.reasoning && !showAssistantReply`) and its tools. Without tool calls the row renders nothing.
+		if (item.toolCalls?.length) {
+			widget.renderReasoning(body, state, item, index);
+			for (const tool of item.toolCalls) {
+				widget.renderTool(body, state, tool);
+			}
 		}
 		return;
 	}

@@ -59,6 +59,8 @@ export async function hydrateMemoryTab(controller: KnoxGuiController): Promise<v
 		}
 	} catch {
 		// optional
+	} finally {
+		controller.store.patch({ memoryTabHydrated: true });
 	}
 }
 

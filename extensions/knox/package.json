@@ -27,6 +27,7 @@
 		"compile-native": "gulp compile-extension-knox-native",
 		"inventory-gate": "node ./scripts/inventory-gate.mts",
 		"test:eval": "vitest run --config src/core/vitest.config.ts eval",
+		"test:pkg": "vitest run --config src/pkg/vitest.config.ts",
 		"watch": "gulp watch-extension:knox",
 		"esbuild": "node ./esbuild.mts"
 	},

@@ -365,7 +365,7 @@ function promptLogsFromRaw(item: Record<string, unknown>, message: Record<string
 	return logs.length ? logs : undefined;
 }
 
-export function enterEditMode(controller: KnoxGuiController, options: { clearSession: boolean }): void {
+export function enterEditMode(controller: KnoxGuiController, options: { clearSession: boolean; deferFocusMs?: number }): void {
 	const current = controller.store.state.mode;
 	const editReturnMode = knoxGuiIsSessionTabMode(current)
 		? current
@@ -388,13 +388,21 @@ export function enterEditMode(controller: KnoxGuiController, options: { clearSes
 		...knoxGuiResetEditModeState(),
 		mode: 'edit',
 		editReturnMode,
-		inputFocused: true,
+		inputFocused: options.deferFocusMs === undefined,
 		addFileOpen: false,
 	});
 	postSetAgentMode(controller);
+	if (options.deferFocusMs !== undefined) {
+		// useWebviewListeners.ts focusEditWithoutClear: the composer only takes focus after a delay (not while the session saves).
+		setTimeout(() => {
+			if (controller.store.state.mode === 'edit') {
+				controller.store.patch({ inputFocused: true });
+			}
+		}, options.deferFocusMs);
+	}
 }
 
-export async function exitEditMode(controller: KnoxGuiController, nextMode?: KnoxChatMode): Promise<void> {
+export async function exitEditMode(controller: KnoxGuiController, nextMode?: KnoxChatMode, options?: { restoreLastSession?: boolean }): Promise<void> {
 	if (controller.store.state.mode !== 'edit') {
 		controller.messenger.post('focusEditor', undefined);
 		return;
@@ -416,7 +424,9 @@ export async function exitEditMode(controller: KnoxGuiController, nextMode?: Kno
 		inputFocused: false,
 	});
 	postSetAgentMode(controller);
-	await loadLastSession(controller);
+	if (options?.restoreLastSession !== false) {
+		await loadLastSession(controller);
+	}
 }
 
 export function focusHostEditor(controller: KnoxGuiController): void {

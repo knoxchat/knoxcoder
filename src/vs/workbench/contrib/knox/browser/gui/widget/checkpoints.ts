@@ -1087,7 +1087,7 @@ function renderTimelineForms(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 		input.value = widget.checkpointTimelineBranchName;
 		widget.renderStore.add(DOM.addDisposableListener(input, 'input', () => { widget.checkpointTimelineBranchName = input.value; }));
 		widget.renderStore.add(DOM.addDisposableListener(input, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'Enter') {
+			if (e.key === 'Enter' && !e.isComposing) {
 				e.preventDefault();
 				submit();
 			}

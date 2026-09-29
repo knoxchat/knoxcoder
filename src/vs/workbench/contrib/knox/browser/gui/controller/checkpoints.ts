@@ -316,7 +316,7 @@ async function runRestore(controller: KnoxGuiController, request: () => Promise<
 	if (controller.store.state.checkpointRestoring) {
 		return;
 	}
-	controller.store.patch({ checkpointRestoring: true });
+	controller.store.patch({ checkpointRestoring: true, checkpointRestoringId: controller.store.state.checkpointRestoreId });
 	try {
 		await request();
 		controller.closeCheckpointDialog();
@@ -324,7 +324,7 @@ async function runRestore(controller: KnoxGuiController, request: () => Promise<
 	} catch {
 		// `RestorePreviewDialog` only logs a failed restore and keeps the dialog open.
 	} finally {
-		setTimeout(() => controller.store.patch({ checkpointRestoring: false }), 1500);
+		setTimeout(() => controller.store.patch({ checkpointRestoring: false, checkpointRestoringId: undefined }), 1500);
 	}
 }
 

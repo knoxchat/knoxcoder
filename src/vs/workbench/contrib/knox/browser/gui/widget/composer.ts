@@ -595,7 +595,7 @@ function renderQueryProviderBox(widget: KnoxGuiWidget, list: HTMLElement, state:
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(box, 'keydown', (e: KeyboardEvent) => {
 		e.stopPropagation();
-		if (e.key === 'Enter' && !e.shiftKey) {
+		if (e.key === 'Enter' && !e.isComposing && !e.shiftKey) {
 			e.preventDefault();
 			widget.controller.submitQueryProvider(box.value);
 		} else if (e.key === 'Escape') {
@@ -804,7 +804,10 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 		queueMicrotask(() => widget.focusInput());
 	}
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'focus', () => widget.controller.store.patch({ inputFocused: true })));
-	widget.renderStore.add(DOM.addDisposableListener(editor, 'blur', () => widget.controller.store.patch({ inputFocused: false })));
+	widget.renderStore.add(DOM.addDisposableListener(editor, 'blur', () => {
+		widget.controller.composerCaret = widget.caretDocPosition(editor) ?? widget.controller.composerCaret;
+		widget.controller.store.patch({ inputFocused: false });
+	}));
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'input', () => {
 		widget.controller.store.setInputDoc(widget.readInputDoc(editor));
 		widget.syncPlaceholder(editor, widget.controller.store.state);
@@ -818,11 +821,15 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 		}
 	};
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'keyup', (e: KeyboardEvent) => {
+		widget.controller.composerCaret = widget.caretDocPosition(editor) ?? widget.controller.composerCaret;
 		if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') {
 			recheckTrigger();
 		}
 	}));
-	widget.renderStore.add(DOM.addDisposableListener(editor, 'mouseup', recheckTrigger));
+	widget.renderStore.add(DOM.addDisposableListener(editor, 'mouseup', () => {
+		widget.controller.composerCaret = widget.caretDocPosition(editor) ?? widget.controller.composerCaret;
+		recheckTrigger();
+	}));
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'paste', (e: ClipboardEvent) => widget.onEditorPaste(e, state)));
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'keydown', (e: KeyboardEvent) => widget.onEditorKeyDown(e, widget.controller.store.state), true));
 	const row = DOM.append(wrap, DOM.$('.knox-gui-input-bar'));
@@ -1093,6 +1100,9 @@ export function insertAddContext(widget: KnoxGuiWidget): void {
 }
 
 export function onEditorKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent, _state?: IKnoxGuiState): void {
+	if (e.isComposing || e.keyCode === 229) {
+		return;
+	}
 	const state = widget.controller.store.state;
 	const sections = state.slashOpen
 		? groupSlashItems(state.suggestItems, { query: state.suggestQuery })
@@ -1253,7 +1263,26 @@ export function stepComposerUndo(widget: KnoxGuiWidget, delta: -1 | 1): void {
 
 /** `editorConfig.ts`: pasted text lands as plain text; `insertText` keeps the browser's own undo in step. */
 export function insertPlainText(editor: HTMLElement, text: string): void {
-	editor.ownerDocument.execCommand('insertText', false, text);
+	const doc = editor.ownerDocument;
+	if (doc.execCommand('insertText', false, text)) {
+		return;
+	}
+	// execCommand is refused when the window is not focused; insert through the selection instead.
+	const selection = doc.getSelection();
+	let range = selection && selection.rangeCount && editor.contains(selection.anchorNode) ? selection.getRangeAt(0) : undefined;
+	if (!range) {
+		range = doc.createRange();
+		range.selectNodeContents(editor);
+		range.collapse(false);
+	}
+	range.deleteContents();
+	const node = doc.createTextNode(text);
+	range.insertNode(node);
+	range.setStartAfter(node);
+	range.collapse(true);
+	selection?.removeAllRanges();
+	selection?.addRange(range);
+	editor.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 export function caretAtEdge(widget: KnoxGuiWidget, edge: 'start' | 'end'): boolean {
@@ -1282,19 +1311,21 @@ export function onEditorPaste(widget: KnoxGuiWidget, event: ClipboardEvent, stat
 		return;
 	}
 	const files = Array.from(items).map(item => item.getAsFile()).filter((file): file is File => Boolean(file));
-	if (files.length) {
-		event.preventDefault();
-		if (state.imagesSupported) {
-			for (const file of files) {
-				widget.readImageFile(file);
-			}
+	// Image paste plugin only queues files on image models and never cancels the paste; text in the same clipboard still lands.
+	if (files.length && state.imagesSupported) {
+		for (const file of files) {
+			widget.readImageFile(file);
 		}
-		return;
 	}
 	const text = event.clipboardData?.getData('text/plain');
-	if (text !== undefined) {
+	if (text) {
 		event.preventDefault();
 		insertPlainText(event.currentTarget as HTMLElement, text);
+		return;
+	}
+	if (files.length || text !== undefined) {
+		// Nothing to insert as text: keep the browser from dropping a raw <img> / empty node into the contenteditable.
+		event.preventDefault();
 	}
 }
 
@@ -1819,7 +1850,7 @@ export function renderCodeToEditCard(widget: KnoxGuiWidget, parent: HTMLElement,
 				e.preventDefault();
 				widget.addFileSelected = (widget.addFileSelected - 1 + widget.addFileHits.length) % widget.addFileHits.length;
 				paintAddFileHits(widget);
-			} else if (e.key === 'Enter') {
+			} else if (e.key === 'Enter' && !e.isComposing) {
 				e.preventDefault();
 				const hit = widget.addFileHits[widget.addFileSelected];
 				const uri = hit?.query || hit?.id || input.value.trim();
