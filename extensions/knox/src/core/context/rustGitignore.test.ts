@@ -20,6 +20,14 @@ describe("shellInvokesCargo", () => {
     expect(shellInvokesCargo("echo cargoish")).toBe(false);
     expect(shellInvokesCargo("ls -la")).toBe(false);
   });
+
+  it("treats the Rust gate script as a cargo run (it builds target/)", () => {
+    expect(shellInvokesCargo("bash scripts/pre-commit.sh --quick")).toBe(true);
+    expect(shellInvokesCargo("./scripts/pre-commit.sh")).toBe(true);
+    expect(shellInvokesCargo("cd app && sh app/scripts/pre-commit.sh")).toBe(true);
+    expect(shellInvokesCargo("cat scripts/pre-commit.sh.bak")).toBe(false);
+    expect(shellInvokesCargo("git commit -m pre-commit")).toBe(false);
+  });
 });
 
 describe("gitignoreCoversCargoTarget", () => {

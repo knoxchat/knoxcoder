@@ -14,7 +14,18 @@ Inner loop (do not skip):
 5. `builtin_build` `action=test` → `cargo test --workspace` (or nextest in the shell if installed), plus `cargo test --doc` for libs
 6. `cargo +nightly miri test` only if this edit touched `unsafe`
 
+7. **Before claiming done:** `builtin_build` `action=gate` — the whole gate in one call (toolchain → hygiene → fmt → check → clippy `-D warnings` → test incl. doc tests, for every crate). `mode=quick` skips tests; `mode=strict` adds extra clippy lints, fails on `todo!()`/`unimplemented!()`, runs `cargo doc -D warnings`, and `cargo audit` / `cargo deny` when installed.
+
 Never `cargo clean` / `publish` / `login` unless the user explicitly asked. Prefer `builtin_build` over shell cargo.
+
+## Gate script (`scripts/pre-commit.sh`)
+
+`action=gate` runs the project's `scripts/pre-commit.sh` when it exists, else an inline cargo chain. If the project has none, `builtin_build action=gate_init` installs the bundled one (auto-discovers Cargo workspaces / standalone crates, honours `[workspace] exclude`, compiles-only for crates with a non-host `[build] target` such as bare-metal kernels, uses `cargo nextest` when present, keeps `--locked` when `Cargo.lock` exists). The last output line is machine readable: `knox-gate: PASS|FAIL|SKIP mode=… failed=step,…`.
+
+- Human / CI: `scripts/pre-commit.sh [--quick|--strict|--fix|--keep-going|--offline|--dir DIR|--list]`.
+- Git hook: only the **user** runs `scripts/pre-commit.sh --install-hook` (`KNOX_HOOK_MODE=quick` for a faster hook, `KNOX_SKIP_HOOK=1` to bypass once). Never install or remove hooks yourself.
+- Hygiene it enforces before compiling: merge markers, `*.rs.bk`/`.orig` leftovers, `dbg!`, tracked or un-ignored `target/`, staged `Cargo.toml` without its `Cargo.lock`. It hints (does not run) miri when the diff touches `unsafe`.
+- On FAIL fix the first failing step and re-run; do not edit tests to pass, and do not weaken lints with `#[allow]` to turn the gate green.
 
 ## Truth
 
@@ -45,7 +56,7 @@ Spawn `rust-borrowck` after 1 failed borrowck attempt; `rust-review` before clai
 
 ## Outer gates + optional tools
 
-- After check is green, post-edit also runs `cargo fmt --check` then clippy `-D warnings`. Tests: `action=test` (add `--doc` / `docTests: true` on libs).
+- After check is green, post-edit also runs `cargo fmt --check` then clippy `-D warnings`. Tests: `action=test` (add `--doc` / `docTests: true` on libs). The full pre-done sweep is `action=gate`.
 - New dependency: justify + `builtin_build action=tree` (`cargo tree -i <crate>`). `action=deny` / `action=audit` only if those binaries exist — do not block the inner loop on a network audit.
 - `action=fix` is `cargo fix --allow-dirty` for mechanical rustc suggestions. Never `--broken-code`.
 - `action=expand` if `cargo-expand` is installed; otherwise the tool says to install it.

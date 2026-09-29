@@ -435,12 +435,22 @@ export function validateToolArgs(
     return;
   }
 
+  const received = Object.keys(args);
+  const bigContentHint =
+    missing.includes("contents") &&
+    (toolName === BuiltInToolNames.WriteFile ||
+      toolName === BuiltInToolNames.CreateNewFile)
+      ? ` The file body must be passed in the "contents" parameter. If the file is large, ` +
+        `the call may have been cut off: create a small skeleton first, then add sections with builtin_edit_file.`
+      : "";
+
   throw new ToolCallError({
     code: ToolCallErrorCode.MISSING_REQUIRED_PARAM,
     message:
       `Incomplete tool call for "${toolName}": missing required parameter(s) ` +
-      `${missing.join(", ")}. ` +
-      `Re-issue the tool call with complete arguments; placeholders are not accepted.`,
+      `${missing.join(", ")} (received: ${received.join(", ") || "none"}). ` +
+      `Re-issue the tool call with complete arguments; placeholders are not accepted.` +
+      bigContentHint,
     toolName,
     retryable: false,
     context: {
@@ -789,6 +799,21 @@ export function normalizeToolArgs(
         "filename",
         "target_file",
       ]);
+      if (
+        toolName === BuiltInToolNames.WriteFile ||
+        toolName === BuiltInToolNames.CreateNewFile
+      ) {
+        copyIfMissing("contents", [
+          "content",
+          "file_content",
+          "file_contents",
+          "fileContent",
+          "fileContents",
+          "text",
+          "body",
+          "code",
+        ]);
+      }
       if (toolName === BuiltInToolNames.ReadFile) {
         copyIfMissing("startLine", [
           "start_line",

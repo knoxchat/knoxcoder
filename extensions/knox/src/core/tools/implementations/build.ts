@@ -34,6 +34,17 @@ import {
   formatDocLookupFallback,
   lookupRustdocSymbol,
 } from "../build/rustdoc";
+import {
+  composeFallbackGateCommand,
+  composeGateScriptCommand,
+  formatGateVerdict,
+  gateRefusedReason,
+  looksLikeCargoGateScript,
+  readBundledGateScript,
+  resolveGateMode,
+  RUST_GATE_MARKER,
+  RUST_GATE_SCRIPT,
+} from "../build/rustGate";
 
 export function optionalCargoPluginHint(
   action: string,
@@ -363,14 +374,202 @@ async function runTestAction(
   ];
 }
 
+/** Resolve the directory an action runs in (`cwd` arg or the first workspace dir). */
+async function actionDirUri(
+  args: Record<string, unknown>,
+  extras: Parameters<ToolImpl>[1],
+): Promise<string> {
+  const dirs = await extras.ide.getWorkspaceDirs();
+  const root = dirs[0] ?? "";
+  const cwdArg = testArg(args, "cwd", "working_directory");
+  if (!cwdArg) {
+    return root;
+  }
+  try {
+    return await inferResolvedUriFromRelativePath(cwdArg, extras.ide);
+  } catch {
+    return root;
+  }
+}
+
+function missingCargoItem(): ContextItem {
+  return {
+    name: "Build",
+    description: "missing cargo",
+    content: [
+      "cargo not found on PATH.",
+      "Install rustup from https://rustup.rs/ (provides cargo and rustc).",
+      "builtin_build did not start cargo (avoiding a missing-toolchain log).",
+    ].join("\n"),
+  };
+}
+
+/**
+ * `action: "gate"` — run every cargo oracle once (fmt → check → clippy → test).
+ * Uses the project's `scripts/pre-commit.sh` when present, else an inline chain.
+ */
+async function runGateAction(
+  args: Record<string, unknown>,
+  extras: Parameters<ToolImpl>[1],
+  streamed: Parameters<ToolImpl>[1],
+): Promise<ContextItem[]> {
+  const cwdArg = testArg(args, "cwd", "working_directory");
+  const extraArgs = testArg(args, "extraArgs", "extra_args");
+  const mode = resolveGateMode(args.mode);
+
+  const refused =
+    gateRefusedReason(extraArgs) ?? destructiveBuildReason(extraArgs);
+  if (refused) {
+    return [{ name: "Build", description: "refused", content: refused }];
+  }
+
+  const dirUri = await actionDirUri(args, extras);
+  const canProbe = typeof extras.ide.subprocess === "function";
+  const which = (binary: string) =>
+    binaryOnPath(extras.ide.subprocess.bind(extras.ide), binary);
+  if (canProbe && !(await which("cargo"))) {
+    return [missingCargoItem()];
+  }
+
+  let scriptText = "";
+  if (dirUri) {
+    try {
+      const scriptUri = joinPathsToUri(dirUri, "scripts", "pre-commit.sh");
+      if (await extras.ide.fileExists(scriptUri)) {
+        scriptText = await extras.ide.readFile(scriptUri);
+      }
+    } catch {
+      scriptText = "";
+    }
+  }
+  const bashOk =
+    process.platform !== "win32" || (canProbe && (await which("bash")));
+  const usedScript = looksLikeCargoGateScript(scriptText) && bashOk;
+
+  const fix = /(?:^|\s)--fix\b/.test(extraArgs);
+  const offline = /(?:^|\s)--offline\b/.test(extraArgs);
+  const command = usedScript
+    ? composeGateScriptCommand({ mode, extraArgs })
+    : composeFallbackGateCommand({ mode, fix, offline });
+
+  const items = relabelTerminalAsBuild(
+    await runTerminalCommandImpl(
+      {
+        command,
+        working_directory: cwdArg || undefined,
+        block_until_ms: SHELL_WAIT_HARD_CAP_MS,
+      },
+      streamed,
+    ),
+  );
+  const log = items.map((item) => item.content ?? "").join("\n");
+  if (/Status:\s*running/i.test(log)) {
+    return [
+      ...items,
+      {
+        name: RUST_GATE_MARKER,
+        description: "still running",
+        content:
+          "The gate is still running in the background. Use the await-shell tool to wait; do not report results yet.",
+      },
+    ];
+  }
+  const verdict = formatGateVerdict(log, { usedScript, mode });
+  const notes = usedScript
+    ? ""
+    : ` No ${RUST_GATE_SCRIPT} in this project, so an inline cargo chain ran. \`builtin_build action=gate_init\` installs the reusable gate script.`;
+  return [
+    ...attachBuildDiagnostics(items),
+    {
+      name: RUST_GATE_MARKER,
+      description: verdict.description,
+      content: `${verdict.content}${notes}`,
+    },
+  ];
+}
+
+/** `action: "gate_init"` — install the bundled gate script into the project. */
+async function runGateInitAction(
+  args: Record<string, unknown>,
+  extras: Parameters<ToolImpl>[1],
+  streamed: Parameters<ToolImpl>[1],
+): Promise<ContextItem[]> {
+  const cwdArg = testArg(args, "cwd", "working_directory");
+  const force = args.force === true;
+  const dirUri = await actionDirUri(args, extras);
+  if (!dirUri) {
+    return [
+      {
+        name: RUST_GATE_MARKER,
+        description: "no workspace",
+        content: "No workspace folder is open; cannot install the gate script.",
+      },
+    ];
+  }
+  const scriptUri = joinPathsToUri(dirUri, "scripts", "pre-commit.sh");
+  let exists = false;
+  try {
+    exists = await extras.ide.fileExists(scriptUri);
+  } catch {
+    exists = false;
+  }
+  if (exists && !force) {
+    return [
+      {
+        name: RUST_GATE_MARKER,
+        description: "already installed",
+        content: `${RUST_GATE_SCRIPT} already exists; left unchanged. Run it with \`builtin_build action=gate\`. Pass force: true only if the user asked to replace it.`,
+      },
+    ];
+  }
+  const script = readBundledGateScript();
+  if (!script) {
+    return [
+      {
+        name: RUST_GATE_MARKER,
+        description: "bundle missing",
+        content:
+          "The bundled gate script is missing from this Knox build. Use `builtin_build action=gate` (inline fallback) instead.",
+      },
+    ];
+  }
+  await extras.ide.writeFile(scriptUri, script);
+  if (process.platform !== "win32") {
+    await runTerminalCommandImpl(
+      {
+        command: `chmod +x ${RUST_GATE_SCRIPT}`,
+        working_directory: cwdArg || undefined,
+        block_until_ms: 15_000,
+      },
+      streamed,
+    ).catch(() => []);
+  }
+  return [
+    {
+      name: RUST_GATE_MARKER,
+      description: exists ? "replaced" : "installed",
+      content: [
+        `${exists ? "Replaced" : "Installed"} ${RUST_GATE_SCRIPT} (auto-discovers Cargo crates: fmt, check, clippy, test).`,
+        "Run it with `builtin_build action=gate` (mode: quick | full | strict).",
+        `To enforce it on commit the USER runs \`${RUST_GATE_SCRIPT} --install-hook\` — never do that yourself.`,
+      ].join(" "),
+    },
+  ];
+}
+
 export const buildImpl: ToolImpl = async (args, extras) => {
   const streamed = extrasWithBuildStream(extras);
-  if (
-    args &&
-    typeof args === "object" &&
-    typeof args.action === "string" &&
-    args.action.trim().toLowerCase() === "test"
-  ) {
+  const actionName =
+    args && typeof args === "object" && typeof args.action === "string"
+      ? args.action.trim().toLowerCase()
+      : "";
+  if (actionName === "gate") {
+    return runGateAction(args as Record<string, unknown>, extras, streamed);
+  }
+  if (actionName === "gate_init") {
+    return runGateInitAction(args as Record<string, unknown>, extras, streamed);
+  }
+  if (actionName === "test") {
     return runTestAction(args as Record<string, unknown>, extras, streamed);
   }
   const explain =

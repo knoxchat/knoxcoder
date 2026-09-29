@@ -116,6 +116,8 @@ export function isCargoEvalCommand(args: Record<string, unknown>): boolean {
     args.action === "deny" ||
     args.action === "audit" ||
     args.action === "tree" ||
+    args.action === "gate" ||
+    args.action === "gate_init" ||
     (typeof args.doc === "string" && args.doc.trim())
   ) {
     return true;

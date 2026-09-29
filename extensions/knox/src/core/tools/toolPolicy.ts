@@ -77,6 +77,10 @@ const DESTRUCTIVE_COMMAND_REGEXES = [
 
 const CARGO_ASK_COMMAND_RE = /\bcargo(?:\s+\+\S+)?\s+(clean|yank)\b/i;
 
+/** `scripts/pre-commit.sh --install-hook|--uninstall-hook` writes into .git/hooks. */
+const GATE_HOOK_COMMAND_RE =
+  /\bpre-commit\.sh\b[^\n;|&]*--(?:install|uninstall)-hook\b/i;
+
 const CARGO_REGISTRY_SRC_READ_PATTERNS = [
   "~/.cargo/registry/src/**",
   "vendor/**",
@@ -562,6 +566,12 @@ export function evaluateToolPolicy(params: {
       set(
         "ask",
         `cargo clean/yank requires explicit confirmation: ${cmd}`,
+      );
+    }
+    if (GATE_HOOK_COMMAND_RE.test(cmd)) {
+      set(
+        "ask",
+        `Installing or removing the git pre-commit hook needs explicit confirmation: ${cmd}`,
       );
     }
   }

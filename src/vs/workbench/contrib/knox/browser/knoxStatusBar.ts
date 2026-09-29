@@ -10,8 +10,11 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IStatusbarEntry, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IKnoxService } from '../common/knoxService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { KNOX_VIEW_CONTAINER_ID } from '../../../common/knox.js';
 
 export const OPEN_KNOX_CHAT_COMMAND_ID = 'workbench.action.knox.openChat';
+export const TOGGLE_KNOX_CHAT_COMMAND_ID = 'workbench.action.knox.toggleChat';
 
 class OpenKnoxChatAction extends Action2 {
 	constructor() {
@@ -28,10 +31,35 @@ class OpenKnoxChatAction extends Action2 {
 	}
 }
 
+/**
+ * Status-bar toggle: behaves like the Secondary Side Bar toggle. If Knox is
+ * currently showing, hide it; otherwise reveal it and focus the chat input.
+ */
+class ToggleKnoxChatAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_KNOX_CHAT_COMMAND_ID,
+			title: localize2('knox.toggleChat', 'Toggle Knox'),
+			category: localize2('knox.category', 'Knox'),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		if (viewsService.isViewContainerVisible(KNOX_VIEW_CONTAINER_ID)) {
+			viewsService.closeViewContainer(KNOX_VIEW_CONTAINER_ID);
+			return;
+		}
+		await accessor.get(IKnoxService).openChat();
+	}
+}
+
 registerAction2(OpenKnoxChatAction);
+registerAction2(ToggleKnoxChatAction);
 
 /**
- * KN-174: status-bar Knox entry backed by IKnoxService.openChat().
+ * KN-174: status-bar Knox entry toggling the Knox view (show via IKnoxService.openChat(), hide via IViewsService).
  */
 export class KnoxStatusBarContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.knoxStatusBar';
@@ -47,9 +75,9 @@ export class KnoxStatusBarContribution extends Disposable implements IWorkbenchC
 			text: agentActive
 				? localize('knox.status.agent', "$(comment-discussion) Knox Agent")
 				: localize('knox.status.idle', "$(comment-discussion) Knox"),
-			ariaLabel: localize('knox.status.aria', "Open Knox chat"),
-			tooltip: localize('knox.status.tooltip', "Open Knox"),
-			command: OPEN_KNOX_CHAT_COMMAND_ID,
+			ariaLabel: localize('knox.status.aria', "Toggle Knox chat"),
+			tooltip: localize('knox.status.tooltip', "Toggle Knox"),
+			command: TOGGLE_KNOX_CHAT_COMMAND_ID,
 		});
 
 		const accessor = this._register(statusbarService.addEntry(makeEntry(false), 'status.knox', StatusbarAlignment.LEFT, 0));

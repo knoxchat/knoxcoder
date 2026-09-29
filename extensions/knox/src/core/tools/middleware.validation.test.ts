@@ -10,6 +10,7 @@ import {
   validateToolArgs,
 } from "./middleware";
 import { createNewFileTool } from "./definitions/createNewFile";
+import { writeFileTool } from "./definitions/writeFile";
 import { smartFileEditorTool } from "./definitions/composite";
 import { lspTool } from "./definitions/lsp";
 
@@ -145,6 +146,31 @@ describe("normalizeToolArgs", () => {
         { defaultMaxFiles: 5000 },
       ).maxFiles,
     ).toBe(5000);
+  });
+
+  it("maps content/text aliases → contents for write_file and create_new_file", () => {
+    expect(
+      normalizeToolArgs(BuiltInToolNames.WriteFile, {
+        path: "src/main.rs",
+        content: "fn main() {}",
+      }),
+    ).toMatchObject({ filepath: "src/main.rs", contents: "fn main() {}" });
+    expect(
+      normalizeToolArgs(BuiltInToolNames.CreateNewFile, {
+        filepath: "a.rs",
+        file_content: "// a",
+      }),
+    ).toMatchObject({ contents: "// a" });
+  });
+
+  it("explains missing contents on write_file with received params", () => {
+    expect(() =>
+      validateToolArgs(
+        BuiltInToolNames.WriteFile,
+        { filepath: "src/main.rs" },
+        writeFileTool,
+      ),
+    ).toThrow(/received: filepath[\s\S]*cut off/);
   });
 
   it("maps directory → directory_path", () => {

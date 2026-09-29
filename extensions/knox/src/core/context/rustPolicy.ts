@@ -65,6 +65,7 @@ export function buildRustPolicy(): string {
     "Keep `target/` git-ignored (Knox appends `/target/` to .gitignore on cargo runs). Never commit, `git add -f`, or edit files under target/.",
     "Zero clippy warnings at `-D warnings`. No `#[allow]` without an inline reason.",
     "Process: read → rust-analyzer hover → ownership in prose on borrow errors → failing test first → smallest change → cargo check / clippy / test.",
+    "Before claiming a Rust task done run `builtin_build action=gate` (fmt → check → clippy -D warnings → test, every crate); no scripts/pre-commit.sh yet → `action=gate_init`. Never install the git hook.",
     "If a fix needs >2 compile attempts, stop mutating types and reconsider design.",
     "Forbidden: test edits to pass, todo!/unimplemented! as done, perf claims without criterion.",
     "Roles (do not auto-spawn): rust-borrowck after 1 failed borrowck attempt; rust-review before claiming done; rust-architect for new public APIs.",

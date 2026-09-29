@@ -30,7 +30,7 @@ Never use the terminal (cat, echo, heredoc) to write files.`,
         },
         contents: {
           type: "string",
-          description: "Full file contents to write. Use an empty string for a blank file.",
+          description: "Full file contents to write (required, non-empty). Always include it in the same call as filepath.",
         },
         openAfterWrite: {
           type: "boolean",

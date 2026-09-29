@@ -239,13 +239,13 @@ export const errorExamples = {
   },
   
   invalidLineRange: {
-    description: "Invalid line range (start > end)",
+    description: "Reversed line range (start > end) is auto-swapped with a note",
     toolCall: {
       filepath: "src/app.ts",
       startLine: 100,
       endLine: 50
     },
-    expectedError: "startLine cannot be greater than endLine"
+    expectedError: "startLine (100) was greater than endLine (50); the range was swapped to lines 50-100"
   },
   
   negativeLineNumber: {

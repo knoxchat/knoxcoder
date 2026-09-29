@@ -13,9 +13,17 @@ import path from "node:path";
 
 export const CARGO_TARGET_IGNORE_LINE = "/target/";
 
-/** True when the shell command invokes cargo (optionally `cargo +toolchain`). */
+/**
+ * True when the shell command invokes cargo (optionally `cargo +toolchain`) or
+ * the Rust gate script, which runs cargo for every crate it discovers.
+ */
 export function shellInvokesCargo(command: string): boolean {
-  return /(?:^|[\s;|&(])cargo(?:\s|$)/i.test(command);
+  return (
+    /(?:^|[\s;|&(])cargo(?:\s|$)/i.test(command) ||
+    /(?:^|[\s;|&(])(?:bash\s+|sh\s+|\.\/)?(?:[\w./-]*\/)?scripts\/pre-commit\.sh(?:\s|$)/i.test(
+      command,
+    )
+  );
 }
 
 /** Posix-style path of `dir` relative to `base` ("" when equal). */

@@ -71,9 +71,22 @@ Never uses \`cargo clean\`, \`cargo publish\`, \`make clean\`, \`mrproper\`, or 
             "deny",
             "audit",
             "tree",
+            "gate",
+            "gate_init",
           ],
           description:
-            "Cargo helper. `doc` = rustdoc JSON / registry source (no docs.rs). `clippy` / `fmt` are outer Rust gates. `test` runs the project's unit tests for any supported language (see above); for Rust, check stays the inner loop. `fix` is cargo fix --allow-dirty (never --broken-code). `expand` / `miri` / `deny` / `audit` require optional binaries; missing → install hint. `tree` is cargo tree.",
+            "Cargo helper. `doc` = rustdoc JSON / registry source (no docs.rs). `clippy` / `fmt` are outer Rust gates. `test` runs the project's unit tests for any supported language (see above); for Rust, check stays the inner loop. `fix` is cargo fix --allow-dirty (never --broken-code). `expand` / `miri` / `deny` / `audit` require optional binaries; missing → install hint. `tree` is cargo tree. `gate` runs the whole Rust quality gate once (fmt → check → clippy -D warnings → test, every crate) via the project's scripts/pre-commit.sh, or an inline cargo chain if absent — run it before claiming a Rust task done; pick `mode`. `gate_init` installs the reusable scripts/pre-commit.sh into the project (never installs a git hook).",
+        },
+        mode: {
+          type: "string",
+          enum: ["quick", "full", "strict"],
+          description:
+            "With action=gate. quick = fmt+check+clippy (no tests); full (default) = + tests incl. doc tests; strict = + extra clippy lints, todo!/unimplemented! fail, cargo doc -D warnings, audit/deny when installed.",
+        },
+        force: {
+          type: "boolean",
+          description:
+            "With action=gate_init: overwrite an existing scripts/pre-commit.sh. Only when the user asked.",
         },
         filter: {
           type: "string",

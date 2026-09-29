@@ -88,6 +88,15 @@ export function formatTruncatedFileRead(opts: {
   ].join("\n");
 }
 
+/** Parse a line-number argument (number or numeric string); ignores empty/NaN values. */
+function parseLineArg(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  const n = typeof value === "number" ? Math.trunc(value) : parseInt(String(value), 10);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 /**
  * Enhanced Read File Implementation
  * 
@@ -150,8 +159,8 @@ export const readFileImpl: ToolImpl = async (args, extras) => {
   }
 
   // Parse optional parameters
-  const startLine = args.startLine ? parseInt(args.startLine) : undefined;
-  const endLine = args.endLine ? parseInt(args.endLine) : undefined;
+  let startLine = parseLineArg(args.startLine);
+  let endLine = parseLineArg(args.endLine);
   const includeMetadata = args.includeMetadata === true;
   const includeLineNumbers = args.includeLineNumbers === true;
   const showSyntaxInfo = args.showSyntaxInfo === true;
@@ -164,8 +173,12 @@ export const readFileImpl: ToolImpl = async (args, extras) => {
   if (endLine !== undefined && endLine < 1) {
     throw new Error(t("endLineMustBeGte1"));
   }
+  // Models occasionally send a reversed range (e.g. startLine=120, endLine=80).
+  // The intent is unambiguous, so swap the bounds instead of failing the call.
+  let rangeNote = "";
   if (startLine !== undefined && endLine !== undefined && startLine > endLine) {
-    throw new Error(t("startLineCannotBeGtEndLine"));
+    rangeNote = `Note: startLine (${startLine}) was greater than endLine (${endLine}); the range was swapped to lines ${endLine}-${startLine}.\n\n`;
+    [startLine, endLine] = [endLine, startLine];
   }
 
   // Read file content
@@ -293,7 +306,7 @@ export const readFileImpl: ToolImpl = async (args, extras) => {
   }
 
   // Combine metadata and content
-  const responseContent = metadataSection + finalContent;
+  const responseContent = rangeNote + metadataSection + finalContent;
 
   // Build context item name
   let contextName = basename;

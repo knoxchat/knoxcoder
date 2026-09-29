@@ -157,6 +157,28 @@ describe("evaluateToolPolicy", () => {
     expect(decision.reason).toMatch(/Sandbox|destructive/i);
   });
 
+  it("asks before installing/removing the git pre-commit hook", () => {
+    for (const command of [
+      "scripts/pre-commit.sh --install-hook",
+      "bash ./scripts/pre-commit.sh --uninstall-hook",
+    ]) {
+      expect(
+        evaluateToolPolicy({
+          toolName: BuiltInToolNames.RunTerminalCommand,
+          args: { command },
+          workspaceDirs: ws,
+        }).action,
+      ).toBe("ask");
+    }
+    expect(
+      evaluateToolPolicy({
+        toolName: BuiltInToolNames.RunTerminalCommand,
+        args: { command: "bash scripts/pre-commit.sh --quick" },
+        workspaceDirs: ws,
+      }).action,
+    ).not.toBe("ask");
+  });
+
   it("denies cargo publish/login and asks for cargo clean/yank", () => {
     expect(
       evaluateToolPolicy({

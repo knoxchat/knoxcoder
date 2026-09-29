@@ -48,6 +48,30 @@ describe("readFile binary / truncation (HL-27)", () => {
     expect(result[0].content).not.toContain("line 2500 ");
   });
 
+  it("swaps a reversed line range instead of failing", async () => {
+    const readRangeInFile = vi.fn(async () => "fn a() {}\nfn b() {}");
+    const ide = {
+      getWorkspaceDirs: vi.fn(async () => ["file:///tmp/ws"]),
+      fileExists: vi.fn(async () => true),
+      readRangeInFile,
+      getCurrentFile: vi.fn(async () => undefined),
+    } as unknown as IDE;
+
+    const result = await readFileImpl(
+      { filepath: "src/launch.rs", startLine: 120, endLine: 80 },
+      extras(ide),
+    );
+    expect(readRangeInFile).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        start: { line: 79, character: 0 },
+        end: { line: 119, character: 999999 },
+      }),
+    );
+    expect(result[0].content).toMatch(/range was swapped to lines 80-120/);
+    expect(result[0].description).toContain("lines 80-120");
+  });
+
   it("returns a short refusal for vmlinux without reading", async () => {
     const readFile = vi.fn();
     const ide = {
