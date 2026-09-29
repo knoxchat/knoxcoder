@@ -8,6 +8,8 @@
 #
 # The gulp tasks below are the same ones the local macOS build uses (`vscode-<platform>-<arch>-min`);
 # output lands in ../VSCode-<platform>-<arch> next to the checkout, exactly like build_dmg.sh expects.
+# After packaging, scripts/ci/mix-in-cli.sh builds the Rust tunnel CLI (knoxcoder-tunnel)
+# into that tree so Linux deb/rpm dependency generation and Windows installers include it.
 
 name: Build desktop apps
 
@@ -84,13 +86,37 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config python3 python-is-python3 \
             libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev libgbm1 libgtk-3-0 \
-            fakeroot dpkg-dev rpm
+            libdbus-1-dev fakeroot dpkg-dev rpm
+
+      - name: Install Rust
+        run: |
+          if command -v cargo >/dev/null 2>&1; then
+            cargo --version
+            exit 0
+          fi
+          curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            cli/target
+          key: ${{ runner.os }}-${{ matrix.arch }}-cli-${{ hashFiles('cli/Cargo.lock') }}
 
       - name: Install dependencies
         run: npm ci
 
       - name: Build app
         run: npm run gulp vscode-linux-${{ matrix.arch }}-min
+
+      - name: Mix in tunnel CLI
+        env:
+          VSCODE_ARCH: ${{ matrix.arch }}
+          VSCODE_PLATFORM: linux
+        run: bash scripts/ci/mix-in-cli.sh
 
       - name: Package tar.gz
         run: |
@@ -143,6 +169,43 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      - name: Add Windows SDK signtool to PATH
+        run: |
+          $archDir = if ('${{ matrix.arch }}' -eq 'arm64') { 'arm64' } else { 'x64' }
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\${archDir}\signtool.exe" -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signtool) {
+            Write-Host "signtool.exe not found; gulp will skip Authenticode stripping"
+            return
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $signtool.Directory.FullName
+          Write-Host "Using signtool at $($signtool.FullName)"
+
+      - name: Install Rust
+        run: |
+          if (Get-Command cargo -ErrorAction SilentlyContinue) {
+            cargo --version
+            return
+          }
+          $ProgressPreference = 'SilentlyContinue'
+          $hostTriple = if ('${{ matrix.arch }}' -eq 'arm64') { 'aarch64-pc-windows-msvc' } else { 'x86_64-pc-windows-msvc' }
+          $url = "https://static.rust-lang.org/rustup/dist/$hostTriple/rustup-init.exe"
+          $installer = Join-Path $env:TEMP 'rustup-init.exe'
+          Invoke-WebRequest -Uri $url -OutFile $installer
+          & $installer -y --profile minimal --default-toolchain stable --default-host $hostTriple
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Add-Content -Path $env:GITHUB_PATH -Value "$env:USERPROFILE\.cargo\bin"
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            cli/target
+          key: ${{ runner.os }}-${{ matrix.arch }}-cli-${{ hashFiles('cli/Cargo.lock') }}
+
       - name: Install dependencies
         env:
           GYP_MSVS_VERSION: '2022'
@@ -154,6 +217,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run gulp vscode-win32-${{ matrix.arch }}-inno-updater
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Mix in tunnel CLI
+        shell: bash
+        env:
+          VSCODE_ARCH: ${{ matrix.arch }}
+          VSCODE_PLATFORM: win32
+        run: bash scripts/ci/mix-in-cli.sh
 
       - name: Package zip
         run: |

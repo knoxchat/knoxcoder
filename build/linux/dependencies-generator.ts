@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { spawnSync } from 'child_process';
+import { existsSync } from 'fs';
 import path from 'path';
 import { getChromiumSysroot, getVSCodeSysroot } from './debian/install-sysroot.ts';
 import { generatePackageDeps as generatePackageDepsDebian } from './debian/calculate-deps.ts';
@@ -64,8 +65,13 @@ export async function getDependencies(packageType: 'deb' | 'rpm', buildDir: stri
 	const files = findResult.stdout.toString().trimEnd().split('\n').filter(file => {
 		return !!file && !file.includes(`${path.sep}prebuilds${path.sep}`);
 	});
-	// Add the tunnel binary.
-	files.push(path.join(buildDir, 'bin', product.tunnelApplicationName));
+	// Add the tunnel binary when the mix-in-cli step has already placed it.
+	const tunnelPath = path.join(buildDir, 'bin', product.tunnelApplicationName);
+	if (existsSync(tunnelPath)) {
+		files.push(tunnelPath);
+	} else {
+		console.warn('Tunnel binary not found at ' + tunnelPath + '; skipping dependency scan for it.');
+	}
 	// Add the main executable.
 	files.push(appPath);
 	// Add chrome sandbox and crashpad handler.

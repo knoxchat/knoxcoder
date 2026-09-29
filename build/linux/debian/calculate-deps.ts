@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawnSync } from 'child_process';
-import { constants, statSync } from 'fs';
+import { constants, existsSync, statSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import manifests from '../../../cgmanifest.json' with { type: 'json' };
@@ -20,13 +20,14 @@ export function generatePackageDeps(files: string[], arch: DebianArchString, chr
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/calculate_package_deps.py.
 function calculatePackageDeps(binaryPath: string, arch: DebianArchString, chromiumSysroot: string, vscodeSysroot: string): Set<string> {
-	try {
-		if (!(statSync(binaryPath).mode & constants.S_IXUSR)) {
-			throw new Error(`Binary ${binaryPath} needs to have an executable bit set.`);
-		}
-	} catch (e) {
-		// The package might not exist. Don't re-throw the error here.
+	if (!existsSync(binaryPath)) {
+		// The tunnel CLI is mixed in after the desktop package step. Skip it
+		// when it is absent so prepare-deb can still finish.
 		console.error('Tried to stat ' + binaryPath + ' but failed.');
+		return new Set();
+	}
+	if (!(statSync(binaryPath).mode & constants.S_IXUSR)) {
+		throw new Error(`Binary ${binaryPath} needs to have an executable bit set.`);
 	}
 
 	// Get the Chromium dpkg-shlibdeps file.
