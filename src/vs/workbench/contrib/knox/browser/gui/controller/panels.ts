@@ -6,18 +6,48 @@
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { ACTIVITY_PANEL_EXPANDED_KEY, GIT_DIFF_EXPANDED_KEY, asRecord, asArray, withTimeout } from './helpers.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { finalizeGitDiffFiles, gitFilesFromChangedList, gitFilesFromDiffs, mergeGitChangedWithDiffs, parseBackgroundJobs } from '../../../common/knoxGuiPanels.js';
+import { finalizeGitDiffFiles, gitFilesFromChangedList, gitFilesFromDiffs, knoxGuiResolveOpenPath, mergeGitChangedWithDiffs, parseBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { IKnoxGuiContextItem, IKnoxGuiGitDiffFile } from '../../../common/knoxGuiState.js';
 import { knoxGuiContextItemOpenAction } from '../../../common/knoxGuiTranscript.js';
 
 export function showFile(controller: KnoxGuiController, filepath: string, options?: { startLine?: number; endLine?: number }): void {
+	const target = knoxGuiResolveOpenPath(filepath, []);
+	if (target?.direct) {
+		// URI or absolute path: nothing to resolve, open right away.
+		openResolved(controller, target.fallback, options);
+		return;
+	}
+	void resolveAndOpen(controller, filepath, options);
+}
+
+function openResolved(controller: KnoxGuiController, uri: string, options?: { startLine?: number; endLine?: number }): void {
 	if (options?.startLine != null && options.startLine > 0) {
 		const startLine = options.startLine - 1;
 		const endLine = options.endLine != null && options.endLine > 0 ? options.endLine - 1 : startLine;
-		controller.messenger.post('showLines', { filepath, startLine, endLine });
+		controller.messenger.post('showLines', { filepath: uri, startLine, endLine });
 		return;
 	}
-	controller.messenger.post('showFile', { filepath });
+	controller.messenger.post('showFile', { filepath: uri });
+}
+
+/**
+ * The host opens URIs only. Transcript paths are usually workspace-relative (`snake_game/src/main.rs`),
+ * so resolve them against the workspace folders first, like the original Knox `openFileInEditor`.
+ */
+async function resolveAndOpen(controller: KnoxGuiController, filepath: string, options?: { startLine?: number; endLine?: number }): Promise<void> {
+	const dirs = await controller.messenger.request<string[]>('getWorkspaceDirs', undefined).catch(() => [] as string[]);
+	const target = knoxGuiResolveOpenPath(filepath, Array.isArray(dirs) ? dirs.filter(dir => typeof dir === 'string') : []);
+	if (!target) {
+		return;
+	}
+	for (const candidate of target.candidates) {
+		const exists = await controller.messenger.request<boolean>('fileExists', { filepath: candidate }).catch(() => false);
+		if (exists) {
+			openResolved(controller, candidate, options);
+			return;
+		}
+	}
+	openResolved(controller, target.fallback, options);
 }
 
 export function openContextItem(controller: KnoxGuiController, ctx: IKnoxGuiContextItem): void {

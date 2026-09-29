@@ -330,7 +330,8 @@
 .knox-gui-code-file {
 	display: inline-flex;
 	align-items: center;
-	gap: 2px;
+	gap: 0;
+	padding: 0;
 	background: none;
 	border: none;
 	color: #159994;
@@ -339,6 +340,10 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.knox-gui-code-file > .knox-gui-file-icon {
+	margin-right: 6px;
 }
 
 .knox-gui-code-actions {

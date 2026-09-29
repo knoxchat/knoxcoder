@@ -255,6 +255,7 @@ export const KNOX_GUI_HOST_OUTBOUND = [
 	'openFile',
 	'showToast',
 	'getWorkspaceDirs',
+	'fileExists',
 	'getOpenFiles',
 	'edit/sendPrompt',
 	'applyToFile',

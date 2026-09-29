@@ -1185,6 +1185,7 @@ export const knoxGuiStringsEn: Record<string, unknown> = {
 	"scrollToTop": "Scroll to top",
 	"scrollToBottom": "Scroll to bottom",
 	"cancelGeneration": "Cancel current generation (Cmd+⌫)",
+	"cancelToolCall": "Stop this tool and the current generation",
 	"sendMessage": "Send message (⏎)",
 	"gatheringContext": "Gathering context",
 	"relatedContextItems": "{{count}} related context items",

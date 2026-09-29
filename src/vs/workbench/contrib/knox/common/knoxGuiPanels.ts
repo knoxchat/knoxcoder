@@ -1058,3 +1058,98 @@ export function applyKnoxGuiAutonomousEvent(state: IKnoxGuiState, rec: Record<st
 		},
 	};
 }
+
+const KNOX_GUI_URI_SCHEME = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
+
+function knoxGuiEncodePath(path: string): string {
+	return path.split('/').filter(part => part.length > 0).map(encodeURIComponent).join('/');
+}
+
+function knoxGuiJoinUri(dirUri: string, path: string): string {
+	const base = dirUri.endsWith('/') ? dirUri : `${dirUri}/`;
+	return `${base}${knoxGuiEncodePath(path)}`;
+}
+
+function knoxGuiUriBasename(dirUri: string): string {
+	const last = dirUri.replace(/\/+$/, '').split('/').pop() ?? '';
+	try {
+		return decodeURIComponent(last);
+	} catch {
+		return last;
+	}
+}
+
+/** Absolute OS path -> `file://` URI. */
+function knoxGuiFileUriFromAbsolutePath(absolute: string): string {
+	const unix = absolute.replace(/\\/g, '/');
+	const drive = unix.match(/^([A-Za-z]:)\/(.*)$/);
+	if (drive) {
+		return `file:///${drive[1]}/${knoxGuiEncodePath(drive[2])}`;
+	}
+	return `file:///${knoxGuiEncodePath(unix)}`;
+}
+
+/**
+ * Workspace-relative variants the model commonly emits: strips `./` and a leading workspace folder
+ * name (`snake_game/src/main.rs` when the folder is `.../snake_game`). Mirrors `relativePathCandidates`
+ * in the original Knox `core/util/ideUtils`.
+ */
+export function knoxGuiRelativePathCandidates(rawPath: string, workspaceDirUris: readonly string[]): string[] {
+	const trimmed = rawPath.trim().replace(/\\/g, '/').replace(/^\.\//, '');
+	if (!trimmed) {
+		return [];
+	}
+	const out = [trimmed];
+	for (const dirUri of workspaceDirUris) {
+		const base = knoxGuiUriBasename(dirUri);
+		if (!base) {
+			continue;
+		}
+		if (trimmed === base) {
+			if (!out.includes('.')) {
+				out.push('.');
+			}
+		} else if (trimmed.startsWith(`${base}/`)) {
+			const stripped = trimmed.slice(base.length + 1);
+			if (stripped && !out.includes(stripped)) {
+				out.push(stripped);
+			}
+		}
+	}
+	return out;
+}
+
+/**
+ * Resolve a path shown in the transcript (workspace-relative, absolute, or URI) to URIs the host can
+ * open. `direct` paths (URI / absolute) need no lookup. `candidates` are probed in order with `fileExists`; `fallback` is used when none exist.
+ * The host's `showFile` / `showLines` only understand URIs, so a bare relative path must be resolved
+ * against the workspace folders first (the original Knox `openFileInEditor`).
+ */
+export function knoxGuiResolveOpenPath(rawPath: string, workspaceDirUris: readonly string[]): { direct: boolean; candidates: string[]; fallback: string } | undefined {
+	const trimmed = rawPath.trim();
+	if (!trimmed) {
+		return undefined;
+	}
+	if (KNOX_GUI_URI_SCHEME.test(trimmed)) {
+		return { direct: true, candidates: [], fallback: trimmed };
+	}
+	if (trimmed.startsWith('/') || /^[A-Za-z]:[\\/]/.test(trimmed)) {
+		return { direct: true, candidates: [], fallback: knoxGuiFileUriFromAbsolutePath(trimmed) };
+	}
+	const relatives = knoxGuiRelativePathCandidates(trimmed, workspaceDirUris);
+	const candidates: string[] = [];
+	for (const relative of relatives) {
+		for (const dirUri of workspaceDirUris) {
+			const uri = relative === '.' ? dirUri : knoxGuiJoinUri(dirUri, relative);
+			if (!candidates.includes(uri)) {
+				candidates.push(uri);
+			}
+		}
+	}
+	// Nothing exists yet (e.g. a file about to be created): first workspace folder, prefix-stripped path.
+	const preferred = relatives.find(relative => relative !== relatives[0]) ?? relatives[0];
+	const fallback = workspaceDirUris.length > 0 && preferred !== '.'
+		? knoxGuiJoinUri(workspaceDirUris[0], preferred)
+		: (workspaceDirUris[0] ?? knoxGuiFileUriFromAbsolutePath(`/${preferred}`));
+	return { direct: false, candidates, fallback };
+}

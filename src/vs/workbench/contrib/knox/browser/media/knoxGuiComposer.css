@@ -274,8 +274,13 @@
 .knox-gui-code-toolbar-file {
 	display: flex;
 	align-items: center;
+	gap: 4px;
 	min-width: 0;
-	max-width: 45%;
+	flex: 1 1 auto;
+}
+
+.knox-gui-code-toolbar > .knox-gui-code-actions {
+	flex-shrink: 0;
 }
 
 .knox-gui-code-block > .knox-gui-code-toolbar:not(.expanded) {
@@ -491,14 +496,23 @@
 	flex-shrink: 0;
 }
 
+/* Icon themes (Seti etc.) draw glyph icons at 150% font-size, left-aligned. Center the glyph or image
+ * in its fixed box so it can't drift toward the adjacent file name. */
+.knox-gui-file-icon {
+	line-height: 1;
+}
+
 .knox-gui-file-icon::before {
-	display: inline-block;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	width: 100%;
 	height: 100%;
+	padding: 0;
 	background-size: contain;
 	background-position: center;
 	background-repeat: no-repeat;
-	line-height: inherit;
+	line-height: 1;
 	-webkit-font-smoothing: antialiased;
 }
 

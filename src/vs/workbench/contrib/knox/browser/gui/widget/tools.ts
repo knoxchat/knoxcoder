@@ -331,16 +331,19 @@ export function renderToolActions(widget: KnoxGuiWidget,
 		return;
 	}
 	if (tool.status === 'calling') {
+		// Status on the left, a compact Cancel on the right. Cancel stops the running tool and the
+		// current generation (same as the composer Stop button).
 		const row = DOM.append(parent, DOM.$('.knox-gui-tool-calling'));
+		const loading = DOM.append(row, DOM.$('span.knox-gui-muted.knox-gui-tool-loading'));
+		widget.appendSpinner(loading, 14);
+		DOM.append(loading, DOM.$('span', undefined, t(state, 'loading')));
 		widget.chromeButton(row, {
 			label: t(state, 'cancel'),
-			extraClass: 'knox-gui-tool-deny',
+			title: t(state, 'cancelToolCall'),
+			extraClass: 'knox-gui-tool-deny knox-gui-tool-cancel',
 			testId: 'tool-calling-cancel',
 			onClick: () => widget.controller.cancel(),
 		});
-		const loading = DOM.append(row, DOM.$('span.knox-gui-muted.knox-gui-tool-loading'));
-		loading.append(t(state, 'loading'));
-		widget.appendSpinner(loading, 16);
 		return;
 	}
 	if (tool.status !== 'generated') {

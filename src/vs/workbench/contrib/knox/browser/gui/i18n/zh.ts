@@ -1185,6 +1185,7 @@ export const knoxGuiStringsZh: Record<string, unknown> = {
 	"scrollToTop": "滚动到顶部",
 	"scrollToBottom": "滚动到底部",
 	"cancelGeneration": "取消当前生成 (Cmd+⌫)",
+	"cancelToolCall": "停止此工具并取消当前生成",
 	"sendMessage": "发送消息 (⏎)",
 	"gatheringContext": "正在收集上下文",
 	"relatedContextItems": "{{count}} 条相关上下文项",

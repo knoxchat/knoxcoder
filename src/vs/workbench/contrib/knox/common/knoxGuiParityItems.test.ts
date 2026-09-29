@@ -9,6 +9,7 @@ import { knoxGuiModelSupportsReasoning, knoxGuiResetModelCatalogForTests, knoxGu
 import { knoxGuiNextScrollFollow } from './knoxGuiChat.js';
 import { alignSplitDiffRows, buildDiffSegments, checkpointGraphFindScroll, checkpointGraphMenuPosition, checkpointGraphRevealScroll, checkpointDiffContentBytes, checkpointDiffSummary, computeLineDiff, checkpointChartTickInterval, checkpointChartYTicks, checkpointConfigFieldErrors, checkpointConfigIsDirty, checkpointConfigNumber, checkpointDetailsDefaultTab, checkpointImageMime, DEFAULT_CHECKPOINT_CONFIG, formatCheckpointDuration, formatDashboardBytes, groupTimelineCheckpoints, checkpointMatchesQuery, checkpointTreeAncestors, clampCheckpointTreeWidth, compareCheckpointTargets, diffFromCheckpointSnapshots, formatSnapshotSize, parseCheckpointDetails } from './knoxGuiCheckpoints.js';
 import { MEMORY_SETTING_GROUPS, memoriesToExportJson, memoriesToExportMarkdown, memoryBrowserEmptyKey, memoryConsolidateParts, memoryGraphTypeCounts, parseMemorySettingInput, rangeSelectMemoryIds, visibleMemoryExploreEdges, withMemoryConfigDefaults } from './knoxGuiMemory.js';
+import { knoxGuiResolveOpenPath } from './knoxGuiPanels.js';
 import { renderToolTemplateHtml } from './knoxGuiTools.js';
 import { applySuggestAt, buildTopLevelMentionItems, detectComposerTrigger, fileHitToSuggestItem, IKnoxGuiInputBlock, inputDocToPlainText, isFolderMentionNode, isPathMentionNode, isSlashBookmarked, KNOX_GUI_CHIP_CHAR, KnoxGuiInlineNode, lastRelativePathParts, MENTION_LOADING_ID, MENTION_PANEL_MAX_WIDTH, mentionChipOpenUri, mentionChipTooltip, mentionFloatingPosition, mentionItemMatchesQuery, mergeOpenFileMentions, nextMentionSelectedIndex, openFilesChanged, openFileSuggestItems, paragraphTextBefore, rankMentionItems, removeCodeToEditTrigger, retainMentionItemsWhileLoading, shortestUniqueRelativePaths, splitCamelCaseAndNonAlphaNumeric, submenuHitToSuggestItem, toggleSlashBookmark } from './knoxGuiInput.js';
 import { agentProfileDefaults, formatModelPricingPerMillion, formatUsdAmount, fuzzyTitleMatch, historySessionMatchesQuery, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, sortPromptsBookmarkedFirst } from './knoxGuiOverlays.js';
@@ -495,6 +496,20 @@ suite('Knox native parity items', () => {
 			assert.strictEqual(knoxChatRecommendedMaxTokens({ context_length: 200000, max_completion_tokens: 64000 }), 50000);
 			assert.strictEqual(knoxChatRecommendedMaxTokens({ context_length: -1, max_completion_tokens: 128000 }), 128000);
 			assert.strictEqual(knoxChatRecommendedMaxTokens({ context_length: 200000 }), undefined);
+		});
+
+		test('clickable transcript paths resolve like the original openFileInEditor', () => {
+			const dirs = ['file:///Users/me/snake_game'];
+			assert.deepStrictEqual(knoxGuiResolveOpenPath('file:///w/a.rs', dirs), { direct: true, candidates: [], fallback: 'file:///w/a.rs' });
+			assert.deepStrictEqual(knoxGuiResolveOpenPath('/Users/me/a b.rs', dirs), { direct: true, candidates: [], fallback: 'file:///Users/me/a%20b.rs' });
+			assert.strictEqual(knoxGuiResolveOpenPath('C:\\w\\a.rs', [])?.fallback, 'file:///C:/w/a.rs');
+			assert.strictEqual(knoxGuiResolveOpenPath('  ', dirs), undefined);
+			// Leading workspace folder name is stripped, so the model's `snake_game/src/main.rs` opens `<ws>/src/main.rs`.
+			const rel = knoxGuiResolveOpenPath('snake_game/src/main.rs', dirs)!;
+			assert.strictEqual(rel.direct, false);
+			assert.deepStrictEqual(rel.candidates, ['file:///Users/me/snake_game/snake_game/src/main.rs', 'file:///Users/me/snake_game/src/main.rs']);
+			assert.strictEqual(rel.fallback, 'file:///Users/me/snake_game/src/main.rs');
+			assert.strictEqual(knoxGuiResolveOpenPath('./Cargo.toml', dirs)!.candidates[0], 'file:///Users/me/snake_game/Cargo.toml');
 		});
 	});
 });

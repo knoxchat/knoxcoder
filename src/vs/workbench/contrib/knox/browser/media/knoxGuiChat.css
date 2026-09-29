@@ -139,7 +139,6 @@
 	justify-content: center;
 	flex-shrink: 0;
 	font-weight: bolder;
-	margin-top: 1px;
 }
 
 .knox-gui-tool-status-live {
@@ -250,7 +249,12 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
-	margin-left: auto;
+	min-width: 0;
+	font-size: 12px;
+}
+
+.knox-gui-tool-loading .knox-gui-spinner {
+	flex-shrink: 0;
 }
 
 .knox-gui-tool-favicon {
@@ -321,10 +325,23 @@
 }
 
 .knox-gui-chat-tool-buttons .knox-gui-tool-permissions > .knox-gui-icon-btn,
-.knox-gui-chat-tool-buttons .knox-gui-tool-calling > .knox-gui-icon-btn,
 .knox-gui-ask-actions > .knox-gui-icon-btn {
 	flex: 1;
 	justify-content: center;
+}
+
+/* Running tool: "Loading" status on the left, compact Cancel on the right (not a full-width bar). */
+.knox-gui-tool-calling {
+	align-items: center;
+	justify-content: space-between;
+	margin: 8px 8px 4px;
+}
+
+.knox-gui-tool-calling > .knox-gui-tool-cancel {
+	flex: 0 0 auto;
+	justify-content: center;
+	padding: 3px 14px;
+	white-space: nowrap;
 }
 
 .knox-gui-tool-thinking {
