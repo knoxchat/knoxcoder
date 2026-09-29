@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
@@ -187,8 +187,8 @@ export async function searchMemoryBacklogs(controller: KnoxGuiController, query:
 				id: String(rec.id ?? ''),
 				kind: 'episodic' as const,
 				content: String(rec.content ?? ''),
-				sessionId: rec.session_id ? String(rec.session_id): undefined,
-				role: rec.role ? String(rec.role): undefined,
+				sessionId: rec.session_id ? String(rec.session_id) : undefined,
+				role: rec.role ? String(rec.role) : undefined,
 			};
 		});
 		const semantic = asArray(inner?.semantic).map(item => {
@@ -196,10 +196,10 @@ export async function searchMemoryBacklogs(controller: KnoxGuiController, query:
 			return {
 				id: String(rec.id ?? ''),
 				kind: 'semantic' as const,
-				title: rec.title ? String(rec.title): undefined,
+				title: rec.title ? String(rec.title) : undefined,
 				content: String(rec.content ?? ''),
-				sessionId: rec.source_session_id ? String(rec.source_session_id): undefined,
-				category: rec.category ? String(rec.category): undefined,
+				sessionId: rec.source_session_id ? String(rec.source_session_id) : undefined,
+				category: rec.category ? String(rec.category) : undefined,
 			};
 		});
 		if (controller.store.state.memorySessionQuery === query) {

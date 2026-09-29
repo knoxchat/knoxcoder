@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
@@ -37,7 +37,7 @@ export async function submit(controller: KnoxGuiController, starterPrompt?: stri
 	}))) {
 		controller.cancel();
 	}
-	const doc = modifiers?.doc ?? (starterPrompt ? inputDocFromPlainText(starterPrompt): controller.store.state.inputDoc);
+	const doc = modifiers?.doc ?? (starterPrompt ? inputDocFromPlainText(starterPrompt) : controller.store.state.inputDoc);
 	const images = starterPrompt ? [] : (modifiers?.images ?? [
 		...controller.store.state.images.map(image => image.imageUrl),
 		...controller.store.state.historicalImages,
@@ -53,7 +53,7 @@ export async function submit(controller: KnoxGuiController, starterPrompt?: stri
 	}
 	let text = inputDocToPlainText(doc).trim();
 	const slashName = extractSlashFromDoc(doc) ?? parseLeadingSlash(text)?.name;
-	const slashRest = slashName ? (parseLeadingSlash(text)?.rest ?? text.replace(new RegExp(`^/${slashName}\\s*`), '')): '';
+	const slashRest = slashName ? (parseLeadingSlash(text)?.rest ?? text.replace(new RegExp(`^/${slashName}\\s*`), '')) : '';
 	let legacySlash: IKnoxGuiLegacySlash['command'] | undefined;
 	let autonomousGoal: string | undefined;
 	if (slashName) { // KN-374: KN-304 builtins + YAML / .prompt expansion
@@ -772,7 +772,7 @@ export async function injectMemoryContext(controller: KnoxGuiController, userTex
 		if (items.length !== controller.store.state.injectedMemories.length) {
 			void controller.loadMemoryMode();
 		}
-		const context = rec.context ? String(rec.context): '';
+		const context = rec.context ? String(rec.context) : '';
 		if (context || items.length) {
 			controller.store.patch({ injectedMemories: items });
 			return context || undefined;

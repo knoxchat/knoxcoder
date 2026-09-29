@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -1237,11 +1237,13 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 
 	test('I-11 / I-13 composer chips carry icons and dismiss, and the caret maps to doc positions', async () => {
 		const { widget, store } = await mount();
-		store.setInputDoc([{ type: 'paragraph', content: [
-			{ type: 'text', text: 'see ' },
-			{ type: 'mention', id: 'file:///ws/a.ts', label: 'a.ts', itemType: 'file', query: 'file:///ws/a.ts' },
-			{ type: 'text', text: ' @ap' },
-		] }, { type: 'paragraph', content: [{ type: 'slash', id: '/commit', label: '/commit' }] }]);
+		store.setInputDoc([{
+			type: 'paragraph', content: [
+				{ type: 'text', text: 'see ' },
+				{ type: 'mention', id: 'file:///ws/a.ts', label: 'a.ts', itemType: 'file', query: 'file:///ws/a.ts' },
+				{ type: 'text', text: ' @ap' },
+			]
+		}, { type: 'paragraph', content: [{ type: 'slash', id: '/commit', label: '/commit' }] }]);
 		const editor = widget.root.querySelector('[data-testid="knox-gui-input"]') as HTMLElement;
 		const chip = editor.querySelector('[data-testid="knox-gui-mention-chip"]') as HTMLElement;
 		assert.ok(chip.classList.contains('is-openable'));

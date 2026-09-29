@@ -4,7 +4,7 @@
 
 Knox is the editor's AI coding environment: agent, local memory, and git-independent checkpoints. Product source is this folder (`extensions/knox`: engine, tools, host) plus `src/vs/workbench/contrib/knox` (native chat, memory, and checkpoint UI). Same role as `extensions/git`: a builtin that other extensions can depend on.
 
-License: MIT. See [LICENSE.txt](../../LICENSE.txt) in the repository root.
+License: GPL-3.0-only. See [LICENSE.txt](../../LICENSE.txt) in the repository root. Upstream Visual Studio Code files remain under [MIT](../../LICENSE.vscode.txt).
 
 ## Develop
 

@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiWidget } from '../knoxGuiWidget.js';
@@ -771,7 +771,7 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 			box.classList.add('selected');
 			appendKnoxGuiSvg(box, 'check', 12);
 		}
-	widget.listenerStore.add(DOM.addDisposableListener(box, 'click', e => {
+		widget.listenerStore.add(DOM.addDisposableListener(box, 'click', e => {
 			e.stopPropagation();
 			selectHistoryRow(widget, ordered, session.id, e.shiftKey);
 		}));

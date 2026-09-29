@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
@@ -65,7 +65,7 @@ export function selectModel(controller: KnoxGuiController, role: KnoxModelRole, 
 	}
 	controller.store.patch({
 		selectedModelByRole,
-		modelTitle: role === 'chat' ? (title ?? controller.store.state.modelTitle): controller.store.state.modelTitle,
+		modelTitle: role === 'chat' ? (title ?? controller.store.state.modelTitle) : controller.store.state.modelTitle,
 	});
 	controller.messenger.post('config/updateSelectedModel', { profileId: controller.store.state.profileId, role, title });
 	if (role === 'chat' && title) {
@@ -202,16 +202,16 @@ export async function loadKnoxChatModels(controller: KnoxGuiController): Promise
 			const reasoningFromParams = (supportedParameters ?? []).includes('reasoning') || (supportedParameters ?? []).includes('reasoning_effort') || (supportedParameters ?? []).includes('include_reasoning');
 			return {
 				title,
-				description: rec.description ? String(rec.description): (id ? `Model ID: ${id}` : undefined),
+				description: rec.description ? String(rec.description) : (id ? `Model ID: ${id}` : undefined),
 				model: id,
 				contextLength: knoxChatMetadataContextLength(rec) ?? 180000,
 				category: categorizeKnoxChatModel({
 					id,
 					name: title,
 					title,
-					developer: rec.developer ? String(rec.developer): undefined,
-					owned_by: rec.owned_by ? String(rec.owned_by): undefined,
-					tokenizer: architecture?.tokenizer ? String(architecture.tokenizer): undefined,
+					developer: rec.developer ? String(rec.developer) : undefined,
+					owned_by: rec.owned_by ? String(rec.owned_by) : undefined,
+					tokenizer: architecture?.tokenizer ? String(architecture.tokenizer) : undefined,
 				}),
 				maxTokens: knoxChatRecommendedMaxTokens(rec) ?? (rec.max_tokens != null ? Number(rec.max_tokens) : (completion?.maxTokens != null ? Number(completion.maxTokens) : undefined)),
 				supportsTools: capabilities?.tools === true || toolsFromParams,

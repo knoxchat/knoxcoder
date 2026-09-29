@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
@@ -986,6 +986,9 @@ suite('Knox agent host contract (KN-381)', () => {
 		assert.ok(!parityTest.includes('extensions/vscode/src/i18n'));
 		assert.ok(!parityTest.includes('gui/src/locales'));
 		assert.ok(parityTest.includes('browser/gui/i18n'));
+		assert.ok(parityTest.includes('compareGuiLocaleModules'));
+		assert.ok(existsSync(join(process.cwd(), 'src/vs/workbench/contrib/knox/browser/gui/i18n/en/common.ts')));
+		assert.ok(existsSync(join(process.cwd(), 'src/vs/workbench/contrib/knox/browser/gui/i18n/zh/tools.ts')));
 		assert.ok(existsSync(join(process.cwd(), 'extensions/knox/src/core/i18n/locales/en/core.json')));
 		assert.ok(existsSync(join(process.cwd(), 'extensions/knox/src/core/i18n/locales/zh/core.json')));
 		assert.ok(existsSync(join(process.cwd(), 'extensions/knox/src/host/i18n/locales/en/extension.json')));

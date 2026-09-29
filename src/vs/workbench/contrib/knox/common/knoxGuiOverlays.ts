@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
@@ -78,7 +78,7 @@ export interface IKnoxGuiPackageDimension {
 export interface IKnoxGuiAddModelPackage {
 	title: string;
 	description?: string;
-	params: { model: string; contextLength?: number; title: string; systemMessage?: string; [key: string]: unknown };
+	params: { model: string; contextLength?: number; title: string; systemMessage?: string;[key: string]: unknown };
 	provider?: string;
 	category?: string;
 	icon?: string;
@@ -1208,14 +1208,14 @@ export function formatSessionExportMarkdown(session: {
 	workspaceDirectory?: string;
 	history: Array<{ role: string; content: string }>;
 }, now = new Date(), t: (key: string) => string = key => ({
-		knoxSessionTranscript: 'Knox session transcript',
-		exported: 'Exported',
-		sessionLabel: 'Session',
-		workspaceLabel: 'Workspace',
-		userRole: 'User',
-		assistantRole: 'Assistant',
-		noMessagesInSession: 'No messages in this session.',
-	}[key] ?? key)): string {
+	knoxSessionTranscript: 'Knox session transcript',
+	exported: 'Exported',
+	sessionLabel: 'Session',
+	workspaceLabel: 'Workspace',
+	userRole: 'User',
+	assistantRole: 'Assistant',
+	noMessagesInSession: 'No messages in this session.',
+}[key] ?? key)): string {
 	let content = `### [Knox](https://knox.chat) ${t('knoxSessionTranscript')}\n ${t('exported')}: ${now.toLocaleString()}`;
 	content += `\n\n**${t('sessionLabel')}:** ${session.title}`;
 	if (session.workspaceDirectory) {

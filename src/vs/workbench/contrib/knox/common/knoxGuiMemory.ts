@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import {
@@ -791,11 +791,13 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 			{ key: 'max_hot_memories', labelKey: 'memoryMaxHot', descKey: 'memoryMaxHotDesc', kind: 'number', min: 100, max: 10000 },
 			{ key: 'max_episodic_per_session', labelKey: 'memoryMaxEpisodic', descKey: 'memoryMaxEpisodicDesc', kind: 'number', min: 100, max: 10000 },
 			{ key: 'context_max_tokens', labelKey: 'memoryContextTokens', descKey: 'memoryContextTokensDesc', kind: 'number', min: 1000, max: 10000000 },
-			{ key: 'memory_mode', labelKey: 'memoryMode', descKey: 'memoryModeDesc', kind: 'select', options: [
-				{ value: 'summarized', labelKey: 'memoryModeSummarized' },
-				{ value: 'full', labelKey: 'memoryModeFull' },
-				{ value: 'selective', labelKey: 'memoryModeSelective' },
-			] },
+			{
+				key: 'memory_mode', labelKey: 'memoryMode', descKey: 'memoryModeDesc', kind: 'select', options: [
+					{ value: 'summarized', labelKey: 'memoryModeSummarized' },
+					{ value: 'full', labelKey: 'memoryModeFull' },
+					{ value: 'selective', labelKey: 'memoryModeSelective' },
+				]
+			},
 			{ key: 'retrieval_threshold', labelKey: 'memoryRetrievalThreshold', descKey: 'memoryRetrievalThresholdDesc', kind: 'number', min: 0.1, max: 0.95, percent: true },
 			{ key: 'retrieval_top_k', labelKey: 'memoryRetrievalTopK', descKey: 'memoryRetrievalTopKDesc', kind: 'number', min: 5, max: 100 },
 			{ key: 'enable_enhanced_semantic', labelKey: 'memoryEnhancedSemantic', descKey: 'memoryEnhancedSemanticDesc', kind: 'toggle' },
@@ -917,10 +919,12 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 		fields: [
 			{ key: 'graph_max_entities', labelKey: 'memoryGraphMaxEntities', descKey: 'memoryGraphMaxEntitiesDesc', kind: 'number', min: 500, max: 10000 },
 			{ key: 'graph_max_depth', labelKey: 'memoryGraphMaxDepth', descKey: 'memoryGraphMaxDepthDesc', kind: 'number', min: 1, max: 5 },
-			{ key: 'memory_scope', labelKey: 'memoryScope', descKey: 'memoryScopeDesc', kind: 'select', options: [
-				{ value: 'project', labelKey: 'memoryScopeProject' },
-				{ value: 'global', labelKey: 'memoryScopeGlobal' },
-			] },
+			{
+				key: 'memory_scope', labelKey: 'memoryScope', descKey: 'memoryScopeDesc', kind: 'select', options: [
+					{ value: 'project', labelKey: 'memoryScopeProject' },
+					{ value: 'global', labelKey: 'memoryScopeGlobal' },
+				]
+			},
 			{ key: 'enable_knowledge_extraction', labelKey: 'memoryKnowledgeExtraction', descKey: 'memoryKnowledgeExtractionDesc', kind: 'toggle' },
 			{ key: 'post_turn_min_chars', labelKey: 'memoryPostTurnMinChars', descKey: 'memoryPostTurnMinCharsDesc', kind: 'number', min: 20, max: 2000 },
 			{ key: 'auto_summarize', labelKey: 'memoryAutoSummarize', descKey: 'memoryAutoSummarizeDesc', kind: 'toggle' },

@@ -4,17 +4,69 @@ import path from "node:path";
 export type LocaleFlatMap = Record<string, string>;
 
 /**
- * Parse a TypeScript object-literal locale table (`export const x = { ... } as const`).
+ * Parse a TypeScript object-literal locale table (`export const x = { ... }`).
  * Keys must be JSON-quoted, matching the native GUI i18n files.
  */
 export function loadTsLocaleObject(filePath: string): Record<string, unknown> {
   const source = fs.readFileSync(filePath, "utf8");
-  const start = source.indexOf("{");
+  const assign = source.search(/=\s*\{/);
+  const start = assign >= 0 ? source.indexOf("{", assign) : source.indexOf("{");
   const end = source.lastIndexOf("}");
   if (start < 0 || end <= start) {
     throw new Error(`No object literal in ${filePath}`);
   }
   return JSON.parse(source.slice(start, end + 1)) as Record<string, unknown>;
+}
+
+/** Native GUI modules, merged in the same order as the original knox gui-src i18n. */
+export const GUI_LOCALE_MODULES = [
+  "common",
+  "settings",
+  "chat",
+  "history",
+  "errors",
+  "models",
+  "stats",
+  "tools",
+] as const;
+
+/** Load and merge one native GUI language directory (`i18n/en` or `i18n/zh`). */
+export function loadGuiLocaleLanguage(langDir: string): Record<string, unknown> {
+  const merged: Record<string, unknown> = {};
+  for (const name of GUI_LOCALE_MODULES) {
+    Object.assign(
+      merged,
+      loadTsLocaleObject(path.join(langDir, `${name}.ts`)),
+    );
+  }
+  return merged;
+}
+
+/** Compare each native GUI locale module pair, then the merged catalogs. */
+export function compareGuiLocaleModules(
+  enDir: string,
+  zhDir: string,
+): LocaleDrift[] {
+  const drifts: LocaleDrift[] = [];
+  for (const name of GUI_LOCALE_MODULES) {
+    const drift = compareLocaleObjects(
+      `${name}.ts`,
+      loadTsLocaleObject(path.join(enDir, `${name}.ts`)),
+      loadTsLocaleObject(path.join(zhDir, `${name}.ts`)),
+    );
+    if (drift) {
+      drifts.push(drift);
+    }
+  }
+  const merged = compareLocaleObjects(
+    "merged",
+    loadGuiLocaleLanguage(enDir),
+    loadGuiLocaleLanguage(zhDir),
+  );
+  if (merged) {
+    drifts.push(merged);
+  }
+  return drifts;
 }
 
 /** Flatten nested JSON locale objects into dotted keys. */

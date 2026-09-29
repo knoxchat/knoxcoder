@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import { IKnoxGuiCheckpointBranch, IKnoxGuiCheckpointNode } from './knoxGuiState.js';
@@ -156,10 +156,10 @@ export function layoutCheckpointLanes(
 		let lastPoint = vertex.isNotOnBranch() ? vertex.getNextPoint() : vertex.getPoint();
 		const parentBranch =
 			parentVertex !== null
-			&& parentVertex.row !== NULL_ROW
-			&& vertex.isMerge()
-			&& vertex.branch !== null
-			&& parentVertex.branch !== null
+				&& parentVertex.row !== NULL_ROW
+				&& vertex.isMerge()
+				&& vertex.branch !== null
+				&& parentVertex.branch !== null
 				? parentVertex.branch
 				: null;
 		if (parentVertex !== null && parentBranch !== null) {

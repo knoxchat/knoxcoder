@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
@@ -292,7 +292,7 @@ export function toggleRestorePath(controller: KnoxGuiController, relativePath: s
 
 export function toggleRestoreAll(controller: KnoxGuiController, checked: boolean): void {
 	const files = controller.store.state.checkpointRestorePreview?.files ?? [];
-	controller.store.patch({ checkpointRestoreSelected: checked ? files.map(file => file.relativePath): [] });
+	controller.store.patch({ checkpointRestoreSelected: checked ? files.map(file => file.relativePath) : [] });
 }
 
 export async function restoreSelectedFiles(controller: KnoxGuiController): Promise<void> {

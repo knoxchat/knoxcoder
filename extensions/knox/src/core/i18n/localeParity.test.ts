@@ -6,11 +6,10 @@ import { describe, expect, it } from "vitest";
 
 import { t as coreT } from "./index.js";
 import {
+  compareGuiLocaleModules,
   compareLocaleDirs,
-  compareLocaleObjects,
   findHardcodedUserMessages,
   flattenLocale,
-  loadTsLocaleObject,
 } from "./localeParity.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -71,13 +70,12 @@ describe("en/zh locale key parity", () => {
       repoRoot,
       "src/vs/workbench/contrib/knox/browser/gui/i18n",
     );
-    const drift = compareLocaleObjects(
-      "knoxGuiI18n",
-      loadTsLocaleObject(path.join(dir, "en.ts")),
-      loadTsLocaleObject(path.join(dir, "zh.ts")),
+    const drifts = compareGuiLocaleModules(
+      path.join(dir, "en"),
+      path.join(dir, "zh"),
     );
-    if (drift) {
-      expect.fail(`Locale key drift in native GUI:\n${formatDrifts([drift])}`);
+    if (drifts.length) {
+      expect.fail(`Locale key drift in native GUI:\n${formatDrifts(drifts)}`);
     }
   });
 });

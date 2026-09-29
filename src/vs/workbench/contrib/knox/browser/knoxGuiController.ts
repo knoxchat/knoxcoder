@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -109,11 +109,13 @@ export class KnoxGuiController extends Disposable {
 		this._register({ dispose: () => clearInterval(this.openFilesTimer) });
 		this._register({ dispose: () => this.clearGitPoll() });
 		this._register({ dispose: () => this.clearHeartbeat() });
-		this._register({ dispose: () => {
-			if (this.pendingFilesTimer) {
-				clearTimeout(this.pendingFilesTimer);
+		this._register({
+			dispose: () => {
+				if (this.pendingFilesTimer) {
+					clearTimeout(this.pendingFilesTimer);
+				}
 			}
-		} });
+		});
 		void this.setup();
 	}
 

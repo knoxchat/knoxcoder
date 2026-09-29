@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
@@ -185,7 +185,7 @@ export async function refreshGitDiff(controller: KnoxGuiController, force = fals
 				const rec = asRecord(item) ?? {};
 				return {
 					filepath: String(rec.filepath ?? rec.path ?? ''),
-					uri: rec.uri ? String(rec.uri): undefined,
+					uri: rec.uri ? String(rec.uri) : undefined,
 					status: rec.status as IKnoxGuiGitDiffFile['status'],
 					additions: typeof rec.additions === 'number' ? rec.additions : undefined,
 					deletions: typeof rec.deletions === 'number' ? rec.deletions : undefined,
@@ -194,12 +194,12 @@ export async function refreshGitDiff(controller: KnoxGuiController, force = fals
 			}).filter(file => file.filepath));
 			if (files.some(file => file.additions === 0 && file.deletions === 0 && !file.isBinary)) {
 				const diffs = await withTimeout(controller.messenger.request<unknown>('getDiff', { includeUnstaged: true }), 5000);
-				const list = Array.isArray(diffs) ? diffs.map(String): asArray(asRecord(diffs)?.content).map(String);
+				const list = Array.isArray(diffs) ? diffs.map(String) : asArray(asRecord(diffs)?.content).map(String);
 				files = mergeGitChangedWithDiffs(files, gitFilesFromDiffs(list));
 			}
 		} else {
 			const diffs = await withTimeout(controller.messenger.request<unknown>('getDiff', { includeUnstaged: true }), 5000);
-			const list = Array.isArray(diffs) ? diffs.map(String): asArray(asRecord(diffs)?.content).map(String);
+			const list = Array.isArray(diffs) ? diffs.map(String) : asArray(asRecord(diffs)?.content).map(String);
 			files = gitFilesFromDiffs(list);
 		}
 		controller.store.patch({ gitDiffFiles: finalizeGitDiffFiles(files) });
@@ -249,17 +249,17 @@ export async function runWorktree(controller: KnoxGuiController, action: 'enter'
 		const rec = asRecord(result);
 		const state = asRecord(rec?.state);
 		if (!rec?.ok || !state?.enabled) {
-			controller.store.patch({ worktree: { enabled: false, busy: false, files: [], error: rec?.error ? String(rec.error): undefined } });
+			controller.store.patch({ worktree: { enabled: false, busy: false, files: [], error: rec?.error ? String(rec.error) : undefined } });
 			return;
 		}
 		controller.store.patch({
 			worktree: {
 				enabled: true,
 				busy: false,
-				branch: state.branch ? String(state.branch): undefined,
-				path: state.path ? String(state.path): undefined,
+				branch: state.branch ? String(state.branch) : undefined,
+				path: state.path ? String(state.path) : undefined,
 				files: asArray(state.files).map(String),
-				error: rec.error ? String(rec.error): undefined,
+				error: rec.error ? String(rec.error) : undefined,
 			},
 		});
 	} catch (error) {

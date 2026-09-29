@@ -11,7 +11,7 @@
   },
   "type": "module",
   "author": "knoxchat",
-  "license": "Apache-2.0",
+  "license": "GPL-3.0-only",
   "devDependencies": {
     "@types/jsdom": "^30.0.0",
     "@types/win-ca": "^3.5.4",

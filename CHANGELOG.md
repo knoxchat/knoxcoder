@@ -4,7 +4,14 @@ All notable changes to KnoxCoder are documented in this file.
 
 ## [1.138.0]
 
+### Added
+
+- Native extenstion Knox agent
+
 ### Changed
+
+- **Project license is now GPL-3.0-only**
+  KnoxCoder (including Knox-owned sources) is licensed under the GNU GPL v3. Upstream Visual Studio Code files remain MIT; that notice is kept in `LICENSE.vscode.txt`.
 
 - **Upgrade to VS Code 1.138.0**
   Merged upstream `microsoft/vscode` 1.138.0 while preserving Knox branding, Open VSX gallery, native TypeScript tooling, and Knox-specific customizations.

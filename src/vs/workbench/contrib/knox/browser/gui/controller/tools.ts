@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
@@ -39,7 +39,7 @@ export function applyToolPreset(controller: KnoxGuiController, preset: 'safe' | 
 export function toggleToolGroup(controller: KnoxGuiController, group: string): void {
 	const excluded = controller.store.state.toolGroupExcluded;
 	controller.store.patch({
-		toolGroupExcluded: excluded.includes(group) ? excluded.filter(item => item !== group): [...excluded, group],
+		toolGroupExcluded: excluded.includes(group) ? excluded.filter(item => item !== group) : [...excluded, group],
 	});
 }
 

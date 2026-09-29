@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
@@ -99,17 +99,17 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 	}
 	switch (type) {
 		case 'newSession':
-		{
-			// Original Layout.tsx: after saveCurrentSession({ openNewSession }) always exitEditMode() (reject diffs, edit/exit, leave Cmd+I).
-			// The original newSession reducer keeps codeToEdit, so exitEditMode still rejects those diffs; keep them across the reset.
-			const editCode = controller.store.state.mode === 'edit' ? controller.store.state.codeToEdit : undefined;
-			await controller.newSession();
-			if (editCode && controller.store.state.mode === 'edit') {
-				controller.store.patch({ codeToEdit: editCode });
-				await controller.exitEditMode(undefined, { restoreLastSession: false });
+			{
+				// Original Layout.tsx: after saveCurrentSession({ openNewSession }) always exitEditMode() (reject diffs, edit/exit, leave Cmd+I).
+				// The original newSession reducer keeps codeToEdit, so exitEditMode still rejects those diffs; keep them across the reset.
+				const editCode = controller.store.state.mode === 'edit' ? controller.store.state.codeToEdit : undefined;
+				await controller.newSession();
+				if (editCode && controller.store.state.mode === 'edit') {
+					controller.store.patch({ codeToEdit: editCode });
+					await controller.exitEditMode(undefined, { restoreLastSession: false });
+				}
+				return;
 			}
-			return;
-		}
 		case 'newSessionWithPrompt':
 			await controller.newSession();
 			if (rec && typeof rec.prompt === 'string') {
@@ -286,7 +286,7 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 				const rest = controller.store.state.applyStates.filter(state => state.streamId !== streamId);
 				rest.push({
 					streamId,
-					filepath: rec.filepath ? String(rec.filepath): undefined,
+					filepath: rec.filepath ? String(rec.filepath) : undefined,
 					status: String(rec.status ?? 'done'),
 					numDiffs: typeof rec.numDiffs === 'number' ? rec.numDiffs : undefined,
 				});

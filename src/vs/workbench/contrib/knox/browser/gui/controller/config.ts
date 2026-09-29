@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
@@ -111,7 +111,7 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 		return {
 			name: String(rec.name ?? rec.command ?? ''),
 			description: String(rec.description ?? ''),
-			prompt: rec.prompt ? String(rec.prompt): undefined,
+			prompt: rec.prompt ? String(rec.prompt) : undefined,
 		};
 	}).filter(cmd => cmd.name);
 	const rules = asArray(config.rules).map((item, index) => {
@@ -119,7 +119,7 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 			return { title: `Rule ${index + 1}`, body: item, source: 'local' as const };
 		}
 		const rec = asRecord(item) ?? {};
-		const uses = rec.uses ? String(rec.uses): (rec.name ? String(rec.name): undefined);
+		const uses = rec.uses ? String(rec.uses) : (rec.name ? String(rec.name) : undefined);
 		const body = String(rec.rule ?? rec.body ?? rec.content ?? '');
 		const source = uses ? 'uses' as const : (rec.inline === true ? 'inline' as const : 'local' as const);
 		return { title: String(rec.name ?? rec.title ?? uses ?? `Rule ${index + 1}`), body, source, uses };
@@ -130,13 +130,13 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 		return {
 			name: String(fn.name ?? rec.name ?? ''),
 			group: String(rec.group ?? 'tools'),
-			description: fn.description ? String(fn.description): undefined,
+			description: fn.description ? String(fn.description) : undefined,
 			readonly: Boolean(rec.readonly),
-			displayTitle: rec.displayTitle ? String(rec.displayTitle): undefined,
-			wouldLikeTo: rec.wouldLikeTo ? String(rec.wouldLikeTo): undefined,
-			isCurrently: rec.isCurrently ? String(rec.isCurrently): undefined,
-			hasAlready: rec.hasAlready ? String(rec.hasAlready): undefined,
-			faviconUrl: rec.faviconUrl ? String(rec.faviconUrl): undefined,
+			displayTitle: rec.displayTitle ? String(rec.displayTitle) : undefined,
+			wouldLikeTo: rec.wouldLikeTo ? String(rec.wouldLikeTo) : undefined,
+			isCurrently: rec.isCurrently ? String(rec.isCurrently) : undefined,
+			hasAlready: rec.hasAlready ? String(rec.hasAlready) : undefined,
+			faviconUrl: rec.faviconUrl ? String(rec.faviconUrl) : undefined,
 		};
 	}).filter(tool => tool.name);
 	const contextProviders: IKnoxGuiContextProvider[] = asArray(config.contextProviders).map(item => {
@@ -150,11 +150,11 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 					: undefined;
 		return {
 			title: String(rec.title ?? rec.name ?? ''),
-			displayTitle: rec.displayTitle ? String(rec.displayTitle): undefined,
-			description: rec.description ? String(rec.description): undefined,
+			displayTitle: rec.displayTitle ? String(rec.displayTitle) : undefined,
+			description: rec.description ? String(rec.description) : undefined,
 			type,
-			renderInlineAs: rec.renderInlineAs ? String(rec.renderInlineAs): undefined,
-			category: rec.category ? String(rec.category): undefined,
+			renderInlineAs: rec.renderInlineAs ? String(rec.renderInlineAs) : undefined,
+			category: rec.category ? String(rec.category) : undefined,
 		};
 	}).filter(p => p.title);
 	const defaultContext = asArray(experimental?.defaultContext).map(item => {
@@ -186,7 +186,7 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 		toolSettings: existingSettings,
 		contextProviders: mergeContextProvidersWithDefaults(contextProviders),
 		defaultContext,
-		profileId: top?.profileId ? String(top.profileId): controller.store.state.profileId,
+		profileId: top?.profileId ? String(top.profileId) : controller.store.state.profileId,
 		profileType: typeof top?.profileType === 'string' ? String(top.profileType) : (controller.store.state.profileType ?? (top?.profileId ? 'local' : undefined)),
 		yamlRules: Array.isArray(top?.yamlRules) ? top.yamlRules : controller.store.state.yamlRules,
 		showSessionTabs: Boolean(ui?.showSessionTabs),
@@ -335,7 +335,7 @@ export async function loadReasoningEffortPrefs(controller: KnoxGuiController): P
 			}
 		}
 		const merged = mergeReasoningEffortPrefs(
-			{ lastEffort: rec?.lastEffort ? String(rec.lastEffort): undefined, byModel: mapped },
+			{ lastEffort: rec?.lastEffort ? String(rec.lastEffort) : undefined, byModel: mapped },
 			{ lastEffort: controller.store.state.reasoningEffort, byModel: controller.store.state.reasoningEffortByModel },
 			controller.store.state.modelTitle,
 		);

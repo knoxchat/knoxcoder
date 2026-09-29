@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
@@ -317,7 +317,7 @@ export function historyFromRaw(controller: KnoxGuiController, item: Record<strin
 	const images = imagesFromUnknown(message.content) ?? imagesFromUnknown(item.images);
 	const contextItems = contextItemsFromRaw(item.contextItems);
 	const editorState = item.editorState ?? message.editorState;
-	const inputDoc = Array.isArray(editorState) ? editorState as IKnoxGuiHistoryItem['inputDoc'] : (content ? inputDocFromPlainText(content): undefined);
+	const inputDoc = Array.isArray(editorState) ? editorState as IKnoxGuiHistoryItem['inputDoc'] : (content ? inputDocFromPlainText(content) : undefined);
 	return {
 		id: String(message.id ?? item.id ?? `m-${index}`),
 		role: role === 'user' || role === 'system' || role === 'thinking' || role === 'tool' ? role : 'assistant',
@@ -453,7 +453,7 @@ export async function refreshHistorySessions(controller: KnoxGuiController): Pro
 					id: String(session.sessionId ?? session.id ?? ''),
 					title: String(session.title ?? 'Session'),
 					date: String(session.date ?? session.dateCreated ?? session.timestamp ?? ''),
-					workspaceDirectory: session.workspaceDirectory ? String(session.workspaceDirectory): undefined,
+					workspaceDirectory: session.workspaceDirectory ? String(session.workspaceDirectory) : undefined,
 				})),
 			});
 		}
@@ -497,10 +497,10 @@ export async function exportSession(controller: KnoxGuiController, id: string): 
 				return { role: String(message.role ?? rec.role ?? 'assistant'), content: textFromUnknown(message.content ?? rec.content) };
 			})
 			: controller.store.state.history.map(item => ({ role: item.role, content: item.content }));
-		const markdown = formatSessionExportMarkdown({ title, workspaceDirectory: session?.workspaceDirectory ? String(session.workspaceDirectory): undefined, history }, new Date(), key => knoxGuiT(controller.store.state.language, key));
+		const markdown = formatSessionExportMarkdown({ title, workspaceDirectory: session?.workspaceDirectory ? String(session.workspaceDirectory) : undefined, history }, new Date(), key => knoxGuiT(controller.store.state.language, key));
 		const filename = sessionExportFilename(title);
 		const dirs = await controller.messenger.request<string[]>('getWorkspaceDirs', undefined).catch(() => []);
-		const workspaceDir = Array.isArray(dirs) ? String(dirs[0] ?? '').replace(/^file:\/\//, ''): '';
+		const workspaceDir = Array.isArray(dirs) ? String(dirs[0] ?? '').replace(/^file:\/\//, '') : '';
 		const filePath = workspaceDir ? `${workspaceDir}/${filename}` : `/tmp/${filename}`;
 		const fileUrl = filePath.startsWith('file://') ? filePath : `file://${filePath}`;
 		await controller.messenger.request('writeFile', { path: fileUrl, contents: markdown });

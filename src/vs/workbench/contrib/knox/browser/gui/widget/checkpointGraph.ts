@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiWidget } from '../knoxGuiWidget.js';
@@ -1033,15 +1033,17 @@ function graphMenuEntries(
 			}
 		}
 		if (!branch.isActive && branch.name !== 'main') {
-			entries.push({ kind: 'action', id: 'delete', label: t(state, 'checkpointGraph.menu.deleteBranch'), run: () => void (async () => {
-				const response = await widget.controller.messenger.request<{ success?: boolean; message?: string }>('deleteCheckpointBranch', { branchId: branch.id });
-				if (response && response.success === false && response.message) {
-					widget.checkpointGraphPrompt = { kind: 'notice', message: response.message };
-					widget.render();
-				} else {
-					void widget.controller.loadCheckpoints();
-				}
-			})() });
+			entries.push({
+				kind: 'action', id: 'delete', label: t(state, 'checkpointGraph.menu.deleteBranch'), run: () => void (async () => {
+					const response = await widget.controller.messenger.request<{ success?: boolean; message?: string }>('deleteCheckpointBranch', { branchId: branch.id });
+					if (response && response.success === false && response.message) {
+						widget.checkpointGraphPrompt = { kind: 'notice', message: response.message };
+						widget.render();
+					} else {
+						void widget.controller.loadCheckpoints();
+					}
+				})()
+			});
 		}
 		entries.push({ kind: 'action', id: 'rename', label: t(state, 'checkpointGraph.menu.renameBranch'), run: () => { widget.checkpointGraphPrompt = { kind: 'rename', branchId: branch.id, name: branch.name }; widget.checkpointGraphPromptValue = branch.name; } });
 		entries.push({

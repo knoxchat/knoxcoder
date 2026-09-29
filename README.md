@@ -26,6 +26,6 @@ Command, view, and setting IDs stay `knoxchat.*` so existing keybindings and `se
 
 ## License
 
-Copyright (c) Microsoft Corporation. All rights reserved.
+Copyright (c) KnoxStudio.
 
-Licensed under the [MIT](LICENSE.txt) license.
+KnoxCoder is licensed under the [GNU GPL-3.0](LICENSE.txt). This repository includes Visual Studio Code source from Microsoft, which remains available under [MIT](LICENSE.vscode.txt).

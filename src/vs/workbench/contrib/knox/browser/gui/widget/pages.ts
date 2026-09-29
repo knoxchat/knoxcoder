@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Knox. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) KnoxStudio. All rights reserved.
+ *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiWidget } from '../knoxGuiWidget.js';
@@ -304,10 +304,12 @@ export function renderConfigureProvider(widget: KnoxGuiWidget, body: HTMLElement
 		}
 	}
 	if (provider.apiKeyUrl) {
-		widget.chromeButton(body, { icon: 'codicon-link-external', label: t(state, 'apiKeyLabel'), extraClass: 'knox-gui-ghost', onClick: () => {
-			widget.controller.messenger.post('openUrl', provider.apiKeyUrl);
-			void widget.openerService.open(URI.parse(provider.apiKeyUrl!));
-		} });
+		widget.chromeButton(body, {
+			icon: 'codicon-link-external', label: t(state, 'apiKeyLabel'), extraClass: 'knox-gui-ghost', onClick: () => {
+				widget.controller.messenger.post('openUrl', provider.apiKeyUrl);
+				void widget.openerService.open(URI.parse(provider.apiKeyUrl!));
+			}
+		});
 	}
 	const ready = addModelRequiredSatisfied(provider, state.addModelDraft, state.oauthConnected);
 	DOM.append(body, DOM.$('h4', undefined, t(state, 'selectModelPreset')));
