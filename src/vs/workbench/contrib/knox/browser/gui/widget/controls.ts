@@ -280,12 +280,21 @@ export function setCollapseChevronExpanded(el: HTMLElement, expanded: boolean, t
 	el.querySelector('.knox-gui-svg')?.classList.toggle('collapsed', !expanded);
 }
 
+/** Keep in sync with `knox-gui-spinner` (2s pulse) and `knox-gui-spinner-disc` (0.8s spin) in knoxGuiChat.css. */
+const SPINNER_PULSE_MS = 2000;
+const SPINNER_SPIN_MS = 800;
+
 export function appendSpinner(parent: HTMLElement, size = 16): HTMLElement {
 	const wrap = DOM.append(parent, DOM.$('span.knox-gui-spinner'));
 	wrap.style.width = `${size}px`;
 	wrap.style.height = `${size}px`;
 	wrap.setAttribute('aria-hidden', 'true');
-	DOM.append(wrap, DOM.$('span.knox-gui-spinner-disc'));
+	const disc = DOM.append(wrap, DOM.$('span.knox-gui-spinner-disc'));
+	// The transcript can be rebuilt while a tool runs; start the animations at the phase they would
+	// have had, so a rebuilt spinner keeps turning instead of restarting (visible as a blink/jump).
+	const now = performance.now();
+	wrap.style.animationDelay = `-${Math.round(now % SPINNER_PULSE_MS)}ms`;
+	disc.style.animationDelay = `-${Math.round(now % SPINNER_SPIN_MS)}ms`;
 	return wrap;
 }
 

@@ -172,7 +172,7 @@ export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"autonomousBannerCompletedUnlimited": "Autonomous finished · {{iteration}}",
 	"autonomousBannerCancelled": "Autonomous stopped · {{iteration}}/{{max}}",
 	"autonomousBannerCancelledUnlimited": "Autonomous stopped · {{iteration}}",
-	"activityTokens": "~{{count}}tok",
+	"activityTokens": "~{{count}}/tok",
 	"activityTokensEstimate": "Estimated from prompt logs (chars ÷ 4)",
 	"activityNow": "{{kind}}",
 	"activityStop": "Stop",

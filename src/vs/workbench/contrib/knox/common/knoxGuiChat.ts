@@ -153,6 +153,58 @@ export function isKnoxGuiStreamingTokenChange(prev: IKnoxGuiState, next: IKnoxGu
 	return lastPrev.content !== lastNext.content || lastPrev.thinking !== lastNext.thinking || lastPrev.toolCalls !== lastNext.toolCalls || prev.isStreaming !== next.isStreaming;
 }
 
+/**
+ * Live tool output (e.g. a running terminal command) arrives as store patches that only touch
+ * `output` / `outputItems` / `arguments` of tools whose status is unchanged. Returns the ids of those
+ * tools, or `undefined` when anything else changed and a full render is required. This lets the
+ * widget update the mounted card in place instead of rebuilding the transcript, which restarted the
+ * header spinner animation on every output chunk.
+ */
+export function knoxGuiToolProgressOnlyChange(prev: IKnoxGuiState, next: IKnoxGuiState): string[] | undefined {
+	if (prev === next || prev.history.length !== next.history.length) {
+		return undefined;
+	}
+	const keys = new Set([...Object.keys(prev), ...Object.keys(next)]) as Set<keyof IKnoxGuiState>;
+	for (const key of keys) {
+		if (key === 'history' || INPUT_ONLY_KEYS.has(key)) {
+			continue;
+		}
+		if (prev[key] !== next[key]) {
+			return undefined;
+		}
+	}
+	const changed: string[] = [];
+	for (let i = 0; i < prev.history.length; i += 1) {
+		const a = prev.history[i];
+		const b = next.history[i];
+		if (a === b) {
+			continue;
+		}
+		if (a.id !== b.id || a.role !== b.role || !a.toolCalls || !b.toolCalls || a.toolCalls.length !== b.toolCalls.length) {
+			return undefined;
+		}
+		const itemKeys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<keyof IKnoxGuiHistoryItem>;
+		for (const key of itemKeys) {
+			if (key !== 'toolCalls' && a[key] !== b[key]) {
+				return undefined;
+			}
+		}
+		for (let j = 0; j < a.toolCalls.length; j += 1) {
+			const x = a.toolCalls[j];
+			const y = b.toolCalls[j];
+			if (x === y) {
+				continue;
+			}
+			if (x.id !== y.id || x.name !== y.name || x.status !== y.status || x.collapsed !== y.collapsed
+				|| x.parsedArgs !== y.parsedArgs || x.questions !== y.questions || x.answers !== y.answers) {
+				return undefined;
+			}
+			changed.push(y.id);
+		}
+	}
+	return changed.length ? changed : undefined;
+}
+
 function lastAssistantToolStreamStable(prev: IKnoxGuiHistoryItem, next: IKnoxGuiHistoryItem): boolean {
 	const a = prev.toolCalls ?? [];
 	const b = next.toolCalls ?? [];

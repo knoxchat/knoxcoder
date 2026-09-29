@@ -303,6 +303,38 @@ describe("eval rust file type + cargo intercept (RL-13)", () => {
     expect(result.toolTrace[0]?.output).toMatch(/Exit: 0/);
   });
 
+  it("keeps target/ git-ignored once cargo runs, without duplicating", async () => {
+    const run = (workspace: Record<string, string>) =>
+      runAgentEval({
+        prompt: "Typecheck the crate.",
+        catalog: RUST_EVAL_CATALOG,
+        workspace,
+        evaluateCommand: async (args, files) =>
+          evalCargoFromWorkspace(args, files),
+        script: [
+          {
+            toolCalls: [
+              {
+                name: BuiltInToolNames.Build,
+                args: { command: "cargo check" },
+              },
+            ],
+          },
+          { content: "done" },
+        ],
+      });
+
+    const fresh = await run({ "Cargo.toml": CARGO_TOML, "src/lib.rs": LIB_E0425_FIXED });
+    expect(fresh.files[".gitignore"]).toBe("/target/\n");
+
+    const existing = await run({
+      "Cargo.toml": CARGO_TOML,
+      "src/lib.rs": LIB_E0425_FIXED,
+      ".gitignore": "*.log\ntarget\n",
+    });
+    expect(existing.files[".gitignore"]).toBe("*.log\ntarget\n");
+  });
+
   it("injects a cargo codebase card (RL-09)", async () => {
     const { ide } = createEvalIde({
       "Cargo.toml": CARGO_TOML,

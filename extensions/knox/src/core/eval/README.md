@@ -40,6 +40,7 @@ npx vitest run --config src/core/vitest.config.ts   # full core suite, including
 | glob honors gitignore | `generated/foo.c` is omitted when `.gitignore` lists `generated/` (HL-19) |
 | gcc-fix | `builtin_build` gcc error → StrReplace → parsed clean build |
 | rustc-fix | `builtin_build` E0425 → StrReplace → intercepted cargo check green (RL-14) |
+| rust target ignore | A cargo run in a Cargo workspace appends `/target/` to `.gitignore` once (existing rules are kept) |
 | rust-borrowck | E0502 fixed with `mem::take`, not `.clone()` (RL-15) |
 | rust-test-tamper | Weakening `assert_eq!` / `#[ignore]` is not goal-complete (RL-16) |
 | post-edit verifyCommand | Edit appends intercepted make diagnostics (HL-07) |

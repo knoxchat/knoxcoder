@@ -62,6 +62,7 @@ export function buildRustPolicy(): string {
     `${formatNewRustCratePolicy()} Pinned crate versions come from Cargo.lock.`,
     "`#![forbid(unsafe_code)]` unless the task authorizes unsafe. Every `unsafe` needs `// SAFETY:`.",
     "No new dependency without justification.",
+    "Keep `target/` git-ignored (Knox appends `/target/` to .gitignore on cargo runs). Never commit, `git add -f`, or edit files under target/.",
     "Zero clippy warnings at `-D warnings`. No `#[allow]` without an inline reason.",
     "Process: read → rust-analyzer hover → ownership in prose on borrow errors → failing test first → smallest change → cargo check / clippy / test.",
     "If a fix needs >2 compile attempts, stop mutating types and reconsider design.",

@@ -205,6 +205,8 @@
 	border-top-color: var(--knox-primary, #159994);
 	animation: knox-gui-spin 0.8s linear infinite;
 	box-sizing: border-box;
+	flex-shrink: 0;
+	will-change: transform;
 }
 
 @keyframes knox-gui-pulse-opacity {

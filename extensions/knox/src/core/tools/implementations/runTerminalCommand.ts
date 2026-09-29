@@ -4,6 +4,10 @@ import { fileURLToPath } from "node:url";
 
 import { rewriteCargoNewCommand } from "../../context/rustDefaults";
 import {
+  ensureCargoTargetIgnored,
+  shellInvokesCargo,
+} from "../../context/rustGitignore";
+import {
   finalizeNewCargoProject,
   planCargoNewFinalize,
 } from "../../context/rustNewProject";
@@ -281,6 +285,13 @@ export const runTerminalCommandImpl: ToolImpl = async (args, extras) => {
       // Snapshot before running so we only pin crates this command creates.
       const newCratePlan = planCargoNewFinalize(command, cwd, workspaceRoot);
 
+      // Rust: keep target/ out of git before cargo can create it (covers
+      // `cargo build && git add -A` chains in a single command).
+      const cargoCommand = shellInvokesCargo(command);
+      if (cargoCommand) {
+        ensureCargoTargetIgnored([cwd], workspaceRoot);
+      }
+
       const useWrap = process.platform !== "win32";
       const toRun = useWrap ? wrapPosixCommand(command, cwd) : command;
       const spawnCwd = useWrap ? workspaceRoot : cwd;
@@ -345,6 +356,21 @@ export const runTerminalCommandImpl: ToolImpl = async (args, extras) => {
             name: "Rust new crate",
             description: "pinned rust-version / toolchain",
             content: note,
+          });
+        }
+      }
+      if (cargoCommand) {
+        // Re-check after the run: `cargo new` just created the crate, and
+        // `cd x && cargo build` may have moved the shell into the crate.
+        const ignoreNote = ensureCargoTargetIgnored(
+          [cwd, meta.cwd, newCratePlan?.targetDir],
+          workspaceRoot,
+        );
+        if (ignoreNote) {
+          items.push({
+            name: "Rust target ignore",
+            description: "target/ added to .gitignore",
+            content: ignoreNote,
           });
         }
       }

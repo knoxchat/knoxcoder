@@ -11,7 +11,8 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { knoxGuiShowsChatScrollbar, knoxGuiShowsFatalBanner, knoxGuiShowsSessionTabs } from '../../common/knoxGuiChrome.js';
-import { AUTO_DISPLAY_START, isKnoxGuiFilterOnlyChange, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange } from '../../common/knoxGuiChat.js';
+import { AUTO_DISPLAY_START, isKnoxGuiFilterOnlyChange, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange, knoxGuiToolProgressOnlyChange } from '../../common/knoxGuiChat.js';
+import { patchToolProgress } from './widget/chat/assistant.js';
 import { composerUndoRecord, createComposerUndo } from '../../common/knoxGuiInput.js';
 import { applyKnoxGuiThemeToElement } from '../../common/knoxGuiTheme.js';
 import { KnoxGuiRoute } from '../../common/knoxGuiProtocol.js';
@@ -168,6 +169,18 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 				this.refocusComposerAfterStream = true;
 			}
 			return;
+		}
+		if (this.lastState) {
+			const progress = knoxGuiToolProgressOnlyChange(this.lastState, state);
+			if (progress) {
+				this.lastState = state;
+				if (!patchToolProgress(this, state, progress)) {
+					this.render();
+				} else if (this.autoScrollEnabled) {
+					knoxGuiChromeView.scheduleTranscriptStick(this);
+				}
+				return;
+			}
 		}
 		if (this.lastState && !this.lastState.isStreaming && state.isStreaming) {
 			this.autoScrollEnabled = true;

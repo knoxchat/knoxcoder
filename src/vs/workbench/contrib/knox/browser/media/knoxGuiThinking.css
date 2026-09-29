@@ -571,9 +571,29 @@
 	background: transparent;
 	color: inherit;
 	cursor: pointer;
+	font-family: inherit;
 	font-size: 11px;
+	line-height: 16px;
 	text-align: left;
 	transition: opacity 0.15s ease;
+}
+
+/* One shared row height + centre line so icons, label and every stat sit on the same horizontal axis. */
+.knox-gui-meter-toggle > *,
+.knox-gui-meter-meta > *,
+.knox-gui-loading-state > *:not(.knox-gui-loading-grid) {
+	display: inline-flex;
+	align-items: center;
+	height: 16px;
+	line-height: 16px;
+	margin-top: 0;
+	margin-bottom: 0;
+	vertical-align: middle;
+}
+
+.knox-gui-meter-toggle svg,
+.knox-gui-meter-chevron svg {
+	display: block;
 }
 
 .knox-gui-meter-toggle:hover:not(.knox-gui-meter-toggle-static) {
@@ -595,7 +615,9 @@
 .knox-gui-meter-meta {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 8px;
+	align-items: center;
+	gap: 0 8px;
+	line-height: 16px;
 	min-width: 0;
 	flex: 1;
 	color: var(--vscode-descriptionForeground);
@@ -607,6 +629,8 @@
 
 .knox-gui-meter-count {
 	margin-left: auto;
+	flex-shrink: 0;
+	white-space: nowrap;
 }
 
 .knox-gui-meter-progress {
@@ -653,6 +677,7 @@
 
 .knox-gui-meter-tps {
 	font-family: var(--monaco-monospace-font, monospace);
+	font-size: 11px;
 	font-variant-numeric: tabular-nums;
 	letter-spacing: -0.02em;
 }
@@ -660,6 +685,9 @@
 .knox-gui-loading-state {
 	display: inline-flex;
 	align-items: center;
+	height: 16px;
+	line-height: 16px;
+	font-size: 11px;
 	gap: 6px;
 	min-width: 0;
 	max-width: 100%;
@@ -669,6 +697,8 @@
 	display: grid;
 	grid-template-columns: repeat(3, 3px);
 	gap: 1px;
+	align-self: center;
+	flex-shrink: 0;
 }
 
 .knox-gui-loading-pixel {
@@ -700,6 +730,7 @@
 
 .knox-gui-loading-elapsed {
 	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
 	font-family: var(--monaco-monospace-font, monospace);
 	font-variant-numeric: tabular-nums;
 	letter-spacing: -0.02em;

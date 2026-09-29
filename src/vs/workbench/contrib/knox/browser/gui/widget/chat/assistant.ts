@@ -91,6 +91,44 @@ export function patchLastAssistant(widget: KnoxGuiWidget, state: IKnoxGuiState):
 	}
 }
 
+/**
+ * Update mounted tool cards in place for output-only changes (running terminal commands, ...).
+ * Returns false when a card is not mounted so the caller can fall back to a full render.
+ */
+export function patchToolProgress(widget: KnoxGuiWidget, state: IKnoxGuiState, toolIds: readonly string[]): boolean {
+	const previous = widget.listenerStore;
+	try {
+		for (const id of toolIds) {
+			const tool = state.history.flatMap(item => item.toolCalls ?? []).find(call => call.id === id);
+			if (!tool) {
+				return false;
+			}
+			const anchor = activityAnchorId(`tool:${id}`);
+			const boxes = Array.from(widget.root.querySelectorAll('[data-testid="knox-gui-tool"]')).filter(el => el.id === anchor) as HTMLElement[];
+			if (!boxes.length) {
+				return false;
+			}
+			let store = widget.toolPatchStores.get(id);
+			if (!store) {
+				store = widget.toolPatchStore.add(new DisposableStore());
+				widget.toolPatchStores.set(id, store);
+			}
+			widget.listenerStore = store;
+			for (const box of boxes) {
+				if (box.dataset.stream === toolStreamFingerprint(tool)) {
+					continue;
+				}
+				if (!patchLiveTool(widget, box, state, tool)) {
+					return false;
+				}
+			}
+		}
+	} finally {
+		widget.listenerStore = previous;
+	}
+	return true;
+}
+
 function patchStreamingTools(widget: KnoxGuiWidget, card: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem): boolean {
 	const tools = item.toolCalls ?? [];
 	const wrap = card.parentElement;

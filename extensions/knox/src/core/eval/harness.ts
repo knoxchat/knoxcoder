@@ -58,6 +58,7 @@ import {
   setRustPolicyEnabled,
   setRustUserTask,
 } from "../context/rustPolicy";
+import { withCargoTargetIgnored } from "../context/rustGitignore";
 import { summarizeRustEval, type RustEvalMetrics } from "./rustEvalMetrics";
 import { blobTouchedUnsafe } from "../tools/rustEditGuard";
 import { resolveRustIsLib } from "../tools/build/rustVerify";
@@ -285,6 +286,21 @@ export const RUST_EVAL_CATALOG: Tool[] = [
 
 export function workspaceUri(relativePath: string): string {
   return joinPathsToUri(EVAL_WORKSPACE_URI, relativePath);
+}
+
+/**
+ * Eval twin of `ensureCargoTargetIgnored`: when the virtual workspace is a
+ * Cargo project, make sure the root `.gitignore` ignores `target/`.
+ */
+export function ensureEvalCargoTargetIgnored(store: Map<string, string>): void {
+  if (!store.has(workspaceUri("Cargo.toml"))) {
+    return;
+  }
+  const uri = workspaceUri(".gitignore");
+  const next = withCargoTargetIgnored(store.get(uri));
+  if (next !== undefined) {
+    store.set(uri, next);
+  }
 }
 
 export function snapshotFiles(store: Map<string, string>): Record<string, string> {
@@ -571,6 +587,15 @@ export async function runAgentEval(
             workspaceDirs: [EVAL_WORKSPACE_URI],
           },
         );
+      }
+
+      // Mirror the product harness: cargo runs keep target/ out of git.
+      if (
+        (name === BuiltInToolNames.RunTerminalCommand ||
+          name === BuiltInToolNames.Build) &&
+        isCargoEvalCommand(args)
+      ) {
+        ensureEvalCargoTargetIgnored(store);
       }
 
       if (options.verifyCommand && shouldVerifyTool(name)) {
