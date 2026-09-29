@@ -1,5 +1,9 @@
 # Cross-platform desktop builds for KnoxCoder: Linux (tar.gz, deb, rpm) and Windows (zip, system + user installers).
 #
+# Every format wraps the same application tree, so building all of them roughly triples the size of
+# the uploaded artifacts. Manual runs therefore build only the tar.gz (Linux) and zip (Windows) unless
+# "all_packages" is ticked. Tag pushes and "publish_release" always build every format.
+#
 # macOS is intentionally NOT built here. It is built and signed locally with ./build_dmg.sh.
 #
 # Triggers
@@ -21,7 +25,11 @@ on:
         type: boolean
         default: false
       publish_release:
-        description: Attach the artifacts to a draft GitHub release for the current version
+        description: Attach the artifacts to a draft GitHub release for the current version (implies all_packages)
+        type: boolean
+        default: false
+      all_packages:
+        description: Also build Linux deb/rpm and the Windows system/user installers (roughly triples artifact size)
         type: boolean
         default: false
   push:
@@ -40,6 +48,8 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   npm_config_fund: 'false'
   npm_config_audit: 'false'
+  # 'true' for release-style runs (tag push, publish_release, all_packages); otherwise only tar.gz / zip are built.
+  FULL_PACKAGES: ${{ github.event_name == 'push' || inputs.publish_release || inputs.all_packages }}
 
 jobs:
   matrix:
@@ -125,6 +135,7 @@ jobs:
           tar -czf "dist/KnoxCoder-${VERSION}-linux-${{ matrix.arch }}.tar.gz" -C .. "VSCode-linux-${{ matrix.arch }}"
 
       - name: Package deb
+        if: ${{ env.FULL_PACKAGES == 'true' }}
         run: |
           VERSION="$(node -p "require('./package.json').version")"
           npm run gulp vscode-linux-${{ matrix.arch }}-prepare-deb
@@ -134,6 +145,7 @@ jobs:
           cp "$deb" "dist/KnoxCoder-${VERSION}-linux-${{ matrix.arch }}.deb"
 
       - name: Package rpm
+        if: ${{ env.FULL_PACKAGES == 'true' }}
         run: |
           VERSION="$(node -p "require('./package.json').version")"
           npm run gulp vscode-linux-${{ matrix.arch }}-prepare-rpm
@@ -149,6 +161,8 @@ jobs:
           path: dist/*
           if-no-files-found: ignore
           retention-days: 14
+          # tar.gz / deb / rpm / zip / exe are already compressed; re-deflating them only burns CI time.
+          compression-level: 0
 
   windows:
     name: Windows ${{ matrix.arch }}
@@ -306,6 +320,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build installers
+        if: ${{ env.FULL_PACKAGES == 'true' }}
         run: |
           $version = node -p "require('./package.json').version"
           foreach ($target in 'system', 'user') {
@@ -323,6 +338,8 @@ jobs:
           path: dist/*
           if-no-files-found: ignore
           retention-days: 14
+          # tar.gz / deb / rpm / zip / exe are already compressed; re-deflating them only burns CI time.
+          compression-level: 0
 
   release:
     name: Draft release

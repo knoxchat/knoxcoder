@@ -286,7 +286,10 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true, ...binarySrcOptions });
 
-		const sourceFilterPattern = stripSourceMapsInPackagingTasks
+		// Minified (production) packages never ship source maps, whether built on CI or locally
+		// (build_dmg.sh): they add ~230 MB of unpacked files that no end user can use.
+		const stripSourceMaps = stripSourceMapsInPackagingTasks || sourceFolderName.endsWith('-min');
+		const sourceFilterPattern = stripSourceMaps
 			? ['**', '!**/*.{js,css}.map']
 			: ['**'];
 		const sources = merge(src, extensions)
@@ -344,7 +347,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/**/.bin/**`]).flat().concat('!**/*.mk');
 
 		const depFilterPattern = ['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock'];
-		if (stripSourceMapsInPackagingTasks) {
+		if (stripSourceMaps) {
 			depFilterPattern.push('!**/*.{js,css}.map');
 		}
 

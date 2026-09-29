@@ -39,7 +39,11 @@ const mermaidMarkdownBuildOptions: Partial<esbuild.BuildOptions> = {
 		'.ttf': 'dataurl',
 	},
 	plugins: [cssTextPlugin],
-	minify: false,
+	// Both the markdown-preview and notebook bundles inline all of mermaid (plus its
+	// fonts as data URLs). Left unminified they are ~32 MB each and get packaged twice,
+	// which was one of the largest contributors to the desktop installers. The
+	// diagram-webview bundle already ships the very same mermaid code minified.
+	minify: true,
 };
 
 await Promise.all([

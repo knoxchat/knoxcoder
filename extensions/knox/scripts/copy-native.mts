@@ -5,7 +5,7 @@
 
 /**
  * KN-203 / KN-365 / KN-383 / KN-384: copy sqlite3, ripgrep, tree-sitter wasm, optional
- * node-pty, esbuild, bundled skills, and tree-sitter queries into the Knox
+ * node-pty, bundled skills, and tree-sitter queries into the Knox
  * bundle directory. Sources are extensions/knox or the repo root — never ./knox.
  * The workspace (Remote-SSH) copy must include these addons; knox is a
  * nativeExtensions member so REH packages them per platform (not a
@@ -13,6 +13,10 @@
  *
  * KN-383: sqlite3 + node-pty are rebuilt for this fork's Electron
  * (43.3.0 → ABI 148) unless KNOX_SKIP_ELECTRON_REBUILD=1.
+ *
+ * Installer size: everything copied here ships in every desktop package, so only files the
+ * target platform can load are copied (see ./nativeFilters.mts). esbuild is intentionally not
+ * shipped: nothing in the extension resolves it at runtime.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -25,6 +29,12 @@ import {
 	shouldForceKnoxElectronRebuild,
 	shouldSkipKnoxElectronRebuild,
 } from './electronRebuild.mts';
+import {
+	SHIPPED_TREE_SITTER_LANGUAGES,
+	shouldCopyNodePtyEntry,
+	shouldCopySqliteEntry,
+	treeSitterWasmFileName,
+} from './nativeFilters.mts';
 
 const extensionDir = path.dirname(import.meta.dirname);
 const repoRoot = path.dirname(path.dirname(extensionDir));
@@ -46,6 +56,32 @@ function readElectronVersion(): string {
 function copyDir(source: string, dest: string): void {
 	fs.mkdirSync(dest, { recursive: true });
 	fs.cpSync(source, dest, { recursive: true, dereference: true });
+}
+
+/**
+ * Like copyDir, but `keep` decides per entry (path relative to `source`, forward slashes,
+ * `''` for the root) whether it is copied. Directories are only descended into when kept.
+ */
+function copyDirFiltered(source: string, dest: string, keep: (rel: string) => boolean): void {
+	fs.mkdirSync(dest, { recursive: true });
+	fs.cpSync(source, dest, {
+		recursive: true,
+		dereference: true,
+		filter: (src) => keep(path.relative(source, src).split(path.sep).join('/')),
+	});
+}
+
+function dirSizeBytes(dir: string): number {
+	let total = 0;
+	for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+		const full = path.join(dir, entry.name);
+		total += entry.isDirectory() ? dirSizeBytes(full) : fs.statSync(full).size;
+	}
+	return total;
+}
+
+function formatMiB(bytes: number): string {
+	return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
 }
 
 function copyFile(source: string, dest: string): void {
@@ -96,7 +132,7 @@ function copySqlite(destDir: string): void {
 	}
 	const dest = path.join(destDir, 'node_modules', 'sqlite3');
 	fs.rmSync(dest, { recursive: true, force: true });
-	copyDir(source, dest);
+	copyDirFiltered(source, dest, shouldCopySqliteEntry);
 	if (!fs.existsSync(sqliteBindingPath(dest))) {
 		throw new Error(`Knox native: sqlite3 copy is missing ${sqliteBindingPath(dest)}`);
 	}
@@ -140,8 +176,21 @@ function copyTreeSitter(destDir: string): void {
 	}
 	const wasmsDest = path.join(destDir, 'tree-sitter-wasms');
 	fs.rmSync(wasmsDest, { recursive: true, force: true });
-	copyDir(wasmsSrc, wasmsDest);
-	console.log('Knox native: tree-sitter wasm →', path.relative(extensionDir, destDir));
+	fs.mkdirSync(wasmsDest, { recursive: true });
+	// Only the grammars core/util/treeSitter.ts can load (SHIPPED_TREE_SITTER_LANGUAGES).
+	// The tree-sitter-wasms package carries ~35 grammars (~50 MB), a third of which are unused.
+	for (const language of SHIPPED_TREE_SITTER_LANGUAGES) {
+		const fileName = treeSitterWasmFileName(language);
+		const wasm = path.join(wasmsSrc, fileName);
+		if (!fs.existsSync(wasm)) {
+			throw new Error(`Knox native: ${fileName} is missing from ${wasmsSrc}`);
+		}
+		copyFile(wasm, path.join(wasmsDest, fileName));
+	}
+	console.log(
+		`Knox native: tree-sitter wasm (${SHIPPED_TREE_SITTER_LANGUAGES.length} grammars, ${formatMiB(dirSizeBytes(wasmsDest))}) →`,
+		path.relative(extensionDir, destDir),
+	);
 }
 
 function copyNodePty(destDir: string): void {
@@ -154,33 +203,18 @@ function copyNodePty(destDir: string): void {
 	}
 	const dest = path.join(destDir, 'node_modules', 'node-pty');
 	fs.rmSync(dest, { recursive: true, force: true });
-	copyDir(source, dest);
-	console.log('Knox native: node-pty →', path.relative(extensionDir, dest));
+	const target = { platform: process.platform, arch: process.arch };
+	copyDirFiltered(source, dest, (rel) => shouldCopyNodePtyEntry(rel, target));
+	console.log(
+		`Knox native: node-pty (${target.platform}-${target.arch}, ${formatMiB(dirSizeBytes(dest))}) →`,
+		path.relative(extensionDir, dest),
+	);
 }
 
-function copyEsbuild(destDir: string): void {
-	const esbuildSrc = firstExisting([
-		path.join(extensionDir, 'node_modules', 'esbuild'),
-		path.join(repoRoot, 'node_modules', 'esbuild'),
-	]);
-	const platformId = `${process.platform}-${process.arch}`;
-	const platformSrc = firstExisting([
-		path.join(extensionDir, 'node_modules', '@esbuild', platformId),
-		path.join(repoRoot, 'node_modules', '@esbuild', platformId),
-	]);
-	if (!esbuildSrc) {
-		console.warn('Knox native: esbuild package not found; require("esbuild") will fail if the host shells it');
-		return;
-	}
-	const esbuildDest = path.join(destDir, 'node_modules', 'esbuild');
-	fs.rmSync(esbuildDest, { recursive: true, force: true });
-	copyDir(esbuildSrc, esbuildDest);
-	if (platformSrc) {
-		const platformDest = path.join(destDir, 'node_modules', '@esbuild', platformId);
-		fs.rmSync(platformDest, { recursive: true, force: true });
-		copyDir(platformSrc, platformDest);
-	}
-	console.log('Knox native: esbuild →', path.relative(extensionDir, esbuildDest));
+/** esbuild used to be copied into dist/; drop leftovers so an incremental dist/ never ships them. */
+function removeStaleEsbuild(destDir: string): void {
+	fs.rmSync(path.join(destDir, 'node_modules', 'esbuild'), { recursive: true, force: true });
+	fs.rmSync(path.join(destDir, 'node_modules', '@esbuild'), { recursive: true, force: true });
 }
 
 function copyBundledSkills(destDir: string): void {
@@ -208,7 +242,7 @@ export async function copyKnoxNativeAssets(destDir: string): Promise<void> {
 	copyRipgrep(destDir);
 	copyTreeSitter(destDir);
 	copyNodePty(destDir);
-	copyEsbuild(destDir);
+	removeStaleEsbuild(destDir);
 	copyBundledSkills(destDir);
 }
 

@@ -153,7 +153,7 @@ await run({
 	additionalOptions: {
 		absWorkingDir: extensionDir,
 		nodePaths: nodeModuleDirs(),
-		external: ['vscode', 'sqlite3', 'node-pty', 'esbuild', './xhr-sync-worker.js'],
+		external: ['vscode', 'sqlite3', 'node-pty', './xhr-sync-worker.js'],
 		loader: { '.node': 'file', '.json': 'json' },
 		inject: fs.existsSync(importMetaUrlShim) ? [importMetaUrlShim] : undefined,
 		define: { 'import.meta.url': 'importMetaUrl' },
