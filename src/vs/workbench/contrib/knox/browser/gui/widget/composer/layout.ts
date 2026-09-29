@@ -130,7 +130,7 @@ function renderComposerDock(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 	if (knoxGuiCanCancel(state)) {
 		widget.chromeButton(dock, {
 			svg: 'cancel',
-			svgSize: 14,
+			svgSize: 12,
 			title: t(state, 'cancelGeneration'),
 			testId: 'knox-gui-dock-cancel',
 			extraClass: 'knox-gui-cancel knox-gui-composer-dock-cancel',
