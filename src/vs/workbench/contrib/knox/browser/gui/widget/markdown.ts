@@ -319,6 +319,9 @@ function renderHoverCodeBlock(widget: KnoxGuiWidget, parent: HTMLElement, state:
 	box.dataset.code = fence.code;
 	widget.renderCodeLines(box, state, fence.language, fence.code, fence.filepath, { key: streamId, range: fence.range, generating, anchor: options.anchor });
 	if (generating) {
+		const lines = fence.code.split('\n').length;
+		const count = lines === 1 ? 1 : lines - 1;
+		DOM.append(box, DOM.$('span.knox-gui-generating-lines.knox-gui-generating-lines-footer', undefined, t(state, count === 1 ? 'generatedLines' : 'generatedLines_plural', { count })));
 		return;
 	}
 	const actions = DOM.append(box, DOM.$(bottom ? '.knox-gui-code-actions.knox-gui-code-hover.bottom' : '.knox-gui-code-actions.knox-gui-code-hover'));
@@ -875,9 +878,14 @@ export function patchLiveCodeFence(
 		if (existing) {
 			existing.textContent = label;
 		} else {
-			const toolbar = (box.querySelector('.knox-gui-code-toolbar') as HTMLElement | null) ?? box;
-			const actions = (box.querySelector('.knox-gui-code-actions') as HTMLElement | null) ?? DOM.append(toolbar, DOM.$('.knox-gui-code-actions'));
-			DOM.append(actions, DOM.$('span.knox-gui-generating-lines', undefined, label));
+			const toolbar = box.querySelector('.knox-gui-code-toolbar') as HTMLElement | null;
+			if (toolbar) {
+				const actions = (toolbar.querySelector('.knox-gui-code-actions') as HTMLElement | null) ?? DOM.append(toolbar, DOM.$('.knox-gui-code-actions'));
+				DOM.append(actions, DOM.$('span.knox-gui-generating-lines', undefined, label));
+			} else {
+				// Plain fence (no file toolbar): the counter sits under the code, right-aligned.
+				DOM.append(box, DOM.$('span.knox-gui-generating-lines.knox-gui-generating-lines-footer', undefined, label));
+			}
 		}
 	} else if (wasGenerating) {
 		box.querySelector('.knox-gui-generating-lines')?.remove();

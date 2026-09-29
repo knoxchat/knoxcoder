@@ -41,6 +41,7 @@ import {
 	activityKindLabelKey,
 	buildAgentActivitySteps,
 	collectTurnPromptLogs,
+	countTurnToolLoopSteps,
 	currentActivityStep,
 	estimateTokensFromPromptLogs,
 	estimateTurnOutputTokens,
@@ -65,7 +66,7 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	const steps = buildAgentActivitySteps(state.history, userIndex, { inProgress: state.isStreaming });
 	const live = state.isStreaming || hasForegroundCallingToolCalls(state.history);
 	const autonomousActive = state.autonomous != null && state.autonomous.status !== 'idle';
-	const used = state.toolLoopSteps;
+	const used = Math.max(state.toolLoopSteps, countTurnToolLoopSteps(state.history, userIndex));
 	if (userIndex < 0 && !state.isStreaming && !autonomousActive) {
 		widget.clearMeterClock();
 		return;

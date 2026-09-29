@@ -295,6 +295,13 @@
 	animation: knox-gui-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+.knox-gui-generating-lines.knox-gui-generating-lines-footer {
+	display: block;
+	padding: 2px 8px 4px;
+	font-size: 11px;
+	text-align: right;
+}
+
 @keyframes knox-gui-pulse {
 	50% { opacity: 0.5; }
 }

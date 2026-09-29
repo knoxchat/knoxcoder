@@ -781,6 +781,28 @@ export function hasForegroundCallingToolCalls(history: IKnoxGuiHistoryItem[]): b
 	return false;
 }
 
+/**
+ * Tool-loop steps recoverable from persisted history: assistant rounds in the turn whose
+ * tool calls have all settled. Lets the meter keep its step count after stop or reopen.
+ */
+export function countTurnToolLoopSteps(history: IKnoxGuiHistoryItem[], userIndex: number): number {
+	if (userIndex < 0 || userIndex >= history.length) {
+		return 0;
+	}
+	let count = 0;
+	for (let i = userIndex + 1; i < history.length; i++) {
+		const item = history[i];
+		if (item.role === 'user') {
+			break;
+		}
+		const calls = item.toolCalls;
+		if (item.role === 'assistant' && calls?.length && !calls.some(call => call.status === 'calling')) {
+			count++;
+		}
+	}
+	return count;
+}
+
 function charsToTokens(chars: number): number {
 	if (!Number.isFinite(chars) || chars <= 0) {
 		return 0;

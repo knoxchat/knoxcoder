@@ -172,7 +172,7 @@ export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"autonomousBannerCompletedUnlimited": "自主循环已完成 · {{iteration}}",
 	"autonomousBannerCancelled": "自主循环已停止 · {{iteration}}/{{max}}",
 	"autonomousBannerCancelledUnlimited": "自主循环已停止 · {{iteration}}",
-	"activityTokens": "约 {{count}}/tok",
+	"activityTokens": "约 {{count}} tok",
 	"activityTokensEstimate": "根据提示日志估算（字符 ÷ 4）",
 	"activityNow": "{{kind}}",
 	"activityStop": "停止",
