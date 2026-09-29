@@ -1230,6 +1230,11 @@
 	"optionalDependencies": {
 		"node-pty": "^1.1.0"
 	},
+	"overrides": {
+		"dbinfoz": {
+			"sqlite3": "$sqlite3"
+		}
+	},
 	"allowScripts": {
 		"esbuild": true,
 		"fsevents": true,
