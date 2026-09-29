@@ -22,7 +22,7 @@ import {
 } from '../../../common/knoxGuiChrome.js';
 import { knoxGuiListboxNextIndex } from '../../../common/knoxGuiCapabilities.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
-import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, knoxGuiFindRegexInvalid, knoxGuiNextScrollFollow, nextExpandedStart } from '../../../common/knoxGuiChat.js';
+import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, knoxGuiFindRegexInvalid, knoxGuiNextScrollFollow, knoxGuiShouldLoadEarlier, knoxGuiTranscriptRestoreTop, nextExpandedStart } from '../../../common/knoxGuiChat.js';
 import { knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { visibleBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
@@ -820,8 +820,12 @@ export function loadEarlier(widget: KnoxGuiWidget): void {
 	if (widget.displayStart <= 0 || widget.loadingEarlier) {
 		return;
 	}
+	const body = widget.bodyEl;
 	widget.loadingEarlier = true;
-	widget.pendingRestoreHeight = widget.bodyEl?.scrollHeight ?? null;
+	widget.pendingRestoreHeight = body?.scrollHeight ?? null;
+	if (body) {
+		widget.savedScrollTop = body.scrollTop;
+	}
 	widget.expandedStart = nextExpandedStart(widget.displayStart);
 	widget.render();
 }
@@ -838,29 +842,33 @@ export function setTranscriptScrollTop(widget: KnoxGuiWidget, body: HTMLElement,
 	widget.savedScrollTop = body.scrollTop;
 }
 
+/**
+ * `useLayoutEffect` equivalent: pin/restore before paint so a rebuild cannot flash to
+ * the top or fight an in-flight wheel gesture. Never load the full transcript here.
+ */
 export function restoreTranscriptScroll(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
 	const body = widget.bodyEl;
 	if (!body || state.route !== KnoxGuiRoute.Chat) {
 		widget.loadingEarlier = false;
+		widget.pendingRestoreHeight = null;
 		return;
 	}
-	queueMicrotask(() => {
-		if (widget.pendingRestoreHeight != null) {
-			setTranscriptScrollTop(widget, body, body.scrollTop + body.scrollHeight - widget.pendingRestoreHeight);
-			widget.pendingRestoreHeight = null;
-			widget.loadingEarlier = false;
-		} else if (widget.autoScrollEnabled) {
-			setTranscriptScrollTop(widget, body, body.scrollHeight);
-		} else {
-			setTranscriptScrollTop(widget, body, widget.savedScrollTop);
-		}
-		widget.syncScrollButtons();
-		if (state.find.open && state.find.matchIndexes.length) {
-			const hit = state.find.matchIndexes[state.find.current];
-			widget.programmaticScroll = true;
-			body.querySelector<HTMLElement>(`[data-testid="history-row-${hit}"]`)?.scrollIntoView({ block: 'center' });
-		}
+	const top = knoxGuiTranscriptRestoreTop({
+		following: widget.autoScrollEnabled,
+		previousScrollTop: widget.savedScrollTop,
+		previousScrollHeight: widget.pendingRestoreHeight,
+		scrollHeight: body.scrollHeight,
+		clientHeight: body.clientHeight,
 	});
+	widget.pendingRestoreHeight = null;
+	widget.loadingEarlier = false;
+	setTranscriptScrollTop(widget, body, top);
+	widget.syncScrollButtons();
+	if (state.find.open && state.find.matchIndexes.length) {
+		const hit = state.find.matchIndexes[state.find.current];
+		widget.programmaticScroll = true;
+		body.querySelector<HTMLElement>(`[data-testid="history-row-${hit}"]`)?.scrollIntoView({ block: 'center' });
+	}
 }
 
 /** `useEnhancedScroll`: one rAF stick per frame while following. */
@@ -922,14 +930,20 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 		widget.lastScrollHeight = next.lastScrollHeight;
 		widget.savedScrollTop = body.scrollTop;
 		widget.syncScrollButtons();
-		if (followChanged && state.route === KnoxGuiRoute.Chat) {
-			widget.render();
-			return;
+		// Never rebuild the transcript from a scroll event: that tears down the
+		// scroller mid-gesture (the original `useEnhancedScroll` only updates refs).
+		if (followChanged && next.following) {
+			scheduleTranscriptStick(widget);
 		}
-		if (!programmatic && body.scrollTop < 48 && widget.displayStart > 0 && !widget.loadingEarlier) {
+		if (knoxGuiShouldLoadEarlier({
+			programmatic,
+			scrollTop: body.scrollTop,
+			displayStart: widget.displayStart,
+			loadingEarlier: widget.loadingEarlier,
+		})) {
 			widget.loadEarlier();
 		}
-	}));
+	}, { passive: true }));
 	if (typeof ResizeObserver === 'undefined') {
 		return;
 	}
@@ -982,21 +996,13 @@ export function scrollTranscript(widget: KnoxGuiWidget, to: 'top' | 'bottom'): v
 		return;
 	}
 	if (to === 'top') {
+		// Original `scrollToTop` only moves the current window. Expanding to index 0
+		// would mount a hours-long session in one frame.
 		widget.autoScrollEnabled = false;
-		if (widget.displayStart > 0) {
-			widget.expandedStart = 0;
-			widget.render();
-			queueMicrotask(() => {
-				if (widget.bodyEl) {
-					setTranscriptScrollTop(widget, widget.bodyEl, 0);
-				}
-			});
-			return;
-		}
 		setTranscriptScrollTop(widget, body, 0);
 	} else {
 		widget.autoScrollEnabled = true;
-		setTranscriptScrollTop(widget, body, body.scrollHeight);
+		forceTranscriptStick(widget);
 	}
 	widget.syncScrollButtons();
 }

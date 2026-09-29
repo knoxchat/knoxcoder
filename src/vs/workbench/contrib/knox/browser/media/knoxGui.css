@@ -284,6 +284,8 @@
 .knox-gui-body-chat {
 	padding: 0;
 	overflow-anchor: none;
+	overscroll-behavior: contain;
+	scroll-behavior: auto;
 	scroll-padding-bottom: 16px;
 	scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { knoxGuiModelSupportsReasoning, knoxGuiResetModelCatalogForTests, knoxGuiShowsThinkingPlaceholder } from './knoxGuiCapabilities.js';
-import { knoxGuiNextScrollFollow } from './knoxGuiChat.js';
+import { CHAT_LOAD_EARLIER_THRESHOLD_PX, knoxGuiNextScrollFollow, knoxGuiShouldLoadEarlier, knoxGuiTranscriptRestoreTop } from './knoxGuiChat.js';
 import { alignSplitDiffRows, buildDiffSegments, checkpointGraphFindScroll, checkpointGraphMenuPosition, checkpointGraphRevealScroll, checkpointDiffContentBytes, checkpointDiffSummary, computeLineDiff, checkpointChartTickInterval, checkpointChartYTicks, checkpointConfigFieldErrors, checkpointConfigIsDirty, checkpointConfigNumber, checkpointDetailsDefaultTab, checkpointImageMime, DEFAULT_CHECKPOINT_CONFIG, formatCheckpointDuration, formatDashboardBytes, groupTimelineCheckpoints, checkpointMatchesQuery, checkpointTreeAncestors, clampCheckpointTreeWidth, compareCheckpointTargets, diffFromCheckpointSnapshots, formatSnapshotSize, parseCheckpointDetails } from './knoxGuiCheckpoints.js';
 import { MEMORY_SETTING_GROUPS, memoriesToExportJson, memoriesToExportMarkdown, memoryBrowserEmptyKey, memoryConsolidateParts, memoryGraphTypeCounts, parseMemorySettingInput, rangeSelectMemoryIds, visibleMemoryExploreEdges, withMemoryConfigDefaults } from './knoxGuiMemory.js';
 import { knoxGuiResolveOpenPath } from './knoxGuiPanels.js';
@@ -125,6 +125,13 @@ suite('Knox native parity items', () => {
 			assert.deepStrictEqual(paused, { following: false, lastScrollTop: 300, lastScrollHeight: 1000 });
 			assert.strictEqual(knoxGuiNextScrollFollow(paused, { scrollTop: 350, scrollHeight: 1000, clientHeight: 400, programmatic: false }).following, false);
 			assert.strictEqual(knoxGuiNextScrollFollow(paused, { scrollTop: 590, scrollHeight: 1000, clientHeight: 400, programmatic: false }).following, true);
+			assert.strictEqual(knoxGuiTranscriptRestoreTop({ following: true, previousScrollTop: 100, previousScrollHeight: null, scrollHeight: 1000, clientHeight: 400 }), 600);
+			assert.strictEqual(knoxGuiTranscriptRestoreTop({ following: false, previousScrollTop: 250, previousScrollHeight: null, scrollHeight: 1000, clientHeight: 400 }), 250);
+			assert.strictEqual(knoxGuiTranscriptRestoreTop({ following: false, previousScrollTop: 40, previousScrollHeight: 800, scrollHeight: 1400, clientHeight: 400 }), 640);
+			assert.strictEqual(knoxGuiShouldLoadEarlier({ programmatic: false, scrollTop: 20, displayStart: 50, loadingEarlier: false }), true);
+			assert.strictEqual(knoxGuiShouldLoadEarlier({ programmatic: true, scrollTop: 20, displayStart: 50, loadingEarlier: false }), false);
+			assert.strictEqual(knoxGuiShouldLoadEarlier({ programmatic: false, scrollTop: 20, displayStart: 0, loadingEarlier: false }), false);
+			assert.strictEqual(CHAT_LOAD_EARLIER_THRESHOLD_PX, 48);
 		});
 
 		test('C-09 thinking indicator waits for context and needs a reasoning model', () => {

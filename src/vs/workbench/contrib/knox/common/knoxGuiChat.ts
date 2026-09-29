@@ -632,6 +632,8 @@ export function shouldWarnLargeSession(history: IKnoxGuiHistoryItem[]): boolean 
 }
 
 export const CHAT_SCROLL_BOTTOM_THRESHOLD_PX = 24;
+/** `ChatHistoryList` prepends another window when the scroller is this close to the top. */
+export const CHAT_LOAD_EARLIER_THRESHOLD_PX = 48;
 
 export interface IKnoxGuiScrollFollow {
 	following: boolean;
@@ -657,4 +659,46 @@ export function knoxGuiNextScrollFollow(
 		return { following: false, ...base };
 	}
 	return { following: atBottom ? true : prev.following, ...base };
+}
+
+/** Clamp a transcript scrollTop to the current content, matching `useEnhancedScroll` stick/restore. */
+export function knoxGuiClampScrollTop(scrollHeight: number, clientHeight: number, top: number): number {
+	const maxTop = Math.max(0, scrollHeight - clientHeight);
+	return Math.max(0, Math.min(maxTop, top));
+}
+
+/**
+ * After a DOM rebuild or a prepended window: keep the follow pin, restore the user's place,
+ * or shift by the height added above so lazy-loading does not jump.
+ */
+export function knoxGuiTranscriptRestoreTop(args: {
+	following: boolean;
+	previousScrollTop: number;
+	previousScrollHeight: number | null;
+	scrollHeight: number;
+	clientHeight: number;
+}): number {
+	if (args.previousScrollHeight != null) {
+		return knoxGuiClampScrollTop(
+			args.scrollHeight,
+			args.clientHeight,
+			args.previousScrollTop + args.scrollHeight - args.previousScrollHeight,
+		);
+	}
+	if (args.following) {
+		return knoxGuiClampScrollTop(args.scrollHeight, args.clientHeight, args.scrollHeight);
+	}
+	return knoxGuiClampScrollTop(args.scrollHeight, args.clientHeight, args.previousScrollTop);
+}
+
+/** Near-top prepend of `CHAT_LOAD_MORE_COUNT` rows, never while a restore or programmatic stick is in flight. */
+export function knoxGuiShouldLoadEarlier(args: {
+	programmatic: boolean;
+	scrollTop: number;
+	displayStart: number;
+	loadingEarlier: boolean;
+	threshold?: number;
+}): boolean {
+	return !args.programmatic && !args.loadingEarlier && args.displayStart > 0
+		&& args.scrollTop < (args.threshold ?? CHAT_LOAD_EARLIER_THRESHOLD_PX);
 }

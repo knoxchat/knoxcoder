@@ -202,6 +202,11 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 			? { id: active.id, name: active.placeholder || active.className, start: active.selectionStart, end: active.selectionEnd, tag: active.tagName, type: active.type, value: active.value, find: active.hasAttribute('data-knox-find-input') }
 			: undefined;
 		const restoreJobFocus = active instanceof HTMLElement ? active.closest('[data-testid^="agent-job-"]')?.getAttribute('data-testid') ?? undefined : undefined;
+		if (this.bodyEl && this.lastState?.route === KnoxGuiRoute.Chat) {
+			this.savedScrollTop = this.bodyEl.scrollTop;
+			this.lastScrollTop = this.bodyEl.scrollTop;
+			this.lastScrollHeight = this.bodyEl.scrollHeight;
+		}
 		const domSnapshot = captureDomState(this.root, this.bodyEl);
 		this.checkpointGraphMount?.remove();
 		this.renderStore.clear();

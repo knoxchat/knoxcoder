@@ -20,6 +20,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { KNOX_GUI_LUMP_TOOLBAR, KNOX_GUI_MAIN_TEXT_ENTRY_KEY, KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY } from '../common/knoxGuiChrome.js';
 import { IKnoxGuiMessage, KnoxGuiRoute } from '../common/knoxGuiProtocol.js';
 import { IKnoxGuiCheckpointDiffFile, IKnoxGuiCheckpointNode, IKnoxGuiGitDiffFile, IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../common/knoxGuiState.js';
+import { CHAT_DISPLAY_WINDOW, CHAT_LOAD_MORE_COUNT } from '../common/knoxGuiChat.js';
 import { composerInputHistoryAdd, createComposerInputHistory, DEFAULT_MENTION_PROVIDER_TITLES, inputDocFromPlainText, SLASH_BUILTINS } from '../common/knoxGuiInput.js';
 import { knoxGuiT } from './gui/knoxGuiI18n.js';
 import { MEMORY_TAB_IDS } from '../common/knoxGuiMemory.js';
@@ -2645,5 +2646,75 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(pre.textContent?.includes('const x = 1;'));
 		widget.paintHighlightedCode(pre, '', 'const x = 1;', undefined, true);
 		assert.strictEqual(guesses, 1, 'auto-detect runs once after the stream ends');
+	});
+
+	test('long chats mount a 25-row window and prepend 25 more without loading everything', async () => {
+		const { widget, store } = await mount();
+		const history: IKnoxGuiHistoryItem[] = Array.from({ length: 80 }, (_, i) => ({
+			id: `h-${i}`,
+			role: i % 2 === 0 ? 'user' : 'assistant',
+			content: `msg-${i}`,
+		}));
+		store.patch({ history });
+		const rows = () => widget.root.querySelectorAll('[data-testid^="history-row-"]');
+		assert.strictEqual(rows().length, CHAT_DISPLAY_WINDOW);
+		assert.strictEqual(widget.root.querySelector('[data-testid="history-row-0"]'), null);
+		assert.ok(widget.root.querySelector('[data-testid="history-row-79"]'));
+		const load = widget.root.querySelector('[data-testid="load-earlier-messages"]') as HTMLButtonElement | null;
+		assert.ok(load);
+		assert.ok(load.textContent?.includes(String(80 - CHAT_DISPLAY_WINDOW)));
+		const expandedBefore = widget.expandedStart;
+		widget.scrollTranscript('top');
+		assert.strictEqual(widget.autoScrollEnabled, false);
+		assert.strictEqual(widget.expandedStart, expandedBefore, 'scroll-to-top must not mount the full session');
+		assert.strictEqual(rows().length, CHAT_DISPLAY_WINDOW);
+		load.click();
+		assert.strictEqual(rows().length, CHAT_DISPLAY_WINDOW + CHAT_LOAD_MORE_COUNT);
+		assert.ok(widget.root.querySelector('[data-testid="history-row-30"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="history-row-0"]'), null);
+		assert.ok(widget.root.querySelector('[data-testid="load-earlier-messages"]'));
+	});
+
+	test('scrolling up pauses follow without rebuilding; reaching the bottom resumes auto-scroll', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			isStreaming: true,
+			history: Array.from({ length: 8 }, (_, i) => ({
+				id: `s-${i}`,
+				role: i % 2 === 0 ? 'user' as const : 'assistant' as const,
+				content: `msg-${i}`,
+			})),
+		});
+		const body = widget.bodyEl!;
+		body.style.height = '400px';
+		body.style.overflow = 'auto';
+		const content = body.querySelector('[data-testid="chat-scroll-content"]') as HTMLElement;
+		content.style.minHeight = '2000px';
+		void body.offsetHeight;
+		const bottom = Math.max(0, body.scrollHeight - body.clientHeight);
+		widget.lastScrollTop = bottom;
+		widget.lastScrollHeight = body.scrollHeight;
+		widget.savedScrollTop = bottom;
+		widget.autoScrollEnabled = true;
+		body.scrollTop = bottom;
+		const list = widget.root.querySelector('[data-testid="chat-virtual-list"]');
+		assert.ok(list);
+		const pausedTop = Math.max(0, bottom - 800);
+		body.scrollTop = pausedTop;
+		body.dispatchEvent(new Event('scroll'));
+		assert.strictEqual(widget.autoScrollEnabled, false);
+		assert.strictEqual(widget.root.querySelector('[data-testid="chat-virtual-list"]'), list, 'pause must not tear down the scroller');
+		const heldTop = body.scrollTop;
+		content.style.minHeight = '2400px';
+		void body.offsetHeight;
+		body.dispatchEvent(new Event('scroll'));
+		assert.strictEqual(widget.autoScrollEnabled, false, 'content growth while paused must not re-follow');
+		assert.strictEqual(body.scrollTop, heldTop);
+		body.scrollTop = body.scrollHeight;
+		body.dispatchEvent(new Event('scroll'));
+		assert.strictEqual(widget.autoScrollEnabled, true, 'reaching the bottom resumes stick-to-latest');
+		assert.strictEqual(widget.root.querySelector('[data-testid="chat-virtual-list"]'), list);
+		widget.scrollTranscript('bottom');
+		assert.strictEqual(widget.autoScrollEnabled, true);
 	});
 });
