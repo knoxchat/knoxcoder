@@ -149,10 +149,5 @@
 			"themeId": "Light",
 			"type": "light"
 		}
-	],
-	"enableTelemetry": false,
-	"enabledTelemetryLevels": {
-		"error": false,
-		"usage": false
-	}
+	]
 }

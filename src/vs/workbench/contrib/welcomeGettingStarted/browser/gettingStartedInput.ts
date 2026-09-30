@@ -16,7 +16,6 @@ export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput'
 export interface GettingStartedEditorOptions extends IEditorOptions {
 	selectedCategory?: string;
 	selectedStep?: string;
-	showTelemetryNotice?: boolean;
 	showWelcome?: boolean;
 	walkthroughPageTitle?: string;
 	showNewExperience?: boolean;
@@ -30,7 +29,6 @@ export class GettingStartedInput extends EditorInput {
 	static readonly RESOURCE = URI.from({ scheme: Schemas.walkThrough, authority: 'vscode_getting_started_page' });
 	private _selectedCategory: string | undefined;
 	private _selectedStep: string | undefined;
-	private _showTelemetryNotice: boolean;
 	private _showWelcome: boolean;
 	private _returnToCommand: string | undefined;
 
@@ -71,7 +69,6 @@ export class GettingStartedInput extends EditorInput {
 		super();
 		this._selectedCategory = options.selectedCategory;
 		this._selectedStep = options.selectedStep;
-		this._showTelemetryNotice = !!options.showTelemetryNotice;
 		this._showWelcome = options.showWelcome ?? true;
 		this._walkthroughPageTitle = options.walkthroughPageTitle;
 		this._returnToCommand = options.returnToCommand;
@@ -96,14 +93,6 @@ export class GettingStartedInput extends EditorInput {
 
 	set selectedStep(selectedStep: string | undefined) {
 		this._selectedStep = selectedStep;
-	}
-
-	get showTelemetryNotice(): boolean {
-		return this._showTelemetryNotice;
-	}
-
-	set showTelemetryNotice(value: boolean) {
-		this._showTelemetryNotice = value;
 	}
 
 	get showWelcome(): boolean {

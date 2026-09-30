@@ -14,7 +14,6 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { BrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IBrowserZoomService } from '../../common/browserZoomService.js';
 
@@ -98,7 +97,6 @@ suite('BrowserViewModel', () => {
 				{ ...initialState, url },
 				browserViewService,
 				browserViewWorkbenchService,
-				NullTelemetryService,
 				dialogService,
 				upcastPartial<IStorageService>({}),
 				zoomService,

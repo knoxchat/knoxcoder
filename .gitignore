@@ -29,7 +29,6 @@ product.overrides.json
 .eslintcache
 .vscode-test
 .simulation-data
-vscode-telemetry-docs/
 test-output.json
 test/componentFixtures/.screenshots/*
 dist

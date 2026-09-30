@@ -16,8 +16,7 @@ import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserSession } from './browserSession.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { IPermissionCategoryState } from '../common/browserPermissions.js';
-import { IntegratedBrowserOpenSource, logBrowserOpen } from '../common/browserViewTelemetry.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IntegratedBrowserOpenSource } from '../common/browserView.js';
 import { localize } from '../../../nls.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { htmlAttributeEncodeValue } from '../../../base/common/strings.js';
@@ -71,7 +70,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
 		@ILogService private readonly logService: ILogService,
@@ -513,9 +511,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			void view.loadURL(options.initialUrl).catch(error => {
 				this.logService.error(`[BrowserViewMainService] Failed to load initial URL for browser view ${id}`, error);
 			});
-		}
-		if (options.openSource) {
-			logBrowserOpen(this.telemetryService, options.openSource);
 		}
 		this._onDidCreateBrowserView.fire({
 			info: this._getViewInfo(view),

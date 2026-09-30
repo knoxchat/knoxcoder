@@ -12,7 +12,6 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IBrowserZoomService } from '../../common/browserZoomService.js';
 import { BrowserViewModel, BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 
@@ -59,7 +58,6 @@ suite('BrowserViewModel', () => {
 			createInitialState(storageScope, audiences),
 			browserViewService,
 			browserViewWorkbenchService,
-			upcastPartial<ITelemetryService>({}),
 			upcastPartial<IDialogService>({}),
 			upcastPartial<IStorageService>({}),
 			zoomService,

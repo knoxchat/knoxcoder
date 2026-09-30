@@ -20,7 +20,7 @@ export async function getHashedRemotesFromConfig(text: string, stripEndingDotGit
 	return baseGetHashedRemotesFromConfig(text, stripEndingDotGit, remote => asyncHash(remote));
 }
 
-suite('Telemetry - WorkspaceTags', () => {
+suite('WorkspaceTags', () => {
 
 	test('Single remote hashed', async function () {
 		assert.deepStrictEqual(await getHashedRemotesFromConfig(remote('https://username:password@github3.com/username/repository.git')), [hash('github3.com/username/repository.git')]);

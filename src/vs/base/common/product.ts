@@ -154,9 +154,6 @@ export interface IProductConfiguration {
 		readonly productName: string;
 	};
 
-	readonly removeTelemetryMachineId?: boolean;
-	readonly enabledTelemetryLevels?: { error: boolean; usage: boolean };
-	readonly enableTelemetry?: boolean;
 	readonly openToWelcomeMainPage?: boolean;
 	readonly aiConfig?: {
 		readonly ariaKey: string;
@@ -178,7 +175,6 @@ export interface IProductConfiguration {
 	readonly licenseUrl?: string;
 	readonly serverLicenseUrl?: string;
 	readonly privacyStatementUrl?: string;
-	readonly showTelemetryOptOut?: boolean;
 
 	readonly serverGreeting?: string[];
 	readonly serverLicense?: string[];

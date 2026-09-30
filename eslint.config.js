@@ -2510,7 +2510,6 @@ export default defineConfig(
 				...builtinModules,
 				// node: dependencies
 				'@humanwhocodes/gitignore-to-minimatch',
-				'@vscode/extension-telemetry',
 				'applicationinsights',
 				'ignore',
 				'isbinaryfile',

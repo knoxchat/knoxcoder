@@ -31,7 +31,6 @@ export enum PolicyCategory {
 	Extensions = 'Extensions',
 	IntegratedTerminal = 'IntegratedTerminal',
 	InteractiveSession = 'InteractiveSession',
-	Telemetry = 'Telemetry',
 	Update = 'Update',
 }
 
@@ -51,11 +50,6 @@ export const PolicyCategoryData: {
 	[PolicyCategory.InteractiveSession]: {
 		name: {
 			key: 'interactiveSessionConfigurationTitle', value: localize('interactiveSessionConfigurationTitle', "assist"),
-		}
-	},
-	[PolicyCategory.Telemetry]: {
-		name: {
-			key: 'telemetryConfigurationTitle', value: localize('telemetryConfigurationTitle', "Telemetry"),
 		}
 	},
 	[PolicyCategory.Update]: {

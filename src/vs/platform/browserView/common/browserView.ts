@@ -10,8 +10,6 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
-import type { IntegratedBrowserOpenSource } from './browserViewTelemetry.js';
-
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
 	// Tab management
@@ -300,6 +298,23 @@ export interface IBrowserViewCreationContext {
 	/** Grants automation clients access before the view is announced to other processes. */
 	readonly initialAudiences?: readonly IBrowserViewAudience[];
 }
+
+/** How a browser view was opened. */
+export type IntegratedBrowserOpenSource =
+	| 'cdpCreated'
+	| 'chatTool'
+	| 'commandWithoutUrl'
+	| 'commandWithUrl'
+	| 'quickOpenWithoutUrl'
+	| 'quickOpenWithUrl'
+	| 'newTabCommand'
+	| 'localhostLinkOpener'
+	| 'browserLinkForeground'
+	| 'browserLinkBackground'
+	| 'browserLinkNewWindow'
+	| 'copyToNewWindow'
+	| 'openFileCommand'
+	| 'fileResource';
 
 /** Complete main-process creation contract for a browser view. */
 export interface IBrowserViewCreateOptions extends IBrowserViewCreationContext {

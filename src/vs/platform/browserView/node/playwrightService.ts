@@ -6,7 +6,6 @@
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../base/common/async.js';
 import { ILogService } from '../../log/common/log.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../common/playwrightService.js';
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
@@ -75,7 +74,6 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		private readonly browserViewGroupRemoteService: IBrowserViewGroupRemoteService,
 		private readonly logService: ILogService,
 		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
-		private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -180,7 +178,6 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			actionScope,
 			this.logService,
 			this.agentNetworkFilterService,
-			this.telemetryService,
 		);
 
 		// On browser disconnect, dispose the session so it will be
@@ -298,7 +295,6 @@ class PlaywrightSession extends Disposable {
 		private readonly actionScope: IPlaywrightActionScope,
 		private readonly logService: ILogService,
 		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
-		private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -360,7 +356,7 @@ class PlaywrightSession extends Disposable {
 			fn = await this._compileFunction(fnDef);
 		} catch (err: unknown) {
 			// Surface compile/syntax errors as { error, summary }, like other execution failures.
-			this._logExecution(logCtx, false);
+			this._logExecution(logCtx);
 			const summary = await this._getSummary(pageId);
 			return { error: err instanceof Error ? err.message : String(err), summary };
 		}
@@ -377,7 +373,7 @@ class PlaywrightSession extends Disposable {
 			error = err instanceof Error ? err.message : String(err);
 		}
 
-		this._logExecution(logCtx, !error);
+		this._logExecution(logCtx);
 		const summary = await this._getSummary(pageId);
 		return { result, error, summary };
 	}
@@ -448,7 +444,7 @@ class PlaywrightSession extends Disposable {
 		// `_logExecution` is idempotent, so this is a no-op if the synchronous path
 		// below already logged a non-deferred completion.
 		if (existingDeferredId === undefined && logCtx) {
-			deferred.p.then(() => this._logExecution(logCtx, true), () => this._logExecution(logCtx, false));
+			deferred.p.then(() => this._logExecution(logCtx), () => this._logExecution(logCtx));
 		}
 
 		const wrappedPromise = this._runAgainstPage(pageId, async (page) => {
@@ -483,7 +479,7 @@ class PlaywrightSession extends Disposable {
 			// Completed or failed within the timeout: log the outcome now rather than
 			// relying on the settlement promise, which never settles if the page work
 			// threw before `settleWith` ran (e.g. the page could not be resolved).
-			this._logExecution(logCtx, !error);
+			this._logExecution(logCtx);
 		}
 
 		const summary = await this._getSummary(pageId);
@@ -491,31 +487,11 @@ class PlaywrightSession extends Disposable {
 	}
 
 	/**
-	 * Emit completion telemetry for a single {@link invokeFunction} call, once the
-	 * page work settles. Idempotent: only the first call for a given context emits,
-	 * so the synchronous and settlement-promise paths can both call it safely.
+	 * Mark a single {@link invokeFunction} call as settled. Idempotent so the
+	 * synchronous and settlement-promise paths can both call it safely.
 	 */
-	private _logExecution(ctx: IExecutionLogContext, success: boolean): void {
-		if (ctx.logged) {
-			return;
-		}
+	private _logExecution(ctx: IExecutionLogContext): void {
 		ctx.logged = true;
-		const entries = [...ctx.pageMethodsCalled.entries()];
-		const total = entries.reduce((sum, [, count]) => sum + count, 0);
-		this.telemetryService.publicLog2<RunPlaywrightCodeEvent, RunPlaywrightCodeClassification>(
-			'integratedBrowser.tools.runPlaywrightCode.completed',
-			{
-				pageMethodsCalled: JSON.stringify(Object.fromEntries(entries)),
-				pageMethodsCalledDcount: entries.length,
-				pageMethodsCalledCount: total,
-				success: success ? 1 : 0,
-				wasDeferred: ctx.wasDeferred ? 1 : 0,
-				resumeCount: ctx.resumeCount,
-				durationMs: Math.round(Date.now() - ctx.startedAt),
-				codeLength: ctx.codeLength,
-				codeLineCount: ctx.codeLineCount,
-			}
-		);
 	}
 
 	private async _compileFunction(fnDef: string): Promise<(page: Page, args: unknown[]) => unknown> {
@@ -678,52 +654,17 @@ function isNavigationTimeoutError(error: unknown): boolean {
 
 /**
  * Per-invocation state threaded through {@link PlaywrightSession.invokeFunction}
- * and its deferral machinery so completion telemetry can be emitted exactly once
- * when the underlying page work settles - even for deferred runs the caller
- * never resumes.
+ * and its deferral machinery so settlement is recorded exactly once.
  */
 interface IExecutionLogContext {
-	/** {@link Date.now} timestamp captured when the invocation began. */
 	readonly startedAt: number;
-	/** Character length of the executed function source. */
 	readonly codeLength: number;
-	/** Line count of the executed function source. */
 	readonly codeLineCount: number;
-	/** Per-method call counts accumulated by {@link createPageApiProxy}. */
 	readonly pageMethodsCalled: Map<string, number>;
-	/** Set once the execution is interrupted and deferred at least once. */
 	wasDeferred: boolean;
-	/** Number of times the caller resumed this execution via {@link PlaywrightSession.waitForDeferredResult}. */
 	resumeCount: number;
-	/** Guards against double-logging; set by {@link PlaywrightSession._logExecution}. */
 	logged: boolean;
 }
-
-type RunPlaywrightCodeEvent = {
-	pageMethodsCalled: string;
-	pageMethodsCalledDcount: number;
-	pageMethodsCalledCount: number;
-	success: number;
-	wasDeferred: number;
-	resumeCount: number;
-	durationMs: number;
-	codeLength: number;
-	codeLineCount: number;
-};
-
-type RunPlaywrightCodeClassification = {
-	pageMethodsCalled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON object mapping dotted `page.*` method names to their call counts (e.g. `{"click":2,"keyboard.press":5}`), in first-observed order.' };
-	pageMethodsCalledDcount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct `page.*` methods invoked.' };
-	pageMethodsCalledCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total `page.*` method calls including duplicates (sum of all per-method counts).' };
-	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the code completed without error, 0 otherwise.' };
-	wasDeferred: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the execution was interrupted and deferred at least once, 0 otherwise.' };
-	resumeCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of times the caller resumed this execution by polling for its deferred result. 0 means the run either completed within the first timeout or was deferred and never resumed (settled in the background).' };
-	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock time in milliseconds from invocation start until the page work settled.' };
-	codeLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character length of the executed function source.' };
-	codeLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Line count of the executed function source.' };
-	owner: 'jruales';
-	comment: 'Tracks how the run_playwright_code chat tool is exercised.';
-};
 
 /**
  * Property names that are skipped by {@link createPageApiProxy} so that JS

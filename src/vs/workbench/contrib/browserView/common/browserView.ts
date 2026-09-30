@@ -59,13 +59,11 @@ import {
 	IBrowserElementSelectionState,
 	isBrowserViewStorageScopeShareableWithAgent,
 	IBrowserViewHost,
+	IntegratedBrowserOpenSource,
 } from '../../../../platform/browserView/common/browserView.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
 import { IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IBrowserZoomService } from './browserZoomService.js';
-import type { IntegratedBrowserOpenSource } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 
 export const enum BrowserViewSharingState {
 	/** Tools are available and the page is shared with the agent. */
@@ -139,14 +137,9 @@ function parseHistorySnapshot<T>(raw: string | undefined): T | undefined {
 	}
 }
 
-type IntegratedBrowserNavigationEvent = {
-	navigationType: 'urlInput' | 'searchInput' | 'goBack' | 'goForward' | 'reload';
-	isLocalhost: boolean;
-};
-
 /**
- * To be used in telemetry. This is the  source for an address-bar-initiated navigation:
- * whether the user typed a URL or ran a web search. Defaults to `'urlInput'` when omitted.
+ * Source for an address-bar-initiated navigation: whether the user typed a URL
+ * or ran a web search. Defaults to `'urlInput'` when omitted.
  */
 export type BrowserNavigationSource = 'urlInput' | 'searchInput';
 
@@ -155,38 +148,8 @@ export type BrowserNavigationSource = 'urlInput' | 'searchInput';
  * (and {@link BrowserEditorInput.navigate}).
  */
 export interface INavigateOptions {
-	/**
-	 * Source of the navigation, for telemetry purposes. Defaults to `'urlInput'` when omitted.
-	 */
 	readonly source?: BrowserNavigationSource;
 }
-
-type IntegratedBrowserNavigationClassification = {
-	navigationType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the navigation was triggered' };
-	isLocalhost: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the URL is a localhost address' };
-	owner: 'kycutler';
-	comment: 'Tracks navigation patterns in integrated browser';
-};
-
-
-type IntegratedBrowserShareWithAgentEvent = {
-	shared: boolean;
-	dontAskAgain: boolean;
-};
-
-type IntegratedBrowserShareWithAgentClassification = {
-	shared: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the content was shared with the agent' };
-	dontAskAgain: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user chose to not be asked again' };
-	owner: 'kycutler';
-	comment: 'Tracks user choices around sharing browser content with agents';
-};
-
-type IntegratedBrowserAddElementToChatStartEvent = {};
-
-type IntegratedBrowserAddElementToChatStartClassification = {
-	owner: 'jruales';
-	comment: 'The user initiated an Add Element to Chat action in Integrated Browser.';
-};
 
 /**
  * View state stored in editor options when opening a browser view.
@@ -519,7 +482,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		initialState: IBrowserViewState,
 		private readonly browserViewService: IBrowserViewService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IBrowserZoomService private readonly zoomService: IBrowserZoomService,
@@ -652,9 +614,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}));
 
 		this._register(this.onDidChangeElementSelectionState(state => {
-			if (state.active && !this._elementSelectionState.active) {
-				this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
-			}
 			this._elementSelectionState = state;
 		}));
 
@@ -776,8 +735,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.setVisible(this.id, visible);
 	}
 
-	async loadURL(url: string, options?: INavigateOptions): Promise<void> {
-		this.logNavigationTelemetry(options?.source ?? 'urlInput', url);
+	async loadURL(url: string, _options?: INavigateOptions): Promise<void> {
 		this._onWillNavigate.fire(url);
 
 		// Prepend http:// for bare localhost authorities (e.g. "localhost:3000").
@@ -792,17 +750,14 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	async goBack(): Promise<void> {
-		this.logNavigationTelemetry('goBack', this._url);
 		return this.browserViewService.goBack(this.id);
 	}
 
 	async goForward(): Promise<void> {
-		this.logNavigationTelemetry('goForward', this._url);
 		return this.browserViewService.goForward(this.id);
 	}
 
 	async reload(hard?: boolean): Promise<void> {
-		this.logNavigationTelemetry('reload', this._url);
 		return this.browserViewService.reload(this.id, hard);
 	}
 
@@ -990,10 +945,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 				primaryButton: localize('browserView.openShareableCopy.confirm', "&&Open and Share"),
 				cancelButton: localize('browserView.openShareableCopy.cancel', "Cancel"),
 			});
-			this.telemetryService.publicLog2<IntegratedBrowserShareWithAgentEvent, IntegratedBrowserShareWithAgentClassification>(
-				'integratedBrowser.shareWithAgent',
-				{ shared: result.confirmed, dontAskAgain: false }
-			);
 			if (!result.confirmed) {
 				return undefined;
 			}
@@ -1031,25 +982,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 				this.storageService.store(BrowserViewModel.SHARE_DONT_ASK_KEY, result.confirmed, StorageScope.PROFILE, StorageTarget.USER);
 			}
 
-			this.telemetryService.publicLog2<IntegratedBrowserShareWithAgentEvent, IntegratedBrowserShareWithAgentClassification>(
-				'integratedBrowser.shareWithAgent',
-				{
-					shared: result.confirmed,
-					dontAskAgain: result.checkboxChecked ?? false
-				}
-			);
-
 			if (!result.confirmed) {
 				return undefined;
 			}
-		} else {
-			this.telemetryService.publicLog2<IntegratedBrowserShareWithAgentEvent, IntegratedBrowserShareWithAgentClassification>(
-				'integratedBrowser.shareWithAgent',
-				{
-					shared: true,
-					dontAskAgain: true
-				}
-			);
 		}
 
 		await this.browserViewService.setAudience(this.id, { type: 'agent' }, true);
@@ -1072,26 +1007,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _reloadHistoryFavicons(key: string): void {
 		const raw = this.storageService.get(key, StorageScope.APPLICATION);
 		this.history.favicons.hydrate(parseHistorySnapshot<ISerializedBrowserFaviconsSnapshot>(raw));
-	}
-
-	/**
-	 * Log navigation telemetry event
-	 */
-	private logNavigationTelemetry(navigationType: IntegratedBrowserNavigationEvent['navigationType'], url: string): void {
-		let localhost: boolean;
-		try {
-			localhost = isLocalhostAuthority(new URL(url).host);
-		} catch {
-			localhost = false;
-		}
-
-		this.telemetryService.publicLog2<IntegratedBrowserNavigationEvent, IntegratedBrowserNavigationClassification>(
-			'integratedBrowser.navigation',
-			{
-				navigationType,
-				isLocalhost: localhost
-			}
-		);
 	}
 
 	override dispose(): void {

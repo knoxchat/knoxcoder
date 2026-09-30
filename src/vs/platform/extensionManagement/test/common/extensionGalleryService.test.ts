@@ -150,7 +150,7 @@ suite('Extension Gallery Service', () => {
 		storageService = disposables.add(new InMemoryStorageService());
 		configurationService = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: TelemetryConfiguration.ON });
 		configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.ON);
-		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
+		productService = { _serviceBrand: undefined, ...product };
 	});
 
 	function createExtensionGalleryService(requestService: IRequestService, logService = new NullLogService()): ExtensionGalleryServiceWithNoStorageService {
