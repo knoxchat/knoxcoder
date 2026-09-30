@@ -276,6 +276,23 @@
 	border-top-color: transparent;
 }
 
+/*
+ * Anything else the folded composer carries (tool Loading/Cancel bar, accept/reject, context peek) stacks above the
+ * dock, never around it: the dock is always the last row and always the same 24px strip, so generating, tool
+ * approval or a draft badge can neither push the buttons nor change the strip's height. While the composer is
+ * still in flow (its 8px padding is present) the dock cancels that padding out, so the buttons sit exactly where
+ * they do once the composer floats.
+ */
+.knox-gui-composer.is-collapsed > .knox-gui-composer-dock-shell {
+	order: 99;
+	flex-shrink: 0;
+}
+
+.knox-gui-composer.is-collapsed:not(.is-floating) > .knox-gui-composer-dock-shell {
+	width: auto;
+	margin: 0 -8px -8px;
+}
+
 .knox-gui-composer.is-collapsing {
 	animation: knox-composer-bar-clear 360ms ease-in-out var(--knox-composer-toggle-delay, 0ms) both;
 }
@@ -297,7 +314,7 @@
 /*
  * Floating: the folded composer leaves the layout and sits over the transcript's bottom-right corner,
  * so only the round button is visible. The chat body gains the same height as bottom padding in the
- * same frame (49px = 8 + 32 dock + 8 + 1 border), which keeps scroll position and content still.
+ * same frame (24px = 2 + 20 button + 2, no composer padding or border), which keeps scroll position and content still.
  */
 .knox-gui-composer.is-floating {
 	position: absolute;
@@ -306,6 +323,7 @@
 	left: auto;
 	width: auto;
 	margin: 0;
+	padding: 0;
 	border: 0;
 	overflow: visible;
 	pointer-events: none;
@@ -333,7 +351,7 @@
 }
 
 .knox-gui:has(> .knox-gui-composer.is-floating) .knox-gui-body-chat {
-	padding-bottom: 49px;
+	padding-bottom: 24px;
 }
 
 .knox-gui-composer-dock {
@@ -342,7 +360,7 @@
 	justify-content: flex-end;
 	gap: 8px;
 	box-sizing: border-box;
-	padding: 4px 4px;
+	padding: 2px 8px;
 }
 
 /* Sonar ring: a slow "I'm here" pulse while idle, one bigger burst on every toggle. */
