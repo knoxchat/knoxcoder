@@ -14,19 +14,44 @@ import {
   checkKnoxChatReasoningSupportSync,
   checkKnoxChatToolSupportSync,
   checkKnoxChatWebSearchSupportSync,
+  checkOpenRouterImageSupportSync,
+  checkOpenRouterReasoningSupportSync,
+  checkOpenRouterToolSupportSync,
+  checkOpenRouterWebSearchSupportSync,
   PROVIDER_TOOL_SUPPORT,
 } from "./toolSupport.js";
+
+function isCatalogProvider(provider: string): boolean {
+  return provider === "knoxchat" || provider === "openrouter";
+}
+
+function catalogLookup<T>(
+  provider: string,
+  model: string,
+  knox: (id: string) => T | undefined,
+  openrouter: (id: string) => T | undefined,
+): T | undefined {
+  if (provider === "openrouter") {
+    return openrouter(model);
+  }
+  if (provider === "knoxchat") {
+    return knox(model);
+  }
+  return undefined;
+}
 
 const PROVIDER_HANDLES_TEMPLATING: string[] = [
   "openai",
   "anthropic",
   "knoxchat",
+  "openrouter",
 ];
 
 const PROVIDER_SUPPORTS_IMAGES: string[] = [
   "openai",
   "anthropic",
   "knoxchat",
+  "openrouter",
 ];
 
 const MODEL_SUPPORTS_IMAGES: string[] = [
@@ -45,8 +70,13 @@ const MODEL_SUPPORTS_IMAGES: string[] = [
 ];
 
 function modelSupportsTools(modelDescription: ModelDescription) {
-  if (modelDescription.provider === "knoxchat") {
-    const apiResult = checkKnoxChatToolSupportSync(modelDescription.model);
+  if (isCatalogProvider(modelDescription.provider)) {
+    const apiResult = catalogLookup(
+      modelDescription.provider,
+      modelDescription.model,
+      checkKnoxChatToolSupportSync,
+      checkOpenRouterToolSupportSync,
+    );
     if (apiResult !== undefined) {
       return apiResult;
     }
@@ -64,7 +94,7 @@ function modelSupportsTools(modelDescription: ModelDescription) {
   const result = providerSupport(modelDescription.model);
 
   if (result instanceof Promise) {
-    if (modelDescription.provider === "knoxchat") {
+    if (isCatalogProvider(modelDescription.provider)) {
       result.catch(() => false);
       return true;
     }
@@ -77,8 +107,13 @@ function modelSupportsTools(modelDescription: ModelDescription) {
 async function modelSupportsToolsAsync(
   modelDescription: ModelDescription,
 ): Promise<boolean> {
-  if (modelDescription.provider === "knoxchat") {
-    const apiResult = checkKnoxChatToolSupportSync(modelDescription.model);
+  if (isCatalogProvider(modelDescription.provider)) {
+    const apiResult = catalogLookup(
+      modelDescription.provider,
+      modelDescription.model,
+      checkKnoxChatToolSupportSync,
+      checkOpenRouterToolSupportSync,
+    );
     if (apiResult !== undefined) {
       return apiResult;
     }
@@ -116,9 +151,14 @@ function modelSupportsImages(
   title: string | undefined,
   capabilities: ModelCapability | undefined,
 ): boolean {
-  // Prefer live API for KnoxChat (same order as tools)
-  if (provider === "knoxchat") {
-    const apiResult = checkKnoxChatImageSupportSync(model);
+  // Prefer live API for catalog providers (same order as tools)
+  if (isCatalogProvider(provider)) {
+    const apiResult = catalogLookup(
+      provider,
+      model,
+      checkKnoxChatImageSupportSync,
+      checkOpenRouterImageSupportSync,
+    );
     if (apiResult !== undefined) {
       return apiResult;
     }
@@ -147,8 +187,13 @@ function modelSupportsImages(
 function modelSupportsReasoning(
   modelDescription: Pick<ModelDescription, "provider" | "model" | "capabilities">,
 ): boolean {
-  if (modelDescription.provider === "knoxchat") {
-    const apiResult = checkKnoxChatReasoningSupportSync(modelDescription.model);
+  if (isCatalogProvider(modelDescription.provider)) {
+    const apiResult = catalogLookup(
+      modelDescription.provider,
+      modelDescription.model,
+      checkKnoxChatReasoningSupportSync,
+      checkOpenRouterReasoningSupportSync,
+    );
     if (apiResult !== undefined) {
       return apiResult;
     }
@@ -159,8 +204,13 @@ function modelSupportsReasoning(
 function modelSupportsWebSearchCapability(
   modelDescription: Pick<ModelDescription, "provider" | "model" | "capabilities">,
 ): boolean {
-  if (modelDescription.provider === "knoxchat") {
-    const apiResult = checkKnoxChatWebSearchSupportSync(modelDescription.model);
+  if (isCatalogProvider(modelDescription.provider)) {
+    const apiResult = catalogLookup(
+      modelDescription.provider,
+      modelDescription.model,
+      checkKnoxChatWebSearchSupportSync,
+      checkOpenRouterWebSearchSupportSync,
+    );
     if (apiResult !== undefined) {
       return apiResult;
     }
@@ -170,6 +220,7 @@ function modelSupportsWebSearchCapability(
 const PARALLEL_PROVIDERS: string[] = [
   "anthropic",
   "knoxchat",
+  "openrouter",
 ];
 
 function llmCanGenerateInParallel(provider: string, model: string): boolean {

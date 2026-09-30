@@ -54,7 +54,10 @@ import {
 } from "../../jev/config";
 import { applyAgentJobsOptions } from "../../tools/shellJobs";
 
-import { enrichKnoxChatModelCapabilitiesFromApi } from "../../llm/toolSupport";
+import {
+  enrichKnoxChatModelCapabilitiesFromApi,
+  enrichOpenRouterModelCapabilitiesFromApi,
+} from "../../llm/toolSupport";
 import { llmsFromModelConfig } from "./models";
 
 /**
@@ -265,6 +268,7 @@ async function configYamlToKnoxConfig(
   }
 
   await enrichKnoxChatModelCapabilitiesFromApi(knoxConfig.models);
+  await enrichOpenRouterModelCapabilitiesFromApi(knoxConfig.models);
 
   const defaultTitles = new Set(
     createDefaultContextProviders().map((p) => p.description.title),

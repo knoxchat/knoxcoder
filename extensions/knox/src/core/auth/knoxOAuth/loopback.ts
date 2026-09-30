@@ -1,8 +1,9 @@
 /**
  * Loopback HTTP listener for the OAuth redirect.
  *
- * Binds `127.0.0.1:8733` only. Never falls back to another port. The listener
- * is dropped after one `/callback` (success, deny, or state mismatch).
+ * Binds `127.0.0.1` on the requested port (KnoxChat defaults to 8733). Never
+ * falls back to another port. The listener is dropped after one `/callback`
+ * (success, deny, or state mismatch).
  */
 
 import http from "node:http";
@@ -130,6 +131,14 @@ export type WaitForCallbackOptions = {
   expectedState: string;
   signal: AbortSignal;
   timeoutMs?: number;
+  /** Loopback TCP port. Defaults to KnoxChat `LOOPBACK_PORT` (8733). */
+  port?: number;
+  /**
+   * When false, a missing `state` query param is accepted (OpenRouter PKCE
+   * does not document CSRF state). A present but mismatched value still fails.
+   * Defaults to true (KnoxStudio).
+   */
+  requireState?: boolean;
   page: CallbackPageCopy;
 };
 
@@ -140,7 +149,8 @@ export async function waitForLoopbackCallback(
     throw new LoopbackError("cancelled");
   }
   const timeoutMs = options.timeoutMs ?? CALLBACK_TIMEOUT_MS;
-  const server = await bindLoopback();
+  const port = options.port ?? LOOPBACK_PORT;
+  const server = await bindLoopback(port);
   const html = callbackPageHtml(options.page);
 
   return await new Promise<LoopbackCallback>((resolve, reject) => {
@@ -195,7 +205,11 @@ export async function waitForLoopbackCallback(
       res.statusCode = 200;
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.end(html);
-      if (callback.state !== options.expectedState) {
+      if (callback.state !== undefined && callback.state !== options.expectedState) {
+        finish(new LoopbackError("state_mismatch"));
+        return;
+      }
+      if (callback.state === undefined && options.requireState !== false) {
         finish(new LoopbackError("state_mismatch"));
         return;
       }
@@ -208,7 +222,7 @@ export async function waitForLoopbackCallback(
   });
 }
 
-function bindLoopback(): Promise<http.Server> {
+function bindLoopback(port: number): Promise<http.Server> {
   return new Promise((resolve, reject) => {
     const server = http.createServer();
     server.on("error", (err: NodeJS.ErrnoException) => {
@@ -218,9 +232,9 @@ function bindLoopback(): Promise<http.Server> {
         reject(new LoopbackError("bind_failed"));
       }
     });
-    server.listen(LOOPBACK_PORT, "127.0.0.1", () => {
+    server.listen(port, "127.0.0.1", () => {
       const addr = server.address() as AddressInfo | null;
-      if (!addr || addr.port !== LOOPBACK_PORT || addr.address !== "127.0.0.1") {
+      if (!addr || addr.port !== port || addr.address !== "127.0.0.1") {
         server.close();
         reject(new LoopbackError("bind_failed"));
         return;

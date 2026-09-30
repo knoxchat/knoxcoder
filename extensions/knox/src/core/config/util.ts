@@ -6,6 +6,46 @@ import {
 } from "../";
 import { editConfigFile, getKnoxGlobalPath, getConfigYamlPath } from "../util/paths";
 
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  knoxchat: "KnoxStudio",
+  openrouter: "OpenRouter",
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+};
+
+export function providerDisplayName(provider?: string): string {
+  const id = provider?.trim();
+  if (!id) {
+    return "";
+  }
+  return PROVIDER_DISPLAY_NAMES[id] ?? id;
+}
+
+/**
+ * YAML `name` must be unique. Prefer a provider prefix over ` (1)` when the
+ * same catalog title is added from a second provider.
+ */
+export function uniqueYamlModelName(
+  existingNames: readonly string[],
+  title: string,
+  provider?: string,
+): string {
+  const names = new Set(existingNames.filter(Boolean));
+  if (!names.has(title)) {
+    return title;
+  }
+  const label = providerDisplayName(provider);
+  const withProvider = label ? `${label} · ${title}` : title;
+  if (withProvider !== title && !names.has(withProvider)) {
+    return withProvider;
+  }
+  let n = 1;
+  while (names.has(`${withProvider} (${n})`)) {
+    n += 1;
+  }
+  return `${withProvider} (${n})`;
+}
+
 export function addModel(
   model: ModelDescription,
   role?: keyof ExperimentalModelRoles,
@@ -17,9 +57,10 @@ export function addModel(
   console.log(`Config YAML path: ${configYamlPath}`);
 
   editConfigFile((config) => {
-    if (config.models?.some((m: any) => m?.name === model.title)) {
-      model.title = `${model.title} (1)`;
-    }
+    const existing = (config.models ?? [])
+      .map((m: any) => (typeof m?.name === "string" ? m.name : ""))
+      .filter(Boolean);
+    model.title = uniqueYamlModelName(existing, model.title, model.provider);
 
     if (!config.models) {
       config.models = [];

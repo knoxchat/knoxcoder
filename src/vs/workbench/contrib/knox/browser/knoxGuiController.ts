@@ -871,12 +871,24 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiModels.applyOAuthStatus(this, data);
 	}
 
+	applyOpenRouterOAuthStatus(data: unknown): void {
+		return knoxGuiModels.applyOpenRouterOAuthStatus(this, data);
+	}
+
 	async loadOAuthStatus(): Promise<void> {
 		return knoxGuiModels.loadOAuthStatus(this);
 	}
 
+	async loadOpenRouterOAuthStatus(): Promise<void> {
+		return knoxGuiModels.loadOpenRouterOAuthStatus(this);
+	}
+
 	async loadKnoxChatModels(): Promise<void> {
 		return knoxGuiModels.loadKnoxChatModels(this);
+	}
+
+	async loadOpenRouterModels(): Promise<void> {
+		return knoxGuiModels.loadOpenRouterModels(this);
 	}
 
 	async addConfiguredModel(providerId: string, pack: IKnoxGuiAddModelPackage, extras?: { dimensionChoices?: string[]; selectedProvider?: string }): Promise<void> {

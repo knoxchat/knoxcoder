@@ -149,6 +149,57 @@ export function knoxChatModelPricing(pricing: unknown, inDisplayUnits: unknown):
 	return { promptPer1k: scale(prompt), completionPer1k: scale(completion) };
 }
 
+function asObjectRecord(value: unknown): Record<string, unknown> | undefined {
+	return value && typeof value === 'object' ? value as Record<string, unknown> : undefined;
+}
+
+function openRouterTokenPriceSum(pricing: unknown): number {
+	const rec = asObjectRecord(pricing);
+	const prompt = parsePricingNumber(rec?.prompt);
+	const completion = parsePricingNumber(rec?.completion);
+	if (prompt === undefined || completion === undefined) {
+		return Number.POSITIVE_INFINITY;
+	}
+	return prompt + completion;
+}
+
+/**
+ * OpenRouter `GET /api/v1/models` lists both a canonical slug (typical provider
+ * list price) and a `~*-latest` alias whose `pricing` is the floor / advertised
+ * rate. Copy cheaper alias pricing onto the alias target so the picker badge
+ * matches the models endpoint (and openrouter.ai) instead of the median list.
+ */
+export function applyOpenRouterAliasFloorPricing(models: unknown[]): unknown[] {
+	const floorByTarget = new Map<string, unknown>();
+	for (const item of models) {
+		const rec = asObjectRecord(item);
+		const target = asObjectRecord(rec?.alias_target);
+		const slug = typeof target?.slug === 'string' ? target.slug : undefined;
+		if (!rec || !slug || rec.pricing == null) {
+			continue;
+		}
+		const existing = floorByTarget.get(slug);
+		if (openRouterTokenPriceSum(rec.pricing) < openRouterTokenPriceSum(existing)) {
+			floorByTarget.set(slug, rec.pricing);
+		}
+	}
+	if (floorByTarget.size === 0) {
+		return models;
+	}
+	return models.map(item => {
+		const rec = asObjectRecord(item);
+		const id = typeof rec?.id === 'string' ? rec.id : undefined;
+		const floor = id ? floorByTarget.get(id) : undefined;
+		if (!rec || floor === undefined) {
+			return item;
+		}
+		if (openRouterTokenPriceSum(floor) >= openRouterTokenPriceSum(rec.pricing)) {
+			return item;
+		}
+		return { ...rec, pricing: floor };
+	});
+}
+
 function finitePositiveNumber(value: unknown): number | undefined {
 	return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 }
@@ -194,9 +245,10 @@ export function formatUsdAmount(value: number): string {
 	if (Math.abs(value - Math.round(value)) < 1e-9) {
 		return String(Math.round(value));
 	}
-	if (Math.abs(value) >= 0.01) {
+	if (Math.abs(value) >= 1) {
 		return value.toFixed(2).replace(/\.?0+$/, '');
 	}
+	// Keep up to 4 decimals for sub-dollar $/1M rates (e.g. OpenRouter 0.2475).
 	return value.toFixed(4).replace(/\.?0+$/, '');
 }
 
@@ -238,7 +290,7 @@ export const KNOX_CHAT_FALLBACK_MODELS: IKnoxGuiKnoxChatModel[] = [{
 	description: 'Knox Memory System Model (Unlimited Context)',
 	model: 'knox/knox-ms',
 	contextLength: Number.POSITIVE_INFINITY,
-	category: 'KnoxChat',
+	category: 'KnoxStudio',
 	maxTokens: 128000,
 	modalities: ['text', 'image', 'file'],
 	supportsTools: true,
@@ -266,13 +318,13 @@ const KNOXCHAT_DEVELOPER_CATEGORY: Record<string, string> = {
 	nvidia: 'NVIDIA',
 	xiaomi: 'Xiaomi',
 	'z-ai': 'ChatGLM',
-	knox: 'KnoxChat',
+	knox: 'KnoxStudio',
 };
 
 export const ADD_MODEL_PROVIDERS: IKnoxGuiAddModelProvider[] = [
 	{
 		id: 'knoxchat',
-		title: 'KnoxChat',
+		title: 'KnoxStudio',
 		provider: 'knoxchat',
 		descriptionKey: 'accessModelsDescription',
 		longDescriptionKey: 'knoxchatLongDescription',
@@ -281,9 +333,30 @@ export const ADD_MODEL_PROVIDERS: IKnoxGuiAddModelProvider[] = [
 		apiKeyUrl: 'https://knoxstudio.ai/keys',
 		collectInputFor: [{ ...API_KEY_INPUT, required: false }, ...COMPLETION_PARAMS_INPUTS, API_BASE_INPUT],
 		packages: [{
-			title: 'KnoxChat',
-			description: 'Models from KnoxChat',
-			params: { title: 'KnoxChat', model: 'openai/gpt-4o-mini', contextLength: 128000 },
+			title: 'KnoxStudio',
+			description: 'Models from KnoxStudio',
+			params: { title: 'KnoxStudio', model: 'openai/gpt-4o-mini', contextLength: 128000 },
+		}],
+		params: { contextLength: 128000 },
+	},
+	{
+		id: 'openrouter',
+		title: 'OpenRouter',
+		provider: 'openrouter',
+		descriptionKey: 'openrouterDescription',
+		longDescriptionKey: 'openrouterLongDescription',
+		icon: 'openrouter.svg',
+		tags: ['tagApiKeyRequired'],
+		apiKeyUrl: 'https://openrouter.ai/keys',
+		collectInputFor: [
+			{ ...API_KEY_INPUT, required: false },
+			...COMPLETION_PARAMS_INPUTS,
+			{ ...API_BASE_INPUT, defaultValue: 'https://openrouter.ai/api/v1/' },
+		],
+		packages: [{
+			title: 'OpenRouter',
+			description: 'Models from OpenRouter',
+			params: { title: 'OpenRouter', model: 'openai/gpt-4o', contextLength: 128000 },
 		}],
 		params: { contextLength: 128000 },
 	},
@@ -327,9 +400,11 @@ export const ADD_MODEL_PROVIDERS: IKnoxGuiAddModelProvider[] = [
 	},
 ];
 
+const CATALOG_ONLY_ADD_MODEL_PROVIDERS = new Set(['knoxchat', 'openrouter']);
+
 export function addModelPackagesByProvider(): Array<{ providerId: string; title: string; icon?: string; packages: IKnoxGuiAddModelPackage[] }> {
 	return ADD_MODEL_PROVIDERS
-		.filter(provider => provider.id !== 'knoxchat')
+		.filter(provider => !CATALOG_ONLY_ADD_MODEL_PROVIDERS.has(provider.id))
 		.map(provider => ({ providerId: provider.id, title: provider.title, icon: provider.icon, packages: provider.packages }));
 }
 
@@ -341,7 +416,7 @@ const ADD_MODEL_BROWSE_ORDER: Record<string, string[]> = {
 
 export function addModelBrowseGroups(): Array<{ providerId: string; title: string; icon?: string; packages: IKnoxGuiAddModelPackage[] }> {
 	return ADD_MODEL_PROVIDERS
-		.filter(provider => provider.id !== 'knoxchat')
+		.filter(provider => !CATALOG_ONLY_ADD_MODEL_PROVIDERS.has(provider.id))
 		.map(provider => {
 			const byModel = new Map(provider.packages.map(pack => [pack.params.model, pack]));
 			const packages = (ADD_MODEL_BROWSE_ORDER[provider.id] ?? provider.packages.filter(pack => pack.browse).map(pack => pack.params.model))
@@ -362,7 +437,7 @@ export function addModelProviderById(id: string | undefined): IKnoxGuiAddModelPr
 }
 
 export function addModelRequiredSatisfied(provider: IKnoxGuiAddModelProvider, draft: Record<string, string>, oauthConnected: boolean): boolean {
-	if (provider.id === 'knoxchat') {
+	if (provider.id === 'knoxchat' || provider.id === 'openrouter') {
 		return oauthConnected || Boolean(draft.apiKey?.trim());
 	}
 	return provider.collectInputFor.filter(input => input.required).every(input => Boolean((draft[input.key] ?? '').trim()));
@@ -379,6 +454,7 @@ export const KNOX_OAUTH_ERROR_I18N_KEYS: Record<string, string> = {
 	state_mismatch: 'oauthErrorStateMismatch',
 	port_in_use: 'oauthErrorPortInUse',
 	timeout: 'oauthErrorTimeout',
+	expired: 'oauthErrorExpired',
 	bind_failed: 'oauthErrorPortInUse',
 	open_browser: 'oauthErrorOpenBrowser',
 	offline: 'oauthErrorOffline',
@@ -393,9 +469,20 @@ export function knoxGuiOAuthPane(state: string | undefined, connected: boolean):
 	return connected ? 'connected' : 'disconnected';
 }
 
-export function knoxGuiOAuthErrorI18nKey(state: string | undefined, error: string | undefined): string | undefined {
+const OPENROUTER_OAUTH_ERROR_I18N_KEYS: Record<string, string> = {
+	port_in_use: 'oauthErrorOpenRouterPortInUse',
+	bind_failed: 'oauthErrorOpenRouterPortInUse',
+	offline: 'oauthErrorOpenRouterOffline',
+	tls: 'oauthErrorOpenRouterTls',
+	exchange: 'oauthErrorOpenRouterExchange',
+};
+
+export function knoxGuiOAuthErrorI18nKey(state: string | undefined, error: string | undefined, source: 'knoxchat' | 'openrouter' = 'knoxchat'): string | undefined {
 	if (state !== 'failed' || !error || error === 'cancelled') {
 		return undefined;
+	}
+	if (source === 'openrouter') {
+		return OPENROUTER_OAUTH_ERROR_I18N_KEYS[error] ?? KNOX_OAUTH_ERROR_I18N_KEYS[error];
 	}
 	return KNOX_OAUTH_ERROR_I18N_KEYS[error];
 }
@@ -431,6 +518,49 @@ export function parseKnoxOAuthStatus(data: unknown): {
 		oauthHandle: knoxGuiOAuthHandle(account, rec?.handle),
 		oauthConnected: Boolean(account),
 		oauthError: knoxGuiOAuthErrorI18nKey(state, error) ? error : undefined,
+	};
+}
+
+export function knoxGuiOpenRouterOAuthHandle(account: Record<string, unknown> | undefined): string | undefined {
+	const label = typeof account?.label === 'string' ? account.label.trim() : '';
+	if (label) {
+		return label;
+	}
+	const creator = typeof account?.creatorUserId === 'string' ? account.creatorUserId.trim() : '';
+	if (creator) {
+		return creator.length > 12 ? `${creator.slice(0, 8)}…` : creator;
+	}
+	return undefined;
+}
+
+export function knoxGuiOpenRouterKeySettingsUrl(keyHash: string): string {
+	return `https://openrouter.ai/keys/${encodeURIComponent(keyHash)}`;
+}
+
+export function knoxGuiOpenRouterKeyLogsUrl(keyHash: string): string {
+	return `https://openrouter.ai/logs?api_key_hash=${encodeURIComponent(keyHash)}`;
+}
+
+export function parseOpenRouterOAuthStatus(data: unknown): {
+	openrouterOauthStatus?: string;
+	openrouterOauthHandle?: string;
+	openrouterOauthConnected: boolean;
+	openrouterOauthError?: string;
+	openrouterOauthKeyHash?: string;
+} {
+	const rec = data && typeof data === 'object' ? data as Record<string, unknown> : undefined;
+	const account = rec?.account && typeof rec.account === 'object' && !Array.isArray(rec.account)
+		? rec.account as Record<string, unknown>
+		: undefined;
+	const state = rec ? String(rec.state ?? rec.status ?? '') : undefined;
+	const error = typeof rec?.error === 'string' ? rec.error : undefined;
+	const keyHash = typeof account?.keyHash === 'string' ? account.keyHash.trim() : '';
+	return {
+		openrouterOauthStatus: state,
+		openrouterOauthHandle: knoxGuiOpenRouterOAuthHandle(account),
+		openrouterOauthConnected: Boolean(account),
+		openrouterOauthError: knoxGuiOAuthErrorI18nKey(state, error, 'openrouter') ? error : undefined,
+		openrouterOauthKeyHash: keyHash || undefined,
 	};
 }
 
@@ -515,7 +645,7 @@ export function buildAddModelPayload(
 		if (raw === undefined || raw === '') {
 			continue;
 		}
-		if (provider.id === 'knoxchat' && input.key === 'apiKey' && !raw.trim()) {
+		if ((provider.id === 'knoxchat' || provider.id === 'openrouter') && input.key === 'apiKey' && !raw.trim()) {
 			continue;
 		}
 		setPathValue(model, input.key, input.inputType === 'number' ? Number(raw) : raw);
@@ -567,7 +697,7 @@ export function categorizeKnoxChatModel(model: { id?: string; name?: string; tit
 		return 'xAI';
 	}
 	if (idAndName.includes('knox')) {
-		return 'KnoxChat';
+		return 'KnoxStudio';
 	}
 	return 'Other';
 }

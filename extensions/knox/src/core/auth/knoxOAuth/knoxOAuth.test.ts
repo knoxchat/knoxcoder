@@ -37,7 +37,7 @@ describe("knox oauth contract", () => {
     expect(CLIENT_ID).toBe("knoxchat");
     expect(REDIRECT_URI).toBe("http://127.0.0.1:8733/callback");
     expect(LOOPBACK_PORT).toBe(8733);
-    expect(API_TOKEN_NAME).toBe("KnoxChat");
+    expect(API_TOKEN_NAME).toBe("KnoxStudio");
     expect(PKCE_METHOD).toBe("S256");
     expect(SCOPES).toBe(
       "user:read user:email tokens:read tokens:write usage:read",
@@ -109,7 +109,7 @@ describe("response parsers", () => {
     expect(info.username).toBe("knox");
 
     const minted = parseMintedToken(
-      '{"success":true,"data":{"id":42,"key":"sk-abc","name":"KnoxChat"}}',
+      '{"success":true,"data":{"id":42,"key":"sk-abc","name":"KnoxStudio"}}',
     );
     expect(minted.id).toBe(42);
     expect(minted.key).toBe("sk-abc");
@@ -151,6 +151,7 @@ describe("session key resolution", () => {
   it("does not inject the knoxchat key into other providers", () => {
     setKnoxChatOAuthApiKey("sk-oauth");
     expect(resolveProviderApiKey("openai")).toBeUndefined();
+    expect(resolveProviderApiKey("openrouter")).toBeUndefined();
     expect(resolveProviderApiKey("knoxchat")).toBe("sk-oauth");
     expect(resolveProviderApiKey("knoxchat", "sk-model")).toBe("sk-model");
   });
@@ -218,11 +219,14 @@ async function fetchUntilOk(url: string, attempts = 50): Promise<Response> {
   throw new Error(`loopback not ready: ${String(last)}`);
 }
 
-async function waitForLoopbackReady(attempts = 50): Promise<void> {
+async function waitForLoopbackReady(
+  port = LOOPBACK_PORT,
+  attempts = 50,
+): Promise<void> {
   let last: unknown;
   for (let i = 0; i < attempts; i++) {
     try {
-      await fetch("http://127.0.0.1:8733/not-callback");
+      await fetch(`http://127.0.0.1:${port}/not-callback`);
       return;
     } catch (err) {
       last = err;
@@ -241,7 +245,7 @@ describe("loopback listener", () => {
         expectedState: "st",
         signal: abort.signal,
         timeoutMs: 2_000,
-        page: { lang: "en", title: "KnoxChat", body: "close" },
+        page: { lang: "en", title: "KnoxStudio", body: "close" },
       }),
     ).rejects.toMatchObject({ kind: "cancelled" });
   });
@@ -252,7 +256,7 @@ describe("loopback listener", () => {
       expectedState: "st",
       signal: abort.signal,
       timeoutMs: 4_000,
-      page: { lang: "en", title: "KnoxChat", body: "close" },
+      page: { lang: "en", title: "KnoxStudio", body: "close" },
     });
     const cancelled = expect(wait).rejects.toMatchObject({ kind: "cancelled" });
     await waitForLoopbackReady();
@@ -272,7 +276,7 @@ describe("loopback listener", () => {
           expectedState: "st",
           signal: new AbortController().signal,
           timeoutMs: 1_000,
-          page: { lang: "en", title: "KnoxChat", body: "close" },
+          page: { lang: "en", title: "KnoxStudio", body: "close" },
         }),
       ).rejects.toMatchObject({ kind: "port_in_use" });
     } finally {
@@ -285,7 +289,7 @@ describe("loopback listener", () => {
       expectedState: "xyz",
       signal: new AbortController().signal,
       timeoutMs: 4_000,
-      page: { lang: "en", title: "KnoxChat", body: "Returning." },
+      page: { lang: "en", title: "KnoxStudio", body: "Returning." },
     });
     const response = await fetchUntilOk(
       "http://127.0.0.1:8733/callback?code=abc&state=xyz",
@@ -299,13 +303,31 @@ describe("loopback listener", () => {
       expectedState: "expected",
       signal: new AbortController().signal,
       timeoutMs: 4_000,
-      page: { lang: "en", title: "KnoxChat", body: "close" },
+      page: { lang: "en", title: "KnoxStudio", body: "close" },
     });
     const rejected = expect(mismatch).rejects.toMatchObject({
       kind: "state_mismatch",
     });
     await fetchUntilOk("http://127.0.0.1:8733/callback?code=abc&state=other");
     await rejected;
+  });
+
+  it("binds a non-8733 port when requested", async () => {
+    // 8734 is reserved for OpenRouter OAuth; use an isolated high port here.
+    const port = 18734;
+    const ok = waitForLoopbackCallback({
+      expectedState: "xyz",
+      signal: new AbortController().signal,
+      timeoutMs: 4_000,
+      port,
+      page: { lang: "en", title: "KnoxStudio", body: "Returning." },
+    });
+    await waitForLoopbackReady(port);
+    const response = await fetchUntilOk(
+      `http://127.0.0.1:${port}/callback?code=abc&state=xyz`,
+    );
+    expect(await response.text()).toContain("Returning.");
+    await expect(ok).resolves.toMatchObject({ code: "abc", state: "xyz" });
   });
 });
 
@@ -336,7 +358,7 @@ describe("loginWithKnoxChat", () => {
           return new Response(
             JSON.stringify({
               success: true,
-              data: { id: 42, key: "sk-abc", name: "KnoxChat" },
+              data: { id: 42, key: "sk-abc", name: "KnoxStudio" },
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
           );
@@ -376,7 +398,7 @@ describe("loginWithKnoxChat", () => {
       onState: (state) => {
         states.push(state);
       },
-      page: { lang: "en", title: "KnoxChat", body: "Returning." },
+      page: { lang: "en", title: "KnoxStudio", body: "Returning." },
       signal: abort.signal,
     });
 
@@ -407,7 +429,7 @@ describe("loginWithKnoxChat", () => {
           throw new Error("blocked");
         },
         onState: () => undefined,
-        page: { lang: "en", title: "KnoxChat", body: "close" },
+        page: { lang: "en", title: "KnoxStudio", body: "close" },
       }),
     ).rejects.toMatchObject({ kind: "open_browser" });
   });

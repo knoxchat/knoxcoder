@@ -42,5 +42,6 @@
   "configJsonNotValidObject": "config.json is not a valid object",
   "configYamlNotValidObject": "config.yaml is not a valid object",
   "failedToSetupCa": "Failed to setup CA: ",
-  "failedToFetchKnoxChatModels": "Failed to fetch KnoxChat models for tool support detection:"
+  "failedToFetchKnoxChatModels": "Failed to fetch KnoxStudio models for tool support detection:",
+  "failedToFetchOpenRouterModels": "Failed to fetch OpenRouter models for tool support detection:"
 }

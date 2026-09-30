@@ -18,6 +18,8 @@ export interface IKnoxGuiPersistedUi {
 	codeToEdit: IKnoxGuiState['codeToEdit'];
 	/** `ui.selectedBlockSettingsSection`. */
 	overlay: KnoxGuiOverlay;
+  /** Last Add Chat Model provider tab (KnoxStudio vs OpenRouter). */
+	addModelModalProvider: IKnoxGuiState['addModelModalProvider'];
 }
 
 /** `profiles.preferencesByProfileId` entry. */
@@ -84,6 +86,7 @@ export function knoxGuiSerializePersistedUi(state: IKnoxGuiState): string {
 		mode: state.mode,
 		codeToEdit: state.codeToEdit,
 		overlay: state.overlay,
+		addModelModalProvider: state.addModelModalProvider,
 	};
 	return JSON.stringify(ui);
 }
@@ -125,6 +128,9 @@ export function knoxGuiParsePersistedUi(raw: string | undefined): Partial<IKnoxG
 	}
 	if (rec.overlay === null || (typeof rec.overlay === 'string' && (KNOX_GUI_OVERLAYS as readonly string[]).includes(rec.overlay))) {
 		out.overlay = rec.overlay as KnoxGuiOverlay;
+	}
+	if (rec.addModelModalProvider === 'knoxchat' || rec.addModelModalProvider === 'openrouter') {
+		out.addModelModalProvider = rec.addModelModalProvider;
 	}
 	return out;
 }

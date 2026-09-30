@@ -7,9 +7,9 @@ import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { asRecord, asArray } from './helpers.js';
 import { knoxGuiCatalogEntriesFromOverlayModels, knoxGuiGetReasoningModelKeys, knoxGuiModelSupportsImages, knoxGuiModelToolsSupportKnown, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiResolveToolsSupported, knoxGuiSeedModelCatalog, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
 import { knoxGuiIsSessionTabMode, knoxGuiSessionModeIsAgent } from '../../../common/knoxGuiAgentMode.js';
-import { addModelProviderById, buildAddModelPayload, categorizeKnoxChatModel, KNOX_CHAT_FALLBACK_MODELS, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, parseKnoxOAuthStatus, type IKnoxGuiAddModelPackage } from '../../../common/knoxGuiOverlays.js';
+import { addModelProviderById, applyOpenRouterAliasFloorPricing, buildAddModelPayload, categorizeKnoxChatModel, KNOX_CHAT_FALLBACK_MODELS, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, parseKnoxOAuthStatus, parseOpenRouterOAuthStatus, type IKnoxGuiAddModelPackage } from '../../../common/knoxGuiOverlays.js';
 import { KnoxGuiOverlay } from '../../../common/knoxGuiProtocol.js';
-import { IKnoxGuiModel, KnoxChatMode, KnoxModelRole } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiModel, IKnoxGuiState, KnoxChatMode, KnoxModelRole } from '../../../common/knoxGuiState.js';
 
 /** `thunks/setSessionMode.ts`: no switch while streaming; entering edit saves and opens a new session. */
 export function setMode(controller: KnoxGuiController, mode: KnoxChatMode): void {
@@ -154,7 +154,9 @@ export function openAddModel(controller: KnoxGuiController, role: KnoxModelRole 
 		addModelSelectedModel: undefined,
 	});
 	void controller.loadOAuthStatus();
+	void controller.loadOpenRouterOAuthStatus();
 	void controller.loadKnoxChatModels();
+	void controller.loadOpenRouterModels();
 }
 
 export function closeAddModelModal(controller: KnoxGuiController): void {
@@ -169,6 +171,14 @@ export function applyOAuthStatus(controller: KnoxGuiController, data: unknown): 
 	}
 }
 
+export function applyOpenRouterOAuthStatus(controller: KnoxGuiController, data: unknown): void {
+	const next = parseOpenRouterOAuthStatus(data);
+	controller.store.patch(next);
+	if (next.openrouterOauthConnected) {
+		void controller.loadOpenRouterModels();
+	}
+}
+
 export async function loadOAuthStatus(controller: KnoxGuiController): Promise<void> {
 	try {
 		const status = await controller.messenger.request<Record<string, unknown>>('knoxchat/oauth/status', undefined);
@@ -178,6 +188,68 @@ export async function loadOAuthStatus(controller: KnoxGuiController): Promise<vo
 	}
 }
 
+export async function loadOpenRouterOAuthStatus(controller: KnoxGuiController): Promise<void> {
+	try {
+		const status = await controller.messenger.request<Record<string, unknown>>('openrouter/oauth/status', undefined);
+		controller.applyOpenRouterOAuthStatus(status);
+	} catch {
+		// optional
+	}
+}
+
+export function startOpenRouterOAuth(controller: KnoxGuiController): void {
+	controller.messenger.post('openrouter/oauth/start', undefined);
+}
+
+export function cancelOpenRouterOAuth(controller: KnoxGuiController): void {
+	controller.messenger.post('openrouter/oauth/cancel', undefined);
+}
+
+export function signOutOpenRouterOAuth(controller: KnoxGuiController): void {
+	controller.messenger.post('openrouter/oauth/signOut', undefined);
+}
+
+function mapCatalogRawToGuiModels(raw: unknown[]): IKnoxGuiState['knoxChatModels'] {
+	return raw.map(item => {
+		const rec = asRecord(item) ?? {};
+		const architecture = asRecord(rec.architecture);
+		const id = String(rec.id ?? rec.model ?? rec.name ?? '');
+		const title = String(rec.name ?? rec.title ?? rec.id ?? '');
+		const capabilities = asRecord(rec.capabilities);
+		const completion = asRecord(rec.completionOptions);
+		const supportedParameters = Array.isArray(rec.supported_parameters)
+			? rec.supported_parameters.map(String)
+			: Array.isArray(rec.supportedParameters)
+				? rec.supportedParameters.map(String)
+				: undefined;
+		const toolsFromParams = knoxGuiModelSupportsToolsFromSupportedParameters(supportedParameters);
+		const webFromParams = (supportedParameters ?? []).includes('web_search') || (supportedParameters ?? []).includes('web_search_options');
+		const reasoningFromParams = (supportedParameters ?? []).includes('reasoning') || (supportedParameters ?? []).includes('reasoning_effort') || (supportedParameters ?? []).includes('include_reasoning');
+		return {
+			title,
+			description: rec.description ? String(rec.description) : (id ? `Model ID: ${id}` : undefined),
+			model: id,
+			contextLength: knoxChatMetadataContextLength(rec) ?? 180000,
+			category: categorizeKnoxChatModel({
+				id,
+				name: title,
+				title,
+				developer: rec.developer ? String(rec.developer) : undefined,
+				owned_by: rec.owned_by ? String(rec.owned_by) : undefined,
+				tokenizer: architecture?.tokenizer ? String(architecture.tokenizer) : undefined,
+			}),
+			maxTokens: knoxChatRecommendedMaxTokens(rec) ?? (rec.max_tokens != null ? Number(rec.max_tokens) : (completion?.maxTokens != null ? Number(completion.maxTokens) : undefined)),
+			supportsTools: capabilities?.tools === true || toolsFromParams,
+			supportsReasoning: capabilities?.reasoning === true || reasoningFromParams,
+			supportsWebSearch: capabilities?.webSearch === true || webFromParams || knoxChatPricingHasWebSearch(rec.pricing),
+			supportsImageOutput: capabilities?.imageOutput === true || asArray(architecture?.output_modalities).includes('image'),
+			modalities: Array.isArray(architecture?.input_modalities) ? architecture.input_modalities.map(String) : undefined,
+			pricing: knoxChatModelPricing(rec.pricing, rec.pricing_in_display_units),
+			supportedParameters,
+		};
+	}).filter(model => model.title);
+}
+
 export async function loadKnoxChatModels(controller: KnoxGuiController): Promise<void> {
 	controller.store.patch({ knoxChatModelsLoading: true });
 	try {
@@ -185,44 +257,7 @@ export async function loadKnoxChatModels(controller: KnoxGuiController): Promise
 		const raw = asArray(asRecord(result)?.data ?? result);
 		const catalog = knoxGuiParseModelCatalog(raw);
 		knoxGuiSeedModelCatalog(catalog.length ? catalog : knoxGuiCatalogEntriesFromOverlayModels(KNOX_CHAT_FALLBACK_MODELS));
-		const models = raw.map(item => {
-			const rec = asRecord(item) ?? {};
-			const architecture = asRecord(rec.architecture);
-			const id = String(rec.id ?? rec.model ?? rec.name ?? '');
-			const title = String(rec.name ?? rec.title ?? rec.id ?? '');
-			const capabilities = asRecord(rec.capabilities);
-			const completion = asRecord(rec.completionOptions);
-			const supportedParameters = Array.isArray(rec.supported_parameters)
-				? rec.supported_parameters.map(String)
-				: Array.isArray(rec.supportedParameters)
-					? rec.supportedParameters.map(String)
-					: undefined;
-			const toolsFromParams = knoxGuiModelSupportsToolsFromSupportedParameters(supportedParameters);
-			const webFromParams = (supportedParameters ?? []).includes('web_search') || (supportedParameters ?? []).includes('web_search_options');
-			const reasoningFromParams = (supportedParameters ?? []).includes('reasoning') || (supportedParameters ?? []).includes('reasoning_effort') || (supportedParameters ?? []).includes('include_reasoning');
-			return {
-				title,
-				description: rec.description ? String(rec.description) : (id ? `Model ID: ${id}` : undefined),
-				model: id,
-				contextLength: knoxChatMetadataContextLength(rec) ?? 180000,
-				category: categorizeKnoxChatModel({
-					id,
-					name: title,
-					title,
-					developer: rec.developer ? String(rec.developer) : undefined,
-					owned_by: rec.owned_by ? String(rec.owned_by) : undefined,
-					tokenizer: architecture?.tokenizer ? String(architecture.tokenizer) : undefined,
-				}),
-				maxTokens: knoxChatRecommendedMaxTokens(rec) ?? (rec.max_tokens != null ? Number(rec.max_tokens) : (completion?.maxTokens != null ? Number(completion.maxTokens) : undefined)),
-				supportsTools: capabilities?.tools === true || toolsFromParams,
-				supportsReasoning: capabilities?.reasoning === true || reasoningFromParams,
-				supportsWebSearch: capabilities?.webSearch === true || webFromParams || knoxChatPricingHasWebSearch(rec.pricing),
-				supportsImageOutput: capabilities?.imageOutput === true || asArray(architecture?.output_modalities).includes('image'),
-				modalities: Array.isArray(architecture?.input_modalities) ? architecture.input_modalities.map(String) : undefined,
-				pricing: knoxChatModelPricing(rec.pricing, rec.pricing_in_display_units),
-				supportedParameters,
-			};
-		}).filter(model => model.title);
+		const models = mapCatalogRawToGuiModels(raw);
 		const seen = new Set<string>();
 		const unique = [...models, ...KNOX_CHAT_FALLBACK_MODELS].filter(model => {
 			if (seen.has(model.model)) {
@@ -236,6 +271,38 @@ export async function loadKnoxChatModels(controller: KnoxGuiController): Promise
 	} catch {
 		knoxGuiSeedModelCatalog(knoxGuiCatalogEntriesFromOverlayModels(KNOX_CHAT_FALLBACK_MODELS));
 		controller.store.patch({ knoxChatModels: [...KNOX_CHAT_FALLBACK_MODELS], knoxChatModelsLoading: false });
+		patchSelectedModelCapabilities(controller);
+	}
+}
+
+export async function loadOpenRouterModels(controller: KnoxGuiController): Promise<void> {
+	controller.store.patch({ openrouterModelsLoading: true });
+	try {
+		const result = await controller.messenger.request<unknown>('openrouter/listModels', undefined);
+		const raw = applyOpenRouterAliasFloorPricing(asArray(asRecord(result)?.data ?? result));
+		const catalog = knoxGuiParseModelCatalog(raw);
+		if (catalog.length) {
+			knoxGuiSeedModelCatalog(catalog);
+		}
+		const models = mapCatalogRawToGuiModels(raw);
+		const seen = new Set<string>();
+		const unique = models.filter(model => {
+			if (!model.model || seen.has(model.model)) {
+				return false;
+			}
+			seen.add(model.model);
+			return true;
+		});
+		controller.store.patch({
+			openrouterModels: unique,
+			openrouterModelsLoading: false,
+			openrouterSelectedModel: unique.some(model => model.model === controller.store.state.openrouterSelectedModel)
+				? controller.store.state.openrouterSelectedModel
+				: unique[0]?.model,
+		});
+		patchSelectedModelCapabilities(controller);
+	} catch {
+		controller.store.patch({ openrouterModels: [], openrouterModelsLoading: false });
 		patchSelectedModelCapabilities(controller);
 	}
 }

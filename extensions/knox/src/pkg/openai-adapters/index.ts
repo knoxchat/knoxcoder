@@ -26,6 +26,8 @@ export function constructLlmApi(config: LLMConfig): BaseLlmApi | undefined {
       return new AnthropicApi(config);
     case "knoxchat":
       return openAICompatible("https://api.knoxstudio.ai/v1/", config);
+    case "openrouter":
+      return openAICompatible("https://openrouter.ai/api/v1/", config);
     case "mock":
       return new MockApi();
     default:

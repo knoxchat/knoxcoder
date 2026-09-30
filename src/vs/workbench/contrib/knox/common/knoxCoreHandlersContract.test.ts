@@ -109,6 +109,11 @@ suite('Knox Core/host handler contract (KN-232–240)', () => {
 			'knoxchat/oauth/start',
 			'knoxchat/oauth/cancel',
 			'knoxchat/oauth/signOut',
+			'openrouter/listModels',
+			'openrouter/oauth/status',
+			'openrouter/oauth/start',
+			'openrouter/oauth/cancel',
+			'openrouter/oauth/signOut',
 		]) {
 			assert.ok(messenger.includes(`"${name}"`), name);
 		}

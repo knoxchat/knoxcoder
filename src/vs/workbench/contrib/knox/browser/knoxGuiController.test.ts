@@ -18,11 +18,12 @@ import { IMarkdownRendererService } from '../../../../platform/markdown/browser/
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { DEFAULT_REASONING_EFFORT_ALLOWED, knoxGuiResetModelCatalogForTests, knoxGuiSeedModelCatalog } from '../common/knoxGuiCapabilities.js';
+import { formatModelPricingPerMillion } from '../common/knoxGuiOverlays.js';
 import { IKnoxGuiMessage, KNOX_GUI_HEARTBEAT_MS, KnoxGuiRoute } from '../common/knoxGuiProtocol.js';
 import { DEFAULT_MENTION_PROVIDER_TITLES, inputDocFromPlainText, SLASH_BUILTINS } from '../common/knoxGuiInput.js';
 import { DEFAULT_PERMISSION_MODE, IKnoxGuiModel } from '../common/knoxGuiState.js';
 import { IKnoxService } from '../common/knoxService.js';
-import { DRAFT_SESSION_KEY } from './gui/controller/persistence.js';
+import { DRAFT_SESSION_KEY, UI_STATE_KEY } from './gui/controller/persistence.js';
 import { KnoxGuiController } from './knoxGuiController.js';
 import { KnoxGuiMessenger } from './knoxGuiMessenger.js';
 import { KnoxGuiStore } from './knoxGuiStore.js';
@@ -226,22 +227,40 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.permissionMode, 'fullAuto');
 	});
 
-	test('openAddModel always opens the KnoxChat OAuth modal', async () => {
-		const { controller, store } = createHarness();
+	test('openAddModel remembers the last provider tab and preloads both catalogs', async () => {
+		const { controller, store, posted } = createHarness();
 		await timeout(0);
 		controller.openAddModel('edit');
 		assert.strictEqual(store.state.addModelModal, true);
 		assert.strictEqual(store.state.addModelRole, 'edit');
+		assert.strictEqual(store.state.addModelModalProvider, 'knoxchat');
 		assert.strictEqual(store.state.addModelBulk, false);
 		assert.strictEqual(store.state.route, KnoxGuiRoute.Chat);
+		assert.ok(posted.some(message => message.messageType === 'knoxchat/listModels'));
+		assert.ok(posted.some(message => message.messageType === 'openrouter/listModels'));
+		store.patch({ addModelModalProvider: 'openrouter' });
 		controller.closeAddModelModal();
 		assert.strictEqual(store.state.addModelModal, false);
+		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
 		controller.openAddModel();
 		assert.strictEqual(store.state.addModelModal, true);
+		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
 		assert.strictEqual(store.state.addModelRole, 'chat');
 		assert.strictEqual(store.state.route, KnoxGuiRoute.Chat);
 		controller.openAddModel('chat', { bulk: true });
 		assert.strictEqual(store.state.addModelBulk, true);
+		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
+	});
+
+	test('openAddModel restores the persisted provider tab after reload', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(UI_STATE_KEY, JSON.stringify({ addModelModalProvider: 'openrouter' }), StorageScope.PROFILE, StorageTarget.USER);
+		const { controller, store } = createHarness({ storage });
+		await timeout(0);
+		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
+		controller.openAddModel();
+		assert.strictEqual(store.state.addModelModal, true);
+		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
 	});
 
 	test('Memory and Checkpoint Graph editors stay on their route and ignore chat inbound', async () => {
@@ -727,6 +746,135 @@ suite('Knox native GUI controller (GP-084)', () => {
 		}, 'oauth-3');
 		assert.strictEqual(store.state.oauthStatus, 'waiting_for_consent');
 		assert.strictEqual(store.state.oauthError, undefined);
+	});
+
+	test('openrouter/oauth/update patches a parallel session without touching KnoxChat oauth', async () => {
+		const { controller, store } = createHarness();
+		await timeout(0);
+		await controller.handleInbound('openrouter/oauth/update', {
+			state: 'success',
+			account: { label: 'KnoxCoder', creatorUserId: 'user_abc', keyHash: 'deadbeef', connectedAt: 0 },
+		}, 'or-oauth-1');
+		assert.strictEqual(store.state.openrouterOauthConnected, true);
+		assert.strictEqual(store.state.openrouterOauthHandle, 'KnoxCoder');
+		assert.strictEqual(store.state.openrouterOauthStatus, 'success');
+		assert.strictEqual(store.state.openrouterOauthKeyHash, 'deadbeef');
+		assert.strictEqual(store.state.oauthConnected, false);
+		await controller.handleInbound('openrouter/oauth/update', {
+			state: 'failed',
+			error: 'denied',
+		}, 'or-oauth-2');
+		assert.strictEqual(store.state.openrouterOauthConnected, false);
+		assert.strictEqual(store.state.openrouterOauthError, 'denied');
+		assert.strictEqual(store.state.openrouterOauthStatus, 'failed');
+		await controller.handleInbound('openrouter/oauth/update', {
+			state: 'waiting_for_consent',
+		}, 'or-oauth-3');
+		assert.strictEqual(store.state.openrouterOauthStatus, 'waiting_for_consent');
+		assert.strictEqual(store.state.openrouterOauthError, undefined);
+	});
+
+	test('openrouter/listModels fixture populates a searchable catalog', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: {
+				'openrouter/listModels': [
+					{ id: 'anthropic/claude-sonnet-4.6', name: 'Claude Sonnet 4.6', supported_parameters: ['tools'] },
+					{ id: 'openai/gpt-4o', name: 'GPT-4o', supported_parameters: ['temperature'] },
+				],
+			},
+		});
+		await timeout(0);
+		posted.length = 0;
+		await controller.loadOpenRouterModels();
+		assert.ok(posted.some(message => message.messageType === 'openrouter/listModels'));
+		assert.ok(store.state.openrouterModels.some(model => model.model === 'anthropic/claude-sonnet-4.6' && model.supportsTools === true));
+		assert.ok(store.state.openrouterModels.some(model => model.model === 'openai/gpt-4o' && model.supportsTools !== true));
+		assert.strictEqual(store.state.openrouterModelsLoading, false);
+	});
+
+	test('openrouter/listModels uses ~latest alias floor pricing from GET /api/v1/models', async () => {
+		const { controller, store } = createHarness({
+			replies: {
+				'openrouter/listModels': [
+					{
+						id: 'z-ai/glm-5.3-flash',
+						name: 'Z.ai: GLM 5.3 Flash',
+						pricing: { prompt: '0.00000015', completion: '0.0000005' },
+					},
+					{
+						id: '~z-ai/glm-flash-latest',
+						name: 'Z.ai: GLM Flash Latest',
+						alias_target: { name: 'Z.ai: GLM 5.3 Flash', slug: 'z-ai/glm-5.3-flash' },
+						pricing: { prompt: '0.00000002', completion: '0.0000002475' },
+					},
+				],
+			},
+		});
+		await timeout(0);
+		await controller.loadOpenRouterModels();
+		const flash = store.state.openrouterModels.find(model => model.model === 'z-ai/glm-5.3-flash');
+		assert.ok(flash?.pricing);
+		assert.deepStrictEqual(formatModelPricingPerMillion(flash.pricing), {
+			badge: '$0.02/0.2475',
+			title: '$0.02 / $0.2475 per 1M tokens',
+		});
+	});
+
+	test('openrouter/listModels error leaves the catalog empty for cannotLoadModels', async () => {
+		const { controller, store } = createHarness();
+		await timeout(0);
+		await controller.loadOpenRouterModels();
+		assert.deepStrictEqual(store.state.openrouterModels, []);
+		assert.strictEqual(store.state.openrouterModelsLoading, false);
+	});
+
+	test('navigating to /addModel/provider/openrouter requests openrouter/listModels', async () => {
+		const { controller, posted } = createHarness({
+			replies: {
+				'openrouter/listModels': [{ id: 'openai/gpt-4o', name: 'GPT-4o' }],
+			},
+		});
+		await timeout(0);
+		posted.length = 0;
+		controller.store.navigate('/addModel/provider/openrouter');
+		await timeout(0);
+		assert.ok(posted.some(message => message.messageType === 'openrouter/listModels'));
+	});
+
+	test('OpenRouter connect with OAuth omits apiKey; pasted key is stored on the model', async () => {
+		const { controller, store, posted } = createHarness();
+		await timeout(0);
+		store.navigate('/addModel/provider/openrouter');
+		store.patch({
+			openrouterOauthConnected: true,
+			openrouterSelectedModel: 'openai/gpt-4o',
+			openrouterModels: [{ title: 'GPT-4o', model: 'openai/gpt-4o', category: 'OpenAI', contextLength: 128000 }],
+			addModelDraft: {},
+		});
+		posted.length = 0;
+		await controller.addConfiguredModel('openrouter', {
+			title: 'GPT-4o',
+			params: { title: 'GPT-4o', model: 'openai/gpt-4o', contextLength: 128000 },
+		});
+		const oauthAdd = posted.find(message => message.messageType === 'config/addModel');
+		const oauthModel = (oauthAdd?.data as { model?: Record<string, unknown> } | undefined)?.model;
+		assert.strictEqual(oauthModel?.provider, 'openrouter');
+		assert.ok(!oauthModel?.apiKey);
+
+		store.navigate('/addModel/provider/openrouter');
+		store.patch({
+			openrouterOauthConnected: false,
+			addModelDraft: { apiKey: 'sk-or-v1-paste' },
+		});
+		posted.length = 0;
+		await controller.addConfiguredModel('openrouter', {
+			title: 'GPT-4o',
+			params: { title: 'GPT-4o', model: 'openai/gpt-4o', contextLength: 128000 },
+		});
+		const pastedAdd = posted.find(message => message.messageType === 'config/addModel');
+		const pastedModel = (pastedAdd?.data as { model?: Record<string, unknown> } | undefined)?.model;
+		assert.strictEqual(pastedModel?.provider, 'openrouter');
+		assert.strictEqual(pastedModel?.apiKey, 'sk-or-v1-paste');
 	});
 
 	test('KN-370 setTheme and setColors patch token colors and CSS vars', async () => {

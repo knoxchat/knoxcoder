@@ -11,8 +11,43 @@ import fetch, {
   type RequestInit as NodeFetchRequestInit,
   Response,
 } from "node-fetch";
+import { applyOpenRouterAttributionHeaders } from "./openrouterAttribution.js";
 
 const { http, https } = (followRedirects as any).default;
+
+/**
+ * The OpenAI SDK passes a `Headers` instance. `Object.entries(headers)` on
+ * that is empty, which used to drop `Authorization` and produce OpenRouter
+ * `401 No cookie auth credentials found`.
+ */
+export function flattenRequestHeaders(
+  headers: RequestInit["headers"] | undefined,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!headers) {
+    return out;
+  }
+  if (Array.isArray(headers)) {
+    for (const pair of headers) {
+      if (Array.isArray(pair) && typeof pair[0] === "string" && typeof pair[1] === "string") {
+        out[pair[0]] = pair[1];
+      }
+    }
+    return out;
+  }
+  if (typeof (headers as Headers).forEach === "function") {
+    (headers as Headers).forEach((value, key) => {
+      out[key] = value;
+    });
+    return out;
+  }
+  for (const [key, value] of Object.entries(headers)) {
+    if (typeof value === "string") {
+      out[key] = value;
+    }
+  }
+  return out;
+}
 
 export function fetchwithRequestOptions(
   url_: URL | string,
@@ -82,14 +117,15 @@ export function fetchwithRequestOptions(
         : new HttpProxyAgent(proxy, agentOptions)
       : new protocol.Agent(agentOptions);
 
-  let headers: { [key: string]: string } = {};
-  for (const [key, value] of Object.entries(init?.headers || {})) {
-    headers[key] = value as string;
-  }
+  let headers: { [key: string]: string } = flattenRequestHeaders(init?.headers);
   headers = {
     ...headers,
     ...requestOptions?.headers,
   };
+  // OpenRouter titles App from HTTP-Referer / X-OpenRouter-Title on each
+  // generation. The OpenAI SDK passes a Headers instance (lowercased names);
+  // apply canonical documented names on every request, including follow-ups.
+  headers = applyOpenRouterAttributionHeaders(url, headers);
 
   // Replace localhost with 127.0.0.1
   if (url.hostname === "localhost") {

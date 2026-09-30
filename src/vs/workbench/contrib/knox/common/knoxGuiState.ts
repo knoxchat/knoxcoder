@@ -821,8 +821,15 @@ export interface IKnoxGuiState {
 	oauthHandle?: string;
 	oauthConnected: boolean;
 	oauthError?: string;
+	openrouterOauthStatus?: string;
+	openrouterOauthHandle?: string;
+	openrouterOauthConnected: boolean;
+	openrouterOauthError?: string;
+	openrouterOauthKeyHash?: string;
 	addModelRole?: KnoxModelRole;
 	addModelModal: boolean;
+	/** Catalog shown in the Add Chat Model modal. Isolated from KnoxStudio OAuth. */
+	addModelModalProvider: 'knoxchat' | 'openrouter';
 	addModelSelectedModel?: string;
 	addModelDraft: Record<string, string>;
 	/** Model-picker Add Model assigns chat+edit+apply, matching original `#bulkAddMode`. */
@@ -843,6 +850,23 @@ export interface IKnoxGuiState {
 		supportedParameters?: string[];
 	}>;
 	knoxChatModelsLoading: boolean;
+	openrouterModels: Array<{
+		title: string;
+		description?: string;
+		model: string;
+		contextLength: number;
+		category?: string;
+		maxTokens?: number;
+		supportsTools?: boolean;
+		supportsReasoning?: boolean;
+		supportsWebSearch?: boolean;
+		supportsImageOutput?: boolean;
+		modalities?: string[];
+		pricing?: { promptPer1k: number; completionPer1k: number };
+		supportedParameters?: string[];
+	}>;
+	openrouterModelsLoading: boolean;
+	openrouterSelectedModel?: string;
 	batchApplying: boolean;
 	memoryTab: string;
 	/** Editor-panel Memory (`MemoryPanelPage.tsx`) paints nothing until the saved tab is read. */
@@ -1070,11 +1094,15 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		agentMeterOpen: false,
 		toolLoopSteps: 0,
 		oauthConnected: false,
+		openrouterOauthConnected: false,
 		addModelModal: false,
+		addModelModalProvider: 'knoxchat',
 		addModelDraft: {},
 		addModelBulk: false,
 		knoxChatModels: [],
 		knoxChatModelsLoading: false,
+		openrouterModels: [],
+		openrouterModelsLoading: false,
 		batchApplying: false,
 		memoryTab: 'overview',
 		memoryTabHydrated: false,

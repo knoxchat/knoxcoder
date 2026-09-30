@@ -10,6 +10,7 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
 import { parseToolArgs, toolDisplayKind } from '../../../common/knoxGuiChat.js';
 import { knoxGuiLocalAutoApprove } from '../../../common/knoxGuiAgentRequest.js';
+import { knoxGuiModelSelectTitle } from '../../../common/knoxGuiCapabilities.js';
 import { getCategorizedToolName, isSamePermissionTool, toolPermissionDisplay } from '../../../common/knoxGuiTools.js';
 import {
 	contextProviderInsertId,
@@ -79,10 +80,11 @@ export function renderModels(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 		const row = DOM.append(grid, DOM.$('.knox-gui-model-role'));
 		const models = state.modelsByRole[role];
 		const selected = state.selectedModelByRole[role] ?? (role === 'chat' ? state.modelTitle : undefined);
+		const selectedModel = models.find(model => model.title === selected);
 		const wrap = DOM.append(row, DOM.$('.knox-gui-listbox'));
 		const trigger = widget.chromeButton(wrap, {
 			label: models.length
-				? (selected || t(state, 'selectRoleModel', { role: label }))
+				? (knoxGuiModelSelectTitle(selectedModel, models) || selected || t(state, 'selectRoleModel', { role: label }))
 				: `${t(state, 'noModelsForRole', { role: label })}${modelUsesChatFallback(role, models) ? `. ${t(state, 'usingChatModel')}` : ''}`,
 			svg: models.length ? 'chevrons-up-down' : undefined,
 			svgSize: 12,
@@ -109,7 +111,7 @@ export function renderModels(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 				const option = DOM.append(menu, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
 				option.type = 'button';
 				option.setAttribute('role', 'option');
-				DOM.append(option, DOM.$('span.knox-gui-listbox-option', undefined, model.title));
+				DOM.append(option, DOM.$('span.knox-gui-listbox-option', undefined, knoxGuiModelSelectTitle(model, models)));
 				if (model.title === selected) {
 					appendKnoxGuiSvg(option, 'check', 12);
 				}

@@ -22,6 +22,10 @@ import {
   type KnoxChatModelMetadata,
 } from "../knoxChatModels.js";
 import {
+  seedOpenRouterModelsCache,
+  shouldEnrichFromOpenRouterApi,
+} from "../openrouterModels.js";
+import {
   fromChatCompletionChunk,
   LlmApiRequestType,
   toChatBody,
@@ -191,21 +195,32 @@ class OpenAI extends BaseLLM {
 
     try {
       const host = new URL(this.apiBase).host;
-      return this.providerName === "knoxchat" || host !== "api.openai.com";
+      return (
+        this.providerName === "knoxchat" ||
+        this.providerName === "openrouter" ||
+        host !== "api.openai.com"
+      );
     } catch {
       return false;
     }
   }
 
-  /** Prefer live /models metadata over persisted config for KnoxChat hosts. */
+  /** Prefer live /models metadata over persisted config for catalog hosts. */
   private shouldPreferLiveModelMetadata(): boolean {
-    if (this.providerName === "knoxchat") {
+    if (
+      this.providerName === "knoxchat" ||
+      this.providerName === "openrouter"
+    ) {
       return true;
     }
 
     try {
       const host = this.apiBase ? new URL(this.apiBase).host : "";
-      return host.includes("knoxstudio.ai") || host.includes("knox.chat");
+      return (
+        host.includes("knoxstudio.ai") ||
+        host.includes("knox.chat") ||
+        host.includes("openrouter.ai")
+      );
     } catch {
       return false;
     }
@@ -251,7 +266,7 @@ class OpenAI extends BaseLLM {
     const models = await promise;
     modelMetadataCache.set(cacheKey, { timestamp: Date.now(), models });
 
-    // Keep the shared KnoxChat cache in sync for autodetect / pricing / UI
+    // Keep the shared catalog caches in sync for autodetect / pricing / UI
     if (
       shouldEnrichFromKnoxChatApi({
         providerName: this.providerName,
@@ -259,6 +274,13 @@ class OpenAI extends BaseLLM {
       })
     ) {
       seedKnoxChatModelsCache(models);
+    } else if (
+      shouldEnrichFromOpenRouterApi({
+        providerName: this.providerName,
+        apiBase: this.apiBase,
+      })
+    ) {
+      seedOpenRouterModelsCache(models);
     }
 
     return models;

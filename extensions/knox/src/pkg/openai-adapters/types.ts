@@ -33,7 +33,8 @@ export const BasePlusConfig = BaseConfig.extend({
 export const OpenAIConfigSchema = BasePlusConfig.extend({
   provider: z.union([
     z.literal("openai"),
-    z.literal("knoxchat")
+    z.literal("knoxchat"),
+    z.literal("openrouter"),
   ]),
 });
 export type OpenAIConfig = z.infer<typeof OpenAIConfigSchema>;

@@ -1,9 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   autodetectPromptTemplates,
+  autodetectTemplateFunction,
   autodetectTemplateType,
+  llmCanGenerateInParallel,
+  modelSupportsImages,
 } from "./autodetect.js";
+import { __resetKnoxChatModelsCacheForTests, seedKnoxChatModelsCache } from "./knoxChatModels.js";
+import { __resetOpenRouterModelsCacheForTests, seedOpenRouterModelsCache } from "./openrouterModels.js";
+import { PROVIDER_TOOL_SUPPORT } from "./toolSupport.js";
 import { claudeEditPrompt, gptEditPrompt } from "./templates/edit.js";
 
 describe("autodetectTemplateType", () => {
@@ -42,4 +48,43 @@ describe("autodetectPromptTemplates", () => {
     expect(templates.edit).toBe(claudeEditPrompt);
     expect(templates.edit).not.toBe(gptEditPrompt);
   });
+});
+
+describe("openrouter catalog provider", () => {
+  it("lets OpenRouter handle its own chat templating", () => {
+    expect(autodetectTemplateFunction("openai/gpt-4o", "openrouter")).toBeNull();
+    expect(
+      autodetectTemplateFunction("anthropic/claude-sonnet-4.6", "openrouter"),
+    ).toBeNull();
+  });
+
+  it("treats OpenRouter like KnoxChat for images and parallel generation", () => {
+    expect(
+      modelSupportsImages("openrouter", "openai/gpt-4o", undefined, undefined),
+    ).toBe(true);
+    expect(llmCanGenerateInParallel("openrouter", "openai/gpt-4o")).toBe(true);
+  });
+
+  it("reads tool support from the OpenRouter catalog, not KnoxChat", () => {
+    seedOpenRouterModelsCache([
+      {
+        id: "anthropic/claude-sonnet-4.6",
+        supported_parameters: ["tools", "tool_choice"],
+      },
+    ]);
+    seedKnoxChatModelsCache([
+      { id: "anthropic/claude-sonnet-4.6", supported_parameters: ["temperature"] },
+    ]);
+    expect(PROVIDER_TOOL_SUPPORT.openrouter?.("anthropic/claude-sonnet-4.6")).toBe(
+      true,
+    );
+    expect(PROVIDER_TOOL_SUPPORT.knoxchat?.("anthropic/claude-sonnet-4.6")).toBe(
+      false,
+    );
+  });
+});
+
+afterEach(() => {
+  __resetOpenRouterModelsCacheForTests();
+  __resetKnoxChatModelsCacheForTests();
 });

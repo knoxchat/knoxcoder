@@ -250,6 +250,20 @@ export class VsCodeExtension {
         });
       },
     );
+    void Promise.all([
+      import("core/llm/openrouterModels"),
+      import("core/llm/openrouterModelsDisk"),
+    ]).then(
+      ([
+        { preloadOpenRouterModels, registerOpenRouterModelsDiskAdapter },
+        { nodeOpenRouterModelsDiskAdapter },
+      ]) => {
+        registerOpenRouterModelsDiskAdapter(nodeOpenRouterModelsDiskAdapter);
+        return preloadOpenRouterModels().catch((err) => {
+          console.warn("[OpenRouter] models prefetch failed:", err);
+        });
+      },
+    );
 
     this.configHandler.loadConfig();
     registerLanguageModelFeatures(context, this.configHandler);

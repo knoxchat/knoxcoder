@@ -208,19 +208,22 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('.knox-gui-input'), null);
 	});
 
-	test('add-model provider cards show KnoxChat, OpenAI, and Anthropic logos', async () => {
+	test('add-model provider cards show KnoxStudio, OpenRouter, OpenAI, and Anthropic logos', async () => {
 		const posted: Array<{ type: string; data: unknown }> = [];
 		const { widget, store } = await mount(message => {
 			posted.push({ type: message.messageType, data: message.data });
 			return {};
 		});
 		store.navigate('/addModel');
+		assert.ok(widget.root.textContent?.includes('KnoxStudio'));
 		const logos = widget.root.querySelectorAll('img.knox-gui-provider-icon');
-		assert.strictEqual(logos.length, 3);
+		assert.strictEqual(logos.length, 4);
 		const srcs = Array.from(logos).map(img => (img as HTMLImageElement).src);
 		assert.ok(srcs.some(src => src.includes('knoxchat.png')));
+		assert.ok(srcs.some(src => src.includes('openrouter.svg')));
 		assert.ok(srcs.some(src => src.includes('openai.svg')));
 		assert.ok(srcs.some(src => src.includes('anthropic.svg')));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-provider-openrouter"]'));
 		assert.strictEqual(widget.root.querySelectorAll('.knox-gui-add-model-options li').length, 2);
 		(widget.root.querySelector('[data-testid="knox-gui-add-model-by-model"]') as HTMLButtonElement).click();
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-model-pack-openai-gpt-4-turbo"]'));
@@ -2395,6 +2398,171 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.notStrictEqual(store.state.sessionId, 'a');
 	});
 
+	test('OpenRouter catalog renders fixture models and cannotLoadModels when empty', async () => {
+		const { widget, store } = await mount(message => {
+			if (message.messageType === 'openrouter/listModels') {
+				return [{ id: 'anthropic/claude-sonnet-4.6', name: 'Claude Sonnet 4.6', supported_parameters: ['tools'] }];
+			}
+			return {};
+		});
+		store.navigate('/addModel/provider/openrouter');
+		store.patch({
+			openrouterModelsLoading: false,
+			openrouterModels: [
+				{ title: 'Claude Sonnet 4.6', model: 'anthropic/claude-sonnet-4.6', category: 'Anthropic', contextLength: 200000, supportsTools: true },
+			],
+		});
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-openrouter-search"]'));
+		assert.ok(widget.root.querySelector('[data-model="anthropic/claude-sonnet-4.6"]'));
+		assert.ok(widget.root.textContent?.includes('Claude Sonnet 4.6'));
+		store.patch({ openrouterModels: [], openrouterModelsLoading: false });
+		assert.ok(widget.root.textContent?.includes('Can not load models'));
+	});
+
+	test('OpenRouter OAuth row covers disconnected, in_progress, connected, and connect paths', async () => {
+		const posted: Array<{ type: string; data: unknown }> = [];
+		const { widget, store } = await mount(message => {
+			posted.push({ type: message.messageType, data: message.data });
+			return {};
+		});
+		store.navigate('/addModel/provider/openrouter');
+		store.patch({
+			openrouterModelsLoading: false,
+			openrouterModels: [
+				{ title: 'Claude Sonnet 4.6', model: 'anthropic/claude-sonnet-4.6', category: 'Anthropic', contextLength: 200000, supportsTools: true },
+			],
+			openrouterSelectedModel: 'anthropic/claude-sonnet-4.6',
+		});
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-openrouter-sign-in"]'));
+		assert.ok(widget.root.textContent?.includes('Sign in with OpenRouter'));
+		assert.ok((widget.root.querySelector('[data-testid="knox-gui-openrouter-connect"]') as HTMLButtonElement).disabled);
+		(widget.root.querySelector('[data-testid="knox-gui-openrouter-sign-in"]') as HTMLButtonElement).click();
+		assert.ok(posted.some(item => item.type === 'openrouter/oauth/start'));
+
+		posted.length = 0;
+		store.patch({ openrouterOauthStatus: 'waiting_for_consent', openrouterOauthConnected: false });
+		assert.ok(widget.root.textContent?.includes('Waiting for browser'));
+		(widget.root.querySelector('[data-testid="knox-gui-openrouter-cancel"]') as HTMLButtonElement).click();
+		assert.ok(posted.some(item => item.type === 'openrouter/oauth/cancel'));
+
+		store.patch({
+			openrouterOauthStatus: 'failed',
+			openrouterOauthConnected: false,
+			openrouterOauthError: 'denied',
+		});
+		assert.ok(widget.root.textContent?.includes('Sign-in was denied'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-openrouter-sign-in"]'));
+
+		posted.length = 0;
+		store.patch({
+			openrouterOauthStatus: 'success',
+			openrouterOauthConnected: true,
+			openrouterOauthHandle: 'KnoxCoder',
+			openrouterOauthKeyHash: 'deadbeef',
+			openrouterOauthError: undefined,
+		});
+		assert.ok(widget.root.textContent?.includes('Connected as KnoxCoder'));
+		assert.ok(!(widget.root.querySelector('[data-testid="knox-gui-openrouter-connect"]') as HTMLButtonElement).disabled);
+		(widget.root.querySelector('[data-testid="knox-gui-openrouter-manage-key"]') as HTMLButtonElement).click();
+		assert.ok(posted.some(item => item.type === 'openUrl' && String(item.data).includes('/keys/deadbeef')));
+		posted.length = 0;
+		(widget.root.querySelector('[data-testid="knox-gui-openrouter-sign-out"]') as HTMLButtonElement).click();
+		assert.ok(posted.some(item => item.type === 'openrouter/oauth/signOut'));
+
+		posted.length = 0;
+		store.patch({
+			openrouterOauthStatus: 'success',
+			openrouterOauthConnected: true,
+			openrouterOauthHandle: 'KnoxCoder',
+			addModelDraft: {},
+		});
+		(widget.root.querySelector('[data-testid="knox-gui-openrouter-connect"]') as HTMLButtonElement).click();
+		const oauthAdd = posted.find(item => item.type === 'config/addModel') as { data?: { model?: Record<string, unknown> } } | undefined;
+		assert.ok(oauthAdd);
+		assert.strictEqual(oauthAdd?.data?.model?.provider, 'openrouter');
+		assert.ok(!oauthAdd?.data?.model?.apiKey);
+
+		posted.length = 0;
+		store.navigate('/addModel/provider/openrouter');
+		store.patch({
+			openrouterOauthConnected: false,
+			openrouterOauthStatus: 'idle',
+			openrouterOauthHandle: undefined,
+			openrouterOauthKeyHash: undefined,
+			openrouterModelsLoading: false,
+			openrouterModels: [
+				{ title: 'GPT-4o', model: 'openai/gpt-4o', category: 'OpenAI', contextLength: 128000 },
+			],
+			openrouterSelectedModel: 'openai/gpt-4o',
+			addModelDraft: { apiKey: 'sk-or-v1-paste' },
+			addModelModal: false,
+		});
+		assert.ok(!(widget.root.querySelector('[data-testid="knox-gui-openrouter-connect"]') as HTMLButtonElement).disabled);
+		(widget.root.querySelector('[data-testid="knox-gui-openrouter-connect"]') as HTMLButtonElement).click();
+		const pastedAdd = posted.find(item => item.type === 'config/addModel') as { data?: { model?: Record<string, unknown> } } | undefined;
+		assert.strictEqual(pastedAdd?.data?.model?.provider, 'openrouter');
+		assert.strictEqual(pastedAdd?.data?.model?.apiKey, 'sk-or-v1-paste');
+	});
+
+	test('Add Model modal can switch to OpenRouter sign-in without mixing KnoxChat OAuth', async () => {
+		const posted: Array<{ type: string; data: unknown }> = [];
+		const { widget, store } = await mount(message => {
+			posted.push({ type: message.messageType, data: message.data });
+			if (message.messageType === 'openrouter/listModels') {
+				return [{ id: 'anthropic/claude-sonnet-4.6', name: 'Claude Sonnet 4.6', supported_parameters: ['tools'] }];
+			}
+			return {};
+		});
+		store.patch({
+			addModelModal: true,
+			addModelRole: 'chat',
+			addModelModalProvider: 'knoxchat',
+			knoxChatModelsLoading: false,
+			knoxChatModels: [{ title: 'GPT-4o', model: 'openai/gpt-4o', category: 'OpenAI', contextLength: 128000 }],
+			openrouterModelsLoading: false,
+			openrouterModels: [{ title: 'Claude Sonnet 4.6', model: 'anthropic/claude-sonnet-4.6', category: 'Anthropic', contextLength: 200000, supportsTools: true }],
+		});
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-modal"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-toggle"]'));
+		assert.ok(widget.root.textContent?.includes('KnoxStudio'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-knoxchat"]')?.classList.contains('selected'));
+		assert.ok(widget.root.textContent?.includes('Sign in with KnoxStudio'));
+		assert.ok(!widget.root.textContent?.includes('Sign in with OpenRouter'));
+		assert.ok(!widget.root.querySelector('[data-testid="knox-gui-openrouter-sign-in"]'));
+
+		(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-openrouter"]') as HTMLButtonElement).click();
+		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-openrouter"]')?.classList.contains('selected'));
+		assert.ok(widget.root.textContent?.includes('Sign in with OpenRouter'));
+		assert.ok(!widget.root.textContent?.includes('Sign in with KnoxStudio'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-openrouter-sign-in"]'));
+		assert.ok((widget.root.querySelector('[data-testid="knox-gui-add-model-connect"]') as HTMLButtonElement).disabled);
+
+		store.patch({
+			openrouterOauthStatus: 'success',
+			openrouterOauthConnected: true,
+			openrouterOauthHandle: 'KnoxCoder',
+			openrouterSelectedModel: 'anthropic/claude-sonnet-4.6',
+		});
+		assert.ok(widget.root.textContent?.includes('Connected as KnoxCoder'));
+		assert.ok(!(widget.root.querySelector('[data-testid="knox-gui-add-model-connect"]') as HTMLButtonElement).disabled);
+		posted.length = 0;
+		(widget.root.querySelector('[data-testid="knox-gui-add-model-connect"]') as HTMLButtonElement).click();
+		const oauthAdd = posted.find(item => item.type === 'config/addModel') as { data?: { model?: Record<string, unknown> } } | undefined;
+		assert.strictEqual(oauthAdd?.data?.model?.provider, 'openrouter');
+		assert.ok(!oauthAdd?.data?.model?.apiKey);
+		assert.strictEqual(store.state.oauthConnected, false);
+		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
+		widget.controller.closeAddModelModal();
+		assert.strictEqual(store.state.addModelModal, false);
+		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
+		widget.controller.openAddModel('chat');
+		assert.strictEqual(store.state.addModelModal, true);
+		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-openrouter"]')?.classList.contains('selected'));
+		assert.ok(widget.root.textContent?.includes('Connected as KnoxCoder'));
+	});
+
 	test('search filters KnoxChat models, history, checkpoints, and memories without remounting the input', async () => {
 		const { widget, store } = await mount();
 		store.navigate('/addModel/provider/knoxchat');
@@ -2403,7 +2571,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			knoxChatModelsLoading: false,
 			knoxChatModels: [
 				{ title: 'DeepSeek: DeepSeek V4.1 Flash', model: 'deepseek/deepseek-v4.1-flash', category: 'DeepSeek', contextLength: 1_000_000, supportsTools: true, supportsReasoning: true, modalities: ['text', 'image'] },
-				{ title: 'DeepSeek-V4.1-Flash', model: 'knoxchat/flash', category: 'KnoxChat', contextLength: 1_000_000 },
+				{ title: 'DeepSeek-V4.1-Flash', model: 'knoxchat/flash', category: 'KnoxStudio', contextLength: 1_000_000 },
 				{ title: 'GPT-4o', model: 'openai/gpt-4o', category: 'OpenAI', contextLength: 128_000 },
 			],
 		});
@@ -2416,7 +2584,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual((widget.root.querySelector('[data-model="knoxchat/flash"]') as HTMLElement).hidden, false);
 		assert.strictEqual((widget.root.querySelector('[data-model="openai/gpt-4o"]') as HTMLElement).hidden, true);
 		assert.ok(widget.root.textContent?.includes('DeepSeek'));
-		assert.ok(widget.root.textContent?.includes('KnoxChat'));
+		assert.ok(widget.root.textContent?.includes('KnoxStudio'));
 
 		store.navigate('/');
 		store.patch({

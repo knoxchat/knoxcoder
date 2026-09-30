@@ -56,6 +56,12 @@ export interface KnoxChatModelMetadata {
     input_cache_write?: string | null;
     web_search?: string | null;
   };
+  /** OpenRouter `~*-latest` rows point at the current family member. */
+  alias_target?: {
+    name?: string | null;
+    slug?: string | null;
+  } | null;
+  canonical_slug?: string | null;
   pricing_in_display_units?: boolean;
   provider_info?: {
     provider_name?: string | null;
@@ -435,9 +441,10 @@ export function formatUsdAmount(value: number): string {
   if (Math.abs(value - Math.round(value)) < 1e-9) {
     return String(Math.round(value));
   }
-  if (Math.abs(value) >= 0.01) {
+  if (Math.abs(value) >= 1) {
     return value.toFixed(2).replace(/\.?0+$/, "");
   }
+  // Keep up to 4 decimals for sub-dollar $/1M rates (e.g. OpenRouter 0.2475).
   return value.toFixed(4).replace(/\.?0+$/, "");
 }
 

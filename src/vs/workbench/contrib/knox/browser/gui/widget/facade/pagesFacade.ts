@@ -30,12 +30,12 @@ export abstract class KnoxGuiPagesFacade extends KnoxGuiOverlaysFacade {
 		knoxGuiPagesView.renderConfigureProvider(this, body, state);
 	}
 
-	renderKnoxChatModelList(this: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, ready: boolean, options?: { selectOnly?: boolean }): void {
+	renderKnoxChatModelList(this: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, ready: boolean, options?: { selectOnly?: boolean; source?: 'knoxchat' | 'openrouter' }): void {
 		knoxGuiPagesView.renderKnoxChatModelList(this, body, state, ready, options);
 	}
 
-	renderOAuthRow(this: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
-		knoxGuiPagesView.renderOAuthRow(this, body, state);
+	renderOAuthRow(this: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, source: 'knoxchat' | 'openrouter' = 'knoxchat'): void {
+		knoxGuiPagesView.renderOAuthRow(this, body, state, source);
 	}
 
 	renderAddModelInput(this: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, input: { key: string; labelKey: string; placeholderKey?: string; inputType?: string; defaultValue?: string | number; min?: number; max?: number; step?: number }): void {

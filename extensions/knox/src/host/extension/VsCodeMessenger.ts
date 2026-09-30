@@ -1,6 +1,7 @@
 import { ConfigHandler } from "core/config/ConfigHandler";
 import { myersDiff } from "core/diff/myers";
 import { getKnoxChatModels } from "core/llm/knoxChatModels";
+import { getOpenRouterModels } from "core/llm/openrouterModels";
 import {
   FromCoreProtocol,
   FromWebviewProtocol,
@@ -45,6 +46,8 @@ import { getExtensionUri } from "../util/vscode";
 import { VsCodeIde } from "../VsCodeIde";
 import { VsCodeWebviewProtocol } from "../webviewProtocol";
 import { KnoxOAuthController } from "../oauth/KnoxOAuthController";
+import { OpenRouterOAuthController } from "../oauth/OpenRouterOAuthController";
+import { openRouterKeySettingsUrl } from "core/protocol/openrouterOAuth";
 import {
   buildNativeAgentRequest,
   checkNativeDoomLoop,
@@ -181,6 +184,9 @@ export class VsCodeMessenger {
     this.onWebview("knoxchat/listModels", async () => {
       return getKnoxChatModels();
     });
+    this.onWebview("openrouter/listModels", async () => {
+      return getOpenRouterModels();
+    });
 
     const knoxOAuth = new KnoxOAuthController(
       this.ide,
@@ -197,6 +203,52 @@ export class VsCodeMessenger {
     });
     this.onWebview("knoxchat/oauth/signOut", async () => {
       await knoxOAuth.signOut();
+    });
+
+    const openrouterOAuth = new OpenRouterOAuthController({
+      secrets: this.ide.secretStorage,
+      accounts: this.ide.extensionContext.globalState,
+      sendUpdate: (status) => {
+        this.webviewProtocol.send("openrouter/oauth/update", status);
+      },
+      openBrowser: async (url) => {
+        await vscode.env.openExternal(vscode.Uri.parse(url));
+      },
+      callbackPage: () => ({
+        lang: vscode.env.language.startsWith("zh") ? "zh-Hans" : "en",
+        title: t("oauth.openrouterCallbackTitle"),
+        body: t("oauth.openrouterCallbackClose"),
+      }),
+      reloadConfig: async () => {
+        const configHandler = await this.configHandlerPromise;
+        await configHandler.reloadConfig();
+      },
+      warnSignOut: (account) => {
+        const manage = t("oauth.manageKey");
+        void vscode.window
+          .showWarningMessage(
+            t("oauth.openrouterSignedOutLocal"),
+            ...(account?.keyHash ? [manage] : []),
+          )
+          .then((choice) => {
+            if (choice === manage && account?.keyHash) {
+              void vscode.env.openExternal(
+                vscode.Uri.parse(openRouterKeySettingsUrl(account.keyHash)),
+              );
+            }
+          });
+      },
+    });
+    this.ide.extensionContext.subscriptions.push(openrouterOAuth);
+    this.onWebview("openrouter/oauth/status", () => openrouterOAuth.status());
+    this.onWebview("openrouter/oauth/start", async () => {
+      void openrouterOAuth.startLogin();
+    });
+    this.onWebview("openrouter/oauth/cancel", () => {
+      openrouterOAuth.cancel();
+    });
+    this.onWebview("openrouter/oauth/signOut", async () => {
+      await openrouterOAuth.signOut();
     });
 
     this.onWebview("acceptDiff", async ({ data: { filepath, streamId } }) => {

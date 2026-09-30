@@ -2,6 +2,10 @@ import {
   checkKnoxChatToolSupport,
   checkKnoxChatToolSupportSync,
 } from "./knoxChatModels.js";
+import {
+  checkOpenRouterToolSupport,
+  checkOpenRouterToolSupportSync,
+} from "./openrouterModels.js";
 
 export type { KnoxChatModelMetadata } from "./knoxChatModels.js";
 export {
@@ -31,6 +35,21 @@ export {
   seedKnoxChatModelsCache,
   shouldEnrichFromKnoxChatApi,
 } from "./knoxChatModels.js";
+export {
+  checkOpenRouterImageOutputSupportSync,
+  checkOpenRouterImageSupportSync,
+  checkOpenRouterParameterSupportSync,
+  checkOpenRouterReasoningSupportSync,
+  checkOpenRouterToolSupportSync,
+  checkOpenRouterWebSearchSupportSync,
+  enrichOpenRouterModelCapabilitiesFromApi,
+  findOpenRouterModelSync,
+  getOpenRouterModels,
+  hydrateOpenRouterModelsCacheFromDisk,
+  preloadOpenRouterModels,
+  seedOpenRouterModelsCache,
+  shouldEnrichFromOpenRouterApi,
+} from "./openrouterModels.js";
 
 export {
   DEFAULT_REASONING_EFFORT_CONFIG,
@@ -74,5 +93,12 @@ export const PROVIDER_TOOL_SUPPORT: Record<
       return cached;
     }
     return checkKnoxChatToolSupport(model);
+  },
+  openrouter: (model) => {
+    const cached = checkOpenRouterToolSupportSync(model);
+    if (cached !== undefined) {
+      return cached;
+    }
+    return checkOpenRouterToolSupport(model);
   },
 };

@@ -1,6 +1,60 @@
 # Changelog
 
 All notable changes to KnoxCoder are documented in this file.
+## [1.138.1]
+
+### Added
+
+- **OpenRouter provider for Knox Agent**
+  Add Model and Configure Provider now include OpenRouter next to KnoxStudio, OpenAI, and Anthropic. Sign in with OpenRouter (one-shot PKCE on `127.0.0.1:8734`, key labeled `KnoxCoder` in the OpenRouter dashboard) or paste an `sk-or-…` key. The OAuth key stays in SecretStorage and is injected at runtime, so it is not written into `config.yaml`. KnoxStudio sign-in remains on port 8733; both sessions can coexist. Sign-out wipes the local key and deletes the minted OpenRouter key when possible; a Manage key link opens the owner’s key page.
+
+- **OpenRouter live model catalog**
+  Configure Provider and the Add Model modal (KnoxStudio / OpenRouter toggle) load OpenRouter’s public `GET https://openrouter.ai/api/v1/models` list — searchable, 24-hour cache, same metadata shape as KnoxStudio. If the catalog is unreachable, a small coding fallback is shown (Claude Sonnet 4.6, GPT-4o, Gemini 2.5 Pro). English and Chinese copy is included for the new strings.
+
+- **English / Chinese toggle on Checkpoint Graph and Memory**
+  Those editor tab bars now have the same globe language switch as the sidebar (`中` while English, `EN` while Chinese). Changing language in chat, Memory, or Checkpoint Graph updates every Knox view and is stored in the profile. The checkpoint graph remounts on a language switch so cached translated labels refresh.
+
+### Changed
+
+- Bumped product version to **1.138.1** (`package.json` / related product metadata).
+
+- **OpenRouter picker shows advertised floor pricing from `/api/v1/models`**
+  Canonical slugs such as `z-ai/glm-5.3-flash` still list a typical-provider rate (`$0.15/0.5`) on that endpoint, while the matching `~*-latest` alias (`~z-ai/glm-flash-latest`) carries the floor / website price (`$0.02/0.2475`). The catalog now copies cheaper alias pricing onto the alias target so GLM 5.3 Flash and similar family members match OpenRouter’s models list instead of the median list price. Badges keep four-decimal $/1M rates (so `0.2475` is not rounded to `0.25`).
+
+- **KnoxChat provider renamed to KnoxStudio**
+  The Add Model / Configure Provider label, YAML duplicate prefix, OAuth callback page, minted API token name, and related English/Chinese copy now say KnoxStudio (`api.knoxstudio.ai`). The internal provider id remains `knoxchat`, so existing `config.yaml` models keep working.
+
+- **Add Model modal remembers the last provider tab**
+  KnoxStudio vs OpenRouter is stored with the rest of GUI UI state. Reopening the modal — including after a reload — restores the tab you used last instead of always starting on KnoxStudio.
+
+- **Knox Agent can chat through OpenRouter**
+  New `OpenRouter` LLM class (`apiBase=https://openrouter.ai/api/v1/`) reuses the existing OpenAI-compatible stream, tools, images, and reasoning autodetect. Requests send KnoxCoder attribution (`HTTP-Referer`, `X-OpenRouter-Title`) so OpenRouter logs do not show the app as Unknown. Tool, image, and reasoning support follow the live catalog the same way KnoxStudio does.
+
+- Shared OAuth loopback now accepts a port so OpenRouter can bind **8734** without moving KnoxStudio off **8733**.
+
+- Adding the same catalog title from two providers prefixes the YAML name (`OpenRouter · GPT-4o`) instead of appending ` (1)`.
+
+### Files touched in this release
+
+| Path | Action |
+|------|--------|
+| `extensions/knox/src/core/auth/openrouterOAuth/**` | Added (PKCE client, session, tests) |
+| `extensions/knox/src/host/oauth/OpenRouterOAuthController.ts` / `openrouterOAuthPersistence.ts` | Added |
+| `extensions/knox/src/core/protocol/openrouterOAuth.ts` | Added |
+| `extensions/knox/src/core/llm/llms/OpenRouter.ts` | Added |
+| `extensions/knox/src/core/llm/openrouterModels.ts` / `openrouterModelsDisk.ts` | Added |
+| `extensions/knox/src/pkg/fetch/openrouterAttribution.ts` | Added |
+| `src/vs/workbench/contrib/knox/browser/media/logos/openrouter.svg` | Added |
+| `src/vs/workbench/contrib/knox/browser/gui/widget/languageToggle.ts` | Added |
+| `extensions/knox/src/core/auth/knoxOAuth/loopback.ts` / `session.ts` / `constants.ts` | Modified (shared port, OpenRouter key injection, KnoxStudio token name) |
+| `extensions/knox/src/core/llm/autodetect.ts` / `toolSupport.ts` / `llms/index.ts` | Modified |
+| `extensions/knox/src/pkg/openai-adapters/**` / `pkg/fetch/fetch.ts` | Modified |
+| `extensions/knox/src/host/extension/VsCodeMessenger.ts` / `VsCodeExtension.ts` | Modified |
+| GUI overlays, Add Model pages, inbound protocol, composer selects, i18n `en`/`zh` | Modified (KnoxStudio provider label + last tab persist) |
+| Checkpoint Graph / Memory pages, `knoxGuiController.ts`, graph/memory CSS | Modified |
+| Host/core/GUI contract and parity tests | Modified |
+| `package.json` / `package-lock.json` | Modified (version 1.138.1) |
+| `CHANGELOG.md` | Modified |
 
 ## [1.138.0]
 

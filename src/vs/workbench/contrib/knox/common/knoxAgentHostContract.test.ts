@@ -401,6 +401,57 @@ suite('Knox agent host contract (KN-360)', () => {
 	});
 });
 
+suite('Knox agent host contract (OpenRouter OAuth)', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('OpenRouter PKCE URL, port 8734, SecretStorage, protocol, and GUI start button', () => {
+		const controller = repoFile('extensions/knox/src/host/oauth/OpenRouterOAuthController.ts');
+		const persist = repoFile('extensions/knox/src/host/oauth/openrouterOAuthPersistence.ts');
+		const messenger = repoFile('extensions/knox/src/host/extension/VsCodeMessenger.ts');
+		const client = repoFile('extensions/knox/src/core/auth/openrouterOAuth/client.ts');
+		const http = repoFile('extensions/knox/src/core/auth/openrouterOAuth/http.ts');
+		const constants = repoFile('extensions/knox/src/core/auth/openrouterOAuth/constants.ts');
+		const inbound = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/inbound.ts');
+		const models = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/models.ts');
+		const pages = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/pages.ts');
+		const protocol = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiProtocol.ts');
+		const overlays = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiOverlays.ts');
+		assert.ok(constants.includes('http://127.0.0.1:8734/callback'));
+		assert.ok(constants.includes('LOOPBACK_PORT = 8734'));
+		assert.ok(constants.includes('openrouter_oauth_api_key'));
+		assert.ok(constants.includes('https://openrouter.ai/auth'));
+		assert.ok(http.includes('hashOpenRouterApiKey'));
+		assert.ok(http.includes('buildAuthorizeUrl'));
+		assert.ok(client.includes('waitForLoopbackCallback'));
+		assert.ok(client.includes('keyHash'));
+		assert.ok(client.includes('logoutOpenRouter'));
+		assert.ok(client.includes('deleteKeyEndpoint'));
+		assert.ok(constants.includes('deleteKeyEndpoint'));
+		assert.ok(constants.includes('/keys/'));
+		assert.ok(controller.includes('logoutOpenRouter'));
+		assert.ok(persist.includes('OPENROUTER_OAUTH_UPDATE_MESSAGE = "openrouter/oauth/update"'));
+		assert.ok(controller.includes('persistOpenRouterOAuthSession'));
+		assert.ok(messenger.includes('"openrouter/oauth/status"'));
+		assert.ok(messenger.includes('"openrouter/oauth/start"'));
+		assert.ok(messenger.includes('"openrouter/oauth/cancel"'));
+		assert.ok(messenger.includes('"openrouter/oauth/signOut"'));
+		assert.ok(messenger.includes('void openrouterOAuth.startLogin()'));
+		assert.ok(inbound.includes("case 'openrouter/oauth/update'"));
+		assert.ok(models.includes('parseOpenRouterOAuthStatus'));
+		assert.ok(pages.includes('openrouter/oauth/start'));
+		assert.ok(pages.includes('signInOpenRouter'));
+		assert.ok(pages.includes('knox-gui-openrouter-sign-in'));
+		assert.ok(pages.includes('addModelModalProvider'));
+		assert.ok(pages.includes('knox-gui-add-model-provider-openrouter'));
+		assert.ok(pages.includes('manageKey'));
+		assert.ok(protocol.includes("'openrouter/oauth/update'"));
+		assert.ok(protocol.includes("'openrouter/listModels'"));
+		assert.ok(overlays.includes("id: 'openrouter'"));
+		assert.ok(overlays.includes('https://openrouter.ai/keys/'));
+		assert.ok(overlays.includes('oauthErrorOpenRouterExchange'));
+	});
+});
+
 suite('Knox agent host contract (KN-361)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -637,7 +688,9 @@ suite('Knox agent host contract (KN-371)', () => {
 		assert.ok(capabilities.includes('knoxGuiSeedModelCatalog'));
 		assert.ok(!capabilities.includes("['knoxchat', 'openai', 'anthropic']"));
 		assert.ok(messenger.includes('getKnoxChatModels'));
+		assert.ok(messenger.includes('getOpenRouterModels'));
 		assert.ok(models.includes('knoxGuiParseModelCatalog'));
+		assert.ok(models.includes('loadOpenRouterModels'));
 		assert.ok(config.includes('loadKnoxChatModels'));
 	});
 });

@@ -12,7 +12,7 @@ import { MEMORY_SETTING_GROUPS, memoriesToExportJson, memoriesToExportMarkdown, 
 import { knoxGuiResolveOpenPath } from './knoxGuiPanels.js';
 import { renderToolTemplateHtml } from './knoxGuiTools.js';
 import { applySuggestAt, buildTopLevelMentionItems, detectComposerTrigger, fileHitToSuggestItem, IKnoxGuiInputBlock, inputDocToPlainText, isFolderMentionNode, isPathMentionNode, isSlashBookmarked, KNOX_GUI_CHIP_CHAR, KnoxGuiInlineNode, lastRelativePathParts, MENTION_LOADING_ID, MENTION_PANEL_MAX_WIDTH, mentionChipOpenUri, mentionChipTooltip, mentionFloatingPosition, mentionItemMatchesQuery, mergeOpenFileMentions, nextMentionSelectedIndex, openFilesChanged, openFileSuggestItems, paragraphTextBefore, rankMentionItems, removeCodeToEditTrigger, retainMentionItemsWhileLoading, shortestUniqueRelativePaths, splitCamelCaseAndNonAlphaNumeric, submenuHitToSuggestItem, toggleSlashBookmark } from './knoxGuiInput.js';
-import { agentProfileDefaults, formatModelPricingPerMillion, formatUsdAmount, fuzzyTitleMatch, historySessionMatchesQuery, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, sortPromptsBookmarkedFirst } from './knoxGuiOverlays.js';
+import { agentProfileDefaults, applyOpenRouterAliasFloorPricing, formatModelPricingPerMillion, formatUsdAmount, fuzzyTitleMatch, historySessionMatchesQuery, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, sortPromptsBookmarkedFirst } from './knoxGuiOverlays.js';
 import { IKnoxGuiSuggestItem } from './knoxGuiState.js';
 import { knoxGuiShortcutKeys } from './knoxGuiChrome.js';
 import { composerUndoRecord, composerUndoStep, createComposerUndo, inputDocFromPlainText, knoxGuiCodeBlockOpenAction, knoxGuiCodeBlockTitle, knoxGuiComposerKeyAction, knoxGuiDragHasImages, knoxGuiImageFileAccepted, knoxGuiImageTargetSize, knoxGuiImageUploadToast, knoxGuiNewestCodeBlockIndex, KNOX_COMPOSER_UNDO_GROUP_MS } from './knoxGuiInput.js';
@@ -493,6 +493,29 @@ suite('Knox native parity items', () => {
 			assert.strictEqual(knoxChatModelPricing({ prompt: '-1', completion: '1' }, false), undefined);
 			assert.strictEqual(knoxChatPricingHasWebSearch({ web_search: '0.01' }), true);
 			assert.strictEqual(formatUsdAmount(0.00125), '0.0013');
+			assert.strictEqual(formatUsdAmount(0.2475), '0.2475');
+		});
+
+		test('S-17 OpenRouter ~latest alias floor pricing matches GET /api/v1/models', () => {
+			const raw = applyOpenRouterAliasFloorPricing([
+				{
+					id: 'z-ai/glm-5.3-flash',
+					name: 'Z.ai: GLM 5.3 Flash',
+					pricing: { prompt: '0.00000015', completion: '0.0000005' },
+				},
+				{
+					id: '~z-ai/glm-flash-latest',
+					name: 'Z.ai: GLM Flash Latest',
+					alias_target: { name: 'Z.ai: GLM 5.3 Flash', slug: 'z-ai/glm-5.3-flash' },
+					pricing: { prompt: '0.00000002', completion: '0.0000002475' },
+				},
+			]);
+			const flash = raw.find(item => (item as { id?: string }).id === 'z-ai/glm-5.3-flash') as { pricing?: unknown };
+			const pricing = knoxChatModelPricing(flash.pricing, false)!;
+			assert.deepStrictEqual(formatModelPricingPerMillion(pricing), {
+				badge: '$0.02/0.2475',
+				title: '$0.02 / $0.2475 per 1M tokens',
+			});
 		});
 
 		test('S-17 KnoxChat model list context and ↑max-token badges follow the reference metadata rules', () => {

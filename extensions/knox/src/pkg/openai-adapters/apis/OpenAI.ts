@@ -11,9 +11,19 @@ import {
   Model,
 } from "openai/resources/index";
 import { z } from "zod";
-import { OpenAIConfigSchema } from "../types.js";
+import { OpenAIConfigSchema, RequestOptions } from "../types.js";
 import { customFetch } from "../util.js";
+import { openRouterAttributionHeaders } from "../../fetch/openrouterAttribution.js";
 import { BaseLlmApi } from "./base.js";
+
+function usesOpenRouter(
+  config: z.infer<typeof OpenAIConfigSchema>,
+  apiBase: string,
+): boolean {
+  return (
+    config.provider === "openrouter" || apiBase.includes("openrouter.ai")
+  );
+}
 
 export class OpenAIApi implements BaseLlmApi {
   openai: OpenAI;
@@ -21,11 +31,28 @@ export class OpenAIApi implements BaseLlmApi {
 
   constructor(protected config: z.infer<typeof OpenAIConfigSchema>) {
     this.apiBase = config.apiBase ?? this.apiBase;
+    const requestOptions = this.openRouterRequestOptions();
     this.openai = new OpenAI({
       apiKey: config.apiKey,
       baseURL: this.apiBase,
-      fetch: customFetch(config.requestOptions) as any,
+      fetch: customFetch(requestOptions) as any,
+      defaultHeaders: usesOpenRouter(config, this.apiBase)
+        ? openRouterAttributionHeaders()
+        : undefined,
     });
+  }
+
+  private openRouterRequestOptions(): RequestOptions | undefined {
+    if (!usesOpenRouter(this.config, this.apiBase)) {
+      return this.config.requestOptions;
+    }
+    return {
+      ...this.config.requestOptions,
+      headers: {
+        ...openRouterAttributionHeaders(),
+        ...this.config.requestOptions?.headers,
+      },
+    };
   }
 
   /**

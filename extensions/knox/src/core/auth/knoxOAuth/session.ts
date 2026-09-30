@@ -4,6 +4,7 @@
  */
 
 import type { KnoxOAuthAccount } from "../../protocol/knoxOAuth";
+import { resolveOpenRouterApiKey } from "../openrouterOAuth/session";
 
 let sharedApiKey: string | undefined;
 let sharedAccount: KnoxOAuthAccount | undefined;
@@ -41,13 +42,16 @@ export function resolveKnoxChatApiKey(explicit?: string): string | undefined {
   return getKnoxChatOAuthApiKey();
 }
 
-/** Inject the OAuth session key only for the knoxchat provider. */
+/** Inject the matching OAuth session key for knoxchat / openrouter. */
 export function resolveProviderApiKey(
   provider: string | undefined,
   explicit?: string,
 ): string | undefined {
   if (provider === "knoxchat") {
     return resolveKnoxChatApiKey(explicit);
+  }
+  if (provider === "openrouter") {
+    return resolveOpenRouterApiKey(explicit);
   }
   const trimmed = explicit?.trim();
   return trimmed ? trimmed : undefined;

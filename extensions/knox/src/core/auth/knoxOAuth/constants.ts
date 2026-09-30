@@ -1,10 +1,10 @@
-//! Shared OAuth2 + PKCE contract for KnoxChat.
+//! Shared OAuth2 + PKCE contract for KnoxStudio.
 //!
 //! Website and backend copy these **same literals**. Do not generate a second
 //! `client_id` or a random redirect port. Must match:
 //! `backend/src/services/oauth2.rs` (`KNOXCHAT_*`) and the seed migration.
 
-export const APP_NAME = "KnoxChat";
+export const APP_NAME = "KnoxStudio";
 
 /** Public OAuth `client_id`. Seeded in the backend; never a per-install value. */
 export const CLIENT_ID = "knoxchat";
@@ -12,7 +12,7 @@ export const CLIENT_ID = "knoxchat";
 /** OAuth application type. Public clients must use PKCE and send no secret. */
 export const APP_TYPE = "public";
 
-/** Space-separated scopes requested by KnoxChat. */
+/** Space-separated scopes requested by KnoxStudio. */
 export const SCOPES =
   "user:read user:email tokens:read tokens:write usage:read";
 
@@ -23,12 +23,12 @@ export const REDIRECT_URI = "http://127.0.0.1:8733/callback";
 export const LOOPBACK_PORT = 8733;
 
 /** Name of the minted `sk-` API token row (rotated on repeat sign-in). */
-export const API_TOKEN_NAME = "KnoxChat";
+export const API_TOKEN_NAME = "KnoxStudio";
 
 /** PKCE challenge method. Editor sends `S256` only. */
 export const PKCE_METHOD = "S256";
 
-export const USER_AGENT = "KnoxChat";
+export const USER_AGENT = "KnoxStudio";
 
 const DEFAULT_AUTHORIZE_URL = "https://knoxstudio.ai/oauth2/authorize";
 const DEFAULT_API_BASE = "https://api.knoxstudio.ai";
@@ -94,7 +94,7 @@ export function selfRevokeEndpoint(): string {
 }
 
 export const storage = {
-  /** Secret storage id for the minted KnoxChat `sk-` key. */
+  /** Secret storage id for the minted KnoxStudio `sk-` key. */
   API_KEY_ITEM: "knoxchat_oauth_api_key",
   /** Secret storage id for the OAuth refresh token. */
   REFRESH_TOKEN_ITEM: "knoxchat_oauth_refresh",

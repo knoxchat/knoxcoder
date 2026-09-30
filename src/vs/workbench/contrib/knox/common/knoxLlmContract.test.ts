@@ -36,10 +36,25 @@ suite('Knox LLM stack contract (KN-250–256)', () => {
 		assert.ok(anthropic.includes('thinking'));
 	});
 
-	test('KN-253: KnoxChat provider hits api.knoxstudio.ai and caches /v1/models', () => {
+	test('KN-253: KnoxStudio provider hits api.knoxstudio.ai and caches /v1/models', () => {
 		assert.ok(repoFile('extensions/knox/src/core/llm/llms/KnoxChat.ts').includes('https://api.knoxstudio.ai/v1/'));
 		assert.ok(repoFile('extensions/knox/src/core/llm/knoxChatModels.ts').includes('https://api.knoxstudio.ai/v1/models'));
 		assert.ok(repoFile('extensions/knox/src/host/extension/VsCodeMessenger.ts').includes('getKnoxChatModels'));
+	});
+
+	test('OpenRouter catalog is cached separately and exposed as openrouter/listModels', () => {
+		assert.ok(repoFile('extensions/knox/src/core/llm/openrouterModels.ts').includes('https://openrouter.ai/api/v1/models'));
+		assert.ok(repoFile('extensions/knox/src/core/llm/openrouterModels.ts').includes('openrouterModelsCache.v2'));
+		assert.ok(repoFile('extensions/knox/src/core/llm/openrouterModels.ts').includes('applyOpenRouterAliasFloorPricing'));
+		assert.ok(repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/models.ts').includes('applyOpenRouterAliasFloorPricing'));
+		assert.ok(repoFile('extensions/knox/src/core/llm/openrouterModels.ts').includes('attributionHeaders'));
+		assert.ok(repoFile('extensions/knox/src/core/llm/llms/OpenRouter.ts').includes('attributionHeaders'));
+		assert.ok(repoFile('extensions/knox/src/pkg/openai-adapters/apis/OpenAI.ts').includes('openRouterAttributionHeaders'));
+		assert.ok(repoFile('extensions/knox/src/pkg/fetch/openrouterAttribution.ts').includes('X-OpenRouter-Title'));
+		assert.ok(repoFile('extensions/knox/src/pkg/fetch/fetch.ts').includes('applyOpenRouterAttributionHeaders'));
+		assert.ok(repoFile('extensions/knox/src/host/extension/VsCodeMessenger.ts').includes('getOpenRouterModels'));
+		assert.ok(repoFile('src/vs/workbench/contrib/knox/common/knoxGuiProtocol.ts').includes('openrouter/listModels'));
+		assert.ok(repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/models.ts').includes('openrouter/listModels'));
 	});
 
 	test('KN-371: native GUI tools support reads the KN-253 /v1/models cache', () => {

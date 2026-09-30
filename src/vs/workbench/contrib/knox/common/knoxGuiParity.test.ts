@@ -14,7 +14,7 @@ import { calculateFence, capTreeTerminalLines, TREE_TERMINAL_SCROLLBACK, treeTer
 import { appendMentionChip, applySuggestToDoc, appendTriggerToDoc, buildTopLevelMentionItems, composerInputHistoryAdd, composerInputHistoryNext, composerInputHistoryPrev, composerPlaceholderKey, createComposerInputHistory, DEFAULT_MENTION_PROVIDERS, DEFAULT_MENTION_PROVIDER_TITLES, detectComposerTrigger, EDIT_DISALLOWED_CONTEXT_PROVIDERS, emptyInputDoc, extractMentionsFromDoc, extractSlashFromDoc, filterProvidersForMode, groupMentionItems, groupSlashItems, highlightMentionMatch, inputDocFromPlainText, inputDocIsEmpty, inputDocToPlainText, insertCodeBlock, insertTextAtCaret, isDroppedImageFile, isSingleRangeEdit, knoxGuiCodeToEditTitle, knoxGuiComposerKeyAction, knoxGuiPendingToolBlocksSubmit, knoxGuiShouldBlockSubmit, MAX_COMPOSER_INPUT_HISTORY, mentionChipLabel, mentionIndexIsTruncated, mentionListKeyAction, mergeContextProvidersWithDefaults, mergeSlashCommandsWithBuiltins, parseUriList, rankSlashCommands, removeCodeBlockAt, resolveComposerSlashCommand, SLASH_BUILTINS, slashCommandTitle, submitUsesActiveFile, truncatedMentionMarker, useActiveFileFromDefaultContext } from './knoxGuiInput.js';
 import { applyKnoxGuiAutonomousEvent, applyLivePlanProgress, autonomousBannerKey, collectLatestTaskPlanSnapshot, collectLiveTaskPlan, collectRunningTaskJobs, compactionMethodKey, countFailedJobs, countRunningJobs, extractPathHints, finalizeGitDiffFiles, formatPlanText, gitDiffTotals, gitFileType, gitFilesFromDiffs, isCompactionBannerVisible, isInjectedMemoryTimeout, isTaskJobId, isVisibleTaskPlanPeekItem, mergeBackgroundJobs, mergeGitChangedWithDiffs, parseCompactionPayload, parseDiffStats, parsePlanText, shouldShowAutonomousBanner, splitSelectiveMemories, stepIntent, taskPlanFillPercent, truncateJobTitle, visibleBackgroundJobs, visibleToolOutputPeekItems } from './knoxGuiPanels.js';
 import { DEFAULT_REASONING_EFFORT, DEFAULT_REASONING_EFFORT_ALLOWED, knoxGuiFindCatalogModel, knoxGuiGetReasoningModelKeys, knoxGuiModelSelectTitle, knoxGuiModelTriggerLabel, knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelToolsSupportKnown, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResetModelCatalogForTests, knoxGuiResolveReasoningEffort, knoxGuiResolveToolsSupported, knoxGuiSeedModelCatalog } from './knoxGuiCapabilities.js';
-import { ADD_MODEL_PROVIDERS, addModelBrowseGroups, addModelPackagesByProvider, addModelProviderById, addModelRequiredSatisfied, agentProfileSharedConfig, appendNewPromptFileMentionAction, applyHistoryRowSelection, batchDiffTotals, buildAddModelPayload, categorizeKnoxChatModel, DEFAULT_AGENT_TOOL_POLICY_TEXT, duplicateToolNames, emptyPromptDraft, exploreBlocksButton, filterHistorySessions, filterKnoxChatModels, formatPolicyLines, formatPromptCommandName, formatSessionExportMarkdown, groupHistoryByDate, groupKnoxChatModels, historyDateSection, historySessionMatchesQuery, isNewPromptFileMentionAction, isPromptFileMentionSubmenu, knoxGuiOAuthErrorI18nKey, knoxGuiOAuthHandle, knoxGuiOAuthPane, knoxGuiProviderLogoUri, mergeDimensionOptions, mergeReasoningEffortPrefs, mergeRuleCards, MODEL_OVERLAY_ROLES, modelUsesChatFallback, NEW_PROMPT_FILE_ACTION_ID, parseKnoxOAuthStatus, parseYamlRules, pendingGeneratedToolName, policyEditorText, PROMPT_FILE_SUBMENU_TITLE, promptDraftFromCommand, promptDraftIsEditing, promptDraftIsValid, promptSlashName, reasoningEffortLabelKey, ruleCardOpensProfile, ruleCardTitleKey, selectHistoryIdRange, sessionExportFilename, setPathValue, sortConfigErrors, sortPromptsBookmarkedFirst, splitFilePath, toggleHistorySelection, toolPermissionBadgeKey, workspaceBasename } from './knoxGuiOverlays.js';
+import { ADD_MODEL_PROVIDERS, addModelBrowseGroups, addModelPackagesByProvider, addModelProviderById, addModelRequiredSatisfied, agentProfileSharedConfig, appendNewPromptFileMentionAction, applyHistoryRowSelection, batchDiffTotals, buildAddModelPayload, categorizeKnoxChatModel, DEFAULT_AGENT_TOOL_POLICY_TEXT, duplicateToolNames, emptyPromptDraft, exploreBlocksButton, filterHistorySessions, filterKnoxChatModels, formatPolicyLines, formatPromptCommandName, formatSessionExportMarkdown, groupHistoryByDate, groupKnoxChatModels, historyDateSection, historySessionMatchesQuery, isNewPromptFileMentionAction, isPromptFileMentionSubmenu, knoxGuiOAuthErrorI18nKey, knoxGuiOAuthHandle, knoxGuiOAuthPane, knoxGuiOpenRouterKeyLogsUrl, knoxGuiOpenRouterKeySettingsUrl, knoxGuiProviderLogoUri, mergeDimensionOptions, mergeReasoningEffortPrefs, mergeRuleCards, MODEL_OVERLAY_ROLES, modelUsesChatFallback, NEW_PROMPT_FILE_ACTION_ID, parseKnoxOAuthStatus, parseOpenRouterOAuthStatus, parseYamlRules, pendingGeneratedToolName, policyEditorText, PROMPT_FILE_SUBMENU_TITLE, promptDraftFromCommand, promptDraftIsEditing, promptDraftIsValid, promptSlashName, reasoningEffortLabelKey, ruleCardOpensProfile, ruleCardTitleKey, selectHistoryIdRange, sessionExportFilename, setPathValue, sortConfigErrors, sortPromptsBookmarkedFirst, splitFilePath, toggleHistorySelection, toolPermissionBadgeKey, workspaceBasename } from './knoxGuiOverlays.js';
 import { filterAndSortMemories, formatBytes, formatMemoryTimeAgo, groupMemoriesByDate, healthStatusColor, hitTestMemoryGraph, isMemoryTabId, layoutMemoryGraph, MEMORY_PANEL_TAB_BRAIN_MESSAGES, MEMORY_RETRIEVAL_THRESHOLD, MEMORY_RETRIEVAL_TOP_K, MEMORY_SETTING_GROUPS, MEMORY_TAB_ICONS, MEMORY_TAB_IDS, MEMORY_TIER_COLORS, memoryConfigUpdatePayload, memoryExploreEdgeDepth, memorySnippet, parseEffectiveContext, parseExploreResult, parseMemoryDashboard, parseMetricsTrend, sortMemoryExploreEdges, unwrapBrainConfig, memoriesToExportJson } from './knoxGuiMemory.js';
 import { KNOX_GUI_HEARTBEAT_MS, KNOX_GUI_HOST_INBOUND, KNOX_GUI_HOST_INBOUND_EMPTY_ACK, KNOX_GUI_HOST_OUTBOUND, KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME, KNOX_GUI_OVERLAYS, KNOX_GUI_PATH_BY_ROUTE, KnoxGuiRoute, knoxGuiRouteFromPath, lumpOverlaySectionForPath } from './knoxGuiProtocol.js';
 import { isSingleRangeEditOrInsertion, knoxGuiMultifileEditPrompt, knoxGuiNextEditStatus, knoxGuiResetEditModeState, mergeCodeToEdit, parseCodeToEdit, shouldSendEditPrompt } from './knoxGuiEdit.js';
@@ -961,7 +961,9 @@ suite('Knox native GUI parity', () => {
 		assert.deepStrictEqual(sortConfigErrors([{ fatal: false, message: 'w' }, { fatal: true, message: 'f' }]).map(e => e.fatal), [true, false]);
 		assert.deepStrictEqual(batchDiffTotals([{ numDiffs: 2, selected: true }, { numDiffs: 3, selected: false }]), { selected: 1, diffs: 5 });
 		assert.deepStrictEqual(splitFilePath('src/app.ts'), { fileName: 'app.ts', dirPath: 'src' });
-		assert.deepStrictEqual(ADD_MODEL_PROVIDERS.map(p => p.id), ['knoxchat', 'openai', 'anthropic']);
+		assert.deepStrictEqual(ADD_MODEL_PROVIDERS.map(p => p.id), ['knoxchat', 'openrouter', 'openai', 'anthropic']);
+		assert.strictEqual(addModelProviderById('knoxchat')?.title, 'KnoxStudio');
+		assert.strictEqual(createInitialKnoxGuiState().addModelModalProvider, 'knoxchat');
 		assert.ok(addModelProviderById('knoxchat')?.collectInputFor.some(input => input.key === 'completionOptions.temperature'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('config/addPrompt'));
 		assert.ok(KNOX_GUI_HOST_INBOUND.includes('didChangeAvailableProfiles'));
@@ -998,12 +1000,31 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(addModelRequiredSatisfied(knoxchat, {}, false), false);
 		assert.strictEqual(addModelRequiredSatisfied(knoxchat, {}, true), true);
 		assert.strictEqual(addModelRequiredSatisfied(knoxchat, { apiKey: 'sk-test' }, false), true);
+		const openrouter = addModelProviderById('openrouter');
+		assert.ok(openrouter);
+		assert.strictEqual(openrouter.provider, 'openrouter');
+		assert.strictEqual(openrouter.apiKeyUrl, 'https://openrouter.ai/keys');
+		assert.strictEqual(openrouter.icon, 'openrouter.svg');
+		assert.ok(openrouter.collectInputFor.some(input => input.key === 'apiKey' && input.required === false));
+		assert.ok(openrouter.collectInputFor.some(input => input.key === 'apiBase' && input.defaultValue === 'https://openrouter.ai/api/v1/'));
+		assert.strictEqual(addModelRequiredSatisfied(openrouter, {}, false), false);
+		assert.strictEqual(addModelRequiredSatisfied(openrouter, {}, true), true);
+		assert.strictEqual(addModelRequiredSatisfied(openrouter, { apiKey: 'sk-or-test' }, false), true);
 		assert.strictEqual(knoxGuiOAuthPane('waiting_for_consent', false), 'in_progress');
 		assert.strictEqual(knoxGuiOAuthPane('success', true), 'connected');
 		assert.strictEqual(knoxGuiOAuthPane('failed', false), 'disconnected');
 		assert.strictEqual(knoxGuiOAuthErrorI18nKey('failed', 'denied'), 'oauthErrorDenied');
 		assert.strictEqual(knoxGuiOAuthErrorI18nKey('failed', 'cancelled'), undefined);
 		assert.strictEqual(knoxGuiOAuthErrorI18nKey('failed', 'bind_failed'), 'oauthErrorPortInUse');
+		assert.strictEqual(knoxGuiOAuthErrorI18nKey('failed', 'expired'), 'oauthErrorExpired');
+		assert.strictEqual(knoxGuiOAuthErrorI18nKey('failed', 'port_in_use', 'openrouter'), 'oauthErrorOpenRouterPortInUse');
+		assert.strictEqual(knoxGuiOAuthErrorI18nKey('failed', 'bind_failed', 'openrouter'), 'oauthErrorOpenRouterPortInUse');
+		assert.strictEqual(knoxGuiOAuthErrorI18nKey('failed', 'offline', 'openrouter'), 'oauthErrorOpenRouterOffline');
+		assert.strictEqual(knoxGuiOAuthErrorI18nKey('failed', 'tls', 'openrouter'), 'oauthErrorOpenRouterTls');
+		assert.strictEqual(knoxGuiOAuthErrorI18nKey('failed', 'exchange', 'openrouter'), 'oauthErrorOpenRouterExchange');
+		assert.strictEqual(knoxGuiOAuthErrorI18nKey('failed', 'denied', 'openrouter'), 'oauthErrorDenied');
+		assert.strictEqual(knoxGuiOpenRouterKeySettingsUrl('abc123'), 'https://openrouter.ai/keys/abc123');
+		assert.ok(knoxGuiOpenRouterKeyLogsUrl('abc123').includes('api_key_hash=abc123'));
 		assert.strictEqual(knoxGuiOAuthHandle({ userId: 9, username: 'knox' }), '@knox');
 		assert.strictEqual(knoxGuiOAuthHandle({ userId: 9, username: '' }), 'user 9');
 		assert.deepStrictEqual(parseKnoxOAuthStatus({
@@ -1029,15 +1050,34 @@ suite('Knox native GUI parity', () => {
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('knoxchat/oauth/cancel'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('knoxchat/oauth/signOut'));
 		assert.ok(KNOX_GUI_HOST_INBOUND.includes('knoxchat/oauth/update'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('openrouter/oauth/status'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('openrouter/oauth/start'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('openrouter/oauth/cancel'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('openrouter/oauth/signOut'));
+		assert.ok(KNOX_GUI_HOST_INBOUND.includes('openrouter/oauth/update'));
+		assert.deepStrictEqual(parseOpenRouterOAuthStatus({
+			state: 'success',
+			account: { label: 'KnoxCoder', creatorUserId: 'user_abc', keyHash: 'deadbeef', connectedAt: 0 },
+		}), {
+			openrouterOauthStatus: 'success',
+			openrouterOauthHandle: 'KnoxCoder',
+			openrouterOauthConnected: true,
+			openrouterOauthError: undefined,
+			openrouterOauthKeyHash: 'deadbeef',
+		});
+		assert.strictEqual(parseOpenRouterOAuthStatus({
+			state: 'success',
+			account: { label: '', creatorUserId: 'user_abcdefghij', connectedAt: 0 },
+		}).openrouterOauthHandle, 'user_abc…');
 		const payload = buildAddModelPayload(knoxchat, knoxchat.packages[0], { apiKey: 'sk-test', 'completionOptions.temperature': '0.4' }, 'chat');
 		assert.strictEqual(payload.model.provider, 'knoxchat');
-		assert.strictEqual(payload.model.title, 'KnoxChat');
+		assert.strictEqual(payload.model.title, 'KnoxStudio');
 		assert.deepStrictEqual(payload.model.roles, ['chat']);
 		assert.deepStrictEqual(buildAddModelPayload(knoxchat, knoxchat.packages[0], { apiKey: 'sk' }, 'chat', { bulk: true }).model.roles, ['chat', 'edit', 'apply']);
 		assert.deepStrictEqual((payload.model.completionOptions as { temperature: number }).temperature, 0.4);
 		assert.deepStrictEqual(setPathValue({ completionOptions: { temperature: 0.1 } }, 'completionOptions.topP', 0.9).completionOptions, { temperature: 0.1, topP: 0.9 });
 		assert.strictEqual(categorizeKnoxChatModel({ id: 'openai/gpt-4o', name: 'GPT-4o' }), 'OpenAI');
-		assert.strictEqual(categorizeKnoxChatModel({ id: 'knox/knox-ms', name: 'Knox MS' }), 'KnoxChat');
+		assert.strictEqual(categorizeKnoxChatModel({ id: 'knox/knox-ms', name: 'Knox MS' }), 'KnoxStudio');
 		assert.deepStrictEqual(groupKnoxChatModels([
 			{ title: 'A', category: 'Other' },
 			{ title: 'B', category: 'OpenAI' },
@@ -1045,12 +1085,12 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(filterKnoxChatModels([{ title: 'GPT-4o', model: 'openai/gpt-4o' }, { title: 'Claude', model: 'anthropic/claude' }], 'gpt').length, 1);
 		assert.strictEqual(filterKnoxChatModels([
 			{ title: 'DeepSeek: DeepSeek V4.1 Flash', model: 'deepseek/deepseek-v4.1-flash', category: 'DeepSeek' },
-			{ title: 'DeepSeek-V4.1-Flash', model: 'knoxchat/flash', category: 'KnoxChat' },
+			{ title: 'DeepSeek-V4.1-Flash', model: 'knoxchat/flash', category: 'KnoxStudio' },
 			{ title: 'GPT-4o', model: 'openai/gpt-4o', category: 'OpenAI' },
 		], 'deepseek').length, 2);
 		assert.strictEqual(filterKnoxChatModels([
 			{ title: 'DeepSeek: DeepSeek V4.1 Flash', model: 'deepseek/deepseek-v4.1-flash', category: 'DeepSeek' },
-			{ title: 'DeepSeek-V4.1-Flash', model: 'knoxchat/flash', category: 'KnoxChat' },
+			{ title: 'DeepSeek-V4.1-Flash', model: 'knoxchat/flash', category: 'KnoxStudio' },
 		], 'deepseek knox').length, 1);
 		const merged = mergeReasoningEffortPrefs({ lastEffort: undefined, byModel: {} }, { lastEffort: 'high', byModel: { 'GPT-4o': 'high' } }, 'GPT-4o');
 		assert.strictEqual(merged.lastEffort, 'high');
@@ -1393,6 +1433,7 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(withDim.model.model, 'sized-7b');
 		assert.strictEqual(withDim.model.contextLength, 4000);
 		assert.ok(knoxGuiProviderLogoUri('knoxchat.png')?.includes('knoxchat.png'));
+		assert.ok(knoxGuiProviderLogoUri('openrouter.svg')?.includes('openrouter.svg'));
 		const graphKeyA = checkpointGraphForceMountKey({
 			checkpoints: [],
 			branches: [],

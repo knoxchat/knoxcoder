@@ -70,6 +70,9 @@ export type ToWebviewFromIdeOrCoreProtocol = {
   /** KnoxChat OAuth sign-in progress (Add Model form). */
   "knoxchat/oauth/update": [import("./knoxOAuth").KnoxOAuthStatus, void];
 
+  /** OpenRouter OAuth sign-in progress (Configure Provider). */
+  "openrouter/oauth/update": [import("./openrouterOAuth").OpenRouterOAuthStatus, void];
+
   /** Memory brain events — autonomous loop */
   "brain/memoryEvent": [
     {

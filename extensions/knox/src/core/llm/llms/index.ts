@@ -14,12 +14,14 @@ import Anthropic from "./Anthropic";
 import KnoxChat from "./KnoxChat";
 import MockLLM from "./Mock";
 import OpenAI from "./OpenAI";
+import OpenRouter from "./OpenRouter";
 import TestLLM from "./Test";
 
 export const LLMClasses = [
   Anthropic,
   OpenAI,
   KnoxChat,
+  OpenRouter,
   MockLLM,
   TestLLM,
 ];

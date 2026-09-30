@@ -328,6 +328,9 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 		case 'knoxchat/oauth/update':
 			controller.applyOAuthStatus(data);
 			return;
+		case 'openrouter/oauth/update':
+			controller.applyOpenRouterOAuthStatus(data);
+			return;
 		case 'gitStateChanged':
 			void controller.refreshGitDiff(true);
 			return;
@@ -397,8 +400,12 @@ export async function onNavigated(controller: KnoxGuiController, path: string): 
 	}
 	if (path === '/addModel' || path.startsWith('/addModel/provider/')) {
 		await controller.loadOAuthStatus();
+		await controller.loadOpenRouterOAuthStatus();
 		if (controller.store.state.providerName === 'knoxchat' || path === '/addModel') {
 			void controller.loadKnoxChatModels();
+		}
+		if (controller.store.state.providerName === 'openrouter') {
+			void controller.loadOpenRouterModels();
 		}
 	}
 	if (path === '/checkpoint-graph') {

@@ -25,6 +25,7 @@ suite('Knox native persistence and permission helpers', () => {
 			mode: 'chat',
 			codeToEdit: [],
 			overlay: null,
+			addModelModalProvider: 'knoxchat',
 		});
 		// NP-11: redux-persist keeps session.mode (including edit) and codeToEdit so a window closed mid-edit reopens in it.
 		const editing = { ...state, mode: 'edit' as const, codeToEdit: [{ filepath: 'file:///a.ts', contents: 'x' }] };
@@ -34,6 +35,8 @@ suite('Knox native persistence and permission helpers', () => {
 		assert.deepStrictEqual(knoxGuiParsePersistedUi(JSON.stringify({ mode: 'bogus', codeToEdit: [{ filepath: 3 }, null, { filepath: '' }] })), { codeToEdit: [] });
 		assert.deepStrictEqual(knoxGuiParsePersistedUi(JSON.stringify({ toolSettings: { a: 'maybe' }, permissionMode: 'yolo', mode: 'nope', webSearchEnabled: 'yes', overlay: 'nope' })), { toolSettings: {} });
 		assert.deepStrictEqual(knoxGuiParsePersistedUi(knoxGuiSerializePersistedUi({ ...state, overlay: 'tools' })).overlay, 'tools');
+		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ addModelModalProvider: 'openrouter' })).addModelModalProvider, 'openrouter');
+		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ addModelModalProvider: 'nope' })).addModelModalProvider, undefined);
 		assert.deepStrictEqual(knoxGuiParsePersistedUi('{not json'), {});
 		assert.deepStrictEqual(knoxGuiParsePersistedUi(undefined), {});
 	});

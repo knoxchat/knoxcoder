@@ -133,6 +133,7 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	memoryImportPassword = '';
 	memoryExploringId: number | null = null;
 	knoxChatModelQuery = '';
+	openrouterModelQuery = '';
 	memorySearchDraft = '';
 	memorySearchTimer: ReturnType<typeof setTimeout> | undefined;
 	memorySessionSearchTimer: ReturnType<typeof setTimeout> | undefined;

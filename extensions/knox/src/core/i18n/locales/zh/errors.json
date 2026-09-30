@@ -42,5 +42,6 @@
   "configJsonNotValidObject": "config.json 不是有效对象",
   "configYamlNotValidObject": "config.yaml 不是有效对象",
   "failedToSetupCa": "设置 CA 失败：",
-  "failedToFetchKnoxChatModels": "获取 KnoxChat 模型以检测工具支持时失败："
+  "failedToFetchKnoxChatModels": "获取 KnoxStudio 模型以检测工具支持时失败：",
+  "failedToFetchOpenRouterModels": "获取 OpenRouter 模型以检测工具支持时失败："
 }

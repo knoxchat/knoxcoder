@@ -423,10 +423,62 @@ export function knoxGuiListboxNextIndex(key: string, current: number, length: nu
 	}
 }
 
-export function knoxGuiModelSelectTitle(model: IKnoxGuiModel | undefined): string {
-	if (!model) {
+export function knoxGuiProviderDisplayName(provider: string | undefined): string {
+	const id = provider?.trim();
+	if (!id) {
 		return '';
 	}
+	switch (id) {
+		case 'knoxchat':
+			return 'KnoxStudio';
+		case 'openrouter':
+			return 'OpenRouter';
+		case 'openai':
+			return 'OpenAI';
+		case 'anthropic':
+			return 'Anthropic';
+		default:
+			return id;
+	}
+}
+
+/** YAML `name` uniqueness: prefix the provider instead of appending ` (1)`. */
+export function knoxGuiUniqueModelTitle(existingNames: readonly string[], title: string, provider?: string): string {
+	const names = new Set(existingNames.filter(Boolean));
+	if (!names.has(title)) {
+		return title;
+	}
+	const label = knoxGuiProviderDisplayName(provider);
+	const withProvider = label ? `${label} · ${title}` : title;
+	if (withProvider !== title && !names.has(withProvider)) {
+		return withProvider;
+	}
+	let n = 1;
+	while (names.has(`${withProvider} (${n})`)) {
+		n += 1;
+	}
+	return `${withProvider} (${n})`;
+}
+
+const DUP_SUFFIX = / \(\d+\)$/;
+const PROVIDER_PREFIX = /^[^·]+ · /;
+
+export function knoxGuiCanonicalModelTitle(title: string): string {
+	return title.replace(DUP_SUFFIX, '').replace(PROVIDER_PREFIX, '').trim();
+}
+
+function knoxGuiModelsCollide(a: IKnoxGuiModel, b: IKnoxGuiModel): boolean {
+	if (a.model?.trim() && a.model === b.model) {
+		return true;
+	}
+	return knoxGuiCanonicalModelTitle(a.title).toLowerCase() === knoxGuiCanonicalModelTitle(b.title).toLowerCase();
+}
+
+function knoxGuiModelNeedsProviderPrefix(model: IKnoxGuiModel, models: readonly IKnoxGuiModel[]): boolean {
+	return models.some(other => other !== model && knoxGuiModelsCollide(model, other));
+}
+
+function knoxGuiModelBaseTitle(model: IKnoxGuiModel): string {
 	if (model.title) {
 		return model.title;
 	}
@@ -436,9 +488,34 @@ export function knoxGuiModelSelectTitle(model: IKnoxGuiModel | undefined): strin
 	return model.provider ?? '';
 }
 
+export function knoxGuiModelSelectTitle(model: IKnoxGuiModel | undefined, models?: readonly IKnoxGuiModel[]): string {
+	if (!model) {
+		return '';
+	}
+	const base = knoxGuiModelBaseTitle(model);
+	if (!models?.length || !knoxGuiModelNeedsProviderPrefix(model, models)) {
+		return base;
+	}
+	const label = knoxGuiProviderDisplayName(model.provider);
+	const canonical = knoxGuiCanonicalModelTitle(base);
+	if (!label) {
+		return canonical || base;
+	}
+	return `${label} · ${canonical}`;
+}
+
 /** Compact model label for the composer trigger: drops everything up to and including the first ":" (e.g. "Z.ai: GLM 5.3 Flash" -> "GLM 5.3 Flash"). */
-export function knoxGuiModelTriggerLabel(model: IKnoxGuiModel | undefined): string {
-	const full = knoxGuiModelSelectTitle(model);
+export function knoxGuiModelTriggerLabel(model: IKnoxGuiModel | undefined, models?: readonly IKnoxGuiModel[]): string {
+	const full = knoxGuiModelSelectTitle(model, models);
+	const sep = ' · ';
+	const sepAt = full.indexOf(sep);
+	if (sepAt >= 0) {
+		const provider = full.slice(0, sepAt);
+		const rest = full.slice(sepAt + sep.length);
+		const colon = rest.indexOf(':');
+		const short = colon >= 0 ? rest.slice(colon + 1).trim() : rest;
+		return `${provider} · ${short || rest}`;
+	}
 	const colon = full.indexOf(':');
 	if (colon < 0) {
 		return full;

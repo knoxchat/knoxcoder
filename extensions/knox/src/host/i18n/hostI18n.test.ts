@@ -24,6 +24,12 @@ suite('Host i18n (KN-381)', () => {
 		}
 		assert.strictEqual(typeof (enUi as Record<string, string>)['screenshot.captured'], 'string');
 		assert.strictEqual(typeof (zhUi as Record<string, string>)['screenshot.captured'], 'string');
+		assert.ok((enUi as Record<string, string>)['oauth.openrouterCallbackTitle'].includes('KnoxCoder'));
+		assert.ok((enUi as Record<string, string>)['oauth.openrouterSignedOutLocal'].includes('OpenRouter'));
+		assert.notStrictEqual(
+			(enUi as Record<string, string>)['oauth.openrouterSignedOutLocal'],
+			(zhUi as Record<string, string>)['oauth.openrouterSignedOutLocal'],
+		);
 	});
 
 	test('switchLanguage changes host t() between en and zh', () => {

@@ -451,6 +451,16 @@ img.knox-gui-provider-icon {
 	gap: 0;
 }
 
+.knox-gui-add-model-form .knox-gui-add-model-form-toggle {
+	width: 100%;
+	margin: 8px 0 0;
+}
+
+.knox-gui-add-model-form .knox-gui-add-model-form-toggle .knox-gui-add-model-mode {
+	flex: 1;
+	justify-content: center;
+}
+
 .knox-gui-add-model-mode {
 	border-radius: 0 !important;
 	background: transparent;

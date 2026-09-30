@@ -92,7 +92,7 @@ suite('Knox native GUI i18n', () => {
 		assert.strictEqual(knoxGuiT('en', 'restoring'), 'Restoring');
 		// Documented productization (the only shared GUI keys whose wording differs from the original common.json):
 		// provider blurbs describe the native Add Model catalog; restoreCheckpoint names the checkpoint id; browsingEntireRepo carries the bullet the original JSX prefixes.
-		assert.ok(knoxGuiT('en', 'accessModelsDescription').includes('KnoxChat'));
+        assert.ok(knoxGuiT('en', 'accessModelsDescription').includes('KnoxStudio'));
 		assert.ok(knoxGuiT('en', 'openaiDescription').includes('GPT-4o'));
 		assert.ok(knoxGuiT('en', 'anthropicDescription').includes('Claude'));
 		assert.ok(knoxGuiT('en', 'browsingEntireRepo').startsWith('• '));
@@ -171,6 +171,15 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(knoxGuiT('en', 'oauthErrorDenied').includes('denied'));
 		assert.ok(knoxGuiT('zh', 'oauthErrorTimeout').length > 0);
 		assert.notStrictEqual(knoxGuiT('en', 'signInKnoxStudio'), knoxGuiT('zh', 'signInKnoxStudio'));
+		assert.notStrictEqual(knoxGuiT('en', 'signInOpenRouter'), knoxGuiT('zh', 'signInOpenRouter'));
+		assert.ok(knoxGuiT('en', 'signInOpenRouter').includes('OpenRouter'));
+		assert.ok(knoxGuiT('en', 'oauthErrorExpired').includes('expired'));
+		assert.ok(knoxGuiT('en', 'oauthErrorOpenRouterPortInUse').includes('8734'));
+		assert.ok(knoxGuiT('en', 'oauthErrorOpenRouterExchange').includes('OpenRouter'));
+		assert.ok(knoxGuiT('en', 'oauthErrorOpenRouterOffline').includes('OpenRouter'));
+		assert.ok(knoxGuiT('en', 'oauthErrorOpenRouterTls').includes('OpenRouter'));
+		assert.notStrictEqual(knoxGuiT('en', 'oauthErrorOpenRouterExchange'), knoxGuiT('zh', 'oauthErrorOpenRouterExchange'));
+		assert.ok(knoxGuiT('en', 'openrouterDescription').includes('OpenRouter') || knoxGuiT('en', 'openrouterLongDescription').includes('OpenRouter'));
 		assert.ok(knoxGuiT('en', 'oauthErrorPortInUse').includes('8733'));
 		assert.ok(knoxGuiT('en', 'textDialogMilestoneTitle').includes('300'));
 		assert.ok(knoxGuiT('en', 'invalidFindRegex').length > 0);
@@ -265,6 +274,7 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui-alert-dialog-btn.is-destructive'));
 		assert.ok(css.includes('.knox-gui-image-viewer-img'));
 		assert.ok(css.includes('.knox-gui-add-model-toggle'));
+		assert.ok(css.includes('.knox-gui-add-model-form-toggle'));
 		assert.ok(css.includes('.knox-gui-xs-hide'));
 		assert.ok(css.includes('.knox-gui-page-header-plain'));
 		assert.ok(css.includes('.knox-gui-reasoning-body.no-scroll'));

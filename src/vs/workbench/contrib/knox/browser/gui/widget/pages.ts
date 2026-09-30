@@ -16,6 +16,7 @@ import {
 	batchDiffTotals,
 	knoxGuiOAuthErrorI18nKey,
 	knoxGuiOAuthPane,
+	knoxGuiOpenRouterKeySettingsUrl,
 	knoxChatModelMatchesQuery,
 	formatModelPricingPerMillion,
 	groupKnoxChatModels,
@@ -29,6 +30,8 @@ import {
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { IKnoxGuiState } from '../../../common/knoxGuiState.js';
 import { formatTokenCount } from '../../../common/knoxGuiTranscript.js';
+
+type CatalogSource = 'knoxchat' | 'openrouter';
 
 export function renderConfigError(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 	widget.back(body, state, undefined, 'knox-gui-page-header-plain knox-gui-page-header-sm');
@@ -284,8 +287,8 @@ export function renderConfigureProvider(widget: KnoxGuiWidget, body: HTMLElement
 	}
 	const description = DOM.append(body, DOM.$('.knox-gui-configure-provider-description'));
 	widget.appendMarkdown(description, t(state, provider.longDescriptionKey ?? provider.descriptionKey));
-	if (provider.id === 'knoxchat') {
-		widget.renderOAuthRow(body, state);
+	if (provider.id === 'knoxchat' || provider.id === 'openrouter') {
+		widget.renderOAuthRow(body, state, provider.id);
 	}
 	const required = provider.collectInputFor.filter(input => input.required);
 	const optional = provider.collectInputFor.filter(input => !input.required);
@@ -311,19 +314,26 @@ export function renderConfigureProvider(widget: KnoxGuiWidget, body: HTMLElement
 			}
 		});
 	}
-	const ready = addModelRequiredSatisfied(provider, state.addModelDraft, state.oauthConnected);
+	const ready = addModelRequiredSatisfied(
+		provider,
+		state.addModelDraft,
+		provider.id === 'openrouter' ? state.openrouterOauthConnected : state.oauthConnected,
+	);
 	DOM.append(body, DOM.$('h4', undefined, t(state, 'selectModelPreset')));
-	if (provider.id === 'knoxchat') {
-		widget.renderKnoxChatModelList(body, state, ready, { selectOnly: true });
-		const selected = state.knoxChatModels.find(model => model.model === state.addModelSelectedModel) ?? state.knoxChatModels[0];
+	if (provider.id === 'knoxchat' || provider.id === 'openrouter') {
+		const source: CatalogSource = provider.id === 'openrouter' ? 'openrouter' : 'knoxchat';
+		widget.renderKnoxChatModelList(body, state, ready, { selectOnly: true, source });
+		const selected = catalogModels(state, source).find(model => model.model === catalogSelectedId(state, source))
+			?? catalogModels(state, source)[0];
 		formButton(widget, body, {
 			label: t(state, 'connect'),
 			disabled: !ready || !selected,
+			testId: source === 'openrouter' ? 'knox-gui-openrouter-connect' : undefined,
 			onClick: () => {
 				if (!selected || !ready) {
 					return;
 				}
-				void widget.controller.addConfiguredModel('knoxchat', knoxChatPack(selected));
+				void widget.controller.addConfiguredModel(provider.id, knoxChatPack(selected));
 			},
 		});
 		return;
@@ -348,13 +358,31 @@ export function renderConfigureProvider(widget: KnoxGuiWidget, body: HTMLElement
 	}
 }
 
-export function renderKnoxChatModelList(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, ready: boolean, options?: { selectOnly?: boolean }): void {
-	if (state.knoxChatModelsLoading) {
+function catalogModels(state: IKnoxGuiState, source: CatalogSource): IKnoxGuiState['knoxChatModels'] {
+	return source === 'openrouter' ? state.openrouterModels : state.knoxChatModels;
+}
+
+function catalogLoading(state: IKnoxGuiState, source: CatalogSource): boolean {
+	return source === 'openrouter' ? state.openrouterModelsLoading : state.knoxChatModelsLoading;
+}
+
+function catalogSelectedId(state: IKnoxGuiState, source: CatalogSource): string | undefined {
+	const models = catalogModels(state, source);
+	if (source === 'openrouter') {
+		return state.openrouterSelectedModel ?? state.addModelSelectedModel ?? models[0]?.model;
+	}
+	return state.addModelSelectedModel ?? models[0]?.model;
+}
+
+export function renderKnoxChatModelList(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, ready: boolean, options?: { selectOnly?: boolean; source?: CatalogSource }): void {
+	const source = options?.source ?? 'knoxchat';
+	if (catalogLoading(state, source)) {
 		const loading = DOM.append(body, DOM.$('.knox-gui-knoxchat-empty'));
 		DOM.append(loading, DOM.$('span.knox-gui-muted', undefined, t(state, 'loading')));
 		return;
 	}
-	if (!state.knoxChatModels.length) {
+	const models = catalogModels(state, source);
+	if (!models.length) {
 		const empty = DOM.append(body, DOM.$('.knox-gui-knoxchat-empty'));
 		DOM.append(empty, DOM.$('span.knox-gui-muted', undefined, t(state, 'cannotLoadModels')));
 		return;
@@ -365,23 +393,32 @@ export function renderKnoxChatModelList(widget: KnoxGuiWidget, body: HTMLElement
 	search.type = 'search';
 	search.placeholder = t(state, 'searchEllipsis');
 	search.setAttribute('aria-label', t(state, 'searchEllipsis'));
-	search.setAttribute('data-testid', 'knox-gui-knoxchat-search');
-	search.value = widget.knoxChatModelQuery;
+	search.setAttribute('data-testid', source === 'openrouter' ? 'knox-gui-openrouter-search' : 'knox-gui-knoxchat-search');
+	search.value = source === 'openrouter' ? widget.openrouterModelQuery : widget.knoxChatModelQuery;
 	const list = DOM.append(body, DOM.$('.knox-gui-knoxchat-list'));
+	list.setAttribute('data-catalog', source);
+	list.setAttribute('data-testid', source === 'openrouter' ? 'knox-gui-openrouter-list' : 'knox-gui-knoxchat-list');
 	list.setAttribute('data-knoxchat-ready', ready ? '1' : '0');
 	list.setAttribute('data-knoxchat-select-only', options?.selectOnly ? '1' : '0');
 	widget.renderStore.add(DOM.addDisposableListener(search, 'input', () => {
+		if (source === 'openrouter') {
+			widget.openrouterModelQuery = search.value;
+			applyKnoxChatModelFilter(list, widget.controller.store.state, widget.openrouterModelQuery, source);
+			return;
+		}
 		widget.knoxChatModelQuery = search.value;
-		applyKnoxChatModelFilter(list, widget.controller.store.state, widget.knoxChatModelQuery);
+		applyKnoxChatModelFilter(list, widget.controller.store.state, widget.knoxChatModelQuery, source);
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(list, 'click', e => {
 		const row = (e.target as HTMLElement).closest('.knox-gui-knoxchat-item') as HTMLElement | null;
 		const id = row?.dataset.model;
 		if (id) {
-			widget.controller.store.patch({ addModelSelectedModel: id });
+			widget.controller.store.patch(source === 'openrouter'
+				? { openrouterSelectedModel: id, addModelSelectedModel: id }
+				: { addModelSelectedModel: id });
 		}
 	}));
-	if (!options?.selectOnly && ready) {
+	if (!options?.selectOnly && ready && source === 'knoxchat') {
 		widget.renderStore.add(DOM.addDisposableListener(list, 'dblclick', e => {
 			const row = (e.target as HTMLElement).closest('.knox-gui-knoxchat-item') as HTMLElement | null;
 			const id = row?.dataset.model;
@@ -392,19 +429,18 @@ export function renderKnoxChatModelList(widget: KnoxGuiWidget, body: HTMLElement
 		}));
 	}
 	paintKnoxChatModelRows(widget, list, state, ready, options);
-	applyKnoxChatModelFilter(list, state, widget.knoxChatModelQuery);
+	applyKnoxChatModelFilter(list, state, source === 'openrouter' ? widget.openrouterModelQuery : widget.knoxChatModelQuery, source);
 }
 
 export function syncKnoxChatModelList(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
-	const list = widget.root.querySelector('.knox-gui-knoxchat-list') as HTMLElement | null;
-	if (!list) {
-		return;
+	for (const list of widget.root.querySelectorAll<HTMLElement>('.knox-gui-knoxchat-list')) {
+		const source: CatalogSource = list.dataset.catalog === 'openrouter' ? 'openrouter' : 'knoxchat';
+		applyKnoxChatModelFilter(list, state, source === 'openrouter' ? widget.openrouterModelQuery : widget.knoxChatModelQuery, source);
 	}
-	applyKnoxChatModelFilter(list, state, widget.knoxChatModelQuery);
 }
 
-function applyKnoxChatModelFilter(list: HTMLElement, state: IKnoxGuiState, query: string): void {
-	const models = new Map(state.knoxChatModels.map(model => [model.model, model]));
+function applyKnoxChatModelFilter(list: HTMLElement, state: IKnoxGuiState, query: string, source: CatalogSource = 'knoxchat'): void {
+	const models = new Map(catalogModels(state, source).map(model => [model.model, model]));
 	let visible = 0;
 	for (const row of list.querySelectorAll<HTMLElement>('.knox-gui-knoxchat-item')) {
 		const model = models.get(row.dataset.model ?? '');
@@ -424,10 +460,11 @@ function applyKnoxChatModelFilter(list: HTMLElement, state: IKnoxGuiState, query
 	}
 }
 
-function paintKnoxChatModelRows(widget: KnoxGuiWidget, list: HTMLElement, state: IKnoxGuiState, ready: boolean, options?: { selectOnly?: boolean }): void {
+function paintKnoxChatModelRows(widget: KnoxGuiWidget, list: HTMLElement, state: IKnoxGuiState, ready: boolean, options?: { selectOnly?: boolean; source?: CatalogSource }): void {
 	list.replaceChildren();
-	const selectedId = state.addModelSelectedModel ?? state.knoxChatModels[0]?.model;
-	for (const group of groupKnoxChatModels(state.knoxChatModels)) {
+	const source = options?.source ?? 'knoxchat';
+	const selectedId = catalogSelectedId(state, source);
+	for (const group of groupKnoxChatModels(catalogModels(state, source))) {
 		const section = DOM.append(list, DOM.$('.knox-gui-knoxchat-group'));
 		DOM.append(section, DOM.$('h3.knox-gui-knoxchat-category', undefined, group.category === 'Other Models' ? t(state, 'otherModels') : group.category));
 		for (const model of group.models) {
@@ -520,21 +557,48 @@ export function renderAddModelForm(widget: KnoxGuiWidget, state: IKnoxGuiState):
 	const roleLabel = state.addModelRole ? t(state, MODEL_ROLE_LABEL_KEY[state.addModelRole]) : undefined;
 	DOM.append(box, DOM.$('h4.knox-gui-add-model-form-title', undefined, roleLabel ? `${t(state, 'add')} ${roleLabel} ${t(state, 'model')}` : t(state, 'addModel')));
 	const form = DOM.append(box, DOM.$('.knox-gui-add-model-form-body'));
-	widget.renderOAuthRow(form, state);
+	const source: CatalogSource = state.addModelModalProvider === 'openrouter' ? 'openrouter' : 'knoxchat';
+	const connected = source === 'openrouter' ? state.openrouterOauthConnected : state.oauthConnected;
+	const providerSection = DOM.append(form, DOM.$('.knox-gui-add-model-section'));
+	DOM.append(providerSection, DOM.$('label.knox-gui-add-model-label', undefined, t(state, 'provider')));
+	const toggle = DOM.append(providerSection, DOM.$('.knox-gui-add-model-toggle.knox-gui-add-model-form-toggle'));
+	toggle.setAttribute('data-testid', 'knox-gui-add-model-provider-toggle');
+	for (const id of ['knoxchat', 'openrouter'] as const) {
+		const provider = addModelProviderById(id);
+		widget.chromeButton(toggle, {
+			label: provider?.title ?? id,
+			selected: source === id,
+			testId: `knox-gui-add-model-provider-${id}`,
+			extraClass: 'knox-gui-add-model-mode',
+			onClick: () => {
+				if (state.addModelModalProvider === id) {
+					return;
+				}
+				widget.controller.store.patch({ addModelModalProvider: id });
+				if (id === 'openrouter') {
+					void widget.controller.loadOpenRouterModels();
+				} else {
+					void widget.controller.loadKnoxChatModels();
+				}
+			},
+		});
+	}
+	widget.renderOAuthRow(form, state, source);
 	const modelSection = DOM.append(form, DOM.$('.knox-gui-add-model-section'));
 	DOM.append(modelSection, DOM.$('label.knox-gui-add-model-label', undefined, t(state, 'model')));
-	widget.renderKnoxChatModelList(modelSection, state, state.oauthConnected, { selectOnly: true });
+	widget.renderKnoxChatModelList(modelSection, state, connected, { selectOnly: true, source });
 	const actions = DOM.append(box, DOM.$('.knox-gui-add-model-form-actions'));
-	const selected = state.knoxChatModels.find(model => model.model === state.addModelSelectedModel) ?? state.knoxChatModels[0];
+	const selected = catalogModels(state, source).find(model => model.model === catalogSelectedId(state, source))
+		?? catalogModels(state, source)[0];
 	formButton(widget, actions, {
 		label: t(state, 'connect'),
-		disabled: !state.oauthConnected || !selected,
+		disabled: !connected || !selected,
 		testId: 'knox-gui-add-model-connect',
 		onClick: () => {
-			if (!selected || !state.oauthConnected) {
+			if (!selected || !connected) {
 				return;
 			}
-			void widget.controller.addConfiguredModel('knoxchat', knoxChatPack(selected));
+			void widget.controller.addConfiguredModel(source, knoxChatPack(selected));
 		},
 	});
 	const sub = DOM.append(actions, DOM.$('span.knox-gui-add-model-subtext'));
@@ -563,32 +627,62 @@ export function formButton(widget: KnoxGuiWidget, parent: HTMLElement, options: 
 	return button;
 }
 
-export function renderOAuthRow(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
+export function renderOAuthRow(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, source: CatalogSource = 'knoxchat'): void {
 	const pane = DOM.append(body, DOM.$('.knox-gui-oauth-pane'));
-	DOM.append(pane, DOM.$('label.knox-gui-add-model-label', undefined, t(state, 'knoxChatAccount')));
-	const view = knoxGuiOAuthPane(state.oauthStatus, state.oauthConnected);
+	const connected = source === 'openrouter' ? state.openrouterOauthConnected : state.oauthConnected;
+	const status = source === 'openrouter' ? state.openrouterOauthStatus : state.oauthStatus;
+	const handle = source === 'openrouter' ? state.openrouterOauthHandle : state.oauthHandle;
+	const error = source === 'openrouter' ? state.openrouterOauthError : state.oauthError;
+	DOM.append(pane, DOM.$('label.knox-gui-add-model-label', undefined, t(state, source === 'openrouter' ? 'openrouterAccount' : 'knoxChatAccount')));
+	const view = knoxGuiOAuthPane(status, connected);
 	if (view === 'connected') {
 		const row = DOM.append(pane, DOM.$('.knox-gui-oauth-row'));
-		DOM.append(row, DOM.$('span', undefined, t(state, 'connectedAs', { handle: state.oauthHandle ?? '' })));
+		DOM.append(row, DOM.$('span', undefined, t(state, 'connectedAs', { handle: handle ?? '' })));
 		DOM.append(row, DOM.$('.knox-gui-oauth-row-spacer'));
-		formButton(widget, row, { label: t(state, 'signOutKnoxChat'), secondary: true, onClick: () => widget.controller.messenger.post('knoxchat/oauth/signOut', undefined) });
+		if (source === 'openrouter' && state.openrouterOauthKeyHash) {
+			const settingsUrl = knoxGuiOpenRouterKeySettingsUrl(state.openrouterOauthKeyHash);
+			formButton(widget, row, {
+				label: t(state, 'manageKey'),
+				secondary: true,
+				testId: 'knox-gui-openrouter-manage-key',
+				onClick: () => {
+					widget.controller.messenger.post('openUrl', settingsUrl);
+					void widget.openerService.open(URI.parse(settingsUrl));
+				},
+			});
+		}
+		formButton(widget, row, {
+			label: t(state, source === 'openrouter' ? 'signOutOpenRouter' : 'signOutKnoxChat'),
+			secondary: true,
+			testId: source === 'openrouter' ? 'knox-gui-openrouter-sign-out' : undefined,
+			onClick: () => widget.controller.messenger.post(source === 'openrouter' ? 'openrouter/oauth/signOut' : 'knoxchat/oauth/signOut', undefined),
+		});
 		return;
 	}
 	if (view === 'in_progress') {
 		const row = DOM.append(pane, DOM.$('.knox-gui-oauth-row'));
 		DOM.append(row, DOM.$('span', undefined, t(state, 'waitingForBrowser')));
 		DOM.append(row, DOM.$('.knox-gui-oauth-row-spacer'));
-		formButton(widget, row, { label: t(state, 'cancelSignIn'), secondary: true, onClick: () => widget.controller.messenger.post('knoxchat/oauth/cancel', undefined) });
+		formButton(widget, row, {
+			label: t(state, 'cancelSignIn'),
+			secondary: true,
+			testId: source === 'openrouter' ? 'knox-gui-openrouter-cancel' : undefined,
+			onClick: () => widget.controller.messenger.post(source === 'openrouter' ? 'openrouter/oauth/cancel' : 'knoxchat/oauth/cancel', undefined),
+		});
 		return;
 	}
 	const signedOut = DOM.append(pane, DOM.$('.knox-gui-oauth-signed-out'));
-	const errorKey = knoxGuiOAuthErrorI18nKey(state.oauthStatus, state.oauthError);
+	const errorKey = knoxGuiOAuthErrorI18nKey(status, error, source);
 	if (errorKey) {
 		DOM.append(signedOut, DOM.$('p.knox-gui-oauth-error', undefined, t(state, errorKey)));
 	} else {
-		DOM.append(signedOut, DOM.$('p.knox-gui-oauth-hint', undefined, t(state, 'hintSignInKnoxChat')));
+		DOM.append(signedOut, DOM.$('p.knox-gui-oauth-hint', undefined, t(state, source === 'openrouter' ? 'hintSignInOpenRouter' : 'hintSignInKnoxChat')));
 	}
-	formButton(widget, signedOut, { label: t(state, 'signInKnoxStudio'), onClick: () => widget.controller.messenger.post('knoxchat/oauth/start', undefined) });
+	formButton(widget, signedOut, {
+		label: t(state, source === 'openrouter' ? 'signInOpenRouter' : 'signInKnoxStudio'),
+		testId: source === 'openrouter' ? 'knox-gui-openrouter-sign-in' : undefined,
+		onClick: () => widget.controller.messenger.post(source === 'openrouter' ? 'openrouter/oauth/start' : 'knoxchat/oauth/start', undefined),
+	});
 }
 
 export function renderAddModelInput(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, input: { key: string; labelKey: string; placeholderKey?: string; inputType?: string; defaultValue?: string | number; min?: number; max?: number; step?: number }): void {

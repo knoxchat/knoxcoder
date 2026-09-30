@@ -17,7 +17,7 @@ export function renderModelSelect(widget: KnoxGuiWidget, parent: HTMLElement, st
 	const wrap = DOM.append(parent, DOM.$('.knox-gui-model-wrap'));
 	const open = widget.openMenu === 'model' && widget.openMenuSource === source;
 	const trigger = widget.chromeButton(wrap, {
-		label: knoxGuiModelTriggerLabel(current) || t(state, 'selectModel'),
+		label: knoxGuiModelTriggerLabel(current, models) || t(state, 'selectModel'),
 		svg: 'chevrons-down',
 		svgSize: 16,
 		svgAfter: true,
@@ -51,7 +51,7 @@ export function renderModelSelect(widget: KnoxGuiWidget, parent: HTMLElement, st
 			rows.push(row);
 		}
 		appendKnoxGuiSvg(row, 'cpu', 14);
-		const title = DOM.append(row, DOM.$('span.knox-gui-model-option-title', undefined, knoxGuiModelSelectTitle(model)));
+		const title = DOM.append(row, DOM.$('span.knox-gui-model-option-title', undefined, knoxGuiModelSelectTitle(model, models)));
 		if (missingKey) {
 			DOM.append(title, DOM.$('span.knox-gui-muted', undefined, ` (${t(state, 'missingApiKey')})`));
 		}

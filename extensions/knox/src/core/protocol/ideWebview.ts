@@ -13,10 +13,15 @@ import type {
 export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
   openUrl: [string, void];
   "knoxchat/listModels": [undefined, any[]];
+  "openrouter/listModels": [undefined, any[]];
   "knoxchat/oauth/status": [undefined, import("./knoxOAuth").KnoxOAuthStatus];
   "knoxchat/oauth/start": [undefined, void];
   "knoxchat/oauth/cancel": [undefined, void];
   "knoxchat/oauth/signOut": [undefined, void];
+  "openrouter/oauth/status": [undefined, import("./openrouterOAuth").OpenRouterOAuthStatus];
+  "openrouter/oauth/start": [undefined, void];
+  "openrouter/oauth/cancel": [undefined, void];
+  "openrouter/oauth/signOut": [undefined, void];
   // We pass the `curSelectedModel` because we currently cannot access the
   // default model title in the GUI from JB
   applyToFile: [

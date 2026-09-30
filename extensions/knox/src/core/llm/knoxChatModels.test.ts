@@ -12,6 +12,7 @@ import {
   modelSupportsWebSearchFromMetadata,
   registerKnoxChatModelsDiskAdapter,
   seedKnoxChatModelsCache,
+  shouldEnrichFromKnoxChatApi,
   type KnoxChatModelMetadata,
 } from "./knoxChatModels";
 import {
@@ -174,6 +175,19 @@ describe("knoxChatModels cache + capabilities", () => {
     );
     expect(formatModelPricingPerMillion(pricing!).badge).toBe("$5/25");
   });
+
+  it("keeps OpenRouter fractional $/1M rates (0.2475) instead of rounding to cents", () => {
+    const pricing = getModelPricingFromMetadata(
+      sampleModel({
+        pricing: {
+          prompt: "0.00000002",
+          completion: "0.0000002475",
+        },
+        pricing_in_display_units: false,
+      }),
+    );
+    expect(formatModelPricingPerMillion(pricing!).badge).toBe("$0.02/0.2475");
+  });
 });
 
 describe("reasoning effort resolution", () => {
@@ -253,5 +267,22 @@ describe("reasoning effort resolution", () => {
         modelId: "anthropic/claude-sonnet-4.6",
       }),
     ).toBeNull();
+  });
+});
+
+describe("shouldEnrichFromKnoxChatApi", () => {
+  it("stays KnoxChat-only so OpenRouter does not seed the KnoxChat cache", () => {
+    expect(
+      shouldEnrichFromKnoxChatApi({ providerName: "knoxchat" }),
+    ).toBe(true);
+    expect(
+      shouldEnrichFromKnoxChatApi({ providerName: "openrouter" }),
+    ).toBe(false);
+    expect(
+      shouldEnrichFromKnoxChatApi({
+        providerName: "openrouter",
+        apiBase: "https://openrouter.ai/api/v1/",
+      }),
+    ).toBe(false);
   });
 });

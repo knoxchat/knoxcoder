@@ -21,7 +21,7 @@
 
   "webview.addApiKey": "添加 API 密钥",
   "webview.useLocalModel": "使用本地模型",
-  "webview.exceededUsageHint": "要继续使用 KnoxChat，您可以设置本地模型或使用自己的 API 密钥。",
+  "webview.exceededUsageHint": "要继续使用 KnoxStudio，您可以设置本地模型或使用自己的 API 密钥。",
   "webview.reloadKnox": "重新加载 Knox",
   "webview.rendererStopped": "Knox 已停止响应。重新加载以恢复上次保存的对话。",
 
@@ -32,7 +32,7 @@
 
   "connection.timeout": "连接超时。如果您预计连接需要较长时间，可以在 config.json 中通过设置 \"requestOptions\": { \"timeout\": 10000 } 来增加超时时间。详情请见：https://docs.knox.chat/reference/config",
   "connection.refused": "连接被拒绝。指定的 URL 上可能没有正在运行的服务器。如果您正在运行自己的服务器，需要在 config.json 中设置 \"apiBase\" 参数。您可以这样设置一个 OpenAI 兼容服务器：https://docs.knox.chat/reference/Model%20Providers/openai#openai-compatible-servers--apis",
-  "connection.requestFailed": "请求失败，错误为 \"{{name}}\"：{{message}}。如果您在设置 KnoxChat 时遇到问题，请查看故障排除指南获取帮助。",
+  "connection.requestFailed": "请求失败，错误为 \"{{name}}\"：{{message}}。如果您在设置 KnoxStudio 时遇到问题，请查看故障排除指南获取帮助。",
 
   "ide.showLog": "显示日志",
 
@@ -42,9 +42,13 @@
   "screenshot.captured": "截图已捕获并添加到对话",
   "screenshot.failed": "截图失败：{{message}}",
 
-  "oauth.callbackTitle": "KnoxChat",
-  "oauth.callbackClose": "正在返回 KnoxChat。如果窗口仍然打开，您可关闭。",
-  "oauth.signedOutLocal": "已在本地退出登录。如果此设备不可信，请到 knoxstudio.ai → API 密钥 中吊销 KnoxChat。",
+  "oauth.callbackTitle": "KnoxStudio",
+  "oauth.callbackClose": "正在返回 KnoxCoder。如果窗口仍然打开，您可关闭。",
+  "oauth.signedOutLocal": "已在本地退出登录。如果此设备不可信，请到 knoxstudio.ai → API 密钥 中吊销 KnoxStudio。",
+  "oauth.openrouterCallbackTitle": "KnoxCoder",
+  "oauth.openrouterCallbackClose": "正在返回 KnoxCoder。如果窗口仍然打开，您可关闭。",
+  "oauth.openrouterSignedOutLocal": "已在本地退出登录。如果此设备不可信，请在 OpenRouter 上停用 KnoxCoder 密钥。",
+  "oauth.manageKey": "管理密钥",
   "memory.view.title": "记忆",
   "memory.view.failedShow": "无法打开记忆：{{error}}",
   "memory.statusBar.tooltip": "Knox 记忆 — 点击打开记忆"
