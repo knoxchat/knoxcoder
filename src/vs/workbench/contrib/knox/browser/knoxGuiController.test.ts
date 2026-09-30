@@ -16,7 +16,7 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { InMemoryStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { DEFAULT_REASONING_EFFORT_ALLOWED, knoxGuiResetModelCatalogForTests, knoxGuiSeedModelCatalog } from '../common/knoxGuiCapabilities.js';
 import { IKnoxGuiMessage, KNOX_GUI_HEARTBEAT_MS, KnoxGuiRoute } from '../common/knoxGuiProtocol.js';
 import { DEFAULT_MENTION_PROVIDER_TITLES, inputDocFromPlainText, SLASH_BUILTINS } from '../common/knoxGuiInput.js';
@@ -293,6 +293,79 @@ suite('Knox native GUI controller (GP-084)', () => {
 		await timeout(0);
 		assert.strictEqual(lastList()?.sessionId, undefined, 'no chat session lists every checkpoint, like the reference');
 	});
+
+	test('Memory and Checkpoint Graph editors follow a language switch made in another view', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const chat = createHarness({ storage });
+		const memory = createHarness({ storage, lock: KnoxGuiRoute.Memory });
+		const checkpoints = createHarness({ storage, lock: KnoxGuiRoute.CheckpointGraph });
+		await timeout(0);
+		await chat.controller.setLanguage('zh');
+		assert.strictEqual(memory.store.state.language, 'zh');
+		assert.strictEqual(checkpoints.store.state.language, 'zh');
+		await checkpoints.controller.setLanguage('en');
+		assert.strictEqual(chat.store.state.language, 'en');
+		assert.strictEqual(memory.store.state.language, 'en');
+		storage.store('knox.gui.language', 'fr', StorageScope.PROFILE, StorageTarget.USER);
+		assert.strictEqual(memory.store.state.language, 'en', 'unsupported values are ignored');
+	});
+
+	for (const [name, route, tabBar] of [
+		['Checkpoint Graph', KnoxGuiRoute.CheckpointGraph, '.knox-gui-checkpoint-tab-bar'],
+		['Memory', KnoxGuiRoute.Memory, '.knox-gui-memory-tabbar'],
+	] as const) {
+		test(`${name} editor renders a language toggle that switches every view`, async () => {
+			const storage = disposables.add(new InMemoryStorageService());
+			const { controller, store } = createHarness({ storage, lock: route });
+			const chat = createHarness({ storage });
+			await timeout(0);
+			store.patch({ language: 'en', memoryTabHydrated: true });
+			const parent = document.createElement('div');
+			document.body.appendChild(parent);
+			disposables.add({ dispose: () => parent.remove() });
+			const hoverService = new class extends mock<IHoverService>() {
+				override setupDelayedHover() {
+					return { dispose() { } };
+				}
+			};
+			const openerService = new class extends mock<IOpenerService>() {
+				override async open(): Promise<boolean> {
+					return true;
+				}
+			};
+			const languageService = new class extends mock<ILanguageService>() {
+				override getLanguageIdByLanguageName(): string | null {
+					return null;
+				}
+				override isRegisteredLanguageId(): boolean {
+					return false;
+				}
+				override requestBasicLanguageFeatures(): void { }
+				override guessLanguageIdByFilepathOrFirstLine(): string | null {
+					return null;
+				}
+			};
+			const markdownRendererService = new class extends mock<IMarkdownRendererService>() {
+				override render(markdown: IMarkdownString, options?: import('../../../../base/browser/markdownRenderer.js').MarkdownRenderOptions, target?: HTMLElement) {
+					return renderMarkdown(markdown, options, target);
+				}
+				override setDefaultCodeBlockRenderer(): void { }
+			};
+			const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService, { getModel: () => null } as unknown as IModelService, markdownRendererService));
+			const toggle = () => widget.root.querySelector(`${tabBar} [data-testid="knox-gui-language-toggle"]`) as HTMLElement | null;
+			assert.strictEqual(toggle()?.textContent, '中');
+			toggle()!.click();
+			await timeout(0);
+			assert.strictEqual(store.state.language, 'zh');
+			assert.strictEqual(chat.store.state.language, 'zh');
+			assert.strictEqual(storage.get('knox.gui.language', StorageScope.PROFILE), 'zh');
+			assert.strictEqual(toggle()?.textContent, 'EN');
+			toggle()!.click();
+			await timeout(0);
+			assert.strictEqual(store.state.language, 'en');
+			assert.strictEqual(chat.store.state.language, 'en');
+		});
+	}
 
 	test('KN-346 focusEdit / addCodeToEdit / Esc exit the native composer', async () => {
 		const { controller, store, posted } = createHarness();

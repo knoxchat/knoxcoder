@@ -395,3 +395,21 @@
 	gap: 4px;
 }
 
+
+/* Checkpoint Graph / Memory editors: compact language switch (globe + target language). */
+.knox-gui-icon-btn.knox-gui-language-toggle {
+	flex-shrink: 0;
+	gap: 4px;
+	height: 28px;
+	box-sizing: border-box;
+	padding: 4px 8px;
+	font-size: 12px;
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.knox-gui-icon-btn.knox-gui-language-toggle .knox-gui-lump-label {
+	max-width: none;
+	color: inherit;
+	font-size: inherit;
+}

@@ -21,6 +21,7 @@ import {
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { renderCheckpointDetailsDialog } from '../checkpointDetails.js';
 import { renderCheckpointGraph } from '../checkpointGraph.js';
+import { renderLanguageToggle } from '../languageToggle.js';
 import { renderCheckpointTimeline } from './timeline.js';
 
 export function renderCheckpoints(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
@@ -42,6 +43,7 @@ export function renderCheckpoints(widget: KnoxGuiWidget, body: HTMLElement, stat
 			onClick: () => widget.controller.setCheckpointTab(tab),
 		});
 	}
+	renderLanguageToggle(widget, tabBar, state);
 	const panel = DOM.append(body, DOM.$('.knox-gui-checkpoint-panel'));
 	if (shell !== 'ready') {
 		widget.releaseCheckpointGraph();
@@ -112,6 +114,7 @@ function mountCheckpointGraph(widget: KnoxGuiWidget, panel: HTMLElement, state: 
 		viewport: widget.checkpointGraphViewport,
 		pendingHead: widget.checkpointGraphPendingHead,
 		expandedFolders: [...widget.checkpointGraphExpandedFolders],
+		language: state.language,
 	});
 	if (!widget.checkpointGraphMount) {
 		widget.checkpointGraphMount = DOM.$('.knox-gui-graph-force-mount');

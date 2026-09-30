@@ -1642,6 +1642,8 @@ export function checkpointGraphForceMountKey(input: {
 	viewport: number;
 	pendingHead: boolean;
 	expandedFolders: readonly string[];
+	/** The cached graph holds translated text, so a language switch must invalidate it. */
+	language?: string;
 }): string {
 	return JSON.stringify(input);
 }

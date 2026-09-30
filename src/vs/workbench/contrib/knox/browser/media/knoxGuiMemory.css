@@ -101,13 +101,19 @@
 /* index.tsx MemoryPageView */
 
 .knox-gui-memory-page .knox-gui-memory-tabbar {
+	display: flex;
+	align-items: center;
+	gap: 4px;
 	flex-shrink: 0;
+	padding-right: 2px;
+	border-bottom: 1px solid var(--vscode-panel-border, #3c3c3c);
 	background-color: var(--vscode-sideBar-background, rgb(30 30 30));
 }
 
 .knox-gui-memory-page .knox-gui-memory-tabs {
+	flex: 1 1 auto;
+	min-width: 0;
 	padding: 2px;
-	border-bottom: 1px solid var(--vscode-panel-border, #3c3c3c);
 }
 
 @container (min-width: 330px) {
