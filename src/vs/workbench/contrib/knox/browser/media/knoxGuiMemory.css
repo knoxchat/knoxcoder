@@ -221,8 +221,8 @@
 }
 
 .knox-gui-memory-page .knox-gui-memory-btn-primary {
-	background-color: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
+	background-color: var(--knox-fill, #159994);
+	color: var(--knox-on-fill, #fff);
 }
 
 .knox-gui-memory-page .knox-gui-memory-btn-secondary {

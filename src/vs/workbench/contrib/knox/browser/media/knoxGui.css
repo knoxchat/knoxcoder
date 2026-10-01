@@ -32,16 +32,24 @@
 	display: none !important;
 }
 
-/* gui/src/index.css: Knox forces teal focus rings in both themes. */
+/* gui/src/index.css: Knox forces teal focus rings in both themes.
+ * --knox-primary stays the brand teal for icons/labels.
+ * --knox-fill is the darker light-theme teal so filled buttons keep contrast. */
 .knox-gui {
 	--vscode-focusBorder: #159994;
 	--knox-primary: #159994;
+	--knox-fill: #159994;
+	--knox-on-fill: #ffffff;
+	--knox-accent: #159994;
 }
 
 .vscode-light .knox-gui,
 .vscode-high-contrast-light .knox-gui,
 .knox-gui[data-knox-theme-kind="light"] {
 	--vscode-focusBorder: #0f7a76;
+	--knox-fill: #0f7a76;
+	--knox-on-fill: #ffffff;
+	--knox-accent: #0f7a76;
 }
 
 /* gui/src/index.css "Select and input elements theme support". Zero specificity so component rules win. */

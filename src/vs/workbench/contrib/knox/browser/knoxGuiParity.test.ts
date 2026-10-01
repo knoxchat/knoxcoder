@@ -304,6 +304,9 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('max-height: none'));
 		assert.ok(css.includes('@keyframes knox-gui-term-appear'));
 		assert.ok(css.includes('--knox-primary: #159994'));
+		assert.ok(css.includes('--knox-fill: #159994'));
+		assert.ok(css.includes('--knox-fill: #0f7a76'));
+		assert.ok(css.includes('--knox-accent: #0f7a76'));
 		assert.ok(css.includes('.knox-gui-collapse-chevron'));
 		assert.ok(css.includes('color: var(--knox-primary, #159994)'));
 		assert.ok(css.includes('.knox-gui-term:focus-within'));
@@ -315,6 +318,11 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui.show-file-icons .knox-gui-search-query::before'));
 		assert.ok(css.includes('.knox-gui-tree-notice.is-light'));
 		assert.ok(css.includes('.knox-gui-ask-choice-desc'));
+		assert.ok(css.includes('.knox-gui-tool-permissions > .knox-gui-icon-btn .knox-gui-lump-label'));
+		assert.ok(css.includes('.knox-gui-ask-actions > .knox-gui-icon-btn .knox-gui-lump-label'));
+		assert.ok(css.includes('.knox-gui-tool-approve'));
+		assert.ok(!/\.knox-gui-tool-approve \{[^}]*--vscode-button-background/.test(css));
+		assert.ok(css.includes('.knox-gui .rendered-markdown :not(pre) > code'));
 		assert.ok(css.includes('.knox-gui-input-bar-icons'));
 		assert.ok(css.includes('.knox-gui-model-wrap {\n	flex: 0 1 auto;'));
 		assert.ok(css.includes('overflow: visible;'));

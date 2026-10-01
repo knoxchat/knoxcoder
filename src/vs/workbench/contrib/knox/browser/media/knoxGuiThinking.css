@@ -370,10 +370,10 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	padding: 0 4px 0 8px;
-	border-radius: 2px;
-	background: var(--vscode-badge-background, #3f3f46);
-	color: var(--vscode-badge-foreground, #159994);
+	padding: 0;
+	border-radius: 0;
+	background: transparent;
+	color: var(--knox-primary, #159994);
 	font-size: 11px;
 }
 
@@ -802,10 +802,15 @@
 }
 
 .knox-gui-stream-error-actions .knox-gui-primary {
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	border-radius: 4px;
-	padding: 4px 10px;
+	background: var(--knox-fill, #159994);
+	color: var(--knox-on-fill, #fff);
+	border-radius: 8px;
+	padding: 4px 12px;
+}
+
+.knox-gui-stream-error-actions .knox-gui-primary .knox-gui-lump-label {
+	max-width: none;
+	color: inherit;
 }
 
 .knox-gui-error-fallback,

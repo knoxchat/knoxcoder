@@ -323,6 +323,14 @@
 	font-size: 11px !important;
 }
 
+.knox-gui-worktree-apply .knox-gui-lump-label,
+.knox-gui-worktree-discard .knox-gui-lump-label,
+.knox-gui-job-kill .knox-gui-lump-label,
+.knox-gui-text-action .knox-gui-lump-label {
+	color: inherit;
+	max-width: none;
+}
+
 .knox-gui-worktree-apply {
 	color: #159994 !important;
 }
@@ -839,11 +847,17 @@
 	font-family: var(--vscode-editor-font-family);
 }
 
-.knox-gui .rendered-markdown :not(pre) > code {
-	color: #159994;
-	padding: 0.2em 0.4em;
-	border-radius: 3px;
-	background: rgba(21, 153, 148, 0.08);
+.knox-gui .rendered-markdown :not(pre) > code,
+.knox-gui .styled-markdown-preview :not(pre) > code {
+	color: var(--knox-accent, #159994) !important;
+	-webkit-text-fill-color: var(--knox-accent, #159994);
+	padding: 0 0.15em;
+	border: none !important;
+	border-radius: 0;
+	background: transparent !important;
+	background-color: transparent !important;
+	box-shadow: none !important;
+	font-weight: 500;
 }
 
 .knox-gui .rendered-markdown p,
@@ -879,10 +893,10 @@
 
 .knox-gui .rendered-markdown blockquote {
 	margin: 1em 0;
-	padding: 0.5em 1em;
-	border-left: 3px solid #159994;
-	background: rgba(21, 153, 148, 0.1);
-	border-radius: 4px;
+	padding: 0.25em 0 0.25em 1em;
+	border-left: 3px solid var(--knox-primary, #159994);
+	background: transparent;
+	border-radius: 0;
 }
 
 .knox-gui .rendered-markdown a {
@@ -920,9 +934,9 @@
 }
 
 .knox-gui .rendered-markdown th {
-	background: rgba(21, 153, 148, 0.15);
+	background: transparent;
 	font-weight: 600;
-	color: #159994;
+	color: var(--knox-primary, #159994);
 }
 
 .knox-gui .rendered-markdown tr:nth-child(even) {
@@ -942,12 +956,13 @@
 
 .knox-gui .rendered-markdown kbd {
 	display: inline-block;
-	padding: 0.2em 0.4em;
-	border: 1px solid rgba(21, 153, 148, 0.3);
+	padding: 0.1em 0.35em;
+	border: 1px solid color-mix(in srgb, var(--knox-primary, #159994) 35%, transparent);
 	border-radius: 3px;
-	background-color: rgba(21, 153, 148, 0.1);
-	box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
-	color: #159994;
+	background: transparent;
+	background-color: transparent;
+	box-shadow: none;
+	color: var(--knox-primary, #159994);
 	font-size: 0.85em;
 	line-height: 1;
 }
@@ -1289,7 +1304,7 @@
 	padding: 6px 10px;
 	cursor: text;
 	font-size: 11px;
-	background: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.12));
+	background: transparent;
 }
 
 .knox-gui-context-chip {

@@ -160,14 +160,40 @@
 	background: var(--vscode-list-activeSelectionBackground, rgba(21, 153, 148, 0.25));
 }
 
+.knox-gui-batch-reject,
+.knox-gui-batch-accept {
+	min-height: 32px;
+	padding: 6px 14px;
+	border-radius: 999px;
+	filter: none;
+}
+
+.knox-gui-batch-reject .knox-gui-lump-label,
+.knox-gui-batch-accept .knox-gui-lump-label {
+	max-width: none;
+	color: inherit;
+}
+
 .knox-gui-batch-reject {
-	background: var(--vscode-button-secondaryBackground, #3a3d41) !important;
-	color: var(--vscode-button-secondaryForeground, #fff) !important;
+	background: transparent !important;
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 22%, transparent) !important;
+	color: var(--vscode-foreground) !important;
+}
+
+.knox-gui-batch-reject:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--vscode-foreground) 7%, transparent) !important;
+	filter: none;
 }
 
 .knox-gui-batch-accept {
-	background: var(--vscode-button-background, #0e639c) !important;
-	color: var(--vscode-button-foreground, #fff) !important;
+	background: var(--knox-fill, #159994) !important;
+	border: 1px solid transparent !important;
+	color: var(--knox-on-fill, #fff) !important;
+}
+
+.knox-gui-batch-accept:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--knox-fill, #159994) 86%, #000) !important;
+	filter: none;
 }
 
 .knox-gui-batch-row > .knox-gui-ellipsis {
