@@ -91,6 +91,9 @@ abstract class KnoxGuiEditorPane extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
+		if (this.widget) {
+			return;
+		}
 		parent.classList.add('monaco-knox-gui-editor');
 		parent.style.height = '100%';
 		const store = this._register(this.instantiationService.createInstance(KnoxGuiStore));

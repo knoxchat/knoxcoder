@@ -42,6 +42,9 @@ export class KnoxChatViewPane extends ViewPane {
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
+		if (this.widget) {
+			return;
+		}
 		const store = this._register(this.instantiationService.createInstance(KnoxGuiStore));
 		const messenger = this._register(this.instantiationService.createInstance(KnoxGuiMessenger));
 		this.controller = this._register(this.instantiationService.createInstance(KnoxGuiController, store, messenger));

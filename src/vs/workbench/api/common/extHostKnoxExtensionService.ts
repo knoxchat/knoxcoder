@@ -37,6 +37,8 @@ export class ExtHostKnoxExtensionService extends Disposable implements IExtHostK
 	declare readonly _serviceBrand: undefined;
 
 	private _knoxApi: KnoxAPI | undefined;
+	private _knoxApiPromise: Promise<KnoxAPI | undefined> | undefined;
+	private _guiListenersAttached = false;
 	private readonly _proxy: MainThreadKnoxExtensionShape;
 
 	constructor(
@@ -94,6 +96,19 @@ export class ExtHostKnoxExtensionService extends Disposable implements IExtHostK
 	}
 
 	private async _ensureKnoxApi(): Promise<KnoxAPI | undefined> {
+		if (!this._knoxApiPromise) {
+			this._knoxApiPromise = this._resolveKnoxApi();
+		}
+		return this._knoxApiPromise;
+	}
+
+	/**
+	 * Chat, Memory, and Checkpoint Graph each post during setup. Without a
+	 * single-flight lock those concurrent `$guiPost`s each subscribed to
+	 * `onDidReceiveGuiMessage`, so every streamed token was forwarded N times
+	 * and the reply rendered as "SinceSinceSince this this this".
+	 */
+	private async _resolveKnoxApi(): Promise<KnoxAPI | undefined> {
 		if (this._knoxApi) {
 			return this._knoxApi;
 		}
@@ -107,17 +122,25 @@ export class ExtHostKnoxExtensionService extends Disposable implements IExtHostK
 			const exports = this._extHostExtensionService.getExtensionExports(new ExtensionIdentifier(KNOX_EXTENSION_ID));
 			if (!!exports && typeof (exports as KnoxExtension).getAPI === 'function') {
 				this._knoxApi = (exports as KnoxExtension).getAPI(1);
-				this._register(this._knoxApi.onDidChangeAgentMode((active) => {
-					this._proxy.$onDidChangeAgentMode(active);
-				}));
-				this._register(this._knoxApi.onDidReceiveGuiMessage((message) => {
-					this._proxy.$onGuiMessage(message);
-				}));
+				this._attachKnoxApiListeners(this._knoxApi);
 			}
 		} catch {
 			// Knox extension not available
 		}
 
 		return this._knoxApi;
+	}
+
+	private _attachKnoxApiListeners(api: KnoxAPI): void {
+		if (this._guiListenersAttached) {
+			return;
+		}
+		this._guiListenersAttached = true;
+		this._register(api.onDidChangeAgentMode((active) => {
+			this._proxy.$onDidChangeAgentMode(active);
+		}));
+		this._register(api.onDidReceiveGuiMessage((message) => {
+			this._proxy.$onGuiMessage(message);
+		}));
 	}
 }

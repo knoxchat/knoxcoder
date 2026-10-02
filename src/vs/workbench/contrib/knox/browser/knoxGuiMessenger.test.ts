@@ -55,6 +55,56 @@ suite('KnoxGuiMessenger', () => {
 		assert.deepStrictEqual(seen, ['Hello']);
 	});
 
+	test('streamRequest ignores chunks that arrive after done', async () => {
+		const incoming = new Emitter<IKnoxGuiMessage>();
+		const knoxService = new class extends mock<IKnoxService>() {
+			override onDidReceiveGuiMessage = incoming.event;
+			override async guiPost(message: IKnoxGuiMessage): Promise<void> {
+				incoming.fire({ messageType: message.messageType, messageId: message.messageId, data: { done: false, status: 'success', content: [{ content: 'Hello' }] } });
+				incoming.fire({ messageType: message.messageType, messageId: message.messageId, data: { done: true, status: 'success', content: undefined } });
+				incoming.fire({ messageType: message.messageType, messageId: message.messageId, data: { done: false, status: 'success', content: [{ content: 'Hello' }] } });
+			}
+		};
+		const messenger = disposables.add(new KnoxGuiMessenger(knoxService));
+		const seen: string[] = [];
+		for await (const batch of messenger.streamRequest<{ content: string }>('llm/streamChat', {})) {
+			seen.push(...batch.map(item => item.content));
+		}
+		assert.deepStrictEqual(seen, ['Hello']);
+	});
+
+	test('subscribeHost ignores request/stream envelopes so extra editors cannot re-handle tokens', async () => {
+		const incoming = new Emitter<IKnoxGuiMessage>();
+		const knoxService = new class extends mock<IKnoxService>() {
+			override onDidReceiveGuiMessage = incoming.event;
+			override async guiPost(): Promise<void> { }
+		};
+		const messenger = disposables.add(new KnoxGuiMessenger(knoxService));
+		const seen: string[] = [];
+		messenger.subscribeHost(message => seen.push(message.messageType));
+		incoming.fire({ messageType: 'llm/streamChat', messageId: 's1', data: { done: false, status: 'success', content: [{ content: 'Since' }] } });
+		incoming.fire({ messageType: 'configUpdate', messageId: 'c1', data: { result: { config: {} } } });
+		incoming.fire({ messageType: 'setEditStatus', messageId: 'e1', data: { status: 'accepting' } });
+		assert.deepStrictEqual(seen, ['configUpdate', 'setEditStatus']);
+	});
+
+	test('KnoxService ignores a second live delegate instead of throwing', () => {
+		const service = disposables.add(new KnoxService(new NullLogService()));
+		const first = disposables.add(service.setDelegate(new class extends mock<IKnoxExtensionDelegate>() {
+			override async guiPost(): Promise<void> { }
+		}));
+		const second = service.setDelegate(new class extends mock<IKnoxExtensionDelegate>() {
+			override async guiPost(): Promise<void> { }
+		});
+		second.dispose();
+		assert.ok(first);
+		first.dispose();
+		const third = disposables.add(service.setDelegate(new class extends mock<IKnoxExtensionDelegate>() {
+			override async guiPost(): Promise<void> { }
+		}));
+		assert.ok(third);
+	});
+
 	test('KnoxService tracks setActiveChatSession and broadcasts changes synchronously', async () => {
 		const service = disposables.add(new KnoxService(new NullLogService()));
 		const forwarded: IKnoxGuiMessage[] = [];

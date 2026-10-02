@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IKnoxGuiMessage, IKnoxGuiResponseEnvelope } from '../common/knoxGuiProtocol.js';
+import { IKnoxGuiMessage, IKnoxGuiResponseEnvelope, isKnoxGuiResponseEnvelope } from '../common/knoxGuiProtocol.js';
 import { IKnoxService } from '../common/knoxService.js';
 
 export class KnoxGuiMessenger extends Disposable {
@@ -58,6 +58,9 @@ export class KnoxGuiMessenger extends Disposable {
 		const wait = () => new Promise<void>(resolve => { notify = resolve; });
 		const sub = this.knoxService.onDidReceiveGuiMessage((message) => {
 			if (message.messageId !== messageId) {
+				return;
+			}
+			if (finished) {
 				return;
 			}
 			const envelope = message.data as IKnoxGuiResponseEnvelope;
@@ -113,6 +116,11 @@ export class KnoxGuiMessenger extends Disposable {
 	}
 
 	subscribeHost(listener: (message: IKnoxGuiMessage) => void): void {
-		this._register(this.knoxService.onDidReceiveGuiMessage(listener));
+		this._register(this.knoxService.onDidReceiveGuiMessage(message => {
+			if (isKnoxGuiResponseEnvelope(message.data)) {
+				return;
+			}
+			listener(message);
+		}));
 	}
 }

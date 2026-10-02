@@ -16,6 +16,18 @@ export interface IKnoxGuiResponseEnvelope {
 	readonly error?: string;
 }
 
+/**
+ * Replies to a GUI `request` / `streamRequest` (`status` + `done`). Host-pushed
+ * inbound such as `setEditStatus` also has a `status` string, but not `done`.
+ */
+export function isKnoxGuiResponseEnvelope(data: unknown): data is IKnoxGuiResponseEnvelope {
+	if (!data || typeof data !== 'object') {
+		return false;
+	}
+	const rec = data as IKnoxGuiResponseEnvelope;
+	return (rec.status === 'success' || rec.status === 'error') && typeof rec.done === 'boolean';
+}
+
 export const KNOX_GUI_OVERLAYS = [
 	'models',
 	'rules',

@@ -8,7 +8,7 @@ import { asRecord, asArray, contextItemFromRaw } from './helpers.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { applyKnoxGuiAutonomousEvent, parseBackgroundJob, parseBackgroundJobs, parseCompactionPayload } from '../../../common/knoxGuiPanels.js';
 import { parseCheckpointRestored } from '../../../common/knoxGuiCheckpoints.js';
-import { IKnoxGuiMessage, KNOX_GUI_HOST_INBOUND_EMPTY_ACK, KNOX_GUI_PATH_BY_ROUTE, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
+import { IKnoxGuiMessage, KNOX_GUI_HOST_INBOUND_EMPTY_ACK, KNOX_GUI_PATH_BY_ROUTE, KnoxGuiRoute, isKnoxGuiResponseEnvelope } from '../../../common/knoxGuiProtocol.js';
 import { knoxGuiNextEditStatus, mergeCodeToEdit, parseCodeToEditList } from '../../../common/knoxGuiEdit.js';
 import { knoxGuiHostAgentActiveFromPayload, knoxGuiModeAfterHostAgentFlag } from '../../../common/knoxGuiAgentMode.js';
 import { IKnoxGuiState, KnoxModelRole, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
@@ -86,6 +86,9 @@ function mirrorChatSession(controller: KnoxGuiController, data: unknown): void {
 }
 
 export async function handleInbound(controller: KnoxGuiController, type: string, data: unknown, messageId: string): Promise<void> {
+	if (isKnoxGuiResponseEnvelope(data)) {
+		return;
+	}
 	if (type === 'activeChatSessionChanged' && controller.store.state.lockedRoute === KnoxGuiRoute.CheckpointGraph) {
 		mirrorChatSession(controller, data);
 		return;

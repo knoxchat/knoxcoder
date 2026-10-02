@@ -1,4 +1,5 @@
 import { FromWebviewProtocol, ToWebviewProtocol } from "core/protocol";
+import { dispatchProtocolHandlers } from "core/protocol/dispatchHandlers";
 import { Message } from "core/protocol/messenger";
 import { summarizeProtocolMessage } from "core/protocol/summarizeMessage";
 import { v4 as uuidv4 } from "uuid";
@@ -112,95 +113,73 @@ export class VsCodeWebviewProtocol
 
       const handlers =
         this.listeners.get(msg.messageType as keyof FromWebviewProtocol) || [];
-      for (const handler of handlers) {
+      const dispatched = await dispatchProtocolHandlers(handlers, msg, respond);
+      if (dispatched.kind !== "error") {
+        return;
+      }
+
+      const err = dispatched.error;
+      const cause = (err as Error & { cause?: { name?: string; code?: string; message?: string } }).cause;
+      for (const errorHandler of this._onErrorHandlers) {
         try {
-          const response = await handler(msg);
-          // For generator types e.g. llm/streamChat
-          if (
-            response &&
-            typeof response[Symbol.asyncIterator] === "function"
-          ) {
-            let next = await response.next();
-            while (!next.done) {
-              respond({
-                done: false,
-                content: next.value,
-                status: "success",
-              });
-              next = await response.next();
-            }
-            respond({
-              done: true,
-              content: next.value,
-              status: "success",
-            });
-          } else {
-            respond({ done: true, content: response, status: "success" });
-          }
-        } catch (e: any) {
-          const err = e instanceof Error ? e : new Error(String(e));
-          for (const errorHandler of this._onErrorHandlers) {
-            try {
-              errorHandler(msg, err);
-            } catch (handlerErr) {
-              console.error("webviewProtocol onError handler failed", handlerErr);
-            }
-          }
-
-          // Build the user-visible message first, then send ONE error
-          // response. A prior empty `{ status: "error" }` reply won the
-          // webview request() race and showed "Unknown tool call error".
-          let message = err.message || String(e);
-          if (e?.cause) {
-            if (e.cause.name === "ConnectTimeoutError") {
-              message = t("connection.timeout");
-            } else if (e.cause.code === "ECONNREFUSED") {
-              message = t("connection.refused");
-            } else {
-              message = t("connection.requestFailed", {
-                name: e.cause.name,
-                message: e.cause.message,
-              });
-            }
-          }
-
-          const quotaHit =
-            message.includes("exceeded") &&
-            (message.includes("quota") ||
-              message.includes("rate limit") ||
-              message.includes("usage"));
-          if (quotaHit) {
-            message += t("webview.exceededUsageHint");
-          }
-
-          respond({ done: true, error: message, status: "error" });
-
-          const summary = summarizeProtocolMessage(msg);
-          console.error(
-            `Error handling webview message: ${summary}\n\n${e}`,
-          );
-
-          if (
-            summary.includes("llm/streamChat") ||
-            summary.includes("chatDescriber/describe")
-          ) {
-            return;
-          }
-
-          if (quotaHit) {
-            vscode.window
-              .showInformationMessage(
-                message,
-                t("webview.addApiKey"),
-                t("webview.useLocalModel"),
-              )
-              .then((selection) => {
-                if (selection === t("webview.addApiKey")) {
-                  this.request("addApiKey", undefined);
-                }
-              });
-          }
+          errorHandler(msg, err);
+        } catch (handlerErr) {
+          console.error("webviewProtocol onError handler failed", handlerErr);
         }
+      }
+
+      // Build the user-visible message first, then send ONE error
+      // response. A prior empty `{ status: "error" }` reply won the
+      // webview request() race and showed "Unknown tool call error".
+      let message = err.message || String(err);
+      if (cause) {
+        if (cause.name === "ConnectTimeoutError") {
+          message = t("connection.timeout");
+        } else if (cause.code === "ECONNREFUSED") {
+          message = t("connection.refused");
+        } else {
+          message = t("connection.requestFailed", {
+            name: cause.name,
+            message: cause.message,
+          });
+        }
+      }
+
+      const quotaHit =
+        message.includes("exceeded") &&
+        (message.includes("quota") ||
+          message.includes("rate limit") ||
+          message.includes("usage"));
+      if (quotaHit) {
+        message += t("webview.exceededUsageHint");
+      }
+
+      respond({ done: true, error: message, status: "error" });
+
+      const summary = summarizeProtocolMessage(msg);
+      console.error(
+        `Error handling webview message: ${summary}\n\n${err}`,
+      );
+
+      if (
+        summary.includes("llm/streamChat") ||
+        summary.includes("chatDescriber/describe")
+      ) {
+        return;
+      }
+
+      if (quotaHit) {
+        vscode.window
+          .showInformationMessage(
+            message,
+            t("webview.addApiKey"),
+            t("webview.useLocalModel"),
+          )
+          .then((selection) => {
+            if (selection === t("webview.addApiKey")) {
+              this.request("addApiKey", undefined);
+            }
+          });
       }
   }
 

@@ -125,6 +125,17 @@ suite('Knox native agent stream and retry helpers', () => {
 		assert.strictEqual(acc.content.includes('plan it'), false);
 	});
 
+	test('identical token chunks concatenate, which is how extra stream listeners triple replies', () => {
+		const acc = knoxGuiEmptyStreamText();
+		knoxGuiAccumulateChunk(acc, { role: 'assistant', content: 'Since' });
+		knoxGuiAccumulateChunk(acc, { role: 'assistant', content: 'Since' });
+		knoxGuiAccumulateChunk(acc, { role: 'assistant', content: 'Since' });
+		knoxGuiAccumulateChunk(acc, { role: 'assistant', content: ' this' });
+		knoxGuiAccumulateChunk(acc, { role: 'assistant', content: ' this' });
+		knoxGuiAccumulateChunk(acc, { role: 'assistant', content: ' this' });
+		assert.strictEqual(acc.content, 'SinceSinceSince this this this');
+	});
+
 	test('A-12 thinking role keeps signature and redacted blocks', () => {
 		const acc = knoxGuiEmptyStreamText();
 		knoxGuiAccumulateChunk(acc, { role: 'thinking', content: 'step', signature: 'sig' });

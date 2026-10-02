@@ -329,6 +329,15 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(memory.store.state.language, 'en', 'unsupported values are ignored');
 	});
 
+	test('stream response envelopes are not applied as host inbound', async () => {
+		const { controller, store } = createHarness();
+		await timeout(0);
+		const history = store.state.history.length;
+		await controller.handleInbound('llm/streamChat', { done: false, status: 'success', content: [{ content: 'Since' }] }, 'stream-1');
+		await controller.handleInbound('newSession', { done: true, status: 'success', content: undefined }, 'ns-dup');
+		assert.strictEqual(store.state.history.length, history);
+	});
+
 	for (const [name, route, tabBar] of [
 		['Checkpoint Graph', KnoxGuiRoute.CheckpointGraph, '.knox-gui-checkpoint-tab-bar'],
 		['Memory', KnoxGuiRoute.Memory, '.knox-gui-memory-tabbar'],

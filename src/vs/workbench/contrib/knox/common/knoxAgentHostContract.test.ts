@@ -1341,4 +1341,23 @@ suite('Knox native parity follow-ups (NP)', () => {
 		assert.ok(repoFile('extensions/knox/src/pkg/vitest.config.ts').includes('**/*.test.ts'));
 		assert.ok(repoFile('extensions/knox/package.json').includes('"test:pkg"'));
 	});
+
+	test('NP-30 extra editors cannot fan out llm/streamChat tokens', () => {
+		const extHost = repoFile('src/vs/workbench/api/common/extHostKnoxExtensionService.ts');
+		const protocol = repoFile('extensions/knox/src/host/webviewProtocol.ts');
+		const dispatch = repoFile('extensions/knox/src/core/protocol/dispatchHandlers.ts');
+		const messenger = repoFile('src/vs/workbench/contrib/knox/browser/knoxGuiMessenger.ts');
+		const inbound = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/inbound.ts');
+		const service = repoFile('src/vs/workbench/contrib/knox/browser/knoxService.ts');
+		assert.ok(extHost.includes('_knoxApiPromise'));
+		assert.ok(extHost.includes('_guiListenersAttached'));
+		assert.ok(extHost.includes('_attachKnoxApiListeners'));
+		assert.ok(protocol.includes('dispatchProtocolHandlers'));
+		assert.ok(dispatch.includes('Streaming `llm/streamChat` through every'));
+		assert.ok(messenger.includes('isKnoxGuiResponseEnvelope'));
+		assert.ok(messenger.includes('if (finished)'));
+		assert.ok(inbound.includes('isKnoxGuiResponseEnvelope(data)'));
+		assert.ok(service.includes('ignoring the extra host'));
+		assert.ok(!service.includes('BugIndicatingError'));
+	});
 });

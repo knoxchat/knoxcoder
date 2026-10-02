@@ -7,7 +7,7 @@ import assert from 'assert';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { KNOX_GUI_HOST_INBOUND, KNOX_GUI_HOST_OUTBOUND } from './knoxGuiProtocol.js';
+import { KNOX_GUI_HOST_INBOUND, KNOX_GUI_HOST_OUTBOUND, isKnoxGuiResponseEnvelope } from './knoxGuiProtocol.js';
 
 function repoFile(...parts: string[]): string {
 	return readFileSync(join(process.cwd(), ...parts), 'utf8');
@@ -83,5 +83,12 @@ suite('Knox messenger contract (KN-230–231)', () => {
 
 		const missingShared = SHARED_CORE_OUTBOUND.filter(name => !toCore.includes(name) || !outbound.has(name));
 		assert.deepStrictEqual(missingShared, [], `shared Core message missing from pass-through or GUI outbound: ${missingShared.join(', ')}`);
+	});
+
+	test('response envelopes are distinct from host inbound payloads', () => {
+		assert.strictEqual(isKnoxGuiResponseEnvelope({ done: false, status: 'success', content: [{ content: 'Since' }] }), true);
+		assert.strictEqual(isKnoxGuiResponseEnvelope({ done: true, status: 'error', error: 'nope' }), true);
+		assert.strictEqual(isKnoxGuiResponseEnvelope({ status: 'accepting' }), false);
+		assert.strictEqual(isKnoxGuiResponseEnvelope({ result: { config: {} } }), false);
 	});
 });

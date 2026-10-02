@@ -5,7 +5,6 @@
 
 import { AutoOpenBarrier } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -28,16 +27,20 @@ export class KnoxService extends Disposable implements IKnoxService {
 	}
 
 	setDelegate(delegate: IKnoxExtensionDelegate): IDisposable {
-		if (this._delegate) {
-			this.logService.error('[KnoxService][setDelegate] KnoxExtension delegate is already set.');
-			throw new BugIndicatingError('KnoxExtension delegate is already set.');
+		if (this._delegate && this._delegate !== delegate) {
+			// Chat, Memory, and Checkpoint Graph each talk through this singleton.
+			// A second extension host (ui + workspace) must not throw or steal the pipe.
+			this.logService.warn('[KnoxService][setDelegate] KnoxExtension delegate is already set; ignoring the extra host.');
+			return toDisposable(() => { });
 		}
 
 		this._delegate = delegate;
 		this._delegateBarrier.open();
 
 		return toDisposable(() => {
-			this._delegate = undefined;
+			if (this._delegate === delegate) {
+				this._delegate = undefined;
+			}
 		});
 	}
 
