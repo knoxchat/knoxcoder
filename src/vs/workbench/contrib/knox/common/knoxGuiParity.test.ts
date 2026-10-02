@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildCheckpointFileTree, CHECKPOINT_ANALYSIS_GROUP_LIMIT, CHECKPOINT_DASHBOARD_HISTORY_DAYS, checkpointAncestorIds, checkpointConfigHasChanges, checkpointConfigHasErrors, checkpointGraphForceMountKey, CHECKPOINT_GRAPH_ROW_HEIGHT, CHECKPOINT_GRAPH_WORKING_TREE_ID, CHECKPOINT_PANEL_TABS, CHECKPOINT_TAB_ICON, checkpointGraphMatches, checkpointGraphRowTop, checkpointGraphWindow, checkpointImpactChipClass, checkpointLaneNeighbor, checkpointRiskChipClass, checkpointScopeChipClass, checkpointShellAction, checkpointShellMessageKey, checkpointShellViewState, compactAxisNumber, computeLineDiff, defaultCheckpointGraphUi, drawCheckpointGraph, fillDailyCounts, filterCheckpoints, formatCheckpointGraphTime, formatRestoreNotice, groupCheckpointsByDate, groupDiffHunks, hunkWordAltRanges, layoutCheckpointLanes, normalizeCheckpointConfig, parseCheckpointAnalysis, parseCheckpointGraphUi, parseCheckpointRestored, parsePerformanceDashboard, parseRestorePreview, parseStorageBytes, parseSuggestedCheckpointGroups, restorePreviewActionKey, selectCheckpointIdRange, validateCheckpointConfig, withWorkingTreeNode, wordAltRanges } from './knoxGuiCheckpoints.js';
 import { knoxGuiAcceptRejectLabelKeys, knoxGuiAcceptRejectShortcut, knoxGuiAcceptRejectWidthKeys, knoxGuiAnchorPopoverBox, knoxGuiCanCancel, knoxGuiComposerShowsJobsButton, knoxGuiEditSendKey, knoxGuiEmptyTranscriptShowsPlaceholder, knoxGuiLumpLabelVisible, knoxGuiMetaKeyLabel, knoxGuiNextMainTextEntry, knoxGuiParseMainTextEntryCount, knoxGuiPermissionModeIsTopTab, knoxGuiRelativeFontSize, knoxGuiRunningJobCount, knoxGuiShowsAgentMeter, knoxGuiShowsBatchDiffEntry, knoxGuiShowsChatPermissionBar, knoxGuiShowsChatScrollbar, knoxGuiShowsChatToolButtons, knoxGuiShowsComposerAcceptReject, knoxGuiShowsEditResponseAcceptReject, knoxGuiShowsFatalBanner, knoxGuiShowsLumpOverlay, knoxGuiShowsMainComposer, knoxGuiShowsScrollButtons, knoxGuiShowsSessionTabs, knoxGuiToolbarShowsAlwaysOnLabels, KNOX_GUI_CHAT_SCROLLBAR_MIN_HEIGHT, KNOX_GUI_COMPOSER_SLOTS, KNOX_GUI_FIND_DEBOUNCE_MS, KNOX_GUI_FIND_RESIZE_DEBOUNCE_MS, KNOX_GUI_LUMP_TOOLBAR, KNOX_GUI_MAIN_TEXT_ENTRY_DIALOG_AT, KNOX_GUI_MODE_TABS, KNOX_GUI_SM_MIN_PX, KNOX_GUI_XS_MAX_PX } from './knoxGuiChrome.js';
-import { applyCloseTab, applyNavigateTo, applySessionTabChange, createInitialKnoxGuiState, DEFAULT_PERMISSION_MODE, IKnoxGuiHistoryItem, IKnoxGuiState, IKnoxGuiToolCall, KNOX_GUI_DEFAULT_SESSION_MODE, nextPermissionMode } from './knoxGuiState.js';
+import { applyCloseTab, applyNavigateTo, applySessionTabChange, createInitialKnoxGuiState, DEFAULT_PERMISSION_MODE, IKnoxGuiHistoryItem, IKnoxGuiState, IKnoxGuiToolCall, KNOX_GUI_DEFAULT_SESSION_MODE, knoxGuiPermissionModeLabelKey, nextPermissionMode } from './knoxGuiState.js';
 import { AUTO_DISPLAY_START, capDisplayText, GUI_DISPLAY_MAX_CHARS, GUI_SESSION_HYDRATE_BUDGET_BYTES, shouldWarnLargeSession, CHAT_DISPLAY_WINDOW, CHAT_LOAD_EARLIER_THRESHOLD_PX, compileSearchPattern, computeDisplayStart, createStreamUpdateCoalescer, expandPromptSlashCommand, extractCodeFences, findCurrentToolCall, findMatchingHistoryIndexes, groupHistoryTurns, incrementalParseJson, isAskUserToolName, isKnoxGuiFilterOnlyChange, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange, knoxGuiToolProgressOnlyChange, knoxGuiFindRegexInvalid, nextExpandedStart, parseLeadingSlash, parseToolArgs, resolveDisplayStart, shouldFloatLastUser, snapStartToTurn, STREAM_COALESCE_MS, toolDisplayKind, visibleTurnIndexes } from './knoxGuiChat.js';
 import { activityAnchorId, activityKindLabelKey, activitySummaryLine, applyUiAfterAppliedTimeout, applyUiForState, APPLIED_PILL_MS, buildAgentActivitySteps, collectDuplicateAssistantMessageIds, collectTurnPromptLogs, countTurnToolSteps, estimateTokensFromPromptLogs, estimateTurnOutputTokens, extractSoulCheckpointId, fenceApplyStreamId, fenceHasFileToolbar, formatDurationMs, formatLoadingElapsed, formatTokenCount, formatTokenRate, hasForegroundCallingToolCalls, historyUserInputDoc, isResponseTruncated, isTerminalCodeBlock, isTurnGeneratingTokens, knoxGuiShowsCodeToEditOnEmptyComposer, knoxGuiShowsCodeToEditOnHistoryUser, loadingVariantFor, looksLikeFilePath, parseCodeFenceRange, parseStreamError, pendingApplyStates, resetTpsClock, resolveAgentMaxSteps, resubmitHistory, shouldShineSentFrame, shouldShowThinkingIndicator, splitDisplayPath, splitMarkdownBlocks, summarizeJevPromptLogs, tickTokensPerSecond, TOKEN_TPS_MIN_GENERATION_MS, tokensPerSecond, toolStepDetail, turnElapsedMs, turnHasVisibleProgress } from './knoxGuiTranscript.js';
 import { calculateFence, capTreeTerminalLines, TREE_TERMINAL_SCROLLBACK, treeTerminalRows, catalogToolForCall, collapseFileToolCodePreview, createLatestValueCoalescer, displayArgsForToolCall, displayBuildCommand, displayLanguageForFile, exactSearchDisplayQuery, exactSearchQueryBadge, extractLogPathFromTerminalOutput, extractStreamingToolCode, extractTerminalOutput, finishedToolSummary, finishedToolSummaryText, formatAskUserDisplayAnswer, formatToolName, highlightSearchQueryInHtml, isAskUserAnswered, isSamePermissionTool, mergeStreamedToolCalls, mergeToolArguments, parseAskUserQuestionsForGui, parseSearchResults, detectSearchLanguage, repoMapFileAnsiColor, repoMapToTreeColorized, resolveAskUserQuestions, resolveGuiToolName, sanitizeExactSearchQuery, shouldRenderToolBody, splitChoiceText, stripAnsi, takeTerminalTail, terminalBodyHeight, terminalCommandForTool, toolAlwaysShowsBody, toolPermissionDisplay, toolStatusFallbackKey, toolStatusIcon, toolStatusIntroKey, treeStatsFromPlain } from './knoxGuiTools.js';
@@ -18,7 +18,7 @@ import { ADD_MODEL_PROVIDERS, addModelBrowseGroups, addModelPackagesByProvider, 
 import { filterAndSortMemories, formatBytes, formatMemoryTimeAgo, groupMemoriesByDate, healthStatusColor, hitTestMemoryGraph, isMemoryTabId, layoutMemoryGraph, MEMORY_PANEL_TAB_BRAIN_MESSAGES, MEMORY_RETRIEVAL_THRESHOLD, MEMORY_RETRIEVAL_TOP_K, MEMORY_SETTING_GROUPS, MEMORY_TAB_ICONS, MEMORY_TAB_IDS, MEMORY_TIER_COLORS, memoryConfigUpdatePayload, memoryExploreEdgeDepth, memorySnippet, parseEffectiveContext, parseExploreResult, parseMemoryDashboard, parseMetricsTrend, sortMemoryExploreEdges, unwrapBrainConfig, memoriesToExportJson } from './knoxGuiMemory.js';
 import { KNOX_GUI_HEARTBEAT_MS, KNOX_GUI_HOST_INBOUND, KNOX_GUI_HOST_INBOUND_EMPTY_ACK, KNOX_GUI_HOST_OUTBOUND, KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME, KNOX_GUI_OVERLAYS, KNOX_GUI_PATH_BY_ROUTE, KnoxGuiRoute, knoxGuiRouteFromPath, lumpOverlaySectionForPath } from './knoxGuiProtocol.js';
 import { isSingleRangeEditOrInsertion, knoxGuiMultifileEditPrompt, knoxGuiNextEditStatus, knoxGuiResetEditModeState, mergeCodeToEdit, parseCodeToEdit, shouldSendEditPrompt } from './knoxGuiEdit.js';
-import { KNOX_AGENT_MODE_CONTEXT_KEY, knoxGuiHostAgentActiveFromPayload, knoxGuiModeAfterEditExit, knoxGuiModeAfterHostAgentFlag, knoxGuiSessionModeIsAgent } from './knoxGuiAgentMode.js';
+import { KNOX_AGENT_MODE_CONTEXT_KEY, knoxGuiHostAgentActiveFromPayload, knoxGuiModeAfterEditExit, knoxGuiModeAfterHostAgentFlag, knoxGuiResolveSessionMode, knoxGuiSessionModeIsAgent } from './knoxGuiAgentMode.js';
 import { applyKnoxGuiSetColors, applyKnoxGuiSetTheme, constructHljsTheme, cssVarsFromColorMap, knoxGuiHljsTokenColor, knoxGuiThemeIsLight, parseSetColorsPayload, parseSetThemePayload, vscodeCssVarFromColorId } from './knoxGuiTheme.js';
 
 suite('Knox native GUI parity', () => {
@@ -35,7 +35,7 @@ suite('Knox native GUI parity', () => {
 		assert.deepStrictEqual(KNOX_GUI_LUMP_TOOLBAR.map(entry => entry.id), ['models', 'rules', 'prompts', 'tools', 'history', 'settings']);
 		assert.ok(!(KNOX_GUI_LUMP_TOOLBAR as ReadonlyArray<{ id: string }>).some(entry => entry.id === 'context'));
 		assert.deepStrictEqual(KNOX_GUI_LUMP_TOOLBAR.map(entry => entry.svg), ['cpu', 'square-pen', 'scroll-text', 'wrench', 'history', 'settings']);
-		assert.deepStrictEqual([...KNOX_GUI_MODE_TABS], ['chat', 'agent']);
+		assert.deepStrictEqual([...KNOX_GUI_MODE_TABS], []);
 		assert.strictEqual(KNOX_GUI_DEFAULT_SESSION_MODE, 'agent');
 		assert.strictEqual(createInitialKnoxGuiState().mode, 'agent');
 		assert.strictEqual(knoxGuiLumpLabelVisible('models', 'models'), true);
@@ -43,7 +43,7 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(knoxGuiToolbarShowsAlwaysOnLabels(), false);
 		assert.strictEqual(knoxGuiEmptyTranscriptShowsPlaceholder(), false);
 		assert.strictEqual(knoxGuiComposerShowsJobsButton(), false);
-		assert.strictEqual(knoxGuiPermissionModeIsTopTab(), false);
+		assert.strictEqual(knoxGuiPermissionModeIsTopTab(), true);
 		assert.strictEqual(knoxGuiRunningJobCount([{ id: '1', title: 'a', status: 'running' }, { id: '2', title: 'b', status: 'exited' }]), 1);
 		const streaming = { ...createInitialKnoxGuiState(), isStreaming: true };
 		assert.strictEqual(knoxGuiCanCancel(streaming), true);
@@ -61,13 +61,18 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(knoxGuiSessionModeIsAgent('edit'), false);
 		assert.strictEqual(knoxGuiModeAfterHostAgentFlag('chat', true), 'agent');
 		assert.strictEqual(knoxGuiModeAfterHostAgentFlag('agent', true), undefined);
-		assert.strictEqual(knoxGuiModeAfterHostAgentFlag('agent', false), 'chat');
+		assert.strictEqual(knoxGuiModeAfterHostAgentFlag('agent', false), undefined);
 		assert.strictEqual(knoxGuiModeAfterHostAgentFlag('edit', false), undefined);
 		assert.strictEqual(knoxGuiModeAfterHostAgentFlag('edit', true), 'agent');
 		assert.strictEqual(knoxGuiModeAfterEditExit(), 'agent');
-		assert.strictEqual(knoxGuiModeAfterEditExit('chat'), 'chat');
-		assert.strictEqual(knoxGuiModeAfterEditExit('agent', 'chat'), 'chat');
-		assert.strictEqual(knoxGuiModeAfterEditExit('chat', 'edit'), 'chat');
+		assert.strictEqual(knoxGuiModeAfterEditExit('chat'), 'agent');
+		assert.strictEqual(knoxGuiModeAfterEditExit('agent', 'chat'), 'agent');
+		assert.strictEqual(knoxGuiModeAfterEditExit('chat', 'edit'), 'agent');
+		assert.strictEqual(knoxGuiModeAfterEditExit('agent', undefined, false), 'chat');
+		assert.strictEqual(knoxGuiResolveSessionMode({ mode: 'chat', toolsSupported: true }), 'agent');
+		assert.strictEqual(knoxGuiResolveSessionMode({ mode: 'chat', toolsSupported: false }), 'chat');
+		assert.strictEqual(knoxGuiResolveSessionMode({ mode: 'agent', toolsSupported: false }), 'chat');
+		assert.strictEqual(knoxGuiResolveSessionMode({ mode: 'edit', toolsSupported: false }), 'edit');
 		assert.strictEqual(knoxGuiHostAgentActiveFromPayload({ active: true }), true);
 		assert.strictEqual(knoxGuiHostAgentActiveFromPayload({ active: false }), false);
 		assert.strictEqual(knoxGuiHostAgentActiveFromPayload({ done: true, status: 'success', content: { active: true } }), undefined);
@@ -168,6 +173,9 @@ suite('Knox native GUI parity', () => {
 	test('permission mode default is YOLO fullAuto', () => {
 		assert.strictEqual(DEFAULT_PERMISSION_MODE, 'fullAuto');
 		assert.strictEqual(nextPermissionMode('fullAuto'), 'default');
+		assert.strictEqual(knoxGuiPermissionModeLabelKey('default'), 'permissionModeAsk');
+		assert.strictEqual(knoxGuiPermissionModeLabelKey('acceptEdits'), 'permissionModeEdits');
+		assert.strictEqual(knoxGuiPermissionModeLabelKey('fullAuto'), 'permissionModeAuto');
 		assert.strictEqual(nextPermissionMode('default'), 'acceptEdits');
 	});
 

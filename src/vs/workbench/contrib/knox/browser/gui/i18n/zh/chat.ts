@@ -19,6 +19,8 @@ export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"permissionModeAskHint": "写入和终端先询问",
 	"permissionModeEditsHint": "自动批准文件编辑；终端仍询问",
 	"permissionModeAutoHint": "自动批准所有已启用工具（默认）",
+	"permissionModeTriggerHint": "工具如何批准。Jev 自动选择对话或助理。",
+	"permissionModeTriggerHintNoJev": "助理模式。工具如何批准。",
 	"approveOnce": "批准",
 	"alwaysThisSession": "始终",
 	"alwaysThisSessionHint": "在本次对话中自动批准此工具",

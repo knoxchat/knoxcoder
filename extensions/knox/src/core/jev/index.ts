@@ -27,7 +27,7 @@ export {
   ROUTE_CONFIDENCE_FLOOR,
   escalateReasoningEffort,
 } from "./questions";
-export { evaluateAgentTurn, recentContextFromTurns } from "./turn";
+export { evaluateAgentTurn, jevTurnUsesAgentTools, recentContextFromTurns } from "./turn";
 export type { AgentTurnJudgment, EvaluateAgentTurnInput } from "./turn";
 export { suggestSkill, rankSkillShortlist } from "./skillSuggest";
 export {

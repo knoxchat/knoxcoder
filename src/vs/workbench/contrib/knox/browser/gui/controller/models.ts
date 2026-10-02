@@ -6,7 +6,7 @@
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { asRecord, asArray } from './helpers.js';
 import { knoxGuiCatalogEntriesFromOverlayModels, knoxGuiGetReasoningModelKeys, knoxGuiModelSupportsImages, knoxGuiModelToolsSupportKnown, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiResolveToolsSupported, knoxGuiSeedModelCatalog, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
-import { knoxGuiIsSessionTabMode, knoxGuiSessionModeIsAgent } from '../../../common/knoxGuiAgentMode.js';
+import { knoxGuiIsSessionTabMode, knoxGuiResolveSessionMode, knoxGuiSessionModeIsAgent } from '../../../common/knoxGuiAgentMode.js';
 import { addModelProviderById, applyOpenRouterAliasFloorPricing, buildAddModelPayload, categorizeKnoxChatModel, KNOX_CHAT_FALLBACK_MODELS, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, parseKnoxOAuthStatus, parseOpenRouterOAuthStatus, type IKnoxGuiAddModelPackage } from '../../../common/knoxGuiOverlays.js';
 import { KnoxGuiOverlay } from '../../../common/knoxGuiProtocol.js';
 import { IKnoxGuiModel, IKnoxGuiState, KnoxChatMode, KnoxModelRole } from '../../../common/knoxGuiState.js';
@@ -41,18 +41,24 @@ export function postSetAgentMode(controller: KnoxGuiController): void {
 }
 
 /**
- * React ModeSelect: only leave Agent when the selected model is known not to
- * support tools. Unknown (catalog still loading) keeps the Agent default.
+ * Chat vs Agent is not a user tab. Stay on Agent unless the model is known
+ * not to support tools (then Chat, no tools). Unknown keeps Agent so Jev
+ * can still send candidate tools.
  */
 export function syncAgentTabWithModel(controller: KnoxGuiController): void {
-	if (!knoxGuiSessionModeIsAgent(controller.store.state.mode)) {
+	if (controller.store.state.mode === 'edit') {
 		return;
 	}
 	const title = controller.store.state.modelTitle;
 	const selected = controller.chatModels().find(model => model.title === title)
 		?? controller.store.state.models.find(model => model.title === title);
-	if (knoxGuiModelToolsSupportKnown(selected) === false) {
-		setMode(controller, 'chat');
+	const toolsKnown = knoxGuiModelToolsSupportKnown(selected);
+	const next = knoxGuiResolveSessionMode({
+		mode: controller.store.state.mode,
+		toolsSupported: toolsKnown !== false,
+	});
+	if (next !== controller.store.state.mode) {
+		setMode(controller, next);
 	}
 }
 

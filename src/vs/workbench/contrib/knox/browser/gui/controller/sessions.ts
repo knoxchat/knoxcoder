@@ -371,7 +371,7 @@ export function enterEditMode(controller: KnoxGuiController, options: { clearSes
 	const current = controller.store.state.mode;
 	const editReturnMode = knoxGuiIsSessionTabMode(current)
 		? current
-		: knoxGuiModeAfterEditExit(controller.store.state.editReturnMode);
+		: knoxGuiModeAfterEditExit(controller.store.state.editReturnMode, undefined, controller.store.state.toolsSupported);
 	const hasHistory = controller.store.state.history.length > 0;
 	if (options.clearSession || hasHistory) {
 		if (hasHistory) {
@@ -414,7 +414,7 @@ export async function exitEditMode(controller: KnoxGuiController, nextMode?: Kno
 		controller.messenger.post('rejectDiff', { filepath: code.filepath });
 	}
 	controller.messenger.post('edit/exit', { shouldFocusEditor: shouldFocus });
-	const mode = knoxGuiModeAfterEditExit(controller.store.state.editReturnMode, nextMode);
+	const mode = knoxGuiModeAfterEditExit(controller.store.state.editReturnMode, nextMode, controller.store.state.toolsSupported);
 	controller.store.patch({
 		codeToEdit: [],
 		addFileOpen: false,

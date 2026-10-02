@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { evaluateAgentTurn, recentContextFromTurns } from "./turn";
+import { evaluateAgentTurn, jevTurnUsesAgentTools, recentContextFromTurns } from "./turn";
 import { resolveJevRuntime } from "./config";
 import { skillGateAnswers } from "./fixtures/labeledTurns";
 import { escalateReasoningEffort } from "./questions";
@@ -36,6 +36,39 @@ function fakeClient(result: JevSystemOneResult | Error): JevClient {
 
 const qemu = skill("qemu", "Boot and debug QEMU guests");
 const rust = skill("rust", "Cargo check, clippy, and borrowck repair");
+
+describe("jevTurnUsesAgentTools", () => {
+  it("keeps tools when Jev is disabled", () => {
+    expect(
+      jevTurnUsesAgentTools(false, { source: "jev", route: "view_read" }),
+    ).toBe(true);
+  });
+
+  it("keeps tools for chat and chat_high", () => {
+    expect(jevTurnUsesAgentTools(true, { source: "jev", route: "chat" })).toBe(
+      true,
+    );
+    expect(
+      jevTurnUsesAgentTools(true, { source: "jev", route: "chat_high" }),
+    ).toBe(true);
+  });
+
+  it("drops tools for view_read and clarify when Jev classified the turn", () => {
+    expect(
+      jevTurnUsesAgentTools(true, { source: "jev", route: "view_read" }),
+    ).toBe(false);
+    expect(
+      jevTurnUsesAgentTools(true, { source: "jev", route: "clarify" }),
+    ).toBe(false);
+  });
+
+  it("keeps tools on heuristic fail-open", () => {
+    expect(
+      jevTurnUsesAgentTools(true, { source: "heuristic", route: "view_read" }),
+    ).toBe(true);
+    expect(jevTurnUsesAgentTools(true, undefined)).toBe(true);
+  });
+});
 
 describe("evaluateAgentTurn", () => {
   it("uses regex heuristics when Jev is disabled", async () => {

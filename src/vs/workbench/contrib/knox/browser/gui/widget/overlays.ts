@@ -1088,6 +1088,9 @@ export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: 
 		widget.toggle(jev, '', state.jevEnabled, value => {
 			widget.controller.store.patch({ jevEnabled: value });
 			void widget.controller.updateSharedConfig({ jevEnabled: value });
+			if (widget.controller.store.state.toolsSupported && widget.controller.store.state.mode === 'chat') {
+				widget.controller.setMode('agent');
+			}
 		});
 		DOM.append(el, DOM.$('p.knox-gui-muted', undefined, t(state, 'agentPolicyHint')));
 	});

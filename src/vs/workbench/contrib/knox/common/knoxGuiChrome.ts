@@ -18,8 +18,8 @@ export const KNOX_GUI_LUMP_TOOLBAR = [
 	{ id: 'settings' as const, key: 'settings', svg: 'settings' as const },
 ];
 
-/** ModeSelect tabs. Agent is the first-run default; Edit appears only while in Cmd+I. */
-export const KNOX_GUI_MODE_TABS: KnoxChatMode[] = ['chat', 'agent'];
+/** Session Chat/Agent tabs are gone; Jev (or Agent-only) picks. Edit is Cmd+I only. */
+export const KNOX_GUI_MODE_TABS: KnoxChatMode[] = [];
 
 export function knoxGuiLumpLabelVisible(overlay: KnoxGuiOverlay, id: string): boolean {
 	return overlay === id;
@@ -38,7 +38,7 @@ export function knoxGuiComposerShowsJobsButton(): boolean {
 }
 
 export function knoxGuiPermissionModeIsTopTab(): boolean {
-	return false;
+	return true;
 }
 
 export function knoxGuiRunningJobCount(jobs: IKnoxGuiBackgroundJob[]): number {

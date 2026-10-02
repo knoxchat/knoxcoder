@@ -19,6 +19,8 @@ export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"permissionModeAskHint": "Ask before writes and terminal",
 	"permissionModeEditsHint": "Auto-approve file edits; ask for terminal",
 	"permissionModeAutoHint": "Auto-approve every enabled tool (YOLO, default)",
+	"permissionModeTriggerHint": "How tools are approved. Jev picks Chat vs Agent automatically.",
+	"permissionModeTriggerHintNoJev": "Agent mode. How tools are approved.",
 	"approveOnce": "Approve",
 	"alwaysThisSession": "Always",
 	"alwaysThisSessionHint": "Auto-approve this tool for the rest of this chat",

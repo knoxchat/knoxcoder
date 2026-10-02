@@ -103,20 +103,18 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('.knox-gui-starters'), null);
 	});
 
-	test('Agent is the default tab and shows a chevron dropdown trigger', async () => {
+	test('Ask/Edits/Auto is the mode dropdown; Chat vs Agent is not a user tab', async () => {
 		const { widget, store } = await mount();
-		const agent = widget.root.querySelector('[data-testid="knox-gui-mode-agent"]') as HTMLButtonElement | null;
-		const chat = widget.root.querySelector('[data-testid="knox-gui-mode-chat"]') as HTMLButtonElement | null;
-		assert.ok(agent);
-		assert.ok(chat);
-		assert.ok(agent.classList.contains('selected'));
-		assert.strictEqual(chat.classList.contains('selected'), false);
-		// ModeSelect.tsx: no configured model yet marks both tabs so the active one renders in the warning color.
-		assert.ok(agent.classList.contains('knox-gui-mode-nomodel'));
-		assert.ok(chat.classList.contains('knox-gui-mode-nomodel'));
-		assert.ok(agent.querySelector('svg.knox-gui-svg'));
-		assert.strictEqual(agent.getAttribute('data-menu-trigger'), 'true');
-		agent.click();
+		const trigger = widget.root.querySelector('[data-testid="knox-gui-mode-select"]') as HTMLButtonElement | null;
+		assert.ok(trigger);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-mode-chat"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-mode-agent"]'), null);
+		assert.ok(trigger.classList.contains('selected'));
+		assert.ok(trigger.classList.contains('knox-gui-mode-nomodel'));
+		assert.ok(trigger.textContent?.includes('Auto'));
+		assert.ok(trigger.querySelector('svg.knox-gui-svg'));
+		assert.strictEqual(trigger.getAttribute('data-menu-trigger'), 'true');
+		trigger.click();
 		const menu = widget.root.querySelector('[data-testid="knox-gui-agent-menu"]') as HTMLElement;
 		assert.ok(menu);
 		assert.ok(menu.classList.contains('knox-gui-popover-anchored'));
@@ -126,6 +124,9 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		items[1].click();
 		assert.strictEqual(store.state.permissionMode, 'acceptEdits');
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-agent-menu"]'), null);
+		store.patch({ mode: 'edit' });
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-mode-edit"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-mode-select"]'));
 	});
 
 	test('files-changed row shows green +N and red -N', async () => {
@@ -761,9 +762,11 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.scrollTopBtn, dock.querySelector('[data-testid="knox-gui-scroll-top"]'));
 		assert.strictEqual(widget.scrollBottomBtn, dock.querySelector('[data-testid="knox-gui-scroll-bottom"]'));
 
-		(widget.root.querySelector('[data-testid="knox-gui-scroll-top"]') as HTMLButtonElement).click();
+		// A short "hi" transcript sits at the top, so the dock button is disabled and
+		// `.click()` would not fire. Drive the same handlers the buttons are wired to.
+		widget.scrollTranscript('top');
 		assert.strictEqual(widget.autoScrollEnabled, false);
-		(widget.root.querySelector('[data-testid="knox-gui-scroll-bottom"]') as HTMLButtonElement).click();
+		widget.scrollTranscript('bottom');
 		assert.strictEqual(widget.autoScrollEnabled, true);
 
 		widget.setComposerCollapsed(false);
@@ -969,7 +972,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		store.patch({ overlay: 'history', historySessions: [] });
 		const keys = Array.from(widget.root.querySelectorAll('.knox-gui-history-empty kbd')).map(el => el.textContent);
 		assert.deepStrictEqual(keys, [isMacintosh ? '⌘' : 'Ctrl', 'L']);
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-mode-chat"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-mode-select"]'));
 		const footer = widget.root.querySelector('.knox-gui-history-footer');
 		assert.ok(footer?.textContent);
 		assert.ok(footer?.querySelector('.knox-gui-history-footer-icon svg.knox-gui-svg'));

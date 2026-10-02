@@ -437,7 +437,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.mode, 'edit');
 		assert.strictEqual(store.state.editReturnMode, 'chat');
 		await controller.handleInbound('exitEditMode', undefined, 'ex-2');
-		assert.strictEqual(store.state.mode, 'chat');
+		assert.strictEqual(store.state.mode, 'agent');
 	});
 
 	test('NP-02 host newSession leaves edit mode: rejects diffs, posts edit/exit, keeps the fresh session', async () => {
@@ -459,7 +459,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		store.patch({ codeToEdit: [{ filepath: 'file:///src/a.ts', contents: 'x', range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } } }] });
 		posted.length = 0;
 		await controller.handleInbound('newSession', undefined, 'np02-ns');
-		assert.strictEqual(store.state.mode, 'chat');
+		assert.strictEqual(store.state.mode, 'agent');
 		assert.strictEqual(store.state.codeToEdit.length, 0);
 		assert.ok(posted.some(message => message.messageType === 'rejectDiff'));
 		assert.ok(posted.some(message => message.messageType === 'edit/exit'));
@@ -633,12 +633,13 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(!posted.some(message => message.messageType === 'setAgentMode'));
 	});
 
-	test('KN-350 agentModeChanged is the host→GUI switch; setAgentMode replies do not flip the tab', async () => {
+	test('KN-350 agentModeChanged can force Agent on; turning it off no longer switches to Chat', async () => {
 		const { controller, store } = createHarness();
 		await timeout(0);
 		assert.strictEqual(store.state.mode, 'agent');
 		await controller.handleInbound('agentModeChanged', { active: false }, 'am-off');
-		assert.strictEqual(store.state.mode, 'chat');
+		assert.strictEqual(store.state.mode, 'agent');
+		store.patch({ mode: 'chat' });
 		await controller.handleInbound('agentModeChanged', { active: true }, 'am-on');
 		assert.strictEqual(store.state.mode, 'agent');
 		await controller.handleInbound('setAgentMode', {
@@ -675,6 +676,15 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.toolsSupported, false);
 		assert.strictEqual(store.state.mode, 'chat');
 		assert.ok(posted.some(message => message.messageType === 'setAgentMode' && (message.data as { active?: boolean }).active === false));
+		posted.length = 0;
+		controller.applyConfig({
+			config: {
+				models: [{ title: 'Local', provider: 'ollama', model: 'llama3', capabilities: { tools: true } }],
+				selectedModelTitle: 'Local',
+			},
+		});
+		assert.strictEqual(store.state.toolsSupported, true);
+		assert.strictEqual(store.state.mode, 'agent');
 	});
 
 	test('KN-371 toolsSupported follows /v1/models catalog instead of provider name', async () => {

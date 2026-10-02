@@ -258,6 +258,7 @@ async function buildAgentRequest(controller: KnoxGuiController): Promise<{ messa
 			history,
 			sessionId: state.sessionId,
 			injectedContext,
+			// Candidate tools. Jev may drop them in llm/streamChat for view_read/clarify.
 			includeTools: state.mode === 'agent' && state.toolsSupported,
 			toolSettings: state.toolSettings,
 			excludedGroups: state.toolGroupExcluded,

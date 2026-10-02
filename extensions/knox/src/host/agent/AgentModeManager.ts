@@ -25,9 +25,9 @@ export { AgentModeStatus } from './agentModeStatus';
 
 /**
  * KN-350: one host switch for GUI `session.mode === "agent"`.
- * Chat/Agent tabs post `setAgentMode`; command palette / KnoxAPI toggle this
- * class and the GUI follows `agentModeChanged`. Context key
- * `knoxAgentModeActive` is set only here.
+ * Command palette / KnoxAPI can still force Agent on. Turning Agent off no
+ * longer switches the GUI to Chat. The GUI follows `agentModeChanged`.
+ * Context key `knoxAgentModeActive` is set only here.
  */
 export class AgentModeManager implements vscode.Disposable {
   private static instance: AgentModeManager;
@@ -301,8 +301,8 @@ export class AgentModeManager implements vscode.Disposable {
   }
 
   /**
-   * Idempotent activate/deactivate. GUI Chat/Agent tab uses silent:true
-   * so remounts and tab clicks do not spam toasts.
+   * Idempotent activate/deactivate. GUI posts `setAgentMode` with silent:true
+   * so remounts do not spam toasts.
    */
   public async setActive(
     active: boolean,

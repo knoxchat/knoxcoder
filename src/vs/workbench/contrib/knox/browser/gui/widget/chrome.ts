@@ -18,7 +18,6 @@ import {
 	KNOX_GUI_FIND_DEBOUNCE_MS,
 	KNOX_GUI_FIND_RESIZE_DEBOUNCE_MS,
 	KNOX_GUI_LUMP_TOOLBAR,
-	knoxGuiMetaKeyLabel,
 } from '../../../common/knoxGuiChrome.js';
 import { knoxGuiListboxNextIndex } from '../../../common/knoxGuiCapabilities.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
@@ -26,7 +25,7 @@ import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, knoxGuiFindRegexInvalid, knoxGuiNextSc
 import { knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { visibleBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
-import { IKnoxGuiState, KnoxPermissionMode, PERMISSION_MODES } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiState, KnoxPermissionMode, knoxGuiPermissionModeHintKey, knoxGuiPermissionModeLabelKey, PERMISSION_MODES } from '../../../common/knoxGuiState.js';
 import { pendingApplyStates } from '../../../common/knoxGuiTranscript.js';
 import { onCheckpointGraphKeyDown } from './checkpointGraph.js';
 import { checkpointTimelineEscape } from './checkpoints.js';
@@ -81,61 +80,42 @@ export function renderMode(widget: KnoxGuiWidget, bar: HTMLElement, state: IKnox
 	wrap.style.fontSize = `${state.fontSize}px`;
 	const running = knoxGuiRunningJobCount(visibleBackgroundJobs(state));
 	const streaming = state.isStreaming;
-	// ModeSelect.tsx: no configured model yet renders the active tab in the warning color.
 	const noModel = widget.controller.chatModels().length === 0;
 	const noModelClass = noModel ? ' knox-gui-mode-nomodel' : '';
+	const permissionLabel = t(state, knoxGuiPermissionModeLabelKey(state.permissionMode));
+	const permissionHint = t(state, knoxGuiPermissionModeHintKey(state.permissionMode));
+	const triggerTitle = !state.toolsSupported
+		? t(state, 'agentModeNotSupported')
+		: state.jevEnabled
+			? t(state, 'permissionModeTriggerHint')
+			: t(state, 'permissionModeTriggerHintNoJev');
 
-	widget.chromeButton(wrap, {
-		label: t(state, 'chat'),
-		selected: state.mode === 'chat',
-		disabled: streaming,
-		title: `${t(state, 'chatMode')} (${knoxGuiMetaKeyLabel(isMacintosh)}L)`,
-		testId: 'knox-gui-mode-chat',
-		extraClass: `knox-gui-mode-tab${noModelClass}`,
-		onClick: () => {
-			widget.closeMenus();
-			if (!streaming && state.mode !== 'chat') {
-				widget.controller.setMode('chat');
-			}
-		},
-	});
-
-	const agentDisabled = streaming || !state.toolsSupported;
 	const agentWrap = DOM.append(wrap, DOM.$('.knox-gui-mode-agent-wrap'));
 	const agentBtn = widget.chromeButton(agentWrap, {
-		label: t(state, 'agent'),
-		selected: state.mode === 'agent',
-		disabled: agentDisabled && state.mode !== 'agent',
-		title: !state.toolsSupported ? t(state, 'agentModeNotSupported') : state.mode === 'agent' ? t(state, 'agentOptions') : t(state, 'agentMode'),
-		testId: 'knox-gui-mode-agent',
+		label: permissionLabel,
+		selected: state.mode !== 'edit',
+		disabled: streaming,
+		title: `${triggerTitle} (${permissionHint}, Shift+Tab)`,
+		testId: 'knox-gui-mode-select',
 		extraClass: `knox-gui-mode-tab${state.toolsSupported ? '' : ' knox-gui-mode-unsupported'}${noModelClass}`,
 		menuTrigger: true,
 		onClick: () => {
 			if (streaming) {
 				return;
 			}
-			if (!state.toolsSupported) {
-				return;
-			}
-			if (state.mode === 'agent') {
-				widget.toggleMenu('agent');
-				return;
-			}
-			widget.closeMenus();
-			widget.controller.setMode('agent');
+			widget.toggleMenu('agent');
 		},
 	});
 	agentBtn.setAttribute('aria-haspopup', 'menu');
-	agentBtn.setAttribute('aria-expanded', String(widget.openMenu === 'agent' && state.mode === 'agent'));
+	agentBtn.setAttribute('aria-expanded', String(widget.openMenu === 'agent'));
 	agentBtn.setAttribute('aria-controls', 'knox-gui-agent-menu');
-	if (state.mode === 'agent') {
-		if (running) {
-			DOM.append(agentBtn, DOM.$('span.knox-gui-job-count', undefined, String(running)));
-		}
-		appendKnoxGuiSvg(agentBtn, 'chevron-down', 10);
+	agentBtn.setAttribute('aria-label', permissionLabel);
+	if (running) {
+		DOM.append(agentBtn, DOM.$('span.knox-gui-job-count', undefined, String(running)));
 	}
+	appendKnoxGuiSvg(agentBtn, 'chevron-down', 10);
 	widget.renderStore.add(DOM.addDisposableListener(agentBtn, 'keydown', e => {
-		if (state.mode !== 'agent' || streaming || !state.toolsSupported) {
+		if (streaming) {
 			return;
 		}
 		if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -146,7 +126,7 @@ export function renderMode(widget: KnoxGuiWidget, bar: HTMLElement, state: IKnox
 			}
 		}
 	}));
-	if (widget.openMenu === 'agent' && state.mode === 'agent') {
+	if (widget.openMenu === 'agent') {
 		widget.renderAgentMenu(agentBtn, state, running);
 	}
 
@@ -171,14 +151,14 @@ export function renderAgentMenu(widget: KnoxGuiWidget, trigger: HTMLElement, sta
 	const group = DOM.append(menu, DOM.$('.knox-gui-popover-group'));
 	DOM.append(group, DOM.$('.knox-gui-popover-label', undefined, t(state, 'permissionModeGroup')));
 	const permissionLabel: Record<KnoxPermissionMode, string> = {
-		default: t(state, 'permissionModeAsk'),
-		acceptEdits: t(state, 'permissionModeEdits'),
-		fullAuto: t(state, 'permissionModeAuto'),
+		default: t(state, knoxGuiPermissionModeLabelKey('default')),
+		acceptEdits: t(state, knoxGuiPermissionModeLabelKey('acceptEdits')),
+		fullAuto: t(state, knoxGuiPermissionModeLabelKey('fullAuto')),
 	};
 	const permissionHint: Record<KnoxPermissionMode, string> = {
-		default: t(state, 'permissionModeAskHint'),
-		acceptEdits: t(state, 'permissionModeEditsHint'),
-		fullAuto: t(state, 'permissionModeAutoHint'),
+		default: t(state, knoxGuiPermissionModeHintKey('default')),
+		acceptEdits: t(state, knoxGuiPermissionModeHintKey('acceptEdits')),
+		fullAuto: t(state, knoxGuiPermissionModeHintKey('fullAuto')),
 	};
 	for (const mode of PERMISSION_MODES) {
 		const row = DOM.append(group, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
@@ -508,7 +488,7 @@ export function onRootKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent): void {
 		e.preventDefault();
 		e.stopPropagation();
 	}
-	if (e.key === 'Tab' && e.shiftKey && !e.defaultPrevented && state.mode === 'agent' && !state.isStreaming && !(state.mentionOpen || state.slashOpen)) {
+	if (e.key === 'Tab' && e.shiftKey && !e.defaultPrevented && state.mode !== 'edit' && !state.isStreaming && !(state.mentionOpen || state.slashOpen)) {
 		e.preventDefault();
 		widget.controller.cyclePermissionMode();
 		return;

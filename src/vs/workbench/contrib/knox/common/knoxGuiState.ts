@@ -32,11 +32,31 @@ export interface IKnoxGuiVscTheme {
 	colors?: Record<string, string>;
 }
 
-/** Native Cursor / ModeSelect first-run tab. Chat is opt-in; last pick is persisted. */
+/** Session starts in Agent. Chat vs Agent is not a user tab; Jev picks per turn when enabled. */
 export const KNOX_GUI_DEFAULT_SESSION_MODE: KnoxChatMode = 'agent';
 export const DEFAULT_PERMISSION_MODE: KnoxPermissionMode = 'fullAuto';
 export const PERMISSION_MODES: KnoxPermissionMode[] = ['default', 'acceptEdits', 'fullAuto'];
 export const MODEL_ROLES: KnoxModelRole[] = ['chat', 'edit', 'apply', 'viewRead', 'realTimeSearch'];
+
+export function knoxGuiPermissionModeLabelKey(mode: KnoxPermissionMode): 'permissionModeAsk' | 'permissionModeEdits' | 'permissionModeAuto' {
+	if (mode === 'acceptEdits') {
+		return 'permissionModeEdits';
+	}
+	if (mode === 'fullAuto') {
+		return 'permissionModeAuto';
+	}
+	return 'permissionModeAsk';
+}
+
+export function knoxGuiPermissionModeHintKey(mode: KnoxPermissionMode): 'permissionModeAskHint' | 'permissionModeEditsHint' | 'permissionModeAutoHint' {
+	if (mode === 'acceptEdits') {
+		return 'permissionModeEditsHint';
+	}
+	if (mode === 'fullAuto') {
+		return 'permissionModeAutoHint';
+	}
+	return 'permissionModeAskHint';
+}
 
 export function nextPermissionMode(current: KnoxPermissionMode): KnoxPermissionMode {
 	const idx = PERMISSION_MODES.indexOf(current);
@@ -806,7 +826,7 @@ export interface IKnoxGuiState {
 	editStatus: KnoxGuiEditStatus;
 	editPreviousInputs: string[];
 	editFileAfterEdit?: string;
-	/** Chat/Agent tab to restore after Cmd+I edit. Never persisted. */
+	/** Session tab to restore after Cmd+I edit. Never persisted. Chat vs Agent is Jev-picked. */
 	editReturnMode?: KnoxChatMode;
 	images: { name: string; imageUrl: string }[];
 	historicalImages: string[];

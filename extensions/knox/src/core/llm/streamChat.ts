@@ -14,6 +14,7 @@ import {
   applyJevConfig,
   evaluateAgentTurn,
   getJevUserMessage,
+  jevTurnUsesAgentTools,
   recentContextFromTurns,
   setJevUserMessage,
 } from "../jev";
@@ -203,6 +204,16 @@ export async function* llmStreamChat(
             completionOptions?.reasoningEffort,
           ),
         };
+      }
+      if (
+        completionOptions?.tools?.length &&
+        !jevTurnUsesAgentTools(jevRuntime.enabled, turnJudgment)
+      ) {
+        completionOptions = { ...completionOptions };
+        delete completionOptions.tools;
+        console.log(
+          `[Cost Optimization] Backend: Dropping tools for Jev ${turnJudgment.route} route`,
+        );
       }
     }
   }

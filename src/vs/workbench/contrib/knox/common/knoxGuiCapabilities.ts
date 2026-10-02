@@ -213,7 +213,7 @@ function knoxGuiCatalogToolsSupport(model: IKnoxGuiModel): boolean | undefined {
 
 /**
  * KN-371: catalog / serialized params / explicit caps. `undefined` means the
- * /v1/models cache has not spoken yet — Agent stays the default tab until then.
+ * /v1/models cache has not spoken yet — Agent stays the session mode until then.
  */
 export function knoxGuiModelToolsSupportKnown(model: IKnoxGuiModel | undefined): boolean | undefined {
 	if (!model) {

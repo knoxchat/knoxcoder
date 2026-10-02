@@ -654,7 +654,7 @@ export type ToWebviewFromIdeProtocol = ToWebviewFromIdeOrCoreProtocol & {
   addImageAttachment: [{ imageUrl: string; name: string }, void];
   gitStateChanged: [undefined, void];
 
-  /** Extension AgentModeManager status changed — keep GUI Chat/Agent tab in sync */
+  /** Extension AgentModeManager status changed — GUI may force Agent on; Chat is not a user switch */
   agentModeChanged: [{ active: boolean }, void];
 
   /** Workspace restore finished — inject a system note so the agent does not plan on stale files. */

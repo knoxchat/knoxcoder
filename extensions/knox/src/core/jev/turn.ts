@@ -74,6 +74,24 @@ export interface EvaluateAgentTurnInput {
   abortSignal?: AbortSignal;
 }
 
+/**
+ * Session tools: Jev `chat` / `chat_high` keep tools; `view_read` / `clarify`
+ * drop them. When Jev is off (or judgment failed open to heuristics), Agent
+ * tools stay on.
+ */
+export function jevTurnUsesAgentTools(
+  jevEnabled: boolean,
+  judgment: Pick<AgentTurnJudgment, "source" | "route"> | undefined,
+): boolean {
+  if (!jevEnabled) {
+    return true;
+  }
+  if (judgment?.source !== "jev") {
+    return true;
+  }
+  return judgment.route === "chat" || judgment.route === "chat_high";
+}
+
 const RECENT_CONTEXT_TURNS = 4;
 const RECENT_CONTEXT_CHARS = 600;
 

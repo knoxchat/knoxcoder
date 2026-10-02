@@ -19,7 +19,7 @@ export function onHostMessage(controller: KnoxGuiController, message: IKnoxGuiMe
 	void controller.handleInbound(message.messageType, message.data, message.messageId);
 }
 
-/** Host AgentModeManager switch → GUI session.mode. Edit is only left when turning agent on. */
+/** Host can force Agent on. Turning it off no longer switches to Chat. */
 function applyHostAgentMode(controller: KnoxGuiController, active: boolean): void {
 	const next = knoxGuiModeAfterHostAgentFlag(controller.store.state.mode, active);
 	if (!next) {
