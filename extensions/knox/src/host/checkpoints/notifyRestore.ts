@@ -42,10 +42,19 @@ export async function notifyCheckpointRestored(
   let memoryMessage: string | undefined;
   let memoryCheckpointId: number | undefined;
 
-  if (options?.rewindMemory && sessionId) {
+  if (options?.rewindMemory) {
+    let rewindSessionId = sessionId;
+    if (!rewindSessionId) {
+      try {
+        const { BrainManager } = await import("core/context/memory/brain/BrainManager");
+        rewindSessionId = BrainManager.getActiveSessionId() || undefined;
+      } catch {
+        rewindSessionId = undefined;
+      }
+    }
     try {
       const rewind = await rewindMemoryForWorkspaceCheckpoint({
-        sessionId,
+        sessionId: rewindSessionId ?? "",
         workspaceCheckpointId: checkpointId,
         createdAt: info?.created?.toISOString(),
       });

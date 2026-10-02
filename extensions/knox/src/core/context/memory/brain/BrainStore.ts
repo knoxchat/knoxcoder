@@ -69,6 +69,11 @@ import { MEMORY_CONTEXT_TOKEN_CEILING } from "./types.js";
  */
 export class BrainStore {
   private static db: DatabaseConnection | null = null;
+
+  /** True after the first successful `get()` in this process. */
+  static isOpen(): boolean {
+    return BrainStore.db !== null;
+  }
   private static defaultConfigSnapshot: MemoryConfig | null = null;
   private static config: MemoryConfig = {
     auto_extract_enabled: true,
@@ -256,6 +261,12 @@ export class BrainStore {
         // see a half-initialized database.
         BrainStore.db = db;
         await BrainStore.loadConfig();
+        try {
+          const { CheckpointManager } = await import("./CheckpointManager.js");
+          await CheckpointManager.hydrateFromStore();
+        } catch {
+          // Strategy hydrate is best-effort on first open.
+        }
         const { KnowledgeGraph } = await import("./KnowledgeGraph.js");
         await KnowledgeGraph.enforceEntityCap().catch(() => {});
 
@@ -499,6 +510,9 @@ export class BrainStore {
         workspace_checkpoint_id TEXT
       )
     `);
+    await db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_checkpoints_workspace ON brain_checkpoints(workspace_checkpoint_id)`,
+    );
 
     // Rate limit tracking table
     await db.exec(`
@@ -1088,6 +1102,7 @@ export class BrainStore {
   }
 
   static async deleteSemantic(id: number): Promise<boolean> {
+    const record = await BrainStore.getSemanticById(id);
     const db = await BrainStore.get();
     const result = await db.run("DELETE FROM brain_semantic WHERE id = ?", [id]);
     // Also remove associations and tags so bulk/single delete stay consistent
@@ -1099,7 +1114,11 @@ export class BrainStore {
       "DELETE FROM brain_tags WHERE memory_type = 'semantic' AND memory_id = ?",
       [id],
     );
-    return (result.changes ?? 0) > 0;
+    const deleted = (result.changes ?? 0) > 0;
+    if (deleted && record) {
+      await BrainStore.auditLog("delete", "semantic", id, { record });
+    }
+    return deleted;
   }
 
   /**
@@ -1973,6 +1992,19 @@ export class BrainStore {
       recommendations.push("Run 'consolidate' to review and tier down unused memories");
     }
 
+    const checkpointRows = await db.all("SELECT id, snapshot_path FROM brain_checkpoints");
+    let missingSnapshots = 0;
+    for (const row of checkpointRows) {
+      const snapshotPath = (row as any).snapshot_path as string;
+      if (!snapshotPath || !fs.existsSync(snapshotPath)) {
+        missingSnapshots++;
+      }
+    }
+    if (missingSnapshots > 0) {
+      issues.push(`${missingSnapshots} memory checkpoint snapshot file${missingSnapshots === 1 ? " is" : "s are"} missing`);
+      recommendations.push("Run heal action: prune_missing_checkpoints");
+    }
+
     let status: "healthy" | "degraded" | "critical" = "healthy";
     if (issues.length >= 3) status = "critical";
     else if (issues.length >= 1) status = "degraded";
@@ -2410,20 +2442,299 @@ export class BrainStore {
   // ── Checkpoint / Rollback ──────────────────────────────────────────────────
 
   /**
+   * Knowledge snapshot schema v2 includes associations, tags, collections,
+   * topics, and tasks so a rewind matches what the agent knew — not only
+   * semantic/graph rows.
+   */
+  static readonly KNOWLEDGE_SNAPSHOT_VERSION = 2;
+
+  private static async collectKnowledgeSnapshot(
+    label: string,
+    workspaceCheckpointId?: string,
+    compressed = false,
+  ): Promise<Record<string, any>> {
+    const db = await BrainStore.get();
+    const [
+      semantic,
+      entities,
+      patterns,
+      edges,
+      procedures,
+      associations,
+      tags,
+      collections,
+      collectionItems,
+      sessionTopics,
+      tasks,
+    ] = await Promise.all([
+      db.all("SELECT * FROM brain_semantic"),
+      db.all("SELECT * FROM brain_entities"),
+      db.all("SELECT * FROM brain_learning_patterns"),
+      db.all("SELECT * FROM brain_graph_edges"),
+      db.all("SELECT * FROM brain_procedures"),
+      db.all("SELECT * FROM brain_associations"),
+      db.all("SELECT * FROM brain_tags"),
+      db.all("SELECT * FROM brain_collections"),
+      db.all("SELECT * FROM brain_collection_items"),
+      db.all("SELECT * FROM brain_session_topics"),
+      db.all("SELECT * FROM brain_tasks"),
+    ]);
+
+    return {
+      version: BrainStore.KNOWLEDGE_SNAPSHOT_VERSION,
+      created_at: new Date().toISOString(),
+      label,
+      compressed,
+      workspace_checkpoint_id: workspaceCheckpointId,
+      semantic,
+      entities,
+      patterns,
+      edges,
+      procedures,
+      associations,
+      tags,
+      collections,
+      collection_items: collectionItems,
+      session_topics: sessionTopics,
+      tasks,
+    };
+  }
+
+  static readKnowledgeSnapshot(snapshotPath: string): any {
+    if (!fs.existsSync(snapshotPath)) {
+      throw new Error(`Snapshot file not found: ${snapshotPath}`);
+    }
+    const raw = fs.readFileSync(snapshotPath);
+    if (raw[0] === 0x1f && raw[1] === 0x8b) {
+      return JSON.parse(zlib.gunzipSync(raw as Uint8Array).toString("utf-8"));
+    }
+    return JSON.parse(raw.toString("utf-8"));
+  }
+
+  private static async restoreKnowledgeTables(snapshot: any): Promise<void> {
+    const db = await BrainStore.get();
+    const sessionRows = await db.all("SELECT id FROM brain_sessions");
+    const sessionIds = new Set(sessionRows.map((row: any) => String(row.id)));
+
+    await db.exec("DELETE FROM brain_collection_items");
+    await db.exec("DELETE FROM brain_tags");
+    await db.exec("DELETE FROM brain_associations");
+    await db.exec("DELETE FROM brain_graph_edges");
+    await db.exec("DELETE FROM brain_session_topics");
+    await db.exec("DELETE FROM brain_tasks");
+    await db.exec("DELETE FROM brain_semantic");
+    await db.exec("DELETE FROM brain_entities");
+    await db.exec("DELETE FROM brain_learning_patterns");
+    await db.exec("DELETE FROM brain_procedures");
+    await db.exec("DELETE FROM brain_collections");
+
+    for (const mem of snapshot.semantic ?? []) {
+      const sessionId =
+        mem.source_session_id && sessionIds.has(String(mem.source_session_id))
+          ? mem.source_session_id
+          : null;
+      await db.run(
+        `INSERT INTO brain_semantic (id, category, title, content, source_session_id, keywords, importance_score, retrieval_count, tier, created_at, last_accessed_at, expires_at, emotional_valence, salience, topic_id, task_id, mismatch_count, mismatch_until, mismatch_topic_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          mem.id,
+          mem.category,
+          mem.title,
+          mem.content,
+          sessionId,
+          mem.keywords,
+          mem.importance_score,
+          mem.retrieval_count,
+          mem.tier,
+          mem.created_at,
+          mem.last_accessed_at,
+          mem.expires_at,
+          mem.emotional_valence ?? "neutral",
+          mem.salience ?? 0.5,
+          mem.topic_id ?? null,
+          mem.task_id ?? null,
+          mem.mismatch_count ?? 0,
+          mem.mismatch_until ?? null,
+          mem.mismatch_topic_id ?? null,
+        ],
+      );
+    }
+
+    for (const entity of snapshot.entities ?? []) {
+      await db.run(
+        `INSERT INTO brain_entities (id, name, entity_type, description, properties, confidence, mention_count, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          entity.id,
+          entity.name,
+          entity.entity_type,
+          entity.description,
+          entity.properties,
+          entity.confidence,
+          entity.mention_count,
+          entity.created_at,
+          entity.updated_at,
+        ],
+      );
+    }
+
+    for (const edge of snapshot.edges ?? []) {
+      await db.run(
+        `INSERT INTO brain_graph_edges (id, source_entity_id, target_entity_id, relationship, weight, properties, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          edge.id,
+          edge.source_entity_id,
+          edge.target_entity_id,
+          edge.relationship,
+          edge.weight,
+          edge.properties,
+          edge.created_at,
+        ],
+      );
+    }
+
+    for (const pattern of snapshot.patterns ?? []) {
+      await db.run(
+        `INSERT INTO brain_learning_patterns (id, goal_type, pattern_signature, description, success_count, failure_count, confidence, avg_tokens_used, last_used_at, created_at, metadata)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          pattern.id,
+          pattern.goal_type,
+          pattern.pattern_signature,
+          pattern.description,
+          pattern.success_count,
+          pattern.failure_count,
+          pattern.confidence,
+          pattern.avg_tokens_used,
+          pattern.last_used_at,
+          pattern.created_at,
+          pattern.metadata,
+        ],
+      );
+    }
+
+    for (const proc of snapshot.procedures ?? []) {
+      await db.run(
+        `INSERT INTO brain_procedures (id, name, description, steps, trigger_pattern, success_rate, execution_count, last_executed_at, created_at, category)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          proc.id,
+          proc.name,
+          proc.description,
+          proc.steps,
+          proc.trigger_pattern,
+          proc.success_rate,
+          proc.execution_count,
+          proc.last_executed_at,
+          proc.created_at,
+          proc.category,
+        ],
+      );
+    }
+
+    for (const assoc of snapshot.associations ?? []) {
+      await db.run(
+        `INSERT OR IGNORE INTO brain_associations (id, source_type, source_id, target_type, target_id, relationship, strength, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          assoc.id,
+          assoc.source_type,
+          assoc.source_id,
+          assoc.target_type,
+          assoc.target_id,
+          assoc.relationship,
+          assoc.strength,
+          assoc.created_at,
+        ],
+      );
+    }
+
+    for (const tag of snapshot.tags ?? []) {
+      await db.run(
+        `INSERT OR IGNORE INTO brain_tags (id, memory_type, memory_id, tag, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [tag.id, tag.memory_type, tag.memory_id, tag.tag, tag.created_at],
+      );
+    }
+
+    for (const collection of snapshot.collections ?? []) {
+      await db.run(
+        `INSERT OR IGNORE INTO brain_collections (id, name, description, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          collection.id,
+          collection.name,
+          collection.description,
+          collection.created_at,
+          collection.updated_at,
+        ],
+      );
+    }
+
+    for (const item of snapshot.collection_items ?? []) {
+      await db.run(
+        `INSERT OR IGNORE INTO brain_collection_items (id, collection_id, memory_type, memory_id, added_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          item.id,
+          item.collection_id,
+          item.memory_type,
+          item.memory_id,
+          item.added_at,
+        ],
+      );
+    }
+
+    for (const topic of snapshot.session_topics ?? []) {
+      if (!topic.session_id || !sessionIds.has(String(topic.session_id))) {
+        continue;
+      }
+      await db.run(
+        `INSERT OR IGNORE INTO brain_session_topics (id, session_id, topic, keywords, message_range_start, message_range_end, confidence, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          topic.id,
+          topic.session_id,
+          topic.topic,
+          topic.keywords,
+          topic.message_range_start,
+          topic.message_range_end,
+          topic.confidence,
+          topic.created_at,
+        ],
+      );
+    }
+
+    for (const task of snapshot.tasks ?? []) {
+      if (!task.session_id || !sessionIds.has(String(task.session_id))) {
+        continue;
+      }
+      await db.run(
+        `INSERT OR IGNORE INTO brain_tasks (id, session_id, topic_id, title, opened_at, closed_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          task.id,
+          task.session_id,
+          task.topic_id ?? null,
+          task.title,
+          task.opened_at,
+          task.closed_at ?? null,
+        ],
+      );
+    }
+  }
+
+  /**
    * Create a checkpoint snapshot of the current memory state.
-   * Saves semantic, entities, and patterns to a JSON file.
+   * v2 snapshots include associations, tags, collections, topics, and tasks.
    */
   static async createCheckpoint(
     label: string,
     workspaceCheckpointId?: string,
+    options?: { compress?: boolean },
   ): Promise<MemoryCheckpoint> {
     const db = await BrainStore.get();
-
-    const semanticRows = await db.all("SELECT * FROM brain_semantic");
-    const entityRows = await db.all("SELECT * FROM brain_entities");
-    const patternRows = await db.all("SELECT * FROM brain_learning_patterns");
-    const edgeRows = await db.all("SELECT * FROM brain_graph_edges");
-    const procRows = await db.all("SELECT * FROM brain_procedures");
 
     let linkedWorkspaceId = workspaceCheckpointId;
     if (!linkedWorkspaceId) {
@@ -2437,44 +2748,58 @@ export class BrainStore {
       }
     }
 
-    const snapshot = {
-      created_at: new Date().toISOString(),
+    const compress = options?.compress === true;
+    const snapshot = await BrainStore.collectKnowledgeSnapshot(
       label,
-      semantic: semanticRows,
-      entities: entityRows,
-      patterns: patternRows,
-      edges: edgeRows,
-      procedures: procRows,
-      workspace_checkpoint_id: linkedWorkspaceId,
-    };
+      linkedWorkspaceId,
+      compress,
+    );
 
     const brainDir = getMemoryBrainPath();
     if (!fs.existsSync(brainDir)) {
       fs.mkdirSync(brainDir, { recursive: true });
     }
-    const snapshotPath = path.join(brainDir, `checkpoint-${Date.now()}.json`);
-    fs.writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2));
+    const snapshotPath = path.join(
+      brainDir,
+      compress
+        ? `checkpoint-${Date.now()}.json.gz`
+        : `checkpoint-${Date.now()}.json`,
+    );
+    if (compress) {
+      const compressed = zlib.gzipSync(
+        Buffer.from(JSON.stringify(snapshot), "utf-8") as Uint8Array,
+      );
+      fs.writeFileSync(snapshotPath, compressed as Uint8Array);
+    } else {
+      fs.writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2));
+    }
 
     const result = await db.run(
       `INSERT INTO brain_checkpoints (label, semantic_count, entity_count, pattern_count, snapshot_path, workspace_checkpoint_id)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
         label,
-        semanticRows.length,
-        entityRows.length,
-        patternRows.length,
+        (snapshot.semantic ?? []).length,
+        (snapshot.entities ?? []).length,
+        (snapshot.patterns ?? []).length,
         snapshotPath,
         linkedWorkspaceId ?? null,
       ],
     );
 
+    await BrainStore.auditLog("create_checkpoint", "checkpoint", result.lastID!, {
+      label,
+      compressed: compress,
+      workspace_checkpoint_id: linkedWorkspaceId,
+    });
+
     return {
       id: result.lastID!,
       label,
-      created_at: new Date().toISOString(),
-      semantic_count: semanticRows.length,
-      entity_count: entityRows.length,
-      pattern_count: patternRows.length,
+      created_at: snapshot.created_at,
+      semantic_count: (snapshot.semantic ?? []).length,
+      entity_count: (snapshot.entities ?? []).length,
+      pattern_count: (snapshot.patterns ?? []).length,
       snapshot_path: snapshotPath,
       workspace_checkpoint_id: linkedWorkspaceId,
     };
@@ -2505,6 +2830,48 @@ export class BrainStore {
       [workspaceCheckpointId],
     );
     return row ? BrainStore.mapCheckpointRow(row) : undefined;
+  }
+
+  /**
+   * Closest brain checkpoint at or before a workspace restore time.
+   * Used when an older file CP was never paired with a memory snapshot.
+   */
+  static async findNearestCheckpointBefore(
+    createdAt: string,
+  ): Promise<MemoryCheckpoint | undefined> {
+    if (!createdAt.trim()) {
+      return undefined;
+    }
+    const db = await BrainStore.get();
+    const row = await db.get(
+      `SELECT * FROM brain_checkpoints
+       WHERE datetime(created_at) <= datetime(?)
+       ORDER BY datetime(created_at) DESC, id DESC
+       LIMIT 1`,
+      [createdAt],
+    );
+    return row ? BrainStore.mapCheckpointRow(row) : undefined;
+  }
+
+  /** Drop every brain checkpoint that was pinned to a deleted workspace CP. */
+  static async deleteCheckpointsForWorkspaceId(
+    workspaceCheckpointId: string,
+  ): Promise<number> {
+    if (!workspaceCheckpointId.trim()) {
+      return 0;
+    }
+    const db = await BrainStore.get();
+    const rows = await db.all(
+      "SELECT id FROM brain_checkpoints WHERE workspace_checkpoint_id = ?",
+      [workspaceCheckpointId],
+    );
+    let deleted = 0;
+    for (const row of rows) {
+      if (await BrainStore.deleteCheckpoint((row as any).id)) {
+        deleted++;
+      }
+    }
+    return deleted;
   }
 
   /**
@@ -2542,8 +2909,9 @@ export class BrainStore {
 
   /**
    * Rollback memory to a checkpoint state.
-   * Replaces semantic, entities, patterns, edges, procedures with snapshot data.
-   * Episodic memory and sessions are NOT rolled back (conversation history is preserved).
+   * Replaces knowledge tables (semantic, graph, patterns, procedures,
+   * associations, tags, collections, topics, tasks) inside one transaction.
+   * Episodic memory and sessions are NOT rolled back.
    */
   static async rollbackCheckpoint(checkpointId: number): Promise<string> {
     const db = await BrainStore.get();
@@ -2551,65 +2919,22 @@ export class BrainStore {
     if (!row) throw new Error(`Checkpoint #${checkpointId} not found`);
 
     const snapshotPath = (row as any).snapshot_path;
-    if (!fs.existsSync(snapshotPath)) {
-      throw new Error(`Checkpoint snapshot file not found: ${snapshotPath}`);
+    const snapshot = BrainStore.readKnowledgeSnapshot(snapshotPath);
+
+    await db.exec("BEGIN TRANSACTION");
+    try {
+      await BrainStore.restoreKnowledgeTables(snapshot);
+      await db.exec("COMMIT");
+    } catch (error) {
+      await db.exec("ROLLBACK");
+      throw error;
     }
 
-    // Handle both plain JSON and gzip-compressed snapshots
-    const { CheckpointManager } = await import("./CheckpointManager.js");
-    const snapshot = CheckpointManager.readSnapshot(snapshotPath);
-
-    // Clear current data (preserve sessions and episodic)
-    await db.exec("DELETE FROM brain_semantic");
-    await db.exec("DELETE FROM brain_entities");
-    await db.exec("DELETE FROM brain_learning_patterns");
-    await db.exec("DELETE FROM brain_graph_edges");
-    await db.exec("DELETE FROM brain_procedures");
-
-    // Restore from snapshot
-    for (const mem of snapshot.semantic ?? []) {
-      await db.run(
-        `INSERT INTO brain_semantic (id, category, title, content, source_session_id, keywords, importance_score, retrieval_count, tier, created_at, last_accessed_at, expires_at, emotional_valence, salience, topic_id, task_id, mismatch_count, mismatch_until, mismatch_topic_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [mem.id, mem.category, mem.title, mem.content, mem.source_session_id, mem.keywords, mem.importance_score, mem.retrieval_count, mem.tier, mem.created_at, mem.last_accessed_at, mem.expires_at, mem.emotional_valence ?? "neutral", mem.salience ?? 0.5, mem.topic_id ?? null, mem.task_id ?? null, mem.mismatch_count ?? 0, mem.mismatch_until ?? null, mem.mismatch_topic_id ?? null],
-      );
-    }
-
-    for (const entity of snapshot.entities ?? []) {
-      await db.run(
-        `INSERT INTO brain_entities (id, name, entity_type, description, properties, confidence, mention_count, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [entity.id, entity.name, entity.entity_type, entity.description, entity.properties, entity.confidence, entity.mention_count, entity.created_at, entity.updated_at],
-      );
-    }
-
-    for (const edge of snapshot.edges ?? []) {
-      await db.run(
-        `INSERT INTO brain_graph_edges (id, source_entity_id, target_entity_id, relationship, weight, properties, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [edge.id, edge.source_entity_id, edge.target_entity_id, edge.relationship, edge.weight, edge.properties, edge.created_at],
-      );
-    }
-
-    for (const pattern of snapshot.patterns ?? []) {
-      await db.run(
-        `INSERT INTO brain_learning_patterns (id, goal_type, pattern_signature, description, success_count, failure_count, confidence, avg_tokens_used, last_used_at, created_at, metadata)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [pattern.id, pattern.goal_type, pattern.pattern_signature, pattern.description, pattern.success_count, pattern.failure_count, pattern.confidence, pattern.avg_tokens_used, pattern.last_used_at, pattern.created_at, pattern.metadata],
-      );
-    }
-
-    for (const proc of snapshot.procedures ?? []) {
-      await db.run(
-        `INSERT INTO brain_procedures (id, name, description, steps, trigger_pattern, success_rate, execution_count, last_executed_at, created_at, category)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [proc.id, proc.name, proc.description, proc.steps, proc.trigger_pattern, proc.success_rate, proc.execution_count, proc.last_executed_at, proc.created_at, proc.category],
-      );
-    }
+    await RetrievalFusion.rebuildFts5(db).catch(() => {});
 
     const label = (row as any).label;
     const linked = (row as any).workspace_checkpoint_id as string | undefined;
-    const base = `Rolled back to checkpoint "${label}" — restored ${snapshot.semantic?.length ?? 0} semantic, ${snapshot.entities?.length ?? 0} entities, ${snapshot.patterns?.length ?? 0} patterns, ${snapshot.edges?.length ?? 0} edges, ${snapshot.procedures?.length ?? 0} procedures`;
+    const base = `Rolled back to checkpoint "${label}" — restored ${snapshot.semantic?.length ?? 0} semantic, ${snapshot.entities?.length ?? 0} entities, ${snapshot.patterns?.length ?? 0} patterns, ${snapshot.edges?.length ?? 0} edges, ${snapshot.procedures?.length ?? 0} procedures, ${snapshot.associations?.length ?? 0} associations, ${snapshot.tags?.length ?? 0} tags`;
     if (!linked) {
       return base;
     }
@@ -2622,6 +2947,22 @@ export class BrainStore {
     } catch {
       return `${base}\nLinked workspace checkpoint: ${linked}`;
     }
+  }
+
+  /** Remove checkpoint rows whose snapshot files are gone. */
+  static async pruneMissingCheckpointSnapshots(): Promise<number> {
+    const db = await BrainStore.get();
+    const rows = await db.all("SELECT id, snapshot_path FROM brain_checkpoints");
+    let pruned = 0;
+    for (const row of rows) {
+      const snapshotPath = (row as any).snapshot_path as string;
+      if (snapshotPath && fs.existsSync(snapshotPath)) {
+        continue;
+      }
+      await db.run("DELETE FROM brain_checkpoints WHERE id = ?", [(row as any).id]);
+      pruned++;
+    }
+    return pruned;
   }
 
   /**
@@ -3163,6 +3504,7 @@ export class BrainStore {
     // Project scope (IMP-25)
     try { await db.exec("ALTER TABLE brain_sessions ADD COLUMN project_id TEXT NOT NULL DEFAULT ''"); } catch {}
     try { await db.exec("ALTER TABLE brain_checkpoints ADD COLUMN workspace_checkpoint_id TEXT"); } catch {}
+    try { await db.exec("CREATE INDEX IF NOT EXISTS idx_checkpoints_workspace ON brain_checkpoints(workspace_checkpoint_id)"); } catch {}
     try {
       const { hashProjectId } = await import("./projectScope.js");
       const rows = await db.all("SELECT id, workspace_directory FROM brain_sessions WHERE project_id = '' OR project_id IS NULL");

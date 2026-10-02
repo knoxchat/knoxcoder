@@ -64,8 +64,9 @@ suite('Knox checkpoint engine contract (KN-320–332)', () => {
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/manager/storeHealth.ts').includes('export') || repoFile('extensions/knox/src/host/checkpoints/manager/storeHealthReport.ts').includes('export'));
 	});
 
-	test('KN-326: auto + soul-turn + pre-risky hooks', () => {
+	test('KN-326: auto + soul-turn + pre-risky hooks, undo rewinds memory', () => {
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/AutoCheckpointSystem.ts').includes('export'));
+		assert.ok(repoFile('extensions/knox/src/host/checkpoints/AutoCheckpointSystem.ts').includes('rewindMemory: true'));
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/manager/CheckpointManager.ts').includes('soul-turn-'));
 		assert.ok(repoFile('extensions/knox/src/host/VsCodeIde.ts').includes('runPreRiskyCheckpoint'));
 		assert.ok(repoFile('extensions/knox/src/host/VsCodeIde.ts').includes('ensureTurnCheckpoint'));

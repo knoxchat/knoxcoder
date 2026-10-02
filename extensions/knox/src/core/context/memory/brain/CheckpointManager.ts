@@ -11,7 +11,6 @@
  */
 
 import fs from "fs";
-import path from "path";
 import zlib from "zlib";
 
 import { BrainStore } from "./BrainStore.js";
@@ -23,10 +22,11 @@ import type {
 // ── Checkpoint Strategy Types ────────────────────────────────────────────────
 
 export type CheckpointStrategyMode =
+  | "manual"          // Explicit checkpoints only — no auto triggers
   | "adaptive"        // Auto-checkpoint when change delta exceeds threshold
   | "critical_points" // Checkpoint before destructive ops (delete, rollback, consolidate)
   | "time_based"      // Periodic checkpoints at fixed intervals
-  | "hybrid";         // Combines all three strategies
+  | "hybrid";         // Combines adaptive + time + critical points
 
 export interface CheckpointStrategyConfig {
   mode: CheckpointStrategyMode;
@@ -76,6 +76,42 @@ export interface UndoResult {
 
 // ── Defaults ─────────────────────────────────────────────────────────────────
 
+const STRATEGY_CONFIG_KEY = "checkpoint_strategy";
+
+export function normalizeCheckpointStrategyMode(
+  mode: string | undefined,
+): CheckpointStrategyMode {
+  if (mode === "time_interval") return "time_based";
+  if (
+    mode === "manual" ||
+    mode === "adaptive" ||
+    mode === "critical_points" ||
+    mode === "time_based" ||
+    mode === "hybrid"
+  ) {
+    return mode;
+  }
+  return "hybrid";
+}
+
+export type CheckpointStrategyUpdate = Partial<
+  Omit<CheckpointStrategyConfig, "mode">
+> & {
+  /** Canonical modes plus aliases (`time_interval` → `time_based`). */
+  mode?: string;
+};
+
+function normalizeStrategyConfig(
+  partial: CheckpointStrategyUpdate,
+): Partial<CheckpointStrategyConfig> {
+  const { mode, ...rest } = partial;
+  const next: Partial<CheckpointStrategyConfig> = { ...rest };
+  if (mode !== undefined) {
+    next.mode = normalizeCheckpointStrategyMode(mode);
+  }
+  return next;
+}
+
 const DEFAULT_STRATEGY_CONFIG: CheckpointStrategyConfig = {
   mode: "hybrid",
   adaptive_change_threshold: 10,
@@ -99,8 +135,38 @@ export class CheckpointManager {
     return { ...CheckpointManager.config };
   }
 
-  static updateConfig(partial: Partial<CheckpointStrategyConfig>): void {
-    CheckpointManager.config = { ...CheckpointManager.config, ...partial };
+  static async hydrateFromStore(): Promise<void> {
+    if (!BrainStore.isOpen()) {
+      return;
+    }
+    try {
+      const db = await BrainStore.get();
+      const row = await db.get(
+        "SELECT value FROM brain_config WHERE key = ?",
+        [STRATEGY_CONFIG_KEY],
+      ) as { value?: string } | undefined;
+      if (!row?.value) {
+        return;
+      }
+      const parsed = JSON.parse(row.value) as CheckpointStrategyUpdate;
+      CheckpointManager.config = {
+        ...DEFAULT_STRATEGY_CONFIG,
+        ...normalizeStrategyConfig(parsed),
+      } as CheckpointStrategyConfig;
+    } catch {
+      // Keep in-memory defaults if the stored payload is unreadable.
+    }
+  }
+
+  static async updateConfig(partial: CheckpointStrategyUpdate): Promise<void> {
+    CheckpointManager.config = {
+      ...CheckpointManager.config,
+      ...normalizeStrategyConfig(partial),
+    } as CheckpointStrategyConfig;
+    await BrainStore.saveConfig(
+      STRATEGY_CONFIG_KEY,
+      JSON.stringify(CheckpointManager.config),
+    ).catch(() => {});
   }
 
   // ── Strategy: Record Change ──────────────────────────────────────────────
@@ -176,24 +242,30 @@ export class CheckpointManager {
 
     const deleted = new Set<number>();
 
-    // 1. Delete by age
+    const isProtected = (cp: MemoryCheckpoint): boolean =>
+      Boolean(cp.workspace_checkpoint_id);
+
+    // 1. Delete by age — never evict snapshots pinned to a workspace CP
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - cfg.max_age_days);
     const cutoffStr = cutoff.toISOString();
 
     for (const cp of allCheckpoints) {
-      if (cp.created_at < cutoffStr && !deleted.has(cp.id)) {
+      if (isProtected(cp) || deleted.has(cp.id)) {
+        continue;
+      }
+      if (cp.created_at < cutoffStr) {
         await BrainStore.deleteCheckpoint(cp.id);
         deleted.add(cp.id);
         deletedByAge++;
       }
     }
 
-    // 2. Delete by count (keep newest max_checkpoints)
+    // 2. Delete by count (keep newest max_checkpoints among unprotected)
     const remaining = allCheckpoints.filter((cp) => !deleted.has(cp.id));
-    if (remaining.length > cfg.max_checkpoints) {
-      // remaining is sorted DESC by created_at — delete from the tail (oldest)
-      const toRemove = remaining.slice(cfg.max_checkpoints);
+    const unprotected = remaining.filter((cp) => !isProtected(cp));
+    if (unprotected.length > cfg.max_checkpoints) {
+      const toRemove = unprotected.slice(cfg.max_checkpoints);
       for (const cp of toRemove) {
         if (!deleted.has(cp.id)) {
           await BrainStore.deleteCheckpoint(cp.id);
@@ -225,12 +297,13 @@ export class CheckpointManager {
       );
       for (const item of sortedOldest) {
         if (totalSize <= maxBytes) break;
-        if (!deleted.has(item.cp.id)) {
-          await BrainStore.deleteCheckpoint(item.cp.id);
-          deleted.add(item.cp.id);
-          totalSize -= item.size;
-          deletedBySize++;
+        if (isProtected(item.cp) || deleted.has(item.cp.id)) {
+          continue;
         }
+        await BrainStore.deleteCheckpoint(item.cp.id);
+        deleted.add(item.cp.id);
+        totalSize -= item.size;
+        deletedBySize++;
       }
     }
 
@@ -251,91 +324,14 @@ export class CheckpointManager {
    * Uses .json.gz extension and stores compressed bytes directly.
    */
   static async createCompressedCheckpoint(label: string): Promise<MemoryCheckpoint> {
-    const db = await BrainStore.get();
-
-    const semanticRows = await db.all("SELECT * FROM brain_semantic");
-    const entityRows = await db.all("SELECT * FROM brain_entities");
-    const patternRows = await db.all("SELECT * FROM brain_learning_patterns");
-    const edgeRows = await db.all("SELECT * FROM brain_graph_edges");
-    const procRows = await db.all("SELECT * FROM brain_procedures");
-
-    const snapshot = {
-      created_at: new Date().toISOString(),
-      label,
-      compressed: true,
-      semantic: semanticRows,
-      entities: entityRows,
-      patterns: patternRows,
-      edges: edgeRows,
-      procedures: procRows,
-    };
-
-    const jsonStr = JSON.stringify(snapshot);
-    const compressed = zlib.gzipSync(Buffer.from(jsonStr, "utf-8") as Uint8Array);
-
-    const { getMemoryBrainPath } = await import("../../../util/paths.js");
-    const brainDir = getMemoryBrainPath();
-    if (!fs.existsSync(brainDir)) {
-      fs.mkdirSync(brainDir, { recursive: true });
-    }
-    const snapshotPath = path.join(brainDir, `checkpoint-${Date.now()}.json.gz`);
-    fs.writeFileSync(snapshotPath, compressed as Uint8Array);
-
-    let linkedWorkspaceId: string | undefined;
-    try {
-      const { resolveLinkedWorkspaceCheckpointId } = await import(
-        "../../soul/recordSoulEvent.js"
-      );
-      linkedWorkspaceId = resolveLinkedWorkspaceCheckpointId();
-    } catch {
-      // Linking is best-effort.
-    }
-
-    const result = await db.run(
-      `INSERT INTO brain_checkpoints (label, semantic_count, entity_count, pattern_count, snapshot_path, workspace_checkpoint_id)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        label,
-        semanticRows.length,
-        entityRows.length,
-        patternRows.length,
-        snapshotPath,
-        linkedWorkspaceId ?? null,
-      ],
-    );
-
-    await BrainStore.auditLog("create_checkpoint", "checkpoint", result.lastID!, { label, compressed: true });
-
-    return {
-      id: result.lastID!,
-      label,
-      created_at: new Date().toISOString(),
-      semantic_count: semanticRows.length,
-      entity_count: entityRows.length,
-      pattern_count: patternRows.length,
-      snapshot_path: snapshotPath,
-      workspace_checkpoint_id: linkedWorkspaceId,
-    };
+    return BrainStore.createCheckpoint(label, undefined, { compress: true });
   }
 
   /**
    * Read a checkpoint snapshot, automatically handling .json.gz (compressed) or .json (plain).
    */
   static readSnapshot(snapshotPath: string): any {
-    if (!fs.existsSync(snapshotPath)) {
-      throw new Error(`Snapshot file not found: ${snapshotPath}`);
-    }
-
-    const raw = fs.readFileSync(snapshotPath);
-
-    // Try decompressing first (gzip magic bytes: 0x1f 0x8b)
-    if (raw[0] === 0x1f && raw[1] === 0x8b) {
-      const decompressed = zlib.gunzipSync(raw as Uint8Array);
-      return JSON.parse(decompressed.toString("utf-8"));
-    }
-
-    // Plain JSON
-    return JSON.parse(raw.toString("utf-8"));
+    return BrainStore.readKnowledgeSnapshot(snapshotPath);
   }
 
   /**

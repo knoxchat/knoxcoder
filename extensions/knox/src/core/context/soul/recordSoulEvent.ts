@@ -133,6 +133,47 @@ export interface MemoryRewindResult {
 }
 
 /**
+ * Pin a brain snapshot to a workspace file checkpoint so "restore files +
+ * memory" can rewind knowledge, not only later episodic turns.
+ */
+export async function pinMemoryForWorkspaceCheckpoint(input: {
+  workspaceCheckpointId: string;
+  label?: string;
+}): Promise<number | undefined> {
+  if (!input.workspaceCheckpointId.trim()) {
+    return undefined;
+  }
+  try {
+    if (!BrainManager.isBrainOpen()) {
+      return undefined;
+    }
+    const checkpoint = await BrainManager.pinForWorkspaceCheckpoint(
+      input.workspaceCheckpointId,
+      input.label ?? `workspace ${input.workspaceCheckpointId.slice(0, 8)}`,
+    );
+    return checkpoint?.id;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function deleteMemoryPinsForWorkspaceCheckpoint(
+  workspaceCheckpointId: string,
+): Promise<void> {
+  if (!workspaceCheckpointId.trim()) {
+    return;
+  }
+  try {
+    if (!BrainManager.isBrainOpen()) {
+      return;
+    }
+    await BrainManager.deleteCheckpointsForWorkspaceId(workspaceCheckpointId);
+  } catch {
+    // Joint GC is best-effort; file delete already succeeded.
+  }
+}
+
+/**
  * Explicit paired restore: rewind brain (if a linked CP exists) and drop
  * episodic turns recorded after the workspace checkpoint.
  */
@@ -144,9 +185,12 @@ export async function rewindMemoryForWorkspaceCheckpoint(input: {
   let memoryCheckpointId: number | undefined;
   let rollbackLine = "";
   try {
-    const linked = await BrainManager.findCheckpointByWorkspaceId(
+    let linked = await BrainManager.findCheckpointByWorkspaceId(
       input.workspaceCheckpointId,
     );
+    if (!linked && input.createdAt) {
+      linked = await BrainManager.findNearestCheckpointBefore(input.createdAt);
+    }
     if (linked) {
       memoryCheckpointId = linked.id;
       const rollback = await BrainManager.rollbackCheckpoint(linked.id);
@@ -157,7 +201,7 @@ export async function rewindMemoryForWorkspaceCheckpoint(input: {
   }
 
   let trimmedEpisodic = 0;
-  if (input.createdAt) {
+  if (input.sessionId && input.createdAt) {
     try {
       trimmedEpisodic = await BrainManager.trimEpisodicAfter(
         input.sessionId,
@@ -168,6 +212,11 @@ export async function rewindMemoryForWorkspaceCheckpoint(input: {
     }
   }
 
+  try {
+    BrainManager.getWorkingMemory().clear();
+  } catch {
+    // Working memory may not be constructed yet.
+  }
   MemorySnapshot.invalidateAll();
 
   const parts = [

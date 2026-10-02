@@ -80,9 +80,12 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 		assert.ok(repoFile('extensions/knox/src/core/core.ts').includes('on("brain/recordSoulEvent"'));
 	});
 
-	test('KN-316: restore can rewind files only or files+memory', () => {
+	test('KN-316: restore can rewind files only or files+memory, and create pins a brain snapshot', () => {
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/notifyRestore.ts').includes('rewindMemory'));
 		assert.ok(repoFile('extensions/knox/src/core/context/soul/recordSoulEvent.ts').includes('rewindMemoryForWorkspaceCheckpoint'));
+		assert.ok(repoFile('extensions/knox/src/core/context/soul/recordSoulEvent.ts').includes('pinMemoryForWorkspaceCheckpoint'));
+		assert.ok(repoFile('extensions/knox/src/core/context/soul/recordSoulEvent.ts').includes('findNearestCheckpointBefore'));
+		assert.ok(repoFile('extensions/knox/src/host/checkpoints/manager/create.ts').includes('pinMemoryForWorkspaceCheckpoint'));
 		assert.ok(repoFile('extensions/knox/src/core/context/soul/extractToolFiles.ts').includes('Do not assume later edits still exist'));
 	});
 

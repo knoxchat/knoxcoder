@@ -455,9 +455,18 @@ export class AutoCheckpointSystem {
         const targetCheckpointId = this.undoRedoState.stack[this.undoRedoState.currentIndex];
         
         try {
-            // Restore the previous checkpoint
-            await this.checkpointManager.restoreCheckpoint(targetCheckpointId);
-            
+            const result = await this.checkpointManager.restoreCheckpoint(targetCheckpointId);
+            if (result.success) {
+                try {
+                    const { notifyCheckpointRestored } = await import('./notifyRestore');
+                    await notifyCheckpointRestored(targetCheckpointId, result.restoredFiles, {
+                        rewindMemory: true,
+                    });
+                } catch {
+                    // Memory rewind is best-effort; files already restored.
+                }
+            }
+
             vscode.window.showInformationMessage(
                 t('checkpoint.auto.undoneTo', { id: targetCheckpointId.substring(0, 8) })
             );
@@ -488,9 +497,18 @@ export class AutoCheckpointSystem {
         const targetCheckpointId = this.undoRedoState.stack[this.undoRedoState.currentIndex];
         
         try {
-            // Restore the next checkpoint
-            await this.checkpointManager.restoreCheckpoint(targetCheckpointId);
-            
+            const result = await this.checkpointManager.restoreCheckpoint(targetCheckpointId);
+            if (result.success) {
+                try {
+                    const { notifyCheckpointRestored } = await import('./notifyRestore');
+                    await notifyCheckpointRestored(targetCheckpointId, result.restoredFiles, {
+                        rewindMemory: true,
+                    });
+                } catch {
+                    // Memory rewind is best-effort; files already restored.
+                }
+            }
+
             vscode.window.showInformationMessage(
                 t('checkpoint.auto.redoneTo', { id: targetCheckpointId.substring(0, 8) })
             );
@@ -518,7 +536,17 @@ export class AutoCheckpointSystem {
         const targetCheckpointId = this.undoRedoState.stack[index];
         
         try {
-            await this.checkpointManager.restoreCheckpoint(targetCheckpointId);
+            const result = await this.checkpointManager.restoreCheckpoint(targetCheckpointId);
+            if (result.success) {
+                try {
+                    const { notifyCheckpointRestored } = await import('./notifyRestore');
+                    await notifyCheckpointRestored(targetCheckpointId, result.restoredFiles, {
+                        rewindMemory: true,
+                    });
+                } catch {
+                    // Memory rewind is best-effort; files already restored.
+                }
+            }
             this.undoRedoState.currentIndex = index;
 
             this._onUndoRedoChanged.fire(this.undoRedoState);

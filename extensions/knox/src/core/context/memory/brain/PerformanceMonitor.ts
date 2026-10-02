@@ -94,7 +94,8 @@ export type HealingAction =
   | "compress_cold"
   | "prune_expired"
   | "repair_counts"
-  | "defragment_graph";
+  | "defragment_graph"
+  | "prune_missing_checkpoints";
 
 export interface HealingResult {
   action: HealingAction;
@@ -564,6 +565,12 @@ export class HealingEngine {
           success = true;
           break;
         }
+        case "prune_missing_checkpoints": {
+          const pruned = await BrainStore.pruneMissingCheckpointSnapshots();
+          details = `Removed ${pruned} checkpoint row${pruned === 1 ? "" : "s"} with missing snapshot files`;
+          success = true;
+          break;
+        }
       }
 
       // Measure health after and compute impact
@@ -623,6 +630,9 @@ export class HealingEngine {
       if (lower.includes("exceeds") || lower.includes("100mb")) {
         actions.push({ action: "compress_cold", priority: 8 });
         actions.push({ action: "vacuum", priority: 7 });
+      }
+      if (lower.includes("checkpoint snapshot")) {
+        actions.push({ action: "prune_missing_checkpoints", priority: 9 });
       }
     }
 

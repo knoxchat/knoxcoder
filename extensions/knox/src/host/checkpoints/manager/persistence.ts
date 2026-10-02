@@ -781,6 +781,14 @@ export async function deleteCheckpointFromDisk(
         }
     }
     await gcUnreferencedCheckpointBlobs(host);
+    try {
+        const { deleteMemoryPinsForWorkspaceCheckpoint } = await import(
+            'core/context/soul/recordSoulEvent'
+        );
+        await deleteMemoryPinsForWorkspaceCheckpoint(checkpointId);
+    } catch {
+        // Joint memory GC is best-effort.
+    }
 }
 
 async function sumDirectoryBytes(dirPath: string): Promise<number> {

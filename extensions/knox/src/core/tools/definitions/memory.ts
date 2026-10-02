@@ -435,7 +435,7 @@ IMPORTANT: Use "store" proactively to save useful context. Use "recall" or "buil
         // ── Checkpoint strategy params (Tier C) ──
         mode: {
           type: "string",
-          enum: ["manual", "time_interval", "adaptive"],
+          enum: ["manual", "time_based", "time_interval", "adaptive", "critical_points", "hybrid"],
           description: "[update_checkpoint_strategy] Checkpoint strategy mode",
         },
         adaptive_change_threshold: {

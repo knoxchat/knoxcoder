@@ -32,7 +32,7 @@ export const memoryManageTool: Tool = {
 - **rollback_checkpoint**: Restore memory to a previous checkpoint
 - **delete_checkpoint**: Remove a checkpoint and its snapshot file
 - **checkpoint_strategy_config**: View checkpoint strategy configuration
-- **update_checkpoint_strategy**: Update strategy (mode: manual/time_interval/adaptive)
+- **update_checkpoint_strategy**: Update strategy (mode: manual/time_based/adaptive/critical_points/hybrid; time_interval aliases time_based)
 - **checkpoint_lifecycle_cleanup**: Run cleanup (remove old/excess checkpoints)
 - **compress_checkpoint**: Compress a checkpoint snapshot
 - **diff_checkpoint**: Show diff between checkpoint and current state
@@ -136,8 +136,8 @@ Use create_checkpoint before major changes. Use heal when the system seems degra
         // Checkpoint strategy params
         mode: {
           type: "string",
-          enum: ["manual", "time_interval", "adaptive"],
-          description: "[update_checkpoint_strategy] Strategy mode",
+          enum: ["manual", "time_based", "time_interval", "adaptive", "critical_points", "hybrid"],
+          description: "[update_checkpoint_strategy] Strategy mode (time_interval is an alias for time_based)",
         },
         adaptive_change_threshold: {
           type: "number",

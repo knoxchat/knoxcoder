@@ -31,6 +31,14 @@ interface CreateCheckpointRecordOptions extends ManualCheckpointOptions {
     applyTrackedAIFiles?: boolean;
 }
 
+function shouldPinMemoryForWorkspaceCheckpoint(
+    options: CreateCheckpointRecordOptions,
+): boolean {
+    const messageId = options.messageId ?? '';
+    // High-frequency auto CPs stay file-only; restore uses nearest brain pin.
+    return !messageId.startsWith('auto-');
+}
+
 function normalizeTags(tags?: string[]): string[] | undefined {
     if (!tags?.length) {
         return undefined;
@@ -199,6 +207,19 @@ async function createCheckpointRecord(
         }).catch(() => false);
         await host.recordStorageSnapshot().catch(() => false);
         await enforceRetentionPolicies(host);
+        if (shouldPinMemoryForWorkspaceCheckpoint(options)) {
+            try {
+                const { pinMemoryForWorkspaceCheckpoint } = await import(
+                    'core/context/soul/recordSoulEvent'
+                );
+                await pinMemoryForWorkspaceCheckpoint({
+                    workspaceCheckpointId: checkpointId,
+                    label: `workspace ${checkpointId.slice(0, 8)}: ${options.description || 'checkpoint'}`,
+                });
+            } catch {
+                // Brain pin is best-effort; the file snapshot already exists.
+            }
+        }
         return checkpointId;
     } catch (error) {
         log.error('Failed to create checkpoint:', error);

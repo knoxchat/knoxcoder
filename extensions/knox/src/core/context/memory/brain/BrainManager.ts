@@ -17,6 +17,7 @@ import type { SleepCycleResult } from "./SleepConsolidation.js";
 import { CheckpointManager } from "./CheckpointManager.js";
 import type {
   CheckpointStrategyConfig,
+  CheckpointStrategyUpdate,
   CheckpointLifecycleReport,
   EventReplayResult,
   UndoResult,
@@ -1610,8 +1611,14 @@ export class BrainManager {
 
   // ── Checkpoint / Rollback ──────────────────────────────────────────────────
 
-  static async createCheckpoint(label: string, workspaceCheckpointId?: string) {
-    const cp = await BrainStore.createCheckpoint(label, workspaceCheckpointId);
+  static async createCheckpoint(
+    label: string,
+    workspaceCheckpointId?: string,
+    options?: { compress?: boolean },
+  ) {
+    const cp = await BrainStore.createCheckpoint(label, workspaceCheckpointId, {
+      compress: options?.compress === true,
+    });
     BrainManager.emit("checkpoint:created", { id: cp.id, label });
     return cp;
   }
@@ -1624,6 +1631,40 @@ export class BrainManager {
     return BrainStore.findCheckpointByWorkspaceId(workspaceCheckpointId);
   }
 
+  static async findNearestCheckpointBefore(createdAt: string) {
+    return BrainStore.findNearestCheckpointBefore(createdAt);
+  }
+
+  static async deleteCheckpointsForWorkspaceId(workspaceCheckpointId: string) {
+    return BrainStore.deleteCheckpointsForWorkspaceId(workspaceCheckpointId);
+  }
+
+  static isBrainOpen(): boolean {
+    return BrainStore.isOpen();
+  }
+
+  /**
+   * Ensure a brain snapshot is linked to a workspace file checkpoint.
+   * No-op when the brain has not been opened in this process (checkpoint-only tests).
+   */
+  static async pinForWorkspaceCheckpoint(
+    workspaceCheckpointId: string,
+    label: string,
+  ) {
+    if (!workspaceCheckpointId.trim() || !BrainStore.isOpen()) {
+      return undefined;
+    }
+    const existing = await BrainStore.findCheckpointByWorkspaceId(
+      workspaceCheckpointId,
+    );
+    if (existing) {
+      return existing;
+    }
+    return BrainManager.createCheckpoint(label, workspaceCheckpointId, {
+      compress: CheckpointManager.getConfig().compress_snapshots,
+    });
+  }
+
   static async trimEpisodicAfter(sessionId: string, createdAt: string) {
     return BrainStore.trimEpisodicAfter(sessionId, createdAt);
   }
@@ -1631,6 +1672,15 @@ export class BrainManager {
   static async rollbackCheckpoint(checkpointId: number) {
     const result = await BrainStore.rollbackCheckpoint(checkpointId);
     BrainManager.emit("checkpoint:rolled_back", { id: checkpointId });
+    BrainManager.invalidateMemoryCaches();
+    MemorySnapshot.invalidateAll();
+    BrainManager.getWorkingMemory().clear();
+    try {
+      const { PrefrontalCortex } = await import("./regions/PrefrontalCortex.js");
+      PrefrontalCortex.resetAll();
+    } catch {
+      // Goal reset is best-effort.
+    }
     return result;
   }
 
@@ -2138,7 +2188,7 @@ export class BrainManager {
       }
 
       case "update_checkpoint_strategy": {
-        const update: Partial<CheckpointStrategyConfig> = {};
+        const update: CheckpointStrategyUpdate = {};
         if (params.mode) update.mode = params.mode;
         if (params.adaptive_change_threshold !== undefined) update.adaptive_change_threshold = params.adaptive_change_threshold;
         if (params.time_interval_minutes !== undefined) update.time_interval_minutes = params.time_interval_minutes;
@@ -2146,7 +2196,7 @@ export class BrainManager {
         if (params.max_age_days !== undefined) update.max_age_days = params.max_age_days;
         if (params.max_total_size_mb !== undefined) update.max_total_size_mb = params.max_total_size_mb;
         if (params.compress_snapshots !== undefined) update.compress_snapshots = params.compress_snapshots;
-        CheckpointManager.updateConfig(update);
+        await CheckpointManager.updateConfig(update);
         const updated = CheckpointManager.getConfig();
         return `Checkpoint strategy updated.\n${BrainManager.formatCheckpointStrategyConfig(updated)}`;
       }
