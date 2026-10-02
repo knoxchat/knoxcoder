@@ -381,33 +381,37 @@ function resolveCodeLanguageId(widget: KnoxGuiWidget, language: string, filepath
  * `getOrCreate` the tokenizer of e.g. `html` never loads and streaming code stays monochrome.
  * Resolve it here, then repaint once the support is registered.
  */
+const tokenizerState = new WeakMap<HTMLElement, { pending: Set<string>; watch: Set<string> }>();
+
 function watchCodeTokenizer(widget: KnoxGuiWidget, el: HTMLElement, languageId: string, repaint: () => void): void {
 	if (!languageId || languageId === 'plaintext' || TokenizationRegistry.get(languageId)) {
 		return;
 	}
+	let st = tokenizerState.get(el);
+	if (!st) {
+		st = { pending: new Set(), watch: new Set() };
+		tokenizerState.set(el, st);
+	}
+	const { pending, watch } = st;
 	try {
-		if (el.dataset.tokenizerPending !== languageId) {
-			el.dataset.tokenizerPending = languageId;
+		if (!pending.has(languageId)) {
+			pending.add(languageId);
 			TokenizationRegistry.getOrCreate(languageId).then(support => {
-				if (el.dataset.tokenizerPending === languageId) {
-					delete el.dataset.tokenizerPending;
-				}
+				pending.delete(languageId);
 				if (support) {
 					repaint();
 				}
 			}, () => {
-				if (el.dataset.tokenizerPending === languageId) {
-					delete el.dataset.tokenizerPending;
-				}
+				pending.delete(languageId);
 			});
 		}
 	} catch {
-		delete el.dataset.tokenizerPending;
+		pending.delete(languageId);
 	}
-	if (el.dataset.tokenizerWatch === languageId) {
+	if (watch.has(languageId)) {
 		return;
 	}
-	el.dataset.tokenizerWatch = languageId;
+	watch.add(languageId);
 	try {
 		widget.languageService.requestBasicLanguageFeatures(languageId);
 		const sub = TokenizationRegistry.onDidChange(e => {
@@ -417,12 +421,72 @@ function watchCodeTokenizer(widget: KnoxGuiWidget, el: HTMLElement, languageId: 
 			repaint();
 			if (TokenizationRegistry.get(languageId)) {
 				sub.dispose();
+				watch.delete(languageId);
 			}
 		});
 		widget.listenerStore.add(sub);
 	} catch {
 		// tokenizer registry is optional in unit tests
 	}
+}
+
+const PATCH_FILE_HEADER = /^(?:\*\*\* (?:Add|Update|Delete) File:\s*(.+?)\s*$|\+\+\+ (?:b\/)?(\S+)|diff --git a\/\S+ b\/(\S+))/;
+
+/**
+ * `apply_patch` / unified-diff content: highlight each hunk body with the language of the file
+ * it belongs to (from `*** Update File:`, `+++ b/path` or `diff --git` headers), keeping the
+ * `+` / `-` / ` ` markers outside the tokenized text so the colors match a normal code block.
+ */
+function tokenizePatchLines(widget: KnoxGuiWidget, code: string, usedLanguages: Set<string>): string[] {
+	const raw = code.split('\n');
+	const out: string[] = new Array(raw.length);
+	const tokenize = (text: string, languageId: string): string[] => {
+		widget.languageService.requestBasicLanguageFeatures(languageId);
+		usedLanguages.add(languageId);
+		return knoxGuiSplitTokenizedLines(tokenizeToStringSync(widget.languageService, text, languageId));
+	};
+	const flush = (indices: number[], languageId: string) => {
+		if (!indices.length) {
+			return;
+		}
+		const bodies = indices.map(i => raw[i].length ? raw[i].slice(1) : '');
+		const tokenized = tokenize(bodies.join('\n'), languageId);
+		indices.forEach((i, n) => {
+			const marker = raw[i].length ? escape(raw[i][0]) : '';
+			out[i] = marker + (tokenized[n] ?? escape(bodies[n]));
+		});
+	};
+	let languageId = 'plaintext';
+	let body: number[] = [];
+	const diffHeaders: number[] = [];
+	const flushAll = () => {
+		flush(body, languageId);
+		body = [];
+	};
+	for (let i = 0; i < raw.length; i++) {
+		const line = raw[i];
+		const header = PATCH_FILE_HEADER.exec(line);
+		if (header) {
+			flushAll();
+			const path = header[1] ?? header[2] ?? header[3];
+			languageId = resolveCodeLanguageId(widget, '', path, 'x', true);
+			diffHeaders.push(i);
+			continue;
+		}
+		const first = line[0];
+		if (line.startsWith('***') || line.startsWith('@@') || /^--- (?:a\/|\/dev\/null)/.test(line) || line.startsWith('index ') || (first !== '+' && first !== '-' && first !== ' ' && line.length)) {
+			flushAll();
+			diffHeaders.push(i);
+			continue;
+		}
+		body.push(i);
+	}
+	flushAll();
+	if (diffHeaders.length) {
+		const headerTokens = tokenize(diffHeaders.map(i => raw[i]).join('\n'), 'diff');
+		diffHeaders.forEach((i, n) => { out[i] = headerTokens[n] ?? escape(raw[i]); });
+	}
+	return out.map((l, i) => l ?? escape(raw[i]));
 }
 
 function diffLineKind(language: string, raw: string): 'add' | 'del' | undefined {
@@ -467,11 +531,25 @@ function paintCodeLineWindow(widget: KnoxGuiWidget, container: HTMLElement, stat
 	}
 	let lines: string[];
 	const languageId = resolveCodeLanguageId(widget, language, filepath, code, !generating || Boolean(filepath));
+	const extraLanguageIds = new Set<string>();
 	try {
 		widget.languageService.requestBasicLanguageFeatures(languageId);
-		lines = knoxGuiSplitTokenizedLines(tokenizeToStringSync(widget.languageService, code, languageId));
+		lines = languageId === 'diff'
+			? tokenizePatchLines(widget, code, extraLanguageIds)
+			: knoxGuiSplitTokenizedLines(tokenizeToStringSync(widget.languageService, code, languageId));
 	} catch {
 		lines = code.split('\n').map(line => escape(line));
+	}
+	const repaintWindow = () => {
+		// Lines already in the DOM were painted without colors: drop the window cache so the
+		// incremental path cannot skip them, and follow the live generating state.
+		delete container.dataset.lineStart;
+		delete container.dataset.lineEnd;
+		const live = container.getAttribute('data-streaming') === 'true';
+		paintCodeLineWindow(widget, container, state, language, container.dataset.code ?? code, filepath, { ...options, generating: live });
+	};
+	for (const extra of extraLanguageIds) {
+		watchCodeTokenizer(widget, container, extra, repaintWindow);
 	}
 	watchCodeTokenizer(widget, container, languageId, () => {
 		// Lines already in the DOM were painted without colors: drop the window cache so the
