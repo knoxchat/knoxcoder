@@ -691,7 +691,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-composer-expand"] svg.knox-gui-svg'));
 		assert.ok(store.state.input.includes('keep me'));
 
-		// Folded and settled, the composer floats over the transcript so only the round button remains.
+		// Folded and settled, the composer floats over the transcript so only the dock remains.
 		const composerEl = widget.root.querySelector('[data-testid="full-composer"]') as HTMLElement;
 		assert.strictEqual(composerEl.classList.contains('is-floating'), false);
 		await timeout(450);
@@ -708,6 +708,42 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.composerCollapsed, true);
 		store.patch({ mentionOpen: true, inputFocused: true });
 		assert.strictEqual(widget.composerCollapsed, false);
+	});
+
+	test('collapsed composer dock shows dynamic scroll-to-top/bottom buttons', async () => {
+		const { widget, store } = await mount();
+		store.patch({ history: [{ id: 'u', role: 'user', content: 'hi' }] });
+		assert.ok(widget.root.querySelector('.knox-gui-input-bar [data-testid="knox-gui-scroll-top"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-input-bar [data-testid="knox-gui-scroll-bottom"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-composer-dock"]'), null);
+
+		widget.setComposerCollapsed(true);
+		const dock = widget.root.querySelector('[data-testid="knox-gui-composer-dock"]') as HTMLElement;
+		assert.ok(dock);
+		assert.ok(dock.querySelector('[data-testid="knox-gui-scroll-top"]')?.querySelector('svg.knox-gui-svg'));
+		assert.ok(dock.querySelector('[data-testid="knox-gui-scroll-bottom"]')?.querySelector('svg.knox-gui-svg'));
+		assert.ok(dock.querySelector('[data-testid="knox-gui-scroll-top"]')?.classList.contains('knox-gui-composer-orb'));
+		assert.ok(dock.querySelector('[data-testid="knox-gui-scroll-bottom"]')?.classList.contains('knox-gui-composer-orb'));
+		assert.ok(dock.querySelector('.knox-gui-composer-dock-end'));
+		assert.strictEqual(widget.root.querySelector('.knox-gui-input-bar [data-testid="knox-gui-scroll-top"]'), null);
+		assert.strictEqual(widget.scrollTopBtn, dock.querySelector('[data-testid="knox-gui-scroll-top"]'));
+		assert.strictEqual(widget.scrollBottomBtn, dock.querySelector('[data-testid="knox-gui-scroll-bottom"]'));
+
+		(widget.root.querySelector('[data-testid="knox-gui-scroll-top"]') as HTMLButtonElement).click();
+		assert.strictEqual(widget.autoScrollEnabled, false);
+		(widget.root.querySelector('[data-testid="knox-gui-scroll-bottom"]') as HTMLButtonElement).click();
+		assert.strictEqual(widget.autoScrollEnabled, true);
+
+		widget.setComposerCollapsed(false);
+		assert.ok(widget.root.querySelector('.knox-gui-input-bar [data-testid="knox-gui-scroll-top"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-input-bar [data-testid="knox-gui-scroll-bottom"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-composer-dock"] [data-testid="knox-gui-scroll-top"]'), null);
+
+		widget.setComposerCollapsed(true);
+		store.patch({ history: [] });
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-composer-dock"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-composer-dock"] [data-testid="knox-gui-scroll-top"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-composer-dock"] [data-testid="knox-gui-scroll-bottom"]'), null);
 	});
 
 	test('mention ArrowUp/Down select after @ opens without a full re-render', async () => {

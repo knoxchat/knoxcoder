@@ -137,7 +137,9 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 	if (widget.composerToggle?.dir === 'expand') {
 		hide.classList.add('knox-gui-toggle-pop');
 	}
-	widget.renderScrollButtons(right, state);
+	if (!widget.composerCollapsed) {
+		widget.renderScrollButtons(right, state);
+	}
 
 	if (state.mode === 'edit') {
 		widget.chromeButton(right, {

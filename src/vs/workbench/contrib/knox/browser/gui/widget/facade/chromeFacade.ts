@@ -46,8 +46,8 @@ export abstract class KnoxGuiChromeFacade extends KnoxGuiWidgetState {
 		knoxGuiChromeView.renderErrorFallback(this, body, state, error);
 	}
 
-	renderScrollButtons(this: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
-		knoxGuiChromeView.renderScrollButtons(this, parent, state);
+	renderScrollButtons(this: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, extraClass?: string): void {
+		knoxGuiChromeView.renderScrollButtons(this, parent, state, extraClass);
 	}
 
 	onRootKeyDown(this: KnoxGuiWidget, e: KeyboardEvent): void {

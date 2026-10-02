@@ -64,8 +64,8 @@ export function renderComposer(widget: KnoxGuiWidget, state: IKnoxGuiState): voi
 }
 
 /**
- * Once folded, a composer that holds nothing but the round button leaves the layout and floats
- * over the transcript, so no bar (or bar-shaped gap) remains behind the button. Anything else the
+ * Once folded, a composer that holds nothing but the dock buttons leaves the layout and floats
+ * over the transcript, so no bar (or bar-shaped gap) remains behind them. Anything else the
  * composer carries (tool approval, accept/reject) keeps it in flow. The switch waits for the fold to
  * finish; the chat body gets equal bottom padding at that moment (see CSS), so nothing shifts.
  */
@@ -115,7 +115,7 @@ export function setComposerCollapsed(widget: KnoxGuiWidget, collapsed: boolean):
 	widget.render();
 }
 
-/** Round icon button left behind while the section is hidden (and while it spins away on expand). */
+/** Round dock left behind while the section is hidden (and while it spins away on expand): show-panel, plus scroll-to-top/bottom when there is chat history. */
 function renderComposerDock(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, collapsed: boolean, animation: 'collapse' | 'expand' | undefined): void {
 	const shell = DOM.append(parent, DOM.$('.knox-gui-composer-dock-shell'));
 	shell.setAttribute('data-composer-slot', 'dock');
@@ -137,7 +137,11 @@ function renderComposerDock(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 			onClick: () => widget.controller.cancel(),
 		});
 	}
-	const showButton = DOM.append(dock, DOM.$('button.knox-gui-composer-orb.knox-gui-composer-dock-toggle')) as HTMLButtonElement;
+	const end = DOM.append(dock, DOM.$('.knox-gui-composer-dock-end'));
+	if (collapsed) {
+		widget.renderScrollButtons(end, state, 'knox-gui-composer-orb knox-gui-composer-dock-scroll');
+	}
+	const showButton = DOM.append(end, DOM.$('button.knox-gui-composer-orb.knox-gui-composer-dock-toggle')) as HTMLButtonElement;
 	showButton.type = 'button';
 	showButton.setAttribute('data-testid', 'knox-gui-composer-expand');
 	showButton.setAttribute('aria-expanded', 'false');

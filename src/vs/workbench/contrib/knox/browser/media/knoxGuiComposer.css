@@ -30,7 +30,8 @@
 
 /* ---------------------------------------------------------------------------------------------
  * Collapsible composer: toolbar, activity, task plan and editor fold away as one section, and a
- * single round "show" button is left behind.
+ * slim dock of round buttons is left behind (show panel, plus scroll-to-top/bottom when the
+ * transcript has history).
  *
  * Height animates through `grid-template-rows` (1fr <-> 0fr) so the transcript above grows and
  * shrinks smoothly without measuring content. Keep 360ms in sync with KNOX_COMPOSER_TOGGLE_MS.
@@ -188,10 +189,11 @@
 	animation: knox-composer-icon-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) var(--knox-composer-toggle-delay, 0ms) backwards;
 }
 
-/* ---- Orb: the round glass button shared by "hide panel" (toolbar) and "show panel" (dock) ---- */
+/* ---- Orb: the round glass button shared by hide/show panel and the collapsed-dock scroll buttons ---- */
 
 .knox-gui-composer-orb,
-.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-orb {
+.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-orb,
+.knox-gui-composer-dock .knox-gui-icon-btn.knox-gui-composer-orb {
 	position: relative;
 	display: grid;
 	place-items: center;
@@ -209,7 +211,8 @@
 }
 
 .knox-gui-composer-orb:hover:not(:disabled),
-.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-orb:hover:not(:disabled) {
+.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-orb:hover:not(:disabled),
+.knox-gui-composer-dock .knox-gui-icon-btn.knox-gui-composer-orb:hover:not(:disabled) {
 	transform: translateY(-1px) scale(1.1);
 	border-color: #20c997;
 	background: radial-gradient(circle at 30% 25%, color-mix(in srgb, #20c997 32%, transparent), transparent 72%);
@@ -218,7 +221,8 @@
 }
 
 .knox-gui-composer-orb:active:not(:disabled),
-.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-orb:active:not(:disabled) {
+.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-orb:active:not(:disabled),
+.knox-gui-composer-dock .knox-gui-icon-btn.knox-gui-composer-orb:active:not(:disabled) {
 	transform: scale(0.92);
 }
 
@@ -313,7 +317,7 @@
 
 /*
  * Floating: the folded composer leaves the layout and sits over the transcript's bottom-right corner,
- * so only the round button is visible. The chat body gains the same height as bottom padding in the
+ * so only the dock buttons are visible. The chat body gains the same height as bottom padding in the
  * same frame (24px = 2 + 20 button + 2, no composer padding or border), which keeps scroll position and content still.
  */
 .knox-gui-composer.is-floating {
@@ -361,6 +365,42 @@
 	gap: 8px;
 	box-sizing: border-box;
 	padding: 2px 8px;
+}
+
+.knox-gui-composer-dock-end {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 6px;
+	flex-shrink: 0;
+}
+
+.knox-gui-composer-dock .knox-gui-scroll-btns {
+	gap: 6px;
+}
+
+/* Dock scroll orbs reuse the show-panel glass; keep them 20px even against the input-bar scroll-btn rules. */
+.knox-gui-composer-dock .knox-gui-scroll-btns .knox-gui-icon-btn.knox-gui-composer-dock-scroll {
+	box-sizing: border-box;
+	padding: 0 !important;
+	opacity: 1;
+}
+
+.knox-gui-composer-dock .knox-gui-scroll-btns .knox-gui-svg {
+	width: 12px;
+	height: 12px;
+}
+
+.knox-gui-composer-dock .knox-gui-scroll-btns .knox-gui-icon-btn.knox-gui-composer-dock-scroll:hover:not(:disabled) {
+	background: radial-gradient(circle at 30% 25%, color-mix(in srgb, #20c997 32%, transparent), transparent 72%) !important;
+	filter: none;
+}
+
+.knox-gui-composer-dock .knox-gui-scroll-btns .knox-gui-icon-btn.knox-gui-composer-dock-scroll:disabled,
+.knox-gui-composer-dock .knox-gui-scroll-btns .knox-gui-icon-btn.knox-gui-composer-dock-scroll.disabled {
+	opacity: 0.35;
+	transform: none;
+	cursor: not-allowed;
 }
 
 /* Sonar ring: a slow "I'm here" pulse while idle, one bigger burst on every toggle. */
@@ -429,27 +469,39 @@
 	animation: knox-composer-dock-pop 560ms cubic-bezier(0.34, 1.56, 0.64, 1) calc(90ms + var(--knox-composer-toggle-delay, 0ms)) backwards;
 }
 
+.knox-gui-composer-dock-shell.is-opening .knox-gui-composer-dock-scroll:nth-child(1) {
+	animation: knox-composer-dock-pop 560ms cubic-bezier(0.34, 1.56, 0.64, 1) calc(40ms + var(--knox-composer-toggle-delay, 0ms)) backwards;
+}
+
+.knox-gui-composer-dock-shell.is-opening .knox-gui-composer-dock-scroll:nth-child(2) {
+	animation: knox-composer-dock-pop 560ms cubic-bezier(0.34, 1.56, 0.64, 1) calc(65ms + var(--knox-composer-toggle-delay, 0ms)) backwards;
+}
+
 .knox-gui-composer-dock-shell.is-opening .knox-gui-composer-dock-toggle::before {
 	animation:
 		knox-composer-burst 620ms cubic-bezier(0.2, 0.7, 0.3, 1) calc(300ms + var(--knox-composer-toggle-delay, 0ms)) backwards,
 		knox-composer-sonar 3.4s ease-out 1.6s infinite backwards;
 }
 
-.knox-gui-composer-dock-shell.is-opening .knox-gui-svg path:nth-child(-n+3) {
+.knox-gui-composer-dock-shell.is-opening .knox-gui-composer-dock-toggle .knox-gui-svg path:nth-child(-n+3) {
 	transform-origin: left center;
 	animation: knox-composer-line-grow 380ms cubic-bezier(0.22, 1, 0.36, 1) calc(280ms + var(--knox-composer-toggle-delay, 0ms)) backwards;
 }
 
-.knox-gui-composer-dock-shell.is-opening .knox-gui-svg path:nth-child(4) {
+.knox-gui-composer-dock-shell.is-opening .knox-gui-composer-dock-toggle .knox-gui-svg path:nth-child(4) {
 	animation: knox-composer-chevron-up 460ms cubic-bezier(0.34, 1.56, 0.64, 1) calc(260ms + var(--knox-composer-toggle-delay, 0ms)) backwards;
 }
 
-.knox-gui-composer-dock-shell.is-opening .knox-gui-svg path:nth-child(5) {
+.knox-gui-composer-dock-shell.is-opening .knox-gui-composer-dock-toggle .knox-gui-svg path:nth-child(5) {
 	animation: knox-composer-chevron-down 460ms cubic-bezier(0.34, 1.56, 0.64, 1) calc(260ms + var(--knox-composer-toggle-delay, 0ms)) backwards;
 }
 
 /* Departure: the button spins away and throws a ring as the panel unfolds. */
 .knox-gui-composer-dock-shell.is-closing .knox-gui-composer-dock-toggle {
+	animation: knox-composer-dock-vanish 300ms cubic-bezier(0.5, 0, 0.75, 0) var(--knox-composer-toggle-delay, 0ms) both;
+}
+
+.knox-gui-composer-dock-shell.is-closing .knox-gui-composer-dock-scroll {
 	animation: knox-composer-dock-vanish 300ms cubic-bezier(0.5, 0, 0.75, 0) var(--knox-composer-toggle-delay, 0ms) both;
 }
 

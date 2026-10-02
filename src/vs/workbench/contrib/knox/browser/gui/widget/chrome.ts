@@ -457,23 +457,25 @@ export function renderErrorFallback(widget: KnoxGuiWidget, body: HTMLElement, st
 	});
 }
 
-export function renderScrollButtons(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
+export function renderScrollButtons(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, extraClass?: string): void {
 	if (!state.history.length) {
 		return;
 	}
 	const wrap = DOM.append(parent, DOM.$('.knox-gui-scroll-btns'));
 	widget.scrollTopBtn = widget.chromeButton(wrap, {
 		svg: 'chevron-up',
-		svgSize: 14,
+		svgSize: extraClass ? 12 : 14,
 		title: t(state, 'scrollToTop'),
 		testId: 'knox-gui-scroll-top',
+		extraClass,
 		onClick: () => widget.scrollTranscript('top'),
 	});
 	widget.scrollBottomBtn = widget.chromeButton(wrap, {
 		svg: 'chevron-down',
-		svgSize: 14,
+		svgSize: extraClass ? 12 : 14,
 		title: t(state, 'scrollToBottom'),
 		testId: 'knox-gui-scroll-bottom',
+		extraClass,
 		onClick: () => widget.scrollTranscript('bottom'),
 	});
 }
