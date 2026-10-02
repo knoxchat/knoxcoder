@@ -424,6 +424,7 @@ async function runRound(controller: KnoxGuiController, legacySlash?: IKnoxGuiLeg
 		if (!controller.turnAborted) {
 			controller.store.patch({ streamError: parseStreamError(error) });
 		}
+		controller.cancelInFlightTools();
 	} finally {
 		controller.streamCoalescer.flush();
 		controller.store.setStreaming(false);

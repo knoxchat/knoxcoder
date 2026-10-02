@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parseToolArgs } from './knoxGuiChat.js';
+import { knoxGuiParseToolFilePath, knoxGuiSanitizeToolFilePath } from './knoxGuiToolFilePath.js';
 import {
 	IKnoxGuiAutonomous,
 	IKnoxGuiBackgroundJob,
@@ -1090,29 +1091,40 @@ function knoxGuiFileUriFromAbsolutePath(absolute: string): string {
 }
 
 /**
- * Workspace-relative variants the model commonly emits: strips `./` and a leading workspace folder
- * name (`snake_game/src/main.rs` when the folder is `.../snake_game`). Mirrors `relativePathCandidates`
- * in the original Knox `core/util/ideUtils`.
+ * Workspace-relative variants the model commonly emits: strips quotes/blockquotes/`./`
+ * and a leading workspace folder name (`snake_game/src/main.rs` when the folder is
+ * `.../snake_game`). Mirrors `relativePathCandidates` in Knox `core/util/ideUtils`.
  */
 export function knoxGuiRelativePathCandidates(rawPath: string, workspaceDirUris: readonly string[]): string[] {
-	const trimmed = rawPath.trim().replace(/\\/g, '/').replace(/^\.\//, '');
-	if (!trimmed) {
+	const seeds: string[] = [];
+	const addSeed = (value: string) => {
+		const trimmed = value.replace(/\\/g, '/').replace(/^\.\//, '').trim();
+		if (trimmed && !seeds.includes(trimmed)) {
+			seeds.push(trimmed);
+		}
+	};
+	addSeed(knoxGuiSanitizeToolFilePath(rawPath));
+	addSeed(rawPath.trim());
+	if (!seeds.length) {
 		return [];
 	}
-	const out = [trimmed];
-	for (const dirUri of workspaceDirUris) {
-		const base = knoxGuiUriBasename(dirUri);
-		if (!base) {
-			continue;
+	const out: string[] = [];
+	const push = (value: string) => {
+		if (value && !out.includes(value)) {
+			out.push(value);
 		}
-		if (trimmed === base) {
-			if (!out.includes('.')) {
-				out.push('.');
+	};
+	for (const trimmed of seeds) {
+		push(trimmed);
+		for (const dirUri of workspaceDirUris) {
+			const base = knoxGuiUriBasename(dirUri);
+			if (!base) {
+				continue;
 			}
-		} else if (trimmed.startsWith(`${base}/`)) {
-			const stripped = trimmed.slice(base.length + 1);
-			if (stripped && !out.includes(stripped)) {
-				out.push(stripped);
+			if (trimmed === base) {
+				push('.');
+			} else if (trimmed.startsWith(`${base}/`)) {
+				push(trimmed.slice(base.length + 1));
 			}
 		}
 	}
@@ -1126,7 +1138,7 @@ export function knoxGuiRelativePathCandidates(rawPath: string, workspaceDirUris:
  * against the workspace folders first (the original Knox `openFileInEditor`).
  */
 export function knoxGuiResolveOpenPath(rawPath: string, workspaceDirUris: readonly string[]): { direct: boolean; candidates: string[]; fallback: string } | undefined {
-	const trimmed = rawPath.trim();
+	const trimmed = knoxGuiParseToolFilePath(rawPath).filepath;
 	if (!trimmed) {
 		return undefined;
 	}

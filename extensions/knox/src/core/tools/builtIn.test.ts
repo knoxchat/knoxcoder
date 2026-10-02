@@ -4,6 +4,7 @@ import {
   BuiltInToolNames,
   DEFAULT_VIEW_SUBDIRECTORY_MAX_FILES,
   formatUnknownToolError,
+  resolveBuiltInToolCall,
   resolveBuiltInToolName,
   resolveViewSubdirectoryMaxFiles,
 } from "./builtIn";
@@ -80,6 +81,33 @@ describe("resolveBuiltInToolName", () => {
   it("leaves unknown names alone", () => {
     expect(resolveBuiltInToolName("custom_http_tool")).toBe("custom_http_tool");
     expect(resolveBuiltInToolName("")).toBe("");
+    expect(resolveBuiltInToolName("tool_name")).toBe("tool_name");
+  });
+});
+
+describe("resolveBuiltInToolCall", () => {
+  it("maps placeholder tool_name onto a catalog tool from arguments", () => {
+    expect(
+      resolveBuiltInToolCall("tool_name", { command: "find . -name Cargo.toml" }),
+    ).toBe(BuiltInToolNames.RunTerminalCommand);
+    expect(
+      resolveBuiltInToolCall("Tool Name", { filepath: "Cargo.toml" }),
+    ).toBe(BuiltInToolNames.ReadFile);
+    expect(
+      resolveBuiltInToolCall("function_name", {
+        filepath: "src/main.rs",
+        old_string: "a",
+        new_string: "b",
+      }),
+    ).toBe(BuiltInToolNames.EditFile);
+    expect(
+      resolveBuiltInToolCall("tool_name", { pattern: "**/Cargo.toml" }),
+    ).toBe(BuiltInToolNames.Glob);
+  });
+
+  it("leaves a placeholder without useful args as tool_name", () => {
+    expect(resolveBuiltInToolCall("tool_name", {})).toBe("tool_name");
+    expect(resolveBuiltInToolCall("tool_name")).toBe("tool_name");
   });
 });
 

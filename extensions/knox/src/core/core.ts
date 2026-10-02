@@ -29,9 +29,10 @@ import { getActiveJevRuntime, getJevConfirmedProfile } from "./jev/config";
 import { createNewPromptFileV2 } from "./promptFiles/v2/createNewPromptFile";
 import { t } from "./i18n/index.js";
 import { callTool } from "./tools/callTool";
+import { parseToolArgs } from "./tools/postEditVerification";
 import {
   formatUnknownToolError,
-  resolveBuiltInToolName,
+  resolveBuiltInToolCall,
   resolveViewSubdirectoryMaxFiles,
 } from "./tools/builtIn";
 import { executeToolWithSoulHooks } from "./tools/mutatingToolHooks";
@@ -1721,7 +1722,9 @@ export class Core {
           turnId,
         } = msg.data;
         const requestedName = toolCall.function.name;
-        const toolName = resolveBuiltInToolName(requestedName) || requestedName;
+        const parsedArgs = parseToolArgs(toolCall.function.arguments) ?? {};
+        const toolName =
+          resolveBuiltInToolCall(requestedName, parsedArgs) || requestedName;
         if (toolName !== requestedName) {
           toolCall.function.name = toolName;
           console.log(

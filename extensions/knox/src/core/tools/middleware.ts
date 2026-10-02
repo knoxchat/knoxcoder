@@ -36,6 +36,11 @@ import {
   resolveAwaitTimeoutMs,
   TOOL_TIMEOUT_SLACK_MS,
 } from "./shellJobs";
+import {
+  parseToolFilePath,
+  TOOL_GLOB_ARG_KEYS,
+  TOOL_PATH_ARG_KEYS,
+} from "../util/toolFilePath";
 
 // ─── Retry Configuration ─────────────────────────────────────────────────────
 
@@ -871,11 +876,61 @@ export function normalizeToolArgs(
     case BuiltInToolNames.SearchWeb:
       copyIfMissing("query", ["q", "search", "prompt"]);
       break;
+    case BuiltInToolNames.Lsp:
+      copyIfMissing("filePath", ["filepath", "file_path", "path", "file"]);
+      break;
     default:
       break;
   }
 
+  sanitizeToolPathArgs(toolName, next);
   return next;
+}
+
+function sanitizeToolPathArgs(
+  toolName: string,
+  next: Record<string, any>,
+): void {
+  for (const key of Object.keys(next)) {
+    if (typeof next[key] !== "string") {
+      continue;
+    }
+    const isPath = TOOL_PATH_ARG_KEYS.has(key);
+    const isGlob =
+      TOOL_GLOB_ARG_KEYS.has(key) ||
+      (toolName === BuiltInToolNames.Glob && key === "pattern");
+    if (!isPath && !isGlob) {
+      continue;
+    }
+    const parsed = parseToolFilePath(next[key]);
+    next[key] = parsed.filepath;
+    if (!parsed.startLine) {
+      continue;
+    }
+    if (
+      toolName === BuiltInToolNames.ReadFile &&
+      (key === "filepath" ||
+        key === "file_path" ||
+        key === "file" ||
+        key === "path" ||
+        key === "target_file")
+    ) {
+      if (isMissingToolArg(next.startLine)) {
+        next.startLine = parsed.startLine;
+      }
+      if (isMissingToolArg(next.endLine) && parsed.endLine) {
+        next.endLine = parsed.endLine;
+      }
+    }
+    if (
+      toolName === BuiltInToolNames.Lsp &&
+      (key === "filePath" || key === "filepath")
+    ) {
+      if (isMissingToolArg(next.line)) {
+        next.line = parsed.startLine;
+      }
+    }
+  }
 }
 
 function parseAndRepairArgs(

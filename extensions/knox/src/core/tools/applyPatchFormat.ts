@@ -17,6 +17,8 @@
  * *** End Patch
  */
 
+import { sanitizeToolFilePath } from "../util/toolFilePath";
+
 export type PatchLineKind = " " | "+" | "-";
 
 export interface PatchHunk {
@@ -47,7 +49,7 @@ export function stripPatchFences(raw: string): string {
 }
 
 function stripOpPrefix(line: string, prefix: string): string {
-  return line.slice(prefix.length).trim();
+  return sanitizeToolFilePath(line.slice(prefix.length));
 }
 
 function isOpHeader(line: string): boolean {

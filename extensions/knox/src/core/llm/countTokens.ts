@@ -6,6 +6,10 @@ import {
   type CompactionResult,
 } from "../compaction/index.js";
 import { TOKEN_BUFFER_FOR_SAFETY } from "./constants.js";
+import {
+  healToolCallMessages,
+  shiftChatHistoryMessage,
+} from "./healToolCallMessages.js";
 
 /** Last compaction result from compileChatMessages (for GUI affordances). */
 let lastCompactionResult: CompactionResult | null = null;
@@ -86,6 +90,10 @@ function messageHasToolCalls(msg: ChatMessage): boolean {
   return msg.role === "assistant" && !!msg.toolCalls;
 }
 
+function mustStayAtomic(msg: ChatMessage): boolean {
+  return messageHasToolCalls(msg) || msg.role === "tool";
+}
+
 export function flattenMessages(msgs: ChatMessage[]): ChatMessage[] {
   const flattened: ChatMessage[] = [];
 
@@ -95,8 +103,8 @@ export function flattenMessages(msgs: ChatMessage[]): ChatMessage[] {
     if (
       flattened.length > 0 &&
       flattened[flattened.length - 1].role === msg.role &&
-      !messageHasToolCalls(msg) &&
-      !messageHasToolCalls(flattened[flattened.length - 1])
+      !mustStayAtomic(msg) &&
+      !mustStayAtomic(flattened[flattened.length - 1])
     ) {
       flattened[flattened.length - 1].content += `\n\n${msg.content || ""}`;
     } else {
@@ -227,8 +235,10 @@ function pruneChatHistory(
     totalTokens > contextLength &&
     chatHistory.length > 0
   ) {
-    const message = chatHistory.shift()!;
-    totalTokens -= countTokens(message.content, modelName);
+    const removed = shiftChatHistoryMessage(chatHistory);
+    for (const message of removed) {
+      totalTokens -= countTokens(message.content, modelName);
+    }
   }
 
   // 3. Truncate message in the last 5, except last 1
@@ -247,8 +257,10 @@ function pruneChatHistory(
 
   // 4. Remove entire messages in the last 5, except last 1
   while (totalTokens > contextLength && chatHistory.length > 1) {
-    const message = chatHistory.shift()!;
-    totalTokens -= countTokens(message.content, modelName);
+    const removed = shiftChatHistoryMessage(chatHistory);
+    for (const message of removed) {
+      totalTokens -= countTokens(message.content, modelName);
+    }
   }
 
   // 5. Truncate last message
@@ -421,7 +433,7 @@ function compileChatMessages(
     history.unshift(movedSystemMessage);
   }
 
-  const flattenedHistory = flattenMessages(history);
+  const flattenedHistory = healToolCallMessages(flattenMessages(history));
 
   return flattenedHistory;
 }

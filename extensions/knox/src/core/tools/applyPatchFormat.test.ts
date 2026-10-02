@@ -35,6 +35,14 @@ describe("parseApplyPatch", () => {
     expect(ops[2]).toEqual({ type: "delete", path: "src/gone.ts" });
   });
 
+  it("strips a leading > from patch file headers", () => {
+    const ops = parseApplyPatch(`*** Begin Patch
+*** Add File: >src/new.ts
++export const x = 1;
+*** End Patch`);
+    expect(ops[0]).toMatchObject({ type: "add", path: "src/new.ts" });
+  });
+
   it("parses move + update", () => {
     const ops = parseApplyPatch(`*** Begin Patch
 *** Update File: old.ts

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ChatMessage } from "../index.js";
-import { compileChatMessages } from "./countTokens.js";
+import { compileChatMessages, flattenMessages } from "./countTokens.js";
 
 describe("compileChatMessages memory inject", () => {
   it("preserves mid-list system memory context in the compiled system message", () => {
@@ -32,6 +32,61 @@ describe("compileChatMessages memory inject", () => {
     expect(systemText).toContain("Relevant Memory Context");
     expect(systemText).toContain("pinned fact about auth");
     expect(compiled.some((m) => m.role === "user")).toBe(true);
+  });
+
+  it("pairs assistant tool_calls with synthetic tool results before the API", () => {
+    const msgs: ChatMessage[] = [
+      { role: "system", content: "rules" },
+      { role: "user", content: "go" },
+      {
+        role: "assistant",
+        content: "calling",
+        toolCalls: [
+          {
+            id: "c1",
+            type: "function",
+            function: { name: "builtin_glob", arguments: "{}" },
+          },
+          {
+            id: "c2",
+            type: "function",
+            function: { name: "builtin_read_file", arguments: "{}" },
+          },
+        ],
+      },
+      { role: "tool", toolCallId: "c1", content: "Cargo.toml" },
+    ];
+    const compiled = compileChatMessages("gpt-4o", msgs, 128_000, 2048, false);
+    const assistant = compiled.find((m) => m.role === "assistant");
+    const ids =
+      assistant && assistant.role === "assistant"
+        ? (assistant.toolCalls ?? []).map((c) => c.id)
+        : [];
+    const toolIds = compiled
+      .filter((m) => m.role === "tool")
+      .map((m) => (m.role === "tool" ? m.toolCallId : ""));
+    expect(ids.sort()).toEqual(["c1", "c2"]);
+    expect(toolIds.sort()).toEqual(["c1", "c2"]);
+  });
+
+  it("does not merge consecutive tool results (that would drop tool_call_ids)", () => {
+    const flat = flattenMessages([
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: [
+          { id: "c1", type: "function", function: { name: "a", arguments: "{}" } },
+          { id: "c2", type: "function", function: { name: "b", arguments: "{}" } },
+        ],
+      },
+      { role: "tool", toolCallId: "c1", content: "one" },
+      { role: "tool", toolCallId: "c2", content: "two" },
+    ]);
+    expect(flat.map((m) => m.role)).toEqual(["assistant", "tool", "tool"]);
+    expect(flat.filter((m) => m.role === "tool").map((m) => (m.role === "tool" ? m.toolCallId : ""))).toEqual([
+      "c1",
+      "c2",
+    ]);
   });
 
   it("merges multiple system messages rather than keeping only the first", () => {

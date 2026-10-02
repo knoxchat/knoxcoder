@@ -394,6 +394,8 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(resolveGuiToolName('view_subdirectory'), 'builtin_view_subdirectory');
 		assert.strictEqual(resolveGuiToolName('plan'), 'builtin_plan');
 		assert.strictEqual(resolveGuiToolName(''), '');
+		assert.strictEqual(resolveGuiToolName('tool_name', [], { command: 'ls' }), 'builtin_run_terminal_command');
+		assert.strictEqual(resolveGuiToolName('tool_name', [], { filepath: 'Cargo.toml' }), 'builtin_read_file');
 		assert.strictEqual(catalogToolForCall(
 			[{ name: 'builtin_view_subdirectory', group: 'Built-In', wouldLikeTo: 'View directory structure for "{{{ directory_path }}}"' }],
 			'ls',
@@ -423,6 +425,12 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(calls.length, 2);
 		assert.strictEqual(calls[1].name, 'builtin_plan');
 		assert.strictEqual(calls[1].id, 'plan-1');
+		const dirty: IKnoxGuiToolCall[] = [];
+		mergeStreamedToolCalls(dirty, [
+			{ index: 0, function: { name: 'builtin_read_file', arguments: '{"filepath":">kernel/src/interrupts.rs"}' } },
+		], { nextId: () => 'dirty-1' });
+		assert.deepStrictEqual(dirty[0].parsedArgs, { filepath: 'kernel/src/interrupts.rs' });
+		assert.strictEqual(displayArgsForToolCall({ filepath: '">src/main.rs:10"' }).filepath, 'src/main.rs');
 	});
 
 	test('typing in the composer is an input-only store change', () => {
@@ -652,9 +660,11 @@ suite('Knox native GUI parity', () => {
 		}
 		assert.deepStrictEqual(parseCodeFenceRange('L10-20'), { startLine: 10, endLine: 20 });
 		assert.deepStrictEqual(splitDisplayPath('tetris/src/main.rs'), { dir: 'tetris/src/', name: 'main.rs' });
+		assert.deepStrictEqual(splitDisplayPath('>tetris/src/main.rs'), { dir: 'tetris/src/', name: 'main.rs' });
 		assert.strictEqual(fenceHasFileToolbar('app.ts'), true);
 		assert.strictEqual(fenceHasFileToolbar('plain'), false);
 		assert.strictEqual(looksLikeFilePath('src/app.ts'), true);
+		assert.strictEqual(looksLikeFilePath('>src/app.ts'), true);
 		assert.strictEqual(looksLikeFilePath('hello world'), false);
 		assert.deepStrictEqual(applyUiAfterAppliedTimeout({ kind: 'applied' }, Date.now() - 1, Date.now()), { kind: 'reapply' });
 		assert.strictEqual(applyUiAfterAppliedTimeout({ kind: 'applied' }, Date.now() + 1000, Date.now()).kind, 'applied');

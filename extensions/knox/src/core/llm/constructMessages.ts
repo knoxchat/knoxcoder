@@ -1,6 +1,6 @@
 import { ChatHistoryItem, ChatMessage, MessagePart } from "../";
 import { normalizeToMessageParts } from "../util/messageContent";
-import { extractTextToolCalls, looksLikeTextToolCall } from "./parseTextToolCalls";
+import { hydrateAssistantTextToolCalls, looksLikeTextToolCall } from "./parseTextToolCalls";
 import { formatPlanInject, formatPlanInjectFromHistory } from "../tools/planStore";
 import { formatCodebaseCardInject } from "../context/codebaseCard";
 import { formatRustPolicyInject } from "../context/rustPolicy";
@@ -75,17 +75,26 @@ function sanitizeAssistantMessage(message: ChatMessage): ChatMessage {
     return message;
   }
   const text = messageText(message);
-  if (!looksLikeTextToolCall(text)) {
+  if (!looksLikeTextToolCall(text) && !message.toolCalls?.length) {
     return message;
   }
-  const { content } = extractTextToolCalls(text);
-  if (content === text) {
+  const { content, toolCalls } = hydrateAssistantTextToolCalls(
+    text,
+    message.toolCalls ?? [],
+  );
+  if (content === text && toolCalls === message.toolCalls) {
     return message;
   }
-  return {
+  const next: ChatMessage = {
     ...message,
     content,
   };
+  if (toolCalls.length) {
+    next.toolCalls = toolCalls;
+  } else {
+    delete (next as { toolCalls?: unknown }).toolCalls;
+  }
+  return next;
 }
 
 export function constructMessages(

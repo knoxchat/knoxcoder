@@ -74,6 +74,27 @@ describe("constructMessages", () => {
     expect(String(assistant?.content)).not.toMatch(/DSML/);
   });
 
+  it("strips exploded `| | DSML | |` markup from assistant history", () => {
+    const msgs = constructMessages([
+      {
+        message: {
+          role: "assistant",
+          content: `Let me look:
+< | | DSML | |  calls>
+< | | DSML | |  invoke name="builtin_glob">
+< | | DSML | |  parameter name="pattern" string="true">**/Cargo.toml</ / | DSML | | parameter>
+</ / | DSML | | invoke>
+</ / | DSML | | calls>`,
+        },
+        contextItems: [],
+      },
+    ]);
+    const assistant = msgs.find((msg) => msg.role === "assistant");
+    expect(String(assistant?.content)).toContain("Let me look:");
+    expect(String(assistant?.content)).not.toMatch(/DSML/);
+    expect(assistant?.toolCalls?.[0]?.function?.name).toBe("builtin_glob");
+  });
+
   it("strips fullwidth ｜DSML｜ markup from assistant history", () => {
     const msgs = constructMessages([
       {

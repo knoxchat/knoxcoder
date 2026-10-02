@@ -195,6 +195,26 @@ describe("normalizeToolArgs", () => {
     });
   });
 
+  it("strips path junk and lifts :line into startLine for read_file", () => {
+    expect(
+      normalizeToolArgs(BuiltInToolNames.ReadFile, {
+        filepath: ">kernel/src/interrupts.rs:40",
+      }),
+    ).toMatchObject({
+      filepath: "kernel/src/interrupts.rs",
+      startLine: 40,
+    });
+  });
+
+  it("strips quoted blockquote paths on write_file", () => {
+    expect(
+      normalizeToolArgs(BuiltInToolNames.WriteFile, {
+        filepath: '">src/main.rs"',
+        contents: "fn main() {}",
+      }),
+    ).toMatchObject({ filepath: "src/main.rs" });
+  });
+
   it("maps grep-style search aliases", () => {
     expect(
       normalizeToolArgs(BuiltInToolNames.ExactSearch, {

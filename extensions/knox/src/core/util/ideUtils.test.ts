@@ -27,6 +27,18 @@ describe("relativePathCandidates", () => {
       relativePathCandidates("src/main.rs", ["file:///Users/knox/tetris"]),
     ).toEqual(["src/main.rs"]);
   });
+
+  it("strips a leading > before matching the workspace folder", () => {
+    expect(
+      relativePathCandidates(">kernel/src/interrupts.rs", [
+        "file:///Users/knox/kernel",
+      ]),
+    ).toEqual([
+      "kernel/src/interrupts.rs",
+      "src/interrupts.rs",
+      ">kernel/src/interrupts.rs",
+    ]);
+  });
 });
 
 describe("resolveRelativePathInDir", () => {
@@ -46,6 +58,12 @@ describe("resolveRelativePathInDir", () => {
     const ide = new FileSystemIde(TEST_DIR);
     const prefixed = `${getUriPathBasename(TEST_DIR)}/src/main.rs`;
     const uri = await resolveRelativePathInDir(prefixed, ide);
+    expect(uri).toBe(joinPathsToUri(TEST_DIR, "src/main.rs"));
+  });
+
+  it("resolves a path with a leading > leftover", async () => {
+    const ide = new FileSystemIde(TEST_DIR);
+    const uri = await resolveRelativePathInDir(">src/main.rs", ide);
     expect(uri).toBe(joinPathsToUri(TEST_DIR, "src/main.rs"));
   });
 });

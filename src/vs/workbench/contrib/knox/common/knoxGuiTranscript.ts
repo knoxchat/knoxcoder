@@ -6,6 +6,7 @@
 import { extractCodeFences, IKnoxGuiCodeFence, isAskUserToolName, lastUserHistoryIndex, parseFenceMeta, toolDisplayKind } from './knoxGuiChat.js';
 import { inputDocFromPlainText, IKnoxGuiInputBlock } from './knoxGuiInput.js';
 import { IKnoxGuiApplyState, IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiPromptLog, IKnoxGuiSymbol, IKnoxGuiToolCall, KnoxChatMode, KnoxToolStatus } from './knoxGuiState.js';
+import { knoxGuiSanitizeToolFilePath } from './knoxGuiToolFilePath.js';
 
 export type KnoxGuiActivityKind =
 	| 'thinking'
@@ -91,7 +92,7 @@ export function stripLeakedToolMarkup(text: string): string {
 		return text;
 	}
 	const patterns = [
-		/<\s*\/?\s*[|\uFF5C]\s*DSML/i,
+		/<\s*\/?(?:\s*\/)*\s*[|\uFF5C](?:\s*[|\uFF5C])*\s*DSML/i,
 		/<\s*\/?\s*tool_calls?\b/i,
 		/<\s*\/?\s*function_calls?\b/i,
 		/<\s*\/?\s*function_call\b/i,
@@ -1170,7 +1171,7 @@ export function knoxGuiSplitTokenizedLines(html: string): string[] {
 }
 
 export function splitDisplayPath(filepath: string): { dir: string; name: string } {
-	const clean = filepath.replace(/\\/g, '/').replace(/^\.\//, '');
+	const clean = knoxGuiSanitizeToolFilePath(filepath).replace(/\\/g, '/').replace(/^\.\//, '');
 	const lastSlash = clean.lastIndexOf('/');
 	if (lastSlash === -1) {
 		return { dir: '', name: clean };
@@ -1201,7 +1202,7 @@ export function fenceHasFileToolbar(filepath?: string): boolean {
 }
 
 export function looksLikeFilePath(text: string): boolean {
-	const trimmed = text.trim();
+	const trimmed = knoxGuiSanitizeToolFilePath(text);
 	if (!trimmed || /\s/.test(trimmed) || trimmed.length > 260) {
 		return false;
 	}

@@ -241,9 +241,9 @@ function toolResultText(call: IKnoxGuiToolCall): string {
 
 /**
  * Native transcript → Core `ChatHistoryItem[]` for `constructMessages`.
- * Assistant turns keep their `toolCalls`; each settled call is followed by a
- * `tool` result so no call is orphaned. The streaming placeholder (empty
- * assistant with no calls) and thinking rows are dropped.
+ * Assistant turns keep their `toolCalls`; every call is followed by a `tool`
+ * result so OpenAI-compatible APIs never see unpaired `tool_call_id`s.
+ * Unsettled calls get the canceled placeholder until the real output lands.
  */
 export function knoxGuiHistoryToCoreHistory(history: readonly IKnoxGuiHistoryItem[]): IKnoxCoreChatHistoryItem[] {
 	const out: IKnoxCoreChatHistoryItem[] = [];
@@ -300,9 +300,6 @@ export function knoxGuiHistoryToCoreHistory(history: readonly IKnoxGuiHistoryIte
 			})) : undefined,
 		});
 		for (const call of calls) {
-			if (!knoxGuiToolIsSettled(call)) {
-				continue;
-			}
 			out.push({
 				message: { role: 'tool', content: toolResultText(call), toolCallId: call.id },
 				contextItems: [],

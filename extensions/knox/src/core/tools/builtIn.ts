@@ -143,6 +143,25 @@ const TOOL_NAME_ALIASES: Record<string, BuiltInToolNames> = {
   todo: BuiltInToolNames.Plan,
 };
 
+/**
+ * Models copy JSON-schema placeholders (`tool_name`, `function_name`) instead
+ * of a catalog name. Never treat those as real tools — infer from arguments.
+ */
+const PLACEHOLDER_TOOL_NAMES = new Set([
+  "tool",
+  "tool_name",
+  "toolname",
+  "function",
+  "function_name",
+  "func",
+  "name",
+  "unknown",
+  "tool_call",
+  "function_call",
+  "callable",
+  "action",
+]);
+
 const TOOL_NAME_PREFIX_RULES: Array<[RegExp, BuiltInToolNames]> = [
   [/^read_file/, BuiltInToolNames.ReadFile],
   [/^read_line/, BuiltInToolNames.ReadFile],
@@ -250,11 +269,105 @@ export function suggestBuiltInToolName(
  * (`read_file`, `Read`, `grep`, `read_file_line`). Map those onto catalog names
  * so lookup, permissions, and routing stay on the real implementation.
  */
+export function isPlaceholderToolName(
+  name: string | undefined | null,
+): boolean {
+  if (!name?.trim()) {
+    return true;
+  }
+  const key = normalizeToolNameKey(name).replace(/^builtin_/, "");
+  return PLACEHOLDER_TOOL_NAMES.has(key);
+}
+
+/**
+ * Guess the catalog tool from argument keys when the model emitted a
+ * placeholder name (`tool_name`) or an invoke with no usable name.
+ */
+export function inferBuiltInToolNameFromArgs(
+  args: Record<string, unknown> | undefined | null,
+): BuiltInToolNames | undefined {
+  if (!args || typeof args !== "object") {
+    return undefined;
+  }
+  const keys = new Set(
+    Object.keys(args)
+      .map((key) => key.toLowerCase().replace(/[^a-z0-9]+/g, "_"))
+      .filter(Boolean),
+  );
+  if (!keys.size) {
+    return undefined;
+  }
+  if (
+    keys.has("old_string") ||
+    keys.has("new_string") ||
+    keys.has("old_str") ||
+    keys.has("new_str")
+  ) {
+    return BuiltInToolNames.EditFile;
+  }
+  if (keys.has("patch") || keys.has("diff")) {
+    return BuiltInToolNames.ApplyPatch;
+  }
+  if (keys.has("command") || keys.has("cmd") || keys.has("shell_command")) {
+    return BuiltInToolNames.RunTerminalCommand;
+  }
+  if (keys.has("pattern") || keys.has("glob_pattern") || keys.has("glob")) {
+    return BuiltInToolNames.Glob;
+  }
+  if (keys.has("questions") || keys.has("question")) {
+    return BuiltInToolNames.AskUser;
+  }
+  if (
+    keys.has("directory") ||
+    keys.has("dir") ||
+    keys.has("directory_path") ||
+    keys.has("maxfiles") ||
+    keys.has("max_files")
+  ) {
+    return BuiltInToolNames.ViewSubdirectory;
+  }
+  if (keys.has("query") || keys.has("search_term") || keys.has("pattern_text")) {
+    return BuiltInToolNames.ExactSearch;
+  }
+  if (
+    (keys.has("contents") || keys.has("content") || keys.has("new_contents")) &&
+    (keys.has("filepath") || keys.has("file_path") || keys.has("path"))
+  ) {
+    return BuiltInToolNames.WriteFile;
+  }
+  if (
+    keys.has("filepath") ||
+    keys.has("target_file") ||
+    keys.has("file_path") ||
+    keys.has("relativefilepath")
+  ) {
+    return BuiltInToolNames.ReadFile;
+  }
+  return undefined;
+}
+
+/**
+ * Canonical catalog name, including placeholder remaps from argument shape.
+ */
+export function resolveBuiltInToolCall(
+  name: string | undefined | null,
+  args?: Record<string, unknown> | null,
+): string {
+  const resolved = resolveBuiltInToolName(name);
+  if (isPlaceholderToolName(name) || isPlaceholderToolName(resolved)) {
+    return inferBuiltInToolNameFromArgs(args) || resolved;
+  }
+  return resolved;
+}
+
 export function resolveBuiltInToolName(name: string | undefined | null): string {
   if (!name) {
     return "";
   }
   const trimmed = name.trim();
+  if (isPlaceholderToolName(trimmed)) {
+    return normalizeToolNameKey(trimmed).replace(/^builtin_/, "") || trimmed;
+  }
   if (BUILT_IN_NAME_SET.has(trimmed)) {
     return trimmed;
   }
@@ -304,7 +417,8 @@ export function formatUnknownToolError(name: string): string {
     lines.push(`Did you mean ${suggestion}?`);
   }
   lines.push(
-    "Call tools by catalog names. There is no read_file_line tool — use builtin_read_file with filepath and optional startLine/endLine.",
+    "Call tools by catalog names (builtin_read_file, builtin_glob, …). Do not call a tool named tool_name — that is a schema placeholder.",
+    "There is no read_file_line tool — use builtin_read_file with filepath and optional startLine/endLine.",
     "Search with builtin_exact_search (literal -F, not grep/rg). List files with builtin_glob or builtin_view_subdirectory.",
   );
   return lines.join("\n");

@@ -15,7 +15,7 @@ function call(id: string, status: IKnoxGuiToolCall['status'], output?: string): 
 suite('Knox native agent request helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('history keeps tool calls and pairs every settled call with a tool result', () => {
+	test('history keeps tool calls and pairs every call with a tool result', () => {
 		const history: IKnoxGuiHistoryItem[] = [
 			{ id: 'u', role: 'user', content: 'read it', contextItems: [{ name: 'a.ts', content: 'code', provider: 'file' }], promptPreamble: 'PRE ' },
 			{ id: 't', role: 'thinking', content: 'hmm' },
@@ -23,11 +23,11 @@ suite('Knox native agent request helpers', () => {
 			{ id: 'p', role: 'assistant', content: '' },
 		];
 		const core = knoxGuiHistoryToCoreHistory(history);
-		assert.deepStrictEqual(core.map(item => item.message.role), ['user', 'assistant', 'tool', 'tool']);
+		assert.deepStrictEqual(core.map(item => item.message.role), ['user', 'assistant', 'tool', 'tool', 'tool']);
 		assert.strictEqual(core[0].message.content, 'PRE read it');
 		assert.deepStrictEqual(core[0].contextItems.map(item => [item.name, item.content, item.id.providerTitle]), [['a.ts', 'code', 'file']]);
 		assert.deepStrictEqual(core[1].message.toolCalls?.map(item => item.id), ['c1', 'c2', 'c3']);
-		assert.deepStrictEqual(core.slice(2).map(item => [item.message.toolCallId, item.message.content]), [['c1', 'file body'], ['c2', KNOX_CANCELED_TOOL_RESULT]]);
+		assert.deepStrictEqual(core.slice(2).map(item => [item.message.toolCallId, item.message.content]), [['c1', 'file body'], ['c2', KNOX_CANCELED_TOOL_RESULT], ['c3', KNOX_CANCELED_TOOL_RESULT]]);
 	});
 
 	test('session save wraps native rows in message.role like ./knox', () => {

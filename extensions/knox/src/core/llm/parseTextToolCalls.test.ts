@@ -86,6 +86,46 @@ high_score = use_signal(|| 0u32);
     expect(args.new_string).toContain("let \nhigh_score = use_signal(|| 0u32);");
   });
 
+  it("parses exploded `| | DSML | |` tags from a leaked DeepSeek screenshot", () => {
+    const text = `我先把工作区的结构和各 crate 的清单读一遍，再给你一份有依据的架构总结。
+< | | DSML | |  calls>
+< | | DSML | |  invoke name="builtin_run_terminal_command">
+< | | DSML | |  parameter name="command" string="true">find . -name target -prune -o -type f -name "*.toml" -print | sort</ / | DSML | | parameter>
+</ / | DSML | | invoke>
+< | | DSML | |  invoke name="builtin_run_terminal_command">
+< | | DSML | |  parameter name="command" string="true">find . -name target -prune -o -name .git -prune -o -type f -name "*.rs" -print | sort | head -200</ / | DSML | | parameter>
+</ / | DSML | | invoke>
+</ / | DSML | | calls>`;
+    const { content, toolCalls, rest } = extractTextToolCalls(text, {
+      allowIncomplete: true,
+    });
+    expect(rest).toBe("");
+    expect(content).toContain("架构总结");
+    expect(content).not.toMatch(/DSML/);
+    expect(toolCalls).toHaveLength(2);
+    expect(toolCalls[0]?.function?.name).toBe("builtin_run_terminal_command");
+    expect(JSON.parse(toolCalls[0]?.function?.arguments ?? "{}").command).toContain(
+      "*.toml",
+    );
+    expect(JSON.parse(toolCalls[1]?.function?.arguments ?? "{}").command).toContain(
+      "*.rs",
+    );
+  });
+
+  it("maps placeholder invoke name=tool_name from parameter keys", () => {
+    const text = `<|DSML|tool_calls>
+<|DSML|invoke name="tool_name">
+<|DSML|parameter name="command" string="true">ls</|DSML|parameter>
+</|DSML|invoke>
+</|DSML|tool_calls>`;
+    const { toolCalls, content } = extractTextToolCalls(text);
+    expect(content).toBe("");
+    expect(toolCalls[0]?.function?.name).toBe("builtin_run_terminal_command");
+    expect(JSON.parse(toolCalls[0]?.function?.arguments ?? "{}").command).toBe(
+      "ls",
+    );
+  });
+
   it("parses compact <|DSML|> tags and canonicalizes names", () => {
     const { content, toolCalls } = extractTextToolCalls(COMPACT_DSML);
     expect(content).toBe("");
@@ -206,6 +246,12 @@ describe("holdbackPartialToolMarkup", () => {
     const { emit, hold } = holdbackPartialToolMarkup("hello < | DSML");
     expect(emit).toBe("hello ");
     expect(hold).toBe("< | DSML");
+  });
+
+  it("holds an exploded double-bar DSML opener", () => {
+    const { emit, hold } = holdbackPartialToolMarkup("hello < | | DSML");
+    expect(emit).toBe("hello ");
+    expect(hold).toBe("< | | DSML");
   });
 
   it("holds a partial fullwidth DSML opener", () => {
@@ -466,6 +512,7 @@ describe("looksLikeTextToolCall", () => {
   it("detects DSML and ignores ordinary prose", () => {
     expect(looksLikeTextToolCall(SCREENSHOT_DSML)).toBe(true);
     expect(looksLikeTextToolCall(FULLWIDTH_DSML)).toBe(true);
+    expect(looksLikeTextToolCall("< | | DSML | |  calls>")).toBe(true);
     expect(looksLikeTextToolCall("use a <div> in the template")).toBe(false);
   });
 });
@@ -479,6 +526,15 @@ parameter>
 </ | DSML |  calls>`;
     expect(stripLeakedToolMarkup(leaked)).not.toMatch(/DSML/);
     expect(stripLeakedToolMarkup(`intro\n${leaked}`).trim()).toBe("intro");
+  });
+
+  it("drops exploded `| | DSML | |` markup from a leaked reply", () => {
+    const leaked = `intro
+< | | DSML | |  calls>
+< | | DSML | |  invoke name="builtin_run_terminal_command">
+< | | DSML | |  parameter name="command" string="true">ls</ / | DSML | | parameter>`;
+    expect(stripLeakedToolMarkup(leaked)).not.toMatch(/DSML/);
+    expect(stripLeakedToolMarkup(leaked).trim()).toBe("intro");
   });
 });
 

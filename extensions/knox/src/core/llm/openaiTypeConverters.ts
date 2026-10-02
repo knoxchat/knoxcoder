@@ -15,6 +15,7 @@ import {
   MessageContent,
   TextMessagePart,
 } from "..";
+import { healToolCallMessages } from "./healToolCallMessages";
 
 export function toChatMessage(
   message: ChatMessage,
@@ -44,15 +45,22 @@ export function toChatMessage(
               .map((part) => part as TextMessagePart), // can remove with newer typescript version
     };
 
-    if (message.toolCalls) {
-      msg.tool_calls = message.toolCalls.map((toolCall) => ({
-        id: toolCall.id!,
-        type: toolCall.type!,
-        function: {
-          name: toolCall.function?.name!,
-          arguments: toolCall.function?.arguments!,
-        },
-      }));
+    if (message.toolCalls?.length) {
+      const toolCalls = message.toolCalls
+        .filter((toolCall) => toolCall.function?.name)
+        .map((toolCall, index) => ({
+          id:
+            toolCall.id?.trim() ||
+            `call_${index}_${(toolCall.function?.name ?? "tool").replace(/[^A-Za-z0-9_]/g, "_").slice(0, 24)}`,
+          type: "function" as const,
+          function: {
+            name: toolCall.function?.name!,
+            arguments: toolCall.function?.arguments || "{}",
+          },
+        }));
+      if (toolCalls.length) {
+        msg.tool_calls = toolCalls;
+      }
     }
     return msg;
   } else {
@@ -93,7 +101,7 @@ export function toChatBody(
   options: CompletionOptions,
 ): ChatCompletionCreateParams {
   const params: ChatCompletionCreateParams = {
-    messages: messages.map(toChatMessage),
+    messages: healToolCallMessages(messages).map(toChatMessage),
     model: options.model,
     max_tokens: options.maxTokens,
     temperature: options.temperature,

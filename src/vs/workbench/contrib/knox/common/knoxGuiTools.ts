@@ -5,6 +5,7 @@
 
 import { incrementalParseJson, isAskUserToolName, parseToolArgs } from './knoxGuiChat.js';
 import { IKnoxGuiAskQuestion, IKnoxGuiTool, IKnoxGuiToolCall, IKnoxGuiToolOutputItem, KnoxToolSetting, KnoxToolStatus } from './knoxGuiState.js';
+import { knoxGuiSanitizeToolFilePath } from './knoxGuiToolFilePath.js';
 import { toolStepDetail } from './knoxGuiTranscript.js';
 
 export const TOOL_PARTIAL_OUTPUT_COALESCE_MS = 50;
@@ -17,6 +18,27 @@ const LIVE_STATUSES: ReadonlySet<KnoxToolStatus> = new Set(['generating', 'gener
 export const FILEPATH_KEYS = [
 	'target_file', 'filepath', 'file_path', 'path', 'file', 'filename', 'relativeFilepath', 'outputPath',
 ] as const;
+
+const GUI_PATH_ARG_KEYS = new Set<string>([
+	...FILEPATH_KEYS,
+	'directory_path',
+	'directory',
+	'dir',
+	'target_directory',
+	'working_directory',
+	'cwd',
+	'filePath',
+]);
+
+function sanitizeGuiPathArgs(args: Record<string, unknown>): Record<string, unknown> {
+	const out: Record<string, unknown> = { ...args };
+	for (const [key, value] of Object.entries(out)) {
+		if (typeof value === 'string' && GUI_PATH_ARG_KEYS.has(key)) {
+			out[key] = knoxGuiSanitizeToolFilePath(value);
+		}
+	}
+	return out;
+}
 
 export const CODE_CONTENT_KEYS = [
 	'code_edit', 'contents', 'content', 'code', 'new_contents', 'new_string', 'replacement', 'patch', 'diff', 'body', 'text', 'source', 'old_string',
@@ -459,13 +481,64 @@ function normalizeToolNameKey(name: string): string {
 		.replace(/^_+|_+$/g, '');
 }
 
-export function resolveGuiToolName(name: string | undefined, tools: readonly IKnoxGuiTool[] = []): string {
+export function inferGuiToolNameFromArgs(args: Record<string, unknown> | undefined): string | undefined {
+	if (!args || typeof args !== 'object') {
+		return undefined;
+	}
+	const keys = new Set(Object.keys(args).map(key => key.toLowerCase().replace(/[^a-z0-9]+/g, '_')).filter(Boolean));
+	if (!keys.size) {
+		return undefined;
+	}
+	if (keys.has('old_string') || keys.has('new_string') || keys.has('old_str') || keys.has('new_str')) {
+		return 'builtin_edit_file';
+	}
+	if (keys.has('patch') || keys.has('diff')) {
+		return 'builtin_apply_patch';
+	}
+	if (keys.has('command') || keys.has('cmd') || keys.has('shell_command')) {
+		return 'builtin_run_terminal_command';
+	}
+	if (keys.has('pattern') || keys.has('glob_pattern') || keys.has('glob')) {
+		return 'builtin_glob';
+	}
+	if (keys.has('questions') || keys.has('question')) {
+		return 'builtin_ask_user';
+	}
+	if (keys.has('directory') || keys.has('dir') || keys.has('directory_path') || keys.has('maxfiles') || keys.has('max_files')) {
+		return 'builtin_view_subdirectory';
+	}
+	if (keys.has('query') || keys.has('search_term') || keys.has('pattern_text')) {
+		return 'builtin_exact_search';
+	}
+	if ((keys.has('contents') || keys.has('content') || keys.has('new_contents')) && (keys.has('filepath') || keys.has('file_path') || keys.has('path'))) {
+		return 'builtin_write_file';
+	}
+	if (keys.has('filepath') || keys.has('target_file') || keys.has('file_path') || keys.has('relativefilepath')) {
+		return 'builtin_read_file';
+	}
+	return undefined;
+}
+
+const PLACEHOLDER_GUI_TOOL_NAMES = new Set([
+	'tool', 'tool_name', 'toolname', 'function', 'function_name', 'func', 'name', 'unknown', 'tool_call', 'function_call', 'callable', 'action',
+]);
+
+export function resolveGuiToolName(name: string | undefined, tools: readonly IKnoxGuiTool[] = [], args?: Record<string, unknown>): string {
 	if (!name) {
-		return '';
+		return inferGuiToolNameFromArgs(args) ?? '';
 	}
 	const trimmed = name.trim();
 	if (!trimmed) {
-		return '';
+		return inferGuiToolNameFromArgs(args) ?? '';
+	}
+	const normalized = normalizeToolNameKey(trimmed);
+	const bare = normalized.replace(/^builtin_/, '');
+	if (PLACEHOLDER_GUI_TOOL_NAMES.has(bare) || PLACEHOLDER_GUI_TOOL_NAMES.has(normalized)) {
+		const inferred = inferGuiToolNameFromArgs(args);
+		if (inferred) {
+			return tools.find(tool => tool.name === inferred)?.name ?? inferred;
+		}
+		return bare;
 	}
 	const exact = tools.find(tool => tool.name === trimmed);
 	if (exact) {
@@ -476,7 +549,6 @@ export function resolveGuiToolName(name: string | undefined, tools: readonly IKn
 	if (ci) {
 		return ci.name;
 	}
-	const normalized = normalizeToolNameKey(trimmed);
 	const prefixed = normalized.startsWith('builtin_') ? normalized : `builtin_${normalized}`;
 	const fromCatalog = tools.find(tool => {
 		const n = tool.name.toLowerCase();
@@ -485,7 +557,6 @@ export function resolveGuiToolName(name: string | undefined, tools: readonly IKn
 	if (fromCatalog) {
 		return fromCatalog.name;
 	}
-	const bare = normalized.replace(/^builtin_/, '');
 	const alias = GUI_TOOL_NAME_ALIASES[normalized] ?? GUI_TOOL_NAME_ALIASES[bare] ?? GUI_TOOL_NAME_ALIASES[lower];
 	if (alias) {
 		return tools.find(tool => tool.name === alias)?.name ?? alias;
@@ -558,9 +629,9 @@ export function mergeStreamedToolCalls(
 		const existing = toolCalls[target];
 		const incomingArgs = String(fn?.arguments ?? call.arguments ?? '');
 		const args = mergeToolArguments(existing.arguments ?? '', incomingArgs);
+		const parsed = sanitizeGuiPathArgs(parseToolArgs(args));
 		const incomingName = String(fn?.name ?? call.name ?? '');
-		const name = resolveGuiToolName(incomingName || existing.name, tools);
-		const parsed = parseToolArgs(args);
+		const name = resolveGuiToolName(incomingName || existing.name, tools, parsed);
 		const settled = existing.status === 'calling' || existing.status === 'done' || existing.status === 'canceled' || existing.status === 'errored';
 		existing.id = incomingId || existing.id;
 		existing.name = name || existing.name;
@@ -741,7 +812,7 @@ export function extractStreamingToolCode(options: { parsedArgs?: unknown; rawArg
 			}
 		}
 	}
-	const filepath = filepathHit?.value ?? '';
+	const filepath = knoxGuiSanitizeToolFilePath(filepathHit?.value ?? '');
 	const started = filepath.length > 0 || codeContent.length > 0 || (!!raw && fieldStartedInRaw(raw, [...FILEPATH_KEYS, ...CODE_CONTENT_KEYS]));
 	return { filepath, codeContent, contentKey: contentHit?.key, started };
 }
@@ -752,11 +823,11 @@ export function displayArgsForToolCall(parsedArgs: unknown, rawArguments?: unkno
 	const [, incremental] = raw ? incrementalParseJson(raw) : [false, {}];
 	const fromRaw = asArgsRecord(incremental) ?? {};
 	const extracted = extractStreamingToolCode({ parsedArgs, rawArguments });
-	return {
+	return sanitizeGuiPathArgs({
 		...fromRaw,
 		...parsed,
 		...(extracted.filepath ? { filepath: extracted.filepath } : {}),
-	};
+	});
 }
 
 export function calculateFence(contents: string): string {

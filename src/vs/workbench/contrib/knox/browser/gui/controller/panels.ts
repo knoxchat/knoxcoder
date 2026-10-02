@@ -6,18 +6,23 @@
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { ACTIVITY_PANEL_EXPANDED_KEY, COMPOSER_COLLAPSED_KEY, GIT_DIFF_EXPANDED_KEY, JOBS_PANEL_EXPANDED_KEY, asRecord, asArray, withTimeout } from './helpers.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { knoxGuiParseToolFilePath } from '../../../common/knoxGuiToolFilePath.js';
 import { finalizeGitDiffFiles, gitFilesFromChangedList, gitFilesFromDiffs, knoxGuiResolveOpenPath, mergeGitChangedWithDiffs, parseBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { IKnoxGuiContextItem, IKnoxGuiGitDiffFile } from '../../../common/knoxGuiState.js';
 import { knoxGuiContextItemOpenAction } from '../../../common/knoxGuiTranscript.js';
 
 export function showFile(controller: KnoxGuiController, filepath: string, options?: { startLine?: number; endLine?: number }): void {
-	const target = knoxGuiResolveOpenPath(filepath, []);
+	const parsed = knoxGuiParseToolFilePath(filepath);
+	const startLine = options?.startLine ?? parsed.startLine;
+	const endLine = options?.endLine ?? parsed.endLine;
+	const lineOptions = startLine != null && startLine > 0 ? { startLine, endLine } : options;
+	const target = knoxGuiResolveOpenPath(parsed.filepath, []);
 	if (target?.direct) {
 		// URI or absolute path: nothing to resolve, open right away.
-		openResolved(controller, target.fallback, options);
+		openResolved(controller, target.fallback, lineOptions);
 		return;
 	}
-	void resolveAndOpen(controller, filepath, options);
+	void resolveAndOpen(controller, parsed.filepath, lineOptions);
 }
 
 function openResolved(controller: KnoxGuiController, uri: string, options?: { startLine?: number; endLine?: number }): void {

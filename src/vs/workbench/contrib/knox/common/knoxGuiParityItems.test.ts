@@ -99,6 +99,7 @@ suite('Knox native parity items', () => {
 			assert.strictEqual(healStreamingMarkdown('an _em'), 'an _em_');
 			assert.strictEqual(healStreamingMarkdown('snake_case stays'), 'snake_case stays');
 			assert.strictEqual(stripLeakedToolMarkup('intro\n< | DSML |  calls>\nfoo').trim(), 'intro');
+			assert.strictEqual(stripLeakedToolMarkup('intro\n< | | DSML | |  calls>\nsecret').trim(), 'intro');
 			assert.ok(!stripLeakedToolMarkup('hi <tool_calls>x').includes('tool_calls'));
 			assert.strictEqual(languageIdFromFence('ts'), 'typescript');
 			assert.strictEqual(languageIdFromFence('', 'app.rs'), 'rust');
@@ -540,6 +541,10 @@ suite('Knox native parity items', () => {
 			assert.deepStrictEqual(rel.candidates, ['file:///Users/me/snake_game/snake_game/src/main.rs', 'file:///Users/me/snake_game/src/main.rs']);
 			assert.strictEqual(rel.fallback, 'file:///Users/me/snake_game/src/main.rs');
 			assert.strictEqual(knoxGuiResolveOpenPath('./Cargo.toml', dirs)!.candidates[0], 'file:///Users/me/snake_game/Cargo.toml');
+			const quoted = knoxGuiResolveOpenPath('>snake_game/src/main.rs', dirs)!;
+			assert.strictEqual(quoted.direct, false);
+			assert.ok(quoted.candidates.includes('file:///Users/me/snake_game/src/main.rs'));
+			assert.strictEqual(knoxGuiResolveOpenPath('">kernel/src/interrupts.rs"', ['file:///ws/kernel'])!.fallback, 'file:///ws/kernel/src/interrupts.rs');
 		});
 	});
 });

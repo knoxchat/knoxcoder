@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import type { SearchOptions, SearchOutputMode } from "../protocol/ide";
+import { sanitizeToolFilePath } from "../util/toolFilePath";
 
 /**
  * Built-in ripgrep 15.2.0 `--type` names (`rg --type-list`).
@@ -416,7 +417,7 @@ export function resolveSearchRoots(
     return { error: "Search error: no workspace folders" };
   }
 
-  const raw = requestedPath?.trim().replace(/\\/g, "/").replace(/^\.\//, "");
+  const raw = sanitizeToolFilePath(requestedPath ?? "").replace(/^\.\//, "");
   if (!raw || raw === ".") {
     return roots.map((cwd) => ({ cwd, searchPath: "." }));
   }

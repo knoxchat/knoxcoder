@@ -196,6 +196,17 @@ describe("resolveSearchRoots", () => {
       error: "Search error: path not found: no/such/dir/here",
     });
   });
+
+  it("strips a leading > from the search path", () => {
+    const roots = resolveSearchRoots([repoRoot], ">core/tools/ripgrep.ts");
+    expect(roots).not.toHaveProperty("error");
+    if ("error" in roots) {
+      return;
+    }
+    expect(roots[0]?.searchPath.replace(/\\/g, "/")).toBe(
+      "core/tools/ripgrep.ts",
+    );
+  });
 });
 
 describe("bundled ripgrep", () => {

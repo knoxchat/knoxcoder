@@ -1,5 +1,5 @@
 import { ChatMessage, ToolCallDelta } from "../index.js";
-import { resolveBuiltInToolName } from "../tools/builtIn.js";
+import { resolveBuiltInToolCall } from "../tools/builtIn.js";
 
 export interface ExtractedTextToolCalls {
   content: string;
@@ -24,8 +24,10 @@ interface ParsedTag {
  * printed the tags and stopped instead of executing the call.
  */
 const DSML_BAR_RE = "[|\\uFF5C]";
+/** One or more bars so `< | | DSML | |` (exploded special tokens) still matches. */
+const DSML_BARS_RE = `${DSML_BAR_RE}(?:\\s*${DSML_BAR_RE})*`;
 const DSML_TAG_RE = new RegExp(
-  `<\\s*(/?)\\s*${DSML_BAR_RE}\\s*DSML\\s*${DSML_BAR_RE}\\s*([A-Za-z_][\\w]*)\\b([^>]*)>`,
+  `<\\s*(/?)\\s*(?:/\\s*)*${DSML_BARS_RE}\\s*DSML\\s*${DSML_BARS_RE}\\s*([A-Za-z_][\\w]*)\\b([^>]*)>`,
   "gi",
 );
 const XML_TAG_RE =
@@ -52,6 +54,10 @@ const START_TOKEN_CANDIDATES = [
   "< | DSML |",
   "< | DSML | tool_calls>",
   "< | DSML | calls>",
+  "< | | DSML",
+  "< | | DSML | |",
+  "< | | DSML | |  calls>",
+  "< | | DSML | | tool_calls>",
   "<tool_call",
   "<tool_calls",
   "<function_calls",
@@ -196,8 +202,11 @@ function coerceParamValue(
   }
 }
 
-function resolveName(name: string): string {
-  return resolveBuiltInToolName(name) || name.trim();
+function resolveName(
+  name: string,
+  args?: Record<string, unknown>,
+): string {
+  return resolveBuiltInToolCall(name, args) || name.trim();
 }
 
 let textCallSeq = 0;
@@ -255,7 +264,11 @@ function parseJsonToolPayload(inner: string): ToolCallDelta[] {
       if (args === undefined && rec.function && typeof rec.function === "object") {
         args = (rec.function as Record<string, unknown>).arguments;
       }
-      const resolved = resolveName(name);
+      const argRecord =
+        args && typeof args === "object" && !Array.isArray(args)
+          ? (args as Record<string, unknown>)
+          : undefined;
+      const resolved = resolveName(name, argRecord);
       calls.push({
         id: nextToolCallId(resolved, calls.length),
         type: "function",
@@ -362,12 +375,12 @@ function parseInvokeOrFunction(
   index: number,
 ): ToolCallDelta | null {
   const name = (open.attrs.name || open.attrs.tool || "").trim();
-  if (!name) {
-    return null;
-  }
   const bodyEnd = close ? close.start : text.length;
   const { args } = parseParameterBody(text, open.end, bodyEnd);
-  const resolved = resolveName(name);
+  const resolved = resolveName(name, args);
+  if (!resolved) {
+    return null;
+  }
   return {
     id: nextToolCallId(resolved, index),
     type: "function",
@@ -451,7 +464,9 @@ export function looksLikeTextToolCall(text: string): boolean {
     return false;
   }
   return (
-    /<\s*\/?\s*[|\uFF5C]?\s*DSML\s*[|\uFF5C]/i.test(text) ||
+    /<\s*\/?(?:\s*\/)*\s*[|\uFF5C](?:\s*[|\uFF5C])*\s*DSML\s*[|\uFF5C]/i.test(
+      text,
+    ) ||
     /<\s*tool_calls?\b/i.test(text) ||
     /<\s*function_calls?\b/i.test(text) ||
     /<\s*invoke\b[^>]*\bname\s*=/i.test(text) ||
@@ -463,7 +478,7 @@ function collapseResidualContent(text: string): string {
   return text
     .replace(
       new RegExp(
-        `<\\s*/?\\s*${DSML_BAR_RE}\\s*DSML\\s*${DSML_BAR_RE}\\s*[A-Za-z_][\\w]*\\b[^>]*>`,
+        `<\\s*/?\\s*(?:/\\s*)*${DSML_BARS_RE}\\s*DSML\\s*${DSML_BARS_RE}\\s*[A-Za-z_][\\w]*\\b[^>]*>`,
         "gi",
       ),
       "",
@@ -474,7 +489,8 @@ function collapseResidualContent(text: string): string {
     .trimEnd();
 }
 
-const DSML_OPEN_RE = /<\s*\/?\s*[|\uFF5C]\s*DSML/i;
+const DSML_OPEN_RE =
+  /<\s*\/?(?:\s*\/)*\s*[|\uFF5C](?:\s*[|\uFF5C])*\s*DSML/i;
 
 function scrubToolMarkup(text: string): string {
   const cut = text.search(DSML_OPEN_RE);
@@ -572,10 +588,10 @@ function isPrefixOfCandidate(partial: string): boolean {
 function isPartialDsmlOpen(partial: string): boolean {
   return (
     /^<\s*$/.test(partial) ||
-    /^<\s*[|\uFF5C]/.test(partial) ||
-    /^<\s*[|\uFF5C]\s*D/i.test(partial) ||
-    /^<\s*[|\uFF5C]\s*DSML/i.test(partial) ||
-    /^<\s*\/\s*[|\uFF5C]/.test(partial)
+    /^<\s*(?:\/\s*)*[|\uFF5C]/.test(partial) ||
+    /^<\s*(?:\/\s*)*[|\uFF5C](?:\s*[|\uFF5C])*\s*D/i.test(partial) ||
+    /^<\s*(?:\/\s*)*[|\uFF5C](?:\s*[|\uFF5C])*\s*DSML/i.test(partial) ||
+    /^<\s*\/\s*(?:\/\s*)*[|\uFF5C]/.test(partial)
   );
 }
 

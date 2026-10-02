@@ -23,6 +23,7 @@ import { DEFAULT_DOOM_LOOP_THRESHOLD } from "../config/agentProfile";
 import { detectDoomLoopWithJev } from "../jev/doomSemantic";
 import { hydrateAssistantTextToolCalls } from "../llm/parseTextToolCalls";
 import { parseBuildOutput } from "../tools/build/parseDiagnostics";
+import { resolveBuiltInToolCall } from "../tools/builtIn";
 import { ToolCallError, ToolCallErrorCode } from "../tools/errors";
 import { renderChatMessage, renderContextItems } from "../util/messageContent";
 
@@ -532,12 +533,19 @@ export async function runAgentLoop(
       const toolCalls = (assistant.toolCalls ?? []).filter(
         (call) => call.function?.name,
       );
-      const parsedCalls: AgentLoopToolCall[] = toolCalls.map((call) => ({
-        id: call.id,
-        name: call.function?.name ?? "",
-        args: parseToolArgs(call.function?.arguments),
-        rawArguments: call.function?.arguments,
-      }));
+      const parsedCalls: AgentLoopToolCall[] = toolCalls.map((call) => {
+        const args = parseToolArgs(call.function?.arguments);
+        const name = resolveBuiltInToolCall(call.function?.name ?? "", args);
+        if (call.function && name && name !== call.function.name) {
+          call.function.name = name;
+        }
+        return {
+          id: call.id,
+          name,
+          args,
+          rawArguments: call.function?.arguments,
+        };
+      });
       await options.onAssistant?.(assistant, parsedCalls);
 
       if (atCap) {

@@ -88,7 +88,9 @@ suite('Knox LLM stack contract (KN-250–256)', () => {
 		assert.ok(parse.includes('export function hydrateAssistantTextToolCalls'));
 		assert.ok(parse.includes('HERMES_FN_RE'));
 		assert.ok(parse.includes('DSML_BAR_RE'));
+		assert.ok(parse.includes('DSML_BARS_RE'));
 		assert.ok(parse.includes('XML_TAG_RE'));
+		assert.ok(repoFile('extensions/knox/src/core/llm/healToolCallMessages.ts').includes('export function healToolCallMessages'));
 	});
 
 	test('KN-256: role-based model routing + reasoning-effort prefs', () => {
