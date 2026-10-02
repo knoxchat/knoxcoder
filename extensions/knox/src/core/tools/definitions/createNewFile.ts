@@ -20,7 +20,9 @@ export const createNewFileTool: Tool = {
 - Validates file paths and prevents overwrites
 - Supports workspace-relative or absolute paths
 
-Use this only when the file does not exist yet. For a surgical change to an existing file use builtin_edit_file. For a full rewrite use builtin_write_file. Never write files via the terminal.`,
+Use this only when the file does not exist yet. For a surgical change to an existing file use builtin_edit_file. For a full rewrite use builtin_write_file. Never write files via the terminal.
+
+Always emit filepath BEFORE contents. Keep contents under roughly 200 lines: for a bigger file create a skeleton first, then extend it with builtin_edit_file or builtin_apply_patch (a very long call can be cut off and loses its arguments).`,
     parameters: {
       type: "object",
       required: ["filepath", "contents"],

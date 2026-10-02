@@ -57,6 +57,95 @@ const RETRYABLE_ERROR_CODES = new Set<ToolCallErrorCode>([
 ]);
 
 /**
+ * Failures caused by what the model sent (or by the user cancelling), not by
+ * the tool or the environment. They are deterministic: retrying the same call
+ * cannot succeed, and they must never count toward the circuit breaker (five
+ * bad edits in a row would otherwise lock `builtin_edit_file` for a minute).
+ */
+const INPUT_ERROR_CODES = new Set<ToolCallErrorCode>([
+  ToolCallErrorCode.INVALID_ARGUMENTS,
+  ToolCallErrorCode.MISSING_REQUIRED_PARAM,
+  ToolCallErrorCode.TOOL_NOT_FOUND,
+  ToolCallErrorCode.INVALID_URI,
+  ToolCallErrorCode.INVALID_FILE_PATH,
+  ToolCallErrorCode.FILE_NOT_FOUND,
+  ToolCallErrorCode.FILE_ALREADY_EXISTS,
+  ToolCallErrorCode.PERMISSION_DENIED,
+  ToolCallErrorCode.ARGUMENT_PARSE_ERROR,
+  ToolCallErrorCode.CONTENT_TOO_LARGE,
+  ToolCallErrorCode.CANCELLED,
+]);
+
+export function isToolInputError(code: ToolCallErrorCode): boolean {
+  return INPUT_ERROR_CODES.has(code);
+}
+
+export type ToolFailureCategory =
+  | "InvalidJson"
+  | "UnknownName"
+  | "SchemaMismatch"
+  | "Execution"
+  | "Cancelled";
+
+/**
+ * Same three buckets a tool-calling gateway scores (`InvalidJson`,
+ * `UnknownName`, `SchemaMismatch`) plus runtime failures, for logs/metrics.
+ */
+export function toolFailureCategory(error: ToolCallError): ToolFailureCategory {
+  const declared = error.context?.category;
+  if (
+    declared === "InvalidJson" ||
+    declared === "UnknownName" ||
+    declared === "SchemaMismatch"
+  ) {
+    return declared;
+  }
+  switch (error.code) {
+    case ToolCallErrorCode.ARGUMENT_PARSE_ERROR:
+      return "InvalidJson";
+    case ToolCallErrorCode.TOOL_NOT_FOUND:
+      return "UnknownName";
+    case ToolCallErrorCode.INVALID_ARGUMENTS:
+    case ToolCallErrorCode.MISSING_REQUIRED_PARAM:
+      return "SchemaMismatch";
+    case ToolCallErrorCode.CANCELLED:
+      return "Cancelled";
+    default:
+      return "Execution";
+  }
+}
+
+/** One-line recovery guidance appended to errors the model must act on. */
+export function toolErrorRecoveryHint(code: ToolCallErrorCode): string {
+  switch (code) {
+    case ToolCallErrorCode.ARGUMENT_PARSE_ERROR:
+      return "The arguments were not valid JSON (often a truncated call). Re-send one complete JSON object; for large files create a small skeleton and extend it with edits.";
+    case ToolCallErrorCode.TOOL_NOT_FOUND:
+      return "Call a tool by an exact name from the tool list.";
+    case ToolCallErrorCode.FILE_NOT_FOUND:
+      return "Check the path with builtin_glob or builtin_view_subdirectory, then retry with a workspace-relative path.";
+    case ToolCallErrorCode.INVALID_ARGUMENTS:
+    case ToolCallErrorCode.MISSING_REQUIRED_PARAM:
+      return "Change the call before retrying; repeating the same arguments will fail the same way.";
+    default:
+      return "";
+  }
+}
+
+/**
+ * Text the model sees for a failed call: `CODE: message` plus a recovery hint
+ * when the message does not already carry one.
+ */
+export function formatToolErrorForModel(error: ToolCallError): string {
+  const prefix = `${error.code}: `;
+  const body = error.message.startsWith(prefix)
+    ? error.message
+    : `${prefix}${error.message}`;
+  const hint = toolErrorRecoveryHint(error.code);
+  return hint && !body.includes(hint) ? `${body}\n${hint}` : body;
+}
+
+/**
  * Structured error for tool call failures
  */
 export class ToolCallError extends Error {
@@ -179,9 +268,34 @@ function classifyError(
     return { code: ToolCallErrorCode.CANCELLED, retryable: false };
   }
 
-  // File system errors
-  if (msg.includes("enoent") || msg.includes("no such file")) {
+  // Deterministic input errors. These MUST be classified before the transient
+  // buckets below: messages such as "Use a workspace-relative path" or a patch
+  // that touches an "editor" file used to match the IDE heuristics and were
+  // retried with backoff although they can never succeed.
+  if (/\bnot found\b/.test(msg) && /\btool\b/.test(msg)) {
+    return { code: ToolCallErrorCode.TOOL_NOT_FOUND, retryable: false };
+  }
+  if (
+    msg.includes("failed to resolve file path") ||
+    msg.includes("could not find file") ||
+    msg.includes("does not exist") ||
+    msg.includes("enoent") ||
+    msg.includes("no such file")
+  ) {
     return { code: ToolCallErrorCode.FILE_NOT_FOUND, retryable: false };
+  }
+  if (
+    msg.includes("old_string") ||
+    msg.includes("new_string") ||
+    msg.includes("produced no changes") ||
+    msg.includes("nothing would change") ||
+    msg.includes("missing required") ||
+    msg.includes("cannot be empty") ||
+    msg.includes("invalid argument") ||
+    msg.includes("is not unique") ||
+    msg.includes("matches more than once")
+  ) {
+    return { code: ToolCallErrorCode.INVALID_ARGUMENTS, retryable: false };
   }
   if (msg.includes("eacces") || msg.includes("permission denied")) {
     return { code: ToolCallErrorCode.PERMISSION_DENIED, retryable: false };
@@ -203,7 +317,7 @@ function classifyError(
     msg.includes("econnreset") ||
     msg.includes("etimedout") ||
     msg.includes("fetch failed") ||
-    msg.includes("network")
+    /\bnetwork\b/.test(msg)
   ) {
     return { code: ToolCallErrorCode.NETWORK_ERROR, retryable: true };
   }
@@ -225,8 +339,8 @@ function classifyError(
   // IDE operation failures (often transient)
   if (
     msg.includes("disposed") ||
-    msg.includes("editor") ||
-    msg.includes("workspace")
+    /\b(no active|closed|unavailable) editor\b/.test(msg) ||
+    /\beditor (is )?(closed|disposed|unavailable)\b/.test(msg)
   ) {
     return { code: ToolCallErrorCode.IDE_OPERATION_FAILED, retryable: true };
   }

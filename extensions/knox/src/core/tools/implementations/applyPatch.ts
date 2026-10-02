@@ -40,6 +40,8 @@ async function resolvePath(
 async function planOps(
   ops: PatchOp[],
   ide: Parameters<ToolImpl>[1]["ide"],
+  /** Updates whose result equals the file on disk (already applied). */
+  alreadyApplied: string[] = [],
 ): Promise<PlannedChange[]> {
   const planned: PlannedChange[] = [];
 
@@ -104,7 +106,10 @@ async function planOps(
       });
     } else {
       if (before === after) {
-        throw new Error(t("patchNoChange", { filepath: op.path }));
+        // Idempotent: the file already holds the requested text. Failing here
+        // made models re-send the same patch (or "fix" a correct one).
+        alreadyApplied.push(op.path);
+        continue;
       }
       planned.push({
         path: op.path,
@@ -160,7 +165,20 @@ export const applyPatchImpl: ToolImpl = async (args, extras) => {
   }
 
   const ops = parseApplyPatch(raw);
-  const planned = await planOps(ops, extras.ide);
+  const alreadyApplied: string[] = [];
+  const planned = await planOps(ops, extras.ide, alreadyApplied);
+  if (planned.length === 0 && alreadyApplied.length > 0) {
+    return [
+      {
+        name: "apply_patch",
+        description: `Already up to date: ${alreadyApplied.join(", ")}`,
+        content:
+          `No changes written: applying this patch leaves ${alreadyApplied.map((p) => `"${p}"`).join(", ")} ` +
+          `identical to what is on disk (already applied, or each hunk's removed and added lines are the same). ` +
+          `Read the file to verify the result instead of re-sending the same patch.`,
+      },
+    ];
+  }
   const rustWarnings: Awaited<ReturnType<ToolImpl>> = [];
   for (const change of planned) {
     const guard = evaluateRustEditGuard({
@@ -234,13 +252,17 @@ export const applyPatchImpl: ToolImpl = async (args, extras) => {
     .map((c) => (c.moveTo ? `${c.path} -> ${c.moveTo}` : c.path))
     .join(", ");
 
+  const skippedNote = alreadyApplied.length
+    ? `\n\nSkipped (already up to date): ${alreadyApplied.join(", ")}`
+    : "";
+
   return [
     {
       name: "apply_patch",
       description: `Applied patch (${planned.length} file${planned.length === 1 ? "" : "s"}): ${files}`,
       content: `Applied patch atomically.\n\n${summary}\n\n${diff}${
         rewriteNotes.length ? `\n\n${rewriteNotes.join("\n")}` : ""
-      }`,
+      }${skippedNote}`,
     },
     ...rustWarnings,
   ];

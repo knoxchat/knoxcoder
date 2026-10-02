@@ -24,7 +24,17 @@ import { detectDoomLoopWithJev } from "../jev/doomSemantic";
 import { hydrateAssistantTextToolCalls } from "../llm/parseTextToolCalls";
 import { parseBuildOutput } from "../tools/build/parseDiagnostics";
 import { resolveBuiltInToolCall } from "../tools/builtIn";
-import { ToolCallError, ToolCallErrorCode } from "../tools/errors";
+import {
+  getRequiredToolParams,
+  isMissingToolArg,
+  repairJsonArgs,
+  truncatedArgsError,
+} from "../tools/middleware";
+import {
+  ToolCallError,
+  ToolCallErrorCode,
+  formatToolErrorForModel,
+} from "../tools/errors";
 import { renderChatMessage, renderContextItems } from "../util/messageContent";
 
 import {
@@ -49,6 +59,8 @@ export interface AgentLoopToolCall {
   name: string;
   args: Record<string, unknown>;
   rawArguments?: string;
+  /** Set when the model's arguments were not valid JSON and could not be repaired. */
+  argsError?: ToolCallError;
 }
 
 export interface AgentLoopToolResult {
@@ -321,6 +333,63 @@ export function parseToolArgs(raw: string | undefined): Record<string, unknown> 
   }
 }
 
+/**
+ * Parse model arguments without hiding failure. Valid JSON is used as-is;
+ * malformed JSON goes through the same repair the GUI path uses (trailing
+ * commas, single quotes, fences, missing braces). When nothing usable can be
+ * recovered the result carries an `InvalidJson` error, so the model is told
+ * its call was malformed instead of seeing a misleading "missing parameter"
+ * for an empty `{}`.
+ */
+export function parseToolArgsChecked(
+  raw: string | undefined,
+  toolName: string,
+  tool?: Tool,
+): { args: Record<string, unknown>; error?: ToolCallError } {
+  if (!raw?.trim()) {
+    return { args: {} };
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return { args: parsed };
+    }
+  } catch {
+    const repaired = repairJsonArgs(raw);
+    if (Object.keys(repaired).length > 0) {
+      // Repaired JSON missing required params = a cut-off call, not a typo.
+      const missing = getRequiredToolParams(toolName, tool).filter((param) =>
+        isMissingToolArg(repaired[param]),
+      );
+      if (missing.length > 0) {
+        return {
+          args: repaired,
+          error: truncatedArgsError(
+            toolName,
+            new ToolCallError({
+              code: ToolCallErrorCode.MISSING_REQUIRED_PARAM,
+              message: "missing",
+              toolName,
+              context: { missingParams: missing, receivedParams: Object.keys(repaired) },
+            }),
+          ),
+        };
+      }
+      return { args: repaired };
+    }
+  }
+  return {
+    args: {},
+    error: new ToolCallError({
+      code: ToolCallErrorCode.ARGUMENT_PARSE_ERROR,
+      message: `Tool arguments for "${toolName}" are not a valid JSON object: ${raw.slice(0, 120)}${raw.length > 120 ? "…" : ""}`,
+      toolName,
+      retryable: false,
+      context: { category: "InvalidJson", rawLength: raw.length },
+    }),
+  };
+}
+
 export function toolErrorContextItems(
   name: string,
   error: unknown,
@@ -331,12 +400,15 @@ export function toolErrorContextItems(
       : error instanceof Error
         ? error
         : new Error(String(error));
-  const code = error instanceof ToolCallError ? error.code : "ERROR";
+  const detail =
+    error instanceof ToolCallError
+      ? formatToolErrorForModel(error)
+      : `ERROR: ${err.message}`;
   return [
     {
       name: "Tool Call Error",
       description: "failed",
-      content: `Tool call "${name}" failed:\n\n${code}: ${err.message}`,
+      content: `Tool call "${name}" failed:\n\n${detail}`,
     },
   ];
 }
@@ -534,7 +606,12 @@ export async function runAgentLoop(
         (call) => call.function?.name,
       );
       const parsedCalls: AgentLoopToolCall[] = toolCalls.map((call) => {
-        const args = parseToolArgs(call.function?.arguments);
+        const requested = resolveBuiltInToolCall(call.function?.name ?? "", {});
+        const { args, error: argsError } = parseToolArgsChecked(
+          call.function?.arguments,
+          requested || (call.function?.name ?? ""),
+          options.tools.find((item) => item.function.name === requested),
+        );
         const name = resolveBuiltInToolCall(call.function?.name ?? "", args);
         if (call.function && name && name !== call.function.name) {
           call.function.name = name;
@@ -544,6 +621,7 @@ export async function runAgentLoop(
           name,
           args,
           rawArguments: call.function?.arguments,
+          argsError,
         };
       });
       await options.onAssistant?.(assistant, parsedCalls);
@@ -703,6 +781,19 @@ export async function runAgentLoop(
           const tool = findTool(call.name);
           if (!tool) {
             out[i] = { cancelled: false, result: missingResult(call) };
+            continue;
+          }
+          if (call.argsError) {
+            out[i] = {
+              cancelled: false,
+              result: {
+                name: call.name,
+                args: call.args,
+                output: toolErrorContextItems(call.name, call.argsError),
+                ok: false,
+                error: formatError(call.argsError),
+              },
+            };
             continue;
           }
           const denied = await approveCall(tool, call);

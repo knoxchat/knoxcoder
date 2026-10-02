@@ -17,7 +17,7 @@
   "failedToCreateFile": "Failed to create file \"{{filepath}}\": {{error}}",
   "failedToWriteFile": "Failed to write file \"{{filepath}}\": {{error}}",
   "editOldStringEmpty": "old_string cannot be empty. Read the file and copy the exact text to replace.",
-  "editOldStringUnchanged": "old_string and new_string are identical; nothing would change.",
+  "editOldStringUnchanged": "old_string and new_string are identical; nothing would change. Make new_string differ from old_string (re-check braces and whitespace), or skip the edit if the file is already correct.",
   "editOldStringNotFound": "old_string was not found in \"{{filepath}}\". Read the file and use exact text, including whitespace and indentation.",
   "editClosestLines": "Closest lines currently in the file:\n{{lines}}",
   "editOldStringNotUnique": "old_string matched {{count}} times in \"{{filepath}}\". Provide a larger unique snippet, or set replace_all: true.",

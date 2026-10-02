@@ -1,4 +1,5 @@
 import { FromWebviewProtocol, ToWebviewProtocol } from "core/protocol";
+import { describeProtocolError } from "core/protocol/describeProtocolError";
 import { dispatchProtocolHandlers } from "core/protocol/dispatchHandlers";
 import { Message } from "core/protocol/messenger";
 import { summarizeProtocolMessage } from "core/protocol/summarizeMessage";
@@ -119,7 +120,6 @@ export class VsCodeWebviewProtocol
       }
 
       const err = dispatched.error;
-      const cause = (err as Error & { cause?: { name?: string; code?: string; message?: string } }).cause;
       for (const errorHandler of this._onErrorHandlers) {
         try {
           errorHandler(msg, err);
@@ -131,19 +131,7 @@ export class VsCodeWebviewProtocol
       // Build the user-visible message first, then send ONE error
       // response. A prior empty `{ status: "error" }` reply won the
       // webview request() race and showed "Unknown tool call error".
-      let message = err.message || String(err);
-      if (cause) {
-        if (cause.name === "ConnectTimeoutError") {
-          message = t("connection.timeout");
-        } else if (cause.code === "ECONNREFUSED") {
-          message = t("connection.refused");
-        } else {
-          message = t("connection.requestFailed", {
-            name: cause.name,
-            message: cause.message,
-          });
-        }
-      }
+      let message = describeProtocolError(err, msg.messageType, t);
 
       const quotaHit =
         message.includes("exceeded") &&

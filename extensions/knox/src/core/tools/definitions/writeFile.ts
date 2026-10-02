@@ -18,7 +18,9 @@ Use this for a complete rewrite of an existing file, or to create a file when yo
 Prefer builtin_edit_file for small, targeted changes.
 Prefer builtin_apply_patch for multi-file or multi-hunk edits.
 Prefer builtin_create_new_file when the file must not already exist.
-Never use the terminal (cat, echo, heredoc) to write files.`,
+Never use the terminal (cat, echo, heredoc) to write files.
+
+Always emit filepath BEFORE contents. Keep contents under roughly 200 lines: for a bigger file write a skeleton first, then extend it with builtin_edit_file or builtin_apply_patch (a very long call can be cut off and loses its arguments).`,
     parameters: {
       type: "object",
       required: ["filepath", "contents"],

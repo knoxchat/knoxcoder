@@ -21,7 +21,10 @@ import { ContextItem, Tool, ToolExtras } from "..";
 import {
   ToolCallError,
   ToolCallErrorCode,
+  isToolInputError,
+  toolFailureCategory,
 } from "./errors";
+import { coerceArgsToSchema, validateArgsAgainstSchema } from "./schemaArgs";
 import {
   BuiltInToolNames,
   DEFAULT_VIEW_SUBDIRECTORY_MAX_FILES,
@@ -466,6 +469,38 @@ export function validateToolArgs(
   });
 }
 
+/**
+ * Tools whose implementation deliberately accepts looser input than the
+ * schema (e.g. `ask_user` takes a bare question string, a JSON string, or an
+ * object). They still get coercion, but not strict type rejection.
+ */
+const SCHEMA_TYPE_CHECK_EXEMPT = new Set<string>([BuiltInToolNames.AskUser]);
+
+/**
+ * Malformed JSON that was "repaired" and is now missing required parameters
+ * almost always means the model's output was cut off mid-call (token limit),
+ * e.g. a long `contents` emitted before `filepath`. Say so: a plain
+ * "missing parameter" makes the model resend the same oversized call.
+ */
+export function truncatedArgsError(
+  toolName: string,
+  missing: ToolCallError,
+): ToolCallError {
+  const params = (missing.context?.missingParams as string[] | undefined) ?? [];
+  const received = (missing.context?.receivedParams as string[] | undefined) ?? [];
+  return new ToolCallError({
+    code: ToolCallErrorCode.ARGUMENT_PARSE_ERROR,
+    message:
+      `The JSON arguments for "${toolName}" were cut off or malformed, so ${params.join(", ")} never arrived ` +
+      `(only recovered: ${received.join(", ") || "nothing"}). The output limit was probably hit while writing a large body. ` +
+      `Do NOT resend the same call. Split the work: write a short skeleton first (always put filepath before the body), ` +
+      `then add sections with builtin_edit_file or builtin_apply_patch, keeping each call under roughly 200 lines.`,
+    toolName,
+    retryable: false,
+    context: { category: "InvalidJson", truncated: true, missingParams: params, receivedParams: received },
+  });
+}
+
 // ─── Tool-Specific Timeout Overrides ─────────────────────────────────────────
 
 const TOOL_TIMEOUT_OVERRIDES: Record<string, number> = {
@@ -590,12 +625,18 @@ export async function executeToolWithMiddleware(
 
   // ── Step 1: Parse & Repair Arguments ──────────────────────────────────
   let args: Record<string, any>;
+  let argsRepaired = false;
   try {
+    const parsedArgs = parseAndRepairArgs(rawArgs, toolName, opts.repairArgs as boolean);
+    argsRepaired = wasArgsRepaired(parsedArgs);
     args = normalizeToolArgs(
       toolName,
-      parseAndRepairArgs(rawArgs, toolName, opts.repairArgs as boolean),
+      parsedArgs,
       { defaultMaxFiles: opts.defaultMaxFiles },
     );
+    // Repair unambiguous type slips ("50" → 50, "true" → true, JSON string →
+    // array, null optional → omitted) before anything inspects the values.
+    args = coerceArgsToSchema(args, tool.function?.parameters);
   } catch (error) {
     metrics.failureCount++;
     throw ToolCallError.from(error, toolName, {
@@ -607,8 +648,18 @@ export async function executeToolWithMiddleware(
   if (opts.validateArgs) {
     try {
       validateToolArgs(toolName, args, tool);
+      if (!SCHEMA_TYPE_CHECK_EXEMPT.has(toolName)) {
+        validateArgsAgainstSchema(toolName, args, tool.function?.parameters);
+      }
     } catch (error) {
       metrics.failureCount++;
+      if (
+        argsRepaired &&
+        error instanceof ToolCallError &&
+        error.code === ToolCallErrorCode.MISSING_REQUIRED_PARAM
+      ) {
+        throw truncatedArgsError(toolName, error);
+      }
       throw error instanceof ToolCallError
         ? error
         : ToolCallError.from(error, toolName);
@@ -706,7 +757,9 @@ export async function executeToolWithMiddleware(
 
     const toolError = ToolCallError.from(error, toolName);
 
-    if (opts.circuitBreaker !== false) {
+    // Only environment/tool failures trip the breaker. A model sending a bad
+    // path or a non-matching old_string is not a broken tool.
+    if (opts.circuitBreaker !== false && !isToolInputError(toolError.code)) {
       const cbOpts = {
         ...DEFAULT_CIRCUIT_BREAKER,
         ...(typeof opts.circuitBreaker === "object" ? opts.circuitBreaker : {}),
@@ -718,6 +771,7 @@ export async function executeToolWithMiddleware(
       logToolCall("error", toolName, "Tool call failed", {
         durationMs: duration,
         errorCode: toolError.code,
+        category: toolFailureCategory(toolError),
         errorMessage: toolError.message,
         retryable: toolError.retryable,
       });
@@ -933,6 +987,13 @@ function sanitizeToolPathArgs(
   }
 }
 
+/** Arguments objects that only exist because malformed JSON was repaired. */
+const repairedArgObjects = new WeakSet<object>();
+
+export function wasArgsRepaired(args: object): boolean {
+  return repairedArgObjects.has(args);
+}
+
 function parseAndRepairArgs(
   rawArgs: any,
   toolName: string,
@@ -961,6 +1022,7 @@ function parseAndRepairArgs(
             originalLength: rawArgs.length,
             repairedKeys: Object.keys(repaired),
           });
+          repairedArgObjects.add(repaired);
           return repaired;
         }
       }

@@ -17,7 +17,7 @@
   "failedToCreateFile": "创建文件 \"{{filepath}}\" 失败：{{error}}",
   "failedToWriteFile": "写入文件 \"{{filepath}}\" 失败：{{error}}",
   "editOldStringEmpty": "old_string 不能为空。请先读取文件并复制要替换的精确文本。",
-  "editOldStringUnchanged": "old_string 与 new_string 相同，不会产生任何更改。",
+  "editOldStringUnchanged": "old_string 与 new_string 相同，不会产生任何更改。请让 new_string 与 old_string 不同（重新检查括号和空白），如果文件已经正确则跳过此次编辑。",
   "editOldStringNotFound": "在 \"{{filepath}}\" 中未找到 old_string。请读取文件并使用包含空白和缩进的精确文本。",
   "editClosestLines": "文件中当前最接近的行：\n{{lines}}",
   "editOldStringNotUnique": "old_string 在 \"{{filepath}}\" 中匹配了 {{count}} 次。请提供更大的唯一片段，或设置 replace_all: true。",

@@ -56,8 +56,12 @@ Do not use for progress updates.`,
               },
               options: {
                 type: "array",
+                // Strings only in the schema: `items` is required by Gemini and
+                // some OpenAI-compatible gateways. {id,label} objects are still
+                // accepted by the implementation (ask_user skips type checks).
+                items: { type: "string" },
                 description:
-                  "Multiple-choice options: strings, {id,label}, or {label,description}. Omit for free-form.",
+                  "Multiple-choice options as plain strings (use \"Label — description\" for detail). Omit for free-form.",
               },
               allow_multiple: {
                 type: "boolean",
