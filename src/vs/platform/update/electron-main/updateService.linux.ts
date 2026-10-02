@@ -11,10 +11,11 @@ import { ILogService } from '../../log/common/log.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { IProductService } from '../../product/common/productService.js';
-import { asJson, IRequestService } from '../../request/common/request.js';
+import { IRequestService } from '../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from '../common/update.js';
+import { IGitHubAssetQuery } from '../common/githubReleaseUpdate.js';
+import { AvailableForDownload, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions } from './abstractUpdateService.js';
 
 export class LinuxUpdateService extends AbstractUpdateService {
@@ -34,6 +35,10 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, telemetryService, applicationStorageMainService, meteredConnectionService, false);
 	}
 
+	protected override getUpdateAssetQuery(): IGitHubAssetQuery {
+		return { platform: 'linux', arch: process.arch };
+	}
+
 	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string {
 		return createUpdateURL(this.productService.updateUrl!, `linux-${process.arch}`, quality, commit, options);
 	}
@@ -43,23 +48,19 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			return;
 		}
 
-		const internalOrg = this.getInternalOrg();
-		const background = !explicit && !internalOrg;
-		const url = this.buildUpdateFeedUrl(this.quality, this.productService.commit!, { background, internalOrg });
+		const url = this.buildUpdateFeedUrl(this.quality, this.productService.commit!, { background: !explicit, internalOrg: this.getInternalOrg() });
 		this.setState(State.CheckingForUpdates(explicit));
 
-		this.requestService.request({ url, callSite: 'updateService.linux.checkForUpdates' }, CancellationToken.None)
-			.then<IUpdate | null>(asJson)
-			.then(update => {
-				// If updates were disabled mid-check, ignore the result so we don't leave the Disabled state.
+		this.fetchAvailableUpdate(url, CancellationToken.None)
+			.then(result => {
 				if (this.state.type !== StateType.CheckingForUpdates) {
 					return;
 				}
 
-				if (!update || !update.url || !update.version || !update.productVersion) {
+				if (result.isLatest || !result.update?.url || !result.update.version || !result.update.productVersion) {
 					this.setState(State.Idle(UpdateType.Archive, undefined, explicit || undefined));
 				} else {
-					this.setState(State.AvailableForDownload(update));
+					this.setState(State.AvailableForDownload(result.update));
 				}
 			})
 			.then(undefined, err => {
@@ -68,15 +69,12 @@ export class LinuxUpdateService extends AbstractUpdateService {
 				}
 
 				this.logService.error(err);
-				// only show message when explicitly checking for updates
 				const message: string | undefined = explicit ? (err.message || err) : undefined;
 				this.setState(State.Idle(UpdateType.Archive, message));
 			});
 	}
 
 	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		// Use the download URL if available as we don't currently detect the package type that was
-		// installed and the website download page is more useful than the tarball generally.
 		if (this.productService.downloadUrl && this.productService.downloadUrl.length > 0) {
 			this.nativeHostMainService.openExternal(undefined, this.productService.downloadUrl);
 		} else if (state.update.url) {

@@ -34,6 +34,10 @@
 	"nodejsArtifactFeed": "",
 	"electronArtifactFeed": "",
 	"urlProtocol": "knoxcoder",
+	"quality": "stable",
+	"updateUrl": "https://github.com/knoxchat/knoxcoder",
+	"downloadUrl": "https://github.com/knoxchat/knoxcoder/releases/latest",
+	"releaseNotesUrl": "https://github.com/knoxchat/knoxcoder/releases/latest",
 	"builtInExtensionsEnabledWithAutoUpdates": [],
 	"extensionsGallery": {
 		"serviceUrl": "https://open-vsx.org/vscode/gallery",
@@ -46,7 +50,9 @@
 	},
 	"linkProtectionTrustedDomains": [
 		"https://open-vsx.org",
-		"https://openvsx.eclipsecontent.org"
+		"https://openvsx.eclipsecontent.org",
+		"https://github.com",
+		"https://api.github.com"
 	],
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"builtInExtensions": [

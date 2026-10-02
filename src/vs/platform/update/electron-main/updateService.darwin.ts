@@ -13,14 +13,17 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { asJson, IRequestService } from '../../request/common/request.js';
+import { IRequestService } from '../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IGitHubAssetQuery, isGitHubUpdateUrl } from '../common/githubReleaseUpdate.js';
 import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
+
+	private pendingSquirrelFeedUrl: string | undefined;
 
 	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
 	@memoize private get onRawCheckingForUpdate(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'checking-for-update'); }
@@ -93,15 +96,22 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		this.setState(State.Idle(UpdateType.Archive, message));
 	}
 
+	protected override getUpdateAssetQuery(): IGitHubAssetQuery {
+		return { platform: 'darwin', arch: process.arch };
+	}
+
 	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
 		const assetID = this.productService.darwinUniversalAssetId ?? (process.arch === 'x64' ? 'darwin' : 'darwin-arm64');
 		const url = createUpdateURL(this.productService.updateUrl!, assetID, quality, commit, options);
+		if (isGitHubUpdateUrl(this.productService.updateUrl)) {
+			return url;
+		}
+
 		const headers = getUpdateRequestHeaders(this.productService.version);
 		try {
 			this.logService.trace('update#buildUpdateFeedUrl - setting feed URL for Electron autoUpdater', { url, assetID, quality, commit, headers });
 			electron.autoUpdater.setFeedURL({ url, headers });
 		} catch (e) {
-			// application is very likely not signed
 			this.logService.error('Failed to set update feed URL', e);
 			return undefined;
 		}
@@ -124,7 +134,11 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
-		// When connection is metered and this is not an explicit check, avoid electron call as to not to trigger auto-download.
+		if (isGitHubUpdateUrl(this.productService.updateUrl)) {
+			this.checkGitHubForUpdates(url, explicit);
+			return;
+		}
+
 		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
 			this.logService.info('update#doCheckForUpdates - checking for update without auto-download because connection is metered');
 			this.checkForUpdateNoDownload(url);
@@ -135,28 +149,67 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		electron.autoUpdater.checkForUpdates();
 	}
 
-	/**
-	 * Manually check the update feed URL without triggering Electron's auto-download.
-	 * Used when connection is metered or in the embedded app.
-	 * @param canInstall When false, signals that the update cannot be installed from this app.
-	 */
+	private checkGitHubForUpdates(url: string, explicit: boolean): void {
+		this.fetchAvailableUpdate(url, CancellationToken.None)
+			.then(result => {
+				if (this.state.type !== StateType.CheckingForUpdates && this.state.type !== StateType.Overwriting) {
+					return;
+				}
+
+				if (result.isLatest || !result.update?.url || !result.update.version || !result.update.productVersion) {
+					this.setState(State.Idle(UpdateType.Archive, undefined, explicit || undefined));
+					return;
+				}
+
+				this.pendingSquirrelFeedUrl = result.squirrelFeedUrl;
+				if (result.squirrelFeedUrl && (explicit || !this.meteredConnectionService.isConnectionMetered)) {
+					this.startSquirrelDownload(result.squirrelFeedUrl, result.update);
+					return;
+				}
+
+				this.setState(State.AvailableForDownload(result.update));
+			})
+			.then(undefined, err => {
+				if (this.state.type !== StateType.CheckingForUpdates) {
+					return;
+				}
+
+				this.logService.error(err);
+				const message: string | undefined = explicit ? (err.message || err) : undefined;
+				this.setState(State.Idle(UpdateType.Archive, message));
+			});
+	}
+
+	private startSquirrelDownload(feedUrl: string, update?: IUpdate): void {
+		const headers = getUpdateRequestHeaders(this.productService.version, { github: true });
+		try {
+			this.logService.info('update#startSquirrelDownload - downloading KnoxCoder update', { feedUrl });
+			electron.autoUpdater.setFeedURL({ url: feedUrl, headers });
+			if (this.state.type !== StateType.CheckingForUpdates && this.state.type !== StateType.Downloading && this.state.type !== StateType.Overwriting) {
+				this.setState(State.CheckingForUpdates(true));
+			}
+			electron.autoUpdater.checkForUpdates();
+		} catch (e) {
+			this.logService.error('Failed to start KnoxCoder auto-update download', e);
+			if (update) {
+				this.setState(State.AvailableForDownload(update));
+			} else {
+				this.setState(State.Idle(UpdateType.Archive));
+			}
+		}
+	}
+
 	private async checkForUpdateNoDownload(url: string, canInstall?: boolean): Promise<void> {
-		const headers = getUpdateRequestHeaders(this.productService.version);
-		this.logService.trace('update#checkForUpdateNoDownload - checking update server', { url, headers });
+		this.logService.trace('update#checkForUpdateNoDownload - checking KnoxCoder releases', { url });
 
 		try {
-			const context = await this.requestService.request({ url, headers, callSite: 'updateService.darwin.checkForUpdates' }, CancellationToken.None);
-			const statusCode = context.res.statusCode;
-			this.logService.trace('update#checkForUpdateNoDownload - response', { statusCode });
-
-			const update = await asJson<IUpdate>(context);
-			if (!update || !update.url || !update.version || !update.productVersion) {
-				this.logService.trace('update#checkForUpdateNoDownload - no update available');
+			const result = await this.fetchAvailableUpdate(url, CancellationToken.None);
+			if (result.isLatest || !result.update?.url || !result.update.version || !result.update.productVersion) {
 				const notAvailable = this.state.type === StateType.CheckingForUpdates && this.state.explicit;
 				this.setState(State.Idle(UpdateType.Archive, undefined, notAvailable || undefined));
 			} else {
-				this.logService.trace('update#checkForUpdateNoDownload - update available', { version: update.version, productVersion: update.productVersion });
-				this.setState(State.AvailableForDownload(update, canInstall));
+				this.pendingSquirrelFeedUrl = result.squirrelFeedUrl;
+				this.setState(State.AvailableForDownload(result.update, canInstall));
 			}
 		} catch (err) {
 			this.logService.error('update#checkForUpdateNoDownload - failed to check for update', err);
@@ -197,10 +250,16 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		// Rebuild feed URL and trigger download via Electron's auto-updater
-		this.buildUpdateFeedUrl(this.quality!, state.update.version, { internalOrg: this.getInternalOrg() });
-		this.setState(State.CheckingForUpdates(true));
-		electron.autoUpdater.checkForUpdates();
+		if (this.pendingSquirrelFeedUrl) {
+			this.startSquirrelDownload(this.pendingSquirrelFeedUrl, state.update);
+			return;
+		}
+
+		if (state.update.url) {
+			await electron.shell.openExternal(state.update.url);
+		}
+
+		this.setState(State.Idle(UpdateType.Archive));
 	}
 
 	protected override doQuitAndInstall(): void {

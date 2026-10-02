@@ -17,10 +17,11 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { IRequestService } from '../../request/common/request.js';
+import { asJson, IRequestService } from '../../request/common/request.js';
 import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { createGitHubLatestReleaseUrl, githubReleaseToUpdate, IAvailableUpdateResult, IGitHubAssetQuery, isCurrentVersionLatest, isGitHubReleasePayload, isGitHubUpdateUrl, selectSquirrelFeedUrl } from '../common/githubReleaseUpdate.js';
 import { AvailableForDownload, DisablementReason, IUpdate, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
 
 const LAST_KNOWN_VERSION_STORAGE_KEY = 'abstractUpdateService/lastKnownVersion';
@@ -31,6 +32,11 @@ export interface IUpdateURLOptions {
 }
 
 export function createUpdateURL(baseUpdateUrl: string, platform: string, quality: string, commit: string, options?: IUpdateURLOptions): string {
+	const githubUrl = createGitHubLatestReleaseUrl(baseUpdateUrl);
+	if (githubUrl) {
+		return githubUrl;
+	}
+
 	const url = new URL(`${baseUpdateUrl}/api/update/${platform}/${quality}/${commit}`);
 
 	if (options?.background) {
@@ -51,24 +57,24 @@ export function createUpdateURL(baseUpdateUrl: string, platform: string, quality
  * On macOS, the User-Agent includes the Darwin kernel version.
  * On Windows, the User-Agent includes accurate Windows version from the registry.
  */
-export function getUpdateRequestHeaders(productVersion: string): Record<string, string> | undefined {
+export function getUpdateRequestHeaders(productVersion: string, options?: { github?: boolean }): Record<string, string> {
+	let userAgent = `KnoxCoder/${productVersion}`;
 	if (isMacintosh) {
-		const darwinVersion = os.release();
-		return {
-			'User-Agent': `Code/${productVersion} Darwin/${darwinVersion}`
-		};
-	}
-
-	if (isWindows) {
+		userAgent = `KnoxCoder/${productVersion} Darwin/${os.release()}`;
+	} else if (isWindows) {
 		const match = getWindowsReleaseSync().match(/^(\d+\.\d+)/);
 		if (match) {
-			return {
-				'User-Agent': `Code/${productVersion} Electron/${process.versions.electron} Windows NT ${match[1]}`
-			};
+			userAgent = `KnoxCoder/${productVersion} Electron/${process.versions.electron} Windows NT ${match[1]}`;
 		}
 	}
 
-	return undefined;
+	const headers: Record<string, string> = { 'User-Agent': userAgent };
+	if (options?.github) {
+		headers['Accept'] = 'application/vnd.github+json';
+		headers['X-GitHub-Api-Version'] = '2022-11-28';
+	}
+
+	return headers;
 }
 
 export type UpdateErrorClassification = {
@@ -663,21 +669,68 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			return undefined;
 		}
 
-		const headers = getUpdateRequestHeaders(this.productService.version);
-		this.logService.trace('update#isLatestVersion() - checking update server', { url, headers });
-
 		try {
-			const context = await this.requestService.request({ url, headers, callSite: 'updateService.isLatestVersion' }, token);
-			const statusCode = context.res.statusCode;
-			this.logService.trace('update#isLatestVersion() - response', { statusCode });
-			// The update server replies with 204 (No Content) when no update is available.
-			return statusCode === 204;
-
+			return (await this.fetchAvailableUpdate(url, token)).isLatest;
 		} catch (error) {
 			this.logService.error('update#isLatestVersion(): failed to check for updates');
 			this.logService.error(error);
 			return undefined;
 		}
+	}
+
+	protected getUpdateAssetQuery(): IGitHubAssetQuery {
+		if (isWindows) {
+			return { platform: 'win32', arch: process.arch, target: 'archive' };
+		}
+
+		if (isMacintosh) {
+			return { platform: 'darwin', arch: process.arch };
+		}
+
+		return { platform: 'linux', arch: process.arch };
+	}
+
+	/**
+	 * Checks GitHub for a newer KnoxCoder release (or a static update JSON) and maps it to an installable update.
+	 */
+	protected async fetchAvailableUpdate(url: string, token: CancellationToken = CancellationToken.None): Promise<IAvailableUpdateResult> {
+		const github = isGitHubUpdateUrl(url) || isGitHubUpdateUrl(this.productService.updateUrl);
+		const headers = getUpdateRequestHeaders(this.productService.version, { github });
+		this.logService.trace('update#fetchAvailableUpdate - checking KnoxCoder releases', { url, headers });
+
+		const context = await this.requestService.request({ url, headers, callSite: 'updateService.fetchAvailableUpdate' }, token);
+		this.logService.trace('update#fetchAvailableUpdate - response', { statusCode: context.res.statusCode });
+
+		if (context.res.statusCode === 204 || context.res.statusCode === 404) {
+			return { isLatest: true };
+		}
+
+		const payload = await asJson<unknown>(context);
+		if (!payload) {
+			return { isLatest: true };
+		}
+
+		if (isGitHubReleasePayload(payload)) {
+			const query = this.getUpdateAssetQuery();
+			const update = githubReleaseToUpdate(payload, query, this.productService.downloadUrl);
+			if (!update?.productVersion || isCurrentVersionLatest(this.productService.version, update.productVersion)) {
+				return { isLatest: true };
+			}
+
+			this.logService.info(`update#fetchAvailableUpdate - found KnoxCoder ${update.productVersion}, current ${this.productService.version}`);
+			return { isLatest: false, update, squirrelFeedUrl: selectSquirrelFeedUrl(payload, query) };
+		}
+
+		const update = payload as IUpdate;
+		if (!update.url || !update.version || !update.productVersion) {
+			return { isLatest: true };
+		}
+
+		if (isCurrentVersionLatest(this.productService.version, update.productVersion)) {
+			return { isLatest: true };
+		}
+
+		return { isLatest: false, update };
 	}
 
 	async _applySpecificUpdate(packagePath: string): Promise<void> {

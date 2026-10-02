@@ -320,6 +320,20 @@ echo
 echo "=== Build complete ==="
 echo "  App:  $APP_PATH"
 echo "  DMG:  $DMG_PATH"
+
+VERSION="$(node -p "require('./package.json').version")"
+COMMIT="$(git rev-parse HEAD 2>/dev/null || true)"
+UPDATE_ZIP="$DIST_DIR/${PRODUCT_NAME}-${VERSION}-darwin-${VSCODE_ARCH}.zip"
+echo ">>> Creating auto-update zip..."
+rm -f "$UPDATE_ZIP"
+ditto -c -k --keepParent "$APP_PATH" "$UPDATE_ZIP"
+node scripts/ci/generate-update-metadata.mjs \
+	--assets-dir "$DIST_DIR" \
+	--out-dir "$DIST_DIR" \
+	--version "$VERSION" \
+	--tag "v$VERSION" \
+	--commit "$COMMIT"
+echo "  ZIP:  $UPDATE_ZIP"
 echo
 echo "Open the DMG (recommended):"
 echo "  open \"$DMG_PATH\""

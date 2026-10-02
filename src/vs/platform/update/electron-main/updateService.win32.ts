@@ -30,11 +30,12 @@ import { ILogService } from '../../log/common/log.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { IProductService } from '../../product/common/productService.js';
-import { asJson, IRequestService } from '../../request/common/request.js';
+import { IRequestService } from '../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IGitHubAssetQuery, isInstallerPackageUrl } from '../common/githubReleaseUpdate.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 import { getRelaunchArguments } from './updateRelaunchArguments.js';
 import { getWin32UpdateType } from './win32UpdateType.js';
 
@@ -205,6 +206,14 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		});
 	}
 
+	protected override getUpdateAssetQuery(): IGitHubAssetQuery {
+		if (this.getUpdateType() === UpdateType.Archive) {
+			return { platform: 'win32', arch: process.arch, target: 'archive' };
+		}
+
+		return { platform: 'win32', arch: process.arch, target: this.productService.target === 'user' ? 'user' : 'system' };
+	}
+
 	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
 		let platform = `win32-${process.arch}`;
 
@@ -225,6 +234,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const internalOrg = this.getInternalOrg();
 		const background = !explicit && !internalOrg;
 		const url = this.buildUpdateFeedUrl(this.quality, pendingCommit ?? this.productService.commit!, { background, internalOrg });
+		if (!url) {
+			this.setState(State.Idle(this.getUpdateType()));
+			return;
+		}
 
 		// Only set CheckingForUpdates if we're not already in Overwriting state
 		if (this.state.type !== StateType.Overwriting) {
@@ -236,17 +249,16 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const cts = this.checkCancellationTokenSource = new CancellationTokenSource();
 		const token = cts.token;
 
-		const headers = getUpdateRequestHeaders(this.productService.version);
-		const promise = this.requestService.request({ url, headers, callSite: 'updateService.win32.checkForUpdates' }, token)
-			.then<IUpdate | null>(asJson)
-			.then(update => {
+		const promise = this.fetchAvailableUpdate(url, token)
+			.then(result => {
 				const updateType = this.getUpdateType();
 
 				if (token.isCancellationRequested) {
 					return Promise.resolve(null);
 				}
 
-				if (!update || !update.url || !update.version || !update.productVersion) {
+				const update = result.update;
+				if (result.isLatest || !update || !update.url || !update.version || !update.productVersion) {
 					// If we were checking for an overwrite update and found nothing newer,
 					// restore the Ready state with the pending update
 					if (this.state.type === StateType.Overwriting) {
@@ -258,7 +270,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					return Promise.resolve(null);
 				}
 
-				if (updateType === UpdateType.Archive) {
+				if (updateType === UpdateType.Archive || !isInstallerPackageUrl(update.url)) {
 					this.setState(State.AvailableForDownload(update));
 					return Promise.resolve(null);
 				}

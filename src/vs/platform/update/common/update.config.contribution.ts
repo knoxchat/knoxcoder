@@ -21,20 +21,20 @@ configurationRegistry.registerConfiguration({
 			enum: ['none', 'manual', 'start', 'default'],
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateMode', "Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service."),
+			description: localize('updateMode', "Configure whether you receive automatic KnoxCoder updates. Updates are fetched from GitHub releases."),
 			tags: ['usesOnlineServices'],
 			enumDescriptions: [
 				localize('none', "Disable updates."),
 				localize('manual', "Disable automatic background update checks. Updates will be available if you manually check for updates."),
 				localize('start', "Check for updates only on startup. Disable automatic background update checks."),
-				localize('default', "Enable automatic update checks. Code will check for updates automatically and periodically.")
+				localize('default', "Enable automatic update checks. KnoxCoder will check for updates automatically and periodically.")
 			],
 			policy: {
 				name: 'UpdateMode',
 				category: PolicyCategory.Update,
 				minimumVersion: '1.67',
 				localization: {
-					description: { key: 'updateMode', value: localize('updateMode', "Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service."), },
+					description: { key: 'updateMode', value: localize('updateMode', "Configure whether you receive automatic KnoxCoder updates. Updates are fetched from GitHub releases."), },
 					enumDescriptions: [
 						{
 							key: 'none',
@@ -50,7 +50,7 @@ configurationRegistry.registerConfiguration({
 						},
 						{
 							key: 'default',
-							value: localize('default', "Enable automatic update checks. Code will check for updates automatically and periodically."),
+							value: localize('default', "Enable automatic update checks. KnoxCoder will check for updates automatically and periodically."),
 						}
 					]
 				},
@@ -60,7 +60,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateMode', "Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service."),
+			description: localize('updateMode', "Configure whether you receive automatic KnoxCoder updates. Updates are fetched from GitHub releases."),
 			deprecationMessage: localize('deprecated', "This setting is deprecated, please use '{0}' instead.", 'update.mode')
 		},
 		'update.enableWindowsBackgroundUpdates': {
@@ -75,7 +75,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
+			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from KnoxCoder GitHub releases."),
 			tags: ['usesOnlineServices'],
 			agentsWindow: { default: false, readOnly: true },
 		},
