@@ -4,12 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 function repoFile(...parts: string[]): string {
 	return readFileSync(join(process.cwd(), ...parts), 'utf8');
+}
+
+function coreSources(): string {
+	const dir = join(process.cwd(), 'extensions/knox/src/core/core');
+	const files: string[] = [];
+	const walk = (current: string) => {
+		for (const name of readdirSync(current).sort()) {
+			const path = join(current, name);
+			if (statSync(path).isDirectory()) {
+				walk(path);
+			} else if (name.endsWith('.ts')) {
+				files.push(readFileSync(path, 'utf8'));
+			}
+		}
+	};
+	walk(dir);
+	return files.join('\n');
 }
 
 suite('Knox agent loop contract (KN-260–267)', () => {
@@ -62,7 +79,7 @@ suite('Knox agent loop contract (KN-260–267)', () => {
 		const gate = repoFile('extensions/knox/src/core/jev/toolGate.ts');
 		assert.ok(gate.includes('Jev does not allow, deny, or rewrite tool calls'));
 		assert.ok(gate.includes('action: "allow"'));
-		assert.ok(repoFile('extensions/knox/src/core/core.ts').includes('on("jev/gateTool"'));
+		assert.ok(coreSources().includes('on("jev/gateTool"'));
 	});
 
 	test('KN-267: native GUI owns /autonomous + stream adapters', () => {
@@ -71,6 +88,6 @@ suite('Knox agent loop contract (KN-260–267)', () => {
 		assert.ok(stream.includes("'brain/runAutonomousLoop'"));
 		assert.ok(stream.includes("'brain/resolveAutonomousTool'"));
 		assert.ok(repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/inbound.ts').includes('autonomous:'));
-		assert.ok(repoFile('extensions/knox/src/core/core.ts').includes('resolveAutonomousToolApproval'));
+		assert.ok(coreSources().includes('resolveAutonomousToolApproval'));
 	});
 });

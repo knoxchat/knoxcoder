@@ -13,7 +13,7 @@ import { fetchwithRequestOptions } from "knoxdev-package/fetch";
 import * as URI from "../util/uriApi.js";
 import { ZodObject } from "zod";
 
-import { Core } from "../core.js";
+import type { Core } from "../core/index.js";
 import { IdeInfo, IdeSettings } from "../index.js";
 import { getDevDataFilePath } from "../util/paths.js";
 

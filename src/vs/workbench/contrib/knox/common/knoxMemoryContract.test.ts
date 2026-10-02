@@ -4,12 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 function repoFile(...parts: string[]): string {
 	return readFileSync(join(process.cwd(), ...parts), 'utf8');
+}
+
+function coreSources(): string {
+	const dir = join(process.cwd(), 'extensions/knox/src/core/core');
+	const files: string[] = [];
+	const walk = (current: string) => {
+		for (const name of readdirSync(current).sort()) {
+			const path = join(current, name);
+			if (statSync(path).isDirectory()) {
+				walk(path);
+			} else if (name.endsWith('.ts')) {
+				files.push(readFileSync(path, 'utf8'));
+			}
+		}
+	};
+	walk(dir);
+	return files.join('\n');
 }
 
 suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
@@ -56,7 +73,7 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 	});
 
 	test('KN-314: native panel brain/* handlers are on Core', () => {
-		const core = repoFile('extensions/knox/src/core/core.ts');
+		const core = coreSources();
 		for (const name of [
 			'brain/dashboard',
 			'brain/searchMemories',
@@ -79,7 +96,7 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 			assert.ok(types.includes(`"${kind}"`), kind);
 		}
 		assert.ok(types.includes('sessionId: string'));
-		assert.ok(repoFile('extensions/knox/src/core/core.ts').includes('on("brain/recordSoulEvent"'));
+		assert.ok(coreSources().includes('on("brain/recordSoulEvent"'));
 	});
 
 	test('KN-316: restore can rewind files only or files+memory, and create pins a brain snapshot', () => {

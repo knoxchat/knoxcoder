@@ -4,12 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 function repoFile(...parts: string[]): string {
 	return readFileSync(join(process.cwd(), ...parts), 'utf8');
+}
+
+function coreSources(): string {
+	const dir = join(process.cwd(), 'extensions/knox/src/core/core');
+	const files: string[] = [];
+	const walk = (current: string) => {
+		for (const name of readdirSync(current).sort()) {
+			const path = join(current, name);
+			if (statSync(path).isDirectory()) {
+				walk(path);
+			} else if (name.endsWith('.ts')) {
+				files.push(readFileSync(path, 'utf8'));
+			}
+		}
+	};
+	walk(dir);
+	return files.join('\n');
 }
 
 const BUILTIN_CASES = [
@@ -58,7 +75,7 @@ suite('Knox tools honesty contract (KN-270–297)', () => {
 	});
 
 	test('KN-296–297: worktree handler + honesty-gate test stay in tree', () => {
-		assert.ok(repoFile('extensions/knox/src/core/core.ts').includes('on("agent/worktree"'));
+		assert.ok(coreSources().includes('on("agent/worktree"'));
 		const honesty = repoFile('extensions/knox/src/core/eval/honestyGate.test.ts');
 		assert.ok(honesty.includes('hasToolImplementation'));
 		assert.ok(honesty.includes('unimplementedAdvancedTools'));

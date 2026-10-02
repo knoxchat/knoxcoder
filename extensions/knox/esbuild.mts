@@ -169,7 +169,7 @@ await run({
 		if (!fs.existsSync(configYaml)) {
 			throw new Error(`Knox pkg is missing (${configYaml}). Expected KN-200 sources under extensions/knox/src/pkg.`);
 		}
-		const coreEntry = path.join(knoxCoreDir, 'core.ts');
+		const coreEntry = path.join(knoxCoreDir, 'core', 'index.ts');
 		if (!fs.existsSync(coreEntry)) {
 			throw new Error(`Knox core is missing (${coreEntry}). Expected KN-201 sources under extensions/knox/src/core.`);
 		}

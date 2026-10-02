@@ -2,7 +2,7 @@
  * Singleton accessor for the SkillManager instance.
  *
  * The SkillManager is initialized by the extension activation code
- * (or by core.ts) and then made available here so tool implementations
+ * (or by Core) and then made available here so tool implementations
  * can access it without circular dependencies.
  */
 

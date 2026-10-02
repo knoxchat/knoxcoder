@@ -271,7 +271,7 @@ export async function callToolRaw(
  * - Structured error handling
  * - Performance metrics & logging
  *
- * This is the primary entry point for external callers (core.ts, GUI, etc.)
+ * This is the primary entry point for external callers (Core, GUI, etc.)
  */
 export async function callTool(
   tool: Tool,

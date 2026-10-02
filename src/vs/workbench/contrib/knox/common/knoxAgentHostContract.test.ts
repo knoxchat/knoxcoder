@@ -15,6 +15,23 @@ function repoFile(...parts: string[]): string {
 	return readFileSync(join(process.cwd(), ...parts), 'utf8');
 }
 
+function coreSources(): string {
+	const dir = join(process.cwd(), 'extensions/knox/src/core/core');
+	const files: string[] = [];
+	const walk = (current: string) => {
+		for (const name of readdirSync(current).sort()) {
+			const path = join(current, name);
+			if (statSync(path).isDirectory()) {
+				walk(path);
+			} else if (name.endsWith('.ts')) {
+				files.push(readFileSync(path, 'utf8'));
+			}
+		}
+	};
+	walk(dir);
+	return files.join('\n');
+}
+
 /** A `widget/<name>.ts` barrel plus every implementation module in `widget/<name>/*.ts`. */
 function widgetBarrelSource(name: string): string {
 	const dir = `src/vs/workbench/contrib/knox/browser/gui/widget/${name}`;
@@ -442,7 +459,7 @@ suite('Knox agent host contract (OpenRouter OAuth)', () => {
 		assert.ok(pages.includes('signInOpenRouter'));
 		assert.ok(pages.includes('knox-gui-openrouter-sign-in'));
 		assert.ok(pages.includes('addModelModalProvider'));
-		assert.ok(pages.includes('knox-gui-add-model-provider-openrouter'));
+		assert.ok(pages.includes('knox-gui-add-model-provider-${id}'));
 		assert.ok(pages.includes('manageKey'));
 		assert.ok(protocol.includes("'openrouter/oauth/update'"));
 		assert.ok(protocol.includes("'openrouter/listModels'"));
@@ -834,7 +851,7 @@ suite('Knox agent host contract (KN-376)', () => {
 		const widget = widgetMemorySource();
 		const overlays = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiOverlays.ts');
 		const protocol = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiProtocol.ts');
-		const core = repoFile('extensions/knox/src/core/core.ts');
+		const core = coreSources();
 		const store = repoFile('extensions/knox/src/core/context/memory/brain/store/state.ts');
 		const hierarchy = repoFile('extensions/knox/src/core/context/memory/brain/MemoryHierarchy.ts');
 		const sanitizer = repoFile('extensions/knox/src/core/context/memory/brain/InputSanitizer.ts');
@@ -938,7 +955,7 @@ suite('Knox agent host contract (KN-378)', () => {
 			repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/pages.ts'),
 			repoFile('src/vs/workbench/contrib/knox/common/knoxGuiMemory.ts'),
 		].join('\n');
-		const core = repoFile('extensions/knox/src/core/core.ts');
+		const core = coreSources();
 		const messenger = repoFile('extensions/knox/src/host/extension/VsCodeMessenger.ts');
 		assert.ok(protocol.includes('KN-378'));
 		assert.deepStrictEqual([...KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME], []);

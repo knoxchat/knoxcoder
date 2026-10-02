@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -12,10 +12,27 @@ function repoFile(...parts: string[]): string {
 	return readFileSync(join(process.cwd(), ...parts), 'utf8');
 }
 
+function coreSources(): string {
+	const dir = join(process.cwd(), 'extensions/knox/src/core/core');
+	const files: string[] = [];
+	const walk = (current: string) => {
+		for (const name of readdirSync(current).sort()) {
+			const path = join(current, name);
+			if (statSync(path).isDirectory()) {
+				walk(path);
+			} else if (name.endsWith('.ts')) {
+				files.push(readFileSync(path, 'utf8'));
+			}
+		}
+	};
+	walk(dir);
+	return files.join('\n');
+}
+
 suite('Knox Core/host handler contract (KN-232–240)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const core = repoFile('extensions/knox/src/core/core.ts');
+	const core = coreSources();
 	const messenger = repoFile('extensions/knox/src/host/extension/VsCodeMessenger.ts');
 	const paths = repoFile('extensions/knox/src/core/util/paths.ts');
 	const history = repoFile('extensions/knox/src/core/util/history.ts');
