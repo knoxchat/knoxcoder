@@ -111,7 +111,7 @@
 	display: flex;
 	align-items: center;
 	gap: 2px;
-	padding: 4px 0 2px;
+	padding: 4px 6px 2px 0;
 	flex-shrink: 0;
 	width: 100%;
 	box-sizing: border-box;
@@ -379,6 +379,31 @@
 	min-width: 0;
 	background: var(--vscode-sideBar-background, rgb(30 30 30));
 	padding-top: 8px;
+}
+
+.knox-gui-pinned-user {
+	cursor: pointer;
+	margin: 8px 8px 0;
+	padding: 6px 10px;
+	border-radius: 8px;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.12));
+	background: var(--vscode-editor-background, rgb(30 30 30));
+	position: relative;
+	z-index: 40;
+}
+
+.knox-gui-pinned-user-text {
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.knox-gui-floating-sent-host:has(.knox-gui-pinned-user) {
+	overflow: visible;
 }
 
 .knox-gui-sticky-last-user-fade {

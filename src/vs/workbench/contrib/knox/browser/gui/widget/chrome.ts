@@ -895,6 +895,66 @@ export function scheduleStreamEndStick(widget: KnoxGuiWidget): void {
 	}, 50);
 }
 
+/**
+ * Keeps the sent message relevant to the scroll position pinned above the transcript, also when the model is idle:
+ * the last user message whose row has scrolled above the viewport top. While a live turn is followed, the host
+ * already holds the real last prompt (see renderChat), so this never touches it.
+ */
+export function updatePinnedUserMessage(widget: KnoxGuiWidget): void {
+	const host = widget.floatingHostEl;
+	const body = widget.bodyEl;
+	if (!host || !body) {
+		return;
+	}
+	if (host.querySelector('.knox-gui-history-composer')) {
+		return;
+	}
+	const bodyTop = body.getBoundingClientRect().top;
+	let pinnedIndex = -1;
+	for (const row of body.querySelectorAll<HTMLElement>('.knox-gui-history-composer[data-index]')) {
+		if (row.getBoundingClientRect().top < bodyTop) {
+			pinnedIndex = Number(row.getAttribute('data-index'));
+		} else {
+			break;
+		}
+	}
+	const item = pinnedIndex >= 0 ? widget.controller.store.state.history[pinnedIndex] : undefined;
+	const existing = host.querySelector<HTMLElement>('.knox-gui-pinned-user');
+	if (!item || item.role !== 'user') {
+		existing?.remove();
+		return;
+	}
+	if (existing?.getAttribute('data-history-id') === item.id && existing.getAttribute('data-index') === String(pinnedIndex)) {
+		return;
+	}
+	existing?.remove();
+	const pin = DOM.append(host, DOM.$('.knox-gui-pinned-user'));
+	pin.setAttribute('data-testid', 'pinned-user-message');
+	pin.setAttribute('data-history-id', item.id);
+	pin.setAttribute('data-index', String(pinnedIndex));
+	pin.setAttribute('role', 'button');
+	pin.tabIndex = 0;
+	DOM.append(pin, DOM.$('.knox-gui-pinned-user-text', undefined, item.content.trim() || '\u2026'));
+	DOM.append(host, DOM.$('.knox-gui-sticky-last-user-fade')).setAttribute('aria-hidden', 'true');
+	// Fade is decoration owned by the pin: drop the stale one from a previous pin.
+	const fades = host.querySelectorAll('.knox-gui-sticky-last-user-fade');
+	for (let i = 0; i < fades.length - 1; i++) {
+		fades[i].remove();
+	}
+	const jump = () => {
+		widget.autoScrollEnabled = false;
+		const row = body.querySelector<HTMLElement>(`.knox-gui-history-composer[data-index="${pinnedIndex}"]`);
+		row?.scrollIntoView({ block: 'start', behavior: 'auto' });
+	};
+	pin.addEventListener('click', jump);
+	pin.addEventListener('keydown', e => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			jump();
+		}
+	});
+}
+
 export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 	if (state.route !== KnoxGuiRoute.Chat) {
 		return;
@@ -912,6 +972,7 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 		widget.lastScrollHeight = next.lastScrollHeight;
 		widget.savedScrollTop = body.scrollTop;
 		widget.syncScrollButtons();
+		updatePinnedUserMessage(widget);
 		// Never rebuild the transcript from a scroll event: that tears down the
 		// scroller mid-gesture (the original `useEnhancedScroll` only updates refs).
 		if (followChanged && next.following) {
@@ -926,12 +987,14 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 			widget.loadEarlier();
 		}
 	}, { passive: true }));
+	updatePinnedUserMessage(widget);
 	if (typeof ResizeObserver === 'undefined') {
 		return;
 	}
 	const observer = new ResizeObserver(() => {
 		scheduleTranscriptStick(widget);
 		widget.syncScrollButtons();
+		updatePinnedUserMessage(widget);
 	});
 	observer.observe(body);
 	const content = body.querySelector('[data-testid="chat-scroll-content"]');

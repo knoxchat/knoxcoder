@@ -116,6 +116,11 @@
 	border-radius: 8.5px;
 }
 
+/* Sent-message cards in the transcript share the 8px radius of the pinned one and the composer. */
+.knox-gui-history-composer > .knox-sent-frame:not(.knox-sent-frame--live) {
+	border-radius: 8px;
+}
+
 .knox-sent-frame .knox-gui-msg.user {
 	margin: 0;
 	width: 100%;
