@@ -18,7 +18,7 @@ export interface IKnoxGuiPersistedUi {
 	codeToEdit: IKnoxGuiState['codeToEdit'];
 	/** `ui.selectedBlockSettingsSection`. */
 	overlay: KnoxGuiOverlay;
-  /** Last Add Chat Model provider tab (KnoxStudio vs OpenRouter). */
+	/** Last Add Model provider tab (KnoxStudio vs OpenRouter). */
 	addModelModalProvider: IKnoxGuiState['addModelModalProvider'];
 }
 

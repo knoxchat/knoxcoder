@@ -828,7 +828,7 @@ export interface IKnoxGuiState {
 	openrouterOauthKeyHash?: string;
 	addModelRole?: KnoxModelRole;
 	addModelModal: boolean;
-	/** Catalog shown in the Add Chat Model modal. Isolated from KnoxStudio OAuth. */
+	/** Catalog shown in the Add Model modal. Isolated from KnoxStudio OAuth. */
 	addModelModalProvider: 'knoxchat' | 'openrouter';
 	addModelSelectedModel?: string;
 	addModelDraft: Record<string, string>;

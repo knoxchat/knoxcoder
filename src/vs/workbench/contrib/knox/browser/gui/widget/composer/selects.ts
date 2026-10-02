@@ -6,16 +6,17 @@
 import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
-import { knoxGuiListboxNextIndex, knoxGuiModelSelectTitle, knoxGuiModelTriggerLabel, knoxGuiSortModelsByApiKey } from '../../../../common/knoxGuiCapabilities.js';
+import { knoxGuiChatPickerModels, knoxGuiListboxNextIndex, knoxGuiModelSelectTitle, knoxGuiModelTriggerLabel, knoxGuiShouldOpenAddModelDirectly, knoxGuiSortModelsByApiKey } from '../../../../common/knoxGuiCapabilities.js';
 import { appendKnoxGuiSvg } from '../../knoxGuiIcons.js';
 import { reasoningEffortLabelKey } from '../../../../common/knoxGuiOverlays.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 
 export function renderModelSelect(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, source = 'main'): void {
-	const models = state.modelsByRole.chat.length ? state.modelsByRole.chat : state.models;
+	const models = knoxGuiChatPickerModels(state);
 	const current = models.find(model => model.title === state.modelTitle) ?? models[0];
 	const wrap = DOM.append(parent, DOM.$('.knox-gui-model-wrap'));
-	const open = widget.openMenu === 'model' && widget.openMenuSource === source;
+	const skipPicker = knoxGuiShouldOpenAddModelDirectly(models);
+	const open = !skipPicker && widget.openMenu === 'model' && widget.openMenuSource === source;
 	const trigger = widget.chromeButton(wrap, {
 		label: knoxGuiModelTriggerLabel(current, models) || t(state, 'selectModel'),
 		svg: 'chevrons-down',
@@ -25,11 +26,20 @@ export function renderModelSelect(widget: KnoxGuiWidget, parent: HTMLElement, st
 		testId: source === 'main' ? 'knox-gui-model-select' : `knox-gui-model-select-${source}`,
 		extraClass: 'knox-gui-model-trigger',
 		menuTrigger: true,
-		onClick: () => widget.toggleMenu('model', source),
+		onClick: () => {
+			if (skipPicker) {
+				widget.closeMenus();
+				widget.controller.openAddModel('chat', { bulk: true });
+				return;
+			}
+			widget.toggleMenu('model', source);
+		},
 	});
-	trigger.setAttribute('aria-haspopup', 'listbox');
+	trigger.setAttribute('aria-haspopup', skipPicker ? 'dialog' : 'listbox');
 	trigger.setAttribute('aria-expanded', String(open));
-	trigger.setAttribute('aria-controls', 'knox-gui-model-menu');
+	if (!skipPicker) {
+		trigger.setAttribute('aria-controls', 'knox-gui-model-menu');
+	}
 	if (!open) {
 		return;
 	}

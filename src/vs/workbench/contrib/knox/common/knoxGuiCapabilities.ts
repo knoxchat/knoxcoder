@@ -404,6 +404,19 @@ export function knoxGuiSortModelsByApiKey<T extends { apiKey?: string }>(models:
 	return [...models.filter(model => model.apiKey !== ''), ...models.filter(model => model.apiKey === '')];
 }
 
+/** Picker list: role-chat models, else all models (custom config.yaml entries). */
+export function knoxGuiChatPickerModels(state: { models: readonly IKnoxGuiModel[]; modelsByRole: { chat: readonly IKnoxGuiModel[] } }): IKnoxGuiModel[] {
+	return (state.modelsByRole.chat.length ? state.modelsByRole.chat : state.models).slice();
+}
+
+/**
+ * First-run empty picker: no configured models and no custom config.yaml models.
+ * Skip the extra "Add Model" dropdown and open the Add Model modal directly.
+ */
+export function knoxGuiShouldOpenAddModelDirectly(models: readonly unknown[]): boolean {
+	return models.length === 0;
+}
+
 /** Headless UI Listbox keys: arrows wrap-free, Home/End jump. `current` is -1 when focus is outside the list. */
 export function knoxGuiListboxNextIndex(key: string, current: number, length: number): number | undefined {
 	if (!length) {

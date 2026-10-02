@@ -672,6 +672,38 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(JSON.stringify(store.state.inputDoc).includes('@'));
 	});
 
+	test('empty model picker opens Add Model modal instead of the Add Model dropdown', async () => {
+		const { widget, store } = await mount();
+		store.patch({ profileType: 'local', models: [], modelsByRole: { chat: [], edit: [], apply: [], viewRead: [], realTimeSearch: [] } });
+		const model = widget.root.querySelector('[data-testid="knox-gui-model-select"]') as HTMLButtonElement;
+		assert.ok(model);
+		assert.ok(model.textContent?.includes('Select Model'));
+		assert.strictEqual(model.getAttribute('aria-haspopup'), 'dialog');
+		model.click();
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-model-menu"]'), null);
+		assert.strictEqual(store.state.addModelModal, true);
+		assert.strictEqual(store.state.addModelBulk, true);
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-modal"]'));
+		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-form-title')?.textContent, 'Add Model');
+		assert.ok(!widget.root.querySelector('.knox-gui-add-model-form-title')?.textContent?.includes('Chat'));
+	});
+
+	test('custom config.yaml models still open the model dropdown instead of the Add Model modal', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			profileType: 'local',
+			models: [{ title: 'Local Llama', provider: 'ollama', model: 'llama3' }],
+			modelsByRole: { chat: [], edit: [], apply: [], viewRead: [], realTimeSearch: [] },
+		});
+		const model = widget.root.querySelector('[data-testid="knox-gui-model-select"]') as HTMLButtonElement;
+		assert.ok(model.textContent?.includes('Local Llama'));
+		assert.strictEqual(model.getAttribute('aria-haspopup'), 'listbox');
+		model.click();
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-model-menu"]'));
+		assert.strictEqual(store.state.addModelModal, false);
+		assert.ok(widget.root.querySelector('.knox-gui-model-add'));
+	});
+
 	test('composer section toggles hidden/shown, keeps the draft, and reveals itself for @ mentions', async () => {
 		const { widget, store } = await mount();
 		const collapsible = () => widget.root.querySelector('[data-testid="knox-gui-composer-collapsible"]') as HTMLElement;
@@ -2609,6 +2641,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			openrouterModels: [{ title: 'Claude Sonnet 4.6', model: 'anthropic/claude-sonnet-4.6', category: 'Anthropic', contextLength: 200000, supportsTools: true }],
 		});
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-modal"]'));
+		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-form-title')?.textContent, 'Add Model');
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-toggle"]'));
 		assert.ok(widget.root.textContent?.includes('KnoxStudio'));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-knoxchat"]')?.classList.contains('selected'));

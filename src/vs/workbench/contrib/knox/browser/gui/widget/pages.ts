@@ -21,7 +21,6 @@ import {
 	formatModelPricingPerMillion,
 	groupKnoxChatModels,
 	knoxGuiProviderLogoUri,
-	MODEL_ROLE_LABEL_KEY,
 	sortConfigErrors,
 	splitFilePath,
 	type IKnoxGuiAddModelPackage,
@@ -554,8 +553,7 @@ export function renderAddModelForm(widget: KnoxGuiWidget, state: IKnoxGuiState):
 		extraClass: 'knox-gui-text-dialog-close',
 		onClick: () => widget.controller.closeAddModelModal(),
 	});
-	const roleLabel = state.addModelRole ? t(state, MODEL_ROLE_LABEL_KEY[state.addModelRole]) : undefined;
-	DOM.append(box, DOM.$('h4.knox-gui-add-model-form-title', undefined, roleLabel ? `${t(state, 'add')} ${roleLabel} ${t(state, 'model')}` : t(state, 'addModel')));
+	DOM.append(box, DOM.$('h4.knox-gui-add-model-form-title', undefined, t(state, 'addModel')));
 	const form = DOM.append(box, DOM.$('.knox-gui-add-model-form-body'));
 	const source: CatalogSource = state.addModelModalProvider === 'openrouter' ? 'openrouter' : 'knoxchat';
 	const connected = source === 'openrouter' ? state.openrouterOauthConnected : state.oauthConnected;
