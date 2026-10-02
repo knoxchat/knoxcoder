@@ -146,20 +146,20 @@ console.log(projectStructure.dependencies); // Dependencies between modules
 
 ## Usage
 
-Agent mode is **one switch**: the Chat / Agent tab in the sidebar (`session.mode === "agent"`) and the VS Code `AgentModeManager` stay in sync.
+Agent mode is **one switch**: the sidebar permission dropdown (Ask / Edits / Auto) plus `session.mode === "agent"` stay in sync with VS Code `AgentModeManager`. Users no longer pick Chat vs Agent; Jev chooses tools per turn when enabled, otherwise the session stays Agent.
 
-1. Switch to **Agent** in the chat toolbar, or toggle with `Ctrl+Shift+Alt+A` (or `Cmd+Shift+Alt+A` on Mac) — either one activates both GUI tools and extension features (checkpoints, undo, shadow preview, verification).
-2. Use the agent to assist with coding tasks. Prefer `builtin_edit_file` / `builtin_write_file` / `builtin_apply_patch` over rewriting files in the terminal. Cycle Ask / Edits / Auto on the Agent tab (Shift+Tab). Long tests/servers: `background: true` or wait ~30s, then `builtin_await_shell`.
+1. Force Agent on with `Ctrl+Shift+Alt+A` (or `Cmd+Shift+Alt+A` on Mac) if you need host features (checkpoints, undo, shadow preview, verification). The toolbar is Ask / Edits / Auto, not Chat vs Agent.
+2. Use the agent to assist with coding tasks. Prefer `builtin_edit_file` / `builtin_write_file` / `builtin_apply_patch` over rewriting files in the terminal. Cycle Ask / Edits / Auto in the permission dropdown (Shift+Tab). Long tests/servers: `background: true` or wait ~30s, then `builtin_await_shell`.
 3. (Optional) Enable `knoxchat.enableShadowPreview` to review Apply edits in a side-by-side shadow diff before the vertical-diff apply path runs
 4. Accept with `Ctrl+Shift+Alt+S` / Reject with `Ctrl+Shift+Alt+Backspace` while a shadow preview is open
 
 ## Worktree isolation
 
-The Agent tab **Worktree** chip creates a `git worktree` (`knox/agent-*` under the system temp dir). While it is on, tool edits and the agent shell run in that tree. **Apply** copies changed files onto the current workspace (never `vmlinux` / `*.ko` / `qemu-system-*`). **Discard** (or toggling the chip off) removes the worktree without merging. Huge repos can pass `sparsePaths` (`arch/x86`, `kernel`, `mm`, …) and warn above 20k tracked files.
+The permission menu **Worktree** item creates a `git worktree` (`knox/agent-*` under the system temp dir). While it is on, tool edits and the agent shell run in that tree. **Apply** copies changed files onto the current workspace (never `vmlinux` / `*.ko` / `qemu-system-*`). **Discard** (or toggling the item off) removes the worktree without merging. Huge repos can pass `sparsePaths` (`arch/x86`, `kernel`, `mm`, …) and warn above 20k tracked files.
 
 ## Commands
 
-- `knox.toggleAgentMode` - Toggle agent mode on/off (keybinding: `Ctrl+Shift+Alt+A` / `Cmd+Shift+Alt+A`). Syncs the GUI Chat/Agent tab.
+- `knox.toggleAgentMode` - Toggle host agent mode on/off (keybinding: `Ctrl+Shift+Alt+A` / `Cmd+Shift+Alt+A`). Forcing Agent on still switches the GUI to Agent; turning it off no longer switches to Chat.
   - Legacy aliases (same behavior): `knox.toggleAgentModeCommand`, `knoxchat.toggleAgentMode`, `knoxchat.activateAgentMode`
 - `knox.isAgentModeActive` - Returns whether extension agent mode is **actually active** (not merely whether the manager was constructed)
   - Legacy alias: `knoxchat.isAgentModeActive`

@@ -1,6 +1,63 @@
 # Changelog
 
 All notable changes to KnoxCoder are documented in this file.
+## [1.138.2] - 2026-10-02
+
+### Added
+
+- **Ask / Edits / Auto permission dropdown**
+  Chat vs Agent is no longer a user tab. The toolbar is one permission control (Ask / Edits / Auto, Shift+Tab). When Jev is on, it picks Chat vs Agent per turn; otherwise the session stays Agent. Worktree and Jobs live in that same menu. Host `knox.toggleAgentMode` can still force Agent on; turning it off no longer switches the GUI to Chat.
+
+- **Empty model picker opens Add Model**
+  First-run setups with no configured or custom models skip the empty dropdown and open the Add Model modal directly (title covers chat and agent).
+
+- **GitHub auto-update**
+  Packaged builds compare the running KnoxCoder version against published GitHub releases (`https://github.com/knoxchat/knoxcoder`) and download the matching installer instead of using a VS Code update feed. Linux still opens the releases page. CI attaches `latest-<platform>-<arch>.json`; macOS metadata comes from `./build_dmg.sh`.
+
+- **Workspace checkpoints pin Memory Brain**
+  File snapshots now pin a brain checkpoint (and rewind falls back to the nearest earlier pin). Restore-with-memory is transactional so semantic memory cannot stay ahead of the disk.
+
+### Changed
+
+- Bumped product version to **1.138.2** (`package.json` / related product metadata).
+
+- **Knox Core messenger split into modules**
+  `extensions/knox/src/core/core.ts` is now `core/Core.ts` plus focused modules (`agent`, `brain`, `tools`, `startup`, …). `import { Core } from "core/core"` still resolves; no handlers were dropped.
+
+- **Memory Brain store and manager split into modules**
+  `BrainStore.ts` and `BrainManager.ts` remain facades over `store/` and `manager/`. Call sites are unchanged.
+
+- **README overview is a video** instead of screenshots.
+
+### Fixed
+
+- **Tool calls stay executable when models leak markup**
+  Heal unpaired `tool_calls` before the API, remap `tool_name` placeholders, parse exploded DSML, and strip leading `>` / quotes / `:line` from file paths so reads and related tools resolve.
+
+- **Ask-user no longer stalls on empty forms**
+  Accept Cursor and Claude question shapes. Empty payloads settle with a schema hint so the turn can continue.
+
+- **Chat replies no longer triple**
+  Chat, Memory, and Checkpoint Graph all attach stream listeners; dispatch now de-dupes so the same envelope is not applied three times.
+
+- **Hidden composer dock keeps transcript scroll buttons**, and **Approve / action buttons stay teal fills** in both themes (leftover text chips removed).
+
+### Files touched in this release
+
+| Path | Action |
+|------|--------|
+| `src/vs/platform/update/**` / `scripts/ci/generate-update-metadata.mjs` / `product.json` / `build_dmg.sh` / `.github/workflows/build-desktop.yml` | Added/modified (GitHub releases auto-update) |
+| `extensions/knox/src/core/core/**` | Added (messenger hub split; `core.ts` removed) |
+| `extensions/knox/src/core/context/memory/brain/store/**` / `manager/**` | Added (Brain facades kept) |
+| `extensions/knox/src/core/llm/healToolCallMessages.ts` / `parseTextToolCalls.ts` / `util/toolFilePath.ts` | Added/modified |
+| `extensions/knox/src/core/tools/implementations/askUser.ts` | Modified |
+| `extensions/knox/src/core/jev/turn.ts` | Modified (permission-mode routing) |
+| GUI chrome, overlays, i18n `en`/`zh`, agent mode, capabilities, state | Modified (Ask/Edits/Auto; leftover Chat/Agent strings removed) |
+| Host/core/GUI contract and parity tests | Modified |
+| `README.md` | Modified |
+| `package.json` / `package-lock.json` | Modified (version 1.138.2) |
+| `CHANGELOG.md` | Modified |
+
 ## [1.138.1]
 
 ### Added

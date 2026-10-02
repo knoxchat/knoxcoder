@@ -6,12 +6,7 @@
 /* eslint-disable */
 
 export const knoxGuiStringsEnChat: Record<string, unknown> = {
-	"chat": "Chat",
-	"agent": "Agent",
-	"chatMode": "Chat Mode",
-	"agentMode": "Agent Mode",
 	"agentModeNotSupported": "Agent mode not supported with current model",
-	"agentOptions": "Agent options",
 	"permissionModeGroup": "Permission",
 	"permissionModeAsk": "Ask",
 	"permissionModeEdits": "Edits",

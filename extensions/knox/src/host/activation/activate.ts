@@ -80,7 +80,7 @@ export async function activateExtension(context: vscode.ExtensionContext) {
   setupInlineTips(context);
 
   // Agent mode before the host: toggle/context keys exist before the
-  // messenger and GUI attach (Cmd/Ctrl+Shift+Alt+A → Agent tab).
+  // messenger and GUI attach (Cmd/Ctrl+Shift+Alt+A still forces Agent on).
   const agentModeDisposable = activateAgentMode(context);
   context.subscriptions.push(agentModeDisposable);
 

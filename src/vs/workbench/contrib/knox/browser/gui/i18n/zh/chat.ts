@@ -6,12 +6,7 @@
 /* eslint-disable */
 
 export const knoxGuiStringsZhChat: Record<string, unknown> = {
-	"chat": "对话",
-	"agent": "助理",
-	"chatMode": "对话模式",
-	"agentMode": "助理模式",
 	"agentModeNotSupported": "当前模型不支持助理模式",
-	"agentOptions": "助理选项",
 	"permissionModeGroup": "权限",
 	"permissionModeAsk": "询问",
 	"permissionModeEdits": "编辑",

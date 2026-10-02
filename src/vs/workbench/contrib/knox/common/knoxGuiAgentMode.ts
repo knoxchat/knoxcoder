@@ -15,7 +15,7 @@ export function knoxGuiSessionModeIsAgent(mode: KnoxChatMode): boolean {
 	return mode === 'agent';
 }
 
-/** Chat/Agent tabs only. Edit is a temporary overlay that returns here. */
+/** Session modes the toolbar used to tab between. Edit is a temporary overlay that returns here. */
 export function knoxGuiIsSessionTabMode(mode: KnoxChatMode): mode is 'chat' | 'agent' {
 	return mode === 'chat' || mode === 'agent';
 }
