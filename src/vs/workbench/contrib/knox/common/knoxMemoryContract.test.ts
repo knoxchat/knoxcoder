@@ -16,7 +16,9 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('KN-310: BrainStore lives at ~/.knoxcoder/memory/brain.sqlite and migrates legacy once', () => {
-		const store = repoFile('extensions/knox/src/core/context/memory/brain/BrainStore.ts');
+		const facade = repoFile('extensions/knox/src/core/context/memory/brain/BrainStore.ts');
+		assert.ok(facade.includes('from "./store/index.js"'));
+		const store = repoFile('extensions/knox/src/core/context/memory/brain/store/index.ts');
 		assert.ok(store.includes('export class BrainStore'));
 		assert.ok(store.includes('~/.knoxcoder/memory/brain.sqlite'));
 		assert.ok(repoFile('extensions/knox/src/core/util/paths.ts').includes('path.join(getMemoryBrainPath(), "brain.sqlite")'));
@@ -29,7 +31,7 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 		const fusion = repoFile('extensions/knox/src/core/context/memory/brain/RetrievalFusion.ts');
 		assert.ok(fusion.includes('FTS5 BM25'));
 		assert.ok(fusion.includes('trigram'));
-		const store = repoFile('extensions/knox/src/core/context/memory/brain/BrainStore.ts');
+		const store = repoFile('extensions/knox/src/core/context/memory/brain/store/state.ts');
 		assert.ok(store.includes('retrieval_threshold: 0.6'));
 		assert.ok(store.includes('retrieval_top_k: 20'));
 	});
