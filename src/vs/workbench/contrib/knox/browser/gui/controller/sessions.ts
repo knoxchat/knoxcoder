@@ -6,7 +6,7 @@
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { asRecord, asArray, textFromUnknown, thinkingFromUnknown, imagesFromUnknown, contextItemsFromRaw, parseAskQuestions } from './helpers.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { capDisplayText, parseToolArgs, shouldWarnLargeSession } from '../../../common/knoxGuiChat.js';
+import { capDisplayText, isAskUserToolName, parseToolArgs, shouldWarnLargeSession } from '../../../common/knoxGuiChat.js';
 import { toolOutputItemsFromUnknown, toolOutputText } from '../../../common/knoxGuiTools.js';
 import { inputDocFromPlainText } from '../../../common/knoxGuiInput.js';
 import { formatSessionExportMarkdown, sessionExportFilename } from '../../../common/knoxGuiOverlays.js';
@@ -287,29 +287,31 @@ export function historyFromRaw(controller: KnoxGuiController, item: Record<strin
 		const args = String(fn?.arguments ?? call.arguments ?? '');
 		const parsed = asRecord(state.parsedArgs) ?? parseToolArgs(args);
 		const outputItems = toolOutputItemsFromUnknown(state.output);
+		const name = String(fn?.name ?? call.name ?? 'tool');
 		return {
 			id: String(state.toolCallId ?? call.id ?? generateUuid()),
-			name: String(fn?.name ?? call.name ?? 'tool'),
+			name,
 			arguments: args,
 			status: String(state.status ?? 'done') as IKnoxGuiToolCall['status'],
 			outputItems,
 			output: capDisplayText(toolOutputText(outputItems, textFromUnknown(state.output))).text,
 			parsedArgs: parsed,
-			questions: parseAskQuestions(parsed),
+			questions: isAskUserToolName(name) ? parseAskQuestions(parsed) : undefined,
 			answers: asRecord(state.answers) as Record<string, string> | undefined,
 		};
 	});
 	const fromMessage = toolCallsRaw.map(call => {
 		const args = String(asRecord(call.function)?.arguments ?? call.arguments ?? '');
 		const parsed = parseToolArgs(args);
+		const name = String(asRecord(call.function)?.name ?? call.name ?? 'tool');
 		return {
 			id: String(call.id ?? generateUuid()),
-			name: String(asRecord(call.function)?.name ?? call.name ?? 'tool'),
+			name,
 			arguments: args,
 			status: 'done' as const,
 			output: call.output ? capDisplayText(textFromUnknown(call.output)).text : undefined,
 			parsedArgs: parsed,
-			questions: parseAskQuestions(parsed),
+			questions: isAskUserToolName(name) ? parseAskQuestions(parsed) : undefined,
 		};
 	});
 	const reasoning = asRecord(item.reasoning);

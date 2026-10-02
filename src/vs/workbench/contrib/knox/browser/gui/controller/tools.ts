@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
-import { parseAskQuestions } from './helpers.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { ASK_USER_TOOL_NAMES, parseToolArgs } from '../../../common/knoxGuiChat.js';
-import { isSamePermissionTool, mergeStreamedToolCalls, toolOutputItemsFromUnknown, toolOutputText } from '../../../common/knoxGuiTools.js';
+import { isAskUserToolName, parseToolArgs } from '../../../common/knoxGuiChat.js';
+import { isSamePermissionTool, mergeStreamedToolCalls, resolveAskUserQuestions, toolOutputItemsFromUnknown, toolOutputText } from '../../../common/knoxGuiTools.js';
 import { IKnoxGuiToolCall, KnoxPermissionMode, knoxGuiApplyToolPreset, nextPermissionMode, nextToolSetting } from '../../../common/knoxGuiState.js';
 import { isAutonomousRunning, resolveAutonomousTool } from './stream.js';
-import { KNOX_DENIED_TOOL_OUTPUT, KnoxGuiToolDecision, knoxGuiAskUserOutput, knoxGuiLocalAutoApprove, knoxGuiMissingToolOutput, knoxGuiToolIsSettled } from '../../../common/knoxGuiAgentRequest.js';
+import { KNOX_DENIED_TOOL_OUTPUT, KnoxGuiToolDecision, knoxGuiAskUserInvalidOutput, knoxGuiAskUserOutput, knoxGuiLocalAutoApprove, knoxGuiMissingToolOutput, knoxGuiToolIsSettled } from '../../../common/knoxGuiAgentRequest.js';
 
 export function cycleToolPermission(controller: KnoxGuiController, name: string): void {
 	const tools = controller.store.state.tools;
@@ -67,7 +66,7 @@ export function denyTool(controller: KnoxGuiController, id: string): void {
 		resolveAutonomousTool(controller, id, false);
 		return;
 	}
-	if (ASK_USER_TOOL_NAMES.has(call.name)) {
+	if (isAskUserToolName(call.name)) {
 		controller.patchTool(id, { status: 'canceled' });
 		controller.store.setStreaming(false);
 		return;
@@ -84,7 +83,7 @@ export function answerAskUser(controller: KnoxGuiController, id: string, answers
 		return;
 	}
 	const args = call.parsedArgs ?? parseToolArgs(call.arguments);
-	const questions = call.questions?.length ? call.questions : parseAskQuestions(args);
+	const questions = resolveAskUserQuestions(call);
 	const output = knoxGuiAskUserOutput(questions, answers);
 	const sessionId = controller.store.state.sessionId;
 	controller.messenger.post('brain/recordSoulEvent', { sessionId, kind: 'tool_success', toolName: call.name, files: [], ok: true, summary: output.content });
@@ -136,7 +135,7 @@ export async function evaluateToolDecision(controller: KnoxGuiController, call: 
 			if (result.hardDeny) {
 				return { decision: 'deny', reason: result.reason };
 			}
-			return { decision: result.autoApproved && !ASK_USER_TOOL_NAMES.has(call.name) ? 'allow' : 'ask' };
+			return { decision: result.autoApproved && !isAskUserToolName(call.name) ? 'allow' : 'ask' };
 		}
 	} catch {
 		// host without the handler
@@ -161,6 +160,17 @@ async function resolveTool(controller: KnoxGuiController, call: IKnoxGuiToolCall
 	if ((controller.store.state.toolSettings[call.name] ?? 'allowedWithoutPermission') === 'disabled') {
 		settleDisabledTool(controller, call);
 		return true;
+	}
+	if (isAskUserToolName(call.name)) {
+		const questions = resolveAskUserQuestions(call);
+		if (!questions.length) {
+			const item = knoxGuiAskUserInvalidOutput();
+			controller.patchTool(call.id, { status: 'done', outputItems: [item], output: item.content });
+			return true;
+		}
+		if (!call.questions?.length) {
+			controller.patchTool(call.id, { questions });
+		}
 	}
 	const { decision, reason } = await controller.evaluateToolDecision(call);
 	if (controller.findTool(call.id)?.status !== 'generated') {
@@ -208,6 +218,12 @@ export function finalizeGeneratingTools(controller: KnoxGuiController, toolCalls
 	for (const call of toolCalls) {
 		if (call.status === 'generating') {
 			call.status = 'generated';
+		}
+		if (isAskUserToolName(call.name)) {
+			const questions = resolveAskUserQuestions(call);
+			if (questions.length) {
+				call.questions = questions;
+			}
 		}
 	}
 }

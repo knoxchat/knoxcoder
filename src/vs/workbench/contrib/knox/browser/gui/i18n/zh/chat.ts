@@ -28,6 +28,7 @@ export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"askUserFreeform": "输入回答…",
 	"askUserFreeformLabel": "其他回答",
 	"askUserInvalid": "没有有效的问题。",
+	"askUserFallbackPrompt": "助理提出了问题，但没有可用的表单。请输入回答，或关闭。",
 	"askUserProgress": "第 {{current}} 题，共 {{total}} 题",
 	"askUserNext": "下一步",
 	"askUserPrevious": "上一步",

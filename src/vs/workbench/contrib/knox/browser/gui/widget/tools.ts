@@ -34,7 +34,7 @@ import {
 	highlightSearchQueryInHtml,
 	formatAskUserDisplayAnswer,
 	isAskUserAnswered,
-	parseAskUserQuestionsForGui,
+	resolveAskUserQuestions,
 	LIGHT_TERMINAL_PALETTE,
 	luminanceIsLight,
 	parseAnsiSpans,
@@ -931,15 +931,18 @@ export function renderTaskSubagent(widget: KnoxGuiWidget, parent: HTMLElement, _
 }
 
 export function renderAskUser(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {
-	const questions = tool.questions?.length ? tool.questions : parseAskUserQuestionsForGui(tool.parsedArgs?.questions);
+	let questions = resolveAskUserQuestions(tool);
+	const waiting = tool.status === 'generated';
 	if (!questions.length) {
 		const invalid = DOM.append(parent, DOM.$('.knox-gui-muted', undefined, t(state, 'askUserInvalid')));
 		invalid.setAttribute('data-testid', 'knox-gui-ask-invalid');
-		return;
+		if (!waiting) {
+			return;
+		}
+		questions = [{ id: 'q1', prompt: t(state, 'askUserFallbackPrompt') }];
 	}
 	const drafts = widget.askUserDrafts.get(tool.id) ?? { ...(tool.answers ?? {}) };
 	widget.askUserDrafts.set(tool.id, drafts);
-	const waiting = tool.status === 'generated';
 	const declined = tool.status === 'canceled';
 	if (!waiting) {
 		const card = DOM.append(parent, DOM.$('.knox-gui-ask-card'));

@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IKnoxGuiContextProvider, IKnoxGuiSlashCommand, IKnoxGuiSuggestItem, IKnoxGuiToolCall, KnoxChatMode } from './knoxGuiState.js';
+import { isAskUserToolName } from './knoxGuiChat.js';
 
 export { isSingleRangeEdit, isSingleRangeEditOrInsertion, shouldSendEditPrompt } from './knoxGuiEdit.js';
-
-const ASK_USER_TOOL_NAMES = new Set(['builtin_ask_user', 'ask_user', 'AskUser']);
 
 export type KnoxGuiInlineNode =
 	| { type: 'text'; text: string }
@@ -627,7 +626,7 @@ export function knoxGuiPendingToolBlocksSubmit(state: {
 	for (let i = state.history.length - 1; i >= 0; i--) {
 		const pending = state.history[i].toolCalls?.find(call => call.status === 'generated');
 		if (pending) {
-			return !ASK_USER_TOOL_NAMES.has(pending.name);
+			return !isAskUserToolName(pending.name);
 		}
 	}
 	return false;

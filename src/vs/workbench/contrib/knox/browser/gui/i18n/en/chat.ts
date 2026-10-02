@@ -28,6 +28,7 @@ export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"askUserFreeform": "Type an answer…",
 	"askUserFreeformLabel": "Another answer",
 	"askUserInvalid": "No valid questions were provided.",
+	"askUserFallbackPrompt": "The assistant asked a question without a usable form. Type a reply, or dismiss.",
 	"askUserProgress": "Question {{current}} of {{total}}",
 	"askUserNext": "Next",
 	"askUserPrevious": "Previous",

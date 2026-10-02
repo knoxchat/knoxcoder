@@ -945,6 +945,56 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(posted.some(message => message.messageType === 'brain/store'));
 	});
 
+	test('invalid ask_user arguments settle with an error instead of blocking the turn', async () => {
+		const { controller, store, posted } = createHarness();
+		await timeout(0);
+		store.patch({
+			history: [{
+				id: 'a',
+				role: 'assistant',
+				content: '',
+				toolCalls: [{
+					id: 'ask-empty',
+					name: 'builtin_ask_user',
+					arguments: '{}',
+					status: 'generated',
+					parsedArgs: {},
+				}],
+			}],
+		});
+		await controller.resolveTools([controller.findTool('ask-empty')!]);
+		const empty = controller.findTool('ask-empty');
+		assert.strictEqual(empty?.status, 'done');
+		assert.ok(empty?.output?.includes('No valid questions were provided'));
+		assert.ok(!posted.some(message => message.messageType === 'tools/call'));
+
+		store.patch({
+			history: [{
+				id: 'a2',
+				role: 'assistant',
+				content: '',
+				toolCalls: [{
+					id: 'ask-cursor',
+					name: 'AskQuestion',
+					arguments: JSON.stringify({
+						title: 'Which syscall to add?',
+						questions: [{ id: 'syscall', options: [{ id: 'a', label: 'ENOSYS stub' }] }],
+					}),
+					status: 'generated',
+					parsedArgs: {
+						title: 'Which syscall to add?',
+						questions: [{ id: 'syscall', options: [{ id: 'a', label: 'ENOSYS stub' }] }],
+					},
+				}],
+			}],
+		});
+		await controller.resolveTools([controller.findTool('ask-cursor')!]);
+		const recovered = controller.findTool('ask-cursor');
+		assert.strictEqual(recovered?.status, 'generated');
+		assert.strictEqual(recovered?.questions?.[0]?.prompt, 'Which syscall to add?');
+		assert.deepStrictEqual(recovered?.questions?.[0]?.options, ['ENOSYS stub']);
+	});
+
 	test('denyTool writes the permission-denied output and continues the turn', async () => {
 		const { controller, store, posted } = createHarness();
 		await timeout(0);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IKnoxGuiAskQuestion, IKnoxGuiHistoryItem, IKnoxGuiToolCall, IKnoxGuiToolOutputItem, KnoxPermissionMode, KnoxToolSetting, KnoxToolStatus } from './knoxGuiState.js';
-import { ASK_USER_TOOL_NAMES, FILE_EDIT_TOOL_NAMES } from './knoxGuiChat.js';
+import { FILE_EDIT_TOOL_NAMES, isAskUserToolName } from './knoxGuiChat.js';
 
 /** Core `ChatMessage` as sent over `knox/buildAgentRequest` and `llm/streamChat`. */
 export interface IKnoxCoreChatMessage {
@@ -134,6 +134,14 @@ export function knoxGuiAskUserOutput(questions: IKnoxGuiAskQuestion[], answers: 
 		name: 'answers',
 		description: `Answered ${questions.length} question${questions.length === 1 ? '' : 's'}`,
 		content: knoxGuiFormatAskUserAnswers(questions, answers),
+	};
+}
+
+export function knoxGuiAskUserInvalidOutput(): IKnoxGuiToolOutputItem {
+	return {
+		name: 'questions',
+		description: 'Invalid ask_user arguments',
+		content: 'No valid questions were provided. Call builtin_ask_user with questions: [{ id, prompt, options: ["choice"] or [{ id, label }] }]. A single question string or { question, options } also works. Then wait for the user to answer.',
 	};
 }
 
@@ -573,7 +581,7 @@ export function knoxGuiLocalAutoApprove(params: {
 	sessionAllowlist: readonly string[];
 }): boolean {
 	const setting = params.toolSettings[params.name] ?? 'allowedWithoutPermission';
-	if (setting === 'disabled' || ASK_USER_TOOL_NAMES.has(params.name)) {
+	if (setting === 'disabled' || isAskUserToolName(params.name)) {
 		return false;
 	}
 	if (WORKSPACE_CHECKPOINT_TOOL_NAMES.has(params.name) && (params.args?.action === 'restore' || params.args?.action === 'delete')) {

@@ -432,9 +432,35 @@ export function parseToolArgs(raw: string | undefined): Record<string, unknown> 
 	return parsed === undefined ? {} : { value: parsed };
 }
 
+export const ASK_USER_TOOL_NAMES = new Set([
+	'builtin_ask_user',
+	'ask_user',
+	'AskUser',
+	'AskQuestion',
+	'AskUserQuestion',
+	'ask_question',
+	'builtin_ask_question',
+]);
+
+export function isAskUserToolName(name: string | undefined): boolean {
+	if (!name) {
+		return false;
+	}
+	if (ASK_USER_TOOL_NAMES.has(name)) {
+		return true;
+	}
+	const n = name
+		.replace(/^builtin_/i, '')
+		.replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '_')
+		.replace(/^_+|_+$/g, '');
+	return n === 'ask_user' || n === 'askuser' || n === 'ask_question' || n === 'askuserquestion' || n === 'ask_user_question';
+}
+
 export function toolDisplayKind(name: string): 'terminal' | 'file' | 'search' | 'repo-map' | 'subdirectory' | 'create-file' | 'subagent' | 'ask-user' | 'generic' {
 	const n = name.replace(/^builtin_/, '').toLowerCase().replace(/-/g, '_');
-	if (n === 'ask_user' || n === 'askuser') {
+	if (isAskUserToolName(name)) {
 		return 'ask-user';
 	}
 	if (n === 'run_terminal_command' || n === 'build' || n === 'await_shell' || n.startsWith('pty') || n === 'qemu' || n === 'debug') {
@@ -473,8 +499,6 @@ export const FILE_EDIT_TOOL_NAMES = new Set([
 	'write_file',
 	'apply_patch',
 ]);
-
-export const ASK_USER_TOOL_NAMES = new Set(['builtin_ask_user', 'ask_user', 'AskUser']);
 
 /** Display window for long chats — copy of chatHistoryWindow. */
 export const CHAT_DISPLAY_WINDOW = 25;

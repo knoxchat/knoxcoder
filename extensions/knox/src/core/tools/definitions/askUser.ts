@@ -12,22 +12,31 @@ export const askUserTool: Tool = {
   readonly: false,
   function: {
     name: BuiltInToolNames.AskUser,
-    description: `Ask the user a clarifying question before continuing (Claude AskUserQuestion).
+    description: `Ask the user a clarifying question before continuing.
 
 Use when a choice would change edits (library, approach, scope) and guessing would waste work.
 Prefer multiple-choice options. This tool is never auto-approved — the user must answer.
+
+Always pass a non-empty questions array. Each item needs prompt text (question/header/title also work).
+options may be strings or {id, label} / {label, description} objects. Do not send questions: [].
+
+Example:
+{"questions":[{"id":"runtime","prompt":"How should this run?","options":["Terminal","Desktop GUI"]}]}
 
 Do not use for progress updates.`,
     parameters: {
       type: "object",
       required: ["questions"],
       properties: {
+        title: {
+          type: "string",
+          description: "Optional short heading shown above the questions.",
+        },
         questions: {
           type: "array",
-          description: "One or more questions to present.",
+          description: "One or more questions to present. Must not be empty.",
           items: {
             type: "object",
-            required: ["prompt"],
             properties: {
               id: {
                 type: "string",
@@ -37,10 +46,18 @@ Do not use for progress updates.`,
                 type: "string",
                 description: "The question text.",
               },
+              question: {
+                type: "string",
+                description: "Alias for prompt.",
+              },
+              header: {
+                type: "string",
+                description: "Short heading used when prompt is omitted.",
+              },
               options: {
                 type: "array",
-                items: { type: "string" },
-                description: "Multiple-choice options. Omit for free-form.",
+                description:
+                  "Multiple-choice options: strings, {id,label}, or {label,description}. Omit for free-form.",
               },
               allow_multiple: {
                 type: "boolean",

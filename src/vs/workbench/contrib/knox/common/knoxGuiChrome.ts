@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KnoxGuiRoute, type KnoxGuiOverlay } from './knoxGuiProtocol.js';
-import { ASK_USER_TOOL_NAMES } from './knoxGuiChat.js';
+import { isAskUserToolName } from './knoxGuiChat.js';
 import { countRunningJobs } from './knoxGuiPanels.js';
 import type { IKnoxGuiBackgroundJob, IKnoxGuiHistoryItem, IKnoxGuiSessionTab, IKnoxGuiState, IKnoxGuiToolCall, KnoxChatMode, KnoxToolSetting } from './knoxGuiState.js';
 
@@ -151,7 +151,7 @@ export function knoxGuiShowsChatPermissionBar(
 	if (!call || call.status !== 'generated') {
 		return false;
 	}
-	if (ASK_USER_TOOL_NAMES.has(call.name)) {
+	if (isAskUserToolName(call.name)) {
 		return false;
 	}
 	const setting = opts.toolSettings[call.name] ?? 'allowedWithoutPermission';
@@ -163,7 +163,7 @@ export function knoxGuiShowsChatPermissionBar(
 
 /** `ToolCallButtonsDiv.tsx`: generating / calling / generated sit under the composer. */
 export function knoxGuiShowsChatToolButtons(call: IKnoxGuiToolCall | undefined): call is IKnoxGuiToolCall {
-	if (!call || ASK_USER_TOOL_NAMES.has(call.name)) {
+	if (!call || isAskUserToolName(call.name)) {
 		return false;
 	}
 	return call.status === 'generating' || call.status === 'calling' || call.status === 'generated';

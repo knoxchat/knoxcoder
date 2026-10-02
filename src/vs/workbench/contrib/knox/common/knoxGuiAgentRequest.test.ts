@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { KNOX_CANCELED_TOOL_RESULT, KNOX_NO_RELEVANT_MEMORIES, KNOX_REDACTED_THINKING_TEXT, KNOX_TOOL_CALL_BASE_DELAY_MS, KNOX_TOOL_CALL_MAX_RETRIES, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiFlushStreamText, knoxGuiIsCancelledToolError, knoxGuiIsRetryableToolError, knoxGuiShouldSplitForTools, knoxGuiToolFailureOutput, knoxGuiToolPreferredModel, knoxGuiToolRetryDelay, knoxGuiChunkText, knoxGuiChunkThinking, knoxGuiFallbackMessages, knoxGuiFormatAskUserAnswers, knoxGuiFormatTurnInject, knoxGuiHasUnsettledToolCalls, knoxGuiHistoryToCoreHistory, knoxGuiHistoryToSessionHistory, knoxGuiMemoryGoal, knoxGuiShouldContinueTurn, knoxGuiTurnDoomCalls, knoxGuiTurnMessages } from './knoxGuiAgentRequest.js';
+import { KNOX_CANCELED_TOOL_RESULT, KNOX_NO_RELEVANT_MEMORIES, KNOX_REDACTED_THINKING_TEXT, KNOX_TOOL_CALL_BASE_DELAY_MS, KNOX_TOOL_CALL_MAX_RETRIES, knoxGuiAccumulateChunk, knoxGuiAskUserInvalidOutput, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiFlushStreamText, knoxGuiIsCancelledToolError, knoxGuiIsRetryableToolError, knoxGuiShouldSplitForTools, knoxGuiToolFailureOutput, knoxGuiToolPreferredModel, knoxGuiToolRetryDelay, knoxGuiChunkText, knoxGuiChunkThinking, knoxGuiFallbackMessages, knoxGuiFormatAskUserAnswers, knoxGuiFormatTurnInject, knoxGuiHasUnsettledToolCalls, knoxGuiHistoryToCoreHistory, knoxGuiHistoryToSessionHistory, knoxGuiMemoryGoal, knoxGuiShouldContinueTurn, knoxGuiTurnDoomCalls, knoxGuiTurnMessages } from './knoxGuiAgentRequest.js';
 import { IKnoxGuiHistoryItem, IKnoxGuiToolCall } from './knoxGuiState.js';
 
 function call(id: string, status: IKnoxGuiToolCall['status'], output?: string): IKnoxGuiToolCall {
@@ -105,6 +105,13 @@ suite('Knox native agent request helpers', () => {
 	test('ask_user answers render as Q/A pairs', () => {
 		const questions = [{ id: 'q1', prompt: 'Pick?', options: [] }, { id: 'q2', prompt: 'Why?', options: [] }];
 		assert.strictEqual(knoxGuiFormatAskUserAnswers(questions, { q1: ['a', 'b'] }), 'Q: Pick?\nA: a, b\n\nQ: Why?\nA: (no answer)');
+	});
+
+	test('invalid ask_user output tells the model how to retry', () => {
+		const item = knoxGuiAskUserInvalidOutput();
+		assert.strictEqual(item.name, 'questions');
+		assert.ok(item.content.includes('builtin_ask_user'));
+		assert.ok(item.content.includes('questions'));
 	});
 });
 

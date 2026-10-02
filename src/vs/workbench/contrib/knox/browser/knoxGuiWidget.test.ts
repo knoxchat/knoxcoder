@@ -632,7 +632,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			imagesSupported: true,
 		});
 		const model = widget.root.querySelector('[data-testid="knox-gui-model-select"]') as HTMLButtonElement;
-		assert.ok(model.textContent?.includes('Z.ai: GLM 5.3 Flash'));
+		assert.ok(model.textContent?.includes('GLM 5.3 Flash'));
 		model.click();
 		const menu = widget.root.querySelector('[data-testid="knox-gui-model-menu"]') as HTMLElement;
 		assert.ok(menu);
@@ -1068,6 +1068,56 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			}),
 		});
 		assert.ok(widget.root.querySelector('.knox-gui-ask-answer')?.textContent?.includes('Red, Blue, Other'));
+	});
+
+	test('ask_user recovers Cursor-style options and does not trap on empty args', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			history: historyWithTool({
+				id: 'ask-cursor',
+				name: 'builtin_ask_user',
+				arguments: JSON.stringify({
+					title: 'Which syscall to add?',
+					questions: [{
+						id: 'syscall',
+						options: [
+							{ id: 'enosys', label: 'Implement an ENOSYS stub' },
+							{ id: 'custom', label: 'Add a KnoxOS-specific syscall' },
+						],
+					}],
+				}),
+				status: 'generated',
+				parsedArgs: {
+					title: 'Which syscall to add?',
+					questions: [{
+						id: 'syscall',
+						options: [
+							{ id: 'enosys', label: 'Implement an ENOSYS stub' },
+							{ id: 'custom', label: 'Add a KnoxOS-specific syscall' },
+						],
+					}],
+				},
+			}),
+		});
+		assert.ok(!widget.root.querySelector('[data-testid="knox-gui-ask-invalid"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-ask"]'));
+		assert.ok(Array.from(widget.root.querySelectorAll('.knox-gui-ask-choice-label')).some(el => el.textContent === 'Implement an ENOSYS stub'));
+		assert.ok(widget.root.querySelector('[data-testid="ask-user-deny"]'));
+		assert.ok(widget.root.querySelector('[data-testid="ask-user-submit"]'));
+
+		store.patch({
+			history: historyWithTool({
+				id: 'ask-empty',
+				name: 'builtin_ask_user',
+				arguments: '{}',
+				status: 'generated',
+				parsedArgs: {},
+			}),
+		});
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-ask-invalid"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-ask"]'));
+		assert.ok(widget.root.querySelector('[data-testid="ask-user-deny"]'));
+		assert.ok(widget.root.querySelector('[data-testid="ask-user-submit"]'));
 	});
 
 	test('tool titles match original Knox + status + catalog template', async () => {

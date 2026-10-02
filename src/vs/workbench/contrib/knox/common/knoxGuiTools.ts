@@ -3,7 +3,7 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { incrementalParseJson, parseToolArgs } from './knoxGuiChat.js';
+import { incrementalParseJson, isAskUserToolName, parseToolArgs } from './knoxGuiChat.js';
 import { IKnoxGuiAskQuestion, IKnoxGuiTool, IKnoxGuiToolCall, IKnoxGuiToolOutputItem, KnoxToolSetting, KnoxToolStatus } from './knoxGuiState.js';
 import { toolStepDetail } from './knoxGuiTranscript.js';
 
@@ -169,8 +169,7 @@ export function shouldRenderToolBody(status: KnoxToolStatus, userCollapsed: bool
 }
 
 export function toolAlwaysShowsBody(toolName: string | undefined): boolean {
-	const n = (toolName ?? '').replace(/^builtin_/, '').toLowerCase().replace(/-/g, '_');
-	return n === 'ask_user' || n === 'askuser';
+	return isAskUserToolName(toolName);
 }
 
 export function formatToolName(name: string, displayTitle?: string): string {
@@ -405,6 +404,10 @@ const GUI_TOOL_NAME_ALIASES: Record<string, string> = {
 	web_search: 'builtin_search_web',
 	search_web: 'builtin_search_web',
 	ask_user: 'builtin_ask_user',
+	ask_question: 'builtin_ask_user',
+	askquestion: 'builtin_ask_user',
+	ask_user_question: 'builtin_ask_user',
+	askuserquestion: 'builtin_ask_user',
 	task: 'builtin_task',
 	workspace_checkpoint: 'builtin_workspace_checkpoint',
 	checkpoint: 'builtin_workspace_checkpoint',
@@ -563,7 +566,9 @@ export function mergeStreamedToolCalls(
 		existing.name = name || existing.name;
 		existing.arguments = args;
 		existing.parsedArgs = parsed;
-		existing.questions = parseAskUserQuestionsForGui(parsed.questions);
+		existing.questions = isAskUserToolName(name || existing.name)
+			? parseAskUserQuestionsForGui(parsed)
+			: parseAskUserQuestionsForGui(parsed.questions);
 		if (!settled) {
 			existing.status = 'generating';
 		}
@@ -938,51 +943,202 @@ export function splitChoiceText(option: string): { value: string; label: string;
 	return { value: option, label: option };
 }
 
-/** Same default ids as core `parseAskUserQuestions` (`q1`, `q2`, …). */
-export function parseAskUserQuestionsForGui(raw: unknown): IKnoxGuiAskQuestion[] {
-	if (!Array.isArray(raw)) {
+const ASK_USER_PROMPT_KEYS = ['prompt', 'question', 'header', 'title', 'text', 'label', 'message', 'query'] as const;
+const ASK_USER_OPTION_KEYS = ['options', 'choices'] as const;
+
+function askUserNonEmptyString(value: unknown): string | undefined {
+	if (typeof value === 'string' && value.trim()) {
+		return value.trim();
+	}
+	if (typeof value === 'number' && Number.isFinite(value)) {
+		return String(value);
+	}
+	return undefined;
+}
+
+function tryParseAskUserJson(value: string): unknown {
+	const trimmed = value.trim();
+	if (!(trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"'))) {
+		return undefined;
+	}
+	try {
+		return JSON.parse(trimmed);
+	} catch {
+		const [, parsed] = incrementalParseJson(trimmed);
+		return parsed && typeof parsed === 'object' ? parsed : undefined;
+	}
+}
+
+function askUserOptionToString(option: unknown): string | undefined {
+	const asString = askUserNonEmptyString(option);
+	if (asString) {
+		return asString;
+	}
+	if (!option || typeof option !== 'object' || Array.isArray(option)) {
+		return undefined;
+	}
+	const rec = option as Record<string, unknown>;
+	const label = askUserNonEmptyString(rec.label)
+		?? askUserNonEmptyString(rec.name)
+		?? askUserNonEmptyString(rec.text)
+		?? askUserNonEmptyString(rec.value)
+		?? askUserNonEmptyString(rec.prompt)
+		?? askUserNonEmptyString(rec.id);
+	const description = askUserNonEmptyString(rec.description)
+		?? askUserNonEmptyString(rec.desc)
+		?? askUserNonEmptyString(rec.detail);
+	if (label && description && label !== description) {
+		return `${label} — ${description}`;
+	}
+	return label;
+}
+
+function askUserExtractOptions(rec: Record<string, unknown>): string[] | undefined {
+	for (const key of ASK_USER_OPTION_KEYS) {
+		const raw = rec[key];
+		if (!Array.isArray(raw)) {
+			continue;
+		}
+		const options = raw.map(askUserOptionToString).filter((option): option is string => Boolean(option));
+		if (options.length) {
+			return options;
+		}
+	}
+	return undefined;
+}
+
+function askUserLooksLikeQuestion(rec: Record<string, unknown>): boolean {
+	return ASK_USER_PROMPT_KEYS.some(key => Boolean(askUserNonEmptyString(rec[key])))
+		|| ASK_USER_OPTION_KEYS.some(key => Array.isArray(rec[key]));
+}
+
+function askUserParseOneQuestion(item: unknown, index: number, fallbackPrompt?: string): IKnoxGuiAskQuestion | undefined {
+	const fallbackId = `q${index + 1}`;
+	if (typeof item === 'string') {
+		const parsed = tryParseAskUserJson(item);
+		if (parsed !== undefined) {
+			return askUserParseOneQuestion(parsed, index, fallbackPrompt);
+		}
+		const prompt = item.trim() || fallbackPrompt;
+		return prompt ? { id: fallbackId, prompt } : undefined;
+	}
+	if (typeof item === 'number' && Number.isFinite(item)) {
+		return { id: fallbackId, prompt: String(item) };
+	}
+	if (!item || typeof item !== 'object' || Array.isArray(item)) {
+		return undefined;
+	}
+	const rec = item as Record<string, unknown>;
+	const options = askUserExtractOptions(rec);
+	let prompt: string | undefined;
+	for (const key of ASK_USER_PROMPT_KEYS) {
+		prompt = askUserNonEmptyString(rec[key]);
+		if (prompt) {
+			break;
+		}
+	}
+	prompt = prompt ?? fallbackPrompt ?? (options?.length ? 'Choose an option' : undefined);
+	if (!prompt) {
+		return undefined;
+	}
+	const id = askUserNonEmptyString(rec.id) ?? askUserNonEmptyString(rec.name) ?? askUserNonEmptyString(rec.key) ?? fallbackId;
+	return {
+		id,
+		prompt,
+		options: options?.length ? options : undefined,
+		allowMultiple: rec.allow_multiple === true || rec.allowMultiple === true || rec.multiSelect === true || rec.multi_select === true || rec.multiple === true,
+		allowFreeform: rec.allow_freeform === true || rec.allowFreeform === true || rec.freeform === true || rec.allow_other === true || Boolean(rec.input),
+	};
+}
+
+function askUserCollectItems(raw: unknown, fallbackPrompt?: string): unknown[] {
+	if (raw == null) {
 		return [];
 	}
+	if (typeof raw === 'string') {
+		const parsed = tryParseAskUserJson(raw);
+		if (parsed !== undefined) {
+			return askUserCollectItems(parsed, fallbackPrompt);
+		}
+		return raw.trim() ? [raw.trim()] : [];
+	}
+	if (Array.isArray(raw)) {
+		return raw;
+	}
+	if (typeof raw !== 'object') {
+		return [];
+	}
+	const rec = raw as Record<string, unknown>;
+	const title = askUserNonEmptyString(rec.title) ?? askUserNonEmptyString(rec.header);
+	const combinedFallback = fallbackPrompt ?? title;
+	for (const key of ['questions', 'asks', 'queries'] as const) {
+		if (rec[key] === undefined) {
+			continue;
+		}
+		const items = askUserCollectItems(rec[key], combinedFallback);
+		if (items.length) {
+			return items;
+		}
+	}
+	if (rec.question !== undefined && typeof rec.question === 'object') {
+		const items = askUserCollectItems(rec.question, combinedFallback);
+		if (items.length) {
+			return items;
+		}
+	}
+	if (Array.isArray(rec.value) && rec.value.length) {
+		return rec.value;
+	}
+	if (askUserLooksLikeQuestion(rec)) {
+		return [rec];
+	}
+	const values = Object.values(rec);
+	if (values.length && values.every(value => value && typeof value === 'object' && !Array.isArray(value) && askUserLooksLikeQuestion(value as Record<string, unknown>))) {
+		return values;
+	}
+	if (combinedFallback) {
+		return [{ prompt: combinedFallback, options: askUserExtractOptions(rec) }];
+	}
+	return [];
+}
+
+/**
+ * Same default ids as core `parseAskUserQuestions` (`q1`, `q2`, …).
+ * Accepts the catalog schema plus common Cursor/Claude shapes: a questions
+ * array, a single question object, a JSON string, object `{id,label}` options,
+ * `title`/`header` when `prompt` is missing, and a root questions array wrapped
+ * as `{ value: [...] }` by `parseToolArgs`.
+ */
+export function parseAskUserQuestionsForGui(raw: unknown): IKnoxGuiAskQuestion[] {
+	const fallbackPrompt = raw && typeof raw === 'object' && !Array.isArray(raw)
+		? askUserNonEmptyString((raw as Record<string, unknown>).title) ?? askUserNonEmptyString((raw as Record<string, unknown>).header)
+		: undefined;
 	const questions: IKnoxGuiAskQuestion[] = [];
-	raw.forEach((item, index) => {
-		const fallbackId = `q${index + 1}`;
-		if (typeof item === 'string') {
-			const prompt = item.trim();
-			if (prompt) {
-				questions.push({ id: fallbackId, prompt });
-			}
+	const seen = new Set<string>();
+	askUserCollectItems(raw, fallbackPrompt).forEach((item, index) => {
+		const question = askUserParseOneQuestion(item, index, fallbackPrompt);
+		if (!question) {
 			return;
 		}
-		if (!item || typeof item !== 'object') {
-			return;
+		let id = question.id;
+		if (seen.has(id)) {
+			id = `${id}_${index + 1}`;
 		}
-		const rec = item as Record<string, unknown>;
-		const prompt = typeof rec.prompt === 'string' ? rec.prompt.trim()
-			: typeof rec.question === 'string' ? rec.question.trim()
-				: typeof rec.title === 'string' ? rec.title.trim()
-					: '';
-		if (!prompt) {
-			return;
-		}
-		const idRaw = rec.id;
-		const nameRaw = rec.name;
-		const id = typeof idRaw === 'string' && idRaw.trim()
-			? idRaw.trim()
-			: typeof nameRaw === 'string' && nameRaw.trim()
-				? nameRaw.trim()
-				: fallbackId;
-		const options = Array.isArray(rec.options)
-			? rec.options.filter((option): option is string => typeof option === 'string' && option.trim().length > 0)
-			: undefined;
-		questions.push({
-			id,
-			prompt,
-			options: options?.length ? options : undefined,
-			allowMultiple: rec.allow_multiple === true || rec.allowMultiple === true,
-			allowFreeform: rec.allow_freeform === true || rec.allowFreeform === true || Boolean(rec.input),
-		});
+		seen.add(id);
+		questions.push(id === question.id ? question : { ...question, id });
 	});
 	return questions;
+}
+
+export function resolveAskUserQuestions(tool: Pick<IKnoxGuiToolCall, 'questions' | 'parsedArgs' | 'arguments'>): IKnoxGuiAskQuestion[] {
+	if (tool.questions?.length) {
+		return tool.questions;
+	}
+	const fromParsed = parseAskUserQuestionsForGui(tool.parsedArgs ?? {});
+	if (fromParsed.length) {
+		return fromParsed;
+	}
+	return parseAskUserQuestionsForGui(parseToolArgs(tool.arguments));
 }
 
 export function isAskUserAnswered(value: string | undefined): boolean {

@@ -139,7 +139,7 @@ export function modelsFromUnknown(value: unknown): IKnoxGuiModel[] {
 }
 
 export function parseAskQuestions(args: Record<string, unknown>): IKnoxGuiAskQuestion[] {
-	return parseAskUserQuestionsForGui(args.questions);
+	return parseAskUserQuestionsForGui(args);
 }
 
 export async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {

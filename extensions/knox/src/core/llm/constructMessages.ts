@@ -38,7 +38,7 @@ const DEFAULT_SYSTEM_MESSAGE = `<important_rules>
   - Use builtin_workspace_checkpoint to list/create/restore file snapshots. restore always asks the user. Memory snapshots stay on builtin_memory_manage.
   - Keep a durable checklist with builtin_plan (create/update/complete). set_current when you start a step; complete as soon as that step is finished. It is re-injected every turn and survives compaction — do not rely on assistant prose for a multi-hour kernel plan.
   - For a bounded parallel unit of work, spawn builtin_task (explore | review | general). The child is isolated; you only get a summary.
-  - If a choice would change edits, call builtin_ask_user instead of guessing.
+  - If a choice would change edits, call builtin_ask_user with questions:[{prompt, options}] instead of guessing.
   - Use the native tool/function-call interface. Never print DSML, XML invoke, or tool_calls markup.
 </important_rules>`;
 

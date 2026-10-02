@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
-import { ASK_USER_TOOL_NAMES } from './knoxGuiChat.js';
+import { isAskUserToolName } from './knoxGuiChat.js';
 import { toolPermissionDisplay } from './knoxGuiTools.js';
 import {
 	IKnoxGuiConfigError,
@@ -1264,7 +1264,7 @@ export function policyEditorText(value: unknown, fallback: string): string {
 
 export function pendingGeneratedToolName(history: Array<{ toolCalls?: Array<{ name: string; status: string }> }>): string | undefined {
 	for (const item of history) {
-		const call = item.toolCalls?.find(tool => tool.status === 'generated' && !ASK_USER_TOOL_NAMES.has(tool.name));
+		const call = item.toolCalls?.find(tool => tool.status === 'generated' && !isAskUserToolName(tool.name));
 		if (call) {
 			return call.name;
 		}

@@ -8,9 +8,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { buildCheckpointFileTree, CHECKPOINT_ANALYSIS_GROUP_LIMIT, CHECKPOINT_DASHBOARD_HISTORY_DAYS, checkpointAncestorIds, checkpointConfigHasChanges, checkpointConfigHasErrors, checkpointGraphForceMountKey, CHECKPOINT_GRAPH_ROW_HEIGHT, CHECKPOINT_GRAPH_WORKING_TREE_ID, CHECKPOINT_PANEL_TABS, CHECKPOINT_TAB_ICON, checkpointGraphMatches, checkpointGraphRowTop, checkpointGraphWindow, checkpointImpactChipClass, checkpointLaneNeighbor, checkpointRiskChipClass, checkpointScopeChipClass, checkpointShellAction, checkpointShellMessageKey, checkpointShellViewState, compactAxisNumber, computeLineDiff, defaultCheckpointGraphUi, drawCheckpointGraph, fillDailyCounts, filterCheckpoints, formatCheckpointGraphTime, formatRestoreNotice, groupCheckpointsByDate, groupDiffHunks, hunkWordAltRanges, layoutCheckpointLanes, normalizeCheckpointConfig, parseCheckpointAnalysis, parseCheckpointGraphUi, parseCheckpointRestored, parsePerformanceDashboard, parseRestorePreview, parseStorageBytes, parseSuggestedCheckpointGroups, restorePreviewActionKey, selectCheckpointIdRange, validateCheckpointConfig, withWorkingTreeNode, wordAltRanges } from './knoxGuiCheckpoints.js';
 import { knoxGuiAcceptRejectLabelKeys, knoxGuiAcceptRejectShortcut, knoxGuiAcceptRejectWidthKeys, knoxGuiAnchorPopoverBox, knoxGuiCanCancel, knoxGuiComposerShowsJobsButton, knoxGuiEditSendKey, knoxGuiEmptyTranscriptShowsPlaceholder, knoxGuiLumpLabelVisible, knoxGuiMetaKeyLabel, knoxGuiNextMainTextEntry, knoxGuiParseMainTextEntryCount, knoxGuiPermissionModeIsTopTab, knoxGuiRelativeFontSize, knoxGuiRunningJobCount, knoxGuiShowsAgentMeter, knoxGuiShowsBatchDiffEntry, knoxGuiShowsChatPermissionBar, knoxGuiShowsChatScrollbar, knoxGuiShowsChatToolButtons, knoxGuiShowsComposerAcceptReject, knoxGuiShowsEditResponseAcceptReject, knoxGuiShowsFatalBanner, knoxGuiShowsLumpOverlay, knoxGuiShowsMainComposer, knoxGuiShowsScrollButtons, knoxGuiShowsSessionTabs, knoxGuiToolbarShowsAlwaysOnLabels, KNOX_GUI_CHAT_SCROLLBAR_MIN_HEIGHT, KNOX_GUI_COMPOSER_SLOTS, KNOX_GUI_FIND_DEBOUNCE_MS, KNOX_GUI_FIND_RESIZE_DEBOUNCE_MS, KNOX_GUI_LUMP_TOOLBAR, KNOX_GUI_MAIN_TEXT_ENTRY_DIALOG_AT, KNOX_GUI_MODE_TABS, KNOX_GUI_SM_MIN_PX, KNOX_GUI_XS_MAX_PX } from './knoxGuiChrome.js';
 import { applyCloseTab, applyNavigateTo, applySessionTabChange, createInitialKnoxGuiState, DEFAULT_PERMISSION_MODE, IKnoxGuiHistoryItem, IKnoxGuiState, IKnoxGuiToolCall, KNOX_GUI_DEFAULT_SESSION_MODE, nextPermissionMode } from './knoxGuiState.js';
-import { AUTO_DISPLAY_START, capDisplayText, GUI_DISPLAY_MAX_CHARS, GUI_SESSION_HYDRATE_BUDGET_BYTES, shouldWarnLargeSession, CHAT_DISPLAY_WINDOW, CHAT_LOAD_EARLIER_THRESHOLD_PX, compileSearchPattern, computeDisplayStart, createStreamUpdateCoalescer, expandPromptSlashCommand, extractCodeFences, findCurrentToolCall, findMatchingHistoryIndexes, groupHistoryTurns, incrementalParseJson, isKnoxGuiFilterOnlyChange, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange, knoxGuiToolProgressOnlyChange, knoxGuiFindRegexInvalid, nextExpandedStart, parseLeadingSlash, parseToolArgs, resolveDisplayStart, shouldFloatLastUser, snapStartToTurn, STREAM_COALESCE_MS, toolDisplayKind, visibleTurnIndexes } from './knoxGuiChat.js';
+import { AUTO_DISPLAY_START, capDisplayText, GUI_DISPLAY_MAX_CHARS, GUI_SESSION_HYDRATE_BUDGET_BYTES, shouldWarnLargeSession, CHAT_DISPLAY_WINDOW, CHAT_LOAD_EARLIER_THRESHOLD_PX, compileSearchPattern, computeDisplayStart, createStreamUpdateCoalescer, expandPromptSlashCommand, extractCodeFences, findCurrentToolCall, findMatchingHistoryIndexes, groupHistoryTurns, incrementalParseJson, isAskUserToolName, isKnoxGuiFilterOnlyChange, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange, knoxGuiToolProgressOnlyChange, knoxGuiFindRegexInvalid, nextExpandedStart, parseLeadingSlash, parseToolArgs, resolveDisplayStart, shouldFloatLastUser, snapStartToTurn, STREAM_COALESCE_MS, toolDisplayKind, visibleTurnIndexes } from './knoxGuiChat.js';
 import { activityAnchorId, activityKindLabelKey, activitySummaryLine, applyUiAfterAppliedTimeout, applyUiForState, APPLIED_PILL_MS, buildAgentActivitySteps, collectDuplicateAssistantMessageIds, collectTurnPromptLogs, countTurnToolSteps, estimateTokensFromPromptLogs, estimateTurnOutputTokens, extractSoulCheckpointId, fenceApplyStreamId, fenceHasFileToolbar, formatDurationMs, formatLoadingElapsed, formatTokenCount, formatTokenRate, hasForegroundCallingToolCalls, historyUserInputDoc, isResponseTruncated, isTerminalCodeBlock, isTurnGeneratingTokens, knoxGuiShowsCodeToEditOnEmptyComposer, knoxGuiShowsCodeToEditOnHistoryUser, loadingVariantFor, looksLikeFilePath, parseCodeFenceRange, parseStreamError, pendingApplyStates, resetTpsClock, resolveAgentMaxSteps, resubmitHistory, shouldShineSentFrame, shouldShowThinkingIndicator, splitDisplayPath, splitMarkdownBlocks, summarizeJevPromptLogs, tickTokensPerSecond, TOKEN_TPS_MIN_GENERATION_MS, tokensPerSecond, toolStepDetail, turnElapsedMs, turnHasVisibleProgress } from './knoxGuiTranscript.js';
-import { calculateFence, capTreeTerminalLines, TREE_TERMINAL_SCROLLBACK, treeTerminalRows, catalogToolForCall, collapseFileToolCodePreview, createLatestValueCoalescer, displayArgsForToolCall, displayBuildCommand, displayLanguageForFile, exactSearchDisplayQuery, exactSearchQueryBadge, extractLogPathFromTerminalOutput, extractStreamingToolCode, extractTerminalOutput, finishedToolSummary, finishedToolSummaryText, formatAskUserDisplayAnswer, formatToolName, highlightSearchQueryInHtml, isAskUserAnswered, isSamePermissionTool, mergeStreamedToolCalls, mergeToolArguments, parseAskUserQuestionsForGui, parseSearchResults, detectSearchLanguage, repoMapFileAnsiColor, repoMapToTreeColorized, resolveGuiToolName, sanitizeExactSearchQuery, shouldRenderToolBody, splitChoiceText, stripAnsi, takeTerminalTail, terminalBodyHeight, terminalCommandForTool, toolAlwaysShowsBody, toolPermissionDisplay, toolStatusFallbackKey, toolStatusIcon, toolStatusIntroKey, treeStatsFromPlain } from './knoxGuiTools.js';
+import { calculateFence, capTreeTerminalLines, TREE_TERMINAL_SCROLLBACK, treeTerminalRows, catalogToolForCall, collapseFileToolCodePreview, createLatestValueCoalescer, displayArgsForToolCall, displayBuildCommand, displayLanguageForFile, exactSearchDisplayQuery, exactSearchQueryBadge, extractLogPathFromTerminalOutput, extractStreamingToolCode, extractTerminalOutput, finishedToolSummary, finishedToolSummaryText, formatAskUserDisplayAnswer, formatToolName, highlightSearchQueryInHtml, isAskUserAnswered, isSamePermissionTool, mergeStreamedToolCalls, mergeToolArguments, parseAskUserQuestionsForGui, parseSearchResults, detectSearchLanguage, repoMapFileAnsiColor, repoMapToTreeColorized, resolveAskUserQuestions, resolveGuiToolName, sanitizeExactSearchQuery, shouldRenderToolBody, splitChoiceText, stripAnsi, takeTerminalTail, terminalBodyHeight, terminalCommandForTool, toolAlwaysShowsBody, toolPermissionDisplay, toolStatusFallbackKey, toolStatusIcon, toolStatusIntroKey, treeStatsFromPlain } from './knoxGuiTools.js';
 import { appendMentionChip, applySuggestToDoc, appendTriggerToDoc, buildTopLevelMentionItems, composerInputHistoryAdd, composerInputHistoryNext, composerInputHistoryPrev, composerPlaceholderKey, createComposerInputHistory, DEFAULT_MENTION_PROVIDERS, DEFAULT_MENTION_PROVIDER_TITLES, detectComposerTrigger, EDIT_DISALLOWED_CONTEXT_PROVIDERS, emptyInputDoc, extractMentionsFromDoc, extractSlashFromDoc, filterProvidersForMode, groupMentionItems, groupSlashItems, highlightMentionMatch, inputDocFromPlainText, inputDocIsEmpty, inputDocToPlainText, insertCodeBlock, insertTextAtCaret, isDroppedImageFile, isSingleRangeEdit, knoxGuiCodeToEditTitle, knoxGuiComposerKeyAction, knoxGuiPendingToolBlocksSubmit, knoxGuiShouldBlockSubmit, MAX_COMPOSER_INPUT_HISTORY, mentionChipLabel, mentionIndexIsTruncated, mentionListKeyAction, mergeContextProvidersWithDefaults, mergeSlashCommandsWithBuiltins, parseUriList, rankSlashCommands, removeCodeBlockAt, resolveComposerSlashCommand, SLASH_BUILTINS, slashCommandTitle, submitUsesActiveFile, truncatedMentionMarker, useActiveFileFromDefaultContext } from './knoxGuiInput.js';
 import { applyKnoxGuiAutonomousEvent, applyLivePlanProgress, autonomousBannerKey, collectLatestTaskPlanSnapshot, collectLiveTaskPlan, collectRunningTaskJobs, compactionMethodKey, countFailedJobs, countRunningJobs, extractPathHints, finalizeGitDiffFiles, formatPlanText, gitDiffTotals, gitFileType, gitFilesFromDiffs, isCompactionBannerVisible, isInjectedMemoryTimeout, isTaskJobId, isVisibleTaskPlanPeekItem, mergeBackgroundJobs, mergeGitChangedWithDiffs, parseCompactionPayload, parseDiffStats, parsePlanText, shouldShowAutonomousBanner, splitSelectiveMemories, stepIntent, taskPlanFillPercent, truncateJobTitle, visibleBackgroundJobs, visibleToolOutputPeekItems } from './knoxGuiPanels.js';
 import { DEFAULT_REASONING_EFFORT, DEFAULT_REASONING_EFFORT_ALLOWED, knoxGuiFindCatalogModel, knoxGuiGetReasoningModelKeys, knoxGuiModelSelectTitle, knoxGuiModelTriggerLabel, knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelToolsSupportKnown, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResetModelCatalogForTests, knoxGuiResolveReasoningEffort, knoxGuiResolveToolsSupported, knoxGuiSeedModelCatalog } from './knoxGuiCapabilities.js';
@@ -251,6 +251,8 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(fences[0].language, 'ts');
 		assert.strictEqual(fences[0].filepath, 'app.ts');
 		assert.strictEqual(toolDisplayKind('builtin_ask_user'), 'ask-user');
+		assert.strictEqual(toolDisplayKind('AskQuestion'), 'ask-user');
+		assert.strictEqual(isAskUserToolName('AskUserQuestion'), true);
 		assert.strictEqual(toolDisplayKind('builtin_run_terminal_command'), 'terminal');
 		assert.strictEqual(toolDisplayKind('builtin_create_new_file'), 'create-file');
 		assert.strictEqual(toolDisplayKind('builtin_view_repo_map'), 'repo-map');
@@ -1674,6 +1676,57 @@ suite('Knox native GUI parity', () => {
 			{ prompt: 'Pick one', options: ['alpha', 'beta'] },
 			{ id: 'scope', prompt: 'Scope?', options: ['auth'] },
 		]).map(q => q.id), ['q1', 'scope']);
+		const cursorStyle = parseAskUserQuestionsForGui({
+			title: 'Which syscall to add?',
+			questions: [{
+				id: 'syscall',
+				options: [
+					{ id: 'enosys', label: 'Implement an ENOSYS stub' },
+					{ id: 'custom', label: 'Add a KnoxOS-specific syscall' },
+					{ id: 'other', label: 'Something else' },
+				],
+			}],
+		});
+		assert.strictEqual(cursorStyle.length, 1);
+		assert.strictEqual(cursorStyle[0].id, 'syscall');
+		assert.strictEqual(cursorStyle[0].prompt, 'Which syscall to add?');
+		assert.deepStrictEqual(cursorStyle[0].options, [
+			'Implement an ENOSYS stub',
+			'Add a KnoxOS-specific syscall',
+			'Something else',
+		]);
+		const claudeStyle = parseAskUserQuestionsForGui({
+			questions: [{
+				header: 'Runtime',
+				question: 'How should this run?',
+				options: [{ label: 'Terminal', description: 'crossterm' }, { label: 'GUI', description: 'a window' }],
+				multiSelect: false,
+			}],
+		});
+		assert.strictEqual(claudeStyle[0].prompt, 'How should this run?');
+		assert.deepStrictEqual(claudeStyle[0].options, ['Terminal — crossterm', 'GUI — a window']);
+		assert.deepStrictEqual(parseAskUserQuestionsForGui({ question: 'Go ahead?', options: ['yes', 'no'] }).map(q => q.prompt), ['Go ahead?']);
+		assert.deepStrictEqual(parseAskUserQuestionsForGui({ questions: 'Ship it?' }).map(q => q.prompt), ['Ship it?']);
+		assert.deepStrictEqual(parseAskUserQuestionsForGui(JSON.stringify([{ prompt: 'Encoded?' }])).map(q => q.prompt), ['Encoded?']);
+		assert.strictEqual(parseAskUserQuestionsForGui({ filepath: 'a.ts', contents: 'hi' }).length, 0);
+		assert.deepStrictEqual(resolveAskUserQuestions({
+			arguments: '{"title":"Pick runtime","questions":[{"id":"q","options":[{"id":"t","label":"Terminal"}]}]}',
+			parsedArgs: {},
+		}).map(q => q.prompt), ['Pick runtime']);
+		const streamed: IKnoxGuiToolCall[] = [];
+		mergeStreamedToolCalls(streamed, [{
+			index: 0,
+			function: {
+				name: 'AskQuestion',
+				arguments: JSON.stringify({
+					title: 'Which syscall to add?',
+					questions: [{ id: 'syscall', options: [{ id: 'a', label: 'ENOSYS stub' }] }],
+				}),
+			},
+		}], { nextId: () => 'ask-1' });
+		assert.strictEqual(streamed[0].name, 'builtin_ask_user');
+		assert.strictEqual(streamed[0].questions?.[0]?.prompt, 'Which syscall to add?');
+		assert.deepStrictEqual(streamed[0].questions?.[0]?.options, ['ENOSYS stub']);
 		assert.strictEqual(isAskUserAnswered(''), false);
 		assert.strictEqual(isAskUserAnswered('alpha'), true);
 		assert.strictEqual(formatAskUserDisplayAnswer({ q1: 'a\u0001b', 'q1::freeform': 'other' }, 'q1'), 'a, b, other');

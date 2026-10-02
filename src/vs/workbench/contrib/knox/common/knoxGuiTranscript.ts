@@ -3,7 +3,7 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extractCodeFences, IKnoxGuiCodeFence, lastUserHistoryIndex, parseFenceMeta, toolDisplayKind } from './knoxGuiChat.js';
+import { extractCodeFences, IKnoxGuiCodeFence, isAskUserToolName, lastUserHistoryIndex, parseFenceMeta, toolDisplayKind } from './knoxGuiChat.js';
 import { inputDocFromPlainText, IKnoxGuiInputBlock } from './knoxGuiInput.js';
 import { IKnoxGuiApplyState, IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiPromptLog, IKnoxGuiSymbol, IKnoxGuiToolCall, KnoxChatMode, KnoxToolStatus } from './knoxGuiState.js';
 
@@ -478,7 +478,7 @@ export function classifyAgentActivityKind(name: string | undefined, args?: Recor
 	if (n === 'task') {
 		return 'task';
 	}
-	if (n === 'ask_user' || n === 'askuser') {
+	if (isAskUserToolName(name)) {
 		return 'ask';
 	}
 	const display = toolDisplayKind(name);
