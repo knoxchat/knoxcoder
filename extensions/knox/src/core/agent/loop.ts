@@ -19,7 +19,6 @@ import type {
   ToolExtras,
 } from "..";
 import { compactMessagesAsync } from "../compaction/index";
-import { totalMessageTokens } from "../compaction/tokenBudget";
 import { DEFAULT_DOOM_LOOP_THRESHOLD } from "../config/agentProfile";
 import { detectDoomLoopWithJev } from "../jev/doomSemantic";
 import { hydrateAssistantTextToolCalls } from "../llm/parseTextToolCalls";
@@ -45,10 +44,6 @@ import {
   type DoomLoopCall,
   type DoomLoopHit,
 } from "./doomLoop";
-import {
-  calibrationRatio,
-  resolveContextWindow,
-} from "./contextBudget";
 import type { PermissionMode } from "./permissions";
 import { canRunToolInParallel } from "./toolBatch";
 
@@ -159,37 +154,26 @@ export interface AgentLoopOptions {
   holdCompletionWhileOracleRed?: boolean;
 }
 
-/** History compact function used between agent steps. */
-export interface AgentLoopCompactor {
-  (messages: ChatMessage[]): Promise<ChatMessage[]> | ChatMessage[];
-  /** Feed provider-reported prompt tokens so the next compact uses a calibrated window. */
-  observeUsage(reportedPromptTokens: number, messages: ChatMessage[]): void;
-}
-
 export function createAgentLoopCompactor(
   llm: Pick<ToolExtras, "llm">["llm"],
-): AgentLoopCompactor {
-  let ratio = 1;
-  async function compact(messages: ChatMessage[]): Promise<ChatMessage[]> {
-    const window = resolveContextWindow(llm);
-    // A ratio > 1 means the provider counts more tokens than we do: shrink the window.
-    const effective = Math.floor(window.contextLength / ratio);
+): (messages: ChatMessage[]) => Promise<ChatMessage[]> {
+  return async (messages) => {
+    const record = llm as {
+      model?: string;
+      contextLength?: number;
+      completionOptions?: { maxTokens?: number };
+    };
+    const model = typeof record.model === "string" ? record.model : "gpt-4o";
+    const contextLength = Number(record.contextLength) || 32_000;
+    const maxTokens = Number(record.completionOptions?.maxTokens) || 2048;
     const result = await compactMessagesAsync(
       messages,
-      window.model,
-      effective,
-      Math.min(window.maxTokens, Math.floor(effective / 4)),
+      model,
+      contextLength,
+      maxTokens,
     );
     return result.messages;
-  }
-  function observeUsage(reported: number, messages: ChatMessage[]): void {
-    const window = resolveContextWindow(llm);
-    ratio = calibrationRatio(
-      reported,
-      totalMessageTokens(messages, window.model),
-    );
-  }
-  return Object.assign(compact, { observeUsage });
+  };
 }
 
 function lastUserMessageText(messages: ChatMessage[]): string {
