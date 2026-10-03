@@ -522,6 +522,28 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(storage.get(DRAFT_SESSION_KEY, StorageScope.WORKSPACE)?.includes('draft body'), 'the last state is flushed after streaming');
 	}));
 
+	test('K-042 typing while the agent runs queues the message, persists it, and restores it after a reload', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const { controller, store } = createHarness({ storage });
+		await timeout(0);
+		store.patch({ setupComplete: true, sessionId: 'q-1', isStreaming: true, history: [{ id: 'u', role: 'user', content: 'first' }] });
+		store.setInput('and then fix the tests');
+		await controller.submit();
+		assert.deepStrictEqual(store.state.messageQueue.map(m => [m.sessionId, m.text]), [['q-1', 'and then fix the tests']]);
+		assert.strictEqual(store.state.history.length, 1, 'nothing was sent yet');
+		assert.strictEqual(store.state.inputDoc.length > 0 ? JSON.stringify(store.state.inputDoc).includes('fix the tests') : false, false, 'the composer is cleared');
+		assert.ok(storage.get('knox.gui.messageQueue', StorageScope.WORKSPACE)?.includes('fix the tests'), 'written on every change');
+		store.setInput('   ');
+		await controller.submit();
+		assert.strictEqual(store.state.messageQueue.length, 1, 'blank input is not queued');
+		const reloaded = createHarness({ storage });
+		await timeout(0);
+		assert.deepStrictEqual(reloaded.store.state.messageQueue.map(m => m.text), ['and then fix the tests']);
+		assert.strictEqual(reloaded.store.state.isStreaming, false, 'a restored queue is never sent by itself');
+		reloaded.controller.removeQueuedMessage(reloaded.store.state.messageQueue[0].id);
+		assert.strictEqual(storage.get('knox.gui.messageQueue', StorageScope.WORKSPACE), undefined, 'an empty queue clears the storage key');
+	});
+
 	test('I-08 leaving edit mode reloads the newest workspace session, else opens a new chat', async () => {
 		const { controller, store, posted } = createHarness({
 			replies: {

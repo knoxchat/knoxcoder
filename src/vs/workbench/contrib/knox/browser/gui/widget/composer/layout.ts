@@ -11,6 +11,7 @@ import { appendKnoxGuiSvg } from '../../knoxGuiIcons.js';
 import { inputDocIsEmpty } from '../../../../common/knoxGuiInput.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { renderLumpOverlay } from './lumpOverlay.js';
+import { knoxGuiQueueForSession } from '../../../../common/knoxGuiQueue.js';
 
 export function renderComposer(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
 	const composer = DOM.append(widget.root, DOM.$('.knox-gui-composer'));
@@ -30,6 +31,7 @@ export function renderComposer(widget: KnoxGuiWidget, state: IKnoxGuiState): voi
 	}
 	// Tool approval must stay reachable even while the rest of the composer is tucked away.
 	widget.renderChatPermissionBar(composer, state);
+	renderMessageQueue(widget, composer, state);
 	// Everything from the top toolbar down to the input field folds as one section.
 	const collapsible = DOM.append(composer, DOM.$('.knox-gui-composer-collapsible'));
 	collapsible.setAttribute('data-testid', 'knox-gui-composer-collapsible');
@@ -154,4 +156,37 @@ function renderComposerDock(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 		DOM.append(showButton, DOM.$('span.knox-gui-composer-dock-badge'));
 	}
 	widget.renderStore.add(DOM.addDisposableListener(showButton, 'click', () => setComposerCollapsed(widget, false)));
+}
+
+/** K-042: messages waiting behind the running turn. "Send now" stops the turn and sends it; the cross removes it. */
+function renderMessageQueue(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
+	const queued = knoxGuiQueueForSession(state.messageQueue, state.sessionId);
+	if (!queued.length) {
+		return;
+	}
+	const strip = DOM.append(parent, DOM.$('.knox-gui-message-queue'));
+	strip.setAttribute('data-testid', 'message-queue');
+	strip.setAttribute('role', 'list');
+	strip.setAttribute('aria-label', t(state, 'queuedMessages'));
+	for (const message of queued) {
+		const row = DOM.append(strip, DOM.$('.knox-gui-message-queue-item'));
+		row.setAttribute('role', 'listitem');
+		row.setAttribute('data-testid', 'message-queue-item');
+		const label = message.text || t(state, 'queuedImagesOnly');
+		DOM.append(row, DOM.$('span.knox-gui-message-queue-text', undefined, label)).title = label;
+		widget.chromeButton(row, {
+			label: state.isStreaming ? t(state, 'queueInterruptSend') : t(state, 'queueSendNow'),
+			title: state.isStreaming ? t(state, 'queueInterruptSendHint') : t(state, 'queueSendNow'),
+			testId: 'message-queue-send',
+			extraClass: 'knox-gui-text-action',
+			onClick: () => { void widget.controller.sendQueuedMessageNow(message.id); },
+		});
+		widget.chromeButton(row, {
+			svg: 'x',
+			svgSize: 12,
+			title: t(state, 'queueRemove'),
+			testId: 'message-queue-remove',
+			onClick: () => widget.controller.removeQueuedMessage(message.id),
+		});
+	}
 }

@@ -9,10 +9,12 @@ import { StorageScope, StorageTarget } from '../../../../../../platform/storage/
 import { knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
 import { composerInputHistoryFromStorage, type IKnoxGuiComposerInputHistory, type IKnoxGuiInputBlock } from '../../../common/knoxGuiInput.js';
 import { KNOX_AUTOSAVE_DEBOUNCE_MS, KNOX_AUTOSAVE_MIN_INTERVAL_MS, KNOX_PERSIST_THROTTLE_MS, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, type IKnoxGuiDraftSession, type IKnoxGuiLastActiveSession, type IKnoxGuiProfilePreferences } from '../../../common/knoxGuiPersist.js';
+import { KNOX_QUEUE_STORAGE_KEY, knoxGuiParseQueue, knoxGuiSerializeQueue } from '../../../common/knoxGuiQueue.js';
 import { BOOKMARK_KEY } from './helpers.js';
 import { KNOX_GUI_MAIN_TEXT_ENTRY_KEY, KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY, knoxGuiNextMainTextEntry, knoxGuiParseMainTextEntryCount } from '../../../common/knoxGuiChrome.js';
 
 export const UI_STATE_KEY = 'knox.gui.uiState';
+const QUEUE_KEY = KNOX_QUEUE_STORAGE_KEY;
 export const TABS_KEY = 'knox.gui.tabs';
 export const LAST_ACTIVE_SESSION_KEY = 'knox.gui.lastActiveSession';
 export const DRAFT_SESSION_KEY = 'knox.gui.draftSession';
@@ -21,7 +23,9 @@ export const PROFILE_PREFERENCES_KEY = 'knox.gui.profilePreferences';
 export function restorePersistedState(controller: KnoxGuiController): void {
 	const ui = knoxGuiParsePersistedUi(controller.storageService.get(UI_STATE_KEY, StorageScope.PROFILE));
 	const tabs = knoxGuiParsePersistedTabs(controller.storageService.get(TABS_KEY, StorageScope.WORKSPACE));
-	controller.store.patch({ ...ui, ...(tabs ?? {}), jobsPanelOpen: controller.jobsPanelExpanded() });
+	// K-042: what the user queued before a crash or reload comes back as chips; nothing is sent by itself.
+	const messageQueue = knoxGuiParseQueue(controller.storageService.get(QUEUE_KEY, StorageScope.WORKSPACE));
+	controller.store.patch({ ...ui, ...(tabs ?? {}), messageQueue, jobsPanelOpen: controller.jobsPanelExpanded() });
 }
 
 /** `useInputHistory.ts`: one history per composer mode, `inputHistory_chat` / `inputHistory_edit`. */
@@ -42,6 +46,7 @@ export function resetPersistedState(controller: KnoxGuiController): void {
 	const storage = controller.storageService;
 	storage.remove(UI_STATE_KEY, StorageScope.PROFILE);
 	storage.remove(TABS_KEY, StorageScope.WORKSPACE);
+	storage.remove(QUEUE_KEY, StorageScope.WORKSPACE);
 	storage.remove(LAST_ACTIVE_SESSION_KEY, StorageScope.WORKSPACE);
 	storage.remove(DRAFT_SESSION_KEY, StorageScope.WORKSPACE);
 	storage.remove(PROFILE_PREFERENCES_KEY, StorageScope.PROFILE);
@@ -111,6 +116,7 @@ export function lastActiveSession(controller: KnoxGuiController): IKnoxGuiLastAc
 export function installPersistence(controller: KnoxGuiController): IDisposable {
 	const storage = controller.storageService;
 	let lastUi = knoxGuiSerializePersistedUi(controller.store.state);
+	let lastQueue = controller.store.state.messageQueue;
 	let lastTabs = '';
 	let lastActive = '';
 	let lastSessionId = controller.store.state.sessionId;
@@ -153,6 +159,14 @@ export function installPersistence(controller: KnoxGuiController): IDisposable {
 	const listener = controller.store.onDidChange(state => {
 		if (knoxGuiIsDedicatedEditor(state)) {
 			return;
+		}
+		if (state.messageQueue !== lastQueue) {
+			lastQueue = state.messageQueue;
+			if (lastQueue.length) {
+				storage.store(QUEUE_KEY, knoxGuiSerializeQueue(lastQueue), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			} else {
+				storage.remove(QUEUE_KEY, StorageScope.WORKSPACE);
+			}
 		}
 		const ui = knoxGuiSerializePersistedUi(state);
 		if (ui !== lastUi) {

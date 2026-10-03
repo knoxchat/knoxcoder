@@ -3,6 +3,8 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IKnoxGuiContextUsage } from './knoxGuiContextMeter.js';
+import type { IKnoxGuiQueuedMessage } from './knoxGuiQueue.js';
 import { emptyInputDoc, IKnoxGuiInputBlock } from './knoxGuiInput.js';
 import { KnoxGuiOverlay, KnoxGuiRoute, lumpOverlaySectionForPath, knoxGuiRouteFromPath } from './knoxGuiProtocol.js';
 import type { IKnoxGuiCheckpointGraphUi } from './knoxGuiCheckpoints.js';
@@ -1018,6 +1020,16 @@ export interface IKnoxGuiState {
 	setupComplete: boolean;
 	fatalConfig: boolean;
 	historyHydrateNotice: 'large' | null;
+	/** Shared loop: the stream failed transiently and the host is retrying (K-010). Never persisted. */
+	streamRetry?: { attempt: number; maxAttempts: number; usingFallback: boolean };
+	/** K-013: the last turn stopped on a token/cost/time cap. Hidden while streaming. */
+	budgetNotice?: { exceeded: 'tokens' | 'cost' | 'time'; tokens: number; costUsd: number };
+	/** K-012: last prompt size for the composer meter (per session, never persisted). */
+	contextUsage?: IKnoxGuiContextUsage;
+	/** K-005: the first-run permission notice was dismissed. Persisted. */
+	permissionNoticeDismissed: boolean;
+	/** K-042: messages typed while a turn runs. Written to workspace storage on every change. */
+	messageQueue: IKnoxGuiQueuedMessage[];
 	autoScroll: boolean;
 	startersExpanded: boolean;
 	/** `session.symbols`: file uri → symbols from `context/getSymbolsForFiles`. */
@@ -1043,6 +1055,8 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		isLoadingHistory: false,
 		mode: KNOX_GUI_DEFAULT_SESSION_MODE,
 		permissionMode: DEFAULT_PERMISSION_MODE,
+		permissionNoticeDismissed: false,
+		messageQueue: [],
 		models: [],
 		modelsByRole: emptyRoleModels(),
 		selectedModelByRole: {},

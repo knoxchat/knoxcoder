@@ -16,6 +16,7 @@ import { extractMentionsFromDoc, extractSlashFromDoc, inputDocFromPlainText, inp
 import { editSendPromptPayload, knoxGuiMultifileEditPrompt, shouldSendEditPrompt } from '../../../common/knoxGuiEdit.js';
 import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
 import { IKnoxCoreChatHistoryItem, IKnoxCoreChatMessage, IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiDoomCall, knoxGuiEmptyStreamText, knoxGuiFlushStreamText, knoxGuiShouldSplitForTools, knoxGuiFallbackMessages, knoxGuiFormatTurnInject, knoxGuiHistoryToCoreHistory, knoxGuiMemoryGoal, knoxGuiIsCancelledToolError, knoxGuiIsRetryableToolError, knoxGuiShouldContinueTurn, knoxGuiToolFailureOutput, knoxGuiToolIsSettled, knoxGuiToolPreferredModel, knoxGuiToolRetryDelay, KNOX_TOOL_CALL_MAX_RETRIES, knoxGuiTurnDoomCalls, knoxGuiTurnMessages, knoxGuiTurnTools } from '../../../common/knoxGuiAgentRequest.js';
+import { knoxGuiDequeue, knoxGuiEnqueue, knoxGuiNextToDrain } from '../../../common/knoxGuiQueue.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
 
 
@@ -31,6 +32,10 @@ interface IKnoxGuiLegacySlash {
 
 export async function submit(controller: KnoxGuiController, starterPrompt?: string, modifiers?: { noContext?: boolean; altKey?: boolean; index?: number; doc?: ReturnType<typeof inputDocFromPlainText>; images?: string[] }): Promise<void> {
 	const resubmitting = typeof modifiers?.index === 'number';
+	// K-042: typing while the agent runs queues the message instead of dropping it.
+	if (starterPrompt === undefined && modifiers === undefined && controller.store.state.isStreaming && controller.store.state.mode !== 'edit' && enqueueCurrentInput(controller)) {
+		return;
+	}
 	if (resubmitting && (controller.store.state.isStreaming || knoxGuiPendingToolBlocksSubmit({
 		isStreaming: false,
 		history: controller.store.state.history,
@@ -150,7 +155,59 @@ export async function submit(controller: KnoxGuiController, starterPrompt?: stri
 		if (controller.store.state.worktree.enabled) {
 			void controller.runWorktree('status');
 		}
+		drainMessageQueue(controller);
 	}
+}
+
+/** K-042: moves the composer text (and images) into the session queue. False when there is nothing to queue. */
+export function enqueueCurrentInput(controller: KnoxGuiController): boolean {
+	const state = controller.store.state;
+	const text = inputDocToPlainText(state.inputDoc).trim();
+	const images = state.images.map(image => image.imageUrl);
+	if (!text && !images.length) {
+		return false;
+	}
+	controller.store.patch({
+		messageQueue: knoxGuiEnqueue(state.messageQueue, { id: generateUuid(), sessionId: state.sessionId, text, images: images.length ? images : undefined, createdAt: Date.now() }),
+	});
+	controller.store.setInput('');
+	controller.store.patch({ images: [], historicalImages: [] });
+	controller.closeSuggest();
+	return true;
+}
+
+export function removeQueuedMessage(controller: KnoxGuiController, id: string): void {
+	controller.store.patch({ messageQueue: knoxGuiDequeue(controller.store.state.messageQueue, id) });
+}
+
+/** After a turn ended by itself, send the next queued message of this session. Stop never triggers it. */
+function drainMessageQueue(controller: KnoxGuiController): void {
+	const state = controller.store.state;
+	const next = knoxGuiNextToDrain(state.messageQueue, state.sessionId, {
+		aborted: controller.turnAborted,
+		blockedByPendingTool: knoxGuiPendingToolBlocksSubmit({ isStreaming: false, history: state.history }),
+		hasError: Boolean(state.streamError),
+		isStreaming: state.isStreaming,
+	});
+	if (!next) {
+		return;
+	}
+	removeQueuedMessage(controller, next.id);
+	void controller.submit(undefined, { doc: inputDocFromPlainText(next.text), images: next.images ?? [] });
+}
+
+/** "Interrupt and send": stop the running turn, then send this queued message first. */
+export async function sendQueuedMessageNow(controller: KnoxGuiController, id: string): Promise<void> {
+	const state = controller.store.state;
+	const queued = state.messageQueue.find(message => message.id === id);
+	if (!queued) {
+		return;
+	}
+	controller.store.patch({ messageQueue: knoxGuiDequeue(state.messageQueue, id) });
+	if (state.isStreaming) {
+		controller.cancel();
+	}
+	await controller.submit(undefined, { doc: inputDocFromPlainText(queued.text), images: queued.images ?? [] });
 }
 
 /** `streamResponse.ts` trackSession + user recordMessage; returns the memory build timeout. */

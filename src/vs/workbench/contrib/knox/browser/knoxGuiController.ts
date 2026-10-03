@@ -320,6 +320,14 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiStream.cancel(this);
 	}
 
+	removeQueuedMessage(id: string): void {
+		return knoxGuiStream.removeQueuedMessage(this, id);
+	}
+
+	async sendQueuedMessageNow(id: string): Promise<void> {
+		return knoxGuiStream.sendQueuedMessageNow(this, id);
+	}
+
 	cancelTool(id: string): void {
 		return knoxGuiTools.cancelTool(this, id);
 	}
