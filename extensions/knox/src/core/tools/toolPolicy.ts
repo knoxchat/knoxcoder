@@ -7,6 +7,7 @@
 
 import { extractPatchFilePaths } from "./applyPatchFormat";
 import { BuiltInToolNames } from "./builtIn";
+import { detectDangerousCommand, extractWriteTargets } from "./commandGuard";
 import { isSensitiveSecretFile } from "../util/redactSecrets";
 import { ToolCallError, ToolCallErrorCode } from "./errors";
 import { matchGlob } from "./globMatch";
@@ -77,6 +78,10 @@ const DESTRUCTIVE_COMMAND_REGEXES = [
   /\b(curl|wget)\b[\s\S]{0,200}\|\s*(ba)?sh\b/i,
   /\bcargo(?:\s+\+\S+)?\s+(publish|login)\b/i,
 ];
+
+const SYSTEM_WRITE_PATH_RE =
+  /^\/(etc|usr|bin|sbin|lib|lib64|boot|sys|proc|System|Library|private\/etc)(\/|$)/;
+const TMP_PATH_RE = /^(\/tmp|\/var\/tmp|\/private\/tmp|\/var\/folders)(\/|$)/;
 
 const CARGO_ASK_COMMAND_RE = /\bcargo(?:\s+\+\S+)?\s+(clean|yank)\b/i;
 
@@ -565,6 +570,34 @@ export function evaluateToolPolicy(params: {
         action: "deny",
         reason: `Sandbox blocked destructive command: ${cmd}`,
       };
+    }
+    const allowlisted = (policy.commands ?? []).some(
+      (rule) =>
+        rule.action === "allow" && matchCommandPattern(cmd, rule.pattern),
+    );
+    if (!allowlisted) {
+      const danger = detectDangerousCommand(cmd);
+      if (danger) {
+        return {
+          action: "deny",
+          reason: `Sandbox blocked dangerous command (${danger}). Allowlist it in agent policy to permit: ${cmd}`,
+        };
+      }
+      for (const target of extractWriteTargets(cmd)) {
+        if (SYSTEM_WRITE_PATH_RE.test(target)) {
+          return {
+            action: "deny",
+            reason: `Sandbox blocked shell write to system path "${target}"`,
+          };
+        }
+        if (
+          workspaceDirs.length > 0 &&
+          !TMP_PATH_RE.test(target) &&
+          isPathOutsideWorkspace(target, workspaceDirs, home)
+        ) {
+          set("ask", `Shell writes outside the workspace: "${target}"`);
+        }
+      }
     }
     if (CARGO_ASK_COMMAND_RE.test(cmd)) {
       set(
