@@ -1,6 +1,25 @@
 # Changelog
 
 All notable changes to KnoxCoder are documented in this file.
+## [2.0.0-beta] - 2026-10-04
+
+### Changed
+
+- Bumped product version to **2.0.0-beta** (`package.json` / related product metadata).
+
+### Fixed
+
+- **Streaming code blocks report the correct generated line count**
+  The “Generated N lines” label now matches the gutter instead of always showing one fewer line.
+
+### Files touched in this release
+
+| Path | Action |
+|------|--------|
+| `src/vs/workbench/contrib/knox/browser/gui/widget/markdown.ts` | Modified (generated line count) |
+| `package.json` / `package-lock.json` | Modified (version 2.0.0-beta) |
+| `CHANGELOG.md` | Modified |
+
 ## [1.138.2] - 2026-10-02
 
 ### Added

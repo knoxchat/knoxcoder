@@ -219,7 +219,7 @@ export function renderCodeFenceBlock(widget: KnoxGuiWidget, parent: HTMLElement,
 	const actions = DOM.append(toolbar, DOM.$('.knox-gui-code-actions'));
 	if (generating) {
 		const lines = fence.code.split('\n').length;
-		const count = lines === 1 ? 1 : lines - 1;
+		const count = lines;
 		DOM.append(actions, DOM.$('span.knox-gui-generating-lines', undefined, t(state, count === 1 ? 'generatedLines' : 'generatedLines_plural', { count })));
 	} else {
 		renderCopyFeedbackButton(widget, actions, state, `code:${streamId}`, fence.code, true);
@@ -320,7 +320,7 @@ function renderHoverCodeBlock(widget: KnoxGuiWidget, parent: HTMLElement, state:
 	widget.renderCodeLines(box, state, fence.language, fence.code, fence.filepath, { key: streamId, range: fence.range, generating, anchor: options.anchor });
 	if (generating) {
 		const lines = fence.code.split('\n').length;
-		const count = lines === 1 ? 1 : lines - 1;
+		const count = lines;
 		DOM.append(box, DOM.$('span.knox-gui-generating-lines.knox-gui-generating-lines-footer', undefined, t(state, count === 1 ? 'generatedLines' : 'generatedLines_plural', { count })));
 		return;
 	}
@@ -950,7 +950,7 @@ export function patchLiveCodeFence(
 	}
 	if (generating) {
 		const lines = fence.code.split('\n').length;
-		const count = lines === 1 ? 1 : lines - 1;
+		const count = lines;
 		const label = t(state, count === 1 ? 'generatedLines' : 'generatedLines_plural', { count });
 		const existing = box.querySelector('.knox-gui-generating-lines');
 		if (existing) {
