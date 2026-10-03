@@ -13,6 +13,7 @@ import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { appendKnoxGuiSvg, replaceKnoxGuiSvg, setKnoxGuiInnerHtml } from '../knoxGuiIcons.js';
 import { setCollapseChevronExpanded } from './controls.js';
 import { toolDisplayKind } from '../../../common/knoxGuiChat.js';
+import { knoxGuiToolBodyCollapsed, knoxGuiToolToggle } from '../../../common/knoxGuiToolCollapse.js';
 import {
 	catalogToolForCall,
 	collapseFileToolCodePreview,
@@ -150,13 +151,14 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 	const box = DOM.append(parent, DOM.$('.knox-gui-tool'));
 	box.setAttribute('data-testid', 'knox-gui-tool');
 	box.setAttribute('data-tool-name', tool.name);
+	box.setAttribute('data-tool-id', tool.id);
 	box.setAttribute('data-tool-status', tool.status);
 	box.dataset.stream = toolStreamFingerprint(tool);
 	box.id = activityAnchorId(`tool:${tool.id}`);
 	const kind = toolDisplayKind(tool.name);
 	const catalog = catalogToolForCall(state.tools, tool.name);
 	const alwaysShow = toolAlwaysShowsBody(tool.name);
-	const collapsed = widget.toolBodyCollapsed.has(tool.id) || Boolean(tool.collapsed);
+	const collapsed = knoxGuiToolBodyCollapsed(tool, { expanded: widget.toolBodyExpanded.has(tool.id), collapsed: widget.toolBodyCollapsed.has(tool.id) });
 	const showBody = shouldRenderToolBody(tool.status, collapsed, { alwaysShow });
 	const displayArgs = displayArgsForToolCall(tool.parsedArgs, tool.arguments);
 	const argEntries = Object.entries(displayArgs);
@@ -175,15 +177,41 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 				if (isLive) {
 					return;
 				}
-				if (widget.toolBodyCollapsed.has(tool.id)) {
-					widget.toolBodyCollapsed.delete(tool.id);
-				} else {
-					widget.toolBodyCollapsed.add(tool.id);
-				}
+				const next = knoxGuiToolToggle(showBody);
+				widget.toolBodyCollapsed[next.collapsed ? 'add' : 'delete'](tool.id);
+				widget.toolBodyExpanded[next.expanded ? 'add' : 'delete'](tool.id);
 				widget.render();
 			},
 		});
 	}
+	// K-041: keyboard access. Enter/Space toggles the body, Up/Down moves between tool cards.
+	head.tabIndex = 0;
+	head.setAttribute('role', 'button');
+	head.setAttribute('aria-expanded', String(showBody));
+	head.setAttribute('data-testid', 'tool-head');
+	widget.renderStore.add(DOM.addDisposableListener(head, 'keydown', (e: KeyboardEvent) => {
+		if (e.target !== head) {
+			return;
+		}
+		if ((e.key === 'Enter' || e.key === ' ') && !alwaysShow && !isLive) {
+			e.preventDefault();
+			const next = knoxGuiToolToggle(showBody);
+			widget.toolBodyCollapsed[next.collapsed ? 'add' : 'delete'](tool.id);
+			widget.toolBodyExpanded[next.expanded ? 'add' : 'delete'](tool.id);
+			widget.render();
+			const id = tool.id;
+			requestAnimationFrame(() => {
+				(Array.from(widget.root.querySelectorAll('[data-testid="knox-gui-tool"]')).find(el => el.getAttribute('data-tool-id') === id)?.querySelector('.knox-gui-tool-head') as HTMLElement | null)?.focus();
+			});
+		} else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+			const heads = Array.from(widget.root.querySelectorAll('.knox-gui-tool-head[data-testid="tool-head"]')) as HTMLElement[];
+			const target = heads[heads.indexOf(head) + (e.key === 'ArrowDown' ? 1 : -1)];
+			if (target) {
+				e.preventDefault();
+				target.focus();
+			}
+		}
+	}));
 	const icon = DOM.append(left, DOM.$('span.knox-gui-tool-status'));
 	icon.setAttribute('aria-hidden', 'true');
 	const statusIcon = toolStatusIcon(tool.status);
@@ -467,6 +495,21 @@ function syncTerminalCard(widget: KnoxGuiWidget, card: HTMLElement, state: IKnox
 	const right = card.querySelector('.knox-gui-term-head-right') as HTMLElement | null;
 	if (right) {
 		syncTerminalBadge(right, state, isStreaming, isDone, isCanceled);
+		// K-041: a running command can be stopped from its own card.
+		const stop = right.querySelector('[data-testid="xterm-stop"]');
+		if (isStreaming && !stop) {
+			widget.chromeButton(right, {
+				svg: 'x',
+				svgSize: 14,
+				label: t(state, 'stopCommand'),
+				title: t(state, 'stopCommand'),
+				testId: 'xterm-stop',
+				extraClass: 'knox-gui-term-action',
+				onClick: () => widget.controller.cancelTool(tool.id),
+			});
+		} else if (!isStreaming && stop) {
+			stop.remove();
+		}
 		if (raw && !right.querySelector('[data-testid="xterm-copy-output"]')) {
 			appendTerminalCopyAction(widget, right, state, {
 				testId: 'xterm-copy-output',

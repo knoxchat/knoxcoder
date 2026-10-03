@@ -284,6 +284,7 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 			this.checkpointFetched.clear();
 			this.toolArgsOpen.clear();
 			this.toolBodyCollapsed.clear();
+			this.toolBodyExpanded.clear();
 			this.toolCardExpanded.clear();
 			this.toolCardTab.clear();
 			this.askUserStep.clear();

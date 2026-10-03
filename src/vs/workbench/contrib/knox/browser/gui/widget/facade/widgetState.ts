@@ -73,6 +73,8 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	readonly checkpointFetched = new Set<string>();
 	readonly toolArgsOpen = new Set<string>();
 	readonly toolBodyCollapsed = new Set<string>();
+	/** K-041: cards the user opened although they collapse by default (long read/search results). */
+	readonly toolBodyExpanded = new Set<string>();
 	readonly toolCardExpanded = new Set<string>();
 	readonly toolCardTab = new Map<string, string>();
 	readonly askUserStep = new Map<string, number>();
