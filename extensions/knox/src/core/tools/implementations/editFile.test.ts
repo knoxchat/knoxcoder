@@ -4,6 +4,8 @@ import type { IDE, ToolExtras } from "../..";
 import {
   countExactOccurrences,
   editFileImpl,
+  noteFileContent,
+  resetFileTracking,
   replaceAllExact,
   replaceFirstExact,
 } from "./editFile";
@@ -278,5 +280,108 @@ describe("editFileImpl", () => {
         extras(ide),
       ),
     ).rejects.toThrow(/does not exist/i);
+  });
+});
+
+describe("K-032 edit reliability", () => {
+  it("applies multi-edit atomically", async () => {
+    const ide = mockIde();
+    await expect(
+      editFileImpl(
+        {
+          filepath: "a.ts",
+          edits: [
+            { old_string: "const a = 1;", new_string: "const a = 9;" },
+            { old_string: "does not exist", new_string: "x" },
+          ],
+        },
+        extras(ide),
+      ),
+    ).rejects.toThrow(/Edit 2 of 2 failed \(no changes written\)/);
+    expect(ide.writeFile).not.toHaveBeenCalled();
+
+    const out = await editFileImpl(
+      {
+        filepath: "a.ts",
+        edits: [
+          { old_string: "const a = 1;", new_string: "const a = 9;" },
+          { old_string: "const b = 2;", new_string: "const b = 8;" },
+        ],
+      },
+      extras(ide),
+    );
+    expect(ide.writeFile).toHaveBeenCalledWith(
+      "file:///tmp/ws/a.ts",
+      "const a = 9;\nconst b = 8;\n",
+    );
+    expect(out[0].content).toContain("2 edits");
+  });
+
+  it("later edits see earlier edits", async () => {
+    const ide = mockIde();
+    await editFileImpl(
+      {
+        filepath: "a.ts",
+        edits: [
+          { old_string: "const a = 1;", new_string: "const z = 1;" },
+          { old_string: "const z = 1;", new_string: "const z = 2;" },
+        ],
+      },
+      extras(ide),
+    );
+    expect(ide.writeFile).toHaveBeenCalledWith(
+      "file:///tmp/ws/a.ts",
+      "const z = 2;\nconst b = 2;\n",
+    );
+  });
+
+  it("returns a compact diff", async () => {
+    const out = await editFileImpl(
+      { filepath: "a.ts", old_string: "const b = 2;", new_string: "const b = 3;" },
+      extras(mockIde()),
+    );
+    expect(out[0].content).toContain("-const b = 2;");
+    expect(out[0].content).toContain("+const b = 3;");
+    expect(out[0].content).toContain("@@ line 2");
+  });
+
+  it("keeps CRLF files CRLF when new_string uses LF", async () => {
+    const ide = mockIde({ readFile: vi.fn(async () => "a\r\nb\r\nc\r\n") });
+    await editFileImpl(
+      { filepath: "a.ts", old_string: "b", new_string: "b1\nb2" },
+      extras(ide),
+    );
+    expect(ide.writeFile).toHaveBeenCalledWith("file:///tmp/ws/a.ts", "a\r\nb1\r\nb2\r\nc\r\n");
+  });
+
+  it("preserves a BOM", async () => {
+    const ide = mockIde({ readFile: vi.fn(async () => "\uFEFFhello\n") });
+    await editFileImpl({ filepath: "a.ts", old_string: "hello", new_string: "bye" }, extras(ide));
+    expect(ide.writeFile).toHaveBeenCalledWith("file:///tmp/ws/a.ts", "\uFEFFbye\n");
+  });
+
+  it("matches tabs vs spaces and reports near matches on a miss", async () => {
+    const ide = mockIde({ readFile: vi.fn(async () => "\tfoo();\n\tbar();\n") });
+    await editFileImpl({ filepath: "a.ts", old_string: "    foo();", new_string: "    baz();" }, extras(ide));
+    expect(ide.writeFile).toHaveBeenCalledWith("file:///tmp/ws/a.ts", "\tbaz();\n\tbar();\n");
+    await expect(
+      editFileImpl({ filepath: "a.ts", old_string: "foo(1);", new_string: "x" }, extras(ide)),
+    ).rejects.toThrow(/1: .*foo/);
+  });
+
+  it("warns when the file changed since it was read", async () => {
+    resetFileTracking();
+    noteFileContent("file:///tmp/ws/a.ts", "old content that differs");
+    const out = await editFileImpl(
+      { filepath: "a.ts", old_string: "const b = 2;", new_string: "const b = 3;" },
+      extras(mockIde()),
+    );
+    expect(out[0].content).toMatch(/changed on disk since you last read/);
+
+    const again = await editFileImpl(
+      { filepath: "a.ts", old_string: "const b = 3;", new_string: "const b = 4;" },
+      extras(mockIde({ readFile: vi.fn(async () => "const a = 1;\nconst b = 3;\n") })),
+    );
+    expect(again[0].content).not.toMatch(/changed on disk/);
   });
 });

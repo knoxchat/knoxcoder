@@ -1,4 +1,5 @@
 import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
+import { noteFileContent } from "./editFile";
 import { t } from "../../i18n/index.js";
 import {
   applyNewRustProjectFileDefaults,
@@ -127,6 +128,7 @@ export const createNewFileImpl: ToolImpl = async (args, extras) => {
   // Create the file
   try {
     await extras.ide.writeFile(resolvedFileUri, contentToWrite);
+    noteFileContent(resolvedFileUri, contentToWrite);
   } catch (error) {
     // If write failed due to missing directories, provide helpful error
     const errorMessage = (error as Error).message;

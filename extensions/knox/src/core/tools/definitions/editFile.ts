@@ -17,11 +17,12 @@ export const editFileTool: Tool = {
 Rules:
 - Read the file first so old_string matches exactly, including whitespace and indentation.
 - old_string must uniquely identify the edit. If it matches 0 times the call fails. If it matches more than once the call fails unless replace_all is true.
+- To make several changes in one file, pass edits: [{old_string, new_string, replace_all?}]. They apply in order and atomically: if any one fails, nothing is written.
 - Prefer this over rewriting the whole file or using the terminal (no cat/echo/heredoc writes).
 - For a brand-new file use builtin_create_new_file. For a full-file rewrite use builtin_write_file. For several files or hunks in one call use builtin_apply_patch.`,
     parameters: {
       type: "object",
-      required: ["filepath", "old_string", "new_string"],
+      required: ["filepath"],
       properties: {
         filepath: {
           type: "string",
@@ -41,6 +42,20 @@ Rules:
           type: "boolean",
           description:
             "If true, replace every occurrence of old_string. Default false (require a unique match).",
+        },
+        edits: {
+          type: "array",
+          description:
+            "Several edits to one file, applied in order and atomically. Use instead of old_string/new_string.",
+          items: {
+            type: "object",
+            required: ["old_string", "new_string"],
+            properties: {
+              old_string: { type: "string" },
+              new_string: { type: "string" },
+              replace_all: { type: "boolean" },
+            },
+          },
         },
       },
     },

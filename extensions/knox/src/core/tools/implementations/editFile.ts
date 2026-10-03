@@ -208,9 +208,25 @@ function fallbackOldStrings(
   return out;
 }
 
-export const editFileImpl: ToolImpl = async (args, extras) => {
-  if (!args.filepath || typeof args.filepath !== "string") {
-    throw new Error(t("missingRequiredParam", { param: "filepath" }));
+export interface EditSpec {
+  old_string: string;
+  new_string: string;
+  replace_all?: boolean;
+}
+
+/** Normalize the single-edit and `edits: [...]` call shapes to one list. */
+export function collectEdits(args: any): EditSpec[] {
+  if (Array.isArray(args.edits) && args.edits.length > 0) {
+    return args.edits.map((e: any, i: number) => {
+      if (!e || typeof e.old_string !== "string" || typeof e.new_string !== "string") {
+        throw new Error(`edits[${i}] needs string old_string and new_string`);
+      }
+      return {
+        old_string: e.old_string,
+        new_string: e.new_string,
+        replace_all: e.replace_all === true,
+      };
+    });
   }
   if (typeof args.old_string !== "string") {
     throw new Error(t("missingRequiredParam", { param: "old_string" }));
@@ -218,21 +234,149 @@ export const editFileImpl: ToolImpl = async (args, extras) => {
   if (typeof args.new_string !== "string") {
     throw new Error(t("missingRequiredParam", { param: "new_string" }));
   }
+  return [
+    {
+      old_string: args.old_string,
+      new_string: args.new_string,
+      replace_all: args.replace_all === true,
+    },
+  ];
+}
+
+/** True when every line break in the file is CRLF. */
+function isCrlfFile(content: string): boolean {
+  return content.includes("\r\n") && !/(^|[^\r])\n/.test(content);
+}
+
+/**
+ * Apply one edit in memory. Throws the same errors a single edit would.
+ * `index` / `total` only decorate the message for multi-edit calls.
+ */
+export function applyEditToContent(
+  filepath: string,
+  content: string,
+  edit: EditSpec,
+  label = "",
+): { next: string; replaced: number; note: string } {
+  let oldString = edit.old_string;
+  let newString = edit.new_string;
+  if (!oldString) {
+    throw new Error(label + t("editOldStringEmpty"));
+  }
+  if (oldString === newString) {
+    throw new Error(label + t("editOldStringUnchanged"));
+  }
+
+  let matches = countExactOccurrences(content, oldString);
+  let note = "";
+  if (matches === 0) {
+    for (const candidate of fallbackOldStrings(filepath, content, oldString, newString)) {
+      const count = countExactOccurrences(content, candidate.old);
+      if (count > 0) {
+        oldString = candidate.old;
+        newString = candidate.next;
+        matches = count;
+        note =
+          "old_string did not match exactly; it matched after aligning " +
+          "line endings, Rust pins, copied line numbers, or indentation/trailing " +
+          "whitespace with the file on disk.";
+        break;
+      }
+    }
+  }
+  if (matches === 0) {
+    const closest = findClosestLines(content, edit.old_string);
+    const hint = closest.length
+      ? `\n${t("editClosestLines", { lines: closest.join("\n") })}`
+      : "";
+    throw new Error(label + t("editOldStringNotFound", { filepath }) + hint);
+  }
+  if (matches > 1 && !edit.replace_all) {
+    throw new Error(
+      label + t("editOldStringNotUnique", { filepath, count: String(matches) }),
+    );
+  }
+  // A CRLF file must stay CRLF even when the model sent bare LF in new_string.
+  if (isCrlfFile(content) && /(^|[^\r])\n/.test(newString)) {
+    newString = newString.replace(/\r?\n/g, "\r\n");
+  }
+  const next = edit.replace_all
+    ? replaceAllExact(content, oldString, newString)
+    : replaceFirstExact(content, oldString, newString);
+  return { next, replaced: edit.replace_all ? matches : 1, note };
+}
+
+/** Compact unified-style diff of the changed region (common head/tail trimmed). */
+export function compactDiff(before: string, after: string, maxLines = 40): string {
+  const a = before.split("\n");
+  const b = after.split("\n");
+  let head = 0;
+  while (head < a.length && head < b.length && a[head] === b[head]) {
+    head++;
+  }
+  let tail = 0;
+  while (
+    tail < a.length - head &&
+    tail < b.length - head &&
+    a[a.length - 1 - tail] === b[b.length - 1 - tail]
+  ) {
+    tail++;
+  }
+  const removed = a.slice(head, a.length - tail);
+  const added = b.slice(head, b.length - tail);
+  const lines = [
+    `@@ line ${head + 1}: -${removed.length} +${added.length} @@`,
+    ...removed.map((l) => `-${l.replace(/\r$/, "")}`),
+    ...added.map((l) => `+${l.replace(/\r$/, "")}`),
+  ];
+  if (lines.length > maxLines) {
+    const hidden = lines.length - maxLines;
+    return [...lines.slice(0, maxLines), `... (${hidden} more diff lines)`].join("\n");
+  }
+  return lines.join("\n");
+}
+
+// ─── Stale-read detection ────────────────────────────────────────────────
+// Remembers a content hash for files the agent has read or written. If the
+// file differs on disk when it is edited later, someone else changed it.
+
+const knownHashes = new Map<string, string>();
+const MAX_TRACKED = 500;
+
+function hashText(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) {
+    h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  }
+  return `${text.length}:${h}`;
+}
+
+/** Call after the agent reads or writes a file. */
+export function noteFileContent(uri: string, content: string): void {
+  if (knownHashes.size >= MAX_TRACKED && !knownHashes.has(uri)) {
+    knownHashes.delete(knownHashes.keys().next().value as string);
+  }
+  knownHashes.set(uri, hashText(content));
+}
+
+export function isStaleSinceKnown(uri: string, content: string): boolean {
+  const known = knownHashes.get(uri);
+  return known !== undefined && known !== hashText(content);
+}
+
+export function resetFileTracking(): void {
+  knownHashes.clear();
+}
+
+export const editFileImpl: ToolImpl = async (args, extras) => {
+  if (!args.filepath || typeof args.filepath !== "string") {
+    throw new Error(t("missingRequiredParam", { param: "filepath" }));
+  }
+  const edits = collectEdits(args);
 
   const filepath = args.filepath.trim();
   if (!filepath) {
     throw new Error(t("filepathCannotBeEmpty"));
-  }
-
-  let oldString: string = args.old_string;
-  let newString: string = args.new_string;
-  const replaceAll = args.replace_all === true;
-
-  if (!oldString) {
-    throw new Error(t("editOldStringEmpty"));
-  }
-  if (oldString === newString) {
-    throw new Error(t("editOldStringUnchanged"));
   }
 
   let resolvedFileUri: string;
@@ -264,40 +408,22 @@ export const editFileImpl: ToolImpl = async (args, extras) => {
     );
   }
 
-  let matches = countExactOccurrences(content, oldString);
-  let recoveredNote = "";
-  if (matches === 0) {
-    for (const candidate of fallbackOldStrings(
-      filepath,
-      content,
-      oldString,
-      newString,
-    )) {
-      const count = countExactOccurrences(content, candidate.old);
-      if (count > 0) {
-        oldString = candidate.old;
-        newString = candidate.next;
-        matches = count;
-        recoveredNote =
-          "old_string did not match exactly; it matched after aligning " +
-          "line endings, Rust pins, copied line numbers, or indentation/trailing " +
-          "whitespace with the file on disk.";
-        break;
-      }
+  const stale = isStaleSinceKnown(resolvedFileUri, content);
+
+  // All edits apply in memory first; one failure leaves the file untouched.
+  let next = content;
+  let replaced = 0;
+  const notes: string[] = [];
+  edits.forEach((edit, i) => {
+    const label = edits.length > 1 ? `Edit ${i + 1} of ${edits.length} failed (no changes written): ` : "";
+    const r = applyEditToContent(filepath, next, edit, label);
+    next = r.next;
+    replaced += r.replaced;
+    if (r.note) {
+      notes.push(r.note);
     }
-  }
-  if (matches === 0) {
-    const closest = findClosestLines(content, args.old_string);
-    const hint = closest.length
-      ? `\n${t("editClosestLines", { lines: closest.join("\n") })}`
-      : "";
-    throw new Error(t("editOldStringNotFound", { filepath }) + hint);
-  }
-  if (matches > 1 && !replaceAll) {
-    throw new Error(
-      t("editOldStringNotUnique", { filepath, count: String(matches) }),
-    );
-  }
+  });
+  const recoveredNote = notes.join("\n");
 
   if (extras.abortSignal?.aborted) {
     throw new ToolCallError({
@@ -307,10 +433,6 @@ export const editFileImpl: ToolImpl = async (args, extras) => {
       retryable: false,
     });
   }
-
-  const next = replaceAll
-    ? replaceAllExact(content, oldString, newString)
-    : replaceFirstExact(content, oldString, newString);
 
   if (next === content) {
     // The file already holds the requested text (e.g. Knox pinned edition 2024
@@ -344,14 +466,17 @@ export const editFileImpl: ToolImpl = async (args, extras) => {
       t("failedToWriteFile", { filepath, error: (error as Error).message }),
     );
   }
+  noteFileContent(resolvedFileUri, next);
 
   const basename = getUriPathBasename(filepath);
-  const replaced = replaceAll ? matches : 1;
+  const staleNote = stale
+    ? "\nWarning: this file changed on disk since you last read it. Re-read it to confirm the result."
+    : "";
   return [
     {
       name: basename,
       description: `Edited file: ${filepath}`,
-      content: `Updated "${filepath}" (${replaced} replacement${replaced === 1 ? "" : "s"}).${recoveredNote ? `\n${recoveredNote}` : ""}\nPath: ${resolvedFileUri}`,
+      content: `Updated "${filepath}" (${replaced} replacement${replaced === 1 ? "" : "s"}${edits.length > 1 ? ` in ${edits.length} edits` : ""}).${recoveredNote ? `\n${recoveredNote}` : ""}${staleNote}\n${compactDiff(content, next)}\nPath: ${resolvedFileUri}`,
       uri: {
         type: "file",
         value: resolvedFileUri,

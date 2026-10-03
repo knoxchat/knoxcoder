@@ -1,4 +1,5 @@
 import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
+import { noteFileContent } from "./editFile";
 import { t } from "../../i18n/index.js";
 import {
   applyNewRustProjectFileDefaults,
@@ -235,6 +236,7 @@ export const applyPatchImpl: ToolImpl = async (args, extras) => {
         }
       } else if (change.after != null) {
         await extras.ide.writeFile(change.uri, change.after);
+        noteFileContent(change.uri, change.after);
       }
       written.push(change);
     }

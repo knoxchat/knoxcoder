@@ -1,4 +1,5 @@
 import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
+import { noteFileContent } from "./editFile";
 import { t } from "../../i18n/index.js";
 import { getUriPathBasename } from "../../util/uri";
 import {
@@ -77,6 +78,7 @@ export const writeFileImpl: ToolImpl = async (args, extras) => {
 
   try {
     await extras.ide.writeFile(resolvedFileUri, contentsToWrite);
+    noteFileContent(resolvedFileUri, contentsToWrite);
   } catch (error) {
     const errorMessage = (error as Error).message;
     if (

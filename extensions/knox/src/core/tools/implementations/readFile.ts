@@ -1,4 +1,5 @@
 import { resolveRelativePathInDir } from "../../util/ideUtils";
+import { noteFileContent } from "./editFile";
 import { t } from "../../i18n/index.js";
 import { getUriPathBasename } from "../../util/uri";
 import { detectLanguageFromExtension } from "../templates/fileTemplates";
@@ -194,6 +195,7 @@ export const readFileImpl: ToolImpl = async (args, extras) => {
     } else {
       // Read entire file
       content = await extras.ide.readFile(resolvedFileUri);
+      noteFileContent(resolvedFileUri, content);
     }
   } catch (error) {
     throw new Error(t("failedToReadFile", { filepath, error: (error as Error).message }));
