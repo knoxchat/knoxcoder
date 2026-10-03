@@ -27,6 +27,7 @@ export default defineConfig({
     // (context/memory/brain/test-*.ts) are executed manually with tsx.
     include: [
       "agent/**/*.test.ts",
+      "hooks/**/*.test.ts",
       "context/memory/**/*.test.ts",
       "context/soul/**/*.test.ts",
       "context/*.test.ts",
@@ -45,8 +46,10 @@ export default defineConfig({
       "promptFiles/**/*.test.ts",
       "protocol/**/*.test.ts",
       "auth/**/*.test.ts",
+      "cli/**/*.test.ts",
       "commands/**/*.test.ts",
     ],
+    // `eval/live.eval.ts` is opt-in: `npm run test:live`.
     exclude: ["**/node_modules/**", "**/test-*.ts"],
     testTimeout: 30000,
     hookTimeout: 30000,

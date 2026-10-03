@@ -276,6 +276,59 @@ describe("systems golden tasks", () => {
     expect(result.toolTrace[0]?.output).toContain("## main");
   });
 
+  it("K-021: deferred catalog loads git_status through tool search", async () => {
+    const result = await runAgentEval({
+      prompt: "What is dirty?",
+      catalog: SYSTEMS_EVAL_CATALOG,
+      viaChatTurn: true,
+      deferTools: true,
+      workspace: { "kernel/fork.c": "void copy_process(void) {}\n" },
+      ideHooks: {
+        subprocess: async (command) =>
+          command.includes("git status")
+            ? ["## main\n M kernel/fork.c", ""]
+            : ["", "unexpected git command"],
+      },
+      script: [
+        {
+          toolCalls: [
+            {
+              name: BuiltInToolNames.ToolSearch,
+              args: { names: [BuiltInToolNames.GitStatus] },
+            },
+          ],
+        },
+        { toolCalls: [{ name: BuiltInToolNames.GitStatus, args: {} }] },
+        { content: "kernel/fork.c is modified." },
+      ],
+    });
+
+    expect(result.stoppedReason).toBe("completed");
+    const names = result.toolTrace.map((t) => t.name);
+    expect(names).toEqual([
+      BuiltInToolNames.ToolSearch,
+      BuiltInToolNames.GitStatus,
+    ]);
+    expect(result.toolTrace[1]?.ok).toBe(true);
+    expect(result.toolTrace[1]?.output).toContain("kernel/fork.c");
+  });
+
+  it("K-021: a deferred tool called before loading is refused with a hint", async () => {
+    const result = await runAgentEval({
+      prompt: "What is dirty?",
+      catalog: SYSTEMS_EVAL_CATALOG,
+      viaChatTurn: true,
+      deferTools: true,
+      workspace: { "a.c": "int a;\n" },
+      script: [
+        { toolCalls: [{ name: BuiltInToolNames.GitStatus, args: {} }] },
+        { content: "gave up" },
+      ],
+    });
+    expect(result.toolTrace[0]?.ok).toBe(false);
+    expect(result.toolTrace[0]?.output).toMatch(/tool_search/);
+  });
+
   it("git blame uses eval subprocess (HL-29)", async () => {
     const result = await runAgentEval({
       prompt: "Who touched copy_to_user?",

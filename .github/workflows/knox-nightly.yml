@@ -1,0 +1,57 @@
+# Nightly Knox regression run: the scripted eval suite (golden, systems, rust, honesty)
+# and the memory benchmark. Live-model runs need a signed-in OAuth session and stay
+# manual (`npm run test:live` in extensions/knox/src/core); their trend goes to eval/results/history.jsonl.
+name: Knox Nightly
+
+on:
+  schedule:
+    - cron: '17 19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    name: Scripted evals and memory bench
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            extensions/knox/package-lock.json
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config python3 python-is-python3 \
+            libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev
+      - run: npm ci
+      - name: Rebuild sqlite3 against runner glibc
+        working-directory: extensions/knox
+        run: npm rebuild sqlite3 --build-from-source
+      - name: Git identity for hermetic test repos
+        run: |
+          git config --global user.email ci@knox.dev
+          git config --global user.name "Knox Nightly"
+      - name: Scripted evals (both loop paths)
+        working-directory: extensions/knox
+        run: npx vitest run --config src/core/vitest.config.ts eval --reporter=default --reporter=json --outputFile=eval-results.json
+      - name: Memory benchmark
+        working-directory: extensions/knox
+        run: npx vitest run --config src/core/vitest.config.ts context/memory/bench
+      - name: Summary
+        if: always()
+        working-directory: extensions/knox
+        run: |
+          node -e "const r=require('./eval-results.json');console.log('## Knox nightly eval\n\n'+r.numPassedTests+'/'+r.numTotalTests+' passed, '+r.numFailedTests+' failed')" >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: knox-eval-results
+          path: extensions/knox/eval-results.json
