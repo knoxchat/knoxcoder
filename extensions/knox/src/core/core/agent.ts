@@ -44,8 +44,12 @@ export function registerAbortAndAgentHandlers(core: CoreRuntime): void {
     core.abortActiveTools(msg.messageId);
   });
 
-  on("tools/cancel", () => {
+  on("tools/cancel", (msg) => {
     core.abortActiveTools();
+    // Cancelling one tool card must not kill unrelated background jobs.
+    if ((msg?.data as { toolCallId?: string } | undefined)?.toolCallId) {
+      return;
+    }
     // Background shells (block_until_ms: 0) and builtin_task children are
     // not in activeToolAborts once they detach. Stop them on user Stop.
     const jobs = cancelAllBackgroundJobs();
