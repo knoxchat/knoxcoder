@@ -10,6 +10,7 @@
 
 import { formatOops, parseOops } from "./parseOops";
 import { formatRustcRemedyReminder } from "./rustcRemedies";
+import { parseToolchainLine } from "./parseToolchain";
 
 export type BuildDiagnosticKind = "error" | "warning" | "note" | "link" | "make";
 
@@ -493,6 +494,13 @@ export function parseBuildOutput(text: string): ParsedBuildOutput {
     if (ld) {
       flushRust(line);
       push(parsed, ld);
+      continue;
+    }
+
+    const toolchain = parseToolchainLine(line);
+    if (toolchain) {
+      flushRust(line);
+      push(parsed, toolchain);
       continue;
     }
 

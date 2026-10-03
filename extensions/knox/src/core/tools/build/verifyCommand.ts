@@ -14,6 +14,11 @@ import {
   formatBuildDiagnostics,
   parseBuildOutput,
 } from "./parseDiagnostics";
+import {
+  detectOracleCommand,
+  oracleSummaryLine,
+  scopeOracleCommand,
+} from "./oracleDetect";
 import { shouldVerifyTool } from "../postEditVerification";
 import {
   cargoOracleRed,
@@ -261,7 +266,31 @@ export async function detectBuildCommand(ide: IDE): Promise<string | undefined> 
       // continue
     }
   }
-  return undefined;
+  return detectNonCOracle(ide, root);
+}
+
+/** K-034: Node / Python / Go fallbacks when no Makefile, ninja or Cargo manifest exists. */
+async function detectNonCOracle(
+  ide: IDE,
+  root: string,
+): Promise<string | undefined> {
+  if (typeof ide.listDir !== "function") {
+    return undefined;
+  }
+  try {
+    const entries = (await ide.listDir(root)).map(([name]) => name);
+    const readIf = async (name: string) =>
+      entries.includes(name)
+        ? await ide.readFile(joinPathsToUri(root, name)).catch(() => undefined)
+        : undefined;
+    return detectOracleCommand({
+      entries,
+      packageJson: await readIf("package.json"),
+      pyproject: await readIf("pyproject.toml"),
+    })?.command;
+  } catch {
+    return undefined;
+  }
 }
 
 export function attachBuildDiagnostics(items: ContextItem[]): ContextItem[] {
@@ -386,10 +415,19 @@ export async function runPostEditBuildVerify(
   if (circuit.wouldSkip()) {
     return [circuitSkipItem(command, circuit.repeats)];
   }
-  const raw = await options.run(command);
+  const runCommand = scopeOracleCommand(command, options.filePath);
+  const raw = await options.run(runCommand);
   const withDiag = attachBuildDiagnostics(raw);
   const log = withDiag.map((item) => item.content ?? "").join("\n");
   const sig = diagnosticSignature(log);
+  withDiag.push({
+    name: "Oracle",
+    description: sig === "ok" ? "pass" : "fail",
+    content: oracleSummaryLine(
+      runCommand,
+      parseBuildOutput(log).errors.length,
+    ),
+  });
   const { tripped, count } = circuit.observe(sig);
   if (tripped) {
     withDiag.push(circuitSkipItem(command, count));
