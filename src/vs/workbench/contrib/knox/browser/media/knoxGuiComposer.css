@@ -286,7 +286,6 @@
 /* Collapsed: the composer bar itself turns see-through, so only the round button floats. */
 .knox-gui-composer.is-collapsed {
 	background: transparent;
-	border-top-color: transparent;
 }
 
 /*
@@ -315,13 +314,13 @@
 }
 
 @keyframes knox-composer-bar-clear {
-	from { background-color: var(--vscode-sideBar-background); border-top-color: rgba(255, 255, 255, 0.05); }
-	to { background-color: transparent; border-top-color: transparent; }
+	from { background-color: var(--vscode-sideBar-background); }
+	to { background-color: transparent; }
 }
 
 @keyframes knox-composer-bar-fill {
-	from { background-color: transparent; border-top-color: transparent; }
-	to { background-color: var(--vscode-sideBar-background); border-top-color: rgba(255, 255, 255, 0.05); }
+	from { background-color: transparent; }
+	to { background-color: var(--vscode-sideBar-background); }
 }
 
 /*

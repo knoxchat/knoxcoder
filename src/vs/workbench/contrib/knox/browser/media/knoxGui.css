@@ -346,7 +346,6 @@
 	box-sizing: border-box;
 	overflow: hidden;
 	background: var(--vscode-sideBar-background);
-	border-top: 1px solid rgba(255, 255, 255, 0.05);
 	/* KnoxInputBox `px-2` + Chat.tsx input-container py-8: one inset for lump, panels, and editor. */
 	padding: 8px;
 }
