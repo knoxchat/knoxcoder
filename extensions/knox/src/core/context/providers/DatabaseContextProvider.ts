@@ -1,5 +1,3 @@
-import { getDatabaseAdapter } from "dbinfoz";
-
 import {
   ContextItem,
   ContextProviderDescription,
@@ -9,6 +7,15 @@ import {
 } from "../../index.js";
 import { t } from "../../i18n/index.js";
 import { BaseContextProvider } from "../index.js";
+
+// K-038: dbinfoz pulls mssql, mysql2, tedious and @azure/identity. Load on first use.
+async function getDatabaseAdapter(
+  ...args: [type: string, connection: unknown]
+) {
+  const mod = await import("dbinfoz");
+  // @ts-ignore (incorrect typings on module's declaration file)
+  return mod.getDatabaseAdapter(...args);
+}
 
 class DatabaseContextProvider extends BaseContextProvider {
   static description: ContextProviderDescription = {
@@ -35,8 +42,7 @@ class DatabaseContextProvider extends BaseContextProvider {
 
     for (const connection of connections) {
       if (connection.name === connectionName) {
-        // @ts-ignore (incorrect typings on module's declaration file)
-        const adapter = getDatabaseAdapter(
+        const adapter = await getDatabaseAdapter(
           connection.connection_type,
           connection.connection,
         );
@@ -90,8 +96,7 @@ class DatabaseContextProvider extends BaseContextProvider {
     }
 
     for (const connection of connections) {
-      // @ts-ignore (incorrect typings on module's declaration file)
-      const adapter = getDatabaseAdapter(
+      const adapter = await getDatabaseAdapter(
         connection.connection_type,
         connection.connection,
       );

@@ -74,17 +74,30 @@ function maybeNotifyMarketplaceDuplicate(context: vscode.ExtensionContext): void
 }
 
 export async function activateExtension(context: vscode.ExtensionContext) {
+  // K-038: phase timings, one console line. Compare against the budget in
+  // core/eval/startupBudget.test.ts and `npm run measure-startup`.
+  const t0 = Date.now();
+  const phases: Array<[string, number]> = [];
+  const lap = (name: string, from: number): number => {
+    const now = Date.now();
+    phases.push([name, now - from]);
+    return now;
+  };
+  let mark = t0;
   installRemoteNativeAddons(context);
   installHostNativePty(context);
   registerQuickFixProvider(context);
   setupInlineTips(context);
+  mark = lap("natives+tips", mark);
 
   // Agent mode before the host: toggle/context keys exist before the
   // messenger and GUI attach (Cmd/Ctrl+Shift+Alt+A still forces Agent on).
   const agentModeDisposable = activateAgentMode(context);
   context.subscriptions.push(agentModeDisposable);
+  mark = lap("agentMode", mark);
 
   const vscodeExtension = new VsCodeExtension(context);
+  mark = lap("VsCodeExtension", mark);
 
   registerKnoxUriHandler(context);
   maybeNotifyMarketplaceDuplicate(context);
@@ -101,6 +114,11 @@ export async function activateExtension(context: vscode.ExtensionContext) {
   }
 
   const knoxExtension = new KnoxExtensionImpl(vscodeExtension);
+  console.log(
+    `[startup] activate ${Date.now() - t0}ms (${phases
+      .map(([name, ms]) => `${name} ${ms}ms`)
+      .join(", ")})`,
+  );
 
   return process.env.NODE_ENV === "test"
     ? Object.assign(knoxExtension, { extension: vscodeExtension })

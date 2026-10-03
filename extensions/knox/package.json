@@ -26,6 +26,7 @@
 		"compile": "gulp compile-extension:knox",
 		"compile-native": "gulp compile-extension-knox-native",
 		"inventory-gate": "node ./scripts/inventory-gate.mts",
+		"measure-startup": "node ./scripts/measure-startup.cjs",
 		"test:core": "vitest run --config src/core/vitest.config.ts",
 		"test:tsc": "tsc -p src/core --noEmit",
 		"test:eval": "vitest run --config src/core/vitest.config.ts eval",

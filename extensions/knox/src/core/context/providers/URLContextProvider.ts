@@ -1,6 +1,3 @@
-import { Readability } from "@mozilla/readability";
-import { JSDOM } from "jsdom";
-import { NodeHtmlMarkdown } from "node-html-markdown";
 
 import { BaseContextProvider } from "../";
 import { t } from "../../i18n/index.js";
@@ -28,6 +25,13 @@ class URLContextProvider extends BaseContextProvider {
       const resp = await extras.fetch(url);
       const html = await resp.text();
 
+      // K-038: jsdom + readability are heavy; load them on first @url use only.
+      const [{ JSDOM }, { Readability }, { NodeHtmlMarkdown }] =
+        await Promise.all([
+          import("jsdom"),
+          import("@mozilla/readability"),
+          import("node-html-markdown"),
+        ]);
       const dom = new JSDOM(html);
       let reader = new Readability(dom.window.document);
       let article = reader.parse();
