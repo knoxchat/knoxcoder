@@ -32,7 +32,7 @@ export function getSkillToolDescription(): string {
       "No skills are currently available."
     );
   }
-  return buildSkillToolDescription(manager.all());
+  return buildSkillToolDescription(manager.visible());
 }
 
 /** Directories to skip when listing bundled files. */

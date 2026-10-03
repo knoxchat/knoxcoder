@@ -12,123 +12,55 @@ export const exactSearchTool: Tool = {
   group: BUILT_IN_GROUP_NAME,
   function: {
     name: BuiltInToolNames.ExactSearch,
-    description: `Search file contents with bundled ripgrep 15.2.0 (Grep).
-
-Output includes file paths and line numbers in content mode. Binary files are skipped. Common junk dirs (.git, node_modules) are ignored by ripgrep defaults. Long lines are truncated.
-
-On large trees (Linux kernel, QEMU), ALWAYS pass path and fileType. A workspace-wide search for copy_to_user is a random slice. Prefer path: "mm/" and fileType: "c" (also asm, kconfig, make, dts). Default maxResults is 50 (200 on a systems/kernel workspace). If the result says truncated; pass maxResults/path/fileType.
-
-Features:
-- Literal substring match by default (ripgrep -F). Parentheses, dots, pipes, and other regex metacharacters are matched exactly — paste code snippets as-is
-- Case-insensitive by default (set caseSensitive for exact case)
-- Regular expressions only when you opt in: pcre2 for lookaround / backreferences, or fixedStrings=false for Rust regex
-- Workspace-relative path (directory or file) — e.g. path="mm" not the whole tree
-- Path globs (fileGlob) and excludes (excludeGlob)
-- File types (fileType: c, asm, kconfig, make, ts, rust, py — tsx maps to ripgrep's ts type)
-- Context lines (contextLines, or beforeContext / afterContext)
-- Head limit (maxResults, default 50 / 200 systems) and offset for pagination
-- outputMode: content (default) | files_with_matches | count
-- multiline, hidden, follow
-
-Examples:
-- Simple: query="function handleClick"
-- Code snippet: query="fn ui(&mut self,"
-- Path: query="Game::new" path="src"
-- Kernel: query="copy_to_user" path="mm" fileType="c"
-- Glob: query="useState" fileGlob="src/**/*.tsx"
-- Files only: query="TODO" outputMode="files_with_matches"
-- More context: query="TODO" contextLines=3 maxResults=20
-- Regex: query="copy_to_user|copy_from_user" pcre2=true`,
+    description: `Search file contents with ripgrep. Literal, case-insensitive match by default (code snippets can be pasted as-is); set pcre2=true or fixedStrings=false for regex. Output is grouped by file with line numbers; binary and ignored files are skipped, long lines truncated.
+On large trees (kernel, QEMU) always pass path and fileType (e.g. path="mm", fileType="c"). Default maxResults is 50 (200 on systems workspaces); if truncated, narrow with path/fileType or page with offset.
+Examples: query="Game::new" path="src"; query="useState" fileGlob="src/**/*.tsx"; query="TODO" outputMode="files_with_matches"; query="a|b" pcre2=true.`,
     parameters: {
       type: "object",
       required: ["query"],
       properties: {
         query: {
           type: "string",
-          description:
-            "Literal substring to find (default). Metacharacters such as ( ) . * + ? | [ ] { } are matched exactly. Set pcre2 or fixedStrings=false only when you want a regular expression.",
+          description: "Text to find. Literal unless pcre2 or fixedStrings=false.",
         },
         path: {
           type: "string",
-          description:
-            "Directory or file to search, relative to the workspace root (e.g. 'mm', 'src', 'tetris/src/main.rs'). On kernel/QEMU trees prefer a subsystem path instead of the whole workspace.",
+          description: "Directory or file to search, workspace-relative (e.g. 'mm', 'src').",
         },
         fileType: {
           type: "string",
-          description:
-            "Filter by ripgrep --type (e.g. 'c', 'asm', 'kconfig', 'make', 'ts', 'rust', 'py'). Unknown names become a *.ext glob. 'tsx'/'jsx' map to ts/js. Prefer fileType: c on kernel trees.",
+          description: "ripgrep type (c, asm, kconfig, make, ts, rust, py). Unknown names become *.ext.",
         },
-        fileGlob: {
-          type: "string",
-          description:
-            "Filter by file glob pattern (e.g., '*.test.ts', 'src/**/*.tsx'). Uses ripgrep's --glob flag.",
-        },
-        excludeGlob: {
-          type: "string",
-          description:
-            "Exclude glob (e.g. '*.lock', 'dist/**'). A leading ! is added if missing.",
-        },
+        fileGlob: { type: "string", description: "Only files matching this glob." },
+        excludeGlob: { type: "string", description: "Skip files matching this glob." },
         contextLines: {
           type: "number",
-          description:
-            "Context lines before and after each match (content mode). Default is 2. Ignored when beforeContext or afterContext is set.",
+          description: "Lines of context around each match (default 2).",
         },
-        beforeContext: {
-          type: "number",
-          description: "Context lines before each match (content mode).",
-        },
-        afterContext: {
-          type: "number",
-          description: "Context lines after each match (content mode).",
-        },
+        beforeContext: { type: "number", description: "Context lines before a match." },
+        afterContext: { type: "number", description: "Context lines after a match." },
         maxResults: {
           type: "number",
-          description:
-            "Maximum number of matches to return. Default is 50 (200 on systems/kernel workspaces). Use -1 for unlimited. Truncated results tell you to pass maxResults/path/fileType.",
+          description: "Max matches (default 50, 200 on systems; -1 unlimited).",
         },
-        offset: {
-          type: "number",
-          description:
-            "Skip this many matches before applying maxResults (pagination).",
-        },
-        caseSensitive: {
-          type: "boolean",
-          description:
-            "Enable case-sensitive search. Default is false (case-insensitive).",
-        },
-        wholeWord: {
-          type: "boolean",
-          description: "Match whole words only. Default is false.",
-        },
-        multiline: {
-          type: "boolean",
-          description:
-            "Allow matches to span lines (ripgrep -U --multiline-dotall).",
-        },
-        hidden: {
-          type: "boolean",
-          description:
-            "Search hidden files (still respects gitignore unless the pattern forces otherwise).",
-        },
-        follow: {
-          type: "boolean",
-          description: "Follow symlinks.",
-        },
+        offset: { type: "number", description: "Skip this many matches (paging)." },
+        caseSensitive: { type: "boolean", description: "Default false." },
+        wholeWord: { type: "boolean", description: "Whole words only." },
+        multiline: { type: "boolean", description: "Let matches span lines." },
+        hidden: { type: "boolean", description: "Search hidden files." },
+        follow: { type: "boolean", description: "Follow symlinks." },
         fixedStrings: {
           type: "boolean",
-          description:
-            "Treat query as a literal string (-F). Default is true. Set false to use Rust regex (without PCRE2).",
+          description: "Literal match (default true). False = Rust regex.",
         },
         pcre2: {
           type: "boolean",
-          description:
-            "Use PCRE2 regex (-P) instead of a literal match. For lookaround and backreferences. The bundled binary includes +pcre2.",
+          description: "PCRE2 regex (lookaround, backreferences).",
         },
         outputMode: {
           type: "string",
           enum: ["content", "files_with_matches", "count"],
-          description:
-            "content: matching lines with context (default). files_with_matches: paths only. count: per-file match counts.",
+          description: "content (default), files_with_matches, or count.",
         },
       },
     },

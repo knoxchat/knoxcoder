@@ -12,18 +12,8 @@ export const askUserTool: Tool = {
   readonly: false,
   function: {
     name: BuiltInToolNames.AskUser,
-    description: `Ask the user a clarifying question before continuing.
-
-Use when a choice would change edits (library, approach, scope) and guessing would waste work.
-Prefer multiple-choice options. This tool is never auto-approved — the user must answer.
-
-Always pass a non-empty questions array. Each item needs prompt text (question/header/title also work).
-options may be strings or {id, label} / {label, description} objects. Do not send questions: [].
-
-Example:
-{"questions":[{"id":"runtime","prompt":"How should this run?","options":["Terminal","Desktop GUI"]}]}
-
-Do not use for progress updates.`,
+    description: `Ask the user a clarifying question when a choice would change the edits (library, approach, scope). Prefer multiple-choice options. Never auto-approved. Always pass a non-empty questions array; options may be strings or {id,label}. Not for progress updates.
+Example: {"questions":[{"id":"runtime","prompt":"How should this run?","options":["Terminal","Desktop GUI"]}]}`,
     parameters: {
       type: "object",
       required: ["questions"],

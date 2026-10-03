@@ -12,84 +12,31 @@ export const createNewFileTool: Tool = {
   readonly: false,
   function: {
     name: BuiltInToolNames.CreateNewFile,
-    description: `Create a new file with intelligent features:
-- Auto-detects file type from extension
-- Creates necessary parent directories
-- Supports templates for common file types
-- Can open file after creation
-- Validates file paths and prevents overwrites
-- Supports workspace-relative or absolute paths
-
-Use this only when the file does not exist yet. For a surgical change to an existing file use builtin_edit_file. For a full rewrite use builtin_write_file. Never write files via the terminal.
-
-Always emit filepath BEFORE contents. Keep contents under roughly 200 lines: for a bigger file create a skeleton first, then extend it with builtin_edit_file or builtin_apply_patch (a very long call can be cut off and loses its arguments).`,
+    description: `Create a file that does not exist yet (parent directories are created; existing files are not overwritten unless overwrite=true). For changes to an existing file use builtin_edit_file; for a full rewrite builtin_write_file. Never write files through the terminal.
+Emit filepath BEFORE contents. Keep contents under ~200 lines: create a skeleton first, then extend with builtin_edit_file or builtin_apply_patch (a very long call can be cut off and lose its arguments).`,
     parameters: {
       type: "object",
       required: ["filepath", "contents"],
       properties: {
         filepath: {
           type: "string",
-          description:
-            "The path of the new file, relative to the workspace root. Can include subdirectories (will be created automatically). Examples: 'src/components/Button.tsx', 'utils/helper.js', 'README.md'",
+          description: "New file path, workspace-relative (e.g. 'src/components/Button.tsx').",
         },
-        contents: {
-          type: "string",
-          description: "The content to write to the new file. Can be empty string for blank files.",
-        },
+        contents: { type: "string", description: "File contents (may be empty)." },
         template: {
           type: "string",
-          enum: [
-            "none",
-            "typescript-react",
-            "typescript-class",
-            "typescript-interface",
-            "typescript-function",
-            "javascript-react",
-            "javascript-module",
-            "python-script",
-            "python-class",
-            "java-class",
-            "rust-module",
-            "rust-bin",
-            "rust-lib",
-            "rust-cargo-toml",
-            "rust-toolchain",
-            "go-package",
-            "markdown",
-            "html",
-            "css",
-            "json",
-            "yaml",
-            "dockerfile",
-            "gitignore",
-            "test-vitest",
-            "config-eslint",
-            "config-prettier",
-            "config-tsconfig"
-          ],
-          description: "Optional template to use. If specified, will generate boilerplate code. Set to 'none' or omit to use custom content."
+          description:
+            "Optional boilerplate name (e.g. rust-module, python-class, markdown); omit to use contents.",
         },
-        openAfterCreate: {
-          type: "boolean",
-          description: "Whether to open the file in the editor after creation. Default: true"
-        },
-        createDirectories: {
-          type: "boolean",
-          description: "Whether to create parent directories if they don't exist. Default: true"
-        },
-        overwrite: {
-          type: "boolean",
-          description: "Whether to overwrite the file if it already exists. Default: false (will throw error if file exists)"
-        },
+        openAfterCreate: { type: "boolean", description: "Open in the editor (default true)." },
+        createDirectories: { type: "boolean", description: "Create parent dirs (default true)." },
+        overwrite: { type: "boolean", description: "Replace an existing file (default false)." },
         encoding: {
           type: "string",
           enum: ["utf8", "utf-8", "ascii", "base64", "binary"],
-          description: "File encoding to use. Default: utf-8"
+          description: "Default utf-8.",
         },
-        language: {
-          type: "string",
-          description: "Optional language identifier for syntax highlighting (e.g., 'typescript', 'python', 'markdown'). Auto-detected from extension if not provided."
-        }
+        language: { type: "string", description: "Language id; auto-detected from the extension." },
       },
     },
   },

@@ -11,35 +11,12 @@ export const memoryTool: Tool = {
   group: BUILT_IN_GROUP_NAME,
   function: {
     name: BuiltInToolNames.Memory,
-    description: `Core persistent memory system — store, recall, search, and organize knowledge across ALL sessions.
-
-For specialized operations, prefer the dedicated sub-tools:
-- **builtin_memory_graph** — Knowledge graph (entities, edges, traversal)
-- **builtin_memory_sessions** — Session management (list, close, search backlogs)
-- **builtin_memory_manage** — Maintenance (checkpoints, healing, batch ops, config)
-- **builtin_memory_learn** — Learning engine (patterns, procedures, spaced repetition)
-
-**Core Memory:**
-- **store**: Save facts, decisions, code patterns, preferences, or any knowledge
-- **recall**: Retrieve relevant memories (semantic + episodic + associations) using multi-strategy fusion search
-- **search**: Search stored knowledge by query and optional category
-- **delete**: Remove a specific memory by ID
-- **build_context**: Build token-budgeted context from ALL memory types for any query
-
-**Auto-Memory:**
-- **auto_extract**: Extract memories and entities from text automatically
-
-**Organization:**
-- **associate**: Create a link between two memories
-- **tag** / **untag** / **search_by_tag**: Tag-based organization
-- **create_collection** / **list_collections** / **add_to_collection**: Collections
-
-**Maintenance:**
-- **get_stats**: Comprehensive brain statistics
-- **consolidate**: Run memory tiering (hot→warm→cold)
-- **export** / **import**: Backup & restore
-
-IMPORTANT: Use "store" proactively to save useful context. Use "recall" or "build_context" at the start of new conversations.`,
+    description: `Persistent memory across sessions, one tool with an \`action\` enum.
+Core: store, recall, search, delete, build_context, auto_extract. Organize: associate, tag/untag/search_by_tag, create_collection/list_collections/add_to_collection.
+Graph: add_entity, search_entities, add_edge, explore_graph, get_graph_stats, extract_entities. Sessions: list_sessions, get_session, close_session, summarize_session, search_backlogs, find_related_sessions.
+Learning: learn_pattern, get_patterns, suggest_approach, store_procedure, get_procedures, execute_procedure, get_review_due, boost_memory.
+Maintenance: get_stats, get_health, optimize, consolidate, export/import, create/list/rollback/delete_checkpoint, heal, batch_* and others; each parameter below says which action uses it.
+Use "store" for durable facts and decisions; use "recall" or "build_context" at the start of a task.`,
     parameters: {
       type: "object",
       required: ["action"],

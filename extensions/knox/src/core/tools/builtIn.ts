@@ -44,6 +44,7 @@ export enum BuiltInToolNames {
   Kconfig = "builtin_kconfig",
   Maintainers = "builtin_maintainers",
   Plan = "builtin_plan",
+  ToolSearch = "builtin_tool_search",
 }
 export const BUILT_IN_GROUP_NAME = t("permissions");
 

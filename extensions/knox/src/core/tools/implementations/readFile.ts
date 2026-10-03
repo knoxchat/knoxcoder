@@ -145,8 +145,12 @@ export const readFileImpl: ToolImpl = async (args, extras) => {
       extras.ide,
     );
     if (!resolvedFileUri) {
+      const dirs = await extras.ide.getWorkspaceDirs().catch(() => [] as string[]);
+      const searched = dirs.length
+        ? ` Searched workspace folders: ${dirs.join(", ")}.`
+        : " No workspace folder is open, so relative paths cannot resolve; open a folder first.";
       throw new Error(
-        `${t("couldNotFindFile", { filepath })} Use a workspace-relative path (e.g. src/main.rs). A leading workspace folder name is optional.`,
+        `${t("couldNotFindFile", { filepath })} Use a workspace-relative path (e.g. src/main.rs). A leading workspace folder name is optional.${searched}`,
       );
     }
   } catch (error) {
