@@ -63,19 +63,6 @@ const analysis = await debugIntegration.analyzeDebugSession();
 
 Prefer `builtin_debug` from Agent chat.
 
-### 5. Test Generation
-
-Test generation calls Core `builtin_generate_tests` (LLM + file write). Coverage percentages are not fabricated — only a parsed test-case count is reported.
-
-Example usage:
-```typescript
-import { TestGenerationService } from './agent';
-
-const testGeneration = TestGenerationService.getInstance();
-const result = await testGeneration.generateTests('/path/to/source.ts');
-// result.testFilePath, result.testCount, result.coverage === null until tests are run
-```
-
 ### 6. Shadow preview (optional Accept/Reject gate)
 
 When `knoxchat.enableShadowPreview` is enabled, chat **Apply** to an existing non-empty file first stages the proposal in a temp shadow workspace and opens a side-by-side `vscode.diff`. Files over 4000 lines skip shadow unless `knoxchat.shadowPreviewLargeFiles` is true.

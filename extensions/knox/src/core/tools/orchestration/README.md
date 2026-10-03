@@ -8,7 +8,7 @@ Library helpers used by opt-in tools (`builtin_enhanced_search`, `builtin_intell
 |------|---------|
 | Default chat / agent tools | Explicit list in `allTools` → `callTool` only |
 | `SmartToolRouter` / `smartExecute` | **Not exported**, zero production callers — experimental only |
-| `ToolTransaction` file rollback | Captures prior state; create → `removeFile`, edit → restore |
+| `SmartToolRouter`, `ToolPipeline`, `ToolTransaction` | Removed in K-037 (no production callers). Use callTool and explicit tools |
 | Composites / advanced opt-in | In `allAvailableTools`; each has a `callTool` case |
 | Unimplemented advanced defs | `unimplementedAdvancedTools` — not exposed |
 
@@ -22,7 +22,7 @@ Do not document SmartToolRouter as the product tool path. Prefer wiring new capa
 4. **Result Caching** - Cache expensive tool results with TTL
 5. **Transaction Support** - Default file create/edit rollback; terminal still needs custom handlers
 6. **Event-Driven Tools** - Reactive execution based on events
-7. **Smart Routing** - Experimental (`SmartToolRouter.ts`, not public API)
+7. **Smart Routing** - Removed (K-037); not exported, use callTool
 
 ## Quick Start
 
@@ -124,16 +124,11 @@ emitter.emit({
 });
 ```
 
-### Smart Tool Routing (experimental — not public API)
+### Removed in K-037
 
-`SmartToolRouter` / `smartExecute` are **not** exported from `orchestration/index.ts`
-and are unused by the product. For local experiments only:
-
-```typescript
-import { smartExecute } from 'core/tools/orchestration/SmartToolRouter';
-```
-
-Prefer explicit tools on `allTools` / `allAvailableTools` with `callTool` cases.
+`SmartToolRouter`, `smartExecute`, `ToolPipeline` and `ToolTransaction` had no production
+callers and were deleted. Add capabilities as explicit tools on `allTools` /
+`allAvailableTools` with `callTool` cases.
 
 ## Implemented opt-in tools
 
@@ -303,49 +298,15 @@ const batchHandler = batchEvents(events => {
 2. **Cache read-only operations** - Especially expensive searches and analyses
 3. **Use transactions for write operations** - Enable rollback on failure
 4. **Prefer explicit tools on `allTools`** — that is the product path
-5. **Do not use SmartToolRouter in production** — experimental, not exported
+5. **Do not add a router** — SmartToolRouter was removed; use callTool
 6. **Subscribe to events** - For reactive, decoupled architectures
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Default path: allTools → callTool (not SmartToolRouter)     │
-│  SmartToolRouter is experimental / unexported / unused       │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      ToolPipeline                            │
-│  ┌─────────┐   ┌─────────┐   ┌─────────┐                   │
-│  │ Step 1  │ → │ Step 2  │ → │ Step 3  │                   │
-│  └─────────┘   └─────────┘   └─────────┘                   │
-│       ↓             ↓             ↓                         │
-│   Condition     Transform      Cache                        │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      ToolExecutor                            │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │ Rate Limit   │  │    Retry     │  │   Timeout    │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     ToolTransaction                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  Execute     │  │  Savepoint   │  │   Rollback   │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    ToolEventEmitter                          │
-│  Events → Subscriptions → Handlers → Reactive Pipelines     │
-└─────────────────────────────────────────────────────────────┘
-```
+Default path: `allTools` -> `callTool` (not exported SmartToolRouter, which was removed).
+Opt-in helpers: `MultiStrategySearch` and `IntelligentChainOrchestrator` run on
+`ToolExecutor` (rate limit, retry, timeout) and publish to `ToolEventEmitter`.
+`ToolCache` and `ToolConditions` back the composite tools.
 
 ## Migration Guide
 

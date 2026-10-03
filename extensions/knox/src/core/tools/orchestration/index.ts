@@ -10,14 +10,12 @@
  * - IntelligentChainOrchestrator → builtin_intelligent_chain
  * - ToolCache / conditions helpers → composite implementations
  *
- * ToolPipeline / ToolTransaction remain available for experiments.
- * File create/edit rollback uses captured prior state + IDE.removeFile/writeFile.
+ * SmartToolRouter, ToolPipeline and ToolTransaction were removed (K-037): not exported,
+ * callTool is the only product path.
  */
 
-export * from "./ToolPipeline.js";
 export * from "./ToolExecutor.js";
 export * from "./ToolCache.js";
-export * from "./ToolTransaction.js";
 export * from "./ToolConditions.js";
 export * from "./ToolEvents.js";
 export * from "./RelevanceEngine.js";
@@ -25,6 +23,4 @@ export * from "./MultiStrategySearch.js";
 export * from "./IntelligentChainOrchestrator.js";
 export * from "./types.js";
 
-// SmartToolRouter / smartExecute: experimental, not part of public API.
-// Import from "./SmartToolRouter.js" directly only for local experiments.
 

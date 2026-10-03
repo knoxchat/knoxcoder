@@ -41,7 +41,6 @@ import { ScreenshotService } from './ScreenshotService';
 import { CAPTURE_SCREENSHOT_COMMAND } from './screenshot';
 import { ShadowWorkspaceManager } from './ShadowWorkspaceManager';
 import { TerminalMonitor } from './TerminalMonitor';
-import { TestGenerationService, TestGenerationOptions, TestGenerationResult } from './TestGenerationService';
 
 let agentModeManager: AgentModeManager | undefined;
 let diagnosticChecker: DiagnosticChecker | undefined;
@@ -50,7 +49,6 @@ let agentService: AgentService | undefined;
 let commandHistoryService: CommandHistoryService | undefined;
 let refactoringService: RefactoringService | undefined;
 let screenshotService: ScreenshotService | undefined;
-let testGenerationService: TestGenerationService | undefined;
 let debugIntegrationService: DebugIntegrationService | undefined;
 let terminalMonitor: TerminalMonitor | undefined;
 let errorPatternDetector: ErrorPatternDetector | undefined;
@@ -76,9 +74,6 @@ export function activateAgentMode(context: vscode.ExtensionContext): vscode.Disp
   // KN-355: RefactoringService — LSP rename / extract via knox.llmComplete.
   // ReasoningEngine stays quarantined (product planner is builtin_plan).
   refactoringService = RefactoringService.getInstance();
-  
-  // Initialize TestGenerationService for AI-powered test generation
-  testGenerationService = TestGenerationService.getInstance();
   
   // KN-353: DebugIntegrationService helpers + DAP tracker for @debugger
   // (`knox.analyzeDebugSession`). Distinct from Agent `builtin_debug`.
@@ -351,7 +346,6 @@ export function activateAgentMode(context: vscode.ExtensionContext): vscode.Disp
     commandHistoryService,
     screenshotService,
     refactoringService,
-    testGenerationService,
     debugIntegrationService,
     terminalMonitor,
     errorPatternDetector,
@@ -397,11 +391,6 @@ export function activateAgentMode(context: vscode.ExtensionContext): vscode.Disp
       if (refactoringService) {
         refactoringService.dispose();
         refactoringService = undefined;
-      }
-      
-      if (testGenerationService) {
-        testGenerationService.dispose();
-        testGenerationService = undefined;
       }
       
       if (debugIntegrationService) {
@@ -494,13 +483,6 @@ export function getRefactoringService(): RefactoringService | undefined {
 }
 
 /**
- * Get the Test Generation Service instance
- */
-export function getTestGenerationService(): TestGenerationService | undefined {
-  return testGenerationService;
-}
-
-/**
  * Get the Debug Integration Service instance
  */
 export function getDebugIntegrationService(): DebugIntegrationService | undefined {
@@ -568,11 +550,6 @@ export {
     
     // Refactoring
     RefactoringService,
-    
-    // Test Generation
-    TestGenerationService,
-    TestGenerationOptions,
-    TestGenerationResult,
     
     // Debug Integration
     DebugIntegrationService,
