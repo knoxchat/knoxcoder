@@ -51,5 +51,7 @@
   "oauth.manageKey": "Manage key",
   "memory.view.title": "Memory",
   "memory.view.failedShow": "Failed to show Memory: {{error}}",
-  "memory.statusBar.tooltip": "Knox memory — click to open Memory"
+  "memory.statusBar.tooltip": "Knox memory — click to open Memory",
+  "jev.statusBar.tooltip": "Jev judgments — click to open the Jev log",
+  "jev.statusBar.paused": "Jev paused (circuit breaker open) — click to open the Jev log"
 }

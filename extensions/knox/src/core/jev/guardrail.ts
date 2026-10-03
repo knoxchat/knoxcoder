@@ -195,7 +195,7 @@ export async function screenModelOutput(input: {
         },
         questions: outputQuestions(),
       },
-      { signal: input.abortSignal, timeoutMs: runtime.timeoutMs },
+      { signal: input.abortSignal, timeoutMs: runtime.timeoutMs, purpose: "gate" },
     );
     const judged = composeGuardrail(result.answers, "output");
     if (judged.action !== "pass") {

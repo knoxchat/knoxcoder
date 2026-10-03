@@ -116,7 +116,7 @@ export async function assessSemanticDoom(input: {
           progress_made: progressMadeQuestion(),
         },
       },
-      { signal: input.abortSignal, timeoutMs: runtime.timeoutMs },
+      { signal: input.abortSignal, timeoutMs: runtime.timeoutMs, purpose: "gate" },
     );
     const repeating =
       asNoul(result.answers, "repeating_failed_strategy")?.noul ?? 0;

@@ -255,7 +255,11 @@ export async function evaluateAgentTurn(
         state,
         questions,
       },
-      { signal: input.abortSignal, timeoutMs: input.runtime.timeoutMs },
+      {
+        signal: input.abortSignal,
+        timeoutMs: input.runtime.timeoutMs,
+        purpose: "route",
+      },
     );
     const routeAnswer = asChoice(result.answers, "route");
     if (

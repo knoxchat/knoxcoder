@@ -16,6 +16,7 @@ export const KNOX_CHAT_SETTING_IDS = [
   "knoxchat.enablePostEditVerification",
   "knoxchat.agentProfile",
   "knoxchat.jev.enabled",
+  "knoxchat.jev.showStatusBar",
   "knoxchat.verifyCommand",
   "knoxchat.verifyMode",
   "knoxchat.verifyMaxIterations",

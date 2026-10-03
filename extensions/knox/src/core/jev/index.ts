@@ -74,3 +74,12 @@ export { isCjkHeavy } from "./cjk";
 export { jevLogFromTurn, mergeJevPromptLog } from "./promptLog";
 export type { JevPromptLog } from "./promptLog";
 export type { JevClient, JevRuntime, JevYamlConfig } from "./types";
+export {
+  formatJevLogEntry,
+  getJevActivityState,
+  getJevLogEntries,
+  onJevActivity,
+  onJevLog,
+  wrapJevClientWithGuard,
+} from "./guard";
+export type { JevActivityState, JevLogEntry } from "./guard";

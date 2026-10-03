@@ -105,6 +105,11 @@
 					"default": true,
 					"markdownDescription": "Enable Jev (System One) harness judgments: model routing, skill hints, passage/tool gates, citation checks, and `auto` profile confirm. Uses the KnoxStudio API key on your knoxchat models (OAuth session or yaml). Optional `jev.apiKey` override. Always calls https://api.knoxstudio.ai/v1/systemone. Fail-open to current heuristics. YAML `jev.enabled` overrides this."
 				},
+				"knoxchat.jev.showStatusBar": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Show a status bar indicator whenever Jev (System One) calls are made, with a log of every call. Jev sends only the user message, short recent-turn summaries, tool names/argument previews and truncated assistant text for judgments; never file contents. Each call has a hard latency budget (gates 800 ms, others 2 s) and a circuit breaker (3 consecutive failures skip Jev for 5 minutes). Click the indicator to open the Jev log."
+				},
 				"knoxchat.verifyCommand": {
 					"type": "string",
 					"default": "",
@@ -516,6 +521,11 @@
 				"category": "Knox",
 				"title": "View Memory",
 				"group": "Knox"
+			},
+			{
+				"command": "knoxchat.showJevLog",
+				"category": "Knox",
+				"title": "Show Jev Log"
 			},
 			{
 				"command": "knoxchat.viewLogs",

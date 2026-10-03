@@ -1,6 +1,8 @@
 import { USER_AGENT } from "../auth/knoxOAuth/constants";
 import { createKnoxLogger } from "../util/knoxLog";
 import { confidenceFromProbabilities } from "./answers";
+import { JevClientError } from "./errors";
+import { wrapJevClientWithGuard } from "./guard";
 import {
   jevCanCallNetwork,
   normalizeJevBaseUrl,
@@ -25,12 +27,7 @@ const JEV_MAX_RETRY_AFTER_MS = 5_000;
 
 const log = createKnoxLogger("jev");
 
-export class JevClientError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "JevClientError";
-  }
-}
+export { JevClientError };
 
 function combineSignals(signals: AbortSignal[]): AbortSignal {
   const live = signals.filter(Boolean);
@@ -396,9 +393,11 @@ export function resolveJevClient(
   if (!jevCanCallNetwork(runtime)) {
     return undefined;
   }
-  return createHttpJevClient({
-    apiKey: resolveJevApiKey(runtime),
-    baseUrl: runtime.baseUrl,
-    model: runtime.model,
-  });
+  return wrapJevClientWithGuard(
+    createHttpJevClient({
+      apiKey: resolveJevApiKey(runtime),
+      baseUrl: runtime.baseUrl,
+      model: runtime.model,
+    }),
+  );
 }

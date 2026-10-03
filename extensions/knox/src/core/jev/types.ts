@@ -68,7 +68,12 @@ export interface JevSystemOneResult {
 export interface JevClient {
   systemOne(
     request: JevSystemOneRequest,
-    options?: { signal?: AbortSignal; timeoutMs?: number },
+    options?: {
+      signal?: AbortSignal;
+      timeoutMs?: number;
+      /** Selects the latency budget: gates 800 ms, others 2 s. */
+      purpose?: "gate" | "route" | "score";
+    },
   ): Promise<JevSystemOneResult>;
 }
 

@@ -51,5 +51,7 @@
   "oauth.manageKey": "管理密钥",
   "memory.view.title": "记忆",
   "memory.view.failedShow": "无法打开记忆：{{error}}",
-  "memory.statusBar.tooltip": "Knox 记忆 — 点击打开记忆"
+  "memory.statusBar.tooltip": "Knox 记忆 — 点击打开记忆",
+  "jev.statusBar.tooltip": "Jev 判断 — 点击打开 Jev 日志",
+  "jev.statusBar.paused": "Jev 已暂停（熔断器已打开）— 点击打开 Jev 日志"
 }
