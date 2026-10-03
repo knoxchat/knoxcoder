@@ -202,14 +202,19 @@ describe("HL-01 shared loop", () => {
       path.resolve(here, "../tools/subagent/runSubagent.ts"),
       "utf8",
     );
+    // The native GUI chat loop lives in the workbench, not the extension.
+    // It does not call runAgentLoop yet (knox-impl.md K-010), so only assert
+    // that it never grows a second collectAssistantTurn.
     const guiLoop = readFileSync(
-      path.resolve(here, "../../gui/src/redux/thunks/runGuiAgentLoop.ts"),
+      path.resolve(
+        here,
+        "../../../../../src/vs/workbench/contrib/knox/browser/gui/controller/stream.ts",
+      ),
       "utf8",
     );
     expect(harness).not.toMatch(/async function collectAssistantTurn/);
     expect(subagent).not.toMatch(/async function collectAssistantTurn/);
-    expect(guiLoop).toMatch(/runAgentLoop\(/);
-    expect(guiLoop).not.toMatch(/async function collectAssistantTurn/);
+    expect(guiLoop).not.toMatch(/function collectAssistantTurn/);
     expect(collectAssistantTurn).toEqual(expect.any(Function));
   });
 });

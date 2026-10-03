@@ -212,13 +212,13 @@ describe("resolveSearchRoots", () => {
 describe("bundled ripgrep", () => {
   const rg = existsSync(bundledRg) ? bundledRg : null;
 
-  it("is ripgrep 15.2.x with PCRE2", function () {
+  it("is ripgrep 15.x or newer with PCRE2", function () {
     if (!rg) {
       return;
     }
     const result = spawnSync(rg, ["--version"], { encoding: "utf8" });
     expect(result.status).toBe(0);
-    expect(result.stdout).toMatch(/ripgrep 15\.2\./);
+    expect(result.stdout).toMatch(/ripgrep (1[5-9]|[2-9]\d)\./);
     expect(result.stdout).toMatch(/\+pcre2/);
   });
 

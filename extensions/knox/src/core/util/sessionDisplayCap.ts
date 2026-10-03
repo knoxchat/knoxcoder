@@ -245,7 +245,8 @@ export function slimSessionForGui(session: Session): SlimSessionResult {
   const history = normalizeHistoryForGui(
     dropPromptLogsFromHistory(historyItems),
   );
-  const slimmed = history !== session.history;
+  const slimmed =
+    history !== historyItems || historyItems.length !== session.history?.length;
   const resultBytes = slimmed
     ? estimateSessionPayloadBytes({
         ...session,

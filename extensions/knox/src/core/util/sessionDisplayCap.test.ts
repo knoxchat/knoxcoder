@@ -23,7 +23,7 @@ function toolItem(id: string, body: string): ChatHistoryItem {
     promptLogs: [
       {
         modelTitle: "m",
-        completionOptions: {},
+        completionOptions: {} as never,
         prompt: "P".repeat(50_000),
         completion: "C".repeat(50_000),
       },
@@ -75,7 +75,7 @@ describe("slimSessionForGui (CSLD-21)", () => {
           promptLogs: [
             {
               modelTitle: "m",
-              completionOptions: {},
+              completionOptions: {} as never,
               prompt: "short",
               completion: "also short",
             },
