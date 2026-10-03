@@ -798,7 +798,7 @@ export const HISTORY_DATE_SECTIONS = ['today', 'yesterday', 'thisWeek', 'thisMon
 export type KnoxHistoryDateSection = typeof HISTORY_DATE_SECTIONS[number];
 
 export interface IKnoxHistoryDateGroup {
-	header: KnoxHistoryDateSection;
+	header: KnoxHistoryDateSection | 'pinned';
 	sessions: IKnoxGuiHistorySession[];
 }
 
@@ -936,12 +936,18 @@ export function groupHistoryByDate(sessions: IKnoxGuiHistorySession[], now = Dat
 		thisMonth: [],
 		earlierConversations: [],
 	};
+	const pinned: IKnoxGuiHistorySession[] = [];
 	for (const session of sessions) {
+		if (session.pinned) {
+			pinned.push(session);
+			continue;
+		}
 		buckets[historyDateSection(parseHistoryDate(session.date).getTime(), now)].push(session);
 	}
-	return HISTORY_DATE_SECTIONS
+	const groups: IKnoxHistoryDateGroup[] = HISTORY_DATE_SECTIONS
 		.filter(header => buckets[header].length)
 		.map(header => ({ header, sessions: buckets[header] }));
+	return pinned.length ? [{ header: 'pinned', sessions: pinned }, ...groups] : groups;
 }
 
 export function toggleHistorySelection(selected: readonly string[], id: string, on: boolean): string[] {

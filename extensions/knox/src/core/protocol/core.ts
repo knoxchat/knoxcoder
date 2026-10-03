@@ -50,6 +50,10 @@ export type ToCoreFromIdeOrWebviewProtocol = {
 
   // History
   "history/list": [ListHistoryOptions, SessionMetadata[]];
+  "history/search": [
+    { query: string; workspaceDirectory?: string; limit?: number },
+    { sessionId: string; snippet: string }[],
+  ];
   "history/delete": [{ id: string }, void];
   "history/load": [{ id: string }, Session];
   "history/save": [Session, void];

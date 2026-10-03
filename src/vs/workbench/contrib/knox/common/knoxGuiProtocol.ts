@@ -168,6 +168,7 @@ export const KNOX_GUI_HOST_OUTBOUND = [
 	'config/updateSharedConfig',
 	'config/listProfiles',
 	'history/list',
+	'history/search',
 	'history/load',
 	'history/save',
 	'history/delete',

@@ -8,6 +8,7 @@ export const WEBVIEW_TO_CORE_PASS_THROUGH: (keyof ToCoreFromWebviewProtocol)[] =
     "ping",
     "abort",
     "history/list",
+    "history/search",
     "history/delete",
     "history/load",
     "history/save",

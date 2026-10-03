@@ -544,6 +544,49 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(storage.get('knox.gui.messageQueue', StorageScope.WORKSPACE), undefined, 'an empty queue clears the storage key');
 	});
 
+	test('K-043 pins persist, content search fills snippets, and fork saves a cut copy as a new session', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const { controller, store, posted } = createHarness({
+			storage,
+			replies: {
+				'history/search': [{ sessionId: 'old', snippet: '…the needle…' }],
+				'history/save': null,
+				'history/load': { sessionId: 'fork-loaded', title: 'Chat (fork)', history: [{ message: { role: 'user', content: 'q1' } }] },
+			},
+		});
+		await timeout(0);
+		controller.togglePinnedSession('old');
+		assert.deepStrictEqual(store.state.pinnedSessionIds, ['old']);
+		const reloaded = createHarness({ storage });
+		await timeout(0);
+		assert.deepStrictEqual(reloaded.store.state.pinnedSessionIds, ['old']);
+
+		controller.searchHistoryContent('n');
+		await timeout(300);
+		assert.ok(!posted.some(m => m.messageType === 'history/search'), 'one character is not searched');
+		controller.searchHistoryContent('needle');
+		await timeout(300);
+		assert.deepStrictEqual(store.state.historyContentHits, { old: '…the needle…' });
+		controller.searchHistoryContent('');
+		assert.deepStrictEqual(store.state.historyContentHits, {});
+
+		store.patch({
+			sessionId: 'src', sessionTitle: 'Chat',
+			history: [
+				{ id: 'u1', role: 'user', content: 'q1' }, { id: 'a1', role: 'assistant', content: 'r1' },
+				{ id: 'u2', role: 'user', content: 'q2' }, { id: 'a2', role: 'assistant', content: 'r2' },
+			],
+		});
+		await controller.forkSession(2);
+		const saves = posted.filter(m => m.messageType === 'history/save');
+		const fork = saves[saves.length - 1].data as { sessionId: string; title: string; history: unknown[] };
+		assert.notStrictEqual(fork.sessionId, 'src');
+		assert.strictEqual(fork.history.length, 2, 'forking at a user message stops before it');
+		assert.ok(fork.title.endsWith('(fork)'));
+		assert.strictEqual(store.state.sessionId, 'fork-loaded');
+		assert.ok(JSON.stringify(store.state.inputDoc).includes('q2'), 'the user message is offered for editing');
+	});
+
 	test('I-08 leaving edit mode reloads the newest workspace session, else opens a new chat', async () => {
 		const { controller, store, posted } = createHarness({
 			replies: {

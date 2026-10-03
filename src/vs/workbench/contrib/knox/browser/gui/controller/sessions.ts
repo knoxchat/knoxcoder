@@ -3,6 +3,8 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { KNOX_PINNED_SESSIONS_KEY, knoxGuiForkHistory, knoxGuiForkTitle, knoxGuiSerializePinned, knoxGuiTogglePinned } from '../../../common/knoxGuiSessions.js';
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { asRecord, asArray, textFromUnknown, thinkingFromUnknown, imagesFromUnknown, contextItemsFromRaw, parseAskQuestions } from './helpers.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -511,4 +513,79 @@ export async function exportSession(controller: KnoxGuiController, id: string): 
 	} catch (error) {
 		controller.messenger.post('showToast', ['error', knoxGuiT(controller.store.state.language, 'failedToExportSession', { error: error instanceof Error ? error.message : String(error) })]);
 	}
+}
+
+/** K-043: pinned sessions live in profile storage, so they follow the user across workspaces. */
+export function togglePinnedSession(controller: KnoxGuiController, id: string): void {
+	const pinnedSessionIds = knoxGuiTogglePinned(controller.store.state.pinnedSessionIds, id);
+	controller.store.patch({ pinnedSessionIds });
+	controller.storageService.store(KNOX_PINNED_SESSIONS_KEY, knoxGuiSerializePinned(pinnedSessionIds), StorageScope.PROFILE, StorageTarget.USER);
+}
+
+const HISTORY_SEARCH_DEBOUNCE_MS = 250;
+let historySearchTimer: ReturnType<typeof setTimeout> | undefined;
+let historySearchSeq = 0;
+
+/** K-043: the host searches message text; the title filter in the list stays instant. */
+export function searchHistoryContent(controller: KnoxGuiController, query: string): void {
+	if (historySearchTimer) {
+		clearTimeout(historySearchTimer);
+		historySearchTimer = undefined;
+	}
+	const trimmed = query.trim();
+	const seq = ++historySearchSeq;
+	if (trimmed.length < 2) {
+		if (Object.keys(controller.store.state.historyContentHits).length) {
+			controller.store.patch({ historyContentHits: {} });
+		}
+		return;
+	}
+	historySearchTimer = setTimeout(async () => {
+		historySearchTimer = undefined;
+		try {
+			const hits = await controller.messenger.request<Array<{ sessionId: string; snippet: string }>>('history/search', { query: trimmed, workspaceDirectory: controller.workspaceDirectory });
+			if (seq !== historySearchSeq || !Array.isArray(hits)) {
+				return;
+			}
+			controller.store.patch({ historyContentHits: Object.fromEntries(hits.map(hit => [String(hit.sessionId), String(hit.snippet)])) });
+		} catch {
+			// content search is optional; the title filter still works
+		}
+	}, HISTORY_SEARCH_DEBOUNCE_MS);
+}
+
+/**
+ * K-043: continue from one message in a new session. The original stays as it was; the fork is
+ * saved first and then opened through the normal load path.
+ */
+export async function forkSession(controller: KnoxGuiController, index: number): Promise<void> {
+	const state = controller.store.state;
+	if (state.isStreaming) {
+		return;
+	}
+	const forked = knoxGuiForkHistory(state.history, index);
+	if (!forked.length) {
+		return;
+	}
+	await controller.saveCurrentSession();
+	const id = generateUuid();
+	const title = knoxGuiForkTitle(state.sessionTitle || controller.sessionTitleFallback(), knoxGuiT(state.language, 'forkSuffix'));
+	try {
+		await controller.messenger.request('history/save', {
+			sessionId: id,
+			title,
+			workspaceDirectory: controller.workspaceDirectory,
+			history: knoxGuiHistoryToSessionHistory(forked),
+		});
+	} catch (error) {
+		controller.messenger.post('showToast', ['error', knoxGuiT(state.language, 'forkFailed', { error: error instanceof Error ? error.message : String(error) })]);
+		return;
+	}
+	await controller.loadSession(id, { saveCurrent: false });
+	// Forking at a user message: that message is not in the fork, so offer its text for editing.
+	const source = state.history[index];
+	if (source?.role === 'user') {
+		controller.store.patch({ input: source.content, inputDoc: inputDocFromPlainText(source.content) });
+	}
+	void controller.refreshHistorySessions();
 }

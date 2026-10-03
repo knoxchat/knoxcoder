@@ -3,6 +3,7 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { knoxGuiDecorateSessions, knoxGuiMergeContentHits } from '../../../common/knoxGuiSessions.js';
 import type { KnoxGuiWidget } from '../knoxGuiWidget.js';
 import { t } from './t.js';
 import { appendShortcut } from './controls.js';
@@ -575,7 +576,10 @@ function isHistoryView(state: IKnoxGuiState): boolean {
 }
 
 function visibleHistorySessions(state: IKnoxGuiState): IKnoxGuiHistorySession[] {
-	return filterHistorySessions(state.historySessions, state.historyQuery);
+	const decorated = knoxGuiDecorateSessions(state.historySessions, state.pinnedSessionIds, state.historyContentHits);
+	const matched = knoxGuiMergeContentHits(filterHistorySessions(decorated, state.historyQuery), decorated, state.historyQuery.trim() ? state.historyContentHits : {});
+	// K-043: pinned sessions first; the rest keep the date order from the filter.
+	return [...matched.filter(session => session.pinned), ...matched.filter(session => !session.pinned)];
 }
 
 function exitHistorySelection(widget: KnoxGuiWidget): void {
@@ -629,6 +633,7 @@ export function renderHistoryPage(widget: KnoxGuiWidget, body: HTMLElement, stat
 		widget.historySearchFocus = true;
 		widget.historySearchCaret = input.selectionStart;
 		widget.controller.store.patch({ historyQuery: input.value });
+		widget.controller.searchHistoryContent(input.value);
 	}));
 	const clear = widget.chromeButton(search, {
 		svg: 'x',
@@ -639,6 +644,7 @@ export function renderHistoryPage(widget: KnoxGuiWidget, body: HTMLElement, stat
 			widget.historySearchFocus = true;
 			widget.historySearchCaret = 0;
 			widget.controller.store.patch({ historyQuery: '' });
+			widget.controller.searchHistoryContent('');
 		},
 	});
 	clear.hidden = !state.historyQuery;
@@ -823,6 +829,9 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 			DOM.append(headingRow, DOM.$('span.knox-gui-history-current', undefined, t(state, 'currentConversation')));
 		}
 	}
+	if (session.snippet) {
+		DOM.append(main, DOM.$('.knox-gui-history-snippet.knox-gui-muted', undefined, session.snippet)).setAttribute('data-testid', 'history-snippet');
+	}
 	const meta = DOM.append(main, DOM.$('.knox-gui-history-meta'));
 	const workspace = workspaceBasename(session.workspaceDirectory);
 	if (workspace) {
@@ -840,6 +849,7 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 	DOM.append(time, DOM.$('span.knox-gui-history-date-full', undefined, fullDate));
 	if (!state.historySelectionMode && widget.editingHistoryId !== session.id) {
 		const hover = DOM.append(row, DOM.$('.knox-gui-history-hover'));
+		widget.chromeButton(hover, { svg: 'pin', svgSize: 16, title: t(state, session.pinned ? 'unpinConversation' : 'pinConversation'), testId: 'history-pin', onClick: () => widget.controller.togglePinnedSession(session.id) });
 		widget.chromeButton(hover, { svg: 'download', svgSize: 16, title: t(state, 'download'), onClick: () => void widget.controller.exportSession(session.id) });
 		widget.chromeButton(hover, { svg: 'square-pen', svgSize: 16, title: t(state, 'edit'), onClick: () => { widget.editingHistoryId = session.id; widget.controller.store.patch({}); } });
 		widget.chromeButton(hover, {

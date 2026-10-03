@@ -10,6 +10,7 @@ import { knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
 import { composerInputHistoryFromStorage, type IKnoxGuiComposerInputHistory, type IKnoxGuiInputBlock } from '../../../common/knoxGuiInput.js';
 import { KNOX_AUTOSAVE_DEBOUNCE_MS, KNOX_AUTOSAVE_MIN_INTERVAL_MS, KNOX_PERSIST_THROTTLE_MS, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, type IKnoxGuiDraftSession, type IKnoxGuiLastActiveSession, type IKnoxGuiProfilePreferences } from '../../../common/knoxGuiPersist.js';
 import { KNOX_QUEUE_STORAGE_KEY, knoxGuiParseQueue, knoxGuiSerializeQueue } from '../../../common/knoxGuiQueue.js';
+import { KNOX_PINNED_SESSIONS_KEY, knoxGuiParsePinned } from '../../../common/knoxGuiSessions.js';
 import { BOOKMARK_KEY } from './helpers.js';
 import { KNOX_GUI_MAIN_TEXT_ENTRY_KEY, KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY, knoxGuiNextMainTextEntry, knoxGuiParseMainTextEntryCount } from '../../../common/knoxGuiChrome.js';
 
@@ -25,7 +26,8 @@ export function restorePersistedState(controller: KnoxGuiController): void {
 	const tabs = knoxGuiParsePersistedTabs(controller.storageService.get(TABS_KEY, StorageScope.WORKSPACE));
 	// K-042: what the user queued before a crash or reload comes back as chips; nothing is sent by itself.
 	const messageQueue = knoxGuiParseQueue(controller.storageService.get(QUEUE_KEY, StorageScope.WORKSPACE));
-	controller.store.patch({ ...ui, ...(tabs ?? {}), messageQueue, jobsPanelOpen: controller.jobsPanelExpanded() });
+	const pinnedSessionIds = knoxGuiParsePinned(controller.storageService.get(KNOX_PINNED_SESSIONS_KEY, StorageScope.PROFILE));
+	controller.store.patch({ ...ui, ...(tabs ?? {}), messageQueue, pinnedSessionIds, jobsPanelOpen: controller.jobsPanelExpanded() });
 }
 
 /** `useInputHistory.ts`: one history per composer mode, `inputHistory_chat` / `inputHistory_edit`. */

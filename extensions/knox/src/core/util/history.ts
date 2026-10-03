@@ -6,6 +6,8 @@ import { ListHistoryOptions } from "../protocol/core.js";
 
 import { NEW_SESSION_TITLE } from "./constants.js";
 import { getSessionFilePath, getSessionsListPath } from "./paths.js";
+import { SESSION_SEARCH_MAX_FILE_BYTES, SESSION_SEARCH_MIN_QUERY, searchSessions, type SessionSearchHit } from "./sessionSearch.js";
+import { capSessionForStorage } from "./sessionSizeCap.js";
 function safeParseArray<T>(
   value: string,
   errorMessage: string = "Error parsing array",
@@ -72,6 +74,24 @@ class HistoryManager {
     return sessions;
   }
 
+  /** K-043: content search over the sessions of the workspace, newest first. */
+  search(options: { query: string; workspaceDirectory?: string; limit?: number }): SessionSearchHit[] {
+    if (options.query.trim().length < SESSION_SEARCH_MIN_QUERY) {
+      return [];
+    }
+    const entries = this.list({ workspaceDirectory: options.workspaceDirectory }).map((meta) => ({
+      sessionId: meta.sessionId,
+      read: () => {
+        const file = getSessionFilePath(meta.sessionId);
+        if (!fs.existsSync(file) || fs.statSync(file).size > SESSION_SEARCH_MAX_FILE_BYTES) {
+          return undefined;
+        }
+        return JSON.parse(fs.readFileSync(file, "utf8")) as Session;
+      },
+    }));
+    return searchSessions(entries, options.query, options.limit);
+  }
+
   delete(sessionId: string) {
     // Delete a session
     const sessionFile = getSessionFilePath(sessionId);
@@ -119,7 +139,9 @@ class HistoryManager {
     }
   }
 
-  save(session: Session) {
+  save(input: Session) {
+    // K-043: a runaway session is shrunk (oldest tool dumps first) instead of growing forever.
+    const session = capSessionForStorage(input).session;
     // Save the main session json file
     // Explicitely rewriting here to influence the written key order in the file!
     // e.g. id at the top, history next, etc.

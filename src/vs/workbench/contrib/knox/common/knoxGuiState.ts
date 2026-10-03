@@ -243,6 +243,10 @@ export interface IKnoxGuiHistorySession {
 	title: string;
 	date: string;
 	workspaceDirectory?: string;
+	/** K-043: shown in its own group at the top of the history list. */
+	pinned?: boolean;
+	/** K-043: text around a content-search match, shown under the title. */
+	snippet?: string;
 }
 
 export interface IKnoxGuiConfigError {
@@ -794,6 +798,10 @@ export interface IKnoxGuiState {
 	configError: IKnoxGuiConfigError[];
 	historySessions: IKnoxGuiHistorySession[];
 	historyQuery: string;
+	/** K-043: session ids pinned by the user (profile storage). */
+	pinnedSessionIds: string[];
+	/** K-043: session id -> snippet for the current history query, from the host's content search. */
+	historyContentHits: Record<string, string>;
 	historySelected: string[];
 	historySelectionMode: boolean;
 	historyConfirmDelete: boolean;
@@ -1094,6 +1102,8 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		configError: [],
 		historySessions: [],
 		historyQuery: '',
+		pinnedSessionIds: [],
+		historyContentHits: {},
 		historySelected: [],
 		historySelectionMode: false,
 		historyConfirmDelete: false,

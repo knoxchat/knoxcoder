@@ -25,6 +25,7 @@ function parseQuotedArray(src: string, constName: string): string[] {
 /** Native chrome + Core both speak these. Adding one requires both catalogs. */
 const SHARED_CORE_OUTBOUND = [
 	'history/list',
+	'history/search',
 	'history/load',
 	'history/save',
 	'history/delete',

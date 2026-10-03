@@ -39,7 +39,7 @@ suite('Knox Core/host handler contract (KN-232–240)', () => {
 	const service = repoFile('src/vs/workbench/contrib/knox/common/knoxService.ts');
 
 	test('KN-232: history list/load/save/delete persist under ~/.knoxcoder/sessions', () => {
-		for (const name of ['history/list', 'history/load', 'history/save', 'history/delete']) {
+		for (const name of ['history/list', 'history/search', 'history/load', 'history/save', 'history/delete']) {
 			assert.ok(core.includes(`on("${name}"`), name);
 		}
 		assert.ok(history.includes('getSessionFilePath'));

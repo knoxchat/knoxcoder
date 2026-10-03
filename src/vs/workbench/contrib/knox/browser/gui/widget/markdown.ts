@@ -1114,6 +1114,15 @@ export function renderResponseActions(widget: KnoxGuiWidget, parent: HTMLElement
 			onClick: () => widget.controller.continueGeneration(),
 		});
 	}
+	if (!state.isStreaming) {
+		widget.chromeButton(row, {
+			svg: 'git-branch',
+			svgSize: 14,
+			title: t(state, 'forkFromHere'),
+			testId: `fork-button-${index}`,
+			onClick: () => void widget.controller.forkSession(index),
+		});
+	}
 	widget.chromeButton(row, {
 		svg: 'trash-filled',
 		svgSize: 14,

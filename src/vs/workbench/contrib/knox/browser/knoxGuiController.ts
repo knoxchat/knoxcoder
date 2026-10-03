@@ -276,6 +276,18 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiSessions.renameSession(this, id, title);
 	}
 
+	togglePinnedSession(id: string): void {
+		return knoxGuiSessions.togglePinnedSession(this, id);
+	}
+
+	searchHistoryContent(query: string): void {
+		return knoxGuiSessions.searchHistoryContent(this, query);
+	}
+
+	async forkSession(index: number): Promise<void> {
+		return knoxGuiSessions.forkSession(this, index);
+	}
+
 	async exportSession(id: string): Promise<void> {
 		return knoxGuiSessions.exportSession(this, id);
 	}

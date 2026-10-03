@@ -11,6 +11,10 @@ export function registerHistoryHandlers(core: CoreRuntime): void {
     return historyManager.list(msg.data);
   });
 
+  on("history/search", (msg) => {
+    return historyManager.search(msg.data);
+  });
+
   on("history/delete", (msg) => {
     historyManager.delete(msg.data.id);
   });

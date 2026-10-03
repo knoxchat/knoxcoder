@@ -1026,7 +1026,14 @@
 }
 
 .knox-gui-history-row:hover .knox-gui-history-title {
-	padding-right: 5rem;
+	padding-right: 7rem;
+}
+
+.knox-gui-history-snippet {
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .knox-gui-history-meta {
