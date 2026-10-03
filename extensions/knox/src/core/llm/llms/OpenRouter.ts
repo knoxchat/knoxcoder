@@ -2,6 +2,8 @@ import { LLMOptions } from "../../index.js";
 import { attributionHeaders, API_BASE } from "../../auth/openrouterOAuth/constants.js";
 import { osModelsEditPrompt } from "../templates/edit.js";
 
+import type { ChatCompletionCreateParams } from "openai/resources/index";
+import { applyCacheBreakpoints, supportsExplicitCacheControl } from "../promptCache.js";
 import OpenAI from "./OpenAI.js";
 
 class OpenRouter extends OpenAI {
@@ -33,6 +35,18 @@ class OpenRouter extends OpenAI {
    */
   protected extraBodyProperties(): Record<string, any> {
     return {};
+  }
+
+  /** K-030: explicit cache breakpoints for Anthropic/Gemini routed via OpenRouter. */
+  protected modifyChatBody(body: ChatCompletionCreateParams): ChatCompletionCreateParams {
+    const finalized = super.modifyChatBody(body);
+    if (!supportsExplicitCacheControl(finalized.model)) {
+      return finalized;
+    }
+    return {
+      ...finalized,
+      messages: applyCacheBreakpoints(finalized.messages as any[]) as any,
+    };
   }
 
   protected _getHeaders() {
