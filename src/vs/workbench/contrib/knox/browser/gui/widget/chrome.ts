@@ -916,6 +916,17 @@ export function scheduleStreamEndStick(widget: KnoxGuiWidget): void {
 }
 
 /**
+ * The sticky host sits above the scroller, so adding or removing the pinned prompt resizes the viewport.
+ * Re-pin the bottom in the same frame while following; otherwise the transcript visibly jumps and then
+ * jumps back when the ResizeObserver stick runs one frame later (the "double shake" at the end of a turn).
+ */
+function restickAfterHostChange(widget: KnoxGuiWidget, body: HTMLElement): void {
+	if (widget.autoScrollEnabled) {
+		setTranscriptScrollTop(widget, body, body.scrollHeight);
+	}
+}
+
+/**
  * Keeps the sent message relevant to the scroll position pinned above the transcript, also when the model is idle:
  * the last user message whose row has scrolled above the viewport top. While a live turn is followed, the host
  * already holds the real last prompt (see renderChat), so this never touches it.
@@ -941,7 +952,11 @@ export function updatePinnedUserMessage(widget: KnoxGuiWidget): void {
 	const item = pinnedIndex >= 0 ? widget.controller.store.state.history[pinnedIndex] : undefined;
 	const existing = host.querySelector<HTMLElement>('.knox-gui-pinned-user');
 	if (!item || item.role !== 'user') {
-		existing?.remove();
+		if (existing) {
+			existing.remove();
+			host.querySelectorAll('.knox-gui-sticky-last-user-fade').forEach(fade => fade.remove());
+			restickAfterHostChange(widget, body);
+		}
 		return;
 	}
 	if (existing?.getAttribute('data-history-id') === item.id && existing.getAttribute('data-index') === String(pinnedIndex)) {
@@ -961,6 +976,7 @@ export function updatePinnedUserMessage(widget: KnoxGuiWidget): void {
 	for (let i = 0; i < fades.length - 1; i++) {
 		fades[i].remove();
 	}
+	restickAfterHostChange(widget, body);
 	const jump = () => {
 		widget.autoScrollEnabled = false;
 		const row = body.querySelector<HTMLElement>(`.knox-gui-history-composer[data-index="${pinnedIndex}"]`);

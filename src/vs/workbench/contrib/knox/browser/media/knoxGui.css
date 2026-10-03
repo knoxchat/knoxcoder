@@ -381,6 +381,15 @@
 	padding-top: 8px;
 }
 
+.knox-gui-floating-sent-host .knox-gui-history-composer .knox-gui-input {
+	font-size: calc(1em - 2px) !important;
+	line-height: 1.45;
+}
+
+.knox-gui-floating-sent-host .knox-gui-history-composer .knox-gui-input {
+	padding: 4px 0;
+}
+
 .knox-gui-pinned-user {
 	cursor: pointer;
 	margin: 8px 8px 0;
