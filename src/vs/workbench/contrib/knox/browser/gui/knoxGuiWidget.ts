@@ -11,12 +11,13 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { knoxGuiShowsChatScrollbar, knoxGuiShowsFatalBanner, knoxGuiShowsSessionTabs } from '../../common/knoxGuiChrome.js';
-import { AUTO_DISPLAY_START, isKnoxGuiFilterOnlyChange, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange, knoxGuiToolProgressOnlyChange } from '../../common/knoxGuiChat.js';
+import { AUTO_DISPLAY_START, lastUserHistoryIndex, isKnoxGuiFilterOnlyChange, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange, knoxGuiToolProgressOnlyChange } from '../../common/knoxGuiChat.js';
 import { patchToolProgress } from './widget/chat/assistant.js';
 import { composerUndoRecord, createComposerUndo } from '../../common/knoxGuiInput.js';
 import { applyKnoxGuiThemeToElement } from '../../common/knoxGuiTheme.js';
 import { KnoxGuiRoute } from '../../common/knoxGuiProtocol.js';
 import { IKnoxGuiState, knoxGuiIsDedicatedEditor } from '../../common/knoxGuiState.js';
+import { summarizeTurn } from '../../common/knoxGuiTurnSummary.js';
 import { KnoxGuiController } from '../knoxGuiController.js';
 import * as knoxGuiChromeView from './widget/chrome.js';
 import * as knoxGuiChatView from './widget/chat.js';
@@ -30,6 +31,12 @@ import { stepComposerUndo } from './widget/composer.js';
 import { stepHistoryUndo } from './widget/chat/historyEditor.js';
 import { isNativeTextInput, KnoxEditCommand, registerKnoxEditHost, selectAllContents } from './widget/editCommands.js';
 import { KnoxGuiCheckpointsFacade } from './widget/facade/checkpointsFacade.js';
+
+/** True when the last turn changed files or ran commands, i.e. it gets a run summary (K-040). */
+function turnEndsWithSummary(state: IKnoxGuiState): boolean {
+	const summary = summarizeTurn(state.history, lastUserHistoryIndex(state.history));
+	return Boolean(summary && (summary.files.length || summary.commands.length));
+}
 
 export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 	readonly root: HTMLElement;
@@ -169,6 +176,17 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		if (this.lastState && isKnoxGuiStreamingTokenChange(this.lastState, state) && this.lastAssistantCard) {
 			const ended = this.lastState.isStreaming && !state.isStreaming;
 			this.lastState = state;
+			if (ended && state.mode === 'agent' && turnEndsWithSummary(state)) {
+				// K-040: the run summary closes the turn, so the end of an edit/shell turn needs one full render.
+				this.render();
+				if (this.autoScrollEnabled) {
+					knoxGuiChromeView.scheduleStreamEndStick(this);
+				}
+				if (this.shouldShowComposer(state)) {
+					this.refocusComposerAfterStream = true;
+				}
+				return;
+			}
 			this.patchLastAssistant(state);
 			if (ended && this.autoScrollEnabled) {
 				knoxGuiChromeView.scheduleStreamEndStick(this);

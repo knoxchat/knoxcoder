@@ -7,6 +7,7 @@ import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
 import { renderLoadingState } from '../panels.js';
+import { renderTurnSummary } from './activity.js';
 import {
 	groupHistoryTurns,
 	lastUserHistoryIndex,
@@ -106,6 +107,10 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 				const currentHit = state.find.open && state.find.matchIndexes[state.find.current] === i;
 				const anyHit = state.find.open && state.find.matchIndexes.includes(i);
 				widget.renderHistoryRow(group, state, i, anyHit, currentHit, lastUserIndex, duplicateIds);
+			}
+			// K-040: the run summary closes a finished agent turn (never the one still streaming).
+			if (state.mode === 'agent' && turn.userIndex >= 0 && !(state.isStreaming && turn.userIndex === lastUserIndex)) {
+				renderTurnSummary(widget, group, state, turn.userIndex);
 			}
 		}
 		if (floatLastUser && widget.floatingHostEl && lastUserIndex >= 0) {

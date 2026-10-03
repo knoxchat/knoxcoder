@@ -432,6 +432,41 @@
 	color: inherit;
 }
 
+.knox-gui-turn-summary {
+	margin: 4px 12px 10px;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-gui-turn-summary-chips,
+.knox-gui-turn-summary-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 6px;
+}
+
+.knox-gui-turn-summary-chip {
+	padding: 1px 6px;
+	border-radius: 8px;
+	border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3));
+	white-space: nowrap;
+}
+
+.knox-gui-turn-summary-chip.ok {
+	color: #159994;
+	border-color: #159994;
+}
+
+.knox-gui-turn-summary-chip.bad {
+	color: var(--vscode-errorForeground);
+	border-color: var(--vscode-errorForeground);
+}
+
 .knox-gui-activity {
 	margin: 4px 12px 8px;
 	font-size: 11px;

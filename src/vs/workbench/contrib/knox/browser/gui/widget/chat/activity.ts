@@ -19,6 +19,7 @@ import {
 	KnoxGuiActivityKind,
 	visibleActivitySteps,
 } from '../../../../common/knoxGuiTranscript.js';
+import { formatTurnDuration, formatTurnTokens, summarizeTurn } from '../../../../common/knoxGuiTurnSummary.js';
 
 /** `HistoryItemRow.tsx` chat/edit turn: `LoadingState` with the user message time as the timer origin. */
 export function renderTurnLoading(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, item?: IKnoxGuiHistoryItem): void {
@@ -126,5 +127,71 @@ function activityKindSvg(kind: KnoxGuiActivityKind): KnoxGuiSvgIcon {
 		case 'ask': return 'message-circle-question';
 		case 'reply': return 'message-square';
 		default: return 'wrench';
+	}
+}
+
+/** K-040: compact run summary at the end of a finished turn: files, commands, checks, tokens, time, review and undo. */
+export function renderTurnSummary(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, userIndex: number): void {
+	const summary = summarizeTurn(state.history, userIndex);
+	if (!summary || (!summary.files.length && !summary.commands.length)) {
+		return;
+	}
+	const wrap = DOM.append(parent, DOM.$('.knox-gui-turn-summary'));
+	wrap.setAttribute('data-testid', 'turn-summary');
+	wrap.style.fontSize = `${state.fontSize - 2}px`;
+	const chips = DOM.append(wrap, DOM.$('.knox-gui-turn-summary-chips'));
+	const chip = (text: string, tone: 'ok' | 'bad' | 'muted', tooltip?: string, testId?: string): void => {
+		const el = DOM.append(chips, DOM.$(`span.knox-gui-turn-summary-chip.${tone}`, undefined, text));
+		if (testId) {
+			el.setAttribute('data-testid', testId);
+		}
+		if (tooltip) {
+			widget.hover(el, tooltip);
+		}
+	};
+	if (summary.files.length) {
+		const fileList = summary.files.map(file => `${file.path} (+${file.additions} -${file.deletions})`).join('\n');
+		chip(`${t(state, summary.files.length === 1 ? 'turnSummaryFiles' : 'turnSummaryFiles_plural', { count: summary.files.length })} +${summary.totalAdditions} -${summary.totalDeletions}`, 'muted', fileList, 'turn-summary-files');
+	}
+	if (summary.commands.length) {
+		const failed = summary.commands.filter(command => command.status === 'errored').length;
+		chip(t(state, summary.commands.length === 1 ? 'turnSummaryCommands' : 'turnSummaryCommands_plural', { count: summary.commands.length }), failed ? 'bad' : 'muted', summary.commands.map(command => command.command).join('\n'), 'turn-summary-commands');
+	}
+	if (summary.testsRun) {
+		chip(summary.testsFailed
+			? t(state, 'turnSummaryTestsFailed', { failed: summary.testsFailed, count: summary.testsRun })
+			: t(state, 'turnSummaryTestsOk', { count: summary.testsRun }), summary.testsFailed ? 'bad' : 'ok', undefined, 'turn-summary-tests');
+	}
+	if (summary.oracle) {
+		chip(summary.oracle.passed
+			? t(state, 'turnSummaryOraclePass')
+			: t(state, 'turnSummaryOracleFail', { count: summary.oracle.errors ?? 0 }), summary.oracle.passed ? 'ok' : 'bad', summary.oracle.command, 'turn-summary-oracle');
+	}
+	if (summary.failedToolCalls) {
+		chip(t(state, 'turnSummaryFailedTools', { count: summary.failedToolCalls }), 'bad', undefined, 'turn-summary-failed-tools');
+	}
+	if (summary.tokens) {
+		chip(t(state, 'turnSummaryTokens', { tokens: formatTurnTokens(summary.tokens) }), 'muted', undefined, 'turn-summary-tokens');
+	}
+	if (summary.elapsedMs !== undefined) {
+		chip(formatTurnDuration(summary.elapsedMs), 'muted', undefined, 'turn-summary-elapsed');
+	}
+	const checkpointId = summary.checkpointId;
+	if (checkpointId && summary.files.length) {
+		const actions = DOM.append(wrap, DOM.$('.knox-gui-turn-summary-actions'));
+		widget.chromeButton(actions, {
+			label: t(state, 'turnSummaryReview'),
+			testId: 'turn-summary-review',
+			extraClass: 'knox-gui-text-action',
+			onClick: () => {
+				void widget.controller.openRestorePreview(checkpointId).then(() => widget.controller.toggleRestoreDiff());
+			},
+		});
+		widget.chromeButton(actions, {
+			label: t(state, 'turnSummaryUndo'),
+			testId: 'turn-summary-undo',
+			extraClass: 'knox-gui-text-action',
+			onClick: () => { void widget.controller.openRestorePreview(checkpointId); },
+		});
 	}
 }
