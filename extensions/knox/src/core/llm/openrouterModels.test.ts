@@ -108,7 +108,7 @@ describe("openrouterModels catalog", () => {
   });
 
   it("omits Bearer when no session key exists", async () => {
-    const fetchMock = vi.fn(async () => ({
+    const fetchMock = vi.fn(async (..._args: unknown[]) => ({
       ok: true,
       json: async () => ({ data: [sampleModel] }),
     }));
@@ -122,7 +122,7 @@ describe("openrouterModels catalog", () => {
 
   it("sends Bearer when a session key exists", async () => {
     setOpenRouterOAuthApiKey("sk-or-test-key");
-    const fetchMock = vi.fn(async () => ({
+    const fetchMock = vi.fn(async (..._args: unknown[]) => ({
       ok: true,
       json: async () => ({ data: [sampleModel] }),
     }));
@@ -202,7 +202,7 @@ describe("openrouterModels catalog", () => {
   });
 
   it("applies ~latest alias floor pricing when fetching GET /api/v1/models", async () => {
-    const fetchMock = vi.fn(async () => ({
+    const fetchMock = vi.fn(async (..._args: unknown[]) => ({
       ok: true,
       json: async () => ({
         data: [

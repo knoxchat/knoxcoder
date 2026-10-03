@@ -69,7 +69,7 @@ i18n.init({
   fallbackLng: DEFAULT_LANGUAGE,
   supportedLngs: [...SUPPORTED_LANGUAGES],
   debug: false,
-  initImmediate: false,
+  ...({ initImmediate: false } as Record<string, unknown>),
   interpolation: {
     escapeValue: false,
   },

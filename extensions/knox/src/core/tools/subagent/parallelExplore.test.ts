@@ -27,7 +27,7 @@ function extras(delayMs = 0): ToolExtras {
   return {
     ide: {
       getWorkspaceDirs: async () => [],
-    } as ToolExtras["ide"],
+    } as unknown as ToolExtras["ide"],
     llm: {
       streamChat: async function* () {
         if (delayMs) {
@@ -35,7 +35,7 @@ function extras(delayMs = 0): ToolExtras {
         }
         yield { role: "assistant" as const, content: "done" };
       },
-    } as ToolExtras["llm"],
+    } as unknown as ToolExtras["llm"],
     fetch: vi.fn(),
     tool: { function: { name: BuiltInToolNames.Task } } as ToolExtras["tool"],
   };
@@ -90,7 +90,7 @@ describe("parallel explore (HL-36)", () => {
           inFlight -= 1;
           yield { role: "assistant" as const, content: "done" };
         },
-      } as ToolExtras["llm"],
+      } as unknown as ToolExtras["llm"],
     });
     const run = (prompt: string) =>
       runSubagent({

@@ -14,7 +14,7 @@ import { allTools } from "../index";
 function extrasWithDap(session: MockDapSession): ToolExtras {
   return {
     ide: {
-      debugControl: (request) => session.handle(request),
+      debugControl: (request: Parameters<MockDapSession["handle"]>[0]) => session.handle(request),
     } as unknown as IDE,
     llm: {} as ToolExtras["llm"],
     fetch: vi.fn(),
@@ -100,7 +100,7 @@ describe("debug catalog gate (HL-46)", () => {
     const session = new MockDapSession();
     await session.handle({ op: "launch", program: "vmlinux" });
     const live = await resolveProductAgentTools(allTools, {
-      ide: { debugControl: (request) => session.handle(request) } as IDE,
+      ide: { debugControl: (request: Parameters<MockDapSession["handle"]>[0]) => session.handle(request) } as IDE,
     });
     expect(live.some((tool) => tool.function.name === "builtin_debug")).toBe(
       true,

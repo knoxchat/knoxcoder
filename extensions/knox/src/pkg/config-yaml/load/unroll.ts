@@ -260,7 +260,7 @@ export async function unrollBlocks(
     if (assistant[section]) {
       const sectionBlocks: any[] = [];
 
-      for (const unrolledBlock of assistant[section]) {
+      for (const unrolledBlock of assistant[section] as any[]) {
         // "uses/with" block
         if ("uses" in unrolledBlock) {
           const blockConfigYaml = await resolveBlock(
@@ -268,7 +268,7 @@ export async function unrollBlocks(
             unrolledBlock.with,
             registry,
           );
-          const block = blockConfigYaml[section]?.[0];
+          const block = (blockConfigYaml[section] as any[] | undefined)?.[0];
           if (block) {
             sectionBlocks.push(
               mergeOverrides(block, unrolledBlock.override ?? {}),
