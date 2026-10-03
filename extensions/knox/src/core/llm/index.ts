@@ -645,6 +645,22 @@ export abstract class BaseLLM implements ILLM {
     let thinking = "";
     let completion = "";
     const extra = { citations: null as string[] | null };
+    const usageBox: {
+      value?: { promptTokens?: number; completionTokens?: number };
+    } = {};
+    const captureUsage = (u: any) => {
+      if (!u || typeof u !== "object") {
+        return;
+      }
+      const p = Number(u.prompt_tokens ?? u.input_tokens);
+      const c = Number(u.completion_tokens ?? u.output_tokens);
+      if (p > 0 || c > 0) {
+        usageBox.value = {
+          ...(p > 0 ? { promptTokens: p } : {}),
+          ...(c > 0 ? { completionTokens: c } : {}),
+        };
+      }
+    };
 
     const rawChunks = async function* (this: BaseLLM): AsyncGenerator<ChatMessage> {
       if (this.templateMessages) {
@@ -667,6 +683,7 @@ export abstract class BaseLLM implements ILLM {
             { ...body, stream: false },
             signal,
           );
+          captureUsage((response as any)?.usage);
           yield fromChatResponse(response as any);
           return;
         }
@@ -675,10 +692,14 @@ export abstract class BaseLLM implements ILLM {
           {
             ...body,
             stream: true,
-          },
+            // Ask for a final usage chunk so the context meter/compactor
+            // can use provider-reported prompt_tokens.
+            stream_options: { include_usage: true },
+          } as any,
           signal,
         );
         for await (const chunk of stream) {
+          captureUsage((chunk as any)?.usage);
           const result = fromChatCompletionChunk(chunk as any);
           if (result) {
             yield result;
@@ -745,6 +766,7 @@ export abstract class BaseLLM implements ILLM {
       prompt,
       completion,
       completionOptions,
+      ...(usageBox.value ? { usage: usageBox.value } : {}),
     };
   }
 

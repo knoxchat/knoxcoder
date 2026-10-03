@@ -5,6 +5,10 @@ import {
   compactMessages,
   type CompactionResult,
 } from "../compaction/index.js";
+import {
+  isConversationSummaryContent,
+  isMemoryProtectedContent,
+} from "../compaction/summarizer.js";
 import { TOKEN_BUFFER_FOR_SAFETY } from "./constants.js";
 import {
   healToolCallMessages,
@@ -180,7 +184,57 @@ function summarize(message: ChatMessage): string {
   return `${renderChatMessage(message).substring(0, 100)}...`;
 }
 
+/**
+ * System prompt, plan, loop-state, memory and conversation-summary messages
+ * must survive last-resort truncation.
+ */
+export function isPruneProtected(message: ChatMessage): boolean {
+  if (message.role === "system") {
+    return true;
+  }
+  const text = renderChatMessage(message);
+  return (
+    isMemoryProtectedContent(text) || isConversationSummaryContent(text)
+  );
+}
+
 function pruneChatHistory(
+  modelName: string,
+  chatHistory: ChatMessage[],
+  contextLength: number,
+  tokensForCompletion: number,
+): ChatMessage[] {
+  const protectedMessages = chatHistory.filter(isPruneProtected);
+  if (protectedMessages.length > 0 && protectedMessages.length < chatHistory.length) {
+    const rest = chatHistory.filter((m) => !isPruneProtected(m));
+    const protectedTokens = protectedMessages.reduce(
+      (acc, m) => acc + countChatMessageTokens(modelName, m),
+      0,
+    );
+    // Never let protected content starve the conversation entirely.
+    const remaining = Math.max(
+      Math.floor(contextLength / 2),
+      contextLength - protectedTokens,
+    );
+    const pruned = pruneChatHistoryUnprotected(
+      modelName,
+      rest,
+      remaining,
+      tokensForCompletion,
+    );
+    chatHistory.length = 0;
+    chatHistory.push(...protectedMessages, ...pruned);
+    return chatHistory;
+  }
+  return pruneChatHistoryUnprotected(
+    modelName,
+    chatHistory,
+    contextLength,
+    tokensForCompletion,
+  );
+}
+
+function pruneChatHistoryUnprotected(
   modelName: string,
   chatHistory: ChatMessage[],
   contextLength: number,
