@@ -3,6 +3,7 @@ import GenerateTerminalCommand from "./cmd";
 import ChangelogCommand from "./changelog";
 import CommitMessageCommand from "./commit";
 import DraftIssueCommand from "./draftIssue";
+import HooksSlashCommand from "./hooks";
 import InitSlashCommand from "./init";
 import InstructionsSlashCommand from "./instructions";
 import HttpSlashCommand from "./http";
@@ -24,4 +25,5 @@ export default [
   SkillsSlashCommand,
   InitSlashCommand,
   InstructionsSlashCommand,
+  HooksSlashCommand,
 ];

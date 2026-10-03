@@ -18,6 +18,7 @@ describe("slash command catalog (KN-092)", () => {
       "skills",
       "init",
       "instructions",
+      "hooks",
     ]);
   });
 });

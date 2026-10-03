@@ -45,6 +45,7 @@ import {
   TOOL_GLOB_ARG_KEYS,
   TOOL_PATH_ARG_KEYS,
 } from "../util/toolFilePath";
+import type { HookRunner } from "../hooks/hooks.js";
 
 // ─── Retry Configuration ─────────────────────────────────────────────────────
 
@@ -122,6 +123,8 @@ export interface ToolCallMiddlewareOptions {
   workspaceDirs?: string[];
   /** Settings default for `builtin_view_subdirectory` when the model omits maxFiles. */
   defaultMaxFiles?: number;
+  /** K-023: PreToolUse / PostToolUse hooks. */
+  hooks?: HookRunner | null;
 }
 
 const DEFAULT_OPTIONS: Required<ToolCallMiddlewareOptions> = {
@@ -134,6 +137,7 @@ const DEFAULT_OPTIONS: Required<ToolCallMiddlewareOptions> = {
   agentPolicy: null,
   workspaceDirs: [],
   defaultMaxFiles: DEFAULT_VIEW_SUBDIRECTORY_MAX_FILES,
+  hooks: null,
 };
 
 // ─── File Write Lock ─────────────────────────────────────────────────────────
@@ -647,6 +651,28 @@ export async function executeToolWithMiddleware(
     });
   }
 
+  // ── Step 1b: PreToolUse hooks (may deny or rewrite args) ──────────────
+  if (opts.hooks?.has("PreToolUse")) {
+    const pre = await opts.hooks.run("PreToolUse", { toolName, args });
+    if (pre.denied) {
+      metrics.failureCount++;
+      throw new ToolCallError({
+        code: ToolCallErrorCode.PERMISSION_DENIED,
+        message:
+          `Denied by a PreToolUse hook before "${toolName}" ran (the tool itself was not executed). ` +
+          `Hook command: \`${pre.denied.command}\`. ` +
+          (pre.denied.reason === "Blocked by hook"
+            ? "The hook gave no reason (it exited 2 without writing to stderr). Edit or remove it in .knox/hooks.json or the config.yaml `hooks:` block."
+            : `Reason: ${pre.denied.reason}`),
+        toolName,
+        retryable: false,
+      });
+    }
+    if (pre.args) {
+      args = pre.args as Record<string, any>;
+    }
+  }
+
   // ── Step 2: Validate Arguments ────────────────────────────────────────
   if (opts.validateArgs) {
     try {
@@ -752,7 +778,22 @@ export async function executeToolWithMiddleware(
     }
 
     // K-006: secrets never reach the transcript, memory, checkpoints or logs.
-    return redactContextItems(result);
+    const redacted = redactContextItems(result);
+    if (opts.hooks?.has("PostToolUse")) {
+      const post = await opts.hooks.run("PostToolUse", {
+        toolName,
+        args,
+        result: redacted.map((i) => i.content).join("\n").slice(0, 20_000),
+      });
+      if (post.additionalContext.length) {
+        redacted.push({
+          name: "PostToolUse hook",
+          description: "Context added by a PostToolUse hook",
+          content: post.additionalContext.join("\n"),
+        });
+      }
+    }
+    return redacted;
   } catch (error) {
     // ── Failure ─────────────────────────────────────────────────────
     metrics.failureCount++;
@@ -822,6 +863,7 @@ function mergeOptions(
     workspaceDirs: partial.workspaceDirs ?? DEFAULT_OPTIONS.workspaceDirs,
     defaultMaxFiles:
       partial.defaultMaxFiles ?? DEFAULT_OPTIONS.defaultMaxFiles,
+    hooks: partial.hooks ?? DEFAULT_OPTIONS.hooks,
   };
 }
 
@@ -895,6 +937,10 @@ export function normalizeToolArgs(
         "directoryPath",
         "target_directory",
       ]);
+      // Omitted/empty path means "the workspace root" rather than a hard failure.
+      if (isMissingToolArg(next.directory_path)) {
+        next.directory_path = ".";
+      }
       if (isMissingToolArg(next.maxFiles)) {
         next.maxFiles = resolveViewSubdirectoryMaxFiles(defaults?.defaultMaxFiles);
       }

@@ -10,9 +10,12 @@ import { confirmAutoProfile } from "../jev/profileConfirm";
 import { getActiveJevRuntime, getJevConfirmedProfile } from "../jev/config";
 import { resolveAutonomousToolApproval } from "../agent/autonomousApproval";
 import { DEFAULT_PERMISSION_MODE } from "../agent/permissions";
+import { getWorkspaceHookRunner } from "../hooks/workspaceHooks";
 import { callTool } from "../tools/callTool";
 import { executeToolWithSoulHooks } from "../tools/mutatingToolHooks";
 import { resolveConfigAgentPolicy } from "../tools/toolPolicy";
+import { stagedDiskNotice, wrapIdeForStaging } from "../tools/stagedEdits";
+import { ensureReviewLoaded } from "../tools/reviewStore";
 import { wrapIdeForWorktree } from "../tools/worktree";
 
 import type { ToolExtras } from "..";
@@ -47,9 +50,17 @@ export function registerBrainLoopHandlers(core: CoreRuntime): void {
     const { listShellJobs } = await import("../tools/shellJobs");
     const catalog =
       config?.tools?.filter((tool) => tool.function?.name) ?? allTools;
-    const toolIde = core.agentWorktree
+    const baseIde = core.agentWorktree
       ? wrapIdeForWorktree(core.ide, core.agentWorktree)
       : core.ide;
+    // K-026: honour review mode for /autonomous too (edits are held for review).
+    if (msg.data.sessionId) {
+      ensureReviewLoaded(core, msg.data.sessionId);
+    }
+    const staged = msg.data.sessionId
+      ? core.stagedReview.get(msg.data.sessionId)
+      : undefined;
+    const toolIde = staged ? wrapIdeForStaging(baseIde, staged) : baseIde;
     try {
       const card = await loadCodebaseCard(toolIde);
       setCodebaseCardInject(card);
@@ -113,9 +124,30 @@ export function registerBrainLoopHandlers(core: CoreRuntime): void {
       workspaceDirs = [];
     }
 
+    // K-023: UserPromptSubmit may deny the run or add context to the goal.
+    const hooks = await getWorkspaceHookRunner(toolIde).catch(() => null);
+    let goal: string = msg.data.goal;
+    if (hooks?.has("UserPromptSubmit")) {
+      const submitted = await hooks
+        .run("UserPromptSubmit", { prompt: goal })
+        .catch(() => null);
+      if (submitted?.denied) {
+        return {
+          success: false,
+          iterations: 0,
+          final_result: `Blocked by hook: ${submitted.denied.reason}`,
+          cancelled: false,
+          checkpoints_created: 0,
+        };
+      }
+      if (submitted?.additionalContext.length) {
+        goal += `\n\n<hook_context>\n${submitted.additionalContext.join("\n")}\n</hook_context>`;
+      }
+    }
+
     const result = await BrainManager.runAutonomousLoop({
       session_id: sessionId,
-      goal: msg.data.goal,
+      goal,
       max_iterations: msg.data.maxIterations,
       ensureWorkspaceCheckpoint: async (iteration) => {
         if (typeof core.ide.ensureTurnCheckpoint !== "function") {
@@ -143,7 +175,7 @@ export function registerBrainLoopHandlers(core: CoreRuntime): void {
               onEvent: (type, data) => BrainManager.publishEvent(type, data),
               executeTool: async (tool, args) => {
                 const workspaceDirs = await toolIde.getWorkspaceDirs();
-                return executeToolWithSoulHooks({
+                const items = await executeToolWithSoulHooks({
                   tool,
                   toolName: tool.function.name,
                   rawArgs: args,
@@ -169,6 +201,17 @@ export function registerBrainLoopHandlers(core: CoreRuntime): void {
                       },
                     ),
                 });
+                const notice = stagedDiskNotice(tool.function.name, staged);
+                return notice
+                  ? [
+                      ...items,
+                      {
+                        name: "Staged edits",
+                        description: "staged review notice",
+                        content: notice,
+                      },
+                    ]
+                  : items;
               },
               maxStepsPerIteration: loopSettings.maxSteps,
               doomLoopThreshold: loopSettings.doomLoopThreshold,
@@ -184,6 +227,11 @@ export function registerBrainLoopHandlers(core: CoreRuntime): void {
             }
           : undefined,
     });
+    if (hooks?.has("Stop")) {
+      await hooks
+        .run("Stop", { result: result.final_result })
+        .catch(() => undefined);
+    }
     return result;
   });
 

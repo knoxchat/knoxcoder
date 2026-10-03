@@ -6,16 +6,13 @@
  */
 
 import type { ContextItem, ILLM, Tool, ToolExtras } from "../../../index.js";
-import { waitForAutonomousToolApproval } from "../../../agent/autonomousApproval.js";
+import { resolveToolPermission } from "../../../agent/permissionGate.js";
 import { createAgentLoopCompactor, runAgentLoop } from "../../../agent/loop.js";
 import {
-  isHardPolicyDeny,
-  isToolAutoApproved,
   type PermissionMode,
   type ToolSetting,
 } from "../../../agent/permissions.js";
 import { BuiltInToolNames } from "../../../tools/builtIn.js";
-import { ToolCallError, ToolCallErrorCode } from "../../../tools/errors.js";
 import type { AgentToolPolicy } from "../../../tools/toolPolicy.js";
 import { formatPlanInject } from "../../../tools/planStore.js";
 import { formatCodebaseCardInject } from "../../../context/codebaseCard.js";
@@ -218,57 +215,25 @@ async function executeToolIteration(
         return "allow";
       }
       const callId = call.id ?? `${tool.function.name}-${toolNames.length + 1}`;
-      if (
-        isHardPolicyDeny({
-          toolName: tool.function.name,
-          args,
-          policy: permission.policy,
-          policyFromRules: permission.policyFromRules,
-          workspaceDirs: permission.workspaceDirs,
-        })
-      ) {
-        return "deny";
-      }
-      if (
-        isToolAutoApproved({
-          toolName: tool.function.name,
-          toolSettings: permission.toolSettings,
-          permissionMode: permission.mode,
-          sessionAllowlist: permission.sessionAllowlist,
-          args,
-          policy: permission.policy,
-          policyFromRules: permission.policyFromRules,
-          workspaceDirs: permission.workspaceDirs,
-        })
-      ) {
-        return "allow";
-      }
-      emit?.("autonomous:tool_ask", {
-        session_id: sessionId,
-        call_id: callId,
-        name: tool.function.name,
-        args: compactAutonomousArgs(args),
-      });
-      const decision = await waitForAutonomousToolApproval({
+      let asked = false;
+      const decision = await resolveToolPermission({
+        permission,
+        toolName: tool.function.name,
+        args,
         sessionId,
-        callId,
         abortSignal,
+        callId: () => callId,
+        onAsk: () => {
+          asked = true;
+          emit?.("autonomous:tool_ask", {
+            session_id: sessionId,
+            call_id: callId,
+            name: tool.function.name,
+            args: compactAutonomousArgs(args),
+          });
+        },
       });
-      if (abortSignal?.aborted) {
-        throw new ToolCallError({
-          code: ToolCallErrorCode.CANCELLED,
-          message: "cancelled",
-          toolName: tool.function.name,
-          retryable: false,
-        });
-      }
-      if (decision.always) {
-        const name = tool.function.name;
-        if (!permission.sessionAllowlist.some((item) => item === name)) {
-          permission.sessionAllowlist.push(name);
-        }
-      }
-      if (!decision.allow) {
+      if (decision === "deny" && asked) {
         emit?.("autonomous:tool_end", {
           session_id: sessionId,
           call_id: callId,
@@ -282,9 +247,8 @@ async function executeToolIteration(
             },
           ]),
         });
-        return "deny";
       }
-      return "allow";
+      return decision;
     },
     executeTool: async (tool, args, call) => {
       toolNames.push(tool.function.name);
