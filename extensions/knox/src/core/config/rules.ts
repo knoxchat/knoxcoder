@@ -596,7 +596,7 @@ export function mergeRules(
   };
 }
 
-async function collectActivePaths(ide: IDE): Promise<string[] | undefined> {
+export async function collectActivePaths(ide: IDE): Promise<string[] | undefined> {
   try {
     const workspaceDirs = await ide.getWorkspaceDirs();
     const paths = new Set<string>();
@@ -626,15 +626,19 @@ export async function loadProjectInstructions(
   systemPrompt: string | null;
   policy: AgentToolPolicy;
   sources: string[];
+  /** K-027: size warnings for oversized instruction files. */
+  warnings: string[];
 }> {
   const rules = await discoverRules(ide);
   if (rules.length === 0) {
-    return { systemPrompt: null, policy: {}, sources: [] };
+    return { systemPrompt: null, policy: {}, sources: [], warnings: [] };
   }
 
   const activePaths = await collectActivePaths(ide);
   const merged = mergeRules(rules, extraVars, activePaths ?? []);
+  const { buildInstructionReport } = await import("./instructionReport");
   return {
+    warnings: buildInstructionReport({ rules, activePaths }).warnings,
     systemPrompt: merged.systemPrompt || null,
     policy: mergeRulePolicies(rules),
     sources: merged.sources,

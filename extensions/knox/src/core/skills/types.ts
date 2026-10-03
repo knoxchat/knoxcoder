@@ -11,6 +11,11 @@ export interface SkillInfo {
   location: string;
   /** Markdown body (everything after the frontmatter) */
   content: string;
+  /**
+   * Optional glob scope from frontmatter (`globs`, `paths` or `applyTo`).
+   * A scoped skill is only offered while a matching file is open.
+   */
+  globs?: string[];
 }
 
 export interface SkillManagerOptions {

@@ -374,6 +374,9 @@ export async function loadKnoxConfigFromYaml(
         knoxConfig.systemMessage = systemPromptDotFile;
       }
     }
+    for (const warning of instructions.warnings) {
+      localErrors.push({ fatal: false, message: `Instructions: ${warning}` });
+    }
     if (
       (instructions.policy.paths?.length ?? 0) > 0 ||
       (instructions.policy.commands?.length ?? 0) > 0

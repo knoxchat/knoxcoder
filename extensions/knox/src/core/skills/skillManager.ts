@@ -21,6 +21,7 @@ import * as path from "path";
 import { parseFrontmatter } from "./frontmatter";
 import { pullSkillsFromUrl } from "./discovery";
 import { SkillInfo, SkillManagerOptions } from "./types";
+import { ruleAppliesToPaths } from "../config/rules";
 import { getGlobalSkillsPath } from "../util/paths";
 
 /** Directory containing this module (`core/skills` in source, bundle dir after esbuild). */
@@ -199,12 +200,53 @@ function loadSkillFile(filePath: string): SkillInfo | undefined {
     return undefined;
   }
 
+  const globs = parseSkillGlobs(
+    parsed.data.globs ?? parsed.data.paths ?? parsed.data.applyTo,
+  );
+
   return {
     name,
     description,
     location: filePath,
     content: parsed.content,
+    ...(globs.length > 0 ? { globs } : {}),
   };
+}
+
+/** Split `a, b` or `[a, b]` on commas that are not inside `{...}`. */
+export function parseSkillGlobs(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+  const text = value.trim().replace(/^\[|\]$/g, "");
+  const out: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of text) {
+    if (ch === "{") depth++;
+    if (ch === "}") depth = Math.max(0, depth - 1);
+    if (ch === "," && depth === 0) {
+      out.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  out.push(current);
+  return out
+    .map((g) => g.trim().replace(/^["']|["']$/g, ""))
+    .filter(Boolean);
+}
+
+/** Unscoped skills always apply; scoped ones need a matching active path. */
+export function skillAppliesToPaths(
+  skill: Pick<SkillInfo, "globs">,
+  activePaths?: string[] | null,
+): boolean {
+  if (!skill.globs || skill.globs.length === 0) {
+    return true;
+  }
+  return ruleAppliesToPaths({ applyTo: skill.globs }, activePaths);
 }
 
 // ── Manager ──────────────────────────────────────────────────────────────────
@@ -214,6 +256,7 @@ export class SkillManager {
   private skillDirs: Set<string> = new Set();
   private loaded = false;
   private options: SkillManagerOptions;
+  private activePaths: string[] | undefined;
 
   constructor(options: SkillManagerOptions) {
     this.options = options;
@@ -229,6 +272,19 @@ export class SkillManager {
   /** Get all loaded skills. */
   all(): SkillInfo[] {
     return Array.from(this.skills.values());
+  }
+
+  /** Workspace-relative paths of the open files, used to scope `globs` skills. */
+  setActivePaths(paths: string[] | undefined): void {
+    this.activePaths = paths;
+  }
+
+  /**
+   * Skills to offer the model now: unscoped skills always, scoped skills only
+   * while a matching file is active.
+   */
+  visible(): SkillInfo[] {
+    return this.all().filter((skill) => skillAppliesToPaths(skill, this.activePaths));
   }
 
   /** Get all directories that contain loaded skills. */
