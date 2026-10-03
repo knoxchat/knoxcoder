@@ -194,6 +194,19 @@ export function renderMessage(widget: KnoxGuiWidget,
 ): void {
 	if (item.role === 'tool') {
 		widget.renderToolOutputPeek(body, state, item);
+		const doomName = t(state, 'doomLoopName');
+		const isDoomBlock = item.toolCalls?.some(call => call.outputItems?.some(out => out.name === doomName));
+		if (isDoomBlock && index === state.history.length - 1 && !state.isStreaming) {
+			const banner = DOM.append(body, DOM.$('.knox-gui-large-banner'));
+			banner.setAttribute('role', 'status');
+			banner.setAttribute('data-testid', 'change-strategy-banner');
+			DOM.append(banner, DOM.$('span', undefined, t(state, 'doomLoopDescription')));
+			widget.chromeButton(banner, {
+				label: t(state, 'changeStrategy'),
+				testId: 'change-strategy',
+				onClick: () => { void widget.controller.submit(t(state, 'changeStrategyPrompt')); },
+			});
+		}
 		return;
 	}
 	const isLast = index === state.history.length - 1;

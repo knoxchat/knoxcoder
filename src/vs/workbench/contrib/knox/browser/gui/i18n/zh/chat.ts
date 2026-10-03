@@ -233,6 +233,8 @@ export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"jobsKillCommand": "停止 {{id}}",
 	"jobsListCommand": "列出后台任务",
 	"doomLoopName": "循环检测",
+	"changeStrategy": "换个思路",
+	"changeStrategyPrompt": "[换个思路] 你一直在重复同一种做法。请停下，用一句话说明为什么失败，然后换一种明显不同的方法（不同的工具、文件或假设）继续。",
 	"doomLoopDescription": "重复相同或连续失败的工具调用",
 	"policyBlockedName": "策略",
 	"policyBlockedDescription": "被路径/命令策略拦截",

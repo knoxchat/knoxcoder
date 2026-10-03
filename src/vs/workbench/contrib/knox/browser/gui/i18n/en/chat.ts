@@ -233,6 +233,8 @@ export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"jobsKillCommand": "kill {{id}}",
 	"jobsListCommand": "list shell jobs",
 	"doomLoopName": "Doom loop",
+	"changeStrategy": "Change strategy",
+	"changeStrategyPrompt": "[Change strategy] You were stuck repeating an approach. Stop, state in one sentence why it failed, then pick a materially different approach (different tool, file, or hypothesis) and continue.",
 	"doomLoopDescription": "Repeated identical or failing tool calls",
 	"policyBlockedName": "Policy",
 	"policyBlockedDescription": "Blocked by path/command policy",

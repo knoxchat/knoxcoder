@@ -31,7 +31,13 @@ export function isRebuildToolName(name: string): boolean {
   return REBUILD_TOOL_NAMES.has(name);
 }
 
-export type DoomLoopKind = "repeat" | "fail_streak" | "same_strategy";
+export type DoomLoopKind =
+  | "repeat"
+  | "fail_streak"
+  | "same_strategy"
+  | "oscillating_edit"
+  | "oracle_stuck"
+  | "repeat_question";
 
 export interface DoomLoopHit {
   kind: DoomLoopKind;
@@ -145,7 +151,7 @@ export function detectDoomLoop(
     return null;
   }
   if (calls.length < threshold) {
-    return null;
+    return detectRepeatQuestion(calls);
   }
 
   const counts = new Map<string, { count: number; name: string }>();
@@ -191,7 +197,155 @@ export function detectDoomLoop(
     };
   }
 
+  return (
+    detectOscillatingEdit(calls) ??
+    detectOracleStuck(calls, threshold) ??
+    detectRepeatQuestion(calls)
+  );
+}
+
+function argRecord(args: unknown): Record<string, unknown> {
+  if (typeof args === "string") {
+    try {
+      const parsed = JSON.parse(args);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return args && typeof args === "object" ? (args as Record<string, unknown>) : {};
+}
+
+/** Resulting-content key for an edit (what the file should look like after). */
+function editStateKey(call: DoomLoopCall): { file: string; state: string } | null {
+  if (!MUTATING_TOOL_NAMES.has(call.name) || isFailedToolCall(call)) {
+    return null;
+  }
+  const a = argRecord(call.args);
+  if (call.name === BuiltInToolNames.ApplyPatch) {
+    const patch = typeof a.patch === "string" ? a.patch : "";
+    const files = [...patch.matchAll(/^\*\*\* Update File:\s*(.+)$/gm)].map((m) => m[1].trim());
+    if (files.length === 0) {
+      return null;
+    }
+    return { file: [...files].sort().join("+"), state: patch.trim() };
+  }
+  const file = String(a.filepath ?? a.path ?? a.file_path ?? "");
+  if (!file) {
+    return null;
+  }
+  const state = Array.isArray(a.edits)
+    ? stableStringify((a.edits as Array<Record<string, unknown>>).map((e) => e?.new_string))
+    : a.new_string ?? a.content ?? a.contents;
+  if (state === undefined) {
+    return null;
+  }
+  return { file, state: typeof state === "string" ? state : stableStringify(state) };
+}
+
+/** Same file flipping A,B,A,B (successful edits only). */
+export function detectOscillatingEdit(calls: DoomLoopCall[]): DoomLoopHit | null {
+  const perFile = new Map<string, string[]>();
+  for (const call of calls) {
+    const key = editStateKey(call);
+    if (!key) {
+      continue;
+    }
+    const seq = perFile.get(key.file) ?? [];
+    seq.push(key.state);
+    perFile.set(key.file, seq);
+    if (seq.length >= 4) {
+      const [a, b, c, d] = seq.slice(-4);
+      if (a === c && b === d && a !== b) {
+        return {
+          kind: "oscillating_edit",
+          threshold: 4,
+          count: seq.length,
+          fingerprint: `oscillating_edit::${key.file}`,
+          toolName: call.name,
+        };
+      }
+    }
+  }
   return null;
+}
+
+/** Rebuild/test oracle keeps failing with the same diagnostics even across edits. */
+export function detectOracleStuck(
+  calls: DoomLoopCall[],
+  threshold: number,
+): DoomLoopHit | null {
+  const seen = new Map<string, number>();
+  for (const call of calls) {
+    if (!isRebuildToolName(call.name)) {
+      continue;
+    }
+    const sig = diagnosticSignature(callOutputText(call));
+    if (sig === "ok") {
+      continue;
+    }
+    const n = (seen.get(sig) ?? 0) + 1;
+    seen.set(sig, n);
+    if (n >= threshold) {
+      return {
+        kind: "oracle_stuck",
+        threshold,
+        count: n,
+        fingerprint: `oracle_stuck::${sig}`,
+        toolName: call.name,
+      };
+    }
+  }
+  return null;
+}
+
+/** The same question put to the user twice. */
+export function detectRepeatQuestion(calls: DoomLoopCall[]): DoomLoopHit | null {
+  const seen = new Map<string, number>();
+  for (const call of calls) {
+    if (call.name !== BuiltInToolNames.AskUser) {
+      continue;
+    }
+    const fp = canonicalizeToolArgs(call.args);
+    const n = (seen.get(fp) ?? 0) + 1;
+    seen.set(fp, n);
+    if (n >= 2) {
+      return {
+        kind: "repeat_question",
+        threshold: 2,
+        count: n,
+        fingerprint: `repeat_question::${fp}`,
+        toolName: call.name,
+      };
+    }
+  }
+  return null;
+}
+
+/** One-click "change strategy" prompt to inject as a user/system turn. */
+export function buildChangeStrategyInstruction(hit: DoomLoopHit): string {
+  return [
+    `[Change strategy] ${describeHit(hit)}.`,
+    "Stop repeating that approach. State in one sentence why it failed,",
+    "then pick a materially different approach (different tool, file, or hypothesis) and continue.",
+  ].join(" ");
+}
+
+function describeHit(hit: DoomLoopHit): string {
+  switch (hit.kind) {
+    case "repeat":
+      return `repeated identical ${hit.toolName ?? "tool"} calls (${hit.count} times)`;
+    case "same_strategy":
+      return `repeating the same failed approach (${hit.toolName ?? "tools"}, ${hit.count} recent calls)`;
+    case "oscillating_edit":
+      return "the same file is being edited back and forth between two states";
+    case "oracle_stuck":
+      return `the build/test oracle failed with the same errors ${hit.count} times despite edits`;
+    case "repeat_question":
+      return "the same question was asked to the user again";
+    default:
+      return `a streak of ${hit.count} failed tool calls`;
+  }
 }
 
 /**
@@ -238,14 +392,8 @@ function detectRebuildRepeat(
 }
 
 export function buildDoomLoopSummaryInstruction(hit: DoomLoopHit): string {
-  const what =
-    hit.kind === "repeat"
-      ? `repeated identical ${hit.toolName ?? "tool"} calls (${hit.count} times)`
-      : hit.kind === "same_strategy"
-        ? `repeating the same failed approach (${hit.toolName ?? "tools"}, ${hit.count} recent calls)`
-        : `a streak of ${hit.count} failed tool calls`;
   return [
-    `[Agent doom loop] You appear stuck: ${what}.`,
+    `[Agent doom loop] You appear stuck: ${describeHit(hit)}.`,
     "Do not call any tools.",
     "Summarize what you already learned, what failed, and the recommended next steps for the user.",
     "If you need a different approach, ask the user instead of retrying the same call.",
@@ -253,14 +401,8 @@ export function buildDoomLoopSummaryInstruction(hit: DoomLoopHit): string {
 }
 
 export function buildDoomLoopBlockedMessage(hit: DoomLoopHit): string {
-  const what =
-    hit.kind === "repeat"
-      ? `identical ${hit.toolName ?? "tool"} call repeated ${hit.count} times`
-      : hit.kind === "same_strategy"
-        ? `same failed ${hit.toolName ?? "tool"} strategy (${hit.count} recent calls)`
-        : `${hit.count} consecutive tool failures`;
   return [
-    `Blocked: doom-loop detection (${what}).`,
+    `Blocked: doom-loop detection (${describeHit(hit)}).`,
     "This call was not executed.",
     "Stop retrying the same arguments. Summarize or try a different approach.",
   ].join(" ");
