@@ -51,7 +51,7 @@ export type SharedConfigSchema = z.infer<typeof sharedConfigSchema>;
 export const DEFAULT_UI_SETTINGS = {
   showSessionTabs: false,
   codeWrap: false,
-  showChatScrollbar: false,
+  showChatScrollbar: true,
   displayRawMarkdown: false,
   disableSessionTitles: false,
 } as const;

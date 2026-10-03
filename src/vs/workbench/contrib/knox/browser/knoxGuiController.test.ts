@@ -111,6 +111,18 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.webSearchSupported, false);
 		assert.strictEqual(store.state.toolsSupported, true);
 		assert.strictEqual(store.state.mode, 'agent');
+		assert.strictEqual(store.state.showChatScrollbar, true);
+	});
+
+	test('applyConfig keeps the chat scrollbar on unless ui.showChatScrollbar is false', async () => {
+		const { controller, store } = createHarness();
+		await timeout(0);
+		controller.applyConfig({ config: {} });
+		assert.strictEqual(store.state.showChatScrollbar, true);
+		controller.applyConfig({ config: { ui: { showChatScrollbar: false } } });
+		assert.strictEqual(store.state.showChatScrollbar, false);
+		controller.applyConfig({ config: { ui: { showChatScrollbar: true } } });
+		assert.strictEqual(store.state.showChatScrollbar, true);
 	});
 
 	test('selectModel updates imagesSupported from uploadImage', async () => {
