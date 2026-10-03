@@ -75,3 +75,7 @@ The Knox extension exposes an API, reachable by any other extension.
 `getAPI(1)` returns `openChat`, `newSession`, `toggleAgentMode`, `executeToolCall`, `handleGuiMessage`, `registerCustomContextProvider`, and agent/GUI events.
 
 `vscode.lm` (KN-362): Knox registers builtin tools (`lm.invokeTool('builtin_read_file', ...)`) and a `vendor: 'knox'` assist provider (`lm.selectAssistModels({ vendor: 'knox' })`). Ghost-text inline completions (KN-363) stay off until `knoxchat.enableInlineCompletions` is enabled.
+
+## User guide
+
+See [docs/README.md](docs/README.md) for setup, permissions, hooks, memory and troubleshooting.
