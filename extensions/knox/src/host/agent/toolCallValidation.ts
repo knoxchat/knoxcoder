@@ -3,21 +3,15 @@
  * Incomplete required args must be rejected — never filled with TODO placeholders.
  */
 
+import { isMissingToolArg } from "core/tools/middleware";
+
 export type ToolParamSpec = {
   name: string;
   requiredParams: string[];
   optionalParams?: string[];
 };
 
-export function isMissingToolArg(value: unknown): boolean {
-  if (value === undefined || value === null) {
-    return true;
-  }
-  if (typeof value === "string" && value.trim() === "") {
-    return true;
-  }
-  return false;
-}
+export { isMissingToolArg };
 
 /**
  * Returns missing required param names. Empty strings count as missing.
