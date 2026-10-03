@@ -52,6 +52,10 @@ env:
   FULL_PACKAGES: ${{ github.event_name == 'push' || inputs.publish_release || inputs.all_packages }}
 
 jobs:
+  knox-ci:
+    name: Knox CI
+    uses: ./.github/workflows/knox-ci.yml
+
   matrix:
     name: Plan build matrix
     runs-on: ubuntu-latest
@@ -74,7 +78,7 @@ jobs:
 
   linux:
     name: Linux ${{ matrix.arch }}
-    needs: matrix
+    needs: [matrix, knox-ci]
     strategy:
       fail-fast: false
       matrix:
@@ -166,7 +170,7 @@ jobs:
 
   windows:
     name: Windows ${{ matrix.arch }}
-    needs: matrix
+    needs: [matrix, knox-ci]
     strategy:
       fail-fast: false
       matrix:

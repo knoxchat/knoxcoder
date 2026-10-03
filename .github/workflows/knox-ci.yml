@@ -1,0 +1,71 @@
+# Knox checks: core + pkg vitest, core type-check, and the inventory gate.
+# Runs on pull requests and branch pushes, and is called by build-desktop.yml so packaging is blocked on it.
+name: Knox CI
+
+on:
+  pull_request:
+    paths:
+      - 'extensions/knox/**'
+      - 'src/vs/workbench/contrib/knox/**'
+      - '.github/workflows/knox-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'extensions/knox/**'
+      - 'src/vs/workbench/contrib/knox/**'
+      - '.github/workflows/knox-ci.yml'
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: knox-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  knox:
+    name: Knox tests, tsc, inventory
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            extensions/knox/package-lock.json
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config python3 python-is-python3 \
+            libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Git identity for hermetic test repos
+        run: |
+          git config --global user.email ci@knox.dev
+          git config --global user.name "Knox CI"
+
+      - name: Type-check core
+        working-directory: extensions/knox
+        run: npm run test:tsc
+
+      - name: Core tests
+        working-directory: extensions/knox
+        run: npm run test:core
+
+      - name: Pkg tests
+        working-directory: extensions/knox
+        run: npm run test:pkg
+
+      - name: Inventory gate
+        working-directory: extensions/knox
+        run: npm run inventory-gate
