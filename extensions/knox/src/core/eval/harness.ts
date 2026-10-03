@@ -49,6 +49,7 @@ import {
   viewSubdirectoryTool,
   writeFileTool,
 } from "../tools";
+import { SHELL_WAIT_HARD_CAP_MS } from "../tools/shellJobs";
 import {
   extractVerifiedFilePath,
   parseToolArgs,
@@ -689,7 +690,7 @@ export async function runAgentEval(
             }
             return callTool(
               runTerminalCommandTool,
-              { command },
+              { command, block_until_ms: SHELL_WAIT_HARD_CAP_MS },
               { ...extras, tool: runTerminalCommandTool },
               {
                 retry: false,

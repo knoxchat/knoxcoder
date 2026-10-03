@@ -16,6 +16,7 @@ import {
 import { executeToolWithSoulHooks } from "../tools/mutatingToolHooks";
 import { resolveConfigAgentPolicy } from "../tools/toolPolicy";
 import { runTerminalCommandTool } from "../tools/definitions/runTerminalCommand";
+import { SHELL_WAIT_HARD_CAP_MS } from "../tools/shellJobs";
 import {
   detectBuildCommand,
   resolveVerifyMaxIterations,
@@ -213,7 +214,9 @@ export function registerToolHandlers(core: CoreRuntime): void {
                 run: async (command) =>
                   callTool(
                     runTerminalCommandTool,
-                    { command },
+                    // Oracle must block for its result; otherwise cargo is
+                    // auto-backgrounded and treated as green while still running.
+                    { command, block_until_ms: SHELL_WAIT_HARD_CAP_MS },
                     {
                       ide: toolIde,
                       llm,
