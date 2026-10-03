@@ -5,6 +5,7 @@
  * and comprehensive analysis capabilities.
  */
 
+import { capChars } from "../truncateOutput";
 import { resolveRelativePathInDir } from "../../util/ideUtils";
 import { t } from "../../i18n/index.js";
 import {
@@ -869,7 +870,7 @@ export const viewSubdirectoryImpl: ToolImpl = async (args: any, extras) => {
   results.push({
     name: "Directory Structure",
     description: `Structure of ${directory_path}`,
-    content: structure,
+    content: capChars(structure, undefined, "pass a narrower directory or filters").text,
   });
   
   // If there are too many files, add a truncation notice

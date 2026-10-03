@@ -1,3 +1,4 @@
+import { capChars } from "../truncateOutput";
 import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
 import { DEFAULT_IGNORE_BASENAMES } from "../../util/ignore";
 import { joinPathsToUri } from "../../util/uri";
@@ -239,7 +240,11 @@ export const globImpl: ToolImpl = async (args, extras) => {
     hitResultCap,
   });
 
-  const body = matches.length ? matches.join("\n") : "(no matches)";
+  const body = capChars(
+    matches.length ? matches.join("\n") : "(no matches)",
+    undefined,
+    "pass a narrower path or pattern",
+  ).text;
 
   return [
     {

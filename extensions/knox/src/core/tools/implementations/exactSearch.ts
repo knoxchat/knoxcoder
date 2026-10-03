@@ -7,6 +7,7 @@ import {
   SEARCH_TRUNCATION_HINT,
   summarizeSearchOutput,
 } from "../ripgrep";
+import { capChars } from "../truncateOutput";
 import { ToolImpl } from ".";
 
 export interface ExactSearchArgs {
@@ -79,6 +80,11 @@ export const exactSearchImpl: ToolImpl = async (args: ExactSearchArgs, extras) =
   if (hitCap) {
     content = `${content.trimEnd()}\n${SEARCH_TRUNCATION_HINT}`;
   }
+  content = capChars(
+    content,
+    undefined,
+    "pass maxResults/path/fileType to narrow",
+  ).text;
   const summary =
     fileCount > 0
       ? outputMode === "files_with_matches"

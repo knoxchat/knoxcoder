@@ -4,6 +4,8 @@ import { t } from "../../i18n/index.js";
 import { getUriPathBasename } from "../../util/uri";
 import { detectLanguageFromExtension } from "../templates/fileTemplates";
 
+import { capLines, DEFAULT_MAX_OUTPUT_LINES } from "../truncateOutput";
+
 import { ToolImpl } from ".";
 
 export const DEFAULT_READ_MAX_BYTES = 100_000;
@@ -305,6 +307,18 @@ export const readFileImpl: ToolImpl = async (args, extras) => {
       startLine,
       endLine,
     });
+  }
+
+  // Default line cap with continuation hint (K-033).
+  if (!isTruncated) {
+    const firstLine = startLine ?? 1;
+    const capped = capLines(finalContent, {
+      maxLines: DEFAULT_MAX_OUTPUT_LINES,
+      firstLine,
+      hint: (next) =>
+        `… ${totalLines - DEFAULT_MAX_OUTPUT_LINES} more lines (file/range has ${totalLines}). Continue with startLine=${next}.`,
+    });
+    finalContent = capped.text;
   }
 
   // Combine metadata and content
