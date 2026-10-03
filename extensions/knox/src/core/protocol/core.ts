@@ -601,9 +601,11 @@ export type ToCoreFromIdeOrWebviewProtocol = {
       model: string;
       promptTokens: number;
       generatedTokens: number;
-      promptCost: number;
-      completionCost: number;
-      totalCost: number;
+      /** `null` when pricing for the model is unknown. */
+      promptCost: number | null;
+      completionCost: number | null;
+      totalCost: number | null;
+      pricingKnown: boolean;
     }[],
   ];
   /** Terminal fix suggestions from ErrorPatternDetector */
