@@ -148,10 +148,28 @@ export function sanitizeCompletion(raw: string, prefix = ""): string {
   return text;
 }
 
+export const INLINE_COMPLETION_MODEL_SETTING = "knoxchat.inlineCompletionModel";
+export const INLINE_COMPLETION_ACCEPT_COMMAND = "knoxchat.inlineCompletionAccepted";
+export const INLINE_COMPLETION_STATS_COMMAND = "knoxchat.showInlineCompletionStats";
+
+/**
+ * K-051: a small, fast model can be named in `knoxchat.inlineCompletionModel`
+ * (matched by title); otherwise fall back to the edit, then chat, then first model.
+ */
 export function pickInlineCompletionModel<T>(selected: {
   edit?: T | null;
   chat?: T | null;
   models?: ReadonlyArray<T> | null;
+  preferredTitle?: string;
 }): T | undefined {
+  const preferred = selected.preferredTitle?.trim();
+  if (preferred) {
+    const match = selected.models?.find(
+      (m) => (m as { title?: string } | null)?.title === preferred,
+    );
+    if (match) {
+      return match;
+    }
+  }
   return selected.edit ?? selected.chat ?? selected.models?.[0];
 }

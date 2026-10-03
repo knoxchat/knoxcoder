@@ -6,7 +6,10 @@ import {
   buildFimPrompt,
   ENABLE_INLINE_COMPLETIONS_DEFAULT,
   ENABLE_INLINE_COMPLETIONS_SETTING,
+  INLINE_COMPLETION_ACCEPT_COMMAND,
   INLINE_COMPLETION_COMPLETE_OPTIONS,
+  INLINE_COMPLETION_MODEL_SETTING,
+  INLINE_COMPLETION_STATS_COMMAND,
   INLINE_COMPLETION_PREFIX_LINES,
   INLINE_COMPLETION_SUFFIX_LINES,
   INLINE_COMPLETION_TRIGGER_AUTOMATIC,
@@ -17,6 +20,10 @@ import {
   shouldProvideInlineCompletion,
   slicePrefixSuffix,
 } from "./knoxInlineCompletion";
+import { InlineCompletionStats } from "./inlineCompletionStats";
+
+/** Shared by the provider and the stats command. */
+export const inlineCompletionStats = new InlineCompletionStats();
 
 /**
  * KN-363: optional ghost-text completions from the configured Knox
@@ -85,6 +92,8 @@ export class KnoxInlineCompletionProvider
       character: position.character,
     });
 
+    inlineCompletionStats.recordRequest();
+    const startedAt = Date.now();
     this.inflight?.abort();
     const abort = new AbortController();
     this.inflight = abort;
@@ -98,16 +107,31 @@ export class KnoxInlineCompletionProvider
         ),
         prefix,
       );
-      if (!completion || token.isCancellationRequested) {
+      inlineCompletionStats.recordLatency(Date.now() - startedAt);
+      if (token.isCancellationRequested) {
+        inlineCompletionStats.recordCancelled();
         return undefined;
       }
-      return [
-        new vscode.InlineCompletionItem(
-          completion,
-          new vscode.Range(position, position),
-        ),
-      ];
+      if (!completion) {
+        inlineCompletionStats.recordEmpty();
+        return undefined;
+      }
+      inlineCompletionStats.recordShown();
+      const item = new vscode.InlineCompletionItem(
+        completion,
+        new vscode.Range(position, position),
+      );
+      item.command = {
+        command: INLINE_COMPLETION_ACCEPT_COMMAND,
+        title: "Knox inline completion accepted",
+      };
+      return [item];
     } catch {
+      if (token.isCancellationRequested || abort.signal.aborted) {
+        inlineCompletionStats.recordCancelled();
+      } else {
+        inlineCompletionStats.recordFailed();
+      }
       return undefined;
     } finally {
       cancel.dispose();
@@ -123,6 +147,9 @@ export class KnoxInlineCompletionProvider
       edit: config?.selectedModelByRole?.edit,
       chat: config?.selectedModelByRole?.chat,
       models: config?.models,
+      preferredTitle: vscode.workspace
+        .getConfiguration()
+        .get<string>(INLINE_COMPLETION_MODEL_SETTING, ""),
     });
   }
 }
@@ -158,7 +185,19 @@ export function registerKnoxInlineCompletions(
     }
   });
 
-  return vscode.Disposable.from(watcher, {
+  const commands = [
+    vscode.commands.registerCommand(INLINE_COMPLETION_ACCEPT_COMMAND, () =>
+      inlineCompletionStats.recordAccepted(),
+    ),
+    vscode.commands.registerCommand(INLINE_COMPLETION_STATS_COMMAND, () =>
+      vscode.window.showInformationMessage(
+        `Knox inline completions\n${inlineCompletionStats.format()}`,
+        { modal: true },
+      ),
+    ),
+  ];
+
+  return vscode.Disposable.from(watcher, ...commands, {
     dispose() {
       registration?.dispose();
       registration = undefined;
