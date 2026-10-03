@@ -1,0 +1,194 @@
+{
+  "memories": 20,
+  "queries": 16,
+  "recallAtK": 1,
+  "precision": 0.682,
+  "falseInjectRate": 0.333,
+  "tokensMean": 166,
+  "tokensMax": 260,
+  "tokenCap": 8000,
+  "latencyP50Ms": 2.2,
+  "latencyP95Ms": 16.3,
+  "latencyMaxMs": 16.3,
+  "seedMs": 12,
+  "perQuery": [
+    {
+      "id": "q-auth",
+      "expected": [
+        "auth-jwt"
+      ],
+      "injected": [
+        "auth-jwt",
+        "monorepo-pnpm"
+      ],
+      "tokens": 188,
+      "ms": 16.3
+    },
+    {
+      "id": "q-db",
+      "expected": [
+        "db-postgres"
+      ],
+      "injected": [
+        "db-postgres",
+        "migrations"
+      ],
+      "tokens": 183,
+      "ms": 3
+    },
+    {
+      "id": "q-migration",
+      "expected": [
+        "migrations"
+      ],
+      "injected": [
+        "migrations"
+      ],
+      "tokens": 152,
+      "ms": 2.3
+    },
+    {
+      "id": "q-ci",
+      "expected": [
+        "ci-github"
+      ],
+      "injected": [
+        "ci-github"
+      ],
+      "tokens": 151,
+      "ms": 2.4
+    },
+    {
+      "id": "q-test",
+      "expected": [
+        "test-vitest"
+      ],
+      "injected": [
+        "test-vitest",
+        "ci-github"
+      ],
+      "tokens": 181,
+      "ms": 2.4
+    },
+    {
+      "id": "q-api",
+      "expected": [
+        "api-rest"
+      ],
+      "injected": [
+        "api-rest"
+      ],
+      "tokens": 152,
+      "ms": 2.4
+    },
+    {
+      "id": "q-cache",
+      "expected": [
+        "cache-redis"
+      ],
+      "injected": [
+        "deploy-k8s",
+        "cache-redis"
+      ],
+      "tokens": 181,
+      "ms": 2.3
+    },
+    {
+      "id": "q-deploy",
+      "expected": [
+        "deploy-k8s"
+      ],
+      "injected": [
+        "deploy-k8s"
+      ],
+      "tokens": 149,
+      "ms": 3.1
+    },
+    {
+      "id": "q-log",
+      "expected": [
+        "logging-json"
+      ],
+      "injected": [
+        "auth-jwt",
+        "logging-json"
+      ],
+      "tokens": 187,
+      "ms": 2.2
+    },
+    {
+      "id": "q-secrets",
+      "expected": [
+        "security-secrets"
+      ],
+      "injected": [
+        "security-secrets",
+        "api-rest"
+      ],
+      "tokens": 196,
+      "ms": 2
+    },
+    {
+      "id": "q-throttle",
+      "expected": [
+        "rate-limit"
+      ],
+      "injected": [
+        "rate-limit"
+      ],
+      "tokens": 155,
+      "ms": 1.9
+    },
+    {
+      "id": "q-pnpm",
+      "expected": [
+        "monorepo-pnpm"
+      ],
+      "injected": [
+        "monorepo-pnpm"
+      ],
+      "tokens": 148,
+      "ms": 1.7
+    },
+    {
+      "id": "q-multi",
+      "expected": [
+        "auth-jwt",
+        "db-postgres",
+        "api-rest"
+      ],
+      "injected": [
+        "auth-jwt",
+        "db-postgres",
+        "api-rest",
+        "migrations"
+      ],
+      "tokens": 260,
+      "ms": 2.1
+    },
+    {
+      "id": "q-none-1",
+      "expected": [],
+      "injected": [],
+      "tokens": 99,
+      "ms": 1.8
+    },
+    {
+      "id": "q-none-2",
+      "expected": [],
+      "injected": [
+        "test-vitest",
+        "cache-redis"
+      ],
+      "tokens": 170,
+      "ms": 1.9
+    },
+    {
+      "id": "q-none-3",
+      "expected": [],
+      "injected": [],
+      "tokens": 104,
+      "ms": 1.7
+    }
+  ]
+}

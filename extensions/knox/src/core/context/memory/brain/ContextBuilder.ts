@@ -10,6 +10,7 @@ import {
   getContextMaxTokens,
   getGoalBudgetTokens,
   getMemoryConfig,
+  getMemoryInjectHardCap,
   getModeSettings,
   type ModeSettings,
 } from "./memoryConfigAccess.js";
@@ -113,7 +114,10 @@ export class ContextBuilder {
     const assemblyLimits = getContextAssemblyLimits();
     const memoryMode: MemoryMode = input.memory_mode ?? config.memory_mode;
     const mode = getModeSettings(memoryMode);
-    const maxTokens = getContextMaxTokens(input.max_tokens);
+    const maxTokens = Math.min(
+      getContextMaxTokens(input.max_tokens),
+      getMemoryInjectHardCap(),
+    );
     const goalBudget = getGoalBudgetTokens(maxTokens);
     const contentBudget = maxTokens - goalBudget;
     const sections: ContextSection[] = [];

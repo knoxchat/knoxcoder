@@ -115,6 +115,20 @@ export function getMemoryConfig(): MemoryConfig {
   return BrainStore.getConfig();
 }
 
+/**
+ * K-035: hard ceiling on tokens injected into one turn, whatever the stored
+ * `context_max_tokens` says (its default ceiling is 10M, i.e. unlimited).
+ * Override with `KNOX_MEMORY_INJECT_CAP` (minimum 500).
+ */
+export const MEMORY_INJECT_HARD_CAP_TOKENS = 8_000;
+
+export function getMemoryInjectHardCap(): number {
+  const raw = Number(process.env.KNOX_MEMORY_INJECT_CAP);
+  return Number.isFinite(raw) && raw >= 500
+    ? Math.floor(raw)
+    : MEMORY_INJECT_HARD_CAP_TOKENS;
+}
+
 /** Active context window cap (W_max) — primary knob for injection budget. */
 export function getContextMaxTokens(override?: number): number {
   const cfg = getMemoryConfig();
