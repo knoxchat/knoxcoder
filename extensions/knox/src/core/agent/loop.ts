@@ -154,9 +154,16 @@ export interface AgentLoopOptions {
   holdCompletionWhileOracleRed?: boolean;
 }
 
+/** History compact function used between agent steps. */
+export type AgentLoopCompactor = ((
+  messages: ChatMessage[],
+) => Promise<ChatMessage[]>) & {
+  observeUsage?: (reportedPromptTokens: number, messages: ChatMessage[]) => void;
+};
+
 export function createAgentLoopCompactor(
   llm: Pick<ToolExtras, "llm">["llm"],
-): (messages: ChatMessage[]) => Promise<ChatMessage[]> {
+): AgentLoopCompactor {
   return async (messages) => {
     const record = llm as {
       model?: string;
