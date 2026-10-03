@@ -122,12 +122,22 @@ export const globImpl: ToolImpl = async (args, extras) => {
       );
     }
   } catch (error) {
-    throw new Error(
-      t("failedToResolveFilePath", {
-        filepath: targetDirectory,
-        error: (error as Error).message,
-      }),
-    );
+    if (targetDirectory === ".") {
+      throw new Error(
+        t("failedToResolveFilePath", {
+          filepath: targetDirectory,
+          error: (error as Error).message,
+        }),
+      );
+    }
+    // A missing target directory is a normal probe result, not a tool failure.
+    return [
+      {
+        name: "glob",
+        description: `${pattern} in ${targetDirectory}`,
+        content: `Directory "${targetDirectory}" does not exist in this project; no files matched.`,
+      },
+    ];
   }
 
   const matches: string[] = [];

@@ -138,31 +138,37 @@ export const readFileImpl: ToolImpl = async (args, extras) => {
   }
 
   // Resolve the file URI
+  // A missing file is a normal probe result (e.g. checking for Cargo.toml),
+  // so report it as content rather than throwing a "failed" tool call.
+  const notFoundResult = (detail: string) => [
+    {
+      name: getUriPathBasename(filepath),
+      description: filepath,
+      content: `${detail} The file does not exist in this project; continue without it.`,
+    },
+  ];
+
   let resolvedFileUri: string | undefined;
   try {
     resolvedFileUri = await resolveRelativePathInDir(
       filepath,
       extras.ide,
     );
-    if (!resolvedFileUri) {
-      const dirs = await extras.ide.getWorkspaceDirs().catch(() => [] as string[]);
-      const searched = dirs.length
-        ? ` Searched workspace folders: ${dirs.join(", ")}.`
-        : " No workspace folder is open, so relative paths cannot resolve; open a folder first.";
-      throw new Error(
-        `${t("couldNotFindFile", { filepath })} Use a workspace-relative path (e.g. src/main.rs). A leading workspace folder name is optional.${searched}`,
-      );
-    }
   } catch (error) {
     throw new Error(t("failedToResolveFilePath", { filepath, error: (error as Error).message }));
+  }
+  if (!resolvedFileUri) {
+    const dirs = await extras.ide.getWorkspaceDirs().catch(() => [] as string[]);
+    const searched = dirs.length
+      ? ` Searched workspace folders: ${dirs.join(", ")}.`
+      : " No workspace folder is open, so relative paths cannot resolve; open a folder first.";
+    return notFoundResult(`${t("couldNotFindFile", { filepath })}.${searched}`);
   }
 
   // Check if file exists
   const fileExists = await extras.ide.fileExists(resolvedFileUri);
   if (!fileExists) {
-    throw new Error(
-      t("fileDoesNotExist", { filepath })
-    );
+    return notFoundResult(t("fileDoesNotExist", { filepath }));
   }
 
   // Parse optional parameters

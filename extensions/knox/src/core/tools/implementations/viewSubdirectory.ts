@@ -769,17 +769,37 @@ export const viewSubdirectoryImpl: ToolImpl = async (args: any, extras) => {
   const uri = await resolveRelativePathInDir(directory_path, extras.ide);
 
   if (!uri) {
-    throw new Error(t("directoryPathNotExist", { path: directory_path }));
+    // A missing directory is a normal probe result, not a tool failure.
+    return [
+      {
+        name: directory_path,
+        description: directory_path,
+        content: `${t("directoryPathNotExist", { path: directory_path })} Use a workspace-relative path.`,
+      },
+    ];
   }
 
   // Check if it's actually a directory
   try {
     const entries = await extras.ide.listDir(uri);
     if (!entries) {
-      throw new Error(t("notDirectoryOrCantAccess", { path: directory_path }));
+      return [
+        {
+          name: directory_path,
+          description: directory_path,
+          content: t("notDirectoryOrCantAccess", { path: directory_path }),
+        },
+      ];
     }
   } catch (error) {
-    throw new Error(t("cannotAccessDirectory", { path: directory_path, error: (error as Error).message }));
+    // Unlistable path (missing or not a directory): report, don't fail the call.
+    return [
+      {
+        name: directory_path,
+        description: directory_path,
+        content: t("cannotAccessDirectory", { path: directory_path, error: (error as Error).message }),
+      },
+    ];
   }
 
   let matcher: WalkIgnoreMatcher | undefined;
