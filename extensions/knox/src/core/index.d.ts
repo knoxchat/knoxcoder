@@ -453,6 +453,8 @@ export interface PromptLog {
   completionOptions: CompletionOptions;
   prompt: string;
   completion: string;
+  /** Provider-reported token usage for this request, when available. */
+  usage?: { promptTokens?: number; completionTokens?: number };
   /** Structured Jev harness answers (routing, guardrails, citations). */
   jev?: {
     turn?: {
