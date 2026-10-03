@@ -111,7 +111,8 @@
 }
 
 .knox-gui-tool {
-	margin: 6px 0 0;
+	/* Horizontal inset matches the assistant step card (10px) so tool cards line up with the Thinking block. */
+	margin: 6px 10px 0;
 	padding: 0 0 2px;
 	border: 1px solid color-mix(in srgb, var(--vscode-foreground, #ccc) 12%, transparent);
 	border-radius: 8px;
