@@ -22,6 +22,7 @@ export default defineConfig({
     },
   },
   test: {
+    globalSetup: ["./test/hermeticGlobalSetup.ts"],
     // Only vitest-style suites. Legacy script-style runners
     // (context/memory/brain/test-*.ts) are executed manually with tsx.
     include: [

@@ -6,6 +6,8 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { git, makeTempRepo, cleanupTempRepos } from "../test/tempRepo";
+
 import type { IDE } from "..";
 
 import {
@@ -20,20 +22,7 @@ import {
   wrapIdeForWorktree,
 } from "./worktree";
 
-function git(cwd: string, args: string[]): string {
-  return execFileSync("git", args, { cwd, encoding: "utf-8" });
-}
-
-function makeRepo(): string {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "knox-wt-src-"));
-  git(dir, ["init"]);
-  git(dir, ["config", "user.email", "test@knox.dev"]);
-  git(dir, ["config", "user.name", "Knox Test"]);
-  writeFileSync(path.join(dir, "readme.md"), "hello\n");
-  git(dir, ["add", "-A"]);
-  git(dir, ["commit", "-m", "init"]);
-  return dir;
-}
+const makeRepo = () => makeTempRepo();
 
 function mockIde(repo: string): IDE {
   const uri = pathToFileURL(repo).href;
@@ -88,6 +77,7 @@ function mockIde(repo: string): IDE {
 const cleanup: string[] = [];
 
 afterEach(async () => {
+  cleanupTempRepos();
   for (const dir of cleanup.splice(0)) {
     await rm(dir, { recursive: true, force: true });
   }
