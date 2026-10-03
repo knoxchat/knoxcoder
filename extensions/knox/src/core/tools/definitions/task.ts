@@ -12,21 +12,11 @@ export const taskTool: Tool = {
   readonly: false,
   function: {
     name: BuiltInToolNames.Task,
-    description: `Spawn an isolated child agent and get a summary back (Claude Agent / OpenCode Task).
-
-Use for a bounded unit of work you can describe in one prompt — codebase Q&A, a review, or a parallel slice of implementation. The child starts with a fresh message list (no parent transcript). You receive only the final summary and files touched.
-
-Profiles:
-- explore (default): read-only tools, fast Q&A / search.
-- review: read-only + diff focus.
-- general: full tools except nested task / ask_user.
-- rust-review: read-only adversarial Rust review (unwrap, clones, SAFETY, tests, semver).
-- rust-borrowck: read-only ownership/borrowck specialist (no sprinkle-clone).
-- rust-architect: ADR first (data layout, ownership, error type) — no code until builtin_plan.
-
-Do not use for a single file read — call builtin_read_file / builtin_glob instead.
-
-Fan-out: pass explores=[{prompt, path}, ...] (cap 3, explore profile) to search disjoint trees concurrently (mm/ vs fs/). Jobs panel lists in-flight children.`,
+    description: `Run a bounded unit of work in an isolated child agent (fresh context) and get back its summary and files touched. Not for a single file read (use builtin_read_file / builtin_glob).
+Profiles: explore (default, read-only Q&A/search), review (read-only, diff focus), general (full tools except task/ask_user), rust-review, rust-borrowck (read-only specialists), rust-architect (design first, no code until builtin_plan).
+agent="name" uses a custom type from .knox/agents/<name>.md.
+children=[{prompt, profile?, agent?, path?, isolate?}] (cap 8) runs several in parallel; with more than one child, writers run in isolated git worktrees and their patches are merged back in turn (overlaps show as a merge CONFLICT, patch kept on disk).
+explores=[{prompt, path}] (cap 3) searches disjoint trees concurrently.`,
     parameters: {
       type: "object",
       required: [],
@@ -52,6 +42,33 @@ Fan-out: pass explores=[{prompt, path}, ...] (cap 3, explore profile) to search 
           type: "number",
           description:
             "Max child tool rounds (explore/review default 12, general 20, cap 40; systems: explore 40, general 80, cap 200).",
+        },
+        agent: {
+          type: "string",
+          description: "Name of a user-defined agent in .knox/agents/<name>.md.",
+        },
+        isolate: {
+          type: "boolean",
+          description: "Run in an isolated git worktree and merge the patch back.",
+        },
+        concurrency: {
+          type: "number",
+          description: "Max children in flight (default 3, cap 8).",
+        },
+        children: {
+          type: "array",
+          description:
+            "Parallel children (cap 8). Each: { prompt, profile?, agent?, path?, isolate? }.",
+          items: {
+            type: "object",
+            properties: {
+              prompt: { type: "string" },
+              profile: { type: "string" },
+              agent: { type: "string" },
+              path: { type: "string" },
+              isolate: { type: "boolean" },
+            },
+          },
         },
         explores: {
           type: "array",

@@ -5,7 +5,11 @@ import {
   ToolExtras,
 } from "../..";
 
-import { runAgentLoop, createAgentLoopCompactor } from "../../agent/loop";
+import {
+  runAgentLoop,
+  createAgentLoopCompactor,
+  type AgentLoopStoppedReason,
+} from "../../agent/loop";
 import {
   DEFAULT_DOOM_LOOP_THRESHOLD,
   SYSTEMS_DOOM_LOOP_THRESHOLD,
@@ -40,14 +44,30 @@ export interface SubagentRunInput {
   executeTool: (tool: Tool, args: unknown) => Promise<ContextItem[]>;
   systems?: boolean;
   jobTitle?: string;
+  /** User-defined agent type (`.knox/agents/*.md`). Replaces the profile prompt/tools. */
+  custom?: {
+    name: string;
+    prompt: string;
+    tools?: string[];
+    readonly?: boolean;
+  };
+  /** Called as the child works, for parent-UI progress. */
+  onProgress?: (event: SubagentProgressEvent) => void;
 }
 
+export type SubagentProgressEvent =
+  | { type: "start"; jobId: string }
+  | { type: "tool"; jobId: string; tool: string; step: number }
+  | { type: "end"; jobId: string; stoppedReason: AgentLoopStoppedReason };
+
 export interface SubagentRunResult {
-  profile: SubagentProfile;
+  /** Built-in profile, or the custom agent name. */
+  profile: string;
+  jobId?: string;
   steps: number;
   summary: string;
   filesTouched: string[];
-  stoppedReason: "completed" | "max_steps" | "aborted" | "error" | "doom_loop";
+  stoppedReason: AgentLoopStoppedReason;
 }
 
 /**
@@ -81,7 +101,7 @@ export async function buildSubagentContextBlock(input: {
     if (manager?.isLoaded) {
       const judgment = await evaluateAgentTurn({
         userMessage: input.prompt,
-        skills: manager.all(),
+        skills: manager.visible(),
         hasViewRead: false,
         runtime: getActiveJevRuntime(),
       });
@@ -132,11 +152,20 @@ export function formatSubagentResult(result: SubagentRunResult): string {
 export async function runSubagent(
   input: SubagentRunInput,
 ): Promise<SubagentRunResult> {
-  const profile = resolveSubagentProfile(input.profile);
-  const maxSteps = resolveSubagentMaxSteps(profile, input.maxSteps, {
+  const baseProfile: SubagentProfile = input.custom
+    ? input.custom.readonly
+      ? "explore"
+      : "general"
+    : resolveSubagentProfile(input.profile);
+  const profile: string = input.custom?.name ?? baseProfile;
+  const maxSteps = resolveSubagentMaxSteps(baseProfile, input.maxSteps, {
     systems: input.systems,
   });
-  const tools = toolsForSubagentProfile(profile, input.catalog);
+  let tools = toolsForSubagentProfile(baseProfile, input.catalog);
+  const allow = input.custom?.tools;
+  if (allow) {
+    tools = tools.filter((tool) => allow.includes(tool.function.name));
+  }
   const filesTouched = new Set<string>();
   const prompt = input.prompt.trim();
 
@@ -163,6 +192,8 @@ export async function runSubagent(
     abortSignal: job.abort.signal,
   };
 
+  input.onProgress?.({ type: "start", jobId: job.id });
+  let toolRounds = 0;
   try {
     let memoryBlock = "";
     let sessionId = extras.soul?.sessionId;
@@ -198,7 +229,11 @@ export async function runSubagent(
     const messages: ChatMessage[] = [
       {
         role: "system",
-        content: `${subagentSystemPrompt(profile)}${memoryBlock}${loopState}`,
+        content: `${
+          input.custom
+            ? `You are a child agent (${input.custom.name}). Complete only the assigned task. Return a concise summary. Do not spawn further subagents.\n\n${input.custom.prompt}`
+            : subagentSystemPrompt(baseProfile)
+        }${memoryBlock}${loopState}`,
       },
       { role: "user", content: prompt },
     ];
@@ -217,6 +252,13 @@ export async function runSubagent(
         `Tool "${name}" is not available to this ${profile} subagent.`,
       executeTool: async (tool, args) => {
         collectTouchedPaths(args, filesTouched);
+        toolRounds += 1;
+        input.onProgress?.({
+          type: "tool",
+          jobId: job.id,
+          tool: tool.function.name,
+          step: toolRounds,
+        });
         return input.executeTool(tool, args);
       },
     });
@@ -230,9 +272,11 @@ export async function runSubagent(
       profile,
       steps: loop.steps,
       summary: loop.summary,
+      jobId: job.id,
       filesTouched: [...filesTouched],
       stoppedReason,
     };
+    input.onProgress?.({ type: "end", jobId: job.id, stoppedReason });
     finishSubagentJob(
       job.id,
       stoppedReason === "aborted" ? "killed" : "exited",
@@ -246,8 +290,14 @@ export async function runSubagent(
       job.abort.signal.aborted ? "killed" : "exited",
       summary,
     );
+    input.onProgress?.({
+      type: "end",
+      jobId: job.id,
+      stoppedReason: job.abort.signal.aborted ? "aborted" : "error",
+    });
     return {
       profile,
+      jobId: job.id,
       steps: 0,
       summary,
       filesTouched: [...filesTouched],
