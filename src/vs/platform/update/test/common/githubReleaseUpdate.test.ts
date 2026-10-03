@@ -40,9 +40,13 @@ suite('KnoxCoder GitHub auto-update', () => {
 
 	test('compares KnoxCoder versions from GitHub tags', () => {
 		assert.strictEqual(normalizeReleaseVersion('v1.138.2'), '1.138.2');
+		assert.strictEqual(normalizeReleaseVersion('v2.0.0-beta'), '2.0.0-beta');
 		assert.strictEqual(isCurrentVersionLatest('1.138.1', '1.138.1'), true);
 		assert.strictEqual(isCurrentVersionLatest('1.138.2', '1.138.1'), true);
 		assert.strictEqual(isCurrentVersionLatest('1.138.1', 'v1.138.2'), false);
+		assert.strictEqual(isCurrentVersionLatest('1.138.2', 'v2.0.0-beta'), false);
+		assert.strictEqual(isCurrentVersionLatest('2.0.0-beta', 'v2.0.0-beta'), true);
+		assert.strictEqual(isCurrentVersionLatest('2.0.0-beta', 'v2.0.0'), false);
 	});
 
 	test('picks the installer for the running KnoxCoder package', () => {

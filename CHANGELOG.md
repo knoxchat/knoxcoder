@@ -3,21 +3,170 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [2.0.0-beta] - 2026-10-04
 
+Everything since **1.138.2**. Agent chat, tools, permissions, CLI, and GUI chrome.
+
+### Added
+
+- **Shared agent loop for GUI chat**
+  Agent mode with tools now runs on the same `runAgentLoop` as eval, subagents, and `/autonomous`. Transient stream failures retry with backoff, honor `Retry-After`, switch to `knoxchat.fallbackModel` after repeated failures, and show “Connection problem, retrying (n/4)”. The old GUI tool loop and `knoxchat.sharedLoop` flag are gone; chat-only / no-tools / leftover slash commands still stream without tools.
+
+- **Deferred tools and `builtin_tool_search`**
+  Each turn sends a small core catalog (read/edit/write/patch/shell/search/glob/plan/ask_user/task/skill); the rest load on demand. Memory graph/sessions/manage/learn merge into `builtin_memory`. Tool-search has its own card. `knoxchat.deferTools` defaults **on**.
+
+- **`builtin_fetch_url`**
+  Fetch a URL as Markdown (Readability) with SSRF, redirect, size, and time guards: http(s) only, no credentials, private/localhost/link-local blocked unless `KNOX_FETCH_URL_ALLOW_PRIVATE=1`. Deferred; found via tool search.
+
+- **Lifecycle hooks**
+  `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop`, `SessionStart` from `.knox/hooks.json` and `hooks:` in global/workspace YAML (merged, json last). Exit 2 denies; JSON can rewrite args or inject context; timeouts never block. Audit ring, `/hooks`, `Knox: Show Hooks Log`, and a Hooks panel above the composer.
+
+- **Isolated subagents and custom agents**
+  Writing children run in git worktrees (default 3, cap 8, `KNOX_SUBAGENT_CONCURRENCY`). `.knox/agents/*.md` sets name, description, tool allowlist, readonly, and model. Uncommitted parent files seed the worktree; patches merge under a mutex; conflicts stay on disk, never half-applied. Per-child progress streams; jobs panel can cancel one child.
+
+- **Review before edit**
+  Mode popover “Review edits” holds writes in memory. Panel lists new/edit/delete with +/-; Diff, Open in editor, Apply, Discard, Apply all (checkpoint first). Disable is refused while edits are pending. Shell/tests still see the real disk and get a staged-edits notice.
+
+- **Project instructions polish**
+  `/instructions` lists rules, `AGENTS.md`, and skills in load order with token cost. Skills accept `globs` / `paths` / `applyTo` and hide until a matching file is open. `/init` writes a starter `AGENTS.md` (no overwrite unless `--force`). Files over 2000 tokens, or always-on text over 6000, warn. User skills already live in `~/.knoxcoder/skills`.
+
+- **Headless CLI**
+  From `extensions/knox/src/core`: `npm run knox -- login|whoami|logout` (OAuth to `~/.knoxcoder/auth.json`) and `run "<task>"` (`--dir`, `--permission`, `--max-steps`, `--model`, `--json`, `--stream-json`, `--profile default|systems`). Default permission is Edits (shell denied unless `fullAuto`). Exit codes: 0 completed, 1 error, 2 step/doom-loop, 130 abort, 64 usage. Project rules/AGENTS.md load into the prompt; hooks apply.
+
+- **Background agent runs**
+  `knox bg start|list|show|merge|discard`: detached worktree `~/.knoxcoder/bg/<id>/tree` on `knox/bg-<id>` from HEAD, desktop notification, `git merge` that aborts clean on conflict. Uncommitted main-repo changes are not copied; no GUI yet.
+
+- **Safer permission defaults and shell command guard**
+  New sessions default to **Edits** (reads/edits auto, shell asks). Empty chat shows a first-run banner (Switch to Auto / Keep Edits); saved modes are untouched. Destructive patterns (`git push --force`, `reset --hard`, `clean -fd`, `chmod -R`, raw-device writes, `curl | sh`, `find -delete`, wrappers/`sh -c`/`$()`/xargs) are hard-denied in every mode including Auto unless allowlisted. Writes outside the workspace ask.
+
+- **Secret hygiene**
+  API keys, `.env` values, private keys, and bearer tokens are redacted before transcript, Memory Brain, checkpoints, session logs, and prompt logs. Reading `.env*`, `*.pem`, and `id_*` always asks, including in Auto.
+
+- **Jev latency budget and status**
+  Hard timeouts (800 ms gates / 2 s others), circuit breaker (3 failures → 5 min skip), local activity log, status-bar indicator, and `Knox: Show Jev Log`. File contents are not sent (user message and tool names only).
+
+- **Context budget and composer meter**
+  Compaction uses the real model window (LLM → KnoxChat/OpenRouter catalog → 128k), provider `usage.prompt_tokens` when present, triggers at ~75%, and last-resort prune never drops plan / loop-state / memory messages. A 16px teal donut next to the composer icons shows used/limit (amber 75%, red 90%).
+
+- **Model pricing from data**
+  Prices live in `modelPricing.json` (custom → KnoxChat → OpenRouter → table). Cache read/write tokens count; unknown models report “unknown” instead of a wrong number; `:free` OpenRouter ids cost 0.
+
+- **Prompt cache breakpoints**
+  Stable prefix (system, codebase card, Rust policy) then volatile plan/serial tail. OpenRouter-routed `anthropic/*` and `google/gemini*` get cache markers (first system + last two user messages). Usage includes cache read/write tokens.
+
+- **Post-edit oracle from the project**
+  Auto-detect Cargo, `go vet`, Node typecheck/`tsc`/lint, pytest/ruff/compileall when no verify command and no LSP verifier. Parse those diagnostics; scope to the edited package/file when safe; report `oracle: <command> -> pass|fail (N errors)`.
+
+- **Memory Brain benchmark**
+  Fixture recall@k / precision / false-inject / injected tokens / latency with a checked-in baseline; hard inject cap 8000 tokens (`KNOX_MEMORY_INJECT_CAP`). Manual `test-*.ts` scripts under brain are gone.
+
+- **Live-model evals and Knox CI**
+  Golden tasks run on both `runAgentLoop` and `runChatTurn`. `npm run test:live` (OAuth, `KNOX_LIVE_MODEL`, `KNOX_LIVE_DEFER`, `KNOX_LIVE_RUNS`) writes `eval/results/history.jsonl` and fails on pass-rate/token regressions. Nightly workflow runs scripted evals + memory bench. **Knox CI** runs core/pkg vitest, `tsc`, and inventory-gate and blocks packaging.
+
+- **Team bundles**
+  `knox team export|import` (`knox-team-bundle` v1): `.knoxrules`, `AGENTS.md`, hooks, `.knox/agents/*.md`, `skills/**`. Skips secrets, binaries, files over 256 KB, and path traversal. Import keeps existing files unless `--force`; hooks need `--allow-hooks`; `--dry-run` writes nothing. No GUI or remote registry.
+
+- **Inline completion stats**
+  Requests / shown / accepted / empty / failed / cancelled and latency p50/p95 (`Knox: Show Inline Completion Stats`). `knoxchat.inlineCompletionModel` routes to a small model by title. Still **off** by default; next-edit is not built.
+
+- **User docs**
+  `extensions/knox/docs/README.md`: setup, headless use, permission modes, rules/skills, hooks, subagents, memory, checkpoints, Jev, troubleshooting.
+
+- **Turn summary**
+  After each agent turn: files with +/-, commands, tests, tokens, elapsed time, plus review-all and undo-turn (checkpoint restore). Later restyled as a card with chips and a separate action row.
+
+- **Tool-card controls**
+  Long read/grep results collapse; headers are keyboard operable; running commands have Stop and copy-command.
+
+- **Message queue**
+  Type while the agent runs: a chip (send now / remove) persists across reload and drains when the turn ends by itself — not after Stop, error, or a pending approval.
+
+- **Session pin, search, fork, size cap**
+  Pin (own “Pinned” group), content search across sessions (skips tool output and files over 8 MB), fork from a message (user-message fork restores the composer), rename/export Markdown already existed. Stored sessions cap at 20 MB (shrink oldest big strings; never drop messages).
+
+- **Onboarding, errors, and accessibility**
+  Empty chat with no model shows “Open settings”. Stream errors get a per-kind hint plus Retry, Open settings, and Switch model (hidden on auth errors or a single model). Safer-defaults banner on first run. en/zh GUI string parity test; `prefers-reduced-motion` shortens decorative animation; only real toggles announce pressed; panels region labeled “Agent panels”.
+
+- **Doom-loop extras**
+  Oscillating edits (A,B,A,B), stuck oracle signatures, repeated identical `ask_user`, including `apply_patch`. A Change-strategy banner sends a localized “try a different approach” prompt.
+
+- **Startup budget**
+  `dbinfoz` / jsdom / Readability lazy-load on first use. Activation logs `[startup] activate Nms …`. `npm run measure-startup` and a budget test (no static heavy imports, bundle ≤ 16 MB, load ≤ 500 ms).
+
+- **Hermetic worktree tests**
+  Shared temp-git-repo helper; worktree/subagent tests no longer touch the real checkout.
+
 ### Changed
 
 - Bumped product version to **2.0.0-beta** (`package.json` / related product metadata).
 
+- **System prompt overhaul**
+  Composable sections: identity/tone, core rules, editing, verification/honesty, shell, git, plan/delegation, systems (PTY/QEMU/kconfig/maintainers/debug/bisect). Default profile drops systems detail (~40%+ smaller); sections gate on enabled tools. Headless uses the gated prompt.
+
+- **`edit_file` is atomic multi-edit**
+  `edits: [{old_string,new_string,replace_all?}]` applies in memory; one failure writes nothing. Compact `@@` diff in the result; CRLF and BOM preserved; stale-read (hash from prior read/write/patch) warns without blocking.
+
+- **Shared output truncation**
+  One helper with continuation hints for `read_file` (2000 lines), `exact_search` (60k chars), glob, and `view_subdirectory`.
+
+- **Core type-check is clean**
+  Path aliases for `knoxdev-package/config-yaml`, `win-ca` shim, test casts. Host reuses middleware `isMissingToolArg` instead of a duplicate.
+
+- **Chat chrome**
+  One Dark lifted composer and sent-message surfaces; last scrolled-away prompt stays pinned; transcript resticks when that pin appears or disappears; composer sits flush with the transcript (no duplicate top hairline); tool cards inset with the thinking block; chat scrollbar on by default; `apply_patch` hunks highlight in each file’s language while they stream.
+
+- **Jobs panel** keeps command and last-line output as separate fields so a long line does not swallow the shell command.
+
+- **Tool calling is schema-coerced**: arguments validated against each tool’s JSON Schema; cut-off calls report `InvalidJson`; deterministic input errors are not retried or counted by the circuit breaker; no-op patches are idempotent; host no longer rewrites tool errors as connection failures.
+
 ### Fixed
 
-- **Streaming code blocks report the correct generated line count**
-  The “Generated N lines” label now matches the gutter instead of always showing one fewer line.
+- **Three core tests** that were red: GUI loop-guard path, small-session slimming, ripgrep version (`>= 15.0` with PCRE2).
+
+- **Missing files and directories** from glob/read/list are probe results, not failed tool calls.
+
+- **Cancelling one in-flight tool card** no longer kills other background jobs; Stop still aborts detached shells.
+
+- **Cargo oracle** waits instead of auto-backgrounding (a backgrounded check was reported green while cargo still ran), and skips after HTML/CSS/JS/docs edits that cannot affect a Rust build.
+
+- **Windows packaging** skips File Explorer AppX when `product.json` has no context-menu CLSID (GitHub auto-update `quality=stable` was crashing on undefined `win32ContextMenu[arch]`).
+
+- **Linux RPM/deb packages accept npm prerelease versions**
+  RPM forbids `-` in `Version` (`2.0.0-beta` aborted `rpmbuild`). Packaging maps the npm prerelease to `2.0.0~beta` (sorts before `2.0.0`). Deb uses the same form. Auto-update metadata keeps the full `2.0.0-beta` product version.
+
+- **CI sqlite3** rebuilds from source; git bisect accepts quoted `'bad'`.
+
+- **Streaming code blocks** report the correct generated line count (the label was always one short of the gutter).
+
+- **Memory bench precision gate** allows platform jitter so the quality check does not flake across machines.
+
+### Removed
+
+- Unused tool orchestration (`SmartToolRouter`, pipeline, transaction/rollback) and the unused host test-generation service.
+- Memory Brain manual `test-*.ts` scripts (covered by `memory-*.test.ts`).
+- The duplicate GUI agent-tool path (`tools/call` / doom-loop from the webview) and `knoxchat.sharedLoop` / `knox/sharedLoopEnabled`.
 
 ### Files touched in this release
 
 | Path | Action |
 |------|--------|
-| `src/vs/workbench/contrib/knox/browser/gui/widget/markdown.ts` | Modified (generated line count) |
-| `package.json` / `package-lock.json` | Modified (version 2.0.0-beta) |
+| `extensions/knox/src/core/agent/**` (`chatTurn`, `contextBudget`, `streamRetry`, `permissionGate`, doom-loop) | Added/modified (shared loop, budget, retry) |
+| `extensions/knox/src/core/cli/**` | Added (headless run, login, background agents, team bundle) |
+| `extensions/knox/src/core/hooks/**` | Added (lifecycle hooks, audit log) |
+| `extensions/knox/src/core/tools/**` (`deferred`, `fetchUrl`, `commandGuard`, `stagedEdits`, `truncateOutput`, `schemaArgs`, oracle detect, `editFile`) | Added/modified |
+| `extensions/knox/src/core/llm/**` (`systemPrompt`, `promptCache`, `modelPricing.json`, usage on `PromptLog`) | Added/modified |
+| `extensions/knox/src/core/jev/guard.ts` | Added (budget, breaker, activity log) |
+| `extensions/knox/src/core/util/redactSecrets.ts` / `sessionSearch.ts` / `sessionSizeCap.ts` | Added |
+| `extensions/knox/src/core/config/instructionReport.ts` / `agentsMd.ts` / `teamBundle.ts` / skills scope | Added |
+| `extensions/knox/src/core/context/memory/bench/**` | Added (benchmark + baseline) |
+| `extensions/knox/src/core/eval/**` / `vitest.live.config.ts` | Added/modified (golden parity, live harness, startup budget) |
+| `extensions/knox/src/core/test/tempRepo.ts` | Added (hermetic git) |
+| `extensions/knox/src/host/extension/sharedChatTurn.ts` / `host/lm/inlineCompletionStats.ts` / Jev + hooks status | Added/modified |
+| `src/vs/workbench/contrib/knox/browser/gui/controller/sharedTurn.ts` / `stream.ts` | Added/modified (GUI on shared loop) |
+| GUI chrome, panels, composer, tools, i18n `en`/`zh`, queue/sessions/turn-summary/context-meter helpers | Added/modified |
+| `.github/workflows/knox-ci.yml` / `knox-nightly.yml` / `build-desktop.yml` | Added/modified (Knox tests gate packaging; sqlite3 from source; prerelease version for RPM/deb) |
+| `build/lib/packageVersion.ts` / `build/gulpfile.vscode.linux.ts` / `build/gulpfile.vscode.win32.ts` | Added/modified (npm `2.0.0-beta` → Linux `2.0.0~beta`; Windows RawVersion; skip AppX without CLSID) |
+| `scripts/ci/generate-update-metadata.mjs` | Modified (keep prerelease in update feeds) |
+| `extensions/knox/docs/README.md` / `extensions/knox/README.md` | Added/modified |
+| `package.json` / `package-lock.json` | Modified (version 2.0.0-beta, Knox settings) |
 | `CHANGELOG.md` | Modified |
 
 ## [1.138.2] - 2026-10-02

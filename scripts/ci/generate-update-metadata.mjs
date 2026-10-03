@@ -53,7 +53,9 @@ function classify(fileName) {
 
 function detectVersion(files) {
 	for (const fileName of files) {
-		const match = /KnoxCoder-(\d+\.\d+\.\d+)/i.exec(fileName);
+		// Stop at the platform token so `KnoxCoder-2.0.0-linux-…` stays `2.0.0`
+		// while `KnoxCoder-2.0.0-beta-linux-…` keeps the prerelease.
+		const match = /KnoxCoder-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)-(?:linux|win32|darwin|macos)/i.exec(fileName);
 		if (match) {
 			return match[1];
 		}

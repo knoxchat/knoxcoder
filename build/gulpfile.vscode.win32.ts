@@ -12,6 +12,7 @@ import vfs from 'vinyl-fs';
 import pkg from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
 import { getVersion } from './lib/getVersion.ts';
+import { numericPackageVersion } from './lib/packageVersion.ts';
 import * as task from './lib/gulp/task.ts';
 import * as util from './lib/util.ts';
 
@@ -86,7 +87,7 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			NameShort: product.nameShort,
 			DirName: product.win32DirName,
 			Version: pkg.version,
-			RawVersion: pkg.version.replace(/-\w+$/, ''),
+			RawVersion: numericPackageVersion(pkg.version),
 			Commit: commit,
 			NameVersion: product.win32NameVersion + (target === 'user' ? ' (User)' : ''),
 			ExeBasename: product.nameShort,
