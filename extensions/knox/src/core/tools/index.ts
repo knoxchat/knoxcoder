@@ -13,6 +13,7 @@ import {
   ptySendTool,
   ptyStartTool,
 } from "./definitions/pty";
+import { fetchUrlTool } from "./definitions/fetchUrl";
 import { searchWebTool } from "./definitions/searchWeb";
 import { viewDiffTool } from "./definitions/viewDiff";
 import { viewRepoMapTool } from "./definitions/viewRepoMap";
@@ -103,6 +104,7 @@ export const allTools = [
   viewRepoMapTool,
   exactSearchTool,
   searchWebTool,
+  fetchUrlTool,
   viewDiffTool,
   readCurrentlyOpenFileTool,
   skillTool,
@@ -173,6 +175,7 @@ export {
   viewRepoMapTool,
   exactSearchTool,
   searchWebTool,
+  fetchUrlTool,
   viewDiffTool,
   readCurrentlyOpenFileTool,
   skillTool,

@@ -1170,6 +1170,7 @@
 			{"name":"builtin_view_repo_map","displayName":"View Repo Map","modelDescription":"Show a repository map of important files and symbols."},
 			{"name":"builtin_exact_search","displayName":"Exact Search","modelDescription":"Search the workspace for an exact string."},
 			{"name":"builtin_search_web","displayName":"Search Web","modelDescription":"Search the web."},
+			{"name":"builtin_fetch_url","displayName":"Fetch URL","modelDescription":"Fetch a public web page by URL and return readable Markdown."},
 			{"name":"builtin_view_diff","displayName":"View Diff","modelDescription":"Show git or editor diffs."},
 			{"name":"builtin_read_currently_open_file","displayName":"Read Open File","modelDescription":"Read the currently focused editor file."},
 			{"name":"builtin_skill","displayName":"Skill","modelDescription":"Load and run a SKILL.md skill."},

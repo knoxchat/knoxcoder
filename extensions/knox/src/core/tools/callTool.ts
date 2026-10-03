@@ -23,6 +23,7 @@ import {
   ptySendImpl,
   ptyStartImpl,
 } from "./implementations/pty";
+import { fetchUrlImpl } from "./implementations/fetchUrl";
 import { searchWebImpl } from "./implementations/searchWeb";
 import { viewDiffImpl } from "./implementations/viewDiff";
 import { viewRepoMapImpl } from "./implementations/viewRepoMap";
@@ -175,6 +176,8 @@ function routeBuiltInTool(
       return ptyReadImpl(args, extras);
     case BuiltInToolNames.SearchWeb:
       return searchWebImpl(args, extras);
+    case BuiltInToolNames.FetchUrl:
+      return fetchUrlImpl(args, extras);
     case BuiltInToolNames.ViewDiff:
       return viewDiffImpl(args, extras);
     case BuiltInToolNames.ViewRepoMap:

@@ -376,6 +376,7 @@ const TOOL_REQUIRED_PARAMS: Record<string, string[]> = {
   [BuiltInToolNames.RunTerminalCommand]: ["command"],
   [BuiltInToolNames.ViewSubdirectory]: ["directory_path"],
   [BuiltInToolNames.SearchWeb]: ["query"],
+  [BuiltInToolNames.FetchUrl]: ["url"],
   [BuiltInToolNames.EnhancedSearch]: ["query"],
   [BuiltInToolNames.IntelligentChain]: ["description"],
   [BuiltInToolNames.Skill]: ["name"],
@@ -514,6 +515,7 @@ const TOOL_TIMEOUT_OVERRIDES: Record<string, number> = {
   [BuiltInToolNames.Qemu]: 30_000,
   [BuiltInToolNames.GitBisect]: 600_000,
   [BuiltInToolNames.SearchWeb]: 20_000,
+  [BuiltInToolNames.FetchUrl]: 30_000,
   [BuiltInToolNames.Task]: 600_000, // HL-36: explore fan-out can run minutes
   [BuiltInToolNames.Debug]: 30_000,
 };
@@ -931,6 +933,9 @@ export function normalizeToolArgs(
       break;
     case BuiltInToolNames.SearchWeb:
       copyIfMissing("query", ["q", "search", "prompt"]);
+      break;
+    case BuiltInToolNames.FetchUrl:
+      copyIfMissing("url", ["uri", "link", "href", "address"]);
       break;
     case BuiltInToolNames.Lsp:
       copyIfMissing("filePath", ["filepath", "file_path", "path", "file"]);
