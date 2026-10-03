@@ -39,5 +39,5 @@ export const knoxGuiStringsEnSettings: Record<string, unknown> = {
 	"discardChanges": "Discard Changes",
 	"noChangesToReview": "No changes to review",
 	"jevEnabled": "Jev harness judgments",
-	"jevEnabledHint": "System One judgments for Chat vs Agent routing, skill hints, context/tool gates, and citation checks. Uses your Knox Chat API key. Fail-open to current heuristics. When off, Agent mode is always used."
+	"jevEnabledHint": "System One judgments for Chat vs Agent routing, skill hints, context/tool gates, and citation checks. Uses your signed-in Knox Chat account. Fail-open to current heuristics. When off, Agent mode is always used."
 };

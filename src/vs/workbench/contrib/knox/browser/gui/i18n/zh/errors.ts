@@ -24,5 +24,10 @@ export const knoxGuiStringsZhErrors: Record<string, unknown> = {
 	"refreshAssistantSecrets": "刷新助手密钥",
 	"invalidApiKey": "您的 API 密钥可能无效。",
 	"serverOverloaded": "最有可能的情况是，提供商的服务器过载，流式传输被中断。请稍后重试",
-	"provider": "提供商"
+	"provider": "提供商",
+	"errorRetry": "重试",
+	"errorSwitchModel": "切换模型",
+	"firstRunNoModel": "尚未配置模型。请登录提供商以添加模型，然后选择模型。",
+	"errorOpenSettings": "打开设置",
+	"errorRateLimitHint": "提供商正在限制请求频率。请稍等片刻后重试，或在设置中切换到其他模型。"
 };

@@ -39,5 +39,5 @@ export const knoxGuiStringsZhSettings: Record<string, unknown> = {
 	"discardChanges": "放弃更改",
 	"noChangesToReview": "没有需要审查的更改",
 	"jevEnabled": "Jev 判断层",
-	"jevEnabledHint": "用 System One 做对话/助理路由、技能提示、上下文/工具闸门和引用检查。复用 Knox Chat 的 API 密钥。失败时回退到现有启发式。关闭后始终使用助理模式。"
+	"jevEnabledHint": "用 System One 做对话/助理路由、技能提示、上下文/工具闸门和引用检查。使用已登录的 Knox Chat 账号。失败时回退到现有启发式。关闭后始终使用助理模式。"
 };

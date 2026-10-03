@@ -75,6 +75,11 @@
 					"default": false,
 					"markdownDescription": "Use the configured Knox model for ghost-text inline completions (separate from chat). Off by default."
 				},
+				"knoxchat.inlineCompletionModel": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Model title to use for inline completions, e.g. a small fast model. Empty = the edit model, then the chat model."
+				},
 				"knoxchat.disableQuickFix": {
 					"type": "boolean",
 					"default": false,
@@ -110,6 +115,16 @@
 					"type": "boolean",
 					"default": true,
 					"markdownDescription": "Show a status bar indicator whenever Jev (System One) calls are made, with a log of every call. Jev sends only the user message, short recent-turn summaries, tool names/argument previews and truncated assistant text for judgments; never file contents. Each call has a hard latency budget (gates 800 ms, others 2 s) and a circuit breaker (3 consecutive failures skip Jev for 5 minutes). Click the indicator to open the Jev log."
+				},
+				"knoxchat.fallbackModel": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Optional model title to switch to when the main model keeps failing with transient errors (429, 5xx, network) during a native chat turn. Empty = never switch."
+				},
+				"knoxchat.deferTools": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Send only the core tools each turn and let the agent load the rest (memory, git, systems, and so on) through `builtin_tool_search`. Cuts tool-schema tokens by more than half (live eval: 51k vs 122k prompt tokens per task, same pass rate)."
 				},
 				"knoxchat.verifyCommand": {
 					"type": "string",
@@ -527,6 +542,16 @@
 				"command": "knoxchat.showJevLog",
 				"category": "Knox",
 				"title": "Show Jev Log"
+			},
+			{
+				"command": "knoxchat.showInlineCompletionStats",
+				"category": "Knox",
+				"title": "Show Inline Completion Stats"
+			},
+			{
+				"command": "knoxchat.showHooksLog",
+				"category": "Knox",
+				"title": "Show Hooks Log"
 			},
 			{
 				"command": "knoxchat.viewLogs",

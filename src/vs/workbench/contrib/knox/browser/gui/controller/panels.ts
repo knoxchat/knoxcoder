@@ -241,6 +241,12 @@ export function startGitPoll(controller: KnoxGuiController): void {
 			if (controller.store.state.worktree.enabled) {
 				void controller.runWorktree('status');
 			}
+			if (controller.store.state.review.enabled) {
+				void controller.runReview('status');
+			}
+			if (controller.store.state.hooks.open || controller.store.state.hooks.events.length) {
+				void controller.refreshHooks();
+			}
 		} else {
 			const minGap = controller.store.state.isStreaming ? 5000 : 15000;
 			if (Date.now() - controller.lastGitFetch >= minGap) {
@@ -289,6 +295,70 @@ export async function runWorktree(controller: KnoxGuiController, action: 'enter'
 		});
 	} catch (error) {
 		controller.store.patch({ worktree: { ...controller.store.state.worktree, busy: false, error: error instanceof Error ? error.message : String(error) } });
+	}
+}
+
+/** K-026: talk to the host's staged review. Updates `state.review` from the reply. */
+export async function runReview(controller: KnoxGuiController, action: 'enable' | 'disable' | 'status' | 'diff' | 'apply' | 'discard', fileUris?: string[]): Promise<void> {
+	const before = controller.store.state.review;
+	controller.store.patch({ review: { ...before, busy: true } });
+	try {
+		const result = await controller.messenger.request<Record<string, unknown>>('agent/review', { action, sessionId: controller.store.state.sessionId, fileUris });
+		const rec = asRecord(result);
+		const files = asArray(rec?.files).map(item => {
+			const file = asRecord(item) ?? {};
+			const kind = file.kind === 'create' || file.kind === 'delete' ? file.kind : 'modify';
+			return { fileUri: String(file.fileUri ?? ''), kind, added: Number(file.added ?? 0), removed: Number(file.removed ?? 0) } as const;
+		}).filter(file => file.fileUri);
+		const open = action === 'diff' && typeof rec?.diff === 'string' ? { openFileUri: fileUris?.[0], openDiff: rec.diff } : { openFileUri: undefined, openDiff: undefined };
+		const keepOpen = action === 'status' && before.openFileUri && files.some(file => file.fileUri === before.openFileUri);
+		controller.store.patch({
+			review: {
+				enabled: rec?.enabled === true,
+				busy: false,
+				files: files.map(file => ({ ...file })),
+				...(keepOpen ? { openFileUri: before.openFileUri, openDiff: before.openDiff } : open),
+				error: rec?.ok === false && rec.error ? String(rec.error) : undefined,
+			},
+		});
+	} catch (error) {
+		controller.store.patch({ review: { ...before, busy: false, error: error instanceof Error ? error.message : String(error) } });
+	}
+}
+
+/** K-023: refresh the hooks panel (configured events + recent audit log). */
+export async function refreshHooks(controller: KnoxGuiController, action: 'status' | 'clear' = 'status'): Promise<void> {
+	try {
+		const rec = asRecord(await controller.messenger.request<Record<string, unknown>>('agent/hooks', { action, limit: 50 }));
+		const entries = asArray(rec?.entries).map(item => {
+			const e = asRecord(item) ?? {};
+			return {
+				at: Number(e.at ?? 0),
+				event: String(e.event ?? ''),
+				toolName: e.toolName ? String(e.toolName) : undefined,
+				command: String(e.command ?? ''),
+				outcome: String(e.outcome ?? ''),
+				durationMs: Number(e.durationMs ?? 0),
+				detail: e.detail ? String(e.detail) : undefined,
+			};
+		});
+		controller.store.patch({ hooks: { ...controller.store.state.hooks, events: asArray(rec?.events).map(String), entries } });
+	} catch {
+		// hooks are optional
+	}
+}
+
+/** K-026: open a staged file's before/after as a real VS Code diff editor. */
+export async function openReviewInEditor(controller: KnoxGuiController, fileUri: string): Promise<void> {
+	try {
+		const result = asRecord(await controller.messenger.request<Record<string, unknown>>('agent/review', { action: 'diff', sessionId: controller.store.state.sessionId, fileUris: [fileUri] }));
+		if (result?.ok === false) {
+			return;
+		}
+		const text = (value: unknown): string | null => typeof value === 'string' ? value : null;
+		controller.messenger.post('showStagedDiff', { fileUri, before: text(result?.before), after: text(result?.after) });
+	} catch {
+		// the inline diff remains available
 	}
 }
 

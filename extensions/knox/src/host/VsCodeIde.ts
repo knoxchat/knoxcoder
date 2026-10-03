@@ -754,6 +754,14 @@ class VsCodeIde implements IDE {
     await this.ideUtils.openFile(vscode.Uri.parse(fileUri));
   }
 
+  async showStagedDiff(
+    fileUri: string,
+    before: string | null,
+    after: string | null,
+  ): Promise<void> {
+    await this.ideUtils.showStagedDiff(fileUri, before, after);
+  }
+
   async openGitChange(uri: string): Promise<void> {
     await this.ideUtils.openGitChange(uri);
   }

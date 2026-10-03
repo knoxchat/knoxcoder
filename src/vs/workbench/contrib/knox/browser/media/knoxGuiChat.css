@@ -111,16 +111,45 @@
 }
 
 .knox-gui-tool {
-	margin-top: 6px;
-	padding: 16px 16px 0;
+	margin: 6px 0 0;
+	padding: 0 0 2px;
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground, #ccc) 12%, transparent);
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--vscode-foreground, #ccc) 3%, transparent);
+	overflow: hidden;
+	transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.knox-gui-tool:hover {
+	border-color: color-mix(in srgb, var(--vscode-foreground, #ccc) 20%, transparent);
+}
+
+.knox-gui-tool[data-tool-status="errored"] {
+	border-color: color-mix(in srgb, var(--vscode-errorForeground, #f14c4c) 45%, transparent);
+}
+
+.knox-gui-tool[data-tool-status="generated"] {
+	border-color: color-mix(in srgb, var(--knox-primary, #159994) 50%, transparent);
 }
 
 .knox-gui-tool-head {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 12px;
-	margin-bottom: 16px;
+	gap: 10px;
+	min-height: 32px;
+	padding: 6px 8px 6px 10px;
+	box-sizing: border-box;
+	border-radius: 7px;
+	outline-offset: -1px;
+}
+
+.knox-gui-tool-head.is-toggleable {
+	cursor: pointer;
+}
+
+.knox-gui-tool-head.is-toggleable:hover {
+	background: color-mix(in srgb, var(--vscode-foreground, #ccc) 6%, transparent);
 }
 
 .knox-gui-tool-head-left {
@@ -131,6 +160,14 @@
 	flex: 1;
 }
 
+.knox-gui-tool-head-right {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 0;
+	min-width: 0;
+}
+
 .knox-gui-tool-status {
 	width: 16px;
 	height: 16px;
@@ -138,7 +175,6 @@
 	align-items: center;
 	justify-content: center;
 	flex-shrink: 0;
-	font-weight: bolder;
 }
 
 .knox-gui-tool-status-live {
@@ -146,7 +182,26 @@
 }
 
 .knox-gui-tool-status-glyph {
-	color: inherit;
+	color: #159994;
+}
+
+.knox-gui-tool[data-tool-status="errored"] .knox-gui-tool-status-glyph,
+.knox-gui-tool[data-tool-status="canceled"] .knox-gui-tool-status-glyph {
+	color: var(--vscode-errorForeground, #f14c4c);
+}
+
+.knox-gui-tool[data-tool-status="canceled"] .knox-gui-tool-status-glyph {
+	color: var(--vscode-descriptionForeground, #9da5b4);
+}
+
+.knox-gui-tool-head .knox-gui-collapse-chevron {
+	width: 22px;
+	height: 22px;
+	color: var(--vscode-descriptionForeground, #9da5b4);
+}
+
+.knox-gui-tool-head .knox-gui-collapse-chevron:hover:not(.disabled) {
+	color: var(--knox-primary, #159994);
 }
 
 .knox-gui-collapse-chevron {
@@ -216,18 +271,24 @@
 
 .knox-gui-tool-args-toggle {
 	padding: 0 !important;
-	width: 24px;
-	height: 24px;
+	width: 22px;
+	height: 22px;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	color: var(--knox-primary, #159994) !important;
+	color: var(--vscode-descriptionForeground, #9da5b4) !important;
 	cursor: pointer;
 	flex-shrink: 0;
-	border-radius: 6px;
-	border: 1px solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-widget-border, rgba(255, 255, 255, 0.16)));
-	background: var(--vscode-editor-background, transparent);
+	border-radius: 5px;
+	border: none;
+	background: transparent;
 	box-sizing: border-box;
+	opacity: 0.7;
+}
+
+.knox-gui-tool-args-toggle[aria-expanded="true"] {
+	opacity: 1;
+	color: var(--knox-primary, #159994) !important;
 }
 
 .knox-gui-tool-args-toggle .knox-gui-svg {
@@ -236,15 +297,8 @@
 
 .knox-gui-tool-args-toggle:hover {
 	opacity: 1;
-	border-color: var(--knox-primary, #159994);
-	background: color-mix(in srgb, var(--knox-primary, #159994) 12%, transparent);
-}
-
-.vscode-light .knox-gui .knox-gui-tool-args-toggle,
-.vscode-high-contrast-light .knox-gui .knox-gui-tool-args-toggle {
-	color: #159994 !important;
-	border-color: var(--vscode-widget-border, rgba(0, 0, 0, 0.16));
-	background: var(--vscode-editor-background, #ffffff);
+	color: var(--knox-primary, #159994) !important;
+	background: color-mix(in srgb, var(--knox-primary, #159994) 14%, transparent);
 }
 
 .knox-gui-tool-loading {
@@ -268,23 +322,44 @@
 .knox-gui-tool-status-text {
 	min-width: 0;
 	flex: 1;
-	overflow-x: auto;
+	overflow: hidden;
 	white-space: nowrap;
-	scrollbar-width: thin;
-	scrollbar-color: #4b5563 transparent;
+	text-overflow: ellipsis;
+	font-size: 12.5px;
+	line-height: 1.4;
+}
+
+.knox-gui-tool-status-copy {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .knox-gui-tool-name {
 	font-size: 0.95em;
+	padding: 1px 5px;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--vscode-foreground, #ccc) 10%, transparent);
 }
 
 .knox-gui-tool-summary {
-	margin-left: 8px;
-	opacity: 0.7;
+	max-width: 160px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	padding: 1px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground, #9da5b4);
+	background: color-mix(in srgb, var(--vscode-foreground, #ccc) 8%, transparent);
 }
 
 .knox-gui-tool-args {
-	margin: 4px 0 0 28px;
+	margin: 0 10px 8px 34px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--vscode-foreground, #ccc) 5%, transparent);
+	font-size: 11.5px;
 }
 
 .knox-gui-tool-arg {
@@ -301,7 +376,8 @@
 }
 
 .knox-gui-tool-body {
-	margin-top: 4px;
+	margin: 0;
+	padding: 0 8px 8px;
 }
 
 .knox-gui-tool-thinking,
@@ -1188,6 +1264,55 @@
 
 .knox-gui-subagent-meta {
 	padding: 0 4px 0;
+}
+
+.knox-gui-tool-search {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 0 12px 8px;
+	font-size: 12px;
+}
+
+.knox-gui-tool-search-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+
+.knox-gui-tool-search-chip {
+	padding: 1px 8px;
+	border-radius: 10px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-family: var(--vscode-editor-font-family);
+	font-size: 11px;
+}
+
+.knox-gui-subagent-merges {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 0 4px;
+}
+
+.knox-gui-subagent-merge {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.knox-gui-subagent-merge-conflict,
+.knox-gui-subagent-merge-error {
+	color: var(--vscode-errorForeground);
+}
+
+.knox-gui-subagent-merge-applied {
+	color: var(--vscode-testing-iconPassed, #388a34);
+}
+
+.knox-gui-subagent-merge button {
+	margin-left: 8px;
 }
 
 .knox-gui-subagent-output {

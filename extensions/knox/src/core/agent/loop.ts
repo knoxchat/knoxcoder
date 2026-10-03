@@ -19,6 +19,7 @@ import type {
   ToolExtras,
 } from "..";
 import { compactMessagesAsync } from "../compaction/index";
+import { totalMessageTokens } from "../compaction/tokenBudget";
 import { DEFAULT_DOOM_LOOP_THRESHOLD } from "../config/agentProfile";
 import { detectDoomLoopWithJev } from "../jev/doomSemantic";
 import { hydrateAssistantTextToolCalls } from "../llm/parseTextToolCalls";
@@ -44,7 +45,19 @@ import {
   type DoomLoopCall,
   type DoomLoopHit,
 } from "./doomLoop";
+import {
+  COMPACT_TRIGGER_RATIO,
+  calibrationRatio,
+  resolveContextWindow,
+} from "./contextBudget";
 import type { PermissionMode } from "./permissions";
+import {
+  computeRetryDelayMs,
+  isTransientStreamError,
+  resolveStreamRetry,
+  type StreamRetryEvent,
+  type StreamRetryOptions,
+} from "./streamRetry";
 import { canRunToolInParallel } from "./toolBatch";
 
 export type AgentLoopStoppedReason =
@@ -105,9 +118,7 @@ export interface AgentLoopOptions {
    * Compact history after each tool step (HL-16). Default on (heuristic).
    * Pass `false` to disable (tiny unit tests).
    */
-  compact?:
-    | false
-    | ((messages: ChatMessage[]) => Promise<ChatMessage[]> | ChatMessage[]);
+  compact?: false | AgentLoopCompactor;
   /**
    * Identical-tool / fail-streak cap (HL-11). Default 3.
    * `null` / `0` disables. Rebuild tools fingerprint gcc/oops signatures.
@@ -152,35 +163,48 @@ export interface AgentLoopOptions {
    * assistant message is not `completed` (RL-20). Honor max-steps / abort.
    */
   holdCompletionWhileOracleRed?: boolean;
+  /** Retry transient stream failures with backoff (K-011). `false` disables. */
+  retry?: StreamRetryOptions | false;
+  /** Optional fallback model used after `retry.fallbackAfter` failed attempts. */
+  fallbackLlm?: Pick<ToolExtras, "llm">["llm"];
+  /** "retrying (2/4)" state for the UI. Discard partial output of the failed attempt. */
+  onRetry?: (event: StreamRetryEvent) => void | Promise<void>;
 }
 
 /** History compact function used between agent steps. */
-export type AgentLoopCompactor = ((
-  messages: ChatMessage[],
-) => Promise<ChatMessage[]>) & {
-  observeUsage?: (reportedPromptTokens: number, messages: ChatMessage[]) => void;
-};
+export interface AgentLoopCompactor {
+  (messages: ChatMessage[]): Promise<ChatMessage[]> | ChatMessage[];
+  /** Feed provider-reported prompt tokens so the next compact uses a calibrated window. */
+  observeUsage(reportedPromptTokens: number, messages: ChatMessage[]): void;
+}
 
 export function createAgentLoopCompactor(
   llm: Pick<ToolExtras, "llm">["llm"],
 ): AgentLoopCompactor {
-  return async (messages) => {
-    const record = llm as {
-      model?: string;
-      contextLength?: number;
-      completionOptions?: { maxTokens?: number };
-    };
-    const model = typeof record.model === "string" ? record.model : "gpt-4o";
-    const contextLength = Number(record.contextLength) || 32_000;
-    const maxTokens = Number(record.completionOptions?.maxTokens) || 2048;
+  let ratio = 1;
+  async function compact(messages: ChatMessage[]): Promise<ChatMessage[]> {
+    const window = resolveContextWindow(llm);
+    // A ratio > 1 means the provider counts more tokens than we do: shrink the window.
+    const effective = Math.floor(window.contextLength / ratio);
     const result = await compactMessagesAsync(
       messages,
-      model,
-      contextLength,
-      maxTokens,
+      window.model,
+      effective,
+      Math.min(window.maxTokens, Math.floor(effective / 4)),
+      0,
+      350,
+      { maxHistoryRatio: COMPACT_TRIGGER_RATIO },
     );
     return result.messages;
-  };
+  }
+  function observeUsage(reported: number, messages: ChatMessage[]): void {
+    const window = resolveContextWindow(llm);
+    ratio = calibrationRatio(
+      reported,
+      totalMessageTokens(messages, window.model),
+    );
+  }
+  return Object.assign(compact, { observeUsage });
 }
 
 function lastUserMessageText(messages: ChatMessage[]): string {
@@ -427,42 +451,84 @@ export function isCancelledToolError(error: unknown): boolean {
   );
 }
 
+export interface CollectTurnHooks {
+  onChunk?: (chunk: ChatMessage) => void | Promise<void>;
+  onPromptLog?: (log: PromptLog) => void | Promise<void>;
+  /** Transient-failure retry (K-011). `false` disables. Default on. */
+  retry?: StreamRetryOptions | false;
+  /** Model used once `retry.fallbackAfter` attempts failed on the primary. */
+  fallbackLlm?: Pick<ToolExtras, "llm">["llm"];
+  /**
+   * Fired before waiting to retry. Anything streamed by the failed attempt
+   * must be discarded by the UI; the round restarts from scratch.
+   */
+  onRetry?: (event: StreamRetryEvent) => void | Promise<void>;
+}
+
 export async function collectAssistantTurn(
   extras: Pick<ToolExtras, "llm" | "abortSignal">,
   messages: ChatMessage[],
   tools: Tool[] | undefined,
-  hooks?: {
-    onChunk?: (chunk: ChatMessage) => void | Promise<void>;
-    onPromptLog?: (log: PromptLog) => void | Promise<void>;
-  },
+  hooks?: CollectTurnHooks,
 ): Promise<AssistantChatMessage> {
   const signal = extras.abortSignal ?? new AbortController().signal;
+  const retry = resolveStreamRetry(hooks?.retry);
+  const maxAttempts = retry?.maxAttempts ?? 1;
   let content = "";
   let toolCalls: ToolCallDelta[] = [];
 
-  if (!signal.aborted) {
-    const gen = extras.llm.streamChat(messages, signal, {
-      tools,
-    });
-    let next = await gen.next();
-    while (!next.done) {
-      if (signal.aborted) {
-        break;
-      }
-      const chunk = next.value;
-      await hooks?.onChunk?.(chunk);
-      if (chunk.role === "assistant") {
-        if (typeof chunk.content === "string") {
-          content += chunk.content;
+  for (let attempt = 1; !signal.aborted; attempt++) {
+    // Each attempt starts clean so a dropped stream never leaks a partial call.
+    content = "";
+    toolCalls = [];
+    let streamedAnything = false;
+    const useFallback =
+      !!retry && !!hooks?.fallbackLlm && attempt > retry.fallbackAfter;
+    const llm = useFallback ? hooks!.fallbackLlm! : extras.llm;
+    try {
+      const gen = llm.streamChat(messages, signal, { tools });
+      let next = await gen.next();
+      while (!next.done) {
+        if (signal.aborted) {
+          break;
         }
-        if (chunk.toolCalls?.length) {
-          toolCalls = mergeToolCallDeltas(toolCalls, chunk.toolCalls);
+        const chunk = next.value;
+        streamedAnything = true;
+        await hooks?.onChunk?.(chunk);
+        if (chunk.role === "assistant") {
+          if (typeof chunk.content === "string") {
+            content += chunk.content;
+          }
+          if (chunk.toolCalls?.length) {
+            toolCalls = mergeToolCallDeltas(toolCalls, chunk.toolCalls);
+          }
         }
+        next = await gen.next();
       }
-      next = await gen.next();
-    }
-    if (next.done && next.value) {
-      await hooks?.onPromptLog?.(next.value);
+      if (next.done && next.value) {
+        await hooks?.onPromptLog?.(next.value);
+      }
+      break;
+    } catch (error) {
+      if (
+        !retry ||
+        signal.aborted ||
+        attempt >= maxAttempts ||
+        !isTransientStreamError(error)
+      ) {
+        throw error;
+      }
+      const delayMs = computeRetryDelayMs(attempt, error, retry);
+      await hooks?.onRetry?.({
+        attempt: attempt + 1,
+        maxAttempts,
+        delayMs,
+        error: formatError(error).slice(0, 300),
+        usingFallback:
+          !!hooks?.fallbackLlm && attempt + 1 > retry.fallbackAfter,
+        discardedPartial: streamedAnything,
+      });
+      await retry.sleep(delayMs, signal);
     }
   }
 
@@ -529,9 +595,18 @@ export async function runAgentLoop(
   const doomCalls: DoomLoopCall[] = [...(options.initialDoomCalls ?? [])];
   let lastText = "";
   let steps = 0;
-  const streamHooks = {
+  const streamHooks: CollectTurnHooks = {
     onChunk: options.onChunk,
-    onPromptLog: options.onPromptLog,
+    retry: options.retry,
+    fallbackLlm: options.fallbackLlm,
+    onRetry: options.onRetry,
+    onPromptLog: async (log: PromptLog) => {
+      const usage = (log as { usage?: { promptTokens?: number } }).usage;
+      if (usage?.promptTokens && compactFn) {
+        compactFn.observeUsage(usage.promptTokens, messages);
+      }
+      await options.onPromptLog?.(log);
+    },
   };
 
   const finish = (
@@ -589,7 +664,7 @@ export async function runAgentLoop(
       }
 
       const atCap = maxSteps !== null && steps >= maxSteps;
-      if (atCap && maxSteps !== null) {
+      if (atCap) {
         injectSystemInstruction(
           messages,
           [

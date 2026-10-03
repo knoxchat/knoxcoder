@@ -19,6 +19,8 @@ export interface NativeAgentRequestInput {
   excludedGroups?: string[];
   /** Native web search is on, or no realTimeSearch model: drop builtin_search_web. */
   dropSearchWeb?: boolean;
+  /** K-021: send a core tool set plus `builtin_tool_search` instead of every tool. */
+  deferTools?: boolean;
   /** Completed tool→continue rounds this turn. */
   toolLoopSteps?: number;
   /** Settled calls after the latest user message. */
@@ -28,6 +30,8 @@ export interface NativeAgentRequestInput {
 export interface NativeAgentRequestOutput {
   messages: ChatMessage[];
   tools: Tool[];
+  /** K-021: tools reachable through `builtin_tool_search` (not in `tools`). */
+  deferredTools?: Tool[];
   maxSteps: number | null;
   /** Tools were withheld because the max-steps budget is spent. */
   atMaxSteps: boolean;
@@ -98,4 +102,37 @@ export interface NativeFinishTurnInput {
   userMessage: string;
   assistantMessage: string;
   turnTools: NativeTurnTool[];
+}
+
+/** `knox/runChatTurn` payload: what the GUI used to spread over several round trips. */
+export interface SharedChatTurnInput
+  extends Pick<
+    NativeAgentRequestInput,
+    | "history"
+    | "sessionId"
+    | "injectedContext"
+    | "includeTools"
+    | "toolSettings"
+    | "excludedGroups"
+    | "dropSearchWeb"
+  > {
+  modelTitle: string;
+  viewReadModelTitle?: string | null;
+  realTimeSearchModelTitle?: string | null;
+  permissionMode?: string;
+  sessionAllowlist?: string[];
+  /** Per-request model options the GUI sets (`llm/streamChat` completionOptions). */
+  completionOptions?: { reasoningEffort?: string; webSearch?: boolean };
+  /** Id of the user message that started the turn (checkpoint / soul grouping). */
+  turnId?: string;
+  /** Settled calls already made this turn: seeds doom-loop detection on resume. */
+  turnToolCalls?: NativeDoomLoopCall[];
+  /** Rounds already used this turn (before an ask_user answer); counts against `maxSteps`. */
+  priorSteps?: number;
+}
+
+export interface SharedChatTurnOutput {
+  stoppedReason: string;
+  steps: number;
+  summary: string;
 }

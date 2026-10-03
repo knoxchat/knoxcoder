@@ -437,7 +437,7 @@ export const knoxGuiStringsZhCommon: Record<string, unknown> = {
 	"apiKeyLabel": "API 密钥",
 	"fileExtensionsPlaceholder": "js, ts, py, java 等",
 	"accessModelsDescription": "通过 KnoxStudio 单一 API 访问 300 多个顶级 AI 模型",
-	"knoxchatLongDescription": "KnoxStudio 提供统一访问 50 多个顶级 AI 模型。使用单一 API 密钥访问所有模型，透明定价，无供应商锁定。访问 [KnoxStudio](https://knoxstudio.ai/keys) 获取 API 密钥。",
+	"knoxchatLongDescription": "KnoxStudio 提供统一访问 50 多个顶级 AI 模型。通过 OAuth 一次登录即可访问所有模型，透明定价，无供应商锁定。",
 	"openrouterDescription": "用一把密钥接入 OpenAI、Anthropic、Google 等 300 多个模型",
 	"openrouterLongDescription": "OpenRouter 通过单一 API 接入数百个模型。可使用 OpenRouter 登录，或粘贴 `sk-or-…` 密钥。访问 [OpenRouter](https://openrouter.ai/keys) 管理密钥。",
 	"openaiDescription": "GPT-4o、GPT-4 Turbo、GPT-3.5 和 AUTODETECT",

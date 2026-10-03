@@ -190,9 +190,10 @@ export function chromeButton(widget: KnoxGuiWidget, parent: HTMLElement, options
 	}
 	if (options.selected) {
 		button.classList.add('selected');
-		button.setAttribute('aria-pressed', 'true');
-	} else {
-		button.setAttribute('aria-pressed', 'false');
+	}
+	// K-045: only real toggles (selected given) announce a pressed state; plain action buttons must not.
+	if (options.selected !== undefined) {
+		button.setAttribute('aria-pressed', options.selected ? 'true' : 'false');
 	}
 	if (options.disabled) {
 		button.classList.add('disabled');

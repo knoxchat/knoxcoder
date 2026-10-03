@@ -49,6 +49,44 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 			onClick: () => widget.controller.store.patch({ historyHydrateNotice: null }),
 		});
 	}
+	if (!state.permissionNoticeDismissed && state.permissionMode !== 'fullAuto' && state.history.length === 0) {
+		const banner = DOM.append(body, DOM.$('.knox-gui-large-banner'));
+		banner.setAttribute('role', 'status');
+		banner.setAttribute('data-testid', 'permission-notice');
+		DOM.append(banner, DOM.$('span', undefined, t(state, 'permissionNoticeTitle')));
+		widget.chromeButton(banner, {
+			label: t(state, 'permissionNoticeAuto'),
+			testId: 'permission-notice-auto',
+			onClick: () => {
+				widget.controller.setPermissionMode('fullAuto');
+				widget.controller.store.patch({ permissionNoticeDismissed: true });
+			},
+		});
+		widget.chromeButton(banner, {
+			label: t(state, 'permissionNoticeKeep'),
+			testId: 'permission-notice-keep',
+			onClick: () => widget.controller.store.patch({ permissionNoticeDismissed: true }),
+		});
+	}
+	if (state.history.length === 0 && state.models.length === 0 && !state.isStreaming) {
+		const banner = DOM.append(body, DOM.$('.knox-gui-large-banner'));
+		banner.setAttribute('role', 'status');
+		banner.setAttribute('data-testid', 'first-run-no-model');
+		DOM.append(banner, DOM.$('span', undefined, t(state, 'firstRunNoModel')));
+		widget.chromeButton(banner, {
+			label: t(state, 'addModel'),
+			testId: 'first-run-open-settings',
+			onClick: () => widget.controller.openAddModel('chat', { bulk: true }),
+		});
+	}
+	if (state.streamRetry && state.isStreaming) {
+		const retry = state.streamRetry;
+		const banner = DOM.append(body, DOM.$('.knox-gui-large-banner'));
+		banner.setAttribute('role', 'status');
+		banner.setAttribute('data-testid', 'stream-retry-banner');
+		const fallback = retry.usingFallback ? `, ${t(state, 'retryingStreamFallback')}` : '';
+		DOM.append(banner, DOM.$('span', undefined, `${t(state, 'retryingStream')} (${retry.attempt}/${retry.maxAttempts})${fallback}`));
+	}
 	DOM.append(body, DOM.$('.knox-gui-body-spacer'));
 	if (!state.history.length) {
 		widget.displayStart = 0;

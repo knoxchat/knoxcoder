@@ -220,11 +220,12 @@ suite('Knox native GUI controller (GP-084)', () => {
 		const editor = widget.root.querySelector('[data-testid="knox-gui-input"]') as HTMLElement | null;
 		assert.ok(editor);
 		editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
+		// The default is acceptEdits (K-005), so Shift+Tab moves on to fullAuto, then wraps to default.
+		assert.strictEqual(store.state.permissionMode, 'fullAuto');
+		store.cyclePermissionMode();
 		assert.strictEqual(store.state.permissionMode, 'default');
 		store.cyclePermissionMode();
 		assert.strictEqual(store.state.permissionMode, 'acceptEdits');
-		store.cyclePermissionMode();
-		assert.strictEqual(store.state.permissionMode, 'fullAuto');
 	});
 
 	test('openAddModel remembers the last provider tab and preloads both catalogs', async () => {
@@ -1074,6 +1075,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		const { controller, store, posted } = createHarness();
 		await timeout(0);
 		store.patch({
+			toolsSupported: false, // the continuation is a plain stream here; shared-turn denial is covered below
 			history: [
 				{ id: 'u', role: 'user', content: 'go' },
 				{
@@ -1093,41 +1095,6 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(stream, 'denial continues with another model round');
 		const messages = (stream.data as { messages: Array<{ role: string; toolCallId?: string; content: unknown }> }).messages;
 		assert.ok(messages.some(message => message.role === 'tool' && message.toolCallId === 'w-1'));
-	});
-
-	test('A-10 a retryable tool error is retried with role models before succeeding', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		let calls = 0;
-		const { controller, store, posted } = createHarness({
-			respond: message => {
-				if (message.messageType !== 'tools/call') {
-					return undefined;
-				}
-				calls += 1;
-				return calls === 1 ? { error: 'Request timeout' } : { content: { contextItems: [{ name: 'a.ts', description: 'file', content: 'body' }] } };
-			},
-		});
-		await timeout(0);
-		const pending = { id: 'r-1', name: 'builtin_read_file', arguments: '{"filepath":"a.ts"}', status: 'generated' as const };
-		store.patch({ selectedModelByRole: { ...store.state.selectedModelByRole, viewRead: 'Reader' }, history: [{ id: 'u', role: 'user', content: 'go' }, { id: 'a', role: 'assistant', content: '', toolCalls: [pending] }] });
-		await controller.approveTool('r-1');
-		assert.strictEqual(calls, 2);
-		assert.strictEqual(controller.findTool('r-1')?.status, 'done');
-		assert.strictEqual(controller.findTool('r-1')?.output?.includes('body'), true);
-		const request = posted.find(message => message.messageType === 'tools/call')?.data as { viewReadModelTitle: string; preferredModel: string; turnId: string };
-		assert.deepStrictEqual([request.viewReadModelTitle, request.preferredModel, request.turnId], ['Reader', 'viewRead', 'u']);
-	}));
-
-	test('A-10 a non-retryable tool error fails once with the reference failure output', async () => {
-		let calls = 0;
-		const { controller, store } = createHarness({ respond: message => message.messageType === 'tools/call' ? (calls++, { error: 'File not found' }) : undefined });
-		await timeout(0);
-		const pending = { id: 'r-1', name: 'builtin_read_file', arguments: '{}', status: 'generated' as const };
-		store.patch({ history: [{ id: 'u', role: 'user', content: 'go' }, { id: 'a', role: 'assistant', content: '', toolCalls: [pending] }] });
-		await controller.approveTool('r-1');
-		assert.strictEqual(calls, 1);
-		const call = controller.findTool('r-1');
-		assert.strictEqual(call?.status, 'errored');
-		assert.ok(call?.output?.startsWith('Tool call "builtin_read_file" failed:'));
 	});
 
 	test('A-09 a hard policy deny writes the denied output without running the tool', async () => {
@@ -1312,112 +1279,167 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.deepStrictEqual(second.controller.loadInputHistory('edit').entries, []);
 	});
 
-	test('A-20 text tool calls in the reply are hydrated by the host after the stream', async () => {
-		const { controller, store, posted } = createHarness({
-			replies: {
-				'knox/buildAgentRequest': { messages: [{ role: 'user', content: 'hi' }], tools: [{ type: 'function', function: { name: 'builtin_read_file' } }] },
-				'knox/hydrateAssistant': { content: 'Reading.', toolCalls: [{ id: 'h-1', type: 'function', function: { name: 'builtin_read_file', arguments: '{"filepath":"a.ts"}' } }] },
-			},
-			respond: message => message.messageType === 'llm/streamChat'
-				? { chunks: [{ role: 'assistant', content: 'Reading. <tool_call>{}</tool_call>' }], content: { prompt: 'p', completion: 'c', modelTitle: 'm' } }
-				: undefined,
-		});
-		await timeout(0);
-		store.patch({ mode: 'agent', toolsSupported: true, permissionMode: 'default' });
-		store.setInput('hi');
-		await controller.submit();
-		await timeout(0);
-		const hydrate = posted.find(message => message.messageType === 'knox/hydrateAssistant');
-		assert.ok(hydrate, 'reply text with markup is sent for hydration');
-		const last = store.state.history[store.state.history.length - 1];
-		assert.strictEqual(last.content, 'Reading.');
-		assert.deepStrictEqual(last.toolCalls?.map(call => call.id), ['h-1']);
-	});
-
-	test('streamed tool-call deltas merge by index and keep the first name', async () => {
-		const { controller, store } = createHarness({
-			replies: {
-				'knox/buildAgentRequest': { messages: [{ role: 'user', content: 'hi' }], tools: [{ type: 'function', function: { name: 'builtin_view_subdirectory' } }] },
-			},
-			respond: message => message.messageType === 'llm/streamChat'
-				? {
-					chunks: [
-						{ role: 'assistant', tool_calls: [{ index: 0, function: { name: 'view_subdirectory', arguments: '' } }] },
-						{ role: 'assistant', tool_calls: [{ index: 0, function: { name: '', arguments: '{"directory_path":' } }] },
-						{ role: 'assistant', tool_calls: [{ index: 0, function: { arguments: ' "."}' } }] },
-					],
-					content: { prompt: 'p', completion: 'c', modelTitle: 'm' },
+	function sharedLoopHarness(events: (sessionId: string) => unknown[], replies?: Record<string, unknown>, result: unknown = { stoppedReason: 'completed', steps: 1, summary: 'done' }) {
+		let ctl: KnoxGuiController | undefined;
+		const harness = createHarness({
+			replies: { ...replies },
+			respond: message => {
+				if (message.messageType !== 'knox/runChatTurn') {
+					return undefined;
 				}
-				: undefined,
-		});
-		await timeout(0);
-		store.patch({
-			mode: 'agent',
-			toolsSupported: true,
-			permissionMode: 'default',
-			toolSettings: { builtin_view_subdirectory: 'allowedWithPermission' },
-			tools: [{ name: 'builtin_view_subdirectory', group: 'Built-In' }],
-		});
-		store.setInput('hi');
-		await controller.submit();
-		await timeout(0);
-		const last = store.state.history[store.state.history.length - 1];
-		assert.strictEqual(last.toolCalls?.length, 1);
-		assert.strictEqual(last.toolCalls?.[0].name, 'builtin_view_subdirectory');
-		assert.strictEqual(last.toolCalls?.[0].arguments, '{"directory_path": "."}');
-		assert.deepStrictEqual(last.toolCalls?.[0].parsedArgs, { directory_path: '.' });
-	});
-
-	test('hydrate replaces empty-name streamed stubs with recovered calls', async () => {
-		const { controller, store } = createHarness({
-			replies: {
-				'knox/buildAgentRequest': { messages: [{ role: 'user', content: 'hi' }], tools: [{ type: 'function', function: { name: 'builtin_read_file' } }] },
-				'knox/hydrateAssistant': { content: 'Reading.', toolCalls: [{ id: 'h-2', type: 'function', function: { name: 'builtin_read_file', arguments: '{"filepath":"a.ts"}' } }] },
-			},
-			respond: message => message.messageType === 'llm/streamChat'
-				? {
-					// The empty-name stub arrives first; text after it is not split into its own reply.
-					chunks: [
-						{ role: 'assistant', content: '', tool_calls: [{ index: 0, function: { name: '', arguments: '{' } }] },
-						{ role: 'assistant', content: 'Reading. <tool_call>{}</tool_call>' },
-					],
-					content: { prompt: 'p', completion: 'c', modelTitle: 'm' },
+				const sessionId = (message.data as { sessionId: string }).sessionId;
+				for (const event of events(sessionId)) {
+					ctl!.enqueueChatTurnEvent({ sessionId, event });
 				}
-				: undefined,
-		});
-		await timeout(0);
-		store.patch({
-			mode: 'agent',
-			toolsSupported: true,
-			permissionMode: 'default',
-			toolSettings: { builtin_read_file: 'allowedWithPermission' },
-		});
-		store.setInput('hi');
-		await controller.submit();
-		await timeout(0);
-		const last = store.state.history[store.state.history.length - 1];
-		assert.strictEqual(last.content, 'Reading.');
-		assert.deepStrictEqual(last.toolCalls?.map(call => ({ id: call.id, name: call.name })), [{ id: 'h-2', name: 'builtin_read_file' }]);
-	});
-
-	test('agent rounds ask the host for messages and tools', async () => {
-		const { controller, store, posted } = createHarness({
-			replies: {
-				'knox/buildAgentRequest': { messages: [{ role: 'system', content: 'sys' }, { role: 'user', content: 'hi' }], tools: [{ type: 'function', function: { name: 'builtin_read_file' } }] },
+				return { content: result };
 			},
 		});
+		ctl = harness.controller;
+		return harness;
+	}
+
+	test('K-010 shared loop: events render streaming, tool cards and the next round; no llm/streamChat or tools/call', async () => {
+		const call = { id: 'c1', name: 'builtin_read_file', args: { filepath: 'a.ts' }, rawArguments: '{"filepath":"a.ts"}' };
+		const out = [{ name: 'f', description: 'ok', content: 'file body' }];
+		const { controller, store, posted } = sharedLoopHarness(() => [
+			{ type: 'chunk', chunk: { role: 'assistant', content: 'Reading a.ts', toolCalls: [{ index: 0, id: 'c1', type: 'function', function: { name: 'builtin_read_file', arguments: '{"filepath":"a.ts"}' } }] } },
+			{ type: 'assistant', assistant: { role: 'assistant', content: 'Reading a.ts' }, toolCalls: [call] },
+			{ type: 'tool_start', callId: 'c1', name: 'builtin_read_file', args: call.args },
+			{ type: 'tool_end', callId: 'c1', name: 'builtin_read_file', ok: true, output: out },
+			{ type: 'step', step: { toolCalls: [call], results: [{ ok: true, output: out }] } },
+			{ type: 'chunk', chunk: { role: 'assistant', content: 'It has a body.' } },
+			{ type: 'assistant', assistant: { role: 'assistant', content: 'It has a body.' }, toolCalls: [] },
+			{ type: 'done', stoppedReason: 'completed', steps: 1, summary: 'It has a body.' },
+		]);
+		await timeout(0);
+		store.patch({ mode: 'agent', toolsSupported: true });
+		store.setInput('read a.ts');
+		await controller.submit();
+		await timeout(0);
+
+		const run = posted.find(message => message.messageType === 'knox/runChatTurn');
+		assert.ok(run, 'the whole turn is one host request');
+		assert.ok(!posted.some(message => message.messageType === 'llm/streamChat' || message.messageType === 'tools/call'));
+		const tool = controller.findTool('c1');
+		assert.strictEqual(tool?.status, 'done');
+		assert.strictEqual(tool?.output, 'file body');
+		const last = store.state.history[store.state.history.length - 1];
+		assert.strictEqual(last.role, 'assistant');
+		assert.strictEqual(last.content, 'It has a body.');
+		assert.strictEqual(posted.filter(message => message.messageType === 'knox/finishTurn').length, 1);
+		assert.strictEqual(store.state.isStreaming, false);
+		assert.strictEqual(controller.sharedTurn, undefined);
+		assert.strictEqual(store.state.toolLoopSteps, 1);
+	});
+
+	test('K-010 shared loop: a retry discards the failed attempt, a denied call settles from the step result', async () => {
+		const call = { id: 'c2', name: 'builtin_run_terminal_command', args: { command: 'rm -rf x' }, rawArguments: '{"command":"rm -rf x"}' };
+		const denied = [{ name: 'Agent', description: 'permission-denied', content: 'Blocked: this tool was not approved.' }];
+		const { controller, store } = sharedLoopHarness(() => [
+			{ type: 'chunk', chunk: { role: 'assistant', content: 'partial that will be dropped' } },
+			{ type: 'retry', retry: { attempt: 2, maxAttempts: 4, delayMs: 1, error: 'overloaded', usingFallback: false, discardedPartial: true } },
+			{ type: 'chunk', chunk: { role: 'assistant', content: 'Running it.', toolCalls: [{ index: 0, id: 'c2', type: 'function', function: { name: 'builtin_run_terminal_command', arguments: '{"command":"rm -rf x"}' } }] } },
+			{ type: 'assistant', assistant: { role: 'assistant', content: 'Running it.' }, toolCalls: [call] },
+			{ type: 'tool_ask', callId: 'c2', name: 'builtin_run_terminal_command', args: call.args },
+			{ type: 'step', step: { toolCalls: [call], results: [{ ok: false, error: 'permission_denied', output: denied }] } },
+			{ type: 'done', stoppedReason: 'completed', steps: 1, summary: '' },
+		]);
+		await timeout(0);
+		store.patch({ mode: 'agent', toolsSupported: true });
+		store.setInput('clean up');
+		await controller.submit();
+		await timeout(0);
+		const text = store.state.history.filter(item => item.role === 'assistant').map(item => item.content).join('|');
+		assert.ok(!text.includes('partial that will be dropped'));
+		assert.strictEqual(controller.findTool('c2')?.status, 'done');
+		assert.ok(controller.findTool('c2')?.output?.includes('not approved'));
+	});
+
+	test('K-010 shared loop: a stream retry shows "retrying (2/4)" until output resumes or the turn ends', async () => {
+		const { controller, store } = sharedLoopHarness(() => [
+			{ type: 'retry', retry: { attempt: 2, maxAttempts: 4, delayMs: 1, error: 'overloaded', usingFallback: true, discardedPartial: false } },
+			{ type: 'chunk', chunk: { role: 'assistant', content: 'ok' } },
+			{ type: 'assistant', assistant: { role: 'assistant', content: 'ok' }, toolCalls: [] },
+			{ type: 'done', stoppedReason: 'completed', steps: 0, summary: '' },
+		]);
+		const seen: unknown[] = [];
+		const patch = store.patch.bind(store);
+		store.patch = (partial: Parameters<typeof patch>[0]) => {
+			if ('streamRetry' in partial) {
+				seen.push(partial.streamRetry);
+			}
+			return patch(partial);
+		};
 		await timeout(0);
 		store.patch({ mode: 'agent', toolsSupported: true });
 		store.setInput('hi');
 		await controller.submit();
 		await timeout(0);
+		assert.deepStrictEqual(seen[0], { attempt: 2, maxAttempts: 4, usingFallback: true });
+		assert.strictEqual(seen[1], undefined);
+		assert.strictEqual(store.state.streamRetry, undefined);
+	});
+
+	test('K-010 shared loop: approve and deny answer the host wait instead of running the tool', async () => {
+		const { controller, store, posted } = createHarness();
+		await timeout(0);
+		controller.sharedTurn = { sessionId: 's1', acc: { content: '', thinking: '', inThinkTag: false }, toolCalls: [], awaitingUser: false };
+		store.patch({
+			sessionId: 's1',
+			history: [
+				{ id: 'u', role: 'user', content: 'go' },
+				{ id: 'a', role: 'assistant', content: '', toolCalls: [
+					{ id: 'p1', name: 'builtin_run_terminal_command', arguments: '{}', status: 'generated' },
+					{ id: 'p2', name: 'builtin_run_terminal_command', arguments: '{}', status: 'generated' },
+				] },
+			],
+		});
+		await controller.approveTool('p1', true);
+		controller.denyTool('p2');
+		const resolved = posted.filter(message => message.messageType === 'brain/resolveAutonomousTool').map(message => message.data as { callId: string; allow: boolean; always?: boolean });
+		assert.deepStrictEqual(resolved.map(item => [item.callId, item.allow, item.always]), [['p1', true, true], ['p2', false, undefined]]);
+		assert.ok(!posted.some(message => message.messageType === 'tools/call'));
+		assert.strictEqual(controller.findTool('p2')?.status, 'done');
+		controller.cancel();
+		assert.ok(posted.some(message => message.messageType === 'knox/cancelChatTurn'));
+	});
+
+	test('K-010 shared loop: a turn that stops at ask_user stays open for the answer', async () => {
+		const call = { id: 'q1', name: 'builtin_ask_user', args: { questions: [{ id: 'which', prompt: 'Which file?', options: [{ id: 'a', label: 'a.ts' }] }] }, rawArguments: '{"questions":[{"id":"which","prompt":"Which file?","options":[{"id":"a","label":"a.ts"}]}]}' };
+		const { controller, store, posted } = sharedLoopHarness(() => [
+			{ type: 'assistant', assistant: { role: 'assistant', content: '' }, toolCalls: [call] },
+			{ type: 'tool_ask', callId: 'q1', name: 'builtin_ask_user', args: call.args, awaitsUser: true },
+			{ type: 'step', step: { toolCalls: [call], results: [{ ok: false, error: 'cancelled', output: [] }] } },
+			{ type: 'done', stoppedReason: 'aborted', steps: 1, summary: 'Aborted mid-tool.' },
+		], undefined, { stoppedReason: 'aborted', steps: 1, summary: 'Aborted mid-tool.' });
+		await timeout(0);
+		store.patch({ mode: 'agent', toolsSupported: true });
+		store.setInput('do the thing');
+		await controller.submit();
+		await timeout(0);
+		assert.strictEqual(controller.findTool('q1')?.status, 'generated', 'the question card waits for the user');
+		assert.ok(!posted.some(message => message.messageType === 'knox/finishTurn'), 'the turn is not finished yet');
+		assert.strictEqual(store.state.isStreaming, false);
+	});
+
+	test('plain rounds ask the host for messages and send no tools (tools run on the shared loop)', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: {
+				'knox/buildAgentRequest': { messages: [{ role: 'system', content: 'sys' }, { role: 'user', content: 'hi' }], tools: [] },
+			},
+		});
+		await timeout(0);
+		store.patch({ mode: 'chat' });
+		store.setInput('hi');
+		await controller.submit();
+		await timeout(0);
 		const build = posted.find(message => message.messageType === 'knox/buildAgentRequest');
 		assert.ok(build);
-		assert.strictEqual((build.data as { includeTools: boolean }).includeTools, true);
+		assert.strictEqual((build.data as { includeTools: boolean }).includeTools, false);
 		const stream = posted.find(message => message.messageType === 'llm/streamChat');
 		const data = stream?.data as { messages: unknown[]; completionOptions: { tools?: unknown[] } };
 		assert.deepStrictEqual(data.messages, [{ role: 'system', content: 'sys' }, { role: 'user', content: 'hi' }]);
-		assert.strictEqual(data.completionOptions.tools?.length, 1);
+		assert.strictEqual(data.completionOptions.tools, undefined);
 	});
 
 	test('KN-374 loadMentions always includes KN-300 default @ providers', async () => {
@@ -1484,9 +1506,9 @@ suite('Knox native GUI controller (GP-084)', () => {
 		await timeout(0);
 		const users = store.state.history.filter(item => item.role === 'user');
 		assert.strictEqual(users.at(-1)?.content, 'Ship the feature');
-		const promptStream = posted.find(message => message.messageType === 'llm/streamChat');
-		assert.ok(promptStream);
-		assert.strictEqual((promptStream.data as { legacySlashCommandData?: unknown }).legacySlashCommandData, undefined);
+		// A YAML prompt is an ordinary agent turn: it runs on the shared loop, not the legacy slash stream.
+		assert.ok(posted.find(message => message.messageType === 'knox/runChatTurn'));
+		assert.ok(!posted.some(message => message.messageType === 'llm/streamChat'));
 	});
 
 	test('KN-374 applyConfig hydrates KN-300 defaults and dropped files become mention chips', async () => {

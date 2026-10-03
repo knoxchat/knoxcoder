@@ -616,3 +616,125 @@ describe("AgentLoop stream hooks + seeded doom", () => {
     }
   });
 });
+
+describe("stream resilience (K-011)", () => {
+  const noSleep = { sleep: async () => {}, baseDelayMs: 0 };
+  const toolCallChunk = (args: string): ChatMessage => ({
+    role: "assistant",
+    content: "",
+    toolCalls: [
+      { index: 0, id: "c1", type: "function", function: { name: BuiltInToolNames.ReadFile, arguments: args } },
+    ],
+  });
+
+  function flaky(plan: Array<Error | ChatMessage[] | { drop: ChatMessage[]; error: Error }>) {
+    let i = 0;
+    const calls = { n: 0 };
+    return {
+      calls,
+      extras: {
+        llm: {
+          streamChat: async function* () {
+            const step = plan[Math.min(i, plan.length - 1)];
+            i += 1;
+            calls.n += 1;
+            if (step instanceof Error) {
+              throw step;
+            }
+            if (Array.isArray(step)) {
+              yield* step;
+              return;
+            }
+            yield* step.drop;
+            throw step.error;
+          },
+        } as unknown as ToolExtras["llm"],
+      },
+    };
+  }
+
+  it("retries a 429 then succeeds, reporting the retry state", async () => {
+    const f = flaky([
+      new Error("HTTP 429 Too Many Requests from x\n\nslow down"),
+      [{ role: "assistant", content: "ok" }],
+    ]);
+    const events: number[] = [];
+    const a = await collectAssistantTurn(f.extras, [], undefined, {
+      retry: noSleep,
+      onRetry: (e) => void events.push(e.attempt),
+    });
+    expect(a.content).toBe("ok");
+    expect(f.calls.n).toBe(2);
+    expect(events).toEqual([2]);
+  });
+
+  it("drops a mid-stream partial tool call and retries the round", async () => {
+    const f = flaky([
+      { drop: [toolCallChunk('{"filepath":"a.')], error: new Error("socket hang up") },
+      [toolCallChunk('{"filepath":"a.ts"}')],
+    ]);
+    const a = await collectAssistantTurn(f.extras, [], undefined, {
+      retry: noSleep,
+    });
+    expect(a.toolCalls).toHaveLength(1);
+    expect(a.toolCalls?.[0].function?.arguments).toBe('{"filepath":"a.ts"}');
+  });
+
+  it("does not retry permanent errors", async () => {
+    const f = flaky([new Error("HTTP 401 Unauthorized from x")]);
+    await expect(
+      collectAssistantTurn(f.extras, [], undefined, { retry: noSleep }),
+    ).rejects.toThrow(/401/);
+    expect(f.calls.n).toBe(1);
+  });
+
+  it("gives up after maxAttempts", async () => {
+    const f = flaky([new Error("HTTP 503 Service Unavailable")]);
+    await expect(
+      collectAssistantTurn(f.extras, [], undefined, {
+        retry: { ...noSleep, maxAttempts: 3 },
+      }),
+    ).rejects.toThrow(/503/);
+    expect(f.calls.n).toBe(3);
+  });
+
+  it("honors Retry-After", async () => {
+    const waits: number[] = [];
+    const err = Object.assign(new Error("HTTP 429"), {
+      response: { status: 429, headers: new Headers({ "retry-after": "7" }) },
+    });
+    const f = flaky([err, [{ role: "assistant", content: "ok" }]]);
+    await collectAssistantTurn(f.extras, [], undefined, {
+      retry: { sleep: async (ms) => void waits.push(ms), baseDelayMs: 100 },
+    });
+    expect(waits).toEqual([7000]);
+  });
+
+  it("switches to the fallback model after N failures", async () => {
+    const primary = flaky([new Error("HTTP 529 overloaded")]);
+    const fallback = flaky([[{ role: "assistant", content: "from fallback" }]]);
+    const a = await collectAssistantTurn(primary.extras, [], undefined, {
+      retry: { ...noSleep, fallbackAfter: 2 },
+      fallbackLlm: fallback.extras.llm,
+    });
+    expect(a.content).toBe("from fallback");
+    expect(primary.calls.n).toBe(2);
+  });
+
+  it("runAgentLoop survives a flaky stream", async () => {
+    const f = flaky([
+      { drop: [{ role: "assistant", content: "par" }], error: new Error("ECONNRESET") },
+      [{ role: "assistant", content: "done" }],
+    ]);
+    const result = await runAgentLoop({
+      extras: f.extras,
+      messages: [{ role: "user", content: "hi" }],
+      tools: [],
+      compact: false,
+      retry: noSleep,
+      executeTool: vi.fn(),
+    });
+    expect(result.stoppedReason).toBe("completed");
+    expect(result.summary).toBe("done");
+  });
+});

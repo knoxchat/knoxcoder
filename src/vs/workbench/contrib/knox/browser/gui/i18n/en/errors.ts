@@ -24,5 +24,10 @@ export const knoxGuiStringsEnErrors: Record<string, unknown> = {
 	"refreshAssistantSecrets": "Refresh assistant secrets",
 	"invalidApiKey": "It's possible that your API key is invalid.",
 	"serverOverloaded": "Most likely, the provider's server(s) are overloaded and streaming was interrupted. Try again later",
-	"provider": "Provider"
+	"provider": "Provider",
+	"errorRetry": "Retry",
+	"errorSwitchModel": "Switch model",
+	"firstRunNoModel": "No model is configured yet. Sign in with a provider to add a model, then pick it.",
+	"errorOpenSettings": "Open settings",
+	"errorRateLimitHint": "The provider is rate limiting requests. Wait a moment and retry, or switch to another model in settings."
 };

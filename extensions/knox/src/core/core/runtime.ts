@@ -2,6 +2,7 @@ import type { ConfigHandler } from "../config/ConfigHandler";
 import type { IDE } from "..";
 import type { FromCoreProtocol, ToCoreProtocol } from "../protocol";
 import type { IMessenger } from "../protocol/messenger";
+import type { StagedEdits } from "../tools/stagedEdits";
 import type { AgentWorktreeState } from "../tools/worktree";
 import type { GlobalContext } from "../util/GlobalContext";
 
@@ -19,6 +20,7 @@ export interface CoreRuntime {
   readonly abortedMessageIds: Set<string>;
   readonly activeToolAborts: Map<string, AbortController>;
   agentWorktree: AgentWorktreeState | null;
+  readonly stagedReview: Map<string, StagedEdits>;
   abortActiveTools(messageId?: string): void;
   send<T extends keyof FromCoreProtocol>(
     messageType: T,

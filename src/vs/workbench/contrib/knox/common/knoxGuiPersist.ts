@@ -12,6 +12,8 @@ export interface IKnoxGuiPersistedUi {
 	toolGroupExcluded: string[];
 	webSearchEnabled: boolean;
 	permissionMode: KnoxPermissionMode;
+	/** K-005 first-run notice dismissed. */
+	permissionNoticeDismissed: boolean;
 	/** `session.mode`, including `edit`: redux-persist keeps it "in case the window closes mid-edit". */
 	mode: KnoxChatMode;
 	/** `session.codeToEdit` (persisted together with the mode). */
@@ -83,6 +85,7 @@ export function knoxGuiSerializePersistedUi(state: IKnoxGuiState): string {
 		toolGroupExcluded: state.toolGroupExcluded,
 		webSearchEnabled: state.webSearchEnabled,
 		permissionMode: state.permissionMode,
+		permissionNoticeDismissed: state.permissionNoticeDismissed,
 		mode: state.mode,
 		codeToEdit: state.codeToEdit,
 		overlay: state.overlay,
@@ -116,6 +119,9 @@ export function knoxGuiParsePersistedUi(raw: string | undefined): Partial<IKnoxG
 	}
 	if (typeof rec.permissionMode === 'string' && PERMISSION_MODES.has(rec.permissionMode)) {
 		out.permissionMode = rec.permissionMode as KnoxPermissionMode;
+	}
+	if (typeof rec.permissionNoticeDismissed === 'boolean') {
+		out.permissionNoticeDismissed = rec.permissionNoticeDismissed;
 	}
 	if (typeof rec.mode === 'string' && PERSISTED_MODES.has(rec.mode)) {
 		out.mode = rec.mode as KnoxChatMode;

@@ -107,7 +107,9 @@ export const WEBVIEW_TO_CORE_PASS_THROUGH: (keyof ToCoreFromWebviewProtocol)[] =
     "tools/cancel",
     "jev/gateTool",
     "agent/worktree",
+    "agent/review",
     "agent/jobs",
+    "agent/hooks",
   ];
 
 export const CORE_TO_WEBVIEW_PASS_THROUGH: (keyof ToWebviewFromCoreProtocol)[] =

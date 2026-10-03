@@ -59,6 +59,10 @@ export type ToIdeFromWebviewOrCoreProtocol = {
   showVirtualFile: [{ name: string; content: string }, void];
   openFile: [{ path: string }, void];
   openGitChange: [{ uri: string }, void];
+  showStagedDiff: [
+    { fileUri: string; before: string | null; after: string | null },
+    void,
+  ];
   openUrl: [string, void];
   runCommand: [{ command: string; options?: TerminalOptions }, void];
   getSearchResults: [{ query: string; options?: SearchOptions }, string];

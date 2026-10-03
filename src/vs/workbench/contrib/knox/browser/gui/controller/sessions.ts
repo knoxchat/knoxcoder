@@ -210,6 +210,10 @@ export async function loadLastSession(controller: KnoxGuiController): Promise<vo
 
 export function syncActiveSession(controller: KnoxGuiController): void {
 	controller.messenger.post('setActiveChatSession', { sessionId: controller.store.state.sessionId || null });
+	// K-026: review state is per session; drop the previous session's panel, then ask the host.
+	controller.store.patch({ review: { enabled: false, busy: false, files: [] } });
+	void controller.runReview('status');
+	void controller.refreshHooks();
 }
 
 export function sessionTitleFallback(controller: KnoxGuiController): string {

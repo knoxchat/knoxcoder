@@ -16,6 +16,7 @@ import {
 	countFailedJobs,
 	countRunningJobs,
 	gitDiffTotals,
+	gitFileType,
 	gitFileTypeColor,
 	gitFileTypeIsConfig,
 	isCompactionBannerVisible,
@@ -318,9 +319,13 @@ export function clearMeterClock(widget: KnoxGuiWidget): void {
 export function renderPanels(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
 	const wrap = DOM.append(parent, DOM.$('.knox-gui-attached-panels'));
 	wrap.setAttribute('data-composer-slot', 'panels');
+	wrap.setAttribute('role', 'region');
+	wrap.setAttribute('aria-label', t(state, 'attachedPanelsLabel'));
 	widget.renderGitDiffPanel(wrap, state);
 	widget.renderCompactionPanel(wrap, state);
 	widget.renderWorktreePanel(wrap, state);
+	widget.renderReviewPanel(wrap, state);
+	widget.renderHooksPanel(wrap, state);
 	widget.renderTaskPlanPanel(wrap, state);
 	widget.renderInjectedMemoriesPanel(wrap, state);
 	widget.renderBackgroundJobsPanel(wrap, state);
@@ -515,6 +520,165 @@ export function renderWorktreePanel(widget: KnoxGuiWidget, parent: HTMLElement, 
 	} else if (state.worktree.path) {
 		const path = DOM.append(panel, DOM.$('code.knox-gui-worktree-path', undefined, state.worktree.path));
 		widget.hover(path, state.worktree.path);
+	}
+}
+
+/** K-026: files the agent edited but that are still held back; apply or discard them, or open a diff. */
+/** Workspace-relative path for a staged file (falls back to the absolute path outside the workspace). */
+function reviewDisplayPath(path: string, workspaceDirectory: string): string {
+	let clean = path;
+	try {
+		clean = decodeURIComponent(path);
+	} catch {
+		// keep the raw path
+	}
+	const root = workspaceDirectory.replace(/^file:\/\//, '').replace(/\/+$/, '');
+	return root && clean.startsWith(`${root}/`) ? clean.slice(root.length + 1) : clean;
+}
+
+export function renderReviewPanel(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
+	const review = state.review;
+	if (state.mode !== 'agent' || (!review.enabled && !review.error)) {
+		return;
+	}
+	const panel = widget.attachedPanel(parent, 'agent-review-panel');
+	panel.classList.add('knox-gui-review');
+	const count = review.files.length;
+	const toggle = widget.attachedToggle(panel, state, {
+		expanded: widget.reviewOpen,
+		testId: 'review-toggle',
+		onToggle: () => {
+			widget.reviewOpen = !widget.reviewOpen;
+			widget.render();
+		},
+	});
+	DOM.append(toggle, DOM.$('span.knox-gui-attached-title', undefined, t(state, count === 1 ? 'reviewPending' : 'reviewPending_plural', { count })));
+	const actions = DOM.append(toggle, DOM.$('span.knox-gui-attached-stats'));
+	const inlineAction = (label: string, title: string, testId: string, disabled: boolean, onClick: () => void) => {
+		const btn = DOM.append(actions, DOM.$('span.knox-gui-text-action', undefined, label));
+		btn.setAttribute('role', 'button');
+		btn.setAttribute('title', title);
+		btn.setAttribute('data-testid', testId);
+		btn.tabIndex = disabled ? -1 : 0;
+		if (disabled) {
+			btn.setAttribute('aria-disabled', 'true');
+			btn.style.opacity = '0.5';
+			btn.style.pointerEvents = 'none';
+		}
+		const run = (e: Event) => {
+			e.stopPropagation();
+			if (!disabled) {
+				onClick();
+			}
+		};
+		widget.renderStore.add(DOM.addDisposableListener(btn, 'click', run));
+		widget.renderStore.add(DOM.addDisposableListener(btn, 'keydown', (e: KeyboardEvent) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				run(e);
+			}
+		}));
+	};
+	const lockAll = review.busy || count === 0 || state.isStreaming;
+	inlineAction(t(state, 'reviewApplyAll'), t(state, 'reviewApplyHint'), 'review-apply-all', lockAll, () => void widget.controller.runReview('apply'));
+	inlineAction(t(state, 'reviewDiscardAll'), t(state, 'reviewDiscardHint'), 'review-discard-all', lockAll, () => void widget.controller.runReview('discard'));
+	const bodyEl = widget.attachedBody(panel, widget.reviewOpen);
+	if (review.error) {
+		DOM.append(bodyEl, DOM.$('span.knox-gui-worktree-error', undefined, review.error));
+	}
+	for (const file of review.files) {
+		const item = DOM.append(bodyEl, DOM.$('.knox-gui-worktree-row.knox-gui-review-file'));
+		item.setAttribute('data-testid', 'review-file');
+		const name = file.fileUri.replace(/^file:\/\//, '');
+		DOM.append(item, DOM.$('span.knox-gui-review-kind', undefined, t(state, `reviewKind_${file.kind}`)));
+		// Same presentation as the "files changed" list: type badge + workspace-relative path.
+		const fileType = gitFileType(name);
+		if (gitFileTypeIsConfig(fileType)) {
+			const icon = DOM.append(item, DOM.$('span.codicon.codicon-settings-gear.knox-gui-git-type'));
+			icon.style.color = gitFileTypeColor(fileType);
+		} else {
+			const badge = DOM.append(item, DOM.$('span.knox-gui-git-type', undefined, fileType));
+			badge.style.color = gitFileTypeColor(fileType);
+		}
+		const label = DOM.append(item, DOM.$('button.knox-gui-worktree-path.knox-gui-review-link', undefined, reviewDisplayPath(name, widget.controller.workspaceDirectory))) as HTMLButtonElement;
+		label.type = 'button';
+		label.setAttribute('data-testid', 'review-open-file');
+		label.disabled = review.busy;
+		widget.hover(label, name);
+		widget.renderStore.add(DOM.addDisposableListener(label, 'click', () => void widget.controller.openReviewInEditor(file.fileUri)));
+		const counts = DOM.append(item, DOM.$('span.knox-gui-review-counts'));
+		counts.setAttribute('data-testid', 'review-counts');
+		DOM.append(counts, DOM.$('span.knox-gui-review-add', undefined, `+${file.added}`));
+		DOM.append(counts, DOM.$('span.knox-gui-review-del', undefined, ` -${file.removed}`));
+		const fileActions = DOM.append(item, DOM.$('.knox-gui-worktree-actions'));
+		const opened = review.openFileUri === file.fileUri;
+		widget.chromeButton(fileActions, {
+			label: t(state, opened ? 'reviewHideDiff' : 'reviewShowDiff'),
+			extraClass: 'knox-gui-text-action',
+			onClick: () => {
+				if (opened) {
+					widget.controller.store.patch({ review: { ...review, openFileUri: undefined, openDiff: undefined } });
+				} else {
+					void widget.controller.runReview('diff', [file.fileUri]);
+				}
+			},
+		}).disabled = review.busy;
+		widget.chromeButton(fileActions, {
+			label: t(state, 'reviewApplyOne'),
+			extraClass: 'knox-gui-text-action',
+			onClick: () => void widget.controller.runReview('apply', [file.fileUri]),
+		}).disabled = review.busy || state.isStreaming;
+		widget.chromeButton(fileActions, {
+			label: t(state, 'reviewDiscardOne'),
+			extraClass: 'knox-gui-text-action',
+			onClick: () => void widget.controller.runReview('discard', [file.fileUri]),
+		}).disabled = review.busy || state.isStreaming;
+		if (opened && review.openDiff !== undefined) {
+			const pre = DOM.append(bodyEl, DOM.$('pre.knox-gui-attached-pre'));
+			for (const line of review.openDiff.split('\n')) {
+				DOM.append(pre, DOM.$(line.startsWith('+') ? 'div.knox-gui-review-add' : line.startsWith('-') ? 'div.knox-gui-review-del' : 'div', undefined, line || ' '));
+			}
+		}
+	}
+}
+
+/** K-023: configured hook events and the recent audit log; only shown when hooks exist or have run. */
+export function renderHooksPanel(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
+	const hooks = state.hooks;
+	if (state.mode !== 'agent' || (!hooks.events.length && !hooks.entries.length)) {
+		return;
+	}
+	const panel = widget.attachedPanel(parent, 'agent-hooks-panel');
+	const toggle = widget.attachedToggle(panel, state, {
+		expanded: hooks.open,
+		testId: 'hooks-toggle-log',
+		onToggle: () => {
+			widget.controller.store.patch({ hooks: { ...hooks, open: !hooks.open } });
+			if (!hooks.open) {
+				void widget.controller.refreshHooks();
+			}
+		},
+	});
+	const icon = DOM.append(toggle, DOM.$('span.knox-gui-attached-icon'));
+	appendKnoxGuiSvg(icon, 'list-checks', 12);
+	const label = hooks.events.length ? t(state, 'hooksActive', { events: hooks.events.join(', ') }) : t(state, 'hooksNone');
+	DOM.append(toggle, DOM.$('span.knox-gui-attached-title', undefined, label));
+	const meta = DOM.append(toggle, DOM.$('span.knox-gui-attached-stats'));
+	DOM.append(meta, DOM.$('span.knox-gui-muted', undefined, String(hooks.entries.length)));
+	if (hooks.open) {
+		widget.attachedDismiss(toggle, t(state, 'hooksClearLog'), () => void widget.controller.refreshHooks('clear'))
+			.setAttribute('data-testid', 'hooks-clear-log');
+		const body = widget.attachedBody(panel, true);
+		const pre = DOM.append(body, DOM.$('pre.knox-gui-attached-pre'));
+		pre.setAttribute('data-testid', 'hooks-log');
+		if (!hooks.entries.length) {
+			DOM.append(pre, DOM.$('div', undefined, t(state, 'hooksEmptyLog')));
+		}
+		for (const e of hooks.entries) {
+			const time = new Date(e.at).toISOString().slice(11, 19);
+			const bad = e.outcome === 'deny' || e.outcome === 'error' || e.outcome === 'timeout';
+			DOM.append(pre, DOM.$(bad ? 'div.knox-gui-review-del' : 'div', undefined, `${time} ${e.event}${e.toolName ? ' ' + e.toolName : ''} ${e.command} -> ${e.outcome} (${e.durationMs}ms)${e.detail ? ': ' + e.detail : ''}`));
+		}
 	}
 }
 

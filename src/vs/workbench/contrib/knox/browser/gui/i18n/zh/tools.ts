@@ -23,6 +23,7 @@ export const knoxGuiStringsZhTools: Record<string, unknown> = {
 	"toolUsed": "已使用",
 	"toolProcessing": "处理中",
 	"toolCanceled": "已取消",
+	"toolFailed": "失败",
 	"knox": "Knox",
 	"exactSearch": "精确搜索",
 	"searching": "• 搜索中...",

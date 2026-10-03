@@ -53,7 +53,14 @@ import {
   checkNativeDoomLoop,
   evaluateNativeToolPolicy,
   hydrateNativeAssistant,
+  resolveNativeDoomLoopThreshold,
 } from "./nativeAgentRequest";
+import { getWorkspaceHookRunner } from "core/hooks/workspaceHooks";
+import {
+  cancelSharedChatTurn,
+  runSharedChatTurn,
+  type SharedChatTurnDeps,
+} from "./sharedChatTurn";
 import { finishNativeTurn, runMemoryPostTurn, startNativeTurn } from "./nativeTurn";
 
 
@@ -952,6 +959,62 @@ export class VsCodeMessenger {
       return evaluateNativeToolPolicy(msg.data, config?.experimental, dirs);
     });
     this.onWebview("knox/hydrateAssistant", async (msg) => hydrateNativeAssistant(msg.data));
+
+    // Shared loop (K-010): tools run through the existing core `tools/call` path.
+    const sharedTurnDeps: SharedChatTurnDeps = {
+      buildRequest: async (input) => {
+        const { config } = await (await this.configHandlerPromise).loadConfig();
+        return buildNativeAgentRequest(input, {
+          ide: this.ide,
+          configTools: config?.tools,
+          experimental: config?.experimental,
+        });
+      },
+      resolveLlm: async (title) =>
+        (await this.configHandlerPromise).llmFromTitle(title),
+      getDeferTools: () =>
+        vscode.workspace.getConfiguration("knoxchat").get<boolean>("deferTools", true),
+      getHooks: () => getWorkspaceHookRunner(this.ide),
+      resolveFallbackLlm: async () => {
+        const title = vscode.workspace
+          .getConfiguration("knoxchat")
+          .get<string>("fallbackModel", "")
+          .trim();
+        return title
+          ? (await this.configHandlerPromise).llmFromTitle(title)
+          : null;
+      },
+      callTool: (request) =>
+        this.inProcessMessenger.externalRequest("tools/call", request),
+      cancelTools: () => {
+        void this.inProcessMessenger.externalRequest("tools/cancel", undefined);
+      },
+      emit: (sessionId, event) =>
+        this.webviewProtocol.send("knox/chatTurnEvent", { sessionId, event }),
+      getPolicy: async () => {
+        const { config } = await (await this.configHandlerPromise).loadConfig();
+        const experimental = config?.experimental;
+        return {
+          policy: experimental?.agentPolicy ?? null,
+          policyFromRules: experimental?.agentPolicyFromRules ?? null,
+          workspaceDirs: await this.ide.getWorkspaceDirs().catch(() => []),
+          doomLoopThreshold: resolveNativeDoomLoopThreshold(experimental),
+        };
+      },
+      ensureCheckpoint: async (sessionId, turnId) => {
+        await this.ide.ensureTurnCheckpoint?.({
+          sessionId,
+          turnId,
+          toolName: "chat_turn",
+        });
+      },
+    };
+    this.onWebview("knox/runChatTurn", (msg) =>
+      runSharedChatTurn(msg.data, sharedTurnDeps),
+    );
+    this.onWebview("knox/cancelChatTurn", async (msg) => ({
+      cancelled: await cancelSharedChatTurn(msg.data.sessionId, sharedTurnDeps),
+    }));
     this.onWebview("knox/startTurn", async (msg) => {
       const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
       return startNativeTurn(msg.data, dirs[0] ?? "");
@@ -1122,6 +1185,13 @@ export class VsCodeMessenger {
     });
     this.onWebviewOrCore("openFile", async (msg) => {
       return ide.openFile(msg.data.path);
+    });
+    this.onWebviewOrCore("showStagedDiff", async (msg) => {
+      return ide.showStagedDiff(
+        msg.data.fileUri,
+        msg.data.before,
+        msg.data.after,
+      );
     });
     this.onWebviewOrCore("openGitChange", async (msg) => {
       return ide.openGitChange(msg.data.uri);

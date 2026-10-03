@@ -170,8 +170,8 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(batch.overlay, null);
 	});
 
-	test('permission mode default is YOLO fullAuto', () => {
-		assert.strictEqual(DEFAULT_PERMISSION_MODE, 'fullAuto');
+	test('permission mode default is Edits (acceptEdits)', () => {
+		assert.strictEqual(DEFAULT_PERMISSION_MODE, 'acceptEdits');
 		assert.strictEqual(nextPermissionMode('fullAuto'), 'default');
 		assert.strictEqual(knoxGuiPermissionModeLabelKey('default'), 'permissionModeAsk');
 		assert.strictEqual(knoxGuiPermissionModeLabelKey('acceptEdits'), 'permissionModeEdits');
@@ -183,7 +183,7 @@ suite('Knox native GUI parity', () => {
 		assert.ok(KNOX_GUI_HOST_INBOUND.includes('newSession'));
 		assert.ok(KNOX_GUI_HOST_INBOUND.includes('navigateTo'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('llm/streamChat'));
-		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('tools/call'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('knox/runChatTurn'));
 		assert.ok(KNOX_GUI_HOST_INBOUND.includes('isKnoxInputFocused'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('agent/worktree'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('config/updateSelectedModel'));
@@ -333,6 +333,7 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(toolStatusIntroKey('calling'), 'toolFor');
 		assert.strictEqual(toolStatusIntroKey('done'), '');
 		assert.strictEqual(toolStatusIntroKey('canceled'), 'toolCanceled');
+		assert.strictEqual(toolStatusIntroKey('errored'), 'toolFailed');
 		assert.strictEqual(toolStatusFallbackKey('calling'), 'toolUsing');
 		assert.strictEqual(toolStatusFallbackKey('done'), 'toolUsed');
 		assert.strictEqual(toolStatusFallbackKey('generated'), 'toolUse');
@@ -1961,7 +1962,7 @@ suite('Knox native GUI parity', () => {
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('focusEditor'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('edit/exit'));
 		assert.deepStrictEqual(SLASH_BUILTINS.map(cmd => cmd.name), [
-			'autonomous', 'issue', 'share', 'cmd', 'http', 'commit', 'review', 'pr', 'changelog', 'skills',
+			'autonomous', 'issue', 'share', 'cmd', 'http', 'commit', 'review', 'pr', 'changelog', 'skills', 'init', 'instructions', 'hooks',
 		]);
 	});
 

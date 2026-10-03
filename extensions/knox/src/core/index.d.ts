@@ -454,7 +454,14 @@ export interface PromptLog {
   prompt: string;
   completion: string;
   /** Provider-reported token usage for this request, when available. */
-  usage?: { promptTokens?: number; completionTokens?: number };
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    /** Prompt tokens served from the provider's cache (K-030). */
+    cacheReadTokens?: number;
+    /** Prompt tokens written to the provider's cache (K-030). */
+    cacheWriteTokens?: number;
+  };
   /** Structured Jev harness answers (routing, guardrails, citations). */
   jev?: {
     turn?: {
@@ -1111,6 +1118,8 @@ export interface ToolExtras {
   tool: Tool;
   /** When aborted, long-running tools (terminal, etc.) should stop promptly. */
   abortSignal?: AbortSignal;
+  /** Resolve a configured model by title (custom subagent `model:`). */
+  resolveModel?: (title: string) => Promise<ILLM | undefined>;
   /** Tool call id for streaming partial output to the GUI. */
   toolCallId?: string;
   /** Incremental tool result (e.g. terminal stdout) while the call is still running. */

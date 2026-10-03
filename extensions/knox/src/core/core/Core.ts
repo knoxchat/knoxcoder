@@ -4,6 +4,7 @@ import { GlobalContext } from "../util/GlobalContext";
 import type { IDE } from "..";
 import type { FromCoreProtocol, ToCoreProtocol } from "../protocol";
 import type { IMessenger } from "../protocol/messenger";
+import type { StagedEdits } from "../tools/stagedEdits";
 import type { AgentWorktreeState } from "../tools/worktree";
 import { registerAllCoreHandlers } from "./register";
 import type { CoreRuntime } from "./runtime";
@@ -25,6 +26,8 @@ export class Core implements CoreRuntime {
   readonly activeToolAborts = new Map<string, AbortController>();
   /** Optional git worktree that isolates agent file/shell writes from the main tree. */
   agentWorktree: AgentWorktreeState | null = null;
+  /** Staged review (K-026): per-session held file edits. A session is in review mode while it has an entry. */
+  readonly stagedReview = new Map<string, StagedEdits>();
 
   abortActiveTools(messageId?: string): void {
     if (messageId) {

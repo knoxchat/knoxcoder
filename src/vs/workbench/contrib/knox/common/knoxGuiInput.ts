@@ -98,6 +98,9 @@ export const SLASH_BUILTINS: IKnoxGuiSlashCommand[] = [
 	{ name: 'pr', description: 'Generate a PR description from current branch changes' },
 	{ name: 'changelog', description: 'Generate a changelog from recent git history' },
 	{ name: 'skills', description: 'List all loaded skills and their sources' },
+	{ name: 'init', description: 'Create AGENTS.md from this repository (use --force to overwrite)' },
+	{ name: 'instructions', description: 'Show loaded rules, AGENTS.md files and skills with their token cost' },
+	{ name: 'hooks', description: 'Show configured lifecycle hooks and the recent hook audit log' },
 ];
 
 /** KN-300: same six default `@` providers as Core `DEFAULT_CONTEXT_PROVIDER_TITLES`. */

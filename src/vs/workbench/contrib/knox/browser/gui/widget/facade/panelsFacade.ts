@@ -38,6 +38,14 @@ export abstract class KnoxGuiPanelsFacade extends KnoxGuiToolsFacade {
 		knoxGuiPanelsView.renderWorktreePanel(this, parent, state);
 	}
 
+	renderReviewPanel(this: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
+		knoxGuiPanelsView.renderReviewPanel(this, parent, state);
+	}
+
+	renderHooksPanel(this: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
+		knoxGuiPanelsView.renderHooksPanel(this, parent, state);
+	}
+
 	renderTaskPlanPanel(this: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
 		knoxGuiPanelsView.renderTaskPlanPanel(this, parent, state);
 	}

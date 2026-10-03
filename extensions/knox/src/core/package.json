@@ -7,6 +7,9 @@
     "build:npm": "tsc -p ./tsconfig.npm.json",
     "test": "vitest run",
     "test:eval": "vitest run eval",
+    "bench:memory": "KNOX_BENCH_WRITE=1 vitest run context/memory/bench",
+    "knox": "tsx cli/main.ts",
+    "test:live": "vitest run --config vitest.live.config.ts",
     "test:watch": "vitest"
   },
   "type": "module",

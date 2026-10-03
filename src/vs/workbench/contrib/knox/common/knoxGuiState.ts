@@ -36,7 +36,7 @@ export interface IKnoxGuiVscTheme {
 
 /** Session starts in Agent. Chat vs Agent is not a user tab; Jev picks per turn when enabled. */
 export const KNOX_GUI_DEFAULT_SESSION_MODE: KnoxChatMode = 'agent';
-export const DEFAULT_PERMISSION_MODE: KnoxPermissionMode = 'fullAuto';
+export const DEFAULT_PERMISSION_MODE: KnoxPermissionMode = 'acceptEdits';
 export const PERMISSION_MODES: KnoxPermissionMode[] = ['default', 'acceptEdits', 'fullAuto'];
 export const MODEL_ROLES: KnoxModelRole[] = ['chat', 'edit', 'apply', 'viewRead', 'realTimeSearch'];
 
@@ -337,6 +337,41 @@ export interface IKnoxGuiFindState {
 	current: number;
 	total: number;
 	matchIndexes: number[];
+}
+
+/** K-026 staged review: agent file edits held in the host until the user applies them. */
+export interface IKnoxGuiReviewFile {
+	fileUri: string;
+	kind: 'create' | 'modify' | 'delete';
+	added: number;
+	removed: number;
+}
+
+export interface IKnoxGuiReview {
+	enabled: boolean;
+	busy: boolean;
+	files: IKnoxGuiReviewFile[];
+	/** File whose diff is expanded, with its unified diff text. */
+	openFileUri?: string;
+	openDiff?: string;
+	error?: string;
+}
+
+/** K-023 hooks panel: configured lifecycle events and the recent audit log. */
+export interface IKnoxGuiHookEntry {
+	at: number;
+	event: string;
+	toolName?: string;
+	command: string;
+	outcome: string;
+	durationMs: number;
+	detail?: string;
+}
+
+export interface IKnoxGuiHooks {
+	open: boolean;
+	events: string[];
+	entries: IKnoxGuiHookEntry[];
 }
 
 export interface IKnoxGuiWorktree {
@@ -811,6 +846,8 @@ export interface IKnoxGuiState {
 	activeTabId: string;
 	compaction?: IKnoxGuiCompaction;
 	worktree: IKnoxGuiWorktree;
+	review: IKnoxGuiReview;
+	hooks: IKnoxGuiHooks;
 	backgroundJobs: IKnoxGuiBackgroundJob[];
 	jobsPanelOpen: boolean;
 	taskPlan: IKnoxGuiTaskPlanStep[];
@@ -1030,8 +1067,6 @@ export interface IKnoxGuiState {
 	historyHydrateNotice: 'large' | null;
 	/** Shared loop: the stream failed transiently and the host is retrying (K-010). Never persisted. */
 	streamRetry?: { attempt: number; maxAttempts: number; usingFallback: boolean };
-	/** K-013: the last turn stopped on a token/cost/time cap. Hidden while streaming. */
-	budgetNotice?: { exceeded: 'tokens' | 'cost' | 'time'; tokens: number; costUsd: number };
 	/** K-012: last prompt size for the composer meter (per session, never persisted). */
 	contextUsage?: IKnoxGuiContextUsage;
 	/** K-005: the first-run permission notice was dismissed. Persisted. */
@@ -1112,6 +1147,8 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		tabs: [],
 		activeTabId: '',
 		worktree: { enabled: false, busy: false, files: [] },
+		review: { enabled: false, busy: false, files: [] },
+		hooks: { open: false, events: [], entries: [] },
 		backgroundJobs: [],
 		jobsPanelOpen: true,
 		taskPlan: [],

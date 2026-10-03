@@ -25,6 +25,7 @@ import * as knoxGuiModels from './gui/controller/models.js';
 import * as knoxGuiComposer from './gui/controller/composer.js';
 import * as knoxGuiStream from './gui/controller/stream.js';
 import * as knoxGuiTools from './gui/controller/tools.js';
+import * as knoxGuiSharedTurn from './gui/controller/sharedTurn.js';
 import * as knoxGuiPanels from './gui/controller/panels.js';
 import * as knoxGuiMemory from './gui/controller/memory.js';
 import * as knoxGuiCheckpoints from './gui/controller/checkpoints.js';
@@ -36,6 +37,10 @@ export class KnoxGuiController extends Disposable {
 	turnAborted = false;
 	/** Memory / restore inject built at submit, reused by every round of the turn. */
 	turnInject: { sessionId: string; content: string } | undefined;
+	/** Shared-loop turn being rendered ; unset when no shared turn runs. */
+	sharedTurn: knoxGuiSharedTurn.IKnoxGuiSharedTurn | undefined;
+	/** Orders `knox/chatTurnEvent` handling. */
+	sharedTurnQueue: Promise<void> = Promise.resolve();
 	/** First workspace folder URI (`window.workspacePaths[0]` in the reference); '' without a folder. */
 	workspaceDirectory = '';
 	mentionLiveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -372,6 +377,10 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiStream.continueAfterTool(this);
 	}
 
+	enqueueChatTurnEvent(data: unknown): void {
+		return knoxGuiSharedTurn.enqueueChatTurnEvent(this, data);
+	}
+
 	async maybeContinueTurn(): Promise<void> {
 		return knoxGuiStream.maybeContinueTurn(this);
 	}
@@ -682,6 +691,18 @@ export class KnoxGuiController extends Disposable {
 
 	setPermissionMode(mode: KnoxPermissionMode): void {
 		return knoxGuiTools.setPermissionMode(this, mode);
+	}
+
+	async runReview(action: 'enable' | 'disable' | 'status' | 'diff' | 'apply' | 'discard', fileUris?: string[]): Promise<void> {
+		return knoxGuiPanels.runReview(this, action, fileUris);
+	}
+
+	async refreshHooks(action: 'status' | 'clear' = 'status'): Promise<void> {
+		return knoxGuiPanels.refreshHooks(this, action);
+	}
+
+	async openReviewInEditor(fileUri: string): Promise<void> {
+		return knoxGuiPanels.openReviewInEditor(this, fileUri);
 	}
 
 	async runWorktree(action: 'enter' | 'apply' | 'discard' | 'status'): Promise<void> {

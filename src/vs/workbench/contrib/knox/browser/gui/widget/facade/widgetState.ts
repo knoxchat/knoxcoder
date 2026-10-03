@@ -89,6 +89,7 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	gitDiffExpanded = true;
 	gitDiffExpandedPinned = false;
 	compactionOpen = false;
+	reviewOpen = true;
 	taskPlanOpen = true;
 	/** Composer editor + toolbar hidden behind a slim dock; persisted per profile. */
 	composerCollapsed = false;

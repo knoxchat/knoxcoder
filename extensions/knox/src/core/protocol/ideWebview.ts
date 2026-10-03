@@ -601,6 +601,17 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
   ];
   /** Record the assistant message and run the post-turn memory write. */
   "knox/finishTurn": [import("./nativeAgent").NativeFinishTurnInput, void];
+  /**
+   * Shared loop (K-010): run a whole chat turn on
+   * `runAgentLoop`. Progress arrives as `knox/chatTurnEvent` notifications;
+   * permission cards are answered with `brain/resolveAutonomousTool`.
+   */
+  "knox/runChatTurn": [
+    import("./nativeAgent").SharedChatTurnInput,
+    import("./nativeAgent").SharedChatTurnOutput,
+  ];
+  /** Stop a shared-loop turn (stream, permission waits, running tools). */
+  "knox/cancelChatTurn": [{ sessionId: string }, { cancelled: boolean }];
   /** Strip leaked DSML/XML tool markup and recover text-format tool calls (`hydrateAssistantTextToolCalls`). */
   "knox/hydrateAssistant": [
     import("./nativeAgent").NativeHydrateAssistantInput,

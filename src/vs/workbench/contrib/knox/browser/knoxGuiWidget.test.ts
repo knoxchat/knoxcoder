@@ -111,7 +111,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-mode-agent"]'), null);
 		assert.ok(trigger.classList.contains('selected'));
 		assert.ok(trigger.classList.contains('knox-gui-mode-nomodel'));
-		assert.ok(trigger.textContent?.includes('Auto'));
+		assert.ok(trigger.textContent?.includes('Edits')); // default is acceptEdits (K-005)
 		assert.ok(trigger.querySelector('svg.knox-gui-svg'));
 		assert.strictEqual(trigger.getAttribute('data-menu-trigger'), 'true');
 		trigger.click();
@@ -121,8 +121,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(menu.parentElement, widget.root);
 		const items = Array.from(menu.querySelectorAll<HTMLButtonElement>('.knox-gui-popover-item'));
 		assert.ok(items.length >= 5);
-		items[1].click();
-		assert.strictEqual(store.state.permissionMode, 'acceptEdits');
+		items[2].click();
+		assert.strictEqual(store.state.permissionMode, 'fullAuto');
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-agent-menu"]'), null);
 		store.patch({ mode: 'edit' });
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-mode-edit"]'));

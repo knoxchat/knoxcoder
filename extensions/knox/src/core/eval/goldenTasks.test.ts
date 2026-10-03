@@ -2,7 +2,29 @@ import { describe, expect, it } from "vitest";
 
 import { BuiltInToolNames } from "../tools/builtIn";
 import { ToolCallErrorCode } from "../tools/errors";
-import { runAgentEval } from "./harness";
+import {
+  runAgentEval as runAgentEvalOnce,
+  type AgentEvalOptions,
+} from "./harness";
+
+/**
+ * K-010 parity gate: every golden task runs on `runAgentLoop` directly and
+ * through `runChatTurn` (the GUI shared-loop path). The two must agree on the
+ * stop reason, step count, resulting files and the tool trace.
+ */
+async function runAgentEval(options: AgentEvalOptions) {
+  const direct = await runAgentEvalOnce(options);
+  if (options.abortSignal) {
+    // A consumed AbortSignal cannot be replayed; see the shared abort test.
+    return direct;
+  }
+  const shared = await runAgentEvalOnce({ ...options, viaChatTurn: true });
+  expect(shared.stoppedReason).toBe(direct.stoppedReason);
+  expect(shared.steps).toBe(direct.steps);
+  expect(shared.files).toEqual(direct.files);
+  expect(shared.toolTrace).toEqual(direct.toolTrace);
+  return direct;
+}
 
 const ADD_BUG = `export function add(a: number, b: number): number {
   return a - b;
@@ -264,36 +286,39 @@ describe("agent eval golden tasks", () => {
     expect(result.files["src/ok.ts"]).toBe("ok\n");
   });
 
-  it("abort mid-tool cancels before the write lands", async () => {
-    const controller = new AbortController();
-    const result = await runAgentEval({
-      prompt: "Overwrite the file.",
-      workspace: { "src/ok.ts": "original\n" },
-      abortSignal: controller.signal,
-      ideHooks: {
-        beforeWrite: () => {
-          controller.abort();
+  for (const viaChatTurn of [false, true]) {
+    it(`abort mid-tool cancels before the write lands (${viaChatTurn ? "chat turn" : "loop"})`, async () => {
+      const controller = new AbortController();
+      const result = await runAgentEvalOnce({
+        viaChatTurn,
+        prompt: "Overwrite the file.",
+        workspace: { "src/ok.ts": "original\n" },
+        abortSignal: controller.signal,
+        ideHooks: {
+          beforeWrite: () => {
+            controller.abort();
+          },
         },
-      },
-      script: [
-        {
-          toolCalls: [
-            {
-              name: BuiltInToolNames.WriteFile,
-              args: {
-                filepath: "src/ok.ts",
-                contents: "should-not-land",
+        script: [
+          {
+            toolCalls: [
+              {
+                name: BuiltInToolNames.WriteFile,
+                args: {
+                  filepath: "src/ok.ts",
+                  contents: "should-not-land",
+                },
               },
-            },
-          ],
-        },
-        { content: "Should not reach a summary." },
-      ],
-    });
+            ],
+          },
+          { content: "Should not reach a summary." },
+        ],
+      });
 
-    expect(result.stoppedReason).toBe("aborted");
-    expect(result.toolTrace[0]?.ok).toBe(false);
-    expect(result.toolTrace[0]?.error).toMatch(/CANCELLED|cancel/i);
-    expect(result.files["src/ok.ts"]).toBe("original\n");
-  });
+      expect(result.stoppedReason).toBe("aborted");
+      expect(result.toolTrace[0]?.ok).toBe(false);
+      expect(result.toolTrace[0]?.error).toMatch(/CANCELLED|cancel/i);
+      expect(result.files["src/ok.ts"]).toBe("original\n");
+    });
+  }
 });

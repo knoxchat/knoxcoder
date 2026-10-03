@@ -49,6 +49,7 @@ import {
 } from "core/tools/toolPolicy";
 import { BuiltInToolNames } from "core/tools/builtIn";
 import { selectAgentTools } from "core/tools/catalog";
+import { splitDeferredTools } from "core/tools/deferred";
 import { listShellJobs } from "core/tools/shellJobs";
 
 type Experimental = {
@@ -124,6 +125,16 @@ function loopProfile(experimental: Experimental | undefined) {
   return overlayAutoProfile(experimental, false, getJevConfirmedProfile());
 }
 
+/** Doom-loop threshold for the active profile (shared-loop turns). */
+export function resolveNativeDoomLoopThreshold(
+  experimental: Experimental | undefined,
+): number | null {
+  return resolveDoomLoopThreshold(
+    experimental?.agentDoomLoopThreshold,
+    loopProfile(experimental),
+  );
+}
+
 async function debugSessionActive(
   ide: NativeAgentRequestDeps["ide"],
 ): Promise<boolean> {
@@ -182,7 +193,9 @@ export async function buildNativeAgentRequest(
   const lastUser = [...history].reverse().find((item) => item.message.role === "user");
   await refreshSystemInjects(deps.ide, messageText(lastUser?.message));
 
-  let messages = constructMessages([...history], input.sessionId);
+  let messages = constructMessages([...history], input.sessionId, {
+    systems: loopProfile(deps.experimental) === "systems",
+  });
   messages = mergeInjectIntoMessages(messages, input.injectedContext);
 
   const profile = loopProfile(deps.experimental);
@@ -223,6 +236,15 @@ export async function buildNativeAgentRequest(
   }
 
   output.tools = await selectNativeAgentTools(input, deps);
+  if (input.deferTools) {
+    const split = splitDeferredTools(output.tools, {
+      systems: profile === "systems",
+    });
+    output.tools = split.active;
+    if (split.deferred.length > 0) {
+      output.deferredTools = split.deferred;
+    }
+  }
   return output;
 }
 

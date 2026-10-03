@@ -7,7 +7,7 @@ import {
   computeContextUsage,
   resolveContextWindow,
 } from "./contextBudget";
-import { createAgentLoopCompactor } from "./loop";
+import { createAgentLoopCompactor, type AgentLoopCompactor } from "./loop";
 
 const big = (n: number) => "word ".repeat(n);
 
@@ -73,10 +73,10 @@ describe("agent compactor across window sizes", () => {
 
   it("shrinks the window when the provider reports more tokens than estimated", async () => {
     const llm = { model: "gpt-4o", contextLength: 32_000 } as never;
-    const compact = createAgentLoopCompactor(llm);
+    const compact: AgentLoopCompactor = createAgentLoopCompactor(llm);
     const messages = history(40, 150);
     const before = (await compact(messages)).length;
-    compact.observeUsage?.(500_000, messages);
+    compact.observeUsage(500_000, messages);
     const after = (await compact(messages)).length;
     expect(after).toBeLessThanOrEqual(before);
   });

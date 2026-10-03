@@ -31,6 +31,7 @@ import { VerticalDiffManager } from "../diff/vertical/manager";
 import { KnoxGUIWebviewViewProvider } from "../KnoxGUIWebviewViewProvider";
 import { isMemoryWriteMessage } from "../memory/memoryEvents";
 import { MemoryView } from "../memory/MemoryView";
+import { registerHooksLog } from "../memory/hooksLog";
 import { registerJevStatusBar, registerMemoryStatusBar } from "../memory/statusBar";
 import { registerAllCodeLensProviders } from "../lang-server/codeLens";
 import { registerAllPromptFilesCompletionProviders } from "../lang-server/promptFileCompletions";
@@ -385,6 +386,7 @@ export class VsCodeExtension {
 
     registerMemoryStatusBar(context);
     registerJevStatusBar(context);
+    registerHooksLog(context);
     
     // AI Context commands removed - AI Context functionality has been removed
     

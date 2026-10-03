@@ -9,6 +9,7 @@ import { isAskUserToolName, parseToolArgs } from '../../../common/knoxGuiChat.js
 import { isSamePermissionTool, mergeStreamedToolCalls, resolveAskUserQuestions, toolOutputItemsFromUnknown, toolOutputText } from '../../../common/knoxGuiTools.js';
 import { IKnoxGuiToolCall, KnoxPermissionMode, knoxGuiApplyToolPreset, nextPermissionMode, nextToolSetting } from '../../../common/knoxGuiState.js';
 import { isAutonomousRunning, resolveAutonomousTool } from './stream.js';
+import { isSharedTurnActive } from './sharedTurn.js';
 import { KNOX_DENIED_TOOL_OUTPUT, KnoxGuiToolDecision, knoxGuiAskUserInvalidOutput, knoxGuiAskUserOutput, knoxGuiLocalAutoApprove, knoxGuiMissingToolOutput, knoxGuiToolIsSettled } from '../../../common/knoxGuiAgentRequest.js';
 
 export function cycleToolPermission(controller: KnoxGuiController, name: string): void {
@@ -43,7 +44,7 @@ export function toggleToolGroup(controller: KnoxGuiController, group: string): v
 }
 
 export function cancelTool(controller: KnoxGuiController, id: string): void {
-	if (isAutonomousRunning(controller) && controller.findTool(id)?.status === 'generated') {
+	if ((isAutonomousRunning(controller) || isSharedTurnActive(controller)) && controller.findTool(id)?.status === 'generated') {
 		resolveAutonomousTool(controller, id, false);
 		return;
 	}
@@ -60,6 +61,13 @@ export function cancelTool(controller: KnoxGuiController, id: string): void {
 export function denyTool(controller: KnoxGuiController, id: string): void {
 	const call = controller.findTool(id);
 	if (!call || knoxGuiToolIsSettled(call)) {
+		return;
+	}
+	if (isSharedTurnActive(controller)) {
+		// The loop tells the model the call was not approved and carries on by itself.
+		controller.patchTool(id, { status: 'done', outputItems: [KNOX_DENIED_TOOL_OUTPUT], output: KNOX_DENIED_TOOL_OUTPUT.content });
+		controller.messenger.post('brain/recordSoulEvent', { sessionId: controller.store.state.sessionId, kind: 'tool_denied', toolName: call.name, files: [], ok: false, policy: 'deny', summary: `User denied ${call.name}` });
+		resolveAutonomousTool(controller, id, false);
 		return;
 	}
 	if (isAutonomousRunning(controller)) {
@@ -176,7 +184,7 @@ async function resolveTool(controller: KnoxGuiController, call: IKnoxGuiToolCall
 	if (controller.findTool(call.id)?.status !== 'generated') {
 		return false;
 	}
-	if (isAutonomousRunning(controller)) {
+	if (isAutonomousRunning(controller) || isSharedTurnActive(controller)) {
 		if (decision !== 'ask') {
 			resolveAutonomousTool(controller, call.id, decision === 'allow');
 		}

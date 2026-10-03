@@ -23,8 +23,11 @@ export const PERMISSION_MODES: PermissionMode[] = [
   "fullAuto",
 ];
 
-/** New sessions and missing persisted values start in Auto (YOLO). */
-export const DEFAULT_PERMISSION_MODE: PermissionMode = "fullAuto";
+/**
+ * New sessions start in Edits: reads and file edits are automatic, shell asks.
+ * Users switch to Auto with one click; saved modes are never overwritten.
+ */
+export const DEFAULT_PERMISSION_MODE: PermissionMode = "acceptEdits";
 
 export type ToolSetting =
   | "allowedWithPermission"
@@ -40,6 +43,15 @@ export const FILE_EDIT_TOOLS = new Set<string>([
   BuiltInToolNames.ApplyPatch,
   BuiltInToolNames.GenerateTests,
   "composite_smart_edit",
+]);
+
+/** Tools that prompt by default (no explicit tool setting) outside Auto. */
+export const SHELL_CLASS_TOOLS = new Set<string>([
+  BuiltInToolNames.RunTerminalCommand,
+  BuiltInToolNames.PtyStart,
+  BuiltInToolNames.PtySend,
+  BuiltInToolNames.Qemu,
+  BuiltInToolNames.GitCommit,
 ]);
 
 export function resolvePermissionToolName(
@@ -87,10 +99,15 @@ export function isToolAutoApproved(params: {
   workspaceDirs?: string[];
 }): boolean {
   const toolName = resolvePermissionToolName(params.toolName);
-  const setting =
-    params.toolSettings[toolName] ??
-    params.toolSettings[params.toolName] ??
-    DEFAULT_TOOL_SETTING;
+  const explicit =
+    params.toolSettings[toolName] ?? params.toolSettings[params.toolName];
+  const promptByDefault =
+    params.permissionMode !== "fullAuto" &&
+    (SHELL_CLASS_TOOLS.has(toolName) ||
+      (params.permissionMode === "default" && FILE_EDIT_TOOLS.has(toolName)));
+  const setting: ToolSetting =
+    explicit ??
+    (promptByDefault ? "allowedWithPermission" : DEFAULT_TOOL_SETTING);
   if (setting === "disabled") {
     return false;
   }

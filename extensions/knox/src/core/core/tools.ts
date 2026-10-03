@@ -1,11 +1,13 @@
 import { fetchwithRequestOptions } from "knoxdev-package/fetch";
 
+import { getWorkspaceHookRunner } from "../hooks/workspaceHooks";
 import { resolveAgentLoopSettings } from "../config/agentProfile";
 import { BrainManager } from "../context/memory/brain/BrainManager";
 import { getJevConfirmedProfile } from "../jev/config";
 import { t } from "../i18n/index.js";
+import { refreshSkillScope } from "../skills/scope";
 import { callTool } from "../tools/callTool";
-import { parseToolArgs } from "../tools/postEditVerification";
+import { parseToolArgs, shouldVerifyTool } from "../tools/postEditVerification";
 import {
   formatUnknownToolError,
   resolveBuiltInToolCall,
@@ -14,7 +16,12 @@ import {
 import { executeToolWithSoulHooks } from "../tools/mutatingToolHooks";
 import { resolveConfigAgentPolicy } from "../tools/toolPolicy";
 import { runTerminalCommandTool } from "../tools/definitions/runTerminalCommand";
-import { resolveVerifyMaxIterations } from "../tools/build/verifyCommand";
+import {
+  detectBuildCommand,
+  resolveVerifyMaxIterations,
+} from "../tools/build/verifyCommand";
+import { stagedDiskNotice, wrapIdeForStaging } from "../tools/stagedEdits";
+import { ensureReviewLoaded } from "../tools/reviewStore";
 import { wrapIdeForWorktree } from "../tools/worktree";
 
 import type { CoreRuntime } from "./runtime";
@@ -156,16 +163,36 @@ export function registerToolHandlers(core: CoreRuntime): void {
     const rawArgs = toolCall.function.arguments;
     const sessionId =
       requestSessionId || BrainManager.getActiveSessionId() || undefined;
-    const toolIde = core.agentWorktree
+    const baseIde = core.agentWorktree
       ? wrapIdeForWorktree(core.ide, core.agentWorktree)
       : core.ide;
+    if (sessionId) {
+      ensureReviewLoaded(core, sessionId);
+    }
+    const staged = sessionId ? core.stagedReview.get(sessionId) : undefined;
+    const toolIde = staged ? wrapIdeForStaging(baseIde, staged) : baseIde;
     const loopSettings = resolveAgentLoopSettings(
       config.experimental,
       undefined,
       getJevConfirmedProfile(),
     );
-    const verifyCommand = loopSettings.verifyCommand;
-    const verifyMode = loopSettings.verifyMode;
+    await refreshSkillScope(toolIde);
+    let verifyCommand = loopSettings.verifyCommand;
+    let verifyMode = loopSettings.verifyMode;
+    // K-034: no explicit oracle and no LSP verifier on this host -> detect one
+    // from project files (tsc, pytest, go vet, ...).
+    if (
+      !verifyCommand &&
+      verifyMode === "diagnostics" &&
+      typeof toolIde.runPostEditVerification !== "function" &&
+      shouldVerifyTool(toolName)
+    ) {
+      const detected = await detectBuildCommand(toolIde).catch(() => undefined);
+      if (detected) {
+        verifyCommand = detected;
+        verifyMode = "command";
+      }
+    }
 
     try {
       const contextItems = await executeToolWithSoulHooks({
@@ -231,6 +258,13 @@ export function registerToolHandlers(core: CoreRuntime): void {
                 fetchwithRequestOptions(url, init, config.requestOptions),
               tool,
               abortSignal: toolAbort.signal,
+              resolveModel: async (title) => {
+                try {
+                  return (await core.configHandler.llmFromTitle(title)) ?? undefined;
+                } catch {
+                  return undefined;
+                }
+              },
               toolCallId: toolCall.id,
               soul: { sessionId, turnId },
               onPartialOutput: (items) => {
@@ -246,6 +280,7 @@ export function registerToolHandlers(core: CoreRuntime): void {
             {
               agentPolicy: resolveConfigAgentPolicy(config.experimental),
               workspaceDirs: await toolIde.getWorkspaceDirs(),
+              hooks: await getWorkspaceHookRunner(toolIde),
               defaultMaxFiles: resolveViewSubdirectoryMaxFiles(
                 config.experimental?.agentViewSubdirectoryMaxFiles,
               ),
@@ -263,6 +298,14 @@ export function registerToolHandlers(core: CoreRuntime): void {
           if (tool.faviconUrl) {
             items.forEach((item) => {
               item.icon = tool.faviconUrl;
+            });
+          }
+          const notice = stagedDiskNotice(toolName, staged);
+          if (notice) {
+            items.push({
+              name: "Staged edits",
+              description: "staged review notice",
+              content: notice,
             });
           }
           return items;

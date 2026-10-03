@@ -437,7 +437,7 @@ export const knoxGuiStringsEnCommon: Record<string, unknown> = {
 	"apiKeyLabel": "API Key",
 	"fileExtensionsPlaceholder": "js, ts, py, java, etc.",
 	"accessModelsDescription": "Access 300+ top AI models through a single KnoxStudio API",
-	"knoxchatLongDescription": "KnoxStudio provides unified access to 50+ top AI models. Use a single API key for all models, with transparent pricing and no vendor lock-in. Visit [KnoxStudio](https://knoxstudio.ai/keys) to get an API key.",
+	"knoxchatLongDescription": "KnoxStudio provides unified access to 50+ top AI models. Sign in once with OAuth to access all models, with transparent pricing and no vendor lock-in.",
 	"openrouterDescription": "Route to 300+ models from OpenAI, Anthropic, Google, and more with one key",
 	"openrouterLongDescription": "OpenRouter provides unified access to hundreds of models through one API. Sign in with OpenRouter or paste an `sk-or-…` key. Visit [OpenRouter](https://openrouter.ai/keys) to manage keys.",
 	"openaiDescription": "GPT-4o, GPT-4 Turbo, GPT-3.5, and AUTODETECT",

@@ -44,7 +44,6 @@ const SHARED_CORE_OUTBOUND = [
 	'context/searchFiles',
 	'llm/streamChat',
 	'abort',
-	'tools/call',
 	'tools/cancel',
 	'chatDescriber/describe',
 	'agent/worktree',

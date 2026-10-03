@@ -23,6 +23,7 @@ export const knoxGuiStringsEnTools: Record<string, unknown> = {
 	"toolUsed": "Used",
 	"toolProcessing": "Processing",
 	"toolCanceled": "Canceled",
+	"toolFailed": "Failed",
 	"knox": "Knox",
 	"exactSearch": "Exact Search",
 	"searching": "• Searching...",

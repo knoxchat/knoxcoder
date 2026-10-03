@@ -886,6 +886,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			showWorkspaceFolderPick(options?: vscode.WorkspaceFolderPickOptions) {
 				return extHostQuickOpen.showWorkspaceFolderPick(options);
 			},
+			get linkPresentationRules(): readonly vscode.LinkPresentationRule[] {
+				checkProposedApiEnabled(extension, 'linkPresentation');
+				return extHostDataChannels.linkPresentationRules;
+			},
+			get onDidChangeLinkPresentationRules(): vscode.Event<void> {
+				checkProposedApiEnabled(extension, 'linkPresentation');
+				return _asExtensionEvent(extHostDataChannels.onDidChangeLinkPresentationRules);
+			},
+			createLinkPresentationWatcher(id: string, resource: vscode.Uri) {
+				checkProposedApiEnabled(extension, 'linkPresentation');
+				return extHostDataChannels.createLinkPresentationWatcher(extension, id, resource);
+			},
+			registerLinkPresentationProvider(id: string, provider: vscode.LinkPresentationProvider) {
+				checkProposedApiEnabled(extension, 'linkPresentation');
+				return extHostDataChannels.registerLinkPresentationProvider(extension, id, provider);
+			},
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showInput(options, token);
 			},

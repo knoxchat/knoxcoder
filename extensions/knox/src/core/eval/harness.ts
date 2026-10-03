@@ -19,7 +19,10 @@ import {
   runAgentLoop,
   type AgentLoopStoppedReason,
 } from "../agent/loop";
+import { runChatTurn } from "../agent/chatTurn";
 import { callTool } from "../tools/callTool";
+import { splitDeferredTools } from "../tools/deferred";
+import { resetFileTracking } from "../tools/implementations/editFile";
 import { BuiltInToolNames } from "../tools/builtIn";
 import { ToolCallError, ToolCallErrorCode } from "../tools/errors";
 import type { AgentToolPolicy } from "../tools/toolPolicy";
@@ -218,7 +221,12 @@ export type EvalCommandHandler = (
 export interface AgentEvalOptions {
   prompt?: string;
   workspace: Record<string, string>;
-  script: ScriptedTurn[];
+  /** Scripted model turns. Ignored when `llm` is set. */
+  script?: ScriptedTurn[];
+  /** System prompt. Default is a one-line scripted-eval stub. */
+  systemPrompt?: string;
+  /** Live model (see `liveLlm.ts`). Overrides `script`. */
+  llm?: ToolExtras["llm"];
   /** Cap tool→continue rounds. `null` / omit = unlimited. */
   maxSteps?: number | null;
   abortSignal?: AbortSignal;
@@ -247,6 +255,16 @@ export interface AgentEvalOptions {
   doomLoopThreshold?: number | null;
   /** RL-20: no-tool "done" is not completed while cargo/compiler oracle is red. */
   holdCompletionWhileOracleRed?: boolean;
+  /**
+   * K-010: drive the turn through `runChatTurn` (the loop behind the GUI's
+   * shared-loop path) instead of calling `runAgentLoop` directly.
+   */
+  viaChatTurn?: boolean;
+  /**
+   * K-021: send only the core tools plus `builtin_tool_search`; the rest of
+   * `catalog` is loaded on demand. Needs `viaChatTurn`.
+   */
+  deferTools?: boolean;
 }
 
 export const DEFAULT_EVAL_CATALOG: Tool[] = [
@@ -255,6 +273,14 @@ export const DEFAULT_EVAL_CATALOG: Tool[] = [
   writeFileTool,
   applyPatchTool,
   runTerminalCommandTool,
+];
+
+/** Live-eval catalog: file tools plus search/glob/listing. */
+export const LIVE_EVAL_CATALOG: Tool[] = [
+  ...DEFAULT_EVAL_CATALOG,
+  exactSearchTool,
+  globTool,
+  viewSubdirectoryTool,
 ];
 
 /** Product-like catalog for systems / discovery golden tasks (HL-03). */
@@ -503,11 +529,16 @@ export async function runAgentEval(
     options.ideHooks,
     options.abortSignal,
   );
-  const catalog = options.catalog ?? DEFAULT_EVAL_CATALOG;
-  const llm = createScriptedLlm(options.script);
+  const fullCatalog = options.catalog ?? DEFAULT_EVAL_CATALOG;
+  const split = options.deferTools
+    ? splitDeferredTools(fullCatalog)
+    : { active: fullCatalog, deferred: [] as Tool[] };
+  const catalog = split.active;
+  const llm = options.llm ?? createScriptedLlm(options.script ?? []);
   const toolTrace: EvalToolTrace[] = [];
   resetBuildVerifyCircuits();
   resetRustPolicyForTests();
+  resetFileTracking();
 
   const extras: ToolExtras = {
     ide,
@@ -518,7 +549,12 @@ export async function runAgentEval(
   };
 
   const messages: ChatMessage[] = [
-    { role: "system", content: "You are Knox Agent under eval. Follow the script." },
+    {
+      role: "system",
+      content:
+        options.systemPrompt ??
+        "You are Knox Agent under eval. Follow the script.",
+    },
   ];
   try {
     const card = await loadCodebaseCard(ide);
@@ -542,7 +578,26 @@ export async function runAgentEval(
   });
 
   try {
-  const loop = await runAgentLoop({
+  const drive = options.viaChatTurn
+    ? (o: Parameters<typeof runAgentLoop>[0]) =>
+        runChatTurn({
+          sessionId: "eval",
+          extras: o.extras,
+          messages: o.messages,
+          tools: o.tools,
+          deferredTools: split.deferred.length ? split.deferred : undefined,
+          maxSteps: o.maxSteps,
+          doomLoopThreshold: o.doomLoopThreshold,
+          holdCompletionWhileOracleRed: o.holdCompletionWhileOracleRed,
+          executeTool: o.executeTool,
+          emit: (event) => {
+            if (event.type === "step") {
+              return o.onStep?.(event.step);
+            }
+          },
+        })
+    : runAgentLoop;
+  const loop = await drive({
     extras,
     messages,
     tools: catalog,

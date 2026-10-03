@@ -8,12 +8,28 @@ import {
   listAgentBackgroundJobs,
   toAgentBackgroundJob,
 } from "../tools/agentJobs";
+import {
+  applyStaged,
+  discardStaged,
+  listStaged,
+  stagedDiffText,
+} from "../tools/stagedEdits";
+import {
+  enableReview,
+  ensureReviewLoaded,
+  persistReview,
+  writeReviewPreference,
+} from "../tools/reviewStore";
+import { clearHookLog, getHookLogEntries } from "../hooks/auditLog";
+import { HOOK_EVENTS } from "../hooks/hooks";
+import { getWorkspaceHookRunner } from "../hooks/workspaceHooks";
 import { subscribeShellJobs } from "../tools/shellJobs";
 import {
   applyAgentWorktree,
   discardAgentWorktree,
   enterAgentWorktree,
   worktreeActionResult,
+  wrapIdeForWorktree,
 } from "../tools/worktree";
 
 import type { CoreRuntime } from "./runtime";
@@ -169,6 +185,137 @@ export function registerAbortAndAgentHandlers(core: CoreRuntime): void {
               files: [],
             }
           : { enabled: false, files: [] },
+      };
+    }
+  });
+
+  on("agent/hooks", async (msg) => {
+    if (msg.data.action === "clear") {
+      clearHookLog();
+    }
+    const runner = await getWorkspaceHookRunner(core.ide, () => undefined).catch(
+      () => null,
+    );
+    const limit = Math.max(1, Math.min(200, msg.data.limit ?? 50));
+    return {
+      events: runner ? HOOK_EVENTS.filter((e) => runner.has(e)) : [],
+      entries: getHookLogEntries()
+        .slice(-limit)
+        .map((e) => ({
+          at: e.at,
+          event: e.event,
+          toolName: e.toolName,
+          command: e.command,
+          outcome: e.outcome,
+          durationMs: e.durationMs,
+          detail: e.detail,
+        })),
+    };
+  });
+
+  on("agent/review", async (msg) => {
+    const { action, fileUris } = msg.data;
+    const sessionId = msg.data.sessionId || "default";
+    const state = () => {
+      const staged = core.stagedReview.get(sessionId);
+      return {
+        enabled: staged !== undefined,
+        files: staged ? listStaged(staged) : [],
+      };
+    };
+    try {
+      ensureReviewLoaded(core, sessionId);
+      if (action === "enable") {
+        enableReview(core, sessionId);
+        persistReview(core, sessionId);
+        writeReviewPreference(true);
+        return { ok: true, ...state() };
+      }
+      const staged = core.stagedReview.get(sessionId);
+      if (action === "status") {
+        return { ok: true, ...state() };
+      }
+      if (!staged) {
+        return { ok: false, error: "Review mode is not active", ...state() };
+      }
+      if (action === "diff") {
+        const target = fileUris?.[0];
+        const file = target ? staged.files.get(target) : undefined;
+        if (!file) {
+          return { ok: false, error: "File is not staged", ...state() };
+        }
+        return {
+          ok: true,
+          ...state(),
+          diff: stagedDiffText(file),
+          before: file.before,
+          after: file.after,
+        };
+      }
+      if (action === "discard") {
+        discardStaged(staged, fileUris);
+        persistReview(core, sessionId);
+        return { ok: true, ...state() };
+      }
+      if (action === "disable") {
+        // Leaving review mode never drops edits silently: unapplied files stay discarded only on explicit discard.
+        if (staged.size > 0) {
+          return {
+            ok: false,
+            error: "Apply or discard the staged edits first",
+            ...state(),
+          };
+        }
+        core.stagedReview.delete(sessionId);
+        persistReview(core, sessionId, false);
+        writeReviewPreference(false);
+        return { ok: true, ...state() };
+      }
+      // apply
+      const base = core.agentWorktree
+        ? wrapIdeForWorktree(core.ide, core.agentWorktree)
+        : core.ide;
+      let checkpointId: string | undefined;
+      if (typeof core.ide.ensureTurnCheckpoint === "function") {
+        try {
+          checkpointId = await core.ide.ensureTurnCheckpoint({
+            sessionId,
+            turnId: `review-apply-${sessionId}`,
+            toolName: "agent_review_apply",
+          });
+        } catch {
+          // Apply still proceeds if the safety checkpoint fails.
+        }
+      }
+      const result = await applyStaged(base, staged, fileUris);
+      persistReview(core, sessionId);
+      if (result.applied.length > 0) {
+        void recordSoulEvent({
+          sessionId,
+          kind: "tool_success",
+          toolName: "agent_review_apply",
+          files: result.applied,
+          workspaceCheckpointId: checkpointId,
+          ok: result.failed.length === 0,
+          summary: `Applied ${result.applied.length} reviewed file${
+            result.applied.length === 1 ? "" : "s"
+          }`,
+        }).catch(() => {});
+      }
+      return {
+        ok: result.failed.length === 0,
+        error: result.failed.length
+          ? `${result.failed.length} file(s) failed to apply`
+          : undefined,
+        ...state(),
+        applied: result.applied,
+        failed: result.failed,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+        ...state(),
       };
     }
   });

@@ -566,6 +566,10 @@ export type KnoxGuiToolDecision = 'deny' | 'allow' | 'ask';
 
 const WORKSPACE_CHECKPOINT_TOOL_NAMES = new Set(['builtin_workspace_checkpoint', 'workspace_checkpoint', 'checkpoint']);
 
+const KNOX_SHELL_CLASS_TOOL_NAMES = new Set<string>([
+	'builtin_run_terminal_command', 'builtin_pty_start', 'builtin_pty_send', 'builtin_qemu', 'builtin_git_commit',
+]);
+
 /**
  * `permissions.ts:isToolAutoApproved` without the path/command policy, which
  * only the host can evaluate. Used when `knox/evaluateToolPolicy` is unavailable.
@@ -577,7 +581,11 @@ export function knoxGuiLocalAutoApprove(params: {
 	permissionMode: KnoxPermissionMode;
 	sessionAllowlist: readonly string[];
 }): boolean {
-	const setting = params.toolSettings[params.name] ?? 'allowedWithoutPermission';
+	// Mirrors permissions.ts: with no explicit setting, shell-class tools prompt outside Auto,
+	// and in Ask mode file edits prompt too.
+	const promptByDefault = params.permissionMode !== 'fullAuto'
+		&& (KNOX_SHELL_CLASS_TOOL_NAMES.has(params.name) || (params.permissionMode === 'default' && FILE_EDIT_TOOL_NAMES.has(params.name)));
+	const setting = params.toolSettings[params.name] ?? (promptByDefault ? 'allowedWithPermission' : 'allowedWithoutPermission');
 	if (setting === 'disabled' || isAskUserToolName(params.name)) {
 		return false;
 	}

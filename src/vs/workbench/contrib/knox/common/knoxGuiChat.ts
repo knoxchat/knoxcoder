@@ -458,7 +458,7 @@ export function isAskUserToolName(name: string | undefined): boolean {
 	return n === 'ask_user' || n === 'askuser' || n === 'ask_question' || n === 'askuserquestion' || n === 'ask_user_question';
 }
 
-export function toolDisplayKind(name: string): 'terminal' | 'file' | 'search' | 'repo-map' | 'subdirectory' | 'create-file' | 'subagent' | 'ask-user' | 'generic' {
+export function toolDisplayKind(name: string): 'terminal' | 'file' | 'search' | 'repo-map' | 'subdirectory' | 'create-file' | 'subagent' | 'ask-user' | 'tool-search' | 'generic' {
 	const n = name.replace(/^builtin_/, '').toLowerCase().replace(/-/g, '_');
 	if (isAskUserToolName(name)) {
 		return 'ask-user';
@@ -483,6 +483,9 @@ export function toolDisplayKind(name: string): 'terminal' | 'file' | 'search' | 
 	}
 	if (n === 'task') {
 		return 'subagent';
+	}
+	if (n === 'tool_search') {
+		return 'tool-search';
 	}
 	return 'generic';
 }

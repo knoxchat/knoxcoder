@@ -844,26 +844,116 @@
 	color: var(--vscode-descriptionForeground, #9ca3af);
 }
 
-.knox-gui-check {
-	width: 16px;
-	height: 16px;
-	flex-shrink: 0;
+/* Compact selection checkbox. Size is pinned on every axis so no inherited button
+ * padding / min-height can stretch it taller than the row's text. */
+.knox-gui .knox-gui-check {
+	-webkit-appearance: none;
+	appearance: none;
+	box-sizing: border-box;
+	flex: 0 0 14px;
+	width: 14px;
+	height: 14px;
+	min-width: 14px;
+	min-height: 14px;
+	max-width: 14px;
+	max-height: 14px;
+	aspect-ratio: 1;
+	align-self: flex-start;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	margin-top: 2px;
+	margin: 2px 0 0;
 	padding: 0;
-	border: 1.5px solid var(--vscode-descriptionForeground, #6b7280);
-	border-radius: 4px;
+	line-height: 0;
+	overflow: hidden;
+	border: 1px solid color-mix(in srgb, var(--vscode-descriptionForeground, #9ca3af) 70%, transparent);
+	border-radius: 3px;
 	background: transparent;
 	color: #fff;
 	cursor: pointer;
+	transition: background 0.12s ease, border-color 0.12s ease;
 }
 
-.knox-gui-check.selected {
-	background: #159994;
+.knox-gui .knox-gui-check .knox-gui-svg {
+	width: 10px;
+	height: 10px;
+	flex-shrink: 0;
+}
+
+.knox-gui .knox-gui-check:hover {
 	border-color: #159994;
-	color: #fff;
+	background: rgba(21, 153, 148, 0.14);
+}
+
+.knox-gui .knox-gui-check:focus-visible {
+	outline: 1px solid #159994;
+	outline-offset: 2px;
+}
+
+/* Selected = teal outlined box with a soft tint and a bold teal tick inside (not a solid fill). */
+.knox-gui .knox-gui-check.selected,
+.knox-gui .knox-gui-check.selected:hover {
+	background: rgba(21, 153, 148, 0.16);
+	border-color: #159994;
+	color: #159994;
+	box-shadow: 0 0 0 2px rgba(21, 153, 148, 0.12);
+}
+
+.knox-gui .knox-gui-check.selected .knox-gui-svg {
+	width: 10px;
+	height: 10px;
+	stroke-width: 3.5;
+}
+
+/* Selection action bar: tidy pill buttons instead of bare teal text. */
+.knox-gui-history-actions > .knox-gui-row {
+	gap: 6px;
+}
+
+.knox-gui-history-actions .knox-gui-icon-btn {
+	height: 24px;
+	padding: 0 9px;
+	gap: 5px;
+	border-radius: 6px;
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground, #ccc) 14%, transparent);
+	background: color-mix(in srgb, var(--vscode-foreground, #ccc) 4%, transparent);
+	transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.knox-gui-history-actions .knox-gui-icon-btn:hover:not(:disabled) {
+	filter: none;
+	border-color: #159994;
+	background: rgba(21, 153, 148, 0.14);
+}
+
+.knox-gui-history-actions .knox-gui-icon-btn .knox-gui-svg {
+	width: 12px;
+	height: 12px;
+}
+
+.knox-gui-history-actions .knox-gui-icon-btn.knox-gui-danger:not(:disabled) {
+	color: var(--vscode-errorForeground, #f14c4c);
+	border-color: color-mix(in srgb, var(--vscode-errorForeground, #f14c4c) 40%, transparent);
+	background: color-mix(in srgb, var(--vscode-errorForeground, #f14c4c) 10%, transparent);
+}
+
+.knox-gui-history-actions .knox-gui-icon-btn.knox-gui-danger:not(:disabled) .knox-gui-lump-label,
+.knox-gui-history-actions .knox-gui-icon-btn.knox-gui-danger:not(:disabled) .knox-gui-svg {
+	color: inherit;
+}
+
+.knox-gui-history-actions .knox-gui-icon-btn.knox-gui-danger:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--vscode-errorForeground, #f14c4c) 20%, transparent);
+	border-color: var(--vscode-errorForeground, #f14c4c);
+}
+
+.knox-gui-history-actions .knox-gui-icon-btn:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.knox-gui-history-actions .knox-gui-lump-label {
+	font-size: 11.5px;
 }
 
 .knox-gui-history-search {

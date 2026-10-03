@@ -72,13 +72,13 @@ suite('Knox context / slash / skills / rules contract (KN-300–307)', () => {
 		assert.ok(repoFile('extensions/knox/src/core/context/codebaseCard.ts').includes('from "./cargoCard"'));
 	});
 
-	test('KN-304: ten slash builtins match Core catalog and native SLASH_BUILTINS', () => {
+	test('KN-304: twelve slash builtins match Core catalog and native SLASH_BUILTINS', () => {
 		const catalog = repoFile('extensions/knox/src/core/commands/slash/index.ts');
 		const names = SLASH_BUILTINS.map(cmd => cmd.name);
 		assert.deepStrictEqual(names, [
-			'autonomous', 'issue', 'share', 'cmd', 'http', 'commit', 'review', 'pr', 'changelog', 'skills',
+			'autonomous', 'issue', 'share', 'cmd', 'http', 'commit', 'review', 'pr', 'changelog', 'skills', 'init', 'instructions', 'hooks',
 		]);
-		for (const file of ['autonomous', 'draftIssue', 'share', 'cmd', 'http', 'commit', 'review', 'pr', 'changelog', 'skills']) {
+		for (const file of ['autonomous', 'draftIssue', 'share', 'cmd', 'http', 'commit', 'review', 'pr', 'changelog', 'skills', 'init', 'instructions', 'hooks']) {
 			assert.ok(catalog.includes(`from "./${file}"`), file);
 		}
 		assert.ok(repoFile('extensions/knox/src/core/promptFiles/v2/slashCommandFromPromptFile.ts').includes('export'));

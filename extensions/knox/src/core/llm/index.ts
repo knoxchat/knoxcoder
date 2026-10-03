@@ -1,4 +1,5 @@
 import Handlebars from "handlebars";
+import { extractUsage, type ReportedUsage } from "./promptCache.js";
 import { ModelRole } from "knoxdev-package/config-yaml";
 import { fetchwithRequestOptions } from "knoxdev-package/fetch";
 import { t } from "../i18n/index.js";
@@ -645,20 +646,11 @@ export abstract class BaseLLM implements ILLM {
     let thinking = "";
     let completion = "";
     const extra = { citations: null as string[] | null };
-    const usageBox: {
-      value?: { promptTokens?: number; completionTokens?: number };
-    } = {};
+    const usageBox: { value?: ReportedUsage } = {};
     const captureUsage = (u: any) => {
-      if (!u || typeof u !== "object") {
-        return;
-      }
-      const p = Number(u.prompt_tokens ?? u.input_tokens);
-      const c = Number(u.completion_tokens ?? u.output_tokens);
-      if (p > 0 || c > 0) {
-        usageBox.value = {
-          ...(p > 0 ? { promptTokens: p } : {}),
-          ...(c > 0 ? { completionTokens: c } : {}),
-        };
+      const extracted = extractUsage(u);
+      if (extracted) {
+        usageBox.value = extracted;
       }
     };
 

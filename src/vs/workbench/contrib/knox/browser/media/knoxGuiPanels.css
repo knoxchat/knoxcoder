@@ -1567,3 +1567,29 @@
 	}
 }
 
+
+/* K-026 staged review */
+.knox-gui-review-file .knox-gui-worktree-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.knox-gui-review-link { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; font: inherit; color: var(--vscode-textLink-foreground); opacity: 1; }
+.knox-gui-review-link:hover:not(:disabled) { text-decoration: underline; color: var(--vscode-textLink-activeForeground); }
+.knox-gui-review-kind, .knox-gui-review-counts { flex: none; white-space: nowrap; }
+.knox-gui-review .knox-gui-attached-pre { max-height: 220px; overflow: auto; }
+.knox-gui-review-add { color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950); }
+.knox-gui-review-del { color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149); }
+
+/* K-045 reduced motion: catch-all for decorative animation. Spinners keep rotating (they signal progress). */
+@media (prefers-reduced-motion: reduce) {
+	.knox-gui-overlay-enter,
+	.knox-gui-overlay-leave,
+	[class*="knox-gui-"][class*="pulse"],
+	[class*="knox-gui-"][class*="generating"],
+	[class*="knox-gui-"][class*="cursor"],
+	[class*="knox-gui-"][class*="blink"],
+	[class*="knox-gui-"][class*="live"],
+	[class*="knox-composer-"],
+	[class*="knox-thinking-"] {
+		animation-duration: 0.001ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.001ms !important;
+	}
+}

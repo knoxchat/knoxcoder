@@ -9,7 +9,7 @@ import { knoxGuiLocalAutoApprove } from './knoxGuiAgentRequest.js';
 import { knoxGuiListboxNextIndex, knoxGuiSortModelsByApiKey } from './knoxGuiCapabilities.js';
 import { composerInputHistoryFromStorage, inputDocFromPlainText, MAX_COMPOSER_INPUT_HISTORY } from './knoxGuiInput.js';
 import { knoxGuiNormalizeWorkspace, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiResolveProfileId, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiResolveLanguage, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, knoxGuiStartupSession } from './knoxGuiPersist.js';
-import { createInitialKnoxGuiState, IKnoxGuiHistoryItem } from './knoxGuiState.js';
+import { createInitialKnoxGuiState, DEFAULT_PERMISSION_MODE, IKnoxGuiHistoryItem } from './knoxGuiState.js';
 import { knoxGuiContextItemFileIconName, knoxGuiContextItemOpenAction, knoxGuiMatchCodeToSymbolOrFile, knoxGuiMissingSymbolUris, knoxGuiParseSymbolMap, knoxGuiPastFileInfo, knoxGuiSymbolTooltip, patchNestedMarkdown, splitMarkdownBlocks } from './knoxGuiTranscript.js';
 
 suite('Knox native persistence and permission helpers', () => {
@@ -26,6 +26,7 @@ suite('Knox native persistence and permission helpers', () => {
 			codeToEdit: [],
 			overlay: null,
 			addModelModalProvider: 'knoxchat',
+			permissionNoticeDismissed: false,
 		});
 		// NP-11: redux-persist keeps session.mode (including edit) and codeToEdit so a window closed mid-edit reopens in it.
 		const editing = { ...state, mode: 'edit' as const, codeToEdit: [{ filepath: 'file:///a.ts', contents: 'x' }] };
@@ -92,6 +93,17 @@ suite('Knox native persistence and permission helpers', () => {
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_run_terminal_command', toolSettings: { builtin_run_terminal_command: 'allowedWithPermission' }, sessionAllowlist: ['builtin_run_terminal_command'] }), true);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'restore' }, permissionMode: 'fullAuto' }), false);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'create' } }), true);
+		// K-005: shell prompts by default outside Auto; an explicit setting still wins.
+		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_run_terminal_command', permissionMode: 'acceptEdits' }), false);
+		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_run_terminal_command', permissionMode: 'fullAuto' }), true);
+		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_run_terminal_command', permissionMode: 'acceptEdits', toolSettings: { builtin_run_terminal_command: 'allowedWithoutPermission' } }), true);
+	});
+
+	test('saved permission mode survives the new Edits default (migration)', () => {
+		assert.strictEqual(DEFAULT_PERMISSION_MODE, 'acceptEdits');
+		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ permissionMode: 'fullAuto' })).permissionMode, 'fullAuto');
+		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ permissionMode: 'default' })).permissionMode, 'default');
+		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({})).permissionMode, undefined);
 	});
 
 	test('S-06 stored language wins; otherwise zh* locales get Chinese', () => {

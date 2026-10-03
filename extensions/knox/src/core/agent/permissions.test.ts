@@ -4,7 +4,7 @@ import path from "path";
 import { describe, expect, it } from "vitest";
 
 import { BuiltInToolNames } from "../tools/builtIn";
-import { isToolAutoApproved } from "./permissions";
+import { DEFAULT_PERMISSION_MODE, isToolAutoApproved } from "./permissions";
 
 describe("isToolAutoApproved", () => {
   const workspaceDirs = [path.join(os.tmpdir(), "knox-ws")];
@@ -56,5 +56,54 @@ describe("isToolAutoApproved", () => {
         workspaceDirs,
       }),
     ).toBe(true);
+  });
+
+  it("defaults to Edits mode", () => {
+    expect(DEFAULT_PERMISSION_MODE).toBe("acceptEdits");
+  });
+
+  it("Edits mode asks for shell by default, Auto does not", () => {
+    const args = { command: "ls" };
+    const base = {
+      toolName: BuiltInToolNames.RunTerminalCommand,
+      toolSettings: {},
+      args,
+      workspaceDirs,
+    };
+    expect(
+      isToolAutoApproved({ ...base, permissionMode: "acceptEdits" }),
+    ).toBe(false);
+    expect(isToolAutoApproved({ ...base, permissionMode: "default" })).toBe(
+      false,
+    );
+    expect(isToolAutoApproved({ ...base, permissionMode: "fullAuto" })).toBe(
+      true,
+    );
+  });
+
+  it("an explicit tool setting still wins over the mode default", () => {
+    expect(
+      isToolAutoApproved({
+        toolName: BuiltInToolNames.RunTerminalCommand,
+        toolSettings: {
+          [BuiltInToolNames.RunTerminalCommand]: "allowedWithoutPermission",
+        },
+        permissionMode: "acceptEdits",
+        args: { command: "ls" },
+        workspaceDirs,
+      }),
+    ).toBe(true);
+  });
+
+  it("Auto never runs a guarded command", () => {
+    expect(
+      isToolAutoApproved({
+        toolName: BuiltInToolNames.RunTerminalCommand,
+        toolSettings: {},
+        permissionMode: "fullAuto",
+        args: { command: "git push --force" },
+        workspaceDirs,
+      }),
+    ).toBe(false);
   });
 });

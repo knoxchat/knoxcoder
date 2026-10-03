@@ -3,6 +3,7 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { knoxGuiContextLevel, knoxGuiContextRatio, knoxGuiFormatTokens } from '../../../../common/knoxGuiContextMeter.js';
 import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
@@ -151,6 +152,13 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 		});
 	}
 
+	const usage = state.contextUsage;
+	if (usage && usage.sessionId === state.sessionId && state.history.length > 0) {
+		const ratio = knoxGuiContextRatio(usage);
+		const meter = DOM.append(right, DOM.$(`span.knox-gui-context-meter.knox-gui-context-${knoxGuiContextLevel(ratio)}`, undefined, `${Math.round(ratio * 100)}%`));
+		meter.setAttribute('data-testid', 'knox-gui-context-meter');
+		meter.title = `${t(state, 'contextMeterTitle')}: ${knoxGuiFormatTokens(usage.used)} / ${knoxGuiFormatTokens(usage.limit)}${usage.source === 'estimated' ? ' (~)' : ''}`;
+	}
 	const canCancel = knoxGuiCanCancel(state);
 	if (canCancel) {
 		widget.chromeButton(right, {

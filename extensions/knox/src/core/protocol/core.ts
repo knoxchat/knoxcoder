@@ -688,9 +688,57 @@ export type ToCoreFromIdeOrWebviewProtocol = {
     },
   ];
   /**
+   * Staged review (K-026). While enabled for a session, agent file edits are
+   * held in memory. `status` lists them, `diff` returns a unified diff of one
+   * file, `apply` writes (all or `fileUris`) to disk, `discard` drops them.
+   */
+  "agent/review": [
+    {
+      action: "enable" | "disable" | "status" | "diff" | "apply" | "discard";
+      sessionId?: string;
+      fileUris?: string[];
+    },
+    {
+      ok: boolean;
+      error?: string;
+      enabled: boolean;
+      files: Array<{
+        fileUri: string;
+        kind: "create" | "modify" | "delete";
+        added: number;
+        removed: number;
+      }>;
+      diff?: string;
+      /** Staged before/after text for the editor diff (diff action). null = absent. */
+      before?: string | null;
+      after?: string | null;
+      applied?: string[];
+      failed?: Array<{ fileUri: string; error: string }>;
+    },
+  ];
+  /**
    * Background agent jobs panel (Claude Agent view lite).
    * `list` returns shell jobs; `kill` stops a running job; `dismiss` drops a finished one.
    */
   "agent/jobs": [AgentJobsRequest, AgentJobsResponse];
+  /**
+   * Hooks panel (K-023). `status` returns the configured events and the
+   * recent audit log; `clear` empties the log first.
+   */
+  "agent/hooks": [
+    { action: "status" | "clear"; limit?: number },
+    {
+      events: string[];
+      entries: Array<{
+        at: number;
+        event: string;
+        toolName?: string;
+        command: string;
+        outcome: string;
+        durationMs: number;
+        detail?: string;
+      }>;
+    },
+  ];
   "clipboardCache/add": [{ content: string }, void];
 };

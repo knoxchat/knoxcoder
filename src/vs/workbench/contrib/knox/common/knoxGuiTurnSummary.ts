@@ -167,9 +167,6 @@ function changesOfCall(call: IKnoxGuiToolCall): IKnoxGuiTurnFileChange[] {
 		const delta = replaceDelta(args.old_string ?? args.old_str, args.new_string ?? args.new_str);
 		return [{ path, ...delta, kind: 'edit' }];
 	}
-	if (name === 'edit_notebook') {
-		return [{ path, additions: lineCount(args.source), deletions: 0, kind: 'edit' }];
-	}
 	return [];
 }
 

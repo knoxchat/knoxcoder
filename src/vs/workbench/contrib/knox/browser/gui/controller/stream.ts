@@ -3,21 +3,21 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { knoxGuiContextUsageFromLog, knoxGuiResolveContextLimit } from '../../../common/knoxGuiContextMeter.js';
 import type { KnoxGuiController } from '../../knoxGuiController.js';
-import { MEMORY_BUILD_TIMEOUT_MS, asRecord, asArray, contextItemFromRaw, textFromUnknown, withTimeout } from './helpers.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { MEMORY_BUILD_TIMEOUT_MS, asRecord, asArray, contextItemFromRaw, withTimeout } from './helpers.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { expandPromptSlashCommand, isPromptBasedSlashCommand, parseLeadingSlash } from '../../../common/knoxGuiChat.js';
 import { collectLatestTaskPlanSnapshot, parseInjectedMemories } from '../../../common/knoxGuiPanels.js';
-import { toolOutputItemsFromUnknown, toolOutputText } from '../../../common/knoxGuiTools.js';
 import { knoxGuiMissingSymbolUris, knoxGuiParseSymbolMap, nextCodeBlockToApply, parseStreamError, pendingApplyStates } from '../../../common/knoxGuiTranscript.js';
 import { extractMentionsFromDoc, extractSlashFromDoc, inputDocFromPlainText, inputDocToPlainText, knoxGuiPendingToolBlocksSubmit, knoxGuiShouldBlockSubmit, mentionContextProviderName, resolveComposerSlashCommand, slashCommandBareName, submitUsesActiveFile, useActiveFileFromDefaultContext } from '../../../common/knoxGuiInput.js';
 import { editSendPromptPayload, knoxGuiMultifileEditPrompt, shouldSendEditPrompt } from '../../../common/knoxGuiEdit.js';
 import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
-import { IKnoxCoreChatHistoryItem, IKnoxCoreChatMessage, IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiDoomCall, knoxGuiEmptyStreamText, knoxGuiFlushStreamText, knoxGuiShouldSplitForTools, knoxGuiFallbackMessages, knoxGuiFormatTurnInject, knoxGuiHistoryToCoreHistory, knoxGuiMemoryGoal, knoxGuiIsCancelledToolError, knoxGuiIsRetryableToolError, knoxGuiShouldContinueTurn, knoxGuiToolFailureOutput, knoxGuiToolIsSettled, knoxGuiToolPreferredModel, knoxGuiToolRetryDelay, KNOX_TOOL_CALL_MAX_RETRIES, knoxGuiTurnDoomCalls, knoxGuiTurnMessages, knoxGuiTurnTools } from '../../../common/knoxGuiAgentRequest.js';
+import { IKnoxCoreChatHistoryItem, IKnoxCoreChatMessage, IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiFlushStreamText, knoxGuiShouldSplitForTools, knoxGuiFallbackMessages, knoxGuiFormatTurnInject, knoxGuiHistoryToCoreHistory, knoxGuiMemoryGoal, knoxGuiShouldContinueTurn, knoxGuiToolIsSettled, knoxGuiTurnDoomCalls, knoxGuiTurnMessages, knoxGuiTurnTools } from '../../../common/knoxGuiAgentRequest.js';
 import { knoxGuiDequeue, knoxGuiEnqueue, knoxGuiNextToDrain } from '../../../common/knoxGuiQueue.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
+import { isSharedTurnActive, runSharedTurn, sharedLoopEligible } from './sharedTurn.js';
 
 
 /** Core `llm/streamChat` legacySlashCommandData: built-ins with a `run()` (commit, share, http, …). */
@@ -155,6 +155,9 @@ export async function submit(controller: KnoxGuiController, starterPrompt?: stri
 		if (controller.store.state.worktree.enabled) {
 			void controller.runWorktree('status');
 		}
+		if (controller.store.state.review.enabled) {
+			void controller.runReview('status');
+		}
 		drainMessageQueue(controller);
 	}
 }
@@ -291,7 +294,7 @@ export function resolveAutonomousTool(controller: KnoxGuiController, id: string,
 }
 
 /** `streamThunkWrapper.tsx` outermost exit: assistant recordMessage + post-turn memory. */
-function finishTurn(controller: KnoxGuiController): void {
+export function finishTurn(controller: KnoxGuiController): void {
 	const history = controller.store.state.history;
 	controller.messenger.post('knox/finishTurn', {
 		sessionId: controller.store.state.sessionId,
@@ -315,8 +318,7 @@ async function buildAgentRequest(controller: KnoxGuiController): Promise<{ messa
 			history,
 			sessionId: state.sessionId,
 			injectedContext,
-			// Candidate tools. Jev may drop them in llm/streamChat for view_read/clarify.
-			includeTools: state.mode === 'agent' && state.toolsSupported,
+			includeTools: false,
 			toolSettings: state.toolSettings,
 			excludedGroups: state.toolGroupExcluded,
 			dropSearchWeb: (state.webSearchSupported && state.webSearchEnabled) || !state.selectedModelByRole.realTimeSearch,
@@ -332,7 +334,7 @@ async function buildAgentRequest(controller: KnoxGuiController): Promise<{ messa
 	return { messages: knoxGuiFallbackMessages(history, injectedContext), tools: [] };
 }
 
-function streamUpdate(acc: IKnoxGuiStreamText, toolCalls: IKnoxGuiToolCall[]) {
+export function streamUpdate(acc: IKnoxGuiStreamText, toolCalls: IKnoxGuiToolCall[]) {
 	return {
 		content: acc.content,
 		toolCalls: toolCalls.slice(),
@@ -394,7 +396,7 @@ async function streamRound(controller: KnoxGuiController, token: CancellationTok
  * markup is stripped from the reply. Host `hydrateAssistantTextToolCalls`
  * promotes parsed calls when existing streamed calls have no names.
  */
-async function hydrateLastAssistant(controller: KnoxGuiController, acc: IKnoxGuiStreamText, toolCalls: IKnoxGuiToolCall[], allowTools: boolean): Promise<void> {
+export async function hydrateLastAssistant(controller: KnoxGuiController, acc: IKnoxGuiStreamText, toolCalls: IKnoxGuiToolCall[], allowTools: boolean): Promise<void> {
 	if (!acc.content.includes('<')) {
 		return;
 	}
@@ -420,7 +422,7 @@ async function hydrateLastAssistant(controller: KnoxGuiController, acc: IKnoxGui
 }
 
 /** `runGuiAgentLoop.ts` onPromptLog: keep the log on the reply; chat mode also sends `devdata/log`. */
-function recordPromptLog(controller: KnoxGuiController, value: unknown): void {
+export function recordPromptLog(controller: KnoxGuiController, value: unknown): void {
 	const log = asRecord(value);
 	if (!log || (typeof log.prompt !== 'string' && typeof log.completion !== 'string')) {
 		return;
@@ -431,7 +433,16 @@ function recordPromptLog(controller: KnoxGuiController, value: unknown): void {
 		prompt: typeof log.prompt === 'string' ? log.prompt : undefined,
 		completion: typeof log.completion === 'string' ? log.completion : undefined,
 	};
-	const history = state.history.slice();
+	const selected = state.models.find(item => item.title === state.modelTitle);
+	const contextUsage = knoxGuiContextUsageFromLog(
+		log,
+		knoxGuiResolveContextLimit(selected?.model, [state.knoxChatModels, state.openrouterModels]),
+		state.sessionId,
+	);
+	if (contextUsage) {
+		controller.store.patch({ contextUsage });
+	}
+	const history = controller.store.state.history.slice();
 	for (let i = history.length - 1; i >= 0; i--) {
 		if (history[i].role === 'assistant') {
 			history[i] = { ...history[i], promptLogs: [...(history[i].promptLogs ?? []), entry] };
@@ -464,14 +475,13 @@ async function runRound(controller: KnoxGuiController, legacySlash?: IKnoxGuiLeg
 	const cancel = new CancellationTokenSource();
 	controller.streamCancel = cancel;
 	try {
-		const toolCalls = await streamRound(controller, cancel.token, legacySlash);
-		if (controller.turnAborted) {
+		if (sharedLoopEligible(controller, Boolean(legacySlash))) {
+			await runSharedTurn(controller);
 			return;
 		}
-		if (toolCalls.length) {
-			await controller.resolveTools(toolCalls);
-			await controller.saveCurrentSession({ generateTitle: true });
-			await controller.maybeContinueTurn();
+		// Chat mode, models without tools and legacy slash commands: one tool-free stream.
+		await streamRound(controller, cancel.token, legacySlash);
+		if (controller.turnAborted) {
 			return;
 		}
 		await controller.ensureCheckpointForLastAssistant();
@@ -511,11 +521,14 @@ export function cancel(controller: KnoxGuiController): void { // cancelStream.ts
 		controller.store.patch({ autonomous: { ...controller.store.state.autonomous, status: 'cancelled' } });
 	}
 	controller.messenger.post('brain/cancelAutonomousLoop', { sessionId: controller.store.state.sessionId });
+	if (isSharedTurnActive(controller)) {
+		controller.messenger.post('knox/cancelChatTurn', { sessionId: controller.store.state.sessionId });
+	}
 	finishTurn(controller);
 	void controller.saveCurrentSession({ generateTitle: false });
 }
 
-/** `runGuiAgentLoop.ts` executeTool: doom-loop guard, then `tools/call`; failures become tool output. */
+/** Allows a waiting permission card (shared turn or /autonomous). */
 export async function approveTool(controller: KnoxGuiController, id: string, always?: boolean): Promise<void> {
 	const call = controller.findTool(id);
 	if (!call || call.status === 'calling' || knoxGuiToolIsSettled(call)) {
@@ -524,121 +537,12 @@ export async function approveTool(controller: KnoxGuiController, id: string, alw
 	if (always && !controller.store.state.sessionToolAllowlist.includes(call.name)) {
 		controller.store.patch({ sessionToolAllowlist: [...controller.store.state.sessionToolAllowlist, call.name] });
 	}
-	if (isAutonomousRunning(controller)) {
+	if (isAutonomousRunning(controller) || isSharedTurnActive(controller)) {
 		resolveAutonomousTool(controller, id, true, always);
 		return;
 	}
-	const blocked = await doomLoopBlock(controller, call);
-	if (blocked) {
-		controller.messenger.post('brain/recordSoulEvent', {
-			sessionId: controller.store.state.sessionId,
-			kind: 'tool_error',
-			toolName: blocked.toolName ?? call.name,
-			files: [],
-			ok: false,
-			summary: `Doom loop (${blocked.kind}) blocked further tool calls`,
-		});
-		const language = controller.store.state.language;
-		const item = { name: knoxGuiT(language, 'doomLoopName'), description: knoxGuiT(language, 'doomLoopDescription'), content: blocked.message };
-		controller.patchTool(id, { status: 'done', outputItems: [item], output: blocked.message });
-		controller.store.appendHistory({
-			id: generateUuid(),
-			role: 'tool',
-			content: blocked.message,
-			toolCalls: [{ ...call, status: 'done', outputItems: [item], output: blocked.message }],
-		});
-		await controller.maybeContinueTurn();
-		return;
-	}
-	controller.patchTool(id, { status: 'calling' });
-	const outcome = await callToolWithRetry(controller, call);
-	if (outcome === 'stopped') {
-		return;
-	}
-	if (outcome.ok) {
-		const items = toolOutputItemsFromUnknown(outcome.result?.contextItems ?? outcome.result);
-		controller.patchTool(id, { status: 'done', outputItems: items, output: toolOutputText(items, textFromUnknown(outcome.result?.contextItems ?? outcome.result)) });
-	} else {
-		const language = controller.store.state.language;
-		const unexpectedAbort = knoxGuiIsCancelledToolError(outcome.error) && controller.findTool(id)?.status === 'calling';
-		const item = knoxGuiToolFailureOutput(call.name, outcome.error, {
-			unexpectedAbort,
-			attemptsUsed: outcome.attempts,
-			name: knoxGuiT(language, 'toolCallErrorName'),
-			description: unexpectedAbort
-				? knoxGuiT(language, 'toolCallInterrupted')
-				: outcome.attempts > 1
-					? knoxGuiT(language, 'toolCallFailedAfterRetries', { count: outcome.attempts })
-					: knoxGuiT(language, 'toolCallFailed'),
-		});
-		controller.patchTool(id, { status: 'errored', outputItems: [item], output: item.content });
-	}
-	await controller.maybeContinueTurn();
-}
-
-/**
- * `callTool.ts` execute-with-retry: retryable errors back off (800 ms, 1.6 s);
- * a cancel error or a user Stop ends the attempts.
- */
-async function callToolWithRetry(controller: KnoxGuiController, call: IKnoxGuiToolCall): Promise<'stopped' | { ok: true; result: Record<string, unknown> | undefined } | { ok: false; error: string; attempts: number }> {
-	const stopped = () => controller.turnAborted || controller.findTool(call.id)?.status === 'canceled';
-	let lastError = '';
-	let attempts = 0;
-	for (let attempt = 0; attempt <= KNOX_TOOL_CALL_MAX_RETRIES; attempt++) {
-		if (stopped()) {
-			return 'stopped';
-		}
-		if (attempt > 0) {
-			await timeout(knoxGuiToolRetryDelay(attempt));
-			if (stopped()) {
-				return 'stopped';
-			}
-		}
-		attempts = attempt + 1;
-		const state = controller.store.state;
-		const lastUser = [...state.history].reverse().find(item => item.role === 'user');
-		try {
-			const result = await controller.messenger.request<Record<string, unknown>>('tools/call', {
-				toolCall: { id: call.id, type: 'function', function: { name: call.name, arguments: call.arguments } },
-				selectedModelTitle: state.modelTitle,
-				viewReadModelTitle: state.selectedModelByRole.viewRead ?? null,
-				realTimeSearchModelTitle: state.selectedModelByRole.realTimeSearch ?? null,
-				preferredModel: knoxGuiToolPreferredModel(call.name, state.selectedModelByRole),
-				sessionId: state.sessionId,
-				turnId: lastUser?.id ?? state.sessionId,
-			});
-			if (stopped()) {
-				return 'stopped';
-			}
-			if (typeof result?.errorMessage === 'string' && result.errorMessage) {
-				throw new Error(result.errorMessage);
-			}
-			return { ok: true, result };
-		} catch (error) {
-			if (stopped()) {
-				return 'stopped';
-			}
-			lastError = error instanceof Error ? error.message : String(error);
-			if (knoxGuiIsCancelledToolError(lastError) || !knoxGuiIsRetryableToolError(lastError)) {
-				break;
-			}
-		}
-	}
-	return { ok: false, error: lastError, attempts };
-}
-
-async function doomLoopBlock(controller: KnoxGuiController, call: IKnoxGuiToolCall): Promise<{ message: string; kind?: string; toolName?: string } | undefined> {
-	try {
-		const result = await controller.messenger.request<{ blockedMessage?: string; kind?: string; toolName?: string }>('knox/checkDoomLoop', {
-			turnToolCalls: knoxGuiTurnDoomCalls(controller.store.state.history),
-			pending: knoxGuiDoomCall(call),
-		});
-		return typeof result?.blockedMessage === 'string' && result.blockedMessage
-			? { message: result.blockedMessage, kind: result.kind, toolName: result.toolName }
-			: undefined;
-	} catch {
-		return undefined;
-	}
+	// Only the shared loop and /autonomous run tools. A card left over from a closed turn cannot run any more.
+	controller.patchTool(id, { status: 'canceled' });
 }
 
 export async function maybeContinueTurn(controller: KnoxGuiController): Promise<void> {

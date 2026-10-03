@@ -45,7 +45,7 @@ describe("KN-382 setting ids stay in extensions/knox/package.json", () => {
 
   it("contributes every frozen knoxchat.* and knox.checkpoints.* id", () => {
     expect(contributed).toEqual([...KNOX_SETTING_IDS].sort());
-    expect(KNOX_CHAT_SETTING_IDS).toHaveLength(13);
+    expect(KNOX_CHAT_SETTING_IDS).toHaveLength(16);
     expect(KNOX_CHECKPOINT_SETTING_IDS).toHaveLength(35);
   });
 

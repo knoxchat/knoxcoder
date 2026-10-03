@@ -238,9 +238,17 @@ function escapeTemplateValue(value: unknown): string {
  * are always escaped (also for `{{{ }}}`) because they come from the model.
  */
 export function renderToolTemplateHtml(template: string, args: Record<string, unknown>): string {
+	// An omitted directory means the workspace root; never render an empty `""`.
+	const value = (key: string) => {
+		const raw = args[key];
+		if (key === 'directory_path' && (raw === undefined || raw === null || String(raw).trim() === '')) {
+			return escapeTemplateValue('.');
+		}
+		return escapeTemplateValue(raw);
+	};
 	return template
-		.replace(/\{\{\{\s*(\w+)\s*\}\}\}/g, (_, key: string) => escapeTemplateValue(args[key]))
-		.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => escapeTemplateValue(args[key]))
+		.replace(/\{\{\{\s*(\w+)\s*\}\}\}/g, (_, key: string) => value(key))
+		.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => value(key))
 		.trim();
 }
 
@@ -254,8 +262,11 @@ export function toolStatusIntroKey(status: KnoxToolStatus): string {
 	if (status === 'calling') {
 		return 'toolFor';
 	}
-	if (status === 'canceled' || status === 'errored') {
+	if (status === 'canceled') {
 		return 'toolCanceled';
+	}
+	if (status === 'errored') {
+		return 'toolFailed';
 	}
 	return '';
 }

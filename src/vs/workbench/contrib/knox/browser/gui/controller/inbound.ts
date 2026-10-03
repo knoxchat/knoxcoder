@@ -61,6 +61,7 @@ const KNOX_GUI_CHAT_ONLY_INBOUND = new Set([
 	'addImageAttachment',
 	'addContextItem',
 	'agentModeChanged',
+	'knox/chatTurnEvent',
 ]);
 
 /** `useNavigationListener.ts` openGUITypes: return to chat from secondary pages first. */
@@ -298,6 +299,9 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 			}
 			return;
 		case 'agentStreamingUpdate': // agentModeStreamingMiddleware.ts: the chat stream already renders the reply
+			return;
+		case 'knox/chatTurnEvent':
+			controller.enqueueChatTurnEvent(data);
 			return;
 		case 'tools/partialOutput':
 			if (rec && typeof rec.toolCallId === 'string') {

@@ -16,6 +16,9 @@ import {
   setSerialContextInject,
 } from "../context/serialContext";
 
+/** Size of the pre-K-031 monolithic prompt, for the shrink target. */
+const OLD_PROMPT_CHARS = 4900;
+
 describe("constructMessages", () => {
   afterEach(() => {
     resetPlansForTests();
@@ -24,12 +27,39 @@ describe("constructMessages", () => {
     resetSerialContextForTests();
   });
 
+  it("keeps a byte-identical stable prefix when plan and serial tail change (K-030)", () => {
+    setCodebaseCardInject("CARD: stable repo summary");
+    setRustPolicyEnabled(true);
+    const sysText = (sid: string) =>
+      constructMessages([], sid)
+        .filter((m) => m.role === "system")
+        .map((m) => String(m.content));
+
+    const before = sysText("s-none");
+    createPlan({ sessionId: "s-a", title: "Plan A", steps: ["one"] });
+    setSerialContextInject("serial tail 1");
+    const turn1 = sysText("s-a");
+    createPlan({ sessionId: "s-a", title: "Plan B", steps: ["two", "three"] });
+    setSerialContextInject("serial tail 2 (longer)");
+    const turn2 = sysText("s-a");
+
+    // Stable blocks: prompt, card, rust policy.
+    const stableCount = before.length;
+    expect(stableCount).toBeGreaterThanOrEqual(3);
+    expect(turn1.slice(0, stableCount).join("\u0000")).toBe(
+      turn2.slice(0, stableCount).join("\u0000"),
+    );
+    // Volatile blocks come strictly after the stable prefix.
+    expect(turn1.length).toBeGreaterThan(stableCount);
+    expect(turn1[stableCount]).toContain("Plan A");
+    expect(turn2[stableCount]).toContain("Plan B");
+  });
+
   it("injects edit-tool discipline in the default system message", () => {
     const msgs = constructMessages([]);
     expect(msgs[0]?.role).toBe("system");
     const content = String(msgs[0]?.content);
     expect(content).toContain("builtin_read_file");
-    expect(content).toContain("read_file_line");
     expect(content).toContain("builtin_exact_search");
     expect(content).toContain("builtin_edit_file");
     expect(content).toContain("builtin_write_file");
@@ -52,6 +82,17 @@ describe("constructMessages", () => {
     expect(content).toContain("builtin_maintainers");
     expect(content).toContain("builtin_debug");
     expect(content).toMatch(/native tool|Never print DSML/i);
+  });
+
+  it("omits systems tooling on the default profile and is >=40% smaller (K-031)", () => {
+    const full = String(constructMessages([])[0]?.content);
+    const lean = String(constructMessages([], null, { systems: false })[0]?.content);
+    expect(lean).not.toContain("builtin_pty_start");
+    expect(lean).not.toContain("builtin_qemu");
+    expect(lean).toContain("builtin_edit_file");
+    expect(lean).toContain("Verification");
+    expect(lean.length).toBeLessThanOrEqual(OLD_PROMPT_CHARS * 0.6);
+    expect(full.length).toBeLessThan(OLD_PROMPT_CHARS);
   });
 
   it("strips leaked DSML tool markup from assistant history", () => {

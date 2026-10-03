@@ -2,6 +2,7 @@ import { fetchwithRequestOptions } from "knoxdev-package/fetch";
 
 import { ChatMessage, IDE, PromptLog } from "..";
 import { ConfigHandler } from "../config/ConfigHandler";
+import { refreshSkillScope } from "../skills/scope";
 import {
   compactMessagesAsync,
   type CompactionAppliedEvent,
@@ -136,6 +137,7 @@ export async function* llmStreamChat(
   }
 
   const jevRuntime = applyJevConfig(config.experimental?.jev);
+  await refreshSkillScope(ide);
 
   const { title, legacySlashCommandData, completionOptions: rawCompletionOptions, messages } =
     msg.data;
@@ -159,7 +161,7 @@ export async function* llmStreamChat(
       try {
         const manager = getSkillManager();
         if (manager?.isLoaded) {
-          skills = manager.all();
+          skills = manager.visible();
         }
       } catch {
         skills = [];
@@ -371,7 +373,7 @@ export async function* llmStreamChat(
         if (manager?.isLoaded && lastUser) {
           const matches = matchSkillsByIntent(
             extractUserText(lastUser),
-            manager.all(),
+            manager.visible(),
             { limit: 3, minScore: 0.18 },
           );
           const hint = formatMatchedSkillsHint(matches);

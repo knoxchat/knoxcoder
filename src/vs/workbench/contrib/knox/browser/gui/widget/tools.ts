@@ -13,6 +13,8 @@ import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { appendKnoxGuiSvg, replaceKnoxGuiSvg, setKnoxGuiInnerHtml } from '../knoxGuiIcons.js';
 import { setCollapseChevronExpanded } from './controls.js';
 import { toolDisplayKind } from '../../../common/knoxGuiChat.js';
+import { knoxGuiParseToolSearch } from '../../../common/knoxGuiToolSearch.js';
+import { knoxGuiParseSubagentMerges } from '../../../common/knoxGuiSubagentMerge.js';
 import { knoxGuiToolBodyCollapsed, knoxGuiToolToggle } from '../../../common/knoxGuiToolCollapse.js';
 import {
 	catalogToolForCall,
@@ -169,20 +171,18 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 
 	const head = DOM.append(box, DOM.$('.knox-gui-tool-head'));
 	const left = DOM.append(head, DOM.$('.knox-gui-tool-head-left'));
-	if (!alwaysShow) {
-		widget.collapseChevron(left, {
-			expanded: showBody,
-			title: showBody ? t(state, 'collapse') : t(state, 'expand'),
-			onClick: () => {
-				if (isLive) {
-					return;
-				}
-				const next = knoxGuiToolToggle(showBody);
-				widget.toolBodyCollapsed[next.collapsed ? 'add' : 'delete'](tool.id);
-				widget.toolBodyExpanded[next.expanded ? 'add' : 'delete'](tool.id);
-				widget.render();
-			},
-		});
+	const toggleBody = () => {
+		if (isLive || alwaysShow) {
+			return;
+		}
+		const next = knoxGuiToolToggle(showBody);
+		widget.toolBodyCollapsed[next.collapsed ? 'add' : 'delete'](tool.id);
+		widget.toolBodyExpanded[next.expanded ? 'add' : 'delete'](tool.id);
+		widget.render();
+	};
+	head.classList.toggle('is-toggleable', !alwaysShow && !isLive);
+	if (!alwaysShow && !isLive) {
+		widget.renderStore.add(DOM.addDisposableListener(head, 'click', toggleBody));
 	}
 	// K-041: keyboard access. Enter/Space toggles the body, Up/Down moves between tool cards.
 	head.tabIndex = 0;
@@ -228,6 +228,7 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 		fav.alt = t(state, 'toolIcon');
 	}
 	const status = DOM.append(left, DOM.$('div.knox-gui-tool-status-text'));
+	let templateText = '';
 	if (!catalog && !tool.name) {
 		status.append(t(state, 'agentToolUsage'));
 	} else {
@@ -243,12 +244,23 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 			message = renderToolTemplateHtml(catalog.wouldLikeTo, displayArgs);
 		}
 		const copy = DOM.append(status, DOM.$('div.knox-gui-tool-status-copy'));
-		copy.append(`${t(state, 'knox')} `);
-		if (introKey) {
+		// Finished / running steps read as a plain action ("Read index.html"); only permission and
+		// failure states keep the "Knox ..." subject.
+		const plainAction = tool.status === 'done' || tool.status === 'calling';
+		if (!plainAction) {
+			copy.append(`${t(state, 'knox')} `);
+		}
+		if (introKey && tool.status !== 'calling') {
 			copy.append(`${t(state, introKey)} `);
 		}
 		if (message) {
-			safeSetInnerHtml(DOM.append(copy, DOM.$('span.knox-gui-tool-template')), message);
+			if (tool.status === 'done') {
+				message = message.replace(/^has\s+/i, '');
+				message = message.charAt(0).toUpperCase() + message.slice(1);
+			}
+			const templateEl = DOM.append(copy, DOM.$('span.knox-gui-tool-template'));
+			safeSetInnerHtml(templateEl, message);
+			templateText = templateEl.textContent ?? '';
 		} else {
 			copy.append(`${t(state, fallbackKey)} `);
 			const code = DOM.append(copy, DOM.$('code', undefined, formatted));
@@ -256,20 +268,25 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 			copy.append(` ${t(state, 'tool')}`);
 		}
 	}
+	const right = DOM.append(head, DOM.$('.knox-gui-tool-head-right'));
 	if (!showBody) {
 		const summary = finishedToolSummary(tool, catalog?.displayTitle);
+		// Don't repeat what the title already says (e.g. the file name).
+		if (summary.detail && templateText.includes(summary.detail)) {
+			summary.detail = undefined;
+		}
 		const text = finishedToolSummaryText(summary);
 		if (text) {
-			const el = DOM.append(status, DOM.$('span.knox-gui-tool-summary', undefined, text));
+			const el = DOM.append(right, DOM.$('span.knox-gui-tool-summary', undefined, text));
 			el.setAttribute('data-testid', 'tool-call-summary');
 		}
 	}
 	if (showParams) {
-		const toggle = DOM.append(head, DOM.$('button.knox-gui-tool-args-toggle')) as HTMLButtonElement;
+		const toggle = DOM.append(right, DOM.$('button.knox-gui-tool-args-toggle')) as HTMLButtonElement;
 		toggle.type = 'button';
 		toggle.setAttribute('aria-expanded', String(argsOpen));
 		widget.hover(toggle, argsOpen ? t(state, 'hideParameters') : t(state, 'showParameters'));
-		appendKnoxGuiSvg(toggle, argsOpen ? 'chevron-up' : 'chevron-down', 16);
+		appendKnoxGuiSvg(toggle, 'list-chevrons-up-down', 14);
 		widget.renderStore.add(DOM.addDisposableListener(toggle, 'click', e => {
 			e.stopPropagation();
 			if (widget.toolArgsOpen.has(tool.id)) {
@@ -279,6 +296,14 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 			}
 			widget.render();
 		}));
+	}
+	if (!alwaysShow) {
+		widget.collapseChevron(right, {
+			expanded: showBody,
+			title: showBody ? t(state, 'collapse') : t(state, 'expand'),
+			disabled: isLive,
+			onClick: toggleBody,
+		});
 	}
 	if (showParams && argsOpen) {
 		const list = DOM.append(box, DOM.$('.knox-gui-tool-args'));
@@ -331,6 +356,10 @@ export function renderToolBody(widget: KnoxGuiWidget, parent: HTMLElement, state
 	}
 	if (kind === 'subagent') {
 		widget.renderTaskSubagent(parent, state, tool);
+		return;
+	}
+	if (kind === 'tool-search') {
+		renderToolSearch(parent, state, tool);
 		return;
 	}
 	widget.renderGenericCodeTool(parent, state, tool);
@@ -956,7 +985,31 @@ export function renderExactSearchTool(widget: KnoxGuiWidget, parent: HTMLElement
 	}
 }
 
-export function renderTaskSubagent(widget: KnoxGuiWidget, parent: HTMLElement, _state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {
+export function renderToolSearch(parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {
+	const result = knoxGuiParseToolSearch(tool.parsedArgs, tool.outputItems?.[0]?.content ?? tool.output);
+	const card = DOM.append(parent, DOM.$('.knox-gui-tool-search'));
+	card.setAttribute('data-testid', 'knox-gui-tool-search');
+	if (result.requested) {
+		DOM.append(card, DOM.$('.knox-gui-muted', undefined, t(state, 'toolSearchLooking', { query: result.requested })));
+	}
+	const chips = (labelKey: 'toolSearchLoaded' | 'toolSearchAlready', names: readonly string[]) => {
+		if (!names.length) {
+			return;
+		}
+		const row = DOM.append(card, DOM.$('.knox-gui-tool-search-row'));
+		DOM.append(row, DOM.$('span.knox-gui-muted', undefined, t(state, labelKey)));
+		for (const name of names) {
+			DOM.append(row, DOM.$('span.knox-gui-tool-search-chip', undefined, name.replace(/^builtin_/, '')));
+		}
+	};
+	chips('toolSearchLoaded', result.loaded);
+	chips('toolSearchAlready', result.already);
+	if (result.noMatch) {
+		DOM.append(card, DOM.$('.knox-gui-muted', undefined, t(state, 'toolSearchNone')));
+	}
+}
+
+export function renderTaskSubagent(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {
 	const args = tool.parsedArgs ?? {};
 	const profile = typeof args.profile === 'string' ? args.profile : 'explore';
 	const prompt = typeof args.prompt === 'string' ? args.prompt : '';
@@ -968,6 +1021,27 @@ export function renderTaskSubagent(widget: KnoxGuiWidget, parent: HTMLElement, _
 	const meta = DOM.append(card, DOM.$('.knox-gui-muted.knox-gui-subagent-meta'));
 	meta.setAttribute('data-testid', 'knox-gui-subagent-meta');
 	meta.textContent = `${profile}${explores > 1 ? ` ×${explores}` : ''}${prompt ? ` — ${prompt.slice(0, 160)}${prompt.length > 160 ? '…' : ''}` : ''}`;
+	const merges = knoxGuiParseSubagentMerges(output);
+	if (merges.length) {
+		const list = DOM.append(card, DOM.$('.knox-gui-subagent-merges'));
+		list.setAttribute('data-testid', 'knox-gui-subagent-merges');
+		for (const merge of merges) {
+			const files = merge.files.join(', ');
+			const text = merge.status === 'applied' ? t(state, 'subagentMergeApplied', { files })
+				: merge.status === 'conflict' ? t(state, 'subagentMergeConflict', { files })
+					: merge.status === 'no-changes' ? t(state, 'subagentMergeNone')
+						: merge.status === 'skipped' ? t(state, 'subagentMergeSkipped')
+							: t(state, 'subagentMergeError');
+			const row = DOM.append(list, DOM.$(`.knox-gui-subagent-merge.knox-gui-subagent-merge-${merge.status}`));
+			row.setAttribute('data-merge-status', merge.status);
+			row.textContent = merge.label ? `${merge.label} — ${text}` : text;
+			if (merge.patchPath) {
+				const patchPath = merge.patchPath;
+				const open = DOM.append(row, DOM.$('button.knox-gui-link-button', undefined, t(state, 'subagentMergeOpenPatch')));
+				widget.renderStore.add(DOM.addDisposableListener(open, 'click', () => widget.controller.showFile(patchPath)));
+			}
+		}
+	}
 	if (output) {
 		DOM.append(card, DOM.$('pre.knox-gui-subagent-output', undefined, output));
 	}

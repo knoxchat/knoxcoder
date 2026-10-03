@@ -184,6 +184,26 @@ export function renderAgentMenu(widget: KnoxGuiWidget, trigger: HTMLElement, sta
 		}));
 	}
 	DOM.append(menu, DOM.$('.knox-gui-popover-sep'));
+	const review = DOM.append(menu, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
+	review.type = 'button';
+	review.setAttribute('role', 'menuitemcheckbox');
+	review.setAttribute('aria-checked', String(state.review.enabled));
+	review.setAttribute('data-testid', 'knox-gui-review-mode');
+	review.disabled = state.isStreaming || state.review.busy;
+	rows.push(review);
+	if (state.review.enabled) {
+		review.classList.add('knox-gui-popover-active');
+		appendKnoxGuiSvg(review, 'check', 12);
+	} else {
+		DOM.append(review, DOM.$('span.knox-gui-popover-check-slot'));
+	}
+	review.append(t(state, 'reviewChip'));
+	widget.hover(review, state.review.enabled ? t(state, 'reviewLeaveHint') : t(state, 'reviewEnterHint'));
+	widget.renderStore.add(DOM.addDisposableListener(review, 'click', e => {
+		e.stopPropagation();
+		widget.closeMenus();
+		void widget.controller.runReview(state.review.enabled ? 'disable' : 'enable');
+	}));
 	const worktree = DOM.append(menu, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
 	worktree.type = 'button';
 	worktree.setAttribute('role', 'menuitemcheckbox');

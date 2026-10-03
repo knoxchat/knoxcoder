@@ -67,14 +67,9 @@ export class VsCodeIdeUtils {
     );
   }
 
-  private _workspaceDirectories: vscode.Uri[] | undefined = undefined;
+  /** Read live: folders can be added or removed while the extension host runs. */
   getWorkspaceDirectories(): vscode.Uri[] {
-    if (this._workspaceDirectories === undefined) {
-      this._workspaceDirectories =
-        vscode.workspace.workspaceFolders?.map((folder) => folder.uri) || [];
-    }
-
-    return this._workspaceDirectories;
+    return vscode.workspace.workspaceFolders?.map((folder) => folder.uri) || [];
   }
 
   getUniqueId() {
@@ -1054,6 +1049,27 @@ export class VsCodeIdeUtils {
     } catch (e) {
       console.warn("[watchGitChanges] Git watcher setup failed:", e);
     }
+  }
+
+  /** K-026: side-by-side editor diff of a staged edit (before | after), as virtual documents. */
+  async showStagedDiff(
+    fileUri: string,
+    before: string | null,
+    after: string | null,
+  ): Promise<void> {
+    const name = decodeURIComponent(fileUri.split("/").pop() ?? "file");
+    const virtual = (side: string, text: string | null) =>
+      vscode.Uri.parse(
+        `${VsCodeExtension.knoxVirtualDocumentScheme}:${encodeURIComponent(
+          name,
+        )}?${encodeURIComponent(text ?? "")}`,
+      ).with({ fragment: side });
+    await vscode.commands.executeCommand(
+      "vscode.diff",
+      virtual("before", before),
+      virtual("after", after),
+      `${name} (staged)`,
+    );
   }
 
   async openGitChange(uri: string): Promise<void> {

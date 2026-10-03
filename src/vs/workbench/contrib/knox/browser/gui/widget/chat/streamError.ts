@@ -8,6 +8,17 @@ import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 
+/** Localized hint key for each actionable error kind (K-044). */
+export function streamErrorHintKey(kind: string | undefined): string | undefined {
+	switch (kind) {
+		case 'rate-limit': return 'errorRateLimitHint';
+		case 'unauthorized': return 'invalidApiKey';
+		case 'not-found': return 'modelNotFound';
+		case 'overloaded': return 'serverOverloaded';
+		default: return undefined;
+	}
+}
+
 /** `StreamErrorDialog` inside the Layout `TextDialog`: status title, capped message box, Close. */
 export function renderStreamError(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
 	if (!state.streamError) {
@@ -31,6 +42,40 @@ export function renderStreamError(widget: KnoxGuiWidget, parent: HTMLElement, st
 		const messageBox = DOM.append(card, DOM.$('.knox-gui-stream-error-message'));
 		DOM.append(messageBox, DOM.$('code', undefined, state.streamError.message));
 	}
+	const hintKey = streamErrorHintKey(state.streamError.kind);
+	if (hintKey) {
+		DOM.append(card, DOM.$('p.knox-gui-stream-error-hint', undefined, t(state, hintKey)));
+	}
 	const actions = DOM.append(card, DOM.$('.knox-gui-stream-error-actions'));
-	widget.chromeButton(actions, { label: t(state, 'close'), extraClass: 'knox-gui-primary', onClick: close });
+	const kind = state.streamError.kind;
+	if (kind === 'unauthorized' || kind === 'not-found' || kind === 'rate-limit') {
+		widget.chromeButton(actions, {
+			label: t(state, 'errorOpenSettings'),
+			onClick: () => {
+				close();
+				widget.controller.openSettingsOverlay();
+			},
+		});
+	}
+	if (state.models.length > 1 && kind !== 'unauthorized') {
+		widget.chromeButton(actions, {
+			label: t(state, 'errorSwitchModel'),
+			testId: 'stream-error-switch-model',
+			onClick: () => {
+				close();
+				widget.toggleMenu('model');
+			},
+		});
+	}
+	if (kind !== 'unauthorized' && kind !== 'not-found') {
+		widget.chromeButton(actions, {
+			label: t(state, 'errorRetry'),
+			extraClass: 'knox-gui-primary',
+			onClick: () => {
+				close();
+				widget.controller.continueGeneration();
+			},
+		});
+	}
+	widget.chromeButton(actions, { label: t(state, 'close'), onClick: close });
 }
