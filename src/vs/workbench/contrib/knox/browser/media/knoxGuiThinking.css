@@ -433,13 +433,17 @@
 }
 
 .knox-gui-turn-summary {
-	margin: 4px 12px 10px;
+	margin: 8px 12px 12px;
+	padding: 10px 12px;
 	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: space-between;
-	gap: 6px 12px;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 10px;
 	color: var(--vscode-descriptionForeground);
+	background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-sideBar-background)) 85%, #159994 6%);
+	border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.25));
+	border-left: 3px solid #159994;
+	border-radius: 8px;
 }
 
 .knox-gui-turn-summary-chips,
@@ -447,24 +451,54 @@
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	gap: 4px 6px;
+	gap: 6px;
+}
+
+.knox-gui-turn-summary-actions {
+	padding-top: 8px;
+	border-top: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.2));
+	gap: 8px;
 }
 
 .knox-gui-turn-summary-chip {
-	padding: 1px 6px;
-	border-radius: 8px;
-	border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3));
+	padding: 2px 9px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	color: var(--vscode-foreground);
+	font-variant-numeric: tabular-nums;
+	line-height: 1.5;
 	white-space: nowrap;
 }
 
 .knox-gui-turn-summary-chip.ok {
 	color: #159994;
-	border-color: #159994;
+	background: color-mix(in srgb, #159994 16%, transparent);
 }
 
 .knox-gui-turn-summary-chip.bad {
 	color: var(--vscode-errorForeground);
-	border-color: var(--vscode-errorForeground);
+	background: color-mix(in srgb, var(--vscode-errorForeground) 14%, transparent);
+}
+
+.knox-gui-turn-summary-actions .knox-gui-text-action {
+	color: #159994 !important;
+	border: 1px solid color-mix(in srgb, #159994 45%, transparent) !important;
+	border-radius: 6px !important;
+	padding: 3px 10px !important;
+}
+
+.knox-gui-turn-summary-actions .knox-gui-text-action:hover {
+	background: color-mix(in srgb, #159994 16%, transparent) !important;
+}
+
+.knox-gui-turn-summary-actions .knox-gui-text-action:last-child {
+	color: var(--vscode-descriptionForeground) !important;
+	border-color: var(--vscode-widget-border, rgba(128, 128, 128, 0.35)) !important;
+}
+
+.knox-gui-turn-summary-actions .knox-gui-text-action:last-child:hover {
+	color: var(--vscode-errorForeground) !important;
+	background: color-mix(in srgb, var(--vscode-errorForeground) 12%, transparent) !important;
 }
 
 .knox-gui-activity {
