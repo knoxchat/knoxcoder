@@ -11,6 +11,8 @@
  * Gates all store, auto_extract, batch_store, and import paths.
  */
 
+import { redactSecrets } from "../../../util/redactSecrets";
+
 export interface SanitizeResult {
   safe: boolean;
   cleaned: string;
@@ -186,6 +188,9 @@ export class InputSanitizer {
       // Collapse excessive repetition
       cleaned = InputSanitizer.collapseRepetition(cleaned);
     }
+
+    // Catch every occurrence (the loop above only replaces the first match).
+    cleaned = redactSecrets(cleaned);
 
     // Determine overall safety
     const hasCritical = threats.some((t) => t.severity === "critical");

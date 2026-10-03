@@ -10,6 +10,8 @@
  * Override with KNOX_LOG_LEVEL=debug|info|warn|error
  */
 
+import { redactLogArg, redactSecrets } from "./redactSecrets";
+
 export type KnoxLogLevel = "debug" | "info" | "warn" | "error";
 
 const ORDER: Record<KnoxLogLevel, number> = {
@@ -51,7 +53,8 @@ export function createKnoxLogger(scope: string): KnoxLogger {
     if (ORDER[level] < ORDER[getKnoxLogLevel()]) {
       return;
     }
-    const line = `[${scope}] ${message}`;
+    const line = `[${scope}] ${redactSecrets(message)}`;
+    args = args.map(redactLogArg);
     switch (level) {
       case "debug":
         console.debug(line, ...args);

@@ -7,6 +7,7 @@
 
 import { extractPatchFilePaths } from "./applyPatchFormat";
 import { BuiltInToolNames } from "./builtIn";
+import { isSensitiveSecretFile } from "../util/redactSecrets";
 import { ToolCallError, ToolCallErrorCode } from "./errors";
 import { matchGlob } from "./globMatch";
 import { parseToolArgs } from "./postEditVerification";
@@ -31,6 +32,8 @@ export interface AgentToolPolicy {
 export interface PolicyDecision {
   action: PolicyAction | null;
   reason: string;
+  /** Ask applies even in Auto (secret files). */
+  strictAsk?: boolean;
 }
 
 export interface ToolPolicyTargets {
@@ -542,6 +545,7 @@ export function evaluateToolPolicy(params: {
 
   let action: PolicyAction | null = null;
   let reason = "";
+  let strictAsk = false;
 
   const set = (next: PolicyAction, why: string) => {
     const prev = action;
@@ -583,6 +587,19 @@ export function evaluateToolPolicy(params: {
           action: "deny",
           reason: `Sensitive path "${p}" is blocked (${hard})`,
         };
+      }
+    }
+  }
+
+  // K-006: .env*, *.pem, id_* need explicit approval (templates are exempt).
+  if (
+    READONLY_PATH_TOOLS.has(params.toolName) ||
+    MUTATING_PATH_TOOLS.has(params.toolName)
+  ) {
+    for (const p of targets.paths) {
+      if (isSensitiveSecretFile(p)) {
+        set("ask", `"${p}" may contain secrets and needs explicit approval`);
+        strictAsk = true;
       }
     }
   }
@@ -640,7 +657,7 @@ export function evaluateToolPolicy(params: {
     }
   }
 
-  return { action, reason };
+  return { action, reason, strictAsk: strictAsk && action === "ask" };
 }
 
 export function policyBlocksAutoApprove(
@@ -650,7 +667,10 @@ export function policyBlocksAutoApprove(
   if (decision.action === "deny") {
     return true;
   }
-  if (decision.action === "ask" && permissionMode !== "fullAuto") {
+  if (
+    decision.action === "ask" &&
+    (permissionMode !== "fullAuto" || decision.strictAsk)
+  ) {
     return true;
   }
   return false;

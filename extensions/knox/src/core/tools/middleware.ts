@@ -18,6 +18,7 @@
  */
 
 import { ContextItem, Tool, ToolExtras } from "..";
+import { redactContextItems } from "../util/redactSecrets";
 import {
   ToolCallError,
   ToolCallErrorCode,
@@ -748,7 +749,8 @@ export async function executeToolWithMiddleware(
       });
     }
 
-    return result;
+    // K-006: secrets never reach the transcript, memory, checkpoints or logs.
+    return redactContextItems(result);
   } catch (error) {
     // ── Failure ─────────────────────────────────────────────────────
     metrics.failureCount++;

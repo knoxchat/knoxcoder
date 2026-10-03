@@ -30,6 +30,7 @@ import {
   formatOutputGuardrailWarning,
   screenModelOutput,
 } from "../jev/guardrail";
+import { redactSecrets } from "../util/redactSecrets";
 import { jevLogFromTurn, mergeJevPromptLog } from "../jev/promptLog";
 import { escalateReasoningEffort } from "../jev/questions";
 import {
@@ -451,6 +452,17 @@ export async function* llmStreamChat(
     } catch {
       // Citation / output screen is optional polish; never block the turn.
     }
-    return { ...promptLog, jev: Object.keys(jevLog).length > 0 ? jevLog : undefined };
+    return {
+      ...promptLog,
+      prompt:
+        typeof promptLog.prompt === "string"
+          ? redactSecrets(promptLog.prompt)
+          : promptLog.prompt,
+      completion:
+        typeof promptLog.completion === "string"
+          ? redactSecrets(promptLog.completion)
+          : promptLog.completion,
+      jev: Object.keys(jevLog).length > 0 ? jevLog : undefined,
+    };
   }
 }
