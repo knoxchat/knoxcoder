@@ -2997,6 +2997,26 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(store.state.jobsPanelOpen, true);
 		assert.strictEqual(controller.jobsPanelExpanded(), true);
 	});
+	test('job title keeps the shell command separate from last-line output', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			jobsPanelOpen: true,
+			backgroundJobs: [{
+				id: 'fmt',
+				kind: 'shell',
+				title: 'cargo fmt --check',
+				detail: 'mod game;',
+				status: 'exited',
+				exitCode: 1,
+			}],
+		});
+		const row = widget.root.querySelector('[data-testid="agent-job-fmt"] .knox-gui-job-title') as HTMLButtonElement;
+		assert.ok(row);
+		assert.strictEqual(row.getAttribute('aria-label'), 'cargo fmt --check');
+		assert.strictEqual(row.querySelector('.knox-gui-job-command')?.textContent, 'cargo fmt --check');
+		assert.strictEqual(row.querySelector('.knox-gui-job-detail')?.textContent, 'mod game;');
+		assert.ok(row.querySelector('.knox-gui-job-command') !== row.querySelector('.knox-gui-job-detail'));
+	});
 
 	test('NP-28 code fences never auto-detect a language while the reply streams (CSLD-09)', async () => {
 		const { widget } = await mount();

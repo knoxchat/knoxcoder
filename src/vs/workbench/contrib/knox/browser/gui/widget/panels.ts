@@ -959,10 +959,11 @@ export function renderJobRow(widget: KnoxGuiWidget, parent: HTMLElement, state: 
 	}
 	const title = DOM.append(row, DOM.$('button.knox-gui-job-title')) as HTMLButtonElement;
 	title.type = 'button';
+	title.setAttribute('aria-label', job.title);
 	widget.hover(title, t(state, 'jobsOutputHint'));
-	title.append(truncateJobTitle(job.title));
+	DOM.append(title, DOM.$('span.knox-gui-job-command', undefined, truncateJobTitle(job.title)));
 	if (job.detail) {
-		DOM.append(title, DOM.$('span.knox-gui-muted', undefined, truncateJobTitle(job.detail, 40)));
+		DOM.append(title, DOM.$('span.knox-gui-job-detail.knox-gui-muted', undefined, truncateJobTitle(job.detail, 40)));
 	}
 	widget.renderStore.add(DOM.addDisposableListener(title, 'click', () => {
 		widget.jobsLogId = widget.jobsLogId === job.id ? null : job.id;

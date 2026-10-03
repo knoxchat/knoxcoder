@@ -513,8 +513,10 @@
 .knox-gui-job-title {
 	min-width: 0;
 	flex: 1;
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
 	overflow: hidden;
-	text-overflow: ellipsis;
 	white-space: nowrap;
 	border: none;
 	background: transparent;
@@ -523,6 +525,26 @@
 	text-align: left;
 	padding: 0;
 	font-size: 11px;
+}
+
+.knox-gui-job-command {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.knox-gui-job-detail {
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 42%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.knox-gui-job-detail::before {
+	content: '·';
+	margin-right: 8px;
+	opacity: 0.6;
 }
 
 .knox-gui-job-status {

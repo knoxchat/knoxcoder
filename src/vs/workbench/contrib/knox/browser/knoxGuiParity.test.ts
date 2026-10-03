@@ -234,6 +234,8 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui-lump .knox-gui-svg'));
 		assert.ok(css.includes('width: 14px'));
 		assert.ok(css.includes('.knox-gui-job {'));
+		assert.ok(css.includes('.knox-gui-job-command'));
+		assert.ok(css.includes('.knox-gui-job-detail'));
 		assert.ok(css.includes('.knox-gui-turn {'));
 		assert.ok(css.includes('.knox-gui-policy-title'));
 		assert.ok(css.includes('.knox-gui-tier {'));
