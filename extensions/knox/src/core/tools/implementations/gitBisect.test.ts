@@ -129,7 +129,7 @@ describe("git bisect (HL-30)", () => {
       { action: "run", command: "grep -q GOOD STATUS", loop: true },
       realGitExtras(dir),
     );
-    expect(ran[0].content).toMatch(/is the first bad commit/i);
+    expect(ran[0].content).toMatch(/is the first '?bad'? commit/i);
     expect(ran[0].content).toContain(expectedBad.slice(0, 7));
 
     const reset = await gitBisectImpl({ action: "reset" }, realGitExtras(dir));

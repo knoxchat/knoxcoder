@@ -39,12 +39,12 @@ function parseRemaining(text: string): string | undefined {
 }
 
 function parseFirstBad(text: string): string | undefined {
-  const hit = text.match(/^([0-9a-f]{7,40})\s+is the first bad commit/im);
+  const hit = text.match(/^([0-9a-f]{7,40})\s+is the first '?bad'? commit/im);
   return hit?.[1];
 }
 
 function isDone(text: string): boolean {
-  return /is the first bad commit/i.test(text) || /bisect complete/i.test(text);
+  return /is the first '?bad'? commit/i.test(text) || /bisect complete/i.test(text);
 }
 
 function items(
