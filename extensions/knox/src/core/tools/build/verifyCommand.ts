@@ -61,6 +61,18 @@ export function isCargoCommand(command: string): boolean {
   return CARGO_TOOLCHAIN_RE.test(command);
 }
 
+/** Files a cargo check/fmt/clippy run can actually be affected by. */
+export function isRustRelatedPath(filePath: string): boolean {
+  const posix = filePath.replace(/\\/g, "/");
+  return (
+    /\.rs$/i.test(posix) ||
+    /(?:^|\/)(?:Cargo\.(?:toml|lock)|build\.rs|rust-toolchain(?:\.toml)?|rustfmt\.toml|\.rustfmt\.toml|clippy\.toml)$/i.test(
+      posix,
+    ) ||
+    /(?:^|\/)\.cargo\/config(?:\.toml)?$/i.test(posix)
+  );
+}
+
 export function isCargoCompileCommand(command: string): boolean {
   return CARGO_LONG_SUBCOMMAND_RE.test(command);
 }
@@ -409,6 +421,10 @@ export async function runPostEditBuildVerify(
         content: forbidden,
       },
     ];
+  }
+  // A cargo oracle says nothing about HTML/CSS/JS/docs edits; don't run it for them.
+  if (isCargoCommand(command) && options.filePath && !isRustRelatedPath(options.filePath)) {
+    return [];
   }
   const max = resolveVerifyMaxIterations(options.maxIterations);
   const circuit = circuitFor(options.circuitKey ?? command, max);

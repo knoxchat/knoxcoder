@@ -175,3 +175,45 @@ describe("runPostEditBuildVerify rust stages (RL-41/42)", () => {
     ).toContain("-p foo");
   });
 });
+
+describe("cargo oracle is gated on Rust-related edits", () => {
+  const okRun = (ran: string[]) => async (command: string) => {
+    ran.push(command);
+    return [
+      { name: "Build", description: "ok", content: `Command: ${command}\nExit: 0\n` },
+    ];
+  };
+
+  it.each(["index.html", "styles.css", "script.js", "README.md", "web/app.tsx"])(
+    "does not run cargo after editing %s",
+    async (filePath) => {
+      resetBuildVerifyCircuits();
+      const ran: string[] = [];
+      const items = await runPostEditBuildVerify({
+        toolName: "builtin_edit_file",
+        command: "cargo check --workspace --all-targets",
+        filePath,
+        run: okRun(ran),
+      });
+      expect(ran).toEqual([]);
+      expect(items).toEqual([]);
+    },
+  );
+
+  it.each(["src/main.rs", "crates/foo/src/lib.rs", "Cargo.toml", "cli/Cargo.toml", "build.rs"])(
+    "still runs cargo check -> fmt -> clippy after editing %s",
+    async (filePath) => {
+      resetBuildVerifyCircuits();
+      const ran: string[] = [];
+      await runPostEditBuildVerify({
+        toolName: "builtin_edit_file",
+        command: "cargo check --workspace --all-targets",
+        filePath,
+        run: okRun(ran),
+      });
+      expect(ran[0]).toContain("cargo check");
+      expect(ran[1]).toBe("cargo fmt --check");
+      expect(ran[2]).toContain("clippy");
+    },
+  );
+});
