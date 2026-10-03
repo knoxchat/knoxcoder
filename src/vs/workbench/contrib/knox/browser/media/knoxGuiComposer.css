@@ -1952,18 +1952,52 @@
 
 /* K-012 context meter */
 .knox-gui-context-meter {
-	font-variant-numeric: tabular-nums;
-	opacity: 0.7;
-	padding: 0 4px;
+	--knox-donut-color: #159994;
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	padding: 0;
 	cursor: default;
+	font-variant-numeric: tabular-nums;
 }
 .knox-gui-context-warn {
-	color: var(--vscode-editorWarning-foreground);
-	opacity: 1;
+	--knox-donut-color: #ffc53d;
 }
 .knox-gui-context-high {
-	color: var(--vscode-editorError-foreground);
-	opacity: 1;
+	--knox-donut-color: #ff4d6d;
+}
+.knox-gui-context-donut {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	transform: rotate(-90deg);
+	overflow: visible;
+}
+.knox-gui-context-donut circle {
+	fill: none;
+	stroke-width: 3;
+	stroke-linecap: round;
+}
+.knox-gui-context-donut-track {
+	stroke: var(--knox-donut-color);
+	opacity: 0.22;
+}
+.knox-gui-context-donut-arc {
+	stroke: var(--knox-donut-color);
+	transition: stroke-dasharray 0.4s ease;
+}
+.knox-gui-context-label {
+	display: none; /* percentage is in the tooltip; too small to read inside a 16px ring */
+	position: relative;
+	font-size: 8px;
+	font-weight: 700;
+	line-height: 1;
+	letter-spacing: -0.2px;
+	color: var(--vscode-foreground);
 }
 
 .knox-gui-message-queue {

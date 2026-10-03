@@ -155,9 +155,30 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 	const usage = state.contextUsage;
 	if (usage && usage.sessionId === state.sessionId && state.history.length > 0) {
 		const ratio = knoxGuiContextRatio(usage);
-		const meter = DOM.append(right, DOM.$(`span.knox-gui-context-meter.knox-gui-context-${knoxGuiContextLevel(ratio)}`, undefined, `${Math.round(ratio * 100)}%`));
+		const pct = Math.round(ratio * 100);
+		const meter = DOM.append(right, DOM.$(`span.knox-gui-context-meter.knox-gui-context-${knoxGuiContextLevel(ratio)}`));
 		meter.setAttribute('data-testid', 'knox-gui-context-meter');
-		meter.title = `${t(state, 'contextMeterTitle')}: ${knoxGuiFormatTokens(usage.used)} / ${knoxGuiFormatTokens(usage.limit)}${usage.source === 'estimated' ? ' (~)' : ''}`;
+		const ns = 'http://www.w3.org/2000/svg';
+		const radius = 10;
+		const circumference = 2 * Math.PI * radius;
+		const svg = document.createElementNS(ns, 'svg');
+		svg.setAttribute('class', 'knox-gui-context-donut');
+		svg.setAttribute('viewBox', '0 0 28 28');
+		const track = document.createElementNS(ns, 'circle');
+		track.setAttribute('class', 'knox-gui-context-donut-track');
+		const arc = document.createElementNS(ns, 'circle');
+		arc.setAttribute('class', 'knox-gui-context-donut-arc');
+		for (const c of [track, arc]) {
+			c.setAttribute('cx', '14');
+			c.setAttribute('cy', '14');
+			c.setAttribute('r', String(radius));
+			svg.appendChild(c);
+		}
+		const clamped = Math.max(0, Math.min(1, ratio));
+		arc.setAttribute('stroke-dasharray', `${(circumference * clamped).toFixed(2)} ${circumference.toFixed(2)}`);
+		meter.appendChild(svg);
+		DOM.append(meter, DOM.$('span.knox-gui-context-label', undefined, `${pct}%`));
+		meter.title = `${t(state, 'contextMeterTitle')} ${pct}%: ${knoxGuiFormatTokens(usage.used)} / ${knoxGuiFormatTokens(usage.limit)}${usage.source === 'estimated' ? ' (~)' : ''}`;
 	}
 	const canCancel = knoxGuiCanCancel(state);
 	if (canCancel) {
