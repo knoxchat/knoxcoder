@@ -56,6 +56,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # `npm run` puts extensions/node_modules/.bin on PATH; make sure its typescript is really installed
+      # (the root install can leave it missing on Windows), otherwise `tsc` resolves to a dangling shim.
+      - name: Ensure extensions/ dependencies (typescript)
+        working-directory: extensions
+        run: |
+          if [ ! -f node_modules/typescript/bin/tsc ]; then
+            npm ci --ignore-scripts
+          fi
+
       - name: Rebuild sqlite3
         working-directory: extensions/knox
         run: npm rebuild sqlite3 --build-from-source
