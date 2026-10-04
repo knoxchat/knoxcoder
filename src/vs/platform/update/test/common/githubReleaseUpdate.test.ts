@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import {
 	createGitHubLatestReleaseUrl,
+	createGitHubReleaseByTagUrls,
 	githubReleaseToUpdate,
 	isCurrentVersionLatest,
 	isGitHubReleasePayload,
@@ -22,6 +23,14 @@ import {
 
 suite('KnoxCoder GitHub auto-update', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('builds release-by-tag URLs for release notes', () => {
+		assert.deepStrictEqual(createGitHubReleaseByTagUrls('https://github.com/knoxchat/knoxcoder', '1.138.2'), [
+			'https://api.github.com/repos/knoxchat/knoxcoder/releases/tags/v1.138.2',
+			'https://api.github.com/repos/knoxchat/knoxcoder/releases/tags/1.138.2',
+		]);
+		assert.deepStrictEqual(createGitHubReleaseByTagUrls('https://update.example', '1.0.0'), []);
+	});
 
 	test('parses the KnoxCoder GitHub repository', () => {
 		assert.deepStrictEqual(parseGitHubRepository('https://github.com/knoxchat/knoxcoder'), { owner: 'knoxchat', repo: 'knoxcoder' });

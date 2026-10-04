@@ -82,15 +82,6 @@ export function computeUpdateInfoVersion(currentVersion: string, targetVersion: 
 }
 
 /**
- * Computes the URL to fetch update info from.
- * Follows the release notes URL pattern but with `_update` suffix.
- */
-export function getUpdateInfoUrl(version: string): string {
-	const versionLabel = version.replace(/\./g, '_').replace(/_0$/, '');
-	return `https://code.visualstudio.com/raw/v${versionLabel}_update.md`;
-}
-
-/**
  * Formats the time remaining as a human-readable string.
  */
 export function formatTimeRemaining(seconds: number): string {

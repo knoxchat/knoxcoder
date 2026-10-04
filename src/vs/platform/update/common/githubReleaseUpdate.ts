@@ -77,6 +77,20 @@ export function createGitHubLatestReleaseUrl(updateUrl: string | undefined): str
 	return `https://api.github.com/repos/${repo.owner}/${repo.repo}/releases/latest`;
 }
 
+/**
+ * Candidate GitHub API URLs for a release by version, trying `v<version>` first and then the bare version tag.
+ */
+export function createGitHubReleaseByTagUrls(updateUrl: string | undefined, version: string): string[] {
+	const repo = parseGitHubRepository(updateUrl);
+	const normalized = normalizeReleaseVersion(version);
+	if (!repo || !normalized) {
+		return [];
+	}
+
+	const base = `https://api.github.com/repos/${repo.owner}/${repo.repo}/releases/tags`;
+	return [`${base}/v${normalized}`, `${base}/${normalized}`];
+}
+
 export function isGitHubReleasePayload(value: unknown): value is IGitHubRelease {
 	if (!value || typeof value !== 'object') {
 		return false;

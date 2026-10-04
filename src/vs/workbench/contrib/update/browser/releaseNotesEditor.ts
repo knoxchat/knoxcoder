@@ -15,7 +15,6 @@ import { TokenizationRegistry } from '../../../../editor/common/languages.js';
 import { generateTokensCSSForColorMap } from '../../../../editor/common/languages/supports/tokenization.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import * as nls from '../../../../nls.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -26,9 +25,7 @@ import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWork
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { getTelemetryLevel, supportsTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SimpleSettingRenderer } from '../../markdown/browser/markdownSettingRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -36,6 +33,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
+import { createGitHubReleaseByTagUrls, normalizeReleaseVersion, parseGitHubRepository } from '../../../../platform/update/common/githubReleaseUpdate.js';
 
 export class ReleaseNotesManager extends Disposable {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
@@ -45,7 +43,6 @@ export class ReleaseNotesManager extends Disposable {
 	private _lastMeta: { text: string; base: URI } | undefined;
 
 	constructor(
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -87,7 +84,11 @@ export class ReleaseNotesManager extends Disposable {
 				return dirname(currentFileUri);
 			}
 		}
-		return URI.parse('https://code.visualstudio.com/raw');
+		const repo = parseGitHubRepository(this._productService.updateUrl);
+		if (repo) {
+			return URI.parse(`https://github.com/${repo.owner}/${repo.repo}/raw/HEAD`);
+		}
+		return URI.parse('https://github.com/knoxchat/knoxcoder/raw/HEAD');
 	}
 
 	public async show(version: string, useCurrentFile: boolean): Promise<boolean> {
@@ -148,14 +149,10 @@ export class ReleaseNotesManager extends Disposable {
 	}
 
 	private async loadReleaseNotes(version: string, useCurrentFile: boolean): Promise<string> {
-		const match = /^(\d+\.\d+)\./.exec(version);
-		if (!match) {
-			throw new Error('not found');
+		const githubUrls = createGitHubReleaseByTagUrls(this._productService.updateUrl, version);
+		if (!useCurrentFile && githubUrls.length === 0) {
+			throw new Error('Release notes are only available from the KnoxCoder GitHub repository');
 		}
-
-		const versionLabel = match[1].replace(/\./g, '_');
-		const baseUrl = 'https://code.visualstudio.com/raw';
-		const url = `${baseUrl}/v${versionLabel}.md`;
 		const unassigned = nls.localize('unassigned', "unassigned");
 
 		const escapeMdHtml = (text: string): string => {
@@ -213,7 +210,7 @@ export class ReleaseNotesManager extends Disposable {
 					const file = this._codeEditorService.getActiveCodeEditor()?.getModel()?.getValue();
 					text = file ? file.substring(file.indexOf('#')) : undefined;
 				} else {
-					text = await asTextOrError(await this._requestService.request({ url, callSite: 'releaseNotesEditor.fetchReleaseNotes' }, CancellationToken.None));
+					text = await this.fetchGitHubReleaseNotes(githubUrls, version);
 				}
 			} catch {
 				throw new Error('Failed to fetch release notes');
@@ -244,23 +241,38 @@ export class ReleaseNotesManager extends Disposable {
 		return this._releaseNotesCache.get(version)!;
 	}
 
+	private async fetchGitHubReleaseNotes(urls: string[], version: string): Promise<string> {
+		let lastError: unknown;
+		for (const url of urls) {
+			try {
+				const context = await this._requestService.request({
+					url,
+					headers: { 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+					callSite: 'releaseNotesEditor.fetchGitHubReleaseNotes'
+				}, CancellationToken.None);
+				const payload = JSON.parse(await asTextOrError(context) ?? '') as { name?: string; body?: string; html_url?: string };
+				const body = payload.body?.trim();
+				const title = `# ${this._productService.nameLong} ${normalizeReleaseVersion(version) ?? version}`;
+				const footer = payload.html_url ? `\n\n[View on GitHub](${payload.html_url})` : '';
+				if (!body) {
+					return `${title}${footer}`;
+				}
+				// Always lead with a top-level heading so the content is recognized as release notes.
+				return /^#\s/.test(body) ? `${body}${footer}` : `${title}\n\n${body}${footer}`;
+			} catch (err) {
+				lastError = err;
+			}
+		}
+		throw lastError ?? new Error('Failed to fetch release notes');
+	}
+
 	private async onDidClickLink(uri: URI) {
 		if (uri.scheme === Schemas.codeSetting) {
 			// handled in receive message
 		} else {
-			this.addGAParameters(uri, 'ReleaseNotes')
-				.then(updated => this._openerService.open(updated, { allowCommands: ['workbench.action.openSettings', 'summarize.release.notes'] }))
+			this._openerService.open(uri, { allowCommands: ['workbench.action.openSettings', 'summarize.release.notes'] })
 				.then(undefined, onUnexpectedError);
 		}
-	}
-
-	private async addGAParameters(uri: URI, origin: string, experiment = '1'): Promise<URI> {
-		if (supportsTelemetry(this._productService, this._environmentService) && getTelemetryLevel(this._configurationService) === TelemetryLevel.USAGE) {
-			if (uri.scheme === 'https' && uri.authority === 'code.visualstudio.com') {
-				return uri.with({ query: `${uri.query ? uri.query + '&' : ''}utm_source=VsCode&utm_medium=${encodeURIComponent(origin)}&utm_content=${encodeURIComponent(experiment)}` });
-			}
-		}
-		return uri;
 	}
 
 	private async renderBody(fileContent: { text: string; base: URI }) {
@@ -277,7 +289,7 @@ export class ReleaseNotesManager extends Disposable {
 			<head>
 				<base href="${asWebviewUri(fileContent.base).toString(true)}/" >
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; style-src 'nonce-${nonce}' https://code.visualstudio.com; script-src 'nonce-${nonce}';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; style-src 'nonce-${nonce}' https://github.com; script-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}

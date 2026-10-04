@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Downloading, StateType } from '../../../../../platform/update/common/update.js';
-import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, computeUpdateInfoVersion, formatBytes, formatDate, formatTimeRemaining, getUpdateInfoUrl, isMajorMinorVersionChange, tryParseDate } from '../../common/updateUtils.js';
+import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, computeUpdateInfoVersion, formatBytes, formatDate, formatTimeRemaining, isMajorMinorVersionChange, tryParseDate } from '../../common/updateUtils.js';
 
 suite('UpdateUtils', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -148,16 +148,6 @@ suite('UpdateUtils', () => {
 		test('returns undefined for invalid versions', () => {
 			assert.strictEqual(computeUpdateInfoVersion('invalid', '1.109.5'), undefined);
 			assert.strictEqual(computeUpdateInfoVersion('1.109.2', 'invalid'), undefined);
-		});
-	});
-
-	suite('getUpdateInfoUrl', () => {
-		test('constructs correct URL for .0 versions', () => {
-			assert.strictEqual(getUpdateInfoUrl('1.109.0'), 'https://code.visualstudio.com/raw/v1_109_update.md');
-		});
-
-		test('constructs correct URL for patch versions', () => {
-			assert.strictEqual(getUpdateInfoUrl('1.109.5'), 'https://code.visualstudio.com/raw/v1_109_5_update.md');
 		});
 	});
 

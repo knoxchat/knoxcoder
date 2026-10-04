@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
@@ -18,14 +17,13 @@ import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../plat
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ShowCurrentReleaseNotesActionId } from '../common/update.js';
 import { IParsedUpdateInfoInput, parseUpdateInfoInput } from '../common/updateInfoParser.js';
-import { getUpdateInfoUrl, isMajorMinorVersionChange } from '../common/updateUtils.js';
+import { isMajorMinorVersionChange } from '../common/updateUtils.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -56,7 +54,6 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 		@IMeteredConnectionService private readonly meteredConnectionService: IMeteredConnectionService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
-		@IRequestService private readonly requestService: IRequestService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
@@ -118,14 +115,6 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 	}
 
 	private async getUpdateInfo(input?: string | null): Promise<IParsedUpdateInfoInput | undefined> {
-		if (!input) {
-			try {
-				const url = getUpdateInfoUrl(this.productService.version);
-				const context = await this.requestService.request({ url, callSite: 'postUpdateWidget' }, CancellationToken.None);
-				input = await asTextOrError(context);
-			} catch { }
-		}
-
 		if (!input) {
 			return undefined;
 		}
