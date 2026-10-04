@@ -51,6 +51,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import './knoxGuiActions.js';
+import './knoxTitlebarActions.js';
 import './knoxGuiEditCommands.js';
 import { KnoxCheckpointGraphEditor, KnoxCheckpointGraphEditorInput, KnoxCheckpointGraphEditorInputSerializer, KnoxMemoryEditor, KnoxMemoryEditorInput, KnoxMemoryEditorInputSerializer } from './knoxGuiEditors.js';
 import './knoxChatViewPane.js';

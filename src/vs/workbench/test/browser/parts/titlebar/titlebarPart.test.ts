@@ -8,10 +8,16 @@ import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { ToggleSidebarVisibilityAction } from '../../../../browser/actions/layoutActions.js';
+import { ToggleAuxiliaryBarAction } from '../../../../browser/parts/auxiliarybar/auxiliaryBarActions.js';
+import { TogglePanelAction } from '../../../../browser/parts/panel/panelActions.js';
+import { TOGGLE_KNOX_COLOR_THEME_ID, TOGGLE_KNOX_GUI_LANGUAGE_ID } from '../../../../contrib/knox/browser/knoxTitlebarActions.js';
 import { BrowserTitlebarPart } from '../../../../browser/parts/titlebar/titlebarPart.js';
+import { TITLE_BAR_SHOWS_MANAGE_ACTION } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { WindowTitle } from '../../../../browser/parts/titlebar/windowTitle.js';
 import { MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
 import { IEditorGroupsContainer } from '../../../../services/editor/common/editorGroupsService.js';
@@ -126,6 +132,89 @@ suite('TitlebarPart colors', () => {
 		} finally {
 			workbench.remove();
 		}
+	});
+
+	test('uses Knox primary color for checked title bar layout buttons', () => {
+		const workbench = document.createElement('div');
+		workbench.className = 'monaco-workbench';
+		const titlebar = document.createElement('div');
+		titlebar.className = 'part titlebar';
+		const titlebarContainer = document.createElement('div');
+		titlebarContainer.className = 'titlebar-container';
+		const titlebarLeft = document.createElement('div');
+		titlebarLeft.className = 'titlebar-left';
+		const leftToolbar = document.createElement('div');
+		leftToolbar.className = 'left-action-toolbar-container';
+		const actionBar = document.createElement('div');
+		actionBar.className = 'monaco-action-bar';
+		const actionItem = document.createElement('div');
+		actionItem.className = 'action-item';
+		const icon = document.createElement('span');
+		icon.className = 'action-label codicon checked';
+		actionItem.appendChild(icon);
+		actionBar.appendChild(actionItem);
+		leftToolbar.appendChild(actionBar);
+		titlebarLeft.appendChild(leftToolbar);
+		titlebarContainer.appendChild(titlebarLeft);
+		titlebar.appendChild(titlebarContainer);
+		workbench.appendChild(titlebar);
+		document.body.appendChild(workbench);
+
+		try {
+			const style = mainWindow.getComputedStyle(icon);
+			assert.deepStrictEqual({
+				color: style.color,
+				background: style.backgroundColor,
+				boxShadow: style.boxShadow,
+			}, {
+				color: 'rgb(21, 153, 148)',
+				background: 'rgba(0, 0, 0, 0)',
+				boxShadow: 'none',
+			});
+		} finally {
+			workbench.remove();
+		}
+	});
+});
+
+suite('Workbench - Titlebar layout toggles', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function commandIds(menuId: MenuId): string[] {
+		return MenuRegistry.getMenuItems(menuId).filter(isIMenuItem).map(item => item.command.id);
+	}
+
+	test('places the file-tree toggle on the left and keeps other layout toggles on the right', () => {
+		const left = commandIds(MenuId.TitleBarLeft);
+		const right = commandIds(MenuId.LayoutControlMenu);
+
+		assert.deepStrictEqual({
+			leftHasFileTree: left.includes(ToggleSidebarVisibilityAction.ID),
+			leftHasLanguage: left.includes(TOGGLE_KNOX_GUI_LANGUAGE_ID),
+			leftHasTheme: left.includes(TOGGLE_KNOX_COLOR_THEME_ID),
+			rightHasFileTree: right.includes(ToggleSidebarVisibilityAction.ID),
+			rightHasPanel: right.includes(TogglePanelAction.ID),
+			rightHasSecondarySideBar: right.includes(ToggleAuxiliaryBarAction.ID),
+			rightHasCustomizeLayout: right.includes('workbench.action.customizeLayout'),
+		}, {
+			leftHasFileTree: true,
+			leftHasLanguage: true,
+			leftHasTheme: true,
+			rightHasFileTree: false,
+			rightHasPanel: true,
+			rightHasSecondarySideBar: true,
+			rightHasCustomizeLayout: true,
+		});
+	});
+
+	test('shows the language toggle only while the secondary side bar is visible', () => {
+		const language = MenuRegistry.getMenuItems(MenuId.TitleBarLeft).filter(isIMenuItem)
+			.find(item => item.command.id === TOGGLE_KNOX_GUI_LANGUAGE_ID);
+		assert.ok(language?.when?.keys().includes('auxiliaryBarVisible'));
+	});
+
+	test('hides the Manage gear from the title bar', () => {
+		assert.strictEqual(TITLE_BAR_SHOWS_MANAGE_ACTION, false);
 	});
 });
 

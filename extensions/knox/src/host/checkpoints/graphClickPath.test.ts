@@ -24,33 +24,12 @@ type ActivatedExtension = {
     };
 };
 
-function commandId(command: string | vscode.Command | undefined): string | undefined {
-    if (typeof command === 'string') {
-        return command;
-    }
-    return command?.command;
-}
-
 function isStatusBarItem(value: unknown): value is vscode.StatusBarItem {
     if (!value || typeof value !== 'object') {
         return false;
     }
     const item = value as { text?: unknown; show?: unknown; command?: unknown };
     return typeof item.text === 'string' && typeof item.show === 'function' && 'command' in item;
-}
-
-async function waitForCpStatusBar(context: vscode.ExtensionContext): Promise<vscode.StatusBarItem> {
-    const deadline = Date.now() + 8_000;
-    while (Date.now() < deadline) {
-        const item = context.subscriptions.find((entry) =>
-            isStatusBarItem(entry) && entry.text.includes('CP'),
-        );
-        if (isStatusBarItem(item)) {
-            return item;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    assert.fail('Enterprise monitor should create the CP status bar item');
 }
 
 function graphTabs(): vscode.Tab[] {
@@ -81,14 +60,12 @@ suite('Checkpoint graph click path (CPG-23)', () => {
         assert.ok(contributedIcon, 'package.json must contribute knox-checkpoint-graph');
         assert.strictEqual(contributedIcon.default?.fontPath, './media/checkpoint-graph.woff');
 
-        const statusBarItem = await waitForCpStatusBar(api.extension.extensionContext);
-        assert.ok(
-            statusBarItem.text.includes('$(knox-checkpoint-graph)')
-            || statusBarItem.text.includes('$(warning)')
-            || statusBarItem.text.includes('$(error)'),
-            `status bar should use the Checkpoint Graph icon, got ${statusBarItem.text}`,
+        // The CP button moved to the workbench title bar; the status bar must no longer carry it.
+        assert.strictEqual(
+            api.extension.extensionContext.subscriptions.some((entry) => isStatusBarItem(entry) && entry.text.includes('CP')),
+            false,
+            'CP status bar item must not be created',
         );
-        assert.strictEqual(commandId(statusBarItem.command), CheckpointCommand.view);
         assert.notStrictEqual(CheckpointCommand.view, CheckpointCommand.list);
 
         const manager = api.extension.checkpointManager;

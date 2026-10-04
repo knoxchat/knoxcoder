@@ -6,7 +6,7 @@
 import type { KnoxGuiWidget } from '../knoxGuiWidget.js';
 import { t } from './t.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import {
 	activeHeadId,
 	buildCheckpointPathTree,
@@ -113,7 +113,6 @@ export function renderCheckpointGraph(widget: KnoxGuiWidget, body: HTMLElement, 
 	}
 	const hits = graphFindHits(displayNodes, heads, widget.checkpointGraphFindQuery);
 	revealGraphTargets(widget, hits, expand);
-	const range = checkpointGraphWindow(displayNodes.length, widget.checkpointGraphScrollTop, widget.checkpointGraphViewport, expand);
 	syncGraphCompare(widget, state);
 
 	const root = DOM.append(body, DOM.$('.knox-gui-graph'));
@@ -131,6 +130,48 @@ export function renderCheckpointGraph(widget: KnoxGuiWidget, body: HTMLElement, 
 	}
 	renderGraphHeader(widget, table, state, columns, drawing.width);
 	const scroller = DOM.append(table, DOM.$('.knox-gui-graph-scroll'));
+	// Rows are repainted in place on scroll. A full widget.render() would replace the scroller itself,
+	// which cancels the wheel / momentum gesture and makes the list feel stuck (the React reference keeps the node).
+	const windowStore = widget.listenerStore.add(new DisposableStore());
+	let paintedStart = -1;
+	let paintedEnd = -1;
+	const paintWindow = (): void => {
+		const current = checkpointGraphWindow(displayNodes.length, widget.checkpointGraphScrollTop, widget.checkpointGraphViewport, expand);
+		if (current.start === paintedStart && current.end === paintedEnd) {
+			return;
+		}
+		paintedStart = current.start;
+		paintedEnd = current.end;
+		windowStore.clear();
+		canvas.replaceChildren();
+		const outerStore = widget.listenerStore;
+		widget.listenerStore = windowStore;
+		try {
+			renderGraphSvg(widget, canvas, state, drawing, displayNodes, heads, headId);
+			for (let index = current.start; index < current.end; index += 1) {
+				const node = displayNodes[index];
+				if (!node) {
+					continue;
+				}
+				const top = checkpointGraphRowTop(index, expand);
+				renderGraphRow(widget, canvas, state, {
+					node,
+					top,
+					columns,
+					current: node.id === headId,
+					muted: prefs.mute && !node.workingTree && !ancestors.has(node.id),
+					found: hits[widget.checkpointGraphFindIndex] === index && widget.checkpointGraphFindQuery.trim().length > 0,
+					open: node.id === widget.checkpointGraphOpenId,
+					branches: heads.get(node.id) ?? [],
+				});
+				if (node.id === widget.checkpointGraphOpenId && !docked) {
+					renderGraphDetails(widget, canvas, state, node, top + CHECKPOINT_GRAPH_ROW_HEIGHT, drawing.width, false);
+				}
+			}
+		} finally {
+			widget.listenerStore = outerStore;
+		}
+	};
 	widget.listenerStore.add(DOM.addDisposableListener(scroller, 'scroll', () => {
 		widget.checkpointGraphScrollTop = scroller.scrollTop;
 		widget.checkpointGraphViewport = scroller.clientHeight;
@@ -138,7 +179,7 @@ export function renderCheckpointGraph(widget: KnoxGuiWidget, body: HTMLElement, 
 		if (state.checkpointGraphHasMore && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 48) {
 			void widget.controller.loadMoreCheckpoints();
 		}
-		widget.render();
+		paintWindow();
 	}));
 	queueMicrotask(() => {
 		if (Math.abs(scroller.scrollTop - widget.checkpointGraphScrollTop) > 1) {
@@ -157,27 +198,7 @@ export function renderCheckpointGraph(widget: KnoxGuiWidget, body: HTMLElement, 
 	}
 	const canvas = DOM.append(scroller, DOM.$('.knox-gui-graph-canvas-wrap'));
 	canvas.style.height = `${drawing.height}px`;
-	renderGraphSvg(widget, canvas, state, drawing, displayNodes, heads, headId);
-	for (let index = range.start; index < range.end; index += 1) {
-		const node = displayNodes[index];
-		if (!node) {
-			continue;
-		}
-		const top = checkpointGraphRowTop(index, expand);
-		renderGraphRow(widget, canvas, state, {
-			node,
-			top,
-			columns,
-			current: node.id === headId,
-			muted: prefs.mute && !node.workingTree && !ancestors.has(node.id),
-			found: hits[widget.checkpointGraphFindIndex] === index && widget.checkpointGraphFindQuery.trim().length > 0,
-			open: node.id === widget.checkpointGraphOpenId,
-			branches: heads.get(node.id) ?? [],
-		});
-		if (node.id === widget.checkpointGraphOpenId && !docked) {
-			renderGraphDetails(widget, canvas, state, node, top + CHECKPOINT_GRAPH_ROW_HEIGHT, drawing.width, false);
-		}
-	}
+	paintWindow();
 	if (state.checkpointGraphHasMore || state.checkpointGraphLoadMoreError) {
 		const more = DOM.append(scroller, DOM.$('.knox-gui-graph-more'));
 		if (state.checkpointGraphLoadMoreError) {

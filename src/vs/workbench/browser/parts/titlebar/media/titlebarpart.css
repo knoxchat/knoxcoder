@@ -8,6 +8,7 @@
 	display: flex;
 	flex-direction: row;
 	box-shadow: var(--vscode-shadow-md);
+	--knox-titlebar-toggle-active: #159994;
 }
 
 .monaco-workbench.mac .part.titlebar {
@@ -247,6 +248,33 @@
 }
 
 /* Menubar */
+/* Clear macOS traffic lights so the file-tree toggle sits beside them. */
+.monaco-workbench.mac:not(.web):not(.fullscreen) .part.titlebar > .titlebar-container > .titlebar-left {
+	padding-left: 78px;
+}
+
+/* Left layout toolbar (file-tree / primary side bar) */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .left-action-toolbar-container {
+	display: none;
+	flex-grow: 0;
+	flex-shrink: 0;
+	color: var(--vscode-titleBar-activeForeground);
+	position: relative;
+	z-index: 2500;
+	-webkit-app-region: no-drag;
+	height: 100%;
+	align-items: center;
+	padding: 0 4px;
+}
+
+.monaco-workbench .part.titlebar.inactive > .titlebar-container > .titlebar-left > .left-action-toolbar-container {
+	color: var(--vscode-titleBar-inactiveForeground);
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .left-action-toolbar-container:not(.has-no-actions) {
+	display: flex;
+}
+
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .menubar {
 	/* move menubar above drag region as negative z-index on drag region cause greyscale AA */
 	z-index: 2500;
@@ -538,4 +566,31 @@
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content::before {
 	width: 12px;
 	height: 12px;
+}
+
+/* Layout toggles: Lucide icons with a Knox primary active state */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .left-action-toolbar-container .codicon,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .codicon {
+	color: inherit;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .left-action-toolbar-container .monaco-action-bar .action-item .action-label.codicon,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item .action-label.codicon {
+	padding: 3px;
+	width: 22px;
+	height: 22px;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent !important;
+	box-shadow: none !important;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .left-action-toolbar-container .monaco-action-bar .action-item .action-label.checked,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item .action-label.checked,
+.monaco-workbench .part.titlebar > .titlebar-container .monaco-action-bar .actions-container.highlight-toggled .action-label.checked {
+	color: var(--knox-titlebar-toggle-active, #159994) !important;
+	background: transparent !important;
+	box-shadow: none !important;
 }

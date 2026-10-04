@@ -32,7 +32,7 @@ import { KnoxGUIWebviewViewProvider } from "../KnoxGUIWebviewViewProvider";
 import { isMemoryWriteMessage } from "../memory/memoryEvents";
 import { MemoryView } from "../memory/MemoryView";
 import { registerHooksLog } from "../memory/hooksLog";
-import { registerJevStatusBar, registerMemoryStatusBar } from "../memory/statusBar";
+import { registerJevStatusBar } from "../memory/statusBar";
 import { registerAllCodeLensProviders } from "../lang-server/codeLens";
 import { registerAllPromptFilesCompletionProviders } from "../lang-server/promptFileCompletions";
 import EditDecorationManager from "../quickEdit/EditDecorationManager";
@@ -384,7 +384,6 @@ export class VsCodeExtension {
     // Register enterprise checkpoint commands
     registerCheckpointCommands(context);
 
-    registerMemoryStatusBar(context);
     registerJevStatusBar(context);
     registerHooksLog(context);
     

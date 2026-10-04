@@ -48,7 +48,7 @@ import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { EditorCommandsContextActionRunner } from '../editor/editorTabsControl.js';
 import { IEditorCommandsContext, IEditorPartOptionsChangeEvent, IToolbarActions } from '../../../common/editor.js';
 import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
-import { ACCOUNTS_ACTIVITY_TILE_ACTION, GLOBAL_ACTIVITY_TITLE_ACTION, TitleBarLeadingActionsGroup } from './titlebarActions.js';
+import { ACCOUNTS_ACTIVITY_TILE_ACTION, GLOBAL_ACTIVITY_TITLE_ACTION, TITLE_BAR_SHOWS_MANAGE_ACTION, TitleBarLeadingActionsGroup } from './titlebarActions.js';
 import { IView } from '../../../../base/browser/ui/grid/grid.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -275,6 +275,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private readonly actionToolBarDisposable = this._register(new DisposableStore());
 	private readonly editorActionsChangeDisposable = this._register(new DisposableStore());
 	private actionToolBarElement!: HTMLElement;
+	private readonly leftActionToolBarDisposable = this._register(new DisposableStore());
+	private leftActionToolBarElement: HTMLElement | undefined;
 	private readonly centerAdjacentToolBarDisposable = this._register(new DisposableStore());
 	private centerAdjacentToolBarElement: HTMLElement | undefined;
 	private readonly updateToolBarDisposable = this._register(new DisposableStore());
@@ -476,6 +478,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.appIcon = prepend(this.leftContent, $('a.window-appicon'));
 		}
 
+		// File-tree / primary side bar toggle (Cursor-style, stays on the left)
+		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle) && !this.isAuxiliary) {
+			this.leftActionToolBarElement = append(this.leftContent, $('div.left-action-toolbar-container'));
+		}
+
 		// Draggable region that we can manipulate for #52522
 		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
@@ -637,7 +644,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 
 		// --- Custom view items registered via IActionViewItemService
-		for (const menuId of [MenuId.TitleBar, MenuId.LayoutControlMenu]) {
+		for (const menuId of [MenuId.TitleBar, MenuId.TitleBarLeft, MenuId.LayoutControlMenu]) {
 			const customViewItem = this.actionViewItemService.lookUp(menuId, action.id);
 			if (customViewItem) {
 				const result = customViewItem(action, options, this.instantiationService, getWindowId(this.element ? getWindow(this.element) : mainWindow));
@@ -677,6 +684,33 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		return this.keybindingService.lookupKeybinding(action.id, editorPaneAwareContextKeyService);
 	}
 
+	private createLeftActionToolBar(): void {
+		this.leftActionToolBarDisposable.clear();
+
+		const leftActionToolBarElement = this.leftActionToolBarElement;
+		if (!leftActionToolBarElement) {
+			return;
+		}
+
+		if (!this.layoutControlEnabled) {
+			leftActionToolBarElement.classList.add('has-no-actions');
+			return;
+		}
+
+		this.leftActionToolBarDisposable.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, leftActionToolBarElement, MenuId.TitleBarLeft, {
+			contextMenu: MenuId.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			toolbarOptions: {
+				primaryGroup: () => true,
+			},
+			highlightToggledItems: false,
+			ariaLabel: localize('ariaLabelTitleLeftActions', "Primary side bar"),
+			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
+			hoverDelegate: this.hoverDelegate,
+			telemetrySource: 'titlePartLeft'
+		}));
+	}
+
 	private createActionToolBar(): void {
 
 		// Creates the action tool bar. Depends on the configuration of the title bar menus
@@ -692,7 +726,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			overflowBehavior: { maxItems: 12, exempted: [ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, ...EDITOR_CORE_NAVIGATION_COMMANDS] },
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			telemetrySource: 'titlePart',
-			highlightToggledItems: this.isAuxiliary, // Only show toggled state for auxiliary title bars
+			highlightToggledItems: false,
 			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
 			hoverDelegate: this.hoverDelegate
 		}));
@@ -765,7 +799,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 					actions.primary.push(ACCOUNTS_ACTIVITY_TILE_ACTION);
 				}
 
-				actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
+				if (TITLE_BAR_SHOWS_MANAGE_ACTION) {
+					actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
+				}
 			}
 
 			this.actionToolBar.setActions(prepareActions(actions.primary), prepareActions(actions.secondary));
@@ -800,6 +836,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			} else {
 				this.layoutToolbarMenu = undefined;
 			}
+
+			this.createLeftActionToolBar();
 		}
 
 		if (update.globalActions) {

@@ -180,6 +180,7 @@ export class MenuId {
 	static readonly TestCoverageFilterItem = new MenuId('TestCoverageFilterItem');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
 	static readonly TitleBar = new MenuId('TitleBar');
+	static readonly TitleBarLeft = new MenuId('TitleBarLeft');
 	static readonly TitleBarAdjacentCenter = new MenuId('TitleBarAdjacentCenter');
 	static readonly TitleBarUpdate = new MenuId('TitleBarUpdate');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');

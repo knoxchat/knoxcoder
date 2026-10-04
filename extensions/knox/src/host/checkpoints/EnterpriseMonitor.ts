@@ -115,12 +115,8 @@ export class CheckpointEnterpriseMonitor {
         
         this.registerRecoveryActions();
         
-        // Create status bar item
-        this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
-        this.statusBarItem.command = CheckpointCommand.view;
-        this.updateStatusBar(HealthStatus.HEALTHY);
-        this.statusBarItem.show();
-        context.subscriptions.push(this.statusBarItem);
+        // The CP button now lives in the workbench title bar (knoxTitlebarActions.ts),
+        // so no status bar item is created here. updateStatusBar() is a no-op without one.
         context.subscriptions.push(
             CheckpointManager.getInstance().onCheckpointCreated(() => {
                 void this.performHealthCheck({ allowAutoRecovery: false });

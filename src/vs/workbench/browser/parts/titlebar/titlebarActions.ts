@@ -291,3 +291,9 @@ export const GLOBAL_ACTIVITY_TITLE_ACTION: IAction = {
 	enabled: true,
 	run: function (): void { }
 };
+
+/**
+ * The Manage gear is omitted from the title bar. Command Palette and other
+ * entries remain available from their keybindings (for example ⌘P, ⌘,).
+ */
+export const TITLE_BAR_SHOWS_MANAGE_ACTION = false;
