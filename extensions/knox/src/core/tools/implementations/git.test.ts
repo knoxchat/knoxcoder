@@ -2,7 +2,7 @@ import { exec } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { describe, expect, it, vi } from "vitest";
@@ -14,7 +14,12 @@ import {
   gitDiffImpl,
   gitLogImpl,
   gitStatusImpl,
+  shellQuote,
 } from "./git";
+
+function fsCwd(cwd: string): string {
+  return fileURLToPath(pathToFileURL(cwd));
+}
 
 const execAsync = promisify(exec);
 
@@ -64,7 +69,7 @@ describe("git tools", () => {
     const result = await gitStatusImpl({}, extras(subprocess));
     expect(subprocess).toHaveBeenCalledWith(
       "git status --porcelain=v1 -b",
-      "/tmp/ws",
+      fsCwd("/tmp/ws"),
     );
     expect(result[0].content).toContain("## main");
   });
@@ -89,12 +94,12 @@ describe("git tools", () => {
   it("logs pickaxe -S and -G", async () => {
     const subprocess = vi.fn(async (_cmd: string) => ["abc added copy_to_user", ""]);
     await gitLogImpl({ search: "copy_to_user", max_count: 10 }, extras(subprocess));
-    expect(subprocess.mock.calls[0][0]).toContain("-S'copy_to_user'");
+    expect(subprocess.mock.calls[0][0]).toContain(`-S${shellQuote("copy_to_user")}`);
     expect(subprocess.mock.calls[0][0]).toContain("-n10");
 
     subprocess.mockClear();
     await gitLogImpl({ regex: "copy_to_user\\(", path: "mm/" }, extras(subprocess));
-    expect(subprocess.mock.calls[0][0]).toContain("-G'copy_to_user\\('");
+    expect(subprocess.mock.calls[0][0]).toContain(`-G${shellQuote("copy_to_user\\(")}`);
     expect(subprocess.mock.calls[0][0]).toContain("-- mm/");
   });
 
@@ -105,7 +110,7 @@ describe("git tools", () => {
       extras(subprocess),
     );
     expect(subprocess.mock.calls[0][0]).toBe(
-      "git blame --date=short -L10,20 -- 'mm/filemap.c'",
+      `git blame --date=short -L10,20 -- ${shellQuote("mm/filemap.c")}`,
     );
   });
 
@@ -126,7 +131,7 @@ describe("git tools", () => {
       extras(subprocess),
     );
     expect(subprocess.mock.calls[0][0]).toBe("git add -A");
-    expect(subprocess.mock.calls[1][0]).toBe("git commit -m 'fix stuff'");
+    expect(subprocess.mock.calls[1][0]).toBe(`git commit -m ${shellQuote("fix stuff")}`);
     expect(result[0].description).toBe("committed");
   });
 

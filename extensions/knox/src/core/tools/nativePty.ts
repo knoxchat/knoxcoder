@@ -80,10 +80,16 @@ export function nativePtyModuleCandidates(opts: {
   return out;
 }
 
-function defaultShell(): { file: string; args: (command: string) => string[] } {
+function defaultShell(): {
+  file: string;
+  args: (command: string) => string[] | string;
+} {
   if (process.platform === "win32") {
     const file = process.env.ComSpec || "cmd.exe";
-    return { file, args: (command) => ["/d", "/s", "/c", command] };
+    // One string, not argv: node-pty quotes each array entry and turns
+    // `"C:\path\node.exe" -e "..."` into `\"C:\path\node.exe\"`, which cmd
+    // then treats as the program name. `/s /c "cmd"` strips the wrap quotes.
+    return { file, args: (command) => `/d /s /c "${command}"` };
   }
   const file = process.env.SHELL || "/bin/sh";
   return { file, args: (command) => ["-lc", command] };

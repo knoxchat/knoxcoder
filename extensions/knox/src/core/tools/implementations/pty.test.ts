@@ -10,12 +10,13 @@ import {
 } from "../ptySession";
 import { ptyReadImpl, ptySendImpl, ptyStartImpl } from "./pty";
 import type { IDE, ToolExtras } from "../..";
+import { pathToFileURL } from "node:url";
 import { vi } from "vitest";
 
 function extras(): ToolExtras {
   return {
     ide: {
-      getWorkspaceDirs: vi.fn(async () => [`file://${process.cwd()}`]),
+      getWorkspaceDirs: vi.fn(async () => [pathToFileURL(process.cwd()).href]),
       getIdeInfo: vi.fn(async () => ({ remoteName: "local" })),
     } as unknown as IDE,
     llm: {} as ToolExtras["llm"],

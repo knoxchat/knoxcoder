@@ -95,6 +95,18 @@ export function remapPathToWorktree(
     return pathOrUri;
   }
   const inputIsUri = pathOrUri.startsWith("file://");
+  if (inputIsUri) {
+    const workspace = state.workspaceUri.replace(/\/+$/, "");
+    const worktree = state.worktreeUri.replace(/\/+$/, "");
+    if (pathOrUri === workspace || pathOrUri.startsWith(`${workspace}/`)) {
+      return worktree + pathOrUri.slice(workspace.length);
+    }
+    if (pathOrUri === worktree || pathOrUri.startsWith(`${worktree}/`)) {
+      return pathOrUri;
+    }
+    return pathOrUri;
+  }
+
   const abs = localPathOrUriToPath(pathOrUri);
   const workspace = localPathOrUriToPath(state.workspaceUri);
   const worktree = localPathOrUriToPath(state.worktreeUri);
@@ -103,16 +115,13 @@ export function remapPathToWorktree(
     return pathOrUri;
   }
 
-  let mapped: string;
   if (isUnderRoot(abs, workspace)) {
-    mapped = path.join(worktree, path.relative(workspace, abs));
-  } else if (!path.isAbsolute(abs)) {
-    mapped = path.join(worktree, abs);
-  } else {
-    return pathOrUri;
+    return path.join(worktree, path.relative(workspace, abs));
   }
-
-  return inputIsUri ? localPathToUri(mapped) : mapped;
+  if (!path.isAbsolute(abs)) {
+    return path.join(worktree, abs);
+  }
+  return pathOrUri;
 }
 
 export function parsePorcelainPaths(porcelain: string): string[] {

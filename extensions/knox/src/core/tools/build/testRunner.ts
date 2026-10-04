@@ -841,7 +841,8 @@ export function formatTestResults(
   if (parsed.failures.length) {
     lines.push("Failing tests:");
     for (const f of parsed.failures.slice(0, 30)) {
-      const loc = f.file ? ` (${f.file}${f.line ? `:${f.line}` : ""})` : "";
+      const file = f.file?.replace(/\\/g, "/");
+      const loc = file ? ` (${file}${f.line ? `:${f.line}` : ""})` : "";
       lines.push(`- ${f.name}${loc}${f.message ? `\n    ${f.message}` : ""}`);
     }
     if (parsed.failures.length > 30) {

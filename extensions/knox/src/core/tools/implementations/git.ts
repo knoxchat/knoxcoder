@@ -11,12 +11,21 @@ export const HARD_GIT_BLAME_LINES = 1000;
 
 function toFsPath(uriOrPath: string): string {
   if (uriOrPath.startsWith("file://")) {
-    return fileURLToPath(uriOrPath);
+    try {
+      return fileURLToPath(uriOrPath);
+    } catch {
+      // POSIX file:// URIs (eval fixtures, tests) are not legal Windows paths.
+      return decodeURIComponent(new URL(uriOrPath).pathname);
+    }
   }
   return uriOrPath;
 }
 
+/** Single-quote for POSIX shells; double-quote on Windows cmd. */
 export function shellQuote(value: string): string {
+  if (process.platform === "win32") {
+    return `"${value.replace(/"/g, '\\"')}"`;
+  }
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 

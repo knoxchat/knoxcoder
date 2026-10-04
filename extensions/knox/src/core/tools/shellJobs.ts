@@ -505,6 +505,12 @@ function tryStartNativePtyJob(opts: {
         pty.write("\x03");
         return;
       }
+      // node-pty's Windows backend throws "Signals not supported on windows"
+      // when a signal name is passed.
+      if (process.platform === "win32") {
+        pty.kill();
+        return;
+      }
       pty.kill(signal);
     },
   };

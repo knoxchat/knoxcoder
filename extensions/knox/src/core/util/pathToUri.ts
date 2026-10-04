@@ -19,9 +19,16 @@ export function localPathToUri(path: string) {
 export function localPathOrUriToPath(localPathOrUri: string): string {
   try {
     return fileURLToPath(localPathOrUri);
-  } catch (e) {
-    // console.log("Received local filepath", localPathOrUri);
-
+  } catch {
+    if (localPathOrUri.startsWith("file:")) {
+      try {
+        // POSIX file:// URIs (file:///tmp/x) have no drive letter, so
+        // fileURLToPath throws on Windows. Keep the URL path.
+        return decodeURIComponent(new URL(localPathOrUri).pathname);
+      } catch {
+        return localPathOrUri;
+      }
+    }
     return localPathOrUri;
   }
 }

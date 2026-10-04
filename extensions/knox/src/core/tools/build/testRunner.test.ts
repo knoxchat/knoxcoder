@@ -399,7 +399,11 @@ describe("composeTestCommand", () => {
     const c = composeTestCommand(npm, { target: "src/a.test.ts", filter: "adds" });
     expect(c.command).toMatch(/npm test -- src\/a\.test\.ts -t adds$/);
     const direct = await run({ "package.json": JSON.stringify({ devDependencies: { jest: "1" } }) });
-    expect(composeTestCommand(direct, { filter: "sum adds" }).command).toMatch(/jest --ci -t 'sum adds'$/);
+    expect(composeTestCommand(direct, { filter: "sum adds" }).command).toMatch(
+      new RegExp(
+        `jest --ci -t ${shellQuote("sum adds").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+      ),
+    );
   });
 
   it("pytest -k, unittest discover / module, go -run", async () => {
@@ -420,8 +424,10 @@ describe("composeTestCommand", () => {
   it("quotes hostile filters so they cannot inject shell", async () => {
     const go = await run({ "go.mod": "" });
     const c = composeTestCommand(go, { filter: "x; rm -rf /" }).command;
-    expect(c).toBe("go test ./... -run 'x; rm -rf /'");
-    expect(shellQuote("it's")).toBe("'it'\\''s'");
+    expect(c).toBe(`go test ./... -run ${shellQuote("x; rm -rf /")}`);
+    expect(shellQuote("it's")).toBe(
+      process.platform === "win32" ? `"it's"` : "'it'\\''s'",
+    );
     expect(shellQuote("plain-name_1.ts")).toBe("plain-name_1.ts");
   });
 

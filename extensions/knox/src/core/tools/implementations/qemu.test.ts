@@ -2,13 +2,15 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { resetShellJobs } from "../shellJobs";
 import { buildQemuCommand, qemuImpl } from "./qemu";
+import { shellQuote } from "./git";
 import type { IDE, ToolExtras } from "../..";
+import { pathToFileURL } from "node:url";
 import { vi } from "vitest";
 
 function extras(): ToolExtras {
   return {
     ide: {
-      getWorkspaceDirs: vi.fn(async () => [`file://${process.cwd()}`]),
+      getWorkspaceDirs: vi.fn(async () => [pathToFileURL(process.cwd()).href]),
       getIdeInfo: vi.fn(async () => ({ remoteName: "local" })),
     } as unknown as IDE,
     llm: {} as ToolExtras["llm"],
@@ -31,7 +33,7 @@ describe("buildQemuCommand", () => {
         memory: "512M",
       }),
     ).toBe(
-      "qemu-system-x86_64 -kernel 'arch/x86/boot/bzImage' -initrd 'initramfs.cpio' -m '512M' -serial stdio -display none -nographic -s -S",
+      `qemu-system-x86_64 -kernel ${shellQuote("arch/x86/boot/bzImage")} -initrd ${shellQuote("initramfs.cpio")} -m ${shellQuote("512M")} -serial stdio -display none -nographic -s -S`,
     );
   });
 
@@ -51,7 +53,7 @@ describe("buildQemuCommand", () => {
         { kernel: "bzImage", monitor: true },
         { serialFile: "/tmp/serial.log", monitor: true },
       ),
-    ).toContain("file:'/tmp/serial.log'");
+    ).toContain(`file:${shellQuote("/tmp/serial.log")}`);
     expect(
       buildQemuCommand({ kernel: "bzImage", monitor: true }, { monitor: true }),
     ).not.toContain("-serial stdio");

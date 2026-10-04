@@ -125,8 +125,11 @@ describe("git bisect (HL-30)", () => {
     );
     expect(started[0].description).toBe("started");
 
+    const oracle = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(
+      "process.exit(require('fs').readFileSync('STATUS','utf8').includes('GOOD')?0:1)",
+    )}`;
     const ran = await gitBisectImpl(
-      { action: "run", command: "grep -q GOOD STATUS", loop: true },
+      { action: "run", command: oracle, loop: true },
       realGitExtras(dir),
     );
     expect(ran[0].content).toMatch(/is the first '?bad'? commit/i);

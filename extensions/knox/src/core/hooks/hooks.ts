@@ -155,7 +155,11 @@ export const defaultHookExec: HookExec = async (command, stdin, opts) => {
     };
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGKILL");
+      if (process.platform === "win32") {
+        child.kill();
+      } else {
+        child.kill("SIGKILL");
+      }
       finish(null);
     }, opts.timeoutMs);
     child.stdout?.on("data", (d) => (stdout += d));

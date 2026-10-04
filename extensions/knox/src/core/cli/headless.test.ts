@@ -208,7 +208,11 @@ describe("headless hooks (K-023)", () => {
   it("UserPromptSubmit deny ends the run before any model call", async () => {
     const dir = tmp({
       ...hooksFile({
-        UserPromptSubmit: [{ command: "echo nope >&2; exit 2" }],
+        UserPromptSubmit: [
+          {
+            command: `${JSON.stringify(process.execPath)} -e ${JSON.stringify("process.stderr.write('nope'); process.exit(2)")}`,
+          },
+        ],
       }),
     });
     const r = await run(dir, []);
@@ -222,7 +226,10 @@ describe("headless hooks (K-023)", () => {
       "a.txt": "hello world\n",
       ...hooksFile({
         PreToolUse: [
-          { matcher: "builtin_edit_file", command: "echo locked >&2; exit 2" },
+          {
+            matcher: "builtin_edit_file",
+            command: `${JSON.stringify(process.execPath)} -e ${JSON.stringify("process.stderr.write('locked'); process.exit(2)")}`,
+          },
         ],
       }),
     });
@@ -256,7 +263,15 @@ describe("headless repo-local hooks need explicit trust (P0-4)", () => {
     fs.mkdirSync(path.join(dir, ".knox"), { recursive: true });
     fs.writeFileSync(
       path.join(dir, ".knox", "hooks.json"),
-      JSON.stringify({ hooks: { SessionStart: [{ command: `touch ${JSON.stringify(marker(dir))}` }] } }),
+      JSON.stringify({
+        hooks: {
+          SessionStart: [
+            {
+              command: `${JSON.stringify(process.execPath)} -e ${JSON.stringify(`require("fs").writeFileSync(${JSON.stringify(marker(dir))},"")`)}`,
+            },
+          ],
+        },
+      }),
     );
     return dir;
   };

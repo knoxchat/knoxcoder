@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { git, makeTempRepo, cleanupTempRepos } from "../test/tempRepo";
@@ -30,9 +30,7 @@ function mockIde(repo: string): IDE {
     getWorkspaceDirs: async () => [uri],
     getGitRootPath: async () => uri,
     fileExists: async (fileUri: string) => {
-      const p = fileUri.startsWith("file://")
-        ? new URL(fileUri).pathname
-        : fileUri;
+      const p = fileUri.startsWith("file://") ? fileURLToPath(fileUri) : fileUri;
       try {
         readFileSync(p);
         return true;
@@ -41,22 +39,16 @@ function mockIde(repo: string): IDE {
       }
     },
     readFile: async (fileUri: string) => {
-      const p = fileUri.startsWith("file://")
-        ? new URL(fileUri).pathname
-        : fileUri;
+      const p = fileUri.startsWith("file://") ? fileURLToPath(fileUri) : fileUri;
       return readFileSync(p, "utf-8");
     },
     writeFile: async (fileUri: string, contents: string) => {
-      const p = fileUri.startsWith("file://")
-        ? new URL(fileUri).pathname
-        : fileUri;
+      const p = fileUri.startsWith("file://") ? fileURLToPath(fileUri) : fileUri;
       await mkdir(path.dirname(p), { recursive: true });
       writeFileSync(p, contents);
     },
     removeFile: async (fileUri: string) => {
-      const p = fileUri.startsWith("file://")
-        ? new URL(fileUri).pathname
-        : fileUri;
+      const p = fileUri.startsWith("file://") ? fileURLToPath(fileUri) : fileUri;
       await rm(p, { force: true });
     },
     subprocess: async (command: string, cwd?: string) => {

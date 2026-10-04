@@ -22,7 +22,11 @@ import { readPty, sendPty, startPtyJob } from "../ptySession";
 
 function toFsPath(uriOrPath: string): string {
   if (uriOrPath.startsWith("file://")) {
-    return fileURLToPath(uriOrPath);
+    try {
+      return fileURLToPath(uriOrPath);
+    } catch {
+      return decodeURIComponent(new URL(uriOrPath).pathname);
+    }
   }
   return uriOrPath;
 }
