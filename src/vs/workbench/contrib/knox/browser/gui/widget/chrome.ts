@@ -22,7 +22,7 @@ import {
 import { knoxGuiListboxNextIndex } from '../../../common/knoxGuiCapabilities.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
 import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, knoxGuiFindRegexInvalid, knoxGuiNextScrollFollow, knoxGuiShouldLoadEarlier, knoxGuiTranscriptRestoreTop, nextExpandedStart } from '../../../common/knoxGuiChat.js';
-import { knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
+import { knoxGuiIsImeComposing, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { visibleBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { IKnoxGuiState, KnoxPermissionMode, knoxGuiPermissionModeHintKey, knoxGuiPermissionModeLabelKey, PERMISSION_MODES } from '../../../common/knoxGuiState.js';
@@ -481,6 +481,9 @@ export function renderScrollButtons(widget: KnoxGuiWidget, parent: HTMLElement, 
 }
 
 export function onRootKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent): void {
+	if (knoxGuiIsImeComposing(e)) {
+		return;
+	}
 	const state = widget.controller.store.state;
 	const meta = knoxGuiIsMetaEquivalent(e);
 	if (onCheckpointGraphKeyDown(widget, e, state)) {

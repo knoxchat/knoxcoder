@@ -156,6 +156,10 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	chatInputHistory: IKnoxGuiComposerInputHistory = createComposerInputHistory();
 	composerUndo: IKnoxGuiComposerUndo = createComposerUndo();
 	composerUndoApplying = false;
+	/** Nested `compositionstart` count; the IME owns the composer DOM while this is > 0. */
+	composerImeDepth = 0;
+	/** Full GUI render skipped during IME; replayed on `compositionend`. */
+	composerImeNeedsReplay = false;
 	editInputHistory: IKnoxGuiComposerInputHistory = createComposerInputHistory();
 	addFileHits: IKnoxGuiSuggestItem[] = [];
 	addFileQuery = '';

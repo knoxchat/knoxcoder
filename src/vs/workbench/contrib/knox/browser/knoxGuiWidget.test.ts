@@ -322,6 +322,29 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(!page?.querySelector('table'));
 	});
 
+	test('composer IME composition is not rewritten into Latin pinyin', async () => {
+		const { widget, store } = await mount();
+		store.setInputDoc(inputDocFromPlainText('文化'));
+		const editor = widget.root.querySelector<HTMLElement>('[data-testid="knox-gui-input"]')!;
+		const paragraph = editor.querySelector('p') ?? editor;
+		const composing = document.createTextNode('wenhua');
+		paragraph.append(composing);
+		editor.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: 'wenhua' }));
+		editor.dispatchEvent(new InputEvent('input', { bubbles: true, isComposing: true, data: 'wenhua', inputType: 'insertCompositionText' }));
+		assert.strictEqual(widget.composerImeDepth > 0, true);
+		assert.strictEqual(composing.parentNode, paragraph);
+		store.setInputDoc(inputDocFromPlainText('stale'));
+		assert.strictEqual(composing.parentNode, paragraph, 'paintInputDoc must not replaceChildren during composition');
+		assert.strictEqual(widget.editorEl, editor);
+		store.patch({ sessionTitle: 'during-ime' });
+		assert.strictEqual(widget.editorEl, editor, 'full render must wait until compositionend');
+		composing.textContent = '文化';
+		editor.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '文化' }));
+		assert.strictEqual(widget.composerImeDepth, 0);
+		assert.ok(store.state.input.includes('文化'));
+		assert.ok(!store.state.input.includes('wenhua'));
+	});
+
 	test('I-05 composer code block: newest expanded, header toggles, name opens lines, X deletes', async () => {
 		const posted: string[] = [];
 		const { widget, store } = await mount(message => { posted.push(message.messageType); return undefined; });

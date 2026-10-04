@@ -16,6 +16,7 @@ import {
 	groupSlashItems,
 	isMentionUtilityItem,
 	knoxGuiComposerKeyAction,
+	knoxGuiIsImeComposing,
 	knoxGuiPendingToolBlocksSubmit,
 	knoxGuiShouldBlockSubmit,
 } from '../../../../common/knoxGuiInput.js';
@@ -35,7 +36,7 @@ export function insertAddContext(widget: KnoxGuiWidget): void {
 }
 
 export function onEditorKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent, _state?: IKnoxGuiState): void {
-	if (e.isComposing || e.keyCode === 229) {
+	if (knoxGuiIsImeComposing(e)) {
 		return;
 	}
 	const state = widget.controller.store.state;

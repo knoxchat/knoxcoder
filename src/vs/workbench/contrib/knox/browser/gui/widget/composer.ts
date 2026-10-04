@@ -18,6 +18,7 @@ export { paintTypedMention, renderSuggest, renderSuggestItem } from './composer/
 export { syncInput, renderInput, syncPlaceholder } from './composer/input.js';
 export { renderModelSelect, renderReasoningSelect } from './composer/selects.js';
 export { insertAddContext, onEditorKeyDown, submitFromComposer, stepInputHistory, stepComposerUndo, insertPlainText, onEditorPaste } from './composer/editing.js';
+export { composerImeActive, bindComposerIme, composerImeFromInput } from './composer/ime.js';
 export { readImageFile, addImages, renderImageAttach, renderImageThumbnails, renderThumb, showImagePreview, hideImagePreview } from './composer/attachments.js';
 export { paintInputDoc, appendInline, readInputDoc, readInlines } from './composer/inputDoc.js';
 export { renderCodeToEditCard, refreshAddFileHits } from './composer/codeToEdit.js';

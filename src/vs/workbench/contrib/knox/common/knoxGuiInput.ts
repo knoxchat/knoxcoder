@@ -1586,12 +1586,17 @@ export function knoxGuiIsMetaEquivalent(event: { metaKey: boolean; ctrlKey: bool
 	return event.metaKey || event.ctrlKey;
 }
 
+/** CJK IME: `isComposing`, or `keyCode` 229 on the first keydown before composition has started. */
+export function knoxGuiIsImeComposing(event: { isComposing?: boolean; keyCode?: number }): boolean {
+	return Boolean(event.isComposing) || event.keyCode === 229;
+}
+
 export function knoxGuiComposerKeyAction(
 	event: { key: string; shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean; isComposing?: boolean; keyCode?: number },
 	ctx: { suggestOpen: boolean; inSubmenu: boolean; isStreaming: boolean; caretAtStart: boolean; caretAtEnd: boolean; suggestSelected: number; suggestCount: number },
 ): KnoxGuiComposerKeyAction {
 	// IME composition (CJK candidate confirm etc.) must never submit, navigate or close pickers (ProseMirror ignores keys while composing).
-	if (event.isComposing || event.keyCode === 229) {
+	if (knoxGuiIsImeComposing(event)) {
 		return { type: 'ignore' };
 	}
 	const meta = knoxGuiIsMetaEquivalent(event);

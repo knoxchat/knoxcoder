@@ -7,8 +7,9 @@ import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
 import { knoxGuiEditSendKey, knoxGuiRelativeFontSize } from '../../../../common/knoxGuiChrome.js';
-import { appendTriggerToDoc, composerInputHistoryNext, composerInputHistoryPrev, composerPlaceholderKey, composerUndoRecord, composerUndoStep, createComposerUndo, detectComposerTrigger, docEndCaret, emptyInputDoc, groupMentionItems, groupSlashItems, IKnoxGuiDocCaret, inputDocIsEmpty, IKnoxGuiInputBlock, isMentionUtilityItem, knoxGuiComposerKeyAction } from '../../../../common/knoxGuiInput.js';
+import { appendTriggerToDoc, composerInputHistoryNext, composerInputHistoryPrev, composerPlaceholderKey, composerUndoRecord, composerUndoStep, createComposerUndo, detectComposerTrigger, docEndCaret, emptyInputDoc, groupMentionItems, groupSlashItems, IKnoxGuiDocCaret, inputDocIsEmpty, IKnoxGuiInputBlock, isMentionUtilityItem, knoxGuiComposerKeyAction, knoxGuiIsImeComposing } from '../../../../common/knoxGuiInput.js';
 import { hideDropOverlay, renderImageAttach, showDropOverlay } from '../composer.js';
+import { bindComposerIme, composerImeFromInput } from '../composer/ime.js';
 import { processImageFile, processImageFiles } from '../images.js';
 import { IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { historyUserInputDoc } from '../../../../common/knoxGuiTranscript.js';
@@ -90,12 +91,16 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 			widget.controller.onComposerInput(widget.caretDocPosition(editor), item.id);
 		}
 	};
-	widget.renderStore.add(DOM.addDisposableListener(editor, 'input', () => {
+	widget.renderStore.add(DOM.addDisposableListener(editor, 'input', (e: Event) => {
+		const composing = composerImeFromInput(widget, e);
 		draft.doc = widget.readInputDoc(editor);
 		widget.historyDrafts.set(item.id, draft);
 		editor.dataset.empty = inputDocIsEmpty(draft.doc) ? 'true' : 'false';
-		if (!widget.historyUndoApplying.has(item.id)) {
+		if (!widget.historyUndoApplying.has(item.id) && !composing) {
 			widget.historyUndo.set(item.id, composerUndoRecord(widget.historyUndo.get(item.id) ?? createComposerUndo(draft.doc), draft.doc, Date.now()));
+		}
+		if (composing) {
+			return;
 		}
 		if (widget.controller.suggestTarget === item.id) {
 			widget.controller.onComposerInput(widget.caretDocPosition(editor), item.id);
@@ -105,6 +110,7 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 			widget.controller.onComposerInput(docEndCaret(draft.doc), item.id);
 		}
 	}));
+	bindComposerIme(widget, editor, item.id);
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'keyup', (e: KeyboardEvent) => {
 		if (widget.controller.suggestTarget === item.id && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End')) {
 			recheckTrigger();
@@ -302,6 +308,9 @@ export function stepHistoryUndo(widget: KnoxGuiWidget, historyId: string, delta:
  * history, Escape closes the picker or returns focus to the code editor.
  */
 function onHistoryEditorKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent, editor: HTMLElement, item: IKnoxGuiHistoryItem, index: number, draft: { doc: IKnoxGuiInputBlock[]; images: string[] }): void {
+	if (knoxGuiIsImeComposing(e)) {
+		return;
+	}
 	const state = widget.controller.store.state;
 	const suggestOpen = (state.mentionOpen || state.slashOpen) && widget.controller.suggestTarget === item.id;
 	const sections = state.slashOpen

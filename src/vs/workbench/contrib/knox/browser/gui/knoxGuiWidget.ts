@@ -27,7 +27,7 @@ import * as knoxGuiMemoryView from './widget/memory.js';
 import * as knoxGuiCheckpointsView from './widget/checkpoints.js';
 import * as knoxGuiDialogView from './widget/dialog.js';
 import { captureDomState, restoreDomState } from './widget/preserve.js';
-import { stepComposerUndo } from './widget/composer.js';
+import { composerImeActive, stepComposerUndo } from './widget/composer.js';
 import { stepHistoryUndo } from './widget/chat/historyEditor.js';
 import { isNativeTextInput, KnoxEditCommand, registerKnoxEditHost, selectAllContents } from './widget/editCommands.js';
 import { KnoxGuiCheckpointsFacade } from './widget/facade/checkpointsFacade.js';
@@ -175,9 +175,12 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		}
 		if (this.lastState && isKnoxGuiStreamingTokenChange(this.lastState, state) && this.lastAssistantCard) {
 			const ended = this.lastState.isStreaming && !state.isStreaming;
-			this.lastState = state;
 			if (ended && state.mode === 'agent' && turnEndsWithSummary(state)) {
 				// K-040: the run summary closes the turn, so the end of an edit/shell turn needs one full render.
+				if (this.deferComposerImeRender()) {
+					return;
+				}
+				this.lastState = state;
 				this.render();
 				if (this.autoScrollEnabled) {
 					knoxGuiChromeView.scheduleStreamEndStick(this);
@@ -187,6 +190,7 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 				}
 				return;
 			}
+			this.lastState = state;
 			this.patchLastAssistant(state);
 			if (ended && this.autoScrollEnabled) {
 				knoxGuiChromeView.scheduleStreamEndStick(this);
@@ -199,11 +203,17 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		if (this.lastState) {
 			const progress = knoxGuiToolProgressOnlyChange(this.lastState, state);
 			if (progress) {
-				this.lastState = state;
 				if (!patchToolProgress(this, state, progress)) {
+					if (this.deferComposerImeRender()) {
+						return;
+					}
+					this.lastState = state;
 					this.render();
-				} else if (this.autoScrollEnabled) {
-					knoxGuiChromeView.scheduleTranscriptStick(this);
+				} else {
+					this.lastState = state;
+					if (this.autoScrollEnabled) {
+						knoxGuiChromeView.scheduleTranscriptStick(this);
+					}
 				}
 				return;
 			}
@@ -217,11 +227,24 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		if (this.lastState?.isStreaming && !state.isStreaming && this.shouldShowComposer(state)) {
 			this.refocusComposerAfterStream = true;
 		}
+		if (this.deferComposerImeRender()) {
+			return;
+		}
 		this.lastState = state;
 		this.render();
 	}
 
+	/** Keep the IME's composition node mounted; apply the latest store after `compositionend`. */
+	deferComposerImeRender(): boolean {
+		if (!composerImeActive(this)) {
+			return false;
+		}
+		this.composerImeNeedsReplay = true;
+		return true;
+	}
+
 	render(): void {
+		this.composerImeDepth = 0;
 		const active = document.activeElement;
 		const restoreEditor = Boolean(active instanceof HTMLElement && active.isContentEditable && active.classList.contains('knox-gui-input'));
 		const restore = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement

@@ -14,6 +14,7 @@ import {
 	inputDocToPlainText,
 	knoxGuiSendButtonDisabled,
 } from '../../../../common/knoxGuiInput.js';
+import { bindComposerIme, composerImeActive, composerImeFromInput } from './ime.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { setComposerCollapsed } from './layout.js';
 import { renderImageAttach } from './attachments.js';
@@ -21,6 +22,12 @@ import { renderImageAttach } from './attachments.js';
 export function syncInput(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
 	if (!widget.editorEl || !widget.inputWrap) {
 		widget.render();
+		return;
+	}
+	if (composerImeActive(widget)) {
+		// The IME owns the composition node. Rewriting the contenteditable (or calling
+		// focus()/placeCaret) cancels it and the remaining pinyin lands as Latin.
+		widget.syncPlaceholder(widget.editorEl, state);
 		return;
 	}
 	const current = inputDocToPlainText(widget.readInputDoc(widget.editorEl));
@@ -36,7 +43,10 @@ export function syncInput(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
 	const target = widget.controller.suggestTarget;
 	widget.renderSuggest(target ? widget.historyEditorBoxes.get(target) ?? widget.inputWrap : widget.inputWrap, state);
 	if (state.inputFocused && !state.suggestQueryItem) {
-		widget.editorEl.focus();
+		const active = document.activeElement;
+		if (active !== widget.editorEl && !widget.editorEl.contains(active)) {
+			widget.editorEl.focus();
+		}
 	}
 }
 
@@ -65,12 +75,17 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 		widget.controller.composerCaret = widget.caretDocPosition(editor) ?? widget.controller.composerCaret;
 		widget.controller.store.patch({ inputFocused: false });
 	}));
-	widget.renderStore.add(DOM.addDisposableListener(editor, 'input', () => {
+	widget.renderStore.add(DOM.addDisposableListener(editor, 'input', (e: Event) => {
+		const composing = composerImeFromInput(widget, e);
 		widget.controller.store.setInputDoc(widget.readInputDoc(editor));
 		widget.syncPlaceholder(editor, widget.controller.store.state);
+		if (composing) {
+			return;
+		}
 		widget.controller.onComposerInput(widget.caretDocPosition(editor));
 		widget.paintTypedMention(widget.controller.store.state);
 	}));
+	bindComposerIme(widget, editor);
 	const recheckTrigger = () => {
 		const current = widget.controller.store.state;
 		if (current.mentionOpen || current.slashOpen) {
