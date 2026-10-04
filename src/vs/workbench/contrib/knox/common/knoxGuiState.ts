@@ -273,9 +273,9 @@ export interface IKnoxGuiGitDiffFile {
 
 export interface IKnoxGuiBackgroundJob {
 	id: string;
-	kind?: 'shell' | 'task';
+	kind?: 'shell' | 'task' | 'bg';
 	title: string;
-	status: 'running' | 'exited' | 'killed' | 'failed';
+	status: 'running' | 'exited' | 'killed' | 'failed' | 'merged' | 'discarded';
 	startedAt?: number;
 	endedAt?: number;
 	exitCode?: number;
@@ -828,6 +828,7 @@ export interface IKnoxGuiState {
 	agentDoomLoopThreshold: number;
 	agentViewSubdirectoryMaxFiles: number;
 	jevEnabled: boolean;
+	sandboxMode: 'off' | 'workspace-write' | 'read-only';
 	policy: IKnoxGuiPolicy;
 	dialogMessage?: string;
 	configError: IKnoxGuiConfigError[];
@@ -1071,6 +1072,8 @@ export interface IKnoxGuiState {
 	contextUsage?: IKnoxGuiContextUsage;
 	/** K-005: the first-run permission notice was dismissed. Persisted. */
 	permissionNoticeDismissed: boolean;
+	/** First-run Memory Brain notice. Persisted. */
+	memoryNoticeDismissed: boolean;
 	/** K-042: messages typed while a turn runs. Written to workspace storage on every change. */
 	messageQueue: IKnoxGuiQueuedMessage[];
 	autoScroll: boolean;
@@ -1099,6 +1102,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		mode: KNOX_GUI_DEFAULT_SESSION_MODE,
 		permissionMode: DEFAULT_PERMISSION_MODE,
 		permissionNoticeDismissed: false,
+		memoryNoticeDismissed: false,
 		messageQueue: [],
 		models: [],
 		modelsByRole: emptyRoleModels(),
@@ -1133,6 +1137,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		agentDoomLoopThreshold: 3,
 		agentViewSubdirectoryMaxFiles: 1000,
 		jevEnabled: false,
+		sandboxMode: 'off',
 		policy: { paths: '', commands: '', externalDirectory: 'ask', sandboxDestructive: true },
 		configError: [],
 		historySessions: [],

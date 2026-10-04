@@ -6,7 +6,7 @@
  * denied (nobody is there to answer), and hard-policy denies always apply.
  */
 
-import type { ChatMessage, ContextItem, Tool, ToolExtras } from "..";
+import type { ChatMessage, ContextItem, Session, Tool, ToolExtras } from "..";
 import {
   runAgentLoop,
   type AgentLoopStoppedReason,
@@ -40,6 +40,13 @@ import { loadProjectInstructions } from "../config/rules";
 import { mergeAgentToolPolicies } from "../tools/toolPolicy";
 import { renderContextItems } from "../util/messageContent";
 import { createNodeIde } from "./nodeIde";
+import {
+  messagesFromSession,
+  saveCliSession,
+  sessionFromMessages,
+  withFinalAssistant,
+} from "./session";
+import { CLI_JSON_SCHEMA_VERSION } from "./version";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 
@@ -98,14 +105,25 @@ export interface HeadlessOptions {
    * in CI. Also enabled by `KNOX_TRUST_WORKSPACE_HOOKS=1`.
    */
   trustWorkspaceHooks?: boolean;
+  /** Previous CLI/GUI session to continue (`--resume` / `--continue`). */
+  session?: Session;
+  /** Write the transcript under `~/.knoxcoder/sessions` after the run. */
+  persistSession?: boolean;
   /** Live progress (the CLI prints these to stderr). */
   onEvent?: (event: HeadlessEvent) => void;
 }
 
 export type HeadlessEvent =
-  | { type: "text"; text: string }
-  | { type: "tool"; name: string; args: Record<string, unknown>; ok: boolean; error?: string }
-  | { type: "denied"; name: string };
+  | { schemaVersion: number; type: "text"; text: string }
+  | {
+      schemaVersion: number;
+      type: "tool";
+      name: string;
+      args: Record<string, unknown>;
+      ok: boolean;
+      error?: string;
+    }
+  | { schemaVersion: number; type: "denied"; name: string };
 
 export interface HeadlessToolRecord {
   name: string;
@@ -116,12 +134,14 @@ export interface HeadlessToolRecord {
 }
 
 export interface HeadlessResult {
+  schemaVersion: number;
   stoppedReason: AgentLoopStoppedReason;
   exitCode: number;
   steps: number;
   summary: string;
   tools: HeadlessToolRecord[];
   denied: string[];
+  sessionId?: string;
 }
 
 export async function runHeadless(
@@ -164,6 +184,7 @@ export async function runHeadless(
       .catch(() => null);
     if (submitted?.denied) {
       return {
+        schemaVersion: CLI_JSON_SCHEMA_VERSION,
         stoppedReason: "aborted",
         exitCode: exitCodeFor("aborted"),
         steps: 0,
@@ -192,19 +213,17 @@ export async function runHeadless(
       tools: catalog.map((t) => t.function.name),
     });
 
+  const systemContent = instructions?.systemPrompt
+    ? `${basePrompt}\n\n${instructions.systemPrompt}`
+    : basePrompt;
+  const userContent = hookContext.length
+    ? `${options.task}\n\n<hook_context>\n${hookContext.join("\n")}\n</hook_context>`
+    : options.task;
+  const prior = options.session ? messagesFromSession(options.session) : [];
   const messages: ChatMessage[] = [
-    {
-      role: "system",
-      content: instructions?.systemPrompt
-        ? `${basePrompt}\n\n${instructions.systemPrompt}`
-        : basePrompt,
-    },
-    {
-      role: "user",
-      content: hookContext.length
-        ? `${options.task}\n\n<hook_context>\n${hookContext.join("\n")}\n</hook_context>`
-        : options.task,
-    },
+    { role: "system", content: systemContent },
+    ...prior,
+    { role: "user", content: userContent },
   ];
 
   const loop = await runAgentLoop({
@@ -215,7 +234,11 @@ export async function runHeadless(
     abortOnCancelled: true,
     onChunk: (chunk) => {
       if (chunk.role === "assistant" && typeof chunk.content === "string") {
-        options.onEvent?.({ type: "text", text: chunk.content });
+        options.onEvent?.({
+          schemaVersion: CLI_JSON_SCHEMA_VERSION,
+          type: "text",
+          text: chunk.content,
+        });
       }
     },
     approveTool: async (tool, args) => {
@@ -235,7 +258,11 @@ export async function runHeadless(
         });
       if (!allowed) {
         denied.push(name);
-        options.onEvent?.({ type: "denied", name });
+        options.onEvent?.({
+          schemaVersion: CLI_JSON_SCHEMA_VERSION,
+          type: "denied",
+          name,
+        });
       }
       return allowed ? "allow" : "deny";
     },
@@ -264,6 +291,7 @@ export async function runHeadless(
           output: renderContextItems(r.output),
         });
         options.onEvent?.({
+          schemaVersion: CLI_JSON_SCHEMA_VERSION,
           type: "tool",
           name: r.name,
           args: r.args,
@@ -278,13 +306,27 @@ export async function runHeadless(
     await hooks.run("Stop", { result: loop.summary }).catch(() => undefined);
   }
 
+  let sessionId: string | undefined;
+  if (options.persistSession) {
+    const saved = sessionFromMessages({
+      existing: options.session,
+      workspaceDir,
+      task: options.task,
+      messages: withFinalAssistant(loop.messages, loop.summary),
+    });
+    saveCliSession(saved);
+    sessionId = saved.sessionId;
+  }
+
   return {
+    schemaVersion: CLI_JSON_SCHEMA_VERSION,
     stoppedReason: loop.stoppedReason,
     exitCode: exitCodeFor(loop.stoppedReason),
     steps: loop.steps,
     summary: loop.summary,
     tools,
     denied,
+    sessionId,
   };
 }
 
@@ -302,23 +344,37 @@ export interface CliArgs {
   model?: string;
   /** `--trust-hooks`: run hooks defined in the repository. */
   trustHooks?: boolean;
+  /** Resume the newest session for `--dir`. */
+  continueLast?: boolean;
+  /** Resume a specific session id. */
+  resumeId?: string;
   help: boolean;
 }
 
-export const CLI_USAGE = `Usage: knox run "<task>" [options]
+export const CLI_USAGE = `Usage: knox <command>
 
+  knox --version | -V | version
+  knox doctor
+  knox login | whoami | logout
+  knox run "<task>" [options]
+  knox bg start|list|show|merge|discard
+  knox team export|import
+
+Run options:
   --dir <path>          workspace directory (default: cwd)
   --permission <mode>   default | acceptEdits | fullAuto (default: acceptEdits)
                         Anything that would need approval is denied.
   --profile <name>      default | systems (adds build, kconfig, maintainers, qemu)
   --max-steps <n>       cap tool rounds (default: 40)
-  --model <id>          model id (default: qwen/qwen3-coder)
+  --model <id>          model id (default: first config.yaml model, else qwen/qwen3-coder)
+  --continue            resume the newest session in this workspace
+  --resume <sessionId>  resume a specific session
   --trust-hooks         run hooks from the repo's .knox/ (ignored by default; also KNOX_TRUST_WORKSPACE_HOOKS=1)
-  --json                print one JSON result on stdout
+  --json                print one JSON result on stdout (schemaVersion ${CLI_JSON_SCHEMA_VERSION})
   --stream-json         print one JSON event per line (text, tool, denied, result)
   -h, --help
 
-Sign in first with: knox login (OAuth; no API keys or env vars).
+Auth: knox login (OAuth) or KNOX_API_KEY for CI. Never pass keys on the command line.
 Exit codes: 0 completed, 1 error, 2 step/doom-loop stop, 130 aborted, 64 usage.`;
 
 export function parseCliArgs(argv: string[]): CliArgs | { error: string } {
@@ -388,6 +444,17 @@ export function parseCliArgs(argv: string[]): CliArgs | { error: string } {
       case "--model":
         out.model = next();
         break;
+      case "--continue":
+        out.continueLast = true;
+        break;
+      case "--resume": {
+        const v = next();
+        if (!v || v.startsWith("-")) {
+          return { error: "--resume needs a session id" };
+        }
+        out.resumeId = v;
+        break;
+      }
       default:
         if (a.startsWith("-")) {
           return { error: `unknown option ${a}` };
@@ -396,6 +463,9 @@ export function parseCliArgs(argv: string[]): CliArgs | { error: string } {
     }
   }
   out.task = positional.join(" ").trim();
+  if (out.continueLast && out.resumeId) {
+    return { error: "use either --continue or --resume, not both" };
+  }
   if (!out.help && !out.task) {
     return { error: "missing task" };
   }

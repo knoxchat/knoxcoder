@@ -59,7 +59,7 @@ export type KnoxGuiMarkdownBlock = IKnoxGuiMarkdownTextBlock | IKnoxGuiMarkdownF
 export interface IKnoxGuiStreamError {
 	message: string;
 	statusCode?: number;
-	kind: 'rate-limit' | 'not-found' | 'unauthorized' | 'overloaded' | 'generic';
+	kind: 'rate-limit' | 'not-found' | 'unauthorized' | 'overloaded' | 'quota' | 'generic';
 }
 
 export type KnoxGuiApplyUi =
@@ -1042,16 +1042,31 @@ export function parseStreamError(error: unknown): IKnoxGuiStreamError {
 	}
 	const lower = message.toLowerCase();
 	let kind: IKnoxGuiStreamError['kind'] = 'generic';
-	if (statusCode === 429) {
+	if (statusCode === 429 || /\brate.?limit|too many requests\b/.test(lower)) {
 		kind = 'rate-limit';
-	} else if (statusCode === 404) {
+	} else if (statusCode === 402 || /\binsufficient (?:quota|credit)|payment required\b/.test(lower)) {
+		kind = 'quota';
+	} else if (statusCode === 404 || /model.{0,20}not found/.test(lower)) {
 		kind = 'not-found';
-	} else if (statusCode === 401) {
+	} else if (statusCode === 401 || statusCode === 403 || /invalid api key|unauthorized/.test(lower)) {
 		kind = 'unauthorized';
-	} else if (lower.includes('overloaded') || lower.includes('malformed')) {
+	} else if (statusCode === 503 || lower.includes('overloaded') || lower.includes('malformed')) {
 		kind = 'overloaded';
 	}
 	return { message, statusCode, kind };
+}
+
+export function formatStreamErrorDiagnostic(error: {
+	message: string;
+	statusCode?: number;
+	kind?: string;
+}): string {
+	const lines = [
+		`knox error kind=${error.kind ?? 'generic'}`,
+		error.statusCode ? `status=${error.statusCode}` : undefined,
+		error.message ? `message=${error.message}` : undefined,
+	].filter((line): line is string => Boolean(line));
+	return lines.join('\n');
 }
 
 export function resolveAgentMaxSteps(raw: number | undefined): number | null {

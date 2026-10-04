@@ -68,7 +68,7 @@ import {
   SHOW_INLINE_TIP_SETTING,
 } from "./activation/inlineTip";
 
-import type { VsCodeWebviewProtocol } from "./webviewProtocol";
+import { registerKnoxProductCommands } from "./knoxProductCommands";
 
 let fullScreenPanel: vscode.WebviewPanel | undefined;
 
@@ -277,7 +277,7 @@ async function processDiff(
   await ide.openFile(newOrCurrentUri);
 
   // Clear vertical diffs depending on action
-  verticalDiffManager.clearForfileUri(newOrCurrentUri, action === "accept");
+  await verticalDiffManager.clearForfileUri(newOrCurrentUri, action === "accept");
 
   void sidebar.webviewProtocol.request("setEditStatus", {
     status: "done",
@@ -869,6 +869,7 @@ export function registerAllCommands(
   editDecorationManager: EditDecorationManager,
 ) {
   registerCopyBufferSpy(context, core);
+  registerKnoxProductCommands(context, ide);
 
   for (const [command, callback] of Object.entries(
     getCommandsMap(

@@ -37,10 +37,36 @@ export function startBrainAutoConsolidation(core: CoreRuntime): void {
   // timer is created. Best-effort: memory must never block Core startup.
   void (async () => {
     try {
+      try {
+        const settings = await core.ide.getIdeSettings();
+        const { applyBrainMaxBytesSetting, applyBrainEnabledSetting, applyBrainWorkspaceEnabledSetting, isBrainEnabled } = await import(
+          "../context/memory/brain/store/dbSafety.js"
+        );
+        applyBrainMaxBytesSetting(settings.memoryBrainMaxBytes);
+        applyBrainEnabledSetting(settings.memoryBrainEnabled);
+        applyBrainWorkspaceEnabledSetting(settings.memoryBrainWorkspaceEnabled);
+        if (!isBrainEnabled()) {
+          return;
+        }
+      } catch {
+        // IDE overlay is optional
+      }
       const { BrainStore } = await import(
         "../context/memory/brain/BrainStore.js"
       );
       await BrainStore.get();
+      try {
+        const { enforceBrainSizeCap } = await import(
+          "../context/memory/brain/store/dbSafety.js"
+        );
+        const { getMemoryBrainSqlitePath } = await import("../util/paths.js");
+        await enforceBrainSizeCap(
+          await BrainStore.get(),
+          getMemoryBrainSqlitePath(),
+        ).catch(() => {});
+      } catch {
+        // size cap is best-effort
+      }
       BrainManager.startAutoConsolidation();
 
       // Forward memory/autonomous events to the webview

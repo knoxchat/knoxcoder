@@ -11,6 +11,7 @@ import {
   loadJob,
   mergeJob,
   runJob,
+  saveJob,
 } from "./background";
 import type { HeadlessResult } from "./headless";
 
@@ -26,6 +27,7 @@ afterEach(() => {
 });
 
 const ok: HeadlessResult = {
+  schemaVersion: 1,
   stoppedReason: "completed",
   exitCode: 0,
   steps: 2,
@@ -98,5 +100,20 @@ describe("background agents", () => {
     expect(discardJob(root, job.id).ok).toBe(true);
     expect(git(repo, ["branch", "--list", "knox/bg-*"]).trim()).toBe("");
     expect(fs.existsSync(job.worktree)).toBe(false);
+  });
+
+  it("job.json is complete JSON after concurrent saves", () => {
+    const repo = makeTempRepo({ "a.txt": "one\n" });
+    const root = bgRoot();
+    const job = createJob({ root, dir: repo, task: "edit a" });
+    for (let i = 0; i < 12; i++) {
+      saveJob(root, { ...job, pid: 1000 + i, summary: `n${i}` });
+    }
+    const file = path.join(root, job.id, "job.json");
+    const parsed = JSON.parse(fs.readFileSync(file, "utf-8"));
+    expect(parsed.id).toBe(job.id);
+    expect(parsed.summary).toMatch(/^n\d+$/);
+    expect(loadJob(root, job.id)?.summary).toBe(parsed.summary);
+    expect(fs.readdirSync(path.join(root, job.id)).filter((n) => n.endsWith(".tmp"))).toEqual([]);
   });
 });

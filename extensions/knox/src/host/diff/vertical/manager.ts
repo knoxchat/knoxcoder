@@ -160,7 +160,7 @@ export class VerticalDiffManager {
     });
   }
 
-  clearForfileUri(fileUri: string | undefined, accept: boolean) {
+  async clearForfileUri(fileUri: string | undefined, accept: boolean): Promise<void> {
     if (!fileUri) {
       const activeEditor = vscode.window.activeTextEditor;
       if (!activeEditor) {
@@ -173,8 +173,10 @@ export class VerticalDiffManager {
 
     const handler = this.fileUriToHandler.get(fileUri);
     if (handler) {
-      handler.clear(accept);
       this.fileUriToHandler.delete(fileUri);
+      // Wait for the red/green lines to actually be removed from the document
+      // before callers read or save the file.
+      await handler.clear(accept);
     }
     clearWorkbenchAgentDiff(fileUri);
 
@@ -225,7 +227,7 @@ export class VerticalDiffManager {
     );
 
     if (blocks.length === 1) {
-      this.clearForfileUri(fileUri, true);
+      await this.clearForfileUri(fileUri, true);
     } else {
       // Re-enable listener for user changes to file
       this.enableDocumentChangeListener();

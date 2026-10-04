@@ -18,6 +18,13 @@ export const KNOX_CHAT_SETTING_IDS = [
   "knoxchat.agentProfile",
   "knoxchat.jev.enabled",
   "knoxchat.jev.showStatusBar",
+  "knoxchat.memoryBrain.maxBytes",
+  "knoxchat.memoryBrain.enabled",
+  "knoxchat.memoryBrain.workspaceEnabled",
+  "knoxchat.sandbox",
+  "knoxchat.networkMode",
+  "knoxchat.networkAllowlist",
+  "knoxchat.compatInstructions",
   "knoxchat.fallbackModel",
   "knoxchat.deferTools",
   "knoxchat.verifyCommand",
@@ -92,6 +99,24 @@ export const KNOX_SYNC_KEYBINDING_COMMANDS = [
 
 export function isKnoxContributedSettingId(id: string): boolean {
   return id.startsWith("knoxchat.") || id.startsWith("knox.checkpoints.");
+}
+
+export function knoxManifestConfigurationProperties(
+  configuration: unknown,
+): Record<string, unknown> {
+  if (Array.isArray(configuration)) {
+    const out: Record<string, unknown> = {};
+    for (const group of configuration as Array<{
+      properties?: Record<string, unknown>;
+    }>) {
+      Object.assign(out, group?.properties ?? {});
+    }
+    return out;
+  }
+  return (
+    (configuration as { properties?: Record<string, unknown> } | undefined)
+      ?.properties ?? {}
+  );
 }
 
 export function contributedKnoxSettingIds(

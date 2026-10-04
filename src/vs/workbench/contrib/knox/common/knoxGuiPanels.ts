@@ -822,9 +822,9 @@ export function parseBackgroundJob(value: unknown): IKnoxGuiBackgroundJob | unde
 	const status = rec.status;
 	return {
 		id: String(id),
-		kind: rec.kind === 'task' ? 'task' : 'shell',
+		kind: rec.kind === 'task' ? 'task' : rec.kind === 'bg' ? 'bg' : 'shell',
 		title: String(rec.title ?? rec.command ?? 'Job'),
-		status: status === 'exited' || status === 'killed' || status === 'failed' ? status : 'running',
+		status: status === 'exited' || status === 'killed' || status === 'failed' || status === 'merged' || status === 'discarded' ? status : 'running',
 		startedAt: typeof rec.startedAt === 'number' ? rec.startedAt : undefined,
 		endedAt: typeof rec.endedAt === 'number' ? rec.endedAt : undefined,
 		exitCode: typeof rec.exitCode === 'number' ? rec.exitCode : undefined,

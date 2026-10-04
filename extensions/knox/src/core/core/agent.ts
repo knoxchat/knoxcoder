@@ -200,6 +200,18 @@ export function registerAbortAndAgentHandlers(core: CoreRuntime): void {
     const runner = await getWorkspaceHookRunner(core.ide, () => undefined).catch(
       () => null,
     );
+    if (msg.data.action === "test" && runner) {
+      const event = (msg.data.event && runner.has(msg.data.event as never)
+        ? msg.data.event
+        : HOOK_EVENTS.find((e) => runner.has(e))) as (typeof HOOK_EVENTS)[number] | undefined;
+      if (event) {
+        await runner.run(event, {
+          toolName: "builtin_read_file",
+          args: { filepath: "README.md" },
+          prompt: "hook test",
+        });
+      }
+    }
     const limit = Math.max(1, Math.min(200, msg.data.limit ?? 50));
     return {
       events: runner ? HOOK_EVENTS.filter((e) => runner.has(e)) : [],

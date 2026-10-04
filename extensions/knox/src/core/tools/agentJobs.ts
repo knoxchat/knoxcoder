@@ -20,6 +20,13 @@ import {
   toSubagentBackgroundJob,
 } from "./subagent/jobs";
 import { parseShellMeta } from "./shellSession";
+import {
+  bgRoot,
+  discardJob,
+  listJobs,
+  mergeJob,
+  type BgJob,
+} from "../cli/background";
 
 const DETAIL_MAX = 80;
 const OUTPUT_MAX = 4_000;
@@ -76,10 +83,35 @@ export function toAgentBackgroundJob(
   };
 }
 
+export function toBgAgentJob(job: BgJob): AgentBackgroundJob {
+  const status =
+    job.status === "running"
+      ? "running"
+      : job.status === "failed"
+        ? "failed"
+        : job.status === "merged"
+          ? "merged"
+          : job.status === "discarded"
+            ? "killed"
+            : "exited";
+  return {
+    id: `bg:${job.id}`,
+    kind: "bg",
+    title: job.task,
+    status,
+    startedAt: Date.parse(job.startedAt) || undefined,
+    endedAt: job.finishedAt ? Date.parse(job.finishedAt) || undefined : undefined,
+    exitCode: job.status === "failed" ? 1 : job.status === "done" || job.status === "merged" ? 0 : undefined,
+    detail: job.status,
+    output: job.summary ?? job.error,
+  };
+}
+
 export function listAgentBackgroundJobs(): AgentBackgroundJob[] {
   return [
     ...listShellJobs().map(toAgentBackgroundJob),
     ...listSubagentJobs().map(toSubagentBackgroundJob),
+    ...listJobs(bgRoot()).map(toBgAgentJob),
   ];
 }
 
@@ -130,6 +162,15 @@ export function handleAgentJobsRequest(
     dismissCompletedShellJobs();
     dismissCompletedSubagentJobs();
     return { ok: true, jobs: listAgentBackgroundJobs() };
+  }
+  if (action === "merge" || action === "discard") {
+    const raw = data.jobId?.trim() ?? "";
+    const id = raw.startsWith("bg:") ? raw.slice(3) : raw;
+    if (!id) {
+      return { ok: false, error: "Missing jobId", jobs: listAgentBackgroundJobs() };
+    }
+    const out = action === "merge" ? mergeJob(bgRoot(), id) : discardJob(bgRoot(), id);
+    return { ok: out.ok, error: out.ok ? undefined : out.message, jobs: listAgentBackgroundJobs() };
   }
   return { ok: true, jobs: listAgentBackgroundJobs() };
 }

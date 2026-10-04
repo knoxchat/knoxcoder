@@ -544,6 +544,14 @@ declare global {
     agentVerifyMode?: "diagnostics" | "command" | "off";
     agentVerifyMaxIterations?: number;
     jevEnabled?: boolean;
+    /** Cap on Memory Brain sqlite+WAL in bytes. 0 disables. */
+    memoryBrainMaxBytes?: number;
+    memoryBrainEnabled?: boolean;
+    memoryBrainWorkspaceEnabled?: boolean;
+    sandbox?: "off" | "workspace-write" | "read-only";
+    networkMode?: "allow" | "deny" | "allowlist";
+    networkAllowlist?: string[];
+    compatInstructions?: Array<"cursor" | "copilot">;
   }
   
   export interface IDE {

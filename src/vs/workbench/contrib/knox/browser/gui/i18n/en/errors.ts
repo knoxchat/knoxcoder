@@ -27,7 +27,9 @@ export const knoxGuiStringsEnErrors: Record<string, unknown> = {
 	"provider": "Provider",
 	"errorRetry": "Retry",
 	"errorSwitchModel": "Switch model",
-	"firstRunNoModel": "No model is configured yet. Sign in with a provider to add a model, then pick it.",
+	"firstRunNoModel": "No model is configured yet. Sign in with KnoxStudio, or add a bring-your-own API key, then pick a model.",
 	"errorOpenSettings": "Open settings",
-	"errorRateLimitHint": "The provider is rate limiting requests. Wait a moment and retry, or switch to another model in settings."
+	"errorRateLimitHint": "The provider is rate limiting requests. Wait a moment and retry, or switch to another model in settings.",
+	"errorQuotaHint": "This account is out of quota (HTTP 402). Check billing with the provider, or switch model.",
+	"errorCopyDiagnostic": "Copy diagnostic"
 };

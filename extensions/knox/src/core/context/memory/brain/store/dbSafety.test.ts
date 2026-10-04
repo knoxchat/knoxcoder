@@ -186,4 +186,44 @@ describe("size cap", () => {
       delete process.env.KNOX_BRAIN_MAX_BYTES;
     }
   });
+
+  it("uses config.max_bytes when env is unset, env still wins", async () => {
+    const { applyBrainMaxBytesSetting, brainMaxBytes } = await import("./dbSafety");
+    const { brainState } = await import("./state");
+    const prev = brainState.config.max_bytes;
+    const prevEnv = process.env.KNOX_BRAIN_MAX_BYTES;
+    delete process.env.KNOX_BRAIN_MAX_BYTES;
+    try {
+      applyBrainMaxBytesSetting(4096);
+      expect(brainMaxBytes()).toBe(4096);
+      applyBrainMaxBytesSetting(0);
+      expect(brainMaxBytes()).toBe(0);
+      process.env.KNOX_BRAIN_MAX_BYTES = "8192";
+      expect(brainMaxBytes()).toBe(8192);
+    } finally {
+      brainState.config.max_bytes = prev;
+      if (prevEnv === undefined) delete process.env.KNOX_BRAIN_MAX_BYTES;
+      else process.env.KNOX_BRAIN_MAX_BYTES = prevEnv;
+    }
+  });
+
+  it("honours the Memory Brain off switch", async () => {
+    const { applyBrainEnabledSetting, applyBrainWorkspaceEnabledSetting, isBrainEnabled } =
+      await import("./dbSafety");
+    const prev = process.env.KNOX_BRAIN_ENABLED;
+    delete process.env.KNOX_BRAIN_ENABLED;
+    applyBrainEnabledSetting(true);
+    applyBrainWorkspaceEnabledSetting(true);
+    expect(isBrainEnabled()).toBe(true);
+    applyBrainEnabledSetting(false);
+    expect(isBrainEnabled()).toBe(false);
+    applyBrainEnabledSetting(true);
+    applyBrainWorkspaceEnabledSetting(false);
+    expect(isBrainEnabled()).toBe(false);
+    applyBrainWorkspaceEnabledSetting(true);
+    process.env.KNOX_BRAIN_ENABLED = "0";
+    expect(isBrainEnabled()).toBe(false);
+    if (prev === undefined) delete process.env.KNOX_BRAIN_ENABLED;
+    else process.env.KNOX_BRAIN_ENABLED = prev;
+  });
 });

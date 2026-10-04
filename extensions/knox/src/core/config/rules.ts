@@ -64,6 +64,14 @@ export const AGENT_INSTRUCTION_FILES: Array<{
   { relativePath: ".knox/AGENTS.md", defaultPriority: 9 },
 ];
 
+/** Opt-in extras: `.cursor/rules`, Copilot. Below CLAUDE.md so AGENTS.md still wins. */
+export const COMPAT_INSTRUCTION_SOURCES = ["cursor", "copilot"] as const;
+export type CompatInstructionSource = (typeof COMPAT_INSTRUCTION_SOURCES)[number];
+
+const CURSOR_RULES_DIR = ".cursor/rules";
+const CURSOR_RULES_FILE = ".cursorrules";
+const COPILOT_INSTRUCTIONS = ".github/copilot-instructions.md";
+
 const NESTED_AGENTS_NAME = "AGENTS.md";
 const NESTED_AGENTS_BASE_PRIORITY = 12;
 
@@ -436,6 +444,30 @@ export function walkDirsToWorkspaceRoot(
   return dirs;
 }
 
+function parseCompatSources(raw: unknown): CompatInstructionSource[] {
+  const values = Array.isArray(raw)
+    ? raw
+    : typeof raw === "string"
+      ? raw.split(/[,\s]+/)
+      : [];
+  return values.filter(
+    (s): s is CompatInstructionSource => s === "cursor" || s === "copilot",
+  );
+}
+
+async function resolveCompatSources(ide: IDE): Promise<CompatInstructionSource[]> {
+  const fromEnv = parseCompatSources(process.env.KNOX_COMPAT_INSTRUCTIONS);
+  if (fromEnv.length) {
+    return fromEnv;
+  }
+  try {
+    const settings = await ide.getIdeSettings();
+    return parseCompatSources(settings.compatInstructions);
+  } catch {
+    return [];
+  }
+}
+
 // ── Rule discovery ───────────────────────────────────────────────────
 
 /**
@@ -526,6 +558,53 @@ export async function discoverRules(ide: IDE): Promise<RuleFile[]> {
         10,
       ),
     );
+  }
+
+  const compat = await resolveCompatSources(ide);
+  if (compat.includes("cursor")) {
+    for (const dir of workspaceDirs) {
+      pushUnique(
+        await tryLoadRuleFile(
+          ide,
+          joinPathsToUri(dir, CURSOR_RULES_FILE),
+          "workspace",
+          4,
+        ),
+      );
+      try {
+        const rulesDir = joinPathsToUri(dir, CURSOR_RULES_DIR);
+        const entries = await ide.listDir(rulesDir);
+        for (const [name, fileType] of entries) {
+          if (
+            fileType === 1 &&
+            (name.endsWith(".md") || name.endsWith(".mdc") || name.endsWith(".txt"))
+          ) {
+            pushUnique(
+              await tryLoadRuleFile(
+                ide,
+                joinPathsToUri(rulesDir, name),
+                "workspace",
+                4,
+              ),
+            );
+          }
+        }
+      } catch {
+        // no .cursor/rules
+      }
+    }
+  }
+  if (compat.includes("copilot")) {
+    for (const dir of workspaceDirs) {
+      pushUnique(
+        await tryLoadRuleFile(
+          ide,
+          joinPathsToUri(dir, COPILOT_INSTRUCTIONS),
+          "workspace",
+          5,
+        ),
+      );
+    }
   }
 
   // 3. Nested AGENTS.md from the current/open file up to the workspace root

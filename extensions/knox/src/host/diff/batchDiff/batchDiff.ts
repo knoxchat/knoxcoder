@@ -50,7 +50,7 @@ export interface BatchDiffResult {
 }
 
 export interface BatchDiffHost {
-  clearForFile(fileUri: string, accept: boolean): void;
+  clearForFile(fileUri: string, accept: boolean): void | Promise<void>;
   saveIfDirty?(fileUri: string): Promise<void>;
 }
 
@@ -127,7 +127,7 @@ export async function applyBatch(
 
   for (const fileUri of fileUris) {
     try {
-      host.clearForFile(fileUri, accept);
+      await host.clearForFile(fileUri, accept);
       if (accept) {
         await host.saveIfDirty?.(fileUri);
       }

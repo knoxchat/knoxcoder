@@ -1,8 +1,8 @@
 /**
  * CLI credential store (K-029). The headless CLI has no VS Code SecretStorage,
  * so the OAuth-minted session lives in `~/.knoxcoder/auth.json` (mode 0600).
- * There is no API-key env var or flag: the only way in is `knox login`
- * (the same KnoxChat OAuth + PKCE flow the editor uses).
+ * CI can skip OAuth with `KNOX_API_KEY`. The editor still uses SecretStorage.
+ * Never log the key or token.
  */
 
 import fs from "node:fs";
@@ -34,6 +34,35 @@ function healPermissions(file: string): void {
   } catch {
     // missing file: nothing to heal
   }
+}
+
+/** Non-interactive auth for CI. Value is never logged. */
+export function apiKeyFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const key = env.KNOX_API_KEY?.trim();
+  return key ? key : undefined;
+}
+
+export function sessionFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): StoredSession | undefined {
+  const apiKey = apiKeyFromEnv(env);
+  if (!apiKey) {
+    return undefined;
+  }
+  return {
+    apiKey,
+    account: { userId: 0, username: "env", tokenId: 0, connectedAt: 0 },
+  };
+}
+
+/** Env key wins so CI does not need `knox login`. */
+export function resolveSession(
+  file = defaultCredentialsPath(),
+  env: NodeJS.ProcessEnv = process.env,
+): StoredSession | undefined {
+  return sessionFromEnv(env) ?? loadSession(file);
 }
 
 export function loadSession(file = defaultCredentialsPath()): StoredSession | undefined {

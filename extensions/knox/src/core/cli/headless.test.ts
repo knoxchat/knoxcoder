@@ -68,6 +68,7 @@ describe("headless run (K-029)", () => {
     ]);
     expect(r.stoppedReason).toBe("completed");
     expect(r.exitCode).toBe(0);
+    expect(r.schemaVersion).toBe(1);
     expect(r.summary).toContain("Changed greeting");
     expect(fs.readFileSync(path.join(dir, "a.txt"), "utf-8")).toBe(
       "hello knox\n",
@@ -198,6 +199,19 @@ describe("cli args", () => {
     expect(parseCliArgs(["x", "--max-steps", "0"])).toHaveProperty("error");
     expect(parseCliArgs(["x", "--wat"])).toHaveProperty("error");
   });
+  it("parses --continue and --resume", () => {
+    expect(parseCliArgs(["x", "--continue"])).toMatchObject({
+      continueLast: true,
+      task: "x",
+    });
+    expect(parseCliArgs(["x", "--resume", "abc"])).toMatchObject({
+      resumeId: "abc",
+    });
+    expect(parseCliArgs(["x", "--resume"])).toHaveProperty("error");
+    expect(parseCliArgs(["x", "--continue", "--resume", "abc"])).toEqual({
+      error: "use either --continue or --resume, not both",
+    });
+  });
 });
 
 describe("headless hooks (K-023)", () => {
@@ -314,5 +328,52 @@ describe("headless project instructions (K-028)", () => {
     });
     expect(r.exitCode).toBe(0);
     expect(seen[0]).toContain("pirate speak");
+  });
+});
+
+describe("headless session persist and resume", () => {
+  const prev = process.env.KNOX_GLOBAL_DIR;
+  afterEach(() => {
+    if (prev === undefined) {
+      delete process.env.KNOX_GLOBAL_DIR;
+    } else {
+      process.env.KNOX_GLOBAL_DIR = prev;
+    }
+  });
+
+  it("saves a session and --resume sends prior turns", async () => {
+    const globalDir = fs.mkdtempSync(path.join(os.tmpdir(), "knox-cli-sess-"));
+    dirs.push(globalDir);
+    process.env.KNOX_GLOBAL_DIR = globalDir;
+    const dir = tmp({ "a.txt": "hello\n" });
+    const first = await runHeadless({
+      task: "say hi",
+      workspaceDir: dir,
+      llm: createScriptedLlm([{ content: "hello from first" }]) as never,
+      hooks: null,
+      persistSession: true,
+    });
+    expect(first.sessionId).toBeTruthy();
+
+    const seen: string[] = [];
+    const inner = createScriptedLlm([{ content: "hello from second" }]);
+    const llm = {
+      streamChat: (m: any, s: AbortSignal, o: any) => {
+        seen.push(JSON.stringify(m));
+        return inner.streamChat(m, s, o);
+      },
+    };
+    const { loadCliSession } = await import("./session.js");
+    const r = await runHeadless({
+      task: "again",
+      workspaceDir: dir,
+      llm: llm as never,
+      hooks: null,
+      persistSession: true,
+      session: loadCliSession(first.sessionId!),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(seen[0]).toContain("hello from first");
+    expect(seen[0]).toContain("again");
   });
 });

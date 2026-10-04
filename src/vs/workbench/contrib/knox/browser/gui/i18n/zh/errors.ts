@@ -27,7 +27,9 @@ export const knoxGuiStringsZhErrors: Record<string, unknown> = {
 	"provider": "提供商",
 	"errorRetry": "重试",
 	"errorSwitchModel": "切换模型",
-	"firstRunNoModel": "尚未配置模型。请登录提供商以添加模型，然后选择模型。",
+	"firstRunNoModel": "尚未配置模型。请使用 KnoxStudio 登录，或添加自备 API 密钥，然后选择模型。",
 	"errorOpenSettings": "打开设置",
-	"errorRateLimitHint": "提供商正在限制请求频率。请稍等片刻后重试，或在设置中切换到其他模型。"
+	"errorRateLimitHint": "提供商正在限制请求频率。请稍等片刻后重试，或在设置中切换到其他模型。",
+	"errorQuotaHint": "此账号额度不足（HTTP 402）。请检查提供商账单，或切换模型。",
+	"errorCopyDiagnostic": "复制诊断信息"
 };

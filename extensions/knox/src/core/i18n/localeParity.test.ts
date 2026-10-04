@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +9,7 @@ import { t as coreT } from "./index.js";
 import {
   compareGuiLocaleModules,
   compareLocaleDirs,
+  compareLocaleObjects,
   findHardcodedUserMessages,
   flattenLocale,
 } from "./localeParity.js";
@@ -76,6 +78,20 @@ describe("en/zh locale key parity", () => {
     );
     if (drifts.length) {
       expect.fail(`Locale key drift in native GUI:\n${formatDrifts(drifts)}`);
+    }
+  });
+
+  it("package.nls.json en/zh keys match", () => {
+    const knoxExt = path.join(repoRoot, "extensions/knox");
+    const en = JSON.parse(
+      fs.readFileSync(path.join(knoxExt, "package.nls.json"), "utf8"),
+    ) as Record<string, unknown>;
+    const zh = JSON.parse(
+      fs.readFileSync(path.join(knoxExt, "package.nls.zh-cn.json"), "utf8"),
+    ) as Record<string, unknown>;
+    const drift = compareLocaleObjects("package.nls", en, zh);
+    if (drift) {
+      expect.fail(`Locale key drift in package.nls:\n${formatDrifts([drift])}`);
     }
   });
 });

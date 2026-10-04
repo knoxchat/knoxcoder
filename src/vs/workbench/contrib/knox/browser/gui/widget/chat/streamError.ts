@@ -7,11 +7,13 @@ import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
+import { formatStreamErrorDiagnostic } from '../../../../common/knoxGuiTranscript.js';
 
 /** Localized hint key for each actionable error kind (K-044). */
 export function streamErrorHintKey(kind: string | undefined): string | undefined {
 	switch (kind) {
 		case 'rate-limit': return 'errorRateLimitHint';
+		case 'quota': return 'errorQuotaHint';
 		case 'unauthorized': return 'invalidApiKey';
 		case 'not-found': return 'modelNotFound';
 		case 'overloaded': return 'serverOverloaded';
@@ -21,7 +23,8 @@ export function streamErrorHintKey(kind: string | undefined): string | undefined
 
 /** `StreamErrorDialog` inside the Layout `TextDialog`: status title, capped message box, Close. */
 export function renderStreamError(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
-	if (!state.streamError) {
+	const streamError = state.streamError;
+	if (!streamError) {
 		return;
 	}
 	const close = () => widget.controller.clearStreamError();
@@ -36,19 +39,24 @@ export function renderStreamError(widget: KnoxGuiWidget, parent: HTMLElement, st
 	widget.chromeButton(box, { svg: 'x', svgSize: 20, title: t(state, 'close'), extraClass: 'knox-gui-text-dialog-close', onClick: close });
 	const card = DOM.append(box, DOM.$('.knox-gui-stream-error'));
 	card.setAttribute('data-testid', 'knox-gui-stream-error');
-	const code = state.streamError.statusCode ? `${state.streamError.statusCode} ` : '';
+	const code = streamError.statusCode ? `${streamError.statusCode} ` : '';
 	DOM.append(card, DOM.$('p.knox-gui-stream-error-title', undefined, `${code}${t(state, 'error')}`));
-	if (state.streamError.message) {
+	if (streamError.message) {
 		const messageBox = DOM.append(card, DOM.$('.knox-gui-stream-error-message'));
-		DOM.append(messageBox, DOM.$('code', undefined, state.streamError.message));
+		DOM.append(messageBox, DOM.$('code', undefined, streamError.message));
 	}
-	const hintKey = streamErrorHintKey(state.streamError.kind);
+	const hintKey = streamErrorHintKey(streamError.kind);
 	if (hintKey) {
 		DOM.append(card, DOM.$('p.knox-gui-stream-error-hint', undefined, t(state, hintKey)));
 	}
 	const actions = DOM.append(card, DOM.$('.knox-gui-stream-error-actions'));
-	const kind = state.streamError.kind;
-	if (kind === 'unauthorized' || kind === 'not-found' || kind === 'rate-limit') {
+	const kind = streamError.kind;
+	widget.chromeButton(actions, {
+		label: t(state, 'errorCopyDiagnostic'),
+		testId: 'stream-error-copy',
+		onClick: () => widget.controller.copyText(formatStreamErrorDiagnostic(streamError)),
+	});
+	if (kind === 'unauthorized' || kind === 'not-found' || kind === 'rate-limit' || kind === 'quota') {
 		widget.chromeButton(actions, {
 			label: t(state, 'errorOpenSettings'),
 			onClick: () => {

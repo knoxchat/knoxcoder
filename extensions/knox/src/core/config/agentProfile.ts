@@ -267,6 +267,12 @@ export function ideSettingsToExperimental(ide: {
   agentVerifyMode?: unknown;
   agentVerifyMaxIterations?: unknown;
   jevEnabled?: unknown;
+  sandbox?: unknown;
+  networkMode?: unknown;
+  networkAllowlist?: unknown;
+  compatInstructions?: unknown;
+  memoryBrainEnabled?: unknown;
+  memoryBrainWorkspaceEnabled?: unknown;
 }): {
   agentProfile?: AgentProfileSetting;
   agentMaxSteps?: number;
@@ -275,6 +281,12 @@ export function ideSettingsToExperimental(ide: {
   agentVerifyMode?: "diagnostics" | "command" | "off";
   agentVerifyMaxIterations?: number;
   jev?: { enabled: true };
+  sandbox?: "off" | "workspace-write" | "read-only";
+  networkMode?: "allow" | "deny" | "allowlist";
+  networkAllowlist?: string[];
+  compatInstructions?: Array<"cursor" | "copilot">;
+  memoryBrainEnabled?: boolean;
+  memoryBrainWorkspaceEnabled?: boolean;
 } {
   const out: ReturnType<typeof ideSettingsToExperimental> = {};
   if (isAgentProfileSetting(ide.agentProfile)) {
@@ -282,6 +294,26 @@ export function ideSettingsToExperimental(ide: {
   }
   if (ide.jevEnabled === true) {
     out.jev = { enabled: true };
+  }
+  if (ide.sandbox === "off" || ide.sandbox === "workspace-write" || ide.sandbox === "read-only") {
+    out.sandbox = ide.sandbox;
+  }
+  if (ide.networkMode === "allow" || ide.networkMode === "deny" || ide.networkMode === "allowlist") {
+    out.networkMode = ide.networkMode;
+  }
+  if (Array.isArray(ide.networkAllowlist)) {
+    out.networkAllowlist = ide.networkAllowlist.filter((h): h is string => typeof h === "string");
+  }
+  if (Array.isArray(ide.compatInstructions)) {
+    out.compatInstructions = ide.compatInstructions.filter(
+      (s): s is "cursor" | "copilot" => s === "cursor" || s === "copilot",
+    );
+  }
+  if (typeof ide.memoryBrainEnabled === "boolean") {
+    out.memoryBrainEnabled = ide.memoryBrainEnabled;
+  }
+  if (typeof ide.memoryBrainWorkspaceEnabled === "boolean") {
+    out.memoryBrainWorkspaceEnabled = ide.memoryBrainWorkspaceEnabled;
   }
   if (typeof ide.agentMaxSteps === "number" && Number.isFinite(ide.agentMaxSteps)) {
     out.agentMaxSteps = ide.agentMaxSteps;

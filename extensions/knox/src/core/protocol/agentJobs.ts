@@ -1,9 +1,16 @@
 /** Shared wire types for the background agent jobs panel (P3.10). */
 
-export type AgentBackgroundJobKind = "shell" | "task";
-export type AgentBackgroundJobStatus = "running" | "exited" | "killed";
+export type AgentBackgroundJobKind = "shell" | "task" | "bg";
+export type AgentBackgroundJobStatus =
+  | "running"
+  | "exited"
+  | "killed"
+  | "failed"
+  | "done"
+  | "merged"
+  | "discarded";
 export type AgentJobEvent = "started" | "updated" | "completed";
-export type AgentJobAction = "list" | "kill" | "killAll" | "dismiss" | "clear";
+export type AgentJobAction = "list" | "kill" | "killAll" | "dismiss" | "clear" | "merge" | "discard";
 
 export interface AgentBackgroundJob {
   id: string;

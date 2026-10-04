@@ -918,6 +918,8 @@ export interface MemoryConfig {
   // User preferences
   preferred_summary_detail: "brief" | "detailed";
   auto_checkpoint_interval: number; // 0 = disabled, N = every N consolidations
+  /** Cap on `brain.sqlite` (+ WAL) in bytes. `0` disables. Env `KNOX_BRAIN_MAX_BYTES` overrides. */
+  max_bytes: number;
 }
 
 // ── Cross-Session Backlog Search ─────────────────────────────────────────────

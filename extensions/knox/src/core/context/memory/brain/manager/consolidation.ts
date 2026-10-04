@@ -1,5 +1,6 @@
 /** Auto-consolidation scheduler and sleep cycle. */
 
+import { isBrainEnabled } from "../store/dbSafety.js";
 import { BrainStore } from "../BrainStore.js";
 import { SleepConsolidation } from "../SleepConsolidation.js";
 import type { SleepCycleResult } from "../SleepConsolidation.js";
@@ -13,6 +14,7 @@ import { closeStaleSessions } from "./sessions.js";
  * Runs consolidation periodically based on the configured interval.
  */
 export function startAutoConsolidation(): void {
+  if (!isBrainEnabled()) return;
   if (brainRuntime.consolidationTimer) return; // Already running
   const config = BrainStore.getConfig();
   const intervalMs = config.consolidation_interval_hours * 60 * 60 * 1000;
@@ -91,6 +93,17 @@ export async function consolidate(): Promise<SleepCycleResult> {
         // Silently ignore checkpoint failures
       }
     }
+  }
+
+  // Long-lived sessions: re-enforce the sqlite size cap on every tick, not only on open.
+  try {
+    const { get } = await import("../store/connection.js");
+    const { enforceBrainSizeCap } = await import("../store/dbSafety.js");
+    const { getMemoryBrainSqlitePath } = await import("../../../../util/paths.js");
+    const db = await get();
+    await enforceBrainSizeCap(db, getMemoryBrainSqlitePath());
+  } catch {
+    // Size cap is best-effort; consolidation already succeeded.
   }
 
   return result;

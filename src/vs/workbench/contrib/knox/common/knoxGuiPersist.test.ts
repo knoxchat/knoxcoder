@@ -27,6 +27,7 @@ suite('Knox native persistence and permission helpers', () => {
 			overlay: null,
 			addModelModalProvider: 'knoxchat',
 			permissionNoticeDismissed: false,
+			memoryNoticeDismissed: false,
 		});
 		// NP-11: redux-persist keeps session.mode (including edit) and codeToEdit so a window closed mid-edit reopens in it.
 		const editing = { ...state, mode: 'edit' as const, codeToEdit: [{ filepath: 'file:///a.ts', contents: 'x' }] };

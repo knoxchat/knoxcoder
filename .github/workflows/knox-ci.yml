@@ -1,5 +1,7 @@
 # Knox checks: core + pkg vitest, core type-check, and the inventory gate.
 # Runs on pull requests and branch pushes, and is called by build-desktop.yml so packaging is blocked on it.
+#
+# Matrix: Linux, Windows, and macOS. GUI/contract tests stay Linux-only (xvfb + Electron).
 name: Knox CI
 
 on:
@@ -8,12 +10,16 @@ on:
       - 'extensions/knox/**'
       - 'src/vs/workbench/contrib/knox/**'
       - '.github/workflows/knox-ci.yml'
+      - 'scripts/ci/generate-update-metadata.mjs'
+      - 'scripts/ci/generate-update-metadata.test.mjs'
   push:
     branches: [main]
     paths:
       - 'extensions/knox/**'
       - 'src/vs/workbench/contrib/knox/**'
       - '.github/workflows/knox-ci.yml'
+      - 'scripts/ci/generate-update-metadata.mjs'
+      - 'scripts/ci/generate-update-metadata.test.mjs'
   workflow_call:
 
 permissions:
@@ -25,9 +31,20 @@ concurrency:
 
 jobs:
   knox:
-    name: Knox tests, tsc, inventory
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    name: Knox tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # windows-2022 (VS 2022), same as the x64 packaging job: windows-latest ships VS 18,
+        # which node-gyp 11 cannot find, so `npm ci` fails building native modules.
+        os: [ubuntu-22.04, windows-2022, macos-latest]
+    env:
+      GYP_MSVS_VERSION: '2022'
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
@@ -40,6 +57,7 @@ jobs:
             extensions/knox/package-lock.json
 
       - name: Install system dependencies
+        if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -49,7 +67,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Rebuild sqlite3 against runner glibc
+      # `npm run` puts extensions/node_modules/.bin on PATH; make sure its typescript is really installed
+      # (the root install can leave it missing on Windows), otherwise `tsc` resolves to a dangling shim.
+      - name: Ensure extensions/ dependencies (typescript)
+        if: startsWith(matrix.os, 'windows')
+        working-directory: extensions
+        run: |
+          if [ ! -f node_modules/typescript/bin/tsc ]; then
+            npm ci --ignore-scripts
+          fi
+
+      - name: Rebuild sqlite3
         working-directory: extensions/knox
         run: npm rebuild sqlite3 --build-from-source
 
@@ -57,6 +85,7 @@ jobs:
         run: |
           git config --global user.email ci@knox.dev
           git config --global user.name "Knox CI"
+          git config --global core.autocrlf false
 
       - name: Type-check core
         working-directory: extensions/knox
@@ -70,9 +99,22 @@ jobs:
         working-directory: extensions/knox
         run: npm run test:pkg
 
+      - name: Host unit tests
+        working-directory: extensions/knox
+        run: npm run test:host
+
       - name: Inventory gate
         working-directory: extensions/knox
         run: npm run inventory-gate
+
+      - name: Packaged extension smoke
+        if: startsWith(matrix.os, 'ubuntu')
+        working-directory: extensions/knox
+        run: npm run esbuild && npm run packaged-smoke
+
+      - name: Update-feed checksums
+        if: startsWith(matrix.os, 'ubuntu')
+        run: node --test scripts/ci/generate-update-metadata.test.mjs
 
   # Knox GUI / contract tests run inside Electron (scripts/test.sh) under xvfb.
   # continue-on-error until it has been green for several runs (v2-impl.md, P0-1); then remove it so it gates packaging.

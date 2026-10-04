@@ -166,5 +166,6 @@ export const brainState: {
     llm_tokens_per_hour_limit: 500000,
     preferred_summary_detail: "detailed",
     auto_checkpoint_interval: 5,
+    max_bytes: 256 * 1024 * 1024,
   },
 };

@@ -1,11 +1,10 @@
 /**
  * `knox` CLI entry point (K-029).
  *
- *   knox login                 sign in through the browser (OAuth + PKCE)
- *   knox whoami | logout
- *   knox run "<task>" ...      headless agent run, uses the signed-in session
+ *   knox login | whoami | logout | doctor | --version
+ *   knox run "<task>" ...      headless agent run
  *
- * No API keys: credentials come only from `knox login`.
+ * Auth: `knox login` (OAuth) or `KNOX_API_KEY` for CI.
  *   npx tsx cli/main.ts run "fix the failing test" --permission fullAuto --json
  */
 
@@ -24,6 +23,7 @@ import { createLiveLlm } from "../eval/liveLlm";
 import {
   clearSession,
   loadSession,
+  resolveSession,
   saveSession,
 } from "./credentials";
 import {
@@ -38,8 +38,16 @@ import {
   runJob,
 } from "./background";
 import { CLI_USAGE, parseCliArgs, runHeadless } from "./headless";
+import { runDoctor, formatDoctorReport } from "./doctor";
+import { knoxCliVersion } from "./version";
+import { cliModelFromConfig } from "./configDefaults";
+import { continueCliSession, loadCliSession } from "./session";
 
 const DEFAULT_MODEL = "qwen/qwen3-coder";
+
+function signedInViaEnv(username: string | undefined): boolean {
+  return username === "env";
+}
 
 function openBrowser(url: string): Promise<void> {
   const [cmd, args] =
@@ -107,8 +115,8 @@ async function background(argv: string[]): Promise<number> {
       process.stderr.write(`knox bg start "<task>" [run options]\n${"error" in parsed ? parsed.error : ""}\n`);
       return 64;
     }
-    if (!loadSession()) {
-      process.stderr.write("knox: not signed in. Run: knox login\n");
+    if (!resolveSession()) {
+      process.stderr.write("knox: not signed in. Run: knox login or set KNOX_API_KEY\n");
       return 64;
     }
     const flags = [
@@ -189,7 +197,7 @@ function team(argv: string[]): number {
 }
 
 async function backgroundWorker(id: string): Promise<number> {
-  const session = loadSession();
+  const session = resolveSession();
   await runJob({
     root: bgRoot(),
     id,
@@ -200,7 +208,7 @@ async function backgroundWorker(id: string): Promise<number> {
       if ("error" in parsed) throw new Error(parsed.error);
       const live = createLiveLlm({
         apiKey: session.apiKey,
-        model: parsed.model ?? DEFAULT_MODEL,
+        model: parsed.model ?? cliModelFromConfig() ?? DEFAULT_MODEL,
         baseUrl: `${apiBase()}/v1`,
       });
       return runHeadless({
@@ -219,15 +227,25 @@ async function backgroundWorker(id: string): Promise<number> {
 
 async function main(): Promise<number> {
   const command = process.argv[2];
+  if (command === "--version" || command === "-V" || command === "version") {
+    process.stdout.write(`${knoxCliVersion()}\n`);
+    return 0;
+  }
+  if (command === "doctor") {
+    const report = runDoctor();
+    process.stdout.write(formatDoctorReport(report));
+    return report.ok ? 0 : 1;
+  }
   if (command === "team") return team(process.argv.slice(3));
   if (command === "bg") return background(process.argv.slice(3));
   if (command === "bg-run") return backgroundWorker(process.argv[3] ?? "");
   if (command === "login") return login();
   if (command === "logout") return logout();
   if (command === "whoami") {
-    const s = loadSession();
+    const s = resolveSession();
+    const via = s && signedInViaEnv(s.account.username) ? " (KNOX_API_KEY)" : "";
     process.stdout.write(
-      s ? `@${s.account.username || s.account.userId}\n` : "Not signed in. Run: knox login\n",
+      s ? `@${s.account.username || s.account.userId}${via}\n` : "Not signed in. Run: knox login or set KNOX_API_KEY\n",
     );
     return s ? 0 : 1;
   }
@@ -241,14 +259,27 @@ async function main(): Promise<number> {
     process.stdout.write(`${CLI_USAGE}\n`);
     return 0;
   }
-  const session = loadSession();
+  const session = resolveSession();
   if (!session) {
-    process.stderr.write("knox: not signed in. Run: knox login\n");
+    process.stderr.write("knox: not signed in. Run: knox login or set KNOX_API_KEY\n");
+    return 64;
+  }
+  let prior;
+  try {
+    if (parsed.resumeId) {
+      prior = loadCliSession(parsed.resumeId);
+    } else if (parsed.continueLast) {
+      prior = continueCliSession(parsed.dir);
+    }
+  } catch (error) {
+    process.stderr.write(
+      `knox: ${error instanceof Error ? error.message : error}\n`,
+    );
     return 64;
   }
   const live = createLiveLlm({
     apiKey: session.apiKey,
-    model: parsed.model ?? DEFAULT_MODEL,
+    model: parsed.model ?? cliModelFromConfig() ?? DEFAULT_MODEL,
     baseUrl: `${apiBase()}/v1`,
   });
   const controller = new AbortController();
@@ -262,6 +293,8 @@ async function main(): Promise<number> {
     profile: parsed.profile,
     maxSteps: parsed.maxSteps,
     trustWorkspaceHooks: parsed.trustHooks,
+    session: prior,
+    persistSession: true,
     abortSignal: controller.signal,
     onEvent: (e) => {
       if (parsed.streamJson) {

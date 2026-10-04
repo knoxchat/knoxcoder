@@ -6,6 +6,7 @@
  * matching installer/archive so macOS can background-download and Windows/Linux
  * can resolve a stable latest URL.
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -88,26 +89,42 @@ for (const fileName of files) {
 	}
 }
 
+function sha256File(filePath) {
+	return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
 fs.mkdirSync(outDir, { recursive: true });
 const timestamp = Date.now();
 const pubDate = new Date(timestamp).toISOString();
 let written = 0;
+const checksumLines = [];
 
 for (const [key, asset] of chosen) {
+	const assetPath = path.join(assetsDir, asset.fileName);
+	const sha256hash = sha256File(assetPath);
+	checksumLines.push(`${sha256hash}  ${asset.fileName}`);
 	const url = `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(asset.fileName)}`;
 	const payload = {
 		url,
 		name: version,
 		version: commit || version,
 		productVersion: version,
+		sha256hash,
 		timestamp,
 		notes: `KnoxCoder ${version}`,
 		pub_date: pubDate,
 	};
 	const outPath = path.join(outDir, `latest-${key}.json`);
 	fs.writeFileSync(outPath, `${JSON.stringify(payload, null, '\t')}\n`);
-	console.log(`wrote ${path.basename(outPath)} -> ${asset.fileName}`);
+	console.log(`wrote ${path.basename(outPath)} -> ${asset.fileName} (${sha256hash.slice(0, 12)}…)`);
 	written++;
+}
+
+if (checksumLines.length) {
+	checksumLines.sort();
+	const sumsPath = path.join(outDir, 'SHA256SUMS');
+	fs.writeFileSync(sumsPath, `${checksumLines.join('\n')}\n`);
+	console.log(`wrote ${path.basename(sumsPath)} (${checksumLines.length} assets)`);
 }
 
 if (written === 0) {

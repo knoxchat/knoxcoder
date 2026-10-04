@@ -351,6 +351,9 @@ export function sanitizeExactSearchQuery(raw: unknown): string {
 		.replace(/\uFFFD/g, '')
 		.replace(/[\uE000-\uF8FF]/g, '')
 		.replace(/[\u{F0000}-\u{FFFFD}\u{100000}-\u{10FFFD}]/gu, '')
+		.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
+		.replace(/[\u0300-\u036F\u1AB0-\u1AFF\u1DC0-\u1DFF\u20D0-\u20FF\uFE00-\uFE0F\uFE20-\uFE2F]/g, '')
+		.replace(/\s+/g, ' ')
 		.trim();
 }
 

@@ -106,9 +106,7 @@ export class BatchDiffManager implements vscode.Disposable {
     this._onBatchStarted.fire({ action, files: fileUris });
 
     const host: BatchDiffHost = {
-      clearForFile: (fileUri, accept) => {
-        manager.clearForfileUri(fileUri, accept);
-      },
+      clearForFile: (fileUri, accept) => manager.clearForfileUri(fileUri, accept),
       saveIfDirty: (fileUri) => this.saveIfDirty(fileUri),
     };
 

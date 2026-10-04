@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.json",
+    "compilerOptions": {
+      "noEmit": true,
+      "skipLibCheck": true,
+      "types": ["node"],
+    "paths": {
+      "core": ["../core/index.d.ts"],
+      "core/*": ["../core/*"]
+    }
+  },
+  "include": [
+    "./**/*.ts",
+    "../../../../src/vscode-dts/vscode.d.ts"
+  ],
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.vitest.ts",
+    "**/test/**",
+    "**/nativeParity/**"
+  ]
+}

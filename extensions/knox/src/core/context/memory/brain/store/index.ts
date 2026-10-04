@@ -11,6 +11,7 @@ import * as organization from "./organization.js";
 import * as config from "./config.js";
 import * as maintenance from "./maintenance.js";
 import * as io from "./io.js";
+import * as wipe from "./wipe.js";
 import * as checkpoints from "./checkpoints.js";
 import * as runtime from "./runtime.js";
 import * as compression from "./compression.js";
@@ -110,6 +111,7 @@ export class BrainStore {
   static optimize = maintenance.optimize;
   static exportAll = io.exportAll;
   static importData = io.importData;
+  static wipeAll = wipe.wipeAll;
   static searchBacklogs = io.searchBacklogs;
   static readKnowledgeSnapshot = checkpoints.readKnowledgeSnapshot;
   static createCheckpoint = checkpoints.createCheckpoint;

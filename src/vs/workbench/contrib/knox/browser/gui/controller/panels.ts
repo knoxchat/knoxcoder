@@ -145,7 +145,7 @@ export function toggleJobsPanel(controller: KnoxGuiController): void {
 	setJobsPanelOpen(controller, !controller.store.state.jobsPanelOpen);
 }
 
-export async function runJobAction(controller: KnoxGuiController, action: 'kill' | 'killAll' | 'dismiss' | 'clear', jobId?: string): Promise<void> {
+export async function runJobAction(controller: KnoxGuiController, action: 'kill' | 'killAll' | 'dismiss' | 'clear' | 'merge' | 'discard', jobId?: string): Promise<void> {
 	try {
 		const result = await controller.messenger.request<Record<string, unknown>>('agent/jobs', { action, jobId });
 		const jobs = parseBackgroundJobs(asRecord(result)?.jobs ?? result);
@@ -327,7 +327,7 @@ export async function runReview(controller: KnoxGuiController, action: 'enable' 
 }
 
 /** K-023: refresh the hooks panel (configured events + recent audit log). */
-export async function refreshHooks(controller: KnoxGuiController, action: 'status' | 'clear' = 'status'): Promise<void> {
+export async function refreshHooks(controller: KnoxGuiController, action: 'status' | 'clear' | 'test' = 'status'): Promise<void> {
 	try {
 		const rec = asRecord(await controller.messenger.request<Record<string, unknown>>('agent/hooks', { action, limit: 50 }));
 		const entries = asArray(rec?.entries).map(item => {

@@ -62,6 +62,7 @@ export async function get(): Promise<DatabaseConnection> {
       const { KnowledgeGraph } = await import("../KnowledgeGraph.js");
       await KnowledgeGraph.enforceEntityCap().catch(() => {});
       // FTS triggers exist by now, so pruned rows leave the indexes too.
+      // loadConfig may have set max_bytes; env still wins inside brainMaxBytes().
       await enforceBrainSizeCap(db, dbPath).catch(() => {});
 
       return db;
@@ -71,4 +72,13 @@ export async function get(): Promise<DatabaseConnection> {
   })();
 
   return brainState.initPromise;
+}
+
+export async function close(): Promise<void> {
+  const db = brainState.db;
+  brainState.db = null;
+  brainState.initPromise = null;
+  if (db && typeof (db as { close?: () => Promise<void> }).close === "function") {
+    await (db as { close: () => Promise<void> }).close().catch(() => {});
+  }
 }

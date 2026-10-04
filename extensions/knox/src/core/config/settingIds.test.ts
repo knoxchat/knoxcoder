@@ -8,6 +8,7 @@ import { EXTENSION_NAME } from "./extensionName";
 import {
   contributedKnoxKeybindingCommands,
   contributedKnoxSettingIds,
+  knoxManifestConfigurationProperties,
   KNOX_CHAT_SETTING_IDS,
   KNOX_CHECKPOINT_SETTING_IDS,
   KNOX_CHECKPOINTS_SECTION,
@@ -22,7 +23,9 @@ const knoxPackagePath = join(repoRoot, "extensions/knox/package.json");
 
 type KnoxManifest = {
   contributes?: {
-    configuration?: { properties?: Record<string, unknown> };
+    configuration?:
+      | { properties?: Record<string, unknown> }
+      | Array<{ properties?: Record<string, unknown> }>;
     keybindings?: Array<{ command?: string }>;
   };
 };
@@ -34,7 +37,7 @@ function readManifest(path: string): KnoxManifest {
 describe("KN-382 setting ids stay in extensions/knox/package.json", () => {
   const manifest = readManifest(knoxPackagePath);
   const contributed = contributedKnoxSettingIds(
-    manifest.contributes?.configuration?.properties,
+    knoxManifestConfigurationProperties(manifest.contributes?.configuration),
   );
 
   it("settings section ids stay knoxchat / knox.checkpoints", () => {
@@ -45,7 +48,7 @@ describe("KN-382 setting ids stay in extensions/knox/package.json", () => {
 
   it("contributes every frozen knoxchat.* and knox.checkpoints.* id", () => {
     expect(contributed).toEqual([...KNOX_SETTING_IDS].sort());
-    expect(KNOX_CHAT_SETTING_IDS).toHaveLength(16);
+    expect(KNOX_CHAT_SETTING_IDS).toHaveLength(23);
     expect(KNOX_CHECKPOINT_SETTING_IDS).toHaveLength(35);
   });
 

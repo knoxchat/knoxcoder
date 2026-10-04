@@ -181,6 +181,33 @@ describe("discoverRules agent instruction files", () => {
     ]);
     expect(workspace.map((r) => r.priority)).toEqual([7, 8, 9, 10]);
   });
+
+  it("loads .cursor/rules and copilot instructions when opted in", async () => {
+    const files: Record<string, string> = {
+      "file:///repo/.cursor/rules/style.mdc": "cursor-rule",
+      "file:///repo/.github/copilot-instructions.md": "copilot-rule",
+    };
+    const ide = {
+      fileExists: vi.fn(async (p: string) => p in files),
+      readFile: vi.fn(async (p: string) => files[p]),
+      getWorkspaceDirs: vi.fn(async () => ["file:///repo"]),
+      getCurrentFile: vi.fn(async () => undefined),
+      getOpenFiles: vi.fn(async () => []),
+      getIdeSettings: vi.fn(async () => ({
+        compatInstructions: ["cursor", "copilot"],
+      })),
+      listDir: vi.fn(async (dir: string) => {
+        if (dir.includes(".cursor/rules")) {
+          return [["style.mdc", 1]];
+        }
+        throw new Error("no dir");
+      }),
+    } as unknown as IDE;
+    const rules = await discoverRules(ide);
+    expect(rules.map((r) => r.content)).toEqual(
+      expect.arrayContaining(["cursor-rule", "copilot-rule"]),
+    );
+  });
 });
 
 describe("policyFromRuleText", () => {

@@ -12,6 +12,8 @@ import path from "path";
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
 
+import { brainState } from "./state.js";
+
 /** Bump when `migrateSchema` gains a step. 0 = created before versioning (1.138.x, 2.0.0-beta). */
 export const BRAIN_SCHEMA_VERSION = 1;
 const KEEP_BACKUPS = 3;
@@ -135,9 +137,50 @@ export const BRAIN_DEFAULT_MAX_BYTES = 256 * 1024 * 1024;
 
 export function brainMaxBytes(): number {
   const raw = process.env.KNOX_BRAIN_MAX_BYTES;
-  if (raw === undefined || raw.trim() === "") return BRAIN_DEFAULT_MAX_BYTES;
-  const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : BRAIN_DEFAULT_MAX_BYTES;
+  if (raw !== undefined && raw.trim() !== "") {
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : BRAIN_DEFAULT_MAX_BYTES;
+  }
+  const fromConfig = brainState.config.max_bytes;
+  if (typeof fromConfig === "number" && Number.isFinite(fromConfig) && fromConfig >= 0) {
+    return Math.floor(fromConfig);
+  }
+  return BRAIN_DEFAULT_MAX_BYTES;
+}
+
+/** Overlay a user-visible cap (VS Code setting or yaml) onto in-memory config. Env still wins. */
+export function applyBrainMaxBytesSetting(raw: unknown): void {
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) {
+    return;
+  }
+  brainState.config.max_bytes = Math.floor(raw);
+}
+
+let enabledOverlay: boolean | undefined;
+let workspaceEnabledOverlay: boolean | undefined;
+
+export function applyBrainEnabledSetting(raw: unknown): void {
+  if (typeof raw === "boolean") {
+    enabledOverlay = raw;
+  }
+}
+
+export function applyBrainWorkspaceEnabledSetting(raw: unknown): void {
+  if (typeof raw === "boolean") {
+    workspaceEnabledOverlay = raw;
+  }
+}
+
+/** Global + workspace switches. Env `KNOX_BRAIN_ENABLED=0` wins. */
+export function isBrainEnabled(): boolean {
+  const env = process.env.KNOX_BRAIN_ENABLED?.trim().toLowerCase();
+  if (env === "0" || env === "false" || env === "off") {
+    return false;
+  }
+  if (enabledOverlay === false || workspaceEnabledOverlay === false) {
+    return false;
+  }
+  return true;
 }
 
 /**

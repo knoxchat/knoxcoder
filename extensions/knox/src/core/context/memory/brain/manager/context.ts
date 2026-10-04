@@ -1,7 +1,9 @@
 /** Context build, pipeline, C_effective, task routing. */
 
+import { isBrainEnabled } from "../store/dbSafety.js";
 import { BrainStore } from "../BrainStore.js";
 import { MemoryPipeline } from "../MemoryPipeline.js";
+import type { BuildContextResult } from "../types.js";
 import { LocalAutonomousLoop } from "../LocalAutonomousLoop.js";
 import type { AutonomousLoopInput, AutonomousLoopResult, AutonomousLoopStatus } from "../LocalAutonomousLoop.js";
 import { TaskRouter } from "../TaskRouter.js";
@@ -41,7 +43,10 @@ export async function buildContextDetailed(
   currentSessionId?: string,
   maxTokens?: number,
   options?: { goal?: string; memory_mode?: MemoryMode },
-) {
+): Promise<BuildContextResult> {
+  if (!isBrainEnabled()) {
+    return { context: "", items: [] };
+  }
   const result = await MemoryPipeline.runPreTurn({
     message,
     session_id: currentSessionId,

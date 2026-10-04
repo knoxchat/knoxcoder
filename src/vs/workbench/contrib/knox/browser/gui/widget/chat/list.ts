@@ -68,6 +68,17 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 			onClick: () => widget.controller.store.patch({ permissionNoticeDismissed: true }),
 		});
 	}
+	if (!state.memoryNoticeDismissed && state.history.length === 0) {
+		const banner = DOM.append(body, DOM.$('.knox-gui-large-banner'));
+		banner.setAttribute('role', 'status');
+		banner.setAttribute('data-testid', 'memory-notice');
+		DOM.append(banner, DOM.$('span', undefined, t(state, 'memoryNoticeTitle')));
+		widget.chromeButton(banner, {
+			label: t(state, 'memoryNoticeOk'),
+			testId: 'memory-notice-ok',
+			onClick: () => widget.controller.store.patch({ memoryNoticeDismissed: true }),
+		});
+	}
 	if (state.history.length === 0 && state.models.length === 0 && !state.isStreaming) {
 		const banner = DOM.append(body, DOM.$('.knox-gui-large-banner'));
 		banner.setAttribute('role', 'status');
@@ -78,6 +89,30 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 			testId: 'first-run-open-settings',
 			onClick: () => widget.controller.openAddModel('chat', { bulk: true }),
 		});
+		widget.chromeButton(banner, {
+			label: t(state, 'signInKnoxStudio'),
+			testId: 'first-run-sign-in',
+			onClick: () => widget.controller.openAddModel('chat', { bulk: true }),
+		});
+	}
+	if (state.history.length === 0 && state.models.length > 0 && !state.isStreaming) {
+		const samples = DOM.append(body, DOM.$('.knox-gui-sample-prompts'));
+		samples.setAttribute('data-testid', 'sample-prompts');
+		DOM.append(samples, DOM.$('p.knox-gui-sample-prompts-title', undefined, t(state, 'samplePromptsTitle')));
+		const sampleIcons = { samplePromptExplain: 'search', samplePromptTests: 'wrench', samplePromptDiff: 'git-compare' } as const;
+		for (const key of ['samplePromptExplain', 'samplePromptTests', 'samplePromptDiff'] as const) {
+			widget.chromeButton(samples, {
+				label: t(state, key),
+				svg: sampleIcons[key],
+				svgSize: 14,
+				extraClass: 'knox-gui-sample-prompt',
+				testId: `sample-prompt-${key}`,
+				onClick: () => {
+					widget.controller.store.setInput(t(state, key));
+					widget.controller.store.patch({ inputFocused: true });
+				},
+			});
+		}
 	}
 	if (state.streamRetry && state.isStreaming) {
 		const retry = state.streamRetry;

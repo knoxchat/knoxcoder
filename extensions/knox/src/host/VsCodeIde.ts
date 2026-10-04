@@ -1266,6 +1266,16 @@ class VsCodeIde implements IDE {
         "agentProfile",
       ),
       jevEnabled: knox.get<boolean>("jev.enabled") === true,
+      memoryBrainMaxBytes: knox.get<number>("memoryBrain.maxBytes"),
+      memoryBrainEnabled: knox.get<boolean>("memoryBrain.enabled") !== false,
+      memoryBrainWorkspaceEnabled:
+        knox.get<boolean>("memoryBrain.workspaceEnabled") !== false,
+      sandbox: knox.get<"off" | "workspace-write" | "read-only">("sandbox"),
+      networkMode: knox.get<"allow" | "deny" | "allowlist">("networkMode"),
+      networkAllowlist: knox.get<string[]>("networkAllowlist"),
+      compatInstructions: knox.get<Array<"cursor" | "copilot">>(
+        "compatInstructions",
+      ),
       agentVerifyCommand: verifyCommand || undefined,
       agentVerifyMode: knox.get<"diagnostics" | "command" | "off">(
         "verifyMode",

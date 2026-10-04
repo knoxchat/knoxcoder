@@ -19,6 +19,12 @@ import { lookup } from "node:dns/promises";
 import { ContextItem } from "../..";
 
 import { ToolImpl } from ".";
+import {
+  applyNetworkSettings,
+  fetchUrlDeniedMessage,
+  isHostAllowed,
+  resolveNetworkPolicy,
+} from "../networkPolicy";
 
 export const FETCH_URL_MAX_BYTES = 2 * 1024 * 1024;
 export const FETCH_URL_MAX_OUTPUT_CHARS = 60_000;
@@ -292,6 +298,23 @@ export const fetchUrlImpl: ToolImpl = async (args, extras) => {
   const url = String(args?.url ?? "").trim();
   if (!url) {
     throw new Error("url is required");
+  }
+  const ideSettings = extras.ide.getIdeSettings
+    ? await extras.ide.getIdeSettings().catch(() => undefined)
+    : undefined;
+  applyNetworkSettings({
+    mode: ideSettings?.networkMode,
+    allowlist: ideSettings?.networkAllowlist,
+  });
+  const policy = resolveNetworkPolicy();
+  let host = url;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    // assertFetchableUrl will reject invalid URLs
+  }
+  if (!isHostAllowed(host, policy)) {
+    throw new Error(fetchUrlDeniedMessage(policy, host));
   }
   return fetchUrlContent(url, {
     fetch: extras.fetch as any,

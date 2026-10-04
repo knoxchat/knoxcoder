@@ -942,7 +942,7 @@ export function renderExactSearchTool(widget: KnoxGuiWidget, parent: HTMLElement
 	stats.textContent = streaming
 		? t(state, 'searching')
 		: parsed.length > 0
-			? `• ${t(state, 'matchesInFiles', { matches, files: parsed.length })}`
+			? t(state, 'matchesInFiles', { matches, files: parsed.length })
 			: t(state, 'noMatchesFound');
 	if (!expanded) {
 		return;

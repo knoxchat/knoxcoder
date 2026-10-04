@@ -114,6 +114,12 @@ export function renderMode(widget: KnoxGuiWidget, bar: HTMLElement, state: IKnox
 		DOM.append(agentBtn, DOM.$('span.knox-gui-job-count', undefined, String(running)));
 	}
 	appendKnoxGuiSvg(agentBtn, 'chevron-down', 10);
+	if (state.sandboxMode !== 'off') {
+		const chip = DOM.append(wrap, DOM.$('span.knox-gui-mode-tab.knox-gui-sandbox-chip', undefined, t(state, state.sandboxMode === 'read-only' ? 'sandboxReadOnly' : 'sandboxWorkspace')));
+		chip.setAttribute('data-testid', 'knox-gui-sandbox');
+		chip.setAttribute('title', t(state, 'sandboxHint'));
+		chip.setAttribute('aria-label', t(state, 'sandboxHint'));
+	}
 	widget.renderStore.add(DOM.addDisposableListener(agentBtn, 'keydown', e => {
 		if (streaming) {
 			return;

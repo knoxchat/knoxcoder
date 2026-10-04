@@ -726,7 +726,7 @@ export type ToCoreFromIdeOrWebviewProtocol = {
    * recent audit log; `clear` empties the log first.
    */
   "agent/hooks": [
-    { action: "status" | "clear"; limit?: number },
+    { action: "status" | "clear" | "test"; limit?: number; event?: string },
     {
       events: string[];
       entries: Array<{

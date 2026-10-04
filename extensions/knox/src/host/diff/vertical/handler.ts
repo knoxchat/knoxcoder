@@ -52,7 +52,7 @@ export class VerticalDiffHandler implements vscode.Disposable {
     private readonly clearForFileUri: (
       fileUri: string | undefined,
       accept: boolean,
-    ) => void,
+    ) => void | Promise<void>,
     private readonly refreshCodeLens: () => void,
     public options: VerticalDiffHandlerOptions,
   ) {

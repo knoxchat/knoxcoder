@@ -31,7 +31,10 @@
 		"test:tsc": "tsc -p src/core --noEmit",
 		"test:eval": "vitest run --config src/core/vitest.config.ts eval",
 		"test:host": "vitest run --config src/host/vitest.config.mts",
+		"test:host-tsc": "tsc -p src/host --noEmit",
 		"test:pkg": "vitest run --config src/pkg/vitest.config.ts",
+		"packaged-smoke": "node ./scripts/packaged-extension-smoke.mts",
+		"notices": "node ./scripts/knox-third-party-notices.mts",
 		"watch": "gulp watch-extension:knox",
 		"esbuild": "node ./esbuild.mts"
 	},
@@ -116,6 +119,62 @@
 					"type": "boolean",
 					"default": true,
 					"markdownDescription": "Show a status bar indicator whenever Jev (System One) calls are made, with a log of every call. Jev sends only the user message, short recent-turn summaries, tool names/argument previews and truncated assistant text for judgments; never file contents. Each call has a hard latency budget (gates 800 ms, others 2 s) and a circuit breaker (3 consecutive failures skip Jev for 5 minutes). Click the indicator to open the Jev log."
+				},
+				"knoxchat.memoryBrain.maxBytes": {
+					"type": "number",
+					"default": 268435456,
+					"minimum": 0,
+					"markdownDescription": "Cap on Memory Brain `brain.sqlite` (plus WAL) in bytes. Oldest episodic turns are pruned when the cap is exceeded; curated facts are kept. `0` disables. Environment variable `KNOX_BRAIN_MAX_BYTES` overrides this. Enforced on open and on each consolidation tick."
+				},
+				"knoxchat.memoryBrain.enabled": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Global switch for Memory Brain. Off skips retrieval, auto-consolidation, and new writes. Existing `brain.sqlite` is left on disk. `KNOX_BRAIN_ENABLED=0` overrides this."
+				},
+				"knoxchat.memoryBrain.workspaceEnabled": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Per-workspace Memory Brain. Off for this folder only (workspace setting). Use this to opt a repo out of local memory."
+				},
+				"knoxchat.sandbox": {
+					"type": "string",
+					"enum": [
+						"off",
+						"workspace-write",
+						"read-only"
+					],
+					"default": "off",
+					"markdownDescription": "OS sandbox for Auto-mode shell. `workspace-write` limits writes to the workspace and temp dirs; `read-only` also makes the workspace read-only. macOS uses `sandbox-exec`, Linux uses `bwrap`. Windows has no wrapper (the composer shows that). `KNOX_SANDBOX` overrides this; `KNOX_SANDBOX_REQUIRED=1` fails closed if the backend is missing."
+				},
+				"knoxchat.networkMode": {
+					"type": "string",
+					"enum": [
+						"allow",
+						"deny",
+						"allowlist"
+					],
+					"default": "allow",
+					"markdownDescription": "Network policy shared by `builtin_fetch_url` and the shell sandbox. `deny` blocks fetch_url and takes the sandbox off the network; `allowlist` restricts fetch_url to `knoxchat.networkAllowlist` (shell still has no network in the sandbox). `KNOX_NETWORK_MODE` overrides this."
+				},
+				"knoxchat.networkAllowlist": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"markdownDescription": "Hostnames allowed when `knoxchat.networkMode` is `allowlist` (exact or `*.suffix`). `KNOX_NETWORK_ALLOWLIST` is a comma-separated override."
+				},
+				"knoxchat.compatInstructions": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"cursor",
+							"copilot"
+						]
+					},
+					"default": [],
+					"markdownDescription": "Opt-in extra project instructions: `cursor` loads `.cursor/rules` and `.cursorrules`; `copilot` loads `.github/copilot-instructions.md`. They sit below `AGENTS.md`. `KNOX_COMPAT_INSTRUCTIONS=cursor,copilot` overrides this."
 				},
 				"knoxchat.fallbackModel": {
 					"type": "string",
@@ -899,6 +958,78 @@
 				"command": "knox.checkpoints.resetConfiguration",
 				"category": "Knox Checkpoints",
 				"title": "Reset Configuration",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.openSettings",
+				"category": "Knox",
+				"title": "Open Knox Settings",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.team.export",
+				"category": "Knox",
+				"title": "Export Team Bundle",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.team.import",
+				"category": "Knox",
+				"title": "Import Team Bundle",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.agents.create",
+				"category": "Knox",
+				"title": "Create Custom Agent",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.agents.list",
+				"category": "Knox",
+				"title": "List Custom Agents",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.hooks.test",
+				"category": "Knox",
+				"title": "Test Hook",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.memoryBrain.export",
+				"category": "Knox",
+				"title": "Export Memory Brain",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.memoryBrain.wipe",
+				"category": "Knox",
+				"title": "Wipe Memory Brain",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.bg.list",
+				"category": "Knox",
+				"title": "Background Agents: List",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.bg.start",
+				"category": "Knox",
+				"title": "Background Agents: Start",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.bg.merge",
+				"category": "Knox",
+				"title": "Background Agents: Merge",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.bg.discard",
+				"category": "Knox",
+				"title": "Background Agents: Discard",
 				"group": "Knox"
 			}
 		],

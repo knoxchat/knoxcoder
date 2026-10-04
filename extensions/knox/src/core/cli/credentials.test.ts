@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { clearSession, loadSession, saveSession } from "./credentials";
+import { clearSession, loadSession, resolveSession, saveSession } from "./credentials";
 
 describe("cli credentials", () => {
   it("round-trips a session with 0600 permissions and clears it", () => {
@@ -49,9 +49,25 @@ describe("cli credentials", () => {
   });
 
   it("never prints the key: CLI sources do not log session secrets", () => {
-    for (const f of ["main.ts", "credentials.ts", "headless.ts"]) {
+    for (const f of ["main.ts", "credentials.ts", "headless.ts", "doctor.ts"]) {
       const src = fs.readFileSync(path.join(__dirname, f), "utf-8");
       expect(src).not.toMatch(/(console\.\w+|stderr\.write|stdout\.write)\([^)]*(apiKey|refreshToken)/);
     }
+  });
+
+  it("prefers KNOX_API_KEY over a credentials file", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "knox-cred-"));
+    const file = path.join(dir, "auth.json");
+    saveSession(
+      {
+        apiKey: "from-file",
+        account: { userId: 1, username: "file", tokenId: 2, connectedAt: 3 },
+      },
+      file,
+    );
+    const session = resolveSession(file, { KNOX_API_KEY: "from-env" } as NodeJS.ProcessEnv);
+    expect(session?.apiKey).toBe("from-env");
+    expect(session?.account.username).toBe("env");
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });

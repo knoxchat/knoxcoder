@@ -31,6 +31,16 @@ import {
   waitForShellJob,
 } from "../shellJobs";
 import { isPathOutsideWorkspace } from "../toolPolicy";
+import {
+  applySandboxSetting,
+  resolveSandboxMode,
+  wrapSandboxCommand,
+} from "../sandbox";
+import {
+  applyNetworkSettings,
+  denyNetworkInSandbox,
+  resolveNetworkPolicy,
+} from "../networkPolicy";
 
 const TERMINAL_TOOL_NAME = "builtin_run_terminal_command";
 const FORCE_KILL_MS = 2_000;
@@ -292,9 +302,22 @@ export const runTerminalCommandImpl: ToolImpl = async (args, extras) => {
         ensureCargoTargetIgnored([cwd], workspaceRoot);
       }
 
+      const ideSettings = extras.ide.getIdeSettings
+        ? await extras.ide.getIdeSettings().catch(() => undefined)
+        : undefined;
+      applySandboxSetting(ideSettings?.sandbox);
+      applyNetworkSettings({
+        mode: ideSettings?.networkMode,
+        allowlist: ideSettings?.networkAllowlist,
+      });
       const useWrap = process.platform !== "win32";
       const toRun = useWrap ? wrapPosixCommand(command, cwd) : command;
       const spawnCwd = useWrap ? workspaceRoot : cwd;
+      const sandboxed = wrapSandboxCommand(toRun, {
+        mode: resolveSandboxMode(),
+        workspaceRoot,
+        denyNetwork: denyNetworkInSandbox(resolveNetworkPolicy()),
+      });
 
       const emitPartial = extras.onPartialOutput
         ? createThrottledSnapshotEmitter((snap) => {
@@ -311,7 +334,7 @@ export const runTerminalCommandImpl: ToolImpl = async (args, extras) => {
         : undefined;
 
       const jobId = startShellJob({
-        command: toRun,
+        command: sandboxed.command,
         displayCommand: command,
         cwd: spawnCwd,
         onOutput: emitPartial?.push,
@@ -345,6 +368,13 @@ export const runTerminalCommandImpl: ToolImpl = async (args, extras) => {
         stderr: meta.stderr,
         exitCode: meta.exitCode,
       });
+      if (sandboxed.warning) {
+        items.unshift({
+          name: "Sandbox",
+          description: "Sandbox",
+          content: sandboxed.warning,
+        });
+      }
       if (
         newCratePlan &&
         snapshot.status !== "running" &&

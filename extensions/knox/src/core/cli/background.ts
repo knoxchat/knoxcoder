@@ -18,6 +18,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { writeFileAtomic } from "../util/atomicWrite";
+import { withFileLockSync } from "../util/fileLock";
 import type { HeadlessResult } from "./headless";
 
 export type BgStatus = "running" | "done" | "failed" | "merged" | "discarded";
@@ -54,13 +56,22 @@ function jobFile(root: string, id: string): string {
 }
 
 export function saveJob(root: string, job: BgJob): void {
-  fs.mkdirSync(path.join(root, job.id), { recursive: true });
-  fs.writeFileSync(jobFile(root, job.id), JSON.stringify(job, null, 2));
+  const file = jobFile(root, job.id);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  withFileLockSync(`${file}.lock`, () => {
+    writeFileAtomic(file, JSON.stringify(job, null, 2));
+  });
 }
 
 export function loadJob(root: string, id: string): BgJob | undefined {
+  const file = jobFile(root, id);
+  if (!fs.existsSync(file)) {
+    return undefined;
+  }
   try {
-    return JSON.parse(fs.readFileSync(jobFile(root, id), "utf-8")) as BgJob;
+    return withFileLockSync(`${file}.lock`, () => {
+      return JSON.parse(fs.readFileSync(file, "utf-8")) as BgJob;
+    });
   } catch {
     return undefined;
   }

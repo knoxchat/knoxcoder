@@ -605,7 +605,7 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiPanels.toggleJobsPanel(this);
 	}
 
-	async runJobAction(action: 'kill' | 'killAll' | 'dismiss' | 'clear', jobId?: string): Promise<void> {
+	async runJobAction(action: 'kill' | 'killAll' | 'dismiss' | 'clear' | 'merge' | 'discard', jobId?: string): Promise<void> {
 		return knoxGuiPanels.runJobAction(this, action, jobId);
 	}
 
@@ -697,7 +697,7 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiPanels.runReview(this, action, fileUris);
 	}
 
-	async refreshHooks(action: 'status' | 'clear' = 'status'): Promise<void> {
+	async refreshHooks(action: 'status' | 'clear' | 'test' = 'status'): Promise<void> {
 		return knoxGuiPanels.refreshHooks(this, action);
 	}
 

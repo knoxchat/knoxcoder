@@ -668,6 +668,8 @@ export function renderHooksPanel(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	if (hooks.open) {
 		widget.attachedDismiss(toggle, t(state, 'hooksClearLog'), () => void widget.controller.refreshHooks('clear'))
 			.setAttribute('data-testid', 'hooks-clear-log');
+		widget.attachedDismiss(toggle, t(state, 'hooksTest'), () => void widget.controller.refreshHooks('test'))
+			.setAttribute('data-testid', 'hooks-test');
 		const body = widget.attachedBody(panel, true);
 		const pre = DOM.append(body, DOM.$('pre.knox-gui-attached-pre'));
 		pre.setAttribute('data-testid', 'hooks-log');
@@ -985,7 +987,9 @@ export function renderJobRow(widget: KnoxGuiWidget, parent: HTMLElement, state: 
 		widget.jobElapsedEls.set(job.id, status);
 	}
 	const canKill = job.status === 'running' && !isTaskJobId(job.id);
-	const canDismiss = job.kind !== 'task' && job.status !== 'running' && !isTaskJobId(job.id);
+	const canDismiss = job.kind !== 'task' && job.kind !== 'bg' && job.status !== 'running' && !isTaskJobId(job.id);
+	const canMerge = job.kind === 'bg' && (job.status === 'exited' || job.status === 'failed');
+	const canDiscardBg = job.kind === 'bg' && job.status !== 'merged' && job.status !== 'discarded';
 	if (canKill) {
 		widget.chromeButton(row, {
 			label: t(state, 'jobsKill'),
@@ -993,6 +997,24 @@ export function renderJobRow(widget: KnoxGuiWidget, parent: HTMLElement, state: 
 			extraClass: 'knox-gui-job-kill knox-gui-text-action',
 			testId: `agent-job-kill-${job.id}`,
 			onClick: () => void widget.controller.runJobAction('kill', job.id),
+		});
+	}
+	if (canMerge) {
+		widget.chromeButton(row, {
+			label: t(state, 'jobsMerge'),
+			title: t(state, 'jobsMergeHint'),
+			extraClass: 'knox-gui-text-action',
+			testId: `agent-job-merge-${job.id}`,
+			onClick: () => void widget.controller.runJobAction('merge', job.id),
+		});
+	}
+	if (canDiscardBg) {
+		widget.chromeButton(row, {
+			label: t(state, 'jobsDiscard'),
+			title: t(state, 'jobsDiscardHint'),
+			extraClass: 'knox-gui-text-action',
+			testId: `agent-job-discard-${job.id}`,
+			onClick: () => void widget.controller.runJobAction('discard', job.id),
 		});
 	}
 	if (canDismiss) {
