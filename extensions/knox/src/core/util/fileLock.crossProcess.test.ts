@@ -49,8 +49,16 @@ describe("withFileLock across real processes", () => {
     return Number(await fs.readFile(counter, "utf8"));
   }
 
-  it("control: without the lock, concurrent processes lose updates", async () => {
-    expect(await run("none", 4, 15)).toBeLessThan(60);
+  it("control: without the lock, concurrent processes lose or tear updates", async () => {
+    // Unlocked RMW is racy, but the failure mode is not always a smaller
+    // counter: overlapping writes of different-length numbers can tear the
+    // file (e.g. "9" over "14" → "94") and parse as a value above 60.
+    // Retry a couple of times so a lucky fully-serialized run does not fail.
+    let last = 60;
+    for (let attempt = 0; attempt < 3 && last === 60; attempt++) {
+      last = await run("none", 4, 15);
+    }
+    expect(last).not.toBe(60);
   }, 60_000);
 
   it("async lock: no lost updates across 4 processes", async () => {
