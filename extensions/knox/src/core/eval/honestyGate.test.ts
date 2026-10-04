@@ -1,11 +1,10 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
 import * as orchestration from "../tools/orchestration";
-import { unimplementedAdvancedTools } from "../tools/definitions/advanced";
 import {
   hasToolImplementation,
   listImplementedToolNames,
@@ -49,14 +48,24 @@ describe("agent honesty gate", () => {
     }
   });
 
-  it("does not expose quarantined advanced defs on the product catalogs", () => {
+  it("does not expose deleted definition-only advanced tools on the product catalogs", () => {
     const product = new Set(
       [...allTools, ...allAvailableTools].map((tool) => tool.function.name),
     );
     const implemented = new Set(listImplementedToolNames());
-    for (const tool of unimplementedAdvancedTools) {
-      expect(product.has(tool.function.name)).toBe(false);
-      expect(implemented.has(tool.function.name)).toBe(false);
+    for (const name of [
+      "builtin_analyze_code",
+      "builtin_multi_file_search",
+      "builtin_refactor",
+      "builtin_generate_docs",
+      "builtin_git_operations",
+      "builtin_analyze_performance",
+      "builtin_analyze_dependencies",
+      "builtin_explain_code",
+      "builtin_scaffold_project",
+    ]) {
+      expect(product.has(name)).toBe(false);
+      expect(implemented.has(name)).toBe(false);
     }
   });
 
@@ -100,8 +109,13 @@ describe("agent honesty gate", () => {
   it("documents builtin_plan as the product planning path (HL-17/38)", () => {
     const agentReadme = readRepo("extensions/knox/src/host/agent/README.md");
     expect(agentReadme).toMatch(/builtin_plan/);
-    expect(agentReadme).toMatch(/legacy/i);
-    expect(agentReadme).toMatch(/ReasoningEngine/);
+    expect(agentReadme).toMatch(/no host-side planner/i);
+  });
+
+  it("the removed ReasoningEngine stays removed", () => {
+    expect(existsSync(path.join(repoRoot, "extensions/knox/src/host/agent/ReasoningEngine.ts"))).toBe(false);
+    const index = readRepo("extensions/knox/src/host/agent/index.ts");
+    expect(index).not.toMatch(/ReasoningEngine|performTaskAnalysis/);
   });
 
   it("eval harness is a scripted model (no live LLM in CI)", () => {

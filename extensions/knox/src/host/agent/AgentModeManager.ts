@@ -6,7 +6,6 @@ import { t } from '../i18n';
 import { AgentService, AgentOperationStatus } from './AgentService';
 import { ChatFlowCoordinator, ChatOperationType } from './ChatFlowCoordinator';
 import { CodeIntelligenceService, CodeSuggestion } from './CodeIntelligenceService';
-import { ReasoningEngine, TaskAnalysisResult } from './ReasoningEngine';
 import { ShadowWorkspaceManager } from './ShadowWorkspaceManager';
 import {
   AGENT_MODE_CONTEXT_KEY,
@@ -35,7 +34,6 @@ export class AgentModeManager implements vscode.Disposable {
   private agentService: AgentService;
   private codeIntelligenceService: CodeIntelligenceService;
   private chatFlowCoordinator: ChatFlowCoordinator;
-  private reasoningEngine: ReasoningEngine;
   private shadowWorkspaceManager: ShadowWorkspaceManager;
   private status: AgentModeStatus = AgentModeStatus.INACTIVE;
   private contextPublished = false;
@@ -79,8 +77,6 @@ export class AgentModeManager implements vscode.Disposable {
     this.codeIntelligenceService = CodeIntelligenceService.getInstance();
     // Get ChatFlowCoordinator first
     this.chatFlowCoordinator = ChatFlowCoordinator.getInstance();
-    // Initialize the reasoning engine
-    this.reasoningEngine = ReasoningEngine.getInstance();
     // Initialize the shadow workspace manager
     this.shadowWorkspaceManager = ShadowWorkspaceManager.getInstance();
     // Then register this instance with the coordinator to complete the circular reference properly
@@ -167,65 +163,6 @@ export class AgentModeManager implements vscode.Disposable {
     this.disposables.push(
       vscode.commands.registerCommand('knoxchat.viewPreviousAgentOperation', () => {
         this.chatFlowCoordinator.viewPreviousOperation();
-      })
-    );
-    
-    // Register command for task analysis
-    this.disposables.push(
-      vscode.commands.registerCommand('knoxchat.analyzeTask', async (task: string) => {
-        const analysis = await this.reasoningEngine.performTaskAnalysis(task);
-        // Queue a context gathering operation with the analysis
-        this.chatFlowCoordinator.queueOperation(
-          ChatOperationType.CONTEXT_GATHERING,
-          t('agent.analyzeTaskPlan'),
-          {
-            task,
-            analysis
-          }
-        );
-        return analysis;
-      })
-    );
-    
-    // Register command for structured problem solving
-    this.disposables.push(
-      vscode.commands.registerCommand('knox.structuredSolve', async (task: string) => {
-        // First perform analysis
-        const analysis = await this.reasoningEngine.performTaskAnalysis(task);
-        
-        // Report complexity and steps
-        vscode.window.showInformationMessage(
-          t('agent.taskComplexity', { complexity: analysis.estimatedComplexity.toUpperCase(), count: analysis.steps.length })
-        );
-        
-        // Queue a context gathering operation with the analysis
-        this.chatFlowCoordinator.queueOperation(
-          ChatOperationType.CONTEXT_GATHERING,
-          t('agent.analyzeTaskPlan'),
-          {
-            task,
-            analysis
-          }
-        );
-        
-        // Queue each step as an informational context-gathering operation
-        for (let i = 0; i < analysis.steps.length; i++) {
-          const step = analysis.steps[i];
-
-          this.chatFlowCoordinator.queueOperation(
-            ChatOperationType.CONTEXT_GATHERING,
-            t('agent.stepN', { n: i + 1, step }),
-            {
-              step_number: i + 1,
-              step_description: step,
-              total_steps: analysis.steps.length,
-              task,
-              complexity: analysis.estimatedComplexity,
-            }
-          );
-        }
-        
-        return analysis;
       })
     );
   }

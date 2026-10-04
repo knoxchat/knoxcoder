@@ -31,8 +31,10 @@ const run = (
   script: ScriptedTurn[],
   permission?: HeadlessPermission,
   maxSteps?: number,
+  trustWorkspaceHooks = true,
 ) =>
   runHeadless({
+    trustWorkspaceHooks,
     task: "do it",
     workspaceDir: dir,
     llm: createScriptedLlm(script) as never,
@@ -244,6 +246,37 @@ describe("headless hooks (K-023)", () => {
       "hello world\n",
     );
     expect(r.tools.find((t) => t.name === "builtin_edit_file")?.ok).toBe(false);
+  });
+});
+
+describe("headless repo-local hooks need explicit trust (P0-4)", () => {
+  const marker = (dir: string) => path.join(dir, "hook-ran");
+  const repo = () => {
+    const dir = tmp({});
+    fs.mkdirSync(path.join(dir, ".knox"), { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, ".knox", "hooks.json"),
+      JSON.stringify({ hooks: { SessionStart: [{ command: `touch ${JSON.stringify(marker(dir))}` }] } }),
+    );
+    return dir;
+  };
+
+  it("does not run .knox/hooks.json by default", async () => {
+    const dir = repo();
+    const r = await run(dir, [{ content: "done" }], undefined, undefined, false);
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(marker(dir))).toBe(false);
+  });
+
+  it("runs them when trusted", async () => {
+    const dir = repo();
+    await run(dir, [{ content: "done" }], undefined, undefined, true);
+    expect(fs.existsSync(marker(dir))).toBe(true);
+  });
+
+  it("parses --trust-hooks", () => {
+    expect((parseCliArgs(["x"]) as { trustHooks?: boolean }).trustHooks).toBeUndefined();
+    expect(parseCliArgs(["x", "--trust-hooks"])).toMatchObject({ trustHooks: true });
   });
 });
 

@@ -9,6 +9,8 @@ import { RetrievalFusion } from "../RetrievalFusion.js";
 import { loadConfig } from "./config.js";
 import { createTables, migrateSchema } from "./schema.js";
 import { brainState } from "./state.js";
+import { withFileLock } from "../../../../util/fileLock.js";
+import { applyBrainPragmas, enforceBrainSizeCap, prepareBrainDb, stampBrainVersion } from "./dbSafety.js";
 
 /** True after the first successful `get()` in this process. */
 export function isOpen(): boolean {
@@ -26,16 +28,24 @@ export async function get(): Promise<DatabaseConnection> {
 
   brainState.initPromise = (async () => {
     try {
-      const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-      });
+      // Backup / corruption move-aside / schema migration must not run in two
+      // windows at once (the second would back up or quarantine a DB the first
+      // has open). Steady-state access is left to SQLite's WAL + busy_timeout.
+      const db = await withFileLock(`${dbPath}.init.lock`, async () => {
+        await prepareBrainDb(dbPath);
+        const opened = await open({
+          filename: dbPath,
+          driver: sqlite3.Database,
+        });
 
-      await db.exec("PRAGMA busy_timeout = 5000;");
-      await db.exec("PRAGMA journal_mode = WAL;");
-      await db.exec("PRAGMA foreign_keys = ON;");
-      await createTables(db);
-      await migrateSchema(db);
+        await applyBrainPragmas(opened);
+        await createTables(opened);
+        await migrateSchema(opened);
+        await stampBrainVersion(opened);
+        // Opening replayed any WAL left by a crash; fold it into the main file.
+        await opened.exec("PRAGMA wal_checkpoint(TRUNCATE);").catch(() => {});
+        return opened;
+      });
       await RetrievalFusion.initFts5Tables(db).catch(() => {
         // FTS5 might not be available in all SQLite builds — degrade gracefully
       });
@@ -51,6 +61,8 @@ export async function get(): Promise<DatabaseConnection> {
       }
       const { KnowledgeGraph } = await import("../KnowledgeGraph.js");
       await KnowledgeGraph.enforceEntityCap().catch(() => {});
+      // FTS triggers exist by now, so pruned rows leave the indexes too.
+      await enforceBrainSizeCap(db, dbPath).catch(() => {});
 
       return db;
     } finally {

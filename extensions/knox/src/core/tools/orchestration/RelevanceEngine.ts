@@ -545,21 +545,13 @@ export class RelevanceEngine {
         expectedAccuracy: 0.9,
       });
 
-      strategies.push({
-        name: 'multi_file_search',
-        tools: ['builtin_multi_file_search', 'builtin_exact_search'],
-        priority: 2,
-        costEstimate: 'medium',
-        expectedAccuracy: 0.85,
-      });
-
       if (complexity === 'complex') {
         strategies.push({
           name: 'comprehensive_search',
-          tools: ['builtin_multi_file_search', 'builtin_analyze_code', 'builtin_exact_search'],
-          priority: 3,
+          tools: ['builtin_enhanced_search', 'builtin_exact_search'],
+          priority: 2,
           costEstimate: 'high',
-          expectedAccuracy: 0.95,
+          expectedAccuracy: 0.9,
         });
       }
     }
@@ -579,7 +571,7 @@ export class RelevanceEngine {
     if (intent.primary === 'analyze') {
       strategies.push({
         name: 'code_analysis',
-        tools: ['builtin_analyze_code', 'builtin_read_file'],
+        tools: ['builtin_read_file'],
         priority: 1,
         costEstimate: 'medium',
         expectedAccuracy: 0.85,
@@ -730,8 +722,6 @@ export class RelevanceEngine {
     const structureAwareTools = [
       'builtin_view_repo_map',
       'builtin_view_subdirectory',
-      'builtin_analyze_code',
-      'builtin_multi_file_search',
     ];
 
     return structureAwareTools.includes(tool.function.name);
@@ -750,7 +740,7 @@ export class RelevanceEngine {
     if (!resources) return true;
 
     // Check memory constraints
-    const heavyTools = ['builtin_multi_file_search', 'builtin_analyze_code'];
+    const heavyTools = ['builtin_enhanced_search'];
     if (resources.memory === 'low' && heavyTools.includes(tool.function.name)) {
       return false;
     }

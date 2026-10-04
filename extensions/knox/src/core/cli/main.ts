@@ -210,6 +210,7 @@ async function backgroundWorker(id: string): Promise<number> {
         permission: parsed.permission,
         profile: parsed.profile,
         maxSteps: parsed.maxSteps,
+        trustWorkspaceHooks: parsed.trustHooks,
       });
     },
   });
@@ -260,6 +261,7 @@ async function main(): Promise<number> {
     permission: parsed.permission,
     profile: parsed.profile,
     maxSteps: parsed.maxSteps,
+    trustWorkspaceHooks: parsed.trustHooks,
     abortSignal: controller.signal,
     onEvent: (e) => {
       if (parsed.streamJson) {

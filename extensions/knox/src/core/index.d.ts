@@ -207,6 +207,8 @@ export interface Session {
   title: string;
   workspaceDirectory: string;
   history: ChatHistoryItem[];
+  /** On-disk schema version of the session file (absent = 0, pre-2.0 stable). */
+  schemaVersion?: number;
   /** Set on history/load when GUI hydrate was slimmed. Not persisted to disk. */
   guiHydrateSlimmed?: boolean;
 }

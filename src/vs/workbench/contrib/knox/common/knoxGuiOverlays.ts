@@ -5,6 +5,7 @@
 
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
 import { isAskUserToolName } from './knoxGuiChat.js';
+import { knoxGuiRedactSecrets } from './knoxGuiRedact.js';
 import { toolPermissionDisplay } from './knoxGuiTools.js';
 import {
 	IKnoxGuiConfigError,
@@ -1359,7 +1360,7 @@ export function formatSessionExportMarkdown(session: {
 	}
 	if (session.history.length) {
 		for (const item of session.history) {
-			const quoted = item.content.replace(/^/gm, '> ');
+			const quoted = knoxGuiRedactSecrets(item.content).replace(/^/gm, '> ');
 			const role = t(item.role === 'user' ? 'userRole' : 'assistantRole');
 			content += `\n\n#### _${role}_\n\n${quoted}`;
 		}

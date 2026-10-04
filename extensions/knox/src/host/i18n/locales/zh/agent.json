@@ -12,7 +12,6 @@
   "agent.undoUnavailable": "没有可撤销的操作 — 尚未记录助手文件更改。",
   "agent.redoUnavailable": "没有可重做的操作 — 没有已撤销的助手文件更改。",
   "agent.reapplyUnavailable": "重新应用编辑功能暂时不可用。",
-  "agent.taskComplexity": "任务复杂度：{{complexity}}。分解为 {{count}} 个步骤...",
   "agent.checkingFixing": "助理正在检查和修复代码问题...",
   "agent.executingOperation": "$(sync~spin) 助理模式正在执行操作：{{name}}...",
   "agent.reapplyingEdit": "$(sync~spin) 正在重新应用编辑到 {{file}}...",
@@ -54,7 +53,5 @@
   "agent.op.readingFile": "正在读取文件：{{description}}",
   "agent.op.runningCommand": "正在运行命令：{{description}}",
   "agent.op.executingTool": "正在执行工具：{{description}}",
-  "agent.op.gatheringContext": "正在收集上下文：{{description}}",
-  "agent.analyzeTaskPlan": "分析任务结构并制定计划",
-  "agent.stepN": "步骤 {{n}}：{{step}}"
+  "agent.op.gatheringContext": "正在收集上下文：{{description}}"
 }

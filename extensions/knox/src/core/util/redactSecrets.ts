@@ -9,7 +9,7 @@
 export const REDACTED = "[REDACTED]";
 
 const SENSITIVE_KEY =
-  "(?:[A-Za-z0-9_.-]*(?:api[_-]?key|apikey|secret|token|passwd|password|pwd|private[_-]?key|access[_-]?key|auth|credential)s?[A-Za-z0-9_.-]*)";
+  "(?:[A-Za-z0-9_.-]{0,48}(?:api[_-]?key|apikey|secret|token|passwd|password|pwd|private[_-]?key|access[_-]?key|auth|credential)s?[A-Za-z0-9_.-]{0,48})";
 
 const RULES: Array<{ re: RegExp; replace: string | ((...m: string[]) => string) }> = [
   // PEM / OpenSSH private key blocks (whole block).
@@ -19,7 +19,7 @@ const RULES: Array<{ re: RegExp; replace: string | ((...m: string[]) => string) 
   },
   // URL credentials: scheme://user:pass@host
   {
-    re: /\b([a-z][a-z0-9+.-]*:\/\/)([^\s:/@]+):([^\s@/]+)@/gi,
+    re: /\b([a-z][a-z0-9+.-]*:\/\/)([^\s:/@]*):([^\s@/]+)@/gi,
     replace: (_m, scheme, user) => `${scheme}${user}:${REDACTED}@`,
   },
   // Authorization / Bearer headers.
@@ -27,7 +27,20 @@ const RULES: Array<{ re: RegExp; replace: string | ((...m: string[]) => string) 
     re: /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{12,}/g,
     replace: (_m, kind) => `${kind} ${REDACTED}`,
   },
+  // `Authorization: <scheme> <credential>` for any scheme (Token, Digest, ...).
+  {
+    re: /(\bauthorization["']?\s*[:=]\s*["']?)(?:(Bearer|Basic|Token|Digest|Negotiate|ApiKey)\s+)?(?!\[REDACTED\])[^\s"',;]{12,}/gi,
+    replace: (_m, lead, scheme) => `${lead}${scheme ? scheme + " " : ""}${REDACTED}`,
+  },
+  // API-key style headers: `x-api-key: ...`, `X-Auth-Token: ...`.
+  {
+    re: /\b((?:x-[a-z-]*(?:key|token|secret|auth)[a-z-]*|api-key)\s*:\s*)(?!\[REDACTED\])[^\s"',;]{12,}/gi,
+    replace: (_m, lead) => `${lead}${REDACTED}`,
+  },
   // Well-known token shapes.
+  { re: /\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}/g, replace: REDACTED },
+  { re: /\bwhsec_[A-Za-z0-9]{16,}/g, replace: REDACTED },
+  { re: /\bya29\.[A-Za-z0-9_-]{20,}/g, replace: REDACTED },
   { re: /\bsk-ant-[A-Za-z0-9_-]{16,}/g, replace: REDACTED },
   { re: /\bsk-or-[A-Za-z0-9_-]{16,}/g, replace: REDACTED },
   { re: /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}/g, replace: REDACTED },
@@ -42,7 +55,7 @@ const RULES: Array<{ re: RegExp; replace: string | ((...m: string[]) => string) 
   // KEY=value / "key": "value" where the key name looks sensitive.
   {
     re: new RegExp(
-      `(["']?${SENSITIVE_KEY}["']?\\s*[=:]\\s*)(["'])([^"'\\n]{6,})\\2`,
+      `((?<![A-Za-z0-9_.-])["']?${SENSITIVE_KEY}["']?\\s*[=:]\\s*)(["'])([^"'\\n]{6,})\\2`,
       "gi",
     ),
     replace: (_m, lead, q) => `${lead}${q}${REDACTED}${q}`,

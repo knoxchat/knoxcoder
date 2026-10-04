@@ -73,3 +73,41 @@ jobs:
       - name: Inventory gate
         working-directory: extensions/knox
         run: npm run inventory-gate
+
+  # Knox GUI / contract tests run inside Electron (scripts/test.sh) under xvfb.
+  # continue-on-error until it has been green for several runs (v2-impl.md, P0-1); then remove it so it gates packaging.
+  gui:
+    name: Knox GUI contract tests (Electron)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            extensions/knox/package-lock.json
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config python3 python-is-python3 xvfb \
+            libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev \
+            libgtk-3-0 libnss3 libasound2 libgbm1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download Electron
+        run: npm run electron
+
+      - name: Transpile client
+        run: npm run transpile-client
+
+      - name: Knox GUI tests
+        run: xvfb-run -a ./scripts/test.sh --glob "vs/workbench/contrib/knox/**/*.test.js"

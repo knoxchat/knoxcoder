@@ -19,6 +19,14 @@ const WRAPPERS = new Set([
   "builtin",
 ]);
 
+/** Wrapper options that consume the following token as their value. */
+const WRAPPER_VALUE_FLAGS: Record<string, Set<string>> = {
+  sudo: new Set(["-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "-U", "-r", "-t"]),
+  doas: new Set(["-u", "-C"]),
+  nice: new Set(["-n"]),
+  env: new Set(["-u", "-C", "-S"]),
+};
+
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish"]);
 
 /** Split on unquoted control operators. Quotes are respected. */
@@ -107,11 +115,19 @@ export function splitShellCommands(command: string, depth = 0): string[][] {
         tokens = tokens.slice(1);
       }
       if (tokens.length && WRAPPERS.has(baseName(tokens[0]))) {
+        const wrapper = baseName(tokens[0]);
         tokens = tokens.slice(1);
-        // `sudo -u root cmd`, `env -i cmd`: drop option flags.
+        // `sudo -u root cmd`, `nice -n 5 cmd`, `env -i cmd`: drop options
+        // (and the value of options that take one).
+        const withValue = WRAPPER_VALUE_FLAGS[wrapper];
         while (tokens.length && tokens[0].startsWith("-")) {
+          const flag = tokens[0];
           tokens = tokens.slice(1);
+          if (withValue?.has(flag) && tokens.length) {
+            tokens = tokens.slice(1);
+          }
         }
+        // `nice -5 cmd` style is covered by the `-` loop; `nice 5 cmd` is not valid.
         continue;
       }
       break;
@@ -123,6 +139,12 @@ export function splitShellCommands(command: string, depth = 0): string[][] {
       const cIdx = tokens.findIndex((t) => /^-[a-z]*c[a-z]*$/.test(t));
       if (cIdx >= 0 && tokens[cIdx + 1]) {
         result.push(...splitShellCommands(tokens[cIdx + 1], depth + 1));
+        continue;
+      }
+      // `bash -s <<< 'script'`: the here-string is the script.
+      const hereIdx = tokens.indexOf("<<<");
+      if (hereIdx >= 0 && tokens[hereIdx + 1]) {
+        result.push(...splitShellCommands(tokens[hereIdx + 1], depth + 1));
         continue;
       }
     }
@@ -142,8 +164,79 @@ export function splitShellCommands(command: string, depth = 0): string[][] {
 }
 
 function baseName(token: string): string {
-  const i = token.lastIndexOf("/");
+  const i = Math.max(token.lastIndexOf("/"), token.lastIndexOf("\\"));
   return i >= 0 ? token.slice(i + 1) : token;
+}
+
+/** Lowercased command name without a Windows executable extension. */
+function winName(token: string): string {
+  return baseName(token).toLowerCase().replace(/\.(exe|cmd|bat|com)$/, "");
+}
+
+const WIN_SHELLS = new Set(["cmd", "powershell", "pwsh"]);
+
+/** Returns a reason when a Windows (cmd / PowerShell) command is destructive. */
+function detectWindowsDanger(tokens: string[]): string | null {
+  const name = winName(tokens[0]);
+  const args = tokens.slice(1);
+  if (
+    (name === "powershell" || name === "pwsh") &&
+    args.some((a) => /^-e(c|nc|ncodedcommand|ncodedcomma?n?d?)?$/i.test(a))
+  ) {
+    return "PowerShell -EncodedCommand hides what will run";
+  }
+  const lower = args.map((a) => a.toLowerCase());
+  const flag = (f: string) => lower.some((a) => a === `/${f}` || a === `-${f}`);
+
+  // `-r` is unambiguous only for Remove-Item; POSIX `rm -r` is handled by toolPolicy.
+  const psRecurse = lower.some((a) =>
+    name === "remove-item" || name === "ri"
+      ? /^-r(e(c(u(r(se?)?)?)?)?)?$/.test(a)
+      : /^-re(c(u(r(se?)?)?)?)?$/.test(a),
+  );
+  const psAlias = ["remove-item", "ri", "rm", "del", "erase", "rmdir", "rd"].includes(name);
+
+  if ((name === "del" || name === "erase") && (flag("s") || (flag("q") && flag("f")))) {
+    return "del removes files recursively or without confirmation";
+  }
+  if ((name === "rd" || name === "rmdir") && flag("s")) {
+    return "rd /s removes a directory tree";
+  }
+  if (psAlias && psRecurse) {
+    return "Remove-Item -Recurse deletes a directory tree";
+  }
+  if (name === "format" && lower.some((a) => /^[a-z]:$/.test(a))) {
+    return "format erases a disk volume";
+  }
+  if (name === "diskpart" || (name === "cipher" && lower.some((a) => a.startsWith("/w")))) {
+    return `${name} can destroy disk data`;
+  }
+  if (name === "reg" && lower[0] === "delete") {
+    return "reg delete removes registry keys";
+  }
+  if (name === "clear-disk" || name === "format-volume" || name === "remove-partition") {
+    return `${name} destroys disk data`;
+  }
+  return null;
+}
+
+/** Inner script of `cmd /c ...` or `powershell -Command ...`. */
+function windowsShellScript(tokens: string[]): string | null {
+  const name = winName(tokens[0]);
+  if (!WIN_SHELLS.has(name)) {
+    return null;
+  }
+  const idx = tokens.findIndex((t, i) => {
+    if (i === 0) {
+      return false;
+    }
+    const l = t.toLowerCase();
+    return name === "cmd" ? l === "/c" || l === "/k" : l === "-command" || l === "-c";
+  });
+  if (idx < 0 || idx + 1 >= tokens.length) {
+    return null;
+  }
+  return tokens.slice(idx + 1).join(" ");
 }
 
 function hasShortFlag(args: string[], letters: string): boolean {
@@ -176,6 +269,13 @@ function gitSubcommand(args: string[]): { sub: string; rest: string[] } | null {
   return null;
 }
 
+const INTERPRETERS =
+  "(?:(?:ba|z|da|k|c|fi)?sh|python[0-9.]*|node|nodejs|perl|ruby|php|pwsh|powershell|deno|bun)";
+
+/** Git config keys that make git run an arbitrary program. */
+const GIT_EXEC_CONFIG_RE =
+  /^(?:alias\.[^=]+=\s*!|core\.(?:sshcommand|fsmonitor|editor|hookspath|askpass|gitproxy)=|credential\.helper=|diff\.external=|protocol\.ext\.allow=|filter\.[^=]+\.(?:clean|smudge|process)=|merge\.[^=]+\.driver=)/i;
+
 const RAW_DEVICE_RE = /^\/dev\/(sd|hd|vd|xvd|nvme|mmcblk|disk|rdisk|mapper|md)/;
 
 /**
@@ -190,20 +290,49 @@ export function detectDangerousCommand(command: string): string | null {
       return `writes to raw device ${m[1]}`;
     }
   }
-  // curl/wget piped to a shell (with optional sudo / env / absolute path).
+  // curl/wget piped to a shell or script interpreter.
   if (
-    /\b(curl|wget|fetch)\b[^\n]*\|\s*(?:sudo\s+|env\s+)*(?:\S*\/)?(?:ba|z|da|k)?sh\b/i.test(
-      command,
-    ) ||
+    new RegExp(
+      `\\b(curl|wget|fetch)\\b[^\\n]*\\|\\s*(?:sudo\\s+|env\\s+)*(?:\\S*\\/)?${INTERPRETERS}\\b`,
+      "i",
+    ).test(command) ||
     /\b(?:ba|z)?sh\s+<\(\s*(curl|wget)\b/i.test(command) ||
     /\b(?:ba|z)?sh\s+-c\s+["']?\$\(\s*(curl|wget)\b/i.test(command)
   ) {
     return "pipes a downloaded script into a shell";
   }
+  // Decoded payloads piped into a shell (`base64 -d | sh`, `xxd -r | bash`).
+  if (
+    new RegExp(
+      `\\b(?:base64\\s+(?:-d|-D|--decode)|xxd\\s+-r|openssl\\s+(?:enc|base64)\\b[^|\\n]*-d|basenc\\b[^|\\n]*--decode)\\b[^\\n]*\\|\\s*(?:sudo\\s+|env\\s+)*(?:\\S*\\/)?${INTERPRETERS}\\b`,
+      "i",
+    ).test(command)
+  ) {
+    return "pipes a decoded payload into a shell";
+  }
+  // PowerShell download-and-execute and opaque encoded commands.
+  if (
+    /\b(?:iex|invoke-expression)\b/i.test(command) &&
+    /\b(?:iwr|irm|invoke-webrequest|invoke-restmethod|downloadstring|downloadfile|curl|wget)\b/i.test(command)
+  ) {
+    return "executes downloaded PowerShell code";
+  }
 
   for (const tokens of splitShellCommands(command)) {
     const cmd = baseName(tokens[0]);
     const args = tokens.slice(1);
+
+    const winReason = detectWindowsDanger(tokens);
+    if (winReason) {
+      return winReason;
+    }
+    const inner = windowsShellScript(tokens);
+    if (inner) {
+      const nested = detectDangerousCommand(inner);
+      if (nested) {
+        return nested;
+      }
+    }
 
     if (cmd === "git") {
       const parsed = gitSubcommand(args);
@@ -211,20 +340,56 @@ export function detectDangerousCommand(command: string): string | null {
         continue;
       }
       const { sub, rest } = parsed;
+      for (let i = 0; i < args.length; i++) {
+        const a = args[i];
+        let cfg: string | undefined;
+        if (a === "-c" || a === "--config") {
+          cfg = args[i + 1];
+        } else if (a.startsWith("--config=")) {
+          cfg = a.slice("--config=".length);
+        } else if (/^-c.+/s.test(a)) {
+          cfg = a.slice(2); // glued form: -calias.x=!cmd
+        }
+        if (cfg !== undefined && GIT_EXEC_CONFIG_RE.test(cfg)) {
+          return "git -c sets a config key that runs an arbitrary program";
+        }
+      }
       if (
         sub === "push" &&
         (rest.some(
           (a) =>
             a === "--force" ||
             a === "-f" ||
+            a === "--mirror" ||
+            a === "--delete" ||
+            a === "-d" ||
+            (a.startsWith(":") && a.length > 1) ||
             (a.startsWith("+") && a.length > 1 && !a.startsWith("+refs/tags")),
         ) ||
           hasShortFlag(rest, "f"))
       ) {
         return "git push --force can overwrite remote history";
       }
-      if (sub === "reset" && rest.includes("--hard")) {
+      if (sub === "reset" && (rest.includes("--hard") || rest.includes("--merge"))) {
         return "git reset --hard discards uncommitted work";
+      }
+      if (sub === "checkout" && (rest.includes("-f") || rest.includes("--force"))) {
+        return "git checkout --force discards uncommitted work";
+      }
+      if (sub === "branch" && rest.includes("-D")) {
+        return "git branch -D deletes a branch without merge checks";
+      }
+      if (sub === "stash" && (rest[0] === "clear" || rest[0] === "drop")) {
+        return "git stash clear/drop discards stashed work";
+      }
+      if (sub === "reflog" && rest[0] === "expire") {
+        return "git reflog expire removes recovery points";
+      }
+      if (sub === "gc" && rest.some((a) => a.startsWith("--prune=now"))) {
+        return "git gc --prune=now permanently removes unreachable objects";
+      }
+      if (sub === "filter-branch" || sub === "filter-repo") {
+        return `git ${sub} rewrites history`;
       }
       if (
         sub === "clean" &&
@@ -243,6 +408,19 @@ export function detectDangerousCommand(command: string): string | null {
       continue;
     }
 
+    if (cmd === "rm") {
+      const recursive = args.some(
+        (a) => a === "--recursive" || (/^-[A-Za-z]+$/.test(a) && /[rR]/.test(a)),
+      );
+      const force = args.some(
+        (a) => a === "--force" || (/^-[A-Za-z]+$/.test(a) && a.includes("f")),
+      );
+      if (recursive && force) {
+        return "rm -r -f removes a directory tree without confirmation";
+      }
+      continue;
+    }
+
     if (cmd === "chmod" || cmd === "chown" || cmd === "chgrp") {
       if (
         hasAnyShortFlag(args, "R") ||
@@ -254,11 +432,24 @@ export function detectDangerousCommand(command: string): string | null {
     }
 
     if (cmd === "find") {
-      if (
-        args.includes("-delete") ||
-        args.some((a, i) => a === "-exec" && /^(rm|shred|unlink)$/.test(baseName(args[i + 1] ?? "")))
-      ) {
+      if (args.includes("-delete")) {
         return "find with -delete / -exec rm removes files in bulk";
+      }
+      for (let i = 0; i < args.length; i++) {
+        if (["-exec", "-execdir", "-ok", "-okdir"].includes(args[i])) {
+          let end = i + 1;
+          while (end < args.length && args[end] !== ";" && args[end] !== "\\;" && args[end] !== "+") {
+            end++;
+          }
+          const inner = args.slice(i + 1, end).join(" ");
+          if (/^(rm|shred|unlink)$/.test(baseName(args[i + 1] ?? ""))) {
+            return "find with -delete / -exec rm removes files in bulk";
+          }
+          const nested = detectDangerousCommand(inner);
+          if (nested) {
+            return nested;
+          }
+        }
       }
       continue;
     }

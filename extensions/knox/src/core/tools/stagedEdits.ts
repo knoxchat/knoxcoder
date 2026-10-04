@@ -10,6 +10,7 @@
 import { diffLines } from "diff";
 
 import type { IDE } from "..";
+import { checkStagedApplyTarget } from "./toolPolicy";
 
 export interface StagedFile {
   /** Content on disk when first staged; null if the file did not exist. */
@@ -213,15 +214,29 @@ export async function applyStaged(
   ide: IDE,
   staged: StagedEdits,
   fileUris?: string[],
+  /** Workspace roots the staged paths belong to; defaults to `ide.getWorkspaceDirs()`. */
+  workspaceRoots?: string[],
 ): Promise<ApplyStagedResult> {
   const only = fileUris ? new Set(fileUris) : null;
   const result: ApplyStagedResult = { applied: [], failed: [] };
+  let workspaceDirs: string[] = workspaceRoots ?? [];
+  try {
+    if (!workspaceRoots) {
+      workspaceDirs = (await ide.getWorkspaceDirs()) ?? [];
+    }
+  } catch {
+    // No workspace info: only hard-denied paths are checked.
+  }
   for (const [fileUri, file] of [...staged.files]) {
     if (only && !only.has(fileUri)) {
       continue;
     }
     try {
       if (file.before !== file.after) {
+        const refused = checkStagedApplyTarget(fileUri, workspaceDirs);
+        if (refused) {
+          throw new Error(refused);
+        }
         if (file.after === null) {
           await (ide as any).removeFile(fileUri);
         } else {

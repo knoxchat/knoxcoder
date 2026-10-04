@@ -192,3 +192,34 @@ describe("git worktree isolation", () => {
     await discardAgentWorktree(ide, state);
   });
 });
+
+describe("isSafeWorktreeApplyPath", () => {
+  it("rejects traversal, absolute paths and symlinks that leave the trees", async () => {
+    const fs = await import("fs");
+    const os = await import("os");
+    const pathMod = await import("path");
+    const { isSafeWorktreeApplyPath } = await import("./worktree");
+    const base = fs.realpathSync(fs.mkdtempSync(pathMod.join(os.tmpdir(), "knox-wt-")));
+    try {
+      const ws = pathMod.join(base, "ws");
+      const wt = pathMod.join(base, "wt");
+      const outside = pathMod.join(base, "outside");
+      for (const d of [ws, wt, outside]) fs.mkdirSync(d, { recursive: true });
+      fs.writeFileSync(pathMod.join(outside, "secret"), "x");
+      fs.writeFileSync(pathMod.join(wt, "ok.ts"), "x");
+      expect(isSafeWorktreeApplyPath("ok.ts", ws, wt)).toBe(true);
+      expect(isSafeWorktreeApplyPath("new/dir/file.ts", ws, wt)).toBe(true);
+      expect(isSafeWorktreeApplyPath("../outside/secret", ws, wt)).toBe(false);
+      expect(isSafeWorktreeApplyPath("a/../../x", ws, wt)).toBe(false);
+      expect(isSafeWorktreeApplyPath("/etc/passwd", ws, wt)).toBe(false);
+      if (process.platform !== "win32") {
+        fs.symlinkSync(pathMod.join(outside, "secret"), pathMod.join(wt, "leak"));
+        fs.symlinkSync(outside, pathMod.join(ws, "outlink"));
+        expect(isSafeWorktreeApplyPath("leak", ws, wt)).toBe(false);
+        expect(isSafeWorktreeApplyPath("outlink/file", ws, wt)).toBe(false);
+      }
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
+  });
+});

@@ -1,18 +1,12 @@
 # Agent Mode Extension for VSCode
 
-This extension adds VS Code host features around Knox Agent (checkpoints, shadow preview, diagnostics, DAP). **The product Agent loop is GUI chat** (`streamNormalInput` → Core `tools/call`). Classes below (`ReasoningEngine`, `CodeIntelligenceService`, …) are optional extension helpers — they are not the harness that runs `builtin_*` tools.
+This extension adds VS Code host features around Knox Agent (checkpoints, shadow preview, diagnostics, DAP). **The product Agent loop is GUI chat** (`streamNormalInput` → Core `tools/call`). Classes below (`CodeIntelligenceService`, `RefactoringService`, …) are optional extension helpers — they are not the harness that runs `builtin_*` tools.
 
 ## Key Features
 
 ### 1. Task plan (product path)
 
-The Agent loop plans with **`builtin_plan`** (create/add/update/complete). That plan is injected every turn and survives compaction. Do not call `ReasoningEngine.performTaskAnalysis` from GUI chat — that class is **legacy** (extension-only, not the harness).
-
-```typescript
-// Product path: the model calls builtin_plan. Optional leftover:
-import { ReasoningEngine } from './agent';
-// ReasoningEngine is quarantined. Prefer builtin_plan in Agent chat.
-```
+The Agent loop plans with **`builtin_plan`** (create/add/update/complete). That plan is injected every turn and survives compaction. There is no host-side planner: the former `ReasoningEngine` (`knox.analyzeTask`, `knox.structuredSolve`, `knox.performTaskAnalysis`) was removed in 2.0.0.
 
 ### 2. File Navigation Intelligence
 

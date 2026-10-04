@@ -1,0 +1,12 @@
+name: Knox
+version: "1.0.0"
+schema: v1
+models:
+  - name: My GPT
+    provider: openai
+    model: gpt-4o
+    apiKey: sk-fixture-not-real
+context:
+  - provider: file
+  - provider: diff
+  - provider: memory

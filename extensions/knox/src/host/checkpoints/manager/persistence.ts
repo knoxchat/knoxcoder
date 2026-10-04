@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 
 import { getGlobalCheckpointsPath } from 'core/util/paths';
 import { createKnoxLogger } from 'core/util/knoxLog';
+import { backupOnce } from 'core/util/schemaVersions';
 
 import { writeFileAtomic, writeFileAtomicSync } from '../store/atomicWrite';
 import {
@@ -17,6 +18,7 @@ import {
     referencedBlobHashes,
 } from '../store/blobStore';
 import { BlobEncryptionError } from '../store/blobEncryption';
+import { STORE_LOCK_DIRNAME, withStoreLock } from '../store/storeLock';
 import {
     CHECKPOINT_SCHEMA_VERSION,
     computeCheckpointContentSha256,
@@ -335,12 +337,16 @@ export async function gcUnreferencedCheckpointBlobs(host: CheckpointEngineHost):
     bytesReclaimed: number;
 }> {
     try {
-        const referenced = await collectReferencedBlobHashes(host);
-        const result = await gcUnreferencedBlobs(getStoragePath(host), referenced);
-        if (result.deleted > 0) {
-            log.info(`🧹 GC removed ${result.deleted} unreferenced blobs (${result.bytesReclaimed} bytes)`);
-        }
-        return result;
+        // Held across "collect referenced" and "delete" so another window cannot
+        // write a blob between the two and have it collected as an orphan.
+        return await withStoreLock(getStoragePath(host), async () => {
+            const referenced = await collectReferencedBlobHashes(host);
+            const result = await gcUnreferencedBlobs(getStoragePath(host), referenced);
+            if (result.deleted > 0) {
+                log.info(`🧹 GC removed ${result.deleted} unreferenced blobs (${result.bytesReclaimed} bytes)`);
+            }
+            return result;
+        });
     } catch (error) {
         log.warn('Failed to garbage-collect checkpoint blobs:', error);
         return { deleted: 0, bytesReclaimed: 0 };
@@ -348,6 +354,15 @@ export async function gcUnreferencedCheckpointBlobs(host: CheckpointEngineHost):
 }
 
 export async function saveCheckpointToDisk(
+    host: CheckpointEngineHost,
+    checkpointInfo: CheckpointInfo,
+): Promise<void> {
+    // Blobs are written before the manifest that references them; the lock keeps
+    // another window's GC from seeing them as unreferenced in between.
+    await withStoreLock(getStoragePath(host), () => saveCheckpointToDiskUnlocked(host, checkpointInfo));
+}
+
+async function saveCheckpointToDiskUnlocked(
     host: CheckpointEngineHost,
     checkpointInfo: CheckpointInfo,
 ): Promise<void> {
@@ -538,7 +553,70 @@ export async function rebuildHistoryFromManifests(host: CheckpointEngineHost): P
     return true;
 }
 
+const locallyRemoved = new WeakMap<object, Set<string>>();
+
+/** Remember ids this window deleted so an index merge never resurrects them. */
+export function markCheckpointRemoved(host: CheckpointEngineHost, checkpointId: string): void {
+    let ids = locallyRemoved.get(host);
+    if (!ids) {
+        ids = new Set();
+        locallyRemoved.set(host, ids);
+    }
+    ids.add(checkpointId);
+}
+
+/**
+ * Another window may have created checkpoints since this window loaded the
+ * index. Pull those in (manifest must exist, and we must not have deleted the
+ * id ourselves) so our write does not drop them.
+ */
+export async function mergeForeignIndexEntries(host: CheckpointEngineHost): Promise<number> {
+    const stored = await readIndexFile(getCheckpointIndexPath(host));
+    if (!stored) {
+        return 0;
+    }
+    const removed = locallyRemoved.get(host);
+    const known = new Set(host.checkpointHistory.map((cp) => cp.id));
+    let added = 0;
+    for (const entry of stored.checkpointHistory) {
+        if (known.has(entry.id) || removed?.has(entry.id)) {
+            continue;
+        }
+        if (!fs.existsSync(path.join(getStoragePath(host), `${entry.id}.json`))) {
+            continue;
+        }
+        host.checkpointHistory.push(entry);
+        known.add(entry.id);
+        if (entry.messageId && !host.messageCheckpoints[entry.messageId]) {
+            host.messageCheckpoints[entry.messageId] = entry.id;
+        }
+        if (entry.stableId && !host.stableIdCheckpoints[entry.stableId]) {
+            host.stableIdCheckpoints[entry.stableId] = entry.id;
+        }
+        added++;
+    }
+    if (added > 0) {
+        const branchIds = new Set((host.branches ?? []).map((branch) => branch.id));
+        host.branches = [...(host.branches ?? []), ...stored.branches.filter((branch) => !branchIds.has(branch.id))];
+        host.activeBranchId ??= stored.activeBranchId;
+        host.checkpointHistory.sort((a, b) => a.created.getTime() - b.created.getTime());
+        log.info(`🔀 Merged ${added} checkpoint(s) created by another window into the index`);
+    }
+    return added;
+}
+
 export async function saveCheckpointHistory(host: CheckpointEngineHost): Promise<void> {
+    try {
+        await withStoreLock(getStoragePath(host), async () => {
+            await mergeForeignIndexEntries(host);
+            await saveCheckpointHistoryUnlocked(host);
+        });
+    } catch (error) {
+        log.error('Failed to save checkpoint history:', error);
+    }
+}
+
+async function saveCheckpointHistoryUnlocked(host: CheckpointEngineHost): Promise<void> {
     try {
         host.checkpointHistory = host.checkpointHistory.map(toIndexRecord);
         const payload = {
@@ -709,6 +787,9 @@ export async function loadCheckpointHistory(
             applyLoadedIndex(host, stored);
             log.info(`✅ Loaded ${host.checkpointHistory.length} checkpoints from disk storage`);
             if (stored.fat) {
+                // Index is about to be rewritten in the current format (older,
+                // unversioned or newer): keep the original once.
+                backupOnce(getCheckpointIndexPath(host), stored.indexVersion ?? 0);
                 await saveCheckpointHistory(host);
             }
         } else {
@@ -767,6 +848,13 @@ export async function deleteCheckpointFromDisk(
     host: CheckpointEngineHost,
     checkpointId: string,
 ): Promise<void> {
+    await withStoreLock(getStoragePath(host), () => deleteCheckpointFromDiskUnlocked(host, checkpointId));
+}
+
+async function deleteCheckpointFromDiskUnlocked(
+    host: CheckpointEngineHost,
+    checkpointId: string,
+): Promise<void> {
     const checkpointFile = path.join(getStoragePath(host), `${checkpointId}.json`);
     try {
         await fs.promises.access(checkpointFile);
@@ -801,6 +889,9 @@ async function sumDirectoryBytes(dirPath: string): Promise<number> {
     }
     for (const entry of entries) {
         if (entry.name.startsWith('.') && entry.name.includes('.tmp')) {
+            continue;
+        }
+        if (entry.name === STORE_LOCK_DIRNAME || entry.name.startsWith(`${STORE_LOCK_DIRNAME}.stale-`)) {
             continue;
         }
         const fullPath = path.join(dirPath, entry.name);

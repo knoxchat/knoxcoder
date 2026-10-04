@@ -197,8 +197,7 @@ export class IntelligentChainOrchestrator {
     const steps: ChainStep[] = [];
 
     // Step 1: Multi-strategy search
-    const searchTool = this.tools.find(t => t.function.name === 'builtin_multi_file_search')
-      || this.tools.find(t => t.function.name === 'builtin_exact_search');
+    const searchTool = this.tools.find(t => t.function.name === 'builtin_exact_search');
 
     if (searchTool) {
       steps.push({
@@ -212,28 +211,7 @@ export class IntelligentChainOrchestrator {
       });
     }
 
-    // Step 2: If results are code files, optionally analyze them
-    if (analysis.intent.modifiers.has('analyze') || query.toLowerCase().includes('analyze')) {
-      const analyzeTool = this.tools.find(t => t.function.name === 'builtin_analyze_code');
-      if (analyzeTool) {
-        steps.push({
-          id: 'analyze-step',
-          tool: analyzeTool,
-          args: (ctx) => {
-            const searchResults = ctx.variables.get('searchResults') || [];
-            return {
-              filepath: searchResults[0]?.name || '',
-            };
-          },
-          condition: (ctx) => {
-            const results = ctx.variables.get('searchResults') || [];
-            return results.length > 0;
-          },
-        });
-      }
-    }
-
-    // Step 3: If asked to show/read, open the file
+    // Step 2: If asked to show/read, open the file
     if (analysis.intent.secondary.includes('read') || query.toLowerCase().includes('show')) {
       const readTool = this.tools.find(t => t.function.name === 'builtin_read_file');
       if (readTool) {
@@ -354,24 +332,6 @@ export class IntelligentChainOrchestrator {
           },
         });
       }
-    }
-
-    // Step 2: Analyze code
-    const analyzeTool = this.tools.find(t => t.function.name === 'builtin_analyze_code');
-    if (analyzeTool) {
-      steps.push({
-        id: 'analyze',
-        tool: analyzeTool,
-        args: (ctx) => {
-          const filepath = analysis.intent.entities.get('filepath')
-            || ctx.variables.get('targetFiles')?.[0]?.name;
-          return {
-            filepath,
-            analysisType: this.determineAnalysisType(query),
-            includeMetrics: true,
-          };
-        },
-      });
     }
 
     return steps;

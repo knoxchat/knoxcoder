@@ -14,6 +14,7 @@ import {
 } from './manager/persistence';
 import { getRestoreJournalPath, writeRestoreJournal } from './manager/restoreJournal';
 import { BLOB_COMPRESS_THRESHOLD } from './store/blobStore';
+import { withStoreLock } from './store/storeLock';
 
 async function listStoredBlobs(storagePath: string): Promise<string[]> {
     const objectsRoot = path.join(storagePath, 'objects');
@@ -1071,6 +1072,97 @@ suite('Checkpoint retention, fold safety, and quotas', () => {
             });
         } finally {
             await fs.rm(fixtureRoot, { recursive: true, force: true });
+            await fs.rm(storagePath, { recursive: true, force: true });
+        }
+    });
+});
+
+suite('Checkpoint multi-window safety', () => {
+    test('saving a stale index keeps checkpoints created by another window', async () => {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(workspaceFolder, 'Expected an active workspace folder');
+
+        const fixtureRoot = path.join(workspaceFolder.uri.fsPath, `cp-mw-${Date.now()}`);
+        const storagePath = await fs.mkdtemp(path.join(os.tmpdir(), 'knox-cp-mw-'));
+        await fs.mkdir(fixtureRoot, { recursive: true });
+        await fs.writeFile(path.join(fixtureRoot, 'a.ts'), 'export const n = 1;\n');
+
+        try {
+            await withIsolatedManager(fixtureRoot, storagePath, async (manager) => {
+                const firstId = await manager.createManualCheckpoint({ description: 'window A first' });
+                assert.ok(firstId);
+                const staleView = manager.checkpointHistory.filter((cp: { id: string }) => cp.id === firstId);
+
+                // "Window B" adds a checkpoint to the shared store.
+                await fs.writeFile(path.join(fixtureRoot, 'a.ts'), 'export const n = 2;\n');
+                const foreignId = await manager.createManualCheckpoint({ description: 'window B' });
+                assert.ok(foreignId);
+
+                // Window A still holds the old in-memory view and saves it.
+                manager.checkpointHistory = [...staleView];
+                await manager.saveCheckpointHistory();
+
+                const index = JSON.parse(await fs.readFile(getCheckpointIndexPath(manager), 'utf8'));
+                const ids = index.checkpointHistory.map((cp: { id: string }) => cp.id);
+                assert.ok(ids.includes(firstId));
+                assert.ok(ids.includes(foreignId), 'foreign checkpoint must not be dropped');
+            });
+        } finally {
+            await fs.rm(fixtureRoot, { recursive: true, force: true });
+            await fs.rm(storagePath, { recursive: true, force: true });
+        }
+    });
+
+    test('a checkpoint deleted by this window is not resurrected by the merge', async () => {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(workspaceFolder, 'Expected an active workspace folder');
+
+        const fixtureRoot = path.join(workspaceFolder.uri.fsPath, `cp-mw-del-${Date.now()}`);
+        const storagePath = await fs.mkdtemp(path.join(os.tmpdir(), 'knox-cp-mw-del-'));
+        await fs.mkdir(fixtureRoot, { recursive: true });
+        await fs.writeFile(path.join(fixtureRoot, 'a.ts'), 'export const n = 1;\n');
+
+        try {
+            await withIsolatedManager(fixtureRoot, storagePath, async (manager) => {
+                const firstId = await manager.createManualCheckpoint({ description: 'first' });
+                await fs.writeFile(path.join(fixtureRoot, 'a.ts'), 'export const n = 2;\n');
+                const secondId = await manager.createManualCheckpoint({ description: 'second' });
+                assert.ok(firstId && secondId);
+
+                assert.strictEqual(await manager.removeFromHistoryAndDisk(firstId), true);
+                await manager.saveCheckpointHistory();
+
+                const index = JSON.parse(await fs.readFile(getCheckpointIndexPath(manager), 'utf8'));
+                const ids = index.checkpointHistory.map((cp: { id: string }) => cp.id);
+                assert.ok(!ids.includes(firstId), 'deleted checkpoint must stay deleted');
+                assert.ok(ids.includes(secondId));
+            });
+        } finally {
+            await fs.rm(fixtureRoot, { recursive: true, force: true });
+            await fs.rm(storagePath, { recursive: true, force: true });
+        }
+    });
+
+    test('a held store lock blocks GC until released, so in-flight blobs survive', async () => {
+        const storagePath = await fs.mkdtemp(path.join(os.tmpdir(), 'knox-cp-mw-lock-'));
+        try {
+            let release!: () => void;
+            const gate = new Promise<void>((resolve) => (release = resolve));
+            const holder = withStoreLock(storagePath, () => gate);
+            await new Promise((resolve) => setTimeout(resolve, 20));
+
+            let finished = false;
+            const contender = withStoreLock(storagePath, async () => {
+                finished = true;
+            }).then(() => undefined);
+            await new Promise((resolve) => setTimeout(resolve, 80));
+            assert.strictEqual(finished, false, 'second window must wait for the first');
+
+            release();
+            await holder;
+            await contender;
+            assert.strictEqual(finished, true);
+        } finally {
             await fs.rm(storagePath, { recursive: true, force: true });
         }
     });

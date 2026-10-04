@@ -1,3 +1,5 @@
+import { writeFileAtomic } from "./atomicWrite.js";
+import { withFileLockSync } from "./fileLock.js";
 import * as fs from "fs";
 
 import { Session, SessionMetadata } from "../index.js";
@@ -8,6 +10,7 @@ import { NEW_SESSION_TITLE } from "./constants.js";
 import { getSessionFilePath, getSessionsListPath } from "./paths.js";
 import { SESSION_SEARCH_MAX_FILE_BYTES, SESSION_SEARCH_MIN_QUERY, searchSessions, type SessionSearchHit } from "./sessionSearch.js";
 import { capSessionForStorage } from "./sessionSizeCap.js";
+import { SESSION_SCHEMA_VERSION, backupOnce, sessionVersionOf } from "./schemaVersions.js";
 function safeParseArray<T>(
   value: string,
   errorMessage: string = "Error parsing array",
@@ -100,23 +103,26 @@ class HistoryManager {
     }
     fs.unlinkSync(sessionFile);
 
-    // Read and update the sessions list
+    // Read-modify-write of sessions.json under a cross-window lock so two
+    // windows deleting/saving at once cannot drop each other's entries.
     const sessionsListFile = getSessionsListPath();
-    const sessionsListRaw = fs.readFileSync(sessionsListFile, "utf-8");
-    let sessionsList =
-      safeParseArray<SessionMetadata>(
-        sessionsListRaw,
-        "Error parsing sessions.json",
-      ) ?? [];
+    withFileLockSync(`${sessionsListFile}.lock`, () => {
+      const sessionsListRaw = fs.readFileSync(sessionsListFile, "utf-8");
+      let sessionsList =
+        safeParseArray<SessionMetadata>(
+          sessionsListRaw,
+          "Error parsing sessions.json",
+        ) ?? [];
 
-    sessionsList = sessionsList.filter(
-      (session) => session.sessionId !== sessionId,
-    );
+      sessionsList = sessionsList.filter(
+        (session) => session.sessionId !== sessionId,
+      );
 
-    fs.writeFileSync(
-      sessionsListFile,
-      JSON.stringify(sessionsList, undefined, 2),
-    );
+      writeFileAtomic(
+        sessionsListFile,
+        JSON.stringify(sessionsList, undefined, 2),
+      );
+    });
   }
 
   load(sessionId: string): Session {
@@ -127,6 +133,11 @@ class HistoryManager {
       }
       const session: Session = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
       session.sessionId = sessionId;
+      if (sessionVersionOf(session) > SESSION_SCHEMA_VERSION) {
+        console.warn(
+          `Session ${sessionId} was written by a newer Knox (schema ${session.schemaVersion}); loading best-effort.`,
+        );
+      }
       return session;
     } catch (e) {
       console.log(t("errorLoadingSession", { error: String(e) }));
@@ -145,13 +156,28 @@ class HistoryManager {
     // Save the main session json file
     // Explicitely rewriting here to influence the written key order in the file!
     // e.g. id at the top, history next, etc.
+    const sessionFilePath = getSessionFilePath(session.sessionId);
+    try {
+      if (fs.existsSync(sessionFilePath)) {
+        const existing = sessionVersionOf(
+          JSON.parse(fs.readFileSync(sessionFilePath, "utf8")),
+        );
+        if (existing !== SESSION_SCHEMA_VERSION) {
+          // Older (unversioned) or newer file: keep it once before rewriting.
+          backupOnce(sessionFilePath, existing);
+        }
+      }
+    } catch {
+      // Unreadable file is about to be replaced by a valid one.
+    }
     const orderedSession: Session = {
+      schemaVersion: SESSION_SCHEMA_VERSION,
       sessionId: session.sessionId,
       title: session.title,
       workspaceDirectory: session.workspaceDirectory,
       history: session.history,
     };
-    fs.writeFileSync(
+    writeFileAtomic(
       getSessionFilePath(session.sessionId),
       JSON.stringify(orderedSession, undefined, 2),
     );
@@ -159,44 +185,46 @@ class HistoryManager {
     // Read and update the sessions list
     const sessionsListFilePath = getSessionsListPath();
     try {
-      const rawSessionsList = fs.readFileSync(sessionsListFilePath, "utf-8");
+      withFileLockSync(`${sessionsListFilePath}.lock`, () => {
+        const rawSessionsList = fs.readFileSync(sessionsListFilePath, "utf-8");
 
-      let sessionsList: SessionMetadata[];
-      try {
-        sessionsList = JSON.parse(rawSessionsList);
-      } catch (e) {
-        if (rawSessionsList.trim() === "") {
-          fs.writeFileSync(sessionsListFilePath, JSON.stringify([]));
-          sessionsList = [];
-        } else {
-          throw e;
+        let sessionsList: SessionMetadata[];
+        try {
+          sessionsList = JSON.parse(rawSessionsList);
+        } catch (e) {
+          if (rawSessionsList.trim() === "") {
+            writeFileAtomic(sessionsListFilePath, JSON.stringify([]));
+            sessionsList = [];
+          } else {
+            throw e;
+          }
         }
-      }
 
-      let found = false;
-      for (const sessionMetadata of sessionsList) {
-        if (sessionMetadata.sessionId === session.sessionId) {
-          sessionMetadata.title = session.title;
-          sessionMetadata.workspaceDirectory = session.workspaceDirectory;
-          found = true;
-          break;
+        let found = false;
+        for (const sessionMetadata of sessionsList) {
+          if (sessionMetadata.sessionId === session.sessionId) {
+            sessionMetadata.title = session.title;
+            sessionMetadata.workspaceDirectory = session.workspaceDirectory;
+            found = true;
+            break;
+          }
         }
-      }
 
-      if (!found) {
-        const sessionMetadata: SessionMetadata = {
-          sessionId: session.sessionId,
-          title: session.title,
-          dateCreated: String(Date.now()),
-          workspaceDirectory: session.workspaceDirectory,
-        };
-        sessionsList.push(sessionMetadata);
-      }
+        if (!found) {
+          const sessionMetadata: SessionMetadata = {
+            sessionId: session.sessionId,
+            title: session.title,
+            dateCreated: String(Date.now()),
+            workspaceDirectory: session.workspaceDirectory,
+          };
+          sessionsList.push(sessionMetadata);
+        }
 
-      fs.writeFileSync(
-        sessionsListFilePath,
-        JSON.stringify(sessionsList, undefined, 2),
-      );
+        writeFileAtomic(
+          sessionsListFilePath,
+          JSON.stringify(sessionsList, undefined, 2),
+        );
+      });
     } catch (error) {
       if (error instanceof SyntaxError) {
         throw new Error(

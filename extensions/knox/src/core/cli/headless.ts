@@ -92,6 +92,12 @@ export interface HeadlessOptions {
   abortSignal?: AbortSignal;
   /** Hook runner override; undefined loads `.knox/hooks.json`, null disables. */
   hooks?: HookRunner | null;
+  /**
+   * Run hooks defined in the repository (`.knox/hooks.json`, `.knox/config.yaml`).
+   * Off by default: a cloned repo or PR must not execute its own shell commands
+   * in CI. Also enabled by `KNOX_TRUST_WORKSPACE_HOOKS=1`.
+   */
+  trustWorkspaceHooks?: boolean;
   /** Live progress (the CLI prints these to stderr). */
   onEvent?: (event: HeadlessEvent) => void;
 }
@@ -142,7 +148,11 @@ export async function runHeadless(
   const hooks: HookRunner | null =
     options.hooks !== undefined
       ? options.hooks
-      : await getWorkspaceHookRunner(ide, (line) => console.error(line));
+      : await getWorkspaceHookRunner(ide, (line) => console.error(line), {
+          trustWorkspace:
+            options.trustWorkspaceHooks ??
+            process.env.KNOX_TRUST_WORKSPACE_HOOKS === "1",
+        });
   const hookContext: string[] = [];
   if (hooks?.has("SessionStart")) {
     const started = await hooks.run("SessionStart", {}).catch(() => null);
@@ -290,6 +300,8 @@ export interface CliArgs {
   profile: HeadlessProfile;
   maxSteps?: number;
   model?: string;
+  /** `--trust-hooks`: run hooks defined in the repository. */
+  trustHooks?: boolean;
   help: boolean;
 }
 
@@ -301,6 +313,7 @@ export const CLI_USAGE = `Usage: knox run "<task>" [options]
   --profile <name>      default | systems (adds build, kconfig, maintainers, qemu)
   --max-steps <n>       cap tool rounds (default: 40)
   --model <id>          model id (default: qwen/qwen3-coder)
+  --trust-hooks         run hooks from the repo's .knox/ (ignored by default; also KNOX_TRUST_WORKSPACE_HOOKS=1)
   --json                print one JSON result on stdout
   --stream-json         print one JSON event per line (text, tool, denied, result)
   -h, --help
@@ -339,6 +352,9 @@ export function parseCliArgs(argv: string[]): CliArgs | { error: string } {
         break;
       case "--json":
         out.json = true;
+        break;
+      case "--trust-hooks":
+        out.trustHooks = true;
         break;
       case "--profile": {
         const v = next();

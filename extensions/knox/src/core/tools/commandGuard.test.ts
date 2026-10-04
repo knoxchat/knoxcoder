@@ -97,3 +97,35 @@ describe("evaluateToolPolicy shell guard", () => {
     expect(run("echo x > /ws/out.txt 2>/dev/null").action).toBeNull();
   });
 });
+
+describe("detectDangerousCommand: Windows", () => {
+  it.each([
+    "del /s /q C:\\proj\\*",
+    "DEL /F /Q file.txt",
+    "rd /s /q build",
+    "rmdir /S C:\\temp\\x",
+    "format D:",
+    "reg delete HKLM\\Software\\X /f",
+    "Remove-Item -Recurse -Force .\\dist",
+    "Remove-Item .\\dist -r",
+    "ri -Recurse x",
+    'powershell -Command "Remove-Item -Recurse -Force C:\\x"',
+    'cmd /c "rd /s /q C:\\x"',
+    "C:\\Windows\\System32\\reg.exe delete HKCU\\X",
+    "Format-Volume -DriveLetter D",
+  ])("flags %s", (cmd) => {
+    expect(detectDangerousCommand(cmd)).not.toBeNull();
+  });
+
+  it.each([
+    "del file.txt",
+    "rd emptydir",
+    "dir /s",
+    "reg query HKLM\\Software",
+    "Remove-Item .\\file.txt",
+    "rm -r build",
+    'powershell -Command "Get-ChildItem -Recurse"',
+  ])("allows %s", (cmd) => {
+    expect(detectDangerousCommand(cmd)).toBeNull();
+  });
+});

@@ -38,10 +38,6 @@ import { planTool } from "./definitions/plan";
 import { skillTool } from "./definitions/skill";
 import { lspTool } from "./definitions/lsp";
 import { memoryTool } from "./definitions/memory";
-import { memoryGraphTool } from "./definitions/memoryGraph";
-import { memorySessionsTool } from "./definitions/memorySessions";
-import { memoryManageTool } from "./definitions/memoryManage";
-import { memoryLearnTool } from "./definitions/memoryLearn";
 
 // Advanced tools (opt-in — not on default chat list except generate_tests)
 import { advancedTools, testGeneratorTool } from "./definitions/advanced";

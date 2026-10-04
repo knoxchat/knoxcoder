@@ -27,7 +27,7 @@ import { LLM_COMPLETE_COMMAND } from "./diagnostics";
  *
  * LSP rename (`vscode.executeDocumentRenameProvider`) plus extract method /
  * interface via `knox.llmComplete`. Command registration lives in
- * `activateAgentMode`. Distinct from the unimplemented `builtin_refactor` stub.
+ * `activateAgentMode`. No agent tool named builtin_refactor exists.
  */
 export class RefactoringService implements vscode.Disposable {
   private static instance: RefactoringService | undefined;

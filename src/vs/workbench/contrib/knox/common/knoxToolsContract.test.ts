@@ -78,7 +78,7 @@ suite('Knox tools honesty contract (KN-270–297)', () => {
 		assert.ok(coreSources().includes('on("agent/worktree"'));
 		const honesty = repoFile('extensions/knox/src/core/eval/honestyGate.test.ts');
 		assert.ok(honesty.includes('hasToolImplementation'));
-		assert.ok(honesty.includes('unimplementedAdvancedTools'));
+		assert.ok(honesty.includes('builtin_analyze_code'));
 		assert.ok(honesty.includes('SmartToolRouter'));
 	});
 });

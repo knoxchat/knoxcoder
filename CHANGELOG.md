@@ -1,6 +1,19 @@
 # Changelog
 
 All notable changes to KnoxCoder are documented in this file.
+## [Unreleased]
+
+### Removed
+
+- **`ReasoningEngine`** and its commands `knox.analyzeTask`, `knoxchat.analyzeTask`, `knox.structuredSolve`, `knox.performTaskAnalysis`. None were contributed in the manifest or reachable from the GUI; the product planner is `builtin_plan`. The context-gathering operation no longer returns a random `contextSize`.
+- Unreferenced modules: prompt-file v1 helpers and v2 parse/render, the unused `CustomContextProvider` and `edit/claude` template, `protocol/messenger` IDE adapters, `verificationLoop`, tool templates/examples, the unused LRU/LCS/text/JSON-stream utils, `terminalEmulator`, `languageClient`, `battery`, `cleanSlate`, `expandSnippet`, and the four legacy memory tool definitions (calls to the old `builtin_memory_*` names still route to `builtin_memory`).
+
+### Added
+
+- Cross-window locking: checkpoint store, `sessions.json` and Memory Brain open/migrate.
+- Checkpoint quota enforcement reclaims orphan blobs before evicting and reports when only pinned checkpoints remain.
+- Memory Brain schema version, pre-migration backup and corruption recovery; atomic session writes.
+
 ## [2.0.0-beta] - 2026-10-04
 
 Everything since **1.138.2**. Agent chat, tools, permissions, CLI, and GUI chrome.

@@ -567,48 +567,19 @@ export class ChatFlowCoordinator implements vscode.Disposable {
    */
   private async processContextGathering(operation: ChatOperation): Promise<void> {
     try {
-      // Check if this is a structured reasoning task
-      if (operation.payload.analysis && operation.payload.task) {
-        // We already have task analysis results from the ReasoningEngine
-        const analysis = operation.payload.analysis;
-        const task = operation.payload.task;
-        
-        // Gather relevant files based on the task
-        const relevantFiles: string[] = [];
-        
-        // Log the structured analysis
-        console.log(`Processing task: ${task}`);
-        console.log(`Complexity: ${analysis.estimatedComplexity}`);
-        console.log(`Steps: ${analysis.steps.length}`);
-        
-        // Set the result with structured analysis data
-        operation.result = {
-          task,
-          analysis: analysis.analysis,
-          steps: analysis.steps,
-          complexity: analysis.estimatedComplexity,
-          relevantFiles
-        };
-      } else {
-        // For other context gathering operations, gather basic workspace info
-        const workspaceFolders = vscode.workspace.workspaceFolders || [];
-        const activeEditor = vscode.window.activeTextEditor;
-        
-        // Set basic context result
-        operation.result = {
-          workspaceInfo: {
-            folders: workspaceFolders.map(folder => folder.uri.fsPath),
-            activeFile: activeEditor?.document.uri.fsPath || null
-          },
-          contextSize: Math.floor(Math.random() * 1000) + 100
-        };
-      }
+      const workspaceFolders = vscode.workspace.workspaceFolders || [];
+      const activeEditor = vscode.window.activeTextEditor;
+      operation.result = {
+        workspaceInfo: {
+          folders: workspaceFolders.map(folder => folder.uri.fsPath),
+          activeFile: activeEditor?.document.uri.fsPath || null
+        }
+      };
     } catch (error) {
       console.error('Error in processContextGathering:', error);
       // Set a basic result when error occurs
       operation.result = {
-        error: (error as Error).message,
-        contextSize: 0
+        error: (error as Error).message
       };
     }
   }

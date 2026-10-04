@@ -24,7 +24,6 @@ import {
   resolveFixDiagnosticsArgs,
 } from './diagnostics';
 import { ErrorPatternDetector } from './ErrorPatternDetector';
-import { ReasoningEngine, TaskAnalysisResult } from './ReasoningEngine';
 import { RefactoringService } from './RefactoringService';
 import {
   EXTRACT_INTERFACE_COMMAND,
@@ -72,7 +71,7 @@ export function activateAgentMode(context: vscode.ExtensionContext): vscode.Disp
   commandHistoryService = CommandHistoryService.getInstance();
   
   // KN-355: RefactoringService — LSP rename / extract via knox.llmComplete.
-  // ReasoningEngine stays quarantined (product planner is builtin_plan).
+  // The product planner is builtin_plan; there is no host-side planner.
   refactoringService = RefactoringService.getInstance();
   
   // KN-353: DebugIntegrationService helpers + DAP tracker for @debugger
@@ -316,15 +315,6 @@ export function activateAgentMode(context: vscode.ExtensionContext): vscode.Disp
     return await codeIntelligence.findRelatedFiles(filePath);
   });
   
-  const performTaskAnalysisCommand = vscode.commands.registerCommand('knox.performTaskAnalysis', async (task: string) => {
-    if (!agentModeManager) {
-      throw new Error('Agent Mode Manager not initialized');
-    }
-    
-    const reasoningEngine = agentModeManager['reasoningEngine'];
-    return await reasoningEngine.performTaskAnalysis(task);
-  });
-  
   // Add all disposables to context
   context.subscriptions.push(
     agentModeManager,
@@ -350,8 +340,7 @@ export function activateAgentMode(context: vscode.ExtensionContext): vscode.Disp
     terminalMonitor,
     errorPatternDetector,
     analyzeProjectStructureCommand,
-    findRelatedFilesCommand,
-    performTaskAnalysisCommand
+    findRelatedFilesCommand
   );
   
   // Register custom tool call handler
@@ -428,7 +417,6 @@ export function activateAgentMode(context: vscode.ExtensionContext): vscode.Disp
       extractInterfaceCommand.dispose();
       analyzeProjectStructureCommand.dispose();
       findRelatedFilesCommand.dispose();
-      performTaskAnalysisCommand.dispose();
     }
   };
 }
@@ -566,10 +554,6 @@ export {
     // Command History
     CommandHistoryService,
     OperationRecord,
-    
-    // Structured Reasoning
-    ReasoningEngine,
-    TaskAnalysisResult,
     
     // Shadow Workspace
     ShadowWorkspaceManager,

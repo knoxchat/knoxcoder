@@ -1,3 +1,4 @@
+import * as fs from "fs";
 import {
   AssistantUnrolled,
   ConfigResult,
@@ -6,6 +7,7 @@ import {
 import { KnoxConfig, IDE, IdeSettings } from "../../";
 import BuiltInSlashCommands from "../../commands/slash";
 import { getConfigYamlPath } from "../../util/paths";
+import { configSchemaProblem } from "../../util/schemaVersions";
 import { localPathOrUriToPath } from "../../util/pathToUri";
 import { rectifySelectedModelsFromGlobalContext } from "../selectedModels";
 import { loadKnoxConfigFromYaml } from "../yaml/loadYaml";
@@ -45,6 +47,15 @@ export default async function doLoadConfig(
   }
 
   errors = [...(errors ?? [])];
+
+  try {
+    const problem = configSchemaProblem(fs.readFileSync(configYamlPath, "utf8"));
+    if (problem) {
+      errors.push({ fatal: false, message: problem });
+    }
+  } catch {
+    // Missing or unreadable file is reported by the loader itself.
+  }
 
   newConfig = rectifySelectedModelsFromGlobalContext(newConfig, profileId);
 

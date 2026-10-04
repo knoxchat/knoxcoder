@@ -1,10 +1,16 @@
 import { createKnoxLogger } from 'core/util/knoxLog';
 
 import { foldSnapshotsIntoSuccessor } from '../checkpointReplay';
+import { withStoreLock } from '../store/storeLock';
 import { formatFileSize } from './format';
 import type { CheckpointEngineHost } from './host';
 import {
     computeDiskStorageBytes,
+    gcUnreferencedCheckpointBlobs,
+    getStoragePath,
+    markCheckpointRemoved,
+    mergeForeignIndexEntries,
+    recordHealthIssue,
     readCheckpointRecord,
     saveCheckpointToDisk,
     toIndexRecord,
@@ -45,6 +51,7 @@ function mergeSkippedFiles(
 
 export function removeFromHistory(host: CheckpointEngineHost, checkpointId: string): boolean {
     const initialLength = host.checkpointHistory.length;
+    markCheckpointRemoved(host, checkpointId);
     host.checkpointHistory = host.checkpointHistory.filter((c) => c.id !== checkpointId);
     const wasRemoved = host.checkpointHistory.length < initialLength;
     if (wasRemoved) {
@@ -330,6 +337,16 @@ export async function enforceStorageQuota(host: CheckpointEngineHost): Promise<v
         return;
     }
 
+    // Orphaned blobs (failed captures, other windows' leftovers) cost nothing to
+    // reclaim; do that before evicting any real checkpoint.
+    const gc = await gcUnreferencedCheckpointBlobs(host);
+    if (gc.deleted > 0) {
+        usage = await computeDiskStorageBytes(host);
+        if (usage <= host.maxStorageBytes) {
+            return;
+        }
+    }
+
     log.info(
         `📉 Enforcing maxStorageBytes=${formatFileSize(host.maxStorageBytes)} (current ${formatFileSize(usage)})`,
     );
@@ -361,15 +378,23 @@ export async function enforceStorageQuota(host: CheckpointEngineHost): Promise<v
             `📉 Storage quota reclaimed ${formatFileSize(bytesReclaimed)} by deleting ${deletedCount} unpinned checkpoint(s)`,
         );
     } else if (usage > host.maxStorageBytes) {
-        log.warn(
-            `⚠️ Storage still over quota (${formatFileSize(usage)} > ${formatFileSize(host.maxStorageBytes)}); remaining checkpoints are pinned or sole baseline`,
-        );
+        const message =
+            `Storage still over quota (${formatFileSize(usage)} > ${formatFileSize(host.maxStorageBytes)}); ` +
+            'remaining checkpoints are pinned or the sole baseline. Unpin or delete some, or raise the quota.';
+        log.warn(`⚠️ ${message}`);
+        recordHealthIssue(host, { kind: 'quota_exceeded', message });
     }
 }
 
 export async function enforceRetentionPolicies(host: CheckpointEngineHost): Promise<void> {
-    await enforceMaxCheckpoints(host);
-    await enforceStorageQuota(host);
+    // One window prunes at a time; the lock is re-entrant for the nested
+    // delete/GC calls. Pull in checkpoints other windows created first so the
+    // count and byte quota reflect the shared store, not this window's view.
+    await withStoreLock(getStoragePath(host), async () => {
+        await mergeForeignIndexEntries(host);
+        await enforceMaxCheckpoints(host);
+        await enforceStorageQuota(host);
+    });
 }
 
 export async function cleanupOldCheckpoints(

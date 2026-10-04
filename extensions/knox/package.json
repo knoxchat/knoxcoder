@@ -30,6 +30,7 @@
 		"test:core": "vitest run --config src/core/vitest.config.ts",
 		"test:tsc": "tsc -p src/core --noEmit",
 		"test:eval": "vitest run --config src/core/vitest.config.ts eval",
+		"test:host": "vitest run --config src/host/vitest.config.mts",
 		"test:pkg": "vitest run --config src/pkg/vitest.config.ts",
 		"watch": "gulp watch-extension:knox",
 		"esbuild": "node ./esbuild.mts"

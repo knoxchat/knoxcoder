@@ -12,7 +12,6 @@
   "agent.undoUnavailable": "Nothing to undo — no assistant file changes recorded yet.",
   "agent.redoUnavailable": "Nothing to redo — no undone assistant file changes.",
   "agent.reapplyUnavailable": "Reapply edit functionality is temporarily unavailable.",
-  "agent.taskComplexity": "Task complexity: {{complexity}}. Breaking into {{count}} steps...",
   "agent.checkingFixing": "Agent is checking and fixing code issues...",
   "agent.executingOperation": "$(sync~spin) Agent Mode is executing operation: {{name}}...",
   "agent.reapplyingEdit": "$(sync~spin) Reapplying edit to {{file}}...",
@@ -54,7 +53,5 @@
   "agent.op.readingFile": "Reading file: {{description}}",
   "agent.op.runningCommand": "Running command: {{description}}",
   "agent.op.executingTool": "Executing tool: {{description}}",
-  "agent.op.gatheringContext": "Gathering context: {{description}}",
-  "agent.analyzeTaskPlan": "Analyze task structure and create plan",
-  "agent.stepN": "Step {{n}}: {{step}}"
+  "agent.op.gatheringContext": "Gathering context: {{description}}"
 }

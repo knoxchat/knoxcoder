@@ -10,7 +10,9 @@ import { IdeType } from "../";
 import { t } from "../i18n/index.js";
 import { defaultConfig } from "../config/default";
 
+import { writeFileAtomic } from "./atomicWrite";
 import { KNOX_GLOBAL_DIR_NAME } from "./globalDirName";
+import { backupOnce } from "./schemaVersions";
 
 dotenv.config({ quiet: true });
 
@@ -130,7 +132,9 @@ export function editConfigFile(
   let configYaml = YAML.parse(config);
   if (typeof configYaml === "object" && configYaml !== null) {
     configYaml = configYamlCallback(configYaml as ConfigYaml) as ConfigYaml;
-    fs.writeFileSync(configPath, YAML.stringify(configYaml));
+    // Re-serializing drops comments and formatting: keep the hand-written file once.
+    backupOnce(configPath, "pre-edit");
+    writeFileAtomic(configPath, YAML.stringify(configYaml));
   } else {
     console.warn(t("configYamlNotValidObject"));
   }

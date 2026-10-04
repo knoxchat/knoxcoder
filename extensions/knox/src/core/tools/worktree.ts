@@ -7,6 +7,7 @@ import { t } from "../i18n/index.js";
 import { localPathOrUriToPath, localPathToUri } from "../util/pathToUri.js";
 
 import type { IDE } from "../index.js";
+import { realPathOrSelf } from "./toolPolicy.js";
 
 export interface AgentWorktreeState {
   enabled: true;
@@ -256,6 +257,31 @@ export async function enterAgentWorktree(
   };
 }
 
+/**
+ * A path reported by `git diff` is only merged back when it stays inside both
+ * trees after resolving symlinks. Blocks `..`/absolute entries and symlinks
+ * (committed by an agent) that would copy files from, or write files to,
+ * locations outside the worktree and the workspace.
+ */
+export function isSafeWorktreeApplyPath(
+  rel: string,
+  workspace: string,
+  worktreePath: string,
+): boolean {
+  if (!rel || path.isAbsolute(rel) || rel.split(/[\\/]/).includes("..") || rel.includes("\0")) {
+    return false;
+  }
+  const within = (candidate: string, root: string) => {
+    const r = realPathOrSelf(path.resolve(root));
+    const c = realPathOrSelf(path.resolve(candidate));
+    return c === r || c.startsWith(r.endsWith(path.sep) ? r : r + path.sep);
+  };
+  return (
+    within(path.join(worktreePath, rel), worktreePath) &&
+    within(path.join(workspace, rel), workspace)
+  );
+}
+
 export async function applyAgentWorktree(
   ide: IDE,
   state: AgentWorktreeState,
@@ -266,6 +292,10 @@ export async function applyAgentWorktree(
 
   for (const rel of files) {
     if (shouldSkipWorktreeApply(rel)) {
+      continue;
+    }
+    if (!isSafeWorktreeApplyPath(rel, workspace, state.worktreePath)) {
+      console.warn(`[worktree] refusing to merge "${rel}": resolves outside the workspace or worktree`);
       continue;
     }
     const from = toFileUri(path.join(state.worktreePath, rel));

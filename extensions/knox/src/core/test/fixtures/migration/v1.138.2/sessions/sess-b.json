@@ -1,0 +1,21 @@
+{
+  "sessionId": "sess-b",
+  "title": "Refactor",
+  "workspaceDirectory": "/work/lib",
+  "history": [
+    {
+      "message": {
+        "role": "user",
+        "content": "hello from sess-b"
+      },
+      "contextItems": []
+    },
+    {
+      "message": {
+        "role": "assistant",
+        "content": "done"
+      },
+      "contextItems": []
+    }
+  ]
+}

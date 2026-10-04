@@ -8,7 +8,6 @@ How to extend Knox Agent without claiming unused orchestration libraries.
 |------|---------|
 | `allTools` | Default Agent chat tools. Every entry **must** have a `callTool` case + tests. |
 | `allAvailableTools` | `allTools` + opt-in advanced/composites. Same honesty rule. |
-| `unimplementedAdvancedTools` | Definitions only — **not** exposed. Do not document as shipped. |
 
 `SmartToolRouter` is experimental and **not** exported. Do not add new product features there.
 
@@ -19,7 +18,7 @@ Same gate as `.github/pull_request_template.md` and `extensions/knox/src/core/ev
 - No new tool definition without a `callTool` route **and** tests
 - Do not put a def on `allTools` / `allAvailableTools` until it is implemented
 - Do not document `SmartToolRouter` as the default chat path (default is `allTools` → `callTool`)
-- Unimplemented defs stay in `unimplementedAdvancedTools`
+- Definition-only tools are not kept in the tree; delete them rather than quarantine
 
 ## Add a built-in tool
 

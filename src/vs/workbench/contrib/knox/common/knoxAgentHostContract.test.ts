@@ -345,8 +345,6 @@ suite('Knox agent host contract (KN-355)', () => {
 		const service = repoFile('extensions/knox/src/host/agent/RefactoringService.ts');
 		const activate = repoFile('extensions/knox/src/host/agent/index.ts');
 		const host = repoFile('extensions/knox/src/host/extension/VsCodeExtension.ts');
-		const reasoning = repoFile('extensions/knox/src/host/agent/ReasoningEngine.ts');
-		const advanced = repoFile('extensions/knox/src/core/tools/definitions/advanced/index.ts');
 		assert.ok(engine.includes('RENAME_SYMBOL_COMMAND = "knox.renameSymbol"'));
 		assert.ok(engine.includes('EXTRACT_METHOD_COMMAND = "knox.extractMethod"'));
 		assert.ok(engine.includes('MOVE_FILE_COMMAND = "knox.moveFile"'));
@@ -369,8 +367,6 @@ suite('Knox agent host contract (KN-355)', () => {
 		assert.ok(activate.includes('resolveRenameArgs'));
 		assert.ok(activate.includes('resolveExtractMethodArgs'));
 		assert.ok(host.includes("registerCommand('knox.llmComplete'"));
-		assert.ok(reasoning.includes('builtin_plan') || reasoning.includes('Legacy extension helper'));
-		assert.ok(advanced.includes('refactorTool') || advanced.includes('builtin_refactor'));
 	});
 });
 

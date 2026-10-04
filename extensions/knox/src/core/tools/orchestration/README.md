@@ -10,7 +10,6 @@ Library helpers used by opt-in tools (`builtin_enhanced_search`, `builtin_intell
 | `SmartToolRouter` / `smartExecute` | **Not exported**, zero production callers — experimental only |
 | `SmartToolRouter`, `ToolPipeline`, `ToolTransaction` | Removed in K-037 (no production callers). Use callTool and explicit tools |
 | Composites / advanced opt-in | In `allAvailableTools`; each has a `callTool` case |
-| Unimplemented advanced defs | `unimplementedAdvancedTools` — not exposed |
 
 Do not document SmartToolRouter as the product tool path. Prefer wiring new capabilities as explicit tools with implementations + tests.
 
@@ -63,7 +62,7 @@ import { createPipeline, ConditionBuilder } from 'core/tools/orchestration';
 
 const pipeline = createPipeline('conditional', 'Conditional workflow')
   .namedStep('search', exactSearchTool, { query: 'TODO' })
-  .namedStep('fix', refactorTool, 
+  .namedStep('fix', editExistingFileTool, 
     (ctx) => ({ target: ctx.results.get('search')?.output[0]?.content }),
     { condition: ConditionBuilder.ifOutputNotEmpty('search').build() }
   )
@@ -139,20 +138,6 @@ callers and were deleted. Add capabilities as explicit tools on `allTools` /
 | `builtin_enhanced_search` | Multi-strategy search |
 | `builtin_intelligent_chain` | Auto tool-chain from query |
 | `builtin_generate_tests` | LLM test generation (also in default `allTools`) |
-
-### Quarantined (definitions only — `unimplementedAdvancedTools`)
-
-| Tool | Status |
-|------|--------|
-| `builtin_analyze_code` | No `callTool` impl |
-| `builtin_multi_file_search` | No `callTool` impl |
-| `builtin_refactor` | No `callTool` impl |
-| `builtin_generate_docs` | No `callTool` impl |
-| `builtin_git_operations` | No `callTool` impl |
-| `builtin_analyze_performance` | No `callTool` impl |
-| `builtin_analyze_dependencies` | No `callTool` impl |
-| `builtin_explain_code` | No `callTool` impl |
-| `builtin_scaffold_project` | No `callTool` impl |
 
 ### Composite Tools
 

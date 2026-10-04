@@ -5,6 +5,9 @@
  * Allow auto-runs that target. Unmatched targets fall through to tool settings.
  */
 
+import * as fs from "fs";
+import * as nodePath from "path";
+
 import { extractPatchFilePaths } from "./applyPatchFormat";
 import { BuiltInToolNames } from "./builtIn";
 import { detectDangerousCommand, extractWriteTargets } from "./commandGuard";
@@ -435,6 +438,49 @@ export function isCargoRegistryWritePath(
   );
 }
 
+/**
+ * Resolve symlinks for the deepest existing ancestor of `absolute` and append
+ * the not-yet-existing remainder (so new files under a symlinked dir resolve
+ * too). Returns the input unchanged when nothing can be resolved.
+ */
+export function realPathOrSelf(absolute: string, depth = 0): string {
+  try {
+    if (!nodePath.isAbsolute(absolute)) {
+      return absolute;
+    }
+    let cur = absolute;
+    const rest: string[] = [];
+    for (let i = 0; i < 64; i++) {
+      const st = fs.lstatSync(cur, { throwIfNoEntry: false });
+      if (st) {
+        let real: string;
+        try {
+          real = fs.realpathSync.native(cur);
+        } catch {
+          // Dangling symlink: following it would create the target, so
+          // resolve where it points by hand.
+          if (st.isSymbolicLink() && depth < 16) {
+            const target = nodePath.resolve(nodePath.dirname(cur), fs.readlinkSync(cur));
+            real = realPathOrSelf(target, depth + 1);
+          } else {
+            return absolute;
+          }
+        }
+        return rest.length ? nodePath.join(real, ...rest.reverse()) : real;
+      }
+      const parent = nodePath.dirname(cur);
+      if (parent === cur) {
+        return absolute;
+      }
+      rest.push(nodePath.basename(cur));
+      cur = parent;
+    }
+  } catch {
+    // fall through
+  }
+  return absolute;
+}
+
 export function isPathOutsideWorkspace(
   raw: string,
   workspaceDirs: string[],
@@ -444,13 +490,56 @@ export function isPathOutsideWorkspace(
     return false;
   }
   const { absolute } = normalizePolicyPath(raw, workspaceDirs, home);
-  const absPosix = toPosix(absolute);
-  return !workspaceDirs.some((dir) => {
-    const root = normalizeSlashes(
-      toPosix(stripFileUri(expandHome(dir, home))),
-    ).replace(/\/+$/, "");
-    return absPosix === root || absPosix.startsWith(root + "/");
+  const roots = workspaceDirs.map((dir) =>
+    normalizeSlashes(toPosix(stripFileUri(expandHome(dir, home)))).replace(/\/+$/, ""),
+  );
+  const inside = (candidate: string, rootList: string[]) =>
+    rootList.some((root) => candidate === root || candidate.startsWith(root + "/"));
+
+  if (!inside(toPosix(absolute), roots)) {
+    return true;
+  }
+  // Lexically inside: a symlink may still lead out of the workspace.
+  const realTarget = toPosix(realPathOrSelf(absolute));
+  const realRoots = roots.map((r) => toPosix(realPathOrSelf(r)).replace(/\/+$/, ""));
+  return !inside(realTarget, realRoots);
+}
+
+/**
+ * Re-check a staged edit right before it is written. The policy ran when the
+ * edit was staged, but the disk can change in between (a shell command may
+ * have swapped a directory for a symlink). Returns an error message when the
+ * write must be refused. Paths that were lexically outside the workspace were
+ * approved by the user when staged, so only symlink escapes and hard-denied
+ * paths are rejected here.
+ */
+export function checkStagedApplyTarget(
+  fileUri: string,
+  workspaceDirs: string[],
+  home = guessHome(),
+): string | null {
+  const decision = evaluateToolPolicy({
+    toolName: BuiltInToolNames.WriteFile,
+    args: { filepath: fileUri },
+    workspaceDirs,
+    home,
   });
+  if (decision.action === "deny") {
+    return decision.reason;
+  }
+  if (!workspaceDirs.length) {
+    return null;
+  }
+  const { absolute } = normalizePolicyPath(fileUri, workspaceDirs, home);
+  const roots = workspaceDirs.map((dir) =>
+    normalizeSlashes(toPosix(stripFileUri(expandHome(dir, home)))).replace(/\/+$/, ""),
+  );
+  const inside = (candidate: string) =>
+    roots.some((root) => candidate === root || candidate.startsWith(root + "/"));
+  if (inside(toPosix(absolute)) && isPathOutsideWorkspace(fileUri, workspaceDirs, home)) {
+    return `Refusing to apply "${fileUri}": it now resolves outside the workspace (symlink)`;
+  }
+  return null;
 }
 
 export function pathMatchesPolicy(
@@ -615,7 +704,15 @@ export function evaluateToolPolicy(params: {
 
   for (const p of targets.paths) {
     for (const hard of HARD_PATH_DENY) {
-      if (pathMatchesPolicy(p, hard, workspaceDirs, home)) {
+      if (
+        pathMatchesPolicy(p, hard, workspaceDirs, home) ||
+        pathMatchesPolicy(
+          realPathOrSelf(normalizePolicyPath(p, workspaceDirs, home).absolute),
+          hard,
+          workspaceDirs,
+          home,
+        )
+      ) {
         return {
           action: "deny",
           reason: `Sensitive path "${p}" is blocked (${hard})`,

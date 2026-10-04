@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { unimplementedAdvancedTools } from "./definitions/advanced";
 import { compositeTools } from "./definitions/composite";
 import {
   hasToolImplementation,
@@ -36,22 +35,12 @@ describe("callTool routing honesty", () => {
     }
   });
 
-  it("does not claim unimplemented advanced tools are routable", () => {
-    for (const tool of unimplementedAdvancedTools) {
-      expect(
-        hasToolImplementation(tool.function.name),
-        `${tool.function.name} should stay quarantined`,
-      ).toBe(false);
-    }
-  });
-
   it("listImplementedToolNames covers composites + builtins", () => {
     const names = new Set(listImplementedToolNames());
     expect(names.has("builtin_generate_tests")).toBe(true);
     expect(names.has("composite_smart_edit")).toBe(true);
     expect(names.has("composite_implement_feature")).toBe(true);
     expect(names.has("composite_migrate")).toBe(true);
-    expect(names.has("builtin_analyze_code")).toBe(false);
     expect(names.has("builtin_task")).toBe(true);
     expect(names.has("builtin_ask_user")).toBe(true);
     expect(names.has("builtin_git_status")).toBe(true);

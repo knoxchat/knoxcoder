@@ -291,7 +291,12 @@ export function registerAbortAndAgentHandlers(core: CoreRuntime): void {
           // Apply still proceeds if the safety checkpoint fails.
         }
       }
-      const result = await applyStaged(base, staged, fileUris);
+      const result = await applyStaged(
+        base,
+        staged,
+        fileUris,
+        await core.ide.getWorkspaceDirs().catch(() => []),
+      );
       persistReview(core, sessionId);
       if (result.applied.length > 0) {
         void recordSoulEvent({

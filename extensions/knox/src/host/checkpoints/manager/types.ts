@@ -4,7 +4,7 @@ export type CaptureMode = 'baseline' | 'delta';
 
 export interface CheckpointHealthIssue {
     timestamp: string;
-    kind: 'corrupt' | 'index_rebuild' | 'write_failed' | 'restore_incomplete';
+    kind: 'corrupt' | 'index_rebuild' | 'write_failed' | 'restore_incomplete' | 'quota_exceeded';
     message: string;
     checkpointId?: string;
 }

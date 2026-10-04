@@ -1,0 +1,19 @@
+[
+  {
+    "sessionId": "sess-a",
+    "title": "Fix login",
+    "dateCreated": "1750000000000",
+    "workspaceDirectory": "/work/app"
+  },
+  {
+    "sessionId": "sess-b",
+    "title": "Refactor",
+    "dateCreated": "1750000100000",
+    "workspaceDirectory": "/work/lib"
+  },
+  {
+    "session_id": "ancient",
+    "title": "legacy",
+    "date_created": "1600000000000"
+  }
+]

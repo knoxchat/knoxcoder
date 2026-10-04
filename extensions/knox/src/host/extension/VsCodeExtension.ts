@@ -315,7 +315,7 @@ export class VsCodeExtension {
       })
     );
 
-    // Register command for LLM completions (used by ReasoningEngine, etc.)
+    // Register command for LLM completions (used by diagnostics fixes and refactoring)
     context.subscriptions.push(
       vscode.commands.registerCommand('knox.llmComplete', async (params: { prompt: string; title?: string; completionOptions?: Record<string, unknown> }) => {
         const result = inProcessMessenger.invoke('llm/complete', {

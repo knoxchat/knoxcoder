@@ -2,9 +2,8 @@
  * KN-355: vscode-free refactoring helpers.
  *
  * RefactoringService is the vscode adapter (LSP rename, workspace.fs,
- * `knox.llmComplete`). Distinct from the unimplemented `builtin_refactor`
- * tool stub. ReasoningEngine stays quarantined as the product planner
- * (`builtin_plan`); it is not dropped here.
+ * `knox.llmComplete`). No agent tool named builtin_refactor exists;
+ * this is the editor-side adapter. The product planner is `builtin_plan`.
  */
 
 import * as path from "path";

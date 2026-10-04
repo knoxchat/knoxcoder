@@ -31,4 +31,27 @@ describe("cli credentials", () => {
     expect(loadSession(file)).toBeUndefined();
     fs.rmSync(dir, { recursive: true, force: true });
   });
+
+  it.skipIf(process.platform === "win32")("tightens a world-readable file on load and leaves no temp files", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "knox-cred-"));
+    const file = path.join(dir, "auth.json");
+    const session = {
+      apiKey: "sk-test",
+      account: { userId: 1, username: "knox", tokenId: 2, connectedAt: 3 },
+    };
+    saveSession(session, file);
+    fs.chmodSync(file, 0o644);
+    expect(loadSession(file)).toEqual(session);
+    expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+    saveSession(session, file);
+    expect(fs.readdirSync(dir)).toEqual(["auth.json"]);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("never prints the key: CLI sources do not log session secrets", () => {
+    for (const f of ["main.ts", "credentials.ts", "headless.ts"]) {
+      const src = fs.readFileSync(path.join(__dirname, f), "utf-8");
+      expect(src).not.toMatch(/(console\.\w+|stderr\.write|stdout\.write)\([^)]*(apiKey|refreshToken)/);
+    }
+  });
 });

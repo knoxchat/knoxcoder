@@ -1,0 +1,21 @@
+{
+  "sessionId": "sess-a",
+  "title": "Fix login",
+  "workspaceDirectory": "/work/app",
+  "history": [
+    {
+      "message": {
+        "role": "user",
+        "content": "hello from sess-a"
+      },
+      "contextItems": []
+    },
+    {
+      "message": {
+        "role": "assistant",
+        "content": "done"
+      },
+      "contextItems": []
+    }
+  ]
+}
