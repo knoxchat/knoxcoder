@@ -76,13 +76,19 @@ describe("pty tools", () => {
     expect(jobMatch?.[1]).toBeTruthy();
     const jobId = jobMatch![1];
 
-    await new Promise((r) => setTimeout(r, 80));
-    await ptySendImpl({ job_id: jobId, data: "hello\n" }, extras());
+    // ConPTY (Windows) takes much longer to attach node to the console, and
+    // console input lines end in CR; input sent earlier is dropped.
+    const win = process.platform === "win32";
+    await new Promise((r) => setTimeout(r, win ? 1_500 : 80));
+    await ptySendImpl(
+      { job_id: jobId, data: win ? "hello\r\n" : "hello\n" },
+      extras(),
+    );
     const read = await ptyReadImpl(
-      { job_id: jobId, timeout_ms: 2_000 },
+      { job_id: jobId, timeout_ms: win ? 6_000 : 2_000 },
       extras(),
     );
     expect(read[0]?.content).toContain("hello");
     await ptyReadImpl({ job_id: jobId, kill: true }, extras());
-  });
+  }, 20_000);
 });

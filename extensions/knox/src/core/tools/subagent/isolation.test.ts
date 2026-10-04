@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { IDE } from "../..";
-import { localPathOrUriToPath } from "../../util/pathToUri.js";
+import { localPathOrUriToPath, localPathToUri } from "../../util/pathToUri.js";
 import { cleanupTempRepos, makeTempRepo } from "../../test/tempRepo";
 import { parseCustomAgent } from "./customAgents";
 import { runInWorktree } from "./isolation";
@@ -94,7 +94,7 @@ describe("worktree isolation + merge-back", () => {
   afterEach(cleanupTempRepos);
 
   const editIn = (ide: IDE, root: string, file: string, content: string) =>
-    ide.writeFile(`file://${path.join(root, file)}`, content);
+    ide.writeFile(localPathToUri(path.join(root, file)), content);
 
   it("merges disjoint parallel writers, conflicts on overlap", async () => {
     const base = Array.from({ length: 30 }, (_, i) => `line ${i}`).join("\n") + "\n";
@@ -146,8 +146,8 @@ describe("worktree isolation + merge-back", () => {
     let seen = "";
     let seenNew = "";
     const r = await runInWorktree(ide, "s", "seed", async (child) => {
-      seen = await child.readFile(`file://${path.join(root, "a.txt")}`);
-      seenNew = await child.readFile(`file://${path.join(root, "new.txt")}`);
+      seen = await child.readFile(localPathToUri(path.join(root, "a.txt")));
+      seenNew = await child.readFile(localPathToUri(path.join(root, "new.txt")));
       await editIn(child, root, "a.txt", "ONE\ntwo\nTHREE\n");
     });
     expect(seen).toBe("ONE\ntwo\nthree\n");
@@ -182,7 +182,7 @@ describe("worktree isolation + merge-back", () => {
     const r = await runInWorktree(ide, "s", "buf", async (child) => {
       const lines = base.split("\n");
       lines[15] = "CHILD";
-      await child.writeFile(`file://${target}`, lines.join("\n"));
+      await child.writeFile(localPathToUri(target), lines.join("\n"));
     });
     expect(r.merge.status).toBe("applied");
     expect(writes).toHaveLength(1);

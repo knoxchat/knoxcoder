@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { IDE } from "..";
 import { getKnoxGlobalPath } from "../util/paths";
@@ -70,7 +71,7 @@ export async function getWorkspaceHookRunner(
   const cwd = !dir
     ? undefined
     : dir.startsWith("file://")
-      ? decodeURIComponent(new URL(dir).pathname)
+      ? fileURLToPath(dir) // not URL.pathname: that yields "/D:/..." on Windows
       : dir;
   return new HookRunner(config, {
     cwd,
