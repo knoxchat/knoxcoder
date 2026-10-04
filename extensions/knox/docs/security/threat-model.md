@@ -9,7 +9,7 @@ developer machine. Out of scope: the VS Code fork itself, the model providers, K
 | --- | --- |
 | Source tree and uncommitted work | Workspace, checkpoints in `~/.knoxcoder` |
 | Credentials on disk | `~/.ssh`, `~/.aws`, `~/.gnupg`, `.env*`, `*.pem`, `id_*`, `~/.npmrc` |
-| Knox login / API key | VS Code SecretStorage (editor); `~/.knoxcoder/auth.json`, mode 0600 (CLI) |
+| Knox login / API key | VS Code SecretStorage (editor); `~/.knoxcoder/auth.json`, mode 0600 |
 | Conversation data | Sessions, Memory Brain (sqlite), prompt logs, exported Markdown |
 | The user's machine | Anything a shell command can reach |
 
@@ -62,8 +62,8 @@ A page tries to steer the agent or to make it request internal URLs.
 - Stopped: private, loopback, link-local and CGNAT ranges are blocked, redirects are re-validated,
   size and time are capped. Fetched text is redacted on the way in.
 - Not covered: DNS rebinding between check and connect (documented in `fetchUrl.ts`). Data can still
-  be leaked to a public URL by a fetch whose query string carries it. The planned network policy
-  (P1-2) addresses this; until then keep sensitive work in `default` permission mode.
+  be leaked to a public URL by a fetch whose query string carries it. `knoxchat.networkMode` (`deny`
+  or `allowlist`) limits `builtin_fetch_url`; keep sensitive work in Edits or Ask mode.
 
 ### Tool output
 Build logs or test output contain instructions or secrets.
@@ -74,9 +74,7 @@ Build logs or test output contain instructions or secrets.
 Hooks are shell commands. A cloned repo could ship one.
 - Editor: the extension declares `untrustedWorkspaces.supported: false`, so VS Code does not activate
   Knox in a folder that is not trusted. Hooks therefore never run on folder open, and are read when a turn runs, not on open.
-- CLI/CI (`knox run`): there is no Workspace Trust. Repo-local hooks are **ignored** unless
-  `--trust-hooks` or `KNOX_TRUST_WORKSPACE_HOOKS=1` is given. User-level hooks (`~/.knoxcoder/config.yaml`)
-  always run. Do not pass `--trust-hooks` on pull requests from forks.
+  User-level hooks (`~/.knoxcoder/config.yaml`) still run once the workspace is trusted.
 
 ### `AGENTS.md`, rules, skills, custom agents
 These are prompt text. They can be hostile in a cloned repo but cannot add capabilities: tool policy
@@ -92,8 +90,8 @@ Run in an isolated git worktree. Merging back copies only files that stay inside
 symlink resolution. Subagent tool calls go through the same tool middleware (policy, redaction) as the parent's.
 
 ### Credentials
-Editor: SecretStorage. CLI: `~/.knoxcoder/auth.json`, written atomically with mode 0600, tightened if
-found more permissive, never printed. There are no API-key environment variables to leak.
+Editor: SecretStorage. Optional file store: `~/.knoxcoder/auth.json`, written atomically with mode 0600, tightened if
+found more permissive, never printed. `KNOX_API_KEY` is for live eval only.
 
 ## Command guard
 
@@ -115,8 +113,7 @@ robustness against adversarial input).
 **Known limits.** A denylist cannot be complete: an interpreter running attacker-written code
 (`python script.py` where the script was written earlier in the session) is not detected, and
 variable indirection (`X=rm; $X -rf /`) is not resolved. The real mitigation is approval prompts in
-`default` and `acceptEdits` mode and the OS sandbox planned in P1-2. `fullAuto` should only be used
-in a disposable environment.
+`default` and `acceptEdits` mode. `fullAuto` should only be used in a disposable environment.
 
 ## Redaction sinks
 
@@ -140,7 +137,7 @@ Stripe, Slack, npm, Anthropic/OpenAI/OpenRouter, JWT, PEM/OpenSSH keys, DB/Redis
 - `node-forge` (high, GHSA-86w9-cpqp-85rv, RSA PKCS#1 v1.5 signature verification) via `mac-ca` and
   `win-ca`. Knox uses these only to read operating-system root certificates and never verifies RSA
   signatures with them. No fixed release exists; revisit when `mac-ca`/`win-ca` update.
-- No OS-level sandbox (P1-2); no network allow/deny list (P1-2, P1-8).
+- No OS-level command sandbox. Command guard and permission prompts are the shell controls.
 - Checkpoint blobs are not redacted (see above).
 - `SECURITY.md` is still the generic Microsoft text; the reporting address must be set (P1-10).
 - Host-side redaction of session files at rest is not done; only exports and logs are redacted.

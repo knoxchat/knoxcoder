@@ -1,15 +1,12 @@
 /**
- * Background agents (K-050): run a headless task in a detached git worktree.
+ * Background agents (K-050): a detached git worktree plus job record.
  *
- *   knox bg start "<task>" [run options]   create the worktree, detach a worker
- *   knox bg list | show <id>               status and result
- *   knox bg merge <id>                     merge the job's branch into the repo
- *   knox bg discard <id>                   drop the worktree and branch
+ * The GUI lists, merges, and discards jobs under `~/.knoxcoder/bg`. Starting a
+ * new job is not in 2.0.0.
  *
  * Job state lives in `~/.knoxcoder/bg/<id>/job.json`; the worktree is
  * `~/.knoxcoder/bg/<id>/tree` on branch `knox/bg-<id>`, created from HEAD
- * (uncommitted changes in the repo are not copied). The finished worker
- * commits what the agent changed so merge/discard are plain git operations.
+ * (uncommitted changes in the repo are not copied).
  */
 
 import { execFileSync } from "node:child_process";
@@ -20,9 +17,14 @@ import path from "node:path";
 
 import { writeFileAtomic } from "../util/atomicWrite";
 import { withFileLockSync } from "../util/fileLock";
-import type { HeadlessResult } from "./headless";
 
 export type BgStatus = "running" | "done" | "failed" | "merged" | "discarded";
+
+export interface BgRunResult {
+  stoppedReason: string;
+  steps?: number;
+  summary?: string;
+}
 
 export interface BgJob {
   id: string;
@@ -33,7 +35,6 @@ export interface BgJob {
   status: BgStatus;
   startedAt: string;
   finishedAt?: string;
-  /** Extra `knox run` flags (permission, model, ...), replayed by the worker. */
   args: string[];
   stoppedReason?: string;
   steps?: number;
@@ -115,12 +116,12 @@ export function createJob(opts: {
 
 /**
  * Worker body: run the agent in the worktree, commit its changes, record the
- * outcome, and call `notify`. `run` is injected (the CLI passes `runHeadless`).
+ * outcome, and call `notify`. `run` is injected by tests.
  */
 export async function runJob(opts: {
   root: string;
   id: string;
-  run: (job: BgJob) => Promise<HeadlessResult>;
+  run: (job: BgJob) => Promise<BgRunResult>;
   notify?: (title: string, body: string) => void;
 }): Promise<BgJob> {
   const job = loadJob(opts.root, opts.id);
@@ -224,20 +225,4 @@ export function discardJob(root: string, id: string): MergeOutcome {
 
 export function formatJobLine(job: BgJob): string {
   return `${job.id}  ${job.status.padEnd(9)} ${job.task.slice(0, 60)}`;
-}
-
-/** Best-effort desktop notification; never throws. */
-export function desktopNotify(title: string, body: string): void {
-  try {
-    if (process.platform === "darwin") {
-      execFileSync("osascript", [
-        "-e",
-        `display notification ${JSON.stringify(body)} with title ${JSON.stringify(title)}`,
-      ]);
-    } else if (process.platform === "linux") {
-      execFileSync("notify-send", [title, body]);
-    }
-  } catch {
-    // no notifier available
-  }
 }

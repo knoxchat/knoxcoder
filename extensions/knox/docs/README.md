@@ -11,19 +11,15 @@ troubleshooting. Setting names are `knoxchat.*` in Settings.
    (a model title) to use after repeated transient stream failures.
 3. Open a folder. Knox works on the first workspace folder.
 
-Headless use (CI, scripts): see [cli.md](cli.md). Install `@knoxchat/cli` (`knox doctor`, `knox run "<task>" --json`) or from this tree `npm run knox -- doctor` in `extensions/knox/src/core`. Exit codes: 0 completed, 1 error, 2 step/doom-loop, 130 aborted, 64 usage.
-
 ## Docs set
 
-- [CLI](cli.md) — installable `@knoxchat/cli`, version, doctor, JSON schema, `--continue` / `--resume`
 - [Network](network.md) — every outbound call and `knoxchat.networkMode`
 - [Privacy](privacy.md)
-- [Sandbox](security/sandbox.md) — `knoxchat.sandbox`
 - [Threat model](security/threat-model.md)
 - [Release](release.md) — version scheme, checksums, rollback
 - [Third-party notices](third-party-notices.md) — Knox bundled production licenses
 - [Testing policy](testing-policy.md)
-- [GitHub Action example](ci/knox-run.yml)
+- [Upgrade guide](upgrade.md), [2.0 release notes](release-notes-2.0.md), [Known issues](known-issues.md)
 
 Knox 2.0 ships **English and Chinese** only (`en` / `zh`, plus `package.nls.json` / `package.nls.zh-cn.json`). Extra locales are 2.1.
 
@@ -38,11 +34,9 @@ Knox 2.0 ships **English and Chinese** only (`en` / `zh`, plus `package.nls.json
 Always, in every mode: destructive commands (`git push --force`,
 `git reset --hard`, `git clean -fd`, `chmod -R`, raw device writes, `curl | sh`,
 `find -delete`, ...) are blocked unless you allow the command in the agent
-policy. Optional OS sandbox: `knoxchat.sandbox` = `workspace-write` or
-`read-only` (macOS `sandbox-exec`, Linux `bwrap`; Windows has no wrapper).
-Network for fetch_url and the sandbox: `knoxchat.networkMode`.
+policy. Network for fetch_url: `knoxchat.networkMode`.
 Team bundles: **Knox: Export/Import Team Bundle**. Background agents: jobs
-panel (merge/discard) and **Knox: Background Agents: List**.
+panel (merge/discard leftover jobs) and **Knox: Background Agents: List**.
 Open the grouped settings search with **Knox: Open Knox Settings**.
 
 "Review edits" (mode popover) holds all file edits in memory; you then diff,
@@ -66,7 +60,6 @@ real disk, not staged files.
 
 `.knox/hooks.json` in the workspace root (re-read on every call). The Hooks
 panel can test a hook; **Knox: Test Hook** is also on the command palette.
-Headless runs ignore repo hooks unless `--trust-hooks`.
 
 ```json
 { "hooks": { "PreToolUse": [

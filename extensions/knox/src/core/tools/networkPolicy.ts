@@ -1,11 +1,10 @@
 /**
- * Shared network policy for `builtin_fetch_url` and the shell sandbox (P1-2).
+ * Network policy for `builtin_fetch_url`.
  *
  * Modes:
  *   allow     — current behaviour (public hosts; private IPs still blocked)
- *   deny      — no network from fetch_url; sandbox gets --unshare-net / deny network*
- *   allowlist — fetch_url only to matching hostnames; sandbox still denies all
- *               (shell allowlists are not reliable without a userspace proxy)
+ *   deny      — no network from fetch_url
+ *   allowlist — fetch_url only to matching hostnames
  *
  * Env wins: `KNOX_NETWORK_MODE`, `KNOX_NETWORK_ALLOWLIST` (comma-separated hosts).
  */
@@ -94,10 +93,6 @@ function hostMatches(host: string, pattern: string): boolean {
     return host === pattern.slice(2) || host.endsWith(p);
   }
   return host === pattern;
-}
-
-export function denyNetworkInSandbox(policy: NetworkPolicy): boolean {
-  return policy.mode === "deny" || policy.mode === "allowlist";
 }
 
 export function fetchUrlDeniedMessage(policy: NetworkPolicy, host: string): string {

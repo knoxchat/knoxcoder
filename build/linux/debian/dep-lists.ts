@@ -18,8 +18,6 @@ export const additionalDeps = [
 // for now since some of the older distros don't support them.
 export const recommendedDeps = [
 	'libvulkan1', // Move to additionalDeps once support for Trusty and Jessie are dropped.
-	'bubblewrap', // agent command sandboxing
-	'socat', // agent command sandboxing
 ];
 
 export const referenceGeneratedDepsByArch = {

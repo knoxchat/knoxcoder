@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  denyNetworkInSandbox,
   fetchUrlDeniedMessage,
   isHostAllowed,
   resolveNetworkPolicy,
@@ -23,18 +22,16 @@ afterEach(() => {
   }
 });
 
-describe("network policy (P1-2)", () => {
+describe("network policy", () => {
   it("allows every host in allow mode", () => {
     const policy = resolveNetworkPolicy({ mode: "allow" });
     expect(policy.mode).toBe("allow");
     expect(isHostAllowed("example.com", policy)).toBe(true);
-    expect(denyNetworkInSandbox(policy)).toBe(false);
   });
 
   it("denies every host in deny mode", () => {
     const policy = resolveNetworkPolicy({ mode: "deny" });
     expect(isHostAllowed("example.com", policy)).toBe(false);
-    expect(denyNetworkInSandbox(policy)).toBe(true);
     expect(fetchUrlDeniedMessage(policy, "example.com")).toMatch(/Network is off/);
   });
 
@@ -47,7 +44,6 @@ describe("network policy (P1-2)", () => {
     expect(isHostAllowed("foo.knoxstudio.ai", policy)).toBe(true);
     expect(isHostAllowed("knoxstudio.ai", policy)).toBe(true);
     expect(isHostAllowed("evil.com", policy)).toBe(false);
-    expect(denyNetworkInSandbox(policy)).toBe(true);
   });
 
   it("env overrides settings", () => {

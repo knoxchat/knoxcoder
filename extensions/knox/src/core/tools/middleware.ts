@@ -118,7 +118,7 @@ export interface ToolCallMiddlewareOptions {
   validateArgs?: boolean;
   repairArgs?: boolean;
   logging?: boolean;
-  /** User + project policy. Built-in sandbox still applies when omitted. */
+  /** User + project policy. The command guard still applies when omitted. */
   agentPolicy?: AgentToolPolicy | null;
   workspaceDirs?: string[];
   /** Settings default for `builtin_view_subdirectory` when the model omits maxFiles. */

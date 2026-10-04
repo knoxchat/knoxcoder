@@ -7,11 +7,11 @@ All notable changes to KnoxCoder are documented in this file.
 
 - **`ReasoningEngine`** and its commands `knox.analyzeTask`, `knoxchat.analyzeTask`, `knox.structuredSolve`, `knox.performTaskAnalysis`. None were contributed in the manifest or reachable from the GUI; the product planner is `builtin_plan`. The context-gathering operation no longer returns a random `contextSize`.
 - Unreferenced modules: prompt-file v1 helpers and v2 parse/render, the unused `CustomContextProvider` and `edit/claude` template, `protocol/messenger` IDE adapters, `verificationLoop`, tool templates/examples, the unused LRU/LCS/text/JSON-stream utils, `terminalEmulator`, `languageClient`, `battery`, `cleanSlate`, `expandSnippet`, and the four legacy memory tool definitions (calls to the old `builtin_memory_*` names still route to `builtin_memory`).
+- OS command sandbox (`knoxchat.sandbox`, macOS `sandbox-exec` / Linux `bwrap` wrappers, composer chip). Shell stays under command guard, path policy, and permission prompts.
+- Headless CLI (`@knoxchat/cli`, `knox run`, `knox doctor`, `knox login`, packaged-cli-smoke). Background-agent **Start** (it only copied a CLI command) is gone; list/merge/discard remain.
 
 ### Added
 
-- CLI `--continue` / `--resume`, `config.yaml` model default, JSON `sessionId`.
-- Installable `@knoxchat/cli` (`knox` on PATH): `npm run build:cli` in `extensions/knox`.
 - Stream errors classify HTTP 402 quota; copyable diagnostic on the error dialog.
 - Rate-limit / quota dialogs use provider-specific hints and show session cost so far.
 - Empty chat sample prompts; first-run copy covers KnoxStudio sign-in vs bring-your-own key.

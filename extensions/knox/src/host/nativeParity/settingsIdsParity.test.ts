@@ -23,7 +23,7 @@ suite("KN-382 settings id parity", () => {
     assert.ok(ids.includes("knox.checkpoints.auto.enabled"));
     assert.ok(ids.includes("knox.checkpoints.smart.enableMetrics"));
     assert.ok(ids.includes("knox.checkpoints.inlineDiff.enabled"));
-    assert.strictEqual(ids.length, 58, "frozen KN-382 setting catalog");
+    assert.strictEqual(ids.length, 57, "frozen KN-382 setting catalog");
 
     for (const id of ids) {
       assert.ok(

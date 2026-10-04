@@ -1,7 +1,7 @@
 /**
  * Shared Agent permission rules (GUI chat + `/autonomous` + `runAgentLoop`).
  *
- * Ask/accept/fullAuto live here so headless loops use the same auto-approve
+ * Ask/accept/fullAuto live here so every agent loop uses the same auto-approve
  * decision as the product permission bar.
  */
 

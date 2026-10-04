@@ -111,10 +111,6 @@ jobs:
         working-directory: extensions/knox
         run: npm run esbuild -- --skip-native && npm run packaged-smoke
 
-      - name: Packaged CLI smoke
-        working-directory: extensions/knox
-        run: npm run build:cli && npm run packaged-cli-smoke
-
       - name: Update-feed checksums
         if: startsWith(matrix.os, 'ubuntu')
         run: node --test scripts/ci/generate-update-metadata.test.mjs

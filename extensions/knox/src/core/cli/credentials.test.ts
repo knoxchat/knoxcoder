@@ -48,11 +48,9 @@ describe("cli credentials", () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  it("never prints the key: CLI sources do not log session secrets", () => {
-    for (const f of ["main.ts", "credentials.ts", "headless.ts", "doctor.ts"]) {
-      const src = fs.readFileSync(path.join(__dirname, f), "utf-8");
-      expect(src).not.toMatch(/(console\.\w+|stderr\.write|stdout\.write)\([^)]*(apiKey|refreshToken)/);
-    }
+  it("never prints the key: credential sources do not log session secrets", () => {
+    const src = fs.readFileSync(path.join(__dirname, "credentials.ts"), "utf-8");
+    expect(src).not.toMatch(/(console\.\w+|stderr\.write|stdout\.write)\([^)]*(apiKey|refreshToken)/);
   });
 
   it("prefers KNOX_API_KEY over a credentials file", () => {

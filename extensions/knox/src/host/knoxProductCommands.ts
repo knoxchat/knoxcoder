@@ -265,21 +265,6 @@ export function registerKnoxProductCommands(
     }
   });
 
-  register("knox.bg.start", async () => {
-    const task = await vscode.window.showInputBox({
-      prompt: "Background agent task (runs via knox CLI)",
-      placeHolder: "Fix the failing test",
-    });
-    if (!task) {
-      return;
-    }
-    const cmd = `knox bg start ${JSON.stringify(task)}`;
-    await vscode.env.clipboard.writeText(cmd);
-    void vscode.window.showInformationMessage(
-      `Copied to clipboard. Run in a terminal (needs knox login or KNOX_API_KEY): ${cmd}`,
-    );
-  });
-
   register("knox.bg.merge", async () => {
     const jobs = listJobs(bgRoot()).filter((j) => j.status === "done");
     const pick = await vscode.window.showQuickPick(

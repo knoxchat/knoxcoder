@@ -19,7 +19,6 @@ Command, view, and setting IDs stay `knoxchat.*` so existing keybindings and `se
 ## Documentation
 
 * [What is KnoxCoder](extensions/knox/docs/README.md)
-* [Install / CLI](extensions/knox/docs/cli.md)
 * [Privacy](extensions/knox/docs/privacy.md)
 * [Network](extensions/knox/docs/network.md)
 * [Security / threat model](extensions/knox/docs/security/threat-model.md)

@@ -21,7 +21,6 @@ export const KNOX_CHAT_SETTING_IDS = [
   "knoxchat.memoryBrain.maxBytes",
   "knoxchat.memoryBrain.enabled",
   "knoxchat.memoryBrain.workspaceEnabled",
-  "knoxchat.sandbox",
   "knoxchat.networkMode",
   "knoxchat.networkAllowlist",
   "knoxchat.compatInstructions",

@@ -201,7 +201,6 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 		agentDoomLoopThreshold: typeof experimental?.agentDoomLoopThreshold === 'number' ? experimental.agentDoomLoopThreshold : profileDefaults.doomLoopThreshold,
 		agentViewSubdirectoryMaxFiles: typeof experimental?.agentViewSubdirectoryMaxFiles === 'number' ? experimental.agentViewSubdirectoryMaxFiles : controller.store.state.agentViewSubdirectoryMaxFiles,
 		jevEnabled: asRecord(experimental?.jev)?.enabled === true || experimental?.jevEnabled === true,
-		sandboxMode: experimental?.sandbox === 'workspace-write' || experimental?.sandbox === 'read-only' ? experimental.sandbox : 'off',
 		promptPath: typeof experimental?.promptPath === 'string' ? experimental.promptPath : controller.store.state.promptPath,
 		webSearchSupported: knoxGuiModelSupportsWebSearch(selectedModel),
 		imagesSupported: knoxGuiModelSupportsImages(selectedModel),

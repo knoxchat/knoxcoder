@@ -48,16 +48,15 @@ export async function getWorkspaceHookRunner(
 ): Promise<HookRunner | null> {
   const dirs = await ide.getWorkspaceDirs().catch(() => [] as string[]);
   const dir = dirs[0];
-  // Repo-local hooks are arbitrary shell commands from the repository. In the
-  // editor, VS Code Workspace Trust gates the whole extension
-  // (`untrustedWorkspaces.supported: false`). Headless runs have no such
-  // gate, so they must opt in (see `trustWorkspace`).
+  // Repo-local hooks are arbitrary shell commands from the repository. VS Code
+  // Workspace Trust gates the whole extension (`untrustedWorkspaces.supported:
+  // false`), so they never run in an untrusted folder.
   const trusted = opts.trustWorkspace !== false;
   const localYaml = dir ? await loadWorkspaceYamlHooks(ide, dir) : {};
   const localJson = dir ? await loadHooksConfig((u) => ide.readFile(u), dir) : {};
   if (!trusted && (Object.keys(localYaml).length || Object.keys(localJson).length)) {
     log(
-      "[knox hooks] ignoring repo-local hooks (.knox/config.yaml, .knox/hooks.json): workspace is not trusted. Pass --trust-hooks or set KNOX_TRUST_WORKSPACE_HOOKS=1 to run them.",
+      "[knox hooks] ignoring repo-local hooks (.knox/config.yaml, .knox/hooks.json): workspace is not trusted.",
     );
   }
   const config = mergeHooksConfigs(

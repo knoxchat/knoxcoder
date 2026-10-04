@@ -17,8 +17,6 @@ export const additionalDeps = [
 ];
 
 export const recommendedDeps = [
-	'bubblewrap', // agent command sandboxing
-	'socat', // agent command sandboxing
 ];
 
 export const referenceGeneratedDepsByArch = {

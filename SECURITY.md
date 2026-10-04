@@ -15,10 +15,9 @@ Email **security@knoxstudio.ai** (or open a private advisory on
 | 1.138.x | Security fixes until 2.0.0 stable |
 | Older 1.x | No |
 
-Threat model, sandbox, and network destinations:
+Threat model and network destinations:
 
 - [extensions/knox/docs/security/threat-model.md](extensions/knox/docs/security/threat-model.md)
-- [extensions/knox/docs/security/sandbox.md](extensions/knox/docs/security/sandbox.md)
 - [extensions/knox/docs/network.md](extensions/knox/docs/network.md)
 - [extensions/knox/docs/privacy.md](extensions/knox/docs/privacy.md)
 

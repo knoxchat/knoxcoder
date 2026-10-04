@@ -1270,7 +1270,6 @@ class VsCodeIde implements IDE {
       memoryBrainEnabled: knox.get<boolean>("memoryBrain.enabled") !== false,
       memoryBrainWorkspaceEnabled:
         knox.get<boolean>("memoryBrain.workspaceEnabled") !== false,
-      sandbox: knox.get<"off" | "workspace-write" | "read-only">("sandbox"),
       networkMode: knox.get<"allow" | "deny" | "allowlist">("networkMode"),
       networkAllowlist: knox.get<string[]>("networkAllowlist"),
       compatInstructions: knox.get<Array<"cursor" | "copilot">>(

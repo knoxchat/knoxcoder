@@ -1,7 +1,6 @@
 /**
- * CLI credential store (K-029). The headless CLI has no VS Code SecretStorage,
- * so the OAuth-minted session lives in `~/.knoxcoder/auth.json` (mode 0600).
- * CI can skip OAuth with `KNOX_API_KEY`. The editor still uses SecretStorage.
+ * File credential store. The editor uses SecretStorage; live eval and tests
+ * can read `~/.knoxcoder/auth.json` (mode 0600) or `KNOX_API_KEY`.
  * Never log the key or token.
  */
 
@@ -57,7 +56,7 @@ export function sessionFromEnv(
   };
 }
 
-/** Env key wins so CI does not need `knox login`. */
+/** Env key wins over the credentials file. */
 export function resolveSession(
   file = defaultCredentialsPath(),
   env: NodeJS.ProcessEnv = process.env,

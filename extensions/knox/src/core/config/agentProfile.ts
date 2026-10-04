@@ -267,7 +267,6 @@ export function ideSettingsToExperimental(ide: {
   agentVerifyMode?: unknown;
   agentVerifyMaxIterations?: unknown;
   jevEnabled?: unknown;
-  sandbox?: unknown;
   networkMode?: unknown;
   networkAllowlist?: unknown;
   compatInstructions?: unknown;
@@ -281,7 +280,6 @@ export function ideSettingsToExperimental(ide: {
   agentVerifyMode?: "diagnostics" | "command" | "off";
   agentVerifyMaxIterations?: number;
   jev?: { enabled: true };
-  sandbox?: "off" | "workspace-write" | "read-only";
   networkMode?: "allow" | "deny" | "allowlist";
   networkAllowlist?: string[];
   compatInstructions?: Array<"cursor" | "copilot">;
@@ -294,9 +292,6 @@ export function ideSettingsToExperimental(ide: {
   }
   if (ide.jevEnabled === true) {
     out.jev = { enabled: true };
-  }
-  if (ide.sandbox === "off" || ide.sandbox === "workspace-write" || ide.sandbox === "read-only") {
-    out.sandbox = ide.sandbox;
   }
   if (ide.networkMode === "allow" || ide.networkMode === "deny" || ide.networkMode === "allowlist") {
     out.networkMode = ide.networkMode;

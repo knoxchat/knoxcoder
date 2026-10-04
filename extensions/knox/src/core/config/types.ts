@@ -548,7 +548,6 @@ declare global {
     memoryBrainMaxBytes?: number;
     memoryBrainEnabled?: boolean;
     memoryBrainWorkspaceEnabled?: boolean;
-    sandbox?: "off" | "workspace-write" | "read-only";
     networkMode?: "allow" | "deny" | "allowlist";
     networkAllowlist?: string[];
     compatInstructions?: Array<"cursor" | "copilot">;

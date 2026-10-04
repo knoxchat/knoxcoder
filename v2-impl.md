@@ -36,7 +36,7 @@ Each item is a checkbox; tick it when merged. Items carry an acceptance criterio
       load budgets apply only to the minified packaged bundle.
 - [x] No hanging test found; full core suite finishes in ~8 s. Per-test timeout (30 s) and CI job timeout (30 min) already exist.
 - [x] Fixed stale KN-382 contract test (`knoxAgentHostContract.test.ts`): contributed `knoxchat.*` /
-      `knox.checkpoints.*` settings match the frozen catalog (`settingIds.ts`; currently 52 after `knoxchat.memoryBrain.maxBytes`).
+      `knox.checkpoints.*` settings match the frozen catalog (`settingIds.ts`; currently 57 after dropping `knoxchat.sandbox`).
 - [x] Ran `test:tsc`, `test:core`, `test:pkg`, `inventory-gate`, GUI tests: all green locally.
 - [x] Knox GUI/contract tests wired into CI: new `gui` job in `knox-ci.yml` (xvfb + `scripts/test.sh --glob`). It is `continue-on-error` until proven green; then remove that flag so it gates packaging.
 - [x] Host checkpoint-migration tests (`npm run test:host`) run on the Knox CI matrix.
@@ -72,12 +72,12 @@ Done when: a release candidate is installed and updated on all three OSes from t
 ### P0-4 Security review of the agent surface (DONE except two items needing a built app / release step)
 - [x] Threat-model document: `extensions/knox/docs/security/threat-model.md` (vectors, controls, known limits, accepted risks).
 - [x] `commandGuard` bypass corpus (`commandGuard.bypass.test.ts`, ~120 cases + benign corpus + adversarial/random-input robustness). Closed: wrapper options with values (`nice -n 5`, `sudo -u x`), here-strings into shells, `find -execdir/-ok` and nested dangerous `-exec`, `rm -r -f` / `--recursive --force`, base64/xxd payloads piped to a shell, downloads piped to python/node/perl/ruby/pwsh, git config keys that run programs (`core.sshCommand`, `alias.x=!`, ...), more destructive git (`checkout -f`, `branch -D`, `stash clear`, `reflog expire`, `filter-branch`, delete/mirror push, `reset --merge`), PowerShell `-EncodedCommand` and `iex` of downloads.
-      Known limits (documented): variable indirection (`X=rm; $X -rf /`), interpreter running a script written earlier; the real fix is the OS sandbox (P1-2). `git push --force-with-lease` stays allowed on purpose.
+      Known limits (documented): variable indirection (`X=rm; $X -rf /`), interpreter running a script written earlier; stay in Edits or Ask for untrusted work. `git push --force-with-lease` stays allowed on purpose.
 - [x] Path boundary: `isPathOutsideWorkspace` and the `~/.ssh` hard-deny now resolve symlinks (existing, not-yet-created and dangling) (`pathBoundary.test.ts`); worktree merge-back rejects `..`, absolute and symlinked paths (`isSafeWorktreeApplyPath`). Staged-edit apply now re-checks every file at write time (`checkStagedApplyTarget`: hard-deny paths and a directory swapped for a symlink out of the workspace are refused and stay staged; tests in `pathBoundary.test.ts`). Accepted: the file tools write through `IDE.writeFile` with no boundary check of their own (the policy layer is the single gate; paths the user approved outside the workspace must stay writable). Documented rather than duplicated in the host.
-- [x] Hooks: editor is gated by VS Code Workspace Trust (`untrustedWorkspaces.supported: false`; hooks are read per turn, never on open). Gap found and fixed: headless `knox run` executed repo-local `.knox/hooks.json` / `.knox/config.yaml` hooks with no consent. They are now ignored unless `--trust-hooks` or `KNOX_TRUST_WORKSPACE_HOOKS=1` (tests). Team bundle import already skips hooks without `--allow-hooks`.
+- [x] Hooks: editor is gated by VS Code Workspace Trust (`untrustedWorkspaces.supported: false`; hooks are read per turn, never on open). Team bundle import already skips hooks without `--allow-hooks`.
       Still open: verify in a real KnoxCoder build that an untrusted folder does not activate the extension.
 - [x] Secret redaction: format corpus (`redactSecrets.formats.test.ts`: AWS, GCP, GitHub, Stripe, Slack, npm, JWT, PEM/OpenSSH, DB/Redis/Mongo URLs, `Authorization` any scheme, `x-api-key`, idempotence, benign text). Added rules for Stripe, `ya29.`, `Authorization: Token ...`, API-key headers, empty-user URLs; fixed a quadratic ReDoS in the `KEY=value` rules (200 KB input took 38 s). Exported Markdown sessions are now redacted (`knoxGuiRedact.ts`, a copy of the reference rules; its Electron test has not been run yet). Sinks table is in the threat model. Not redacted by design: checkpoints (byte-exact) and user messages at rest in the session file.
-- [x] `~/.knoxcoder/auth.json`: atomic write with mode 0600 from creation (no window with default perms), permissions tightened on load if group/other-readable, test that CLI sources never log key/token. The editor uses SecretStorage.
+- [x] `~/.knoxcoder/auth.json`: atomic write with mode 0600 from creation (no window with default perms), permissions tightened on load if group/other-readable, test that credential sources never log key/token. The editor uses SecretStorage.
 - [x] Security-review pass over the uncommitted diff: 0 high/critical, 1 medium (glued `git -calias.x=!cmd` bypassed the git exec-config guard in fullAuto). Fixed (`-cKEY=...`, `--config=`), with corpus cases.
 - [x] Dependency audit (`npm audit --omit=dev` in `extensions/knox`): 3 high, all `node-forge` via `mac-ca`/`win-ca` (RSA signature verification, not used: only system root certs are read). No fix exists; recorded as an accepted risk. Root package (`npm audit --omit=dev`): 3 high/moderate fixable in range (`axios` 1.18.1 to 1.20.0 via dev-tunnels, `undici` 7.29 to 7.30, `ip-address` 10.5 to 10.7.3); lockfile updated with `npm audit fix --package-lock-only` (re-run `npm ci` and a build before release). Remaining 2 moderate: `uuid@3` under `@microsoft/dev-tunnels-connections`, no fix upstream (tunnels feature is not used by Knox). License check of the extension's installed packages: no GPL/AGPL/unlicensed; `node-forge` is `BSD-3-Clause OR GPL-2.0` (we take BSD-3); MPL-2.0 x2 are unmodified. `ThirdPartyNotices.txt` stays the VS Code editor inventory. Knox production deps: `extensions/knox/docs/third-party-notices.md` (`npm run notices`).
 
@@ -103,7 +103,7 @@ Done when: migration tests pass from fixtures of 1.138.2 and 2.0.0-beta data dir
 ### P0-6 Honesty and dead code gate (DONE except two manual checks)
 - [x] `unimplementedAdvancedTools` deleted (9 definition-only tools); honesty/routing/contract tests and docs updated.
 - [x] Quarantined code resolved. `SmartToolRouter` was already gone (honesty gate pins it). `ReasoningEngine` deleted with its four unadvertised commands (`knox.analyzeTask`, `knoxchat.analyzeTask`, `knox.structuredSolve`, `knox.performTaskAnalysis`); a test pins that it stays gone. `RefactoringService` is kept: it backs four contributed commands (`knox.renameSymbol`, `extractMethod`, `moveFile`, `extractInterface`) with contract tests. Also removed a fabricated `contextSize: Math.random()` from context gathering.
-- [x] Dead-code sweep: import graph from `src/extension.ts` + `core/cli/main.ts`, then files with zero importers anywhere (source, tests, GUI contracts) were deleted: 30 modules plus four legacy memory tool definitions. Kept on purpose: `CustomLLM` (contract KN-254, custom-provider path), `protocol/util.ts` (contract KN-230), anything a test imports.
+- [x] Dead-code sweep: import graph from `src/extension.ts`, then files with zero importers anywhere (source, tests, GUI contracts) were deleted: 30 modules plus four legacy memory tool definitions. Kept on purpose: `CustomLLM` (contract KN-254, custom-provider path), `protocol/util.ts` (contract KN-230), anything a test imports.
       Still unreachable from product code but kept because tests import them: eval harness/live files, memory bench, `settingIds`, `localeParity`, `host/util/knoxHostExtension`, `toolCallValidation` (host, has its own test; not on the main path), `checkpointTestHarness`. Decide in 2.1 whether `toolCallValidation` should be wired or deleted.
 - [x] `CHANGELOG.md` audit of `2.0.0-beta`, each claim checked against code (symbol/constant/command exists) and tests; findings:
       Verified present: shared `runAgentLoop`; `sharedLoop` removed; `builtin_tool_search`, deferred tools default; legacy memory tools hidden and routed to `builtin_memory`; `builtin_fetch_url` with `KNOX_FETCH_URL_ALLOW_PRIVATE`; hooks events; `KNOX_SUBAGENT_CONCURRENCY`; `.knox/agents`; staged edits; `/instructions` and the 2000/6000 token warnings; CLI exit codes; `knox bg`; Edits default; `commandGuard`; `redactSecrets`; Jev guard; compaction at 75%; `modelPricing.json`; prompt cache; oracle detection; memory bench + `KNOX_MEMORY_INJECT_CAP`; live eval env + results files; nightly and Knox CI workflows; team bundle limits; inline completion stats command and model setting; session size cap and search; startup budget script; `edit_file` atomic edits; shared truncation; packaging fixes (`2.0.0~beta`, AppX guard).
@@ -119,21 +119,14 @@ Done when: migration tests pass from fixtures of 1.138.2 and 2.0.0-beta data dir
 ### P1-1 (removed): Knox does not use MCP
 Knox deliberately has no MCP client; nothing to build here.
 
-### P1-2 Command execution sandbox
-- [x] Optional OS-level sandbox for shell in Auto mode: macOS `sandbox-exec`, Linux `bwrap`
-      (`tools/sandbox.ts`). Windows has no wrapper (documented in `docs/security/sandbox.md` and
-      `knox doctor`). Missing binaries warn unless `KNOX_SANDBOX_REQUIRED=1`.
-- [x] Network policy for tools (`knoxchat.networkMode` allow|deny|allowlist, `knoxchat.networkAllowlist`)
-      shared by `fetch_url` and the sandbox (`tools/networkPolicy.ts`). Env: `KNOX_NETWORK_MODE`,
-      `KNOX_NETWORK_ALLOWLIST`.
-- [x] Setting `knoxchat.sandbox` (`off|workspace-write|read-only`) and a composer chip when not `off`.
+### P1-2 (removed): Command execution sandbox
+Out of 2.0.0. OS wrappers (`sandbox-exec` / `bwrap`), `knoxchat.sandbox`, and the composer chip
+are gone. Network policy for `builtin_fetch_url` stays (`knoxchat.networkMode`,
+`knoxchat.networkAllowlist`). Shell safety is command guard + permission prompts.
 
-Done when: Auto mode can run with writes limited to the workspace and temp dir, with tests per OS. (Unit tests for wrap/profile/policy; live macOS/Linux binary tests still manual.)
-
-### P1-3 GUI for features that are CLI-only
+### P1-3 GUI for features that were CLI-only
 - [x] Background agents: list/merge/discard in the jobs panel (`kind: bg`) plus command palette
-      (`knox.bg.list|start|merge|discard`). Start copies `knox bg start "..."` for a terminal worker
-      (no bundled CLI in the app yet).
+      (`knox.bg.list|merge|discard`). Starting a new background job is not in 2.0.0.
 - [x] Team bundles: **Knox: Export/Import Team Bundle** with dry-run / overwrite and an allow-hooks prompt.
 - [x] Custom agents: **Knox: List/Create Custom Agent** (template + validation). A dedicated sidebar
       panel is still 2.1.
@@ -141,17 +134,10 @@ Done when: Auto mode can run with writes limited to the workspace and temp dir, 
 - [x] Settings: **Knox: Open Knox Settings** (`@id:knoxchat` search). Full custom grouped page and
       dead-key deprecation still open.
 
-Done when: the command palette covers export/import/agents/hooks/bg, and the jobs panel can merge/discard CLI bg jobs.
+Done when: the command palette covers export/import/agents/hooks/bg list-merge-discard.
 
-### P1-4 Headless CLI and CI usage
-- [x] Publish `knox` as an installable CLI: `@knoxchat/cli` (`extensions/knox/cli`, `npm run build:cli` → `cli/dist/knox.js`, bin `knox`). Registry `npm publish` is a release-time step; until then `npm i -g ./extensions/knox/cli` after `build:cli`. CI `packaged-cli-smoke` on Linux/Windows/macOS.
-- [x] `knox --version` / `-V` / `version` and `knox doctor`.
-- [x] Non-interactive auth: `KNOX_API_KEY` (wins over `auth.json`; never logged).
-- [x] Output contract: `--json` and `--stream-json` carry `schemaVersion: 1`; documented in `docs/cli.md` with tests.
-- [x] GitHub Action example: `docs/ci/knox-run.yml` (not a live KnoxCoder job). `--resume` / `--continue` persist under `~/.knoxcoder/sessions`.
-- [x] Config parity with the GUI for the chat model: first `config.yaml` `models[].model` is the CLI default unless `--model` is set. Full YAML tools/hooks/rules still load from the project as before.
-
-Done when: a published CLI exists; version/doctor/JSON/KNOX_API_KEY/`--continue`/`--resume` are in tree.
+### P1-4 (removed): Headless CLI and CI usage
+Out of 2.0.0. `@knoxchat/cli`, `knox run`, `knox doctor`, and the GitHub Action example are gone.
 
 ### P1-5 Reliability and performance targets
 - [x] Cold activation budget measured in CI on all OSes (<= 500 ms module load, bundle <= 16 MB, as in
@@ -198,9 +184,9 @@ Done when: a published CLI exists; version/doctor/JSON/KNOX_API_KEY/`--continue`
 - [x] Error taxonomy: stream failures have a `kind` (rate-limit, quota/402, unauthorized, not-found, overloaded, generic), a localized hint, and **Copy diagnostic**.
 
 ### P1-10 Documentation
-- [x] Root `README.md` links Knox docs (install/CLI, privacy, network, security, release).
-- [x] `extensions/knox/docs/README.md` is a docs set (quickstart, CLI, sandbox, network, privacy, release).
-- [x] Security and privacy pages (threat-model, sandbox, network, privacy, `SECURITY.md`).
+- [x] Root `README.md` links Knox docs (privacy, network, security, release).
+- [x] `extensions/knox/docs/README.md` is a docs set (quickstart, network, privacy, release).
+- [x] Security and privacy pages (threat-model, network, privacy, `SECURITY.md`).
 - [x] Release notes for 2.0.0 (draft `docs/release-notes-2.0.md`; collapse beta notes at tag time) and an [upgrade guide](extensions/knox/docs/upgrade.md).
 - [x] `SECURITY.md`: KnoxStudio reporting address and supported versions table.
 
@@ -228,11 +214,16 @@ Done when: a published CLI exists; version/doctor/JSON/KNOX_API_KEY/`--continue`
 - [ ] CI green on Linux/Windows/macOS for the release commit; live eval run recorded.
 - [ ] Manual QA script run on each OS: install, sign-in, BYO key, chat, edit with review, shell approval,
       destructive command denial, checkpoint undo, Memory Brain, subagent worktree, hooks,
-      headless `knox run`, update from `2.0.0-beta`.
+      update from `2.0.0-beta`.
 - [ ] Clean-machine install test (no `~/.knoxcoder`) and upgrade test (existing data).
 - [ ] Version bumped to `2.0.0` everywhere; `CHANGELOG.md` finalized; tag `v2.0.0`; assets and checksums
       attached; update metadata verified.
-- [ ] Known-issues list written.
+- [x] Known-issues list written: `extensions/knox/docs/known-issues.md` (also wrote `upgrade.md` and `release-notes-2.0.md`, which earlier notes referenced but were missing).
+
+Local gate re-run (2026-10-05): `test:tsc`, `test:core` (214 files / 1850 tests), and GUI/contract tests (448) all pass.
+Remaining before tagging are human/hardware steps: 3 green CI runs, drop `continue-on-error` on the `gui` job, clean-machine
+install/upgrade/update runs on all three OSes, notarization and signing, live eval baseline, `2.0.0-rc.1`, then the version bump
+(root `package.json`, `CHANGELOG.md` `[Unreleased]` → `[2.0.0]`) and tag `v2.0.0`.
 
 ---
 
@@ -240,7 +231,7 @@ Done when: a published CLI exists; version/doctor/JSON/KNOX_API_KEY/`--continue`
 
 1. P0-1 (green baseline), then P0-2 (CI matrix): everything else depends on trustworthy tests.
 2. P0-6 (remove dead code and verify changelog claims), P0-5 (data migration).
-3. P0-4 (security) in parallel with P1-2 (sandbox).
-4. P1-3, P1-4, P1-6, P1-7 (product completeness).
+3. P0-4 (security).
+4. P1-3, P1-6, P1-7 (product completeness).
 5. P1-5, P1-8, P1-9, P1-10 (hardening, docs).
 6. P0-3 (release pipeline rehearsal) with a `2.0.0-rc.1`, then the final checklist.

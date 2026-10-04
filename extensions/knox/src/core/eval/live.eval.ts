@@ -1,11 +1,10 @@
 /**
  * Live-model comparison of `runAgentLoop` vs `runChatTurn` (K-010).
  *
- *   knox login            (OAuth, once; see cli/main.ts)
- *   npm run test:live
+ *   KNOX_API_KEY=... npm run test:live
+ *   # or a session in ~/.knoxcoder/auth.json
  *
- * Uses the signed-in KnoxChat session from `~/.knoxcoder/auth.json`. No API
- * keys or env vars. Skipped when not signed in. Writes eval/results/live-<model>.json.
+ * Skipped when not signed in. Writes eval/results/live-<model>.json.
  */
 
 import fs from "node:fs";
@@ -14,7 +13,7 @@ import { describe, expect, it } from "vitest";
 
 import { calculateCost } from "../llm/tokenTracking";
 import { apiBase } from "../auth/knoxOAuth";
-import { loadSession } from "../cli/credentials";
+import { resolveSession } from "../cli/credentials";
 import { buildSystemPrompt } from "../llm/systemPrompt";
 import type { Tool } from "..";
 import { allTools } from "../tools";
@@ -31,7 +30,7 @@ import {
 } from "./liveReport";
 import { LIVE_TASKS, noShell } from "./liveTasks";
 
-const apiKey = loadSession()?.apiKey;
+const apiKey = resolveSession()?.apiKey;
 // KNOX_LIVE_MODEL / KNOX_LIVE_RUNS pick the model and repeats. With
 // KNOX_LIVE_DEFER=1 the chat-turn column runs with deferred tool loading (K-021)
 // against the full product catalog (both paths see it), so the report compares full vs deferred schemas.

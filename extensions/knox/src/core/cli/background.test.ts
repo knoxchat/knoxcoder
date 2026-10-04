@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { cleanupTempRepos, git, makeTempRepo } from "../test/tempRepo";
+import type { BgRunResult } from "./background";
 import {
   createJob,
   discardJob,
@@ -13,7 +14,6 @@ import {
   runJob,
   saveJob,
 } from "./background";
-import type { HeadlessResult } from "./headless";
 
 const roots: string[] = [];
 const bgRoot = () => {
@@ -26,14 +26,10 @@ afterEach(() => {
   for (const r of roots.splice(0)) fs.rmSync(r, { recursive: true, force: true });
 });
 
-const ok: HeadlessResult = {
-  schemaVersion: 1,
+const ok: BgRunResult = {
   stoppedReason: "completed",
-  exitCode: 0,
   steps: 2,
   summary: "done",
-  tools: [],
-  denied: [],
 };
 
 describe("background agents", () => {

@@ -829,7 +829,6 @@ export interface IKnoxGuiState {
 	agentDoomLoopThreshold: number;
 	agentViewSubdirectoryMaxFiles: number;
 	jevEnabled: boolean;
-	sandboxMode: 'off' | 'workspace-write' | 'read-only';
 	policy: IKnoxGuiPolicy;
 	dialogMessage?: string;
 	configError: IKnoxGuiConfigError[];
@@ -1138,7 +1137,6 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		agentDoomLoopThreshold: 3,
 		agentViewSubdirectoryMaxFiles: 1000,
 		jevEnabled: false,
-		sandboxMode: 'off',
 		policy: { paths: '', commands: '', externalDirectory: 'ask', sandboxDestructive: true },
 		configError: [],
 		historySessions: [],

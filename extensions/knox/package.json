@@ -34,8 +34,6 @@
 		"test:host-tsc": "tsc -p src/host --noEmit",
 		"test:pkg": "vitest run --config src/pkg/vitest.config.ts",
 		"packaged-smoke": "node ./scripts/packaged-extension-smoke.mts",
-		"build:cli": "node ./scripts/knox-cli-esbuild.mts",
-		"packaged-cli-smoke": "node ./scripts/knox-cli-smoke.mts",
 		"notices": "node ./scripts/knox-third-party-notices.mts",
 		"watch": "gulp watch-extension:knox",
 		"esbuild": "node ./esbuild.mts"
@@ -138,16 +136,6 @@
 					"default": true,
 					"markdownDescription": "Per-workspace Memory Brain. Off for this folder only (workspace setting). Use this to opt a repo out of local memory."
 				},
-				"knoxchat.sandbox": {
-					"type": "string",
-					"enum": [
-						"off",
-						"workspace-write",
-						"read-only"
-					],
-					"default": "off",
-					"markdownDescription": "OS sandbox for Auto-mode shell. `workspace-write` limits writes to the workspace and temp dirs; `read-only` also makes the workspace read-only. macOS uses `sandbox-exec`, Linux uses `bwrap`. Windows has no wrapper (the composer shows that). `KNOX_SANDBOX` overrides this; `KNOX_SANDBOX_REQUIRED=1` fails closed if the backend is missing."
-				},
 				"knoxchat.networkMode": {
 					"type": "string",
 					"enum": [
@@ -156,7 +144,7 @@
 						"allowlist"
 					],
 					"default": "allow",
-					"markdownDescription": "Network policy shared by `builtin_fetch_url` and the shell sandbox. `deny` blocks fetch_url and takes the sandbox off the network; `allowlist` restricts fetch_url to `knoxchat.networkAllowlist` (shell still has no network in the sandbox). `KNOX_NETWORK_MODE` overrides this."
+					"markdownDescription": "Network policy for `builtin_fetch_url`. `deny` blocks fetch_url; `allowlist` restricts it to `knoxchat.networkAllowlist`. `KNOX_NETWORK_MODE` overrides this."
 				},
 				"knoxchat.networkAllowlist": {
 					"type": "array",
@@ -1014,12 +1002,6 @@
 				"command": "knox.bg.list",
 				"category": "Knox",
 				"title": "Background Agents: List",
-				"group": "Knox"
-			},
-			{
-				"command": "knox.bg.start",
-				"category": "Knox",
-				"title": "Background Agents: Start",
 				"group": "Knox"
 			},
 			{

@@ -3,7 +3,6 @@
 ## Version scheme
 
 - Product / npm: root `package.json` version. Today `2.0.0-beta`. Stable is `2.0.0` (no prerelease).
-- `extensions/knox/cli/package.json` (`@knoxchat/cli`) must match the product version (`packaged-cli-smoke` fails otherwise).
 - `build/lib/packageVersion.ts`: `linuxPackageVersion("2.0.0")` is unchanged; `2.0.0-beta` becomes `2.0.0~beta` so Debian/RPM sort the beta before stable.
 - Windows VersionInfo uses `numericPackageVersion` (strips `-beta` → `2.0.0`).
 - `extensions/knox/package.json` stays `10.0.0` on purpose: it is a VS Code **system extension**, same dummy version as Git, TypeScript, and the other in-tree extensions. The product version is what users see.
