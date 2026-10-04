@@ -355,10 +355,17 @@ function promptLogsFromRaw(item: Record<string, unknown>, message: Record<string
 		}
 		const jev = asRecord(rec.jev);
 		const turn = asRecord(jev?.turn);
+		const usageRec = asRecord(rec.usage);
 		logs.push({
 			modelTitle: typeof rec.modelTitle === 'string' ? rec.modelTitle : undefined,
 			prompt: typeof rec.prompt === 'string' ? rec.prompt : undefined,
 			completion: typeof rec.completion === 'string' ? rec.completion : undefined,
+			usage: usageRec && (typeof usageRec.promptTokens === 'number' || typeof usageRec.completionTokens === 'number')
+				? {
+					promptTokens: typeof usageRec.promptTokens === 'number' ? usageRec.promptTokens : undefined,
+					completionTokens: typeof usageRec.completionTokens === 'number' ? usageRec.completionTokens : undefined,
+				}
+				: undefined,
 			jev: turn ? {
 				turn: {
 					source: typeof turn.source === 'string' ? turn.source : undefined,

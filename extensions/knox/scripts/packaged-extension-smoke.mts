@@ -36,6 +36,18 @@ if (check.status !== 0) {
   fail(`node --check failed:\n${check.stderr || check.stdout}`);
 }
 
+const measure = path.join(knoxRoot, "scripts", "measure-startup.cjs");
+const load = spawnSync(process.execPath, [measure, bundle], {
+  encoding: "utf8",
+  env: { ...process.env, KNOX_STARTUP_BUDGET_MS: "500" },
+});
+if (load.status !== 0) {
+  fail(`startup load budget failed:\n${load.stderr || load.stdout}`);
+}
+
 console.log(
   `packaged-extension-smoke: ok ${path.relative(knoxRoot, bundle)} ${(stat.size / (1024 * 1024)).toFixed(2)} MB`,
 );
+if (load.stdout.trim()) {
+  console.log(`packaged-extension-smoke: load ${load.stdout.trim()}`);
+}

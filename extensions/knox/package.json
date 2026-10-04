@@ -34,6 +34,8 @@
 		"test:host-tsc": "tsc -p src/host --noEmit",
 		"test:pkg": "vitest run --config src/pkg/vitest.config.ts",
 		"packaged-smoke": "node ./scripts/packaged-extension-smoke.mts",
+		"build:cli": "node ./scripts/knox-cli-esbuild.mts",
+		"packaged-cli-smoke": "node ./scripts/knox-cli-smoke.mts",
 		"notices": "node ./scripts/knox-third-party-notices.mts",
 		"watch": "gulp watch-extension:knox",
 		"esbuild": "node ./esbuild.mts"

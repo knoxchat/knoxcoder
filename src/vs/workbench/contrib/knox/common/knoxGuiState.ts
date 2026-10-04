@@ -206,6 +206,7 @@ export interface IKnoxGuiPromptLog {
 	prompt?: string;
 	completion?: string;
 	jev?: { turn?: IKnoxGuiPromptLogJevTurn };
+	usage?: { promptTokens?: number; completionTokens?: number };
 }
 
 export interface IKnoxGuiHistoryItem {
@@ -882,7 +883,7 @@ export interface IKnoxGuiState {
 	isGatheringContext: boolean;
 	addFileOpen: boolean;
 	applyStates: IKnoxGuiApplyState[];
-	streamError?: { message: string; statusCode?: number; kind?: string };
+	streamError?: { message: string; statusCode?: number; kind?: string; provider?: string; model?: string; tokens?: number; costLabel?: string };
 	agentMeterOpen: boolean;
 	toolLoopSteps: number;
 	oauthStatus?: string;

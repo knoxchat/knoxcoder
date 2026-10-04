@@ -7,7 +7,7 @@ import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { asRecord } from './helpers.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { toolOutputItemsFromUnknown, toolOutputText } from '../../../common/knoxGuiTools.js';
-import { parseStreamError } from '../../../common/knoxGuiTranscript.js';
+import { knoxGuiStreamErrorFromState } from '../../../common/knoxGuiTranscript.js';
 import { IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
 import { IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiFlushStreamText, knoxGuiHistoryToCoreHistory, knoxGuiShouldSplitForTools, knoxGuiToolFailureOutput, knoxGuiToolIsSettled, knoxGuiTurnDoomCalls } from '../../../common/knoxGuiAgentRequest.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
@@ -83,7 +83,7 @@ export async function runSharedTurn(controller: KnoxGuiController): Promise<void
 		await controller.sharedTurnQueue;
 		controller.finishThinking();
 		if (!controller.turnAborted) {
-			controller.store.patch({ streamError: parseStreamError(error) });
+			controller.store.patch({ streamError: knoxGuiStreamErrorFromState(error, controller.store.state) });
 		}
 		controller.cancelInFlightTools();
 	} finally {
@@ -261,7 +261,7 @@ async function onDone(controller: KnoxGuiController, turn: IKnoxGuiSharedTurn, e
 	}
 	if (event.stoppedReason === 'error') {
 		const summary = typeof event.summary === 'string' ? event.summary : '';
-		controller.store.patch({ streamError: parseStreamError(new Error(summary || 'Agent loop error')) });
+		controller.store.patch({ streamError: knoxGuiStreamErrorFromState(new Error(summary || 'Agent loop error'), controller.store.state) });
 	}
 	await controller.saveCurrentSession({ generateTitle: true });
 	if (!turn.awaitingUser) {

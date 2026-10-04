@@ -246,6 +246,26 @@ export async function copyKnoxNativeAssets(destDir: string): Promise<void> {
 	copyBundledSkills(destDir);
 }
 
+/** Node CLI assets: no Electron rebuild, sqlite3, node-pty, or platform ripgrep. */
+export function copyKnoxCliAssets(destDir: string): void {
+	fs.mkdirSync(destDir, { recursive: true });
+	fs.rmSync(path.join(destDir, 'node_modules'), { recursive: true, force: true });
+	copyTreeSitter(destDir);
+	copyBundledSkills(destDir);
+	copyTreeSitterQueries(destDir);
+}
+
+function copyTreeSitterQueries(destDir: string): void {
+	const source = path.join(extensionDir, 'tree-sitter');
+	if (!fs.existsSync(source)) {
+		throw new Error(`Knox CLI: tree-sitter queries missing at ${source}`);
+	}
+	const dest = path.join(destDir, 'tree-sitter');
+	fs.rmSync(dest, { recursive: true, force: true });
+	copyDir(source, dest);
+	console.log('Knox CLI: tree-sitter queries →', path.relative(extensionDir, dest));
+}
+
 const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invokedDirectly) {
 	const dest = process.argv[2]

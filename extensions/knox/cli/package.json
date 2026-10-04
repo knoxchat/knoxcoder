@@ -1,0 +1,33 @@
+{
+  "name": "@knoxchat/cli",
+  "version": "2.0.0-beta",
+  "description": "Knox headless coding agent (login, doctor, run, bg, team)",
+  "license": "GPL-3.0-only",
+  "bin": {
+    "knox": "dist/knox.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/knoxchat/knoxcoder.git",
+    "directory": "extensions/knox/cli"
+  },
+  "homepage": "https://github.com/knoxchat/knoxcoder",
+  "bugs": {
+    "url": "https://github.com/knoxchat/knoxcoder/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@vscode/ripgrep": "^1.18.0",
+    "sqlite3": "^6.0.1"
+  }
+}

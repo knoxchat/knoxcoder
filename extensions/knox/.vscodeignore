@@ -10,3 +10,4 @@ out/**
 /node_modules/**
 .gitignore
 package-lock.json
+cli/**

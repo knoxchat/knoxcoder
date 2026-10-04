@@ -30,6 +30,15 @@ export const knoxGuiStringsZhErrors: Record<string, unknown> = {
 	"firstRunNoModel": "尚未配置模型。请使用 KnoxStudio 登录，或添加自备 API 密钥，然后选择模型。",
 	"errorOpenSettings": "打开设置",
 	"errorRateLimitHint": "提供商正在限制请求频率。请稍等片刻后重试，或在设置中切换到其他模型。",
+	"errorRateLimitHintKnoxChat": "KnoxStudio 正在限制此密钥的请求频率。请稍后再试，或在设置中切换模型。",
+	"errorRateLimitHintOpenAI": "OpenAI 返回 HTTP 429。请在 platform.openai.com 检查用量限额，稍后再试，或切换模型。",
+	"errorRateLimitHintAnthropic": "Anthropic 返回 HTTP 429。请在 console.anthropic.com 检查套餐限额，稍后再试，或切换模型。",
+	"errorRateLimitHintOpenRouter": "OpenRouter 正在限制此密钥。请稍后再试、充值，或切换模型。",
 	"errorQuotaHint": "此账号额度不足（HTTP 402）。请检查提供商账单，或切换模型。",
+	"errorQuotaHintKnoxChat": "KnoxStudio 额度已用尽（HTTP 402）。请充值，或改用自备密钥。",
+	"errorQuotaHintOpenAI": "OpenAI 额度或账单失败（HTTP 402）。请在 platform.openai.com 检查账单。",
+	"errorQuotaHintAnthropic": "Anthropic 额度或账单失败（HTTP 402）。请在 console.anthropic.com 检查账单。",
+	"errorQuotaHintOpenRouter": "OpenRouter 余额不足（HTTP 402）。请充值或切换模型。",
+	"errorSessionCost": "本会话至今：{{cost}}（{{tokens}} tokens）",
 	"errorCopyDiagnostic": "复制诊断信息"
 };

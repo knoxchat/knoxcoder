@@ -197,15 +197,14 @@ export async function getQueryForFile(
     return undefined;
   }
 
-  const sourcePath = path.join(
-    __dirname,
-    "..",
-    ...(process.env.NODE_ENV === "test"
-      ? ["extensions", "vscode", "tree-sitter"]
-      : ["tree-sitter"]),
-    queryPath,
-  );
-  if (!fs.existsSync(sourcePath)) {
+  const sourcePath = [
+    process.env.NODE_ENV === "test"
+      ? path.join(__dirname, "..", "extensions", "vscode", "tree-sitter", queryPath)
+      : undefined,
+    path.join(__dirname, "tree-sitter", queryPath),
+    path.join(__dirname, "..", "tree-sitter", queryPath),
+  ].find((candidate) => candidate && fs.existsSync(candidate));
+  if (!sourcePath) {
     return undefined;
   }
   const querySource = fs.readFileSync(sourcePath).toString();

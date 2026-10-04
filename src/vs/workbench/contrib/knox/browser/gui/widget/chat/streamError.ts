@@ -7,19 +7,10 @@ import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
-import { formatStreamErrorDiagnostic } from '../../../../common/knoxGuiTranscript.js';
+import { formatStreamErrorDiagnostic, streamErrorHintKey } from '../../../../common/knoxGuiTranscript.js';
 
 /** Localized hint key for each actionable error kind (K-044). */
-export function streamErrorHintKey(kind: string | undefined): string | undefined {
-	switch (kind) {
-		case 'rate-limit': return 'errorRateLimitHint';
-		case 'quota': return 'errorQuotaHint';
-		case 'unauthorized': return 'invalidApiKey';
-		case 'not-found': return 'modelNotFound';
-		case 'overloaded': return 'serverOverloaded';
-		default: return undefined;
-	}
-}
+export { streamErrorHintKey } from '../../../../common/knoxGuiTranscript.js';
 
 /** `StreamErrorDialog` inside the Layout `TextDialog`: status title, capped message box, Close. */
 export function renderStreamError(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
@@ -45,9 +36,15 @@ export function renderStreamError(widget: KnoxGuiWidget, parent: HTMLElement, st
 		const messageBox = DOM.append(card, DOM.$('.knox-gui-stream-error-message'));
 		DOM.append(messageBox, DOM.$('code', undefined, streamError.message));
 	}
-	const hintKey = streamErrorHintKey(streamError.kind);
+	const hintKey = streamErrorHintKey(streamError.kind, streamError.provider);
 	if (hintKey) {
 		DOM.append(card, DOM.$('p.knox-gui-stream-error-hint', undefined, t(state, hintKey)));
+	}
+	if (streamError.costLabel || typeof streamError.tokens === 'number') {
+		DOM.append(card, DOM.$('p.knox-gui-stream-error-cost', undefined, t(state, 'errorSessionCost', {
+			cost: streamError.costLabel ?? 'unknown',
+			tokens: streamError.tokens ?? 0,
+		})));
 	}
 	const actions = DOM.append(card, DOM.$('.knox-gui-stream-error-actions'));
 	const kind = streamError.kind;

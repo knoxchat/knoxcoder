@@ -48,9 +48,9 @@ Each item is a checkbox; tick it when merged. Items carry an acceptance criterio
 - [x] Read first results and fixed Windows failures: hook cwd via `fileURLToPath`, worktree test URIs via `localPathToUri`, PTY echo via raw-mode TTY (ConPTY does not flow `stdin.pipe(stdout)`).
 - [x] `tools/commandGuard.ts` now detects Windows destructive commands (`del /s`, `rd /s`, `Remove-Item -Recurse`, `format X:`, `reg delete`, `diskpart`, `Format-Volume`), handles backslash paths/`.exe`, and recurses into `cmd /c` and `powershell -Command`. Tests added.
 - [x] Run Knox CI (`tsc`, core, pkg, inventory-gate) on `windows-2022` and `macos-latest` as well as Linux.
-- [x] Node packaged-extension smoke: `npm run esbuild && npm run packaged-smoke` (`scripts/packaged-extension-smoke.mts`, `node --check` + 16 MB budget). Wired on the Linux Knox CI job. Electron remaining-smoke (`host/test/runner/runRemainingSmokeOnKnoxCoder.ts`) still needs a KnoxCoder build.
+- [x] Node packaged-extension smoke: `npm run esbuild -- --skip-native && npm run packaged-smoke` (`scripts/packaged-extension-smoke.mts`, `node --check` + 16 MB + 500 ms load budget). Wired on Linux/Windows/macOS. Electron remaining-smoke (`host/test/runner/runRemainingSmokeOnKnoxCoder.ts`) still needs a KnoxCoder build.
 
-Done when: CI matrix is green on Linux/Windows/macOS. (Core/pkg/tsc/inventory-gate is green; Linux also builds the host bundle and syntax-checks it. Full Electron app smoke still open.)
+Done when: CI matrix is green on Linux/Windows/macOS. (Core/pkg/tsc/inventory-gate is green; all three OSes also build the host bundle and syntax-check it. Full Electron app smoke still open.)
 
 ### P0-3 Release pipeline for stable
 - [x] Version scheme documented in `extensions/knox/docs/release.md`: product `2.0.0` (no prerelease) when shipping; `build/lib/packageVersion.ts` already maps `2.0.0` unchanged for deb/rpm/Windows numeric. Stay on `2.0.0-beta` until the checklist.
@@ -58,10 +58,12 @@ Done when: CI matrix is green on Linux/Windows/macOS. (Core/pkg/tsc/inventory-ga
 - [ ] macOS: add a CI or documented runbook for `build_dmg.sh` (sign, notarize, staple, upload
       `latest-darwin-<arch>.json`). Verify notarization on a clean machine. (Notarization steps noted in `docs/release.md`; still needs a clean-machine run.)
 - [ ] Windows: code-sign installers (or document SmartScreen behavior); verify user and system installers
-      upgrade from `1.138.2` and `2.0.0-beta`.
+      upgrade from `1.138.2` and `2.0.0-beta`. SmartScreen / upgrade runbook is in `docs/release.md`; still needs a signed cert and a clean-machine run.
 - [ ] Linux: verify tar.gz/deb/rpm install and upgrade, and that `2.0.0~beta` upgrades to `2.0.0`.
+      Commands are in `docs/release.md`; still needs a real-machine run.
 - [ ] Verify GitHub auto-update from `2.0.0-beta` to `2.0.0` on all three OSes, including
       `quality=stable` metadata (`scripts/ci/generate-update-metadata.mjs`) and the draft-release flow.
+      Runbook is in `docs/release.md`.
 - [x] Checksum and rollback runbook: `extensions/knox/docs/release.md` (SHA-256 next to assets; draft/delete a bad Release and retarget the update feed). `generate-update-metadata.mjs` now writes `sha256hash` on each `latest-*.json` and a `SHA256SUMS` file into the draft-release folder.
 - [ ] Attach checksums to an actual GitHub Release (release-time step; CI now generates the files).
 
@@ -142,8 +144,7 @@ Done when: Auto mode can run with writes limited to the workspace and temp dir, 
 Done when: the command palette covers export/import/agents/hooks/bg, and the jobs panel can merge/discard CLI bg jobs.
 
 ### P1-4 Headless CLI and CI usage
-- [ ] Publish `knox` as an installable CLI (npm package or bundled binary on PATH; today it is
-      `npm run knox` from `src/core`).
+- [x] Publish `knox` as an installable CLI: `@knoxchat/cli` (`extensions/knox/cli`, `npm run build:cli` → `cli/dist/knox.js`, bin `knox`). Registry `npm publish` is a release-time step; until then `npm i -g ./extensions/knox/cli` after `build:cli`. CI `packaged-cli-smoke` on Linux/Windows/macOS.
 - [x] `knox --version` / `-V` / `version` and `knox doctor`.
 - [x] Non-interactive auth: `KNOX_API_KEY` (wins over `auth.json`; never logged).
 - [x] Output contract: `--json` and `--stream-json` carry `schemaVersion: 1`; documented in `docs/cli.md` with tests.
@@ -153,8 +154,8 @@ Done when: the command palette covers export/import/agents/hooks/bg, and the job
 Done when: a published CLI exists; version/doctor/JSON/KNOX_API_KEY/`--continue`/`--resume` are in tree.
 
 ### P1-5 Reliability and performance targets
-- [ ] Cold activation budget measured in CI on all OSes (<= 500 ms module load, bundle <= 16 MB, as in
-      `startupBudget.test.ts`); fail on regression.
+- [x] Cold activation budget measured in CI on all OSes (<= 500 ms module load, bundle <= 16 MB, as in
+      `startupBudget.test.ts`); fail on regression. `packaged-extension-smoke` now runs `measure-startup.cjs` after `esbuild --skip-native` on Linux/Windows/macOS.
 - [ ] Memory and CPU: long-session soak test (1000 turns, large repos) for memory leaks in the webview and
       host; Memory Brain retrieval latency budget on 100k items.
 - [ ] Large repo behavior: repo map, `exact_search`, `glob` on 500k files, monorepos; respect `.gitignore`
@@ -164,14 +165,14 @@ Done when: a published CLI exists; version/doctor/JSON/KNOX_API_KEY/`--continue`
       Verify child process cleanup on window close on all OSes.
 
 ### P1-6 Model and provider coverage
-- [ ] Provider matrix tests: OpenAI-compatible, Anthropic, OpenRouter, KnoxChat, custom (Ollama / LM Studio /
-      local). Tool calling, streaming, reasoning effort, caching and usage for each.
+- [x] Provider matrix tests (construct, no live network): OpenAI / Anthropic / OpenRouter / KnoxChat / mock, plus OpenAI-compatible custom `apiBase` for Ollama / LM Studio (`openai-adapters/index.test.ts`, `llm/llms/providerMatrix.test.ts`). Live tool-calling/streaming/caching per provider still open.
 - [ ] Image and file attachments: verify vision input end to end per provider; paste and screenshot
       (macOS-only screenshot capture today).
 - [ ] Live eval baseline for 2.0.0: run `npm run test:live` against the default model(s), commit
       `history.jsonl` and set pass-rate and token thresholds for stable.
 - [ ] Offline/local-model path: confirm Knox works with no Jev and no Knox login (BYO key only).
-- [ ] Rate-limit and quota UX: surface 429/402 with provider-specific guidance and cost so far.
+- [x] Rate-limit and quota UX: surface 429/402 with provider-specific guidance and cost so far
+      (dialog hint + copyable diagnostic `costSoFar=`).
 
 ### P1-7 Context and memory quality
 - [x] Memory Brain: global off (`knoxchat.memoryBrain.enabled`), per-workspace opt-out

@@ -11,7 +11,9 @@ All notable changes to KnoxCoder are documented in this file.
 ### Added
 
 - CLI `--continue` / `--resume`, `config.yaml` model default, JSON `sessionId`.
+- Installable `@knoxchat/cli` (`knox` on PATH): `npm run build:cli` in `extensions/knox`.
 - Stream errors classify HTTP 402 quota; copyable diagnostic on the error dialog.
+- Rate-limit / quota dialogs use provider-specific hints and show session cost so far.
 - Empty chat sample prompts; first-run copy covers KnoxStudio sign-in vs bring-your-own key.
 - Update feeds include `sha256hash` and `SHA256SUMS`. Knox production licenses: `docs/third-party-notices.md`. Host migration tests run in Knox CI.
 - Cross-window locking: checkpoint store, `sessions.json` and Memory Brain open/migrate.

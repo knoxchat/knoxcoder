@@ -5,7 +5,7 @@
 
 import { extractCodeFences, IKnoxGuiCodeFence, isAskUserToolName, lastUserHistoryIndex, parseFenceMeta, toolDisplayKind } from './knoxGuiChat.js';
 import { inputDocFromPlainText, IKnoxGuiInputBlock } from './knoxGuiInput.js';
-import { IKnoxGuiApplyState, IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiPromptLog, IKnoxGuiSymbol, IKnoxGuiToolCall, KnoxChatMode, KnoxToolStatus } from './knoxGuiState.js';
+import { IKnoxGuiApplyState, IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiModel, IKnoxGuiPromptLog, IKnoxGuiSymbol, IKnoxGuiToolCall, KnoxChatMode, KnoxToolStatus } from './knoxGuiState.js';
 import { knoxGuiSanitizeToolFilePath } from './knoxGuiToolFilePath.js';
 
 export type KnoxGuiActivityKind =
@@ -60,6 +60,108 @@ export interface IKnoxGuiStreamError {
 	message: string;
 	statusCode?: number;
 	kind: 'rate-limit' | 'not-found' | 'unauthorized' | 'overloaded' | 'quota' | 'generic';
+	provider?: string;
+	model?: string;
+	tokens?: number;
+	costLabel?: string;
+}
+
+export interface IKnoxGuiStreamErrorContext {
+	provider?: string;
+	model?: string;
+	tokens?: number;
+	costLabel?: string;
+}
+
+const STREAM_ERROR_PROVIDER_HINTS: Record<string, { rateLimit: string; quota: string }> = {
+	knoxchat: { rateLimit: 'errorRateLimitHintKnoxChat', quota: 'errorQuotaHintKnoxChat' },
+	knoxstudio: { rateLimit: 'errorRateLimitHintKnoxChat', quota: 'errorQuotaHintKnoxChat' },
+	openai: { rateLimit: 'errorRateLimitHintOpenAI', quota: 'errorQuotaHintOpenAI' },
+	anthropic: { rateLimit: 'errorRateLimitHintAnthropic', quota: 'errorQuotaHintAnthropic' },
+	openrouter: { rateLimit: 'errorRateLimitHintOpenRouter', quota: 'errorQuotaHintOpenRouter' },
+};
+
+function normalizeProviderHintId(provider: string | undefined): string {
+	return (provider ?? '').trim().toLowerCase().replace(/[\s_-]/g, '');
+}
+
+/** Localized hint key for an actionable stream error, including provider-specific 429/402 copy. */
+export function streamErrorHintKey(kind: string | undefined, provider?: string): string | undefined {
+	const hints = STREAM_ERROR_PROVIDER_HINTS[normalizeProviderHintId(provider)];
+	switch (kind) {
+		case 'rate-limit': return hints?.rateLimit ?? 'errorRateLimitHint';
+		case 'quota': return hints?.quota ?? 'errorQuotaHint';
+		case 'unauthorized': return 'invalidApiKey';
+		case 'not-found': return 'modelNotFound';
+		case 'overloaded': return 'serverOverloaded';
+		default: return undefined;
+	}
+}
+
+function formatUsd(cost: number | null): string {
+	if (cost === null || !Number.isFinite(cost)) {
+		return 'unknown';
+	}
+	if (cost === 0) {
+		return '$0.00';
+	}
+	return cost < 0.01 ? `$${cost.toFixed(4)}` : `$${cost.toFixed(2)}`;
+}
+
+export interface IKnoxGuiSessionCostSummary {
+	tokens: number;
+	costLabel: string;
+}
+
+export function summarizeSessionCost(
+	history: readonly IKnoxGuiHistoryItem[],
+	model: Pick<IKnoxGuiModel, 'model' | 'title'> | undefined,
+	catalogs: ReadonlyArray<ReadonlyArray<{ model: string; pricing?: { promptPer1k: number; completionPer1k: number } }>>,
+): IKnoxGuiSessionCostSummary {
+	let promptTokens = 0;
+	let completionTokens = 0;
+	for (const item of history) {
+		for (const log of item.promptLogs ?? []) {
+			promptTokens += log.usage?.promptTokens ?? 0;
+			completionTokens += log.usage?.completionTokens ?? 0;
+		}
+	}
+	const tokens = promptTokens + completionTokens;
+	const modelId = model?.model ?? model?.title;
+	let pricing: { promptPer1k: number; completionPer1k: number } | undefined;
+	if (modelId) {
+		for (const catalog of catalogs) {
+			const hit = catalog.find(entry => entry.model === modelId);
+			if (hit?.pricing) {
+				pricing = hit.pricing;
+				break;
+			}
+		}
+	}
+	const cost = pricing
+		? (promptTokens / 1000) * pricing.promptPer1k + (completionTokens / 1000) * pricing.completionPer1k
+		: null;
+	return { tokens, costLabel: tokens === 0 && cost === null ? 'unknown' : formatUsd(cost) };
+}
+
+export function knoxGuiStreamErrorFromState(
+	error: unknown,
+	state: {
+		modelTitle?: string;
+		models: readonly IKnoxGuiModel[];
+		history: readonly IKnoxGuiHistoryItem[];
+		knoxChatModels: ReadonlyArray<{ model: string; pricing?: { promptPer1k: number; completionPer1k: number } }>;
+		openrouterModels: ReadonlyArray<{ model: string; pricing?: { promptPer1k: number; completionPer1k: number } }>;
+	},
+): IKnoxGuiStreamError {
+	const model = state.models.find(item => item.title === state.modelTitle);
+	const cost = summarizeSessionCost(state.history, model, [state.knoxChatModels, state.openrouterModels]);
+	return parseStreamError(error, {
+		provider: model?.provider,
+		model: model?.model ?? state.modelTitle,
+		tokens: cost.tokens,
+		costLabel: cost.costLabel,
+	});
 }
 
 export type KnoxGuiApplyUi =
@@ -1029,7 +1131,7 @@ export function formatReasoningTime(startAt?: number, endAt?: number, now = Date
 	return `${((end - startAt) / 1000).toFixed(1)}s`;
 }
 
-export function parseStreamError(error: unknown): IKnoxGuiStreamError {
+export function parseStreamError(error: unknown, context?: IKnoxGuiStreamErrorContext): IKnoxGuiStreamError {
 	const message = error instanceof Error ? error.message : String(error ?? '');
 	const parts = message.split(' ');
 	let statusCode: number | undefined;
@@ -1053,17 +1155,32 @@ export function parseStreamError(error: unknown): IKnoxGuiStreamError {
 	} else if (statusCode === 503 || lower.includes('overloaded') || lower.includes('malformed')) {
 		kind = 'overloaded';
 	}
-	return { message, statusCode, kind };
+	return {
+		message,
+		statusCode,
+		kind,
+		provider: context?.provider,
+		model: context?.model,
+		tokens: context?.tokens,
+		costLabel: context?.costLabel,
+	};
 }
 
 export function formatStreamErrorDiagnostic(error: {
 	message: string;
 	statusCode?: number;
 	kind?: string;
+	provider?: string;
+	model?: string;
+	tokens?: number;
+	costLabel?: string;
 }): string {
 	const lines = [
 		`knox error kind=${error.kind ?? 'generic'}`,
 		error.statusCode ? `status=${error.statusCode}` : undefined,
+		error.provider ? `provider=${error.provider}` : undefined,
+		error.model ? `model=${error.model}` : undefined,
+		error.costLabel || typeof error.tokens === 'number' ? `costSoFar=${error.costLabel ?? 'unknown'} tokens=${error.tokens ?? 0}` : undefined,
 		error.message ? `message=${error.message}` : undefined,
 	].filter((line): line is string => Boolean(line));
 	return lines.join('\n');

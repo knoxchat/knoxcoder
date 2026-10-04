@@ -11,14 +11,11 @@ troubleshooting. Setting names are `knoxchat.*` in Settings.
    (a model title) to use after repeated transient stream failures.
 3. Open a folder. Knox works on the first workspace folder.
 
-Headless use (CI, scripts): see [cli.md](cli.md). From `extensions/knox/src/core`:
-`npm run knox -- doctor`, `knox login` or `KNOX_API_KEY`, then
-`npm run knox -- run "<task>" --json`. Exit codes: 0 completed, 1 error,
-2 step/doom-loop, 130 aborted, 64 usage.
+Headless use (CI, scripts): see [cli.md](cli.md). Install `@knoxchat/cli` (`knox doctor`, `knox run "<task>" --json`) or from this tree `npm run knox -- doctor` in `extensions/knox/src/core`. Exit codes: 0 completed, 1 error, 2 step/doom-loop, 130 aborted, 64 usage.
 
 ## Docs set
 
-- [CLI](cli.md) — version, doctor, JSON schema, `--continue` / `--resume`
+- [CLI](cli.md) — installable `@knoxchat/cli`, version, doctor, JSON schema, `--continue` / `--resume`
 - [Network](network.md) — every outbound call and `knoxchat.networkMode`
 - [Privacy](privacy.md)
 - [Sandbox](security/sandbox.md) — `knoxchat.sandbox`

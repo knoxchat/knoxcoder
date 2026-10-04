@@ -19,13 +19,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - name: Install Knox CLI from source
+      - name: Install Knox CLI
+        run: npm i -g @knoxchat/cli
+        # Until the package is on the public registry, build from this repo:
+        #   cd extensions/knox && npm run build:cli && npm i -g ./cli
+      - name: Review
         run: |
-          # When a published `knox` package exists, replace this with:
-          #   npm i -g knox
-          echo "Clone knoxcoder or npm-install the CLI package, then:"
-          echo "  knox doctor"
-          echo "  knox run --json --permission acceptEdits \"Review this PR and comment on risks.\""
+          knox doctor
+          knox run --json --permission acceptEdits "Review this PR and comment on risks."
         env:
           KNOX_API_KEY: ${{ secrets.KNOX_API_KEY }}
 ```

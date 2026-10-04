@@ -1,15 +1,26 @@
 # Knox CLI
 
-Headless Knox for CI and scripts. From `extensions/knox/src/core`:
+Headless Knox for CI and scripts.
 
 ```
-npm run knox -- --version
-npm run knox -- doctor
-npm run knox -- login
-npm run knox -- run "<task>" --json
+npm i -g @knoxchat/cli
+knox --version
+knox doctor
+knox login
+knox run "<task>" --json
 ```
 
-`--version` prints the product version (root `package.json`, currently `2.0.0-beta`). `doctor` checks Node, git, sqlite3, auth, config.yaml, and whether an OS sandbox binary is present. It never prints keys.
+Until `@knoxchat/cli` is on the public registry, install from this repository:
+
+```
+cd extensions/knox
+npm run build:cli
+npm i -g ./cli
+```
+
+From source without packaging: `npm run knox -- --version` in `extensions/knox/src/core`.
+
+`--version` prints the product version (root `package.json`, currently `2.0.0-beta`). `doctor` checks Node, git, sqlite3, ripgrep, auth, config.yaml, and whether an OS sandbox binary is present. It never prints keys.
 
 ## Auth
 
@@ -69,4 +80,4 @@ See [ci/knox-run.yml](ci/knox-run.yml) for a copy-paste workflow. It is an examp
 
 ## Installable CLI
 
-Today the binary is `npm run knox` from this tree. Publishing `knox` on npm or putting a bundled binary on PATH is still open for 2.0.
+The npm package is `@knoxchat/cli`; the binary on PATH is `knox`. Native add-ons (`sqlite3`, `@vscode/ripgrep`) install with the package so each OS gets matching binaries. `npm run build:cli` in `extensions/knox` produces `cli/dist/knox.js`; `npm run packaged-cli-smoke` checks `--version`, `doctor`, and `--help`.

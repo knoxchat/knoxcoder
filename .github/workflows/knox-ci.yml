@@ -108,9 +108,12 @@ jobs:
         run: npm run inventory-gate
 
       - name: Packaged extension smoke
-        if: startsWith(matrix.os, 'ubuntu')
         working-directory: extensions/knox
-        run: npm run esbuild && npm run packaged-smoke
+        run: npm run esbuild -- --skip-native && npm run packaged-smoke
+
+      - name: Packaged CLI smoke
+        working-directory: extensions/knox
+        run: npm run build:cli && npm run packaged-cli-smoke
 
       - name: Update-feed checksums
         if: startsWith(matrix.os, 'ubuntu')

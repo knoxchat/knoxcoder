@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { constructLlmApi } from "./index.js";
 import { OpenAIApi } from "./apis/OpenAI.js";
+import { AnthropicApi } from "./apis/Anthropic.js";
+import { MockApi } from "./apis/Mock.js";
 import { LLMConfig, LLMConfigSchema } from "./types.js";
 
 function headerMap(req: IncomingMessage): Record<string, string> {
@@ -119,5 +121,43 @@ describe("constructLlmApi", () => {
         server.close((err) => (err ? reject(err) : resolve())),
       );
     }
+  });
+});
+
+describe("provider matrix (P1-6)", () => {
+  it("constructs OpenAI, KnoxChat, OpenRouter, Anthropic and mock", () => {
+    const openai = constructLlmApi({ provider: "openai", apiKey: "sk" });
+    expect(openai).toBeInstanceOf(OpenAIApi);
+    expect((openai as OpenAIApi).apiBase).toBe("https://api.openai.com/v1/");
+
+    const knoxchat = constructLlmApi({ provider: "knoxchat", apiKey: "sk" });
+    expect(knoxchat).toBeInstanceOf(OpenAIApi);
+    expect((knoxchat as OpenAIApi).apiBase).toBe("https://api.knoxstudio.ai/v1/");
+
+    const openrouter = constructLlmApi({ provider: "openrouter", apiKey: "sk" });
+    expect(openrouter).toBeInstanceOf(OpenAIApi);
+    expect((openrouter as OpenAIApi).apiBase).toBe("https://openrouter.ai/api/v1/");
+
+    expect(constructLlmApi({ provider: "anthropic", apiKey: "sk" })).toBeInstanceOf(
+      AnthropicApi,
+    );
+    expect(constructLlmApi({ provider: "mock" })).toBeInstanceOf(MockApi);
+  });
+
+  it("uses a custom OpenAI-compatible apiBase for local models (Ollama / LM Studio)", () => {
+    const api = constructLlmApi({
+      provider: "openai",
+      apiKey: "ollama",
+      apiBase: "http://127.0.0.1:11434/v1/",
+    });
+    expect(api).toBeInstanceOf(OpenAIApi);
+    expect((api as OpenAIApi).apiBase).toBe("http://127.0.0.1:11434/v1/");
+    expect(
+      LLMConfigSchema.safeParse({
+        provider: "openai",
+        apiKey: "x",
+        apiBase: "http://127.0.0.1:1234/v1/",
+      }).success,
+    ).toBe(true);
   });
 });

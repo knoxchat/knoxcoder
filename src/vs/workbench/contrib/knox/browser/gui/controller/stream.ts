@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { expandPromptSlashCommand, isPromptBasedSlashCommand, parseLeadingSlash } from '../../../common/knoxGuiChat.js';
 import { collectLatestTaskPlanSnapshot, parseInjectedMemories } from '../../../common/knoxGuiPanels.js';
-import { knoxGuiMissingSymbolUris, knoxGuiParseSymbolMap, nextCodeBlockToApply, parseStreamError, pendingApplyStates } from '../../../common/knoxGuiTranscript.js';
+import { knoxGuiMissingSymbolUris, knoxGuiParseSymbolMap, nextCodeBlockToApply, knoxGuiStreamErrorFromState, pendingApplyStates } from '../../../common/knoxGuiTranscript.js';
 import { extractMentionsFromDoc, extractSlashFromDoc, inputDocFromPlainText, inputDocToPlainText, knoxGuiPendingToolBlocksSubmit, knoxGuiShouldBlockSubmit, mentionContextProviderName, resolveComposerSlashCommand, slashCommandBareName, submitUsesActiveFile, useActiveFileFromDefaultContext } from '../../../common/knoxGuiInput.js';
 import { editSendPromptPayload, knoxGuiMultifileEditPrompt, shouldSendEditPrompt } from '../../../common/knoxGuiEdit.js';
 import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
@@ -238,7 +238,7 @@ async function startTurn(controller: KnoxGuiController, userMessage: string): Pr
 async function runAutonomous(controller: KnoxGuiController, goal: string): Promise<void> {
 	const language = controller.store.state.language;
 	if (!goal) {
-		controller.store.patch({ streamError: parseStreamError(new Error('Usage: /autonomous <goal description>')) });
+		controller.store.patch({ streamError: knoxGuiStreamErrorFromState(new Error('Usage: /autonomous <goal description>'), controller.store.state) });
 		return;
 	}
 	const state = controller.store.state;
@@ -264,7 +264,7 @@ async function runAutonomous(controller: KnoxGuiController, goal: string): Promi
 		settle(true);
 		if (!controller.turnAborted) {
 			const message = error instanceof Error && error.message ? error.message : knoxGuiT(language, 'autonomousLoopFailed');
-			controller.store.patch({ streamError: parseStreamError(new Error(message)) });
+			controller.store.patch({ streamError: knoxGuiStreamErrorFromState(new Error(message), controller.store.state) });
 		}
 		return;
 	}
@@ -428,10 +428,16 @@ export function recordPromptLog(controller: KnoxGuiController, value: unknown): 
 		return;
 	}
 	const state = controller.store.state;
+	const usageRec = asRecord(log.usage);
+	const usage = usageRec ? {
+		promptTokens: typeof usageRec.promptTokens === 'number' ? usageRec.promptTokens : undefined,
+		completionTokens: typeof usageRec.completionTokens === 'number' ? usageRec.completionTokens : undefined,
+	} : undefined;
 	const entry = {
 		modelTitle: typeof log.modelTitle === 'string' ? log.modelTitle : state.modelTitle,
 		prompt: typeof log.prompt === 'string' ? log.prompt : undefined,
 		completion: typeof log.completion === 'string' ? log.completion : undefined,
+		usage: usage?.promptTokens !== undefined || usage?.completionTokens !== undefined ? usage : undefined,
 	};
 	const selected = state.models.find(item => item.title === state.modelTitle);
 	const contextUsage = knoxGuiContextUsageFromLog(
@@ -490,7 +496,7 @@ async function runRound(controller: KnoxGuiController, legacySlash?: IKnoxGuiLeg
 	} catch (error) {
 		controller.finishThinking();
 		if (!controller.turnAborted) {
-			controller.store.patch({ streamError: parseStreamError(error) });
+			controller.store.patch({ streamError: knoxGuiStreamErrorFromState(error, controller.store.state) });
 		}
 		controller.cancelInFlightTools();
 	} finally {

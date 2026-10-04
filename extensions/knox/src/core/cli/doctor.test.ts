@@ -9,7 +9,7 @@ describe("knox doctor", () => {
     expect(report.version).toBe(knoxCliVersion());
     expect(report.node).toBe(process.versions.node);
     expect(report.checks.map((c) => c.id)).toEqual(
-      expect.arrayContaining(["node", "auth", "config", "git", "workspace", "sqlite3", "sandbox"]),
+      expect.arrayContaining(["node", "auth", "config", "git", "workspace", "sqlite3", "ripgrep", "sandbox"]),
     );
     const text = formatDoctorReport(report);
     expect(text).toContain(`knox ${report.version}`);

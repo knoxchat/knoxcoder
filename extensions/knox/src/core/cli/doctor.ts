@@ -14,6 +14,7 @@ const require = createRequire(import.meta.url);
 import { loadSession, sessionFromEnv } from "./credentials";
 import { knoxCliVersion } from "./version";
 import { detectSandboxBackend } from "../tools/sandbox";
+import { resolveRipgrepBinary } from "../tools/ripgrep";
 
 export type DoctorLevel = "ok" | "warn" | "fail";
 
@@ -114,6 +115,13 @@ export function runDoctor(cwd = process.cwd()): DoctorReport {
       detail: `sqlite3 did not load (${error instanceof Error ? error.message : error})`,
     });
   }
+
+  const rg = resolveRipgrepBinary();
+  checks.push({
+    id: "ripgrep",
+    level: rg ? "ok" : "warn",
+    detail: rg ? `ripgrep at ${rg}` : "ripgrep not found (exact_search needs rg or @vscode/ripgrep)",
+  });
 
   const backend = detectSandboxBackend();
   checks.push({
