@@ -67,11 +67,18 @@ describe("startup budget (K-038)", () => {
   });
 
   const hasBundle = existsSync(bundle);
-  it.skipIf(!hasBundle)("bundle stays under the size budget", () => {
+  // esbuild only minifies the packaged build (`minify: !isDev`). A minified
+  // bundle is a handful of lines; a dev bundle is hundreds of thousands. The
+  // budgets apply to the packaged build only, so a leftover dev bundle in
+  // `dist/` must not fail the suite.
+  const isMinified =
+    hasBundle &&
+    readFileSync(bundle, "utf8").split("\n").length < 20_000;
+  it.skipIf(!isMinified)("bundle stays under the size budget", () => {
     expect(statSync(bundle).size).toBeLessThanOrEqual(BUNDLE_BYTES_BUDGET);
   });
 
-  it.skipIf(!hasBundle)(
+  it.skipIf(!isMinified)(
     "bundle module load stays under the time budget",
     () => {
       // A dev (unminified) bundle is about twice the size and parses slower; the
