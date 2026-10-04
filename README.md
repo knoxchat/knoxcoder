@@ -18,9 +18,13 @@ Command, view, and setting IDs stay `knoxchat.*` so existing keybindings and `se
 
 ## Documentation
 
-* [KnoxCoder documentation](https://code.visualstudio.com/docs)
-* [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute)
-* [Development Setup](https://github.com/microsoft/vscode/wiki/How-to-Contribute#build-and-run-from-source)
+* [What is KnoxCoder](extensions/knox/docs/README.md)
+* [Install / CLI](extensions/knox/docs/cli.md)
+* [Privacy](extensions/knox/docs/privacy.md)
+* [Network](extensions/knox/docs/network.md)
+* [Security / threat model](extensions/knox/docs/security/threat-model.md)
+* [Release / update](extensions/knox/docs/release.md)
+* [How to Contribute](https://github.com/knoxchat/knoxcoder)
 
 ## License
 

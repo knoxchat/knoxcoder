@@ -1,14 +1,28 @@
-<!-- BEGIN MICROSOFT SECURITY.MD V1.0.0 BLOCK -->
+# Security
 
-## Security
-
-Microsoft takes the security of our software products and services seriously, which
-includes all source code repositories in our GitHub organizations.
+KnoxStudio takes the security of KnoxCoder seriously.
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-For security reporting information, locations, contact information, and policies,
-please review the latest guidance for Microsoft repositories at
-[https://aka.ms/SECURITY.md](https://aka.ms/SECURITY.md).
+Email **security@knoxstudio.ai** (or open a private advisory on
+[knoxchat/knoxcoder](https://github.com/knoxchat/knoxcoder/security/advisories/new)).
 
-<!-- END MICROSOFT SECURITY.MD BLOCK -->
+## Supported versions
+
+| Version | Supported |
+|---|---|
+| 2.0.x (including 2.0.0-beta) | Yes |
+| 1.138.x | Security fixes until 2.0.0 stable |
+| Older 1.x | No |
+
+Threat model, sandbox, and network destinations:
+
+- [extensions/knox/docs/security/threat-model.md](extensions/knox/docs/security/threat-model.md)
+- [extensions/knox/docs/security/sandbox.md](extensions/knox/docs/security/sandbox.md)
+- [extensions/knox/docs/network.md](extensions/knox/docs/network.md)
+- [extensions/knox/docs/privacy.md](extensions/knox/docs/privacy.md)
+
+This repository includes Visual Studio Code source from Microsoft. Microsoft's
+own reporting process for *upstream* VS Code issues remains
+[https://aka.ms/SECURITY.md](https://aka.ms/SECURITY.md). Prefer the KnoxStudio
+address for anything in `extensions/knox` or `src/vs/workbench/contrib/knox`.

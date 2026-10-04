@@ -10,6 +10,10 @@ All notable changes to KnoxCoder are documented in this file.
 
 ### Added
 
+- CLI `--continue` / `--resume`, `config.yaml` model default, JSON `sessionId`.
+- Stream errors classify HTTP 402 quota; copyable diagnostic on the error dialog.
+- Empty chat sample prompts; first-run copy covers KnoxStudio sign-in vs bring-your-own key.
+- Update feeds include `sha256hash` and `SHA256SUMS`. Knox production licenses: `docs/third-party-notices.md`. Host migration tests run in Knox CI.
 - Cross-window locking: checkpoint store, `sessions.json` and Memory Brain open/migrate.
 - Checkpoint quota enforcement reclaims orphan blobs before evicting and reports when only pinned checkpoints remain.
 - Memory Brain schema version, pre-migration backup and corruption recovery; atomic session writes.

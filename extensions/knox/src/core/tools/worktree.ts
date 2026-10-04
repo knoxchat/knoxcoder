@@ -193,6 +193,8 @@ export function shouldSkipWorktreeApply(rel: string): boolean {
   return WORKTREE_SKIP_APPLY_RE.test(rel.replace(/\\/g, "/"));
 }
 
+let worktreeAddQueue: Promise<void> = Promise.resolve();
+
 export async function enterAgentWorktree(
   ide: IDE,
   sessionId: string,
@@ -219,14 +221,24 @@ export async function enterAgentWorktree(
   await rm(worktreePath, { recursive: true, force: true }).catch(() => undefined);
   await mkdir(path.dirname(worktreePath), { recursive: true });
 
-  const added = await runGit(ide, gitRootPath, [
-    "worktree",
-    "add",
-    "-B",
-    branch,
-    worktreePath,
-    "HEAD",
-  ]);
+  // Concurrent `git worktree add` calls race on .git/worktrees metadata.
+  const prior = worktreeAddQueue;
+  let release!: () => void;
+  worktreeAddQueue = new Promise<void>((r) => (release = r));
+  await prior;
+  let added: Awaited<ReturnType<typeof runGit>>;
+  try {
+    added = await runGit(ide, gitRootPath, [
+      "worktree",
+      "add",
+      "-B",
+      branch,
+      worktreePath,
+      "HEAD",
+    ]);
+  } finally {
+    release();
+  }
   if (!added.ok) {
     throw new Error(added.stderr || t("worktreeCreateFailed"));
   }
