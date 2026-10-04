@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { resetShellJobs, startShellJob, waitForShellJob } from "../shellJobs";
+import { resetShellJobs, waitForShellJob } from "../shellJobs";
 import {
   decodePtyPayload,
   readPty,
@@ -25,9 +25,22 @@ function extras(): ToolExtras {
   };
 }
 
+/**
+ * stdin.pipe(stdout) never flows on a Windows ConPTY (Node TTY). Raw mode plus
+ * a READY handshake works on POSIX and Windows, and avoids racing attach.
+ */
 const stdinEcho = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(
-  "process.stdin.pipe(process.stdout)",
+  "process.stdout.write('READY\\n');if(process.stdin.isTTY)process.stdin.setRawMode(true);process.stdin.on('data',d=>process.stdout.write(d))",
 )}`;
+const helloLine = process.platform === "win32" ? "hello\r" : "hello\n";
+
+async function waitForReady(
+  read: () => Promise<{ body: string }>,
+): Promise<string> {
+  const { body } = await read();
+  expect(body, `PTY never printed READY. Got:\n${body}`).toContain("READY");
+  return body;
+}
 
 afterEach(() => {
   resetShellJobs();
@@ -47,31 +60,28 @@ describe("decodePtyPayload", () => {
   });
 });
 
-// ConPTY on the GitHub Windows runner never delivers piped stdin to a child node process
-// (output stays empty even after 7s), so the echo round-trip is only asserted on POSIX.
-const describePosix = process.platform === "win32" ? describe.skip : describe;
-
-describePosix("pty session (HL-13)", () => {
+describe("pty session (HL-13)", () => {
   it("spawns a stdin echo, send hello, read hello", async () => {
     const id = startPtyJob({ command: stdinEcho, cwd: process.cwd() });
-    await new Promise((r) => setTimeout(r, 80));
-    const sent = sendPty(id, "hello\n");
+    await waitForReady(() =>
+      readPty(id, { timeoutMs: 8_000, sinceByte: 0 }),
+    );
+    const sent = sendPty(id, helloLine);
     expect(sent.ok).toBe(true);
     expect(sent.written).toBe(true);
 
     const { body, snapshot, nextByte } = await readPty(id, {
-      timeoutMs: 2_000,
-      sinceByte: 0,
+      timeoutMs: 5_000,
     });
     expect(body).toContain("hello");
     expect(nextByte).toBeGreaterThan(0);
     expect(snapshot.stdin).toBe(true);
     sendPty(id, "", { eof: true });
     await waitForShellJob(id, { timeoutMs: 2_000 });
-  });
+  }, 20_000);
 });
 
-describePosix("pty tools", () => {
+describe("pty tools", () => {
   it("start → send → read via tool impls", async () => {
     const started = await ptyStartImpl({ command: stdinEcho }, extras());
     const content = started[0]?.content ?? "";
@@ -80,16 +90,16 @@ describePosix("pty tools", () => {
     expect(jobMatch?.[1]).toBeTruthy();
     const jobId = jobMatch![1];
 
-    // ConPTY (Windows) takes much longer to attach node to the console, and
-    // console input lines end in CR; input sent earlier is dropped.
-    const win = process.platform === "win32";
-    await new Promise((r) => setTimeout(r, win ? 1_500 : 80));
-    await ptySendImpl(
-      { job_id: jobId, data: win ? "hello\r\n" : "hello\n" },
-      extras(),
-    );
+    await waitForReady(async () => {
+      const read = await ptyReadImpl(
+        { job_id: jobId, timeout_ms: 8_000 },
+        extras(),
+      );
+      return { body: read[0]?.content ?? "" };
+    });
+    await ptySendImpl({ job_id: jobId, data: helloLine }, extras());
     const read = await ptyReadImpl(
-      { job_id: jobId, timeout_ms: win ? 6_000 : 2_000 },
+      { job_id: jobId, timeout_ms: 5_000 },
       extras(),
     );
     expect(read[0]?.content).toContain("hello");

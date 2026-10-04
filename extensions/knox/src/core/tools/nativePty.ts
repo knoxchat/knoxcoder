@@ -109,6 +109,8 @@ export function createSpawnerFromPtyModule(
         ...opts.env,
         TERM: opts.env.TERM || "xterm-256color",
       },
+      // Avoid winpty on Windows 10+; GitHub windows-2022 has ConPTY.
+      ...(process.platform === "win32" ? { useConpty: true } : {}),
     });
   };
 }
