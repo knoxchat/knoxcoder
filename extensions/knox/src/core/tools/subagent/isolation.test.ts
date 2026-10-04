@@ -101,7 +101,16 @@ describe("worktree isolation + merge-back", () => {
     const root = makeTempRepo({ "a.txt": base });
     const ide = realIde(root);
 
-    const edit = (line: number, text: string) => (child: IDE) => {
+    // Barrier: every worktree must be seeded before any child finishes (and
+    // merges). Otherwise a late-starting worktree is seeded with an earlier
+    // merge's changes and applies cleanly, making the outcome timing-dependent.
+    let arrived = 0;
+    let release!: () => void;
+    const allStarted = new Promise<void>((r) => (release = r));
+
+    const edit = (line: number, text: string) => async (child: IDE) => {
+      if (++arrived === 3) release();
+      await allStarted;
       const lines = base.split("\n");
       lines[line] = text;
       return editIn(child, root, "a.txt", lines.join("\n"));
