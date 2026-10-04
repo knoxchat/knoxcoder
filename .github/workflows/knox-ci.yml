@@ -1,7 +1,7 @@
 # Knox checks: core + pkg vitest, core type-check, and the inventory gate.
 # Runs on pull requests and branch pushes, and is called by build-desktop.yml so packaging is blocked on it.
 #
-# Matrix: Linux, Windows, and macOS. GUI/contract tests stay Linux-only (xvfb + Electron).
+# Matrix: Linux and Windows (macOS is built/tested locally). GUI/contract tests stay Linux-only (xvfb + Electron).
 name: Knox CI
 
 on:
@@ -43,7 +43,7 @@ jobs:
       matrix:
         # windows-2022 (VS 2022), same as the x64 packaging job: windows-latest ships VS 18,
         # which node-gyp 11 cannot find, so `npm ci` fails building native modules.
-        os: [ubuntu-22.04, windows-2022, macos-latest]
+        os: [ubuntu-22.04, windows-2022]
     env:
       GYP_MSVS_VERSION: '2022'
     defaults:
