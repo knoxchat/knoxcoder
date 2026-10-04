@@ -8,7 +8,7 @@ import * as vscode from "vscode";
 
 import { t } from "./i18n";
 
-import { IMessenger } from "../../../core/protocol/messenger";
+import { IMessenger } from "core/protocol/messenger";
 
 export class VsCodeWebviewProtocol
   implements IMessenger<FromWebviewProtocol, ToWebviewProtocol>

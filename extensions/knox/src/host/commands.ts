@@ -9,6 +9,7 @@ import { ConfigHandler } from "core/config/ConfigHandler";
 import { EXTENSION_NAME } from "core/config/extensionName";
 import { Core } from "core/core";
 import * as vscode from "vscode";
+import type { VsCodeWebviewProtocol } from "./webviewProtocol";
 
 import {
   CLIPBOARD_CACHE_ADD_MESSAGE,

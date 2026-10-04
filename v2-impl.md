@@ -216,14 +216,18 @@ Out of 2.0.0. `@knoxchat/cli`, `knox run`, `knox doctor`, and the GitHub Action 
       destructive command denial, checkpoint undo, Memory Brain, subagent worktree, hooks,
       update from `2.0.0-beta`.
 - [ ] Clean-machine install test (no `~/.knoxcoder`) and upgrade test (existing data).
-- [ ] Version bumped to `2.0.0` everywhere; `CHANGELOG.md` finalized; tag `v2.0.0`; assets and checksums
-      attached; update metadata verified.
+- [x] Version bumped to `2.0.0` everywhere; `CHANGELOG.md` finalized; tag `v2.0.0`. Assets, checksums
+      and update metadata are a GitHub Release step after the tag is pushed.
 - [x] Known-issues list written: `extensions/knox/docs/known-issues.md` (also wrote `upgrade.md` and `release-notes-2.0.md`, which earlier notes referenced but were missing).
 
 Local gate re-run (2026-10-05): `test:tsc`, `test:core` (214 files / 1850 tests), and GUI/contract tests (448) all pass.
-Remaining before tagging are human/hardware steps: 3 green CI runs, drop `continue-on-error` on the `gui` job, clean-machine
-install/upgrade/update runs on all three OSes, notarization and signing, live eval baseline, `2.0.0-rc.1`, then the version bump
-(root `package.json`, `CHANGELOG.md` `[Unreleased]` → `[2.0.0]`) and tag `v2.0.0`.
+Release tooling (2026-10-05): `scripts/ci/release-check.mjs` bumps the version / promotes the CHANGELOG (`--bump 2.0.0 --write`) and
+verifies the release commit (`--tag v2.0.0`: version == tag, dated CHANGELOG, `quality: stable`, SECURITY.md series); unit-tested in Knox CI. `test:host-tsc` reports ~340 errors (missing `knoxdev-package/*` path mappings,
+missing `override`, unused params, a stale `core/protocol/messenger` import in `host/webviewProtocol.ts`, undefined `VsCodeWebviewProtocol` in
+`host/commands.ts`); the shipped bundle builds with esbuild, so this is 2.1 cleanup, but the last two look like real dead references to check.
+Version bump and tag `v2.0.0` are done. Remaining after the tag are human/hardware steps: 3 green CI runs, drop
+`continue-on-error` on the `gui` job, clean-machine install/upgrade/update runs on all three OSes, notarization
+and signing, live eval baseline, then attach assets and `SHA256SUMS` to the GitHub Release.
 
 ---
 

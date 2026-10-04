@@ -3,6 +3,10 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-05
+
+First stable **2.0.0**. Everything since **1.138.2**, including **2.0.0-beta**, plus the items below since the beta.
+
 ### Removed
 
 - **`ReasoningEngine`** and its commands `knox.analyzeTask`, `knoxchat.analyzeTask`, `knox.structuredSolve`, `knox.performTaskAnalysis`. None were contributed in the manifest or reachable from the GUI; the product planner is `builtin_plan`. The context-gathering operation no longer returns a random `contextSize`.
@@ -19,6 +23,7 @@ All notable changes to KnoxCoder are documented in this file.
 - Cross-window locking: checkpoint store, `sessions.json` and Memory Brain open/migrate.
 - Checkpoint quota enforcement reclaims orphan blobs before evicting and reports when only pinned checkpoints remain.
 - Memory Brain schema version, pre-migration backup and corruption recovery; atomic session writes.
+- Release readiness check (`scripts/ci/release-check.mjs`) for version bump and tag verification.
 
 ## [2.0.0-beta] - 2026-10-04
 
