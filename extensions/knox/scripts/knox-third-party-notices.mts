@@ -103,7 +103,9 @@ ${rows}
 const markdown = renderNotices();
 const check = process.argv.includes("--check");
 if (check) {
-  const current = fs.existsSync(outFile) ? fs.readFileSync(outFile, "utf8") : "";
+  const current = fs.existsSync(outFile)
+    ? fs.readFileSync(outFile, "utf8").replace(/\r\n/g, "\n")
+    : "";
   if (current !== markdown) {
     console.error(
       "knox-third-party-notices: docs/third-party-notices.md is stale. Run the script without --check.",

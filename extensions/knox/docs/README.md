@@ -19,8 +19,6 @@ Headless use (CI, scripts): see [cli.md](cli.md). From `extensions/knox/src/core
 ## Docs set
 
 - [CLI](cli.md) — version, doctor, JSON schema, `--continue` / `--resume`
-- [Upgrade](upgrade.md) — 1.138.2 / 2.0.0-beta → 2.0
-- [2.0.0 notes (draft)](release-notes-2.0.md)
 - [Network](network.md) — every outbound call and `knoxchat.networkMode`
 - [Privacy](privacy.md)
 - [Sandbox](security/sandbox.md) — `knoxchat.sandbox`
