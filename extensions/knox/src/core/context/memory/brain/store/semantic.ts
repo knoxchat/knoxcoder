@@ -132,42 +132,84 @@ export async function storeSemanticDeduped(
   return { id, deduplicated: false };
 }
 
+/** Below this many rows a zero-hit FTS5 query is retried with the substring LIKE scan. */
+const LIKE_SCAN_MAX_ROWS = 5000;
+
 export async function searchSemantic(query: string, category?: SemanticCategory, limit: number = 10): Promise<SemanticMemory[]> {
   const db = await get();
 
   const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
 
-  const conditions: string[] = ["(expires_at IS NULL OR expires_at > datetime('now'))"];
-  const params: any[] = [];
+  // Fetch more candidates for re-ranking
+  const fetchLimit = Math.max(limit * 3, 30);
 
-  if (category) {
-    conditions.push("category = ?");
-    params.push(category);
-  }
+  let ftsRows: any[] | null = null;
 
-  if (terms.length > 0) {
-    const termConditions = terms.map(() =>
-      "(LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(keywords) LIKE ?)",
-    );
-    conditions.push(`(${termConditions.join(" OR ")})`);
-    for (const term of terms) {
-      const like = `%${term}%`;
-      params.push(like, like, like);
+  // Candidates from FTS5 (BM25 order). The LIKE scan below reads every row, which costs
+  // ~0.4 s at 100k items and, ordered by importance, lets common words crowd out the real
+  // match. LIKE stays only for FTS-less builds and for small brains where its substring
+  // matches are cheap and useful.
+  const ftsTerms = terms
+    .flatMap((t) => t.match(/[\p{L}\p{N}_]+/gu) ?? [])
+    .filter((t) => t.length > 1);
+  if (ftsTerms.length > 0) {
+    try {
+      const ftsConditions = ["(s.expires_at IS NULL OR s.expires_at > datetime('now'))"];
+      const ftsParams: any[] = [];
+      if (category) {
+        ftsConditions.push("s.category = ?");
+        ftsParams.push(category);
+      }
+      const match = ftsTerms.map((t) => `"${t}"*`).join(" OR ");
+      ftsRows = await db.all(
+        `SELECT s.* FROM brain_semantic s
+         JOIN brain_semantic_fts fts ON s.id = fts.rowid
+         WHERE ${ftsConditions.join(" AND ")} AND brain_semantic_fts MATCH ?
+         ORDER BY bm25(brain_semantic_fts, 5.0, 1.0, 3.0)
+         LIMIT ?`,
+        [...ftsParams, match, fetchLimit],
+      );
+      if (ftsRows!.length === 0) {
+        const total = await db.get("SELECT COUNT(*) AS n FROM brain_semantic");
+        if (((total as any)?.n ?? 0) <= LIKE_SCAN_MAX_ROWS) ftsRows = null;
+      }
+    } catch {
+      ftsRows = null; // FTS5 unavailable
     }
   }
 
-  // Fetch more candidates for re-ranking
-  const fetchLimit = Math.max(limit * 3, 30);
-  params.push(fetchLimit);
+  let rows: any[];
+  if (ftsRows !== null) {
+    rows = ftsRows;
+  } else {
+    const conditions: string[] = ["(expires_at IS NULL OR expires_at > datetime('now'))"];
+    const params: any[] = [];
 
-  const sql = `
-    SELECT * FROM brain_semantic
-    WHERE ${conditions.join(" AND ")}
-    ORDER BY importance_score DESC, retrieval_count DESC, last_accessed_at DESC
-    LIMIT ?
-  `;
+    if (category) {
+      conditions.push("category = ?");
+      params.push(category);
+    }
 
-  const rows = await db.all(sql, params);
+    if (terms.length > 0) {
+      const termConditions = terms.map(() =>
+        "(LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(keywords) LIKE ?)",
+      );
+      conditions.push(`(${termConditions.join(" OR ")})`);
+      for (const term of terms) {
+        const like = `%${term}%`;
+        params.push(like, like, like);
+      }
+    }
+    params.push(fetchLimit);
+
+    rows = await db.all(
+      `SELECT * FROM brain_semantic
+       WHERE ${conditions.join(" AND ")}
+       ORDER BY importance_score DESC, retrieval_count DESC, last_accessed_at DESC
+       LIMIT ?`,
+      params,
+    );
+  }
 
   // BM25-inspired re-ranking
   if (terms.length > 0 && rows.length > 1) {

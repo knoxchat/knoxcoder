@@ -20,7 +20,7 @@ Each item is a checkbox; tick it when merged. Items carry an acceptance criterio
   Knox GUI/contract tests (445, via `./scripts/test.sh --glob "vs/workbench/contrib/knox/**/*.test.js"`) pass.
 - Knox GUI tests (Electron) are not run as a gating CI job (`continue-on-error` in `knox-ci.yml`).
 - Knox tests run on Linux, Windows (`windows-2022`), and macOS in `knox-ci.yml` (gates packaging via `build-desktop.yml`).
-- Inline completion is off by default and next-edit is not built.
+- Ghost-text inline completion is off by default (prompt-FIM on the chat/edit model, not a dedicated FIM model). Copilot-style next-edit is not built and is out of 2.1.
 - Background agents, team bundles and `knox` CLI have no GUI.
 - Docs: `README.md` still links the generic VS Code docs; `reportIssueUrl` in `product.json`
   points to `microsoft/vscode`.
@@ -144,11 +144,29 @@ Out of 2.0.0. `@knoxchat/cli`, `knox run`, `knox doctor`, and the GitHub Action 
       `startupBudget.test.ts`); fail on regression. `packaged-extension-smoke` now runs `measure-startup.cjs` after `esbuild --skip-native` on Linux/Windows/macOS.
 - [ ] Memory and CPU: long-session soak test (1000 turns, large repos) for memory leaks in the webview and
       host; Memory Brain retrieval latency budget on 100k items.
+      PARTIAL (Node, no hardware, both in `test:core`): `agent/loop.soak.test.ts` runs 1000 real `runAgentLoop` turns with
+      the default compactor and a scripted model: history capped at 112 messages, heap after forced GC grew 0.3 MB from turn 200 to 1000 (budget 25 MB).
+      `context/memory/bench/brainScale.test.ts` seeds 100k rows (20 real needles + generated filler with overlapping vocabulary; 64 MB DB, seed ~7 s).
+      First run found two scale defects, both fixed: (1) the trigram candidate pool and `searchSemantic` took LIKE matches ordered by importance, so common
+      words in filler crowded out the relevant memory (q-log lost its memory, the LIKE fallback injected filler) and every query paid a full-table scan;
+      they now take candidates from FTS5 in BM25 order, and the LIKE scan only runs for FTS-less builds or brains of <= 5000 rows (where a zero-hit FTS query is retried with substring LIKE).
+      Before -> after at 100k: pre-turn p50 271 -> 68 ms, p95 365 -> 142 ms; `searchSemantic` p95 441 -> 75 ms; needle recall 0.867 -> 0.933.
+      Budgets in the test: pre-turn p95 < 750 ms, max < 1.5 s, recall >= 0.9. Known remaining miss: a 7-term OR query (`q-multi`) where the needle matches one term while
+      random filler matches several is outranked by BM25. 2.1 follow-up: tried reserving per-term FTS slots for long OR queries; it did not help (the needle
+      matches only "database", a word in ~30% of the filler, so it is not in any single term's top hits either) and was reverted. It stays a documented synthetic limit.
+      2.1 follow-up (episodic + graph): the bench now seeds episodic rows (N/3) and times `searchEpisodic`. This found a much bigger defect than the LIKE scans:
+      the FTS5 episodic query (`fts5SearchEpisodic`, used by every pre-turn) with a session filter made SQLite walk the session index and probe FTS once per row
+      (30k items: episodic p95 6.6 s, pre-turn p95 4.9 s). The MATCH now runs first in a CTE: 30k -> episodic 5 ms, pre-turn p95 35 ms; 100k -> episodic p95 14 ms,
+      pre-turn p95 104 ms. `searchEpisodic` takes FTS5 candidates above 5000 rows (LIKE below), and graph expansion's per-neighbour memory lookup uses an FTS5 phrase
+      query above 5000 rows (the whole-name post-filter is unchanged). Budget added: episodic p95 < 750 ms. Graph expansion at scale is not benchmarked (the bench has no
+      entities). Still open: webview heap soak (needs Electron), real large-repo CPU profile.
 - [ ] Large repo behavior: repo map, `exact_search`, `glob` on 500k files, monorepos; respect `.gitignore`
       and `.knoxignore`.
+      PARTIAL: `glob` already honors both and has a 100k walk cap; `exact_search` now honors both (root `.knoxignore`; nested ones are not read), with timeout and output cap (tests incl. a 20k-file tree). Still open: a real 500k-file run, repo map timing, nested `.knoxignore` for search.
 - [ ] Webview watchdog: confirm recovery paths (`webviewWatchdog.ts`) with a real crash test.
+      PARTIAL: `host/webviewWatchdog.driver.vitest.ts` drives the real provider loop with fake timers (dead renderer: 2 reloads, then crash placeholder, stable, Reload button recovers; hidden/unfocused never count as crashes; healthy never reloads). Still open: kill a real renderer in Electron.
 - [ ] Cancel semantics: Stop during streaming, tool run, subagent, review panel; no orphaned processes.
-      Verify child process cleanup on window close on all OSes.
+      DONE (core): foreground shell abort and hook timeouts kill the whole process tree (test: no orphaned grandchild); `deactivate` kills all shell jobs and child agents. Stop during streaming: `host/extension/sharedChatTurn.stop.vitest.ts` (mid-stream, before first chunk, provider ignoring the signal, tool-call round, retry backoff, running tool, no-op); it found and fixed Stop ending as an error / hanging. Still open: verify on Windows/macOS with a real window close; review panel Stop.
 
 ### P1-6 Model and provider coverage
 - [x] Provider matrix tests (construct, no live network): OpenAI / Anthropic / OpenRouter / KnoxChat / mock, plus OpenAI-compatible custom `apiBase` for Ollama / LM Studio (`openai-adapters/index.test.ts`, `llm/llms/providerMatrix.test.ts`). Live tool-calling/streaming/caching per provider still open.
@@ -194,7 +212,14 @@ Out of 2.0.0. `@knoxchat/cli`, `knox run`, `knox doctor`, and the GitHub Action 
 
 ## P2: Can slip to 2.1
 
-- [ ] Inline completions: turn on by default only after quality/latency bar is met; next-edit prediction.
+- [ ] In-editor assist without FIM. Keep ghost-text off (`knoxchat.enableInlineCompletions`
+      stays false by default; do not turn it on and do not ship Copilot-style NES — Knox has
+      no fill-in-the-middle or next-edit model). Invest in instruction-triggered edits that
+      reuse chat/edit/apply models and existing vertical diffs:
+      polish ⌘I (empty-file generate, continue-this-function, implement-the-stub);
+      CodeLens on comments / TODOs / empty stubs / diagnostics → ⌘I;
+      one next related edit after Accept as a reviewable diff (not while typing).
+      Hidden experimental ghost-text may remain; it is not a 2.1 product surface.
 - [ ] Remote registry for team bundles, skills and agents; `uses:` remote config blocks
       (`registryClient.ts` rejects them today).
 - [ ] Multi-root workspaces (Knox works on the first folder only).
@@ -225,6 +250,7 @@ Release tooling (2026-10-05): `scripts/ci/release-check.mjs` bumps the version /
 verifies the release commit (`--tag v2.0.0`: version == tag, dated CHANGELOG, `quality: stable`, SECURITY.md series); unit-tested in Knox CI. `test:host-tsc` reports ~340 errors (missing `knoxdev-package/*` path mappings,
 missing `override`, unused params, a stale `core/protocol/messenger` import in `host/webviewProtocol.ts`, undefined `VsCodeWebviewProtocol` in
 `host/commands.ts`); the shipped bundle builds with esbuild, so this is 2.1 cleanup, but the last two look like real dead references to check.
+2.1 progress: `test:host-tsc` now reports 0 errors and is a Knox CI step; the two suspected dead references (`host/webviewProtocol.ts`, `host/commands.ts`) were false alarms caused by missing path mappings. Real bugs found and fixed: undisposable status-bar subscriptions and the dead `initImmediate` i18next option (now `initAsync: false`).
 Version bump and tag `v2.0.0` are done. Remaining after the tag are human/hardware steps: 3 green CI runs, drop
 `continue-on-error` on the `gui` job, clean-machine install/upgrade/update runs on all three OSes, notarization
 and signing, live eval baseline, then attach assets and `SHA256SUMS` to the GitHub Release.

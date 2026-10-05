@@ -16,6 +16,7 @@ import {
   getShellJob,
   killShellJob,
   killAllRunningShellJobs,
+  killAllShellJobsNow,
   listShellJobs,
   MAX_COMPLETED_SHELL_JOBS,
   parseBlockUntilMs,
@@ -118,6 +119,13 @@ describe("shellJobs", () => {
     });
     expect(listShellJobs().some((job) => job.id === id)).toBe(true);
     killShellJob(id);
+  });
+
+  it("killAllShellJobsNow SIGKILLs running job trees immediately", async () => {
+    const id = startShellJob({ command: "sleep 30", cwd: process.cwd() });
+    expect(killAllShellJobsNow()).toBe(1);
+    expect(getShellJob(id)?.status).toBe("killed");
+    await waitForShellJob(id, { timeoutMs: 2_000 });
   });
 
   it("kills every running job", async () => {

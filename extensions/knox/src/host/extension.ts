@@ -5,6 +5,7 @@
 import "./util/suppressKnownDeprecations";
 
 import { setupCa } from "core/util/ca";
+import { shutdownAllBackgroundJobs } from "core/tools/agentJobs";
 import * as vscode from "vscode";
 
 import {
@@ -75,5 +76,12 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export async function deactivate() {
-  // Extension teardown is handled by VsCodeExtension / agent disposables.
+  // Other teardown is handled by VsCodeExtension / agent disposables. Shell
+  // jobs run in their own process groups, so they must be killed explicitly or
+  // they outlive the window.
+  try {
+    shutdownAllBackgroundJobs();
+  } catch {
+    // best effort
+  }
 }

@@ -7,6 +7,7 @@ import {
   dismissCompletedShellJobs,
   dismissShellJob,
   killAllRunningShellJobs,
+  killAllShellJobsNow,
   killShellJob,
   listShellJobs,
   type ShellJobSnapshot,
@@ -120,6 +121,12 @@ export function cancelAllBackgroundJobs(): AgentBackgroundJob[] {
   killAllRunningShellJobs();
   killAllRunningSubagentJobs();
   return listAgentBackgroundJobs();
+}
+
+/** Extension deactivate: nothing we started may outlive the window. */
+export function shutdownAllBackgroundJobs(): void {
+  killAllShellJobsNow();
+  killAllRunningSubagentJobs();
 }
 
 export function handleAgentJobsRequest(

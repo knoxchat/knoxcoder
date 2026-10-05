@@ -63,6 +63,42 @@ describe("runLocalShellCommand abort", () => {
     }
   });
 
+  it.skipIf(process.platform === "win32")(
+    "leaves no orphaned grandchild after abort",
+    async () => {
+      const controller = new AbortController();
+      let out = "";
+      const promise = runLocalShellCommand(
+        "sleep 30 & echo CHILD=$!; wait",
+        process.cwd(),
+        controller.signal,
+        (c) => {
+          out += c.stdout;
+        },
+      );
+      const deadline = Date.now() + 5000;
+      while (!/CHILD=\d+/.test(out) && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      const pid = Number(/CHILD=(\d+)/.exec(out)?.[1]);
+      expect(pid).toBeGreaterThan(0);
+      controller.abort();
+      await expect(promise).rejects.toMatchObject({
+        code: ToolCallErrorCode.CANCELLED,
+      });
+      let alive = true;
+      for (let i = 0; i < 50 && alive; i++) {
+        await new Promise((r) => setTimeout(r, 40));
+        try {
+          process.kill(pid, 0);
+        } catch {
+          alive = false;
+        }
+      }
+      expect(alive).toBe(false);
+    },
+  );
+
   it("resolves for a short successful command", async () => {
     const result = await runLocalShellCommand(
       "echo hello-cancel-test",

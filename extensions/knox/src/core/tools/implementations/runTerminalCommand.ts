@@ -24,6 +24,7 @@ import {
 } from "../shellSession";
 import {
   createThrottledSnapshotEmitter,
+  killProcessTree,
   parseBlockUntilMs,
   resolveTerminalWaitMs,
   startShellJob,
@@ -72,6 +73,9 @@ export function runLocalShellCommand(
     const child = childProcess.spawn(command, {
       cwd,
       shell: true,
+      // Own process group so abort stops pipelines and grandchildren, not just sh.
+      detached: process.platform !== "win32",
+      windowsHide: true,
     });
 
     let stdout = "";
@@ -92,17 +96,9 @@ export function runLocalShellCommand(
     };
 
     const onAbort = () => {
-      try {
-        child.kill("SIGTERM");
-      } catch {
-        // Process may already be gone
-      }
+      killProcessTree(child, "SIGTERM");
       forceKillTimer = setTimeout(() => {
-        try {
-          child.kill("SIGKILL");
-        } catch {
-          // ignore
-        }
+        killProcessTree(child, "SIGKILL");
       }, FORCE_KILL_MS);
 
       settle(() => {

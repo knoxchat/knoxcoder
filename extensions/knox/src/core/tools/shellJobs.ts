@@ -705,6 +705,27 @@ export function killAllRunningShellJobs(): ShellJobSnapshot[] {
   return killed;
 }
 
+/**
+ * Window close / extension deactivate: SIGKILL every running job's process
+ * tree now (no grace timer; the host may exit right after).
+ */
+export function killAllShellJobsNow(): number {
+  let count = 0;
+  for (const job of [...jobs.values()]) {
+    if (job.snapshot.status !== "running") {
+      continue;
+    }
+    try {
+      killJobProcess(job, "SIGKILL");
+    } catch {
+      // already gone
+    }
+    job.snapshot.status = "killed";
+    count += 1;
+  }
+  return count;
+}
+
 export function killShellJob(id: string): ShellJobSnapshot | undefined {
   const job = jobs.get(id.trim());
   if (!job) {

@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -11,6 +12,7 @@ import {
   resolveRipgrepBinary,
   resolveSearchMaxResults,
   resolveSearchRoots,
+  runRipgrepSearch,
   summarizeSearchOutput,
   SYSTEMS_SEARCH_MAX_RESULTS,
 } from "./ripgrep";
@@ -304,5 +306,68 @@ describe("bundled ripgrep", () => {
       timeout: 10_000,
     });
     expect(bad.status).toBe(2);
+  });
+});
+
+describe("runRipgrepSearch ignore + limits", () => {
+  const rg = resolveRipgrepBinary();
+  const withTree = async (fn: (dir: string) => Promise<void>) => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "knox-rg-"));
+    try {
+      await fn(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  it.skipIf(!rg)("honors .gitignore (no git repo) and .knoxignore", async () => {
+    await withTree(async (dir) => {
+      mkdirSync(path.join(dir, "gen"));
+      mkdirSync(path.join(dir, "secret"));
+      writeFileSync(path.join(dir, ".gitignore"), "gen/\n");
+      writeFileSync(path.join(dir, ".knoxignore"), "secret/\n");
+      writeFileSync(path.join(dir, "gen", "a.txt"), "NEEDLE\n");
+      writeFileSync(path.join(dir, "secret", "b.txt"), "NEEDLE\n");
+      writeFileSync(path.join(dir, "keep.txt"), "NEEDLE\n");
+      const out = await runRipgrepSearch(rg!, dir, "NEEDLE", {
+        outputMode: "files_with_matches",
+      });
+      expect(out).toContain("keep.txt");
+      expect(out).not.toContain("gen/a.txt");
+      expect(out).not.toContain("secret/b.txt");
+    });
+  });
+
+  it.skipIf(!rg)("searches a 20k-file tree quickly", async () => {
+    await withTree(async (dir) => {
+      for (let d = 0; d < 200; d++) {
+        const sub = path.join(dir, `pkg${d}`);
+        mkdirSync(sub);
+        for (let f = 0; f < 100; f++) {
+          writeFileSync(path.join(sub, `f${f}.ts`), f === 7 && d === 150 ? "TARGET\n" : "x\n");
+        }
+      }
+      const started = Date.now();
+      const out = await runRipgrepSearch(rg!, dir, "TARGET", {});
+      expect(out).toContain("pkg150/f7.ts");
+      expect(Date.now() - started).toBeLessThan(10_000);
+    });
+  });
+
+  it.skipIf(!rg)("stops with a partial-result notice on timeout", async () => {
+    await withTree(async (dir) => {
+      writeFileSync(path.join(dir, "a.txt"), "hello\n".repeat(10));
+      const prev = process.env.KNOX_SEARCH_TIMEOUT_MS;
+      process.env.KNOX_SEARCH_TIMEOUT_MS = "1";
+      try {
+        // rg process startup alone outlasts a 1 ms budget.
+        writeFileSync(path.join(dir, "big.txt"), "a".repeat(5_000_000) + "\n");
+        const out = await runRipgrepSearch(rg!, dir, "(a+)+$", { pcre2: true, fixedStrings: false });
+        expect(out).toContain("search stopped: timed out");
+      } finally {
+        if (prev === undefined) delete process.env.KNOX_SEARCH_TIMEOUT_MS;
+        else process.env.KNOX_SEARCH_TIMEOUT_MS = prev;
+      }
+    });
   });
 });

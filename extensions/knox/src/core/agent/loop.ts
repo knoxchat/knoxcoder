@@ -465,6 +465,40 @@ export interface CollectTurnHooks {
   onRetry?: (event: StreamRetryEvent) => void | Promise<void>;
 }
 
+/**
+ * `gen.next()` that also settles when `signal` aborts, so Stop works even if a
+ * provider never looks at the signal (hung socket, buffering proxy). Resolves
+ * `{ aborted: true }` and closes the generator in the background.
+ */
+async function nextUnlessAborted<T, R>(
+  gen: AsyncGenerator<T, R>,
+  signal: AbortSignal,
+): Promise<IteratorResult<T, R> | { aborted: true }> {
+  if (signal.aborted) {
+    void gen.return(undefined as R).catch(() => undefined);
+    return { aborted: true };
+  }
+  let onAbort: (() => void) | undefined;
+  const aborted = new Promise<{ aborted: true }>((resolve) => {
+    onAbort = () => resolve({ aborted: true });
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  const pending = gen.next();
+  try {
+    const result = await Promise.race([pending, aborted]);
+    if ("aborted" in result) {
+      // Do not leave an unhandled rejection from the abandoned read.
+      pending.catch(() => undefined);
+      void gen.return(undefined as R).catch(() => undefined);
+    }
+    return result;
+  } finally {
+    if (onAbort) {
+      signal.removeEventListener("abort", onAbort);
+    }
+  }
+}
+
 export async function collectAssistantTurn(
   extras: Pick<ToolExtras, "llm" | "abortSignal">,
   messages: ChatMessage[],
@@ -487,8 +521,8 @@ export async function collectAssistantTurn(
     const llm = useFallback ? hooks!.fallbackLlm! : extras.llm;
     try {
       const gen = llm.streamChat(messages, signal, { tools });
-      let next = await gen.next();
-      while (!next.done) {
+      let next = await nextUnlessAborted(gen, signal);
+      while (!("aborted" in next) && !next.done) {
         if (signal.aborted) {
           break;
         }
@@ -503,13 +537,17 @@ export async function collectAssistantTurn(
             toolCalls = mergeToolCallDeltas(toolCalls, chunk.toolCalls);
           }
         }
-        next = await gen.next();
+        next = await nextUnlessAborted(gen, signal);
       }
-      if (next.done && next.value) {
+      if (!("aborted" in next) && next.done && next.value) {
         await hooks?.onPromptLog?.(next.value);
       }
       break;
     } catch (error) {
+      if (signal.aborted) {
+        // Stop: providers reject with AbortError. Keep what streamed so far.
+        break;
+      }
       if (
         !retry ||
         signal.aborted ||

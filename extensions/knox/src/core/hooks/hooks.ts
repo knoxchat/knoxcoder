@@ -23,6 +23,8 @@
 
 import * as YAML from "yaml";
 
+import { killProcessTree } from "../tools/shellJobs";
+
 export type HookEvent =
   | "PreToolUse"
   | "PostToolUse"
@@ -140,7 +142,12 @@ export function hookMatches(def: HookDef, toolName?: string): boolean {
 export const defaultHookExec: HookExec = async (command, stdin, opts) => {
   const { spawn } = await import("node:child_process");
   return new Promise((resolve) => {
-    const child = spawn(command, { shell: true, cwd: opts.cwd });
+    const child = spawn(command, {
+      shell: true,
+      cwd: opts.cwd,
+      detached: process.platform !== "win32",
+      windowsHide: true,
+    });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
@@ -155,11 +162,7 @@ export const defaultHookExec: HookExec = async (command, stdin, opts) => {
     };
     const timer = setTimeout(() => {
       timedOut = true;
-      if (process.platform === "win32") {
-        child.kill();
-      } else {
-        child.kill("SIGKILL");
-      }
+      killProcessTree(child, "SIGKILL");
       finish(null);
     }, opts.timeoutMs);
     child.stdout?.on("data", (d) => (stdout += d));

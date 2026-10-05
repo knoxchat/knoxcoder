@@ -3,6 +3,25 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Fixed
+
+- Stop during streaming: a provider that rejects with `AbortError` made the turn end as an **error** instead of "stopped", and a provider that ignored the abort signal (hung connection) left Stop waiting forever. The agent loop now races every stream read against the signal, keeps the partial reply, and ends as `aborted`.
+- Stop/cancel left orphans: the non-background shell path and hook commands now run in their own process group and are killed as a tree (pipelines and grandchildren included; `taskkill /T` on Windows). Closing the window (`deactivate`) now SIGKILLs every running shell job and child agent instead of leaving detached jobs running.
+- Memory/Jev status bar: the log and activity subscriptions were pushed as bare functions, so VS Code could not dispose them on deactivate. They are now disposables.
+- i18next 26 ignored the old `initImmediate` option; host and core catalogs now set `initAsync: false` so strings are ready synchronously.
+
+### Added
+
+- Reliability tests (run in `test:core`, no hardware): `agent/loop.soak.test.ts` runs 1000 agent turns in one session (history stays bounded by compaction; retained heap grew 0.3 MB over turns 200-1000), and `context/memory/bench/brainScale.test.ts` measures Memory Brain retrieval with 100k items (pre-turn p95 about 140 ms, `searchSemantic` p95 about 75 ms on a dev laptop; budgets 750 ms p95 / 1.5 s max). `KNOX_SOAK_TURNS` and `KNOX_SCALE_ITEMS` override the sizes.
+
+### Changed
+
+- Memory Brain retrieval at scale: `searchSemantic` and the fusion trigram candidate pool now take candidates from FTS5 in BM25 order instead of LIKE matches ordered by importance. With thousands of memories, common words in unrelated rows used to crowd out the relevant one and every turn scanned the whole table; at 100k items pre-turn p50 went 271 ms to 68 ms and `searchSemantic` p95 441 ms to 75 ms. Brains of 5000 rows or fewer keep the substring LIKE fallback. Episodic FTS now matches first (CTE) so a session filter does not walk every row; at 100k items episodic p95 is about 14 ms. Graph expansion and `searchEpisodic` use FTS above 5000 rows.
+- `exact_search` honors `.gitignore` outside git repos and the workspace-root `.knoxignore`, and is bounded: 60 s timeout (`KNOX_SEARCH_TIMEOUT_MS`) and a 16 MB output cap, returning partial results with a notice instead of hanging or exhausting memory on huge repos.
+
+- `npm run test:host-tsc` is clean (zero errors) and runs in Knox CI: host tsconfig now maps `knoxdev-package/*`, uses the DOM lib, and declares untyped deps (`jsdom`, `win-ca`, `follow-redirects`). Unused-local / override / implicit-return style checks are off for the host project only.
+- Desktop packaging (`Build desktop apps`) is **manual only** (`workflow_dispatch`). Tag and branch pushes do not start it.
+
 ## [2.0.0] - 2026-10-05
 
 First stable **2.0.0**. Everything since **1.138.2**, including **2.0.0-beta**, plus the items below since the beta.
@@ -89,7 +108,7 @@ Everything since **1.138.2**. Agent chat, tools, permissions, CLI, and GUI chrom
   `knox team export|import` (`knox-team-bundle` v1): `.knoxrules`, `AGENTS.md`, hooks, `.knox/agents/*.md`, `skills/**`. Skips secrets, binaries, files over 256 KB, and path traversal. Import keeps existing files unless `--force`; hooks need `--allow-hooks`; `--dry-run` writes nothing. No GUI or remote registry.
 
 - **Inline completion stats**
-  Requests / shown / accepted / empty / failed / cancelled and latency p50/p95 (`Knox: Show Inline Completion Stats`). `knoxchat.inlineCompletionModel` routes to a small model by title. Still **off** by default; next-edit is not built.
+  Requests / shown / accepted / empty / failed / cancelled and latency p50/p95 (`Knox: Show Inline Completion Stats`). `knoxchat.inlineCompletionModel` routes to a small model by title. Stays **off** by default (no FIM model; not a 2.1 product surface). Copilot-style next-edit is not planned.
 
 - **User docs**
   `extensions/knox/docs/README.md`: setup, headless use, permission modes, rules/skills, hooks, subagents, memory, checkpoints, Jev, troubleshooting.

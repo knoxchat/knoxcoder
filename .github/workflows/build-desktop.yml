@@ -2,13 +2,13 @@
 #
 # Every format wraps the same application tree, so building all of them roughly triples the size of
 # the uploaded artifacts. Manual runs therefore build only the tar.gz (Linux) and zip (Windows) unless
-# "all_packages" is ticked. Tag pushes and "publish_release" always build every format.
+# "all_packages" is ticked. "publish_release" and "all_packages" always build every format.
 #
 # macOS is intentionally NOT built here. It is built and signed locally with ./build_dmg.sh.
 #
 # Triggers
-#   - Manual run (Actions -> "Build desktop apps" -> Run workflow). Tick "arm64" to also build the arm64 targets.
-#   - Pushing a tag such as v1.138.0 builds x64 and attaches every artifact to a GitHub release.
+#   - Manual only (Actions -> "Build desktop apps" -> Run workflow). Tick "arm64" to also build
+#     the arm64 targets. Tag pushes and branch pushes do not start this workflow.
 #
 # The gulp tasks below are the same ones the local macOS build uses (`vscode-<platform>-<arch>-min`);
 # output lands in ../VSCode-<platform>-<arch> next to the checkout, exactly like build_dmg.sh expects.
@@ -32,9 +32,6 @@ on:
         description: Also build Linux deb/rpm and the Windows system/user installers (roughly triples artifact size)
         type: boolean
         default: false
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: read
@@ -48,8 +45,8 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   npm_config_fund: 'false'
   npm_config_audit: 'false'
-  # 'true' for release-style runs (tag push, publish_release, all_packages); otherwise only tar.gz / zip are built.
-  FULL_PACKAGES: ${{ github.event_name == 'push' || inputs.publish_release || inputs.all_packages }}
+  # 'true' for release-style runs (publish_release, all_packages); otherwise only tar.gz / zip are built.
+  FULL_PACKAGES: ${{ inputs.publish_release || inputs.all_packages }}
 
 jobs:
   knox-ci:

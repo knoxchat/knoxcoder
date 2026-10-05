@@ -55,8 +55,8 @@ export function registerJevStatusBar(context: vscode.ExtensionContext): vscode.S
         item,
         channel,
         vscode.commands.registerCommand(JEV_LOG_COMMAND, () => channel.show(true)),
-        onJevLog((entry) => channel.appendLine(formatJevLogEntry(entry))),
-        onJevActivity((state) => render(state)),
+        { dispose: onJevLog((entry) => channel.appendLine(formatJevLogEntry(entry))) },
+        { dispose: onJevActivity((state) => render(state)) },
         vscode.workspace.onDidChangeConfiguration((event) => {
             if (event.affectsConfiguration('knoxchat.jev')) {
                 render();

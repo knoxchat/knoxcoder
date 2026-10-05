@@ -70,7 +70,7 @@ i18n.init({
   fallbackLng: DEFAULT_LANGUAGE,
   supportedLngs: [...SUPPORTED_LANGUAGES],
   debug: false,
-  initImmediate: false,
+  initAsync: false,
   interpolation: {
     escapeValue: false,
   },

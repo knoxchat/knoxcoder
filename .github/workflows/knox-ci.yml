@@ -95,6 +95,10 @@ jobs:
         working-directory: extensions/knox
         run: npm run test:tsc
 
+      - name: Type-check host
+        working-directory: extensions/knox
+        run: npm run test:host-tsc
+
       - name: Core tests
         working-directory: extensions/knox
         run: npm run test:core

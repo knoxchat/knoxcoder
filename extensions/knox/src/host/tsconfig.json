@@ -2,11 +2,20 @@
   "extends": "../../tsconfig.json",
     "compilerOptions": {
       "noEmit": true,
+      "lib": ["DOM", "DOM.Iterable", "ES2022"],
       "skipLibCheck": true,
+      "noUnusedLocals": false,
+      "noUnusedParameters": false,
+      "noImplicitOverride": false,
+      "noImplicitReturns": false,
       "types": ["node"],
     "paths": {
       "core": ["../core/index.d.ts"],
-      "core/*": ["../core/*"]
+      "core/*": ["../core/*"],
+      "knoxdev-package/config-yaml": ["../pkg/config-yaml/index.ts"],
+      "knoxdev-package/fetch": ["../pkg/fetch/index.ts"],
+      "knoxdev-package/openai-adapters": ["../pkg/openai-adapters/index.ts"],
+      "knoxdev-package/openai-adapters/apis/base": ["../pkg/openai-adapters/apis/base.ts"]
     }
   },
   "include": [

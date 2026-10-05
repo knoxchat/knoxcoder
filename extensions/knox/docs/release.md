@@ -68,7 +68,7 @@ sudo rpm -Uvh KnoxCoder-2.0.0-*.rpm
 
 ## GitHub auto-update
 
-`scripts/ci/generate-update-metadata.mjs` writes `quality=stable` and `sha256hash` on `latest-*.json`. After tagging `v2.0.0`:
+`scripts/ci/generate-update-metadata.mjs` writes `quality=stable` and `sha256hash` on `latest-*.json`. After tagging `v2.0.0`, run **Build desktop apps** by hand (Actions → Run workflow, tick `publish_release`) — tagging does not start a build:
 
 1. Confirm the draft Release contains installers, `SHA256SUMS`, and the `latest-*.json` files.
 2. Publish the Release (not draft) so `latest` points at `2.0.0`.

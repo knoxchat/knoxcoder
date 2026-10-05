@@ -18,9 +18,9 @@ export function affectsGuiTheme(affectsConfiguration: (key: string) => boolean):
 }
 
 export function colorsFromConvertedTheme(
-  theme: { colors?: Record<string, unknown> } | undefined | null,
+  theme: { colors?: Record<string, unknown> } | Record<string, any> | undefined | null,
 ): Record<string, string> | undefined {
-  const colors = theme?.colors;
+  const colors = (theme as { colors?: Record<string, unknown> } | undefined | null)?.colors;
   if (!colors || typeof colors !== "object") {
     return undefined;
   }

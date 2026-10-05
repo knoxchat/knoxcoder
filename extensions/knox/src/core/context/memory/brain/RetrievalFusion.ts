@@ -561,14 +561,19 @@ export class RetrievalFusion {
 
       const whereExtra = extraConditions.length > 0 ? ` AND ${extraConditions.join(" AND ")}` : "";
 
+      // MATCH first, in a CTE: with a session filter SQLite otherwise walks the session index and
+      // probes the FTS table once per episodic row, which takes seconds at ~10k rows.
       const rows = await db.all(`
-        SELECT e.*, -bm25(brain_episodic_fts) AS bm25_score
-        FROM brain_episodic e
-        JOIN brain_episodic_fts fts ON e.id = fts.rowid
-        WHERE brain_episodic_fts MATCH ?${whereExtra}
-        ORDER BY bm25_score DESC
+        WITH hits AS (
+          SELECT rowid AS id, -bm25(brain_episodic_fts) AS bm25_score FROM brain_episodic_fts
+          WHERE brain_episodic_fts MATCH ? ORDER BY bm25_score DESC LIMIT ?
+        )
+        SELECT e.*, hits.bm25_score AS bm25_score
+        FROM hits JOIN brain_episodic e ON e.id = hits.id
+        WHERE 1 = 1${whereExtra}
+        ORDER BY hits.bm25_score DESC
         LIMIT ?
-      `, [ftsQuery, ...extraParams, limit]);
+      `, [ftsQuery, sessionId ? limit * 10 : limit, ...extraParams, limit]);
 
       return rows.map((r: any) => ({
         id: r.id,
@@ -616,14 +621,57 @@ export class RetrievalFusion {
       }
     }
 
-    params.push(limit * 3);
+    const poolSize = limit * 3;
 
-    const rows = await db.all(`
-      SELECT * FROM brain_semantic
-      WHERE ${conditions.join(" AND ")}
-      ORDER BY importance_score DESC
-      LIMIT ?
-    `, params);
+    // Candidate pool, best lexical match first. Ordering the LIKE pool by importance alone lets
+    // common words in unrelated rows crowd out the one relevant memory once the brain holds
+    // thousands of items (P1-5 scale bench), so FTS5 BM25 picks the pool and LIKE only tops it up
+    // (substring / non-stemmed matches). With a big brain the pool is full from FTS5 and the
+    // LIKE table scan never runs.
+    let rows: any[] = [];
+    const ftsQuery = RetrievalFusion.buildFts5Query(query);
+    if (ftsQuery) {
+      try {
+        const ftsConditions = ["(s.expires_at IS NULL OR s.expires_at > datetime('now'))"];
+        const ftsParams: any[] = [];
+        if (category) {
+          ftsConditions.push("s.category = ?");
+          ftsParams.push(category);
+        }
+        rows = await db.all(
+          `SELECT s.* FROM brain_semantic s
+           JOIN brain_semantic_fts fts ON s.id = fts.rowid
+           WHERE ${ftsConditions.join(" AND ")} AND brain_semantic_fts MATCH ?
+           ORDER BY bm25(brain_semantic_fts, 5.0, 1.0, 3.0)
+           LIMIT ?`,
+          [...ftsParams, ftsQuery, poolSize],
+        );
+      } catch {
+        rows = []; // FTS5 unavailable: LIKE pool below
+      }
+    }
+
+    // Substring top-up reads every row; on a big brain a short FTS5 pool means "nothing relevant".
+    let allowLikeScan = !ftsQuery;
+    if (!allowLikeScan && rows.length < poolSize) {
+      const total = await db.get("SELECT COUNT(*) AS n FROM brain_semantic").catch(() => null);
+      allowLikeScan = ((total as any)?.n ?? 0) <= 5000;
+    }
+
+    if (rows.length < poolSize && allowLikeScan) {
+      const seen = new Set<number>(rows.map((r: any) => r.id));
+      params.push(poolSize);
+      const likeRows = await db.all(`
+        SELECT * FROM brain_semantic
+        WHERE ${conditions.join(" AND ")}
+        ORDER BY importance_score DESC
+        LIMIT ?
+      `, params);
+      for (const r of likeRows) {
+        if (rows.length >= poolSize) break;
+        if (!seen.has((r as any).id)) rows.push(r);
+      }
+    }
 
     // Compute trigram similarity for each candidate
     const scored = rows.map((r: any) => {
@@ -664,6 +712,11 @@ export class RetrievalFusion {
       );
       if (entities.length === 0) return graphScores;
 
+      const countRow = await (await BrainStore.get())
+        .get("SELECT COUNT(*) AS n FROM brain_semantic")
+        .catch(() => null);
+      const largeBrain = ((countRow as any)?.n ?? 0) > 5000;
+
       for (const entity of entities) {
         void BrainStore.touchEntity(entity.id);
         const neighbors = await KnowledgeGraph.explore({
@@ -684,7 +737,28 @@ export class RetrievalFusion {
             neighbor.confidence * Math.pow(fusionParams.graphDepthDecayGamma, depth);
 
           const needle = neighbor.name.toLowerCase();
-          const related = await db.all(
+          let ftsRelated: any[] | null = null;
+          // Big brains: one full-table LIKE scan per neighbour is the slow part. The post-filter
+          // below already requires a whole-name match, so an FTS5 phrase lookup finds the same rows.
+          if (largeBrain) {
+            const phrase = needle.replace(/"/g, "").trim();
+            if (phrase) {
+              try {
+                ftsRelated = await db.all(
+                  `SELECT s.id, s.title, s.content, s.keywords FROM brain_semantic s
+                   JOIN brain_semantic_fts fts ON s.id = fts.rowid
+                   WHERE brain_semantic_fts MATCH ?
+                   AND (s.expires_at IS NULL OR s.expires_at > datetime('now'))
+                   ORDER BY bm25(brain_semantic_fts, 5.0, 1.0, 3.0)
+                   LIMIT ?`,
+                  [`"${phrase}"`, fetchLimit],
+                );
+              } catch {
+                ftsRelated = null; // FTS5 unavailable: LIKE below
+              }
+            }
+          }
+          const related: any[] = ftsRelated ?? await db.all(
             `SELECT id, title, content, keywords FROM brain_semantic
              WHERE (LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(keywords) LIKE ?)
              AND (expires_at IS NULL OR expires_at > datetime('now'))

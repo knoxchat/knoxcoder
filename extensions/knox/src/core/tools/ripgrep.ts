@@ -96,8 +96,13 @@ function normalizeOutputMode(mode?: string): SearchOutputMode {
 export function buildRipgrepArgs(
   query: string,
   options?: Partial<SearchOptions>,
+  ignoreFiles: string[] = [],
 ): string[] {
-  const rgArgs: string[] = ["--no-config", "--color", "never"];
+  // --no-require-git: honor .gitignore in unpacked tarballs / non-git dirs too.
+  const rgArgs: string[] = ["--no-config", "--color", "never", "--no-require-git"];
+  for (const file of ignoreFiles) {
+    rgArgs.push("--ignore-file", file);
+  }
   const outputMode = normalizeOutputMode(options?.outputMode);
 
   if (options?.caseSensitive) {
@@ -523,28 +528,75 @@ export function resolveRipgrepBinary(
   return undefined;
 }
 
+/** Hard stops so a 500k-file monorepo search cannot hang or exhaust memory. */
+export const SEARCH_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
+export const SEARCH_DEFAULT_TIMEOUT_MS = 60_000;
+
+function searchTimeoutMs(): number {
+  const raw = Number(process.env.KNOX_SEARCH_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : SEARCH_DEFAULT_TIMEOUT_MS;
+}
+
+/** `.knoxignore` at the search root is honored like `.gitignore`. */
+export function knoxIgnoreFilesFor(cwd: string): string[] {
+  const file = path.join(cwd, ".knoxignore");
+  return existsSync(file) ? [file] : [];
+}
+
 export function runRipgrepSearch(
   rgPath: string,
   cwd: string,
   query: string,
   options?: Partial<SearchOptions>,
 ): Promise<string> {
-  const rgArgs = buildRipgrepArgs(query, options);
+  const rgArgs = buildRipgrepArgs(query, options, knoxIgnoreFilesFor(cwd));
   return new Promise((resolve, reject) => {
     const child = spawn(rgPath, rgArgs, { cwd });
     let output = "";
+    let outputBytes = 0;
     let stderr = "";
+    let stopReason: "timeout" | "size" | undefined;
 
-    child.stdout.on("data", (data) => {
+    const stop = (reason: "timeout" | "size") => {
+      if (stopReason) {
+        return;
+      }
+      stopReason = reason;
+      child.kill("SIGKILL");
+    };
+    const timer = setTimeout(() => stop("timeout"), searchTimeoutMs());
+
+    child.stdout.on("data", (data: Buffer) => {
+      if (stopReason) {
+        return;
+      }
+      outputBytes += data.length;
       output += data.toString();
+      if (outputBytes > SEARCH_MAX_OUTPUT_BYTES) {
+        stop("size");
+      }
     });
     child.stderr.on("data", (data) => {
       stderr += data.toString();
     });
     child.on("error", (error) => {
+      clearTimeout(timer);
       reject(error);
     });
     child.on("close", (code) => {
+      clearTimeout(timer);
+      if (stopReason) {
+        const why =
+          stopReason === "timeout"
+            ? `timed out after ${searchTimeoutMs()} ms`
+            : `output exceeded ${SEARCH_MAX_OUTPUT_BYTES} bytes`;
+        const lines = output.split("\n");
+        lines.pop(); // drop a possibly cut-off last line
+        resolve(
+          `${lines.join("\n")}\n\n[search stopped: ${why}; results are partial. Narrow with path/fileGlob/fileType.]`.trimStart(),
+        );
+        return;
+      }
       if (code === 0) {
         resolve(output);
       } else if (code === 1) {
