@@ -265,3 +265,22 @@ and signing, live eval baseline, then attach assets and `SHA256SUMS` to the GitH
 4. P1-3, P1-6, P1-7 (product completeness).
 5. P1-5, P1-8, P1-9, P1-10 (hardening, docs).
 6. P0-3 (release pipeline rehearsal) with a `2.0.0-rc.1`, then the final checklist.
+
+---
+
+## 2.0.1 patch release
+
+Scope: everything committed after `v2.0.0` (stop/orphan fixes, Marketplace `vscodeVersion` fix, Memory Brain and `exact_search` scale work, `test:host-tsc` clean, manual-only packaging).
+
+- [x] Local gate (2026-10-06): `test:tsc`, `test:core` (210 files / 1819 tests), `test:host-tsc`, `test:host`, `test:pkg` green.
+- [x] Version bumped to `2.0.1`, `CHANGELOG.md` promoted and tidied (`release-check.mjs --bump 2.0.1`); `release-check.mjs` passes.
+- [ ] Commit and tag `v2.0.1`.
+- [ ] Run `Build desktop apps` manually on the tag; macOS: `build_dmg.sh`, notarize, staple.
+- [ ] Draft GitHub Release with assets, `SHA256SUMS`, `latest-*.json` (`quality=stable`).
+- [ ] Verify auto-update 2.0.0 -> 2.0.1 on macOS, Windows, Linux.
+- [ ] Verify a VS Code Marketplace extension installs in the built app.
+- [ ] Built app: Stop mid-stream and window close with a running shell leave no orphans.
+- [ ] Clean-machine install and upgrade with existing `~/.knoxcoder`.
+- [ ] Publish the draft.
+
+Everything still open in P0/P1 above carries over to 2.1.
