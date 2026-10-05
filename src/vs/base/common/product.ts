@@ -66,6 +66,8 @@ export type ExtensionVirtualWorkspaceSupport = {
 
 export interface IProductConfiguration {
 	readonly version: string;
+	/** VS Code API/engine version used for extension compatibility (engines.vscode). Falls back to `version`. */
+	readonly vscodeVersion?: string;
 	readonly date?: string;
 	readonly quality?: string;
 	readonly commit?: string;

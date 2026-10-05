@@ -196,7 +196,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 
 		await Promise.allSettled(extensions.map(async ({ extension, options }) => {
 			try {
-				const compatible = await this.checkAndGetCompatibleVersion(extension, !!options?.installGivenVersion, !!options?.installPreReleaseVersion, options.productVersion ?? { version: this.productService.version, date: this.productService.date });
+				const compatible = await this.checkAndGetCompatibleVersion(extension, !!options?.installGivenVersion, !!options?.installPreReleaseVersion, options.productVersion ?? { version: this.productService.vscodeVersion ?? this.productService.version, date: this.productService.date });
 				installableExtensions.push({ ...compatible, options });
 			} catch (error) {
 				results.push({ identifier: extension.identifier, operation: InstallOperation.Install, source: extension, error, profileLocation: options.profileLocation ?? this.getCurrentExtensionsManifestLocation() });
@@ -347,7 +347,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 					isBuiltin,
 					isApplicationScoped,
 					profileLocation: isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation(),
-					productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date }
+					productVersion: options.productVersion ?? { version: this.productService.vscodeVersion ?? this.productService.version, date: this.productService.date }
 				};
 
 				const existingInstallExtensionTask = !URI.isUri(extension) ? this.installingExtensions.get(getInstallExtensionTaskKey(extension, installExtensionTaskOptions.profileLocation)) : undefined;

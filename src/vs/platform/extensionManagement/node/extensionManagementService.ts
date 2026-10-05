@@ -127,7 +127,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 	}
 
-	getInstalled(type?: ExtensionType, profileLocation: URI = this.userDataProfilesService.defaultProfile.extensionsResource, productVersion: IProductVersion = { version: this.productService.version, date: this.productService.date }, language?: string): Promise<ILocalExtension[]> {
+	getInstalled(type?: ExtensionType, profileLocation: URI = this.userDataProfilesService.defaultProfile.extensionsResource, productVersion: IProductVersion = { version: this.productService.vscodeVersion ?? this.productService.version, date: this.productService.date }, language?: string): Promise<ILocalExtension[]> {
 		return this.extensionsScanner.scanExtensions(type ?? null, profileLocation, productVersion, language);
 	}
 
@@ -147,7 +147,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		try {
 			const manifest = await getManifest(path.resolve(location.fsPath));
 			const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-			if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode, this.productService.version, this.productService.date)) {
+			if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode, this.productService.vscodeVersion ?? this.productService.version, this.productService.date)) {
 				throw new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with KnoxCoder '{1}'.", extensionId, this.productService.version));
 			}
 
@@ -231,7 +231,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void> {
-		return this.extensionsScanner.copyExtensions(fromProfileLocation, toProfileLocation, { version: this.productService.version, date: this.productService.date });
+		return this.extensionsScanner.copyExtensions(fromProfileLocation, toProfileLocation, { version: this.productService.vscodeVersion ?? this.productService.version, date: this.productService.date });
 	}
 
 	deleteExtensions(...extensions: IExtension[]): Promise<void> {

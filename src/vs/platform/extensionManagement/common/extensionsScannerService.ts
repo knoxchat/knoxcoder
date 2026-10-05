@@ -521,7 +521,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 
 	private getProductVersion(): IProductVersion {
 		return {
-			version: this.productService.version,
+			version: this.productService.vscodeVersion ?? this.productService.version,
 			date: this.productService.date,
 		};
 	}

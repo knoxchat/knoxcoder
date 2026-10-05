@@ -522,7 +522,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		const workspace = this._contextService.getWorkspace();
 		return {
 			commit: this._productService.commit,
-			version: this._productService.version,
+			version: this._productService.vscodeVersion ?? this._productService.version,
 			quality: this._productService.quality,
 			date: this._productService.date,
 			parentPid: 0,

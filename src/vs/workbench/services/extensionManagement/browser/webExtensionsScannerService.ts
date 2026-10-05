@@ -767,7 +767,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 		const uuid = (<IGalleryMetadata | undefined>webExtension.metadata)?.id;
 
-		validations.push(...validateExtensionManifest(this.productService.version, this.productService.date, webExtension.location, manifest, false));
+		validations.push(...validateExtensionManifest(this.productService.vscodeVersion ?? this.productService.version, this.productService.date, webExtension.location, manifest, false));
 		let isValid = true;
 		for (const [severity, message] of validations) {
 			if (severity === Severity.Error) {
