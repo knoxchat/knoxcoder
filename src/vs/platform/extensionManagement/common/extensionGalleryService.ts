@@ -891,7 +891,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				targetPlatform,
 				compatible: !!options.compatible,
 				productVersion: options.productVersion ?? {
-					version: this.productService.version,
+					version: this.productService.vscodeVersion ?? this.productService.version,
 					date: this.productService.date
 				},
 				version: extensionInfo.preRelease ? VersionKind.Prerelease : VersionKind.Release
@@ -911,7 +911,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				targetPlatform,
 				compatible: !!options.compatible,
 				productVersion: options.productVersion ?? {
-					version: this.productService.version,
+					version: this.productService.vscodeVersion ?? this.productService.version,
 					date: this.productService.date
 				},
 				version: VersionKind.Release
@@ -934,7 +934,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 						targetPlatform,
 						compatible: false,
 						productVersion: options.productVersion ?? {
-							version: this.productService.version,
+							version: this.productService.vscodeVersion ?? this.productService.version,
 							date: this.productService.date
 						},
 						version: VersionKind.Prerelease

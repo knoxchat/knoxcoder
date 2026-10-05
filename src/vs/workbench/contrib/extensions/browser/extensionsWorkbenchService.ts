@@ -2325,7 +2325,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private getProductVersion(): IProductVersion {
-		return this.getProductUpdateVersion() ?? this.getProductCurrentVersion();
+		// KnoxCoder product updates are 2.x and independent of the VS Code
+		// engine version used for extension compatibility. Always use vscodeVersion.
+		return this.getProductCurrentVersion();
 	}
 
 	private getProductCurrentVersion(): IProductVersion {
