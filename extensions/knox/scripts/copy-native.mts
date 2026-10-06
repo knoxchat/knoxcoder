@@ -205,6 +205,20 @@ function copyNodePty(destDir: string): void {
 	fs.rmSync(dest, { recursive: true, force: true });
 	const target = { platform: process.platform, arch: process.arch };
 	copyDirFiltered(source, dest, (rel) => shouldCopyNodePtyEntry(rel, target));
+	// node-pty's postinstall may not have populated build/Release/conpty; ship the
+	// ConPTY binaries from third_party so Windows terminals never hit "Cannot find conpty.dll".
+	if (target.platform === 'win32' && (target.arch === 'x64' || target.arch === 'arm64')) {
+		const conptyDest = path.join(dest, 'build', 'Release', 'conpty');
+		const conptyRoot = path.join(source, 'third_party', 'conpty');
+		if (!fs.existsSync(path.join(conptyDest, 'conpty.dll')) && fs.existsSync(conptyRoot)) {
+			const [version] = fs.readdirSync(conptyRoot);
+			if (version) {
+				for (const file of ['conpty.dll', 'OpenConsole.exe']) {
+					copyFile(path.join(conptyRoot, version, `win10-${target.arch}`, file), path.join(conptyDest, file));
+				}
+			}
+		}
+	}
 	console.log(
 		`Knox native: node-pty (${target.platform}-${target.arch}, ${formatMiB(dirSizeBytes(dest))}) →`,
 		path.relative(extensionDir, dest),

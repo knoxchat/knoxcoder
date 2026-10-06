@@ -1,0 +1,15 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"target": "ES2024",
+		"allowImportingTsExtensions": true,
+		"rewriteRelativeImportExtensions": false,
+		"types": ["node"],
+		"typeRoots": ["../node_modules/@types", "../../../node_modules/@types"],
+		"skipLibCheck": true,
+		"noEmit": true
+	},
+	"include": ["./**/*", "../esbuild.mts"]
+}

@@ -39,18 +39,6 @@ import { runEsbuildTranspile, runEsbuildBundle } from './lib/esbuild.ts';
 const glob = promisify(globCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
-const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8')) as {
-	readonly packages?: Readonly<Record<string, { readonly version?: string }>>;
-};
-
-function getLockedPackageVersion(packageName: string): string {
-	const version = packageLock.packages?.[`node_modules/${packageName}`]?.version;
-	if (!version) {
-		throw new Error(`Package ${packageName} is missing a version in package-lock.json.`);
-	}
-
-	return version;
-}
 
 // Build
 const vscodeEntryPoints = [
@@ -355,7 +343,24 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
-		const deps = cleanedDeps
+		// node-pty's postinstall only copies `conpty.dll`/`OpenConsole.exe` into
+		// `build/Release/conpty` when installing on a Windows host. When packaging
+		// for win32 from another host (or after a cleaned install) they are missing,
+		// which makes terminals fail with "Cannot find conpty.dll". Inject them from
+		// `third_party/conpty` instead.
+		let depsWithConpty: NodeJS.ReadWriteStream = cleanedDeps;
+		const nodePtyDir = path.join(root, 'node_modules', 'node-pty');
+		if (platform === 'win32' && (arch === 'x64' || arch === 'arm64') && !fs.existsSync(path.join(nodePtyDir, 'build', 'Release', 'conpty', 'conpty.dll'))) {
+			const conptyRoot = path.join(nodePtyDir, 'third_party', 'conpty');
+			const versions = fs.existsSync(conptyRoot) ? fs.readdirSync(conptyRoot) : [];
+			if (versions.length === 0) {
+				throw new Error(`node-pty conpty binaries not found in ${conptyRoot}`);
+			}
+			const conptyFiles = gulp.src([`${conptyRoot}/${versions[0]}/win10-${arch}/{conpty.dll,OpenConsole.exe}`], { base: root, dot: true })
+				.pipe(rename(f => { f.dirname = 'node_modules/node-pty/build/Release/conpty'; }));
+			depsWithConpty = merge(cleanedDeps, conptyFiles);
+		}
+		const deps = depsWithConpty
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
@@ -428,7 +433,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			], { base: '.' }));
 		} else if (platform === 'linux') {
 			const policyDest = gulp.src('.build/policies/linux/**', { base: '.build/policies/linux' })
-				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
+				.pipe(rename(f => { f.dirname = `policies/${f.dirname}`; }));
 			all = merge(all, gulp.src('resources/linux/code.png', { base: '.' }), policyDest);
 		} else if (platform === 'darwin') {
 			const shortcut = gulp.src('resources/darwin/bin/code.sh')
@@ -436,7 +441,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				.pipe(replace('@@NAME@@', product.nameShort))
 				.pipe(rename('bin/code'));
 			const policyDest = gulp.src('.build/policies/darwin/**', { base: '.build/policies/darwin' })
-				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
+				.pipe(rename(f => { f.dirname = `policies/${f.dirname}`; }));
 			all = merge(all, shortcut, policyDest);
 		}
 
@@ -510,7 +515,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
 
 			result = merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
-				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
+				.pipe(rename(f => { f.dirname = `policies/${f.dirname}`; })));
 
 			const win32ContextMenu = (product as { win32ContextMenu?: Record<string, { clsid: string }> }).win32ContextMenu?.[arch];
 			// File Explorer AppX needs per-arch CLSIDs and fetched explorer-command
@@ -529,7 +534,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 					.pipe(replace('@@FileExplorerContextMenuID@@', quality === 'stable' ? 'OpenWithCode' : 'OpenWithCodeInsiders'))
 					.pipe(replace('@@FileExplorerContextMenuCLSID@@', win32ContextMenu.clsid))
 					.pipe(replace('@@FileExplorerContextMenuDLL@@', `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`))
-					.pipe(rename(f => f.dirname = `appx/manifest`)));
+					.pipe(rename(f => { f.dirname = 'appx/manifest'; })));
 			}
 		} else if (platform === 'linux') {
 			result = merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
@@ -544,7 +549,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			productJsonFn: () => productJsonContents
 		});
 
-		return result.pipe(vfs.dest(destination, { encoding: false }));
+		return result.pipe(vfs.dest(destination, { encoding: false } as never));
 	};
 	task.taskName = `package-${platform}-${arch}`;
 	return task;
@@ -626,7 +631,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 					'OriginalFilename': basename,
 					'ProductName': product.nameLong,
 					'ProductVersion': packageJson.version,
-				}
+				} as never
 			});
 		});
 
