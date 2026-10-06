@@ -4,6 +4,7 @@ import * as os from "os";
 import * as path from "path";
 
 import * as vscode from "vscode";
+import { primaryWorkspaceFsPath } from "../util/primaryWorkspace";
 
 import { t } from "../i18n";
 
@@ -181,7 +182,7 @@ export class ShadowWorkspaceManager implements vscode.Disposable {
   }
 
   private workspaceRoot(): string | undefined {
-    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    return primaryWorkspaceFsPath();
   }
 
   private getShadowPath(originalPath: string): string {

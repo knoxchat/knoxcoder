@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { primaryWorkspaceFsPath } from '../util/primaryWorkspace';
 
 import { CheckpointManager } from './CheckpointManager';
 import { resolveCheckpointStoragePath } from './manager/persistence';
@@ -474,7 +475,7 @@ export class CheckpointSessionManager {
 
     private bindLatestLoadedSession(): void {
         const current = CheckpointManager.getInstance().getCurrentWorkspacePath()
-            ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            ?? primaryWorkspaceFsPath();
         if (!current) {
             return;
         }

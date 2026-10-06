@@ -195,6 +195,7 @@ export async function buildNativeAgentRequest(
 
   let messages = constructMessages([...history], input.sessionId, {
     systems: loopProfile(deps.experimental) === "systems",
+    roots: await deps.ide.getWorkspaceDirs().catch(() => [] as string[]),
   });
   messages = mergeInjectIntoMessages(messages, input.injectedContext);
 

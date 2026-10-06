@@ -2,6 +2,7 @@ import { EXTENSION_NAME } from "core/config/extensionName";
 import { findUriInDirs } from "core/util/uri";
 import * as URI from "core/util/uriApi";
 import * as path from "node:path";
+import { orderFoldersActiveFirst } from "./workspaceRoots";
 import * as vscode from "vscode";
 
 import { formatGitStatusPorcelain } from "core/tools/implementations/gitStatusFromModel";
@@ -69,7 +70,13 @@ export class VsCodeIdeUtils {
 
   /** Read live: folders can be added or removed while the extension host runs. */
   getWorkspaceDirectories(): vscode.Uri[] {
-    return vscode.workspace.workspaceFolders?.map((folder) => folder.uri) || [];
+    const folders = (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri);
+    return orderFoldersActiveFirst(
+      folders,
+      vscode.window.activeTextEditor?.document.uri.scheme === "file"
+        ? vscode.window.activeTextEditor.document.uri.fsPath
+        : undefined,
+    );
   }
 
   getUniqueId() {

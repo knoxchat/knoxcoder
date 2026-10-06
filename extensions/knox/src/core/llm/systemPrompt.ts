@@ -16,6 +16,21 @@ export interface SystemPromptOptions {
    * helpers) are dropped if none of those tools are present.
    */
   tools?: readonly string[];
+  /**
+   * Workspace roots (`file://` URIs or paths), primary first. Only used when
+   * there is more than one (multi-root workspace).
+   */
+  roots?: readonly string[];
+}
+
+export function describeWorkspaceRoots(roots: readonly string[] | undefined): string | undefined {
+  if (!roots || roots.length < 2) {
+    return undefined;
+  }
+  const clean = roots.map((r) => (r.startsWith("file://") ? decodeURIComponent(r.slice(7)) : r));
+  return `Multi-root workspace. Primary root (cwd for shell, git, builds and relative paths): ${clean[0]}. Other roots: ${clean
+    .slice(1)
+    .join(", ")}. Use absolute paths to reach files in other roots; builtin_exact_search covers all roots.`;
 }
 
 const IDENTITY = `You are Knox, a coding agent working inside the user's workspace. Be concise and direct. Do what was asked, no more; ask first (builtin_ask_user with questions:[{prompt, options}]) when a choice would change the edits, otherwise proceed.`;
@@ -63,6 +78,10 @@ export function buildSystemPrompt(options: SystemPromptOptions = {}): string {
     sections.push(EDITING);
   }
   sections.push(VERIFICATION);
+  const rootsNote = describeWorkspaceRoots(options.roots);
+  if (rootsNote) {
+    sections.push(rootsNote);
+  }
   if (has("builtin_run_terminal_command")) {
     sections.push(SHELL);
   }

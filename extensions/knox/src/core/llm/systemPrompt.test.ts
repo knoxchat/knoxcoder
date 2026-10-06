@@ -39,3 +39,16 @@ describe("buildSystemPrompt tool gating (K-031)", () => {
     ).toContain("Systems tooling");
   });
 });
+
+describe("multi-root workspace note", () => {
+  it("is omitted for zero or one root", () => {
+    expect(buildSystemPrompt({ roots: ["file:///a"] })).not.toContain("Multi-root");
+    expect(buildSystemPrompt({})).not.toContain("Multi-root");
+  });
+
+  it("names the primary root first when there are several", () => {
+    const prompt = buildSystemPrompt({ roots: ["file:///work/b", "file:///work/a"] });
+    expect(prompt).toContain("Primary root (cwd for shell, git, builds and relative paths): /work/b");
+    expect(prompt).toContain("Other roots: /work/a");
+  });
+});

@@ -9,7 +9,7 @@ troubleshooting. Setting names are `knoxchat.*` in Settings.
 1. Open the Knox chat and sign in (or add a model in the config page).
 2. Pick a model from the composer. Optionally set `knoxchat.fallbackModel`
    (a model title) to use after repeated transient stream failures.
-3. Open a folder. Knox works on the first workspace folder.
+3. Open a folder. In a multi-root workspace the folder of the active file is the primary root.
 
 ## Docs set
 

@@ -2,6 +2,7 @@ import * as path from "node:path";
 
 import { extractPatchFilePaths } from "core/tools/applyPatchFormat";
 import * as vscode from "vscode";
+import { primaryWorkspaceFsPath } from "../util/primaryWorkspace";
 
 /** KN-351: tools that mutate workspace files and support snapshot undo/redo. */
 export const MUTATING_TOOL_NAMES = new Set([
@@ -133,7 +134,7 @@ export function resolveFileUri(filePath: string): vscode.Uri {
     return vscode.Uri.file(filePath);
   }
 
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const workspaceRoot = primaryWorkspaceFsPath();
   if (workspaceRoot) {
     return vscode.Uri.file(path.resolve(workspaceRoot, filePath));
   }

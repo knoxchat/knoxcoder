@@ -222,7 +222,7 @@ Out of 2.0.0. `@knoxchat/cli`, `knox run`, `knox doctor`, and the GitHub Action 
       Hidden experimental ghost-text may remain; it is not a 2.1 product surface.
 - [ ] Remote registry for team bundles, skills and agents; `uses:` remote config blocks
       (`registryClient.ts` rejects them today).
-- [ ] Multi-root workspaces (Knox works on the first folder only).
+- [x] Multi-root workspaces: active-file folder is the primary root (`host/util/workspaceRoots.ts`, `primaryWorkspace.ts`), roots named in the system prompt, tests in `workspaceRoots.vitest.ts` and `systemPrompt.test.ts`. Still open: per-root `.knoxignore`, per-root instruction files/hooks, a manual check in a real multi-root window.
 - [ ] Remote / SSH / dev container / WSL support for Knox host (`virtualWorkspaces` unsupported).
 - [ ] Agent sharing: export/import transcript with redaction; shareable session links.
 - [ ] Scheduled and triggered agents (cron, on-PR) built on background runs.

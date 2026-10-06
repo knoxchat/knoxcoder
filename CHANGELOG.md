@@ -3,6 +3,10 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Added
+
+- Multi-root workspaces: the workspace folder that owns the active editor file is now the primary root (`getWorkspaceDirs()[0]`) used for shell cwd, git, builds, relative paths, shadow workspace and checkpoint commands; other folders stay reachable via search and absolute paths. The system prompt names the roots when there is more than one.
+
 ## [2.0.1] - 2026-10-06
 
 ### Fixed

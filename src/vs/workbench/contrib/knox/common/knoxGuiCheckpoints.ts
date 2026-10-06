@@ -1345,37 +1345,112 @@ export function countLineDelta(fromText: string, toText: string): { additions: n
 export function computeLineDiff(oldText: string, newText: string): IKnoxGuiDiffLine[] {
 	const a = oldText.length === 0 ? [] : oldText.split('\n');
 	const b = newText.length === 0 ? [] : newText.split('\n');
+	// Trim the common prefix/suffix so large files with small edits stay cheap.
+	let prefix = 0;
+	while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) {
+		prefix += 1;
+	}
+	let suffix = 0;
+	while (suffix < a.length - prefix && suffix < b.length - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) {
+		suffix += 1;
+	}
+	const midA = a.slice(prefix, a.length - suffix);
+	const midB = b.slice(prefix, b.length - suffix);
+	const lines: IKnoxGuiDiffLine[] = [];
+	for (let k = 0; k < prefix; k += 1) {
+		lines.push({ type: 'context', oldLineNum: k + 1, newLineNum: k + 1, content: a[k] });
+	}
+	for (const op of myersLineOps(midA, midB)) {
+		if (op.type === 'context') {
+			lines.push({ type: 'context', oldLineNum: prefix + op.i + 1, newLineNum: prefix + op.j + 1, content: midA[op.i] });
+		} else if (op.type === 'added') {
+			lines.push({ type: 'added', oldLineNum: null, newLineNum: prefix + op.j + 1, content: midB[op.j] });
+		} else {
+			lines.push({ type: 'removed', oldLineNum: prefix + op.i + 1, newLineNum: null, content: midA[op.i] });
+		}
+	}
+	for (let k = 0; k < suffix; k += 1) {
+		const i = a.length - suffix + k;
+		const j = b.length - suffix + k;
+		lines.push({ type: 'context', oldLineNum: i + 1, newLineNum: j + 1, content: a[i] });
+	}
+	return lines;
+}
+
+interface IMyersOp { type: 'context' | 'added' | 'removed'; i: number; j: number }
+
+/** Myers O(ND) diff; falls back to replace-all of the (already trimmed) middle when edits are huge. */
+function myersLineOps(a: string[], b: string[]): IMyersOp[] {
 	const n = a.length;
 	const m = b.length;
-	if (n * m > 250_000) {
-		const lines: IKnoxGuiDiffLine[] = [];
-		a.forEach((content, index) => lines.push({ type: 'removed', oldLineNum: index + 1, newLineNum: null, content }));
-		b.forEach((content, index) => lines.push({ type: 'added', oldLineNum: null, newLineNum: index + 1, content }));
-		return lines;
+	const fallback = (): IMyersOp[] => {
+		const ops: IMyersOp[] = [];
+		a.forEach((_, i) => ops.push({ type: 'removed', i, j: -1 }));
+		b.forEach((_, j) => ops.push({ type: 'added', i: -1, j }));
+		return ops;
+	};
+	if (n === 0 || m === 0) {
+		return fallback();
 	}
-	const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
-	for (let i = 1; i <= n; i += 1) {
-		for (let j = 1; j <= m; j += 1) {
-			dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+	const max = Math.min(n + m, 4000);
+	const offset = max + 1;
+	const v = new Int32Array(2 * max + 3);
+	const trace: Int32Array[] = [];
+	let found = -1;
+	for (let d = 0; d <= max && found < 0; d += 1) {
+		trace.push(v.slice());
+		for (let k = -d; k <= d; k += 2) {
+			let x: number;
+			if (k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1])) {
+				x = v[offset + k + 1];
+			} else {
+				x = v[offset + k - 1] + 1;
+			}
+			let y = x - k;
+			while (x < n && y < m && a[x] === b[y]) {
+				x += 1;
+				y += 1;
+			}
+			v[offset + k] = x;
+			if (x >= n && y >= m) {
+				found = d;
+				break;
+			}
 		}
 	}
-	const lines: IKnoxGuiDiffLine[] = [];
-	let i = n;
-	let j = m;
-	while (i > 0 || j > 0) {
-		if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
-			lines.push({ type: 'context', oldLineNum: i, newLineNum: j, content: a[i - 1] });
-			i -= 1;
-			j -= 1;
-		} else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-			lines.push({ type: 'added', oldLineNum: null, newLineNum: j, content: b[j - 1] });
-			j -= 1;
+	if (found < 0) {
+		return fallback();
+	}
+	const ops: IMyersOp[] = [];
+	let x = n;
+	let y = m;
+	for (let d = found; d >= 0; d -= 1) {
+		const vd = trace[d];
+		const k = x - y;
+		let prevK: number;
+		if (k === -d || (k !== d && vd[offset + k - 1] < vd[offset + k + 1])) {
+			prevK = k + 1;
 		} else {
-			lines.push({ type: 'removed', oldLineNum: i, newLineNum: null, content: a[i - 1] });
-			i -= 1;
+			prevK = k - 1;
+		}
+		const prevX = d === 0 ? 0 : vd[offset + prevK];
+		const prevY = d === 0 ? 0 : prevX - prevK;
+		while (x > prevX && y > prevY) {
+			x -= 1;
+			y -= 1;
+			ops.push({ type: 'context', i: x, j: y });
+		}
+		if (d > 0) {
+			if (x === prevX) {
+				y -= 1;
+				ops.push({ type: 'added', i: -1, j: y });
+			} else {
+				x -= 1;
+				ops.push({ type: 'removed', i: x, j: -1 });
+			}
 		}
 	}
-	return lines.reverse();
+	return ops.reverse();
 }
 
 export function groupDiffHunks(lines: IKnoxGuiDiffLine[], context = 3): IKnoxGuiDiffHunk[] {

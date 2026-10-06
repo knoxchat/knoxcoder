@@ -3,6 +3,7 @@
  */
 
 import * as vscode from 'vscode';
+import { orderedWorkspaceFolders } from '../util/primaryWorkspace';
 import { getGlobalKnoxIgnorePath } from 'core/util/paths';
 import { t } from '../i18n';
 import { CheckpointManager } from './CheckpointManager';
@@ -123,7 +124,7 @@ async function showConfigurationPanel(manager: CheckpointManager): Promise<void>
  * Create .knoxignore file with preset
  */
 async function createKnoxIgnoreCommand(): Promise<void> {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    const workspaceFolder = orderedWorkspaceFolders()[0];
     const workspacePath = workspaceFolder?.uri.fsPath;
     const knoxignorePath = getGlobalKnoxIgnorePath();
 

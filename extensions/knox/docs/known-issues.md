@@ -3,7 +3,7 @@
 - **Command guard limits.** Variable indirection (`X=rm; $X -rf /`) and an interpreter running a script written earlier are not detected. Stay in Edits or Ask mode for untrusted work. See the [threat model](security/threat-model.md).
 - **Unsigned installers** may trigger SmartScreen (Windows) until a certificate is available.
 - **Ghost-text inline completion stays off** (no fill-in-the-middle model). Copilot-style next-edit is not planned. In-editor assist is ⌘I, Apply from chat, and review-before-edit; 2.1 adds comment/stub CodeLens and a next related edit after Accept.
-- **Multi-root workspaces:** Knox uses the first folder only.
+- **Multi-root workspaces:** the folder of the active editor file is the primary root (shell, git, builds, relative paths); search and absolute paths cover all roots. Checkpoints are stored per folder.
 - **Remote / SSH / dev container / WSL** are not supported for the Knox host.
 - **Background agents:** the GUI lists, merges and discards leftover jobs. Starting a new background job is not in 2.0.0.
 - **Locales:** English and Chinese only.

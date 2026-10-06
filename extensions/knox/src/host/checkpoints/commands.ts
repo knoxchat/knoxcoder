@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 
 import * as vscode from 'vscode';
+import { primaryWorkspaceFsPath } from '../util/primaryWorkspace';
 
 import { getCheckpointConfigPath, getKnoxGlobalPath } from 'core/util/paths';
 
@@ -468,7 +469,7 @@ export class CheckpointChatIntegration {
         }
         
         try {
-            const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            const workspacePath = primaryWorkspaceFsPath();
             if (!workspacePath) {
                 console.warn('No workspace available for checkpoint');
                 return undefined;
@@ -816,7 +817,7 @@ export class CheckpointChatIntegration {
         }
 
         try {
-            const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            const workspacePath = primaryWorkspaceFsPath();
             if (!workspacePath) {
                 console.warn('No workspace available for checkpoint');
                 return undefined;
