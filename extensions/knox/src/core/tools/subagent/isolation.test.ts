@@ -99,19 +99,23 @@ describe("custom agents", () => {
     const ide = {
       getWorkspaceDirs: async () => ["file:///app", "file:///lib"],
       listDir: async (dir: string) => {
-        if (dir === "file:///app/.knoxcoder/agents") {
+        // Windows rewrites file:///app to file:///C:/app, so match on the tail.
+        if (/\/app\/\.knoxcoder\/agents$/.test(dir)) {
           return [["reviewer.md", 1]];
         }
-        if (dir === "file:///lib/.knoxcoder/agents") {
+        if (/\/lib\/\.knoxcoder\/agents$/.test(dir)) {
           return [["helper.md", 1]];
         }
         throw new Error("missing");
       },
       readFile: async (u: string) => {
-        if (!(u in files)) {
+        const key = Object.keys(files).find((k) =>
+          u.endsWith(k.slice("file://".length)),
+        );
+        if (!key) {
           throw new Error("missing");
         }
-        return files[u];
+        return files[key];
       },
     } as unknown as IDE;
     const agents = await loadCustomAgents(ide);

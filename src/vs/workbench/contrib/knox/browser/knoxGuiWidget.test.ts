@@ -1578,7 +1578,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		store.patch({ memoryTab: 'overview', memoryOverviewLoading: true });
 		assert.ok(widget.root.querySelector('[data-testid="memory-overview-loading"]'));
 
-		const item = (id: string) => ({ id, title: `m${id}`, content: `content ${id}`, category: 'fact', createdAt: new Date().toISOString() });
+		// Distinct, descending timestamps keep the "recent" sort order deterministic (1, 2, 3); `new Date()` ties flaked on CI.
+		const item = (id: string) => ({ id, title: `m${id}`, content: `content ${id}`, category: 'fact', createdAt: new Date(Date.UTC(2026, 8, 1, 0, 0, 10 - Number(id))).toISOString() });
 		store.patch({ memoryOverviewLoading: false, memoryTab: 'memories', memories: [item('1'), item('2'), item('3')], memoryFilterTier: 'hot' });
 		sent.length = 0;
 		widget.memorySelectionMode = true;
