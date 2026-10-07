@@ -785,7 +785,7 @@ export function onEscape(widget: KnoxGuiWidget, e: KeyboardEvent, state: IKnoxGu
 			e.preventDefault();
 			e.stopPropagation();
 			widget.editingHistoryId = null;
-			widget.controller.store.patch({});
+			widget.render();
 			return;
 		}
 		if (state.historySelectionMode) {

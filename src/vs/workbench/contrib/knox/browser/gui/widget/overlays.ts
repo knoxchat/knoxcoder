@@ -803,14 +803,14 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 			if (next && next !== session.title) {
 				void widget.controller.renameSession(session.id, next);
 			}
-			widget.controller.store.patch({});
+			widget.render();
 		};
 		const cancel = () => {
 			if (widget.editingHistoryId !== session.id) {
 				return;
 			}
 			widget.editingHistoryId = null;
-			widget.controller.store.patch({});
+			widget.render();
 		};
 		widget.listenerStore.add(DOM.addDisposableListener(title, 'keydown', e => {
 			if (e.key === 'Enter' && !e.isComposing) {
@@ -854,7 +854,7 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 		const hover = DOM.append(row, DOM.$('.knox-gui-history-hover'));
 		widget.chromeButton(hover, { svg: 'pin', svgSize: 16, title: t(state, session.pinned ? 'unpinConversation' : 'pinConversation'), testId: 'history-pin', onClick: () => widget.controller.togglePinnedSession(session.id) });
 		widget.chromeButton(hover, { svg: 'download', svgSize: 16, title: t(state, 'download'), onClick: () => void widget.controller.exportSession(session.id) });
-		widget.chromeButton(hover, { svg: 'square-pen', svgSize: 16, title: t(state, 'edit'), onClick: () => { widget.editingHistoryId = session.id; widget.controller.store.patch({}); } });
+		widget.chromeButton(hover, { svg: 'square-pen', svgSize: 16, title: t(state, 'edit'), onClick: () => { widget.editingHistoryId = session.id; widget.render(); } });
 		widget.chromeButton(hover, {
 			svg: 'trash',
 			svgSize: 16,

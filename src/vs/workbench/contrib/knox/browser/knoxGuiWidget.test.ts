@@ -3050,7 +3050,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			historySessions: [{ id: 'other', title: 'Other', date: String(Date.now()) }],
 		});
 		widget.editingHistoryId = 'other';
-		store.patch({});
+		widget.render();
 		const input = widget.root.querySelector('[data-testid="history-rename"]') as HTMLInputElement;
 		assert.ok(input);
 		input.value = 'Renamed';
