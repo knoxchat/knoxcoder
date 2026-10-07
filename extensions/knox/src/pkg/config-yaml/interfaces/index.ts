@@ -3,7 +3,8 @@ import { FQSN, FullSlug } from "./slugs.js";
 
 /**
  * A registry stores the content of packages.
- * KnoxChat local mode uses a stub that rejects remote `uses:` blocks.
+ * Local `uses: owner/package` loads `~/.knoxcoder/registry/owner/package.yaml`.
+ * Remote fetch is not supported.
  */
 export interface Registry {
   getContent(fullSlug: FullSlug): Promise<string>;

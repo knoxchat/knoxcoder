@@ -1,5 +1,13 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import type { SearchOptions, SearchOutputMode } from "../protocol/ide";
@@ -172,6 +180,15 @@ export function buildRipgrepArgs(
 
   if (options?.fileType) {
     rgArgs.push(...fileTypeToRipgrepFlags(options.fileType));
+  }
+
+  // Dependency trees are never what "search the repo" means, and a non-git folder (or a
+  // .gitignore without it) would otherwise return thousands of vendored hits (P1-5 large-repo
+  // run). Like `glob`, skip node_modules by default; an explicit path or glob into it wins
+  // because later --glob flags override earlier ones.
+  const targetPath = options?.path?.trim() || ".";
+  if (!/node_modules/.test(targetPath) && !/node_modules/.test(options?.fileGlob ?? "")) {
+    rgArgs.push("--glob", "!**/node_modules/**");
   }
 
   if (options?.fileGlob) {
@@ -537,10 +554,160 @@ function searchTimeoutMs(): number {
   return Number.isFinite(raw) && raw > 0 ? raw : SEARCH_DEFAULT_TIMEOUT_MS;
 }
 
-/** `.knoxignore` at the search root is honored like `.gitignore`. */
-export function knoxIgnoreFilesFor(cwd: string): string[] {
-  const file = path.join(cwd, ".knoxignore");
-  return existsSync(file) ? [file] : [];
+/**
+ * Rewrite a gitignore line so it applies under `dirRel` (posix, no trailing
+ * slash). Ripgrep `--ignore-file` patterns are cwd-relative, not relative to
+ * the ignore file, so nested `.knoxignore` contents must be prefixed.
+ */
+export function prefixGitignorePattern(
+  dirRel: string,
+  line: string,
+): string | null {
+  const raw = line.replace(/\s+$/, "");
+  if (!raw || raw.startsWith("#")) {
+    return null;
+  }
+  let negation = false;
+  let pat = raw;
+  if (pat.startsWith("!")) {
+    negation = true;
+    pat = pat.slice(1);
+  }
+  if (!pat) {
+    return null;
+  }
+  const prefix = dirRel.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  if (!prefix) {
+    return raw;
+  }
+  let out: string;
+  if (pat.startsWith("/")) {
+    out = `${prefix}${pat}`;
+  } else if (pat.includes("/")) {
+    out = `${prefix}/${pat}`;
+  } else {
+    out = `${prefix}/**/${pat}`;
+  }
+  return `${negation ? "!" : ""}${out}`;
+}
+
+export function synthesizeNestedKnoxIgnore(
+  nested: Array<{ relDir: string; content: string }>,
+): string {
+  const lines: string[] = [];
+  for (const { relDir, content } of nested) {
+    for (const raw of content.split(/\r?\n/)) {
+      const prefixed = prefixGitignorePattern(relDir, raw);
+      if (prefixed) {
+        lines.push(prefixed);
+      }
+    }
+  }
+  return lines.join("\n");
+}
+
+const NESTED_IGNORE_SKIP_DIRS = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "out",
+  ".next",
+  "__pycache__",
+  ".venv",
+  "venv",
+  "target",
+  "coverage",
+  ".turbo",
+  ".cache",
+]);
+
+const NESTED_KNOXIGNORE_CAP = 200;
+
+/** Nested `.knoxignore` files under `cwd` (the root file is not included). */
+export function collectNestedKnoxIgnore(
+  cwd: string,
+  maxFiles = NESTED_KNOXIGNORE_CAP,
+): Array<{ relDir: string; content: string }> {
+  const out: Array<{ relDir: string; content: string }> = [];
+  const walk = (dir: string) => {
+    if (out.length >= maxFiles) {
+      return;
+    }
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true, encoding: "utf8" });
+    } catch {
+      return;
+    }
+    for (const ent of entries) {
+      if (out.length >= maxFiles) {
+        return;
+      }
+      if (ent.isSymbolicLink()) {
+        continue;
+      }
+      if (ent.isFile() && ent.name === ".knoxignore") {
+        const relDir = path.relative(cwd, dir).replace(/\\/g, "/");
+        if (!relDir || relDir === ".") {
+          continue;
+        }
+        try {
+          out.push({
+            relDir,
+            content: readFileSync(path.join(dir, ent.name), "utf8"),
+          });
+        } catch {
+          // unreadable nested ignore: skip
+        }
+        continue;
+      }
+      if (ent.isDirectory() && !NESTED_IGNORE_SKIP_DIRS.has(ent.name)) {
+        walk(path.join(dir, ent.name));
+      }
+    }
+  };
+  walk(cwd);
+  return out;
+}
+
+/**
+ * `.knoxignore` at the search root plus a temp file of prefixed nested
+ * patterns. Call `cleanup` when the search process exits.
+ */
+export function knoxIgnoreFilesFor(cwd: string): {
+  files: string[];
+  cleanup: () => void;
+} {
+  const files: string[] = [];
+  const root = path.join(cwd, ".knoxignore");
+  if (existsSync(root)) {
+    files.push(root);
+  }
+  const nested = collectNestedKnoxIgnore(cwd);
+  const synthesized =
+    nested.length > 0
+      ? path.join(
+          tmpdir(),
+          `knox-rg-ignore-${process.pid}-${randomBytes(6).toString("hex")}`,
+        )
+      : undefined;
+  if (synthesized) {
+    writeFileSync(synthesized, synthesizeNestedKnoxIgnore(nested), "utf8");
+    files.push(synthesized);
+  }
+  return {
+    files,
+    cleanup: () => {
+      if (!synthesized) {
+        return;
+      }
+      try {
+        unlinkSync(synthesized);
+      } catch {
+        // already gone
+      }
+    },
+  };
 }
 
 export function runRipgrepSearch(
@@ -549,9 +716,14 @@ export function runRipgrepSearch(
   query: string,
   options?: Partial<SearchOptions>,
 ): Promise<string> {
-  const rgArgs = buildRipgrepArgs(query, options, knoxIgnoreFilesFor(cwd));
+  const { files, cleanup } = knoxIgnoreFilesFor(cwd);
+  const rgArgs = buildRipgrepArgs(query, options, files);
   return new Promise((resolve, reject) => {
     const child = spawn(rgPath, rgArgs, { cwd });
+    const finish = (fn: () => void) => {
+      cleanup();
+      fn();
+    };
     let output = "";
     let outputBytes = 0;
     let stderr = "";
@@ -581,7 +753,7 @@ export function runRipgrepSearch(
     });
     child.on("error", (error) => {
       clearTimeout(timer);
-      reject(error);
+      finish(() => reject(error));
     });
     child.on("close", (code) => {
       clearTimeout(timer);
@@ -592,21 +764,27 @@ export function runRipgrepSearch(
             : `output exceeded ${SEARCH_MAX_OUTPUT_BYTES} bytes`;
         const lines = output.split("\n");
         lines.pop(); // drop a possibly cut-off last line
-        resolve(
-          `${lines.join("\n")}\n\n[search stopped: ${why}; results are partial. Narrow with path/fileGlob/fileType.]`.trimStart(),
+        finish(() =>
+          resolve(
+            `${lines.join("\n")}\n\n[search stopped: ${why}; results are partial. Narrow with path/fileGlob/fileType.]`.trimStart(),
+          ),
         );
         return;
       }
       if (code === 0) {
-        resolve(output);
+        finish(() => resolve(output));
       } else if (code === 1) {
-        resolve("No matches found");
+        finish(() => resolve("No matches found"));
       } else if (code === 2) {
-        resolve(`Search error: ${stderr.trim() || "Invalid search pattern"}`);
+        finish(() =>
+          resolve(`Search error: ${stderr.trim() || "Invalid search pattern"}`),
+        );
       } else {
-        reject(
-          new Error(
-            `Process exited with code: ${code}. ${stderr}`.trim(),
+        finish(() =>
+          reject(
+            new Error(
+              `Process exited with code: ${code}. ${stderr}`.trim(),
+            ),
           ),
         );
       }

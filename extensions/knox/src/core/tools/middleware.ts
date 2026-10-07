@@ -662,7 +662,7 @@ export async function executeToolWithMiddleware(
           `Denied by a PreToolUse hook before "${toolName}" ran (the tool itself was not executed). ` +
           `Hook command: \`${pre.denied.command}\`. ` +
           (pre.denied.reason === "Blocked by hook"
-            ? "The hook gave no reason (it exited 2 without writing to stderr). Edit or remove it in .knox/hooks.json or the config.yaml `hooks:` block."
+            ? "The hook gave no reason (it exited 2 without writing to stderr). Edit or remove it in .knoxcoder/hooks.json or the config.yaml `hooks:` block."
             : `Reason: ${pre.denied.reason}`),
         toolName,
         retryable: false,

@@ -16,7 +16,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 
-import { BENCH_MEMORIES, BENCH_QUERIES } from "./fixtures";
+import { BENCH_MEMORIES, BENCH_QUERIES, type BenchMemory, type BenchQuery } from "./fixtures";
 
 export interface BenchQueryResult {
   id: string;
@@ -50,7 +50,16 @@ function percentile(sorted: number[], p: number): number {
   return sorted[Math.max(0, idx)];
 }
 
-export async function runMemoryBench(): Promise<BenchReport> {
+export interface BenchFixtures {
+  memories: BenchMemory[];
+  queries: BenchQuery[];
+}
+
+export async function runMemoryBench(
+  fixtures: BenchFixtures = { memories: BENCH_MEMORIES, queries: BENCH_QUERIES },
+): Promise<BenchReport> {
+  const BENCH_MEMORIES = fixtures.memories;
+  const BENCH_QUERIES = fixtures.queries;
   const dir = path.join(os.tmpdir(), `brain-bench-${process.pid}-${Date.now()}`);
   fs.mkdirSync(path.join(dir, "memory"), { recursive: true });
   process.env.KNOX_GLOBAL_DIR = dir;

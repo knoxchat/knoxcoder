@@ -13,6 +13,7 @@
   "reviewCode": "Review code and give feedback",
   "exportChatSession": "Export the current chat session to markdown",
   "sessionTranscriptSaved": "The session transcript has been saved to a markdown file at `{{path}}`.",
+  "sessionTranscriptShareLink": "Shareable local link (opens this file in Knox): `{{link}}`.",
   "knoxSessionTranscript": "Knox session transcript",
   "unknownSlashCommand": "Unknown slash command {{name}}",
   "autonomousSlashCommand": "Run a multi-step autonomous agent loop with memory integration",

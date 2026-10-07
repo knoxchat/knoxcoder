@@ -61,7 +61,7 @@ export function activateAgentMode(context: vscode.ExtensionContext): vscode.Disp
   agentModeManager = AgentModeManager.getInstance();
 
   // Tools: knox.executeToolCall / knoxchat.tools/call → AgentModeManager → Core tools/call.
-  // Validation helpers live in toolCallValidation.ts.
+  // Required-arg validation is fail-closed in core `tools/middleware.ts`.
 
   // KN-352: DiagnosticChecker / DiagnosticFixManager (`knox.checkDiagnostics`, `knox.fixDiagnostics`)
   diagnosticChecker = DiagnosticChecker.getInstance();

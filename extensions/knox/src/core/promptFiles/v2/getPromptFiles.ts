@@ -8,12 +8,12 @@ import { DEFAULT_PROMPTS_FOLDER_V1 } from "../v1";
  * Project-local prompts folder (legacy Continuum-style path).
  * Still supported; prefer `~/.knoxcoder/prompts` for new files (createNewPromptFileV2).
  */
-export const DEFAULT_PROMPTS_FOLDER_V2 = ".knox/prompts";
+export const DEFAULT_PROMPTS_FOLDER_V2 = ".knoxcoder/prompts";
 
 /** Workspace-relative dirs scanned for `.prompt` files (in addition to ~/.knoxcoder/prompts). */
 const WORKSPACE_PROMPT_DIRS = [
   DEFAULT_PROMPTS_FOLDER_V1, // .prompts
-  DEFAULT_PROMPTS_FOLDER_V2, // .knox/prompts
+  DEFAULT_PROMPTS_FOLDER_V2, // .knoxcoder/prompts
 ];
 
 export async function getPromptFilesFromDir(
@@ -46,7 +46,7 @@ export async function getAllPromptFiles(
   ide: IDE,
   overridePromptFolder?: string,
   /**
-   * @deprecated Ignored — both `.prompts` and `.knox/prompts` are always scanned.
+   * @deprecated Ignored — both `.prompts` and `.knoxcoder/prompts` are always scanned.
    * Kept so call sites do not break.
    */
   _checkV1DefaultFolder: boolean = false,

@@ -12,7 +12,7 @@ export const exactSearchTool: Tool = {
   group: BUILT_IN_GROUP_NAME,
   function: {
     name: BuiltInToolNames.ExactSearch,
-    description: `Search file contents with ripgrep. Literal, case-insensitive match by default (code snippets can be pasted as-is); set pcre2=true or fixedStrings=false for regex. Output is grouped by file with line numbers; binary and ignored files are skipped, long lines truncated.
+    description: `Search file contents with ripgrep. Literal, case-insensitive match by default (code snippets can be pasted as-is); set pcre2=true or fixedStrings=false for regex. Output is grouped by file with line numbers; binary and ignored files are skipped, long lines truncated. Honors \`.gitignore\` and \`.knoxignore\` (including nested \`.knoxignore\`).
 On large trees (kernel, QEMU) always pass path and fileType (e.g. path="mm", fileType="c"). Default maxResults is 50 (200 on systems workspaces); if truncated, narrow with path/fileType or page with offset.
 Examples: query="Game::new" path="src"; query="useState" fileGlob="src/**/*.tsx"; query="TODO" outputMode="files_with_matches"; query="a|b" pcre2=true.`,
     parameters: {

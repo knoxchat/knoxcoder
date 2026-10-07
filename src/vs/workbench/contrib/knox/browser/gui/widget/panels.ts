@@ -61,6 +61,7 @@ import {
 	tickTokensPerSecond,
 	turnElapsedMs,
 } from '../../../common/knoxGuiTranscript.js';
+import { makeKnoxGuiActivatable } from './a11y.js';
 
 export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
 	const userIndex = lastUserHistoryIndex(state.history);
@@ -967,6 +968,7 @@ export function renderJobRow(widget: KnoxGuiWidget, parent: HTMLElement, state: 
 	if (job.detail) {
 		DOM.append(title, DOM.$('span.knox-gui-job-detail.knox-gui-muted', undefined, truncateJobTitle(job.detail, 40)));
 	}
+	makeKnoxGuiActivatable(widget, title, { expanded: widget.jobsLogId === job.id });
 	widget.renderStore.add(DOM.addDisposableListener(title, 'click', () => {
 		widget.jobsLogId = widget.jobsLogId === job.id ? null : job.id;
 		widget.render();

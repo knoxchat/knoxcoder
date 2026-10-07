@@ -2152,15 +2152,15 @@ suite('Knox native GUI parity', () => {
 
 		assert.deepStrictEqual(addModelPackagesByProvider().map(group => group.providerId), ['openai', 'anthropic']);
 		assert.deepStrictEqual(addModelBrowseGroups().map(group => group.title), ['Open AI', 'Anthropic']);
-		assert.deepStrictEqual(addModelBrowseGroups().flatMap(group => group.packages.map(pack => pack.params.model)), ['gpt-4-turbo', 'gpt-4o', 'gpt-3.5-turbo', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-5-haiku-latest']);
+		assert.deepStrictEqual(addModelBrowseGroups().flatMap(group => group.packages.map(pack => pack.params.model)), ['gpt-6.1-sol', 'gpt-6-luna', 'claude-sonnet-5.5', 'claude-opus-5.5', 'claude-haiku-4.5']);
 		assert.ok(addModelProviderById('openai')?.packages.some(pack => pack.params.model === 'AUTODETECT'));
-		assert.strictEqual(addModelProviderById('openai')?.packages.find(pack => pack.params.model === 'gpt-3.5-turbo')?.title, 'GPT-3.5-Turbo');
-		assert.strictEqual(addModelProviderById('openai')?.packages.find(pack => pack.params.model === 'gpt-3.5-turbo')?.params.contextLength, 8096);
+		assert.strictEqual(addModelProviderById('openai')?.packages.find(pack => pack.params.model === 'gpt-6-luna')?.title, 'GPT-6 Luna');
+		assert.strictEqual(addModelProviderById('openai')?.packages.find(pack => pack.params.model === 'gpt-6-luna')?.params.contextLength, 1050000);
 		assert.strictEqual(addModelProviderById('openai')?.packages.find(pack => pack.params.model === 'AUTODETECT')?.title, 'Autodetect');
 		assert.strictEqual(addModelProviderById('openai')?.packages.find(pack => pack.params.model === 'AUTODETECT')?.params.title, 'OpenAI');
 		assert.strictEqual(addModelProviderById('anthropic')?.refPage, 'anthropicllm');
 		assert.strictEqual(addModelProviderById('anthropic')?.apiKeyUrl, 'https://console.anthropic.com/account/keys');
-		assert.strictEqual(addModelProviderById('anthropic')?.packages.find(pack => pack.title === 'Claude 3 Opus')?.params.model, 'claude-3-opus-20240229');
+		assert.strictEqual(addModelProviderById('anthropic')?.packages.find(pack => pack.title === 'Claude Opus 5.5')?.params.model, 'claude-opus-5.5');
 		assert.ok(addModelProviderById('anthropic')?.packages.some(pack => pack.title.includes('Sonnet')));
 		assert.strictEqual(addModelRequiredSatisfied(addModelProviderById('openai')!, {}, false), false);
 		assert.strictEqual(addModelRequiredSatisfied(addModelProviderById('openai')!, { apiKey: 'sk-test' }, false), true);

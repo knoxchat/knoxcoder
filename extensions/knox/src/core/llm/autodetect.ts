@@ -56,9 +56,7 @@ const PROVIDER_SUPPORTS_IMAGES: string[] = [
 
 const MODEL_SUPPORTS_IMAGES: string[] = [
   "gemini",
-  "gpt-4o",
-  "gpt-4o-mini",
-  "claude-3",
+  "gpt-6",
   "opus-4",
   "opus-5",
   "sonnet-4",

@@ -339,7 +339,7 @@
 	padding: 0;
 	background: none;
 	border: none;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	cursor: pointer;
 	min-width: 0;
 	overflow: hidden;
@@ -425,7 +425,7 @@
 }
 
 .knox-gui-accept-reject-all .knox-gui-accept {
-	color: #159994 !important;
+	color: var(--knox-accent, #159994) !important;
 }
 
 .knox-gui-accept-reject-all .knox-gui-accept .knox-gui-svg {
@@ -471,7 +471,7 @@
 }
 
 .knox-gui-turn-summary-chip.ok {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	background: color-mix(in srgb, #159994 16%, transparent);
 }
 
@@ -481,7 +481,7 @@
 }
 
 .knox-gui-turn-summary-actions .knox-gui-text-action {
-	color: #159994 !important;
+	color: var(--knox-accent, #159994) !important;
 	border: 1px solid color-mix(in srgb, #159994 45%, transparent) !important;
 	border-radius: 6px !important;
 	padding: 3px 10px !important;
@@ -531,7 +531,7 @@
 }
 
 .knox-gui-activity-earlier {
-	color: #159994 !important;
+	color: var(--knox-accent, #159994) !important;
 	background: transparent !important;
 	border: none !important;
 	border-radius: 0 !important;
@@ -590,7 +590,7 @@
 }
 
 .knox-gui-activity-done {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-activity-canceled {
@@ -611,7 +611,7 @@
 	padding: 2px 0;
 	border: none;
 	background: transparent;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	cursor: pointer;
 	font-family: var(--monaco-monospace-font, monospace);
 	font-size: inherit;
@@ -683,7 +683,7 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-meter-meta {
@@ -745,7 +745,7 @@
 
 .knox-gui-meter-chevron {
 	display: inline-flex;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	flex-shrink: 0;
 }
 
@@ -966,7 +966,7 @@
 .knox-gui h3 {
 	margin: 0 0 6px;
 	font-size: 13px;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui label {
@@ -1001,7 +1001,7 @@
 
 .knox-gui-model-role-label,
 .knox-gui-cyan {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	font-size: calc(1em - 3px);
 }
 

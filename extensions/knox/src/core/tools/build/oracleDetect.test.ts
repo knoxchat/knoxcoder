@@ -21,6 +21,14 @@ describe("detectOracleCommand (K-034)", () => {
     expect(detectOracleCommand({ entries: ["Cargo.toml"] })?.ecosystem).toBe("rust");
   });
 
+  it("Maven, Gradle, Zig and .NET", () => {
+    expect(detectOracleCommand({ entries: ["pom.xml"] })?.command).toBe("mvn -q -DskipTests compile");
+    expect(detectOracleCommand({ entries: ["build.gradle", "gradlew"] })?.command).toBe("./gradlew -q classes");
+    expect(detectOracleCommand({ entries: ["build.gradle.kts"] })?.command).toBe("gradle -q classes");
+    expect(detectOracleCommand({ entries: ["build.zig"] })?.command).toBe("zig build");
+    expect(detectOracleCommand({ entries: ["App.csproj"] })?.command).toBe("dotnet build --nologo -v q");
+  });
+
   it("returns nothing for unknown projects", () => {
     expect(detectOracleCommand({ entries: ["README.md"] })).toBeUndefined();
   });

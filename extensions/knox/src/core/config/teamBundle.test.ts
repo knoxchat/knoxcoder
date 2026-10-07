@@ -29,14 +29,14 @@ describe("team bundle", () => {
     const a = tmp();
     put(a, ".knoxrules", "be brief\n");
     put(a, "skills/deploy/SKILL.md", "---\nname: deploy\n---\nsteps\n");
-    put(a, ".knox/agents/reviewer.md", "---\nname: reviewer\n---\nreview\n");
-    put(a, ".knox/hooks.json", '{"hooks":{}}');
-    put(a, ".knox/config.yaml", "apiKey: nope\n");
+    put(a, ".knoxcoder/agents/reviewer.md", "---\nname: reviewer\n---\nreview\n");
+    put(a, ".knoxcoder/hooks.json", '{"hooks":{}}');
+    put(a, ".knoxcoder/config.yaml", "apiKey: nope\n");
     put(a, "src/app.ts", "x");
     const { bundle, skipped } = exportTeamBundle(a, "team");
     expect(bundle.files.map((f) => f.path).sort()).toEqual([
-      ".knox/agents/reviewer.md",
-      ".knox/hooks.json",
+      ".knoxcoder/agents/reviewer.md",
+      ".knoxcoder/hooks.json",
       ".knoxrules",
       "skills/deploy/SKILL.md",
     ]);
@@ -48,11 +48,11 @@ describe("team bundle", () => {
     const res = importTeamBundle(parsed as typeof bundle, b);
     expect(res.written).toContain(".knoxrules");
     // hooks need an explicit opt-in
-    expect(res.written).not.toContain(".knox/hooks.json");
-    expect(res.skipped.find((s) => s.path === ".knox/hooks.json")).toBeDefined();
-    expect(fs.existsSync(path.join(b, ".knox/config.yaml"))).toBe(false);
+    expect(res.written).not.toContain(".knoxcoder/hooks.json");
+    expect(res.skipped.find((s) => s.path === ".knoxcoder/hooks.json")).toBeDefined();
+    expect(fs.existsSync(path.join(b, ".knoxcoder/config.yaml"))).toBe(false);
     importTeamBundle(bundle, b, { allowHooks: true });
-    expect(fs.readFileSync(path.join(b, ".knox/hooks.json"), "utf-8")).toBe('{"hooks":{}}');
+    expect(fs.readFileSync(path.join(b, ".knoxcoder/hooks.json"), "utf-8")).toBe('{"hooks":{}}');
   });
 
   it("keeps existing files unless forced", () => {

@@ -103,7 +103,7 @@
 .knox-gui .knox-gui-cpl-dialog-title .knox-gui-svg {
 	width: 16px;
 	height: 16px;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-cpl-dialog-desc {

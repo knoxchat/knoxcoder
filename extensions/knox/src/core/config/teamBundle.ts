@@ -2,13 +2,13 @@
  * Team sharing (K-052): export a project's shared Knox setup as one versioned
  * JSON bundle and import it into another checkout.
  *
- * Included: `.knoxrules`, `AGENTS.md`, `.knox/AGENTS.md`, `.knox/hooks.json`,
- * `.knox/agents/*.md` and `skills/**`. Never included: `.knox/config.yaml`
+ * Included: `.knoxrules`, `AGENTS.md`, `.knoxcoder/AGENTS.md`, `.knoxcoder/hooks.json`,
+ * `.knoxcoder/agents/*.md` and `skills/**`. Never included: `.knoxcoder/config.yaml`
  * (can hold provider settings), credentials, memory or checkpoints.
  *
  * Safety: export refuses files that contain secrets. Import only writes the
  * allowed paths, rejects anything that escapes the target directory, keeps
- * existing files unless `overwrite`, and skips `.knox/hooks.json` (it runs
+ * existing files unless `overwrite`, and skips `.knoxcoder/hooks.json` (it runs
  * commands) unless `allowHooks`.
  */
 
@@ -37,15 +37,15 @@ export interface TeamBundle {
 const SINGLE_FILES = [
   ".knoxrules",
   "AGENTS.md",
-  ".knox/AGENTS.md",
-  ".knox/hooks.json",
+  ".knoxcoder/AGENTS.md",
+  ".knoxcoder/hooks.json",
 ];
 const DIRS = [
-  { dir: ".knox/agents", ext: /\.md$/i },
+  { dir: ".knoxcoder/agents", ext: /\.md$/i },
   { dir: "skills", ext: /.*/ },
 ];
 
-const HOOKS_PATH = ".knox/hooks.json";
+const HOOKS_PATH = ".knoxcoder/hooks.json";
 
 export function isAllowedBundlePath(rel: string): boolean {
   if (!rel || rel.includes("\0") || path.isAbsolute(rel) || /^[a-z]:/i.test(rel)) {

@@ -180,4 +180,49 @@ describe("globImpl", () => {
       .filter((line) => line.endsWith(".c"));
     expect(paths.length).toBe(200);
   });
+
+  it("honors nested .knoxignore", async () => {
+    const tree: Record<string, [string, number][]> = {
+      "": [
+        ["pkg", 2],
+        ["keep.ts", 1],
+      ],
+      pkg: [
+        [".knoxignore", 1],
+        ["ok.ts", 1],
+        ["secret", 2],
+      ],
+      "pkg/secret": [["hidden.ts", 1]],
+    };
+    const ide = mockIde(tree, { "pkg/.knoxignore": "secret/\n" });
+    const result = await globImpl({ pattern: "**/*.ts" }, extras(ide));
+    expect(result[0].content).toContain("pkg/ok.ts");
+    expect(result[0].content).toContain("keep.ts");
+    expect(result[0].content).not.toContain("hidden.ts");
+  });
+
+  it("globs every workspace root when target_directory is .", async () => {
+    const ide = {
+      getWorkspaceDirs: vi.fn(async () => ["file:///tmp/app", "file:///tmp/lib"]),
+      getCurrentFile: vi.fn(async () => undefined),
+      fileExists: vi.fn(async () => false),
+      readFile: vi.fn(async () => {
+        throw new Error("missing");
+      }),
+      listDir: vi.fn(async (uri: string) => {
+        const u = uri.replace(/\/$/, "");
+        if (u === "file:///tmp/app") {
+          return [["a.ts", 1]];
+        }
+        if (u === "file:///tmp/lib") {
+          return [["b.ts", 1]];
+        }
+        return [];
+      }),
+    } as unknown as IDE;
+    const result = await globImpl({ pattern: "**/*.ts" }, extras(ide));
+    expect(result[0].content).toContain("a.ts");
+    expect(result[0].content).toMatch(/b\.ts/);
+    expect(result[0].content).toContain("/tmp/lib/b.ts");
+  });
 });

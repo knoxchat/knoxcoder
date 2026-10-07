@@ -1,6 +1,7 @@
 import { capChars } from "../truncateOutput";
 import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
 import { DEFAULT_IGNORE_BASENAMES } from "../../util/ignore";
+import { localPathOrUriToPath } from "../../util/pathToUri";
 import { joinPathsToUri } from "../../util/uri";
 import {
   addNestedWalkIgnore,
@@ -107,19 +108,29 @@ export const globImpl: ToolImpl = async (args, extras) => {
       ? Math.floor(args.max_results)
       : GLOB_DEFAULT_MAX_RESULTS;
 
-  let rootUri: string;
+  let rootsToWalk: Array<{ uri: string; startRel: string; emitAbsolute: boolean }>;
   try {
+    const dirs = await extras.ide.getWorkspaceDirs();
     if (targetDirectory === ".") {
-      const dirs = await extras.ide.getWorkspaceDirs();
       if (!dirs[0]) {
         throw new Error(t("noDirsProvided"));
       }
-      rootUri = dirs[0];
+      rootsToWalk = dirs.map((uri, i) => ({
+        uri,
+        startRel: "",
+        emitAbsolute: i > 0,
+      }));
     } else {
-      rootUri = await inferResolvedUriFromRelativePath(
-        targetDirectory,
-        extras.ide,
-      );
+      rootsToWalk = [
+        {
+          uri: await inferResolvedUriFromRelativePath(
+            targetDirectory,
+            extras.ide,
+          ),
+          startRel: targetDirectory.replace(/\\/g, "/").replace(/^\.\//, ""),
+          emitAbsolute: false,
+        },
+      ];
     }
   } catch (error) {
     if (targetDirectory === ".") {
@@ -144,16 +155,29 @@ export const globImpl: ToolImpl = async (args, extras) => {
   let visited = 0;
   const includeObjectFiles = patternWantsObjectFiles(pattern);
   const includeGenerated = patternWantsGeneratedArtifacts(pattern);
-  const rootIsBuild = basenameOfUri(rootUri).toLowerCase() === "build";
   let workspaceDirs: string[] = [];
   try {
     workspaceDirs = await extras.ide.getWorkspaceDirs();
   } catch {
     workspaceDirs = [];
   }
-  const matcher = await loadWalkIgnore(extras.ide, [rootUri, ...workspaceDirs]);
+  const matcher = await loadWalkIgnore(extras.ide, [
+    ...rootsToWalk.map((r) => r.uri),
+    ...workspaceDirs,
+  ]);
 
-  async function keepConditionalDir(childUri: string): Promise<boolean> {
+  function labeledMatch(rootUri: string, rel: string, emitAbsolute: boolean): string {
+    if (!emitAbsolute) {
+      return rel;
+    }
+    const root = localPathOrUriToPath(rootUri).replace(/[\\/]+$/, "");
+    return rel ? `${root.replace(/\\/g, "/")}/${rel}` : root.replace(/\\/g, "/");
+  }
+
+  async function keepConditionalDir(
+    childUri: string,
+    rootIsBuild: boolean,
+  ): Promise<boolean> {
     if (rootIsBuild) {
       return true;
     }
@@ -165,7 +189,13 @@ export const globImpl: ToolImpl = async (args, extras) => {
     }
   }
 
-  async function walk(dirUri: string, relative: string): Promise<void> {
+  async function walk(
+    dirUri: string,
+    relative: string,
+    rootUri: string,
+    emitAbsolute: boolean,
+    rootIsBuild: boolean,
+  ): Promise<void> {
     if (matches.length >= maxResults || visited >= GLOB_MAX_WALK) {
       return;
     }
@@ -201,7 +231,7 @@ export const globImpl: ToolImpl = async (args, extras) => {
         continue;
       }
       if (isDir && CONDITIONAL_SKIP_DIRS.has(name)) {
-        if (!(await keepConditionalDir(childUri))) {
+        if (!(await keepConditionalDir(childUri, rootIsBuild))) {
           continue;
         }
       }
@@ -209,7 +239,7 @@ export const globImpl: ToolImpl = async (args, extras) => {
       const rel = relative ? `${relative}/${name}` : name;
 
       if (isDir) {
-        await walk(childUri, rel);
+        await walk(childUri, rel, rootUri, emitAbsolute, rootIsBuild);
         continue;
       }
 
@@ -227,16 +257,20 @@ export const globImpl: ToolImpl = async (args, extras) => {
         continue;
       }
       if (matchGlob(rel, pattern)) {
-        matches.push(rel);
+        matches.push(labeledMatch(rootUri, rel, emitAbsolute));
       }
     }
   }
 
-  const startRel =
-    targetDirectory === "."
-      ? ""
-      : targetDirectory.replace(/\\/g, "/").replace(/^\.\//, "");
-  await walk(rootUri, startRel);
+  for (const root of rootsToWalk) {
+    await walk(
+      root.uri,
+      root.startRel,
+      root.uri,
+      root.emitAbsolute,
+      basenameOfUri(root.uri).toLowerCase() === "build",
+    );
+  }
 
   const hitWalkCap = visited >= GLOB_MAX_WALK;
   const hitResultCap = matches.length >= maxResults;

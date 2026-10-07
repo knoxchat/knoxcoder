@@ -1,8 +1,10 @@
 import * as assert from "node:assert";
+import path from "node:path";
 
 import {
   knoxOAuthLoopbackCallbackUrl,
   knoxUriHandlePlan,
+  KNOX_URI_IMPORT_SESSION_COMMAND,
   KNOX_URI_OPEN_CHAT_COMMAND,
   parseKnoxUri,
 } from "./knoxUriHandler";
@@ -71,6 +73,61 @@ suite("knoxUriHandler (KN-356)", () => {
   test("unknown paths are ignored", () => {
     assert.strictEqual(parseKnoxUri({ path: "/nope", query: "" }).type, "ignore");
     assert.deepStrictEqual(knoxUriHandlePlan({ type: "ignore" }), { kind: "ignore" });
+  });
+
+  test("session import URIs open the import command with the file path", () => {
+    const file = path.resolve("/tmp/knox_session.md");
+    const encoded = encodeURIComponent(file);
+    const knoxcoder = parseKnoxUri({
+      scheme: "knoxcoder",
+      authority: "vscode.knox",
+      path: "/session/import",
+      query: `path=${encoded}`,
+    });
+    assert.strictEqual(knoxcoder.type, "importSession");
+    if (knoxcoder.type === "importSession") {
+      assert.strictEqual(knoxcoder.path, file);
+      assert.deepStrictEqual(knoxUriHandlePlan(knoxcoder), {
+        kind: "command",
+        command: KNOX_URI_IMPORT_SESSION_COMMAND,
+        args: [file],
+      });
+    }
+    const knoxScheme = parseKnoxUri({
+      scheme: "knox",
+      authority: "session",
+      path: "/import",
+      query: `path=${encoded}`,
+    });
+    assert.strictEqual(knoxScheme.type, "importSession");
+    const picker = parseKnoxUri({
+      scheme: "knoxcoder",
+      authority: "vscode.knox",
+      path: "/session/import",
+      query: "",
+    });
+    assert.deepStrictEqual(knoxUriHandlePlan(picker), {
+      kind: "command",
+      command: KNOX_URI_IMPORT_SESSION_COMMAND,
+    });
+    assert.strictEqual(
+      parseKnoxUri({
+        scheme: "knoxcoder",
+        authority: "vscode.knox",
+        path: "/session/import",
+        query: "path=https://example.com/x.md",
+      }).type,
+      "importSession",
+    );
+    const blocked = parseKnoxUri({
+      scheme: "knoxcoder",
+      authority: "vscode.knox",
+      path: "/session/import",
+      query: "path=https://example.com/x.md",
+    });
+    if (blocked.type === "importSession") {
+      assert.strictEqual(blocked.path, undefined);
+    }
   });
 
   test("non-Knox authorities and schemes are ignored", () => {

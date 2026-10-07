@@ -49,7 +49,7 @@ function countImageTokens(content: MessagePart): number {
 function countTokens(
   content: MessageContent,
   // modelName kept for call-site compatibility; estimate is model-agnostic
-  _modelName = "qwen/qwen3-coder",
+  _modelName = "anthropic/claude-sonnet-5.5",
 ): number {
   if (Array.isArray(content)) {
     return content.reduce((acc, part) => {
@@ -130,18 +130,45 @@ function countChatMessageTokens(
   return countTokens(chatMessage.content, modelName) + TOKENS_PER_MESSAGE;
 }
 
+/**
+ * Drop whole lines from one end until the rest fits `maxTokens`.
+ *
+ * The estimate (chars / 4, rounded up per string) is not additive: subtracting each removed
+ * line's own count ignores its newline and rounds every line up, so the running total
+ * drifted and the result stayed far over budget (a 100k-line list pruned to 50k tokens came
+ * back at 88k). Binary search on how many lines to drop and re-count the remainder instead.
+ */
+function pruneLinesToFit(
+  prompt: string,
+  maxTokens: number,
+  modelName: string,
+  from: "top" | "bottom",
+): string {
+  if (countTokens(prompt, modelName) <= maxTokens) {
+    return prompt;
+  }
+  const lines = prompt.split("\n");
+  const kept = (drop: number) =>
+    from === "top" ? lines.slice(drop) : lines.slice(0, lines.length - drop);
+  let lo = 0; // known not to fit (drop 0 does not fit)
+  let hi = lines.length; // dropping everything always fits
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (countTokens(kept(mid).join("\n"), modelName) <= maxTokens) {
+      hi = mid;
+    } else {
+      lo = mid;
+    }
+  }
+  return kept(hi).join("\n");
+}
+
 function pruneLinesFromTop(
   prompt: string,
   maxTokens: number,
   modelName: string,
 ): string {
-  let totalTokens = countTokens(prompt, modelName);
-  const lines = prompt.split("\n");
-  while (totalTokens > maxTokens && lines.length > 0) {
-    totalTokens -= countTokens(lines.shift()!, modelName);
-  }
-
-  return lines.join("\n");
+  return pruneLinesToFit(prompt, maxTokens, modelName, "top");
 }
 
 function pruneLinesFromBottom(
@@ -149,13 +176,7 @@ function pruneLinesFromBottom(
   maxTokens: number,
   modelName: string,
 ): string {
-  let totalTokens = countTokens(prompt, modelName);
-  const lines = prompt.split("\n");
-  while (totalTokens > maxTokens && lines.length > 0) {
-    totalTokens -= countTokens(lines.pop()!, modelName);
-  }
-
-  return lines.join("\n");
+  return pruneLinesToFit(prompt, maxTokens, modelName, "bottom");
 }
 
 function pruneRawPromptFromTop(

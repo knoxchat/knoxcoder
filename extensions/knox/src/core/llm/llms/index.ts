@@ -56,7 +56,7 @@ export async function llmFromDescription(
     apiKey: resolveProviderApiKey(desc.provider, desc.apiKey),
     completionOptions: {
       ...finalCompletionOptions,
-      model: (desc.model || cls.defaultOptions?.model) ?? "anthropic/claude-sonnet-4.6",
+      model: (desc.model || cls.defaultOptions?.model) ?? "anthropic/claude-sonnet-5.5",
       maxTokens:
         finalCompletionOptions.maxTokens ??
         cls.defaultOptions?.completionOptions?.maxTokens,

@@ -67,6 +67,7 @@ import { IKnoxGuiState, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js
 import { knoxGuiHljsTokenColor, knoxGuiStateThemeIsLight } from '../../../common/knoxGuiTheme.js';
 import { activityAnchorId, IKnoxGuiMarkdownFenceBlock, parseCodeFenceRange, splitDisplayPath } from '../../../common/knoxGuiTranscript.js';
 import { patchLiveCodeFence } from './markdown.js';
+import { makeKnoxGuiActivatable } from './a11y.js';
 
 export function toolStreamFingerprint(tool: IKnoxGuiToolCall): string {
 	return `${tool.status}\0${tool.arguments}\0${tool.output ?? ''}\0${tool.outputItems?.length ?? 0}\0${tool.collapsed ? 1 : 0}`;
@@ -978,6 +979,7 @@ export function renderExactSearchTool(widget: KnoxGuiWidget, parent: HTMLElement
 			if (line.isMatch && query) {
 				setKnoxGuiInnerHtml(code, highlightSearchQueryInHtml(code.innerHTML, query));
 			}
+			makeKnoxGuiActivatable(widget, row);
 			widget.renderStore.add(DOM.addDisposableListener(row, 'click', () => {
 				widget.controller.showFile(file.filePath, { startLine: line.lineNum, endLine: line.lineNum });
 			}));

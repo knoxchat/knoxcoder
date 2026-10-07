@@ -143,7 +143,7 @@ describe("openrouterModels catalog", () => {
     expect(models.map((model) => model.id)).toEqual(
       OPENROUTER_FALLBACK_MODELS.map((model) => model.id),
     );
-    expect(models.some((model) => model.id === "openai/gpt-4o")).toBe(true);
+    expect(models.some((model) => model.id === "openai/gpt-6.1-sol")).toBe(true);
   });
 
   it("enriches only OpenRouter providers", () => {

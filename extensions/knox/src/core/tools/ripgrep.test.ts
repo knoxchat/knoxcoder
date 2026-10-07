@@ -7,13 +7,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildRipgrepArgs,
+  collectNestedKnoxIgnore,
   fileTypeToRipgrepFlags,
   mergeWorkspaceSearchResults,
+  prefixGitignorePattern,
   resolveRipgrepBinary,
   resolveSearchMaxResults,
   resolveSearchRoots,
   runRipgrepSearch,
   summarizeSearchOutput,
+  synthesizeNestedKnoxIgnore,
   SYSTEMS_SEARCH_MAX_RESULTS,
 } from "./ripgrep";
 
@@ -25,6 +28,27 @@ const bundledRg =
     repoRoot,
     "extensions/vscode/node_modules/@vscode/ripgrep/bin/rg",
   );
+
+describe("buildRipgrepArgs node_modules default", () => {
+  const globs = (args: string[]) =>
+    args.flatMap((a, i) => (args[i - 1] === "--glob" ? [a] : []));
+
+  it("skips node_modules unless the path or glob targets it", () => {
+    expect(globs(buildRipgrepArgs("x"))).toContain("!**/node_modules/**");
+    expect(globs(buildRipgrepArgs("x", { path: "node_modules/foo" }))).not.toContain(
+      "!**/node_modules/**",
+    );
+    expect(
+      globs(buildRipgrepArgs("x", { fileGlob: "**/node_modules/foo/*.js" })),
+    ).not.toContain("!**/node_modules/**");
+  });
+
+  it("puts the default before the user's glob so the user's glob wins", () => {
+    const args = buildRipgrepArgs("x", { fileGlob: "*.ts" });
+    const g = globs(args);
+    expect(g.indexOf("!**/node_modules/**")).toBeLessThan(g.indexOf("*.ts"));
+  });
+});
 
 describe("buildRipgrepArgs", () => {
   it("does not pass -I (that is --no-filename in ripgrep)", () => {
@@ -338,6 +362,23 @@ describe("runRipgrepSearch ignore + limits", () => {
     });
   });
 
+  it.skipIf(!rg)("honors nested .knoxignore relative to that directory", async () => {
+    await withTree(async (dir) => {
+      mkdirSync(path.join(dir, "pkg", "secret"), { recursive: true });
+      mkdirSync(path.join(dir, "other", "secret"), { recursive: true });
+      writeFileSync(path.join(dir, "pkg", ".knoxignore"), "secret/\n");
+      writeFileSync(path.join(dir, "pkg", "secret", "b.txt"), "NEEDLE\n");
+      writeFileSync(path.join(dir, "other", "secret", "c.txt"), "NEEDLE\n");
+      writeFileSync(path.join(dir, "keep.txt"), "NEEDLE\n");
+      const out = await runRipgrepSearch(rg!, dir, "NEEDLE", {
+        outputMode: "files_with_matches",
+      });
+      expect(out).toContain("keep.txt");
+      expect(out).toContain("other/secret/c.txt");
+      expect(out).not.toContain("pkg/secret/b.txt");
+    });
+  });
+
   it.skipIf(!rg)("searches a 20k-file tree quickly", async () => {
     await withTree(async (dir) => {
       for (let d = 0; d < 200; d++) {
@@ -369,5 +410,38 @@ describe("runRipgrepSearch ignore + limits", () => {
         else process.env.KNOX_SEARCH_TIMEOUT_MS = prev;
       }
     });
+  });
+});
+
+describe("nested .knoxignore prefixing", () => {
+  it("prefixes gitignore patterns relative to the nested directory", () => {
+    expect(prefixGitignorePattern("pkg", "secret/")).toBe("pkg/secret/");
+    expect(prefixGitignorePattern("pkg", "*.log")).toBe("pkg/**/*.log");
+    expect(prefixGitignorePattern("pkg", "/exact")).toBe("pkg/exact");
+    expect(prefixGitignorePattern("pkg", "!keep.txt")).toBe("!pkg/**/keep.txt");
+    expect(prefixGitignorePattern("pkg", "# comment")).toBeNull();
+    expect(prefixGitignorePattern("pkg", "")).toBeNull();
+  });
+
+  it("synthesizes nested ignore files and skips comments", () => {
+    const text = synthesizeNestedKnoxIgnore([
+      { relDir: "pkg", content: "secret/\n*.tmp\n# x\n" },
+    ]);
+    expect(text).toContain("pkg/secret/");
+    expect(text).toContain("pkg/**/*.tmp");
+    expect(text).not.toContain("# x");
+  });
+
+  it("collects nested .knoxignore and not the root file", () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "knox-nested-ig-"));
+    try {
+      mkdirSync(path.join(dir, "pkg"), { recursive: true });
+      writeFileSync(path.join(dir, ".knoxignore"), "root-secret/\n");
+      writeFileSync(path.join(dir, "pkg", ".knoxignore"), "secret/\n");
+      const nested = collectNestedKnoxIgnore(dir);
+      expect(nested).toEqual([{ relDir: "pkg", content: "secret/\n" }]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

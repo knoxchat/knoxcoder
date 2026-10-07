@@ -21,7 +21,7 @@ troubleshooting. Setting names are `knoxchat.*` in Settings.
 - [Testing policy](testing-policy.md)
 - [Upgrade guide](upgrade.md), [2.0 release notes](release-notes-2.0.md), [Known issues](known-issues.md)
 
-Knox 2.0 ships **English and Chinese** only (`en` / `zh`, plus `package.nls.json` / `package.nls.zh-cn.json`). Extra locales are 2.1.
+Knox ships **English and Chinese** only (`en` / `zh`, plus `package.nls.json` / `package.nls.zh-cn.json`). Extra locales are out of scope.
 
 ## Permission modes
 
@@ -38,6 +38,8 @@ policy. Network for fetch_url: `knoxchat.networkMode`.
 Team bundles: **Knox: Export/Import Team Bundle**. Background agents: jobs
 panel (merge/discard leftover jobs) and **Knox: Background Agents: List**.
 Open the grouped settings search with **Knox: Open Knox Settings**.
+**Knox: Import Session Transcript** restores a `/share` or Markdown-export file;
+**Knox: Copy Session Share Link** copies a local `knoxcoder://…/session/import?path=` URI that opens that file in Knox (nothing is uploaded).
 
 "Review edits" (mode popover) holds all file edits in memory; you then diff,
 apply or discard each file in the review panel. Shell commands still see the
@@ -46,7 +48,8 @@ real disk, not staged files.
 ## Instructions, rules and skills
 
 - `AGENTS.md`, `.knox/AGENTS.md`, `CLAUDE.md`, and `.knoxrules` are loaded
-  into every turn. Opt-in extras: `knoxchat.compatInstructions` = `cursor`
+  from every workspace folder. Nested `AGENTS.md` closer to the open file
+  is also loaded. Opt-in extras: `knoxchat.compatInstructions` = `cursor`
   (`.cursor/rules`, `.cursorrules`) and/or `copilot`
   (`.github/copilot-instructions.md`). Rules accept `applyTo` globs.
 - Skills live in `.knox/skills` and `~/.knoxcoder/skills`. A skill with
@@ -55,11 +58,14 @@ real disk, not staged files.
   warnings (a file over 2000 tokens, or always-on text over 6000 tokens).
 - `/init` writes a starter `AGENTS.md` from the repo (refuses to overwrite
   without `--force`).
+- `config.yaml` `uses: owner/package` loads `~/.knoxcoder/registry/owner/package.yaml`
+  (or `package@version.yaml`). Remote registries are not supported.
 
 ## Hooks
 
-`.knox/hooks.json` in the workspace root (re-read on every call). The Hooks
-panel can test a hook; **Knox: Test Hook** is also on the command palette.
+`.knox/hooks.json` in each workspace folder (re-read on every call; the hook
+runs with that folder as `cwd`). The Hooks panel can test a hook;
+**Knox: Test Hook** is also on the command palette.
 
 ```json
 { "hooks": { "PreToolUse": [
@@ -83,9 +89,10 @@ a `<hook_context>` block.
 
 ## Custom subagents
 
-`.knox/agents/*.md` with frontmatter `name`, `description`, `tools`
-(allowlist), `readonly`, `model`. **Knox: Create Custom Agent** writes a
-template. The `task` tool can run up to 8 children.
+`.knox/agents/*.md` in each workspace folder, with frontmatter `name`,
+`description`, `tools` (allowlist), `readonly`, `model`. **Knox: Create Custom
+Agent** writes a template in the primary folder. The `task` tool can run up to
+8 children.
 writers are isolated in git worktrees and their patches are merged back, with
 conflicts reported rather than half-applied.
 

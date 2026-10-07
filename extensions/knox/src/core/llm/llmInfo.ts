@@ -20,11 +20,12 @@ interface LlmInfo {
  */
 const allLlms: LlmInfo[] = [
   // ── OpenAI ──────────────────────────────────────────────────────────────
-  { model: "gpt-4o", contextLength: 128000, recommendedFor: ["chat"] },
-  { model: "gpt-4o-mini", contextLength: 128000, recommendedFor: ["chat"] },
-  { model: "o1-preview", contextLength: 128000, maxCompletionTokens: 32768, recommendedFor: ["chat"] },
-  { model: "o1-mini", contextLength: 128000, maxCompletionTokens: 65536, recommendedFor: ["chat"] },
-  { model: "o3-mini", contextLength: 128000, maxCompletionTokens: 65536, recommendedFor: ["chat"] },
+  { model: "gpt-6.1-sol", contextLength: 1050000, maxCompletionTokens: 128000, recommendedFor: ["chat"] },
+  { model: "gpt-6-luna", contextLength: 1050000, maxCompletionTokens: 128000, recommendedFor: ["chat"] },
+  // ── Anthropic ───────────────────────────────────────────────────────────
+  { model: "claude-sonnet-5.5", contextLength: 1000000, maxCompletionTokens: 128000, recommendedFor: ["chat"] },
+  { model: "claude-opus-5.5", contextLength: 1000000, maxCompletionTokens: 128000, recommendedFor: ["chat"] },
+  { model: "claude-haiku-4.5", contextLength: 200000, maxCompletionTokens: 64000, recommendedFor: ["chat"] },
 ];
 
 export function findLlmInfo(model: string): LlmInfo | undefined {

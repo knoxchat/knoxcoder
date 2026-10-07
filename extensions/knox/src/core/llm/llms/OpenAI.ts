@@ -45,22 +45,8 @@ const NON_CHAT_MODELS = [
   "ada",
 ];
 
-const CHAT_ONLY_MODELS = [
-  "gpt-3.5-turbo",
-  "gpt-3.5-turbo-0613",
-  "gpt-3.5-turbo-16k",
-  "gpt-4",
-  "gpt-4-turbo",
-  "gpt-4o",
-  "gpt-35-turbo-16k",
-  "gpt-35-turbo-0613",
-  "gpt-35-turbo",
-  "gpt-5",
-  "gpt-4o-mini",
-  "o1-preview",
-  "o1-mini",
-  "o3-mini",
-];
+/** Models that must use the chat endpoint even where legacy completions are requested. */
+const CHAT_ONLY_MODELS = ["gpt-6.1-sol", "gpt-6-luna", "gpt-6-sol"];
 
 type OpenAICompatibleModelMetadata = KnoxChatModelMetadata;
 
@@ -168,8 +154,8 @@ class OpenAI extends BaseLLM {
     ) {
       return true;
     }
-    const SUPPORTED_MODELS = ["gpt-4o-mini", "gpt-4o"];
-    return SUPPORTED_MODELS.some((m) => model.includes(m));
+    // Predicted outputs are advertised in /v1/models `supported_parameters`; no name list.
+    return false;
   }
 
   private convertTool(tool: Tool): any {

@@ -96,7 +96,7 @@ suite('Knox native GUI i18n', () => {
 		// Documented productization (the only shared GUI keys whose wording differs from the original common.json):
 		// provider blurbs describe the native Add Model catalog; restoreCheckpoint names the checkpoint id; browsingEntireRepo carries the bullet the original JSX prefixes.
         assert.ok(knoxGuiT('en', 'accessModelsDescription').includes('KnoxStudio'));
-		assert.ok(knoxGuiT('en', 'openaiDescription').includes('GPT-4o'));
+		assert.ok(knoxGuiT('en', 'openaiDescription').includes('GPT-6.1 Sol'));
 		assert.ok(knoxGuiT('en', 'anthropicDescription').includes('Claude'));
 		assert.ok(knoxGuiT('en', 'browsingEntireRepo').startsWith('• '));
 		assert.ok(knoxGuiT('en', 'taskPlanTitle').length > 0);

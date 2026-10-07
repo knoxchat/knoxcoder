@@ -21,7 +21,7 @@ import type { AgentToolPolicy } from "core/tools/toolPolicy";
 export interface SharedChatTurnDeps {
   /** `knoxchat.deferTools` (K-021). */
   getDeferTools?: () => boolean;
-  /** `.knox/hooks.json` runner for the workspace (K-023), or null. */
+  /** `.knoxcoder/hooks.json` runner for the workspace (K-023), or null. */
   getHooks?: () => Promise<HookRunner | null>;
   buildRequest: (
     input: NativeAgentRequestInput,

@@ -1,7 +1,7 @@
 /**
  * K-023: lifecycle hooks.
  *
- * Config (`.knox/hooks.json` in the workspace root):
+ * Config (`.knoxcoder/hooks.json` in each workspace root):
  *
  *   { "hooks": { "PreToolUse": [
  *       { "matcher": "run_terminal_command|edit_file", "command": "./check.sh", "timeoutMs": 5000 }
@@ -46,6 +46,8 @@ export interface HookDef {
   matcher?: string;
   command: string;
   timeoutMs?: number;
+  /** Owning workspace root (fs path). Set when merging per-root hooks. */
+  cwd?: string;
 }
 
 export type HooksConfig = Partial<Record<HookEvent, HookDef[]>>;
@@ -214,10 +216,11 @@ export class HookRunner {
           detail,
         });
 
+      const hookCwd = def.cwd ?? this.opts.cwd;
       const res = await exec(
         def.command,
-        JSON.stringify({ event, cwd: this.opts.cwd, ...payload, args }),
-        { cwd: this.opts.cwd, timeoutMs: def.timeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS },
+        JSON.stringify({ event, cwd: hookCwd, ...payload, args }),
+        { cwd: hookCwd, timeoutMs: def.timeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS },
       ).catch(
         (e): HookExecResult => ({
           code: null,
@@ -333,14 +336,32 @@ export function mergeHooksConfigs(...configs: HooksConfig[]): HooksConfig {
   return out;
 }
 
-/** Load `.knox/hooks.json` from a workspace root. Missing or invalid files give an empty config. */
+/** Stamp each hook with the workspace root it was loaded from. */
+export function stampHookCwd(
+  config: HooksConfig,
+  cwd: string | undefined,
+): HooksConfig {
+  if (!cwd) {
+    return config;
+  }
+  const out: HooksConfig = {};
+  for (const event of HOOK_EVENTS) {
+    const defs = config[event];
+    if (defs?.length) {
+      out[event] = defs.map((d) => (d.cwd ? d : { ...d, cwd }));
+    }
+  }
+  return out;
+}
+
+/** Load `.knoxcoder/hooks.json` from a workspace root. Missing or invalid files give an empty config. */
 export async function loadHooksConfig(
   readFile: (uri: string) => Promise<string>,
   workspaceDir: string,
 ): Promise<HooksConfig> {
   try {
     const base = workspaceDir.replace(/\/+$/, "");
-    return parseHooksConfig(JSON.parse(await readFile(`${base}/.knox/hooks.json`)));
+    return parseHooksConfig(JSON.parse(await readFile(`${base}/.knoxcoder/hooks.json`)));
   } catch {
     return {};
   }

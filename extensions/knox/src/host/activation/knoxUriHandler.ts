@@ -1,17 +1,24 @@
 import { LOOPBACK_PORT } from "core/auth/knoxOAuth/constants";
 import { CALLBACK_PATH } from "core/auth/knoxOAuth/loopback";
+import {
+  SESSION_SHARE_KNOX_AUTHORITY,
+  filePathFromShareQuery,
+  isSessionSharePath,
+} from "core/util/sessionShareLink";
 
 export const KNOX_URI_SCHEMES = ["knox", "knoxcoder"] as const;
 export const KNOX_URI_AUTHORITIES = ["vscode.knox", "knoxchat.knoxchat"] as const;
 export const KNOX_URI_OPEN_CHAT_COMMAND = "knox.openChat";
+export const KNOX_URI_IMPORT_SESSION_COMMAND = "knox.session.importTranscript";
 
 export type KnoxUriAction =
   | { type: "openChat" }
   | { type: "oauthCallback"; query: string }
+  | { type: "importSession"; path?: string }
   | { type: "ignore" };
 
 export type KnoxUriHandlePlan =
-  | { kind: "command"; command: string }
+  | { kind: "command"; command: string; args?: unknown[] }
   | { kind: "fetch"; url: string }
   | { kind: "ignore" };
 
@@ -29,7 +36,8 @@ function normalizePath(path: string): string {
  *
  * `vscode.window.registerUriHandler` delivers `knoxcoder://vscode.knox/…`.
  * `knox://chat`, `knox://open`, and `knox://callback` are parsed for the
- * same actions (custom-scheme / docs / tests).
+ * same actions (custom-scheme / docs / tests). Session import:
+ * `knoxcoder://vscode.knox/session/import?path=` and `knox://session/import?path=`.
  */
 export function parseKnoxUri(uri: {
   scheme?: string;
@@ -54,6 +62,9 @@ export function parseKnoxUri(uri: {
   if (authority === "callback") {
     return { type: "oauthCallback", query };
   }
+  if (authority === SESSION_SHARE_KNOX_AUTHORITY && isSessionSharePath(path)) {
+    return { type: "importSession", path: filePathFromShareQuery(query) };
+  }
 
   if (
     authority &&
@@ -66,6 +77,9 @@ export function parseKnoxUri(uri: {
   }
   if (path === CALLBACK_PATH || path.endsWith(CALLBACK_PATH)) {
     return { type: "oauthCallback", query };
+  }
+  if (isSessionSharePath(path)) {
+    return { type: "importSession", path: filePathFromShareQuery(query) };
   }
   return { type: "ignore" };
 }
@@ -81,6 +95,15 @@ export function knoxUriHandlePlan(action: KnoxUriAction): KnoxUriHandlePlan {
   }
   if (action.type === "oauthCallback") {
     return { kind: "fetch", url: knoxOAuthLoopbackCallbackUrl(action.query) };
+  }
+  if (action.type === "importSession") {
+    return action.path
+      ? {
+          kind: "command",
+          command: KNOX_URI_IMPORT_SESSION_COMMAND,
+          args: [action.path],
+        }
+      : { kind: "command", command: KNOX_URI_IMPORT_SESSION_COMMAND };
   }
   return { kind: "ignore" };
 }

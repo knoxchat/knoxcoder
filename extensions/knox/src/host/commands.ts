@@ -1,5 +1,6 @@
  
 import * as os from "node:os";
+import * as path from "node:path";
 
 import {
   ContextMenuConfig,
@@ -38,6 +39,19 @@ import {
 } from "./suggestions";
 import { KnoxGUIWebviewViewProvider } from "./KnoxGUIWebviewViewProvider";
 import { MemoryView } from "./memory/MemoryView";
+import {
+  NextEditState,
+  buildNextEditPrompt,
+  findAssistTargets,
+  shouldOfferNextEdit,
+  targetAtLine,
+} from "core/edit/assist/editAssist";
+import historyManager from "core/util/history";
+import { primaryWorkspaceFsPath } from "./util/primaryWorkspace";
+import {
+  parseTranscriptMarkdown,
+  transcriptToSession,
+} from "core/util/transcriptImport";
 import EditDecorationManager from "./quickEdit/EditDecorationManager";
 import { QuickEdit, QuickEditShowParams } from "./quickEdit/QuickEditQuickPick";
 import {
@@ -386,7 +400,84 @@ const getCommandsMap: (
       range,
     );
   }
+  // In-editor assist: one instruction edit on a range, then at most one
+  // related follow-up offered after the user accepts it.
+  let assistState: NextEditState | undefined;
+
+  async function runAssistEdit(
+    uri: string,
+    startLine: number,
+    endLine: number,
+    prompt: string,
+    followUp: boolean,
+  ) {
+    const { config } = await configHandler.loadConfig();
+    if (!config) {
+      throw new Error("Configuration not loaded");
+    }
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(uri));
+    const editor = await vscode.window.showTextDocument(document);
+    const last = Math.min(endLine, document.lineCount - 1);
+    const range = new vscode.Range(
+      new vscode.Position(startLine, 0),
+      new vscode.Position(last, document.lineAt(last).range.end.character),
+    );
+    editor.selection = new vscode.Selection(range.start, range.end);
+    const modelTitle =
+      config.selectedModelByRole.edit?.title ??
+      (await sidebar.webviewProtocol.request("getDefaultModelTitle", undefined));
+    assistState = { fileUri: document.uri.toString(), prompt, followUp };
+    await verticalDiffManager.streamEdit(
+      prompt,
+      modelTitle,
+      undefined,
+      undefined,
+      undefined,
+      range,
+    );
+  }
+
+  verticalDiffManager.onEditAccepted = (fileUri) => {
+    const nextEnabled =
+      vscode.workspace.getConfiguration("knoxchat").get<boolean>("editAssist.nextEdit") ?? true;
+    const state = assistState;
+    if (!shouldOfferNextEdit(state, fileUri, nextEnabled) || !state) {
+      return;
+    }
+    assistState = undefined;
+    void vscode.window
+      .showInformationMessage(
+        "Knox: look for one related edit in this file?",
+        "Show one edit",
+        "No thanks",
+      )
+      .then(async (choice) => {
+        if (choice !== "Show one edit") {
+          return;
+        }
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(state.fileUri));
+        await runAssistEdit(
+          state.fileUri,
+          0,
+          doc.lineCount - 1,
+          buildNextEditPrompt(state.prompt),
+          true,
+        );
+      });
+  }
+
   return {
+    "knox.editAssist.run": async (arg?: {
+      uri: string;
+      startLine: number;
+      endLine: number;
+      prompt: string;
+    }) => {
+      if (!arg) {
+        return;
+      }
+      await runAssistEdit(arg.uri, arg.startLine, arg.endLine, arg.prompt, false);
+    },
     "knoxchat.acceptDiff": async (newFileUri?: string, streamId?: string) =>
       processDiff(
         "accept",
@@ -578,7 +669,21 @@ const getCommandsMap: (
         endLine: editor.selection.end.line,
         endCharacter: editor.selection.end.character,
       };
-      const lastLine = lastIncludedLineForEditSelection(sel);
+      let lastLine = lastIncludedLineForEditSelection(sel);
+      if (editor.selection.isEmpty && !args?.range) {
+        // Empty selection on a stub / TODO / empty file: scope the edit to it.
+        const target = targetAtLine(
+          findAssistTargets(document.getText(), document.languageId),
+          sel.startLine,
+        );
+        if (target) {
+          sel.startLine = target.startLine;
+          sel.startCharacter = 0;
+          sel.endLine = target.endLine;
+          sel.endCharacter = document.lineAt(target.endLine).range.end.character;
+          lastLine = target.endLine;
+        }
+      }
       const computed = buildWholeLineEditRange(
         sel,
         document.lineAt(lastLine).range.end.character,
@@ -744,6 +849,55 @@ const getCommandsMap: (
       } catch (error) {
         vscode.window.showErrorMessage(t("memory.view.failedShow", { error }));
       }
+    },
+    "knox.session.importTranscript": async (
+      file?: string | vscode.Uri,
+    ) => {
+      let target: vscode.Uri | undefined;
+      if (typeof file === "string" && file.trim()) {
+        const confirm = await vscode.window.showInformationMessage(
+          `Import Knox transcript from ${path.basename(file)}?`,
+          "Import",
+        );
+        if (confirm !== "Import") {
+          return;
+        }
+        target = vscode.Uri.file(file);
+      } else if (file instanceof vscode.Uri) {
+        target = file;
+      } else {
+        const picked = await vscode.window.showOpenDialog({
+          canSelectMany: false,
+          filters: { Markdown: ["md", "markdown", "txt"] },
+          openLabel: "Import transcript",
+        });
+        target = picked?.[0];
+      }
+      if (!target) {
+        return;
+      }
+      const bytes = await vscode.workspace.fs.readFile(target);
+      const parsed = parseTranscriptMarkdown(Buffer.from(bytes).toString("utf8"));
+      if (!parsed) {
+        void vscode.window.showErrorMessage(
+          "Knox: no User/Assistant turns found, or the file is over 5 MB. Use a transcript from /share or Export as Markdown.",
+        );
+        return;
+      }
+      const session = transcriptToSession(
+        parsed,
+        primaryWorkspaceFsPath() ?? "",
+      );
+      historyManager.save(session);
+      if (parsed.truncated) {
+        void vscode.window.showWarningMessage(
+          "Knox: transcript was long; imported the last 2000 messages.",
+        );
+      }
+      void vscode.commands.executeCommand(
+        "knoxchat.focusKnoxSessionId",
+        session.sessionId,
+      );
     },
     "knoxchat.focusKnoxSessionId": async (
       sessionId: string | undefined,

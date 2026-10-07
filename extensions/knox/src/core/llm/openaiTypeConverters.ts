@@ -16,6 +16,7 @@ import {
   TextMessagePart,
 } from "..";
 import { healToolCallMessages } from "./healToolCallMessages";
+import { reasoningRequestParams } from "./reasoningEffortParams";
 
 export function toChatMessage(
   message: ChatMessage,
@@ -114,13 +115,8 @@ export function toChatBody(
     tool_choice: options.toolChoice,
   };
 
-  // Pass through API/sidecar effort values as-is (including "none").
-  if (
-    typeof options.reasoningEffort === "string" &&
-    options.reasoningEffort.length > 0
-  ) {
-    (params as any).reasoning_effort = options.reasoningEffort;
-  }
+  // Documented reasoning_effort values only (including "none"); "max" goes out as verbosity.
+  Object.assign(params, reasoningRequestParams(options.reasoningEffort));
 
   if (options.webSearch !== undefined) {
     // KnoxChat Claude-style flag; perplexity uses web_search_options (filtered by supported_parameters)

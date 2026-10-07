@@ -16,7 +16,7 @@ const HooksSlashCommand: SlashCommand = {
       : [];
     if (!configured.length) {
       lines.push(
-        "No hooks configured. Add a `hooks:` block to `config.yaml` or `.knox/config.yaml`, or create `.knox/hooks.json`.",
+        "No hooks configured. Add a `hooks:` block to `config.yaml` or `.knoxcoder/config.yaml`, or create `.knoxcoder/hooks.json`.",
       );
     } else {
       lines.push(`Active events: ${configured.join(", ")}`);

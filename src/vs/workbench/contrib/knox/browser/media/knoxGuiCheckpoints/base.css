@@ -52,7 +52,7 @@
 }
 
 .knox-gui-page-tab .knox-gui-svg {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-page-tab-cell {
@@ -101,7 +101,7 @@
 }
 
 .knox-gui-error-home {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-osr-menu {

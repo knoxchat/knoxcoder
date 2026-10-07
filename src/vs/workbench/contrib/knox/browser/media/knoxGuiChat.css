@@ -84,7 +84,7 @@
 	justify-content: flex-end;
 	gap: 4px;
 	margin: 8px 8px 0;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-msg-actions .knox-gui-icon-btn {
@@ -94,7 +94,7 @@
 	padding: 2px;
 	justify-content: center;
 	flex-shrink: 0;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-msg-actions .knox-gui-svg,
@@ -102,7 +102,7 @@
 	width: 14px;
 	height: 14px;
 	overflow: visible;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-msg-actions [data-copied] .knox-gui-svg {
@@ -179,11 +179,11 @@
 }
 
 .knox-gui-tool-status-live {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-tool-status-glyph {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-tool[data-tool-status="errored"] .knox-gui-tool-status-glyph,
@@ -229,7 +229,7 @@
 
 .vscode-light .knox-gui .knox-gui-collapse-chevron,
 .vscode-high-contrast-light .knox-gui .knox-gui-collapse-chevron {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .vscode-light .knox-gui .knox-gui-collapse-chevron:hover:not(.disabled),
@@ -501,7 +501,7 @@
 }
 
 .knox-gui-cyan {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	font-weight: 500;
 	font-size: 14px;
 }
@@ -707,7 +707,7 @@
 	border: none;
 	border-radius: 4px;
 	background: transparent;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	cursor: pointer;
 	padding: 2px 4px;
 	font-size: inherit;
@@ -737,7 +737,7 @@
 }
 
 .knox-gui-icon-btn.knox-gui-copied {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-term-action-label {
@@ -955,7 +955,7 @@
 
 .knox-gui-tree-folder-icon,
 .knox-gui-tree-folder-icon path {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	fill: currentColor;
 	stroke: none;
 	flex-shrink: 0;
@@ -970,7 +970,7 @@
 }
 
 .knox-gui-tree-notice.is-light {
-	color: #c18401;
+	color: #8a5d00;
 	background: rgba(193, 132, 1, 0.1);
 }
 
@@ -1250,7 +1250,7 @@
 }
 
 .knox-gui-ask-answer .knox-gui-svg {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	flex-shrink: 0;
 	margin-top: 2px;
 }

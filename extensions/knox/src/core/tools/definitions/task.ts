@@ -14,7 +14,7 @@ export const taskTool: Tool = {
     name: BuiltInToolNames.Task,
     description: `Run a bounded unit of work in an isolated child agent (fresh context) and get back its summary and files touched. Not for a single file read (use builtin_read_file / builtin_glob).
 Profiles: explore (default, read-only Q&A/search), review (read-only, diff focus), general (full tools except task/ask_user), rust-review, rust-borrowck (read-only specialists), rust-architect (design first, no code until builtin_plan).
-agent="name" uses a custom type from .knox/agents/<name>.md.
+agent="name" uses a custom type from .knoxcoder/agents/<name>.md.
 children=[{prompt, profile?, agent?, path?, isolate?}] (cap 8) runs several in parallel; with more than one child, writers run in isolated git worktrees and their patches are merged back in turn (overlaps show as a merge CONFLICT, patch kept on disk).
 explores=[{prompt, path}] (cap 3) searches disjoint trees concurrently.`,
     parameters: {
@@ -45,7 +45,7 @@ explores=[{prompt, path}] (cap 3) searches disjoint trees concurrently.`,
         },
         agent: {
           type: "string",
-          description: "Name of a user-defined agent in .knox/agents/<name>.md.",
+          description: "Name of a user-defined agent in .knoxcoder/agents/<name>.md.",
         },
         isolate: {
           type: "boolean",

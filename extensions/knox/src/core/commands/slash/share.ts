@@ -8,6 +8,8 @@ import { SlashCommand } from "../../index.js";
 import { t } from "../../i18n/index.js";
 import { renderChatMessage } from "../../util/messageContent.js";
 import { getKnoxGlobalPath } from "../../util/paths.js";
+import { redactSecrets } from "../../util/redactSecrets.js";
+import { buildSessionShareUri } from "../../util/sessionShareLink.js";
 
 // If useful elsewhere, helper funcs should move to core/util/index.ts or similar
 function getOffsetDatetime(date: Date): Date {
@@ -92,10 +94,12 @@ const ShareSlashCommand: SlashCommand = {
     const outPath = path.join(outputDir, `${dtString}_session.md`); //TODO: more flexible naming?
 
     const fileUrl = pathToFileURL(outPath).toString(); // TODO switch from path to URI above ^
-    await ide.writeFile(fileUrl, content);
+    await ide.writeFile(fileUrl, redactSecrets(content));
     await ide.openFile(fileUrl);
 
+    const link = buildSessionShareUri(outPath);
     yield t("sessionTranscriptSaved", { path: outPath });
+    yield t("sessionTranscriptShareLink", { link });
   },
 };
 

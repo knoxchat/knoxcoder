@@ -26,18 +26,18 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000;
  */
 export const OPENROUTER_FALLBACK_MODELS: KnoxChatModelMetadata[] = [
   {
-    id: "anthropic/claude-sonnet-4.6",
-    name: "Claude Sonnet 4.6",
+    id: "anthropic/claude-sonnet-5.5",
+    name: "Claude Sonnet 5.5",
     supported_parameters: ["tools", "tool_choice"],
   },
   {
-    id: "openai/gpt-4o",
-    name: "GPT-4o",
+    id: "openai/gpt-6.1-sol",
+    name: "GPT-6.1 Sol",
     supported_parameters: ["tools", "tool_choice"],
   },
   {
-    id: "google/gemini-2.5-pro",
-    name: "Gemini 2.5 Pro",
+    id: "google/gemini-3.8-flash",
+    name: "Gemini 3.8 Flash",
     supported_parameters: ["tools", "tool_choice"],
   },
 ];

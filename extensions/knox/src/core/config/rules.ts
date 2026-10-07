@@ -26,7 +26,7 @@
  * 1. `~/.knoxcoder/.knoxrules` (0) and `~/.knoxcoder/rules/*` (5)
  * 2. `{workspace}/CLAUDE.md` (7) — compat
  * 3. `{workspace}/AGENTS.md` (8)
- * 4. `{workspace}/.knox/AGENTS.md` (9)
+ * 4. `{workspace}/.knoxcoder/AGENTS.md` (9)
  * 5. `{workspace}/.knoxrules` (10) — Knox-specific wins over generic agent files
  * 6. Nested `{subdir}/AGENTS.md` closer to the open file (12+)
  *
@@ -61,7 +61,7 @@ export const AGENT_INSTRUCTION_FILES: Array<{
 }> = [
   { relativePath: "CLAUDE.md", defaultPriority: 7 },
   { relativePath: "AGENTS.md", defaultPriority: 8 },
-  { relativePath: ".knox/AGENTS.md", defaultPriority: 9 },
+  { relativePath: ".knoxcoder/AGENTS.md", defaultPriority: 9 },
 ];
 
 /** Opt-in extras: `.cursor/rules`, Copilot. Below CLAUDE.md so AGENTS.md still wins. */
@@ -473,7 +473,7 @@ async function resolveCompatSources(ide: IDE): Promise<CompatInstructionSource[]
 /**
  * Discover and load project instructions from:
  * 1. Global: `~/.knoxcoder/.knoxrules` and `~/.knoxcoder/rules/*.{md,txt}`
- * 2. Workspace roots: `CLAUDE.md`, `AGENTS.md`, `.knox/AGENTS.md`, `.knoxrules`
+ * 2. Workspace roots: `CLAUDE.md`, `AGENTS.md`, `.knoxcoder/AGENTS.md`, `.knoxrules`
  * 3. Nested `{subdir}/AGENTS.md` along the current/open file path
  *
  * Subfolder `.knoxrules` files are not discovered.
@@ -607,32 +607,40 @@ export async function discoverRules(ide: IDE): Promise<RuleFile[]> {
     }
   }
 
-  // 3. Nested AGENTS.md from the current/open file up to the workspace root
-  const activePaths = await collectActivePaths(ide);
-  for (const active of activePaths ?? []) {
-    // active is workspace-relative; resolve against each root
-    for (const root of workspaceDirs) {
-      const fileUri = active.includes("://")
-        ? active
-        : joinPathsToUri(root, active);
-      const dirs = walkDirsToWorkspaceRoot(fileUri, workspaceDirs);
-      for (const dir of dirs) {
-        const isRoot = workspaceDirs.some(
-          (ws) => dir.replace(/\/+$/, "") === ws.replace(/\/+$/, ""),
-        );
-        if (isRoot) {
-          continue; // already loaded as workspace AGENTS.md
-        }
-        const depth = depthFromRoot(dir, root);
-        pushUnique(
-          await tryLoadRuleFile(
-            ide,
-            joinPathsToUri(dir, NESTED_AGENTS_NAME),
-            "folder",
-            NESTED_AGENTS_BASE_PRIORITY + depth,
-          ),
-        );
+  // 3. Nested AGENTS.md from the current/open file up to the workspace root.
+  // Walk the absolute file URI (not a workspace-relative path joined to every
+  // root — that would load the wrong nested file in a multi-root window).
+  const nestedFrom = new Set<string>();
+  try {
+    const current = await ide.getCurrentFile();
+    if (current?.path && !current.isUntitled) {
+      nestedFrom.add(current.path);
+    }
+    for (const open of (await ide.getOpenFiles()) ?? []) {
+      nestedFrom.add(open);
+    }
+  } catch {
+    // no current/open files
+  }
+  for (const fileUri of nestedFrom) {
+    const dirs = walkDirsToWorkspaceRoot(fileUri, workspaceDirs);
+    for (const dir of dirs) {
+      const isRoot = workspaceDirs.some(
+        (ws) => dir.replace(/\/+$/, "") === ws.replace(/\/+$/, ""),
+      );
+      if (isRoot) {
+        continue; // already loaded as workspace AGENTS.md
       }
+      const containing = workspaceDirs.find((ws) => isUriUnderRoot(dir, ws));
+      const depth = containing ? depthFromRoot(dir, containing) : 0;
+      pushUnique(
+        await tryLoadRuleFile(
+          ide,
+          joinPathsToUri(dir, NESTED_AGENTS_NAME),
+          "folder",
+          NESTED_AGENTS_BASE_PRIORITY + depth,
+        ),
+      );
     }
   }
 

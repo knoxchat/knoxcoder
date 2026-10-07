@@ -49,6 +49,7 @@ npx vitest run --config src/core/vitest.config.ts   # full core suite, including
 | kbuild extract-then-edit | grep `copy_process` → StrReplace → intercepted make |
 | codebase card | Kernel fixture injects `make ARCH=` + subsystem dirs (HL-28) |
 | autonomous add() test | `/autonomous`-style step runs `builtin_edit_file` then terminal |
+| compaction quality | Long session compacted; `src/add.ts` intent survives; scripted edit still lands |
 
 Default catalog is read/edit/write/patch/terminal. Systems tasks pass `SYSTEMS_EVAL_CATALOG` (adds glob, grep, view_subdirectory, await_shell, git status/diff/log/blame/bisect, builtin_build, builtin_qemu, builtin_kconfig, builtin_maintainers, builtin_plan). Eval and subagent both call `core/agent/loop.ts` (`runAgentLoop`), including doom-loop, heuristic compaction, and consecutive readonly batching. Native GUI Agent chat uses the same runtime (`src/vs/workbench/contrib/knox/browser/gui/controller/stream.ts`) with token streaming and Ask/Accept waits. Real git blame/pickaxe/bisect fixtures live in `core/tools/implementations/git.test.ts` and `gitBisect.test.ts`. QEMU spawn + monitor parsing lives in `core/tools/implementations/qemu.test.ts`; the eval golden intercepts `builtin_qemu` and still runs the oops oracle.
 

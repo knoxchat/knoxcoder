@@ -302,7 +302,7 @@
 
 .knox-gui-composer.is-collapsed:not(.is-floating) > .knox-gui-composer-dock-shell {
 	width: auto;
-	margin: 0 -8px -8px;
+	margin: 0 -8px;
 }
 
 .knox-gui-composer.is-collapsing {
@@ -588,7 +588,7 @@
 	height: auto;
 	margin: 0;
 	box-sizing: border-box;
-	padding: 2px 8px 2px;
+	padding: 2px 8px 0;
 	border: 1px solid transparent;
 	border-radius: 0;
 	background: transparent;
@@ -650,7 +650,7 @@
 	gap: 3px;
 	vertical-align: baseline;
 	max-width: 100%;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	background-color: rgba(21, 153, 148, 0.15);
 	border-radius: 4px;
 	font-size: 0.9em;
@@ -712,7 +712,7 @@
 }
 
 ::highlight(knox-gui-typed-mention) {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-input-bar {
@@ -727,7 +727,7 @@
 	padding-top: 4px;
 	box-sizing: border-box;
 	user-select: none;
-	background: var(--vscode-input-background, rgb(45 45 45));
+	background: transparent;
 }
 
 .knox-gui-input-bar--hidden {
@@ -811,13 +811,13 @@
 	border-radius: 0;
 	justify-content: center;
 	flex-shrink: 0;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-code-hover .knox-gui-svg {
 	width: 16px;
 	height: 16px;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-code-toolbar-file {
@@ -837,7 +837,7 @@
 }
 
 .knox-gui-generating-lines {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	font-weight: 500;
 	letter-spacing: 0.025em;
 	white-space: nowrap;
@@ -856,7 +856,7 @@
 }
 
 .knox-gui-run-terminal {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-code-pre.knox-gui-code-scroll {
@@ -1168,7 +1168,7 @@
 }
 
 .knox-gui-model-select {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	max-width: 160px;
 }
 
@@ -1192,7 +1192,7 @@
 
 .knox-gui-model-trigger,
 .knox-gui-effort-trigger {
-	color: #159994 !important;
+	color: var(--knox-accent, #159994) !important;
 	gap: 4px;
 	padding: 0 4px !important;
 	font-size: inherit;
@@ -1216,7 +1216,7 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	max-width: 9rem;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-model-trigger .knox-gui-lump-label {
@@ -1261,16 +1261,16 @@
 
 .knox-gui-send {
 	flex-shrink: 0;
-	background: rgba(110, 110, 119, 0.2) !important;
+	background: transparent !important;
 	border-radius: 4px !important;
-	color: #159994 !important;
+	color: var(--knox-accent, #159994) !important;
 	padding: 2px 8px 2px 4px !important;
 	gap: 4px;
 	transition: all 0.2s;
 }
 
 .knox-gui-send:hover:not(:disabled) {
-	background: rgba(110, 110, 119, 0.35) !important;
+	background: rgba(97, 175, 239, 0.12) !important;
 	filter: none;
 	transform: translateY(-1px);
 }
@@ -1492,7 +1492,7 @@
 }
 
 .knox-gui-model-add {
-	color: #159994 !important;
+	color: var(--knox-accent, #159994) !important;
 }
 
 .knox-gui-effort-option {
@@ -1588,13 +1588,13 @@
 }
 
 .knox-gui-suggest-item.selected .knox-gui-suggest-label {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-suggest-icon {
 	display: flex;
 	flex-shrink: 0;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-suggest-label {
@@ -1699,7 +1699,7 @@
 .knox-gui-suggest-star.is-bookmarked,
 .knox-gui-suggest-star.is-bookmarked .knox-gui-svg {
 	opacity: 1;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	fill: currentColor;
 }
 
@@ -1748,7 +1748,7 @@
 	min-width: 0;
 	align-items: center;
 	gap: 4px;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-input-code-title:hover {
@@ -1880,9 +1880,14 @@
 
 /* Editor surface: the lifted slate, a clear One Dark focus ring, readable italic placeholder. */
 .knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-composer-collapsible-inner .knox-sent-frame-inner,
-.knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-composer-collapsible-inner .knox-gui-input-bar,
 .knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-composer-collapsible-inner .knox-gui-lump-shell {
 	background: #22262d;
+}
+
+.knox-gui .knox-gui-input-bar,
+.knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-composer-collapsible-inner .knox-gui-input-bar,
+.knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-history-composer .knox-gui-input-bar {
+	background: transparent;
 }
 
 .knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-composer-collapsible-inner .knox-gui-composer-editor-pad {
@@ -1912,19 +1917,19 @@
 	background-color: rgba(97, 175, 239, 0.26);
 }
 
-/* Send: solid One Dark blue so the primary action reads at a glance. */
+/* Send: no fill, One Dark blue glyph and label so it blends into the input. */
 .knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-composer-collapsible-inner .knox-gui-send {
-	background: #61afef !important;
-	color: #21252b !important;
+	background: transparent !important;
+	color: #61afef !important;
 }
 
 .knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-composer-collapsible-inner .knox-gui-send:hover:not(:disabled) {
-	background: #7ab9f2 !important;
+	background: rgba(97, 175, 239, 0.14) !important;
 }
 
 .knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-composer-collapsible-inner .knox-gui-send .knox-gui-lump-label,
 .knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-composer-collapsible-inner .knox-gui-send .knox-gui-svg {
-	color: #21252b;
+	color: #61afef;
 }
 
 .knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-composer-collapsible-inner .knox-gui-cancel {
@@ -1960,10 +1965,6 @@
 .knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-history-composer .knox-gui-inline-chip {
 	color: #61afef;
 	background-color: rgba(97, 175, 239, 0.15);
-}
-
-.knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-history-composer .knox-gui-input-bar {
-	background: #22262d;
 }
 
 .knox-gui:not([data-knox-theme-kind="light"]):not(:is(.vscode-light, .vscode-high-contrast-light) *) .knox-gui-history-composer .knox-gui-icon-btn {

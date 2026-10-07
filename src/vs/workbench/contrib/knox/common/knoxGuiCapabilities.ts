@@ -11,9 +11,7 @@ export const KNOX_GUI_IMAGE_PROVIDERS = ['knoxchat'];
 /** Matches llm/autodetect MODEL_SUPPORTS_IMAGES, plus grok (KnoxChat vision). */
 export const KNOX_GUI_IMAGE_MODEL_HINTS = [
 	'gemini',
-	'gpt-4o',
-	'gpt-4o-mini',
-	'claude-3',
+	'gpt-6',
 	'opus-4',
 	'opus-5',
 	'sonnet-4',
@@ -25,8 +23,8 @@ export const KNOX_GUI_IMAGE_MODEL_HINTS = [
 	'grok',
 ];
 
-/** Matches llm/reasoningEffortConfig DEFAULT_REASONING_EFFORT_CONFIG. */
-export const DEFAULT_REASONING_EFFORT_ALLOWED = ['none', 'low', 'medium', 'high', 'xhigh', 'max', 'minimal'];
+/** Matches llm/reasoningEffortConfig DEFAULT_REASONING_EFFORT_CONFIG: the documented `reasoning_effort` enum (OpenRouter), lowest to highest. `max` is a verbosity level and only appears for models that advertise it. */
+export const DEFAULT_REASONING_EFFORT_ALLOWED = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
 export const DEFAULT_REASONING_EFFORT = 'medium';
 
 export interface IKnoxGuiReasoningEffortConfig {

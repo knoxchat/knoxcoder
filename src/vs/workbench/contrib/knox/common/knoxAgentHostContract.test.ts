@@ -1124,7 +1124,7 @@ suite('Knox agent host contract (KN-382)', () => {
 			.map(match => match[1])
 			.sort();
 		assert.deepStrictEqual(contributed, frozen);
-		assert.strictEqual(contributed.length, 57);
+		assert.strictEqual(contributed.length, 61);
 		assert.ok(contributed.includes('knoxchat.jev.enabled'));
 		assert.ok(contributed.includes('knoxchat.memoryBrain.maxBytes'));
 		assert.ok(contributed.includes('knox.checkpoints.enableAutoCheckpoints'));

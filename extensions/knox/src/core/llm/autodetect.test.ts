@@ -60,9 +60,9 @@ describe("openrouter catalog provider", () => {
 
   it("treats OpenRouter like KnoxChat for images and parallel generation", () => {
     expect(
-      modelSupportsImages("openrouter", "openai/gpt-4o", undefined, undefined),
+      modelSupportsImages("openrouter", "openai/gpt-6-luna", undefined, undefined),
     ).toBe(true);
-    expect(llmCanGenerateInParallel("openrouter", "openai/gpt-4o")).toBe(true);
+    expect(llmCanGenerateInParallel("openrouter", "openai/gpt-6-luna")).toBe(true);
   });
 
   it("reads tool support from the OpenRouter catalog, not KnoxChat", () => {

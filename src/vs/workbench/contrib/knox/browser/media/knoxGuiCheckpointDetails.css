@@ -317,7 +317,7 @@ button.knox-gui-section-title .knox-gui-svg:last-child {
 }
 
 .knox-gui-cp-view .knox-gui-cp-cyan {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-cp-view .knox-gui-svg.odp-text-green { color: var(--odp-green); }

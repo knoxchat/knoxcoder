@@ -65,7 +65,7 @@ Done when: CI matrix is green on Linux/Windows/macOS. (Core/pkg/tsc/inventory-ga
       `quality=stable` metadata (`scripts/ci/generate-update-metadata.mjs`) and the draft-release flow.
       Runbook is in `docs/release.md`.
 - [x] Checksum and rollback runbook: `extensions/knox/docs/release.md` (SHA-256 next to assets; draft/delete a bad Release and retarget the update feed). `generate-update-metadata.mjs` now writes `sha256hash` on each `latest-*.json` and a `SHA256SUMS` file into the draft-release folder.
-- [ ] Attach checksums to an actual GitHub Release (release-time step; CI now generates the files).
+- [x] Attach checksums to an actual GitHub Release (done for `v2.0.1`; CI generates `SHA256SUMS` / `sha256hash` at draft time).
 
 Done when: a release candidate is installed and updated on all three OSes from the previous beta.
 
@@ -104,7 +104,7 @@ Done when: migration tests pass from fixtures of 1.138.2 and 2.0.0-beta data dir
 - [x] `unimplementedAdvancedTools` deleted (9 definition-only tools); honesty/routing/contract tests and docs updated.
 - [x] Quarantined code resolved. `SmartToolRouter` was already gone (honesty gate pins it). `ReasoningEngine` deleted with its four unadvertised commands (`knox.analyzeTask`, `knoxchat.analyzeTask`, `knox.structuredSolve`, `knox.performTaskAnalysis`); a test pins that it stays gone. `RefactoringService` is kept: it backs four contributed commands (`knox.renameSymbol`, `extractMethod`, `moveFile`, `extractInterface`) with contract tests. Also removed a fabricated `contextSize: Math.random()` from context gathering.
 - [x] Dead-code sweep: import graph from `src/extension.ts`, then files with zero importers anywhere (source, tests, GUI contracts) were deleted: 30 modules plus four legacy memory tool definitions. Kept on purpose: `CustomLLM` (contract KN-254, custom-provider path), `protocol/util.ts` (contract KN-230), anything a test imports.
-      Still unreachable from product code but kept because tests import them: eval harness/live files, memory bench, `settingIds`, `localeParity`, `host/util/knoxHostExtension`, `toolCallValidation` (host, has its own test; not on the main path), `checkpointTestHarness`. Decide in 2.1 whether `toolCallValidation` should be wired or deleted.
+      Still unreachable from product code but kept because tests import them: eval harness/live files, memory bench, `settingIds`, `localeParity`, `host/util/knoxHostExtension`, `checkpointTestHarness`. `toolCallValidation` deleted in 2.1 (core `tools/middleware.ts` already fail-closes missing required args).
 - [x] `CHANGELOG.md` audit of `2.0.0-beta`, each claim checked against code (symbol/constant/command exists) and tests; findings:
       Verified present: shared `runAgentLoop`; `sharedLoop` removed; `builtin_tool_search`, deferred tools default; legacy memory tools hidden and routed to `builtin_memory`; `builtin_fetch_url` with `KNOX_FETCH_URL_ALLOW_PRIVATE`; hooks events; `KNOX_SUBAGENT_CONCURRENCY`; `.knox/agents`; staged edits; `/instructions` and the 2000/6000 token warnings; CLI exit codes; `knox bg`; Edits default; `commandGuard`; `redactSecrets`; Jev guard; compaction at 75%; `modelPricing.json`; prompt cache; oracle detection; memory bench + `KNOX_MEMORY_INJECT_CAP`; live eval env + results files; nightly and Knox CI workflows; team bundle limits; inline completion stats command and model setting; session size cap and search; startup budget script; `edit_file` atomic edits; shared truncation; packaging fixes (`2.0.0~beta`, AppX guard).
       Corrections to make in the 2.0.0 notes: (1) "Knox CI ... blocks packaging" is true for core/pkg/tsc/inventory-gate/`test:host` on Linux/Windows/macOS; GUI/contract tests still `continue-on-error` (see P0-1). (2) "Jev budget", "Review before edit", "background agents" are covered by core unit tests but their GUI parts (review panel, jobs panel, queue chip, turn summary card, donut meter) are only covered by the Electron contract tests, which CI does not gate; they need the manual QA script. (3) "Background agents ... no GUI yet" is accurate and remains P1-3. (4) No committed `history.jsonl` baseline exists yet (P1-6).
@@ -131,8 +131,9 @@ are gone. Network policy for `builtin_fetch_url` stays (`knoxchat.networkMode`,
 - [x] Custom agents: **Knox: List/Create Custom Agent** (template + validation). A dedicated sidebar
       panel is still 2.1.
 - [x] Hooks: "Test" on the hooks panel (`agent/hooks` action `test`) and **Knox: Test Hook**.
-- [x] Settings: **Knox: Open Knox Settings** (`@id:knoxchat` search). Full custom grouped page and
-      dead-key deprecation still open.
+- [x] Settings: **Knox: Open Knox Settings** (`@id:knoxchat` search). Grouped picker
+      over the native Settings UI (2.1). Dead keys `knoxchat.sandbox` and
+      `knoxchat.sharedLoop` are contributed with deprecation messages (ignored).
 
 Done when: the command palette covers export/import/agents/hooks/bg list-merge-discard.
 
@@ -162,8 +163,10 @@ Out of 2.0.0. `@knoxchat/cli`, `knox run`, `knox doctor`, and the GitHub Action 
       entities). Still open: webview heap soak (needs Electron), real large-repo CPU profile.
 - [ ] Large repo behavior: repo map, `exact_search`, `glob` on 500k files, monorepos; respect `.gitignore`
       and `.knoxignore`.
-      PARTIAL: `glob` already honors both and has a 100k walk cap; `exact_search` now honors both (root `.knoxignore`; nested ones are not read), with timeout and output cap (tests incl. a 20k-file tree). Still open: a real 500k-file run, repo map timing, nested `.knoxignore` for search.
+      PARTIAL: `glob` already honors both (including nested `.knoxignore`) and has a 100k walk cap; with `target_directory: "."` it walks every workspace root. `exact_search` honors `.gitignore` and `.knoxignore` at the search root and nested `.knoxignore` (patterns prefixed to cwd; tests incl. a 20k-file tree), with timeout and output cap.
+      500k-file run DONE (2026-10-07, macOS, `tools/largeRepo.test.ts`, opt in with `KNOX_LARGE_REPO_FILES=500000`; synthetic monorepo of 500 packages plus a gitignored `build/` and a `node_modules/` per package, no git repo): seed 27 s; `exact_search` for one needle 11 s (60 s budget); `glob` with a narrow `target_directory` 15 ms; `glob` over the whole workspace stops at the 100k walk cap in 0.7 s and says so (98.5k of 500k `.ts` files are reported, so a whole-workspace glob is incomplete on a repo this size by design). Found and fixed: `exact_search` did not skip `node_modules` when no `.gitignore` listed it (the 500k run returned only vendored hits); it now skips `node_modules` by default like `glob`, unless the path or `fileGlob` targets it. Repo map timing DONE (same test): cold paths-only 1.5 s, cold with signatures 1.2 s (tree-sitter runs on the 80 hottest files only), cached 1.1 s (walk + stat still run), zoom into one package 25 ms. The map covers the first 100k files the walk returns (`walkDir` cap), so large repos need `path` to reach the rest. Found and fixed: `pruneLinesFromTop/Bottom` (`llm/countTokens.ts`) drifted over budget (100k lines pruned to 50k tokens returned 88k; the repo map was 13% over its half-context budget); they now binary-search and re-count (`llm/pruneLines.test.ts`). Still open: Windows/network disks and a real (non-synthetic) 500k monorepo.
 - [ ] Webview watchdog: confirm recovery paths (`webviewWatchdog.ts`) with a real crash test.
+      NOT DONE in 2.1 (2026-10-07): it needs a built KnoxCoder window with a renderer that really stops sending heartbeats (DevTools `Page.crash` or a blocked webview thread), driven over remote debugging. That cannot run headless in CI or in this environment and was not faked. Manual recipe: launch with `--remote-debugging-port=9222`, open the Knox chat, run `Page.crash` on the webview target, expect up to 2 automatic reloads then the crash placeholder with a Reload button; hidden or unfocused windows must never reload.
       PARTIAL: `host/webviewWatchdog.driver.vitest.ts` drives the real provider loop with fake timers (dead renderer: 2 reloads, then crash placeholder, stable, Reload button recovers; hidden/unfocused never count as crashes; healthy never reloads). Still open: kill a real renderer in Electron.
 - [ ] Cancel semantics: Stop during streaming, tool run, subagent, review panel; no orphaned processes.
       DONE (core): foreground shell abort and hook timeouts kill the whole process tree (test: no orphaned grandchild); `deactivate` kills all shell jobs and child agents. Stop during streaming: `host/extension/sharedChatTurn.stop.vitest.ts` (mid-stream, before first chunk, provider ignoring the signal, tool-call round, retry backoff, running tool, no-op); it found and fixed Stop ending as an error / hanging. Still open: verify on Windows/macOS with a real window close; review panel Stop.
@@ -172,32 +175,40 @@ Out of 2.0.0. `@knoxchat/cli`, `knox run`, `knox doctor`, and the GitHub Action 
 - [x] Provider matrix tests (construct, no live network): OpenAI / Anthropic / OpenRouter / KnoxChat / mock, plus OpenAI-compatible custom `apiBase` for Ollama / LM Studio (`openai-adapters/index.test.ts`, `llm/llms/providerMatrix.test.ts`). Live tool-calling/streaming/caching per provider still open.
 - [ ] Image and file attachments: verify vision input end to end per provider; paste and screenshot
       (macOS-only screenshot capture today).
+      PARTIAL (2026-10-07, `llm/imageSupport.test.ts`, no live network): request shapes are verified for the OpenAI format (`image_url`, text-only fallback for servers without vision) and Anthropic. Found and fixed a bug: both Anthropic paths (`core/llm/llms/Anthropic.ts`, `pkg/openai-adapters/apis/Anthropic.ts`) labelled every image `image/jpeg`, but screenshots are PNG, so Anthropic would reject them (media type now comes from the data URI; http(s) URLs pass as `url` sources). Still open: a live call per provider with a real image, screenshot capture on Windows/Linux, OpenRouter/KnoxChat per-model catalog flags.
 - [ ] Live eval baseline for 2.0.0: run `npm run test:live` against the default model(s), commit
       `history.jsonl` and set pass-rate and token thresholds for stable.
-- [ ] Offline/local-model path: confirm Knox works with no Jev and no Knox login (BYO key only).
+- [x] Offline/local-model path: confirm Knox works with no Jev and no Knox login (BYO key only).
+      `agent/offlineByoKey.test.ts` runs a full tool turn (`runAgentLoop` plus a real OpenAI-compatible client) against a local HTTP server with Knox/Jev keys unset and `fetch` and sockets blocked for every non-loopback host: it completes, the BYO key is the only credential sent, and nothing leaves loopback. Not covered: the GUI first-run and the Memory Brain LLM extraction path with no model reachable.
 - [x] Rate-limit and quota UX: surface 429/402 with provider-specific guidance and cost so far
       (dialog hint + copyable diagnostic `costSoFar=`).
 
 ### P1-7 Context and memory quality
 - [x] Memory Brain: global off (`knoxchat.memoryBrain.enabled`), per-workspace opt-out
       (`knoxchat.memoryBrain.workspaceEnabled`), export/wipe commands, first-run notice.
-- [ ] Extend the Memory benchmark with real-world fixtures; set stable thresholds for recall/precision.
-- [ ] Compaction quality eval: golden long-session tasks that must still complete after compaction.
+- [x] Extend the Memory benchmark with real-world fixtures; set stable thresholds for recall/precision.
+      `bench/fixturesRealWorld.ts`: 22 terse, typo-laden, near-duplicate, superseded and Chinese memories and 19 conversational queries (hand-written, not captured user data). Absolute floors in `memoryBench.test.ts`: recall >= 0.7, precision >= 0.5, false-inject <= 0.1, plus nine must-hit queries. Measured: recall 0.75, precision 0.545, false-inject 0. Known misses are recorded in the test: three semantic gaps (invoice total vs integer cents, icon-only button vs a11y, settings card vs design system; need embeddings) and **Chinese queries retrieve nothing** (the query cleaner drops CJK and FTS5 `unicode61` indexes a CJK run as one token; needs a CJK-aware tokenizer or bigram index plus a migration, not done: a `contentWords`-only change did not help). Fixtures from real user memories are still open.
+- [x] Compaction quality eval: `eval/compactionQuality.test.ts` — a long scripted
+      session is compacted (file path + intent survive) and `runAgentEval` still
+      lands the original `src/add.ts` edit. Live-LLM golden sessions are not in 2.1.
 - [x] `AGENTS.md` / `CLAUDE.md` already load. Opt-in `knoxchat.compatInstructions`: `cursor`
       (`.cursor/rules`, `.cursorrules`) and `copilot` (`.github/copilot-instructions.md`); listed in `/instructions`.
 
 ### P1-8 Privacy and telemetry
 - [x] Network destinations: `extensions/knox/docs/network.md` plus `knoxchat.networkMode` (not a process-wide firewall).
 - [x] VS Code crash reporter is disabled in product code; docs state Knox sends no Microsoft telemetry.
-- [x] Anonymous usage stats: none (`docs/privacy.md`).
+- [x] Anonymous usage stats: none (`docs/privacy.md`). Opt-in telemetry is **out of scope** — do not add collectors, events, or settings.
 - [x] `product.json` `reportIssueUrl` now points to `knoxchat/knoxcoder` issues.
 - [x] Root README no longer links to Microsoft VS Code docs; `releaseNotesUrl` / `downloadUrl` already Knox.
 
 ### P1-9 Accessibility, i18n, UX polish
 - [ ] Keyboard-only walkthrough of chat, permission prompts, review panel, jobs; screen reader labels.
+      PARTIAL (2026-10-07, static audit of `browser/gui/widget/**`, no screen reader run): found five mouse-only click targets (activity step row, input code-block head, job title, search-result line, analysis group card). They now go through `widget/a11y.ts` `makeKnoxGuiActivatable` (focusable, `role=button`, Enter/Space, `aria-expanded` on disclosure headers). The other flagged rows already contain real buttons. Every `outline: none` rule has a visible replacement (border or shadow) except container/programmatic-focus cases. Still open: a real keyboard-only and VoiceOver/NVDA pass, focus order in dialogs, live-region announcements for streaming and permission prompts.
 - [ ] High-contrast and light themes: the chat UI was tuned for One Dark; verify all built-in themes.
-- [x] i18n: `en` / `zh` parity test exists; 2.0 ships **en and zh only** (stated in `docs/README.md`). Extra locales (ja, ko, es, …) are 2.1.
-      Host-side strings (`package.nls.json`, `package.nls.zh-cn.json`) parity is gated by `localeParity.test.ts`.
+      PARTIAL (2026-10-07, contrast audit, not a visual check): 85 text uses of the brand teal `#159994` (3.5:1 on white) bypassed `--knox-accent`; they now use it, so Light themes get `#0f7a76` (5.2:1). 41 status text colours tuned for dark themes (e.g. `#f87171` 2.8:1, `#22c55e` 2.3:1) had no light override; a "Light-theme text contrast" block at the end of `knoxGui.css` darkens them to >= 4.5:1, and `.knox-gui-tree-notice.is-light` went from 3.2:1 to 5.7:1. `util/guiThemeContrast.test.ts` fails on any new low-contrast `color:` literal without a light override. Still open: background/border contrast and icon colours, Solarized/Monokai and High Contrast screenshots by eye, forced-colors mode.
+- [x] i18n: `en` / `zh` parity test exists; Knox ships **en and zh only** (stated in `docs/README.md`).
+      Extra locales (ja, ko, es, …) are **out of scope** — do not add catalogs. Host-side strings
+      (`package.nls.json`, `package.nls.zh-cn.json`) parity is gated by `localeParity.test.ts`.
 - [x] First-run experience: empty chat offers KnoxStudio sign-in vs add-model (BYO key), permission/memory notices, and sample prompts when a model exists.
 - [x] Error taxonomy: stream failures have a `kind` (rate-limit, quota/402, unauthorized, not-found, overloaded, generic), a localized hint, and **Copy diagnostic**.
 
@@ -212,24 +223,21 @@ Out of 2.0.0. `@knoxchat/cli`, `knox run`, `knox doctor`, and the GitHub Action 
 
 ## P2: Can slip to 2.1
 
-- [ ] In-editor assist without FIM. Keep ghost-text off (`knoxchat.enableInlineCompletions`
-      stays false by default; do not turn it on and do not ship Copilot-style NES — Knox has
-      no fill-in-the-middle or next-edit model). Invest in instruction-triggered edits that
-      reuse chat/edit/apply models and existing vertical diffs:
-      polish ⌘I (empty-file generate, continue-this-function, implement-the-stub);
-      CodeLens on comments / TODOs / empty stubs / diagnostics → ⌘I;
-      one next related edit after Accept as a reviewable diff (not while typing).
-      Hidden experimental ghost-text may remain; it is not a 2.1 product surface.
-- [ ] Remote registry for team bundles, skills and agents; `uses:` remote config blocks
-      (`registryClient.ts` rejects them today).
-- [x] Multi-root workspaces: active-file folder is the primary root (`host/util/workspaceRoots.ts`, `primaryWorkspace.ts`), roots named in the system prompt, tests in `workspaceRoots.vitest.ts` and `systemPrompt.test.ts`. Still open: per-root `.knoxignore`, per-root instruction files/hooks, a manual check in a real multi-root window.
+- [x] In-editor assist without FIM (2.1): CodeLens + ⌘I scoping + one next related edit after
+      Accept. Ghost-text stays off by default; not a product surface.
+- [x] Local `uses:` registry: `RegistryClient` loads `~/.knoxcoder/registry/<owner>/<package>.yaml`
+      (or `<package>@<version>.yaml`). Unsafe slugs are refused. Remote HTTP fetch is still
+      rejected (missing local file is an error, not a download). Remote/team registry remains 2.2.
+- [x] Multi-root workspaces: active-file folder is the primary root (`host/util/workspaceRoots.ts`, `primaryWorkspace.ts`), roots named in the system prompt, tests in `workspaceRoots.vitest.ts` and `systemPrompt.test.ts`. Per-root `.knoxignore` (search/glob/walk), instruction files (`discoverRules` already looped dirs; nested `AGENTS.md` walks the open file's URI), hooks (merged from every root with per-root `cwd`), custom agents (`.knox/agents` in every root), glob default, and post-edit oracle detection. Command-palette team/agent/hook actions use `primaryWorkspaceFsPath()`. Still open: a manual check in a real multi-root window.
 - [ ] Remote / SSH / dev container / WSL support for Knox host (`virtualWorkspaces` unsupported).
-- [ ] Agent sharing: export/import transcript with redaction; shareable session links.
+- [x] Agent sharing: GUI export redacts; `/share` redacts; **Import Session Transcript** restores
+      a file; **Copy Session Share Link** / `/share` emit `knoxcoder://vscode.knox/session/import?path=`
+      (local file only; URI handler imports it). No hosted shareable URLs.
 - [ ] Scheduled and triggered agents (cron, on-PR) built on background runs.
 - [ ] Code-intel tools (`builtin_analyze_code` family) if there is a real use case beyond LSP tools.
-- [ ] More languages for the post-edit oracle and systems profile beyond Cargo/Go/Node/Python.
-- [ ] Opt-in anonymous telemetry.
-- [ ] Additional locales.
+- [x] More languages for the post-edit oracle: Maven (`pom.xml`), Gradle (`build.gradle` / wrapper), Zig (`build.zig`), .NET (`*.csproj`/`*.sln`) in `oracleDetect.ts`, plus detection across every workspace root (not only `[0]`). Systems profile (Cargo/Go/Node/Python + C/Make) unchanged.
+- [x] Opt-in anonymous telemetry: **out of scope**. Knox sends no usage telemetry; do not implement collectors, events, or an opt-in setting.
+- [x] Additional locales: **out of scope**. Product stays English and Chinese only; do not translate further catalogs.
 
 ---
 
@@ -274,13 +282,40 @@ Scope: everything committed after `v2.0.0` (stop/orphan fixes, Marketplace `vsco
 
 - [x] Local gate (2026-10-06): `test:tsc`, `test:core` (210 files / 1819 tests), `test:host-tsc`, `test:host`, `test:pkg` green.
 - [x] Version bumped to `2.0.1`, `CHANGELOG.md` promoted and tidied (`release-check.mjs --bump 2.0.1`); `release-check.mjs` passes.
-- [ ] Commit and tag `v2.0.1`.
-- [ ] Run `Build desktop apps` manually on the tag; macOS: `build_dmg.sh`, notarize, staple.
-- [ ] Draft GitHub Release with assets, `SHA256SUMS`, `latest-*.json` (`quality=stable`).
+- [x] Commit and tag `v2.0.1` (`e7a12d43`, 2026-10-06).
+- [x] Run `Build desktop apps` manually on the tag; macOS: `build_dmg.sh`, notarize, staple.
+- [x] GitHub Release `v2.0.1` published with assets, `SHA256SUMS`, `latest-*.json` (`quality=stable`).
 - [ ] Verify auto-update 2.0.0 -> 2.0.1 on macOS, Windows, Linux.
 - [ ] Verify a VS Code Marketplace extension installs in the built app.
 - [ ] Built app: Stop mid-stream and window close with a running shell leave no orphans.
 - [ ] Clean-machine install and upgrade with existing `~/.knoxcoder`.
-- [ ] Publish the draft.
 
-Everything still open in P0/P1 above carries over to 2.1.
+Shipped. Remaining 2.0.1 rows are post-release QA (auto-update, Marketplace, orphans, clean-machine). Everything still open in P0/P1 above carries over to 2.1.
+
+---
+
+## 2.1 (in progress)
+
+`v2.0.1` is tagged and published. This section is the next product slice (no 2.1 version bump yet). Post-release QA still listed under 2.0.1.
+
+- [x] Nested `.knoxignore` for `exact_search` (prefixed `--ignore-file`; `ripgrep.test.ts`).
+- [x] Per-root hooks: merge every workspace `.knox/hooks.json` / `.knox/config.yaml` with per-root `cwd`.
+- [x] Per-root instruction files tested; nested `AGENTS.md` walks the open file's URI (not the relative path joined to every root).
+- [x] Glob default walks every workspace root; custom agents load `.knox/agents` from every root; oracle detection scans every root; command palette uses the primary (active-file) folder.
+- [x] `/share` redacts secrets (`share.test.ts`). GUI Markdown export already redacted. Shareable
+      local links: `knoxcoder://vscode.knox/session/import?path=` from `/share` and
+      **Knox: Copy Session Share Link**; the URI handler imports the file. Hosted links are out of 2.1.
+- [x] Post-edit oracle: Maven, Gradle, Zig, .NET (`oracleDetect.test.ts`).
+- [x] Deleted unused host `toolCallValidation` (core middleware already validates).
+- [x] Local gate (2026-10-07): `test:tsc`, `test:core` (216 files / 1855 tests), `test:host-tsc`, `test:host` green.
+- [x] In-editor assist (no FIM model): `core/edit/assist/editAssist.ts` finds empty files, stub functions (empty / `pass` / not-implemented / `todo!()`) and TODO/FIXME comments; `EditAssistCodeLensProvider` shows **Knox: Generate this file / Implement / Do this TODO / Fix this error** (errors from diagnostics, max 5). Each lens runs the edit model through the vertical diff (`knox.editAssist.run`). ⌘I with an empty selection inside one of these scopes the edit range to it. After Accept, one notification offers "Show one edit" (a single related change as a reviewable diff, never chained, never while typing). Settings: `knoxchat.editAssist.codeLens`, `knoxchat.editAssist.nextEdit` (catalog is now 61 including two deprecated keys). Tests: `edit/assist/editAssist.test.ts`. Not verified in a running editor yet; ⌘I does not prefill the composer text (the GUI protocol has no prefill message), so the lens carries the canned prompt.
+- [x] Custom agents sidebar: **Custom Agents** view in the Knox container (`CustomAgentsTreeProvider`: list across roots, file watcher, create/refresh in the title bar, open/delete inline).
+- [x] Transcript import: **Knox: Import Session Transcript** reads a `/share` or Markdown-export file (`core/util/transcriptImport.ts`, text only, redacted, 5 MB / 2000 message caps) into a new session and focuses it. Accepts a file path argument from the share URI.
+- [x] Grouped Knox settings: **Knox: Open Knox Settings** now shows a group picker (Editor assist, Agent and models, Verification, Memory and instructions, Network and privacy, Checkpoints, Deprecated, All) and opens the Settings UI filtered to that group's ids (`core/config/settingGroups.ts`). `settingGroups.test.ts` fails if a contributed setting has no group. This is a picker over the native Settings UI, not a custom webview page.
+- [x] Dead-key deprecation: `knoxchat.sandbox` and `knoxchat.sharedLoop` remain in the catalog with deprecation messages and are ignored (Settings Sync / old settings.json).
+- [x] Compaction quality eval: `eval/compactionQuality.test.ts` (scripted; no live LLM).
+- [x] Local `uses:` registry: `~/.knoxcoder/registry/<owner>/<package>.yaml`. Remote HTTP registry, SSH/WSL, and scheduled agents are **not** in 2.1 (need a trust model / remote extension host / scheduler).
+- [x] Locales: **en and zh only** (core, host, GUI, `package.nls`). Extra languages (ja, ko, es, …) are out of scope for 2.1 and later until explicitly requested; do not add translated catalogs.
+- [x] Telemetry: **out of scope**. Do not add opt-in anonymous usage stats or any Knox telemetry (privacy docs stay "none").
+- [ ] 2.0.1 hardware steps that still block a 2.1 tag: signing, notarization, clean-machine update runs on macOS/Windows/Linux (see 2.0.1 section). Live eval baseline and three consecutive green CI runs remain release-process items, not product code.
+

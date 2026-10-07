@@ -7,7 +7,7 @@ const DEFAULT_ARGS = {
   temperature: DEFAULT_TEMPERATURE,
 };
 
-const GPT_4_CTX_LEN = 200_000;
+const GPT_6_CTX_LEN = 1_050_000;
 const CLAUDE_4_CTX_LEN = 1_000_000;
 
 /**
@@ -15,8 +15,8 @@ const CLAUDE_4_CTX_LEN = 1_000_000;
  * KnoxChat and knox.chat-compatible models prefer live /v1/models metadata.
  */
 const CONTEXT_LENGTH_FOR_MODEL: { [name: string]: number } = {
-  "gpt-4o": GPT_4_CTX_LEN,
-  "gpt-4o-mini": GPT_4_CTX_LEN,
+  "gpt-6.1-sol": GPT_6_CTX_LEN,
+  "gpt-6-luna": GPT_6_CTX_LEN,
 };
 
 const TOKEN_BUFFER_FOR_SAFETY = 350;

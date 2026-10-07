@@ -13,6 +13,7 @@ import path from "path";
 
 import { describe, expect, it } from "vitest";
 
+import { REAL_WORLD_MEMORIES, REAL_WORLD_QUERIES } from "./fixturesRealWorld";
 import { runMemoryBench, type BenchReport } from "./runMemoryBench";
 
 const baselinePath = path.join(__dirname, "baseline.json");
@@ -57,4 +58,47 @@ describe("memory benchmark (K-035)", () => {
     expect(getMemoryInjectHardCap()).toBe(MEMORY_INJECT_HARD_CAP_TOKENS);
     delete process.env.KNOX_MEMORY_INJECT_CAP;
   });
+
+  /**
+   * P1-7 stable thresholds on the messy, real-world style set (`fixturesRealWorld.ts`).
+   * Absolute floors, not baseline-relative, so they hold across platforms. Measured on
+   * 2026-10-07: recall 0.75, precision 0.545, false-inject 0. Floors sit a little below.
+   *
+   * Known misses (the retriever is lexical): "invoice total with tax" does not reach the
+   * integer-cents rule, "icon-only button" does not reach the a11y rule, "settings card"
+   * does not reach the design-system rule, and Chinese queries retrieve nothing (the query
+   * cleaner drops CJK and FTS5 `unicode61` indexes a CJK run as one token). The first three
+   * need embeddings; the Chinese one needs a CJK-aware FTS tokenizer (not in 2.1).
+   */
+  it("meets the real-world thresholds", async () => {
+    const report = await runMemoryBench({
+      memories: REAL_WORLD_MEMORIES,
+      queries: REAL_WORLD_QUERIES,
+    });
+    const { perQuery, ...summary } = report;
+    console.log("[memory-bench:real-world]", JSON.stringify(summary));
+
+    expect(report.recallAtK).toBeGreaterThanOrEqual(0.7);
+    expect(report.precision).toBeGreaterThanOrEqual(0.5);
+    // Unrelated chatter ("thanks", a regex question) must not pull memories in.
+    expect(report.falseInjectRate).toBeLessThanOrEqual(0.1);
+    expect(report.tokensMax).toBeLessThanOrEqual(report.tokenCap + 64);
+    expect(report.latencyMaxMs).toBeLessThan(LATENCY_CEILING_MS);
+
+    // Keep the easy, clearly-worded cases from regressing even if the mean holds.
+    const injected = (id: string) => perQuery.find((q) => q.id === id)?.injected ?? [];
+    for (const [id, key] of [
+      ["rw-q-install", "rw-pkg-yarn"],
+      ["rw-q-boot", "rw-env-local"],
+      ["rw-q-flaky", "rw-flaky-e2e"],
+      ["rw-q-auth", "rw-auth-new"],
+      ["rw-q-friday", "rw-deploy-friday"],
+      ["rw-q-sql", "rw-orm"],
+      ["rw-q-log", "rw-pii"],
+      ["rw-q-date", "rw-timezone"],
+      ["rw-q-license", "rw-license"],
+    ] as const) {
+      expect(injected(id), id).toContain(key);
+    }
+  }, 60_000);
 });

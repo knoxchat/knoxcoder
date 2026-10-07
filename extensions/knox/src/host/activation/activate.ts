@@ -33,7 +33,10 @@ function registerKnoxUriHandler(context: vscode.ExtensionContext): void {
           }),
         );
         if (plan.kind === "command") {
-          void vscode.commands.executeCommand(plan.command);
+          void vscode.commands.executeCommand(
+            plan.command,
+            ...(plan.args ?? []),
+          );
           return;
         }
         if (plan.kind === "fetch") {

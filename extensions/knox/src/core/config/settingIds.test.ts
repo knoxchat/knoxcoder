@@ -12,6 +12,7 @@ import {
   KNOX_CHAT_SETTING_IDS,
   KNOX_CHECKPOINT_SETTING_IDS,
   KNOX_CHECKPOINTS_SECTION,
+  KNOX_DEPRECATED_SETTING_IDS,
   KNOX_SETTING_IDS,
   KNOX_SETTINGS_SECTION,
   KNOX_SYNC_KEYBINDING_COMMANDS,
@@ -48,8 +49,9 @@ describe("KN-382 setting ids stay in extensions/knox/package.json", () => {
 
   it("contributes every frozen knoxchat.* and knox.checkpoints.* id", () => {
     expect(contributed).toEqual([...KNOX_SETTING_IDS].sort());
-    expect(KNOX_CHAT_SETTING_IDS).toHaveLength(22);
+    expect(KNOX_CHAT_SETTING_IDS).toHaveLength(24);
     expect(KNOX_CHECKPOINT_SETTING_IDS).toHaveLength(35);
+    expect(KNOX_DEPRECATED_SETTING_IDS).toHaveLength(2);
   });
 
   it("does not contribute renamed knoxchat.* or knox.checkpoints.* ids", () => {

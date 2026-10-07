@@ -5,7 +5,46 @@ All notable changes to KnoxCoder are documented in this file.
 
 ### Added
 
-- Multi-root workspaces: the workspace folder that owns the active editor file is now the primary root (`getWorkspaceDirs()[0]`) used for shell cwd, git, builds, relative paths, shadow workspace and checkpoint commands; other folders stay reachable via search and absolute paths. The system prompt names the roots when there is more than one.
+- **Knox: Open Knox Settings** shows a grouped picker (editor assist, agent, verification, memory, network, checkpoints) before opening the filtered Settings UI. Removed keys `knoxchat.sandbox` and `knoxchat.sharedLoop` stay as deprecated no-ops so old `settings.json` still loads.
+- **Knox: Copy Session Share Link** copies a local `knoxcoder://vscode.knox/session/import?path=` URI; `/share` prints the same link. Opening it imports that Markdown transcript. Nothing is uploaded.
+- Local config registry: `uses: owner/package` in `config.yaml` loads `~/.knoxcoder/registry/owner/package.yaml` (or `package@version.yaml`). Remote fetch is refused.
+- Compaction quality eval: a long scripted session is compacted and the original `src/add.ts` edit still lands (`eval/compactionQuality.test.ts`).
+
+- In-editor assist (no completion model): CodeLens on empty files, stub functions, TODO/FIXME comments and error diagnostics runs a reviewable edit; `Cmd/Ctrl+I` with no selection scopes to the stub/TODO under the cursor; after Accept, Knox can offer one related edit (once, never while typing). Settings `knoxchat.editAssist.codeLens` and `knoxchat.editAssist.nextEdit`.
+- Custom agents from the command palette (list and create `.knoxcoder/agents/*.md`).
+- **Knox: Import Session Transcript** restores a `/share` or Markdown-export transcript as a new session (text only, redacted).
+- Multi-root workspaces: the workspace folder that owns the active editor file is now the primary root (`getWorkspaceDirs()[0]`) used for shell cwd, git, builds, relative paths, shadow workspace and checkpoint commands; other folders stay reachable via search and absolute paths. The system prompt names the roots when there is more than one. Each root's `AGENTS.md` / `.knoxrules`, `.knoxcoder/hooks.json` (hooks run with that root as `cwd`), and `.knoxcoder/agents` are loaded; glob with no path walks every root.
+- Nested `.knoxignore` is honored by `exact_search`, glob and directory walks (patterns apply under that directory, not the workspace root).
+- Post-edit oracle also detects Maven, Gradle, Zig and .NET projects, and looks at every workspace root (not only the primary folder).
+
+### Large repo, 500k files (partial)
+
+- **Test:** the opt-in test is `tools/largeRepo.test.ts`, run with `KNOX_LARGE_REPO_FILES=500000` (synthetic monorepo, no git; writes a few GB of tiny files, about 1 minute on a laptop).
+- **Results:** it passes on 500k files. `exact_search` took about 11 s, a narrow `glob` 15 ms, and a whole-workspace `glob` stopped at its 100k walk cap in 0.7 s. At that cap it reports only 98.5k of the 500k files, by design.
+- **Repo map:** a cold paths-only map takes about 1.5 s, a cold map with signatures about 1.2 s, a cached one about 1.1 s (the walk and stat pass still run), and zooming into one package with `path` about 25 ms. The map is built from the first 100k files the walk returns, so on a repo this size use `path` to reach the rest.
+- **Bug fixed:** `exact_search` did not skip `node_modules` when no `.gitignore` listed it, so the 500k run returned only vendored hits. It now skips `node_modules` like `glob` does, unless the path or `fileGlob` points into it.
+- **Bug fixed:** `pruneLinesFromTop` / `pruneLinesFromBottom` drifted over budget on long inputs (a 100k-line list pruned to 50k tokens came back at 88k) because each removed line's rounded-up count was subtracted while its newline was ignored. The repo map overshot its token budget by about 13% on the 500k run; it now stays within it. The same helpers trim the prefix and suffix of inline edit prompts.
+
+### Changed
+
+- Retired model names are gone from the product. The OpenAI and Anthropic "Add model" lists now offer GPT-6.1 Sol, GPT-6 Luna, Claude Sonnet 5.5, Claude Opus 5.5 and Claude Haiku 4.5 (they offered GPT-4o, GPT-4 Turbo, GPT-3.5 and Claude 3 / 3.5); the KnoxStudio and OpenRouter defaults and the OpenRouter offline fallback list use current KnoxStudio catalog models. Defaults for new models, the static context-length and token-limit table, the vision-name list, and the pricing fallback table (`modelPricing.json`, seeded from the live `/v1/models` prices) were updated to match. `KnoxChat` no longer defaults to `qwen/qwen3-coder`, which is not in the catalog. Models you already added keep working; live catalog metadata still wins over these static fallbacks.
+
+### Fixed
+
+- Reasoning effort now follows the OpenRouter / KnoxStudio parameter docs. The default effort list is the documented `reasoning_effort` enum (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`); `max` was in it but is not a `reasoning_effort` value. Requests send only documented values: a selected `max` (offered by models that advertise it) goes out as `reasoning_effort: "xhigh"` plus `verbosity: "max"`, and an unknown value is dropped instead of being forwarded and rejected. The chat API is used, not the Responses API, so its four-level table (`minimal`, `low`, `medium`, `high`) does not apply.
+- Anthropic image attachments: images were always sent as `image/jpeg`, so PNG screenshots and pasted PNGs were rejected. The media type now follows the image (JPEG, PNG, GIF, WebP) and http(s) image URLs are sent as URL sources.
+- `exact_search` no longer returns `node_modules` hits in folders whose `.gitignore` does not list it (non-git folders, unpacked archives). Pass a path or `fileGlob` inside `node_modules` to search it on purpose.
+- Light themes: text in the brand teal and the red/green/orange status colours was 2.3-3.5:1 on white; it now meets 4.5:1.
+- Keyboard: activity steps, input code-block headers, job titles, search-result lines and checkpoint analysis cards can be focused and activated with Enter or Space.
+- Nested `AGENTS.md` in a multi-root window is resolved from the open file's folder, not by joining the same relative path onto every root.
+- Workspace hooks, agents and prompts read `.knoxcoder/` only. Missing `config.yaml` / `hooks.json` are skipped without logging ENOENT.
+- `/share` redacts API keys and other secrets in the exported transcript (same rules as GUI Markdown export).
+
+### Removed
+
+- Unused host `toolCallValidation` helpers. Missing tool arguments are still rejected in core tool middleware.
+- The Custom Agents tree that split the Knox chat container below the composer. List and create stay in the command palette.
+- Solid fill on the composer Send button and the model/effort row; they now sit on the same transparent input surface.
 
 ## [2.0.1] - 2026-10-06
 

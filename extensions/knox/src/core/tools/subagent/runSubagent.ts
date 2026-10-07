@@ -44,7 +44,7 @@ export interface SubagentRunInput {
   executeTool: (tool: Tool, args: unknown) => Promise<ContextItem[]>;
   systems?: boolean;
   jobTitle?: string;
-  /** User-defined agent type (`.knox/agents/*.md`). Replaces the profile prompt/tools. */
+  /** User-defined agent type (`.knoxcoder/agents/*.md`). Replaces the profile prompt/tools. */
   custom?: {
     name: string;
     prompt: string;

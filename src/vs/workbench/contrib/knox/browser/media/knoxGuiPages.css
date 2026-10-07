@@ -12,7 +12,7 @@
 }
 
 .knox-gui-role-gear {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	width: 24px;
 	height: 24px;
 	flex-shrink: 0;
@@ -40,7 +40,7 @@
 .knox-gui-ghost {
 	width: 100%;
 	justify-content: center;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-explore-blocks {
@@ -91,7 +91,7 @@
 	line-clamp: 3;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-rule-card-actions {
@@ -104,7 +104,7 @@
 .knox-gui-rule-action {
 	padding: 2px;
 	border-radius: 4px;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-text-dialog {
@@ -329,7 +329,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-prompt-row-actions {
@@ -347,7 +347,7 @@
 .knox-gui-prompt-bookmark {
 	padding: 0;
 	padding-top: 2px;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-prompt-bookmark.is-bookmarked,
@@ -361,7 +361,7 @@
 	justify-content: center;
 	font-size: calc(1em - 3px);
 	margin-top: 4px;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-add-prompt:hover:not(:disabled) {
@@ -670,7 +670,7 @@
 	padding: 1px 6px;
 	border-radius: 8px;
 	background: rgba(21, 153, 148, 0.2);
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-tool-perm-row {
@@ -740,13 +740,13 @@
 }
 
 .knox-gui-perm-sessionAlways {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	border: 1px solid rgba(21, 158, 148, 0.55);
 	background: rgba(21, 158, 148, 0.22);
 }
 
 .knox-gui-perm-autoApprove {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	border: 1px solid rgba(21, 158, 148, 0.3);
 	background: rgba(21, 158, 148, 0.15);
 }
@@ -895,7 +895,7 @@
 .knox-gui .knox-gui-check.selected:hover {
 	background: rgba(21, 153, 148, 0.16);
 	border-color: #159994;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	box-shadow: 0 0 0 2px rgba(21, 153, 148, 0.12);
 }
 
@@ -1083,7 +1083,7 @@
 	letter-spacing: 0.02em;
 	padding: 1px 6px;
 	border-radius: 999px;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	background: rgba(21, 153, 148, 0.12);
 }
 
@@ -1222,7 +1222,7 @@
 .knox-gui-settings-card .knox-gui-cyan {
 	margin: 0;
 	font-size: 13px;
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-settings-card.compact h3 {

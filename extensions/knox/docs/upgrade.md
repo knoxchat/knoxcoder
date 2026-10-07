@@ -17,9 +17,9 @@ To roll back, install the previous version and restore the `.bak` files you need
 
 - New sessions start in **Edits** mode (shell asks). Saved modes are not changed.
 - Destructive shell commands are denied in every mode, including Auto, unless allowlisted.
-- Agent chat runs on the shared agent loop; `knoxchat.sharedLoop` is gone.
+- Agent chat runs on the shared agent loop; `knoxchat.sharedLoop` is gone (the key remains as a deprecated no-op so old settings.json still loads).
 - Tools are deferred by default (`knoxchat.deferTools`). Old `builtin_memory_*` names still route to `builtin_memory`.
-- OS command sandbox (`knoxchat.sandbox`) and the headless `@knoxchat/cli` (`knox run`) are not in 2.0.0.
+- OS command sandbox (`knoxchat.sandbox`) and the headless `@knoxchat/cli` (`knox run`) are not in 2.0.0. `knoxchat.sandbox` is a deprecated no-op.
 - Removed commands: `knox.analyzeTask`, `knoxchat.analyzeTask`, `knox.structuredSolve`, `knox.performTaskAnalysis`.
 
 ## Linux packages

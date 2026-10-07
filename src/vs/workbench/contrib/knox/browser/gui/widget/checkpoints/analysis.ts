@@ -14,6 +14,7 @@ import { checkpointImpactChipClass, checkpointRiskChipClass, checkpointScopeChip
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { cpBadge, cpLoading, cpSelect } from './cpKit.js';
 import { checkpointRiskIcon } from './primitives.js';
+import { makeKnoxGuiActivatable } from '../a11y.js';
 
 export function renderCheckpointAnalysis(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void { // KN-375
 	body.setAttribute('data-testid', 'knox-gui-checkpoint-analysis');
@@ -154,6 +155,7 @@ function renderAnalysisGroups(widget: KnoxGuiWidget, body: HTMLElement, state: I
 		}
 		DOM.append(card, DOM.$('p.knox-gui-cp-muted', undefined, group.rationale));
 		DOM.append(card, DOM.$('div.knox-gui-cp-faint.knox-gui-analysis-group-confidence', undefined, `${t(state, 'checkpointAnalysis.confidence')}: ${Math.round(group.confidence * 100)}%`));
+		makeKnoxGuiActivatable(widget, card);
 		widget.renderStore.add(DOM.addDisposableListener(card, 'click', () => {
 			const nextId = group.checkpointIds.find(id => state.checkpointAnalysisCatalog.some(item => item.id === id)) ?? group.checkpointIds[0];
 			if (nextId) {

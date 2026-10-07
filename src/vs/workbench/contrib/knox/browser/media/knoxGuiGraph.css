@@ -147,7 +147,7 @@
 
 .knox-gui-checkpoint-tabs .knox-gui-checkpoint-tab.knox-gui-icon-btn.selected {
 	background: var(--vscode-editor-background);
-	color: #159994;
+	color: var(--knox-accent, #159994);
 	box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
 }
 
@@ -688,7 +688,7 @@
 }
 
 .knox-gui-graph-view.selected {
-	color: #159994;
+	color: var(--knox-accent, #159994);
 }
 
 .knox-gui-graph-note {

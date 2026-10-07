@@ -1,5 +1,5 @@
 import { ChatMessage, CompletionOptions, LLMOptions } from "../../index.js";
-import { renderChatMessage, stripImages } from "../../util/messageContent.js";
+import { renderChatMessage, stripImages, toAnthropicImageSource } from "../../util/messageContent.js";
 import { t } from "../../i18n/index.js";
 import { BaseLLM } from "../index.js";
 import { streamSse } from "../stream.js";
@@ -7,10 +7,10 @@ import { streamSse } from "../stream.js";
 class Anthropic extends BaseLLM {
   static providerName = "anthropic";
   static defaultOptions: Partial<LLMOptions> = {
-    model: "claude-3-5-sonnet-latest",
+    model: "claude-sonnet-5.5",
     contextLength: 200_000,
     completionOptions: {
-      model: "claude-3-5-sonnet-latest",
+      model: "claude-sonnet-5.5",
       maxTokens: 50000, // Increased from 8192 to better support Claude Sonnet 4's capabilities
     },
     apiBase: "https://api.anthropic.com/v1/",
@@ -22,7 +22,7 @@ class Anthropic extends BaseLLM {
       top_p: options.topP,
       temperature: options.temperature,
       max_tokens: options.maxTokens ?? 32000,
-      model: options.model === "claude-2" ? "claude-2.1" : options.model,
+      model: options.model,
       stop_sequences: options.stop?.filter((x) => x.trim() !== ""),
       stream: options.stream ?? true,
       tools: options.tools?.map((tool) => ({
@@ -115,11 +115,7 @@ class Anthropic extends BaseLLM {
         }
         return {
           type: "image",
-          source: {
-            type: "base64",
-            media_type: "image/jpeg",
-            data: part.imageUrl?.url.split(",")[1],
-          },
+          source: toAnthropicImageSource(part.imageUrl?.url),
         };
       }),
     };

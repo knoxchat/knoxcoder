@@ -107,6 +107,28 @@ describe("walkDir", () => {
     expect(uris.join("\n")).not.toContain("vmlinux");
   });
 
+  it("honors a nested .knoxignore under that directory only", async () => {
+    const withNested: Record<string, [string, number][]> = {
+      "": [
+        ["keep.c", FILE],
+        ["pkg", DIR],
+      ],
+      pkg: [
+        [".knoxignore", FILE],
+        ["ok.c", FILE],
+        ["secret", DIR],
+      ],
+      "pkg/secret": [["hidden.c", FILE]],
+    };
+    const uris = await walkDir(
+      "file:///tmp/ws",
+      mockIde(withNested, { "pkg/.knoxignore": "secret/\n" }),
+    );
+    expect(uris).toContain("file:///tmp/ws/keep.c");
+    expect(uris).toContain("file:///tmp/ws/pkg/ok.c");
+    expect(uris.join("\n")).not.toContain("hidden.c");
+  });
+
   it("skips vmlinux / *.ko even without an ignore file", async () => {
     const artifacts: Record<string, [string, number][]> = {
       "": [

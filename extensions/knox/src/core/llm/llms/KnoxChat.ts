@@ -22,7 +22,7 @@ class KnoxChat extends OpenAI {
   static providerName = "knoxchat";
   static defaultOptions: Partial<LLMOptions> = {
     apiBase: "https://api.knoxstudio.ai/v1/",
-    model: "qwen/qwen3-coder",
+    model: "anthropic/claude-sonnet-5.5",
     promptTemplates: {
       edit: osModelsEditPrompt,
     },

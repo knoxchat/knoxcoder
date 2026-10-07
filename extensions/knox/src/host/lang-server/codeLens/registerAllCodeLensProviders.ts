@@ -16,6 +16,7 @@ export let verticalPerLineCodeLensProvider: vscode.Disposable | undefined =
   undefined;
 let suggestionsCodeLensDisposable: vscode.Disposable | undefined = undefined;
 let quickActionsCodeLensDisposable: vscode.Disposable | undefined = undefined;
+let editAssistDisposable: vscode.Disposable | undefined = undefined;
 let quickActionsSettingsDisposable: vscode.Disposable | undefined = undefined;
 let lastQuickActionsConfig: KnoxConfig | undefined;
 
@@ -97,6 +98,22 @@ export function registerAllCodeLensProviders(
       context.subscriptions.push(quickActionsSettingsDisposable);
     }
   }
+
+  if (editAssistDisposable) {
+    editAssistDisposable.dispose();
+  }
+  const editAssist = new providers.EditAssistCodeLensProvider();
+  const editAssistLens = registerCodeLensProvider("*", editAssist);
+  const editAssistRefresh = vscode.Disposable.from(
+    vscode.languages.onDidChangeDiagnostics(() => editAssist.refresh()),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("knoxchat.editAssist")) {
+        editAssist.refresh();
+      }
+    }),
+  );
+  editAssistDisposable = vscode.Disposable.from(editAssistLens, editAssistRefresh);
+  context.subscriptions.push(editAssistDisposable);
 
   context.subscriptions.push(verticalPerLineCodeLensProvider);
   context.subscriptions.push(suggestionsCodeLensDisposable);

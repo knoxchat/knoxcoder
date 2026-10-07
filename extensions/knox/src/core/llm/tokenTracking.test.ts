@@ -36,27 +36,24 @@ describe("tokenTracking pricing", () => {
   });
 
   it("prices current Anthropic ids, including dated and dotted forms", () => {
-    expect(perMillion("claude-sonnet-4-5-20250929")).toEqual([3, 15]);
-    expect(perMillion("anthropic/claude-sonnet-4.5")).toEqual([3, 15]);
-    expect(perMillion("claude-opus-4-5")).toEqual([5, 25]);
-    expect(perMillion("claude-opus-4-1-20250805")).toEqual([15, 75]);
-    expect(perMillion("claude-haiku-4-5")).toEqual([1, 5]);
-    expect(perMillion("claude-3-5-haiku-20241022")).toEqual([0.8, 4]);
+    expect(perMillion("claude-sonnet-5-5-20260928")).toEqual([2, 10]);
+    expect(perMillion("anthropic/claude-sonnet-5.5")).toEqual([2, 10]);
+    expect(perMillion("claude-opus-5-5")).toEqual([4, 20]);
+    expect(perMillion("anthropic/claude-haiku-4.5")).toEqual([1, 5]);
+    expect(perMillion("claude-haiku-4-5-20251015")).toEqual([1, 5]);
   });
 
   it("prices current OpenAI ids and picks the longest prefix", () => {
-    expect(perMillion("gpt-5")).toEqual([1.25, 10]);
-    expect(perMillion("gpt-5-mini-2025-08-07")).toEqual([0.25, 2]);
-    expect(perMillion("openai/gpt-4.1-mini")).toEqual([0.4, 1.6]);
-    expect(perMillion("gpt-4o-mini-2024-07-18")).toEqual([0.15, 0.6]);
-    expect(perMillion("gpt-4o-2024-08-06")).toEqual([2.5, 10]);
-    expect(perMillion("o4-mini")).toEqual([1.1, 4.4]);
+    expect(perMillion("gpt-6-luna")).toEqual([0.1, 0.5]);
+    expect(perMillion("gpt-6-luna-pro")).toEqual([0.1, 0.5]);
+    expect(perMillion("openai/gpt-6.1-sol")).toEqual([2, 10]);
+    expect(perMillion("gpt-6-sol-2026-09-22")).toEqual([2, 10]);
   });
 
   it("does not match across a non-boundary prefix", () => {
-    // "gpt-4" must not price "gpt-4x-unknown"; "o1" must not price "o1x".
-    expect(getModelPricing("gpt-4x-unknown")).toBeNull();
-    expect(getModelPricing("o1x")).toBeNull();
+    // "gpt-6-sol" must not price "gpt-6-solx"; "gpt-6-luna" must not price "gpt-6-lunar".
+    expect(getModelPricing("gpt-6-solx")).toBeNull();
+    expect(getModelPricing("gpt-6-lunar")).toBeNull();
   });
 
   it("prefers OpenRouter metadata over the table", () => {
@@ -111,24 +108,28 @@ describe("tokenTracking pricing", () => {
   });
 
   it("computes plain cost", () => {
-    const cost = calculateCost("claude-sonnet-4-5", 1_000_000, 1_000_000);
-    expect(cost.promptCost).toBeCloseTo(3);
-    expect(cost.completionCost).toBeCloseTo(15);
-    expect(cost.totalCost).toBeCloseTo(18);
+    const cost = calculateCost("claude-sonnet-5-5", 1_000_000, 1_000_000);
+    expect(cost.promptCost).toBeCloseTo(2);
+    expect(cost.completionCost).toBeCloseTo(10);
+    expect(cost.totalCost).toBeCloseTo(12);
   });
 
   it("prices cache read/write tokens with their own rates", () => {
-    const cost = calculateCost("claude-sonnet-4-5", 0, 0, undefined, {
+    const cost = calculateCost("claude-sonnet-5-5", 0, 0, undefined, {
       cacheReadTokens: 1_000_000,
       cacheWriteTokens: 1_000_000,
     });
-    expect(cost.totalCost).toBeCloseTo(0.3 + 3.75);
+    expect(cost.totalCost).toBeCloseTo(0.2 + 2.5);
   });
 
   it("bills cache tokens at the input rate when no cache rate exists", () => {
-    const cost = calculateCost("gpt-4-turbo", 0, 0, undefined, {
-      cacheReadTokens: 1_000_000,
-    });
+    const cost = calculateCost(
+      "custom-model",
+      0,
+      0,
+      { "custom-model": { promptPer1k: 0.01, completionPer1k: 0.02 } },
+      { cacheReadTokens: 1_000_000 },
+    );
     expect(cost.totalCost).toBeCloseTo(10);
   });
 
@@ -140,6 +141,6 @@ describe("tokenTracking pricing", () => {
   });
 
   it("exposes the bundled table in per-1k units", () => {
-    expect(getAvailableModelPricing()["gpt-5"].promptPer1k).toBeCloseTo(0.00125);
+    expect(getAvailableModelPricing()["gpt-6-luna"].promptPer1k).toBeCloseTo(0.0001);
   });
 });

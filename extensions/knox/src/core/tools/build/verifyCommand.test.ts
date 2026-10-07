@@ -132,6 +132,21 @@ describe("detectBuildCommand", () => {
     } as unknown as IDE;
     expect(await detectBuildCommand(ide)).toBe("make");
   });
+
+  it("detects a Cargo.toml in a later workspace root", async () => {
+    const ide = {
+      getWorkspaceDirs: async () => ["file:///tmp/docs", "file:///tmp/crate"],
+      listDir: async (uri: string) =>
+        uri.includes("/crate")
+          ? [
+              ["Cargo.toml", 1],
+              ["src", 2],
+            ]
+          : [["README.md", 1]],
+      fileExists: async (uri: string) => uri === "file:///tmp/crate/Cargo.toml",
+    } as unknown as IDE;
+    expect(await detectBuildCommand(ide)).toBe(CARGO_CHECK_COMMAND);
+  });
 });
 
 describe("BuildErrorCircuit", () => {

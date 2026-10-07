@@ -20,6 +20,7 @@ import {
 	visibleActivitySteps,
 } from '../../../../common/knoxGuiTranscript.js';
 import { formatTurnDuration, formatTurnTokens, summarizeTurn } from '../../../../common/knoxGuiTurnSummary.js';
+import { makeKnoxGuiActivatable } from '../a11y.js';
 
 /** `HistoryItemRow.tsx` chat/edit turn: `LoadingState` with the user message time as the timer origin. */
 export function renderTurnLoading(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, item?: IKnoxGuiHistoryItem): void {
@@ -95,6 +96,7 @@ export function renderActivitySteps(widget: KnoxGuiWidget, parent: HTMLElement, 
 		if (step.detail) {
 			DOM.append(row, DOM.$('code.knox-gui-muted', undefined, step.detail));
 		}
+		makeKnoxGuiActivatable(widget, row);
 		widget.renderStore.add(DOM.addDisposableListener(row, 'click', () => {
 			widget.scrollToHistoryIndex(step.historyIndex);
 			requestAnimationFrame(() => {

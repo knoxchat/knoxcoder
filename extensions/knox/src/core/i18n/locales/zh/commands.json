@@ -13,6 +13,7 @@
   "reviewCode": "审查代码并提供反馈",
   "exportChatSession": "将当前对话会话导出为 Markdown",
   "sessionTranscriptSaved": "会话记录已保存为 Markdown 文件，路径为 `{{path}}`。",
+  "sessionTranscriptShareLink": "可在本机打开该记录的链接：`{{link}}`。",
   "knoxSessionTranscript": "Knox 会话记录",
   "unknownSlashCommand": "未知的斜杠命令 {{name}}",
   "autonomousSlashCommand": "运行多步自主助理循环（集成记忆系统）",

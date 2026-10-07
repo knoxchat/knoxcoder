@@ -25,6 +25,7 @@ import {
 	slashCommandTitle,
 } from '../../../../common/knoxGuiInput.js';
 import { displayLanguageForFile } from '../../../../common/knoxGuiTools.js';
+import { makeKnoxGuiActivatable, setKnoxGuiExpanded } from '../a11y.js';
 
 export function paintInputDoc(widget: KnoxGuiWidget, editor: HTMLElement, doc: IKnoxGuiInputBlock[], onChange?: (doc: IKnoxGuiInputBlock[]) => void): void {
 	editor.replaceChildren();
@@ -86,9 +87,11 @@ function paintCodeBlockChip(widget: KnoxGuiWidget, editor: HTMLElement, block: I
 		head.classList.toggle('expanded', open);
 	};
 	sync();
+	makeKnoxGuiActivatable(widget, head, { expanded: expanded() });
 	widget.renderStore.add(DOM.addDisposableListener(head, 'mousedown', e => e.preventDefault()));
 	widget.renderStore.add(DOM.addDisposableListener(head, 'click', () => {
 		widget.codeBlockExpanded.set(key, !expanded());
+		setKnoxGuiExpanded(head, expanded());
 		sync();
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(title, 'click', e => {

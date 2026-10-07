@@ -174,7 +174,7 @@ export const taskImpl: ToolImpl = async (args, extras) => {
         result: {
           profile: unit.agent,
           steps: 0,
-          summary: `Unknown agent "${unit.agent}". Define it in .knox/agents/${unit.agent}.md.`,
+          summary: `Unknown agent "${unit.agent}". Define it in .knoxcoder/agents/${unit.agent}.md.`,
           filesTouched: [],
           stoppedReason: "error",
         },

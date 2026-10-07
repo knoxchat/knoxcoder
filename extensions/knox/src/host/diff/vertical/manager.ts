@@ -42,6 +42,9 @@ function urisMatch(a: string, b: string): boolean {
 export class VerticalDiffManager {
   public refreshCodeLens: () => void = () => {};
 
+  /** Called after the user accepted a diff for a file (not on reject). */
+  public onEditAccepted?: (fileUri: string) => void;
+
   private fileUriToHandler: Map<string, VerticalDiffHandler> = new Map();
 
   fileUriToCodeLens: Map<string, VerticalDiffCodeLens[]> = new Map();
@@ -177,6 +180,13 @@ export class VerticalDiffManager {
       // Wait for the red/green lines to actually be removed from the document
       // before callers read or save the file.
       await handler.clear(accept);
+      if (accept) {
+        try {
+          this.onEditAccepted?.(fileUri);
+        } catch (e) {
+          console.warn("onEditAccepted failed", e);
+        }
+      }
     }
     clearWorkbenchAgentDiff(fileUri);
 

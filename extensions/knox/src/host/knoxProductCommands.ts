@@ -22,11 +22,15 @@ import {
   loadJob,
   mergeJob,
 } from "core/cli/background";
+import { groupKnoxSettings, settingsSearchQuery } from "core/config/settingGroups";
 import { HOOK_EVENTS, type HookEvent } from "core/hooks/hooks";
 import { getWorkspaceHookRunner } from "core/hooks/workspaceHooks";
 import { BrainManager } from "core/context/memory/brain/BrainManager";
+import { localPathOrUriToPath } from "core/util/pathToUri";
+import { buildSessionShareUri } from "core/util/sessionShareLink";
 
 import { VsCodeIde } from "./VsCodeIde";
+import { primaryWorkspaceFsPath } from "./util/primaryWorkspace";
 
 const AGENT_TEMPLATE = `---
 name: reviewer
@@ -38,8 +42,7 @@ You review code changes. Be concise. Flag bugs, security issues, and missing tes
 `;
 
 function workspaceDir(): string | undefined {
-  const folder = vscode.workspace.workspaceFolders?.[0];
-  return folder?.uri.fsPath;
+  return primaryWorkspaceFsPath();
 }
 
 export function registerKnoxProductCommands(
@@ -57,9 +60,69 @@ export function registerKnoxProductCommands(
   };
 
   register("knox.openSettings", async () => {
+    const props = context.extension.packageJSON?.contributes?.configuration;
+    const list = Array.isArray(props) ? props : props ? [props] : [];
+    const ids: string[] = list.flatMap((o: { properties?: object }) =>
+      Object.keys(o.properties ?? {}),
+    );
+    const groups = groupKnoxSettings(ids);
+    if (groups.length === 0) {
+      await vscode.commands.executeCommand(
+        "workbench.action.openSettings",
+        "@id:knoxchat",
+      );
+      return;
+    }
+    const picked = await vscode.window.showQuickPick(
+      [
+        ...groups.map((g) => ({
+          label: g.group.label,
+          description: `${g.ids.length} settings`,
+          detail: g.group.description,
+          ids: g.ids,
+        })),
+        {
+          label: "All Knox settings",
+          description: `${ids.length} settings`,
+          detail: "",
+          ids,
+        },
+      ],
+      { placeHolder: "Knox settings group" },
+    );
+    if (!picked) {
+      return;
+    }
     await vscode.commands.executeCommand(
       "workbench.action.openSettings",
-      "@id:knoxchat",
+      settingsSearchQuery(picked.ids),
+    );
+  });
+
+  register("knox.session.copyShareLink", async () => {
+    const active = vscode.window.activeTextEditor;
+    let filePath: string | undefined;
+    if (
+      active &&
+      /\.(md|markdown|txt)$/i.test(active.document.fileName) &&
+      active.document.uri.scheme === "file"
+    ) {
+      filePath = active.document.uri.fsPath;
+    } else {
+      const picked = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        filters: { Markdown: ["md", "markdown", "txt"] },
+        openLabel: "Copy share link",
+      });
+      filePath = picked?.[0]?.fsPath;
+    }
+    if (!filePath) {
+      return;
+    }
+    const link = buildSessionShareUri(filePath);
+    await vscode.env.clipboard.writeText(link);
+    void vscode.window.showInformationMessage(
+      `Knox: copied shareable link for ${path.basename(filePath)}`,
     );
   });
 
@@ -136,7 +199,7 @@ export function registerKnoxProductCommands(
     const agents = await loadCustomAgents(ide);
     if (!agents.length) {
       void vscode.window.showInformationMessage(
-        "No custom agents in .knox/agents. Use Knox: Create Custom Agent.",
+        "No custom agents in .knoxcoder/agents. Use Knox: Create Custom Agent.",
       );
       return;
     }
@@ -148,12 +211,12 @@ export function registerKnoxProductCommands(
       })),
     );
     if (pick) {
-      const dir = workspaceDir();
-      if (dir) {
-        const file = path.join(dir, ".knox", "agents", `${pick.label}.md`);
-        if (fs.existsSync(file)) {
-          await vscode.window.showTextDocument(vscode.Uri.file(file));
-        }
+      const agent = agents.find((a) => a.name === pick.label);
+      const file = agent
+        ? localPathOrUriToPath(agent.source)
+        : path.join(workspaceDir() ?? "", ".knoxcoder", "agents", `${pick.label}.md`);
+      if (fs.existsSync(file)) {
+        await vscode.window.showTextDocument(vscode.Uri.file(file));
       }
     }
   });
@@ -174,7 +237,7 @@ export function registerKnoxProductCommands(
     if (!name) {
       return;
     }
-    const agentsDir = path.join(dir, ".knox", "agents");
+    const agentsDir = path.join(dir, ".knoxcoder", "agents");
     fs.mkdirSync(agentsDir, { recursive: true });
     const file = path.join(agentsDir, `${name.trim()}.md`);
     if (fs.existsSync(file)) {
@@ -196,7 +259,7 @@ export function registerKnoxProductCommands(
     }
     const runner = await getWorkspaceHookRunner(ide, () => undefined);
     if (!runner) {
-      throw new Error("No hooks configured (.knox/hooks.json)");
+      throw new Error("No hooks configured (.knoxcoder/hooks.json)");
     }
     const events = HOOK_EVENTS.filter((e) => runner.has(e));
     if (!events.length) {

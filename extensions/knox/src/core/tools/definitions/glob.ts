@@ -14,7 +14,7 @@ export const globTool: Tool = {
     name: BuiltInToolNames.Glob,
     description: `Find files by glob pattern (Claude/OpenCode Glob).
 
-Returns a sorted list of workspace-relative paths. Skips node_modules, .git, and other junk. Honors \`.gitignore\` / \`.knoxignore\`. Skips \`build/\` unless it looks like an in-tree QEMU/CMake build (Makefile / config-host.mak). Object files (\`*.o\` / \`*.ko\`) and vmlinux are omitted unless the pattern asks for them.
+Returns a sorted list of workspace-relative paths (absolute for additional roots in a multi-root window). Skips node_modules, .git, and other junk. Honors \`.gitignore\` / \`.knoxignore\` including nested \`.knoxignore\`. Skips \`build/\` unless it looks like an in-tree QEMU/CMake build (Makefile / config-host.mak). Object files (\`*.o\` / \`*.ko\`) and vmlinux are omitted unless the pattern asks for them.
 
 On huge trees the result is truncated explicitly (result cap or walk cap) — pass \`path\` via target_directory (e.g. \`mm/\`) or raise max_results. Walk cap is 100k entries.
 
@@ -37,7 +37,7 @@ Prefer this over listing a whole tree when you know the filename pattern. Use bu
         target_directory: {
           type: "string",
           description:
-            "Workspace-relative directory to search from. Default: workspace root ('.').",
+            "Workspace-relative directory to search from. Default: every workspace root ('.').",
         },
         max_results: {
           type: "number",

@@ -35,9 +35,9 @@ describe("parseHooksConfig / hookMatches", () => {
     expect(hookMatches({ command: "c", matcher: "[" }, "x")).toBe(false);
   });
 
-  it("loads from .knox/hooks.json and tolerates absence", async () => {
+  it("loads from .knoxcoder/hooks.json and tolerates absence", async () => {
     const cfg = await loadHooksConfig(async (u) => {
-      expect(u).toBe("file:///w/.knox/hooks.json");
+      expect(u).toBe("file:///w/.knoxcoder/hooks.json");
       return JSON.stringify({ hooks: { Stop: [{ command: "s" }] } });
     }, "file:///w/");
     expect(cfg.Stop).toHaveLength(1);
@@ -70,6 +70,19 @@ describe("HookRunner", () => {
     const out = await new HookRunner({ PreToolUse: [{ command: "one" }, { command: "two" }] }, { exec }).run("PreToolUse", { toolName: "t", args: { n: 0 } });
     expect(seen).toEqual([{ n: 0 }, { n: 1 }]);
     expect(out.args).toEqual({ n: 2 });
+  });
+
+  it("uses per-hook cwd when stamped", async () => {
+    const cwds: Array<string | undefined> = [];
+    const exec: HookExec = async (_cmd, _stdin, opts) => {
+      cwds.push(opts.cwd);
+      return ok("ok");
+    };
+    await new HookRunner(
+      { SessionStart: [{ command: "a", cwd: "/app" }, { command: "b", cwd: "/lib" }] },
+      { exec, cwd: "/fallback" },
+    ).run("SessionStart", {});
+    expect(cwds).toEqual(["/app", "/lib"]);
   });
 
   it("collects context from PostToolUse, ignores deny there", async () => {
@@ -133,13 +146,14 @@ describe("config.yaml hooks (K-023)", () => {
         "hooks:\n  SessionStart:\n    - command: echo global\n",
       );
       const files: Record<string, string> = {
-        [`${tmp}/.knox/config.yaml`]: "hooks:\n  SessionStart:\n    - command: echo wsyaml\n",
-        [`${tmp}/.knox/hooks.json`]: JSON.stringify({
+        [`${tmp}/.knoxcoder/config.yaml`]: "hooks:\n  SessionStart:\n    - command: echo wsyaml\n",
+        [`${tmp}/.knoxcoder/hooks.json`]: JSON.stringify({
           hooks: { SessionStart: [{ command: "echo json" }] },
         }),
       };
       const ide = {
         getWorkspaceDirs: async () => [tmp],
+        fileExists: async (u: string) => u in files,
         readFile: async (u: string) => {
           if (!(u in files)) throw new Error("ENOENT");
           return files[u];
@@ -157,6 +171,55 @@ describe("config.yaml hooks (K-023)", () => {
         "echo wsyaml",
         "echo json",
       ]);
+    } finally {
+      if (prev === undefined) delete process.env.KNOX_GLOBAL_DIR;
+      else process.env.KNOX_GLOBAL_DIR = prev;
+      await fsp.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("merges hooks.json from every workspace root and stamps cwd", async () => {
+    const os = await import("node:os");
+    const fsp = await import("node:fs/promises");
+    const path = await import("node:path");
+    const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "knox-hooks-multi-"));
+    const a = path.join(tmp, "app");
+    const b = path.join(tmp, "lib");
+    await fsp.mkdir(path.join(a, ".knoxcoder"), { recursive: true });
+    await fsp.mkdir(path.join(b, ".knoxcoder"), { recursive: true });
+    await fsp.writeFile(
+      path.join(a, ".knoxcoder", "hooks.json"),
+      JSON.stringify({ hooks: { SessionStart: [{ command: "echo app" }] } }),
+    );
+    await fsp.writeFile(
+      path.join(b, ".knoxcoder", "hooks.json"),
+      JSON.stringify({ hooks: { SessionStart: [{ command: "echo lib" }] } }),
+    );
+    const prev = process.env.KNOX_GLOBAL_DIR;
+    process.env.KNOX_GLOBAL_DIR = path.join(tmp, "empty-global");
+    await fsp.mkdir(process.env.KNOX_GLOBAL_DIR);
+    try {
+      const files: Record<string, string> = {
+        [`${a}/.knoxcoder/hooks.json`]: JSON.stringify({
+          hooks: { SessionStart: [{ command: "echo app" }] },
+        }),
+        [`${b}/.knoxcoder/hooks.json`]: JSON.stringify({
+          hooks: { SessionStart: [{ command: "echo lib" }] },
+        }),
+      };
+      const ide = {
+        getWorkspaceDirs: async () => [a, b],
+        fileExists: async (u: string) => u in files,
+        readFile: async (u: string) => {
+          if (!(u in files)) throw new Error("ENOENT");
+          return files[u];
+        },
+      } as never;
+      const { getWorkspaceHookRunner } = await import("./workspaceHooks");
+      const runner = await getWorkspaceHookRunner(ide, () => undefined);
+      expect(runner).not.toBeNull();
+      const out = await runner!.run("SessionStart", {});
+      expect(out.additionalContext).toEqual(["app", "lib"]);
     } finally {
       if (prev === undefined) delete process.env.KNOX_GLOBAL_DIR;
       else process.env.KNOX_GLOBAL_DIR = prev;

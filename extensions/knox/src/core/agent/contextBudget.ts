@@ -30,7 +30,7 @@ export interface ContextUsage {
 /**
  * Resolve the active model's real window: the configured/autodetected
  * `llm.contextLength`, else KnoxChat `/v1/models` metadata, else the static
- * catalog, else a conservative 128k (never a silent 32k or gpt-4o guess).
+ * catalog, else a conservative 128k (never a silent 32k guess).
  */
 export function resolveContextWindow(llm: unknown): ContextWindow {
   const record = (llm ?? {}) as {
@@ -69,7 +69,7 @@ export function resolveContextWindow(llm: unknown): ContextWindow {
     Number.isFinite(requested) && requested > 0 ? requested : DEFAULT_MAX_TOKENS,
     Math.floor(contextLength / 4),
   );
-  return { model: model || "gpt-4o", contextLength, maxTokens, source };
+  return { model: model || "anthropic/claude-sonnet-5.5", contextLength, maxTokens, source };
 }
 
 /**

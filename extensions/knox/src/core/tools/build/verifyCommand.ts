@@ -254,7 +254,19 @@ export function composeBuildCommand(
 
 export async function detectBuildCommand(ide: IDE): Promise<string | undefined> {
   const dirs = await ide.getWorkspaceDirs();
-  const root = dirs[0];
+  for (const root of dirs) {
+    const found = await detectBuildCommandIn(ide, root);
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
+async function detectBuildCommandIn(
+  ide: IDE,
+  root: string,
+): Promise<string | undefined> {
   if (!root) {
     return undefined;
   }

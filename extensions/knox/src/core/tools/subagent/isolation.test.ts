@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { IDE } from "../..";
 import { localPathOrUriToPath, localPathToUri } from "../../util/pathToUri.js";
 import { cleanupTempRepos, makeTempRepo } from "../../test/tempRepo";
-import { parseCustomAgent } from "./customAgents";
+import { parseCustomAgent, loadCustomAgents } from "./customAgents";
 import { runInWorktree } from "./isolation";
 import {
   createMutex,
@@ -87,6 +87,35 @@ describe("custom agents", () => {
     expect(parseCustomAgent("Do x", "helper.md")?.name).toBe("helper");
     expect(parseCustomAgent("---\nname: x\n---\n", "x.md")).toBeNull();
     expect(parseCustomAgent("body", "bad name.md")).toBeNull();
+  });
+
+  it("loads custom agents from every workspace root", async () => {
+    const files: Record<string, string> = {
+      "file:///app/.knoxcoder/agents/reviewer.md":
+        "---\nname: reviewer\n---\nReview app.",
+      "file:///lib/.knoxcoder/agents/helper.md":
+        "---\nname: helper\n---\nHelp lib.",
+    };
+    const ide = {
+      getWorkspaceDirs: async () => ["file:///app", "file:///lib"],
+      listDir: async (dir: string) => {
+        if (dir === "file:///app/.knoxcoder/agents") {
+          return [["reviewer.md", 1]];
+        }
+        if (dir === "file:///lib/.knoxcoder/agents") {
+          return [["helper.md", 1]];
+        }
+        throw new Error("missing");
+      },
+      readFile: async (u: string) => {
+        if (!(u in files)) {
+          throw new Error("missing");
+        }
+        return files[u];
+      },
+    } as unknown as IDE;
+    const agents = await loadCustomAgents(ide);
+    expect(agents.map((a) => a.name).sort()).toEqual(["helper", "reviewer"]);
   });
 });
 

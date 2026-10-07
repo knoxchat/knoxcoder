@@ -227,12 +227,12 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-provider-openrouter"]'));
 		assert.strictEqual(widget.root.querySelectorAll('.knox-gui-add-model-options li').length, 2);
 		(widget.root.querySelector('[data-testid="knox-gui-add-model-by-model"]') as HTMLButtonElement).click();
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-model-pack-openai-gpt-4-turbo"]'));
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-model-pack-openai-gpt-4o"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-model-pack-openai-gpt-6.1-sol"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-model-pack-openai-gpt-6-luna"]'));
 		assert.ok(!widget.root.querySelector('[data-testid="knox-gui-model-pack-openai-AUTODETECT"]'));
 		assert.ok(widget.root.querySelector('.knox-gui-page-intro h2')?.textContent);
 		assert.ok(widget.root.querySelector('.knox-gui-rule'));
-		(widget.root.querySelector('[data-testid="knox-gui-model-pack-openai-gpt-4o"]') as HTMLButtonElement).click();
+		(widget.root.querySelector('[data-testid="knox-gui-model-pack-openai-gpt-6-luna"]') as HTMLButtonElement).click();
 		assert.ok(posted.some(item => item.type === 'config/addModel'));
 	});
 

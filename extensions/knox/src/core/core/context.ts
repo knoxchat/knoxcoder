@@ -112,7 +112,7 @@ export function registerContextHandlers(core: CoreRuntime): void {
         message,
         core.ide,
         pathSet,
-        modelName || "gpt-4",
+        modelName || "anthropic/claude-sonnet-5.5",
       );
     } catch (e) {
       console.error("[AutoContext] Failed to gather auto-context:", e);

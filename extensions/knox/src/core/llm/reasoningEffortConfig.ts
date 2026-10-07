@@ -1,4 +1,5 @@
 import overrides from "./data/reasoningEffortOverrides.json";
+import { REASONING_EFFORT_LEVELS } from "./reasoningEffortParams.js";
 import {
   findKnoxChatModelSync,
   modelSupportsParameter,
@@ -12,7 +13,8 @@ export type ReasoningEffortConfig = {
 
 /** Gateway-wide default when effort is supported but enums are unknown. */
 export const DEFAULT_REASONING_EFFORT_CONFIG: ReasoningEffortConfig = {
-  allowed: ["none", "low", "medium", "high", "xhigh", "max", "minimal"],
+  // The documented reasoning_effort enum. "max" is a verbosity level, not an effort value.
+  allowed: [...REASONING_EFFORT_LEVELS],
   default: "medium",
 };
 

@@ -336,7 +336,7 @@ export const ADD_MODEL_PROVIDERS: IKnoxGuiAddModelProvider[] = [
 		packages: [{
 			title: 'KnoxStudio',
 			description: 'Models from KnoxStudio',
-			params: { title: 'KnoxStudio', model: 'openai/gpt-4o-mini', contextLength: 128000 },
+			params: { title: 'KnoxStudio', model: 'openai/gpt-6-luna', contextLength: 1050000 },
 		}],
 		params: { contextLength: 128000 },
 	},
@@ -357,7 +357,7 @@ export const ADD_MODEL_PROVIDERS: IKnoxGuiAddModelProvider[] = [
 		packages: [{
 			title: 'OpenRouter',
 			description: 'Models from OpenRouter',
-			params: { title: 'OpenRouter', model: 'openai/gpt-4o', contextLength: 128000 },
+			params: { title: 'OpenRouter', model: 'openai/gpt-6-luna', contextLength: 1050000 },
 		}],
 		params: { contextLength: 128000 },
 	},
@@ -372,10 +372,8 @@ export const ADD_MODEL_PROVIDERS: IKnoxGuiAddModelProvider[] = [
 		apiKeyUrl: 'https://platform.openai.com/account/api-keys',
 		collectInputFor: [API_KEY_INPUT, ...COMPLETION_PARAMS_INPUTS],
 		packages: [
-			{ title: 'GPT-4o', description: 'An even faster version of GPT-4 with stronger multi-modal capabilities.', providerOptions: ['openai'], browse: true, params: { title: 'GPT-4o', model: 'gpt-4o', contextLength: 128000, systemMessage: 'You are an expert software developer. You give helpful and concise responses.' } },
-			{ title: 'GPT-4o Mini', description: 'A model at less than half the price of gpt-3.5-turbo, but near gpt-4 in capabilities.', providerOptions: ['openai'], params: { title: 'GPT-4o mini', model: 'gpt-4o-mini', contextLength: 128000, systemMessage: 'You are an expert software developer. You give helpful and concise responses.' } },
-			{ title: 'GPT-4 Turbo', description: 'A faster and more capable version of GPT-4 with longer context length and image support', providerOptions: ['openai'], browse: true, params: { title: 'GPT-4 Turbo', model: 'gpt-4-turbo', contextLength: 128000 } },
-			{ title: 'GPT-3.5-Turbo', description: 'A faster, cheaper OpenAI model with slightly lower capabilities', providerOptions: ['openai'], browse: true, params: { title: 'GPT-3.5-Turbo', model: 'gpt-3.5-turbo', contextLength: 8096 } },
+			{ title: 'GPT-6.1 Sol', description: 'OpenAI\'s most capable model, with a 1M-token context window and image input.', providerOptions: ['openai'], browse: true, params: { title: 'GPT-6.1 Sol', model: 'gpt-6.1-sol', contextLength: 1050000, systemMessage: 'You are an expert software developer. You give helpful and concise responses.' } },
+			{ title: 'GPT-6 Luna', description: 'A fast, low-cost model with a 1M-token context window and image input.', providerOptions: ['openai'], browse: true, params: { title: 'GPT-6 Luna', model: 'gpt-6-luna', contextLength: 1050000, systemMessage: 'You are an expert software developer. You give helpful and concise responses.' } },
 			{ title: 'Autodetect', description: 'Automatically populate the model list by calling the /models endpoint of the server', params: { title: 'OpenAI', model: 'AUTODETECT' } },
 		],
 		params: { contextLength: 128000 },
@@ -392,12 +390,11 @@ export const ADD_MODEL_PROVIDERS: IKnoxGuiAddModelProvider[] = [
 		apiKeyUrl: 'https://console.anthropic.com/account/keys',
 		collectInputFor: [API_KEY_INPUT, ...COMPLETION_PARAMS_INPUTS, { key: 'contextLength', labelKey: 'contextLength', inputType: 'number', required: false, defaultValue: 100000 }],
 		packages: [
-			{ title: 'Claude 3.5 Sonnet', description: 'Anthropic\'s most intelligent model, but much less expensive than Claude 3 Opus', providerOptions: ['anthropic'], params: { title: 'Claude 3.5 Sonnet', model: 'claude-3-5-sonnet-latest', contextLength: 200000 } },
-			{ title: 'Claude 3 Opus', description: 'The most capable model in the Claude 3 series, beating GPT-4 on many benchmarks', providerOptions: ['anthropic'], browse: true, params: { title: 'Claude 3 Opus', model: 'claude-3-opus-20240229', contextLength: 200000 } },
-			{ title: 'Claude 3 Sonnet', description: 'The second most capable model in the Claude 3 series: ideal balance of intelligence and speed', providerOptions: ['anthropic'], browse: true, params: { title: 'Claude 3 Sonnet', model: 'claude-3-sonnet-20240229', contextLength: 200000 } },
-			{ title: 'Claude 3.5 Haiku', description: 'The fastest model in the Claude 3.5 series: a compact model for near-instant responsiveness', providerOptions: ['anthropic'], browse: true, params: { title: 'Claude 3.5 Haiku', model: 'claude-3-5-haiku-latest', contextLength: 200000 } },
+			{ title: 'Claude Sonnet 5.5', description: 'Anthropic\'s balanced model for coding and agents, with a 1M-token context window.', providerOptions: ['anthropic'], browse: true, params: { title: 'Claude Sonnet 5.5', model: 'claude-sonnet-5.5', contextLength: 1000000 } },
+			{ title: 'Claude Opus 5.5', description: 'Anthropic\'s most capable model, with a 1M-token context window.', providerOptions: ['anthropic'], browse: true, params: { title: 'Claude Opus 5.5', model: 'claude-opus-5.5', contextLength: 1000000 } },
+			{ title: 'Claude Haiku 4.5', description: 'The fastest Claude model: a compact model for near-instant responsiveness.', providerOptions: ['anthropic'], browse: true, params: { title: 'Claude Haiku 4.5', model: 'claude-haiku-4.5', contextLength: 200000 } },
 		],
-		params: { contextLength: 200000 },
+		params: { contextLength: 1000000 },
 	},
 ];
 
@@ -411,8 +408,8 @@ export function addModelPackagesByProvider(): Array<{ providerId: string; title:
 
 /** Curated browse-by-model list from `AddNewModel.tsx` `modelsByProvider`. */
 const ADD_MODEL_BROWSE_ORDER: Record<string, string[]> = {
-	openai: ['gpt-4-turbo', 'gpt-4o', 'gpt-3.5-turbo'],
-	anthropic: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-5-haiku-latest'],
+	openai: ['gpt-6.1-sol', 'gpt-6-luna'],
+	anthropic: ['claude-sonnet-5.5', 'claude-opus-5.5', 'claude-haiku-4.5'],
 };
 
 export function addModelBrowseGroups(): Array<{ providerId: string; title: string; icon?: string; packages: IKnoxGuiAddModelPackage[] }> {

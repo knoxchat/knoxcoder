@@ -157,7 +157,7 @@ describe("discoverRules agent instruction files", () => {
     const files: Record<string, string> = {
       "file:///repo/CLAUDE.md": "claude-compat",
       "file:///repo/AGENTS.md": "agents-root",
-      "file:///repo/.knox/AGENTS.md": "knox-agents",
+      "file:///repo/.knoxcoder/AGENTS.md": "knox-agents",
       "file:///repo/.knoxrules": "knox-rules",
     };
     const ide = {
@@ -180,6 +180,54 @@ describe("discoverRules agent instruction files", () => {
       "knox-rules",
     ]);
     expect(workspace.map((r) => r.priority)).toEqual([7, 8, 9, 10]);
+  });
+
+  it("loads instruction files from every workspace root", async () => {
+    const files: Record<string, string> = {
+      "file:///app/AGENTS.md": "app-agents",
+      "file:///lib/AGENTS.md": "lib-agents",
+    };
+    const ide = {
+      fileExists: vi.fn(async (p: string) => p in files),
+      readFile: vi.fn(async (p: string) => files[p]),
+      getWorkspaceDirs: vi.fn(async () => ["file:///app", "file:///lib"]),
+      getCurrentFile: vi.fn(async () => undefined),
+      getOpenFiles: vi.fn(async () => []),
+      listDir: vi.fn(async () => {
+        throw new Error("no global rules dir");
+      }),
+    } as unknown as IDE;
+
+    const rules = await discoverRules(ide);
+    const contents = rules.filter((r) => r.source === "workspace").map((r) => r.content);
+    expect(contents).toEqual(expect.arrayContaining(["app-agents", "lib-agents"]));
+  });
+
+  it("loads nested AGENTS.md only from the open file's root", async () => {
+    const files: Record<string, string> = {
+      "file:///app/AGENTS.md": "app-root",
+      "file:///app/src/AGENTS.md": "app-nested",
+      "file:///lib/src/AGENTS.md": "lib-nested",
+    };
+    const ide = {
+      fileExists: vi.fn(async (p: string) => p in files),
+      readFile: vi.fn(async (p: string) => files[p]),
+      getWorkspaceDirs: vi.fn(async () => ["file:///app", "file:///lib"]),
+      getCurrentFile: vi.fn(async () => ({
+        path: "file:///app/src/main.ts",
+        isUntitled: false,
+      })),
+      getOpenFiles: vi.fn(async () => []),
+      listDir: vi.fn(async () => {
+        throw new Error("no global rules dir");
+      }),
+    } as unknown as IDE;
+
+    const rules = await discoverRules(ide);
+    const contents = rules.map((r) => r.content);
+    expect(contents).toContain("app-root");
+    expect(contents).toContain("app-nested");
+    expect(contents).not.toContain("lib-nested");
   });
 
   it("loads .cursor/rules and copilot instructions when opted in", async () => {

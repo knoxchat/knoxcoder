@@ -12,6 +12,7 @@ import {
   CompletionCreateParamsStreaming,
 } from "openai/resources/index";
 import { AnthropicConfig } from "../types.js";
+import { toAnthropicImageSource } from "../util.js";
 import {
   chatChunk,
   chatChunkFromDelta,
@@ -124,12 +125,8 @@ export class AnthropicApi implements BaseLlmApi {
             }
             return {
               type: "image",
-              source: {
-                type: "base64",
-                media_type: "image/jpeg",
-                // @ts-ignore
-                data: part.image_url.url.split(",")[1],
-              },
+              // @ts-ignore
+              source: toAnthropicImageSource(part.image_url?.url),
             };
           })
           .filter((x) => x !== null),

@@ -14,6 +14,8 @@ export const KNOX_CHAT_SETTING_IDS = [
   "knoxchat.inlineCompletionModel",
   "knoxchat.disableQuickFix",
   "knoxchat.enableQuickActions",
+  "knoxchat.editAssist.codeLens",
+  "knoxchat.editAssist.nextEdit",
   "knoxchat.enablePostEditVerification",
   "knoxchat.agentProfile",
   "knoxchat.jev.enabled",
@@ -71,9 +73,16 @@ export const KNOX_CHECKPOINT_SETTING_IDS = [
   "knox.checkpoints.inlineDiff.highlightWordChanges",
 ] as const;
 
+/** Removed keys kept so old settings.json / Settings Sync still load. */
+export const KNOX_DEPRECATED_SETTING_IDS = [
+  "knoxchat.sandbox",
+  "knoxchat.sharedLoop",
+] as const;
+
 export const KNOX_SETTING_IDS = [
   ...KNOX_CHAT_SETTING_IDS,
   ...KNOX_CHECKPOINT_SETTING_IDS,
+  ...KNOX_DEPRECATED_SETTING_IDS,
 ] as const;
 
 /** Contributed keybindings whose command ids must stay for user keymap sync. */

@@ -94,6 +94,16 @@
 					"default": false,
 					"markdownDescription": "Enable quick actions functionality"
 				},
+				"knoxchat.editAssist.codeLens": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Show Knox CodeLens on empty files, stub functions, TODO comments and error diagnostics. Each one runs a reviewable edit (the same path as `Cmd+I`). No completion model is used."
+				},
+				"knoxchat.editAssist.nextEdit": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "After you accept an assist edit, offer to look for one related edit in the same file. It appears as a reviewable diff and never runs while you type."
+				},
 				"knoxchat.enablePostEditVerification": {
 					"type": "boolean",
 					"default": true,
@@ -207,6 +217,18 @@
 					"type": "boolean",
 					"default": false,
 					"markdownDescription": "Allow shadow preview on files larger than 4000 lines. Default off so 10k-line C files use the vertical diff / apply_patch preview instead."
+				},
+				"knoxchat.sandbox": {
+					"type": "boolean",
+					"default": false,
+					"deprecationMessage": "Removed in 2.0.0. OS command sandbox is gone; shell uses command guard and permission prompts. This key is ignored.",
+					"markdownDeprecationMessage": "Removed in 2.0.0. OS command sandbox (`sandbox-exec` / `bwrap`) is gone; shell uses command guard and permission prompts. This key is ignored."
+				},
+				"knoxchat.sharedLoop": {
+					"type": "boolean",
+					"default": true,
+					"deprecationMessage": "Removed in 2.0.0. Agent chat always uses the shared agent loop. This key is ignored.",
+					"markdownDeprecationMessage": "Removed in 2.0.0. Agent chat always uses the shared agent loop. This key is ignored."
 				},
 				"knox.checkpoints.maxCheckpoints": {
 					"type": "number",
@@ -972,12 +994,25 @@
 				"command": "knox.agents.create",
 				"category": "Knox",
 				"title": "Create Custom Agent",
+				"icon": "$(add)",
 				"group": "Knox"
 			},
 			{
 				"command": "knox.agents.list",
 				"category": "Knox",
 				"title": "List Custom Agents",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.session.importTranscript",
+				"category": "Knox",
+				"title": "Import Session Transcript",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.session.copyShareLink",
+				"category": "Knox",
+				"title": "Copy Session Share Link",
 				"group": "Knox"
 			},
 			{

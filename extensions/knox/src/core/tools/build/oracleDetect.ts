@@ -12,8 +12,17 @@ export interface OracleProbe {
   pyproject?: string;
 }
 
+export type OracleEcosystem =
+  | "node"
+  | "python"
+  | "go"
+  | "rust"
+  | "java"
+  | "dotnet"
+  | "zig";
+
 export interface OracleChoice {
-  ecosystem: "node" | "python" | "go" | "rust";
+  ecosystem: OracleEcosystem;
   command: string;
   reason: string;
 }
@@ -26,6 +35,27 @@ export function detectOracleCommand(probe: OracleProbe): OracleChoice | undefine
   }
   if (has("go.mod")) {
     return { ecosystem: "go", command: "go vet ./...", reason: "go.mod" };
+  }
+  if (has("pom.xml")) {
+    return { ecosystem: "java", command: "mvn -q -DskipTests compile", reason: "pom.xml" };
+  }
+  if (has("build.gradle") || has("build.gradle.kts")) {
+    const wrapper = has("gradlew") || has("gradlew.bat");
+    return {
+      ecosystem: "java",
+      command: wrapper ? "./gradlew -q classes" : "gradle -q classes",
+      reason: "Gradle",
+    };
+  }
+  if (has("build.zig")) {
+    return { ecosystem: "zig", command: "zig build", reason: "build.zig" };
+  }
+  if (probe.entries.some((name) => name.endsWith(".csproj") || name.endsWith(".sln"))) {
+    return {
+      ecosystem: "dotnet",
+      command: "dotnet build --nologo -v q",
+      reason: ".NET project",
+    };
   }
   if (has("package.json")) {
     let scripts: Record<string, string> = {};
