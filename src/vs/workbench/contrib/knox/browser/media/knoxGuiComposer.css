@@ -647,16 +647,17 @@
 .knox-gui-inline-chip {
 	display: inline-flex;
 	align-items: center;
-	gap: 3px;
-	vertical-align: baseline;
+	gap: 2px;
+	vertical-align: -0.24em;
 	max-width: 100%;
 	color: var(--knox-accent, #159994);
 	background-color: rgba(21, 153, 148, 0.15);
-	border-radius: 4px;
-	font-size: 0.9em;
+	border-radius: 3px;
+	font-size: 0.88em;
 	font-weight: 500;
-	padding: 2px 4px;
-	margin: 0 2px;
+	line-height: 1.25;
+	padding: 0 4px;
+	margin: 0 1px;
 	user-select: none;
 	transition: background-color 0.2s ease;
 }
@@ -676,10 +677,17 @@
 .knox-gui-chip-icon {
 	display: inline-flex;
 	flex-shrink: 0;
-	width: 12px;
-	height: 12px;
+	width: 1em;
+	height: 1em;
+	font-size: 0.95em;
 	align-items: center;
 	justify-content: center;
+}
+
+.knox-gui-chip-icon > * {
+	max-width: 100%;
+	max-height: 100%;
+	font-size: inherit;
 }
 
 .knox-gui-chip-label {
