@@ -20,24 +20,43 @@ export class KnoxGuiMessenger extends Disposable {
 	}
 
 	request<T = unknown>(messageType: string, data: unknown): Promise<T> {
+		if (this._store.isDisposed) {
+			return Promise.reject(new Error('Knox GUI messenger disposed'));
+		}
 		const messageId = generateUuid();
 		return new Promise<T>((resolve, reject) => {
-			const store = new DisposableStore();
+			const store = this._register(new DisposableStore());
+			let settled = false;
+			const settle = (fn: () => void) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				store.dispose();
+				fn();
+			};
+			store.add({
+				dispose: () => {
+					if (!settled) {
+						settled = true;
+						reject(new Error('Knox GUI messenger disposed'));
+					}
+				},
+			});
 			store.add(this.knoxService.onDidReceiveGuiMessage((message) => {
 				if (message.messageId !== messageId) {
 					return;
 				}
-				store.dispose();
 				const envelope = message.data as IKnoxGuiResponseEnvelope | undefined;
 				if (envelope && typeof envelope === 'object' && 'status' in envelope) {
 					if (envelope.status === 'error') {
-						reject(new Error(envelope.error || 'Knox GUI request failed'));
+						settle(() => reject(new Error(envelope.error || 'Knox GUI request failed')));
 						return;
 					}
-					resolve(envelope.content as T);
+					settle(() => resolve(envelope.content as T));
 					return;
 				}
-				resolve(message.data as T);
+				settle(() => resolve(message.data as T));
 			}));
 			void this.knoxService.guiPost({ messageType, messageId, data });
 		});

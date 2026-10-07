@@ -60,7 +60,6 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		await timeout(0);
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
-		disposables.add({ dispose: () => parent.remove() });
 		const hoverService = new class extends mock<IHoverService>() {
 			override setupDelayedHover() {
 				return { dispose() { } };
@@ -90,6 +89,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			override setDefaultCodeBlockRenderer(): void { }
 		};
 		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService, { getModel: () => null } as unknown as IModelService, markdownRendererService));
+		disposables.add({ dispose: () => parent.remove() });
 		return { widget, store };
 	}
 
@@ -3040,6 +3040,20 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(row.querySelector('.knox-gui-job-command')?.textContent, 'cargo fmt --check');
 		assert.strictEqual(row.querySelector('.knox-gui-job-detail')?.textContent, 'mod game;');
 		assert.ok(row.querySelector('.knox-gui-job-command') !== row.querySelector('.knox-gui-job-detail'));
+	});
+
+	test('history rename input does not leak a pending request when the widget unmounts', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			overlay: 'history',
+			sessionId: 'current',
+			historySessions: [{ id: 'other', title: 'Other', date: String(Date.now()) }],
+		});
+		widget.editingHistoryId = 'other';
+		store.patch({});
+		const input = widget.root.querySelector('[data-testid="history-rename"]') as HTMLInputElement;
+		assert.ok(input);
+		input.value = 'Renamed';
 	});
 
 	test('NP-28 code fences never auto-detect a language while the reply streams (CSLD-09)', async () => {

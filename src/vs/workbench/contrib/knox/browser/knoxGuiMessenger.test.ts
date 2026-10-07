@@ -17,6 +17,18 @@ import { KnoxService } from './knoxService.js';
 suite('KnoxGuiMessenger', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('request does not leak when the messenger is disposed before a reply', async () => {
+		const incoming = disposables.add(new Emitter<IKnoxGuiMessage>());
+		const knoxService = new class extends mock<IKnoxService>() {
+			override onDidReceiveGuiMessage = incoming.event;
+			override async guiPost(): Promise<void> { }
+		};
+		const messenger = new KnoxGuiMessenger(knoxService);
+		const pending = messenger.request('history/load', { id: 'sess' });
+		messenger.dispose();
+		await assert.rejects(pending, /disposed/);
+	});
+
 	test('request resolves content from matching messageId envelope', async () => {
 		const incoming = new Emitter<IKnoxGuiMessage>();
 		const posted: IKnoxGuiMessage[] = [];

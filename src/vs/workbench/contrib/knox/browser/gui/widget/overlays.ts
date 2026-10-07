@@ -795,11 +795,14 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 			if (widget.editingHistoryId !== session.id) {
 				return;
 			}
+			widget.editingHistoryId = null;
+			if (!title.isConnected) {
+				return;
+			}
 			const next = title.value.trim();
 			if (next && next !== session.title) {
 				void widget.controller.renameSession(session.id, next);
 			}
-			widget.editingHistoryId = null;
 			widget.controller.store.patch({});
 		};
 		const cancel = () => {
