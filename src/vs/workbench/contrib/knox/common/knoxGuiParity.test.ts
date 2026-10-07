@@ -1596,7 +1596,8 @@ suite('Knox native GUI parity', () => {
 			supportedParameters: ['reasoning_effort'],
 		}), DEFAULT_REASONING_EFFORT);
 		assert.strictEqual(knoxGuiResolveReasoningEffort({
-			title: 'Grok',
+			title: 'Opus',
+			model: 'anthropic/claude-opus-4.7',
 			supportedParameters: ['reasoning_effort'],
 		}, {}, 'max'), 'max');
 		assert.strictEqual(knoxGuiModelSupportsImages({

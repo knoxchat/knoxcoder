@@ -16,7 +16,7 @@ import { agentProfileDefaults, applyOpenRouterAliasFloorPricing, formatModelPric
 import { IKnoxGuiSuggestItem } from './knoxGuiState.js';
 import { knoxGuiShortcutKeys } from './knoxGuiChrome.js';
 import { composerUndoRecord, composerUndoStep, createComposerUndo, inputDocFromPlainText, knoxGuiCodeBlockOpenAction, knoxGuiCodeBlockTitle, knoxGuiComposerKeyAction, knoxGuiDragHasImages, knoxGuiImageFileAccepted, knoxGuiImageTargetSize, knoxGuiImageUploadToast, knoxGuiNewestCodeBlockIndex, KNOX_COMPOSER_UNDO_GROUP_MS } from './knoxGuiInput.js';
-import { healStreamingMarkdown, knoxGuiInitialCodeBlockExpanded, knoxGuiShouldAutoExpandGeneratingCodeBlock, knoxGuiSplitTokenizedLines, knoxGuiTerminalCommand, languageIdFromFence, MAX_EXPANDED_CODE_LINES, shouldShowThinkingIndicator, splitMarkdownBlocks, splitMarkdownParagraphs, stripLeakedToolMarkup, visibleCodeLineRange } from './knoxGuiTranscript.js';
+import { healStreamingMarkdown, knoxGuiInitialCodeBlockExpanded, knoxGuiShouldAutoExpandGeneratingCodeBlock, knoxGuiSplitTokenizedLines, knoxGuiTerminalCommand, languageIdFromFence, MAX_EXPANDED_CODE_LINES, shouldShowThinkingIndicator, sniffStreamingCodeLanguage, splitMarkdownBlocks, splitMarkdownParagraphs, stripLeakedToolMarkup, visibleCodeLineRange } from './knoxGuiTranscript.js';
 
 suite('Knox native parity items', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -107,6 +107,14 @@ suite('Knox native parity items', () => {
 			assert.strictEqual(languageIdFromFence('patch'), 'diff');
 			assert.strictEqual(languageIdFromFence('golang'), 'go');
 			assert.strictEqual(languageIdFromFence('mjs'), 'javascript');
+			assert.strictEqual(sniffStreamingCodeLanguage('<form id="login-form" novalidate>\n  <div class="field">'), 'html');
+			assert.strictEqual(sniffStreamingCodeLanguage('{\n  "name": "knox"'), 'json');
+			assert.strictEqual(sniffStreamingCodeLanguage('def main():\n    pass'), 'python');
+			assert.strictEqual(sniffStreamingCodeLanguage('interface Foo {\n  a: string'), 'typescript');
+			assert.strictEqual(sniffStreamingCodeLanguage('const x = 1;'), 'javascript');
+			assert.strictEqual(sniffStreamingCodeLanguage('.a {\n  color: red;\n}'), 'css');
+			assert.strictEqual(sniffStreamingCodeLanguage('hello world'), undefined);
+			assert.strictEqual(sniffStreamingCodeLanguage(''), undefined);
 			assert.ok(!stripLeakedToolMarkup('hi <function=run>x').includes('function=run'));
 			const tilde = splitMarkdownBlocks('intro\n~~~ts\nconst x = 1;');
 			assert.strictEqual(tilde[0].type, 'markdown');

@@ -1417,6 +1417,46 @@ export function languageIdFromFence(language: string, filepath?: string): string
 	return lang || 'plaintext';
 }
 
+/**
+ * Best-effort language guess for an unlabeled fence that is still streaming, so it can be
+ * colored from the first lines instead of staying monochrome until the closing fence.
+ * Returns `undefined` until the prefix is distinctive enough; callers keep the first answer.
+ */
+export function sniffStreamingCodeLanguage(code: string): string | undefined {
+	const head = code.slice(0, 2000).replace(/^\s+/, '');
+	if (!head) {
+		return undefined;
+	}
+	if (/^<!doctype html|^<\?xml/i.test(head)) {
+		return head[1] === '?' ? 'xml' : 'html';
+	}
+	if (/^<\/?[a-z][\w-]*(?:[\s>/]|$)/i.test(head)) {
+		return 'html';
+	}
+	if (/^#!.*\b(?:ba|z|da)?sh\b/.test(head) || /^(?:\$ |npm |npx |pnpm |yarn |git |cd |mkdir |curl |brew |sudo )/.test(head)) {
+		return 'shellscript';
+	}
+	if (/^[{[]\s*(?:"[^"\n]*"\s*:|[{[\]"\d-]|$)/.test(head) && !/\b(?:const|let|var|function)\b/.test(head)) {
+		return 'json';
+	}
+	if (/^package\s+\w+\s*$/m.test(head) || /^func\s+\w*\(/m.test(head)) {
+		return 'go';
+	}
+	if (/^(?:fn\s+\w+|use\s+[\w:]+::|pub\s+(?:fn|struct|enum)\b|impl\b)/m.test(head)) {
+		return 'rust';
+	}
+	if (/^(?:def\s+\w+\(|class\s+\w+(?:\([^)]*\))?:|from\s+[\w.]+\s+import\b|import\s+\w+\s*$|if\s+__name__)/m.test(head)) {
+		return 'python';
+	}
+	if (/^(?:interface\s+\w+|type\s+\w+\s*=|enum\s+\w+|export\s+(?:default\s+)?(?:interface|type|enum|class|function|const|async)\b|import\s+.+\s+from\s+['"]|(?:const|let|var)\s+\w+\s*[:=]|(?:async\s+)?function\s*\w*\s*\()/m.test(head)) {
+		return /\b(?:interface|type\s+\w+\s*=|enum)\b|:\s*(?:string|number|boolean|void)\b/.test(head) ? 'typescript' : 'javascript';
+	}
+	if (/^(?:@(?:media|import|keyframes)\b|[.#:]?[\w-][\w\s.#:>,*-]*\{\s*$)/m.test(head) && /^\s+[\w-]+\s*:\s*[^;]+;?\s*$/m.test(head)) {
+		return 'css';
+	}
+	return undefined;
+}
+
 /** `ctxItemToRifWithContents(item, true)`: zero-based lines parsed from `name (12-30)`. */
 export interface IKnoxGuiFileRef {
 	filepath: string;

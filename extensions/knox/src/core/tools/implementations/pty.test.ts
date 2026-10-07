@@ -70,12 +70,21 @@ describe("pty session (HL-13)", () => {
     expect(sent.ok).toBe(true);
     expect(sent.written).toBe(true);
 
-    const { body, snapshot, nextByte } = await readPty(id, {
-      timeoutMs: 5_000,
-    });
+    // A read returns on the first new output (e.g. the trailing "\r\n" of
+    // READY), so keep reading until the echo arrives.
+    let body = "";
+    let snapshot: Awaited<ReturnType<typeof readPty>>["snapshot"] | undefined;
+    let nextByte = 0;
+    const deadline = Date.now() + 10_000;
+    while (!body.includes("hello") && Date.now() < deadline) {
+      const r = await readPty(id, { timeoutMs: 2_000 });
+      body += r.body;
+      snapshot = r.snapshot;
+      nextByte = r.nextByte;
+    }
     expect(body).toContain("hello");
     expect(nextByte).toBeGreaterThan(0);
-    expect(snapshot.stdin).toBe(true);
+    expect(snapshot?.stdin).toBe(true);
     sendPty(id, "", { eof: true });
     await waitForShellJob(id, { timeoutMs: 2_000 });
   }, 20_000);
@@ -98,11 +107,16 @@ describe("pty tools", () => {
       return { body: read[0]?.content ?? "" };
     });
     await ptySendImpl({ job_id: jobId, data: helloLine }, extras());
-    const read = await ptyReadImpl(
-      { job_id: jobId, timeout_ms: 5_000 },
-      extras(),
-    );
-    expect(read[0]?.content).toContain("hello");
+    let text = "";
+    const deadline = Date.now() + 10_000;
+    while (!text.includes("hello") && Date.now() < deadline) {
+      const read = await ptyReadImpl(
+        { job_id: jobId, timeout_ms: 2_000 },
+        extras(),
+      );
+      text += read[0]?.content ?? "";
+    }
+    expect(text).toContain("hello");
     await ptyReadImpl({ job_id: jobId, kill: true }, extras());
   }, 20_000);
 });

@@ -31,6 +31,7 @@ import {
 	formatReasoningTime,
 	isTerminalCodeBlock,
 	languageIdFromFence,
+	sniffStreamingCodeLanguage,
 	IKnoxGuiFileRef,
 	IKnoxGuiPastFileInfo,
 	KNOX_EMPTY_PAST_FILE_INFO,
@@ -530,7 +531,15 @@ function paintCodeLineWindow(widget: KnoxGuiWidget, container: HTMLElement, stat
 		widget.codeGenerating.delete(key);
 	}
 	let lines: string[];
-	const languageId = resolveCodeLanguageId(widget, language, filepath, code, !generating || Boolean(filepath));
+	let languageId = resolveCodeLanguageId(widget, language, filepath, code, !generating || Boolean(filepath));
+	if (languageId === 'plaintext' && !language.trim()) {
+		// Unlabeled fence: sniff once from the streamed prefix and keep the answer so colors do not flip mid-stream.
+		const sniffed = container.dataset.sniffedLang || sniffStreamingCodeLanguage(code);
+		if (sniffed) {
+			container.dataset.sniffedLang = sniffed;
+			languageId = resolveCodeLanguageId(widget, sniffed, undefined, code, false);
+		}
+	}
 	const extraLanguageIds = new Set<string>();
 	try {
 		widget.languageService.requestBasicLanguageFeatures(languageId);
