@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawnSync } from 'child_process';
-import { constants, existsSync, statSync } from 'fs';
+import { constants, existsSync, readFileSync, rmSync, statSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import manifests from '../../../cgmanifest.json' with { type: 'json' };
@@ -36,9 +36,18 @@ function calculatePackageDeps(binaryPath: string, arch: DebianArchString, chromi
 	});
 	const dpkgShlibdepsUrl = `https://raw.githubusercontent.com/chromium/chromium/${chromiumManifest[0].version}/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl`;
 	const dpkgShlibdepsScriptLocation = `${tmpdir()}/dpkg-shlibdeps.pl`;
-	const result = spawnSync('curl', [dpkgShlibdepsUrl, '-o', dpkgShlibdepsScriptLocation]);
-	if (result.status !== 0) {
-		throw new Error('Cannot retrieve dpkg-shlibdeps. Stderr:\n' + result.stderr);
+	const isValidScript = () => existsSync(dpkgShlibdepsScriptLocation)
+		&& readFileSync(dpkgShlibdepsScriptLocation, 'utf8').startsWith('#!');
+	if (!isValidScript()) {
+		// -f: fail on HTTP errors (e.g. 429) instead of saving the error body as the script.
+		const result = spawnSync('curl', [
+			'-fsSL', '--retry', '8', '--retry-delay', '5', '--retry-all-errors',
+			dpkgShlibdepsUrl, '-o', dpkgShlibdepsScriptLocation
+		]);
+		if (result.status !== 0 || !isValidScript()) {
+			rmSync(dpkgShlibdepsScriptLocation, { force: true });
+			throw new Error('Cannot retrieve dpkg-shlibdeps. Stderr:\n' + result.stderr);
+		}
 	}
 	const cmd = [dpkgShlibdepsScriptLocation, '--ignore-weak-undefined'];
 	switch (arch) {
