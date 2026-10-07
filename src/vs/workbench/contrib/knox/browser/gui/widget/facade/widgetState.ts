@@ -79,6 +79,9 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	readonly toolCardTab = new Map<string, string>();
 	readonly askUserStep = new Map<string, number>();
 	readonly askUserDrafts = new Map<string, Record<string, string>>();
+	/** Background job logs the user scrolled away from the bottom (follow paused). */
+	readonly jobLogDetached = new Set<string>();
+	readonly jobLogScrollTop = new Map<string, number>();
 	readonly termUserScrolled = new Set<string>();
 	readonly termScrollTop = new Map<string, number>();
 	readonly termPrevLen = new Map<string, number>();

@@ -1030,7 +1030,45 @@ export function renderJobRow(widget: KnoxGuiWidget, parent: HTMLElement, state: 
 	if (widget.jobsLogId === job.id) {
 		const log = DOM.append(item, DOM.$('pre.knox-gui-attached-pre.knox-gui-job-log', undefined, job.output?.trim() || t(state, 'jobsNoOutput')));
 		log.setAttribute('data-testid', `agent-job-log-${job.id}`);
+		bindJobLogStickToBottom(widget, log, job.id);
 	}
+}
+
+function bindJobLogStickToBottom(widget: KnoxGuiWidget, log: HTMLElement, jobId: string): void {
+	let programmatic = false;
+	const setTop = (top: number) => {
+		programmatic = true;
+		log.scrollTop = top;
+		widget.jobLogScrollTop.set(jobId, log.scrollTop);
+		queueMicrotask(() => {
+			programmatic = false;
+		});
+	};
+	if (widget.jobLogDetached.has(jobId)) {
+		setTop(widget.jobLogScrollTop.get(jobId) ?? 0);
+	} else {
+		setTop(log.scrollHeight);
+	}
+	const nearBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight <= 8;
+	widget.renderStore.add(DOM.addDisposableListener(log, 'scroll', () => {
+		if (programmatic) {
+			return;
+		}
+		const last = widget.jobLogScrollTop.get(jobId) ?? 0;
+		if (log.scrollTop < last - 0.5) {
+			widget.jobLogDetached.add(jobId);
+		} else if (nearBottom()) {
+			widget.jobLogDetached.delete(jobId);
+		}
+		widget.jobLogScrollTop.set(jobId, log.scrollTop);
+	}));
+	widget.renderStore.add(DOM.addDisposableListener(log, 'wheel', (e: WheelEvent) => {
+		if (e.deltaY < 0) {
+			widget.jobLogDetached.add(jobId);
+		} else if (nearBottom()) {
+			widget.jobLogDetached.delete(jobId);
+		}
+	}));
 }
 
 export function attachedPanel(widget: KnoxGuiWidget, parent: HTMLElement, testId: string): HTMLElement {
