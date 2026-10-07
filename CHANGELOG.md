@@ -3,6 +3,8 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-07
+
 ### Added
 
 - **Knox: Open Knox Settings** shows a grouped picker (editor assist, agent, verification, memory, network, checkpoints) before opening the filtered Settings UI. Removed keys `knoxchat.sandbox` and `knoxchat.sharedLoop` stay as deprecated no-ops so old `settings.json` still loads.
@@ -39,6 +41,9 @@ All notable changes to KnoxCoder are documented in this file.
 - Nested `AGENTS.md` in a multi-root window is resolved from the open file's folder, not by joining the same relative path onto every root.
 - Workspace hooks, agents and prompts read `.knoxcoder/` only. Missing `config.yaml` / `hooks.json` are skipped without logging ENOENT.
 - `/share` redacts API keys and other secrets in the exported transcript (same rules as GUI Markdown export).
+- Checkpoint compare uses Myers line-diff so large files no longer render as a full add/delete.
+- Windows packages now ship node-pty ConPTY binaries (`conpty.dll` / `OpenConsole.exe`) so the integrated terminal can launch.
+- Unlabeled streaming fences get a language from a prefix sniff so they color while the block is still open.
 
 ### Removed
 

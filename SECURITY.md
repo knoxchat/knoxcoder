@@ -11,7 +11,8 @@ Email **security@knoxstudio.ai** (or open a private advisory on
 
 | Version | Supported |
 |---|---|
-| 2.0.x | Yes |
+| 2.1.x | Yes |
+| 2.0.x | Security fixes only |
 | 1.138.x | No |
 | Older 1.x | No |
 

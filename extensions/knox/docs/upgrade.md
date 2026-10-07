@@ -1,6 +1,8 @@
-# Upgrading to Knox 2.0
+# Upgrading to Knox 2.1
 
-Applies to upgrades from `1.138.x` and `2.0.0-beta`.
+Applies to upgrades from `1.138.x`, `2.0.0-beta`, `2.0.0` and `2.0.1`. From 2.0.x there are no data migrations: your `~/.knoxcoder` data is used as is.
+
+2.1 notes: workspace hooks, agents and prompts are read from `.knoxcoder/` only; `knoxchat.sandbox` and `knoxchat.sharedLoop` remain deprecated no-ops; model lists were refreshed (existing models keep working).
 
 ## Your data
 
