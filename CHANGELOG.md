@@ -3,6 +3,8 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.1.1] - 2026-10-08
+
 ### Changed
 
 - **Upgrade editor host to VS Code 1.141.0**
@@ -11,6 +13,15 @@ All notable changes to KnoxCoder are documented in this file.
   Editor-side additions from 1.139–1.141: word wrap indicators, smarter bracket auto-closing, spreading block paste, `editor.selectedTextMatchMode`, sharper macOS terminal font rendering, frosted-glass overlays and connected/pill editor tabs in Modern UI, compact layout density, GitHub Enterprise `github-enterprise.uris` (multiple instances), plus memory-leak and Electron 43 fixes.
 
   Not adopted from upstream: Copilot, Chat, Agents window, Agent Host, MCP, prompt/skill packs, inline chat, dictation, sandbox/agent telemetry, experiment assignment, and related SDKs — KnoxCoder stays slim and uses its own Knox Agent.
+
+### Fixed
+
+- Turn summary no longer shows duplicate token and duration chips; the meter prefers provider-reported usage when it is present.
+- History rename mounts from widget state (a store-only patch was treated as input-only, so the rename field never appeared).
+- Pending GUI requests are disposed with the messenger so unmounting the rename field no longer leaks.
+- Background job logs keep following the latest output unless the user scrolls away.
+- Composer mention chips stay on the same line as surrounding text.
+- Linux packaging retries `dpkg-shlibdeps` downloads so a GitHub 429 HTML page is not executed as Perl.
 
 ### Removed
 
