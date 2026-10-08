@@ -99,6 +99,15 @@ jobs:
             libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev libgbm1 libgtk-3-0 \
             libdbus-1-dev fakeroot dpkg-dev rpm
 
+      # Electron 43 headers (V8 14) do not compile with GCC 11 (ubuntu-22.04 default); use GCC 13.
+      - name: Use GCC 13 for native modules
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-13 g++-13
+          echo "CC=gcc-13" >> "$GITHUB_ENV"
+          echo "CXX=g++-13" >> "$GITHUB_ENV"
+
       - name: Install Rust
         run: |
           if command -v cargo >/dev/null 2>&1; then

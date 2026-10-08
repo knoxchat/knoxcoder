@@ -68,6 +68,16 @@ jobs:
             build-essential pkg-config python3 python-is-python3 \
             libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev
 
+      # Electron 43 headers (V8 14) do not compile with GCC 11 (ubuntu-22.04 default); use GCC 13.
+      - name: Use GCC 13 for native modules
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-13 g++-13
+          echo "CC=gcc-13" >> "$GITHUB_ENV"
+          echo "CXX=g++-13" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: npm ci
 
@@ -148,6 +158,15 @@ jobs:
             build-essential pkg-config python3 python-is-python3 xvfb \
             libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev \
             libgtk-3-0 libnss3 libasound2 libgbm1
+
+      # Electron 43 headers (V8 14) do not compile with GCC 11 (ubuntu-22.04 default); use GCC 13.
+      - name: Use GCC 13 for native modules
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-13 g++-13
+          echo "CC=gcc-13" >> "$GITHUB_ENV"
+          echo "CXX=g++-13" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: npm ci

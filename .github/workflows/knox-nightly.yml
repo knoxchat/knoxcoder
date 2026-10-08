@@ -31,6 +31,15 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config python3 python-is-python3 \
             libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev
+      # Electron 43 headers (V8 14) do not compile with GCC 11 (ubuntu-22.04 default); use GCC 13.
+      - name: Use GCC 13 for native modules
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-13 g++-13
+          echo "CC=gcc-13" >> "$GITHUB_ENV"
+          echo "CXX=g++-13" >> "$GITHUB_ENV"
+
       - run: npm ci
       - name: Rebuild sqlite3 against runner glibc
         working-directory: extensions/knox
