@@ -15,11 +15,11 @@ import {
 } from "../../../scripts/electronRebuild.mts";
 
 suite("KN-383 Electron ABI rebuild", () => {
-  test("this fork's Electron 43.3.0 maps to ABI 148", () => {
-    assert.strictEqual(KNOX_ELECTRON_VERSION, "43.3.0");
+  test("this fork's Electron 43.7.7 maps to ABI 148", () => {
+    assert.strictEqual(KNOX_ELECTRON_VERSION, "43.7.7");
     assert.strictEqual(KNOX_ELECTRON_ABI, 148);
-    assert.strictEqual(KNOX_ELECTRON_ABI_BY_VERSION["43.3.0"], 148);
-    assert.strictEqual(knoxElectronModulesAbi("43.3.0"), 148);
+    assert.strictEqual(KNOX_ELECTRON_ABI_BY_VERSION["43.7.7"], 148);
+    assert.strictEqual(knoxElectronModulesAbi("43.7.7"), 148);
     assert.strictEqual(
       knoxElectronModulesAbi("99.0.0"),
       148,
@@ -53,22 +53,22 @@ suite("KN-383 Electron ABI rebuild", () => {
       force: true,
     });
     assert.strictEqual(opts.buildPath, "/ext/knox");
-    assert.strictEqual(opts.electronVersion, "43.3.0");
+    assert.strictEqual(opts.electronVersion, "43.7.7");
     assert.deepStrictEqual(opts.onlyModules, ["sqlite3", "node-pty"]);
     assert.strictEqual(opts.forceABI, 148);
     assert.strictEqual(opts.force, true);
     assert.deepStrictEqual(opts.types, ["prod", "optional"]);
   });
 
-  test("readKnoxElectronVersion prefers package.json electron, else 43.3.0", () => {
+  test("readKnoxElectronVersion prefers package.json electron, else 43.7.7", () => {
     assert.strictEqual(
-      readKnoxElectronVersion({ devDependencies: { electron: "43.3.0" } }),
-      "43.3.0",
+      readKnoxElectronVersion({ devDependencies: { electron: "43.7.7" } }),
+      "43.7.7",
     );
     assert.strictEqual(
-      readKnoxElectronVersion({ dependencies: { electron: "43.3.0" } }),
-      "43.3.0",
+      readKnoxElectronVersion({ dependencies: { electron: "43.7.7" } }),
+      "43.7.7",
     );
-    assert.strictEqual(readKnoxElectronVersion({}), "43.3.0");
+    assert.strictEqual(readKnoxElectronVersion({}), "43.7.7");
   });
 });

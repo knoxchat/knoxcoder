@@ -8,6 +8,8 @@
 		"scripts/test-integration.sh": true,
 	},
 	"chat.editing.explainChanges.enabled": true,
+	// --- JSON ---
+	"json.schemaDownload.enable": true,
 	// --- Editor ---
 	"editor.insertSpaces": false,
 	"editor.experimental.asyncTokenization": true,

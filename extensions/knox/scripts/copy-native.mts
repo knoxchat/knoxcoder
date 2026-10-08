@@ -12,7 +12,7 @@
  * product.json builtInExtensions marketplace VSIX).
  *
  * KN-383: sqlite3 + node-pty are rebuilt for this fork's Electron
- * (43.3.0 → ABI 148) unless KNOX_SKIP_ELECTRON_REBUILD=1.
+ * (43.7.7 → ABI 148) unless KNOX_SKIP_ELECTRON_REBUILD=1.
  *
  * Installer size: everything copied here ships in every desktop package, so only files the
  * target platform can load are copied (see ./nativeFilters.mts). esbuild is intentionally not

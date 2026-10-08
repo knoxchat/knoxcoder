@@ -7,13 +7,13 @@
  * KN-383: rebuild sqlite3 + node-pty for this fork's Electron.
  *
  * `npm install` compiles against the *system* Node ABI (Node 24 → 137).
- * Electron 43.3.0 reports `process.versions.modules === "148"`. Copy-native
+ * Electron 43.7.7 reports `process.versions.modules === "148"`. Copy-native
  * passes `forceABI` so `@electron/rebuild` still targets 148 if `node-abi`
  * lags a new Electron. Skip with `KNOX_SKIP_ELECTRON_REBUILD=1` when there is
  * no compiler or Electron headers.
  */
 
-export const KNOX_ELECTRON_VERSION = '43.3.0';
+export const KNOX_ELECTRON_VERSION = '43.7.7';
 export const KNOX_ELECTRON_ABI = 148;
 export const KNOX_SKIP_ELECTRON_REBUILD = 'KNOX_SKIP_ELECTRON_REBUILD';
 export const KNOX_FORCE_ELECTRON_REBUILD = 'KNOX_FORCE_ELECTRON_REBUILD';
@@ -21,7 +21,7 @@ export const KNOX_ELECTRON_REBUILD_MODULES = ['sqlite3', 'node-pty'] as const;
 
 /** NODE_MODULE_VERSION for Electron releases this fork has shipped. */
 export const KNOX_ELECTRON_ABI_BY_VERSION: Record<string, number> = {
-	'43.3.0': 148,
+	'43.7.7': 148,
 };
 
 export function readKnoxElectronVersion(pkg: {
