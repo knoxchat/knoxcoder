@@ -917,23 +917,37 @@ export function estimateTokensFromPromptLogs(logs: IKnoxGuiPromptLog[] | undefin
 	if (!logs?.length) {
 		return 0;
 	}
+	// Prefer provider-reported usage per log; estimate from characters only for logs without it.
+	let reported = 0;
 	let chars = 0;
 	for (const log of logs) {
-		chars += log.prompt?.length ?? 0;
-		chars += log.completion?.length ?? 0;
+		const used = (typeof log.usage?.promptTokens === 'number' ? log.usage.promptTokens : 0) + (typeof log.usage?.completionTokens === 'number' ? log.usage.completionTokens : 0);
+		if (used > 0) {
+			reported += used;
+		} else {
+			chars += log.prompt?.length ?? 0;
+			chars += log.completion?.length ?? 0;
+		}
 	}
-	return charsToTokens(chars);
+	return reported + charsToTokens(chars);
 }
 
 export function estimateCompletionTokensFromPromptLogs(logs: IKnoxGuiPromptLog[] | undefined): number {
 	if (!logs?.length) {
 		return 0;
 	}
+	// Prefer provider-reported completion tokens per log; estimate from characters otherwise.
+	let reported = 0;
 	let chars = 0;
 	for (const log of logs) {
-		chars += log.completion?.length ?? 0;
+		const used = log.usage?.completionTokens;
+		if (typeof used === 'number' && used > 0) {
+			reported += used;
+		} else {
+			chars += log.completion?.length ?? 0;
+		}
 	}
-	return charsToTokens(chars);
+	return reported + charsToTokens(chars);
 }
 
 function messageContentChars(content: string | undefined): number {
@@ -947,6 +961,10 @@ function toolArgumentChars(item: IKnoxGuiHistoryItem): number {
 export function estimateTurnOutputTokens(history: IKnoxGuiHistoryItem[], userIndex: number, logs?: IKnoxGuiPromptLog[]): number {
 	const fromLogs = estimateCompletionTokensFromPromptLogs(logs);
 	if (userIndex < 0 || userIndex >= history.length) {
+		return fromLogs;
+	}
+	// Provider-reported usage is authoritative; the character estimate only covers turns (or in-flight output) without it.
+	if ((logs ?? []).some(log => (log.usage?.completionTokens ?? 0) > 0)) {
 		return fromLogs;
 	}
 	let chars = 0;

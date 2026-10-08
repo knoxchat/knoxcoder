@@ -19,7 +19,7 @@ import {
 	KnoxGuiActivityKind,
 	visibleActivitySteps,
 } from '../../../../common/knoxGuiTranscript.js';
-import { formatTurnDuration, formatTurnTokens, summarizeTurn } from '../../../../common/knoxGuiTurnSummary.js';
+import { summarizeTurn } from '../../../../common/knoxGuiTurnSummary.js';
 import { makeKnoxGuiActivatable } from '../a11y.js';
 
 /** `HistoryItemRow.tsx` chat/edit turn: `LoadingState` with the user message time as the timer origin. */
@@ -172,12 +172,7 @@ export function renderTurnSummary(widget: KnoxGuiWidget, parent: HTMLElement, st
 	if (summary.failedToolCalls) {
 		chip(t(state, 'turnSummaryFailedTools', { count: summary.failedToolCalls }), 'bad', undefined, 'turn-summary-failed-tools');
 	}
-	if (summary.tokens) {
-		chip(t(state, 'turnSummaryTokens', { tokens: formatTurnTokens(summary.tokens) }), 'muted', undefined, 'turn-summary-tokens');
-	}
-	if (summary.elapsedMs !== undefined) {
-		chip(formatTurnDuration(summary.elapsedMs), 'muted', undefined, 'turn-summary-elapsed');
-	}
+	// Tokens and elapsed time are shown by the turn meter; not duplicated here.
 	const checkpointId = summary.checkpointId;
 	if (checkpointId && summary.files.length) {
 		const actions = DOM.append(wrap, DOM.$('.knox-gui-turn-summary-actions'));

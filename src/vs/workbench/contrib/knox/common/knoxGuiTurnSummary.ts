@@ -10,7 +10,7 @@
  * so it works for restored sessions too.
  */
 
-import { classifyAgentActivityKind, extractSoulCheckpointId, itemCreatedAtMs } from './knoxGuiTranscript.js';
+import { classifyAgentActivityKind, extractSoulCheckpointId, formatTokenCount, itemCreatedAtMs } from './knoxGuiTranscript.js';
 import type { IKnoxGuiHistoryItem, IKnoxGuiToolCall } from './knoxGuiState.js';
 import { knoxGuiSanitizeToolFilePath } from './knoxGuiToolFilePath.js';
 
@@ -280,5 +280,5 @@ export function formatTurnDuration(ms: number): string {
 }
 
 export function formatTurnTokens(tokens: number): string {
-	return tokens >= 1000 ? `${(tokens / 1000).toFixed(tokens >= 10_000 ? 0 : 1)}k` : String(tokens);
+	return formatTokenCount(tokens);
 }
