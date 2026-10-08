@@ -25,6 +25,7 @@
 	],
 	"exclude": [
 		"../../src/**/test/**",
+		"../../src/**/*.test.ts",
 		"../../src/**/fixtures/**"
 	]
 }

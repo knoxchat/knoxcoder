@@ -24,6 +24,7 @@
 	],
 	"exclude": [
 		"../../src/**/test/**",
+		"../../src/**/*.test.ts",
 		"../../src/**/fixtures/**",
 		"../../src/typings/editContext.d.ts"
 	]

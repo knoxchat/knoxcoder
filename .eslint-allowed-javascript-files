@@ -8,6 +8,7 @@
 #
 # Lines starting with `#` are comments. Blank lines are ignored.
 
+.eslintplugin/index.js
 .github/skills/heap-snapshot-analysis/helpers/streamSnapshot.mjs
 .vscode-test.js
 build/builtin/browser-main.js
@@ -34,6 +35,11 @@ extensions/html-language-features/server/src/test/pathCompletionFixtures/src/fea
 extensions/html-language-features/server/src/test/pathCompletionFixtures/src/test.js
 extensions/html-language-features/server/test/index.js
 extensions/html/build/update-grammar.mjs
+extensions/knox/media/agentView.js
+extensions/knox/scripts/core-package-shim.js
+extensions/knox/scripts/gen-migration-fixtures.mjs
+extensions/knox/scripts/importMetaUrl.js
+extensions/knox/scripts/measure-startup.cjs
 extensions/json/build/update-grammars.js
 extensions/latex/build/update-grammars.js
 extensions/less/build/update-grammar.js
@@ -60,6 +66,10 @@ extensions/vscode-colorize-tests/test/colorize-fixtures/test.js
 extensions/vscode-colorize-tests/test/colorize-fixtures/test6916.js
 extensions/yaml/build/update-grammar.js
 gulpfile.mjs
+scripts/ci/generate-update-metadata.mjs
+scripts/ci/generate-update-metadata.test.mjs
+scripts/ci/release-check.mjs
+scripts/ci/release-check.test.mjs
 scripts/code-perf.js
 scripts/code-server.js
 scripts/code-sessions-web.js

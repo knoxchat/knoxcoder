@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as ts from '@typescript/typescript6';
-import { type RawSourceMap, type Mapping, SourceMapConsumer, SourceMapGenerator } from 'source-map';
+import { type RawSourceMap, type Mapping, SourceMapGenerator } from 'source-map';
+import { withSourceMapConsumer } from '../lib/sourceMapConsumer.ts';
 
 /**
  * Converts native ES private fields (`#foo`) into regular JavaScript properties with short,
@@ -324,9 +325,7 @@ export async function adjustSourceMap(
 		return { line: lo, col: offset - lineStarts[lo] };
 	}
 
-	// source-map >= 0.7 returns a Promise from SourceMapConsumer
-	const consumer = await new SourceMapConsumer(sourceMapJson);
-	try {
+	return withSourceMapConsumer(sourceMapJson, consumer => {
 		const generator = new SourceMapGenerator({ file: sourceMapJson.file, sourceRoot: sourceMapJson.sourceRoot });
 
 		// Copy sourcesContent
@@ -370,9 +369,7 @@ export async function adjustSourceMap(
 		});
 
 		return JSON.parse(generator.toString());
-	} finally {
-		consumer.destroy();
-	}
+	});
 }
 
 function buildLineStarts(text: string): number[] {

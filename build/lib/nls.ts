@@ -11,6 +11,7 @@ import sm from 'source-map';
 import path from 'path';
 import { sort } from './gulp/facade.ts';
 import { type ISpan, analyzeLocalizeCalls, TextModel, parseLocalizeKeyOrValue } from './nls-analysis.ts';
+import { withSourceMapConsumer } from './sourceMapConsumer.ts';
 
 type FileWithSourcemap = File & { sourceMap: sm.RawSourceMap };
 
@@ -140,7 +141,7 @@ const _nls = (() => {
 		return { source, line: lc.line + 1, column: lc.character };
 	}
 
-	function lcFrom(position: sm.Position | sm.NullablePosition): ts.LineAndCharacter {
+	function lcFrom(position: { line: number | null; column: number | null }): ts.LineAndCharacter {
 		if (position.line === null || position.column === null) {
 			throw new Error('Expected mapped generated position from source map');
 		}
@@ -216,8 +217,7 @@ const _nls = (() => {
 		const nlsMessages = localizeCalls.map(lc => parseLocalizeKeyOrValue(lc.value) as string).concat(localize2Calls.map(lc => parseLocalizeKeyOrValue(lc.value) as string));
 		const positionFrom = mappedPositionFrom.bind(null, sourcemap.sources[0]);
 
-		// source-map >= 0.7 returns a Promise from SourceMapConsumer
-		return sm.SourceMapConsumer.with(sourcemap, null, smc => {
+		return withSourceMapConsumer(sourcemap, smc => {
 			// build patches
 			const toPatch = (c: { range: ISpan; content: string }): IPatch => {
 				const start = lcFrom(smc.generatedPositionFor(positionFrom(c.range.start)));

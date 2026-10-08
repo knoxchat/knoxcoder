@@ -6,7 +6,7 @@
 import * as eslint from 'eslint';
 import type * as ESTree from 'estree';
 import { TSESTree } from '@typescript-eslint/utils';
-import * as ts from 'typescript';
+import ts from '@typescript/typescript6';
 
 /**
  * Prefer dot notation for identifier properties, including TypeScript private members.

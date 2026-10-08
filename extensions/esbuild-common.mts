@@ -72,7 +72,8 @@ export async function runBuild(
 		try {
 			await buildOnce(resolvedOptions, config.beforeBuild);
 			await didBuild?.(outdir);
-		} catch {
+		} catch (err) {
+			console.error(err);
 			process.exit(1);
 		}
 	}

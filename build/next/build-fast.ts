@@ -402,7 +402,7 @@ function logPlan(plan: BuildFastPlan): void {
 	console.log(`[build-fast] client=${plan.client}, extensions=${plan.extensions}`);
 }
 
-function readEnvironment(repoRoot: string): string {
+function readEnvironment(_repoRoot: string): string {
 	return [
 		`recipe=${BUILD_RECIPE}`,
 		`platform=${process.platform}`,

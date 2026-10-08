@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import ts from '@typescript/typescript6';
-import { readFileSync, existsSync } from 'fs';
-import { resolve, dirname, join } from 'path';
+import { API, SymbolFlags, type Checker, type Program, type Project, type Symbol } from '@typescript/native/unstable/async';
+import { isExportSpecifier, isIdentifier, isImportSpecifier, isPropertyAccessExpression, type Identifier, type Node, type SourceFile } from '@typescript/native/unstable/ast';
+import { dirname, join, relative, resolve } from 'path';
 import minimatch from 'minimatch';
 
 //
@@ -48,6 +48,7 @@ export const RULES: IRule[] = [
 			'window/common/window.ts',
 			'native/common/native.ts',
 			'native/common/nativeHostService.ts',
+			'native/common/nativeHostChannel.ts',
 			'ipc/common/mainProcessService.ts'
 		].join(',')}}`,
 		disallowedTypes: [/* Ignore native types that are defined from here */],

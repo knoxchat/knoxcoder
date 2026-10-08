@@ -10,7 +10,8 @@ import * as utils from './utils.ts';
 import colors from 'ansi-colors';
 import ts from '@typescript/typescript6';
 import Vinyl from 'vinyl';
-import { type RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map';
+import { type RawSourceMap, type SourceMapConsumer, SourceMapGenerator } from 'source-map';
+import { withSourceMapConsumer } from '../sourceMapConsumer.ts';
 
 export interface IConfiguration {
 	logFn: (topic: string, message: string) => void;
@@ -175,79 +176,72 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 								// in step 2 we apply the line edits to the typescript source map
 								const snapshot = host.getScriptSnapshot(fileName);
 								if (snapshot instanceof VinylScriptSnapshot && snapshot.sourceMap) {
-									// source-map >= 0.7 returns a Promise from SourceMapConsumer
-									const inputSMC = await new SourceMapConsumer(snapshot.sourceMap);
-									const tsSMC = await new SourceMapConsumer(sourceMap);
-									try {
-									let didChange = false;
-									const smg = new SourceMapGenerator({
-										file: sourceMap.file,
-										sourceRoot: sourceMap.sourceRoot
-									});
+									sourceMap = await withSourceMapConsumer(snapshot.sourceMap, inputSMC =>
+										withSourceMapConsumer(sourceMap, tsSMC => {
+											let didChange = false;
+											const smg = new SourceMapGenerator({
+												file: sourceMap.file,
+												sourceRoot: sourceMap.sourceRoot
+											});
 
-									// step 1
-									const lineEdits = new Map<number, [from: number, to: number][]>();
-									inputSMC.eachMapping(m => {
-										if (m.originalLine === m.generatedLine) {
-											// same line mapping
-											let array = lineEdits.get(m.originalLine);
-											if (!array) {
-												array = [];
-												lineEdits.set(m.originalLine, array);
-											}
-											array.push([m.originalColumn, m.generatedColumn]);
-										} else {
-											// NOT SUPPORTED
-										}
-									});
-
-									// step 2
-									tsSMC.eachMapping(m => {
-										didChange = true;
-										const edits = lineEdits.get(m.originalLine);
-										let originalColumnDelta = 0;
-										if (edits) {
-											for (const [from, to] of edits) {
-												if (to >= m.originalColumn) {
-													break;
-												}
-												originalColumnDelta = from - to;
-											}
-										}
-										smg.addMapping({
-											source: m.source,
-											name: m.name,
-											generated: { line: m.generatedLine, column: m.generatedColumn },
-											original: { line: m.originalLine, column: m.originalColumn + originalColumnDelta }
-										});
-									});
-
-									if (didChange) {
-
-										interface SourceMapGeneratorWithSources extends SourceMapGenerator {
-											_sources: { add(source: string): void };
-										}
-
-										[tsSMC, inputSMC].forEach((consumer) => {
-											consumer.sources.forEach((sourceFile: string) => {
-												(smg as SourceMapGeneratorWithSources)._sources.add(sourceFile);
-												const sourceContent = consumer.sourceContentFor(sourceFile);
-												if (sourceContent !== null) {
-													smg.setSourceContent(sourceFile, sourceContent);
+											// step 1
+											const lineEdits = new Map<number, [from: number, to: number][]>();
+											inputSMC.eachMapping(m => {
+												if (m.originalLine === m.generatedLine) {
+													// same line mapping
+													let array = lineEdits.get(m.originalLine);
+													if (!array) {
+														array = [];
+														lineEdits.set(m.originalLine, array);
+													}
+													array.push([m.originalColumn, m.generatedColumn]);
+												} else {
+													// NOT SUPPORTED
 												}
 											});
-										}); sourceMap = JSON.parse(smg.toString());
 
-										// const filename = '/Users/jrieken/Code/vscode/src2/' + vinyl.relative + '.map';
-										// fs.promises.mkdir(path.dirname(filename), { recursive: true }).then(async () => {
-										// 	await fs.promises.writeFile(filename, smg.toString());
-										// 	await fs.promises.writeFile('/Users/jrieken/Code/vscode/src2/' + vinyl.relative, vinyl.contents);
-										// });
-									}
-									} finally {
-										inputSMC.destroy();
-										tsSMC.destroy();
-									}
+											// step 2
+											tsSMC.eachMapping(m => {
+												didChange = true;
+												const edits = lineEdits.get(m.originalLine);
+												let originalColumnDelta = 0;
+												if (edits) {
+													for (const [from, to] of edits) {
+														if (to >= m.originalColumn) {
+															break;
+														}
+														originalColumnDelta = from - to;
+													}
+												}
+												smg.addMapping({
+													source: m.source,
+													name: m.name,
+													generated: { line: m.generatedLine, column: m.generatedColumn },
+													original: { line: m.originalLine, column: m.originalColumn + originalColumnDelta }
+												});
+											});
+
+											if (didChange) {
+
+												interface SourceMapGeneratorWithSources extends SourceMapGenerator {
+													_sources: { add(source: string): void };
+												}
+
+												[tsSMC, inputSMC].forEach((consumer) => {
+													(consumer as SourceMapConsumer & { sources: string[] }).sources.forEach((sourceFile: string) => {
+														(smg as SourceMapGeneratorWithSources)._sources.add(sourceFile);
+														const sourceContent = consumer.sourceContentFor(sourceFile);
+														if (sourceContent !== null) {
+															smg.setSourceContent(sourceFile, sourceContent);
+														}
+													});
+												});
+												return JSON.parse(smg.toString()) as RawSourceMap;
+											}
+
+											return sourceMap;
+										})
+									);
 								}
 
 								(vinyl as Vinyl & { sourceMap?: RawSourceMap }).sourceMap = sourceMap;

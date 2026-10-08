@@ -33,6 +33,14 @@ declare module 'vscode' {
 		resource?: string;
 	}
 
+	export interface AuthenticationSession {
+		/**
+		 * The authorization server that issued this session. Set when the provider supports
+		 * multiple issuers (`supportedAuthorizationServers`).
+		 */
+		readonly authorizationServer?: Uri;
+	}
+
 	export interface AuthenticationGetSessionOptions {
 		/**
 		 * When specified, the authentication provider will use the provided authorization server URL to
