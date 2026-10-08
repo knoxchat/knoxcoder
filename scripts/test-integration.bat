@@ -7,6 +7,7 @@ set "SCRIPT_DIR=%~dp0"
 pushd %SCRIPT_DIR%\..
 
 :: Parse arguments for help and filters
+set "BUILD_ARG="
 set "HAS_FILTER="
 set "RUN_FILE="
 set "RUN_GLOB="
@@ -18,6 +19,7 @@ set "SHOW_HELP="
 if "%~1"=="" goto done_parsing
 if /i "%~1"=="--help" (set SHOW_HELP=1& shift & goto parse_args)
 if /i "%~1"=="-h" (set SHOW_HELP=1& shift & goto parse_args)
+if /i "%~1"=="--build" (set "BUILD_ARG=--build"& shift & goto parse_args)
 if /i "%~1"=="--run" (set "RUN_FILE=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--grep" (set "GREP_PATTERN=%~2"& shift & shift & goto parse_args)
 if /i "%~1"=="-g" (set "GREP_PATTERN=%~2"& shift & shift & goto parse_args)
@@ -48,6 +50,7 @@ if defined SHOW_HELP (
 	echo Node.js integration tests are skipped when this option is used.
 	echo.
 	echo Options:
+	echo   --build                      use the out-build directory for node.js and JSON tests
 	echo   --run ^<file^>                  run tests from a specific file ^(src/ path^)
 	echo   --runGlob, --glob ^<pattern^>   select test files by path glob ^(e.g. '**\*.integrationTest.js'^)
 	echo   --grep, -g, -f ^<pattern^>      filter test cases by name ^(matched against test titles^)
@@ -58,7 +61,7 @@ if defined SHOW_HELP (
 	echo Available suites:
 	echo   api-folder, api-workspace, colorize, terminal-suggest, typescript,
 	echo   markdown, emmet, git, git-base, ipynb, notebook-renderers,
-	echo   configuration-editing, github-authentication, css, html
+	echo   configuration-editing, github-authentication, css, html, json
 	echo.
 	echo All other options are forwarded to the node.js test runner ^(see scripts\test.bat --help^).
 	echo Note: extra options are not forwarded to extension host suites ^(--suite mode^).
@@ -82,7 +85,9 @@ set VSCODELOGSDIR=%SCRIPT_DIR%\..\.build\logs\integration-tests
 if not exist "%VSCODEUSERDATADIR%\User" mkdir "%VSCODEUSERDATADIR%\User"
 (
 echo {
-echo echo echo }
+echo 	"chat.notifyWindowOnConfirmation": "off",
+echo 	"chat.notifyWindowOnResponseReceived": "off"
+echo }
 ) > "%VSCODEUSERDATADIR%\User\settings.json"
 
 :: Figure out which Electron to use for running tests
@@ -106,13 +111,13 @@ echo Storing log files into '%VSCODELOGSDIR%'.
 :: Validate --suite filter matches at least one known suite
 if defined SUITE_FILTER (
 	set "_any_match="
-	for %%s in (api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication css html) do (
+	for %%s in (api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication css html json) do (
 		call :should_run_suite %%s && set "_any_match=1"
 	)
 	if not defined _any_match (
 		echo Error: no suites match filter '%SUITE_FILTER%'
-		echo Available suites: api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication css html
-		exit /b 1
+		echo Available suites: api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication css html json
+		goto :failed
 	)
 )
 
@@ -127,8 +132,14 @@ if defined RUN_GLOB (
 ) else if defined RUN_FILE (
 	call .\scripts\test.bat %*
 ) else (
+	if "%VSCODE_SKIP_AGENT_HOST_E2E%"=="1" (
+		echo Skipping Agent Host E2E tests because no relevant files changed.
+	) else (
+		call node .\scripts\test-agent-host-e2e.ts %*
+		if errorlevel 1 goto :failed
+	)
 	set VSCODE_SKIP_PRELAUNCH=1
-	call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
+	call .\scripts\test.bat --runGlob **\*.integrationTest.js --excludeRunGlob "**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js" %*
 )
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_nodejs_tests
@@ -290,6 +301,13 @@ echo ### HTML tests
 call %SCRIPT_DIR%\node-electron.bat %SCRIPT_DIR%\..\extensions\html-language-features/server/test/index.js
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_html
+
+call :should_run_suite json || goto skip_json
+echo.
+echo ### JSON tests
+call "%SCRIPT_DIR%\node-electron.bat" "%SCRIPT_DIR%\..\extensions\json-language-features\client\out\test\index.js" %BUILD_ARG%
+if %errorlevel% neq 0 goto :failed
+:skip_json
 
 
 :: Cleanup

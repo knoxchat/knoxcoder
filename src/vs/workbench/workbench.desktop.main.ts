@@ -184,6 +184,9 @@ import './contrib/keybindingsExport/electron-browser/keybindingsExport.contribut
 // System-wide (OS global) Keybindings
 import './contrib/keybindings/electron-browser/systemWideKeybindings.contribution.js';
 
+// Frosted glass overlays (desktop modern UI)
+import './contrib/modernUI/electron-browser/frostedGlass.contribution.js';
+
 //#endregion
 
 

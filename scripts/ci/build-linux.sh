@@ -25,9 +25,9 @@ else
 	done
 fi
 
-# Native module toolchain and sysroots (see build/azure-pipelines/linux/setup-env.sh).
+# Native module toolchain and sysroots (see build/linux/setup-env.sh).
 # Requires build/node_modules for scripts such as build/linux/libcxx-fetcher.ts.
-source ./build/azure-pipelines/linux/setup-env.sh
+source ./build/linux/setup-env.sh
 
 if [ "${NODE_MODULES_RESTORED:-}" != "true" ]; then
 	# npm install scripts for packages like @vscode/policy-watcher must not inherit the

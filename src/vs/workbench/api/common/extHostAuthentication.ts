@@ -134,7 +134,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			await this._proxy.$ensureProvider(providerId);
 			const extensionName = requestingExtension.displayName || requestingExtension.name;
 			const session = await this._proxy.$getSession(providerId, scopesOrRequest, extensionId, extensionName, options);
-			return session && { ...session, account: reviveAccountIcon(session.account) };
+			return session && { ...session, authorizationServer: URI.revive(session.authorizationServer), account: reviveAccountIcon(session.account) };
 		});
 	}
 

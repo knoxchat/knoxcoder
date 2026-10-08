@@ -15,6 +15,8 @@ import { ICommonNativeHostService } from './native.js';
  */
 export const NATIVE_HOST_UNBUFFERED_EVENTS = [
 	'onDidBlurMainWindow',
+	// GPU subscribers read current state explicitly; do not replay obsolete capabilities.
+	'onDidChangeGPUCompositing',
 ] as const satisfies readonly (keyof ICommonNativeHostService)[];
 
 export function createNativeHostChannel(service: unknown, disposables: DisposableStore): IServerChannel {

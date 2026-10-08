@@ -84,7 +84,7 @@ else
 	export OPENSSL_INCLUDE_DIR="$OPENSSL_ROOT/out/${OPENSSL_TRIPLE}/include"
 	(
 		cd cli
-		# Chromium client toolchain flags from setup-env.sh must not leak here.
+		# Chromium client toolchain flags from build/linux/setup-env.sh must not leak here.
 		unset CC CXX CXXFLAGS LDFLAGS
 		export VSCODE_CLI_COMMIT="$(git rev-parse HEAD)"
 		cargo build --release --bin=code

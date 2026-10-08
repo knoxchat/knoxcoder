@@ -26,7 +26,7 @@ import product from '../../product.json' with { type: 'json' };
 // toolchain, which can shift individual version bounds, so only warn.
 const FAIL_BUILD_FOR_NEW_DEPENDENCIES: boolean = false;
 
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/148.0.7778.280:chrome/installer/linux/BUILD.gn;l=64-80
+// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/150.0.7871.250:chrome/installer/linux/BUILD.gn;l=64-80
 // and the Linux Archive build
 // Shared library dependencies that we already bundle.
 const bundledDeps = [

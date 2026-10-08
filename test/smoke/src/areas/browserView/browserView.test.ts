@@ -10,7 +10,7 @@ import * as path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import type { Page } from '@playwright/test';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
-import { getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
 
 const browserCommandPrefix = 'workbench.action.browser';
 
@@ -46,17 +46,10 @@ export function setup(logger: Logger): void {
 			logger,
 			options => {
 				const mediaOptions = withFakeMediaDevice(options);
-				return {
-					...mediaOptions,
-					extraEnv: {
-						...(mediaOptions.extraEnv ?? {}),
-						...getCopilotSmokeTestEnv(mockServer, { userDataDir: mediaOptions.userDataDir })
-					}
-				};
+				return mediaOptions;
 			},
 			async app => {
-				await preseedChatExtensionEnablement(app.userDataPath);
-				preseedSettings(app.userDataPath, getMockLlmServerUrl(mockServer));
+				preseedSettings(app.userDataPath);
 			}
 		);
 
@@ -351,7 +344,25 @@ export function setup(logger: Logger): void {
 			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Lifecycle' }).click();
 			assert.strictEqual(await browserPage.locator('#state-input').inputValue(), 'Preserved state');
 
+			const writtenPage = await app.code.driver.waitForNewPage('about:blank', () => browserPage.locator('#write-popup').click());
+			openPages.add(writtenPage);
+			await writtenPage.waitForLoadState('load');
+			await writtenPage.locator('#written-content').waitFor();
+			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Written Popup' }).waitFor();
+			assert.deepStrictEqual(await writtenPage.evaluate(() => ({
+				content: document.querySelector('#written-content')?.textContent,
+				openerTitle: window.opener.document.title
+			})), {
+				content: 'Written by opener',
+				openerTitle: 'Browser Smoke Lifecycle'
+			});
+			await writtenPage.close();
+			openPages.delete(writtenPage);
+			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Written Popup' }).waitFor({ state: 'detached' });
+
 			await app.restart();
+			const mainLog = fs.readFileSync(path.join(app.logsPath, 'main.log'), 'utf8');
+			assert.doesNotMatch(mainLog, /Cannot read properties of undefined \(reading 'isDestroyed'\)/, 'Closing the native popup must not fail during disposal');
 			openPages.clear();
 			const restoredPage = await app.code.driver.waitForPage('/lifecycle', 30_000);
 			openPages.add(restoredPage);
@@ -385,7 +396,7 @@ function normalizeFileUrl(url: string | null): string | null {
  * default is quality dependent on macOS (`native` for stable, `inherit` for
  * insiders), so pinning `custom` keeps the suite deterministic across qualities.
  */
-function preseedSettings(userDataDir: string | undefined, mockServerUrl: string): void {
+function preseedSettings(userDataDir: string | undefined): void {
 	if (!userDataDir) {
 		throw new Error('Cannot pre-seed Integrated Browser settings without a user data directory');
 	}
@@ -393,16 +404,6 @@ function preseedSettings(userDataDir: string | undefined, mockServerUrl: string)
 	const settingsPath = path.join(userDataDir, 'User', 'settings.json');
 	fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
 	fs.writeFileSync(settingsPath, JSON.stringify({
-		'github.copilot.advanced.debug.overrideProxyUrl': mockServerUrl,
-		'github.copilot.advanced.debug.overrideCapiUrl': mockServerUrl,
-		'github.copilot.advanced.debug.overrideAuthType': 'token',
-		'chat.allowAnonymousAccess': true,
-		'github.copilot.chat.githubMcpServer.enabled': false,
-		'chat.mcp.discovery.enabled': false,
-		'chat.mcp.enabled': false,
-		'chat.disableAIFeatures': false,
-		'chat.tools.riskAssessment.enabled': false,
-		'github.copilot.chat.backgroundAgent.enabled': true,
 		'window.menuStyle': 'custom',
 		'workbench.browser.experimentalUserTools.enabled': true,
 		'workbench.editorAssociations': {
@@ -580,7 +581,16 @@ function pageForRoute(route: string, requestCount: number): string {
 					});
 				</script>`);
 		case '/lifecycle':
-			return html('Browser Smoke Lifecycle', '<div id="lifecycle-content">Lifecycle content</div><input id="state-input"><a id="open-popup" target="_blank" href="/popup-child">Open child</a><div style="height: 1800px"></div><div id="scroll-marker">Scroll marker</div>');
+			return html('Browser Smoke Lifecycle', `<div id="lifecycle-content">Lifecycle content</div><input id="state-input">
+				<a id="open-popup" target="_blank" href="/popup-child">Open child</a><button id="write-popup">Write child</button>
+				<div style="height: 1800px"></div><div id="scroll-marker">Scroll marker</div>
+				<script>
+					document.querySelector('#write-popup').addEventListener('click', () => {
+						const child = window.open('', '_blank', 'popup=false');
+						child.document.write('<!DOCTYPE html><title>Browser Smoke Written Popup</title><div id="written-content">Written by opener</div>');
+						child.document.close();
+					});
+				</script>`);
 		case '/popup-child':
 			return html('Browser Smoke Popup Child', '<div id="popup-child-content">Popup child</div>');
 		default:

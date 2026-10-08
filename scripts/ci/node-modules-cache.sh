@@ -37,7 +37,7 @@ save_node_modules_cache() {
 	echo "Creating node_modules cache archive..."
 	cd "$ROOT"
 	mkdir -p "$ROOT/.build/node_modules_cache"
-	node "$ROOT/build/azure-pipelines/common/listNodeModules.ts" "$ROOT/.build/node_modules_list.txt"
+	node "$ROOT/build/lib/listNodeModules.ts" "$ROOT/.build/node_modules_list.txt"
 
 	local archive
 	archive="$(cache_archive_path)"

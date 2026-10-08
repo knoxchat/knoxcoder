@@ -119,7 +119,7 @@ suite('MainThreadDataChannels', () => {
 			() => extHost.createLinkPresentationWatcher(extension, 'test.sessions', URI.parse('https://example.com/not-supported')),
 			/does not accept/,
 		);
-		const watcher = store.add(extHost.createLinkPresentationWatcher(extension, 'test.sessions', URI.parse('agent-host-session://copilotcli/session')));
+		const watcher = store.add(extHost.createLinkPresentationWatcher(extension, 'test.sessions', URI.parse('agent-host-session://example/session')));
 		const values: vscode.LinkPresentationData[] = [watcher.presentation];
 		store.add(watcher.onDidChangePresentation(() => values.push(watcher.presentation)));
 

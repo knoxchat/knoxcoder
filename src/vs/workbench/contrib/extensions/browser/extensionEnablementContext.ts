@@ -16,7 +16,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
  *
  * Because context keys are matched by exact string, the extension id is always
  * lowercased. When clauses must therefore use the lowercased id (for example
- * `extensionEnabled:github.copilot`, not `extensionEnabled:GitHub.copilot`).
+ * `extensionEnabled:ms-python.python`, not `extensionEnabled:MS-Python.python`).
  */
 export const EXTENSION_ENABLED_CONTEXT_KEY_PREFIX = 'extensionEnabled:';
 

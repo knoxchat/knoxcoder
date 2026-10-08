@@ -25,8 +25,8 @@ import azureStorage_ from 'gulp-azure-storage';
 import bom_ from 'gulp-bom';
 import buffer_ from 'gulp-buffer';
 import vinylZip_ from '@vscode/gulp-vinyl-zip';
-import svgmin_ from 'gulp-svgmin';
 import sort_ from 'gulp-sort';
+import svgmin_ from 'gulp-svgmin';
 import g from 'gulp';
 import { merge as merge_ } from '../merge.ts';
 
@@ -45,8 +45,8 @@ export const azureStorage = azureStorage_;
 export const bom = bom_;
 export const buffer = buffer_;
 export const vinylZip = vinylZip_;
-export const svgmin = svgmin_;
 export const sort = sort_;
+export const svgmin = svgmin_;
 export const merge = merge_;
 
 export const gulp = {

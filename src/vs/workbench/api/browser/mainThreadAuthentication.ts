@@ -52,7 +52,11 @@ export interface AuthenticationGetSessionOptions {
  * so it needs to be revived when sessions are received from the extension host.
  */
 export function reviveSessionAccountIcon(session: Dto<AuthenticationSession>): AuthenticationSession {
-	return { ...session, account: { ...session.account, icon: URI.revive(session.account.icon) } };
+	return {
+		...session,
+		authorizationServer: URI.revive(session.authorizationServer),
+		account: { ...session.account, icon: URI.revive(session.account.icon) }
+	};
 }
 
 class MainThreadAuthenticationProvider extends Disposable implements IAuthenticationProvider {

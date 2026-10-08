@@ -2212,11 +2212,10 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 	}
 
 	private createDeleteAction(item: WorkspaceTableElement): IAction {
-		const isAgentSessionsWorkspace = false;
 		return {
 			label: '',
 			class: ThemeIcon.asClassName(removeIcon),
-			enabled: this.userDataProfileManagementService.getDefaultProfileToUse().id !== item.profileElement.profile.id && !isAgentSessionsWorkspace,
+			enabled: this.userDataProfileManagementService.getDefaultProfileToUse().id !== item.profileElement.profile.id,
 			id: 'deleteTrustedUri',
 			tooltip: localize('deleteTrustedUri', "Delete Path"),
 			run: () => item.profileElement.updateWorkspaces([], [item.workspace])

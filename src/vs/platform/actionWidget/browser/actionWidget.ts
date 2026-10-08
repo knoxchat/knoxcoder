@@ -258,12 +258,14 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		return actionBar;
 	}
 
-	private _hasRequiredAncestorClasses(element: HTMLElement, classNames: readonly string[] | undefined): boolean {
+	private _hasRequiredAncestorClasses(element: HTMLElement, classNames: readonly (string | readonly string[])[] | undefined): boolean {
 		if (!classNames?.length) {
 			return true;
 		}
 		for (let candidate: HTMLElement | null = element; candidate; candidate = candidate.parentElement) {
-			if (classNames.every(className => candidate.classList.contains(className))) {
+			if (classNames.every(requirement => typeof requirement === 'string'
+				? candidate.classList.contains(requirement)
+				: requirement.some(className => candidate.classList.contains(className)))) {
 				return true;
 			}
 		}

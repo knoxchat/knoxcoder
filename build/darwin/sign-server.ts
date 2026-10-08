@@ -51,8 +51,7 @@ async function main(serverDir: string): Promise<void> {
 	}
 
 	const keychain = path.join(tempDir, 'buildagent.keychain');
-	const baseDir = path.dirname(import.meta.dirname);
-	const entitlementsPath = path.join(baseDir, 'azure-pipelines', 'darwin', 'server-entitlements.plist');
+	const entitlementsPath = path.join(import.meta.dirname, 'server-entitlements.plist');
 
 	console.log(`Signing Mach-O binaries in: ${serverDir}`);
 	for (const entry of fs.readdirSync(serverDir, { withFileTypes: true, recursive: true })) {

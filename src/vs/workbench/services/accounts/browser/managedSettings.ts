@@ -17,10 +17,8 @@ export type IManagedMcpServerMatcher =
 	| { readonly serverCommand: readonly string[] };
 
 /**
- * Response shape from the Copilot `/copilot_internal/managed_settings` endpoint.
- * The endpoint returns `.github/copilot/settings.json` content from the
- * enterprise's source org. An empty response (`{}`) is success and means
- * "no policy file present".
+ * Response shape from the enterprise managed-settings endpoint.
+ * An empty response (`{}`) is success and means "no policy file present".
  *
  * Unknown keys are accepted via the index signature so the client is
  * forward-compatible with future additions to the registry schema.

@@ -18,8 +18,6 @@ const BUILD_SCOPES = ['src', 'extensions', '.vscode/extensions', 'build', 'gulpf
 const API_PROPOSALS_OUTPUT = 'src/vs/platform/extensions/common/extensionsApiProposals.ts';
 const EXTENSION_POINTS_OUTPUT = 'src/vs/workbench/services/extensions/common/extensionPoints.json';
 const EXTENSION_BUILD_ARGS = ['run', 'gulp', 'compile-extensions', 'compile-extension-media'];
-const COPILOT_BUILD_ARGS = ['--prefix', 'extensions/copilot', 'run', 'compile'];
-const COPILOT_PACKAGE_JSON = path.join('extensions', 'copilot', 'package.json');
 
 type Fingerprint = string | null;
 type LaneMode = 'skip' | 'incremental' | 'full';
@@ -42,7 +40,6 @@ export interface BuildFastPlan {
 	readonly changedPaths: readonly string[];
 	readonly client: LaneMode;
 	readonly extensions: LaneMode;
-	readonly copilot: LaneMode;
 }
 
 export interface BuildFastPrerequisites {
@@ -58,7 +55,6 @@ export interface StateReadResult {
 export interface OutputStatus {
 	readonly client: boolean;
 	readonly extensions: boolean;
-	readonly copilot: boolean;
 }
 
 interface Lock {
@@ -92,7 +88,7 @@ export async function runBuildFast(repoRoot: string, force: boolean): Promise<vo
 		const plan = createBuildPlan(saved, environment, changedPaths, outputs, force);
 		logPlan(plan);
 
-		const hasBuildWork = plan.client !== 'skip' || plan.extensions !== 'skip' || plan.copilot !== 'skip';
+		const hasBuildWork = plan.client !== 'skip' || plan.extensions !== 'skip';
 		if (!hasBuildWork && saved.state?.head === before.head) {
 			return;
 		}
@@ -100,7 +96,7 @@ export async function runBuildFast(repoRoot: string, force: boolean): Promise<vo
 			await fs.promises.rm(statePath, { force: true });
 		}
 
-		const fullBuild = plan.client === 'full' && plan.extensions === 'full' && plan.copilot === 'full';
+		const fullBuild = plan.client === 'full' && plan.extensions === 'full';
 		const prerequisites = createBuildFastPrerequisites(fullBuild, plan.changedPaths);
 		if (prerequisites.tasks.length > 0) {
 			await runCommand(repoRoot, npmCommand(), ['run', 'gulp', ...prerequisites.tasks], 'prerequisites');
@@ -115,9 +111,6 @@ export async function runBuildFast(repoRoot: string, force: boolean): Promise<vo
 		}
 		if (plan.extensions === 'full') {
 			tasks.push(runCommand(repoRoot, npmCommand(), EXTENSION_BUILD_ARGS, 'extensions'));
-		}
-		if (plan.copilot === 'full' && hasCopilotExtension(repoRoot)) {
-			tasks.push(runCommand(repoRoot, npmCommand(), COPILOT_BUILD_ARGS, 'copilot'));
 		}
 
 		await waitForTasks(tasks);
@@ -209,15 +202,12 @@ export function createBuildPlan(saved: StateReadResult, environment: string, cha
 
 	let client: LaneMode = outputs.client ? 'skip' : 'full';
 	let extensions: LaneMode = outputs.extensions ? 'skip' : 'full';
-	let copilot: LaneMode = outputs.copilot ? 'skip' : 'full';
 
 	for (const filePath of changedPaths) {
 		if (filePath.startsWith('src/')) {
 			if (client === 'skip') {
 				client = 'incremental';
 			}
-		} else if (filePath.startsWith('extensions/copilot/')) {
-			copilot = 'full';
 		} else if (filePath.startsWith('extensions/') || filePath.startsWith('.vscode/extensions/')) {
 			extensions = 'full';
 		}
@@ -230,9 +220,6 @@ export function createBuildPlan(saved: StateReadResult, environment: string, cha
 	if (!outputs.extensions) {
 		reasons.push('extension output is missing');
 	}
-	if (!outputs.copilot) {
-		reasons.push('Copilot output is missing');
-	}
 	if (changedPaths.length > 0) {
 		reasons.push(`${changedPaths.length} input path(s) changed`);
 	}
@@ -242,7 +229,6 @@ export function createBuildPlan(saved: StateReadResult, environment: string, cha
 		changedPaths,
 		client,
 		extensions,
-		copilot,
 	};
 }
 
@@ -346,24 +332,16 @@ function isGlobalBuildInput(filePath: string): boolean {
 		|| filePath === '.nvmrc';
 }
 
-function hasCopilotExtension(repoRoot: string): boolean {
-	return fs.existsSync(path.join(repoRoot, COPILOT_PACKAGE_JSON));
-}
-
 function fullPlan(reason: string, changedPaths: readonly string[]): BuildFastPlan {
-	return { reason, changedPaths, client: 'full', extensions: 'full', copilot: 'full' };
+	return { reason, changedPaths, client: 'full', extensions: 'full' };
 }
 
 async function getOutputStatus(repoRoot: string): Promise<OutputStatus> {
-	const copilotInstalled = hasCopilotExtension(repoRoot);
-	const [client, extensions, copilot] = await Promise.all([
+	const [client, extensions] = await Promise.all([
 		pathExists(path.join(repoRoot, 'out', 'main.js')),
 		pathExists(path.join(repoRoot, 'extensions', 'configuration-editing', 'out', 'configurationEditingMain.js')),
-		copilotInstalled
-			? pathExists(path.join(repoRoot, 'extensions', 'copilot', 'dist', 'extension.js'))
-			: Promise.resolve(true),
 	]);
-	return { client, extensions, copilot };
+	return { client, extensions };
 }
 
 function validateSelectedOutputs(plan: BuildFastPlan, outputs: OutputStatus): void {
@@ -372,9 +350,6 @@ function validateSelectedOutputs(plan: BuildFastPlan, outputs: OutputStatus): vo
 	}
 	if (plan.extensions !== 'skip' && !outputs.extensions) {
 		throw new Error('Extension build completed without producing the expected configuration-editing output.');
-	}
-	if (plan.copilot !== 'skip' && !outputs.copilot) {
-		throw new Error('Copilot build completed without producing dist/extension.js.');
 	}
 }
 
@@ -390,9 +365,6 @@ async function runAllFull(repoRoot: string): Promise<void> {
 		runCommand(repoRoot, process.execPath, [path.join(repoRoot, 'build', 'next', 'index.ts'), 'transpile'], 'client'),
 		runCommand(repoRoot, npmCommand(), EXTENSION_BUILD_ARGS, 'extensions'),
 	];
-	if (hasCopilotExtension(repoRoot)) {
-		tasks.push(runCommand(repoRoot, npmCommand(), COPILOT_BUILD_ARGS, 'copilot'));
-	}
 	await waitForTasks(tasks);
 }
 
@@ -427,24 +399,16 @@ async function runTimed(label: string, task: () => Promise<void>): Promise<void>
 
 function logPlan(plan: BuildFastPlan): void {
 	console.log(`[build-fast] ${plan.reason}`);
-	console.log(`[build-fast] client=${plan.client}, extensions=${plan.extensions}, copilot=${plan.copilot}`);
+	console.log(`[build-fast] client=${plan.client}, extensions=${plan.extensions}`);
 }
 
 function readEnvironment(repoRoot: string): string {
-	let copilotEsbuild = '';
-	if (hasCopilotExtension(repoRoot)) {
-		const copilotPackage = JSON.parse(fs.readFileSync(path.join(repoRoot, COPILOT_PACKAGE_JSON), 'utf8')) as {
-			readonly devDependencies?: Readonly<Record<string, string>>;
-		};
-		copilotEsbuild = copilotPackage.devDependencies?.esbuild ?? '';
-	}
 	return [
 		`recipe=${BUILD_RECIPE}`,
 		`platform=${process.platform}`,
 		`arch=${process.arch}`,
 		`node=${process.version}`,
 		`esbuild=${esbuild.version}`,
-		`copilot-esbuild=${copilotEsbuild}`,
 	].join(';');
 }
 

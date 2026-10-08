@@ -19,7 +19,6 @@ suite('Assignment', () => {
 			orgOnly: isInternalAccount(false, ['microsoft']),
 			vscodeOrg: isInternalAccount(undefined, ['Visual-Studio-Code']),
 			githubOrg: isInternalAccount(undefined, ['github']),
-			copilotOrg: isInternalAccount(undefined, ['ms-copilot']),
 		}, {
 			unknown: false,
 			external: false,
@@ -27,7 +26,6 @@ suite('Assignment', () => {
 			orgOnly: true,
 			vscodeOrg: true,
 			githubOrg: true,
-			copilotOrg: true,
 		});
 	});
 });

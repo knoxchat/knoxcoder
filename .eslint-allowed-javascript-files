@@ -10,8 +10,6 @@
 
 .github/skills/heap-snapshot-analysis/helpers/streamSnapshot.mjs
 .vscode-test.js
-build/azure-pipelines/common/installPlaywright.js
-build/azure-pipelines/github-check-run.js
 build/builtin/browser-main.js
 build/builtin/main.js
 build/codex/generate-protocol.mjs

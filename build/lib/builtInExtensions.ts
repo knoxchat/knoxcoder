@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { rimraf } from 'rimraf';
+import rimraf from 'rimraf';
 import es from 'event-stream';
 import { rename, merge} from './gulp/facade.ts';
 import vfs from 'vinyl-fs';

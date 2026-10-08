@@ -9,7 +9,6 @@ import { sign, type SignOptions } from '@electron/osx-sign';
 import { spawn } from '@malept/cross-spawn-promise';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
-const baseDir = path.dirname(import.meta.dirname);
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 
 function getElectronVersion(): string {
@@ -20,15 +19,15 @@ function getElectronVersion(): string {
 
 function getEntitlementsForFile(filePath: string): string {
 	if (filePath.includes(' Helper (GPU).app')) {
-		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist');
+		return path.join(import.meta.dirname, 'helper-gpu-entitlements.plist');
 	} else if (filePath.includes(' Helper (Renderer).app')) {
-		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist');
+		return path.join(import.meta.dirname, 'helper-renderer-entitlements.plist');
 	} else if (filePath.includes(' Helper (Plugin).app')) {
-		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist');
+		return path.join(import.meta.dirname, 'helper-plugin-entitlements.plist');
 	} else if (filePath.includes(' Helper.app')) {
-		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-entitlements.plist');
+		return path.join(import.meta.dirname, 'helper-entitlements.plist');
 	}
-	return path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist');
+	return path.join(import.meta.dirname, 'app-entitlements.plist');
 }
 
 function isRetriableSignError(errorMessage: string): boolean {

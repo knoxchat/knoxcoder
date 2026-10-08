@@ -14,7 +14,7 @@ import { collectSnapshot, computeChangedPaths, createBuildFastPrerequisites, cre
 import { applyIncrementalClientChanges, getOutputRelativePath } from '../transpile.ts';
 
 const environment = 'test-environment';
-const outputsPresent: OutputStatus = { client: true, extensions: true, copilot: true };
+const outputsPresent: OutputStatus = { client: true, extensions: true };
 
 suite('build-fast planning', () => {
 	test('parses NUL-separated Git paths', () => {
@@ -69,28 +69,24 @@ suite('build-fast planning', () => {
 				changedPaths: [],
 				client: 'skip',
 				extensions: 'skip',
-				copilot: 'skip',
 			}
 		);
 	});
 
-	test('routes client, extension, and Copilot changes independently', () => {
+	test('routes client and extension changes independently', () => {
 		assert.deepStrictEqual(
 			createBuildPlan(savedState(), environment, [
 				'extensions/configuration-editing/src/configurationEditingMain.ts',
-				'extensions/copilot/src/extension.ts',
 				'src/main.ts',
 			], outputsPresent, false),
 			{
-				reason: '3 input path(s) changed',
+				reason: '2 input path(s) changed',
 				changedPaths: [
 					'extensions/configuration-editing/src/configurationEditingMain.ts',
-					'extensions/copilot/src/extension.ts',
 					'src/main.ts',
 				],
 				client: 'incremental',
 				extensions: 'full',
-				copilot: 'full',
 			}
 		);
 	});
@@ -106,34 +102,30 @@ suite('build-fast planning', () => {
 				changedPaths: [],
 				client: 'full',
 				extensions: 'full',
-				copilot: 'full',
 			},
 			{
 				reason: 'build configuration or dependencies changed',
 				changedPaths: ['build/next/index.ts'],
 				client: 'full',
 				extensions: 'full',
-				copilot: 'full',
 			},
 			{
 				reason: 'build configuration or dependencies changed',
 				changedPaths: ['gulpfile.mjs'],
 				client: 'full',
 				extensions: 'full',
-				copilot: 'full',
 			}
 		]);
 	});
 
 	test('rebuilds only the lane with a missing output', () => {
 		assert.deepStrictEqual(
-			createBuildPlan(savedState(), environment, [], { client: false, extensions: true, copilot: true }, false),
+			createBuildPlan(savedState(), environment, [], { client: false, extensions: true }, false),
 			{
 				reason: 'client output is missing',
 				changedPaths: [],
 				client: 'full',
 				extensions: 'skip',
-				copilot: 'skip',
 			}
 		);
 	});

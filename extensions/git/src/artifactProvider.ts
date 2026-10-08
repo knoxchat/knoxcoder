@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, l10n, workspace, Uri, Disposable, Command } from 'vscode';
-import { coalesce, dispose, filterEvent, IDisposable, isCopilotWorktreeFolder } from './util';
+import { coalesce, dispose, filterEvent, IDisposable } from './util';
 import { Repository } from './repository';
 import type { Ref, Worktree } from './api/git';
 import { RefType } from './api/git.constants';
@@ -187,9 +187,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 					]).join(' \u2022 '),
 					icon: w.main
 						? Icons.repository
-						: isCopilotWorktreeFolder(w.path)
-							? Icons.chatWorktree
-							: Icons.worktree
+						: Icons.worktree
 				}));
 			}
 		} catch (err) {

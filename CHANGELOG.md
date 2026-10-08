@@ -3,6 +3,19 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Changed
+
+- **Upgrade editor host to VS Code 1.141.0**
+  Merged upstream `microsoft/vscode` 1.141.0 editor, workbench, terminal, Git, and Electron 43.7.7 changes while keeping Knox branding, Open VSX gallery, the native TypeScript 7 toolchain, and Knox Agent isolated from upstream AI.
+
+  Editor-side additions from 1.139–1.141: word wrap indicators, smarter bracket auto-closing, spreading block paste, `editor.selectedTextMatchMode`, sharper macOS terminal font rendering, frosted-glass overlays and connected/pill editor tabs in Modern UI, compact layout density, GitHub Enterprise `github-enterprise.uris` (multiple instances), plus memory-leak and Electron 43 fixes.
+
+  Not adopted from upstream: Copilot, Chat, Agents window, Agent Host, MCP, prompt/skill packs, inline chat, dictation, sandbox/agent telemetry, experiment assignment, and related SDKs — KnoxCoder stays slim and uses its own Knox Agent.
+
+### Removed
+
+- Azure Pipelines product builds. Linux and Windows apps are built with GitHub Actions; macOS is built and signed with `./build_dmg.sh`.
+
 ## [2.1.0] - 2026-10-07
 
 ### Added

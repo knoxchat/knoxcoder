@@ -1,7 +1,7 @@
 {
   "name": "knoxcoder-dev",
   "version": "2.1.0",
-  "distro": "9edcf676f14a3185aebf09cedb58013c8348e31d",
+  "distro": "a0e7521b2a1e3289e4118fad155277b200aebd35",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -93,7 +93,7 @@
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.22",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-39",
+    "@vscode/codicons": "^0.0.46-40",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/diff": "0.0.2-7",
     "@vscode/fs-copyfile": "2.0.0",
@@ -110,7 +110,7 @@
     "@vscode/vscode-languagedetection": "1.0.23",
     "@vscode/windows-mutex": "^0.5.0",
     "@vscode/windows-process-tree": "^0.8.0",
-    "@vscode/windows-registry": "^1.2.0",
+    "@vscode/windows-registry": "^1.3.0",
     "@xterm/addon-clipboard": "^0.3.0-beta.303",
     "@xterm/addon-image": "^0.10.0-beta.301",
     "@xterm/addon-ligatures": "^0.11.0-beta.301",
@@ -196,7 +196,7 @@
     "cookie": "^0.7.2",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "43.3.0",
+    "electron": "43.7.7",
     "eslint": "10.8.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",

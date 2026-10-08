@@ -24,10 +24,10 @@ suite('ExtensionUrlHandler', () => {
 
 		const handler = Object.create(descriptor.ctor.prototype) as IURLHandler;
 		const extensionHandler: IExtensionContributedURLHandler = {
-			extensionDisplayName: 'Copilot Chat',
+			extensionDisplayName: 'Test Extension',
 			handleURL: sinon.stub().resolves(false),
 		};
-		Reflect.set(handler, 'extensionHandlers', extensionInstalled ? new Map([['github.copilot-chat', extensionHandler]]) : new Map());
+		Reflect.set(handler, 'extensionHandlers', extensionInstalled ? new Map([['test.extension', extensionHandler]]) : new Map());
 		Reflect.set(handler, 'extensionService', { getExtension: sinon.stub().resolves(undefined) });
 		Reflect.set(handler, 'productService', { trustedExtensionProtocolHandlers: [] });
 		Reflect.set(handler, 'userTrustedExtensionsStorage', { has: () => false, add: () => { } });
@@ -45,12 +45,12 @@ suite('ExtensionUrlHandler', () => {
 		const handler = createHandler(confirm, extensionInstalled);
 		const overrideHandleURL = sinon.stub().resolves(true);
 		const registration = ExtensionUrlHandlerOverrideRegistry.registerHandler({
-			canHandleURL: uri => uri.authority === 'github.copilot-chat',
+			canHandleURL: uri => uri.authority === 'test.extension',
 			handleURL: overrideHandleURL,
 		});
 		try {
 			const handled = await handler.handleURL(
-				URI.parse('vscode://github.copilot-chat/?agent=agent&prompt=Approve%20deployment'),
+				URI.parse('vscode://test.extension/?command=open'),
 				options
 			);
 			return {

@@ -48,13 +48,14 @@ async function main(buildDir?: string) {
 	const asarRelativePath = path.join('Contents', 'Resources', 'app', 'node_modules.asar');
 	const outAppPath = path.join(buildDir, `VSCode-darwin-${arch}`, appName);
 	const productJsonPath = path.resolve(outAppPath, 'Contents', 'Resources', 'app', 'product.json');
+	crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join('Contents', 'Resources', 'app', 'node-compile-cache'));
 
 	// Platform-specific native binaries that npm only installs for the host
 	// architecture. The universal app merger requires both builds to have identical
 	// file trees, so we cross-copy each missing directory from the other build.
 	for (const plat of ['darwin-x64', 'darwin-arm64']) {
 		for (const base of nodeModulesBases) {
-			// @vscode/ripgrep-universal/bin/{platform} (rg binary)
+			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@vscode', `os-proxy-resolver-${plat}`));
 			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@vscode', 'ripgrep-universal', 'bin', plat));
 		}
 	}
@@ -63,6 +64,10 @@ async function main(buildDir?: string) {
 		'**/CodeResources',
 		'**/Credits.rtf',
 		'**/policies/{*.mobileconfig,**/*.plist}',
+		'**/node_modules/@vscode/os-proxy-resolver-darwin-x64/**',
+		'**/node_modules/@vscode/os-proxy-resolver-darwin-arm64/**',
+		'**/node_modules.asar.unpacked/@vscode/os-proxy-resolver-darwin-x64/**',
+		'**/node_modules.asar.unpacked/@vscode/os-proxy-resolver-darwin-arm64/**',
 		'**/node_modules/@vscode/ripgrep-universal/bin/darwin-x64/**',
 		'**/node_modules/@vscode/ripgrep-universal/bin/darwin-arm64/**',
 		'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-x64/**',
@@ -76,14 +81,8 @@ async function main(buildDir?: string) {
 		outAppPath,
 		force: true,
 		mergeASARs: true,
-		// Files that are unique to a single arch *inside* the merged `node_modules.asar`.
-		// Their on-disk (unpacked) copies are cross-copied between builds above, but the
-		// ASAR header still only references the target arch's package, so the merger sees
-		// them as arch-unique. Paths here are ASAR-internal (top level, no `node_modules`
-		// prefix). Over-covering is harmless: the allowlist is only consulted for files
-		// that are actually unique to one arch.
-		singleArchFiles: '{**/@vscode/ripgrep-universal/bin/darwin-*,**/@vscode/ripgrep-universal/bin/darwin-*/**}',
-		x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node,**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/*}',
+		singleArchFiles: '{**/@vscode/ripgrep-universal/bin/darwin-*,**/@vscode/ripgrep-universal/bin/darwin-*/**,**/@vscode/os-proxy-resolver-darwin-*,**/@vscode/os-proxy-resolver-darwin-*/**}',
+		x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node,**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules/@vscode/os-proxy-resolver-darwin-*/**,**/node_modules.asar.unpacked/@vscode/os-proxy-resolver-darwin-*/**}',
 		filesToSkipComparison: (file: string) => {
 			for (const expected of filesToSkip) {
 				if (minimatch(file, expected)) {

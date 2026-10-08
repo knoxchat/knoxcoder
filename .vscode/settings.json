@@ -140,8 +140,11 @@
 		"eslint": "warning"
 	},
 	"git.worktreeIncludeFiles": [
-		"product.overrides.json",
-		"**/node_modules/**",
+		".build/typings/electron.d.ts",
+		"product.overrides.json"
+	],
+	"git.worktreeSymlinkFolders": [
+		"node_modules/"
 	],
 	// --- GitHub ---
 	"githubPullRequests.experimental.createView": true,

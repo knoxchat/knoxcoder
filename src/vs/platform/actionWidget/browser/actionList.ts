@@ -574,7 +574,7 @@ export interface IActionListHeaderLink {
 export interface IActionListCloseAnimation {
 	readonly className: string;
 	readonly duration: number;
-	readonly requiredAncestorClasses?: readonly string[];
+	readonly requiredAncestorClasses?: readonly (string | readonly string[])[];
 }
 
 /**

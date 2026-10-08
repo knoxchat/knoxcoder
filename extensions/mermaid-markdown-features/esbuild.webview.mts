@@ -8,7 +8,6 @@ import { run } from '../esbuild-webview-common.mts';
 
 const rootDir = import.meta.dirname;
 const previewSrcDir = path.join(rootDir, 'preview-src');
-const diagramSrcDir = path.join(previewSrcDir, 'diagram');
 
 const cssTextPlugin: Plugin = {
 	name: 'css-text',
@@ -39,27 +38,10 @@ const mermaidMarkdownBuildOptions: Partial<esbuild.BuildOptions> = {
 		'.ttf': 'dataurl',
 	},
 	plugins: [cssTextPlugin],
-	// Both the markdown-preview and notebook bundles inline all of mermaid (plus its
-	// fonts as data URLs). Left unminified they are ~32 MB each and get packaged twice,
-	// which was one of the largest contributors to the desktop installers. The
-	// diagram-webview bundle already ships the very same mermaid code minified.
-	minify: true,
+	splitting: true,
 };
 
 await Promise.all([
-	run({
-		entryPoints: {
-			'index-editor': path.join(diagramSrcDir, 'index-editor.ts'),
-			'codicon': path.join(rootDir, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'),
-		},
-		srcDir: diagramSrcDir,
-		outdir: path.join(rootDir, 'diagram-webview-out'),
-		additionalOptions: {
-			loader: {
-				'.ttf': 'dataurl',
-			},
-		}
-	}, process.argv),
 	// Markdown preview
 	run({
 		entryPoints: {
