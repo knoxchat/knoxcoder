@@ -3,6 +3,7 @@
 	"nameShort": "KnoxCoder",
 	"nameLong": "KnoxCoder",
 	"applicationName": "knoxcoder",
+	"linuxDesktopName": "knoxcoder",
 	"dataFolderName": ".knoxcoder",
 	"sharedDataFolderName": ".knoxcoder-shared",
 	"win32MutexName": "knoxcoder",
