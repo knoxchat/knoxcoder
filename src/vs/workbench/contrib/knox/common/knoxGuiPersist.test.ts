@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { knoxGuiLocalAutoApprove } from './knoxGuiAgentRequest.js';
 import { knoxGuiListboxNextIndex, knoxGuiSortModelsByApiKey } from './knoxGuiCapabilities.js';
 import { composerInputHistoryFromStorage, inputDocFromPlainText, MAX_COMPOSER_INPUT_HISTORY } from './knoxGuiInput.js';
-import { knoxGuiNormalizeWorkspace, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiResolveProfileId, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiResolveLanguage, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, knoxGuiStartupSession } from './knoxGuiPersist.js';
+import { knoxGuiNormalizeWorkspace, knoxGuiNextLanguage, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiResolveProfileId, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiResolveLanguage, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, knoxGuiStartupSession } from './knoxGuiPersist.js';
 import { createInitialKnoxGuiState, DEFAULT_PERMISSION_MODE, IKnoxGuiHistoryItem } from './knoxGuiState.js';
 import { knoxGuiContextItemFileIconName, knoxGuiContextItemOpenAction, knoxGuiMatchCodeToSymbolOrFile, knoxGuiMissingSymbolUris, knoxGuiParseSymbolMap, knoxGuiPastFileInfo, knoxGuiSymbolTooltip, patchNestedMarkdown, splitMarkdownBlocks } from './knoxGuiTranscript.js';
 
@@ -111,6 +111,8 @@ suite('Knox native persistence and permission helpers', () => {
 		assert.strictEqual(knoxGuiResolveLanguage('en', 'zh-cn'), 'en');
 		assert.strictEqual(knoxGuiResolveLanguage(undefined, 'zh-TW'), 'zh');
 		assert.strictEqual(knoxGuiResolveLanguage('fr', 'en-us'), 'en');
+		assert.strictEqual(knoxGuiNextLanguage('en'), 'zh');
+		assert.strictEqual(knoxGuiNextLanguage('zh'), 'en');
 	});
 
 	test('I-01 input history loads valid entries only, capped at 100, index past the end', () => {

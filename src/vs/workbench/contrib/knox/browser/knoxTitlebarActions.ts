@@ -18,9 +18,8 @@ import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowConte
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IWorkbenchThemeService, ThemeSettingDefaults } from '../../../services/themes/common/workbenchThemeService.js';
 import { KNOX_VIEW_ID } from '../../../common/knox.js';
-import { knoxGuiResolveLanguage } from '../common/knoxGuiPersist.js';
+import { knoxGuiNextLanguage, knoxGuiResolveLanguage } from '../common/knoxGuiPersist.js';
 import { LANGUAGE_KEY } from './gui/controller/helpers.js';
-import { knoxGuiNextLanguage } from './gui/widget/languageToggle.js';
 import { KnoxChatViewPane } from './knoxChatViewPane.js';
 import { KnoxCheckpointGraphEditor, KnoxCheckpointGraphEditorInput, KnoxMemoryEditor, KnoxMemoryEditorInput } from './knoxGuiEditors.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';

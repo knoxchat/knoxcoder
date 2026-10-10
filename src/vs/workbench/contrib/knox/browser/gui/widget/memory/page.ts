@@ -12,7 +12,6 @@ import { KnoxGuiRoute } from '../../../../common/knoxGuiProtocol.js';
 import { KnoxGuiSvgIcon } from '../../knoxGuiIcons.js';
 import { MEMORY_TAB_ICONS, MEMORY_TAB_IDS, MEMORY_TAB_KEYS } from '../../../../common/knoxGuiMemory.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
-import { renderLanguageToggle } from '../languageToggle.js';
 import { mk, svg } from './kit.js';
 
 /** `index.tsx`: Brain / Database / Settings are `text-knoxcyan`; the inline Sessions and Graph svgs use `currentColor`. */
@@ -54,7 +53,6 @@ export function renderMemory(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 			}
 		}));
 	}
-	renderLanguageToggle(widget, bar, state);
 	const pane = mk(body, 'div', 'body');
 	const paneTestIds: Record<string, string> = {
 		overview: 'knox-gui-memory-overview',

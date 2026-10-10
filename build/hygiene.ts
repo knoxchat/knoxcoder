@@ -23,6 +23,17 @@ const copyrightHeaderLines = [
 	' *--------------------------------------------------------------------------------------------*/',
 ];
 
+const knoxCopyrightHeaderLines = [
+	'/*---------------------------------------------------------------------------------------------',
+	' *  Copyright (c) KnoxStudio. All rights reserved.',
+	' *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.',
+	' *--------------------------------------------------------------------------------------------*/',
+];
+
+function matchesCopyrightHeader(lines: string[], header: string[]): boolean {
+	return header.every((line, i) => lines[i] === line);
+}
+
 interface VinylFileWithLines extends VinylFile {
 	__lines: string[];
 }
@@ -146,13 +157,9 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 
 	const copyrights = es.through(function (file: VinylFileWithLines) {
 		const lines = file.__lines;
-
-		for (let i = 0; i < copyrightHeaderLines.length; i++) {
-			if (lines[i] !== copyrightHeaderLines[i]) {
-				console.error(file.relative + ': Missing or bad copyright statement');
-				errorCount++;
-				break;
-			}
+		if (!matchesCopyrightHeader(lines, copyrightHeaderLines) && !matchesCopyrightHeader(lines, knoxCopyrightHeaderLines)) {
+			console.error(file.relative + ': Missing or bad copyright statement');
+			errorCount++;
 		}
 
 		this.emit('data', file);

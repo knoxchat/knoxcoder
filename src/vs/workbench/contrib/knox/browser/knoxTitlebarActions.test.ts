@@ -5,8 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { knoxGuiNextLanguage } from './gui/widget/languageToggle.js';
-import { knoxGuiResolveLanguage } from '../common/knoxGuiPersist.js';
+import { knoxGuiNextLanguage, knoxGuiResolveLanguage } from '../common/knoxGuiPersist.js';
 import { ThemeSettingDefaults } from '../../../services/themes/common/workbenchThemeService.js';
 
 suite('Knox titlebar chrome', () => {

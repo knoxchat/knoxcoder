@@ -61,6 +61,10 @@ export function knoxGuiResolveLanguage(stored: string | undefined, locale: strin
 	return locale.toLowerCase().startsWith('zh') ? 'zh' : 'en';
 }
 
+export function knoxGuiNextLanguage(language: KnoxGuiLanguage): KnoxGuiLanguage {
+	return language === 'zh' ? 'en' : 'zh';
+}
+
 /** `autoSaveSessionMiddleware.ts`. */
 export const KNOX_AUTOSAVE_DEBOUNCE_MS = 2000;
 export const KNOX_AUTOSAVE_MIN_INTERVAL_MS = 5000;

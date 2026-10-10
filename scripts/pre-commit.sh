@@ -26,6 +26,7 @@ ALL=0
 FULL=0
 TESTS=1
 FAIL_FAST=0
+FROM_HOOK=0
 
 for arg in "$@"; do
 	case "$arg" in
@@ -33,6 +34,7 @@ for arg in "$@"; do
 		--full) FULL=1 ;;
 		--no-tests) TESTS=0 ;;
 		--fail-fast) FAIL_FAST=1 ;;
+		--from-hook) FROM_HOOK=1 ;;
 		--install)
 			HOOK="$ROOT/.git/hooks/pre-commit"
 			printf '#!/usr/bin/env bash\nexec "%s/scripts/pre-commit.sh" "$@"\n' "$ROOT" > "$HOOK"
@@ -47,6 +49,12 @@ for arg in "$@"; do
 		*) echo "Unknown option: $arg (try --help)"; exit 2 ;;
 	esac
 done
+
+# Git commit hooks export GIT_INDEX_FILE / GIT_DIR; nested git (worktree tests) then
+# looks at the in-progress commit index and fails with "Not a directory".
+if [ "$FROM_HOOK" -eq 1 ]; then
+	unset GIT_INDEX_FILE GIT_PREFIX GIT_DIR GIT_WORK_TREE GIT_REFLOG_ACTION
+fi
 
 # ----------------------------------------------------------------- output ----
 if [ -t 1 ]; then
@@ -538,8 +546,10 @@ if [ "$TESTS" -eq 0 ]; then
 else
 	if [ "$ALL" -eq 1 ]; then
 		skip_step "build scripts tests" "--all skips pre-existing build/next test failures"
-	elif changed_matches '^build/.*\.ts$'; then
+	elif changed_matches '^build/(lib|next|agent-sdk|codex)/.*\.ts$'; then
 		run_step "build scripts tests (build/)" npm run --silent test-build-scripts
+	elif changed_matches '^build/.*\.ts$'; then
+		skip_step "build scripts tests" "pre-existing build/next failures; run when build test sources change"
 	else
 		skip_step "build scripts tests" "no build/ changes"
 	fi

@@ -2233,11 +2233,43 @@ export default defineConfig(
 			'@typescript-eslint/consistent-generic-constructors': ['warn', 'constructor'],
 		}
 	},
+	// KnoxStudio sources use the project GPL header, not the Microsoft MIT header.
+	{
+		files: [
+			'src/vs/workbench/contrib/knox/**/*.{ts,tsx}',
+			'extensions/knox/**/*.{ts,tsx}',
+		],
+		rules: {
+			'header/header': [
+				2,
+				'block',
+				[
+					'---------------------------------------------------------------------------------------------',
+					' *  Copyright (c) KnoxStudio. All rights reserved.',
+					' *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.',
+					' *--------------------------------------------------------------------------------------------'
+				]
+			]
+		}
+	},
+	// Knox tests live next to sources (not under /test/), so layer import-patterns do not apply.
+	{
+		files: [
+			'src/vs/workbench/contrib/knox/**/*.test.ts',
+		],
+		rules: {
+			'local/code-import-patterns': 'off',
+			'local/code-no-in-operator': 'off',
+			'no-restricted-globals': 'off',
+		}
+	},
 	// Allow querySelector/querySelectorAll in test files - it's acceptable for test assertions
 	{
 		files: [
 			'src/**/test/**/*.ts',
+			'src/**/*.test.ts',
 			'extensions/**/test/**/*.ts',
+			'extensions/**/*.test.ts',
 		],
 		rules: {
 			'no-restricted-syntax': [

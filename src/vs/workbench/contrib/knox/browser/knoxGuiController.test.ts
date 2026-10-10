@@ -355,10 +355,8 @@ suite('Knox native GUI controller (GP-084)', () => {
 		['Checkpoint Graph', KnoxGuiRoute.CheckpointGraph, '.knox-gui-checkpoint-tab-bar'],
 		['Memory', KnoxGuiRoute.Memory, '.knox-gui-memory-tabbar'],
 	] as const) {
-		test(`${name} editor renders a language toggle that switches every view`, async () => {
-			const storage = disposables.add(new InMemoryStorageService());
-			const { controller, store } = createHarness({ storage, lock: route });
-			const chat = createHarness({ storage });
+		test(`${name} editor does not render a duplicate language toggle`, async () => {
+			const { controller, store } = createHarness({ lock: route });
 			await timeout(0);
 			store.patch({ language: 'en', memoryTabHydrated: true });
 			const parent = document.createElement('div');
@@ -393,18 +391,8 @@ suite('Knox native GUI controller (GP-084)', () => {
 				override setDefaultCodeBlockRenderer(): void { }
 			};
 			const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService, { getModel: () => null } as unknown as IModelService, markdownRendererService));
-			const toggle = () => widget.root.querySelector(`${tabBar} [data-testid="knox-gui-language-toggle"]`) as HTMLElement | null;
-			assert.strictEqual(toggle()?.textContent, '中');
-			toggle()!.click();
-			await timeout(0);
-			assert.strictEqual(store.state.language, 'zh');
-			assert.strictEqual(chat.store.state.language, 'zh');
-			assert.strictEqual(storage.get('knox.gui.language', StorageScope.PROFILE), 'zh');
-			assert.strictEqual(toggle()?.textContent, 'EN');
-			toggle()!.click();
-			await timeout(0);
-			assert.strictEqual(store.state.language, 'en');
-			assert.strictEqual(chat.store.state.language, 'en');
+			assert.ok(widget.root.querySelector(tabBar));
+			assert.strictEqual(widget.root.querySelector(`${tabBar} [data-testid="knox-gui-language-toggle"]`), null);
 		});
 	}
 
@@ -1292,7 +1280,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 	});
 
 	function sharedLoopHarness(events: (sessionId: string) => unknown[], replies?: Record<string, unknown>, result: unknown = { stoppedReason: 'completed', steps: 1, summary: 'done' }) {
-		let ctl: KnoxGuiController | undefined;
+		const refs: { ctl?: KnoxGuiController } = {};
 		const harness = createHarness({
 			replies: { ...replies },
 			respond: message => {
@@ -1301,12 +1289,12 @@ suite('Knox native GUI controller (GP-084)', () => {
 				}
 				const sessionId = (message.data as { sessionId: string }).sessionId;
 				for (const event of events(sessionId)) {
-					ctl!.enqueueChatTurnEvent({ sessionId, event });
+					refs.ctl!.enqueueChatTurnEvent({ sessionId, event });
 				}
 				return { content: result };
 			},
 		});
-		ctl = harness.controller;
+		refs.ctl = harness.controller;
 		return harness;
 	}
 
@@ -1400,10 +1388,12 @@ suite('Knox native GUI controller (GP-084)', () => {
 			sessionId: 's1',
 			history: [
 				{ id: 'u', role: 'user', content: 'go' },
-				{ id: 'a', role: 'assistant', content: '', toolCalls: [
-					{ id: 'p1', name: 'builtin_run_terminal_command', arguments: '{}', status: 'generated' },
-					{ id: 'p2', name: 'builtin_run_terminal_command', arguments: '{}', status: 'generated' },
-				] },
+				{
+					id: 'a', role: 'assistant', content: '', toolCalls: [
+						{ id: 'p1', name: 'builtin_run_terminal_command', arguments: '{}', status: 'generated' },
+						{ id: 'p2', name: 'builtin_run_terminal_command', arguments: '{}', status: 'generated' },
+					]
+				},
 			],
 		});
 		await controller.approveTool('p1', true);
