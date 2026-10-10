@@ -11,6 +11,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { ConfigurationResolverExpression } from './configurationResolverExpression.js';
 
+export type ConfigurationResolverResult<T> = T extends ConfigurationResolverExpression<infer R> ? R : T;
+
 export const IConfigurationResolverService = createDecorator<IConfigurationResolverService>('configurationResolverService');
 
 export interface IConfigurationResolverService {
@@ -25,7 +27,7 @@ export interface IConfigurationResolverService {
 	 * Recursively resolves all variables in the given config and returns a copy of it with substituted values.
 	 * Command variables are only substituted if a "commandValueMapping" dictionary is given and if it contains an entry for the command.
 	 */
-	resolveAsync<T>(folder: IWorkspaceFolderData | undefined, config: T): Promise<T extends ConfigurationResolverExpression<infer R> ? R : T>;
+	resolveAsync<T>(folder: IWorkspaceFolderData | undefined, config: T): Promise<ConfigurationResolverResult<T>>;
 
 	/**
 	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.

@@ -24,6 +24,7 @@ import { IEditorGroupsContainer } from '../../../../services/editor/common/edito
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextMenuService, TestHostService, TestLayoutService, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import '../../../../contrib/modernUI/browser/media/titlebar.css';
 
 suite('TitlebarPart colors', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -170,6 +171,70 @@ suite('TitlebarPart colors', () => {
 				color: 'rgb(21, 153, 148)',
 				background: 'rgba(0, 0, 0, 0)',
 				boxShadow: 'none',
+			});
+		} finally {
+			workbench.remove();
+		}
+	});
+
+	test('keeps title bar chrome on the traffic-light centerline', () => {
+		const workbench = document.createElement('div');
+		workbench.className = 'monaco-workbench mac modern-ui';
+		const titlebar = document.createElement('div');
+		titlebar.className = 'part titlebar';
+		titlebar.style.height = '35px';
+		const titlebarContainer = document.createElement('div');
+		titlebarContainer.className = 'titlebar-container';
+		titlebarContainer.style.height = '35px';
+		const titlebarLeft = document.createElement('div');
+		titlebarLeft.className = 'titlebar-left';
+		const titlebarCenter = document.createElement('div');
+		titlebarCenter.className = 'titlebar-center';
+		const titlebarRight = document.createElement('div');
+		titlebarRight.className = 'titlebar-right';
+		const leftToolbar = document.createElement('div');
+		leftToolbar.className = 'left-action-toolbar-container';
+		const actionBar = document.createElement('div');
+		actionBar.className = 'monaco-action-bar';
+		const actionItem = document.createElement('div');
+		actionItem.className = 'action-item';
+		const icon = document.createElement('span');
+		icon.className = 'action-label codicon';
+		actionItem.appendChild(icon);
+		actionBar.appendChild(actionItem);
+		leftToolbar.appendChild(actionBar);
+		titlebarLeft.appendChild(leftToolbar);
+		titlebarContainer.append(titlebarLeft, titlebarCenter, titlebarRight);
+		titlebar.appendChild(titlebarContainer);
+		workbench.appendChild(titlebar);
+		document.body.appendChild(workbench);
+
+		try {
+			const sections = [titlebarLeft, titlebarCenter, titlebarRight].map(section => {
+				const style = mainWindow.getComputedStyle(section);
+				return {
+					paddingTop: style.paddingTop,
+					paddingBottom: style.paddingBottom,
+					alignItems: style.alignItems,
+				};
+			});
+			const item = mainWindow.getComputedStyle(actionItem);
+			assert.deepStrictEqual({
+				sections,
+				actionItem: {
+					display: item.display,
+					alignItems: item.alignItems,
+				},
+			}, {
+				sections: [
+					{ paddingTop: '0px', paddingBottom: '0px', alignItems: 'center' },
+					{ paddingTop: '0px', paddingBottom: '0px', alignItems: 'center' },
+					{ paddingTop: '0px', paddingBottom: '0px', alignItems: 'center' },
+				],
+				actionItem: {
+					display: 'flex',
+					alignItems: 'center',
+				},
 			});
 		} finally {
 			workbench.remove();

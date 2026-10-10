@@ -6,14 +6,18 @@
 /*
  * Modern UI module: "Title Bar".
  *
- * Adds a small amount of top padding to the title-bar left/center/right
- * containers so their items read as vertically centered. Scoped to macOS for
- * now. All rules are gated behind the `.modern-ui` class, which the
- * ModernUIContribution toggles onto the workbench container(s) when the
- * Modern UI Update setting is enabled.
+ * Title-bar chrome must share the macOS traffic-light centerline. Native
+ * window buttons are vertically centered via setWindowButtonPosition; extra
+ * padding on these flex rows drops the side toggle, language switch, and
+ * other controls below that line. Scoped to macOS for now. All rules are
+ * gated behind the `.modern-ui` class, which the ModernUIContribution
+ * toggles onto the workbench container(s) when the Modern UI Update
+ * setting is enabled.
  */
 .modern-ui.monaco-workbench.mac .part.titlebar > .titlebar-container > .titlebar-left,
 .modern-ui.monaco-workbench.mac .part.titlebar > .titlebar-container > .titlebar-center,
 .modern-ui.monaco-workbench.mac .part.titlebar > .titlebar-container > .titlebar-right {
-	padding-top: var(--vscode-spacing-size20);
+	padding-top: 0;
+	padding-bottom: 0;
+	align-items: center;
 }
