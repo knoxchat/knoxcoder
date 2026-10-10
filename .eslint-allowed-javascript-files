@@ -74,6 +74,7 @@ scripts/code-perf.js
 scripts/code-server.js
 scripts/code-sessions-web.js
 scripts/code-web.js
+scripts/ts6-for-eslint.cjs
 scripts/xterm-update.js
 src/vs/base/browser/dompurify/dompurify.js
 src/vs/base/common/marked/marked.js

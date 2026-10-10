@@ -373,9 +373,9 @@ export async function checkLayers(tsconfigPath: string, rules: readonly IRule[])
 
 	try {
 		const { fileNames } = await api.parseConfigFile(tsconfigPath);
-		const snapshot = await api.updateSnapshot({ openProjects: [tsconfigPath] });
+		const snapshot = await api.createSnapshot({ openProjects: [tsconfigPath] });
 
-		const project = snapshot.getProject(tsconfigPath);
+		const project = snapshot.getConfiguredProject(tsconfigPath);
 		if (!project) {
 			throw new Error(`Unable to load a project from '${tsconfigPath}'.`);
 		}
