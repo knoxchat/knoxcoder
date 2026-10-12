@@ -253,6 +253,9 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	/** Raw text for the checkpoint config size / extension inputs while they differ from the draft. */
 	checkpointConfigInputs: { storage?: string; fileSize?: string; extensions?: string } = {};
 	checkpointShareAuditExpanded: string | null = null;
+	/** Suggested-group accordion key on the Analysis tab; null keeps details on the top card. */
+	checkpointAnalysisExpandedGroup: string | null = null;
+	checkpointAnalysisRevealKey: string | undefined;
 	checkpointListSearchInput: HTMLInputElement | undefined;
 	checkpointTimelineQuery = '';
 	checkpointTimelineKind: string | null = null;

@@ -1548,6 +1548,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		store.patch({
 			checkpointView: 'analysis',
 			selectedCheckpointId: 'cp-1',
+			checkpointAnalysisId: 'cp-1',
 			checkpointAnalysis: {
 				checkpointId: 'cp-1',
 				generatedDescription: 'touched auth',
@@ -1555,10 +1556,36 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 				impactAnalysis: { affectedFeatures: [{ name: 'login', impactLevel: 'Medium', changedFiles: ['a.ts'] }], affectedLayers: ['src'], scope: 'Module', linesAdded: 1, linesDeleted: 1 },
 				counts: { changed: 1 },
 			},
-			checkpointAnalysisGroups: [{ groupName: 'session s1', kind: 'session', rationale: 'same session', confidence: 0.9, checkpointIds: ['cp-1'] }],
+			checkpointAnalysisGroups: [
+				{ groupName: 'session s1', kind: 'session', rationale: 'same session', confidence: 0.9, checkpointIds: ['cp-1'] },
+				{ groupName: 'burst 2', kind: 'time', rationale: 'nearby', confidence: 0.7, checkpointIds: ['cp-1'] },
+			],
 		});
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-checkpoint-analysis"]')?.textContent?.includes('touched auth'));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-checkpoint-analysis-group"]')?.textContent?.includes('session s1'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-checkpoint-analysis-card"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-checkpoint-analysis-group-detail"]'), null);
+
+		const groupToggles = () => [...widget.root.querySelectorAll<HTMLButtonElement>('[data-testid="knox-gui-checkpoint-analysis-group-toggle"]')];
+		assert.strictEqual(groupToggles()[0].getAttribute('aria-expanded'), 'false');
+		groupToggles()[0].click();
+		assert.strictEqual(widget.checkpointAnalysisExpandedGroup, 'session::session s1::cp-1');
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-checkpoint-analysis-card"]'), null);
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-checkpoint-analysis-group-detail"]')?.textContent?.includes('touched auth'));
+		assert.deepStrictEqual(groupToggles().map(button => button.getAttribute('aria-expanded')), ['true', 'false']);
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-checkpoint-analysis-group"]')?.classList.contains('is-expanded'));
+
+		groupToggles()[1].click();
+		assert.strictEqual(widget.checkpointAnalysisExpandedGroup, 'time::burst 2::cp-1');
+		assert.deepStrictEqual(groupToggles().map(button => button.getAttribute('aria-expanded')), ['false', 'true']);
+		assert.ok(groupToggles()[1].closest('[data-testid="knox-gui-checkpoint-analysis-group"]')?.querySelector('[data-testid="knox-gui-checkpoint-analysis-group-detail"]')?.textContent?.includes('touched auth'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-checkpoint-analysis-card"]'), null);
+
+		groupToggles()[1].click();
+		assert.strictEqual(widget.checkpointAnalysisExpandedGroup, null);
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-checkpoint-analysis-card"]')?.textContent?.includes('touched auth'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-checkpoint-analysis-group-detail"]'), null);
+		assert.deepStrictEqual(groupToggles().map(button => button.getAttribute('aria-expanded')), ['false', 'false']);
 	});
 
 	test('M-01 / M-02 / M-03 memory refresh, overview loading, browser selection and banners', async () => {

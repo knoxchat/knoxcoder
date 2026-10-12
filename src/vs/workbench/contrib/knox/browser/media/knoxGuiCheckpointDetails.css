@@ -1618,21 +1618,59 @@ button.knox-gui-section-title .knox-gui-svg:last-child {
 }
 
 .knox-gui-analysis-group {
-	padding: 8px;
+	padding: 0;
+	overflow: hidden;
 	font-size: 12px;
 	line-height: 16px;
+}
+
+.knox-gui-analysis-group.is-expanded {
+	border-color: color-mix(in srgb, var(--odp-purple) 28%, transparent);
+	background: color-mix(in srgb, var(--odp-purple) 8%, transparent);
+}
+
+.knox-gui-analysis-group-toggle {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	width: 100%;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 8px;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
 	cursor: pointer;
 	transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.knox-gui-analysis-group:hover {
+.knox-gui-analysis-group-toggle:hover {
 	background: color-mix(in srgb, var(--knox-cp-input) 50%, transparent);
+}
+
+.knox-gui-analysis-group-toggle:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 1px var(--knox-cp-primary);
+}
+
+.knox-gui-analysis-group-chevron {
+	flex-shrink: 0;
+	margin-top: 2px;
+}
+
+.knox-gui-analysis-group-summary {
+	min-width: 0;
+	flex: 1;
 }
 
 .knox-gui-analysis-group-top {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	gap: 8px;
 	margin-bottom: 4px;
 }
 
@@ -1644,12 +1682,20 @@ button.knox-gui-section-title .knox-gui-svg:last-child {
 	margin-bottom: 2px;
 }
 
-.knox-gui-analysis-group > p {
+.knox-gui-analysis-group-summary > p {
 	margin: 0;
 }
 
 .knox-gui-analysis-group-confidence {
 	margin-top: 4px;
+}
+
+.knox-gui-analysis-group-detail {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 8px 8px 8px 28px;
+	border-top: 1px solid color-mix(in srgb, var(--knox-cp-border) 70%, transparent);
 }
 
 /* share */
