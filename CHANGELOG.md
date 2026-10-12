@@ -3,6 +3,8 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.1.2] - 2026-10-13
+
 ### Added
 
 - **Recipes (experimental, off by default).** Knox can save verified work and reuse it: exact replay with no model call, a preview card with Apply / Skip when `knoxchat.recipes.autoReplay` is `ask`, automatic rollback when the re-run check fails, quarantine when you undo a replay, and "Save as skill" for recipes replayed cleanly 3 times. With `knoxchat.selfImprove.enabled`, the memory sleep cycle also stores `error_fix` memories and merges duplicate recipes. See `extensions/knox/docs/recipes.md`.
