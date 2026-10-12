@@ -92,7 +92,7 @@ export function renderMemorySessions(widget: KnoxGuiWidget, body: HTMLElement, s
 		}
 		mk(main, 'div', 'mt-0_5 o-50', `${t(state, 'memoryMsgs', { count: session.messageCount ?? 0 })} · ${formatMemoryDate(session.updatedAt)}`);
 		if (session.summary) {
-			mk(main, 'div', 'mt-1 clamp-2 o-60', session.summary);
+			mk(main, 'div', 'mt-1 clamp-2 o-60', markdownToSnippet(session.summary));
 		}
 		widget.renderStore.add(DOM.addDisposableListener(row, 'click', () => void widget.controller.loadMemorySessionHistory(session.id)));
 	}
@@ -142,9 +142,7 @@ export function renderMemorySessions(widget: KnoxGuiWidget, body: HTMLElement, s
 		detailLabel(section, 'file-text', t(state, 'memorySessionHistoryEpisodic'));
 		const items = mk(section, 'div', 'sy-1_5');
 		for (const item of history.episodic.slice(0, 20)) {
-			const row = mk(items, 'div', 'detail-card');
-			mk(row, 'div', 'mb-0_5 fw-5 capitalize o-70', item.role ?? '');
-			mk(row, 'div', 'clamp-3 o-80', item.content);
+			renderEpisodicCard(widget, state, items, item.role ?? '', item.content);
 		}
 		if (history.episodic.length > 20) {
 			mk(items, 'p', 't-10 o-50', t(state, 'memorySessionHistoryTruncated', { count: history.episodic.length - 20 }));
@@ -155,9 +153,96 @@ export function renderMemorySessions(widget: KnoxGuiWidget, body: HTMLElement, s
 		detailLabel(section, 'lightbulb', t(state, 'memorySessionHistorySemantic'));
 		const items = mk(section, 'div', 'sy-1_5');
 		for (const item of history.semantic.slice(0, 10)) {
-			const row = mk(items, 'div', 'detail-card');
-			mk(row, 'div', 'fw-5', `${item.category ? `[${item.category}] ` : ''}${item.title ?? ''}`);
-			mk(row, 'div', 'clamp-2 o-70', item.content);
+			const row = mk(items, 'div', 'detail-card md-card is-semantic');
+			const head = mk(row, 'div', 'md-card-head');
+			if (item.category) {
+				mk(head, 'span', `md-badge cat-${item.category.replace(/[^a-z0-9_-]/gi, '')}`, item.category);
+			}
+			mk(head, 'span', 'md-card-title', item.title ?? '');
+			renderCollapsibleMarkdown(widget, state, row, item.content, 220);
 		}
 	}
+}
+
+/** Flattens markdown to readable one-line text for clamped list snippets. */
+function markdownToSnippet(source: string): string {
+	return source
+		.replace(/```[\s\S]*?```/g, ' ')
+		.replace(/^\s{0,3}#{1,6}\s*/gm, '')
+		.replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, '')
+		.replace(/^\s*>\s?/gm, '')
+		.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+		.replace(/(\*\*|__|\*|_|`|~~)/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+/** Pulls `[soul tool_success] tool=x checkpoint=y ok=true files=... ` metadata out of tool logs. */
+function parseToolLog(content: string): { status?: string; tool?: string; ok?: string; rest: string } {
+	const m = /^\[soul (\w+)\]\s*(.*)$/s.exec(content);
+	if (!m) {
+		return { rest: content };
+	}
+	let rest = m[2];
+	const take = (key: string): string | undefined => {
+		const r = new RegExp(`(?:^|\\s)${key}=(\\S+)`).exec(rest);
+		if (r) {
+			rest = rest.replace(r[0], ' ');
+			return r[1];
+		}
+		return undefined;
+	};
+	const tool = take('tool');
+	take('checkpoint');
+	const ok = take('ok');
+	return { status: m[1], tool, ok, rest: rest.trim() };
+}
+
+function renderEpisodicCard(widget: KnoxGuiWidget, state: IKnoxGuiState, parent: HTMLElement, role: string, content: string): void {
+	const roleKey = (role || 'unknown').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+	const row = mk(parent, 'div', `detail-card md-card role-${roleKey}`);
+	const head = mk(row, 'div', 'md-card-head');
+	mk(head, 'span', `md-badge role-${roleKey}`, role || 'unknown');
+	let body = content;
+	if (roleKey === 'tool') {
+		const parsed = parseToolLog(content);
+		if (parsed.tool) {
+			mk(head, 'span', 'md-card-title md-mono', parsed.tool);
+		}
+		if (parsed.ok) {
+			mk(head, 'span', `md-badge ${parsed.ok === 'true' ? 'is-ok' : 'is-fail'}`, parsed.ok === 'true' ? 'ok' : 'failed');
+		}
+		body = parsed.rest;
+	}
+	renderCollapsibleMarkdown(widget, state, row, body, 200);
+}
+
+/** Native markdown (with highlighted code fences) clamped to a max height, expandable on demand. */
+function renderCollapsibleMarkdown(widget: KnoxGuiWidget, state: IKnoxGuiState, parent: HTMLElement, source: string, maxHeight: number): void {
+	const wrap = mk(parent, 'div', 'md-body is-collapsed');
+	wrap.style.maxHeight = `${maxHeight}px`;
+	widget.appendMarkdown(wrap, source, widget.renderStore);
+	const toggle = mk(parent, 'button', 'md-toggle');
+	toggle.type = 'button';
+	toggle.hidden = true;
+	let expanded = false;
+	const sync = () => {
+		wrap.classList.toggle('is-collapsed', !expanded);
+		wrap.style.maxHeight = expanded ? '' : `${maxHeight}px`;
+		toggle.textContent = expanded ? '▲' : '▼';
+	};
+	sync();
+	widget.renderStore.add(DOM.addDisposableListener(toggle, 'click', () => {
+		expanded = !expanded;
+		sync();
+	}));
+	DOM.getWindow(parent).requestAnimationFrame(() => {
+		if (wrap.scrollHeight > maxHeight + 4) {
+			toggle.hidden = false;
+		} else {
+			wrap.classList.remove('is-collapsed');
+			wrap.style.maxHeight = '';
+		}
+	});
+	void state;
 }

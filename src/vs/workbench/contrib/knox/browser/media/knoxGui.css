@@ -527,6 +527,27 @@
 :is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-toolbar-btn.is-danger {
 	color: #b91c1c;
 }
+:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-role-user {
+	color: #1d4ed8;
+}
+:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-role-assistant {
+	color: #0f766e;
+}
+:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-role-tool {
+	color: #6b21a8;
+}
+:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-role-system {
+	color: #92400e;
+}
+:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge.is-ok {
+	color: #15803d;
+}
+:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge.is-fail {
+	color: #b91c1c;
+}
+:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge[class*='cat-'] {
+	color: #92400e;
+}
 :is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-model-delete {
 	color: #b91c1c;
 }

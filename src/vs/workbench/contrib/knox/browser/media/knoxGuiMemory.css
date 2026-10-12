@@ -864,6 +864,116 @@
 	line-height: calc(1 / 0.75);
 }
 
+/* Session detail: markdown cards */
+
+.knox-gui-memory-page .knox-gui-memory-md-card {
+	position: relative;
+	border-left: 3px solid var(--vscode-panel-border, #3c3c3c);
+	background-color: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.03));
+	padding: 8px 10px;
+}
+.knox-gui-memory-page .knox-gui-memory-md-card.knox-gui-memory-role-user { border-left-color: #4ea1ff; }
+.knox-gui-memory-page .knox-gui-memory-md-card.knox-gui-memory-role-assistant { border-left-color: #159994; }
+.knox-gui-memory-page .knox-gui-memory-md-card.knox-gui-memory-role-tool { border-left-color: #c586c0; }
+.knox-gui-memory-page .knox-gui-memory-md-card.knox-gui-memory-role-system { border-left-color: #d7ba7d; }
+.knox-gui-memory-page .knox-gui-memory-md-card.is-semantic { border-left-color: #e5c07b; }
+
+.knox-gui-memory-page .knox-gui-memory-md-card-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 6px;
+}
+.knox-gui-memory-page .knox-gui-memory-md-card-title { font-weight: 600; }
+.knox-gui-memory-page .knox-gui-memory-md-mono { font-family: var(--monaco-monospace-font, monospace); font-size: 11px; }
+
+.knox-gui-memory-page .knox-gui-memory-md-badge {
+	padding: 1px 6px;
+	border-radius: 10px;
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	background-color: rgba(128, 128, 128, 0.2);
+}
+.knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-role-user { background-color: rgba(78, 161, 255, 0.18); color: #4ea1ff; }
+.knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-role-assistant { background-color: rgba(21, 153, 148, 0.2); color: #2fc4bd; }
+.knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-role-tool { background-color: rgba(197, 134, 192, 0.2); color: #c586c0; }
+.knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-role-system { background-color: rgba(215, 186, 125, 0.2); color: #d7ba7d; }
+.knox-gui-memory-page .knox-gui-memory-md-badge.is-ok { background-color: rgba(115, 201, 145, 0.2); color: #73c991; }
+.knox-gui-memory-page .knox-gui-memory-md-badge.is-fail { background-color: rgba(241, 76, 76, 0.2); color: #f14c4c; }
+.knox-gui-memory-page .knox-gui-memory-md-badge[class*='cat-'] { background-color: rgba(229, 192, 123, 0.2); color: #e5c07b; }
+
+.knox-gui-memory-page .knox-gui-memory-md-body {
+	overflow: hidden;
+	font-size: 12px;
+	line-height: 1.55;
+	word-break: break-word;
+	user-select: text;
+}
+.knox-gui-memory-page .knox-gui-memory-md-body.is-collapsed {
+	-webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
+	mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+.knox-gui-memory-page .knox-gui-memory-md-body > :first-child { margin-top: 0; }
+.knox-gui-memory-page .knox-gui-memory-md-body > :last-child { margin-bottom: 0; }
+.knox-gui-memory-page .knox-gui-memory-md-body p { margin: 0 0 6px; }
+.knox-gui-memory-page .knox-gui-memory-md-body h1,
+.knox-gui-memory-page .knox-gui-memory-md-body h2,
+.knox-gui-memory-page .knox-gui-memory-md-body h3,
+.knox-gui-memory-page .knox-gui-memory-md-body h4 { margin: 10px 0 4px; font-weight: 600; line-height: 1.3; }
+.knox-gui-memory-page .knox-gui-memory-md-body h1 { font-size: 15px; }
+.knox-gui-memory-page .knox-gui-memory-md-body h2 { font-size: 14px; }
+.knox-gui-memory-page .knox-gui-memory-md-body h3,
+.knox-gui-memory-page .knox-gui-memory-md-body h4 { font-size: 12.5px; color: var(--knox-accent, #159994); }
+.knox-gui-memory-page .knox-gui-memory-md-body ul,
+.knox-gui-memory-page .knox-gui-memory-md-body ol { margin: 0 0 6px; padding-left: 20px; }
+.knox-gui-memory-page .knox-gui-memory-md-body li { margin: 2px 0; }
+.knox-gui-memory-page .knox-gui-memory-md-body strong { color: var(--vscode-foreground); font-weight: 700; }
+.knox-gui-memory-page .knox-gui-memory-md-body a { color: var(--vscode-textLink-foreground); }
+.knox-gui-memory-page .knox-gui-memory-md-body blockquote {
+	margin: 4px 0;
+	padding: 2px 10px;
+	border-left: 3px solid var(--vscode-textBlockQuote-border, rgba(128, 128, 128, 0.4));
+	background: var(--vscode-textBlockQuote-background, transparent);
+}
+.knox-gui-memory-page .knox-gui-memory-md-body :not(pre) > code {
+	padding: 1px 4px;
+	border-radius: 3px;
+	font-family: var(--monaco-monospace-font, monospace);
+	font-size: 11px;
+	color: var(--vscode-textPreformat-foreground, #d7ba7d);
+	background-color: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.15));
+}
+.knox-gui-memory-page .knox-gui-memory-md-body pre {
+	margin: 6px 0;
+	padding: 8px 10px;
+	overflow-x: auto;
+	border-radius: 4px;
+	font-family: var(--monaco-monospace-font, monospace);
+	font-size: 11px;
+	line-height: 1.5;
+	background-color: var(--vscode-textCodeBlock-background, rgba(0, 0, 0, 0.25));
+}
+.knox-gui-memory-page .knox-gui-memory-md-body table { border-collapse: collapse; margin: 6px 0; }
+.knox-gui-memory-page .knox-gui-memory-md-body th,
+.knox-gui-memory-page .knox-gui-memory-md-body td { padding: 3px 8px; border: 1px solid var(--vscode-panel-border, #3c3c3c); }
+.knox-gui-memory-page .knox-gui-memory-md-body hr { border: none; border-top: 1px solid var(--vscode-panel-border, #3c3c3c); }
+
+.knox-gui-memory-page .knox-gui-memory-md-toggle {
+	display: block;
+	width: 100%;
+	margin-top: 4px;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-size: 10px;
+	cursor: pointer;
+}
+.knox-gui-memory-page .knox-gui-memory-md-toggle:hover { color: var(--knox-accent, #159994); }
+
 /* KnowledgeGraphView.tsx */
 
 .knox-gui-memory-page .knox-gui-memory-graph-stat {
