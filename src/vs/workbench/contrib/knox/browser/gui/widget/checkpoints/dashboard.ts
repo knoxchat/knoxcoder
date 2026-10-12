@@ -125,6 +125,13 @@ export function renderCheckpointDashboard(widget: KnoxGuiWidget, body: HTMLEleme
 		dashCard(widget, cards, t(state, 'checkpointDashboard.totalSessions'), String(summary.totalAiSessions), 'bot');
 		dashCard(widget, cards, t(state, 'checkpointDashboard.avgChanges'), summary.avgChangesPerSession.toFixed(1), 'trending-up');
 		dashCard(widget, cards, t(state, 'checkpointDashboard.totalRollbacks'), String(summary.totalRollbacks), 'activity');
+		const recipe = data.recipeMetrics;
+		if (recipe && (recipe.attempts > 0 || recipe.reverted > 0)) {
+			const reuse = DOM.append(section, DOM.$('.knox-gui-dash-cards.is-three', { 'data-testid': 'checkpoint-dashboard-recipes' }));
+			dashCard(widget, reuse, t(state, 'checkpointDashboard.recipeTokensSaved'), recipe.tokensSaved.toLocaleString(), 'zap', t(state, 'checkpointDashboard.recipeTokensSavedHint'));
+			dashCard(widget, reuse, t(state, 'checkpointDashboard.recipeCallsAvoided'), String(recipe.llmCallsAvoided), 'bot', t(state, 'checkpointDashboard.recipeReplays', { count: recipe.attempts }));
+			dashCard(widget, reuse, t(state, 'checkpointDashboard.recipeWrongApply'), `${(recipe.wrongApplyRate * 100).toFixed(1)}%`, 'activity', t(state, 'checkpointDashboard.recipeWrongApplyHint', { failed: recipe.failedVerify, reverted: recipe.reverted }));
+		}
 		const list = data.aiSessionMetrics.length ? DOM.append(section, DOM.$('.knox-gui-dash-list.is-capped')) : section;
 		for (const session of data.aiSessionMetrics.slice(0, 5)) {
 			const card = DOM.append(list, DOM.$('.knox-gui-cp-card.knox-gui-dash-session', { 'data-testid': 'checkpoint-dashboard-session' }));

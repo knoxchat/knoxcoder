@@ -13,10 +13,11 @@ import { collectLatestTaskPlanSnapshot, parseInjectedMemories } from '../../../c
 import { knoxGuiMissingSymbolUris, knoxGuiParseSymbolMap, nextCodeBlockToApply, knoxGuiStreamErrorFromState, pendingApplyStates } from '../../../common/knoxGuiTranscript.js';
 import { extractMentionsFromDoc, extractSlashFromDoc, inputDocFromPlainText, inputDocToPlainText, knoxGuiPendingToolBlocksSubmit, knoxGuiShouldBlockSubmit, mentionContextProviderName, resolveComposerSlashCommand, slashCommandBareName, submitUsesActiveFile, useActiveFileFromDefaultContext } from '../../../common/knoxGuiInput.js';
 import { editSendPromptPayload, knoxGuiMultifileEditPrompt, shouldSendEditPrompt } from '../../../common/knoxGuiEdit.js';
-import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiRecipeDecision, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
 import { IKnoxCoreChatHistoryItem, IKnoxCoreChatMessage, IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiFlushStreamText, knoxGuiShouldSplitForTools, knoxGuiFallbackMessages, knoxGuiFormatTurnInject, knoxGuiHistoryToCoreHistory, knoxGuiMemoryGoal, knoxGuiShouldContinueTurn, knoxGuiToolIsSettled, knoxGuiTurnDoomCalls, knoxGuiTurnMessages, knoxGuiTurnTools } from '../../../common/knoxGuiAgentRequest.js';
 import { knoxGuiDequeue, knoxGuiEnqueue, knoxGuiNextToDrain } from '../../../common/knoxGuiQueue.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
+import { cancelRecipeChoice, resolveRecipeDecision } from './recipe.js';
 import { isSharedTurnActive, runSharedTurn, sharedLoopEligible } from './sharedTurn.js';
 
 
@@ -110,7 +111,7 @@ export async function submit(controller: KnoxGuiController, starterPrompt?: stri
 		controller.store.setInput('');
 		controller.store.patch({ images: [], historicalImages: [] });
 	}
-	controller.store.patch({ editingUserIndex: undefined, autoScroll: true, isGatheringContext: true, streamError: undefined, toolLoopSteps: 0 });
+	controller.store.patch({ editingUserIndex: undefined, autoScroll: true, isGatheringContext: true, streamError: undefined, recipeDecision: undefined, toolLoopSteps: 0 });
 	controller.closeSuggest();
 	controller.ensureSessionId();
 	if (!controller.store.state.sessionTitle) {
@@ -120,6 +121,7 @@ export async function submit(controller: KnoxGuiController, starterPrompt?: stri
 	}
 	controller.turnAborted = false;
 	controller.turnInject = undefined;
+	controller.turnRecipeHint = undefined;
 	controller.store.setStreaming(true);
 	controller.store.appendHistory({ id: generateUuid(), role: 'assistant', content: '', createdAt: new Date().toISOString() });
 	try {
@@ -135,8 +137,17 @@ export async function submit(controller: KnoxGuiController, starterPrompt?: stri
 			}
 			return;
 		}
+		// MC-30 / MC-35: a verified recipe may finish the turn without a model call.
+		if (await resolveRecipeDecision(controller) === 'done') {
+			await controller.saveCurrentSession({ generateTitle: true });
+			finishTurn(controller);
+			return;
+		}
+		if (controller.turnAborted) {
+			return;
+		}
 		const memory = await controller.injectMemoryContext(text, memoryTimeout);
-		const inject = knoxGuiFormatTurnInject(memory, controller.takeRestoreNotice());
+		const inject = [knoxGuiFormatTurnInject(memory, controller.takeRestoreNotice()), controller.turnRecipeHint].filter(Boolean).join('\n\n') || undefined;
 		controller.turnInject = inject ? { sessionId: controller.store.state.sessionId, content: inject } : undefined;
 		controller.store.patch({ isGatheringContext: false });
 		if (!controller.turnAborted) {
@@ -216,11 +227,17 @@ export async function sendQueuedMessageNow(controller: KnoxGuiController, id: st
 /** `streamResponse.ts` trackSession + user recordMessage; returns the memory build timeout. */
 async function startTurn(controller: KnoxGuiController, userMessage: string): Promise<number> {
 	try {
-		const result = await withTimeout(controller.messenger.request<{ memoryBuildTimeoutMs?: number }>('knox/startTurn', {
+		const result = await withTimeout(controller.messenger.request<{ memoryBuildTimeoutMs?: number; recipeDecision?: IKnoxGuiRecipeDecision; recipeHint?: string }>('knox/startTurn', {
 			sessionId: controller.store.state.sessionId,
 			title: controller.store.state.sessionTitle ?? '',
 			userMessage,
 		}), MEMORY_BUILD_TIMEOUT_MS);
+		if (result?.recipeDecision && result.recipeDecision.mode !== 'generate') {
+			controller.store.patch({ recipeDecision: result.recipeDecision });
+		}
+		if (typeof result?.recipeHint === 'string' && result.recipeHint) {
+			controller.turnRecipeHint = result.recipeHint;
+		}
 		if (typeof result?.memoryBuildTimeoutMs === 'number') {
 			return result.memoryBuildTimeoutMs;
 		}
@@ -507,6 +524,7 @@ async function runRound(controller: KnoxGuiController, legacySlash?: IKnoxGuiLeg
 
 export function cancel(controller: KnoxGuiController): void { // cancelStream.ts
 	controller.turnAborted = true;
+	cancelRecipeChoice(controller);
 	controller.streamCancel?.cancel();
 	controller.messenger.post('abort', undefined);
 	controller.messenger.post('tools/cancel', undefined);

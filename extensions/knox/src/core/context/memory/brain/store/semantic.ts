@@ -1,6 +1,7 @@
 /** Semantic memory, pinning, mismatch, and dedup. */
 
 import { InputSanitizer } from "../InputSanitizer.js";
+import { CONTRADICTION_CATEGORIES, conflictsWith, supersedeConflicts } from "../memoryOutcomes.js";
 import type {
   SemanticCategory,
   SemanticMemory,
@@ -125,6 +126,20 @@ export async function storeSemanticDeduped(
     input.category,
   );
   if (duplicates.length > 0 && duplicates[0].similarity >= DEDUP_SIMILARITY) {
+    // MC-52: a decision/preference that contradicts its near-duplicate is a change, not a repeat.
+    // Keep both rows; the older one is marked superseded and skipped by recall.
+    if (CONTRADICTION_CATEGORIES.has(input.category)) {
+      const db = await get();
+      const old = (await db.get("SELECT id, category, title, content FROM brain_semantic WHERE id = ?", [
+        duplicates[0].id,
+      ])) as { id: number; category: string; title: string; content: string } | undefined;
+      if (old && conflictsWith({ id: -1, category: input.category, title: input.title, content: input.content }, old)) {
+        const id = await storeSemantic(input);
+        const row = (await db.get("SELECT id, category, title, content, created_at FROM brain_semantic WHERE id = ?", [id])) as any;
+        await supersedeConflicts(db, row).catch(() => []);
+        return { id, deduplicated: false };
+      }
+    }
     await boostDuplicate(duplicates[0].id, input.content);
     return { id: duplicates[0].id, deduplicated: true };
   }

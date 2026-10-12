@@ -36,6 +36,18 @@ export interface SleepCycleResult extends ConsolidationResult {
   sub_phases: SleepSubPhaseCounts;
 }
 
+/** Work that runs after each sleep cycle (MC-40). Hooks must not throw into the cycle; failures are logged. */
+export type SleepCycleHook = (result: SleepCycleResult) => Promise<void>;
+const cycleHooks = new Map<string, SleepCycleHook>();
+
+/** Register (or replace) a post-cycle hook by name. Returns an unregister function. */
+export function registerSleepCycleHook(name: string, hook: SleepCycleHook): () => void {
+  cycleHooks.set(name, hook);
+  return () => {
+    if (cycleHooks.get(name) === hook) cycleHooks.delete(name);
+  };
+}
+
 export class SleepConsolidation {
 
   /**
@@ -90,6 +102,14 @@ export class SleepConsolidation {
     // Phase 6: Promote hot memories based on retrieval and salience
     result.promoted = await SleepConsolidation.promoteHighValue();
     result.sub_phases.promote = result.promoted;
+
+    for (const [name, hook] of cycleHooks) {
+      try {
+        await hook(result);
+      } catch (error) {
+        console.warn(`[Sleep] Hook "${name}" failed:`, error instanceof Error ? error.message : error);
+      }
+    }
 
     return result;
   }

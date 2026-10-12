@@ -15,7 +15,12 @@ export interface CheckpointGraphFileChanges {
 
 export interface CheckpointGraphNode {
     id: string;
+    /** MC-60: the semantic label when there is one, otherwise the original description. */
     description: string;
+    /** MC-60: semantic label, when one was generated. */
+    label?: string;
+    /** MC-61: the user intent that produced this checkpoint, when recorded. */
+    intent?: string;
     /** ISO-8601. */
     created: string;
     kind: CheckpointTimelineKind;
@@ -161,7 +166,9 @@ export function buildCheckpointGraph(input: CheckpointGraphQuery): CheckpointGra
             const sessionId = checkpointSessionId(checkpoint);
             return {
                 id: checkpoint.id,
-                description: checkpoint.description ?? '',
+                description: checkpoint.label || checkpoint.description || '',
+                ...(checkpoint.label ? { label: checkpoint.label } : {}),
+                ...(checkpoint.intent ? { intent: checkpoint.intent } : {}),
                 created: createdIso(checkpoint.created),
                 kind: classifyCheckpointKind(checkpoint, input.branches),
                 branchId: checkpoint.branchId,

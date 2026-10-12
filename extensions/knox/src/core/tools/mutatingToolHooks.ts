@@ -4,7 +4,11 @@ import {
   extractSoulFiles,
   formatSoulCheckpointStamp,
 } from "../context/soul/extractToolFiles.js";
-import type { SoulEventKind } from "../context/soul/types.js";
+import {
+  deriveEditOracle,
+  oracleFromBuildEvent,
+} from "../context/soul/oracleVerdict.js";
+import type { SoulEventKind, SoulOracle } from "../context/soul/types.js";
 import { BrainManager } from "../context/memory/brain/BrainManager.js";
 
 import { ToolCallError, ToolCallErrorCode } from "./errors.js";
@@ -131,6 +135,7 @@ export async function executeToolWithSoulHooks(
     ok: boolean,
     summary: string,
     metadata?: Record<string, unknown>,
+    verdict?: SoulOracle,
   ) => {
     if (!sessionId) {
       return Promise.resolve(0);
@@ -144,6 +149,7 @@ export async function executeToolWithSoulHooks(
       ok,
       policy: kind === "tool_denied" ? "deny" : undefined,
       summary,
+      oracle: verdict,
       metadata,
     }).catch(() => 0);
   };
@@ -281,12 +287,21 @@ export async function executeToolWithSoulHooks(
       .slice(0, 1500);
     const oracle = classifyOracleEvent(toolName, summary);
     if (oracle) {
-      void emit(oracle.kind, oracle.kind !== "build:fail" && oracle.kind !== "qemu:panic", oracle.summary, {
-        oracle: oracle.kind,
-        signature: oracle.signature,
-      });
+      void emit(
+        oracle.kind,
+        oracle.kind !== "build:fail" && oracle.kind !== "qemu:panic",
+        oracle.summary,
+        { oracleKind: oracle.kind, signature: oracle.signature },
+        oracleFromBuildEvent(oracle.kind, oracle.signature),
+      );
     } else {
-      void emit("tool_success", true, (summary || `${toolName} succeeded`).slice(0, 500));
+      void emit(
+        "tool_success",
+        true,
+        (summary || `${toolName} succeeded`).slice(0, 500),
+        undefined,
+        mutating ? deriveEditOracle(contextItems) : undefined,
+      );
     }
     return contextItems;
   } catch (error) {

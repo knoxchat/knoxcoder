@@ -132,6 +132,15 @@ Formats covered by tests: AWS, GCP (API key, OAuth token, service-account JSON),
 Stripe, Slack, npm, Anthropic/OpenAI/OpenRouter, JWT, PEM/OpenSSH keys, DB/Redis/Mongo URLs,
 `Authorization` and `x-api-key` headers, and `KEY=value` assignments.
 
+## Recipe replay
+
+Replay applies saved files and may run saved commands, so it is a code-execution surface (experimental, off by
+default). Mitigations: verified recipes only; writes and commands use the normal tool path (permissions, command
+guard, path boundary, review mode); relative paths only, no traversal; commands that use the network, carry
+secrets, or fail the guard are refused; no delete or binary replay; pre-replay checkpoint and automatic restore when
+the re-run check fails; quarantine on revert; imported recipes arrive as candidates and are never auto-replayed.
+Still open: a dedicated security review of replay (MC-82).
+
 ## Accepted risks and open items
 
 - `node-forge` (high, GHSA-86w9-cpqp-85rv, RSA PKCS#1 v1.5 signature verification) via `mac-ca` and

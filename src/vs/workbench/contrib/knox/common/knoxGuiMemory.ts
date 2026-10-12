@@ -15,6 +15,7 @@ import {
 	IKnoxGuiMemoryPhaseStatus,
 	IKnoxGuiMemoryReviewDue,
 	IKnoxGuiMemorySession,
+	IKnoxGuiMemoryRecipe,
 	IKnoxGuiMemorySessionHistory,
 	IKnoxGuiMetricsTrend,
 } from './knoxGuiState.js';
@@ -35,6 +36,7 @@ export const MEMORY_PANEL_TAB_BRAIN_MESSAGES = {
 	memories: ['brain/searchMemories', 'brain/pinMemory', 'brain/unpinMemory', 'brain/pinMemories', 'brain/unpinMemories', 'brain/deleteMemory', 'brain/deleteMemories'],
 	sessions: ['brain/listSessions', 'brain/getSessionHistory', 'brain/searchBacklogs'],
 	graph: ['brain/graphStats', 'brain/listEntities', 'brain/searchEntities', 'brain/exploreGraph'],
+	recipes: ['knox/recipeList', 'knox/recipeSetStatus'],
 	settings: ['brain/getConfig', 'brain/updateConfig', 'brain/optimize', 'brain/heal', 'brain/export', 'brain/import', 'brain/consolidate'],
 } as const;
 
@@ -43,6 +45,7 @@ export const MEMORY_TAB_KEYS: Record<string, string> = {
 	memories: 'memoryBrowser',
 	sessions: 'memorySessionHistoryTab',
 	graph: 'memoryGraph',
+	recipes: 'memoryRecipes',
 	settings: 'memorySettings',
 };
 
@@ -51,6 +54,7 @@ export const MEMORY_TAB_ICONS: Record<string, string> = {
 	memories: 'database',
 	sessions: 'message-square',
 	graph: 'graph-nodes',
+	recipes: 'zap',
 	settings: 'settings',
 };
 
@@ -522,6 +526,41 @@ export function parseMemorySession(item: unknown): IKnoxGuiMemorySession | undef
 		summary: rec.summary ? String(rec.summary) : undefined,
 		isActive: Boolean(rec.is_active ?? rec.active),
 	};
+}
+
+const RECIPE_STATUSES = ['candidate', 'verified', 'quarantined', 'retired'] as const;
+
+export function parseMemoryRecipe(item: unknown): IKnoxGuiMemoryRecipe | undefined {
+	const rec = asRecord(item);
+	const id = rec ? String(rec.id ?? '') : '';
+	if (!rec || !id) {
+		return undefined;
+	}
+	const status = RECIPE_STATUSES.find(value => value === rec.status);
+	if (!status) {
+		return undefined;
+	}
+	const count = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+	return {
+		id,
+		title: String(rec.title || id.slice(0, 12)),
+		status,
+		scope: rec.scope === 'global' ? 'global' : 'project',
+		uses: count(rec.uses),
+		ok: count(rec.ok),
+		reverted: count(rec.reverted),
+		failedVerify: count(rec.failedVerify),
+		files: count(rec.files),
+		oracleKind: typeof rec.oracleKind === 'string' ? rec.oracleKind : undefined,
+		sourceCheckpointIds: Array.isArray(rec.sourceCheckpointIds) ? rec.sourceCheckpointIds.filter((v): v is string => typeof v === 'string') : [],
+		lastReplayedAt: typeof rec.lastReplayedAt === 'string' ? rec.lastReplayedAt : undefined,
+		updatedAt: typeof rec.updatedAt === 'string' ? rec.updatedAt : undefined,
+	};
+}
+
+/** Retire and quarantine are offered only where the host state machine allows them. */
+export function memoryRecipeActions(status: IKnoxGuiMemoryRecipe['status']): { quarantine: boolean; retire: boolean } {
+	return { quarantine: status === 'candidate' || status === 'verified', retire: status !== 'retired' };
 }
 
 export function parseSessionHistory(raw: Record<string, unknown> | undefined, sessionId: string): IKnoxGuiMemorySessionHistory | undefined {

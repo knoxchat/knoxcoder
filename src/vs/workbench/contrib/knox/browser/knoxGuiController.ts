@@ -29,6 +29,7 @@ import * as knoxGuiSharedTurn from './gui/controller/sharedTurn.js';
 import * as knoxGuiPanels from './gui/controller/panels.js';
 import * as knoxGuiMemory from './gui/controller/memory.js';
 import * as knoxGuiCheckpoints from './gui/controller/checkpoints.js';
+import * as knoxGuiRecipe from './gui/controller/recipe.js';
 import * as knoxGuiPersistence from './gui/controller/persistence.js';
 
 export class KnoxGuiController extends Disposable {
@@ -37,6 +38,10 @@ export class KnoxGuiController extends Disposable {
 	turnAborted = false;
 	/** Memory / restore inject built at submit, reused by every round of the turn. */
 	turnInject: { sessionId: string; content: string } | undefined;
+	/** Verified-recipe worked example from `knox/startTurn` (MC-24); merged into `turnInject` at submit. */
+	turnRecipeHint: string | undefined;
+	/** Resolves the recipe preview card (MC-35); set only while it waits for the user. */
+	recipeChoice: ((choice: 'apply' | 'skip') => void) | undefined;
 	/** Shared-loop turn being rendered ; unset when no shared turn runs. */
 	sharedTurn: knoxGuiSharedTurn.IKnoxGuiSharedTurn | undefined;
 	/** Orders `knox/chatTurnEvent` handling. */
@@ -433,6 +438,24 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiCheckpoints.ensureCheckpoint(this, item, index);
 	}
 
+	/** MC-35: Apply / Skip on the recipe preview card. */
+	answerRecipeChoice(choice: 'apply' | 'skip'): void {
+		knoxGuiRecipe.answerRecipeChoice(this, choice);
+	}
+
+	async loadRecipeSettings(): Promise<void> {
+		return knoxGuiRecipe.loadRecipeSettings(this);
+	}
+
+	async setRecipeSettings(patch: Partial<IKnoxGuiState['recipeSettings']>): Promise<void> {
+		return knoxGuiRecipe.setRecipeSettings(this, patch);
+	}
+
+	/** MC-42: "Promote to skill" buttons on the recipe notice. */
+	promoteRecipeSkill(scope: 'project' | 'global'): void {
+		void knoxGuiRecipe.promoteRecipeSkill(this, scope);
+	}
+
 	restoreCheckpoint(checkpointId: string, rewindMemory = false): void {
 		return knoxGuiCheckpoints.restoreCheckpoint(this, checkpointId, rewindMemory);
 	}
@@ -734,6 +757,14 @@ export class KnoxGuiController extends Disposable {
 
 	async loadMemorySessions(): Promise<void> {
 		return knoxGuiMemory.loadMemorySessions(this);
+	}
+
+	async loadMemoryRecipes(): Promise<void> {
+		return knoxGuiMemory.loadMemoryRecipes(this);
+	}
+
+	async setMemoryRecipeStatus(recipeId: string, status: 'retired' | 'quarantined'): Promise<void> {
+		return knoxGuiMemory.setMemoryRecipeStatus(this, recipeId, status);
 	}
 
 	async loadMemorySessionHistory(sessionId: string): Promise<void> {

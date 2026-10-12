@@ -170,6 +170,7 @@ async function createCheckpointRecord(
             captureMode: captured.captureMode,
             skippedFiles: captured.skippedFiles,
             sessionId,
+            ...(options.intent ? { intent: options.intent } : {}),
             changedPaths: changedPathsFromSnapshots(fileSnapshots),
             conversationContext,
             ...(tags ? { tags } : {}),
@@ -238,10 +239,12 @@ export async function createCheckpointForMessage(
     description?: string,
     stableId?: string,
     conversationContext?: CheckpointInfo['conversationContext'],
+    intent?: string,
 ): Promise<string | undefined> {
     const isContextOnly = conversationContext && conversationContext.role === 'user';
     return createCheckpointRecord(host, {
         description,
+        intent,
         messageId,
         stableId,
         conversationContext,

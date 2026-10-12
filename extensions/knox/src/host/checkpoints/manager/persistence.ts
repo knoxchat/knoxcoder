@@ -18,6 +18,7 @@ import {
     referencedBlobHashes,
 } from '../store/blobStore';
 import { BlobEncryptionError } from '../store/blobEncryption';
+import { collectPinnedBlobHashes } from '../store/blobPins';
 import { STORE_LOCK_DIRNAME, withStoreLock } from '../store/storeLock';
 import {
     CHECKPOINT_SCHEMA_VERSION,
@@ -109,6 +110,8 @@ export function toIndexRecord(checkpoint: CheckpointInfo): CheckpointInfo {
         pinned: checkpoint.pinned,
         tags: checkpoint.tags,
         sessionId: checkpoint.sessionId,
+        intent: checkpoint.intent,
+        label: checkpoint.label,
         branchId: checkpoint.branchId,
         parentCheckpointId: checkpoint.parentCheckpointId,
         parentCheckpointIds: checkpoint.parentCheckpointIds?.filter((id) => id.trim().length > 0),
@@ -327,6 +330,12 @@ export async function collectReferencedBlobHashes(host: CheckpointEngineHost): P
         for (const hash of await collectBlobHashesFromManifestFile(path.join(storagePath, entry))) {
             hashes.add(hash);
         }
+    }
+
+    // Blobs pinned by other subsystems (recipes, MC-12). Rejects on provider
+    // failure so GC aborts rather than freeing something still wanted.
+    for (const hash of await collectPinnedBlobHashes()) {
+        hashes.add(hash);
     }
 
     return hashes;

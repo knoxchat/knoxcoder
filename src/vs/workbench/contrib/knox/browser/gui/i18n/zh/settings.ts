@@ -39,5 +39,15 @@ export const knoxGuiStringsZhSettings: Record<string, unknown> = {
 	"discardChanges": "放弃更改",
 	"noChangesToReview": "没有需要审查的更改",
 	"jevEnabled": "Jev 判断层",
-	"jevEnabledHint": "用 System One 做对话/助理路由、技能提示、上下文/工具闸门和引用检查。使用已登录的 Knox Chat 账号。失败时回退到现有启发式。关闭后始终使用助理模式。"
+	"jevEnabledHint": "用 System One 做对话/助理路由、技能提示、上下文/工具闸门和引用检查。使用已登录的 Knox Chat 账号。失败时回退到现有启发式。关闭后始终使用助理模式。",
+	"recipeSettings": "复用已验证的工作（实验性）",
+	"recipesEnabled": "记住已验证的工作",
+	"recipesEnabledHint": "Knox 修改文件后，若构建或测试通过，就把这次工作保存为本地配方。配方只保存在本机，除非你分享检查点包。",
+	"recipesAutoReplay": "重复任务时复用配方",
+	"recipesAutoReplayHint": "关闭：只把配方作为提示给模型。询问：先显示具体改动并等待你确认。自动：不调用模型直接应用。每次复用后都会校验，校验失败会自动撤销。",
+	"recipesAutoReplay_off": "关闭",
+	"recipesAutoReplay_ask": "先询问我",
+	"recipesAutoReplay_exact": "自动",
+	"selfImproveEnabled": "允许 Knox 回顾自己的历史",
+	"selfImproveEnabledHint": "Knox 会在记忆和检查点中查找重复的失败与撤销，并提出修复建议。未经你同意，不会更改任何内容，也不会向外发布。"
 };

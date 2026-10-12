@@ -13,6 +13,7 @@ import {
   hasGraphExpandableTokens,
   shouldJoinEntityToMemories,
 } from "./GraphRetrieval.js";
+import { applyOutcomeWeight, isVerifiedByOutcome, loadOutcomes, loadSupersededIds } from "./memoryOutcomes.js";
 import { evaluateRelevanceGate, LEXICAL_SCORE_MIN, resolveQueryEntities, applyMismatchPenalty, isMismatchActive } from "./RelevanceGate.js";
 import { buildFts5Query as buildRetrievalFts5Query, contentWords, FTS5_AND_TERM_CAP } from "./RetrievalQuery.js";
 import type { RetrievalIntent } from "./RetrievalQuery.js";
@@ -407,6 +408,18 @@ export class RetrievalFusion {
         ? (await BrainStore.getLatestSessionTopic(options.sessionId))?.id ?? null
         : null);
 
+    // MC-51 / MC-52: outcome history and supersession. Tables are additive; a failure here must
+    // never break recall, so it degrades to "no outcome data".
+    const candidateSemanticIds = [...candidateMap.values()].filter((c) => c.type === "semantic").map((c) => c.id);
+    let outcomes = new Map<number, { verified: number; reverted: number }>();
+    try {
+      outcomes = await loadOutcomes(db, candidateSemanticIds);
+      const superseded = await loadSupersededIds(db, candidateSemanticIds);
+      for (const id of superseded) candidateMap.delete(`semantic:${id}`);
+    } catch {
+      // older DB without the tables
+    }
+
     for (const candidate of candidateMap.values()) {
       if (candidate.type !== "semantic") continue;
       const sem = candidate.data as SemanticMemory;
@@ -415,6 +428,7 @@ export class RetrievalFusion {
         sem.mismatch_count,
         pinnedIds.has(sem.id),
       );
+      candidate.score = applyOutcomeWeight(candidate.score, outcomes.get(sem.id), theta, pinnedIds.has(sem.id));
     }
 
     // Sort by fusion score, apply θ threshold, then REL-03 mismatch gate, then top-K
@@ -456,6 +470,9 @@ export class RetrievalFusion {
         pinned,
         requireLexical,
         demoted,
+        // MC-50: verified-ness and prior mismatch raise/lower the bar (see RelevanceGate).
+        verified: sem ? isVerifiedByOutcome(outcomes.get(sem.id)) : undefined,
+        mismatchCount: sem?.mismatch_count,
       }).passed;
     });
 

@@ -20,6 +20,16 @@ export const MISMATCH_TTL_DAYS = 7;
 /** REL-12/REL-14: fusion penalty per mismatch_count. */
 export const MISMATCH_SCORE_PENALTY = 0.15;
 
+/**
+ * MC-50: verbs/fillers that appear in nearly every task message and every memory
+ * ("write a haiku" vs "Write unit tests"). Sharing only these is not evidence.
+ */
+export const GENERIC_GATE_WORDS: ReadonlySet<string> = new Set([
+  "write", "make", "use", "using", "used", "add", "create", "change", "update", "fix", "build", "run", "set",
+  "get", "new", "need", "want", "work", "works", "code", "file", "files", "thing", "things", "help", "show",
+  "how", "should", "does", "check", "implement", "do", "try", "find", "convert", "about", "this", "that",
+]);
+
 export interface RelevanceGateInput {
   query: string;
   title?: string;
@@ -34,6 +44,15 @@ export interface RelevanceGateInput {
   requireLexical?: boolean;
   /** REL-14: user marked this item not relevant for the current topic. */
   demoted?: boolean;
+  /**
+   * MC-50: this memory preceded verified turns and never a revert (outcome history, or a verified
+   * recipe link). Lowers the lexical-score bar to half; never admits a miss without any lexical signal.
+   */
+  verified?: boolean;
+  /** MC-50: times the user said "Not relevant". A weak lexical score alone no longer admits it. */
+  mismatchCount?: number;
+  /** MC-47: override for `LEXICAL_SCORE_MIN` (offline sweeps; production uses the default). */
+  lexicalScoreMin?: number;
 }
 
 export interface RelevanceGateResult {
@@ -85,10 +104,16 @@ export function entitiesRelevantToQuery(entityNames: string[], query: string): s
 export function evaluateRelevanceGate(input: RelevanceGateInput): RelevanceGateResult {
   const queryWords = gateTokens(input.query);
   const memoryWords = new Set(gateTokens(memoryGateText(input)));
-  const lexicalOverlap = queryWords.filter((w) => memoryWords.has(w));
+  const rawOverlap = queryWords.filter((w) => memoryWords.has(w));
+  // MC-50: generic words never count as lexical evidence on their own.
+  const lexicalOverlap = rawOverlap.filter((w) => !GENERIC_GATE_WORDS.has(w));
 
   const lexicalScore = (input.fts5 ?? 0) + (input.trigram ?? 0);
-  const lexicalStrong = lexicalScore >= LEXICAL_SCORE_MIN;
+  const scoreMin = input.lexicalScoreMin ?? LEXICAL_SCORE_MIN;
+  const bar = input.verified === true ? scoreMin / 2 : scoreMin;
+  // MC-50: a memory the user already rejected must show real overlap/entity evidence, not a score.
+  const scoreCounts = (input.mismatchCount ?? 0) <= 0 || input.pinned === true;
+  const lexicalStrong = scoreCounts && lexicalScore > 0 && lexicalScore >= bar;
 
   const sharedEntities = findSharedEntities(
     input.queryEntities ?? [],

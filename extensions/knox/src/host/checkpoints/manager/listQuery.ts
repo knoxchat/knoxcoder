@@ -13,6 +13,8 @@ export interface CheckpointListQuery {
 export interface CheckpointSearchFields {
     id: string;
     description?: string;
+    label?: string;
+    intent?: string;
     tags?: string[];
     sessionId?: string;
     conversationContext?: { sessionId?: string; role?: string };
@@ -87,6 +89,12 @@ export function checkpointMatchesQuery(checkpoint: CheckpointSearchFields, query
         return true;
     }
     if ((checkpoint.description ?? "").toLowerCase().includes(needle)) {
+        return true;
+    }
+    if ((checkpoint.label ?? "").toLowerCase().includes(needle)) {
+        return true;
+    }
+    if ((checkpoint.intent ?? "").toLowerCase().includes(needle)) {
         return true;
     }
     if (checkpoint.tags?.some((tag) => tag.toLowerCase().includes(needle))) {

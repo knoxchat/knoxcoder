@@ -76,6 +76,74 @@ export interface NativeStartTurnInput {
 
 export interface NativeStartTurnOutput {
   memoryBuildTimeoutMs: number;
+  /** Present only when `knoxchat.recipes.enabled` (MC-24). */
+  recipeDecision?: import("../agent/recipeDecisionTurn").RecipeDecisionEvent;
+  /** Worked example for the prompt when a recipe matched (suggest/adapt/exact). Redacted and capped. */
+  recipeHint?: string;
+}
+
+export interface RecipePreviewOutput {
+  recipeId: string;
+  allowed: boolean;
+  refusal?: string;
+  drifted: boolean;
+  conflicts: string[];
+  files: number;
+  added: number;
+  removed: number;
+  /** `formatReplayPreview` text: summary lines then diffs. */
+  text: string;
+}
+
+export interface RecipeReplayOutput {
+  status: "applied" | "refused" | "drifted" | "failed_verify" | "failed_apply";
+  recipeId: string;
+  checkpointId?: string;
+  restored: boolean;
+  reason?: string;
+  appliedPaths: string[];
+  /** Text for the model when the replay did not land (`replayFailureContext`). */
+  failureContext?: string;
+}
+
+/** MC-70: one row of the Memory page "Recipes" tab. No file bytes, no commands. */
+export interface RecipeListItem {
+  id: string;
+  title: string;
+  status: "candidate" | "verified" | "quarantined" | "retired";
+  scope: "project" | "global";
+  /** Replays attempted. */
+  uses: number;
+  ok: number;
+  reverted: number;
+  failedVerify: number;
+  files: number;
+  oracleKind?: string;
+  /** Checkpoints that hold the recipe's bytes. */
+  sourceCheckpointIds: string[];
+  lastReplayedAt?: string;
+  updatedAt: string;
+}
+
+/** MC-72: `knoxchat.recipes.enabled`, `knoxchat.recipes.autoReplay`, `knoxchat.selfImprove.enabled`. */
+export interface RecipeSettings {
+  enabled: boolean;
+  autoReplay: "off" | "ask" | "exact";
+  selfImprove: boolean;
+}
+
+export interface RecipeSetStatusOutput {
+  ok: boolean;
+  /** `not_found` or `not_allowed` (the state machine refuses the move). */
+  reason?: string;
+}
+
+export interface RecipePromoteSkillOutput {
+  ok: boolean;
+  /** Where `SKILL.md` was written. */
+  path?: string;
+  /** `not_found`, `not_eligible`, or a `writeSkillProposal` reason (`exists`, ...). */
+  reason?: string;
 }
 
 export interface NativeTurnTool {

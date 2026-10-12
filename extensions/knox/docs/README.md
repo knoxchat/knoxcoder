@@ -105,10 +105,26 @@ First-run chat shows what is stored. Off: `knoxchat.memoryBrain.enabled` (user)
 or `knoxchat.memoryBrain.workspaceEnabled` (this folder). Export / wipe from
 the command palette. Size cap: `knoxchat.memoryBrain.maxBytes`.
 
+Experimental, off by default: `knoxchat.recipes.enabled` lets Memory Brain keep
+verified work as local recipes, and `knoxchat.recipes.autoReplay` (`off`, `ask`,
+`exact`) controls reuse. `knoxchat.selfImprove.enabled` allows local analysis
+that proposes fixes and issue drafts for you to approve. Design rules:
+[recipes README](../src/core/context/memory/recipes/README.md).
+User guide: [recipes.md](recipes.md).
+
+Run `npm run mc:self-improve` from `extensions/knox` to analyze this repo
+(hot files, TODO density, bench baseline, optional threshold sweep from
+`--history file.json`). It writes a dated report to
+[`docs/self-improve/`](self-improve/) and sends nothing anywhere. Threshold
+proposals are never applied automatically.
+
 ## Checkpoints
 
 Before a turn changes files, Knox takes a checkpoint. Use "undo turn" in the
 turn summary or the restore view to roll back. Checkpoints are stored locally.
+Each turn checkpoint records the redacted request that caused it and gets a
+short summary label (for example "Add JWT middleware · 3 files in src/auth")
+shown in the Checkpoint Graph and used by checkpoint search.
 
 ## Jev (network calls)
 

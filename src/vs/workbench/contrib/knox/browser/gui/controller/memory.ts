@@ -7,7 +7,7 @@ import type { KnoxGuiController } from '../../knoxGuiController.js';
 import type { IKnoxGuiState } from '../../../common/knoxGuiState.js';
 import { asRecord, asArray } from './helpers.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
-import { memoryConfigUpdatePayload, isMemoryTabId, parseEbbinghausStats, parseEffectiveContext, parseExploreResult, parseGraphEntities, parseGraphStats, parseMemoryDashboard, parseMemoryItem, parseMemorySession, parseMetricsTrend, parsePhaseStatus, parseReviewDue, parseSessionHistory, unwrapBrainConfig, withMemoryConfigDefaults, memoryConsolidateParts } from '../../../common/knoxGuiMemory.js';
+import { memoryConfigUpdatePayload, isMemoryTabId, parseEbbinghausStats, parseEffectiveContext, parseExploreResult, parseGraphEntities, parseGraphStats, parseMemoryDashboard, parseMemoryItem, parseMemoryRecipe, parseMemorySession, parseMetricsTrend, parsePhaseStatus, parseReviewDue, parseSessionHistory, unwrapBrainConfig, withMemoryConfigDefaults, memoryConsolidateParts } from '../../../common/knoxGuiMemory.js';
 
 const MEMORY_PAGE_SIZE = 50;
 
@@ -19,6 +19,7 @@ export async function loadMemory(controller: KnoxGuiController): Promise<void> {
 			controller.loadMemories(false),
 			controller.loadMemorySessions(),
 			controller.loadMemoryGraph(false),
+			controller.loadMemoryRecipes(),
 			controller.loadMemoryConfig(),
 		]);
 	} catch {
@@ -46,6 +47,9 @@ export function refreshMemoryActiveTab(controller: KnoxGuiController): void {
 			return;
 		case 'graph':
 			void controller.loadMemoryGraph(false);
+			return;
+		case 'recipes':
+			void controller.loadMemoryRecipes();
 			return;
 	}
 }
@@ -144,6 +148,40 @@ export async function loadMemorySessions(controller: KnoxGuiController): Promise
 		controller.store.patch({ memorySessionError: 'memorySessionHistoryLoadError' });
 	} finally {
 		controller.store.patch({ memorySessionsLoading: false });
+	}
+}
+
+/** MC-70: recipes of this project. A failed load keeps the previous rows and shows one error line. */
+export async function loadMemoryRecipes(controller: KnoxGuiController): Promise<void> {
+	controller.store.patch({ memoryRecipesLoading: true, memoryRecipeError: undefined });
+	try {
+		const result = await controller.messenger.request<unknown>('knox/recipeList', undefined);
+		controller.store.patch({
+			memoryRecipes: asArray(result).map(parseMemoryRecipe).filter((recipe): recipe is NonNullable<typeof recipe> => Boolean(recipe)),
+		});
+	} catch {
+		controller.store.patch({ memoryRecipeError: 'memoryRecipesLoadError' });
+	} finally {
+		controller.store.patch({ memoryRecipesLoading: false });
+	}
+}
+
+/** Retire / quarantine. The host re-checks the state machine, so a refused move only reloads the list. */
+export async function setMemoryRecipeStatus(controller: KnoxGuiController, recipeId: string, status: 'retired' | 'quarantined'): Promise<void> {
+	if (controller.store.state.memoryRecipeBusyId) {
+		return;
+	}
+	controller.store.patch({ memoryRecipeBusyId: recipeId, memoryRecipeError: undefined });
+	try {
+		const out = asRecord(await controller.messenger.request<unknown>('knox/recipeSetStatus', { recipeId, status }));
+		if (!out?.ok) {
+			controller.store.patch({ memoryRecipeError: 'memoryRecipesActionFailed' });
+		}
+	} catch {
+		controller.store.patch({ memoryRecipeError: 'memoryRecipesActionFailed' });
+	} finally {
+		controller.store.patch({ memoryRecipeBusyId: undefined });
+		await loadMemoryRecipes(controller);
 	}
 }
 

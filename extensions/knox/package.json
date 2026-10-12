@@ -32,6 +32,8 @@
 		"test:eval": "vitest run --config src/core/vitest.config.ts eval",
 		"test:host": "vitest run --config src/host/vitest.config.mts",
 		"test:host-tsc": "tsc -p src/host --noEmit",
+		"mc:gate": "node ./scripts/mc-gate.mts",
+		"mc:self-improve": "node ./scripts/mc-self-improve.mts",
 		"test:pkg": "vitest run --config src/pkg/vitest.config.ts",
 		"packaged-smoke": "node ./scripts/packaged-extension-smoke.mts",
 		"notices": "node ./scripts/knox-third-party-notices.mts",
@@ -145,6 +147,31 @@
 					"type": "boolean",
 					"default": true,
 					"markdownDescription": "Per-workspace Memory Brain. Off for this folder only (workspace setting). Use this to opt a repo out of local memory."
+				},
+				"knoxchat.recipes.enabled": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Experimental. Let Memory Brain capture verified work (a build, test, or LSP check passed after the edit) as local recipes. Recipes reference checkpoint blobs and never leave this machine unless you share a bundle. Off by default."
+				},
+				"knoxchat.recipes.autoReplay": {
+					"type": "string",
+					"enum": [
+						"off",
+						"ask",
+						"exact"
+					],
+					"enumDescriptions": [
+						"Never replay a recipe.",
+						"Show the exact diff and ask before replaying a verified recipe.",
+						"Replay verified recipes with an exact match without asking. A pre-replay checkpoint is always taken."
+					],
+					"default": "off",
+					"markdownDescription": "How a matching verified recipe is reused instead of generating the same code again. Requires `knoxchat.recipes.enabled`. Replay goes through normal permissions, command guard, and review mode, and is rolled back automatically if verification fails."
+				},
+				"knoxchat.selfImprove.enabled": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Experimental. Let Knox analyze its own memory and checkpoint history to propose memory fixes, skills, and local issue drafts. Proposals need your approval. Nothing is posted to the network automatically."
 				},
 				"knoxchat.networkMode": {
 					"type": "string",

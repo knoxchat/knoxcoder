@@ -48,8 +48,14 @@ export const KNOX_SETTING_GROUPS: KnoxSettingGroup[] = [
   {
     id: "memory",
     label: "Memory and instructions",
-    description: "Memory Brain and instruction file compatibility",
-    match: ["knoxchat.memoryBrain.", "knoxchat.compatInstructions"],
+    description:
+      "Memory Brain, verified recipes, self-improvement, and instruction file compatibility",
+    match: [
+      "knoxchat.memoryBrain.",
+      "knoxchat.recipes.",
+      "knoxchat.selfImprove.",
+      "knoxchat.compatInstructions",
+    ],
   },
   {
     id: "network",

@@ -2113,12 +2113,31 @@ export function parseCheckpointDiff(value: unknown, fallbackNewDescription?: str
 	};
 }
 
+/** MC-71: undefined when the host sent none (older host), so the Dashboard hides the section. */
+export function parseRecipeMetrics(value: unknown): { attempts: number; applied: number; failedVerify: number; reverted: number; llmCallsAvoided: number; tokensSaved: number; wrongApplyRate: number } | undefined {
+	const row = rec(value);
+	if (!row) {
+		return undefined;
+	}
+	const count = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0;
+	return {
+		attempts: count(row.attempts),
+		applied: count(row.applied),
+		failedVerify: count(row.failedVerify),
+		reverted: count(row.reverted),
+		llmCallsAvoided: count(row.llmCallsAvoided),
+		tokensSaved: count(row.tokensSaved),
+		wrongApplyRate: Math.min(1, count(row.wrongApplyRate)),
+	};
+}
+
 export function parsePerformanceDashboard(value: unknown): {
 	currentStorage?: { totalBytes: number; checkpointCount: number; blobCount?: number };
 	storageHistory: Array<{ timestamp: string; totalBytes: number; checkpointCount: number }>;
 	creationFrequency: Array<{ bucket: string; count: number }>;
 	restorationEvents: Array<{ timestamp: string; checkpointId: string; success: boolean; durationMs: number; filesRestored: number; filesFailed: number; error?: string }>;
 	aiSessionMetrics: Array<{ sessionId: string; startedAt: string; filesChanged: number; linesAdded?: number; linesDeleted?: number; checkpointsCreated: number; rollbacks?: number; durationSeconds: number }>;
+	recipeMetrics?: { attempts: number; applied: number; failedVerify: number; reverted: number; llmCallsAvoided: number; tokensSaved: number; wrongApplyRate: number };
 	summary: {
 		totalCheckpointsCreated: number;
 		totalRestorations: number;
@@ -2175,6 +2194,7 @@ export function parsePerformanceDashboard(value: unknown): {
 				durationSeconds: Number(row.durationSeconds ?? 0),
 			};
 		}),
+		recipeMetrics: parseRecipeMetrics(data.recipeMetrics),
 		summary: {
 			totalCheckpointsCreated: Number(summary.totalCheckpointsCreated ?? 0),
 			totalRestorations: Number(summary.totalRestorations ?? 0),

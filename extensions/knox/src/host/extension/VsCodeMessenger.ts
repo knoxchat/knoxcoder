@@ -61,6 +61,7 @@ import {
   runSharedChatTurn,
   type SharedChatTurnDeps,
 } from "./sharedChatTurn";
+import { workspaceFsPath } from "./recipeCapture";
 import { finishNativeTurn, runMemoryPostTurn, startNativeTurn } from "./nativeTurn";
 
 
@@ -1015,9 +1016,76 @@ export class VsCodeMessenger {
     this.onWebview("knox/cancelChatTurn", async (msg) => ({
       cancelled: await cancelSharedChatTurn(msg.data.sessionId, sharedTurnDeps),
     }));
+    // Recipe replay (MC-30): every write runs through the same `tools/call` path as the model's.
+    const recipeReplayHost = async (): Promise<import("./recipeReplay").RecipeReplayHost> => {
+      const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
+      const { config } = await (await this.configHandlerPromise).loadConfig();
+      const selectedModelTitle = config?.selectedModelByRole?.chat?.title ?? "";
+      return {
+        workspaceDir: workspaceFsPath(dirs[0] ?? ""),
+        projectDir: dirs[0] ?? "",
+        complete: selectedModelTitle
+          ? async (prompt) => {
+              const llm = await (await this.configHandlerPromise).llmFromTitle(selectedModelTitle);
+              if (!llm) throw new Error("no chat model");
+              const abort = new AbortController();
+              const timer = setTimeout(() => abort.abort(), 90_000);
+              try {
+                const reply = await llm.chat([{ role: "user", content: prompt }], abort.signal);
+                return typeof reply.content === "string"
+                  ? reply.content
+                  : reply.content.map((part) => (part.type === "text" ? part.text : "")).join("");
+              } finally {
+                clearTimeout(timer);
+              }
+            }
+          : undefined,
+        callTool: async (name, args) => {
+          const res = await this.inProcessMessenger.externalRequest("tools/call", {
+            toolCall: {
+              id: `recipe-replay-${Date.now()}`,
+              type: "function",
+              function: { name, arguments: JSON.stringify(args) },
+            },
+            selectedModelTitle,
+          });
+          return res.contextItems;
+        },
+      };
+    };
+    void import("./selfReviewHook")
+      .then((m) => m.registerSelfReviewHook())
+      .catch((error) => console.warn("[SelfReview] Hook not registered:", error));
     this.onWebview("knox/startTurn", async (msg) => {
       const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
-      return startNativeTurn(msg.data, dirs[0] ?? "");
+      return startNativeTurn(msg.data, dirs[0] ?? "", await recipeReplayHost());
+    });
+    this.onWebview("knox/recipePreview", async (msg) => {
+      const { previewRecipe } = await import("./recipeReplay");
+      return previewRecipe(await recipeReplayHost(), msg.data.recipeId);
+    });
+    this.onWebview("knox/recipePromoteSkill", async (msg) => {
+      const { promoteRecipeToSkill } = await import("./recipeSkill");
+      const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
+      return promoteRecipeToSkill(workspaceFsPath(dirs[0] ?? ""), msg.data.recipeId, msg.data.scope, dirs[0] ?? "");
+    });
+    this.onWebview("knox/recipeSettings", async () => (await import("./recipeSettings")).readRecipeSettings());
+    this.onWebview("knox/recipeSettingsSet", async (msg) =>
+      (await import("./recipeSettings")).writeRecipeSettings(msg.data ?? {}),
+    );
+    this.onWebview("knox/recipeList", async () => {
+      const { listRecipes } = await import("./recipeList");
+      const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
+      return listRecipes(dirs[0] ?? "");
+    });
+    this.onWebview("knox/recipeSetStatus", async (msg) => {
+      const { setRecipeStatus } = await import("./recipeList");
+      const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
+      return setRecipeStatus(dirs[0] ?? "", msg.data.recipeId, msg.data.status);
+    });
+    this.onWebview("knox/recipeReplay", async (msg) => {
+      const { replayRecipe } = await import("./recipeReplay");
+      return replayRecipe(await recipeReplayHost(), msg.data.recipeId);
     });
     this.onWebview("knox/finishTurn", async (msg) => {
       const dirs = await this.ide.getWorkspaceDirs().catch(() => []);

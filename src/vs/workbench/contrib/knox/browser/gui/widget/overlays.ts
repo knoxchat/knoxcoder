@@ -1107,4 +1107,28 @@ export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: 
 		});
 		DOM.append(el, DOM.$('p.knox-gui-muted', undefined, t(state, 'agentPolicyHint')));
 	});
+	card(t(state, 'recipeSettings'), el => {
+		const labelled = (row: HTMLElement, label: string, hint: string): void => {
+			const labels = DOM.append(row, DOM.$('div'));
+			DOM.append(labels, DOM.$('div', undefined, label));
+			DOM.append(labels, DOM.$('span.knox-gui-muted', undefined, hint));
+		};
+		const enabledRow = DOM.append(el, DOM.$('.knox-gui-row.knox-gui-settings-stack'));
+		labelled(enabledRow, t(state, 'recipesEnabled'), t(state, 'recipesEnabledHint'));
+		widget.toggle(enabledRow, '', state.recipeSettings.enabled, value => void widget.controller.setRecipeSettings({ enabled: value }));
+		const replayRow = DOM.append(el, DOM.$('.knox-gui-row.knox-gui-settings-stack'));
+		labelled(replayRow, t(state, 'recipesAutoReplay'), t(state, 'recipesAutoReplayHint'));
+		const replay = DOM.append(replayRow, DOM.$('select.knox-gui-select')) as HTMLSelectElement;
+		replay.disabled = !state.recipeSettings.enabled;
+		for (const value of ['off', 'ask', 'exact'] as const) {
+			const option = DOM.append(replay, DOM.$('option')) as HTMLOptionElement;
+			option.value = value;
+			option.textContent = t(state, `recipesAutoReplay_${value}`);
+			option.selected = state.recipeSettings.autoReplay === value;
+		}
+		widget.renderStore.add(DOM.addDisposableListener(replay, 'change', () => void widget.controller.setRecipeSettings({ autoReplay: replay.value as 'off' | 'ask' | 'exact' })));
+		const improveRow = DOM.append(el, DOM.$('.knox-gui-row.knox-gui-settings-stack'));
+		labelled(improveRow, t(state, 'selfImproveEnabled'), t(state, 'selfImproveEnabledHint'));
+		widget.toggle(improveRow, '', state.recipeSettings.selfImprove, value => void widget.controller.setRecipeSettings({ selfImprove: value }));
+	});
 }

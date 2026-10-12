@@ -203,3 +203,54 @@ describe("multi-window", () => {
     expect((await p.loadCheckpointFromDisk(a, "cp_b2"))?.fileSnapshots?.[0].content).toBe("v12");
   });
 });
+
+describe("checkpoint intent and label (MC-60 / MC-61)", () => {
+  it("old stores load unchanged: no intent, no label, snapshots intact", async () => {
+    writeV1Manifest("cp_old", { "a.ts": "old" }, "2026-01-01T00:00:00.000Z");
+    const p = await import("./persistence");
+    const host = makeHost();
+    host.saveCheckpointHistory = () => p.saveCheckpointHistory(host);
+    await p.loadCheckpointHistory(host, { globalStorageUri: { fsPath: path.join(ws, "gs") } } as any);
+    const info = host.checkpointHistory.find((c: any) => c.id === "cp_old");
+    expect(info.intent).toBeUndefined();
+    expect(info.label).toBeUndefined();
+    const loaded = await p.loadCheckpointFromDisk(host, "cp_old");
+    expect(loaded?.fileSnapshots?.[0].content).toBe("old");
+  });
+
+  it("intent survives a reload; labeling later keeps the snapshots and shows in the graph", async () => {
+    const p = await import("./persistence");
+    const { setCheckpointLabel } = await import("./retention");
+    const { buildCheckpointGraph } = await import("./graphPayload");
+    const host = makeHost();
+    host.saveCheckpointHistory = () => p.saveCheckpointHistory(host);
+    host.appendAuditEvent = async () => true;
+    const info: any = {
+      id: "cp_i",
+      description: "Agent turn before write_file",
+      intent: "add jwt middleware",
+      created: new Date("2026-02-01T00:00:00Z"),
+      fileInventory: ["a.ts"],
+      skippedFiles: [],
+      fileSnapshots: [{ relativePath: "a.ts", content: "const a = 1;", encoding: "utf8", lastModified: new Date(), size: 12 }],
+    };
+    await p.saveCheckpointToDisk(host, info);
+    host.checkpointHistory.push(p.toIndexRecord(info));
+    await host.saveCheckpointHistory();
+
+    expect(await setCheckpointLabel(host, "cp_i", "Add jwt middleware · a.ts")).toBe(true);
+
+    const fresh = makeHost();
+    fresh.saveCheckpointHistory = () => p.saveCheckpointHistory(fresh);
+    await p.loadCheckpointHistory(fresh, { globalStorageUri: { fsPath: path.join(ws, "gs") } } as any);
+    const reloaded = fresh.checkpointHistory.find((c: any) => c.id === "cp_i");
+    expect(reloaded.intent).toBe("add jwt middleware");
+    expect(reloaded.label).toBe("Add jwt middleware · a.ts");
+    const full = await p.loadCheckpointFromDisk(fresh, "cp_i");
+    expect(full?.fileSnapshots?.[0].content).toBe("const a = 1;");
+
+    const node = buildCheckpointGraph({ history: fresh.checkpointHistory, branches: [] }).nodes[0];
+    expect(node.description).toBe("Add jwt middleware · a.ts");
+    expect(node.intent).toBe("add jwt middleware");
+  });
+});

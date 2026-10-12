@@ -622,3 +622,9 @@ export class CheckpointManager {
       .slice(0, limit);
   }
 }
+
+/**
+ * Unambiguous name for the Memory Brain database checkpoint/rollback manager.
+ * The workspace-file engine is `WorkspaceCheckpointManager` in the host.
+ */
+export { CheckpointManager as MemoryDbCheckpointManager };

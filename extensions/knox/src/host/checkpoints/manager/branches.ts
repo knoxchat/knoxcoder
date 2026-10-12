@@ -157,6 +157,41 @@ export async function createBranch(
     return branch;
 }
 
+/** MC-62: `what-if/<recipe>` (then `-2`, `-3`, ...) so repeated adapt runs never collide. */
+export function whatIfBranchName(existing: readonly { name: string }[], recipeId: string): string {
+    const stem = `what-if/${recipeId.replace(/[^A-Za-z0-9]/g, '').slice(0, 8) || 'recipe'}`;
+    const taken = new Set(existing.map((branch) => branch.name));
+    if (!taken.has(stem)) {
+        return stem;
+    }
+    let n = 2;
+    while (taken.has(`${stem}-${n}`)) {
+        n++;
+    }
+    return `${stem}-${n}`;
+}
+
+/**
+ * MC-62: before an adapt-mode replay, fork a branch at the pre-replay checkpoint. The replay then
+ * lands on that branch, so the user can switch back to the previous line and compare the replay
+ * with an LLM-generated result. Never throws: a failed fork means "replay without a branch".
+ */
+export async function createWhatIfBranch(
+    host: CheckpointEngineHost,
+    baseCheckpointId: string,
+    recipeId: string,
+    intent?: string,
+): Promise<CheckpointBranch | null> {
+    try {
+        const name = whatIfBranchName(host.branches ?? [], recipeId);
+        const note = intent?.trim() ? `Recipe replay: ${intent.trim().slice(0, 80)}` : 'Recipe replay';
+        return await createBranch(host, name, baseCheckpointId, note);
+    } catch (error) {
+        log.warn('What-if branch not created:', error instanceof Error ? error.message : error);
+        return null;
+    }
+}
+
 export async function listBranches(host: CheckpointEngineHost): Promise<CheckpointBranch[]> {
     return [...(host.branches ?? [])];
 }

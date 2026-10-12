@@ -1011,7 +1011,7 @@ suite('Knox native GUI parity', () => {
 	});
 
 	test('Pass 9 memory tabs, browser grouping, and graph layout', () => {
-		assert.deepStrictEqual([...MEMORY_TAB_IDS], ['overview', 'memories', 'sessions', 'graph', 'settings']);
+		assert.deepStrictEqual([...MEMORY_TAB_IDS], ['overview', 'memories', 'sessions', 'graph', 'recipes', 'settings']);
 		assert.strictEqual(isMemoryTabId('overview'), true);
 		assert.strictEqual(isMemoryTabId('nope'), false);
 		const memories = [
@@ -1185,6 +1185,7 @@ suite('Knox native GUI parity', () => {
 			memories: 'database',
 			sessions: 'message-square',
 			graph: 'graph-nodes',
+			recipes: 'zap',
 			settings: 'settings',
 		});
 		const dashboard = parseMemoryDashboard({
@@ -1870,7 +1871,7 @@ suite('Knox native GUI parity', () => {
 	});
 
 	test('KN-376 Memory panel helpers match KN-310–317 tabs, retrieval defaults, and brain/* surface', () => {
-		assert.deepStrictEqual([...MEMORY_TAB_IDS], ['overview', 'memories', 'sessions', 'graph', 'settings']);
+		assert.deepStrictEqual([...MEMORY_TAB_IDS], ['overview', 'memories', 'sessions', 'graph', 'recipes', 'settings']);
 		assert.strictEqual(MEMORY_RETRIEVAL_THRESHOLD, 0.6);
 		assert.strictEqual(MEMORY_RETRIEVAL_TOP_K, 20);
 		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.fields.some(field => field.key === 'retrieval_threshold')));

@@ -32,6 +32,7 @@ export async function setup(controller: KnoxGuiController): Promise<void> {
 		if (knoxGuiIsDedicatedEditor(controller.store.state)) {
 			controller.messenger.post('setGuiLanguage', { language: controller.store.state.language });
 			void controller.loadMemoryMode();
+			void controller.loadRecipeSettings();
 			if (controller.store.state.lockedRoute === KnoxGuiRoute.Memory) {
 				await controller.hydrateMemoryTab();
 				await controller.loadMemory();
@@ -62,6 +63,7 @@ export async function setup(controller: KnoxGuiController): Promise<void> {
 			void controller.refreshGitDiff();
 			void controller.refreshBackgroundJobs();
 			void controller.loadMemoryMode();
+			void controller.loadRecipeSettings();
 			void controller.loadReasoningEffortPrefs();
 			controller.startHeartbeat();
 			controller.startGitPoll();

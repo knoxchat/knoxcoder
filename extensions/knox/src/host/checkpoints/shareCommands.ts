@@ -6,10 +6,34 @@ import { CheckpointCommand } from './commandIds';
 import { isListableCheckpoint } from './manager/listQuery';
 import { auditEventToPanelRecord } from './manager/shareBundles';
 
+function recipesEnabled(): boolean {
+    return vscode.workspace.getConfiguration('knoxchat').get<boolean>('recipes.enabled', false) === true;
+}
+
+/** Recipes are keyed by the workspace URI, the same string capture and matching hash. */
+function recipeProjectDir(): string | undefined {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+}
+
 export async function importBundleWithWorkspacePrompt(
     filePath: string,
-    importOptions: ImportCheckpointsOptions = {},
+    baseOptions: ImportCheckpointsOptions = {},
 ): Promise<number> {
+    let importOptions = baseOptions;
+    const projectDir = recipeProjectDir();
+    if (!baseOptions.onRecipes && recipesEnabled() && projectDir) {
+        // MC-63: bundled recipes always arrive as `candidate` and are never replayed before local verification.
+        const { importBundleRecipes } = await import('../extension/recipeBundle');
+        importOptions = {
+            ...baseOptions,
+            onRecipes: importBundleRecipes(projectDir, (r) => {
+                if (r.created + r.rejected.length === 0) return;
+                vscode.window.showInformationMessage(
+                    t('checkpoint.import.recipesResult', { created: r.created, rejected: r.rejected.length }),
+                );
+            }),
+        };
+    }
     const checkpointManager = CheckpointManager.getInstance();
     try {
         return await checkpointManager.importCheckpoints(filePath, importOptions);
@@ -107,8 +131,32 @@ export async function shareCheckpointsInteractive(options?: {
         filePath = uri.fsPath;
     }
 
+    // MC-63: recipes leave the machine only when the user says yes, every time.
+    let recipes: Awaited<ReturnType<typeof import('../extension/recipeBundle').collectShareableRecipes>> | undefined;
+    const projectDir = recipeProjectDir();
+    if (recipesEnabled() && projectDir) {
+        const { collectShareableRecipes } = await import('../extension/recipeBundle');
+        const shareable = await collectShareableRecipes(projectDir).catch(() => []);
+        if (shareable.length > 0) {
+            const yes = t('checkpoint.share.includeRecipesYes');
+            const choice = await vscode.window.showWarningMessage(
+                t('checkpoint.share.includeRecipes', { count: shareable.length }),
+                { modal: true },
+                yes,
+                t('checkpoint.share.includeRecipesNo'),
+            );
+            if (choice === undefined) {
+                return undefined;
+            }
+            if (choice === yes) {
+                recipes = shareable;
+            }
+        }
+    }
+
     const bundle = await checkpointManager.shareCheckpoints(filePath, {
         checkpointIds,
+        ...(recipes ? { recipes } : {}),
         description: description || t('checkpoint.share.defaultDescription', { count: checkpointIds.length }),
     });
 

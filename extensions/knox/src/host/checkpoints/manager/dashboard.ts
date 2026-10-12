@@ -1,3 +1,4 @@
+import { emptyRecipeMetrics, summarizeRecipeMetrics, type RecipeMetricsSummary } from 'core/context/memory/recipes/metrics';
 import { createKnoxLogger } from 'core/util/knoxLog';
 
 import { readAuditEvents, type AuditEvent } from '../store/auditLog';
@@ -59,6 +60,8 @@ export interface PerformanceDashboardData {
     creationFrequency: CreationFrequencyPoint[];
     restorationEvents: RestorationEvent[];
     aiSessionMetrics: AISessionMetric[];
+    /** Replay results of verified recipes (MC-71). All zero when recipes are off. */
+    recipeMetrics: RecipeMetricsSummary;
     summary: DashboardSummary;
 }
 
@@ -140,6 +143,7 @@ export function emptyPerformanceDashboard(now: Date = new Date()): PerformanceDa
         creationFrequency: [],
         restorationEvents: [],
         aiSessionMetrics: [],
+        recipeMetrics: emptyRecipeMetrics(),
         summary: {
             totalCheckpointsCreated: 0,
             totalRestorations: 0,
@@ -203,6 +207,7 @@ export async function getPerformanceDashboard(
         dashboard.creationFrequency = creationFrequency(creates);
         dashboard.restorationEvents = [...restores].reverse();
         dashboard.aiSessionMetrics = aiSessions;
+        dashboard.recipeMetrics = summarizeRecipeMetrics(windowed);
         dashboard.summary = {
             totalCheckpointsCreated: creates.length,
             totalRestorations: restores.length,

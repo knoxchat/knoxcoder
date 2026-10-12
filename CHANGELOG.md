@@ -3,6 +3,25 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Added
+
+- **Recipes (experimental, off by default).** Knox can save verified work and reuse it: exact replay with no model call, a preview card with Apply / Skip when `knoxchat.recipes.autoReplay` is `ask`, automatic rollback when the re-run check fails, quarantine when you undo a replay, and "Save as skill" for recipes replayed cleanly 3 times. With `knoxchat.selfImprove.enabled`, the memory sleep cycle also stores `error_fix` memories and merges duplicate recipes. See `extensions/knox/docs/recipes.md`.
+- **Recipes UI.** A Recipes tab on the Memory page (status, uses, reverts, source checkpoints, quarantine and retire), a "Reuse verified work" card on the Settings page for the three recipe switches, and tokens saved, model calls avoided and wrong-reuse rate on the Checkpoint Dashboard.
+
+- **Recipe adapt mode.** When a saved recipe needs small changes, one model call returns only a patch. You see the preview first, and Knox can fork a `what-if/*` checkpoint branch before applying so you can compare it with a model-written result.
+- **Share recipes with checkpoint bundles.** Sharing a bundle asks whether to include your verified recipes (command-free ones only). Importing a bundle stores its recipes as candidates; they are never replayed until verified on your machine.
+- **Self-improvement reports (off by default).** `npm run mc:self-improve` analyses repeated failures, reverts and project health and writes a report; issue drafts are scrubbed of secrets and home paths, and `gh` is only called after you confirm. `npm run mc:gate` blocks changes that regress the memory bench, and CI runs it.
+- **Better checkpoint labels.** Each turn's checkpoint gets a short label and its original request, shown in the Checkpoint Graph and searchable.
+
+### Changed
+
+- Memory recall injects fewer unrelated memories (false-inject rate 0.333 to 0) and weighs memories by whether they preceded verified or reverted turns; a newer decision or preference now supersedes a contradicting older one.
+- Recipes: listing recipes at turn start now uses two database queries instead of one per recipe, and the precondition check reads each root file once and asks git once for all touched paths. Measured by a 1000-turn soak and a 500,000-file tree test; numbers are in `docs/known-issues.md`.
+
+### Security
+
+- Recipe replay review: replay, preview and "Save as skill" now refuse a recipe from another project, and the check command that runs after a replay goes through the same network and secret filter as replayed commands.
+
 ## [2.1.1] - 2026-10-08
 
 ### Changed

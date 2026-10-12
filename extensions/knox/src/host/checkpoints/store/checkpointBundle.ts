@@ -71,6 +71,11 @@ export interface CheckpointBundleV1 {
     stableIdCheckpoints: Record<string, string>;
     checkpoints: Array<Record<string, unknown>>;
     blobs: CheckpointBundleBlob[];
+    /**
+     * MC-63: shared recipes (see core `recipes/bundle.ts`). Part of the digest and so of the HMAC
+     * when present; bundles without it hash exactly as before.
+     */
+    recipes?: unknown[];
     contentSha256: string;
     /** HMAC-SHA256 of contentSha256 using the local ~/.knoxcoder key. Optional. */
     hmacSha256?: string;
@@ -117,6 +122,7 @@ export function buildCanonicalBundlePayload(
                 data: blob.data,
             }))
             .sort((a, b) => a.hash.localeCompare(b.hash)),
+        ...(bundle.recipes && bundle.recipes.length > 0 ? { recipes: bundle.recipes } : {}),
     };
 }
 
@@ -316,6 +322,7 @@ export function verifyCheckpointBundle(value: unknown): CheckpointBundleV1 {
             gzipped: blob.gzipped === true,
             data: typeof blob.data === 'string' ? blob.data : '',
         })),
+        ...(Array.isArray(value.recipes) && value.recipes.length > 0 ? { recipes: value.recipes } : {}),
         contentSha256: value.contentSha256,
         hmacSha256: typeof value.hmacSha256 === 'string' && value.hmacSha256.length > 0
             ? value.hmacSha256

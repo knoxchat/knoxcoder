@@ -9,6 +9,10 @@ export type SoulEventKind =
   | "qemu:panic"
   | "bisect:step";
 
+import type { SoulOracle } from "./oracleVerdict.js";
+
+export type { SoulOracle, SoulOracleKind } from "./oracleVerdict.js";
+
 export interface SoulEvent {
   sessionId: string;
   kind: SoulEventKind;
@@ -19,6 +23,8 @@ export interface SoulEvent {
   ok: boolean;
   policy?: "allow" | "ask" | "deny";
   summary: string;
+  /** Structured check result (MC-13). Absent means "not verified", never "passed". */
+  oracle?: SoulOracle;
   metadata?: Record<string, unknown>;
 }
 

@@ -68,6 +68,24 @@ export function memoryStrength(
   return Math.max(0.01, accessStrength * salienceFactor * importanceFactor);
 }
 
+/**
+ * MC-51: outcome-aware strength. Memories recalled before a verified turn gain strength, ones
+ * recalled before a revert lose more (wrong memory costs more than a right one earns).
+ */
+export const OUTCOME_VERIFIED_GAIN = 0.05;
+export const OUTCOME_REVERT_LOSS = 0.15;
+export const OUTCOME_FACTOR_MIN = 0.4;
+export const OUTCOME_FACTOR_MAX = 1.3;
+
+export function outcomeFactor(verified: number, reverted: number): number {
+  const f = 1 + OUTCOME_VERIFIED_GAIN * Math.max(0, verified) - OUTCOME_REVERT_LOSS * Math.max(0, reverted);
+  return Math.max(OUTCOME_FACTOR_MIN, Math.min(OUTCOME_FACTOR_MAX, f));
+}
+
+export function outcomeAdjustedStrength(strength: number, verified: number, reverted: number): number {
+  return Math.max(0.01, strength * outcomeFactor(verified, reverted));
+}
+
 /** Retention R(t) = R₀ · e^(-λ · t / S) ∈ [0, 1]. */
 export function retention(
   lastAccessedAt: string,
@@ -172,4 +190,6 @@ export const Ebbinghaus = {
   importanceFromRetention,
   boostImportanceOnAccess,
   strengthGainOnAccess,
+  outcomeFactor,
+  outcomeAdjustedStrength,
 };

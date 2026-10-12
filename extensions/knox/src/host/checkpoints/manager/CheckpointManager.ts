@@ -37,6 +37,7 @@ import { DEFAULT_CHECKPOINT_IGNORE_PATTERNS } from '../checkpointIgnore';
 import { hasWorkspaceChanges } from './capture';
 import {
     createBranch as createCheckpointBranch,
+    createWhatIfBranch as createWhatIfCheckpointBranch,
     deleteBranch as deleteCheckpointBranch,
     getActiveBranch,
     listBranches as listCheckpointBranches,
@@ -56,7 +57,8 @@ import { listFileCheckpointHistory as listFileVersions } from './fileHistory';
 import { getPerformanceDashboard as buildPerformanceDashboard } from './dashboard';
 import { inspectStoreHealth as inspectBoundStoreHealth, repairStoreHealth as repairBoundStoreHealth, type StoreRepairOptions } from './storeHealth';
 import { appendAuditEvent as persistAuditEvent, getAuditTrail as readAuditTrail, recordAISessionMetrics as persistAISessionMetrics, recordRestorationEvent as persistRestorationEvent, recordStorageSnapshot as persistStorageSnapshot } from './events';
-import { summarizeObjectStore } from '../store/blobStore';
+import { getBlob, summarizeObjectStore } from '../store/blobStore';
+import { readBlobOptions } from './blobCrypto';
 import { formatFileSize } from './format';
 import type { CheckpointEngineHost } from './host';
 import {
@@ -88,6 +90,7 @@ import {
     removeFromHistory,
     removeFromHistoryAndDisk,
     setCheckpointPinned,
+    setCheckpointLabel,
     setCheckpointTag,
 } from './retention';
 import {
@@ -120,6 +123,7 @@ import type {
     SharedCheckpointBundle,
     SuggestedCheckpointGroup,
 } from './types';
+import { turnIntents } from 'core/context/soul/turnIntent';
 import { countSessionRollbacks } from './aiSessionMetrics';
 import { normalizeCapturePath, toPosixRelative } from './pathFilter';
 import { disposeFileWatcher, initializeFileWatcher, type WorkspaceFileEvent } from './watcher';
@@ -674,10 +678,11 @@ export class CheckpointManager implements CheckpointEngineHost {
         description?: string,
         stableId?: string,
         conversationContext?: any,
+        intent?: string,
     ): Promise<string | undefined> {
         return this.withConflictGuard('create', [], () =>
             this.withAllWorkspaceFolders(() =>
-                createMessageCheckpoint(this, messageId, description, stableId, conversationContext),
+                createMessageCheckpoint(this, messageId, description, stableId, conversationContext, intent),
             ),
         );
     }
@@ -688,6 +693,15 @@ export class CheckpointManager implements CheckpointEngineHost {
             options?.includeFiles ?? [],
             () => this.withAllWorkspaceFolders(() => createManualCheckpointRecord(this, options)),
         );
+    }
+
+    /** Bytes of a stored blob (decrypted, checksum verified); undefined when missing. Used by recipes. */
+    async readBlobBytes(hash: string): Promise<Buffer | undefined> {
+        try {
+            return await getBlob(this.getStoragePath(), hash, await readBlobOptions(this as never));
+        } catch {
+            return undefined;
+        }
     }
 
     async reconstructStateAtCheckpoint(checkpointId: string) {
@@ -847,6 +861,11 @@ export class CheckpointManager implements CheckpointEngineHost {
         return setCheckpointTag(this, checkpointId, tag, present);
     }
 
+    /** MC-60: set or clear the semantic label on a checkpoint. */
+    public async setCheckpointLabel(checkpointId: string, label: string | undefined): Promise<boolean> {
+        return setCheckpointLabel(this, checkpointId, label);
+    }
+
     public async renameBranch(branchId: string, name: string): Promise<void> {
         return this.withConflictGuard('branch', [], () => renameCheckpointBranch(this, branchId, name));
     }
@@ -947,9 +966,11 @@ export class CheckpointManager implements CheckpointEngineHost {
                 sessionId: params.sessionId,
                 allowEmpty: true,
             },
+            turnIntents.intentFor(params.sessionId),
         );
         if (checkpointId) {
             this.turnCheckpoints.set(key, checkpointId);
+            turnIntents.attach(params.sessionId, checkpointId);
         }
         return checkpointId;
     }
@@ -1050,6 +1071,11 @@ export class CheckpointManager implements CheckpointEngineHost {
                 size: resolved.content.length,
             })),
         };
+    }
+
+    /** MC-62: fork a `what-if/*` branch at `baseCheckpointId` before an adapt-mode replay. */
+    async createWhatIfBranch(baseCheckpointId: string, recipeId: string, intent?: string): Promise<CheckpointBranch | null> {
+        return createWhatIfCheckpointBranch(this, baseCheckpointId, recipeId, intent);
     }
 
     async createBranch(name: string, baseCheckpointId: string, description: string = ''): Promise<CheckpointBranch | null> {

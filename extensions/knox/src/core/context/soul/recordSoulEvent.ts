@@ -10,7 +10,7 @@ const soulHistoryBySession = new Map<
   string,
   Array<SoulEvent & { episodicId: number }>
 >();
-const MAX_SOUL_HISTORY = 20;
+export const MAX_SOUL_HISTORY = 20;
 
 export function getLastSoulEvent(
   sessionId: string,
@@ -271,6 +271,7 @@ export async function recordSoulEvent(event: SoulEvent): Promise<number> {
       workspaceCheckpointId: event.workspaceCheckpointId,
       policy: event.policy,
       ...event.metadata,
+      ...(event.oracle ? { oracle: event.oracle } : {}),
     },
   });
 

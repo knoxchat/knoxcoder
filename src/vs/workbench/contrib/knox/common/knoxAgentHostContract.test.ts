@@ -851,7 +851,7 @@ suite('Knox agent host contract (KN-376)', () => {
 		const store = repoFile('extensions/knox/src/core/context/memory/brain/store/state.ts');
 		const hierarchy = repoFile('extensions/knox/src/core/context/memory/brain/MemoryHierarchy.ts');
 		const sanitizer = repoFile('extensions/knox/src/core/context/memory/brain/InputSanitizer.ts');
-		assert.ok(overlays.includes("MEMORY_TAB_IDS = ['overview', 'memories', 'sessions', 'graph', 'settings']"));
+		assert.ok(overlays.includes("MEMORY_TAB_IDS = ['overview', 'memories', 'sessions', 'graph', 'recipes', 'settings']"));
 		assert.ok(helpers.includes('MEMORY_RETRIEVAL_THRESHOLD = 0.6'));
 		assert.ok(helpers.includes('MEMORY_RETRIEVAL_TOP_K = 20'));
 		assert.ok(helpers.includes('MEMORY_PANEL_TAB_BRAIN_MESSAGES'));
@@ -1124,7 +1124,7 @@ suite('Knox agent host contract (KN-382)', () => {
 			.map(match => match[1])
 			.sort();
 		assert.deepStrictEqual(contributed, frozen);
-		assert.strictEqual(contributed.length, 61);
+		assert.strictEqual(contributed.length, 64);
 		assert.ok(contributed.includes('knoxchat.jev.enabled'));
 		assert.ok(contributed.includes('knoxchat.memoryBrain.maxBytes'));
 		assert.ok(contributed.includes('knox.checkpoints.enableAutoCheckpoints'));

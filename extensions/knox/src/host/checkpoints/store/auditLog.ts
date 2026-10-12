@@ -18,7 +18,9 @@ export type AuditAction =
     | 'unpin'
     | 'ai_session'
     | 'storage_snapshot'
-    | 'branch';
+    | 'branch'
+    | 'recipe_replay'
+    | 'recipe_revert';
 
 export type AuditOutcome = 'success' | 'failure';
 
@@ -61,7 +63,9 @@ function isAuditAction(value: unknown): value is AuditAction {
         value === 'unpin' ||
         value === 'ai_session' ||
         value === 'storage_snapshot' ||
-        value === 'branch'
+        value === 'branch' ||
+        value === 'recipe_replay' ||
+        value === 'recipe_revert'
     );
 }
 

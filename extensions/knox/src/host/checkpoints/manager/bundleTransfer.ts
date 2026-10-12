@@ -410,6 +410,16 @@ export async function exportCheckpoints(
             }
         }
 
+        for (const recipe of options?.recipes ?? []) {
+            for (const step of recipe.steps) {
+                for (const hash of [step.blobHash, step.baseBlobHash]) {
+                    if (hash) {
+                        blobHashes.add(hash);
+                    }
+                }
+            }
+        }
+
         const blobs = [];
         for (const hash of [...blobHashes].sort()) {
             const bytes = await getBlob(storagePath, hash, await readBlobOptions(host));
@@ -441,6 +451,7 @@ export async function exportCheckpoints(
             stableIdCheckpoints,
             checkpoints,
             blobs,
+            ...(options?.recipes?.length ? { recipes: options.recipes } : {}),
         });
 
         await writeFileAtomic(filePath, JSON.stringify(bundle, null, 2), 'utf8');
@@ -557,6 +568,7 @@ export async function importCheckpoints(
 ): Promise<number> {
     const options: Required<Pick<ImportCheckpointsOptions, 'merge' | 'remapIds' | 'allowWorkspaceMismatch'>> & {
         hmacKeyPath?: string;
+        onRecipes?: ImportCheckpointsOptions['onRecipes'];
     } = {
         merge: typeof mergeOrOptions === 'boolean'
             ? mergeOrOptions
@@ -565,6 +577,7 @@ export async function importCheckpoints(
         allowWorkspaceMismatch: typeof mergeOrOptions === 'object'
             && mergeOrOptions.allowWorkspaceMismatch === true,
         hmacKeyPath: typeof mergeOrOptions === 'object' ? mergeOrOptions.hmacKeyPath : undefined,
+        onRecipes: typeof mergeOrOptions === 'object' ? mergeOrOptions.onRecipes : undefined,
     };
     const startedAt = Date.now();
     try {
@@ -583,6 +596,7 @@ export async function importCheckpoints(
         let checkpoints: CheckpointInfo[];
         let messageCheckpoints: MessageCheckpointMap = {};
         let stableIdCheckpoints: Record<string, string> = {};
+        let incomingRecipes: { recipes: unknown[]; blobHashes: Set<string> } | undefined;
 
         if (isPlainObject(parsed) && parsed.format === CHECKPOINT_BUNDLE_FORMAT) {
             const bundle = verifyCheckpointBundle(parsed);
@@ -593,6 +607,12 @@ export async function importCheckpoints(
             checkpoints = await importVerifiedBundle(host, bundle, options);
             messageCheckpoints = bundle.messageCheckpoints;
             stableIdCheckpoints = bundle.stableIdCheckpoints;
+            if (bundle.recipes?.length) {
+                incomingRecipes = {
+                    recipes: bundle.recipes,
+                    blobHashes: new Set(bundle.blobs.map((blob) => blob.hash)),
+                };
+            }
         } else if (isPlainObject(parsed)) {
             checkpoints = await importLegacyCheckpoints(host, parsed, options);
             messageCheckpoints = isPlainObject(parsed.messageCheckpoints)
@@ -612,6 +632,14 @@ export async function importCheckpoints(
             { messageCheckpoints, stableIdCheckpoints },
             options,
         );
+
+        if (incomingRecipes && options.onRecipes) {
+            try {
+                await options.onRecipes(incomingRecipes.recipes, incomingRecipes.blobHashes);
+            } catch (error) {
+                log.warn('Bundle recipes were not imported:', error instanceof Error ? error.message : error);
+            }
+        }
 
         log.info(`📥 Imported ${importedCount} checkpoints from ${filePath}`);
         await host.appendAuditEvent({

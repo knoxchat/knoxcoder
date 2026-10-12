@@ -2145,6 +2145,19 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-memory-graph-depth"]')?.textContent?.includes('d1'));
 
 		store.patch({
+			memoryTab: 'recipes',
+			memoryRecipes: [
+				{ id: 'rec1', title: 'Add lint script', status: 'verified', scope: 'project', uses: 5, ok: 5, reverted: 0, failedVerify: 0, files: 2, sourceCheckpointIds: ['abcdef1234'] },
+				{ id: 'rec2', title: 'Old recipe', status: 'retired', scope: 'project', uses: 1, ok: 0, reverted: 1, failedVerify: 0, files: 1, sourceCheckpointIds: [] },
+			],
+		});
+		const recipesPane = widget.root.querySelector('[data-testid="knox-gui-memory-recipes"]');
+		assert.ok(recipesPane?.textContent?.includes('Add lint script'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-retire-rec1"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-quarantine-rec1"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="memory-recipe-retire-rec2"]'), null);
+
+		store.patch({
 			memoryTab: 'settings',
 			memoryConfig: { retrieval_threshold: 0.6, retrieval_top_k: 20, auto_extract_enabled: true },
 		});

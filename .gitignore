@@ -58,3 +58,5 @@ extensions/knox/build/
 .v[0-9]*/
 # Local agent validation evidence
 .agent-validation/
+# Local Memory × Checkpoint notes (not shipped)
+/mc-impl.md

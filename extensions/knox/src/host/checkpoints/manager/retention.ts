@@ -290,6 +290,34 @@ export async function setCheckpointTag(
     return true;
 }
 
+/**
+ * MC-60: set (or clear, with undefined) the semantic label. Same read-modify-write as tags so a
+ * lean index entry never overwrites a manifest that still holds the file snapshots.
+ */
+export async function setCheckpointLabel(
+    host: CheckpointEngineHost,
+    checkpointId: string,
+    label: string | undefined,
+): Promise<boolean> {
+    const info = host.checkpointHistory.find((cp) => cp.id === checkpointId);
+    if (!info) {
+        return false;
+    }
+    const next = label?.trim() ? label.trim().slice(0, 120) : undefined;
+    if (info.label === next) {
+        return true;
+    }
+    info.label = next;
+    const record = await readCheckpointRecord(host, checkpointId);
+    if (record.status === 'ok') {
+        record.checkpoint.label = next;
+        await saveCheckpointToDisk(host, record.checkpoint);
+        Object.assign(info, toIndexRecord({ ...record.checkpoint, label: next }));
+    }
+    await host.saveCheckpointHistory();
+    return true;
+}
+
 function workspaceHistoryOldestFirst(
     host: CheckpointEngineHost,
     workspacePath?: string,

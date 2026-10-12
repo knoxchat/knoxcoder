@@ -30,6 +30,10 @@ export abstract class KnoxGuiMemoryFacade extends KnoxGuiPagesFacade {
 		knoxGuiMemoryView.renderMemoryGraph(this, body, state);
 	}
 
+	renderMemoryRecipes(this: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
+		knoxGuiMemoryView.renderMemoryRecipes(this, body, state);
+	}
+
 	renderMemorySettings(this: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 		knoxGuiMemoryView.renderMemorySettings(this, body, state);
 	}

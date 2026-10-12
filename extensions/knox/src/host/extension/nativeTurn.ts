@@ -8,6 +8,11 @@ import {
   formatSettledToolSummary,
 } from "core/context/soul/extractToolFiles";
 
+import { turnIntents } from "core/context/soul/turnIntent";
+
+import { labelTurnCheckpoints } from "./turnLabels";
+import { captureRecipeAfterTurn, decideRecipeAtTurnStart, markRecipeTurnStart } from "./recipeCapture";
+
 export interface MemoryPostTurnInput {
   sessionId: string;
   userMessage: string;
@@ -41,8 +46,11 @@ export function nativeTurnToolSummary(
 export async function startNativeTurn(
   input: NativeStartTurnInput,
   workspaceDir: string,
+  replayHost?: import("./recipeReplay").RecipeReplayHost,
 ): Promise<NativeStartTurnOutput> {
   let memoryBuildTimeoutMs = DEFAULT_MEMORY_BUILD_TIMEOUT_MS;
+  // MC-61: remember what was asked, so turn checkpoints record the intent.
+  turnIntents.begin(input.sessionId, input.userMessage);
   try {
     const { BrainManager } = await import("core/context/memory/brain/BrainManager");
     const { BrainStore } = await import("core/context/memory/brain/BrainStore");
@@ -70,7 +78,14 @@ export async function startNativeTurn(
   } catch {
     // Memory tracking is best-effort
   }
-  return { memoryBuildTimeoutMs };
+  // Recipes (MC-14): note where this turn's tool events begin. No-op unless enabled.
+  void markRecipeTurnStart(input.sessionId).catch(() => {});
+  // Recipes (MC-24): pre-LLM decision. Omitted entirely when the flag is off.
+  const recipe = await decideRecipeAtTurnStart(input, workspaceDir, replayHost);
+  if (!recipe) return { memoryBuildTimeoutMs };
+  return recipe.hint
+    ? { memoryBuildTimeoutMs, recipeDecision: recipe.event, recipeHint: recipe.hint }
+    : { memoryBuildTimeoutMs, recipeDecision: recipe.event };
 }
 
 /** `memory/postTurn` handler body. */
@@ -153,6 +168,13 @@ export async function finishNativeTurn(
       // Memory recording is best-effort
     }
   }
+  // MC-60: semantic label for the checkpoints this turn created.
+  void labelTurnCheckpoints(input.sessionId, input.turnTools);
+  // Recipes (MC-14): silent capture of verified work. No-op unless enabled.
+  void captureRecipeAfterTurn(
+    { sessionId: input.sessionId, userMessage: input.userMessage },
+    workspaceDir,
+  );
   const toolSummary = nativeTurnToolSummary(input.turnTools);
   if (!input.userMessage && !input.assistantMessage && !toolSummary) {
     return;

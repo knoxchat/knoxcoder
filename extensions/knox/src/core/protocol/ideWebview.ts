@@ -317,6 +317,15 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
           filesFailed: number;
           error?: string;
         }>;
+        recipeMetrics?: {
+          attempts: number;
+          applied: number;
+          failedVerify: number;
+          reverted: number;
+          llmCallsAvoided: number;
+          tokensSaved: number;
+          wrongApplyRate: number;
+        };
         aiSessionMetrics: Array<{
           sessionId: string;
           startedAt: string;
@@ -601,6 +610,35 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
   ];
   /** Record the assistant message and run the post-turn memory write. */
   "knox/finishTurn": [import("./nativeAgent").NativeFinishTurnInput, void];
+  /** MC-35: what replaying a recipe would change (read-only). Undefined when the recipe is gone. */
+  "knox/recipePreview": [
+    { recipeId: string },
+    import("./nativeAgent").RecipePreviewOutput | undefined,
+  ];
+  /** MC-72: current values of the recipe settings. */
+  "knox/recipeSettings": [undefined, import("./nativeAgent").RecipeSettings];
+  /** MC-72: change some recipe settings; returns the values now in effect. */
+  "knox/recipeSettingsSet": [
+    Partial<import("./nativeAgent").RecipeSettings>,
+    import("./nativeAgent").RecipeSettings,
+  ];
+  /** MC-70: recipes this project may see (its own plus promoted global ones), newest first. */
+  "knox/recipeList": [undefined, import("./nativeAgent").RecipeListItem[]];
+  /** MC-70: user-chosen retire/quarantine; retiring frees the recipe's blob pins. */
+  "knox/recipeSetStatus": [
+    { recipeId: string; status: "retired" | "quarantined" },
+    import("./nativeAgent").RecipeSetStatusOutput,
+  ];
+  /** MC-42: the user chose "Promote to skill"; writes `SKILL.md` (project `skills/` or `~/.knoxcoder/skills`). */
+  "knox/recipePromoteSkill": [
+    { recipeId: string; scope: "project" | "global" },
+    import("./nativeAgent").RecipePromoteSkillOutput,
+  ];
+  /** MC-30: apply a verified recipe with no LLM call (after the user approved the preview). */
+  "knox/recipeReplay": [
+    { recipeId: string },
+    import("./nativeAgent").RecipeReplayOutput | undefined,
+  ];
   /**
    * Shared loop (K-010): run a whole chat turn on
    * `runAgentLoop`. Progress arrives as `knox/chatTurnEvent` notifications;

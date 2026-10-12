@@ -32,6 +32,11 @@ describe("memory benchmark (K-035)", () => {
     expect(report.tokensMax).toBeLessThanOrEqual(report.tokenCap + 64);
     expect(report.latencyMaxMs).toBeLessThan(LATENCY_CEILING_MS);
 
+    // MC-46: `npm run mc:gate` reads this fresh summary and compares it with the baseline itself.
+    if (process.env.KNOX_BENCH_OUT) {
+      fs.writeFileSync(process.env.KNOX_BENCH_OUT, JSON.stringify(summary, null, 2) + "\n");
+    }
+
     if (writeMode) {
       fs.writeFileSync(baselinePath, JSON.stringify({ ...summary, perQuery }, null, 2) + "\n");
       return;
@@ -45,6 +50,9 @@ describe("memory benchmark (K-035)", () => {
     expect(report.precision).toBeGreaterThanOrEqual(baseline.precision - 0.1);
     expect(report.falseInjectRate).toBeLessThanOrEqual(baseline.falseInjectRate + 0.1);
     expect(report.tokensMean).toBeLessThanOrEqual(Math.ceil(baseline.tokensMean * 1.25) + 20);
+    // MC-50 absolute targets: wrong memories must not leak into unrelated turns, recall must hold.
+    expect(report.falseInjectRate).toBeLessThanOrEqual(0.15);
+    expect(report.recallAtK).toBe(1);
   }, 60_000);
 
   it("reads the hard cap from the environment with a floor", async () => {

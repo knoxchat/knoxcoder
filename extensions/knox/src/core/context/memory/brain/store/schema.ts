@@ -288,6 +288,8 @@ export async function createTables(db: DatabaseConnection): Promise<void> {
     )
   `);
 
+  await createRecipeTables(db);
+
   // Indexes — cross-session backlog search optimization
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_episodic_content ON brain_episodic(content)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_episodic_created ON brain_episodic(created_at)`);
@@ -303,6 +305,90 @@ export async function createTables(db: DatabaseConnection): Promise<void> {
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_session_topics_session ON brain_session_topics(session_id)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_session ON brain_tasks(session_id)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_open ON brain_tasks(session_id, closed_at)`);
+}
+
+// ── Recipes (MC-10) ────────────────────────────────────────────────────────
+
+/**
+ * Verified, replayable work (see `../../recipes/README.md`). Additive only:
+ * `CREATE ... IF NOT EXISTS`, no `BRAIN_SCHEMA_VERSION` bump, so older Knox
+ * builds open the same file and ignore these tables.
+ *
+ * File bytes are never stored here. Steps point at checkpoint blobs by sha256
+ * (`blob_hash`) plus the checkpoint that holds them (`checkpoint_id`).
+ */
+export async function createRecipeTables(db: DatabaseConnection): Promise<void> {
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS brain_recipes (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL DEFAULT '',
+      scope TEXT NOT NULL DEFAULT 'project' CHECK (scope IN ('project', 'global')),
+      status TEXT NOT NULL DEFAULT 'candidate'
+        CHECK (status IN ('candidate', 'verified', 'quarantined', 'retired')),
+      title TEXT NOT NULL DEFAULT '',
+      intent_text TEXT NOT NULL DEFAULT '',
+      intent_fingerprint TEXT NOT NULL DEFAULT '',
+      slots TEXT NOT NULL DEFAULT '[]',
+      preconditions TEXT NOT NULL DEFAULT '[]',
+      oracle_kind TEXT NOT NULL DEFAULT ''
+        CHECK (oracle_kind IN ('', 'build', 'test', 'lsp', 'user')),
+      oracle_command TEXT NOT NULL DEFAULT '',
+      oracle_passed_at DATETIME DEFAULT NULL,
+      replay_count INTEGER NOT NULL DEFAULT 0,
+      ok_count INTEGER NOT NULL DEFAULT 0,
+      reverted_count INTEGER NOT NULL DEFAULT 0,
+      failed_verify_count INTEGER NOT NULL DEFAULT 0,
+      capture_count INTEGER NOT NULL DEFAULT 1,
+      user_accepted_at DATETIME DEFAULT NULL,
+      source_session_id TEXT DEFAULT NULL,
+      memory_id INTEGER DEFAULT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_replayed_at DATETIME DEFAULT NULL
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS brain_recipe_steps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recipe_id TEXT NOT NULL,
+      seq INTEGER NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('write_file', 'delete_file', 'command')),
+      path TEXT NOT NULL DEFAULT '',
+      blob_hash TEXT NOT NULL DEFAULT '',
+      base_blob_hash TEXT NOT NULL DEFAULT '',
+      checkpoint_id TEXT NOT NULL DEFAULT '',
+      command TEXT NOT NULL DEFAULT '',
+      FOREIGN KEY (recipe_id) REFERENCES brain_recipes(id) ON DELETE CASCADE,
+      UNIQUE (recipe_id, seq)
+    )
+  `);
+
+  // MC-51 / MC-52: outcome counters and supersession links for semantic memories. Additive.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS brain_memory_outcomes (
+      memory_id INTEGER PRIMARY KEY,
+      verified_count INTEGER NOT NULL DEFAULT 0,
+      revert_count INTEGER NOT NULL DEFAULT 0,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS brain_memory_supersessions (
+      old_id INTEGER PRIMARY KEY,
+      new_id INTEGER NOT NULL,
+      reason TEXT NOT NULL DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_recipes_project_status ON brain_recipes(project_id, status)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_recipes_fingerprint ON brain_recipes(intent_fingerprint)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_recipes_memory ON brain_recipes(memory_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_recipe_steps_recipe ON brain_recipe_steps(recipe_id, seq)`);
+  // Blob refcounts for retention (MC-12).
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_recipe_steps_blob ON brain_recipe_steps(blob_hash)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_recipe_steps_checkpoint ON brain_recipe_steps(checkpoint_id)`);
 }
 
 // ── Migrate Schema (add columns if missing) ───────────────────────────────
@@ -329,6 +415,9 @@ export async function migrateSchema(db: DatabaseConnection): Promise<void> {
   try { await db.exec("ALTER TABLE brain_sessions ADD COLUMN project_id TEXT NOT NULL DEFAULT ''"); } catch {}
   try { await db.exec("ALTER TABLE brain_checkpoints ADD COLUMN workspace_checkpoint_id TEXT"); } catch {}
   try { await db.exec("CREATE INDEX IF NOT EXISTS idx_checkpoints_workspace ON brain_checkpoints(workspace_checkpoint_id)"); } catch {}
+  // Recipe promotion evidence (MC-15); tables may predate these columns.
+  try { await db.exec("ALTER TABLE brain_recipes ADD COLUMN capture_count INTEGER NOT NULL DEFAULT 1"); } catch {}
+  try { await db.exec("ALTER TABLE brain_recipes ADD COLUMN user_accepted_at DATETIME DEFAULT NULL"); } catch {}
   try {
     const { hashProjectId } = await import("../projectScope.js");
     const rows = await db.all("SELECT id, workspace_directory FROM brain_sessions WHERE project_id = '' OR project_id IS NULL");

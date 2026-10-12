@@ -507,6 +507,7 @@ export interface IKnoxGuiCheckpointDashboard {
 	creationFrequency: Array<{ bucket: string; count: number }>;
 	restorationEvents: Array<{ timestamp: string; checkpointId: string; success: boolean; durationMs: number; filesRestored: number; filesFailed: number; error?: string }>;
 	aiSessionMetrics: Array<{ sessionId: string; startedAt: string; filesChanged: number; linesAdded?: number; linesDeleted?: number; checkpointsCreated: number; rollbacks?: number; durationSeconds: number }>;
+	recipeMetrics?: { attempts: number; applied: number; failedVerify: number; reverted: number; llmCallsAvoided: number; tokensSaved: number; wrongApplyRate: number };
 	summary: {
 		totalCheckpointsCreated: number;
 		totalRestorations: number;
@@ -672,6 +673,29 @@ export interface IKnoxGuiEbbinghausStats {
 	lambda?: number;
 }
 
+export interface IKnoxGuiRecipeSettings {
+	enabled: boolean;
+	autoReplay: 'off' | 'ask' | 'exact';
+	selfImprove: boolean;
+}
+
+/** MC-70: a row of the Memory "Recipes" tab (mirrors the host's `RecipeListItem`). */
+export interface IKnoxGuiMemoryRecipe {
+	id: string;
+	title: string;
+	status: 'candidate' | 'verified' | 'quarantined' | 'retired';
+	scope: 'project' | 'global';
+	uses: number;
+	ok: number;
+	reverted: number;
+	failedVerify: number;
+	files: number;
+	oracleKind?: string;
+	sourceCheckpointIds: string[];
+	lastReplayedAt?: string;
+	updatedAt?: string;
+}
+
 export interface IKnoxGuiMemorySession {
 	id: string;
 	title: string;
@@ -769,6 +793,24 @@ export function withLockedEditorRoute(state: IKnoxGuiState): IKnoxGuiState {
 	return { ...state, route: state.lockedRoute!, overlay: null };
 }
 
+/** Mirrors `RecipeDecisionEvent` from the extension (MC-24). */
+export interface IKnoxGuiRecipeDecision {
+	mode: 'exact' | 'adapt' | 'suggest' | 'generate';
+	why: string;
+	needsConfirmation: boolean;
+	recipe?: { id: string; title: string; uses: number; reverts: number; score: number; skillEligible?: boolean };
+	/** Pre-replay checkpoint; present only after a replay applied files. */
+	undoCheckpointId?: string;
+	/** `exact` + `ask`: what a replay would change (MC-35). */
+	preview?: string;
+	/** Host auto-replay result (MC-30). */
+	replay?: { status: 'applied' | 'refused' | 'drifted' | 'failed_verify' | 'failed_apply'; appliedPaths: string[]; reason?: string };
+	/** GUI only: the preview card is waiting for Apply / Skip. */
+	awaitingChoice?: boolean;
+	/** GUI only: outcome line of "Promote to skill" (MC-42). */
+	skillResult?: string;
+}
+
 export interface IKnoxGuiState {
 	route: KnoxGuiRoute;
 	/** Memory / Checkpoint Graph editors pin this so chat setup cannot steal the pane. */
@@ -829,6 +871,8 @@ export interface IKnoxGuiState {
 	agentDoomLoopThreshold: number;
 	agentViewSubdirectoryMaxFiles: number;
 	jevEnabled: boolean;
+	/** MC-72: `knoxchat.recipes.*` / `knoxchat.selfImprove.enabled`, read from and written to the host settings. */
+	recipeSettings: IKnoxGuiRecipeSettings;
 	policy: IKnoxGuiPolicy;
 	dialogMessage?: string;
 	configError: IKnoxGuiConfigError[];
@@ -977,6 +1021,11 @@ export interface IKnoxGuiState {
 	memoryEbbinghausStats?: IKnoxGuiEbbinghausStats;
 	memories: IKnoxGuiMemoryItem[];
 	memorySessions: IKnoxGuiMemorySession[];
+	memoryRecipes: IKnoxGuiMemoryRecipe[];
+	memoryRecipesLoading: boolean;
+	memoryRecipeError?: string;
+	/** Recipe id whose retire/quarantine request is in flight. */
+	memoryRecipeBusyId?: string;
 	memorySessionQuery: string;
 	memorySelectedSessionId?: string;
 	memorySessionHistory?: IKnoxGuiMemorySessionHistory;
@@ -1067,6 +1116,8 @@ export interface IKnoxGuiState {
 	fatalConfig: boolean;
 	historyHydrateNotice: 'large' | null;
 	/** Shared loop: the stream failed transiently and the host is retrying (K-010). Never persisted. */
+	/** MC-25: this turn's recipe decision (set by `knox/startTurn`; cleared on the next submit). */
+	recipeDecision?: IKnoxGuiRecipeDecision;
 	streamRetry?: { attempt: number; maxAttempts: number; usingFallback: boolean };
 	/** K-012: last prompt size for the composer meter (per session, never persisted). */
 	contextUsage?: IKnoxGuiContextUsage;
@@ -1137,6 +1188,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		agentDoomLoopThreshold: 3,
 		agentViewSubdirectoryMaxFiles: 1000,
 		jevEnabled: false,
+		recipeSettings: { enabled: false, autoReplay: 'off', selfImprove: false },
 		policy: { paths: '', commands: '', externalDirectory: 'ask', sandboxDestructive: true },
 		configError: [],
 		historySessions: [],
@@ -1213,6 +1265,8 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		memoryReviewDue: [],
 		memories: [],
 		memorySessions: [],
+		memoryRecipes: [],
+		memoryRecipesLoading: false,
 		memorySessionQuery: '',
 		memoryBacklogMatches: [],
 		memoryGraphEntities: [],

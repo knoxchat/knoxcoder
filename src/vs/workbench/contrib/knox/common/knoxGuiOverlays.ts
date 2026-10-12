@@ -785,7 +785,7 @@ export const MEMORY_CYCLE_PHASES = [
 	{ id: 'output_generation', labelKey: 'memoryPhaseOutput' },
 ] as const;
 
-export const MEMORY_TAB_IDS = ['overview', 'memories', 'sessions', 'graph', 'settings'] as const;
+export const MEMORY_TAB_IDS = ['overview', 'memories', 'sessions', 'graph', 'recipes', 'settings'] as const;
 export type KnoxMemoryTabId = typeof MEMORY_TAB_IDS[number];
 
 export function isMemoryTabId(value: unknown): value is KnoxMemoryTabId {

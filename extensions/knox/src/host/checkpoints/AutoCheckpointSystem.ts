@@ -14,14 +14,19 @@ import * as vscode from 'vscode';
 import { createKnoxLogger } from 'core/util/knoxLog';
 import { t } from '../i18n';
 import { CheckpointManager, CheckpointInfo } from './CheckpointManager';
-import { CheckpointCommand, registerCanonicalCommand } from './commandIds';
 import {
     AUTO_CHECKPOINT_DEFAULTS,
     isAiAutoCheckpointsEnabled,
     readAutoCheckpointSettings,
     type AutoCheckpointSettings,
 } from './checkpointSettings';
-import { loadUndoStackState, saveUndoStackState } from './store/durableState';
+import { AutoCheckpointBranches } from './autoCheckpointBranches';
+import { generateAutoDescription } from './autoCheckpointDescriptions';
+import {
+    loadUndoRedoFromWorkspaceStore,
+    normalizeUndoState,
+    persistUndoRedo,
+} from './autoCheckpointUndoStore';
 import type { WorkspaceFileEventKind } from './manager/watcher';
 
 const log = createKnoxLogger('AutoCheckpoint');
@@ -53,8 +58,6 @@ export class AutoCheckpointSystem {
     private config: AutoCheckpointConfig;
     private checkpointManager: CheckpointManager;
     private undoRedoState: UndoRedoState;
-    private branches: Map<string, CheckpointBranch> = new Map();
-    private currentBranchId: string | null = null;
     
     // Tracking state
     private lastCheckpointTime: number = Date.now();
@@ -121,8 +124,8 @@ export class AutoCheckpointSystem {
         await this.loadUndoRedoState(context);
         try {
             const listed = await this.checkpointManager.listBranches();
-            this.cacheBranches(listed);
-            this.currentBranchId = this.checkpointManager.getActiveBranch?.()?.id ?? null;
+            this.branchOps.cacheBranches(listed);
+            this.branchOps.currentBranchId = this.checkpointManager.getActiveBranch?.()?.id ?? null;
         } catch (error) {
             log.debug('Could not load checkpoint branches:', error);
         }
@@ -138,7 +141,7 @@ export class AutoCheckpointSystem {
             this.workspaceChangeDisposable = this.checkpointManager.onActiveWorkspaceChanged(() => {
                 void this.loadUndoRedoState(context);
                 void this.getBranches().then((branches) => {
-                    this.currentBranchId = this.checkpointManager.getActiveBranch?.()?.id
+                    this.branchOps.currentBranchId = this.checkpointManager.getActiveBranch?.()?.id
                         ?? branches[0]?.id
                         ?? null;
                 });
@@ -271,7 +274,7 @@ export class AutoCheckpointSystem {
         
         try {
             const changedFiles = Array.from(this.pendingChanges);
-            const description = this.generateAutoDescription(reason, changedFiles);
+            const description = generateAutoDescription(reason, changedFiles);
             
             const checkpointId = await this.checkpointManager.createCheckpointForMessage(
                 `auto-${Date.now()}`,
@@ -303,50 +306,6 @@ export class AutoCheckpointSystem {
         } finally {
             this.isCreatingCheckpoint = false;
         }
-    }
-    
-    /**
-     * Generate description for auto-checkpoint, including the affected file
-     * names so checkpoints are recognizable in the list without opening details
-     */
-    private generateAutoDescription(reason: string, changedFiles: string[]): string {
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const changeCount = changedFiles.length;
-        const fileSummary = this.summarizeFiles(changedFiles);
-        
-        switch (reason) {
-            case 'file-changes':
-                return changeCount === 1
-                    ? `Auto: ${fileSummary} changed at ${timeStr}`
-                    : `Auto: ${changeCount} files changed (${fileSummary}) at ${timeStr}`;
-            case 'time-interval':
-                return fileSummary
-                    ? `Auto: Periodic checkpoint (${fileSummary}) at ${timeStr}`
-                    : `Auto: Periodic checkpoint at ${timeStr}`;
-            case 'ai-operation':
-                return `Auto: After AI operation at ${timeStr}`;
-            case 'pre-risky':
-                return `Auto: Safety checkpoint at ${timeStr}`;
-            default:
-                return `Auto: Checkpoint at ${timeStr}`;
-        }
-    }
-    
-    /**
-     * Produce a short human-readable summary of changed files (up to 2 names)
-     */
-    private summarizeFiles(changedFiles: string[]): string {
-        if (changedFiles.length === 0) {
-            return '';
-        }
-        
-        const names = changedFiles
-            .slice(0, 2)
-            .map(f => f.split(/[\\/]/).pop() || f);
-        
-        const extra = changedFiles.length - names.length;
-        return extra > 0 ? `${names.join(', ')} +${extra} more` : names.join(', ');
     }
     
     /**
@@ -435,6 +394,21 @@ export class AutoCheckpointSystem {
         return this.undoRedoState.currentIndex < this.undoRedoState.stack.length - 1;
     }
     
+    /** Restore files, then rewind memory on a best-effort basis. */
+    private async restoreAndRewind(targetCheckpointId: string): Promise<void> {
+        const result = await this.checkpointManager.restoreCheckpoint(targetCheckpointId);
+        if (result.success) {
+            try {
+                const { notifyCheckpointRestored } = await import('./notifyRestore');
+                await notifyCheckpointRestored(targetCheckpointId, result.restoredFiles, {
+                    rewindMemory: true,
+                });
+            } catch {
+                // Memory rewind is best-effort; files already restored.
+            }
+        }
+    }
+
     /**
      * Undo to previous checkpoint
      */
@@ -455,17 +429,7 @@ export class AutoCheckpointSystem {
         const targetCheckpointId = this.undoRedoState.stack[this.undoRedoState.currentIndex];
         
         try {
-            const result = await this.checkpointManager.restoreCheckpoint(targetCheckpointId);
-            if (result.success) {
-                try {
-                    const { notifyCheckpointRestored } = await import('./notifyRestore');
-                    await notifyCheckpointRestored(targetCheckpointId, result.restoredFiles, {
-                        rewindMemory: true,
-                    });
-                } catch {
-                    // Memory rewind is best-effort; files already restored.
-                }
-            }
+            await this.restoreAndRewind(targetCheckpointId);
 
             vscode.window.showInformationMessage(
                 t('checkpoint.auto.undoneTo', { id: targetCheckpointId.substring(0, 8) })
@@ -497,17 +461,7 @@ export class AutoCheckpointSystem {
         const targetCheckpointId = this.undoRedoState.stack[this.undoRedoState.currentIndex];
         
         try {
-            const result = await this.checkpointManager.restoreCheckpoint(targetCheckpointId);
-            if (result.success) {
-                try {
-                    const { notifyCheckpointRestored } = await import('./notifyRestore');
-                    await notifyCheckpointRestored(targetCheckpointId, result.restoredFiles, {
-                        rewindMemory: true,
-                    });
-                } catch {
-                    // Memory rewind is best-effort; files already restored.
-                }
-            }
+            await this.restoreAndRewind(targetCheckpointId);
 
             vscode.window.showInformationMessage(
                 t('checkpoint.auto.redoneTo', { id: targetCheckpointId.substring(0, 8) })
@@ -536,17 +490,7 @@ export class AutoCheckpointSystem {
         const targetCheckpointId = this.undoRedoState.stack[index];
         
         try {
-            const result = await this.checkpointManager.restoreCheckpoint(targetCheckpointId);
-            if (result.success) {
-                try {
-                    const { notifyCheckpointRestored } = await import('./notifyRestore');
-                    await notifyCheckpointRestored(targetCheckpointId, result.restoredFiles, {
-                        rewindMemory: true,
-                    });
-                } catch {
-                    // Memory rewind is best-effort; files already restored.
-                }
-            }
+            await this.restoreAndRewind(targetCheckpointId);
             this.undoRedoState.currentIndex = index;
 
             this._onUndoRedoChanged.fire(this.undoRedoState);
@@ -591,242 +535,48 @@ export class AutoCheckpointSystem {
     }
 
     private normalizeUndoState(state: Partial<UndoRedoState> & Pick<UndoRedoState, 'stack'>): UndoRedoState {
-        const stack = Array.isArray(state.stack) ? state.stack.filter((id) => typeof id === 'string') : [];
-        const maxSize = typeof state.maxSize === 'number' && state.maxSize > 0
-            ? state.maxSize
-            : this.config.maxUndoStack;
-        let currentIndex = typeof state.currentIndex === 'number' ? state.currentIndex : stack.length - 1;
-        if (stack.length === 0) {
-            currentIndex = -1;
-        } else {
-            currentIndex = Math.max(0, Math.min(currentIndex, stack.length - 1));
-        }
-        return { stack, currentIndex, maxSize };
-    }
-
-    private resolveUndoStoragePath(): string | undefined {
-        if (typeof this.checkpointManager.getStoragePath !== 'function') {
-            return undefined;
-        }
-        return this.checkpointManager.getStoragePath();
+        return normalizeUndoState(state, this.config.maxUndoStack);
     }
 
     private async loadUndoStackFromWorkspaceStore(): Promise<UndoRedoState | null> {
-        try {
-            const storagePath = this.resolveUndoStoragePath();
-            if (!storagePath) {
-                return null;
-            }
-            const loaded = await loadUndoStackState(storagePath);
-            return loaded ? { ...loaded } : null;
-        } catch (error) {
-            log.debug('Could not load undo stack from workspace store:', error);
-            return null;
-        }
+        return loadUndoRedoFromWorkspaceStore(this.checkpointManager);
     }
 
     private async persistUndoRedoState(): Promise<void> {
-        try {
-            if (this.extensionContext) {
-                await this.extensionContext.workspaceState.update('checkpointUndoRedoState', this.undoRedoState);
-            }
-            const storagePath = this.resolveUndoStoragePath();
-            if (storagePath) {
-                await saveUndoStackState(storagePath, this.undoRedoState);
-            }
-        } catch (error) {
-            log.debug('Could not persist undo stack:', error);
-        }
+        await persistUndoRedo(this.checkpointManager, this.undoRedoState, this.extensionContext);
     }
-    
+
     // ==================== Branching ====================
-    
-    private toLocalBranch(branch: {
-        id: string;
-        name: string;
-        headCheckpointId: string;
-        baseCheckpointId: string;
-        parentBranchId?: string;
-        createdAt: Date | string;
-        description?: string;
-    }): CheckpointBranch {
-        return {
-            id: branch.id,
-            name: branch.name,
-            headCheckpointId: branch.headCheckpointId,
-            baseCheckpointId: branch.baseCheckpointId,
-            parentBranchId: branch.parentBranchId,
-            checkpoints: [branch.headCheckpointId],
-            createdAt: branch.createdAt instanceof Date ? branch.createdAt : new Date(branch.createdAt),
-            description: branch.description || '',
-        };
+    private readonly branchOps = new AutoCheckpointBranches(
+        () => this.checkpointManager,
+        {
+            currentUndoCheckpointId: () => this.undoRedoState.stack[this.undoRedoState.currentIndex],
+            onChanged: (id) => this._onBranchChanged.fire(id),
+        },
+    );
+
+    createBranch(name: string, description: string = ''): Promise<CheckpointBranch | null> {
+        return this.branchOps.createBranch(name, description);
     }
 
-    private cacheBranches(branches: Array<{
-        id: string;
-        name: string;
-        headCheckpointId: string;
-        baseCheckpointId: string;
-        parentBranchId?: string;
-        createdAt: Date | string;
-        description?: string;
-    }>): CheckpointBranch[] {
-        this.branches.clear();
-        const mapped = branches.map((branch) => this.toLocalBranch(branch));
-        for (const branch of mapped) {
-            this.branches.set(branch.id, branch);
-        }
-        return mapped;
+    switchBranch(branchId: string, options?: { offerRestore?: boolean }): Promise<boolean> {
+        return this.branchOps.switchBranch(branchId, options);
     }
 
-    /**
-     * Create a new branch from the current checkpoint. Does not restore files.
-     */
-    async createBranch(name: string, description: string = ''): Promise<CheckpointBranch | null> {
-        const history = this.checkpointManager.getCheckpointHistoryForWorkspace?.()
-            ?? this.checkpointManager.getCheckpointHistory();
-        const currentCheckpointId = this.undoRedoState.stack[this.undoRedoState.currentIndex]
-            || history[history.length - 1]?.id;
-        if (!currentCheckpointId) {
-            vscode.window.showWarningMessage(t('checkpoint.auto.noBranch'));
-            return null;
-        }
-
-        try {
-            const created = await this.checkpointManager.createBranch(name, currentCheckpointId, description);
-            if (!created) {
-                vscode.window.showErrorMessage(t('checkpoint.auto.failedCreateBranch'));
-                return null;
-            }
-
-            const branch = this.toLocalBranch(created);
-            this.branches.set(branch.id, branch);
-            this.currentBranchId = branch.id;
-            this._onBranchChanged.fire(branch.id);
-            vscode.window.showInformationMessage(t('checkpoint.auto.createdBranch', { name: branch.name }));
-            return branch;
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            log.debug('Failed to create checkpoint branch:', message);
-            vscode.window.showErrorMessage(message);
-            return null;
-        }
+    mergeBranch(sourceBranchId: string, strategy: string = 'ThreeWay'): Promise<boolean> {
+        return this.branchOps.mergeBranch(sourceBranchId, strategy);
     }
 
-    /**
-     * Switch the active capture line. Does not restore the workspace unless the
-     * user accepts the optional restore-to-head prompt from the command.
-     */
-    async switchBranch(branchId: string, options?: { offerRestore?: boolean }): Promise<boolean> {
-        try {
-            const switched = await this.checkpointManager.switchBranch(branchId);
-            if (!switched) {
-                vscode.window.showWarningMessage(t('checkpoint.auto.branchNotFound'));
-                return false;
-            }
-            this.currentBranchId = branchId;
-            this._onBranchChanged.fire(branchId);
-
-            const branches = await this.checkpointManager.listBranches();
-            this.cacheBranches(branches);
-            const branch = branches.find((item: { id: string }) => item.id === branchId);
-            if (branch) {
-                vscode.window.showInformationMessage(t('checkpoint.auto.switchedBranch', { name: branch.name }));
-            }
-
-            if (options?.offerRestore && branch?.headCheckpointId) {
-                const choice = await vscode.window.showInformationMessage(
-                    t('checkpoint.auto.restoreHeadPrompt', { name: branch.name }),
-                    t('checkpoint.auto.restoreHead'),
-                    t('checkpoint.auto.keepWorkspace'),
-                );
-                if (choice === t('checkpoint.auto.restoreHead')) {
-                    await this.checkpointManager.restoreCheckpoint(branch.headCheckpointId);
-                }
-            }
-            return true;
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            log.debug('Failed to switch checkpoint branch:', message);
-            vscode.window.showErrorMessage(message);
-            return false;
-        }
-    }
-
-    /**
-     * Merge a branch into the current branch using three-way file hashes.
-     */
-    async mergeBranch(sourceBranchId: string, strategy: string = 'ThreeWay'): Promise<boolean> {
-        try {
-            const current = this.checkpointManager.getActiveBranch?.()
-                ?? (this.currentBranchId ? { id: this.currentBranchId } : undefined);
-            if (!current?.id) {
-                vscode.window.showErrorMessage(t('checkpoint.auto.noCurrentBranchToMerge'));
-                return false;
-            }
-
-            const result = await this.checkpointManager.mergeBranches(
-                sourceBranchId,
-                current.id,
-                strategy,
-            );
-
-            if (result.success) {
-                const sourceBranch = this.branches.get(sourceBranchId);
-                vscode.window.showInformationMessage(
-                    t('checkpoint.auto.mergedBranch', { name: sourceBranch?.name || sourceBranchId }),
-                );
-                return true;
-            }
-            if (result.conflicts && result.conflicts.length > 0) {
-                const paths = result.conflicts.map((conflict: { path: string }) => conflict.path).join(', ');
-                vscode.window.showWarningMessage(
-                    t('checkpoint.auto.mergeConflicts', { count: result.conflicts.length, paths }),
-                );
-            }
-            return false;
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            log.debug('Failed to merge checkpoint branch:', message);
-            vscode.window.showErrorMessage(message);
-            return false;
-        }
-    }
-
-    async getBranches(): Promise<CheckpointBranch[]> {
-        try {
-            const listed = await this.checkpointManager.listBranches();
-            return this.cacheBranches(listed);
-        } catch {
-            return [...this.branches.values()];
-        }
+    getBranches(): Promise<CheckpointBranch[]> {
+        return this.branchOps.getBranches();
     }
 
     getCurrentBranch(): CheckpointBranch | null {
-        if (this.currentBranchId) {
-            return this.branches.get(this.currentBranchId) || null;
-        }
-        const active = this.checkpointManager.getActiveBranch?.();
-        return active ? this.toLocalBranch(active) : null;
+        return this.branchOps.getCurrentBranch();
     }
 
-    async deleteBranch(branchId: string): Promise<boolean> {
-        if (branchId === this.currentBranchId) {
-            vscode.window.showWarningMessage(t('checkpoint.auto.cannotDeleteCurrent'));
-            return false;
-        }
-
-        try {
-            await this.checkpointManager.deleteBranch(branchId);
-            this.branches.delete(branchId);
-            vscode.window.showInformationMessage(t('checkpoint.auto.deletedBranch'));
-            return true;
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            log.debug('Failed to delete checkpoint branch:', message);
-            vscode.window.showErrorMessage(message);
-            return false;
-        }
+    deleteBranch(branchId: string): Promise<boolean> {
+        return this.branchOps.deleteBranch(branchId);
     }
     
     // ==================== Configuration ====================
@@ -891,136 +641,4 @@ export class AutoCheckpointSystem {
         this._onUndoRedoChanged.dispose();
         this._onBranchChanged.dispose();
     }
-}
-
-/**
- * Register auto-checkpoint commands
- */
-export function registerAutoCheckpointCommands(context: vscode.ExtensionContext): void {
-    const autoCheckpoint = AutoCheckpointSystem.getInstance();
-    
-    // Initialize
-    autoCheckpoint.initialize(context);
-    
-    registerCanonicalCommand(context, CheckpointCommand.undo, async () => {
-        await autoCheckpoint.undo();
-    });
-
-    registerCanonicalCommand(context, CheckpointCommand.redo, async () => {
-        await autoCheckpoint.redo();
-    });
-
-    registerCanonicalCommand(context, CheckpointCommand.createBranch, async () => {
-        const name = await vscode.window.showInputBox({
-            prompt: t('checkpoint.auto.enterBranchName'),
-            placeHolder: t('checkpoint.auto.branchPlaceholder'),
-        });
-        if (!name?.trim()) {
-            return;
-        }
-        await autoCheckpoint.createBranch(name.trim());
-    });
-    registerCanonicalCommand(context, CheckpointCommand.switchBranch, async () => {
-        const branches = await autoCheckpoint.getBranches();
-        if (branches.length === 0) {
-            vscode.window.showInformationMessage(t('checkpoint.auto.noBranches'));
-            return;
-        }
-        const current = autoCheckpoint.getCurrentBranch();
-        const selected = await vscode.window.showQuickPick(
-            branches.map((branch) => ({
-                label: `${branch.id === current?.id ? '$(arrow-right) ' : ''}${branch.name}`,
-                description: branch.id === current?.id ? '(current)' : branch.headCheckpointId.substring(0, 8),
-                branchId: branch.id,
-            })),
-            { placeHolder: t('checkpoint.auto.selectBranch') },
-        );
-        if (selected) {
-            await autoCheckpoint.switchBranch(selected.branchId, { offerRestore: true });
-        }
-    });
-    registerCanonicalCommand(context, CheckpointCommand.mergeBranch, async () => {
-        const branches = await autoCheckpoint.getBranches();
-        const current = autoCheckpoint.getCurrentBranch();
-        const sources = branches.filter((branch) => branch.id !== current?.id);
-        if (!current) {
-            vscode.window.showErrorMessage(t('checkpoint.auto.noCurrentBranchToMerge'));
-            return;
-        }
-        if (sources.length === 0) {
-            vscode.window.showInformationMessage(t('checkpoint.auto.noBranches'));
-            return;
-        }
-        const selected = await vscode.window.showQuickPick(
-            sources.map((branch) => ({
-                label: branch.name,
-                description: branch.headCheckpointId.substring(0, 8),
-                branchId: branch.id,
-            })),
-            { placeHolder: t('checkpoint.auto.selectMergeSource') },
-        );
-        if (selected) {
-            await autoCheckpoint.mergeBranch(selected.branchId);
-        }
-    });
-    registerCanonicalCommand(context, CheckpointCommand.deleteBranch, async () => {
-        const branches = await autoCheckpoint.getBranches();
-        const current = autoCheckpoint.getCurrentBranch();
-        const deletable = branches.filter((branch) => branch.id !== current?.id);
-        if (deletable.length === 0) {
-            vscode.window.showInformationMessage(t('checkpoint.auto.noBranches'));
-            return;
-        }
-        const selected = await vscode.window.showQuickPick(
-            deletable.map((branch) => ({
-                label: branch.name,
-                description: branch.headCheckpointId.substring(0, 8),
-                branchId: branch.id,
-            })),
-            { placeHolder: t('checkpoint.auto.selectDeleteBranch') },
-        );
-        if (selected) {
-            await autoCheckpoint.deleteBranch(selected.branchId);
-        }
-    });
-
-    registerCanonicalCommand(context, CheckpointCommand.toggleAuto, () => {
-        const config = autoCheckpoint.getConfig();
-        autoCheckpoint.setEnabled(!config.enabled);
-
-        vscode.window.showInformationMessage(
-            t('checkpoint.auto.toggled', { status: config.enabled ? 'disabled' : 'enabled' })
-        );
-    });
-
-    registerCanonicalCommand(context, CheckpointCommand.showUndoHistory, async () => {
-        const state = autoCheckpoint.getUndoRedoStack();
-        const items = [];
-        for (let i = 0; i < state.stack.length; i++) {
-            const checkpointId = state.stack[i];
-            const isCurrent = i === state.currentIndex;
-
-            items.push({
-                label: `${isCurrent ? '$(arrow-right) ' : ''}${checkpointId.substring(0, 8)}`,
-                description: isCurrent ? '(current)' : '',
-                index: i,
-            });
-        }
-
-        const selected = await vscode.window.showQuickPick(items, {
-            placeHolder: t('checkpoint.auto.selectCheckpoint'),
-        });
-
-        if (selected) {
-            await autoCheckpoint.jumpToCheckpoint(selected.index);
-        }
-    });
-    
-    // Save state on deactivation
-    context.subscriptions.push({
-        dispose: async () => {
-            await autoCheckpoint.saveUndoRedoState(context);
-            autoCheckpoint.dispose();
-        }
-    });
 }

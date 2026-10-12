@@ -52,6 +52,13 @@ export interface CheckpointInfo {
      * Kept off conversationContext so manual checkpoints are not classified as AI.
      */
     sessionId?: string;
+    /**
+     * MC-61: what the user asked for in the turn that produced this checkpoint
+     * (redacted, one line, capped). Optional; manifests written before it load unchanged.
+     */
+    intent?: string;
+    /** MC-60: short summary of the turn ("Add JWT middleware · 3 files in src/auth"). Optional. */
+    label?: string;
     /** Named checkpoint line this snapshot belongs to (CP-24). */
     branchId?: string;
     /** Previous checkpoint on this line; reconstruct walks these links (CP-24). */
@@ -234,6 +241,8 @@ export interface FileCheckpointVersion {
 
 export interface ManualCheckpointOptions {
     description?: string;
+    /** MC-61: user intent to record on the manifest. */
+    intent?: string;
     tags?: string[];
     includeFiles?: string[];
     excludeFiles?: string[];
@@ -260,10 +269,14 @@ export interface IncrementalCheckpointOptions {
 
 export interface ExportCheckpointsOptions {
     checkpointIds?: string[];
+    /** MC-63: recipes to ship in the bundle (already trimmed by `toBundleRecipe`). Their blobs are included. */
+    recipes?: Array<{ steps: Array<{ blobHash?: string; baseBlobHash?: string }> }>;
 }
 
 export interface ShareCheckpointsOptions {
     checkpointIds?: string[];
+    /** MC-63: see `ExportCheckpointsOptions.recipes`. */
+    recipes?: ExportCheckpointsOptions['recipes'];
     description?: string;
     hmacKeyPath?: string;
 }
@@ -291,6 +304,11 @@ export interface ImportCheckpointsOptions {
     allowWorkspaceMismatch?: boolean;
     /** Override the local HMAC key path (tests). */
     hmacKeyPath?: string;
+    /**
+     * MC-63: called after a verified bundle's checkpoints and blobs are stored, with the bundle's
+     * raw (untrusted) recipes and the hashes of its blobs. Failures do not fail the import.
+     */
+    onRecipes?: (recipes: unknown[], blobHashes: ReadonlySet<string>) => Promise<void>;
 }
 
 export type CheckpointLoadOutcome = CheckpointLoadResult<CheckpointInfo>;

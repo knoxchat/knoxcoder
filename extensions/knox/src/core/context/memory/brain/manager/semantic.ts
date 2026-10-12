@@ -10,6 +10,7 @@ import {
   SpacedRepetition,
 } from "../AdvancedFeatures.js";
 import { InputSanitizer } from "../InputSanitizer.js";
+import { parseRecipeId } from "../../recipes/memoryLink.js";
 import { RetrievalFusion } from "../RetrievalFusion.js";
 import { MemorySnapshot } from "../MemorySnapshot.js";
 import {
@@ -119,6 +120,12 @@ export async function recall(input: RecallInput): Promise<RecallResult> {
       ),
       projectSessionIds,
     );
+  }
+
+  // MC-17: surface the recipe a workflow memory describes.
+  for (const mem of semantic) {
+    const recipeId = mem.category === "workflow" ? parseRecipeId(mem.content) : undefined;
+    if (recipeId) mem.recipe_id = recipeId;
   }
 
   // Boost spaced repetition scores for retrieved memories (recall already increments access count)

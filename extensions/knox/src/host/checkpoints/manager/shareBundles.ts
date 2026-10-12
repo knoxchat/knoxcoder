@@ -49,7 +49,7 @@ export async function shareCheckpoints(
 
     try {
         await fs.mkdir(path.dirname(filePath), { recursive: true });
-        await exportCheckpoints(host, filePath, { checkpointIds });
+        await exportCheckpoints(host, filePath, { checkpointIds, recipes: options?.recipes });
         const hmac = await attachBundleHmac(filePath, hmacKeyPath);
         const sharedAt = new Date().toISOString();
         await host.appendAuditEvent({

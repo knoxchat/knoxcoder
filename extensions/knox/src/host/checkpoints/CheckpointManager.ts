@@ -5,6 +5,11 @@
  */
 
 export { CheckpointManager } from './manager/CheckpointManager';
+/**
+ * Unambiguous name for the workspace-file checkpoint engine. The Memory Brain
+ * has its own, unrelated `MemoryDbCheckpointManager` (database rollback).
+ */
+export { CheckpointManager as WorkspaceCheckpointManager } from './manager/CheckpointManager';
 export {
     listedCheckpointFileCount,
     computeCheckpointFileStats,

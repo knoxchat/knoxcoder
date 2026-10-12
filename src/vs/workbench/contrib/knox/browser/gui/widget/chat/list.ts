@@ -16,6 +16,7 @@ import {
 	visibleTurnIndexes,
 } from '../../../../common/knoxGuiChat.js';
 import { IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../../common/knoxGuiState.js';
+import { knoxGuiRecipeNotice } from '../../../../common/knoxGuiRecipe.js';
 import {
 	collectDuplicateAssistantMessageIds,
 	assistantReplyText,
@@ -185,6 +186,56 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 			if (state.mode === 'agent' && turn.userIndex >= 0 && !(state.isStreaming && turn.userIndex === lastUserIndex)) {
 				renderTurnSummary(widget, group, state, turn.userIndex);
 			}
+		}
+		const recipeNotice = knoxGuiRecipeNotice(state.recipeDecision);
+		if (recipeNotice) {
+			const banner = DOM.append(list, DOM.$('.knox-gui-large-banner'));
+			banner.setAttribute('role', 'status');
+			banner.setAttribute('data-testid', 'recipe-decision-notice');
+			DOM.append(banner, DOM.$('span', undefined, t(state, recipeNotice.key, recipeNotice.params)));
+			const undoId = recipeNotice.undoCheckpointId;
+			if (undoId) {
+				widget.chromeButton(banner, {
+					label: t(state, 'recipeUndo'),
+					testId: 'recipe-decision-undo',
+					onClick: () => widget.controller.restoreCheckpoint(undoId),
+				});
+			}
+			const decision = state.recipeDecision;
+			if (decision?.recipe?.skillEligible && !decision.awaitingChoice) {
+				if (decision.skillResult) {
+					DOM.append(banner, DOM.$('span', undefined, decision.skillResult));
+				} else {
+					widget.chromeButton(banner, {
+						label: t(state, 'recipePromoteProject'),
+						testId: 'recipe-promote-project',
+						onClick: () => widget.controller.promoteRecipeSkill('project'),
+					});
+					widget.chromeButton(banner, {
+						label: t(state, 'recipePromoteGlobal'),
+						testId: 'recipe-promote-global',
+						onClick: () => widget.controller.promoteRecipeSkill('global'),
+					});
+				}
+			}
+		}
+		const pending = state.recipeDecision;
+		if (pending?.awaitingChoice && pending.preview && pending.recipe) {
+			const card = DOM.append(list, DOM.$('.knox-gui-large-banner'));
+			card.setAttribute('role', 'group');
+			card.setAttribute('data-testid', 'recipe-preview-card');
+			DOM.append(card, DOM.$('span', undefined, t(state, 'recipePreviewTitle', { title: pending.recipe.title })));
+			DOM.append(card, DOM.$('pre.knox-gui-raw-md', undefined, pending.preview));
+			widget.chromeButton(card, {
+				label: t(state, 'recipeApply'),
+				testId: 'recipe-preview-apply',
+				onClick: () => widget.controller.answerRecipeChoice('apply'),
+			});
+			widget.chromeButton(card, {
+				label: t(state, 'recipeSkip'),
+				testId: 'recipe-preview-skip',
+				onClick: () => widget.controller.answerRecipeChoice('skip'),
+			});
 		}
 		if (floatLastUser && widget.floatingHostEl && lastUserIndex >= 0) {
 			const currentHit = state.find.open && state.find.matchIndexes[state.find.current] === lastUserIndex;

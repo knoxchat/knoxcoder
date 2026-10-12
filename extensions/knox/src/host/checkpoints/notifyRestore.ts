@@ -76,6 +76,8 @@ export async function notifyCheckpointRestored(
   };
 
   listener?.(payload);
+  // MC-34: undoing a recent recipe replay counts as a revert.
+  void import("../extension/recipeFeedback").then((m) => m.recordRestoreFeedback(files)).catch(() => {});
 
   if (!sessionId) {
     return payload;

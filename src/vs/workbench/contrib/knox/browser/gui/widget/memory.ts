@@ -14,6 +14,7 @@ export { renderMemory } from './memory/page.js';
 export { renderMemoryOverview } from './memory/overview.js';
 export { renderMemoryBrowser } from './memory/browser.js';
 export { renderMemorySessions } from './memory/sessions.js';
+export { renderMemoryRecipes } from './memory/recipes.js';
 export { renderMemoryGraph } from './memory/graph.js';
 export { renderMemorySettings } from './memory/settings.js';
 export { syncMemoryFilters } from './memory/filters.js';

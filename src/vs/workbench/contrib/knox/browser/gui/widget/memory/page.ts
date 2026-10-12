@@ -48,6 +48,8 @@ export function renderMemory(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 				void widget.controller.loadMemorySessions();
 			} else if (id === 'graph') {
 				void widget.controller.loadMemoryGraph(false);
+			} else if (id === 'recipes') {
+				void widget.controller.loadMemoryRecipes();
 			} else {
 				void widget.controller.loadMemoryConfig();
 			}
@@ -59,6 +61,7 @@ export function renderMemory(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 		memories: 'knox-gui-memory-browser',
 		sessions: 'knox-gui-memory-sessions',
 		graph: 'knox-gui-memory-graph',
+		recipes: 'knox-gui-memory-recipes',
 		settings: 'knox-gui-memory-settings',
 	};
 	pane.setAttribute('data-testid', paneTestIds[state.memoryTab] ?? `knox-gui-memory-${state.memoryTab}`);
@@ -76,6 +79,8 @@ export function renderMemory(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 		widget.renderMemorySessions(view, state);
 	} else if (state.memoryTab === 'graph') {
 		widget.renderMemoryGraph(view, state);
+	} else if (state.memoryTab === 'recipes') {
+		widget.renderMemoryRecipes(view, state);
 	} else {
 		widget.renderMemorySettings(view, state);
 	}

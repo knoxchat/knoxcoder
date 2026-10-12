@@ -1,4 +1,5 @@
 import { ContextItem } from "core";
+import { LSP_CLEAN_MARKER } from "core/context/soul/oracleVerdict";
 import {
   extractVerifiedFilePath,
   shouldSkipLspVerify,
@@ -120,6 +121,17 @@ export async function runPostEditVerification(
           content: `Auto-verification: ${verifyResult.remainingIssues.length} diagnostic issue(s) detected but could not be auto-fixed: ${verifyResult.remainingIssues
             .map((i) => `Line ${i.line}: ${i.message}`)
             .join("; ")}`,
+        },
+      ];
+    }
+
+    if (verifyResult.clean) {
+      // Explicit pass so "ran and clean" is distinguishable from "did not run" (MC-13).
+      return [
+        {
+          name: "Auto-Verification Result",
+          description: "Post-edit diagnostic verification",
+          content: LSP_CLEAN_MARKER,
         },
       ];
     }

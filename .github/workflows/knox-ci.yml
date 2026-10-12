@@ -121,6 +121,12 @@ jobs:
         working-directory: extensions/knox
         run: npm run test:host
 
+      # MC-46: memory bench + golden evals vs bench/baseline.json; a regression fails the job.
+      - name: Memory x checkpoint gate
+        if: startsWith(matrix.os, 'ubuntu')
+        working-directory: extensions/knox
+        run: npm run mc:gate
+
       - name: Inventory gate
         working-directory: extensions/knox
         run: npm run inventory-gate
