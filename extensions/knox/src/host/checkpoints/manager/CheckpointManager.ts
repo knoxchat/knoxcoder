@@ -120,6 +120,7 @@ import type {
     SharedCheckpointBundle,
     SuggestedCheckpointGroup,
 } from './types';
+import { countSessionRollbacks } from './aiSessionMetrics';
 import { normalizeCapturePath, toPosixRelative } from './pathFilter';
 import { disposeFileWatcher, initializeFileWatcher, type WorkspaceFileEvent } from './watcher';
 import {
@@ -211,6 +212,8 @@ export class CheckpointManager implements CheckpointEngineHost {
     private boundWorkspaceSessionId: string | null = null;
     private boundWorkspaceSessionType: string | null = null;
     private turnCheckpoints = new Map<string, string>();
+    /** Metrics for the bound agent session; persisted as an `ai_session` audit event when it ends. */
+    private agentSessionMetrics: { sessionId: string; startedAt: Date; recorded: boolean; maxTrackedFiles: number } | null = null;
     private workspaceSessions = new Map<string, WorkspaceStoreSession>();
     private initInFlight: Promise<void> | undefined;
 
@@ -860,12 +863,54 @@ export class CheckpointManager implements CheckpointEngineHost {
         return this.currentWorkspacePath;
     }
 
+    private beginAgentSessionMetrics(sessionId: string): void {
+        if (this.agentSessionMetrics?.sessionId === sessionId) {
+            return;
+        }
+        this.agentSessionMetrics = { sessionId, startedAt: new Date(), recorded: false, maxTrackedFiles: 0 };
+    }
+
+    private async flushAgentSessionMetrics(): Promise<void> {
+        const session = this.agentSessionMetrics;
+        this.agentSessionMetrics = null;
+        if (!session || session.recorded) {
+            return;
+        }
+        const checkpointsCreated = this.turnCheckpoints.size;
+        const filesChanged = Math.max(session.maxTrackedFiles, this.trackedAIFiles.size);
+        if (checkpointsCreated === 0 && filesChanged === 0) {
+            return; // idle session: nothing worth reporting
+        }
+        try {
+            const endedAt = new Date();
+            const rollbacks = await countSessionRollbacks(this, session.startedAt, endedAt);
+            await persistAISessionMetrics(this, {
+                sessionId: session.sessionId,
+                startedAt: session.startedAt.toISOString(),
+                endedAt: endedAt.toISOString(),
+                filesChanged,
+                checkpointsCreated,
+                rollbacks,
+                durationSeconds: Math.max(0, (endedAt.getTime() - session.startedAt.getTime()) / 1000),
+            });
+        } catch (error) {
+            log.debug('Failed to record AI session metrics:', error);
+        }
+    }
+
     async startAgentSession(sessionId: string): Promise<void> {
+        if (this.agentSessionMetrics && this.agentSessionMetrics.sessionId !== sessionId) {
+            await this.flushAgentSessionMetrics();
+            this.turnCheckpoints.clear();
+            this.trackedAIFiles.clear();
+        }
         this.boundAgentSessionId = sessionId;
+        this.beginAgentSessionMetrics(sessionId);
         log.info(`Starting agent session: ${sessionId}`);
     }
 
     async stopAgentSession(): Promise<void> {
+        await this.flushAgentSessionMetrics();
         this.boundAgentSessionId = null;
         this.turnCheckpoints.clear();
         this.trackedAIFiles.clear();
@@ -889,6 +934,7 @@ export class CheckpointManager implements CheckpointEngineHost {
         if (!this.boundAgentSessionId) {
             this.boundAgentSessionId = params.sessionId;
         }
+        this.beginAgentSessionMetrics(this.boundAgentSessionId);
         const checkpointId = await this.createCheckpointForMessage(
             `soul-turn-${params.sessionId}-${params.turnId}`,
             `Agent turn before ${params.toolName}`,
@@ -927,6 +973,9 @@ export class CheckpointManager implements CheckpointEngineHost {
             } else {
                 this.trackedAIFiles.add(toPosixRelative(trimmed));
             }
+        }
+        if (this.agentSessionMetrics) {
+            this.agentSessionMetrics.maxTrackedFiles = Math.max(this.agentSessionMetrics.maxTrackedFiles, this.trackedAIFiles.size);
         }
         log.info(`👀 Tracking ${this.trackedAIFiles.size} files for AI changes`);
     }
@@ -1109,6 +1158,9 @@ export class CheckpointManager implements CheckpointEngineHost {
     }
 
     async recordAISessionMetrics(metrics: Parameters<typeof persistAISessionMetrics>[1]): Promise<boolean> {
+        if (this.agentSessionMetrics) {
+            this.agentSessionMetrics.recorded = true; // explicit recorder (SmartCheckpointManager) wins; avoid double count
+        }
         return persistAISessionMetrics(this, metrics);
     }
 }
