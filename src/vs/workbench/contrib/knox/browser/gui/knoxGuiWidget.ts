@@ -26,7 +26,7 @@ import * as knoxGuiPagesView from './widget/pages.js';
 import * as knoxGuiMemoryView from './widget/memory.js';
 import * as knoxGuiCheckpointsView from './widget/checkpoints.js';
 import * as knoxGuiDialogView from './widget/dialog.js';
-import { captureDomState, restoreDomState } from './widget/preserve.js';
+import { captureDomState, keyedScrolls, restoreDomState } from './widget/preserve.js';
 import { composerImeActive, stepComposerUndo } from './widget/composer.js';
 import { stepHistoryUndo } from './widget/chat/historyEditor.js';
 import { isNativeTextInput, KnoxEditCommand, registerKnoxEditHost, selectAllContents } from './widget/editCommands.js';
@@ -256,7 +256,8 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 			this.lastScrollTop = this.bodyEl.scrollTop;
 			this.lastScrollHeight = this.bodyEl.scrollHeight;
 		}
-		const domSnapshot = captureDomState(this.root, this.bodyEl);
+		const skipScroller = this.lastState?.route === KnoxGuiRoute.Chat ? this.bodyEl : undefined;
+		const domSnapshot = captureDomState(this.root, skipScroller);
 		this.checkpointGraphMount?.remove();
 		this.renderStore.clear();
 		this.filterStore.clear();
@@ -351,6 +352,7 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		}
 		const body = DOM.append(this.root, DOM.$('.knox-gui-body'));
 		this.bodyEl = body;
+		body.setAttribute('data-testid', 'knox-gui-body');
 		body.classList.toggle('knox-gui-body-chat', state.route === KnoxGuiRoute.Chat);
 		if (knoxGuiShowsChatScrollbar(state.showChatScrollbar, Math.max(this.root.clientHeight, typeof window !== 'undefined' ? window.innerHeight : 0))) {
 			body.classList.add('knox-gui-body-scroll');
@@ -391,6 +393,10 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		}
 		restoreDomState(this.root, domSnapshot);
 		this.restoreTranscriptScroll(state);
+		const delayed = keyedScrolls(domSnapshot);
+		if (delayed.scrolls.length) {
+			queueMicrotask(() => restoreDomState(this.root, delayed));
+		}
 		this.attachTranscriptScroll(body, state);
 		if (state.route !== KnoxGuiRoute.CheckpointGraph) {
 			this.releaseCheckpointGraph();

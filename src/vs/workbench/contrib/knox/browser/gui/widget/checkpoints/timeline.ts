@@ -165,6 +165,7 @@ export function renderCheckpointTimeline(widget: KnoxGuiWidget, body: HTMLElemen
 	}
 
 	const list = DOM.append(body, DOM.$('.knox-gui-timeline-list'));
+	list.setAttribute('data-testid', 'checkpoint-timeline-list');
 	if (!groups.length) {
 		const empty = DOM.append(list, DOM.$('.knox-gui-timeline-empty', { 'data-testid': 'checkpoint-timeline-empty' }));
 		appendKnoxGuiSvg(empty, 'history', 32);

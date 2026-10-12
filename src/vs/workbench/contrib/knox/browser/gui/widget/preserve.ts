@@ -14,12 +14,39 @@ interface IScrollEntry {
 	names: string[];
 	top: number;
 	left: number;
+	key?: string;
 }
 
 export interface IKnoxGuiDomSnapshot {
 	selection?: { anchor: IDomPoint; focus: IDomPoint };
 	scrolls: IScrollEntry[];
 }
+
+const TEST_ID_TOKEN = /^[\w.-]+$/;
+
+/**
+ * Unique (or ancestor-qualified) overflow hosts. Graph canvas scroll is omitted: it has
+ * its own `checkpointGraphScrollTop` restore that can change during the same render.
+ */
+const STABLE_SCROLL_CLASSES = new Set([
+	'knox-gui-overlay',
+	'knox-gui-page',
+	'knox-gui-memory-body',
+	'knox-gui-cpl-list',
+	'knox-gui-timeline-list',
+	'knox-gui-attached-body',
+	'knox-gui-text-dialog-panel',
+	'knox-gui-modal-dialog',
+	'knox-gui-code-edit-list',
+	'knox-gui-code-edit-snippet',
+	'knox-gui-batch-list',
+	'knox-gui-popover',
+	'knox-gui-add-file-options',
+	'knox-gui-input-code-body',
+	'knox-gui-graph-details',
+	'knox-gui-graph-conflicts',
+	'knox-gui-cp-config-sections',
+]);
 
 function pathTo(root: Node, node: Node): { path: number[]; names: string[] } | undefined {
 	const path: number[] = [];
@@ -53,12 +80,77 @@ function nodeLength(node: Node): number {
 	return node.nodeType === Node.TEXT_NODE ? (node.textContent ?? '').length : node.childNodes.length;
 }
 
+function testIdOf(el: HTMLElement): string | undefined {
+	const testId = el.getAttribute('data-testid');
+	return testId && TEST_ID_TOKEN.test(testId) ? testId : undefined;
+}
+
+function classToken(el: HTMLElement): string | undefined {
+	for (const token of el.classList) {
+		if (STABLE_SCROLL_CLASSES.has(token)) {
+			return token;
+		}
+	}
+	return undefined;
+}
+
+/** Own testid, or `ancestorTestId::.class` so git-diff / jobs bodies stay distinct. */
+export function scrollKey(el: HTMLElement): string | undefined {
+	const own = testIdOf(el);
+	if (own) {
+		return own;
+	}
+	const cls = classToken(el);
+	if (!cls) {
+		return undefined;
+	}
+	let current = el.parentElement;
+	while (current) {
+		const id = testIdOf(current);
+		if (id) {
+			return `${id}::.${cls}`;
+		}
+		current = current.parentElement;
+	}
+	return `.${cls}`;
+}
+
+function resolveByKey(root: HTMLElement, key: string): HTMLElement | undefined {
+	const split = key.indexOf('::');
+	if (split === -1) {
+		const el = key.startsWith('.')
+			? root.querySelector(key)
+			: root.querySelector(`[data-testid="${key}"]`);
+		return el instanceof HTMLElement ? el : undefined;
+	}
+	const host = root.querySelector(`[data-testid="${key.slice(0, split)}"]`);
+	if (!(host instanceof HTMLElement)) {
+		return undefined;
+	}
+	const el = host.querySelector(key.slice(split + 2));
+	return el instanceof HTMLElement ? el : undefined;
+}
+
+function resolveScrollTarget(root: HTMLElement, entry: IScrollEntry): HTMLElement | undefined {
+	if (entry.key) {
+		const byKey = resolveByKey(root, entry.key);
+		if (byKey) {
+			return byKey;
+		}
+	}
+	const el = resolve(root, entry.path, entry.names);
+	return el instanceof HTMLElement ? el : undefined;
+}
+
 /**
  * The widget rebuilds its DOM on every state change. A text selection and inner scroll
  * positions are re-applied to the node at the same structural path when it still exists.
- * The transcript scroller itself and inputs are excluded: they have their own restore logic.
+ * The chat transcript scroller itself and inputs are excluded: they have their own restore.
+ * Other overflow hosts (lump overlays, Config/History pages, Memory panes, checkpoint lists,
+ * attached git/jobs panels, dialogs) are captured from the widget root and restored by a
+ * stable key when siblings around them shift.
  */
-export function captureDomState(root: HTMLElement, scrollRoot: HTMLElement | undefined): IKnoxGuiDomSnapshot {
+export function captureDomState(root: HTMLElement, skipScroller?: HTMLElement): IKnoxGuiDomSnapshot {
 	const snapshot: IKnoxGuiDomSnapshot = { scrolls: [] };
 	const selection = root.ownerDocument.getSelection();
 	if (selection && selection.rangeCount && !selection.isCollapsed && selection.anchorNode && selection.focusNode) {
@@ -73,23 +165,28 @@ export function captureDomState(root: HTMLElement, scrollRoot: HTMLElement | und
 			};
 		}
 	}
-	if (scrollRoot) {
-		for (const el of Array.from(scrollRoot.querySelectorAll<HTMLElement>('*'))) {
-			if ((el.scrollTop > 0 || el.scrollLeft > 0) && !(el instanceof HTMLTextAreaElement) && !(el instanceof HTMLInputElement)) {
-				const at = pathTo(root, el);
-				if (at) {
-					snapshot.scrolls.push({ ...at, top: el.scrollTop, left: el.scrollLeft });
-				}
+	for (const el of Array.from(root.querySelectorAll<HTMLElement>('*'))) {
+		if (el === skipScroller || el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
+			continue;
+		}
+		if (el.scrollTop > 0 || el.scrollLeft > 0) {
+			const at = pathTo(root, el);
+			if (at) {
+				snapshot.scrolls.push({ ...at, top: el.scrollTop, left: el.scrollLeft, key: scrollKey(el) });
 			}
 		}
 	}
 	return snapshot;
 }
 
+export function keyedScrolls(snapshot: IKnoxGuiDomSnapshot): IKnoxGuiDomSnapshot {
+	return { scrolls: snapshot.scrolls.filter(entry => entry.key) };
+}
+
 export function restoreDomState(root: HTMLElement, snapshot: IKnoxGuiDomSnapshot): void {
 	for (const entry of snapshot.scrolls) {
-		const el = resolve(root, entry.path, entry.names);
-		if (el instanceof HTMLElement) {
+		const el = resolveScrollTarget(root, entry);
+		if (el) {
 			el.scrollTop = entry.top;
 			el.scrollLeft = entry.left;
 		}

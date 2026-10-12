@@ -40,6 +40,27 @@ import { onCheckpointGraphKeyDown } from './gui/widget/checkpointGraph.js';
 suite('Knox native GUI widget chrome (GP-083)', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function withStickyScrollTop(run: () => void): void {
+		const tops = new WeakMap<HTMLElement, number>();
+		const desc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTop')
+			?? Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+		Object.defineProperty(HTMLElement.prototype, 'scrollTop', {
+			configurable: true,
+			get() { return tops.has(this) ? tops.get(this)! : (desc?.get?.call(this) ?? 0); },
+			set(value: number) {
+				tops.set(this, value);
+				desc?.set?.call(this, value);
+			},
+		});
+		try {
+			run();
+		} finally {
+			if (desc) {
+				Object.defineProperty(HTMLElement.prototype, 'scrollTop', desc);
+			}
+		}
+	}
+
 	async function mount(respond?: (message: IKnoxGuiMessage) => unknown): Promise<{ widget: KnoxGuiWidget; store: KnoxGuiStore }> {
 		const incoming = disposables.add(new Emitter<IKnoxGuiMessage>());
 		const knoxService = new class extends mock<IKnoxService>() {
@@ -412,6 +433,55 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-overlay-leaving"].knox-gui-overlay-leave'));
 		await timeout(350);
 		assert.ok(!widget.root.querySelector('[data-testid="knox-gui-overlay-leaving"]'));
+	});
+
+	test('settings overlay keeps scroll position when the widget rebuilds', async () => {
+		const { widget, store } = await mount();
+		store.patch({ overlay: 'settings' });
+		const overlay = () => widget.root.querySelector<HTMLElement>('[data-testid="knox-gui-overlay-settings"]');
+		const first = overlay();
+		assert.ok(first);
+		withStickyScrollTop(() => {
+			first.scrollTop = 220;
+			store.patch({ sessionTitle: 'git-poll' });
+			const next = overlay();
+			assert.ok(next);
+			assert.notStrictEqual(next, first);
+			assert.strictEqual(next.scrollTop, 220);
+		});
+	});
+
+	test('history overlay keeps scroll position when the widget rebuilds', async () => {
+		const { widget, store } = await mount();
+		store.patch({ overlay: 'history' });
+		const overlay = () => widget.root.querySelector<HTMLElement>('[data-testid="knox-gui-overlay-history"]');
+		const first = overlay();
+		assert.ok(first);
+		withStickyScrollTop(() => {
+			first.scrollTop = 160;
+			store.patch({ gitDiffFiles: [] });
+			const next = overlay();
+			assert.ok(next);
+			assert.notStrictEqual(next, first);
+			assert.strictEqual(next.scrollTop, 160);
+		});
+	});
+
+	test('config page keeps body scroll position when the widget rebuilds', async () => {
+		const { widget, store } = await mount();
+		store.patch({ route: KnoxGuiRoute.Config });
+		assert.ok(widget.root.querySelector('.knox-gui-settings-card'));
+		const first = widget.bodyEl;
+		assert.ok(first);
+		assert.strictEqual(first.getAttribute('data-testid'), 'knox-gui-body');
+		withStickyScrollTop(() => {
+			first.scrollTop = 240;
+			store.patch({ sessionTitle: 'git-poll' });
+			const next = widget.bodyEl;
+			assert.ok(next);
+			assert.notStrictEqual(next, first);
+			assert.strictEqual(next.scrollTop, 240);
+		});
 	});
 
 	test('C-13 streaming keeps finished blocks, heals the live one, and reasoning fences get a toolbar', async () => {

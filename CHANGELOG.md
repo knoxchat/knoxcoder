@@ -18,6 +18,10 @@ All notable changes to KnoxCoder are documented in this file.
 - Memory recall injects fewer unrelated memories (false-inject rate 0.333 to 0) and weighs memories by whether they preceded verified or reverted turns; a newer decision or preference now supersedes a contradicting older one.
 - Recipes: listing recipes at turn start now uses two database queries instead of one per recipe, and the precondition check reads each root file once and asks git once for all touched paths. Measured by a 1000-turn soak and a 500,000-file tree test; numbers are in `docs/known-issues.md`.
 
+### Fixed
+
+- Settings, History and other Knox Agent overlays no longer jump back to the top a few seconds after you scroll; Config, Memory and checkpoint pages, and attached panels such as git diff and jobs, keep their scroll across GUI rebuilds.
+
 ### Security
 
 - Recipe replay review: replay, preview and "Save as skill" now refuse a recipe from another project, and the check command that runs after a replay goes through the same network and secret filter as replayed commands.
