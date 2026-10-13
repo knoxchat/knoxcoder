@@ -52,6 +52,7 @@ export function renderMemory(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 				void widget.controller.loadMemoryRecipes();
 			} else {
 				void widget.controller.loadMemoryConfig();
+				void widget.controller.loadRecipeSettings();
 			}
 		}));
 	}

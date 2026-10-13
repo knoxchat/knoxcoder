@@ -540,7 +540,7 @@ export const knoxGuiStringsEnCommon: Record<string, unknown> = {
 	"memoryRecipesEmpty": "No recipes yet. Sending the same chat message twice does not create one.",
 	"memoryRecipesHowTo": "Knox saves a recipe only after it edits files in this project and a check then passes (diagnostics, a build, or tests). The first save is a Candidate.",
 	"memoryRecipesHowToReuse": "A candidate becomes Verified when you accept the result, or when the same task passes a second time. Automatic reuse only runs on Verified recipes.",
-	"memoryRecipesDisabled": "Remember verified work is off. Turn it on in Settings → Reuse verified work.",
+	"memoryRecipesDisabled": "Remember verified work is off. Turn it on in Memory → Settings → Reuse verified work.",
 	"memoryRecipeCaptured": "Saved \"{{title}}\" as a {{status}} recipe.",
 	"memoryRecipeSkip_no_session": "Last turn had no chat session, so nothing was saved.",
 	"memoryRecipeSkip_no_turn_mark": "Last turn was not marked for capture. Send the task again.",

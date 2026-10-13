@@ -540,7 +540,7 @@ export const knoxGuiStringsZhCommon: Record<string, unknown> = {
 	"memoryRecipesEmpty": "暂无配方。重复发送同一条聊天消息不会创建配方。",
 	"memoryRecipesHowTo": "只有在 Knox 编辑了本项目的文件、并且检查通过（诊断、构建或测试）之后，才会保存配方。第一次保存为「候选」。",
 	"memoryRecipesHowToReuse": "当你接受结果、或同一任务第二次检查通过时，候选会变成「已验证」。自动复用只作用于已验证的配方。",
-	"memoryRecipesDisabled": "「记住已验证的工作」已关闭。请在设置 → 复用已验证的工作 中打开。",
+	"memoryRecipesDisabled": "「记住已验证的工作」已关闭。请在记忆 → 设置 → 复用已验证的工作 中打开。",
 	"memoryRecipeCaptured": "已将“{{title}}”保存为{{status}}配方。",
 	"memoryRecipeSkip_no_session": "上一轮没有聊天会话，因此没有保存。",
 	"memoryRecipeSkip_no_turn_mark": "上一轮未被标记为可捕获。请再发送一次任务。",

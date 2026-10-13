@@ -10,7 +10,7 @@ only reads files will leave the Recipes tab at 0.
 
 ### 1. Turn the feature on
 
-In **Memory → Settings → Reuse verified work (experimental)**:
+Open **Memory → Settings**. The first card is **Reuse verified work (experimental)**. Agent Settings (the chat gear) stays for global agent knobs only.
 
 | Control | Setting | What to pick |
 |---|---|---|
@@ -18,7 +18,7 @@ In **Memory → Settings → Reuse verified work (experimental)**:
 | Reuse a recipe on a repeat task | `knoxchat.recipes.autoReplay` | **Automatic** (`exact`) to apply without a model call; **Ask** to preview first; Off only injects a hint |
 | Let Knox review its own history | `knoxchat.selfImprove.enabled` | Optional |
 
-These are the real VS Code settings, so the page and `settings.json` stay in sync.
+They are the real VS Code settings, so this page and `settings.json` stay in sync. You can also search `knoxchat.recipes` in VS Code Settings.
 
 ### 2. Run a task that can be saved
 
@@ -97,7 +97,7 @@ diff; nothing changes until you press Apply), `exact` (applies, then tells you, 
 
 ## Where to see and control it
 
-- **Settings page, "Reuse verified work":** the three switches (`knoxchat.recipes.enabled`, `knoxchat.recipes.autoReplay`, `knoxchat.selfImprove.enabled`). They are the real VS Code settings, so `settings.json` and the page always agree. Everything is off by default.
+- **Memory → Settings, "Reuse verified work":** the three switches (`knoxchat.recipes.enabled`, `knoxchat.recipes.autoReplay`, `knoxchat.selfImprove.enabled`). They are the real VS Code settings, so `settings.json` and this page always agree. Everything is off by default. Agent Settings does not list these.
 - **Memory page, Recipes tab:** each recipe with its status, uses, reverts, failed checks and source checkpoints. **Quarantine** pauses a recipe; **Retire** removes it for good (asks first) and frees the checkpoint data it was holding. Only this project's recipes (and ones you promoted to all projects) are listed.
 - **Checkpoint Dashboard, AI Sessions tab:** estimated tokens saved, model calls avoided, and the wrong-reuse rate (replays that failed their check, plus replays you later undid, divided by replays that changed files). Token numbers count output only and are estimates (4 characters per token).
 

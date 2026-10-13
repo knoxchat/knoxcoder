@@ -27,14 +27,15 @@ import {
 
 export function renderMemorySettings(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void { // KN-376 KN-314
 	const config = state.memoryConfig;
+	body.classList.add(...memoryClasses('py-4 sy-4').split(' '));
+	renderMemorySettingsConfirm(widget, body, state);
+	renderRecipeSettings(widget, body, state);
 	if (state.memoryConfigLoading && !Object.keys(config).length) {
 		const loading = mk(body, 'div', 'center py-12');
 		loading.setAttribute('data-testid', 'memory-settings-loading');
 		spinner(loading, 24);
 		return;
 	}
-	body.classList.add(...memoryClasses('py-4 sy-4').split(' '));
-	renderMemorySettingsConfirm(widget, body, state);
 	const result = state.memorySettingsResult;
 	if (result) {
 		const toast = mk(body, 'div', `banner is-${result.type} settings-result`);
@@ -137,6 +138,44 @@ export function renderMemorySettings(widget: KnoxGuiWidget, body: HTMLElement, s
 			widget.memorySettingsConfirm = { action: 'purge', label: t(state, 'memoryPurgeExpired'), description: t(state, 'memoryPurgeWarning') };
 			widget.render();
 		},
+	});
+}
+
+/** Recipes live on Memory; Agent Settings stays global agent knobs only. */
+function renderRecipeSettings(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
+	const content = settingsSection(body, t(state, 'recipeSettings'), 'zap');
+	content.setAttribute('data-testid', 'memory-recipe-settings');
+	const recipeToggle = (labelKey: string, hintKey: string, testId: string, on: boolean, onChange: (value: boolean) => void) => {
+		const row = mk(content, 'div', 'setting-row');
+		const text = mk(row, 'div', 'flex-1');
+		mk(text, 'div', 'sm', t(state, labelKey));
+		mk(text, 'div', 'xs o-50', t(state, hintKey));
+		const toggle = mk(row, 'button', on ? 'toggle is-on' : 'toggle');
+		toggle.type = 'button';
+		toggle.setAttribute('role', 'switch');
+		toggle.setAttribute('aria-checked', String(on));
+		toggle.setAttribute('data-testid', testId);
+		mk(toggle, 'span', 'toggle-knob');
+		widget.renderStore.add(DOM.addDisposableListener(toggle, 'click', () => onChange(!on)));
+	};
+	recipeToggle('recipesEnabled', 'recipesEnabledHint', 'memory-recipe-enabled', state.recipeSettings.enabled, value => void widget.controller.setRecipeSettings({ enabled: value }));
+	const replayRow = mk(content, 'div', 'setting-row gap-3');
+	const replayText = mk(replayRow, 'div', 'flex-1');
+	mk(replayText, 'div', 'sm', t(state, 'recipesAutoReplay'));
+	mk(replayText, 'div', 'xs o-50', t(state, 'recipesAutoReplayHint'));
+	const replay = mk(replayRow, 'select', 'field setting-input');
+	replay.disabled = !state.recipeSettings.enabled;
+	replay.setAttribute('data-testid', 'memory-recipe-auto-replay');
+	for (const value of ['off', 'ask', 'exact'] as const) {
+		const option = mk(replay, 'option', '', t(state, `recipesAutoReplay_${value}`));
+		option.value = value;
+		if (state.recipeSettings.autoReplay === value) {
+			option.selected = true;
+		}
+	}
+	widget.renderStore.add(DOM.addDisposableListener(replay, 'change', () => void widget.controller.setRecipeSettings({ autoReplay: replay.value as 'off' | 'ask' | 'exact' })));
+	recipeToggle('selfImproveEnabled', 'selfImproveEnabledHint', 'memory-recipe-self-improve', state.recipeSettings.selfImprove, value => {
+		void widget.controller.setRecipeSettings({ selfImprove: value });
 	});
 }
 

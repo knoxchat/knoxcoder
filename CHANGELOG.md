@@ -3,6 +3,10 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Changed
+
+- **Reuse verified work** moved from Knox Agent Settings to **Memory → Settings**, next to the Recipes tab. Agent Settings stays for global agent knobs.
+
 ## [2.1.2] - 2026-10-13
 
 ### Added

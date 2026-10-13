@@ -2123,6 +2123,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="memory-graph-error"]')?.textContent?.includes('boom'));
 
 		store.patch({ memoryTab: 'settings', memoryConfig: {}, memoryConfigLoading: true });
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-settings"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-settings-loading"]'));
 		store.patch({ memoryConfigLoading: false, memoryConfig: { retrieval_top_k: 20, wm_inject_min_relevance: 0.35 } });
 		assert.strictEqual(widget.root.querySelector<HTMLInputElement>('[data-setting="wm_inject_min_relevance"] input')?.value, '35');
@@ -2244,6 +2245,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			memoryConfig: { retrieval_threshold: 0.6, retrieval_top_k: 20, auto_extract_enabled: true },
 		});
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-memory-settings"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-settings"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-enabled"]'));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-memory-optimize"]'));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-memory-heal"]'));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-memory-export"]'));
@@ -2415,6 +2418,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 
 		store.patch({ overlay: 'settings' });
 		assert.ok(widget.root.querySelector('.knox-gui-settings-card h3.knox-gui-cyan'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="memory-recipe-settings"]'), null, 'recipe switches live on Memory Settings, not Agent Settings');
 		assert.ok(widget.root.querySelector('.knox-gui-number-step'));
 		const numberInput = widget.root.querySelector('.knox-gui-number-field input') as HTMLInputElement;
 		assert.ok(numberInput);

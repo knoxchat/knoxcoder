@@ -21,6 +21,7 @@ export async function loadMemory(controller: KnoxGuiController): Promise<void> {
 			controller.loadMemoryGraph(false),
 			controller.loadMemoryRecipes(),
 			controller.loadMemoryConfig(),
+			controller.loadRecipeSettings(),
 		]);
 	} catch {
 		// memory optional until core is ready
