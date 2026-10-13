@@ -9,7 +9,6 @@ import { createComposerInputHistory, createComposerUndo, IKnoxGuiComposerInputHi
 import type { IKnoxGuiCheckpointDetailsView } from '../../../../common/knoxGuiCheckpoints.js';
 import { KnoxGuiOverlay } from '../../../../common/knoxGuiProtocol.js';
 import { IKnoxGuiState, IKnoxGuiSuggestItem, KnoxModelRole } from '../../../../common/knoxGuiState.js';
-import { IKnoxGuiTpsClock, resetTpsClock } from '../../../../common/knoxGuiTranscript.js';
 import type { IKnoxGuiStreamCacheBlock } from '../chat.js';
 
 /**
@@ -50,14 +49,10 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	meterFollowEnabled = true;
 	refocusComposerAfterStream = false;
 	meterProgrammaticScroll = false;
-	meterTpsClock: IKnoxGuiTpsClock = resetTpsClock(0, '');
 	meterClockTimer: ReturnType<typeof setInterval> | undefined;
 	meterElapsedEl: HTMLElement | undefined;
-	meterTpsEl: HTMLElement | undefined;
 	meterStartedAt: number | undefined;
 	historyLoadingStartedAt: number | undefined;
-	meterGenerating = false;
-	meterOutputTokens = 0;
 	meterTurnKey = '';
 	meterLastScrollTop = 0;
 	readonly activityExpanded = new Set<number>();

@@ -82,7 +82,6 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(knoxGuiT('en', 'activityStepsUsed', { used: 2, max: 10 }).includes('2'));
 		assert.ok(knoxGuiT('en', 'activityTokens', { count: '4.2k' }).includes('4.2k'));
 		assert.ok(knoxGuiT('en', 'activityJevSkill', { route: 'view_read', skill: 'qemu' }).includes('qemu'));
-		assert.ok(knoxGuiT('en', 'activityTokensPerSecond', { count: '42' }).includes('tok/s'));
 		assert.ok(knoxGuiT('en', 'applyingChanges').length > 0);
 		assert.ok(knoxGuiT('zh', 'thinking').length > 0);
 		assert.ok(knoxGuiT('en', 'dailyTokens').includes('Daily'));

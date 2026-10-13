@@ -344,8 +344,6 @@ export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"largeSessionBanner": "这次对话很大；向上滚动可加载更早的消息。",
 	"activityJev": "jev {{route}}",
 	"activityJevSkill": "jev {{route}} · {{skill}}",
-	"activityTokensPerSecond": "{{count}}tok/s",
-	"activityTokensPerSecondEstimate": "输出 token ÷ 生成耗时（不含提示词与工具等待）",
 	"recipeDecisionExact": "正在复用已验证的方案“{{title}}”（已用 {{uses}} 次，回退 {{reverts}} 次）",
 	"recipeDecisionAdapt": "正在改编已验证的方案“{{title}}”（已用 {{uses}} 次，回退 {{reverts}} 次）",
 	"recipeDecisionSuggest": "将已验证的方案“{{title}}”作为提示（已用 {{uses}} 次，回退 {{reverts}} 次）",

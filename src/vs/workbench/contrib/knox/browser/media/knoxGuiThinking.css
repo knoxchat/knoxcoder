@@ -749,13 +749,6 @@
 	flex-shrink: 0;
 }
 
-.knox-gui-meter-tps {
-	font-family: var(--monaco-monospace-font, monospace);
-	font-size: 11px;
-	font-variant-numeric: tabular-nums;
-	letter-spacing: -0.02em;
-}
-
 .knox-gui-loading-state {
 	display: inline-flex;
 	align-items: center;

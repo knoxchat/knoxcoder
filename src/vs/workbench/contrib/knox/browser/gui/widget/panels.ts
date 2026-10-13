@@ -45,20 +45,16 @@ import {
 	countTurnToolLoopSteps,
 	currentActivityStep,
 	estimateTokensFromPromptLogs,
-	estimateTurnOutputTokens,
 	formatDurationMs,
 	formatLoadingElapsed,
 	formatTokenCount,
-	formatTokenRate,
 	hasForegroundCallingToolCalls,
-	isTurnGeneratingTokens,
 	itemCreatedAtMs,
 	knoxGuiShowsCodeToEditOnEmptyComposer,
 	loadingPixelDelays,
 	loadingVariantFor,
 	resolveAgentMaxSteps,
 	summarizeJevPromptLogs,
-	tickTokensPerSecond,
 	turnElapsedMs,
 } from '../../../common/knoxGuiTranscript.js';
 import { makeKnoxGuiActivatable } from './a11y.js';
@@ -93,17 +89,12 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	const startedAt = itemCreatedAtMs(state.history[userIndex]);
 	const logs = collectTurnPromptLogs(state.history, userIndex);
 	const tokens = estimateTokensFromPromptLogs(logs);
-	const outputTokens = estimateTurnOutputTokens(state.history, userIndex, logs);
-	const generating = isTurnGeneratingTokens(state.isStreaming, state.history);
 	const turnKey = `${userIndex}:${startedAt ?? ''}`;
 	if (widget.meterTurnKey !== turnKey) {
 		widget.meterFollowEnabled = true;
 	}
 	widget.meterStartedAt = startedAt;
-	widget.meterGenerating = generating;
-	widget.meterOutputTokens = outputTokens;
 	widget.meterTurnKey = turnKey;
-	widget.meterTpsClock = tickTokensPerSecond(widget.meterTpsClock, outputTokens, generating, turnKey, Date.now());
 	const jevSummary = summarizeJevPromptLogs(logs);
 	const elapsed = turnElapsedMs(state.history, userIndex, Date.now(), live);
 	const toggle = DOM.append(meter, DOM.$('button.knox-gui-meter-toggle')) as HTMLButtonElement;
@@ -163,15 +154,6 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 		const tokenEl = DOM.append(meta, DOM.$('span', undefined, t(state, 'activityTokens', { count: formatTokenCount(tokens) })));
 		widget.hover(tokenEl, `${tokens.toLocaleString()} — ${t(state, 'activityTokensEstimate')}`);
 	}
-	if (widget.meterTpsClock.tps > 0) {
-		const tpsEl = DOM.append(meta, DOM.$('span.knox-gui-meter-tps'));
-		tpsEl.setAttribute('data-testid', 'agent-turn-meter-tps');
-		tpsEl.textContent = t(state, 'activityTokensPerSecond', { count: formatTokenRate(widget.meterTpsClock.tps) });
-		widget.hover(tpsEl, t(state, 'activityTokensPerSecondEstimate'));
-		widget.meterTpsEl = tpsEl;
-	} else {
-		widget.meterTpsEl = undefined;
-	}
 	if (!live && elapsed > 0) {
 		DOM.append(meta, DOM.$('span', undefined, formatDurationMs(elapsed)));
 	}
@@ -201,7 +183,7 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 			bindMeterStickToBottom(widget, scroll, live, `${steps.length}:${steps[steps.length - 1]?.id ?? ''}:${steps[steps.length - 1]?.status ?? ''}:${steps[steps.length - 1]?.detail ?? ''}`);
 		}
 	}
-	syncMeterClock(widget, live, generating, outputTokens, turnKey, state);
+	syncMeterClock(widget, live);
 }
 
 export function renderLoadingState(
@@ -271,18 +253,8 @@ function bindMeterStickToBottom(widget: KnoxGuiWidget, scroll: HTMLElement, live
 	}));
 }
 
-export function syncMeterClock(
-	widget: KnoxGuiWidget,
-	live: boolean,
-	generating: boolean,
-	outputTokens: number,
-	turnKey: string,
-	state: IKnoxGuiState,
-): void {
-	widget.meterGenerating = generating;
-	widget.meterOutputTokens = outputTokens;
-	widget.meterTurnKey = turnKey;
-	if (!live && !generating) {
+export function syncMeterClock(widget: KnoxGuiWidget, live: boolean): void {
+	if (!live) {
 		widget.clearMeterClock();
 		return;
 	}
@@ -294,18 +266,7 @@ export function syncMeterClock(
 		if (widget.meterElapsedEl && widget.meterStartedAt) {
 			widget.meterElapsedEl.textContent = formatLoadingElapsed(Math.max(0, (now - widget.meterStartedAt) / 1000));
 		}
-		widget.meterTpsClock = tickTokensPerSecond(
-			widget.meterTpsClock,
-			widget.meterOutputTokens,
-			widget.meterGenerating,
-			widget.meterTurnKey,
-			now,
-		);
-		if (widget.meterTpsEl && widget.meterTpsClock.tps > 0 && widget.lastState) {
-			widget.meterTpsEl.textContent = t(widget.lastState, 'activityTokensPerSecond', { count: formatTokenRate(widget.meterTpsClock.tps) });
-		}
 	}, 100);
-	void state;
 }
 
 export function clearMeterClock(widget: KnoxGuiWidget): void {
@@ -314,7 +275,6 @@ export function clearMeterClock(widget: KnoxGuiWidget): void {
 		widget.meterClockTimer = undefined;
 	}
 	widget.meterElapsedEl = undefined;
-	widget.meterTpsEl = undefined;
 }
 
 export function renderPanels(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {

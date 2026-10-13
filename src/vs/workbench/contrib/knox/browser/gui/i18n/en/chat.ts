@@ -344,8 +344,6 @@ export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"largeSessionBanner": "This chat is very large; older messages load as you scroll up.",
 	"activityJev": "jev {{route}}",
 	"activityJevSkill": "jev {{route}} · {{skill}}",
-	"activityTokensPerSecond": "{{count}}tok/s",
-	"activityTokensPerSecondEstimate": "Output tokens ÷ generation time (excludes prompt and tool waits)",
 	"recipeDecisionExact": "Reusing verified recipe \"{{title}}\" (used {{uses}}×, {{reverts}} reverts)",
 	"recipeDecisionAdapt": "Adapting verified recipe \"{{title}}\" (used {{uses}}×, {{reverts}} reverts)",
 	"recipeDecisionSuggest": "Using verified recipe \"{{title}}\" as a hint (used {{uses}}×, {{reverts}} reverts)",

@@ -35,15 +35,6 @@ export interface IKnoxGuiActivityStep {
 
 export type KnoxGuiLoadingVariant = 'drive' | 'dots' | 'orbit';
 
-export interface IKnoxGuiTpsClock {
-	turnKey: string;
-	genMs: number;
-	lastTick: number | null;
-	tokensAtWindow: number;
-	wasGenerating: boolean;
-	tps: number;
-}
-
 export interface IKnoxGuiMarkdownFenceBlock extends IKnoxGuiCodeFence {
 	type: 'fence';
 	closed: boolean;
@@ -183,7 +174,6 @@ const ENDING_PUNCTUATION = ['.', '?', '!', '```', ':'];
 const CHARS_PER_TOKEN = 4;
 const SOUL_CHECKPOINT_RE = /\[soul checkpoint=([^\s\]]+)\]/;
 const TOKEN_COUNT_SUFFIXES = ['', 'k', 'm', 'b', 't'] as const;
-export const TOKEN_TPS_MIN_GENERATION_MS = 300;
 
 /**
  * Drop leaked DSML/XML tool markup from assistant text so it never flashes in
@@ -932,80 +922,6 @@ export function estimateTokensFromPromptLogs(logs: IKnoxGuiPromptLog[] | undefin
 	return reported + charsToTokens(chars);
 }
 
-export function estimateCompletionTokensFromPromptLogs(logs: IKnoxGuiPromptLog[] | undefined): number {
-	if (!logs?.length) {
-		return 0;
-	}
-	// Prefer provider-reported completion tokens per log; estimate from characters otherwise.
-	let reported = 0;
-	let chars = 0;
-	for (const log of logs) {
-		const used = log.usage?.completionTokens;
-		if (typeof used === 'number' && used > 0) {
-			reported += used;
-		} else {
-			chars += log.completion?.length ?? 0;
-		}
-	}
-	return reported + charsToTokens(chars);
-}
-
-function messageContentChars(content: string | undefined): number {
-	return content?.length ?? 0;
-}
-
-function toolArgumentChars(item: IKnoxGuiHistoryItem): number {
-	return (item.toolCalls ?? []).reduce((sum, call) => sum + (call.arguments?.length ?? 0), 0);
-}
-
-export function estimateTurnOutputTokens(history: IKnoxGuiHistoryItem[], userIndex: number, logs?: IKnoxGuiPromptLog[]): number {
-	const fromLogs = estimateCompletionTokensFromPromptLogs(logs);
-	if (userIndex < 0 || userIndex >= history.length) {
-		return fromLogs;
-	}
-	// Provider-reported usage is authoritative; the character estimate only covers turns (or in-flight output) without it.
-	if ((logs ?? []).some(log => (log.usage?.completionTokens ?? 0) > 0)) {
-		return fromLogs;
-	}
-	let chars = 0;
-	for (let i = userIndex + 1; i < history.length; i++) {
-		const item = history[i];
-		if (item.role === 'user') {
-			break;
-		}
-		if (item.role === 'tool') {
-			continue;
-		}
-		chars += messageContentChars(item.content);
-		if (item.thinking) {
-			chars += item.thinking.length;
-		}
-		chars += toolArgumentChars(item);
-	}
-	return Math.max(fromLogs, charsToTokens(chars));
-}
-
-export function tokensPerSecond(outputTokens: number, generationMs: number): number {
-	if (!Number.isFinite(outputTokens) || !Number.isFinite(generationMs) || outputTokens <= 0 || generationMs < 1) {
-		return 0;
-	}
-	return (outputTokens * 1000) / generationMs;
-}
-
-export function isTurnGeneratingTokens(isStreaming: boolean, history: IKnoxGuiHistoryItem[]): boolean {
-	if (!isStreaming) {
-		return false;
-	}
-	for (let i = history.length - 1; i >= 0; i--) {
-		const calls = history[i].toolCalls;
-		if (!calls?.length) {
-			continue;
-		}
-		return !calls.some(call => !isBackgroundJobTool(call) && (call.status === 'generated' || call.status === 'calling'));
-	}
-	return true;
-}
-
 export function collectTurnPromptLogs(history: IKnoxGuiHistoryItem[], userIndex: number): IKnoxGuiPromptLog[] {
 	const logs: IKnoxGuiPromptLog[] = [];
 	if (userIndex < 0) {
@@ -1054,19 +970,6 @@ export function formatTokenCount(tokens: number): string {
 	return `${text}${TOKEN_COUNT_SUFFIXES[unitIndex]}`;
 }
 
-export function formatTokenRate(tps: number): string {
-	if (!Number.isFinite(tps) || tps <= 0) {
-		return '0';
-	}
-	if (tps < 10) {
-		return tps.toFixed(1);
-	}
-	if (tps < 1000) {
-		return String(Math.round(tps));
-	}
-	return formatTokenCount(Math.round(tps));
-}
-
 export function itemCreatedAtMs(item: IKnoxGuiHistoryItem | undefined): number | undefined {
 	if (!item?.createdAt) {
 		return undefined;
@@ -1098,30 +1001,6 @@ export function turnElapsedMs(history: IKnoxGuiHistoryItem[], userIndex: number,
 		}
 	}
 	return Math.max(0, end - start);
-}
-
-export function resetTpsClock(outputTokens: number, turnKey: string): IKnoxGuiTpsClock {
-	return { turnKey, genMs: 0, lastTick: null, tokensAtWindow: outputTokens, wasGenerating: false, tps: 0 };
-}
-
-export function tickTokensPerSecond(clock: IKnoxGuiTpsClock, outputTokens: number, generating: boolean, turnKey: string, now: number): IKnoxGuiTpsClock {
-	let next = clock.turnKey !== turnKey ? resetTpsClock(outputTokens, turnKey) : { ...clock };
-	if (generating && !next.wasGenerating) {
-		next.tokensAtWindow = outputTokens;
-	}
-	next.wasGenerating = generating;
-	const last = next.lastTick;
-	next.lastTick = now;
-	if (last != null && generating && outputTokens > next.tokensAtWindow) {
-		next.genMs += now - last;
-	}
-	if (next.genMs >= TOKEN_TPS_MIN_GENERATION_MS && outputTokens > 0) {
-		const rate = tokensPerSecond(outputTokens, next.genMs);
-		if (rate > 0) {
-			next.tps = rate;
-		}
-	}
-	return next;
 }
 
 export function loadingPixelDelays(variant: KnoxGuiLoadingVariant): { delays: Array<number | null>; durationMs: number; round: boolean } {
