@@ -1,4 +1,5 @@
-import type { RecipeListItem, RecipeSetStatusOutput } from "core/protocol/nativeAgent";
+import type { RecipeListItem, RecipeListOutput, RecipeSetStatusOutput } from "core/protocol/nativeAgent";
+import { lastRecipeCapture } from "./recipeCapture";
 
 /** MC-70: host side of the Memory page "Recipes" tab. Reads and status moves only; nothing is replayed here. */
 
@@ -11,10 +12,10 @@ async function openStore() {
   return { store: new RecipeStore(await getBrainDb()), hashProjectId };
 }
 
-export async function listRecipes(workspaceDir: string): Promise<RecipeListItem[]> {
+export async function listRecipes(workspaceDir: string): Promise<RecipeListOutput> {
   const { store, hashProjectId } = await openStore();
   const recipes = await store.listVisibleTo(hashProjectId(workspaceDir));
-  return recipes.map((r) => ({
+  const rows: RecipeListItem[] = recipes.map((r) => ({
     id: r.id,
     title: r.title,
     status: r.status,
@@ -29,6 +30,7 @@ export async function listRecipes(workspaceDir: string): Promise<RecipeListItem[
     lastReplayedAt: r.lastReplayedAt,
     updatedAt: r.updatedAt,
   }));
+  return { recipes: rows, lastCapture: lastRecipeCapture() };
 }
 
 export async function setRecipeStatus(

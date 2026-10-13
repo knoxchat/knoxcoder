@@ -79,7 +79,8 @@ export async function startNativeTurn(
     // Memory tracking is best-effort
   }
   // Recipes (MC-14): note where this turn's tool events begin. No-op unless enabled.
-  void markRecipeTurnStart(input.sessionId).catch(() => {});
+  // Awaited so capture at finishTurn can filter soul events for this turn.
+  await markRecipeTurnStart(input.sessionId).catch(() => {});
   // Recipes (MC-24): pre-LLM decision. Omitted entirely when the flag is off.
   const recipe = await decideRecipeAtTurnStart(input, workspaceDir, replayHost);
   if (!recipe) return { memoryBuildTimeoutMs };
@@ -171,10 +172,14 @@ export async function finishNativeTurn(
   // MC-60: semantic label for the checkpoints this turn created.
   void labelTurnCheckpoints(input.sessionId, input.turnTools);
   // Recipes (MC-14): silent capture of verified work. No-op unless enabled.
-  void captureRecipeAfterTurn(
+  // Awaited so the Recipes tab refresh sees the new row (or the skip reason).
+  const captured = await captureRecipeAfterTurn(
     { sessionId: input.sessionId, userMessage: input.userMessage },
     workspaceDir,
   );
+  if (captured !== undefined) {
+    notifyMemoryChanged();
+  }
   const toolSummary = nativeTurnToolSummary(input.turnTools);
   if (!input.userMessage && !input.assistantMessage && !toolSummary) {
     return;

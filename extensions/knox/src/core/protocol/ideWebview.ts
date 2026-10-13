@@ -623,7 +623,7 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
     import("./nativeAgent").RecipeSettings,
   ];
   /** MC-70: recipes this project may see (its own plus promoted global ones), newest first. */
-  "knox/recipeList": [undefined, import("./nativeAgent").RecipeListItem[]];
+  "knox/recipeList": [undefined, import("./nativeAgent").RecipeListOutput];
   /** MC-70: user-chosen retire/quarantine; retiring frees the recipe's blob pins. */
   "knox/recipeSetStatus": [
     { recipeId: string; status: "retired" | "quarantined" },

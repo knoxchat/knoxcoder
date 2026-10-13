@@ -679,6 +679,17 @@ export interface IKnoxGuiRecipeSettings {
 	selfImprove: boolean;
 }
 
+/** Last recipe capture attempt from `knox/recipeList` (explains an empty Recipes tab). */
+export interface IKnoxGuiMemoryRecipeCapture {
+	captured: boolean;
+	created?: boolean;
+	recipeId?: string;
+	title?: string;
+	status?: IKnoxGuiMemoryRecipe['status'];
+	reason?: string;
+	at?: string;
+}
+
 /** MC-70: a row of the Memory "Recipes" tab (mirrors the host's `RecipeListItem`). */
 export interface IKnoxGuiMemoryRecipe {
 	id: string;
@@ -1024,6 +1035,8 @@ export interface IKnoxGuiState {
 	memoryRecipes: IKnoxGuiMemoryRecipe[];
 	memoryRecipesLoading: boolean;
 	memoryRecipeError?: string;
+	/** Last turn's capture result; set even when the list is empty. */
+	memoryRecipeCapture?: IKnoxGuiMemoryRecipeCapture;
 	/** Recipe id whose retire/quarantine request is in flight. */
 	memoryRecipeBusyId?: string;
 	memorySessionQuery: string;

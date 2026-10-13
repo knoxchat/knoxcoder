@@ -36,7 +36,6 @@ async function runEdit(verify: () => Promise<unknown[]>) {
     turnId: "t1",
     execute: async () => [{ name: "edit", description: "ok", content: "updated" }],
   });
-  await Promise.resolve();
   return recorded[recorded.length - 1];
 }
 

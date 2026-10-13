@@ -107,10 +107,11 @@ the command palette. Size cap: `knoxchat.memoryBrain.maxBytes`.
 
 Experimental, off by default: `knoxchat.recipes.enabled` lets Memory Brain keep
 verified work as local recipes, and `knoxchat.recipes.autoReplay` (`off`, `ask`,
-`exact`) controls reuse. `knoxchat.selfImprove.enabled` allows local analysis
-that proposes fixes and issue drafts for you to approve. Design rules:
+`exact`) controls reuse. Sending the same chat twice is not enough — Knox must
+edit files and a check must pass. `knoxchat.selfImprove.enabled` allows local
+analysis that proposes fixes and issue drafts for you to approve. Design rules:
 [recipes README](../src/core/context/memory/recipes/README.md).
-User guide: [recipes.md](recipes.md).
+How to use it: [recipes.md](recipes.md).
 
 Run `npm run mc:self-improve` from `extensions/knox` to analyze this repo
 (hot files, TODO density, bench baseline, optional threshold sweep from

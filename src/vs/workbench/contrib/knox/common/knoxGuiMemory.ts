@@ -16,6 +16,7 @@ import {
 	IKnoxGuiMemoryReviewDue,
 	IKnoxGuiMemorySession,
 	IKnoxGuiMemoryRecipe,
+	IKnoxGuiMemoryRecipeCapture,
 	IKnoxGuiMemorySessionHistory,
 	IKnoxGuiMetricsTrend,
 } from './knoxGuiState.js';
@@ -529,6 +530,10 @@ export function parseMemorySession(item: unknown): IKnoxGuiMemorySession | undef
 }
 
 const RECIPE_STATUSES = ['candidate', 'verified', 'quarantined', 'retired'] as const;
+const RECIPE_SKIP_REASONS = [
+	'no_session', 'no_turn_mark', 'history_truncated', 'no_mutation', 'no_oracle', 'oracle_failed',
+	'no_checkpoint', 'no_changes', 'too_many_files', 'secret_detected', 'no_intent', 'disabled', 'error',
+] as const;
 
 export function parseMemoryRecipe(item: unknown): IKnoxGuiMemoryRecipe | undefined {
 	const rec = asRecord(item);
@@ -555,6 +560,39 @@ export function parseMemoryRecipe(item: unknown): IKnoxGuiMemoryRecipe | undefin
 		sourceCheckpointIds: Array.isArray(rec.sourceCheckpointIds) ? rec.sourceCheckpointIds.filter((v): v is string => typeof v === 'string') : [],
 		lastReplayedAt: typeof rec.lastReplayedAt === 'string' ? rec.lastReplayedAt : undefined,
 		updatedAt: typeof rec.updatedAt === 'string' ? rec.updatedAt : undefined,
+	};
+}
+
+export function parseMemoryRecipeCapture(raw: unknown): IKnoxGuiMemoryRecipeCapture | undefined {
+	const rec = asRecord(raw);
+	if (!rec || typeof rec.captured !== 'boolean') {
+		return undefined;
+	}
+	const status = RECIPE_STATUSES.find(value => value === rec.status);
+	const reason = typeof rec.reason === 'string' && (RECIPE_SKIP_REASONS as readonly string[]).includes(rec.reason)
+		? rec.reason
+		: (typeof rec.reason === 'string' && rec.reason ? 'error' : undefined);
+	return {
+		captured: rec.captured,
+		created: rec.created === true,
+		recipeId: typeof rec.recipeId === 'string' ? rec.recipeId : undefined,
+		title: typeof rec.title === 'string' ? rec.title : undefined,
+		status,
+		reason: rec.captured ? undefined : (reason ?? 'unknown'),
+		at: typeof rec.at === 'string' ? rec.at : undefined,
+	};
+}
+
+/** Host may still return a bare array from older builds. */
+export function parseMemoryRecipeList(raw: unknown): { recipes: IKnoxGuiMemoryRecipe[]; lastCapture?: IKnoxGuiMemoryRecipeCapture } {
+	if (Array.isArray(raw)) {
+		return { recipes: raw.map(parseMemoryRecipe).filter((recipe): recipe is IKnoxGuiMemoryRecipe => Boolean(recipe)) };
+	}
+	const rec = asRecord(raw);
+	const rows = Array.isArray(rec?.recipes) ? rec.recipes : [];
+	return {
+		recipes: rows.map(parseMemoryRecipe).filter((recipe): recipe is IKnoxGuiMemoryRecipe => Boolean(recipe)),
+		lastCapture: parseMemoryRecipeCapture(rec?.lastCapture),
 	};
 }
 

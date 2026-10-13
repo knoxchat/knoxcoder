@@ -7,7 +7,7 @@ import type { KnoxGuiController } from '../../knoxGuiController.js';
 import type { IKnoxGuiState } from '../../../common/knoxGuiState.js';
 import { asRecord, asArray } from './helpers.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
-import { memoryConfigUpdatePayload, isMemoryTabId, parseEbbinghausStats, parseEffectiveContext, parseExploreResult, parseGraphEntities, parseGraphStats, parseMemoryDashboard, parseMemoryItem, parseMemoryRecipe, parseMemorySession, parseMetricsTrend, parsePhaseStatus, parseReviewDue, parseSessionHistory, unwrapBrainConfig, withMemoryConfigDefaults, memoryConsolidateParts } from '../../../common/knoxGuiMemory.js';
+import { memoryConfigUpdatePayload, isMemoryTabId, parseEbbinghausStats, parseEffectiveContext, parseExploreResult, parseGraphEntities, parseGraphStats, parseMemoryDashboard, parseMemoryItem, parseMemoryRecipeList, parseMemorySession, parseMetricsTrend, parsePhaseStatus, parseReviewDue, parseSessionHistory, unwrapBrainConfig, withMemoryConfigDefaults, memoryConsolidateParts } from '../../../common/knoxGuiMemory.js';
 
 const MEMORY_PAGE_SIZE = 50;
 
@@ -156,8 +156,10 @@ export async function loadMemoryRecipes(controller: KnoxGuiController): Promise<
 	controller.store.patch({ memoryRecipesLoading: true, memoryRecipeError: undefined });
 	try {
 		const result = await controller.messenger.request<unknown>('knox/recipeList', undefined);
+		const parsed = parseMemoryRecipeList(result);
 		controller.store.patch({
-			memoryRecipes: asArray(result).map(parseMemoryRecipe).filter((recipe): recipe is NonNullable<typeof recipe> => Boolean(recipe)),
+			memoryRecipes: parsed.recipes,
+			memoryRecipeCapture: parsed.lastCapture,
 		});
 	} catch {
 		controller.store.patch({ memoryRecipeError: 'memoryRecipesLoadError' });

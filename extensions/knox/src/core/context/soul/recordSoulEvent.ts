@@ -290,7 +290,8 @@ export async function recordSoulEvent(event: SoulEvent): Promise<number> {
     event.toolName &&
     shouldVerifyTool(event.toolName)
   ) {
-    await autoStoreTask({
+    // Do not block the soul-event write (and recipe capture) on extraction.
+    void autoStoreTask({
       taskDescription: event.summary || `${event.toolName ?? "tool"} succeeded`,
       filesModified: event.files,
       sessionId,

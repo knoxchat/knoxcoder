@@ -51,16 +51,16 @@ describe("recipe list (MC-70)", () => {
   it("lists only this project's recipes, with stats and source checkpoints", async () => {
     const mine = await make(HERE, "a");
     await make(THERE, "b");
-    const rows = await listRecipes(HERE);
-    expect(rows.map((r) => r.id)).toEqual([mine.id]);
-    expect(rows[0]).toMatchObject({ status: "verified", uses: 0, reverted: 0, files: 1, sourceCheckpointIds: ["cp-a"] });
+    const listed = await listRecipes(HERE);
+    expect(listed.recipes.map((r) => r.id)).toEqual([mine.id]);
+    expect(listed.recipes[0]).toMatchObject({ status: "verified", uses: 0, reverted: 0, files: 1, sourceCheckpointIds: ["cp-a"] });
   });
 
   it("retires and quarantines, and refuses another project's recipe", async () => {
     const mine = await make(HERE, "a");
     const other = await make(THERE, "b");
     expect(await setRecipeStatus(HERE, mine.id, "quarantined")).toEqual({ ok: true });
-    expect((await listRecipes(HERE))[0].status).toBe("quarantined");
+    expect((await listRecipes(HERE)).recipes[0].status).toBe("quarantined");
     expect(await setRecipeStatus(HERE, mine.id, "retired")).toEqual({ ok: true });
     expect(await setRecipeStatus(HERE, mine.id, "quarantined")).toEqual({ ok: false, reason: "not_allowed" });
     expect(await setRecipeStatus(HERE, other.id, "retired")).toEqual({ ok: false, reason: "not_found" });

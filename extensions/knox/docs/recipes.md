@@ -2,6 +2,67 @@
 
 Experimental, off by default. Turn on with `knoxchat.recipes.enabled`.
 
+## How to use it
+
+Settings being on is not enough. **Sending the same chat message twice does not create a recipe.** Recipes
+record *verified file-changing work*, then replay that work. Repeating a question, a review, or a chat that
+only reads files will leave the Recipes tab at 0.
+
+### 1. Turn the feature on
+
+In **Memory → Settings → Reuse verified work (experimental)**:
+
+| Control | Setting | What to pick |
+|---|---|---|
+| Remember verified work | `knoxchat.recipes.enabled` | On |
+| Reuse a recipe on a repeat task | `knoxchat.recipes.autoReplay` | **Automatic** (`exact`) to apply without a model call; **Ask** to preview first; Off only injects a hint |
+| Let Knox review its own history | `knoxchat.selfImprove.enabled` | Optional |
+
+These are the real VS Code settings, so the page and `settings.json` stay in sync.
+
+### 2. Run a task that can be saved
+
+In chat, ask Knox to **change code in this project**. A turn is saved only when all of these are true:
+
+1. Knox actually wrote or patched files (`builtin_edit_file`, `builtin_write_file`, `builtin_apply_patch`, and similar).
+2. A **check passed** afterwards: LSP diagnostics ("no diagnostics"), a build, or tests. If verification is skipped
+   (C/asm without `knoxchat.verifyCommand`, rust-analyzer not ready, or `knoxchat.verifyMode` off), nothing is saved.
+3. A checkpoint exists for the turn, the diff is not empty, and the files do not look like secrets.
+
+Typical first recipe: "add a lint script to package.json" or "fix the failing test in Foo.test.ts", then wait until
+the edit lands **and** the check is green.
+
+After that turn, open **Memory → Recipes**. You should see a **Candidate** (or a line explaining why it was not
+saved: "did not edit files", "no passing check", and so on). Refresh if you were already on the tab.
+
+### 3. Get it to Verified
+
+A candidate is not replayed. It becomes **Verified** when:
+
+- you accepted the result, or
+- the **same task** (same intent) passed a check a second time.
+
+Automatic reuse only looks at verified recipes.
+
+### 4. Send the same task again
+
+Now send the same (or very similar) request. With **Automatic**:
+
+- Knox applies the saved files **without a model call**, tells you in chat, and offers Undo.
+- The check runs again. If it fails, Knox restores a pre-replay checkpoint and continues with the model.
+
+With **Ask**, you get a preview card (Apply / Skip). With **Off**, the recipe is only shown to the model as an example.
+
+If the target files changed since capture, Knox will not overwrite them blindly: clean 3-way merges apply; conflicts
+fall back to the model.
+
+### What you will not see a recipe for
+
+- Questions, explanations, reviews, or any turn that did not mutate files
+- Edits whose diagnostics/build/tests failed or never ran
+- Turns with secrets, too many files (over 50), or no checkpoint
+- A second identical **chat** before a first candidate exists — there is nothing to reuse yet
+
 ## What it does
 
 After a chat turn that changed files and passed a check (build, test, or diagnostics), Knox saves a **candidate

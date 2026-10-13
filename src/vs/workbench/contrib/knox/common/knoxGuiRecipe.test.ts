@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { knoxGuiRecipeNeedsChoice, knoxGuiRecipeNotice, parseRecipeSettings } from './knoxGuiRecipe.js';
 import { parseRecipeMetrics } from './knoxGuiCheckpoints.js';
-import { memoryRecipeActions, parseMemoryRecipe } from './knoxGuiMemory.js';
+import { memoryRecipeActions, parseMemoryRecipe, parseMemoryRecipeCapture, parseMemoryRecipeList } from './knoxGuiMemory.js';
 import type { IKnoxGuiRecipeDecision } from './knoxGuiState.js';
 
 suite('Knox GUI recipe notice (MC-25)', () => {
@@ -57,6 +57,16 @@ suite('Knox GUI recipe settings, tab and metrics (MC-70/71/72)', () => {
 		assert.strictEqual(parseMemoryRecipe({ status: 'verified' }), undefined);
 		const row = parseMemoryRecipe({ id: 'abc', title: '', status: 'verified', uses: -3, reverted: 2, sourceCheckpointIds: ['c1', 5] });
 		assert.deepStrictEqual({ title: row?.title, uses: row?.uses, reverted: row?.reverted, ids: row?.sourceCheckpointIds, scope: row?.scope }, { title: 'abc', uses: 0, reverted: 2, ids: ['c1'], scope: 'project' });
+	});
+
+	test('recipe list accepts a wrapped payload or a bare array', () => {
+		const row = { id: 'abc', title: 'Add lint', status: 'candidate', uses: 0, sourceCheckpointIds: [] };
+		assert.strictEqual(parseMemoryRecipeList([row]).recipes[0]?.title, 'Add lint');
+		const wrapped = parseMemoryRecipeList({ recipes: [row], lastCapture: { captured: false, reason: 'no_mutation', at: '2026-01-01T00:00:00.000Z' } });
+		assert.strictEqual(wrapped.recipes[0]?.status, 'candidate');
+		assert.deepStrictEqual(wrapped.lastCapture, { captured: false, created: false, recipeId: undefined, title: undefined, status: undefined, reason: 'no_mutation', at: '2026-01-01T00:00:00.000Z' });
+		assert.strictEqual(parseMemoryRecipeCapture({ captured: true, title: 'X', status: 'verified' })?.captured, true);
+		assert.strictEqual(parseMemoryRecipeCapture({ captured: false, reason: 'nope' })?.reason, 'error');
 	});
 
 	test('actions follow the host state machine', () => {

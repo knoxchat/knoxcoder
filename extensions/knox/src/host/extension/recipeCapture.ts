@@ -5,9 +5,22 @@ import * as vscode from "vscode";
 
 import { normalizeIntent } from "core/context/soul/turnIntent";
 import type { TurnFileChange } from "core/context/memory/recipes/capture";
+import type { RecipeCaptureOutcome } from "core/protocol/nativeAgent";
 
 /** Newest soul event id when each chat session's current turn started. */
 const turnMarks = new Map<string, number>();
+
+/** Last capture attempt while recipes were on. Shown on the Memory Recipes tab. */
+let lastCapture: RecipeCaptureOutcome | undefined;
+
+export function lastRecipeCapture(): RecipeCaptureOutcome | undefined {
+  return lastCapture;
+}
+
+function rememberCapture(outcome: Omit<RecipeCaptureOutcome, "at">): RecipeCaptureOutcome {
+  lastCapture = { ...outcome, at: new Date().toISOString() };
+  return lastCapture;
+}
 
 export function recipesEnabled(): boolean {
   return vscode.workspace.getConfiguration("knoxchat").get<boolean>("recipes.enabled", false);
@@ -194,8 +207,9 @@ export function diffCheckpointStates(
 export async function captureRecipeAfterTurn(
   input: { sessionId: string; userMessage: string },
   workspaceDir: string,
-): Promise<void> {
-  if (!recipesEnabled() || !input.sessionId) return;
+): Promise<RecipeCaptureOutcome | undefined> {
+  if (!recipesEnabled()) return undefined;
+  if (!input.sessionId) return rememberCapture({ captured: false, reason: "no_session" });
   const mark = turnMarks.get(input.sessionId);
   turnMarks.delete(input.sessionId);
   try {
@@ -249,8 +263,18 @@ export async function captureRecipeAfterTurn(
       console.info(
         `[Recipes] ${result.created ? "Captured" : "Already had"} candidate ${result.recipe.id.slice(0, 8)} (${result.recipe.steps.length} steps)`,
       );
+      return rememberCapture({
+        captured: true,
+        created: result.created,
+        recipeId: result.recipe.id,
+        title: result.recipe.title,
+        status: result.recipe.status,
+      });
     }
+    console.info(`[Recipes] Not captured: ${result.reason}`);
+    return rememberCapture({ captured: false, reason: result.reason });
   } catch (error) {
     console.warn("[Recipes] Capture failed:", error instanceof Error ? error.message : error);
+    return rememberCapture({ captured: false, reason: "error" });
   }
 }

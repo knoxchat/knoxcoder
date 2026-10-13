@@ -23,6 +23,27 @@ export function renderMemoryRecipes(widget: KnoxGuiWidget, body: HTMLElement, st
 	memoryButton(widget, header, { tokens: 'pill-btn is-quiet btn-secondary', icon: 'refresh-cw', label: t(state, 'memoryRefresh'), onClick: () => void widget.controller.loadMemoryRecipes() });
 	mk(body, 'p', 'xs o-60 shrink-0', t(state, 'memoryRecipesIntro'));
 
+	if (!state.recipeSettings.enabled) {
+		const off = mk(body, 'div', 'session-error');
+		off.setAttribute('data-testid', 'memory-recipes-disabled');
+		off.textContent = t(state, 'memoryRecipesDisabled');
+	}
+
+	if (state.memoryRecipeCapture) {
+		const cap = state.memoryRecipeCapture;
+		const banner = mk(body, 'div', cap.captured ? 'banner is-notice' : 'session-error');
+		banner.setAttribute('data-testid', 'memory-recipes-last-capture');
+		if (cap.captured) {
+			banner.textContent = t(state, 'memoryRecipeCaptured', {
+				title: cap.title || '',
+				status: t(state, `memoryRecipeStatus_${cap.status ?? 'candidate'}`),
+			});
+		} else {
+			const key = `memoryRecipeSkip_${cap.reason ?? 'unknown'}`;
+			banner.textContent = t(state, key);
+		}
+	}
+
 	if (state.memoryRecipeError) {
 		mk(body, 'div', 'session-error', t(state, state.memoryRecipeError)).setAttribute('data-testid', 'memory-recipes-error');
 	}
@@ -36,7 +57,11 @@ export function renderMemoryRecipes(widget: KnoxGuiWidget, body: HTMLElement, st
 		return;
 	}
 	if (!state.memoryRecipes.length) {
-		mk(scroll, 'p', 'px-3 py-4 xs o-50', t(state, 'memoryRecipesEmpty'));
+		const empty = mk(scroll, 'div', 'px-3 py-4');
+		empty.setAttribute('data-testid', 'memory-recipes-empty');
+		mk(empty, 'p', 'xs o-50', t(state, 'memoryRecipesEmpty'));
+		mk(empty, 'p', 'mt-2 xs o-60', t(state, 'memoryRecipesHowTo'));
+		mk(empty, 'p', 'mt-1 xs o-60', t(state, 'memoryRecipesHowToReuse'));
 	}
 
 	for (const recipe of state.memoryRecipes) {

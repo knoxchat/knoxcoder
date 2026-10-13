@@ -2216,10 +2216,22 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 
 		store.patch({
 			memoryTab: 'recipes',
+			memoryRecipes: [],
+			memoryRecipeCapture: { captured: false, reason: 'no_mutation' },
+			recipeSettings: { enabled: true, autoReplay: 'exact', selfImprove: true },
+		});
+		const emptyRecipes = widget.root.querySelector('[data-testid="knox-gui-memory-recipes"]');
+		assert.ok(emptyRecipes?.textContent?.includes('Sending the same chat message twice does not create one'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipes-last-capture"]')?.textContent?.includes('did not edit files'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipes-empty"]'));
+
+		store.patch({
+			memoryTab: 'recipes',
 			memoryRecipes: [
 				{ id: 'rec1', title: 'Add lint script', status: 'verified', scope: 'project', uses: 5, ok: 5, reverted: 0, failedVerify: 0, files: 2, sourceCheckpointIds: ['abcdef1234'] },
 				{ id: 'rec2', title: 'Old recipe', status: 'retired', scope: 'project', uses: 1, ok: 0, reverted: 1, failedVerify: 0, files: 1, sourceCheckpointIds: [] },
 			],
+			memoryRecipeCapture: undefined,
 		});
 		const recipesPane = widget.root.querySelector('[data-testid="knox-gui-memory-recipes"]');
 		assert.ok(recipesPane?.textContent?.includes('Add lint script'));

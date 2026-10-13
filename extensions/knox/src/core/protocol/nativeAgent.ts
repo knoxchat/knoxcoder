@@ -106,6 +106,39 @@ export interface RecipeReplayOutput {
   failureContext?: string;
 }
 
+/** Why the last qualifying turn did not become a recipe (host capture skip). */
+export type RecipeCaptureSkipReason =
+  | "no_session"
+  | "no_turn_mark"
+  | "history_truncated"
+  | "no_mutation"
+  | "no_oracle"
+  | "oracle_failed"
+  | "no_checkpoint"
+  | "no_changes"
+  | "too_many_files"
+  | "secret_detected"
+  | "no_intent"
+  | "disabled"
+  | "error";
+
+/** MC-70: last `knox/finishTurn` capture attempt, so the Recipes tab can explain an empty list. */
+export interface RecipeCaptureOutcome {
+  captured: boolean;
+  created?: boolean;
+  recipeId?: string;
+  title?: string;
+  status?: RecipeListItem["status"];
+  reason?: RecipeCaptureSkipReason;
+  at: string;
+}
+
+/** MC-70: Memory page "Recipes" tab payload. */
+export interface RecipeListOutput {
+  recipes: RecipeListItem[];
+  lastCapture?: RecipeCaptureOutcome;
+}
+
 /** MC-70: one row of the Memory page "Recipes" tab. No file bytes, no commands. */
 export interface RecipeListItem {
   id: string;

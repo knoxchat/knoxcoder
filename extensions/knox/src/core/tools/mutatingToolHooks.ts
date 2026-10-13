@@ -286,8 +286,10 @@ export async function executeToolWithSoulHooks(
       .join("\n")
       .slice(0, 1500);
     const oracle = classifyOracleEvent(toolName, summary);
+    // Await the soul event so recipe capture at turn-end can see this tool's
+    // oracle and checkpoint. Fire-and-forget races `knox/finishTurn`.
     if (oracle) {
-      void emit(
+      await emit(
         oracle.kind,
         oracle.kind !== "build:fail" && oracle.kind !== "qemu:panic",
         oracle.summary,
@@ -295,7 +297,7 @@ export async function executeToolWithSoulHooks(
         oracleFromBuildEvent(oracle.kind, oracle.signature),
       );
     } else {
-      void emit(
+      await emit(
         "tool_success",
         true,
         (summary || `${toolName} succeeded`).slice(0, 500),
@@ -319,7 +321,7 @@ export async function executeToolWithSoulHooks(
     }
     const message = error instanceof Error ? error.message : String(error);
     if (!/cancelled/i.test(message)) {
-      void emit(soulKindFromError(error), false, message);
+      await emit(soulKindFromError(error), false, message);
     }
     throw error;
   }
