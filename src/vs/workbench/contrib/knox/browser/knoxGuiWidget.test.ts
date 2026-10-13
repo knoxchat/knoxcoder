@@ -2924,7 +2924,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('#agent-activity-reasoning_a2'), 'duplicate row with tool calls still mounts its reasoning card');
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-tool"]'), 'duplicate row with tool calls still mounts its tools');
 	});
-	test('K-040 a finished agent turn closes with a run summary; K-041 long reads collapse and the head is keyboard reachable', async () => {
+	test('K-041 long reads collapse and the head is keyboard reachable', async () => {
 		const { widget, store } = await mount();
 		const long = Array.from({ length: 40 }, (_, i) => `row ${i}`).join('\n');
 		store.patch({
@@ -2941,11 +2941,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 				},
 			],
 		});
-		const summary = widget.root.querySelector('[data-testid="turn-summary"]');
-		assert.ok(summary, 'summary closes the finished turn');
-		assert.ok(summary!.querySelector('[data-testid="turn-summary-files"]')?.textContent?.includes('+2 -1'));
-		assert.ok(summary!.querySelector('[data-testid="turn-summary-review"]'));
-		assert.ok(summary!.querySelector('[data-testid="turn-summary-undo"]'));
+		assert.strictEqual(widget.root.querySelectorAll('[data-testid="turn-summary"]').length, 0);
 		const readCard = widget.root.querySelector('[data-testid="knox-gui-tool"][data-tool-id="r1"]')!;
 		assert.strictEqual(readCard.querySelector('.knox-gui-tool-body'), null, 'long read result starts collapsed');
 		const head = readCard.querySelector<HTMLElement>('[data-testid="tool-head"]')!;
@@ -2954,13 +2950,6 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		head.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 		const reopened = widget.root.querySelector('[data-testid="knox-gui-tool"][data-tool-id="r1"]')!;
 		assert.ok(reopened.querySelector('.knox-gui-tool-body'), 'Enter on the head opens it');
-		// A new turn streams without a summary of its own; when it ends, the summary appears (one full render).
-		const first = store.state.history;
-		const editCall = { id: 'e2', name: 'builtin_write_file', arguments: '{}', parsedArgs: { filepath: 'b.ts', content: 'x' }, status: 'done' as const };
-		store.patch({ isStreaming: true, history: [...first, { id: 'u2', role: 'user', content: 'again', createdAt: '2026-10-03T10:05:00.000Z' }, { id: 'a2', role: 'assistant', content: '', toolCalls: [{ ...editCall, status: 'calling' as const }] }] });
-		assert.strictEqual(widget.root.querySelectorAll('[data-testid="turn-summary"]').length, 1, 'only the finished first turn has one');
-		store.patch({ isStreaming: false, history: [...store.state.history.slice(0, -1), { id: 'a2', role: 'assistant', content: 'ok', toolCalls: [editCall] }] });
-		assert.strictEqual(widget.root.querySelectorAll('[data-testid="turn-summary"]').length, 2, 'the turn that just ended gets its summary');
 	});
 	test('NP-09 pasting text alongside a file still inserts the text when the model has no image support', async () => {
 		const { widget, store } = await mount();

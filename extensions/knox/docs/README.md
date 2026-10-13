@@ -121,8 +121,8 @@ proposals are never applied automatically.
 
 ## Checkpoints
 
-Before a turn changes files, Knox takes a checkpoint. Use "undo turn" in the
-turn summary or the restore view to roll back. Checkpoints are stored locally.
+Before a turn changes files, Knox takes a checkpoint. Use the restore view to
+roll back. Checkpoints are stored locally.
 Each turn checkpoint records the redacted request that caused it and gets a
 short summary label (for example "Add JWT middleware · 3 files in src/auth")
 shown in the Checkpoint Graph and used by checkpoint search.
