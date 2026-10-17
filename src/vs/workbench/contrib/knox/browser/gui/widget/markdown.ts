@@ -14,6 +14,7 @@ import { tokenizeToStringSync } from '../../../../../../editor/common/languages/
 import { TokenizationRegistry } from '../../../../../../editor/common/languages.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { knoxGuiMetaKeyLabel, knoxGuiShowsEditResponseAcceptReject } from '../../../common/knoxGuiChrome.js';
+import { fenceDiffStats, firstPatchFilePath, IKnoxGuiFenceDiffStats } from '../../../common/knoxGuiCodeDiff.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { appendKnoxGuiSvg, replaceKnoxGuiSvg, setKnoxGuiInnerHtml } from '../knoxGuiIcons.js';
 import { setCollapseChevronExpanded } from './controls.js';
@@ -178,6 +179,8 @@ export interface IKnoxGuiFenceBlockOptions {
 	anchor: KnoxGuiCodeLineAnchor;
 	/** `StepContainerPreToolbar` `expanded` prop: `false` keeps a file block collapsed until opened. */
 	expanded?: boolean;
+	additions?: number;
+	deletions?: number;
 }
 
 /**
@@ -186,7 +189,9 @@ export interface IKnoxGuiFenceBlockOptions {
  * `StepContainerPreActionButtons` hover toolbar: Run, Apply, Insert, Copy.
  */
 export function renderCodeFenceBlock(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, options: IKnoxGuiFenceBlockOptions): void {
-	const { streamId, fence, generating } = options;
+	const fence = enrichFenceFilepath(options.fence);
+	options = { ...options, fence };
+	const { streamId, generating } = options;
 	if (!fenceHasFileToolbar(fence.filepath)) {
 		renderHoverCodeBlock(widget, parent, state, options);
 		return;
@@ -217,12 +222,13 @@ export function renderCodeFenceBlock(widget: KnoxGuiWidget, parent: HTMLElement,
 		},
 	});
 	widget.renderClickablePath(left, fence.filepath!, { range: fence.range, showIcon: true });
+	paintFenceDiffStats(left, state, resolveFenceDiffStats(options));
 	const actions = DOM.append(toolbar, DOM.$('.knox-gui-code-actions'));
-	if (generating) {
+	if (generating && !resolveFenceDiffStats(options)) {
 		const lines = fence.code.split('\n').length;
 		const count = lines;
 		DOM.append(actions, DOM.$('span.knox-gui-generating-lines', undefined, t(state, count === 1 ? 'generatedLines' : 'generatedLines_plural', { count })));
-	} else {
+	} else if (!generating) {
 		renderCopyFeedbackButton(widget, actions, state, `code:${streamId}`, fence.code, true);
 		if (isTerminalCodeBlock(fence.language, fence.code)) {
 			widget.chromeButton(actions, {
@@ -250,6 +256,55 @@ function readFenceFromBox(box: HTMLElement): { language: string; filepath?: stri
 		range: box.dataset.range,
 		code: scroll?.dataset.code ?? box.dataset.code ?? '',
 	};
+}
+
+function enrichFenceFilepath<T extends { filepath?: string; code: string }>(fence: T): T {
+	if (fenceHasFileToolbar(fence.filepath)) {
+		return fence;
+	}
+	const fromPatch = firstPatchFilePath(fence.code);
+	return fromPatch ? { ...fence, filepath: fromPatch } : fence;
+}
+
+function resolveFenceDiffStats(options: IKnoxGuiFenceBlockOptions): IKnoxGuiFenceDiffStats | undefined {
+	return fenceDiffStats(options.fence, { additions: options.additions, deletions: options.deletions });
+}
+
+function paintFenceDiffStats(parent: HTMLElement, state: IKnoxGuiState, stats: IKnoxGuiFenceDiffStats | undefined): void {
+	parent.querySelector('.knox-gui-code-diff-stats')?.remove();
+	if (!stats) {
+		return;
+	}
+	const wrap = DOM.append(parent, DOM.$('span.knox-gui-code-diff-stats'));
+	wrap.setAttribute('data-testid', 'checkpoint-diff-stats');
+	wrap.setAttribute('data-diff-source', 'checkpoint');
+	const labels: string[] = [];
+	if (stats.additions > 0) {
+		DOM.append(wrap, DOM.$('span.knox-gui-diff-add.odp-text-green', undefined, `+${stats.additions}`));
+		labels.push(t(state, 'additions', { count: stats.additions }));
+	}
+	if (stats.deletions > 0) {
+		DOM.append(wrap, DOM.$('span.knox-gui-diff-del.odp-text-red', undefined, `-${stats.deletions}`));
+		labels.push(t(state, 'deletions', { count: stats.deletions }));
+	}
+	if (labels.length) {
+		wrap.setAttribute('aria-label', labels.join(', '));
+	}
+}
+
+function syncFenceFilePath(box: HTMLElement, filepath: string | undefined, range?: string): void {
+	if (!filepath) {
+		return;
+	}
+	const btn = box.querySelector('[data-testid="clickable-file-path"]') as HTMLElement | null;
+	const name = btn?.querySelector('.knox-gui-path-name');
+	if (name) {
+		name.textContent = filepath.split('/').pop() || filepath;
+	}
+	const rangeEl = btn?.querySelector('.knox-gui-path-range');
+	if (rangeEl && range) {
+		rangeEl.textContent = range;
+	}
 }
 
 /** Prefer the painted block so Copy / Apply / Insert / Run stay on the live fence, not a stale render closure. */
@@ -438,7 +493,7 @@ const PATCH_FILE_HEADER = /^(?:\*\*\* (?:Add|Update|Delete) File:\s*(.+?)\s*$|\+
  * it belongs to (from `*** Update File:`, `+++ b/path` or `diff --git` headers), keeping the
  * `+` / `-` / ` ` markers outside the tokenized text so the colors match a normal code block.
  */
-function tokenizePatchLines(widget: KnoxGuiWidget, code: string, usedLanguages: Set<string>): string[] {
+function tokenizePatchLines(widget: KnoxGuiWidget, code: string, usedLanguages: Set<string>, fallbackPath?: string): string[] {
 	const raw = code.split('\n');
 	const out: string[] = new Array(raw.length);
 	const tokenize = (text: string, languageId: string): string[] => {
@@ -457,7 +512,7 @@ function tokenizePatchLines(widget: KnoxGuiWidget, code: string, usedLanguages: 
 			out[i] = marker + (tokenized[n] ?? escape(bodies[n]));
 		});
 	};
-	let languageId = 'plaintext';
+	let languageId = fallbackPath ? resolveCodeLanguageId(widget, '', fallbackPath, 'x', true) : 'plaintext';
 	let body: number[] = [];
 	const diffHeaders: number[] = [];
 	const flushAll = () => {
@@ -544,7 +599,7 @@ function paintCodeLineWindow(widget: KnoxGuiWidget, container: HTMLElement, stat
 	try {
 		widget.languageService.requestBasicLanguageFeatures(languageId);
 		lines = languageId === 'diff'
-			? tokenizePatchLines(widget, code, extraLanguageIds)
+			? tokenizePatchLines(widget, code, extraLanguageIds, filepath)
 			: knoxGuiSplitTokenizedLines(tokenizeToStringSync(widget.languageService, code, languageId));
 	} catch {
 		lines = code.split('\n').map(line => escape(line));
@@ -928,14 +983,21 @@ export function patchLiveCodeFence(
 	fenceIndex: number,
 	generating: boolean,
 	streamId = fenceApplyStreamId(item.id, fenceIndex),
+	explicitStats?: Partial<IKnoxGuiFenceDiffStats>,
 ): boolean {
 	const box = nodes.find((node): node is HTMLElement => node instanceof HTMLElement && node.classList.contains('knox-gui-code-block'));
 	if (!box) {
 		return false;
 	}
+	fence = enrichFenceFilepath(fence);
+	const fileToolbar = box.getAttribute('data-testid') === 'step-container-pre-toolbar';
+	if (fileToolbar !== fenceHasFileToolbar(fence.filepath)) {
+		return false;
+	}
 	box.dataset.language = fence.language;
 	if (fence.filepath) {
 		box.dataset.filepath = fence.filepath;
+		syncFenceFilePath(box, fence.filepath, fence.range);
 	} else {
 		delete box.dataset.filepath;
 	}
@@ -943,6 +1005,11 @@ export function patchLiveCodeFence(
 		box.dataset.range = fence.range;
 	} else {
 		delete box.dataset.range;
+	}
+	const stats = fenceDiffStats(fence, explicitStats);
+	const toolbarFile = box.querySelector('.knox-gui-code-toolbar-file') as HTMLElement | null;
+	if (toolbarFile) {
+		paintFenceDiffStats(toolbarFile, state, stats);
 	}
 	let scroll = box.querySelector('.knox-gui-code-scroll') as HTMLElement | null;
 	const wasGenerating = scroll?.getAttribute('data-streaming') === 'true';
@@ -957,7 +1024,7 @@ export function patchLiveCodeFence(
 	if (!scroll) {
 		return false;
 	}
-	if (generating) {
+	if (generating && !stats) {
 		const lines = fence.code.split('\n').length;
 		const count = lines;
 		const label = t(state, count === 1 ? 'generatedLines' : 'generatedLines_plural', { count });
@@ -974,6 +1041,8 @@ export function patchLiveCodeFence(
 				DOM.append(box, DOM.$('span.knox-gui-generating-lines.knox-gui-generating-lines-footer', undefined, label));
 			}
 		}
+	} else if (generating && stats) {
+		box.querySelector('.knox-gui-generating-lines')?.remove();
 	} else if (wasGenerating) {
 		box.querySelector('.knox-gui-generating-lines')?.remove();
 		ensureIdleFenceActions(widget, box, state, streamId, fence);

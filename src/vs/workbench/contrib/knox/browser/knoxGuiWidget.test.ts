@@ -171,6 +171,64 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(panel.querySelector('.knox-gui-diff-del')?.textContent, '-2');
 	});
 
+	test('streaming file edits show CheckPoint +N/-N on each code block', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			isStreaming: true,
+			history: historyWithTool({
+				id: 'patch',
+				name: 'builtin_apply_patch',
+				arguments: '{"patch":"*** Begin Patch\\n*** Update File: i915.rs\\n@@\\n pub fn init() {\\n+    let _ = modeset_self_test();\\n*** Add File: vlan.rs\\n+pub const GATE_VLAN_MARKER: &str = \\"gate\\";\\n+fn vlan_self_test() -> bool {\\n*** End Patch"}',
+				status: 'calling',
+				parsedArgs: {
+					patch: `*** Begin Patch
+*** Update File: i915.rs
+@@
+ pub fn init() {
++    let _ = modeset_self_test();
+*** Add File: vlan.rs
++pub const GATE_VLAN_MARKER: &str = "gate";
++fn vlan_self_test() -> bool {
+*** End Patch`,
+				},
+			}),
+		});
+		const cards = widget.root.querySelectorAll('[data-testid="step-container-pre-toolbar"]');
+		assert.ok(cards.length >= 2, 'one code card per patched file');
+		const stats = Array.from(widget.root.querySelectorAll('[data-testid="checkpoint-diff-stats"]')).map(el => el.textContent);
+		assert.ok(stats.some(text => text?.includes('+1')));
+		assert.ok(stats.some(text => text?.includes('+2')));
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-diff-stats"]')?.getAttribute('data-diff-source') === 'checkpoint');
+		assert.ok(widget.root.querySelector('[data-testid="clickable-file-path"]')?.textContent?.includes('i915.rs'));
+		assert.ok(Array.from(widget.root.querySelectorAll('[data-testid="clickable-file-path"]')).some(el => el.textContent?.includes('vlan.rs')));
+
+		store.patch({
+			isStreaming: true,
+			history: historyWithTool({
+				id: 'edit',
+				name: 'builtin_edit_file',
+				arguments: '{"filepath":"main.rs","old_string":"old","new_string":"new"}',
+				status: 'calling',
+				parsedArgs: { filepath: 'main.rs', old_string: 'old', new_string: 'new' },
+			}),
+		});
+		const editStats = widget.root.querySelector('[data-testid="checkpoint-diff-stats"]')?.textContent ?? '';
+		assert.ok(editStats.includes('+1'), editStats);
+		assert.ok(editStats.includes('-1'), editStats);
+		assert.ok(widget.root.querySelector('[data-testid="clickable-file-path"]')?.textContent?.includes('main.rs'));
+
+		store.patch({
+			history: historyWithTool({
+				id: 'create',
+				name: 'builtin_create_new_file',
+				arguments: '{"filepath":"src/new.ts","contents":"export const x = 1;\\nexport const y = 2;"}',
+				status: 'done',
+				parsedArgs: { filepath: 'src/new.ts', contents: 'export const x = 1;\nexport const y = 2;' },
+			}),
+		});
+		assert.strictEqual(widget.root.querySelector('[data-testid="checkpoint-diff-stats"] .odp-text-green')?.textContent, '+2');
+	});
+
 	test('composer always shows a model trigger and paper-plane Send', async () => {
 		const { widget } = await mount();
 		const model = widget.root.querySelector('[data-testid="knox-gui-model-select"]') as HTMLButtonElement | null;

@@ -43,8 +43,8 @@ export abstract class KnoxGuiToolsFacade extends KnoxGuiMarkdownFacade {
 		knoxGuiToolsView.renderGenericCodeTool(this, parent, state, tool);
 	}
 
-	renderToolCodePreview(this: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall, filepath: string, code: string, language: string, collapsedByDefault: boolean): void {
-		knoxGuiToolsView.renderToolCodePreview(this, parent, state, tool, filepath, code, language, collapsedByDefault);
+	renderToolCodePreview(this: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall, filepath: string, code: string, language: string, collapsedByDefault: boolean, extras?: { additions?: number; deletions?: number; range?: string; index?: number; total?: number }): void {
+		knoxGuiToolsView.renderToolCodePreview(this, parent, state, tool, filepath, code, language, collapsedByDefault, extras);
 	}
 
 	renderSubdirectoryTool(this: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {

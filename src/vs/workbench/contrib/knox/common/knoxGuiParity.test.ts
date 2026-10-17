@@ -20,6 +20,7 @@ import { KNOX_GUI_HEARTBEAT_MS, KNOX_GUI_HOST_INBOUND, KNOX_GUI_HOST_INBOUND_EMP
 import { isSingleRangeEditOrInsertion, knoxGuiMultifileEditPrompt, knoxGuiNextEditStatus, knoxGuiResetEditModeState, mergeCodeToEdit, parseCodeToEdit, shouldSendEditPrompt } from './knoxGuiEdit.js';
 import { KNOX_AGENT_MODE_CONTEXT_KEY, knoxGuiHostAgentActiveFromPayload, knoxGuiModeAfterEditExit, knoxGuiModeAfterHostAgentFlag, knoxGuiResolveSessionMode, knoxGuiSessionModeIsAgent } from './knoxGuiAgentMode.js';
 import { applyKnoxGuiSetColors, applyKnoxGuiSetTheme, constructHljsTheme, cssVarsFromColorMap, knoxGuiHljsTokenColor, knoxGuiThemeIsLight, parseSetColorsPayload, parseSetThemePayload, vscodeCssVarFromColorId } from './knoxGuiTheme.js';
+import { checkpointLineDelta, codeDiffPreviewsForTool, fenceDiffStats, splitStreamingPatchFiles } from './knoxGuiCodeDiff.js';
 
 suite('Knox native GUI parity', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -1778,6 +1779,79 @@ suite('Knox native GUI parity', () => {
 		assert.ok(tree.colorized.includes(repoMapFileAnsiColor('a.ts')));
 		assert.ok(tree.colorized.includes(repoMapFileAnsiColor('b.py')));
 		assert.strictEqual(repoMapFileAnsiColor('a.ts'), '\x1b[38;2;86;182;194m');
+	});
+
+	test('chat code blocks expose CheckPoint +N/-N stats, not git diff', () => {
+		assert.deepStrictEqual(checkpointLineDelta('keep\ngone\nkeep', 'keep\nadded\nkeep'), { additions: 1, deletions: 1 });
+		assert.deepStrictEqual(checkpointLineDelta('', 'a\nb'), { additions: 2, deletions: 0 });
+		assert.deepStrictEqual(fenceDiffStats({ language: 'typescript', code: 'const x = 1;' }), undefined);
+		assert.deepStrictEqual(fenceDiffStats({ language: 'diff', code: 'diff --git a/lib.rs b/lib.rs\n+a\n-b' }), undefined);
+		assert.deepStrictEqual(fenceDiffStats({ language: 'ts', code: 'const x = 1;' }, { additions: 4 }), { additions: 4, deletions: 0 });
+
+		const patch = `*** Begin Patch
+*** Update File: drivers/gpu/i915.rs
+@@
+ pub fn init() {
++    let _ = modeset_self_test();
+*** Add File: net/vlan.rs
++pub const GATE_VLAN_MARKER: &str = "gate";
++fn vlan_self_test() -> bool {
+*** End Patch`;
+		const files = splitStreamingPatchFiles(patch);
+		assert.strictEqual(files.length, 2);
+		assert.strictEqual(files[0].filepath, 'drivers/gpu/i915.rs');
+		assert.deepStrictEqual(checkpointLineDelta('pub fn init() {', 'pub fn init() {\n    let _ = modeset_self_test();'), { additions: files[0].additions, deletions: files[0].deletions });
+		assert.strictEqual(files[0].additions, 1);
+		assert.strictEqual(files[0].deletions, 0);
+		assert.ok(files[0].code.includes('modeset_self_test'));
+		assert.ok(!files[0].code.includes('*** Update File'));
+		assert.strictEqual(files[1].filepath, 'net/vlan.rs');
+		assert.strictEqual(files[1].additions, 2);
+
+		assert.deepStrictEqual(splitStreamingPatchFiles(`diff --git a/lib.rs b/lib.rs
+--- a/lib.rs
++++ b/lib.rs
+@@ -548,3 +548,2 @@
+-#[cfg(feature = "stub-drivers")]
+ pub mod vlan;`), []);
+
+		const removed = splitStreamingPatchFiles(`*** Begin Patch
+*** Update File: lib.rs
+ pub mod traffic_shaping;
+-#[cfg(feature = "stub-drivers")]
+ pub mod vlan;
+*** End Patch`);
+		assert.strictEqual(removed[0].filepath, 'lib.rs');
+		assert.strictEqual(removed[0].additions, 0);
+		assert.strictEqual(removed[0].deletions, 1);
+
+		const live = splitStreamingPatchFiles(`*** Begin Patch
+*** Update File: main.rs
+@@
+-old
++new`);
+		assert.strictEqual(live[0].filepath, 'main.rs');
+		assert.deepStrictEqual({ additions: live[0].additions, deletions: live[0].deletions }, checkpointLineDelta('old', 'new'));
+
+		const edit = codeDiffPreviewsForTool({
+			toolName: 'builtin_edit_file',
+			filepath: 'src/a.ts',
+			code: 'y\nz',
+			parsedArgs: { filepath: 'src/a.ts', old_string: 'x', new_string: 'y\nz' },
+		});
+		assert.strictEqual(edit.length, 1);
+		assert.strictEqual(edit[0].filepath, 'src/a.ts');
+		assert.deepStrictEqual({ additions: edit[0].additions, deletions: edit[0].deletions }, checkpointLineDelta('x', 'y\nz'));
+		assert.ok(edit[0].code.includes('+y') || edit[0].code.includes('+z'));
+		assert.ok(edit[0].code.includes('-x'));
+
+		const created = codeDiffPreviewsForTool({
+			toolName: 'builtin_create_new_file',
+			filepath: 'src/new.ts',
+			code: 'export const x = 1;\nexport const y = 2;',
+			parsedArgs: { filepath: 'src/new.ts', contents: 'export const x = 1;\nexport const y = 2;' },
+		});
+		assert.deepStrictEqual({ additions: created[0].additions, deletions: created[0].deletions }, checkpointLineDelta('', 'export const x = 1;\nexport const y = 2;'));
 	});
 
 	test('KN-374 composer helpers match KN-300 @ defaults and KN-304 slash builtins', () => {

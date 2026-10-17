@@ -836,6 +836,25 @@
 	flex: 1 1 auto;
 }
 
+.knox-gui-code-diff-stats {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	margin-left: 6px;
+	flex-shrink: 0;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.02em;
+}
+
+.knox-gui-code-diff-stats .odp-text-green {
+	color: var(--odp-green, #4ade80);
+}
+
+.knox-gui-code-diff-stats .odp-text-red {
+	color: var(--odp-red, #f87171);
+}
+
 .knox-gui-code-toolbar > .knox-gui-code-actions {
 	flex-shrink: 0;
 }
@@ -932,12 +951,30 @@
 	line-height: 19px;
 }
 
+.knox-gui-code-line[data-diff="add"] {
+	background: color-mix(in srgb, var(--vscode-diffEditor-insertedLineBackground, rgba(16, 185, 129, 0.16)) 100%, transparent);
+}
+
+.knox-gui-code-line[data-diff="del"] {
+	background: color-mix(in srgb, var(--vscode-diffEditor-removedLineBackground, rgba(239, 68, 68, 0.16)) 100%, transparent);
+}
+
 .knox-gui-code-line[data-diff="add"] .knox-gui-line-content {
 	background: color-mix(in srgb, var(--vscode-diffEditor-insertedTextBackground, rgba(16, 185, 129, 0.28)) 80%, transparent);
 }
 
 .knox-gui-code-line[data-diff="del"] .knox-gui-line-content {
 	background: color-mix(in srgb, var(--vscode-diffEditor-removedTextBackground, rgba(239, 68, 68, 0.28)) 80%, transparent);
+}
+
+.knox-gui-code-line[data-diff="add"] .knox-gui-line-number {
+	background: inherit;
+	box-shadow: inset 3px 0 0 var(--vscode-diffEditor-insertedTextBackground, #10b981);
+}
+
+.knox-gui-code-line[data-diff="del"] .knox-gui-line-number {
+	background: inherit;
+	box-shadow: inset 3px 0 0 var(--vscode-diffEditor-removedTextBackground, #ef4444);
 }
 
 .knox-gui-line-number {
