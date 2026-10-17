@@ -118,8 +118,10 @@
 			style.sheet.insertRule(`@import url(${url});`);
 		};
 
-		const { promisify } = require('util');
-		globalThis._VSCODE_TEST_INIT = promisify(require('glob'))('**/*.css', { cwd: basePath }).then(cssModules => {
+		// glob 9+ is already promise-based (`require('glob').glob`); util.promisify()
+		// on the module namespace throws and skips the import map, so `assert` cannot load.
+		// Do not bind `glob` here: renderer.js is a classic script in the same scope.
+		globalThis._VSCODE_TEST_INIT = require('glob').glob('**/*.css', { cwd: basePath }).then(cssModules => {
 			for (const cssModule of cssModules) {
 				const cssUrl = new URL(cssModule, baseUrl).href;
 				const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;

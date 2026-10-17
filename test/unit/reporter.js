@@ -12,13 +12,53 @@ function parseReporterOption(value) {
 	return r ? { [r[1]]: r[2] } : {};
 }
 
+function reporterNameVariants(name) {
+	if (!name) {
+		return [];
+	}
+	const capitalized = name.charAt(0).toUpperCase() + name.slice(1);
+	return [...new Set([name, capitalized])];
+}
+
+/**
+ * Mocha 12 reporters are ESM (`export { Spec }`). `require()` of those files
+ * returns a module namespace, not a constructor. Prefer mocha.reporters CJS
+ * aliases (`spec` / `Spec`) and unwrap `{ default }` / named exports.
+ */
+function asReporterConstructor(mod, name) {
+	if (typeof mod === 'function') {
+		return mod;
+	}
+	if (!mod || typeof mod !== 'object') {
+		return undefined;
+	}
+	if (typeof mod.default === 'function') {
+		return mod.default;
+	}
+	for (const key of reporterNameVariants(name)) {
+		if (typeof mod[key] === 'function') {
+			return mod[key];
+		}
+	}
+	return undefined;
+}
+
 exports.importMochaReporter = name => {
 	if (name === 'full-json-stream') {
 		return FullJsonStreamReporter;
 	}
 
+	const builtin = asReporterConstructor(mocha.reporters, name);
+	if (builtin) {
+		return builtin;
+	}
+
 	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', name);
-	return require(reporterPath);
+	const loaded = asReporterConstructor(require(reporterPath), name);
+	if (loaded) {
+		return loaded;
+	}
+	throw new TypeError(`Mocha reporter '${name}' is not a constructor`);
 };
 
 exports.applyReporter = (runner, argv) => {
@@ -27,7 +67,10 @@ exports.applyReporter = (runner, argv) => {
 		Reporter = exports.importMochaReporter(argv.reporter);
 	} catch (err) {
 		try {
-			Reporter = require(argv.reporter);
+			Reporter = asReporterConstructor(require(argv.reporter), path.basename(String(argv.reporter), path.extname(String(argv.reporter))));
+			if (!Reporter) {
+				throw new TypeError(`Mocha reporter '${argv.reporter}' is not a constructor`);
+			}
 		} catch (err) {
 			Reporter = process.platform === 'win32' ? mocha.reporters.List : mocha.reporters.Spec;
 			console.warn(`could not load reporter: ${argv.reporter}, using ${Reporter.name}`);
