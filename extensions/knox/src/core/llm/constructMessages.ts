@@ -107,7 +107,8 @@ export function constructMessages(
   }
 
   const plan =
-    formatPlanInject(sessionId) || formatPlanInjectFromHistory(filteredHistory);
+    formatPlanInject(sessionId) ||
+    formatPlanInjectFromHistory(filteredHistory, sessionId);
   if (plan) {
     msgs.push({
       role: "system",

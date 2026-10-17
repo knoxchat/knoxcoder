@@ -248,6 +248,8 @@ export async function runSubagent(
         : DEFAULT_DOOM_LOOP_THRESHOLD,
       compact: createAgentLoopCompactor(extras.llm),
       abortOnCancelled: true,
+      // Parent plan is context for the child, not its work order.
+      holdCompletionWhilePlanOpen: false,
       missingToolMessage: (name) =>
         `Tool "${name}" is not available to this ${profile} subagent.`,
       executeTool: async (tool, args) => {

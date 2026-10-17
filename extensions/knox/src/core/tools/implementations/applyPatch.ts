@@ -52,7 +52,22 @@ async function planOps(
 
     if (op.type === "add") {
       if (existed) {
-        throw new Error(t("patchAddFileExists", { filepath: op.path }));
+        const before = await ide.readFile(uri);
+        const after = op.content;
+        if (before === after) {
+          alreadyApplied.push(op.path);
+          continue;
+        }
+        planned.push({
+          path: op.path,
+          uri,
+          kind: "update",
+          existed: true,
+          before,
+          after,
+          rewriteNote: t("patchAddFileOverwritten", { filepath: op.path }),
+        });
+        continue;
       }
       const after = applyNewRustProjectFileDefaults(op.path, op.content);
       planned.push({

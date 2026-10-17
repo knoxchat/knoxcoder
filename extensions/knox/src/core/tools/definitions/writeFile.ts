@@ -14,13 +14,12 @@ export const writeFileTool: Tool = {
     name: BuiltInToolNames.WriteFile,
     description: `Create a file or overwrite it with the full new contents.
 
-Use this for a complete rewrite of an existing file, or to create a file when you already have the entire contents.
+Use this for a complete rewrite of an existing file, or to create a file when you already have the entire contents. Existing files are overwritten; there is no separate create-only tool.
 Prefer builtin_edit_file for small, targeted changes.
-Prefer builtin_apply_patch for multi-file or multi-hunk edits.
-Prefer builtin_create_new_file when the file must not already exist.
+Prefer builtin_apply_patch for multi-file edits in one call.
 Never use the terminal (cat, echo, heredoc) to write files.
 
-Always emit filepath BEFORE contents. Keep contents under roughly 200 lines: for a bigger file write a skeleton first, then extend it with builtin_edit_file or builtin_apply_patch (a very long call can be cut off and loses its arguments).`,
+Always emit filepath BEFORE contents. Keep contents under roughly 200 lines: for a bigger file write a skeleton first, then extend it with builtin_edit_file (a very long call can be cut off and loses its arguments).`,
     parameters: {
       type: "object",
       required: ["filepath", "contents"],

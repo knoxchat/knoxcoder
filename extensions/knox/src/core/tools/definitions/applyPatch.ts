@@ -12,11 +12,11 @@ export const applyPatchTool: Tool = {
   readonly: false,
   function: {
     name: BuiltInToolNames.ApplyPatch,
-    description: `Apply a Codex-style multi-hunk / multi-file patch atomically.
+    description: `Apply a Codex-style multi-file patch atomically.
 
-Use this when one call should change several files or several regions of a file.
-Prefer builtin_edit_file for a single unique StrReplace. Prefer builtin_write_file for a full rewrite.
+Use this only when one call should change several files. Prefer builtin_edit_file for one file (including several disjoint replacements). Prefer builtin_write_file for a full rewrite.
 Never apply patches via the terminal (patch, sed, git apply).
+Add File overwrites if the path already exists (same as write). Hunks tolerate trailing-whitespace and quote/dash drift.
 
 Format:
 *** Begin Patch
@@ -31,8 +31,8 @@ Format:
 *** End Patch
 
 Rules:
-- Read files before updating them so context matches exactly.
-- Hunks fail if the old side matches 0 times or more than once (add an @@ locator or more context).
+- Read files before updating them so context matches.
+- Hunks fail if the old side matches 0 times or more than once (add an @@ locator or more context). Trailing whitespace and quote/dash drift are tolerated.
 - All operations apply or none do.`,
     parameters: {
       type: "object",

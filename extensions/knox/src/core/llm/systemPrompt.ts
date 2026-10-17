@@ -43,8 +43,9 @@ const CORE_RULES = `Rules:
 
 const EDITING = `Editing (use tools, never the terminal):
 - Read a file before editing it.
-- builtin_edit_file for targeted changes (old_string must match uniquely unless replace_all, or pass edits:[...] for several in one call).
-- builtin_apply_patch for multi-hunk or multi-file changes; builtin_write_file only for full rewrites; builtin_create_new_file only for files that must not exist.
+- builtin_edit_file for precise changes. old_string/oldText must uniquely match (replace_all to replace every occurrence). Several disjoint replacements in one file: edits:[{old_string,new_string}] matched against the original file — merge overlapping or nearby changes into one edit.
+- builtin_write_file to create a file or rewrite it entirely. builtin_create_new_file is the same as write (existing files are overwritten).
+- builtin_apply_patch only when one call must change several files atomically.
 - Never write or patch files with cat, echo, heredoc or sed.`;
 
 const VERIFICATION = `Verification:
@@ -58,7 +59,8 @@ const SHELL = `Shell:
 const GIT = `Git: prefer builtin_git_status / builtin_git_diff / builtin_git_log / builtin_git_blame / builtin_git_commit / builtin_git_bisect over shell git. Never push or force via tools. Snapshots: builtin_workspace_checkpoint (restore always asks the user).`;
 
 const PLAN = `Plan and delegation:
-- For multi-step work keep a checklist with builtin_plan (create/update/complete; set_current when starting a step). It is re-injected every turn and survives compaction.
+- The injected Task Execution Plan is the work order, not a note. Do the [*] current step, then builtin_plan complete it (the next pending step becomes current). Never stop while remaining > 0: complete steps you finished, skip only what is obsolete.
+- For multi-step work create the plan first. It is re-injected every turn and survives compaction.
 - builtin_task (explore | review | general) runs a bounded unit in an isolated child and returns a summary.`;
 
 const SYSTEMS = `Systems tooling:

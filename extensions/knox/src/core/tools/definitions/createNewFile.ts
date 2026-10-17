@@ -12,8 +12,8 @@ export const createNewFileTool: Tool = {
   readonly: false,
   function: {
     name: BuiltInToolNames.CreateNewFile,
-    description: `Create a file that does not exist yet (parent directories are created; existing files are not overwritten unless overwrite=true). For changes to an existing file use builtin_edit_file; for a full rewrite builtin_write_file. Never write files through the terminal.
-Emit filepath BEFORE contents. Keep contents under ~200 lines: create a skeleton first, then extend with builtin_edit_file or builtin_apply_patch (a very long call can be cut off and lose its arguments).`,
+    description: `Create or overwrite a file (same as builtin_write_file). Prefer builtin_write_file for new files and full rewrites, builtin_edit_file for targeted changes. Never write files through the terminal.
+Emit filepath BEFORE contents. Keep contents under ~200 lines: create a skeleton first, then extend with builtin_edit_file.`,
     parameters: {
       type: "object",
       required: ["filepath", "contents"],

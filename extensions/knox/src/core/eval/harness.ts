@@ -590,6 +590,7 @@ export async function runAgentEval(
           maxSteps: o.maxSteps,
           doomLoopThreshold: o.doomLoopThreshold,
           holdCompletionWhileOracleRed: o.holdCompletionWhileOracleRed,
+          holdCompletionWhilePlanOpen: false,
           executeTool: o.executeTool,
           emit: (event) => {
             if (event.type === "step") {
@@ -608,6 +609,7 @@ export async function runAgentEval(
         ? undefined
         : options.doomLoopThreshold,
     holdCompletionWhileOracleRed: options.holdCompletionWhileOracleRed,
+    holdCompletionWhilePlanOpen: false,
     abortOnCancelled: true,
     missingToolMessage: (name) => `Tool "${name}" is not in the eval catalog.`,
     executeTool: async (tool, args) => {

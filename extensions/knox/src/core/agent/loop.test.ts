@@ -2,12 +2,19 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage, Tool, ToolExtras } from "..";
 
 import { BuiltInToolNames } from "../tools/builtIn";
 import { ToolCallError, ToolCallErrorCode } from "../tools/errors";
 import { collectAssistantTurn, runAgentLoop } from "./loop";
+import {
+  completePlanStep,
+  createPlan,
+  formatPlanText,
+  PLAN_HOLD_MARKER,
+  resetPlansForTests,
+} from "../tools/planStore";
 import { setJevClientForTests } from "../jev/client";
 import { applyJevConfig } from "../jev/config";
 
@@ -34,6 +41,10 @@ const readTool = {
 } as Tool;
 
 describe("runAgentLoop", () => {
+  afterEach(() => {
+    resetPlansForTests();
+  });
+
   it("returns a text-only first turn as completed with zero steps", async () => {
     const result = await runAgentLoop({
       extras: extras([
@@ -47,6 +58,120 @@ describe("runAgentLoop", () => {
     expect(result.stoppedReason).toBe("completed");
     expect(result.steps).toBe(0);
     expect(result.summary).toContain("src/index.ts");
+  });
+
+  it("does not end while the task plan still has open steps", async () => {
+    createPlan({
+      sessionId: "sess-hold",
+      title: "Snake",
+      steps: ["Cargo.toml", "main.rs"],
+    });
+    const result = await runAgentLoop({
+      extras: extras([
+        [{ role: "assistant", content: "All done, tests pass." }],
+        [{ role: "assistant", content: "Still done." }],
+        [{ role: "assistant", content: "Stopping now." }],
+      ]),
+      messages: [{ role: "user", content: "Build snake." }],
+      tools: [readTool],
+      compact: false,
+      sessionId: "sess-hold",
+      maxSteps: 2,
+      executeTool: vi.fn(),
+    });
+    expect(result.stoppedReason).toBe("max_steps");
+    expect(result.steps).toBe(2);
+    const held = result.messages.filter(
+      (message) =>
+        message.role === "system" &&
+        String(message.content).includes(PLAN_HOLD_MARKER),
+    );
+    expect(held.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("ends once remaining plan steps are completed", async () => {
+    createPlan({
+      sessionId: "sess-close",
+      title: "Snake",
+      steps: ["Cargo.toml", "main.rs"],
+    });
+    const planTool = {
+      function: { name: BuiltInToolNames.Plan },
+      readonly: false,
+    } as Tool;
+    const executeTool = vi.fn(async (_tool, args: Record<string, unknown>) => {
+      const plan = completePlanStep({
+        sessionId: "sess-close",
+        stepId: String(args.step_id ?? ""),
+      });
+      return [{ name: "Plan", description: "updated", content: formatPlanText(plan) }];
+    });
+    const result = await runAgentLoop({
+      extras: extras([
+        [{ role: "assistant", content: "All done, tests pass." }],
+        [
+          {
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "c1",
+                type: "function",
+                function: {
+                  name: BuiltInToolNames.Plan,
+                  arguments: '{"action":"complete","step_id":"1"}',
+                },
+              },
+              {
+                id: "c2",
+                type: "function",
+                function: {
+                  name: BuiltInToolNames.Plan,
+                  arguments: '{"action":"complete","step_id":"2"}',
+                },
+              },
+            ],
+          },
+        ],
+        [{ role: "assistant", content: "Plan closed." }],
+      ]),
+      messages: [{ role: "user", content: "Build snake." }],
+      tools: [planTool],
+      compact: false,
+      sessionId: "sess-close",
+      executeTool,
+    });
+    expect(result.stoppedReason).toBe("completed");
+    expect(result.summary).toContain("Plan closed");
+    expect(executeTool).toHaveBeenCalledTimes(2);
+    const held = result.messages.filter(
+      (message) =>
+        message.role === "system" &&
+        String(message.content).includes(PLAN_HOLD_MARKER),
+    );
+    expect(held).toHaveLength(1);
+  });
+
+  it("can disable plan hold-completion", async () => {
+    createPlan({
+      sessionId: "sess-hold-off",
+      title: "Snake",
+      steps: ["Cargo.toml"],
+    });
+    const result = await runAgentLoop({
+      extras: extras([
+        [{ role: "assistant", content: "Shipped." }],
+      ]),
+      messages: [{ role: "user", content: "Build snake." }],
+      tools: [readTool],
+      compact: false,
+      sessionId: "sess-hold-off",
+      holdCompletionWhilePlanOpen: false,
+      executeTool: vi.fn(),
+    });
+    expect(result.stoppedReason).toBe("completed");
+    expect(result.steps).toBe(0);
+    expect(result.summary).toContain("Shipped");
   });
 
   it("executes a tool then summarizes", async () => {

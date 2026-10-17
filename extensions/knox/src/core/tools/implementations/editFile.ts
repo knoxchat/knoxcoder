@@ -2,6 +2,14 @@ import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
 import { t } from "../../i18n/index.js";
 import { getUriPathBasename } from "../../util/uri";
 import { ToolCallError, ToolCallErrorCode } from "../errors";
+import {
+  applyEditsAgainstOriginal,
+  FileEditMatchError,
+  normalizeToLF,
+  restoreLineEndings,
+  detectLineEnding,
+  splitBom,
+} from "../fileEditCore";
 
 import { ToolImpl } from ".";
 import { evaluateRustEditGuard } from "../rustEditGuard";
@@ -214,33 +222,87 @@ export interface EditSpec {
   replace_all?: boolean;
 }
 
+function editText(value: unknown, ...aliases: unknown[]): string | undefined {
+  for (const candidate of [value, ...aliases]) {
+    if (typeof candidate === "string") {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+function parseEditsField(raw: unknown): unknown[] | undefined {
+  if (Array.isArray(raw)) {
+    return raw;
+  }
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return [raw];
+  }
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      if (parsed && typeof parsed === "object") {
+        return [parsed];
+      }
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+function specFromPair(
+  oldString: unknown,
+  newString: unknown,
+  replaceAll: unknown,
+  index?: number,
+): EditSpec {
+  const oldText = editText(oldString);
+  const next = editText(newString);
+  if (typeof oldText !== "string" || typeof next !== "string") {
+    throw new Error(
+      index === undefined
+        ? t("missingRequiredParam", { param: "old_string" })
+        : `edits[${index}] needs string old_string/oldText and new_string/newText`,
+    );
+  }
+  return {
+    old_string: oldText,
+    new_string: next,
+    replace_all: replaceAll === true,
+  };
+}
+
 /** Normalize the single-edit and `edits: [...]` call shapes to one list. */
 export function collectEdits(args: any): EditSpec[] {
-  if (Array.isArray(args.edits) && args.edits.length > 0) {
-    return args.edits.map((e: any, i: number) => {
-      if (!e || typeof e.old_string !== "string" || typeof e.new_string !== "string") {
-        throw new Error(`edits[${i}] needs string old_string and new_string`);
-      }
-      return {
-        old_string: e.old_string,
-        new_string: e.new_string,
-        replace_all: e.replace_all === true,
-      };
+  const listed = parseEditsField(args.edits);
+  const specs: EditSpec[] = [];
+  if (listed && listed.length > 0) {
+    listed.forEach((entry: any, i: number) => {
+      specs.push(
+        specFromPair(
+          editText(entry?.old_string, entry?.oldText, entry?.old_text),
+          editText(entry?.new_string, entry?.newText, entry?.new_text),
+          entry?.replace_all ?? entry?.replaceAll,
+          i,
+        ),
+      );
     });
   }
-  if (typeof args.old_string !== "string") {
+  const legacyOld = editText(args.old_string, args.oldText, args.old_text);
+  const legacyNew = editText(args.new_string, args.newText, args.new_text);
+  if (typeof legacyOld === "string" && typeof legacyNew === "string") {
+    specs.push(
+      specFromPair(legacyOld, legacyNew, args.replace_all ?? args.replaceAll),
+    );
+  }
+  if (specs.length === 0) {
     throw new Error(t("missingRequiredParam", { param: "old_string" }));
   }
-  if (typeof args.new_string !== "string") {
-    throw new Error(t("missingRequiredParam", { param: "new_string" }));
-  }
-  return [
-    {
-      old_string: args.old_string,
-      new_string: args.new_string,
-      replace_all: args.replace_all === true,
-    },
-  ];
+  return specs;
 }
 
 /** True when every line break in the file is CRLF. */
@@ -264,7 +326,13 @@ export function applyEditToContent(
     throw new Error(label + t("editOldStringEmpty"));
   }
   if (oldString === newString) {
-    throw new Error(label + t("editOldStringUnchanged"));
+    // Models often include a "change" that is already the desired text.
+    // Failing the whole atomic batch is what sent them shopping other tools.
+    return {
+      next: content,
+      replaced: 0,
+      note: "skipped identical old_string/new_string (already correct).",
+    };
   }
 
   let matches = countExactOccurrences(content, oldString);
@@ -306,6 +374,96 @@ export function applyEditToContent(
   return { next, replaced: edit.replace_all ? matches : 1, note };
 }
 
+function applySequentialEdits(
+  filepath: string,
+  content: string,
+  edits: EditSpec[],
+): { next: string; replaced: number; note: string } {
+  let next = content;
+  let replaced = 0;
+  const notes: string[] = [];
+  edits.forEach((edit, i) => {
+    const label =
+      edits.length > 1
+        ? `Edit ${i + 1} of ${edits.length} failed (no changes written): `
+        : "";
+    const r = applyEditToContent(filepath, next, edit, label);
+    next = r.next;
+    replaced += r.replaced;
+    if (r.note) {
+      notes.push(r.note);
+    }
+  });
+  return { next, replaced, note: notes.join("\n") };
+}
+
+/**
+ * Prefer Pi original-file matching (disjoint edits, fuzzy unicode/quotes).
+ * Fall back to sequential Knox matching so chained edits in one call still apply.
+ */
+function isNoOpEdit(edit: EditSpec): boolean {
+  return edit.old_string.length > 0 && edit.old_string === edit.new_string;
+}
+
+function withSkipNote(result: { next: string; replaced: number; note: string }, skipped: number) {
+  if (skipped === 0) {
+    return result;
+  }
+  const skip =
+    skipped === 1
+      ? "Skipped 1 no-op replacement (old_string === new_string)."
+      : `Skipped ${skipped} no-op replacements (old_string === new_string).`;
+  return {
+    ...result,
+    note: result.note ? `${skip}\n${result.note}` : skip,
+  };
+}
+
+export function applyCollectedEdits(
+  filepath: string,
+  content: string,
+  edits: EditSpec[],
+): { next: string; replaced: number; note: string } {
+  const changing = edits.filter((edit) => !isNoOpEdit(edit));
+  const skipped = edits.length - changing.length;
+  if (changing.length === 0) {
+    return withSkipNote({ next: content, replaced: 0, note: "" }, skipped);
+  }
+
+  if (changing.some((edit) => edit.replace_all)) {
+    return withSkipNote(applySequentialEdits(filepath, content, changing), skipped);
+  }
+
+  const { bom, text } = splitBom(content);
+  const ending = detectLineEnding(text);
+  const normalized = normalizeToLF(text);
+  try {
+    const original = applyEditsAgainstOriginal(
+      normalized,
+      changing.map((edit) => ({ oldText: edit.old_string, newText: edit.new_string })),
+      filepath,
+    );
+    return withSkipNote(
+      {
+        next: bom + restoreLineEndings(original.next, ending),
+        replaced: original.replaced,
+        note: original.usedFuzzyMatch
+          ? "old_string did not match exactly; it matched after normalizing quotes, dashes, or trailing whitespace."
+          : "",
+      },
+      skipped,
+    );
+  } catch (error) {
+    if (!(error instanceof FileEditMatchError) || error.kind === "empty" || error.kind === "overlap") {
+      throw error;
+    }
+    if (error.kind === "no_change") {
+      return withSkipNote({ next: content, replaced: 0, note: "" }, skipped);
+    }
+    return withSkipNote(applySequentialEdits(filepath, content, changing), skipped);
+  }
+}
+
 /** Compact unified-style diff of the changed region (common head/tail trimmed). */
 export function compactDiff(before: string, after: string, maxLines = 40): string {
   const a = before.split("\n");
@@ -336,7 +494,7 @@ export function compactDiff(before: string, after: string, maxLines = 40): strin
   return lines.join("\n");
 }
 
-// ─── Stale-read detection ────────────────────────────────────────────────
+// --- Stale-read detection ------------------------------------------------
 // Remembers a content hash for files the agent has read or written. If the
 // file differs on disk when it is edited later, someone else changed it.
 
@@ -369,12 +527,20 @@ export function resetFileTracking(): void {
 }
 
 export const editFileImpl: ToolImpl = async (args, extras) => {
-  if (!args.filepath || typeof args.filepath !== "string") {
+  const rawPath =
+    typeof args.filepath === "string"
+      ? args.filepath
+      : typeof args.path === "string"
+        ? args.path
+        : typeof args.file_path === "string"
+          ? args.file_path
+          : "";
+  if (!rawPath) {
     throw new Error(t("missingRequiredParam", { param: "filepath" }));
   }
   const edits = collectEdits(args);
 
-  const filepath = args.filepath.trim();
+  const filepath = rawPath.trim();
   if (!filepath) {
     throw new Error(t("filepathCannotBeEmpty"));
   }
@@ -414,15 +580,12 @@ export const editFileImpl: ToolImpl = async (args, extras) => {
   let next = content;
   let replaced = 0;
   const notes: string[] = [];
-  edits.forEach((edit, i) => {
-    const label = edits.length > 1 ? `Edit ${i + 1} of ${edits.length} failed (no changes written): ` : "";
-    const r = applyEditToContent(filepath, next, edit, label);
-    next = r.next;
-    replaced += r.replaced;
-    if (r.note) {
-      notes.push(r.note);
-    }
-  });
+  const applied = applyCollectedEdits(filepath, content, edits);
+  next = applied.next;
+  replaced = applied.replaced;
+  if (applied.note) {
+    notes.push(applied.note);
+  }
   const recoveredNote = notes.join("\n");
 
   if (extras.abortSignal?.aborted) {

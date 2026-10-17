@@ -122,6 +122,8 @@ export interface ChatTurnOptions {
   /** Seed for resuming a turn that already ran tools. */
   initialDoomCalls?: DoomLoopCall[];
   holdCompletionWhileOracleRed?: boolean;
+  /** Default on: do not end the turn while builtin_plan remaining > 0. */
+  holdCompletionWhilePlanOpen?: boolean;
   retry?: StreamRetryOptions | false;
   fallbackLlm?: Pick<ToolExtras, "llm">["llm"];
   compact?: false | AgentLoopCompactor;
@@ -252,6 +254,8 @@ export async function runChatTurn(
     doomLoopThreshold: options.doomLoopThreshold,
     initialDoomCalls: options.initialDoomCalls,
     holdCompletionWhileOracleRed: options.holdCompletionWhileOracleRed,
+    holdCompletionWhilePlanOpen: options.holdCompletionWhilePlanOpen,
+    sessionId,
     retry: options.retry,
     fallbackLlm: options.fallbackLlm,
     compact: options.compact,

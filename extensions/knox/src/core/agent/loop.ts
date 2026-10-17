@@ -59,6 +59,11 @@ import {
   type StreamRetryOptions,
 } from "./streamRetry";
 import { canRunToolInParallel } from "./toolBatch";
+import {
+  buildPlanHoldInstruction,
+  countPlanRemaining,
+  resolveOpenPlan,
+} from "../tools/planStore";
 
 export type AgentLoopStoppedReason =
   | "completed"
@@ -163,6 +168,15 @@ export interface AgentLoopOptions {
    * assistant message is not `completed` (RL-20). Honor max-steps / abort.
    */
   holdCompletionWhileOracleRed?: boolean;
+  /**
+   * When a task plan still has pending/in_progress steps, a no-tool
+   * assistant message is not `completed`. Same as oracle-red: keep
+   * going until remaining is 0, max-steps, or abort. Default on.
+   * Pass `false` to disable.
+   */
+  holdCompletionWhilePlanOpen?: boolean;
+  /** Session whose builtin_plan store should drive hold-completion. */
+  sessionId?: string;
   /** Retry transient stream failures with backoff (K-011). `false` disables. */
   retry?: StreamRetryOptions | false;
   /** Optional fallback model used after `retry.fallbackAfter` failed attempts. */
@@ -625,6 +639,7 @@ export async function runAgentLoop(
   const abortOnCancelled = options.abortOnCancelled !== false;
   const parallelReadonly = options.parallelReadonly !== false;
   const doomThreshold = resolveDoomLoopThresholdOption(options.doomLoopThreshold);
+  const holdPlanOpen = options.holdCompletionWhilePlanOpen !== false;
   const compactFn =
     options.compact === false
       ? undefined
@@ -761,6 +776,20 @@ export async function runAgentLoop(
           messages.push({
             role: "system",
             content: `Oracle still red: ${oracleErrors} rustc/clippy/test error(s). Continue or ask the user. Do not treat this as done.`,
+          });
+          steps += 1;
+          continue;
+        }
+        const openPlan = resolveOpenPlan({
+          sessionId: options.sessionId,
+          messages,
+        });
+        const planRemaining = openPlan ? countPlanRemaining(openPlan) : 0;
+        if (holdPlanOpen && openPlan && planRemaining > 0) {
+          messages.push(assistant);
+          messages.push({
+            role: "system",
+            content: buildPlanHoldInstruction(openPlan),
           });
           steps += 1;
           continue;

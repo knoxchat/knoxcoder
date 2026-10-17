@@ -53,14 +53,11 @@ export const createNewFileImpl: ToolImpl = async (args, extras) => {
     throw new Error(t("failedToResolveFilePath", { filepath, error: (error as Error).message }));
   }
   
-  // Check if file already exists
+  // Check if file already exists. Pi write semantics: creating an existing
+  // file overwrites it instead of failing — that failure is what made models
+  // retry with builtin_write_file / builtin_apply_patch.
   const fileExists = await extras.ide.fileExists(resolvedFileUri);
-  
-  if (fileExists && !overwrite) {
-    throw new Error(
-      t("fileAlreadyExists", { filepath })
-    );
-  }
+  const didOverwriteExisting = fileExists && !overwrite;
   
   // Determine content to write
   let contentToWrite = args.contents;
@@ -157,12 +154,15 @@ export const createNewFileImpl: ToolImpl = async (args, extras) => {
   const basename = getUriPathBasename(filepath);
   const action = fileExists ? 'Updated' : 'Created';
   const templateInfo = template && template !== 'none' ? ` using ${template} template` : '';
+  const overwriteNote = didOverwriteExisting
+    ? `\n\n${t("fileExistedOverwritten", { filepath })}`
+    : "";
   
   return [
     {
       name: basename,
       description: `${action} file: ${filepath}${templateInfo}`,
-      content: `File "${filepath}" has been ${action.toLowerCase()} successfully.\n\nPath: ${resolvedFileUri}\nLanguage: ${language}\nSize: ${contentToWrite.length} bytes\n\n${contentToWrite.substring(0, 500)}${contentToWrite.length > 500 ? '\n...(truncated)' : ''}${rewriteNote ? `\n\n${rewriteNote}` : ''}`,
+      content: `File "${filepath}" has been ${action.toLowerCase()} successfully.\n\nPath: ${resolvedFileUri}\nLanguage: ${language}\nSize: ${contentToWrite.length} bytes\n\n${contentToWrite.substring(0, 500)}${contentToWrite.length > 500 ? '\n...(truncated)' : ''}${rewriteNote ? `\n\n${rewriteNote}` : ''}${overwriteNote}`,
       uri: {
         type: "file",
         value: resolvedFileUri,

@@ -45,9 +45,10 @@ import {
   TOOL_GLOB_ARG_KEYS,
   TOOL_PATH_ARG_KEYS,
 } from "../util/toolFilePath";
+import { extractPatchFilePaths } from "./applyPatchFormat";
 import type { HookRunner } from "../hooks/hooks.js";
 
-// ─── Retry Configuration ─────────────────────────────────────────────────────
+// --- Retry Configuration -----------------------------------------------------
 
 export interface RetryOptions {
   /** Maximum number of retry attempts (default: 3) */
@@ -72,7 +73,7 @@ const DEFAULT_RETRY: RetryOptions = {
   jitter: true,
 };
 
-// ─── Timeout Configuration ───────────────────────────────────────────────────
+// --- Timeout Configuration ---------------------------------------------------
 
 export interface TimeoutOptions {
   /** Timeout in milliseconds (default: 30000) */
@@ -83,7 +84,7 @@ const DEFAULT_TIMEOUT: TimeoutOptions = {
   timeoutMs: 30_000,
 };
 
-// ─── Circuit Breaker ─────────────────────────────────────────────────────────
+// --- Circuit Breaker ---------------------------------------------------------
 
 export interface CircuitBreakerOptions {
   /** Number of consecutive failures before opening circuit (default: 5) */
@@ -109,7 +110,7 @@ interface CircuitBreakerState {
   halfOpenSuccesses: number;
 }
 
-// ─── Middleware Options ──────────────────────────────────────────────────────
+// --- Middleware Options ------------------------------------------------------
 
 export interface ToolCallMiddlewareOptions {
   retry?: Partial<RetryOptions> | false;
@@ -140,7 +141,7 @@ const DEFAULT_OPTIONS: Required<ToolCallMiddlewareOptions> = {
   hooks: null,
 };
 
-// ─── File Write Lock ─────────────────────────────────────────────────────────
+// --- File Write Lock ---------------------------------------------------------
 
 const fileWriteLocks = new Map<string, Promise<void>>();
 
@@ -166,7 +167,40 @@ async function acquireWriteLock(filePath: string): Promise<() => void> {
   };
 }
 
-// ─── Performance Metrics ─────────────────────────────────────────────────────
+/** Acquire locks in sorted order so multi-file patches cannot deadlock. */
+async function acquireWriteLocks(paths: string[]): Promise<() => void> {
+  const unique = [...new Set(paths.filter((p) => typeof p === "string" && p.trim()))].sort();
+  const releases: Array<() => void> = [];
+  for (const path of unique) {
+    releases.push(await acquireWriteLock(path));
+  }
+  return () => {
+    for (let i = releases.length - 1; i >= 0; i--) {
+      releases[i]();
+    }
+  };
+}
+
+function collectWriteLockPaths(
+  toolName: string,
+  args: Record<string, any>,
+): string[] {
+  if (toolName === BuiltInToolNames.ApplyPatch) {
+    const patch =
+      typeof args.patch === "string"
+        ? args.patch
+        : typeof args.diff === "string"
+          ? args.diff
+          : "";
+    return extractPatchFilePaths(patch);
+  }
+  if (typeof args.filepath === "string" && args.filepath.trim()) {
+    return [args.filepath];
+  }
+  return [];
+}
+
+// --- Performance Metrics -----------------------------------------------------
 
 interface ToolMetrics {
   totalCalls: number;
@@ -216,7 +250,7 @@ export function resetToolMetrics(): void {
   metricsStore.clear();
 }
 
-// ─── Circuit Breaker Store ───────────────────────────────────────────────────
+// --- Circuit Breaker Store ---------------------------------------------------
 
 const circuitBreakers = new Map<string, CircuitBreakerState>();
 
@@ -250,7 +284,7 @@ export function resetAllCircuitBreakers(): void {
   circuitBreakers.clear();
 }
 
-// ─── JSON Repair ─────────────────────────────────────────────────────────────
+// --- JSON Repair -------------------------------------------------------------
 
 /**
  * Attempt to repair malformed JSON argument strings.
@@ -367,7 +401,7 @@ function extractArgsFromString(str: string): Record<string, any> {
   return result;
 }
 
-// ─── Argument Validation ─────────────────────────────────────────────────────
+// --- Argument Validation -----------------------------------------------------
 
 /**
  * Fallback required params when a Tool has no JSON Schema `required` array.
@@ -507,7 +541,7 @@ export function truncatedArgsError(
   });
 }
 
-// ─── Tool-Specific Timeout Overrides ─────────────────────────────────────────
+// --- Tool-Specific Timeout Overrides -----------------------------------------
 
 const TOOL_TIMEOUT_OVERRIDES: Record<string, number> = {
   [BuiltInToolNames.RunTerminalCommand]: 120_000, // Self-backgrounds before this
@@ -524,7 +558,7 @@ const TOOL_TIMEOUT_OVERRIDES: Record<string, number> = {
   [BuiltInToolNames.Debug]: 30_000,
 };
 
-// ─── Write Operation Detection ───────────────────────────────────────────────
+// --- Write Operation Detection -----------------------------------------------
 
 const WRITE_TOOLS = new Set([
   BuiltInToolNames.CreateNewFile,
@@ -544,7 +578,7 @@ function isWriteOperation(toolName: string): boolean {
   return WRITE_TOOLS.has(toolName as BuiltInToolNames);
 }
 
-// ─── Logging ─────────────────────────────────────────────────────────────────
+// --- Logging -----------------------------------------------------------------
 
 function logToolCall(
   level: "info" | "warn" | "error",
@@ -568,7 +602,7 @@ function logToolCall(
   }
 }
 
-// ─── Sleep with Jitter ───────────────────────────────────────────────────────
+// --- Sleep with Jitter -------------------------------------------------------
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -589,7 +623,7 @@ function calculateBackoff(
   return capped;
 }
 
-// ─── Main Middleware ─────────────────────────────────────────────────────────
+// --- Main Middleware ---------------------------------------------------------
 
 /**
  * Enterprise-grade tool call middleware.
@@ -630,7 +664,7 @@ export async function executeToolWithMiddleware(
     });
   }
 
-  // ── Step 1: Parse & Repair Arguments ──────────────────────────────────
+  // -- Step 1: Parse & Repair Arguments ----------------------------------
   let args: Record<string, any>;
   let argsRepaired = false;
   try {
@@ -651,7 +685,7 @@ export async function executeToolWithMiddleware(
     });
   }
 
-  // ── Step 1b: PreToolUse hooks (may deny or rewrite args) ──────────────
+  // -- Step 1b: PreToolUse hooks (may deny or rewrite args) --------------
   if (opts.hooks?.has("PreToolUse")) {
     const pre = await opts.hooks.run("PreToolUse", { toolName, args });
     if (pre.denied) {
@@ -673,7 +707,7 @@ export async function executeToolWithMiddleware(
     }
   }
 
-  // ── Step 2: Validate Arguments ────────────────────────────────────────
+  // -- Step 2: Validate Arguments ----------------------------------------
   if (opts.validateArgs) {
     try {
       validateToolArgs(toolName, args, tool);
@@ -695,7 +729,7 @@ export async function executeToolWithMiddleware(
     }
   }
 
-  // ── Step 2b: Path / command policy (deny is hard; ask is GUI-only) ──
+  // -- Step 2b: Path / command policy (deny is hard; ask is GUI-only) --
   try {
     const workspaceDirs =
       options?.workspaceDirs ??
@@ -717,7 +751,7 @@ export async function executeToolWithMiddleware(
         });
   }
 
-  // ── Step 3: Circuit Breaker ───────────────────────────────────────────
+  // -- Step 3: Circuit Breaker -------------------------------------------
   if (opts.circuitBreaker !== false) {
     const cbOpts = {
       ...DEFAULT_CIRCUIT_BREAKER,
@@ -726,13 +760,16 @@ export async function executeToolWithMiddleware(
     checkCircuitBreaker(toolName, cbOpts);
   }
 
-  // ── Step 4: Acquire Write Lock (if applicable) ────────────────────────
+  // -- Step 4: Acquire Write Lock (if applicable) ------------------------
   let releaseWriteLock: (() => void) | undefined;
-  if (isWriteOperation(toolName) && args.filepath) {
-    releaseWriteLock = await acquireWriteLock(args.filepath);
+  if (isWriteOperation(toolName)) {
+    const lockPaths = collectWriteLockPaths(toolName, args);
+    if (lockPaths.length > 0) {
+      releaseWriteLock = await acquireWriteLocks(lockPaths);
+    }
   }
 
-  // ── Step 5: Execute With Retry + Timeout ──────────────────────────────
+  // -- Step 5: Execute With Retry + Timeout ------------------------------
   try {
     const retryOpts =
       opts.retry !== false
@@ -761,7 +798,7 @@ export async function executeToolWithMiddleware(
       abortSignal,
     );
 
-    // ── Success ───────────────────────────────────────────────────────
+    // -- Success -------------------------------------------------------
     metrics.successCount++;
     const duration = Date.now() - startTime;
     updateAvgDuration(metrics, duration);
@@ -795,7 +832,7 @@ export async function executeToolWithMiddleware(
     }
     return redacted;
   } catch (error) {
-    // ── Failure ─────────────────────────────────────────────────────
+    // -- Failure -----------------------------------------------------
     metrics.failureCount++;
     const duration = Date.now() - startTime;
     updateAvgDuration(metrics, duration);
@@ -830,7 +867,7 @@ export async function executeToolWithMiddleware(
   }
 }
 
-// ─── Internal Helpers ────────────────────────────────────────────────────────
+// --- Internal Helpers --------------------------------------------------------
 
 function mergeOptions(
   partial?: Partial<ToolCallMiddlewareOptions>,
@@ -927,6 +964,45 @@ export function normalizeToolArgs(
           "line",
         ]);
         copyIfMissing("endLine", ["end_line", "end", "to_line"]);
+      }
+      if (toolName === BuiltInToolNames.EditFile) {
+        copyIfMissing("old_string", ["oldText", "old_text", "search", "from"]);
+        copyIfMissing("new_string", ["newText", "new_text", "replace", "to"]);
+        copyIfMissing("replace_all", ["replaceAll"]);
+        if (typeof next.edits === "string") {
+          try {
+            const parsed = JSON.parse(next.edits);
+            if (Array.isArray(parsed) || (parsed && typeof parsed === "object")) {
+              next.edits = parsed;
+            }
+          } catch {
+            // leave as-is; collectEdits reports a clear error
+          }
+        } else if (
+          next.edits &&
+          typeof next.edits === "object" &&
+          !Array.isArray(next.edits)
+        ) {
+          next.edits = [next.edits];
+        }
+        if (Array.isArray(next.edits)) {
+          next.edits = next.edits.map((entry: any) => {
+            if (!entry || typeof entry !== "object") {
+              return entry;
+            }
+            const row = { ...entry };
+            if (isMissingToolArg(row.old_string)) {
+              row.old_string = row.oldText ?? row.old_text;
+            }
+            if (isMissingToolArg(row.new_string)) {
+              row.new_string = row.newText ?? row.new_text;
+            }
+            if (isMissingToolArg(row.replace_all)) {
+              row.replace_all = row.replaceAll;
+            }
+            return row;
+          });
+        }
       }
       break;
     case BuiltInToolNames.ViewSubdirectory:

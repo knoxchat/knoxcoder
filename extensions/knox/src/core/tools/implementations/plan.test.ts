@@ -6,9 +6,12 @@ import { planImpl } from "./plan";
 import {
   createPlan,
   formatPlanInject,
+  formatPlanInjectFromHistory,
   formatPlanText,
   parsePlanText,
+  PLAN_CLEARED_TEXT,
   resetPlansForTests,
+  resolveOpenPlan,
 } from "../planStore";
 
 function extras(sessionId = "sess-plan"): ToolExtras {
@@ -51,7 +54,21 @@ describe("builtin_plan", () => {
     await planImpl({ action: "complete", step_id: "1" }, extras());
     const listed = await planImpl({ action: "list" }, extras());
     expect(listed[0].content).toMatch(/\[x\].*Read MAINTAINERS/);
+    expect(listed[0].content).toMatch(/\[\*].*Reproduce panic/);
     expect(formatPlanInject("sess-plan")).toContain("7 remaining / 8 total");
+  });
+
+  it("create starts the first step and complete advances the next", async () => {
+    const created = await planImpl(
+      { action: "create", title: "Snake", steps: ["Cargo.toml", "main.rs", "tests"] },
+      extras(),
+    );
+    expect(created[0].content).toMatch(/\[\*].*Cargo\.toml/);
+    await planImpl({ action: "complete", step_id: "1" }, extras());
+    const listed = await planImpl({ action: "list" }, extras());
+    expect(listed[0].content).toMatch(/\[x\].*Cargo\.toml/);
+    expect(listed[0].content).toMatch(/\[\*].*main\.rs/);
+    expect(listed[0].content).toContain("2 remaining / 3 total");
   });
 
   it("isolates plans by session", async () => {
@@ -70,6 +87,63 @@ describe("builtin_plan", () => {
     const text = formatPlanInject("sess-plan");
     expect(text).toContain("second");
     expect(text).toMatch(/\[-\].*second/);
+  });
+
+  it("skip of the current step starts the next pending one", async () => {
+    await planImpl(
+      { action: "create", title: "Snake", steps: ["Cargo.toml", "main.rs"] },
+      extras(),
+    );
+    await planImpl({ action: "skip", step_id: "1" }, extras());
+    const listed = await planImpl({ action: "list" }, extras());
+    expect(listed[0].content).toMatch(/\[-\].*Cargo\.toml/);
+    expect(listed[0].content).toMatch(/\[\*].*main\.rs/);
+  });
+
+  it("restores the live store from history so complete still works after reload", async () => {
+    const created = createPlan({
+      sessionId: "sess-restore",
+      title: "Snake",
+      steps: ["Cargo.toml", "main.rs"],
+    });
+    const history = [
+      {
+        message: { content: formatPlanText(created) },
+        contextItems: [
+          {
+            name: "Plan",
+            description: "created",
+            content: formatPlanText(created),
+          },
+        ],
+      },
+    ];
+    resetPlansForTests();
+    expect(formatPlanInject("sess-restore")).toBe("");
+    expect(formatPlanInjectFromHistory(history, "sess-restore")).toContain(
+      "Cargo.toml",
+    );
+    expect(formatPlanInject("sess-restore")).toContain("[*] ");
+    await planImpl({ action: "complete", step_id: "1" }, extras("sess-restore"));
+    expect(formatPlanInject("sess-restore")).toMatch(/\[x\].*Cargo\.toml/);
+    expect(formatPlanInject("sess-restore")).toMatch(/\[\*].*main\.rs/);
+  });
+
+  it("resolveOpenPlan ignores a plan that was cleared in the transcript", () => {
+    const plan = createPlan({
+      sessionId: "sess-clear",
+      title: "Snake",
+      steps: ["Cargo.toml"],
+    });
+    const messages = [
+      { role: "tool", content: formatPlanText(plan) },
+      { role: "tool", content: PLAN_CLEARED_TEXT },
+    ];
+    resetPlansForTests();
+    expect(
+      resolveOpenPlan({ sessionId: "sess-clear", messages }),
+    ).toBeUndefined();
+    expect(resolveOpenPlan({ messages })).toBeUndefined();
   });
 
   it("round-trips formatPlanText through parsePlanText", () => {

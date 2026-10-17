@@ -6,7 +6,7 @@ This extension adds VS Code host features around Knox Agent (checkpoints, shadow
 
 ### 1. Task plan (product path)
 
-The Agent loop plans with **`builtin_plan`** (create/add/update/complete). That plan is injected every turn and survives compaction. There is no host-side planner: the former `ReasoningEngine` (`knox.analyzeTask`, `knox.structuredSolve`, `knox.performTaskAnalysis`) was removed in 2.0.0.
+The Agent loop plans with **`builtin_plan`** (create/add/update/complete/skip). That plan is the work order: it is injected every turn, the current step auto-advances on complete/skip, and the turn cannot end while remaining > 0. There is no host-side planner: the former `ReasoningEngine` (`knox.analyzeTask`, `knox.structuredSolve`, `knox.performTaskAnalysis`) was removed in 2.0.0.
 
 ### 2. File Navigation Intelligence
 

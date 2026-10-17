@@ -207,6 +207,7 @@ async function executeToolIteration(
     maxSteps: toolRuntime.maxStepsPerIteration,
     doomLoopThreshold: toolRuntime.doomLoopThreshold,
     holdCompletionWhileOracleRed: true,
+    sessionId,
     compact: createAgentLoopCompactor(stepLlm),
     permissionMode: toolRuntime.permission?.mode,
     approveTool: async (tool, args, call) => {

@@ -18,6 +18,7 @@
  */
 
 import { sanitizeToolFilePath } from "../util/toolFilePath";
+import { findLineSequence } from "./fileEditCore";
 
 export type PatchLineKind = " " | "+" | "-";
 
@@ -245,23 +246,7 @@ function hunkNewLines(hunk: PatchHunk): string[] {
 }
 
 function findSequence(haystack: string[], needle: string[]): number[] {
-  if (needle.length === 0) {
-    return [];
-  }
-  const hits: number[] = [];
-  for (let i = 0; i <= haystack.length - needle.length; i++) {
-    let ok = true;
-    for (let j = 0; j < needle.length; j++) {
-      if (haystack[i + j] !== needle[j]) {
-        ok = false;
-        break;
-      }
-    }
-    if (ok) {
-      hits.push(i);
-    }
-  }
-  return hits;
+  return findLineSequence(haystack, needle);
 }
 
 function splitFileLines(content: string): { lines: string[]; trailingNl: boolean } {

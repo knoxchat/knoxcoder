@@ -110,21 +110,21 @@ describe("applyPatchImpl", () => {
     expect(ide.removeFile).toHaveBeenCalledWith("file:///tmp/ws/src/new.ts");
   });
 
-  it("rejects add when the file already exists", async () => {
+  it("overwrites add when the file already exists instead of failing", async () => {
     const ide = mockIde({
       "file:///tmp/ws/src/new.ts": "exists\n",
     });
-    await expect(
-      applyPatchImpl(
-        {
-          patch: `*** Begin Patch
+    const result = await applyPatchImpl(
+      {
+        patch: `*** Begin Patch
 *** Add File: src/new.ts
 +x
 *** End Patch`,
-        },
-        extras(ide),
-      ),
-    ).rejects.toThrow(/already exists/i);
+      },
+      extras(ide),
+    );
+    expect(ide.writeFile).toHaveBeenCalledWith("file:///tmp/ws/src/new.ts", "x\n");
+    expect(result[0].content).toMatch(/already existed|overwrote/i);
   });
 
   it("requires a patch string", async () => {

@@ -10,6 +10,8 @@
   "failedToReadFile": "Failed to read file \"{{filepath}}\": {{error}}",
   "couldNotRetrieveFileStats": "Could not retrieve file stats for {{filepath}}",
   "fileAlreadyExists": "File \"{{filepath}}\" already exists. Use overwrite: true to replace it, or use an edit tool to modify the existing file.",
+  "fileExistedOverwritten": "File \"{{filepath}}\" already existed and was overwritten. Prefer builtin_write_file for rewrites and builtin_edit_file for targeted changes.",
+  "patchAddFileOverwritten": "Add File \"{{filepath}}\" already existed; overwrote it instead of failing. Prefer *** Update File or builtin_write_file next time.",
   "emptyTestGeneration": "Test generation returned empty content. Try again with a different model or more specific options.",
   "invalidContentsMustBeString": "Invalid parameter: contents must be a string",
   "invalidEncoding": "Invalid encoding: {{encoding}}. Valid encodings are: {{validEncodings}}",

@@ -211,6 +211,8 @@ describe("constructMessages", () => {
     expect(joined).toContain("Boot panic in mm");
     expect(joined).toContain("Read MAINTAINERS");
     expect(joined).toContain("Reproduce in QEMU");
+    expect(joined).toMatch(/Do this step now/);
+    expect(joined).toMatch(/remaining > 0 means you are not done/i);
   });
 
   it("recovers the Task Execution Plan from history when the store is empty", () => {
@@ -248,6 +250,7 @@ describe("constructMessages", () => {
     expect(joined).toContain("Task Execution Plan");
     expect(joined).toContain("Snake game");
     expect(joined).toContain("Create Cargo.toml");
+    expect(formatPlanInject("sess-history")).toContain("Create Cargo.toml");
   });
 
   it("injects rust engineering policy only when the rust profile is enabled", () => {

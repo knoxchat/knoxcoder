@@ -126,8 +126,20 @@ export function createPlan(input: {
     steps,
     updatedAt: Date.now(),
   };
+  promoteNextPending(plan);
   plans.set(planSessionKey(input.sessionId), plan);
   return clonePlan(plan);
+}
+
+/** If nothing is in progress, the next pending step becomes current. */
+function promoteNextPending(plan: TaskPlan): void {
+  if (plan.steps.some((step) => step.status === "in_progress")) {
+    return;
+  }
+  const next = plan.steps.find((step) => step.status === "pending");
+  if (next) {
+    next.status = "in_progress";
+  }
 }
 
 function requirePlan(sessionId?: string | null): TaskPlan {
@@ -175,6 +187,7 @@ export function addPlanSteps(input: {
     }
   }
   plan.updatedAt = Date.now();
+  promoteNextPending(plan);
   plans.set(planSessionKey(input.sessionId), plan);
   return clonePlan(plan);
 }
@@ -206,6 +219,9 @@ export function updatePlanStep(input: {
   }
   if (input.newTitle?.trim()) {
     step.title = input.newTitle.trim();
+  }
+  if (step.status === "done" || step.status === "skipped") {
+    promoteNextPending(plan);
   }
   plan.updatedAt = Date.now();
   plans.set(planSessionKey(input.sessionId), plan);
@@ -305,6 +321,82 @@ export function formatPlanText(plan: TaskPlan): string {
   lines.push(
     `${countPlanRemaining(plan)} remaining / ${plan.steps.length} total`,
   );
+  if (countPlanRemaining(plan) > 0) {
+    const current = currentPlanStep(plan);
+    lines.push(
+      current
+        ? `Do this step now: ${current.title} (${current.id}). complete it when finished, then the next pending step becomes current.`
+        : "set_current the next pending step and do that work.",
+    );
+    lines.push(
+      "Remaining > 0 means you are not done. complete or skip leftovers before you stop.",
+    );
+  }
+  return lines.join("\n");
+}
+
+function messageText(content: unknown): string {
+  if (typeof content === "string") {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content
+      .map((part) =>
+        part && typeof part === "object" && "text" in part
+          ? String((part as { text?: unknown }).text ?? "")
+          : "",
+      )
+      .join("\n");
+  }
+  return "";
+}
+
+/** Live store first, then the latest plan markdown in the transcript. */
+export function resolveOpenPlan(opts: {
+  sessionId?: string | null;
+  messages?: Array<{ role?: string; content?: unknown }>;
+}): TaskPlan | undefined {
+  const live = getPlan(opts.sessionId);
+  if (live) {
+    return live.steps.length > 0 ? live : undefined;
+  }
+  const messages = opts.messages;
+  if (!messages) {
+    return undefined;
+  }
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const text = messageText(messages[i]?.content);
+    if (text.includes(PLAN_CLEARED_TEXT)) {
+      return undefined;
+    }
+    const parsed = parsePlanText(text);
+    if (parsed?.steps.length) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
+export const PLAN_HOLD_MARKER = "[Task plan]";
+
+/** Instruction injected when the model tries to stop with open plan steps. */
+export function buildPlanHoldInstruction(plan: TaskPlan): string {
+  const open = plan.steps.filter(
+    (step) => step.status === "pending" || step.status === "in_progress",
+  );
+  const current = currentPlanStep(plan);
+  const lines = [
+    `${PLAN_HOLD_MARKER} ${countPlanRemaining(plan)} of ${plan.steps.length} steps still open. You are not done.`,
+    "Open steps:",
+    ...open.map(
+      (step) =>
+        `- ${step.status === "in_progress" ? "(current) " : ""}${step.title} (${step.id})`,
+    ),
+    current
+      ? `Keep working "${current.title}". When it is actually finished, builtin_plan action=complete step_id="${current.id}".`
+      : "builtin_plan action=set_current on the next pending step, then do that work.",
+    "For every open step you already finished, builtin_plan action=complete. If a step is obsolete, action=skip. Do not send a final summary until remaining is 0.",
+  ];
   return lines.join("\n");
 }
 
@@ -321,6 +413,19 @@ function historyItemContent(item: {
   return typeof content === "string" ? content : "";
 }
 
+/** Put a recovered plan back in the live store so complete/skip/hold still work. */
+function adoptRecoveredPlan(
+  sessionId: string | null | undefined,
+  parsed: TaskPlan,
+): string {
+  if (sessionId && !getPlan(sessionId) && parsed.steps.length > 0) {
+    promoteNextPending(parsed);
+    parsed.updatedAt = Date.now();
+    plans.set(planSessionKey(sessionId), parsed);
+  }
+  return formatPlanText(parsed);
+}
+
 /**
  * Recover the latest plan markdown from chat history when the in-memory
  * store is empty (GUI webview, or after a reload).
@@ -334,6 +439,7 @@ export function formatPlanInjectFromHistory(
       description?: string;
     }>;
   }>,
+  sessionId?: string | null,
 ): string {
   for (let i = history.length - 1; i >= 0; i--) {
     const item = history[i];
@@ -347,7 +453,7 @@ export function formatPlanInjectFromHistory(
       }
       const parsed = parsePlanText(content);
       if (parsed) {
-        return formatPlanText(parsed);
+        return adoptRecoveredPlan(sessionId, parsed);
       }
     }
     const content = historyItemContent(item);
@@ -356,7 +462,7 @@ export function formatPlanInjectFromHistory(
     }
     const parsed = parsePlanText(content);
     if (parsed) {
-      return formatPlanText(parsed);
+      return adoptRecoveredPlan(sessionId, parsed);
     }
   }
   return "";

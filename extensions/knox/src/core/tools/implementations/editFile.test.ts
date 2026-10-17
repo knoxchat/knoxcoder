@@ -104,7 +104,7 @@ describe("editFileImpl", () => {
     expect(result[0].content).toMatch(/2 replacement/);
   });
 
-  it("rejects empty or unchanged old_string", async () => {
+  it("rejects empty old_string and treats identical old/new as already up to date", async () => {
     const ide = mockIde();
     await expect(
       editFileImpl(
@@ -112,12 +112,12 @@ describe("editFileImpl", () => {
         extras(ide),
       ),
     ).rejects.toThrow(/empty/i);
-    await expect(
-      editFileImpl(
-        { filepath: "a.ts", old_string: "same", new_string: "same" },
-        extras(ide),
-      ),
-    ).rejects.toThrow(/identical|unchanged/i);
+    const out = await editFileImpl(
+      { filepath: "a.ts", old_string: "same", new_string: "same" },
+      extras(ide),
+    );
+    expect(ide.writeFile).not.toHaveBeenCalled();
+    expect(out[0].description).toMatch(/Already up to date/);
   });
 
   it("lists the closest lines when old_string misses", async () => {
@@ -198,11 +198,25 @@ describe("editFileImpl", () => {
       });
       await expect(
         editFileImpl(
-          { filepath: "a.ts", old_string: "  foo();  ", new_string: "bar();" },
+          { filepath: "a.ts", old_string: "foo();", new_string: "bar();" },
           extras(ide),
         ),
-      ).rejects.toThrow(/not found/i);
+      ).rejects.toThrow(/not found|not unique|matched/i);
       expect(ide.writeFile).not.toHaveBeenCalled();
+    });
+
+    it("treats trailing whitespace as unique when leading indent still differs", async () => {
+      const ide = mockIde({
+        readFile: vi.fn(async () => "  foo();\n\tfoo();\n"),
+      });
+      await editFileImpl(
+        { filepath: "a.ts", old_string: "  foo();  ", new_string: "bar();" },
+        extras(ide),
+      );
+      expect(ide.writeFile).toHaveBeenCalledWith(
+        "file:///tmp/ws/a.ts",
+        "bar();\n\tfoo();\n",
+      );
     });
   });
 
@@ -317,6 +331,28 @@ describe("K-032 edit reliability", () => {
     expect(out[0].content).toContain("2 edits");
   });
 
+  it("keeps real hunks when a sibling edit is a no-op", async () => {
+    const ide = mockIde();
+    const out = await editFileImpl(
+      {
+        filepath: "a.ts",
+        edits: [
+          { old_string: "const a = 1;", new_string: "const a = 9;" },
+          {
+            old_string: "use game::{Dir, Game, Pos, Status};",
+            new_string: "use game::{Dir, Game, Pos, Status};",
+          },
+        ],
+      },
+      extras(ide),
+    );
+    expect(ide.writeFile).toHaveBeenCalledWith(
+      "file:///tmp/ws/a.ts",
+      "const a = 9;\nconst b = 2;\n",
+    );
+    expect(out[0].content).toMatch(/no-op/);
+  });
+
   it("later edits see earlier edits", async () => {
     const ide = mockIde();
     await editFileImpl(
@@ -383,5 +419,51 @@ describe("K-032 edit reliability", () => {
       extras(mockIde({ readFile: vi.fn(async () => "const a = 1;\nconst b = 3;\n") })),
     );
     expect(again[0].content).not.toMatch(/changed on disk/);
+  });
+
+  it("accepts Pi/Claude oldText/newText aliases and a JSON-string edits array", async () => {
+    const ide = mockIde();
+    await editFileImpl(
+      { filepath: "a.ts", oldText: "const a = 1;", newText: "const a = 9;" },
+      extras(ide),
+    );
+    expect(ide.writeFile).toHaveBeenCalledWith(
+      "file:///tmp/ws/a.ts",
+      "const a = 9;\nconst b = 2;\n",
+    );
+
+    const jsonEdits = mockIde();
+    await editFileImpl(
+      {
+        path: "a.ts",
+        edits: JSON.stringify([
+          { oldText: "const a = 1;", newText: "const a = 4;" },
+          { old_string: "const b = 2;", new_string: "const b = 5;" },
+        ]),
+      },
+      extras(jsonEdits),
+    );
+    expect(jsonEdits.writeFile).toHaveBeenCalledWith(
+      "file:///tmp/ws/a.ts",
+      "const a = 4;\nconst b = 5;\n",
+    );
+  });
+
+  it("matches smart quotes and trailing whitespace without a retry", async () => {
+    const ide = mockIde({
+      readFile: vi.fn(async () => 'const msg = "hi";  \n'),
+    });
+    await editFileImpl(
+      {
+        filepath: "a.ts",
+        old_string: "const msg = \u201Chi\u201D;",
+        new_string: "const msg = \"ok\";",
+      },
+      extras(ide),
+    );
+    expect(ide.writeFile).toHaveBeenCalledWith(
+      "file:///tmp/ws/a.ts",
+      'const msg = "ok";\n',
+    );
   });
 });

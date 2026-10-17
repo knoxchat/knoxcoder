@@ -10,6 +10,8 @@
   "failedToReadFile": "读取文件 \"{{filepath}}\" 失败：{{error}}",
   "couldNotRetrieveFileStats": "无法获取 {{filepath}} 的文件统计信息",
   "fileAlreadyExists": "文件 \"{{filepath}}\" 已存在。使用 overwrite: true 替换它，或使用编辑工具修改现有文件。",
+  "fileExistedOverwritten": "文件 \"{{filepath}}\" 已存在，已覆盖写入。完整重写请用 builtin_write_file，局部修改请用 builtin_edit_file。",
+  "patchAddFileOverwritten": "Add File \"{{filepath}}\" 的目标已存在，已覆盖而不是失败。下次请用 *** Update File 或 builtin_write_file。",
   "emptyTestGeneration": "测试生成返回了空内容。请换一个模型或更具体的选项后重试。",
   "invalidContentsMustBeString": "无效参数：内容必须是字符串",
   "invalidEncoding": "无效编码：{{encoding}}。有效编码为：{{validEncodings}}",

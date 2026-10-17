@@ -146,4 +146,19 @@ describe("applyHunksToContent", () => {
       "function a\n  return 1;\nfunction b\n  return 2;\n",
     );
   });
+
+  it("matches hunks with trailing whitespace drift", async () => {
+    const ops = parseApplyPatch(`*** Begin Patch
+*** Update File: a.ts
+@@
+-const b = 2;
++const b = 3;
+*** End Patch`);
+    if (ops[0].type !== "update") {
+      return;
+    }
+    expect(
+      applyHunksToContent("const a = 1;\nconst b = 2;  \n", ops[0].hunks, "a.ts"),
+    ).toBe("const a = 1;\nconst b = 3;\n");
+  });
 });

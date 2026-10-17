@@ -148,6 +148,26 @@ describe("normalizeToolArgs", () => {
     ).toBe(5000);
   });
 
+  it("maps Pi/Claude oldText/newText → old_string/new_string for edit_file", () => {
+    expect(
+      normalizeToolArgs(BuiltInToolNames.EditFile, {
+        path: "src/a.ts",
+        oldText: "foo",
+        newText: "bar",
+      }),
+    ).toMatchObject({
+      filepath: "src/a.ts",
+      old_string: "foo",
+      new_string: "bar",
+    });
+    expect(
+      normalizeToolArgs(BuiltInToolNames.EditFile, {
+        filepath: "a.ts",
+        edits: JSON.stringify([{ oldText: "a", newText: "b" }]),
+      }).edits,
+    ).toMatchObject([{ old_string: "a", new_string: "b" }]);
+  });
+
   it("maps content/text aliases → contents for write_file and create_new_file", () => {
     expect(
       normalizeToolArgs(BuiltInToolNames.WriteFile, {

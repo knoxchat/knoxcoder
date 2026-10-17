@@ -12,14 +12,15 @@ export const editFileTool: Tool = {
   readonly: false,
   function: {
     name: BuiltInToolNames.EditFile,
-    description: `Surgically replace exact text in an existing file (Claude Edit / StrReplace semantics).
+    description: `Surgically replace exact text in an existing file (Claude Edit / Pi edit / StrReplace semantics).
 
 Rules:
-- Read the file first so old_string matches exactly, including whitespace and indentation.
-- old_string must uniquely identify the edit. If it matches 0 times the call fails. If it matches more than once the call fails unless replace_all is true.
-- To make several changes in one file, pass edits: [{old_string, new_string, replace_all?}]. They apply in order and atomically: if any one fails, nothing is written.
+- Read the file first. old_string/oldText should uniquely identify the edit.
+- Matching is against the original file. Trailing whitespace, smart quotes, and unicode dashes are tolerated; indent mismatches are recovered when the block is still unique.
+- If it matches 0 times the call fails. If it matches more than once the call fails unless replace_all is true.
+- Several disjoint replacements in one file: edits:[{old_string,new_string}]. Do not emit overlapping or nested edits; merge nearby changes into one edit.
 - Prefer this over rewriting the whole file or using the terminal (no cat/echo/heredoc writes).
-- For a brand-new file use builtin_create_new_file. For a full-file rewrite use builtin_write_file. For several files or hunks in one call use builtin_apply_patch.`,
+- For a new file or a full rewrite use builtin_write_file. For several files in one call use builtin_apply_patch.`,
     parameters: {
       type: "object",
       required: ["filepath"],
@@ -32,11 +33,11 @@ Rules:
         old_string: {
           type: "string",
           description:
-            "Exact text to find. Must be unique in the file unless replace_all is true.",
+            "Exact text to find (alias: oldText). Must be unique in the file unless replace_all is true.",
         },
         new_string: {
           type: "string",
-          description: "Replacement text. May be empty to delete old_string.",
+          description: "Replacement text (alias: newText). May be empty to delete old_string.",
         },
         replace_all: {
           type: "boolean",

@@ -12,8 +12,8 @@ export const planTool: Tool = {
   group: BUILT_IN_GROUP_NAME,
   function: {
     name: BuiltInToolNames.Plan,
-    description: `Durable task plan for this chat; re-injected every turn and kept through context compaction. Actions: create (title + steps), add, update, complete, skip, set_current, list, clear.
-Call set_current when you start a step and complete as soon as it succeeds. Keep steps concrete. Not for a one-file edit.`,
+    description: `Durable task plan for this chat — this is the work order. Re-injected every turn and kept through context compaction. Actions: create (title + steps), add, update, complete, skip, set_current, list, clear.
+create marks the first step in_progress. complete/skip auto-advances to the next pending step. You must complete or skip every leftover step before ending the turn. Keep steps concrete. Not for a one-file edit.`,
     parameters: {
       type: "object",
       required: ["action"],
