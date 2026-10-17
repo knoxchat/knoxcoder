@@ -2236,8 +2236,8 @@ export default defineConfig(
 	// KnoxStudio sources use the project GPL header, not the Microsoft MIT header.
 	{
 		files: [
-			'src/vs/workbench/contrib/knox/**/*.{ts,tsx}',
-			'extensions/knox/**/*.{ts,tsx}',
+			'src/vs/workbench/contrib/knox/**/*.{ts,tsx,mts,cts}',
+			'extensions/knox/**/*.{ts,tsx,mts,cts}',
 		],
 		rules: {
 			'header/header': [

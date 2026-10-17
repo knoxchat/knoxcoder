@@ -23,7 +23,8 @@ const events = require('events');
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const net = require('net');
-const createStatsCollector = require('mocha/lib/stats-collector');
+const statsCollector = require('mocha/lib/stats-collector');
+const createStatsCollector = typeof statsCollector === 'function' ? statsCollector : statsCollector.createStatsCollector;
 const { applyReporter, importMochaReporter } = require('../reporter');
 
 const minimist = require('minimist');

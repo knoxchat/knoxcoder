@@ -10,6 +10,7 @@ import {
   gulpFileHasKnoxPackagingTasks,
   nativeExtensionsSourceIncludesKnox,
   vscodeIgnoreAllowsPackagedNatives,
+  vscodeIgnoreExcludesLegacyGui,
 } from "../../../scripts/packaging.mts";
 import { allTools } from "../tools";
 
@@ -123,6 +124,7 @@ describe("KnoxCoder product identity (KN-124, KN-152)", () => {
     expect(gulpFileHasKnoxPackagingTasks(gulp)).toBe(true);
     expect(gulpCompilationsExcludesKnoxTsconfig(gulp)).toBe(true);
     expect(vscodeIgnoreAllowsPackagedNatives(ignore)).toBe(true);
+    expect(vscodeIgnoreExcludesLegacyGui(ignore)).toBe(true);
     expect(knoxPkg.scripts?.compile).toContain(KNOX_GULP_COMPILE_TASKS[0]);
     expect(knoxPkg.scripts?.["compile-native"]).toContain(
       KNOX_GULP_COMPILE_TASKS[1],

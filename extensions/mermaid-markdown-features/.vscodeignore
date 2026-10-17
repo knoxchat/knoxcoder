@@ -6,3 +6,6 @@ package-lock.json
 tsconfig*.json
 **/*.tsbuildinfo
 .gitignore
+markdown-preview-out/**
+notebook-out/**
+diagram-webview-out/**

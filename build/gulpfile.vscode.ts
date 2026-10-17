@@ -270,7 +270,23 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			return !set.has(platform);
 		}).map(ext => `!.build/extensions/${ext.name}/**`);
 
-		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true, ...binarySrcOptions });
+		// Electron loads `main`, not `browser`. Drop vscode-web bundles and
+		// unused task/grammar extensions from the desktop app.
+		const desktopExtensionExclusions = [
+			'!.build/extensions/**/dist/browser/**',
+			'!.build/extensions/gulp/**',
+			'!.build/extensions/grunt/**',
+			'!.build/extensions/jake/**',
+			'!.build/extensions/vb/**',
+			'!.build/extensions/hlsl/**',
+			'!.build/extensions/shaderlab/**',
+			'!.build/extensions/ms-vscode.vscode-js-profile-table/**',
+		];
+		const extensions = gulp.src([
+			'.build/extensions/**',
+			...platformSpecificBuiltInExtensionsExclusions,
+			...desktopExtensionExclusions,
+		], { base: '.build', dot: true, ...binarySrcOptions });
 
 		// Minified (production) packages never ship source maps, whether built on CI or locally
 		// (build_dmg.sh): they add ~230 MB of unpacked files that no end user can use.
@@ -547,6 +563,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			productJsonFn: () => productJsonContents
 		});
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return result.pipe(vfs.dest(destination, { encoding: false } as never));
 	};
 	task.taskName = `package-${platform}-${arch}`;
@@ -618,6 +635,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			await stripAuthenticodeSignature(fullPath);
 			await rcedit(fullPath, {
 				'file-version': baseVersion,
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
 				'version-string': {
 					'CompanyName': 'Microsoft Corporation',
 					'FileDescription': product.nameLong,

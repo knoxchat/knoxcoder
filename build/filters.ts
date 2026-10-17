@@ -51,7 +51,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/markdown-language-features/notebook-out/*.js',
 	'!extensions/markdown-language-features/markdown-editor-out/*.js',
 	'!extensions/markdown-math/notebook-out/**',
-	'!extensions/mermaid-markdown-features/diagram-webview-out/**',
+	'!extensions/mermaid-markdown-features/webview-out/**',
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/notebook-renderers/renderer-out/**',
 	'!extensions/php-language-features/src/features/phpGlobalFunctions.ts',
@@ -133,6 +133,8 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!extensions/**/syntaxes/**',
 	'!extensions/**/themes/**',
 	'!extensions/**/colorize-fixtures/**',
+	// Knox extension sources use 2-space indent (vitest/prettier), not workbench tabs.
+	'!extensions/knox/src/**',
 
 	// except specific file types
 	'!src/vs/*/**/*.d.ts',
@@ -149,9 +151,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!**/*.tiff',
 
 	// except for built files
-	'!extensions/mermaid-markdown-features/diagram-webview-out/*.js',
-	'!extensions/mermaid-markdown-features/markdown-preview-out/*.js',
-	'!extensions/mermaid-markdown-features/notebook-out/*.js',
+	'!extensions/mermaid-markdown-features/webview-out/*.js',
 	'!extensions/markdown-language-features/media/*.js',
 	'!extensions/markdown-language-features/markdown-editor-out/*.js',
 	'!extensions/markdown-language-features/notebook-out/*.js',
@@ -206,9 +206,8 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
-	'!extensions/mermaid-markdown-features/diagram-webview-out/**',
-	'!extensions/mermaid-markdown-features/markdown-preview-out/**',
-	'!extensions/mermaid-markdown-features/notebook-out/**',
+	'!extensions/mermaid-markdown-features/webview-out/**',
+	'!extensions/knox/src/**',
 
 	// vendored third-party libraries
 	'!src/vs/base/common/lit-html/**',

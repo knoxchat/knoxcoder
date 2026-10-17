@@ -25,6 +25,12 @@ import {
   parseQuotedNpmDirs,
   shouldSkipGenericTsgoForExtension,
   vscodeIgnoreAllowsPackagedNatives,
+  vscodeIgnoreExcludesLegacyGui,
+  mermaidWebviewUsesSharedOutdir,
+  isDesktopBrowserBundlePath,
+  localPackagingExcludesDesktopSizeCuts,
+  desktopPackagingDropsBrowserBundles,
+  JS_PROFILE_TABLE_MARKETPLACE_ID,
 } from "../../../scripts/packaging.mts";
 import { leftoverProductDirectoryExists } from "../../../scripts/inventory-gate.mts";
 import {
@@ -128,6 +134,14 @@ suite("KN-384 packaging", () => {
     assert.ok(vscodeIgnoreAllowsPackagedNatives(ignore));
     assert.ok(ignore.includes("/node_modules/**"));
     assert.ok(ignore.includes("KN-384"));
+  });
+
+  test("vscodeignore excludes leftover Vite gui/", () => {
+    assert.ok(vscodeIgnoreExcludesLegacyGui("/gui/**\n"));
+    assert.ok(!vscodeIgnoreExcludesLegacyGui("/node_modules/**\n"));
+    const ignore = readRepo("extensions/knox/.vscodeignore");
+    assert.ok(vscodeIgnoreExcludesLegacyGui(ignore));
+    assert.ok(ignore.includes("/gui/**"));
   });
 });
 
@@ -314,10 +328,51 @@ suite("Installer size", () => {
     assert.ok(!/minify:\s*false/.test(script));
   });
 
+  test("desktop packaging drops dist/browser and niche task/grammar extensions", () => {
+    assert.ok(isDesktopBrowserBundlePath("dist/browser/extension.js"));
+    assert.ok(isDesktopBrowserBundlePath("client/dist/browser/htmlClientMain.js"));
+    assert.ok(!isDesktopBrowserBundlePath("dist/extension.js"));
+    assert.ok(!isDesktopBrowserBundlePath("webview-out/markdown.js"));
+
+    const vscodeGulp = readRepo("build/gulpfile.vscode.ts");
+    assert.ok(localPackagingExcludesDesktopSizeCuts(vscodeGulp));
+    assert.ok(vscodeGulp.includes(JS_PROFILE_TABLE_MARKETPLACE_ID));
+    assert.ok(desktopPackagingDropsBrowserBundles(vscodeGulp));
+  });
+
+  test("mermaid preview, notebook, and editor share one webview-out bundle", () => {
+    const script = readRepo("extensions/mermaid-markdown-features/esbuild.webview.mts");
+    assert.ok(mermaidWebviewUsesSharedOutdir(script));
+    const pkg = JSON.parse(
+      readRepo("extensions/mermaid-markdown-features/package.json"),
+    ) as {
+      contributes?: {
+        "markdown.previewScripts"?: Array<string | { path?: string }>;
+        notebookRenderer?: Array<{ entrypoint?: { path?: string } }>;
+      };
+    };
+    const previewScript = pkg.contributes?.["markdown.previewScripts"]?.[0];
+    const previewPath =
+      typeof previewScript === "string" ? previewScript : previewScript?.path;
+    assert.ok(previewPath?.startsWith("./webview-out/"));
+    assert.ok(
+      pkg.contributes?.notebookRenderer?.[0]?.entrypoint?.path?.startsWith("./webview-out/"),
+    );
+    assert.ok(
+      readRepo("extensions/mermaid-markdown-features/src/editorManager.ts").includes(
+        "webview-out",
+      ),
+    );
+  });
+
   test("desktop workflow builds deb/rpm/installers only for release-style runs", () => {
     const workflow = readRepo(".github/workflows/build-desktop.yml");
     assert.ok(workflow.includes("all_packages:"));
-    assert.ok(/FULL_PACKAGES:.*github\.event_name == 'push'/.test(workflow));
+    assert.ok(
+      /FULL_PACKAGES:\s*\$\{\{\s*inputs\.publish_release\s*\|\|\s*inputs\.all_packages\s*\}\}/.test(
+        workflow,
+      ),
+    );
     for (const step of ["Package deb", "Package rpm", "Build installers"]) {
       const block = workflow.slice(workflow.indexOf(`- name: ${step}`)).split("\n      - ")[0];
       assert.ok(block.includes("env.FULL_PACKAGES == 'true'"), step);

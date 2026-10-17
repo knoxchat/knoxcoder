@@ -109,6 +109,53 @@ export function vscodeIgnoreAllowsPackagedNatives(ignoreFile: string): boolean {
 	return rootedNodeModules || reincludeDist || !unrootedNodeModules;
 }
 
+/** Product GUI is the native workbench pane. Leftover Vite `gui/` must not ship. */
+export function vscodeIgnoreExcludesLegacyGui(ignoreFile: string): boolean {
+	const lines = ignoreLines(ignoreFile);
+	return lines.some(
+		(line) =>
+			line === '/gui/**' ||
+			line === 'gui/**' ||
+			line === '/gui/' ||
+			line === 'gui/' ||
+			line === '/gui' ||
+			line === 'gui',
+	);
+}
+
+/** Markdown preview, notebook renderer, and diagram editor share one esbuild outdir. */
+export function mermaidWebviewUsesSharedOutdir(script: string): boolean {
+	return [...script.matchAll(/\brun\s*\(/g)].length === 1 && script.includes('webview-out');
+}
+
+/** Electron uses `main`. `dist/browser` is vscode-web only. */
+export function isDesktopBrowserBundlePath(relativePath: string): boolean {
+	return /(^|\/)dist\/browser(\/|$)/.test(relativePath.replace(/\\/g, '/'));
+}
+
+export const DESKTOP_SIZE_EXCLUDED_EXTENSIONS = [
+	'gulp',
+	'grunt',
+	'jake',
+	'vb',
+	'hlsl',
+	'shaderlab',
+	'ms-vscode.vscode-js-profile-table',
+] as const;
+
+export const JS_PROFILE_TABLE_MARKETPLACE_ID = 'ms-vscode.vscode-js-profile-table';
+
+export function localPackagingExcludesDesktopSizeCuts(source: string): boolean {
+	return DESKTOP_SIZE_EXCLUDED_EXTENSIONS.every((name) =>
+		source.includes(`!.build/extensions/${name}/**`),
+	);
+}
+
+export function desktopPackagingDropsBrowserBundles(source: string): boolean {
+	return source.includes('desktopExtensionExclusions')
+		&& source.includes('dist/browser');
+}
+
 export function gulpFileHasKnoxPackagingTasks(gulpSource: string): boolean {
 	const hasRequired = KNOX_GULP_COMPILE_TASKS.every((taskName) =>
 		gulpSource.includes(`task.define('${taskName}'`),
@@ -186,7 +233,7 @@ export function gulpJoinsLeftoverKnoxRoot(source: string): boolean {
 }
 
 export function gulpSpawnsFromForkKnox(source: string): boolean {
-	return source.includes("path.join(root, 'extensions', 'knox'");
+	return source.includes('path.join(root, \'extensions\', \'knox\'');
 }
 
 export function gulpDefinesForbiddenKnoxTasks(source: string): boolean {
@@ -211,7 +258,7 @@ export function assertNoLeftoverKnoxBuildPointers(input: {
 	}
 	for (const gulpSource of input.gulpSources) {
 		if (gulpJoinsLeftoverKnoxRoot(gulpSource)) {
-			throw new Error("KN-391: gulp still path.join(root, 'knox') — leftover ./knox pointer");
+			throw new Error('KN-391: gulp still path.join(root, \'knox\') — leftover ./knox pointer');
 		}
 		if (gulpDefinesForbiddenKnoxTasks(gulpSource)) {
 			throw new Error('KN-391: leftover gulp task that pointed at ./knox is still defined');

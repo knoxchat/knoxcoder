@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const { constants } = require('mocha/lib/runner');
-const BaseRunner = require('mocha/lib/reporters/base');
+const mocha = require('mocha');
+const BaseRunner = mocha.reporters.Base;
 
+// Mocha 12's lib/*.js files are ESM. Use the CJS public API instead of
+// `require('mocha/lib/runner')` / `require('mocha/lib/reporters/base')`.
 const {
 	EVENT_TEST_BEGIN,
 	EVENT_TEST_PASS,
 	EVENT_TEST_FAIL,
 	EVENT_RUN_BEGIN,
 	EVENT_RUN_END,
-} = constants;
+} = mocha.Runner.constants;
 
 /**
  * Similar to the mocha JSON stream, but includes additional information

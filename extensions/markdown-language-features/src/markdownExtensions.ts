@@ -333,7 +333,9 @@ export namespace MarkdownContributions {
 
 	function getPreviewScriptContribution(script: unknown): { path: string; type?: MarkdownPreviewScript['type'] } | undefined {
 		if (typeof script === 'string') {
-			return { path: script };
+			// String contributions are ESM in this product; `{ path, type: "module" }`
+			// is also valid, but some schemas still type previewScripts as string[].
+			return { path: script, type: 'module' };
 		}
 
 		if (!script || typeof script !== 'object') {

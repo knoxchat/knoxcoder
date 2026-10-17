@@ -5,6 +5,9 @@ tsconfig*.json
 **/*.tsbuildinfo
 esbuild*.mts
 out/**
+# Native KnoxChatViewPane replaced the Vite webview. Never ship leftover gui/.
+/gui/**
+/gui-src/**
 # KN-384: ignore only the host-Node install. Native addons copied into
 # dist/node_modules (sqlite3, ripgrep, node-pty) must ship in the product.
 /node_modules/**
