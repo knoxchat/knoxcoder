@@ -20,7 +20,13 @@ interface IExecFileExpectation {
 	absentEnvironment?: string[];
 	stdout?: string;
 	stderr?: string;
-	error?: cp.ExecFileException;
+	error?: Error;
+}
+
+function asExecFileException(error: Error): cp.ExecFileException {
+	const execError = error as cp.ExecFileException;
+	execError.cmd ??= 'git';
+	return execError;
 }
 
 function createExecFile(expectations: IExecFileExpectation[]): typeof cp.execFile {
@@ -37,7 +43,7 @@ function createExecFile(expectations: IExecFileExpectation[]): typeof cp.execFil
 			assert.strictEqual(options.env?.[key], undefined);
 		}
 
-		queueMicrotask(() => callback(expectation.error ?? null, expectation.stdout ?? '', expectation.stderr ?? ''));
+		queueMicrotask(() => callback(expectation.error ? asExecFileException(expectation.error) : null, expectation.stdout ?? '', expectation.stderr ?? ''));
 
 		return { kill: () => true } as cp.ChildProcess;
 	}) as typeof cp.execFile;

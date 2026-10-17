@@ -1,6 +1,6 @@
 import * as path from "node:path";
 
-import * as glob from "glob";
+import { glob } from "glob";
 import Mocha from "mocha";
 
 export function run() {
@@ -22,14 +22,12 @@ export function run() {
   // Assumes this file is in out/test/runner/mochaRunner.js
   const compiledTestSuitesDirectory = path.resolve(__dirname);
 
-  glob
-    .sync("**/**.test.js", {
-      cwd: compiledTestSuitesDirectory,
-      ignore: "**/node_modules/**",
-    })
-    .forEach((file: string) => {
-      mocha.addFile(path.resolve(compiledTestSuitesDirectory, file));
-    });
+  glob.globSync("**/**.test.js", {
+    cwd: compiledTestSuitesDirectory,
+    ignore: "**/node_modules/**",
+  }).forEach((file: string) => {
+    mocha.addFile(path.resolve(compiledTestSuitesDirectory, file));
+  });
 
   console.log(
     `Testing files in ${compiledTestSuitesDirectory}: ${mocha.files}`,

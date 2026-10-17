@@ -79,8 +79,10 @@ suite('FontMeasurements', () => {
 	test('does not emit a delayed font change for an unregistered window', () => {
 		const fontMeasurements = store.add(new FontMeasurementsImpl());
 		const { auxiliaryWindow, registration } = createAuxiliaryWindow();
-		const timerOptions = { global: auxiliaryWindow, toFake: ['setTimeout', 'clearTimeout'] };
-		const clock = sinon.useFakeTimers(timerOptions);
+		const clock = sinon.useFakeTimers({
+			target: auxiliaryWindow,
+			toFake: ['setTimeout', 'clearTimeout'],
+		} as unknown as Parameters<typeof sinon.useFakeTimers>[0]);
 		let changes = 0;
 		store.add(fontMeasurements.onDidChange(() => changes++));
 		fontMeasurements.restoreFontInfo(auxiliaryWindow, [restoredFontInfo]);

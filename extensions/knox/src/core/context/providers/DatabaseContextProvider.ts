@@ -8,7 +8,7 @@ import {
 import { t } from "../../i18n/index.js";
 import { BaseContextProvider } from "../index.js";
 
-// K-038: dbinfoz pulls mssql, mysql2, tedious and @azure/identity. Load on first use.
+// K-038: dbinfoz pulls mssql, mysql2 and tedious. Load on first use.
 async function getDatabaseAdapter(
   ...args: [type: string, connection: unknown]
 ) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import es from 'event-stream';
-import glob from 'glob';
+import { globSync } from 'glob';
 import vfs from 'vinyl-fs';
 import { stylelintFilter } from './filters.ts';
 import { findClassAttributeSubstringSelector, findRootAnchoredHas } from './lib/stylelint/validateHasSelectors.ts';
@@ -223,7 +223,7 @@ export function resolveStylelintSources(argv: readonly string[]): { sources: str
 export function resolveStylelintMatches(sources: readonly string[]): string[] {
 	const matches = new Set<string>();
 	for (const source of sources) {
-		const sourceMatches = glob.sync(source, { follow: true, nodir: true });
+		const sourceMatches = globSync(source, { follow: true, nodir: true });
 		if (sourceMatches.length === 0) {
 			throw new Error(`No CSS files matched the requested path: ${source}`);
 		}

@@ -17,7 +17,7 @@
     "vscode-uri": "^3.2.0"
   },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/node": "26.x"
   },
   "overrides": {
     "vscode-css-languageservice": {

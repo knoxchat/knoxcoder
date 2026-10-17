@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { gulp } from '../lib/gulp/facade.ts';
 import vfs from 'vinyl-fs';
-import rimraf from 'rimraf';
+import { rimraf } from 'rimraf';
 import minimist from 'minimist';
 
 interface Options {

@@ -263,23 +263,19 @@ suite('getFlows', () => {
 suite('isSignInProvider', () => {
 
 	test('accepts every sign-in provider the product can ask for', () => {
-		// `GitHubOAuthSignInProvider` deliberately excludes Microsoft, so the compiler — not a
-		// runtime check — is what keeps Microsoft out of the URL handler and device code flows.
 		const oauthProviders: GitHubOAuthSignInProvider[] = [GitHubSignInProvider.Google, GitHubSignInProvider.Apple];
 
 		assert.deepStrictEqual({
 			oauthProviders,
 			google: isSignInProvider(GitHubSignInProvider.Google),
 			apple: isSignInProvider(GitHubSignInProvider.Apple),
-			microsoft: isSignInProvider(GitHubSignInProvider.Microsoft),
 			unknown: isSignInProvider('entra'),
 			undefinedProvider: isSignInProvider(undefined),
-			object: isSignInProvider({ provider: 'microsoft' }),
+			object: isSignInProvider({ provider: 'google' }),
 		}, {
 			oauthProviders: ['google', 'apple'],
 			google: true,
 			apple: true,
-			microsoft: true,
 			unknown: false,
 			undefinedProvider: false,
 			object: false,

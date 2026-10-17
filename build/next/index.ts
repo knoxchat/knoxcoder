@@ -6,9 +6,7 @@
 import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
-import { promisify } from 'util';
-
-import glob from 'glob';
+import { glob } from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
@@ -20,8 +18,6 @@ import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
-
-const globAsync = promisify(glob);
 
 // ============================================================================
 // Configuration
@@ -511,14 +507,14 @@ async function copyAllNonTsFiles(outDir: string, excludeTests: boolean): Promise
 		ignorePatterns.push('**/test/**');
 	}
 
-	const files = await globAsync('**/*', {
+	const files = await glob('**/*', {
 		cwd: path.join(REPO_ROOT, SRC_DIR),
 		nodir: true,
 		ignore: ignorePatterns,
 	});
 
 	// Re-include .d.ts files that were excluded by the *.ts ignore
-	const dtsFiles = await globAsync('**/*.d.ts', {
+	const dtsFiles = await glob('**/*.d.ts', {
 		cwd: path.join(REPO_ROOT, SRC_DIR),
 		ignore: excludeTests ? ['**/test/**'] : [],
 	});
@@ -547,7 +543,7 @@ async function copyResources(outDir: string, target: BuildTarget): Promise<void>
 
 	const resourcePatterns = getResourcePatternsForTarget(target);
 	for (const pattern of resourcePatterns) {
-		const files = await globAsync(pattern, {
+		const files = await glob(pattern, {
 			cwd: path.join(REPO_ROOT, SRC_DIR),
 			ignore: ignorePatterns,
 		});
@@ -678,7 +674,7 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 		ignorePatterns.push('**/test/**');
 	}
 
-	const files = await globAsync('**/*.ts', {
+	const files = await glob('**/*.ts', {
 		cwd: path.join(REPO_ROOT, SRC_DIR),
 		ignore: ignorePatterns,
 	});

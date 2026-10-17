@@ -6,13 +6,11 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { AccountLinks } from '../common/accountLinks';
 import { isSupportedClient, isSupportedTarget } from '../common/env';
 import { Log } from '../common/logger';
 import { ExtensionHost, getFlows, GitHubTarget } from '../flows';
 import { AuthProviderType, GitHubSessionEngine, UriEventHandler } from '../github';
 import { GitHubServer, IGitHubServer, IGitHubToken } from '../githubServer';
-import { TestMemento } from './testMemento';
 
 interface TestSessionProvider extends vscode.AuthenticationProvider, vscode.Disposable {
 	_persistedSessionsPromise: Promise<vscode.AuthenticationSession[]>;
@@ -70,14 +68,7 @@ suite('GitHub session provenance', () => {
 				logout: async (removed: vscode.AuthenticationSession) => { revocations.push(removed.id); },
 				sendAdditionalTelemetryInfo: async () => { }
 			},
-			_accountLinks: new AccountLinks(new TestMemento(), 'test.microsoftAccountLinks', logger),
 			_accountsSeen: new Set<string>(),
-			_transientSessions: new Map<string, { session: vscode.AuthenticationSession; expiresAt: number }>(),
-			_renewals: new Map<string, Promise<vscode.AuthenticationSession | undefined>>(),
-			_restores: new Map<string, Promise<vscode.AuthenticationSession | undefined>>(),
-			_restoresTried: new Set<string>(),
-			_microsoftGeneration: 0,
-			_microsoft: { getAccounts: async () => [] },
 			_sessionChangeEmitter: emitter
 		}) as TestSessionProvider;
 		disposables.push(provider);
@@ -261,7 +252,7 @@ suite('GitHub server token provenance', () => {
 	teardown(() => sandbox.restore());
 
 	for (const enterprise of [false, true]) {
-		test(`${enterprise ? 'enterprise' : 'public'} login and Microsoft exchange results include their issuer`, async () => {
+		test(`${enterprise ? 'enterprise' : 'public'} login results include their issuer`, async () => {
 			const baseUri = vscode.Uri.parse(enterprise ? 'https://enterprise.example:8443/Team' : 'https://github.com/');
 			const type = enterprise ? AuthProviderType.githubEnterprise : AuthProviderType.github;
 			const callbackUri = vscode.Uri.parse('vscode://vscode.github-authentication/callback');
@@ -273,9 +264,6 @@ suite('GitHub server token provenance', () => {
 			});
 			assert.ok(flows.length);
 			const flow = sandbox.stub(flows[0], 'trigger').resolves('oauth-token');
-			const account = { id: '42', accountName: 'octocat', avatarUrl: undefined };
-			const exchanged = { token: 'microsoft-token', expiresAfter: 3600, account };
-			const renewed = { ...exchanged, token: 'renewed-token', scopes: ['repo'] };
 			const uriHandler = new UriEventHandler();
 			try {
 				const server = Object.assign(Object.create(GitHubServer.prototype), {
@@ -285,20 +273,15 @@ suite('GitHub server token provenance', () => {
 					_uriHandler: uriHandler,
 					_redirectEndpoint: 'https://vscode.dev/redirect',
 					_logger: { info: () => { } },
-					_entraTokenExchange: { login: async () => exchanged, renew: async () => renewed },
 				}) as GitHubServer;
 				const describe = (result: IGitHubToken) => ({ ...result, authorizationServer: result.authorizationServer.toString() });
 				const authorizationServer = vscode.Uri.joinPath(baseUri, '/login/oauth').toString();
 
 				assert.deepStrictEqual({
 					oauth: describe(await server.login('repo')),
-					microsoft: describe(await server.loginWithMicrosoft(['repo'])),
-					renewed: describe(await server.renewWithMicrosoft({ scopes: ['repo'], gitHubAccountId: '42', microsoftAccount: { id: 'entra-id', label: 'mona' } })),
 					flowBase: flow.firstCall.args[0].baseUri.toString(),
 				}, {
 					oauth: { token: 'oauth-token', authorizationServer },
-					microsoft: { ...exchanged, authorizationServer },
-					renewed: { ...renewed, authorizationServer },
 					flowBase: baseUri.toString(),
 				});
 			} finally {

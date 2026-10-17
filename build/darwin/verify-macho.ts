@@ -7,7 +7,7 @@ import assert from 'assert';
 import path from 'path';
 import { open, stat, readdir, realpath } from 'fs/promises';
 import { spawn, ExitCodeError } from '@malept/cross-spawn-promise';
-import minimatch from 'minimatch';
+import { minimatch } from 'minimatch';
 
 const MACHO_PREFIX = 'Mach-O ';
 const MACHO_64_MAGIC_LE = 0xfeedfacf;
@@ -23,9 +23,6 @@ const MACHO_X86_64_CPU_TYPE = new Set([
 
 // Files to skip during architecture validation
 const FILES_TO_SKIP = [
-	// MSAL runtime files are only present in ARM64 builds
-	'**/extensions/microsoft-authentication/dist/libmsalruntime.dylib',
-	'**/extensions/microsoft-authentication/dist/msal-node-runtime.node',
 	// ripgrep-universal: single-arch binaries in per-platform directories
 	'**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/**',
 	'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/**',

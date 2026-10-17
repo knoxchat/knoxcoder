@@ -56,7 +56,7 @@ export class LocalGitService implements ILocalGitService {
 						}
 					}
 					if (options?.logErrors !== false) {
-						this._logGitError(args, err);
+						this._logGitError(args, gitError);
 					}
 					reject(err);
 					return;

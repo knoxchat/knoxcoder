@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import fs from 'fs';
-import glob from 'glob';
+import { globSync } from 'glob';
 import path from 'path';
 
 export const apiProposalNamesSource = 'src/vscode-dts/**';
@@ -52,7 +52,7 @@ export function checkApiProposalNames(repoRoot: string): void {
 	const declarationsPath = path.join(repoRoot, 'src', 'vscode-dts');
 	// Globs allow missing directories, but validation must not silently accept missing inputs.
 	fs.readdirSync(declarationsPath);
-	const proposalFiles = glob.sync(apiProposalNamesSource, { cwd: repoRoot, absolute: true })
+	const proposalFiles = globSync(apiProposalNamesSource, { cwd: repoRoot, absolute: true })
 		.filter(filePath => getApiProposalName(filePath) !== undefined)
 		.sort();
 

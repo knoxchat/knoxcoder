@@ -10,18 +10,18 @@
   },
   "dependencies": {
     "minimist": "^1.2.8",
-    "mocha": "^11.8.0",
+    "mocha": "^12.0.3",
     "mocha-junit-reporter": "^2.2.1",
     "node-fetch": "^3.3.2",
-    "playwright": "^1.62.1"
+    "playwright": "^1.64.1"
   },
   "devDependencies": {
     "@types/minimist": "^1.2.5",
     "@types/mocha": "^10.0.10",
-    "@types/node": "26.1.2",
-    "typescript": "7.1.0-dev.20261008.1"
+    "@types/node": "26.x",
+    "typescript": "7.1.0-dev.20261017.1"
   },
   "overrides": {
-    "serialize-javascript": "^7.1.0"
+    "serialize-javascript": "^7.1.2"
   }
 }

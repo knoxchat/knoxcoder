@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import { Log } from '../common/logger';
-import { AccountLinks } from '../common/accountLinks';
 import * as github from '../github';
 import { GitHubEnterpriseAuthenticationProvider } from '../githubEnterprise';
 import { TestMemento } from './testMemento';
@@ -177,7 +176,7 @@ suite('GitHub Enterprise multi-host provider', () => {
 		const { provider, engines } = await create();
 		const selected = (await provider.getSessions())[1];
 		engines.forEach(engine => engine.reads.length = 0);
-		const options = { account: selected.account, authorizationServer: selected.authorizationServer, clientId: 'client', resource: 'resource', provider: 'microsoft', extraAuthorizeParameters: { prompt: 'test' } };
+		const options = { account: selected.account, authorizationServer: selected.authorizationServer, clientId: 'client', resource: 'resource', provider: 'google', extraAuthorizeParameters: { prompt: 'test' } };
 		const sessions = await provider.getSessions(['repo'], options);
 		assert.deepStrictEqual({
 			sessions,
@@ -461,12 +460,10 @@ suite('GitHub Enterprise multi-host provider', () => {
 		disposables.push(provider.onDidChangeSessions(event => events.push(event)));
 		await provider.update([original, alias]);
 		assert.strictEqual(events[0].added?.[0].accessToken, session.accessToken);
-		const logger = new Log(github.AuthProviderType.githubEnterprise);
-		disposables.push(logger);
 		assert.deepStrictEqual({
 			storageKey: engines[0].storageKey,
 			sessions: (await provider.getSessions()).map(value => value.accessToken),
-			links: new AccountLinks(state, `${engines[0].storageKey}.microsoftAccountLinks`, logger).linkedAccounts(),
+			links: state.get(`${engines[0].storageKey}.microsoftAccountLinks`),
 			saved: await secrets.get(canonicalKey),
 			legacy: await secrets.get(storageKey)
 		}, { storageKey: canonicalKey, sessions: [session.accessToken], links, saved: JSON.stringify([session]), legacy: undefined });

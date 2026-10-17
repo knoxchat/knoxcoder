@@ -27,8 +27,7 @@ type ExtensionGalleryAccessProviderId = 'github' | 'microsoft';
 
 const PREFERRED_ACCOUNT_KEY = 'marketplace.account';
 
-// Well-known MSA (personal account) tenant ids. Duplicated from the microsoft-authentication
-// extension, which lives in the extension host and is not importable here.
+// Well-known MSA (personal account) tenant ids.
 const MSA_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const MSA_PASSTHROUGH_TENANT_ID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
 

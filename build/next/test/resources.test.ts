@@ -196,7 +196,7 @@ export const url = import.meta.url;
 		await copyResources(srcDir, outDir, 'web', true, `${sourceMapBaseUrl}/`);
 		const output = await fs.promises.readFile(path.join(outDir, serviceWorkerPath), 'utf8');
 		const map: RawSourceMap = JSON.parse(await fs.promises.readFile(path.join(outDir, `${serviceWorkerPath}.map`), 'utf8'));
-		const consumer = new SourceMapConsumer(map);
+		const consumer = await new SourceMapConsumer(map);
 		const position = consumer.originalPositionFor(positionOf(output, 'recordValue'));
 		assert.deepStrictEqual({
 			headerCount: output.split(header).length - 1,
@@ -232,7 +232,7 @@ export const url = import.meta.url;
 			await copyResources(srcDir, outDir, 'server-web', true);
 			const output = await fs.promises.readFile(path.join(outDir, serviceWorkerPath), 'utf8');
 			const map: RawSourceMap = JSON.parse(await fs.promises.readFile(path.join(outDir, `${serviceWorkerPath}.map`), 'utf8'));
-			const consumer = new SourceMapConsumer(map);
+			const consumer = await new SourceMapConsumer(map);
 			const position = consumer.originalPositionFor(positionOf(output, 'recordValue'));
 			assert.deepStrictEqual({
 				source: position.source?.replaceAll('\\', '/').endsWith('/original/source.ts'),

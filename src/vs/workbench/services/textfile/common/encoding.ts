@@ -338,7 +338,7 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 		}
 	}
 
-	let guessed: { encoding: string | undefined } | undefined;
+	let guessed: { encoding: string | null | undefined } | undefined;
 	try {
 		guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
 	} catch (error) {

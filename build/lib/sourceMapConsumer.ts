@@ -6,9 +6,10 @@
 import { SourceMapConsumer, type RawSourceMap } from 'source-map';
 
 /**
- * VS Code 1.141 pins `source-map@0.6.1`: the consumer is synchronous and has
- * neither `destroy()` nor `SourceMapConsumer.with()`. source-map >= 0.7 is
- * async, WASM-backed, and must be disposed via `destroy()` or `.with()`.
+ * Root now pins `source-map@0.8.0`: the consumer is async, WASM-backed, and
+ * must be disposed via `destroy()` or `SourceMapConsumer.with()`. This helper
+ * still supports the older 0.6 synchronous consumer if a nested package stays
+ * on that pin.
  *
  * Use this helper from minify/NLS/tsb so both APIs work after an upstream pin change.
  */

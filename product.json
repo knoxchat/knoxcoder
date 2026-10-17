@@ -33,8 +33,6 @@
 	"linuxIconName": "knoxcoder",
 	"licenseFileName": "LICENSE.txt",
 	"reportIssueUrl": "https://github.com/knoxchat/knoxcoder/issues/new",
-	"nodejsArtifactFeed": "",
-	"electronArtifactFeed": "",
 	"urlProtocol": "knoxcoder",
 	"quality": "stable",
 	"updateUrl": "https://github.com/knoxchat/knoxcoder",

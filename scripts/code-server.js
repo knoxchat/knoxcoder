@@ -7,7 +7,6 @@
 
 const cp = require('child_process');
 const path = require('path');
-const open = require('open');
 const minimist = require('minimist');
 
 async function main() {
@@ -33,7 +32,8 @@ async function main() {
 	const serverArgs = process.argv.slice(2).filter(v => v !== '--launch');
 	const addr = await startServer(serverArgs);
 	if (args['launch']) {
-		open.default(addr);
+		const open = (await import('open')).default;
+		await open(addr);
 	}
 }
 

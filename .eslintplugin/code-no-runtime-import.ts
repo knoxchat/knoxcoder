@@ -6,7 +6,7 @@
 import { TSESTree } from '@typescript-eslint/typescript-estree';
 import * as eslint from 'eslint';
 import { dirname, join, relative } from 'path';
-import minimatch from 'minimatch';
+import { minimatch } from 'minimatch';
 import { createImportRuleListener } from './utils';
 
 export = new class implements eslint.Rule.RuleModule {

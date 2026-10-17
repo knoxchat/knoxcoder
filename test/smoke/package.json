@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@types/ncp": "2.0.8",
-    "@types/node": "26.1.2",
+    "@types/node": "26.x",
     "@types/node-fetch": "^2.6.13",
     "npm-run-all2": "^9.0.3"
   }

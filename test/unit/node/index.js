@@ -12,8 +12,8 @@ import * as assert from 'assert';
 import Mocha from 'mocha';
 import * as path from 'path';
 import * as fs from 'fs';
-import glob from 'glob';
-import minimatch from 'minimatch';
+import { glob } from 'glob';
+import { minimatch } from 'minimatch';
 import minimist from 'minimist';
 import * as module from 'module';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -184,7 +184,7 @@ function main() {
 				loadModules(modulesToLoad).then(() => cb(null), cb);
 			};
 
-			glob(args.runGlob, { cwd: src }, function(err, files) { doRun(files); });
+			glob(args.runGlob, { cwd: src }).then(files => doRun(files), cb);
 		};
 	} else if (args.run) {
 		const tests = (typeof args.run === 'string') ? [args.run] : args.run;
@@ -198,7 +198,7 @@ function main() {
 		};
 	} else {
 		loadFunc = (cb) => {
-			glob(TEST_GLOB, { cwd: src }, function(err, files) {
+			glob(TEST_GLOB, { cwd: src }).then(files => {
 				/** @type {string[]} */
 				const modules = [];
 				for (const file of files) {
@@ -207,7 +207,7 @@ function main() {
 					}
 				}
 				loadModules(modules).then(() => cb(null), cb);
-			});
+			}, cb);
 		};
 	}
 

@@ -6,15 +6,12 @@
 import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
-import { promisify } from 'util';
-import glob from 'glob';
+import { glob } from 'glob';
 import type { BuildTarget } from '../lib/esbuild.ts';
 import { rewriteSourceMappingURL } from './source-map-url.ts';
 import { copyFile } from './transpile.ts';
 
 export type { BuildTarget };
-
-const globAsync = promisify(glob);
 
 // Common resources needed by all targets
 const commonResourcePatterns = [
@@ -181,7 +178,7 @@ function getResourcePatternsForTarget(target: BuildTarget): string[] {
 export async function getResourcePaths(srcDir: string, target: BuildTarget): Promise<string[]> {
 	const files = new Set<string>();
 	for (const pattern of getResourcePatternsForTarget(target)) {
-		for (const file of await globAsync(pattern, {
+		for (const file of await glob(pattern, {
 			cwd: srcDir,
 			nodir: true,
 			ignore: ['**/test/**', '**/*-dev.html'],

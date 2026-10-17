@@ -7,7 +7,7 @@ import * as ts from '@typescript/typescript6';
 import lazy from 'lazy.js';
 import eventStream from 'event-stream';
 import File from 'vinyl';
-import sm from 'source-map';
+import * as sm from 'source-map';
 import path from 'path';
 import { sort } from './gulp/facade.ts';
 import { type ISpan, analyzeLocalizeCalls, TextModel, parseLocalizeKeyOrValue } from './nls-analysis.ts';

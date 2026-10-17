@@ -4341,7 +4341,7 @@
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.2.0",
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/fs-copyfile": "2.0.0",
+    "@vscode/fs-copyfile": "3.0.0",
     "byline": "^5.0.0",
     "file-type": "21.3.2",
     "picomatch": "2.3.2",
@@ -4351,7 +4351,7 @@
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/mocha": "^10.0.10",
-    "@types/node": "24.x",
+    "@types/node": "26.x",
     "@types/picomatch": "2.3.0",
     "@types/which": "3.0.0"
   },
@@ -4360,6 +4360,6 @@
     "url": "https://github.com/microsoft/vscode.git"
   },
   "allowScripts": {
-    "@vscode/fs-copyfile@2.0.0": true
+    "@vscode/fs-copyfile@3.0.0": true
   }
 }

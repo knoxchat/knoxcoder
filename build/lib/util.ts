@@ -8,10 +8,10 @@ import _debounce from 'debounce';
 import { filter as _filter, rename, merge} from './gulp/facade.ts';
 import path from 'path';
 import fs from 'fs';
-import _rimraf from 'rimraf';
+import { rimraf as _rimraf } from 'rimraf';
 import VinylFile from 'vinyl';
 import through from 'through';
-import sm from 'source-map';
+import * as sm from 'source-map';
 import { pathToFileURL } from 'url';
 import ternaryStream from 'ternary-stream';
 import type { Transform } from 'stream';
@@ -297,11 +297,9 @@ export function rimraf(dir: string): () => Promise<void> {
 		let retries = 0;
 
 		const retry = () => {
-			_rimraf(dir, { maxBusyTries: 1 }, (err: any) => {
-				if (!err) {
-					return c();
-				}
-
+			_rimraf(dir, { maxRetries: 1 }).then(() => {
+				return c();
+			}).catch((err: any) => {
 				if ((err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM') && ++retries < 5) {
 					return setTimeout(() => retry(), 10);
 				}

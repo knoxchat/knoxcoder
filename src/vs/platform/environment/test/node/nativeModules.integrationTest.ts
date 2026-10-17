@@ -24,8 +24,8 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('yazl', async () => {
-		const { default: yazl } = await import('yazl');
-		assert.ok(typeof yazl.ZipFile === 'function', testErrorMessage('yazl'));
+		const { ZipFile } = await import('yazl');
+		assert.ok(typeof ZipFile === 'function', testErrorMessage('yazl'));
 	});
 
 	test('chrome-remote-interface', async () => {

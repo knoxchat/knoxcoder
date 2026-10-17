@@ -64,8 +64,8 @@ suite("KN-384 packaging", () => {
       "compile-extension:knox",
       "compile-extension-knox-native",
     ]);
-    assert.ok(nativeExtensionsIncludesKnox(["git", "knox", "microsoft-authentication"]));
-    assert.ok(!nativeExtensionsIncludesKnox(["git", "microsoft-authentication"]));
+    assert.ok(nativeExtensionsIncludesKnox(["git", "knox", "foo"]));
+    assert.ok(!nativeExtensionsIncludesKnox(["git", "foo"]));
     assert.ok(shouldSkipGenericTsgoForExtension("knox"));
     assert.ok(!shouldSkipGenericTsgoForExtension("git"));
 

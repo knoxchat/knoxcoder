@@ -8,7 +8,7 @@
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
-const minimatch = require('minimatch');
+const { minimatch } = require('minimatch');
 
 // list of languagesId not shipped with VSCode. The information is used to associate an icon with a language association
 // Please try and keep this list in alphabetical order! Thank you.

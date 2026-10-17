@@ -58,8 +58,10 @@ async function isExpectedElectronInstalled(): Promise<boolean> {
 }
 
 async function ensureCompiled() {
-	if (!(await exists('out'))) {
-		await runProcess(npm, ['run', 'compile']);
+	// `out/` can exist from a partial transpile/bundle and still be missing
+	// boot files such as userDataPath.js. Check a canary imported by mainImpl.
+	if (!(await exists('out/vs/platform/environment/node/userDataPath.js'))) {
+		await runProcess(npm, ['run', 'transpile-client']);
 	}
 }
 

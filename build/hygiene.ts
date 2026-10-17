@@ -6,7 +6,7 @@
 import cp from 'child_process';
 import es from 'event-stream';
 import fs from 'fs';
-import { filter } from './lib/gulp/facade.ts';
+import { filter, merge } from './lib/gulp/facade.ts';
 import pall from 'p-all';
 import path from 'path';
 import VinylFile from 'vinyl';
@@ -251,7 +251,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	);
 
 	let count = 0;
-	return es.merge(...streams).pipe(
+	return merge(...streams).pipe(
 		es.through(
 			function (data: unknown) {
 				count++;

@@ -19,18 +19,15 @@ import packageJson from '../package.json' with { type: 'json' };
 import { untar } from './lib/util.ts';
 import File from 'vinyl';
 import * as fs from 'fs';
-import glob from 'glob';
-import { promisify } from 'util';
+import { glob, globSync } from 'glob';
 import { rcedit } from 'rcedit';
 import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask } from './gulpfile.extensions.ts';
 import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.ts';
 import * as cp from 'child_process';
-import crypto from 'crypto';
 import log from 'fancy-log';
 import buildfile from './buildfile.ts';
 import { fetchUrls } from './lib/fetch.ts';
-import { downloadFeedPackage } from './lib/azureFeed.ts';
 import { getRipgrepExcludeFilter } from './lib/packagingFilters.ts';
 
 const REPO_ROOT = path.dirname(import.meta.dirname);
@@ -139,8 +136,7 @@ const bootstrapEntryPoints = [
 function getNodeVersion() {
 	const npmrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8');
 	const nodeVersion = /^target="(.*)"$/m.exec(npmrc)![1];
-	const internalNodeVersion = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
-	return { nodeVersion, internalNodeVersion };
+	return { nodeVersion };
 }
 
 function getNodeChecksum(expectedName: string): string | undefined {
@@ -204,45 +200,7 @@ function patchElfLoadAlign(): NodeJS.ReadWriteStream {
 	});
 }
 
-const { nodeVersion, internalNodeVersion } = getNodeVersion();
-
-// In product builds, the server (reh) Node.js binaries are fetched on demand
-// from our Azure Artifacts feed named by `product.nodejsArtifactFeed` using the
-// `az` CLI, instead of from nodejs.org (which is used by OSS builds when no feed
-// is configured). Each universal package contains exactly one file, named after
-// the asset minus its last extension, lowercased and sanitized (e.g.
-// `node-v24.15.0-linux-x64.tar`, `win-x64-node`).
-const nodejsArtifactFeed = product.nodejsArtifactFeed;
-
-function internalNodeFeedPackageName(assetName: string): string {
-	return assetName
-		.replace(/\.[^.]+$/, '')
-		.toLowerCase()
-		.replace(/[^a-z0-9._-]+/g, '-')
-		.replace(/^[._-]+/, '')
-		.replace(/[._-]+$/, '');
-}
-
-function fetchNodejsFromInternalFeed(feed: string, assetName: string, version: string, checksumSha256: string | undefined): NodeJS.ReadWriteStream {
-	const result = es.through();
-	(async () => {
-		try {
-			const filePath = await downloadFeedPackage(REPO_ROOT, 'nodejs-feed', { feed, name: internalNodeFeedPackageName(assetName), version });
-			const contents = await fs.promises.readFile(filePath);
-			if (checksumSha256) {
-				const actual = crypto.createHash('sha256').update(contents).digest('hex');
-				if (actual !== checksumSha256) {
-					throw new Error(`Checksum mismatch for ${assetName} (expected ${checksumSha256}, actual ${actual})`);
-				}
-			}
-			result.emit('data', new File({ path: path.basename(filePath), contents }));
-			result.emit('end');
-		} catch (err) {
-			result.emit('error', err);
-		}
-	})();
-	return result;
-}
+const { nodeVersion } = getNodeVersion();
 
 BUILD_TARGETS.forEach(({ platform, arch }) => {
 	task.task(task.define(`node-${platform}-${arch}`, () => {
@@ -273,14 +231,13 @@ function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefi
 		arch = 'x64';
 	}
 
-	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${nodejsArtifactFeed || 'https://nodejs.org'}...`);
+	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org...`);
 
 	const glibcPrefix = process.env['VSCODE_NODE_GLIBC'] ?? '';
 	let expectedName: string | undefined;
 	switch (platform) {
 		case 'win32':
-			expectedName = nodejsArtifactFeed ?
-				`win-${arch}-node.exe` : `win-${arch}/node.exe`;
+			expectedName = `win-${arch}/node.exe`;
 			break;
 
 		case 'darwin':
@@ -303,37 +260,20 @@ function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefi
 
 	switch (platform) {
 		case 'win32':
-			return (nodejsArtifactFeed ?
-				fetchNodejs(expectedName!, checksumSha256) :
-				fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', checksumSha256 }))
+			return fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', checksumSha256 })
 				.pipe(rename('node.exe'));
 		case 'darwin':
 		case 'linux': {
-			const downloaded = (nodejsArtifactFeed ?
-				fetchNodejs(expectedName!, checksumSha256) :
-				fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
-			).pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
+			const downloaded = fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
+				.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 				.pipe(filter('**/node'))
 				.pipe(util.setExecutableBit('**'))
 				.pipe(rename('node'));
 			return platform === 'linux' && arch === 'x64' ? downloaded.pipe(patchElfLoadAlign()) : downloaded;
 		}
 		case 'alpine':
-			return nodejsArtifactFeed ?
-				fetchNodejs(expectedName!, checksumSha256)
-					.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
-					.pipe(filter('**/node'))
-					.pipe(util.setExecutableBit('**'))
-					.pipe(rename('node'))
-				: extractAlpinefromDocker(nodeVersion, platform, arch);
+			return extractAlpinefromDocker(nodeVersion, platform, arch);
 	}
-}
-
-// Fetches a server (reh) Node.js asset from the Azure Artifacts feed named by
-// `product.nodejsArtifactFeed`. Only called when that feed is configured.
-function fetchNodejs(assetName: string, checksumSha256: string | undefined): NodeJS.ReadWriteStream {
-	const version = `${nodeVersion}-${internalNodeVersion}`;
-	return fetchNodejsFromInternalFeed(nodejsArtifactFeed, assetName, version, checksumSha256);
 }
 
 function packageTask(type: string, platform: string, arch: string, sourceFolderName: string, destinationFolderName: string) {
@@ -363,7 +303,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 				}
 			}
 		};
-		const localWorkspaceExtensions = glob.sync('extensions/*/package.json')
+		const localWorkspaceExtensions = globSync('extensions/*/package.json')
 			.filter((extensionPath) => {
 				if (type === 'reh-web') {
 					return true; // web: ship all extensions for now
@@ -562,9 +502,9 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 	return async () => {
 		const deps = (await Promise.all([
 			// Skip multi-arch npm prebuilds: rcedit can only load PE binaries.
-			promisify(glob)('**/*.node', { cwd, ignore: '**/prebuilds/**' }),
-			promisify(glob)('**/rg.exe', { cwd }),
-			promisify(glob)('**/tgrep.exe', { cwd }),
+			glob('**/*.node', { cwd, ignore: '**/prebuilds/**' }),
+			glob('**/rg.exe', { cwd }),
+			glob('**/tgrep.exe', { cwd }),
 		])).flatMap(o => o);
 		const packageJsonContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'package.json'), 'utf8'));
 		const productContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'product.json'), 'utf8'));

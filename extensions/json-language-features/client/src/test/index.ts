@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import * as glob from 'glob';
+import { glob } from 'glob';
 import Mocha from 'mocha';
 
 const options: Mocha.MochaOptions = {
@@ -27,7 +27,7 @@ if (ciOutputDir) {
 	};
 }
 
-const files = glob.sync('**/*.test.js', { cwd: __dirname });
+const files = glob.globSync('**/*.test.js', { cwd: __dirname });
 if (files.length === 0) {
 	throw new Error('No compiled JSON extension tests found.');
 }

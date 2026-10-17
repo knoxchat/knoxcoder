@@ -6,7 +6,7 @@
 import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/utils';
 import * as path from 'path';
-import minimatch from 'minimatch';
+import { minimatch } from 'minimatch';
 import { createImportRuleListener } from './utils.ts';
 
 const REPO_ROOT = path.normalize(path.join(import.meta.dirname, '../'));

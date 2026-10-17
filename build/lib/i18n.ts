@@ -6,7 +6,7 @@
 import path from 'path';
 import fs from 'fs';
 import eventStream from 'event-stream';
-import { mergeJson, gulp } from './gulp/facade.ts';
+import { mergeJson, gulp, merge } from './gulp/facade.ts';
 import File from 'vinyl';
 import xml2js from 'xml2js';
 import fancyLog from 'fancy-log';
@@ -571,7 +571,7 @@ export function createXlfFilesForExtensions(): eventStream.ThroughStream {
 			}
 			return _l10nMap;
 		}
-		eventStream.merge(
+		merge(
 			gulp.src([`.build/extensions/${extensionFolderName}/package.nls.json`, `.build/extensions/${extensionFolderName}/**/nls.metadata.json`], { allowEmpty: true }),
 			createL10nBundleForExtension(extensionFolderName, EXTERNAL_EXTENSIONS.includes(extensionId))
 		).pipe(eventStream.through(function (file: File) {

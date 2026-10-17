@@ -63,7 +63,7 @@ suite('standalone preloads', () => {
 						compileBaseline(entryPath, outPath, minify),
 					]);
 					const map: RawSourceMap = JSON.parse(mapText);
-					const consumer = new SourceMapConsumer(map);
+					const consumer = await new SourceMapConsumer(map);
 					const sourcePath = path.relative(path.dirname(outPath), entryPath).replaceAll('\\', '/');
 					const expectedURL = baseUrl
 						? `${sourceMapBaseUrl}/${file.replace(/\.ts$/, '.js.map')}`

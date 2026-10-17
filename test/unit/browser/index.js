@@ -7,13 +7,13 @@
 'use strict';
 
 const path = require('path');
-const glob = require('glob');
+const { glob } = require('glob');
 const events = require('events');
 const mocha = require('mocha');
 const createStatsCollector = require('mocha/lib/stats-collector');
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
-const minimatch = require('minimatch');
+const { minimatch } = require('minimatch');
 const fs = require('fs');
 const playwright = require('@playwright/test');
 const { applyReporter } = require('../reporter');
@@ -21,7 +21,6 @@ const yaserver = require('yaserver');
 const http = require('http');
 const { randomBytes } = require('crypto');
 const minimist = require('minimist');
-const { promisify } = require('node:util');
 
 /**
  * @type {{
@@ -134,15 +133,7 @@ const testModules = (async function () {
 		const pattern = args.runGlob || defaultGlob;
 		isDefaultModules = pattern === defaultGlob;
 
-		promise = new Promise((resolve, reject) => {
-			glob(pattern, { cwd: out }, (err, files) => {
-				if (err) {
-					reject(err);
-				} else {
-					resolve(files);
-				}
-			});
-		});
+		promise = glob(pattern, { cwd: out });
 	}
 
 	return promise.then(files => {
@@ -255,7 +246,7 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 	}
 
 	// append CSS modules as query-param
-	await promisify(require('glob'))('**/*.css', { cwd: out }).then(async cssModules => {
+	await glob('**/*.css', { cwd: out }).then(async cssModules => {
 		const cssData = await new Response((await new Response(cssModules.join(',')).blob()).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
 		target.searchParams.set('_devCssData', Buffer.from(cssData).toString('base64'));
 	});

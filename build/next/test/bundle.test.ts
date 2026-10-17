@@ -27,7 +27,7 @@ async function bundle(source: string, minify: boolean, platform: 'neutral' | 'no
 	assert.ok(javascript && sourceMap && output);
 	return {
 		code: javascript.text,
-		map: new SourceMapConsumer(JSON.parse(sourceMap.text)),
+		map: await new SourceMapConsumer(JSON.parse(sourceMap.text)),
 		output,
 	};
 }

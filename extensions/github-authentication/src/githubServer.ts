@@ -8,10 +8,8 @@ import { ExperimentationTelemetry } from './common/experimentationService';
 import { AuthProviderType, UriEventHandler } from './github';
 import { Log } from './common/logger';
 import { isSupportedClient, isSupportedTarget } from './common/env';
-import { AccountLinks } from './common/accountLinks';
 import { fetchUserInfo, IGitHubUserInfo } from './common/gitHubAccount';
 import { IHttpClient } from './common/http';
-import { IMicrosoftAuthentication } from './common/microsoftAuthentication';
 import { FetchHttpClient } from './httpClient';
 import { crypto } from './node/crypto';
 import { fetching } from './node/fetch';
@@ -19,7 +17,6 @@ import { ExtensionHost, GitHubOAuthSignInProvider, GitHubTarget, getFlows } from
 import { CANCELLATION_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 import { Config } from './config';
 import { base64Encode } from './node/buffer';
-import { EntraTokenExchange, IEntraExchangedToken, IEntraLoginOptions, IEntraRenewal, IEntraRenewedToken, ModalConfirmationDialog } from './entraTokenExchange';
 
 const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
 const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
@@ -36,22 +33,6 @@ export interface IGitHubServer {
 	 */
 	getFallbackBaseUri(): vscode.Uri;
 	login(scopes: string, signInProvider?: GitHubOAuthSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<IGitHubToken>;
-	/**
-	 * Signs in with Microsoft and exchanges the resulting Entra identity for a GitHub token on this
-	 * host. Fails when the host does not accept an exchange, which is every self-hosted GitHub
-	 * Enterprise Server: the Entra to GitHub identity mapping is a service GitHub runs.
-	 */
-	loginWithMicrosoft(scopes: readonly string[], options?: IEntraLoginOptions): Promise<IEntraExchangedToken & IGitHubToken>;
-	/**
-	 * Mints a fresh token for a session that was brokered through Microsoft, without showing the
-	 * user anything. Fails rather than prompting when it cannot be done silently.
-	 */
-	renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken & IGitHubToken>;
-	/**
-	 * Checks whether this host maps the Entra identity behind `subjectToken` onto a GitHub account,
-	 * without showing anything or leaving a usable token behind. See {@link EntraTokenExchange.probe}.
-	 */
-	probeMicrosoftLink(subjectToken: string): Promise<IGitHubUserInfo | undefined>;
 	logout(session: vscode.AuthenticationSession): Promise<void>;
 	getUserInfo(token: string): Promise<IGitHubUserInfo>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
@@ -63,7 +44,6 @@ export class GitHubServer implements IGitHubServer {
 	readonly friendlyName: string;
 
 	private readonly _type: AuthProviderType;
-	private readonly _entraTokenExchange: EntraTokenExchange;
 	private readonly _http: IHttpClient;
 
 	private _redirectEndpoint: string | undefined;
@@ -73,34 +53,11 @@ export class GitHubServer implements IGitHubServer {
 		private readonly _telemetryReporter: ExperimentationTelemetry,
 		private readonly _uriHandler: UriEventHandler,
 		private readonly _extensionKind: vscode.ExtensionKind,
-		microsoft: IMicrosoftAuthentication,
-		accountLinks: AccountLinks,
 		private readonly _ghesUri?: vscode.Uri
 	) {
 		this._type = _ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
 		this.friendlyName = this._type === AuthProviderType.github ? 'GitHub' : _ghesUri?.authority!;
 		this._http = new FetchHttpClient(_logger);
-		// The Entra to GitHub identity mapping is a service GitHub runs, so a self-hosted GitHub
-		// Enterprise Server has no endpoint to exchange against. Where there is one it is the same
-		// endpoint the authorization code flow posts to, but this exchange identifies the client
-		// with only its client id.
-		const tokenExchange = isSupportedTarget(this._type, _ghesUri)
-			? this.baseUri.with({ path: '/login/oauth/access_token' }).toString(true)
-			: undefined;
-		// Only these hosts let an OAuth app delete its own tokens, so only here are the tokens a probe
-		// mints revoked rather than left to expire.
-		const tokenRevocation = isSupportedTarget(this._type, _ghesUri)
-			? this.getServerUri(`/applications/${Config.gitHubClientId}/token`).toString(true)
-			: undefined;
-		// Both endpoints come from this host, so a token minted here can only ever be described by
-		// this host's `GET /user`.
-		this._entraTokenExchange = new EntraTokenExchange(
-			_logger,
-			{ tokenExchange, tokenRevocation, userInfo: this.getServerUri('/user').toString() },
-			microsoft,
-			accountLinks,
-			this._http,
-			new ModalConfirmationDialog());
 	}
 
 	private get baseUri() {
@@ -112,20 +69,6 @@ export class GitHubServer implements IGitHubServer {
 
 	getFallbackBaseUri(): vscode.Uri {
 		return this.baseUri;
-	}
-
-	async loginWithMicrosoft(scopes: readonly string[], options?: IEntraLoginOptions): Promise<IEntraExchangedToken & IGitHubToken> {
-		const authorizationServer = vscode.Uri.joinPath(this.baseUri, '/login/oauth');
-		return { ...await this._entraTokenExchange.login(scopes, options), authorizationServer };
-	}
-
-	async renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken & IGitHubToken> {
-		const authorizationServer = vscode.Uri.joinPath(this.baseUri, '/login/oauth');
-		return { ...await this._entraTokenExchange.renew(renewal), authorizationServer };
-	}
-
-	probeMicrosoftLink(subjectToken: string): Promise<IGitHubUserInfo | undefined> {
-		return this._entraTokenExchange.probe(subjectToken);
 	}
 
 	private async getRedirectEndpoint(): Promise<string> {

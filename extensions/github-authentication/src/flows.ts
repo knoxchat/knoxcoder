@@ -666,17 +666,14 @@ export function getFlows(query: IFlowQuery) {
 export const enum GitHubSignInProvider {
 	Google = 'google',
 	Apple = 'apple',
-	Microsoft = 'microsoft',
 }
 
 /**
  * The subset of {@link GitHubSignInProvider} that GitHub's own OAuth authorize
- * endpoint understands as a `provider=` parameter. Microsoft is deliberately
- * excluded: it is brokered by VS Code through a token exchange and never
- * reaches an authorize URL.
+ * endpoint understands as a `provider=` parameter.
  */
-export type GitHubOAuthSignInProvider = GitHubSignInProvider.Google | GitHubSignInProvider.Apple;
+export type GitHubOAuthSignInProvider = GitHubSignInProvider;
 
 export function isSignInProvider(provider: unknown): provider is GitHubSignInProvider {
-	return provider === GitHubSignInProvider.Google || provider === GitHubSignInProvider.Apple || provider === GitHubSignInProvider.Microsoft;
+	return provider === GitHubSignInProvider.Google || provider === GitHubSignInProvider.Apple;
 }

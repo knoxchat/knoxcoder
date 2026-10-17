@@ -10,7 +10,7 @@ const path = require('path');
 const playwright = require('@playwright/test');
 const yaserver = require('yaserver');
 const http = require('http');
-const { glob } = require('glob');
+const { globSync } = require('glob');
 
 const DEBUG_TESTS = false;
 const SRC_DIR = path.join(__dirname, '../../../out-monaco-editor-core/esm');
@@ -78,7 +78,7 @@ async function startServer() {
 async function extractSourcesWithoutCSS() {
 	fs.rmSync(DST_DIR, { recursive: true, force: true });
 
-	for (const file of glob.sync('**/*', { cwd: SRC_DIR, nodir: true })) {
+	for (const file of globSync('**/*', { cwd: SRC_DIR, nodir: true })) {
 		const srcFilename = path.join(SRC_DIR, file);
 		if (!/\.js$/.test(srcFilename)) {
 			continue;
