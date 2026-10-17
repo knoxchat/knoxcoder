@@ -87,7 +87,11 @@ describe("evaluateAgentTurn", () => {
     const { clearKnoxChatOAuthSession } = await import(
       "../auth/knoxOAuth/session"
     );
+    const { clearOpenRouterOAuthSession } = await import(
+      "../auth/openrouterOAuth/session"
+    );
     clearKnoxChatOAuthSession();
+    clearOpenRouterOAuthSession();
     const judgment = await evaluateAgentTurn({
       userMessage: "What does copy_to_user do?",
       hasViewRead: true,
@@ -302,6 +306,34 @@ describe("evaluateAgentTurn", () => {
     expect(state).toHaveProperty("recent_context");
     expect(state).not.toHaveProperty("skill_index");
     expect(state).not.toHaveProperty("has_open_context");
+  });
+
+  it("embeds png/jpeg data-URL image parts in state for Jev 1.14", async () => {
+    let state: unknown;
+    const png = "data:image/png;base64,aaa";
+    await evaluateAgentTurn({
+      userMessage: "what is in this screenshot?",
+      images: [png, "https://example.com/remote.png", "data:image/webp;base64,bbb"],
+      hasViewRead: true,
+      runtime: runtime(),
+      client: {
+        async systemOne(request) {
+          state = request.state;
+          return {
+            model: "typesafe/jev-1.14",
+            answers: {
+              route: { type: "choice", choice: "view_read", confidence: 0.9 },
+              needs_mutation: { type: "noul", noul: 0.1 },
+              difficulty: { type: "score", score: 0.4, confidence: 0.8 },
+            },
+          };
+        },
+      },
+    });
+    expect(state).toMatchObject({
+      user_message: "what is in this screenshot?",
+      images: [{ type: "image_url", image_url: { url: png } }],
+    });
   });
 
   it("keeps a clarify route and hint instead of silently implementing", async () => {

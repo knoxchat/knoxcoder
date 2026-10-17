@@ -3,11 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHttpJevClient, JevClientError } from "./client";
 import { resolveJevRuntime } from "./config";
 import { clearKnoxChatOAuthSession } from "../auth/knoxOAuth/session";
+import { clearOpenRouterOAuthSession } from "../auth/openrouterOAuth/session";
 import type { JevSystemOneResult } from "./types";
 
 describe("resolveJevRuntime", () => {
   afterEach(() => {
     clearKnoxChatOAuthSession();
+    clearOpenRouterOAuthSession();
   });
   it("defaults to disabled without yaml", () => {
     const runtime = resolveJevRuntime();
@@ -17,6 +19,7 @@ describe("resolveJevRuntime", () => {
     expect(runtime.timeoutMs).toBe(8_000);
     expect(runtime.apiKey).toBe("");
     expect(runtime.baseUrl).toBe("https://api.knoxstudio.ai");
+    expect(runtime.provider).toBe("knoxchat");
   });
 
   it("reads the API key from config.yaml jev.apiKey", () => {
@@ -28,14 +31,38 @@ describe("resolveJevRuntime", () => {
     expect(runtime.enabled).toBe(true);
     expect(runtime.apiKey).toBe("sk-key");
     expect(runtime.model).toBe("jev-1.13.0");
+    expect(runtime.provider).toBe("knoxchat");
   });
 
-  it("always uses api.knoxstudio.ai even if yaml sets another host", () => {
+  it("ignores api.typesafe.ai and stays on KnoxStudio", () => {
     const runtime = resolveJevRuntime({
       enabled: true,
       baseUrl: "https://api.typesafe.ai",
     });
     expect(runtime.baseUrl).toBe("https://api.knoxstudio.ai");
+    expect(runtime.provider).toBe("knoxchat");
+  });
+
+  it("uses OpenRouter System One when yaml points at openrouter.ai", () => {
+    const runtime = resolveJevRuntime({
+      enabled: true,
+      apiKey: "sk-or-v1-key",
+      baseUrl: "https://openrouter.ai/api/v1",
+    });
+    expect(runtime.provider).toBe("openrouter");
+    expect(runtime.baseUrl).toBe("https://openrouter.ai/api");
+    expect(runtime.model).toBe("typesafe/jev-1.14");
+    expect(runtime.apiKey).toBe("sk-or-v1-key");
+  });
+
+  it("maps a Knox-style model pin onto OpenRouter's typesafe/ namespace", () => {
+    const runtime = resolveJevRuntime({
+      enabled: true,
+      apiKey: "sk-or-v1-key",
+      model: "jev-1.13.0",
+      baseUrl: "https://openrouter.ai/api",
+    });
+    expect(runtime.model).toBe("typesafe/jev-1.13");
   });
 
   it("does not read TYPESAFE_* environment variables", () => {
@@ -174,7 +201,7 @@ describe("createHttpJevClient", () => {
     expect(result.answers.a).toEqual({ type: "noul", noul: 1 });
   });
 
-  it("ignores a non-Knox baseUrl and still POSTs api.knoxstudio.ai", async () => {
+  it("ignores a TypeSafe host and still POSTs api.knoxstudio.ai", async () => {
     const fetch = vi.fn(async (_url: string) => {
       expect(_url).toBe("https://api.knoxstudio.ai/v1/systemone");
       return new Response(
@@ -196,6 +223,41 @@ describe("createHttpJevClient", () => {
       state: "x",
       questions: { a: { type: "noul", instructions: "y" } },
     });
+  });
+
+  it("POSTs OpenRouter System One with typesafe/jev-1.14 and attribution headers", async () => {
+    const payload: JevSystemOneResult = {
+      model: "typesafe/jev-1.14",
+      answers: { billing: { type: "noul", noul: 0.91 } },
+      usage: { input_tokens: 275, output_tokens: 20, cost: 0.00003 },
+    };
+    const fetch = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(_url).toBe("https://openrouter.ai/api/v1/systemone");
+      const headers = init?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe("Bearer sk-or-v1-key");
+      expect(headers["HTTP-Referer"]).toBe(
+        "https://github.com/knoxchat/knoxcoder",
+      );
+      expect(headers["X-OpenRouter-Title"]).toBe("KnoxCoder");
+      const body = JSON.parse(String(init?.body));
+      expect(body.model).toBe("typesafe/jev-1.14");
+      return new Response(JSON.stringify(payload), { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+
+    const client = createHttpJevClient({
+      apiKey: "sk-or-v1-key",
+      baseUrl: "https://openrouter.ai/api",
+      model: "typesafe/jev-1.14",
+      fetch,
+    });
+    const result = await client.systemOne({
+      state: "I was charged twice",
+      questions: {
+        billing: { type: "noul", instructions: "Is this about billing?" },
+      },
+    });
+    expect(result.answers.billing).toEqual({ type: "noul", noul: 0.91 });
+    expect(result.usage?.cost).toBe(0.00003);
   });
 
   it("throws on HTTP errors", async () => {
@@ -233,5 +295,23 @@ describe("createHttpJevClient", () => {
         questions: { a: { type: "noul", instructions: "y" } },
       }),
     ).rejects.toThrow(/allowlist does not include jev-\*/);
+  });
+
+  it("explains an OpenRouter 401 with the OpenRouter key hint", async () => {
+    const fetch = vi.fn(
+      async () => new Response("nope", { status: 401 }),
+    ) as unknown as typeof globalThis.fetch;
+    const client = createHttpJevClient({
+      apiKey: "sk-or-v1-key",
+      baseUrl: "https://openrouter.ai/api",
+      model: "typesafe/jev-1.14",
+      fetch,
+    });
+    await expect(
+      client.systemOne({
+        state: "x",
+        questions: { a: { type: "noul", instructions: "y" } },
+      }),
+    ).rejects.toThrow(/invalid or missing OpenRouter API key/);
   });
 });

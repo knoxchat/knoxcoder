@@ -1,14 +1,22 @@
-import { USER_AGENT } from "../auth/knoxOAuth/constants";
+import { USER_AGENT as KNOX_USER_AGENT } from "../auth/knoxOAuth/constants";
+import { USER_AGENT as OPENROUTER_USER_AGENT } from "../auth/openrouterOAuth/constants";
+import { applyOpenRouterAttributionHeaders } from "../../pkg/fetch/openrouterAttribution";
 import { createKnoxLogger } from "../util/knoxLog";
 import { confidenceFromProbabilities } from "./answers";
 import { JevClientError } from "./errors";
 import { wrapJevClientWithGuard } from "./guard";
 import {
+  isOpenRouterJevOrigin,
   jevCanCallNetwork,
-  normalizeJevBaseUrl,
+  jevSystemOneUrl,
   resolveJevApiKey,
+  resolveJevRequestBaseUrl,
 } from "./config";
-import { JEV_DEFAULT_BASE_URL, JEV_DEFAULT_TIMEOUT_MS, KNOX_KEYS_URL } from "./questions";
+import {
+  JEV_DEFAULT_TIMEOUT_MS,
+  KNOX_KEYS_URL,
+  OPENROUTER_KEYS_URL,
+} from "./questions";
 import type {
   JevAnswer,
   JevClient,
@@ -190,15 +198,25 @@ function parseAnswer(value: unknown, key: string): JevAnswer {
   throw new JevClientError(`Jev answer "${key}" has unknown type ${value.type}`);
 }
 
-function describeJevHttpError(status: number, text: string): string {
+function describeJevHttpError(
+  status: number,
+  text: string,
+  openrouter: boolean,
+): string {
   const snippet = text.replace(/\s+/g, " ").trim().slice(0, 180);
   const hint =
     status === 401
-      ? "invalid or missing Knox API key"
+      ? openrouter
+        ? "invalid or missing OpenRouter API key"
+        : "invalid or missing Knox API key"
       : status === 402
-        ? "insufficient Knox credits"
+        ? openrouter
+          ? "insufficient OpenRouter credits"
+          : "insufficient Knox credits"
         : status === 403
-          ? `this key's model allowlist does not include jev-* (allow it on ${KNOX_KEYS_URL})`
+          ? openrouter
+            ? `this OpenRouter key cannot call typesafe/jev-* (check ${OPENROUTER_KEYS_URL})`
+            : `this key's model allowlist does not include jev-* (allow it on ${KNOX_KEYS_URL})`
           : status === 404
             ? "no Jev channel is available"
             : status === 429
@@ -238,6 +256,10 @@ function parseResult(payload: unknown): JevSystemOneResult {
             typeof payload.usage.output_tokens === "number"
               ? payload.usage.output_tokens
               : undefined,
+          cost:
+            typeof payload.usage.cost === "number"
+              ? payload.usage.cost
+              : undefined,
         }
       : undefined,
   };
@@ -250,14 +272,16 @@ export function createHttpJevClient(options: {
   fetch?: typeof fetch;
 }): JevClient {
   const { apiKey, model } = options;
-  const baseUrl = normalizeJevBaseUrl(JEV_DEFAULT_BASE_URL);
+  const baseUrl = resolveJevRequestBaseUrl(options.baseUrl);
+  const endpoint = jevSystemOneUrl(baseUrl);
+  const openrouter = isOpenRouterJevOrigin(baseUrl);
   const doFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
 
   return {
     async systemOne(request, callOptions) {
       if (!apiKey) {
         throw new JevClientError(
-          "Jev API key is not set (add a knoxchat model key or jev.apiKey)",
+          "Jev API key is not set (add a knoxchat or openrouter model key, or jev.apiKey)",
         );
       }
       const questions = request.questions;
@@ -297,13 +321,15 @@ export function createHttpJevClient(options: {
         const signal = attemptSignal();
         let response: Response;
         try {
-          response = await doFetch(`${baseUrl}/v1/systemone`, {
+          response = await doFetch(endpoint, {
             method: "POST",
-            headers: {
+            headers: applyOpenRouterAttributionHeaders(endpoint, {
               Authorization: `Bearer ${apiKey}`,
               "Content-Type": "application/json",
-              "User-Agent": USER_AGENT,
-            },
+              "User-Agent": openrouter
+                ? OPENROUTER_USER_AGENT
+                : KNOX_USER_AGENT,
+            }),
             body: payloadJson,
             signal,
           });
@@ -329,7 +355,7 @@ export function createHttpJevClient(options: {
         const text = await response.text();
         if (!response.ok) {
           lastError = new JevClientError(
-            describeJevHttpError(response.status, text),
+            describeJevHttpError(response.status, text, openrouter),
           );
           const retryable = shouldRetryStatus(response.status);
           if (!retryable || attempt >= JEV_MAX_RETRIES) {

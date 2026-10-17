@@ -1,7 +1,14 @@
 /**
  * Thin System One types (Jev). Kept local so tests and Core
- * do not depend on an SDK. Host is always https://api.knoxstudio.ai.
+ * do not depend on an SDK.
+ *
+ * KnoxStudio: POST https://api.knoxstudio.ai/v1/systemone
+ * OpenRouter: POST https://openrouter.ai/api/v1/systemone (TypeSafe System One
+ * API; model typesafe/jev-1.14). See
+ * https://openrouter.ai/docs/guides/community/typesafe-sdk
  */
+
+export type JevProvider = "knoxchat" | "openrouter";
 
 export type JevJson =
   | string
@@ -62,7 +69,7 @@ export interface JevSystemOneRequest {
 export interface JevSystemOneResult {
   model: string;
   answers: Record<string, JevAnswer>;
-  usage?: { input_tokens?: number; output_tokens?: number };
+  usage?: { input_tokens?: number; output_tokens?: number; cost?: number };
 }
 
 export interface JevClient {
@@ -80,11 +87,14 @@ export interface JevClient {
 export interface JevYamlConfig {
   enabled?: boolean;
   model?: string;
-  /** Optional override. Inherited from the first knoxchat model key when omitted. */
+  /** Optional override. Inherited from the selected knoxchat or openrouter model key when omitted. */
   apiKey?: string;
   timeoutMs?: number;
   failOpen?: boolean;
-  /** Parsed if present; runtime always uses https://api.knoxstudio.ai. */
+  /**
+   * Optional origin. Runtime accepts KnoxStudio (`https://api.knoxstudio.ai`)
+   * and OpenRouter (`https://openrouter.ai/api`). Other hosts are ignored.
+   */
   baseUrl?: string;
 }
 
@@ -95,4 +105,5 @@ export interface JevRuntime {
   failOpen: boolean;
   apiKey: string;
   baseUrl: string;
+  provider: JevProvider;
 }

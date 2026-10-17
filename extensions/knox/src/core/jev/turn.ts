@@ -34,6 +34,7 @@ import {
   ROUTE_CONFIDENCE_FLOOR,
   CLARIFY_HINT,
   difficultyQuestion,
+  jevImagePartsFromDataUrls,
   needsMutationQuestion,
   profileQuestion,
   routeQuestion,
@@ -72,6 +73,11 @@ export interface EvaluateAgentTurnInput {
   runtime: JevRuntime;
   client?: JevClient;
   abortSignal?: AbortSignal;
+  /**
+   * Optional screenshot/image data URLs from the user message. Jev 1.14 reads
+   * png/jpeg `image_url` parts in state (OpenRouter multimodal Decisions).
+   */
+  images?: string[];
 }
 
 /**
@@ -218,7 +224,7 @@ export async function evaluateAgentTurn(
   if (!input.runtime.enabled || !client) {
     if (input.runtime.enabled && !client) {
       log.warn(
-        "Jev is enabled but has no Knox API key; using heuristics. Sign in with KnoxStudio or set jev.apiKey.",
+        "Jev is enabled but has no API key; using heuristics. Sign in with KnoxStudio or OpenRouter, or set jev.apiKey.",
       );
     }
     return fallback();
@@ -241,9 +247,11 @@ export async function evaluateAgentTurn(
   }
 
   const recentContext = input.recentContext ?? [];
+  const images = jevImagePartsFromDataUrls(input.images);
   const state: JevJson = {
     user_message: input.userMessage.slice(0, 8_000),
     recent_context: recentContext,
+    ...(images.length > 0 ? { images } : {}),
     ...(askProfile ? { workspace_hints: (input.workspaceHints ?? {}) as JevJson } : {}),
   };
 

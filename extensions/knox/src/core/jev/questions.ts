@@ -7,6 +7,7 @@
 
 import type {
   JevChoiceQuestion,
+  JevJson,
   JevNoulQuestion,
   JevScoreQuestion,
 } from "./types";
@@ -14,12 +15,28 @@ import type {
 export const JEV_DEFAULT_MODEL = "jev-1.13.0";
 /** Knox Chat hop + System One (route, skills, guardrails). Fail-open if exceeded. */
 export const JEV_DEFAULT_TIMEOUT_MS = 8_000;
-/** Jev always calls this host. `jev.baseUrl` is ignored. */
+/** KnoxStudio System One origin. Client POSTs `{base}/v1/systemone`. */
 export const JEV_DEFAULT_BASE_URL = "https://api.knoxstudio.ai";
+/**
+ * OpenRouter System One origin (TypeSafe SDK base URL). Client POSTs
+ * `{base}/v1/systemone` → https://openrouter.ai/api/v1/systemone.
+ * @see https://openrouter.ai/docs/guides/community/typesafe-sdk
+ */
+export const OPENROUTER_JEV_BASE_URL = "https://openrouter.ai/api";
+/** Latest Jev on OpenRouter. IDs with a `typesafe/` prefix are used as-is. */
+export const OPENROUTER_JEV_MODEL = "typesafe/jev-1.14";
 /** Token allowlist / key management (same backend as knox.chat/keys). */
 export const KNOX_KEYS_URL = "https://knoxstudio.ai/keys";
+export const OPENROUTER_KEYS_URL = "https://openrouter.ai/keys";
 /** One Choice holds ~182 skills in the skill_suggestion cookbook. */
 export const JEV_MAX_SKILL_OPTIONS = 200;
+/**
+ * Jev 1.14 reads image_url parts in `state` (png/jpeg data URLs only; remote
+ * http(s) URLs are not fetched). Cap keeps the System One payload inside the
+ * harness latency budget.
+ * @see https://openrouter.ai/docs/guides/community/multimodal-decisions
+ */
+export const JEV_MAX_IMAGES = 4;
 
 /** Below this, do not trust `route`; use the chat model. */
 export const ROUTE_CONFIDENCE_FLOOR = 0.55;
@@ -561,3 +578,28 @@ export function leakedSecretsQuestion(): JevNoulQuestion {
 
 /** CJK-only turns: English is Jev's strongest language; gate on confidence. */
 export const CJK_SIGNIFICANT_RATIO = 0.2;
+
+/**
+ * OpenRouter Decisions / Jev 1.14 image part. Remote http(s) URLs are dropped
+ * because Jev does not fetch them. webp is not accepted.
+ */
+export function jevImagePartsFromDataUrls(urls: string[] | undefined): JevJson[] {
+  if (!urls?.length) {
+    return [];
+  }
+  const parts: JevJson[] = [];
+  for (const url of urls) {
+    if (parts.length >= JEV_MAX_IMAGES) {
+      break;
+    }
+    const trimmed = url.trim();
+    if (!/^data:image\/(png|jpeg);base64,/i.test(trimmed)) {
+      continue;
+    }
+    parts.push({
+      type: "image_url",
+      image_url: { url: trimmed },
+    });
+  }
+  return parts;
+}

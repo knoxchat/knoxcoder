@@ -1,17 +1,26 @@
 import type { ResolvedAgentProfile } from "../config/agentProfile";
 import { resolveKnoxChatApiKey } from "../auth/knoxOAuth/session";
+import { resolveOpenRouterApiKey } from "../auth/openrouterOAuth/session";
+import { isOpenRouterApiUrl } from "../../pkg/fetch/openrouterAttribution";
 import {
   JEV_DEFAULT_BASE_URL,
   JEV_DEFAULT_MODEL,
   JEV_DEFAULT_TIMEOUT_MS,
+  OPENROUTER_JEV_BASE_URL,
+  OPENROUTER_JEV_MODEL,
 } from "./questions";
-import type { JevRuntime, JevYamlConfig } from "./types";
+import type { JevProvider, JevRuntime, JevYamlConfig } from "./types";
 
 export interface JevKeySource {
   providerName?: string;
   provider?: string;
   apiKey?: string;
   apiBase?: string;
+}
+
+export interface JevFallback {
+  apiKey: string;
+  provider?: JevProvider;
 }
 
 function clampTimeout(raw: unknown): number {
@@ -21,43 +30,182 @@ function clampTimeout(raw: unknown): number {
   return JEV_DEFAULT_TIMEOUT_MS;
 }
 
+export function looksLikeOpenRouterApiKey(key: string | undefined): boolean {
+  return (key ?? "").trim().toLowerCase().startsWith("sk-or-");
+}
+
+function isKnoxStudioApiUrl(raw: string): boolean {
+  try {
+    const hostname = new URL(raw).hostname.toLowerCase();
+    return (
+      hostname === "api.knoxstudio.ai" ||
+      hostname === "knoxstudio.ai" ||
+      hostname.endsWith(".knoxstudio.ai")
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Origin for `POST {base}/v1/systemone`.
  * KnoxChat `apiBase` is `https://api.knoxstudio.ai/v1/` — strip `/v1` so we do not
- * request `/v1/v1/systemone`.
+ * request `/v1/v1/systemone`. OpenRouter System One lives at
+ * `https://openrouter.ai/api/v1/systemone`, so keep `/api`.
  */
 export function normalizeJevBaseUrl(raw: string): string {
-  return raw
-    .trim()
-    .replace(/\/+$/, "")
-    .replace(/\/(?:api\/)?v1$/i, "");
-}
-
-function knoxChatOrigin(): string {
-  return normalizeJevBaseUrl(JEV_DEFAULT_BASE_URL);
-}
-
-function isKnoxChatSource(model: JevKeySource): boolean {
-  const provider = (model.providerName ?? model.provider ?? "").toLowerCase();
-  return provider === "knoxchat";
-}
-
-/** First knoxchat model that already has an API key. Host is always api.knoxstudio.ai. */
-export function pickKnoxChatJevFallback(
-  models: JevKeySource[] | undefined,
-): { apiKey: string } {
-  for (const model of models ?? []) {
-    if (!isKnoxChatSource(model)) {
-      continue;
-    }
-    const apiKey = model.apiKey?.trim() ?? "";
-    if (apiKey) {
-      return { apiKey };
-    }
+  const trimmed = raw.trim().replace(/\/+$/, "");
+  if (!trimmed) {
+    return JEV_DEFAULT_BASE_URL;
   }
-  return { apiKey: resolveKnoxChatApiKey() ?? "" };
+  if (isOpenRouterApiUrl(trimmed) || isOpenRouterApiUrl(`${trimmed}/`)) {
+    return OPENROUTER_JEV_BASE_URL;
+  }
+  return trimmed.replace(/\/(?:api\/)?v1$/i, "");
 }
 
+export function isOpenRouterJevOrigin(raw: string | undefined): boolean {
+  if (!raw?.trim()) {
+    return false;
+  }
+  const normalized = normalizeJevBaseUrl(raw);
+  return normalized === OPENROUTER_JEV_BASE_URL || isOpenRouterApiUrl(normalized);
+}
+
+export function jevOriginForProvider(provider: JevProvider): string {
+  return provider === "openrouter"
+    ? OPENROUTER_JEV_BASE_URL
+    : normalizeJevBaseUrl(JEV_DEFAULT_BASE_URL);
+}
+
+export function defaultJevModel(provider: JevProvider): string {
+  return provider === "openrouter" ? OPENROUTER_JEV_MODEL : JEV_DEFAULT_MODEL;
+}
+
+/**
+ * Map a configured model id onto the provider's catalog.
+ * OpenRouter System One accepts bare `jev-*` ids and `typesafe/` prefixed ids.
+ * @see https://openrouter.ai/docs/guides/community/typesafe-sdk
+ */
+export function mapJevModel(model: string, provider: JevProvider): string {
+  const id = model.trim();
+  if (!id) {
+    return defaultJevModel(provider);
+  }
+  if (provider === "openrouter") {
+    if (id.startsWith("typesafe/") || id.startsWith("~typesafe/")) {
+      return id;
+    }
+    if (id === "jev-latest") {
+      return "~typesafe/jev-latest";
+    }
+    if (/^jev-1\.14(\.|$)/.test(id)) {
+      return OPENROUTER_JEV_MODEL;
+    }
+    if (/^jev-1\.13(\.|$)/.test(id)) {
+      return "typesafe/jev-1.13";
+    }
+    if (id.startsWith("jev-")) {
+      return OPENROUTER_JEV_MODEL;
+    }
+    return id;
+  }
+  if (id.startsWith("typesafe/")) {
+    return id.slice("typesafe/".length) || JEV_DEFAULT_MODEL;
+  }
+  if (id.startsWith("~typesafe/")) {
+    return id.slice("~typesafe/".length) || JEV_DEFAULT_MODEL;
+  }
+  return id;
+}
+
+/**
+ * Only KnoxStudio and OpenRouter may serve Jev. `api.typesafe.ai` and other
+ * hosts fall back to KnoxStudio so a leftover YAML `baseUrl` cannot leak keys.
+ */
+export function resolveJevRequestBaseUrl(raw: string | undefined): string {
+  if (!raw?.trim()) {
+    return jevOriginForProvider("knoxchat");
+  }
+  const normalized = normalizeJevBaseUrl(raw);
+  if (isOpenRouterJevOrigin(normalized)) {
+    return OPENROUTER_JEV_BASE_URL;
+  }
+  if (isKnoxStudioApiUrl(normalized)) {
+    return normalizeJevBaseUrl(JEV_DEFAULT_BASE_URL);
+  }
+  return jevOriginForProvider("knoxchat");
+}
+
+export function jevSystemOneUrl(baseUrl: string): string {
+  return `${resolveJevRequestBaseUrl(baseUrl)}/v1/systemone`;
+}
+
+export function providerFromJevBaseUrl(
+  raw: string | undefined,
+): JevProvider | undefined {
+  if (!raw?.trim()) {
+    return undefined;
+  }
+  const normalized = normalizeJevBaseUrl(raw);
+  if (isOpenRouterJevOrigin(normalized)) {
+    return "openrouter";
+  }
+  if (isKnoxStudioApiUrl(normalized)) {
+    return "knoxchat";
+  }
+  return undefined;
+}
+
+function sourceProvider(model: JevKeySource): JevProvider | undefined {
+  const provider = (model.providerName ?? model.provider ?? "").toLowerCase();
+  if (provider === "openrouter") {
+    return "openrouter";
+  }
+  if (provider === "knoxchat") {
+    return "knoxchat";
+  }
+  if (model.apiBase && isOpenRouterApiUrl(model.apiBase)) {
+    return "openrouter";
+  }
+  if (model.apiBase && isKnoxStudioApiUrl(model.apiBase)) {
+    return "knoxchat";
+  }
+  return undefined;
+}
+
+function liveKeyFor(provider: JevProvider): string {
+  return provider === "openrouter"
+    ? (resolveOpenRouterApiKey() ?? "")
+    : (resolveKnoxChatApiKey() ?? "");
+}
+
+function detectJevProvider(
+  yaml?: Pick<JevYamlConfig, "apiKey" | "baseUrl"> | null,
+  fallbackProvider?: JevProvider,
+): JevProvider {
+  if (looksLikeOpenRouterApiKey(yaml?.apiKey)) {
+    return "openrouter";
+  }
+  // Selected chat provider beats a leftover yaml `baseUrl` (that field used
+  // to be ignored). An `sk-or-` key above is the explicit OpenRouter override.
+  if (fallbackProvider) {
+    return fallbackProvider;
+  }
+  const fromBase = providerFromJevBaseUrl(yaml?.baseUrl);
+  if (fromBase) {
+    return fromBase;
+  }
+  if (resolveKnoxChatApiKey()) {
+    return "knoxchat";
+  }
+  if (resolveOpenRouterApiKey()) {
+    return "openrouter";
+  }
+  return "knoxchat";
+}
+
+/** Selected chat model first, then chat-role models, then the rest. */
 export function knoxChatJevSourcesFromConfig(config: {
   modelsByRole?: { chat?: JevKeySource[] };
   models?: JevKeySource[];
@@ -72,42 +220,94 @@ export function knoxChatJevSourcesFromConfig(config: {
 }
 
 /**
- * Fill a missing `apiKey` from a knoxchat model so Jev uses the same Knox key
- * as chat. Host is always `https://api.knoxstudio.ai`.
+ * Pick the Jev backend from the selected chat model (knoxchat or openrouter),
+ * then live OAuth sessions. Selected provider wins even when its key is still
+ * empty so we do not silently bill Knox while the user is on OpenRouter.
+ */
+export function pickKnoxChatJevFallback(
+  models: JevKeySource[] | undefined,
+): JevFallback {
+  let preferred: JevProvider | undefined;
+  for (const model of models ?? []) {
+    const provider = sourceProvider(model);
+    if (!provider) {
+      continue;
+    }
+    preferred ??= provider;
+    if (provider !== preferred) {
+      continue;
+    }
+    const apiKey = model.apiKey?.trim() || liveKeyFor(provider);
+    if (apiKey) {
+      return { apiKey, provider };
+    }
+  }
+  if (preferred) {
+    return { apiKey: liveKeyFor(preferred), provider: preferred };
+  }
+  const knox = liveKeyFor("knoxchat");
+  if (knox) {
+    return { apiKey: knox, provider: "knoxchat" };
+  }
+  const openrouter = liveKeyFor("openrouter");
+  if (openrouter) {
+    return { apiKey: openrouter, provider: "openrouter" };
+  }
+  return { apiKey: "", provider: "knoxchat" };
+}
+
+/**
+ * Fill a missing `apiKey` from the selected knoxchat/openrouter model so Jev
+ * uses the same key as chat. Host follows that provider.
  */
 export function mergeJevConfigWithFallback(
   yaml: JevYamlConfig | undefined,
-  fallback: { apiKey: string },
+  fallback: JevFallback,
 ): JevYamlConfig | undefined {
   if (!yaml) {
     return undefined;
   }
   const explicitKey = yaml.apiKey?.trim() ?? "";
   const apiKey = explicitKey || fallback.apiKey || "";
+  const provider = detectJevProvider(
+    { ...yaml, ...(apiKey ? { apiKey } : {}) },
+    fallback.provider,
+  );
   return {
     ...yaml,
     ...(apiKey ? { apiKey } : {}),
-    baseUrl: knoxChatOrigin(),
+    baseUrl: jevOriginForProvider(provider),
   };
 }
 
-/** Explicit `jev.apiKey`, else the signed-in KnoxChat OAuth session key. */
+/** Explicit `jev.apiKey`, else the matching KnoxChat or OpenRouter session key. */
 export function resolveJevApiKey(
-  yamlOrRuntime?: Pick<JevYamlConfig, "apiKey"> | null,
+  yamlOrRuntime?: Pick<JevYamlConfig, "apiKey" | "baseUrl"> | null,
+  fallbackProvider?: JevProvider,
 ): string {
-  return resolveKnoxChatApiKey(yamlOrRuntime?.apiKey) ?? "";
+  const trimmed = yamlOrRuntime?.apiKey?.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+  return liveKeyFor(detectJevProvider(yamlOrRuntime, fallbackProvider));
 }
 
 /** Map `config.yaml` `jev:` onto a runtime record. Default: disabled. */
 export function resolveJevRuntime(yaml?: JevYamlConfig | null): JevRuntime {
-  const model = yaml?.model?.trim() || JEV_DEFAULT_MODEL;
+  const provider = detectJevProvider(yaml);
+  const configured = yaml?.model?.trim();
+  const model = mapJevModel(
+    configured || defaultJevModel(provider),
+    provider,
+  );
   return {
     enabled: yaml?.enabled === true,
     model,
     timeoutMs: clampTimeout(yaml?.timeoutMs),
     failOpen: yaml?.failOpen !== false,
-    apiKey: resolveJevApiKey(yaml),
-    baseUrl: knoxChatOrigin(),
+    apiKey: resolveJevApiKey(yaml, provider),
+    baseUrl: jevOriginForProvider(provider),
+    provider,
   };
 }
 
@@ -115,20 +315,18 @@ export function jevCanCallNetwork(runtime: JevRuntime): boolean {
   return runtime.enabled && resolveJevApiKey(runtime).length > 0;
 }
 
-let activeRuntime: JevRuntime | undefined;
+let activeYaml: JevYamlConfig | null | undefined;
 let lastUserMessage = "";
 let confirmedProfile: ResolvedAgentProfile | undefined;
 
 /** Snapshot from the last loaded config.yaml `jev:` block. */
 export function applyJevConfig(yaml?: JevYamlConfig | null): JevRuntime {
-  activeRuntime = resolveJevRuntime(yaml);
-  return activeRuntime;
+  activeYaml = yaml;
+  return resolveJevRuntime(yaml);
 }
 
 export function getActiveJevRuntime(): JevRuntime {
-  const base = activeRuntime ?? resolveJevRuntime();
-  const apiKey = resolveJevApiKey(base);
-  return apiKey === base.apiKey ? base : { ...base, apiKey };
+  return resolveJevRuntime(activeYaml);
 }
 
 export function setJevUserMessage(message: string): void {

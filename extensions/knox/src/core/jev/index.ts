@@ -5,6 +5,8 @@ export {
   getJevConfirmedProfile,
   getJevUserMessage,
   jevCanCallNetwork,
+  jevSystemOneUrl,
+  mapJevModel,
   mergeJevConfigWithFallback,
   normalizeJevBaseUrl,
   pickKnoxChatJevFallback,
@@ -13,11 +15,15 @@ export {
   setJevConfirmedProfile,
   setJevUserMessage,
 } from "./config";
+export type { JevFallback, JevKeySource } from "./config";
 export {
   JEV_DEFAULT_BASE_URL,
   JEV_DEFAULT_MODEL,
   JEV_DEFAULT_TIMEOUT_MS,
   KNOX_KEYS_URL,
+  OPENROUTER_JEV_BASE_URL,
+  OPENROUTER_JEV_MODEL,
+  OPENROUTER_KEYS_URL,
   GATE_THRESHOLD,
   FITS_THRESHOLD,
   SKILL_SHORTLIST,
@@ -26,6 +32,7 @@ export {
   REPEATING_STRATEGY_HIT,
   ROUTE_CONFIDENCE_FLOOR,
   escalateReasoningEffort,
+  jevImagePartsFromDataUrls,
 } from "./questions";
 export { evaluateAgentTurn, jevTurnUsesAgentTools, recentContextFromTurns } from "./turn";
 export type { AgentTurnJudgment, EvaluateAgentTurnInput } from "./turn";
@@ -73,7 +80,7 @@ export type { GuardrailAction, GuardrailResult, GuardrailSide } from "./guardrai
 export { isCjkHeavy } from "./cjk";
 export { jevLogFromTurn, mergeJevPromptLog } from "./promptLog";
 export type { JevPromptLog } from "./promptLog";
-export type { JevClient, JevRuntime, JevYamlConfig } from "./types";
+export type { JevClient, JevProvider, JevRuntime, JevYamlConfig } from "./types";
 export {
   formatJevLogEntry,
   getJevActivityState,

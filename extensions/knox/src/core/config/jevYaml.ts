@@ -3,6 +3,7 @@
  *
  * Mapped onto experimental.jev. Zod on the assistant schema may strip
  * unknown keys, so we also parse the raw YAML here.
+ * Host is KnoxStudio or OpenRouter System One (`typesafe/jev-1.14`).
  */
 
 import * as YAML from "yaml";
@@ -12,11 +13,11 @@ import type { JevYamlConfig } from "../jev/types";
 
 export const jevYamlSchema = z.object({
   enabled: z.boolean().optional(),
-  model: z.string().min(1).max(64).optional(),
+  model: z.string().min(1).max(128).optional(),
   apiKey: z.string().max(512).optional(),
   timeoutMs: z.number().int().min(50).max(30_000).optional(),
   failOpen: z.boolean().optional(),
-  /** Accepted for old YAML; runtime always uses https://api.knoxstudio.ai. */
+  /** KnoxStudio (`https://api.knoxstudio.ai`) or OpenRouter (`https://openrouter.ai/api`). */
   baseUrl: z.string().url().optional(),
 });
 

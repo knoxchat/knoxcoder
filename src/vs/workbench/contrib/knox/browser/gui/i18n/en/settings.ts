@@ -39,7 +39,7 @@ export const knoxGuiStringsEnSettings: Record<string, unknown> = {
 	"discardChanges": "Discard Changes",
 	"noChangesToReview": "No changes to review",
 	"jevEnabled": "Jev harness judgments",
-	"jevEnabledHint": "System One judgments for Chat vs Agent routing, skill hints, context/tool gates, and citation checks. Uses your signed-in Knox Chat account. Fail-open to current heuristics. When off, Agent mode is always used.",
+	"jevEnabledHint": "System One judgments for Chat vs Agent routing, skill hints, context/tool gates, and citation checks. Uses your signed-in Knox Chat or OpenRouter account. Fail-open to current heuristics. When off, Agent mode is always used.",
 	"recipeSettings": "Reuse verified work (experimental)",
 	"recipesEnabled": "Remember verified work",
 	"recipesEnabledHint": "When a build or test passes after Knox edits files, keep that work as a local recipe. Recipes stay on this computer unless you share a checkpoint bundle.",

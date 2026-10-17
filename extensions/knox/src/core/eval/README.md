@@ -101,7 +101,7 @@ The bug is `a - b` in `src/lib.rs`. A passing run returns `a + b` and does not d
 
 ## Optional Jev trace scoring (not CI)
 
-`core/jev/traceScore.ts` `scoreAgentTrace` can label a live session JSON (`tool_calls_match_request`, `oracle_ignored`, `test_tamper`, outcome). Never import it from golden tests. Flag off by default; needs a Knox Chat API key (knoxchat model or `jev.apiKey`).
+`core/jev/traceScore.ts` `scoreAgentTrace` can label a live session JSON (`tool_calls_match_request`, `oracle_ignored`, `test_tamper`, outcome). Never import it from golden tests. Flag off by default; needs a Knox Chat or OpenRouter API key (selected model or `jev.apiKey`).
 
 `core/eval/scoreTraceJob.ts` `scoreEvalTrace` accepts an `AgentEvalResult`, a GUI session `{ history }`, or `{ userMessage, steps }`. `scoreTraceFile(path)` reads the same JSON from disk. Example (manual, mocked in unit tests):
 

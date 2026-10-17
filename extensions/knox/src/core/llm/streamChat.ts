@@ -47,6 +47,7 @@ import type { SkillInfo } from "../skills/types";
 import { getSkillToolDescription } from "../tools/implementations/skill";
 import { getSkillManager } from "../tools/implementations/skillSingleton";
 import { SKILL_TOOL_NAME } from "../tools/definitions/skill";
+import { getImageParts } from "../util/messageContent";
 import {
   clearLastCompactionResult,
   getLastCompactionResult,
@@ -168,6 +169,7 @@ export async function* llmStreamChat(
       }
       turnJudgment = await evaluateAgentTurn({
         userMessage: messageContent,
+        images: getImageParts(lastMessage.content),
         recentContext: recentContextFromTurns(
           messages.slice(0, -1).flatMap((message) => {
             if (message.role !== "user" && message.role !== "assistant") {

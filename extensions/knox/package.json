@@ -125,7 +125,7 @@
 				"knoxchat.jev.enabled": {
 					"type": "boolean",
 					"default": true,
-					"markdownDescription": "Enable Jev (System One) harness judgments: model routing, skill hints, passage/tool gates, citation checks, and `auto` profile confirm. Uses the KnoxStudio API key on your knoxchat models (OAuth session or yaml). Optional `jev.apiKey` override. Always calls https://api.knoxstudio.ai/v1/systemone. Fail-open to current heuristics. YAML `jev.enabled` overrides this."
+					"markdownDescription": "Enable Jev (System One) harness judgments: model routing, skill hints, passage/tool gates, citation checks, and `auto` profile confirm. Uses your KnoxStudio or OpenRouter API key (OAuth session or yaml). Optional `jev.apiKey` override. KnoxStudio calls https://api.knoxstudio.ai/v1/systemone; OpenRouter calls https://openrouter.ai/api/v1/systemone with typesafe/jev-1.14. Fail-open to current heuristics. YAML `jev.enabled` overrides this."
 				},
 				"knoxchat.jev.showStatusBar": {
 					"type": "boolean",

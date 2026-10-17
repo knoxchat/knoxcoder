@@ -32,7 +32,7 @@ export const sharedConfigSchema = z
     agentPolicyCommands: z.string(),
     agentPolicyExternalDirectory: z.enum(["deny", "ask", "allow"]),
     agentPolicySandboxDestructive: z.boolean(),
-    /** Enable Jev harness judgments (uses the knoxchat API key unless `jev.apiKey` is set). */
+    /** Enable Jev harness judgments (uses the knoxchat or openrouter API key unless `jev.apiKey` is set). */
     jevEnabled: z.boolean(),
 
     // `ui` in `KnoxConfig`

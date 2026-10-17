@@ -1402,7 +1402,8 @@ export interface ExperimentalConfig {
 
   /**
    * Jev (System One) harness judgments. Default off.
-   * Uses the knoxchat model API key via api.knoxstudio.ai unless `jev.apiKey` is set.
+   * Uses the selected knoxchat or openrouter API key unless `jev.apiKey` is set.
+   * KnoxStudio → api.knoxstudio.ai; OpenRouter → openrouter.ai/api (typesafe/jev-1.14).
    * Fail-open to regex/token heuristics.
    */
   jev?: {
