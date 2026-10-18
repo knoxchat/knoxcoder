@@ -15,7 +15,7 @@ import type { Core } from "./Core";
 import type { CoreRuntime } from "./runtime";
 
 export function migrateCoreData(core: CoreRuntime): void {
-  // Ensure global ~/.knoxcoder directory is created and migrate project-local .knox data into it
+  // Ensure global ~/.knoxcoder directory is created. Never read `.knox` / `~/.knox`.
   migrateV1DevDataFiles();
   void (async () => {
     try {
@@ -26,7 +26,7 @@ export function migrateCoreData(core: CoreRuntime): void {
         );
       });
     } catch (err) {
-      console.warn("[Knox] Failed to migrate project .knox data:", err);
+      console.warn("[Knox] Failed to seed ~/.knoxcoder/.knoxignore:", err);
     }
   })();
 }

@@ -5,7 +5,7 @@
 
 import { knoxGuiContextUsageFromLog, knoxGuiResolveContextLimit } from '../../../common/knoxGuiContextMeter.js';
 import type { KnoxGuiController } from '../../knoxGuiController.js';
-import { MEMORY_BUILD_TIMEOUT_MS, asRecord, asArray, contextItemFromRaw, withTimeout } from './helpers.js';
+import { AUTO_CONTEXT_TIMEOUT_MS, MEMORY_BUILD_TIMEOUT_MS, asRecord, asArray, contextItemFromRaw, withTimeout } from './helpers.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { expandPromptSlashCommand, isPromptBasedSlashCommand, parseLeadingSlash } from '../../../common/knoxGuiChat.js';
@@ -74,6 +74,7 @@ export async function submit(controller: KnoxGuiController, starterPrompt?: stri
 	}
 	const useActive = useActiveFileFromDefaultContext(controller.store.state.defaultContext);
 	const noContext = modifiers?.noContext ?? !submitUsesActiveFile(useActive, Boolean(modifiers?.altKey));
+	controller.turnNoContext = noContext;
 	if (shouldSendEditPrompt(controller.store.state)) {
 		controller.store.patch({ isGatheringContext: true });
 		const gathered = await controller.gatherContext(doc, text, true);
@@ -629,6 +630,24 @@ export async function gatherContext(controller: KnoxGuiController, doc: ReturnTy
 		const uri = current ? asRecord(current.uri)?.value : undefined;
 		if (current && !(typeof uri === 'string' && uris.has(uri))) {
 			add(current, 'file', true);
+		}
+	}
+	if (controller.store.state.mode !== 'edit' && fullInput.trim()) {
+		try {
+			const auto = await withTimeout(controller.messenger.request<unknown>('context/getAutoContext', {
+				message: fullInput,
+				existingContextPaths: [...uris],
+				...(typeof selectedModelTitle === 'string' && selectedModelTitle ? { modelName: selectedModelTitle } : {}),
+			}), AUTO_CONTEXT_TIMEOUT_MS);
+			for (const rec of asArray(auto).map(asRecord).filter((row): row is Record<string, unknown> => Boolean(row && row.content))) {
+				const uri = asRecord(rec.uri)?.value;
+				if (typeof uri === 'string' && uris.has(uri)) {
+					continue;
+				}
+				add(rec, 'auto');
+			}
+		} catch {
+			// auto-context must not block submit
 		}
 	}
 	for (const item of controller.store.state.contextItems) {

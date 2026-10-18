@@ -40,6 +40,7 @@ import {
   type AgentLoopStoppedReason,
   type AgentLoopToolCall,
 } from "./loop";
+import { planModeDenyReason } from "./planMode";
 import { resolveToolPermission } from "./permissionGate";
 import type { PermissionMode, ToolSetting } from "./permissions";
 import type { StreamRetryEvent, StreamRetryOptions } from "./streamRetry";
@@ -52,6 +53,10 @@ export interface ChatTurnPermission {
   policy?: AgentToolPolicy | null;
   policyFromRules?: AgentToolPolicy | null;
   workspaceDirs?: string[];
+  /** Read-only explore + builtin_plan until the user leaves Plan mode. */
+  planMode?: boolean;
+  /** Deny instead of waiting on a permission card (background jobs). */
+  unattended?: boolean;
 }
 
 export type ChatTurnEvent =
@@ -96,7 +101,10 @@ export type ChatTurnEvent =
       stoppedReason: AgentLoopStoppedReason;
       steps: number;
       summary: string;
-    };
+    }
+  /** A no-tool reply was held: oracle still red, or the task plan is still open. */
+  | { type: "hold"; kind: "oracle"; errors: number }
+  | { type: "hold"; kind: "plan"; remaining: number };
 
 export interface ChatTurnOptions {
   sessionId: string;
@@ -255,6 +263,10 @@ export async function runChatTurn(
     initialDoomCalls: options.initialDoomCalls,
     holdCompletionWhileOracleRed: options.holdCompletionWhileOracleRed,
     holdCompletionWhilePlanOpen: options.holdCompletionWhilePlanOpen,
+    onHold: (hold) =>
+      hold.kind === "oracle"
+        ? emit({ type: "hold", kind: "oracle", errors: hold.errors })
+        : emit({ type: "hold", kind: "plan", remaining: hold.remaining }),
     sessionId,
     retry: options.retry,
     fallbackLlm: options.fallbackLlm,
@@ -289,6 +301,17 @@ export async function runChatTurn(
         return "allow";
       }
       const name = tool.function.name;
+      if (permission.planMode) {
+        const denied = planModeDenyReason(tool, args);
+        if (denied) {
+          throw new ToolCallError({
+            code: ToolCallErrorCode.PERMISSION_DENIED,
+            message: denied,
+            toolName: name,
+            retryable: false,
+          });
+        }
+      }
       if (name === BuiltInToolNames.AskUser) {
         // The question is answered in the GUI, which then starts the next
         // turn with the answer in the history. End this turn here.

@@ -9,7 +9,9 @@
  */
 
 import type { ContextItem, Tool } from "..";
+import type { WorkspaceKind } from "../config/agentProfile";
 import { BUILT_IN_GROUP_NAME, BuiltInToolNames } from "./builtIn";
+import { isCompositeToolName } from "./catalog";
 
 const N = BuiltInToolNames;
 
@@ -31,6 +33,8 @@ export const CORE_TOOL_NAMES: ReadonlySet<string> = new Set<string>([
   N.AskUser,
   N.Task,
   N.Skill,
+  N.GitStatus,
+  N.GitDiff,
 ]);
 
 /** The systems profile (kernel, QEMU, serial) keeps its own tools in front. */
@@ -45,10 +49,26 @@ export const SYSTEMS_CORE_TOOL_NAMES: ReadonlySet<string> = new Set<string>([
   N.Maintainers,
 ]);
 
-export function isCoreTool(name: string, systems = false): boolean {
-  return (
-    CORE_TOOL_NAMES.has(name) || (systems && SYSTEMS_CORE_TOOL_NAMES.has(name))
-  );
+export function isCoreTool(
+  name: string,
+  systems = false,
+  lspActive = false,
+): boolean {
+  if (CORE_TOOL_NAMES.has(name)) {
+    return true;
+  }
+  if (name === N.Lsp && (systems || lspActive)) {
+    return true;
+  }
+  return systems && SYSTEMS_CORE_TOOL_NAMES.has(name);
+}
+
+/** LSP is core on systems work and on classified app trees (like builtin_debug). */
+export function shouldPromoteLsp(
+  kind: WorkspaceKind | null | undefined,
+  systems = false,
+): boolean {
+  return systems || kind != null;
 }
 
 export interface DeferredToolSplit {
@@ -112,7 +132,11 @@ export function buildToolSearchTool(deferred: Tool[]): Tool {
  */
 export function splitDeferredTools(
   tools: Tool[],
-  opts: { systems?: boolean } = {},
+  opts: {
+    systems?: boolean;
+    lspActive?: boolean;
+    enableCompositeTools?: boolean;
+  } = {},
 ): DeferredToolSplit {
   const active: Tool[] = [];
   const deferred: Tool[] = [];
@@ -121,7 +145,13 @@ export function splitDeferredTools(
     if (name === N.ToolSearch) {
       continue;
     }
-    if (!isBuiltIn(name) || isCoreTool(name, opts.systems)) {
+    if (isCompositeToolName(name)) {
+      if (opts.enableCompositeTools) {
+        deferred.push(tool);
+      }
+      continue;
+    }
+    if (!isBuiltIn(name) || isCoreTool(name, opts.systems, opts.lspActive)) {
       active.push(tool);
     } else {
       deferred.push(tool);

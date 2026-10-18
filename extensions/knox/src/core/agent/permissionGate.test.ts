@@ -17,6 +17,23 @@ const base = (over = {}) => ({
 });
 
 describe("resolveToolPermission", () => {
+  it("unattended denies tools that would otherwise ask", async () => {
+    let asked = false;
+    const result = await resolveToolPermission(
+      base({
+        permission: {
+          mode: "acceptEdits",
+          toolSettings: {},
+          sessionAllowlist: [],
+          unattended: true,
+        },
+        onAsk: () => void (asked = true),
+      }),
+    );
+    expect(result).toBe("deny");
+    expect(asked).toBe(false);
+  });
+
   it("auto-approves in fullAuto without asking", async () => {
     let asked = false;
     const result = await resolveToolPermission(

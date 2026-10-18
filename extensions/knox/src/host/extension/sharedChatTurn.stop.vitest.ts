@@ -188,3 +188,31 @@ describe("Stop during streaming", () => {
     expect(cancelTools).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("oracle hold on the product path", () => {
+  it("emits hold when the last npm test oracle is still red", async () => {
+    const { deps, events } = setup(
+      async function* () {
+        yield { role: "assistant", content: "All done." };
+      },
+      {
+        buildRequest: async () => ({
+          messages: [
+            { role: "user", content: "fix tests" },
+            {
+              role: "tool",
+              toolCallId: "t1",
+              content: "FAIL src/foo.test.ts\nTests: 1 failed, 2 passed, 3 total\n",
+            },
+          ],
+          tools: [readTool],
+          maxSteps: 1,
+          atMaxSteps: false,
+        }),
+      },
+    );
+    const out = await runSharedChatTurn(input("s-oracle"), deps);
+    expect(events.some((e) => e.type === "hold" && e.kind === "oracle")).toBe(true);
+    expect(out.stoppedReason).not.toBe("completed");
+  });
+});

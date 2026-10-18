@@ -9,7 +9,7 @@ config, sessions, Memory Brain sqlite, checkpoints, credentials, job logs.
 - Checkpoints: byte-exact, not redacted (by design).
 - Session files: user messages at rest are not redacted; tool output is.
 - Session share links (`knoxcoder://vscode.knox/session/import?path=`) point at a local Markdown file. Knox does not upload transcripts.
-- `~/.knoxcoder/auth.json`: mode 0600. The editor uses SecretStorage instead.
+- `~/.knoxcoder/auth.json`: Knox OAuth session, mode 0600. The editor uses SecretStorage instead. No `KNOX_API_KEY` and no `.env` API key.
 - Recipes (experimental, `knoxchat.recipes.enabled`): local sqlite only, text redacted, file bytes stay in checkpoints. Shared only by an explicit checkpoint bundle; imported recipes start as candidates. See [recipes.md](recipes.md).
 - Telemetry: none from Knox, and none planned (no opt-in usage stats). VS Code crash reporter is disabled. See [network.md](network.md).
 

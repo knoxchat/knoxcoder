@@ -54,6 +54,19 @@
 	border-left: none;
 }
 
+.knox-gui-hold-chip {
+	display: inline-flex;
+	align-items: center;
+	margin: 6px 10px 0;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 11px;
+	line-height: 16px;
+	color: var(--vscode-editorWarning-foreground, #cca700);
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 12%, transparent);
+	border: 1px solid color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 28%, transparent);
+}
+
 .knox-gui-msg pre,
 .knox-gui-thinking pre {
 	overflow: auto;

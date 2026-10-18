@@ -177,6 +177,7 @@ export const KNOX_GUI_HOST_OUTBOUND = [
 	'abort',
 	'tools/cancel',
 	'context/getContextItems',
+	'context/getAutoContext',
 	'context/loadSubmenuItems',
 	'context/searchFiles',
 	'showFile',

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { compactMessages, CONVERSATION_SUMMARY_MARKER } from "../compaction";
+import {
+  compactMessages,
+  compactMessagesAsync,
+  CONVERSATION_SUMMARY_MARKER,
+} from "../compaction";
 import type { ChatMessage } from "../index.js";
 import { BuiltInToolNames } from "../tools/builtIn";
 import { runAgentEval } from "./harness";
@@ -86,5 +90,62 @@ describe("compaction quality eval (P1-7)", () => {
 
     expect(result.stoppedReason).toBe("completed");
     expect(result.files["src/add.ts"]).toBe(ADD_FIXED);
+  });
+
+  it("LLM summary keeps a rejected approach that heuristic first-sentence drop loses", async () => {
+    const rejected =
+      "Tried rewriting via regex replace; abandoned because it clobbered comments.";
+    const msgs: ChatMessage[] = [
+      system("You are a helpful coding assistant."),
+      user("Fix the parser."),
+      assistant("Continuing the search."),
+      {
+        role: "tool",
+        toolCallId: "search-1",
+        content: `Search results for parser. ${"filler ".repeat(200)}\n${rejected}`,
+      },
+    ];
+    for (let i = 0; i < 20; i++) {
+      msgs.push({
+        role: "tool",
+        toolCallId: `grep-${i}`,
+        content: `grep hit ${i}: filler `.repeat(40),
+      });
+    }
+    msgs.push(user("Continue with the structured parse."));
+
+    const heuristic = compactMessages(msgs, "gpt-4o", 3_000, 400, 0, 80, {
+      preserveRecentCount: 2,
+      maxHistoryRatio: 0.4,
+      useLlmSummarization: false,
+    });
+    const heuristicText = heuristic.messages
+      .map((m) => (typeof m.content === "string" ? m.content : ""))
+      .join("\n");
+
+    const llm = await compactMessagesAsync(
+      msgs,
+      "gpt-4o",
+      3_000,
+      400,
+      0,
+      80,
+      {
+        preserveRecentCount: 2,
+        maxHistoryRatio: 0.4,
+        useLlmSummarization: true,
+      },
+      async () =>
+        `Rejected regex rewrite because it clobbered comments. Continue with a structured parse.`,
+    );
+    const llmText = llm.messages
+      .map((m) => (typeof m.content === "string" ? m.content : ""))
+      .join("\n");
+
+    expect(heuristic.summarized).toBe(true);
+    expect(heuristicText).not.toContain("clobbered comments");
+    expect(llm.summarizationMethod).toBe("llm");
+    expect(llmText).toContain("clobbered comments");
+    expect(llmText).toContain(CONVERSATION_SUMMARY_MARKER);
   });
 });

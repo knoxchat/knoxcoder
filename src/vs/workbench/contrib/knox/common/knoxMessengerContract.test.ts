@@ -42,6 +42,7 @@ const SHARED_CORE_OUTBOUND = [
 	'context/getContextItems',
 	'context/loadSubmenuItems',
 	'context/searchFiles',
+	'context/getAutoContext',
 	'llm/streamChat',
 	'abort',
 	'tools/cancel',

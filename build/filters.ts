@@ -42,6 +42,9 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!**/*.{dll,exe,png,bmp,jpg,scpt,cur,ttf,woff,eot,template,ico,icns,opus,wasm}',
 	'!**/test/**',
 	'!**/*.test.ts',
+	'!extensions/knox/src/**',
+	'!src/vs/workbench/contrib/knox/browser/gui/i18n/**',
+	'!.github/**',
 	'!**/*.{d.ts,json,md}',
 	'!**/*.mp3',
 	'!**/*.tiff',
@@ -77,6 +80,9 @@ export const indentationFilter = Object.freeze<string[]>([
 	'**',
 
 	// except specific files
+	'!.github/**',
+	'!**/*.yml',
+	'!**/*.yaml',
 	'!**/ThirdPartyNotices.txt',
 	'!**/ThirdPartyNotices.cli.txt',
 	'!**/LICENSE.{txt,rtf}',
@@ -188,6 +194,8 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!**/*.js.map',
 	'!**/*.wasm',
 	'!**/*.tiff',
+	'!**/*.yml',
+	'!**/*.yaml',
 	'!**/*.provisionprofile',
 	'!build/**/*.init',
 	'!build/darwin/patch-dmg.py',

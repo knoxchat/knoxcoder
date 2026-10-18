@@ -1,5 +1,12 @@
 /**
- * User-defined subagent types: `.knoxcoder/agents/*.md` (K-025).
+ * User-defined subagent types (K-025).
+ *
+ * Workspace: `.knoxcoder/agents/*.md`
+ * Global: `~/.knoxcoder/agents/*.md` (`KNOX_GLOBAL_DIR` overrides the root).
+ * First definition of a name wins (workspace, then global).
+ *
+ * Do not read `.knox/agents` or `~/.knox` — those belong to the marketplace
+ * Knox extension (`knoxchat.knoxchat`), not KnoxCoder.
  *
  * ---
  * name: reviewer
@@ -11,10 +18,14 @@
  * System prompt body...
  */
 
+import os from "os";
+import path from "path";
+
 import * as YAML from "yaml";
 
 import type { IDE } from "../..";
-import { localPathOrUriToPath, localPathToUri } from "../../util/pathToUri.js";
+import { KNOX_GLOBAL_DIR_NAME } from "../../util/globalDirName";
+import { localPathOrUriToPath, localPathToUri } from "../../util/pathToUri";
 
 export interface CustomAgentDef {
   name: string;
@@ -28,7 +39,16 @@ export interface CustomAgentDef {
   source: string;
 }
 
+export const WORKSPACE_CUSTOM_AGENTS_DIR = ".knoxcoder/agents";
+
 const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,47}$/;
+
+export function globalCustomAgentsDir(): string {
+  const root = (
+    process.env.KNOX_GLOBAL_DIR ?? path.join(os.homedir(), KNOX_GLOBAL_DIR_NAME)
+  ).replace(/[\\/]+$/, "");
+  return path.join(root, "agents");
+}
 
 export function parseCustomAgent(
   text: string,
@@ -80,41 +100,56 @@ export function parseCustomAgent(
   };
 }
 
+async function loadFromAgentsDir(
+  ide: IDE,
+  dirPath: string,
+  out: CustomAgentDef[],
+  seen: Set<string>,
+): Promise<void> {
+  const agentsDir = localPathToUri(dirPath);
+  let entries: [string, number][];
+  try {
+    entries = await ide.listDir(agentsDir);
+  } catch {
+    return;
+  }
+  for (const [file] of entries.sort((a, b) => a[0].localeCompare(b[0]))) {
+    if (!file.toLowerCase().endsWith(".md")) {
+      continue;
+    }
+    const source = `${agentsDir}/${file}`;
+    try {
+      const text = await ide.readFile(source);
+      const def = parseCustomAgent(text, source);
+      if (def && !seen.has(def.name)) {
+        seen.add(def.name);
+        out.push(def);
+      }
+    } catch {
+      // unreadable file: skip
+    }
+  }
+}
+
 export async function loadCustomAgents(ide: IDE): Promise<CustomAgentDef[]> {
+  const out: CustomAgentDef[] = [];
+  const seen = new Set<string>();
   try {
     const dirs = await ide.getWorkspaceDirs();
-    const out: CustomAgentDef[] = [];
-    const seen = new Set<string>();
     for (const dir of dirs) {
       const root = localPathOrUriToPath(dir).replace(/[\\/]+$/, "");
-      const agentsDir = localPathToUri(`${root}/.knoxcoder/agents`);
-      let entries: [string, number][];
-      try {
-        entries = await ide.listDir(agentsDir);
-      } catch {
-        continue;
-      }
-      for (const [file] of entries.sort((a, b) => a[0].localeCompare(b[0]))) {
-        if (!file.toLowerCase().endsWith(".md")) {
-          continue;
-        }
-        const source = `${agentsDir}/${file}`;
-        try {
-          const text = await ide.readFile(source);
-          const def = parseCustomAgent(text, source);
-          if (def && !seen.has(def.name)) {
-            seen.add(def.name);
-            out.push(def);
-          }
-        } catch {
-          // unreadable file: skip
-        }
-      }
+      await loadFromAgentsDir(
+        ide,
+        path.join(root, WORKSPACE_CUSTOM_AGENTS_DIR),
+        out,
+        seen,
+      );
     }
-    return out;
   } catch {
-    return [];
+    // unreadable workspace: still try global
   }
+  await loadFromAgentsDir(ide, globalCustomAgentsDir(), out, seen);
+  return out;
 }
 
 export async function findCustomAgent(

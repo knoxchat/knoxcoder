@@ -948,6 +948,10 @@ export class VsCodeMessenger {
         ide: this.ide,
         configTools: config?.tools,
         experimental: config?.experimental,
+        enableCompositeTools:
+          vscode.workspace
+            .getConfiguration("knoxchat")
+            .get<boolean>("enableCompositeTools", false) === true,
       });
     });
     this.onWebview("knox/checkDoomLoop", async (msg) => {
@@ -969,6 +973,10 @@ export class VsCodeMessenger {
           ide: this.ide,
           configTools: config?.tools,
           experimental: config?.experimental,
+          enableCompositeTools:
+            vscode.workspace
+              .getConfiguration("knoxchat")
+              .get<boolean>("enableCompositeTools", false) === true,
         });
       },
       resolveLlm: async (title) =>

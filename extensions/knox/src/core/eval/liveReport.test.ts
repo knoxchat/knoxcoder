@@ -37,6 +37,12 @@ describe("live eval report", () => {
     expect(compareParity(worse, 2).ok).toBe(true);
   });
 
+  it("includes Node, mini-c and mini-rust fixtures", () => {
+    expect(LIVE_TASKS.map((task) => task.id)).toEqual(
+      expect.arrayContaining(["test-fix-loop", "mini-c", "mini-rust"]),
+    );
+  });
+
   it("task checks reject untouched workspaces", () => {
     for (const task of LIVE_TASKS) {
       if (task.id === "secret-write-denied") {

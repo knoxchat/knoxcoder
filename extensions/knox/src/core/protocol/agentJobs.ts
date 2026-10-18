@@ -10,7 +10,15 @@ export type AgentBackgroundJobStatus =
   | "merged"
   | "discarded";
 export type AgentJobEvent = "started" | "updated" | "completed";
-export type AgentJobAction = "list" | "kill" | "killAll" | "dismiss" | "clear" | "merge" | "discard";
+export type AgentJobAction =
+  | "list"
+  | "kill"
+  | "killAll"
+  | "dismiss"
+  | "clear"
+  | "merge"
+  | "discard"
+  | "start";
 
 export interface AgentBackgroundJob {
   id: string;
@@ -31,6 +39,10 @@ export interface AgentBackgroundJob {
 export interface AgentJobsRequest {
   action: AgentJobAction;
   jobId?: string;
+  /** Required for `start`: the task to run in a worktree. */
+  task?: string;
+  /** Inherited from the session; default Edits. Auto skips shell prompts. */
+  permissionMode?: string;
 }
 
 export interface AgentJobsResponse {

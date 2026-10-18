@@ -119,6 +119,7 @@ suite('Knox IDE façade contract (KN-210–222)', () => {
 	test('KN-216: @problems reads façade diagnostics', () => {
 		assert.ok(hostSrc.includes('async getProblems'));
 		assert.ok(hostSrc.includes('vscode.languages.getDiagnostics'));
+		assert.ok(hostSrc.includes('DiagnosticSeverity'));
 		assert.ok(repoFile('extensions/knox/src/core/context/providers/ProblemsContextProvider.ts').includes('ide.getProblems()'));
 	});
 

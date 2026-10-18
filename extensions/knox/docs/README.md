@@ -28,15 +28,27 @@ Knox ships **English and Chinese** only (`en` / `zh`, plus `package.nls.json` / 
 | Mode | Reads | Edits | Shell |
 |---|---|---|---|
 | Ask | auto | asks | asks |
-| Edits (default) | auto | auto | asks |
-| Auto | auto | auto | auto |
+| Edits | auto | auto | asks |
+| Auto (default, YOLO) | auto | auto | auto |
+
+New sessions start in Auto. Switch to **Ask** (or Edits) from the permission
+bar, or Shift+Tab, when the repo is untrusted. Saved modes are kept.
+
+**Plan** is a composer toggle next to those modes, not a fourth permission.
+In Plan mode the agent may only read, search, ask, and write a `builtin_plan`
+checklist (explore/review children only). Writes, shell, PTY, and QEMU are
+refused with “leave Plan mode to execute.” When a plan still has remaining
+steps, **Execute plan** switches back to Agent on the same session and runs
+it. Ask / Edits / Auto still apply at execute time.
 
 Always, in every mode: destructive commands (`git push --force`,
 `git reset --hard`, `git clean -fd`, `chmod -R`, raw device writes, `curl | sh`,
 `find -delete`, ...) are blocked unless you allow the command in the agent
 policy. Network for fetch_url: `knoxchat.networkMode`.
-Team bundles: **Knox: Export/Import Team Bundle**. Background agents: jobs
-panel (merge/discard leftover jobs) and **Knox: Background Agents: List**.
+Team bundles: **Knox: Export/Import Team Bundle**. Background agents: composer
+**Run in background**, **Knox: Background Agents: Start**, and the jobs
+panel (merge/discard). Composite tools stay off the catalog unless
+`knoxchat.enableCompositeTools` is on.
 Open the grouped settings search with **Knox: Open Knox Settings**.
 **Knox: Import Session Transcript** restores a `/share` or Markdown-export file;
 **Knox: Copy Session Share Link** copies a local `knoxcoder://…/session/import?path=` URI that opens that file in Knox (nothing is uploaded).
@@ -47,12 +59,12 @@ real disk, not staged files.
 
 ## Instructions, rules and skills
 
-- `AGENTS.md`, `.knox/AGENTS.md`, `CLAUDE.md`, and `.knoxrules` are loaded
+- `AGENTS.md`, `.knoxcoder/AGENTS.md`, `CLAUDE.md`, and `.knoxrules` are loaded
   from every workspace folder. Nested `AGENTS.md` closer to the open file
   is also loaded. Opt-in extras: `knoxchat.compatInstructions` = `cursor`
   (`.cursor/rules`, `.cursorrules`) and/or `copilot`
   (`.github/copilot-instructions.md`). Rules accept `applyTo` globs.
-- Skills live in `.knox/skills` and `~/.knoxcoder/skills`. A skill with
+- Skills live in `skills/` (workspace) and `~/.knoxcoder/skills`. A skill with
   `globs:` frontmatter is only offered while a matching file is open.
 - `/instructions` lists everything loaded, in order, with token cost and
   warnings (a file over 2000 tokens, or always-on text over 6000 tokens).
@@ -63,7 +75,7 @@ real disk, not staged files.
 
 ## Hooks
 
-`.knox/hooks.json` in each workspace folder (re-read on every call; the hook
+`.knoxcoder/hooks.json` in each workspace folder (re-read on every call; the hook
 runs with that folder as `cwd`). The Hooks panel can test a hook;
 **Knox: Test Hook** is also on the command palette.
 
@@ -89,12 +101,13 @@ a `<hook_context>` block.
 
 ## Custom subagents
 
-`.knox/agents/*.md` in each workspace folder, with frontmatter `name`,
+`.knoxcoder/agents/*.md` in each workspace folder, plus `~/.knoxcoder/agents`.
+Frontmatter `name`,
 `description`, `tools` (allowlist), `readonly`, `model`. **Knox: Create Custom
-Agent** writes a template in the primary folder. The `task` tool can run up to
-8 children.
-writers are isolated in git worktrees and their patches are merged back, with
-conflicts reported rather than half-applied.
+Agent** writes a template to `.knoxcoder/agents` in the primary folder. The `task`
+tool can run up to 8 children. Writing children are isolated in git worktrees
+and their patches are merged back, with conflicts reported rather than
+half-applied.
 
 ## Memory
 
@@ -138,9 +151,11 @@ bar (`knoxchat.jev.showStatusBar`).
 
 ## Tool loading
 
-`knoxchat.deferTools` sends a small core tool set and lets the model find the
-rest through `builtin_tool_search`, cutting per-turn schema tokens by half.
-Agent chat always runs on the shared agent loop.
+`knoxchat.deferTools` sends a small core tool set (read/edit/shell/search plus
+`builtin_git_status` and `builtin_git_diff`). `builtin_lsp` joins that set on
+classified workspaces (node/python/go/cargo/editor/cmake) and systems. The
+model finds the rest through `builtin_tool_search`, cutting per-turn schema
+tokens by half. Agent chat always runs on the shared agent loop.
 
 ## Troubleshooting
 
@@ -150,5 +165,5 @@ Agent chat always runs on the shared agent loop.
   Open settings.
 - Agent keeps repeating: the doom-loop guard stops it; use "Change strategy".
 - Context nearly full: the composer shows `NN%`; Knox compacts at about 75%.
-- Hooks not firing: check `.knox/hooks.json` is valid JSON and read the log.
+- Hooks not firing: check `.knoxcoder/hooks.json` is valid JSON and read the log.
 - Startup: `npm run measure-startup` in `extensions/knox` prints load time.

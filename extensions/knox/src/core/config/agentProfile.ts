@@ -36,8 +36,11 @@ export type WorkspaceProfileHints = {
 
 export type SystemsWorkspaceKind = "kernel" | "qemu" | null;
 
-/** Classified workspace: systems first, then a root Cargo.toml crate. */
-export type WorkspaceKind = SystemsWorkspaceKind | "cargo";
+/** App trees after systems/cargo. `editor` is this KnoxCoder / VS Code fork. */
+export type AppWorkspaceKind = "editor" | "node" | "python" | "go" | "cmake";
+
+/** Classified workspace: systems first, then Cargo, then common app kinds. */
+export type WorkspaceKind = SystemsWorkspaceKind | "cargo" | AppWorkspaceKind;
 
 export const AGENT_PROFILE_DEFAULTS: Record<
   ResolvedAgentProfile,
@@ -143,9 +146,46 @@ export function detectCargoWorkspace(entryNames: Iterable<string>): boolean {
   return normalizedEntrySet(entryNames).has("Cargo.toml");
 }
 
+export function detectEditorWorkspace(entryNames: Iterable<string>): boolean {
+  const names = normalizedEntrySet(entryNames);
+  return (
+    names.has("src") &&
+    names.has("extensions") &&
+    (names.has("product.json") ||
+      names.has("scripts") ||
+      names.has("gulpfile.js") ||
+      names.has("gulpfile.mjs"))
+  );
+}
+
+export function detectNodeWorkspace(entryNames: Iterable<string>): boolean {
+  return normalizedEntrySet(entryNames).has("package.json");
+}
+
+export function detectPythonWorkspace(entryNames: Iterable<string>): boolean {
+  const names = normalizedEntrySet(entryNames);
+  return (
+    names.has("pyproject.toml") ||
+    names.has("pytest.ini") ||
+    names.has("requirements.txt") ||
+    names.has("setup.py") ||
+    names.has("setup.cfg")
+  );
+}
+
+export function detectGoWorkspace(entryNames: Iterable<string>): boolean {
+  return normalizedEntrySet(entryNames).has("go.mod");
+}
+
+export function detectCmakeWorkspace(entryNames: Iterable<string>): boolean {
+  return normalizedEntrySet(entryNames).has("CMakeLists.txt");
+}
+
 /**
- * kernel > qemu > cargo > null. A kernel/QEMU tree that also has a root
- * Cargo.toml stays systems so rust-for-linux is not stolen.
+ * kernel > qemu > cargo > editor > node > python > go > cmake > null.
+ * A kernel/QEMU tree that also has a root Cargo.toml stays systems so
+ * rust-for-linux is not stolen. This editor fork wins over a bare Node
+ * `package.json`.
  */
 export function detectWorkspaceKind(
   entryNames: Iterable<string>,
@@ -156,6 +196,21 @@ export function detectWorkspaceKind(
   }
   if (detectCargoWorkspace(entryNames)) {
     return "cargo";
+  }
+  if (detectEditorWorkspace(entryNames)) {
+    return "editor";
+  }
+  if (detectNodeWorkspace(entryNames)) {
+    return "node";
+  }
+  if (detectPythonWorkspace(entryNames)) {
+    return "python";
+  }
+  if (detectGoWorkspace(entryNames)) {
+    return "go";
+  }
+  if (detectCmakeWorkspace(entryNames)) {
+    return "cmake";
   }
   return null;
 }

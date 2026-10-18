@@ -1,4 +1,4 @@
-# Known issues in 2.1.3
+# Known issues in 2.2.0
 
 - **Command guard limits.** Variable indirection (`X=rm; $X -rf /`) and an interpreter running a script written earlier are not detected. Stay in Edits or Ask mode for untrusted work. See the [threat model](security/threat-model.md).
 - **Unsigned installers** may trigger SmartScreen (Windows) until a certificate is available.
@@ -6,10 +6,11 @@
 - **Multi-root workspaces:** the folder of the active editor file is the primary root (shell, git, builds, relative paths); search, glob, instruction files, hooks and custom agents cover all roots. Nested `.knoxignore` is honored. Checkpoints are stored per folder.
 - **Remote / SSH / dev container / WSL** are not supported for the Knox host.
 - **Remote package registry and scheduled agents** are not in 2.1. Local `uses: owner/package` loads `~/.knoxcoder/registry/…`; remote fetch is refused.
-- **Background agents:** the GUI lists, merges and discards leftover jobs. Starting a new background job is not in 2.1.3.
+- **Background agents:** `knox.bg.start` and the composer **Run in background** action start `runChatTurn` in a seeded worktree (parent uncommitted files, cap 2 concurrent). Edits auto-apply; shell is denied unless Auto. Merge/discard stay in the jobs panel.
+- **Recipe budget:** sleep consolidation now runs the 200-recipe cap and purges retired/quarantined rows older than 30/90 days. Recipes stay off by default.
 - **Locales:** English and Chinese only (by design; extra languages are not planned).
 - **Dependencies:** `node-forge` (via `mac-ca`/`win-ca`) has an unfixed advisory in signature verification, which Knox does not use (only system root certs are read). `uuid@3` under dev-tunnels has no upstream fix; tunnels are unused.
 - **Not yet measured:** live-provider vision/caching per provider, and a 1000-turn soak or 500k-file repository against the real host (see the next two items for what is measured).
-- **Recipe soak (measured, engine only).** `recipes/soak.test.ts` runs 1000 turns on a real sqlite file (673 captures, 327 exact replays, the 200-recipe budget evicting 200). Result: `brain.sqlite` 0.69 MB and flat over the last 300 turns, 200 pinned blobs, turn-start list+match p95 0.9 ms, exact-replay p95 0.02 ms (target 300 ms). Replay here uses in-memory ports: the real tool path, pre-replay checkpoint and the oracle command (a build or test run) are not in that number and can take seconds. Retired recipes stay as small rows (about 1 KB each) and are not purged yet. The budget runs only when called; nothing schedules it yet.
+- **Recipe soak (measured, engine only).** `recipes/soak.test.ts` runs 1000 turns on a real sqlite file (673 captures, 327 exact replays, the 200-recipe budget evicting 200). Result: `brain.sqlite` 0.69 MB and flat over the last 300 turns, 200 pinned blobs, turn-start list+match p95 0.9 ms, exact-replay p95 0.02 ms (target 300 ms). Replay here uses in-memory ports: the real tool path, pre-replay checkpoint and the oracle command (a build or test run) are not in that number and can take seconds. Sleep consolidation now runs that budget and purges old retired/quarantined rows; recipes stay off by default.
 - **Recipe cost on large repositories (bounded by test, not timed on a real 500k-file repo).** Per turn the recipe path reads the root listing once, each root manifest once, stats only the paths a recipe names, and runs one `git status -- <paths>`; it never walks the tree. Tested against a virtual 500,000-file tree that throws on any other access (`recipes/largeRepo.test.ts`). `git status` itself can still be slow on a huge working tree; it has a 5 s timeout and a failure refuses the replay.
 - **Accessibility:** a full keyboard-only and screen-reader pass, and all built-in themes (the chat UI was tuned for One Dark), are not verified.

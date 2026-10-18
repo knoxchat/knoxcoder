@@ -68,6 +68,7 @@ suite('Knox context / slash / skills / rules contract (KN-300–307)', () => {
 		assert.ok(repoFile('extensions/knox/src/core/context/autoContext.ts').includes('export function extractFileReferences'));
 		const construct = repoFile('extensions/knox/src/core/llm/constructMessages.ts');
 		assert.ok(construct.includes('formatCodebaseCardInject'));
+		assert.ok(construct.includes('formatTurnContextInject'));
 		assert.ok(construct.includes('formatSerialContextInject'));
 		assert.ok(repoFile('extensions/knox/src/core/context/codebaseCard.ts').includes('from "./cargoCard"'));
 	});

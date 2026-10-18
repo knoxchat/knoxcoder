@@ -186,6 +186,48 @@ describe("agent eval golden tasks", () => {
     expect(result.files["src/add.ts"]).toBe(ADD_FIXED);
   });
 
+  it("red npm test does not complete on a no-tool reply", async () => {
+    const redNpm = [
+      "Command: npm test",
+      "Status: exited",
+      "Exit: 1",
+      "FAIL src/add.test.ts",
+      "Tests: 1 failed, 0 passed, 1 total",
+    ].join("\n");
+    const result = await runAgentEval({
+      prompt: "Make the add tests pass.",
+      workspace: { "src/add.ts": ADD_BUG },
+      holdCompletionWhileOracleRed: true,
+      maxSteps: 2,
+      evaluateCommand: async () => [
+        {
+          name: "Terminal",
+          description: "Terminal command exited 1",
+          content: redNpm,
+        },
+      ],
+      script: [
+        {
+          toolCalls: [
+            {
+              name: BuiltInToolNames.RunTerminalCommand,
+              args: { command: "npm test" },
+            },
+          ],
+        },
+        { content: "All tests passed." },
+        { content: "Still claiming done." },
+      ],
+    });
+
+    expect(result.stoppedReason).toBe("max_steps");
+    expect(result.steps).toBe(2);
+    expect(result.toolTrace.map((t) => t.name)).toEqual([
+      BuiltInToolNames.RunTerminalCommand,
+    ]);
+    expect(result.summary).not.toMatch(/all tests passed/i);
+  });
+
   it("permission denial blocks a hard-deny path and does not write", async () => {
     const result = await runAgentEval({
       prompt: "Write a key into ~/.ssh.",

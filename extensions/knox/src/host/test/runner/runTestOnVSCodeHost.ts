@@ -20,7 +20,7 @@ const knoxGlobalDir = path.resolve(
   "src",
   "test",
   "fixtures",
-  ".knox",
+  ".knoxcoder",
 );
 
 function setupTestWorkspace() {

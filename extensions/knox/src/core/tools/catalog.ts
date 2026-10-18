@@ -6,6 +6,7 @@
 import type { IDE, Tool } from "..";
 import { BuiltInToolNames } from "./builtIn";
 import { debugTool } from "./definitions/debug";
+import { compositeTools } from "./definitions/composite";
 
 export function shouldIncludeDebugTool(opts: {
   systems?: boolean;
@@ -14,18 +15,37 @@ export function shouldIncludeDebugTool(opts: {
   return Boolean(opts.systems || opts.debugSessionActive);
 }
 
+export function isCompositeToolName(name: string): boolean {
+  return name.startsWith("composite_");
+}
+
 export function selectAgentTools(
   base: Tool[],
   opts: {
     systems?: boolean;
     debugSessionActive?: boolean;
+    /** Default false: composites stay off the model catalog (knox-impl §7). */
+    enableCompositeTools?: boolean;
   } = {},
 ): Tool[] {
-  const tools = base.filter(
-    (tool) => tool.function.name !== BuiltInToolNames.Debug,
-  );
+  const tools = base.filter((tool) => {
+    if (tool.function.name === BuiltInToolNames.Debug) {
+      return false;
+    }
+    if (!opts.enableCompositeTools && isCompositeToolName(tool.function.name)) {
+      return false;
+    }
+    return true;
+  });
   if (shouldIncludeDebugTool(opts)) {
     tools.push(debugTool);
+  }
+  if (opts.enableCompositeTools) {
+    for (const tool of compositeTools) {
+      if (!tools.some((existing) => existing.function.name === tool.function.name)) {
+        tools.push(tool);
+      }
+    }
   }
   return tools;
 }

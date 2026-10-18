@@ -8,6 +8,8 @@ describe("buildSystemPrompt tool gating (K-031)", () => {
     expect(p).toContain("Shell:");
     expect(p).toContain("Git:");
     expect(p).toContain("Plan and delegation");
+    expect(p).toContain("builtin_lsp");
+    expect(p).toContain("Never claim tests passed");
   });
 
   it("drops git, plan and shell sections for a read/edit-only catalog", () => {

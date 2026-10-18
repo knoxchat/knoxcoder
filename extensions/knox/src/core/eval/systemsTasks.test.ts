@@ -276,17 +276,17 @@ describe("systems golden tasks", () => {
     expect(result.toolTrace[0]?.output).toContain("## main");
   });
 
-  it("K-021: deferred catalog loads git_status through tool search", async () => {
+  it("K-021: deferred catalog loads git_blame through tool search", async () => {
     const result = await runAgentEval({
-      prompt: "What is dirty?",
+      prompt: "Who touched fork.c?",
       catalog: SYSTEMS_EVAL_CATALOG,
       viaChatTurn: true,
       deferTools: true,
       workspace: { "kernel/fork.c": "void copy_process(void) {}\n" },
       ideHooks: {
         subprocess: async (command) =>
-          command.includes("git status")
-            ? ["## main\n M kernel/fork.c", ""]
+          command.includes("git blame")
+            ? ["^abc (knox 2020-01-01 00:00:00 +0000 1) void copy_process(void) {}", ""]
             : ["", "unexpected git command"],
       },
       script: [
@@ -294,12 +294,19 @@ describe("systems golden tasks", () => {
           toolCalls: [
             {
               name: BuiltInToolNames.ToolSearch,
-              args: { names: [BuiltInToolNames.GitStatus] },
+              args: { names: [BuiltInToolNames.GitBlame] },
             },
           ],
         },
-        { toolCalls: [{ name: BuiltInToolNames.GitStatus, args: {} }] },
-        { content: "kernel/fork.c is modified." },
+        {
+          toolCalls: [
+            {
+              name: BuiltInToolNames.GitBlame,
+              args: { filepath: "kernel/fork.c" },
+            },
+          ],
+        },
+        { content: "knox wrote copy_process." },
       ],
     });
 
@@ -307,21 +314,28 @@ describe("systems golden tasks", () => {
     const names = result.toolTrace.map((t) => t.name);
     expect(names).toEqual([
       BuiltInToolNames.ToolSearch,
-      BuiltInToolNames.GitStatus,
+      BuiltInToolNames.GitBlame,
     ]);
     expect(result.toolTrace[1]?.ok).toBe(true);
-    expect(result.toolTrace[1]?.output).toContain("kernel/fork.c");
+    expect(result.toolTrace[1]?.output).toContain("knox");
   });
 
   it("K-021: a deferred tool called before loading is refused with a hint", async () => {
     const result = await runAgentEval({
-      prompt: "What is dirty?",
+      prompt: "Who touched a.c?",
       catalog: SYSTEMS_EVAL_CATALOG,
       viaChatTurn: true,
       deferTools: true,
       workspace: { "a.c": "int a;\n" },
       script: [
-        { toolCalls: [{ name: BuiltInToolNames.GitStatus, args: {} }] },
+        {
+          toolCalls: [
+            {
+              name: BuiltInToolNames.GitBlame,
+              args: { filepath: "a.c" },
+            },
+          ],
+        },
         { content: "gave up" },
       ],
     });

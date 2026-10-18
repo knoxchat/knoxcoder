@@ -103,18 +103,15 @@ export interface IKnoxGuiModelCatalogEntry {
 
 /** `core/llm/data/reasoningEffortOverrides.json` — used only when effort is advertised. */
 const REASONING_EFFORT_SIDECAR: Record<string, IKnoxGuiReasoningEffortConfig> = {
-	'anthropic/claude-sonnet-4.6': { allowed: ['low', 'medium', 'high'], default: 'high' },
-	'anthropic/claude-sonnet-5': { allowed: ['low', 'medium', 'high', 'max', 'xhigh'], default: 'high' },
-	'anthropic/claude-opus-4.6': { allowed: ['medium', 'high', 'max'], default: 'high' },
-	'anthropic/claude-opus-4.7': { allowed: ['high', 'xhigh', 'max'], default: 'xhigh' },
-	'anthropic/claude-opus-4.8': { allowed: ['high', 'xhigh', 'max'], default: 'xhigh' },
-	'anthropic/claude-opus-5': { allowed: ['high', 'xhigh', 'max'], default: 'xhigh' },
-	'anthropic/claude-fable-5': { allowed: ['low', 'medium', 'high', 'max'], default: 'high' },
-	'openai/gpt-5.4': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'none' },
-	'openai/gpt-5.5': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'high' },
-	'openai/gpt-5.6-luna': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'none' },
+	'anthropic/claude-haiku-5.5': { allowed: ['low', 'medium', 'high'], default: 'high' },
+	'anthropic/claude-sonnet-5.5': { allowed: ['low', 'medium', 'high', 'max', 'xhigh'], default: 'high' },
+	'anthropic/claude-opus-5.5': { allowed: ['high', 'xhigh', 'max'], default: 'xhigh' },
+	'anthropic/claude-fable-5.1': { allowed: ['low', 'medium', 'high', 'max'], default: 'high' },
+	'openai/gpt-6-sol': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'none' },
+	'oopenai/gpt-6.1-sol': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'high' },
+	'openai/gpt-6-luna': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'none' },
 	'openai/gpt-5.6-terra': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'medium' },
-	'openai/gpt-5.6-sol': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'high' },
+	'openai/gpt-6-astra': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'high' },
 };
 
 let knoxGuiModelCatalog: IKnoxGuiModelCatalogEntry[] = [];
@@ -164,8 +161,8 @@ export function knoxGuiParseModelCatalog(raw: unknown): IKnoxGuiModelCatalogEntr
 		if (!id) {
 			continue;
 		}
-		const root = rec.root != null && rec.root !== '' ? String(rec.root) : undefined;
-		const name = rec.name != null ? String(rec.name) : (rec.title != null ? String(rec.title) : undefined);
+		const root = rec.root !== undefined && rec.root !== null && rec.root !== '' ? String(rec.root) : undefined;
+		const name = rec.name !== undefined && rec.name !== null ? String(rec.name) : (rec.title !== undefined && rec.title !== null ? String(rec.title) : undefined);
 		const architecture = rec.architecture && typeof rec.architecture === 'object' ? rec.architecture as Record<string, unknown> : undefined;
 		const reasoning = rec.reasoning && typeof rec.reasoning === 'object' ? rec.reasoning as Record<string, unknown> : undefined;
 		const efforts = reasoning?.supported_efforts === null
@@ -179,7 +176,7 @@ export function knoxGuiParseModelCatalog(raw: unknown): IKnoxGuiModelCatalogEntr
 			inputModalities: stringList(architecture?.input_modalities) ?? stringList(rec.input_modalities),
 			reasoning: reasoning ? {
 				supportedEfforts: efforts,
-				defaultEffort: reasoning.default_effort != null ? String(reasoning.default_effort) : undefined,
+				defaultEffort: reasoning.default_effort !== undefined && reasoning.default_effort !== null ? String(reasoning.default_effort) : undefined,
 				mandatory: reasoning.mandatory === true,
 			} : undefined,
 		});

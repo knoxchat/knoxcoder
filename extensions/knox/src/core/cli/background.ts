@@ -1,12 +1,12 @@
 /**
  * Background agents (K-050): a detached git worktree plus job record.
  *
- * The GUI lists, merges, and discards jobs under `~/.knoxcoder/bg`. Starting a
- * new job is not in 2.0.0.
+ * The GUI lists, merges, discards, and starts jobs under `~/.knoxcoder/bg`.
  *
  * Job state lives in `~/.knoxcoder/bg/<id>/job.json`; the worktree is
  * `~/.knoxcoder/bg/<id>/tree` on branch `knox/bg-<id>`, created from HEAD
- * (uncommitted changes in the repo are not copied).
+ * plus the parent's uncommitted tracked/untracked files (same idea as
+ * subagent worktrees). At most two jobs may run at once.
  */
 
 import { execFileSync } from "node:child_process";
@@ -47,6 +47,8 @@ export interface BgJob {
 export function bgRoot(home = os.homedir()): string {
   return path.join(home, ".knoxcoder", "bg");
 }
+
+export const MAX_CONCURRENT_BG_JOBS = 2;
 
 function git(cwd: string, args: string[]): string {
   return execFileSync("git", args, { cwd, encoding: "utf-8" }).trim();
@@ -114,6 +116,79 @@ export function createJob(opts: {
   return job;
 }
 
+/** Copy the parent's uncommitted tracked diff and untracked files into the worktree. */
+export function seedWorktreeFromParent(repo: string, worktree: string): number {
+  let seeded = 0;
+  const diff = git(repo, ["diff", "--binary", "HEAD"]);
+  if (diff.trim()) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "knox-bg-seed-"));
+    const patch = path.join(dir, "seed.patch");
+    fs.writeFileSync(patch, diff.endsWith("\n") ? diff : `${diff}\n`);
+    git(worktree, ["apply", "--whitespace=nowarn", patch]);
+    fs.rmSync(dir, { recursive: true, force: true });
+    seeded += 1;
+  }
+  const others = execFileSync(
+    "git",
+    ["ls-files", "--others", "--exclude-standard", "-z"],
+    { cwd: repo, encoding: "utf-8" },
+  );
+  for (const rel of others.split("\0").filter((file) => file && !file.includes(".."))) {
+    const dest = path.join(worktree, rel);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(path.join(repo, rel), dest);
+    seeded += 1;
+  }
+  return seeded;
+}
+
+function runningCount(root: string): number {
+  return listJobs(root).filter((job) => job.status === "running").length;
+}
+
+/**
+ * Create a job, refuse a third concurrent runner, and seed uncommitted parent files.
+ */
+const jobAborts = new Map<string, AbortController>();
+
+export function abortJob(id: string): boolean {
+  const controller = jobAborts.get(id);
+  if (!controller) {
+    return false;
+  }
+  controller.abort();
+  return true;
+}
+
+export function abortAllRunningJobs(root: string): number {
+  let n = 0;
+  for (const job of listJobs(root)) {
+    if (job.status === "running" && abortJob(job.id)) {
+      n += 1;
+    }
+  }
+  return n;
+}
+
+export function startJob(opts: {
+  root: string;
+  dir: string;
+  task: string;
+  args?: string[];
+}): BgJob {
+  if (runningCount(opts.root) >= MAX_CONCURRENT_BG_JOBS) {
+    throw new Error(`At most ${MAX_CONCURRENT_BG_JOBS} background jobs can run at once.`);
+  }
+  const job = createJob(opts);
+  jobAborts.set(job.id, new AbortController());
+  try {
+    seedWorktreeFromParent(job.repo, job.worktree);
+  } catch {
+    // Worktree is still usable at HEAD; the job record says so in summary later.
+  }
+  return job;
+}
+
 /**
  * Worker body: run the agent in the worktree, commit its changes, record the
  * outcome, and call `notify`. `run` is injected by tests.
@@ -121,15 +196,19 @@ export function createJob(opts: {
 export async function runJob(opts: {
   root: string;
   id: string;
-  run: (job: BgJob) => Promise<BgRunResult>;
+  run: (job: BgJob, signal: AbortSignal) => Promise<BgRunResult>;
   notify?: (title: string, body: string) => void;
 }): Promise<BgJob> {
   const job = loadJob(opts.root, opts.id);
   if (!job) throw new Error(`unknown job ${opts.id}`);
-  job.pid = process.pid;
+  const controller = jobAborts.get(job.id) ?? new AbortController();
+  jobAborts.set(job.id, controller);
   saveJob(opts.root, job);
   try {
-    const result = await opts.run(job);
+    if (controller.signal.aborted) {
+      throw new Error("aborted");
+    }
+    const result = await opts.run(job, controller.signal);
     git(job.worktree, ["add", "-A"]);
     const changed = git(job.worktree, ["diff", "--cached", "--name-only"])
       .split("\n")
@@ -155,6 +234,7 @@ export async function runJob(opts: {
     job.error = error instanceof Error ? error.message : String(error);
   }
   job.finishedAt = new Date().toISOString();
+  jobAborts.delete(job.id);
   saveJob(opts.root, job);
   opts.notify?.(
     `Knox background job ${job.id} ${job.status}`,
@@ -205,12 +285,8 @@ function dropWorktree(job: BgJob): void {
 export function discardJob(root: string, id: string): MergeOutcome {
   const job = loadJob(root, id);
   if (!job) return { ok: false, message: `unknown job ${id}` };
-  if (job.status === "running" && job.pid) {
-    try {
-      process.kill(job.pid);
-    } catch {
-      // already gone
-    }
+  if (job.status === "running") {
+    abortJob(job.id);
   }
   dropWorktree(job);
   try {

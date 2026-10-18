@@ -7,7 +7,13 @@ import type { ChatMessage, Tool, ToolExtras } from "..";
 
 import { BuiltInToolNames } from "../tools/builtIn";
 import { ToolCallError, ToolCallErrorCode } from "../tools/errors";
-import { collectAssistantTurn, runAgentLoop } from "./loop";
+import {
+  collectAssistantTurn,
+  lastOracleErrorCount,
+  MAX_ORACLE_HOLD_ROUNDS,
+  ORACLE_HOLD_MARKER,
+  runAgentLoop,
+} from "./loop";
 import {
   completePlanStep,
   createPlan,
@@ -87,6 +93,113 @@ describe("runAgentLoop", () => {
         String(message.content).includes(PLAN_HOLD_MARKER),
     );
     expect(held.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("counts gcc/npm/pytest/go oracles and prefers a later green test", () => {
+    const tool = (id: string, content: string): ChatMessage => ({
+      role: "tool",
+      toolCallId: id,
+      content,
+    });
+    expect(
+      lastOracleErrorCount([
+        tool(
+          "gcc",
+          "src/foo.c:2:3: error: implicit declaration of function 'bar'\n",
+        ),
+      ]),
+    ).toBe(1);
+    expect(
+      lastOracleErrorCount([
+        tool("npm", "FAIL src/foo.test.ts\nTests: 1 failed, 2 passed, 3 total\n"),
+      ]),
+    ).toBeGreaterThan(0);
+    expect(
+      lastOracleErrorCount([
+        tool("py", "FAILED tests/test_foo.py::test_bar\n"),
+      ]),
+    ).toBeGreaterThan(0);
+    expect(
+      lastOracleErrorCount([
+        tool(
+          "go",
+          "--- FAIL: TestFoo (0.00s)\nFAIL\texample.com/foo\t0.01s\n",
+        ),
+      ]),
+    ).toBeGreaterThan(0);
+    expect(
+      lastOracleErrorCount([
+        tool("red", "FAIL src/foo.test.ts\nTests: 1 failed, 2 passed, 3 total\n"),
+        tool("green", "Tests: 3 passed, 3 total\n"),
+      ]),
+    ).toBe(0);
+    expect(
+      lastOracleErrorCount([
+        tool("red", "FAIL src/foo.test.ts\n"),
+        {
+          role: "system",
+          content: `${ORACLE_HOLD_MARKER}: 1 error(s). Continue.`,
+        },
+      ]),
+    ).toBeGreaterThan(0);
+  });
+
+  it("does not end while a non-Rust oracle is still red", async () => {
+    const holds: unknown[] = [];
+    const result = await runAgentLoop({
+      extras: extras([
+        [{ role: "assistant", content: "Tests pass now." }],
+        [{ role: "assistant", content: "Still done." }],
+        [{ role: "assistant", content: "Stopping now." }],
+      ]),
+      messages: [
+        { role: "user", content: "fix tests" },
+        {
+          role: "tool",
+          toolCallId: "t1",
+          content: "FAIL src/foo.test.ts\nTests: 1 failed, 2 passed, 3 total\n",
+        },
+      ],
+      tools: [readTool],
+      compact: false,
+      maxSteps: 2,
+      holdCompletionWhileOracleRed: true,
+      onHold: (hold) => void holds.push(hold),
+      executeTool: vi.fn(),
+    });
+    expect(result.stoppedReason).toBe("max_steps");
+    expect(holds[0]).toEqual({ kind: "oracle", errors: expect.any(Number) });
+    expect(
+      result.messages.some(
+        (message) =>
+          message.role === "system" &&
+          String(message.content).includes(ORACLE_HOLD_MARKER),
+      ),
+    ).toBe(true);
+  });
+
+  it("caps extra oracle-hold rounds so a permanently red tree cannot loop forever", async () => {
+    const holds: unknown[] = [];
+    const result = await runAgentLoop({
+      extras: extras([[{ role: "assistant", content: "All green." }]]),
+      messages: [
+        { role: "user", content: "fix tests" },
+        {
+          role: "tool",
+          toolCallId: "t1",
+          content:
+            "src/foo.c:2:3: error: implicit declaration of function 'bar'\n",
+        },
+      ],
+      tools: [readTool],
+      compact: false,
+      holdCompletionWhileOracleRed: true,
+      onHold: (hold) => void holds.push(hold),
+      executeTool: vi.fn(),
+    });
+    expect(result.stoppedReason).toBe("completed");
+    expect(holds).toHaveLength(MAX_ORACLE_HOLD_ROUNDS);
+    expect(result.steps).toBe(MAX_ORACLE_HOLD_ROUNDS);
   });
 
   it("ends once remaining plan steps are completed", async () => {

@@ -39,6 +39,7 @@ suite('Knox native GUI parity', () => {
 		assert.deepStrictEqual([...KNOX_GUI_MODE_TABS], []);
 		assert.strictEqual(KNOX_GUI_DEFAULT_SESSION_MODE, 'agent');
 		assert.strictEqual(createInitialKnoxGuiState().mode, 'agent');
+		assert.strictEqual(createInitialKnoxGuiState().planMode, false);
 		assert.strictEqual(createInitialKnoxGuiState().showChatScrollbar, true);
 		assert.strictEqual(knoxGuiLumpLabelVisible('models', 'models'), true);
 		assert.strictEqual(knoxGuiLumpLabelVisible(null, 'models'), false);
@@ -172,8 +173,9 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(batch.overlay, null);
 	});
 
-	test('permission mode default is Edits (acceptEdits)', () => {
-		assert.strictEqual(DEFAULT_PERMISSION_MODE, 'acceptEdits');
+	test('permission mode default is Auto (YOLO); Ask is opt-in', () => {
+		assert.strictEqual(DEFAULT_PERMISSION_MODE, 'fullAuto');
+		assert.strictEqual(createInitialKnoxGuiState().permissionMode, 'fullAuto');
 		assert.strictEqual(nextPermissionMode('fullAuto'), 'default');
 		assert.strictEqual(knoxGuiPermissionModeLabelKey('default'), 'permissionModeAsk');
 		assert.strictEqual(knoxGuiPermissionModeLabelKey('acceptEdits'), 'permissionModeEdits');
@@ -537,6 +539,7 @@ suite('Knox native GUI parity', () => {
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('showFile'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('showLines'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('context/loadSubmenuItems'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('context/getAutoContext'));
 	});
 
 	test('Pass 3 composer document stores chips instead of raw @ / text', () => {
@@ -846,11 +849,19 @@ suite('Knox native GUI parity', () => {
 			id: 'a',
 			role: 'assistant',
 			content: '',
-			toolCalls: [{ id: 't1', name: 'builtin_task', arguments: '{"prompt":"explore kernel","profile":"explore"}', status: 'calling', parsedArgs: { prompt: 'explore kernel', profile: 'explore' } }],
+			toolCalls: [{
+				id: 't1',
+				name: 'builtin_task',
+				arguments: '{"prompt":"explore kernel","profile":"explore"}',
+				status: 'calling',
+				parsedArgs: { prompt: 'explore kernel', profile: 'explore' },
+				output: 'task_child_1: started\ntask_child_1: step 2: builtin_read_file',
+			}],
 		}];
 		const merged = mergeBackgroundJobs(shell, collectRunningTaskJobs(taskHistory));
 		assert.strictEqual(merged.length, 2);
 		assert.ok(isTaskJobId(merged.find(job => job.kind === 'task')!.id));
+		assert.ok(merged.find(job => job.kind === 'task')!.detail?.includes('builtin_read_file'));
 		assert.strictEqual(countRunningJobs(merged), 1);
 		assert.strictEqual(countFailedJobs([{ id: 'x', title: 'fail', status: 'exited', exitCode: 1 }]), 1);
 		assert.ok(truncateJobTitle('a'.repeat(80)).endsWith('…'));
@@ -1788,15 +1799,17 @@ suite('Knox native GUI parity', () => {
 		assert.deepStrictEqual(fenceDiffStats({ language: 'diff', code: 'diff --git a/lib.rs b/lib.rs\n+a\n-b' }), undefined);
 		assert.deepStrictEqual(fenceDiffStats({ language: 'ts', code: 'const x = 1;' }, { additions: 4 }), { additions: 4, deletions: 0 });
 
-		const patch = `*** Begin Patch
-*** Update File: drivers/gpu/i915.rs
-@@
- pub fn init() {
-+    let _ = modeset_self_test();
-*** Add File: net/vlan.rs
-+pub const GATE_VLAN_MARKER: &str = "gate";
-+fn vlan_self_test() -> bool {
-*** End Patch`;
+		const patch = [
+			'*** Begin Patch',
+			'*** Update File: drivers/gpu/i915.rs',
+			'@@',
+			' pub fn init() {',
+			'+    let _ = modeset_self_test();',
+			'*** Add File: net/vlan.rs',
+			'+pub const GATE_VLAN_MARKER: &str = "gate";',
+			'+fn vlan_self_test() -> bool {',
+			'*** End Patch',
+		].join('\n');
 		const files = splitStreamingPatchFiles(patch);
 		assert.strictEqual(files.length, 2);
 		assert.strictEqual(files[0].filepath, 'drivers/gpu/i915.rs');
@@ -1808,19 +1821,23 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(files[1].filepath, 'net/vlan.rs');
 		assert.strictEqual(files[1].additions, 2);
 
-		assert.deepStrictEqual(splitStreamingPatchFiles(`diff --git a/lib.rs b/lib.rs
---- a/lib.rs
-+++ b/lib.rs
-@@ -548,3 +548,2 @@
--#[cfg(feature = "stub-drivers")]
- pub mod vlan;`), []);
+		assert.deepStrictEqual(splitStreamingPatchFiles([
+			'diff --git a/lib.rs b/lib.rs',
+			'--- a/lib.rs',
+			'+++ b/lib.rs',
+			'@@ -548,3 +548,2 @@',
+			'-#[cfg(feature = "stub-drivers")]',
+			' pub mod vlan;',
+		].join('\n')), []);
 
-		const removed = splitStreamingPatchFiles(`*** Begin Patch
-*** Update File: lib.rs
- pub mod traffic_shaping;
--#[cfg(feature = "stub-drivers")]
- pub mod vlan;
-*** End Patch`);
+		const removed = splitStreamingPatchFiles([
+			'*** Begin Patch',
+			'*** Update File: lib.rs',
+			' pub mod traffic_shaping;',
+			'-#[cfg(feature = "stub-drivers")]',
+			' pub mod vlan;',
+			'*** End Patch',
+		].join('\n'));
 		assert.strictEqual(removed[0].filepath, 'lib.rs');
 		assert.strictEqual(removed[0].additions, 0);
 		assert.strictEqual(removed[0].deletions, 1);

@@ -100,10 +100,11 @@ suite('Knox native persistence and permission helpers', () => {
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_run_terminal_command', permissionMode: 'acceptEdits', toolSettings: { builtin_run_terminal_command: 'allowedWithoutPermission' } }), true);
 	});
 
-	test('saved permission mode survives the new Edits default (migration)', () => {
-		assert.strictEqual(DEFAULT_PERMISSION_MODE, 'acceptEdits');
+	test('saved Ask/Edits survive the Auto (YOLO) default', () => {
+		assert.strictEqual(DEFAULT_PERMISSION_MODE, 'fullAuto');
 		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ permissionMode: 'fullAuto' })).permissionMode, 'fullAuto');
 		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ permissionMode: 'default' })).permissionMode, 'default');
+		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ permissionMode: 'acceptEdits' })).permissionMode, 'acceptEdits');
 		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({})).permissionMode, undefined);
 	});
 

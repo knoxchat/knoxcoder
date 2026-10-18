@@ -1,6 +1,7 @@
 # Nightly Knox regression run: the scripted eval suite (golden, systems, rust, honesty)
-# and the memory benchmark. Live-model runs need a signed-in OAuth session and stay
-# manual (`npm run test:live` in extensions/knox/src/core); their trend goes to eval/results/history.jsonl.
+# and the memory benchmark. Live-model runs need a signed-in Knox OAuth session
+# (`~/.knoxcoder/auth.json`) and stay local (`cd extensions/knox && npm run test:live`).
+# No KNOX_API_KEY. Trend files go to eval/results/history.jsonl.
 name: Knox Nightly
 
 on:

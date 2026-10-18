@@ -12,6 +12,8 @@
  * query is rewritten.
  */
 
+import { CJK_RUN, cjkIndexTokens, isCjkToken } from "./cjkFts.js";
+
 export type RetrievalIntent = "continuation" | "new_task";
 
 export interface RetrievalQueryInput {
@@ -72,20 +74,29 @@ export function isStopword(token: string): boolean {
   return RETRIEVAL_STOPWORDS.has(token.toLowerCase());
 }
 
-/** Content-bearing tokens (stopwords removed). */
+/** Content-bearing tokens (stopwords removed). CJK runs become overlapping bigrams. */
 export function contentWords(text: string): string[] {
   if (!text?.trim()) return [];
   const seen = new Set<string>();
   const words: string[] = [];
-  const tokens = text
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, " ")
-    .split(/\s+/)
-    .filter((t) => t.length >= 2 && !isStopword(t) && !/^(AND|OR|NOT|NEAR)$/i.test(t));
-  for (const token of tokens) {
-    if (seen.has(token)) continue;
+  const push = (token: string) => {
+    if (!token || seen.has(token) || isStopword(token) || /^(AND|OR|NOT|NEAR)$/i.test(token)) {
+      return;
+    }
     seen.add(token);
     words.push(token);
+  };
+  for (const bg of cjkIndexTokens(text)) {
+    push(bg);
+  }
+  const tokens = text
+    .toLowerCase()
+    .replace(CJK_RUN, " ")
+    .replace(/[^\w\s-]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length >= 2);
+  for (const token of tokens) {
+    push(token);
   }
   return words;
 }
@@ -183,7 +194,7 @@ export function buildFts5Query(
     return `"${term.replace(/"/g, "")}"`;
   };
 
-  const useAnd = options?.useAnd !== false;
+  const useAnd = options?.useAnd !== false && !terms.some((t) => isCjkToken(t));
   const rankedTerms = useAnd && terms.length > FTS5_AND_TERM_CAP
     ? [...terms].sort((a, b) => b.length - a.length).slice(0, FTS5_AND_TERM_CAP)
     : terms;

@@ -53,19 +53,30 @@ describe("cli credentials", () => {
     expect(src).not.toMatch(/(console\.\w+|stderr\.write|stdout\.write)\([^)]*(apiKey|refreshToken)/);
   });
 
-  it("prefers KNOX_API_KEY over a credentials file", () => {
+  it("loads the OAuth session file and ignores KNOX_API_KEY", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "knox-cred-"));
     const file = path.join(dir, "auth.json");
     saveSession(
       {
-        apiKey: "from-file",
+        apiKey: "from-oauth",
         account: { userId: 1, username: "file", tokenId: 2, connectedAt: 3 },
       },
       file,
     );
-    const session = resolveSession(file, { KNOX_API_KEY: "from-env" } as NodeJS.ProcessEnv);
-    expect(session?.apiKey).toBe("from-env");
-    expect(session?.account.username).toBe("env");
-    fs.rmSync(dir, { recursive: true, force: true });
+    const prev = process.env.KNOX_API_KEY;
+    process.env.KNOX_API_KEY = "from-env";
+    try {
+      const session = resolveSession(file);
+      expect(session?.apiKey).toBe("from-oauth");
+      expect(session?.account.username).toBe("file");
+      expect(resolveSession(path.join(dir, "missing.json"))).toBeUndefined();
+    } finally {
+      if (prev === undefined) {
+        delete process.env.KNOX_API_KEY;
+      } else {
+        process.env.KNOX_API_KEY = prev;
+      }
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

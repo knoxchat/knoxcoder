@@ -3,6 +3,20 @@ import { t } from "../i18n/index.js";
 import { BrainManager } from "../context/memory/brain/BrainManager";
 import { recordSoulEvent } from "../context/soul/recordSoulEvent.js";
 import {
+  detectWorkspaceKindFromIde,
+  overlayAutoProfile,
+  workspaceKindHints,
+} from "../config/agentProfile";
+import { getJevConfirmedProfile } from "../jev/config";
+import {
+  DEFAULT_PERMISSION_MODE,
+  PERMISSION_MODES,
+  type PermissionMode,
+} from "../agent/permissions";
+import { startBackgroundAgentJob } from "../cli/backgroundRun";
+import type { AgentJobsRequest, AgentJobsResponse } from "../protocol/agentJobs";
+import { localPathOrUriToPath } from "../util/pathToUri";
+import {
   cancelAllBackgroundJobs,
   handleAgentJobsRequest,
   listAgentBackgroundJobs,
@@ -25,6 +39,10 @@ import { HOOK_EVENTS } from "../hooks/hooks";
 import { getWorkspaceHookRunner } from "../hooks/workspaceHooks";
 import { subscribeShellJobs } from "../tools/shellJobs";
 import {
+  subscribeSubagentJobs,
+  toSubagentBackgroundJob,
+} from "../tools/subagent/jobs";
+import {
   applyAgentWorktree,
   discardAgentWorktree,
   enterAgentWorktree,
@@ -32,7 +50,79 @@ import {
   wrapIdeForWorktree,
 } from "../tools/worktree";
 
+import type { IdeSettings } from "..";
 import type { CoreRuntime } from "./runtime";
+
+async function startBackgroundFromCore(
+  core: CoreRuntime,
+  data: AgentJobsRequest,
+): Promise<AgentJobsResponse> {
+  const dirs = await core.ide.getWorkspaceDirs().catch(() => [] as string[]);
+  const dir = dirs[0] ? localPathOrUriToPath(dirs[0]) : "";
+  if (!dir) {
+    return {
+      ok: false,
+      error: "Open a folder to start a background agent.",
+      jobs: listAgentBackgroundJobs(),
+    };
+  }
+  const { config } = await core.configHandler.loadConfig();
+  const title = config?.selectedModelByRole?.chat?.title ?? "";
+  const llm = title ? await core.configHandler.llmFromTitle(title) : null;
+  if (!llm) {
+    return {
+      ok: false,
+      error: "No chat model is available.",
+      jobs: listAgentBackgroundJobs(),
+    };
+  }
+  const settings: IdeSettings = await core.ide.getIdeSettings().catch(
+    (): IdeSettings => ({}),
+  );
+  const permissionMode = PERMISSION_MODES.includes(
+    data.permissionMode as PermissionMode,
+  )
+    ? (data.permissionMode as PermissionMode)
+    : DEFAULT_PERMISSION_MODE;
+  const kind = await detectWorkspaceKindFromIde(core.ide);
+  const profile = overlayAutoProfile(
+    config?.experimental,
+    kind ? workspaceKindHints(kind) : false,
+    getJevConfirmedProfile(),
+  );
+  const pushUpdate = () => {
+    const jobs = listAgentBackgroundJobs();
+    core.send("agent/jobUpdate", {
+      event: "updated",
+      job: jobs.find((job) => job.kind === "bg") ??
+        jobs[0] ?? { id: "bg", kind: "bg", title: "", status: "running" },
+      jobs,
+    });
+  };
+  const started = await startBackgroundAgentJob({
+    dir,
+    task: data.task ?? "",
+    llm,
+    tools: config?.tools ?? [],
+    permissionMode,
+    systems: profile === "systems",
+    deferTools: settings.deferTools !== false,
+    enableCompositeTools: settings.enableCompositeTools === true,
+    notify: (toastTitle, body) => {
+      void core.ide.showToast("info", toastTitle, body);
+    },
+    onUpdate: pushUpdate,
+  });
+  if (!started.ok) {
+    return {
+      ok: false,
+      error: started.error,
+      jobs: listAgentBackgroundJobs(),
+    };
+  }
+  pushUpdate();
+  return { ok: true, jobs: listAgentBackgroundJobs() };
+}
 
 export function registerAbortAndAgentHandlers(core: CoreRuntime): void {
   const on = core.messenger.on.bind(core.messenger);
@@ -69,6 +159,14 @@ export function registerAbortAndAgentHandlers(core: CoreRuntime): void {
     return gateToolCall();
   });
 
+  subscribeSubagentJobs((event, record) => {
+    core.send("agent/jobUpdate", {
+      event,
+      job: toSubagentBackgroundJob(record),
+      jobs: listAgentBackgroundJobs(),
+    });
+  });
+
   subscribeShellJobs((event, snapshot) => {
     core.send("agent/jobUpdate", {
       event,
@@ -102,7 +200,10 @@ export function registerAbortAndAgentHandlers(core: CoreRuntime): void {
     }).catch(() => {});
   });
 
-  on("agent/jobs", (msg) => {
+  on("agent/jobs", async (msg) => {
+    if (msg.data.action === "start") {
+      return startBackgroundFromCore(core, msg.data);
+    }
     return handleAgentJobsRequest(msg.data);
   });
 

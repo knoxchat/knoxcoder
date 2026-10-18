@@ -1024,7 +1024,7 @@ export function registerAllCommands(
   editDecorationManager: EditDecorationManager,
 ) {
   registerCopyBufferSpy(context, core);
-  registerKnoxProductCommands(context, ide);
+  registerKnoxProductCommands(context, ide, core);
 
   for (const [command, callback] of Object.entries(
     getCommandsMap(

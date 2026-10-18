@@ -10,7 +10,7 @@ import { applyBrainPragmas } from "../brain/store/dbSafety";
 import { createTables } from "../brain/store/schema";
 import { RecipeStore } from "./RecipeStore";
 import { matchRecipes } from "./RecipeMatcher";
-import { enforceRecipeBudget, planEviction } from "./budget";
+import { enforceRecipeBudget, planEviction, runRecipeMaintenance } from "./budget";
 import { intentFingerprint } from "./intentFingerprint";
 import type { NewRecipeInput, Recipe } from "./types";
 
@@ -108,6 +108,18 @@ describe("MC-54 growth budget", () => {
     const evicted = await enforceRecipeBudget(store, size, { maxRecipesPerProject: 99, maxBlobBytesPerProject: 200 });
     expect(evicted).toHaveLength(1);
     expect((await store.pinnedBlobRefCounts()).size).toBe(2);
+  });
+
+  it("runRecipeMaintenance purges retired rows older than 30 days", async () => {
+    const stale = await verified(input("A", 1));
+    await store.retire(stale.id);
+    await db.run("UPDATE brain_recipes SET updated_at = ? WHERE id = ?", [
+      "2019-01-01T00:00:00.000Z",
+      stale.id,
+    ]);
+    const { purged } = await runRecipeMaintenance(store, size);
+    expect(purged).toBe(1);
+    expect(await store.get(stale.id)).toBeNull();
   });
 
   it("counts a shared blob once", async () => {

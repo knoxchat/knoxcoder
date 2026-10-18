@@ -113,21 +113,35 @@ describe("detectWorkspaceKind (RL-01)", () => {
       name: "node app with leftover Makefile",
       entries: ["package.json", "Makefile", "src"],
       cargo: false,
-      kind: null,
+      kind: "node",
       systems: false,
     },
     {
       name: "python app",
       entries: ["pyproject.toml", "src"],
       cargo: false,
-      kind: null,
+      kind: "python",
       systems: false,
     },
     {
       name: "bare Makefile / CMake",
       entries: ["CMakeLists.txt", "src"],
       cargo: false,
-      kind: null,
+      kind: "cmake",
+      systems: false,
+    },
+    {
+      name: "go module",
+      entries: ["go.mod", "go.sum", "cmd"],
+      cargo: false,
+      kind: "go",
+      systems: false,
+    },
+    {
+      name: "this editor fork",
+      entries: ["package.json", "src", "extensions", "product.json", "scripts"],
+      cargo: false,
+      kind: "editor",
       systems: false,
     },
     {
@@ -144,7 +158,7 @@ describe("detectWorkspaceKind (RL-01)", () => {
     expect(detectWorkspaceKind(entries)).toBe(kind);
     expect(isSystemsWorkspace(entries)).toBe(systems);
     expect(detectSystemsWorkspaceKind(entries)).toBe(
-      kind === "cargo" ? null : kind,
+      kind === "kernel" || kind === "qemu" ? kind : null,
     );
   });
 

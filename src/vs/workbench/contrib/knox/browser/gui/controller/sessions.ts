@@ -342,7 +342,19 @@ export function historyFromRaw(controller: KnoxGuiController, item: Record<strin
 		createdAt: typeof item.createdAt === 'string' ? item.createdAt : (typeof message.createdAt === 'string' ? message.createdAt : undefined),
 		checkpointId: typeof item.checkpointId === 'string' ? item.checkpointId : undefined,
 		promptLogs: promptLogsFromRaw(item, message),
+		hold: holdFromRaw(item.hold) ?? holdFromRaw(message.hold),
 	};
+}
+
+function holdFromRaw(value: unknown): IKnoxGuiHistoryItem['hold'] {
+	const rec = asRecord(value);
+	if (rec?.kind === 'oracle') {
+		return { kind: 'oracle', errors: typeof rec.errors === 'number' ? rec.errors : 0 };
+	}
+	if (rec?.kind === 'plan') {
+		return { kind: 'plan', remaining: typeof rec.remaining === 'number' ? rec.remaining : 0 };
+	}
+	return undefined;
 }
 
 function promptLogsFromRaw(item: Record<string, unknown>, message: Record<string, unknown>): IKnoxGuiPromptLog[] | undefined {

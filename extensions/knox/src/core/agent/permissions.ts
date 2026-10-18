@@ -24,10 +24,11 @@ export const PERMISSION_MODES: PermissionMode[] = [
 ];
 
 /**
- * New sessions start in Edits: reads and file edits are automatic, shell asks.
- * Users switch to Auto with one click; saved modes are never overwritten.
+ * New sessions start in Auto (YOLO): enabled tools run without asking.
+ * Users can switch to Ask (or Edits) from the permission bar; saved modes
+ * are never overwritten. Command guard still denies destructive patterns.
  */
-export const DEFAULT_PERMISSION_MODE: PermissionMode = "acceptEdits";
+export const DEFAULT_PERMISSION_MODE: PermissionMode = "fullAuto";
 
 export type ToolSetting =
   | "allowedWithPermission"

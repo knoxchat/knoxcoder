@@ -30,6 +30,7 @@
 		"test:core": "vitest run --config src/core/vitest.config.ts",
 		"test:tsc": "tsc -p src/core --noEmit",
 		"test:eval": "vitest run --config src/core/vitest.config.ts eval",
+		"test:live": "vitest run --config src/core/vitest.live.config.ts",
 		"test:host": "vitest run --config src/host/vitest.config.mts",
 		"test:host-tsc": "tsc -p src/host --noEmit",
 		"mc:gate": "node ./scripts/mc-gate.mts",
@@ -212,6 +213,11 @@
 					"type": "boolean",
 					"default": true,
 					"markdownDescription": "Send only the core tools each turn and let the agent load the rest (memory, git, systems, and so on) through `builtin_tool_search`. Cuts tool-schema tokens by more than half (live eval: 51k vs 122k prompt tokens per task, same pass rate)."
+				},
+				"knoxchat.enableCompositeTools": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Expose heuristic composite_* tools on the agent catalog and in `builtin_tool_search`. Off by default: they stay routed through `callTool` for honesty tests but are not offered to the model."
 				},
 				"knoxchat.verifyCommand": {
 					"type": "string",
@@ -1058,6 +1064,12 @@
 				"command": "knox.memoryBrain.wipe",
 				"category": "Knox",
 				"title": "Wipe Memory Brain",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.bg.start",
+				"category": "Knox",
+				"title": "Background Agents: Start",
 				"group": "Knox"
 			},
 			{

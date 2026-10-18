@@ -22,6 +22,11 @@ export interface PermissionGateConfig {
   policy?: AgentToolPolicy | null;
   policyFromRules?: AgentToolPolicy | null;
   workspaceDirs?: string[];
+  /**
+   * Background / unattended runs cannot wait on a permission card. After
+   * auto-approve, remaining tools are denied instead of prompting.
+   */
+  unattended?: boolean;
 }
 
 export interface ResolveToolPermissionOptions {
@@ -59,6 +64,9 @@ export async function resolveToolPermission(
     })
   ) {
     return "allow";
+  }
+  if (permission.unattended) {
+    return "deny";
   }
   const callId = options.callId();
   await options.onAsk(callId);

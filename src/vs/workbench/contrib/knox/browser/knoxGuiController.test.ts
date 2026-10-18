@@ -232,12 +232,12 @@ suite('Knox native GUI controller (GP-084)', () => {
 		const editor = widget.root.querySelector('[data-testid="knox-gui-input"]') as HTMLElement | null;
 		assert.ok(editor);
 		editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
-		// The default is acceptEdits (K-005), so Shift+Tab moves on to fullAuto, then wraps to default.
-		assert.strictEqual(store.state.permissionMode, 'fullAuto');
-		store.cyclePermissionMode();
+		// Default is Auto (YOLO). Shift+Tab moves to Ask, then Edits, then back to Auto.
 		assert.strictEqual(store.state.permissionMode, 'default');
 		store.cyclePermissionMode();
 		assert.strictEqual(store.state.permissionMode, 'acceptEdits');
+		store.cyclePermissionMode();
+		assert.strictEqual(store.state.permissionMode, 'fullAuto');
 	});
 
 	test('openAddModel remembers the last provider tab and preloads both catalogs', async () => {
@@ -1297,6 +1297,103 @@ suite('Knox native GUI controller (GP-084)', () => {
 		refs.ctl = harness.controller;
 		return harness;
 	}
+
+	test('P0.2 Agent submit requests auto-context and attaches returned files', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: {
+				'context/getAutoContext': [{
+					name: 'stream.ts',
+					content: 'export async function gatherContext',
+					uri: { type: 'file', value: '/repo/stream.ts' },
+				}],
+			},
+		});
+		await timeout(0);
+		store.patch({ mode: 'agent', toolsSupported: true });
+		store.setInput('fix gatherContext submit path');
+		await controller.submit();
+		await timeout(0);
+		const auto = posted.find(message => message.messageType === 'context/getAutoContext');
+		assert.ok(auto, 'Agent submit calls context/getAutoContext');
+		assert.strictEqual((auto?.data as { message?: string }).message, 'fix gatherContext submit path');
+		const user = store.state.history.find(item => item.role === 'user');
+		assert.ok(user?.contextItems?.some(item => item.uri === '/repo/stream.ts' || item.name === 'stream.ts'));
+	});
+
+	test('P3.1 Run in background posts agent/jobs start', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: {
+				'agent/jobs': {
+					ok: true,
+					jobs: [{ id: 'bg:abc', kind: 'bg', title: 'fix tests', status: 'running' }],
+				},
+			},
+		});
+		await timeout(0);
+		posted.length = 0;
+		store.setInput('fix tests in a worktree');
+		await controller.startBackgroundJob();
+		await timeout(0);
+		const start = posted.find(message => message.messageType === 'agent/jobs');
+		assert.ok(start, 'composer Run in background calls agent/jobs');
+		const data = start?.data as { action?: string; task?: string };
+		assert.strictEqual(data.action, 'start');
+		assert.strictEqual(data.task, 'fix tests in a worktree');
+		assert.strictEqual(store.state.jobsPanelOpen, true);
+		assert.ok(store.state.backgroundJobs.some(job => job.id === 'bg:abc' && job.kind === 'bg'));
+	});
+
+	test('P0.2 Edit mode does not request auto-context', async () => {
+		const { controller, store, posted } = createHarness();
+		await timeout(0);
+		store.patch({
+			mode: 'edit',
+			codeToEdit: [{ filepath: 'a.ts', contents: 'x', range: { start: { line: 0, character: 0 }, end: { line: 1, character: 0 } } }],
+		});
+		store.setInput('fix this');
+		await controller.submit();
+		await timeout(0);
+		assert.ok(!posted.some(message => message.messageType === 'context/getAutoContext'));
+	});
+
+	test('P0.4 shared loop: plan hold chips the last assistant and opens the next card', async () => {
+		const { controller, store } = sharedLoopHarness(() => [
+			{ type: 'chunk', chunk: { role: 'assistant', content: 'Cargo.toml is next.' } },
+			{ type: 'assistant', assistant: { role: 'assistant', content: 'Cargo.toml is next.' }, toolCalls: [] },
+			{ type: 'hold', kind: 'plan', remaining: 2 },
+			{ type: 'chunk', chunk: { role: 'assistant', content: 'Working the remaining steps.' } },
+			{ type: 'assistant', assistant: { role: 'assistant', content: 'Working the remaining steps.' }, toolCalls: [] },
+			{ type: 'done', stoppedReason: 'completed', steps: 1, summary: 'Working the remaining steps.' },
+		]);
+		await timeout(0);
+		store.patch({ mode: 'agent', toolsSupported: true });
+		store.setInput('build snake');
+		await controller.submit();
+		await timeout(0);
+		const assistants = store.state.history.filter(item => item.role === 'assistant');
+		assert.ok(assistants.some(item => item.hold?.kind === 'plan' && item.hold.remaining === 2));
+		assert.strictEqual(assistants.at(-1)?.content, 'Working the remaining steps.');
+	});
+
+	test('P0.4 shared loop: oracle hold chips the last assistant and opens the next card', async () => {
+		const { controller, store } = sharedLoopHarness(() => [
+			{ type: 'chunk', chunk: { role: 'assistant', content: 'Looks good.' } },
+			{ type: 'assistant', assistant: { role: 'assistant', content: 'Looks good.' }, toolCalls: [] },
+			{ type: 'hold', kind: 'oracle', errors: 2 },
+			{ type: 'chunk', chunk: { role: 'assistant', content: 'Fixing the remaining errors.' } },
+			{ type: 'assistant', assistant: { role: 'assistant', content: 'Fixing the remaining errors.' }, toolCalls: [] },
+			{ type: 'done', stoppedReason: 'completed', steps: 1, summary: 'Fixing the remaining errors.' },
+		]);
+		await timeout(0);
+		store.patch({ mode: 'agent', toolsSupported: true });
+		store.setInput('fix tests');
+		await controller.submit();
+		await timeout(0);
+		const assistants = store.state.history.filter(item => item.role === 'assistant');
+		assert.ok(assistants.some(item => item.hold?.kind === 'oracle' && item.hold.errors === 2));
+		assert.strictEqual(assistants.at(-1)?.content, 'Fixing the remaining errors.');
+		assert.ok(!assistants.at(-1)?.hold);
+	});
 
 	test('K-010 shared loop: events render streaming, tool cards and the next round; no llm/streamChat or tools/call', async () => {
 		const call = { id: 'c1', name: 'builtin_read_file', args: { filepath: 'a.ts' }, rawArguments: '{"filepath":"a.ts"}' };

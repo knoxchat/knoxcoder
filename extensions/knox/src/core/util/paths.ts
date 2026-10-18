@@ -41,8 +41,8 @@ export function getGlobalKnoxIgnorePath(): string {
 
 export function getKnoxGlobalPath(): string {
   // ~/.knoxcoder, or KNOX_GLOBAL_DIR (tests / custom installs). Read env each
-  // call so vitest can point at a tmp dir after import. Never ~/.knoxcoder (that
-  // belongs to the external Knox extension).
+  // call so vitest can point at a tmp dir after import. Never ~/.knox (that
+  // belongs to the external Knox marketplace extension).
   const knoxPath =
     process.env.KNOX_GLOBAL_DIR ??
     path.join(os.homedir(), KNOX_GLOBAL_DIR_NAME);
@@ -174,6 +174,7 @@ export async function migrate(
   }
 }
 
+/** Local non-secret knobs only. Never load API keys from this file. */
 export function getKnoxDotEnv(): { [key: string]: string } {
   const filepath = path.join(getKnoxGlobalPath(), ".env");
   if (fs.existsSync(filepath)) {
@@ -242,91 +243,22 @@ export function getGlobalSkillsPath(): string {
   return skillsPath;
 }
 
-/** Legacy project-local .knox subdirectory names mapped to global paths */
-const PROJECT_KNOX_SUBDIRS: Record<string, (globalRoot: string) => string> = {
-  skills: (g) => path.join(g, "skills"),
-  prompts: (g) => path.join(g, "prompts"),
-  assistants: (g) => path.join(g, "assistants"),
-  rules: (g) => path.join(g, "rules"),
-  checkpoints: (g) => path.join(g, "checkpoints"),
-  brain: (g) => path.join(g, "memory"),
-  memory: (g) => path.join(g, "memory"),
-  sessions: (g) => path.join(g, "sessions"),
-  logs: (g) => path.join(g, "logs"),
-  dev_data: (g) => path.join(g, "dev_data"),
-};
-
-/** Root-level config files that may exist inside a legacy project .knox/ directory */
-const PROJECT_KNOX_ROOT_FILES = [
-  "config.yaml",
-  "sharedConfig.json",
-  "checkpoint-config.json",
-  ".env",
-  ".knoxignore",
-];
-
-function copyDirMerge(src: string, dest: string): void {
-  if (!fs.existsSync(src)) {
-    return;
-  }
-  fs.mkdirSync(dest, { recursive: true });
-  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
-      copyDirMerge(srcPath, destPath);
-    } else if (!fs.existsSync(destPath)) {
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
-}
-
 /**
- * One-time migration: move project-root `.knox/` data into `~/.knoxcoder/`.
- * Merges files without overwriting existing global data.
+ * Copy a workspace-root `.knoxignore` into `~/.knoxcoder/.knoxignore` when
+ * none exists yet. KnoxCoder never reads workspace `.knox/` or `~/.knox`
+ * (those belong to the marketplace Knox extension).
  */
 export function migrateProjectKnoxToGlobal(workspaceDirs: string[]): void {
   const globalRoot = getKnoxGlobalPath();
-
-  for (const workspaceDir of workspaceDirs) {
-    const projectKnoxDir = path.join(workspaceDir, ".knox");
-    if (!fs.existsSync(projectKnoxDir)) {
-      continue;
-    }
-
-    for (const entry of fs.readdirSync(projectKnoxDir, { withFileTypes: true })) {
-      const srcPath = path.join(projectKnoxDir, entry.name);
-
-      if (entry.isFile() && PROJECT_KNOX_ROOT_FILES.includes(entry.name)) {
-        const destPath = path.join(globalRoot, entry.name);
-        if (!fs.existsSync(destPath)) {
-          fs.copyFileSync(srcPath, destPath);
-        }
-        continue;
-      }
-
-      const destResolver = PROJECT_KNOX_SUBDIRS[entry.name];
-      if (!destResolver) {
-        continue;
-      }
-      const destPath = destResolver(globalRoot);
-      if (entry.isDirectory()) {
-        copyDirMerge(srcPath, destPath);
-      } else if (!fs.existsSync(destPath)) {
-        fs.copyFileSync(srcPath, destPath);
-      }
-    }
-  }
-
-  // Migrate workspace-root .knoxignore when no global copy exists yet
   const globalKnoxignore = path.join(globalRoot, ".knoxignore");
-  if (!fs.existsSync(globalKnoxignore)) {
-    for (const workspaceDir of workspaceDirs) {
-      const wsKnoxignore = path.join(workspaceDir, ".knoxignore");
-      if (fs.existsSync(wsKnoxignore)) {
-        fs.copyFileSync(wsKnoxignore, globalKnoxignore);
-        break;
-      }
+  if (fs.existsSync(globalKnoxignore)) {
+    return;
+  }
+  for (const workspaceDir of workspaceDirs) {
+    const wsKnoxignore = path.join(workspaceDir, ".knoxignore");
+    if (fs.existsSync(wsKnoxignore)) {
+      fs.copyFileSync(wsKnoxignore, globalKnoxignore);
+      break;
     }
   }
 }

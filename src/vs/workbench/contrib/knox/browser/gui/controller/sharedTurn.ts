@@ -8,7 +8,7 @@ import { asRecord } from './helpers.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { toolOutputItemsFromUnknown, toolOutputText } from '../../../common/knoxGuiTools.js';
 import { knoxGuiStreamErrorFromState } from '../../../common/knoxGuiTranscript.js';
-import { IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
 import { IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiFlushStreamText, knoxGuiHistoryToCoreHistory, knoxGuiShouldSplitForTools, knoxGuiToolFailureOutput, knoxGuiToolIsSettled, knoxGuiTurnDoomCalls } from '../../../common/knoxGuiAgentRequest.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
 import { finishTurn, hydrateLastAssistant, recordPromptLog, streamUpdate } from './stream.js';
@@ -73,6 +73,8 @@ export async function runSharedTurn(controller: KnoxGuiController): Promise<void
 			turnId: lastUser?.id ?? state.sessionId,
 			turnToolCalls: knoxGuiTurnDoomCalls(state.history),
 			priorSteps: state.toolLoopSteps,
+			skipTurnContext: controller.turnNoContext,
+			planMode: state.planMode === true,
 			completionOptions: {
 				...(state.reasoningEfforts.length && state.reasoningEffort ? { reasoningEffort: state.reasoningEffort } : {}),
 				...(state.webSearchSupported ? { webSearch: state.webSearchEnabled } : {}),
@@ -127,6 +129,8 @@ async function applyChatTurnEvent(controller: KnoxGuiController, data: unknown):
 			return onToolEnd(controller, event);
 		case 'step':
 			return onStep(controller, turn, event);
+		case 'hold':
+			return onHold(controller, turn, event);
 		case 'prompt_log':
 			recordPromptLog(controller, event.log);
 			return;
@@ -231,6 +235,41 @@ function onToolEnd(controller: KnoxGuiController, event: Record<string, unknown>
  * never emit `tool_end`, so this settles whatever is still open, then opens
  * the next assistant item.
  */
+function holdFromEvent(event: Record<string, unknown>): IKnoxGuiHistoryItem['hold'] {
+	if (event.kind === 'oracle') {
+		return { kind: 'oracle', errors: typeof event.errors === 'number' ? event.errors : 0 };
+	}
+	if (event.kind === 'plan') {
+		return { kind: 'plan', remaining: typeof event.remaining === 'number' ? event.remaining : 0 };
+	}
+	return undefined;
+}
+
+function markLastAssistantHold(controller: KnoxGuiController, hold: NonNullable<IKnoxGuiHistoryItem['hold']>): void {
+	const history = controller.store.state.history.slice();
+	for (let i = history.length - 1; i >= 0; i--) {
+		if (history[i].role === 'assistant') {
+			history[i] = { ...history[i], hold };
+			controller.store.patch({ history });
+			return;
+		}
+	}
+}
+
+/** A no-tool reply was held: chip it, then open the next assistant like `onStep`. */
+async function onHold(controller: KnoxGuiController, turn: IKnoxGuiSharedTurn, event: Record<string, unknown>): Promise<void> {
+	const hold = holdFromEvent(event);
+	if (hold) {
+		markLastAssistantHold(controller, hold);
+	}
+	controller.finishThinking();
+	controller.store.patch({ toolLoopSteps: controller.store.state.toolLoopSteps + 1 });
+	controller.store.appendHistory(newAssistantItem());
+	turn.acc = knoxGuiEmptyStreamText();
+	turn.toolCalls = [];
+	await controller.saveCurrentSession({ generateTitle: true });
+}
+
 async function onStep(controller: KnoxGuiController, turn: IKnoxGuiSharedTurn, event: Record<string, unknown>): Promise<void> {
 	const step = asRecord(event.step);
 	const calls = Array.isArray(step?.toolCalls) ? step.toolCalls : [];

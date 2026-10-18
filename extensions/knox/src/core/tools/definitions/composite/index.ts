@@ -1,9 +1,11 @@
 /**
  * Composite Tools — multi-step helpers with real `callTool` implementations.
  *
- * Not on the default chat tool list (`allTools`). Available via
- * `allAvailableTools` / opt-in config. Descriptions must match what the
- * implementations actually do (scaffolds, heuristics, regex migrate).
+ * Not on the default chat tool list (`allTools`). Stay off
+ * `builtin_tool_search` unless `knoxchat.enableCompositeTools` is on.
+ * They remain on `allAvailableTools` so the honesty gate still requires a
+ * `callTool` route. Descriptions must match the implementations
+ * (scaffolds, heuristics, regex migrate).
  * JS import/export/class heuristics are skipped for .c/.h/.S/Kconfig (HL-39).
  */
 

@@ -38,6 +38,8 @@ export class KnoxGuiController extends Disposable {
 	turnAborted = false;
 	/** Memory / restore inject built at submit, reused by every round of the turn. */
 	turnInject: { sessionId: string; content: string } | undefined;
+	/** Alt-submit / noContext: skip Turn Context (open files / git / diagnostics). */
+	turnNoContext = false;
 	/** Verified-recipe worked example from `knox/startTurn` (MC-24); merged into `turnInject` at submit. */
 	turnRecipeHint: string | undefined;
 	/** Resolves the recipe preview card (MC-35); set only while it waits for the user. */
@@ -716,6 +718,14 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiTools.setPermissionMode(this, mode);
 	}
 
+	setPlanMode(planMode: boolean): void {
+		return knoxGuiTools.setPlanMode(this, planMode);
+	}
+
+	executePlan(): void {
+		return knoxGuiTools.executePlan(this);
+	}
+
 	async runReview(action: 'enable' | 'disable' | 'status' | 'diff' | 'apply' | 'discard', fileUris?: string[]): Promise<void> {
 		return knoxGuiPanels.runReview(this, action, fileUris);
 	}
@@ -730,6 +740,10 @@ export class KnoxGuiController extends Disposable {
 
 	async runWorktree(action: 'enter' | 'apply' | 'discard' | 'status'): Promise<void> {
 		return knoxGuiPanels.runWorktree(this, action);
+	}
+
+	async startBackgroundJob(): Promise<void> {
+		return knoxGuiPanels.startBackgroundJob(this);
 	}
 
 	async loadMemory(): Promise<void> {

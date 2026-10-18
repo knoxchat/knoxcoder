@@ -74,9 +74,8 @@ describe("memory benchmark (K-035)", () => {
    *
    * Known misses (the retriever is lexical): "invoice total with tax" does not reach the
    * integer-cents rule, "icon-only button" does not reach the a11y rule, "settings card"
-   * does not reach the design-system rule, and Chinese queries retrieve nothing (the query
-   * cleaner drops CJK and FTS5 `unicode61` indexes a CJK run as one token). The first three
-   * need embeddings; the Chinese one needs a CJK-aware FTS tokenizer (not in 2.1).
+   * does not reach the design-system rule. Those still need embeddings (out of scope).
+   * Chinese queries use overlapping FTS bigrams (no vectors).
    */
   it("meets the real-world thresholds", async () => {
     const report = await runMemoryBench({
@@ -105,6 +104,7 @@ describe("memory benchmark (K-035)", () => {
       ["rw-q-log", "rw-pii"],
       ["rw-q-date", "rw-timezone"],
       ["rw-q-license", "rw-license"],
+      ["rw-q-zh-migrate", "rw-zh-db"],
     ] as const) {
       expect(injected(id), id).toContain(key);
     }

@@ -22,6 +22,8 @@ import {
 } from "./subagent/jobs";
 import { parseShellMeta } from "./shellSession";
 import {
+  abortJob,
+  abortAllRunningJobs,
   bgRoot,
   discardJob,
   listJobs,
@@ -117,9 +119,18 @@ export function listAgentBackgroundJobs(): AgentBackgroundJob[] {
 }
 
 /** User Stop: SIGTERM/abort every running shell job and child agent. */
+function bgJobId(raw: string | undefined): string | undefined {
+  const trimmed = raw?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return trimmed.startsWith("bg:") ? trimmed.slice(3) : trimmed;
+}
+
 export function cancelAllBackgroundJobs(): AgentBackgroundJob[] {
   killAllRunningShellJobs();
   killAllRunningSubagentJobs();
+  abortAllRunningJobs(bgRoot());
   return listAgentBackgroundJobs();
 }
 
@@ -141,7 +152,10 @@ export function handleAgentJobsRequest(
     if (!jobId) {
       return { ok: false, error: "Missing jobId", jobs: listAgentBackgroundJobs() };
     }
-    const killed = killShellJob(jobId) || killSubagentJob(jobId);
+    const killed =
+      killShellJob(jobId) ||
+      killSubagentJob(jobId) ||
+      abortJob(bgJobId(jobId) ?? "");
     if (!killed) {
       return {
         ok: false,
@@ -170,9 +184,16 @@ export function handleAgentJobsRequest(
     dismissCompletedSubagentJobs();
     return { ok: true, jobs: listAgentBackgroundJobs() };
   }
+  if (action === "start") {
+    return {
+      ok: false,
+      error: "Background start is handled by Core",
+      jobs: listAgentBackgroundJobs(),
+    };
+  }
   if (action === "merge" || action === "discard") {
     const raw = data.jobId?.trim() ?? "";
-    const id = raw.startsWith("bg:") ? raw.slice(3) : raw;
+    const id = bgJobId(raw) ?? "";
     if (!id) {
       return { ok: false, error: "Missing jobId", jobs: listAgentBackgroundJobs() };
     }

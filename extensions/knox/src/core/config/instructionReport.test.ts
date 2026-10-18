@@ -95,7 +95,19 @@ describe("K-027 /init AGENTS.md", () => {
     expect(md).not.toContain(".git");
     expect(md).toContain("npm run test");
     expect(md).toContain("`npx tsc --noEmit`");
+    expect(md).toContain("## Test");
+    expect(md).toContain("npm test --silent");
     expect(md).toContain("Add or update a test");
+  });
+
+  it("fences go test for a Go tree", () => {
+    const md = buildAgentsMd({
+      projectName: "svc",
+      entries: ["go.mod", "go.sum", "cmd"],
+      topDirs: ["cmd"],
+    });
+    expect(md).toContain("## Test");
+    expect(md).toContain("go test ./...");
   });
 
   it("leaves visible TODOs when nothing is known", () => {

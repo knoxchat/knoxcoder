@@ -2249,7 +2249,15 @@ export default defineConfig(
 					' *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.',
 					' *--------------------------------------------------------------------------------------------'
 				]
-			]
+			],
+			// Knox uses knoxGuiT / i18n maps, not nls.localize.
+			'local/code-no-unexternalized-strings': 'off',
+			// Self-contained widget: querySelector, window timers, and ctor
+			// parameter properties are the GUI's own DOM, not workbench multi-window.
+			'no-restricted-syntax': 'off',
+			'no-restricted-globals': 'off',
+			'local/code-parameter-properties-must-have-explicit-accessibility': 'off',
+			'local/code-no-in-operator': 'off',
 		}
 	},
 	// Knox tests live next to sources (not under /test/), so layer import-patterns do not apply.

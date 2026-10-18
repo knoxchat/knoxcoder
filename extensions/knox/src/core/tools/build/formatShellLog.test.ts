@@ -41,10 +41,10 @@ describe("compactShellBody", () => {
     const text = compactShellBody({
       stdout,
       stderr: "",
-      logPath: "/tmp/.knox/jobs/sh_1.log",
+      logPath: "/tmp/.knoxcoder/jobs/sh_1.log",
     });
     expect(text).toContain("foo.c:12:3");
-    expect(text).toContain("Full log: /tmp/.knox/jobs/sh_1.log");
+    expect(text).toContain("Full log: /tmp/.knoxcoder/jobs/sh_1.log");
     expect(text).not.toContain("file0.o");
     expect(text.length).toBeLessThan(8_000);
   });
@@ -62,11 +62,11 @@ describe("compactShellBody", () => {
     const text = compactShellBody({
       stdout,
       stderr: "",
-      logPath: "/tmp/.knox/jobs/sh_cargo.log",
+      logPath: "/tmp/.knoxcoder/jobs/sh_cargo.log",
     });
     expect(text).toContain("E0502");
     expect(text).toContain("src/borrow.rs:12:9");
-    expect(text).toContain("Full log: /tmp/.knox/jobs/sh_cargo.log");
+    expect(text).toContain("Full log: /tmp/.knoxcoder/jobs/sh_cargo.log");
     expect(text).not.toContain("crate0 v0.1.0");
     expect(text.length).toBeLessThan(8_000);
   });

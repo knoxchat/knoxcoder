@@ -2,7 +2,10 @@
  * In-flight explore/general child agents for the jobs panel (HL-36).
  */
 
-import type { AgentBackgroundJob } from "../../protocol/agentJobs";
+import type {
+  AgentBackgroundJob,
+  AgentJobEvent,
+} from "../../protocol/agentJobs";
 
 export interface SubagentJobRecord {
   id: string;
@@ -12,13 +15,25 @@ export interface SubagentJobRecord {
   startedAt: number;
   endedAt?: number;
   summary?: string;
+  /** Latest one-line status for the jobs row. */
+  detail?: string;
+  /** Capped progress log (tool steps). */
+  log?: string;
   abort: AbortController;
 }
 
+export type SubagentJobListener = (
+  event: AgentJobEvent,
+  job: SubagentJobRecord,
+) => void;
+
 const jobs = new Map<string, SubagentJobRecord>();
+const listeners = new Set<SubagentJobListener>();
 let seq = 0;
 
 export const MAX_PARALLEL_EXPLORES = 3;
+const PROGRESS_LOG_MAX = 4_000;
+const DETAIL_MAX = 80;
 
 export function resetSubagentJobs(): void {
   for (const job of jobs.values()) {
@@ -28,6 +43,40 @@ export function resetSubagentJobs(): void {
   }
   jobs.clear();
   seq = 0;
+}
+
+export function subscribeSubagentJobs(listener: SubagentJobListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function emitSubagentJob(event: AgentJobEvent, job: SubagentJobRecord): void {
+  const copy = { ...job };
+  for (const listener of listeners) {
+    try {
+      listener(event, copy);
+    } catch {
+      // Panel listeners must not break the child.
+    }
+  }
+}
+
+function clipDetail(text: string): string {
+  const trimmed = text.trim().replace(/\s+/g, " ");
+  if (trimmed.length <= DETAIL_MAX) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, DETAIL_MAX - 1)}…`;
+}
+
+function appendLog(existing: string | undefined, line: string): string {
+  const next = existing ? `${existing}\n${line}` : line;
+  if (next.length <= PROGRESS_LOG_MAX) {
+    return next;
+  }
+  return `…${next.slice(next.length - PROGRESS_LOG_MAX + 1)}`;
 }
 
 export function startSubagentJob(input: {
@@ -43,10 +92,26 @@ export function startSubagentJob(input: {
     profile: input.profile,
     status: "running",
     startedAt: Date.now(),
+    detail: "started",
     abort: input.abort ?? new AbortController(),
   };
   jobs.set(id, record);
+  emitSubagentJob("started", record);
   return record;
+}
+
+export function updateSubagentJobProgress(id: string, line: string): void {
+  const job = jobs.get(id);
+  if (!job) {
+    return;
+  }
+  const detail = clipDetail(line);
+  if (!detail) {
+    return;
+  }
+  job.detail = detail;
+  job.log = appendLog(job.log, detail);
+  emitSubagentJob("updated", job);
 }
 
 export function finishSubagentJob(
@@ -55,12 +120,17 @@ export function finishSubagentJob(
   summary?: string,
 ): void {
   const job = jobs.get(id);
-  if (!job) {
+  if (!job || job.status !== "running") {
     return;
   }
   job.status = status;
   job.endedAt = Date.now();
   job.summary = summary;
+  if (summary) {
+    job.detail = clipDetail(summary.split("\n")[0] ?? summary);
+    job.log = appendLog(job.log, job.detail);
+  }
+  emitSubagentJob("completed", job);
 }
 
 export function killSubagentJob(id: string): boolean {
@@ -118,7 +188,7 @@ export function toSubagentBackgroundJob(
     status: record.status,
     startedAt: record.startedAt,
     endedAt: record.endedAt,
-    detail: record.summary?.split("\n")[0],
-    output: record.summary,
+    detail: record.detail ?? record.summary?.split("\n")[0],
+    output: record.log ?? record.summary,
   };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Tool } from "..";
 
-import { allTools } from ".";
+import { allAvailableTools, allTools } from ".";
 import { BuiltInToolNames } from "./builtIn";
 import {
   estimateToolSchemaTokens,
@@ -13,22 +13,49 @@ import {
 const names = (tools: Tool[]) => tools.map((tool) => tool.function.name);
 
 describe("deferred tools (K-021)", () => {
-  it("keeps the core set and defers memory, git and systems tools", () => {
+  it("keeps the core set and defers memory, git blame, lsp and systems tools", () => {
     const { active, deferred } = splitDeferredTools(allTools as Tool[]);
     const activeNames = names(active);
     expect(activeNames).toContain(BuiltInToolNames.ReadFile);
     expect(activeNames).toContain(BuiltInToolNames.EditFile);
     expect(activeNames).toContain(BuiltInToolNames.ToolSearch);
+    expect(activeNames).toContain(BuiltInToolNames.GitStatus);
+    expect(activeNames).toContain(BuiltInToolNames.GitDiff);
+    expect(activeNames).not.toContain(BuiltInToolNames.Lsp);
+    expect(names(deferred)).toContain(BuiltInToolNames.Lsp);
     expect(names(deferred)).toContain(BuiltInToolNames.Memory);
     expect(names(deferred)).toContain(BuiltInToolNames.GitBlame);
     expect(names(deferred)).toContain(BuiltInToolNames.Qemu);
     expect(activeNames).not.toContain(BuiltInToolNames.Memory);
   });
 
+  it("promotes lsp when a language server kind is active", () => {
+    const { active, deferred } = splitDeferredTools(allTools as Tool[], {
+      lspActive: true,
+    });
+    expect(names(active)).toContain(BuiltInToolNames.Lsp);
+    expect(names(deferred)).not.toContain(BuiltInToolNames.Lsp);
+  });
+
+  it("hides composite tools from tool_search unless enabled", () => {
+    const hidden = splitDeferredTools(allAvailableTools as Tool[]);
+    expect(names(hidden.active).some((name) => name.startsWith("composite_"))).toBe(
+      false,
+    );
+    expect(names(hidden.deferred).some((name) => name.startsWith("composite_"))).toBe(
+      false,
+    );
+    const shown = splitDeferredTools(allAvailableTools as Tool[], {
+      enableCompositeTools: true,
+    });
+    expect(names(shown.deferred)).toContain("composite_smart_edit");
+  });
+
   it("the systems profile keeps its own tools in front", () => {
     const { active } = splitDeferredTools(allTools as Tool[], { systems: true });
     expect(names(active)).toContain(BuiltInToolNames.Qemu);
     expect(names(active)).toContain(BuiltInToolNames.Build);
+    expect(names(active)).toContain(BuiltInToolNames.Lsp);
   });
 
   it("never defers user-defined tools", () => {

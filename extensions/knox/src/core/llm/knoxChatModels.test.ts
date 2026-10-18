@@ -197,7 +197,7 @@ describe("reasoning effort resolution", () => {
 
   it("prefers API reasoning.supported_efforts over sidecar", () => {
     const metadata = sampleModel({
-      id: "openai/gpt-5.4",
+      id: "openai/gpt-6-luna",
       reasoning: {
         supported_efforts: ["low", "high"],
         default_effort: "high",
@@ -210,12 +210,12 @@ describe("reasoning effort resolution", () => {
   it("uses versioned sidecar when API has no reasoning object", () => {
     seedKnoxChatModelsCache([
       sampleModel({
-        id: "openai/gpt-5.4",
+        id: "openai/gpt-6-luna",
         supported_parameters: ["reasoning", "reasoning_effort"],
       }),
     ]);
     const config = resolveReasoningEffortConfigForModel({
-      modelId: "openai/gpt-5.4",
+      modelId: "openai/gpt-6-luna",
     });
     expect(config?.allowed).toContain("xhigh");
     expect(config?.default).toBe("none");

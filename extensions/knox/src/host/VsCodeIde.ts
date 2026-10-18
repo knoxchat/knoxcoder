@@ -918,6 +918,7 @@ class VsCodeIde implements IDE {
       isUntitled: vscode.window.activeTextEditor.document.isUntitled,
       path: vscode.window.activeTextEditor.document.uri.toString(),
       contents: vscode.window.activeTextEditor.document.getText(),
+      cursorLine: vscode.window.activeTextEditor.selection.active.line + 1,
     };
   }
 
@@ -971,6 +972,20 @@ class VsCodeIde implements IDE {
   }
 
   async getProblems(fileUri?: string | undefined): Promise<Problem[]> {
+    const severityOf = (
+      severity: vscode.DiagnosticSeverity,
+    ): Problem["severity"] => {
+      if (severity === vscode.DiagnosticSeverity.Warning) {
+        return "warning";
+      }
+      if (severity === vscode.DiagnosticSeverity.Information) {
+        return "info";
+      }
+      if (severity === vscode.DiagnosticSeverity.Hint) {
+        return "hint";
+      }
+      return "error";
+    };
     const toProblem = (uri: vscode.Uri, d: vscode.Diagnostic): Problem => ({
       filepath: uri.toString(),
       range: {
@@ -981,6 +996,7 @@ class VsCodeIde implements IDE {
         end: { line: d.range.end.line, character: d.range.end.character },
       },
       message: d.message,
+      severity: severityOf(d.severity),
     });
 
     if (fileUri) {
@@ -1275,6 +1291,8 @@ class VsCodeIde implements IDE {
       compatInstructions: knox.get<Array<"cursor" | "copilot">>(
         "compatInstructions",
       ),
+      deferTools: knox.get<boolean>("deferTools") !== false,
+      enableCompositeTools: knox.get<boolean>("enableCompositeTools") === true,
       agentVerifyCommand: verifyCommand || undefined,
       agentVerifyMode: knox.get<"diagnostics" | "command" | "off">(
         "verifyMode",

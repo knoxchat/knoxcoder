@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { allTools, compositeTools } from "../../index";
+import { selectAgentTools } from "../../catalog";
 import {
   analyzeCompositeSource,
   detectProjectType,
@@ -14,6 +15,18 @@ describe("composite tools (HL-39)", () => {
     for (const tool of compositeTools) {
       expect(names.has(tool.function.name)).toBe(false);
     }
+  });
+
+  it("stay off the model catalog unless knoxchat.enableCompositeTools", () => {
+    expect(
+      selectAgentTools(allTools).some((tool) =>
+        tool.function.name.startsWith("composite_"),
+      ),
+    ).toBe(false);
+    const enabled = selectAgentTools(allTools, { enableCompositeTools: true });
+    expect(enabled.some((tool) => tool.function.name === "composite_smart_edit")).toBe(
+      true,
+    );
   });
 
   it("skips JS import/export heuristics on C sources", () => {

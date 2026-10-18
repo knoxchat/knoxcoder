@@ -15,6 +15,10 @@ import {
   resetSerialContextForTests,
   setSerialContextInject,
 } from "../context/serialContext";
+import {
+  resetTurnContextForTests,
+  setTurnContextInject,
+} from "../context/turnContext";
 
 /** Size of the pre-K-031 monolithic prompt, for the shrink target. */
 const OLD_PROMPT_CHARS = 4900;
@@ -25,6 +29,7 @@ describe("constructMessages", () => {
     resetCodebaseCardForTests();
     resetRustPolicyForTests();
     resetSerialContextForTests();
+    resetTurnContextForTests();
   });
 
   it("keeps a byte-identical stable prefix when plan and serial tail change (K-030)", () => {
@@ -53,6 +58,19 @@ describe("constructMessages", () => {
     expect(turn1.length).toBeGreaterThan(stableCount);
     expect(turn1[stableCount]).toContain("Plan A");
     expect(turn2[stableCount]).toContain("Plan B");
+  });
+
+  it("places turn context after the stable prefix and before the plan", () => {
+    setCodebaseCardInject("CARD: stable");
+    setTurnContextInject("## Turn Context\nActive: foo.ts:1");
+    createPlan({ sessionId: "s-plan", title: "Plan A", steps: ["one"] });
+    const sys = constructMessages([], "s-plan")
+      .filter((m) => m.role === "system")
+      .map((m) => String(m.content));
+    const turnIdx = sys.findIndex((block) => block.includes("Turn Context"));
+    const planIdx = sys.findIndex((block) => block.includes("Plan A"));
+    expect(turnIdx).toBeGreaterThan(0);
+    expect(planIdx).toBeGreaterThan(turnIdx);
   });
 
   it("injects edit-tool discipline in the default system message", () => {

@@ -3,8 +3,6 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable */
-
 export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"agentModeNotSupported": "Agent mode not supported with current model",
 	"permissionModeGroup": "Permission",
@@ -13,9 +11,14 @@ export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"permissionModeAuto": "Auto",
 	"permissionModeAskHint": "Ask before writes and terminal",
 	"permissionModeEditsHint": "Auto-approve file edits; ask for terminal",
-	"permissionModeAutoHint": "Auto-approve every enabled tool (YOLO, default)",
+	"permissionModeAutoHint": "Auto-approve every enabled tool (YOLO, default). Switch to Ask to approve first.",
 	"permissionModeTriggerHint": "How tools are approved. Jev picks Chat vs Agent automatically.",
 	"permissionModeTriggerHintNoJev": "Agent mode. How tools are approved.",
+	"planMode": "Plan",
+	"planModeHint": "Read-only explore and write a plan. Leave Plan mode to execute.",
+	"executePlan": "Execute plan",
+	"runInBackground": "Run in background",
+	"runInBackgroundHint": "Start the composer task in a git worktree. Merge or discard from the jobs panel when it finishes.",
 	"approveOnce": "Approve",
 	"alwaysThisSession": "Always",
 	"alwaysThisSessionHint": "Auto-approve this tool for the rest of this chat",
@@ -290,9 +293,9 @@ export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"chatListFailed": "Couldn't render this conversation.",
 	"retryingStream": "Connection problem, retrying",
 	"retryingStreamFallback": "using the fallback model",
-	"permissionNoticeTitle": "Safer defaults: Knox now asks before running terminal commands (Edits mode). File edits are still automatic.",
-	"permissionNoticeAuto": "Switch to Auto",
-	"permissionNoticeKeep": "Keep Edits",
+	"permissionNoticeTitle": "Auto (YOLO) is on: Knox runs tools without asking. Switch to Ask if this repo is untrusted.",
+	"permissionNoticeKeep": "Keep Auto",
+	"permissionNoticeAsk": "Switch to Ask",
 	"memoryNoticeTitle": "Memory Brain stores curated facts and session notes locally in ~/.knoxcoder. You can export, wipe, or turn it off in Knox settings.",
 	"memoryNoticeOk": "Got it",
 	"jobsMerge": "Merge",

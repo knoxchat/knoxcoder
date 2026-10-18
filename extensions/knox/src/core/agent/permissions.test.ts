@@ -58,8 +58,8 @@ describe("isToolAutoApproved", () => {
     ).toBe(true);
   });
 
-  it("defaults to Edits mode", () => {
-    expect(DEFAULT_PERMISSION_MODE).toBe("acceptEdits");
+  it("defaults to Auto (YOLO); Ask is opt-in", () => {
+    expect(DEFAULT_PERMISSION_MODE).toBe("fullAuto");
   });
 
   it("Edits mode asks for shell by default, Auto does not", () => {

@@ -1,7 +1,8 @@
 /**
- * Short first-turn "codebase card" for kernel / QEMU / Cargo trees (HL-28 / RL-09).
+ * Short first-turn "codebase card" for kernel / QEMU / Cargo / app trees
+ * (HL-28 / RL-09 / P1.1).
  *
- * Injected as a system message. Never dumps `.config` (only ARCH inference).
+ * Injected as a system message. Never dumps `.config` or lockfiles.
  */
 
 import type { IDE } from "..";
@@ -10,6 +11,10 @@ import {
   RUST_VERIFY_COMMAND,
   type WorkspaceKind,
 } from "../config/agentProfile";
+import {
+  nodePackageManager,
+  nodeRunCommand,
+} from "../config/verifyDiscovery";
 import { joinPathsToUri } from "../util/uri";
 import {
   formatMsrvLine,
@@ -116,6 +121,46 @@ export function inferArchFromConfig(configText: string): string | undefined {
   return undefined;
 }
 
+export interface NodePackageInfo {
+  name?: string;
+  scripts: Record<string, string>;
+}
+
+export function parseNodePackage(text: string): NodePackageInfo {
+  try {
+    const parsed = JSON.parse(text) as {
+      name?: unknown;
+      scripts?: unknown;
+    };
+    const scripts =
+      parsed.scripts && typeof parsed.scripts === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.scripts as Record<string, unknown>).filter(
+              (entry): entry is [string, string] => typeof entry[1] === "string",
+            ),
+          )
+        : {};
+    return {
+      name: typeof parsed.name === "string" ? parsed.name : undefined,
+      scripts,
+    };
+  } catch {
+    return { scripts: {} };
+  }
+}
+
+function nodeScriptLine(
+  pkg: NodePackageInfo,
+  manager: ReturnType<typeof nodePackageManager>,
+  key: "test" | "lint" | "build",
+): string {
+  if (typeof pkg.scripts[key] !== "string") {
+    return "";
+  }
+  const silent = key === "test";
+  return `${key}: \`${nodeRunCommand(manager, key, silent)}\``;
+}
+
 export function buildCodebaseCard(input: {
   entryNames: string[];
   topDirs?: string[];
@@ -126,6 +171,8 @@ export function buildCodebaseCard(input: {
   rustToolchainText?: string;
   clippyToml?: boolean;
   rustfmtToml?: boolean;
+  packageJson?: string;
+  pyproject?: string;
   kind?: WorkspaceKind;
 }): string {
   const names = input.entryNames;
@@ -138,6 +185,74 @@ export function buildCodebaseCard(input: {
     .filter((n) => n && n !== "." && !n.startsWith("."))
     .slice(0, 24);
   const dirList = dirs.length ? dirs.map((d) => `${d}/`).join(" ") : "(unknown)";
+
+  if (kind === "editor") {
+    return [
+      `## ${CODEBASE_CARD_MARKER}`,
+      "This workspace looks like KnoxCoder (src/vs + extensions/knox).",
+      "Build the Knox extension: `gulp compile-extension:knox`. Refresh natives: `gulp compile-extension-knox-native`. Launch: `scripts/code.sh`.",
+      `Top-level dirs: ${dirList}`,
+      "Search with builtin_exact_search path (extensions/knox or src/vs/workbench/contrib/knox) and fileType ts.",
+      "Prefer builtin_lsp go-to-definition over guessing. Do not dump lockfiles.",
+    ].join("\n");
+  }
+
+  if (kind === "node") {
+    const pkg = parseNodePackage(input.packageJson ?? "");
+    const manager = nodePackageManager(names);
+    const crate = pkg.name ? `${pkg.name} (${manager})` : `Node project (${manager})`;
+    const scripts = (["test", "lint", "build"] as const)
+      .map((key) => nodeScriptLine(pkg, manager, key))
+      .filter(Boolean);
+    return [
+      `## ${CODEBASE_CARD_MARKER}`,
+      `This workspace looks like a Node/JS app: ${crate}.`,
+      scripts.length
+        ? `Scripts: ${scripts.join("; ")}.`
+        : "Scripts: none of test/lint/build at package.json root.",
+      `Top-level dirs: ${dirList}`,
+      "Search with builtin_exact_search (narrow path/fileType). Prefer builtin_lsp definition/references before inventing APIs.",
+      "Do not dump lockfiles into context.",
+    ].join("\n");
+  }
+
+  if (kind === "python") {
+    const py = input.pyproject ?? "";
+    const tools = [
+      names.includes("pytest.ini") || /\[tool\.pytest\b/.test(py) ? "pytest" : "",
+      names.includes("ruff.toml") || /\[tool\.ruff\b/.test(py) ? "ruff" : "",
+      names.includes("mypy.ini") || /\[tool\.mypy\b/.test(py) ? "mypy" : "",
+    ].filter(Boolean);
+    return [
+      `## ${CODEBASE_CARD_MARKER}`,
+      "This workspace looks like a Python project.",
+      tools.length
+        ? `Tools: ${tools.join(", ")}. Oracle: \`python -m pytest -q\`.`
+        : "Oracle: `python -m pytest -q` if tests exist.",
+      `Top-level dirs: ${dirList}`,
+      "Search with builtin_exact_search fileType py. Prefer builtin_lsp.",
+    ].join("\n");
+  }
+
+  if (kind === "go") {
+    return [
+      `## ${CODEBASE_CARD_MARKER}`,
+      "This workspace looks like a Go module (`go.mod`).",
+      "Oracle: `go test ./...`. Prefer builtin_lsp for definitions.",
+      `Top-level dirs: ${dirList}`,
+      "Search with builtin_exact_search fileType go.",
+    ].join("\n");
+  }
+
+  if (kind === "cmake") {
+    return [
+      `## ${CODEBASE_CARD_MARKER}`,
+      "This workspace looks like a CMake project (CMakeLists.txt, not a kernel tree).",
+      "Build: `cmake -S . -B build && cmake --build build`. Prefer builtin_build.",
+      `Top-level dirs: ${dirList}`,
+      "Search with builtin_exact_search fileType c / cpp.",
+    ].join("\n");
+  }
 
   if (kind === "cargo") {
     const manifest = parseCargoManifest(input.cargoToml ?? "");
@@ -234,6 +349,8 @@ export async function loadCodebaseCard(ide: IDE): Promise<string> {
   let cargoToml = "";
   let cargoLock = "";
   let rustToolchainText = "";
+  let packageJson = "";
+  let pyproject = "";
   try {
     const configUri = joinPathsToUri(root, ".config");
     if (await ide.fileExists(configUri)) {
@@ -270,6 +387,22 @@ export async function loadCodebaseCard(ide: IDE): Promise<string> {
   } catch {
     // MSRV falls back to package.rust-version.
   }
+  try {
+    const pkgUri = joinPathsToUri(root, "package.json");
+    if (await ide.fileExists(pkgUri)) {
+      packageJson = await ide.readFile(pkgUri);
+    }
+  } catch {
+    // Node card still names the package manager from lockfiles.
+  }
+  try {
+    const pyUri = joinPathsToUri(root, "pyproject.toml");
+    if (await ide.fileExists(pyUri)) {
+      pyproject = await ide.readFile(pyUri);
+    }
+  } catch {
+    // Python card still mentions pytest if pytest.ini exists.
+  }
 
   const exists = async (name: string): Promise<boolean> => {
     try {
@@ -296,6 +429,8 @@ export async function loadCodebaseCard(ide: IDE): Promise<string> {
     rustToolchainText,
     clippyToml: await exists("clippy.toml"),
     rustfmtToml: await exists("rustfmt.toml"),
+    packageJson,
+    pyproject,
     kind,
   });
 }

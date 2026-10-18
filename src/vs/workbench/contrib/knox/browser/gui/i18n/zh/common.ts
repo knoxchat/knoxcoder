@@ -3,8 +3,6 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable */
-
 export const knoxGuiStringsZhCommon: Record<string, unknown> = {
 	"language": "语言",
 	"english": "English",
@@ -976,6 +974,8 @@ export const knoxGuiStringsZhCommon: Record<string, unknown> = {
 	"memoryExportLocalOnly": "仅本地备份（不同步）",
 	"memoryBackupLocalOnly": "备份仅保存在本机。可选密码使用 AES-256-GCM 加密文件。",
 	"compactionAppliedTitle": "上下文已压缩",
+	"holdOracleRed": "构建仍失败（{{count}}）— 继续",
+	"holdPlanOpen": "计划尚未完成（还剩 {{count}} 步）— 继续",
 	"tokenUsageDashboard": "用量",
 	"tokenUsageKnoxChatBilling": "Token 用量与计费由 KnoxStudio 在服务端统计。本扩展聚焦助理工具、检查点与本地记忆，不做本地 token 计数。",
 	"compactionDismiss": "关闭",

@@ -18,7 +18,7 @@ import type {
   ToolCallDelta,
   ToolExtras,
 } from "..";
-import { compactMessagesAsync } from "../compaction/index";
+import { compactMessagesAsync, DEFAULT_COMPACTION_CONFIG } from "../compaction/index";
 import { totalMessageTokens } from "../compaction/tokenBudget";
 import { DEFAULT_DOOM_LOOP_THRESHOLD } from "../config/agentProfile";
 import { detectDoomLoopWithJev } from "../jev/doomSemantic";
@@ -62,6 +62,7 @@ import { canRunToolInParallel } from "./toolBatch";
 import {
   buildPlanHoldInstruction,
   countPlanRemaining,
+  PLAN_HOLD_MARKER,
   resolveOpenPlan,
 } from "../tools/planStore";
 
@@ -71,6 +72,19 @@ export type AgentLoopStoppedReason =
   | "aborted"
   | "error"
   | "doom_loop";
+
+export type AgentLoopHold =
+  | { kind: "oracle"; errors: number }
+  | { kind: "plan"; remaining: number };
+
+/** Injected when a no-tool reply is held because the last oracle is still red. */
+export const ORACLE_HOLD_MARKER = "Oracle still red";
+
+/**
+ * Extra no-tool rounds while the oracle stays red. Unlimited `maxSteps` would
+ * otherwise loop forever on a permanently red tree.
+ */
+export const MAX_ORACLE_HOLD_ROUNDS = 8;
 
 export interface AgentLoopToolCall {
   id?: string;
@@ -164,8 +178,9 @@ export interface AgentLoopOptions {
    */
   initialDoomCalls?: DoomLoopCall[];
   /**
-   * When the last cargo/compile oracle in this turn is red, a no-tool
+   * When the last cargo/compile/test oracle in this turn is red, a no-tool
    * assistant message is not `completed` (RL-20). Honor max-steps / abort.
+   * Extra hold rounds are capped by `MAX_ORACLE_HOLD_ROUNDS`.
    */
   holdCompletionWhileOracleRed?: boolean;
   /**
@@ -175,6 +190,8 @@ export interface AgentLoopOptions {
    * Pass `false` to disable.
    */
   holdCompletionWhilePlanOpen?: boolean;
+  /** Fired when a no-tool reply is held for a red oracle or an open plan. */
+  onHold?: (hold: AgentLoopHold) => void | Promise<void>;
   /** Session whose builtin_plan store should drive hold-completion. */
   sessionId?: string;
   /** Retry transient stream failures with backoff (K-011). `false` disables. */
@@ -192,6 +209,19 @@ export interface AgentLoopCompactor {
   observeUsage(reportedPromptTokens: number, messages: ChatMessage[]): void;
 }
 
+/** Heuristic compact that would drop more than this many tool results uses LLM summarization once. */
+export const LLM_COMPACT_TOOL_THRESHOLD = 4;
+
+function countDroppableToolResults(
+  messages: ChatMessage[],
+  preserveRecentCount: number,
+): number {
+  const boundary = Math.max(0, messages.length - preserveRecentCount);
+  return messages
+    .slice(0, boundary)
+    .filter((message) => message.role === "tool").length;
+}
+
 export function createAgentLoopCompactor(
   llm: Pick<ToolExtras, "llm">["llm"],
 ): AgentLoopCompactor {
@@ -200,6 +230,13 @@ export function createAgentLoopCompactor(
     const window = resolveContextWindow(llm);
     // A ratio > 1 means the provider counts more tokens than we do: shrink the window.
     const effective = Math.floor(window.contextLength / ratio);
+    const droppable = countDroppableToolResults(
+      messages,
+      DEFAULT_COMPACTION_CONFIG.preserveRecentCount,
+    );
+    const useLlm =
+      droppable > LLM_COMPACT_TOOL_THRESHOLD &&
+      typeof llm.complete === "function";
     const result = await compactMessagesAsync(
       messages,
       window.model,
@@ -207,7 +244,13 @@ export function createAgentLoopCompactor(
       Math.min(window.maxTokens, Math.floor(effective / 4)),
       0,
       350,
-      { maxHistoryRatio: COMPACT_TRIGGER_RATIO },
+      {
+        maxHistoryRatio: COMPACT_TRIGGER_RATIO,
+        useLlmSummarization: useLlm,
+      },
+      useLlm
+        ? (prompt, signal) => llm.complete(prompt, signal)
+        : undefined,
     );
     return result.messages;
   }
@@ -609,7 +652,23 @@ function formatError(error: unknown): string {
   return String(error);
 }
 
-/** Last cargo/compiler oracle in the transcript (RL-20). */
+function isOracleHoldContent(text: string): boolean {
+  return text.includes(ORACLE_HOLD_MARKER) || text.includes(PLAN_HOLD_MARKER);
+}
+
+function buildDiagnosticsHeaderErrors(text: string): number | undefined {
+  const match = text.match(/Build diagnostics:\s+(\d+)\s+error/i);
+  return match ? Number(match[1]) : undefined;
+}
+
+function isOracleTranscript(
+  text: string,
+  parsed: ReturnType<typeof parseBuildOutput>,
+): boolean {
+  return /Build diagnostics/i.test(text) || parsed.diagnostics.length > 0;
+}
+
+/** Last compiler/test oracle in the transcript (RL-20). */
 export function lastOracleErrorCount(messages: ChatMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i--) {
     const role = messages[i]?.role;
@@ -617,14 +676,15 @@ export function lastOracleErrorCount(messages: ChatMessage[]): number {
       continue;
     }
     const text = renderChatMessage(messages[i]);
-    if (
-      !/Build diagnostics|error\[E\d+\]|clippy::|could not compile|test .+FAILED/i.test(
-        text,
-      )
-    ) {
+    if (isOracleHoldContent(text)) {
       continue;
     }
-    return parseBuildOutput(text).errors.length;
+    const parsed = parseBuildOutput(text);
+    const headerErrors = buildDiagnosticsHeaderErrors(text);
+    if (!isOracleTranscript(text, parsed) && headerErrors === undefined) {
+      continue;
+    }
+    return Math.max(parsed.errors.length, headerErrors ?? 0);
   }
   return 0;
 }
@@ -640,6 +700,7 @@ export async function runAgentLoop(
   const parallelReadonly = options.parallelReadonly !== false;
   const doomThreshold = resolveDoomLoopThresholdOption(options.doomLoopThreshold);
   const holdPlanOpen = options.holdCompletionWhilePlanOpen !== false;
+  let oracleHoldRounds = 0;
   const compactFn =
     options.compact === false
       ? undefined
@@ -771,12 +832,18 @@ export async function runAgentLoop(
 
       if (toolCalls.length === 0) {
         const oracleErrors = lastOracleErrorCount(messages);
-        if (options.holdCompletionWhileOracleRed && oracleErrors > 0) {
+        if (
+          options.holdCompletionWhileOracleRed &&
+          oracleErrors > 0 &&
+          oracleHoldRounds < MAX_ORACLE_HOLD_ROUNDS
+        ) {
+          oracleHoldRounds += 1;
           messages.push(assistant);
           messages.push({
             role: "system",
-            content: `Oracle still red: ${oracleErrors} rustc/clippy/test error(s). Continue or ask the user. Do not treat this as done.`,
+            content: `${ORACLE_HOLD_MARKER}: ${oracleErrors} error(s). Continue or ask the user. Do not treat this as done.`,
           });
+          await options.onHold?.({ kind: "oracle", errors: oracleErrors });
           steps += 1;
           continue;
         }
@@ -791,6 +858,7 @@ export async function runAgentLoop(
             role: "system",
             content: buildPlanHoldInstruction(openPlan),
           });
+          await options.onHold?.({ kind: "plan", remaining: planRemaining });
           steps += 1;
           continue;
         }

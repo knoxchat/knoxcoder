@@ -441,6 +441,55 @@ describe("runChatTurn", () => {
     );
     expect(hint).toBeTruthy();
   });
+
+  it("denies writes in Plan mode without executing them", async () => {
+    const { emit } = collect();
+    const editTool = {
+      function: { name: BuiltInToolNames.EditFile },
+      readonly: false,
+    } as Tool;
+    let executed = 0;
+    const result = await runChatTurn({
+      sessionId: "s-plan",
+      extras: extras([
+        [
+          {
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "e1",
+                type: "function",
+                function: {
+                  name: BuiltInToolNames.EditFile,
+                  arguments: '{"filepath":"a.ts","old_string":"a","new_string":"b"}',
+                },
+              },
+            ],
+          },
+        ],
+        [{ role: "assistant", content: "held" }],
+      ]),
+      messages: [{ role: "user", content: "edit it" }],
+      tools: [editTool],
+      compact: false,
+      permission: {
+        mode: "acceptEdits",
+        toolSettings: {},
+        sessionAllowlist: [],
+        planMode: true,
+      },
+      emit,
+      executeTool: async () => {
+        executed += 1;
+        return okOutput;
+      },
+    });
+    expect(executed).toBe(0);
+    expect(result.stoppedReason).toBe("completed");
+    const toolMsg = result.messages.find((m) => m.role === "tool");
+    expect(String(toolMsg?.content ?? "")).toMatch(/leave Plan mode to execute/i);
+  });
 });
 
 describe("runChatTurn hooks (K-023)", () => {

@@ -1,7 +1,8 @@
 /**
- * File credential store. The editor uses SecretStorage; live eval and tests
- * can read `~/.knoxcoder/auth.json` (mode 0600) or `KNOX_API_KEY`.
- * Never log the key or token.
+ * File credential store for OAuth sessions. The editor uses SecretStorage;
+ * live eval and tests can read `~/.knoxcoder/auth.json` (mode 0600) written
+ * by Knox OAuth sign-in. There is no `KNOX_API_KEY` / `.env` key path.
+ * Never log the token.
  */
 
 import fs from "node:fs";
@@ -35,33 +36,11 @@ function healPermissions(file: string): void {
   }
 }
 
-/** Non-interactive auth for CI. Value is never logged. */
-export function apiKeyFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-): string | undefined {
-  const key = env.KNOX_API_KEY?.trim();
-  return key ? key : undefined;
-}
-
-export function sessionFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-): StoredSession | undefined {
-  const apiKey = apiKeyFromEnv(env);
-  if (!apiKey) {
-    return undefined;
-  }
-  return {
-    apiKey,
-    account: { userId: 0, username: "env", tokenId: 0, connectedAt: 0 },
-  };
-}
-
-/** Env key wins over the credentials file. */
+/** OAuth session from `auth.json` only. Env keys are ignored. */
 export function resolveSession(
   file = defaultCredentialsPath(),
-  env: NodeJS.ProcessEnv = process.env,
 ): StoredSession | undefined {
-  return sessionFromEnv(env) ?? loadSession(file);
+  return loadSession(file);
 }
 
 export function loadSession(file = defaultCredentialsPath()): StoredSession | undefined {

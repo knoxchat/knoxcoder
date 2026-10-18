@@ -22,6 +22,7 @@ import { IKnoxGuiMessage, KnoxGuiRoute } from '../common/knoxGuiProtocol.js';
 import { IKnoxGuiCheckpointDiffFile, IKnoxGuiCheckpointNode, IKnoxGuiGitDiffFile, IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../common/knoxGuiState.js';
 import { CHAT_DISPLAY_WINDOW, CHAT_LOAD_MORE_COUNT } from '../common/knoxGuiChat.js';
 import { composerInputHistoryAdd, createComposerInputHistory, DEFAULT_MENTION_PROVIDER_TITLES, inputDocFromPlainText, SLASH_BUILTINS } from '../common/knoxGuiInput.js';
+import { formatPlanText } from '../common/knoxGuiPanels.js';
 import { knoxGuiT } from './gui/knoxGuiI18n.js';
 import { MEMORY_TAB_IDS } from '../common/knoxGuiMemory.js';
 import { IKnoxService } from '../common/knoxService.js';
@@ -133,7 +134,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-mode-agent"]'), null);
 		assert.ok(trigger.classList.contains('selected'));
 		assert.ok(trigger.classList.contains('knox-gui-mode-nomodel'));
-		assert.ok(trigger.textContent?.includes('Edits')); // default is acceptEdits (K-005)
+		assert.ok(trigger.textContent?.includes('Auto')); // default is fullAuto (YOLO)
 		assert.ok(trigger.querySelector('svg.knox-gui-svg'));
 		assert.strictEqual(trigger.getAttribute('data-menu-trigger'), 'true');
 		trigger.click();
@@ -146,9 +147,36 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		items[2].click();
 		assert.strictEqual(store.state.permissionMode, 'fullAuto');
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-agent-menu"]'), null);
+		const reopen = widget.root.querySelector('[data-testid="knox-gui-mode-select"]') as HTMLButtonElement | null;
+		assert.ok(reopen);
+		reopen.click();
+		const planToggle = widget.root.querySelector('[data-testid="knox-gui-plan-mode"]') as HTMLButtonElement | null;
+		assert.ok(planToggle);
+		assert.strictEqual(planToggle.getAttribute('aria-checked'), 'false');
+		planToggle.click();
+		assert.strictEqual(store.state.planMode, true);
 		store.patch({ mode: 'edit' });
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-mode-edit"]'));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-mode-select"]'));
+	});
+
+	test('Plan mode shows Execute plan and leaving it submits the plan', async () => {
+		const { widget, store } = await mount();
+		const planText = formatPlanText({
+			title: 'Fix add()',
+			steps: [
+				{ id: 's1', title: 'Read add.ts', status: 'done' },
+				{ id: 's2', title: 'Edit add.ts', status: 'pending' },
+			],
+		});
+		store.patch({
+			planMode: true,
+			history: [{ id: 'a', role: 'assistant', content: planText }],
+		});
+		const execute = widget.root.querySelector('[data-testid="knox-gui-execute-plan"]') as HTMLButtonElement | null;
+		assert.ok(execute);
+		execute.click();
+		assert.strictEqual(store.state.planMode, false);
 	});
 
 	test('files-changed row shows green +N and red -N', async () => {
@@ -182,15 +210,17 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 				arguments: '{"patch":"*** Begin Patch\\n*** Update File: i915.rs\\n@@\\n pub fn init() {\\n+    let _ = modeset_self_test();\\n*** Add File: vlan.rs\\n+pub const GATE_VLAN_MARKER: &str = \\"gate\\";\\n+fn vlan_self_test() -> bool {\\n*** End Patch"}',
 				status: 'calling',
 				parsedArgs: {
-					patch: `*** Begin Patch
-*** Update File: i915.rs
-@@
- pub fn init() {
-+    let _ = modeset_self_test();
-*** Add File: vlan.rs
-+pub const GATE_VLAN_MARKER: &str = "gate";
-+fn vlan_self_test() -> bool {
-*** End Patch`,
+					patch: [
+						'*** Begin Patch',
+						'*** Update File: i915.rs',
+						'@@',
+						' pub fn init() {',
+						'+    let _ = modeset_self_test();',
+						'*** Add File: vlan.rs',
+						'+pub const GATE_VLAN_MARKER: &str = "gate";',
+						'+fn vlan_self_test() -> bool {',
+						'*** End Patch',
+					].join('\n'),
 				},
 			}),
 		});
@@ -1244,6 +1274,18 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-subagent"]'));
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-subagent"]')?.getAttribute('data-subagent-profile'), 'explore');
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-subagent-meta"]')?.textContent?.includes('Find the auth entrypoint'));
+
+		store.patch({
+			history: historyWithTool({
+				id: 'task-live',
+				name: 'builtin_task',
+				arguments: '{"profile":"explore","prompt":"Find the auth entrypoint"}',
+				status: 'calling',
+				parsedArgs: { profile: 'explore', prompt: 'Find the auth entrypoint' },
+				output: 'task_child_1: started\ntask_child_1: step 1: builtin_read_file',
+			}),
+		});
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-subagent-progress"]')?.textContent?.includes('builtin_read_file'));
 
 		store.patch({
 			history: historyWithTool({

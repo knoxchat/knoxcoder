@@ -39,7 +39,9 @@ const CORE_RULES = `Rules:
 - Put the language and file name in code block info strings, e.g. \`\`\`python src/main.py.
 - Call tools by catalog name (builtin_read_file, not read_file). Paths are workspace-relative.
 - Use the native tool-call interface. Never print DSML, XML invoke, or tool_calls markup.
-- Read with builtin_read_file (filepath, optional startLine/endLine, 1-based). Search with builtin_exact_search (ripgrep -F literal; ()|.* are not regex unless pcre2=true; narrow with path/fileType).`;
+- Read with builtin_read_file (filepath, optional startLine/endLine, 1-based). Search with builtin_exact_search (ripgrep -F literal; ()|.* are not regex unless pcre2=true; narrow with path/fileType).
+- Prefer builtin_lsp definition/references over guessing APIs.
+- For 3+ disjoint directories, builtin_task explore first.`;
 
 const EDITING = `Editing (use tools, never the terminal):
 - Read a file before editing it.
@@ -49,8 +51,8 @@ const EDITING = `Editing (use tools, never the terminal):
 - Never write or patch files with cat, echo, heredoc or sed.`;
 
 const VERIFICATION = `Verification:
-- After editing, check the result with the project's build, test or typecheck command when one exists, and fix what you broke.
-- Report honestly: say what you ran and what passed or failed. Never claim success without evidence.`;
+- After mutating files, run the discovered verify command (or builtin_build). If it is red, keep going; do not summarize as done.
+- Report the command and its exit. Never claim tests passed unless a tool result says so.`;
 
 const SHELL = `Shell:
 - Long-running commands (tests, servers, builds): set background=true on builtin_run_terminal_command, or wait; after ~30s it backgrounds and returns a job_id. Poll, wait or kill with builtin_await_shell.

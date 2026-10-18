@@ -9,6 +9,9 @@ import {
 import {
   resetSubagentJobs,
   startSubagentJob,
+  subscribeSubagentJobs,
+  toSubagentBackgroundJob,
+  updateSubagentJobProgress,
 } from "./subagent/jobs";
 
 afterEach(() => {
@@ -49,6 +52,12 @@ describe("handleAgentJobsRequest", () => {
   it("rejects kill/dismiss without a job id", () => {
     expect(handleAgentJobsRequest({ action: "kill" }).ok).toBe(false);
     expect(handleAgentJobsRequest({ action: "dismiss" }).ok).toBe(false);
+  });
+
+  it("does not start from the sync handler (Core owns start)", () => {
+    const out = handleAgentJobsRequest({ action: "start", task: "x" });
+    expect(out.ok).toBe(false);
+    expect(out.error).toMatch(/Core/i);
   });
 
   it("kills every running shell and subagent job", async () => {
@@ -103,6 +112,23 @@ describe("handleAgentJobsRequest", () => {
     expect(job.output).toContain("warn");
     expect(job.output).not.toContain("__KNOX_META__");
     expect(job.exitCode).toBe(0);
+  });
+
+  it("streams child progress into the jobs panel record", () => {
+    const events: string[] = [];
+    const unsub = subscribeSubagentJobs((event, job) => {
+      events.push(`${event}:${job.detail ?? ""}`);
+    });
+    const child = startSubagentJob({ title: "find auth", profile: "explore" });
+    updateSubagentJobProgress(child.id, "step 1: builtin_read_file");
+    const mapped = toSubagentBackgroundJob(child);
+    expect(mapped.kind).toBe("task");
+    expect(mapped.status).toBe("running");
+    expect(mapped.detail).toContain("builtin_read_file");
+    expect(mapped.output).toContain("builtin_read_file");
+    expect(events[0]?.startsWith("started:")).toBe(true);
+    expect(events.some((line) => line.includes("builtin_read_file"))).toBe(true);
+    unsub();
   });
 
   it("clears finished jobs", async () => {

@@ -5,6 +5,7 @@
  */
 
 import { detectOracleCommand, type OracleProbe } from "../tools/build/oracleDetect";
+import { discoverVerifyCommandFromProbe } from "./verifyDiscovery";
 
 export interface AgentsMdInput extends OracleProbe {
   /** Root directory name. */
@@ -74,6 +75,15 @@ export function buildAgentsMd(input: AgentsMdInput): string {
   lines.push("## Commands", "");
   lines.push(...(commands.length ? commands : ["- TODO: add build and test commands."]), "");
 
+  const verify = discoverVerifyCommandFromProbe({
+    entries: input.entries,
+    packageJson: input.packageJson,
+    pyproject: input.pyproject,
+  });
+  if (verify) {
+    lines.push("## Test", "", "```", verify, "```", "");
+  }
+
   if (input.codebaseCard?.trim()) {
     lines.push("## Project notes", "", input.codebaseCard.trim(), "");
   }
@@ -90,4 +100,28 @@ export function buildAgentsMd(input: AgentsMdInput): string {
     "",
   );
   return lines.join("\n");
+}
+
+/**
+ * First fenced command under a Test / Verify heading (`/init` writes `## Test`).
+ */
+export function extractAgentsMdVerifyCommand(text: string): string | undefined {
+  if (!text.trim()) {
+    return undefined;
+  }
+  const heading =
+    /^(#{1,3})\s+(test|tests|testing|verify|verification)\b[^\n]*$/gim;
+  let match: RegExpExecArray | null;
+  while ((match = heading.exec(text))) {
+    const rest = text.slice(match.index + match[0].length);
+    const fence = rest.match(/```[\w-]*\s*\n([\s\S]*?)```/);
+    const command = fence?.[1]
+      ?.split("\n")
+      .map((line) => line.trim())
+      .find((line) => line && !line.startsWith("#"));
+    if (command) {
+      return command;
+    }
+  }
+  return undefined;
 }

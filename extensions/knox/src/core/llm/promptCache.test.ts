@@ -8,9 +8,9 @@ import {
 
 describe("promptCache (K-030)", () => {
   it("detects models that need explicit breakpoints", () => {
-    expect(supportsExplicitCacheControl("anthropic/claude-sonnet-4.5")).toBe(true);
-    expect(supportsExplicitCacheControl("google/gemini-2.5-pro")).toBe(true);
-    expect(supportsExplicitCacheControl("openai/gpt-5")).toBe(false);
+    expect(supportsExplicitCacheControl("anthropic/claude-sonnet-5.5")).toBe(true);
+    expect(supportsExplicitCacheControl("google/gemini-4-argon")).toBe(true);
+    expect(supportsExplicitCacheControl("openai/gpt-6-luna")).toBe(false);
     expect(supportsExplicitCacheControl(undefined)).toBe(false);
   });
 

@@ -607,6 +607,7 @@ function syncTerminalCard(widget: KnoxGuiWidget, card: HTMLElement, state: IKnox
 		let line = pre.querySelector('.knox-gui-term-prompt-line') as HTMLElement | null;
 		if (!line) {
 			line = DOM.append(pre, DOM.$('span.knox-gui-term-prompt-line'));
+			// allow-any-unicode-next-line
 			const prompt = DOM.append(line, DOM.$('span.knox-gui-term-prompt', undefined, '❯'));
 			prompt.classList.add('hljs-title', 'function_');
 			prompt.style.color = knoxGuiHljsTokenColor(state.vscTokenColors, ['.hljs-title.function_', '.hljs-built_in'], palette.green);
@@ -636,6 +637,7 @@ function syncTerminalCard(widget: KnoxGuiWidget, card: HTMLElement, state: IKnox
 	} else {
 		out?.remove();
 		if (isStreaming && !cursor) {
+			// allow-any-unicode-next-line
 			DOM.append(pre, DOM.$('span.knox-gui-term-cursor', undefined, '▋'));
 		} else if (!isStreaming) {
 			cursor?.remove();
@@ -862,6 +864,7 @@ export function renderSubdirectoryTool(widget: KnoxGuiWidget, parent: HTMLElemen
 	const isLight = widget.isLightTheme();
 	const theme = treeThemeColors(isLight);
 	const retrieving = t(state, 'retrievingDirStructure');
+	// allow-any-unicode-next-line
 	const hasEnhanced = parts.summary.includes('Directory Analysis Summary') || parts.structure.includes('├──') || parts.structure.includes('└──');
 	const tree = !parts.raw
 		? { plain: retrieving, colorized: retrieving }
@@ -1109,6 +1112,12 @@ export function renderTaskSubagent(widget: KnoxGuiWidget, parent: HTMLElement, s
 	const meta = DOM.append(card, DOM.$('.knox-gui-muted.knox-gui-subagent-meta'));
 	meta.setAttribute('data-testid', 'knox-gui-subagent-meta');
 	meta.textContent = `${profile}${explores > 1 ? ` ×${explores}` : ''}${prompt ? ` — ${prompt.slice(0, 160)}${prompt.length > 160 ? '…' : ''}` : ''}`;
+	if ((tool.status === 'calling' || tool.status === 'generating') && output) {
+		const live = DOM.append(card, DOM.$('.knox-gui-muted.knox-gui-subagent-progress'));
+		live.setAttribute('data-testid', 'knox-gui-subagent-progress');
+		const lines = output.trim().split(/\r?\n/).filter(line => line.trim());
+		live.textContent = lines.at(-1) ?? output.slice(0, 160);
+	}
 	const merges = knoxGuiParseSubagentMerges(output);
 	if (merges.length) {
 		const list = DOM.append(card, DOM.$('.knox-gui-subagent-merges'));

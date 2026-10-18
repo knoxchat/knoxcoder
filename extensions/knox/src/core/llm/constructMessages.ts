@@ -5,6 +5,7 @@ import { formatPlanInject, formatPlanInjectFromHistory } from "../tools/planStor
 import { formatCodebaseCardInject } from "../context/codebaseCard";
 import { formatRustPolicyInject } from "../context/rustPolicy";
 import { formatSerialContextInject } from "../context/serialContext";
+import { formatTurnContextInject } from "../context/turnContext";
 import { buildSystemPrompt, type SystemPromptOptions } from "./systemPrompt";
 
 /**
@@ -89,7 +90,7 @@ export function constructMessages(
   });
 
   // Prompt-cache friendly order: stable blocks first (byte-identical across turns),
-  // volatile blocks (plan, serial tail) last so they never invalidate the prefix.
+  // volatile blocks (turn context, plan, serial tail) last so they never invalidate the prefix.
   const codebaseCard = formatCodebaseCardInject();
   if (codebaseCard) {
     msgs.push({
@@ -103,6 +104,14 @@ export function constructMessages(
     msgs.push({
       role: "system",
       content: rustPolicy,
+    });
+  }
+
+  const turnContext = formatTurnContextInject();
+  if (turnContext) {
+    msgs.push({
+      role: "system",
+      content: turnContext,
     });
   }
 

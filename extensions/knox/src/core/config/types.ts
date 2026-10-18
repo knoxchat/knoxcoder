@@ -505,6 +505,7 @@ declare global {
     filepath: string;
     range: Range;
     message: string;
+    severity?: "error" | "warning" | "info" | "hint";
   }
   
   export class Thread {
@@ -551,6 +552,8 @@ declare global {
     networkMode?: "allow" | "deny" | "allowlist";
     networkAllowlist?: string[];
     compatInstructions?: Array<"cursor" | "copilot">;
+    deferTools?: boolean;
+    enableCompositeTools?: boolean;
   }
   
   export interface IDE {
@@ -624,6 +627,8 @@ declare global {
           isUntitled: boolean;
           path: string;
           contents: string;
+          /** 1-based cursor line when the IDE knows it. */
+          cursorLine?: number;
         }
     >;
   

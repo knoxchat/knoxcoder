@@ -286,6 +286,15 @@ export function setPermissionMode(controller: KnoxGuiController, mode: KnoxPermi
 	void controller.syncPendingTools();
 }
 
+export function setPlanMode(controller: KnoxGuiController, planMode: boolean): void {
+	controller.store.patch({ planMode });
+}
+
+export function executePlan(controller: KnoxGuiController): void {
+	controller.store.patch({ planMode: false });
+	void controller.submit('Execute the approved plan.');
+}
+
 /** `ModeSelect.tsx` Shift+Tab: cycle, record a soul event, then re-evaluate pending calls. */
 export function cyclePermissionMode(controller: KnoxGuiController): void {
 	const next = nextPermissionMode(controller.store.state.permissionMode);

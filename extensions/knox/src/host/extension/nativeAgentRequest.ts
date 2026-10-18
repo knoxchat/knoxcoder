@@ -6,11 +6,16 @@ import {
   type DoomLoopCall,
 } from "core/agent/doomLoop";
 import {
+  detectWorkspaceKindFromIde,
   overlayAutoProfile,
   resolveAgentMaxSteps,
   resolveDoomLoopThreshold,
 } from "core/config/agentProfile";
 import { loadCodebaseCard, setCodebaseCardInject } from "core/context/codebaseCard";
+import {
+  loadTurnContext,
+  setTurnContextInject,
+} from "core/context/turnContext";
 import {
   rustPolicyShouldEnable,
   setRustPolicyEnabled,
@@ -48,8 +53,9 @@ import {
   type AgentToolPolicy,
 } from "core/tools/toolPolicy";
 import { BuiltInToolNames } from "core/tools/builtIn";
+import { filterPlanModeTools } from "core/agent/planMode";
 import { selectAgentTools } from "core/tools/catalog";
-import { splitDeferredTools } from "core/tools/deferred";
+import { shouldPromoteLsp, splitDeferredTools } from "core/tools/deferred";
 import { listShellJobs } from "core/tools/shellJobs";
 
 type Experimental = {
@@ -69,6 +75,7 @@ export interface NativeAgentRequestDeps {
     Partial<Pick<IDE, "debugControl">>;
   configTools: Tool[] | undefined;
   experimental: Experimental | undefined;
+  enableCompositeTools?: boolean;
 }
 
 function messageText(message: ChatMessage | undefined): string {
@@ -149,6 +156,7 @@ async function debugSessionActive(
 async function refreshSystemInjects(
   ide: NativeAgentRequestDeps["ide"],
   lastUserText: string,
+  skipTurnContext = false,
 ): Promise<void> {
   try {
     const card = await loadCodebaseCard(ide as IDE);
@@ -160,6 +168,15 @@ async function refreshSystemInjects(
     setRustPolicyEnabled(false);
     setRustUserTask("");
   }
+  if (skipTurnContext) {
+    setTurnContextInject("");
+  } else {
+    try {
+      setTurnContextInject(await loadTurnContext(ide as IDE));
+    } catch {
+      setTurnContextInject("");
+    }
+  }
   try {
     setSerialContextInject(loadSerialContextFromJobs(listShellJobs()));
   } catch {
@@ -168,21 +185,26 @@ async function refreshSystemInjects(
 }
 
 export async function selectNativeAgentTools(
-  input: Pick<NativeAgentRequestInput, "toolSettings" | "excludedGroups" | "dropSearchWeb">,
+  input: Pick<
+    NativeAgentRequestInput,
+    "toolSettings" | "excludedGroups" | "dropSearchWeb" | "planMode"
+  >,
   deps: NativeAgentRequestDeps,
 ): Promise<Tool[]> {
   const systems = loopProfile(deps.experimental) === "systems";
   const settings = input.toolSettings ?? {};
   const excluded = new Set(input.excludedGroups ?? []);
-  return selectAgentTools(deps.configTools ?? [], {
+  const selected = selectAgentTools(deps.configTools ?? [], {
     systems,
     debugSessionActive: await debugSessionActive(deps.ide),
+    enableCompositeTools: deps.enableCompositeTools === true,
   }).filter((tool) => {
     if (settings[tool.function.name] === "disabled" || excluded.has(tool.group)) {
       return false;
     }
     return !(input.dropSearchWeb && tool.function.name === BuiltInToolNames.SearchWeb);
   });
+  return input.planMode ? filterPlanModeTools(selected) : selected;
 }
 
 export async function buildNativeAgentRequest(
@@ -191,7 +213,11 @@ export async function buildNativeAgentRequest(
 ): Promise<NativeAgentRequestOutput> {
   const history = input.history ?? [];
   const lastUser = [...history].reverse().find((item) => item.message.role === "user");
-  await refreshSystemInjects(deps.ide, messageText(lastUser?.message));
+  await refreshSystemInjects(
+    deps.ide,
+    messageText(lastUser?.message),
+    input.skipTurnContext === true,
+  );
 
   let messages = constructMessages([...history], input.sessionId, {
     systems: loopProfile(deps.experimental) === "systems",
@@ -238,8 +264,12 @@ export async function buildNativeAgentRequest(
 
   output.tools = await selectNativeAgentTools(input, deps);
   if (input.deferTools) {
+    const kind = await detectWorkspaceKindFromIde(deps.ide).catch(() => null);
+    const systems = profile === "systems";
     const split = splitDeferredTools(output.tools, {
-      systems: profile === "systems",
+      systems,
+      lspActive: shouldPromoteLsp(kind, systems),
+      enableCompositeTools: deps.enableCompositeTools === true,
     });
     output.tools = split.active;
     if (split.deferred.length > 0) {

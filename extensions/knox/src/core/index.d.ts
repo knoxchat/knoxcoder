@@ -631,6 +631,8 @@ export interface Problem {
   filepath: string;
   range: Range;
   message: string;
+  /** LSP/VS Code diagnostic severity. Missing is treated as error. */
+  severity?: "error" | "warning" | "info" | "hint";
 }
 
 export interface Thread {
@@ -720,6 +722,8 @@ export interface IdeSettings {
   networkMode?: "allow" | "deny" | "allowlist";
   networkAllowlist?: string[];
   compatInstructions?: Array<"cursor" | "copilot">;
+  deferTools?: boolean;
+  enableCompositeTools?: boolean;
 }
 
 export interface FileStats {
@@ -822,6 +826,8 @@ export interface IDE {
         isUntitled: boolean;
         path: string;
         contents: string;
+        /** 1-based cursor line when the IDE knows it. */
+        cursorLine?: number;
       }
   >;
 

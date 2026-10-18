@@ -1,6 +1,6 @@
 # Tool Orchestration System
 
-Library helpers used by opt-in tools (`builtin_enhanced_search`, `builtin_intelligent_chain`, composites).
+Library only; GUI does not use this. Helpers for opt-in tools (`builtin_enhanced_search`, `builtin_intelligent_chain`, composites).
 
 ## Product honesty (read first)
 

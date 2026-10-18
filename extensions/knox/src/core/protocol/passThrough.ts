@@ -28,6 +28,7 @@ export const WEBVIEW_TO_CORE_PASS_THROUGH: (keyof ToCoreFromWebviewProtocol)[] =
     "ui/updateReasoningEffortPrefs",
     "context/getContextItems",
     "context/getSymbolsForFiles",
+    "context/getAutoContext",
     "context/loadSubmenuItems",
     "context/searchFiles",
     "llm/complete",

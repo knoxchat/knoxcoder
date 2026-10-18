@@ -50,6 +50,18 @@ const CLIPPY_LINT_RE = /\bclippy::([\w]+)\b/;
 const CARGO_TEST_FAIL_RE = /^test\s+(\S+)\s+\.\.\.\s+FAILED\b/;
 const NEXTEST_FAIL_RE = /^\s*FAIL\s+\[[^\]]+\]\s+(\S+)\s+(\S+)/;
 const CARGO_COULD_NOT_COMPILE_RE = /^error:\s+could not compile\b/i;
+const JEST_VITEST_FAIL_RE = /^\s*FAIL\s+(\S+)/;
+const JEST_FAIL_SUMMARY_RE = /\bTests:\s+(?:.*\b)?(\d+)\s+failed/i;
+const VITEST_FAIL_FILES_RE = /\bTest Files\s+(\d+)\s+failed/;
+const PYTEST_FAILED_RE = /^FAILED\s+(\S+)/;
+const PYTEST_SUMMARY_RE = /=\s+(\d+)\s+failed\b/;
+const GO_FAIL_RE = /^--- FAIL:\s+(\S+)/;
+const GO_PACKAGE_FAIL_RE = /^FAIL\t(\S+)/;
+const CARGO_TEST_OK_RE = /^test result:\s+ok\./i;
+const VITEST_PASS_FILES_RE = /\bTest Files\s+\d+\s+passed\b/;
+const JEST_PASS_SUMMARY_RE = /\bTests:\s+\d+\s+passed\b/;
+const PYTEST_PASS_SUMMARY_RE = /=\s+\d+\s+passed\b/;
+const GO_OK_RE = /^ok\t(\S+)/;
 
 const LD_UNDEF_RE =
   /^(?:.*?:\s*)?(?:undefined reference to|undefined symbol:?)\s+[`'"]?([^`'"\s]+)[`'"]?/i;
@@ -360,6 +372,93 @@ function parseTestFailLine(line: string): BuildDiagnostic | null {
       raw: line,
     };
   }
+  const goPkg = trimmed.match(GO_PACKAGE_FAIL_RE);
+  if (goPkg) {
+    return {
+      kind: "error",
+      code: "go-test",
+      message: `FAIL ${goPkg[1]}`,
+      raw: line,
+    };
+  }
+  const jestFile = trimmed.match(JEST_VITEST_FAIL_RE);
+  if (jestFile && !NEXTEST_FAIL_RE.test(trimmed)) {
+    return {
+      kind: "error",
+      code: "test",
+      message: `FAIL ${jestFile[1]}`,
+      raw: line,
+    };
+  }
+  const jestSummary = trimmed.match(JEST_FAIL_SUMMARY_RE);
+  if (jestSummary && Number(jestSummary[1]) > 0) {
+    return {
+      kind: "error",
+      code: "test",
+      message: trimmed,
+      raw: line,
+    };
+  }
+  const vitestFiles = trimmed.match(VITEST_FAIL_FILES_RE);
+  if (vitestFiles && Number(vitestFiles[1]) > 0) {
+    return {
+      kind: "error",
+      code: "test",
+      message: trimmed,
+      raw: line,
+    };
+  }
+  const pytestFailed = trimmed.match(PYTEST_FAILED_RE);
+  if (pytestFailed) {
+    return {
+      kind: "error",
+      code: "pytest",
+      message: `FAILED ${pytestFailed[1]}`,
+      raw: line,
+    };
+  }
+  const pytestSummary = trimmed.match(PYTEST_SUMMARY_RE);
+  if (pytestSummary && Number(pytestSummary[1]) > 0) {
+    return {
+      kind: "error",
+      code: "pytest",
+      message: trimmed,
+      raw: line,
+    };
+  }
+  const goFail = trimmed.match(GO_FAIL_RE);
+  if (goFail) {
+    return {
+      kind: "error",
+      code: "go-test",
+      message: `--- FAIL: ${goFail[1]}`,
+      raw: line,
+    };
+  }
+  return null;
+}
+
+function parseTestPassLine(line: string): BuildDiagnostic | null {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (CARGO_TEST_OK_RE.test(trimmed)) {
+    return { kind: "note", code: "test", message: trimmed, raw: line };
+  }
+  if (VITEST_PASS_FILES_RE.test(trimmed) && !VITEST_FAIL_FILES_RE.test(trimmed)) {
+    return { kind: "note", code: "test", message: trimmed, raw: line };
+  }
+  if (JEST_PASS_SUMMARY_RE.test(trimmed) && !JEST_FAIL_SUMMARY_RE.test(trimmed)) {
+    return { kind: "note", code: "test", message: trimmed, raw: line };
+  }
+  if (PYTEST_PASS_SUMMARY_RE.test(trimmed) && !PYTEST_SUMMARY_RE.test(trimmed)) {
+    return { kind: "note", code: "test", message: trimmed, raw: line };
+  }
+  const goOk = trimmed.match(GO_OK_RE);
+  if (goOk) {
+    return { kind: "note", code: "go-test", message: trimmed, raw: line };
+  }
   return null;
 }
 
@@ -515,6 +614,13 @@ export function parseBuildOutput(text: string): ParsedBuildOutput {
     if (testFail) {
       flushRust(line);
       push(parsed, testFail);
+      continue;
+    }
+
+    const testPass = parseTestPassLine(line);
+    if (testPass) {
+      flushRust(line);
+      push(parsed, testPass);
     }
   }
 

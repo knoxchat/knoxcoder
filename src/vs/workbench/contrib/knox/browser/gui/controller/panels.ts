@@ -15,7 +15,7 @@ export function showFile(controller: KnoxGuiController, filepath: string, option
 	const parsed = knoxGuiParseToolFilePath(filepath);
 	const startLine = options?.startLine ?? parsed.startLine;
 	const endLine = options?.endLine ?? parsed.endLine;
-	const lineOptions = startLine != null && startLine > 0 ? { startLine, endLine } : options;
+	const lineOptions = startLine !== undefined && startLine !== null && startLine > 0 ? { startLine, endLine } : options;
 	const target = knoxGuiResolveOpenPath(parsed.filepath, []);
 	if (target?.direct) {
 		// URI or absolute path: nothing to resolve, open right away.
@@ -26,9 +26,9 @@ export function showFile(controller: KnoxGuiController, filepath: string, option
 }
 
 function openResolved(controller: KnoxGuiController, uri: string, options?: { startLine?: number; endLine?: number }): void {
-	if (options?.startLine != null && options.startLine > 0) {
+	if (options?.startLine !== undefined && options.startLine > 0) {
 		const startLine = options.startLine - 1;
-		const endLine = options.endLine != null && options.endLine > 0 ? options.endLine - 1 : startLine;
+		const endLine = options.endLine !== undefined && options.endLine !== null && options.endLine > 0 ? options.endLine - 1 : startLine;
 		controller.messenger.post('showLines', { filepath: uri, startLine, endLine });
 		return;
 	}
@@ -143,6 +143,25 @@ export function setJobsPanelOpen(controller: KnoxGuiController, open: boolean): 
 
 export function toggleJobsPanel(controller: KnoxGuiController): void {
 	setJobsPanelOpen(controller, !controller.store.state.jobsPanelOpen);
+}
+
+export async function startBackgroundJob(controller: KnoxGuiController): Promise<void> {
+	const task = controller.store.state.input.trim();
+	if (!task || controller.store.state.isStreaming) {
+		return;
+	}
+	try {
+		const result = await controller.messenger.request<Record<string, unknown>>('agent/jobs', {
+			action: 'start',
+			task,
+			permissionMode: controller.store.state.permissionMode,
+		});
+		const rec = asRecord(result);
+		const jobs = parseBackgroundJobs(rec?.jobs ?? result);
+		controller.store.patch({ backgroundJobs: jobs, jobsPanelOpen: true });
+	} catch {
+		// Host shows the error toast; the jobs panel still lists whatever exists.
+	}
 }
 
 export async function runJobAction(controller: KnoxGuiController, action: 'kill' | 'killAll' | 'dismiss' | 'clear' | 'merge' | 'discard', jobId?: string): Promise<void> {

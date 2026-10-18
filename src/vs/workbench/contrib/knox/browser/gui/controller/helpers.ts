@@ -13,6 +13,7 @@ export const ACTIVITY_PANEL_EXPANDED_KEY = 'knox.gui.activityPanelExpanded';
 export const JOBS_PANEL_EXPANDED_KEY = 'knox.gui.jobsPanelExpanded';
 export const COMPOSER_COLLAPSED_KEY = 'knox.gui.composerCollapsed';
 export const MEMORY_BUILD_TIMEOUT_MS = 5000;
+export const AUTO_CONTEXT_TIMEOUT_MS = 2500;
 
 export function asRecord(value: unknown): Record<string, unknown> | undefined {
 	return value && typeof value === 'object' ? value as Record<string, unknown> : undefined;
@@ -50,7 +51,7 @@ export function textFromUnknown(value: unknown): string {
 	if (rec && typeof rec.text === 'string') {
 		return rec.text;
 	}
-	return value == null ? '' : JSON.stringify(value);
+	return value === null || value === undefined ? '' : JSON.stringify(value);
 }
 
 export function thinkingFromUnknown(value: unknown): string | undefined {

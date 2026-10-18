@@ -486,7 +486,37 @@ export class RecipeStore {
 
   /** Hard delete (steps cascade). Prefer `retire` unless wiping. */
   async delete(id: string): Promise<boolean> {
+    await this.db.run("DELETE FROM brain_recipe_steps WHERE recipe_id = ?", [id]);
     const res = await this.db.run("DELETE FROM brain_recipes WHERE id = ?", [id]);
     return (res.changes ?? 0) > 0;
+  }
+
+  /**
+   * Drop retired/quarantined rows older than N days (P2.5). Live recipes keep
+   * their stats; this only reclaims ~1 KB leftover rows.
+   */
+  async purgeStale(opts?: {
+    retiredDays?: number;
+    quarantinedDays?: number;
+  }): Promise<number> {
+    const retiredDays = opts?.retiredDays ?? 30;
+    const quarantinedDays = opts?.quarantinedDays ?? 90;
+    const rows = await this.list({
+      status: ["retired", "quarantined"],
+      limit: 1000,
+    });
+    const now = Date.now();
+    let n = 0;
+    for (const recipe of rows) {
+      const age = now - Date.parse(recipe.updatedAt);
+      const limitDays = recipe.status === "retired" ? retiredDays : quarantinedDays;
+      if (!Number.isFinite(age) || age < limitDays * 86_400_000) {
+        continue;
+      }
+      if (await this.delete(recipe.id)) {
+        n += 1;
+      }
+    }
+    return n;
   }
 }

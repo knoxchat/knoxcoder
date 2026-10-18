@@ -121,6 +121,58 @@ describe("custom agents", () => {
     const agents = await loadCustomAgents(ide);
     expect(agents.map((a) => a.name).sort()).toEqual(["helper", "reviewer"]);
   });
+
+  it("ignores .knox/agents (marketplace extension) and still loads global ~/.knoxcoder/agents", async () => {
+    const prev = process.env.KNOX_GLOBAL_DIR;
+    process.env.KNOX_GLOBAL_DIR = "/tmp/knoxcoder-global-agents";
+    try {
+      const files: Record<string, string> = {
+        "file:///app/.knox/agents/external.md":
+          "---\nname: external\n---\nMarketplace.",
+        "file:///app/.knoxcoder/agents/reviewer.md":
+          "---\nname: reviewer\n---\nFrom workspace.",
+        "file:///tmp/knoxcoder-global-agents/agents/helper.md":
+          "---\nname: helper\n---\nFrom global.",
+      };
+      const ide = {
+        getWorkspaceDirs: async () => ["file:///app"],
+        listDir: async (dir: string) => {
+          if (/\/app\/\.knox\/agents$/.test(dir)) {
+            return [["external.md", 1]];
+          }
+          if (/\/app\/\.knoxcoder\/agents$/.test(dir)) {
+            return [["reviewer.md", 1]];
+          }
+          if (/knoxcoder-global-agents\/agents$/.test(dir.replace(/\\/g, "/"))) {
+            return [["helper.md", 1]];
+          }
+          throw new Error("missing");
+        },
+        readFile: async (u: string) => {
+          const norm = u.replace(/\\/g, "/");
+          const key = Object.keys(files).find((k) =>
+            norm.endsWith(k.slice("file://".length)),
+          );
+          if (!key) {
+            throw new Error("missing");
+          }
+          return files[key];
+        },
+      } as unknown as IDE;
+      const agents = await loadCustomAgents(ide);
+      expect(agents.map((a) => a.name).sort()).toEqual(["helper", "reviewer"]);
+      expect(agents.find((a) => a.name === "external")).toBeUndefined();
+      expect(agents.find((a) => a.name === "reviewer")?.prompt).toBe(
+        "From workspace.",
+      );
+    } finally {
+      if (prev === undefined) {
+        delete process.env.KNOX_GLOBAL_DIR;
+      } else {
+        process.env.KNOX_GLOBAL_DIR = prev;
+      }
+    }
+  });
 });
 
 describe("worktree isolation + merge-back", () => {

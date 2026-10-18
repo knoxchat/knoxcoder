@@ -30,15 +30,15 @@
       "allowed": ["low", "medium", "high", "max"],
       "default": "high"
     },
-    "openai/gpt-5.4": {
+    "openai/gpt-6-sol": {
       "allowed": ["none", "low", "medium", "high", "xhigh"],
       "default": "none"
     },
-    "openai/gpt-5.5": {
+    "openai/gpt-6-sol-pro": {
       "allowed": ["none", "low", "medium", "high", "xhigh"],
       "default": "high"
     },
-    "openai/gpt-5.6-luna": {
+    "openai/gpt-6-luna": {
       "allowed": ["none", "low", "medium", "high", "xhigh"],
       "default": "none"
     },
@@ -46,7 +46,7 @@
       "allowed": ["none", "low", "medium", "high", "xhigh"],
       "default": "medium"
     },
-    "openai/gpt-5.6-sol": {
+    "openai/gpt-6.1-sol": {
       "allowed": ["none", "low", "medium", "high", "xhigh"],
       "default": "high"
     }

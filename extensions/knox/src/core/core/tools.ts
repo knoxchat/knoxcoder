@@ -2,6 +2,7 @@ import { fetchwithRequestOptions } from "knoxdev-package/fetch";
 
 import { getWorkspaceHookRunner } from "../hooks/workspaceHooks";
 import { resolveAgentLoopSettings } from "../config/agentProfile";
+import { discoverVerifyCommand } from "../config/verifyDiscovery";
 import { BrainManager } from "../context/memory/brain/BrainManager";
 import { getJevConfirmedProfile } from "../jev/config";
 import { t } from "../i18n/index.js";
@@ -180,15 +181,12 @@ export function registerToolHandlers(core: CoreRuntime): void {
     await refreshSkillScope(toolIde);
     let verifyCommand = loopSettings.verifyCommand;
     let verifyMode = loopSettings.verifyMode;
-    // K-034: no explicit oracle and no LSP verifier on this host -> detect one
-    // from project files (tsc, pytest, go vet, ...).
-    if (
-      !verifyCommand &&
-      verifyMode === "diagnostics" &&
-      typeof toolIde.runPostEditVerification !== "function" &&
-      shouldVerifyTool(toolName)
-    ) {
-      const detected = await detectBuildCommand(toolIde).catch(() => undefined);
+    // P1.2: default profile discovers a verify command (AGENTS.md, then kind
+    // default) even when the host also has LSP diagnostics.
+    if (!verifyCommand && verifyMode !== "off" && shouldVerifyTool(toolName)) {
+      const detected =
+        (await discoverVerifyCommand(toolIde).catch(() => "")) ||
+        (await detectBuildCommand(toolIde).catch(() => undefined));
       if (detected) {
         verifyCommand = detected;
         verifyMode = "command";

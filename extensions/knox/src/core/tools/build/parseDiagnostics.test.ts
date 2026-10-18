@@ -152,6 +152,29 @@ describe("parseBuildOutput rustc / clippy / cargo", () => {
     expect(diagnosticSignature(awaitLock)).not.toBe("ok");
   });
 
+  it("parses npm/jest, pytest, and go test failure banners", () => {
+    const npm = parseBuildOutput(
+      "FAIL src/foo.test.ts\nTests: 1 failed, 2 passed, 3 total\n",
+    );
+    expect(npm.errors.some((item) => /FAIL src\/foo/.test(item.message))).toBe(
+      true,
+    );
+    const pytest = parseBuildOutput(
+      "FAILED tests/test_foo.py::test_bar\n===== 1 failed, 2 passed in 0.12s =====\n",
+    );
+    expect(pytest.errors[0]?.code).toBe("pytest");
+    const go = parseBuildOutput("--- FAIL: TestFoo (0.00s)\nFAIL\texample.com/foo\t0.123s\n");
+    expect(go.errors.length).toBeGreaterThan(0);
+    expect(
+      go.errors.some(
+        (item) => item.code === "gotest" || item.code === "go-test",
+      ),
+    ).toBe(true);
+    const green = parseBuildOutput("Tests: 3 passed, 3 total\n");
+    expect(green.errors).toHaveLength(0);
+    expect(green.notes.length).toBeGreaterThan(0);
+  });
+
   it("parses cargo test and nextest FAIL lines", () => {
     expect(
       parseBuildOutput("test foo::bar ... FAILED").errors[0]?.message,

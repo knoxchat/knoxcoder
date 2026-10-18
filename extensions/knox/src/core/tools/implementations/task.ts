@@ -3,7 +3,10 @@ import { t } from "../../i18n/index.js";
 import { ToolImpl } from ".";
 import { detectSystemsWorkspace } from "../../config/agentProfile";
 import type { IDE } from "../..";
-import { MAX_PARALLEL_EXPLORES } from "../subagent/jobs";
+import {
+  MAX_PARALLEL_EXPLORES,
+  updateSubagentJobProgress,
+} from "../subagent/jobs";
 import {
   isReadonlySubagentProfile,
   resolveSubagentProfile,
@@ -143,6 +146,9 @@ export const taskImpl: ToolImpl = async (args, extras) => {
           ? `step ${event.step}: ${event.tool}`
           : `finished (${event.stoppedReason})`;
     progress.set(event.jobId, line);
+    if (event.type === "tool") {
+      updateSubagentJobProgress(event.jobId, line);
+    }
     extras.onPartialOutput?.([
       {
         name: "subagent",

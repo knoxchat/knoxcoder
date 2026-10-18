@@ -2,12 +2,12 @@
 
 ## Version scheme
 
-- Product / npm: root `package.json` version. Today `2.0.0`.
+- Product / npm: root `package.json` version. Today `2.2.0`.
 - `build/lib/packageVersion.ts`: `linuxPackageVersion("2.0.0")` is unchanged; `2.0.0-beta` becomes `2.0.0~beta` so Debian/RPM sort the beta before stable.
 - Windows VersionInfo uses `numericPackageVersion` (strips `-beta` → `2.0.0`).
 - `extensions/knox/package.json` stays `10.0.0` on purpose: it is a VS Code **system extension**, same dummy version as Git, TypeScript, and the other in-tree extensions. The product version is what users see.
 
-Product version is `2.0.0`. Further bumps go through `scripts/ci/release-check.mjs`.
+Product version is `2.2.0`. Further bumps go through `scripts/ci/release-check.mjs`.
 
 ## Cutting the release
 

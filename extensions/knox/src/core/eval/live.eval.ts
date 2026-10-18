@@ -1,9 +1,10 @@
 /**
  * Live-model comparison of `runAgentLoop` vs `runChatTurn` (K-010).
  *
- *   KNOX_API_KEY=... npm run test:live
- *   # or a session in ~/.knoxcoder/auth.json
+ * Sign in with Knox OAuth (editor), then:
+ *   cd extensions/knox && npm run test:live
  *
+ * Uses `~/.knoxcoder/auth.json` from that login. No `KNOX_API_KEY` / `.env`.
  * Skipped when not signed in. Writes eval/results/live-<model>.json.
  */
 
@@ -28,13 +29,14 @@ import {
   type LivePath,
   type LiveRun,
 } from "./liveReport";
+import { scoreEvalTrace } from "./scoreTraceJob";
 import { LIVE_TASKS, noShell } from "./liveTasks";
 
 const apiKey = resolveSession()?.apiKey;
 // KNOX_LIVE_MODEL / KNOX_LIVE_RUNS pick the model and repeats. With
 // KNOX_LIVE_DEFER=1 the chat-turn column runs with deferred tool loading (K-021)
 // against the full product catalog (both paths see it), so the report compares full vs deferred schemas.
-const model = process.env.KNOX_LIVE_MODEL || "openai/gpt-5.4-mini";
+const model = process.env.KNOX_LIVE_MODEL || "openai/gpt-6-luna";
 const runsPerTask = Number(process.env.KNOX_LIVE_RUNS) || 3;
 const defer = process.env.KNOX_LIVE_DEFER === "1";
 const allowedDrop = 1;
@@ -44,6 +46,8 @@ describe.skipIf(!apiKey)("live eval: loop vs chat turn", () => {
     `compares ${model} on both paths`,
     async () => {
       const results: LiveRun[] = [];
+      let lastChatTurn: Awaited<ReturnType<typeof runAgentEval>> | undefined;
+      let lastPrompt = "";
       for (const task of LIVE_TASKS) {
         for (let i = 0; i < runsPerTask; i++) {
           for (const p of ["loop", "chatTurn"] as LivePath[]) {
@@ -58,6 +62,7 @@ describe.skipIf(!apiKey)("live eval: loop vs chat turn", () => {
               workspace: task.workspace,
               llm: live.llm,
               viaChatTurn: p === "chatTurn",
+              holdCompletionWhileOracleRed: true,
               ...(defer
                 ? {
                     catalog: allTools as Tool[],
@@ -68,6 +73,10 @@ describe.skipIf(!apiKey)("live eval: loop vs chat turn", () => {
               maxSteps: task.maxSteps ?? 15,
               systemPrompt: buildSystemPrompt({ systems: false }),
             });
+            if (p === "chatTurn") {
+              lastChatTurn = r;
+              lastPrompt = task.prompt;
+            }
             const verdict = task.check(r);
             results.push({
               taskId: task.id,
@@ -91,6 +100,24 @@ describe.skipIf(!apiKey)("live eval: loop vs chat turn", () => {
         JSON.stringify({ model, runsPerTask, results, verdict }, null, 2),
       );
       console.log("\n" + renderReport(results, verdict));
+
+      // Optional Jev comment; never fail the live gate if scoring is down.
+      try {
+        if (lastChatTurn) {
+          const scored = await scoreEvalTrace(lastChatTurn, {
+            userMessage: lastPrompt,
+          });
+          if (scored) {
+            console.log(
+              `jev score (fail-open): ${scored.source} ${scored.outcome ?? "n/a"} ${scored.reason}`,
+            );
+          }
+        }
+      } catch (error) {
+        console.log(
+          `jev score skipped: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
 
       // K-053: append to the per-model history and flag regressions against the last entry.
       const chat = results.filter((r) => r.path === "chatTurn");

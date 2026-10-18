@@ -36,7 +36,7 @@ export interface IKnoxGuiVscTheme {
 
 /** Session starts in Agent. Chat vs Agent is not a user tab; Jev picks per turn when enabled. */
 export const KNOX_GUI_DEFAULT_SESSION_MODE: KnoxChatMode = 'agent';
-export const DEFAULT_PERMISSION_MODE: KnoxPermissionMode = 'acceptEdits';
+export const DEFAULT_PERMISSION_MODE: KnoxPermissionMode = 'fullAuto';
 export const PERMISSION_MODES: KnoxPermissionMode[] = ['default', 'acceptEdits', 'fullAuto'];
 export const MODEL_ROLES: KnoxModelRole[] = ['chat', 'edit', 'apply', 'viewRead', 'realTimeSearch'];
 
@@ -95,7 +95,7 @@ export function knoxGuiApplyToolPreset(current: Record<string, KnoxToolSetting>,
 		next[tool.name] = preset === 'yolo' || tool.readonly || KNOX_SAFE_READ_TOOL_NAMES.has(tool.name) ? 'allowedWithoutPermission' : 'allowedWithPermission';
 	}
 	for (const [name, setting] of Object.entries(current)) {
-		if (!(name in next)) {
+		if (!Object.hasOwn(next, name)) {
 			next[name] = preset === 'yolo' ? 'allowedWithoutPermission' : setting;
 		}
 	}
@@ -231,6 +231,8 @@ export interface IKnoxGuiHistoryItem {
 	checkpointId?: string;
 	error?: string;
 	promptLogs?: IKnoxGuiPromptLog[];
+	/** Loop held this no-tool reply: oracle still red, or the task plan is still open. */
+	hold?: { kind: 'oracle'; errors: number } | { kind: 'plan'; remaining: number };
 }
 
 export interface IKnoxGuiSessionTab {
@@ -427,6 +429,7 @@ export interface IKnoxGuiCheckpointNode {
 	parents: string[];
 	fileChanges: { added: number; modified: number; deleted: number };
 	workingTree?: boolean;
+	// allow-any-unicode-next-line
 	/** `getCheckpointTimeline` `isIncremental`: shown as a Δ badge on timeline cards. */
 	isIncremental?: boolean;
 	deltaDepth?: number;
@@ -839,6 +842,8 @@ export interface IKnoxGuiState {
 	isLoadingHistory: boolean;
 	mode: KnoxChatMode;
 	permissionMode: KnoxPermissionMode;
+	/** Plan-mode toggle: read-only explore + builtin_plan until Execute. */
+	planMode: boolean;
 	modelTitle?: string;
 	models: IKnoxGuiModel[];
 	modelsByRole: Record<KnoxModelRole, IKnoxGuiModel[]>;
@@ -1165,6 +1170,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		isLoadingHistory: false,
 		mode: KNOX_GUI_DEFAULT_SESSION_MODE,
 		permissionMode: DEFAULT_PERMISSION_MODE,
+		planMode: false,
 		permissionNoticeDismissed: false,
 		memoryNoticeDismissed: false,
 		messageQueue: [],

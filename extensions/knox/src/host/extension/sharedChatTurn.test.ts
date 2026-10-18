@@ -273,6 +273,30 @@ suite("K-010 shared chat turn (host runner)", () => {
     assert.strictEqual(out.steps, 1);
   });
 
+  test("holds completion while a red npm/test oracle is still in the transcript", async () => {
+    const { deps, events } = makeDeps(
+      [[{ role: "assistant", content: "All done." }]],
+      {
+        buildRequest: async () => ({
+          messages: [
+            { role: "user", content: "fix tests" },
+            {
+              role: "tool",
+              toolCallId: "t1",
+              content: "FAIL src/foo.test.ts\nTests: 1 failed, 2 passed, 3 total\n",
+            },
+          ],
+          tools: [readTool],
+          maxSteps: 1,
+          atMaxSteps: false,
+        }),
+      },
+    );
+    const out = await runSharedChatTurn(baseInput(), deps);
+    assert.ok(events.some((e) => e.type === "hold" && e.kind === "oracle"));
+    assert.notStrictEqual(out.stoppedReason, "completed");
+  });
+
   test("the fallback model takes over after repeated transient stream failures", async () => {
     const retries: number[] = [];
     const failing = {

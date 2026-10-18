@@ -87,6 +87,59 @@ axum = "0.7"
     expect(card).toContain("ninja");
     expect(card).toContain("target/");
   });
+
+  it("names the package manager and scripts for a Node app", () => {
+    const card = buildCodebaseCard({
+      entryNames: ["package.json", "pnpm-lock.yaml", "src"],
+      topDirs: ["src", "test"],
+      packageJson: JSON.stringify({
+        name: "demo-app",
+        scripts: { test: "vitest", lint: "eslint .", build: "tsc" },
+      }),
+    });
+    expect(card).toContain("Codebase Card");
+    expect(card).toContain("demo-app");
+    expect(card).toContain("pnpm");
+    expect(card).toContain("pnpm test --silent");
+    expect(card).toContain("lint");
+    expect(card).toContain("build");
+    expect(card).not.toContain("pnpm-lock.yaml contents");
+  });
+
+  it("describes pytest/ruff for a Python tree", () => {
+    const card = buildCodebaseCard({
+      entryNames: ["pyproject.toml", "pytest.ini", "src"],
+      pyproject: "[tool.ruff]\nline-length = 100\n",
+    });
+    expect(card).toMatch(/Python/i);
+    expect(card).toContain("pytest");
+    expect(card).toContain("ruff");
+  });
+
+  it("names go test for a Go module", () => {
+    const card = buildCodebaseCard({
+      entryNames: ["go.mod", "go.sum"],
+    });
+    expect(card).toContain("go test ./...");
+  });
+
+  it("describes CMake without make mrproper", () => {
+    const card = buildCodebaseCard({
+      entryNames: ["CMakeLists.txt", "src"],
+    });
+    expect(card).toMatch(/CMake/i);
+    expect(card).toContain("cmake --build build");
+    expect(card).not.toMatch(/mrproper/);
+  });
+
+  it("describes this editor fork", () => {
+    const card = buildCodebaseCard({
+      entryNames: ["package.json", "src", "extensions", "product.json", "scripts"],
+    });
+    expect(card).toContain("KnoxCoder");
+    expect(card).toContain("gulp compile-extension:knox");
+    expect(card).toContain("scripts/code.sh");
+  });
 });
 
 describe("parseCargoManifest", () => {

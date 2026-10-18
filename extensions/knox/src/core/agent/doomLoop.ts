@@ -400,10 +400,24 @@ export function buildDoomLoopSummaryInstruction(hit: DoomLoopHit): string {
   ].join(" ");
 }
 
+function alternativeFor(hit: DoomLoopHit): string {
+  const name = (hit.toolName ?? "").toLowerCase();
+  if (hit.kind === "oscillating_edit") {
+    return "Stop toggling; read the file and apply one patch.";
+  }
+  if (hit.kind === "oracle_stuck" || (hit.kind === "repeat" && /build|terminal|await_shell/.test(name))) {
+    return "Read the first error file; do not rebuild until an edit lands.";
+  }
+  if (/search|grep|exact_search/.test(name)) {
+    return "Narrow path/fileType or use builtin_lsp workspaceSymbol.";
+  }
+  return "Pick a materially different approach (different tool, file, or hypothesis).";
+}
+
 export function buildDoomLoopBlockedMessage(hit: DoomLoopHit): string {
   return [
     `Blocked: doom-loop detection (${describeHit(hit)}).`,
     "This call was not executed.",
-    "Stop retrying the same arguments. Summarize or try a different approach.",
+    alternativeFor(hit),
   ].join(" ");
 }

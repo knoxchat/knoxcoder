@@ -741,6 +741,13 @@ export function truncateJobTitle(title: string, max = 72): string {
 	return `${trimmed.slice(0, max - 1)}…`;
 }
 
+/** Last non-empty line of a job/tool log, for the jobs-row detail chip. */
+export function lastJobDetailLine(text: string, max = 40): string | undefined {
+	const lines = text.replace(/\n+$/, '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+	const last = lines.at(-1);
+	return last ? truncateJobTitle(last, max) : undefined;
+}
+
 export function countRunningJobs(jobs: IKnoxGuiBackgroundJob[]): number {
 	return jobs.filter(job => job.status === 'running').length;
 }
@@ -787,12 +794,14 @@ export function collectRunningTaskJobs(history: IKnoxGuiHistoryItem[]): IKnoxGui
 			const args = call.parsedArgs ?? parseToolArgs(call.arguments);
 			const prompt = typeof args.prompt === 'string' ? args.prompt : '';
 			const profile = typeof args.profile === 'string' ? args.profile : 'explore';
+			const output = call.output ?? call.outputItems?.[0]?.content ?? '';
 			jobs.push({
 				id: `${TASK_ID_PREFIX}${call.id}`,
 				kind: 'task',
 				title: prompt || profile,
 				status: 'running',
-				detail: profile,
+				detail: lastJobDetailLine(output) ?? profile,
+				output: output || undefined,
 			});
 		}
 	}
@@ -816,7 +825,7 @@ export function parseBackgroundJob(value: unknown): IKnoxGuiBackgroundJob | unde
 	}
 	const rec = value as Record<string, unknown>;
 	const id = rec.id ?? rec.jobId;
-	if (id == null) {
+	if (id === undefined || id === null) {
 		return undefined;
 	}
 	const status = rec.status;
@@ -859,7 +868,7 @@ export function parseInjectedMemories(value: unknown): IKnoxGuiInjectedMemory[] 
 		}
 		const rec = item as Record<string, unknown>;
 		items.push({
-			id: typeof rec.id === 'number' ? rec.id : rec.id == null ? null : Number(rec.id) || null,
+			id: typeof rec.id === 'number' ? rec.id : rec.id === undefined || rec.id === null ? null : Number(rec.id) || null,
 			kind: String(rec.kind ?? 'semantic'),
 			title: String(rec.title ?? ''),
 			reason: String(rec.reason ?? ''),
@@ -1054,7 +1063,11 @@ export function applyKnoxGuiAutonomousEvent(state: IKnoxGuiState, rec: Record<st
 		autonomous: {
 			...current,
 			iteration: Number(data.iteration ?? rec.iteration ?? current.iteration),
-			max: data.max_iterations != null ? Number(data.max_iterations) : rec.max != null ? Number(rec.max) : current.max,
+			max: data.max_iterations !== undefined && data.max_iterations !== null
+				? Number(data.max_iterations)
+				: rec.max !== undefined && rec.max !== null
+					? Number(rec.max)
+					: current.max,
 			status: type.includes('complete') ? 'completed' : type.includes('cancel') ? 'cancelled' : 'running',
 		},
 	};

@@ -65,6 +65,13 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(knoxGuiT('en', 'permissionModeGroup').length > 0);
 		assert.ok(knoxGuiT('en', 'permissionModeTriggerHint').includes('Jev'));
 		assert.ok(knoxGuiT('en', 'permissionModeAsk').includes('Ask'));
+		assert.ok(knoxGuiT('en', 'permissionNoticeAsk').includes('Ask'));
+		assert.ok(knoxGuiT('zh', 'permissionNoticeAsk').length > 0);
+		assert.ok(knoxGuiT('en', 'planMode').includes('Plan'));
+		assert.ok(knoxGuiT('zh', 'planMode').length > 0);
+		assert.ok(knoxGuiT('en', 'executePlan').includes('Execute'));
+		assert.ok(knoxGuiT('en', 'runInBackground').includes('background'));
+		assert.ok(knoxGuiT('zh', 'runInBackground').length > 0);
 		assert.notStrictEqual(knoxGuiT('en', 'permissionModeTriggerHint'), knoxGuiT('zh', 'permissionModeTriggerHint'));
 		assert.ok(knoxGuiT('en', 'loadingConversation').includes('Loading'));
 		assert.ok(knoxGuiT('zh', 'loadingConversation').length > 0);
@@ -94,7 +101,7 @@ suite('Knox native GUI i18n', () => {
 		assert.strictEqual(knoxGuiT('en', 'restoring'), 'Restoring');
 		// Documented productization (the only shared GUI keys whose wording differs from the original common.json):
 		// provider blurbs describe the native Add Model catalog; restoreCheckpoint names the checkpoint id; browsingEntireRepo carries the bullet the original JSX prefixes.
-        assert.ok(knoxGuiT('en', 'accessModelsDescription').includes('KnoxStudio'));
+		assert.ok(knoxGuiT('en', 'accessModelsDescription').includes('KnoxStudio'));
 		assert.ok(knoxGuiT('en', 'openaiDescription').includes('GPT-6.1 Sol'));
 		assert.ok(knoxGuiT('en', 'anthropicDescription').includes('Claude'));
 		assert.ok(knoxGuiT('en', 'browsingEntireRepo').startsWith('• '));
@@ -105,6 +112,9 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(knoxGuiT('en', 'worktreeApply').length > 0);
 		assert.ok(knoxGuiT('en', 'filesChanged', { count: 4 }).includes('4'));
 		assert.notStrictEqual(knoxGuiT('en', 'compactionAppliedTitle'), knoxGuiT('zh', 'compactionAppliedTitle'));
+		assert.ok(knoxGuiT('en', 'holdOracleRed', { count: 2 }).includes('2'));
+		assert.ok(knoxGuiT('en', 'holdPlanOpen', { count: 3 }).includes('3'));
+		assert.notStrictEqual(knoxGuiT('en', 'holdOracleRed'), knoxGuiT('zh', 'holdOracleRed'));
 		assert.ok(knoxGuiT('en', 'bookmark').length > 0);
 		assert.ok(knoxGuiT('en', 'applying').length > 0);
 		assert.notStrictEqual(knoxGuiT('en', 'bookmark'), knoxGuiT('zh', 'bookmark'));

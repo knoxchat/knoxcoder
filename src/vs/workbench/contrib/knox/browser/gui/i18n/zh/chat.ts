@@ -3,8 +3,6 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable */
-
 export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"agentModeNotSupported": "当前模型不支持助理模式",
 	"permissionModeGroup": "权限",
@@ -13,9 +11,14 @@ export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"permissionModeAuto": "自动",
 	"permissionModeAskHint": "写入和终端先询问",
 	"permissionModeEditsHint": "自动批准文件编辑；终端仍询问",
-	"permissionModeAutoHint": "自动批准所有已启用工具（默认）",
+	"permissionModeAutoHint": "自动批准所有已启用工具（默认 YOLO）。需要先询问时切换到询问。",
 	"permissionModeTriggerHint": "工具如何批准。Jev 自动选择对话或助理。",
 	"permissionModeTriggerHintNoJev": "助理模式。工具如何批准。",
+	"planMode": "计划",
+	"planModeHint": "只读探索并写出计划。离开计划模式后再执行。",
+	"executePlan": "执行计划",
+	"runInBackground": "后台运行",
+	"runInBackgroundHint": "在 git worktree 中运行当前输入。完成后可在任务面板合并或丢弃。",
 	"approveOnce": "批准",
 	"alwaysThisSession": "始终",
 	"alwaysThisSessionHint": "在本次对话中自动批准此工具",
@@ -290,9 +293,9 @@ export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"chatListFailed": "无法渲染这次对话。",
 	"retryingStream": "连接出现问题，正在重试",
 	"retryingStreamFallback": "改用备用模型",
-	"permissionNoticeTitle": "更安全的默认设置：Knox 现在会在运行终端命令前询问（编辑模式）。文件编辑仍会自动批准。",
-	"permissionNoticeAuto": "切换到自动",
-	"permissionNoticeKeep": "保持编辑模式",
+	"permissionNoticeTitle": "当前为自动（YOLO）：工具无需询问即可运行。不信任的仓库请切换到询问。",
+	"permissionNoticeKeep": "保持自动",
+	"permissionNoticeAsk": "切换到询问",
 	"memoryNoticeTitle": "Memory Brain 会把整理后的事实和会话笔记存在本机 ~/.knoxcoder。可在 Knox 设置中导出、清空或关闭。",
 	"memoryNoticeOk": "知道了",
 	"jobsMerge": "合并",

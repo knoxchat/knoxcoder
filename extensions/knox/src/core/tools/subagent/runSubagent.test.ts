@@ -13,6 +13,7 @@ import { SkillManager } from "../../skills/skillManager";
 import { BuiltInToolNames } from "../builtIn";
 import { setSkillManager } from "../implementations/skillSingleton";
 import { createPlan, resetPlansForTests } from "../planStore";
+import { resetSubagentJobs } from "./jobs";
 import {
   buildSubagentContextBlock,
   formatSubagentResult,
@@ -47,6 +48,7 @@ describe("runSubagent", () => {
     resetCodebaseCardForTests();
     resetSerialContextForTests();
     resetPlansForTests();
+    resetSubagentJobs();
   });
 
   it("returns a text-only first turn as the summary", async () => {
@@ -128,6 +130,48 @@ describe("runSubagent", () => {
     expect(result.filesTouched).toContain("x.ts");
     expect(result.stoppedReason).toBe("completed");
     expect(result.summary).toContain("exports x");
+  });
+
+  it("emits start/tool/end progress for the parent jobs panel", async () => {
+    const progress: string[] = [];
+    const executeTool = vi.fn(async () => [
+      { name: "file", description: "ok", content: "export const x = 1;" },
+    ]);
+    await runSubagent({
+      prompt: "Read x.ts",
+      profile: "explore",
+      extras: extras([
+        [
+          {
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "c1",
+                type: "function",
+                function: {
+                  name: BuiltInToolNames.ReadFile,
+                  arguments: '{"filepath":"x.ts"}',
+                },
+              },
+            ],
+          },
+        ],
+        [{ role: "assistant", content: "x.ts exports x." }],
+      ]),
+      catalog: [readTool],
+      executeTool,
+      onProgress: (event) => {
+        progress.push(
+          event.type === "tool"
+            ? `${event.type}:${event.tool}`
+            : event.type,
+        );
+      },
+    });
+    expect(progress[0]).toBe("start");
+    expect(progress).toContain(`tool:${BuiltInToolNames.ReadFile}`);
+    expect(progress.at(-1)).toBe("end");
   });
 
   it("injects plan, codebase card, and serial into the child system prompt", async () => {

@@ -3,8 +3,6 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable */
-
 export const knoxGuiStringsEnCommon: Record<string, unknown> = {
 	"language": "Language",
 	"english": "English",
@@ -976,6 +974,8 @@ export const knoxGuiStringsEnCommon: Record<string, unknown> = {
 	"memoryExportLocalOnly": "local backup only (not synced)",
 	"memoryBackupLocalOnly": "Backups stay on this machine. Optional password encrypts the file with AES-256-GCM.",
 	"compactionAppliedTitle": "Context compacted",
+	"holdOracleRed": "Oracle still red ({{count}}) — continuing",
+	"holdPlanOpen": "Plan still open ({{count}} steps) — continuing",
 	"tokenUsageDashboard": "Usage",
 	"tokenUsageKnoxChatBilling": "Token usage and billing are tracked by KnoxStudio at the provider. This extension focuses on agent tooling, checkpoints, and local memory — not local token accounting.",
 	"compactionDismiss": "Dismiss",

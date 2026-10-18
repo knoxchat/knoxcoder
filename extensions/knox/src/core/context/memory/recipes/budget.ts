@@ -77,3 +77,13 @@ export async function enforceRecipeBudget(
   for (const id of ids) await store.retire(id);
   return ids;
 }
+
+/** Sleep / session-end scheduler: evict to the 200-recipe cap, then purge old rows. */
+export async function runRecipeMaintenance(
+  store: RecipeStore,
+  size: BlobSizeFn = () => 0,
+): Promise<{ evicted: string[]; purged: number }> {
+  const evicted = await enforceRecipeBudget(store, size);
+  const purged = await store.purgeStale();
+  return { evicted, purged };
+}

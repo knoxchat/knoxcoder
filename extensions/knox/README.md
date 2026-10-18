@@ -36,7 +36,7 @@ If both are present, the builtin wins and the marketplace activation is skipped.
 
 ### Global data directory
 
-The builtin Knox stores all global state (config, memory, sessions, checkpoints, rules, prompts, skills, logs, jobs) in **`~/.knoxcoder`**, not `~/.knox`, so it does not conflict with the marketplace extension that owns `~/.knox`. There is no legacy fallback or migration from `~/.knox`. The directory name lives in `src/core/util/globalDirName.ts`; `KNOX_GLOBAL_DIR` overrides the full path (tests / custom installs). Workspace-level files (`.knox/AGENTS.md`, `.knox/prompts`, `.knoxrules`, `.knoxignore`) are unchanged.
+The builtin Knox stores all global state (config, memory, sessions, checkpoints, rules, prompts, skills, logs, jobs) in **`~/.knoxcoder`**, not `~/.knox`, so it does not conflict with the marketplace extension that owns `~/.knox`. There is no legacy fallback or migration from `~/.knox`. The directory name lives in `src/core/util/globalDirName.ts`; `KNOX_GLOBAL_DIR` overrides the full path (tests / custom installs). Workspace-level files (`.knoxcoder/AGENTS.md`, `.knoxcoder/prompts`, `.knoxcoder/agents`, `.knoxcoder/hooks.json`, `.knoxrules`, `.knoxignore`) stay in the repo; never use `.knox/` (that directory belongs to the marketplace extension).
 
 ## Packaging
 
@@ -44,7 +44,7 @@ Knox is an in-tree **native** extension (`nativeExtensions` in `build/lib/extens
 
 ## Remote / SSH and web
 
-`extensionKind` is `ui` + `workspace` so the engine can run on the remote file system over SSH. sqlite3, ripgrep, and optional node-pty are copied into the bundle and packaged per-platform (`nativeExtensions` in the product build) so the Remote-SSH copy on the remote has matching addons. Activation probes those files and warns if sqlite3 or ripgrep is missing.
+Natives (sqlite3, ripgrep, optional node-pty) are packaged per-platform (`nativeExtensions` in the product build). `extensionKind` is `ui` + `workspace` so a future remote host can load matching addons. **Knox on Remote SSH, dev containers, and WSL is not supported this quarter** — the host does not run on the remote file system yet. See [known-issues](docs/known-issues.md).
 
 There is no `browser` field; Knox is not a web extension (`gulp vscode-web` skips it; activation refuses `UIKind.Web`).
 

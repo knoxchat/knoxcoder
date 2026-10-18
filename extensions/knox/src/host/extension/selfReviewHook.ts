@@ -21,7 +21,19 @@ export async function registerSelfReviewHook(): Promise<() => void> {
       import("core/context/memory/brain/store/connection"),
       import("core/context/memory/brain/BrainManager"),
     ]);
-  return registerSleepCycleHook(HOOK_NAME, async () => {
+  const offBudget = registerSleepCycleHook("recipe-budget", async () => {
+    const db = await getBrainDb();
+    const { runRecipeMaintenance } = await import(
+      "core/context/memory/recipes/budget"
+    );
+    const { evicted, purged } = await runRecipeMaintenance(new RecipeStore(db));
+    if (evicted.length || purged) {
+      console.info(
+        `[Recipes] budget evicted ${evicted.length}, purged ${purged} stale rows`,
+      );
+    }
+  });
+  const offReview = registerSleepCycleHook(HOOK_NAME, async () => {
     if (!enabled()) return;
     const db = await getBrainDb();
     const { events, report } = await runSelfReview(db, {
@@ -34,4 +46,8 @@ export async function registerSelfReviewHook(): Promise<() => void> {
       );
     }
   });
+  return () => {
+    offBudget();
+    offReview();
+  };
 }

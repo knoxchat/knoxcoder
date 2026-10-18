@@ -3,6 +3,17 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-18
+
+### Added
+
+- **Knox Agent 2.2 product path.** Sidebar Agent now uses the same loop safeguards as eval: oracle-hold after a red `make` / `cargo test` / `npm test`, auto-context on submit, a workspace card for Node/Python/Go/CMake (not only kernel/Cargo), and a Turn Context block (open files, git porcelain, diagnostics). Plan mode is a composer toggle (read-only explore until **Execute plan**). Composer **Run in background** and **Knox: Background Agents: Start** run `runChatTurn` in a seeded worktree (cap 2). Child subagent steps stream into the jobs panel.
+- **Live eval (manual).** After Knox OAuth sign-in, `cd extensions/knox && npm run test:live` compares the loop vs GUI path on Node tasks plus mini-c and mini-rust. No `KNOX_API_KEY`. Nightly CI stays scripted.
+
+### Changed
+
+- Default core tools with deferral include git status/diff. `builtin_lsp` is promoted on classified workspaces (node/python/go/cargo/editor/cmake) and systems, not on unknown trees. Composite tools stay off unless `knoxchat.enableCompositeTools`. Custom agents load from `.knoxcoder/agents` and `~/.knoxcoder/agents` only. Recipes still off by default; sleep now runs the 200-recipe budget and purges old retired rows. Memory Brain FTS indexes overlapping CJK bigrams so Chinese queries match sqlite, not embeddings.
+
 ### Fixed
 
 - **Agent file-edit tool calls recover more often.** `builtin_edit_file` accepts `search`/`replace`, `oldString`/`newString`, `old_str`/`new_str`, and line-array values in `edits[]`, and skips a truncated trailing entry instead of failing the whole call (`edits[12] needs string old_string…`). Omitting `new_string` deletes `old_string` instead of reporting a missing `old_string`. Matching now ignores markdown line wrapping, so a unique paragraph still applies when the model broke lines differently than the file. JSON arguments with raw newlines or unescaped quotes inside markdown still parse. `builtin_apply_patch` now matches hunks with indent drift, wrap drift, partial first/last lines, stale context (git-style fuzz), unique deleted-line fallbacks, and unified-diff `---`/`+++` wrappers, and lists closest lines when a hunk still misses.

@@ -213,6 +213,7 @@ export function renderAssistantTurn(widget: KnoxGuiWidget,
 		if (isLast) {
 			widget.lastAssistantCard = card;
 		}
+		renderHoldChip(card, state, item);
 		for (const tool of item.toolCalls) {
 			widget.renderTool(body, state, tool);
 		}
@@ -224,6 +225,7 @@ export function renderAssistantTurn(widget: KnoxGuiWidget,
 		streamBody.setAttribute('data-streaming', 'true');
 	}
 	widget.renderAssistantBody(streamBody, state, item, isLast);
+	renderHoldChip(card, state, item);
 	if (isLast) {
 		widget.lastAssistantCard = card;
 	}
@@ -252,6 +254,18 @@ export function renderAssistantTurn(widget: KnoxGuiWidget,
 	for (const tool of item.toolCalls ?? []) {
 		widget.renderTool(body, state, tool);
 	}
+}
+
+function renderHoldChip(card: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem): void {
+	if (!item.hold) {
+		return;
+	}
+	const chip = DOM.append(card, DOM.$('.knox-gui-hold-chip'));
+	chip.setAttribute('data-testid', 'knox-gui-hold-chip');
+	chip.setAttribute('data-kind', item.hold.kind);
+	chip.textContent = item.hold.kind === 'oracle'
+		? t(state, 'holdOracleRed', { count: item.hold.errors })
+		: t(state, 'holdPlanOpen', { count: item.hold.remaining });
 }
 
 export function renderErrorStep(widget: KnoxGuiWidget, card: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem, index: number): void {

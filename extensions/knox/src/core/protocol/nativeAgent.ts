@@ -25,6 +25,10 @@ export interface NativeAgentRequestInput {
   toolLoopSteps?: number;
   /** Settled calls after the latest user message. */
   turnToolCalls?: NativeDoomLoopCall[];
+  /** Alt-submit / noContext: skip the Turn Context editor-state block. */
+  skipTurnContext?: boolean;
+  /** Plan mode: read-only catalog plus builtin_plan / ask_user / explore task. */
+  planMode?: boolean;
 }
 
 export interface NativeAgentRequestOutput {
@@ -230,6 +234,10 @@ export interface SharedChatTurnInput
   turnToolCalls?: NativeDoomLoopCall[];
   /** Rounds already used this turn (before an ask_user answer); counts against `maxSteps`. */
   priorSteps?: number;
+  /** Alt-submit / noContext: skip the Turn Context editor-state block. */
+  skipTurnContext?: boolean;
+  /** Plan mode: read-only catalog plus builtin_plan / ask_user / explore task. */
+  planMode?: boolean;
 }
 
 export interface SharedChatTurnOutput {

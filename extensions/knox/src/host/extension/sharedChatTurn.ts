@@ -175,6 +175,8 @@ export async function runSharedChatTurn(
       excludedGroups: input.excludedGroups,
       dropSearchWeb: input.dropSearchWeb,
       deferTools: deps.getDeferTools?.() === true,
+      skipTurnContext: input.skipTurnContext,
+      planMode: input.planMode,
     });
     const policy = await deps.getPolicy();
     const mode: PermissionMode = PERMISSION_MODE_SET.has(
@@ -212,6 +214,7 @@ export async function runSharedChatTurn(
         ? withCompletionOptions(fallback, input.completionOptions)
         : undefined,
       doomLoopThreshold: policy.doomLoopThreshold,
+      holdCompletionWhileOracleRed: true,
       initialDoomCalls: (input.turnToolCalls ?? []).map(toDoomCall),
       permission: {
         mode,
@@ -220,6 +223,7 @@ export async function runSharedChatTurn(
         policy: policy.policy,
         policyFromRules: policy.policyFromRules,
         workspaceDirs: policy.workspaceDirs,
+        planMode: input.planMode === true,
       },
       emit: (event) => deps.emit(sessionId, event),
       beforeTools: async (_assistant, toolCalls) => {

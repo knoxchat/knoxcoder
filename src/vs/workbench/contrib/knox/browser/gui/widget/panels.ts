@@ -63,7 +63,7 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	const userIndex = lastUserHistoryIndex(state.history);
 	const steps = buildAgentActivitySteps(state.history, userIndex, { inProgress: state.isStreaming });
 	const live = state.isStreaming || hasForegroundCallingToolCalls(state.history);
-	const autonomousActive = state.autonomous != null && state.autonomous.status !== 'idle';
+	const autonomousActive = state.autonomous !== undefined && state.autonomous !== null && state.autonomous.status !== 'idle';
 	const used = Math.max(state.toolLoopSteps, countTurnToolLoopSteps(state.history, userIndex));
 	if (userIndex < 0 && !state.isStreaming && !autonomousActive) {
 		widget.clearMeterClock();
@@ -700,6 +700,16 @@ export function renderTaskPlanPanel(widget: KnoxGuiWidget, parent: HTMLElement, 
 	if (plan.remaining > 0) {
 		DOM.append(head, DOM.$('span.knox-gui-muted', undefined, t(state, 'taskPlanProgress', { remaining: plan.remaining, total: plan.steps.length })));
 	}
+	if (state.planMode && plan.remaining > 0 && !state.isStreaming) {
+		const execute = DOM.append(head, DOM.$('button.knox-gui-execute-plan')) as HTMLButtonElement;
+		execute.type = 'button';
+		execute.setAttribute('data-testid', 'knox-gui-execute-plan');
+		execute.textContent = t(state, 'executePlan');
+		widget.renderStore.add(DOM.addDisposableListener(execute, 'click', e => {
+			e.stopPropagation();
+			widget.controller.executePlan();
+		}));
+	}
 	if (!plan.steps.length) {
 		DOM.append(body, DOM.$('div.knox-gui-muted', undefined, t(state, 'taskPlanEmpty')));
 	} else {
@@ -750,7 +760,7 @@ export function renderInjectedMemoriesPanel(widget: KnoxGuiWidget, parent: HTMLE
 	const timeout = isInjectedMemoryTimeout(items);
 	const { visible, collapsed } = splitSelectiveMemories(items, state.memoryMode);
 	const rendered = widget.showLowScoringMemories ? [...visible, ...collapsed] : visible;
-	const actionable = items.filter(item => item.id != null && item.kind === 'semantic');
+	const actionable = items.filter(item => item.id !== undefined && item.id !== null && item.kind === 'semantic');
 	const panel = widget.attachedPanel(parent, 'injected-memories-panel');
 	const toggle = widget.attachedToggle(panel, state, {
 		expanded: widget.memoriesOpen,
@@ -811,7 +821,7 @@ export function renderInjectedMemoryRow(widget: KnoxGuiWidget, parent: HTMLEleme
 			DOM.append(chips, DOM.$('span.knox-gui-memory-chip', undefined, token));
 		}
 	}
-	if (item.id != null && item.kind === 'semantic') {
+	if (item.id !== undefined && item.id !== null && item.kind === 'semantic') {
 		const actions = DOM.append(row, DOM.$('.knox-gui-memory-actions'));
 		const busy = widget.memoriesBusyId === item.id;
 		widget.chromeButton(actions, {

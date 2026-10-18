@@ -183,6 +183,26 @@ export function renderAgentMenu(widget: KnoxGuiWidget, trigger: HTMLElement, sta
 			widget.controller.setPermissionMode(mode);
 		}));
 	}
+	const plan = DOM.append(group, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
+	plan.type = 'button';
+	plan.setAttribute('role', 'menuitemcheckbox');
+	plan.setAttribute('aria-checked', String(state.planMode));
+	plan.setAttribute('data-testid', 'knox-gui-plan-mode');
+	plan.disabled = state.isStreaming;
+	rows.push(plan);
+	if (state.planMode) {
+		plan.classList.add('knox-gui-popover-active');
+		appendKnoxGuiSvg(plan, 'check', 12);
+	} else {
+		DOM.append(plan, DOM.$('span.knox-gui-popover-check-slot'));
+	}
+	plan.append(t(state, 'planMode'));
+	widget.hover(plan, t(state, 'planModeHint'));
+	widget.renderStore.add(DOM.addDisposableListener(plan, 'click', e => {
+		e.stopPropagation();
+		widget.closeMenus();
+		widget.controller.setPlanMode(!state.planMode);
+	}));
 	DOM.append(menu, DOM.$('.knox-gui-popover-sep'));
 	const review = DOM.append(menu, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
 	review.type = 'button';
@@ -242,6 +262,18 @@ export function renderAgentMenu(widget: KnoxGuiWidget, trigger: HTMLElement, sta
 		e.stopPropagation();
 		widget.closeMenus();
 		widget.controller.toggleJobsPanel();
+	}));
+	const background = DOM.append(menu, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
+	background.type = 'button';
+	background.setAttribute('data-testid', 'knox-gui-run-background');
+	background.disabled = state.isStreaming || !state.input.trim();
+	rows.push(background);
+	background.append(t(state, 'runInBackground'));
+	widget.hover(background, t(state, 'runInBackgroundHint'));
+	widget.renderStore.add(DOM.addDisposableListener(background, 'click', e => {
+		e.stopPropagation();
+		widget.closeMenus();
+		void widget.controller.startBackgroundJob();
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(menu, 'keydown', e => {
 		const index = rows.indexOf(e.target as HTMLButtonElement);

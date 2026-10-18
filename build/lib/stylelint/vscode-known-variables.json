@@ -1005,6 +1005,8 @@
 		"--agents-window-corner-radius",
 		"--session-chat-base-height",
 		"--editor-font-size",
+		"--vscode-editor-font-family",
+		"--vscode-editor-font-size",
 		"--knox-accent",
 		"--knox-fill",
 		"--knox-mode-active",

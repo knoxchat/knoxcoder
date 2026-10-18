@@ -19,6 +19,7 @@ npx vitest run --config src/core/vitest.config.ts   # full core suite, including
 | edit-by-strreplace | `builtin_edit_file` unique replace lands |
 | multi-file refactor | `builtin_apply_patch` updates two files atomically |
 | test-fix loop | fail → StrReplace → pass (terminal is intercepted; no spawn) |
+| red npm test hold | no-tool "done" is not `completed` while `npm test` is red (P0.1) |
 | permission denial | `~/.ssh` write and `rm -rf /` throw `PERMISSION_DENIED`; workspace unchanged |
 | maxSteps stop | After the cap, further tool calls are not executed |
 | abort mid-tool | Cancel during `writeFile` → `CANCELLED`; file unchanged |
@@ -67,6 +68,19 @@ See `harness.ts` (`runAgentEval`).
 
 ## Live eval (manual, not CI)
 
+Never enable this on PR CI. Nightly stays scripted. Live needs a signed-in
+Knox OAuth session (`~/.knoxcoder/auth.json` from the editor login). There is
+no `KNOX_API_KEY` and no `.env` key.
+
+```
+cd extensions/knox
+npm run test:live
+```
+
+`live.eval.ts` compares `runAgentLoop` vs `runChatTurn` on `LIVE_TASKS` plus mini-c and mini-rust. It fails if the GUI path lags the loop path by more than one task (`allowedDrop = 1`). Optional `scoreEvalTrace` (Jev) may comment on the report and must stay fail-open.
+
+## Live eval walkthrough (manual, not CI)
+
 Use a **real** chat model against the tiny C Makefile tree. Never enable a live LLM in `npm test` / `npm run test:eval`.
 
 ```bash
@@ -101,7 +115,7 @@ The bug is `a - b` in `src/lib.rs`. A passing run returns `a + b` and does not d
 
 ## Optional Jev trace scoring (not CI)
 
-`core/jev/traceScore.ts` `scoreAgentTrace` can label a live session JSON (`tool_calls_match_request`, `oracle_ignored`, `test_tamper`, outcome). Never import it from golden tests. Flag off by default; needs a Knox Chat or OpenRouter API key (selected model or `jev.apiKey`).
+`core/jev/traceScore.ts` `scoreAgentTrace` can label a live session JSON (`tool_calls_match_request`, `oracle_ignored`, `test_tamper`, outcome). Never import it from golden tests. Flag off by default; needs a signed-in Knox or OpenRouter OAuth session (not an env API key).
 
 `core/eval/scoreTraceJob.ts` `scoreEvalTrace` accepts an `AgentEvalResult`, a GUI session `{ history }`, or `{ userMessage, steps }`. `scoreTraceFile(path)` reads the same JSON from disk. Example (manual, mocked in unit tests):
 

@@ -7,6 +7,7 @@ import type {
   SemanticMemory,
   StoreInput
 } from "../types.js";
+import { cjkIndexTokens, isCjkToken } from "../cjkFts.js";
 import { get } from "./connection.js";
 import { rowToSemantic } from "./mappers.js";
 import { addTag } from "./organization.js";
@@ -153,7 +154,14 @@ const LIKE_SCAN_MAX_ROWS = 5000;
 export async function searchSemantic(query: string, category?: SemanticCategory, limit: number = 10): Promise<SemanticMemory[]> {
   const db = await get();
 
-  const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
+  const cjkTerms = cjkIndexTokens(query);
+  const terms = [
+    ...cjkTerms,
+    ...query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length > 1 && !isCjkToken(t)),
+  ];
 
   // Fetch more candidates for re-ranking
   const fetchLimit = Math.max(limit * 3, 30);
@@ -164,9 +172,13 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
   // ~0.4 s at 100k items and, ordered by importance, lets common words crowd out the real
   // match. LIKE stays only for FTS-less builds and for small brains where its substring
   // matches are cheap and useful.
-  const ftsTerms = terms
-    .flatMap((t) => t.match(/[\p{L}\p{N}_]+/gu) ?? [])
-    .filter((t) => t.length > 1);
+  const ftsTerms = [
+    ...cjkTerms,
+    ...terms
+      .filter((t) => !isCjkToken(t))
+      .flatMap((t) => t.match(/[\p{L}\p{N}_]+/gu) ?? [])
+      .filter((t) => t.length > 1),
+  ];
   if (ftsTerms.length > 0) {
     try {
       const ftsConditions = ["(s.expires_at IS NULL OR s.expires_at > datetime('now'))"];
@@ -175,7 +187,11 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
         ftsConditions.push("s.category = ?");
         ftsParams.push(category);
       }
-      const match = ftsTerms.map((t) => `"${t}"*`).join(" OR ");
+      const match = ftsTerms
+        .map((t) =>
+          isCjkToken(t) ? `"${t.replace(/"/g, "")}"` : `"${t}"*`,
+        )
+        .join(" OR ");
       ftsRows = await db.all(
         `SELECT s.* FROM brain_semantic s
          JOIN brain_semantic_fts fts ON s.id = fts.rowid

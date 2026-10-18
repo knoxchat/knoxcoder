@@ -1,6 +1,6 @@
 # Agent Mode Extension for VSCode
 
-This extension adds VS Code host features around Knox Agent (checkpoints, shadow preview, diagnostics, DAP). **The product Agent loop is GUI chat** (`streamNormalInput` → Core `tools/call`). Classes below (`CodeIntelligenceService`, `RefactoringService`, …) are optional extension helpers — they are not the harness that runs `builtin_*` tools.
+This extension adds VS Code host features around Knox Agent (checkpoints, shadow preview, diagnostics, DAP). **The product Agent loop is GUI chat** (`streamNormalInput` → Core `tools/call`). Classes below (`AgentService`, `CodeIntelligenceService`, `RefactoringService`, …) are optional extension helpers — they are not the harness that runs `builtin_*` tools. `AgentService` is constructed by `AgentModeManager` only; do not route GUI chat through `AgentService.executeToolCall`.
 
 ## Key Features
 
@@ -130,7 +130,7 @@ console.log(projectStructure.dependencies); // Dependencies between modules
 Agent mode is **one switch**: the sidebar permission dropdown (Ask / Edits / Auto) plus `session.mode === "agent"` stay in sync with VS Code `AgentModeManager`. Users no longer pick Chat vs Agent; Jev chooses tools per turn when enabled, otherwise the session stays Agent.
 
 1. Force Agent on with `Ctrl+Shift+Alt+A` (or `Cmd+Shift+Alt+A` on Mac) if you need host features (checkpoints, undo, shadow preview, verification). The toolbar is Ask / Edits / Auto, not Chat vs Agent.
-2. Use the agent to assist with coding tasks. Prefer `builtin_edit_file` / `builtin_write_file` / `builtin_apply_patch` over rewriting files in the terminal. Cycle Ask / Edits / Auto in the permission dropdown (Shift+Tab). Long tests/servers: `background: true` or wait ~30s, then `builtin_await_shell`.
+2. Use the agent to assist with coding tasks. Prefer `builtin_edit_file` / `builtin_write_file` / `builtin_apply_patch` over rewriting files in the terminal. Permission defaults to **Auto (YOLO)**; cycle Ask / Edits / Auto in the dropdown (Shift+Tab) to approve first. Long tests/servers: `background: true` or wait ~30s, then `builtin_await_shell`.
 3. (Optional) Enable `knoxchat.enableShadowPreview` to review Apply edits in a side-by-side shadow diff before the vertical-diff apply path runs
 4. Accept with `Ctrl+Shift+Alt+S` / Reject with `Ctrl+Shift+Alt+Backspace` while a shadow preview is open
 

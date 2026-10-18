@@ -30,6 +30,7 @@ describe("team bundle", () => {
     put(a, ".knoxrules", "be brief\n");
     put(a, "skills/deploy/SKILL.md", "---\nname: deploy\n---\nsteps\n");
     put(a, ".knoxcoder/agents/reviewer.md", "---\nname: reviewer\n---\nreview\n");
+    put(a, ".knox/agents/external.md", "---\nname: external\n---\nmarketplace\n");
     put(a, ".knoxcoder/hooks.json", '{"hooks":{}}');
     put(a, ".knoxcoder/config.yaml", "apiKey: nope\n");
     put(a, "src/app.ts", "x");
@@ -90,6 +91,8 @@ describe("team bundle", () => {
     expect(res.skipped).toHaveLength(4);
     expect(isAllowedBundlePath("skills/a/SKILL.md")).toBe(true);
     expect(isAllowedBundlePath("skills")).toBe(false);
+    expect(isAllowedBundlePath(".knoxcoder/agents/reviewer.md")).toBe(true);
+    expect(isAllowedBundlePath(".knox/agents/reviewer.md")).toBe(false);
   });
 
   it("rejects bad or newer bundles", () => {

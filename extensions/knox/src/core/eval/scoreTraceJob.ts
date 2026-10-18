@@ -2,8 +2,8 @@
  * Offline Jev scoring of eval results / GUI session JSON.
  *
  * Never import this from golden CI tests. Flag off by default; needs a
- * Knox Chat or OpenRouter API key (selected model or `jev.apiKey` in
- * config.yaml). Mock the client in unit tests.
+ * signed-in Knox or OpenRouter OAuth session (not `KNOX_API_KEY` / `.env`).
+ * Mock the client in unit tests.
  */
 
 import type { ChatHistoryItem, ChatMessage } from "..";

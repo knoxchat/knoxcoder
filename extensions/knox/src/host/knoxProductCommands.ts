@@ -11,6 +11,7 @@ import * as vscode from "vscode";
 
 import { exportTeamBundle, importTeamBundle, parseTeamBundle } from "core/config/teamBundle";
 import {
+  WORKSPACE_CUSTOM_AGENTS_DIR,
   loadCustomAgents,
   parseCustomAgent,
 } from "core/tools/subagent/customAgents";
@@ -28,6 +29,12 @@ import { getWorkspaceHookRunner } from "core/hooks/workspaceHooks";
 import { BrainManager } from "core/context/memory/brain/BrainManager";
 import { localPathOrUriToPath } from "core/util/pathToUri";
 import { buildSessionShareUri } from "core/util/sessionShareLink";
+
+import type { Core } from "core/core/Core";
+import {
+  DEFAULT_PERMISSION_MODE,
+  type PermissionMode,
+} from "core/agent/permissions";
 
 import { VsCodeIde } from "./VsCodeIde";
 import { primaryWorkspaceFsPath } from "./util/primaryWorkspace";
@@ -48,6 +55,7 @@ function workspaceDir(): string | undefined {
 export function registerKnoxProductCommands(
   context: vscode.ExtensionContext,
   ide: VsCodeIde,
+  core?: Core,
 ): void {
   const register = (id: string, fn: () => Promise<void>) => {
     context.subscriptions.push(
@@ -199,7 +207,7 @@ export function registerKnoxProductCommands(
     const agents = await loadCustomAgents(ide);
     if (!agents.length) {
       void vscode.window.showInformationMessage(
-        "No custom agents in .knoxcoder/agents. Use Knox: Create Custom Agent.",
+        "No custom agents in .knoxcoder/agents (or ~/.knoxcoder/agents). Use Knox: Create Custom Agent.",
       );
       return;
     }
@@ -214,7 +222,7 @@ export function registerKnoxProductCommands(
       const agent = agents.find((a) => a.name === pick.label);
       const file = agent
         ? localPathOrUriToPath(agent.source)
-        : path.join(workspaceDir() ?? "", ".knoxcoder", "agents", `${pick.label}.md`);
+        : path.join(workspaceDir() ?? "", WORKSPACE_CUSTOM_AGENTS_DIR, `${pick.label}.md`);
       if (fs.existsSync(file)) {
         await vscode.window.showTextDocument(vscode.Uri.file(file));
       }
@@ -237,7 +245,7 @@ export function registerKnoxProductCommands(
     if (!name) {
       return;
     }
-    const agentsDir = path.join(dir, ".knoxcoder", "agents");
+    const agentsDir = path.join(dir, WORKSPACE_CUSTOM_AGENTS_DIR);
     fs.mkdirSync(agentsDir, { recursive: true });
     const file = path.join(agentsDir, `${name.trim()}.md`);
     if (fs.existsSync(file)) {
@@ -302,6 +310,58 @@ export function registerKnoxProductCommands(
     const out = await BrainStore.wipeAll();
     void vscode.window.showInformationMessage(
       out.backup ? `Memory Brain wiped. Backup: ${out.backup}` : "Memory Brain wiped.",
+    );
+  });
+
+  register("knox.bg.start", async () => {
+    if (!workspaceDir()) {
+      void vscode.window.showErrorMessage("Open a folder to start a background agent.");
+      return;
+    }
+    const task = await vscode.window.showInputBox({
+      prompt: "Background agent task",
+      placeHolder: "What should Knox do in a worktree?",
+    });
+    if (!task?.trim()) {
+      return;
+    }
+    const picked = await vscode.window.showQuickPick(
+      [
+        {
+          label: "Auto (YOLO, default)",
+          description: "Writes and shell apply without asking",
+          mode: "fullAuto" as PermissionMode,
+        },
+        {
+          label: "Edits",
+          description: "File writes apply; shell is denied (no prompt in background)",
+          mode: "acceptEdits" as PermissionMode,
+        },
+      ],
+      { placeHolder: "Background job permission" },
+    );
+    if (!picked) {
+      return;
+    }
+    const permissionMode = picked.mode ?? DEFAULT_PERMISSION_MODE;
+    if (!core) {
+      void vscode.window.showErrorMessage("Background agent core is not ready.");
+      return;
+    }
+    const result = await Promise.resolve(
+      core.invoke("agent/jobs", {
+        action: "start",
+        task: task.trim(),
+        permissionMode,
+      }),
+    );
+    if (!result.ok) {
+      void vscode.window.showErrorMessage(result.error ?? "Failed to start background job.");
+      return;
+    }
+    const id = result.jobs.find((job) => job.kind === "bg")?.id ?? "";
+    void vscode.window.showInformationMessage(
+      `Background job ${id || "started"} is running in a worktree. Merge or discard from Background Agents when finished.`,
     );
   });
 

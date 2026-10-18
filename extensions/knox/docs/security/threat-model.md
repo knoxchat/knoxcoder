@@ -70,7 +70,7 @@ Build logs or test output contain instructions or secrets.
 - Stopped: secrets are redacted before the output is added to the transcript.
 - Not covered: instructions in output reach the model. Same limits as for files apply.
 
-### Hooks (`.knox/hooks.json`, `hooks:` in `config.yaml`)
+### Hooks (`.knoxcoder/hooks.json`, `hooks:` in `config.yaml`)
 Hooks are shell commands. A cloned repo could ship one.
 - Editor: the extension declares `untrustedWorkspaces.supported: false`, so VS Code does not activate
   Knox in a folder that is not trusted. Hooks therefore never run on folder open, and are read when a turn runs, not on open.
@@ -90,8 +90,8 @@ Run in an isolated git worktree. Merging back copies only files that stay inside
 symlink resolution. Subagent tool calls go through the same tool middleware (policy, redaction) as the parent's.
 
 ### Credentials
-Editor: SecretStorage. Optional file store: `~/.knoxcoder/auth.json`, written atomically with mode 0600, tightened if
-found more permissive, never printed. `KNOX_API_KEY` is for live eval only.
+Editor: SecretStorage. Optional file store: `~/.knoxcoder/auth.json` from Knox OAuth, written atomically with mode 0600, tightened if
+found more permissive, never printed. There is no `KNOX_API_KEY` / `.env` key path.
 
 ## Command guard
 
@@ -112,8 +112,9 @@ robustness against adversarial input).
 
 **Known limits.** A denylist cannot be complete: an interpreter running attacker-written code
 (`python script.py` where the script was written earlier in the session) is not detected, and
-variable indirection (`X=rm; $X -rf /`) is not resolved. The real mitigation is approval prompts in
-`default` and `acceptEdits` mode. `fullAuto` should only be used in a disposable environment.
+variable indirection (`X=rm; $X -rf /`) is not resolved. Product default is `fullAuto` (YOLO).
+Switch to `default` (Ask) or `acceptEdits` for untrusted work so writes and shell prompt. `fullAuto`
+on an untrusted repo should be treated as a disposable environment.
 
 ## Redaction sinks
 

@@ -103,6 +103,7 @@ export class KnoxGuiStore extends Disposable {
 			suggestLoading: false,
 			applyStates: [],
 			sessionToolAllowlist: [],
+			planMode: false,
 			autoScroll: true,
 			historyHydrateNotice: null,
 			streamError: undefined,

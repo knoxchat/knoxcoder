@@ -15,6 +15,7 @@ import {
 } from "./GraphRetrieval.js";
 import { applyOutcomeWeight, isVerifiedByOutcome, loadOutcomes, loadSupersededIds } from "./memoryOutcomes.js";
 import { evaluateRelevanceGate, LEXICAL_SCORE_MIN, resolveQueryEntities, applyMismatchPenalty, isMismatchActive } from "./RelevanceGate.js";
+import { cjkExpandSql } from "./cjkFts.js";
 import { buildFts5Query as buildRetrievalFts5Query, contentWords, FTS5_AND_TERM_CAP } from "./RetrievalQuery.js";
 import type { RetrievalIntent } from "./RetrievalQuery.js";
 export type { FusionWeights } from "./memoryConfigAccess.js";
@@ -212,44 +213,67 @@ export class RetrievalFusion {
       )
     `);
 
-    // Triggers to keep FTS5 tables in sync with source tables
+    const prev = await db.get<{ sql: string }>(
+      `SELECT sql FROM sqlite_master WHERE type='trigger' AND name='brain_semantic_fts_insert'`,
+    );
+    const needsRebuild = Boolean(prev?.sql && !prev.sql.includes("cjk_seq"));
+
+    await db.exec(`DROP TRIGGER IF EXISTS brain_semantic_fts_insert`);
+    await db.exec(`DROP TRIGGER IF EXISTS brain_semantic_fts_delete`);
+    await db.exec(`DROP TRIGGER IF EXISTS brain_semantic_fts_update`);
+    await db.exec(`DROP TRIGGER IF EXISTS brain_episodic_fts_insert`);
+    await db.exec(`DROP TRIGGER IF EXISTS brain_episodic_fts_delete`);
+    await db.exec(`DROP TRIGGER IF EXISTS brain_episodic_fts_update`);
+
     await db.exec(`
-      CREATE TRIGGER IF NOT EXISTS brain_semantic_fts_insert AFTER INSERT ON brain_semantic BEGIN
-        INSERT INTO brain_semantic_fts(rowid, title, content, keywords) VALUES (new.id, new.title, new.content, new.keywords);
+      CREATE TRIGGER brain_semantic_fts_insert AFTER INSERT ON brain_semantic BEGIN
+        INSERT INTO brain_semantic_fts(rowid, title, content, keywords)
+        VALUES (new.id, ${cjkExpandSql("new.title")}, ${cjkExpandSql("new.content")}, ${cjkExpandSql("new.keywords")});
       END
     `);
 
     await db.exec(`
-      CREATE TRIGGER IF NOT EXISTS brain_semantic_fts_delete AFTER DELETE ON brain_semantic BEGIN
-        INSERT INTO brain_semantic_fts(brain_semantic_fts, rowid, title, content, keywords) VALUES ('delete', old.id, old.title, old.content, old.keywords);
+      CREATE TRIGGER brain_semantic_fts_delete AFTER DELETE ON brain_semantic BEGIN
+        INSERT INTO brain_semantic_fts(brain_semantic_fts, rowid, title, content, keywords)
+        VALUES ('delete', old.id, ${cjkExpandSql("old.title")}, ${cjkExpandSql("old.content")}, ${cjkExpandSql("old.keywords")});
       END
     `);
 
     await db.exec(`
-      CREATE TRIGGER IF NOT EXISTS brain_semantic_fts_update AFTER UPDATE ON brain_semantic BEGIN
-        INSERT INTO brain_semantic_fts(brain_semantic_fts, rowid, title, content, keywords) VALUES ('delete', old.id, old.title, old.content, old.keywords);
-        INSERT INTO brain_semantic_fts(rowid, title, content, keywords) VALUES (new.id, new.title, new.content, new.keywords);
+      CREATE TRIGGER brain_semantic_fts_update AFTER UPDATE ON brain_semantic BEGIN
+        INSERT INTO brain_semantic_fts(brain_semantic_fts, rowid, title, content, keywords)
+        VALUES ('delete', old.id, ${cjkExpandSql("old.title")}, ${cjkExpandSql("old.content")}, ${cjkExpandSql("old.keywords")});
+        INSERT INTO brain_semantic_fts(rowid, title, content, keywords)
+        VALUES (new.id, ${cjkExpandSql("new.title")}, ${cjkExpandSql("new.content")}, ${cjkExpandSql("new.keywords")});
       END
     `);
 
     await db.exec(`
-      CREATE TRIGGER IF NOT EXISTS brain_episodic_fts_insert AFTER INSERT ON brain_episodic BEGIN
-        INSERT INTO brain_episodic_fts(rowid, content) VALUES (new.id, new.content);
+      CREATE TRIGGER brain_episodic_fts_insert AFTER INSERT ON brain_episodic BEGIN
+        INSERT INTO brain_episodic_fts(rowid, content)
+        VALUES (new.id, ${cjkExpandSql("new.content")});
       END
     `);
 
     await db.exec(`
-      CREATE TRIGGER IF NOT EXISTS brain_episodic_fts_delete AFTER DELETE ON brain_episodic BEGIN
-        INSERT INTO brain_episodic_fts(brain_episodic_fts, rowid, content) VALUES ('delete', old.id, old.content);
+      CREATE TRIGGER brain_episodic_fts_delete AFTER DELETE ON brain_episodic BEGIN
+        INSERT INTO brain_episodic_fts(brain_episodic_fts, rowid, content)
+        VALUES ('delete', old.id, ${cjkExpandSql("old.content")});
       END
     `);
 
     await db.exec(`
-      CREATE TRIGGER IF NOT EXISTS brain_episodic_fts_update AFTER UPDATE ON brain_episodic BEGIN
-        INSERT INTO brain_episodic_fts(brain_episodic_fts, rowid, content) VALUES ('delete', old.id, old.content);
-        INSERT INTO brain_episodic_fts(rowid, content) VALUES (new.id, new.content);
+      CREATE TRIGGER brain_episodic_fts_update AFTER UPDATE ON brain_episodic BEGIN
+        INSERT INTO brain_episodic_fts(brain_episodic_fts, rowid, content)
+        VALUES ('delete', old.id, ${cjkExpandSql("old.content")});
+        INSERT INTO brain_episodic_fts(rowid, content)
+        VALUES (new.id, ${cjkExpandSql("new.content")});
       END
     `);
+
+    if (needsRebuild) {
+      await RetrievalFusion.rebuildFts5(db);
+    }
   }
 
   /**
@@ -260,14 +284,15 @@ export class RetrievalFusion {
     await db.exec(`INSERT INTO brain_semantic_fts(brain_semantic_fts) VALUES ('delete-all')`);
     const semResult = await db.run(`
       INSERT INTO brain_semantic_fts(rowid, title, content, keywords)
-      SELECT id, title, content, keywords FROM brain_semantic
+      SELECT id, ${cjkExpandSql("title")}, ${cjkExpandSql("content")}, ${cjkExpandSql("keywords")}
+      FROM brain_semantic
     `);
 
     // Clear and repopulate episodic FTS
     await db.exec(`INSERT INTO brain_episodic_fts(brain_episodic_fts) VALUES ('delete-all')`);
     const epResult = await db.run(`
       INSERT INTO brain_episodic_fts(rowid, content)
-      SELECT id, content FROM brain_episodic
+      SELECT id, ${cjkExpandSql("content")} FROM brain_episodic
     `);
 
     return {

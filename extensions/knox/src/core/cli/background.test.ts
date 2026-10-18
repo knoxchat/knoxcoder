@@ -6,13 +6,16 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanupTempRepos, git, makeTempRepo } from "../test/tempRepo";
 import type { BgRunResult } from "./background";
 import {
+  abortJob,
   createJob,
   discardJob,
   listJobs,
   loadJob,
   mergeJob,
+  MAX_CONCURRENT_BG_JOBS,
   runJob,
   saveJob,
+  startJob,
 } from "./background";
 
 const roots: string[] = [];
@@ -111,5 +114,49 @@ describe("background agents", () => {
     expect(parsed.summary).toMatch(/^n\d+$/);
     expect(loadJob(root, job.id)?.summary).toBe(parsed.summary);
     expect(fs.readdirSync(path.join(root, job.id)).filter((n) => n.endsWith(".tmp"))).toEqual([]);
+  });
+
+  it("seeds uncommitted parent files into the worktree", () => {
+    const repo = makeTempRepo({ "a.txt": "one\n" });
+    fs.writeFileSync(path.join(repo, "a.txt"), "dirty\n");
+    fs.writeFileSync(path.join(repo, "new.txt"), "untracked\n");
+    const root = bgRoot();
+    const job = startJob({ root, dir: repo, task: "seed" });
+    expect(fs.readFileSync(path.join(job.worktree, "a.txt"), "utf-8")).toBe("dirty\n");
+    expect(fs.readFileSync(path.join(job.worktree, "new.txt"), "utf-8")).toBe(
+      "untracked\n",
+    );
+  });
+
+  it("caps concurrent running jobs", () => {
+    const repo = makeTempRepo({ "a.txt": "one\n" });
+    const root = bgRoot();
+    startJob({ root, dir: repo, task: "one" });
+    startJob({ root, dir: repo, task: "two" });
+    expect(MAX_CONCURRENT_BG_JOBS).toBe(2);
+    expect(() => startJob({ root, dir: repo, task: "three" })).toThrow(
+      /at most 2/i,
+    );
+  });
+
+  it("aborts a running job without using the host process pid", async () => {
+    const repo = makeTempRepo({ "a.txt": "one\n" });
+    const root = bgRoot();
+    const job = startJob({ root, dir: repo, task: "hang" });
+    const pending = runJob({
+      root,
+      id: job.id,
+      run: async (_j, signal) =>
+        new Promise<BgRunResult>((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(new Error("aborted")), {
+            once: true,
+          });
+        }),
+    });
+    expect(abortJob(job.id)).toBe(true);
+    const done = await pending;
+    expect(done.status).toBe("failed");
+    expect(done.error).toMatch(/aborted/);
+    expect(done.pid).toBeUndefined();
   });
 });
