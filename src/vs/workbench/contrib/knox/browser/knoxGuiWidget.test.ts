@@ -122,6 +122,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.deepStrictEqual(ids, KNOX_GUI_LUMP_TOOLBAR.map(entry => `knox-gui-lump-${entry.id}`));
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-context"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-starters'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="sample-prompts"]'), null);
 	});
 
 	test('Ask/Edits/Auto is the mode dropdown; Chat vs Agent is not a user tab', async () => {
@@ -838,6 +839,17 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-modal"]'));
 		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-form-title')?.textContent, 'Add Model');
 		assert.ok(!widget.root.querySelector('.knox-gui-add-model-form-title')?.textContent?.includes('Chat'));
+	});
+
+	test('empty chat with a model does not show Try sample prompt chips', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			history: [],
+			models: [{ title: 'Local Llama', provider: 'ollama', model: 'llama3' }],
+		});
+		assert.strictEqual(widget.root.querySelector('[data-testid="sample-prompts"]'), null);
+		assert.strictEqual(widget.root.querySelector('.knox-gui-sample-prompts'), null);
+		assert.strictEqual(widget.root.querySelector('.knox-gui-sample-prompt'), null);
 	});
 
 	test('custom config.yaml models still open the model dropdown instead of the Add Model modal', async () => {

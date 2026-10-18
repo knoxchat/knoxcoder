@@ -3,6 +3,10 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Removed
+
+- Empty-chat **Try** sample prompt chips in Knox Agent (truncated, unused starter tips).
+
 ## [2.1.3] - 2026-10-18
 
 ### Added

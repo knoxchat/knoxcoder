@@ -342,9 +342,5 @@ export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"recipeApply": "应用",
 	"recipeSkip": "跳过，交给模型",
 	"recipeReplayApplied": "已应用已验证的方案“{{title}}”（{{count}} 个文件），未调用模型。可点击“撤销”恢复原状。",
-	"recipeReplayFailed": "无法应用已保存的方案“{{title}}”（{{reason}}）。将继续交给模型处理。",
-	"samplePromptsTitle": "试试",
-	"samplePromptExplain": "说明这个仓库的结构",
-	"samplePromptTests": "找出失败的测试并修复",
-	"samplePromptDiff": "审阅未提交的更改"
+	"recipeReplayFailed": "无法应用已保存的方案“{{title}}”（{{reason}}）。将继续交给模型处理。"
 };

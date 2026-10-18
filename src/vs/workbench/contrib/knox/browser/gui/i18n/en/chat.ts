@@ -342,9 +342,5 @@ export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"recipeApply": "Apply",
 	"recipeSkip": "Skip, ask the model",
 	"recipeReplayApplied": "Applied verified recipe \"{{title}}\" to {{count}} file(s) with no model call. Use Undo to restore the previous state.",
-	"recipeReplayFailed": "The saved recipe \"{{title}}\" could not be applied ({{reason}}). Continuing with the model.",
-	"samplePromptsTitle": "Try",
-	"samplePromptExplain": "Explain how this repository is structured",
-	"samplePromptTests": "Find failing tests and fix them",
-	"samplePromptDiff": "Review uncommitted changes"
+	"recipeReplayFailed": "The saved recipe \"{{title}}\" could not be applied ({{reason}}). Continuing with the model."
 };
