@@ -37,7 +37,7 @@ Rules:
         },
         new_string: {
           type: "string",
-          description: "Replacement text (alias: newText). May be empty to delete old_string.",
+          description: "Replacement text (alias: newText). Empty or omitted deletes old_string.",
         },
         replace_all: {
           type: "boolean",

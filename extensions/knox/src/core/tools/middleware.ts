@@ -302,6 +302,147 @@ export function resetAllCircuitBreakers(): void {
  * - Escaped newlines in strings
  * - Control characters
  */
+/**
+ * Close open strings/objects/arrays so truncated tool arguments still parse.
+ * Same idea as the GUI `incrementalParseJson` closer.
+ */
+function closePartialJson(raw: string): string {
+  let inString = false;
+  let escaped = false;
+  const stack: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") {
+      stack.push("}");
+    } else if (ch === "[") {
+      stack.push("]");
+    } else if ((ch === "}" || ch === "]") && stack.length) {
+      stack.pop();
+    }
+  }
+  let result = raw;
+  if (escaped) {
+    result = result.slice(0, -1);
+  }
+  if (inString) {
+    result += '"';
+  }
+  result = result.replace(/\s+$/, "");
+  result = result.replace(/,\s*$/, "");
+  if (/:\s*$/.test(result)) {
+    result = result.replace(/,?\s*"(?:[^"\\]|\\.)*"\s*:\s*$/, "");
+  } else if (/([{,])\s*"(?:[^"\\]|\\.)*"?\s*$/.test(result)) {
+    result = result.replace(/([{,])\s*"(?:[^"\\]|\\.)*"?\s*$/, (_, sep: string) =>
+      sep === "{" ? "{" : "",
+    );
+  }
+  result = result.replace(/,\s*$/, "");
+  if (/[-.eE]$/.test(result)) {
+    result += "0";
+  }
+  for (let i = stack.length - 1; i >= 0; i--) {
+    result += stack[i];
+  }
+  return result;
+}
+
+/**
+ * Models often put raw newlines and unescaped quotes inside JSON string
+ * values (`"did the agent…"` in markdown). Escape those so JSON.parse works.
+ */
+function sanitizeJsonStringLiterals(raw: string): string {
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (!inString) {
+      out += ch;
+      if (ch === '"') {
+        inString = true;
+      }
+      continue;
+    }
+    if (escaped) {
+      out += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      out += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === "\n") {
+      out += "\\n";
+      continue;
+    }
+    if (ch === "\r") {
+      out += "\\r";
+      continue;
+    }
+    if (ch === "\t") {
+      out += "\\t";
+      continue;
+    }
+    if (ch === '"') {
+      let j = i + 1;
+      while (j < raw.length && /\s/.test(raw[j])) {
+        j++;
+      }
+      const next = raw[j];
+      const endsValue =
+        next === undefined || next === "," || next === "}" || next === "]" || next === ":";
+      if (endsValue) {
+        inString = false;
+        out += ch;
+      } else {
+        out += '\\"';
+      }
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function tryParseJsonObject(raw: string): Record<string, any> | undefined {
+  try {
+    const result = JSON.parse(raw);
+    if (result && typeof result === "object" && !Array.isArray(result)) {
+      return result;
+    }
+  } catch {
+    try {
+      const result = JSON.parse(closePartialJson(raw));
+      if (result && typeof result === "object" && !Array.isArray(result)) {
+        return result;
+      }
+    } catch {
+      // keep going
+    }
+  }
+  return undefined;
+}
+
 export function repairJsonArgs(raw: string): Record<string, any> {
   if (!raw || typeof raw !== "string") {
     return {};
@@ -314,12 +455,14 @@ export function repairJsonArgs(raw: string): Record<string, any> {
     str = str.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
   }
 
-  // Try direct parse first
-  try {
-    const result = JSON.parse(str);
-    return typeof result === "object" && result !== null ? result : {};
-  } catch {
-    // Continue with repair
+  const direct = tryParseJsonObject(str);
+  if (direct) {
+    return direct;
+  }
+
+  const sanitized = tryParseJsonObject(sanitizeJsonStringLiterals(str));
+  if (sanitized) {
+    return sanitized;
   }
 
   // Repair pass 1: handle common issues
@@ -362,16 +505,14 @@ export function repairJsonArgs(raw: string): Record<string, any> {
     repaired += "]".repeat(openBrackets);
   }
 
-  // Try parsing repaired string
-  try {
-    const result = JSON.parse(repaired);
-    return typeof result === "object" && result !== null ? result : {};
-  } catch {
-    // Continue with more aggressive repair
+  const afterPass1 =
+    tryParseJsonObject(repaired) ?? tryParseJsonObject(sanitizeJsonStringLiterals(repaired));
+  if (afterPass1) {
+    return afterPass1;
   }
 
   // Repair pass 2: extract key-value pairs with regex
-  return extractArgsFromString(str);
+  return extractArgsFromString(sanitizeJsonStringLiterals(str));
 }
 
 /**

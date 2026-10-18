@@ -17,6 +17,19 @@ describe("parseToolArgsChecked", () => {
     expect(parseToolArgsChecked('```json\n{"x": 2}\n```', "t").args).toEqual({ x: 2 });
   });
 
+  it("recovers old_string with raw newlines and unescaped quotes", () => {
+    const raw = `{
+  "filepath": "knox-impl.md",
+  "old_string": "### W11. No quality metric loop for "did the agent actually finish"
+Eval has compaction and soak tests"
+}`;
+    const { args, error } = parseToolArgsChecked(raw, "builtin_edit_file");
+    expect(error).toBeUndefined();
+    expect(args.filepath).toBe("knox-impl.md");
+    expect(String(args.old_string)).toContain("did the agent actually finish");
+    expect(String(args.old_string)).toContain("Eval has compaction");
+  });
+
   it("reports InvalidJson instead of silently returning {}", () => {
     const { args, error } = parseToolArgsChecked("not json at all", "builtin_edit_file");
     expect(args).toEqual({});

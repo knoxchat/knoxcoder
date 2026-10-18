@@ -104,6 +104,38 @@ describe("editFileImpl", () => {
     expect(result[0].content).toMatch(/2 replacement/);
   });
 
+  it("deletes old_string when new_string is omitted", async () => {
+    const body =
+      'Eval has compaction and soak tests, but nothing scores a *live* multi-step task\nunit tests, not by task success.\n';
+    const ide = mockIde({
+      readFile: vi.fn(async () => body),
+    });
+    await editFileImpl(
+      {
+        filepath: "knox-impl.md",
+        old_string: "unit tests, not by task success.",
+      },
+      extras(ide),
+    );
+    expect(ide.writeFile).toHaveBeenCalledWith(
+      "file:///tmp/ws/knox-impl.md",
+      "Eval has compaction and soak tests, but nothing scores a *live* multi-step task\n\n",
+    );
+
+    const listed = mockIde({ readFile: vi.fn(async () => body) });
+    await editFileImpl(
+      {
+        filepath: "knox-impl.md",
+        edits: [{ old_string: "unit tests, not by task success." }],
+      },
+      extras(listed),
+    );
+    expect(listed.writeFile).toHaveBeenCalledWith(
+      "file:///tmp/ws/knox-impl.md",
+      "Eval has compaction and soak tests, but nothing scores a *live* multi-step task\n\n",
+    );
+  });
+
   it("rejects empty old_string and treats identical old/new as already up to date", async () => {
     const ide = mockIde();
     await expect(
@@ -467,21 +499,22 @@ describe("K-032 edit reliability", () => {
     expect(out[0].content).toMatch(/trailing incomplete/);
   });
 
-  it("still fails a middle incomplete edit so later hunks cannot apply on the wrong text", async () => {
+  it("treats a middle old_string-only row as a delete, then applies later replacements", async () => {
     const ide = mockIde();
-    await expect(
-      editFileImpl(
-        {
-          filepath: "a.ts",
-          edits: [
-            { old_string: "const a = 1;" },
-            { old_string: "const b = 2;", new_string: "const b = 8;" },
-          ],
-        },
-        extras(ide),
-      ),
-    ).rejects.toThrow(/edits\[0\].*got keys: old_string/);
-    expect(ide.writeFile).not.toHaveBeenCalled();
+    await editFileImpl(
+      {
+        filepath: "a.ts",
+        edits: [
+          { old_string: "const a = 1;" },
+          { old_string: "const b = 2;", new_string: "const b = 8;" },
+        ],
+      },
+      extras(ide),
+    );
+    expect(ide.writeFile).toHaveBeenCalledWith(
+      "file:///tmp/ws/a.ts",
+      "\nconst b = 8;\n",
+    );
   });
 
   it("accepts a numeric-keyed edits object", async () => {

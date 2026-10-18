@@ -205,12 +205,20 @@ function specFromPair(
   index?: number,
 ): EditSpec {
   const oldText = coerceEditText(oldString);
-  const next = coerceEditText(newString);
-  if (typeof oldText !== "string" || typeof next !== "string") {
+  // Omit new_string to delete old_string (documented Edit / StrReplace behavior).
+  const next = newString === undefined ? "" : coerceEditText(newString);
+  if (typeof oldText !== "string") {
     throw new Error(
       index === undefined
         ? t("missingRequiredParam", { param: "old_string" })
-        : `edits[${index}] needs string old_string/oldText and new_string/newText`,
+        : `edits[${index}] needs string old_string/oldText`,
+    );
+  }
+  if (typeof next !== "string") {
+    throw new Error(
+      index === undefined
+        ? t("missingRequiredParam", { param: "new_string" })
+        : `edits[${index}] needs string new_string/newText (omit it to delete old_string)`,
     );
   }
   return {
@@ -221,7 +229,7 @@ function specFromPair(
 }
 
 type ParsedEntry =
-  | { kind: "ok"; spec: EditSpec }
+  | { kind: "ok"; spec: EditSpec; omittedNew?: boolean }
   | { kind: "empty" }
   | { kind: "bad"; message: string };
 
@@ -230,12 +238,14 @@ function tryEditEntry(entry: unknown, index: number): ParsedEntry {
     return { kind: "empty" };
   }
   if (typeof entry === "string") {
-    return entry.trim() ? { kind: "bad", message: `edits[${index}] needs string old_string/oldText and new_string/newText` } : { kind: "empty" };
+    return entry.trim()
+      ? { kind: "bad", message: `edits[${index}] needs string old_string/oldText` }
+      : { kind: "empty" };
   }
   if (typeof entry !== "object" || Array.isArray(entry)) {
     return {
       kind: "bad",
-      message: `edits[${index}] needs string old_string/oldText and new_string/newText`,
+      message: `edits[${index}] needs string old_string/oldText`,
     };
   }
   const row = entry as Record<string, unknown>;
@@ -244,11 +254,18 @@ function tryEditEntry(entry: unknown, index: number): ParsedEntry {
   if (oldText === undefined && next === undefined) {
     return { kind: "empty" };
   }
-  if (typeof oldText !== "string" || typeof next !== "string") {
-    const keys = Object.keys(row).join(", ") || "none";
+  const keys = Object.keys(row).join(", ") || "none";
+  if (typeof oldText !== "string") {
     return {
       kind: "bad",
-      message: `edits[${index}] needs string old_string/oldText and new_string/newText (got keys: ${keys})`,
+      message: `edits[${index}] needs string old_string/oldText (got keys: ${keys})`,
+    };
+  }
+  if (next === undefined) {
+    return {
+      kind: "ok",
+      spec: specFromPair(oldText, undefined, row.replace_all ?? row.replaceAll, index),
+      omittedNew: true,
     };
   }
   return {
@@ -272,21 +289,30 @@ export function collectEditsDetailed(args: any): CollectedEdits {
   const notes: string[] = [];
   if (listed && listed.length > 0) {
     const parsed = listed.map((entry, i) => tryEditEntry(entry, i));
+    const lastComplete = parsed.reduce(
+      (acc, item, i) => (item.kind === "ok" && !item.omittedNew ? i : acc),
+      -1,
+    );
     const lastOk = parsed.reduce((acc, item, i) => (item.kind === "ok" ? i : acc), -1);
     let skippedTrailing = 0;
     parsed.forEach((item, i) => {
-      if (item.kind === "ok") {
-        specs.push(item.spec);
-        return;
-      }
       if (item.kind === "empty") {
         return;
       }
-      if (i > lastOk) {
+      if (item.kind === "bad") {
+        if (i > lastOk) {
+          skippedTrailing++;
+          return;
+        }
+        throw new Error(item.message);
+      }
+      // A trailing old_string-only row after complete pairs is almost always a
+      // cut-off JSON object, not a delete. A lone old_string-only call is a delete.
+      if (item.omittedNew && lastComplete >= 0 && i > lastComplete) {
         skippedTrailing++;
         return;
       }
-      throw new Error(item.message);
+      specs.push(item.spec);
     });
     if (skippedTrailing > 0) {
       notes.push(
@@ -298,8 +324,11 @@ export function collectEditsDetailed(args: any): CollectedEdits {
   }
   const legacyOld = pickEditText(args, EDIT_OLD_KEYS);
   const legacyNew = pickEditText(args, EDIT_NEW_KEYS);
-  if (typeof legacyOld === "string" && typeof legacyNew === "string") {
-    specs.push(specFromPair(legacyOld, legacyNew, args.replace_all ?? args.replaceAll));
+  if (typeof legacyOld === "string") {
+    const omittedNew = legacyNew === undefined;
+    if (!omittedNew || specs.length === 0) {
+      specs.push(specFromPair(legacyOld, omittedNew ? undefined : legacyNew, args.replace_all ?? args.replaceAll));
+    }
   }
   if (specs.length === 0) {
     throw new Error(t("missingRequiredParam", { param: "old_string" }));
