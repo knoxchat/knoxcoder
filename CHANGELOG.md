@@ -3,9 +3,30 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.1.3] - 2026-10-18
+
+### Added
+
+- **CheckPoint +N/−N on chat file-edit cards.** Streaming file-modification cards show green `+N` and red `−N` counted with Knox CheckPoint line delta on the tool edit, not git unified diffs.
+
 ### Changed
 
 - **Reuse verified work** moved from Knox Agent Settings to **Memory → Settings**, next to the Recipes tab. Agent Settings stays for global agent knobs.
+- **Write tools retry less.** Fuzzy matching, no-op skips, and overwrite-on-create cut retry loops on file edits. The task plan is the work order: the current step auto-advances and the turn holds until remaining is 0.
+- Jev harness judgments go through OpenRouter System One when the selected model is OpenRouter (KnoxStudio-only `/v1/systemone` left OpenRouter sessions without Jev).
+- Linux native modules are built with Clang 15 instead of the flaky GCC 13 PPA.
+- Smaller desktop app: one shared mermaid webview, leftover Knox GUI and Electron-only `dist/browser` copies omitted.
+
+### Fixed
+
+- Recipe capture no longer races turn end: soul events and turn marks are awaited so a verified edit is visible to capture. The Memory Recipes tab shows why an empty list was skipped; repeating a chat is not enough.
+- Electron unit tests load under Mocha 12 and glob 13 (the Knox GUI job never reached the tests).
+
+### Removed
+
+- The post-turn files-changed card that appeared after every finished Knox conversation.
+- The inaccurate tokens-per-second rate from the Knox agent meter.
+- Unused Microsoft authentication and Azure wiring. KnoxCoder uses GitHub OAuth; Electron stays on 43.7.7.
 
 ## [2.1.2] - 2026-10-13
 
