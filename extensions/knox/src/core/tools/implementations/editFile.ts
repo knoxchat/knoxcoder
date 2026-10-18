@@ -5,6 +5,7 @@ import { ToolCallError, ToolCallErrorCode } from "../errors";
 import {
   applyEditsAgainstOriginal,
   FileEditMatchError,
+  findAllCollapsedWhitespaceSpans,
   findClosestLines,
   normalizeToLF,
   restoreLineEndings,
@@ -359,6 +360,32 @@ export function applyEditToContent(
     }
   }
   if (matches === 0) {
+    const spans = findAllCollapsedWhitespaceSpans(
+      content,
+      stripLineNumberGutter(edit.old_string),
+    );
+    if (spans.length > 1 && !edit.replace_all) {
+      throw new Error(
+        label + t("editOldStringNotUnique", { filepath, count: String(spans.length) }),
+      );
+    }
+    if (spans.length > 0) {
+      const use = edit.replace_all ? spans : spans.slice(0, 1);
+      if (isCrlfFile(content) && /(^|[^\r])\n/.test(newString)) {
+        newString = newString.replace(/\r?\n/g, "\r\n");
+      }
+      let next = content;
+      for (let i = use.length - 1; i >= 0; i--) {
+        const span = use[i];
+        next = next.slice(0, span.start) + newString + next.slice(span.end);
+      }
+      return {
+        next,
+        replaced: use.length,
+        note:
+          "old_string did not match exactly; it matched after ignoring line wrapping and extra whitespace.",
+      };
+    }
     const closest = findClosestLines(content, edit.old_string);
     const hint = closest.length
       ? `\n${t("editClosestLines", { lines: closest.join("\n") })}`

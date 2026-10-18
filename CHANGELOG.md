@@ -5,7 +5,7 @@ All notable changes to KnoxCoder are documented in this file.
 
 ### Fixed
 
-- **Agent file-edit tool calls recover more often.** `builtin_edit_file` accepts `search`/`replace`, `oldString`/`newString`, `old_str`/`new_str`, and line-array values in `edits[]`, and skips a truncated trailing entry instead of failing the whole call (`edits[12] needs string old_string…`). `builtin_apply_patch` now matches hunks with indent drift, partial first/last lines, stale context (git-style fuzz), unique deleted-line fallbacks, and unified-diff `---`/`+++` wrappers, and lists closest lines when a hunk still misses.
+- **Agent file-edit tool calls recover more often.** `builtin_edit_file` accepts `search`/`replace`, `oldString`/`newString`, `old_str`/`new_str`, and line-array values in `edits[]`, and skips a truncated trailing entry instead of failing the whole call (`edits[12] needs string old_string…`). Matching now ignores markdown line wrapping, so a unique paragraph still applies when the model broke lines differently than the file. `builtin_apply_patch` now matches hunks with indent drift, wrap drift, partial first/last lines, stale context (git-style fuzz), unique deleted-line fallbacks, and unified-diff `---`/`+++` wrappers, and lists closest lines when a hunk still misses.
 
 ### Removed
 

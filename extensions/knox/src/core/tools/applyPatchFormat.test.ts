@@ -177,6 +177,23 @@ describe("applyHunksToContent", () => {
     ).toBe("const a = 1;\n    const b = 3;\n");
   });
 
+  it("matches a hunk whose context is wrapped differently than the file", () => {
+    const ops = parseApplyPatch(`*** Begin Patch
+*** Update File: knox-impl.md
+@@
+ spliced at \`msgsCopy.splice(-1, 0, ...)\` (\`countTokens.ts:440-452\`), then moves it to
+ the head
+-(\`:509\`). The volatile plan/serial injects therefore sit inside the same system message that
++(\`:507-508\`). The volatile plan/serial injects therefore sit inside the same system message that
+*** End Patch`);
+    if (ops[0].type !== "update") {
+      return;
+    }
+    const file =
+      "The helper is spliced at `msgsCopy.splice(-1, 0, ...)` (`countTokens.ts:440-452`), then moves it to the head (`:509`). The volatile plan/serial injects therefore sit inside the same system message that\n";
+    expect(applyHunksToContent(file, ops[0].hunks, "knox-impl.md")).toContain(":507-508");
+  });
+
   it("matches a partial first context line as a substring", () => {
     const ops = parseApplyPatch(`*** Begin Patch
 *** Update File: knox-impl.md

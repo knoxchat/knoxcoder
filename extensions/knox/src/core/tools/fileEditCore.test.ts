@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   applyEditsAgainstOriginal,
   FileEditMatchError,
+  findClosestLines,
+  findCollapsedWhitespaceSpan,
   findLineSequence,
   fuzzyFindText,
   normalizeForFuzzyMatch,
@@ -59,5 +61,24 @@ describe("fileEditCore", () => {
     expect(
       findLineSequence(["    const b = 2;"], ["  const b = 2;"]),
     ).toEqual([0]);
+  });
+
+  it("maps a wrap-drifted needle onto the original one-line span", () => {
+    const content =
+      "spliced at msgsCopy, then moves it to the head (:509). The volatile plan/serial injects therefore sit inside the same system message that\n";
+    const needle =
+      "spliced at msgsCopy, then moves it to\nthe head\n(:509). The volatile plan/serial injects therefore sit inside the same system message that";
+    const span = findCollapsedWhitespaceSpan(content, needle);
+    expect(span).toEqual({ start: 0, end: content.trimEnd().length });
+  });
+
+  it("hints the paragraph when wrap hides the first needle line", () => {
+    const content =
+      "The helper is spliced at `msgsCopy.splice(-1, 0, ...)` (`countTokens.ts:440-456`), then moved to the head.\n";
+    const closest = findClosestLines(
+      content,
+      "spliced at `msgsCopy.splice(-1, 0, ...)` (`countTokens.ts:440-452`), then moves it to",
+    );
+    expect(closest.join("\n")).toMatch(/1:.*msgsCopy/);
   });
 });

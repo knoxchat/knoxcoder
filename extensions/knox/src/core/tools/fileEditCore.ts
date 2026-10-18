@@ -51,6 +51,104 @@ export function normalizeForFuzzyMatch(text: string): string {
     .replace(/[\u00A0\u2002-\u200A\u202F\u205F\u3000]/g, " ");
 }
 
+function canonicalizeMatchChar(ch: string): string {
+  if (/[\u2018\u2019\u201A\u201B]/.test(ch)) {
+    return "'";
+  }
+  if (/[\u201C\u201D\u201E\u201F]/.test(ch)) {
+    return '"';
+  }
+  if (/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/.test(ch)) {
+    return "-";
+  }
+  if (/[\u00A0\u2002-\u200A\u202F\u205F\u3000]/.test(ch)) {
+    return " ";
+  }
+  return ch;
+}
+
+/**
+ * Collapse all whitespace (including newlines) to a single space so markdown
+ * wrap drift still locates the same unique span. indexMap[i] is the original
+ * offset of collapsed[i].
+ */
+export function collapseWhitespace(text: string): {
+  collapsed: string;
+  indexMap: number[];
+} {
+  let collapsed = "";
+  const indexMap: number[] = [];
+  let i = 0;
+  const isWs = (ch: string) => /\s/.test(ch) || ch === " ";
+  while (i < text.length) {
+    const raw = text[i];
+    const ch = canonicalizeMatchChar(raw);
+    if (isWs(raw) || isWs(ch)) {
+      while (i < text.length) {
+        const r = text[i];
+        const n = canonicalizeMatchChar(r);
+        if (!(isWs(r) || isWs(n))) {
+          break;
+        }
+        i++;
+      }
+      if (collapsed.length > 0 && !collapsed.endsWith(" ")) {
+        collapsed += " ";
+        indexMap.push(i - 1);
+      }
+      continue;
+    }
+    collapsed += ch;
+    indexMap.push(i);
+    i++;
+  }
+  if (collapsed.endsWith(" ")) {
+    collapsed = collapsed.slice(0, -1);
+    indexMap.pop();
+  }
+  return { collapsed, indexMap };
+}
+
+const MIN_COLLAPSED_MATCH = 12;
+
+export interface CollapsedSpan {
+  start: number;
+  end: number;
+}
+
+/** Non-overlapping original-file spans that match `needle` ignoring wrap/indent. */
+export function findAllCollapsedWhitespaceSpans(
+  content: string,
+  needle: string,
+): CollapsedSpan[] {
+  const hay = collapseWhitespace(content);
+  const ned = collapseWhitespace(needle);
+  if (ned.collapsed.length < MIN_COLLAPSED_MATCH) {
+    return [];
+  }
+  const spans: CollapsedSpan[] = [];
+  let from = 0;
+  while (from + ned.collapsed.length <= hay.collapsed.length) {
+    const idx = hay.collapsed.indexOf(ned.collapsed, from);
+    if (idx === -1) {
+      break;
+    }
+    const start = hay.indexMap[idx];
+    const last = hay.indexMap[idx + ned.collapsed.length - 1];
+    spans.push({ start, end: last + 1 });
+    from = idx + ned.collapsed.length;
+  }
+  return spans;
+}
+
+export function findCollapsedWhitespaceSpan(
+  content: string,
+  needle: string,
+): CollapsedSpan | undefined {
+  const spans = findAllCollapsedWhitespaceSpans(content, needle);
+  return spans.length === 1 ? spans[0] : undefined;
+}
+
 export interface FuzzyMatchResult {
   found: boolean;
   index: number;
@@ -371,7 +469,29 @@ export function findClosestLines(
       sameKey.push(entry);
     }
   });
-  return [...exact, ...sameKey].slice(0, limit);
+  const found = [...exact, ...sameKey];
+  if (found.length > 0) {
+    return found.slice(0, limit);
+  }
+
+  const hay = collapseWhitespace(content);
+  const ned = collapseWhitespace(needle);
+  const words = ned.collapsed.split(" ").filter(Boolean);
+  for (let n = Math.min(words.length, 12); n >= 3; n--) {
+    const probe = words.slice(0, n).join(" ");
+    if (probe.length < MIN_COLLAPSED_MATCH) {
+      continue;
+    }
+    const idx = hay.collapsed.indexOf(probe);
+    if (idx === -1) {
+      continue;
+    }
+    const start = hay.indexMap[idx];
+    const lineNo = content.slice(0, start).split(/\r?\n/).length;
+    const line = content.split(/\r?\n/)[lineNo - 1] ?? "";
+    return [`${lineNo}: ${line}`];
+  }
+  return [];
 }
 
 /**

@@ -23,6 +23,7 @@ import {
   detectLineEnding,
   FileEditMatchError,
   findClosestLines,
+  findCollapsedWhitespaceSpan,
   findLineSequence,
   normalizeToLF,
   restoreLineEndings,
@@ -568,8 +569,14 @@ function tryJoinedReplacement(
         `Patch hunk matched more than once in "${filepath}". Add more unique context or an @@ locator.`,
       );
     }
+  }
+  const span = findCollapsedWhitespaceSpan(normalized, oldText);
+  if (!span) {
     return undefined;
   }
+  const next =
+    normalized.slice(0, span.start) + normalizeToLF(newText) + normalized.slice(span.end);
+  return bom + restoreLineEndings(next, ending);
 }
 
 function hunkMissHint(content: string, oldLines: string[]): string {

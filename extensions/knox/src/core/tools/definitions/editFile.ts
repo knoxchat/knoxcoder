@@ -16,7 +16,7 @@ export const editFileTool: Tool = {
 
 Rules:
 - Read the file first. old_string/oldText should uniquely identify the edit.
-- Matching is against the original file. Trailing whitespace, smart quotes, unicode dashes, and indent mismatches are recovered when the block is still unique. oldText/old_str/search aliases and a line-array old_string are accepted. A truncated trailing edits[] entry is skipped.
+- Matching is against the original file. Trailing whitespace, smart quotes, unicode dashes, indent, and markdown line-wrapping mismatches are recovered when the block is still unique. oldText/old_str/search aliases and a line-array old_string are accepted. A truncated trailing edits[] entry is skipped.
 - If it matches 0 times the call fails. If it matches more than once the call fails unless replace_all is true.
 - Several disjoint replacements in one file: edits:[{old_string,new_string}]. Do not emit overlapping or nested edits; merge nearby changes into one edit.
 - Prefer this over rewriting the whole file or using the terminal (no cat/echo/heredoc writes).

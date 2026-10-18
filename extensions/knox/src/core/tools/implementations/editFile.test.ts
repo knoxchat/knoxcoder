@@ -205,6 +205,32 @@ describe("editFileImpl", () => {
       expect(ide.writeFile).not.toHaveBeenCalled();
     });
 
+    it("recovers when old_string wraps the same paragraph differently", async () => {
+      const file = [
+        "The helper is spliced at `msgsCopy.splice(-1, 0, ...)` (`countTokens.ts:440-452`), then moves it to the head (`:509`). The volatile plan/serial injects therefore sit inside the same system message that",
+        "carries the rest.",
+        "",
+      ].join("\n");
+      const ide = mockIde({ readFile: vi.fn(async () => file) });
+      const out = await editFileImpl(
+        {
+          filepath: "knox-impl.md",
+          old_string:
+            "spliced at `msgsCopy.splice(-1, 0, ...)` (`countTokens.ts:440-452`), then moves it to\nthe head\n(`:509`). The volatile plan/serial injects therefore sit inside the same system message that",
+          new_string:
+            "spliced at `msgsCopy.splice(-1, 0, ...)` (`countTokens.ts:440-456`), then moved to the\nhead\n(`:507-508`). The volatile plan/serial injects therefore sit inside the same system message that",
+        },
+        extras(ide),
+      );
+      expect(ide.writeFile).toHaveBeenCalled();
+      const written = vi.mocked(ide.writeFile).mock.calls[0][1];
+      expect(written).toContain("countTokens.ts:440-456");
+      expect(written).toContain("then moved to the");
+      expect(written).toContain(":507-508");
+      expect(written).not.toContain("440-452");
+      expect(out[0].content).toMatch(/wrapping/i);
+    });
+
     it("treats trailing whitespace as unique when leading indent still differs", async () => {
       const ide = mockIde({
         readFile: vi.fn(async () => "  foo();\n\tfoo();\n"),
