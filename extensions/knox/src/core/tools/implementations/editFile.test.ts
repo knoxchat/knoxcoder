@@ -421,6 +421,61 @@ describe("K-032 edit reliability", () => {
     expect(again[0].content).not.toMatch(/changed on disk/);
   });
 
+  it("accepts search/replace, oldString, and line-array edits including a truncated tail", async () => {
+    const ide = mockIde();
+    const out = await editFileImpl(
+      {
+        filepath: "a.ts",
+        edits: [
+          { search: "const a = 1;", replace: "const a = 9;" },
+          { oldString: "const b = 2;", newString: ["const b = 8;"] },
+          { old_string: "this was cut off" },
+        ],
+      },
+      extras(ide),
+    );
+    expect(ide.writeFile).toHaveBeenCalledWith(
+      "file:///tmp/ws/a.ts",
+      "const a = 9;\nconst b = 8;\n",
+    );
+    expect(out[0].content).toMatch(/trailing incomplete/);
+  });
+
+  it("still fails a middle incomplete edit so later hunks cannot apply on the wrong text", async () => {
+    const ide = mockIde();
+    await expect(
+      editFileImpl(
+        {
+          filepath: "a.ts",
+          edits: [
+            { old_string: "const a = 1;" },
+            { old_string: "const b = 2;", new_string: "const b = 8;" },
+          ],
+        },
+        extras(ide),
+      ),
+    ).rejects.toThrow(/edits\[0\].*got keys: old_string/);
+    expect(ide.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("accepts a numeric-keyed edits object", async () => {
+    const ide = mockIde();
+    await editFileImpl(
+      {
+        filepath: "a.ts",
+        edits: {
+          "0": { old_str: "const a = 1;", new_str: "const a = 4;" },
+          "1": { from: "const b = 2;", to: "const b = 5;" },
+        },
+      },
+      extras(ide),
+    );
+    expect(ide.writeFile).toHaveBeenCalledWith(
+      "file:///tmp/ws/a.ts",
+      "const a = 4;\nconst b = 5;\n",
+    );
+  });
+
   it("accepts Pi/Claude oldText/newText aliases and a JSON-string edits array", async () => {
     const ide = mockIde();
     await editFileImpl(

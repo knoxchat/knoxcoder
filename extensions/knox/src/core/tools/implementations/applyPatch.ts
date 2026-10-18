@@ -170,11 +170,13 @@ async function rollbackWritten(
 }
 
 export const applyPatchImpl: ToolImpl = async (args, extras) => {
+  const rawCandidate = args.patch ?? args.diff ?? args.contents ?? args.content;
   const raw =
-    typeof args.patch === "string"
-      ? args.patch
-      : typeof args.diff === "string"
-        ? args.diff
+    typeof rawCandidate === "string"
+      ? rawCandidate
+      : Array.isArray(rawCandidate) &&
+          rawCandidate.every((line: unknown) => typeof line === "string")
+        ? rawCandidate.join("\n")
         : "";
   if (!raw.trim()) {
     throw new Error(t("missingRequiredParam", { param: "patch" }));

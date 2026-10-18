@@ -54,4 +54,10 @@ describe("fileEditCore", () => {
       findLineSequence(["const b = 2;  "], ["const b = 2;"]),
     ).toEqual([0]);
   });
+
+  it("finds a line sequence when only indent differs", () => {
+    expect(
+      findLineSequence(["    const b = 2;"], ["  const b = 2;"]),
+    ).toEqual([0]);
+  });
 });

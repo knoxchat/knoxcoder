@@ -46,6 +46,12 @@ describe("coerceArgsToSchema", () => {
     expect(coerceArgsToSchema({ filepath: 42 }, schema).filepath).toBe("42");
   });
 
+  it("joins a string[] where a string is declared", () => {
+    expect(
+      coerceArgsToSchema({ filepath: ["src", "a.ts"] }, schema).filepath,
+    ).toBe("src\na.ts");
+  });
+
   it("parses JSON strings into arrays and objects", () => {
     const out = coerceArgsToSchema(
       { filepath: "a", paths: '["x","y"]', options: '{"depth":"3"}' },

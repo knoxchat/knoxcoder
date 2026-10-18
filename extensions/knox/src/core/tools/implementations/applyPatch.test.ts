@@ -132,6 +132,17 @@ describe("applyPatchImpl", () => {
     await expect(applyPatchImpl({}, extras(ide))).rejects.toThrow(/patch/i);
   });
 
+  it("accepts a diff alias", async () => {
+    const ide = mockIde({
+      "file:///tmp/ws/src/a.ts": "const a = 1;\nconst b = 2;\n",
+    });
+    await applyPatchImpl({ diff: UPDATE }, extras(ide));
+    expect(ide.writeFile).toHaveBeenCalledWith(
+      "file:///tmp/ws/src/a.ts",
+      "const a = 1;\nconst b = 3;\n",
+    );
+  });
+
   it("rewrites a new Cargo.toml add from edition 2021 to 2024", async () => {
     const ide = mockIde({});
     await applyPatchImpl(

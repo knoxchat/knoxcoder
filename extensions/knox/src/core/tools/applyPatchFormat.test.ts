@@ -147,7 +147,7 @@ describe("applyHunksToContent", () => {
     );
   });
 
-  it("matches hunks with trailing whitespace drift", async () => {
+  it("matches hunks with trailing whitespace drift", () => {
     const ops = parseApplyPatch(`*** Begin Patch
 *** Update File: a.ts
 @@
@@ -159,6 +159,110 @@ describe("applyHunksToContent", () => {
     }
     expect(
       applyHunksToContent("const a = 1;\nconst b = 2;  \n", ops[0].hunks, "a.ts"),
+    ).toBe("const a = 1;\nconst b = 3;\n");
+  });
+
+  it("matches hunks with the wrong indent and re-indents the replacement", () => {
+    const ops = parseApplyPatch(`*** Begin Patch
+*** Update File: a.ts
+@@
+-  const b = 2;
++  const b = 3;
+*** End Patch`);
+    if (ops[0].type !== "update") {
+      return;
+    }
+    expect(
+      applyHunksToContent("const a = 1;\n    const b = 2;\n", ops[0].hunks, "a.ts"),
+    ).toBe("const a = 1;\n    const b = 3;\n");
+  });
+
+  it("matches a partial first context line as a substring", () => {
+    const ops = parseApplyPatch(`*** Begin Patch
+*** Update File: knox-impl.md
+@@
+ is what
+-chatTurn.ts:157
++chatTurn.ts:169-170
+*** End Patch`);
+    if (ops[0].type !== "update") {
+      return;
+    }
+    expect(
+      applyHunksToContent(
+        "This is what\nchatTurn.ts:157\nconstraint noted\n",
+        ops[0].hunks,
+        "knox-impl.md",
+      ),
+    ).toBe("This is what\nchatTurn.ts:169-170\nconstraint noted\n");
+  });
+
+  it("ignores unified-diff ---/+++ headers inside an Update File hunk", () => {
+    const ops = parseApplyPatch(`*** Begin Patch
+*** Update File: a.ts
+--- a/a.ts
++++ b/a.ts
+@@
+ const a = 1;
+-const b = 2;
++const b = 3;
+*** End Patch`);
+    if (ops[0].type !== "update") {
+      return;
+    }
+    expect(
+      applyHunksToContent("const a = 1;\nconst b = 2;\n", ops[0].hunks, "a.ts"),
+    ).toBe("const a = 1;\nconst b = 3;\n");
+  });
+
+  it("drops stale leading context when the deleted lines are unique", () => {
+    const ops = parseApplyPatch(`*** Begin Patch
+*** Update File: a.ts
+@@
+ stale context that is not in the file
+ const a = 1;
+-const b = 2;
++const b = 3;
+*** End Patch`);
+    if (ops[0].type !== "update") {
+      return;
+    }
+    expect(
+      applyHunksToContent("const a = 1;\nconst b = 2;\n", ops[0].hunks, "a.ts"),
+    ).toBe("const a = 1;\nconst b = 3;\n");
+  });
+
+  it("lists closest lines when a hunk still cannot match", () => {
+    const ops = parseApplyPatch(`*** Begin Patch
+*** Update File: a.ts
+@@
+-const b = 99;
++bar
+*** End Patch`);
+    if (ops[0].type !== "update") {
+      return;
+    }
+    const hunks = ops[0].hunks;
+    expect(() =>
+      applyHunksToContent("const a = 1;\nconst b = 2;\n", hunks, "a.ts"),
+    ).toThrow(/did not match[\s\S]*Closest lines/i);
+  });
+
+  it("parses a raw unified diff", () => {
+    const ops = parseApplyPatch(`--- a/src/a.ts
++++ b/src/a.ts
+@@ -1,2 +1,2 @@
+ const a = 1;
+-const b = 2;
++const b = 3;
+`);
+    expect(ops).toHaveLength(1);
+    expect(ops[0]).toMatchObject({ type: "update", path: "src/a.ts" });
+    if (ops[0].type !== "update") {
+      return;
+    }
+    expect(
+      applyHunksToContent("const a = 1;\nconst b = 2;\n", ops[0].hunks, "src/a.ts"),
     ).toBe("const a = 1;\nconst b = 3;\n");
   });
 });

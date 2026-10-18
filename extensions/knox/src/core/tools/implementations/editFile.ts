@@ -5,11 +5,19 @@ import { ToolCallError, ToolCallErrorCode } from "../errors";
 import {
   applyEditsAgainstOriginal,
   FileEditMatchError,
+  findClosestLines,
   normalizeToLF,
   restoreLineEndings,
   detectLineEnding,
   splitBom,
 } from "../fileEditCore";
+import {
+  asEditsArray,
+  coerceEditText,
+  EDIT_NEW_KEYS,
+  EDIT_OLD_KEYS,
+  pickEditText,
+} from "../editArgs";
 
 import { ToolImpl } from ".";
 import { evaluateRustEditGuard } from "../rustEditGuard";
@@ -56,40 +64,7 @@ export function replaceFirstExact(
   return haystack.slice(0, idx) + replacement + haystack.slice(idx + needle.length);
 }
 
-/**
- * Up to `limit` lines of `content` most likely meant by the first line of
- * `needle` (whitespace-insensitive match, then same leading key). Helps the
- * model retry with exact text instead of guessing again.
- */
-export function findClosestLines(
-  content: string,
-  needle: string,
-  limit = 3,
-): string[] {
-  const squash = (s: string) => s.replace(/\s+/g, " ").trim();
-  const firstLine = needle.split(/\r?\n/).find((l) => l.trim()) ?? "";
-  const target = squash(firstLine);
-  if (!target) {
-    return [];
-  }
-  const key = target.match(/^[\w.\-"]+/)?.[0];
-  const lines = content.split(/\r?\n/);
-  const exact: string[] = [];
-  const sameKey: string[] = [];
-  lines.forEach((line, i) => {
-    const squashed = squash(line);
-    if (!squashed) {
-      return;
-    }
-    const entry = `${i + 1}: ${line}`;
-    if (squashed.includes(target)) {
-      exact.push(entry);
-    } else if (key && key.length >= 3 && squashed.startsWith(key)) {
-      sameKey.push(entry);
-    }
-  });
-  return [...exact, ...sameKey].slice(0, limit);
-}
+export { findClosestLines };
 
 /**
  * Models often copy `read_file` output with its `  34 | ` gutter. Strip it only
@@ -222,46 +197,14 @@ export interface EditSpec {
   replace_all?: boolean;
 }
 
-function editText(value: unknown, ...aliases: unknown[]): string | undefined {
-  for (const candidate of [value, ...aliases]) {
-    if (typeof candidate === "string") {
-      return candidate;
-    }
-  }
-  return undefined;
-}
-
-function parseEditsField(raw: unknown): unknown[] | undefined {
-  if (Array.isArray(raw)) {
-    return raw;
-  }
-  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-    return [raw];
-  }
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-      if (parsed && typeof parsed === "object") {
-        return [parsed];
-      }
-    } catch {
-      return undefined;
-    }
-  }
-  return undefined;
-}
-
 function specFromPair(
   oldString: unknown,
   newString: unknown,
   replaceAll: unknown,
   index?: number,
 ): EditSpec {
-  const oldText = editText(oldString);
-  const next = editText(newString);
+  const oldText = coerceEditText(oldString);
+  const next = coerceEditText(newString);
   if (typeof oldText !== "string" || typeof next !== "string") {
     throw new Error(
       index === undefined
@@ -276,33 +219,96 @@ function specFromPair(
   };
 }
 
-/** Normalize the single-edit and `edits: [...]` call shapes to one list. */
-export function collectEdits(args: any): EditSpec[] {
-  const listed = parseEditsField(args.edits);
-  const specs: EditSpec[] = [];
-  if (listed && listed.length > 0) {
-    listed.forEach((entry: any, i: number) => {
-      specs.push(
-        specFromPair(
-          editText(entry?.old_string, entry?.oldText, entry?.old_text),
-          editText(entry?.new_string, entry?.newText, entry?.new_text),
-          entry?.replace_all ?? entry?.replaceAll,
-          i,
-        ),
-      );
-    });
+type ParsedEntry =
+  | { kind: "ok"; spec: EditSpec }
+  | { kind: "empty" }
+  | { kind: "bad"; message: string };
+
+function tryEditEntry(entry: unknown, index: number): ParsedEntry {
+  if (entry == null) {
+    return { kind: "empty" };
   }
-  const legacyOld = editText(args.old_string, args.oldText, args.old_text);
-  const legacyNew = editText(args.new_string, args.newText, args.new_text);
+  if (typeof entry === "string") {
+    return entry.trim() ? { kind: "bad", message: `edits[${index}] needs string old_string/oldText and new_string/newText` } : { kind: "empty" };
+  }
+  if (typeof entry !== "object" || Array.isArray(entry)) {
+    return {
+      kind: "bad",
+      message: `edits[${index}] needs string old_string/oldText and new_string/newText`,
+    };
+  }
+  const row = entry as Record<string, unknown>;
+  const oldText = pickEditText(row, EDIT_OLD_KEYS);
+  const next = pickEditText(row, EDIT_NEW_KEYS);
+  if (oldText === undefined && next === undefined) {
+    return { kind: "empty" };
+  }
+  if (typeof oldText !== "string" || typeof next !== "string") {
+    const keys = Object.keys(row).join(", ") || "none";
+    return {
+      kind: "bad",
+      message: `edits[${index}] needs string old_string/oldText and new_string/newText (got keys: ${keys})`,
+    };
+  }
+  return {
+    kind: "ok",
+    spec: specFromPair(oldText, next, row.replace_all ?? row.replaceAll, index),
+  };
+}
+
+export interface CollectedEdits {
+  specs: EditSpec[];
+  note: string;
+}
+
+/**
+ * Normalize the single-edit and `edits: [...]` call shapes to one list.
+ * Trailing incomplete entries (typical truncated JSON) are skipped.
+ */
+export function collectEditsDetailed(args: any): CollectedEdits {
+  const listed = asEditsArray(args.edits);
+  const specs: EditSpec[] = [];
+  const notes: string[] = [];
+  if (listed && listed.length > 0) {
+    const parsed = listed.map((entry, i) => tryEditEntry(entry, i));
+    const lastOk = parsed.reduce((acc, item, i) => (item.kind === "ok" ? i : acc), -1);
+    let skippedTrailing = 0;
+    parsed.forEach((item, i) => {
+      if (item.kind === "ok") {
+        specs.push(item.spec);
+        return;
+      }
+      if (item.kind === "empty") {
+        return;
+      }
+      if (i > lastOk) {
+        skippedTrailing++;
+        return;
+      }
+      throw new Error(item.message);
+    });
+    if (skippedTrailing > 0) {
+      notes.push(
+        skippedTrailing === 1
+          ? "Skipped 1 trailing incomplete edit (call was likely cut off)."
+          : `Skipped ${skippedTrailing} trailing incomplete edits (call was likely cut off).`,
+      );
+    }
+  }
+  const legacyOld = pickEditText(args, EDIT_OLD_KEYS);
+  const legacyNew = pickEditText(args, EDIT_NEW_KEYS);
   if (typeof legacyOld === "string" && typeof legacyNew === "string") {
-    specs.push(
-      specFromPair(legacyOld, legacyNew, args.replace_all ?? args.replaceAll),
-    );
+    specs.push(specFromPair(legacyOld, legacyNew, args.replace_all ?? args.replaceAll));
   }
   if (specs.length === 0) {
     throw new Error(t("missingRequiredParam", { param: "old_string" }));
   }
-  return specs;
+  return { specs, note: notes.join("\n") };
+}
+
+/** Normalize the single-edit and `edits: [...]` call shapes to one list. */
+export function collectEdits(args: any): EditSpec[] {
+  return collectEditsDetailed(args).specs;
 }
 
 /** True when every line break in the file is CRLF. */
@@ -538,7 +544,8 @@ export const editFileImpl: ToolImpl = async (args, extras) => {
   if (!rawPath) {
     throw new Error(t("missingRequiredParam", { param: "filepath" }));
   }
-  const edits = collectEdits(args);
+  const collected = collectEditsDetailed(args);
+  const edits = collected.specs;
 
   const filepath = rawPath.trim();
   if (!filepath) {
@@ -580,6 +587,9 @@ export const editFileImpl: ToolImpl = async (args, extras) => {
   let next = content;
   let replaced = 0;
   const notes: string[] = [];
+  if (collected.note) {
+    notes.push(collected.note);
+  }
   const applied = applyCollectedEdits(filepath, content, edits);
   next = applied.next;
   replaced = applied.replaced;

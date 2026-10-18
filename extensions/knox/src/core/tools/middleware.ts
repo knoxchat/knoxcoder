@@ -46,6 +46,12 @@ import {
   TOOL_PATH_ARG_KEYS,
 } from "../util/toolFilePath";
 import { extractPatchFilePaths } from "./applyPatchFormat";
+import {
+  asEditsArray,
+  EDIT_NEW_KEYS,
+  EDIT_OLD_KEYS,
+  normalizeEditEntry,
+} from "./editArgs";
 import type { HookRunner } from "../hooks/hooks.js";
 
 // --- Retry Configuration -----------------------------------------------------
@@ -966,43 +972,19 @@ export function normalizeToolArgs(
         copyIfMissing("endLine", ["end_line", "end", "to_line"]);
       }
       if (toolName === BuiltInToolNames.EditFile) {
-        copyIfMissing("old_string", ["oldText", "old_text", "search", "from"]);
-        copyIfMissing("new_string", ["newText", "new_text", "replace", "to"]);
+        copyIfMissing("old_string", [...EDIT_OLD_KEYS.filter((k) => k !== "old_string")]);
+        copyIfMissing("new_string", [...EDIT_NEW_KEYS.filter((k) => k !== "new_string")]);
         copyIfMissing("replace_all", ["replaceAll"]);
-        if (typeof next.edits === "string") {
-          try {
-            const parsed = JSON.parse(next.edits);
-            if (Array.isArray(parsed) || (parsed && typeof parsed === "object")) {
-              next.edits = parsed;
-            }
-          } catch {
-            // leave as-is; collectEdits reports a clear error
-          }
-        } else if (
-          next.edits &&
-          typeof next.edits === "object" &&
-          !Array.isArray(next.edits)
-        ) {
-          next.edits = [next.edits];
+        const listed = asEditsArray(next.edits);
+        if (listed) {
+          next.edits = listed.map((entry) => normalizeEditEntry(entry));
         }
-        if (Array.isArray(next.edits)) {
-          next.edits = next.edits.map((entry: any) => {
-            if (!entry || typeof entry !== "object") {
-              return entry;
-            }
-            const row = { ...entry };
-            if (isMissingToolArg(row.old_string)) {
-              row.old_string = row.oldText ?? row.old_text;
-            }
-            if (isMissingToolArg(row.new_string)) {
-              row.new_string = row.newText ?? row.new_text;
-            }
-            if (isMissingToolArg(row.replace_all)) {
-              row.replace_all = row.replaceAll;
-            }
-            return row;
-          });
-        }
+      }
+      break;
+    case BuiltInToolNames.ApplyPatch:
+      copyIfMissing("patch", ["diff", "contents", "content", "text"]);
+      if (Array.isArray(next.patch) && next.patch.every((line: unknown) => typeof line === "string")) {
+        next.patch = next.patch.join("\n");
       }
       break;
     case BuiltInToolNames.ViewSubdirectory:

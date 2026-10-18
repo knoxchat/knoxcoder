@@ -340,8 +340,43 @@ export function applyEditsAgainstOriginal(
 }
 
 /**
- * Find a unique line sequence, trying exact then per-line fuzzy normalization.
- * Returns start index in `haystack`, or multiple hits when ambiguous.
+ * Up to `limit` lines of `content` most likely meant by the first line of
+ * `needle` (whitespace-insensitive match, then same leading key). Helps the
+ * model retry with exact text instead of guessing again.
+ */
+export function findClosestLines(
+  content: string,
+  needle: string,
+  limit = 3,
+): string[] {
+  const squash = (s: string) => s.replace(/\s+/g, " ").trim();
+  const firstLine = needle.split(/\r?\n/).find((l) => l.trim()) ?? "";
+  const target = squash(firstLine);
+  if (!target) {
+    return [];
+  }
+  const key = target.match(/^[\w.\-"]+/)?.[0];
+  const lines = content.split(/\r?\n/);
+  const exact: string[] = [];
+  const sameKey: string[] = [];
+  lines.forEach((line, i) => {
+    const squashed = squash(line);
+    if (!squashed) {
+      return;
+    }
+    const entry = `${i + 1}: ${line}`;
+    if (squashed.includes(target)) {
+      exact.push(entry);
+    } else if (key && key.length >= 3 && squashed.startsWith(key)) {
+      sameKey.push(entry);
+    }
+  });
+  return [...exact, ...sameKey].slice(0, limit);
+}
+
+/**
+ * Find a unique line sequence: exact, then trailing-ws/quote/dash drift,
+ * then indent-insensitive. Returns start indexes in `haystack`.
  */
 export function findLineSequence(
   haystack: string[],
@@ -356,11 +391,27 @@ export function findLineSequence(
   }
   const fuzzyHay = haystack.map((line) => normalizeForFuzzyMatch(line));
   const fuzzyNeedle = needle.map((line) => normalizeForFuzzyMatch(line));
-  if (fuzzyHay.every((line, i) => line === haystack[i]) &&
-      fuzzyNeedle.every((line, i) => line === needle[i])) {
+  const fuzzyChanged =
+    fuzzyHay.some((line, i) => line !== haystack[i]) ||
+    fuzzyNeedle.some((line, i) => line !== needle[i]);
+  if (fuzzyChanged) {
+    const fuzzy = findExactSequence(fuzzyHay, fuzzyNeedle);
+    if (fuzzy.length > 0) {
+      return fuzzy;
+    }
+  }
+  const indentHay = haystack.map((line) => normalizeForFuzzyMatch(line).trim());
+  const indentNeedle = needle.map((line) => normalizeForFuzzyMatch(line).trim());
+  if (indentNeedle.every((line) => !line)) {
     return [];
   }
-  return findExactSequence(fuzzyHay, fuzzyNeedle);
+  if (
+    indentHay.every((line, i) => line === haystack[i]) &&
+    indentNeedle.every((line, i) => line === needle[i])
+  ) {
+    return [];
+  }
+  return findExactSequence(indentHay, indentNeedle);
 }
 
 function findExactSequence(haystack: string[], needle: string[]): number[] {

@@ -3,6 +3,10 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Fixed
+
+- **Agent file-edit tool calls recover more often.** `builtin_edit_file` accepts `search`/`replace`, `oldString`/`newString`, `old_str`/`new_str`, and line-array values in `edits[]`, and skips a truncated trailing entry instead of failing the whole call (`edits[12] needs string old_string…`). `builtin_apply_patch` now matches hunks with indent drift, partial first/last lines, stale context (git-style fuzz), unique deleted-line fallbacks, and unified-diff `---`/`+++` wrappers, and lists closest lines when a hunk still misses.
+
 ### Removed
 
 - Empty-chat **Try** sample prompt chips in Knox Agent (truncated, unused starter tips).

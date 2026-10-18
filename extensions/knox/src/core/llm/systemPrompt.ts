@@ -43,9 +43,9 @@ const CORE_RULES = `Rules:
 
 const EDITING = `Editing (use tools, never the terminal):
 - Read a file before editing it.
-- builtin_edit_file for precise changes. old_string/oldText must uniquely match (replace_all to replace every occurrence). Several disjoint replacements in one file: edits:[{old_string,new_string}] matched against the original file — merge overlapping or nearby changes into one edit.
+- builtin_edit_file for precise changes. old_string/oldText must uniquely match (replace_all to replace every occurrence). Several disjoint replacements in one file: edits:[{old_string,new_string}] matched against the original file — merge overlapping or nearby changes into one edit. Prefer a few complete edits over a long list that may be cut off.
 - builtin_write_file to create a file or rewrite it entirely. builtin_create_new_file is the same as write (existing files are overwritten).
-- builtin_apply_patch only when one call must change several files atomically.
+- builtin_apply_patch only when one call must change several files atomically (Codex *** Update File or a unified diff).
 - Never write or patch files with cat, echo, heredoc or sed.`;
 
 const VERIFICATION = `Verification:

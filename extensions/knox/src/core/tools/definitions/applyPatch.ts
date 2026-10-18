@@ -16,7 +16,7 @@ export const applyPatchTool: Tool = {
 
 Use this only when one call should change several files. Prefer builtin_edit_file for one file (including several disjoint replacements). Prefer builtin_write_file for a full rewrite.
 Never apply patches via the terminal (patch, sed, git apply).
-Add File overwrites if the path already exists (same as write). Hunks tolerate trailing-whitespace and quote/dash drift.
+Add File overwrites if the path already exists (same as write). Hunks tolerate indent, trailing-whitespace, quote/dash drift, stale context (git fuzz), partial first/last lines, and unified-diff ---/+++ wrappers.
 
 Format:
 *** Begin Patch
@@ -32,7 +32,7 @@ Format:
 
 Rules:
 - Read files before updating them so context matches.
-- Hunks fail if the old side matches 0 times or more than once (add an @@ locator or more context). Trailing whitespace and quote/dash drift are tolerated.
+- Hunks fail if the old side matches 0 times or more than once (add an @@ locator or more context). Indent, trailing whitespace, quote/dash drift, and unique deleted-line fallbacks are tolerated.
 - All operations apply or none do.`,
     parameters: {
       type: "object",

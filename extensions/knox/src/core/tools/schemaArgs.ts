@@ -216,6 +216,18 @@ function coerceScalarOrContainer(
       if (typeof value === "number" || typeof value === "boolean") {
         return String(value);
       }
+      if (
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value.every(
+          (item) =>
+            typeof item === "string" ||
+            typeof item === "number" ||
+            typeof item === "boolean",
+        )
+      ) {
+        return value.map(String).join("\n");
+      }
     } else if (type === "array") {
       if (typeof value === "string") {
         const parsed = tryParseJson(value);

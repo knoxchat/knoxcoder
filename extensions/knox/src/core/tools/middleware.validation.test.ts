@@ -166,6 +166,23 @@ describe("normalizeToolArgs", () => {
         edits: JSON.stringify([{ oldText: "a", newText: "b" }]),
       }).edits,
     ).toMatchObject([{ old_string: "a", new_string: "b" }]);
+    expect(
+      normalizeToolArgs(BuiltInToolNames.EditFile, {
+        filepath: "a.ts",
+        edits: [{ search: "a", replace: "b" }, { oldString: "c", newString: ["d"] }],
+      }).edits,
+    ).toMatchObject([
+      { old_string: "a", new_string: "b" },
+      { old_string: "c", new_string: "d" },
+    ]);
+  });
+
+  it("maps diff → patch for apply_patch", () => {
+    expect(
+      normalizeToolArgs(BuiltInToolNames.ApplyPatch, {
+        diff: "*** Begin Patch\n*** End Patch",
+      }),
+    ).toMatchObject({ patch: "*** Begin Patch\n*** End Patch" });
   });
 
   it("maps content/text aliases → contents for write_file and create_new_file", () => {
