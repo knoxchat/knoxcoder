@@ -68,14 +68,20 @@ suite('Knox IDE façade contract (KN-210–222)', () => {
 		const readFile = repoFile('extensions/knox/src/core/tools/implementations/readFile.ts');
 		const view = repoFile('extensions/knox/src/core/tools/implementations/viewSubdirectory.ts');
 		const ignore = repoFile('extensions/knox/src/core/util/walkIgnore.ts');
-		assert.ok(glob.includes('extras.ide.getWorkspaceDirs()'));
-		assert.ok(glob.includes('extras.ide.listDir'));
-		assert.ok(glob.includes('loadWalkIgnore(extras.ide'));
-		assert.ok(readFile.includes('extras.ide.fileExists'));
-		assert.ok(readFile.includes('extras.ide.readFile'));
-		assert.ok(readFile.includes('extras.ide.readRangeInFile'));
-		assert.ok(view.includes('extras.ide.listDir'));
-		assert.ok(view.includes('loadWalkIgnore(extras.ide'));
+		const ports = repoFile('extensions/knox/src/core/tools/toolPorts.ts');
+		// K-084: file tools use ToolFilesystem and fall back to extras.ide.
+		assert.ok(ports.includes('extras.fs ?? extras.ide'));
+		assert.ok(glob.includes('toolFilesystem(extras)'));
+		assert.ok(glob.includes('fs.getWorkspaceDirs()'));
+		assert.ok(glob.includes('fs.listDir'));
+		assert.ok(glob.includes('loadWalkIgnore(fs'));
+		assert.ok(readFile.includes('toolFilesystem(extras)'));
+		assert.ok(readFile.includes('toolFilesystem(extras).fileExists'));
+		assert.ok(readFile.includes('toolFilesystem(extras).readFile'));
+		assert.ok(readFile.includes('fs.readRangeInFile'));
+		assert.ok(view.includes('toolFilesystem(extras)'));
+		assert.ok(view.includes('fs.listDir'));
+		assert.ok(view.includes('loadWalkIgnore(fs'));
 		assert.ok(ignore.includes('.knoxignore'));
 		assert.ok(ignore.includes('.gitignore'));
 	});
@@ -94,8 +100,12 @@ suite('Knox IDE façade contract (KN-210–222)', () => {
 	test('KN-213: git status/diff prefer vscode.git model, shell only as fallback', () => {
 		const git = repoFile('extensions/knox/src/core/tools/implementations/git.ts');
 		const utils = repoFile('extensions/knox/src/host/util/ideUtils.ts');
-		assert.ok(git.includes('extras.ide.getGitStatusPorcelain'));
-		assert.ok(git.includes('extras.ide.getGitDiffCached'));
+		const ports = repoFile('extensions/knox/src/core/tools/toolPorts.ts');
+		// K-084: git tools use ToolGit and fall back to extras.ide.
+		assert.ok(ports.includes('extras.git ?? extras.ide'));
+		assert.ok(git.includes('toolGit(extras)'));
+		assert.ok(git.includes('git.getGitStatusPorcelain'));
+		assert.ok(git.includes('git.getGitDiffCached'));
 		assert.ok(git.includes('runGit(extras'));
 		assert.ok(utils.includes('vscode.git'));
 		assert.ok(utils.includes('formatGitStatusPorcelain'));
@@ -103,7 +113,10 @@ suite('Knox IDE façade contract (KN-210–222)', () => {
 
 	test('KN-214: exact search and host search use bundled ripgrep', () => {
 		const search = repoFile('extensions/knox/src/core/tools/implementations/exactSearch.ts');
-		assert.ok(search.includes('extras.ide.getSearchResults'));
+		const ports = repoFile('extensions/knox/src/core/tools/toolPorts.ts');
+		// K-084: search tools use ToolSearch and fall back to extras.ide.
+		assert.ok(ports.includes('extras.search ?? extras.ide'));
+		assert.ok(search.includes('toolSearch(extras).getSearchResults'));
 		assert.ok(hostSrc.includes('searchWorkspaceWithRipgrep'));
 		assert.ok(hostSrc.includes('resolveRipgrepBinary'));
 	});

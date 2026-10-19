@@ -18,7 +18,8 @@ export function makeTempRepo(
   files: Record<string, string> = { "readme.md": "hello\n" },
 ): string {
   const dir = mkdtempSync(path.join(os.tmpdir(), "knox-test-repo-"));
-  git(dir, ["init"]);
+  // Pin main: Git still defaults to master on CI (init.defaultBranch unset).
+  git(dir, ["init", "-b", "main"]);
   git(dir, ["config", "user.email", "test@knox.dev"]);
   git(dir, ["config", "user.name", "Knox Test"]);
   for (const [name, content] of Object.entries(files)) {
