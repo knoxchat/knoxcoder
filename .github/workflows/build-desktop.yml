@@ -372,19 +372,27 @@ jobs:
         run: ls -lh release
 
       - name: Generate KnoxCoder update metadata
+        id: meta
         run: |
           VERSION="$(node -p "require('./package.json').version")"
+          TAG="v$VERSION"
+          if [[ "${{ github.ref }}" == refs/tags/v* && "${{ github.ref_name }}" != "$TAG" ]]; then
+            echo "Workflow ref ${{ github.ref_name }} does not match package.json version $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           node scripts/ci/generate-update-metadata.mjs \
             --assets-dir release \
             --out-dir release \
             --version "$VERSION" \
-            --tag "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}-build.{1}', github.run_number, github.run_attempt) }}" \
+            --tag "$TAG" \
             --commit "${{ github.sha }}"
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}-build.{1}', github.run_number, github.run_attempt) }}
-          name: KnoxCoder ${{ github.ref_name }}
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: KnoxCoder ${{ steps.meta.outputs.version }}
           draft: true
           files: release/*
           fail_on_unmatched_files: true

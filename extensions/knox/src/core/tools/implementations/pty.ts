@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { ContextItem } from "../..";
 import { ToolImpl } from ".";
 import { ToolCallError, ToolCallErrorCode } from "../errors";
+import { toolFilesystem, toolTerminal } from "../toolPorts";
 import { isPathOutsideWorkspace } from "../toolPolicy";
 import {
   getShellJob,
@@ -111,7 +112,7 @@ export const ptyStartImpl: ToolImpl = async (args, extras) => {
     });
   }
 
-  const ideInfo = await extras.ide.getIdeInfo();
+  const ideInfo = await toolTerminal(extras).getIdeInfo();
   if (ideInfo.remoteName !== "local" && ideInfo.remoteName !== "") {
     return [
       {
@@ -123,7 +124,7 @@ export const ptyStartImpl: ToolImpl = async (args, extras) => {
     ];
   }
 
-  const workspaceDirs = await extras.ide.getWorkspaceDirs();
+  const workspaceDirs = await toolFilesystem(extras).getWorkspaceDirs();
   const workspaceRoot = toFsPath(workspaceDirs[0]);
   const key = workspaceShellKey(workspaceDirs);
   const session = getShellSession(key, workspaceRoot);

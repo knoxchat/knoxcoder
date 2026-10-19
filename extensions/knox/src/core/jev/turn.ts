@@ -9,12 +9,13 @@ import {
   workspaceHintsDisagree,
   type AgentProfileSetting,
   type ResolvedAgentProfile,
+  type WorkspaceKind,
   type WorkspaceProfileHints,
 } from "../config/agentProfile";
 import type { SkillInfo } from "../skills/types";
 import {
   formatMatchedSkillsHint,
-  matchSkillsByIntent,
+  selectTurnSkills,
 } from "../skills/skillMatcher";
 import { analyzeForViewReadModel } from "../tools/modelRouting";
 import { createKnoxLogger } from "../util/knoxLog";
@@ -66,6 +67,8 @@ export interface EvaluateAgentTurnInput {
   /** Prior user/assistant turns so short follow-ups still classify correctly. */
   recentContext?: JevJson;
   skills?: SkillInfo[];
+  openPaths?: string[];
+  workspaceKind?: WorkspaceKind;
   hasViewRead: boolean;
   hasContext?: boolean;
   agentProfileSetting?: AgentProfileSetting;
@@ -131,9 +134,13 @@ function heuristicJudgment(input: EvaluateAgentTurnInput): AgentTurnJudgment {
     input.userMessage,
     input.hasContext ?? false,
   );
-  const matches = matchSkillsByIntent(input.userMessage, input.skills ?? [], {
-    limit: 3,
-    minScore: 0.18,
+  const profile = heuristicProfile(input);
+  const matches = selectTurnSkills({
+    message: input.userMessage,
+    skills: input.skills ?? [],
+    openPaths: input.openPaths,
+    profile,
+    workspaceKind: input.workspaceKind,
   });
   return {
     source: "heuristic",
@@ -143,7 +150,7 @@ function heuristicJudgment(input: EvaluateAgentTurnInput): AgentTurnJudgment {
     reason: analysis.reason,
     skillHint: formatMatchedSkillsHint(matches),
     skillName: matches[0]?.skill.name,
-    profile: heuristicProfile(input),
+    profile,
   };
 }
 
@@ -319,10 +326,21 @@ export async function evaluateAgentTurn(
       setJevConfirmedProfile(undefined);
     }
     const guardrail = composeGuardrail(result.answers, "input");
+    const selected = selectTurnSkills({
+      message: input.userMessage,
+      skills,
+      openPaths: input.openPaths,
+      jevSkillName: skill.skillName,
+      profile,
+      workspaceKind: input.workspaceKind,
+    });
+    const skillHint =
+      formatMatchedSkillsHint(selected) || skill.skillHint || "";
     const judgment: AgentTurnJudgment = {
       source: "jev",
       ...routed,
-      ...skill,
+      skillHint,
+      skillName: selected[0]?.skill.name ?? skill.skillName,
       clarifyHint,
       profile,
       difficulty: difficulty?.score,

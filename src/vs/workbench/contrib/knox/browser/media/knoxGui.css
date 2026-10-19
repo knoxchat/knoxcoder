@@ -27,6 +27,34 @@
 	background: var(--vscode-editor-background);
 }
 
+.knox-gui-skip {
+	position: absolute;
+	left: -9999px;
+	top: 8px;
+	z-index: 30;
+	padding: 6px 10px;
+	background: var(--vscode-button-background, #159994);
+	color: var(--vscode-button-foreground, #fff);
+	border: 1px solid var(--vscode-focusBorder, #159994);
+	border-radius: 4px;
+}
+
+.knox-gui-skip:focus {
+	left: 8px;
+}
+
+.knox-gui[data-knox-theme-contrast="high"] {
+	--knox-hc-border: var(--vscode-contrastBorder, #6fc3df);
+}
+
+.knox-gui[data-knox-theme-contrast="high"] .knox-gui-icon-btn,
+.knox-gui[data-knox-theme-contrast="high"] .knox-gui-input,
+.knox-gui[data-knox-theme-contrast="high"] .knox-gui-composer,
+.knox-gui[data-knox-theme-contrast="high"] .knox-gui-term,
+.knox-gui[data-knox-theme-contrast="high"] .knox-gui-tool-permissions {
+	outline: 1px solid var(--knox-hc-border);
+}
+
 /* Author `display:flex` would otherwise override the HTML `hidden` attribute. */
 .knox-gui [hidden] {
 	display: none !important;
@@ -545,7 +573,7 @@
 :is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge.is-fail {
 	color: #b91c1c;
 }
-:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge[class*='cat-'] {
+:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-cat {
 	color: #92400e;
 }
 :is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-model-delete {

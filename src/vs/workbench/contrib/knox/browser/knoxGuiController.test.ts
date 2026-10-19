@@ -23,7 +23,7 @@ import { IKnoxGuiMessage, KNOX_GUI_HEARTBEAT_MS, KnoxGuiRoute } from '../common/
 import { DEFAULT_MENTION_PROVIDER_TITLES, inputDocFromPlainText, SLASH_BUILTINS } from '../common/knoxGuiInput.js';
 import { DEFAULT_PERMISSION_MODE, IKnoxGuiModel } from '../common/knoxGuiState.js';
 import { IKnoxService } from '../common/knoxService.js';
-import { DRAFT_SESSION_KEY, UI_STATE_KEY } from './gui/controller/persistence.js';
+import { DRAFT_SESSION_KEY, UI_STATE_KEY, WORKSPACE_PERMISSION_KEY } from './gui/controller/persistence.js';
 import { KnoxGuiController } from './knoxGuiController.js';
 import { KnoxGuiMessenger } from './knoxGuiMessenger.js';
 import { KnoxGuiStore } from './knoxGuiStore.js';
@@ -238,6 +238,85 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.permissionMode, 'acceptEdits');
 		store.cyclePermissionMode();
 		assert.strictEqual(store.state.permissionMode, 'fullAuto');
+	});
+
+	test('K-090 Core sessionPermission Ask is not a saved workspace mode', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const freshReplies = {
+			'config/getSerializedProfileInfo': {
+				config: {
+					experimental: {
+						sessionPermission: { mode: 'default', reason: 'fresh_clone' },
+					},
+				},
+			},
+			getWorkspaceDirs: ['file:///clone'],
+			'history/list': [],
+		};
+		const first = createHarness({ replies: freshReplies, storage });
+		await timeout(0);
+		assert.strictEqual(first.store.state.permissionMode, 'default');
+		assert.strictEqual(first.store.state.permissionDefaultReason, 'fresh_clone');
+		assert.strictEqual(first.controller.workspacePermissionSaved, false);
+		assert.strictEqual(storage.get(WORKSPACE_PERMISSION_KEY, StorageScope.WORKSPACE), undefined);
+
+		first.controller.applyConfig({
+			config: {
+				experimental: {
+					sessionPermission: { mode: 'fullAuto', reason: 'known_project' },
+				},
+			},
+		});
+		assert.strictEqual(first.store.state.permissionMode, 'default', 'config reload must not re-flip this window');
+
+		first.controller.setPermissionMode('fullAuto');
+		assert.strictEqual(first.controller.workspacePermissionSaved, true);
+		assert.strictEqual(storage.get(WORKSPACE_PERMISSION_KEY, StorageScope.WORKSPACE), 'fullAuto');
+
+		const second = createHarness({ replies: freshReplies, storage });
+		await timeout(0);
+		assert.strictEqual(second.store.state.permissionMode, 'fullAuto');
+		assert.strictEqual(second.store.state.permissionDefaultReason, 'saved');
+	});
+
+	test('K-090 second window without a user toggle re-applies Core known_project Auto', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const first = createHarness({
+			replies: {
+				'config/getSerializedProfileInfo': {
+					config: {
+						experimental: {
+							sessionPermission: { mode: 'default', reason: 'fresh_clone' },
+						},
+					},
+				},
+				getWorkspaceDirs: ['file:///clone'],
+				'history/list': [],
+			},
+			storage,
+		});
+		await timeout(0);
+		assert.strictEqual(first.store.state.permissionMode, 'default');
+		assert.strictEqual(storage.get(WORKSPACE_PERMISSION_KEY, StorageScope.WORKSPACE), undefined);
+
+		const second = createHarness({
+			replies: {
+				'config/getSerializedProfileInfo': {
+					config: {
+						experimental: {
+							sessionPermission: { mode: 'fullAuto', reason: 'known_project' },
+						},
+					},
+				},
+				getWorkspaceDirs: ['file:///clone'],
+				'history/list': [],
+			},
+			storage,
+		});
+		await timeout(0);
+		assert.strictEqual(second.store.state.permissionMode, 'fullAuto');
+		assert.strictEqual(second.store.state.permissionDefaultReason, 'known_project');
+		assert.strictEqual(second.controller.workspacePermissionSaved, false);
 	});
 
 	test('openAddModel remembers the last provider tab and preloads both catalogs', async () => {

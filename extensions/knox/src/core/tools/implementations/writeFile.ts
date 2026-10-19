@@ -1,4 +1,5 @@
 import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
+import { toolEditor, toolFilesystem } from "../toolPorts";
 import { noteFileContent } from "./editFile";
 import { t } from "../../i18n/index.js";
 import { getUriPathBasename } from "../../util/uri";
@@ -28,12 +29,10 @@ export const writeFileImpl: ToolImpl = async (args, extras) => {
   const openAfterWrite = args.openAfterWrite !== false;
   const contents: string = args.contents;
 
+  const fs = toolFilesystem(extras);
   let resolvedFileUri: string;
   try {
-    resolvedFileUri = await inferResolvedUriFromRelativePath(
-      filepath,
-      extras.ide,
-    );
+    resolvedFileUri = await inferResolvedUriFromRelativePath(filepath, fs);
   } catch (error) {
     throw new Error(
       t("failedToResolveFilePath", {
@@ -43,11 +42,11 @@ export const writeFileImpl: ToolImpl = async (args, extras) => {
     );
   }
 
-  const fileExists = await extras.ide.fileExists(resolvedFileUri);
+  const fileExists = await fs.fileExists(resolvedFileUri);
   let previous = "";
   if (fileExists) {
     try {
-      previous = await extras.ide.readFile(resolvedFileUri);
+      previous = await fs.readFile(resolvedFileUri);
     } catch {
       previous = "";
     }
@@ -77,7 +76,7 @@ export const writeFileImpl: ToolImpl = async (args, extras) => {
   }
 
   try {
-    await extras.ide.writeFile(resolvedFileUri, contentsToWrite);
+    await fs.writeFile(resolvedFileUri, contentsToWrite);
     noteFileContent(resolvedFileUri, contentsToWrite);
   } catch (error) {
     const errorMessage = (error as Error).message;
@@ -92,7 +91,7 @@ export const writeFileImpl: ToolImpl = async (args, extras) => {
 
   if (openAfterWrite) {
     try {
-      await extras.ide.openFile(resolvedFileUri);
+      await toolEditor(extras).openFile?.(resolvedFileUri);
     } catch (error) {
       console.warn(
         t("createdButFailedToOpen", {

@@ -10,7 +10,11 @@
 
 import type { ContextItem, Tool } from "..";
 import type { WorkspaceKind } from "../config/agentProfile";
-import { BUILT_IN_GROUP_NAME, BuiltInToolNames } from "./builtIn";
+import {
+  BUILT_IN_GROUP_NAME,
+  BuiltInToolNames,
+  resolveBuiltInToolName,
+} from "./builtIn";
 import { isCompositeToolName } from "./catalog";
 
 const N = BuiltInToolNames;
@@ -224,6 +228,36 @@ export function searchDeferredTools(
     }
   }
   return picked.slice(0, limit);
+}
+
+/**
+ * K-064: if `name` (or an alias) is in the deferred set, move its schema
+ * onto `active` and return it so the current call can run.
+ */
+export function autoloadDeferredTool(
+  name: string,
+  deferred: Tool[],
+  active: Tool[],
+): Tool | undefined {
+  const wanted = resolveBuiltInToolName(name) || name.trim();
+  if (!wanted) {
+    return undefined;
+  }
+  const tool = deferred.find((item) => {
+    const itemName = item.function.name;
+    return (
+      itemName === name ||
+      itemName === wanted ||
+      resolveBuiltInToolName(itemName) === wanted
+    );
+  });
+  if (!tool) {
+    return undefined;
+  }
+  if (!active.some((item) => item.function.name === tool.function.name)) {
+    active.push(tool);
+  }
+  return tool;
 }
 
 /**

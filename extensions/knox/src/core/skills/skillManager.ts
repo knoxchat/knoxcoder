@@ -279,6 +279,10 @@ export class SkillManager {
     this.activePaths = paths;
   }
 
+  getActivePaths(): string[] | undefined {
+    return this.activePaths;
+  }
+
   /**
    * Skills to offer the model now: unscoped skills always, scoped skills only
    * while a matching file is active.

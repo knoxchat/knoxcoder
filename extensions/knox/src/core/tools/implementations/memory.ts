@@ -25,7 +25,8 @@ export const memoryImpl: ToolImpl = async (args, extras) => {
       {
         name: "Memory",
         description: "Memory Brain Error",
-        content: 'Missing required parameter: "action". Use get_stats to see all 79 available actions, or see the tool description for the full list.',
+        content:
+          'Missing required parameter: "action". Product actions: store, recall, search, delete, build_context, pin, unpin.',
       },
     ];
   }

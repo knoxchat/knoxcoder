@@ -17,6 +17,7 @@ import {
 import { DEFAULT_VIEW_SUBDIRECTORY_MAX_FILES } from "../builtIn";
 
 import { ToolImpl } from ".";
+import { toolFilesystem, toolGit } from "../toolPorts";
 
 // FileType enum values (from index.d.ts - not available at runtime)
 const FILE_TYPE_FILE = 1;
@@ -350,19 +351,21 @@ async function getFileStatistics(
 async function getGitStatus(
   basePath: string, 
   files: FileInfo[], 
-  ide: any
+  git: ReturnType<typeof toolGit>
 ): Promise<Map<string, string>> {
   const gitStatus = new Map<string, string>();
   
   try {
     // Check if this is a git repository
-    const gitRoot = await ide.getGitRootPath(basePath);
+    const gitRoot = git.getGitRootPath
+      ? await git.getGitRootPath(basePath)
+      : undefined;
     if (!gitRoot) {
       return gitStatus;
     }
     
     // Get git diff for modified/staged files
-    const diffs = await ide.getDiff(true);
+    const diffs = await git.getDiff(true);
     
     // Parse diff output to extract file statuses
     for (const diff of diffs) {
@@ -766,7 +769,8 @@ export const viewSubdirectoryImpl: ToolImpl = async (args: any, extras) => {
   const { directory_path } = typedArgs;
   
   // Resolve directory URI
-  const uri = await resolveRelativePathInDir(directory_path, extras.ide);
+  const fs = toolFilesystem(extras);
+  const uri = await resolveRelativePathInDir(directory_path, fs);
 
   if (!uri) {
     // A missing directory is a normal probe result, not a tool failure.
@@ -781,7 +785,7 @@ export const viewSubdirectoryImpl: ToolImpl = async (args: any, extras) => {
 
   // Check if it's actually a directory
   try {
-    const entries = await extras.ide.listDir(uri);
+    const entries = await fs.listDir(uri);
     if (!entries) {
       return [
         {
@@ -805,10 +809,10 @@ export const viewSubdirectoryImpl: ToolImpl = async (args: any, extras) => {
   let matcher: WalkIgnoreMatcher | undefined;
   try {
     const roots = [uri];
-    if (typeof extras.ide.getWorkspaceDirs === "function") {
-      roots.push(...(await extras.ide.getWorkspaceDirs()));
+    if (typeof fs.getWorkspaceDirs === "function") {
+      roots.push(...(await fs.getWorkspaceDirs()));
     }
-    matcher = await loadWalkIgnore(extras.ide, roots);
+    matcher = await loadWalkIgnore(fs, roots);
   } catch {
     matcher = undefined;
   }
@@ -817,7 +821,7 @@ export const viewSubdirectoryImpl: ToolImpl = async (args: any, extras) => {
   const files = await walkDirectory(
     uri,
     uri,
-    extras.ide,
+    fs,
     typedArgs,
     0,
     [],
@@ -826,7 +830,7 @@ export const viewSubdirectoryImpl: ToolImpl = async (args: any, extras) => {
   
   // Add statistics if requested
   if (typedArgs.includeStats) {
-    const fileStats = await getFileStatistics(files, extras.ide);
+    const fileStats = await getFileStatistics(files, fs);
     for (const file of files) {
       const stat = fileStats.get(file.fullPath);
       if (stat) {
@@ -838,7 +842,7 @@ export const viewSubdirectoryImpl: ToolImpl = async (args: any, extras) => {
   
   // Add git status if requested
   if (typedArgs.includeGitStatus) {
-    const gitStatus = await getGitStatus(uri, files, extras.ide);
+    const gitStatus = await getGitStatus(uri, files, toolGit(extras));
     for (const file of files) {
       const status = gitStatus.get(file.relativePath);
       if (status) {

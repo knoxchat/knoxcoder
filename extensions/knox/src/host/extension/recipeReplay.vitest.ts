@@ -12,7 +12,7 @@ const manager = {
 };
 vi.mock("../checkpoints/CheckpointManager", () => ({ CheckpointManager: { getInstance: () => manager } }));
 
-import { createReplayPorts, type RecipeReplayHost } from "./recipeReplay";
+import { createReplayPorts, recipeOutOfHostProject, type RecipeReplayHost } from "./recipeReplay";
 
 let dir: string;
 beforeEach(async () => {
@@ -90,6 +90,29 @@ describe("createReplayPorts", () => {
   it("verify fails when the recipe has no command to repeat", async () => {
     const ports = await createReplayPorts(host(async () => term(0)));
     expect((await ports.verify({ oracle: { kind: "user", passedAt: "x" } } as never)).ok).toBe(false);
+  });
+
+  it("MC-90 refuses a project-scope recipe captured in another workspace", async () => {
+    const local = host(async () => []);
+    const foreign = {
+      id: "r".repeat(64),
+      projectId: "other-project",
+      scope: "project" as const,
+      status: "verified" as const,
+      title: "x",
+      intentText: "",
+      intentFingerprint: "x",
+      slots: [],
+      preconditions: [],
+      steps: [],
+      sourceCheckpointIds: [],
+      stats: { replays: 0, ok: 0, reverted: 0, failedVerify: 0 },
+      captureCount: 1,
+      createdAt: "",
+      updatedAt: "",
+    };
+    expect(await recipeOutOfHostProject(local, foreign)).toBe(true);
+    expect(await recipeOutOfHostProject(local, { ...foreign, scope: "global" })).toBe(false);
   });
 
   it("verify never runs a network or secret-bearing oracle command (MC-82)", async () => {

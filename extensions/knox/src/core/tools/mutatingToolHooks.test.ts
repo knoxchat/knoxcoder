@@ -173,4 +173,42 @@ describe("executeToolWithSoulHooks", () => {
       "builtin_build",
     );
   });
+
+  it("runs host LSP for a .ts edit", async () => {
+    const ide = mockIde();
+    await executeToolWithSoulHooks({
+      tool: editTool,
+      toolName: "builtin_edit_file",
+      rawArgs: { filepath: "src/app.ts", old_string: "a", new_string: "b" },
+      ide,
+      sessionId: "sess-ts",
+      turnId: "turn-1",
+      execute: async () => [
+        { name: "edit", description: "ok", content: "updated" },
+      ],
+    });
+    expect(ide.runPostEditVerification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: "builtin_edit_file",
+        filePath: "src/app.ts",
+      }),
+    );
+  });
+
+  it("runs host LSP for .rs when rust-analyzer is live", async () => {
+    const ide = mockIde();
+    await executeToolWithSoulHooks({
+      tool: editTool,
+      toolName: "builtin_edit_file",
+      rawArgs: { filepath: "src/lib.rs", old_string: "a", new_string: "b" },
+      ide,
+      sessionId: "sess-ra",
+      turnId: "turn-1",
+      lspVerify: { rustAnalyzerAvailable: true },
+      execute: async () => [
+        { name: "edit", description: "ok", content: "updated" },
+      ],
+    });
+    expect(ide.runPostEditVerification).toHaveBeenCalled();
+  });
 });

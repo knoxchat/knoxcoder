@@ -1,7 +1,15 @@
 /**
  * Session-scoped task plan (HL-17). Survives compaction because the
  * formatted block uses the protected "Task Execution Plan" marker.
+ * K-060: also survives Core restart via `sessions/<id>.plan.json` when
+ * that session file already exists.
  */
+
+import {
+  readPersistedPlan,
+  removePersistedPlan,
+  writePersistedPlan,
+} from "./planPersist";
 
 export const TASK_EXECUTION_PLAN_MARKER = "Task Execution Plan";
 
@@ -26,18 +34,44 @@ export function planSessionKey(sessionId?: string | null): string {
   return trimmed || "default";
 }
 
+function remember(sessionId: string | null | undefined, plan: TaskPlan): void {
+  const key = planSessionKey(sessionId);
+  plans.set(key, plan);
+  writePersistedPlan(key, plan);
+}
+
 export function getPlan(sessionId?: string | null): TaskPlan | undefined {
-  return plans.get(planSessionKey(sessionId));
+  const key = planSessionKey(sessionId);
+  const live = plans.get(key);
+  if (live) {
+    return live;
+  }
+  const persisted = readPersistedPlan(key);
+  if (persisted) {
+    plans.set(key, persisted);
+    return persisted;
+  }
+  return undefined;
 }
 
 export function clearPlan(sessionId?: string | null): boolean {
-  return plans.delete(planSessionKey(sessionId));
+  const key = planSessionKey(sessionId);
+  const existed = plans.delete(key);
+  writePersistedPlan(key, null);
+  return existed;
 }
 
-/** Test helper — wipe every session plan. */
+/** Test helper — wipe the in-memory store. Disk sidecars stay (tmp dirs). */
 export function resetPlansForTests(): void {
   plans.clear();
 }
+
+/** Load a persisted plan into memory (history/load). */
+export function hydratePersistedPlan(sessionId?: string | null): TaskPlan | undefined {
+  return getPlan(sessionId);
+}
+
+export { removePersistedPlan };
 
 function slugId(title: string, index: number): string {
   const slug = title
@@ -127,7 +161,7 @@ export function createPlan(input: {
     updatedAt: Date.now(),
   };
   promoteNextPending(plan);
-  plans.set(planSessionKey(input.sessionId), plan);
+  remember(input.sessionId, plan);
   return clonePlan(plan);
 }
 
@@ -188,7 +222,7 @@ export function addPlanSteps(input: {
   }
   plan.updatedAt = Date.now();
   promoteNextPending(plan);
-  plans.set(planSessionKey(input.sessionId), plan);
+  remember(input.sessionId, plan);
   return clonePlan(plan);
 }
 
@@ -224,7 +258,7 @@ export function updatePlanStep(input: {
     promoteNextPending(plan);
   }
   plan.updatedAt = Date.now();
-  plans.set(planSessionKey(input.sessionId), plan);
+  remember(input.sessionId, plan);
   return clonePlan(plan);
 }
 
@@ -274,6 +308,20 @@ export function countPlanRemaining(plan: TaskPlan): number {
   ).length;
 }
 
+/** Authoritative Execute handoff line (K-066): store remaining, not GUI snapshot. */
+export function formatPlanRemainingLine(plan: TaskPlan): string {
+  const remaining = countPlanRemaining(plan);
+  const open = plan.steps
+    .filter(
+      (step) => step.status === "pending" || step.status === "in_progress",
+    )
+    .map((step) => step.title);
+  if (remaining === 0) {
+    return "Remaining 0: plan is complete.";
+  }
+  return `Remaining ${remaining}: ${open.join("; ")}`;
+}
+
 export function currentPlanStep(plan: TaskPlan): PlanStep | undefined {
   return plan.steps.find((step) => step.status === "in_progress");
 }
@@ -318,6 +366,7 @@ export function formatPlanText(plan: TaskPlan): string {
       );
     });
   }
+  lines.push(formatPlanRemainingLine(plan));
   lines.push(
     `${countPlanRemaining(plan)} remaining / ${plan.steps.length} total`,
   );
@@ -418,10 +467,10 @@ function adoptRecoveredPlan(
   sessionId: string | null | undefined,
   parsed: TaskPlan,
 ): string {
-  if (sessionId && !getPlan(sessionId) && parsed.steps.length > 0) {
+  if (sessionId && !plans.get(planSessionKey(sessionId)) && parsed.steps.length > 0) {
     promoteNextPending(parsed);
     parsed.updatedAt = Date.now();
-    plans.set(planSessionKey(sessionId), parsed);
+    remember(sessionId, parsed);
   }
   return formatPlanText(parsed);
 }

@@ -79,4 +79,19 @@ describe("exactSearchImpl defaults (HL-22)", () => {
       expect.objectContaining({ fixedStrings: false, pcre2: true }),
     );
   });
+
+  it("K-084: searches through extras.search, not extras.ide", async () => {
+    const getSearchResults = vi.fn(async () => "hit.ts:1:match");
+    const ide = {
+      getWorkspaceDirs: vi.fn(async () => ["file:///tmp/ws"]),
+      listDir: vi.fn(async () => [["src", 2]]),
+      getSearchResults: vi.fn(async () => "from-ide"),
+    } as unknown as IDE;
+    await exactSearchImpl(
+      { query: "match" },
+      { ...extras(ide), search: { getSearchResults } },
+    );
+    expect(getSearchResults).toHaveBeenCalled();
+    expect(ide.getSearchResults).not.toHaveBeenCalled();
+  });
 });

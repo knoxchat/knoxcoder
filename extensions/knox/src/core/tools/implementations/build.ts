@@ -1,5 +1,6 @@
 import type { ContextItem } from "../..";
 import { ToolImpl } from ".";
+import { toolFilesystem, toolSubprocess } from "../toolPorts";
 import { SHELL_WAIT_HARD_CAP_MS } from "../shellJobs";
 import { runTerminalCommandImpl } from "./runTerminalCommand";
 import {
@@ -119,15 +120,16 @@ async function rustdocLookupItems(
   extras: Parameters<ToolImpl>[1],
   symbol: string,
 ): Promise<{ name: string; description: string; content: string }[]> {
-  const dirs = await extras.ide.getWorkspaceDirs();
+  const fs = toolFilesystem(extras);
+  const dirs = await fs.getWorkspaceDirs();
   const root = dirs[0] ?? "";
   let cargoToml = "";
   let cargoLock = "";
   let rustdocJson = "";
   const readIfExists = async (uri: string): Promise<string> => {
     try {
-      if (uri && (await extras.ide.fileExists(uri))) {
-        return await extras.ide.readFile(uri);
+      if (uri && (await fs.fileExists(uri))) {
+        return await fs.readFile(uri);
       }
     } catch {
       // optional
@@ -203,7 +205,7 @@ const TEST_PROBE_NAMES = [
 ];
 
 async function testWorkspaceFacts(
-  ide: Parameters<ToolImpl>[1]["ide"],
+  ide: ReturnType<typeof toolFilesystem>,
   dirUri: string,
 ): Promise<WorkspaceFacts> {
   let entries: string[] = [];
@@ -273,18 +275,19 @@ async function runTestAction(
   const others: string[] = [];
 
   if (!explicit) {
-    const dirs = await extras.ide.getWorkspaceDirs();
+    const fs = toolFilesystem(extras);
+    const dirs = await fs.getWorkspaceDirs();
     const root = dirs[0] ?? "";
     let dirUri = root;
     if (cwdArg) {
       try {
-        dirUri = await inferResolvedUriFromRelativePath(cwdArg, extras.ide);
+        dirUri = await inferResolvedUriFromRelativePath(cwdArg, fs);
       } catch {
         dirUri = root;
       }
     }
     const detected = dirUri
-      ? await detectTestRunners(await testWorkspaceFacts(extras.ide, dirUri))
+      ? await detectTestRunners(await testWorkspaceFacts(fs, dirUri))
       : [];
     runner = pickTestRunner(detected, target);
     if (!runner) {
@@ -315,9 +318,10 @@ async function runTestAction(
   }
 
   // Skip the PATH probe when the IDE cannot run subprocesses (tests, remote).
-  const canProbe = typeof extras.ide.subprocess === "function";
+  const proc = toolSubprocess(extras);
+  const canProbe = typeof proc.subprocess === "function";
   const which = (binary: string) =>
-    binaryOnPath(extras.ide.subprocess.bind(extras.ide), binary);
+    binaryOnPath(proc.subprocess.bind(proc), binary);
   if (runner && canProbe && !(await which(runner.binary))) {
     return [
       {
@@ -379,14 +383,15 @@ async function actionDirUri(
   args: Record<string, unknown>,
   extras: Parameters<ToolImpl>[1],
 ): Promise<string> {
-  const dirs = await extras.ide.getWorkspaceDirs();
+  const fs = toolFilesystem(extras);
+  const dirs = await fs.getWorkspaceDirs();
   const root = dirs[0] ?? "";
   const cwdArg = testArg(args, "cwd", "working_directory");
   if (!cwdArg) {
     return root;
   }
   try {
-    return await inferResolvedUriFromRelativePath(cwdArg, extras.ide);
+    return await inferResolvedUriFromRelativePath(cwdArg, fs);
   } catch {
     return root;
   }
@@ -424,9 +429,10 @@ async function runGateAction(
   }
 
   const dirUri = await actionDirUri(args, extras);
-  const canProbe = typeof extras.ide.subprocess === "function";
+  const proc = toolSubprocess(extras);
+  const canProbe = typeof proc.subprocess === "function";
   const which = (binary: string) =>
-    binaryOnPath(extras.ide.subprocess.bind(extras.ide), binary);
+    binaryOnPath(proc.subprocess.bind(proc), binary);
   if (canProbe && !(await which("cargo"))) {
     return [missingCargoItem()];
   }
@@ -435,8 +441,9 @@ async function runGateAction(
   if (dirUri) {
     try {
       const scriptUri = joinPathsToUri(dirUri, "scripts", "pre-commit.sh");
-      if (await extras.ide.fileExists(scriptUri)) {
-        scriptText = await extras.ide.readFile(scriptUri);
+      const fs = toolFilesystem(extras);
+      if (await fs.fileExists(scriptUri)) {
+        scriptText = await fs.readFile(scriptUri);
       }
     } catch {
       scriptText = "";
@@ -507,9 +514,10 @@ async function runGateInitAction(
     ];
   }
   const scriptUri = joinPathsToUri(dirUri, "scripts", "pre-commit.sh");
+  const fs = toolFilesystem(extras);
   let exists = false;
   try {
-    exists = await extras.ide.fileExists(scriptUri);
+    exists = await fs.fileExists(scriptUri);
   } catch {
     exists = false;
   }
@@ -533,7 +541,7 @@ async function runGateInitAction(
       },
     ];
   }
-  await extras.ide.writeFile(scriptUri, script);
+  await fs.writeFile(scriptUri, script);
   if (process.platform !== "win32") {
     await runTerminalCommandImpl(
       {
@@ -595,7 +603,7 @@ export const buildImpl: ToolImpl = async (args, extras) => {
     return rustdocLookupItems(extras, docSymbol);
   }
 
-  const detected = await detectBuildCommand(extras.ide);
+  const detected = await detectBuildCommand(toolFilesystem(extras));
   const cargoArgs =
     args && typeof args === "object" ? (args as Record<string, unknown>) : {};
   const action =
@@ -627,18 +635,21 @@ export const buildImpl: ToolImpl = async (args, extras) => {
     typeof env.CROSS_COMPILE === "string" ? env.CROSS_COMPILE : undefined;
   if (!arch) {
     try {
-      const dirs = await extras.ide.getWorkspaceDirs();
+      const fs = toolFilesystem(extras);
+      const dirs = await fs.getWorkspaceDirs();
       const configUri = joinPathsToUri(dirs[0] ?? "", ".config");
-      if (dirs[0] && (await extras.ide.fileExists(configUri))) {
-        const text = await extras.ide.readFile(configUri);
+      if (dirs[0] && (await fs.fileExists(configUri))) {
+        const text = await fs.readFile(configUri);
         arch = inferArchFromConfig(text);
       }
     } catch {
       // Missing .config is fine for non-kernel trees.
     }
   }
-  const which = (binary: string) =>
-    binaryOnPath(extras.ide.subprocess.bind(extras.ide), binary);
+  const which = (binary: string) => {
+    const proc = toolSubprocess(extras);
+    return binaryOnPath(proc.subprocess.bind(proc), binary);
+  };
   if (isCargoCommand(command)) {
     const hasCargo = await which("cargo");
     if (!hasCargo) {

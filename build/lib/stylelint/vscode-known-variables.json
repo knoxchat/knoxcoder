@@ -1016,6 +1016,7 @@
 		"--knox-mode-warn",
 		"--knox-on-fill",
 		"--knox-primary",
+		"--knox-hc-border",
 		"--background-dark",
 		"--background-light",
 		"--mobile-diff-tok-comment",

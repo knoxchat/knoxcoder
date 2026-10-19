@@ -1,3 +1,6 @@
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolExtras } from "../..";
@@ -56,6 +59,7 @@ describe("builtin_plan", () => {
     expect(listed[0].content).toMatch(/\[x\].*Read MAINTAINERS/);
     expect(listed[0].content).toMatch(/\[\*].*Reproduce panic/);
     expect(formatPlanInject("sess-plan")).toContain("7 remaining / 8 total");
+    expect(formatPlanInject("sess-plan")).toMatch(/Remaining 7:/);
   });
 
   it("create starts the first step and complete advances the next", async () => {
@@ -144,6 +148,51 @@ describe("builtin_plan", () => {
       resolveOpenPlan({ sessionId: "sess-clear", messages }),
     ).toBeUndefined();
     expect(resolveOpenPlan({ messages })).toBeUndefined();
+  });
+
+  it("K-060 persists the plan next to an existing session file", () => {
+    const prev = process.env.KNOX_GLOBAL_DIR;
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "knox-plan-"));
+    process.env.KNOX_GLOBAL_DIR = dir;
+    try {
+      const sessions = path.join(dir, "sessions");
+      fs.mkdirSync(sessions, { recursive: true });
+      fs.writeFileSync(
+        path.join(sessions, "sess-persist.json"),
+        JSON.stringify({
+          sessionId: "sess-persist",
+          title: "t",
+          workspaceDirectory: "",
+          history: [],
+        }),
+      );
+      createPlan({
+        sessionId: "sess-persist",
+        title: "Snake",
+        steps: ["Cargo.toml", "main.rs"],
+      });
+      resetPlansForTests();
+      expect(formatPlanInject("sess-persist")).toContain("Cargo.toml");
+      expect(formatPlanInject("sess-persist")).toContain("2 remaining / 2 total");
+    } finally {
+      resetPlansForTests();
+      if (prev === undefined) {
+        delete process.env.KNOX_GLOBAL_DIR;
+      } else {
+        process.env.KNOX_GLOBAL_DIR = prev;
+      }
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not persist when no session file exists", () => {
+    createPlan({
+      sessionId: "sess-memory-only",
+      title: "T",
+      steps: ["one"],
+    });
+    resetPlansForTests();
+    expect(formatPlanInject("sess-memory-only")).toBe("");
   });
 
   it("round-trips formatPlanText through parsePlanText", () => {

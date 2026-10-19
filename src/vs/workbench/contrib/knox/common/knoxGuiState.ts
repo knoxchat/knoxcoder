@@ -12,6 +12,7 @@ import type { IKnoxGuiCheckpointGraphUi } from './knoxGuiCheckpoints.js';
 export type KnoxChatMode = 'chat' | 'agent' | 'edit';
 export type KnoxGuiEditStatus = 'not-started' | 'streaming' | 'accepting' | 'accepting:full-diff' | 'done';
 export type KnoxPermissionMode = 'default' | 'acceptEdits' | 'fullAuto';
+export type KnoxPermissionDefaultReason = 'saved' | 'setting' | 'known_project' | 'trusted_remote' | 'fresh_clone' | 'default';
 export type KnoxGuiLanguage = 'en' | 'zh';
 export type KnoxToolStatus = 'generating' | 'generated' | 'calling' | 'done' | 'canceled' | 'errored';
 export type KnoxToolSetting = 'allowedWithPermission' | 'allowedWithoutPermission' | 'disabled';
@@ -65,6 +66,17 @@ export function nextPermissionMode(current: KnoxPermissionMode): KnoxPermissionM
 	return PERMISSION_MODES[(idx + 1) % PERMISSION_MODES.length];
 }
 
+export function knoxGuiShowsFreshCloneNotice(state: Pick<IKnoxGuiState, 'permissionMode' | 'permissionDefaultReason' | 'permissionNoticeDismissed' | 'history'>): boolean {
+	return !state.permissionNoticeDismissed
+		&& state.permissionMode === 'default'
+		&& state.permissionDefaultReason === 'fresh_clone'
+		&& state.history.length === 0;
+}
+
+export function knoxGuiShowsYoloNotice(state: Pick<IKnoxGuiState, 'permissionMode' | 'permissionNoticeDismissed' | 'history'>): boolean {
+	return !state.permissionNoticeDismissed && state.permissionMode === 'fullAuto' && state.history.length === 0;
+}
+
 export function nextToolSetting(current: KnoxToolSetting): KnoxToolSetting {
 	if (current === 'allowedWithoutPermission') {
 		return 'allowedWithPermission';
@@ -79,7 +91,7 @@ export function nextToolSetting(current: KnoxToolSetting): KnoxToolSetting {
 export const KNOX_SAFE_READ_TOOL_NAMES = new Set<string>([
 	'builtin_read_file', 'builtin_read_currently_open_file', 'builtin_view_subdirectory', 'builtin_glob',
 	'builtin_view_repo_map', 'builtin_exact_search', 'builtin_view_diff', 'builtin_lsp', 'builtin_skill',
-	'builtin_memory', 'builtin_memory_graph', 'builtin_memory_sessions', 'builtin_memory_manage', 'builtin_memory_learn',
+	'builtin_memory',
 	'builtin_await_shell', 'builtin_pty_read', 'builtin_git_status', 'builtin_git_diff', 'builtin_git_log',
 	'builtin_git_blame', 'builtin_kconfig', 'builtin_plan',
 ]);
@@ -842,6 +854,8 @@ export interface IKnoxGuiState {
 	isLoadingHistory: boolean;
 	mode: KnoxChatMode;
 	permissionMode: KnoxPermissionMode;
+	/** K-090: why this session started in Ask/Auto. Not persisted. */
+	permissionDefaultReason?: KnoxPermissionDefaultReason;
 	/** Plan-mode toggle: read-only explore + builtin_plan until Execute. */
 	planMode: boolean;
 	modelTitle?: string;

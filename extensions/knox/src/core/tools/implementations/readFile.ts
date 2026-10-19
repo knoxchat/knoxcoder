@@ -7,6 +7,7 @@ import { detectLanguageFromExtension } from "../templates/fileTemplates";
 import { capLines, DEFAULT_MAX_OUTPUT_LINES } from "../truncateOutput";
 
 import { ToolImpl } from ".";
+import { toolFilesystem } from "../toolPorts";
 
 export const DEFAULT_READ_MAX_BYTES = 100_000;
 export const READ_HEAD_TAIL_LINES = 40;
@@ -152,13 +153,13 @@ export const readFileImpl: ToolImpl = async (args, extras) => {
   try {
     resolvedFileUri = await resolveRelativePathInDir(
       filepath,
-      extras.ide,
+      toolFilesystem(extras),
     );
   } catch (error) {
     throw new Error(t("failedToResolveFilePath", { filepath, error: (error as Error).message }));
   }
   if (!resolvedFileUri) {
-    const dirs = await extras.ide.getWorkspaceDirs().catch(() => [] as string[]);
+    const dirs = await toolFilesystem(extras).getWorkspaceDirs().catch(() => [] as string[]);
     const searched = dirs.length
       ? ` Searched workspace folders: ${dirs.join(", ")}.`
       : " No workspace folder is open, so relative paths cannot resolve; open a folder first.";
@@ -166,7 +167,7 @@ export const readFileImpl: ToolImpl = async (args, extras) => {
   }
 
   // Check if file exists
-  const fileExists = await extras.ide.fileExists(resolvedFileUri);
+  const fileExists = await toolFilesystem(extras).fileExists(resolvedFileUri);
   if (!fileExists) {
     return notFoundResult(t("fileDoesNotExist", { filepath }));
   }
@@ -203,10 +204,13 @@ export const readFileImpl: ToolImpl = async (args, extras) => {
         start: { line: (startLine || 1) - 1, character: 0 },
         end: { line: (endLine || 999999) - 1, character: 999999 }
       };
-      content = await extras.ide.readRangeInFile(resolvedFileUri, range);
+      const fs = toolFilesystem(extras);
+      content = fs.readRangeInFile
+        ? await fs.readRangeInFile(resolvedFileUri, range)
+        : await fs.readFile(resolvedFileUri);
     } else {
       // Read entire file
-      content = await extras.ide.readFile(resolvedFileUri);
+      content = await toolFilesystem(extras).readFile(resolvedFileUri);
       noteFileContent(resolvedFileUri, content);
     }
   } catch (error) {
@@ -242,7 +246,10 @@ export const readFileImpl: ToolImpl = async (args, extras) => {
   let fileStats: any = null;
   if (includeMetadata) {
     try {
-      const statsMap = await extras.ide.getFileStats([resolvedFileUri]);
+      const fs = toolFilesystem(extras);
+      const statsMap = fs.getFileStats
+        ? await fs.getFileStats([resolvedFileUri])
+        : {};
       fileStats = statsMap[resolvedFileUri];
     } catch (error) {
       // Stats are optional, continue without them

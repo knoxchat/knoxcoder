@@ -35,6 +35,9 @@ const BYPASSES: Record<string, string[]> = {
   "eval and nested shells": [
     "eval 'git reset --hard'",
     'eval "rm -rf /"',
+    "X=rm; $X -rf /",
+    "VAR='rm -rf /'; eval \"$VAR\"",
+    "export DEST=rm; $DEST -rf /",
     "bash -c 'bash -c \"git reset --hard\"'",
     "sh -c \"sh -c 'git push --force'\"",
     "zsh -c 'git clean -fd'",
@@ -205,5 +208,24 @@ describe("detectDangerousCommand robustness", () => {
       expect(() => detectDangerousCommand(s)).not.toThrow();
       expect(detectDangerousCommand(s)).toBe(detectDangerousCommand(s));
     }
+  });
+});
+
+/** K-091: these stay open on purpose. Do not treat a green test here as a reopen. */
+describe("K-091 remaining holes stay open on purpose", () => {
+  it("does not decode python/node exec of base64", () => {
+    expect(
+      denied(
+        `python -c "exec(__import__('base64').b64decode('cm0gLXJmIC8='))"`,
+      ),
+    ).toBe(false);
+    expect(
+      denied(`node -e "eval(Buffer.from('cm0gLXJmIC8=','base64').toString())"`),
+    ).toBe(false);
+  });
+
+  it("does not expand make recipes", () => {
+    expect(denied("make distclean")).toBe(false);
+    expect(denied("make -C . pwn")).toBe(false);
   });
 });

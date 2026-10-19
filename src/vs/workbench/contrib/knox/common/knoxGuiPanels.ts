@@ -394,8 +394,28 @@ export function formatPlanText(plan: { title: string; steps: IKnoxGuiTaskPlanSte
 			lines.push(`${index + 1}. [${marks[step.status]}] ${step.title} (${step.id})`);
 		});
 	}
+	const openTitles = plan.steps
+		.filter(step => step.status === 'pending' || step.status === 'in_progress')
+		.map(step => step.title);
+	lines.push(remaining === 0
+		? 'Remaining 0: plan is complete.'
+		: `Remaining ${remaining}: ${openTitles.join('; ')}`);
 	lines.push(`${remaining} remaining / ${plan.steps.length} total`);
 	return lines.join('\n');
+}
+
+/** User prompt for Execute. `undefined` means remaining is 0 — toast, do not submit. */
+export function formatExecutePlanPrompt(plan: IKnoxGuiTaskPlan | undefined): string | undefined {
+	if (plan && plan.remaining === 0) {
+		return undefined;
+	}
+	if (!plan) {
+		return 'Execute the approved plan.';
+	}
+	const open = plan.steps
+		.filter(step => step.status === 'pending' || step.status === 'in_progress')
+		.map(step => step.title);
+	return `Execute the approved plan. Remaining ${plan.remaining}: ${open.join('; ')}.`;
 }
 
 function historyItemPlanSources(item: IKnoxGuiHistoryItem): Array<{ name?: string; content?: string; description?: string }> {

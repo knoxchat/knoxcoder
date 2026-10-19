@@ -1,3 +1,4 @@
+import { attachSessionPermission } from "../agent/sessionPermission";
 import { addModel, deleteModel, addPrompt } from "../config/util";
 import { createNewPromptFileV2 } from "../promptFiles/v2/createNewPromptFile";
 
@@ -35,7 +36,9 @@ export function registerConfigHandlers(core: CoreRuntime): void {
 
   on("config/reload", async (msg) => {
     void core.configHandler.reloadConfig();
-    return await core.configHandler.getSerializedConfig();
+    const serialized = await core.configHandler.getSerializedConfig();
+    await attachSessionPermission(serialized, core.ide);
+    return serialized;
   });
 
   on("config/ideSettingsUpdate", (msg) => {
@@ -78,8 +81,10 @@ export function registerConfigHandlers(core: CoreRuntime): void {
   });
 
   on("config/getSerializedProfileInfo", async (msg) => {
+    const result = await core.configHandler.getSerializedConfig();
+    await attachSessionPermission(result, core.ide);
     return {
-      result: await core.configHandler.getSerializedConfig(),
+      result,
       profileId:
         core.configHandler.currentProfile?.profileDescription.id ?? null,
     };

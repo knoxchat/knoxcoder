@@ -12,6 +12,7 @@ import {
   lastOracleErrorCount,
   MAX_ORACLE_HOLD_ROUNDS,
   ORACLE_HOLD_MARKER,
+  ORACLE_HOLD_STUCK_THRESHOLD,
   runAgentLoop,
 } from "./loop";
 import {
@@ -178,10 +179,15 @@ describe("runAgentLoop", () => {
     ).toBe(true);
   });
 
-  it("caps extra oracle-hold rounds so a permanently red tree cannot loop forever", async () => {
+  it("doom-loops three identical oracle-holds before the 8-round cap (K-062)", async () => {
     const holds: unknown[] = [];
     const result = await runAgentLoop({
-      extras: extras([[{ role: "assistant", content: "All green." }]]),
+      extras: extras([
+        [{ role: "assistant", content: "All green." }],
+        [{ role: "assistant", content: "Still green." }],
+        [{ role: "assistant", content: "Really done." }],
+        [{ role: "assistant", content: "Same red make; changing strategy." }],
+      ]),
       messages: [
         { role: "user", content: "fix tests" },
         {
@@ -197,9 +203,67 @@ describe("runAgentLoop", () => {
       onHold: (hold) => void holds.push(hold),
       executeTool: vi.fn(),
     });
+    expect(result.stoppedReason).toBe("doom_loop");
+    expect(holds).toHaveLength(ORACLE_HOLD_STUCK_THRESHOLD);
+    expect(result.steps).toBe(ORACLE_HOLD_STUCK_THRESHOLD);
+    expect(result.summary).toMatch(/same errors|doom loop|stuck|strategy/i);
+  });
+
+  it("keeps holding through 8 rounds when the gcc signature changes (K-062)", async () => {
+    const buildTool = {
+      function: { name: BuiltInToolNames.Build },
+      readonly: false,
+    } as Tool;
+    const errors = [
+      "a.c:1:1: error: one",
+      "a.c:2:1: error: two",
+      "a.c:3:1: error: three",
+      "a.c:4:1: error: four",
+      "a.c:5:1: error: five",
+      "a.c:6:1: error: six",
+      "a.c:7:1: error: seven",
+      "a.c:8:1: error: eight",
+    ];
+    let buildN = 0;
+    const turns: ChatMessage[][] = [];
+    for (let i = 0; i < MAX_ORACLE_HOLD_ROUNDS; i++) {
+      if (i > 0) {
+        turns.push([
+          assistantTools([
+            {
+              id: `b${i}`,
+              name: BuiltInToolNames.Build,
+              args: { target: "all", n: i },
+            },
+          ]),
+        ]);
+      }
+      turns.push([{ role: "assistant", content: `Done after error ${i}.` }]);
+    }
+    const holds: unknown[] = [];
+    const result = await runAgentLoop({
+      extras: extras(turns),
+      messages: [
+        { role: "user", content: "fix tests" },
+        {
+          role: "tool",
+          toolCallId: "t1",
+          content: `${errors[0]}\n`,
+        },
+      ],
+      tools: [buildTool],
+      compact: false,
+      holdCompletionWhileOracleRed: true,
+      onHold: (hold) => void holds.push(hold),
+      executeTool: async () => {
+        buildN += 1;
+        const content = `${errors[Math.min(buildN, errors.length - 1)]}\n`;
+        return [{ name: "Build", description: "failed", content }];
+      },
+    });
     expect(result.stoppedReason).toBe("completed");
     expect(holds).toHaveLength(MAX_ORACLE_HOLD_ROUNDS);
-    expect(result.steps).toBe(MAX_ORACLE_HOLD_ROUNDS);
+    expect(result.steps).toBeGreaterThanOrEqual(MAX_ORACLE_HOLD_ROUNDS);
   });
 
   it("ends once remaining plan steps are completed", async () => {
@@ -440,9 +504,8 @@ describe("HL-01 shared loop", () => {
       path.resolve(here, "../tools/subagent/runSubagent.ts"),
       "utf8",
     );
-    // The native GUI chat loop lives in the workbench, not the extension.
-    // It does not call runAgentLoop yet (knox-impl.md K-010), so only assert
-    // that it never grows a second collectAssistantTurn.
+    // GUI Agent chat calls runAgentLoop via knox/runChatTurn (K-010).
+    // Assert it never grows a second collectAssistantTurn.
     const guiLoop = readFileSync(
       path.resolve(
         here,

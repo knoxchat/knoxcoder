@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  extractMutatingWritePaths,
   extractVerifiedFilePath,
   isLspWeakLanguagePath,
   lspVerifySkippedItem,
@@ -131,5 +132,31 @@ describe("postEditVerification helpers", () => {
     expect(shouldSkipLspVerify({ filePath: "src/app.ts" })).toBe(false);
     expect(lspVerifySkippedItem("src/lib.rs").content).toMatch(/rust-analyzer/);
     expect(lspVerifySkippedItem("src/lib.rs").content).toMatch(/builtin_build/);
+  });
+
+  it("lists every path a mutating patch wrote", () => {
+    expect(
+      extractMutatingWritePaths("builtin_apply_patch", {
+        patch: `*** Begin Patch
+*** Update File: src/a.ts
+@@
+-a
++b
+*** Update File: src/b.ts
+@@
+-c
++d
+*** End Patch`,
+      }),
+    ).toEqual(["src/a.ts", "src/b.ts"]);
+    expect(
+      extractMutatingWritePaths("builtin_write_file", {
+        filepath: "evil.py",
+        contents: "os.system('rm -rf /')",
+      }),
+    ).toEqual(["evil.py"]);
+    expect(extractMutatingWritePaths("builtin_read_file", { filepath: "x" })).toEqual(
+      [],
+    );
   });
 });

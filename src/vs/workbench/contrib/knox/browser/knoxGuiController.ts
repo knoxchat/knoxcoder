@@ -40,6 +40,8 @@ export class KnoxGuiController extends Disposable {
 	turnInject: { sessionId: string; content: string } | undefined;
 	/** Alt-submit / noContext: skip Turn Context (open files / git / diagnostics). */
 	turnNoContext = false;
+	/** K-066: Execute seeds doom-loop from the Plan-mode explore tools. */
+	seedSessionDoom = false;
 	/** Verified-recipe worked example from `knox/startTurn` (MC-24); merged into `turnInject` at submit. */
 	turnRecipeHint: string | undefined;
 	/** Resolves the recipe preview card (MC-35); set only while it waits for the user. */
@@ -50,6 +52,10 @@ export class KnoxGuiController extends Disposable {
 	sharedTurnQueue: Promise<void> = Promise.resolve();
 	/** First workspace folder URI (`window.workspacePaths[0]` in the reference); '' without a folder. */
 	workspaceDirectory = '';
+	/** K-090: this folder already has a saved permission mode; heuristic must not overwrite. */
+	workspacePermissionSaved = false;
+	/** K-090: Core sessionPermission applied this window; config reloads must not re-flip. */
+	sessionPermissionApplied = false;
 	mentionLiveTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Caret of the last composer input; triggers and chips are resolved there instead of at the end. */
 	composerCaret: IKnoxGuiDocCaret | undefined;

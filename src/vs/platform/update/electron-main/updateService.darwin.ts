@@ -16,7 +16,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { IGitHubAssetQuery, isGitHubUpdateUrl } from '../common/githubReleaseUpdate.js';
+import { IGitHubAssetQuery, isGitHubApiUrl, isGitHubUpdateUrl } from '../common/githubReleaseUpdate.js';
 import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
@@ -103,6 +103,9 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
 		const assetID = this.productService.darwinUniversalAssetId ?? (process.arch === 'x64' ? 'darwin' : 'darwin-arm64');
 		const url = createUpdateURL(this.productService.updateUrl!, assetID, quality, commit, options);
+		if (!url) {
+			return undefined;
+		}
 		if (isGitHubUpdateUrl(this.productService.updateUrl)) {
 			return url;
 		}
@@ -181,7 +184,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	private startSquirrelDownload(feedUrl: string, update?: IUpdate): void {
-		const headers = getUpdateRequestHeaders(this.productService.version, { github: true });
+		const headers = getUpdateRequestHeaders(this.productService.version, { github: isGitHubApiUrl(feedUrl) });
 		try {
 			this.logService.info('update#startSquirrelDownload - downloading KnoxCoder update', { feedUrl });
 			electron.autoUpdater.setFeedURL({ url: feedUrl, headers });

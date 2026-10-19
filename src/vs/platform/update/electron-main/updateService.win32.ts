@@ -33,7 +33,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { IGitHubAssetQuery, isInstallerPackageUrl } from '../common/githubReleaseUpdate.js';
+import { IGitHubAssetQuery, isInstallerPackageUrl, resolveForcedDownloadUrl } from '../common/githubReleaseUpdate.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 import { getRelaunchArguments } from './updateRelaunchArguments.js';
@@ -380,8 +380,9 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		if (state.update.url) {
-			this.nativeHostMainService.openExternal(undefined, state.update.url);
+		const url = resolveForcedDownloadUrl(state.update, this.productService.downloadUrl);
+		if (url) {
+			this.nativeHostMainService.openExternal(undefined, url);
 		}
 		this.setState(State.Idle(this.getUpdateType()));
 	}

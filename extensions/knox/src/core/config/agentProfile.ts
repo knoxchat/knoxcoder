@@ -22,6 +22,13 @@ export const DEFAULT_AGENT_MAX_STEPS = 0;
 export const RUST_AGENT_MAX_STEPS = 0;
 export const SYSTEMS_AGENT_MAX_STEPS = 0;
 export const ABSOLUTE_MAX_AGENT_STEPS = 1000;
+/** K-061: background / `/autonomous` default caps (GUI stays unlimited). */
+export const UNATTENDED_AGENT_MAX_STEPS: Record<ResolvedAgentProfile, number> = {
+  default: 40,
+  rust: 60,
+  systems: 80,
+};
+export const UNATTENDED_ABSOLUTE_MAX_STEPS = 200;
 export const DEFAULT_DOOM_LOOP_THRESHOLD = 3;
 export const RUST_DOOM_LOOP_THRESHOLD = 4;
 export const SYSTEMS_DOOM_LOOP_THRESHOLD = 5;
@@ -327,6 +334,8 @@ export function ideSettingsToExperimental(ide: {
   compatInstructions?: unknown;
   memoryBrainEnabled?: unknown;
   memoryBrainWorkspaceEnabled?: unknown;
+  permissionDefault?: unknown;
+  trustedGitRemotes?: unknown;
 }): {
   agentProfile?: AgentProfileSetting;
   agentMaxSteps?: number;
@@ -340,6 +349,8 @@ export function ideSettingsToExperimental(ide: {
   compatInstructions?: Array<"cursor" | "copilot">;
   memoryBrainEnabled?: boolean;
   memoryBrainWorkspaceEnabled?: boolean;
+  permissionDefault?: "auto" | "ask" | "edits";
+  trustedGitRemotes?: string[];
 } {
   const out: ReturnType<typeof ideSettingsToExperimental> = {};
   if (isAgentProfileSetting(ide.agentProfile)) {
@@ -364,6 +375,18 @@ export function ideSettingsToExperimental(ide: {
   }
   if (typeof ide.memoryBrainWorkspaceEnabled === "boolean") {
     out.memoryBrainWorkspaceEnabled = ide.memoryBrainWorkspaceEnabled;
+  }
+  if (
+    ide.permissionDefault === "auto" ||
+    ide.permissionDefault === "ask" ||
+    ide.permissionDefault === "edits"
+  ) {
+    out.permissionDefault = ide.permissionDefault;
+  }
+  if (Array.isArray(ide.trustedGitRemotes)) {
+    out.trustedGitRemotes = ide.trustedGitRemotes.filter(
+      (h): h is string => typeof h === "string" && h.trim().length > 0,
+    );
   }
   if (typeof ide.agentMaxSteps === "number" && Number.isFinite(ide.agentMaxSteps)) {
     out.agentMaxSteps = ide.agentMaxSteps;
@@ -405,6 +428,26 @@ export function resolveAgentMaxSteps(
   }
   const fallback = AGENT_PROFILE_DEFAULTS[profile].maxSteps;
   return fallback > 0 ? fallback : null;
+}
+
+/**
+ * K-061: unattended loops (background, `/autonomous`) get a profile cap
+ * unless the user set `agentMaxSteps` (0 = unlimited).
+ */
+export function resolveUnattendedMaxSteps(
+  raw: unknown,
+  profile: ResolvedAgentProfile = "default",
+): number | null {
+  if (raw === 0) {
+    return null;
+  }
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return Math.min(Math.floor(raw), ABSOLUTE_MAX_AGENT_STEPS);
+  }
+  return Math.min(
+    UNATTENDED_AGENT_MAX_STEPS[profile],
+    UNATTENDED_ABSOLUTE_MAX_STEPS,
+  );
 }
 
 export function resolveDoomLoopThreshold(

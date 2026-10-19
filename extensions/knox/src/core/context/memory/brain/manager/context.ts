@@ -20,10 +20,7 @@ import { recordMetric } from "./telemetry.js";
 
 /**
  * Build relevant context from memory for a new message.
- * This is the key function that enables "unlimited context window".
- *
- * Given any user message, it searches across ALL sessions to find relevant
- * semantic knowledge and episodic memories, then returns them as context.
+ * Injected memory is capped (K-072); pinned + plan outrank retrieved rows.
  */
 export async function buildContextForMessage(
   message: string,

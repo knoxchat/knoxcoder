@@ -63,6 +63,10 @@ describe("agent honesty gate", () => {
       "builtin_analyze_dependencies",
       "builtin_explain_code",
       "builtin_scaffold_project",
+      "builtin_memory_graph",
+      "builtin_memory_sessions",
+      "builtin_memory_manage",
+      "builtin_memory_learn",
     ]) {
       expect(product.has(name)).toBe(false);
       expect(implemented.has(name)).toBe(false);
@@ -110,6 +114,25 @@ describe("agent honesty gate", () => {
     const agentReadme = readRepo("extensions/knox/src/host/agent/README.md");
     expect(agentReadme).toMatch(/builtin_plan/);
     expect(agentReadme).toMatch(/no host-side planner/i);
+  });
+
+  it("does not route host executeToolCall through AgentService (K-080)", () => {
+    const mode = readRepo("extensions/knox/src/host/agent/AgentModeManager.ts");
+    const index = readRepo("extensions/knox/src/host/agent/index.ts");
+    expect(mode).toContain("knox.callToolDirect");
+    expect(mode).not.toContain("AgentService.getInstance");
+    expect(mode).not.toContain("ChatFlowCoordinator.getInstance");
+    expect(index).toMatch(/getAgentService\(\): never/);
+    expect(index).not.toMatch(/knox\.analyzeProjectStructure|knox\.findRelatedFiles/);
+    expect(
+      readRepo("extensions/knox/src/host/extension/VsCodeExtension.ts"),
+    ).not.toContain("ChatFlowCoordinator.getInstance");
+    expect(readRepo("extensions/knox/src/host/agent/README.md")).not.toMatch(
+      /findRelatedFiles|analyzeProjectStructure/,
+    );
+    const agentService = readRepo("extensions/knox/src/host/agent/AgentService.ts");
+    expect(agentService).not.toMatch(/undoStack|redoStack/);
+    expect(agentService).toMatch(/CommandHistoryService can undo/);
   });
 
   it("the removed ReasoningEngine stays removed", () => {

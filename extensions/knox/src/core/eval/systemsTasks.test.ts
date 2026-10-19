@@ -320,13 +320,19 @@ describe("systems golden tasks", () => {
     expect(result.toolTrace[1]?.output).toContain("knox");
   });
 
-  it("K-021: a deferred tool called before loading is refused with a hint", async () => {
+  it("K-064: a deferred tool called before loading is autoloaded and run", async () => {
     const result = await runAgentEval({
       prompt: "Who touched a.c?",
       catalog: SYSTEMS_EVAL_CATALOG,
       viaChatTurn: true,
       deferTools: true,
       workspace: { "a.c": "int a;\n" },
+      ideHooks: {
+        subprocess: async (command) =>
+          command.includes("git blame")
+            ? ["^abc (knox 2020-01-01 00:00:00 +0000 1) int a;", ""]
+            : ["", "unexpected git command"],
+      },
       script: [
         {
           toolCalls: [
@@ -336,11 +342,13 @@ describe("systems golden tasks", () => {
             },
           ],
         },
-        { content: "gave up" },
+        { content: "knox wrote a.c." },
       ],
     });
-    expect(result.toolTrace[0]?.ok).toBe(false);
-    expect(result.toolTrace[0]?.output).toMatch(/tool_search/);
+    expect(result.stoppedReason).toBe("completed");
+    expect(result.toolTrace[0]?.name).toBe(BuiltInToolNames.GitBlame);
+    expect(result.toolTrace[0]?.ok).toBe(true);
+    expect(result.toolTrace[0]?.output).toContain("knox");
   });
 
   it("git blame uses eval subprocess (HL-29)", async () => {
@@ -895,7 +903,9 @@ describe("systems catalog goldens (kconfig / qemu / git / plan)", () => {
     });
     expect(result.toolTrace[0]?.output).toContain("Task Execution Plan");
     expect(result.toolTrace[0]?.output).toContain("Boot panic in mm");
+    expect(result.toolTrace[0]?.output).toMatch(/Remaining 3:/);
     expect(result.toolTrace[1]?.output).toContain("Parse oops RIP");
+    expect(result.toolTrace[1]?.output).toMatch(/Remaining 3:/);
   });
 
   it("doom-loops three identical greps without executing the third (HL-11)", async () => {
@@ -931,6 +941,29 @@ describe("systems catalog goldens (kconfig / qemu / git / plan)", () => {
     expect(result.toolTrace[1]?.ok).toBe(true);
     expect(result.toolTrace[2]?.ok).toBe(false);
     expect(result.toolTrace[2]?.output).toMatch(/doom-loop/i);
+  });
+
+  it("doom-loops three identical red-build holds before eight empty rounds (K-062)", async () => {
+    const result = await runAgentEval({
+      prompt: "Build until it works.",
+      catalog: SYSTEMS_EVAL_CATALOG,
+      workspace: { "src/foo.c": FOO_BUG, Makefile: "all:\n" },
+      holdCompletionWhileOracleRed: true,
+      evaluateCommand: async () => evalMakeFromWorkspace({ "src/foo.c": FOO_BUG }),
+      script: [
+        {
+          toolCalls: [{ name: BuiltInToolNames.Build, args: { target: "all" } }],
+        },
+        { content: "All green." },
+        { content: "Still done." },
+        { content: "Really finished." },
+        { content: "Same gcc error; stop repeating." },
+      ],
+    });
+    expect(result.stoppedReason).toBe("doom_loop");
+    expect(result.steps).toBeLessThan(8);
+    expect(result.toolTrace).toHaveLength(1);
+    expect(result.toolTrace[0]?.output).toContain("implicit declaration");
   });
 
   it("doom-loops three identical makes with the same gcc error (HL-11)", async () => {

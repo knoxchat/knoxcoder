@@ -1,6 +1,9 @@
 /**
  * REL-03 — Post-fusion mismatch gate (pure).
  */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -175,5 +178,21 @@ describe("REL-03 RelevanceGate (pure)", () => {
     );
     expect(applyMismatchPenalty(0.8, 2, true)).toBe(0.8);
     expect(applyMismatchPenalty(0.1, 3, false)).toBe(0);
+  });
+});
+
+describe("K-073 buildContext hot path", () => {
+  it("does not import Amygdala / BasalGanglia / Brainstem / NeuralArchitecture", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    for (const rel of ["ContextBuilder.ts", "manager/context.ts"]) {
+      const source = readFileSync(join(here, rel), "utf8");
+      expect(source, rel).not.toMatch(
+        /Amygdala|BasalGanglia|Brainstem|NeuralArchitecture/,
+      );
+    }
+    const pipeline = readFileSync(join(here, "MemoryPipeline.ts"), "utf8");
+    expect(pipeline).not.toMatch(/NeuralArchitecture/);
+    expect(pipeline).not.toMatch(/from "\.\/regions\/Amygdala/);
+    expect(pipeline).not.toMatch(/from "\.\/regions\/Brainstem/);
   });
 });

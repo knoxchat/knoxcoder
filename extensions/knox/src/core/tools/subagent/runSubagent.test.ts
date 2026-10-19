@@ -17,7 +17,9 @@ import { resetSubagentJobs } from "./jobs";
 import {
   buildSubagentContextBlock,
   formatSubagentResult,
+  recordSubagentFileOp,
   runSubagent,
+  type SubagentFileStat,
 } from "./runSubagent";
 
 function extras(chunks: ChatMessage[][]): ToolExtras {
@@ -43,6 +45,37 @@ const readTool = {
   readonly: true,
 } as Tool;
 
+const editTool = {
+  function: { name: BuiltInToolNames.EditFile },
+  readonly: false,
+} as Tool;
+
+const buildTool = {
+  function: { name: BuiltInToolNames.Build },
+  readonly: false,
+} as Tool;
+
+function assistantEdits(
+  files: Array<{ id: string; path: string; old: string; next: string }>,
+): ChatMessage {
+  return {
+    role: "assistant",
+    content: "",
+    toolCalls: files.map((file) => ({
+      id: file.id,
+      type: "function",
+      function: {
+        name: BuiltInToolNames.EditFile,
+        arguments: JSON.stringify({
+          filepath: file.path,
+          old_string: file.old,
+          new_string: file.next,
+        }),
+      },
+    })),
+  };
+}
+
 describe("runSubagent", () => {
   afterEach(() => {
     resetCodebaseCardForTests();
@@ -64,7 +97,8 @@ describe("runSubagent", () => {
     expect(result.stoppedReason).toBe("completed");
     expect(result.steps).toBe(0);
     expect(result.summary).toContain("src/index.ts");
-    expect(formatSubagentResult(result)).toContain("explore");
+    expect(formatSubagentResult(result)).toContain("profile: explore");
+    expect(formatSubagentResult(result)).toContain("oracle: unverified");
   });
 
   it("recovers leaked fullwidth DSML tool markup and executes the call", async () => {
@@ -270,5 +304,155 @@ describe("runSubagent", () => {
       executeTool: vi.fn(),
     });
     expect(result.stoppedReason).toBe("error");
+    expect(result.oracle).toBe("skipped");
+  });
+
+  it("lists both edited files on the parent contract without child bodies (K-065)", async () => {
+    const filemapBody = [
+      "static int filemap_fault(void)",
+      "{",
+      "  return 0;",
+      "}",
+    ].join("\n");
+    const readWriteBody = "ssize_t vfs_read(void) { return -1; }\n";
+    const executeTool = vi.fn(async (_tool, args: unknown) => [
+      {
+        name: "edit",
+        description: "ok",
+        content: `Updated ${String((args as { filepath?: string }).filepath)}\n${filemapBody}\n${readWriteBody}`,
+      },
+    ]);
+    const result = await runSubagent({
+      prompt: "Patch mm and fs.",
+      profile: "general",
+      extras: extras([
+        [
+          assistantEdits([
+            {
+              id: "e1",
+              path: "mm/filemap.c",
+              old: "return 0;",
+              next: "return filemap_map_pages();\nreturn 0;",
+            },
+            {
+              id: "e2",
+              path: "fs/read_write.c",
+              old: "return -1;",
+              next: "return count;",
+            },
+          ]),
+        ],
+        [{ role: "assistant", content: "Patched filemap and vfs_read." }],
+      ]),
+      catalog: [editTool],
+      executeTool,
+    });
+    const parent = formatSubagentResult(result);
+    expect(parent).toMatch(/^profile: general$/m);
+    expect(parent).toMatch(/^oracle: unverified$/m);
+    expect(parent).toContain("mm/filemap.c");
+    expect(parent).toContain("fs/read_write.c");
+    expect(parent).toMatch(/\(\+\d+\/−\d+\)/);
+    expect(parent).not.toContain(filemapBody);
+    expect(parent).not.toContain("static int filemap_fault");
+    expect(result.filesTouched).toEqual(["fs/read_write.c", "mm/filemap.c"]);
+    expect(result.diffstat["mm/filemap.c"]).not.toBe("touched");
+    expect(result.diffstat["fs/read_write.c"]).not.toBe("touched");
+  });
+
+  it("lists explore reads as paths without edit deltas", async () => {
+    const executeTool = vi.fn(async () => [
+      { name: "file", description: "ok", content: "huge file body ".repeat(40) },
+    ]);
+    const result = await runSubagent({
+      prompt: "Read mm/filemap.c",
+      profile: "explore",
+      extras: extras([
+        [
+          {
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "c1",
+                type: "function",
+                function: {
+                  name: BuiltInToolNames.ReadFile,
+                  arguments: '{"filepath":"mm/filemap.c"}',
+                },
+              },
+            ],
+          },
+        ],
+        [{ role: "assistant", content: "filemap handles faults." }],
+      ]),
+      catalog: [readTool],
+      executeTool,
+    });
+    const parent = formatSubagentResult(result);
+    expect(parent).toContain("  - mm/filemap.c");
+    expect(parent).not.toMatch(/mm\/filemap\.c \(\+/);
+    expect(parent).not.toContain("huge file body");
+    expect(result.diffstat["mm/filemap.c"]).toBe("touched");
+    expect(result.oracle).toBe("unverified");
+  });
+
+  it("reports a failing child oracle", async () => {
+    const executeTool = vi.fn(async () => [
+      {
+        name: "Build",
+        description: "failed",
+        content: "src/foo.c:2:3: error: implicit declaration of function 'bar'\n",
+      },
+    ]);
+    const result = await runSubagent({
+      prompt: "Build it",
+      profile: "general",
+      extras: extras([
+        [
+          {
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "b1",
+                type: "function",
+                function: {
+                  name: BuiltInToolNames.Build,
+                  arguments: '{"target":"all"}',
+                },
+              },
+            ],
+          },
+        ],
+        [{ role: "assistant", content: "Still red." }],
+      ]),
+      catalog: [buildTool],
+      executeTool,
+    });
+    expect(result.oracle).toBe("fail");
+    expect(formatSubagentResult(result)).toContain("oracle: fail");
+  });
+});
+
+describe("K-065 file op stats", () => {
+  it("counts apply_patch deltas per file", () => {
+    const into = new Map<string, SubagentFileStat>();
+    recordSubagentFileOp(
+      BuiltInToolNames.ApplyPatch,
+      {
+        patch: [
+          "*** Begin Patch",
+          "*** Update File: a.ts",
+          "@@",
+          "-old",
+          "+new1",
+          "+new2",
+          "*** End Patch",
+        ].join("\n"),
+      },
+      into,
+    );
+    expect(into.get("a.ts")).toEqual({ added: 2, removed: 1 });
   });
 });

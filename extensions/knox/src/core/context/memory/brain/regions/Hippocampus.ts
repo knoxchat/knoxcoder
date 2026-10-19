@@ -143,6 +143,9 @@ export const Hippocampus = {
   },
 
   /**
+   * @deprecated K-073: hot path uses `RetrievalFusion.search` from ContextBuilder.
+   * Kept as a thin wrapper for tests and the pipeline.
+   *
    * φ₆ — multi-strategy fusion retrieval (M layer in O(x)).
    * Callers must pass the returned hits into φ₈ (`fusion_hits`) so assembly
    * does not search again (REL-04).

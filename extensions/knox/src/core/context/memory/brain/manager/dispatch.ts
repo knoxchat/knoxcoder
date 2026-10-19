@@ -63,7 +63,7 @@ import { executeProcedure, getPatterns, getProcedures, learnPattern, storeProced
 import { llmEvaluateImportance, llmExtractEntities, llmPostActionMemory, llmSummarizeSession } from "./llm.js";
 import { autoHeal, getCapacityForecast, getConsolidationStats, getHealingStrategies, getHealthScore, runHealingAction } from "./metrics.js";
 import { addToCollection, createCollection, listCollections, searchByTag, tag, untag } from "./organization.js";
-import { getActiveSessionId, recordMismatch } from "./runtime.js";
+import { getActiveSessionId, pinMemory, recordMismatch, unpinMemory } from "./runtime.js";
 import { forget, recall, store } from "./semantic.js";
 import { closeSession, getSession, listSessions } from "./sessions.js";
 import { summarizeSession } from "./summarize.js";
@@ -141,6 +141,24 @@ export async function dispatch(action: MemoryBrainAction, params: any): Promise<
 
     case "close_session": {
       return await closeSession(params.session_id);
+    }
+
+    case "pin": {
+      const id = Number(params.id ?? params.memory_id);
+      if (!Number.isFinite(id)) {
+        return 'pin needs numeric id (or memory_id).';
+      }
+      const ok = await pinMemory(id);
+      return ok ? `Pinned memory ${id}.` : `Memory #${id} not found.`;
+    }
+
+    case "unpin": {
+      const id = Number(params.id ?? params.memory_id);
+      if (!Number.isFinite(id)) {
+        return 'unpin needs numeric id (or memory_id).';
+      }
+      const ok = await unpinMemory(id);
+      return ok ? `Unpinned memory ${id}.` : `Memory #${id} not found.`;
     }
 
     case "delete": {

@@ -4,6 +4,9 @@
  */
 
 import type { ContextItem, IDE } from "../..";
+
+/** K-084: oracle detection only needs workspace listing and file reads. */
+type BuildDetectHost = Pick<IDE, "getWorkspaceDirs" | "fileExists" | "listDir" | "readFile">;
 import {
   detectWorkspaceKind,
   RUST_VERIFY_COMMAND,
@@ -252,7 +255,7 @@ export function composeBuildCommand(
     .join(" ");
 }
 
-export async function detectBuildCommand(ide: IDE): Promise<string | undefined> {
+export async function detectBuildCommand(ide: BuildDetectHost): Promise<string | undefined> {
   const dirs = await ide.getWorkspaceDirs();
   for (const root of dirs) {
     const found = await detectBuildCommandIn(ide, root);
@@ -264,7 +267,7 @@ export async function detectBuildCommand(ide: IDE): Promise<string | undefined> 
 }
 
 async function detectBuildCommandIn(
-  ide: IDE,
+  ide: BuildDetectHost,
   root: string,
 ): Promise<string | undefined> {
   if (!root) {
@@ -295,7 +298,7 @@ async function detectBuildCommandIn(
 
 /** K-034: Node / Python / Go fallbacks when no Makefile, ninja or Cargo manifest exists. */
 async function detectNonCOracle(
-  ide: IDE,
+  ide: BuildDetectHost,
   root: string,
 ): Promise<string | undefined> {
   if (typeof ide.listDir !== "function") {

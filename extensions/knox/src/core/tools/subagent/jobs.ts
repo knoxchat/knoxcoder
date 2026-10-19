@@ -19,6 +19,9 @@ export interface SubagentJobRecord {
   detail?: string;
   /** Capped progress log (tool steps). */
   log?: string;
+  /** K-065: last child oracle / files for the jobs row. */
+  oracle?: "pass" | "fail" | "unverified" | "skipped";
+  files?: string[];
   abort: AbortController;
 }
 
@@ -118,6 +121,10 @@ export function finishSubagentJob(
   id: string,
   status: "exited" | "killed",
   summary?: string,
+  extra?: {
+    oracle?: "pass" | "fail" | "unverified" | "skipped";
+    files?: string[];
+  },
 ): void {
   const job = jobs.get(id);
   if (!job || job.status !== "running") {
@@ -126,8 +133,17 @@ export function finishSubagentJob(
   job.status = status;
   job.endedAt = Date.now();
   job.summary = summary;
+  if (extra?.oracle) {
+    job.oracle = extra.oracle;
+  }
+  if (extra?.files) {
+    job.files = extra.files;
+  }
   if (summary) {
-    job.detail = clipDetail(summary.split("\n")[0] ?? summary);
+    const head = extra?.oracle
+      ? `oracle=${extra.oracle} ${summary.split("\n")[0] ?? summary}`
+      : (summary.split("\n")[0] ?? summary);
+    job.detail = clipDetail(head);
     job.log = appendLog(job.log, job.detail);
   }
   emitSubagentJob("completed", job);

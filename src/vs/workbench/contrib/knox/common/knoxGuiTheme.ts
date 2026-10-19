@@ -226,6 +226,14 @@ export function cssVarsFromColorMap(colors: Record<string, string>): Record<stri
 	return out;
 }
 
+export function knoxGuiThemeContrast(theme?: IKnoxGuiVscTheme): 'high' | undefined {
+	const base = (theme?.base ?? '').toLowerCase();
+	if (base === 'hc-black' || base === 'hc-light') {
+		return 'high';
+	}
+	return undefined;
+}
+
 export function knoxGuiThemeIsLight(theme?: IKnoxGuiVscTheme, colors?: Record<string, string>): boolean | undefined {
 	const base = (theme?.base ?? '').toLowerCase();
 	if (base === 'vs' || base === 'hc-light') {
@@ -347,6 +355,12 @@ export function applyKnoxGuiThemeToElement(
 		root.removeAttribute('data-knox-theme-kind');
 	} else {
 		root.setAttribute('data-knox-theme-kind', isLight ? 'light' : 'dark');
+	}
+	const contrast = knoxGuiThemeContrast(state.vscTheme);
+	if (contrast) {
+		root.setAttribute('data-knox-theme-contrast', contrast);
+	} else {
+		root.removeAttribute('data-knox-theme-contrast');
 	}
 	if (styleEl) {
 		styleEl.textContent = knoxGuiHljsStyleSheet(state.vscTokenColors);

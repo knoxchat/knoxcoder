@@ -1,6 +1,11 @@
 import { IDE } from "..";
 import { t } from "../i18n/index.js";
 
+/** K-084: path resolve needs workspace dirs + exists, not a full IDE. */
+export type PathResolveHost = Pick<IDE, "fileExists" | "getWorkspaceDirs"> & {
+  getCurrentFile?: IDE["getCurrentFile"];
+};
+
 import { sanitizeToolFilePath } from "./toolFilePath";
 import {
   getUriPathBasename,
@@ -87,7 +92,7 @@ export function relativePathCandidates(
 */
 export async function resolveRelativePathInDir(
   path: string,
-  ide: IDE,
+  ide: PathResolveHost,
   dirUriCandidates?: string[],
 ): Promise<string | undefined> {
   const trimmed = path.trim();
@@ -128,7 +133,7 @@ export async function resolveRelativePathInDir(
 */
 export async function inferResolvedUriFromRelativePath(
   _relativePath: string,
-  ide: IDE,
+  ide: PathResolveHost,
   dirCandidates?: string[],
 ): Promise<string> {
   if (!_relativePath || typeof _relativePath !== 'string') {
@@ -183,7 +188,7 @@ export async function inferResolvedUriFromRelativePath(
 
   // Sometimes the model will decide to only output the base name or small number of path parts
   // in which case we shouldn't create a new file if it matches the current file
-  const activeFile = await ide.getCurrentFile();
+  const activeFile = await ide.getCurrentFile?.();
   if (activeFile && activeFile.path.endsWith(pathForResolve)) {
     return activeFile.path;
   }

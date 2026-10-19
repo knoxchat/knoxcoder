@@ -1,9 +1,10 @@
 import { getUriDescription } from "../../util/uri";
 
 import { ToolImpl } from ".";
+import { toolEditor, toolFilesystem } from "../toolPorts";
 
 export const readCurrentlyOpenFileImpl: ToolImpl = async (args, extras) => {
-  const result = await extras.ide.getCurrentFile();
+  const result = await toolEditor(extras).getCurrentFile?.();
 
   if (!result) {
     return [];
@@ -11,7 +12,7 @@ export const readCurrentlyOpenFileImpl: ToolImpl = async (args, extras) => {
 
   const { relativePathOrBasename, last2Parts, baseName } = getUriDescription(
     result.path,
-    await extras.ide.getWorkspaceDirs(),
+    await toolFilesystem(extras).getWorkspaceDirs(),
   );
 
   return [

@@ -13,10 +13,16 @@ import {
   DEFAULT_PERMISSION_MODE,
   type PermissionMode,
 } from "../agent/permissions";
-import { detectWorkspaceKindFromIde } from "../config/agentProfile";
+import {
+  detectWorkspaceKindFromIde,
+  resolveUnattendedMaxSteps,
+  workspaceKindHints,
+  type ResolvedAgentProfile,
+} from "../config/agentProfile";
 import { loadCodebaseCard } from "../context/codebaseCard";
 import { buildSystemPrompt } from "../llm/systemPrompt";
 import { callTool } from "../tools/callTool";
+import { withIdePorts } from "../tools/toolPorts";
 import { selectAgentTools } from "../tools/catalog";
 import { shouldPromoteLsp, splitDeferredTools } from "../tools/deferred";
 import FileSystemIde from "../util/filesystem";
@@ -50,10 +56,15 @@ export async function runBackgroundAgent(
     systems: opts.systems,
     enableCompositeTools: opts.enableCompositeTools,
   });
-  const kind =
-    opts.deferTools === false
-      ? null
-      : await detectWorkspaceKindFromIde(ide).catch(() => null);
+  const kind = await detectWorkspaceKindFromIde(ide).catch(() => null);
+  const hints = workspaceKindHints(kind);
+  const profile: ResolvedAgentProfile = opts.systems
+    ? "systems"
+    : hints.systems
+      ? "systems"
+      : hints.cargo
+        ? "rust"
+        : "default";
   const split =
     opts.deferTools === false
       ? { active: catalog, deferred: [] as Tool[] }
@@ -63,7 +74,7 @@ export async function runBackgroundAgent(
           enableCompositeTools: opts.enableCompositeTools,
         });
   const extras: ToolExtras = {
-    ide,
+    ...withIdePorts(ide),
     llm: opts.llm,
     fetch: (async () => new Response()) as ToolExtras["fetch"],
     tool: (split.active[0] ?? catalog[0]) as Tool,
@@ -91,6 +102,7 @@ export async function runBackgroundAgent(
     messages,
     tools: split.active,
     deferredTools: split.deferred.length ? split.deferred : undefined,
+    maxSteps: resolveUnattendedMaxSteps(undefined, profile),
     holdCompletionWhileOracleRed: true,
     permission: {
       mode: opts.permissionMode ?? DEFAULT_PERMISSION_MODE,

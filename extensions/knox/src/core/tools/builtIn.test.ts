@@ -78,6 +78,22 @@ describe("resolveBuiltInToolName", () => {
     );
   });
 
+  it("maps leftover memory tool names onto builtin_memory (K-071)", () => {
+    expect(resolveBuiltInToolName("builtin_memory_graph")).toBe(
+      BuiltInToolNames.Memory,
+    );
+    expect(resolveBuiltInToolName("builtin_memory_sessions")).toBe(
+      BuiltInToolNames.Memory,
+    );
+    expect(resolveBuiltInToolName("builtin_memory_manage")).toBe(
+      BuiltInToolNames.Memory,
+    );
+    expect(resolveBuiltInToolName("builtin_memory_learn")).toBe(
+      BuiltInToolNames.Memory,
+    );
+    expect(Object.values(BuiltInToolNames)).not.toContain("builtin_memory_graph");
+  });
+
   it("leaves unknown names alone", () => {
     expect(resolveBuiltInToolName("custom_http_tool")).toBe("custom_http_tool");
     expect(resolveBuiltInToolName("")).toBe("");

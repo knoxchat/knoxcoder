@@ -554,6 +554,9 @@ declare global {
     compatInstructions?: Array<"cursor" | "copilot">;
     deferTools?: boolean;
     enableCompositeTools?: boolean;
+    rustAnalyzerAvailable?: boolean;
+    permissionDefault?: "auto" | "ask" | "edits";
+    trustedGitRemotes?: string[];
   }
   
   export interface IDE {
@@ -1042,6 +1045,19 @@ declare global {
       timeoutMs?: number;
       failOpen?: boolean;
       baseUrl?: string;
+    };
+
+    permissionDefault?: "auto" | "ask" | "edits";
+    trustedGitRemotes?: string[];
+    sessionPermission?: {
+      mode: "default" | "acceptEdits" | "fullAuto";
+      reason:
+        | "saved"
+        | "setting"
+        | "known_project"
+        | "trusted_remote"
+        | "fresh_clone"
+        | "default";
     };
   }
   

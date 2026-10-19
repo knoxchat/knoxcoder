@@ -43,7 +43,7 @@ export function toggle(widget: KnoxGuiWidget, body: HTMLElement, label: string, 
 	if (label) {
 		DOM.append(row, DOM.$('span', undefined, label));
 	}
-	widget.customSwitch(row, value, () => onChange(!value), 16);
+	widget.customSwitch(row, value, () => onChange(!value), 16, label);
 }
 
 export function numberField(widget: KnoxGuiWidget, body: HTMLElement, label: string, value: number, min: number, max: number, onChange: (value: number) => void, step?: number, suffix?: string): void {
@@ -59,7 +59,7 @@ export function numberField(widget: KnoxGuiWidget, body: HTMLElement, label: str
 	dec.type = 'button';
 	dec.setAttribute('aria-label', t(widget.controller.store.state, 'decreaseValue'));
 	dec.disabled = current <= min;
-	dec.textContent = '−';
+	dec.textContent = '\u2212';
 	widget.listenerStore.add(DOM.addDisposableListener(dec, 'click', e => {
 		e.preventDefault();
 		e.stopPropagation();
@@ -70,7 +70,7 @@ export function numberField(widget: KnoxGuiWidget, body: HTMLElement, label: str
 	input.inputMode = 'numeric';
 	input.value = String(current);
 	input.setAttribute('aria-label', t(widget.controller.store.state, 'numberInput'));
-	if (step != null) {
+	if (step !== undefined) {
 		input.step = String(step);
 	}
 	const inc = DOM.append(field, DOM.$('button.knox-gui-number-step')) as HTMLButtonElement;
@@ -151,7 +151,7 @@ export function appendShortcut(parent: HTMLElement, shortcut: string): HTMLEleme
 	const combos = knoxGuiShortcutKeys(shortcut, isMacintosh);
 	combos.forEach((combo, comboIndex) => {
 		combo.forEach((key, keyIndex) => {
-			const special = !/^[a-zA-Z0-9]$/.test(key) || key === '⌫';
+			const special = !/^[a-zA-Z0-9]$/.test(key) || key === '\u232B';
 			DOM.append(wrap, DOM.$(`kbd.knox-gui-shortcut${special ? '.knox-gui-shortcut-special' : ''}`, undefined, key));
 			if (keyIndex < combo.length - 1) {
 				DOM.append(wrap, DOM.$('span.knox-gui-shortcut-separator', undefined, '+'));
@@ -180,6 +180,7 @@ export function chromeButton(widget: KnoxGuiWidget, parent: HTMLElement, options
 	expandLabel?: boolean;
 	extraClass?: string;
 	testId?: string;
+	role?: string;
 	menuTrigger?: boolean;
 	onClick: (button: HTMLElement, event?: MouseEvent) => void;
 }): HTMLButtonElement {
@@ -191,8 +192,8 @@ export function chromeButton(widget: KnoxGuiWidget, parent: HTMLElement, options
 	if (options.selected) {
 		button.classList.add('selected');
 	}
-	// K-045: only real toggles (selected given) announce a pressed state; plain action buttons must not.
-	if (options.selected !== undefined) {
+	// K-045: only real toggles (selected given) announce a pressed state; tabs use aria-selected.
+	if (options.selected !== undefined && options.role !== 'tab') {
 		button.setAttribute('aria-pressed', options.selected ? 'true' : 'false');
 	}
 	if (options.disabled) {
@@ -219,8 +220,17 @@ export function chromeButton(widget: KnoxGuiWidget, parent: HTMLElement, options
 	if (options.svg && options.svgAfter) {
 		appendKnoxGuiSvg(button, options.svg, options.svgSize ?? 14);
 	}
+	if (options.role) {
+		button.setAttribute('role', options.role);
+		if (options.role === 'tab' && options.selected !== undefined) {
+			button.setAttribute('aria-selected', options.selected ? 'true' : 'false');
+		}
+	}
+	const accessible = options.title || options.label;
+	if (accessible) {
+		button.setAttribute('aria-label', accessible);
+	}
 	if (options.title) {
-		button.setAttribute('aria-label', options.title);
 		widget.hover(button, options.title);
 	}
 	widget.listenerStore.add(DOM.addDisposableListener(button, 'click', e => {
@@ -300,13 +310,19 @@ export function appendSpinner(parent: HTMLElement, size = 16): HTMLElement {
 }
 
 export function hover(widget: KnoxGuiWidget, target: HTMLElement, content: string): void {
+	if (!target.getAttribute('aria-label') && !target.getAttribute('aria-labelledby')) {
+		target.setAttribute('aria-label', content);
+	}
 	widget.listenerStore.add(widget.hoverService.setupDelayedHover(target, { content, appearance: { compact: true } }));
 }
 
-export function customSwitch(widget: KnoxGuiWidget, parent: HTMLElement, isOn: boolean, onToggle: () => void, size = 12): HTMLElement {
+export function customSwitch(widget: KnoxGuiWidget, parent: HTMLElement, isOn: boolean, onToggle: () => void, size = 12, label?: string): HTMLElement {
 	const el = DOM.append(parent, DOM.$('div.knox-gui-switch'));
 	el.setAttribute('role', 'switch');
 	el.setAttribute('aria-checked', String(isOn));
+	if (label) {
+		el.setAttribute('aria-label', label);
+	}
 	el.tabIndex = 0;
 	el.style.setProperty('--knox-switch-size', `${size}px`);
 	if (isOn) {

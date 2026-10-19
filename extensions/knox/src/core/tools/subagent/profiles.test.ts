@@ -33,7 +33,6 @@ describe("subagent profiles", () => {
       { function: { name: BuiltInToolNames.AskUser }, readonly: false },
       { function: { name: BuiltInToolNames.ViewDiff }, readonly: true },
       { function: { name: BuiltInToolNames.Memory }, readonly: false },
-      { function: { name: BuiltInToolNames.MemoryManage }, readonly: false },
     ] as any;
 
     const explore = toolsForSubagentProfile("explore", catalog).map(
@@ -53,7 +52,6 @@ describe("subagent profiles", () => {
       BuiltInToolNames.EditFile,
       BuiltInToolNames.ViewDiff,
       BuiltInToolNames.Memory,
-      BuiltInToolNames.MemoryManage,
     ]);
 
     const rustReview = toolsForSubagentProfile("rust-review", catalog).map(

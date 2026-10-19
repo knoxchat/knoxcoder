@@ -3,6 +3,24 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.2.1] - 2026-10-20
+
+### Added
+
+- **Agent accessibility (K-102).** Skip-to-composer control, landmarks, a live transcript region, and named permission cards, jobs, checkpoints, and recipe preview. Built-in One Dark, Light+, and high-contrast palettes are contrast-checked in CI. A dedicated VoiceOver/NVDA session is still a human check.
+- **Host soak (K-101).** `eval/hostSoak.test.ts` runs 1000 `runChatTurn`s through `callTool`, checkpoints, and event fold. The native GUI folds 40 shared-loop turns without unbounded DOM growth. Neither is a real VS Code window soak.
+
+### Changed
+
+- **Tool ports (K-084 stretch).** File, shell, search, git, terminal, and composite tools use `ToolExtras` ports (`fs` / `proc` / `search` / `git` / `term` / `editor`) instead of calling the full IDE. Core still takes a concrete IDE for diagnostics, DAP, checkpoints, secrets, LSP, and repo map. A messenger-only Core is not done.
+- Recipe preview (MC-90) now shows on an empty transcript, with Apply / Skip and the latency line.
+
+### Fixed
+
+- **Auto-update (version detect + download).** Packaged builds read `latest-<platform>-<arch>.json` from GitHub Releases (`/releases/latest/download/…`) and compare that `productVersion` with the running app, so 2.2.0 detects 2.2.1 without the GitHub API rate limit. “Download Update” opens the installer/archive, not the generic releases page. Feed URLs use `v<version>` even when CI was started with **Run workflow** (they previously pointed at `v{run}-build.{attempt}` and 404’d). Windows verifies `sha256hash` from the same JSON. A missing feed still falls back to `/releases/latest`.
+- Hover-only chrome (terminal copy command, tool-args toggle, unnamed switches) now has accessible names.
+- Checkpoint list search and the jobs “clear finished” control are labelled for screen readers.
+
 ## [2.2.0] - 2026-10-18
 
 ### Added

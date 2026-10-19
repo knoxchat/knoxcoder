@@ -3,8 +3,6 @@ import * as vscode from 'vscode';
 
 import { t } from '../i18n';
 
-import { AgentService, AgentOperationStatus } from './AgentService';
-import { ChatFlowCoordinator, ChatOperationType } from './ChatFlowCoordinator';
 import { CodeIntelligenceService, CodeSuggestion } from './CodeIntelligenceService';
 import { ShadowWorkspaceManager } from './ShadowWorkspaceManager';
 import {
@@ -31,9 +29,7 @@ export { AgentModeStatus } from './agentModeStatus';
 export class AgentModeManager implements vscode.Disposable {
   private static instance: AgentModeManager;
   private disposables: vscode.Disposable[] = [];
-  private agentService: AgentService;
   private codeIntelligenceService: CodeIntelligenceService;
-  private chatFlowCoordinator: ChatFlowCoordinator;
   private shadowWorkspaceManager: ShadowWorkspaceManager;
   private status: AgentModeStatus = AgentModeStatus.INACTIVE;
   private contextPublished = false;
@@ -72,15 +68,8 @@ export class AgentModeManager implements vscode.Disposable {
   }
 
   private constructor() {
-    // Initialize services
-    this.agentService = AgentService.getInstance();
     this.codeIntelligenceService = CodeIntelligenceService.getInstance();
-    // Get ChatFlowCoordinator first
-    this.chatFlowCoordinator = ChatFlowCoordinator.getInstance();
-    // Initialize the shadow workspace manager
     this.shadowWorkspaceManager = ShadowWorkspaceManager.getInstance();
-    // Then register this instance with the coordinator to complete the circular reference properly
-    this.chatFlowCoordinator.setAgentModeManager(this);
     
     // Register commands
     this.registerCommands();
@@ -146,25 +135,6 @@ export class AgentModeManager implements vscode.Disposable {
         return await this.redoLastOperation();
       })
     );
-    
-    // Register new commands for ChatFlowCoordinator integration
-    this.disposables.push(
-      vscode.commands.registerCommand('knoxchat.scrollToLatestAgentOperation', () => {
-        this.chatFlowCoordinator.scrollToLatestOperation();
-      })
-    );
-    
-    this.disposables.push(
-      vscode.commands.registerCommand('knoxchat.viewNextAgentOperation', () => {
-        this.chatFlowCoordinator.viewNextOperation();
-      })
-    );
-    
-    this.disposables.push(
-      vscode.commands.registerCommand('knoxchat.viewPreviousAgentOperation', () => {
-        this.chatFlowCoordinator.viewPreviousOperation();
-      })
-    );
   }
   
   // Register event handlers
@@ -178,32 +148,6 @@ export class AgentModeManager implements vscode.Disposable {
     vscode.workspace.onDidOpenTextDocument(this.onDocumentOpened, this, this.disposables);
     vscode.workspace.onDidCloseTextDocument(this.onDocumentClosed, this, this.disposables);
     vscode.window.onDidChangeActiveTextEditor(this.onActiveEditorChanged, this, this.disposables);
-    
-    // Listen for chat flow coordinator events
-    this.chatFlowCoordinator.onOperationStarted((operation) => {
-      this.updateStatus(AgentModeStatus.PROCESSING);
-    });
-    
-    this.chatFlowCoordinator.onOperationCompleted((operation) => {
-      // Only change status back to active if there are no more operations in the queue
-      if (this.chatFlowCoordinator.getOperationQueue().length === 0) {
-        this.updateStatus(AgentModeStatus.ACTIVE);
-      }
-    });
-    
-    this.chatFlowCoordinator.onOperationFailed(({ operation, error }) => {
-      this.updateStatus(AgentModeStatus.ERROR);
-      // Status will be reset to active after a short delay
-      setTimeout(() => {
-        if (this.status === AgentModeStatus.ERROR) {
-          this.updateStatus(AgentModeStatus.ACTIVE);
-        }
-      }, 3000);
-    });
-    
-    this.chatFlowCoordinator.onQueueEmpty(() => {
-      this.updateStatus(AgentModeStatus.ACTIVE);
-    });
   }
   
   // Update agent mode status. The boolean switch (context key + GUI) only
@@ -464,8 +408,19 @@ export class AgentModeManager implements vscode.Disposable {
         console.log(`[AgentModeManager] Using provided RealTimeSearch model: ${effectiveRealTimeSearchModelTitle}`);
       }
       
-      // Execute tool call through agent service with preferred model support
-      const contextItems = await this.agentService.executeToolCall(toolCall, selectedModelTitle, effectiveViewReadModelTitle, effectiveRealTimeSearchModelTitle, preferredModel);
+      const result = await vscode.commands.executeCommand("knox.callToolDirect", {
+        toolCall,
+        selectedModelTitle,
+        viewReadModelTitle: effectiveViewReadModelTitle,
+        realTimeSearchModelTitle: effectiveRealTimeSearchModelTitle,
+        preferredModel,
+      });
+      if (!Array.isArray(result)) {
+        throw new Error(
+          "knox.callToolDirect did not return context items (is vscode.knox activated?)",
+        );
+      }
+      const contextItems = result as ContextItem[];
 
       this._onToolCallExecuted.fire({
         toolCall,

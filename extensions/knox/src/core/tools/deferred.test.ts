@@ -4,6 +4,7 @@ import type { Tool } from "..";
 import { allAvailableTools, allTools } from ".";
 import { BuiltInToolNames } from "./builtIn";
 import {
+  autoloadDeferredTool,
   estimateToolSchemaTokens,
   runToolSearch,
   searchDeferredTools,
@@ -67,12 +68,14 @@ describe("deferred tools (K-021)", () => {
     expect(names(active)).toContain("my_tool");
   });
 
-  it("cuts tool-schema tokens by at least 50% on the default profile", () => {
+  it("keeps default-profile active tool schemas under the K-021 ceiling", () => {
     const all = estimateToolSchemaTokens(allTools as Tool[]);
     const { active } = splitDeferredTools(allTools as Tool[]);
     const now = estimateToolSchemaTokens(active);
-    expect(now).toBeLessThanOrEqual(all * 0.5);
-    // Regression ceiling: raise it only on purpose.
+    // K-070 shrank deferred `builtin_memory`, so `all` dropped and a hard
+    // 50%-of-all ratio is no longer a stable proof. Deferral still has to
+    // beat sending everything; 7000 is the regression ceiling.
+    expect(now).toBeLessThan(all * 0.6);
     expect(now).toBeLessThan(7000);
   });
 
@@ -98,5 +101,19 @@ describe("deferred tools (K-021)", () => {
     expect(second[0].content).toContain("Already available");
     const none = runToolSearch({ query: "zzzz" }, deferred, active);
     expect(none[0].content).toContain("No tool matched");
+  });
+
+  it("K-064 autoloads a deferred tool (and aliases) onto the live list", () => {
+    const { active, deferred } = splitDeferredTools(allTools as Tool[]);
+    const before = active.length;
+    const loaded = autoloadDeferredTool("git_blame", deferred, active);
+    expect(loaded?.function.name).toBe(BuiltInToolNames.GitBlame);
+    expect(active.length).toBe(before + 1);
+    expect(names(active)).toContain(BuiltInToolNames.GitBlame);
+    expect(autoloadDeferredTool("builtin_git_blame", deferred, active)?.function.name).toBe(
+      BuiltInToolNames.GitBlame,
+    );
+    expect(active.length).toBe(before + 1);
+    expect(autoloadDeferredTool("not_a_tool", deferred, active)).toBeUndefined();
   });
 });

@@ -1,5 +1,6 @@
 import type { ContextItem } from "../..";
 import { ToolImpl } from ".";
+import { toolSubprocess } from "../toolPorts";
 import {
   formatGitResult,
   resolveGitCwd,
@@ -194,7 +195,7 @@ export const gitBisectImpl: ToolImpl = async (args, extras) => {
             `${traces.join("\n\n")}\n\nAborted. Ran git bisect reset.`,
           );
         }
-        const oracle = await extras.ide.subprocess(
+        const oracle = await toolSubprocess(extras).subprocess(
           command,
           await resolveGitCwd(extras),
         ).then(

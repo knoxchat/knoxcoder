@@ -57,13 +57,15 @@ describe.skipIf(!apiKey)("live eval: loop vs chat turn", () => {
               baseUrl: `${apiBase()}/v1`,
             });
             const started = Date.now();
+            const useDefer = defer || task.autoload === true;
             const r = await runAgentEval({
               prompt: task.prompt,
               workspace: task.workspace,
               llm: live.llm,
               viaChatTurn: p === "chatTurn",
               holdCompletionWhileOracleRed: true,
-              ...(defer
+              ideHooks: task.ideHooks,
+              ...(useDefer
                 ? {
                     catalog: allTools as Tool[],
                     deferTools: p === "chatTurn",

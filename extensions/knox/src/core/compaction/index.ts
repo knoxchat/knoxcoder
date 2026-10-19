@@ -6,6 +6,7 @@ import {
   CompactionConfig,
   CompactionResult,
   DEFAULT_COMPACTION_CONFIG,
+  LLM_COMPACT_TOOL_THRESHOLD,
   LlmCompleteFn,
   SummarizationMethod,
 } from "./types.js";
@@ -37,7 +38,10 @@ export type {
   LlmCompleteFn,
   SummarizationMethod,
 } from "./types.js";
-export { DEFAULT_COMPACTION_CONFIG } from "./types.js";
+export {
+  DEFAULT_COMPACTION_CONFIG,
+  LLM_COMPACT_TOOL_THRESHOLD,
+} from "./types.js";
 export {
   calculateHistoryBudget,
   totalMessageTokens,
@@ -60,9 +64,39 @@ export {
 export {
   DEVELOPMENT_LOOP_STATE_MARKER,
   LAST_BUILD_ERRORS_MARKER,
+  LAST_MUTATING_FILE_MARKER,
+  LAST_RECIPE_DECISION_MARKER,
+  LAST_USER_INTENT_MARKER,
   extractDevelopmentLoopState,
   formatDevelopmentLoopState,
 } from "./loopState.js";
+
+export function countDroppableToolResults(
+  messages: ChatMessage[],
+  preserveRecentCount: number,
+): number {
+  const boundary = Math.max(0, messages.length - preserveRecentCount);
+  return messages
+    .slice(0, boundary)
+    .filter((message) => message.role === "tool").length;
+}
+
+function shouldUseLlmSummarization(
+  cfg: CompactionConfig,
+  messages: ChatMessage[],
+  llmComplete?: LlmCompleteFn,
+): boolean {
+  if (!cfg.useLlmSummarization || !llmComplete) {
+    return false;
+  }
+  const minDroppable =
+    typeof cfg.llmSummarizationMinDroppableTools === "number"
+      ? cfg.llmSummarizationMinDroppableTools
+      : LLM_COMPACT_TOOL_THRESHOLD;
+  return (
+    countDroppableToolResults(messages, cfg.preserveRecentCount) > minDroppable
+  );
+}
 
 function protectLoopState(
   original: ChatMessage[],
@@ -493,9 +527,10 @@ export function compactMessages(
 /**
  * Async compaction pipeline with optional LLM summarization.
  *
- * When `useLlmSummarization` is true and `llmComplete` is provided, Stage 2
- * uses the LLM (with latency/input budget caps) and falls back to the
- * heuristic summarizer on timeout or failure.
+ * When `useLlmSummarization` is true, `llmComplete` is provided, and
+ * droppable tool results exceed the threshold, Stage 2 uses the LLM
+ * (with latency/input budget caps) and falls back to heuristic on failure.
+ * Short turns stay heuristic (K-063).
  */
 export async function compactMessagesAsync(
   messages: ChatMessage[],
@@ -514,7 +549,7 @@ export async function compactMessagesAsync(
   }
 
   // Heuristic summarize; Jev can rescore the prune stage when still over budget.
-  if (!cfg.useLlmSummarization || !llmComplete) {
+  if (!shouldUseLlmSummarization(cfg, messages, llmComplete)) {
     const phase = heuristicCompactionPhase(
       messages,
       modelName,
@@ -574,7 +609,7 @@ export async function compactMessagesAsync(
     boundary = adjustBoundaryForToolPairs(current, boundary);
     const oldCount = boundary;
 
-    if (oldCount > 2) {
+    if (oldCount > 2 && llmComplete) {
       const oldMessages = current.slice(0, oldCount);
       const recentMessages = current.slice(oldCount);
 

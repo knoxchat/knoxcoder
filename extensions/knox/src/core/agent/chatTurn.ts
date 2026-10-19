@@ -29,7 +29,8 @@ import type {
 } from "..";
 import { BuiltInToolNames } from "../tools/builtIn";
 import { ToolCallError, ToolCallErrorCode } from "../tools/errors";
-import { runToolSearch } from "../tools/deferred";
+import { autoloadDeferredTool, runToolSearch } from "../tools/deferred";
+import { resolveUnattendedMaxSteps } from "../config/agentProfile";
 import type { AgentToolPolicy } from "../tools/toolPolicy";
 import type { HookRunner } from "../hooks/hooks";
 import type { DoomLoopCall } from "./doomLoop";
@@ -253,12 +254,18 @@ export async function runChatTurn(
     messages: options.messages,
     tools: options.tools,
     missingToolMessage: options.deferredTools?.length
-      ? (name) =>
-          options.deferredTools!.some((tool) => tool.function.name === name)
-            ? `Tool "${name}" is not loaded yet. Call ${BuiltInToolNames.ToolSearch} with {"names":["${name}"]} first.`
-            : `Tool "${name}" is not available.`
+      ? (name) => `Tool "${name}" is not available.`
       : undefined,
-    maxSteps: options.maxSteps,
+    resolveMissingTool: options.deferredTools?.length
+      ? (name) =>
+          autoloadDeferredTool(name, options.deferredTools!, options.tools)
+      : undefined,
+    maxSteps:
+      options.maxSteps !== undefined
+        ? options.maxSteps
+        : options.permission?.unattended
+          ? resolveUnattendedMaxSteps(undefined)
+          : undefined,
     doomLoopThreshold: options.doomLoopThreshold,
     initialDoomCalls: options.initialDoomCalls,
     holdCompletionWhileOracleRed: options.holdCompletionWhileOracleRed,

@@ -17,6 +17,12 @@ holding its bytes. Knox can reuse it instead of asking the model to generate the
    HMAC-signed bundle, and imported recipes start as `candidate`.
 7. **No silent network.** Self-improvement output (reports, issue drafts) is a draft the user approves.
 
+## Product surface (K-092 / MC-90)
+
+Finish, do not expand. Recipes stay **off** by default (`knoxchat.recipes.enabled`). The product path is **exact** replay plus **ask** preview. Adapt / suggest / generate stay in the engine as drift fallbacks; do not add new adapt/generate paths, tables, or UI.
+
+The ask preview listing is ~1 ms (local blobs + current files). Apply runs the normal `callTool` path and the recorded oracle, which can take seconds — the preview card says so. Cross-project recipe ids are refused (MC-82): a project-scope recipe only applies in the workspace it was captured in.
+
 ## Replay modes
 
 `exact` (no model call) → `adapt` (model returns only the delta) → `suggest` (recipe injected as an example) → `generate`.

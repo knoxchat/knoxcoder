@@ -1,4 +1,5 @@
 import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
+import { toolFilesystem } from "../toolPorts";
 import { t } from "../../i18n/index.js";
 import { getUriPathBasename } from "../../util/uri";
 import { ToolCallError, ToolCallErrorCode } from "../errors";
@@ -608,12 +609,10 @@ export const editFileImpl: ToolImpl = async (args, extras) => {
     throw new Error(t("filepathCannotBeEmpty"));
   }
 
+  const fs = toolFilesystem(extras);
   let resolvedFileUri: string;
   try {
-    resolvedFileUri = await inferResolvedUriFromRelativePath(
-      filepath,
-      extras.ide,
-    );
+    resolvedFileUri = await inferResolvedUriFromRelativePath(filepath, fs);
   } catch (error) {
     throw new Error(
       t("failedToResolveFilePath", {
@@ -623,14 +622,14 @@ export const editFileImpl: ToolImpl = async (args, extras) => {
     );
   }
 
-  const fileExists = await extras.ide.fileExists(resolvedFileUri);
+  const fileExists = await fs.fileExists(resolvedFileUri);
   if (!fileExists) {
     throw new Error(t("fileDoesNotExist", { filepath }));
   }
 
   let content: string;
   try {
-    content = await extras.ide.readFile(resolvedFileUri);
+    content = await fs.readFile(resolvedFileUri);
   } catch (error) {
     throw new Error(
       t("failedToReadFile", { filepath, error: (error as Error).message }),
@@ -689,7 +688,7 @@ export const editFileImpl: ToolImpl = async (args, extras) => {
   }
 
   try {
-    await extras.ide.writeFile(resolvedFileUri, next);
+    await fs.writeFile(resolvedFileUri, next);
   } catch (error) {
     throw new Error(
       t("failedToWriteFile", { filepath, error: (error as Error).message }),

@@ -20,35 +20,31 @@ const ViewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContaine
 suite('KnoxAuxiliaryBar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('registers Knox as the default Secondary Side Bar container', () => {
+		const knoxContainer = ViewContainersRegistry.get(KNOX_VIEW_CONTAINER_ID);
+		assert.ok(knoxContainer);
+		assert.strictEqual(ViewContainersRegistry.getViewContainerLocation(knoxContainer), ViewContainerLocation.AuxiliaryBar);
+		assert.ok(knoxContainer.lockToDefaultLocation);
+		assert.ok(knoxContainer.exclusiveAtLocation);
+	});
+
 	test('pinKnoxToAuxiliaryBar restores Knox and evicts other containers from the secondary side bar', () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const testObject = disposables.add(instantiationService.createInstance(ViewDescriptorService));
 
-		const existing = ViewContainersRegistry.get(KNOX_VIEW_CONTAINER_ID);
-		if (existing) {
-			ViewsRegistry.deregisterViews(ViewsRegistry.getViews(existing), existing);
-			ViewContainersRegistry.deregisterViewContainer(existing);
-		}
-
-		const knoxContainer = ViewContainersRegistry.registerViewContainer({
-			id: KNOX_VIEW_CONTAINER_ID,
-			title: nls.localize2('knox', 'Knox'),
-			ctorDescriptor: new SyncDescriptor(<any>{}),
-			lockToDefaultLocation: true,
-			exclusiveAtLocation: true,
-			rejectAddedViews: true,
-		}, ViewContainerLocation.AuxiliaryBar, { isDefault: true });
+		const knoxContainer = ViewContainersRegistry.get(KNOX_VIEW_CONTAINER_ID);
+		assert.ok(knoxContainer);
 		disposables.add({
 			dispose: () => {
 				ViewsRegistry.deregisterViews(ViewsRegistry.getViews(knoxContainer), knoxContainer);
-				ViewContainersRegistry.deregisterViewContainer(knoxContainer);
 			}
 		});
 
+		class EmptyViewPane { }
 		const otherContainer = ViewContainersRegistry.registerViewContainer({
 			id: `test-other-aux-${Date.now()}`,
 			title: nls.localize2('other', 'other'),
-			ctorDescriptor: new SyncDescriptor(<any>{}),
+			ctorDescriptor: new SyncDescriptor(EmptyViewPane),
 		}, ViewContainerLocation.Sidebar);
 		disposables.add({
 			dispose: () => {

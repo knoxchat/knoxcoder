@@ -68,6 +68,75 @@ describe("K-036 stuck patterns", () => {
   });
 });
 
+describe("K-062 same_strategy without Jev", () => {
+  const failSearch = (
+    args: Record<string, unknown>,
+    output = "Tool call failed: no hits",
+  ): DoomLoopCall => ({
+    name: BuiltInToolNames.ExactSearch,
+    args,
+    output,
+    ok: false,
+  });
+
+  it("does not fire at the normal threshold (happy path stays fail_streak/repeat)", () => {
+    const calls = [
+      failSearch({ query: "copy_to_user", timeout: 1 }),
+      edit("1"),
+      failSearch({ query: "copy_to_user", timeout: 2 }),
+      edit("2"),
+      failSearch({ query: "copy_to_user", timeout: 3 }),
+    ];
+    expect(detectDoomLoop(calls, { threshold: 3 })).toBeNull();
+  });
+
+  it("flags same tool + same fail signature + trivial arg drift at threshold+1", () => {
+    const calls = [
+      failSearch({ query: "copy_to_user", timeout: 1 }),
+      edit("1"),
+      failSearch({ query: "copy_to_user", timeout: 2 }),
+      edit("2"),
+      failSearch({ query: "copy_to_user", timeout: 3 }),
+      edit("3"),
+      failSearch({ query: "copy_to_user", timeout: 4 }),
+    ];
+    const hit = detectDoomLoop(calls, { threshold: 3 });
+    expect(hit?.kind).toBe("same_strategy");
+    expect(hit?.count).toBe(4);
+  });
+
+  it("does not flag a different query or a new gcc error", () => {
+    expect(
+      detectDoomLoop(
+        [
+          failSearch({ query: "copy_to_user", timeout: 1 }),
+          edit("1"),
+          failSearch({ query: "copy_from_user", timeout: 2 }),
+          edit("2"),
+          failSearch({ query: "memcpy", timeout: 3 }),
+          edit("3"),
+          failSearch({ query: "memmove", timeout: 4 }),
+        ],
+        { threshold: 3 },
+      ),
+    ).toBeNull();
+    expect(
+      detectDoomLoop(
+        [
+          make("a.c:1:1: error: one"),
+          edit("1"),
+          make("a.c:2:1: error: two"),
+          edit("2"),
+          make("a.c:3:1: error: three"),
+          edit("3"),
+          make("a.c:4:1: error: four"),
+        ],
+        { threshold: 3 },
+      ),
+    ).toBeNull();
+  });
+});
+
 describe("K-036 apply_patch oscillation", () => {
   const patch = (a: string, b: string): DoomLoopCall => ({
     name: BuiltInToolNames.ApplyPatch,

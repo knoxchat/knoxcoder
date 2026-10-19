@@ -8,12 +8,15 @@ import {
 import {
   runAgentLoop,
   createAgentLoopCompactor,
+  lastOracleErrorCount,
+  lastOracleText,
   type AgentLoopStoppedReason,
 } from "../../agent/loop";
 import {
   DEFAULT_DOOM_LOOP_THRESHOLD,
   SYSTEMS_DOOM_LOOP_THRESHOLD,
 } from "../../config/agentProfile";
+import { BuiltInToolNames } from "../builtIn";
 import { formatCodebaseCardInject } from "../../context/codebaseCard";
 import { formatRustPolicyInject } from "../../context/rustPolicy";
 import { formatSerialContextInject } from "../../context/serialContext";
@@ -28,6 +31,7 @@ import {
   finishSubagentJob,
 } from "./jobs";
 import {
+  isReadonlySubagentProfile,
   resolveSubagentMaxSteps,
   resolveSubagentProfile,
   subagentSystemPrompt,
@@ -60,6 +64,12 @@ export type SubagentProgressEvent =
   | { type: "tool"; jobId: string; tool: string; step: number }
   | { type: "end"; jobId: string; stoppedReason: AgentLoopStoppedReason };
 
+export type SubagentOracle = "pass" | "fail" | "unverified" | "skipped";
+
+export type SubagentFileStat =
+  | { added: number; removed: number }
+  | "touched";
+
 export interface SubagentRunResult {
   /** Built-in profile, or the custom agent name. */
   profile: string;
@@ -67,7 +77,23 @@ export interface SubagentRunResult {
   steps: number;
   summary: string;
   filesTouched: string[];
+  /** Path → line delta, or `"touched"` for reads / unknown mutations. */
+  diffstat: Record<string, SubagentFileStat>;
+  oracle: SubagentOracle;
   stoppedReason: AgentLoopStoppedReason;
+}
+
+export function emptySubagentResult(
+  partial: Pick<SubagentRunResult, "profile" | "summary" | "stoppedReason"> &
+    Partial<SubagentRunResult>,
+): SubagentRunResult {
+  return {
+    steps: 0,
+    filesTouched: [],
+    diffstat: {},
+    oracle: "skipped",
+    ...partial,
+  };
 }
 
 /**
@@ -102,6 +128,7 @@ export async function buildSubagentContextBlock(input: {
       const judgment = await evaluateAgentTurn({
         userMessage: input.prompt,
         skills: manager.visible(),
+        openPaths: manager.getActivePaths(),
         hasViewRead: false,
         runtime: getActiveJevRuntime(),
       });
@@ -121,31 +148,235 @@ export async function buildSubagentContextBlock(input: {
   return parts.length > 0 ? `\n\n${parts.join("\n\n")}` : "";
 }
 
-function collectTouchedPaths(args: unknown, into: Set<string>): void {
-  if (!args || typeof args !== "object") {
-    return;
+const FILE_PATH_KEYS = [
+  "filepath",
+  "path",
+  "file_path",
+  "directory_path",
+  "target_directory",
+];
+
+function countLines(text: string): number {
+  if (!text) {
+    return 0;
   }
-  const record = args as Record<string, unknown>;
-  for (const key of ["filepath", "path", "directory_path", "target_directory"]) {
-    const value = record[key];
+  return text.split(/\r?\n/).length;
+}
+
+function firstPath(args: Record<string, unknown>): string | undefined {
+  for (const key of FILE_PATH_KEYS) {
+    const value = args[key];
     if (typeof value === "string" && value.trim()) {
-      into.add(value.trim());
+      return value.trim();
     }
+  }
+  return undefined;
+}
+
+function recordTouched(
+  into: Map<string, SubagentFileStat>,
+  file: string,
+): void {
+  if (!into.has(file)) {
+    into.set(file, "touched");
   }
 }
 
+function recordDelta(
+  into: Map<string, SubagentFileStat>,
+  file: string,
+  added: number,
+  removed: number,
+): void {
+  const prev = into.get(file);
+  if (!prev || prev === "touched") {
+    into.set(file, { added, removed });
+    return;
+  }
+  into.set(file, {
+    added: prev.added + added,
+    removed: prev.removed + removed,
+  });
+}
+
+function editPairs(
+  args: Record<string, unknown>,
+): Array<{ old: string; next: string }> {
+  const pairs: Array<{ old: string; next: string }> = [];
+  const listed = args.edits;
+  if (Array.isArray(listed)) {
+    for (const item of listed) {
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      const rec = item as Record<string, unknown>;
+      const old =
+        rec.old_string ?? rec.oldString ?? rec.old_str ?? rec.search ?? rec.oldText;
+      const next =
+        rec.new_string ?? rec.newString ?? rec.new_str ?? rec.replace ?? rec.newText;
+      if (typeof old === "string") {
+        pairs.push({ old, next: typeof next === "string" ? next : "" });
+      }
+    }
+  }
+  const old =
+    args.old_string ?? args.oldString ?? args.old_str ?? args.search ?? args.oldText;
+  const next =
+    args.new_string ??
+    args.newString ??
+    args.new_str ??
+    args.replace ??
+    args.newText ??
+    args.content ??
+    args.contents;
+  if (typeof old === "string") {
+    pairs.push({ old, next: typeof next === "string" ? next : "" });
+  }
+  return pairs;
+}
+
+function patchDelta(patch: string): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  for (const line of patch.split(/\r?\n/)) {
+    if (
+      line.startsWith("+++") ||
+      line.startsWith("---") ||
+      line.startsWith("***")
+    ) {
+      continue;
+    }
+    if (line.startsWith("+")) {
+      added += 1;
+    } else if (line.startsWith("-")) {
+      removed += 1;
+    }
+  }
+  return { added, removed };
+}
+
+function applyPatchStats(
+  patch: string,
+): Array<{ file: string; added: number; removed: number }> {
+  const chunks = patch.split(/^\*\*\* (?:Update|Add|Delete) File:\s*/m);
+  const out: Array<{ file: string; added: number; removed: number }> = [];
+  for (const chunk of chunks) {
+    const nl = chunk.indexOf("\n");
+    const file = (nl < 0 ? chunk : chunk.slice(0, nl)).trim();
+    if (!file || file.startsWith("***")) {
+      continue;
+    }
+    const body = nl < 0 ? "" : chunk.slice(nl + 1);
+    out.push({ file, ...patchDelta(body) });
+  }
+  return out;
+}
+
+/** Record a child tool's path and, for writes, a line delta (K-065). */
+export function recordSubagentFileOp(
+  toolName: string,
+  args: unknown,
+  into: Map<string, SubagentFileStat>,
+): void {
+  if (!args || typeof args !== "object") {
+    return;
+  }
+  const rec = args as Record<string, unknown>;
+  if (toolName === BuiltInToolNames.ApplyPatch && typeof rec.patch === "string") {
+    const stats = applyPatchStats(rec.patch);
+    if (stats.length === 0) {
+      return;
+    }
+    for (const item of stats) {
+      recordDelta(into, item.file, item.added, item.removed);
+    }
+    return;
+  }
+  const file = firstPath(rec);
+  if (!file) {
+    return;
+  }
+  if (
+    toolName === BuiltInToolNames.WriteFile ||
+    toolName === BuiltInToolNames.CreateNewFile
+  ) {
+    const content =
+      typeof rec.contents === "string"
+        ? rec.contents
+        : typeof rec.content === "string"
+          ? rec.content
+          : "";
+    recordDelta(into, file, countLines(content), 0);
+    return;
+  }
+  if (toolName === BuiltInToolNames.EditFile) {
+    const pairs = editPairs(rec);
+    if (pairs.length === 0) {
+      recordTouched(into, file);
+      return;
+    }
+    let added = 0;
+    let removed = 0;
+    for (const pair of pairs) {
+      added += countLines(pair.next);
+      removed += countLines(pair.old);
+    }
+    recordDelta(into, file, added, removed);
+    return;
+  }
+  recordTouched(into, file);
+}
+
+export function formatSubagentFileLine(
+  file: string,
+  stat: SubagentFileStat,
+): string {
+  if (stat === "touched") {
+    return `  - ${file}`;
+  }
+  return `  - ${file} (+${stat.added}/−${stat.removed})`;
+}
+
+function snapshotDiffstat(
+  into: Map<string, SubagentFileStat>,
+  readonly: boolean,
+): { filesTouched: string[]; diffstat: Record<string, SubagentFileStat> } {
+  const filesTouched = [...into.keys()].sort();
+  const diffstat: Record<string, SubagentFileStat> = {};
+  for (const file of filesTouched) {
+    const stat = into.get(file) ?? "touched";
+    diffstat[file] = readonly ? "touched" : stat;
+  }
+  return { filesTouched, diffstat };
+}
+
+function resolveSubagentOracle(
+  messages: ChatMessage[] | undefined,
+  stoppedReason: AgentLoopStoppedReason,
+): SubagentOracle {
+  if (!messages?.length) {
+    return stoppedReason === "completed" ? "unverified" : "skipped";
+  }
+  const text = lastOracleText(messages);
+  if (!text) {
+    return "unverified";
+  }
+  return lastOracleErrorCount(messages) > 0 ? "fail" : "pass";
+}
+
 export function formatSubagentResult(result: SubagentRunResult): string {
+  const entries = Object.entries(result.diffstat);
   const files =
-    result.filesTouched.length > 0
-      ? result.filesTouched.join(", ")
-      : "(none recorded)";
+    entries.length > 0
+      ? entries.map(([file, stat]) => formatSubagentFileLine(file, stat))
+      : ["  - (none)"];
   return [
-    `## Subagent (${result.profile})`,
-    `Steps: ${result.steps}`,
-    `Stopped: ${result.stoppedReason}`,
-    `Files touched: ${files}`,
-    "",
-    result.summary.trim() || "(no summary)",
+    `profile: ${result.profile}`,
+    `steps: ${result.steps}`,
+    `oracle: ${result.oracle}`,
+    "files:",
+    ...files,
+    `summary: ${result.summary.trim() || "(no summary)"}`,
   ].join("\n");
 }
 
@@ -166,17 +397,16 @@ export async function runSubagent(
   if (allow) {
     tools = tools.filter((tool) => allow.includes(tool.function.name));
   }
-  const filesTouched = new Set<string>();
+  const fileStats = new Map<string, SubagentFileStat>();
+  const readonly = isReadonlySubagentProfile(baseProfile);
   const prompt = input.prompt.trim();
 
   if (!prompt) {
-    return {
+    return emptySubagentResult({
       profile,
-      steps: 0,
       summary: "Subagent prompt was empty.",
-      filesTouched: [],
       stoppedReason: "error",
-    };
+    });
   }
 
   const job = startSubagentJob({
@@ -253,7 +483,7 @@ export async function runSubagent(
       missingToolMessage: (name) =>
         `Tool "${name}" is not available to this ${profile} subagent.`,
       executeTool: async (tool, args) => {
-        collectTouchedPaths(args, filesTouched);
+        recordSubagentFileOp(tool.function.name, args, fileStats);
         toolRounds += 1;
         input.onProgress?.({
           type: "tool",
@@ -270,12 +500,15 @@ export async function runSubagent(
         ? "aborted"
         : loop.stoppedReason;
 
+    const snapshot = snapshotDiffstat(fileStats, readonly);
     const result: SubagentRunResult = {
       profile,
       steps: loop.steps,
       summary: loop.summary,
       jobId: job.id,
-      filesTouched: [...filesTouched],
+      filesTouched: snapshot.filesTouched,
+      diffstat: snapshot.diffstat,
+      oracle: resolveSubagentOracle(loop.messages, stoppedReason),
       stoppedReason,
     };
     input.onProgress?.({ type: "end", jobId: job.id, stoppedReason });
@@ -283,28 +516,35 @@ export async function runSubagent(
       job.id,
       stoppedReason === "aborted" ? "killed" : "exited",
       result.summary,
+      { oracle: result.oracle, files: result.filesTouched },
     );
     return result;
   } catch (error) {
     const summary = error instanceof Error ? error.message : String(error);
+    const stoppedReason: AgentLoopStoppedReason = job.abort.signal.aborted
+      ? "aborted"
+      : "error";
+    const snapshot = snapshotDiffstat(fileStats, readonly);
     finishSubagentJob(
       job.id,
       job.abort.signal.aborted ? "killed" : "exited",
       summary,
+      { oracle: "skipped", files: snapshot.filesTouched },
     );
     input.onProgress?.({
       type: "end",
       jobId: job.id,
-      stoppedReason: job.abort.signal.aborted ? "aborted" : "error",
+      stoppedReason,
     });
-    return {
+    return emptySubagentResult({
       profile,
       jobId: job.id,
-      steps: 0,
       summary,
-      filesTouched: [...filesTouched],
-      stoppedReason: job.abort.signal.aborted ? "aborted" : "error",
-    };
+      filesTouched: snapshot.filesTouched,
+      diffstat: snapshot.diffstat,
+      oracle: "skipped",
+      stoppedReason,
+    });
   } finally {
     parentAbort?.removeEventListener("abort", onParentAbort);
   }

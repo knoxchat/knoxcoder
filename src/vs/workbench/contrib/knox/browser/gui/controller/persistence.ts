@@ -15,6 +15,7 @@ import { BOOKMARK_KEY } from './helpers.js';
 import { KNOX_GUI_MAIN_TEXT_ENTRY_KEY, KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY, knoxGuiNextMainTextEntry, knoxGuiParseMainTextEntryCount } from '../../../common/knoxGuiChrome.js';
 
 export const UI_STATE_KEY = 'knox.gui.uiState';
+export const WORKSPACE_PERMISSION_KEY = 'knox.gui.workspacePermissionMode';
 const QUEUE_KEY = KNOX_QUEUE_STORAGE_KEY;
 export const TABS_KEY = 'knox.gui.tabs';
 export const LAST_ACTIVE_SESSION_KEY = 'knox.gui.lastActiveSession';
@@ -23,11 +24,23 @@ export const PROFILE_PREFERENCES_KEY = 'knox.gui.profilePreferences';
 
 export function restorePersistedState(controller: KnoxGuiController): void {
 	const ui = knoxGuiParsePersistedUi(controller.storageService.get(UI_STATE_KEY, StorageScope.PROFILE));
+	const workspaceMode = controller.storageService.get(WORKSPACE_PERMISSION_KEY, StorageScope.WORKSPACE);
+	if (workspaceMode === 'default' || workspaceMode === 'acceptEdits' || workspaceMode === 'fullAuto') {
+		ui.permissionMode = workspaceMode;
+		controller.workspacePermissionSaved = true;
+	}
 	const tabs = knoxGuiParsePersistedTabs(controller.storageService.get(TABS_KEY, StorageScope.WORKSPACE));
 	// K-042: what the user queued before a crash or reload comes back as chips; nothing is sent by itself.
 	const messageQueue = knoxGuiParseQueue(controller.storageService.get(QUEUE_KEY, StorageScope.WORKSPACE));
 	const pinnedSessionIds = knoxGuiParsePinned(controller.storageService.get(KNOX_PINNED_SESSIONS_KEY, StorageScope.PROFILE));
-	controller.store.patch({ ...ui, ...(tabs ?? {}), messageQueue, pinnedSessionIds, jobsPanelOpen: controller.jobsPanelExpanded() });
+	controller.store.patch({
+		...ui,
+		...(tabs ?? {}),
+		messageQueue,
+		pinnedSessionIds,
+		jobsPanelOpen: controller.jobsPanelExpanded(),
+		permissionDefaultReason: controller.workspacePermissionSaved ? 'saved' : undefined,
+	});
 }
 
 /** `useInputHistory.ts`: one history per composer mode, `inputHistory_chat` / `inputHistory_edit`. */
@@ -47,6 +60,7 @@ export function saveInputHistory(controller: KnoxGuiController, kind: 'chat' | '
 export function resetPersistedState(controller: KnoxGuiController): void {
 	const storage = controller.storageService;
 	storage.remove(UI_STATE_KEY, StorageScope.PROFILE);
+	storage.remove(WORKSPACE_PERMISSION_KEY, StorageScope.WORKSPACE);
 	storage.remove(TABS_KEY, StorageScope.WORKSPACE);
 	storage.remove(QUEUE_KEY, StorageScope.WORKSPACE);
 	storage.remove(LAST_ACTIVE_SESSION_KEY, StorageScope.WORKSPACE);
@@ -118,6 +132,7 @@ export function lastActiveSession(controller: KnoxGuiController): IKnoxGuiLastAc
 export function installPersistence(controller: KnoxGuiController): IDisposable {
 	const storage = controller.storageService;
 	let lastUi = knoxGuiSerializePersistedUi(controller.store.state);
+	let lastWorkspacePermission = controller.store.state.permissionMode;
 	let lastQueue = controller.store.state.messageQueue;
 	let lastTabs = '';
 	let lastActive = '';
@@ -174,6 +189,12 @@ export function installPersistence(controller: KnoxGuiController): IDisposable {
 		if (ui !== lastUi) {
 			lastUi = ui;
 			storage.store(UI_STATE_KEY, ui, StorageScope.PROFILE, StorageTarget.USER);
+		}
+		if (state.permissionMode !== lastWorkspacePermission) {
+			lastWorkspacePermission = state.permissionMode;
+			if (controller.workspacePermissionSaved) {
+				storage.store(WORKSPACE_PERMISSION_KEY, state.permissionMode, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			}
 		}
 		if (!state.setupComplete) {
 			return;

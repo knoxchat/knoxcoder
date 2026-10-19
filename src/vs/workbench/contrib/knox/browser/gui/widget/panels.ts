@@ -100,6 +100,7 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	const toggle = DOM.append(meter, DOM.$('button.knox-gui-meter-toggle')) as HTMLButtonElement;
 	toggle.type = 'button';
 	toggle.setAttribute('data-testid', 'agent-turn-meter-toggle');
+	toggle.setAttribute('aria-label', t(state, 'activityTimeline'));
 	if (canExpand) {
 		toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
 		widget.hover(toggle, t(state, 'activityTimeline'));
@@ -883,6 +884,7 @@ export function renderBackgroundJobsPanel(widget: KnoxGuiWidget, parent: HTMLEle
 		testId: 'agent-jobs-toggle',
 		onToggle: () => widget.controller.toggleJobsPanel(),
 	});
+	toggle.setAttribute('aria-label', t(state, 'jobsCount', { count: jobs.length }));
 	DOM.append(toggle, DOM.$('span.knox-gui-attached-title', undefined, t(state, 'jobsCount', { count: jobs.length })));
 	const stats = DOM.append(toggle, DOM.$('span.knox-gui-attached-stats'));
 	if (running > 0) {
@@ -896,6 +898,7 @@ export function renderBackgroundJobsPanel(widget: KnoxGuiWidget, parent: HTMLEle
 		const clear = DOM.append(toggle, DOM.$('span.knox-gui-attached-clear', undefined, t(state, 'jobsClearFinished')));
 		clear.setAttribute('role', 'button');
 		clear.tabIndex = 0;
+		clear.setAttribute('aria-label', t(state, 'jobsClearFinishedHint'));
 		widget.hover(clear, t(state, 'jobsClearFinishedHint'));
 		const runClear = (e: Event) => {
 			e.stopPropagation();
@@ -911,6 +914,7 @@ export function renderBackgroundJobsPanel(widget: KnoxGuiWidget, parent: HTMLEle
 	}
 	const list = widget.attachedBody(panel, state.jobsPanelOpen, 'ul');
 	list.classList.add('knox-gui-jobs-list');
+	list.setAttribute('aria-label', t(state, 'jobsCount', { count: jobs.length }));
 	for (const job of jobs) {
 		widget.renderJobRow(list, state, job);
 	}

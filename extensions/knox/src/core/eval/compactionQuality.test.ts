@@ -92,6 +92,95 @@ describe("compaction quality eval (P1-7)", () => {
     expect(result.files["src/add.ts"]).toBe(ADD_FIXED);
   });
 
+  it("keeps src/auth.ts JWT through a 30-turn notes session (K-063)", async () => {
+    const AUTH_BUG = `export function isTokenValid(token: { exp: number }): boolean {
+  return true;
+}
+`;
+    const AUTH_FIXED = `export function isTokenValid(token: { exp: number }): boolean {
+  return token.exp > Date.now();
+}
+`;
+    const msgs: ChatMessage[] = [
+      system("You are a helpful coding assistant."),
+      user(
+        "Fix the JWT expiry check in src/auth.ts — tokens stay valid after logout.",
+      ),
+      {
+        role: "assistant",
+        content: "I will edit src/auth.ts so JWT expiry is enforced.",
+        toolCalls: [
+          {
+            id: "e1",
+            type: "function",
+            function: {
+              name: BuiltInToolNames.EditFile,
+              arguments: JSON.stringify({
+                filepath: "src/auth.ts",
+                old_string: "return true;",
+                new_string: "return token.exp > Date.now();",
+              }),
+            },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        toolCallId: "e1",
+        content: 'Updated "src/auth.ts" (1 replacement).\nPath: src/auth.ts',
+      },
+    ];
+    for (let i = 0; i < 30; i++) {
+      msgs.push(
+        user(`Side note ${i}: tweak comments in notes${i}.md `.repeat(10)),
+      );
+      msgs.push(
+        assistant(`Updated notes${i}.md without touching auth. `.repeat(8)),
+      );
+    }
+    msgs.push(user("Continue the JWT fix in src/auth.ts"));
+
+    const compacted = compactMessages(
+      msgs,
+      "gpt-4o",
+      4_000,
+      500,
+      0,
+      100,
+      { preserveRecentCount: 2, maxHistoryRatio: 0.4 },
+    );
+    expect(compacted.tokensSaved).toBeGreaterThan(0);
+    const joined = compacted.messages
+      .map((m) => (typeof m.content === "string" ? m.content : ""))
+      .join("\n");
+    expect(joined).toContain("src/auth.ts");
+    expect(joined).toMatch(/JWT/i);
+
+    const result = await runAgentEval({
+      systemPrompt: joined.slice(0, 4000),
+      prompt: "Continue the JWT fix in src/auth.ts",
+      workspace: { "src/auth.ts": AUTH_BUG },
+      script: [
+        {
+          toolCalls: [
+            {
+              name: BuiltInToolNames.EditFile,
+              args: {
+                filepath: "src/auth.ts",
+                old_string: "return true;",
+                new_string: "return token.exp > Date.now();",
+              },
+            },
+          ],
+        },
+        { content: "Fixed JWT expiry." },
+      ],
+    });
+    expect(result.stoppedReason).toBe("completed");
+    expect(result.files["src/auth.ts"]).toBe(AUTH_FIXED);
+    expect(result.toolTrace[0]?.args).toMatchObject({ filepath: "src/auth.ts" });
+  });
+
   it("LLM summary keeps a rejected approach that heuristic first-sentence drop loses", async () => {
     const rejected =
       "Tried rewriting via regex replace; abandoned because it clobbered comments.";
@@ -134,6 +223,7 @@ describe("compaction quality eval (P1-7)", () => {
         preserveRecentCount: 2,
         maxHistoryRatio: 0.4,
         useLlmSummarization: true,
+        llmSummarizationMinDroppableTools: -1,
       },
       async () =>
         `Rejected regex rewrite because it clobbered comments. Continue with a structured parse.`,

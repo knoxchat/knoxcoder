@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { t } from "../../i18n/index.js";
 
 import { ToolImpl } from ".";
+import { toolFilesystem, toolGit, toolSubprocess } from "../toolPorts";
 
 export const MAX_GIT_LOG_COUNT = 50;
 export const DEFAULT_GIT_LOG_COUNT = 20;
@@ -32,13 +33,14 @@ export function shellQuote(value: string): string {
 export async function resolveGitCwd(
   extras: Parameters<ToolImpl>[1],
 ): Promise<string> {
-  const dirs = await extras.ide.getWorkspaceDirs();
+  const dirs = await toolFilesystem(extras).getWorkspaceDirs();
   if (!dirs.length) {
     throw new Error(t("gitNoWorkspace"));
   }
   const root = dirs[0];
-  const gitRoot = extras.ide.getGitRootPath
-    ? await extras.ide.getGitRootPath(root)
+  const git = toolGit(extras);
+  const gitRoot = git.getGitRootPath
+    ? await git.getGitRootPath(root)
     : undefined;
   return toFsPath(gitRoot || root);
 }
@@ -50,7 +52,7 @@ export async function runGit(
   const cwd = await resolveGitCwd(extras);
   const command = ["git", ...args].join(" ");
   try {
-    const [stdout, stderr] = await extras.ide.subprocess(command, cwd);
+    const [stdout, stderr] = await toolSubprocess(extras).subprocess(command, cwd);
     return { stdout: stdout ?? "", stderr: stderr ?? "", ok: true };
   } catch (error) {
     const stderr = typeof error === "string" ? error : (error as Error).message;
@@ -103,8 +105,9 @@ function stringArg(...values: unknown[]): string {
 }
 
 export const gitStatusImpl: ToolImpl = async (_args, extras) => {
-  const porcelain = extras.ide.getGitStatusPorcelain
-    ? await extras.ide.getGitStatusPorcelain()
+  const git = toolGit(extras);
+  const porcelain = git.getGitStatusPorcelain
+    ? await git.getGitStatusPorcelain()
     : undefined;
   if (porcelain != null) {
     return [
@@ -136,12 +139,13 @@ async function gitDiffFromModel(
   if (typeof args.path === "string" && args.path.trim()) {
     return undefined;
   }
-  if (!extras.ide.getGitDiffCached) {
+  const git = toolGit(extras);
+  if (!git.getGitDiffCached) {
     return undefined;
   }
   const chunks: string[] = [];
   if (args.both === true || args.staged !== true) {
-    const unstaged = await extras.ide.getGitDiffCached(false);
+    const unstaged = await git.getGitDiffCached(false);
     if (unstaged === undefined) {
       return undefined;
     }
@@ -154,7 +158,7 @@ async function gitDiffFromModel(
     );
   }
   if (args.both === true || args.staged === true) {
-    const staged = await extras.ide.getGitDiffCached(true);
+    const staged = await git.getGitDiffCached(true);
     if (staged === undefined) {
       return undefined;
     }

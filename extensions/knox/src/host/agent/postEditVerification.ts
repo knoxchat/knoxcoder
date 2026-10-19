@@ -1,10 +1,6 @@
 import { ContextItem } from "core";
 import { LSP_CLEAN_MARKER } from "core/context/soul/oracleVerdict";
-import {
-  extractVerifiedFilePath,
-  shouldSkipLspVerify,
-  shouldVerifyTool,
-} from "core/tools/postEditVerification";
+import { extractVerifiedFilePath } from "core/tools/postEditVerification";
 import * as vscode from "vscode";
 
 import { CommandHistoryService } from "./CommandHistoryService";
@@ -19,10 +15,13 @@ export interface RunPostEditVerificationParams {
   toolName: string;
   toolArguments: unknown;
   selectedModelTitle: string;
+  /** Core already decided this path should use LSP (K-082). */
+  filePath?: string;
 }
 
 /**
- * Shared post-edit verification used by Core `tools/call` (GUI + agent).
+ * Thin IDE adapter for Core `tools/call`. Policy (compile-oracle vs LSP,
+ * C/asm skip, rust-analyzer) lives in Core `shouldSkipLspVerify`.
  * Toggle: `knoxchat.enablePostEditVerification` (default true).
  */
 export async function runPostEditVerification(
@@ -35,31 +34,11 @@ export async function runPostEditVerification(
     return [];
   }
 
-  const verifyCommand = vscode.workspace
-    .getConfiguration("knoxchat")
-    .get<string>("verifyCommand", "")
-    ?.trim();
-  const verifyMode = vscode.workspace
-    .getConfiguration("knoxchat")
-    .get<string>("verifyMode", "diagnostics");
   const { toolName, toolArguments, selectedModelTitle } = params;
-  if (!shouldVerifyTool(toolName)) {
-    return [];
-  }
-  const filePath = extractVerifiedFilePath(toolName, toolArguments);
+  const filePath =
+    params.filePath?.trim() ||
+    extractVerifiedFilePath(toolName, toolArguments);
   if (!filePath) {
-    return [];
-  }
-  if (
-    shouldSkipLspVerify({
-      filePath,
-      verifyMode,
-      verifyCommand,
-      rustAnalyzerAvailable: Boolean(
-        vscode.extensions.getExtension("rust-lang.rust-analyzer")?.isActive,
-      ),
-    })
-  ) {
     return [];
   }
 

@@ -11,7 +11,7 @@
  * ---
  * name: reviewer
  * description: Reviews diffs for risk
- * tools: [builtin_read_file, builtin_grep_search]   # optional allowlist
+ * tools: [builtin_read_file, builtin_exact_search]   # optional allowlist
  * readonly: true                                    # optional; default false
  * model: my-fast-model                              # optional model title hint
  * ---

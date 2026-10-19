@@ -78,6 +78,46 @@ export function createGitHubLatestReleaseUrl(updateUrl: string | undefined): str
 }
 
 /**
+ * Stable, unauthenticated feed for the running package. GitHub redirects
+ * `/releases/latest/download/latest-*.json` at the published latest release,
+ * so clients do not need the rate-limited API to learn the version or URL.
+ */
+export function createGitHubLatestFeedUrl(updateUrl: string | undefined, query: IGitHubAssetQuery): string | undefined {
+	const repo = parseGitHubRepository(updateUrl);
+	if (!repo) {
+		return undefined;
+	}
+
+	return `https://github.com/${repo.owner}/${repo.repo}/releases/latest/download/${squirrelFeedAssetName(query)}`;
+}
+
+export function isGitHubApiUrl(url: string | undefined): boolean {
+	if (!url) {
+		return false;
+	}
+
+	try {
+		return new URL(url).hostname.toLowerCase() === 'api.github.com';
+	} catch {
+		return false;
+	}
+}
+
+export function isGitHubLatestFeedUrl(url: string | undefined): boolean {
+	if (!url) {
+		return false;
+	}
+
+	try {
+		const parsed = new URL(url);
+		return GITHUB_HOSTS.has(parsed.hostname.toLowerCase())
+			&& /\/releases\/latest\/download\/latest-[^/]+\.json$/i.test(parsed.pathname);
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Candidate GitHub API URLs for a release by version, trying `v<version>` first and then the bare version tag.
  */
 export function createGitHubReleaseByTagUrls(updateUrl: string | undefined, version: string): string[] {
@@ -136,6 +176,110 @@ export function isInstallerPackageUrl(url: string | undefined): boolean {
 	}
 }
 
+const CI_RUN_RELEASE_TAG = /^v\d+-build\.\d+$/i;
+const DIRECT_ASSET_SUFFIX = /\.(zip|dmg|tar\.gz|tgz|deb|rpm|appimage|exe|msi)$/i;
+
+/**
+ * True when `url` is an installer/archive GitHub can stream, not the releases
+ * HTML page or a `latest-*.json` feed.
+ */
+export function isDirectReleaseAssetUrl(url: string | undefined): boolean {
+	if (!url) {
+		return false;
+	}
+
+	try {
+		const pathname = new URL(url).pathname.toLowerCase();
+		if (pathname.endsWith('.json') || pathname.endsWith('.sha256') || pathname.endsWith('.blockmap')) {
+			return false;
+		}
+
+		if (pathname.includes('/releases/download/')) {
+			return DIRECT_ASSET_SUFFIX.test(pathname);
+		}
+
+		return isInstallerPackageUrl(url) || DIRECT_ASSET_SUFFIX.test(pathname);
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Prefer the detected package URL so "Download Update" fetches the build, not
+ * the generic `/releases/latest` page from `product.downloadUrl`.
+ */
+export function resolveForcedDownloadUrl(update: Pick<IUpdate, 'url'>, productDownloadUrl?: string): string | undefined {
+	if (isDirectReleaseAssetUrl(update.url)) {
+		return update.url;
+	}
+
+	return productDownloadUrl || update.url;
+}
+
+/**
+ * CI `workflow_dispatch` used to stamp `v{run}-build.{attempt}` into feed URLs
+ * while attaching the files to `vX.Y.Z`. Rewrite those so download hits the
+ * version tag the GitHub Release actually uses.
+ */
+export function canonicalizeGitHubDownloadUrl(url: string | undefined, productVersion: string | undefined): string | undefined {
+	if (!url) {
+		return url;
+	}
+
+	const version = normalizeReleaseVersion(productVersion);
+	if (!version) {
+		return url;
+	}
+
+	try {
+		const parsed = new URL(url);
+		const match = parsed.pathname.match(/^\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\/(.+)$/);
+		if (!match) {
+			return url;
+		}
+
+		const actualTag = match[3];
+		if (!CI_RUN_RELEASE_TAG.test(actualTag)) {
+			return url;
+		}
+
+		parsed.pathname = `/${match[1]}/${match[2]}/releases/download/v${version}/${match[4]}`;
+		return parsed.toString();
+	} catch {
+		return url;
+	}
+}
+
+export function squirrelFeedToUpdate(value: unknown): IUpdate | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+
+	const payload = value as Record<string, unknown>;
+	const url = typeof payload.url === 'string' ? payload.url : undefined;
+	const productVersion = normalizeReleaseVersion(
+		(typeof payload.productVersion === 'string' ? payload.productVersion : undefined)
+		?? (typeof payload.name === 'string' ? payload.name : undefined),
+	);
+	const version = typeof payload.version === 'string' && payload.version ? payload.version : productVersion;
+	if (!url || !version || !productVersion) {
+		return undefined;
+	}
+
+	const sha256hash = typeof payload.sha256hash === 'string' && payload.sha256hash ? payload.sha256hash : undefined;
+	const timestamp = typeof payload.timestamp === 'number'
+		? payload.timestamp
+		: parseTimestamp(typeof payload.pub_date === 'string' ? payload.pub_date : undefined);
+
+	return {
+		version,
+		productVersion,
+		url: canonicalizeGitHubDownloadUrl(url, productVersion),
+		sha256hash,
+		timestamp,
+	};
+}
+
 export function selectGitHubReleaseAsset(release: IGitHubRelease, query: IGitHubAssetQuery): IGitHubReleaseAsset | undefined {
 	const assets = (release.assets ?? []).filter(asset => matchesAsset(asset.name, query));
 	if (assets.length === 0) {
@@ -158,6 +302,27 @@ export function squirrelFeedAssetName(query: IGitHubAssetQuery): string {
 	}
 
 	return `latest-${query.platform}-${arch}.json`;
+}
+
+/**
+ * Map the VS Code `platform` token (`linux-x64`, `win32-arm64-user`, `darwin-arm64`)
+ * onto a GitHub `latest-*.json` query. Windows system setup is `win32-<arch>` in
+ * the VS Code feed and `win32-<arch>-system` in KnoxCoder metadata.
+ */
+export function platformToGitHubAssetQuery(platform: string): IGitHubAssetQuery | undefined {
+	const match = /^(win32|linux|darwin)(?:-(x64|arm64|ia32|aarch64|amd64))?(?:-(archive|user|system))?$/.exec(platform);
+	if (!match) {
+		return undefined;
+	}
+
+	const os = match[1] as IGitHubAssetQuery['platform'];
+	const arch = match[2] ?? 'x64';
+	if (os === 'win32') {
+		const target = (match[3] as 'archive' | 'user' | 'system' | undefined) ?? 'system';
+		return { platform: os, arch, target };
+	}
+
+	return { platform: os, arch };
 }
 
 export function githubReleaseToUpdate(release: IGitHubRelease, query: IGitHubAssetQuery, fallbackUrl?: string): IUpdate | undefined {

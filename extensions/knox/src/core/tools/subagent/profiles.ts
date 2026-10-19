@@ -44,11 +44,7 @@ const CHILD_BLOCKED_TOOLS = new Set<string>([
   BuiltInToolNames.AskUser,
 ]);
 
-const MEMORY_RECALL_TOOLS = new Set<string>([
-  BuiltInToolNames.Memory,
-  BuiltInToolNames.MemoryGraph,
-  BuiltInToolNames.MemorySessions,
-]);
+const MEMORY_RECALL_TOOLS = new Set<string>([BuiltInToolNames.Memory]);
 
 const READONLY_PROFILES = new Set<SubagentProfile>([
   "explore",

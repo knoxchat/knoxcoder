@@ -20,8 +20,9 @@ import { IProductService } from '../../../product/common/productService.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../../storage/electron-main/storageMainService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { VSBuffer, bufferToStream } from '../../../../base/common/buffer.js';
 import { DisablementReason, IUpdate, State, StateType } from '../../common/update.js';
-import { AbstractUpdateService, IUpdateURLOptions } from '../../electron-main/abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions } from '../../electron-main/abstractUpdateService.js';
 
 class TestMeteredConnectionService extends Disposable implements IMeteredConnectionService {
 	declare readonly _serviceBrand: undefined;
@@ -144,7 +145,14 @@ suite('AbstractUpdateService', () => {
 	let requestCount: number;
 	let meteredConnectionService: TestMeteredConnectionService;
 
-	function createService(mode: string, options?: { isBuilt?: boolean; disableUpdates?: boolean; updateUrl?: string; isConnectionMetered?: boolean; meteredConnectionInitialization?: Promise<void>; postInitializeGate?: Promise<void>; supportsUpdateOverwrite?: boolean }): TestUpdateService {
+	function jsonResponse(statusCode: number, body: unknown) {
+		return {
+			res: { statusCode, headers: { 'content-type': 'application/json' } },
+			stream: bufferToStream(VSBuffer.fromString(JSON.stringify(body))),
+		};
+	}
+
+	function createService(mode: string, options?: { isBuilt?: boolean; disableUpdates?: boolean; updateUrl?: string; version?: string; isConnectionMetered?: boolean; meteredConnectionInitialization?: Promise<void>; postInitializeGate?: Promise<void>; supportsUpdateOverwrite?: boolean; request?: () => Promise<unknown> }): TestUpdateService {
 		configurationService = new PolicyTestConfigurationService();
 		configurationService.setUserConfiguration('update.mode', mode);
 		requestCount = 0;
@@ -164,6 +172,9 @@ suite('AbstractUpdateService', () => {
 		const requestService = {
 			request: () => {
 				requestCount++;
+				if (options?.request) {
+					return options.request();
+				}
 				return Promise.reject(new Error('not expected'));
 			}
 		} as unknown as IRequestService;
@@ -172,7 +183,7 @@ suite('AbstractUpdateService', () => {
 			updateUrl: options?.updateUrl ?? 'https://update.example',
 			commit: 'abc123',
 			quality: 'stable',
-			version: '1.0.0',
+			version: options?.version ?? '1.0.0',
 			target: 'user'
 		} as unknown as IProductService;
 
@@ -553,6 +564,44 @@ suite('AbstractUpdateService', () => {
 
 		assert.deepStrictEqual(service.state, { type: StateType.Disabled, reason: DisablementReason.ManuallyDisabled });
 		assert.deepStrictEqual(states, [StateType.Cancelling, StateType.Disabled]);
+	});
+
+	test('GitHub update URLs resolve to latest-*.json, including Windows system setup', () => {
+		assert.strictEqual(
+			createUpdateURL('https://github.com/knoxchat/knoxcoder', 'win32-x64-user', 'stable', 'abc'),
+			'https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-win32-x64-user.json',
+		);
+		assert.strictEqual(
+			createUpdateURL('https://github.com/knoxchat/knoxcoder', 'win32-x64', 'stable', 'abc'),
+			'https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-win32-x64-system.json',
+		);
+	});
+
+	test('detects 2.2.1 dynamically from latest-*.json and is not latest on 2.2.0', async () => {
+		const feed = {
+			url: 'https://github.com/knoxchat/knoxcoder/releases/download/v2.2.1/KnoxCoder-2.2.1-linux-x64.tar.gz',
+			name: '2.2.1',
+			version: 'cafed00d',
+			productVersion: '2.2.1',
+			sha256hash: 'abc',
+		};
+		const older = createService('manual', {
+			updateUrl: 'https://github.com/knoxchat/knoxcoder',
+			version: '2.2.0',
+			request: async () => jsonResponse(200, feed),
+		});
+		await older.whenInitialized;
+		older.feedUrl = 'https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-linux-x64.json';
+		assert.strictEqual(await older.checkLatestVersionExplicitly(), false);
+
+		const current = createService('manual', {
+			updateUrl: 'https://github.com/knoxchat/knoxcoder',
+			version: '2.2.1',
+			request: async () => jsonResponse(200, feed),
+		});
+		await current.whenInitialized;
+		current.feedUrl = 'https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-linux-x64.json';
+		assert.strictEqual(await current.checkLatestVersionExplicitly(), true);
 	});
 
 	test('does not enter Cancelling when nothing is in flight', async () => {

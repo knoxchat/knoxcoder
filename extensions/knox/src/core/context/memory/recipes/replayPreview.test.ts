@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { decide } from "../../../agent/decisionEngine";
-import { driftAction, formatReplayPreview, previewReplay, type PreviewPorts } from "./replayPreview";
+import { driftAction, formatReplayPreview, previewReplay, REPLAY_APPLY_LATENCY_NOTE, type PreviewPorts } from "./replayPreview";
 import { replayExact, type ReplayPorts } from "./replayer";
 import type { Recipe } from "./types";
 
@@ -61,6 +61,7 @@ describe("previewReplay", () => {
     expect(p.drifted).toBe(false);
     expect(driftAction(p)).toBe("exact");
     const text = formatReplayPreview(p);
+    expect(text).toContain(REPLAY_APPLY_LATENCY_NOTE);
     expect(text).toContain("+l6");
     expect(text).toContain("src/a.ts");
   });

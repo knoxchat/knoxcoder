@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { detectDangerousCommand, splitShellCommands } from "./commandGuard";
+import {
+  detectDangerousCommand,
+  detectWrittenScriptExec,
+  expandOneHopShellVars,
+  splitShellCommands,
+} from "./commandGuard";
 import { evaluateToolPolicy } from "./toolPolicy";
 
 describe("detectDangerousCommand", () => {
@@ -28,6 +33,9 @@ describe("detectDangerousCommand", () => {
     "bash -lc \"ls; git push -f\"",
     "echo $(git reset --hard)",
     "ls | xargs chmod -R 777",
+    "X=rm; $X -rf /",
+    "VAR='git reset --hard'; eval \"$VAR\"",
+    "export Y=rm; $Y -rf /tmp/x",
   ];
   for (const cmd of dangerous) {
     it(`flags: ${cmd}`, () => {
@@ -95,6 +103,63 @@ describe("evaluateToolPolicy shell guard", () => {
 
   it("allows writes inside the workspace and /dev/null", () => {
     expect(run("echo x > /ws/out.txt 2>/dev/null").action).toBeNull();
+  });
+
+  it("K-091: $VAR one-hop and eval of an assigned destructive command", () => {
+    expect(run("X=rm; $X -rf /").action).toBe("deny");
+    expect(run("VAR='rm -rf /'; eval \"$VAR\"").action).toBe("deny");
+    expect(run("export Y=rm; $Y -rf /tmp/x").action).toBe("deny");
+  });
+
+  it("K-091: write-then-run is deny in Ask and ask in Auto", () => {
+    const recentWrites = ["/ws/evil.py"];
+    expect(
+      evaluateToolPolicy({
+        toolName: "builtin_run_terminal_command",
+        args: { command: "python evil.py" },
+        workspaceDirs: ["/ws"],
+        home: "/home/u",
+        recentWrites,
+        permissionMode: "default",
+      }).action,
+    ).toBe("deny");
+    const auto = evaluateToolPolicy({
+      toolName: "builtin_run_terminal_command",
+      args: { command: "python3 /ws/evil.py" },
+      workspaceDirs: ["/ws"],
+      home: "/home/u",
+      recentWrites,
+      permissionMode: "fullAuto",
+    });
+    expect(auto.action).toBe("ask");
+    expect(auto.strictAsk).toBe(true);
+    expect(
+      evaluateToolPolicy({
+        toolName: "builtin_run_terminal_command",
+        args: { command: "make test" },
+        workspaceDirs: ["/ws"],
+        home: "/home/u",
+        recentWrites,
+        permissionMode: "fullAuto",
+      }).action,
+    ).toBeNull();
+  });
+});
+
+describe("expandOneHopShellVars", () => {
+  it("substitutes a simple assignment into later commands", () => {
+    expect(expandOneHopShellVars("X=rm; $X -rf /")).toBe("rm -rf /");
+    expect(detectDangerousCommand("VAR='git reset --hard'; eval \"$VAR\"")).not.toBeNull();
+  });
+});
+
+describe("detectWrittenScriptExec", () => {
+  it("flags an interpreter running a path written this turn", () => {
+    expect(
+      detectWrittenScriptExec("python evil.py", ["src/ok.ts", "evil.py"]),
+    ).not.toBeNull();
+    expect(detectWrittenScriptExec("python -c 'print(1)'", ["evil.py"])).toBeNull();
+    expect(detectWrittenScriptExec("make test", ["evil.py"])).toBeNull();
   });
 });
 

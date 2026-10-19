@@ -86,6 +86,10 @@ export function startBrainAutoConsolidation(core: CoreRuntime): void {
 export function wireConfigUpdates(core: CoreRuntime): void {
   core.configHandler.onConfigUpdate(async (result) => {
     const serializedResult = await core.configHandler.getSerializedConfig();
+    const { attachSessionPermission } = await import(
+      "../agent/sessionPermission.js"
+    );
+    await attachSessionPermission(serializedResult, core.ide);
     core.messenger.send("configUpdate", {
       result: serializedResult,
       profileId:

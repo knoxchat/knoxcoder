@@ -4,7 +4,11 @@ import path from "path";
 import { describe, expect, it } from "vitest";
 
 import { BuiltInToolNames } from "../tools/builtIn";
-import { DEFAULT_PERMISSION_MODE, isToolAutoApproved } from "./permissions";
+import {
+  DEFAULT_PERMISSION_MODE,
+  isHardPolicyDeny,
+  isToolAutoApproved,
+} from "./permissions";
 
 describe("isToolAutoApproved", () => {
   const workspaceDirs = [path.join(os.tmpdir(), "knox-ws")];
@@ -105,5 +109,48 @@ describe("isToolAutoApproved", () => {
         workspaceDirs,
       }),
     ).toBe(false);
+  });
+
+  it("K-091: Auto asks for write-then-run; Ask denies", () => {
+    const args = { command: "python evil.py" };
+    const recentWrites = [path.join(workspaceDirs[0], "evil.py")];
+    expect(
+      isToolAutoApproved({
+        toolName: BuiltInToolNames.RunTerminalCommand,
+        toolSettings: {},
+        permissionMode: "fullAuto",
+        args,
+        workspaceDirs,
+        recentWrites,
+      }),
+    ).toBe(false);
+    expect(
+      isToolAutoApproved({
+        toolName: BuiltInToolNames.RunTerminalCommand,
+        toolSettings: {},
+        permissionMode: "default",
+        args,
+        workspaceDirs,
+        recentWrites,
+      }),
+    ).toBe(false);
+    expect(
+      isHardPolicyDeny({
+        toolName: BuiltInToolNames.RunTerminalCommand,
+        args,
+        workspaceDirs,
+        recentWrites,
+        permissionMode: "fullAuto",
+      }),
+    ).toBe(false);
+    expect(
+      isHardPolicyDeny({
+        toolName: BuiltInToolNames.RunTerminalCommand,
+        args,
+        workspaceDirs,
+        recentWrites,
+        permissionMode: "default",
+      }),
+    ).toBe(true);
   });
 });

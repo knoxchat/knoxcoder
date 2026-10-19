@@ -1124,7 +1124,7 @@ suite('Knox agent host contract (KN-382)', () => {
 			.map(match => match[1])
 			.sort();
 		assert.deepStrictEqual(contributed, frozen);
-		assert.strictEqual(contributed.length, 65);
+		assert.strictEqual(contributed.length, 67);
 		assert.ok(contributed.includes('knoxchat.jev.enabled'));
 		assert.ok(contributed.includes('knoxchat.memoryBrain.maxBytes'));
 		assert.ok(contributed.includes('knox.checkpoints.enableAutoCheckpoints'));
@@ -1343,11 +1343,11 @@ suite('Knox native parity follow-ups (NP)', () => {
 		assert.ok(body.includes('No active debug session found'));
 	});
 
-	test('NP-28 the host merges the turn inject into the leading system message, else prepends one', () => {
+	test('NP-28 the host merges the turn inject under the Core turn-inject cap (K-072)', () => {
 		const source = repoFile('extensions/knox/src/host/extension/nativeAgentRequest.ts');
 		assert.ok(source.includes('export function mergeInjectIntoMessages'));
-		assert.ok(source.includes('first?.role === "system"'));
-		assert.ok(source.includes('return [{ role: "system", content: injected }, ...messages];'));
+		assert.ok(source.includes('classifyInjectedContext'));
+		assert.ok(source.includes('applyTurnInjectToMessages'));
 	});
 
 	test('NP-29 the ported openai-adapters package tests run under their own vitest config', () => {

@@ -13,6 +13,7 @@ import { BrainManager } from "../context/memory/brain/BrainManager.js";
 
 import { ToolCallError, ToolCallErrorCode } from "./errors.js";
 import {
+  extractMutatingWritePaths,
   extractVerifiedFilePath,
   parseToolArgs,
   lspVerifySkippedItem,
@@ -20,6 +21,7 @@ import {
   shouldSkipLspVerify,
   shouldVerifyTool,
 } from "./postEditVerification.js";
+import { recordTurnWrites } from "./turnWrites.js";
 import { runPostEditBuildVerify } from "./build/verifyCommand.js";
 import { classifyOracleEvent } from "../context/soul/oracleEvents.js";
 import { blobTouchedUnsafe } from "./rustEditGuard.js";
@@ -88,6 +90,12 @@ export interface SoulHookOptions {
     command: string;
     maxIterations?: number;
     run: (command: string) => Promise<ContextItem[]>;
+  };
+  /** K-082: Core skip policy. Host LSP is not consulted when this says skip. */
+  lspVerify?: {
+    verifyMode?: string;
+    verifyCommand?: string;
+    rustAnalyzerAvailable?: boolean;
   };
 }
 
@@ -207,6 +215,10 @@ export async function executeToolWithSoulHooks(
 
     const contextItems = await execute();
 
+    if (mutating) {
+      recordTurnWrites(sessionId, extractMutatingWritePaths(toolName, rawArgs));
+    }
+
     if (options.buildVerify?.command && extractVerifiedFilePath(toolName, rawArgs)) {
       try {
         const filePath = extractVerifiedFilePath(toolName, rawArgs);
@@ -236,7 +248,15 @@ export async function executeToolWithSoulHooks(
       typeof ide.runPostEditVerification === "function"
     ) {
       const filePath = extractVerifiedFilePath(toolName, rawArgs);
-      if (filePath && shouldSkipLspVerify({ filePath })) {
+      if (
+        filePath &&
+        shouldSkipLspVerify({
+          filePath,
+          verifyMode: options.lspVerify?.verifyMode,
+          verifyCommand: options.lspVerify?.verifyCommand,
+          rustAnalyzerAvailable: options.lspVerify?.rustAnalyzerAvailable,
+        })
+      ) {
         contextItems.push(lspVerifySkippedItem(filePath));
       } else if (filePath) {
         try {
@@ -244,6 +264,7 @@ export async function executeToolWithSoulHooks(
             toolName,
             toolArguments: rawArgs,
             selectedModelTitle: selectedModelTitle || "",
+            filePath,
           });
           if (verifyItems?.length) {
             contextItems.push(...verifyItems);

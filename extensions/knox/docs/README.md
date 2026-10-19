@@ -31,8 +31,12 @@ Knox ships **English and Chinese** only (`en` / `zh`, plus `package.nls.json` / 
 | Edits | auto | auto | asks |
 | Auto (default, YOLO) | auto | auto | auto |
 
-New sessions start in Auto. Switch to **Ask** (or Edits) from the permission
-bar, or Shift+Tab, when the repo is untrusted. Saved modes are kept.
+New sessions start in Auto for folders Knox has already used, or whose git
+remote is in `knoxchat.trustedGitRemotes`. A **fresh clone** (no prior Knox
+sessions, remote not allowlisted) starts in **Ask**, with a one-line notice
+on the permission bar. `knoxchat.permissionDefault` (`auto` / `ask` / `edits`)
+overrides that heuristic. Saved modes for the folder still win. Switch
+Ask / Edits / Auto from the permission bar, or Shift+Tab.
 
 **Plan** is a composer toggle next to those modes, not a fourth permission.
 In Plan mode the agent may only read, search, ask, and write a `builtin_plan`

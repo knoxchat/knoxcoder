@@ -219,6 +219,23 @@
 					"default": false,
 					"markdownDescription": "Expose heuristic composite_* tools on the agent catalog and in `builtin_tool_search`. Off by default: they stay routed through `callTool` for honesty tests but are not offered to the model."
 				},
+				"knoxchat.permissionDefault": {
+					"type": "string",
+					"enum": [
+						"auto",
+						"ask",
+						"edits"
+					],
+					"markdownDescription": "Override the new-session permission heuristic. Unset: Auto for folders Knox already used (or remotes in `knoxchat.trustedGitRemotes`); Ask for a fresh clone. Saved permission-bar modes still win."
+				},
+				"knoxchat.trustedGitRemotes": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"markdownDescription": "Git remote URL substrings that keep new sessions in Auto even without prior Knox state (e.g. `github.com/torvalds/linux`). Empty = no remotes are trusted for that heuristic."
+				},
 				"knoxchat.verifyCommand": {
 					"type": "string",
 					"default": "",
@@ -1327,22 +1344,13 @@
 				}
 			]
 		},
-		"viewsContainers": {
-			"secondarySidebar": [
-				{
-					"id": "knoxchat",
-					"title": "Knox",
-					"icon": "media/sidebar-icon.png"
-				}
-			]
-		},
 		"views": {
 			"knoxchat": [
 				{
 					"type": "webview",
 					"id": "knoxchat.knoxGUIView",
 					"name": "Knox",
-					"icon": "media/sidebar-icon.png",
+					"icon": "media/agent.svg",
 					"visibility": "visible"
 				}
 			]
@@ -1392,10 +1400,6 @@
 			{"name":"builtin_skill","displayName":"Skill","modelDescription":"Load and run a SKILL.md skill."},
 			{"name":"builtin_lsp","displayName":"LSP","modelDescription":"Query language server symbols, defs, and refs."},
 			{"name":"builtin_memory","displayName":"Memory","modelDescription":"Search or write Knox Memory Brain entries."},
-			{"name":"builtin_memory_graph","displayName":"Memory Graph","modelDescription":"Inspect the Memory Brain knowledge graph."},
-			{"name":"builtin_memory_sessions","displayName":"Memory Sessions","modelDescription":"List Memory Brain sessions."},
-			{"name":"builtin_memory_manage","displayName":"Memory Manage","modelDescription":"Create, update, or delete Memory Brain entries."},
-			{"name":"builtin_memory_learn","displayName":"Memory Learn","modelDescription":"Extract and store memories from the current session."},
 			{"name":"builtin_task","displayName":"Task","modelDescription":"Run a subagent task."},
 			{"name":"builtin_ask_user","displayName":"Ask User","modelDescription":"Ask the user a question."},
 			{"name":"builtin_git_status","displayName":"Git Status","modelDescription":"Show git status (no push/force/amend)."},

@@ -3,8 +3,6 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable */
-
 export const knoxGuiStringsEnSettings: Record<string, unknown> = {
 	"interfaceSettings": "Interface Settings",
 	"showSessionTabs": "Show Session Tabs",
@@ -44,7 +42,7 @@ export const knoxGuiStringsEnSettings: Record<string, unknown> = {
 	"recipesEnabled": "Remember verified work",
 	"recipesEnabledHint": "When a build or test passes after Knox edits files, keep that work as a local recipe. Recipes stay on this computer unless you share a checkpoint bundle.",
 	"recipesAutoReplay": "Reuse a recipe on a repeat task",
-	"recipesAutoReplayHint": "Off: only suggest it to the model. Ask: show the exact changes and wait for you. Automatic: apply it without a model call. Every reuse is checked afterwards and undone if the check fails.",
+	"recipesAutoReplayHint": "Off: only suggest it to the model. Ask: show the exact changes and wait for you (listing is instant; Apply runs the real tools and check, which can take seconds). Automatic: apply it without a model call. Every reuse is checked afterwards and undone if the check fails.",
 	"recipesAutoReplay_off": "Off",
 	"recipesAutoReplay_ask": "Ask me first",
 	"recipesAutoReplay_exact": "Automatic",

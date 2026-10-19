@@ -2,6 +2,7 @@ import { t } from "../../i18n/index.js";
 
 import { ToolImpl } from ".";
 import { detectSystemsWorkspace } from "../../config/agentProfile";
+import { toolFilesystem } from "../toolPorts";
 import type { IDE } from "../..";
 import {
   MAX_PARALLEL_EXPLORES,
@@ -20,6 +21,7 @@ import type {
   SubagentProgressEvent,
   SubagentRunResult,
 } from "../subagent/runSubagent";
+import { emptySubagentResult, formatSubagentResult } from "../subagent/runSubagent";
 import type { SubagentMergeResult } from "../subagent/isolation";
 
 interface ChildSpec {
@@ -95,11 +97,7 @@ function formatFanout(results: SubagentRunResult[]): string {
   return results
     .map(
       (result, index) =>
-        `### Explore ${index + 1}\n## Subagent (${result.profile})\nSteps: ${result.steps}\nStopped: ${result.stoppedReason}\nFiles touched: ${
-          result.filesTouched.length > 0
-            ? result.filesTouched.join(", ")
-            : "(none recorded)"
-        }\n\n${result.summary.trim() || "(no summary)"}`,
+        `### Explore ${index + 1}\n${formatSubagentResult(result)}`,
     )
     .join("\n\n");
 }
@@ -113,9 +111,7 @@ export const taskImpl: ToolImpl = async (args, extras) => {
     throw new Error(t("missingRequiredParam", { param: "prompt" }));
   }
 
-  const { formatSubagentResult, runSubagent } = await import(
-    "../subagent/runSubagent"
-  );
+  const { runSubagent } = await import("../subagent/runSubagent");
   const { callTool } = await import("../callTool");
   const { executeToolWithSoulHooks } = await import("../mutatingToolHooks");
   const { BrainManager } = await import(
@@ -130,7 +126,7 @@ export const taskImpl: ToolImpl = async (args, extras) => {
 
   const sessionId =
     extras.soul?.sessionId ?? BrainManager.getActiveSessionId() ?? undefined;
-  const systems = await detectSystemsWorkspace(extras.ide);
+  const systems = await detectSystemsWorkspace(toolFilesystem(extras));
   const catalog = await resolveProductAgentTools(allTools, {
     systems,
     ide: extras.ide,
@@ -177,13 +173,11 @@ export const taskImpl: ToolImpl = async (args, extras) => {
       : undefined;
     if (unit.agent && !custom) {
       return {
-        result: {
+        result: emptySubagentResult({
           profile: unit.agent,
-          steps: 0,
           summary: `Unknown agent "${unit.agent}". Define it in .knoxcoder/agents/${unit.agent}.md.`,
-          filesTouched: [],
           stoppedReason: "error",
-        },
+        }),
       };
     }
     // Custom agents may name a model; fall back to the parent's when unknown.
@@ -258,15 +252,13 @@ export const taskImpl: ToolImpl = async (args, extras) => {
       return { result: withNote(result), merge };
     } catch (error) {
       return {
-        result: {
+        result: emptySubagentResult({
           profile: custom?.name ?? String(unit.profile ?? "general"),
-          steps: 0,
           summary: `Worktree isolation failed: ${
             error instanceof Error ? error.message : String(error)
           }`,
-          filesTouched: [],
           stoppedReason: "error",
-        },
+        }),
       };
     }
   };
@@ -303,14 +295,12 @@ export const taskImpl: ToolImpl = async (args, extras) => {
       runUnit,
       {
         signal: extras.abortSignal,
-        skipped: (unit) => ({
-          result: {
+        skipped: (unit): { result: SubagentRunResult; merge?: SubagentMergeResult } => ({
+          result: emptySubagentResult({
             profile: String(unit.agent ?? unit.profile ?? "explore"),
-            steps: 0,
             summary: "Cancelled before start.",
-            filesTouched: [],
-            stoppedReason: "aborted" as const,
-          },
+            stoppedReason: "aborted",
+          }),
         }),
       },
     );

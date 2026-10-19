@@ -21,7 +21,7 @@ import { asJson, IRequestService } from '../../request/common/request.js';
 import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { createGitHubLatestReleaseUrl, githubReleaseToUpdate, IAvailableUpdateResult, IGitHubAssetQuery, isCurrentVersionLatest, isGitHubReleasePayload, isGitHubUpdateUrl, selectSquirrelFeedUrl } from '../common/githubReleaseUpdate.js';
+import { canonicalizeGitHubDownloadUrl, createGitHubLatestFeedUrl, createGitHubLatestReleaseUrl, githubReleaseToUpdate, IAvailableUpdateResult, IGitHubAssetQuery, isCurrentVersionLatest, isGitHubApiUrl, isGitHubLatestFeedUrl, isGitHubReleasePayload, isGitHubUpdateUrl, platformToGitHubAssetQuery, selectSquirrelFeedUrl, squirrelFeedToUpdate, type IGitHubRelease } from '../common/githubReleaseUpdate.js';
 import { AvailableForDownload, DisablementReason, IUpdate, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
 
 const LAST_KNOWN_VERSION_STORAGE_KEY = 'abstractUpdateService/lastKnownVersion';
@@ -31,10 +31,12 @@ export interface IUpdateURLOptions {
 	readonly internalOrg?: string;
 }
 
-export function createUpdateURL(baseUpdateUrl: string, platform: string, quality: string, commit: string, options?: IUpdateURLOptions): string {
-	const githubUrl = createGitHubLatestReleaseUrl(baseUpdateUrl);
-	if (githubUrl) {
-		return githubUrl;
+export function createUpdateURL(baseUpdateUrl: string, platform: string, quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
+	if (isGitHubUpdateUrl(baseUpdateUrl)) {
+		const query = platformToGitHubAssetQuery(platform);
+		return query
+			? createGitHubLatestFeedUrl(baseUpdateUrl, query)
+			: createGitHubLatestReleaseUrl(baseUpdateUrl);
 	}
 
 	const url = new URL(`${baseUpdateUrl}/api/update/${platform}/${quality}/${commit}`);
@@ -70,7 +72,7 @@ export function getUpdateRequestHeaders(productVersion: string, options?: { gith
 
 	const headers: Record<string, string> = { 'User-Agent': userAgent };
 	if (options?.github) {
-		headers['Accept'] = 'application/vnd.github+json';
+		headers.Accept = 'application/vnd.github+json';
 		headers['X-GitHub-Api-Version'] = '2022-11-28';
 	}
 
@@ -691,17 +693,27 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	}
 
 	/**
-	 * Checks GitHub for a newer KnoxCoder release (or a static update JSON) and maps it to an installable update.
+	 * Checks the platform `latest-*.json` feed (or GitHub `/releases/latest`) and
+	 * maps a newer KnoxCoder version onto an installable update.
 	 */
 	protected async fetchAvailableUpdate(url: string, token: CancellationToken = CancellationToken.None): Promise<IAvailableUpdateResult> {
-		const github = isGitHubUpdateUrl(url) || isGitHubUpdateUrl(this.productService.updateUrl);
-		const headers = getUpdateRequestHeaders(this.productService.version, { github });
+		const headers = getUpdateRequestHeaders(this.productService.version, { github: isGitHubApiUrl(url) });
 		this.logService.trace('update#fetchAvailableUpdate - checking KnoxCoder releases', { url, headers });
 
 		const context = await this.requestService.request({ url, headers, callSite: 'updateService.fetchAvailableUpdate' }, token);
 		this.logService.trace('update#fetchAvailableUpdate - response', { statusCode: context.res.statusCode });
 
-		if (context.res.statusCode === 204 || context.res.statusCode === 404) {
+		if (context.res.statusCode === 204) {
+			return { isLatest: true };
+		}
+
+		if (context.res.statusCode === 404) {
+			const fallback = createGitHubLatestReleaseUrl(this.productService.updateUrl);
+			if (fallback && fallback !== url && isGitHubLatestFeedUrl(url)) {
+				this.logService.info('update#fetchAvailableUpdate - latest feed missing, falling back to GitHub latest release API');
+				return this.fetchAvailableUpdate(fallback, token);
+			}
+
 			return { isLatest: true };
 		}
 
@@ -711,18 +723,30 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		}
 
 		if (isGitHubReleasePayload(payload)) {
-			const query = this.getUpdateAssetQuery();
-			const update = githubReleaseToUpdate(payload, query, this.productService.downloadUrl);
-			if (!update?.productVersion || isCurrentVersionLatest(this.productService.version, update.productVersion)) {
-				return { isLatest: true };
-			}
-
-			this.logService.info(`update#fetchAvailableUpdate - found KnoxCoder ${update.productVersion}, current ${this.productService.version}`);
-			return { isLatest: false, update, squirrelFeedUrl: selectSquirrelFeedUrl(payload, query) };
+			return this.availableUpdateFromGitHubRelease(payload);
 		}
 
-		const update = payload as IUpdate;
-		if (!update.url || !update.version || !update.productVersion) {
+		const update = squirrelFeedToUpdate(payload);
+		if (!update) {
+			return { isLatest: true };
+		}
+
+		return this.availableUpdateFromDetected(update, isGitHubLatestFeedUrl(url) ? url : undefined);
+	}
+
+	private availableUpdateFromGitHubRelease(payload: IGitHubRelease): IAvailableUpdateResult {
+		const query = this.getUpdateAssetQuery();
+		const update = githubReleaseToUpdate(payload, query, this.productService.downloadUrl);
+		if (!update) {
+			return { isLatest: true };
+		}
+
+		return this.availableUpdateFromDetected(update, selectSquirrelFeedUrl(payload, query));
+	}
+
+	private availableUpdateFromDetected(update: IUpdate, squirrelFeedUrl?: string): IAvailableUpdateResult {
+		const url = canonicalizeGitHubDownloadUrl(update.url, update.productVersion) ?? update.url;
+		if (!url || !update.version || !update.productVersion) {
 			return { isLatest: true };
 		}
 
@@ -730,7 +754,8 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			return { isLatest: true };
 		}
 
-		return { isLatest: false, update };
+		this.logService.info(`update#fetchAvailableUpdate - found KnoxCoder ${update.productVersion}, current ${this.productService.version}`);
+		return { isLatest: false, update: { ...update, url }, squirrelFeedUrl };
 	}
 
 	async _applySpecificUpdate(packagePath: string): Promise<void> {

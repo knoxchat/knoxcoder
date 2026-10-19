@@ -10,6 +10,9 @@ import ignore from "ignore";
 import type { IDE } from "..";
 import { findUriInDirs, joinPathsToUri } from "./uri";
 
+/** K-084: ignore files are read through the filesystem port. */
+type WalkIgnoreHost = Pick<IDE, "fileExists" | "readFile">;
+
 export const WALK_IGNORE_FILENAMES = [".gitignore", ".knoxignore"] as const;
 
 export function isWalkIgnoreFileName(name: string): boolean {
@@ -84,7 +87,7 @@ export function createWalkIgnoreMatcher(): WalkIgnoreMatcher {
 }
 
 async function readIgnoreIfPresent(
-  ide: IDE,
+  ide: WalkIgnoreHost,
   uri: string,
 ): Promise<string | undefined> {
   try {
@@ -105,7 +108,7 @@ async function readIgnoreIfPresent(
 
 /** Load root-level `.gitignore` / `.knoxignore` from each walk or workspace URI. */
 export async function loadWalkIgnore(
-  ide: IDE,
+  ide: WalkIgnoreHost,
   rootUris: string[],
 ): Promise<WalkIgnoreMatcher> {
   const matcher = createWalkIgnoreMatcher();
@@ -132,7 +135,7 @@ export async function loadWalkIgnore(
 
 /** If `listDir` showed an ignore file, add that directory as a nested layer. */
 export async function addNestedWalkIgnore(
-  ide: IDE,
+  ide: WalkIgnoreHost,
   dirUri: string,
   fileName: string,
   matcher: WalkIgnoreMatcher,

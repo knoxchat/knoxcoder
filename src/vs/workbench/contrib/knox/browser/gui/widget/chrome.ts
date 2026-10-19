@@ -406,6 +406,7 @@ export function renderTabs(widget: KnoxGuiWidget, state: IKnoxGuiState): void { 
 	const row = DOM.append(widget.root, DOM.$('.knox-gui-tabs'));
 	row.setAttribute('data-testid', 'knox-gui-tabs');
 	row.setAttribute('role', 'tablist');
+	row.setAttribute('aria-label', t(state, 'knoxGuiRegion'));
 	for (const tab of state.tabs) {
 		const active = tab.id === state.activeTabId;
 		const el = DOM.append(row, DOM.$('div.knox-gui-tab'));

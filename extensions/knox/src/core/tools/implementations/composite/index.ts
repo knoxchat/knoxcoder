@@ -8,6 +8,7 @@
 
 import { ContextItem, ToolExtras } from "../../..";
 import { ToolImpl } from "../index.js";
+import { toolFilesystem, toolGit, toolSearch } from "../../toolPorts";
 import { ToolCache } from "../../orchestration/ToolCache.js";
 import { ConditionBuilder, evaluateCondition } from "../../orchestration/ToolConditions.js";
 import { CacheConfig, PipelineContext } from "../../orchestration/types.js";
@@ -66,7 +67,7 @@ export const smartEditImpl: ToolImpl = async (args, extras) => {
   let originalContent: string | null = null;
   if (backup) {
     try {
-      originalContent = await extras.ide.readFile(filepath);
+      originalContent = await toolFilesystem(extras).readFile(filepath);
       results.push({
         name: "Backup Created",
         description: "Original content saved for rollback",
@@ -78,7 +79,7 @@ export const smartEditImpl: ToolImpl = async (args, extras) => {
   }
   
   // Step 1: Read the current file
-  const readResult = await extras.ide.readFile(filepath);
+  const readResult = await toolFilesystem(extras).readFile(filepath);
   results.push({
     name: "Original Content",
     description: `Read ${filepath}`,
@@ -211,7 +212,7 @@ export const smartEditImpl: ToolImpl = async (args, extras) => {
       content: modifiedContent
     });
   } else {
-    await extras.ide.writeFile(filepath, modifiedContent);
+    await toolFilesystem(extras).writeFile(filepath, modifiedContent);
     results.push({
       name: "Modification Complete",
       description: `Updated ${filepath}`,
@@ -232,7 +233,7 @@ export const bugInvestigationImpl: ToolImpl = async (args, extras) => {
   
   // Step 1: Search for related code
   const searchTerms = extractSearchTerms(bugDescription, errorStack);
-  const searchResults = await extras.ide.getSearchResults(searchTerms.join(' OR '));
+  const searchResults = await toolSearch(extras).getSearchResults(searchTerms.join(' OR '));
   
   results.push({
     name: "Code Search Results",
@@ -241,7 +242,7 @@ export const bugInvestigationImpl: ToolImpl = async (args, extras) => {
   });
   
   // Step 2: Get git diff to see recent changes
-  const diff = await extras.ide.getDiff(true);
+  const diff = await toolGit(extras).getDiff(true);
   if (diff && diff.length > 0) {
     results.push({
       name: "Recent Changes",
@@ -254,7 +255,7 @@ export const bugInvestigationImpl: ToolImpl = async (args, extras) => {
   if (affectedFiles && affectedFiles.length > 0) {
     for (const file of affectedFiles) {
       try {
-        const content = await extras.ide.readFile(file);
+        const content = await toolFilesystem(extras).readFile(file);
         const analysis = analyzeForBug(content, bugDescription);
         results.push({
           name: `Analysis: ${file}`,
@@ -315,7 +316,7 @@ export const codeReviewImpl: ToolImpl = async (args, extras) => {
   
   // Step 1: Get diff
   const includeUnstaged = scope === 'unstaged' || scope === 'all';
-  const diff = await extras.ide.getDiff(includeUnstaged);
+  const diff = await toolGit(extras).getDiff(includeUnstaged);
   
   if (!diff || diff.length === 0) {
     return [{
@@ -369,7 +370,7 @@ ${reviewFindings.length > 0 ? reviewFindings.join('\n\n') : '✅ No issues found
 export const projectHealthImpl: ToolImpl = async (args, extras) => {
   const { checks = ['code-quality', 'dependencies', 'documentation', 'tests'] } = args;
   const results: ContextItem[] = [];
-  const workspaceDirs = await extras.ide.getWorkspaceDirs();
+  const workspaceDirs = await toolFilesystem(extras).getWorkspaceDirs();
 
   for (const check of checks) {
     try {
@@ -407,7 +408,7 @@ export const learnCodebaseImpl: ToolImpl = async (args, extras) => {
   const results: ContextItem[] = [];
   
   // Get workspace structure
-  const workspaceDirs = await extras.ide.getWorkspaceDirs();
+  const workspaceDirs = await toolFilesystem(extras).getWorkspaceDirs();
   
   if (workspaceDirs.length === 0) {
     return [{
@@ -420,7 +421,7 @@ export const learnCodebaseImpl: ToolImpl = async (args, extras) => {
   const rootDir = workspaceDirs[0];
   
   // Get directory listing
-  const dirContents = await extras.ide.listDir(rootDir);
+  const dirContents = await toolFilesystem(extras).listDir(rootDir);
   
   // Analyze project type
   const projectType = detectProjectType(dirContents);
@@ -617,9 +618,9 @@ export const migrationImpl: ToolImpl = async (args, extras) => {
     const uniqueFiles = [...new Set(changes.map(c => c.file))];
     for (const file of uniqueFiles) {
       try {
-        const content = await extras.ide.readFile(file);
+        const content = await toolFilesystem(extras).readFile(file);
         const backupPath = `${file}.bak.${Date.now()}`;
-        await extras.ide.writeFile(backupPath, content);
+        await toolFilesystem(extras).writeFile(backupPath, content);
         results.push({
           name: `Backup: ${file}`,
           description: "Backup created",
@@ -635,9 +636,9 @@ export const migrationImpl: ToolImpl = async (args, extras) => {
   if (!dryRun) {
     for (const change of changes) {
       try {
-        const fileContent = await extras.ide.readFile(change.file);
+        const fileContent = await toolFilesystem(extras).readFile(change.file);
         const updatedContent = fileContent.replace(new RegExp(fromPattern, 'g'), toPattern);
-        await extras.ide.writeFile(change.file, updatedContent);
+        await toolFilesystem(extras).writeFile(change.file, updatedContent);
         change.status = 'applied';
       } catch (e) {
         change.status = 'failed';
@@ -815,7 +816,7 @@ async function collectHealthFacts(
     return "No workspace folder is open.";
   }
   const root = workspaceDirs[0];
-  const listing = await extras.ide.listDir(root);
+  const listing = await toolFilesystem(extras).listDir(root);
   const names = listingNames(listing);
 
   switch (check) {
@@ -1070,11 +1071,11 @@ async function detectCodeConventions(extras: ToolExtras): Promise<CodeConvention
   
   // Try to read configuration files
   try {
-    const workspaceDirs = await extras.ide.getWorkspaceDirs();
+    const workspaceDirs = await toolFilesystem(extras).getWorkspaceDirs();
     if (workspaceDirs.length > 0) {
       // Check for prettier config
       try {
-        const prettierConfig = await extras.ide.readFile(`${workspaceDirs[0]}/.prettierrc`);
+        const prettierConfig = await toolFilesystem(extras).readFile(`${workspaceDirs[0]}/.prettierrc`);
         const config = JSON.parse(prettierConfig);
         if (config.tabWidth) conventions.indentSize = config.tabWidth;
         if (config.useTabs) conventions.indentation = 'tabs';
@@ -1084,7 +1085,7 @@ async function detectCodeConventions(extras: ToolExtras): Promise<CodeConvention
       
       // Check for eslint config
       try {
-        const eslintConfig = await extras.ide.readFile(`${workspaceDirs[0]}/.eslintrc.json`);
+        const eslintConfig = await toolFilesystem(extras).readFile(`${workspaceDirs[0]}/.eslintrc.json`);
         // Parse eslint rules for conventions
       } catch { /* no eslint config */ }
     }

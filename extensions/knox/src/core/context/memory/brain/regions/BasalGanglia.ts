@@ -1,5 +1,6 @@
 /**
  * BasalGanglia — Procedural memory and pattern learning facade.
+ * @deprecated K-073: not on the ContextBuilder / buildContext hot path.
  * Wraps LearningEngine + BrainStore procedures.
  */
 

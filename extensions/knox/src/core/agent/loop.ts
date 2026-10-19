@@ -18,12 +18,19 @@ import type {
   ToolCallDelta,
   ToolExtras,
 } from "..";
-import { compactMessagesAsync, DEFAULT_COMPACTION_CONFIG } from "../compaction/index";
+import {
+  compactMessagesAsync,
+  DEFAULT_COMPACTION_CONFIG,
+  LLM_COMPACT_TOOL_THRESHOLD,
+} from "../compaction/index";
 import { totalMessageTokens } from "../compaction/tokenBudget";
 import { DEFAULT_DOOM_LOOP_THRESHOLD } from "../config/agentProfile";
 import { detectDoomLoopWithJev } from "../jev/doomSemantic";
 import { hydrateAssistantTextToolCalls } from "../llm/parseTextToolCalls";
-import { parseBuildOutput } from "../tools/build/parseDiagnostics";
+import {
+  diagnosticSignature,
+  parseBuildOutput,
+} from "../tools/build/parseDiagnostics";
 import { resolveBuiltInToolCall } from "../tools/builtIn";
 import {
   getRequiredToolParams,
@@ -85,6 +92,12 @@ export const ORACLE_HOLD_MARKER = "Oracle still red";
  * otherwise loop forever on a permanently red tree.
  */
 export const MAX_ORACLE_HOLD_ROUNDS = 8;
+
+/**
+ * Consecutive no-tool oracle-holds with the same diagnostic signature
+ * (K-062). Changing gcc/test errors still use `MAX_ORACLE_HOLD_ROUNDS`.
+ */
+export const ORACLE_HOLD_STUCK_THRESHOLD = 3;
 
 export interface AgentLoopToolCall {
   id?: string;
@@ -159,8 +172,17 @@ export interface AgentLoopOptions {
     args: Record<string, unknown>,
     call: AgentLoopToolCall,
   ) => Promise<"allow" | "deny">;
-  /** Kept for callers. The loop does not use it to block tools. */
+  /**
+   * Callers only (`approveTool` is authoritative). The loop does not
+   * block tools from this field.
+   */
   permissionMode?: PermissionMode;
+  /**
+   * K-064: when the model names a tool that is not in `tools` yet
+   * (deferred catalog), return it to execute this call. Returning a
+   * tool should also push it onto `tools` for later rounds.
+   */
+  resolveMissingTool?: (name: string) => Tool | undefined;
   /** Default true: a cancelled tool stops the loop instead of continuing. */
   abortOnCancelled?: boolean;
   /** Streamed assistant/thinking chunks (GUI token streaming). */
@@ -181,6 +203,7 @@ export interface AgentLoopOptions {
    * When the last cargo/compile/test oracle in this turn is red, a no-tool
    * assistant message is not `completed` (RL-20). Honor max-steps / abort.
    * Extra hold rounds are capped by `MAX_ORACLE_HOLD_ROUNDS`.
+   * Three identical hold signatures stop earlier with `doom_loop`.
    */
   holdCompletionWhileOracleRed?: boolean;
   /**
@@ -209,18 +232,7 @@ export interface AgentLoopCompactor {
   observeUsage(reportedPromptTokens: number, messages: ChatMessage[]): void;
 }
 
-/** Heuristic compact that would drop more than this many tool results uses LLM summarization once. */
-export const LLM_COMPACT_TOOL_THRESHOLD = 4;
-
-function countDroppableToolResults(
-  messages: ChatMessage[],
-  preserveRecentCount: number,
-): number {
-  const boundary = Math.max(0, messages.length - preserveRecentCount);
-  return messages
-    .slice(0, boundary)
-    .filter((message) => message.role === "tool").length;
-}
+export { LLM_COMPACT_TOOL_THRESHOLD };
 
 export function createAgentLoopCompactor(
   llm: Pick<ToolExtras, "llm">["llm"],
@@ -230,13 +242,7 @@ export function createAgentLoopCompactor(
     const window = resolveContextWindow(llm);
     // A ratio > 1 means the provider counts more tokens than we do: shrink the window.
     const effective = Math.floor(window.contextLength / ratio);
-    const droppable = countDroppableToolResults(
-      messages,
-      DEFAULT_COMPACTION_CONFIG.preserveRecentCount,
-    );
-    const useLlm =
-      droppable > LLM_COMPACT_TOOL_THRESHOLD &&
-      typeof llm.complete === "function";
+    const canComplete = typeof llm.complete === "function";
     const result = await compactMessagesAsync(
       messages,
       window.model,
@@ -246,9 +252,10 @@ export function createAgentLoopCompactor(
       350,
       {
         maxHistoryRatio: COMPACT_TRIGGER_RATIO,
-        useLlmSummarization: useLlm,
+        useLlmSummarization: canComplete,
+        llmSummarizationMinDroppableTools: LLM_COMPACT_TOOL_THRESHOLD,
       },
-      useLlm
+      canComplete
         ? (prompt, signal) => llm.complete(prompt, signal)
         : undefined,
     );
@@ -668,8 +675,8 @@ function isOracleTranscript(
   return /Build diagnostics/i.test(text) || parsed.diagnostics.length > 0;
 }
 
-/** Last compiler/test oracle in the transcript (RL-20). */
-export function lastOracleErrorCount(messages: ChatMessage[]): number {
+/** Last compiler/test oracle transcript (RL-20). Skips hold injections. */
+export function lastOracleText(messages: ChatMessage[]): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const role = messages[i]?.role;
     if (role !== "tool" && role !== "assistant" && role !== "system") {
@@ -684,9 +691,28 @@ export function lastOracleErrorCount(messages: ChatMessage[]): number {
     if (!isOracleTranscript(text, parsed) && headerErrors === undefined) {
       continue;
     }
-    return Math.max(parsed.errors.length, headerErrors ?? 0);
+    return text;
   }
-  return 0;
+  return undefined;
+}
+
+/** Last compiler/test oracle in the transcript (RL-20). */
+export function lastOracleErrorCount(messages: ChatMessage[]): number {
+  const text = lastOracleText(messages);
+  if (!text) {
+    return 0;
+  }
+  const parsed = parseBuildOutput(text);
+  const headerErrors = buildDiagnosticsHeaderErrors(text);
+  return Math.max(parsed.errors.length, headerErrors ?? 0);
+}
+
+/** gcc/test fingerprint of the last oracle, or `ok` when none/clean. */
+export function lastOracleDiagnosticSignature(
+  messages: ChatMessage[],
+): string {
+  const text = lastOracleText(messages);
+  return text ? diagnosticSignature(text) : "ok";
 }
 
 /**
@@ -701,6 +727,8 @@ export async function runAgentLoop(
   const doomThreshold = resolveDoomLoopThresholdOption(options.doomLoopThreshold);
   const holdPlanOpen = options.holdCompletionWhilePlanOpen !== false;
   let oracleHoldRounds = 0;
+  let lastOracleHoldSig: string | undefined;
+  let oracleHoldSameStreak = 0;
   const compactFn =
     options.compact === false
       ? undefined
@@ -838,6 +866,13 @@ export async function runAgentLoop(
           oracleHoldRounds < MAX_ORACLE_HOLD_ROUNDS
         ) {
           oracleHoldRounds += 1;
+          const holdSig = lastOracleDiagnosticSignature(messages);
+          if (holdSig !== "ok" && holdSig === lastOracleHoldSig) {
+            oracleHoldSameStreak += 1;
+          } else {
+            oracleHoldSameStreak = holdSig === "ok" ? 0 : 1;
+            lastOracleHoldSig = holdSig === "ok" ? undefined : holdSig;
+          }
           messages.push(assistant);
           messages.push({
             role: "system",
@@ -845,6 +880,17 @@ export async function runAgentLoop(
           });
           await options.onHold?.({ kind: "oracle", errors: oracleErrors });
           steps += 1;
+          if (
+            doomThreshold !== null &&
+            oracleHoldSameStreak >= ORACLE_HOLD_STUCK_THRESHOLD
+          ) {
+            return await finishDoomLoop({
+              kind: "oracle_stuck",
+              threshold: ORACLE_HOLD_STUCK_THRESHOLD,
+              count: oracleHoldSameStreak,
+              fingerprint: `oracle_stuck::${holdSig}`,
+            });
+          }
           continue;
         }
         const openPlan = resolveOpenPlan({
@@ -995,7 +1041,8 @@ export async function runAgentLoop(
 
         for (let i = 0; i < wave.length; i++) {
           const call = wave[i];
-          const tool = findTool(call.name);
+          const tool =
+            findTool(call.name) ?? options.resolveMissingTool?.(call.name);
           if (!tool) {
             out[i] = { cancelled: false, result: missingResult(call) };
             continue;

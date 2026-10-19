@@ -19,9 +19,6 @@ export interface VerificationConfig {
 
   /** Only fix errors (true) or also warnings (false) (default: true) */
   errorsOnly: boolean;
-
-  /** Tool names that trigger verification after execution */
-  triggerToolNames: Set<string>;
 }
 
 const DEFAULT_VERIFICATION_CONFIG: VerificationConfig = {
@@ -29,14 +26,6 @@ const DEFAULT_VERIFICATION_CONFIG: VerificationConfig = {
   enabled: true,
   diagnosticSettleMs: 1500,
   errorsOnly: true,
-  triggerToolNames: new Set([
-    'builtin_create_new_file',
-    'builtin_edit_file',
-    'builtin_write_file',
-    'builtin_apply_patch',
-    'composite_smart_edit',
-    'builtin_generate_tests',
-  ]),
 };
 
 /**
@@ -58,17 +47,11 @@ export interface VerificationResult {
 }
 
 /**
- * VerificationService implements an agentic auto-verification loop.
+ * LSP diagnose → optional `knox.llmComplete` fix loop.
  *
- * After any file-modifying tool call, it:
- * 1. Waits for diagnostics to settle
- * 2. Checks for errors via DiagnosticChecker
- * 3. If errors exist, calls DiagnosticFixManager (which uses the LLM)
- * 4. Re-checks diagnostics
- * 5. Repeats until clean or max iterations reached
- *
- * Loop-detection prevents infinite cycles when the LLM keeps producing
- * the same error.
+ * K-082: this is not policy. Core `shouldVerifyTool` / `shouldSkipLspVerify`
+ * already decided the file should use diagnostics before
+ * `IDE.runPostEditVerification` is called.
  */
 export class VerificationService implements vscode.Disposable {
   private static instance: VerificationService;
@@ -116,16 +99,14 @@ export class VerificationService implements vscode.Disposable {
   }
 
   /**
-   * Check whether verification is enabled.
-   * Tool eligibility is decided by Core `shouldVerifyTool` before this runs.
+   * Adapter on/off. Tool eligibility is Core `shouldVerifyTool`.
    */
   public shouldVerify(_toolName?: string): boolean {
     return this.config.enabled;
   }
 
   /**
-   * Extract the target file path from a tool call's arguments.
-   * Delegates to Core's shared helper so chat and agent agree.
+   * Path helper for the adapter. Policy still lives in Core.
    */
   public extractFilePath(toolName: string, toolArgs: any): string | undefined {
     return extractVerifiedFilePath(toolName, toolArgs);

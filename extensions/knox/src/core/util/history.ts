@@ -11,6 +11,7 @@ import { getSessionFilePath, getSessionsListPath } from "./paths.js";
 import { SESSION_SEARCH_MAX_FILE_BYTES, SESSION_SEARCH_MIN_QUERY, searchSessions, type SessionSearchHit } from "./sessionSearch.js";
 import { capSessionForStorage } from "./sessionSizeCap.js";
 import { SESSION_SCHEMA_VERSION, backupOnce, sessionVersionOf } from "./schemaVersions.js";
+import { hydratePersistedPlan, removePersistedPlan } from "../tools/planStore.js";
 function safeParseArray<T>(
   value: string,
   errorMessage: string = "Error parsing array",
@@ -102,6 +103,7 @@ class HistoryManager {
       throw new Error(t("sessionFileNotExist", { file: sessionFile }));
     }
     fs.unlinkSync(sessionFile);
+    removePersistedPlan(sessionId);
 
     // Read-modify-write of sessions.json under a cross-window lock so two
     // windows deleting/saving at once cannot drop each other's entries.
@@ -133,6 +135,7 @@ class HistoryManager {
       }
       const session: Session = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
       session.sessionId = sessionId;
+      hydratePersistedPlan(sessionId);
       if (sessionVersionOf(session) > SESSION_SCHEMA_VERSION) {
         console.warn(
           `Session ${sessionId} was written by a newer Knox (schema ${session.schemaVersion}); loading best-effort.`,

@@ -8,8 +8,7 @@
 import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
-import type { KnoxGuiSvgIcon } from '../../knoxGuiIcons.js';
-import { appendKnoxGuiSvg } from '../../knoxGuiIcons.js';
+import { appendKnoxGuiSvg, type KnoxGuiSvgIcon } from '../../knoxGuiIcons.js';
 import { checkpointRelativeAge } from '../../../../common/knoxGuiCheckpoints.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 
@@ -69,6 +68,7 @@ export function checkpointSearch(parent: HTMLElement, placeholder: string, value
 	appendKnoxGuiSvg(wrap, 'search', 16).classList.add('knox-gui-cpl-search-icon');
 	const input = DOM.append(wrap, DOM.$('input.knox-gui-cpl-input', id ? { id } : undefined)) as HTMLInputElement;
 	input.placeholder = placeholder;
+	input.setAttribute('aria-label', placeholder);
 	input.value = value;
 	return input;
 }
@@ -109,7 +109,7 @@ export function checkpointAgeLabel(state: IKnoxGuiState, created: string, yester
 	if ('date' in age) {
 		return yesterday ? age.date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : age.date.toLocaleDateString();
 	}
-	return t(state, age.key, age.count != null ? { count: age.count } : undefined);
+	return t(state, age.key, age.count !== undefined && age.count !== null ? { count: age.count } : undefined);
 }
 
 /** `RiskBadge` in `CheckpointAnalysisPanel.tsx`. */

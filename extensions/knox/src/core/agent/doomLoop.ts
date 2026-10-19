@@ -200,7 +200,8 @@ export function detectDoomLoop(
   return (
     detectOscillatingEdit(calls) ??
     detectOracleStuck(calls, threshold) ??
-    detectRepeatQuestion(calls)
+    detectRepeatQuestion(calls) ??
+    detectSameStrategy(calls, threshold)
   );
 }
 
@@ -293,6 +294,82 @@ export function detectOracleStuck(
         count: n,
         fingerprint: `oracle_stuck::${sig}`,
         toolName: call.name,
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Arg keys that do not change the operation. Used when Jev is down so
+ * `timeout` / `verbose` churn is still `same_strategy` (K-062).
+ */
+const TRIVIAL_ARG_KEYS = new Set([
+  "n",
+  "timeout",
+  "timeout_ms",
+  "timeoutMs",
+  "verbose",
+  "dry_run",
+  "dryRun",
+  "request_id",
+  "requestId",
+]);
+
+function failingSignature(call: DoomLoopCall): string {
+  const text = callOutputText(call);
+  const diag = diagnosticSignature(text);
+  if (diag !== "ok") {
+    return diag;
+  }
+  return text.replace(/\s+/g, " ").trim().slice(0, 400);
+}
+
+function materialArgFingerprint(args: unknown): string {
+  const rec = argRecord(args);
+  const material: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(rec)) {
+    if (!TRIVIAL_ARG_KEYS.has(key)) {
+      material[key] = value;
+    }
+  }
+  return canonicalizeToolArgs(material);
+}
+
+/**
+ * Same tool + same failing signature + only trivial arg drift.
+ * Fires at threshold+1 so identical-args `repeat` / `fail_streak` stay first.
+ * Rebuild oracles stay on `oracle_stuck` (a new gcc error is not this).
+ */
+export function detectSameStrategy(
+  calls: DoomLoopCall[],
+  threshold: number,
+): DoomLoopHit | null {
+  const need = threshold + 1;
+  const seen = new Map<string, { count: number; name: string }>();
+  for (const call of calls) {
+    if (!isFailedToolCall(call) || isRebuildToolName(call.name)) {
+      continue;
+    }
+    const sig = failingSignature(call);
+    if (!sig) {
+      continue;
+    }
+    const key = `${call.name}::${materialArgFingerprint(call.args)}::${sig}`;
+    const current = seen.get(key);
+    if (current) {
+      current.count += 1;
+    } else {
+      seen.set(key, { count: 1, name: call.name });
+    }
+    const info = seen.get(key);
+    if (info && info.count >= need) {
+      return {
+        kind: "same_strategy",
+        threshold: need,
+        count: info.count,
+        fingerprint: `same_strategy::${key}`,
+        toolName: info.name,
       };
     }
   }

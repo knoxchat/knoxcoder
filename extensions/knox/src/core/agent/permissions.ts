@@ -24,11 +24,20 @@ export const PERMISSION_MODES: PermissionMode[] = [
 ];
 
 /**
- * New sessions start in Auto (YOLO): enabled tools run without asking.
- * Users can switch to Ask (or Edits) from the permission bar; saved modes
- * are never overwritten. Command guard still denies destructive patterns.
+ * New sessions start in Auto (YOLO) unless K-090 says the folder is a
+ * fresh clone (`resolveWorkspacePermissionMode`). Users can switch to Ask
+ * (or Edits) from the permission bar; saved modes are never overwritten.
+ * Command guard still denies destructive patterns.
  */
 export const DEFAULT_PERMISSION_MODE: PermissionMode = "fullAuto";
+
+export {
+  resolveDefaultPermissionMode,
+  resolveWorkspacePermissionMode,
+  type PermissionDefaultSetting,
+  type PermissionDefaultReason,
+  type SessionPermissionResolution,
+} from "./sessionPermission";
 
 export type ToolSetting =
   | "allowedWithPermission"
@@ -76,6 +85,8 @@ export function isHardPolicyDeny(params: {
   policy?: AgentToolPolicy | null;
   policyFromRules?: AgentToolPolicy | null;
   workspaceDirs?: string[];
+  permissionMode?: PermissionMode;
+  recentWrites?: string[];
 }): boolean {
   const decision = evaluateToolPolicy({
     toolName: resolvePermissionToolName(params.toolName),
@@ -85,6 +96,8 @@ export function isHardPolicyDeny(params: {
       agentPolicyFromRules: params.policyFromRules,
     }),
     workspaceDirs: params.workspaceDirs,
+    permissionMode: params.permissionMode,
+    recentWrites: params.recentWrites,
   });
   return decision.action === "deny";
 }
@@ -98,6 +111,7 @@ export function isToolAutoApproved(params: {
   policy?: AgentToolPolicy | null;
   policyFromRules?: AgentToolPolicy | null;
   workspaceDirs?: string[];
+  recentWrites?: string[];
 }): boolean {
   const toolName = resolvePermissionToolName(params.toolName);
   const explicit =
@@ -130,6 +144,8 @@ export function isToolAutoApproved(params: {
       agentPolicyFromRules: params.policyFromRules,
     }),
     workspaceDirs: params.workspaceDirs,
+    permissionMode: params.permissionMode,
+    recentWrites: params.recentWrites,
   });
   if (policyBlocksAutoApprove(decision, params.permissionMode)) {
     return false;

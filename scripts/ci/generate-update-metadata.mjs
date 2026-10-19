@@ -1,4 +1,7 @@
-#!/usr/bin/env node
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 /**
  * Writes KnoxCoder auto-update JSON feeds next to packaged GitHub release assets.
  *
@@ -64,13 +67,43 @@ function detectVersion(files) {
 	return undefined;
 }
 
+function detectVersionFromPackageJson() {
+	for (const candidate of [path.resolve('package.json'), path.resolve(path.dirname(assetsDir), 'package.json')]) {
+		try {
+			const pkg = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+			if (typeof pkg.version === 'string' && /^\d+\.\d+\.\d+/.test(pkg.version)) {
+				return pkg.version;
+			}
+		} catch {
+			// keep looking
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Product GitHub Releases are always `v<package.json version>`. A workflow_dispatch
+ * run tag like `v36-build.1` must not leak into download URLs or clients 404.
+ */
+function releaseTag(version, requested) {
+	const expected = `v${version}`;
+	if (!requested || requested === expected) {
+		return expected;
+	}
+	if (/^v\d+-build\.\d+$/i.test(requested)) {
+		console.warn(`generate-update-metadata: ignoring ${requested}; download URLs use ${expected}`);
+		return expected;
+	}
+	return requested;
+}
+
 const assetsDir = path.resolve(arg('assets-dir', '.'));
 const outDir = path.resolve(arg('out-dir', assetsDir));
 const repo = arg('repo', 'knoxchat/knoxcoder');
 const commit = arg('commit', '');
 const files = fs.readdirSync(assetsDir).filter(name => fs.statSync(path.join(assetsDir, name)).isFile());
-const version = arg('version', detectVersion(files));
-const tag = arg('tag', version ? `v${version}` : '');
+const version = arg('version', detectVersion(files) || detectVersionFromPackageJson());
+const tag = version ? releaseTag(version, arg('tag')) : '';
 
 if (!version || !tag) {
 	console.error('generate-update-metadata: could not determine KnoxCoder version/tag');

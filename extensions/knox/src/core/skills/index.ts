@@ -49,8 +49,10 @@ export type { SkillIndexEntry, PullSkillsOptions } from "./discovery";
 export { buildSkillToolDescription } from "./descriptionBuilder";
 export {
   matchSkillsByIntent,
+  selectTurnSkills,
   formatMatchedSkillsHint,
   formatJevSkillHint,
   formatJevNoSkillHint,
+  MAX_SKILL_HINTS,
 } from "./skillMatcher";
-export type { SkillMatch } from "./skillMatcher";
+export type { SkillMatch, SelectTurnSkillsInput } from "./skillMatcher";

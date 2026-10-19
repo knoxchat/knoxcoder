@@ -436,7 +436,7 @@ export function renderTools(widget: KnoxGuiWidget, body: HTMLElement, state: IKn
 		DOM.append(title, DOM.$(`span.knox-gui-dot${excluded ? '.knox-gui-dot-error' : ''}`));
 		DOM.append(title, DOM.$('h3.knox-gui-tool-group-name', undefined, group));
 		DOM.append(title, DOM.$('span.knox-gui-badge.knox-gui-tool-count', undefined, String(tools.length)));
-		widget.customSwitch(head, !excluded, () => widget.controller.toggleToolGroup(group), 12);
+		widget.customSwitch(head, !excluded, () => widget.controller.toggleToolGroup(group), 12, group);
 		const list = DOM.append(card, DOM.$('.knox-gui-tool-group-body'));
 		for (const tool of tools) {
 			const isPending = isSamePermissionTool(pending, tool.name, state.tools);

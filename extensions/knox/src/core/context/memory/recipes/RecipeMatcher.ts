@@ -53,6 +53,20 @@ export interface MatchArgs {
   limit?: number;
 }
 
+/**
+ * MC-82 / MC-90: project-scope recipes never apply outside the capture project.
+ * Global recipes always apply. Missing project id is fail-closed (MC-53).
+ */
+export function recipeAppliesInProject(
+  recipe: Pick<Recipe, "scope" | "projectId">,
+  projectId: string | undefined,
+): boolean {
+  if (recipe.scope !== "project") {
+    return true;
+  }
+  return Boolean(projectId) && recipe.projectId === projectId;
+}
+
 /** 1 for a clean track record, down to 0.5 for one that mostly reverts or fails. */
 export function trackRecordFactor(stats: Recipe["stats"]): number {
   const bad = stats.reverted + stats.failedVerify;
@@ -73,7 +87,7 @@ export function matchRecipes(args: MatchArgs): RecipeMatch[] {
   for (const recipe of args.recipes) {
     if (recipe.status !== "verified") continue;
     // MC-53: fail closed. Without a project id only explicitly promoted global recipes can match.
-    if (recipe.scope === "project" && recipe.projectId !== args.projectId) continue;
+    if (!recipeAppliesInProject(recipe, args.projectId)) continue;
 
     const sim = recipe.intentFingerprint === fp ? 1 : fingerprintSimilarity(fp, recipe.intentFingerprint);
     // Fusion is supporting evidence only: no lexical intent overlap, no match.

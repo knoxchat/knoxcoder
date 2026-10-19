@@ -19,6 +19,8 @@ import { checkpointAgeLabel, checkpointBadge, checkpointButton, checkpointCheckb
 export function renderCheckpointList(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 	body.classList.add('knox-gui-cpl-list');
 	body.setAttribute('data-testid', 'checkpoint-list');
+	body.setAttribute('role', 'region');
+	body.setAttribute('aria-label', t(state, 'checkpoints'));
 	body.tabIndex = 0;
 	widget.renderStore.add(DOM.addDisposableListener(body, 'keydown', e => onCheckpointListKeyDown(widget, e, state)));
 	const allNodes = filterCheckpoints(state.checkpointListItems.length ? state.checkpointListItems : state.checkpoints, {
@@ -363,7 +365,7 @@ function renderCheckpointListCard(widget: KnoxGuiWidget, parent: HTMLElement, st
 			DOM.append(fileBadge, DOM.$('span.knox-gui-cpl-badge-stat.odp-text-yellow', undefined, `~${files.modified}`));
 		}
 		if (files.deleted) {
-			DOM.append(fileBadge, DOM.$('span.knox-gui-cpl-badge-stat.odp-text-red', undefined, `−${files.deleted}`));
+			DOM.append(fileBadge, DOM.$('span.knox-gui-cpl-badge-stat.odp-text-red', undefined, `-${files.deleted}`));
 		}
 	}
 	const rowActions = DOM.append(main, DOM.$('.knox-gui-checkpoint-card-actions'));

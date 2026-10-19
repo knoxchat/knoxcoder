@@ -21,6 +21,7 @@ import {
 } from "../agent/loop";
 import { runChatTurn } from "../agent/chatTurn";
 import { callTool } from "../tools/callTool";
+import { withIdePorts } from "../tools/toolPorts";
 import { splitDeferredTools } from "../tools/deferred";
 import { resetFileTracking } from "../tools/implementations/editFile";
 import { BuiltInToolNames } from "../tools/builtIn";
@@ -282,6 +283,7 @@ export const LIVE_EVAL_CATALOG: Tool[] = [
   exactSearchTool,
   globTool,
   viewSubdirectoryTool,
+  gitBlameTool,
 ];
 
 /** Product-like catalog for systems / discovery golden tasks (HL-03). */
@@ -349,8 +351,9 @@ export function createEvalIde(
   files: Record<string, string>,
   hooks: EvalIdeHooks = {},
   abortSignal?: AbortSignal,
-): { ide: IDE; store: Map<string, string> } {
+): { ide: IDE; store: Map<string, string>; checkpoints: string[] } {
   const store = new Map<string, string>();
+  const checkpoints: string[] = [];
   for (const [rel, content] of Object.entries(files)) {
     store.set(workspaceUri(rel), content);
   }
@@ -473,9 +476,14 @@ export function createEvalIde(
       }
       return ["", "eval IDE: subprocess not configured"];
     },
+    ensureTurnCheckpoint: async () => {
+      const id = `eval-cp-${checkpoints.length + 1}`;
+      checkpoints.push(id);
+      return id;
+    },
   } as unknown as IDE;
 
-  return { ide, store };
+  return { ide, store, checkpoints };
 }
 
 export function createScriptedLlm(script: ScriptedTurn[]) {
@@ -542,7 +550,7 @@ export async function runAgentEval(
   resetFileTracking();
 
   const extras: ToolExtras = {
-    ide,
+    ...withIdePorts(ide),
     llm: llm as unknown as ToolExtras["llm"],
     fetch: (async () => new Response()) as ToolExtras["fetch"],
     tool: catalog[0] ?? readFileTool,

@@ -79,7 +79,9 @@ When you later ask for the same thing, Knox decides before calling the model:
 | generate | Normal chat. |
 
 `knoxchat.recipes.autoReplay` controls exact replay: `off` (examples only), `ask` (shows a preview card with the
-diff; nothing changes until you press Apply), `exact` (applies, then tells you, with Undo).
+diff; nothing changes until you press Apply), `exact` (applies, then tells you, with Undo). The preview listing
+is instant; Apply runs the real tools and the recorded check, which can take seconds. Product reuse is exact
+(and ask). Adapt/generate stay experimental internals, not extra settings.
 
 ## Safety
 

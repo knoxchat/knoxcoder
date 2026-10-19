@@ -25,6 +25,7 @@ import {
 import { stagedDiskNotice, wrapIdeForStaging } from "../tools/stagedEdits";
 import { ensureReviewLoaded } from "../tools/reviewStore";
 import { wrapIdeForWorktree } from "../tools/worktree";
+import { withIdePorts } from "../tools/toolPorts";
 
 import type { CoreRuntime } from "./runtime";
 
@@ -181,6 +182,7 @@ export function registerToolHandlers(core: CoreRuntime): void {
     await refreshSkillScope(toolIde);
     let verifyCommand = loopSettings.verifyCommand;
     let verifyMode = loopSettings.verifyMode;
+    const ideSettings = await toolIde.getIdeSettings?.().catch(() => undefined);
     // P1.2: default profile discovers a verify command (AGENTS.md, then kind
     // default) even when the host also has LSP diagnostics.
     if (!verifyCommand && verifyMode !== "off" && shouldVerifyTool(toolName)) {
@@ -216,7 +218,7 @@ export function registerToolHandlers(core: CoreRuntime): void {
                     // auto-backgrounded and treated as green while still running.
                     { command, block_until_ms: SHELL_WAIT_HARD_CAP_MS },
                     {
-                      ide: toolIde,
+                      ...withIdePorts(toolIde),
                       llm,
                       fetch: (url, init) =>
                         fetchwithRequestOptions(
@@ -240,6 +242,11 @@ export function registerToolHandlers(core: CoreRuntime): void {
                   ),
               }
             : undefined,
+        lspVerify: {
+          verifyMode,
+          verifyCommand,
+          rustAnalyzerAvailable: ideSettings?.rustAnalyzerAvailable === true,
+        },
         execute: async () => {
           if (
             toolAbort.signal.aborted ||
@@ -253,7 +260,7 @@ export function registerToolHandlers(core: CoreRuntime): void {
             tool,
             rawArgs,
             {
-              ide: toolIde,
+              ...withIdePorts(toolIde),
               llm,
               fetch: (url, init) =>
                 fetchwithRequestOptions(url, init, config.requestOptions),

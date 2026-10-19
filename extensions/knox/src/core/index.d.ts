@@ -724,6 +724,12 @@ export interface IdeSettings {
   compatInstructions?: Array<"cursor" | "copilot">;
   deferTools?: boolean;
   enableCompositeTools?: boolean;
+  /** Live rust-analyzer so Core can use LSP on `.rs` (K-082). */
+  rustAnalyzerAvailable?: boolean;
+  /** K-090: overrides the fresh-clone Ask heuristic. */
+  permissionDefault?: "auto" | "ask" | "edits";
+  /** Git remote URL substrings that keep new sessions in Auto. */
+  trustedGitRemotes?: string[];
 }
 
 export interface FileStats {
@@ -852,6 +858,7 @@ export interface IDE {
     toolName: string;
     toolArguments: unknown;
     selectedModelTitle: string;
+    filePath?: string;
   }): Promise<ContextItem[]>;
 
   /**
@@ -1126,8 +1133,58 @@ export interface Prediction {
       }[];
 }
 
+/** K-084: file tools use this instead of the full IDE when present. */
+export type ToolFilesystem = Pick<
+  IDE,
+  "readFile" | "writeFile" | "fileExists" | "listDir" | "getWorkspaceDirs"
+> &
+  Partial<Pick<IDE, "readRangeInFile" | "getFileStats" | "removeFile">>;
+
+/** K-084: shell/git tools use this instead of the full IDE when present. */
+export type ToolSubprocess = Pick<IDE, "subprocess">;
+
+/** K-084: search tools use this instead of the full IDE when present. */
+export type ToolSearch = Pick<IDE, "getSearchResults">;
+
+/** K-084: git porcelain/diff from the editor model, then subprocess. */
+export type ToolGit = Pick<IDE, "getDiff"> &
+  Partial<
+    Pick<
+      IDE,
+      | "getGitRootPath"
+      | "getGitStatusPorcelain"
+      | "getGitDiffCached"
+      | "getGitChangedFiles"
+      | "getBranch"
+    >
+  >;
+
+/** K-084: terminal/PTY host info and remote `runCommand`. */
+export type ToolTerminal = Pick<IDE, "getIdeInfo"> &
+  Partial<Pick<IDE, "runCommand" | "getTerminalContents">>;
+
+/** K-084: editor UX. Diagnostics, DAP, checkpoints, and secrets stay on `IDE`. */
+export type ToolEditor = Partial<
+  Pick<IDE, "openFile" | "getCurrentFile" | "getOpenFiles">
+>;
+
 export interface ToolExtras {
   ide: IDE;
+  /**
+   * K-084: filesystem port. File tools should use this (via `toolFilesystem`)
+   * and fall back to `ide`. Leave `ide` for diagnostics, DAP, checkpoints, secrets.
+   */
+  fs?: ToolFilesystem;
+  /** K-084: subprocess port. Git/shell tools fall back to `ide` when omitted. */
+  proc?: ToolSubprocess;
+  /** K-084: search port. `builtin_exact_search` / kconfig fall back to `ide`. */
+  search?: ToolSearch;
+  /** K-084: git model port. Status/diff fall back to `ide`. */
+  git?: ToolGit;
+  /** K-084: terminal port. Shell/PTY fall back to `ide`. */
+  term?: ToolTerminal;
+  /** K-084: editor UX port. Open/current-file fall back to `ide`. */
+  editor?: ToolEditor;
   llm: ILLM;
   fetch: FetchFunction;
   tool: Tool;
@@ -1419,6 +1476,25 @@ export interface ExperimentalConfig {
     timeoutMs?: number;
     failOpen?: boolean;
     baseUrl?: string;
+  };
+
+  /** K-090: `knoxchat.permissionDefault` overlay. */
+  permissionDefault?: "auto" | "ask" | "edits";
+  /** K-090: git remote URL substrings that keep new sessions in Auto. */
+  trustedGitRemotes?: string[];
+  /**
+   * Computed default for a new session in this workspace (Core heuristic).
+   * GUI applies it unless the user already saved a mode for the folder.
+   */
+  sessionPermission?: {
+    mode: "default" | "acceptEdits" | "fullAuto";
+    reason:
+      | "saved"
+      | "setting"
+      | "known_project"
+      | "trusted_remote"
+      | "fresh_clone"
+      | "default";
   };
 }
 

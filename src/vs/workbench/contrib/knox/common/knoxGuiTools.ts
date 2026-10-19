@@ -352,6 +352,7 @@ export function sanitizeExactSearchQuery(raw: unknown): string {
 		.replace(/[\uE000-\uF8FF]/g, '')
 		.replace(/[\u{F0000}-\u{FFFFD}\u{100000}-\u{10FFFD}]/gu, '')
 		.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
+		// eslint-disable-next-line no-misleading-character-class
 		.replace(/[\u0300-\u036F\u1AB0-\u1AFF\u1DC0-\u1DFF\u20D0-\u20FF\uFE00-\uFE0F\uFE20-\uFE2F]/g, '')
 		.replace(/\s+/g, ' ')
 		.trim();
@@ -668,7 +669,7 @@ function lineCount(text: string | undefined): number | undefined {
 }
 
 export function toolOutputItemsFromUnknown(value: unknown): IKnoxGuiToolOutputItem[] {
-	if (value == null) {
+	if (value === undefined || value === null) {
 		return [];
 	}
 	if (typeof value === 'string') {
@@ -1021,6 +1022,7 @@ export function toolPermissionDisplay(params: {
 }
 
 export function splitChoiceText(option: string): { value: string; label: string; description?: string } {
+	// allow-any-unicode-next-line
 	const match = option.match(/^(.+?)\s+[—–-]\s+(.+)$/u);
 	if (match) {
 		return { value: option, label: match[1].trim(), description: match[2].trim() };
@@ -1137,7 +1139,7 @@ function askUserParseOneQuestion(item: unknown, index: number, fallbackPrompt?: 
 }
 
 function askUserCollectItems(raw: unknown, fallbackPrompt?: string): unknown[] {
-	if (raw == null) {
+	if (raw === undefined || raw === null) {
 		return [];
 	}
 	if (typeof raw === 'string') {
@@ -1295,27 +1297,63 @@ export function parseSearchResults(content: string): IKnoxGuiSearchMatch[] {
 	return results;
 }
 
-export function luminanceIsLight(backgroundColor: string): boolean {
+function parseCssRgb(backgroundColor: string): { r: number; g: number; b: number } | undefined {
 	if (!backgroundColor) {
-		return false;
+		return undefined;
 	}
-	let r = 0;
-	let g = 0;
-	let b = 0;
 	if (backgroundColor.startsWith('#')) {
 		const hex = backgroundColor.slice(1);
-		r = parseInt(hex.substring(0, 2), 16);
-		g = parseInt(hex.substring(2, 4), 16);
-		b = parseInt(hex.substring(4, 6), 16);
-	} else if (backgroundColor.startsWith('rgb')) {
+		if (hex.length === 3 || hex.length === 4) {
+			return {
+				r: parseInt(hex[0] + hex[0], 16),
+				g: parseInt(hex[1] + hex[1], 16),
+				b: parseInt(hex[2] + hex[2], 16),
+			};
+		}
+		if (hex.length >= 6) {
+			return {
+				r: parseInt(hex.substring(0, 2), 16),
+				g: parseInt(hex.substring(2, 4), 16),
+				b: parseInt(hex.substring(4, 6), 16),
+			};
+		}
+		return undefined;
+	}
+	if (backgroundColor.startsWith('rgb')) {
 		const match = backgroundColor.match(/\d+/g);
 		if (match && match.length >= 3) {
-			r = parseInt(match[0]);
-			g = parseInt(match[1]);
-			b = parseInt(match[2]);
+			return { r: parseInt(match[0]), g: parseInt(match[1]), b: parseInt(match[2]) };
 		}
 	}
-	return 0.299 * r + 0.587 * g + 0.114 * b > 128;
+	return undefined;
+}
+
+function srgbChannel(value: number): number {
+	const s = value / 255;
+	return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+}
+
+function relativeLuminance(color: string): number {
+	const rgb = parseCssRgb(color);
+	if (!rgb) {
+		return 0;
+	}
+	return 0.2126 * srgbChannel(rgb.r) + 0.7152 * srgbChannel(rgb.g) + 0.0722 * srgbChannel(rgb.b);
+}
+
+export function luminanceIsLight(backgroundColor: string): boolean {
+	const rgb = parseCssRgb(backgroundColor);
+	if (!rgb) {
+		return false;
+	}
+	return 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b > 128;
+}
+
+/** WCAG 2 contrast ratio of two CSS hex/rgb colors. 4.5:1 is AA for normal text. */
+export function contrastRatio(foreground: string, background: string): number {
+	const lighter = Math.max(relativeLuminance(foreground), relativeLuminance(background));
+	const darker = Math.min(relativeLuminance(foreground), relativeLuminance(background));
+	return (lighter + 0.05) / (darker + 0.05);
 }
 
 export function treeThemeColors(isLight: boolean): IKnoxGuiTreeTheme {
@@ -1374,11 +1412,14 @@ export function colorizeSummary(summary: string, isLight: boolean): string {
 	}
 	const ANSI = ansiForTheme(isLight);
 	let result = summary;
+	// allow-any-unicode-next-line
 	result = result.replace(/^(.*══+.*)$/gm, `${ANSI.cyan}$1${ANSI.reset}`);
+	// allow-any-unicode-next-line
 	result = result.replace(/^(📁|📊|📂|💾|📏|🔢|📈|📋|📦|🕐|🔍|⚠️)(.*)$/gm, `${ANSI.yellow}$1${ANSI.reset}${ANSI.white}$2${ANSI.reset}`);
 	result = result.replace(/(Path: )(.+)$/gm, `$1${ANSI.blue}$2${ANSI.reset}`);
 	result = result.replace(/(\d+)(?= files| folders| directories| B| KB| MB| GB|%|\))/g, `${ANSI.green}$1${ANSI.reset}`);
 	result = result.replace(/(\.\w+):/g, `${ANSI.cyan}$1${ANSI.reset}:`);
+	// allow-any-unicode-next-line
 	result = result.replace(/(█+)/g, `${ANSI.green}$1${ANSI.reset}`);
 	result = result.replace(/(\(\d+\.\d+%\))/g, `${ANSI.dim}$1${ANSI.reset}`);
 	return result;
@@ -1389,8 +1430,10 @@ export function colorizeTreeStructure(content: string, isLight: boolean): string
 		return '';
 	}
 	const ANSI = ansiForTheme(isLight);
+	// allow-any-unicode-next-line
 	if (content.includes('├──') || content.includes('└──')) {
 		return content.split('\n').map(line => {
+			// allow-any-unicode-next-line
 			let colored = line.replace(/(│|├|└|──|─)/g, `${ANSI.gray}$1${ANSI.reset}`);
 			colored = colored.replace(/(\S+)\/$/, `${ANSI.blue}${ANSI.bold}$1/${ANSI.reset}`);
 			colored = colored.replace(/(\S+\.tsx?)(?=\s|$|\()/g, `${ANSI.cyan}$1${ANSI.reset}`);
@@ -1426,6 +1469,7 @@ export function repoMapToTreeColorized(repoMapContent: string): { plain: string;
 	if (!lines.length) {
 		return { plain: '', colorized: '' };
 	}
+	// allow-any-unicode-next-line
 	if (lines.some(line => line.includes('├──') || line.includes('└──'))) {
 		return { plain: lines.join('\n'), colorized: colorizeTreeStructure(lines.join('\n'), false) };
 	}
@@ -1452,14 +1496,17 @@ export function repoMapToTreeColorized(repoMapContent: string): { plain: string;
 		const plainResult: string[] = [];
 		const colorizedResult: string[] = [];
 		if (node.name && !isRoot) {
+			// allow-any-unicode-next-line
 			const connector = isLast ? '└── ' : '├── ';
 			const coloredConnector = `${COLORS.connector}${connector}${COLORS.reset}`;
 			if (node.isFile) {
 				const fileColor = repoMapFileAnsiColor(node.name);
 				plainResult.push(prefix + connector + node.name);
+				// allow-any-unicode-next-line
 				colorizedResult.push(prefix.replace(/[│├└─]/g, m => `${COLORS.connector}${m}${COLORS.reset}`) + coloredConnector + `${fileColor}${node.name}${COLORS.reset}`);
 			} else {
 				plainResult.push(prefix + connector + node.name + '/');
+				// allow-any-unicode-next-line
 				colorizedResult.push(prefix.replace(/[│├└─]/g, m => `${COLORS.connector}${m}${COLORS.reset}`) + coloredConnector + `${COLORS.directory}${node.name}/${COLORS.reset}`);
 			}
 		}
@@ -1471,6 +1518,7 @@ export function repoMapToTreeColorized(repoMapContent: string): { plain: string;
 		});
 		for (let i = 0; i < children.length; i++) {
 			const child = children[i];
+			// allow-any-unicode-next-line
 			const newPrefix = isRoot ? prefix : prefix + (isLast ? '    ' : '│   ');
 			const childResult = treeToString(child, newPrefix, i === children.length - 1, false);
 			plainResult.push(...childResult.plain);
@@ -1585,6 +1633,7 @@ export function subdirectoryOutputParts(items: IKnoxGuiToolOutputItem[]): { summ
 	const summary = items.find(item => item.name?.includes('Summary') || item.description?.includes('Analysis'))?.content || '';
 	const structure = items.find(item => item.name?.includes('Structure') || item.description?.includes('Structure'))?.content || '';
 	const notice = items.find(item => item.name?.includes('Notice'))?.content || '';
+	// allow-any-unicode-next-line
 	const hasEnhanced = summary.includes('Directory Analysis Summary') || structure.includes('├──') || structure.includes('└──');
 	const raw = hasEnhanced
 		? structure

@@ -1,4 +1,5 @@
 import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
+import { toolFilesystem, type ToolFilesystem } from "../toolPorts";
 import { noteFileContent } from "./editFile";
 import { t } from "../../i18n/index.js";
 import {
@@ -33,26 +34,26 @@ interface PlannedChange {
 
 async function resolvePath(
   filepath: string,
-  ide: Parameters<ToolImpl>[1]["ide"],
+  fs: ToolFilesystem,
 ): Promise<string> {
-  return inferResolvedUriFromRelativePath(filepath, ide);
+  return inferResolvedUriFromRelativePath(filepath, fs);
 }
 
 async function planOps(
   ops: PatchOp[],
-  ide: Parameters<ToolImpl>[1]["ide"],
+  fs: ToolFilesystem,
   /** Updates whose result equals the file on disk (already applied). */
   alreadyApplied: string[] = [],
 ): Promise<PlannedChange[]> {
   const planned: PlannedChange[] = [];
 
   for (const op of ops) {
-    const uri = await resolvePath(op.path, ide);
-    const existed = await ide.fileExists(uri);
+    const uri = await resolvePath(op.path, fs);
+    const existed = await fs.fileExists(uri);
 
     if (op.type === "add") {
       if (existed) {
-        const before = await ide.readFile(uri);
+        const before = await fs.readFile(uri);
         const after = op.content;
         if (before === after) {
           alreadyApplied.push(op.path);
@@ -86,7 +87,7 @@ async function planOps(
       if (!existed) {
         throw new Error(t("fileDoesNotExist", { filepath: op.path }));
       }
-      const before = await ide.readFile(uri);
+      const before = await fs.readFile(uri);
       planned.push({
         path: op.path,
         uri,
@@ -101,12 +102,12 @@ async function planOps(
     if (!existed) {
       throw new Error(t("fileDoesNotExist", { filepath: op.path }));
     }
-    const before = await ide.readFile(uri);
+    const before = await fs.readFile(uri);
     const after = applyHunksToContent(before, op.hunks, op.path);
 
     if (op.moveTo) {
-      const moveToUri = await resolvePath(op.moveTo, ide);
-      const destExists = await ide.fileExists(moveToUri);
+      const moveToUri = await resolvePath(op.moveTo, fs);
+      const destExists = await fs.fileExists(moveToUri);
       if (destExists) {
         throw new Error(t("patchMoveTargetExists", { filepath: op.moveTo }));
       }
@@ -143,25 +144,25 @@ async function planOps(
 
 async function rollbackWritten(
   written: PlannedChange[],
-  ide: Parameters<ToolImpl>[1]["ide"],
+  fs: ToolFilesystem,
 ): Promise<void> {
   for (const change of [...written].reverse()) {
     try {
-      if (change.kind === "add" && typeof ide.removeFile === "function") {
-        await ide.removeFile(change.uri);
+      if (change.kind === "add" && typeof fs.removeFile === "function") {
+        await fs.removeFile(change.uri);
       } else if (change.kind === "rename") {
-        if (change.moveToUri && typeof ide.removeFile === "function") {
+        if (change.moveToUri && typeof fs.removeFile === "function") {
           try {
-            await ide.removeFile(change.moveToUri);
+            await fs.removeFile(change.moveToUri);
           } catch {
             // dest may not have been written
           }
         }
         if (change.before != null) {
-          await ide.writeFile(change.uri, change.before);
+          await fs.writeFile(change.uri, change.before);
         }
       } else if (change.before != null) {
-        await ide.writeFile(change.uri, change.before);
+        await fs.writeFile(change.uri, change.before);
       }
     } catch {
       // Best-effort rollback
@@ -184,7 +185,8 @@ export const applyPatchImpl: ToolImpl = async (args, extras) => {
 
   const ops = parseApplyPatch(raw);
   const alreadyApplied: string[] = [];
-  const planned = await planOps(ops, extras.ide, alreadyApplied);
+  const fs = toolFilesystem(extras);
+  const planned = await planOps(ops, fs, alreadyApplied);
   if (planned.length === 0 && alreadyApplied.length > 0) {
     return [
       {
@@ -239,26 +241,26 @@ export const applyPatchImpl: ToolImpl = async (args, extras) => {
       }
 
       if (change.kind === "delete") {
-        if (typeof extras.ide.removeFile !== "function") {
+        if (typeof fs.removeFile !== "function") {
           throw new Error(t("patchDeleteUnsupported", { filepath: change.path }));
         }
-        await extras.ide.removeFile(change.uri);
+        await fs.removeFile(change.uri);
       } else if (change.kind === "rename") {
         if (change.after == null || !change.moveToUri) {
           throw new Error(t("patchNoChange", { filepath: change.path }));
         }
-        await extras.ide.writeFile(change.moveToUri, change.after);
-        if (typeof extras.ide.removeFile === "function") {
-          await extras.ide.removeFile(change.uri);
+        await fs.writeFile(change.moveToUri, change.after);
+        if (typeof fs.removeFile === "function") {
+          await fs.removeFile(change.uri);
         }
       } else if (change.after != null) {
-        await extras.ide.writeFile(change.uri, change.after);
+        await fs.writeFile(change.uri, change.after);
         noteFileContent(change.uri, change.after);
       }
       written.push(change);
     }
   } catch (error) {
-    await rollbackWritten(written, extras.ide);
+    await rollbackWritten(written, fs);
     throw error;
   }
 

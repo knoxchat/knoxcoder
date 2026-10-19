@@ -14,7 +14,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { IGitHubAssetQuery } from '../common/githubReleaseUpdate.js';
+import { IGitHubAssetQuery, resolveForcedDownloadUrl } from '../common/githubReleaseUpdate.js';
 import { AvailableForDownload, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions } from './abstractUpdateService.js';
 
@@ -39,7 +39,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		return { platform: 'linux', arch: process.arch };
 	}
 
-	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string {
+	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
 		return createUpdateURL(this.productService.updateUrl!, `linux-${process.arch}`, quality, commit, options);
 	}
 
@@ -49,6 +49,11 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		}
 
 		const url = this.buildUpdateFeedUrl(this.quality, this.productService.commit!, { background: !explicit, internalOrg: this.getInternalOrg() });
+		if (!url) {
+			this.setState(State.Idle(UpdateType.Archive));
+			return;
+		}
+
 		this.setState(State.CheckingForUpdates(explicit));
 
 		this.fetchAvailableUpdate(url, CancellationToken.None)
@@ -75,10 +80,9 @@ export class LinuxUpdateService extends AbstractUpdateService {
 	}
 
 	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		if (this.productService.downloadUrl && this.productService.downloadUrl.length > 0) {
-			this.nativeHostMainService.openExternal(undefined, this.productService.downloadUrl);
-		} else if (state.update.url) {
-			this.nativeHostMainService.openExternal(undefined, state.update.url);
+		const url = resolveForcedDownloadUrl(state.update, this.productService.downloadUrl);
+		if (url) {
+			this.nativeHostMainService.openExternal(undefined, url);
 		}
 
 		this.setState(State.Idle(UpdateType.Archive));

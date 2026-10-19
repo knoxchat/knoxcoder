@@ -16,6 +16,8 @@ import { knoxGuiQueueForSession } from '../../../../common/knoxGuiQueue.js';
 export function renderComposer(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
 	const composer = DOM.append(widget.root, DOM.$('.knox-gui-composer'));
 	composer.setAttribute('data-testid', 'full-composer');
+	composer.setAttribute('role', 'form');
+	composer.setAttribute('aria-label', t(state, 'composerRegion'));
 	const collapsed = widget.composerCollapsed;
 	composer.classList.toggle('is-collapsed', collapsed);
 	const toggle = widget.composerToggle;

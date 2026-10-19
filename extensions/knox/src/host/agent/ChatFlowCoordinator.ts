@@ -8,6 +8,7 @@ import { t } from '../i18n';
 import { AgentModeManager } from './AgentModeManager';
 import { DiagnosticChecker } from './DiagnosticChecker';
 import { DiagnosticFixManager } from './DiagnosticFixManager';
+import { captureFileSnapshot } from './fileSnapshots';
 
 /**
  * Types of operations that can be performed in a chat flow
@@ -379,8 +380,17 @@ export class ChatFlowCoordinator implements vscode.Disposable {
         fileExists = false;
       }
       
-      // Write the file
+      const before = await captureFileSnapshot(uri.fsPath);
       await vscode.workspace.fs.writeFile(uri, Buffer.from(code));
+      const after = await captureFileSnapshot(uri.fsPath);
+      const { CommandHistoryService } = await import("./CommandHistoryService");
+      await CommandHistoryService.getInstance().recordManualMutation({
+        description: "ChatFlowCoordinator code generation",
+        toolName: "builtin_write_file",
+        filePath: uri.fsPath,
+        args: { filepath: filePath },
+        pairs: [{ before, after }],
+      });
       
       // Set the operation result
       operation.result = {

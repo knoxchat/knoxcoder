@@ -17,6 +17,7 @@ export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"planMode": "计划",
 	"planModeHint": "只读探索并写出计划。离开计划模式后再执行。",
 	"executePlan": "执行计划",
+	"executePlanEmpty": "没有可执行的步骤（剩余 0）。",
 	"runInBackground": "后台运行",
 	"runInBackgroundHint": "在 git worktree 中运行当前输入。完成后可在任务面板合并或丢弃。",
 	"approveOnce": "批准",
@@ -296,6 +297,9 @@ export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"permissionNoticeTitle": "当前为自动（YOLO）：工具无需询问即可运行。不信任的仓库请切换到询问。",
 	"permissionNoticeKeep": "保持自动",
 	"permissionNoticeAsk": "切换到询问",
+	"permissionNoticeFreshClone": "已从询问开始：此文件夹像是尚未用过 Knox 的新克隆。",
+	"permissionNoticeKeepAsk": "保持询问",
+	"permissionNoticeUseAuto": "使用自动",
 	"memoryNoticeTitle": "Memory Brain 会把整理后的事实和会话笔记存在本机 ~/.knoxcoder。可在 Knox 设置中导出、清空或关闭。",
 	"memoryNoticeOk": "知道了",
 	"jobsMerge": "合并",
@@ -342,8 +346,13 @@ export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"recipePromoteSaved": "技能已保存到 {{path}}",
 	"recipePromoteFailed": "无法保存技能（{{reason}}）",
 	"recipePreviewTitle": "要重放已验证的方案“{{title}}”吗？在你批准之前不会应用任何更改。",
+	"recipePreviewLatency": "列表几乎即时。点“应用”才会走真实工具路径和记录的校验，可能要几秒。",
 	"recipeApply": "应用",
 	"recipeSkip": "跳过，交给模型",
 	"recipeReplayApplied": "已应用已验证的方案“{{title}}”（{{count}} 个文件），未调用模型。可点击“撤销”恢复原状。",
-	"recipeReplayFailed": "无法应用已保存的方案“{{title}}”（{{reason}}）。将继续交给模型处理。"
+	"recipeReplayFailed": "无法应用已保存的方案“{{title}}”（{{reason}}）。将继续交给模型处理。",
+	"skipToComposer": "跳到输入框",
+	"chatTranscript": "对话记录",
+	"composerRegion": "消息输入",
+	"knoxGuiRegion": "Knox 对话"
 };

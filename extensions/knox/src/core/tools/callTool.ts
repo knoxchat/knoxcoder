@@ -1,7 +1,7 @@
 import { ContextItem, Tool, ToolExtras } from "..";
 import { canParseUrl } from "../util/url";
 
-import { BuiltInToolNames } from "./builtIn";
+import { BuiltInToolNames, resolveBuiltInToolName } from "./builtIn";
 import { ToolCallError, ToolCallErrorCode } from "./errors";
 import {
   executeToolWithMiddleware,
@@ -32,10 +32,6 @@ import { enhancedSearchImpl, intelligentChainImpl } from "./implementations/enha
 import { skillImpl } from "./implementations/skill";
 import { lspImpl } from "./implementations/lsp";
 import { memoryImpl } from "./implementations/memory";
-import { memoryGraphImpl } from "./implementations/memoryGraph";
-import { memorySessionsImpl } from "./implementations/memorySessions";
-import { memoryManageImpl } from "./implementations/memoryManage";
-import { memoryLearnImpl } from "./implementations/memoryLearn";
 import { generateTestsImpl } from "./implementations/generateTests";
 import { taskImpl } from "./implementations/task";
 import { askUserImpl } from "./implementations/askUser";
@@ -149,7 +145,7 @@ function routeBuiltInTool(
   args: any,
   extras: ToolExtras,
 ): Promise<ContextItem[]> {
-  switch (uri) {
+  switch (resolveBuiltInToolName(uri) || uri) {
     case BuiltInToolNames.ReadFile:
       return readFileImpl(args, extras);
     case BuiltInToolNames.CreateNewFile:
@@ -198,14 +194,6 @@ function routeBuiltInTool(
       return lspImpl(args, extras);
     case BuiltInToolNames.Memory:
       return memoryImpl(args, extras);
-    case BuiltInToolNames.MemoryGraph:
-      return memoryGraphImpl(args, extras);
-    case BuiltInToolNames.MemorySessions:
-      return memorySessionsImpl(args, extras);
-    case BuiltInToolNames.MemoryManage:
-      return memoryManageImpl(args, extras);
-    case BuiltInToolNames.MemoryLearn:
-      return memoryLearnImpl(args, extras);
     case BuiltInToolNames.GenerateTests:
       return generateTestsImpl(args, extras);
     case BuiltInToolNames.Task:

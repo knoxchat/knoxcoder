@@ -1,7 +1,8 @@
 import { ToolImpl } from ".";
+import { toolGit } from "../toolPorts";
 
 export const viewDiffImpl: ToolImpl = async (args, extras) => {
-  const diff = await extras.ide.getDiff(true);
+  const diff = await toolGit(extras).getDiff(true);
   return [
     {
       name: "Git Diff",

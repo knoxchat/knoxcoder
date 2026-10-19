@@ -6,6 +6,7 @@
  */
 
 import { ContextItem, Tool, ToolExtras } from "../..";
+import { toolSearch } from "../toolPorts";
 import { ToolExecutor } from "./ToolExecutor";
 import { RelevanceEngine, QueryContext, QueryAnalysis } from "./RelevanceEngine";
 import { ToolResult } from "./types";
@@ -151,7 +152,7 @@ export class MultiStrategySearch {
         maxResults: config.maxResults || 50,
       };
 
-      const contextItems = await extras.ide.getSearchResults(query, searchArgs);
+      const contextItems = await toolSearch(extras).getSearchResults(query, searchArgs);
       
       // Parse and structure results
       const lines = contextItems.split('\n');
@@ -237,7 +238,7 @@ export class MultiStrategySearch {
         };
 
         try {
-          const contextItems = await extras.ide.getSearchResults(fuzzyQuery, searchArgs);
+          const contextItems = await toolSearch(extras).getSearchResults(fuzzyQuery, searchArgs);
           
           // Parse results
           const parsed = this.parseSearchResults(contextItems, fuzzyQuery);
@@ -291,7 +292,7 @@ export class MultiStrategySearch {
           maxResults: config.maxResults || 50,
         };
 
-        const contextItems = await extras.ide.getSearchResults(
+        const contextItems = await toolSearch(extras).getSearchResults(
           structuralPattern.pattern,
           searchArgs
         );
@@ -346,7 +347,7 @@ export class MultiStrategySearch {
         };
 
         try {
-          const contextItems = await extras.ide.getSearchResults(variation, searchArgs);
+          const contextItems = await toolSearch(extras).getSearchResults(variation, searchArgs);
           const parsed = this.parseSearchResults(contextItems, variation);
 
           for (const item of parsed) {
@@ -402,7 +403,7 @@ export class MultiStrategySearch {
         maxResults: config.maxResults || 50,
       };
 
-      const contextItems = await extras.ide.getSearchResults(query, searchArgs);
+      const contextItems = await toolSearch(extras).getSearchResults(query, searchArgs);
       const parsed = this.parseSearchResults(contextItems, query);
 
       for (const item of parsed) {
@@ -669,7 +670,7 @@ export class MultiStrategySearch {
           maxResults: 10,
         };
 
-        const contextItems = await extras.ide.getSearchResults(term, searchArgs);
+        const contextItems = await toolSearch(extras).getSearchResults(term, searchArgs);
         const parsed = this.parseSearchResults(contextItems, term);
 
         for (const item of parsed) {

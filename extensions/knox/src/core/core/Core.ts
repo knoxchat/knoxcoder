@@ -55,8 +55,9 @@ export class Core implements CoreRuntime {
     return this.messenger.send(messageType, data, messageId);
   }
 
-  // TODO: It shouldn't actually need an IDE type, because this can happen
-  // through the messenger (it does in the case of any non-VS Code IDEs already)
+  // K-084: Core still takes IDE for diagnostics, DAP, checkpoints, secrets,
+  // and LSP. File/shell/search/git/terminal tools use ToolExtras ports
+  // (withIdePorts), falling back to ide. A messenger-only Core is stretch.
   constructor(
     readonly messenger: IMessenger<ToCoreProtocol, FromCoreProtocol>,
     readonly ide: IDE,

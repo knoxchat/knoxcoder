@@ -128,4 +128,15 @@ edition = "2024"
       contents,
     );
   });
+
+  it("K-084: writes through extras.fs, not extras.ide", async () => {
+    const ide = mockIde();
+    const fs = mockIde();
+    await writeFileImpl(
+      { filepath: "src/port.ts", contents: "export {}\n", openAfterWrite: false },
+      { ...extras(ide), fs },
+    );
+    expect(fs.writeFile).toHaveBeenCalled();
+    expect(ide.writeFile).not.toHaveBeenCalled();
+  });
 });

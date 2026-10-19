@@ -156,7 +156,7 @@ export function renderMemorySessions(widget: KnoxGuiWidget, body: HTMLElement, s
 			const row = mk(items, 'div', 'detail-card md-card is-semantic');
 			const head = mk(row, 'div', 'md-card-head');
 			if (item.category) {
-				mk(head, 'span', `md-badge cat-${item.category.replace(/[^a-z0-9_-]/gi, '')}`, item.category);
+				mk(head, 'span', `md-badge knox-gui-memory-md-cat cat-${item.category.replace(/[^a-z0-9_-]/gi, '')}`, item.category);
 			}
 			mk(head, 'span', 'md-card-title', item.title ?? '');
 			renderCollapsibleMarkdown(widget, state, row, item.content, 220);
@@ -229,6 +229,7 @@ function renderCollapsibleMarkdown(widget: KnoxGuiWidget, state: IKnoxGuiState, 
 	const sync = () => {
 		wrap.classList.toggle('is-collapsed', !expanded);
 		wrap.style.maxHeight = expanded ? '' : `${maxHeight}px`;
+		// allow-any-unicode-next-line
 		toggle.textContent = expanded ? '▲' : '▼';
 	};
 	sync();

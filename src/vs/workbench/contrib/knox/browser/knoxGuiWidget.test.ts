@@ -179,6 +179,29 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(store.state.planMode, false);
 	});
 
+	test('Execute with remaining 0 toasts and does not submit (K-066)', async () => {
+		const posted: Array<{ type: string; data: unknown }> = [];
+		const { widget, store } = await mount(message => {
+			posted.push({ type: message.messageType, data: message.data });
+			return undefined;
+		});
+		const planText = formatPlanText({
+			title: 'Already done',
+			steps: [
+				{ id: 's1', title: 'Read add.ts', status: 'done' },
+				{ id: 's2', title: 'Edit add.ts', status: 'done' },
+			],
+		});
+		store.patch({
+			planMode: true,
+			history: [{ id: 'a', role: 'assistant', content: planText }],
+		});
+		widget.controller.executePlan();
+		assert.strictEqual(store.state.planMode, false);
+		assert.ok(posted.some(entry => entry.type === 'showToast' && JSON.stringify(entry.data).includes('remaining is 0')));
+		assert.ok(!store.state.history.some(item => item.role === 'user' && item.content.includes('Execute the approved plan')));
+	});
+
 	test('files-changed row shows green +N and red -N', async () => {
 		const { widget, store } = await mount();
 		const file: IKnoxGuiGitDiffFile = {
@@ -499,7 +522,10 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		store.patch({ sessionToolAllowlist: [], permissionMode: 'fullAuto' });
 		assert.ok(!row().querySelector('[data-testid="permission-action-buttons"]'));
 		store.patch({ permissionMode: 'default' });
-		assert.ok(row().querySelector('[data-testid="permission-action-buttons"]'));
+		const actions = row().querySelector('[data-testid="permission-action-buttons"]');
+		assert.ok(actions);
+		assert.strictEqual(actions.getAttribute('role'), 'group');
+		assert.ok(actions.getAttribute('aria-label'));
 
 		store.patch({
 			tools: [{ name: 'builtin_edit_file', group: 'Built-In' }],
@@ -752,6 +778,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const editor = wrap.querySelector(':scope > [data-testid="knox-gui-input"]') as HTMLElement | null;
 		const bar = wrap.querySelector(':scope > .knox-gui-input-bar') as HTMLElement | null;
 		assert.ok(editor);
+		assert.ok(editor.getAttribute('aria-label'));
+		assert.strictEqual(editor.getAttribute('role'), 'textbox');
 		assert.ok(bar);
 		assert.ok(editor.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING);
 		const left = bar.querySelector('.knox-gui-input-bar-left') as HTMLElement | null;
@@ -1661,7 +1689,10 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			checkpointHeadId: 'cp-1',
 			checkpointView: 'graph',
 		});
-		assert.ok(widget.root.querySelector('[data-testid="checkpoint-panel-tabs"]'));
+		const tabs = widget.root.querySelector('[data-testid="checkpoint-panel-tabs"]');
+		assert.ok(tabs);
+		assert.strictEqual(tabs.getAttribute('role'), 'tablist');
+		assert.ok(tabs.querySelector('[role="tab"][aria-selected="true"]'));
 		assert.ok(widget.root.querySelector('[data-testid="checkpoint-graph-branch"]')?.textContent?.includes('main'));
 
 		store.patch({
@@ -3248,6 +3279,26 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="chat-list-error"]'), null);
 		assert.ok(widget.root.querySelector('[data-testid="large-session-banner"]'));
 	});
+	test('K-102/MC-90 recipe preview card names latency and is labelled', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			recipeDecision: {
+				mode: 'exact',
+				why: '',
+				needsConfirmation: true,
+				awaitingChoice: true,
+				preview: '1 file(s), +1 -0',
+				recipe: { id: 'r1', title: 'Add lint script', uses: 1, reverts: 0, score: 1 },
+			},
+		});
+		const card = widget.root.querySelector('[data-testid="recipe-preview-card"]');
+		assert.ok(card);
+		assert.strictEqual(card.getAttribute('role'), 'group');
+		assert.ok(card.getAttribute('aria-labelledby'));
+		assert.ok(widget.root.querySelector('[data-testid="recipe-preview-latency"]')?.textContent);
+		assert.ok(widget.root.querySelector('[data-testid="recipe-preview-apply"]'));
+		assert.ok(widget.root.querySelector('[data-testid="recipe-preview-skip"]'));
+	});
 	test('NP-24 the Memory editor paints no tabs until the saved tab id is read', async () => {
 		const { widget, store } = await mount();
 		store.patch({ lockedRoute: KnoxGuiRoute.Memory, route: KnoxGuiRoute.Memory, memoryTabHydrated: false });
@@ -3270,6 +3321,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(store.state.jobsPanelOpen, true);
 		sendJob('j1');
 		assert.strictEqual(jobsPanelOpen(), true);
+		assert.ok(widget.root.querySelector('[data-testid="agent-jobs-toggle"]')?.getAttribute('aria-label'));
+		assert.ok(widget.root.querySelector('.knox-gui-jobs-list')?.getAttribute('aria-label'));
 
 		// User collapses; new jobs must not force it open again.
 		(widget.root.querySelector('[data-testid="agent-jobs-toggle"]') as HTMLButtonElement).click();

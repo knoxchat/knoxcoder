@@ -99,19 +99,48 @@ function extractSubstitutions(input: string): string[] {
  * Flatten a command line into simple commands (each a token list with env
  * prefixes and wrappers removed). `sh -c "<script>"` is expanded recursively.
  */
-export function splitShellCommands(command: string, depth = 0): string[][] {
+const ASSIGN_RE =
+  /^(?:(?:export|declare|local)\s+)?([A-Za-z_][A-Za-z0-9_]*)=(('(?:\\'|[^'])*')|("(?:\\"|[^"])*")|[^\s;|&]+)\s*/;
+
+function consumeAssignments(
+  segment: string,
+  env: Record<string, string>,
+): string {
+  let rest = segment.trim();
+  for (;;) {
+    const match = rest.match(ASSIGN_RE);
+    if (!match) {
+      break;
+    }
+    env[match[1]] = expandAssignedVars(unquoteShellToken(match[2]), env);
+    rest = rest.slice(match[0].length);
+  }
+  return rest;
+}
+
+export function splitShellCommands(command: string, depth = 0, inheritedEnv: Record<string, string> = {}): string[][] {
   if (depth > 4 || !command.trim()) {
     return [];
   }
+  const env = { ...inheritedEnv };
   const result: string[][] = [];
   const segments = [
     ...splitTopLevel(command),
     ...extractSubstitutions(command).flatMap((s) => splitTopLevel(s)),
   ];
   for (const raw of segments) {
-    let tokens = tokenize(raw.replace(/^[({]+\s*/, "").replace(/\s*[)}]+$/, ""));
+    const stripped = consumeAssignments(
+      raw.replace(/^[({]+\s*/, "").replace(/\s*[)}]+$/, ""),
+      env,
+    );
+    let tokens = tokenize(stripped);
+    tokens = tokens.map((token) => expandAssignedVars(token, env));
     for (;;) {
       while (tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[0])) {
+        const eq = tokens[0].indexOf("=");
+        if (eq > 0) {
+          env[tokens[0].slice(0, eq)] = unquoteShellToken(tokens[0].slice(eq + 1));
+        }
         tokens = tokens.slice(1);
       }
       if (tokens.length && WRAPPERS.has(baseName(tokens[0]))) {
@@ -138,13 +167,13 @@ export function splitShellCommands(command: string, depth = 0): string[][] {
     if (SHELLS.has(baseName(tokens[0]))) {
       const cIdx = tokens.findIndex((t) => /^-[a-z]*c[a-z]*$/.test(t));
       if (cIdx >= 0 && tokens[cIdx + 1]) {
-        result.push(...splitShellCommands(tokens[cIdx + 1], depth + 1));
+        result.push(...splitShellCommands(tokens[cIdx + 1], depth + 1, env));
         continue;
       }
       // `bash -s <<< 'script'`: the here-string is the script.
       const hereIdx = tokens.indexOf("<<<");
       if (hereIdx >= 0 && tokens[hereIdx + 1]) {
-        result.push(...splitShellCommands(tokens[hereIdx + 1], depth + 1));
+        result.push(...splitShellCommands(tokens[hereIdx + 1], depth + 1, env));
         continue;
       }
     }
@@ -155,7 +184,7 @@ export function splitShellCommands(command: string, depth = 0): string[][] {
       }
       const rest = tokens.slice(start);
       if (rest.length) {
-        result.push(...splitShellCommands(rest.join(" "), depth + 1));
+        result.push(...splitShellCommands(rest.join(" "), depth + 1, env));
       }
     }
     result.push(tokens);
@@ -283,6 +312,126 @@ const RAW_DEVICE_RE = /^\/dev\/(sd|hd|vd|xvd|nvme|mmcblk|disk|rdisk|mapper|md)/;
  * This covers the extended set; the original `rm -rf` / mkfs / dd patterns
  * live in `toolPolicy.ts`.
  */
+function unquoteShellToken(token: string): string {
+  if (
+    (token.startsWith('"') && token.endsWith('"') && token.length >= 2) ||
+    (token.startsWith("'") && token.endsWith("'") && token.length >= 2)
+  ) {
+    return token.slice(1, -1);
+  }
+  return token;
+}
+
+function expandAssignedVars(
+  token: string,
+  env: Record<string, string>,
+): string {
+  return token.replace(
+    /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g,
+    (match, braced, bare) => {
+      const name = (braced ?? bare) as string;
+      return Object.prototype.hasOwnProperty.call(env, name) ? env[name] : match;
+    },
+  );
+}
+
+/**
+ * K-091: one-hop `VAR=cmd; $VAR …` / `eval "$VAR"` expansion for tests.
+ */
+export function expandOneHopShellVars(command: string): string {
+  const flattened = splitShellCommands(command);
+  return flattened.map((tokens) => tokens.join(" ")).join("; ");
+}
+
+const SCRIPT_INTERPRETERS = new Set([
+  "sh",
+  "bash",
+  "zsh",
+  "dash",
+  "ksh",
+  "fish",
+  "python",
+  "python2",
+  "python3",
+  "node",
+  "nodejs",
+  "perl",
+  "ruby",
+  "php",
+  "deno",
+  "bun",
+  "pwsh",
+  "powershell",
+]);
+
+function posixBase(p: string): string {
+  const cleaned = p.replace(/\\/g, "/").replace(/\/+$/, "");
+  const i = cleaned.lastIndexOf("/");
+  return i >= 0 ? cleaned.slice(i + 1) : cleaned;
+}
+
+function pathMatchesRecentWrite(arg: string, recentWrites: string[]): boolean {
+  const needle = arg.replace(/\\/g, "/").replace(/^\.\//, "");
+  const needleBase = posixBase(needle);
+  if (!needleBase) {
+    return false;
+  }
+  return recentWrites.some((written) => {
+    const w = written.replace(/\\/g, "/");
+    return (
+      w === needle ||
+      w.endsWith("/" + needle) ||
+      posixBase(w) === needleBase
+    );
+  });
+}
+
+/**
+ * `python evil.py` / `bash ./pwn.sh` after this turn (or last N mutating
+ * tools) wrote that path. Cheap; encoded payloads and `make` recipes stay open.
+ */
+export function detectWrittenScriptExec(
+  command: string,
+  recentWrites: string[],
+): string | null {
+  if (!recentWrites.length) {
+    return null;
+  }
+  for (const tokens of splitShellCommands(command)) {
+    if (!tokens.length) {
+      continue;
+    }
+    if (pathMatchesRecentWrite(tokens[0], recentWrites)) {
+      return `runs a script written earlier this turn (${posixBase(tokens[0])})`;
+    }
+    const cmd = baseName(tokens[0])
+      .toLowerCase()
+      .replace(/\.(exe|cmd|bat|com)$/, "");
+    const isPython = /^python[0-9.]*$/.test(cmd);
+    if (!SCRIPT_INTERPRETERS.has(cmd) && !isPython) {
+      continue;
+    }
+    const args = tokens.slice(1);
+    if (args.some((a) => a === "-c" || a === "-e" || a === "--command")) {
+      continue;
+    }
+    for (let i = 0; i < args.length; i++) {
+      const a = args[i];
+      if (a === "-m") {
+        i++;
+        continue;
+      }
+      if (a.startsWith("-")) {
+        continue;
+      }
+      if (pathMatchesRecentWrite(a, recentWrites)) {
+        return `runs a script written earlier this turn (${posixBase(a)})`;
+      }
+    }
+  }
+  return null;
+}
+
 export function detectDangerousCommand(command: string): string | null {
   // Redirection into raw block devices, anywhere in the string.
   for (const m of command.matchAll(/>\s*(\/dev\/[^\s;|&)]+)/g)) {

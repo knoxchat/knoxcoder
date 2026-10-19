@@ -201,6 +201,22 @@ describe("llmSummarizeConversation", () => {
 });
 
 describe("compactMessagesAsync", () => {
+  it("skips LLM on short turns even when complete exists (K-063)", async () => {
+    const complete = vi.fn(async () => "should not run");
+    const result = await compactMessagesAsync(
+      [system("hi"), user("tiny"), assistant("ok")],
+      "gpt-4o",
+      8_000,
+      500,
+      0,
+      100,
+      {},
+      complete,
+    );
+    expect(complete).not.toHaveBeenCalled();
+    expect(result.summarizationMethod ?? "none").not.toBe("llm");
+  });
+
   it("uses LLM summary when flag is on and complete succeeds", async () => {
     const messages = longHistory();
     const complete = vi.fn(async () => "Prior turns set up JWT auth and edits.");
@@ -213,6 +229,7 @@ describe("compactMessagesAsync", () => {
       100,
       {
         useLlmSummarization: true,
+        llmSummarizationMinDroppableTools: -1,
         preserveRecentCount: 4,
         maxHistoryRatio: 0.5,
         llmSummarizationTimeoutMs: 2000,
@@ -243,6 +260,7 @@ describe("compactMessagesAsync", () => {
       100,
       {
         useLlmSummarization: true,
+        llmSummarizationMinDroppableTools: -1,
         preserveRecentCount: 4,
         maxHistoryRatio: 0.5,
       },
@@ -264,6 +282,50 @@ describe("pruneByRelevanceAsync", () => {
     const asyncResult = await pruneByRelevanceAsync(messages, "gpt-4o", 800, 4);
     expect(asyncResult.messages).toEqual(sync.messages);
     expect(asyncResult.tokensSaved).toBe(sync.tokensSaved);
+  });
+});
+
+describe("K-063 current-edit protection", () => {
+  it("keeps last user intent, mutating file, and recipe decision", () => {
+    const messages: ChatMessage[] = [
+      system("You are a helpful coding assistant."),
+      user("Fix the JWT expiry check in src/auth.ts — tokens stay valid after logout."),
+      assistant("Editing src/auth.ts", [
+        {
+          id: "e1",
+          type: "function",
+          function: {
+            name: "builtin_edit_file",
+            arguments: JSON.stringify({
+              filepath: "src/auth.ts",
+              old_string: "return true;",
+              new_string: "return !isExpired(token);",
+            }),
+          },
+        },
+      ] as never),
+      tool("e1", 'Updated "src/auth.ts" (1 replacement).\nPath: src/auth.ts'),
+      system(
+        '<verified_recipe title="Fix JWT logout">\nA similar task was done before.\n</verified_recipe>',
+      ),
+    ];
+    for (let i = 0; i < 16; i++) {
+      messages.push(user(`Note ${i}: tweak comments in notes${i}.md `.repeat(20)));
+      messages.push(assistant(`Updated notes${i}.md only. `.repeat(20)));
+    }
+    messages.push(user("Continue the JWT fix"));
+
+    const result = compactMessages(messages, "gpt-4o", 4_000, 500, 0, 100, {
+      preserveRecentCount: 2,
+      maxHistoryRatio: 0.4,
+    });
+    const joined = result.messages
+      .map((m) => (typeof m.content === "string" ? m.content : ""))
+      .join("\n");
+    expect(joined).toContain("src/auth.ts");
+    expect(joined).toMatch(/JWT/i);
+    expect(joined).toContain("Last mutating file");
+    expect(joined).toContain("Last recipe decision");
   });
 });
 

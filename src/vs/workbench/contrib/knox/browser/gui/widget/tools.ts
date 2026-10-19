@@ -303,6 +303,7 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 		const toggle = DOM.append(right, DOM.$('button.knox-gui-tool-args-toggle')) as HTMLButtonElement;
 		toggle.type = 'button';
 		toggle.setAttribute('aria-expanded', String(argsOpen));
+		toggle.setAttribute('aria-label', argsOpen ? t(state, 'hideParameters') : t(state, 'showParameters'));
 		widget.hover(toggle, argsOpen ? t(state, 'hideParameters') : t(state, 'showParameters'));
 		appendKnoxGuiSvg(toggle, 'list-chevrons-up-down', 14);
 		widget.renderStore.add(DOM.addDisposableListener(toggle, 'click', e => {
@@ -432,22 +433,26 @@ export function renderToolActions(widget: KnoxGuiWidget,
 	if (permission === 'autoApprove') {
 		return;
 	}
+	const catalog = catalogToolForCall(state.tools, tool.name);
+	const permissionLabel = catalog ? getCategorizedToolName(tool.name, catalog.displayTitle) : formatToolName(tool.name);
 	if (placement !== 'overlay') {
-		const catalog = catalogToolForCall(state.tools, tool.name);
-		const label = catalog ? getCategorizedToolName(tool.name, catalog.displayTitle) : formatToolName(tool.name);
-		const hint = DOM.append(parent, DOM.$('.knox-gui-tool-permission-hint', undefined, t(state, 'permissionForTool', { name: label })));
+		const hint = DOM.append(parent, DOM.$('.knox-gui-tool-permission-hint', undefined, t(state, 'permissionForTool', { name: permissionLabel })));
 		hint.setAttribute('data-testid', 'permission-for-tool');
 	}
 	const actions = DOM.append(parent, DOM.$('.knox-gui-tool-permissions'));
 	actions.setAttribute('data-testid', 'permission-action-buttons');
 	actions.setAttribute('data-tool-name', tool.name);
+	actions.setAttribute('role', 'group');
+	actions.setAttribute('aria-label', t(state, 'permissionForTool', { name: permissionLabel }));
 	if (placement === 'overlay') {
 		actions.classList.add('knox-gui-tool-permissions-compact');
 	}
 	const alwaysActive = permission === 'sessionAlways';
 	widget.chromeButton(actions, {
 		label: t(state, 'deny'),
+		title: t(state, 'deny'),
 		extraClass: 'knox-gui-tool-deny',
+		testId: 'deny-tool-call-button',
 		onClick: () => widget.controller.denyTool(tool.id),
 	});
 	widget.chromeButton(actions, {
@@ -719,6 +724,7 @@ function appendTerminalCopyAction(widget: KnoxGuiWidget, parent: HTMLElement, st
 	btn.type = 'button';
 	btn.setAttribute('data-testid', options.testId);
 	btn.dataset.copyText = options.text;
+	btn.setAttribute('aria-label', copied ? t(state, 'copied') : options.idleTitle);
 	const icon = appendKnoxGuiSvg(btn, copied ? 'check' : 'copy', 14);
 	icon.classList.add('knox-gui-term-action-icon');
 	if (options.showLabel) {
@@ -1189,6 +1195,7 @@ export function renderAskUser(widget: KnoxGuiWidget, parent: HTMLElement, state:
 		fill.style.width = `${((step + 1) / questions.length) * 100}%`;
 	}
 	const question = questions[step];
+	card.setAttribute('aria-label', question.prompt);
 	const item = DOM.append(card, DOM.$('.knox-gui-ask-item'));
 	DOM.append(item, DOM.$('.knox-gui-ask-prompt', undefined, question.prompt));
 	if (question.allowMultiple) {

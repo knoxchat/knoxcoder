@@ -14,7 +14,7 @@ import { knoxGuiMissingSymbolUris, knoxGuiParseSymbolMap, nextCodeBlockToApply, 
 import { extractMentionsFromDoc, extractSlashFromDoc, inputDocFromPlainText, inputDocToPlainText, knoxGuiPendingToolBlocksSubmit, knoxGuiShouldBlockSubmit, mentionContextProviderName, resolveComposerSlashCommand, slashCommandBareName, submitUsesActiveFile, useActiveFileFromDefaultContext } from '../../../common/knoxGuiInput.js';
 import { editSendPromptPayload, knoxGuiMultifileEditPrompt, shouldSendEditPrompt } from '../../../common/knoxGuiEdit.js';
 import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiRecipeDecision, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
-import { IKnoxCoreChatHistoryItem, IKnoxCoreChatMessage, IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiFlushStreamText, knoxGuiShouldSplitForTools, knoxGuiFallbackMessages, knoxGuiFormatTurnInject, knoxGuiHistoryToCoreHistory, knoxGuiMemoryGoal, knoxGuiShouldContinueTurn, knoxGuiToolIsSettled, knoxGuiTurnDoomCalls, knoxGuiTurnMessages, knoxGuiTurnTools } from '../../../common/knoxGuiAgentRequest.js';
+import { IKnoxCoreChatHistoryItem, IKnoxCoreChatMessage, IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiExecuteDoomCalls, knoxGuiFlushStreamText, knoxGuiShouldSplitForTools, knoxGuiFallbackMessages, knoxGuiFormatTurnInject, knoxGuiHistoryToCoreHistory, knoxGuiMemoryGoal, knoxGuiShouldContinueTurn, knoxGuiToolIsSettled, knoxGuiTurnMessages, knoxGuiTurnTools } from '../../../common/knoxGuiAgentRequest.js';
 import { knoxGuiDequeue, knoxGuiEnqueue, knoxGuiNextToDrain } from '../../../common/knoxGuiQueue.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
 import { cancelRecipeChoice, resolveRecipeDecision } from './recipe.js';
@@ -331,6 +331,8 @@ async function buildAgentRequest(controller: KnoxGuiController): Promise<{ messa
 	const state = controller.store.state;
 	const history = knoxGuiHistoryToCoreHistory(state.history);
 	const injectedContext = controller.turnInject?.sessionId === state.sessionId ? controller.turnInject.content : undefined;
+	const seedSessionDoom = controller.seedSessionDoom;
+	controller.seedSessionDoom = false;
 	try {
 		const result = await controller.messenger.request<{ messages?: IKnoxCoreChatMessage[]; tools?: unknown[] }>('knox/buildAgentRequest', {
 			history,
@@ -341,7 +343,7 @@ async function buildAgentRequest(controller: KnoxGuiController): Promise<{ messa
 			excludedGroups: state.toolGroupExcluded,
 			dropSearchWeb: (state.webSearchSupported && state.webSearchEnabled) || !state.selectedModelByRole.realTimeSearch,
 			toolLoopSteps: state.toolLoopSteps,
-			turnToolCalls: knoxGuiTurnDoomCalls(state.history),
+			turnToolCalls: knoxGuiExecuteDoomCalls(state.history, seedSessionDoom),
 		});
 		if (Array.isArray(result?.messages)) {
 			return { messages: result.messages, tools: Array.isArray(result.tools) ? result.tools : [] };

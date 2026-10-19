@@ -39,7 +39,6 @@ import EditDecorationManager from "../quickEdit/EditDecorationManager";
 import { QuickEdit } from "../quickEdit/QuickEditQuickPick";
 import { FileSearch } from "../util/FileSearch";
 import { VsCodeIde } from "../VsCodeIde";
-import { ChatFlowCoordinator } from "../agent/ChatFlowCoordinator";
 import { registerLanguageModelFeatures } from "../lm/registerLanguageModelFeatures";
 
 import {
@@ -590,26 +589,8 @@ export class VsCodeExtension {
    * Initialize Agent Mode streaming and connect to webview
    */
   private initializeAgentModeStreaming(): void {
-    try {
-      const chatFlowCoordinator = ChatFlowCoordinator.getInstance();
-      
-      // Listen for streaming updates from ChatFlowCoordinator and forward to webview
-      chatFlowCoordinator.onStreamingUpdate(({ content, isComplete }: { content: string; isComplete: boolean }) => {
-        // Forward the streaming update to the main webview
-        this.sidebar.webviewProtocol.send('agentStreamingUpdate', {
-          content,
-          isComplete
-        });
-      });
-
-      // Do not listen for agentStreamingUpdateFromRedux. That path posted the
-      // full accumulated assistant string on every token (CSLD-03). Agent-mode
-      // code blocks already update from Redux in the GUI. 
-      console.log('✅ Agent Mode streaming initialized and connected to webview');
-    } catch (error) {
-      console.warn('⚠️ Failed to initialize Agent Mode streaming:', error);
-      // Don't throw - allow extension to continue without agent mode streaming
-    }
+    // K-080: product chat streams ChatTurnEvents into the native GUI.
+    // Do not construct ChatFlowCoordinator or forward a second agent stream.
   }
 
   /**

@@ -130,12 +130,22 @@ export async function previewReplay(recipe: Recipe, ports: PreviewPorts): Promis
 }
 
 /**
+ * MC-90: listing the preview is cheap; Apply is the real tool+oracle path.
+ * Same wording regardless of locale; the GUI wraps it in localized chrome.
+ */
+export const REPLAY_APPLY_LATENCY_NOTE =
+  "This listing is instant; Apply runs the real tool path and the recorded check, which can take seconds.";
+
+/**
  * Text for the `ask` preview card and chat: one summary line per file, then the diffs.
  * Same wording regardless of locale; the GUI wraps it in localized chrome.
  */
 export function formatReplayPreview(preview: ReplayPreview, maxDiffChars = 8000): string {
   if (!preview.allowed) return `Replay refused: ${preview.refusal}`;
-  const lines = [`${preview.totals.files} file(s), +${preview.totals.added} -${preview.totals.removed}`];
+  const lines = [
+    REPLAY_APPLY_LATENCY_NOTE,
+    `${preview.totals.files} file(s), +${preview.totals.added} -${preview.totals.removed}`,
+  ];
   for (const e of preview.entries) {
     lines.push(`${e.action.padEnd(9)} ${e.path}${e.reason ? ` (${e.reason})` : ""}`);
   }

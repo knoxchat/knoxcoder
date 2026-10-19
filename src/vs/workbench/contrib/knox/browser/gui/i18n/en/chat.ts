@@ -17,6 +17,7 @@ export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"planMode": "Plan",
 	"planModeHint": "Read-only explore and write a plan. Leave Plan mode to execute.",
 	"executePlan": "Execute plan",
+	"executePlanEmpty": "Nothing left to execute — remaining is 0.",
 	"runInBackground": "Run in background",
 	"runInBackgroundHint": "Start the composer task in a git worktree. Merge or discard from the jobs panel when it finishes.",
 	"approveOnce": "Approve",
@@ -296,6 +297,9 @@ export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"permissionNoticeTitle": "Auto (YOLO) is on: Knox runs tools without asking. Switch to Ask if this repo is untrusted.",
 	"permissionNoticeKeep": "Keep Auto",
 	"permissionNoticeAsk": "Switch to Ask",
+	"permissionNoticeFreshClone": "Started in Ask: this folder looks like a new clone with no prior Knox sessions.",
+	"permissionNoticeKeepAsk": "Keep Ask",
+	"permissionNoticeUseAuto": "Use Auto",
 	"memoryNoticeTitle": "Memory Brain stores curated facts and session notes locally in ~/.knoxcoder. You can export, wipe, or turn it off in Knox settings.",
 	"memoryNoticeOk": "Got it",
 	"jobsMerge": "Merge",
@@ -342,8 +346,13 @@ export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"recipePromoteSaved": "Skill saved to {{path}}",
 	"recipePromoteFailed": "Could not save the skill ({{reason}})",
 	"recipePreviewTitle": "Replay verified recipe \"{{title}}\"? Nothing is applied until you approve.",
+	"recipePreviewLatency": "This listing is instant. Apply runs the real tool path and the recorded check, which can take seconds.",
 	"recipeApply": "Apply",
 	"recipeSkip": "Skip, ask the model",
 	"recipeReplayApplied": "Applied verified recipe \"{{title}}\" to {{count}} file(s) with no model call. Use Undo to restore the previous state.",
-	"recipeReplayFailed": "The saved recipe \"{{title}}\" could not be applied ({{reason}}). Continuing with the model."
+	"recipeReplayFailed": "The saved recipe \"{{title}}\" could not be applied ({{reason}}). Continuing with the model.",
+	"skipToComposer": "Skip to composer",
+	"chatTranscript": "Chat transcript",
+	"composerRegion": "Message composer",
+	"knoxGuiRegion": "Knox chat"
 };

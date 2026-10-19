@@ -37,7 +37,7 @@ const BUILTIN_CASES = [
 	'RunTerminalCommand', 'AwaitShell', 'PtyStart', 'PtySend', 'PtyRead', 'Build',
 	'GitStatus', 'GitDiff', 'GitLog', 'GitBlame', 'GitCommit', 'GitBisect',
 	'Skill', 'Lsp', 'Task', 'AskUser', 'Plan', 'GenerateTests', 'WorkspaceCheckpoint',
-	'Memory', 'MemoryGraph', 'MemorySessions', 'MemoryManage', 'MemoryLearn',
+	'Memory',
 	'Qemu', 'Kconfig', 'Maintainers', 'Debug',
 ] as const;
 

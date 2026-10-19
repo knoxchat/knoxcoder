@@ -9,11 +9,14 @@
  *   Amygdala → PrefrontalCortex via Thalamus (A→P)
  */
 
+import { ContextBuilder } from "../ContextBuilder.js";
 import { getContextMaxTokens, getMemoryConfig, getModeSettings } from "../memoryConfigAccess.js";
+import { getProjectSessionIds } from "../projectScope.js";
+import { injectedItemPassedGate } from "../RelevanceGate.js";
+import { RetrievalFusion } from "../RetrievalFusion.js";
 import { resolveRetrievalQuery } from "../RetrievalQuery.js";
+import { BrainStore } from "../BrainStore.js";
 import type { BuildContextResult, MemoryPhase, PipelineInput, PipelinePhaseResult } from "../types.js";
-import { Brainstem } from "./Brainstem.js";
-import { Hippocampus } from "./Hippocampus.js";
 import { PrefrontalCortex } from "./PrefrontalCortex.js";
 import { SensoryCortex } from "./SensoryCortex.js";
 import { Thalamus } from "./Thalamus.js";
@@ -128,13 +131,22 @@ export const NeuralArchitecture = {
     const config = getMemoryConfig();
     const mode = getModeSettings(config.memory_mode);
 
-    // φ₆ — M(...) hippocampal fusion retrieval (expanded query, not raw follow-up)
+    // φ₆ — fusion retrieval (expanded query, not raw follow-up)
     const retrievalStart = Date.now();
-    const fusionResults = await Hippocampus.fusionRetrieve({
-      message: encodedMessage,
-      session_id: input.session_id,
-      retrieval_query: retrieval.retrievalQuery,
+    const projectSessionIds = await getProjectSessionIds(input.session_id);
+    const currentTaskId = input.session_id
+      ? (await BrainStore.getOpenTask(input.session_id))?.id ?? null
+      : null;
+    const fusionResults = await RetrievalFusion.search({
+      query: retrieval.retrievalQuery,
+      sessionId: input.session_id,
+      limit: config.retrieval_top_k,
+      minScore: config.retrieval_threshold,
       includeEpisodic: mode.includeEpisodic,
+      projectSessionIds,
+      intent: retrieval.intent,
+      originalQuery: encodedMessage,
+      currentTaskId,
     });
     phases.push({
       phase: "retrieval",
@@ -147,9 +159,9 @@ export const NeuralArchitecture = {
       },
     });
 
-    // φ₈ — Brainstem(...) consumes φ₆ hits; no second fusion/LIKE hunt
+    // φ₈ — ContextBuilder consumes φ₆ hits; no second fusion/LIKE hunt (K-073)
     const outputStart = Date.now();
-    const context = await Brainstem.assemble({
+    const context = await ContextBuilder.buildDetailed({
       message: encodedMessage,
       session_id: input.session_id,
       max_tokens: getContextMaxTokens(input.max_tokens),
@@ -158,7 +170,11 @@ export const NeuralArchitecture = {
       retrieval_query: retrieval.retrievalQuery,
       fusion_hits: fusionResults,
     });
-    Brainstem.feedbackToThalamus(wm, context);
+    const highlights = context.items
+      .filter(injectedItemPassedGate)
+      .map((item) => item.title)
+      .filter(Boolean);
+    Thalamus.feedbackFromBrainstem(wm, highlights);
     phases.push({
       phase: "output_generation",
       duration_ms: Date.now() - outputStart,

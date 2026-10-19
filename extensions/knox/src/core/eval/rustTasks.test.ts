@@ -25,6 +25,28 @@ const LIB_E0425 = `pub fn answer() -> i32 {
 }
 `;
 
+const LIB_SYNTAX = `pub fn answer() -> i32 {
+    let x = 41
+    x + 1
+}
+`;
+
+const LIB_SYNTAX_FIXED = `pub fn answer() -> i32 {
+    let x = 41;
+    x + 1
+}
+`;
+
+const LIB_IDIOM = `pub fn first(xs: &[i32]) -> i32 {
+    xs[0].clone()
+}
+`;
+
+const LIB_IDIOM_FIXED = `pub fn first(xs: &[i32]) -> i32 {
+    xs[0]
+}
+`;
+
 const LIB_E0425_FIXED = `pub fn answer() -> i32 {
     42
 }
@@ -183,9 +205,26 @@ function evalCargoFromWorkspace(
     ];
   }
   const e0425 = /\bfoo\b/.test(lib) && !/\b(?:let|fn|const)\s+foo\b/.test(lib);
+  const missingSemi = /let x = 41\n/.test(lib) && !/let x = 41;/.test(lib);
   const e0502 =
     borrow.includes("acc.as_str()") && borrow.includes("acc.push_str(snapshot)");
 
+  if (missingSemi) {
+    return [
+      {
+        name: "Terminal",
+        description: "Terminal command exited 1",
+        content: rustcLog({
+          command,
+          exit: 1,
+          body: [
+            "error: expected `;`, found `x`",
+            " --> src/lib.rs:2:14",
+          ].join("\n"),
+        }),
+      },
+    ];
+  }
   if (e0425) {
     return [
       {
@@ -676,6 +715,86 @@ describe("rust goldens", () => {
     expect(result.toolTrace[0]?.output).toMatch(/Exit: 1/);
     const metrics = summarizeRustEval(result);
     expect(metrics.miriClean).toBe(false);
+  });
+
+  it("RL-56: syntax snippet missing semicolon → StrReplace → cargo check green", async () => {
+    const result = await runAgentEval({
+      prompt: "Fix the syntax error in answer().",
+      catalog: RUST_EVAL_CATALOG,
+      workspace: { "Cargo.toml": CARGO_TOML, "src/lib.rs": LIB_SYNTAX },
+      evaluateCommand: async (args, files) =>
+        evalCargoFromWorkspace(args, files),
+      script: [
+        {
+          toolCalls: [
+            {
+              name: BuiltInToolNames.Build,
+              args: { command: "cargo check" },
+            },
+          ],
+        },
+        {
+          toolCalls: [
+            {
+              name: BuiltInToolNames.EditFile,
+              args: {
+                filepath: "src/lib.rs",
+                old_string: "    let x = 41",
+                new_string: "    let x = 41;",
+              },
+            },
+          ],
+        },
+        {
+          toolCalls: [
+            {
+              name: BuiltInToolNames.Build,
+              args: { command: "cargo check" },
+            },
+          ],
+        },
+        { content: "Compiles." },
+      ],
+    });
+    expect(result.toolTrace[0]?.output).toMatch(/expected `;`/);
+    expect(result.files["src/lib.rs"]).toBe(LIB_SYNTAX_FIXED);
+    expect(result.toolTrace.at(-1)?.output).toMatch(/Exit:\s*0/);
+  });
+
+  it("RL-56: idiom snippet drops an unnecessary clone", async () => {
+    const result = await runAgentEval({
+      prompt: "first() clones a Copy i32. Remove the clone.",
+      catalog: RUST_EVAL_CATALOG,
+      workspace: { "Cargo.toml": CARGO_TOML, "src/lib.rs": LIB_IDIOM },
+      evaluateCommand: async (args, files) =>
+        evalCargoFromWorkspace(args, files),
+      script: [
+        {
+          toolCalls: [
+            {
+              name: BuiltInToolNames.EditFile,
+              args: {
+                filepath: "src/lib.rs",
+                old_string: "    xs[0].clone()",
+                new_string: "    xs[0]",
+              },
+            },
+          ],
+        },
+        {
+          toolCalls: [
+            {
+              name: BuiltInToolNames.Build,
+              args: { command: "cargo check" },
+            },
+          ],
+        },
+        { content: "No clone." },
+      ],
+    });
+    expect(result.files["src/lib.rs"]).toBe(LIB_IDIOM_FIXED);
+    expect(result.rustMetrics?.cloneDelta).toBe(0);
+    expect(result.toolTrace.at(-1)?.output).toMatch(/Exit:\s*0/);
   });
 
   it("RL-56: test-tamper rate is counted", async () => {

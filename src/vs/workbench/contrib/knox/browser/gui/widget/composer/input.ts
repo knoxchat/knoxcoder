@@ -63,6 +63,8 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 	editor.contentEditable = 'true';
 	editor.setAttribute('role', 'textbox');
 	editor.setAttribute('aria-multiline', 'true');
+	editor.setAttribute('aria-label', t(state, composerPlaceholderKey(state.mode, state.history.length)));
+	editor.id = 'knox-gui-input';
 	editor.setAttribute('data-testid', 'knox-gui-input');
 	editor.spellcheck = false;
 	widget.paintInputDoc(editor, state.inputDoc);
@@ -224,5 +226,7 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 export function syncPlaceholder(widget: KnoxGuiWidget, editor: HTMLElement, state: IKnoxGuiState): void {
 	const empty = inputDocIsEmpty(widget.readInputDoc(editor));
 	editor.dataset.empty = empty ? 'true' : 'false';
-	editor.dataset.placeholder = t(state, composerPlaceholderKey(state.mode, state.history.length));
+	const placeholder = t(state, composerPlaceholderKey(state.mode, state.history.length));
+	editor.dataset.placeholder = placeholder;
+	editor.setAttribute('aria-label', placeholder);
 }

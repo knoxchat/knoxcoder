@@ -10,6 +10,7 @@ describe("buildSystemPrompt tool gating (K-031)", () => {
     expect(p).toContain("Plan and delegation");
     expect(p).toContain("builtin_lsp");
     expect(p).toContain("Never claim tests passed");
+    expect(p).toContain("durable facts and decisions only");
   });
 
   it("drops git, plan and shell sections for a read/edit-only catalog", () => {
@@ -21,6 +22,7 @@ describe("buildSystemPrompt tool gating (K-031)", () => {
     expect(p).not.toContain("Shell:");
     expect(p).not.toContain("Git:");
     expect(p).not.toContain("Plan and delegation");
+    expect(p).not.toContain("durable facts and decisions only");
   });
 
   it("drops editing for a read-only catalog and keeps shell when present", () => {

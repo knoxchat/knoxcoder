@@ -3,8 +3,6 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable */
-
 export const knoxGuiStringsZhSettings: Record<string, unknown> = {
 	"interfaceSettings": "界面设置",
 	"showSessionTabs": "显示会话标签",
@@ -44,7 +42,7 @@ export const knoxGuiStringsZhSettings: Record<string, unknown> = {
 	"recipesEnabled": "记住已验证的工作",
 	"recipesEnabledHint": "Knox 修改文件后，若构建或测试通过，就把这次工作保存为本地配方。配方只保存在本机，除非你分享检查点包。",
 	"recipesAutoReplay": "重复任务时复用配方",
-	"recipesAutoReplayHint": "关闭：只把配方作为提示给模型。询问：先显示具体改动并等待你确认。自动：不调用模型直接应用。每次复用后都会校验，校验失败会自动撤销。",
+	"recipesAutoReplayHint": "关闭：只把配方作为提示给模型。询问：先显示具体改动并等待你确认（列表几乎即时；点应用才会走真实工具和校验，可能要几秒）。自动：不调用模型直接应用。每次复用后都会校验，校验失败会自动撤销。",
 	"recipesAutoReplay_off": "关闭",
 	"recipesAutoReplay_ask": "先询问我",
 	"recipesAutoReplay_exact": "自动",

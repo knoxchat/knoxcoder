@@ -11,6 +11,8 @@ import { IKnoxGuiToolCall, KnoxPermissionMode, knoxGuiApplyToolPreset, nextPermi
 import { isAutonomousRunning, resolveAutonomousTool } from './stream.js';
 import { isSharedTurnActive } from './sharedTurn.js';
 import { KNOX_DENIED_TOOL_OUTPUT, KnoxGuiToolDecision, knoxGuiAskUserInvalidOutput, knoxGuiAskUserOutput, knoxGuiLocalAutoApprove, knoxGuiMissingToolOutput, knoxGuiToolIsSettled } from '../../../common/knoxGuiAgentRequest.js';
+import { collectLiveTaskPlan, formatExecutePlanPrompt } from '../../../common/knoxGuiPanels.js';
+import { knoxGuiT } from '../knoxGuiI18n.js';
 
 export function cycleToolPermission(controller: KnoxGuiController, name: string): void {
 	const tools = controller.store.state.tools;
@@ -282,7 +284,8 @@ export function patchTool(controller: KnoxGuiController, id: string, patch: Part
 }
 
 export function setPermissionMode(controller: KnoxGuiController, mode: KnoxPermissionMode): void {
-	controller.store.setPermissionMode(mode);
+	controller.workspacePermissionSaved = true;
+	controller.store.patch({ permissionMode: mode, permissionDefaultReason: undefined });
 	void controller.syncPendingTools();
 }
 
@@ -291,14 +294,25 @@ export function setPlanMode(controller: KnoxGuiController, planMode: boolean): v
 }
 
 export function executePlan(controller: KnoxGuiController): void {
+	const live = collectLiveTaskPlan(controller.store.state.history);
+	const prompt = formatExecutePlanPrompt(live);
 	controller.store.patch({ planMode: false });
-	void controller.submit('Execute the approved plan.');
+	if (!prompt) {
+		controller.messenger.post('showToast', [
+			'info',
+			knoxGuiT(controller.store.state.language, 'executePlanEmpty'),
+		]);
+		return;
+	}
+	controller.seedSessionDoom = true;
+	void controller.submit(prompt);
 }
 
 /** `ModeSelect.tsx` Shift+Tab: cycle, record a soul event, then re-evaluate pending calls. */
 export function cyclePermissionMode(controller: KnoxGuiController): void {
 	const next = nextPermissionMode(controller.store.state.permissionMode);
-	controller.store.setPermissionMode(next);
+	controller.workspacePermissionSaved = true;
+	controller.store.patch({ permissionMode: next, permissionDefaultReason: undefined });
 	controller.messenger.post('brain/recordSoulEvent', {
 		sessionId: controller.store.state.sessionId,
 		kind: 'tool_success',

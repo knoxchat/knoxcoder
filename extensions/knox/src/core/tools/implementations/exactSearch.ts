@@ -9,6 +9,7 @@ import {
 } from "../ripgrep";
 import { capChars } from "../truncateOutput";
 import { ToolImpl } from ".";
+import { toolFilesystem, toolSearch } from "../toolPorts";
 
 export interface ExactSearchArgs {
   query: string;
@@ -44,7 +45,7 @@ export const exactSearchImpl: ToolImpl = async (args: ExactSearchArgs, extras) =
   }
 
   const outputMode = normalizeOutputMode(args.outputMode);
-  const systems = await detectSystemsWorkspace(extras.ide);
+  const systems = await detectSystemsWorkspace(toolFilesystem(extras));
   const maxResults = resolveSearchMaxResults(
     typeof args.maxResults === "number" ? args.maxResults : undefined,
     systems,
@@ -71,7 +72,7 @@ export const exactSearchImpl: ToolImpl = async (args: ExactSearchArgs, extras) =
     outputMode,
   };
 
-  let content = await extras.ide.getSearchResults(args.query, searchOptions);
+  let content = await toolSearch(extras).getSearchResults(args.query, searchOptions);
   const { fileCount, matchCount } = summarizeSearchOutput(content, outputMode);
   const hitCap =
     maxResults > 0 &&

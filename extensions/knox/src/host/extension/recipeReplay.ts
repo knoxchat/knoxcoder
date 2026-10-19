@@ -167,13 +167,25 @@ async function openStore() {
 }
 
 /**
- * MC-82: a recipe id from the webview is not trusted. Project-scope recipes only apply in the
- * project they were captured in (same rule as `RecipeMatcher`).
+ * MC-82 / MC-90: a recipe id from the webview is not trusted. Project-scope recipes
+ * only apply in the project they were captured in (same rule as `RecipeMatcher`).
  */
+export async function recipeOutOfHostProject(
+  host: RecipeReplayHost,
+  recipe: Recipe,
+): Promise<boolean> {
+  const [{ recipeAppliesInProject }, { hashProjectId }] = await Promise.all([
+    import("core/context/memory/recipes/RecipeMatcher"),
+    import("core/context/memory/brain/projectScope"),
+  ]);
+  return !recipeAppliesInProject(
+    recipe,
+    hashProjectId(host.projectDir ?? host.workspaceDir),
+  );
+}
+
 async function outOfScope(host: RecipeReplayHost, recipe: Recipe): Promise<boolean> {
-  if (recipe.scope !== "project") return false;
-  const { hashProjectId } = await import("core/context/memory/brain/projectScope");
-  return recipe.projectId !== hashProjectId(host.projectDir ?? host.workspaceDir);
+  return recipeOutOfHostProject(host, recipe);
 }
 
 /** Adapt plans the user has been shown, keyed by recipe id; applied (not re-planned) on approval. */

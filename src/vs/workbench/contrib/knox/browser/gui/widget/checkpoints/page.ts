@@ -31,6 +31,7 @@ export function renderCheckpoints(widget: KnoxGuiWidget, body: HTMLElement, stat
 	const tabs = DOM.append(tabBar, DOM.$('.knox-gui-checkpoint-tabs'));
 	tabs.setAttribute('data-testid', 'checkpoint-panel-tabs');
 	tabs.setAttribute('role', 'tablist');
+	tabs.setAttribute('aria-label', t(state, 'checkpointGraph.title'));
 	for (const tab of CHECKPOINT_PANEL_TABS) {
 		widget.chromeButton(tabs, {
 			svg: CHECKPOINT_TAB_ICON[tab] as KnoxGuiSvgIcon,
@@ -38,10 +39,36 @@ export function renderCheckpoints(widget: KnoxGuiWidget, body: HTMLElement, stat
 			label: t(state, CHECKPOINT_TAB_I18N_KEY[tab]),
 			title: t(state, CHECKPOINT_TAB_I18N_KEY[tab]),
 			selected: state.checkpointView === tab,
+			role: 'tab',
 			extraClass: 'knox-gui-checkpoint-tab',
 			onClick: () => widget.controller.setCheckpointTab(tab),
 		});
 	}
+	widget.renderStore.add(DOM.addDisposableListener(tabs, 'keydown', (e: KeyboardEvent) => {
+		if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Home' && e.key !== 'End') {
+			return;
+		}
+		const order = CHECKPOINT_PANEL_TABS;
+		const index = order.indexOf(state.checkpointView);
+		if (index < 0) {
+			return;
+		}
+		e.preventDefault();
+		let next = index;
+		if (e.key === 'ArrowRight') {
+			next = (index + 1) % order.length;
+		} else if (e.key === 'ArrowLeft') {
+			next = (index - 1 + order.length) % order.length;
+		} else if (e.key === 'Home') {
+			next = 0;
+		} else {
+			next = order.length - 1;
+		}
+		widget.controller.setCheckpointTab(order[next]);
+		queueMicrotask(() => {
+			widget.root.querySelector<HTMLElement>('[data-testid="checkpoint-panel-tabs"] [role="tab"][aria-selected="true"]')?.focus();
+		});
+	}));
 	const panel = DOM.append(body, DOM.$('.knox-gui-checkpoint-panel'));
 	if (shell !== 'ready') {
 		widget.releaseCheckpointGraph();
@@ -132,9 +159,11 @@ function mountCheckpointGraph(widget: KnoxGuiWidget, panel: HTMLElement, state: 
 		widget.checkpointGraphRenderKey = key;
 	} else {
 		// Reused graph mount: the find input is created inside renderCheckpointGraph.
-		widget.checkpointGraphFindInput = host.querySelector('[data-testid="checkpoint-graph-find"] input') as HTMLInputElement | undefined; // eslint-disable-line no-restricted-syntax
+		widget.checkpointGraphFindInput = host.querySelector('[data-testid="checkpoint-graph-find"] input') as HTMLInputElement | undefined;
 	}
 	host.classList.toggle('hidden', state.checkpointView !== 'graph');
 	host.setAttribute('aria-hidden', state.checkpointView === 'graph' ? 'false' : 'true');
+	host.setAttribute('role', 'region');
+	host.setAttribute('aria-label', t(state, 'checkpointGraph.title'));
 	panel.appendChild(host);
 }

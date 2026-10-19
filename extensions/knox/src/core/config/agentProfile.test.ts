@@ -12,6 +12,8 @@ import {
   resolveAgentMaxSteps,
   resolveAgentProfile,
   resolveDoomLoopThreshold,
+  resolveUnattendedMaxSteps,
+  UNATTENDED_AGENT_MAX_STEPS,
   RUST_VERIFY_COMMAND,
   workspaceKindHints,
 } from "./agentProfile";
@@ -303,5 +305,19 @@ describe("resolveAgentLoopSettings", () => {
   it("treats maxSteps 0 as unlimited", () => {
     expect(resolveAgentMaxSteps(0, "systems")).toBeNull();
     expect(resolveDoomLoopThreshold(0, "systems")).toBeNull();
+  });
+
+  it("K-061 caps unattended loops unless agentMaxSteps is set", () => {
+    expect(resolveUnattendedMaxSteps(undefined, "default")).toBe(
+      UNATTENDED_AGENT_MAX_STEPS.default,
+    );
+    expect(resolveUnattendedMaxSteps(undefined, "rust")).toBe(
+      UNATTENDED_AGENT_MAX_STEPS.rust,
+    );
+    expect(resolveUnattendedMaxSteps(undefined, "systems")).toBe(
+      UNATTENDED_AGENT_MAX_STEPS.systems,
+    );
+    expect(resolveUnattendedMaxSteps(0, "systems")).toBeNull();
+    expect(resolveUnattendedMaxSteps(12, "default")).toBe(12);
   });
 });

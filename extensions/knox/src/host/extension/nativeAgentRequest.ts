@@ -17,6 +17,10 @@ import {
   setTurnContextInject,
 } from "core/context/turnContext";
 import {
+  applyTurnInjectToMessages,
+  classifyInjectedContext,
+} from "core/context/turnBudget";
+import {
   rustPolicyShouldEnable,
   setRustPolicyEnabled,
   setRustUserTask,
@@ -93,22 +97,20 @@ function messageText(message: ChatMessage | undefined): string {
   return "";
 }
 
-/** Same as the GUI `mergeInjectIntoMessages`: extend the leading system message. */
+/**
+ * Merge GUI/host `injectedContext` (memory, restore, recipe) under the Core
+ * turn-inject cap (K-072). Existing constructMessages injects are re-packed
+ * with the incoming blocks so pinned memory and the task plan win.
+ */
 export function mergeInjectIntoMessages(
   messages: ChatMessage[],
   injected: string | undefined,
 ): ChatMessage[] {
-  if (!injected?.trim()) {
-    return messages;
+  const extra = classifyInjectedContext(injected ?? "");
+  if (extra.length === 0) {
+    return applyTurnInjectToMessages(messages);
   }
-  const first = messages[0];
-  if (first?.role === "system") {
-    return [
-      { ...first, content: `${messageText(first)}\n\n${injected}` },
-      ...messages.slice(1),
-    ];
-  }
-  return [{ role: "system", content: injected }, ...messages];
+  return applyTurnInjectToMessages(messages, extra);
 }
 
 function injectSystemInstruction(messages: ChatMessage[], text: string): ChatMessage[] {

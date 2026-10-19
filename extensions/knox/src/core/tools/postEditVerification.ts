@@ -5,9 +5,10 @@ import { extractPatchFilePaths } from "./applyPatchFormat";
 /**
  * Shared helpers for post-edit verification after mutating tool calls.
  *
- * The actual diagnostic fix loop lives in the VS Code extension (needs LSP),
- * invoked via optional IDE.runPostEditVerification. Core decides *when*
- * verification should run so GUI chat and agent share one gate.
+ * K-082: Core `shouldVerifyTool` / `shouldSkipLspVerify` / `verifyCommand`
+ * is the only policy. Host `IDE.runPostEditVerification` is a thin adapter
+ * (VS Code diagnostics + optional `knox.llmComplete` fix) and must not
+ * re-decide C/asm vs LSP.
  */
 
 /** Languages where clangd/tsserver usually cannot be the compile oracle. */
@@ -209,8 +210,35 @@ export function extractVerifiedFilePath(
   return undefined;
 }
 
+/** Every workspace path a mutating edit wrote (patch files, generate_tests output). */
+export function extractMutatingWritePaths(
+  toolName: string,
+  args: unknown,
+): string[] {
+  if (!shouldVerifyTool(toolName)) {
+    return [];
+  }
+  if (toolName === "builtin_apply_patch") {
+    const parsed = parseToolArgs(args);
+    if (!parsed) {
+      return [];
+    }
+    const patch =
+      typeof parsed.patch === "string"
+        ? parsed.patch
+        : typeof parsed.diff === "string"
+          ? parsed.diff
+          : "";
+    return extractPatchFilePaths(patch);
+  }
+  const one = extractVerifiedFilePath(toolName, args);
+  return one ? [one] : [];
+}
+
 export interface PostEditVerificationParams {
   toolName: string;
   toolArguments: unknown;
   selectedModelTitle: string;
+  /** Core-resolved path so the host adapter does not re-run policy. */
+  filePath?: string;
 }

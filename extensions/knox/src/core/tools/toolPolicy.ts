@@ -10,7 +10,11 @@ import * as nodePath from "path";
 
 import { extractPatchFilePaths } from "./applyPatchFormat";
 import { BuiltInToolNames } from "./builtIn";
-import { detectDangerousCommand, extractWriteTargets } from "./commandGuard";
+import {
+  detectDangerousCommand,
+  detectWrittenScriptExec,
+  extractWriteTargets,
+} from "./commandGuard";
 import { isSensitiveSecretFile } from "../util/redactSecrets";
 import { ToolCallError, ToolCallErrorCode } from "./errors";
 import { matchGlob } from "./globMatch";
@@ -628,6 +632,13 @@ export function evaluateToolPolicy(params: {
   policy?: AgentToolPolicy | null;
   workspaceDirs?: string[];
   home?: string;
+  /** K-091: files this turn (or last N mutating tools) wrote. */
+  recentWrites?: string[];
+  /**
+   * Write-then-run: deny in Ask/Edits, ask in Auto. Omitted (middleware)
+   * stays ask so a user-approved Auto call is not hard-denied.
+   */
+  permissionMode?: "default" | "acceptEdits" | "fullAuto";
 }): PolicyDecision {
   const policy = mergeAgentToolPolicies(
     DEFAULT_AGENT_TOOL_POLICY,
@@ -671,6 +682,23 @@ export function evaluateToolPolicy(params: {
           action: "deny",
           reason: `Sandbox blocked dangerous command (${danger}). Allowlist it in agent policy to permit: ${cmd}`,
         };
+      }
+      const written = detectWrittenScriptExec(cmd, params.recentWrites ?? []);
+      if (written) {
+        if (
+          params.permissionMode &&
+          params.permissionMode !== "fullAuto"
+        ) {
+          return {
+            action: "deny",
+            reason: `Sandbox blocked ${written}: ${cmd}`,
+          };
+        }
+        set(
+          "ask",
+          `Command ${written} and needs confirmation: ${cmd}`,
+        );
+        strictAsk = true;
       }
       for (const target of extractWriteTargets(cmd)) {
         if (SYSTEM_WRITE_PATH_RE.test(target)) {
@@ -816,6 +844,8 @@ export function assertToolPolicyAllowed(params: {
   args: unknown;
   policy?: AgentToolPolicy | null;
   workspaceDirs?: string[];
+  recentWrites?: string[];
+  permissionMode?: "default" | "acceptEdits" | "fullAuto";
 }): void {
   const decision = evaluateToolPolicy(params);
   if (decision.action === "deny") {

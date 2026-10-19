@@ -6,18 +6,26 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import {
+	canonicalizeGitHubDownloadUrl,
+	createGitHubLatestFeedUrl,
 	createGitHubLatestReleaseUrl,
 	createGitHubReleaseByTagUrls,
 	githubReleaseToUpdate,
 	isCurrentVersionLatest,
+	isDirectReleaseAssetUrl,
+	isGitHubApiUrl,
+	isGitHubLatestFeedUrl,
 	isGitHubReleasePayload,
 	isGitHubUpdateUrl,
 	isInstallerPackageUrl,
 	normalizeReleaseVersion,
 	parseGitHubRepository,
+	platformToGitHubAssetQuery,
+	resolveForcedDownloadUrl,
 	selectGitHubReleaseAsset,
 	selectSquirrelFeedUrl,
 	squirrelFeedAssetName,
+	squirrelFeedToUpdate,
 	type IGitHubRelease,
 } from '../../common/githubReleaseUpdate.js';
 
@@ -56,6 +64,73 @@ suite('KnoxCoder GitHub auto-update', () => {
 		assert.strictEqual(isCurrentVersionLatest('1.138.2', 'v2.0.0-beta'), false);
 		assert.strictEqual(isCurrentVersionLatest('2.0.0-beta', 'v2.0.0-beta'), true);
 		assert.strictEqual(isCurrentVersionLatest('2.0.0-beta', 'v2.0.0'), false);
+		assert.strictEqual(isCurrentVersionLatest('2.2.0', 'v2.2.1'), false);
+		assert.strictEqual(isCurrentVersionLatest('2.2.1', 'v2.2.1'), true);
+		assert.strictEqual(isCurrentVersionLatest('2.2.1', 'v2.2.0'), true);
+	});
+
+	test('builds the unauthenticated latest-*.json feed URL', () => {
+		assert.strictEqual(
+			createGitHubLatestFeedUrl('https://github.com/knoxchat/knoxcoder', { platform: 'darwin', arch: 'arm64' }),
+			'https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-darwin-arm64.json',
+		);
+		assert.strictEqual(
+			createGitHubLatestFeedUrl('https://github.com/knoxchat/knoxcoder', { platform: 'win32', arch: 'x64', target: 'user' }),
+			'https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-win32-x64-user.json',
+		);
+		assert.strictEqual(
+			createGitHubLatestFeedUrl('https://github.com/knoxchat/knoxcoder', { platform: 'win32', arch: 'x64', target: 'system' }),
+			'https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-win32-x64-system.json',
+		);
+		assert.strictEqual(isGitHubLatestFeedUrl('https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-linux-x64.json'), true);
+		assert.strictEqual(isGitHubApiUrl('https://api.github.com/repos/knoxchat/knoxcoder/releases/latest'), true);
+		assert.strictEqual(isGitHubApiUrl('https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-linux-x64.json'), false);
+		assert.deepStrictEqual(platformToGitHubAssetQuery('win32-x64'), { platform: 'win32', arch: 'x64', target: 'system' });
+		assert.deepStrictEqual(platformToGitHubAssetQuery('win32-x64-user'), { platform: 'win32', arch: 'x64', target: 'user' });
+		assert.deepStrictEqual(platformToGitHubAssetQuery('linux-arm64'), { platform: 'linux', arch: 'arm64' });
+		assert.deepStrictEqual(platformToGitHubAssetQuery('darwin'), { platform: 'darwin', arch: 'x64' });
+		assert.deepStrictEqual(platformToGitHubAssetQuery('darwin-arm64'), { platform: 'darwin', arch: 'arm64' });
+	});
+
+	test('parses latest-*.json and rewrites a CI run tag onto v<version>', () => {
+		const update = squirrelFeedToUpdate({
+			url: 'https://github.com/knoxchat/knoxcoder/releases/download/v36-build.1/KnoxCoder-2.2.1-linux-x64.tar.gz',
+			name: '2.2.1',
+			version: 'abc1234',
+			productVersion: '2.2.1',
+			sha256hash: 'deadbeef',
+			timestamp: 1,
+		});
+
+		assert.deepStrictEqual(update, {
+			url: 'https://github.com/knoxchat/knoxcoder/releases/download/v2.2.1/KnoxCoder-2.2.1-linux-x64.tar.gz',
+			version: 'abc1234',
+			productVersion: '2.2.1',
+			sha256hash: 'deadbeef',
+			timestamp: 1,
+		});
+		assert.strictEqual(
+			canonicalizeGitHubDownloadUrl(
+				'https://github.com/knoxchat/knoxcoder/releases/download/v2.2.1/KnoxCoder-2.2.1-linux-x64.tar.gz',
+				'2.2.1',
+			),
+			'https://github.com/knoxchat/knoxcoder/releases/download/v2.2.1/KnoxCoder-2.2.1-linux-x64.tar.gz',
+		);
+	});
+
+	test('Download Update prefers the package URL over the releases page', () => {
+		const packageUrl = 'https://github.com/knoxchat/knoxcoder/releases/download/v2.2.1/KnoxCoder-2.2.1-linux-x64.tar.gz';
+		assert.strictEqual(isDirectReleaseAssetUrl(packageUrl), true);
+		assert.strictEqual(isDirectReleaseAssetUrl('https://github.com/knoxchat/knoxcoder/releases/latest'), false);
+		assert.strictEqual(isDirectReleaseAssetUrl('https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-linux-x64.json'), false);
+		assert.strictEqual(
+			resolveForcedDownloadUrl({ url: packageUrl }, 'https://github.com/knoxchat/knoxcoder/releases/latest'),
+			packageUrl,
+		);
+		assert.strictEqual(
+			resolveForcedDownloadUrl({ url: 'https://github.com/knoxchat/knoxcoder/releases/latest' }, 'https://github.com/knoxchat/knoxcoder/releases/latest'),
+			'https://github.com/knoxchat/knoxcoder/releases/latest',
+		);
 	});
 
 	test('picks the installer for the running KnoxCoder package', () => {

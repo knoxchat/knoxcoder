@@ -35,6 +35,7 @@ import {
   assertToolPolicyAllowed,
   type AgentToolPolicy,
 } from "./toolPolicy";
+import { recentTurnWrites } from "./turnWrites";
 import {
   parseBlockUntilMs,
   resolveAwaitTimeoutMs,
@@ -567,10 +568,6 @@ const TOOL_REQUIRED_PARAMS: Record<string, string[]> = {
   [BuiltInToolNames.Skill]: ["name"],
   [BuiltInToolNames.Lsp]: ["operation"],
   [BuiltInToolNames.Memory]: ["action"],
-  [BuiltInToolNames.MemoryGraph]: ["action"],
-  [BuiltInToolNames.MemorySessions]: ["action"],
-  [BuiltInToolNames.MemoryManage]: ["action"],
-  [BuiltInToolNames.MemoryLearn]: ["action"],
   [BuiltInToolNames.GenerateTests]: ["filepath"],
   [BuiltInToolNames.AskUser]: ["questions"],
   [BuiltInToolNames.GitCommit]: ["message"],
@@ -880,14 +877,15 @@ export async function executeToolWithMiddleware(
   try {
     const workspaceDirs =
       options?.workspaceDirs ??
-      (typeof extras.ide?.getWorkspaceDirs === "function"
-        ? await extras.ide.getWorkspaceDirs().catch(() => [])
-        : []);
+      (await (extras?.fs ?? extras?.ide)
+        ?.getWorkspaceDirs()
+        .catch(() => []) ?? []);
     assertToolPolicyAllowed({
       toolName,
       args,
       policy: options?.agentPolicy,
       workspaceDirs,
+      recentWrites: recentTurnWrites(extras.soul?.sessionId),
     });
   } catch (error) {
     metrics.failureCount++;

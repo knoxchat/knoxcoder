@@ -4,6 +4,9 @@ import { TASK_EXECUTION_PLAN_MARKER } from "../tools/planStore.js";
 import {
   DEVELOPMENT_LOOP_STATE_MARKER,
   LAST_BUILD_ERRORS_MARKER,
+  LAST_MUTATING_FILE_MARKER,
+  LAST_RECIPE_DECISION_MARKER,
+  LAST_USER_INTENT_MARKER,
   looksLikeVerboseBuildLog,
   summarizeBuildLog,
 } from "./loopState.js";
@@ -37,6 +40,9 @@ export const MEMORY_PROTECTED_MARKERS = [
   TASK_EXECUTION_PLAN_MARKER,
   DEVELOPMENT_LOOP_STATE_MARKER,
   LAST_BUILD_ERRORS_MARKER,
+  LAST_USER_INTENT_MARKER,
+  LAST_MUTATING_FILE_MARKER,
+  LAST_RECIPE_DECISION_MARKER,
   "verifyCommand:",
 ] as const;
 
@@ -351,6 +357,8 @@ export async function llmSummarizeConversation(
     "- Active job_id values and QEMU/GDB session descriptors",
     "- The current Task Execution Plan",
     "- Last failing test name",
+    "- Last user intent sentence and last mutated file path",
+    "- Last recipe decision line, if any",
     "- Open questions or unfinished work",
     "Do NOT invent facts. Do NOT include the full tool output.",
     `Stay under ~${options.maxSummaryTokens} tokens (~${maxChars} characters).`,

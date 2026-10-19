@@ -10,7 +10,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import type { AgentEvalResult, EvalCommandHandler } from "./harness";
+import { BuiltInToolNames } from "../tools/builtIn";
+import type { AgentEvalResult, EvalCommandHandler, EvalIdeHooks } from "./harness";
 
 export interface LiveTask {
   id: string;
@@ -18,6 +19,9 @@ export interface LiveTask {
   workspace: Record<string, string>;
   evaluateCommand?: EvalCommandHandler;
   maxSteps?: number;
+  /** K-100: chat-turn path should defer tools so K-064 autoload is exercised. */
+  autoload?: boolean;
+  ideHooks?: EvalIdeHooks;
   check: (result: AgentEvalResult) => { pass: boolean; reason?: string };
 }
 
@@ -75,6 +79,28 @@ function miniCTestRun(files: Record<string, string>) {
   const src = files["add.c"] ?? "";
   const pass = /return\s+a\s*\+\s*b/.test(src) && !/return\s+a\s*-\s*b/.test(src);
   return interceptedExit("make test", pass, "add_test: expected 5\nmake: *** [test] Error 1");
+}
+
+function gitBlameHooks(relPath: string): EvalIdeHooks {
+  return {
+    subprocess: async (command) =>
+      command.includes("git blame")
+        ? [`^abc (knox 2020-01-01 00:00:00 +0000 1) // ${relPath}`, ""]
+        : ["", "unexpected git command"],
+  };
+}
+
+function autoloadBlameAnd(
+  result: AgentEvalResult,
+  extra: (result: AgentEvalResult) => { pass: boolean; reason?: string },
+): { pass: boolean; reason?: string } {
+  const blamed = result.toolTrace.some((step) => step.name === BuiltInToolNames.GitBlame);
+  const rest = extra(result);
+  const pass = blamed && rest.pass;
+  return {
+    pass,
+    reason: pass ? undefined : `autoload=${blamed}${rest.reason ? ` ${rest.reason}` : ""}`,
+  };
 }
 
 function miniRustTestRun(files: Record<string, string>) {
@@ -223,6 +249,87 @@ export const LIVE_TASKS: LiveTask[] = [
           : `fixed=${fixed} testsOk=${testsOk} confirmed=${confirmed}`,
       };
     },
+  },
+  {
+    id: "node-autoload-blame",
+    prompt:
+      "Use builtin_git_blame on src/add.ts, then fix add() so it adds instead of subtracting.",
+    autoload: true,
+    ideHooks: gitBlameHooks("src/add.ts"),
+    workspace: { "src/add.ts": ADD_BUG, "src/other.ts": "export const x = 1;\n" },
+    check: (r) =>
+      autoloadBlameAnd(r, (result) => {
+        const ok =
+          /return a \+ b/.test(result.files["src/add.ts"] ?? "") &&
+          result.files["src/other.ts"] === "export const x = 1;\n";
+        return { pass: ok, reason: ok ? undefined : "add.ts not fixed or other.ts changed" };
+      }),
+  },
+  {
+    id: "mini-c-autoload-blame",
+    prompt:
+      "Use builtin_git_blame on add.c, then fix add() so make test passes. Do not change the test harness.",
+    autoload: true,
+    ideHooks: gitBlameHooks("add.c"),
+    workspace: {
+      Makefile: fixture("mini-c/Makefile"),
+      "add.c": fixture("mini-c/add.c"),
+      "add.h": fixture("mini-c/add.h"),
+      "main.c": fixture("mini-c/main.c"),
+    },
+    evaluateCommand: async (_args, files) => miniCTestRun(files),
+    check: (r) =>
+      autoloadBlameAnd(r, (result) => {
+        const src = result.files["add.c"] ?? "";
+        const fixed = /return\s+a\s*\+\s*b/.test(src) && !/return\s+a\s*-\s*b/.test(src);
+        const harness =
+          result.files["main.c"] === fixture("mini-c/main.c") &&
+          result.files["Makefile"] === fixture("mini-c/Makefile");
+        const last = [...result.toolTrace]
+          .reverse()
+          .find(
+            (t) =>
+              t.name === "builtin_run_terminal_command" || t.name === "builtin_build",
+          );
+        const confirmed = Boolean(last && /Exit: 0/.test(last.output));
+        const pass = fixed && harness && confirmed;
+        return {
+          pass,
+          reason: pass ? undefined : `fixed=${fixed} harness=${harness} confirmed=${confirmed}`,
+        };
+      }),
+  },
+  {
+    id: "mini-rust-autoload-blame",
+    prompt:
+      "Use builtin_git_blame on src/lib.rs, then fix add() so cargo test passes. Do not edit or ignore the test.",
+    autoload: true,
+    ideHooks: gitBlameHooks("src/lib.rs"),
+    workspace: {
+      "Cargo.toml": fixture("mini-rust/Cargo.toml"),
+      "src/lib.rs": fixture("mini-rust/src/lib.rs"),
+    },
+    evaluateCommand: async (_args, files) => miniRustTestRun(files),
+    check: (r) =>
+      autoloadBlameAnd(r, (result) => {
+        const src = result.files["src/lib.rs"] ?? "";
+        const fixed = /\ba\s*\+\s*b\b/.test(src) && !/\ba\s*-\s*b\b/.test(src);
+        const testsOk =
+          /assert_eq!\(\s*add\(\s*2\s*,\s*3\s*\)\s*,\s*5\s*\)/.test(src) &&
+          !/#\[ignore\]/.test(src);
+        const last = [...result.toolTrace]
+          .reverse()
+          .find(
+            (t) =>
+              t.name === "builtin_run_terminal_command" || t.name === "builtin_build",
+          );
+        const confirmed = Boolean(last && /Exit: 0/.test(last.output));
+        const pass = fixed && testsOk && confirmed;
+        return {
+          pass,
+          reason: pass ? undefined : `fixed=${fixed} testsOk=${testsOk} confirmed=${confirmed}`,
+        };
+      }),
   },
   {
     id: "secret-write-denied",

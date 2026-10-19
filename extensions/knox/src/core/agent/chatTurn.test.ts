@@ -433,13 +433,9 @@ describe("runChatTurn", () => {
       },
     });
     expect(result.stoppedReason).toBe("completed");
-    // Round 1 hit a not-yet-loaded tool and got the hint; search is handled in-loop.
-    expect(executed).toEqual([BuiltInToolNames.GitLog]);
+    // K-064: the first git_log call autoloads and runs; search is redundant.
+    expect(executed).toEqual([BuiltInToolNames.GitLog, BuiltInToolNames.GitLog]);
     expect(tools.map((x) => x.function.name)).toContain(BuiltInToolNames.GitLog);
-    const hint = result.messages.find(
-      (m) => m.role === "tool" && String(m.content).includes("not loaded yet"),
-    );
-    expect(hint).toBeTruthy();
   });
 
   it("denies writes in Plan mode without executing them", async () => {
@@ -489,6 +485,36 @@ describe("runChatTurn", () => {
     expect(result.stoppedReason).toBe("completed");
     const toolMsg = result.messages.find((m) => m.role === "tool");
     expect(String(toolMsg?.content ?? "")).toMatch(/leave Plan mode to execute/i);
+  });
+
+  it("K-061 unattended turns honor maxSteps", async () => {
+    const { emit } = collect();
+    let executed = 0;
+    const result = await runChatTurn({
+      sessionId: "s-unattended",
+      extras: extras([
+        toolRound("r1"),
+        toolRound("r2"),
+        [{ role: "assistant", content: "should not run" }],
+      ]),
+      messages: [{ role: "user", content: "go" }],
+      tools: [readTool],
+      compact: false,
+      maxSteps: 1,
+      permission: {
+        mode: "fullAuto",
+        toolSettings: {},
+        sessionAllowlist: [],
+        unattended: true,
+      },
+      emit,
+      executeTool: async () => {
+        executed += 1;
+        return okOutput;
+      },
+    });
+    expect(executed).toBe(1);
+    expect(result.stoppedReason).toBe("max_steps");
   });
 });
 

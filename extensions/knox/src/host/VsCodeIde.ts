@@ -1031,6 +1031,7 @@ class VsCodeIde implements IDE {
     toolName: string;
     toolArguments: unknown;
     selectedModelTitle: string;
+    filePath?: string;
   }): Promise<ContextItem[]> {
     const { runPostEditVerification } = await import(
       "./agent/postEditVerification"
@@ -1293,6 +1294,11 @@ class VsCodeIde implements IDE {
       ),
       deferTools: knox.get<boolean>("deferTools") !== false,
       enableCompositeTools: knox.get<boolean>("enableCompositeTools") === true,
+      rustAnalyzerAvailable: Boolean(
+        vscode.extensions.getExtension("rust-lang.rust-analyzer")?.isActive,
+      ),
+      permissionDefault: knox.get<"auto" | "ask" | "edits">("permissionDefault"),
+      trustedGitRemotes: knox.get<string[]>("trustedGitRemotes") ?? [],
       agentVerifyCommand: verifyCommand || undefined,
       agentVerifyMode: knox.get<"diagnostics" | "command" | "off">(
         "verifyMode",

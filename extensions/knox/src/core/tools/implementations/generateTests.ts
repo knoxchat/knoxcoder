@@ -1,6 +1,7 @@
 import * as path from "node:path";
 
 import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
+import { toolFilesystem } from "../toolPorts";
 import { getUriPathBasename } from "../../util/uri";
 import { t } from "../../i18n/index.js";
 
@@ -62,18 +63,19 @@ export const generateTestsImpl: ToolImpl = async (args, extras) => {
     throw new Error(t("missingRequiredParam", { param: "filepath" }));
   }
 
+  const fs = toolFilesystem(extras);
   const filepath = args.filepath.trim();
   const resolvedSourceUri = await inferResolvedUriFromRelativePath(
     filepath,
-    extras.ide,
+    fs,
   );
 
-  const exists = await extras.ide.fileExists(resolvedSourceUri);
+  const exists = await fs.fileExists(resolvedSourceUri);
   if (!exists) {
     throw new Error(t("fileDoesNotExist", { filepath }));
   }
 
-  const sourceCode = await extras.ide.readFile(resolvedSourceUri);
+  const sourceCode = await fs.readFile(resolvedSourceUri);
   const outputPathArg =
     typeof args.outputPath === "string" && args.outputPath.trim()
       ? args.outputPath.trim()
@@ -83,12 +85,12 @@ export const generateTestsImpl: ToolImpl = async (args, extras) => {
 
   const resolvedOutputUri = await inferResolvedUriFromRelativePath(
     outputPathArg,
-    extras.ide,
+    fs,
   );
 
   let existingTestCode = "";
-  if (await extras.ide.fileExists(resolvedOutputUri)) {
-    existingTestCode = await extras.ide.readFile(resolvedOutputUri);
+  if (await fs.fileExists(resolvedOutputUri)) {
+    existingTestCode = await fs.readFile(resolvedOutputUri);
   }
 
   const framework =
@@ -145,7 +147,7 @@ ${
     throw new Error(t("emptyTestGeneration"));
   }
 
-  await extras.ide.writeFile(resolvedOutputUri, testContent);
+  await fs.writeFile(resolvedOutputUri, testContent);
 
   const testCount = countTestCases(testContent);
   const basename = getUriPathBasename(resolvedOutputUri);

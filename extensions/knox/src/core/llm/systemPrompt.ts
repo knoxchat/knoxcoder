@@ -60,6 +60,8 @@ const SHELL = `Shell:
 
 const GIT = `Git: prefer builtin_git_status / builtin_git_diff / builtin_git_log / builtin_git_blame / builtin_git_commit / builtin_git_bisect over shell git. Never push or force via tools. Snapshots: builtin_workspace_checkpoint (restore always asks the user).`;
 
+const MEMORY = `Memory: durable facts and decisions only; do not store file contents.`;
+
 const PLAN = `Plan and delegation:
 - The injected Task Execution Plan is the work order, not a note. Do the [*] current step, then builtin_plan complete it (the next pending step becomes current). Never stop while remaining > 0: complete steps you finished, skip only what is obsolete.
 - For multi-step work create the plan first. It is re-injected every turn and survives compaction.
@@ -91,6 +93,9 @@ export function buildSystemPrompt(options: SystemPromptOptions = {}): string {
   }
   if (has("builtin_git_")) {
     sections.push(GIT);
+  }
+  if (has("builtin_memory")) {
+    sections.push(MEMORY);
   }
   if (has("builtin_plan", "builtin_task")) {
     sections.push(PLAN);

@@ -1,4 +1,5 @@
 import { inferResolvedUriFromRelativePath } from "../../util/ideUtils";
+import { toolEditor, toolFilesystem } from "../toolPorts";
 import { noteFileContent } from "./editFile";
 import { t } from "../../i18n/index.js";
 import {
@@ -43,12 +44,10 @@ export const createNewFileImpl: ToolImpl = async (args, extras) => {
   const template = args.template || 'none';
   
   // Resolve the file URI
+  const fs = toolFilesystem(extras);
   let resolvedFileUri: string;
   try {
-    resolvedFileUri = await inferResolvedUriFromRelativePath(
-      filepath,
-      extras.ide,
-    );
+    resolvedFileUri = await inferResolvedUriFromRelativePath(filepath, fs);
   } catch (error) {
     throw new Error(t("failedToResolveFilePath", { filepath, error: (error as Error).message }));
   }
@@ -56,7 +55,7 @@ export const createNewFileImpl: ToolImpl = async (args, extras) => {
   // Check if file already exists. Pi write semantics: creating an existing
   // file overwrites it instead of failing — that failure is what made models
   // retry with builtin_write_file / builtin_apply_patch.
-  const fileExists = await extras.ide.fileExists(resolvedFileUri);
+  const fileExists = await fs.fileExists(resolvedFileUri);
   const didOverwriteExisting = fileExists && !overwrite;
   
   // Determine content to write
@@ -124,7 +123,7 @@ export const createNewFileImpl: ToolImpl = async (args, extras) => {
 
   // Create the file
   try {
-    await extras.ide.writeFile(resolvedFileUri, contentToWrite);
+    await fs.writeFile(resolvedFileUri, contentToWrite);
     noteFileContent(resolvedFileUri, contentToWrite);
   } catch (error) {
     // If write failed due to missing directories, provide helpful error
@@ -140,7 +139,7 @@ export const createNewFileImpl: ToolImpl = async (args, extras) => {
   // Open the file if requested
   if (openAfterCreate) {
     try {
-      await extras.ide.openFile(resolvedFileUri);
+      await toolEditor(extras).openFile?.(resolvedFileUri);
     } catch (error) {
       // Log but don't fail if opening fails
       console.warn(t("createdButFailedToOpen", { filepath, error: (error as Error).message }));

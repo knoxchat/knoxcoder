@@ -22,8 +22,15 @@ export interface CompactionConfig {
   /** Maximum tokens for a single summary block (default: 300) */
   maxSummaryTokens: number;
 
-  /** Whether to use LLM for summarization (true) or heuristic (false) */
+  /**
+   * Allow LLM summarization when `llm.complete` exists (K-063).
+   * Short turns still stay heuristic unless droppable tool results exceed
+   * `llmSummarizationMinDroppableTools`.
+   */
   useLlmSummarization: boolean;
+
+  /** Droppable tool results required before an LLM summary call (default: 4). */
+  llmSummarizationMinDroppableTools: number;
 
   /** Max ms to wait for LLM summarization before falling back to heuristic (default: 8000) */
   llmSummarizationTimeoutMs: number;
@@ -32,6 +39,9 @@ export interface CompactionConfig {
   llmSummarizationMaxInputTokens: number;
 }
 
+/** Matches the agent-loop gate: no extra model call on short turns. */
+export const LLM_COMPACT_TOOL_THRESHOLD = 4;
+
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   enabled: true,
   maxHistoryRatio: 0.7,
@@ -39,7 +49,8 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   summarizationThreshold: 200,
   deduplicateFileContents: true,
   maxSummaryTokens: 300,
-  useLlmSummarization: false,
+  useLlmSummarization: true,
+  llmSummarizationMinDroppableTools: LLM_COMPACT_TOOL_THRESHOLD,
   llmSummarizationTimeoutMs: 8000,
   llmSummarizationMaxInputTokens: 6000,
 };

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { KNOX_CANCELED_TOOL_RESULT, KNOX_NO_RELEVANT_MEMORIES, KNOX_REDACTED_THINKING_TEXT, KNOX_TOOL_CALL_BASE_DELAY_MS, KNOX_TOOL_CALL_MAX_RETRIES, knoxGuiAccumulateChunk, knoxGuiAskUserInvalidOutput, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiFlushStreamText, knoxGuiIsCancelledToolError, knoxGuiIsRetryableToolError, knoxGuiShouldSplitForTools, knoxGuiToolFailureOutput, knoxGuiToolPreferredModel, knoxGuiToolRetryDelay, knoxGuiChunkText, knoxGuiChunkThinking, knoxGuiFallbackMessages, knoxGuiFormatAskUserAnswers, knoxGuiFormatTurnInject, knoxGuiHasUnsettledToolCalls, knoxGuiHistoryToCoreHistory, knoxGuiHistoryToSessionHistory, knoxGuiMemoryGoal, knoxGuiShouldContinueTurn, knoxGuiTurnDoomCalls, knoxGuiTurnMessages } from './knoxGuiAgentRequest.js';
+import { KNOX_CANCELED_TOOL_RESULT, KNOX_NO_RELEVANT_MEMORIES, KNOX_REDACTED_THINKING_TEXT, KNOX_TOOL_CALL_BASE_DELAY_MS, KNOX_TOOL_CALL_MAX_RETRIES, knoxGuiAccumulateChunk, knoxGuiAskUserInvalidOutput, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiExecuteDoomCalls, knoxGuiFlushStreamText, knoxGuiHistoryDoomCalls, knoxGuiIsCancelledToolError, knoxGuiIsRetryableToolError, knoxGuiShouldSplitForTools, knoxGuiToolFailureOutput, knoxGuiToolPreferredModel, knoxGuiToolRetryDelay, knoxGuiChunkText, knoxGuiChunkThinking, knoxGuiFallbackMessages, knoxGuiFormatAskUserAnswers, knoxGuiFormatTurnInject, knoxGuiHasUnsettledToolCalls, knoxGuiHistoryToCoreHistory, knoxGuiHistoryToSessionHistory, knoxGuiMemoryGoal, knoxGuiShouldContinueTurn, knoxGuiTurnDoomCalls, knoxGuiTurnMessages } from './knoxGuiAgentRequest.js';
 import { IKnoxGuiHistoryItem, IKnoxGuiToolCall } from './knoxGuiState.js';
 
 function call(id: string, status: IKnoxGuiToolCall['status'], output?: string): IKnoxGuiToolCall {
@@ -68,6 +68,9 @@ suite('Knox native agent request helpers', () => {
 		];
 		assert.deepStrictEqual(knoxGuiTurnDoomCalls(history), [{ name: 'builtin_read_file', args: '{"filepath":"a.ts"}', output: 'boom', ok: false }]);
 		assert.deepStrictEqual(knoxGuiTurnMessages(history), { userMessage: 'new', assistantMessage: '' });
+		assert.strictEqual(knoxGuiHistoryDoomCalls(history).length, 2);
+		assert.strictEqual(knoxGuiExecuteDoomCalls(history, true)[0]?.output, 'x');
+		assert.strictEqual(knoxGuiExecuteDoomCalls(history, false).length, 1);
 	});
 
 	test('turn inject adds the memory header and drops the empty sentinel', () => {

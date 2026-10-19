@@ -110,10 +110,13 @@ chmod/chown, Windows `del /s`, `rd /s`, `Remove-Item -Recurse`, `format`, `reg d
 Tests: `commandGuard.test.ts`, `commandGuard.bypass.test.ts` (bypass corpus, benign corpus, and
 robustness against adversarial input).
 
-**Known limits.** A denylist cannot be complete: an interpreter running attacker-written code
-(`python script.py` where the script was written earlier in the session) is not detected, and
-variable indirection (`X=rm; $X -rf /`) is not resolved. Product default is `fullAuto` (YOLO).
-Switch to `default` (Ask) or `acceptEdits` for untrusted work so writes and shell prompt. `fullAuto`
+**Known limits.** A denylist cannot be complete. Closed cheap cases (K-091): one-hop
+`VAR=cmd; $VAR …` / `eval "$VAR"` for the existing destructive patterns, and an interpreter
+(`sh`/`bash`/`python`/`node`) running a workspace path this turn (or the last N mutating
+tools) just wrote — deny in Ask/Edits, ask in Auto. Still open: encoded scripts, `make`
+recipes, multi-hop indirection, and scripts written outside the recent-write window.
+Product default is `fullAuto` (YOLO) except fresh clones (K-090). Switch to `default`
+(Ask) or `acceptEdits` for untrusted work so writes and shell prompt. `fullAuto`
 on an untrusted repo should be treated as a disposable environment.
 
 ## Redaction sinks
@@ -140,7 +143,7 @@ default). Mitigations: verified recipes only; writes and commands use the normal
 guard, path boundary, review mode); relative paths only, no traversal; commands that use the network, carry
 secrets, or fail the guard are refused; no delete or binary replay; pre-replay checkpoint and automatic restore when
 the re-run check fails; quarantine on revert; imported recipes arrive as candidates and are never auto-replayed.
-Still open: a dedicated security review of replay (MC-82).
+Cross-project recipe ids from the webview are refused (MC-82 / MC-90). Still open: a dedicated security review of replay.
 
 ## Accepted risks and open items
 

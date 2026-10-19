@@ -13,7 +13,7 @@ import { knoxGuiResolveProfileId, knoxGuiStartupSession } from '../../../common/
 import { agentProfileDefaults, agentProfileSharedConfig, formatPolicyLines, mergeReasoningEffortPrefs, parseYamlRules } from '../../../common/knoxGuiOverlays.js';
 import { KNOX_GUI_HEARTBEAT_MS, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { mergeContextProvidersWithDefaults, mergeSlashCommandsWithBuiltins } from '../../../common/knoxGuiInput.js';
-import { IKnoxGuiContextProvider, IKnoxGuiModel, IKnoxGuiSlashCommand, IKnoxGuiState, IKnoxGuiTool, KnoxGuiLanguage, KnoxModelRole, MODEL_ROLES, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiContextProvider, IKnoxGuiModel, IKnoxGuiSlashCommand, IKnoxGuiState, IKnoxGuiTool, KnoxGuiLanguage, KnoxModelRole, KnoxPermissionDefaultReason, KnoxPermissionMode, MODEL_ROLES, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
 
 export async function setup(controller: KnoxGuiController): Promise<void> {
 	if (controller.store.state.lockedRoute === KnoxGuiRoute.CheckpointGraph) {
@@ -88,7 +88,7 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 	const models = modelsFromUnknown(config.models);
 	const modelsByRoleRaw = asRecord(config.modelsByRole);
 	const selectedRaw = asRecord(config.selectedModelByRole);
-	const modelsByRole = { chat: [], edit: [], apply: [], viewRead: [], realTimeSearch: [] } as Record<KnoxModelRole, IKnoxGuiModel[]>;
+	const modelsByRole: Record<KnoxModelRole, IKnoxGuiModel[]> = { chat: [], edit: [], apply: [], viewRead: [], realTimeSearch: [] };
 	const selectedModelByRole: Partial<Record<KnoxModelRole, string>> = {};
 	for (const role of MODEL_ROLES) {
 		modelsByRole[role] = modelsFromUnknown(modelsByRoleRaw?.[role]);
@@ -177,6 +177,15 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 			existingSettings[tool.name] = 'allowedWithoutPermission';
 		}
 	}
+	const sessionPermission = asRecord(experimental?.sessionPermission);
+	const sessionMode = sessionPermission?.mode;
+	const sessionReason = sessionPermission?.reason;
+	const applyHeuristic = !controller.workspacePermissionSaved
+		&& !controller.sessionPermissionApplied
+		&& (sessionMode === 'default' || sessionMode === 'acceptEdits' || sessionMode === 'fullAuto');
+	if (applyHeuristic) {
+		controller.sessionPermissionApplied = true;
+	}
 	controller.store.patch({
 		models,
 		modelsByRole,
@@ -220,6 +229,12 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 		},
 		configError: errors,
 		fatalConfig: errors.some(error => error.fatal),
+		...(applyHeuristic
+			? {
+				permissionMode: sessionMode as KnoxPermissionMode,
+				permissionDefaultReason: (typeof sessionReason === 'string' ? sessionReason : 'fresh_clone') as KnoxPermissionDefaultReason,
+			}
+			: {}),
 	});
 	if (top && 'profileId' in top) {
 		selectProfile(controller, top.profileId ? String(top.profileId) : null);
@@ -231,7 +246,7 @@ export function applyProfiles(controller: KnoxGuiController, payload: Record<str
 	const rec = asRecord(payload) ?? {};
 	const profiles = asArray(rec.profiles).map(asRecord).filter((profile): profile is Record<string, unknown> => Boolean(profile));
 	controller.availableProfiles = profiles;
-	const requested = rec.selectedProfileId != null && rec.selectedProfileId !== '' ? String(rec.selectedProfileId) : null;
+	const requested = rec.selectedProfileId !== undefined && rec.selectedProfileId !== null && rec.selectedProfileId !== '' ? String(rec.selectedProfileId) : null;
 	selectProfile(controller, requested);
 }
 

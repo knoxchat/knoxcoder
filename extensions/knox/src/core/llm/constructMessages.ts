@@ -6,6 +6,10 @@ import { formatCodebaseCardInject } from "../context/codebaseCard";
 import { formatRustPolicyInject } from "../context/rustPolicy";
 import { formatSerialContextInject } from "../context/serialContext";
 import { formatTurnContextInject } from "../context/turnContext";
+import {
+  applyTurnBudget,
+  type TurnInjectBlock,
+} from "../context/turnBudget";
 import { buildSystemPrompt, type SystemPromptOptions } from "./systemPrompt";
 
 /**
@@ -91,45 +95,33 @@ export function constructMessages(
 
   // Prompt-cache friendly order: stable blocks first (byte-identical across turns),
   // volatile blocks (turn context, plan, serial tail) last so they never invalidate the prefix.
+  const injects: TurnInjectBlock[] = [];
   const codebaseCard = formatCodebaseCardInject();
   if (codebaseCard) {
-    msgs.push({
-      role: "system",
-      content: codebaseCard,
-    });
+    injects.push({ kind: "cards", text: codebaseCard });
   }
-
   const rustPolicy = formatRustPolicyInject();
   if (rustPolicy) {
-    msgs.push({
-      role: "system",
-      content: rustPolicy,
-    });
+    injects.push({ kind: "cards", text: rustPolicy });
   }
-
   const turnContext = formatTurnContextInject();
   if (turnContext) {
-    msgs.push({
-      role: "system",
-      content: turnContext,
-    });
+    injects.push({ kind: "turn_context", text: turnContext });
   }
-
   const plan =
     formatPlanInject(sessionId) ||
     formatPlanInjectFromHistory(filteredHistory, sessionId);
   if (plan) {
-    msgs.push({
-      role: "system",
-      content: plan,
-    });
+    injects.push({ kind: "plan", text: plan });
   }
-
   const serial = formatSerialContextInject();
   if (serial) {
+    injects.push({ kind: "cards", text: serial });
+  }
+  for (const block of applyTurnBudget(injects)) {
     msgs.push({
       role: "system",
-      content: serial,
+      content: block.text,
     });
   }
 

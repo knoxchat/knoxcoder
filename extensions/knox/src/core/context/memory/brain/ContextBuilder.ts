@@ -1,9 +1,9 @@
 import { omitJevToolDenialLines } from "../../../jev/toolGate.js";
 import { BrainStore } from "./BrainStore.js";
-import { Hippocampus } from "./regions/Hippocampus.js";
 import { getContextAssemblyLimits, getContextMaxTokens, getGoalBudgetTokens, getMemoryConfig, getMemoryInjectHardCap, getModeSettings } from "./memoryConfigAccess.js";
+import { getProjectSessionIds } from "./projectScope.js";
 import { resolveRetrievalQuery, contentWords } from "./RetrievalQuery.js";
-import type { FusionResult } from "./RetrievalFusion.js";
+import { RetrievalFusion, type FusionResult } from "./RetrievalFusion.js";
 import type { BuildContextInput, BuildContextResult, InjectedMemoryItem, MemoryMode, SemanticMemory } from "./types.js";
 import { ContextSections, getBrainManager, SUMMARY_INJECT_MIN_OVERLAP, type ContextSection } from "./ContextSections.js";
 
@@ -22,20 +22,15 @@ export {
  * - Relevance-ranked insertion
  * - Prevents duplication between current session and memory recall
  *
- * This is the key function that enables "unlimited context window" —
- * given any user message, it searches across ALL sessions and memory types
- * to find the most relevant context within the token budget.
+ * Token budget is capped (K-072: 12k inject via TurnBudget / memory inject
+ * hard cap). Empty categories are not reserved.
  */
 export class ContextBuilder {
   /**
    * Build a comprehensive context block from all memory types.
    *
-   * Token budget allocation:
-   *   40% — Semantic memory (facts, decisions, patterns)
-   *   25% — Episodic memory (relevant past conversations)
-   *   15% — Knowledge graph (related entities and relationships)
-   *   10% — Procedures (relevant workflows)
-   *   10% — Learning patterns (suggested approaches)
+   * Token budget: leftover goes to the next non-empty category. Empty
+   * graph / procedures / patterns no longer reserve 10–15% (K-072).
    */
   static async build(input: BuildContextInput): Promise<string> {
     const result = await ContextBuilder.buildDetailed(input);
@@ -76,13 +71,20 @@ export class ContextBuilder {
     let fusionProvided = input.fusion_hits !== undefined;
     if (!fusionProvided && hasLexicalQuery) {
       try {
-        fusionHits = await Hippocampus.fusionRetrieve({
-          message: input.message,
-          session_id: input.session_id,
-          retrieval_query: searchQuery,
+        const projectSessionIds = await getProjectSessionIds(input.session_id);
+        const currentTaskId = input.session_id
+          ? (await BrainStore.getOpenTask(input.session_id))?.id ?? null
+          : null;
+        fusionHits = await RetrievalFusion.search({
+          query: searchQuery,
+          sessionId: input.session_id,
           limit: Math.max(mode.semanticLimit, config.retrieval_top_k),
           minScore: config.retrieval_threshold,
           includeEpisodic: mode.includeEpisodic,
+          projectSessionIds,
+          intent: retrieval.intent,
+          originalQuery: input.message,
+          currentTaskId,
         });
       } catch {
         fusionHits = [];
@@ -95,8 +97,7 @@ export class ContextBuilder {
       fusionById.set(`${hit.type}:${hit.id}`, hit);
     }
 
-    // Dynamic budget sizing based on query complexity
-    const budget = ContextSections.computeBudget(input.message, contentBudget);
+    const MIN_SECTION_TOKENS = 8;
 
     // C_immediate — working memory filtered by retrieval query (REL-06)
     let wmContext: string | null = null;
@@ -138,11 +139,12 @@ export class ContextBuilder {
       }
     }
 
-    // C_retrieved — semantic memory
+    // C_retrieved — semantic memory (uses leftover budget; empty later categories
+    // do not reserve a fixed 10–15%).
     const semantic = await ContextSections.buildSemanticContext(
       searchQuery,
       input.session_id,
-      budget.semantic,
+      tokenBudget,
       mode,
       {
         fusionHits: fusionHits.filter((h) => h.type === "semantic"),
@@ -158,11 +160,11 @@ export class ContextBuilder {
     }
 
     // 2. Episodic memory
-    if (mode.includeEpisodic) {
+    if (mode.includeEpisodic && tokenBudget >= MIN_SECTION_TOKENS) {
       const episodic = await ContextSections.buildEpisodicContext(
         searchQuery,
         input.session_id,
-        budget.episodic,
+        tokenBudget,
         mode,
         {
           fusionHits: fusionHits.filter((h) => h.type === "episodic"),
@@ -179,10 +181,15 @@ export class ContextBuilder {
     }
 
     // 3. Knowledge graph
-    if (mode.includeGraph && input.include_graph !== false && config.graph_enabled) {
+    if (
+      mode.includeGraph &&
+      input.include_graph !== false &&
+      config.graph_enabled &&
+      tokenBudget >= MIN_SECTION_TOKENS
+    ) {
       const graph = await ContextSections.buildGraphContext(
         searchQuery,
-        budget.graph,
+        tokenBudget,
       );
       if (graph.text) {
         sections.push({ text: graph.text, priority: 1, ageRank: sectionAge++ });
@@ -193,10 +200,15 @@ export class ContextBuilder {
     }
 
     // 4. Procedures
-    if (mode.includeProcedures && input.include_procedures !== false && config.learning_enabled) {
+    if (
+      mode.includeProcedures &&
+      input.include_procedures !== false &&
+      config.learning_enabled &&
+      tokenBudget >= MIN_SECTION_TOKENS
+    ) {
       const procs = await ContextSections.buildProcedureContext(
         searchQuery,
-        budget.procedures,
+        tokenBudget,
       );
       if (procs.text) {
         sections.push({ text: procs.text, priority: 1, ageRank: sectionAge++ });
@@ -207,14 +219,20 @@ export class ContextBuilder {
     }
 
     // C_retrieved — learning patterns
-    if (mode.includePatterns && input.include_patterns !== false && config.learning_enabled) {
+    if (
+      mode.includePatterns &&
+      input.include_patterns !== false &&
+      config.learning_enabled &&
+      tokenBudget >= MIN_SECTION_TOKENS
+    ) {
       const patterns = await ContextSections.buildPatternContext(
         searchQuery,
-        budget.patterns,
+        tokenBudget,
       );
       if (patterns.text) {
         sections.push({ text: patterns.text, priority: 1, ageRank: sectionAge++ });
         parts.push(patterns.text);
+        tokenBudget -= ContextSections.estimateTokens(patterns.text);
         items.push(...patterns.items);
       }
     }

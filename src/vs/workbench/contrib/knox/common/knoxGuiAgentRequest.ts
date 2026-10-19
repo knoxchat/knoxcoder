@@ -359,6 +359,25 @@ export function knoxGuiTurnDoomCalls(history: readonly IKnoxGuiHistoryItem[]): I
 		.map(call => knoxGuiDoomCall(call));
 }
 
+/** All settled calls in the session — Execute after Plan must not forget explore greps (K-066). */
+export function knoxGuiHistoryDoomCalls(history: readonly IKnoxGuiHistoryItem[]): IKnoxGuiDoomLoopCall[] {
+	const calls: IKnoxGuiToolCall[] = [];
+	for (const item of history) {
+		if (item.role !== 'assistant') {
+			continue;
+		}
+		calls.push(...(item.toolCalls ?? []));
+	}
+	return calls.filter(call => knoxGuiToolIsSettled(call)).map(call => knoxGuiDoomCall(call));
+}
+
+export function knoxGuiExecuteDoomCalls(
+	history: readonly IKnoxGuiHistoryItem[],
+	seedSession: boolean,
+): IKnoxGuiDoomLoopCall[] {
+	return seedSession ? knoxGuiHistoryDoomCalls(history) : knoxGuiTurnDoomCalls(history);
+}
+
 /** Current-turn calls for the host's post-turn tool summary. */
 export function knoxGuiTurnTools(history: readonly IKnoxGuiHistoryItem[]): Array<{ name: string; status: KnoxToolStatus; args?: unknown }> {
 	return knoxGuiTurnToolCalls(history).map(call => ({ name: call.name, status: call.status, args: call.parsedArgs ?? call.arguments }));

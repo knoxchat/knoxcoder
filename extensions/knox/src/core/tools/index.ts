@@ -65,6 +65,7 @@ export {
   isLspWeakLanguagePath,
   lspVerifySkippedItem,
   extractVerifiedFilePath,
+  extractMutatingWritePaths,
   parseToolArgs,
 } from "./postEditVerification";
 export type { PostEditVerificationParams } from "./postEditVerification";
@@ -125,8 +126,7 @@ export const allTools = [
 
 /**
  * Opt-in catalog: every entry MUST have a `callTool` implementation
- * (`hasToolImplementation`). Unimplemented advanced defs live in
- * `unimplementedAdvancedTools` and are intentionally excluded.
+ * (`hasToolImplementation`). Deleted stub defs stay excluded.
  */
 export const allAvailableTools = [
   ...allTools,

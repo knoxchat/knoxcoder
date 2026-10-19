@@ -14,6 +14,7 @@ import {
 import { ContextItem } from "../..";
 import { ToolImpl } from ".";
 import { ToolCallError, ToolCallErrorCode } from "../errors";
+import { toolFilesystem, toolTerminal } from "../toolPorts";
 import {
   formatTerminalResult,
   getShellSession,
@@ -254,7 +255,7 @@ export const runTerminalCommandImpl: ToolImpl = async (args, extras) => {
     args.block_until_ms ?? args.timeout_ms ?? args.timeout,
   );
 
-  const ideInfo = await extras.ide.getIdeInfo();
+  const ideInfo = await toolTerminal(extras).getIdeInfo();
 
   if (ideInfo.remoteName === "local" || ideInfo.remoteName === "") {
     try {
@@ -262,7 +263,7 @@ export const runTerminalCommandImpl: ToolImpl = async (args, extras) => {
         throw cancelledError();
       }
 
-      const workspaceDirs = await extras.ide.getWorkspaceDirs();
+      const workspaceDirs = await toolFilesystem(extras).getWorkspaceDirs();
       const workspaceRoot = toFsPath(workspaceDirs[0]);
       const key = workspaceShellKey(workspaceDirs);
       const session = getShellSession(key, workspaceRoot);
@@ -401,7 +402,11 @@ export const runTerminalCommandImpl: ToolImpl = async (args, extras) => {
     throw cancelledError();
   }
 
-  await extras.ide.runCommand(command);
+  const runRemote = toolTerminal(extras).runCommand;
+  if (!runRemote) {
+    throw new Error("Terminal runCommand is unavailable on this host.");
+  }
+  await runRemote(command);
   return [
     {
       name: "Terminal",

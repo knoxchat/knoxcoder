@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { intentFingerprint } from "./intentFingerprint.js";
-import { MIN_MATCH_SCORE, REPLAY_THRESHOLD, bestMatch, matchRecipes, trackRecordFactor } from "./RecipeMatcher.js";
+import { MIN_MATCH_SCORE, REPLAY_THRESHOLD, bestMatch, matchRecipes, recipeAppliesInProject, trackRecordFactor } from "./RecipeMatcher.js";
 import type { Recipe } from "./types.js";
 
 let n = 0;
@@ -55,6 +55,11 @@ describe("RecipeMatcher (MC-21)", () => {
   it("does not cross projects", () => {
     const r = recipe("create Card component", { projectId: "other" });
     expect(matchRecipes({ message: "create Card component", recipes: [r], projectId: "p1" })).toEqual([]);
+    expect(recipeAppliesInProject(r, "p1")).toBe(false);
+    expect(recipeAppliesInProject(r, "other")).toBe(true);
+    expect(recipeAppliesInProject({ ...r, scope: "global" }, "p1")).toBe(true);
+    expect(recipeAppliesInProject(r, undefined)).toBe(false);
+    expect(matchRecipes({ message: "create Card component", recipes: [recipe("create Card component")] })).toEqual([]);
   });
 
   it("a different slot value is similar but not replayable", () => {

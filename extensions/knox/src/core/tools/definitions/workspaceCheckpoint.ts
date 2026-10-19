@@ -22,7 +22,7 @@ Use this when the user asks to rewind files, mark a restore point, or compare to
 - restore: rewind files to a checkpoint id (always asks the user; never auto-run). Set rewind_memory=true to also roll back Memory Brain and later episodic turns.
 - delete: remove a checkpoint (always asks the user; never auto-run)
 
-Prefer this over shell git reset for agent-created snapshots. Memory-only rollback is builtin_memory_manage.`,
+Prefer this over shell git reset for agent-created snapshots. Memory Brain entries are builtin_memory, not this tool.`,
     parameters: {
       type: "object",
       required: ["action"],

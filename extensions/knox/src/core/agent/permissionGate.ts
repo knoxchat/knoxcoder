@@ -6,6 +6,7 @@
 
 import { ToolCallError, ToolCallErrorCode } from "../tools/errors";
 import type { AgentToolPolicy } from "../tools/toolPolicy";
+import { recentTurnWrites } from "../tools/turnWrites";
 import { waitForAutonomousToolApproval } from "./autonomousApproval";
 import {
   isHardPolicyDeny,
@@ -45,12 +46,15 @@ export async function resolveToolPermission(
   options: ResolveToolPermissionOptions,
 ): Promise<"allow" | "deny"> {
   const { permission, toolName, args, abortSignal } = options;
+  const recentWrites = recentTurnWrites(options.sessionId);
   const policyInput = {
     toolName,
     args,
     policy: permission.policy,
     policyFromRules: permission.policyFromRules,
     workspaceDirs: permission.workspaceDirs,
+    permissionMode: permission.mode,
+    recentWrites,
   };
   if (isHardPolicyDeny(policyInput)) {
     return "deny";

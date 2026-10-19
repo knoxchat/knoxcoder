@@ -3,6 +3,7 @@ import { fetchwithRequestOptions } from "knoxdev-package/fetch";
 import {
   detectWorkspaceKindFromIde,
   resolveAgentLoopSettings,
+  resolveUnattendedMaxSteps,
   workspaceKindHints,
 } from "../config/agentProfile";
 import { BrainManager } from "../context/memory/brain/BrainManager";
@@ -12,6 +13,7 @@ import { resolveAutonomousToolApproval } from "../agent/autonomousApproval";
 import { DEFAULT_PERMISSION_MODE } from "../agent/permissions";
 import { getWorkspaceHookRunner } from "../hooks/workspaceHooks";
 import { callTool } from "../tools/callTool";
+import { withIdePorts } from "../tools/toolPorts";
 import { executeToolWithSoulHooks } from "../tools/mutatingToolHooks";
 import { resolveConfigAgentPolicy } from "../tools/toolPolicy";
 import { stagedDiskNotice, wrapIdeForStaging } from "../tools/stagedEdits";
@@ -82,7 +84,7 @@ export function registerBrainLoopHandlers(core: CoreRuntime): void {
     const loopLlm = chatLlm;
     const extras = loopLlm
       ? {
-          ide: toolIde,
+          ...withIdePorts(toolIde),
           llm: loopLlm,
           fetch: ((url: string, init?: RequestInit) =>
             fetchwithRequestOptions(
@@ -187,7 +189,7 @@ export function registerBrainLoopHandlers(core: CoreRuntime): void {
                       tool,
                       args,
                       {
-                        ide: toolIde,
+                        ...withIdePorts(toolIde),
                         llm: loopLlm,
                         fetch: extras.fetch,
                         tool,
@@ -213,7 +215,10 @@ export function registerBrainLoopHandlers(core: CoreRuntime): void {
                     ]
                   : items;
               },
-              maxStepsPerIteration: loopSettings.maxSteps,
+              maxStepsPerIteration: resolveUnattendedMaxSteps(
+                config?.experimental?.agentMaxSteps,
+                loopSettings.profile,
+              ),
               doomLoopThreshold: loopSettings.doomLoopThreshold,
               permission: {
                 mode: msg.data.permissionMode ?? DEFAULT_PERMISSION_MODE,

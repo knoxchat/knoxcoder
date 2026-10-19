@@ -3,12 +3,39 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { KNOX_VIEW_CONTAINER_ID, KNOX_VIEW_ID } from '../../../common/knox.js';
+import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+
+const knoxViewIcon = registerIcon('knox-view-icon', Codicon.commentDiscussionSparkle, localize('knoxViewIcon', 'View icon of the Knox chat view.'));
+
+/**
+ * Built-in Secondary Side Bar container. Keep the `workbench.view.extension.knoxchat`
+ * id so layouts saved from the old `viewsContainers.secondarySidebar` contribution
+ * still restore. Registering here avoids `package.json` using that contribution
+ * key, which older vscode-extensions JSON schemas reject.
+ */
+Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+	id: KNOX_VIEW_CONTAINER_ID,
+	title: localize2('knox', 'Knox'),
+	icon: knoxViewIcon,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [KNOX_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
+	hideIfEmpty: false,
+	rejectAddedViews: true,
+	lockToDefaultLocation: true,
+	exclusiveAtLocation: true,
+	alwaysUseContainerInfo: true,
+	order: 1,
+}, ViewContainerLocation.AuxiliaryBar, { isDefault: true });
 
 /**
  * Keep Knox in the Secondary Side Bar even if a previous session cached it

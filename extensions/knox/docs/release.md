@@ -2,12 +2,12 @@
 
 ## Version scheme
 
-- Product / npm: root `package.json` version. Today `2.2.0`.
+- Product / npm: root `package.json` version. Today `2.2.1`.
 - `build/lib/packageVersion.ts`: `linuxPackageVersion("2.0.0")` is unchanged; `2.0.0-beta` becomes `2.0.0~beta` so Debian/RPM sort the beta before stable.
 - Windows VersionInfo uses `numericPackageVersion` (strips `-beta` → `2.0.0`).
 - `extensions/knox/package.json` stays `10.0.0` on purpose: it is a VS Code **system extension**, same dummy version as Git, TypeScript, and the other in-tree extensions. The product version is what users see.
 
-Product version is `2.2.0`. Further bumps go through `scripts/ci/release-check.mjs`.
+Product version is `2.2.1`. Further bumps go through `scripts/ci/release-check.mjs`.
 
 ## Cutting the release
 
@@ -68,9 +68,11 @@ sudo rpm -Uvh KnoxCoder-2.0.0-*.rpm
 
 ## GitHub auto-update
 
-`scripts/ci/generate-update-metadata.mjs` writes `quality=stable` and `sha256hash` on `latest-*.json`. After tagging `v2.0.0`, run **Build desktop apps** by hand (Actions → Run workflow, tick `publish_release`) — tagging does not start a build:
+Clients poll `https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-<platform>-<arch>[-<target>].json` (no API token). That JSON’s `productVersion` is compared with the running app; `url` is the package that **Download Update** fetches; Windows checks `sha256hash`. `/releases/latest` is the API fallback when the JSON is missing.
 
-1. Confirm the draft Release contains installers, `SHA256SUMS`, and the `latest-*.json` files.
-2. Publish the Release (not draft) so `latest` points at `2.0.0`.
-3. On each OS, run a `2.0.0-beta` install and wait for the update prompt to `2.0.0`.
+`scripts/ci/generate-update-metadata.mjs` always stamps download URLs with `v<package.json version>` (never `v{run}-build.{attempt}`). After tagging `v2.2.1`, run **Build desktop apps** by hand (Actions → Run workflow, tick `publish_release`) — tagging does not start a build. The draft attaches to `v2.2.1` even if you selected `main` as the workflow ref:
+
+1. Confirm the draft Release contains installers, `SHA256SUMS`, and the `latest-*.json` files, and that each JSON `url` is under `/releases/download/v2.2.1/`.
+2. Publish the Release (not draft, not prerelease) so `latest` points at `2.2.1`.
+3. On each OS, run a `2.2.0` install and wait for the update prompt to `2.2.1`, then **Download Update** (Linux should download the tar.gz/deb, not open the releases HTML page).
 4. Attach checksums: the draft-release job already uploads `SHA256SUMS`; paste the sums into the Release notes.

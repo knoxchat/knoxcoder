@@ -30,9 +30,12 @@ import { composerImeActive, stepComposerUndo } from './widget/composer.js';
 import { stepHistoryUndo } from './widget/chat/historyEditor.js';
 import { isNativeTextInput, KnoxEditCommand, registerKnoxEditHost, selectAllContents } from './widget/editCommands.js';
 import { KnoxGuiCheckpointsFacade } from './widget/facade/checkpointsFacade.js';
+import { t } from './widget/t.js';
 
 export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 	readonly root: HTMLElement;
+	// Reassigned when the checkpoint graph / page swaps the active store.
+	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
 	listenerStore: DisposableStore;
 	readonly themeStyleEl: HTMLStyleElement;
 
@@ -316,9 +319,19 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		}
 		this.root.replaceChildren();
 		this.root.setAttribute('data-testid', 'knox-gui');
+		this.root.setAttribute('role', 'region');
+		this.root.setAttribute('aria-label', t(state, 'knoxGuiRegion'));
 		this.root.classList.toggle('knox-gui-dedicated', knoxGuiIsDedicatedEditor(state));
 		this.root.style.fontSize = `${state.fontSize}px`;
 		this.themeCssVars = applyKnoxGuiThemeToElement(this.root, this.themeStyleEl, state, this.themeCssVars);
+		if (this.shouldShowComposer(state)) {
+			const skip = DOM.append(this.root, DOM.$('button.knox-gui-skip')) as HTMLButtonElement;
+			skip.type = 'button';
+			skip.setAttribute('data-testid', 'knox-gui-skip-composer');
+			skip.setAttribute('aria-controls', 'knox-gui-input');
+			skip.textContent = t(state, 'skipToComposer');
+			this.renderStore.add(DOM.addDisposableListener(skip, 'click', () => this.focusInput()));
+		}
 		this.renderFind(state);
 		if (knoxGuiShowsSessionTabs(state)) {
 			this.renderTabs(state);
@@ -331,6 +344,8 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		const body = DOM.append(this.root, DOM.$('.knox-gui-body'));
 		this.bodyEl = body;
 		body.setAttribute('data-testid', 'knox-gui-body');
+		body.setAttribute('role', 'main');
+		body.setAttribute('aria-label', t(state, 'chatTranscript'));
 		body.classList.toggle('knox-gui-body-chat', state.route === KnoxGuiRoute.Chat);
 		if (knoxGuiShowsChatScrollbar(state.showChatScrollbar, Math.max(this.root.clientHeight, typeof window !== 'undefined' ? window.innerHeight : 0))) {
 			body.classList.add('knox-gui-body-scroll');

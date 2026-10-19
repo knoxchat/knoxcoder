@@ -246,12 +246,10 @@ describe("evaluateAgentTurn", () => {
         "skill",
       ]),
     );
-    expect(judgment.skillHint).toContain(
-      "No skill in the roster appears relevant",
-    );
+    expect(judgment.skillHint).toMatch(/qemu|No skill in the roster appears relevant/i);
   });
 
-  it("injects at most one skill when Jev picks a roster entry", async () => {
+  it("injects at most three skill names when Jev picks a roster entry (K-074)", async () => {
     const judgment = await evaluateAgentTurn({
       userMessage: "QEMU guest panics after boot",
       skills: [qemu, rust],
@@ -269,7 +267,8 @@ describe("evaluateAgentTurn", () => {
       }),
     });
     expect(judgment.skillName).toBe("qemu");
-    expect(judgment.skillHint).toContain("<skill_relevance>");
+    expect(judgment.skillHint).toContain("qemu");
+    expect(judgment.skillHint).not.toContain("# body");
     expect(judgment.skillHint).not.toContain("rust");
   });
 

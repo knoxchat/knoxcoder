@@ -32,6 +32,8 @@ export const KNOX_CHAT_SETTING_IDS = [
   "knoxchat.fallbackModel",
   "knoxchat.deferTools",
   "knoxchat.enableCompositeTools",
+  "knoxchat.permissionDefault",
+  "knoxchat.trustedGitRemotes",
   "knoxchat.verifyCommand",
   "knoxchat.verifyMode",
   "knoxchat.verifyMaxIterations",

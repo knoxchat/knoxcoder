@@ -1,6 +1,7 @@
 import { ContextItem } from "../..";
 import { joinPathsToUri } from "../../util/uri";
 import { ToolImpl } from ".";
+import { toolFilesystem, toolSearch } from "../toolPorts";
 
 const LIST_CAP = 40;
 const SEARCH_CAP = 30;
@@ -62,7 +63,8 @@ async function readDotConfig(
   extras: Parameters<ToolImpl>[1],
   pathArg?: string,
 ): Promise<{ uri: string; text: string } | { error: string }> {
-  const dirs = await extras.ide.getWorkspaceDirs();
+  const fs = toolFilesystem(extras);
+  const dirs = await fs.getWorkspaceDirs();
   const root = dirs[0];
   if (!root) {
     return { error: "No workspace." };
@@ -72,8 +74,8 @@ async function readDotConfig(
     : [joinPathsToUri(root, ".config")];
   for (const uri of candidates) {
     try {
-      if (await extras.ide.fileExists(uri)) {
-        const text = await extras.ide.readFile(uri);
+      if (await fs.fileExists(uri)) {
+        const text = await fs.readFile(uri);
         return { uri, text };
       }
     } catch {
@@ -90,14 +92,15 @@ async function scriptsConfigHint(
   extras: Parameters<ToolImpl>[1],
   symbol: string,
 ): Promise<string> {
-  const dirs = await extras.ide.getWorkspaceDirs();
+  const fs = toolFilesystem(extras);
+  const dirs = await fs.getWorkspaceDirs();
   const root = dirs[0];
   if (!root) {
     return "";
   }
   const scriptUri = joinPathsToUri(root, "scripts/config");
   try {
-    if (await extras.ide.fileExists(scriptUri)) {
+    if (await fs.fileExists(scriptUri)) {
       return `\n\nscripts/config is present: \`scripts/config --file .config --state ${symbol.replace(/^CONFIG_/, "")}\``;
     }
   } catch {
@@ -196,12 +199,12 @@ export const kconfigImpl: ToolImpl = async (args, extras) => {
         },
       ];
     }
-    const dirs = await extras.ide.getWorkspaceDirs();
+    const dirs = await toolFilesystem(extras).getWorkspaceDirs();
     const root = dirs[0];
     const searchPath = pathArg || ".";
     let hits = "";
-    if (typeof extras.ide.getSearchResults === "function") {
-      hits = await extras.ide.getSearchResults(query.replace(/^CONFIG_/, ""), {
+    if (typeof toolSearch(extras).getSearchResults === "function") {
+      hits = await toolSearch(extras).getSearchResults(query.replace(/^CONFIG_/, ""), {
         path: searchPath === "." ? undefined : searchPath,
         fileGlob: "*Kconfig*",
         maxResults: SEARCH_CAP,

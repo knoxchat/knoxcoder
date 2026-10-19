@@ -245,6 +245,35 @@ export async function runJob(opts: {
 
 export type MergeOutcome = { ok: true; message: string } | { ok: false; message: string };
 
+/** K-103: name both sides and the conflicted files. Repo is left unchanged. */
+export function formatBgMergeConflict(opts: {
+  ours: string;
+  theirs: string;
+  files: string[];
+}): string {
+  const files = opts.files.length ? opts.files.join(", ") : "(unknown)";
+  return `Merge conflict between workspace branch "${opts.ours}" and job branch "${opts.theirs}". Files: ${files}. Repo left unchanged. Branch ${opts.theirs} is kept.`;
+}
+
+function unmergedFiles(repo: string): string[] {
+  try {
+    return git(repo, ["diff", "--name-only", "--diff-filter=U"])
+      .split("\n")
+      .map((file) => file.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function currentBranch(repo: string): string {
+  try {
+    return git(repo, ["rev-parse", "--abbrev-ref", "HEAD"]) || "HEAD";
+  } catch {
+    return "HEAD";
+  }
+}
+
 /** Merge the job branch into the repo's current branch; abort cleanly on conflict. */
 export function mergeJob(root: string, id: string): MergeOutcome {
   const job = loadJob(root, id);
@@ -257,7 +286,9 @@ export function mergeJob(root: string, id: string): MergeOutcome {
   }
   try {
     git(job.repo, ["merge", "--no-edit", job.branch]);
-  } catch (error) {
+  } catch {
+    const ours = currentBranch(job.repo);
+    const files = unmergedFiles(job.repo);
     try {
       git(job.repo, ["merge", "--abort"]);
     } catch {
@@ -265,7 +296,7 @@ export function mergeJob(root: string, id: string): MergeOutcome {
     }
     return {
       ok: false,
-      message: `merge conflict; repo left unchanged. Branch ${job.branch} is kept. ${error instanceof Error ? error.message.split("\n")[0] : ""}`,
+      message: formatBgMergeConflict({ ours, theirs: job.branch, files }),
     };
   }
   dropWorktree(job);

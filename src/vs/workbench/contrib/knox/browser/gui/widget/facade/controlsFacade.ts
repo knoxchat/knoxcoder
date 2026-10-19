@@ -23,8 +23,8 @@ export abstract class KnoxGuiControlsFacade extends KnoxGuiChromeFacade {
 		knoxGuiControls.toggle(this, body, label, value, onChange);
 	}
 
-	customSwitch(this: KnoxGuiWidget, parent: HTMLElement, isOn: boolean, onToggle: () => void, size = 12): HTMLElement {
-		return knoxGuiControls.customSwitch(this, parent, isOn, onToggle, size);
+	customSwitch(this: KnoxGuiWidget, parent: HTMLElement, isOn: boolean, onToggle: () => void, size = 12, label?: string): HTMLElement {
+		return knoxGuiControls.customSwitch(this, parent, isOn, onToggle, size, label);
 	}
 
 	numberField(this: KnoxGuiWidget, body: HTMLElement, label: string, value: number, min: number, max: number, onChange: (value: number) => void, step?: number, suffix?: string): void {
@@ -63,6 +63,7 @@ export abstract class KnoxGuiControlsFacade extends KnoxGuiChromeFacade {
 		expandLabel?: boolean;
 		extraClass?: string;
 		testId?: string;
+		role?: string;
 		menuTrigger?: boolean;
 		onClick: (button: HTMLElement, event?: MouseEvent) => void;
 	}): HTMLButtonElement {

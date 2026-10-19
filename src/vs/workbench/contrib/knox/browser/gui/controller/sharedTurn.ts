@@ -9,7 +9,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { toolOutputItemsFromUnknown, toolOutputText } from '../../../common/knoxGuiTools.js';
 import { knoxGuiStreamErrorFromState } from '../../../common/knoxGuiTranscript.js';
 import { IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
-import { IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiFlushStreamText, knoxGuiHistoryToCoreHistory, knoxGuiShouldSplitForTools, knoxGuiToolFailureOutput, knoxGuiToolIsSettled, knoxGuiTurnDoomCalls } from '../../../common/knoxGuiAgentRequest.js';
+import { IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiExecuteDoomCalls, knoxGuiFlushStreamText, knoxGuiHistoryToCoreHistory, knoxGuiShouldSplitForTools, knoxGuiToolFailureOutput, knoxGuiToolIsSettled } from '../../../common/knoxGuiAgentRequest.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
 import { finishTurn, hydrateLastAssistant, recordPromptLog, streamUpdate } from './stream.js';
 
@@ -56,6 +56,8 @@ export async function runSharedTurn(controller: KnoxGuiController): Promise<void
 	const history = knoxGuiHistoryToCoreHistory(state.history);
 	const lastUser = [...state.history].reverse().find(item => item.role === 'user');
 	const injectedContext = controller.turnInject?.sessionId === state.sessionId ? controller.turnInject.content : undefined;
+	const seedSessionDoom = controller.seedSessionDoom;
+	controller.seedSessionDoom = false;
 	try {
 		await controller.messenger.request('knox/runChatTurn', {
 			history,
@@ -71,7 +73,7 @@ export async function runSharedTurn(controller: KnoxGuiController): Promise<void
 			permissionMode: state.permissionMode,
 			sessionAllowlist: state.sessionToolAllowlist,
 			turnId: lastUser?.id ?? state.sessionId,
-			turnToolCalls: knoxGuiTurnDoomCalls(state.history),
+			turnToolCalls: knoxGuiExecuteDoomCalls(state.history, seedSessionDoom),
 			priorSteps: state.toolLoopSteps,
 			skipTurnContext: controller.turnNoContext,
 			planMode: state.planMode === true,

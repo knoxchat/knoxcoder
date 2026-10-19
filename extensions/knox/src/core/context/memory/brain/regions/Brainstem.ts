@@ -1,6 +1,7 @@
 /**
  * Brainstem — Final context assembly facade (φ₈).
- * Wraps ContextBuilder. Sends Brainstem→Thalamus feedback after assembly.
+ * @deprecated K-073: ContextBuilder + RetrievalFusion are the hot path.
+ * This file stays a thin wrapper for one release.
  */
 
 import { ContextBuilder } from "../ContextBuilder.js";

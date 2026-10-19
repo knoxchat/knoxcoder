@@ -29,6 +29,7 @@ import {
 import { isRustLanguagePath } from "../postEditVerification";
 import { queryWorkspaceTagsOrCscope } from "../tagsQuery";
 import { detectSystemsWorkspace } from "../../config/agentProfile";
+import { toolFilesystem } from "../toolPorts";
 
 interface LspArgs {
   operation: LspOperation;
@@ -72,7 +73,10 @@ async function appendLspAdvice(
     systemsLike?: boolean;
   },
 ): Promise<ContextItem[]> {
-  const compileUri = await findCompileCommandsUri(extras.ide, opts.filePath);
+  const compileUri = await findCompileCommandsUri(
+    toolFilesystem(extras),
+    opts.filePath,
+  );
   const isRust = isRustLanguagePath(opts.filePath ?? "");
   const advice = formatLspFailureAdvice({
     error: opts.error,
@@ -105,7 +109,7 @@ export const lspImpl: ToolImpl = async (
     return missingParam("operation", "unknown");
   }
 
-  const workspaceDirs = await extras.ide.getWorkspaceDirs();
+  const workspaceDirs = await toolFilesystem(extras).getWorkspaceDirs();
   const workspaceDir = workspaceDirs[0] || "";
 
   if (operation === "workspaceSymbol") {
@@ -140,7 +144,7 @@ export const lspImpl: ToolImpl = async (
       error,
       empty: true,
       filePath: args.filePath,
-      systemsLike: await detectSystemsWorkspace(extras.ide),
+      systemsLike: await detectSystemsWorkspace(toolFilesystem(extras)),
     });
   }
 
@@ -153,7 +157,7 @@ export const lspImpl: ToolImpl = async (
     ? filePath
     : path.join(workspaceDir, filePath);
 
-  const exists = await extras.ide.fileExists(absolutePath);
+  const exists = await toolFilesystem(extras).fileExists(absolutePath);
   if (!exists) {
     return [
       {

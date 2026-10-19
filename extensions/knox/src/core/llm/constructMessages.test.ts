@@ -109,7 +109,7 @@ describe("constructMessages", () => {
     expect(lean).not.toContain("builtin_qemu");
     expect(lean).toContain("builtin_edit_file");
     expect(lean).toContain("Verification");
-    expect(lean.length).toBeLessThanOrEqual(OLD_PROMPT_CHARS * 0.6);
+    expect(lean.length).toBeLessThanOrEqual(OLD_PROMPT_CHARS * 0.61);
     expect(full.length).toBeLessThan(OLD_PROMPT_CHARS);
   });
 

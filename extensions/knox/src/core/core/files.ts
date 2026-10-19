@@ -8,8 +8,7 @@ import type { CoreRuntime } from "./runtime";
 export function registerFileHandlers(core: CoreRuntime): void {
   const on = core.messenger.on.bind(core.messenger);
 
-  // File changes
-  // TODO - remove remaining logic for these from IDEs where possible
+  // File changes. Host still notifies via messenger; file tools use ToolExtras ports (K-084).
   on("files/changed", async ({ data }) => {
     if (data?.uris?.length) {
       // File watching logic has been simplified
@@ -90,19 +89,11 @@ export function registerFileHandlers(core: CoreRuntime): void {
     }
   });
 
-  on("files/opened", async ({ data }) => {
-    if (data?.uris?.length) {
-      // Do something on files opened
-    }
+  on("files/opened", async () => {
+    // Host still notifies via messenger; tools use ToolExtras ports (K-084).
   });
 
-  on("didChangeActiveTextEditor", async ({ data: { filepath } }) => {
-    try {
-      // File tracking has been removed
-    } catch (e) {
-      console.error(
-        `didChangeActiveTextEditor: failed to update recentlyEditedFiles cache for ${filepath}`,
-      );
-    }
+  on("didChangeActiveTextEditor", async () => {
+    // Recently-edited cache was removed; the messenger still delivers the event.
   });
 }

@@ -21,8 +21,9 @@ export const RUST_ANALYZER_ADVICE =
 const NO_SERVER_RE =
   /no (?:matching )?(?:language )?server|no provider|provider not found|language server.*(not|missing)|not available|could not find.*server/i;
 
+/** K-084: compile-db lookup only needs workspace listing and exists, not LSP. */
 export async function findCompileCommandsUri(
-  ide: IDE,
+  ide: Pick<IDE, "getWorkspaceDirs" | "fileExists">,
   filePath?: string,
 ): Promise<string | undefined> {
   const candidates: string[] = [];

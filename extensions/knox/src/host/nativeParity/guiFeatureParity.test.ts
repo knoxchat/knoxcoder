@@ -24,11 +24,10 @@ suite("Phase 9 GUI feature parity (KN-090–096)", () => {
       assert.ok(commands.includes(id), `missing command ${id}`);
     }
 
-    const containers = contributes.viewsContainers?.secondarySidebar ?? [];
-    const knoxContainer = (containers as Array<{ id: string }>).some(
-      (entry) => entry.id === "knoxchat",
+    assert.ok(
+      !contributes.viewsContainers,
+      "Knox container is a built-in Secondary Side Bar view, not viewsContainers.secondarySidebar",
     );
-    assert.ok(knoxContainer, "secondary sidebar container knoxchat");
 
     const knoxViews = contributes.views?.knoxchat ?? [];
     assert.ok(

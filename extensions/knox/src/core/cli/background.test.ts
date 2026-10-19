@@ -78,6 +78,10 @@ describe("background agents", () => {
     git(repo, ["commit", "-am", "main change"]);
     const result = mergeJob(root, job.id);
     expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/workspace branch "main"/);
+    expect(result.message).toContain(`job branch "${job.branch}"`);
+    expect(result.message).toContain("Files: a.txt");
+    expect(result.message).toMatch(/Repo left unchanged/);
     expect(git(repo, ["status", "--porcelain"]).trim()).toBe("");
     expect(fs.readFileSync(path.join(repo, "a.txt"), "utf-8")).toBe("main\n");
   });

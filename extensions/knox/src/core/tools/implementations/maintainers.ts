@@ -1,6 +1,7 @@
 import { ContextItem } from "../..";
 import { joinPathsToUri } from "../../util/uri";
 import { ToolImpl } from ".";
+import { toolFilesystem } from "../toolPorts";
 import {
   formatMaintainerHits,
   lookupMaintainers,
@@ -31,7 +32,8 @@ async function readMaintainersFile(
   extras: Parameters<ToolImpl>[1],
   fileArg?: string,
 ): Promise<{ uri: string; text: string } | { error: string }> {
-  const dirs = await extras.ide.getWorkspaceDirs();
+  const fs = toolFilesystem(extras);
+  const dirs = await fs.getWorkspaceDirs();
   const root = dirs[0];
   if (!root) {
     return { error: "No workspace." };
@@ -44,8 +46,8 @@ async function readMaintainersFile(
       ];
   for (const uri of candidates) {
     try {
-      if (await extras.ide.fileExists(uri)) {
-        const text = await extras.ide.readFile(uri);
+      if (await fs.fileExists(uri)) {
+        const text = await fs.readFile(uri);
         return { uri, text };
       }
     } catch {
@@ -63,13 +65,14 @@ async function getMaintainerHint(
   relPath?: string,
 ): Promise<string> {
   try {
-    const dirs = await extras.ide.getWorkspaceDirs();
+    const fs = toolFilesystem(extras);
+    const dirs = await fs.getWorkspaceDirs();
     const root = dirs[0];
     if (!root) {
       return "";
     }
     const scriptUri = joinPathsToUri(root, "scripts/get_maintainer.pl");
-    if (await extras.ide.fileExists(scriptUri)) {
+    if (await fs.fileExists(scriptUri)) {
       const target = relPath ? ` ${relPath}` : "";
       return `\n\nscripts/get_maintainer.pl is present: \`perl scripts/get_maintainer.pl -f${target}\``;
     }

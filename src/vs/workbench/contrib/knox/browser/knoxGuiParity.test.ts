@@ -67,6 +67,8 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(knoxGuiT('en', 'permissionModeAsk').includes('Ask'));
 		assert.ok(knoxGuiT('en', 'permissionNoticeAsk').includes('Ask'));
 		assert.ok(knoxGuiT('zh', 'permissionNoticeAsk').length > 0);
+		assert.ok(knoxGuiT('en', 'permissionNoticeFreshClone').includes('Ask'));
+		assert.ok(knoxGuiT('zh', 'permissionNoticeFreshClone').length > 0);
 		assert.ok(knoxGuiT('en', 'planMode').includes('Plan'));
 		assert.ok(knoxGuiT('zh', 'planMode').length > 0);
 		assert.ok(knoxGuiT('en', 'executePlan').includes('Execute'));
@@ -204,6 +206,10 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(knoxGuiT('en', 'anthropicDescription').includes('Claude'));
 		assert.notStrictEqual(knoxGuiT('en', 'selectModelBelow'), knoxGuiT('zh', 'selectModelBelow'));
 		assert.ok(knoxGuiT('en', 'cannotSubmitWhileAwaitingTool').includes('tool'));
+		assert.ok(knoxGuiT('en', 'skipToComposer').length > 0);
+		assert.ok(knoxGuiT('en', 'chatTranscript').length > 0);
+		assert.ok(knoxGuiT('zh', 'composerRegion').length > 0);
+		assert.notStrictEqual(knoxGuiT('en', 'knoxGuiRegion'), knoxGuiT('zh', 'knoxGuiRegion'));
 	});
 
 	test('en and zh tables have identical keys (KN-381)', () => {
@@ -354,6 +360,8 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui-attached-collapse'));
 		assert.ok(css.includes('transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out'));
 		assert.ok(css.includes('@media (prefers-reduced-motion: reduce)'));
+		assert.ok(css.includes('.knox-gui-skip'));
+		assert.ok(css.includes('data-knox-theme-contrast="high"'));
 		assert.ok(css.includes('@property --knox-border-angle'));
 		assert.ok(css.includes('from var(--knox-border-angle)'));
 		assert.ok(!css.includes('to { transform: rotate(360deg); }'));

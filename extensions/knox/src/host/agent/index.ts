@@ -44,7 +44,6 @@ import { TerminalMonitor } from './TerminalMonitor';
 let agentModeManager: AgentModeManager | undefined;
 let diagnosticChecker: DiagnosticChecker | undefined;
 let diagnosticFixManager: DiagnosticFixManager | undefined;
-let agentService: AgentService | undefined;
 let commandHistoryService: CommandHistoryService | undefined;
 let refactoringService: RefactoringService | undefined;
 let screenshotService: ScreenshotService | undefined;
@@ -296,25 +295,6 @@ export function activateAgentMode(context: vscode.ExtensionContext): vscode.Disp
     },
   );
 
-  // Register additional integration commands for better user experience
-  const analyzeProjectStructureCommand = vscode.commands.registerCommand('knox.analyzeProjectStructure', async () => {
-    if (!agentModeManager) {
-      throw new Error('Agent Mode Manager not initialized');
-    }
-    
-    const codeIntelligence = agentModeManager['codeIntelligenceService'];
-    return await codeIntelligence.analyzeProjectStructure();
-  });
-  
-  const findRelatedFilesCommand = vscode.commands.registerCommand('knox.findRelatedFiles', async (filePath: string) => {
-    if (!agentModeManager) {
-      throw new Error('Agent Mode Manager not initialized');
-    }
-    
-    const codeIntelligence = agentModeManager['codeIntelligenceService'];
-    return await codeIntelligence.findRelatedFiles(filePath);
-  });
-  
   // Add all disposables to context
   context.subscriptions.push(
     agentModeManager,
@@ -339,8 +319,6 @@ export function activateAgentMode(context: vscode.ExtensionContext): vscode.Disp
     debugIntegrationService,
     terminalMonitor,
     errorPatternDetector,
-    analyzeProjectStructureCommand,
-    findRelatedFilesCommand
   );
   
   // Register custom tool call handler
@@ -415,8 +393,6 @@ export function activateAgentMode(context: vscode.ExtensionContext): vscode.Disp
       extractMethodCommand.dispose();
       moveFileCommand.dispose();
       extractInterfaceCommand.dispose();
-      analyzeProjectStructureCommand.dispose();
-      findRelatedFilesCommand.dispose();
     }
   };
 }
@@ -450,10 +426,13 @@ export function getDiagnosticFixManager(): DiagnosticFixManager | undefined {
 }
 
 /**
- * Get the Agent Service instance
+ * @deprecated K-080. Product tools go through Core `tools/call`
+ * (`knox.callToolDirect`). This leftover singleton is not constructed.
  */
-export function getAgentService(): AgentService | undefined {
-  return agentService;
+export function getAgentService(): never {
+  throw new Error(
+    "getAgentService() is removed. Call knox.callToolDirect / Core tools/call — do not route through AgentService.",
+  );
 }
 
 /**

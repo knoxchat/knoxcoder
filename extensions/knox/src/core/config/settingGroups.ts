@@ -38,6 +38,8 @@ export const KNOX_SETTING_GROUPS: KnoxSettingGroup[] = [
       "knoxchat.fallbackModel",
       "knoxchat.deferTools",
       "knoxchat.enableCompositeTools",
+      "knoxchat.permissionDefault",
+      "knoxchat.trustedGitRemotes",
     ],
   },
   {

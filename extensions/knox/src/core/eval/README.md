@@ -77,7 +77,7 @@ cd extensions/knox
 npm run test:live
 ```
 
-`live.eval.ts` compares `runAgentLoop` vs `runChatTurn` on `LIVE_TASKS` plus mini-c and mini-rust. It fails if the GUI path lags the loop path by more than one task (`allowedDrop = 1`). Optional `scoreEvalTrace` (Jev) may comment on the report and must stay fail-open.
+`live.eval.ts` compares `runAgentLoop` vs `runChatTurn` on `LIVE_TASKS` plus mini-c and mini-rust. K-100 adds `node-autoload-blame`, `mini-c-autoload-blame`, and `mini-rust-autoload-blame` (deferred `builtin_git_blame` via K-064). It fails if the GUI path lags the loop path by more than one task (`allowedDrop = 1`). Optional `scoreEvalTrace` (Jev) may comment on the report and must stay fail-open. Scripted coverage of those autoload tasks is in `liveTasks.test.ts` (PR CI).
 
 ## Live eval walkthrough (manual, not CI)
 
@@ -129,7 +129,7 @@ const fromDisk = await scoreTraceFile("session.json");
 
 | Tier | Knox artifact | CI? |
 |------|----------------|-----|
-| 0 Syntax/idiom | optional later; rustlings-like snippets | no live LLM |
+| 0 Syntax/idiom | RL-56 missing `;` + drop unnecessary `.clone()` | scripted yes |
 | 1 Borrowck known-good | RL-15 `mem::take` (clone shortcut warns) | scripted yes |
 | 2 Repair | RL-14 mini-rust `add()` E0425 | scripted yes |
 | 3 Unsafe / Miri | intercepted `action=miri` UB log | scripted yes |

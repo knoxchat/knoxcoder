@@ -36,6 +36,8 @@ export function patchLastAssistant(widget: KnoxGuiWidget, state: IKnoxGuiState):
 		body = DOM.$('.knox-gui-stream-body.styled-markdown-preview');
 		body.setAttribute('data-testid', 'streaming-markdown');
 		body.setAttribute('data-streaming', 'true');
+		body.setAttribute('aria-live', 'polite');
+		body.setAttribute('aria-relevant', 'additions text');
 		const reasoning = card.querySelector('.knox-gui-reasoning');
 		if (reasoning?.nextSibling) {
 			card.insertBefore(body, reasoning.nextSibling);
@@ -48,8 +50,10 @@ export function patchLastAssistant(widget: KnoxGuiWidget, state: IKnoxGuiState):
 	if (body) {
 		if (state.isStreaming) {
 			body.setAttribute('data-streaming', 'true');
+			body.setAttribute('aria-live', 'polite');
 		} else {
 			body.removeAttribute('data-streaming');
+			body.setAttribute('aria-live', 'off');
 		}
 		widget.renderStreamingAssistantBody(body, state, item);
 	} else if (assistantReplyText(item)) {

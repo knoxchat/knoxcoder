@@ -13,16 +13,21 @@
  */
 
 
-import { getContextMaxTokens, getMemoryConfig } from "./memoryConfigAccess.js";
-import { detectIntent } from "./RetrievalQuery.js";
+import { getContextMaxTokens, getMemoryConfig, getModeSettings } from "./memoryConfigAccess.js";
+import { detectIntent, resolveRetrievalQuery } from "./RetrievalQuery.js";
 import { BrainStore } from "./BrainStore.js";
 import { SleepConsolidation } from "./SleepConsolidation.js";
-import { NeuralArchitecture } from "./regions/NeuralArchitecture.js";
+import { ContextBuilder } from "./ContextBuilder.js";
+import { injectedItemPassedGate } from "./RelevanceGate.js";
+import { InputSanitizer } from "./InputSanitizer.js";
+import { SensoryBuffer } from "./SensoryBuffer.js";
+import { RetrievalFusion } from "./RetrievalFusion.js";
+import { getProjectSessionIds } from "./projectScope.js";
+import { CURRENT_TURN_SLOT_ID } from "./WorkingMemory.js";
 import { Hippocampus } from "./regions/Hippocampus.js";
 import { PrefrontalCortex } from "./regions/PrefrontalCortex.js";
 import { SensoryCortex } from "./regions/SensoryCortex.js";
 import { Thalamus } from "./regions/Thalamus.js";
-import { Brainstem } from "./regions/Brainstem.js";
 import type { BuildContextResult, MemoryPhase, PipelineInput, PipelinePhaseResult } from "./types.js";
 
 /** Canonical 8-phase order for cycle-invariant audit logging (IMP-01 / Part III). */
@@ -94,7 +99,7 @@ export class MemoryPipeline {
     MemoryPipeline.phaseRunCounts[phase] = (MemoryPipeline.phaseRunCounts[phase] ?? 0) + 1;
   }
 
-  /** Record phase completion from NeuralArchitecture (pre-turn batch). */
+  /** Record phase completion from a pre-turn batch. */
   static markPhaseCompletePublic(phase: MemoryPhase): void {
     MemoryPipeline.markPhaseComplete(phase);
   }
@@ -261,7 +266,7 @@ export class MemoryPipeline {
 
         case "output_generation": {
           const config = getMemoryConfig();
-          const result = await Brainstem.assemble({
+          const result = await ContextBuilder.buildDetailed({
             message: input.message,
             session_id: input.session_id,
             max_tokens: getContextMaxTokens(input.max_tokens),
@@ -271,7 +276,11 @@ export class MemoryPipeline {
             fusion_hits: input.fusion_hits,
           });
           const wm = BrainManager.getWorkingMemory();
-          Brainstem.feedbackToThalamus(wm, result);
+          const highlights = result.items
+            .filter(injectedItemPassedGate)
+            .map((item) => item.title)
+            .filter(Boolean);
+          Thalamus.feedbackFromBrainstem(wm, highlights);
           detail = `${result.items.length} items, context fenced`;
           audit = {
             retrieval_query: input.retrieval_query ?? input.message,
@@ -330,28 +339,179 @@ export class MemoryPipeline {
 
   /**
    * Pre-turn pipeline: φ₁ → φ₂ → φ₃ → φ₆ → φ₈
+   * K-073: RetrievalFusion + store APIs + ContextBuilder. No region facades.
    */
   static async runPreTurn(input: PipelineInput): Promise<PipelineResult> {
-    const neural = await NeuralArchitecture.processPreTurn(input);
     const BrainManager = await getBrainManager();
+    const wm = BrainManager.getWorkingMemory();
+    const phases: PipelinePhaseResult[] = [];
 
-    for (const phase of neural.phases) {
+    const sensoryStart = Date.now();
+    let message = input.message;
+    if (input.session_id) {
+      message = SensoryBuffer.flushOnTurnBoundary(input.session_id, input.message);
+    }
+    phases.push({
+      phase: "sensory_input",
+      duration_ms: Date.now() - sensoryStart,
+      success: true,
+      detail: "input accepted",
+    });
+
+    const encodingStart = Date.now();
+    const scan = InputSanitizer.scan(message);
+    const encodedMessage = scan.cleaned;
+    phases.push({
+      phase: "encoding",
+      duration_ms: Date.now() - encodingStart,
+      success: true,
+      detail: scan.safe
+        ? "encoded"
+        : `sanitized (${scan.threats.length} threats)`,
+    });
+
+    const wmStart = Date.now();
+    if (input.session_id) {
+      PrefrontalCortex.switchSession(input.session_id);
+    }
+    const plan = PrefrontalCortex.plan(encodedMessage);
+    const retrieval = await resolveRetrievalQuery({
+      message: encodedMessage,
+      sessionId: input.session_id,
+      retrievalQueryOverride: input.retrieval_query,
+      workingMemoryItems: wm.getAll().map((item: { content: string; source: string; added_at: number }) => ({
+        content: item.content,
+        source: item.source,
+        added_at: item.added_at,
+      })),
+    });
+
+    if (input.session_id) {
+      const { ensureTaskForTurn } = await import("./TaskContext.js");
+      await ensureTaskForTurn(input.session_id, encodedMessage, retrieval.intent).catch(
+        () => undefined,
+      );
+    }
+
+    if (retrieval.intent === "new_task") {
+      PrefrontalCortex.clearGoal(input.session_id);
+      wm.flushOnTopicShift();
+    }
+    if (input.goal?.trim()) {
+      PrefrontalCortex.setGoal(input.goal, input.session_id);
+    } else if (plan.intent) {
+      PrefrontalCortex.setGoal(plan.intent, input.session_id);
+    }
+    if (retrieval.intent === "continuation" && retrieval.retrievalQuery?.trim()) {
+      wm.attendTo(retrieval.retrievalQuery);
+    } else {
+      wm.attendTo(encodedMessage);
+    }
+    const trimmed = encodedMessage.trim();
+    if (trimmed) {
+      wm.add({
+        id: CURRENT_TURN_SLOT_ID,
+        content: trimmed.slice(0, 800),
+        source: "user",
+        relevance: 0.6,
+      });
+    }
+    phases.push({
+      phase: "working_memory",
+      duration_ms: Date.now() - wmStart,
+      success: true,
+      detail: "attention applied",
+    });
+
+    const config = getMemoryConfig();
+    const mode = getModeSettings(config.memory_mode);
+
+    const retrievalStart = Date.now();
+    const projectSessionIds = await getProjectSessionIds(input.session_id);
+    const currentTaskId = input.session_id
+      ? (await BrainStore.getOpenTask(input.session_id))?.id ?? null
+      : null;
+    const fusionResults = await RetrievalFusion.search({
+      query: retrieval.retrievalQuery,
+      sessionId: input.session_id,
+      limit: config.retrieval_top_k,
+      minScore: config.retrieval_threshold,
+      includeEpisodic: mode.includeEpisodic,
+      projectSessionIds,
+      intent: retrieval.intent,
+      originalQuery: encodedMessage,
+      currentTaskId,
+    });
+    phases.push({
+      phase: "retrieval",
+      duration_ms: Date.now() - retrievalStart,
+      success: true,
+      detail: `${fusionResults.length} fusion hits`,
+      audit: {
+        retrieval_query: retrieval.retrievalQuery,
+        hit_count: fusionResults.length,
+      },
+    });
+
+    const outputStart = Date.now();
+    const context = await ContextBuilder.buildDetailed({
+      message: encodedMessage,
+      session_id: input.session_id,
+      max_tokens: getContextMaxTokens(input.max_tokens),
+      memory_mode: config.memory_mode,
+      goal: PrefrontalCortex.resolveGoal(input.goal, input.session_id),
+      retrieval_query: retrieval.retrievalQuery,
+      fusion_hits: fusionResults,
+    });
+    const highlights = context.items
+      .filter(injectedItemPassedGate)
+      .map((item) => item.title)
+      .filter(Boolean);
+    for (const text of highlights.slice(0, 3)) {
+      if (text.trim()) {
+        wm.attendTo(text);
+      }
+    }
+    phases.push({
+      phase: "output_generation",
+      duration_ms: Date.now() - outputStart,
+      success: true,
+      detail: `${context.items.length} items, context fenced`,
+      audit: {
+        retrieval_query: retrieval.retrievalQuery,
+        item_count: context.items.length,
+        items: context.items.map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          fusion_score: item.score ?? null,
+          fts5: item.fts5 ?? null,
+          trigram: item.trigram ?? null,
+          graph: item.graph ?? null,
+          recency: item.recency ?? null,
+          importance: item.importance ?? null,
+          topic_id: item.topic_id ?? null,
+          task_id: item.task_id ?? null,
+          gate_passed: item.gate_passed ?? false,
+        })),
+      },
+    });
+
+    for (const phase of phases) {
       await MemoryPipeline.logPhaseAudit(phase, input.session_id, "pre_turn");
       MemoryPipeline.markPhaseCompletePublic(phase.phase);
     }
-    await MemoryPipeline.logCycleInvariant("pre_turn", neural.phases, input.session_id);
+    await MemoryPipeline.logCycleInvariant("pre_turn", phases, input.session_id);
 
-    if (neural.context.memory_tokens_saved && neural.context.memory_tokens_saved > 0) {
-      BrainManager.recordCompressionMetrics(neural.context.memory_tokens_saved);
+    if (context.memory_tokens_saved && context.memory_tokens_saved > 0) {
+      BrainManager.recordCompressionMetrics(context.memory_tokens_saved);
     }
-
-    if (neural.context.context) {
+    if (context.context) {
       const maxTokens = input.max_tokens ?? getContextMaxTokens();
-      const tokensUsed = Math.ceil(neural.context.context.length / 4);
+      const tokensUsed = Math.ceil(context.context.length / 4);
       BrainManager.recordContextBuild(tokensUsed, maxTokens);
     }
 
-    return { phases: neural.phases, context: neural.context };
+    return { phases, context };
   }
 
   /**
@@ -405,17 +565,8 @@ export class MemoryPipeline {
    * Runs pre-turn retrieval+output, post-turn consolidation+storage, then sleep.
    */
   static async runFullCycle(input: PipelineInput): Promise<PipelineResult> {
-    const neural = await NeuralArchitecture.processPreTurn(input);
-    const phases = [...neural.phases];
-    const BrainManager = await getBrainManager();
-
-    if (neural.context.memory_tokens_saved && neural.context.memory_tokens_saved > 0) {
-      BrainManager.recordCompressionMetrics(neural.context.memory_tokens_saved);
-    }
-
-    for (const phase of neural.phases) {
-      await MemoryPipeline.logPhaseAudit(phase, input.session_id, "full_cycle");
-    }
+    const pre = await MemoryPipeline.runPreTurn(input);
+    const phases = [...pre.phases];
 
     if (input.turn_content && input.session_id) {
       const consolidation = await MemoryPipeline.runPhase("consolidation", input);
@@ -446,6 +597,6 @@ export class MemoryPipeline {
     const lastConsolidation = phases.find((p) => p.phase === "consolidation");
     const extracted = MemoryPipeline.parseExtractionDetail(lastConsolidation?.detail);
 
-    return { phases, context: neural.context, extracted };
+    return { phases, context: pre.context, extracted };
   }
 }

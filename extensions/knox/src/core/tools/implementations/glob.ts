@@ -12,6 +12,7 @@ import { t } from "../../i18n/index.js";
 import { matchGlob } from "../globMatch";
 
 import { ToolImpl } from ".";
+import { toolFilesystem } from "../toolPorts";
 
 const FILE_TYPE_FILE = 1;
 const FILE_TYPE_DIRECTORY = 2;
@@ -90,6 +91,7 @@ function basenameOfUri(uri: string): string {
 }
 
 export const globImpl: ToolImpl = async (args, extras) => {
+  const fs = toolFilesystem(extras);
   if (!args.pattern || typeof args.pattern !== "string") {
     throw new Error(t("missingRequiredParam", { param: "pattern" }));
   }
@@ -110,7 +112,7 @@ export const globImpl: ToolImpl = async (args, extras) => {
 
   let rootsToWalk: Array<{ uri: string; startRel: string; emitAbsolute: boolean }>;
   try {
-    const dirs = await extras.ide.getWorkspaceDirs();
+    const dirs = await fs.getWorkspaceDirs();
     if (targetDirectory === ".") {
       if (!dirs[0]) {
         throw new Error(t("noDirsProvided"));
@@ -125,7 +127,7 @@ export const globImpl: ToolImpl = async (args, extras) => {
         {
           uri: await inferResolvedUriFromRelativePath(
             targetDirectory,
-            extras.ide,
+            fs,
           ),
           startRel: targetDirectory.replace(/\\/g, "/").replace(/^\.\//, ""),
           emitAbsolute: false,
@@ -157,11 +159,11 @@ export const globImpl: ToolImpl = async (args, extras) => {
   const includeGenerated = patternWantsGeneratedArtifacts(pattern);
   let workspaceDirs: string[] = [];
   try {
-    workspaceDirs = await extras.ide.getWorkspaceDirs();
+    workspaceDirs = await fs.getWorkspaceDirs();
   } catch {
     workspaceDirs = [];
   }
-  const matcher = await loadWalkIgnore(extras.ide, [
+  const matcher = await loadWalkIgnore(fs, [
     ...rootsToWalk.map((r) => r.uri),
     ...workspaceDirs,
   ]);
@@ -182,7 +184,7 @@ export const globImpl: ToolImpl = async (args, extras) => {
       return true;
     }
     try {
-      const entries = await extras.ide.listDir(childUri);
+      const entries = await fs.listDir(childUri);
       return entries.some(([name]) => BUILD_KEEP_NAMES.has(name));
     } catch {
       return false;
@@ -201,7 +203,7 @@ export const globImpl: ToolImpl = async (args, extras) => {
     }
     let entries: [string, number][];
     try {
-      entries = await extras.ide.listDir(dirUri);
+      entries = await fs.listDir(dirUri);
     } catch {
       return;
     }
@@ -209,7 +211,7 @@ export const globImpl: ToolImpl = async (args, extras) => {
 
     for (const [name, type] of entries) {
       if (type === FILE_TYPE_FILE) {
-        await addNestedWalkIgnore(extras.ide, dirUri, name, matcher);
+        await addNestedWalkIgnore(fs, dirUri, name, matcher);
       }
     }
 

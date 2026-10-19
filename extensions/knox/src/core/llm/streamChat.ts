@@ -8,6 +8,7 @@ import {
   type CompactionAppliedEvent,
 } from "../compaction/index.js";
 import { pinCompactionSoul } from "../context/soul/recordSoulEvent.js";
+import { applyTurnInjectToMessages } from "../context/turnBudget";
 import { t } from "../i18n/index.js";
 import { FromCoreProtocol, ToCoreProtocol } from "../protocol";
 import { IMessenger, Message } from "../protocol/messenger";
@@ -41,7 +42,7 @@ import {
 } from "../config/agentProfile";
 import {
   formatMatchedSkillsHint,
-  matchSkillsByIntent,
+  selectTurnSkills,
 } from "../skills/skillMatcher";
 import type { SkillInfo } from "../skills/types";
 import { getSkillToolDescription } from "../tools/implementations/skill";
@@ -72,21 +73,7 @@ function injectSuggestedSkills(
   if (!hint) {
     return messages;
   }
-  const next = [...messages];
-  const systemIndex = next.findIndex((message) => message.role === "system");
-  if (systemIndex >= 0) {
-    const existing = next[systemIndex];
-    const existingText =
-      typeof existing.content === "string"
-        ? existing.content
-        : extractUserText(existing);
-    next[systemIndex] = {
-      ...existing,
-      content: existingText ? `${existingText}\n\n${hint}` : hint,
-    };
-    return next;
-  }
-  return [{ role: "system", content: hint }, ...next];
+  return applyTurnInjectToMessages(messages, [{ kind: "skill", text: hint }]);
 }
 
 function notifyCompactionApplied(
@@ -353,36 +340,34 @@ export async function* llmStreamChat(
 
     // Suggest skills after compaction (names only; full body via tool).
     try {
-      if (turnJudgment) {
-        const hints = [
-          turnJudgment.skillHint,
-          turnJudgment.clarifyHint ?? "",
-          turnJudgment.guardrail
-            ? formatGuardrailHint(turnJudgment.guardrail)
-            : "",
-        ].filter(Boolean);
-        if (hints.length > 0) {
-          chatMessages = injectSuggestedSkills(
-            chatMessages,
-            hints.join("\n\n"),
-          );
-        }
-      } else {
-        const manager = getSkillManager();
-        const lastUser = [...messages]
-          .reverse()
-          .find((message) => message.role === "user");
-        if (manager?.isLoaded && lastUser) {
-          const matches = matchSkillsByIntent(
-            extractUserText(lastUser),
-            manager.visible(),
-            { limit: 3, minScore: 0.18 },
-          );
-          const hint = formatMatchedSkillsHint(matches);
-          if (hint) {
-            chatMessages = injectSuggestedSkills(chatMessages, hint);
-          }
-        }
+      const manager = getSkillManager();
+      const lastUser = [...messages]
+        .reverse()
+        .find((message) => message.role === "user");
+      const kind = await detectWorkspaceKindFromIde(ide).catch(() => undefined);
+      const selected = lastUser
+        ? selectTurnSkills({
+            message: extractUserText(lastUser),
+            skills: manager?.visible() ?? [],
+            openPaths: manager?.getActivePaths(),
+            jevSkillName: turnJudgment?.skillName,
+            profile: turnJudgment?.profile,
+            workspaceKind: kind,
+          })
+        : [];
+      const skillHint = formatMatchedSkillsHint(selected) || turnJudgment?.skillHint || "";
+      const hints = [
+        skillHint,
+        turnJudgment?.clarifyHint ?? "",
+        turnJudgment?.guardrail
+          ? formatGuardrailHint(turnJudgment.guardrail)
+          : "",
+      ].filter(Boolean);
+      if (hints.length > 0) {
+        chatMessages = injectSuggestedSkills(
+          chatMessages,
+          hints.join("\n\n"),
+        );
       }
     } catch {
       // Skill matching is best-effort
