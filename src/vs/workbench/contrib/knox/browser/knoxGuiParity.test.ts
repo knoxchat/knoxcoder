@@ -336,6 +336,9 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui-ask-choice-desc'));
 		assert.ok(css.includes('.knox-gui-tool-permissions > .knox-gui-icon-btn .knox-gui-lump-label'));
 		assert.ok(css.includes('.knox-gui-ask-actions > .knox-gui-icon-btn .knox-gui-lump-label'));
+		assert.ok(css.includes('.knox-gui-tool-body:empty'));
+		assert.ok(/\.knox-gui-tool-status-text \{[^}]*line-height:\s*16px/.test(css));
+		assert.ok(/\.knox-gui-tool-summary \{[^}]*display:\s*inline-flex/.test(css));
 		assert.ok(css.includes('.knox-gui-tool-approve'));
 		assert.ok(!/\.knox-gui-tool-approve \{[^}]*--vscode-button-background/.test(css));
 		assert.ok(css.includes('.knox-gui .rendered-markdown :not(pre) > code'));

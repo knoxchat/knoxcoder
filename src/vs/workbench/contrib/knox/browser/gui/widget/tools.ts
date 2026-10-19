@@ -172,13 +172,20 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 	const catalog = catalogToolForCall(state.tools, tool.name);
 	const alwaysShow = toolAlwaysShowsBody(tool.name);
 	const collapsed = knoxGuiToolBodyCollapsed(tool, { expanded: widget.toolBodyExpanded.has(tool.id), collapsed: widget.toolBodyCollapsed.has(tool.id) });
-	const showBody = shouldRenderToolBody(tool.status, collapsed, { alwaysShow });
 	const displayArgs = displayArgsForToolCall(tool.parsedArgs, tool.arguments);
 	const argEntries = Object.entries(displayArgs);
 	const hideParams = kind === 'ask-user' || (kind === 'create-file' && tool.status === 'done');
 	const showParams = argEntries.length > 0 && !hideParams;
 	const argsOpen = widget.toolArgsOpen.has(tool.id);
 	const isLive = tool.status === 'generating' || tool.status === 'generated' || tool.status === 'calling';
+	const wantBody = shouldRenderToolBody(tool.status, collapsed, { alwaysShow });
+	const body = wantBody ? DOM.$('.knox-gui-tool-body') : undefined;
+	if (body) {
+		widget.renderToolBody(body, state, tool, kind);
+	}
+	// Title-only tools (plan, memory, …) must not keep an empty expanded body — that
+	// extra padding lifts the header text off the same centre line as the command card.
+	const showBody = Boolean(body && (alwaysShow || isLive || body.childElementCount > 0));
 
 	const head = DOM.append(box, DOM.$('.knox-gui-tool-head'));
 	const left = DOM.append(head, DOM.$('.knox-gui-tool-head-left'));
@@ -254,7 +261,7 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 		} else if (catalog?.wouldLikeTo && tool.status !== 'done') {
 			message = renderToolTemplateHtml(catalog.wouldLikeTo, displayArgs);
 		}
-		const copy = DOM.append(status, DOM.$('div.knox-gui-tool-status-copy'));
+		const copy = DOM.append(status, DOM.$('span.knox-gui-tool-status-copy'));
 		// Finished / running steps read as a plain action ("Read index.html"); only permission and
 		// failure states keep the "Knox ..." subject.
 		const plainAction = tool.status === 'done' || tool.status === 'calling';
@@ -325,9 +332,8 @@ export function renderTool(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 			valueEl.title = typeof value === 'string' ? value : JSON.stringify(value);
 		}
 	}
-	if (showBody) {
-		const body = DOM.append(box, DOM.$('.knox-gui-tool-body'));
-		widget.renderToolBody(body, state, tool, kind);
+	if (showBody && body) {
+		DOM.append(box, body);
 	}
 	widget.renderToolActions(box, state, tool, kind, { placement: 'card' });
 	if (tool.status === 'errored') {

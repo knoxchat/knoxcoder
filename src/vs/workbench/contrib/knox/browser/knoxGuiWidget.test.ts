@@ -3063,6 +3063,48 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const reopened = widget.root.querySelector('[data-testid="knox-gui-tool"][data-tool-id="r1"]')!;
 		assert.ok(reopened.querySelector('.knox-gui-tool-body'), 'Enter on the head opens it');
 	});
+	test('title-only tool cards stay compact and keep the header on one line', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			tools: [{
+				group: 'Built-In',
+				name: 'builtin_plan',
+				displayTitle: 'Plan',
+				hasAlready: 'updated the task plan',
+			}, {
+				group: 'Built-In',
+				name: 'builtin_run_terminal_command',
+				displayTitle: 'Run Command',
+				hasAlready: 'already run the following terminal command:',
+			}],
+			history: [
+				{ id: 'u', role: 'user', content: 'go' },
+				{
+					id: 'a', role: 'assistant', content: '',
+					toolCalls: [
+						{ id: 'plan', name: 'builtin_plan', arguments: '{}', status: 'done', parsedArgs: {}, output: 'ok' },
+						{
+							id: 'sh',
+							name: 'builtin_run_terminal_command',
+							arguments: '{"command":"cargo build --release"}',
+							parsedArgs: { command: 'cargo build --release' },
+							status: 'done',
+							output: 'Finished',
+							collapsed: true,
+						},
+					],
+				},
+			],
+		});
+		const plan = widget.root.querySelector('[data-testid="knox-gui-tool"][data-tool-id="plan"]')!;
+		const shell = widget.root.querySelector('[data-testid="knox-gui-tool"][data-tool-id="sh"]')!;
+		assert.strictEqual(plan.querySelector('.knox-gui-tool-body'), null, 'plan output is not a code body, so the card stays header-only');
+		assert.strictEqual(plan.querySelector('[data-testid="tool-head"]')?.getAttribute('aria-expanded'), 'false');
+		assert.ok(plan.querySelector('.knox-gui-tool-status-copy'), 'title sits in the shared header copy row');
+		assert.ok((plan.querySelector('.knox-gui-tool-status-text')?.textContent ?? '').includes('Updated the task plan'));
+		assert.ok(shell.querySelector('[data-testid="tool-call-summary"]')?.textContent?.includes('cargo build --release'));
+		assert.ok(shell.querySelector('.knox-gui-tool-head-right .knox-gui-collapse-chevron'));
+	});
 	test('NP-09 pasting text alongside a file still inserts the text when the model has no image support', async () => {
 		const { widget, store } = await mount();
 		store.patch({ imagesSupported: false });

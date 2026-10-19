@@ -126,7 +126,7 @@
 .knox-gui-tool {
 	/* Horizontal inset matches the assistant step card (10px) so tool cards line up with the Thinking block. */
 	margin: 6px 10px 0;
-	padding: 0 0 2px;
+	padding: 0;
 	border: 1px solid color-mix(in srgb, var(--vscode-foreground, #ccc) 12%, transparent);
 	border-radius: 8px;
 	background: color-mix(in srgb, var(--vscode-foreground, #ccc) 3%, transparent);
@@ -151,8 +151,9 @@
 	align-items: center;
 	justify-content: space-between;
 	gap: 10px;
+	/* 5 + 22 + 5: status, title, chip and 22px toggles share one 32px centre line. */
 	min-height: 32px;
-	padding: 6px 8px 6px 10px;
+	padding: 5px 8px 5px 10px;
 	box-sizing: border-box;
 	border-radius: 7px;
 	outline-offset: -1px;
@@ -172,6 +173,7 @@
 	gap: 8px;
 	min-width: 0;
 	flex: 1;
+	min-height: 22px;
 }
 
 .knox-gui-tool-head-right {
@@ -180,6 +182,7 @@
 	gap: 6px;
 	flex-shrink: 0;
 	min-width: 0;
+	min-height: 22px;
 }
 
 .knox-gui-tool-status {
@@ -331,39 +334,56 @@
 	width: 16px;
 	height: 16px;
 	border-radius: 2px;
+	flex-shrink: 0;
 }
 
 .knox-gui-tool-status-text {
 	min-width: 0;
 	flex: 1;
+	display: flex;
+	align-items: center;
 	overflow: hidden;
 	white-space: nowrap;
-	text-overflow: ellipsis;
 	font-size: 12.5px;
-	line-height: 1.4;
+	line-height: 16px;
 }
 
 .knox-gui-tool-status-copy {
+	flex: 1;
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
+	line-height: 16px;
+}
+
+.knox-gui-tool-template {
+	line-height: 16px;
 }
 
 .knox-gui-tool-name {
+	display: inline-flex;
+	align-items: center;
 	font-size: 0.95em;
-	padding: 1px 5px;
+	padding: 0 5px;
 	border-radius: 4px;
+	line-height: 16px;
+	vertical-align: middle;
 	background: color-mix(in srgb, var(--vscode-foreground, #ccc) 10%, transparent);
 }
 
 .knox-gui-tool-summary {
+	display: inline-flex;
+	align-items: center;
 	max-width: 160px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	padding: 1px 8px;
+	padding: 0 8px;
 	border-radius: 10px;
 	font-size: 11px;
 	line-height: 16px;
+	min-height: 16px;
 	color: var(--vscode-descriptionForeground, #9da5b4);
 	background: color-mix(in srgb, var(--vscode-foreground, #ccc) 8%, transparent);
 }
@@ -392,6 +412,11 @@
 .knox-gui-tool-body {
 	margin: 0;
 	padding: 0 8px 8px;
+}
+
+.knox-gui-tool-body:empty {
+	display: none;
+	padding: 0;
 }
 
 .knox-gui-tool-thinking,
