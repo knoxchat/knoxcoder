@@ -258,13 +258,13 @@ describe("reasoning effort resolution", () => {
   it("does not use sidecar alone without reasoning_effort in /v1/models", () => {
     seedKnoxChatModelsCache([
       sampleModel({
-        id: "anthropic/claude-sonnet-4.6",
+        id: "anthropic/claude-sonnet-5.5",
         supported_parameters: ["tools", "temperature", "max_tokens"],
       }),
     ]);
     expect(
       resolveReasoningEffortConfigForModel({
-        modelId: "anthropic/claude-sonnet-4.6",
+        modelId: "anthropic/claude-sonnet-5.5",
       }),
     ).toBeNull();
   });

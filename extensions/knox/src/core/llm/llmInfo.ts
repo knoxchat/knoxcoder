@@ -25,7 +25,7 @@ const allLlms: LlmInfo[] = [
   // ── Anthropic ───────────────────────────────────────────────────────────
   { model: "claude-sonnet-5.5", contextLength: 1000000, maxCompletionTokens: 128000, recommendedFor: ["chat"] },
   { model: "claude-opus-5.5", contextLength: 1000000, maxCompletionTokens: 128000, recommendedFor: ["chat"] },
-  { model: "claude-haiku-4.5", contextLength: 200000, maxCompletionTokens: 64000, recommendedFor: ["chat"] },
+  { model: "claude-haiku-5.5", contextLength: 200000, maxCompletionTokens: 64000, recommendedFor: ["chat"] },
 ];
 
 export function findLlmInfo(model: string): LlmInfo | undefined {

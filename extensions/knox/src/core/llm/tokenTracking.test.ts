@@ -39,8 +39,8 @@ describe("tokenTracking pricing", () => {
     expect(perMillion("claude-sonnet-5-5-20260928")).toEqual([2, 10]);
     expect(perMillion("anthropic/claude-sonnet-5.5")).toEqual([2, 10]);
     expect(perMillion("claude-opus-5-5")).toEqual([4, 20]);
-    expect(perMillion("anthropic/claude-haiku-4.5")).toEqual([1, 5]);
-    expect(perMillion("claude-haiku-4-5-20251015")).toEqual([1, 5]);
+    expect(perMillion("anthropic/claude-haiku-5.5")).toEqual([1, 5]);
+    expect(perMillion("claude-haiku-5-5-20251015")).toEqual([1, 5]);
   });
 
   it("prices current OpenAI ids and picks the longest prefix", () => {

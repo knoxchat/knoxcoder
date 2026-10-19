@@ -392,7 +392,7 @@ export const ADD_MODEL_PROVIDERS: IKnoxGuiAddModelProvider[] = [
 		packages: [
 			{ title: 'Claude Sonnet 5.5', description: 'Anthropic\'s balanced model for coding and agents, with a 1M-token context window.', providerOptions: ['anthropic'], browse: true, params: { title: 'Claude Sonnet 5.5', model: 'claude-sonnet-5.5', contextLength: 1000000 } },
 			{ title: 'Claude Opus 5.5', description: 'Anthropic\'s most capable model, with a 1M-token context window.', providerOptions: ['anthropic'], browse: true, params: { title: 'Claude Opus 5.5', model: 'claude-opus-5.5', contextLength: 1000000 } },
-			{ title: 'Claude Haiku 4.5', description: 'The fastest Claude model: a compact model for near-instant responsiveness.', providerOptions: ['anthropic'], browse: true, params: { title: 'Claude Haiku 4.5', model: 'claude-haiku-4.5', contextLength: 200000 } },
+			{ title: 'Claude Haiku 5.5', description: 'The fastest Claude model: a compact model for near-instant responsiveness.', providerOptions: ['anthropic'], browse: true, params: { title: 'Claude Haiku 5.5', model: 'claude-haiku-5.5', contextLength: 200000 } },
 		],
 		params: { contextLength: 1000000 },
 	},
@@ -409,7 +409,7 @@ export function addModelPackagesByProvider(): Array<{ providerId: string; title:
 /** Curated browse-by-model list from `AddNewModel.tsx` `modelsByProvider`. */
 const ADD_MODEL_BROWSE_ORDER: Record<string, string[]> = {
 	openai: ['gpt-6.1-sol', 'gpt-6-luna'],
-	anthropic: ['claude-sonnet-5.5', 'claude-opus-5.5', 'claude-haiku-4.5'],
+	anthropic: ['claude-sonnet-5.5', 'claude-opus-5.5', 'claude-haiku-5.5'],
 };
 
 export function addModelBrowseGroups(): Array<{ providerId: string; title: string; icon?: string; packages: IKnoxGuiAddModelPackage[] }> {

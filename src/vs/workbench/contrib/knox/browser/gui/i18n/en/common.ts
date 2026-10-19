@@ -446,7 +446,7 @@ export const knoxGuiStringsEnCommon: Record<string, unknown> = {
 	"openrouterLongDescription": "OpenRouter provides unified access to hundreds of models through one API. Sign in with OpenRouter or paste an `sk-or-…` key. Visit [OpenRouter](https://openrouter.ai/keys) to manage keys.",
 	"openaiDescription": "GPT-6.1 Sol, GPT-6 Luna, and AUTODETECT",
 	"openaiLongDescription": "Use an OpenAI API key to add GPT models from the official API.",
-	"anthropicDescription": "Claude Sonnet 5.5, Opus 5.5, and Haiku 4.5",
+	"anthropicDescription": "Claude Sonnet 5.5, Opus 5.5, and Haiku 5.5",
 	"anthropicLongDescription": "Use an Anthropic API key to add Claude models from the official API.",
 	"unknownErrorOccurred": "Unknown error occurred",
 	"contextLength": "Context Length",

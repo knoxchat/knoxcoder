@@ -100,4 +100,21 @@ suite('Knox LLM stack contract (KN-250–256)', () => {
 		}
 		assert.ok(repoFile('extensions/knox/src/core/llm/reasoningEffortConfig.ts').includes('reasoning'));
 	});
+
+	test('native GUI reasoning-effort sidecar matches core JSON', () => {
+		const overrides = JSON.parse(repoFile('extensions/knox/src/core/llm/data/reasoningEffortOverrides.json')) as {
+			models: Record<string, { allowed: string[]; default: string }>;
+		};
+		const capabilities = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiCapabilities.ts');
+		const start = capabilities.indexOf('const REASONING_EFFORT_SIDECAR');
+		const end = capabilities.indexOf('let knoxGuiModelCatalog');
+		assert.ok(start >= 0 && end > start);
+		const sidecar = capabilities.slice(start, end);
+		const nativeIds = [...sidecar.matchAll(/'([^']+)': \{ allowed:/g)].map(match => match[1]);
+		assert.deepStrictEqual(nativeIds, Object.keys(overrides.models));
+		for (const [id, config] of Object.entries(overrides.models)) {
+			const expected = `'${id}': { allowed: [${config.allowed.map(value => `'${value}'`).join(', ')}], default: '${config.default}' }`;
+			assert.ok(sidecar.includes(expected), expected);
+		}
+	});
 });

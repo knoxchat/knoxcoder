@@ -446,7 +446,7 @@ export const knoxGuiStringsZhCommon: Record<string, unknown> = {
 	"openrouterLongDescription": "OpenRouter 通过单一 API 接入数百个模型。可使用 OpenRouter 登录，或粘贴 `sk-or-…` 密钥。访问 [OpenRouter](https://openrouter.ai/keys) 管理密钥。",
 	"openaiDescription": "GPT-6.1 Sol、GPT-6 Luna 和 AUTODETECT",
 	"openaiLongDescription": "使用 OpenAI API 密钥从官方接口添加 GPT 模型。",
-	"anthropicDescription": "Claude Sonnet 5.5、Opus 5.5 与 Haiku 4.5",
+	"anthropicDescription": "Claude Sonnet 5.5、Opus 5.5 与 Haiku 5.5",
 	"anthropicLongDescription": "使用 Anthropic API 密钥从官方接口添加 Claude 模型。",
 	"unknownErrorOccurred": "发生未知错误",
 	"contextLength": "上下文长度",

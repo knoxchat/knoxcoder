@@ -32,7 +32,7 @@
       "cacheRead": 0.2,
       "cacheWrite": 2.5
     },
-    "claude-haiku-4-5": {
+    "claude-haiku-5-5": {
       "input": 1,
       "output": 5,
       "cacheRead": 0.1,

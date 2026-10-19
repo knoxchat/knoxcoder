@@ -1600,7 +1600,7 @@ suite('Knox native GUI parity', () => {
 		}), DEFAULT_REASONING_EFFORT);
 		assert.strictEqual(knoxGuiResolveReasoningEffort({
 			title: 'Opus',
-			model: 'anthropic/claude-opus-4.7',
+			model: 'anthropic/claude-opus-5.5',
 			supportedParameters: ['reasoning_effort'],
 		}, {}, 'max'), 'max');
 		assert.strictEqual(knoxGuiModelSupportsImages({
@@ -1649,10 +1649,10 @@ suite('Knox native GUI parity', () => {
 		assert.deepStrictEqual(knoxGuiReasoningEffortConfig({
 			title: 'Claude',
 			provider: 'anthropic',
-			model: 'claude-sonnet-4.6',
+			model: 'claude-sonnet-5.5',
 			supportedParameters: ['reasoning_effort'],
-		})?.allowed, ['low', 'medium', 'high']);
-		assert.ok(knoxGuiGetReasoningModelKeys({ title: 'Claude', provider: 'anthropic', model: 'claude-sonnet-4.6' }).includes('anthropic/claude-sonnet-4.6'));
+		})?.allowed, ['low', 'medium', 'high', 'max', 'xhigh']);
+		assert.ok(knoxGuiGetReasoningModelKeys({ title: 'Claude', provider: 'anthropic', model: 'claude-sonnet-5.5' }).includes('anthropic/claude-sonnet-5.5'));
 		knoxGuiResetModelCatalogForTests();
 	});
 
@@ -2235,7 +2235,7 @@ suite('Knox native GUI parity', () => {
 
 		assert.deepStrictEqual(addModelPackagesByProvider().map(group => group.providerId), ['openai', 'anthropic']);
 		assert.deepStrictEqual(addModelBrowseGroups().map(group => group.title), ['Open AI', 'Anthropic']);
-		assert.deepStrictEqual(addModelBrowseGroups().flatMap(group => group.packages.map(pack => pack.params.model)), ['gpt-6.1-sol', 'gpt-6-luna', 'claude-sonnet-5.5', 'claude-opus-5.5', 'claude-haiku-4.5']);
+		assert.deepStrictEqual(addModelBrowseGroups().flatMap(group => group.packages.map(pack => pack.params.model)), ['gpt-6.1-sol', 'gpt-6-luna', 'claude-sonnet-5.5', 'claude-opus-5.5', 'claude-haiku-5.5']);
 		assert.ok(addModelProviderById('openai')?.packages.some(pack => pack.params.model === 'AUTODETECT'));
 		assert.strictEqual(addModelProviderById('openai')?.packages.find(pack => pack.params.model === 'gpt-6-luna')?.title, 'GPT-6 Luna');
 		assert.strictEqual(addModelProviderById('openai')?.packages.find(pack => pack.params.model === 'gpt-6-luna')?.params.contextLength, 1050000);

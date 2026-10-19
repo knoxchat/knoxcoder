@@ -101,17 +101,17 @@ export interface IKnoxGuiModelCatalogEntry {
 	};
 }
 
-/** `core/llm/data/reasoningEffortOverrides.json` — used only when effort is advertised. */
+/** `core/llm/data/reasoningEffortOverrides.json` — used only when effort is advertised. Keep 1:1 with that file. */
 const REASONING_EFFORT_SIDECAR: Record<string, IKnoxGuiReasoningEffortConfig> = {
 	'anthropic/claude-haiku-5.5': { allowed: ['low', 'medium', 'high'], default: 'high' },
 	'anthropic/claude-sonnet-5.5': { allowed: ['low', 'medium', 'high', 'max', 'xhigh'], default: 'high' },
 	'anthropic/claude-opus-5.5': { allowed: ['high', 'xhigh', 'max'], default: 'xhigh' },
 	'anthropic/claude-fable-5.1': { allowed: ['low', 'medium', 'high', 'max'], default: 'high' },
 	'openai/gpt-6-sol': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'none' },
-	'oopenai/gpt-6.1-sol': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'high' },
+	'openai/gpt-6-sol-pro': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'high' },
 	'openai/gpt-6-luna': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'none' },
 	'openai/gpt-5.6-terra': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'medium' },
-	'openai/gpt-6-astra': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'high' },
+	'openai/gpt-6.1-sol': { allowed: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'high' },
 };
 
 let knoxGuiModelCatalog: IKnoxGuiModelCatalogEntry[] = [];
