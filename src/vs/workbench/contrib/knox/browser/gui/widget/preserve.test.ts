@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { captureDomState, keyedScrolls, restoreDomState, scrollKey } from './preserve.js';
+import { captureDomState, captureSelection, keyedScrolls, restoreDomState, scrollKey, withPreservedSelection } from './preserve.js';
 
 suite('Knox GUI DOM preserve', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -99,6 +99,48 @@ suite('Knox GUI DOM preserve', () => {
 		const { root, body } = tree();
 		const snapshot = captureDomState(root, body);
 		assert.deepStrictEqual(keyedScrolls(snapshot).scrolls.map(entry => entry.key), ['knox-gui-overlay-settings']);
+	});
+
+	test('does not capture a selection inside a contenteditable', () => {
+		const root = document.createElement('div');
+		const editor = document.createElement('div');
+		editor.contentEditable = 'true';
+		editor.append('prompt text');
+		root.appendChild(editor);
+		document.body.appendChild(root);
+		const text = editor.firstChild as Text;
+		const selection = document.getSelection()!;
+		const range = document.createRange();
+		range.setStart(text, 0);
+		range.setEnd(text, 6);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		assert.strictEqual(captureSelection(root), undefined);
+		root.remove();
+	});
+
+	test('does not restore a transcript selection over a focused contenteditable', () => {
+		const root = document.createElement('div');
+		const p = document.createElement('p');
+		p.append('hello world');
+		const editor = document.createElement('div');
+		editor.contentEditable = 'true';
+		editor.tabIndex = 0;
+		editor.append('prompt');
+		root.append(p, editor);
+		document.body.appendChild(root);
+		const text = p.firstChild as Text;
+		const selection = document.getSelection()!;
+		const range = document.createRange();
+		range.setStart(text, 0);
+		range.setEnd(text, 5);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		withPreservedSelection(root, () => {
+			editor.focus();
+		});
+		assert.strictEqual(document.activeElement, editor);
+		root.remove();
 	});
 
 	test('restores a text selection after the live node is replaced', () => {

@@ -65,9 +65,23 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 	if (!focused && !keepToolbar) {
 		bar.classList.add('knox-gui-input-bar--hidden');
 	}
+	const revealEditor = (target?: EventTarget | null) => {
+		widget.focusedHistoryId = item.id;
+		bar.classList.remove('knox-gui-input-bar--hidden');
+		if (target instanceof Node && bar.contains(target)) {
+			return;
+		}
+		editor.focus({ preventScroll: true });
+	};
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'focus', () => {
 		widget.focusedHistoryId = item.id;
 		bar.classList.remove('knox-gui-input-bar--hidden');
+	}));
+	widget.renderStore.add(DOM.addDisposableListener(box, 'pointerdown', (e: PointerEvent) => {
+		if (e.button !== 0) {
+			return;
+		}
+		revealEditor(e.target);
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(box, 'focusout', (e: FocusEvent) => {
 		const next = e.relatedTarget as Node | null;
@@ -155,10 +169,10 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 		}
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(box, 'drop', (e: DragEvent) => onHistoryEditorDrop(widget, e, item.id)));
-	widget.renderStore.add(DOM.addDisposableListener(box, 'click', () => editor.focus()));
+	widget.renderStore.add(DOM.addDisposableListener(box, 'click', (e: MouseEvent) => revealEditor(e.target)));
 	if (focused) {
 		queueMicrotask(() => {
-			editor.focus();
+			editor.focus({ preventScroll: true });
 			const pending = widget.historyPendingCaret;
 			if (pending?.id === item.id) {
 				widget.historyPendingCaret = undefined;

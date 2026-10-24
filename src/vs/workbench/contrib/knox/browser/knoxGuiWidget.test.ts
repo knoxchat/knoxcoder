@@ -628,6 +628,25 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(menu?.textContent?.toLowerCase().includes('copy'));
 	});
 
+	test('clicking the floating sent prompt shows the history input bar', async () => {
+		const { widget, store } = await mount();
+		const user: IKnoxGuiHistoryItem = { id: 'u', role: 'user', content: 'Use rust to create a snake game' };
+		store.patch({ isStreaming: true, history: [user, { id: 'a', role: 'assistant', content: '', thinking: 'planning' }] });
+		const host = widget.root.querySelector('[data-testid="floating-sent-host"]') as HTMLElement;
+		assert.ok(host.querySelector('[data-testid="last-user-composer"]'));
+		const input = host.querySelector('[data-testid="knox-gui-history-input"]') as HTMLElement;
+		const bar = host.querySelector('.knox-gui-history-editor .knox-gui-input-bar') as HTMLElement;
+		assert.ok(input);
+		assert.ok(bar.classList.contains('knox-gui-input-bar--hidden'));
+		input.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+		assert.strictEqual(bar.classList.contains('knox-gui-input-bar--hidden'), false);
+		assert.strictEqual(widget.focusedHistoryId, 'u');
+		store.patch({ history: [user, { id: 'a', role: 'assistant', content: 'working on it' }] });
+		const nextBar = widget.root.querySelector('[data-testid="floating-sent-host"] .knox-gui-history-editor .knox-gui-input-bar') as HTMLElement;
+		assert.ok(nextBar);
+		assert.strictEqual(nextBar.classList.contains('knox-gui-input-bar--hidden'), false);
+	});
+
 	test('streaming token patches wait out a pointer drag so the selection can finish', async () => {
 		const { widget, store } = await mount();
 		const user: IKnoxGuiHistoryItem = { id: 'u', role: 'user', content: 'hi' };

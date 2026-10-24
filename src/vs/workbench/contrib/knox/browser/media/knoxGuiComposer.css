@@ -632,6 +632,8 @@
 	word-wrap: break-word;
 	caret-color: #20c997;
 	line-height: 1.6;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .knox-gui-input[data-empty="true"]::before {

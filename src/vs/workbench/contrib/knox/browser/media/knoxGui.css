@@ -396,6 +396,8 @@
 	max-height: min(40vh, 320px);
 	overflow-x: hidden;
 	overflow-y: auto;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .knox-gui-floating-sent-host:empty {

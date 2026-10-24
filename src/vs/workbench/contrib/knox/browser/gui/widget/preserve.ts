@@ -191,6 +191,21 @@ function resolveScrollTarget(root: HTMLElement, entry: IScrollEntry): HTMLElemen
 	return el instanceof HTMLElement ? el : undefined;
 }
 
+function nodeInEditable(root: HTMLElement, node: Node | null | undefined): boolean {
+	const el = node instanceof Element ? node : node?.parentElement ?? null;
+	return Boolean(el && root.contains(el) && el.closest('[contenteditable="true"], input, textarea'));
+}
+
+function selectionTouchesEditable(root: HTMLElement): boolean {
+	const doc = root.ownerDocument;
+	const active = doc.activeElement;
+	if (active instanceof HTMLElement && nodeInEditable(root, active)) {
+		return true;
+	}
+	const selection = doc.getSelection();
+	return Boolean(selection && (nodeInEditable(root, selection.anchorNode) || nodeInEditable(root, selection.focusNode)));
+}
+
 /**
  * The widget rebuilds its DOM on every state change. A text selection and inner scroll
  * positions are re-applied to the node at the same structural path when it still exists.
@@ -204,9 +219,7 @@ export function captureSelection(root: HTMLElement): IKnoxGuiSelectionSnapshot |
 	if (!selection || !selection.rangeCount || selection.isCollapsed || !selection.anchorNode || !selection.focusNode) {
 		return undefined;
 	}
-	const active = root.ownerDocument.activeElement;
-	const inEditable = active instanceof HTMLElement && (active.isContentEditable || active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) && root.contains(active);
-	if (inEditable) {
+	if (selectionTouchesEditable(root)) {
 		return undefined;
 	}
 	const anchor = pathTo(root, selection.anchorNode);
@@ -275,7 +288,7 @@ export function restoreDomState(root: HTMLElement, snapshot: IKnoxGuiDomSnapshot
 export function withPreservedSelection<T>(root: HTMLElement, fn: () => T): T {
 	const selection = captureSelection(root);
 	const result = fn();
-	if (selection) {
+	if (selection && !selectionTouchesEditable(root)) {
 		restoreDomState(root, { selection, scrolls: [] });
 	}
 	return result;
