@@ -659,6 +659,10 @@ export function shouldWarnLargeSession(history: IKnoxGuiHistoryItem[]): boolean 
 }
 
 export const CHAT_SCROLL_BOTTOM_THRESHOLD_PX = 24;
+/** After the last wheel/pointer/key, generation may hold the paused top again. */
+export const CHAT_USER_SCROLL_IDLE_MS = 160;
+/** Scroll events after this many ms without a wheel/pointer/key are layout, not a gesture. */
+export const CHAT_USER_SCROLL_GESTURE_MS = 80;
 /** `ChatHistoryList` prepends another window when the scroller is this close to the top. */
 export const CHAT_LOAD_EARLIER_THRESHOLD_PX = 48;
 
@@ -668,24 +672,84 @@ export interface IKnoxGuiScrollFollow {
 	lastScrollHeight: number;
 }
 
+export interface IKnoxGuiScrollFollowEvent {
+	scrollTop: number;
+	scrollHeight: number;
+	clientHeight: number;
+	programmatic: boolean;
+	userGesture?: boolean;
+}
+
 /**
  * `useEnhancedScroll` scroll handler: programmatic scrolls and scrollTop clamps caused by the
- * content shrinking keep the follow state; only an upward user scroll pauses, reaching the bottom resumes.
+ * content shrinking keep the follow state. Any upward user scroll pauses — including inside the
+ * bottom threshold — so stick-to-latest cannot fight the wheel while a reply is streaming.
+ * Reaching the bottom resumes.
  */
 export function knoxGuiNextScrollFollow(
 	prev: IKnoxGuiScrollFollow,
-	event: { scrollTop: number; scrollHeight: number; clientHeight: number; programmatic: boolean },
+	event: IKnoxGuiScrollFollowEvent,
 ): IKnoxGuiScrollFollow {
 	const heightDropped = event.scrollHeight < prev.lastScrollHeight - 1;
 	const base = { lastScrollTop: event.scrollTop, lastScrollHeight: event.scrollHeight };
-	if (event.programmatic || heightDropped) {
+	const scrolledUp = event.scrollTop < prev.lastScrollTop;
+	const atBottom = event.scrollTop + event.clientHeight >= event.scrollHeight - CHAT_SCROLL_BOTTOM_THRESHOLD_PX;
+	if (event.userGesture && scrolledUp) {
+		return { following: false, ...base };
+	}
+	if ((event.programmatic || heightDropped) && !(event.userGesture && atBottom)) {
 		return { following: prev.following, ...base };
 	}
-	const atBottom = event.scrollTop + event.clientHeight >= event.scrollHeight - CHAT_SCROLL_BOTTOM_THRESHOLD_PX;
-	if (event.scrollTop < prev.lastScrollTop && !atBottom) {
+	if (scrolledUp) {
 		return { following: false, ...base };
 	}
 	return { following: atBottom ? true : prev.following, ...base };
+}
+
+/**
+ * While follow is paused, keep the user's last place if layout/generation moves scrollTop
+ * without a gesture. A live wheel, scrollbar drag, or key must keep the new top.
+ */
+export function knoxGuiHoldPausedScrollTop(args: {
+	following: boolean;
+	userGesture: boolean;
+	previousScrollTop: number;
+	scrollHeight: number;
+	clientHeight: number;
+}): number | undefined {
+	if (args.following || args.userGesture) {
+		return undefined;
+	}
+	return knoxGuiClampScrollTop(args.scrollHeight, args.clientHeight, args.previousScrollTop);
+}
+
+/** Wheel/key in this frame, or a pointer still held on the scroller (scrollbar drag). */
+export function knoxGuiIsLiveUserScroll(args: {
+	pointerHeld: boolean;
+	lastUserScrollAt: number;
+	now: number;
+	gestureMs?: number;
+}): boolean {
+	return args.pointerHeld || args.now - args.lastUserScrollAt < (args.gestureMs ?? CHAT_USER_SCROLL_GESTURE_MS);
+}
+
+/**
+ * Keep a visible block at the same viewport offset after layout/generation.
+ * Positive delta means content was inserted above the anchor.
+ */
+export function knoxGuiRestoreAnchorScrollTop(args: {
+	scrollTop: number;
+	clientTop: number;
+	anchorTop: number;
+	anchorOffset: number;
+	scrollHeight: number;
+	clientHeight: number;
+}): number {
+	return knoxGuiClampScrollTop(
+		args.scrollHeight,
+		args.clientHeight,
+		args.scrollTop + (args.anchorTop - args.clientTop) - args.anchorOffset,
+	);
 }
 
 /** Clamp a transcript scrollTop to the current content, matching `useEnhancedScroll` stick/restore. */
@@ -705,7 +769,7 @@ export function knoxGuiTranscriptRestoreTop(args: {
 	scrollHeight: number;
 	clientHeight: number;
 }): number {
-	if (args.previousScrollHeight != null) {
+	if (args.previousScrollHeight !== null) {
 		return knoxGuiClampScrollTop(
 			args.scrollHeight,
 			args.clientHeight,

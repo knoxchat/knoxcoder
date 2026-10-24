@@ -8,7 +8,7 @@ import { t } from './t.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { MarkdownRenderOptions } from '../../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { scheduleTranscriptStick } from './chrome.js';
+import { syncTranscriptFollow } from './chrome.js';
 import { escape } from '../../../../../../base/common/strings.js';
 import { tokenizeToStringSync } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
 import { TokenizationRegistry } from '../../../../../../editor/common/languages.js';
@@ -63,9 +63,7 @@ export function appendMarkdown(widget: KnoxGuiWidget, parent: HTMLElement, sourc
 		fillInIncompleteTokens: streaming,
 		codeBlockRendererSync: (language, value) => highlightMarkdownFence(widget, language, value, streaming),
 		asyncRenderCallback: () => {
-			if (widget.autoScrollEnabled) {
-				scheduleTranscriptStick(widget);
-			}
+			syncTranscriptFollow(widget);
 		},
 	};
 	const markdown = new MarkdownString(source, { supportHtml: false, isTrusted: false });
@@ -763,9 +761,7 @@ export function renderCodeLines(widget: KnoxGuiWidget, parent: HTMLElement, stat
 			}
 			container.scrollTop = container.scrollHeight;
 			widget.codeScrollTop.set(key, container.scrollTop);
-			if (widget.autoScrollEnabled) {
-				scheduleTranscriptStick(widget);
-			}
+			syncTranscriptFollow(widget);
 		});
 		observer.observe(container);
 		const linesEl = container.querySelector('.knox-gui-code-lines');
@@ -802,6 +798,7 @@ export function renderApplyActions(widget: KnoxGuiWidget, parent: HTMLElement, s
 		widget.chromeButton(pill, {
 			svg: 'x',
 			svgSize: 16,
+			// allow-any-unicode-next-line
 			title: `${t(state, 'rejectAll')} (${knoxGuiMetaKeyLabel(isMacintosh)}⇧⌫)`,
 			testId: 'edit-reject-button',
 			onClick: () => {
@@ -879,7 +876,7 @@ export function renderReasoning(widget: KnoxGuiWidget, parent: HTMLElement, stat
 		}
 		const content = DOM.append(body, DOM.$('.knox-gui-reasoning-content.styled-markdown-preview'));
 		fillReasoningContent(widget, content, state, item, thinking);
-		if (item.thinkingActive) {
+		if (item.thinkingActive && widget.autoScrollEnabled) {
 			body.scrollTop = body.scrollHeight;
 		}
 	}
@@ -951,7 +948,7 @@ export function patchLiveReasoning(widget: KnoxGuiWidget, card: HTMLElement, sta
 			fillReasoningContent(widget, content, state, item, thinking);
 		}
 	}
-	if (item.thinkingActive) {
+	if (item.thinkingActive && widget.autoScrollEnabled) {
 		body.scrollTop = body.scrollHeight;
 	}
 }

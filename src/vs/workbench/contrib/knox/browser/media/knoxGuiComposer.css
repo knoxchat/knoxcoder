@@ -904,6 +904,7 @@
 	max-height: none;
 	padding: 0;
 	overflow: auto;
+	overflow-anchor: none;
 	scrollbar-gutter: stable;
 	scroll-behavior: auto;
 	font-size: var(--vscode-editor-font-size, 13px);

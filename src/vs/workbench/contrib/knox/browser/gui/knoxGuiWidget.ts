@@ -192,14 +192,13 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 					this.render();
 				} else {
 					this.lastState = state;
-					if (this.autoScrollEnabled) {
-						knoxGuiChromeView.scheduleTranscriptStick(this);
-					}
+					knoxGuiChromeView.syncTranscriptFollow(this);
 				}
 				return;
 			}
 		}
 		if (this.lastState && !this.lastState.isStreaming && state.isStreaming) {
+			knoxGuiChromeView.clearTranscriptUserScrolling(this);
 			this.autoScrollEnabled = true;
 		}
 		if (this.lastState?.isStreaming && !state.isStreaming && this.autoScrollEnabled) {
@@ -273,6 +272,7 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		if (state.sessionId !== this.lastSessionId) {
 			this.lastSessionId = state.sessionId;
 			this.expandedStart = AUTO_DISPLAY_START;
+			knoxGuiChromeView.clearTranscriptUserScrolling(this);
 			this.autoScrollEnabled = true;
 			this.savedScrollTop = 0;
 			this.failedRows.clear();

@@ -151,7 +151,10 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 	const lastUserIndex = lastUserHistoryIndex(state.history);
 	const floatLastUser = shouldFloatLastUser({
 		isStreaming: state.isStreaming,
-		followLive: widget.autoScrollEnabled,
+		// Keep the live prompt pinned while the turn runs, even if the user scrolled
+		// up to read thinking / tools. Un-floating mid-stream inserts the prompt into
+		// the scroller and shoves the paused view down.
+		followLive: true,
 		lastUserIndex,
 	});
 	const turns = groupHistoryTurns(state.history);

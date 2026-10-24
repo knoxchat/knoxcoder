@@ -7,7 +7,7 @@ import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-import { scheduleTranscriptStick } from '../chrome.js';
+import { syncTranscriptFollow } from '../chrome.js';
 import { patchLiveTool, toolStreamFingerprint } from '../tools.js';
 import { IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import {
@@ -90,9 +90,7 @@ export function patchLastAssistant(widget: KnoxGuiWidget, state: IKnoxGuiState):
 		actions?.remove();
 		widget.renderResponseActions(card, state, item, index, isResponseTruncated(item.content, false));
 	}
-	if (widget.autoScrollEnabled) {
-		scheduleTranscriptStick(widget);
-	}
+	syncTranscriptFollow(widget);
 }
 
 /**

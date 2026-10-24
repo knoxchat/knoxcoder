@@ -44,6 +44,13 @@
 .knox-gui-turn.last-message {
 	margin-bottom: 8px;
 	border: 1px solid rgba(21, 153, 148, 0.1);
+	overflow-anchor: none;
+}
+
+.knox-gui-reasoning,
+.knox-gui-reasoning-body {
+	overflow-anchor: none;
+	overscroll-behavior: contain;
 }
 
 .knox-gui-msg.user {
@@ -824,6 +831,8 @@
 	max-height: 400px;
 	overflow-x: auto;
 	overflow-y: auto;
+	overflow-anchor: none;
+	overscroll-behavior: contain;
 	padding: 0;
 	background: var(--vscode-editor-background);
 	scrollbar-width: thin;

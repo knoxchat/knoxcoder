@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { knoxGuiModelSupportsReasoning, knoxGuiResetModelCatalogForTests, knoxGuiShowsThinkingPlaceholder } from './knoxGuiCapabilities.js';
-import { CHAT_LOAD_EARLIER_THRESHOLD_PX, knoxGuiNextScrollFollow, knoxGuiShouldLoadEarlier, knoxGuiTranscriptRestoreTop } from './knoxGuiChat.js';
+import { CHAT_LOAD_EARLIER_THRESHOLD_PX, knoxGuiHoldPausedScrollTop, knoxGuiIsLiveUserScroll, knoxGuiNextScrollFollow, knoxGuiRestoreAnchorScrollTop, knoxGuiShouldLoadEarlier, knoxGuiTranscriptRestoreTop } from './knoxGuiChat.js';
 import { alignSplitDiffRows, buildDiffSegments, checkpointGraphFindScroll, checkpointGraphMenuPosition, checkpointGraphRevealScroll, checkpointDiffContentBytes, checkpointDiffSummary, computeLineDiff, checkpointChartTickInterval, checkpointChartYTicks, checkpointConfigFieldErrors, checkpointConfigIsDirty, checkpointConfigNumber, checkpointDetailsDefaultTab, checkpointImageMime, DEFAULT_CHECKPOINT_CONFIG, formatCheckpointDuration, formatDashboardBytes, groupTimelineCheckpoints, checkpointMatchesQuery, checkpointTreeAncestors, clampCheckpointTreeWidth, compareCheckpointTargets, diffFromCheckpointSnapshots, formatSnapshotSize, parseCheckpointDetails } from './knoxGuiCheckpoints.js';
 import { MEMORY_SETTING_GROUPS, memoriesToExportJson, memoriesToExportMarkdown, memoryBrowserEmptyKey, memoryConsolidateParts, memoryGraphTypeCounts, memoryInjectedLastTurnLine, parseLastInject, parseMemorySettingInput, rangeSelectMemoryIds, visibleMemoryExploreEdges, withMemoryConfigDefaults } from './knoxGuiMemory.js';
 import { knoxGuiResolveOpenPath } from './knoxGuiPanels.js';
@@ -133,6 +133,41 @@ suite('Knox native parity items', () => {
 			assert.deepStrictEqual(paused, { following: false, lastScrollTop: 300, lastScrollHeight: 1000 });
 			assert.strictEqual(knoxGuiNextScrollFollow(paused, { scrollTop: 350, scrollHeight: 1000, clientHeight: 400, programmatic: false }).following, false);
 			assert.strictEqual(knoxGuiNextScrollFollow(paused, { scrollTop: 590, scrollHeight: 1000, clientHeight: 400, programmatic: false }).following, true);
+			const atEnd = { following: true, lastScrollTop: 600, lastScrollHeight: 1000 };
+			assert.strictEqual(
+				knoxGuiNextScrollFollow(atEnd, { scrollTop: 590, scrollHeight: 1000, clientHeight: 400, programmatic: false }).following,
+				false,
+				'upward scroll inside the bottom threshold must pause so stick cannot fight the wheel',
+			);
+			assert.strictEqual(
+				knoxGuiNextScrollFollow(atEnd, { scrollTop: 590, scrollHeight: 1000, clientHeight: 400, programmatic: true, userGesture: true }).following,
+				false,
+				'a live wheel wins even if a programmatic stick raced the same frame',
+			);
+			assert.strictEqual(
+				knoxGuiNextScrollFollow(paused, { scrollTop: 590, scrollHeight: 1000, clientHeight: 400, programmatic: true, userGesture: true }).following,
+				true,
+				'a user gesture at the bottom resumes even if a hold left programmatic set',
+			);
+			assert.strictEqual(
+				knoxGuiNextScrollFollow(paused, { scrollTop: 312, scrollHeight: 1100, clientHeight: 400, programmatic: false }).following,
+				false,
+			);
+			assert.strictEqual(
+				knoxGuiNextScrollFollow(paused, { scrollTop: 250, scrollHeight: 1100, clientHeight: 400, programmatic: false, userGesture: true }).following,
+				false,
+				'a real user scroll while content grows keeps their new top',
+			);
+			assert.strictEqual(knoxGuiHoldPausedScrollTop({ following: true, userGesture: false, previousScrollTop: 200, scrollHeight: 1200, clientHeight: 400 }), undefined);
+			assert.strictEqual(knoxGuiHoldPausedScrollTop({ following: false, userGesture: true, previousScrollTop: 200, scrollHeight: 1200, clientHeight: 400 }), undefined);
+			assert.strictEqual(knoxGuiHoldPausedScrollTop({ following: false, userGesture: false, previousScrollTop: 200, scrollHeight: 1200, clientHeight: 400 }), 200);
+			assert.strictEqual(knoxGuiHoldPausedScrollTop({ following: false, userGesture: false, previousScrollTop: 900, scrollHeight: 1200, clientHeight: 400 }), 800);
+			assert.strictEqual(knoxGuiIsLiveUserScroll({ pointerHeld: true, lastUserScrollAt: 0, now: 10_000 }), true);
+			assert.strictEqual(knoxGuiIsLiveUserScroll({ pointerHeld: false, lastUserScrollAt: 9_960, now: 10_000 }), true);
+			assert.strictEqual(knoxGuiIsLiveUserScroll({ pointerHeld: false, lastUserScrollAt: 9_800, now: 10_000 }), false, 'generation scrolls after the gesture window are not the user');
+			assert.strictEqual(knoxGuiRestoreAnchorScrollTop({ scrollTop: 200, clientTop: 0, anchorTop: 10, anchorOffset: 10, scrollHeight: 1200, clientHeight: 400 }), 200);
+			assert.strictEqual(knoxGuiRestoreAnchorScrollTop({ scrollTop: 200, clientTop: 0, anchorTop: 30, anchorOffset: 10, scrollHeight: 1200, clientHeight: 400 }), 220, 'content inserted above the thinking block must be compensated');
+			assert.strictEqual(knoxGuiRestoreAnchorScrollTop({ scrollTop: 218, clientTop: 0, anchorTop: -8, anchorOffset: 10, scrollHeight: 1200, clientHeight: 400 }), 200, 'a generation nudge that moved the anchor must be undone');
 			assert.strictEqual(knoxGuiTranscriptRestoreTop({ following: true, previousScrollTop: 100, previousScrollHeight: null, scrollHeight: 1000, clientHeight: 400 }), 600);
 			assert.strictEqual(knoxGuiTranscriptRestoreTop({ following: false, previousScrollTop: 250, previousScrollHeight: null, scrollHeight: 1000, clientHeight: 400 }), 250);
 			assert.strictEqual(knoxGuiTranscriptRestoreTop({ following: false, previousScrollTop: 40, previousScrollHeight: 800, scrollHeight: 1400, clientHeight: 400 }), 640);

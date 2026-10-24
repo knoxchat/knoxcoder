@@ -40,6 +40,13 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	lastScrollTop = 0;
 	lastScrollHeight = 0;
 	stickScheduled = false;
+	/** True while a wheel, pointer, touch, or transcript key is still in flight. */
+	userScrolling = false;
+	pointerHeld = false;
+	lastUserScrollAt = 0;
+	scrollAnchorEl: HTMLElement | undefined;
+	scrollAnchorOffset = 0;
+	userScrollIdleHandle: ReturnType<typeof setTimeout> | undefined;
 	streamEndStickHandle: ReturnType<typeof setTimeout> | undefined;
 	expandedStart = AUTO_DISPLAY_START;
 	displayStart = 0;

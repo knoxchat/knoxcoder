@@ -21,7 +21,7 @@ import {
 } from '../../../common/knoxGuiChrome.js';
 import { knoxGuiListboxNextIndex } from '../../../common/knoxGuiCapabilities.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
-import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, knoxGuiFindRegexInvalid, knoxGuiNextScrollFollow, knoxGuiShouldLoadEarlier, knoxGuiTranscriptRestoreTop, nextExpandedStart } from '../../../common/knoxGuiChat.js';
+import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, CHAT_USER_SCROLL_IDLE_MS, knoxGuiFindRegexInvalid, knoxGuiHoldPausedScrollTop, knoxGuiIsLiveUserScroll, knoxGuiNextScrollFollow, knoxGuiRestoreAnchorScrollTop, knoxGuiShouldLoadEarlier, knoxGuiTranscriptRestoreTop, nextExpandedStart } from '../../../common/knoxGuiChat.js';
 import { knoxGuiIsImeComposing, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { visibleBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
@@ -868,16 +868,139 @@ export function loadEarlier(widget: KnoxGuiWidget): void {
 	widget.render();
 }
 
+function markProgrammaticTranscriptScroll(widget: KnoxGuiWidget): void {
+	widget.programmaticScroll = true;
+	queueMicrotask(() => {
+		widget.programmaticScroll = false;
+	});
+}
+
+export function clearTranscriptUserScrolling(widget: KnoxGuiWidget): void {
+	if (widget.userScrollIdleHandle !== undefined) {
+		clearTimeout(widget.userScrollIdleHandle);
+		widget.userScrollIdleHandle = undefined;
+	}
+	widget.userScrolling = false;
+	widget.pointerHeld = false;
+}
+
+function transcriptGestureIsLive(widget: KnoxGuiWidget): boolean {
+	return knoxGuiIsLiveUserScroll({
+		pointerHeld: widget.pointerHeld,
+		lastUserScrollAt: widget.lastUserScrollAt,
+		now: Date.now(),
+	});
+}
+
+/** Wheel / pointer / keys: pause follow before rAF stick can fight the gesture. */
+export function markTranscriptUserScrolling(widget: KnoxGuiWidget, pauseFollow?: boolean, pointerHeld?: boolean): void {
+	widget.userScrolling = true;
+	widget.lastUserScrollAt = Date.now();
+	if (pointerHeld !== undefined) {
+		widget.pointerHeld = pointerHeld;
+	}
+	if (pauseFollow) {
+		widget.autoScrollEnabled = false;
+	}
+	if (widget.userScrollIdleHandle !== undefined) {
+		clearTimeout(widget.userScrollIdleHandle);
+		widget.userScrollIdleHandle = undefined;
+	}
+	if (widget.pointerHeld) {
+		return;
+	}
+	widget.userScrollIdleHandle = setTimeout(() => {
+		widget.userScrollIdleHandle = undefined;
+		widget.userScrolling = false;
+	}, CHAT_USER_SCROLL_IDLE_MS);
+}
+
+const TRANSCRIPT_ANCHOR_SELECTOR = [
+	'.knox-gui-reasoning-header',
+	'.knox-gui-tool',
+	'.knox-gui-term-card',
+	'.knox-gui-history-composer',
+	'[data-testid^="history-row-"]',
+	'.knox-gui-msg',
+	'.knox-gui-turn',
+].join(',');
+
+function captureTranscriptAnchor(widget: KnoxGuiWidget, body: HTMLElement): void {
+	widget.scrollAnchorEl = undefined;
+	widget.scrollAnchorOffset = 0;
+	const top = body.getBoundingClientRect().top;
+	for (const el of body.querySelectorAll<HTMLElement>(TRANSCRIPT_ANCHOR_SELECTOR)) {
+		const rect = el.getBoundingClientRect();
+		if (rect.height < 1 || rect.bottom <= top + 1) {
+			continue;
+		}
+		widget.scrollAnchorEl = el;
+		widget.scrollAnchorOffset = rect.top - top;
+		return;
+	}
+}
+
+function applyTranscriptAnchor(widget: KnoxGuiWidget, body: HTMLElement): boolean {
+	const el = widget.scrollAnchorEl;
+	if (!el?.isConnected) {
+		return false;
+	}
+	const next = knoxGuiRestoreAnchorScrollTop({
+		scrollTop: body.scrollTop,
+		clientTop: body.getBoundingClientRect().top,
+		anchorTop: el.getBoundingClientRect().top,
+		anchorOffset: widget.scrollAnchorOffset,
+		scrollHeight: body.scrollHeight,
+		clientHeight: body.clientHeight,
+	});
+	if (Math.abs(body.scrollTop - next) < 1) {
+		return false;
+	}
+	setTranscriptScrollTop(widget, body, next);
+	return true;
+}
+
 /** Scrolls the transcript without the scroll handler reading it as a user pause. */
 export function setTranscriptScrollTop(widget: KnoxGuiWidget, body: HTMLElement, top: number): void {
 	const target = Math.max(0, Math.min(top, body.scrollHeight - body.clientHeight));
 	if (Math.abs(body.scrollTop - target) >= 1) {
-		widget.programmaticScroll = true;
+		markProgrammaticTranscriptScroll(widget);
 		body.scrollTop = target;
+	} else {
+		widget.programmaticScroll = false;
 	}
 	widget.lastScrollTop = body.scrollTop;
 	widget.lastScrollHeight = body.scrollHeight;
 	widget.savedScrollTop = body.scrollTop;
+}
+
+export function holdPausedTranscriptScroll(widget: KnoxGuiWidget): void {
+	const body = widget.bodyEl;
+	if (!body || widget.autoScrollEnabled || transcriptGestureIsLive(widget)) {
+		return;
+	}
+	if (applyTranscriptAnchor(widget, body)) {
+		return;
+	}
+	const held = knoxGuiHoldPausedScrollTop({
+		following: false,
+		userGesture: false,
+		previousScrollTop: widget.savedScrollTop,
+		scrollHeight: body.scrollHeight,
+		clientHeight: body.clientHeight,
+	});
+	if (held !== undefined && Math.abs(body.scrollTop - held) >= 1) {
+		setTranscriptScrollTop(widget, body, held);
+	}
+}
+
+/** Stick to latest while following; otherwise keep the paused thinking / tool block in place. */
+export function syncTranscriptFollow(widget: KnoxGuiWidget): void {
+	if (widget.autoScrollEnabled) {
+		scheduleTranscriptStick(widget);
+		return;
+	}
+	holdPausedTranscriptScroll(widget);
 }
 
 /**
@@ -901,24 +1024,31 @@ export function restoreTranscriptScroll(widget: KnoxGuiWidget, state: IKnoxGuiSt
 	widget.pendingRestoreHeight = null;
 	widget.loadingEarlier = false;
 	setTranscriptScrollTop(widget, body, top);
+	if (!widget.autoScrollEnabled) {
+		if (!applyTranscriptAnchor(widget, body)) {
+			captureTranscriptAnchor(widget, body);
+		}
+	} else {
+		widget.scrollAnchorEl = undefined;
+	}
 	widget.syncScrollButtons();
 	if (state.find.open && state.find.matchIndexes.length) {
 		const hit = state.find.matchIndexes[state.find.current];
-		widget.programmaticScroll = true;
+		markProgrammaticTranscriptScroll(widget);
 		body.querySelector<HTMLElement>(`[data-testid="history-row-${hit}"]`)?.scrollIntoView({ block: 'center' });
 	}
 }
 
 /** `useEnhancedScroll`: one rAF stick per frame while following. */
 export function scheduleTranscriptStick(widget: KnoxGuiWidget): void {
-	if (!widget.autoScrollEnabled || widget.stickScheduled) {
+	if (!widget.autoScrollEnabled || widget.stickScheduled || widget.userScrolling) {
 		return;
 	}
 	widget.stickScheduled = true;
 	requestAnimationFrame(() => {
 		widget.stickScheduled = false;
 		const body = widget.bodyEl;
-		if (!widget.autoScrollEnabled || !body) {
+		if (!widget.autoScrollEnabled || widget.userScrolling || !body) {
 			return;
 		}
 		setTranscriptScrollTop(widget, body, body.scrollHeight);
@@ -930,7 +1060,7 @@ export function scheduleTranscriptStick(widget: KnoxGuiWidget): void {
 export function forceTranscriptStick(widget: KnoxGuiWidget): void {
 	const run = () => {
 		const body = widget.bodyEl;
-		if (!widget.autoScrollEnabled || !body) {
+		if (!widget.autoScrollEnabled || widget.userScrolling || !body) {
 			return;
 		}
 		setTranscriptScrollTop(widget, body, body.scrollHeight);
@@ -959,7 +1089,9 @@ export function scheduleStreamEndStick(widget: KnoxGuiWidget): void {
 function restickAfterHostChange(widget: KnoxGuiWidget, body: HTMLElement): void {
 	if (widget.autoScrollEnabled) {
 		setTranscriptScrollTop(widget, body, body.scrollHeight);
+		return;
 	}
+	holdPausedTranscriptScroll(widget);
 }
 
 /**
@@ -1027,22 +1159,81 @@ export function updatePinnedUserMessage(widget: KnoxGuiWidget): void {
 	});
 }
 
+function isTranscriptScrollKey(key: string): boolean {
+	return key === 'ArrowUp' || key === 'ArrowDown' || key === 'PageUp' || key === 'PageDown' || key === 'Home' || key === 'End' || key === ' ';
+}
+
 export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 	if (state.route !== KnoxGuiRoute.Chat) {
 		return;
 	}
+	widget.programmaticScroll = false;
+	widget.renderStore.add(DOM.addDisposableListener(body, 'wheel', (e: WheelEvent) => {
+		widget.programmaticScroll = false;
+		markTranscriptUserScrolling(widget, e.deltaY < 0);
+	}, { passive: true }));
+	widget.renderStore.add(DOM.addDisposableListener(body, 'pointerdown', () => {
+		markTranscriptUserScrolling(widget, false, true);
+	}, { passive: true }));
+	widget.renderStore.add(DOM.addDisposableListener(body, 'mousedown', () => {
+		markTranscriptUserScrolling(widget, false, true);
+	}, { passive: true }));
+	widget.renderStore.add(DOM.addDisposableListener(body, 'touchstart', () => {
+		markTranscriptUserScrolling(widget, false, true);
+	}, { passive: true }));
+	const endPointer = () => {
+		if (!widget.pointerHeld) {
+			return;
+		}
+		markTranscriptUserScrolling(widget, false, false);
+	};
+	widget.renderStore.add(DOM.addDisposableListener(body.ownerDocument, 'pointerup', endPointer, { passive: true }));
+	widget.renderStore.add(DOM.addDisposableListener(body.ownerDocument, 'pointercancel', endPointer, { passive: true }));
+	widget.renderStore.add(DOM.addDisposableListener(body.ownerDocument, 'mouseup', endPointer, { passive: true }));
+	widget.renderStore.add(DOM.addDisposableListener(body.ownerDocument, 'touchend', endPointer, { passive: true }));
+	widget.renderStore.add(DOM.addDisposableListener(body, 'keydown', (e: KeyboardEvent) => {
+		if (isTranscriptScrollKey(e.key)) {
+			markTranscriptUserScrolling(widget, e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'Home');
+		}
+	}, { passive: true }));
 	widget.renderStore.add(DOM.addDisposableListener(body, 'scroll', () => {
 		const programmatic = widget.programmaticScroll;
 		widget.programmaticScroll = false;
+		const userGesture = transcriptGestureIsLive(widget);
+		const previousScrollTop = widget.savedScrollTop;
 		const next = knoxGuiNextScrollFollow(
 			{ following: widget.autoScrollEnabled, lastScrollTop: widget.lastScrollTop, lastScrollHeight: widget.lastScrollHeight },
-			{ scrollTop: body.scrollTop, scrollHeight: body.scrollHeight, clientHeight: body.clientHeight, programmatic },
+			{ scrollTop: body.scrollTop, scrollHeight: body.scrollHeight, clientHeight: body.clientHeight, programmatic, userGesture },
 		);
+		if (!next.following && !userGesture && applyTranscriptAnchor(widget, body)) {
+			widget.autoScrollEnabled = false;
+			widget.syncScrollButtons();
+			return;
+		}
+		const held = knoxGuiHoldPausedScrollTop({
+			// Still following, or this event is the pause itself: keep the user's new top.
+			following: widget.autoScrollEnabled || next.following,
+			userGesture,
+			previousScrollTop,
+			scrollHeight: body.scrollHeight,
+			clientHeight: body.clientHeight,
+		});
+		if (held !== undefined && Math.abs(body.scrollTop - held) >= 1) {
+			widget.autoScrollEnabled = false;
+			setTranscriptScrollTop(widget, body, held);
+			widget.syncScrollButtons();
+			return;
+		}
 		const followChanged = next.following !== widget.autoScrollEnabled;
 		widget.autoScrollEnabled = next.following;
 		widget.lastScrollTop = next.lastScrollTop;
 		widget.lastScrollHeight = next.lastScrollHeight;
 		widget.savedScrollTop = body.scrollTop;
+		if (!next.following) {
+			captureTranscriptAnchor(widget, body);
+		} else {
+			widget.scrollAnchorEl = undefined;
+		}
 		widget.syncScrollButtons();
 		updatePinnedUserMessage(widget);
 		// Never rebuild the transcript from a scroll event: that tears down the
@@ -1060,13 +1251,18 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 		}
 	}, { passive: true }));
 	updatePinnedUserMessage(widget);
+	if (!widget.autoScrollEnabled) {
+		captureTranscriptAnchor(widget, body);
+	}
 	if (typeof ResizeObserver === 'undefined') {
 		return;
 	}
-	const observer = new ResizeObserver(() => {
-		scheduleTranscriptStick(widget);
+	const observer = new ResizeObserver(entries => {
+		syncTranscriptFollow(widget);
 		widget.syncScrollButtons();
-		updatePinnedUserMessage(widget);
+		if (entries.some(entry => entry.target === body)) {
+			updatePinnedUserMessage(widget);
+		}
 	});
 	observer.observe(body);
 	const content = body.querySelector('[data-testid="chat-scroll-content"]');
@@ -1085,7 +1281,20 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 	if (markdown) {
 		observer.observe(markdown);
 	}
-	widget.renderStore.add({ dispose: () => observer.disconnect() });
+	const reasoning = body.querySelector('.knox-gui-reasoning');
+	if (reasoning) {
+		observer.observe(reasoning);
+	}
+	const reasoningBody = body.querySelector('.knox-gui-reasoning-body');
+	if (reasoningBody) {
+		observer.observe(reasoningBody);
+	}
+	widget.renderStore.add({
+		dispose: () => {
+			observer.disconnect();
+			clearTranscriptUserScrolling(widget);
+		},
+	});
 }
 
 /** `ChatHistoryList.scrollToIndex`: mounts rows before the display window first, then centers the row. */
@@ -1115,9 +1324,11 @@ export function scrollTranscript(widget: KnoxGuiWidget, to: 'top' | 'bottom'): v
 	if (to === 'top') {
 		// Original `scrollToTop` only moves the current window. Expanding to index 0
 		// would mount a hours-long session in one frame.
+		clearTranscriptUserScrolling(widget);
 		widget.autoScrollEnabled = false;
 		setTranscriptScrollTop(widget, body, 0);
 	} else {
+		clearTranscriptUserScrolling(widget);
 		widget.autoScrollEnabled = true;
 		forceTranscriptStick(widget);
 	}
