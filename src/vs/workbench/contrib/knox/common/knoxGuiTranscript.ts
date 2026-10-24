@@ -1148,6 +1148,20 @@ export function shouldShowThinkingIndicator(args: { isStreaming: boolean; isLast
 	return args.isStreaming && args.isLast && !args.hasContent && !args.hasReasoning && !args.isGatheringContext && args.showForModel !== false;
 }
 
+/**
+ * Reasoning stays a one-line chip unless the user opened it.
+ * A short live peek is only for the thinking-only step (no tools, no reply yet).
+ */
+export function isThinkingCollapsed(item: IKnoxGuiHistoryItem): boolean {
+	if (item.thinkingCollapsed === true) {
+		return true;
+	}
+	if (item.thinkingCollapsed === false) {
+		return false;
+	}
+	return !item.thinkingActive || Boolean(item.toolCalls?.length || assistantReplyText(item));
+}
+
 export function parseCodeFenceRange(range?: string): { startLine: number; endLine?: number } | undefined {
 	if (!range) {
 		return undefined;
@@ -1161,7 +1175,7 @@ export function parseCodeFenceRange(range?: string): { startLine: number; endLin
 		return undefined;
 	}
 	const parsedEnd = match[2] ? Number.parseInt(match[2], 10) : undefined;
-	const endLine = parsedEnd != null && Number.isFinite(parsedEnd) && parsedEnd >= startLine ? parsedEnd : undefined;
+	const endLine = parsedEnd !== undefined && Number.isFinite(parsedEnd) && parsedEnd >= startLine ? parsedEnd : undefined;
 	return { startLine, endLine };
 }
 

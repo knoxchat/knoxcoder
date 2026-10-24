@@ -13,9 +13,9 @@ import { knoxGuiResolveOpenPath } from './knoxGuiPanels.js';
 import { renderToolTemplateHtml } from './knoxGuiTools.js';
 import { applySuggestAt, buildTopLevelMentionItems, composerUndoRecord, composerUndoStep, createComposerUndo, detectComposerTrigger, fileHitToSuggestItem, IKnoxGuiInputBlock, inputDocFromPlainText, inputDocToPlainText, isFolderMentionNode, isPathMentionNode, isSlashBookmarked, KNOX_COMPOSER_UNDO_GROUP_MS, KNOX_GUI_CHIP_CHAR, KnoxGuiInlineNode, knoxGuiCodeBlockOpenAction, knoxGuiCodeBlockTitle, knoxGuiComposerKeyAction, knoxGuiDragHasImages, knoxGuiImageFileAccepted, knoxGuiImageTargetSize, knoxGuiImageUploadToast, knoxGuiNewestCodeBlockIndex, lastRelativePathParts, MENTION_LOADING_ID, MENTION_PANEL_MAX_WIDTH, mentionChipOpenUri, mentionChipTooltip, mentionFloatingPosition, mentionItemMatchesQuery, mergeOpenFileMentions, nextMentionSelectedIndex, openFilesChanged, openFileSuggestItems, paragraphTextBefore, rankMentionItems, removeCodeToEditTrigger, retainMentionItemsWhileLoading, shortestUniqueRelativePaths, splitCamelCaseAndNonAlphaNumeric, submenuHitToSuggestItem, toggleSlashBookmark } from './knoxGuiInput.js';
 import { agentProfileDefaults, applyOpenRouterAliasFloorPricing, formatModelPricingPerMillion, formatUsdAmount, fuzzyTitleMatch, historySessionMatchesQuery, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, sortPromptsBookmarkedFirst } from './knoxGuiOverlays.js';
-import { IKnoxGuiSuggestItem } from './knoxGuiState.js';
+import { IKnoxGuiHistoryItem, IKnoxGuiSuggestItem } from './knoxGuiState.js';
 import { knoxGuiShortcutKeys } from './knoxGuiChrome.js';
-import { healStreamingMarkdown, knoxGuiInitialCodeBlockExpanded, knoxGuiShouldAutoExpandGeneratingCodeBlock, knoxGuiSplitTokenizedLines, knoxGuiTerminalCommand, languageIdFromFence, MAX_EXPANDED_CODE_LINES, shouldShowThinkingIndicator, sniffStreamingCodeLanguage, splitMarkdownBlocks, splitMarkdownParagraphs, stripLeakedToolMarkup, visibleCodeLineRange } from './knoxGuiTranscript.js';
+import { healStreamingMarkdown, isThinkingCollapsed, knoxGuiInitialCodeBlockExpanded, knoxGuiShouldAutoExpandGeneratingCodeBlock, knoxGuiSplitTokenizedLines, knoxGuiTerminalCommand, languageIdFromFence, MAX_EXPANDED_CODE_LINES, shouldShowThinkingIndicator, sniffStreamingCodeLanguage, splitMarkdownBlocks, splitMarkdownParagraphs, stripLeakedToolMarkup, visibleCodeLineRange } from './knoxGuiTranscript.js';
 
 suite('Knox native parity items', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -182,6 +182,12 @@ suite('Knox native parity items', () => {
 			assert.strictEqual(shouldShowThinkingIndicator({ ...base, isGatheringContext: true, showForModel: true }), false);
 			assert.strictEqual(shouldShowThinkingIndicator({ ...base, isGatheringContext: false, showForModel: false }), false);
 			assert.strictEqual(shouldShowThinkingIndicator({ ...base, isGatheringContext: false, showForModel: true }), true);
+			const thinking = (patch: Partial<IKnoxGuiHistoryItem>): IKnoxGuiHistoryItem => ({ id: 'a', role: 'assistant', content: '', ...patch });
+			assert.strictEqual(isThinkingCollapsed(thinking({ thinking: 'plan', thinkingActive: true })), false);
+			assert.strictEqual(isThinkingCollapsed(thinking({ thinking: 'plan', thinkingActive: true, toolCalls: [{ id: 't', name: 'builtin_read_file', arguments: '{}', status: 'calling' }] })), true);
+			assert.strictEqual(isThinkingCollapsed(thinking({ thinking: 'plan', thinkingActive: true, content: 'reply' })), true);
+			assert.strictEqual(isThinkingCollapsed(thinking({ thinking: 'plan', thinkingActive: false })), true);
+			assert.strictEqual(isThinkingCollapsed(thinking({ thinking: 'plan', thinkingActive: true, thinkingCollapsed: false, toolCalls: [{ id: 't', name: 'builtin_read_file', arguments: '{}', status: 'calling' }] })), false);
 			knoxGuiResetModelCatalogForTests();
 			assert.strictEqual(knoxGuiModelSupportsReasoning({ title: 'a', provider: 'x', model: 'a', supportedParameters: ['include_reasoning'] }), true);
 			assert.strictEqual(knoxGuiModelSupportsReasoning({ title: 'b', provider: 'x', model: 'b', capabilities: { reasoning: true } }), true);

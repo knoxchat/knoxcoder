@@ -36,8 +36,9 @@ function patchLastAssistantBody(widget: KnoxGuiWidget, state: IKnoxGuiState): vo
 		widget.render();
 		return;
 	}
+	const hasReply = Boolean(assistantReplyText(item));
 	let body = card.querySelector('.knox-gui-stream-body') as HTMLElement | null;
-	if (!body && assistantReplyText(item)) {
+	if (!body && hasReply) {
 		body = DOM.$('.knox-gui-stream-body.styled-markdown-preview');
 		body.setAttribute('data-testid', 'streaming-markdown');
 		body.setAttribute('data-streaming', 'true');
@@ -51,6 +52,11 @@ function patchLastAssistantBody(widget: KnoxGuiWidget, state: IKnoxGuiState): vo
 		} else {
 			card.insertBefore(body, card.firstChild);
 		}
+	} else if (body && !hasReply) {
+		body.remove();
+		widget.streamPatchStore.clear();
+		widget.streamBlocks = [];
+		body = null;
 	}
 	if (body) {
 		if (state.isStreaming) {
@@ -61,14 +67,14 @@ function patchLastAssistantBody(widget: KnoxGuiWidget, state: IKnoxGuiState): vo
 			body.setAttribute('aria-live', 'off');
 		}
 		widget.renderStreamingAssistantBody(body, state, item);
-	} else if (assistantReplyText(item)) {
+	} else if (hasReply) {
 		widget.render();
 		return;
 	}
 	const showIndicator = shouldShowThinkingIndicator({
 		isStreaming: state.isStreaming,
 		isLast: true,
-		hasContent: Boolean(assistantReplyText(item)),
+		hasContent: hasReply,
 		hasReasoning: Boolean(item.thinking?.trim()),
 		isGatheringContext: state.isGatheringContext,
 		showForModel: state.thinkingPlaceholder,
@@ -85,7 +91,7 @@ function patchLastAssistantBody(widget: KnoxGuiWidget, state: IKnoxGuiState): vo
 	const hideActionSpace = nextRole === 'assistant' || nextRole === 'thinking';
 	const hideActions = hideActionSpace || state.isStreaming;
 	const actions = card.querySelector('.knox-gui-msg-actions') as HTMLElement | null;
-	if (hideActionSpace) {
+	if (hideActionSpace || !hasReply) {
 		actions?.remove();
 	} else if (hideActions) {
 		if (!actions) {
@@ -220,22 +226,15 @@ export function renderAssistantTurn(widget: KnoxGuiWidget,
 		return;
 	}
 	widget.renderReasoning(card, state, item, index);
-	if (item.toolCalls?.length && !assistantReplyText(item) && !(isLast && state.isStreaming)) {
-		if (isLast) {
-			widget.lastAssistantCard = card;
+	const hasReply = Boolean(assistantReplyText(item));
+	if (hasReply) {
+		const streamBody = DOM.append(card, DOM.$('.knox-gui-stream-body.styled-markdown-preview'));
+		streamBody.setAttribute('data-testid', 'streaming-markdown');
+		if (isLast && state.isStreaming) {
+			streamBody.setAttribute('data-streaming', 'true');
 		}
-		renderHoldChip(card, state, item);
-		for (const tool of item.toolCalls) {
-			widget.renderTool(body, state, tool);
-		}
-		return;
+		widget.renderAssistantBody(streamBody, state, item, isLast);
 	}
-	const streamBody = DOM.append(card, DOM.$('.knox-gui-stream-body.styled-markdown-preview'));
-	streamBody.setAttribute('data-testid', 'streaming-markdown');
-	if (isLast && state.isStreaming) {
-		streamBody.setAttribute('data-streaming', 'true');
-	}
-	widget.renderAssistantBody(streamBody, state, item, isLast);
 	renderHoldChip(card, state, item);
 	if (isLast) {
 		widget.lastAssistantCard = card;
@@ -243,7 +242,7 @@ export function renderAssistantTurn(widget: KnoxGuiWidget,
 	if (shouldShowThinkingIndicator({
 		isStreaming: state.isStreaming,
 		isLast,
-		hasContent: Boolean(assistantReplyText(item)),
+		hasContent: hasReply,
 		hasReasoning: Boolean(item.thinking?.trim()),
 		isGatheringContext: state.isGatheringContext,
 		showForModel: state.thinkingPlaceholder,
@@ -255,7 +254,7 @@ export function renderAssistantTurn(widget: KnoxGuiWidget,
 	const nextRole = state.history[index + 1]?.role;
 	const hideActionSpace = nextRole === 'assistant' || nextRole === 'thinking';
 	const hideActions = hideActionSpace || (state.isStreaming && isLast);
-	if (!hideActionSpace) {
+	if (!hideActionSpace && hasReply) {
 		if (hideActions) {
 			DOM.append(card, DOM.$('.knox-gui-msg-actions.knox-gui-msg-actions-slot'));
 		} else {

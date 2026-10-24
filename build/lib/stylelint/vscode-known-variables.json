@@ -1019,6 +1019,7 @@
 		"--knox-hc-border",
 		"--knox-composer-toggle-delay",
 		"--knox-donut-color",
+		"--knox-border-angle",
 		"--odp-green",
 		"--odp-red",
 		"--background-dark",

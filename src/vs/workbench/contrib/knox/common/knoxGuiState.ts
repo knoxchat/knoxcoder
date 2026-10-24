@@ -227,6 +227,7 @@ export interface IKnoxGuiHistoryItem {
 	content: string;
 	createdAt?: string;
 	thinking?: string;
+	/** Unset = auto: open only while thinking is the live step (no tools or reply). */
 	thinkingCollapsed?: boolean;
 	thinkingActive?: boolean;
 	thinkingStartAt?: number;

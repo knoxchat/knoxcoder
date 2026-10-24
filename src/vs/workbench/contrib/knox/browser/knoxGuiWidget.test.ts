@@ -662,6 +662,41 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.pendingLivePatch, false);
 	});
 
+	test('thinking placeholder is a compact line without an empty reply body', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			isStreaming: true,
+			thinkingPlaceholder: true,
+			history: [
+				{ id: 'u', role: 'user', content: 'hi' },
+				{ id: 'a', role: 'assistant', content: '' },
+			],
+		});
+		const card = widget.root.querySelector('.knox-gui-msg.assistant') as HTMLElement;
+		assert.ok(card?.querySelector('[data-testid="knox-gui-thinking-indicator"]')?.textContent?.includes('Thinking'));
+		assert.strictEqual(card.querySelector('.knox-gui-stream-body'), null);
+		assert.strictEqual(card.querySelector('.knox-gui-msg-actions-slot'), null);
+
+		store.patch({
+			history: [
+				{ id: 'u', role: 'user', content: 'hi' },
+				{
+					id: 'a',
+					role: 'assistant',
+					content: '',
+					thinking: Array.from({ length: 16 }, (_, i) => `step ${i}`).join('\n'),
+					thinkingActive: true,
+					toolCalls: [{ id: 't', name: 'builtin_edit_file', arguments: '{"filepath":"src/main.rs"}', status: 'generating' as const }],
+				},
+			],
+		});
+		assert.ok(widget.root.querySelector('.knox-gui-reasoning-header.thinking'));
+		assert.strictEqual(widget.root.querySelector('.knox-gui-reasoning-body'), null, 'tools collapse thinking to a chip');
+		assert.strictEqual(widget.root.querySelector('.knox-gui-thinking-indicator'), null);
+		assert.strictEqual(widget.root.querySelector('.knox-gui-stream-body'), null);
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-tool"]'));
+	});
+
 	test('C-13 streaming keeps finished blocks, heals the live one, and reasoning fences get a toolbar', async () => {
 		const { widget, store } = await mount();
 		const user: IKnoxGuiHistoryItem = { id: 'u', role: 'user', content: 'hi' };

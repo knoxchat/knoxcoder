@@ -30,6 +30,7 @@ import {
 	fenceApplyStreamId,
 	fenceHasFileToolbar,
 	formatReasoningTime,
+	isThinkingCollapsed,
 	isTerminalCodeBlock,
 	languageIdFromFence,
 	sniffStreamingCodeLanguage,
@@ -836,7 +837,7 @@ export function renderReasoning(widget: KnoxGuiWidget, parent: HTMLElement, stat
 	if (!thinking) {
 		return;
 	}
-	const collapsed = item.thinkingCollapsed === true;
+	const collapsed = isThinkingCollapsed(item);
 	const wrap = DOM.append(parent, DOM.$('.knox-gui-reasoning'));
 	wrap.id = activityAnchorId(`reasoning:${item.id}`);
 	wrap.dataset.collapsed = String(collapsed);
@@ -897,7 +898,7 @@ export function patchLiveReasoning(widget: KnoxGuiWidget, card: HTMLElement, sta
 		widget.reasoningBlocks = [];
 		return;
 	}
-	const collapsed = item.thinkingCollapsed === true;
+	const collapsed = isThinkingCollapsed(item);
 	if (!old || old.dataset.collapsed !== String(collapsed)) {
 		widget.reasoningPatchStore.clear();
 		widget.reasoningContentStore.clear();
