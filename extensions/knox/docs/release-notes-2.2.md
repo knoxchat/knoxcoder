@@ -2,6 +2,14 @@
 
 Full detail is in `CHANGELOG.md`; upgrade steps in [upgrade.md](upgrade.md); caveats in [known-issues.md](known-issues.md).
 
+## 2.2.2
+
+- Memory write and correction from chat, Memories tab, and composer Remember (T1, T2). No model or tool call.
+- Paraphrase recall with rule-based synonyms; no embeddings (T6, T12).
+- Recipes on-ramp after a green mutating turn; Preview / Replay / Verify / Restore / Save as skill from the Recipes tab (T5, T13). Recipes stay off by default.
+- Sessions **Use as context**, journaled Restore All, one labeled checkpoint per turn, and checkpoint branches on the agent tool (T3, T4, T7, T9, T10).
+- Streaming chat stays readable: thinking collapses to a chip, terminal cards cap at five lines, auto-scroll pauses when you scroll up, and replies can be selected and copied.
+
 ## 2.2.1
 
 - Tool ports for file/shell/search/git/terminal/composite (K-084 stretch). Core still takes IDE for diagnostics, DAP, checkpoints, secrets, LSP, and repo map.

@@ -3,6 +3,8 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.2.2] - 2026-10-24
+
 ### Added
 
 - **Memory write and correction (T1, T2).** A chat that states a preference or decision now lands on the Memories tab without the user saying “we decided”. Short prefs (`always use bun`) and `remember …` skip the filler gates; filler still stores nothing. Memories tab **Create** / **Edit** / **Not relevant**, plus composer **Remember**, store a fact, preference, or decision with no model or tool call.
@@ -17,12 +19,15 @@ All notable changes to KnoxCoder are documented in this file.
 - **Smart checkpoints match the engine (T10).** Create no longer silently stops at 50; retention is the engine’s (`knox.checkpoints.maxCheckpoints`, default 1000) plus pins. File cap is 5 MB (was 100 KB); oversized files log `too_large`. The unused `knox.checkpoints.smart.maxCheckpoints` key is deprecated.
 - **One labeled restore point per agent turn (T4).** A pre-risky snapshot is adopted as that turn’s checkpoint. File-threshold auto is skipped while the turn is active. Auto undo snapshots the dirty workspace as the redo target.
 - **Plan tool.** `create` can draft concrete steps from the user request when `steps` is omitted; `complete` / `skip` default to the current step. Repeating `{action:complete}` is not treated as a doom loop.
+- **Streaming chat chrome.** Thinking and Loading stay on the agent meter, not the composer toolbar. Streaming thinking collapses to a compact chip so tool cards stay in view. Terminal cards cap at five lines so long output scrolls instead of eating the chat.
 
 ### Fixed
 
 - **Journaled Restore All (T3, T7).** GUI Restore All, skip-confirm, and the agent `restore` tool go through journaled `restoreCheckpoint` (backup + journal + rollback). Extra files are unchecked checkboxes plus an explicit “also remove files not in this checkpoint” control (default off). Restore Selected only writes checked paths. A failed restore sets an error and keeps the dialog open.
 - **Auto undo (T4).** Undo restores the checkpoint before the last edit (`[A,B]` + dirty workspace → undo A, redo the pre-undo snapshot).
 - **Checkpoint skipUnchanged (T11).** Content-only snapshots hash with SHA-256 (`hashBlobBytes`), so unchanged files match the live index instead of looking dirty.
+- **Streaming chat.** Auto-scroll pauses on the first upward wheel so a live reply cannot yank the view. Streaming replies can be selected and copied. Click-to-edit on the floating sent prompt works during streaming.
+- **Git tools without a repo.** Fail immediately when `vscode.git` finds no repo instead of a 20s HEAD poll and subprocess stack dumps that looked like a crash.
 
 ### Removed
 
