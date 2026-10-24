@@ -2,15 +2,15 @@
   "memories": 20,
   "queries": 16,
   "recallAtK": 1,
-  "precision": 0.625,
+  "precision": 0.556,
   "falseInjectRate": 0,
-  "tokensMean": 166,
-  "tokensMax": 290,
+  "tokensMean": 198,
+  "tokensMax": 319,
   "tokenCap": 8000,
-  "latencyP50Ms": 2.3,
-  "latencyP95Ms": 16.8,
-  "latencyMaxMs": 16.8,
-  "seedMs": 11,
+  "latencyP50Ms": 2.7,
+  "latencyP95Ms": 10.7,
+  "latencyMaxMs": 10.7,
+  "seedMs": 15,
   "perQuery": [
     {
       "id": "q-auth",
@@ -21,8 +21,8 @@
         "auth-jwt",
         "monorepo-pnpm"
       ],
-      "tokens": 188,
-      "ms": 16.8
+      "tokens": 214,
+      "ms": 10.4
     },
     {
       "id": "q-db",
@@ -33,8 +33,8 @@
         "db-postgres",
         "migrations"
       ],
-      "tokens": 183,
-      "ms": 3.4
+      "tokens": 208,
+      "ms": 10.7
     },
     {
       "id": "q-migration",
@@ -44,8 +44,8 @@
       "injected": [
         "migrations"
       ],
-      "tokens": 152,
-      "ms": 2.5
+      "tokens": 179,
+      "ms": 2.7
     },
     {
       "id": "q-ci",
@@ -55,8 +55,8 @@
       "injected": [
         "ci-github"
       ],
-      "tokens": 151,
-      "ms": 2.5
+      "tokens": 177,
+      "ms": 2.8
     },
     {
       "id": "q-test",
@@ -67,8 +67,8 @@
         "test-vitest",
         "ci-github"
       ],
-      "tokens": 181,
-      "ms": 3.2
+      "tokens": 207,
+      "ms": 2.9
     },
     {
       "id": "q-api",
@@ -77,10 +77,11 @@
       ],
       "injected": [
         "api-rest",
-        "errors-result"
+        "errors-result",
+        "rate-limit"
       ],
-      "tokens": 187,
-      "ms": 2.6
+      "tokens": 252,
+      "ms": 3.2
     },
     {
       "id": "q-cache",
@@ -91,8 +92,8 @@
         "deploy-k8s",
         "cache-redis"
       ],
-      "tokens": 181,
-      "ms": 2.1
+      "tokens": 205,
+      "ms": 2.6
     },
     {
       "id": "q-deploy",
@@ -102,8 +103,8 @@
       "injected": [
         "deploy-k8s"
       ],
-      "tokens": 149,
-      "ms": 1.9
+      "tokens": 172,
+      "ms": 2.4
     },
     {
       "id": "q-log",
@@ -112,10 +113,12 @@
       ],
       "injected": [
         "auth-jwt",
+        "api-rest",
+        "rate-limit",
         "logging-json"
       ],
-      "tokens": 187,
-      "ms": 2.4
+      "tokens": 288,
+      "ms": 3.2
     },
     {
       "id": "q-secrets",
@@ -126,8 +129,8 @@
         "security-secrets",
         "api-rest"
       ],
-      "tokens": 196,
-      "ms": 2.2
+      "tokens": 223,
+      "ms": 2.6
     },
     {
       "id": "q-throttle",
@@ -137,8 +140,8 @@
       "injected": [
         "rate-limit"
       ],
-      "tokens": 155,
-      "ms": 2
+      "tokens": 183,
+      "ms": 2.5
     },
     {
       "id": "q-pnpm",
@@ -148,8 +151,8 @@
       "injected": [
         "monorepo-pnpm"
       ],
-      "tokens": 148,
-      "ms": 3
+      "tokens": 171,
+      "ms": 3.6
     },
     {
       "id": "q-multi",
@@ -165,29 +168,29 @@
         "migrations",
         "test-vitest"
       ],
-      "tokens": 290,
-      "ms": 2.2
+      "tokens": 319,
+      "ms": 2.7
     },
     {
       "id": "q-none-1",
       "expected": [],
       "injected": [],
-      "tokens": 99,
-      "ms": 2.3
+      "tokens": 118,
+      "ms": 2.4
     },
     {
       "id": "q-none-2",
       "expected": [],
       "injected": [],
-      "tokens": 98,
-      "ms": 1.8
+      "tokens": 116,
+      "ms": 2
     },
     {
       "id": "q-none-3",
       "expected": [],
       "injected": [],
-      "tokens": 104,
-      "ms": 1.8
+      "tokens": 129,
+      "ms": 1.9
     }
   ]
 }

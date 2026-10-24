@@ -2219,22 +2219,40 @@ suite('Knox native GUI controller (GP-084)', () => {
 	});
 
 	test('T13 Recipes tab can verify, restore, promote a skill, and open a source checkpoint', async () => {
+		const recipes = [
+			{ id: 'rec1', title: 'Add lint script', status: 'verified' as const, scope: 'project' as const, uses: 5, ok: 5, reverted: 0, failedVerify: 0, files: 1, sourceCheckpointIds: ['cp-lint'], skillEligible: true },
+			{ id: 'rec2', title: 'Quarantined lint', status: 'quarantined' as const, scope: 'project' as const, uses: 1, ok: 0, reverted: 1, failedVerify: 0, files: 1, sourceCheckpointIds: [] as string[] },
+			{ id: 'rec3', title: 'Lint candidate', status: 'candidate' as const, scope: 'project' as const, uses: 0, ok: 0, reverted: 0, failedVerify: 0, files: 1, oracleKind: 'build', sourceCheckpointIds: [] as string[] },
+		];
 		const { controller, store, posted } = createHarness({
 			replies: {
-				'knox/recipeSetStatus': { ok: true },
-				'knox/recipeList': { recipes: [] },
 				'knox/recipePromoteSkill': { ok: true, path: '/tmp/skills/lint/SKILL.md' },
+			},
+			respond: message => {
+				if (message.messageType === 'knox/recipeSetStatus') {
+					const data = message.data as { recipeId?: string; status?: typeof recipes[number]['status'] };
+					const row = recipes.find(recipe => recipe.id === data.recipeId);
+					if (row && data.status) {
+						row.status = data.status;
+					}
+					return { content: { ok: true } };
+				}
+				if (message.messageType === 'knox/recipeList') {
+					return { content: { recipes } };
+				}
+				return undefined;
 			},
 		});
 		store.patch({
 			memoryTab: 'recipes',
-			memoryRecipes: [
-				{ id: 'rec1', title: 'Add lint script', status: 'verified', scope: 'project', uses: 5, ok: 5, reverted: 0, failedVerify: 0, files: 1, sourceCheckpointIds: ['cp-lint'], skillEligible: true },
-				{ id: 'rec3', title: 'Lint candidate', status: 'candidate', scope: 'project', uses: 0, ok: 0, reverted: 0, failedVerify: 0, files: 1, oracleKind: 'build', sourceCheckpointIds: [] },
-			],
+			memoryRecipes: recipes.map(recipe => ({ ...recipe })),
 		});
 		await controller.setMemoryRecipeStatus('rec3', 'verified');
 		assert.ok(posted.some(message => message.messageType === 'knox/recipeSetStatus' && (message.data as { status?: string }).status === 'verified'));
+		assert.strictEqual(store.state.memoryRecipes.find(recipe => recipe.id === 'rec3')?.status, 'verified');
+		await controller.setMemoryRecipeStatus('rec2', 'candidate');
+		assert.ok(posted.some(message => message.messageType === 'knox/recipeSetStatus' && (message.data as { status?: string }).status === 'candidate'));
+		assert.strictEqual(store.state.memoryRecipes.find(recipe => recipe.id === 'rec2')?.status, 'candidate');
 		posted.length = 0;
 		controller.promoteRecipeSkill('project', 'rec1');
 		await timeout(0);

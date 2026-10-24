@@ -58,5 +58,10 @@ describe("REL-16 synonym expansion", () => {
     expect(getSynonymAdditions("open settings")).not.toEqual(
       expect.arrayContaining(["design-system"]),
     );
+    // Bare "token" is auth/API, not design-system tokens.
+    const authToken = getSynonymAdditions("how should login and token refresh work");
+    expect(authToken).not.toContain("design-system");
+    expect(authToken).not.toContain("components");
+    expect(authToken).not.toContain("storybook");
   });
 });
