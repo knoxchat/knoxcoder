@@ -26,6 +26,7 @@ import {
   toolFailureCategory,
 } from "./errors";
 import { coerceArgsToSchema, validateArgsAgainstSchema } from "./schemaArgs";
+import { aliasPlanAction } from "./planDraft";
 import {
   BuiltInToolNames,
   DEFAULT_VIEW_SUBDIRECTORY_MAX_FILES,
@@ -573,7 +574,6 @@ const TOOL_REQUIRED_PARAMS: Record<string, string[]> = {
   [BuiltInToolNames.GitCommit]: ["message"],
   [BuiltInToolNames.GitBlame]: ["filepath"],
   [BuiltInToolNames.GitBisect]: ["action"],
-  [BuiltInToolNames.Plan]: ["action"],
   [BuiltInToolNames.PtyStart]: ["command"],
   [BuiltInToolNames.PtySend]: ["job_id"],
   [BuiltInToolNames.PtyRead]: ["job_id"],
@@ -658,7 +658,10 @@ export function validateToolArgs(
  * schema (e.g. `ask_user` takes a bare question string, a JSON string, or an
  * object). They still get coercion, but not strict type rejection.
  */
-const SCHEMA_TYPE_CHECK_EXEMPT = new Set<string>([BuiltInToolNames.AskUser]);
+const SCHEMA_TYPE_CHECK_EXEMPT = new Set<string>([
+  BuiltInToolNames.AskUser,
+  BuiltInToolNames.Plan,
+]);
 
 /**
  * Malformed JSON that was "repaired" and is now missing required parameters
@@ -1182,6 +1185,15 @@ export function normalizeToolArgs(
       break;
     case BuiltInToolNames.Lsp:
       copyIfMissing("filePath", ["filepath", "file_path", "path", "file"]);
+      break;
+    case BuiltInToolNames.Plan:
+      copyIfMissing("steps", ["items", "checklist", "plan_steps", "todos"]);
+      copyIfMissing("title", ["name", "goal", "task", "summary"]);
+      copyIfMissing("step_id", ["stepId"]);
+      copyIfMissing("new_title", ["newTitle", "rename"]);
+      if (typeof next.action === "string") {
+        next.action = aliasPlanAction(next.action);
+      }
       break;
     default:
       break;

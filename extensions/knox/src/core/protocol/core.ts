@@ -256,6 +256,10 @@ export type ToCoreFromIdeOrWebviewProtocol = {
     { category: SemanticCategory; title: string; content: string; keywords?: string; importance?: number; session_id?: string; ttl_days?: number | null },
     { id: number },
   ];
+  "brain/updateMemory": [
+    { id: number; category: SemanticCategory; title: string; content: string; keywords?: string },
+    { success: boolean },
+  ];
   "brain/recall": [
     { query: string; category?: SemanticCategory; session_id?: string; limit?: number; include_episodic?: boolean },
     { result: any },
@@ -510,6 +514,10 @@ export type ToCoreFromIdeOrWebviewProtocol = {
       checkpoints_created: number;
       started_at: string;
     } | null,
+  ];
+  "brain/useSessionAsContext": [
+    { sessionId: string },
+    { ok: boolean; pinned: number; workingMemory: number },
   ];
   "brain/getSessionHistory": [
     { sessionId: string; episodicLimit?: number; semanticLimit?: number },

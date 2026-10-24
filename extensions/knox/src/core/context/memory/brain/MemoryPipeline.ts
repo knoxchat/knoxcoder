@@ -28,7 +28,7 @@ import { Hippocampus } from "./regions/Hippocampus.js";
 import { PrefrontalCortex } from "./regions/PrefrontalCortex.js";
 import { SensoryCortex } from "./regions/SensoryCortex.js";
 import { Thalamus } from "./regions/Thalamus.js";
-import type { BuildContextResult, MemoryPhase, PipelineInput, PipelinePhaseResult } from "./types.js";
+import type { BuildContextResult, InjectedMemoryItem, MemoryPhase, PipelineInput, PipelinePhaseResult } from "./types.js";
 
 /** Canonical 8-phase order for cycle-invariant audit logging (IMP-01 / Part III). */
 const FULL_CYCLE_ORDER: MemoryPhase[] = [
@@ -59,6 +59,13 @@ export interface PipelineResult {
 
 export type { PipelineInput, PipelinePhaseResult };
 
+/** Compact last-turn inject snapshot for Memories / Overview (T6). */
+export interface LastInjectSnapshot {
+  at: number;
+  session_id?: string;
+  items: InjectedMemoryItem[];
+}
+
 export class MemoryPipeline {
   /** Active phase for cycle-invariant status queries. */
   private static activePhase: MemoryPhase | null = null;
@@ -66,9 +73,59 @@ export class MemoryPipeline {
   private static lastCompleted: { phase: MemoryPhase; at: number } | null = null;
   /** Per-phase run counts for diagnostics. */
   private static phaseRunCounts: Partial<Record<MemoryPhase, number>> = {};
+  /** Last pre-turn inject provenance (Memories tab + Overview). */
+  private static lastInject: LastInjectSnapshot | null = null;
 
   static getActivePhase(): MemoryPhase | null {
     return MemoryPipeline.activePhase;
+  }
+
+  /** Last pre-turn inject items (semantic/episodic) with gate reason. */
+  static getLastInject(): LastInjectSnapshot | null {
+    return MemoryPipeline.lastInject;
+  }
+
+  /** JSON payload for `brain/dashboard` and `brain/searchMemories`. */
+  static lastInjectPayload(): {
+    at: number;
+    session_id?: string;
+    items: Array<{
+      id: number | null;
+      kind: string;
+      title: string;
+      reason: string;
+      evidence?: string[];
+      gate_passed?: boolean;
+      score?: number;
+      fts5?: number;
+      trigram?: number;
+      graph?: number;
+      recency?: number;
+      importance?: number;
+    }>;
+  } | null {
+    const snap = MemoryPipeline.lastInject;
+    if (!snap) return null;
+    return {
+      at: snap.at,
+      session_id: snap.session_id,
+      items: snap.items
+        .filter((item) => item.kind === "semantic" || item.kind === "episodic")
+        .map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          title: item.title,
+          reason: item.reason,
+          evidence: item.evidence,
+          gate_passed: item.gate_passed,
+          score: item.score,
+          fts5: item.fts5,
+          trigram: item.trigram,
+          graph: item.graph,
+          recency: item.recency,
+          importance: item.importance,
+        })),
+    };
   }
 
   /** Part III cycle status — at least one phase active or recently completed. */
@@ -483,6 +540,9 @@ export class MemoryPipeline {
         items: context.items.map((item) => ({
           id: item.id,
           kind: item.kind,
+          title: item.title,
+          reason: item.reason,
+          evidence: item.evidence,
           fusion_score: item.score ?? null,
           fts5: item.fts5 ?? null,
           trigram: item.trigram ?? null,
@@ -495,6 +555,11 @@ export class MemoryPipeline {
         })),
       },
     });
+    MemoryPipeline.lastInject = {
+      at: Date.now(),
+      session_id: input.session_id,
+      items: context.items,
+    };
 
     for (const phase of phases) {
       await MemoryPipeline.logPhaseAudit(phase, input.session_id, "pre_turn");

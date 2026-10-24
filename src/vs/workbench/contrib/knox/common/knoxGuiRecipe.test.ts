@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { knoxGuiRecipeNeedsChoice, knoxGuiRecipeNotice, parseRecipeSettings } from './knoxGuiRecipe.js';
 import { parseRecipeMetrics } from './knoxGuiCheckpoints.js';
-import { memoryRecipeActions, parseMemoryRecipe, parseMemoryRecipeCapture, parseMemoryRecipeList } from './knoxGuiMemory.js';
+import { memoryRecipeActions, memoryRecipeCaptureNotice, parseMemoryRecipe, parseMemoryRecipeCapture, parseMemoryRecipeList } from './knoxGuiMemory.js';
 import type { IKnoxGuiRecipeDecision } from './knoxGuiState.js';
 
 suite('Knox GUI recipe notice (MC-25)', () => {
@@ -70,10 +70,20 @@ suite('Knox GUI recipe settings, tab and metrics (MC-70/71/72)', () => {
 	});
 
 	test('actions follow the host state machine', () => {
-		assert.deepStrictEqual(memoryRecipeActions('candidate'), { quarantine: true, retire: true });
-		assert.deepStrictEqual(memoryRecipeActions('verified'), { quarantine: true, retire: true });
-		assert.deepStrictEqual(memoryRecipeActions('quarantined'), { quarantine: false, retire: true });
-		assert.deepStrictEqual(memoryRecipeActions('retired'), { quarantine: false, retire: false });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'candidate' }), { quarantine: true, retire: true, preview: false, replay: false, verify: false, restore: false, promoteSkill: false });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'candidate', oracleKind: 'build' }), { quarantine: true, retire: true, preview: false, replay: false, verify: true, restore: false, promoteSkill: false });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'verified' }), { quarantine: true, retire: true, preview: true, replay: true, verify: false, restore: false, promoteSkill: false });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'verified', skillEligible: true }), { quarantine: true, retire: true, preview: true, replay: true, verify: false, restore: false, promoteSkill: true });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'quarantined' }), { quarantine: false, retire: true, preview: false, replay: false, verify: false, restore: true, promoteSkill: false });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'retired' }), { quarantine: false, retire: false, preview: false, replay: false, verify: false, restore: false, promoteSkill: false });
+	});
+
+	test('capture toast keys distinguish saved vs skip', () => {
+		assert.deepStrictEqual(memoryRecipeCaptureNotice({ captured: true, title: 'Add lint', status: 'candidate' }), {
+			key: 'memoryRecipeCaptured',
+			params: { title: 'Add lint', statusKey: 'memoryRecipeStatus_candidate' },
+		});
+		assert.deepStrictEqual(memoryRecipeCaptureNotice({ captured: false, reason: 'no_oracle' }), { key: 'memoryRecipeSkip_no_oracle' });
 	});
 
 	test('dashboard metrics: absent stays absent, bad numbers become 0 and the rate is capped', () => {

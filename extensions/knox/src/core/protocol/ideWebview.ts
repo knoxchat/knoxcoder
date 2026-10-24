@@ -63,7 +63,7 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
   getCheckpointForMessage: [{ messageId: string }, { success: boolean; checkpointId: string | null }];
   getCheckpointForStableId: [{ stableId: string }, { checkpointId: string | null }];
   restoreCheckpoint: [
-    { checkpointId: string; rewindMemory?: boolean },
+    { checkpointId: string; rewindMemory?: boolean; cleanupExtraFiles?: boolean },
     {
       success: boolean;
       message?: string;
@@ -608,8 +608,11 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
     import("./nativeAgent").NativeStartTurnInput,
     import("./nativeAgent").NativeStartTurnOutput,
   ];
-  /** Record the assistant message and run the post-turn memory write. */
-  "knox/finishTurn": [import("./nativeAgent").NativeFinishTurnInput, void];
+  /** Record the assistant message, run post-turn memory, and return the recipe capture outcome when recipes are on. */
+  "knox/finishTurn": [
+    import("./nativeAgent").NativeFinishTurnInput,
+    import("./nativeAgent").RecipeCaptureOutcome | undefined,
+  ];
   /** MC-35: what replaying a recipe would change (read-only). Undefined when the recipe is gone. */
   "knox/recipePreview": [
     { recipeId: string },
@@ -617,6 +620,14 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
   ];
   /** MC-72: current values of the recipe settings. */
   "knox/recipeSettings": [undefined, import("./nativeAgent").RecipeSettings];
+  "knox/memoryBrainSettings": [
+    undefined,
+    { enabled: boolean; workspaceEnabled: boolean },
+  ];
+  "knox/memoryBrainSettingsSet": [
+    Partial<{ enabled: boolean; workspaceEnabled: boolean }>,
+    { enabled: boolean; workspaceEnabled: boolean },
+  ];
   /** MC-72: change some recipe settings; returns the values now in effect. */
   "knox/recipeSettingsSet": [
     Partial<import("./nativeAgent").RecipeSettings>,
@@ -626,7 +637,7 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
   "knox/recipeList": [undefined, import("./nativeAgent").RecipeListOutput];
   /** MC-70: user-chosen retire/quarantine; retiring frees the recipe's blob pins. */
   "knox/recipeSetStatus": [
-    { recipeId: string; status: "retired" | "quarantined" },
+    { recipeId: string; status: "retired" | "quarantined" | "candidate" | "verified" },
     import("./nativeAgent").RecipeSetStatusOutput,
   ];
   /** MC-42: the user chose "Promote to skill"; writes `SKILL.md` (project `skills/` or `~/.knoxcoder/skills`). */

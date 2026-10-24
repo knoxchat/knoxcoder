@@ -15,7 +15,7 @@ import { appendMentionChip, applySuggestToDoc, appendTriggerToDoc, buildTopLevel
 import { applyKnoxGuiAutonomousEvent, applyLivePlanProgress, autonomousBannerKey, collectLatestTaskPlanSnapshot, collectLiveTaskPlan, collectRunningTaskJobs, compactionMethodKey, countFailedJobs, countRunningJobs, extractPathHints, finalizeGitDiffFiles, formatExecutePlanPrompt, formatPlanText, gitDiffTotals, gitFileType, gitFilesFromDiffs, isCompactionBannerVisible, isInjectedMemoryTimeout, isTaskJobId, isVisibleTaskPlanPeekItem, mergeBackgroundJobs, mergeGitChangedWithDiffs, parseCompactionPayload, parseDiffStats, parsePlanText, shouldShowAutonomousBanner, splitSelectiveMemories, stepIntent, taskPlanFillPercent, truncateJobTitle, visibleBackgroundJobs, visibleToolOutputPeekItems } from './knoxGuiPanels.js';
 import { DEFAULT_REASONING_EFFORT, DEFAULT_REASONING_EFFORT_ALLOWED, knoxGuiChatPickerModels, knoxGuiFindCatalogModel, knoxGuiGetReasoningModelKeys, knoxGuiModelSelectTitle, knoxGuiModelTriggerLabel, knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelToolsSupportKnown, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResetModelCatalogForTests, knoxGuiResolveReasoningEffort, knoxGuiResolveToolsSupported, knoxGuiSeedModelCatalog, knoxGuiShouldOpenAddModelDirectly } from './knoxGuiCapabilities.js';
 import { ADD_MODEL_PROVIDERS, addModelBrowseGroups, addModelPackagesByProvider, addModelProviderById, addModelRequiredSatisfied, agentProfileSharedConfig, appendNewPromptFileMentionAction, applyHistoryRowSelection, batchDiffTotals, buildAddModelPayload, categorizeKnoxChatModel, DEFAULT_AGENT_TOOL_POLICY_TEXT, duplicateToolNames, emptyPromptDraft, exploreBlocksButton, filterHistorySessions, filterKnoxChatModels, formatPolicyLines, formatPromptCommandName, formatSessionExportMarkdown, groupHistoryByDate, groupKnoxChatModels, historyDateSection, historySessionMatchesQuery, isNewPromptFileMentionAction, isPromptFileMentionSubmenu, knoxGuiOAuthErrorI18nKey, knoxGuiOAuthHandle, knoxGuiOAuthPane, knoxGuiOpenRouterKeyLogsUrl, knoxGuiOpenRouterKeySettingsUrl, knoxGuiProviderLogoUri, mergeDimensionOptions, mergeReasoningEffortPrefs, mergeRuleCards, MODEL_OVERLAY_ROLES, modelUsesChatFallback, NEW_PROMPT_FILE_ACTION_ID, parseKnoxOAuthStatus, parseOpenRouterOAuthStatus, parseYamlRules, pendingGeneratedToolName, policyEditorText, PROMPT_FILE_SUBMENU_TITLE, promptDraftFromCommand, promptDraftIsEditing, promptDraftIsValid, promptSlashName, reasoningEffortLabelKey, ruleCardOpensProfile, ruleCardTitleKey, selectHistoryIdRange, sessionExportFilename, setPathValue, sortConfigErrors, sortPromptsBookmarkedFirst, splitFilePath, toggleHistorySelection, toolPermissionBadgeKey, workspaceBasename } from './knoxGuiOverlays.js';
-import { filterAndSortMemories, formatBytes, formatMemoryTimeAgo, groupMemoriesByDate, healthStatusColor, hitTestMemoryGraph, isMemoryTabId, layoutMemoryGraph, MEMORY_PANEL_TAB_BRAIN_MESSAGES, MEMORY_RETRIEVAL_THRESHOLD, MEMORY_RETRIEVAL_TOP_K, MEMORY_SETTING_GROUPS, MEMORY_TAB_ICONS, MEMORY_TAB_IDS, MEMORY_TIER_COLORS, memoryConfigUpdatePayload, memoryExploreEdgeDepth, memorySnippet, parseEffectiveContext, parseExploreResult, parseMemoryDashboard, parseMetricsTrend, sortMemoryExploreEdges, unwrapBrainConfig, memoriesToExportJson } from './knoxGuiMemory.js';
+import { composerRememberContent, filterAndSortMemories, formatBytes, formatMemoryTimeAgo, groupMemoriesByDate, healthStatusColor, hitTestMemoryGraph, isMemoryTabId, layoutMemoryGraph, MEMORY_PANEL_TAB_BRAIN_MESSAGES, MEMORY_REMEMBER_CATEGORIES, MEMORY_RETRIEVAL_THRESHOLD, MEMORY_RETRIEVAL_TOP_K, MEMORY_SETTING_GROUPS, MEMORY_TAB_ICONS, MEMORY_TAB_IDS, MEMORY_TIER_COLORS, memoryConfigUpdatePayload, memoryEditorCategories, memoryExploreEdgeDepth, memorySnippet, memoryTitleFromContent, parseEffectiveContext, parseExploreResult, parseMemoryDashboard, parseMetricsTrend, sortMemoryExploreEdges, unwrapBrainConfig, memoriesToExportJson } from './knoxGuiMemory.js';
 import { KNOX_GUI_HEARTBEAT_MS, KNOX_GUI_HOST_INBOUND, KNOX_GUI_HOST_INBOUND_EMPTY_ACK, KNOX_GUI_HOST_OUTBOUND, KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME, KNOX_GUI_OVERLAYS, KNOX_GUI_PATH_BY_ROUTE, KnoxGuiRoute, knoxGuiRouteFromPath, lumpOverlaySectionForPath } from './knoxGuiProtocol.js';
 import { isSingleRangeEditOrInsertion, knoxGuiMultifileEditPrompt, knoxGuiNextEditStatus, knoxGuiResetEditModeState, mergeCodeToEdit, parseCodeToEdit, shouldSendEditPrompt } from './knoxGuiEdit.js';
 import { KNOX_AGENT_MODE_CONTEXT_KEY, knoxGuiHostAgentActiveFromPayload, knoxGuiModeAfterEditExit, knoxGuiModeAfterHostAgentFlag, knoxGuiResolveSessionMode, knoxGuiSessionModeIsAgent } from './knoxGuiAgentMode.js';
@@ -1046,6 +1046,13 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(filterAndSortMemories(memories, { query: 'hot' }).map(memory => memory.id).join(), '1');
 		assert.strictEqual(groupMemoriesByDate(memories).some(section => section.headerKey === 'today'), true);
 		assert.ok(memorySnippet('a '.repeat(80)).endsWith('…'));
+		assert.strictEqual(memoryTitleFromContent('always use bun\nfor installs'), 'always use bun');
+		assert.strictEqual(composerRememberContent('  selected fact  ', 'draft'), 'selected fact');
+		assert.strictEqual(composerRememberContent('', 'one-line fact'), 'one-line fact');
+		assert.deepStrictEqual([...MEMORY_REMEMBER_CATEGORIES], ['fact', 'preference', 'decision']);
+		assert.ok(memoryEditorCategories(undefined, true).includes('fact'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('brain/updateMemory'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('brain/mismatchMemory'));
 		assert.strictEqual(layoutMemoryGraph([{ id: 1, name: 'A', entityType: 'concept', mentionCount: 1 }], 100, 100)[0].x > 0, true);
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('brain/exploreGraph'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('brain/listSessions'));
@@ -1160,6 +1167,7 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(merged.shouldWriteDisk, true);
 		assert.deepStrictEqual(memoryConfigUpdatePayload('graph_max_depth', 4), { key: 'graph_max_depth', value: '4' });
 		assert.deepStrictEqual(MEMORY_SETTING_GROUPS.map(group => group.titleKey), [
+			'memoryProductSettings',
 			'memoryGeneralSettings',
 			'memoryEbbinghausSettings',
 			'memoryCapacitySettings',
@@ -1226,6 +1234,11 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(dashboard?.sessions?.length, 1);
 		assert.strictEqual(dashboard?.consolidation?.totalRuns, 2);
 		assert.strictEqual(dashboard?.graphMaxEntities, 5000);
+		assert.strictEqual(dashboard?.lastInject, undefined);
+		const withInject = parseMemoryDashboard({
+			lastInject: { items: [{ id: 7, kind: 'semantic', title: 'JWT', reason: 'lexical: jwt', evidence: ['jwt'] }] },
+		});
+		assert.strictEqual(withInject?.lastInject?.[0]?.reason, 'lexical: jwt');
 		const ctx = parseEffectiveContext({
 			total_effective: 80,
 			active_window_tokens: 10,
@@ -1237,9 +1250,13 @@ suite('Knox native GUI parity', () => {
 		});
 		assert.strictEqual(ctx?.activeWindowTokens, 10);
 		assert.strictEqual(ctx?.levels[0].effectiveTokens, 4);
-		assert.ok(MEMORY_SETTING_GROUPS[1].fields.some(field => field.key === 'ebbinghaus_salience_weight'));
-		assert.ok(MEMORY_SETTING_GROUPS[1].fields.some(field => field.key === 'ebbinghaus_importance_weight'));
-		assert.strictEqual(MEMORY_SETTING_GROUPS[1].fields.find(field => field.key === 'ebbinghaus_prune_threshold')?.percent, true);
+		const ebbinghaus = MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryEbbinghausSettings');
+		assert.ok(ebbinghaus?.expert);
+		assert.ok(ebbinghaus?.fields.some(field => field.key === 'ebbinghaus_salience_weight'));
+		assert.ok(ebbinghaus?.fields.some(field => field.key === 'ebbinghaus_importance_weight'));
+		assert.strictEqual(ebbinghaus?.fields.find(field => field.key === 'ebbinghaus_prune_threshold')?.percent, true);
+		assert.ok(MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryProductSettings')?.fields.some(field => field.key === 'retrieval_top_k'));
+		assert.ok(!MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryProductSettings')?.expert);
 		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.titleKey === 'memoryTaskRoutingSettings'));
 		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.collapsed && group.titleKey === 'memoryBudgetSettings'));
 		const mode = MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryModeTuningSettings');
@@ -2300,5 +2317,43 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(detectSearchLanguage('Dockerfile'), 'dockerfile');
 		assert.strictEqual(detectSearchLanguage('styles.less'), 'less');
 		assert.strictEqual(detectSearchLanguage('Widget.svelte'), 'svelte');
+	});
+
+	test('live plan progress keeps inferred steps after a later complete snapshot', () => {
+		const created = formatPlanText({
+			title: 'Task plan',
+			steps: [
+				{ id: '1-scaffold', title: 'Scaffold Cargo project', status: 'in_progress' },
+				{ id: '2-game', title: 'Implement game logic in src/game.rs', status: 'pending' },
+				{ id: '3-ui', title: 'Implement Dioxus UI in src/ui.rs', status: 'pending' },
+				{ id: '4-css', title: 'Add assets/main.css styling', status: 'pending' },
+				{ id: '5-verify', title: 'Verify: cargo fmt --check, cargo test, cargo clippy -D warnings, cargo build', status: 'pending' },
+			],
+		});
+		const stuck = formatPlanText({
+			title: 'Task plan',
+			steps: [
+				{ id: '1-scaffold', title: 'Scaffold Cargo project', status: 'done' },
+				{ id: '2-game', title: 'Implement game logic in src/game.rs', status: 'done' },
+				{ id: '3-ui', title: 'Implement Dioxus UI in src/ui.rs', status: 'done' },
+				{ id: '4-css', title: 'Add assets/main.css styling', status: 'in_progress' },
+				{ id: '5-verify', title: 'Verify: cargo fmt --check, cargo test, cargo clippy -D warnings, cargo build', status: 'pending' },
+			],
+		});
+		const history: IKnoxGuiHistoryItem[] = [
+			{ id: 'u', role: 'user', content: 'build snake' },
+			{ id: 'p', role: 'tool', content: created, toolCalls: [{ id: 'plan', name: 'builtin_plan', arguments: '{}', status: 'done', output: created, outputItems: [{ name: 'Plan', description: 'created', content: created }] }] },
+			{ id: 'w1', role: 'assistant', content: '', toolCalls: [{ id: 'c1', name: 'builtin_write_file', arguments: '{"filepath":"src/game.rs"}', status: 'done', parsedArgs: { filepath: 'src/game.rs' } }] },
+			{ id: 'w2', role: 'assistant', content: '', toolCalls: [{ id: 'c2', name: 'builtin_write_file', arguments: '{"filepath":"src/ui.rs"}', status: 'done', parsedArgs: { filepath: 'src/ui.rs' } }] },
+			{ id: 'w3', role: 'assistant', content: '', toolCalls: [{ id: 'c3', name: 'builtin_write_file', arguments: '{"filepath":"assets/main.css"}', status: 'done', parsedArgs: { filepath: 'assets/main.css' } }] },
+			{ id: 'sh', role: 'assistant', content: '', toolCalls: [{ id: 'c4', name: 'builtin_run_terminal_command', arguments: '{"command":"cargo test"}', status: 'done', parsedArgs: { command: 'cargo test' } }] },
+			{ id: 'run', role: 'assistant', content: '', toolCalls: [{ id: 'c5', name: 'builtin_run_terminal_command', arguments: '{"command":"cd ~/Desktop/demo && cargo run --release"}', status: 'done', parsedArgs: { command: 'cd ~/Desktop/demo && cargo run --release' } }] },
+			{ id: 'stuck', role: 'tool', content: stuck, toolCalls: [{ id: 'plan2', name: 'builtin_plan', arguments: '{"action":"complete"}', status: 'done', output: stuck, outputItems: [{ name: 'Plan', description: 'updated', content: stuck }] }] },
+		];
+		const live = collectLiveTaskPlan(history);
+		assert.ok(live);
+		assert.deepStrictEqual(live.steps.map(step => step.status), ['done', 'done', 'done', 'done', 'done']);
+		assert.strictEqual(live.remaining, 0);
+		assert.strictEqual(live.doneCount, 5);
 	});
 });

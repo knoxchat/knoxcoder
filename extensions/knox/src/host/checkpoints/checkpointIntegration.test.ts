@@ -15,7 +15,8 @@ import {
     listStoredBlobs,
     withTempCheckpointWorkspace,
 } from './checkpointTestHarness';
-import { setRestoreTestHooks } from './manager/restore';
+import { recoverIncompleteRestore, setRestoreTestHooks } from './manager/restore';
+import { getRestoreJournalPath } from './manager/restoreJournal';
 import { BLOB_COMPRESS_THRESHOLD } from './store/blobStore';
 
 const MINIMAL_PNG = Buffer.from(
@@ -364,9 +365,141 @@ suite('Checkpoint integration (CP-34)', () => {
             );
             assert.strictEqual(result.success, true);
             assert.ok(result.restoredFiles.includes('a.ts'));
-            assert.ok(result.restoredFiles.includes('extra.ts'));
+            assert.ok(!result.restoredFiles.includes('extra.ts'));
+            assert.ok(result.removedFiles?.includes('extra.ts'));
             assert.strictEqual(await fs.readFile(fileA, 'utf8'), 'export const a = 1;\n');
             await assert.rejects(fs.access(extra));
+        });
+    });
+
+    test('restoreCheckpointDirect keeps extras when cleanupExtraFiles is false', async () => {
+        await withTempCheckpointWorkspace('cp-t7-keep-extras', async ({ fixtureRoot, manager }) => {
+            const fileA = path.join(fixtureRoot, 'a.ts');
+            await fs.writeFile(fileA, 'export const a = 1;\n');
+
+            const baselineId = await manager.createManualCheckpoint({ description: 'keep extras baseline' });
+            assert.ok(baselineId);
+
+            await fs.writeFile(fileA, 'export const a = 2;\n');
+            const extra = path.join(fixtureRoot, 'extra.ts');
+            await fs.writeFile(extra, 'export const extra = 1;\n');
+
+            mockWindowMethod('showInformationMessage', async () => undefined);
+            mockWindowMethod('showWarningMessage', async () => undefined);
+            mockWindowMethod('showErrorMessage', async () => undefined);
+
+            const result = await CheckpointChatIntegration.getInstance().restoreCheckpointDirect(
+                baselineId,
+                { rewindMemory: false, cleanupExtraFiles: false },
+            );
+            assert.strictEqual(result.success, true);
+            assert.ok(result.restoredFiles.includes('a.ts'));
+            assert.ok(!result.removedFiles?.includes('extra.ts'));
+            assert.strictEqual(await fs.readFile(fileA, 'utf8'), 'export const a = 1;\n');
+            assert.strictEqual(await fs.readFile(extra, 'utf8'), 'export const extra = 1;\n');
+        });
+    });
+
+    test('restoreCheckpointDirect interrupt rolls back via journal and keeps extras', async () => {
+        await withTempCheckpointWorkspace('cp-t3-direct-cancel', async ({ fixtureRoot, manager }) => {
+            const fileA = path.join(fixtureRoot, 'a.ts');
+            const fileB = path.join(fixtureRoot, 'b.ts');
+            const extra = path.join(fixtureRoot, 'extra.ts');
+            await fs.writeFile(fileA, 'export const a = "old";\n');
+            await fs.writeFile(fileB, 'export const b = "old";\n');
+
+            const checkpointId = await manager.createManualCheckpoint({ description: 'direct cancel source' });
+            assert.ok(checkpointId);
+
+            await fs.writeFile(fileA, 'export const a = "new";\n');
+            await fs.writeFile(fileB, 'export const b = "new";\n');
+            await fs.writeFile(extra, 'export const extra = 1;\n');
+
+            mockWindowMethod('showInformationMessage', async () => undefined);
+            mockWindowMethod('showWarningMessage', async () => undefined);
+            mockWindowMethod('showErrorMessage', async () => undefined);
+
+            setRestoreTestHooks({
+                shouldCancel: (_relativePath, index) => index >= 1,
+            });
+
+            const result = await CheckpointChatIntegration.getInstance().restoreCheckpointDirect(
+                checkpointId,
+                { rewindMemory: false, silent: true },
+            );
+            assert.strictEqual(result.success, false);
+            assert.ok(result.failedFiles.some((file) => file.error === 'cancelled'));
+            assert.strictEqual(await fs.readFile(fileA, 'utf8'), 'export const a = "new";\n');
+            assert.strictEqual(await fs.readFile(fileB, 'utf8'), 'export const b = "new";\n');
+            await fs.access(extra);
+            await assert.rejects(() => fs.access(getRestoreJournalPath(manager)));
+        });
+    });
+
+    test('killed restoreCheckpointDirect leaves a journal recoverIncompleteRestore can finish', async () => {
+        await withTempCheckpointWorkspace('cp-t3-direct-crash', async ({ fixtureRoot, manager }) => {
+            const fileA = path.join(fixtureRoot, 'a.ts');
+            await fs.writeFile(fileA, 'export const a = "old";\n');
+
+            const checkpointId = await manager.createManualCheckpoint({ description: 'direct crash source' });
+            assert.ok(checkpointId);
+            await fs.writeFile(fileA, 'export const a = "new";\n');
+
+            mockWindowMethod('showInformationMessage', async () => undefined);
+            mockWindowMethod('showWarningMessage', async () => undefined);
+            mockWindowMethod('showErrorMessage', async () => undefined);
+
+            setRestoreTestHooks({
+                afterJournalWrite: async () => {
+                    await fs.writeFile(fileA, 'export const a = "partial";\n');
+                    throw new Error('simulated crash');
+                },
+            });
+
+            const result = await CheckpointChatIntegration.getInstance().restoreCheckpointDirect(
+                checkpointId,
+                { rewindMemory: false, silent: true },
+            );
+            assert.strictEqual(result.success, false);
+            assert.match(result.message ?? '', /simulated crash/);
+            assert.strictEqual(await fs.readFile(fileA, 'utf8'), 'export const a = "partial";\n');
+            await fs.access(getRestoreJournalPath(manager));
+
+            await recoverIncompleteRestore(manager);
+            assert.strictEqual(await fs.readFile(fileA, 'utf8'), 'export const a = "new";\n');
+            await assert.rejects(() => fs.access(getRestoreJournalPath(manager)));
+        });
+    });
+
+    test('selected restoreCheckpointFiles writes a subset and does not journal or delete extras', async () => {
+        await withTempCheckpointWorkspace('cp-t3-selected', async ({ fixtureRoot, manager }) => {
+            const fileA = path.join(fixtureRoot, 'a.ts');
+            const extra = path.join(fixtureRoot, 'extra.ts');
+            await fs.writeFile(fileA, 'export const a = 1;\n');
+
+            const checkpointId = await manager.createManualCheckpoint({ description: 'selected subset' });
+            assert.ok(checkpointId);
+            await fs.writeFile(fileA, 'export const a = 2;\n');
+            await fs.writeFile(extra, 'export const extra = 1;\n');
+
+            const preview = await manager.previewRestore(checkpointId);
+            assert.ok(preview);
+            assert.deepStrictEqual(preview.writePaths, ['a.ts']);
+            assert.deepStrictEqual(preview.extraPaths, ['extra.ts']);
+
+            mockWindowMethod('showInformationMessage', async () => undefined);
+            mockWindowMethod('showWarningMessage', async () => undefined);
+            mockWindowMethod('showErrorMessage', async () => undefined);
+
+            const result = await CheckpointChatIntegration.getInstance().restoreCheckpointFiles(
+                checkpointId,
+                preview.writePaths,
+            );
+            assert.strictEqual(result.success, true);
+            assert.deepStrictEqual(result.restoredFiles, ['a.ts']);
+            assert.strictEqual(await fs.readFile(fileA, 'utf8'), 'export const a = 1;\n');
+            assert.strictEqual(await fs.readFile(extra, 'utf8'), 'export const extra = 1;\n');
+            await assert.rejects(() => fs.access(getRestoreJournalPath(manager)));
         });
     });
 

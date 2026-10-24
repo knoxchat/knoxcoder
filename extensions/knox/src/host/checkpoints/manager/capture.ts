@@ -1,4 +1,3 @@
-import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -7,7 +6,7 @@ import * as vscode from 'vscode';
 import { getGlobalKnoxIgnorePath } from 'core/util/paths';
 import { createKnoxLogger } from 'core/util/knoxLog';
 
-import { hashBlobBytes, putBlob } from '../store/blobStore';
+import { bytesFromSnapshotContent, hashBlobBytes, putBlob } from '../store/blobStore';
 import { writeBlobOptions } from './blobCrypto';
 import {
     classificationOptionsFrom,
@@ -36,8 +35,9 @@ import {
 
 const log = createKnoxLogger('Checkpoints');
 
-export function hashContent(content: string): string {
-    return crypto.createHash('sha1').update(content).digest('hex');
+/** SHA-256 of snapshot bytes — same digest `skipUnchanged` compares against `hashBlobBytes`. */
+export function hashContent(content: string, encoding = 'utf8'): string {
+    return hashBlobBytes(bytesFromSnapshotContent(content, encoding));
 }
 
 function snapshotContentHash(snapshot: FileSnapshot): string | undefined {
@@ -45,7 +45,7 @@ function snapshotContentHash(snapshot: FileSnapshot): string | undefined {
         return snapshot.hash;
     }
     if (typeof snapshot.content === 'string') {
-        return hashContent(snapshot.content);
+        return hashContent(snapshot.content, snapshot.encoding);
     }
     return undefined;
 }

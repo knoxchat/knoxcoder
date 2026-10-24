@@ -85,7 +85,7 @@ describe("REL-01 RetrievalQuery (pure)", () => {
     expect(expanded.fts5Query).not.toContain("AND");
   });
 
-  it("does not mix last turn into a new-task query", () => {
+  it("does not mix last turn into a new-task query that left the topic", () => {
     const expanded = expandRetrievalQuery({
       message: "now update the README badges",
       topicKeywords: "auth, jwt, oauth",
@@ -95,6 +95,18 @@ describe("REL-01 RetrievalQuery (pure)", () => {
     expect(expanded.contentWords).toEqual(["update", "readme", "badges"]);
     expect(expanded.retrievalQuery).not.toContain("jwt");
     expect(expanded.retrievalQuery).not.toContain("oauth");
+  });
+
+  it("reuses continuation expansion for a new_task that still overlaps the topic (T6)", () => {
+    const expanded = expandRetrievalQuery({
+      message: "how should we rotate the jwt tokens?",
+      topicKeywords: "auth, jwt, oauth, login",
+      lastSubstantialTurn: "How should we implement JWT refresh tokens?",
+    });
+    expect(expanded.intent).toBe("new_task");
+    expect(expanded.contentWords).toEqual(
+      expect.arrayContaining(["jwt", "auth", "oauth", "refresh"]),
+    );
   });
 
   it("picks last substantial turn and skips pure continuations", () => {

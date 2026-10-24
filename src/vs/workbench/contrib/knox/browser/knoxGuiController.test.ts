@@ -28,6 +28,7 @@ import { KnoxGuiController } from './knoxGuiController.js';
 import { KnoxGuiMessenger } from './knoxGuiMessenger.js';
 import { KnoxGuiStore } from './knoxGuiStore.js';
 import { KnoxGuiWidget } from './gui/knoxGuiWidget.js';
+import { finishTurn } from './gui/controller/stream.js';
 
 suite('Knox native GUI controller (GP-084)', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1815,6 +1816,73 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(posted.some(message => message.messageType === 'switchCheckpointBranch' && (message.data as { branchId?: string }).branchId === 'br-feat'));
 	});
 
+	test('Restore extras stay optional and a failed restore stays visible', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { controller, store, posted } = createHarness({
+			replies: {
+				previewRestore: {
+					success: true,
+					preview: {
+						checkpointId: 'cp-1',
+						description: 'head',
+						modified: 1,
+						added: 0,
+						deleted: 1,
+						writePaths: ['a.ts'],
+						extraPaths: ['extra.ts'],
+						skippedFiles: [],
+						files: [
+							{ relativePath: 'a.ts', action: 'overwrite', additions: 1, deletions: 1, hunkCount: 1 },
+							{ relativePath: 'extra.ts', action: 'delete', additions: 0, deletions: 1, hunkCount: 1 },
+						],
+					},
+				},
+				restoreCheckpointFiles: { success: true, restoredFiles: ['a.ts'], failedFiles: [] },
+				restoreCheckpoint: { success: false, message: 'disk full' },
+			},
+		});
+		await controller.openRestorePreview('cp-1');
+		assert.deepStrictEqual(store.state.checkpointRestoreSelected, ['a.ts']);
+		assert.strictEqual(store.state.checkpointRestoreDeleteExtras, false);
+
+		await controller.restoreSelectedFiles();
+		const writesOnly = posted.find(message => message.messageType === 'restoreCheckpointFiles');
+		assert.deepStrictEqual((writesOnly?.data as { relativePaths?: string[] }).relativePaths, ['a.ts']);
+
+		store.patch({
+			checkpointDialog: 'restore',
+			checkpointRestoreId: 'cp-1',
+			checkpointRestoring: false,
+			checkpointRestoreMemory: false,
+		});
+		controller.toggleRestorePath('extra.ts', true);
+		assert.deepStrictEqual(store.state.checkpointRestoreSelected, ['a.ts', 'extra.ts']);
+		await controller.restoreSelectedFiles();
+		const withExtras = posted.filter(message => message.messageType === 'restoreCheckpointFiles').at(-1);
+		assert.deepStrictEqual((withExtras?.data as { relativePaths?: string[] }).relativePaths, ['a.ts', 'extra.ts']);
+
+		store.patch({
+			checkpointDialog: 'restore',
+			checkpointRestoreId: 'cp-1',
+			checkpointRestoring: false,
+			checkpointRestoreMemory: false,
+			checkpointRestoreDeleteExtras: false,
+		});
+		await controller.restoreAllFiles();
+		const restoreAll = posted.find(message => message.messageType === 'restoreCheckpoint');
+		assert.deepStrictEqual(restoreAll?.data, { checkpointId: 'cp-1', rewindMemory: false, cleanupExtraFiles: false });
+		assert.strictEqual(store.state.checkpointDialog, 'restore');
+		assert.strictEqual(store.state.checkpointRestoreError, 'disk full');
+		assert.ok(store.state.checkpointRestorePreview);
+
+		store.patch({ checkpointRestoring: false, checkpointRestoreError: undefined, checkpointRestoreDeleteExtras: true });
+		await controller.restoreAllFiles();
+		const restoreAllExtras = posted.filter(message => message.messageType === 'restoreCheckpoint').at(-1);
+		assert.deepStrictEqual(restoreAllExtras?.data, { checkpointId: 'cp-1', rewindMemory: false, cleanupExtraFiles: true });
+		assert.strictEqual(store.state.checkpointDialog, 'restore');
+		assert.strictEqual(store.state.checkpointRestoreError, 'disk full');
+		await timeout(1600);
+	}));
+
 	test('KN-376 Memory panel calls KN-310–317 brain/* for all five tabs', async () => {
 		const { controller, store, posted } = createHarness({
 			replies: {
@@ -1831,7 +1899,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 				'brain/getPhaseStatus': { active_phase: 'working_memory', phase_counts: { working_memory: 2 }, cycle_invariant_met: true },
 				'brain/getReviewDue': { items: [] },
 				'brain/getEbbinghausStats': { review_due_count: 1, avg_retention: 0.8, config: { lambda: 0.05 } },
-				'brain/searchMemories': { memories: [{ id: 7, title: 'auth cookie', category: 'insight', tier: 'hot', pinned: false, content: 'use httpOnly' }], total: 1 },
+				'brain/searchMemories': { memories: [{ id: 7, title: 'auth cookie', category: 'insight', tier: 'hot', pinned: false, content: 'use httpOnly' }], total: 1, lastInject: { items: [{ id: 7, kind: 'semantic', title: 'auth cookie', reason: 'lexical: jwt' }] } },
 				'brain/listSessions': { sessions: [{ id: 's1', title: 'Ship', message_count: 3, updated_at: '2026-09-26T00:00:00.000Z' }] },
 				'brain/getSessionHistory': { session_id: 's1', episodic: [{ role: 'user', content: 'hi' }], semantic: [], token_estimate: 12, message_count: 1 },
 				'brain/searchBacklogs': { result: { episodic: [], semantic: [{ id: 9, title: 'cookie', content: 'httpOnly', source_session_id: 's1' }] } },
@@ -1861,6 +1929,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 
 		await controller.loadMemories(false);
 		assert.strictEqual(store.state.memories[0]?.title, 'auth cookie');
+		assert.strictEqual(store.state.memoryLastInject[0]?.reason, 'lexical: jwt');
 		assert.ok(posted.some(message => message.messageType === 'brain/searchMemories'));
 
 		await controller.loadMemorySessions();
@@ -1904,6 +1973,40 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(await controller.importMemoryData('{"version":"knox-brain-encrypted-v1"}'), false, 'encrypted backups need a password');
 		assert.strictEqual(await controller.importMemoryData('{"version":"knox-brain-v1"}'), true);
 		assert.strictEqual(store.state.memorySettingsResult?.message, 'Import complete');
+	});
+
+	test('T9 product memory settings, session delete, and use as context', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: {
+				'knox/memoryBrainSettings': { enabled: true, workspaceEnabled: true },
+				'knox/memoryBrainSettingsSet': { enabled: false, workspaceEnabled: true },
+				'brain/updateConfig': { ok: true },
+				'brain/useSessionAsContext': { ok: true, pinned: 2, workingMemory: 3 },
+				'brain/listSessions': { sessions: [] },
+			},
+		});
+		await controller.loadMemoryBrainSettings();
+		assert.deepStrictEqual(store.state.memoryBrainSettings, { enabled: true, workspaceEnabled: true });
+		await controller.setMemoryBrainSettings({ enabled: false });
+		assert.strictEqual(store.state.memoryBrainSettings.enabled, false);
+		assert.ok(posted.some(message => message.messageType === 'knox/memoryBrainSettingsSet' && (message.data as { enabled?: boolean }).enabled === false));
+
+		store.patch({ memoryConfig: { ebbinghaus_lambda: 0.9, retrieval_top_k: 20 } });
+		await controller.resetMemoryExpertConfig();
+		assert.strictEqual(store.state.memoryConfig.ebbinghaus_lambda, 0.03);
+		assert.strictEqual(store.state.memoryConfig.retrieval_top_k, 20, 'product inject cap is not an expert default reset');
+
+		store.patch({
+			memorySessions: [{ id: 's1', title: 'Ship', messageCount: 2 }],
+			memorySelectedSessionId: 's1',
+			sessionId: 'other',
+		});
+		await controller.useMemorySessionAsContext('s1');
+		assert.ok(posted.some(message => message.messageType === 'brain/useSessionAsContext' && (message.data as { sessionId?: string }).sessionId === 's1'));
+		await controller.deleteMemorySession('s1');
+		assert.ok(posted.some(message => message.messageType === 'history/delete' && (message.data as { id?: string }).id === 's1'));
+		assert.deepStrictEqual(store.state.memorySessions, []);
+		assert.strictEqual(store.state.memorySelectedSessionId, undefined);
 	});
 
 	test('KN-377 find, session tabs, fatal config, and accept-all exits edit mode', async () => {
@@ -2071,5 +2174,74 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(posted.some(message => message.messageType === 'tools/cancel'));
 		assert.ok(posted.some(message => message.messageType === 'agent/jobs'));
 		assert.strictEqual(store.state.isStreaming, false);
+	});
+
+	test('T5 finishTurn stores a recipe capture toast; Recipes tab Preview/Apply reuse host replay', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: {
+				'knox/finishTurn': { captured: true, created: true, recipeId: 'rec1', title: 'Add lint script', status: 'candidate', at: '2026-10-24T00:00:00.000Z' },
+				'knox/recipePreview': { recipeId: 'rec1', allowed: true, drifted: false, conflicts: [], files: 1, added: 1, removed: 0, text: '1 file(s), +1 -0' },
+				'knox/recipeReplay': { status: 'applied', recipeId: 'rec1', checkpointId: 'cp1', restored: false, appliedPaths: ['package.json'] },
+				'knox/recipeList': { recipes: [{ id: 'rec1', title: 'Add lint script', status: 'verified', uses: 2, ok: 2, reverted: 0, failedVerify: 0, files: 1, sourceCheckpointIds: [] }] },
+			},
+		});
+		store.patch({
+			sessionId: 's1',
+			history: [
+				{ id: 'u', role: 'user', content: 'add a lint script' },
+				{ id: 'a', role: 'assistant', content: 'done' },
+			],
+		});
+		finishTurn(controller);
+		await timeout(0);
+		assert.ok(posted.some(message => message.messageType === 'knox/finishTurn'));
+		assert.strictEqual(store.state.recipeCaptureToast?.captured, true);
+		assert.strictEqual(store.state.recipeCaptureToast?.title, 'Add lint script');
+		assert.strictEqual(store.state.memoryRecipeCapture?.status, 'candidate');
+
+		store.patch({
+			memoryTab: 'recipes',
+			memoryRecipes: [{ id: 'rec1', title: 'Add lint script', status: 'verified', scope: 'project', uses: 1, ok: 1, reverted: 0, failedVerify: 0, files: 1, sourceCheckpointIds: [] }],
+		});
+		controller.previewMemoryRecipe('rec1');
+		await timeout(0);
+		assert.ok(posted.some(message => message.messageType === 'knox/recipePreview'));
+		assert.strictEqual(store.state.recipeDecision?.source, 'tab');
+		assert.strictEqual(store.state.recipeDecision?.awaitingChoice, true);
+		assert.ok(store.state.recipeDecision?.preview?.includes('1 file'));
+
+		controller.answerRecipeChoice('apply');
+		await timeout(0);
+		assert.ok(posted.some(message => message.messageType === 'knox/recipeReplay'));
+		assert.strictEqual(store.state.recipeDecision?.replay?.status, 'applied');
+		assert.strictEqual(store.state.recipeDecision?.undoCheckpointId, 'cp1');
+		assert.strictEqual(store.state.recipeDecision?.awaitingChoice, false);
+	});
+
+	test('T13 Recipes tab can verify, restore, promote a skill, and open a source checkpoint', async () => {
+		const { controller, store, posted } = createHarness({
+			replies: {
+				'knox/recipeSetStatus': { ok: true },
+				'knox/recipeList': { recipes: [] },
+				'knox/recipePromoteSkill': { ok: true, path: '/tmp/skills/lint/SKILL.md' },
+			},
+		});
+		store.patch({
+			memoryTab: 'recipes',
+			memoryRecipes: [
+				{ id: 'rec1', title: 'Add lint script', status: 'verified', scope: 'project', uses: 5, ok: 5, reverted: 0, failedVerify: 0, files: 1, sourceCheckpointIds: ['cp-lint'], skillEligible: true },
+				{ id: 'rec3', title: 'Lint candidate', status: 'candidate', scope: 'project', uses: 0, ok: 0, reverted: 0, failedVerify: 0, files: 1, oracleKind: 'build', sourceCheckpointIds: [] },
+			],
+		});
+		await controller.setMemoryRecipeStatus('rec3', 'verified');
+		assert.ok(posted.some(message => message.messageType === 'knox/recipeSetStatus' && (message.data as { status?: string }).status === 'verified'));
+		posted.length = 0;
+		controller.promoteRecipeSkill('project', 'rec1');
+		await timeout(0);
+		assert.ok(posted.some(message => message.messageType === 'knox/recipePromoteSkill'));
+		assert.ok(store.state.recipeDecision?.skillResult?.includes('/tmp/skills/lint/SKILL.md'));
+		controller.openRecipeCheckpoint('cp-lint');
+		assert.strictEqual(store.state.selectedCheckpointId, 'cp-lint');
+		assert.strictEqual(store.state.route, KnoxGuiRoute.CheckpointGraph);
 	});
 });

@@ -7,7 +7,7 @@
 
 import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
-import { formatMemoryTimeAgo, memoryRecipeActions } from '../../../../common/knoxGuiMemory.js';
+import { formatMemoryTimeAgo, memoryRecipeActions, memoryRecipeCaptureNotice } from '../../../../common/knoxGuiMemory.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { mk, svg, memoryButton, memoryConfirmDialog } from './kit.js';
 
@@ -31,17 +31,61 @@ export function renderMemoryRecipes(widget: KnoxGuiWidget, body: HTMLElement, st
 
 	if (state.memoryRecipeCapture) {
 		const cap = state.memoryRecipeCapture;
+		const notice = memoryRecipeCaptureNotice(cap);
 		const banner = mk(body, 'div', cap.captured ? 'banner is-notice' : 'session-error');
 		banner.setAttribute('data-testid', 'memory-recipes-last-capture');
-		if (cap.captured) {
-			banner.textContent = t(state, 'memoryRecipeCaptured', {
-				title: cap.title || '',
-				status: t(state, `memoryRecipeStatus_${cap.status ?? 'candidate'}`),
-			});
-		} else {
-			const key = `memoryRecipeSkip_${cap.reason ?? 'unknown'}`;
-			banner.textContent = t(state, key);
-		}
+		banner.textContent = notice.params
+			? t(state, notice.key, { title: notice.params.title, status: t(state, notice.params.statusKey) })
+			: t(state, notice.key);
+	}
+
+	const tabDecision = state.recipeDecision;
+	if (tabDecision?.source === 'tab' && tabDecision.awaitingChoice && tabDecision.preview && tabDecision.recipe) {
+		const card = mk(body, 'div', 'banner is-notice');
+		card.setAttribute('role', 'group');
+		card.setAttribute('data-testid', 'memory-recipe-preview-card');
+		mk(card, 'p', 'sm fw-6', t(state, 'recipePreviewTitle', { title: tabDecision.recipe.title }));
+		const latency = mk(card, 'p', 'xs o-60');
+		latency.setAttribute('data-testid', 'memory-recipe-preview-latency');
+		latency.textContent = t(state, 'recipePreviewLatency');
+		mk(card, 'pre', 'mt-1 xs', tabDecision.preview);
+		const choice = mk(card, 'div', 'mt-2 flex gap-2');
+		memoryButton(widget, choice, {
+			tokens: 'pill-btn btn-primary',
+			icon: 'check',
+			label: t(state, 'recipeApply'),
+			testId: 'memory-recipe-preview-apply',
+			disabled: Boolean(state.memoryRecipeBusyId),
+			onClick: () => widget.controller.answerRecipeChoice('apply'),
+		});
+		memoryButton(widget, choice, {
+			tokens: 'pill-btn is-quiet btn-secondary',
+			label: t(state, 'cancel'),
+			testId: 'memory-recipe-preview-skip',
+			disabled: Boolean(state.memoryRecipeBusyId),
+			onClick: () => widget.controller.answerRecipeChoice('skip'),
+		});
+	} else if (tabDecision?.source === 'tab' && tabDecision.recipe && tabDecision.replay?.status === 'applied' && tabDecision.undoCheckpointId) {
+		const done = mk(body, 'div', 'banner is-notice');
+		done.setAttribute('role', 'status');
+		done.setAttribute('data-testid', 'memory-recipe-replay-notice');
+		mk(done, 'span', 'flex-1', t(state, 'recipeReplayApplied', { title: tabDecision.recipe.title, count: tabDecision.replay.appliedPaths.length }));
+		memoryButton(widget, done, {
+			tokens: 'pill-btn is-quiet btn-secondary',
+			icon: 'rotate-ccw',
+			label: t(state, 'recipeUndo'),
+			testId: 'memory-recipe-undo',
+			onClick: () => widget.controller.restoreCheckpoint(tabDecision.undoCheckpointId!),
+		});
+	} else if (tabDecision?.source === 'tab' && tabDecision.recipe && tabDecision.replay && tabDecision.replay.status !== 'applied') {
+		const fail = mk(body, 'div', 'session-error');
+		fail.setAttribute('data-testid', 'memory-recipe-replay-error');
+		fail.textContent = t(state, 'memoryRecipeReplayFailed', { title: tabDecision.recipe.title, reason: tabDecision.replay.reason ?? 'unknown' });
+	}
+	if (state.recipeDecision?.skillResult) {
+		const skill = mk(body, 'div', 'banner is-notice');
+		skill.setAttribute('data-testid', 'memory-recipe-skill-result');
+		skill.textContent = state.recipeDecision.skillResult;
 	}
 
 	if (state.memoryRecipeError) {
@@ -88,23 +132,82 @@ export function renderMemoryRecipes(widget: KnoxGuiWidget, body: HTMLElement, st
 		for (const checkpointId of recipe.sourceCheckpointIds.slice(0, 3)) {
 			memoryButton(widget, links, {
 				tokens: 'pill-btn is-quiet btn-secondary',
-				icon: 'copy',
+				icon: 'git-commit',
 				label: checkpointId.slice(0, 8),
 				title: t(state, 'memoryRecipeCopyCheckpoint'),
-				onClick: () => {
-					// The Checkpoint Graph opens focused on this node; the id is also copied for search.
-					widget.controller.store.patch({ selectedCheckpointId: checkpointId });
-					void widget.controller.messenger.request('copyText', { text: checkpointId });
-				},
+				testId: `memory-recipe-checkpoint-${recipe.id}-${checkpointId.slice(0, 8)}`,
+				onClick: () => widget.controller.openRecipeCheckpoint(checkpointId),
 			});
 		}
 		if (!recipe.sourceCheckpointIds.length) {
 			links.append('-');
 		}
 
-		const actions = memoryRecipeActions(recipe.status);
-		if (actions.quarantine || actions.retire) {
+		const actions = memoryRecipeActions(recipe);
+		if (actions.preview || actions.replay || actions.verify || actions.restore || actions.promoteSkill || actions.quarantine || actions.retire) {
 			const buttons = mk(row, 'div', 'mt-2 flex gap-2');
+			if (actions.verify) {
+				memoryButton(widget, buttons, {
+					tokens: 'pill-btn is-quiet btn-secondary',
+					icon: 'check',
+					label: t(state, 'memoryRecipeVerify'),
+					title: t(state, 'memoryRecipeVerifyHint'),
+					disabled: busy,
+					testId: `memory-recipe-verify-${recipe.id}`,
+					onClick: () => void widget.controller.setMemoryRecipeStatus(recipe.id, 'verified'),
+				});
+			}
+			if (actions.restore) {
+				memoryButton(widget, buttons, {
+					tokens: 'pill-btn is-quiet btn-secondary',
+					icon: 'rotate-ccw',
+					label: t(state, 'memoryRecipeRestore'),
+					title: t(state, 'memoryRecipeRestoreHint'),
+					disabled: busy,
+					testId: `memory-recipe-restore-${recipe.id}`,
+					onClick: () => void widget.controller.setMemoryRecipeStatus(recipe.id, 'candidate'),
+				});
+			}
+			if (actions.promoteSkill) {
+				memoryButton(widget, buttons, {
+					tokens: 'pill-btn is-quiet btn-secondary',
+					icon: 'zap',
+					label: t(state, 'recipePromoteProject'),
+					disabled: busy,
+					testId: `memory-recipe-skill-project-${recipe.id}`,
+					onClick: () => widget.controller.promoteRecipeSkill('project', recipe.id),
+				});
+				memoryButton(widget, buttons, {
+					tokens: 'pill-btn is-quiet btn-secondary',
+					icon: 'zap',
+					label: t(state, 'recipePromoteGlobal'),
+					disabled: busy,
+					testId: `memory-recipe-skill-global-${recipe.id}`,
+					onClick: () => widget.controller.promoteRecipeSkill('global', recipe.id),
+				});
+			}
+			if (actions.preview) {
+				memoryButton(widget, buttons, {
+					tokens: 'pill-btn is-quiet btn-secondary',
+					icon: 'eye',
+					label: t(state, 'memoryRecipePreview'),
+					title: t(state, 'memoryRecipePreviewHint'),
+					disabled: busy,
+					testId: `memory-recipe-preview-${recipe.id}`,
+					onClick: () => void widget.controller.previewMemoryRecipe(recipe.id),
+				});
+			}
+			if (actions.replay) {
+				memoryButton(widget, buttons, {
+					tokens: 'pill-btn is-quiet btn-secondary',
+					icon: 'rotate-cw',
+					label: t(state, 'memoryRecipeReplay'),
+					title: t(state, 'memoryRecipeReplayHint'),
+					disabled: busy,
+					testId: `memory-recipe-replay-${recipe.id}`,
+					onClick: () => void widget.controller.replayMemoryRecipe(recipe.id),
+				});
+			}
 			if (actions.quarantine) {
 				memoryButton(widget, buttons, {
 					tokens: 'pill-btn is-quiet btn-secondary',

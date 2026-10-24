@@ -69,6 +69,20 @@ suite('Checkpoint settings (CP-12)', () => {
             SMART_CHECKPOINT_DEFAULTS.enableMetrics,
         );
         assert.strictEqual(SMART_CHECKPOINT_DEFAULTS.enableMetrics, true);
+        assert.strictEqual(
+            smart.inspect('maxFileSizeKB')?.defaultValue,
+            SMART_CHECKPOINT_DEFAULTS.maxFileSizeKB,
+        );
+        assert.strictEqual(SMART_CHECKPOINT_DEFAULTS.maxFileSizeKB, 5120);
+        assert.strictEqual(
+            smart.inspect('maxCheckpoints')?.defaultValue,
+            50,
+            'deprecated key stays contributed for Settings Sync',
+        );
+        assert.ok(
+            !('maxCheckpoints' in SMART_CHECKPOINT_DEFAULTS),
+            'smart overlay no longer reads a checkpoint cap',
+        );
 
         const inlineDiff = vscode.workspace.getConfiguration('knox.checkpoints.inlineDiff');
         assert.strictEqual(

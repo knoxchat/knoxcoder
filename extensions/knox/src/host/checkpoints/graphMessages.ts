@@ -166,6 +166,7 @@ export function registerCheckpointGraphMessages(
         try {
             const result = await chat.restoreCheckpointDirect(msg.data.checkpointId, {
                 rewindMemory: msg.data.rewindMemory,
+                cleanupExtraFiles: msg.data.cleanupExtraFiles,
             });
             notify();
             return result;

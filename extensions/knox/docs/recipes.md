@@ -100,7 +100,7 @@ is instant; Apply runs the real tools and the recorded check, which can take sec
 ## Where to see and control it
 
 - **Memory → Settings, "Reuse verified work":** the three switches (`knoxchat.recipes.enabled`, `knoxchat.recipes.autoReplay`, `knoxchat.selfImprove.enabled`). They are the real VS Code settings, so `settings.json` and this page always agree. Everything is off by default. Agent Settings does not list these.
-- **Memory page, Recipes tab:** each recipe with its status, uses, reverts, failed checks and source checkpoints. **Quarantine** pauses a recipe; **Retire** removes it for good (asks first) and frees the checkpoint data it was holding. Only this project's recipes (and ones you promoted to all projects) are listed.
+- **Memory page, Recipes tab:** each recipe with its status, uses, reverts, failed checks and source checkpoints. **Preview** / **Replay** apply a verified recipe (ask card + Undo). **Verify** accepts a candidate that already has a passing check. **Restore** moves a quarantined recipe back to candidate. **Save as project/global skill** is offered after three clean replays. Source checkpoint chips open that snapshot on the Checkpoint Graph. **Quarantine** pauses a recipe; **Retire** removes it for good (asks first) and frees the checkpoint data it was holding. Only this project's recipes (and ones you promoted to all projects) are listed.
 - **Checkpoint Dashboard, AI Sessions tab:** estimated tokens saved, model calls avoided, and the wrong-reuse rate (replays that failed their check, plus replays you later undid, divided by replays that changed files). Token numbers count output only and are estimates (4 characters per token).
 
 ## Self-improvement

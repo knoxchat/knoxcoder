@@ -68,4 +68,16 @@ describe("TurnIntentRegistry (MC-61)", () => {
     r.begin("s", "two");
     expect(r.finish("s")).toEqual({ intent: "two", checkpointIds: [] });
   });
+
+  it("isActive is true between begin and finish", () => {
+    const r = new TurnIntentRegistry();
+    expect(r.isActive()).toBe(false);
+    r.begin("s1", "edit");
+    expect(r.isActive("s1")).toBe(true);
+    expect(r.isActive("other")).toBe(false);
+    expect(r.isActive()).toBe(true);
+    r.finish("s1");
+    expect(r.isActive("s1")).toBe(false);
+    expect(r.isActive()).toBe(false);
+  });
 });

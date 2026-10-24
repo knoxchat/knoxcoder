@@ -11,6 +11,8 @@ function formatList(
     created: string;
     sessionId?: string;
     fileCount?: number;
+    branch?: string;
+    label?: string;
   }>,
 ): string {
   if (rows.length === 0) {
@@ -18,10 +20,17 @@ function formatList(
   }
   return rows
     .map((row, index) => {
+      const title = row.label || row.description;
+      const extraDesc =
+        row.label && row.description && row.label !== row.description
+          ? ` (${row.description})`
+          : "";
       const files =
         typeof row.fileCount === "number" ? ` files=${row.fileCount}` : "";
       const session = row.sessionId ? ` session=${row.sessionId}` : "";
-      return `${index + 1}. ${row.id}  ${row.created}  ${row.description}${files}${session}`;
+      const branch = row.branch ? ` branch=${row.branch}` : "";
+      const label = title ? ` label=${title}` : "";
+      return `${index + 1}. ${row.id}  ${row.created}${label}${extraDesc}${branch}${files}${session}`;
     })
     .join("\n");
 }
@@ -208,6 +217,36 @@ export const workspaceCheckpointImpl: ToolImpl = async (args, extras) => {
         content: id
           ? `Created workspace checkpoint ${id} (${label}).`
           : "No checkpoint was created (host skipped or uninitialized).",
+      },
+    ];
+  }
+
+  if (action === "create_branch") {
+    if (typeof extras.ide.createWorkspaceCheckpointBranch !== "function") {
+      return unavailable("create_branch");
+    }
+    const name = typeof args.name === "string" ? args.name.trim() : "";
+    if (!name) {
+      throw new Error(t("missingRequiredParam", { param: "name" }));
+    }
+    const checkpointId =
+      typeof args.checkpoint_id === "string" ? args.checkpoint_id.trim() : "";
+    const description =
+      typeof args.label === "string" && args.label.trim()
+        ? args.label.trim()
+        : undefined;
+    const result = await extras.ide.createWorkspaceCheckpointBranch({
+      name,
+      checkpointId: checkpointId || undefined,
+      description,
+    });
+    return [
+      {
+        name: "workspace-checkpoint",
+        description: result.success ? "branched" : "failed",
+        content: result.success
+          ? `Created checkpoint branch ${result.name} (${result.branchId}) at ${result.headCheckpointId}.`
+          : `Could not create branch: ${result.message || "unknown error"}`,
       },
     ];
   }

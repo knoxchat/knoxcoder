@@ -151,6 +151,64 @@ export async function pinMemory(id: number): Promise<boolean> {
 /**
  * Unpin a semantic memory (keeps the memory, removes pin privilege).
  */
+/**
+ * Pin a past session's summary and top semantic rows into the next inject
+ * (working memory + pinned), without storing a new memory.
+ */
+export async function useSessionAsContext(
+  sessionId: string,
+): Promise<{ ok: boolean; pinned: number; workingMemory: number }> {
+  const { getSessionHistoryFull } = await import("./episodic.js");
+  const { pinMemories } = await import("./semantic.js");
+  const history = await getSessionHistoryFull(sessionId, {
+    episodicLimit: 0,
+    semanticLimit: 8,
+  });
+  const semantic = history.semantic ?? [];
+  const ids = semantic
+    .map((mem) => Number(mem.id))
+    .filter((id) => Number.isFinite(id) && id > 0)
+    .slice(0, 8);
+  if (ids.length) {
+    await pinMemories(ids);
+  }
+  const wm = getWorkingMemory();
+  let workingMemory = 0;
+  const summary =
+    typeof history.session?.summary === "string"
+      ? history.session.summary.trim()
+      : "";
+  if (summary) {
+    wm.add({
+      id: `session-context:${sessionId}:summary`,
+      content: summary,
+      source: "user",
+      relevance: 1,
+      metadata: { sessionId, kind: "summary" },
+    });
+    workingMemory++;
+  }
+  for (const mem of semantic.slice(0, 5)) {
+    const content = [mem.title, mem.content].filter(Boolean).join(": ").trim();
+    if (!content) {
+      continue;
+    }
+    wm.add({
+      id: `session-context:${sessionId}:${mem.id}`,
+      content,
+      source: "semantic",
+      relevance: 0.95,
+      metadata: { sessionId, memoryId: mem.id },
+    });
+    workingMemory++;
+  }
+  const activeId = getActiveSessionId();
+  if (activeId) {
+    await persistWorkingMemory(activeId);
+  }
+  return { ok: true, pinned: ids.length, workingMemory };
+}
+
 export async function unpinMemory(id: number): Promise<boolean> {
   const mem = await BrainStore.getSemanticById(id);
   if (!mem) return false;

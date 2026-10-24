@@ -11,9 +11,11 @@ import { t } from '../t.js';
 import { KnoxGuiSvgIcon } from '../../knoxGuiIcons.js';
 import {
 	MEMORY_SETTING_GROUP_ICONS,
-	MEMORY_SETTING_GROUPS,
+	memoryExpertSettingGroups,
+	memoryProductSettingGroups,
 	parseMemorySettingInput,
 	IKnoxGuiMemorySettingField,
+	IKnoxGuiMemorySettingGroup,
 } from '../../../../common/knoxGuiMemory.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import {
@@ -44,32 +46,30 @@ export function renderMemorySettings(widget: KnoxGuiWidget, body: HTMLElement, s
 		mk(toast, 'span', 'flex-1', result.message);
 		memoryButton(widget, toast, { tokens: 'banner-close', icon: 'x', ariaLabel: t(state, 'close'), onClick: () => widget.controller.store.patch({ memorySettingsResult: undefined }) });
 	}
-	for (const group of MEMORY_SETTING_GROUPS) {
-		const icon = (MEMORY_SETTING_GROUP_ICONS[group.titleKey] as KnoxGuiSvgIcon) || 'settings';
-		const open = !group.collapsed || widget.memorySettingsOpen.has(group.titleKey);
-		const content = group.collapsed
-			? collapsibleSettingsSection(widget, body, t(state, group.titleKey), icon, open, () => {
-				if (widget.memorySettingsOpen.has(group.titleKey)) {
-					widget.memorySettingsOpen.delete(group.titleKey);
-				} else {
-					widget.memorySettingsOpen.add(group.titleKey);
-				}
-				widget.render();
-			})
-			: settingsSection(body, t(state, group.titleKey), icon);
-		if (!content) {
-			continue;
+	for (const group of memoryProductSettingGroups()) {
+		renderMemorySettingGroup(widget, body, state, group, { product: true });
+	}
+	const expertOpen = widget.memorySettingsOpen.has('memoryExpertRetrieval');
+	const expertBody = collapsibleSettingsSection(widget, body, t(state, 'memoryExpertRetrieval'), 'sliders-horizontal', expertOpen, () => {
+		if (widget.memorySettingsOpen.has('memoryExpertRetrieval')) {
+			widget.memorySettingsOpen.delete('memoryExpertRetrieval');
+		} else {
+			widget.memorySettingsOpen.add('memoryExpertRetrieval');
 		}
-		if (group.descKey) {
-			mk(content, 'p', 'xs o-50', t(state, group.descKey));
-		}
-		let lastSection: string | undefined;
-		for (const field of group.fields) {
-			if (field.sectionKey && field.sectionKey !== lastSection) {
-				mk(content, 'p', lastSection ? 'pt-2 xs fw-5 o-70' : 'xs fw-5 o-70', t(state, field.sectionKey));
-				lastSection = field.sectionKey;
-			}
-			renderMemorySettingRow(widget, content, state, field);
+		widget.render();
+	}, 'memory-expert-retrieval');
+	if (expertBody) {
+		mk(expertBody, 'p', 'xs o-50', t(state, 'memoryExpertRetrievalDesc'));
+		memoryButton(widget, expertBody, {
+			tokens: 'action-btn btn-secondary',
+			icon: 'refresh-cw',
+			iconSize: 14,
+			label: t(state, 'memoryResetExpertDefaults'),
+			testId: 'memory-reset-expert',
+			onClick: () => void widget.controller.resetMemoryExpertConfig(),
+		});
+		for (const group of memoryExpertSettingGroups()) {
+			renderMemorySettingGroup(widget, expertBody, state, group);
 		}
 	}
 	const busy = state.memorySettingsAction;
@@ -141,6 +141,63 @@ export function renderMemorySettings(widget: KnoxGuiWidget, body: HTMLElement, s
 	});
 }
 
+function renderMemorySettingGroup(
+	widget: KnoxGuiWidget,
+	parent: HTMLElement,
+	state: IKnoxGuiState,
+	group: IKnoxGuiMemorySettingGroup,
+	options?: { product?: boolean },
+): void {
+	const icon = (MEMORY_SETTING_GROUP_ICONS[group.titleKey] as KnoxGuiSvgIcon) || 'settings';
+	const nested = group.expert === true;
+	const open = !group.collapsed || widget.memorySettingsOpen.has(group.titleKey);
+	const content = group.collapsed && !nested
+		? collapsibleSettingsSection(widget, parent, t(state, group.titleKey), icon, open, () => {
+			if (widget.memorySettingsOpen.has(group.titleKey)) {
+				widget.memorySettingsOpen.delete(group.titleKey);
+			} else {
+				widget.memorySettingsOpen.add(group.titleKey);
+			}
+			widget.render();
+		})
+		: settingsSection(parent, t(state, group.titleKey), icon);
+	if (!content) {
+		return;
+	}
+	if (group.descKey) {
+		mk(content, 'p', 'xs o-50', t(state, group.descKey));
+	}
+	if (options?.product) {
+		renderMemoryBrainToggles(widget, content, state);
+	}
+	let lastSection: string | undefined;
+	for (const field of group.fields) {
+		if (field.sectionKey && field.sectionKey !== lastSection) {
+			mk(content, 'p', lastSection ? 'pt-2 xs fw-5 o-70' : 'xs fw-5 o-70', t(state, field.sectionKey));
+			lastSection = field.sectionKey;
+		}
+		renderMemorySettingRow(widget, content, state, field);
+	}
+}
+
+function renderMemoryBrainToggles(widget: KnoxGuiWidget, content: HTMLElement, state: IKnoxGuiState): void {
+	const row = (labelKey: string, hintKey: string, testId: string, on: boolean, onChange: (value: boolean) => void) => {
+		const item = mk(content, 'div', 'setting-row');
+		const text = mk(item, 'div', 'flex-1');
+		mk(text, 'div', 'sm', t(state, labelKey));
+		mk(text, 'div', 'xs o-50', t(state, hintKey));
+		const toggle = mk(item, 'button', on ? 'toggle is-on' : 'toggle');
+		toggle.type = 'button';
+		toggle.setAttribute('role', 'switch');
+		toggle.setAttribute('aria-checked', String(on));
+		toggle.setAttribute('data-testid', testId);
+		mk(toggle, 'span', 'toggle-knob');
+		widget.renderStore.add(DOM.addDisposableListener(toggle, 'click', () => onChange(!on)));
+	};
+	row('memoryBrainEnabled', 'memoryBrainEnabledDesc', 'memory-brain-enabled', state.memoryBrainSettings.enabled, value => void widget.controller.setMemoryBrainSettings({ enabled: value }));
+	row('memoryBrainWorkspaceEnabled', 'memoryBrainWorkspaceEnabledDesc', 'memory-brain-workspace-enabled', state.memoryBrainSettings.workspaceEnabled, value => void widget.controller.setMemoryBrainSettings({ workspaceEnabled: value }));
+}
+
 /** Recipes live on Memory; Agent Settings stays global agent knobs only. */
 function renderRecipeSettings(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 	const content = settingsSection(body, t(state, 'recipeSettings'), 'zap');
@@ -189,11 +246,17 @@ function settingsSection(parent: HTMLElement, title: string, icon: KnoxGuiSvgIco
 }
 
 /** `CollapsibleSettingsSection`: returns the `mt-3 space-y-3` body, or `undefined` while collapsed. */
-function collapsibleSettingsSection(widget: KnoxGuiWidget, parent: HTMLElement, title: string, icon: KnoxGuiSvgIcon, open: boolean, onToggle: () => void): HTMLElement | undefined {
+function collapsibleSettingsSection(widget: KnoxGuiWidget, parent: HTMLElement, title: string, icon: KnoxGuiSvgIcon, open: boolean, onToggle: () => void, testId?: string): HTMLElement | undefined {
 	const card = mk(parent, 'div', 'card');
+	if (testId) {
+		card.setAttribute('data-testid', testId);
+	}
 	const toggle = mk(card, 'button', 'collapse-head');
 	toggle.type = 'button';
 	toggle.setAttribute('aria-expanded', String(open));
+	if (testId) {
+		toggle.setAttribute('data-testid', `${testId}-toggle`);
+	}
 	const label = mk(toggle, 'span', 'flex items-center gap-1_5');
 	svg(label, icon, 14);
 	label.append(title);
@@ -256,13 +319,13 @@ function renderMemorySettingRow(widget: KnoxGuiWidget, card: HTMLElement, state:
 			input.min = String(Math.round((field.min ?? 0) * 100));
 			input.max = String(Math.round((field.max ?? 1) * 100));
 		} else {
-			if (field.min != null) {
+			if ((field.min !== undefined && field.min !== null)) {
 				input.min = String(field.min);
 			}
-			if (field.max != null) {
+			if ((field.max !== undefined && field.max !== null)) {
 				input.max = String(field.max);
 			}
-			if (field.step != null) {
+			if ((field.step !== undefined && field.step !== null)) {
 				input.step = String(field.step);
 			}
 		}

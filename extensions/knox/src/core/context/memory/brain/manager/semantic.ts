@@ -20,9 +20,11 @@ import {
 } from "../projectScope.js";
 import type {
   StoreInput,
+  UpdateSemanticInput,
   RecallInput,
   RecallResult,
 } from "../types.js";
+import { isSemanticCategory } from "../types.js";
 import { brainRuntime } from "./state.js";
 import { emit } from "./events.js";
 import { extractKeywords, invalidateMemoryCaches } from "./helpers.js";
@@ -63,6 +65,33 @@ export async function store(input: StoreInput): Promise<number> {
   }
 
   return id;
+}
+
+/**
+ * T2: correct an existing semantic memory without inserting a new row.
+ */
+export async function updateMemory(input: UpdateSemanticInput): Promise<boolean> {
+  if (!Number.isInteger(input.id) || input.id <= 0 || !isSemanticCategory(input.category)) {
+    return false;
+  }
+  input.title = InputSanitizer.enforce(input.title);
+  input.content = InputSanitizer.enforce(input.content);
+  if (!input.keywords) {
+    input.keywords = extractKeywords(input.title + " " + input.content);
+  }
+  const ok = await BrainStore.updateSemantic(input);
+  if (ok) {
+    invalidateMemoryCaches();
+    emit("memory:stored", {
+      id: input.id,
+      category: input.category,
+      title: input.title,
+      updated: true,
+    });
+    CheckpointManager.recordChange().catch(() => {});
+    MemorySnapshot.invalidateAll();
+  }
+  return ok;
 }
 
 /**

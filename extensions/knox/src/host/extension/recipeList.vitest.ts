@@ -66,4 +66,23 @@ describe("recipe list (MC-70)", () => {
     expect(await setRecipeStatus(HERE, other.id, "retired")).toEqual({ ok: false, reason: "not_found" });
     expect(await setRecipeStatus(HERE, "nope", "retired")).toEqual({ ok: false, reason: "not_found" });
   });
+
+  it("restores a quarantined recipe to candidate and verifies a candidate with an oracle", async () => {
+    const mine = await make(HERE, "a");
+    expect(await setRecipeStatus(HERE, mine.id, "quarantined")).toEqual({ ok: true });
+    expect(await setRecipeStatus(HERE, mine.id, "candidate")).toEqual({ ok: true });
+    expect((await listRecipes(HERE)).recipes[0].status).toBe("candidate");
+    expect(await setRecipeStatus(HERE, mine.id, "verified")).toEqual({ ok: true });
+    expect((await listRecipes(HERE)).recipes[0].status).toBe("verified");
+  });
+
+  it("marks skillEligible after enough clean replays", async () => {
+    const mine = await make(HERE, "a");
+    const store = new RecipeStore(db as never);
+    expect((await listRecipes(HERE)).recipes[0].skillEligible).toBe(false);
+    for (let i = 0; i < 3; i++) {
+      await store.recordReplay(mine.id, "ok");
+    }
+    expect((await listRecipes(HERE)).recipes[0].skillEligible).toBe(true);
+  });
 });

@@ -249,6 +249,7 @@ export async function openRestorePreview(controller: KnoxGuiController, checkpoi
 		checkpointRestoreError: undefined,
 		checkpointRestorePreview: undefined,
 		checkpointRestoreSelected: [],
+		checkpointRestoreDeleteExtras: false,
 		checkpointRestoreShowDiff: false,
 		checkpointRestoreDiff: undefined,
 	});
@@ -291,13 +292,20 @@ export function toggleRestorePath(controller: KnoxGuiController, relativePath: s
 }
 
 export function toggleRestoreAll(controller: KnoxGuiController, checked: boolean): void {
-	const files = controller.store.state.checkpointRestorePreview?.files ?? [];
-	controller.store.patch({ checkpointRestoreSelected: checked ? files.map(file => file.relativePath) : [] });
+	const preview = controller.store.state.checkpointRestorePreview;
+	const writePaths = preview?.writePaths ?? [];
+	const extraPaths = new Set(preview?.extraPaths ?? []);
+	const extras = controller.store.state.checkpointRestoreSelected.filter(path => extraPaths.has(path));
+	controller.store.patch({ checkpointRestoreSelected: checked ? [...writePaths, ...extras] : extras });
 }
 
 export async function restoreSelectedFiles(controller: KnoxGuiController): Promise<void> {
 	const checkpointId = controller.store.state.checkpointRestoreId;
-	const paths = controller.store.state.checkpointRestoreSelected;
+	const preview = controller.store.state.checkpointRestorePreview;
+	const allowed = preview ? new Set([...preview.writePaths, ...preview.extraPaths]) : undefined;
+	const paths = allowed
+		? controller.store.state.checkpointRestoreSelected.filter(path => allowed.has(path))
+		: controller.store.state.checkpointRestoreSelected;
 	if (!checkpointId || !paths.length) {
 		return;
 	}
@@ -309,20 +317,49 @@ export async function restoreAllFiles(controller: KnoxGuiController): Promise<vo
 	if (!checkpointId) {
 		return;
 	}
-	await runRestore(controller, () => controller.messenger.request('restoreCheckpoint', { checkpointId, rewindMemory: controller.store.state.checkpointRestoreMemory }));
+	const extraPaths = controller.store.state.checkpointRestorePreview?.extraPaths ?? [];
+	const cleanupExtraFiles = extraPaths.length === 0 || controller.store.state.checkpointRestoreDeleteExtras;
+	await runRestore(controller, () => controller.messenger.request('restoreCheckpoint', {
+		checkpointId,
+		rewindMemory: controller.store.state.checkpointRestoreMemory,
+		cleanupExtraFiles,
+	}));
+}
+
+function restoreFailureMessage(result: unknown): string {
+	const rec = asRecord(result);
+	if (typeof rec?.message === 'string' && rec.message.trim()) {
+		return rec.message.trim();
+	}
+	const failed = asArray(rec?.failedFiles);
+	const first = asRecord(failed[0]);
+	if (typeof first?.error === 'string' && first.error.trim()) {
+		return first.error.trim();
+	}
+	return 'restoreFailed';
 }
 
 async function runRestore(controller: KnoxGuiController, request: () => Promise<unknown>): Promise<void> {
 	if (controller.store.state.checkpointRestoring) {
 		return;
 	}
-	controller.store.patch({ checkpointRestoring: true, checkpointRestoringId: controller.store.state.checkpointRestoreId });
+	controller.store.patch({
+		checkpointRestoring: true,
+		checkpointRestoringId: controller.store.state.checkpointRestoreId,
+		checkpointRestoreError: undefined,
+	});
 	try {
-		await request();
+		const result = await request();
+		const rec = asRecord(result);
+		if (rec?.success === false) {
+			controller.store.patch({ checkpointRestoreError: restoreFailureMessage(result) });
+			return;
+		}
 		controller.closeCheckpointDialog();
 		void controller.loadCheckpoints();
-	} catch {
-		// `RestorePreviewDialog` only logs a failed restore and keeps the dialog open.
+	} catch (error) {
+		const message = error instanceof Error && error.message.trim() ? error.message.trim() : 'restoreFailed';
+		controller.store.patch({ checkpointRestoreError: message });
 	} finally {
 		setTimeout(() => controller.store.patch({ checkpointRestoring: false, checkpointRestoringId: undefined }), 1500);
 	}

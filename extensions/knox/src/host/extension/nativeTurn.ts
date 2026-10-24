@@ -2,6 +2,7 @@ import type {
   NativeFinishTurnInput,
   NativeStartTurnInput,
   NativeStartTurnOutput,
+  RecipeCaptureOutcome,
 } from "core/protocol/nativeAgent";
 import {
   extractSoulFiles,
@@ -95,55 +96,14 @@ export async function runMemoryPostTurn(
   notifyMemoryChanged: () => void,
 ): Promise<{ success: boolean; stored: number }> {
   try {
-    const { BrainManager } = await import("core/context/memory/brain/BrainManager");
-    const { BrainStore } = await import("core/context/memory/brain/BrainStore");
-    const { MemoryPipeline } = await import("core/context/memory/brain/MemoryPipeline");
-    const sessionId = data.sessionId;
-    const userMessage = data.userMessage?.trim() ?? "";
-    const assistantMessage = data.assistantMessage?.trim() ?? "";
-    const toolSummary = data.toolSummary?.trim() ?? "";
-    const extractable = [userMessage, assistantMessage]
-      .filter(Boolean)
-      .join("\n\n");
-    const toolLooksLikeFix =
-      toolSummary.length > 0 &&
-      /fix|solved|resolved|the issue was|the problem was|the solution/i.test(
-        toolSummary,
-      );
-    await BrainStore.get();
-    const minChars = BrainStore.getConfig().post_turn_min_chars ?? 80;
-    if (
-      (!extractable || extractable.length < minChars) &&
-      !(toolLooksLikeFix && toolSummary.length >= minChars)
-    ) {
-      return { success: true, stored: 0 };
-    }
-    await BrainManager.trackSession(
-      sessionId,
-      data.title?.trim() || "Chat session",
-      data.workspaceDir ?? "",
+    const { runPostTurnWrite } = await import(
+      "core/context/memory/brain/postTurnWrite"
     );
-    const pipelineResult = await MemoryPipeline.runPostTurn({
-      message: assistantMessage || userMessage,
-      session_id: sessionId,
-      role: "assistant",
-      turn_content: extractable || undefined,
-      user_message: userMessage || undefined,
-      assistant_message: assistantMessage || undefined,
-      tool_summary: toolSummary || undefined,
-    });
-    const stored =
-      (pipelineResult.extracted?.semantic_count ?? 0) +
-      (pipelineResult.extracted?.entity_count ?? 0);
-    if (extractable.length > 400) {
-      await BrainManager.llmPostActionMemory(
-        userMessage.substring(0, 500) || "chat turn",
-        assistantMessage.substring(0, 2000) || "",
-        sessionId,
-      ).catch(() => {});
+    const result = await runPostTurnWrite(data);
+    if (!result.skipped) {
+      notifyMemoryChanged();
     }
-    notifyMemoryChanged();
-    return { success: true, stored };
+    return { success: result.success, stored: result.stored };
   } catch (error) {
     console.warn("[Memory] Failed post-turn write:", error);
     return { success: false, stored: 0 };
@@ -158,7 +118,7 @@ export async function finishNativeTurn(
   input: NativeFinishTurnInput,
   workspaceDir: string,
   notifyMemoryChanged: () => void,
-): Promise<void> {
+): Promise<RecipeCaptureOutcome | undefined> {
   if (input.assistantMessage) {
     try {
       const { BrainManager } = await import("core/context/memory/brain/BrainManager");
@@ -182,7 +142,7 @@ export async function finishNativeTurn(
   }
   const toolSummary = nativeTurnToolSummary(input.turnTools);
   if (!input.userMessage && !input.assistantMessage && !toolSummary) {
-    return;
+    return captured;
   }
   void runMemoryPostTurn(
     {
@@ -195,4 +155,5 @@ export async function finishNativeTurn(
     },
     notifyMemoryChanged,
   );
+  return captured;
 }

@@ -16,14 +16,118 @@ interface IReplayReply {
 	failureContext?: string;
 }
 
-/** Answer from the preview card buttons (MC-35). Ignored when no card is waiting. */
+/** Answer from the preview card buttons (MC-35). Turn-path uses `recipeChoice`; Recipes-tab Preview/Replay (T5) applies here. */
 export function answerRecipeChoice(controller: KnoxGuiController, choice: 'apply' | 'skip'): void {
-	controller.recipeChoice?.(choice);
+	if (controller.recipeChoice) {
+		controller.recipeChoice(choice);
+		return;
+	}
+	if (choice === 'skip') {
+		const decision = controller.store.state.recipeDecision;
+		if (decision?.source === 'tab' && decision.awaitingChoice) {
+			controller.store.patch({ recipeDecision: { ...decision, awaitingChoice: false, preview: undefined } });
+		}
+		return;
+	}
+	void applyTabRecipe(controller);
 }
 
 /** Stop while the card waits counts as Skip, so the turn can end instead of hanging. */
 export function cancelRecipeChoice(controller: KnoxGuiController): void {
-	controller.recipeChoice?.('skip');
+	if (controller.recipeChoice) {
+		controller.recipeChoice('skip');
+		return;
+	}
+	answerRecipeChoice(controller, 'skip');
+}
+
+interface IPreviewReply {
+	text?: string;
+}
+
+function verifiedRecipeRow(controller: KnoxGuiController, recipeId: string) {
+	return controller.store.state.memoryRecipes.find(recipe => recipe.id === recipeId && recipe.status === 'verified');
+}
+
+/** Recipes tab Preview: fetch the plan and show the ask card. Nothing is written. */
+export async function previewMemoryRecipe(controller: KnoxGuiController, recipeId: string): Promise<void> {
+	if (controller.store.state.memoryRecipeBusyId || controller.recipeChoice) {
+		return;
+	}
+	const row = verifiedRecipeRow(controller, recipeId);
+	if (!row) {
+		return;
+	}
+	controller.store.patch({ memoryRecipeBusyId: recipeId, memoryRecipeError: undefined });
+	try {
+		const preview = await controller.messenger.request<IPreviewReply | undefined>('knox/recipePreview', { recipeId });
+		if (!preview?.text) {
+			controller.store.patch({ memoryRecipeError: 'memoryRecipesActionFailed' });
+			return;
+		}
+		controller.store.patch({
+			recipeDecision: {
+				mode: 'exact',
+				why: '',
+				needsConfirmation: true,
+				awaitingChoice: true,
+				preview: preview.text,
+				source: 'tab',
+				recipe: { id: row.id, title: row.title, uses: row.uses, reverts: row.reverted, score: 1 },
+			},
+		});
+	} catch {
+		controller.store.patch({ memoryRecipeError: 'memoryRecipesActionFailed' });
+	} finally {
+		controller.store.patch({ memoryRecipeBusyId: undefined });
+	}
+}
+
+/** Recipes tab Replay: show the ask card, or apply if this recipe is already previewed. */
+export async function replayMemoryRecipe(controller: KnoxGuiController, recipeId: string): Promise<void> {
+	const decision = controller.store.state.recipeDecision;
+	if (decision?.source === 'tab' && decision.awaitingChoice && decision.recipe?.id === recipeId) {
+		await applyTabRecipe(controller);
+		return;
+	}
+	await previewMemoryRecipe(controller, recipeId);
+}
+
+async function applyTabRecipe(controller: KnoxGuiController): Promise<void> {
+	const decision = controller.store.state.recipeDecision;
+	if (decision?.source !== 'tab' || !decision.recipe || controller.store.state.memoryRecipeBusyId) {
+		return;
+	}
+	const recipeId = decision.recipe.id;
+	controller.store.patch({
+		memoryRecipeBusyId: recipeId,
+		memoryRecipeError: undefined,
+		recipeDecision: { ...decision, awaitingChoice: false, preview: undefined },
+	});
+	let reply: IReplayReply | undefined;
+	try {
+		reply = await controller.messenger.request<IReplayReply | undefined>('knox/recipeReplay', { recipeId });
+	} catch (error) {
+		reply = { status: 'failed_apply', reason: error instanceof Error ? error.message : String(error), appliedPaths: [] };
+	}
+	controller.store.patch({
+		recipeDecision: {
+			...decision,
+			source: 'tab',
+			awaitingChoice: false,
+			preview: undefined,
+			undoCheckpointId: reply?.status === 'applied' ? reply.checkpointId : undefined,
+			replay: {
+				status: reply?.status ?? 'failed_apply',
+				appliedPaths: reply?.appliedPaths ?? [],
+				reason: reply?.reason,
+			},
+		},
+		memoryRecipeBusyId: undefined,
+	});
+	if (reply?.status === 'applied') {
+		void controller.loadMemoryRecipes();
+	}
 }
 
 function appendToAssistant(controller: KnoxGuiController, text: string): void {
@@ -86,24 +190,37 @@ export async function resolveRecipeDecision(controller: KnoxGuiController): Prom
 	return 'continue';
 }
 
-/** MC-42: "Promote to skill". Choosing a destination is the approval; the host never overwrites. */
-export async function promoteRecipeSkill(controller: KnoxGuiController, scope: 'project' | 'global'): Promise<void> {
+/** MC-42 / T13: "Promote to skill" from the chat notice or the Recipes tab. Choosing a destination is the approval; the host never overwrites. */
+export async function promoteRecipeSkill(controller: KnoxGuiController, scope: 'project' | 'global', recipeId?: string): Promise<void> {
+	const row = recipeId ? controller.store.state.memoryRecipes.find(recipe => recipe.id === recipeId) : undefined;
 	const decision = controller.store.state.recipeDecision;
-	if (!decision?.recipe?.skillEligible || decision.skillResult) {
+	const id = row?.id ?? decision?.recipe?.id;
+	const eligible = row ? row.skillEligible === true : Boolean(decision?.recipe?.skillEligible && !decision.skillResult);
+	if (!id || !eligible) {
 		return;
 	}
 	const language = controller.store.state.language;
 	let line: string;
 	try {
-		const out = await controller.messenger.request<{ ok: boolean; path?: string; reason?: string }>('knox/recipePromoteSkill', { recipeId: decision.recipe.id, scope });
+		const out = await controller.messenger.request<{ ok: boolean; path?: string; reason?: string }>('knox/recipePromoteSkill', { recipeId: id, scope });
 		line = out.ok ? knoxGuiT(language, 'recipePromoteSaved', { path: out.path ?? '' }) : knoxGuiT(language, 'recipePromoteFailed', { reason: out.reason ?? 'unknown' });
 	} catch (error) {
 		line = knoxGuiT(language, 'recipePromoteFailed', { reason: error instanceof Error ? error.message : String(error) });
 	}
 	const current = controller.store.state.recipeDecision;
-	if (current) {
-		controller.store.patch({ recipeDecision: { ...current, skillResult: line } });
-	}
+	const recipe = row
+		? { id: row.id, title: row.title, uses: row.uses, reverts: row.reverted, score: 1, skillEligible: true }
+		: current?.recipe ?? decision?.recipe;
+	controller.store.patch({
+		recipeDecision: {
+			mode: 'exact',
+			why: '',
+			needsConfirmation: false,
+			...current,
+			recipe,
+			skillResult: line,
+		},
+	});
 }
 
 /** MC-72: current host values; a failed read keeps what the UI has (all off by default). */

@@ -19,6 +19,10 @@ const SYNONYM_GROUPS: string[][] = [
   ["memory", "recall", "retrieval", "context"],
   ["fix", "patch", "resolve", "repair"],
   ["optimize", "performance", "speed", "latency"],
+  // T6 / T12: paraphrastic bench misses (rule-based, no embeddings).
+  ["invoice", "tax", "money", "cents", "price", "currency"],
+  ["a11y", "accessibility", "accessible", "aria", "icon-only"],
+  ["tokens", "design-system", "components", "storybook", "settings card"],
 ];
 
 const MAX_SYNONYM_ADDITIONS = 3;
@@ -35,10 +39,18 @@ function queryTokens(query: string): string[] {
     .filter((t) => t.length > 2);
 }
 
+function termParts(term: string): string[] {
+  return term.toLowerCase().split(/[^\w-]+/).filter((t) => t.length > 0);
+}
+
 function termMatchesTokens(term: string, tokens: string[]): boolean {
-  const parts = term.toLowerCase().split(/[^\w-]+/).filter((t) => t.length > 0);
+  const parts = termParts(term);
   if (parts.length === 1) return tokens.includes(parts[0]);
   return parts.every((p) => p.length <= 2 || tokens.includes(p));
+}
+
+function termSpecificity(term: string): number {
+  return termParts(term).length;
 }
 
 /**
@@ -53,20 +65,23 @@ export function getSynonymAdditions(
   if (tokens.length === 0) return [];
 
   const lower = query.toLowerCase();
-  const additions: string[] = [];
+  let best: { additions: string[]; specificity: number } | undefined;
 
   for (const group of SYNONYM_GROUPS) {
-    const matched = group.some((term) => termMatchesTokens(term, tokens));
-    if (!matched) continue;
+    const matchedTerms = group.filter((term) => termMatchesTokens(term, tokens));
+    if (matchedTerms.length === 0) continue;
+    const specificity = Math.max(...matchedTerms.map(termSpecificity));
+    if (best && specificity <= best.specificity) continue;
+    const additions: string[] = [];
     for (const term of group) {
       if (termMatchesTokens(term, tokens) || lower.includes(term)) continue;
       additions.push(term);
-      if (additions.length >= MAX_SYNONYM_ADDITIONS) return additions;
+      if (additions.length >= MAX_SYNONYM_ADDITIONS) break;
     }
-    return additions;
+    best = { additions, specificity };
   }
 
-  return additions;
+  return best?.additions ?? [];
 }
 
 /**

@@ -11,11 +11,12 @@ export const workspaceCheckpointTool: Tool = {
   readonly: false,
   function: {
     name: BuiltInToolNames.WorkspaceCheckpoint,
-    description: `Create, list, diff, preview, pin, restore, or delete workspace file checkpoints (not Memory Brain snapshots).
+    description: `Create, list, diff, preview, pin, restore, delete, or branch workspace file checkpoints (not Memory Brain snapshots).
 
 Use this when the user asks to rewind files, mark a restore point, or compare to a saved workspace state.
-- list: recent checkpoints (id, description, time, file count)
+- list: recent checkpoints (id, label, branch, time, file count)
 - create: snapshot the current workspace (optional label)
+- create_branch: fork a checkpoint line (not git) at a snapshot
 - diff: file list + hunk counts vs the live workspace or another checkpoint (no writes)
 - preview_restore: restore-oriented file list + hunk counts vs the live workspace (no writes)
 - pin / unpin: keep or allow eviction of a checkpoint
@@ -32,6 +33,7 @@ Prefer this over shell git reset for agent-created snapshots. Memory Brain entri
           enum: [
             "list",
             "create",
+            "create_branch",
             "diff",
             "preview_restore",
             "pin",
@@ -40,16 +42,21 @@ Prefer this over shell git reset for agent-created snapshots. Memory Brain entri
             "delete",
           ],
           description:
-            "list | create | diff | preview_restore | pin | unpin | restore | delete",
+            "list | create | create_branch | diff | preview_restore | pin | unpin | restore | delete",
+        },
+        name: {
+          type: "string",
+          description: "[create_branch] Checkpoint-line name (not git)",
         },
         label: {
           type: "string",
-          description: "[create] Optional checkpoint description",
+          description:
+            "[create] Optional checkpoint description. [create_branch] Optional branch note",
         },
         checkpoint_id: {
           type: "string",
           description:
-            "[diff | preview_restore | pin | unpin | restore | delete] Checkpoint id from list",
+            "[diff | preview_restore | pin | unpin | restore | delete | create_branch] Checkpoint id from list. create_branch defaults to the newest checkpoint when omitted",
         },
         compare_to_checkpoint_id: {
           type: "string",

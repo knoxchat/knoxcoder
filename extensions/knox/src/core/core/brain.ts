@@ -136,6 +136,10 @@ export function registerBrainHandlers(core: CoreRuntime): void {
     });
   });
 
+  on("brain/useSessionAsContext", async (msg) => {
+    return BrainManager.useSessionAsContext(msg.data.sessionId);
+  });
+
   on("brain/pinMemory", async (msg) => {
     const success = await BrainManager.pinMemory(msg.data.id);
     return { success };
@@ -199,6 +203,11 @@ export function registerBrainHandlers(core: CoreRuntime): void {
     return { id };
   });
 
+  on("brain/updateMemory", async (msg) => {
+    const success = await BrainManager.updateMemory(msg.data);
+    return { success };
+  });
+
   on("brain/recall", async (msg) => {
     const result = await BrainManager.recall(msg.data);
     return { result };
@@ -249,7 +258,8 @@ export function registerBrainHandlers(core: CoreRuntime): void {
         } else if (msg.data.pinned === false) {
           memories = memories.filter((m: any) => !m.pinned);
         }
-        return { memories };
+        const { MemoryPipeline } = await import("../context/memory/brain/MemoryPipeline.js");
+        return { memories, lastInject: MemoryPipeline.lastInjectPayload() };
       }
       // Browse all — use BrainStore directly
       const db = await BrainStore.get();
@@ -278,7 +288,8 @@ export function registerBrainHandlers(core: CoreRuntime): void {
         `SELECT * FROM brain_semantic ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
         sqlParams,
       );
-      return { memories: await annotatePinned(rows ?? []) };
+      const { MemoryPipeline } = await import("../context/memory/brain/MemoryPipeline.js");
+      return { memories: await annotatePinned(rows ?? []), lastInject: MemoryPipeline.lastInjectPayload() };
     } catch {
       return { memories: [] };
     }

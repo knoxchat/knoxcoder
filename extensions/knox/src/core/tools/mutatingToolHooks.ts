@@ -163,24 +163,6 @@ export async function executeToolWithSoulHooks(
   };
 
   try {
-    if (needsTurnCheckpoint && sessionId && typeof ide.ensureTurnCheckpoint === "function") {
-      try {
-        const checkpointId = await ide.ensureTurnCheckpoint({
-          sessionId,
-          turnId: options.turnId || sessionId,
-          toolName,
-        });
-        if (checkpointId) {
-          workspaceCheckpointId = checkpointId;
-        }
-      } catch (error) {
-        console.warn(
-          `[Soul] Turn checkpoint failed for ${toolName}:`,
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    }
-
     if (mutating && typeof ide.runPreRiskyCheckpoint === "function") {
       try {
         const result = await ide.runPreRiskyCheckpoint({
@@ -194,6 +176,30 @@ export async function executeToolWithSoulHooks(
       } catch (error) {
         console.warn(
           `[Tools/Call] Pre-risky checkpoint failed for ${toolName}:`,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
+
+    // Skip when pre-risky already produced (or reused) this turn's restore point.
+    if (
+      needsTurnCheckpoint &&
+      sessionId &&
+      !workspaceCheckpointId &&
+      typeof ide.ensureTurnCheckpoint === "function"
+    ) {
+      try {
+        const checkpointId = await ide.ensureTurnCheckpoint({
+          sessionId,
+          turnId: options.turnId || sessionId,
+          toolName,
+        });
+        if (checkpointId) {
+          workspaceCheckpointId = checkpointId;
+        }
+      } catch (error) {
+        console.warn(
+          `[Soul] Turn checkpoint failed for ${toolName}:`,
           error instanceof Error ? error.message : String(error),
         );
       }

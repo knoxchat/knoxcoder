@@ -133,7 +133,7 @@ export const brainState: {
     fusion_continuation_graph: 0.10,
     fusion_continuation_recency: 0.30,
     fusion_continuation_importance: 0.15,
-    enable_enhanced_semantic: false,
+    enable_enhanced_semantic: true,
     compression_ratio_active: 1.0,
     compression_ratio_hot: 0.5,
     compression_ratio_warm: 0.2,

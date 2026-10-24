@@ -430,7 +430,7 @@ export class VsCodeMessenger {
         // Use direct restore (no confirmation dialog) for seamless GUI experience
         const result = await this.checkpointIntegration.restoreCheckpointDirect(
           checkpointId,
-          { rewindMemory },
+          { rewindMemory, cleanupExtraFiles: msg.data.cleanupExtraFiles },
         );
         if (result.success) {
           notifyCheckpointHistoryChanged();
@@ -463,80 +463,6 @@ export class VsCodeMessenger {
       }
       
       return { checkpointId: null };
-    });
-
-    // AI Context handlers removed - AI Context functionality has been removed
-
-    this.onWebview("getContextualAssistance" as any, async (msg) => {
-      const data = msg.data as any;
-      const { cursorPosition, selectedText } = data;
-      
-      if (this.aiCheckpointIntegration) {
-        try {
-          const context = await (this.aiCheckpointIntegration as any).provideContextualAssistance(cursorPosition, selectedText);
-          return { success: true, context };
-        } catch (error) {
-          console.error('Failed to get contextual assistance:', error);
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          return { success: false, error: errorMessage };
-        }
-      }
-      
-      return { success: false, error: "AI context system not initialized" };
-    });
-
-    this.onWebview("getDebuggingContext" as any, async (msg) => {
-      const data = msg.data as any;
-      const { errorMessage, stackTrace } = data;
-      
-      if (this.aiCheckpointIntegration) {
-        try {
-          const context = await (this.aiCheckpointIntegration as any).provideDebuggingContext(errorMessage, stackTrace);
-          return { success: true, context };
-        } catch (error) {
-          console.error('Failed to get debugging context:', error);
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          return { success: false, error: errorMessage };
-        }
-      }
-      
-      return { success: false, error: "AI context system not initialized" };
-    });
-
-    this.onWebview("getRefactoringContext" as any, async (msg) => {
-      const data = msg.data as any;
-      const { refactoringType, targetElement } = data;
-      
-      if (this.aiCheckpointIntegration) {
-        try {
-          const context = await (this.aiCheckpointIntegration as any).provideRefactoringContext(refactoringType, targetElement);
-          return { success: true, context };
-        } catch (error) {
-          console.error('Failed to get refactoring context:', error);
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          return { success: false, error: errorMessage };
-        }
-      }
-      
-      return { success: false, error: "AI context system not initialized" };
-    });
-
-    this.onWebview("getSemanticAnalysis" as any, async (msg) => {
-      const data = msg.data as any;
-      const { filePath } = data;
-      
-      if (this.aiCheckpointIntegration) {
-        try {
-          const analysis = await (this.aiCheckpointIntegration as any).getSemanticAnalysisForFile(filePath);
-          return { success: true, analysis };
-        } catch (error) {
-          console.error('Failed to get semantic analysis:', error);
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          return { success: false, error: errorMessage };
-        }
-      }
-      
-      return { success: false, error: "AI context system not initialized" };
     });
 
     // AI Checkpoint Integration handlers
@@ -1081,6 +1007,12 @@ export class VsCodeMessenger {
     this.onWebview("knox/recipeSettingsSet", async (msg) =>
       (await import("./recipeSettings")).writeRecipeSettings(msg.data ?? {}),
     );
+    this.onWebview("knox/memoryBrainSettings", async () =>
+      (await import("./memoryBrainSettings")).readMemoryBrainSettings(),
+    );
+    this.onWebview("knox/memoryBrainSettingsSet", async (msg) =>
+      (await import("./memoryBrainSettings")).writeMemoryBrainSettings(msg.data ?? {}),
+    );
     this.onWebview("knox/recipeList", async () => {
       const { listRecipes } = await import("./recipeList");
       const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
@@ -1097,7 +1029,7 @@ export class VsCodeMessenger {
     });
     this.onWebview("knox/finishTurn", async (msg) => {
       const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
-      await finishNativeTurn(msg.data, dirs[0] ?? "", () =>
+      return finishNativeTurn(msg.data, dirs[0] ?? "", () =>
         MemoryView.notifyMemoryChanged(),
       );
     });

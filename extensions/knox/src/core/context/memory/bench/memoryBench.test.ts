@@ -72,10 +72,9 @@ describe("memory benchmark (K-035)", () => {
    * Absolute floors, not baseline-relative, so they hold across platforms. Measured on
    * 2026-10-07: recall 0.75, precision 0.545, false-inject 0. Floors sit a little below.
    *
-   * Known misses (the retriever is lexical): "invoice total with tax" does not reach the
-   * integer-cents rule, "icon-only button" does not reach the a11y rule, "settings card"
-   * does not reach the design-system rule. Those still need embeddings (out of scope).
-   * Chinese queries use overlapping FTS bigrams (no vectors).
+   * T6/T12 synonym expansion covers invoice/tax → money/cents, icon-only → a11y,
+   * and settings-card → design-system. Chinese queries use overlapping FTS bigrams.
+   * Embeddings stay out of scope.
    */
   it("meets the real-world thresholds", async () => {
     const report = await runMemoryBench({
@@ -105,6 +104,9 @@ describe("memory benchmark (K-035)", () => {
       ["rw-q-date", "rw-timezone"],
       ["rw-q-license", "rw-license"],
       ["rw-q-zh-migrate", "rw-zh-db"],
+      ["rw-q-money", "rw-money"],
+      ["rw-q-button", "rw-a11y"],
+      ["rw-q-ui", "rw-ui-lib"],
     ] as const) {
       expect(injected(id), id).toContain(key);
     }

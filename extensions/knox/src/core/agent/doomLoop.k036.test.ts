@@ -79,6 +79,17 @@ describe("K-062 same_strategy without Jev", () => {
     ok: false,
   });
 
+  it("does not treat repeated builtin_plan complete as a repeat doom loop", () => {
+    const complete = (): DoomLoopCall => ({
+      name: BuiltInToolNames.Plan,
+      args: { action: "complete" },
+      output: "Plan updated. 1 remaining / 5 total.",
+    });
+    expect(
+      detectDoomLoop([complete(), complete(), complete(), complete()], { threshold: 3 }),
+    ).toBeNull();
+  });
+
   it("does not fire at the normal threshold (happy path stays fail_streak/repeat)", () => {
     const calls = [
       failSearch({ query: "copy_to_user", timeout: 1 }),

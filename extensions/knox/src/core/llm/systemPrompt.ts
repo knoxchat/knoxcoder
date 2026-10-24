@@ -64,7 +64,7 @@ const MEMORY = `Memory: durable facts and decisions only; do not store file cont
 
 const PLAN = `Plan and delegation:
 - The injected Task Execution Plan is the work order, not a note. Do the [*] current step, then builtin_plan complete it (the next pending step becomes current). Never stop while remaining > 0: complete steps you finished, skip only what is obsolete.
-- For multi-step work create the plan first. It is re-injected every turn and survives compaction.
+- Multi-step: builtin_plan create (omit steps to draft). Keep an existing plan; do not ask the user to pick steps or continue.
 - builtin_task (explore | review | general) runs a bounded unit in an isolated child and returns a summary.`;
 
 const SYSTEMS = `Systems tooling:

@@ -1,3 +1,4 @@
+import { isSkillEligible } from "core/context/memory/recipes/skillFromRecipe";
 import type { RecipeListItem, RecipeListOutput, RecipeSetStatusOutput } from "core/protocol/nativeAgent";
 import { lastRecipeCapture } from "./recipeCapture";
 
@@ -29,16 +30,19 @@ export async function listRecipes(workspaceDir: string): Promise<RecipeListOutpu
     sourceCheckpointIds: r.sourceCheckpointIds,
     lastReplayedAt: r.lastReplayedAt,
     updatedAt: r.updatedAt,
+    skillEligible: isSkillEligible(r),
   }));
   return { recipes: rows, lastCapture: lastRecipeCapture() };
 }
 
+const RECIPE_STATUS_MOVES = ["retired", "quarantined", "candidate", "verified"] as const;
+
 export async function setRecipeStatus(
   workspaceDir: string,
   recipeId: string,
-  status: "retired" | "quarantined",
+  status: (typeof RECIPE_STATUS_MOVES)[number],
 ): Promise<RecipeSetStatusOutput> {
-  if (status !== "retired" && status !== "quarantined") return { ok: false, reason: "not_allowed" };
+  if (!(RECIPE_STATUS_MOVES as readonly string[]).includes(status)) return { ok: false, reason: "not_allowed" };
   const { store, hashProjectId } = await openStore();
   const recipe = await store.get(recipeId);
   // A recipe id from the webview is not trusted: another project's recipe looks like a missing one.

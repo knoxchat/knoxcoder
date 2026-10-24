@@ -205,6 +205,8 @@ describe("REL-19 observability", () => {
     expect(item?.reason).toMatch(/checkpoint/);
     expect(item?.reason).not.toMatch(/Matched current message/);
     expect(item?.evidence?.length).toBeGreaterThan(0);
+    const last = MemoryPipeline.lastInjectPayload();
+    expect(last?.items.some((row) => row.reason.includes("lexical:") && row.gate_passed)).toBe(true);
   });
 });
 

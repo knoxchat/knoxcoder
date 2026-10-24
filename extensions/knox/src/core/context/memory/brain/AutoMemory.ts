@@ -61,8 +61,10 @@ export class AutoMemory {
     let semanticCount = 0;
     let entityCount = 0;
 
-    // Only extract from substantial messages
-    if (content.length < 30) {
+    // 1. Extract explicit facts/decisions/preferences first so a short
+    // "always use bun" / "remember X" is not dropped by the length gate.
+    const extracted = AutoMemory.extractSemanticMemories(content, role);
+    if (extracted.length === 0 && content.length < 30) {
       return { semantic_count: 0, entity_count: 0, should_llm_extract: false };
     }
 
@@ -70,9 +72,6 @@ export class AutoMemory {
     const count = (AutoMemory.sessionMessageCounts.get(sessionId) ?? 0) + 1;
     AutoMemory.sessionMessageCounts.set(sessionId, count);
     const shouldLlmExtract = count % AutoMemory.LLM_EXTRACT_EVERY_N === 0 && content.length > 100;
-
-    // 1. Extract explicit facts/decisions/preferences
-    const extracted = AutoMemory.extractSemanticMemories(content, role);
 
     // 2. Extract entities for the knowledge graph (rule-based, always)
     const entityResult = await KnowledgeGraph.extractAndStore(content);
@@ -117,8 +116,8 @@ export class AutoMemory {
           entityResult.entities,
         );
       }
-      await BrainStore.storeSemanticDeduped(mem);
-      semanticCount++;
+      const stored = await BrainStore.storeSemanticDeduped(mem);
+      if (!stored.deduplicated) semanticCount++;
     }
 
     return { semantic_count: semanticCount, entity_count: entityCount, should_llm_extract: shouldLlmExtract };
@@ -182,6 +181,45 @@ export class AutoMemory {
     return ASSISTANT_FILLER_PREFIX.test(text.trim());
   }
 
+  /** True for empty / one-word acks that must not open a post-turn write. */
+  static isUserAck(text: string): boolean {
+    const t = text.trim();
+    if (!t) return true;
+    if (t.length > 40) return false;
+    return /^(?:ok|okay|thanks|thank you|got it|cool|sure|yes|yep|yeah|no|nah)[\s.!]*$/i.test(t);
+  }
+
+  /**
+   * Skip post-turn write when there is nothing durable to store.
+   * Short preferences, explicit remember, and decisions bypass `minChars`.
+   * Long filler-only turns still skip so the LLM is not the writer for "ok / I'll look".
+   */
+  static shouldSkipPostTurnExtract(input: {
+    userMessage: string;
+    assistantMessage: string;
+    toolSummary?: string;
+    minChars: number;
+  }): boolean {
+    const user = input.userMessage.trim();
+    const assistant = input.assistantMessage.trim();
+    const tool = (input.toolSummary ?? "").trim();
+    const extractable = [user, assistant].filter(Boolean).join("\n\n");
+
+    if (user && AutoMemory.extractSemanticMemories(user, "user").length > 0) {
+      return false;
+    }
+    if (assistant && AutoMemory.extractSemanticMemories(assistant, "assistant").length > 0) {
+      return false;
+    }
+    if (tool.length >= input.minChars && AutoMemory.looksLikeErrorFix(tool)) {
+      return false;
+    }
+    if (!extractable || extractable.length < input.minChars) {
+      return true;
+    }
+    return AutoMemory.isUserAck(user) && (!assistant || AutoMemory.isFillerOnly(assistant));
+  }
+
   // ── Semantic Extraction Rules ──────────────────────────────────────────────
 
   /**
@@ -205,6 +243,7 @@ export class AutoMemory {
       /(?:(?:we|i)(?:'ve| have)? decided(?: to)?)\s+(.+)/i,
       /(?:i(?:'ve|'ll| will| have)? (?:decided|chosen|picked|selected|opted|gone with))\s+(.+)/i,
       /(?:(?:let's|we(?:'ll)?) (?:go with|use|pick|choose|switch to|adopt))\s+(.+)/i,
+      /(?:(?:we're|we are)\s+(?:going to\s+|gonna\s+)?(?:use|switch to|adopt|going with))\s+(.+)/i,
       /(?:the (?:decision|choice|plan) is(?: to)?)\s+(.+)/i,
       /(?:(?:i|we) (?:should|must|need to))\s+(.+)/i,
     ];
@@ -225,23 +264,31 @@ export class AutoMemory {
       break;
     }
 
-    // Preference detection
-    const preferencePatterns = [
-      /(?:i (?:prefer|like|want|always use|favor))\s+(.+)/i,
-      /(?:(?:please )?(?:always|never|don't))\s+(.+)/i,
-      /(?:my (?:preference|style|convention|standard) is)\s+(.+)/i,
-    ];
-    for (const pattern of preferencePatterns) {
-      const match = pattern.exec(content);
-      if (match && role === "user" && AutoMemory.hasContentNoun(match[1])) {
-        memories.push({
-          category: "preference",
-          title: `Preference: ${match[1].substring(0, 80)}`,
-          content: match[0].trim(),
-          importance: HEURISTIC_IMPORTANCE,
-          keywords: AutoMemory.quickKeywords(match[0]),
-        });
-        break;
+    // Preference detection — skip when this turn already stored a decision
+    // so "we decided to use SQLite for …" does not also become a preference.
+    if (role === "user" && !memories.some((m) => m.category === "decision")) {
+      const preferencePatterns = [
+        /(?:i (?:prefer|like|want|always use|favor))\s+(.+)/i,
+        /(?:(?:please )?(?:always|never|don't))\s+(.+)/i,
+        /(?:my (?:preference|style|convention|standard) is)\s+(.+)/i,
+        /(?:use|using)\s+(?!the\b|a\b|an\b|this\b|that\b)(\S+)\s+instead of\s+(.+)/i,
+        /(?:use|using)\s+(?!the\b|a\b|an\b|this\b|that\b)(\S+)\s+for\s+(.{3,60})/i,
+        /(?:default(?:ing)? to)\s+(.+)/i,
+        /(?:going (?:with|forward with)|from now on)\s+(.+)/i,
+        /(?:stick (?:to|with))\s+(.+)/i,
+      ];
+      for (const pattern of preferencePatterns) {
+        const match = pattern.exec(content);
+        if (match && AutoMemory.hasContentNoun(match[1])) {
+          memories.push({
+            category: "preference",
+            title: `Preference: ${match[1].substring(0, 80)}`,
+            content: match[0].trim(),
+            importance: HEURISTIC_IMPORTANCE,
+            keywords: AutoMemory.quickKeywords(match[0]),
+          });
+          break;
+        }
       }
     }
 

@@ -64,6 +64,35 @@ async function resetDatabase(): Promise<void> {
 }
 
 describe("memory brain regressions", () => {
+  it("T2 updateMemory edits the same semantic row", async () => {
+    await resetDatabase();
+    const id = await BrainManager.store({
+      category: "fact",
+      title: "old title",
+      content: "old content about quartzfmt",
+    });
+    expect(
+      await BrainManager.updateMemory({
+        id,
+        category: "preference",
+        title: "always use bun",
+        content: "always use bun for package installs",
+      }),
+    ).toBe(true);
+    const row = await BrainStore.getSemanticById(id);
+    expect(row?.category).toBe("preference");
+    expect(row?.title).toBe("always use bun");
+    expect(row?.content).toContain("bun");
+    expect(
+      await BrainManager.updateMemory({
+        id: 999999,
+        category: "fact",
+        title: "missing",
+        content: "missing row",
+      }),
+    ).toBe(false);
+  });
+
   it("isolates recall cache by include_episodic and invalidates on store", async () => {
     const sessionId = "recall-cache-session";
     const episodicNeedle = "episodic-only-regression-token";

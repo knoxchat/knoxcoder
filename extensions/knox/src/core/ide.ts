@@ -73,6 +73,7 @@ export const IDE_OPTIONAL_METHODS = [
 	"ensureTurnCheckpoint",
 	"listWorkspaceCheckpoints",
 	"createWorkspaceCheckpoint",
+	"createWorkspaceCheckpointBranch",
 	"restoreWorkspaceCheckpoint",
 	"previewWorkspaceCheckpointRestore",
 	"diffWorkspaceCheckpoint",

@@ -8,14 +8,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { knoxGuiModelSupportsReasoning, knoxGuiResetModelCatalogForTests, knoxGuiShowsThinkingPlaceholder } from './knoxGuiCapabilities.js';
 import { CHAT_LOAD_EARLIER_THRESHOLD_PX, knoxGuiNextScrollFollow, knoxGuiShouldLoadEarlier, knoxGuiTranscriptRestoreTop } from './knoxGuiChat.js';
 import { alignSplitDiffRows, buildDiffSegments, checkpointGraphFindScroll, checkpointGraphMenuPosition, checkpointGraphRevealScroll, checkpointDiffContentBytes, checkpointDiffSummary, computeLineDiff, checkpointChartTickInterval, checkpointChartYTicks, checkpointConfigFieldErrors, checkpointConfigIsDirty, checkpointConfigNumber, checkpointDetailsDefaultTab, checkpointImageMime, DEFAULT_CHECKPOINT_CONFIG, formatCheckpointDuration, formatDashboardBytes, groupTimelineCheckpoints, checkpointMatchesQuery, checkpointTreeAncestors, clampCheckpointTreeWidth, compareCheckpointTargets, diffFromCheckpointSnapshots, formatSnapshotSize, parseCheckpointDetails } from './knoxGuiCheckpoints.js';
-import { MEMORY_SETTING_GROUPS, memoriesToExportJson, memoriesToExportMarkdown, memoryBrowserEmptyKey, memoryConsolidateParts, memoryGraphTypeCounts, parseMemorySettingInput, rangeSelectMemoryIds, visibleMemoryExploreEdges, withMemoryConfigDefaults } from './knoxGuiMemory.js';
+import { MEMORY_SETTING_GROUPS, memoriesToExportJson, memoriesToExportMarkdown, memoryBrowserEmptyKey, memoryConsolidateParts, memoryGraphTypeCounts, memoryInjectedLastTurnLine, parseLastInject, parseMemorySettingInput, rangeSelectMemoryIds, visibleMemoryExploreEdges, withMemoryConfigDefaults } from './knoxGuiMemory.js';
 import { knoxGuiResolveOpenPath } from './knoxGuiPanels.js';
 import { renderToolTemplateHtml } from './knoxGuiTools.js';
-import { applySuggestAt, buildTopLevelMentionItems, detectComposerTrigger, fileHitToSuggestItem, IKnoxGuiInputBlock, inputDocToPlainText, isFolderMentionNode, isPathMentionNode, isSlashBookmarked, KNOX_GUI_CHIP_CHAR, KnoxGuiInlineNode, lastRelativePathParts, MENTION_LOADING_ID, MENTION_PANEL_MAX_WIDTH, mentionChipOpenUri, mentionChipTooltip, mentionFloatingPosition, mentionItemMatchesQuery, mergeOpenFileMentions, nextMentionSelectedIndex, openFilesChanged, openFileSuggestItems, paragraphTextBefore, rankMentionItems, removeCodeToEditTrigger, retainMentionItemsWhileLoading, shortestUniqueRelativePaths, splitCamelCaseAndNonAlphaNumeric, submenuHitToSuggestItem, toggleSlashBookmark } from './knoxGuiInput.js';
+import { applySuggestAt, buildTopLevelMentionItems, composerUndoRecord, composerUndoStep, createComposerUndo, detectComposerTrigger, fileHitToSuggestItem, IKnoxGuiInputBlock, inputDocFromPlainText, inputDocToPlainText, isFolderMentionNode, isPathMentionNode, isSlashBookmarked, KNOX_COMPOSER_UNDO_GROUP_MS, KNOX_GUI_CHIP_CHAR, KnoxGuiInlineNode, knoxGuiCodeBlockOpenAction, knoxGuiCodeBlockTitle, knoxGuiComposerKeyAction, knoxGuiDragHasImages, knoxGuiImageFileAccepted, knoxGuiImageTargetSize, knoxGuiImageUploadToast, knoxGuiNewestCodeBlockIndex, lastRelativePathParts, MENTION_LOADING_ID, MENTION_PANEL_MAX_WIDTH, mentionChipOpenUri, mentionChipTooltip, mentionFloatingPosition, mentionItemMatchesQuery, mergeOpenFileMentions, nextMentionSelectedIndex, openFilesChanged, openFileSuggestItems, paragraphTextBefore, rankMentionItems, removeCodeToEditTrigger, retainMentionItemsWhileLoading, shortestUniqueRelativePaths, splitCamelCaseAndNonAlphaNumeric, submenuHitToSuggestItem, toggleSlashBookmark } from './knoxGuiInput.js';
 import { agentProfileDefaults, applyOpenRouterAliasFloorPricing, formatModelPricingPerMillion, formatUsdAmount, fuzzyTitleMatch, historySessionMatchesQuery, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, sortPromptsBookmarkedFirst } from './knoxGuiOverlays.js';
 import { IKnoxGuiSuggestItem } from './knoxGuiState.js';
 import { knoxGuiShortcutKeys } from './knoxGuiChrome.js';
-import { composerUndoRecord, composerUndoStep, createComposerUndo, inputDocFromPlainText, knoxGuiCodeBlockOpenAction, knoxGuiCodeBlockTitle, knoxGuiComposerKeyAction, knoxGuiDragHasImages, knoxGuiImageFileAccepted, knoxGuiImageTargetSize, knoxGuiImageUploadToast, knoxGuiNewestCodeBlockIndex, KNOX_COMPOSER_UNDO_GROUP_MS } from './knoxGuiInput.js';
 import { healStreamingMarkdown, knoxGuiInitialCodeBlockExpanded, knoxGuiShouldAutoExpandGeneratingCodeBlock, knoxGuiSplitTokenizedLines, knoxGuiTerminalCommand, languageIdFromFence, MAX_EXPANDED_CODE_LINES, shouldShowThinkingIndicator, sniffStreamingCodeLanguage, splitMarkdownBlocks, splitMarkdownParagraphs, stripLeakedToolMarkup, visibleCodeLineRange } from './knoxGuiTranscript.js';
 
 suite('Knox native parity items', () => {
@@ -428,6 +427,10 @@ suite('Knox native parity items', () => {
 			assert.strictEqual(memoryBrowserEmptyKey('', 'all', 'all'), 'memoryNoMemoriesStored');
 			assert.strictEqual(memoryBrowserEmptyKey('', 'all', 'hot'), 'memoryNoResults');
 			assert.strictEqual(memoryBrowserEmptyKey('', 'pinned', 'all'), 'memoryNoResults');
+			const last = parseLastInject({ items: [{ id: 7, kind: 'semantic', title: 'JWT', reason: 'lexical: jwt' }, { id: 1, kind: 'goal', title: 'task' }] });
+			assert.strictEqual(last.length, 1);
+			assert.deepStrictEqual(memoryInjectedLastTurnLine('7', last), { key: 'memoryInjectedLastTurnReason', params: { reason: 'lexical: jwt' } });
+			assert.strictEqual(memoryInjectedLastTurnLine('1', last), undefined);
 			const now = new Date('2026-09-28T00:00:00.000Z');
 			const json = JSON.parse(memoriesToExportJson([{ id: '7', title: 't', content: 'c', pinned: true, importance: 0.5 }], now));
 			assert.strictEqual(json.version, 'knox-memories-selected-v1');
@@ -458,11 +461,13 @@ suite('Knox native parity items', () => {
 				assert.ok(keys.includes(key), key);
 			}
 			assert.strictEqual(new Set(keys).size, keys.length, 'no duplicate setting keys');
-			assert.strictEqual(keys.indexOf('max_context_tokens'), keys.indexOf('enable_enhanced_semantic') + 1);
+			assert.ok(keys.indexOf('enable_enhanced_semantic') >= 0);
+			assert.ok(keys.indexOf('max_context_tokens') > keys.indexOf('enable_enhanced_semantic'));
 			assert.ok(keys.indexOf('post_turn_min_chars') === keys.indexOf('enable_knowledge_extraction') + 1);
 			const merged = withMemoryConfigDefaults({ retrieval_top_k: 7 });
 			assert.strictEqual(merged.retrieval_top_k, 7);
 			assert.strictEqual(merged.graph_neighbor_limit, 10);
+			assert.strictEqual(merged.enable_enhanced_semantic, true);
 			assert.strictEqual(parseMemorySettingInput({ min: 3, max: 50 }, '12.9'), 12, 'integer fields use parseInt');
 			assert.strictEqual(parseMemorySettingInput({ min: 3, max: 50 }, '2'), undefined, 'below min reverts');
 			assert.strictEqual(parseMemorySettingInput({ min: 3, max: 50 }, 'abc'), undefined);

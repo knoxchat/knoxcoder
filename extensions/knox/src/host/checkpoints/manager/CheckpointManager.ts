@@ -940,6 +940,33 @@ export class CheckpointManager implements CheckpointEngineHost {
         return this.boundAgentSessionId;
     }
 
+    /** Existing labeled restore point for this agent turn, if `ensureTurnCheckpoint` already ran. */
+    peekTurnCheckpoint(sessionId: string | undefined, turnId: string | undefined): string | undefined {
+        if (!sessionId || !turnId) {
+            return undefined;
+        }
+        return this.turnCheckpoints.get(`${sessionId}:${turnId}`);
+    }
+
+    /**
+     * Register an already-created snapshot as this turn's restore point so pre-risky /
+     * file-threshold auto can collapse into the same labeled checkpoint (T4).
+     */
+    adoptTurnCheckpoint(sessionId: string, turnId: string, checkpointId: string): void {
+        if (!sessionId || !turnId || !checkpointId) {
+            return;
+        }
+        const key = `${sessionId}:${turnId}`;
+        if (this.turnCheckpoints.has(key)) {
+            return;
+        }
+        if (!this.boundAgentSessionId) {
+            this.boundAgentSessionId = sessionId;
+        }
+        this.turnCheckpoints.set(key, checkpointId);
+        turnIntents.attach(sessionId, checkpointId);
+    }
+
     async ensureTurnCheckpoint(params: {
         sessionId: string;
         turnId: string;

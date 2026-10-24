@@ -624,6 +624,8 @@ export interface IKnoxGuiMemoryDashboard {
 	graphDepthDecayGamma?: number;
 	sessions?: IKnoxGuiMemorySession[];
 	consolidation?: IKnoxGuiMemoryConsolidation;
+	/** Semantic/episodic items injected on the last pre-turn (T6). */
+	lastInject?: IKnoxGuiInjectedMemory[];
 }
 
 export interface IKnoxGuiEffectiveContext {
@@ -694,6 +696,12 @@ export interface IKnoxGuiRecipeSettings {
 	selfImprove: boolean;
 }
 
+/** `knoxchat.memoryBrain.enabled` / `workspaceEnabled`. */
+export interface IKnoxGuiMemoryBrainSettings {
+	enabled: boolean;
+	workspaceEnabled: boolean;
+}
+
 /** Last recipe capture attempt from `knox/recipeList` (explains an empty Recipes tab). */
 export interface IKnoxGuiMemoryRecipeCapture {
 	captured: boolean;
@@ -720,6 +728,8 @@ export interface IKnoxGuiMemoryRecipe {
 	sourceCheckpointIds: string[];
 	lastReplayedAt?: string;
 	updatedAt?: string;
+	/** Host: verified with enough clean replays to offer "Promote to skill". */
+	skillEligible?: boolean;
 }
 
 export interface IKnoxGuiMemorySession {
@@ -835,6 +845,8 @@ export interface IKnoxGuiRecipeDecision {
 	awaitingChoice?: boolean;
 	/** GUI only: outcome line of "Promote to skill" (MC-42). */
 	skillResult?: string;
+	/** `tab` is Recipes-tab Preview/Replay (T5); `turn` is `knox/startTurn`. */
+	source?: 'turn' | 'tab';
 }
 
 export interface IKnoxGuiState {
@@ -903,6 +915,8 @@ export interface IKnoxGuiState {
 	jevEnabled: boolean;
 	/** MC-72: `knoxchat.recipes.*` / `knoxchat.selfImprove.enabled`, read from and written to the host settings. */
 	recipeSettings: IKnoxGuiRecipeSettings;
+	/** `knoxchat.memoryBrain.enabled` / `workspaceEnabled`. */
+	memoryBrainSettings: IKnoxGuiMemoryBrainSettings;
 	policy: IKnoxGuiPolicy;
 	dialogMessage?: string;
 	configError: IKnoxGuiConfigError[];
@@ -1050,13 +1064,17 @@ export interface IKnoxGuiState {
 	memoryReviewDue: IKnoxGuiMemoryReviewDue[];
 	memoryEbbinghausStats?: IKnoxGuiEbbinghausStats;
 	memories: IKnoxGuiMemoryItem[];
+	/** Last pre-turn inject provenance, joined onto Memories rows (T6). */
+	memoryLastInject: IKnoxGuiInjectedMemory[];
 	memorySessions: IKnoxGuiMemorySession[];
 	memoryRecipes: IKnoxGuiMemoryRecipe[];
 	memoryRecipesLoading: boolean;
 	memoryRecipeError?: string;
 	/** Last turn's capture result; set even when the list is empty. */
 	memoryRecipeCapture?: IKnoxGuiMemoryRecipeCapture;
-	/** Recipe id whose retire/quarantine request is in flight. */
+	/** Chat toast for the last capture; dismissed independently of the Recipes tab banner. */
+	recipeCaptureToast?: IKnoxGuiMemoryRecipeCapture;
+	/** Recipe id whose retire/quarantine/preview/replay request is in flight. */
 	memoryRecipeBusyId?: string;
 	memorySessionQuery: string;
 	memorySelectedSessionId?: string;
@@ -1090,10 +1108,12 @@ export interface IKnoxGuiState {
 	checkpointRestoring: boolean;
 	/** Checkpoint whose restore is in flight; only its response-row button spins (`CheckpointButton.tsx` isRestoring). */
 	checkpointRestoringId?: string;
-	/** Either the `restorePreviewFailed` i18n key or host-provided message text. */
+	/** `restorePreviewFailed` / `restoreFailed` i18n keys, or host-provided message text. */
 	checkpointRestoreError?: string;
 	checkpointRestorePreview?: IKnoxGuiRestorePreview;
 	checkpointRestoreSelected: string[];
+	/** Restore All deletes extraPaths only when this is checked. Default unchecked. */
+	checkpointRestoreDeleteExtras: boolean;
 	checkpointRestoreShowDiff: boolean;
 	checkpointRestoreDiff?: IKnoxGuiCheckpointDiff;
 	checkpointCompareLeftId?: string;
@@ -1222,6 +1242,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		agentViewSubdirectoryMaxFiles: 1000,
 		jevEnabled: false,
 		recipeSettings: { enabled: false, autoReplay: 'off', selfImprove: false },
+		memoryBrainSettings: { enabled: true, workspaceEnabled: true },
 		policy: { paths: '', commands: '', externalDirectory: 'ask', sandboxDestructive: true },
 		configError: [],
 		historySessions: [],
@@ -1297,6 +1318,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		checkpointConfigLoading: false,
 		memoryReviewDue: [],
 		memories: [],
+		memoryLastInject: [],
 		memorySessions: [],
 		memoryRecipes: [],
 		memoryRecipesLoading: false,
@@ -1322,6 +1344,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		checkpointRestoreLoading: false,
 		checkpointRestoring: false,
 		checkpointRestoreSelected: [],
+		checkpointRestoreDeleteExtras: false,
 		checkpointRestoreShowDiff: false,
 		checkpointCompareLoading: false,
 		checkpointDiffView: 'split',

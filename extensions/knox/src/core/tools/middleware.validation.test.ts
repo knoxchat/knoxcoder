@@ -13,6 +13,7 @@ import { createNewFileTool } from "./definitions/createNewFile";
 import { writeFileTool } from "./definitions/writeFile";
 import { smartFileEditorTool } from "./definitions/composite";
 import { lspTool } from "./definitions/lsp";
+import { planTool } from "./definitions/plan";
 
 describe("isMissingToolArg", () => {
   it("treats undefined, null, and blank strings as missing", () => {
@@ -250,6 +251,21 @@ describe("normalizeToolArgs", () => {
         contents: "fn main() {}",
       }),
     ).toMatchObject({ filepath: "src/main.rs" });
+  });
+
+  it("heals builtin_plan aliases and does not require action", () => {
+    expect(() => validateToolArgs(BuiltInToolNames.Plan, {}, planTool)).not.toThrow();
+    expect(
+      normalizeToolArgs(BuiltInToolNames.Plan, {
+        action: "Start",
+        items: ["Scaffold", "Verify"],
+        goal: "Dioxus snake",
+      }),
+    ).toMatchObject({
+      action: "create",
+      steps: ["Scaffold", "Verify"],
+      title: "Dioxus snake",
+    });
   });
 
   it("maps grep-style search aliases", () => {

@@ -16,6 +16,7 @@ import {
 } from '../../../../common/knoxGuiChat.js';
 import { IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { knoxGuiRecipeNotice } from '../../../../common/knoxGuiRecipe.js';
+import { memoryRecipeCaptureNotice } from '../../../../common/knoxGuiMemory.js';
 import {
 	collectDuplicateAssistantMessageIds,
 	assistantReplyText,
@@ -47,6 +48,26 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 		widget.chromeButton(banner, {
 			label: t(state, 'hide'),
 			onClick: () => widget.controller.store.patch({ historyHydrateNotice: null }),
+		});
+	}
+	if (state.recipeCaptureToast) {
+		const cap = state.recipeCaptureToast;
+		const notice = memoryRecipeCaptureNotice(cap);
+		const banner = DOM.append(body, DOM.$('.knox-gui-large-banner'));
+		banner.setAttribute('role', 'status');
+		banner.setAttribute('data-testid', 'recipe-capture-toast');
+		const text = notice.params
+			? t(state, notice.key, { title: notice.params.title, status: t(state, notice.params.statusKey) })
+			: t(state, notice.key);
+		DOM.append(banner, DOM.$('span', undefined, text));
+		widget.chromeButton(banner, {
+			label: t(state, 'memoryRecipeOpenTab'),
+			testId: 'recipe-capture-toast-open',
+			onClick: () => void widget.controller.openMemoryRecipes(),
+		});
+		widget.chromeButton(banner, {
+			label: t(state, 'hide'),
+			onClick: () => widget.controller.store.patch({ recipeCaptureToast: undefined }),
 		});
 	}
 	if (!state.permissionNoticeDismissed && state.permissionMode === 'default' && state.permissionDefaultReason === 'fresh_clone' && state.history.length === 0) {

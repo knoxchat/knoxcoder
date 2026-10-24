@@ -36,7 +36,6 @@ export interface SmartCheckpointConfig {
     agentModeOnly: boolean;
     maxTrackedFiles: number;
     maxMemoryUsageMB: number;
-    maxCheckpoints: number;
     maxFileSizeKB: number;
     storagePath: string;
     verboseLogging: boolean;
@@ -76,6 +75,7 @@ export class SmartCheckpointManager {
     private checkpointManager: CheckpointManager;
     private initialized = false;
     private configurationWatchRegistered = false;
+    lastSkippedFiles: Array<{ path: string; reason: string }> = [];
     
     private constructor() {
         this.checkpointManager = CheckpointManager.getInstance();
@@ -247,21 +247,17 @@ export class SmartCheckpointManager {
     async trackAIFiles(filePaths: string[]): Promise<void> {
         const workspacePath = this.checkpointManager.getCurrentWorkspacePath?.();
         const accepted: string[] = [];
+        this.lastSkippedFiles = [];
         for (const filePath of filePaths) {
             const trimmed = filePath.trim();
             if (!trimmed) {
                 continue;
             }
-            if (
-                this.initialized
-                && this.config.enabled
-                && await this.isOverSmartFileSizeLimit(trimmed, workspacePath)
-            ) {
-                if (this.config.verboseLogging) {
-                    console.log(
-                        `Skipping oversized file (${this.config.maxFileSizeKB}KB cap): ${trimmed}`,
-                    );
-                }
+            const oversized = await this.oversizedSmartFile(trimmed, workspacePath);
+            if (oversized) {
+                const reason = `too_large (${oversized.sizeBytes} bytes > ${this.config.maxFileSizeKB}KB cap)`;
+                this.lastSkippedFiles.push({ path: trimmed, reason: 'too_large' });
+                console.warn(`Skipping oversized file ${trimmed}: ${reason}`);
                 continue;
             }
             accepted.push(trimmed);
@@ -311,18 +307,6 @@ export class SmartCheckpointManager {
             return this.checkpointManager.createAgentCheckpoint(options);
         }
 
-        const history = typeof this.checkpointManager.getCheckpointHistoryForWorkspace === 'function'
-            ? this.checkpointManager.getCheckpointHistoryForWorkspace()
-            : [];
-        if (history.length >= this.config.maxCheckpoints) {
-            if (this.config.verboseLogging) {
-                console.warn(
-                    `Smart checkpoint cap reached (${this.config.maxCheckpoints}); skipping create`,
-                );
-            }
-            return undefined;
-        }
-        
         try {
             const description = options.description || 'AI agent changes';
             
@@ -420,13 +404,16 @@ export class SmartCheckpointManager {
     /**
      * Check memory limits and take action if exceeded
      */
-    private async isOverSmartFileSizeLimit(
+    private async oversizedSmartFile(
         filePath: string,
         workspacePath?: string,
-    ): Promise<boolean> {
+    ): Promise<{ sizeBytes: number } | undefined> {
+        if (!this.initialized || !this.config.enabled) {
+            return undefined;
+        }
         const maxBytes = this.config.maxFileSizeKB * 1024;
         if (maxBytes < 1) {
-            return false;
+            return undefined;
         }
         const absolute = path.isAbsolute(filePath)
             ? filePath
@@ -435,9 +422,9 @@ export class SmartCheckpointManager {
                 : filePath;
         try {
             const stat = await fs.stat(absolute);
-            return stat.size > maxBytes;
+            return stat.size > maxBytes ? { sizeBytes: stat.size } : undefined;
         } catch {
-            return false;
+            return undefined;
         }
     }
 
@@ -706,74 +693,6 @@ export class AICheckpointIntegration {
         } catch (error) {
             console.error('Failed to perform cleanup:', error);
         }
-    }
-
-    /**
-     * Build context for query (method expected by VsCodeMessenger)
-     */
-    async buildContextForQuery(query: string, maxTokens?: number): Promise<any> {
-        // Simple implementation that returns basic context
-        return {
-            query: query,
-            maxTokens: maxTokens || 4000,
-            context: 'Basic context implementation',
-            timestamp: new Date().toISOString()
-        };
-    }
-
-    /**
-     * Provide contextual assistance
-     */
-    async provideContextualAssistance(cursorPosition?: any, selectedText?: string): Promise<any> {
-        return {
-            suggestions: [],
-            cursorPosition: cursorPosition,
-            selectedText: selectedText,
-            contextType: 'assistance'
-        };
-    }
-
-    /**
-     * Provide debugging context
-     */
-    async provideDebuggingContext(errorMessage: string, stackTrace?: string): Promise<any> {
-        return {
-            errorAnalysis: {
-                message: errorMessage,
-                stackTrace: stackTrace,
-                possibleCauses: [],
-                suggestedFixes: []
-            },
-            contextType: 'debugging'
-        };
-    }
-
-    /**
-     * Provide refactoring context
-     */
-    async provideRefactoringContext(refactoringType: string, targetElement: string): Promise<any> {
-        return {
-            refactoringType: refactoringType,
-            targetElement: targetElement,
-            suggestions: [],
-            contextType: 'refactoring'
-        };
-    }
-
-    /**
-     * Get semantic analysis for file
-     */
-    async getSemanticAnalysisForFile(filePath: string): Promise<any> {
-        return {
-            filePath: filePath,
-            semanticInfo: {
-                functions: [],
-                classes: [],
-                interfaces: [],
-                dependencies: []
-            },
-            contextType: 'semantic'
-        };
     }
 }
 

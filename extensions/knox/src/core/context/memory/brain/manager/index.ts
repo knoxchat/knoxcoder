@@ -97,9 +97,11 @@ import {
   pinMemory,
   unpinMemory,
   recordMismatch,
+  useSessionAsContext,
 } from "./runtime.js";
 import {
   store,
+  updateMemory,
   recall,
   forget,
   forgetMany,
@@ -156,6 +158,7 @@ export class BrainManager {
   static switchWorkingMemorySession = switchWorkingMemorySession;
   static pinMemory = pinMemory;
   static unpinMemory = unpinMemory;
+  static useSessionAsContext = useSessionAsContext;
   static recordMismatch = recordMismatch;
   static onEvent = onEvent;
   static clearEventListeners = clearEventListeners;
@@ -170,6 +173,7 @@ export class BrainManager {
   static getSessionHistory = getSessionHistory;
   static getSessionHistoryFull = getSessionHistoryFull;
   static store = store;
+  static updateMemory = updateMemory;
   static recall = recall;
   static forget = forget;
   static forgetMany = forgetMany;

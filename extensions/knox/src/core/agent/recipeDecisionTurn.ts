@@ -11,6 +11,7 @@ import { scoreDifficulty } from "../context/memory/brain/TaskRouter.js";
 import { checkPreconditions, type PreconditionEnv } from "../context/memory/recipes/preconditions.js";
 import { bestMatch, type FusionHit } from "../context/memory/recipes/RecipeMatcher.js";
 import { isSkillEligible } from "../context/memory/recipes/skillFromRecipe.js";
+import { fillSlotsFromMessage } from "../context/memory/recipes/slots.js";
 import type { Recipe } from "../context/memory/recipes/types.js";
 import { decide, type AutoReplaySetting, type Decision } from "./decisionEngine.js";
 import type { PermissionMode } from "./permissions.js";
@@ -81,8 +82,10 @@ export async function decideRecipeForTurn(
     autoReplay: args.autoReplay,
     permissionMode: args.permissionMode,
     difficulty: scoreDifficulty({ message: args.message }).difficulty,
-    // Slot values are not extracted from the message yet (MC-32), so every slot counts as unfilled.
-    unfilledSlots: match ? match.recipe.slots.length : 0,
+    // T5 / MC-32: fill obvious path/identifier slots from the message. Unfilled slots refuse exact.
+    unfilledSlots: match
+      ? fillSlotsFromMessage(match.recipe.slots, args.message, match.recipe.intentText).unfilled
+      : 0,
   });
   return {
     type: "recipe_decision",

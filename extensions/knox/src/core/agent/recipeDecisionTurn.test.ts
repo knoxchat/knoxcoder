@@ -74,6 +74,38 @@ describe("decideRecipeForTurn", () => {
     expect(e.mode).toBe("adapt");
   });
 
+  it("exact when slot identifiers in the message match the captured intent (T5 / MC-32)", async () => {
+    const intent = "create a React component Button";
+    const r = recipe({
+      title: intent,
+      intentText: intent,
+      intentFingerprint: intentFingerprint(intent),
+      slots: [{ name: "componentName", kind: "identifier" }],
+      preconditions: [],
+    });
+    const e = await decideRecipeForTurn(
+      { listRecipes: async () => [r], env: env([]) },
+      { message: intent, projectId: "p1", autoReplay: "exact" },
+    );
+    expect(e.mode).toBe("exact");
+  });
+
+  it("adapt when a path slot differs from the captured files", async () => {
+    const captured = "create file src/a/util.ts";
+    const r = recipe({
+      title: captured,
+      intentText: captured,
+      intentFingerprint: intentFingerprint(captured),
+      slots: [{ name: "targetPath", kind: "path" }],
+      preconditions: [],
+    });
+    const e = await decideRecipeForTurn(
+      { listRecipes: async () => [r], env: env([]) },
+      { message: "create file src/b/util.ts", projectId: "p1", autoReplay: "exact" },
+    );
+    expect(e.mode).toBe("adapt");
+  });
+
   it("ignores recipes from other projects", async () => {
     const e = await decideRecipeForTurn(
       { listRecipes: async () => [recipe({ projectId: "other" })], env: env(["package.json"]) },

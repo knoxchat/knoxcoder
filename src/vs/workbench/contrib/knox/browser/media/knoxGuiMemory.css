@@ -15,7 +15,7 @@
 	overflow: hidden;
 	position: relative;
 	container-type: inline-size;
-	font-size: var(--vscode-font-size, 13px);
+	font-size: var(--vscode-editor-font-size, 13px);
 	line-height: 1.3;
 	color: var(--vscode-editor-foreground);
 }
@@ -322,7 +322,8 @@
 .knox-gui-memory-page .knox-gui-memory-action-btn:disabled,
 .knox-gui-memory-page .knox-gui-memory-load-more:disabled,
 .knox-gui-memory-page .knox-gui-memory-graph-more:disabled,
-.knox-gui-memory-page .knox-gui-memory-dialog-btn.is-confirm:disabled {
+.knox-gui-memory-page .knox-gui-memory-dialog-btn.is-confirm:disabled,
+.knox-gui-memory-page .knox-gui-memory-dialog-btn.is-save:disabled {
 	opacity: 0.4;
 }
 
@@ -903,7 +904,7 @@
 .knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-role-system { background-color: rgba(215, 186, 125, 0.2); color: #d7ba7d; }
 .knox-gui-memory-page .knox-gui-memory-md-badge.is-ok { background-color: rgba(115, 201, 145, 0.2); color: #73c991; }
 .knox-gui-memory-page .knox-gui-memory-md-badge.is-fail { background-color: rgba(241, 76, 76, 0.2); color: #f14c4c; }
-.knox-gui-memory-page .knox-gui-memory-md-badge[class*='cat-'] { background-color: rgba(229, 192, 123, 0.2); color: #e5c07b; }
+.knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-md-cat { background-color: rgba(229, 192, 123, 0.2); color: #e5c07b; }
 
 .knox-gui-memory-page .knox-gui-memory-md-body {
 	overflow: hidden;
@@ -1157,6 +1158,52 @@
 .knox-gui-memory-page .knox-gui-memory-dialog-btn.is-confirm {
 	background-color: rgba(239, 68, 68, 0.8);
 	color: #fff;
+}
+
+.knox-gui-memory-page .knox-gui-memory-dialog-btn.is-save {
+	background-color: var(--knox-fill, #159994);
+	color: var(--knox-on-fill, #fff);
+}
+
+.knox-gui-memory-page .knox-gui-memory-dialog.is-form {
+	max-width: 480px;
+}
+
+.knox-gui-memory-page .knox-gui-memory-form {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.knox-gui-memory-page .knox-gui-memory-form-label {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 12px;
+	line-height: calc(1 / 0.75);
+	opacity: 0.8;
+}
+
+.knox-gui-memory-page .knox-gui-memory-form-control {
+	width: 100%;
+	padding: 6px 8px;
+	font-size: 12px;
+	line-height: calc(1 / 0.75);
+}
+
+.knox-gui-memory-page .knox-gui-memory-form-textarea {
+	min-height: 96px;
+	resize: vertical;
+}
+
+.knox-gui > .knox-gui-memory-page[data-testid="composer-remember-host"] {
+	position: absolute;
+	inset: 0;
+	height: auto;
+	z-index: 80;
+	background: transparent;
+	overflow: visible;
 }
 
 /* utilities (after components so they win at equal specificity) */

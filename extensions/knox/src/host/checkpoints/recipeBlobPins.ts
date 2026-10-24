@@ -7,9 +7,9 @@ import {
 import { registerBlobPinProvider } from './store/blobPins';
 
 /**
- * Protect blobs named by live recipes from checkpoint GC (MC-12). Call once
- * before any recipe is captured (MC-14), when `knoxchat.recipes.enabled` is on.
- * Returns an unregister function.
+ * Protect blobs named by live recipes from checkpoint GC (MC-12). Call at host
+ * init when `knoxchat.recipes.enabled` is on (T5), and again on capture/replay
+ * (idempotent: the provider is keyed by name). Returns an unregister function.
  */
 export function registerRecipeBlobPins(): () => void {
     return registerBlobPinProvider(RECIPE_BLOB_PIN_PROVIDER, createRecipeBlobPinProvider(getBrainDb));

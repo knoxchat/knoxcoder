@@ -23,39 +23,54 @@ export function renderRestorePreviewDialog(widget: KnoxGuiWidget, parent: HTMLEl
 	const node = state.checkpoints.find(item => item.id === state.checkpointRestoreId) ?? state.checkpointListItems.find(item => item.id === state.checkpointRestoreId);
 	checkpointDialogHeader(dialog, t(state, 'restorePreviewTitle'), 'rotate-ccw', node?.description || state.checkpointRestorePreview?.description || t(state, 'restorePreviewSubtitle'));
 	const body = DOM.append(dialog, DOM.$('.knox-gui-restore-body'));
+	if (state.checkpointRestoreError) {
+		const key = state.checkpointRestoreError === 'restorePreviewFailed' || state.checkpointRestoreError === 'restoreFailed'
+			? state.checkpointRestoreError
+			: undefined;
+		const error = DOM.append(body, DOM.$('p.knox-gui-restore-error', undefined, key ? t(state, key) : state.checkpointRestoreError));
+		error.setAttribute('data-testid', 'restore-preview-error');
+	}
 	if (state.checkpointRestoreLoading) {
 		DOM.append(body, DOM.$('p.knox-gui-restore-status', undefined, t(state, 'restorePreviewLoading')));
-	} else if (state.checkpointRestoreError) {
-		const error = DOM.append(body, DOM.$('p.knox-gui-restore-error', undefined, state.checkpointRestoreError === 'restorePreviewFailed' ? t(state, 'restorePreviewFailed') : state.checkpointRestoreError));
-		error.setAttribute('data-testid', 'restore-preview-error');
 	} else if (state.checkpointRestorePreview && !state.checkpointRestorePreview.files.length) {
 		DOM.append(body, DOM.$('p.knox-gui-restore-empty', undefined, t(state, 'restorePreviewEmpty')));
 	} else if (state.checkpointRestorePreview) {
 		const preview = state.checkpointRestorePreview;
+		const writeFiles = preview.files.filter(file => file.action !== 'delete');
+		const extraFiles = [...preview.files.filter(file => file.action === 'delete')];
+		const extraSeen = new Set(extraFiles.map(file => file.relativePath));
+		for (const relativePath of preview.extraPaths) {
+			if (!extraSeen.has(relativePath)) {
+				extraSeen.add(relativePath);
+				extraFiles.push({ relativePath, action: 'delete', additions: 0, deletions: 0, hunkCount: 0 });
+			}
+		}
+		const writesSelected = writeFiles.length > 0 && writeFiles.every(file => state.checkpointRestoreSelected.includes(file.relativePath));
 		const summary = DOM.append(body, DOM.$('.knox-gui-restore-summary'));
 		DOM.append(summary, DOM.$('span.odp-chip.odp-chip-yellow', undefined, `${t(state, 'modified')}: ${preview.modified}`));
 		DOM.append(summary, DOM.$('span.odp-chip.odp-chip-green', undefined, `${t(state, 'added')}: ${preview.added}`));
 		DOM.append(summary, DOM.$('span.odp-chip.odp-chip-red', undefined, `${t(state, 'deleted')}: ${preview.deleted}`));
 		DOM.append(body, DOM.$('p.knox-gui-restore-hint', undefined, t(state, 'restorePreviewExtrasHint')));
 		const all = DOM.append(body, DOM.$('label.knox-gui-restore-all'));
-		const allBox = checkpointCheckbox(all, preview.files.length > 0 && state.checkpointRestoreSelected.length === preview.files.length, t(state, 'selectAll'));
+		const allBox = checkpointCheckbox(all, writesSelected, t(state, 'selectAll'));
 		widget.renderStore.add(DOM.addDisposableListener(allBox, 'change', () => widget.controller.toggleRestoreAll(allBox.checked)));
 		DOM.append(all, DOM.$('span', undefined, t(state, 'selectAll')));
 		const list = DOM.append(body, DOM.$('ul.knox-gui-restore-files'));
-		for (const file of preview.files) {
-			const row = DOM.append(list, DOM.$('li.knox-gui-restore-file'));
-			const box = checkpointCheckbox(row, state.checkpointRestoreSelected.includes(file.relativePath), file.relativePath);
-			widget.renderStore.add(DOM.addDisposableListener(box, 'change', () => widget.controller.toggleRestorePath(file.relativePath, box.checked)));
-			appendKnoxGuiSvg(row, 'file', 14).classList.add('knox-gui-restore-file-icon');
-			const meta = DOM.append(row, DOM.$('.knox-gui-restore-file-main'));
-			DOM.append(meta, DOM.$('div.knox-gui-restore-file-path', { title: file.relativePath }, file.relativePath));
-			const stats = DOM.append(meta, DOM.$('.knox-gui-restore-file-meta'));
-			DOM.append(stats, DOM.$(`span.knox-gui-restore-${file.action}`, undefined, t(state, restorePreviewActionKey(file.action))));
-			DOM.append(stats, DOM.$('span', undefined, `+${file.additions}/-${file.deletions}`));
-			DOM.append(stats, DOM.$('span', undefined, t(state, 'restorePreviewHunks', { count: file.hunkCount })));
+		for (const file of writeFiles) {
+			appendRestoreFileRow(widget, list, state, file);
 		}
-		if (preview.extraPaths.length) {
-			DOM.append(body, DOM.$('p.knox-gui-restore-note', undefined, `${t(state, 'restorePreviewWillDelete')}: ${preview.extraPaths.join(', ')}`));
+		if (extraFiles.length) {
+			DOM.append(body, DOM.$('p.knox-gui-restore-note', undefined, t(state, 'restorePreviewWillDelete')));
+			const extras = DOM.append(body, DOM.$('ul.knox-gui-restore-files.knox-gui-restore-extras'));
+			extras.setAttribute('data-testid', 'restore-preview-extras');
+			for (const file of extraFiles) {
+				appendRestoreFileRow(widget, extras, state, file, 'restore-preview-extra');
+			}
+			const remove = DOM.append(body, DOM.$('label.knox-gui-restore-delete-extras'));
+			const removeBox = checkpointCheckbox(remove, state.checkpointRestoreDeleteExtras, t(state, 'restoreAlsoRemoveExtras'));
+			removeBox.setAttribute('data-testid', 'restore-preview-delete-extras');
+			widget.renderStore.add(DOM.addDisposableListener(removeBox, 'change', () => widget.controller.store.patch({ checkpointRestoreDeleteExtras: removeBox.checked })));
+			DOM.append(remove, DOM.$('span', undefined, t(state, 'restoreAlsoRemoveExtras')));
 		}
 		if (preview.skippedFiles.length) {
 			DOM.append(body, DOM.$('p.knox-gui-restore-note', undefined, `${t(state, 'restorePreviewSkipped')}: ${preview.skippedFiles.map(file => `${file.path} (${file.reason})`).join(', ')}`));
@@ -75,15 +90,39 @@ export function renderRestorePreviewDialog(widget: KnoxGuiWidget, parent: HTMLEl
 	widget.toggle(memory, t(state, 'checkpointGraph.menu.restoreMemory'), state.checkpointRestoreMemory, value => widget.controller.store.patch({ checkpointRestoreMemory: value }));
 	const actions = DOM.append(dialog, DOM.$('.knox-gui-cpl-dialog-footer'));
 	const busy = state.checkpointRestoring;
+	const previewFailed = Boolean(state.checkpointRestoreError) && !state.checkpointRestorePreview;
 	checkpointButton(widget, actions, { label: t(state, 'cancel'), variant: 'ghost', size: 'default', disabled: busy, onClick: () => widget.controller.closeCheckpointDialog() });
-	checkpointButton(widget, actions, { label: t(state, 'restoreSelectedCount', { count: state.checkpointRestoreSelected.length }), size: 'default', disabled: busy || state.checkpointRestoreLoading || !state.checkpointRestoreSelected.length, onClick: () => void widget.controller.restoreSelectedFiles() });
+	checkpointButton(widget, actions, { label: t(state, 'restoreSelectedCount', { count: state.checkpointRestoreSelected.length }), size: 'default', disabled: busy || state.checkpointRestoreLoading || previewFailed || !state.checkpointRestoreSelected.length, onClick: () => void widget.controller.restoreSelectedFiles() });
 	checkpointButton(widget, actions, {
 		label: state.checkpointRestorePreview && !state.checkpointRestorePreview.files.length ? t(state, 'restoreAnyway') : t(state, 'restoreAll'),
 		variant: 'default',
 		size: 'default',
-		disabled: busy || state.checkpointRestoreLoading || Boolean(state.checkpointRestoreError),
+		disabled: busy || state.checkpointRestoreLoading || previewFailed,
 		onClick: () => void widget.controller.restoreAllFiles(),
 	});
+}
+
+function appendRestoreFileRow(
+	widget: KnoxGuiWidget,
+	list: HTMLElement,
+	state: IKnoxGuiState,
+	file: NonNullable<IKnoxGuiState['checkpointRestorePreview']>['files'][number],
+	testId?: string,
+): void {
+	const row = DOM.append(list, DOM.$('li.knox-gui-restore-file'));
+	if (testId) {
+		row.setAttribute('data-testid', testId);
+		row.setAttribute('data-path', file.relativePath);
+	}
+	const box = checkpointCheckbox(row, state.checkpointRestoreSelected.includes(file.relativePath), file.relativePath);
+	widget.renderStore.add(DOM.addDisposableListener(box, 'change', () => widget.controller.toggleRestorePath(file.relativePath, box.checked)));
+	appendKnoxGuiSvg(row, 'file', 14).classList.add('knox-gui-restore-file-icon');
+	const meta = DOM.append(row, DOM.$('.knox-gui-restore-file-main'));
+	DOM.append(meta, DOM.$('div.knox-gui-restore-file-path', { title: file.relativePath }, file.relativePath));
+	const stats = DOM.append(meta, DOM.$('.knox-gui-restore-file-meta'));
+	DOM.append(stats, DOM.$(`span.knox-gui-restore-${file.action}`, undefined, t(state, restorePreviewActionKey(file.action))));
+	DOM.append(stats, DOM.$('span', undefined, `+${file.additions}/-${file.deletions}`));
+	DOM.append(stats, DOM.$('span', undefined, t(state, 'restorePreviewHunks', { count: file.hunkCount })));
 }
 
 export function renderCompareDialog(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {

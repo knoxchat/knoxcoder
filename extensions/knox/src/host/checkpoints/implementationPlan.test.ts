@@ -21,7 +21,6 @@ suite('Implementation Plan Integrations', () => {
                 agentModeOnly: true,
                 maxTrackedFiles: 100,
                 maxMemoryUsageMB: 50,
-                maxCheckpoints: 50,
                 maxFileSizeKB: 100,
                 storagePath: '~/.knoxcoder/checkpoints',
                 verboseLogging: false,

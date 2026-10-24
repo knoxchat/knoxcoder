@@ -3,6 +3,36 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Added
+
+- **Memory write and correction (T1, T2).** A chat that states a preference or decision now lands on the Memories tab without the user saying “we decided”. Short prefs (`always use bun`) and `remember …` skip the filler gates; filler still stores nothing. Memories tab **Create** / **Edit** / **Not relevant**, plus composer **Remember**, store a fact, preference, or decision with no model or tool call.
+- **Paraphrase recall without embeddings (T6, T12).** Rule-based enhanced semantic is on by default. Synonym groups cover invoice/tax → money/cents, icon-only → a11y, and settings-card → design-system; the longest matching phrase wins. Memories rows and Overview show why a row was injected last turn (`injected last turn · lexical: jwt`). No vector DB, embedding index, or neural rerank.
+- **Recipes on-ramp (T5, T13).** After a green mutating turn, chat shows a dismissible toast (saved as candidate, or the skip reason) with a Memory → Recipes link. Recipes tab **Preview** / **Replay** reuse the ask card + Undo; **Verify**, **Restore**, and **Save as project|global skill** work from the tab; source checkpoint chips open that node on the Checkpoint Graph. Obvious path/identifier slots fill from the user message. Recipes stay off by default (`knoxchat.recipes.enabled`); product replay stays exact + ask.
+- **Sessions as context (T9).** The Sessions tab can delete a session or **Use as context**, which pins that session’s summary and top semantic rows into the next inject (no new store).
+- **Checkpoint branches on the agent tool (T10).** `builtin_workspace_checkpoint` `list` shows `label=` and `branch=`; `create_branch` forks an engine line (not git). Restore and delete still prompt.
+
+### Changed
+
+- **Memory Settings (T9).** Product Settings keep on/off, scope, auto-extract, recipes, enhanced semantic, and inject cap. λ / fusion / budget / compression / mode multipliers sit behind collapsed **Expert retrieval** with reset-to-defaults.
+- **Smart checkpoints match the engine (T10).** Create no longer silently stops at 50; retention is the engine’s (`knox.checkpoints.maxCheckpoints`, default 1000) plus pins. File cap is 5 MB (was 100 KB); oversized files log `too_large`. The unused `knox.checkpoints.smart.maxCheckpoints` key is deprecated.
+- **One labeled restore point per agent turn (T4).** A pre-risky snapshot is adopted as that turn’s checkpoint. File-threshold auto is skipped while the turn is active. Auto undo snapshots the dirty workspace as the redo target.
+- **Plan tool.** `create` can draft concrete steps from the user request when `steps` is omitted; `complete` / `skip` default to the current step. Repeating `{action:complete}` is not treated as a doom loop.
+
+### Fixed
+
+- **Journaled Restore All (T3, T7).** GUI Restore All, skip-confirm, and the agent `restore` tool go through journaled `restoreCheckpoint` (backup + journal + rollback). Extra files are unchecked checkboxes plus an explicit “also remove files not in this checkpoint” control (default off). Restore Selected only writes checked paths. A failed restore sets an error and keeps the dialog open.
+- **Auto undo (T4).** Undo restores the checkpoint before the last edit (`[A,B]` + dirty workspace → undo A, redo the pre-undo snapshot).
+- **Checkpoint skipUnchanged (T11).** Content-only snapshots hash with SHA-256 (`hashBlobBytes`), so unchanged files match the live index instead of looking dirty.
+
+### Removed
+
+- `knox.checkpoints.auto.checkpointAfterAI` and the unused `onAIOperationComplete` path (the setting did nothing).
+- Empty checkpoint “contextual assistance” stubs and their messenger handlers.
+
+### Security
+
+- **`builtin_memory` product actions only (T8).** The agent tool can only `store` / `recall` / `search` / `delete` / `build_context` / `pin` / `unpin`. Admin actions (`heal`, `export`, `run_pipeline`, …) return an error and do not run. Child/soul `readonlyMemory` stays a second write gate.
+
 ## [2.2.1] - 2026-10-20
 
 ### Added

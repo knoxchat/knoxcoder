@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -90,5 +90,24 @@ describe("product memory store + recall (K-070)", () => {
       extras,
     );
     expect(recalled[0]?.content).toMatch(/JWT/i);
+  });
+
+  it("refuses admin actions without dispatching", async () => {
+    const extras = {
+      ide: {} as never,
+      llm: undefined,
+    } as never;
+    const { BrainManager } = await import("../context/memory/brain/BrainManager.js");
+    const dispatch = vi.spyOn(BrainManager, "dispatch");
+    try {
+      for (const action of ["heal", "export", "run_pipeline"] as const) {
+        const result = await memoryImpl({ action }, extras);
+        expect(result[0]?.content).toMatch(/not available on builtin_memory/i);
+        expect(result[0]?.content).toMatch(/brain\/\*/i);
+      }
+      expect(dispatch).not.toHaveBeenCalled();
+    } finally {
+      dispatch.mockRestore();
+    }
   });
 });

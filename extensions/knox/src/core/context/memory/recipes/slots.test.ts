@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { extractSlots, isSafeSlotValue } from "./slots";
+import { extractSlots, fillSlotsFromMessage, isSafeSlotValue } from "./slots";
 
 const comp = (name: string) => ({
   path: `src/components/${name}.tsx`,
@@ -88,6 +88,36 @@ describe("extractSlots", () => {
       { intentText: "create component Card", files: [comp("Card")] },
     );
     expect(slots).toHaveLength(1);
+  });
+});
+
+describe("fillSlotsFromMessage (T5 / MC-32)", () => {
+  it("fills an identifier that also appears in the captured intent", () => {
+    const slots = [{ name: "componentName", kind: "identifier" as const }];
+    const intent = "Create a React component Button";
+    expect(fillSlotsFromMessage(slots, "please create a React component Button", intent)).toEqual({
+      values: { componentName: "Button" },
+      unfilled: 0,
+    });
+  });
+
+  it("refuses exact fill when the path differs from the captured intent", () => {
+    const slots = [{ name: "targetPath", kind: "path" as const }];
+    expect(fillSlotsFromMessage(slots, "create file src/b/util.ts", "create file src/a/util.ts").unfilled).toBe(1);
+  });
+
+  it("does not treat filler words as identifiers", () => {
+    const slots = [{ name: "x", kind: "identifier" as const }];
+    expect(fillSlotsFromMessage(slots, "add a lint script to package.json", "add a lint script to package.json").unfilled).toBe(1);
+  });
+
+  it("returns unfilled 0 when the recipe has no slots", () => {
+    expect(fillSlotsFromMessage([], "create a React component Button")).toEqual({ values: {}, unfilled: 0 });
+  });
+
+  it("ignores unsafe path values", () => {
+    const slots = [{ name: "targetPath", kind: "path" as const }];
+    expect(fillSlotsFromMessage(slots, "create file ../evil.ts", "create file ../evil.ts").unfilled).toBe(1);
   });
 });
 

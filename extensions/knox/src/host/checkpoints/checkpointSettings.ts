@@ -11,6 +11,8 @@ export const DEFAULT_MAX_STORAGE_BYTES = 1_000_000_000;
 export const DEFAULT_MAX_FILES_PER_CHECKPOINT = 10_000;
 export const DEFAULT_RETENTION_DAYS = 7;
 export const DEFAULT_MAX_FILE_SIZE_BYTES = 5_242_880;
+/** Smart overlay file cap in KB — same 5 MB as `DEFAULT_MAX_FILE_SIZE_BYTES`. */
+export const SMART_MAX_FILE_SIZE_KB = Math.floor(DEFAULT_MAX_FILE_SIZE_BYTES / 1024);
 export const DEFAULT_CAPTURE_BINARY_FILES = true;
 export const DEFAULT_ENABLE_COMPRESSION = true;
 export const DEFAULT_ENCRYPT_AT_REST = false;
@@ -43,7 +45,6 @@ export interface AutoCheckpointSettings {
     minIntervalMs: number;
     maxIntervalMs: number;
     fileChangeThreshold: number;
-    checkpointAfterAI: boolean;
     checkpointBeforeRisky: boolean;
     maxUndoStack: number;
     showNotifications: boolean;
@@ -55,7 +56,6 @@ export const AUTO_CHECKPOINT_DEFAULTS: AutoCheckpointSettings = {
     minIntervalMs: 60_000,
     maxIntervalMs: 300_000,
     fileChangeThreshold: 5,
-    checkpointAfterAI: true,
     checkpointBeforeRisky: true,
     maxUndoStack: 50,
     showNotifications: false,
@@ -67,19 +67,18 @@ export interface SmartCheckpointSettings {
     agentModeOnly: boolean;
     maxTrackedFiles: number;
     maxMemoryUsageMB: number;
-    maxCheckpoints: number;
     maxFileSizeKB: number;
     verboseLogging: boolean;
     enableMetrics: boolean;
 }
 
+/** Live smart overlay knobs. `knox.checkpoints.smart.maxCheckpoints` is deprecated and ignored. */
 export const SMART_CHECKPOINT_DEFAULTS: SmartCheckpointSettings = {
     enabled: true,
     agentModeOnly: true,
     maxTrackedFiles: 100,
     maxMemoryUsageMB: 50,
-    maxCheckpoints: 50,
-    maxFileSizeKB: 100,
+    maxFileSizeKB: SMART_MAX_FILE_SIZE_KB,
     verboseLogging: false,
     enableMetrics: true,
 };
@@ -121,7 +120,6 @@ export function readAutoCheckpointSettings(): AutoCheckpointSettings {
         minIntervalMs: config.get('minIntervalMs', AUTO_CHECKPOINT_DEFAULTS.minIntervalMs),
         maxIntervalMs: config.get('maxIntervalMs', AUTO_CHECKPOINT_DEFAULTS.maxIntervalMs),
         fileChangeThreshold: config.get('fileChangeThreshold', AUTO_CHECKPOINT_DEFAULTS.fileChangeThreshold),
-        checkpointAfterAI: config.get('checkpointAfterAI', AUTO_CHECKPOINT_DEFAULTS.checkpointAfterAI),
         checkpointBeforeRisky: config.get('checkpointBeforeRisky', AUTO_CHECKPOINT_DEFAULTS.checkpointBeforeRisky),
         maxUndoStack: config.get('maxUndoStack', AUTO_CHECKPOINT_DEFAULTS.maxUndoStack),
         showNotifications: config.get('showNotifications', AUTO_CHECKPOINT_DEFAULTS.showNotifications),
@@ -136,7 +134,6 @@ export function readSmartCheckpointSettings(): SmartCheckpointSettings {
         agentModeOnly: config.get('agentModeOnly', SMART_CHECKPOINT_DEFAULTS.agentModeOnly),
         maxTrackedFiles: config.get('maxTrackedFiles', SMART_CHECKPOINT_DEFAULTS.maxTrackedFiles),
         maxMemoryUsageMB: config.get('maxMemoryUsageMB', SMART_CHECKPOINT_DEFAULTS.maxMemoryUsageMB),
-        maxCheckpoints: config.get('maxCheckpoints', SMART_CHECKPOINT_DEFAULTS.maxCheckpoints),
         maxFileSizeKB: config.get('maxFileSizeKB', SMART_CHECKPOINT_DEFAULTS.maxFileSizeKB),
         verboseLogging: config.get('verboseLogging', SMART_CHECKPOINT_DEFAULTS.verboseLogging),
         enableMetrics: config.get('enableMetrics', SMART_CHECKPOINT_DEFAULTS.enableMetrics),

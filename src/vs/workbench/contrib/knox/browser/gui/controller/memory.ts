@@ -7,7 +7,7 @@ import type { KnoxGuiController } from '../../knoxGuiController.js';
 import type { IKnoxGuiState } from '../../../common/knoxGuiState.js';
 import { asRecord, asArray } from './helpers.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
-import { memoryConfigUpdatePayload, isMemoryTabId, parseEbbinghausStats, parseEffectiveContext, parseExploreResult, parseGraphEntities, parseGraphStats, parseMemoryDashboard, parseMemoryItem, parseMemoryRecipeList, parseMemorySession, parseMetricsTrend, parsePhaseStatus, parseReviewDue, parseSessionHistory, unwrapBrainConfig, withMemoryConfigDefaults, memoryConsolidateParts } from '../../../common/knoxGuiMemory.js';
+import { memoryConfigUpdatePayload, isMemoryTabId, isMemoryWriteCategory, memoryExpertConfigKeys, MEMORY_DEFAULT_CONFIG, parseEbbinghausStats, parseEffectiveContext, parseExploreResult, parseGraphEntities, parseGraphStats, parseLastInject, parseMemoryBrainSettings, parseMemoryDashboard, parseMemoryItem, parseMemoryRecipeList, parseMemorySession, parseMetricsTrend, parsePhaseStatus, parseReviewDue, parseSessionHistory, unwrapBrainConfig, withMemoryConfigDefaults, memoryConsolidateParts } from '../../../common/knoxGuiMemory.js';
 
 const MEMORY_PAGE_SIZE = 50;
 
@@ -22,6 +22,7 @@ export async function loadMemory(controller: KnoxGuiController): Promise<void> {
 			controller.loadMemoryRecipes(),
 			controller.loadMemoryConfig(),
 			controller.loadRecipeSettings(),
+			controller.loadMemoryBrainSettings(),
 		]);
 	} catch {
 		// memory optional until core is ready
@@ -69,7 +70,7 @@ export async function hydrateMemoryTab(controller: KnoxGuiController): Promise<v
 	}
 }
 
-export async function loadMemoryOverview(controller: KnoxGuiController, options?: { showLoading?: boolean }): Promise<void> { // KN-376 KN-310–313
+export async function loadMemoryOverview(controller: KnoxGuiController, options?: { showLoading?: boolean }): Promise<void> { // KN-376 KN-310-313
 	if (options?.showLoading) {
 		controller.store.patch({ memoryOverviewLoading: true });
 	}
@@ -82,13 +83,15 @@ export async function loadMemoryOverview(controller: KnoxGuiController, options?
 			controller.messenger.request<Record<string, unknown>>('brain/getReviewDue', { limit: 8 }).catch(() => undefined),
 			controller.messenger.request<Record<string, unknown>>('brain/getEbbinghausStats', undefined).catch(() => undefined),
 		]);
+		const dashboard = parseMemoryDashboard(dash);
 		controller.store.patch({
-			memoryDashboard: parseMemoryDashboard(dash),
+			memoryDashboard: dashboard,
 			memoryEffectiveContext: parseEffectiveContext(effective),
 			memoryMetricsTrend: parseMetricsTrend(trend),
 			memoryPhaseStatus: parsePhaseStatus(phase) ?? parsePhaseStatus(dash),
 			memoryReviewDue: parseReviewDue(review),
 			memoryEbbinghausStats: parseEbbinghausStats(ebb),
+			...(dashboard?.lastInject !== undefined ? { memoryLastInject: dashboard.lastInject } : {}),
 		});
 	} catch {
 		// optional
@@ -116,11 +119,14 @@ export async function loadMemories(controller: KnoxGuiController, append = false
 		});
 		const rec = asRecord(search);
 		const next = asArray(rec?.memories ?? search).map(parseMemoryItem).filter((item): item is NonNullable<typeof item> => Boolean(item));
+		const lastInject = rec ? parseLastInject(rec.lastInject ?? rec.last_inject) : [];
+		const injectPatch = lastInject.length || rec?.lastInject || rec?.last_inject ? { memoryLastInject: lastInject } : {};
 		if (query) {
 			const pageItems = next.slice(currentOffset, currentOffset + limit);
 			controller.store.patch({
 				memories: append ? [...state.memories, ...pageItems.filter(item => !state.memories.some(existing => existing.id === item.id))] : pageItems,
 				memoryHasMore: next.length > currentOffset + limit,
+				...injectPatch,
 			});
 			return;
 		}
@@ -129,7 +135,8 @@ export async function loadMemories(controller: KnoxGuiController, append = false
 		const total = Number(rec?.total ?? (hasMore ? currentOffset + next.length : currentOffset + pageItems.length));
 		controller.store.patch({
 			memories: append ? [...state.memories, ...pageItems.filter(item => !state.memories.some(existing => existing.id === item.id))] : pageItems,
-			memoryHasMore: rec?.total != null ? currentOffset + pageItems.length < total : hasMore,
+			memoryHasMore: rec?.total !== undefined && rec?.total !== null ? currentOffset + pageItems.length < total : hasMore,
+			...injectPatch,
 		});
 	} catch {
 		showMemoryBanner(controller, 'error', { key: 'memoryLoadError' });
@@ -152,6 +159,17 @@ export async function loadMemorySessions(controller: KnoxGuiController): Promise
 	}
 }
 
+/** T5: chat toast link — open Memory on the Recipes tab. */
+export async function openMemoryRecipes(controller: KnoxGuiController): Promise<void> {
+	controller.store.patch({ memoryTab: 'recipes', recipeCaptureToast: undefined });
+	try {
+		await controller.messenger.request('saveMemoryViewUiState', { activeTabId: 'recipes' });
+	} catch {
+		controller.messenger.post('saveMemoryViewUiState', { activeTabId: 'recipes' });
+	}
+	controller.store.navigate('/memory');
+}
+
 /** MC-70: recipes of this project. A failed load keeps the previous rows and shows one error line. */
 export async function loadMemoryRecipes(controller: KnoxGuiController): Promise<void> {
 	controller.store.patch({ memoryRecipesLoading: true, memoryRecipeError: undefined });
@@ -169,8 +187,8 @@ export async function loadMemoryRecipes(controller: KnoxGuiController): Promise<
 	}
 }
 
-/** Retire / quarantine. The host re-checks the state machine, so a refused move only reloads the list. */
-export async function setMemoryRecipeStatus(controller: KnoxGuiController, recipeId: string, status: 'retired' | 'quarantined'): Promise<void> {
+/** Retire / quarantine / restore-to-candidate / verify. The host re-checks the state machine. */
+export async function setMemoryRecipeStatus(controller: KnoxGuiController, recipeId: string, status: 'retired' | 'quarantined' | 'candidate' | 'verified'): Promise<void> {
 	if (controller.store.state.memoryRecipeBusyId) {
 		return;
 	}
@@ -186,6 +204,13 @@ export async function setMemoryRecipeStatus(controller: KnoxGuiController, recip
 		controller.store.patch({ memoryRecipeBusyId: undefined });
 		await loadMemoryRecipes(controller);
 	}
+}
+
+/** T13: source checkpoint chips open the graph focused on that node. */
+export function openRecipeCheckpoint(controller: KnoxGuiController, checkpointId: string): void {
+	controller.store.patch({ selectedCheckpointId: checkpointId });
+	controller.store.navigate('/checkpoint-graph');
+	void controller.loadCheckpoints();
 }
 
 export async function loadMemorySessionHistory(controller: KnoxGuiController, sessionId: string): Promise<void> {
@@ -335,6 +360,60 @@ export async function loadMemoryConfig(controller: KnoxGuiController): Promise<v
 	}
 }
 
+export async function loadMemoryBrainSettings(controller: KnoxGuiController): Promise<void> {
+	try {
+		controller.store.patch({ memoryBrainSettings: parseMemoryBrainSettings(await controller.messenger.request('knox/memoryBrainSettings', undefined)) });
+	} catch {
+		// optional: older host
+	}
+}
+
+export async function setMemoryBrainSettings(controller: KnoxGuiController, patch: Partial<IKnoxGuiState['memoryBrainSettings']>): Promise<void> {
+	const before = controller.store.state.memoryBrainSettings;
+	controller.store.patch({ memoryBrainSettings: { ...before, ...patch } });
+	try {
+		controller.store.patch({ memoryBrainSettings: parseMemoryBrainSettings(await controller.messenger.request('knox/memoryBrainSettingsSet', patch)) });
+	} catch {
+		controller.store.patch({ memoryBrainSettings: before });
+	}
+}
+
+export async function resetMemoryExpertConfig(controller: KnoxGuiController): Promise<void> {
+	const keys = memoryExpertConfigKeys();
+	const next = { ...controller.store.state.memoryConfig };
+	for (const key of keys) {
+		if (Object.prototype.hasOwnProperty.call(MEMORY_DEFAULT_CONFIG, key)) {
+			next[key] = MEMORY_DEFAULT_CONFIG[key];
+			void controller.messenger.request('brain/updateConfig', memoryConfigUpdatePayload(key, MEMORY_DEFAULT_CONFIG[key]));
+		}
+	}
+	controller.store.patch({ memoryConfig: next });
+}
+
+export async function useMemorySessionAsContext(controller: KnoxGuiController, sessionId: string): Promise<void> {
+	try {
+		const result = asRecord(await controller.messenger.request('brain/useSessionAsContext', { sessionId }));
+		if (result?.ok === false) {
+			controller.store.patch({ memorySessionError: 'memorySessionUseAsContextFailed' });
+			return;
+		}
+		controller.store.patch({ memorySessionError: undefined, memoryActionMessage: 'memorySessionUsedAsContext' });
+	} catch {
+		controller.store.patch({ memorySessionError: 'memorySessionUseAsContextFailed' });
+	}
+}
+
+export async function deleteMemorySession(controller: KnoxGuiController, sessionId: string): Promise<void> {
+	await controller.deleteSessions([sessionId]);
+	if (controller.store.state.memorySelectedSessionId === sessionId) {
+		controller.store.patch({ memorySelectedSessionId: undefined, memorySessionHistory: undefined });
+	}
+	controller.store.patch({
+		memorySessions: controller.store.state.memorySessions.filter(session => session.id !== sessionId),
+	});
+	await controller.loadMemorySessions();
+}
+
 /** `MemorySettings.tsx` `saveConfig`: the saved checkmark shows for 2 s after the host accepts the write. */
 export function updateMemoryConfig(controller: KnoxGuiController, key: string, value: unknown): void {
 	controller.store.patch({ memoryConfig: { ...controller.store.state.memoryConfig, [key]: value } });
@@ -450,6 +529,113 @@ export async function pinMemories(controller: KnoxGuiController, ids: string[], 
 	}
 }
 
+export interface IKnoxMemoryWriteInput {
+	category: string;
+	title: string;
+	content: string;
+	id?: string;
+}
+
+function memoryWritePayload(input: IKnoxMemoryWriteInput): { category: string; title: string; content: string } | undefined {
+	const title = input.title.trim();
+	const content = input.content.trim();
+	if (!title || !content || !isMemoryWriteCategory(input.category)) {
+		return undefined;
+	}
+	return { category: input.category, title, content };
+}
+
+/** T2: Memories tab Create and composer Remember. No model call. */
+export async function createMemory(controller: KnoxGuiController, input: IKnoxMemoryWriteInput): Promise<boolean> {
+	const payload = memoryWritePayload(input);
+	if (!payload) {
+		showMemoryBanner(controller, 'error', { key: 'memoryCreateFailed' });
+		return false;
+	}
+	showMemoryBanner(controller, 'error', undefined);
+	controller.store.patch({ memoryBrowserBusy: true });
+	try {
+		const result = asRecord(await controller.messenger.request('brain/store', {
+			...payload,
+			importance: 0.85,
+			session_id: controller.store.state.sessionId,
+		}));
+		const id = Number(result?.id);
+		if (!Number.isInteger(id) || id <= 0) {
+			showMemoryBanner(controller, 'error', { key: 'memoryCreateFailed' });
+			return false;
+		}
+		const item = {
+			id: String(id),
+			title: payload.title,
+			content: payload.content,
+			category: payload.category,
+			createdAt: new Date().toISOString(),
+		};
+		controller.store.patch({ memories: [item, ...controller.store.state.memories.filter(memory => memory.id !== item.id)] });
+		showMemoryBanner(controller, 'notice', { key: 'memoryCreated' });
+		return true;
+	} catch {
+		showMemoryBanner(controller, 'error', { key: 'memoryCreateFailed' });
+		return false;
+	} finally {
+		controller.store.patch({ memoryBrowserBusy: false });
+	}
+}
+
+/** T2: Memories tab Edit. Updates the existing row; does not insert a new table. */
+export async function updateMemory(controller: KnoxGuiController, input: IKnoxMemoryWriteInput): Promise<boolean> {
+	const payload = memoryWritePayload(input);
+	const id = Number(input.id);
+	if (!payload || !Number.isInteger(id) || id <= 0) {
+		showMemoryBanner(controller, 'error', { key: 'memoryUpdateFailed' });
+		return false;
+	}
+	showMemoryBanner(controller, 'error', undefined);
+	controller.store.patch({ memoryBrowserBusy: true });
+	try {
+		const result = asRecord(await controller.messenger.request('brain/updateMemory', { id, ...payload }));
+		if (!result?.success) {
+			showMemoryBanner(controller, 'error', { key: 'memoryUpdateFailed' });
+			return false;
+		}
+		controller.store.patch({
+			memories: controller.store.state.memories.map(memory => memory.id === String(id) ? { ...memory, ...payload } : memory),
+		});
+		showMemoryBanner(controller, 'notice', { key: 'memoryUpdated' });
+		return true;
+	} catch {
+		showMemoryBanner(controller, 'error', { key: 'memoryUpdateFailed' });
+		return false;
+	} finally {
+		controller.store.patch({ memoryBrowserBusy: false });
+	}
+}
+
+/** T2: Memories tab "Not relevant" - same `brain/mismatchMemory` as inject chips. */
+export async function mismatchMemory(controller: KnoxGuiController, id: string): Promise<boolean> {
+	const numeric = Number(id);
+	if (!Number.isInteger(numeric) || numeric <= 0) {
+		return false;
+	}
+	showMemoryBanner(controller, 'error', undefined);
+	controller.store.patch({ memoryBrowserBusy: true });
+	try {
+		const result = asRecord(await controller.messenger.request('brain/mismatchMemory', { id: numeric, sessionId: controller.store.state.sessionId }));
+		if (!result?.success) {
+			showMemoryBanner(controller, 'error', { key: 'memoryMismatchFailed' });
+			return false;
+		}
+		showMemoryBanner(controller, 'notice', { key: 'memoryMismatched' });
+		return true;
+	} catch {
+		showMemoryBanner(controller, 'error', { key: 'memoryMismatchFailed' });
+		return false;
+	} finally {
+		controller.store.patch({ memoryBrowserBusy: false });
+	}
+}
+
 export type KnoxMemoryMaintenanceAction = 'optimize' | 'consolidate' | 'heal' | 'purge';
 
 type MemorySettingsResult = NonNullable<IKnoxGuiState['memorySettingsResult']>;
@@ -514,8 +700,8 @@ export async function exportMemory(controller: KnoxGuiController, password?: str
 			password: password?.trim() || undefined,
 		});
 		const rec = asRecord(result) ?? {};
-		const data = rec.data != null ? String(rec.data) : '';
-		const filePath = rec.filePath != null ? String(rec.filePath) : '';
+		const data = rec.data !== undefined && rec.data !== null ? String(rec.data) : '';
+		const filePath = rec.filePath !== undefined && rec.filePath !== null ? String(rec.filePath) : '';
 		controller.messenger.post('copyText', { text: data });
 		const sizeKb = (data.length / 1024).toFixed(1);
 		const base = filePath

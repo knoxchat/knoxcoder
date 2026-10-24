@@ -577,6 +577,14 @@ export class VsCodeExtension {
           settings,
         });
       }
+      if (
+        event.affectsConfiguration("knoxchat.recipes.enabled") &&
+        vscode.workspace.getConfiguration("knoxchat").get<boolean>("recipes.enabled", false)
+      ) {
+        void import("../checkpoints/recipeBlobPins")
+          .then((m) => m.registerRecipeBlobPins())
+          .catch(() => undefined);
+      }
     });
   }
 
@@ -613,6 +621,14 @@ export class VsCodeExtension {
       console.log('✅ Checkpoint system initialized successfully');
     } catch (error) {
       console.warn('⚠️ Checkpoint system initialization failed, continuing without checkpoints:', error);
+    }
+    if (vscode.workspace.getConfiguration("knoxchat").get<boolean>("recipes.enabled", false)) {
+      try {
+        const { registerRecipeBlobPins } = await import("../checkpoints/recipeBlobPins");
+        registerRecipeBlobPins();
+      } catch (error) {
+        console.warn("⚠️ Recipe blob pins were not registered:", error);
+      }
     }
   }
 

@@ -18,6 +18,8 @@ import { bindComposerIme, composerImeActive, composerImeFromInput } from './ime.
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { setComposerCollapsed } from './layout.js';
 import { renderImageAttach } from './attachments.js';
+import { composerRememberContent, memoryTitleFromContent } from '../../../../common/knoxGuiMemory.js';
+import { openMemoryForm, renderMemoryFormDialog } from '../memory/kit.js';
 
 export function syncInput(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
 	if (!widget.editorEl || !widget.inputWrap) {
@@ -126,6 +128,35 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 		extraClass: 'knox-gui-xs-hide',
 		onClick: () => widget.insertAddContext(),
 	});
+	const remember = widget.chromeButton(icons, {
+		svg: 'bookmark',
+		svgSize: 13,
+		title: t(state, 'composerRememberHint'),
+		testId: 'knox-gui-remember',
+		extraClass: 'knox-gui-xs-hide',
+		onClick: () => {
+			const live = widget.controller.store.state;
+			const content = composerRememberContent(widget.rememberSelection || composerSelectionText(widget), inputDocToPlainText(live.inputDoc));
+			widget.rememberSelection = '';
+			openMemoryForm(widget, {
+				origin: 'composer',
+				mode: 'create',
+				category: 'fact',
+				title: memoryTitleFromContent(content),
+				content,
+			});
+		},
+	});
+	remember.setAttribute('aria-label', t(state, 'composerRemember'));
+	widget.renderStore.add(DOM.addDisposableListener(remember, 'mousedown', () => {
+		widget.rememberSelection = composerSelectionText(widget);
+	}));
+	const rememberBanner = state.memoryBrowserNotice ?? state.memoryBrowserError;
+	if (rememberBanner && (rememberBanner.key === 'memoryCreated' || rememberBanner.key === 'memoryCreateFailed')) {
+		const toast = DOM.append(wrap, DOM.$('.knox-gui-remember-toast'));
+		toast.setAttribute('data-testid', 'composer-remember-notice');
+		toast.textContent = t(state, rememberBanner.key, { count: rememberBanner.count ?? 0 });
+	}
 
 	widget.renderModelSelect(left, state);
 	widget.renderReasoningSelect(left, state);
@@ -221,6 +252,26 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 		});
 		send.style.fontSize = `${knoxGuiRelativeFontSize(state.fontSize, -3)}px`;
 	}
+	if (widget.memoryForm?.origin === 'composer') {
+		renderMemoryFormDialog(widget, widget.root, state);
+	}
+}
+
+function composerSelectionText(widget: KnoxGuiWidget): string {
+	const editor = widget.editorEl;
+	if (!editor) {
+		return '';
+	}
+	const selection = editor.ownerDocument.getSelection();
+	if (!selection || selection.isCollapsed) {
+		return '';
+	}
+	const anchor = selection.anchorNode;
+	const focus = selection.focusNode;
+	if ((anchor && editor.contains(anchor)) || (focus && editor.contains(focus))) {
+		return selection.toString();
+	}
+	return '';
 }
 
 export function syncPlaceholder(widget: KnoxGuiWidget, editor: HTMLElement, state: IKnoxGuiState): void {

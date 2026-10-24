@@ -191,6 +191,7 @@ suite('Knox IDE façade contract (KN-210–222)', () => {
 		for (const name of [
 			'listWorkspaceCheckpoints',
 			'createWorkspaceCheckpoint',
+			'createWorkspaceCheckpointBranch',
 			'restoreWorkspaceCheckpoint',
 			'previewWorkspaceCheckpointRestore',
 			'diffWorkspaceCheckpoint',
@@ -200,5 +201,11 @@ suite('Knox IDE façade contract (KN-210–222)', () => {
 			assert.ok(hostDeclares(hostSrc, name), name);
 		}
 		assert.ok(repoFile('extensions/knox/src/core/tools/implementations/workspaceCheckpoint.ts').includes('extras.ide'));
+		const tool = repoFile('extensions/knox/src/core/tools/definitions/workspaceCheckpoint.ts');
+		assert.ok(tool.includes('create_branch'));
+		const impl = repoFile('extensions/knox/src/core/tools/implementations/workspaceCheckpoint.ts');
+		assert.ok(impl.includes('row.branch'));
+		assert.ok(impl.includes('row.label'));
+		assert.ok(!repoFile('extensions/knox/src/host/extension/VsCodeMessenger.ts').includes('getContextualAssistance'));
 	});
 });

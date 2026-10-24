@@ -30,9 +30,11 @@ export function registerBrainAdminHandlers(core: CoreRuntime): void {
       ]);
       // Best-effort metrics snapshot for trend dashboard (IMP-16).
       void BrainManager.storeMetricsSnapshot().catch(() => {});
+      const { MemoryPipeline } = await import("../context/memory/brain/MemoryPipeline.js");
       return {
         stats,
         health,
+        lastInject: MemoryPipeline.lastInjectPayload(),
         graphStats: graphCap
           ? {
               total_entities: graphCap.entity_count,

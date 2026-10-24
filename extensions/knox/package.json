@@ -400,11 +400,6 @@
 					"minimum": 1,
 					"description": "Create an automatic checkpoint after this many file changes"
 				},
-				"knox.checkpoints.auto.checkpointAfterAI": {
-					"type": "boolean",
-					"default": true,
-					"description": "Create an automatic checkpoint when an AI operation completes"
-				},
 				"knox.checkpoints.auto.checkpointBeforeRisky": {
 					"type": "boolean",
 					"default": true,
@@ -454,13 +449,14 @@
 					"type": "number",
 					"default": 50,
 					"minimum": 1,
-					"description": "Maximum checkpoints retained for a smart AI session"
+					"deprecationMessage": "Unused. Smart create defers to engine retention (knox.checkpoints.maxCheckpoints, default 1000) and pins. This key is ignored.",
+					"markdownDeprecationMessage": "Unused. Smart create defers to engine retention (`knox.checkpoints.maxCheckpoints`, default 1000) and pins. This key is ignored."
 				},
 				"knox.checkpoints.smart.maxFileSizeKB": {
 					"type": "number",
-					"default": 100,
+					"default": 5120,
 					"minimum": 1,
-					"description": "Skip files larger than this in smart AI-session tracking (KB)"
+					"description": "Skip files larger than this when tracking AI-session files (KB). Default matches engine maxFileSizeBytes (5 MB). Oversized files are logged with a skip reason."
 				},
 				"knox.checkpoints.smart.verboseLogging": {
 					"type": "boolean",

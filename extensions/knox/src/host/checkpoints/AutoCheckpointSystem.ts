@@ -1,22 +1,22 @@
 /**
  * Auto-Checkpoint System for Knox
- * 
+ *
  * Provides automatic checkpoint creation based on:
  * - Time intervals
  * - File change thresholds
- * - AI operation completion
+ * - Pre-risky mutating tools (collapsed into the labeled turn checkpoint)
  * - Manual triggers
- * 
+ *
  * Also implements an undo/redo stack for quick navigation between checkpoints.
  */
 
 import * as vscode from 'vscode';
 import { createKnoxLogger } from 'core/util/knoxLog';
+import { turnIntents } from 'core/context/soul/turnIntent';
 import { t } from '../i18n';
 import { CheckpointManager, CheckpointInfo } from './CheckpointManager';
 import {
     AUTO_CHECKPOINT_DEFAULTS,
-    isAiAutoCheckpointsEnabled,
     readAutoCheckpointSettings,
     type AutoCheckpointSettings,
 } from './checkpointSettings';
@@ -71,6 +71,8 @@ export class AutoCheckpointSystem {
     private workspaceChangeDisposable: vscode.Disposable | undefined;
     private checkpointCreatedSubscriptionRegistered = false;
     private extensionContext: vscode.ExtensionContext | undefined;
+    /** When true, `onCheckpointCreated` must not push (pre-undo snapshot is the redo target). */
+    private ignoreCreatedCheckpoints = false;
     
     // Event emitters
     private _onAutoCheckpointCreated = new vscode.EventEmitter<CheckpointInfo>();
@@ -225,10 +227,24 @@ export class AutoCheckpointSystem {
     }
     
     /**
+     * True while `startNativeTurn` has begun and `finishNativeTurn` has not labeled yet.
+     * File-threshold auto collapses into that turn's labeled restore point (T4 / MC-60).
+     */
+    private hasActiveAgentTurn(): boolean {
+        const sessionId = this.checkpointManager.getBoundAgentSessionId?.();
+        return Boolean(sessionId && turnIntents.isActive(sessionId));
+    }
+
+    /**
      * Check if we should create an auto-checkpoint
      */
     private async checkAutoCheckpointTrigger(): Promise<void> {
         if (!this.config.enabled || this.isCreatingCheckpoint) return;
+
+        if (this.hasActiveAgentTurn()) {
+            this.pendingChanges.clear();
+            return;
+        }
         
         const now = Date.now();
         const timeSinceLastCheckpoint = now - this.lastCheckpointTime;
@@ -267,8 +283,8 @@ export class AutoCheckpointSystem {
     /**
      * Create an automatic checkpoint
      */
-    private async createAutoCheckpoint(reason: string): Promise<void> {
-        if (this.isCreatingCheckpoint) return;
+    private async createAutoCheckpoint(reason: string): Promise<string | undefined> {
+        if (this.isCreatingCheckpoint) return undefined;
         
         this.isCreatingCheckpoint = true;
         
@@ -300,56 +316,51 @@ export class AutoCheckpointSystem {
                 }
                 
                 log.debug(`🔄 Auto-checkpoint created: ${checkpointId.substring(0, 8)} (${reason})`);
+                return checkpointId;
             }
         } catch (error) {
             log.error('Failed to create auto-checkpoint:', error);
         } finally {
             this.isCreatingCheckpoint = false;
         }
-    }
-    
-    /**
-     * Trigger checkpoint after AI operation
-     */
-    async onAIOperationComplete(operationType: string): Promise<void> {
-        if (!this.config.enabled || !this.config.checkpointAfterAI || !isAiAutoCheckpointsEnabled()) {
-            return;
-        }
-        
-        await this.createAutoCheckpoint('ai-operation');
-
-        const sessionId = CheckpointManager.getInstance().getBoundAgentSessionId();
-        if (!sessionId) {
-            return;
-        }
-        try {
-            const { recordSoulEvent } = await import("core/context/soul/recordSoulEvent");
-            await recordSoulEvent({
-                sessionId,
-                kind: "tool_success",
-                toolName: "ai_operation",
-                files: [],
-                ok: true,
-                summary: `AI operation complete: ${operationType}`,
-            });
-        } catch {
-            // Soul write is best-effort; the file CP already exists.
-        }
+        return undefined;
     }
     
     /**
      * Trigger checkpoint before risky operation (mutating tools).
-     * Respects minInterval to avoid thrashing on multi-tool turns.
+     * Reuses the labeled turn checkpoint when one already exists. Otherwise
+     * creates a safety snapshot and adopts it as the turn restore point.
      */
-    async onBeforeRiskyOperation(operationType: string): Promise<void> {
-        if (!this.config.enabled || !this.config.checkpointBeforeRisky) return;
+    async onBeforeRiskyOperation(
+        _operationType: string,
+        context?: { sessionId?: string; turnId?: string },
+    ): Promise<string | undefined> {
+        const existing = this.checkpointManager.peekTurnCheckpoint?.(
+            context?.sessionId,
+            context?.turnId,
+        );
+        if (existing) {
+            return existing;
+        }
+
+        if (!this.config.enabled || !this.config.checkpointBeforeRisky) {
+            return undefined;
+        }
 
         const timeSinceLast = Date.now() - this.lastCheckpointTime;
         if (timeSinceLast < this.config.minIntervalMs) {
-            return;
+            return undefined;
         }
 
-        await this.createAutoCheckpoint('pre-risky');
+        const checkpointId = await this.createAutoCheckpoint('pre-risky');
+        if (checkpointId && context?.sessionId && context?.turnId) {
+            this.checkpointManager.adoptTurnCheckpoint?.(
+                context.sessionId,
+                context.turnId,
+                checkpointId,
+            );
+        }
+        return checkpointId;
     }
     
     // ==================== Undo/Redo Stack ====================
@@ -358,6 +369,9 @@ export class AutoCheckpointSystem {
      * Add checkpoint to undo stack
      */
     private addToUndoStack(checkpointId: string): void {
+        if (this.ignoreCreatedCheckpoints) {
+            return;
+        }
         // Remove any redo history
         if (this.undoRedoState.currentIndex < this.undoRedoState.stack.length - 1) {
             this.undoRedoState.stack = this.undoRedoState.stack.slice(
@@ -417,19 +431,35 @@ export class AutoCheckpointSystem {
             vscode.window.showWarningMessage(t('checkpoint.auto.noPrevious'));
             return false;
         }
-        
-        // First create a checkpoint of current state (so we can redo)
-        const currentCheckpointId = await this.checkpointManager.createCheckpointForMessage(
-            `undo-save-${Date.now()}`,
-            'Auto: Pre-undo checkpoint'
-        );
-        
-        // Move to previous checkpoint
-        this.undoRedoState.currentIndex--;
-        const targetCheckpointId = this.undoRedoState.stack[this.undoRedoState.currentIndex];
+
+        const targetIndex = this.undoRedoState.currentIndex - 1;
+        const targetCheckpointId = this.undoRedoState.stack[targetIndex];
+
+        // Snapshot current (possibly dirty) state for redo. `onCheckpointCreated`
+        // must not push it as current — that would consume the undo step (T4).
+        this.ignoreCreatedCheckpoints = true;
+        let preUndoId: string | undefined;
+        try {
+            preUndoId = await this.checkpointManager.createCheckpointForMessage(
+                `undo-save-${Date.now()}`,
+                'Auto: Pre-undo checkpoint',
+            ) ?? undefined;
+        } catch (error) {
+            log.debug('Pre-undo snapshot failed:', error);
+        } finally {
+            this.ignoreCreatedCheckpoints = false;
+        }
         
         try {
             await this.restoreAndRewind(targetCheckpointId);
+
+            if (preUndoId) {
+                this.undoRedoState.stack = [
+                    ...this.undoRedoState.stack.slice(0, targetIndex + 1),
+                    preUndoId,
+                ];
+            }
+            this.undoRedoState.currentIndex = targetIndex;
 
             vscode.window.showInformationMessage(
                 t('checkpoint.auto.undoneTo', { id: targetCheckpointId.substring(0, 8) })
@@ -439,8 +469,6 @@ export class AutoCheckpointSystem {
             void this.persistUndoRedoState();
             return true;
         } catch (error) {
-            // Restore index on failure
-            this.undoRedoState.currentIndex++;
             log.error('Undo failed:', error);
             vscode.window.showErrorMessage(t('checkpoint.auto.failedUndo', { error: String(error) }));
             return false;

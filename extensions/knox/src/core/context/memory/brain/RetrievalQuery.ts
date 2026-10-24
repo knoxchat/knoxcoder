@@ -44,6 +44,12 @@ export const RETRIEVAL_QUERY_WORD_CAP = 16;
 export const FTS5_AND_TERM_CAP = 3;
 /** Messages shorter than this with no content words count as continuation. */
 export const SHORT_CONTINUATION_CHARS = 40;
+/**
+ * T6: a `new_task` whose content still overlaps the active topic at least this
+ * much reuses continuation expansion (topic + last substantial turn).
+ * Below this is a topic shift; do not mix last-turn terms in.
+ */
+export const NEW_TASK_TOPIC_EXPAND_JACCARD = 0.15;
 
 /**
  * Shared stopword list for retrieval and topic keyword extraction.
@@ -213,18 +219,30 @@ export function buildFts5Query(
   return `(${contentClause}) OR ${extraParts.join(" OR ")}`;
 }
 
+function shouldExpandWithTopic(input: RetrievalQueryInput, intent: RetrievalIntent, original: string): boolean {
+  if (input.continuationExpand === false) return false;
+  if (intent === "continuation") return true;
+  if (intent !== "new_task" || !input.topicKeywords) return false;
+  const overlap = jaccard(
+    new Set(contentWords(original)),
+    new Set(contentWords(input.topicKeywords)),
+  );
+  return overlap >= NEW_TASK_TOPIC_EXPAND_JACCARD;
+}
+
 /**
  * Expand a user message into a retrieval query (pure; no I/O).
  *
  * Continuation: current content words ∪ topic keywords ∪ last substantial turn.
- * New task: current content words only (stopwords stripped). Last turn is not mixed in.
+ * New task with mid Jaccard to the active topic: same expansion (T6).
+ * New task that shifted topics: current content words only.
  */
 export function expandRetrievalQuery(input: RetrievalQueryInput): RetrievalQueryResult {
   const original = input.message ?? "";
   const intent = detectIntent(original, input.topicKeywords, input.topicShiftJaccard);
   const bag: string[] = [...contentWords(original)];
 
-  if (intent === "continuation" && input.continuationExpand !== false) {
+  if (shouldExpandWithTopic(input, intent, original)) {
     if (input.topicKeywords) {
       bag.push(...contentWords(input.topicKeywords));
     }

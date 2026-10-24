@@ -8,6 +8,7 @@ import type {
   StoreInput
 } from "../types.js";
 import { cjkIndexTokens, isCjkToken } from "../cjkFts.js";
+import { contentWords } from "../RetrievalQuery.js";
 import { get } from "./connection.js";
 import { rowToSemantic } from "./mappers.js";
 import { addTag } from "./organization.js";
@@ -113,10 +114,86 @@ export async function storeSemantic(input: StoreInput): Promise<number> {
 }
 
 /**
+ * T2: edit an existing semantic row in place (category / title / content).
+ * FTS stays current via `brain_semantic_fts_update`.
+ */
+export async function updateSemantic(input: {
+  id: number;
+  category: SemanticCategory;
+  title: string;
+  content: string;
+  keywords?: string;
+}): Promise<boolean> {
+  const existing = await getSemanticById(input.id);
+  if (!existing) return false;
+  const cleanedTitle = InputSanitizer.enforce(input.title, "semantic.title");
+  const cleanedContent = InputSanitizer.enforce(input.content, "semantic.content");
+  const db = await get();
+  const result = await db.run(
+    `UPDATE brain_semantic
+     SET category = ?, title = ?, content = ?, keywords = ?
+     WHERE id = ?`,
+    [
+      input.category,
+      cleanedTitle,
+      cleanedContent,
+      input.keywords ?? existing.keywords,
+      input.id,
+    ],
+  );
+  if ((result.changes ?? 0) > 0) {
+    await auditLog("update", "semantic", input.id, {
+      category: input.category,
+      title: cleanedTitle,
+    });
+    return true;
+  }
+  return false;
+}
+
+/**
  * REL-08: insert or boost a near-duplicate. Auto-extract and BrainManager.store
  * share this so heuristic dumps do not create a second row.
  */
 export const DEDUP_SIMILARITY = 0.7;
+const CONTENT_SHARED_MIN = 2;
+
+/**
+ * LLM titles often differ from heuristic titles ("Always use bun" vs
+ * "Preference: use bun"). Merge only when one content-word set contains the
+ * other so "Alpha batch manage" and "Beta batch manage" stay distinct.
+ */
+async function findContentNearDuplicate(
+  input: StoreInput,
+): Promise<{ id: number; category: string; title: string; content: string } | undefined> {
+  const incoming = new Set(contentWords(input.content));
+  if (incoming.size < CONTENT_SHARED_MIN) return undefined;
+  const db = await get();
+  const rows = (await db.all(
+    `SELECT id, category, title, content FROM brain_semantic
+     WHERE category = ?
+       AND (expires_at IS NULL OR expires_at > datetime('now'))
+     ORDER BY created_at DESC
+     LIMIT 40`,
+    [input.category],
+  )) as { id: number; category: string; title: string; content: string }[];
+  for (const row of rows) {
+    const existing = new Set(contentWords(row.content));
+    if (existing.size < CONTENT_SHARED_MIN) continue;
+    if (isContentWordSubset(incoming, existing)) {
+      return row;
+    }
+  }
+  return undefined;
+}
+
+function isContentWordSubset(a: Set<string>, b: Set<string>): boolean {
+  const [small, large] = a.size <= b.size ? [a, b] : [b, a];
+  for (const word of small) {
+    if (!large.has(word)) return false;
+  }
+  return true;
+}
 
 export async function storeSemanticDeduped(
   input: StoreInput,
@@ -143,6 +220,20 @@ export async function storeSemanticDeduped(
     }
     await boostDuplicate(duplicates[0].id, input.content);
     return { id: duplicates[0].id, deduplicated: true };
+  }
+  const contentDup = await findContentNearDuplicate(input);
+  if (contentDup) {
+    if (CONTRADICTION_CATEGORIES.has(input.category)) {
+      if (conflictsWith({ id: -1, category: input.category, title: input.title, content: input.content }, contentDup)) {
+        const id = await storeSemantic(input);
+        const db = await get();
+        const row = (await db.get("SELECT id, category, title, content, created_at FROM brain_semantic WHERE id = ?", [id])) as any;
+        await supersedeConflicts(db, row).catch(() => []);
+        return { id, deduplicated: false };
+      }
+    }
+    await boostDuplicate(contentDup.id, input.content);
+    return { id: contentDup.id, deduplicated: true };
   }
   const id = await storeSemantic(input);
   return { id, deduplicated: false };

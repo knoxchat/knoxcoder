@@ -17,6 +17,7 @@ import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiRecipeDecision, IKnox
 import { IKnoxCoreChatHistoryItem, IKnoxCoreChatMessage, IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiExecuteDoomCalls, knoxGuiFlushStreamText, knoxGuiShouldSplitForTools, knoxGuiFallbackMessages, knoxGuiFormatTurnInject, knoxGuiHistoryToCoreHistory, knoxGuiMemoryGoal, knoxGuiShouldContinueTurn, knoxGuiToolIsSettled, knoxGuiTurnMessages, knoxGuiTurnTools } from '../../../common/knoxGuiAgentRequest.js';
 import { knoxGuiDequeue, knoxGuiEnqueue, knoxGuiNextToDrain } from '../../../common/knoxGuiQueue.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
+import { parseMemoryRecipeCapture } from '../../../common/knoxGuiMemory.js';
 import { cancelRecipeChoice, resolveRecipeDecision } from './recipe.js';
 import { isSharedTurnActive, runSharedTurn, sharedLoopEligible } from './sharedTurn.js';
 
@@ -112,7 +113,7 @@ export async function submit(controller: KnoxGuiController, starterPrompt?: stri
 		controller.store.setInput('');
 		controller.store.patch({ images: [], historicalImages: [] });
 	}
-	controller.store.patch({ editingUserIndex: undefined, autoScroll: true, isGatheringContext: true, streamError: undefined, recipeDecision: undefined, toolLoopSteps: 0 });
+	controller.store.patch({ editingUserIndex: undefined, autoScroll: true, isGatheringContext: true, streamError: undefined, recipeDecision: undefined, recipeCaptureToast: undefined, toolLoopSteps: 0 });
 	controller.closeSuggest();
 	controller.ensureSessionId();
 	if (!controller.store.state.sessionTitle) {
@@ -314,12 +315,17 @@ export function resolveAutonomousTool(controller: KnoxGuiController, id: string,
 /** `streamThunkWrapper.tsx` outermost exit: assistant recordMessage + post-turn memory. */
 export function finishTurn(controller: KnoxGuiController): void {
 	const history = controller.store.state.history;
-	controller.messenger.post('knox/finishTurn', {
+	void controller.messenger.request('knox/finishTurn', {
 		sessionId: controller.store.state.sessionId,
 		title: controller.store.state.sessionTitle ?? '',
 		...knoxGuiTurnMessages(history),
 		turnTools: knoxGuiTurnTools(history),
-	});
+	}).then(raw => {
+		const parsed = parseMemoryRecipeCapture(raw);
+		if (parsed) {
+			controller.store.patch({ memoryRecipeCapture: parsed, recipeCaptureToast: parsed });
+		}
+	}, () => { /* older host */ });
 }
 
 /**
@@ -781,11 +787,12 @@ export async function injectMemoryContext(controller: KnoxGuiController, userTex
 			void controller.loadMemoryMode();
 		}
 		const context = rec.context ? String(rec.context) : '';
+		const memoryLastInject = items.filter(item => item.kind !== 'timeout' && item.kind !== 'goal');
 		if (context || items.length) {
-			controller.store.patch({ injectedMemories: items });
+			controller.store.patch({ injectedMemories: items, memoryLastInject });
 			return context || undefined;
 		}
-		controller.store.patch({ injectedMemories: [] });
+		controller.store.patch({ injectedMemories: [], memoryLastInject: [] });
 	} catch {
 		controller.store.patch({
 			injectedMemories: [{

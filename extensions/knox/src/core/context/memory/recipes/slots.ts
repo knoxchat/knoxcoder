@@ -50,6 +50,112 @@ export function isSafeSlotValue(value: string): boolean {
   return /^[A-Za-z0-9_@][A-Za-z0-9_@./-]*$/.test(value);
 }
 
+export interface SlotFill {
+  /** Slot name → value taken from the message. */
+  values: Record<string, string>;
+  /** Slots that still need a value; exact replay is refused while this is > 0. */
+  unfilled: number;
+}
+
+const IDENTIFIER_STOPWORDS = new Set([
+  "a", "an", "the", "to", "of", "for", "in", "on", "and", "or", "please", "this", "that", "my", "new",
+]);
+
+function looksLikeName(value: string): boolean {
+  return /^[A-Z][A-Za-z0-9_]*$/.test(value) || /^[a-z]+[A-Z][A-Za-z0-9]*$/.test(value);
+}
+
+function uniquePush(out: string[], seen: Set<string>, value: string): void {
+  const key = value.toLowerCase();
+  if (seen.has(key)) return;
+  seen.add(key);
+  out.push(value);
+}
+
+/**
+ * T5 / MC-32: a token is only a slot value when it is an obvious path, package,
+ * or name — not every word in the sentence. Identifiers prefer the token after
+ * a naming keyword ("component Button") over PascalCase verbs ("Create").
+ */
+function candidatesOfKind(text: string, kind: RecipeSlot["kind"]): string[] {
+  const tokens = tokenize(text);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  if (kind === "identifier") {
+    const after: string[] = [];
+    const before: string[] = [];
+    const shaped: string[] = [];
+    for (let i = 0; i < tokens.length; i++) {
+      const value = tokens[i];
+      const word = value.toLowerCase();
+      if (NAMING_KEYWORDS.includes(word) && !PACKAGE_KEYWORDS.has(word)) {
+        const nxt = tokens[i + 1];
+        const prv = tokens[i - 1];
+        if (nxt && isSafeSlotValue(nxt) && nxt.length > 1 && !IDENTIFIER_STOPWORDS.has(nxt.toLowerCase())) after.push(nxt);
+        if (prv && isSafeSlotValue(prv) && prv.length > 1 && !IDENTIFIER_STOPWORDS.has(prv.toLowerCase())) before.push(prv);
+      }
+      if (looksLikeName(value) && isSafeSlotValue(value) && !IDENTIFIER_STOPWORDS.has(word)) shaped.push(value);
+    }
+    for (const value of [...after, ...before, ...shaped]) uniquePush(out, seen, value);
+    return out;
+  }
+  for (let i = 0; i < tokens.length; i++) {
+    const value = tokens[i];
+    if (!isSafeSlotValue(value)) continue;
+    if (kind === "path") {
+      if (value.includes("/") || /\.[A-Za-z0-9]{1,6}$/.test(value)) uniquePush(out, seen, value);
+      continue;
+    }
+    if (kind === "package") {
+      const neighbours = [tokens[i - 1], tokens[i + 1]].filter((w): w is string => !!w).map((w) => w.toLowerCase());
+      if (value.includes("@") || neighbours.some((w) => PACKAGE_KEYWORDS.has(w))) uniquePush(out, seen, value);
+      continue;
+    }
+    uniquePush(out, seen, value);
+  }
+  return out;
+}
+
+/**
+ * Fill recipe slots from the user's message (MC-32). Exact replay is allowed
+ * only when every slot can be filled with a value that also appears in the
+ * captured intent (same path/identifier). A different path still refuses exact.
+ */
+export function fillSlotsFromMessage(
+  slots: readonly RecipeSlot[],
+  message: string,
+  originalIntent = "",
+): SlotFill {
+  const values: Record<string, string> = {};
+  if (!slots.length) return { values, unfilled: 0 };
+  const used = new Set<string>();
+  const originalByKind = new Map<RecipeSlot["kind"], string[]>();
+  if (originalIntent) {
+    for (const kind of ["identifier", "path", "package", "text"] as const) {
+      originalByKind.set(
+        kind,
+        candidatesOfKind(originalIntent, kind).map((v) => v.toLowerCase()),
+      );
+    }
+  }
+  let unfilled = 0;
+  for (const slot of slots) {
+    const found = candidatesOfKind(message, slot.kind).find((value) => {
+      const key = value.toLowerCase();
+      if (used.has(key)) return false;
+      if (!originalIntent) return true;
+      return (originalByKind.get(slot.kind) ?? []).includes(key);
+    });
+    if (found) {
+      used.add(found.toLowerCase());
+      values[slot.name] = found;
+    } else {
+      unfilled++;
+    }
+  }
+  return { values, unfilled };
+}
+
 /** Longest-common-subsequence diff over lowercased tokens: returns the mismatched gaps. */
 function diffGaps(a: string[], b: string[]): { a: string[]; b: string[]; at: number }[] {
   const n = a.length;

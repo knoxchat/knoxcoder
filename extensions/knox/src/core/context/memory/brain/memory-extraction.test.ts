@@ -5,13 +5,16 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import type { ILLM } from "../../../index.js";
 import {
   AutoMemory,
   EXPLICIT_REMEMBER_IMPORTANCE,
   HEURISTIC_IMPORTANCE,
 } from "./AutoMemory.js";
+import { MemoryPipeline } from "./MemoryPipeline.js";
+import { runPostTurnWrite } from "./postTurnWrite.js";
 
 const testDir = path.join(os.tmpdir(), `brain-extract-${Date.now()}`);
 
@@ -102,6 +105,72 @@ describe("REL-08 heuristics", () => {
     );
     expect(explicit[0].importance).toBe(EXPLICIT_REMEMBER_IMPORTANCE);
   });
+
+  it("extracts a short preference without magic phrasing", () => {
+    const memories = AutoMemory.extractSemanticMemories("always use bun", "user");
+    expect(memories.some((m) => m.category === "preference")).toBe(true);
+    expect(memories[0].content.toLowerCase()).toContain("bun");
+  });
+
+  it("extracts use-X-for as a preference and we're-going-to-use as a decision", () => {
+    const pref = AutoMemory.extractSemanticMemories(
+      "Use bun for package installs.",
+      "user",
+    );
+    expect(pref.some((m) => m.category === "preference")).toBe(true);
+    const decision = AutoMemory.extractSemanticMemories(
+      "We're going to use SQLite for the brain store.",
+      "user",
+    );
+    expect(decision.some((m) => m.category === "decision")).toBe(true);
+    expect(decision[0].content.toLowerCase()).toContain("sqlite");
+  });
+
+  it("does not treat use-the-debugger as a preference", () => {
+    expect(
+      AutoMemory.extractSemanticMemories(
+        "Use the debugger for this breakpoint.",
+        "user",
+      ).some((m) => m.category === "preference"),
+    ).toBe(false);
+  });
+});
+
+describe("T1 post-turn write policy", () => {
+  it("does not skip a short preference or explicit remember", () => {
+    expect(
+      AutoMemory.shouldSkipPostTurnExtract({
+        userMessage: "always use bun",
+        assistantMessage: "",
+        minChars: 80,
+      }),
+    ).toBe(false);
+    expect(
+      AutoMemory.shouldSkipPostTurnExtract({
+        userMessage: "Remember bun is the package manager.",
+        assistantMessage: "",
+        minChars: 80,
+      }),
+    ).toBe(false);
+  });
+
+  it("skips true filler even when the assistant turn is long", () => {
+    expect(
+      AutoMemory.shouldSkipPostTurnExtract({
+        userMessage: "ok",
+        assistantMessage:
+          "I'll update the file with the latest changes from the branch now.",
+        minChars: 80,
+      }),
+    ).toBe(true);
+    expect(
+      AutoMemory.shouldSkipPostTurnExtract({
+        userMessage: "thanks",
+        assistantMessage: "",
+        minChars: 80,
+      }),
+    ).toBe(true);
+  });
 });
 
 describe("REL-08 store path", () => {
@@ -163,6 +232,22 @@ describe("REL-08 store path", () => {
     expect(rows.some((r) => /I'll update the file/i.test(r.content))).toBe(false);
   });
 
+  it("stores a short preference that used to miss the 30-char gate", async () => {
+    await reset();
+    const sessionId = "rel08-short-pref";
+    await BrainManager.trackSession(sessionId, "Short pref", testDir);
+    const result = await AutoMemory.extract("always use bun", "user", sessionId);
+    expect(result.semantic_count).toBe(1);
+    const db = await BrainStore.get();
+    const rows = (await db.all(
+      "SELECT category, content FROM brain_semantic WHERE source_session_id = ?",
+      [sessionId],
+    )) as { category: string; content: string }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].category).toBe("preference");
+    expect(rows[0].content.toLowerCase()).toContain("bun");
+  });
+
   it("Hippocampus.encode splits labeled User/Assistant blobs", async () => {
     await reset();
     const sessionId = "rel08-labeled";
@@ -179,5 +264,130 @@ describe("REL-08 store path", () => {
       [sessionId],
     )) as { content: string }[];
     expect(rows.some((r) => /sqlite/i.test(r.content))).toBe(true);
+  });
+});
+
+describe("T1 post-turn write", () => {
+  it("stores a short preference through the post-turn writer", async () => {
+    await reset();
+    const result = await runPostTurnWrite({
+      sessionId: "t1-short-pref",
+      userMessage: "always use bun",
+      assistantMessage: "Got it.",
+      title: "Short pref",
+      workspaceDir: testDir,
+    });
+    expect(result.skipped).toBe(false);
+    expect(result.heuristic_used).toBe(true);
+    expect(result.stored).toBeGreaterThan(0);
+    const db = await BrainStore.get();
+    const rows = (await db.all(
+      "SELECT category, content FROM brain_semantic WHERE source_session_id = ?",
+      ["t1-short-pref"],
+    )) as { category: string; content: string }[];
+    expect(rows.some((r) => r.category === "preference" && /bun/i.test(r.content))).toBe(
+      true,
+    );
+  });
+
+  it("skips filler turns", async () => {
+    await reset();
+    const result = await runPostTurnWrite({
+      sessionId: "t1-filler",
+      userMessage: "ok",
+      assistantMessage:
+        "I'll update the file with the latest changes from the branch now.",
+      title: "Filler",
+      workspaceDir: testDir,
+    });
+    expect(result.skipped).toBe(true);
+    expect(result.heuristic_used).toBe(false);
+    expect(result.stored).toBe(0);
+    const db = await BrainStore.get();
+    const row = await db.get(
+      "SELECT COUNT(*) as c FROM brain_semantic WHERE source_session_id = ?",
+      ["t1-filler"],
+    );
+    expect((row as { c: number }).c).toBe(0);
+  });
+
+  it("LLM write skips heuristic AutoMemory", async () => {
+    await reset();
+    const { brainRuntime } = await import("./manager/state.js");
+    const previous = brainRuntime.llm;
+    const pipeline = vi.spyOn(MemoryPipeline, "runPostTurn");
+    brainRuntime.llm = {
+      complete: async () =>
+        JSON.stringify({
+          memories: [
+            {
+              category: "preference",
+              title: "Preference: use bun",
+              content: "always use bun",
+              importance: 0.7,
+            },
+          ],
+          entities: [],
+          pattern: null,
+        }),
+    } as unknown as ILLM;
+    try {
+      await BrainStore.saveConfig("llm_post_action_memory_enabled", "true");
+      const result = await runPostTurnWrite({
+        sessionId: "t1-llm-primary",
+        userMessage: "always use bun",
+        assistantMessage: "I'll remember that.",
+        title: "LLM primary",
+        workspaceDir: testDir,
+      });
+      expect(result.skipped).toBe(false);
+      expect(result.llm_used).toBe(true);
+      expect(result.heuristic_used).toBe(false);
+      expect(pipeline).not.toHaveBeenCalled();
+      const db = await BrainStore.get();
+      const rows = (await db.all(
+        "SELECT category, title, content FROM brain_semantic WHERE source_session_id = ?",
+        ["t1-llm-primary"],
+      )) as { category: string; title: string; content: string }[];
+      const prefs = rows.filter((r) => r.category === "preference" && /bun/i.test(r.content));
+      expect(prefs).toHaveLength(1);
+    } finally {
+      pipeline.mockRestore();
+      brainRuntime.llm = previous;
+    }
+  });
+
+  it("heuristic AutoMemory runs when the LLM stores nothing", async () => {
+    await reset();
+    const llmPost = vi.spyOn(BrainManager, "llmPostActionMemory").mockResolvedValue({
+      memories_created: 0,
+      entities_created: 0,
+      patterns_recorded: 0,
+      llm_used: true,
+    });
+    try {
+      const result = await runPostTurnWrite({
+        sessionId: "t1-llm-empty",
+        userMessage: "always use bun",
+        assistantMessage: "I'll remember that.",
+        title: "LLM empty",
+        workspaceDir: testDir,
+      });
+      expect(result.skipped).toBe(false);
+      expect(result.llm_used).toBe(true);
+      expect(result.heuristic_used).toBe(true);
+      expect(result.stored).toBeGreaterThan(0);
+      expect(llmPost).toHaveBeenCalled();
+      const db = await BrainStore.get();
+      const rows = (await db.all(
+        "SELECT category, content FROM brain_semantic WHERE source_session_id = ?",
+        ["t1-llm-empty"],
+      )) as { category: string; content: string }[];
+      expect(
+        rows.some((r) => r.category === "preference" && /bun/i.test(r.content)),
+      ).toBe(true);
+    } finally {
+      llmPost.mockRestore();
+    }
   });
 });

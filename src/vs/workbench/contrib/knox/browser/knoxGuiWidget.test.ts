@@ -1635,6 +1635,45 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(store.state.checkpointDialog, null);
 	});
 
+	test('Restore preview lists extras unchecked and keeps a failed restore banner', async () => {
+		const { widget, store } = await mount();
+		store.navigate('/checkpoint-graph');
+		store.patch({
+			checkpointShell: { state: 'ready', checkpointCount: 1 },
+			checkpointDialog: 'restore',
+			checkpointRestoreId: 'cp-1',
+			checkpointRestorePreview: {
+				checkpointId: 'cp-1',
+				description: 'head',
+				modified: 1,
+				added: 0,
+				deleted: 1,
+				writePaths: ['a.ts'],
+				extraPaths: ['extra.ts'],
+				skippedFiles: [],
+				files: [
+					{ relativePath: 'a.ts', action: 'overwrite', additions: 1, deletions: 1, hunkCount: 1 },
+					{ relativePath: 'extra.ts', action: 'delete', additions: 0, deletions: 1, hunkCount: 1 },
+				],
+			},
+			checkpointRestoreSelected: ['a.ts'],
+			checkpointRestoreDeleteExtras: false,
+			checkpointRestoreError: 'restoreFailed',
+		});
+		const dialog = widget.root.querySelector('[data-testid="restore-preview-dialog"]');
+		assert.ok(dialog?.textContent?.includes('a.ts'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="restore-preview-error"]')?.textContent, 'Could not restore this checkpoint.');
+		const extra = widget.root.querySelector('[data-testid="restore-preview-extra"][data-path="extra.ts"] input') as HTMLInputElement | null;
+		assert.ok(extra);
+		assert.strictEqual(extra.checked, false);
+		const deleteExtras = widget.root.querySelector('[data-testid="restore-preview-delete-extras"]') as HTMLInputElement | null;
+		assert.ok(deleteExtras);
+		assert.strictEqual(deleteExtras.checked, false);
+		const restoreAll = [...widget.root.querySelectorAll<HTMLButtonElement>('.knox-gui-cpl-dialog-footer button')].find(button => button.textContent?.trim() === 'Restore all');
+		assert.ok(restoreAll);
+		assert.strictEqual(restoreAll.disabled, false);
+	});
+
 	test('I-11 / I-13 composer chips carry icons and dismiss, and the caret maps to doc positions', async () => {
 		const { widget, store } = await mount();
 		store.setInputDoc([{
@@ -1855,6 +1894,85 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		await widget.controller.pinMemories(['3'], true, false);
 		assert.strictEqual(store.state.memories[0].pinned, undefined);
 		assert.strictEqual(store.state.memoryBrowserError?.key, 'memoryPinFailed');
+	});
+
+	test('T2 memories tab create, edit, mismatch, and composer Remember', async () => {
+		const posted: Array<{ type: string; data: unknown }> = [];
+		const { widget, store } = await mount(message => {
+			posted.push({ type: message.messageType, data: message.data });
+			if (message.messageType === 'brain/store') {
+				return { id: 42 };
+			}
+			if (message.messageType === 'brain/updateMemory' || message.messageType === 'brain/mismatchMemory') {
+				return { success: true };
+			}
+			return {};
+		});
+		store.navigate('/memory');
+		await timeout(0);
+		store.patch({
+			memoryTab: 'memories',
+			memories: [{ id: '7', title: 'auth cookie', content: 'httpOnly cookie', category: 'fact', createdAt: new Date(Date.UTC(2026, 8, 1)).toISOString() }],
+		});
+		assert.ok(widget.root.querySelector('[data-testid="memory-create"]'));
+		(widget.root.querySelector('[data-testid="memory-create"]') as HTMLButtonElement).click();
+		assert.ok(widget.root.querySelector('[data-testid="memory-editor-dialog"]'));
+		const title = widget.root.querySelector('[data-testid="memory-editor-title"]') as HTMLInputElement;
+		const content = widget.root.querySelector('[data-testid="memory-editor-content"]') as HTMLTextAreaElement;
+		const category = widget.root.querySelector('[data-testid="memory-editor-category"]') as HTMLSelectElement;
+		const save = widget.root.querySelector('[data-testid="memory-editor-save"]') as HTMLButtonElement;
+		assert.strictEqual(save.disabled, true);
+		title.value = 'always use bun';
+		title.dispatchEvent(new Event('input', { bubbles: true }));
+		content.value = 'always use bun for package installs';
+		content.dispatchEvent(new Event('input', { bubbles: true }));
+		category.value = 'preference';
+		category.dispatchEvent(new Event('change', { bubbles: true }));
+		assert.strictEqual(save.disabled, false);
+		save.click();
+		for (let i = 0; i < 8 && widget.memoryForm; i++) {
+			await timeout(0);
+		}
+		assert.strictEqual(widget.memoryForm, null);
+		assert.ok(posted.some(entry => entry.type === 'brain/store' && (entry.data as { title?: string }).title === 'always use bun' && (entry.data as { category?: string }).category === 'preference'));
+		assert.ok(store.state.memories.some(memory => memory.id === '42' && memory.category === 'preference'));
+		assert.ok(!posted.some(entry => entry.type === 'tools/call'));
+		assert.strictEqual(store.state.memoryBrowserNotice?.key, 'memoryCreated');
+
+		(widget.root.querySelector('[data-testid="memory-edit-7"]') as HTMLButtonElement).click();
+		assert.ok(widget.root.querySelector('[data-testid="memory-editor-dialog"]'));
+		const editTitle = widget.root.querySelector('[data-testid="memory-editor-title"]') as HTMLInputElement;
+		const editContent = widget.root.querySelector('[data-testid="memory-editor-content"]') as HTMLTextAreaElement;
+		assert.strictEqual(editTitle.value, 'auth cookie');
+		editTitle.value = 'auth cookie httpOnly';
+		editTitle.dispatchEvent(new Event('input', { bubbles: true }));
+		editContent.value = 'use httpOnly cookies';
+		editContent.dispatchEvent(new Event('input', { bubbles: true }));
+		(widget.root.querySelector('[data-testid="memory-editor-save"]') as HTMLButtonElement).click();
+		for (let i = 0; i < 8 && widget.memoryForm; i++) {
+			await timeout(0);
+		}
+		assert.ok(posted.some(entry => entry.type === 'brain/updateMemory' && (entry.data as { id?: number }).id === 7));
+		assert.strictEqual(store.state.memories.find(memory => memory.id === '7')?.title, 'auth cookie httpOnly');
+
+		await widget.controller.mismatchMemory('7');
+		assert.ok(posted.some(entry => entry.type === 'brain/mismatchMemory' && (entry.data as { id?: number }).id === 7));
+		assert.strictEqual(store.state.memoryBrowserNotice?.key, 'memoryMismatched');
+
+		store.navigate('/');
+		await timeout(0);
+		store.patch({ inputDoc: inputDocFromPlainText('never commit secrets') });
+		(widget.root.querySelector('[data-testid="knox-gui-remember"]') as HTMLButtonElement).click();
+		assert.ok(widget.root.querySelector('[data-testid="composer-remember-dialog"]'));
+		const rememberContent = widget.root.querySelector('[data-testid="memory-editor-content"]') as HTMLTextAreaElement;
+		assert.ok(rememberContent.value.includes('never commit secrets'));
+		posted.length = 0;
+		(widget.root.querySelector('[data-testid="memory-editor-save"]') as HTMLButtonElement).click();
+		for (let i = 0; i < 8 && widget.memoryForm; i++) {
+			await timeout(0);
+		}
+		assert.ok(posted.some(entry => entry.type === 'brain/store' && (entry.data as { content?: string })?.content?.includes('never commit secrets')));
+		assert.ok(!posted.some(entry => entry.type === 'tools/call'));
 	});
 
 	test('K-17 graph: reveal open details and find hit, hover cleared on scroll, Cmd+H only scrolls, menu flip, prompt form', async () => {
@@ -2244,6 +2362,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="memory-session-error"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-session-history-loading"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-session-count"]')?.textContent?.includes('1'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-session-use-context"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-session-delete"]'));
 
 		const entity = (id: number, entityType: string) => ({ id, name: `E${id}`, entityType, mentionCount: 1 });
 		store.patch({
@@ -2269,6 +2389,10 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-settings"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-settings-loading"]'));
 		store.patch({ memoryConfigLoading: false, memoryConfig: { retrieval_top_k: 20, wm_inject_min_relevance: 0.35 } });
+		assert.ok(widget.root.querySelector('[data-testid="memory-brain-enabled"]'));
+		assert.ok(widget.root.querySelector('[data-setting="retrieval_top_k"]'));
+		assert.strictEqual(widget.root.querySelector('[data-setting="wm_inject_min_relevance"]'), null, 'expert retrieval stays collapsed');
+		(widget.root.querySelector('[data-testid="memory-expert-retrieval-toggle"]') as HTMLButtonElement).click();
 		assert.strictEqual(widget.root.querySelector<HTMLInputElement>('[data-setting="wm_inject_min_relevance"] input')?.value, '35');
 		const topK = () => widget.root.querySelector<HTMLInputElement>('[data-setting="retrieval_top_k"] input')!;
 		sent.length = 0;
@@ -2332,6 +2456,21 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		});
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-memory-browser"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-row-7"]')?.textContent?.includes('auth cookie'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="memory-row-inject-7"]'), null);
+
+		store.patch({
+			memoryTab: 'overview',
+			memoryLastInject: [{ id: 7, kind: 'semantic', title: 'auth cookie', reason: 'lexical: jwt', evidence: ['jwt'] }],
+			memoryDashboard: {
+				...(store.state.memoryDashboard ?? { totalSessions: 0, totalEpisodic: 0, totalSemantic: 0, totalEntities: 0, totalEdges: 0 }),
+				lastInject: [{ id: 7, kind: 'semantic', title: 'auth cookie', reason: 'lexical: jwt', evidence: ['jwt'] }],
+			},
+		});
+		assert.ok(widget.root.querySelector('[data-testid="memory-last-inject"]')?.textContent?.includes('injected last turn'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-last-inject"]')?.textContent?.includes('lexical: jwt'));
+		store.patch({ memoryTab: 'memories' });
+		assert.ok(widget.root.querySelector('[data-testid="memory-row-inject-7"]')?.textContent?.includes('injected last turn'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-row-inject-7"]')?.textContent?.includes('lexical: jwt'));
 
 		store.patch({
 			memoryTab: 'sessions',
@@ -2372,8 +2511,10 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		store.patch({
 			memoryTab: 'recipes',
 			memoryRecipes: [
-				{ id: 'rec1', title: 'Add lint script', status: 'verified', scope: 'project', uses: 5, ok: 5, reverted: 0, failedVerify: 0, files: 2, sourceCheckpointIds: ['abcdef1234'] },
+				{ id: 'rec1', title: 'Add lint script', status: 'verified', scope: 'project', uses: 5, ok: 5, reverted: 0, failedVerify: 0, files: 2, sourceCheckpointIds: ['abcdef1234'], skillEligible: true },
 				{ id: 'rec2', title: 'Old recipe', status: 'retired', scope: 'project', uses: 1, ok: 0, reverted: 1, failedVerify: 0, files: 1, sourceCheckpointIds: [] },
+				{ id: 'rec3', title: 'Lint candidate', status: 'candidate', scope: 'project', uses: 0, ok: 0, reverted: 0, failedVerify: 0, files: 1, oracleKind: 'build', sourceCheckpointIds: [] },
+				{ id: 'rec4', title: 'Paused recipe', status: 'quarantined', scope: 'project', uses: 1, ok: 0, reverted: 1, failedVerify: 0, files: 1, sourceCheckpointIds: [] },
 			],
 			memoryRecipeCapture: undefined,
 		});
@@ -2381,7 +2522,15 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(recipesPane?.textContent?.includes('Add lint script'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-retire-rec1"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-quarantine-rec1"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-preview-rec1"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-replay-rec1"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-skill-project-rec1"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-checkpoint-rec1-abcdef12"]'));
 		assert.strictEqual(widget.root.querySelector('[data-testid="memory-recipe-retire-rec2"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="memory-recipe-preview-rec2"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="memory-recipe-replay-rec2"]'), null);
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-verify-rec3"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-restore-rec4"]'));
 
 		store.patch({
 			memoryTab: 'settings',
@@ -3278,6 +3427,42 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		card.querySelector<HTMLButtonElement>('button')!.click();
 		assert.strictEqual(widget.root.querySelector('[data-testid="chat-list-error"]'), null);
 		assert.ok(widget.root.querySelector('[data-testid="large-session-banner"]'));
+	});
+	test('T5 recipe capture toast links to Memory → Recipes', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			recipeCaptureToast: { captured: true, title: 'Add lint script', status: 'candidate' },
+		});
+		const toast = widget.root.querySelector('[data-testid="recipe-capture-toast"]');
+		assert.ok(toast?.textContent?.includes('Add lint script'));
+		assert.ok(widget.root.querySelector('[data-testid="recipe-capture-toast-open"]'));
+		(widget.root.querySelector('[data-testid="recipe-capture-toast-open"]') as HTMLButtonElement).click();
+		await timeout(0);
+		assert.strictEqual(store.state.route, KnoxGuiRoute.Memory);
+		assert.strictEqual(store.state.memoryTab, 'recipes');
+		assert.strictEqual(store.state.recipeCaptureToast, undefined);
+	});
+	test('T5 Recipes tab Preview shows the ask card for a verified recipe', async () => {
+		const { widget, store } = await mount();
+		store.navigate('/memory');
+		await timeout(0);
+		store.patch({
+			memoryTab: 'recipes',
+			memoryRecipes: [{ id: 'rec1', title: 'Add lint script', status: 'verified', scope: 'project', uses: 1, ok: 1, reverted: 0, failedVerify: 0, files: 1, sourceCheckpointIds: [] }],
+			recipeSettings: { enabled: true, autoReplay: 'ask', selfImprove: false },
+			recipeDecision: {
+				mode: 'exact',
+				why: '',
+				needsConfirmation: true,
+				awaitingChoice: true,
+				source: 'tab',
+				preview: '1 file(s), +1 -0',
+				recipe: { id: 'rec1', title: 'Add lint script', uses: 1, reverts: 0, score: 1 },
+			},
+		});
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-preview-card"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-preview-apply"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-preview-skip"]'));
 	});
 	test('K-102/MC-90 recipe preview card names latency and is labelled', async () => {
 		const { widget, store } = await mount();

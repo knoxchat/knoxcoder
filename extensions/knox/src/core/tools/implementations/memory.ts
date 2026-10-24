@@ -1,24 +1,23 @@
 import { BrainManager } from "../../context/memory/brain/BrainManager.js";
-import type { MemoryBrainAction } from "../../context/memory/brain/types.js";
 import {
   isMemoryReadAction,
   memoryWriteBlockedMessage,
 } from "../../context/soul/memoryAccess.js";
+import {
+  MEMORY_PRODUCT_ACTIONS,
+  type MemoryProductAction,
+} from "../definitions/memory.js";
 
 import { ToolImpl } from ".";
 
-export const memoryImpl: ToolImpl = async (args, extras) => {
-  const action: MemoryBrainAction = args.action;
+const PRODUCT_ACTIONS = new Set<string>(MEMORY_PRODUCT_ACTIONS);
 
-  if (extras.soul?.readonlyMemory && action && !isMemoryReadAction(action)) {
-    return [
-      {
-        name: "Memory",
-        description: "Memory Brain Error",
-        content: memoryWriteBlockedMessage(action),
-      },
-    ];
-  }
+function isProductMemoryAction(action: string): action is MemoryProductAction {
+  return PRODUCT_ACTIONS.has(action);
+}
+
+export const memoryImpl: ToolImpl = async (args, extras) => {
+  const action = typeof args.action === "string" ? args.action : "";
 
   if (!action) {
     return [
@@ -31,17 +30,33 @@ export const memoryImpl: ToolImpl = async (args, extras) => {
     ];
   }
 
+  if (!isProductMemoryAction(action)) {
+    return [
+      {
+        name: "Memory",
+        description: "Memory Brain Error",
+        content: `Action "${action}" is not available on builtin_memory. Use store, recall, search, delete, build_context, pin, or unpin. Admin stays on brain/* host handlers.`,
+      },
+    ];
+  }
+
+  if (extras.soul?.readonlyMemory && !isMemoryReadAction(action)) {
+    return [
+      {
+        name: "Memory",
+        description: "Memory Brain Error",
+        content: memoryWriteBlockedMessage(action),
+      },
+    ];
+  }
+
   // Pass LLM to BrainManager for LLM-enhanced features
   if (extras.llm) {
     BrainManager.setLlm(extras.llm);
   }
 
   try {
-    const dispatchArgs =
-      action === "run_pipeline" && args.pipeline_mode
-        ? { ...args, mode: args.pipeline_mode }
-        : args;
-    const result = await BrainManager.dispatch(action, dispatchArgs);
+    const result = await BrainManager.dispatch(action, args);
     return [
       {
         name: "Memory",

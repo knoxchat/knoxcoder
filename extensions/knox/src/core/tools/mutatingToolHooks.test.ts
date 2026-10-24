@@ -20,6 +20,33 @@ const editTool = {
 } as Tool;
 
 describe("executeToolWithSoulHooks", () => {
+  it("skips ensureTurnCheckpoint when pre-risky already returned this turn's id", async () => {
+    const ide = mockIde({
+      runPreRiskyCheckpoint: vi.fn(async () => ({ checkpointId: "cp-pre-1" })),
+    });
+    const result = await executeToolWithSoulHooks({
+      tool: editTool,
+      toolName: "builtin_edit_file",
+      rawArgs: { filepath: "src/a.ts", old_string: "x", new_string: "y" },
+      ide,
+      sessionId: "sess-1",
+      turnId: "turn-1",
+      execute: async () => [
+        { name: "edit", description: "ok", content: "updated" },
+      ],
+    });
+
+    expect(ide.runPreRiskyCheckpoint).toHaveBeenCalledWith({
+      toolName: "builtin_edit_file",
+      sessionId: "sess-1",
+      turnId: "turn-1",
+    });
+    expect(ide.ensureTurnCheckpoint).not.toHaveBeenCalled();
+    expect(result.some((item) => item.content.includes("checkpoint=cp-pre-1"))).toBe(
+      true,
+    );
+  });
+
   it("creates a turn checkpoint and undo snapshots for mutating tools", async () => {
     const ide = mockIde();
     const items: ContextItem[] = [

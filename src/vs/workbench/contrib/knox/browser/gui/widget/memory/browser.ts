@@ -13,6 +13,7 @@ import {
 	filterAndSortMemories,
 	formatMemoryDate,
 	groupMemoriesByDate,
+	memoryInjectedLastTurnLine,
 	memoriesToExportJson,
 	memoriesToExportMarkdown,
 	MEMORY_BROWSER_CATEGORY_ICONS,
@@ -30,12 +31,17 @@ import {
 	spinner,
 	memoryButton,
 	memoryConfirmDialog,
+	openMemoryForm,
+	renderMemoryFormDialog,
 } from './kit.js';
 import { applyMemoryBrowserFilter } from './filters.js';
 
 export function renderMemoryBrowser(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void { // KN-376 KN-311
 	body.classList.add(...memoryClasses('py-4 sy-3').split(' '));
 	renderMemoryDeleteDialog(widget, body, state);
+	if (widget.memoryForm?.origin === 'browser') {
+		renderMemoryFormDialog(widget, body, state);
+	}
 	const resetSelection = () => {
 		widget.memorySelectedIds.clear();
 		widget.memoryLastClickedId = null;
@@ -172,16 +178,24 @@ export function renderMemoryBrowser(widget: KnoxGuiWidget, body: HTMLElement, st
 	const tools = mk(toolbar, 'div', 'flex flex-wrap items-center gap-1');
 	const selected = [...widget.memorySelectedIds];
 	const busy = state.memoryBrowserBusy;
-	const toolButton = (icon: KnoxGuiSvgIcon, label: string, title: string, onClick: () => void, options?: { disabled?: boolean; danger?: boolean; smInline?: boolean }) => memoryButton(widget, tools, {
+	const toolButton = (icon: KnoxGuiSvgIcon, label: string, title: string, onClick: () => void, options?: { disabled?: boolean; danger?: boolean; smInline?: boolean; testId?: string }) => memoryButton(widget, tools, {
 		tokens: options?.danger ? 'toolbar-btn is-danger' : 'toolbar-btn btn-secondary',
 		icon,
 		label,
 		labelTokens: options?.smInline ? 'sm-inline' : '',
 		title,
 		disabled: options?.disabled,
+		testId: options?.testId,
 		onClick,
 	});
 	if (!widget.memorySelectionMode) {
+		toolButton('plus', t(state, 'memoryCreate'), t(state, 'memoryCreateTitle'), () => openMemoryForm(widget, {
+			origin: 'browser',
+			mode: 'create',
+			category: 'fact',
+			title: '',
+			content: '',
+		}), { testId: 'memory-create' });
 		toolButton('check-square', t(state, 'select'), t(state, 'memorySelectMultiple'), () => { widget.memorySelectionMode = true; widget.render(); });
 	} else {
 		toolButton('check-square', t(state, 'selectAll'), t(state, 'memorySelectAllMemories'), selectAll);
@@ -337,11 +351,38 @@ function renderMemoryRow(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxG
 			onClick: () => void widget.controller.pinMemories([memory.id], !memory.pinned, false),
 		});
 		memoryButton(widget, hover, {
+			tokens: 'row-action',
+			icon: 'square-pen',
+			title: t(state, 'memoryEdit'),
+			testId: `memory-edit-${memory.id}`,
+			onClick: () => openMemoryForm(widget, {
+				origin: 'browser',
+				mode: 'edit',
+				id: memory.id,
+				category: memory.category || 'fact',
+				title: memory.title,
+				content: memory.content ?? '',
+			}),
+		});
+		memoryButton(widget, hover, {
+			tokens: 'row-action',
+			icon: 'thumbs-down',
+			title: t(state, 'memoryNotRelevant'),
+			testId: `memory-mismatch-${memory.id}`,
+			onClick: () => void widget.controller.mismatchMemory(memory.id),
+		});
+		memoryButton(widget, hover, {
 			tokens: 'row-action is-forget',
 			icon: 'x',
 			title: t(state, 'memoryForget'),
 			onClick: () => { widget.memoryConfirmDeleteIds = [memory.id]; widget.memoryConfirmDeleteBulk = false; widget.render(); },
 		});
+	}
+	const inject = memoryInjectedLastTurnLine(memory.id, state.memoryLastInject);
+	if (inject) {
+		const line = mk(row, 'div', 'mt-0_5 pl-6 xs o-60');
+		line.setAttribute('data-testid', `memory-row-inject-${memory.id}`);
+		line.textContent = t(state, inject.key, inject.params);
 	}
 	if (widget.memoryExpandedId !== memory.id) {
 		mk(row, 'div', 'mt-1 truncate pl-6 xs o-55', memorySnippet(memory.content ?? memory.title));
@@ -358,6 +399,7 @@ function renderMemoryRow(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxG
 			mk(meta, 'span', '', `${t(state, 'memoryDetailLastAccessed')}: ${formatMemoryDate(memory.lastAccessedAt)}`);
 		}
 		if (memory.sourceSessionId) {
+			// allow-any-unicode-next-line
 			mk(meta, 'span', '', `${t(state, 'memoryDetailSession')}: ${memory.sourceSessionId.slice(0, 8)}…`);
 		}
 		if (memory.keywords) {

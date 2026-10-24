@@ -24,7 +24,7 @@ export function selectAgentTools(
   opts: {
     systems?: boolean;
     debugSessionActive?: boolean;
-    /** Default false: composites stay off the model catalog (knox-impl §7). */
+    /** Default false: composites stay off the model catalog. */
     enableCompositeTools?: boolean;
   } = {},
 ): Tool[] {

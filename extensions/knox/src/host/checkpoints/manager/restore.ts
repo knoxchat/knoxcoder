@@ -257,6 +257,8 @@ export async function cleanupExtraFiles(
 export interface RestoreTestHooks {
     beforeWrite?: (relativePath: string, index: number) => Promise<void> | void;
     shouldCancel?: (relativePath: string, index: number) => boolean;
+    /** Throws here leave the journal on disk so recoverIncompleteRestore can finish. */
+    afterJournalWrite?: () => Promise<void> | void;
 }
 
 let restoreTestHooks: RestoreTestHooks | undefined;
@@ -394,6 +396,7 @@ export async function restoreCheckpoint(
                     status: 'writing',
                 };
                 await writeRestoreJournal(host, journal);
+                await restoreTestHooks?.afterJournalWrite?.();
             }
 
             progress.report({ increment: 20, message: t('checkpoint.restoreProgress.files') });

@@ -58,7 +58,6 @@ export const KNOX_CHECKPOINT_SETTING_IDS = [
   "knox.checkpoints.auto.minIntervalMs",
   "knox.checkpoints.auto.maxIntervalMs",
   "knox.checkpoints.auto.fileChangeThreshold",
-  "knox.checkpoints.auto.checkpointAfterAI",
   "knox.checkpoints.auto.checkpointBeforeRisky",
   "knox.checkpoints.auto.maxUndoStack",
   "knox.checkpoints.auto.showNotifications",
@@ -67,7 +66,6 @@ export const KNOX_CHECKPOINT_SETTING_IDS = [
   "knox.checkpoints.smart.agentModeOnly",
   "knox.checkpoints.smart.maxTrackedFiles",
   "knox.checkpoints.smart.maxMemoryUsageMB",
-  "knox.checkpoints.smart.maxCheckpoints",
   "knox.checkpoints.smart.maxFileSizeKB",
   "knox.checkpoints.smart.verboseLogging",
   "knox.checkpoints.smart.enableMetrics",
@@ -83,6 +81,7 @@ export const KNOX_CHECKPOINT_SETTING_IDS = [
 export const KNOX_DEPRECATED_SETTING_IDS = [
   "knoxchat.sandbox",
   "knoxchat.sharedLoop",
+  "knox.checkpoints.smart.maxCheckpoints",
 ] as const;
 
 export const KNOX_SETTING_IDS = [

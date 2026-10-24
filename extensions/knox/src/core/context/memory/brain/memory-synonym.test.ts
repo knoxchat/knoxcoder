@@ -31,4 +31,32 @@ describe("REL-16 synonym expansion", () => {
     expect(getSynonymAdditions("continue with auth", { continuation: true })).toEqual([]);
     expect(expandQuerySynonyms("config", { continuation: true })).toBe("config");
   });
+
+  it("expands invoice/tax, a11y, and design-system paraphrases (T6)", () => {
+    expect(getSynonymAdditions("calculate the invoice total with tax")).toEqual(
+      expect.arrayContaining(["money", "cents"]),
+    );
+    expect(getSynonymAdditions("accessible name for the dialog")).toEqual(
+      expect.arrayContaining(["a11y"]),
+    );
+    expect(getSynonymAdditions("use the design-system tokens")).toEqual(
+      expect.arrayContaining(["components"]),
+    );
+  });
+
+  it("prefers the longer phrase so icon-only and settings-card hit a11y / design-system (T12)", () => {
+    expect(getSynonymAdditions("build an icon-only close button for the dialog")).toEqual(
+      expect.arrayContaining(["a11y"]),
+    );
+    expect(getSynonymAdditions("create a settings card with a toggle")).toEqual(
+      expect.arrayContaining(["design-system", "tokens"]),
+    );
+    // Bare "settings" still means config/preferences, not the UI kit.
+    expect(getSynonymAdditions("open settings")).toEqual(
+      expect.arrayContaining(["configuration", "preferences"]),
+    );
+    expect(getSynonymAdditions("open settings")).not.toEqual(
+      expect.arrayContaining(["design-system"]),
+    );
+  });
 });

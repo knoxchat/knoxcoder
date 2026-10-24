@@ -1,10 +1,9 @@
-import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { t } from '../i18n';
 import { CheckpointManager } from './CheckpointManager';
 import { notifyCheckpointRestored } from './notifyRestore';
 
-/** Restore operations behind CheckpointChatIntegration (split out; no logic change). */
+/** Restore operations behind CheckpointChatIntegration. */
 export class CheckpointRestoreOps {
     constructor(private readonly getManager: () => CheckpointManager) {}
 
@@ -14,17 +13,19 @@ export class CheckpointRestoreOps {
 
     /**
      * Restore a checkpoint by ID (direct restore without confirmation).
-     * Applies the same write + extra-delete set as previewRestore so GUI/agent
-     * Restore All matches the preview the user already saw.
+     * GUI Restore All and the agent restore tool use the journaled engine
+     * (`restoreCheckpoint`) so a crash can roll back or recover on next init.
+     * Preview still runs first so a no-op restore does not create a backup.
      */
     async restoreCheckpointDirect(
         checkpointId: string,
-        options?: { rewindMemory?: boolean; silent?: boolean },
+        options?: { rewindMemory?: boolean; silent?: boolean; cleanupExtraFiles?: boolean },
     ): Promise<{
         success: boolean;
         restoredFiles: string[];
         failedFiles: Array<{ path: string; error: string }>;
         skippedFiles: Array<{ path: string; reason: string }>;
+        removedFiles?: string[];
         message?: string;
         memoryRewound?: boolean;
         memoryMessage?: string;
@@ -33,6 +34,7 @@ export class CheckpointRestoreOps {
             restoredFiles: [] as string[],
             failedFiles: [] as Array<{ path: string; error: string }>,
             skippedFiles: [] as Array<{ path: string; reason: string }>,
+            removedFiles: [] as string[],
         };
         try {
             const checkpointInfo = this.checkpointManager.getCheckpointInfo(checkpointId);
@@ -45,9 +47,10 @@ export class CheckpointRestoreOps {
                 reason: skipped.reason,
             }));
 
-            const result = await this.applyRestorePreview(checkpointId, {
+            const result = await this.applyJournaledRestore(checkpointId, {
                 createBackup: true,
                 conflictResolution: 'overwrite',
+                cleanupExtraFiles: options?.cleanupExtraFiles,
             });
             
             if (result.success) {
@@ -67,6 +70,7 @@ export class CheckpointRestoreOps {
                     restoredFiles: result.restoredFiles,
                     failedFiles: result.failedFiles,
                     skippedFiles,
+                    removedFiles: result.removedFiles,
                     memoryRewound: notified.memoryRewound,
                     memoryMessage: notified.memoryMessage,
                 };
@@ -82,6 +86,7 @@ export class CheckpointRestoreOps {
                     restoredFiles: result.restoredFiles,
                     failedFiles: result.failedFiles,
                     skippedFiles,
+                    removedFiles: result.removedFiles,
                     message: 'Partial failure',
                 };
             }
@@ -95,13 +100,16 @@ export class CheckpointRestoreOps {
     }
 
     /**
-     * Apply preview writePaths + extraPaths (or a full restore if preview is unavailable).
+     * Full Restore All through the journaled engine. Preview is only used to
+     * skip a no-op; writes, extra-file cleanup, backup, and rollback all go
+     * through `restoreCheckpoint`.
      */
-    private async applyRestorePreview(
+    private async applyJournaledRestore(
         checkpointId: string,
         options?: {
             createBackup?: boolean;
             conflictResolution?: 'overwrite' | 'prompt';
+            cleanupExtraFiles?: boolean;
         },
     ): Promise<{
         success: boolean;
@@ -129,30 +137,10 @@ export class CheckpointRestoreOps {
             };
         }
 
-        if (preview) {
-            if (options?.createBackup !== false) {
-                await this.checkpointManager.createManualCheckpoint({
-                    description: `Pre-restore backup for ${checkpointId}`,
-                    allowEmpty: true,
-                    forceBaseline: true,
-                });
-            }
-            const result = await this.checkpointManager.restoreCheckpointFiles(
-                checkpointId,
-                [...preview.writePaths, ...preview.extraPaths],
-            );
-            return {
-                success: result.success,
-                restoredFiles: result.restoredFiles,
-                failedFiles: result.failedFiles,
-                alreadyCurrent: false,
-            };
-        }
-
         const result = await this.checkpointManager.restoreCheckpoint(checkpointId, {
             createBackup: options?.createBackup !== false,
             conflictResolution: options?.conflictResolution ?? 'overwrite',
-            cleanupExtraFiles: true,
+            cleanupExtraFiles: options?.cleanupExtraFiles !== false,
         });
         return {
             success: result.success,
@@ -236,9 +224,17 @@ export class CheckpointRestoreOps {
                 if (!picked || picked.length === 0) {
                     return;
                 }
+                const writePaths = preview?.writePaths;
+                const relativePaths = picked
+                    .map((item) => item.relativePath)
+                    .filter((relativePath) => !writePaths || writePaths.includes(relativePath));
+                if (relativePaths.length === 0) {
+                    vscode.window.showInformationMessage(t('checkpoint.workspaceCorrectState'));
+                    return;
+                }
                 const result = await this.checkpointManager.restoreCheckpointFiles(
                     checkpointId,
-                    picked.map((item) => item.relativePath),
+                    relativePaths,
                 );
                 if (result.success) {
                     vscode.window.showInformationMessage(
@@ -252,7 +248,7 @@ export class CheckpointRestoreOps {
                 return;
             }
 
-            const result = await this.applyRestorePreview(checkpointId, {
+            const result = await this.applyJournaledRestore(checkpointId, {
                 createBackup: true,
                 conflictResolution: 'prompt',
             });

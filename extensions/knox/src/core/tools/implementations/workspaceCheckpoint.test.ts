@@ -25,13 +25,56 @@ describe("workspaceCheckpointImpl", () => {
             description: "before edit",
             created: "2026-08-16T00:00:00.000Z",
             fileCount: 3,
+            branch: "main",
+            label: "Add JWT middleware",
           },
         ],
       }),
     );
     expect(result[0].content).toContain("cp-1");
     expect(result[0].content).toContain("before edit");
+    expect(result[0].content).toContain("label=Add JWT middleware");
+    expect(result[0].content).toContain("branch=main");
     expect(result[0].content).toContain("files=3");
+  });
+
+  it("creates a checkpoint branch through the IDE hook", async () => {
+    const createBranch = vi.fn(async () => ({
+      success: true,
+      branchId: "br_1",
+      name: "feature",
+      headCheckpointId: "cp-1",
+    }));
+    const result = await workspaceCheckpointImpl(
+      { action: "create_branch", name: "feature", checkpoint_id: "cp-1" },
+      extras({ createWorkspaceCheckpointBranch: createBranch }),
+    );
+    expect(createBranch).toHaveBeenCalledWith({
+      name: "feature",
+      checkpointId: "cp-1",
+      description: undefined,
+    });
+    expect(result[0].description).toBe("branched");
+    expect(result[0].content).toContain("feature");
+    expect(result[0].content).toContain("br_1");
+    expect(result[0].content).toContain("cp-1");
+  });
+
+  it("requires a name for create_branch", async () => {
+    await expect(
+      workspaceCheckpointImpl({ action: "create_branch" }, extras({
+        createWorkspaceCheckpointBranch: async () => ({ success: true }),
+      })),
+    ).rejects.toThrow(/name/);
+  });
+
+  it("reports create_branch unavailable on non-VS-Code hosts", async () => {
+    const result = await workspaceCheckpointImpl(
+      { action: "create_branch", name: "feature" },
+      extras({}),
+    );
+    expect(result[0].description).toBe("unavailable");
+    expect(result[0].content).toContain("VS Code host");
   });
 
   it("creates a labeled checkpoint", async () => {

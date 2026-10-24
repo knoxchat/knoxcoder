@@ -31,6 +31,12 @@ export function isRebuildToolName(name: string): boolean {
   return REBUILD_TOOL_NAMES.has(name);
 }
 
+/** Completing remaining steps often repeats `{action:complete}` with the same args. */
+export function isPlanToolName(name: string): boolean {
+  const normalized = name.replace(/^builtin_/, "").toLowerCase().replace(/-/g, "_");
+  return normalized === "plan" || normalized === "todo";
+}
+
 export type DoomLoopKind =
   | "repeat"
   | "fail_streak"
@@ -156,7 +162,7 @@ export function detectDoomLoop(
 
   const counts = new Map<string, { count: number; name: string }>();
   for (const call of calls) {
-    if (isRebuildToolName(call.name)) {
+    if (isRebuildToolName(call.name) || isPlanToolName(call.name)) {
       continue;
     }
     const fingerprint = fingerprintToolCall(call.name, call.args);

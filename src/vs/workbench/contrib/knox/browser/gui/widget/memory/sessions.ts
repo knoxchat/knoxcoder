@@ -97,7 +97,24 @@ export function renderMemorySessions(widget: KnoxGuiWidget, body: HTMLElement, s
 		widget.renderStore.add(DOM.addDisposableListener(row, 'click', () => void widget.controller.loadMemorySessionHistory(session.id)));
 	}
 	const detailPanel = mk(layout, 'div', 'panel session-panel');
-	mk(detailPanel, 'div', 'panel-head shrink-0', state.memorySelectedSessionId ? t(state, 'memorySessionHistoryDetail') : t(state, 'memorySessionHistorySelectPrompt'));
+	const detailHead = mk(detailPanel, 'div', 'panel-head shrink-0 flex items-center gap-2');
+	mk(detailHead, 'span', 'flex-1', state.memorySelectedSessionId ? t(state, 'memorySessionHistoryDetail') : t(state, 'memorySessionHistorySelectPrompt'));
+	if (state.memorySelectedSessionId) {
+		memoryButton(widget, detailHead, {
+			tokens: 'pill-btn is-quiet btn-secondary',
+			icon: 'pin',
+			label: t(state, 'memoryUseAsContext'),
+			testId: 'memory-session-use-context',
+			onClick: () => void widget.controller.useMemorySessionAsContext(state.memorySelectedSessionId!),
+		});
+		memoryButton(widget, detailHead, {
+			tokens: 'pill-btn is-quiet btn-secondary',
+			icon: 'trash-2',
+			label: t(state, 'memoryDeleteSession'),
+			testId: 'memory-session-delete',
+			onClick: () => void widget.controller.deleteMemorySession(state.memorySelectedSessionId!),
+		});
+	}
 	const detail = mk(detailPanel, 'div', 'panel-scroll p-3');
 	const history = state.memorySessionHistory;
 	if (!state.memorySelectedSessionId) {

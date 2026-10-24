@@ -485,7 +485,8 @@ export function extractPathHints(title: string): string[] {
 
 export function stepIntent(title: string): StepIntent {
 	if (
-		/\bcargo\s+(check|build|test|clippy|nextest|bench|doc|miri)\b/i.test(title) ||
+		/\bcargo\s+(check|build|test|clippy|fmt|run|nextest|bench|doc|miri)\b/i.test(title) ||
+		/\b(verify|verification)\b/i.test(title) ||
 		/\b(npm|pnpm|yarn|bun)\s+(test|run|build)\b/i.test(title) ||
 		/\bmake\s+\S+/i.test(title) ||
 		/\b(qemu|cargo check|cargo build)\b/i.test(title)
@@ -564,23 +565,31 @@ export function scoreStepEvent(step: IKnoxGuiTaskPlanStep, event: ToolEvent): nu
 	}
 	const command = event.command?.toLowerCase() ?? '';
 	if (command) {
-		if (/\bcargo\s+check\b/i.test(step.title) && /\bcargo\s+check\b/.test(command)) {
-			score += 14;
-		}
-		if (/\bcargo\s+build\b/i.test(step.title) && /\bcargo\s+build\b/.test(command)) {
-			score += 14;
-		}
-		if (/\bcargo\b/i.test(step.title) && /\bcargo\s+check\b/.test(command)) {
-			score += 10;
-		}
-		if (/\bcargo\b/i.test(step.title) && /\bcargo\s+build\b/.test(command)) {
-			score += 10;
-		}
+		score += cargoCommandScore(step.title, command);
 		if ((/\btest\b/i.test(step.title) || stepIntent(step.title) === 'test') && (/\btest\b/.test(command) || event.kind === 'test')) {
 			score += 10;
 		}
 	} else if (event.kind === 'test' && stepIntent(step.title) === 'test') {
 		score += 10;
+	}
+	return score;
+}
+
+const CARGO_SUBCOMMANDS = [
+	'fmt', 'test', 'clippy', 'check', 'build', 'run', 'nextest', 'bench', 'doc', 'miri',
+] as const;
+
+function cargoCommandScore(title: string, command: string): number {
+	let score = 0;
+	for (const sub of CARGO_SUBCOMMANDS) {
+		const used = new RegExp(`\\bcargo\\s+${sub}\\b`).test(command);
+		const named = new RegExp(`\\bcargo\\s+${sub}\\b`, 'i').test(title);
+		if (used && named) {
+			score += 14;
+		}
+	}
+	if (score === 0 && /\b(verify|cargo)\b/i.test(title) && /\bcargo\s+\w+/.test(command)) {
+		score += 8;
 	}
 	return score;
 }
@@ -649,6 +658,52 @@ function collectEventsAfter(history: IKnoxGuiHistoryItem[], afterIndex: number):
 	return events;
 }
 
+/** Index of the first live plan snapshot after the latest clear, or -1. */
+function firstTaskPlanIndex(history: IKnoxGuiHistoryItem[]): number {
+	let first = -1;
+	for (let i = 0; i < history.length; i++) {
+		for (const ctx of historyItemPlanSources(history[i])) {
+			if (!isTaskPlanContextItem(ctx)) {
+				continue;
+			}
+			if (isClearedPlanContent(ctx)) {
+				first = -1;
+				continue;
+			}
+			if (first < 0 && ctx.content && parsePlanText(ctx.content)) {
+				first = i;
+			}
+		}
+		if (history[i].content.includes(PLAN_CLEARED_TEXT)) {
+			first = -1;
+			continue;
+		}
+		if (first < 0 && parsePlanText(history[i].content)) {
+			first = i;
+		}
+	}
+	return first;
+}
+
+/** Work on a later step means earlier open steps were finished. */
+function catchUpPriorSteps(steps: IKnoxGuiTaskPlanStep[]): void {
+	let lastTouched = -1;
+	for (let i = 0; i < steps.length; i++) {
+		if (steps[i].status === 'done' || steps[i].status === 'in_progress') {
+			lastTouched = i;
+		}
+	}
+	if (lastTouched <= 0) {
+		return;
+	}
+	for (let i = 0; i < lastTouched; i++) {
+		if (steps[i].status === 'pending' || steps[i].status === 'in_progress') {
+			steps[i].status = 'done';
+			steps[i].live = true;
+		}
+	}
+}
+
 function applyEvent(steps: IKnoxGuiTaskPlanStep[], event: ToolEvent): void {
 	let best: IKnoxGuiTaskPlanStep | undefined;
 	let bestScore = 0;
@@ -704,9 +759,12 @@ export function applyLivePlanProgress(
 	snapshotIndex: number,
 ): IKnoxGuiTaskPlan {
 	const steps: IKnoxGuiTaskPlanStep[] = plan.steps.map(step => ({ ...step }));
-	for (const event of collectEventsAfter(history, snapshotIndex)) {
+	const origin = firstTaskPlanIndex(history);
+	const from = origin >= 0 ? origin : snapshotIndex;
+	for (const event of collectEventsAfter(history, from)) {
 		applyEvent(steps, event);
 	}
+	catchUpPriorSteps(steps);
 	const remaining = steps.filter(step => step.status === 'pending' || step.status === 'in_progress').length;
 	const doneCount = steps.filter(step => step.status === 'done').length;
 	return {

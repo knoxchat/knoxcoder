@@ -167,6 +167,9 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(knoxGuiT('en', 'memoryTimeMinutesAgo', { count: 3 }).includes('3'));
 		assert.notStrictEqual(knoxGuiT('en', 'memoryOverview'), knoxGuiT('zh', 'memoryOverview'));
 		assert.ok(knoxGuiT('en', 'memorySelectMultiple').length > 0);
+		assert.ok(knoxGuiT('en', 'composerRemember').length > 0);
+		assert.notStrictEqual(knoxGuiT('en', 'memoryCreate'), knoxGuiT('zh', 'memoryCreate'));
+		assert.notStrictEqual(knoxGuiT('en', 'memoryNotRelevant'), knoxGuiT('zh', 'memoryNotRelevant'));
 		assert.ok(knoxGuiT('en', 'memorySessionHistoryTitle').length > 0);
 		assert.ok(knoxGuiT('en', 'memoryExplore').length > 0);
 		assert.ok(knoxGuiT('en', 'memoryHealSystem').length > 0);

@@ -5,6 +5,8 @@ import { isMemoryWriteMessage } from './memoryEvents';
 suite('memory panel refresh triggers', () => {
     test('memory writes refresh the panel', () => {
         assert.strictEqual(isMemoryWriteMessage('brain/store'), true);
+        assert.strictEqual(isMemoryWriteMessage('brain/updateMemory'), true);
+        assert.strictEqual(isMemoryWriteMessage('brain/mismatchMemory'), true);
         assert.strictEqual(isMemoryWriteMessage('brain/deleteMemories'), true);
         assert.strictEqual(isMemoryWriteMessage('memory/postTurn'), true);
     });

@@ -112,26 +112,26 @@ describe("editFileImpl", () => {
     });
     await editFileImpl(
       {
-        filepath: "knox-impl.md",
+        filepath: "notes.md",
         old_string: "unit tests, not by task success.",
       },
       extras(ide),
     );
     expect(ide.writeFile).toHaveBeenCalledWith(
-      "file:///tmp/ws/knox-impl.md",
+      "file:///tmp/ws/notes.md",
       "Eval has compaction and soak tests, but nothing scores a *live* multi-step task\n\n",
     );
 
     const listed = mockIde({ readFile: vi.fn(async () => body) });
     await editFileImpl(
       {
-        filepath: "knox-impl.md",
+        filepath: "notes.md",
         edits: [{ old_string: "unit tests, not by task success." }],
       },
       extras(listed),
     );
     expect(listed.writeFile).toHaveBeenCalledWith(
-      "file:///tmp/ws/knox-impl.md",
+      "file:///tmp/ws/notes.md",
       "Eval has compaction and soak tests, but nothing scores a *live* multi-step task\n\n",
     );
   });
@@ -246,7 +246,7 @@ describe("editFileImpl", () => {
       const ide = mockIde({ readFile: vi.fn(async () => file) });
       const out = await editFileImpl(
         {
-          filepath: "knox-impl.md",
+          filepath: "notes.md",
           old_string:
             "spliced at `msgsCopy.splice(-1, 0, ...)` (`countTokens.ts:440-452`), then moves it to\nthe head\n(`:509`). The volatile plan/serial injects therefore sit inside the same system message that",
           new_string:

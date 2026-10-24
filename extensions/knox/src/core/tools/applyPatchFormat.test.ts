@@ -179,7 +179,7 @@ describe("applyHunksToContent", () => {
 
   it("matches a hunk whose context is wrapped differently than the file", () => {
     const ops = parseApplyPatch(`*** Begin Patch
-*** Update File: knox-impl.md
+*** Update File: notes.md
 @@
  spliced at \`msgsCopy.splice(-1, 0, ...)\` (\`countTokens.ts:440-452\`), then moves it to
  the head
@@ -191,12 +191,12 @@ describe("applyHunksToContent", () => {
     }
     const file =
       "The helper is spliced at `msgsCopy.splice(-1, 0, ...)` (`countTokens.ts:440-452`), then moves it to the head (`:509`). The volatile plan/serial injects therefore sit inside the same system message that\n";
-    expect(applyHunksToContent(file, ops[0].hunks, "knox-impl.md")).toContain(":507-508");
+    expect(applyHunksToContent(file, ops[0].hunks, "notes.md")).toContain(":507-508");
   });
 
   it("matches a partial first context line as a substring", () => {
     const ops = parseApplyPatch(`*** Begin Patch
-*** Update File: knox-impl.md
+*** Update File: notes.md
 @@
  is what
 -chatTurn.ts:157
@@ -209,7 +209,7 @@ describe("applyHunksToContent", () => {
       applyHunksToContent(
         "This is what\nchatTurn.ts:157\nconstraint noted\n",
         ops[0].hunks,
-        "knox-impl.md",
+        "notes.md",
       ),
     ).toBe("This is what\nchatTurn.ts:169-170\nconstraint noted\n");
   });

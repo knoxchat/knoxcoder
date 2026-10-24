@@ -1,6 +1,8 @@
 import * as assert from 'node:assert';
 import * as vscode from 'vscode';
 
+import { turnIntents } from 'core/context/soul/turnIntent';
+
 import { AutoCheckpointSystem } from './AutoCheckpointSystem';
 import { CheckpointManager, FileSnapshot } from './CheckpointManager';
 import { createAutomaticCheckpoint } from './commands';
@@ -48,7 +50,6 @@ suite('Checkpoint Managers', () => {
                 agentModeOnly: true,
                 maxTrackedFiles: 100,
                 maxMemoryUsageMB: 50,
-                maxCheckpoints: 50,
                 maxFileSizeKB: 100,
                 storagePath: '~/.knoxcoder/checkpoints',
                 verboseLogging: false,
@@ -91,7 +92,7 @@ suite('Checkpoint Managers', () => {
             assert.match(created[0].description, /Smart: Session agent-session-1 completed/);
         });
 
-        test('honors agentModeOnly, maxFileSizeKB, and maxCheckpoints', async () => {
+        test('honors agentModeOnly and maxFileSizeKB without a silent checkpoint cap', async () => {
             const manager = SmartCheckpointManager.getInstance() as any;
             const tracked: string[][] = [];
             const created: any[] = [];
@@ -116,7 +117,6 @@ suite('Checkpoint Managers', () => {
                 agentModeOnly: true,
                 maxTrackedFiles: 100,
                 maxMemoryUsageMB: 50,
-                maxCheckpoints: 1,
                 maxFileSizeKB: 1,
                 storagePath: '~/.knoxcoder/checkpoints',
                 verboseLogging: false,
@@ -150,12 +150,10 @@ suite('Checkpoint Managers', () => {
                 assert.ok([...manager.currentSession.trackedFiles].every((file: string) => !file.includes('big.bin')));
                 assert.deepStrictEqual(tracked.at(-1), ['src/a.ts']);
 
-                const skipped = await manager.createAgentCheckpoint({ description: 'over cap' });
-                assert.strictEqual(skipped, undefined);
-                assert.strictEqual(created.length, 0);
+                assert.strictEqual(manager.lastSkippedFiles.length, 1);
+                assert.strictEqual(manager.lastSkippedFiles[0].reason, 'too_large');
 
-                manager.config.maxCheckpoints = 50;
-                const createdId = await manager.createAgentCheckpoint({ description: 'under cap' });
+                const createdId = await manager.createAgentCheckpoint({ description: 'over former cap' });
                 assert.strictEqual(createdId, 'smart-checkpoint-capped');
                 assert.strictEqual(created.length, 1);
             } finally {
@@ -165,28 +163,20 @@ suite('Checkpoint Managers', () => {
     });
 
     suite('AutoCheckpointSystem', () => {
-        test('creates an automatic checkpoint on threshold and supports undo/redo navigation', async () => {
+        test('creates an automatic checkpoint on threshold', async () => {
             const autoCheckpoint = AutoCheckpointSystem.getInstance() as any;
-            const restored: string[] = [];
             const created: string[] = [];
 
             mockWindowMethod('showInformationMessage', async () => undefined);
-            mockWindowMethod('showWarningMessage', async () => undefined);
-            mockWindowMethod('showErrorMessage', async () => undefined);
 
             const origManager = autoCheckpoint.checkpointManager;
             const origConfig = autoCheckpoint.config;
             const origPending = new Set(autoCheckpoint.pendingChanges);
-            const origUndo = {
-                ...autoCheckpoint.undoRedoState,
-                stack: [...autoCheckpoint.undoRedoState.stack],
-            };
             autoCheckpoint.config = {
                 enabled: true,
                 minIntervalMs: 1,
                 maxIntervalMs: 60_000,
                 fileChangeThreshold: 2,
-                checkpointAfterAI: true,
                 checkpointBeforeRisky: true,
                 maxUndoStack: 50,
                 showNotifications: false,
@@ -194,19 +184,12 @@ suite('Checkpoint Managers', () => {
             };
             autoCheckpoint.lastCheckpointTime = Date.now() - 10_000;
             autoCheckpoint.pendingChanges = new Set(['a.ts', 'b.ts']);
-            autoCheckpoint.undoRedoState = {
-                currentIndex: -1,
-                stack: [],
-                maxSize: 50,
-            };
             autoCheckpoint.checkpointManager = {
                 createCheckpointForMessage: async (_messageId: string, description: string) => {
                     created.push(description);
                     return `cp-${created.length}`;
                 },
-                restoreCheckpoint: async (checkpointId: string) => {
-                    restored.push(checkpointId);
-                },
+                getBoundAgentSessionId: () => null,
                 getStoragePath: () => undefined,
             };
 
@@ -215,21 +198,142 @@ suite('Checkpoint Managers', () => {
 
                 assert.strictEqual(created.length, 1);
                 assert.strictEqual(autoCheckpoint.pendingChanges.size, 0);
-
-                autoCheckpoint.addToUndoStack('cp-1');
-                autoCheckpoint.addToUndoStack('cp-2');
-
-                const undoResult = await autoCheckpoint.undo();
-                const redoResult = await autoCheckpoint.redo();
-
-                assert.strictEqual(undoResult, true);
-                assert.strictEqual(redoResult, true);
-                assert.deepStrictEqual(restored.slice(-2), ['cp-1', 'cp-2']);
             } finally {
                 autoCheckpoint.checkpointManager = origManager;
                 autoCheckpoint.config = origConfig;
                 autoCheckpoint.pendingChanges = origPending;
+            }
+        });
+
+        test('undo restores A from [A,B]; pre-undo snapshot is the redo target', async () => {
+            const autoCheckpoint = AutoCheckpointSystem.getInstance() as any;
+            const restored: string[] = [];
+
+            mockWindowMethod('showInformationMessage', async () => undefined);
+            mockWindowMethod('showWarningMessage', async () => undefined);
+            mockWindowMethod('showErrorMessage', async () => undefined);
+
+            const origManager = autoCheckpoint.checkpointManager;
+            const origUndo = {
+                ...autoCheckpoint.undoRedoState,
+                stack: [...autoCheckpoint.undoRedoState.stack],
+            };
+            autoCheckpoint.undoRedoState = {
+                currentIndex: -1,
+                stack: [],
+                maxSize: 50,
+            };
+            autoCheckpoint.addToUndoStack('A');
+            autoCheckpoint.addToUndoStack('B');
+
+            autoCheckpoint.checkpointManager = {
+                createCheckpointForMessage: async () => {
+                    // Real create.ts fires onCheckpointCreated, which used to
+                    // push C and make `--` land on B instead of A.
+                    autoCheckpoint.addToUndoStack('C');
+                    return 'C';
+                },
+                restoreCheckpoint: async (checkpointId: string) => {
+                    restored.push(checkpointId);
+                    return { success: true };
+                },
+                getStoragePath: () => undefined,
+            };
+
+            try {
+                const undoResult = await autoCheckpoint.undo();
+                assert.strictEqual(undoResult, true);
+                assert.deepStrictEqual(restored, ['A']);
+                assert.strictEqual(autoCheckpoint.undoRedoState.currentIndex, 0);
+                assert.deepStrictEqual(autoCheckpoint.undoRedoState.stack, ['A', 'C']);
+                assert.strictEqual(autoCheckpoint.canRedo(), true);
+
+                const redoResult = await autoCheckpoint.redo();
+                assert.strictEqual(redoResult, true);
+                assert.deepStrictEqual(restored, ['A', 'C']);
+                assert.strictEqual(autoCheckpoint.undoRedoState.currentIndex, 1);
+            } finally {
+                autoCheckpoint.checkpointManager = origManager;
                 autoCheckpoint.undoRedoState = origUndo;
+            }
+        });
+
+        test('file-threshold auto collapses into the labeled turn checkpoint', async () => {
+            const autoCheckpoint = AutoCheckpointSystem.getInstance() as any;
+            let created = false;
+
+            const origManager = autoCheckpoint.checkpointManager;
+            const origConfig = autoCheckpoint.config;
+            const origPending = new Set(autoCheckpoint.pendingChanges);
+            const origCreate = autoCheckpoint.createAutoCheckpoint;
+            autoCheckpoint.config = {
+                ...autoCheckpoint.config,
+                enabled: true,
+                minIntervalMs: 1,
+                maxIntervalMs: 60_000,
+                fileChangeThreshold: 2,
+            };
+            autoCheckpoint.lastCheckpointTime = 0;
+            autoCheckpoint.pendingChanges = new Set(['a.ts', 'b.ts']);
+            autoCheckpoint.createAutoCheckpoint = async () => {
+                created = true;
+                return 'auto-extra';
+            };
+            autoCheckpoint.checkpointManager = {
+                getBoundAgentSessionId: () => 'sess-t4',
+                getStoragePath: () => undefined,
+            };
+
+            turnIntents.begin('sess-t4', 'edit the files');
+            try {
+                await autoCheckpoint.checkAutoCheckpointTrigger();
+                assert.strictEqual(created, false);
+                assert.strictEqual(autoCheckpoint.pendingChanges.size, 0);
+            } finally {
+                turnIntents.finish('sess-t4');
+                autoCheckpoint.checkpointManager = origManager;
+                autoCheckpoint.config = origConfig;
+                autoCheckpoint.pendingChanges = origPending;
+                autoCheckpoint.createAutoCheckpoint = origCreate;
+            }
+        });
+
+        test('pre-risky reuses the existing turn checkpoint id', async () => {
+            const autoCheckpoint = AutoCheckpointSystem.getInstance() as any;
+            let created = false;
+
+            const origManager = autoCheckpoint.checkpointManager;
+            const origConfig = autoCheckpoint.config;
+            const origCreate = autoCheckpoint.createAutoCheckpoint;
+            autoCheckpoint.config = {
+                ...autoCheckpoint.config,
+                enabled: true,
+                checkpointBeforeRisky: true,
+                minIntervalMs: 1,
+            };
+            autoCheckpoint.lastCheckpointTime = 0;
+            autoCheckpoint.createAutoCheckpoint = async () => {
+                created = true;
+                return 'auto-pre-risky';
+            };
+            autoCheckpoint.checkpointManager = {
+                peekTurnCheckpoint: () => 'turn-cp-1',
+                adoptTurnCheckpoint: () => undefined,
+                getBoundAgentSessionId: () => 'sess-t4',
+                getStoragePath: () => undefined,
+            };
+
+            try {
+                const id = await autoCheckpoint.onBeforeRiskyOperation('builtin_edit_file', {
+                    sessionId: 'sess-t4',
+                    turnId: 'turn-1',
+                });
+                assert.strictEqual(id, 'turn-cp-1');
+                assert.strictEqual(created, false);
+            } finally {
+                autoCheckpoint.checkpointManager = origManager;
+                autoCheckpoint.config = origConfig;
+                autoCheckpoint.createAutoCheckpoint = origCreate;
             }
         });
     });

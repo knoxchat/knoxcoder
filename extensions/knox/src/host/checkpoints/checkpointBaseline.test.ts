@@ -231,6 +231,37 @@ suite('Checkpoint baseline, sandbox, and ignore', () => {
         }
     });
 
+    test('adoptTurnCheckpoint is reused by ensureTurnCheckpoint', async () => {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(workspaceFolder, 'Expected an active workspace folder');
+
+        const fixtureRoot = path.join(
+            workspaceFolder.uri.fsPath,
+            `cp-adopt-${Date.now()}`,
+        );
+        const storagePath = await fs.mkdtemp(path.join(os.tmpdir(), 'knox-cp-store-'));
+        await fs.mkdir(fixtureRoot, { recursive: true });
+
+        try {
+            await withIsolatedManager(fixtureRoot, storagePath, async (manager) => {
+                manager.adoptTurnCheckpoint('session-adopt', 'turn-1', 'cp-adopted');
+                assert.strictEqual(
+                    manager.peekTurnCheckpoint('session-adopt', 'turn-1'),
+                    'cp-adopted',
+                );
+                const id = await manager.ensureTurnCheckpoint({
+                    sessionId: 'session-adopt',
+                    turnId: 'turn-1',
+                    toolName: 'builtin_edit_file',
+                });
+                assert.strictEqual(id, 'cp-adopted');
+            });
+        } finally {
+            await fs.rm(fixtureRoot, { recursive: true, force: true });
+            await fs.rm(storagePath, { recursive: true, force: true });
+        }
+    });
+
     test('restore refuses paths that escape the workspace', async () => {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         assert.ok(workspaceFolder, 'Expected an active workspace folder');

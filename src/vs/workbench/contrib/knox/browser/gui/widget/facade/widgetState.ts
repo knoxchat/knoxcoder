@@ -8,6 +8,7 @@ import { AUTO_DISPLAY_START } from '../../../../common/knoxGuiChat.js';
 import { createComposerInputHistory, createComposerUndo, IKnoxGuiComposerInputHistory, IKnoxGuiComposerUndo, IKnoxGuiDocCaret, IKnoxGuiInputBlock } from '../../../../common/knoxGuiInput.js';
 import type { IKnoxGuiCheckpointDetailsView } from '../../../../common/knoxGuiCheckpoints.js';
 import { KnoxGuiOverlay } from '../../../../common/knoxGuiProtocol.js';
+import { IKnoxMemoryFormState } from '../../../../common/knoxGuiMemory.js';
 import { IKnoxGuiState, IKnoxGuiSuggestItem, KnoxModelRole } from '../../../../common/knoxGuiState.js';
 import type { IKnoxGuiStreamCacheBlock } from '../chat.js';
 
@@ -130,6 +131,8 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	memoryLastClickedId: string | null = null;
 	memoryConfirmDeleteIds: string[] | null = null;
 	memoryConfirmDeleteBulk = false;
+	memoryForm: IKnoxMemoryFormState | null = null;
+	rememberSelection = '';
 	memoryExportPassword = '';
 	memoryImportPassword = '';
 	memoryExploringId: number | null = null;

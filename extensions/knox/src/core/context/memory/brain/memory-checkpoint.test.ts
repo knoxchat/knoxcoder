@@ -359,4 +359,29 @@ describe("memory checkpoints", () => {
     const remaining = await BrainStore.listCheckpoints(20);
     expect(remaining.some((cp) => cp.id === checkpoint.id)).toBe(false);
   });
+
+  it("useSessionAsContext pins semantic rows into working memory without a new store", async () => {
+    await reset();
+    const sessionId = "reuse-as-context";
+    await BrainManager.trackSession(sessionId, "Reuse session", testDir);
+    const memoryId = await BrainManager.store({
+      category: "decision",
+      title: "Reuse JWT",
+      content: "Session reuse pins this JWT decision",
+      keywords: "jwt, reuse",
+      session_id: sessionId,
+    });
+    const semanticBefore = await BrainStore.getSemanticBySession(sessionId, 20);
+    const result = await BrainManager.useSessionAsContext(sessionId);
+    expect(result.ok).toBe(true);
+    expect(result.pinned).toBeGreaterThanOrEqual(1);
+    expect(result.workingMemory).toBeGreaterThanOrEqual(1);
+    expect(await BrainStore.isPinned(memoryId)).toBe(true);
+    const wm = BrainManager.getWorkingMemory();
+    expect(
+      wm.getAll().some((item) => item.content.includes("Session reuse pins this JWT decision")),
+    ).toBe(true);
+    const semanticAfter = await BrainStore.getSemanticBySession(sessionId, 20);
+    expect(semanticAfter.length).toBe(semanticBefore.length);
+  });
 });

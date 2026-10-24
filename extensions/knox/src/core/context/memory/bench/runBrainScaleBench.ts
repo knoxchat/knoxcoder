@@ -77,6 +77,8 @@ export async function runBrainScaleBench(items: number): Promise<ScaleReport> {
     await BrainStore.get();
     await BrainStore.saveConfig("auto_extract_enabled", "false");
     await BrainStore.saveConfig("enable_knowledge_extraction", "false");
+    // Scale bench measures lexical needles among filler, not T6 synonym recall.
+    await BrainStore.saveConfig("enable_enhanced_semantic", "false");
     await BrainStore.saveConfig("memory_scope", "project");
 
     const sessionId = "scale-session";

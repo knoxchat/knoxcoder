@@ -888,6 +888,8 @@ export interface IDE {
       created: string;
       sessionId?: string;
       fileCount?: number;
+      branch?: string;
+      label?: string;
     }>
   >;
 
@@ -895,6 +897,22 @@ export interface IDE {
     description?: string;
     sessionId?: string;
   }): Promise<string | undefined>;
+
+  /**
+   * Optional IDE hook: fork a checkpoint line (not git) at a snapshot.
+   * Omitting checkpointId uses the newest workspace checkpoint as the base.
+   */
+  createWorkspaceCheckpointBranch?(params: {
+    name: string;
+    checkpointId?: string;
+    description?: string;
+  }): Promise<{
+    success: boolean;
+    branchId?: string;
+    name?: string;
+    headCheckpointId?: string;
+    message?: string;
+  }>;
 
   restoreWorkspaceCheckpoint?(params: {
     checkpointId: string;

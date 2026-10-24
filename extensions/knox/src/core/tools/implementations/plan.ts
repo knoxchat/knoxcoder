@@ -1,9 +1,18 @@
 import { ToolImpl } from ".";
+import { getJevUserMessage } from "../../jev/config";
+import {
+  coercePlanSteps,
+  draftPlanFromGoal,
+  inferPlanAction,
+  type PlanAction,
+} from "../planDraft";
 import {
   addPlanSteps,
   clearPlan,
   completePlanStep,
+  countPlanRemaining,
   createPlan,
+  currentPlanStep,
   formatPlanText,
   getPlan,
   PLAN_CLEARED_TEXT,
@@ -17,12 +26,31 @@ function sessionIdOf(extras: { soul?: { sessionId?: string } }): string {
 }
 
 function render(description: string, plan: TaskPlan) {
+  const remaining = countPlanRemaining(plan);
+  const current = currentPlanStep(plan);
+  const summary =
+    remaining === 0
+      ? `Plan complete. 0 remaining / ${plan.steps.length} total.`
+      : `Plan ${description}. ${remaining} remaining / ${plan.steps.length} total.${
+          current ? ` Current: ${current.title} (${current.id}).` : ""
+        }`;
   return [
     {
       name: "Plan",
       description,
-      content: formatPlanText(plan),
+      content: `${summary}\n\n${formatPlanText(plan)}`,
       // Shown in the attached input panel, not as a chat context peek.
+      hidden: true,
+    },
+  ];
+}
+
+function empty(description: string, content: string) {
+  return [
+    {
+      name: "Plan",
+      description,
+      content,
       hidden: true,
     },
   ];
@@ -40,100 +68,160 @@ function asStatus(raw: unknown): PlanStepStatus | undefined {
   return undefined;
 }
 
+function asText(raw: unknown): string | undefined {
+  return typeof raw === "string" && raw.trim() ? raw.trim() : undefined;
+}
+
+function requestGoal(args: Record<string, unknown> | undefined, title?: string): string {
+  return (
+    title ||
+    asText(args?.goal) ||
+    asText(args?.task) ||
+    getJevUserMessage().trim() ||
+    ""
+  );
+}
+
+async function resolveCreateSteps(
+  args: Record<string, unknown> | undefined,
+  extras: Parameters<ToolImpl>[1],
+  title: string | undefined,
+  steps: unknown[] | undefined,
+): Promise<{ title?: string; steps: unknown[] }> {
+  if (steps?.length) {
+    return { title, steps };
+  }
+  const drafted = await draftPlanFromGoal({
+    goal: requestGoal(args, title),
+    llm: extras.llm,
+    signal: extras.abortSignal,
+  });
+  return {
+    title: title || drafted.title,
+    steps: drafted.steps,
+  };
+}
+
+function mutateCurrent(
+  sessionId: string,
+  args: {
+    stepId?: string;
+    title?: string;
+    status?: PlanStepStatus | unknown;
+    newTitle?: string;
+  },
+): TaskPlan {
+  const plan = getPlan(sessionId);
+  if (!plan) {
+    return createPlan({ sessionId, title: "Task plan", steps: [] });
+  }
+  try {
+    return updatePlanStep({ sessionId, ...args });
+  } catch {
+    const current = currentPlanStep(plan);
+    if (current) {
+      try {
+        return updatePlanStep({
+          sessionId,
+          stepId: current.id,
+          status: args.status,
+          newTitle: args.newTitle,
+        });
+      } catch {
+        return plan;
+      }
+    }
+    return plan;
+  }
+}
+
 export const planImpl: ToolImpl = async (args, extras) => {
-  const action = typeof args?.action === "string" ? args.action.trim() : "";
   const sessionId = sessionIdOf(extras);
+  const existing = getPlan(sessionId);
   const stepId =
-    typeof args?.step_id === "string"
-      ? args.step_id
-      : typeof args?.stepId === "string"
-        ? args.stepId
-        : undefined;
-  const title = typeof args?.title === "string" ? args.title : undefined;
-  const steps = Array.isArray(args?.steps) ? args.steps : undefined;
-  const newTitle =
-    typeof args?.new_title === "string"
-      ? args.new_title
-      : typeof args?.newTitle === "string"
-        ? args.newTitle
-        : undefined;
+    asText(args?.step_id) ?? asText(args?.stepId) ?? undefined;
+  const title = asText(args?.title);
+  const rawSteps = args?.steps ?? args?.items ?? args?.checklist;
+  const steps = Array.isArray(rawSteps) || typeof rawSteps === "string"
+    ? coercePlanSteps(rawSteps)
+    : undefined;
+  const newTitle = asText(args?.new_title) ?? asText(args?.newTitle);
+  const hasSteps = Boolean(steps?.length);
+  const action: PlanAction = inferPlanAction({
+    action: typeof args?.action === "string" ? args.action : "",
+    existing: Boolean(existing?.steps.length),
+    hasSteps,
+    hasTitle: Boolean(title),
+    hasStepRef: Boolean(stepId),
+  });
 
   try {
     switch (action) {
       case "create": {
-        if (!steps?.length && !title) {
-          return [
-            {
-              name: "Plan",
-              description: "error",
-              content:
-                'create requires "steps" (array of titles) and optionally "title".',
-            },
-          ];
+        if (!hasSteps && existing?.steps.length) {
+          if (title && title !== existing.title) {
+            return render(
+              "updated",
+              createPlan({
+                sessionId,
+                title,
+                steps: existing.steps.map((step) => ({ ...step })),
+              }),
+            );
+          }
+          return render("listed", existing);
         }
+        const resolved = await resolveCreateSteps(args, extras, title, steps);
         return render(
           "created",
-          createPlan({ sessionId, title, steps: steps ?? [] }),
+          createPlan({
+            sessionId,
+            title: resolved.title,
+            steps: resolved.steps,
+          }),
         );
       }
       case "add": {
-        if (!steps?.length && !title) {
-          return [
-            {
-              name: "Plan",
-              description: "error",
-              content: 'add requires "title" or "steps".',
-            },
-          ];
+        if (!existing?.steps.length) {
+          const resolved = await resolveCreateSteps(args, extras, title, steps);
+          return render(
+            "created",
+            createPlan({
+              sessionId,
+              title: resolved.title,
+              steps: resolved.steps,
+            }),
+          );
+        }
+        if (!hasSteps && !title) {
+          return render("listed", existing);
         }
         return render("updated", addPlanSteps({ sessionId, steps, title }));
       }
       case "list": {
-        const plan = getPlan(sessionId);
-        if (!plan) {
-          return [
-            {
-              name: "Plan",
-              description: "empty",
-              content:
-                "No task plan yet. Call builtin_plan with action=create.",
-              hidden: true,
-            },
-          ];
+        if (!existing) {
+          return empty("empty", "No task plan yet.");
         }
-        return render("listed", plan);
+        return render("listed", existing);
       }
       case "clear": {
         clearPlan(sessionId);
-        return [
-          {
-            name: "Plan",
-            description: "cleared",
-            content: PLAN_CLEARED_TEXT,
-            hidden: true,
-          },
-        ];
+        return empty("cleared", PLAN_CLEARED_TEXT);
       }
       case "complete":
         return render(
           "updated",
-          completePlanStep({ sessionId, stepId, title, status: "done" }),
+          completePlanStep({ sessionId, stepId, title }),
         );
       case "skip":
         return render(
           "updated",
-          completePlanStep({
-            sessionId,
-            stepId,
-            title,
-            status: "skipped",
-          }),
+          mutateCurrent(sessionId, { stepId, title, status: "skipped" }),
         );
       case "set_current":
         return render(
           "updated",
-          completePlanStep({
-            sessionId,
+          mutateCurrent(sessionId, {
             stepId,
             title,
             status: "in_progress",
@@ -142,8 +230,7 @@ export const planImpl: ToolImpl = async (args, extras) => {
       case "update":
         return render(
           "updated",
-          updatePlanStep({
-            sessionId,
+          mutateCurrent(sessionId, {
             stepId,
             title,
             status: asStatus(args?.status),
@@ -151,22 +238,19 @@ export const planImpl: ToolImpl = async (args, extras) => {
           }),
         );
       default:
-        return [
-          {
-            name: "Plan",
-            description: "error",
-            content:
-              "Unknown action. Use create, add, update, complete, skip, set_current, list, or clear.",
-          },
-        ];
+        if (existing) {
+          return render("listed", existing);
+        }
+        return empty("empty", "No task plan yet.");
     }
   } catch (error) {
-    return [
-      {
-        name: "Plan",
-        description: "error",
-        content: error instanceof Error ? error.message : String(error),
-      },
-    ];
+    const live = getPlan(sessionId);
+    if (live) {
+      return render("listed", live);
+    }
+    return empty(
+      "empty",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 };

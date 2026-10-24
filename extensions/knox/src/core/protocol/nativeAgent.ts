@@ -160,6 +160,8 @@ export interface RecipeListItem {
   sourceCheckpointIds: string[];
   lastReplayedAt?: string;
   updatedAt: string;
+  /** Verified with enough clean replays to offer "Promote to skill" (MC-42). */
+  skillEligible?: boolean;
 }
 
 /** MC-72: `knoxchat.recipes.enabled`, `knoxchat.recipes.autoReplay`, `knoxchat.selfImprove.enabled`. */

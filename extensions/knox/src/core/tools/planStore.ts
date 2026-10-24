@@ -262,14 +262,40 @@ export function updatePlanStep(input: {
   return clonePlan(plan);
 }
 
+function resolveCompleteTarget(
+  plan: TaskPlan,
+  stepId?: string,
+  title?: string,
+): PlanStep | undefined {
+  const requested = findStep(plan, stepId, title);
+  const current = currentPlanStep(plan);
+  if (!requested) {
+    return current;
+  }
+  if (requested.status === "done" || requested.status === "skipped") {
+    return current ?? requested;
+  }
+  return requested;
+}
+
 export function completePlanStep(input: {
   sessionId?: string | null;
   stepId?: string;
   title?: string;
   status?: PlanStepStatus;
 }): TaskPlan {
+  const plan = getPlan(input.sessionId);
+  if (!plan) {
+    return updatePlanStep({
+      ...input,
+      status: input.status ?? "done",
+    });
+  }
+  const target = resolveCompleteTarget(plan, input.stepId, input.title);
   return updatePlanStep({
     ...input,
+    stepId: target?.id,
+    title: target ? undefined : input.title,
     status: input.status ?? "done",
   });
 }

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolExtras } from "../..";
 
+import { setJevUserMessage } from "../../jev/config";
 import { planImpl } from "./plan";
 import {
   createPlan,
@@ -17,10 +18,15 @@ import {
   resolveOpenPlan,
 } from "../planStore";
 
-function extras(sessionId = "sess-plan"): ToolExtras {
+function extras(
+  sessionId = "sess-plan",
+  complete?: (prompt: string, signal: AbortSignal) => Promise<string>,
+): ToolExtras {
   return {
     ide: {} as ToolExtras["ide"],
-    llm: {} as ToolExtras["llm"],
+    llm: (complete
+      ? { complete }
+      : {}) as ToolExtras["llm"],
     fetch: vi.fn(),
     tool: { function: { name: "builtin_plan" } } as ToolExtras["tool"],
     soul: { sessionId },
@@ -30,6 +36,7 @@ function extras(sessionId = "sess-plan"): ToolExtras {
 describe("builtin_plan", () => {
   afterEach(() => {
     resetPlansForTests();
+    setJevUserMessage("");
   });
 
   it("creates and lists an 8-step kernel plan", async () => {
@@ -208,5 +215,110 @@ describe("builtin_plan", () => {
     );
     expect(parsed?.steps.map((s) => s.id)).toEqual(plan.steps.map((s) => s.id));
     expect(parsePlanText("not a plan")).toBeUndefined();
+  });
+
+  it("create without steps drafts from the LLM instead of erroring", async () => {
+    setJevUserMessage("Build a Dioxus snake game");
+    const complete = vi.fn().mockResolvedValue(
+      JSON.stringify({
+        title: "Dioxus snake",
+        steps: ["Scaffold Cargo.toml", "Game logic", "Desktop UI"],
+      }),
+    );
+    const created = await planImpl({ action: "create" }, extras("sess-plan", complete));
+    expect(created[0].description).toBe("created");
+    expect(created[0].content).toContain("Dioxus snake");
+    expect(created[0].content).toContain("Scaffold Cargo.toml");
+    expect(created[0].content).toMatch(/\[\*].*Scaffold Cargo.toml/);
+    expect(complete).toHaveBeenCalled();
+  });
+
+  it("create without steps falls back to the user request when LLM is missing", async () => {
+    setJevUserMessage("Build a 24x18 Dioxus snake game");
+    const created = await planImpl({ action: "create" }, extras());
+    expect(created[0].description).toBe("created");
+    expect(created[0].content).toContain("Build a 24x18 Dioxus snake game");
+    expect(created[0].content).not.toMatch(/create requires/i);
+  });
+
+  it("create without steps keeps an existing plan instead of wiping it", async () => {
+    await planImpl(
+      { action: "create", title: "Snake", steps: ["Cargo.toml", "main.rs"] },
+      extras(),
+    );
+    const listed = await planImpl({ action: "create" }, extras());
+    expect(listed[0].description).toBe("listed");
+    expect(listed[0].content).toContain("Cargo.toml");
+    expect(listed[0].content).toContain("main.rs");
+  });
+
+  it("add without a plan creates one", async () => {
+    const created = await planImpl(
+      { action: "add", steps: ["Write tests", "Run cargo test"] },
+      extras(),
+    );
+    expect(created[0].description).toBe("created");
+    expect(created[0].content).toContain("Write tests");
+  });
+
+  it("complete without step_id finishes the current step", async () => {
+    await planImpl(
+      { action: "create", title: "Snake", steps: ["Cargo.toml", "main.rs"] },
+      extras(),
+    );
+    const updated = await planImpl({ action: "complete" }, extras());
+    expect(updated[0].content).toMatch(/\[x\].*Cargo\.toml/);
+    expect(updated[0].content).toMatch(/\[\*].*main\.rs/);
+    expect(updated[0].content).toMatch(/Plan updated\. 1 remaining/);
+    expect(updated[0].content).toContain("Current: main.rs");
+  });
+
+  it("complete of an already-done step advances the current one", async () => {
+    await planImpl(
+      { action: "create", title: "Snake", steps: ["Cargo.toml", "main.rs", "assets/main.css"] },
+      extras(),
+    );
+    await planImpl({ action: "complete", step_id: "1" }, extras());
+    const updated = await planImpl({ action: "complete", step_id: "1" }, extras());
+    expect(updated[0].content).toMatch(/\[x\].*Cargo\.toml/);
+    expect(updated[0].content).toMatch(/\[x\].*main\.rs/);
+    expect(updated[0].content).toMatch(/\[\*].*assets\/main\.css/);
+  });
+
+  it("repeated complete without step_id closes the whole plan", async () => {
+    await planImpl(
+      { action: "create", title: "Snake", steps: ["Cargo.toml", "main.rs"] },
+      extras(),
+    );
+    await planImpl({ action: "complete" }, extras());
+    const updated = await planImpl({ action: "complete" }, extras());
+    expect(updated[0].content).toContain("Plan complete. 0 remaining / 2 total.");
+    expect(updated[0].content).toContain("Remaining 0: plan is complete.");
+  });
+
+  it("omitted action with steps and no plan creates", async () => {
+    const created = await planImpl(
+      { steps: ["Read MAINTAINERS", "Patch copy_to_user"] },
+      extras(),
+    );
+    expect(created[0].description).toBe("created");
+    expect(created[0].content).toContain("Read MAINTAINERS");
+  });
+
+  it("list with no plan does not tell the model to retry create", async () => {
+    const listed = await planImpl({ action: "list" }, extras());
+    expect(listed[0].description).toBe("empty");
+    expect(listed[0].content).not.toMatch(/action=create/i);
+  });
+
+  it("splits a numbered steps string", async () => {
+    const created = await planImpl(
+      { action: "create", steps: "1. Scaffold\n2. Game logic\n3. Verify" },
+      extras(),
+    );
+    expect(created[0].content).toContain("Scaffold");
+    expect(created[0].content).toContain("Game logic");
+    expect(created[0].content).toContain("Verify");
+    expect(created[0].content).toContain("3 remaining / 3 total");
   });
 });

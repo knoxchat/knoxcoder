@@ -8,6 +8,9 @@
 import * as DOM from '../../../../../../../base/browser/dom.js';
 import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { appendKnoxGuiSvg, KnoxGuiSvgIcon } from '../../knoxGuiIcons.js';
+import { t } from '../t.js';
+import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
+import { IKnoxMemoryFormState, memoryCategoryLabelKey, memoryEditorCategories } from '../../../../common/knoxGuiMemory.js';
 
 /** Tokens map to `knox-gui-memory-<token>` (Tailwind-equivalent classes in knoxGuiMemory.css); `knox-gui-*`, `is-*` and `selected` pass through. */
 export function memoryClasses(tokens: string): string {
@@ -115,4 +118,115 @@ export function memoryConfirmDialog(widget: KnoxGuiWidget, body: HTMLElement, op
 	memoryButton(widget, actions, { tokens: 'dialog-btn is-cancel', label: options.cancelLabel, disabled: options.busy, onClick: options.onCancel });
 	memoryButton(widget, actions, { tokens: 'dialog-btn is-confirm', label: options.confirmLabel, disabled: options.busy, testId: options.confirmTestId, onClick: options.onConfirm });
 	return overlay;
+}
+
+export function openMemoryForm(widget: KnoxGuiWidget, form: IKnoxMemoryFormState): void {
+	widget.memoryForm = form;
+	widget.render();
+}
+
+export function closeMemoryForm(widget: KnoxGuiWidget): void {
+	if (widget.controller.store.state.memoryBrowserBusy) {
+		return;
+	}
+	widget.memoryForm = null;
+	widget.render();
+}
+
+/** Create / Edit / composer Remember form. Drafts live on `widget.memoryForm` so typing does not re-render. */
+export function renderMemoryFormDialog(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
+	const form = widget.memoryForm;
+	if (!form) {
+		return;
+	}
+	const rememberOnly = form.origin === 'composer';
+	const host = rememberOnly && !body.classList.contains('knox-gui-memory-page')
+		? (() => {
+			const wrap = DOM.append(body, DOM.$('.knox-gui-memory-page'));
+			wrap.setAttribute('data-testid', 'composer-remember-host');
+			return wrap;
+		})()
+		: modalHost(body);
+	const busy = state.memoryBrowserBusy;
+	const overlay = mk(host, 'div', 'modal');
+	overlay.setAttribute('role', 'dialog');
+	overlay.setAttribute('aria-modal', 'true');
+	overlay.setAttribute('data-testid', form.origin === 'composer' ? 'composer-remember-dialog' : 'memory-editor-dialog');
+	const dialog = mk(overlay, 'div', 'dialog is-form');
+	const head = mk(dialog, 'div', 'mb-3 flex items-center gap-2');
+	svg(head, form.mode === 'edit' ? 'square-pen' : form.origin === 'composer' ? 'bookmark' : 'plus', 16, 'teal');
+	mk(head, 'h3', 'sm fw-6', t(state, form.mode === 'edit' ? 'memoryEditTitle' : form.origin === 'composer' ? 'memoryRememberTitle' : 'memoryCreateTitle'));
+	const fields = mk(dialog, 'div', 'form');
+	const categoryField = mk(fields, 'label', 'form-label', t(state, 'memoryFieldCategory'));
+	const category = mk(categoryField, 'select', 'dropdown form-control') as HTMLSelectElement;
+	category.setAttribute('data-testid', 'memory-editor-category');
+	category.disabled = busy;
+	for (const value of memoryEditorCategories(form.category, rememberOnly)) {
+		const option = mk(category, 'option', '', t(state, memoryCategoryLabelKey(value)));
+		option.value = value;
+		option.selected = value === form.category;
+	}
+	widget.renderStore.add(DOM.addDisposableListener(category, 'change', () => {
+		if (widget.memoryForm) {
+			widget.memoryForm = { ...widget.memoryForm, category: category.value };
+		}
+	}));
+	const titleField = mk(fields, 'label', 'form-label', t(state, 'memoryFieldTitle'));
+	const title = mk(titleField, 'input', 'field form-control') as HTMLInputElement;
+	title.type = 'text';
+	title.value = form.title;
+	title.disabled = busy;
+	title.setAttribute('data-testid', 'memory-editor-title');
+	const contentField = mk(fields, 'label', 'form-label', t(state, 'memoryFieldContent'));
+	const content = mk(contentField, 'textarea', 'field form-control form-textarea') as HTMLTextAreaElement;
+	content.value = form.content;
+	content.disabled = busy;
+	content.rows = 5;
+	content.setAttribute('data-testid', 'memory-editor-content');
+	const canSave = () => Boolean(title.value.trim() && content.value.trim());
+	const actions = mk(dialog, 'div', 'flex justify-end gap-2');
+	memoryButton(widget, actions, { tokens: 'dialog-btn is-cancel', label: t(state, 'cancel'), disabled: busy, onClick: () => closeMemoryForm(widget) });
+	const save = memoryButton(widget, actions, {
+		tokens: 'dialog-btn is-save',
+		label: t(state, 'memorySave'),
+		disabled: busy || !canSave(),
+		testId: 'memory-editor-save',
+		onClick: () => {
+			const current = widget.memoryForm;
+			if (!current) {
+				return;
+			}
+			const next = { ...current, title: title.value, content: content.value, category: category.value };
+			widget.memoryForm = next;
+			const done = (ok: boolean) => {
+				if (ok) {
+					widget.memoryForm = null;
+					widget.render();
+				}
+			};
+			if (next.mode === 'edit') {
+				void widget.controller.updateMemory(next).then(done);
+			} else {
+				void widget.controller.createMemory(next).then(done);
+			}
+		},
+	});
+	const syncSave = () => {
+		if (widget.memoryForm) {
+			widget.memoryForm = { ...widget.memoryForm, title: title.value, content: content.value, category: category.value };
+		}
+		save.disabled = busy || !canSave();
+	};
+	widget.renderStore.add(DOM.addDisposableListener(title, 'input', syncSave));
+	widget.renderStore.add(DOM.addDisposableListener(content, 'input', syncSave));
+	widget.renderStore.add(DOM.addDisposableListener(overlay, 'click', e => {
+		if (e.target === overlay) {
+			closeMemoryForm(widget);
+		}
+	}));
+	widget.renderStore.add(DOM.addDisposableListener(DOM.getWindow(overlay), 'keydown', (e: KeyboardEvent) => {
+		if (e.key === 'Escape') {
+			closeMemoryForm(widget);
+		}
+	}));
 }

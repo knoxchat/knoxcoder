@@ -1050,9 +1050,11 @@ class VsCodeIde implements IDE {
     const { AutoCheckpointSystem } = await import(
       "./checkpoints/AutoCheckpointSystem"
     );
-    await AutoCheckpointSystem.getInstance().onBeforeRiskyOperation(
+    const checkpointId = await AutoCheckpointSystem.getInstance().onBeforeRiskyOperation(
       params.toolName,
+      { sessionId: params.sessionId, turnId: params.turnId },
     );
+    return checkpointId ? { checkpointId } : undefined;
   }
 
   async ensureTurnCheckpoint(params: {
@@ -1071,6 +1073,8 @@ class VsCodeIde implements IDE {
       created: string;
       sessionId?: string;
       fileCount?: number;
+      branch?: string;
+      label?: string;
     }>
   > {
     const { CheckpointManager, listedCheckpointFileCount } = await import(
@@ -1080,17 +1084,27 @@ class VsCodeIde implements IDE {
       typeof limit === "number" && Number.isFinite(limit)
         ? Math.min(50, Math.max(1, Math.floor(limit)))
         : 15;
-    return CheckpointManager.getInstance()
+    const manager = CheckpointManager.getInstance();
+    const branches = await manager.listBranches();
+    const branchNameById = new Map(branches.map((branch) => [branch.id, branch.name]));
+    return manager
       .getCheckpointHistoryForWorkspace()
       .sort((a, b) => b.created.getTime() - a.created.getTime())
       .slice(0, cap)
-      .map((checkpoint) => ({
-        id: checkpoint.id,
-        description: checkpoint.description,
-        created: checkpoint.created.toISOString(),
-        sessionId: checkpoint.conversationContext?.sessionId,
-        fileCount: listedCheckpointFileCount(checkpoint),
-      }));
+      .map((checkpoint) => {
+        const branchName = checkpoint.branchId
+          ? branchNameById.get(checkpoint.branchId) ?? checkpoint.branchId
+          : undefined;
+        return {
+          id: checkpoint.id,
+          description: checkpoint.description,
+          created: checkpoint.created.toISOString(),
+          sessionId: checkpoint.sessionId ?? checkpoint.conversationContext?.sessionId,
+          fileCount: listedCheckpointFileCount(checkpoint),
+          branch: branchName,
+          label: checkpoint.label || checkpoint.description,
+        };
+      });
   }
 
   async createWorkspaceCheckpoint(params: {
@@ -1104,6 +1118,58 @@ class VsCodeIde implements IDE {
     });
   }
 
+  async createWorkspaceCheckpointBranch(params: {
+    name: string;
+    checkpointId?: string;
+    description?: string;
+  }): Promise<{
+    success: boolean;
+    branchId?: string;
+    name?: string;
+    headCheckpointId?: string;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    const manager = CheckpointManager.getInstance();
+    const name = params.name.trim();
+    if (!name) {
+      return { success: false, message: "Branch name is required" };
+    }
+    let baseId = params.checkpointId?.trim() || "";
+    if (!baseId) {
+      const latest = manager
+        .getCheckpointHistoryForWorkspace()
+        .sort((a, b) => b.created.getTime() - a.created.getTime())[0];
+      baseId = latest?.id ?? "";
+    }
+    if (!baseId) {
+      return {
+        success: false,
+        message: "No checkpoint to branch from. Create a checkpoint first.",
+      };
+    }
+    try {
+      const branch = await manager.createBranch(name, baseId, params.description ?? "");
+      if (!branch) {
+        return {
+          success: false,
+          message: "Could not create branch (workspace not initialized).",
+        };
+      }
+      return {
+        success: true,
+        branchId: branch.id,
+        name: branch.name,
+        headCheckpointId: branch.headCheckpointId,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   async restoreWorkspaceCheckpoint(params: {
     checkpointId: string;
     rewindMemory?: boolean;
@@ -1112,6 +1178,7 @@ class VsCodeIde implements IDE {
     restoredFiles: string[];
     failedFiles?: Array<{ path: string; error: string }>;
     skippedFiles?: Array<{ path: string; reason: string }>;
+    removedFiles?: string[];
     message?: string;
     memoryRewound?: boolean;
     memoryMessage?: string;
@@ -1129,6 +1196,7 @@ class VsCodeIde implements IDE {
       restoredFiles: result.restoredFiles ?? [],
       failedFiles: result.failedFiles,
       skippedFiles: result.skippedFiles,
+      removedFiles: result.removedFiles,
       message: result.message,
       memoryRewound: result.memoryRewound,
       memoryMessage: result.memoryMessage,

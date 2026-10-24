@@ -451,6 +451,16 @@ export class KnoxGuiController extends Disposable {
 		knoxGuiRecipe.answerRecipeChoice(this, choice);
 	}
 
+	/** T5: Recipes tab Preview — ask card, nothing written. */
+	previewMemoryRecipe(recipeId: string): void {
+		void knoxGuiRecipe.previewMemoryRecipe(this, recipeId);
+	}
+
+	/** T5: Recipes tab Replay — ask card, or apply if this recipe is already previewed. */
+	replayMemoryRecipe(recipeId: string): void {
+		void knoxGuiRecipe.replayMemoryRecipe(this, recipeId);
+	}
+
 	async loadRecipeSettings(): Promise<void> {
 		return knoxGuiRecipe.loadRecipeSettings(this);
 	}
@@ -459,9 +469,9 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiRecipe.setRecipeSettings(this, patch);
 	}
 
-	/** MC-42: "Promote to skill" buttons on the recipe notice. */
-	promoteRecipeSkill(scope: 'project' | 'global'): void {
-		void knoxGuiRecipe.promoteRecipeSkill(this, scope);
+	/** MC-42 / T13: "Promote to skill" from the chat notice or the Recipes tab. */
+	promoteRecipeSkill(scope: 'project' | 'global', recipeId?: string): void {
+		void knoxGuiRecipe.promoteRecipeSkill(this, scope, recipeId);
 	}
 
 	restoreCheckpoint(checkpointId: string, rewindMemory = false): void {
@@ -783,8 +793,18 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiMemory.loadMemoryRecipes(this);
 	}
 
-	async setMemoryRecipeStatus(recipeId: string, status: 'retired' | 'quarantined'): Promise<void> {
+	/** T5: chat toast link to Memory → Recipes. */
+	openMemoryRecipes(): void {
+		void knoxGuiMemory.openMemoryRecipes(this);
+	}
+
+	async setMemoryRecipeStatus(recipeId: string, status: 'retired' | 'quarantined' | 'candidate' | 'verified'): Promise<void> {
 		return knoxGuiMemory.setMemoryRecipeStatus(this, recipeId, status);
+	}
+
+	/** T13: open the Checkpoint Graph focused on a recipe's source snapshot. */
+	openRecipeCheckpoint(checkpointId: string): void {
+		knoxGuiMemory.openRecipeCheckpoint(this, checkpointId);
 	}
 
 	async loadMemorySessionHistory(sessionId: string): Promise<void> {
@@ -807,6 +827,26 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiMemory.loadMemoryConfig(this);
 	}
 
+	async loadMemoryBrainSettings(): Promise<void> {
+		return knoxGuiMemory.loadMemoryBrainSettings(this);
+	}
+
+	async setMemoryBrainSettings(patch: Partial<IKnoxGuiState['memoryBrainSettings']>): Promise<void> {
+		return knoxGuiMemory.setMemoryBrainSettings(this, patch);
+	}
+
+	async resetMemoryExpertConfig(): Promise<void> {
+		return knoxGuiMemory.resetMemoryExpertConfig(this);
+	}
+
+	async useMemorySessionAsContext(sessionId: string): Promise<void> {
+		return knoxGuiMemory.useMemorySessionAsContext(this, sessionId);
+	}
+
+	async deleteMemorySession(sessionId: string): Promise<void> {
+		return knoxGuiMemory.deleteMemorySession(this, sessionId);
+	}
+
 	updateMemoryConfig(key: string, value: unknown): void {
 		return knoxGuiMemory.updateMemoryConfig(this, key, value);
 	}
@@ -821,6 +861,18 @@ export class KnoxGuiController extends Disposable {
 
 	async pinMemories(ids: string[], pinned: boolean, bulk?: boolean): Promise<void> {
 		return knoxGuiMemory.pinMemories(this, ids, pinned, bulk);
+	}
+
+	async createMemory(input: knoxGuiMemory.IKnoxMemoryWriteInput): Promise<boolean> {
+		return knoxGuiMemory.createMemory(this, input);
+	}
+
+	async updateMemory(input: knoxGuiMemory.IKnoxMemoryWriteInput): Promise<boolean> {
+		return knoxGuiMemory.updateMemory(this, input);
+	}
+
+	async mismatchMemory(id: string): Promise<boolean> {
+		return knoxGuiMemory.mismatchMemory(this, id);
 	}
 
 	showMemoryBanner(kind: 'error' | 'notice', banner: { key: string; count?: number } | undefined): void {

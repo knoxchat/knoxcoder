@@ -61,6 +61,7 @@ export class BrainStore {
   static touchSemanticRetrieval = semantic.touchSemanticRetrieval;
   static isPinned = semantic.isPinned;
   static storeSemantic = semantic.storeSemantic;
+  static updateSemantic = semantic.updateSemantic;
   static storeSemanticDeduped = semantic.storeSemanticDeduped;
   static searchSemantic = semantic.searchSemantic;
   static deleteSemantic = semantic.deleteSemantic;

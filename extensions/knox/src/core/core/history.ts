@@ -17,6 +17,9 @@ export function registerHistoryHandlers(core: CoreRuntime): void {
 
   on("history/delete", (msg) => {
     historyManager.delete(msg.data.id);
+    void import("../context/memory/brain/BrainManager.js")
+      .then(({ BrainManager }) => BrainManager.deleteSession(msg.data.id))
+      .catch(() => undefined);
   });
 
   on("history/load", (msg) => {

@@ -15,6 +15,22 @@ export type SemanticCategory =
   | "project_context"
   | "workflow";
 
+export const SEMANTIC_CATEGORIES: readonly SemanticCategory[] = [
+  "fact",
+  "preference",
+  "decision",
+  "summary",
+  "insight",
+  "code_pattern",
+  "error_fix",
+  "project_context",
+  "workflow",
+];
+
+export function isSemanticCategory(value: string): value is SemanticCategory {
+  return (SEMANTIC_CATEGORIES as readonly string[]).includes(value);
+}
+
 // ── Emotional / Salience Tagging ─────────────────────────────────────────────
 
 export type EmotionalValence =
@@ -248,6 +264,15 @@ export interface StoreInput {
   topic_id?: number | null;
   /** REL-13: attach to the session's open task when omitted. */
   task_id?: string | null;
+}
+
+/** In-place edit of an existing semantic row. Does not insert a new table. */
+export interface UpdateSemanticInput {
+  id: number;
+  category: SemanticCategory;
+  title: string;
+  content: string;
+  keywords?: string;
 }
 
 export interface RecallInput {

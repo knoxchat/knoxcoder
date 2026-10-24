@@ -19,13 +19,13 @@ describe("parseToolArgsChecked", () => {
 
   it("recovers old_string with raw newlines and unescaped quotes", () => {
     const raw = `{
-  "filepath": "knox-impl.md",
-  "old_string": "### W11. No quality metric loop for "did the agent actually finish"
+  "filepath": "notes.md",
+  "old_string": "### Section. No quality metric loop for "did the agent actually finish"
 Eval has compaction and soak tests"
 }`;
     const { args, error } = parseToolArgsChecked(raw, "builtin_edit_file");
     expect(error).toBeUndefined();
-    expect(args.filepath).toBe("knox-impl.md");
+    expect(args.filepath).toBe("notes.md");
     expect(String(args.old_string)).toContain("did the agent actually finish");
     expect(String(args.old_string)).toContain("Eval has compaction");
   });

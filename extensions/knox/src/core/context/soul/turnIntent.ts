@@ -98,6 +98,12 @@ export class TurnIntentRegistry {
     return intent || undefined;
   }
 
+  /** True while `begin` has run and `finish` has not. Omit `sessionId` to test any session. */
+  isActive(sessionId?: string | null): boolean {
+    if (sessionId) return this.turns.has(sessionId);
+    return this.turns.size > 0;
+  }
+
   attach(sessionId: string | undefined, checkpointId: string | undefined): void {
     if (!sessionId || !checkpointId) return;
     const turn = this.turns.get(sessionId);
