@@ -103,9 +103,10 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(knoxGuiShowsChatPermissionBar(generated, { toolSettings: { builtin_edit_file: 'allowedWithPermission' }, sessionAllowlist: [] }), true);
 		assert.strictEqual(knoxGuiShowsChatPermissionBar(generated, { toolSettings: {}, sessionAllowlist: [] }), false);
 		assert.strictEqual(knoxGuiShowsChatPermissionBar({ ...generated, name: 'builtin_ask_user' }, { toolSettings: { builtin_ask_user: 'allowedWithPermission' }, sessionAllowlist: [] }), false);
-		assert.strictEqual(knoxGuiShowsChatToolButtons({ ...generated, status: 'generating' }), true);
-		assert.strictEqual(knoxGuiShowsChatToolButtons({ ...generated, status: 'calling' }), true);
-		assert.strictEqual(knoxGuiShowsChatToolButtons({ ...generated, name: 'builtin_ask_user', status: 'calling' }), false);
+		assert.strictEqual(knoxGuiShowsChatToolButtons(generated), true);
+		assert.strictEqual(knoxGuiShowsChatToolButtons({ ...generated, status: 'generating' }), false);
+		assert.strictEqual(knoxGuiShowsChatToolButtons({ ...generated, status: 'calling' }), false);
+		assert.strictEqual(knoxGuiShowsChatToolButtons({ ...generated, name: 'builtin_ask_user', status: 'generated' }), false);
 		assert.strictEqual(knoxGuiShowsComposerAcceptReject(true, true), true);
 		assert.strictEqual(knoxGuiShowsComposerAcceptReject(true, false), false);
 		assert.strictEqual(knoxGuiShowsBatchDiffEntry(true, false), true);

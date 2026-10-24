@@ -299,11 +299,11 @@
 }
 
 /*
- * Anything else the folded composer carries (tool Loading/Cancel bar, accept/reject, context peek) stacks above the
- * dock, never around it: the dock is always the last row and always the same 24px strip, so generating, tool
- * approval or a draft badge can neither push the buttons nor change the strip's height. While the composer is
- * still in flow (its 8px padding is present) the dock cancels that padding out, so the buttons sit exactly where
- * they do once the composer floats.
+ * Anything else the folded composer carries (tool approval, accept/reject, context peek) stacks above the
+ * dock, never around it: the dock is always the last row and always the same 24px strip, so a permission
+ * prompt or a draft badge can neither push the buttons nor change the strip's height. Thinking and Loading
+ * stay on the agent meter. While the composer is still in flow (its 8px padding is present) the dock
+ * cancels that padding out, so the buttons sit exactly where they do once the composer floats.
  */
 .knox-gui-composer.is-collapsed > .knox-gui-composer-dock-shell {
 	order: 99;

@@ -363,7 +363,7 @@ export function renderToolActions(widget: KnoxGuiWidget,
 	if (placement === 'card' && (tool.status === 'generated' || tool.status === 'generating' || tool.status === 'calling')) {
 		return;
 	}
-	if (placement === 'chat' && tool.status !== 'generated' && tool.status !== 'generating' && tool.status !== 'calling') {
+	if (placement === 'chat' && tool.status !== 'generated') {
 		return;
 	}
 	if (tool.status === 'generating') {

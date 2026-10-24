@@ -1065,6 +1065,55 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-composer-dock"] [data-testid="knox-gui-scroll-bottom"]'), null);
 	});
 
+	test('Thinking and Loading stay off the composer; collapsed dock still cancels', async () => {
+		const posted: string[] = [];
+		const { widget, store } = await mount(message => {
+			posted.push(message.messageType);
+			return {};
+		});
+		const calling: IKnoxGuiHistoryItem = {
+			id: 'a1',
+			role: 'assistant',
+			content: '',
+			toolCalls: [{ id: 't1', name: 'builtin_run_terminal_command', arguments: '{}', status: 'calling' }],
+		};
+		store.patch({ isStreaming: true, history: [calling] });
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-chat-tool-buttons"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="tool-thinking"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="tool-calling-cancel"]'), null);
+		assert.ok(widget.root.querySelector('.knox-gui-meter'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-send"]')?.classList.contains('knox-gui-cancel'));
+
+		widget.setComposerCollapsed(true);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-chat-tool-buttons"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="tool-calling-cancel"]'), null);
+		const dockCancel = widget.root.querySelector('[data-testid="knox-gui-dock-cancel"]') as HTMLButtonElement;
+		assert.ok(dockCancel);
+		await timeout(450);
+		assert.ok((widget.root.querySelector('[data-testid="full-composer"]') as HTMLElement).classList.contains('is-floating'));
+
+		store.patch({
+			history: [{
+				id: 'a1',
+				role: 'assistant',
+				content: '',
+				toolCalls: [{ id: 't1', name: 'builtin_edit_file', arguments: '{}', status: 'generating' }],
+			}],
+		});
+		assert.strictEqual(widget.root.querySelector('[data-testid="tool-thinking"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-chat-tool-buttons"]'), null);
+		assert.ok((widget.root.querySelector('[data-testid="full-composer"]') as HTMLElement).classList.contains('is-floating'));
+
+		posted.length = 0;
+		const liveCancel = widget.root.querySelector('[data-testid="knox-gui-dock-cancel"]') as HTMLButtonElement;
+		assert.ok(liveCancel);
+		liveCancel.click();
+		await timeout(0);
+		assert.ok(posted.includes('abort'));
+		assert.ok(posted.includes('tools/cancel'));
+		assert.strictEqual(store.state.isStreaming, false);
+	});
+
 	test('mention ArrowUp/Down select after @ opens without a full re-render', async () => {
 		const { widget, store } = await mount();
 		await widget.controller.loadMentions('');
@@ -2942,8 +2991,9 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 				toolCalls: [{ id: 't1', name: 'builtin_run_terminal_command', arguments: '{}', status: 'calling' }],
 			}],
 		});
-		const cancel = widget.root.querySelector('[data-testid="tool-calling-cancel"]') as HTMLButtonElement;
-		assert.ok(cancel);
+		assert.strictEqual(widget.root.querySelector('[data-testid="tool-calling-cancel"]'), null);
+		const cancel = widget.root.querySelector('[data-testid="knox-gui-send"]') as HTMLButtonElement;
+		assert.ok(cancel?.classList.contains('knox-gui-cancel'));
 		posted.length = 0;
 		cancel.click();
 		await timeout(0);

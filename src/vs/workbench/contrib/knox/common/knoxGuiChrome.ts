@@ -161,12 +161,15 @@ export function knoxGuiShowsChatPermissionBar(
 	return true;
 }
 
-/** `ToolCallButtonsDiv.tsx`: generating / calling / generated sit under the composer. */
+/**
+ * Composer pending bar is permission prompts only. Thinking / Loading already live on the
+ * always-visible agent meter (and the dock cancel orb), so they must not stack above the toolbar.
+ */
 export function knoxGuiShowsChatToolButtons(call: IKnoxGuiToolCall | undefined): call is IKnoxGuiToolCall {
 	if (!call || isAskUserToolName(call.name)) {
 		return false;
 	}
-	return call.status === 'generating' || call.status === 'calling' || call.status === 'generated';
+	return call.status === 'generated';
 }
 
 /** Chat.tsx sits AcceptRejectAll below the composer only for single-range edit. */
@@ -205,6 +208,7 @@ const SHORTCUT_ALT_KEYS = ['alt', 'option', 'opt', '⌥'];
  * and `cmd/ctrl` is a meta key, so `shift + cmd/ctrl + p` reads Shift + ⌘ + P.
  */
 export function knoxGuiShortcutKeys(shortcut: string, isMac: boolean): string[][] {
+	// allow-any-unicode-next-line
 	const backspace = isMac ? 'Delete ⌫' : 'Backspace ⌫';
 	const special: Record<string, string> = {
 		uparrow: 'UpArrow ↑',
@@ -215,6 +219,7 @@ export function knoxGuiShortcutKeys(shortcut: string, isMac: boolean): string[][
 		esc: 'Esc',
 		backspace,
 		delete: backspace,
+		// allow-any-unicode-next-line
 		'⌫': backspace,
 	};
 	return shortcut.split(',')
@@ -237,7 +242,7 @@ export function knoxGuiAcceptRejectLabelKeys(isSingleRange: boolean): { reject: 
 		: { reject: 'rejectAllChanges', accept: 'acceptAllChanges' };
 }
 
-/** `AcceptRejectAllButtons.tsx`: short < sm, mid sm–md, long ≥ md. */
+/** `AcceptRejectAllButtons.tsx`: short < sm, mid sm-md, long >= md. */
 export function knoxGuiAcceptRejectWidthKeys(): { short: { reject: string; accept: string }; mid: { reject: string; accept: string }; long: { reject: string; accept: string } } {
 	return {
 		short: { reject: 'reject', accept: 'accept' },
@@ -248,6 +253,7 @@ export function knoxGuiAcceptRejectWidthKeys(): { short: { reject: string; accep
 
 export function knoxGuiAcceptRejectShortcut(isMac: boolean, kind: 'accept' | 'reject'): string {
 	const meta = knoxGuiMetaKeyLabel(isMac);
+	// allow-any-unicode-next-line
 	return kind === 'accept' ? `${meta}⇧⏎` : `${meta}⇧⌫`;
 }
 
