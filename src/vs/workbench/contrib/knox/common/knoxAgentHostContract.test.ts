@@ -32,13 +32,23 @@ function coreSources(): string {
 	return files.join('\n');
 }
 
-/** A `widget/<name>.ts` barrel plus every implementation module in `widget/<name>/*.ts`. */
-function widgetBarrelSource(name: string): string {
-	const dir = `src/vs/workbench/contrib/knox/browser/gui/widget/${name}`;
+/** A `<root>/<name>.ts` barrel plus every implementation module in `<root>/<name>/*.ts`. */
+function barrelSource(root: string, name: string): string {
+	const dir = `${root}/${name}`;
 	return [
 		repoFile(`${dir}.ts`),
 		...readdirSync(join(process.cwd(), dir)).filter(file => file.endsWith('.ts')).sort().map(file => repoFile(dir, file)),
 	].join('\n');
+}
+
+/** A `widget/<name>.ts` barrel plus every implementation module in `widget/<name>/*.ts`. */
+function widgetBarrelSource(name: string): string {
+	return barrelSource('src/vs/workbench/contrib/knox/browser/gui/widget', name);
+}
+
+/** A `common/<name>.ts` barrel plus every implementation module in `common/<name>/*.ts`. */
+function commonBarrelSource(name: string): string {
+	return barrelSource('src/vs/workbench/contrib/knox/common', name);
 }
 
 /** `widget/composer.ts` is a barrel; its implementation lives in `widget/composer/*.ts`. */
@@ -54,6 +64,11 @@ function widgetCheckpointsSource(): string {
 /** `widget/memory.ts` is a barrel; its implementation lives in `widget/memory/*.ts`. */
 function widgetMemorySource(): string {
 	return widgetBarrelSource('memory');
+}
+
+/** `widget/tools.ts` is a barrel; its implementation lives in `widget/tools/*.ts`. */
+function widgetToolsSource(): string {
+	return widgetBarrelSource('tools');
 }
 
 /** A git-ignored directory is a local reference checkout, not part of the tree. */
@@ -724,9 +739,9 @@ suite('Knox agent host contract (KN-373)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('native tool cards cover ToolCallDiv kinds without an xterm dependency', () => {
-		const tools = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/tools.ts');
+		const tools = widgetToolsSource();
 		const chat = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiChat.ts');
-		const helpers = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiTools.ts');
+		const helpers = commonBarrelSource('knoxGuiTools');
 		const controller = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/tools.ts');
 		assert.ok(tools.includes('KN-373') || tools.includes('renderTerminalTool'));
 		assert.ok(tools.includes('export function renderTerminalTool'));
@@ -751,7 +766,7 @@ suite('Knox agent host contract (KN-374)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('native composer wires @ mentions, slash builtins, image drop, history, and code-to-edit chips', () => {
-		const input = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiInput.ts');
+		const input = commonBarrelSource('knoxGuiInput');
 		const composer = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/composer.ts');
 		const stream = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/stream.ts');
 		const config = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/config.ts');
@@ -793,7 +808,7 @@ suite('Knox agent host contract (KN-375)', () => {
 
 	test('native checkpoint overlay wires restore preview, Pierre word diffs, analysis, dashboard, and branches to KN-320–330', () => {
 		const protocol = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiProtocol.ts');
-		const helpers = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiCheckpoints.ts');
+		const helpers = commonBarrelSource('knoxGuiCheckpoints');
 		const controller = repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/checkpoints.ts');
 		const widget = widgetCheckpointsSource();
 		const graph = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/checkpointGraph.ts');

@@ -10,7 +10,7 @@ import { DARK_TERMINAL_PALETTE, treeThemeColors } from '../../../../common/knoxG
 import { IKnoxGuiState, IKnoxGuiToolCall } from '../../../../common/knoxGuiState.js';
 import * as knoxGuiToolsView from '../tools.js';
 
-/** Tool-call cards, terminals, trees, ANSI and card expansion state (`widget/tools.ts`). */
+/** Tool-call cards, terminals, trees, ANSI and card expansion state (`widget/tools/`). */
 export abstract class KnoxGuiToolsFacade extends KnoxGuiMarkdownFacade {
 	renderTool(this: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, tool: IKnoxGuiToolCall): void {
 		knoxGuiToolsView.renderTool(this, parent, state, tool);

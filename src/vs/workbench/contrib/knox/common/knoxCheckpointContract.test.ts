@@ -4,12 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 function repoFile(...parts: string[]): string {
 	return readFileSync(join(process.cwd(), ...parts), 'utf8');
+}
+
+/** A `common/<name>.ts` barrel plus every implementation module in `common/<name>/*.ts`. */
+function commonBarrelSource(name: string): string {
+	const dir = `src/vs/workbench/contrib/knox/common/${name}`;
+	return [
+		repoFile(`${dir}.ts`),
+		...readdirSync(join(process.cwd(), dir)).filter(file => file.endsWith('.ts')).sort().map(file => repoFile(dir, file)),
+	].join('\n');
 }
 
 suite('Knox checkpoint engine contract (KN-320–332)', () => {
@@ -46,7 +55,7 @@ suite('Knox checkpoint engine contract (KN-320–332)', () => {
 
 	test('KN-323: checkpoint diff + native word hunks', () => {
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/manager/diff.ts').includes('export async function computeCheckpointDiff'));
-		assert.ok(repoFile('src/vs/workbench/contrib/knox/common/knoxGuiCheckpoints.ts').includes('export function hunkWordAltRanges'));
+		assert.ok(commonBarrelSource('knoxGuiCheckpoints').includes('export function hunkWordAltRanges'));
 	});
 
 	test('KN-324: branch create / switch / merge / delete / rename', () => {
@@ -97,7 +106,7 @@ suite('Knox checkpoint engine contract (KN-320–332)', () => {
 
 	test('KN-330: messageId map, This session filter, shift-click memory rewind', () => {
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/manager/CheckpointManager.ts').includes('getCheckpointForMessage'));
-		assert.ok(repoFile('src/vs/workbench/contrib/knox/common/knoxGuiCheckpoints.ts').includes('thisSession'));
+		assert.ok(commonBarrelSource('knoxGuiCheckpoints').includes('thisSession'));
 		assert.ok(repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/chat/activity.ts').includes('event.shiftKey'));
 		assert.ok(repoFile('src/vs/workbench/contrib/knox/browser/gui/controller/checkpoints.ts').includes('rewindMemory'));
 	});
