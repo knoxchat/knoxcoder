@@ -13,6 +13,7 @@ import { threadStopped } from "../debug/debug";
 import { filterPausedThreads } from "../debug/debugTrackerLogic";
 import { VsCodeExtension } from "../extension/VsCodeExtension";
 import { API as GitAPI, GitExtension, Repository } from "../otherExtensions/git";
+import { waitForGitApiInitialized } from "./waitForGitApi";
 import {
   SuggestionRanges,
   acceptSuggestionCommand,
@@ -618,7 +619,9 @@ export class VsCodeIdeUtils {
 
   /**
    * Builtin Git (`vscode.git`). Activates the extension if it is present
-   * but not yet running so `@Diffs` works on first use.
+   * but not yet running so `@Diffs` works on first use. Waits until the
+   * first repository scan finishes (`state === "initialized"`) so callers
+   * do not poll an empty `repositories` list.
    */
   private async getGitApi(): Promise<GitAPI | undefined> {
     const extension =
@@ -634,9 +637,10 @@ export class VsCodeIdeUtils {
       if (!gitExtension?.enabled) {
         return undefined;
       }
-      return gitExtension.getAPI(1);
+      const api = gitExtension.getAPI(1);
+      await waitForGitApiInitialized(api);
+      return api;
     } catch (e) {
-      this._repoWasNone = true;
       console.warn("Git not found: ", e);
       return undefined;
     }
@@ -657,7 +661,6 @@ export class VsCodeIdeUtils {
     try {
       return git.getRepository(forDirectory) ?? undefined;
     } catch (e) {
-      this._repoWasNone = true;
       console.warn("Git not found: ", e);
       return undefined;
     }
@@ -732,20 +735,16 @@ export class VsCodeIdeUtils {
     try {
       return git.repositories;
     } catch (e) {
-      this._repoWasNone = true;
       console.warn("Git not found: ", e);
       return undefined;
     }
   }
 
-  private _repoWasNone: boolean = false;
   private repoCache: Map<string, Repository> = new Map();
   private gitChangeListeners = new Set<() => void>();
   private gitWatchDisposables: vscode.Disposable[] = [];
   private gitWatchStart?: Promise<void>;
   private gitChangeDebounce?: NodeJS.Timeout;
-  private static secondsToWaitForGitToLoad =
-    process.env.NODE_ENV === "test" ? 1 : 20;
   async getRepo(forDirectory: vscode.Uri): Promise<Repository | undefined> {
     const workspaceDirs = this.getWorkspaceDirectories().map((dir) =>
       dir.toString(),
@@ -755,35 +754,19 @@ export class VsCodeIdeUtils {
       workspaceDirs,
     );
     if (foundInDir) {
-      // Check if the repository is already cached
       const cachedRepo = this.repoCache.get(foundInDir);
       if (cachedRepo) {
         return cachedRepo;
       }
     }
 
-    let repo = await this._getRepo(forDirectory);
-
-    let i = 0;
-    while (!repo?.state?.HEAD?.name) {
-      if (this._repoWasNone) {
-        return undefined;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      i++;
-      if (i >= VsCodeIdeUtils.secondsToWaitForGitToLoad) {
-        this._repoWasNone = true;
-        return undefined;
-      }
-      repo = await this._getRepo(forDirectory);
-    }
-
-    if (foundInDir) {
-      // Cache the repository for the parent directory
+    // getGitApi already waited for vscode.git's first scan. If there is no
+    // repository here, this folder is not a git repo — do not poll for 20s.
+    // Unborn HEAD (new repo, no commits) is still a repository.
+    const repo = await this._getRepo(forDirectory);
+    if (repo && foundInDir) {
       this.repoCache.set(foundInDir, repo);
     }
-
     return repo;
   }
 

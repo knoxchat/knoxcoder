@@ -55,6 +55,7 @@ import {
   normalizeEditEntry,
 } from "./editArgs";
 import type { HookRunner } from "../hooks/hooks.js";
+import { createKnoxLogger } from "../util/knoxLog";
 
 // --- Retry Configuration -----------------------------------------------------
 
@@ -727,26 +728,16 @@ function isWriteOperation(toolName: string): boolean {
 
 // --- Logging -----------------------------------------------------------------
 
+const toolCallLog = createKnoxLogger("ToolCall");
+
 function logToolCall(
-  level: "info" | "warn" | "error",
+  level: "debug" | "info" | "warn" | "error",
   toolName: string,
   message: string,
   data?: Record<string, any>,
 ): void {
-  const prefix = `[ToolCall:${toolName}]`;
   const payload = data ? ` ${JSON.stringify(data)}` : "";
-
-  switch (level) {
-    case "info":
-      console.log(`${prefix} ${message}${payload}`);
-      break;
-    case "warn":
-      console.warn(`${prefix} ${message}${payload}`);
-      break;
-    case "error":
-      console.error(`${prefix} ${message}${payload}`);
-      break;
-  }
+  toolCallLog[level](`${toolName}: ${message}${payload}`);
 }
 
 // --- Sleep with Jitter -------------------------------------------------------
@@ -806,7 +797,7 @@ export async function executeToolWithMiddleware(
   metrics.lastCallTime = startTime;
 
   if (opts.logging) {
-    logToolCall("info", toolName, "Starting tool call", {
+    logToolCall("debug", toolName, "Starting tool call", {
       hasArgs: rawArgs !== undefined && rawArgs !== null,
     });
   }
@@ -956,7 +947,7 @@ export async function executeToolWithMiddleware(
     }
 
     if (opts.logging) {
-      logToolCall("info", toolName, "Tool call succeeded", {
+      logToolCall("debug", toolName, "Tool call succeeded", {
         durationMs: duration,
         outputItems: result.length,
       });
@@ -1507,7 +1498,7 @@ function checkCircuitBreaker(
         // Transition to half-open
         cb.state = "half-open";
         cb.halfOpenSuccesses = 0;
-        logToolCall("info", toolName, "Circuit breaker transitioned to half-open");
+        logToolCall("debug", toolName, "Circuit breaker transitioned to half-open");
       } else {
         throw new ToolCallError({
           code: ToolCallErrorCode.CIRCUIT_OPEN,
@@ -1541,7 +1532,7 @@ function recordCircuitBreakerSuccess(toolName: string): void {
     const opts = DEFAULT_CIRCUIT_BREAKER; // Use default for threshold
     if (cb.halfOpenSuccesses >= opts.halfOpenSuccessThreshold) {
       cb.state = "closed";
-      logToolCall("info", toolName, "Circuit breaker closed (recovered)");
+      logToolCall("debug", toolName, "Circuit breaker closed (recovered)");
     }
   }
 }

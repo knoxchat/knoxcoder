@@ -74,6 +74,21 @@ describe("git tools", () => {
     expect(result[0].content).toContain("## main");
   });
 
+  it("returns a tool result when the folder is not a git repo", async () => {
+    const subprocess = vi.fn(async () => {
+      throw "fatal: not a git repository (or any of the parent directories): .git";
+    });
+    const result = await gitStatusImpl(
+      {},
+      extras(subprocess, "/tmp/ws", {
+        getGitRootPath: async () => undefined,
+      }),
+    );
+    expect(result[0].description).toBe("git status failed");
+    expect(result[0].content).toContain("not a git repository");
+    expect(result[0].content).toContain("git exited with an error");
+  });
+
   it("diffs unstaged by default and staged when asked", async () => {
     const subprocess = vi.fn(async (cmd: string) => [`out:${cmd}`, ""]);
     await gitDiffImpl({}, extras(subprocess));

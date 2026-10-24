@@ -2,6 +2,7 @@ import { exec } from "node:child_process";
 
 import { IndexTag, Range } from "core";
 import { EXTENSION_NAME } from "core/config/extensionName";
+import { createKnoxLogger } from "core/util/knoxLog";
 import {
   resolveRipgrepBinary,
   searchWorkspaceWithRipgrep,
@@ -41,6 +42,22 @@ import type {
   DebugControlRequest,
   DebugControlResult,
 } from "core";
+
+const subprocessLog = createKnoxLogger("subprocess");
+
+function execCwd(cwd?: string): string | undefined {
+  if (!cwd) {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  }
+  if (cwd.startsWith("file:")) {
+    try {
+      return vscode.Uri.parse(cwd).fsPath;
+    } catch {
+      return cwd;
+    }
+  }
+  return cwd;
+}
 
 class VsCodeIde implements IDE {
   ideUtils: VsCodeIdeUtils;
@@ -1319,10 +1336,15 @@ class VsCodeIde implements IDE {
 
   async subprocess(command: string, cwd?: string): Promise<[string, string]> {
     return new Promise((resolve, reject) => {
-      exec(command, { cwd }, (error, stdout, stderr) => {
+      exec(command, { cwd: execCwd(cwd) }, (error, stdout, stderr) => {
         if (error) {
-          console.warn(error);
-          reject(stderr);
+          // Expected failures (not a git repo, command not found) belong in the
+          // tool result. Do not dump Node's ExecException stack to DevTools.
+          const detail =
+            (typeof stderr === "string" && stderr.trim()) || error.message;
+          subprocessLog.debug(`Command failed: ${command}`, detail);
+          reject(detail);
+          return;
         }
         resolve([stdout, stderr]);
       });
