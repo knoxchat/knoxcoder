@@ -7,10 +7,16 @@
 
 export const TERMINAL_TAIL_LINES = 400;
 export const TERMINAL_TAIL_CHARS = 32_000;
+/** Visible rows in a chat terminal card before the body scrolls. */
+export const TERMINAL_VISIBLE_LINES = 5;
+export const TERMINAL_LINE_HEIGHT_PX = 18;
+export const TERMINAL_BODY_PAD_PX = 24;
+export const TERMINAL_BODY_MIN_PX = 80;
+export const TERMINAL_BODY_MAX_PX = TERMINAL_VISIBLE_LINES * TERMINAL_LINE_HEIGHT_PX + TERMINAL_BODY_PAD_PX;
 
-export function terminalBodyHeight(tail: string, hasCommand: boolean, minHeight = 80, maxHeight = 400): number {
+export function terminalBodyHeight(tail: string, hasCommand: boolean, minHeight = TERMINAL_BODY_MIN_PX, maxHeight = TERMINAL_BODY_MAX_PX): number {
 	const lineCount = (tail ? tail.split('\n').length : 0) + (hasCommand ? 1 : 0);
-	return Math.min(Math.max(lineCount * 18 + 24, minHeight), maxHeight);
+	return Math.min(Math.max(lineCount * TERMINAL_LINE_HEIGHT_PX + TERMINAL_BODY_PAD_PX, minHeight), maxHeight);
 }
 
 export function extractTerminalOutput(items: Array<{ name?: string; description?: string; content?: string }> | undefined): string {

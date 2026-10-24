@@ -21,6 +21,7 @@ import { KNOX_GUI_LUMP_TOOLBAR, KNOX_GUI_MAIN_TEXT_ENTRY_KEY, KNOX_GUI_MAIN_TEXT
 import { IKnoxGuiMessage, KnoxGuiRoute } from '../common/knoxGuiProtocol.js';
 import { IKnoxGuiCheckpointDiffFile, IKnoxGuiCheckpointNode, IKnoxGuiGitDiffFile, IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../common/knoxGuiState.js';
 import { CHAT_DISPLAY_WINDOW, CHAT_LOAD_MORE_COUNT } from '../common/knoxGuiChat.js';
+import { TERMINAL_BODY_MAX_PX } from '../common/knoxGuiTools.js';
 import { composerInputHistoryAdd, createComposerInputHistory, DEFAULT_MENTION_PROVIDER_TITLES, inputDocFromPlainText, SLASH_BUILTINS } from '../common/knoxGuiInput.js';
 import { formatPlanText } from '../common/knoxGuiPanels.js';
 import { knoxGuiT } from './gui/knoxGuiI18n.js';
@@ -860,6 +861,37 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		chevron.click();
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-term"]'), term);
 		assert.ok(widget.root.querySelector('.knox-gui-term-body'));
+	});
+
+	test('streaming terminal cards cap at 5 lines and scroll longer output', async () => {
+		const { widget, store } = await mount();
+		const output = Array.from({ length: 20 }, (_, i) => `line-${i}`).join('\n');
+		store.patch({
+			isStreaming: true,
+			history: [
+				{ id: 'u', role: 'user', content: 'run it' },
+				{
+					id: 'a',
+					role: 'assistant',
+					content: '',
+					toolCalls: [{
+						id: 'term',
+						name: 'builtin_run_terminal_command',
+						arguments: '{"command":"seq 20"}',
+						status: 'calling',
+						parsedArgs: { command: 'seq 20' },
+						output,
+					}],
+				},
+			],
+		});
+		const body = widget.root.querySelector('.knox-gui-term-body') as HTMLElement | null;
+		assert.ok(body);
+		assert.strictEqual(body.style.height, `${TERMINAL_BODY_MAX_PX}px`);
+		assert.strictEqual(body.style.maxHeight, `${TERMINAL_BODY_MAX_PX}px`);
+		assert.strictEqual(body.style.overflowY, 'auto');
+		assert.ok(body.classList.contains('knox-gui-term-scroll'));
+		assert.ok(widget.root.querySelector('[data-testid="xterm-output"]')?.textContent?.includes('line-19'));
 	});
 
 	test('main sent frame matches KnoxInputBox GradientBorder + TipTapEditor layout', async () => {

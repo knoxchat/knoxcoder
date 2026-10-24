@@ -16,6 +16,7 @@ import {
 	extractTerminalOutput,
 	LIGHT_TERMINAL_PALETTE,
 	takeTerminalTail,
+	TERMINAL_BODY_MAX_PX,
 	terminalBodyHeight,
 	terminalCommandForTool,
 	toolOutputText,
@@ -162,6 +163,9 @@ export function syncTerminalCard(widget: KnoxGuiWidget, card: HTMLElement, state
 		bindTerminalScroll(widget, body, tool.id);
 	}
 	body.style.height = `${height}px`;
+	body.style.maxHeight = `${TERMINAL_BODY_MAX_PX}px`;
+	body.style.overflowY = 'auto';
+	body.classList.toggle('knox-gui-term-scroll', height >= TERMINAL_BODY_MAX_PX);
 	body.classList.toggle('wrap', Boolean(state.codeWrap));
 	let pre = body.querySelector('pre.knox-gui-term-pre') as HTMLElement | null;
 	if (!pre) {

@@ -869,7 +869,8 @@
 	margin: 0;
 	height: auto;
 	min-height: 80px;
-	max-height: 400px;
+	/* 5 visible lines: 5 * 18px + 24px pad. Keep in sync with TERMINAL_BODY_MAX_PX. */
+	max-height: 114px;
 	overflow-x: auto;
 	overflow-y: auto;
 	overflow-anchor: none;
