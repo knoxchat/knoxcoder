@@ -17,8 +17,17 @@ interface IScrollEntry {
 	key?: string;
 }
 
+export interface IKnoxGuiSelectionSnapshot {
+	anchor: IDomPoint;
+	focus: IDomPoint;
+	/** Visible selected text, used when a streaming patch replaces the path nodes. */
+	text?: string;
+	start?: number;
+	end?: number;
+}
+
 export interface IKnoxGuiDomSnapshot {
-	selection?: { anchor: IDomPoint; focus: IDomPoint };
+	selection?: IKnoxGuiSelectionSnapshot;
 	scrolls: IScrollEntry[];
 }
 
@@ -78,6 +87,46 @@ function resolve(root: Node, path: number[], names: string[]): Node | undefined 
 
 function nodeLength(node: Node): number {
 	return node.nodeType === Node.TEXT_NODE ? (node.textContent ?? '').length : node.childNodes.length;
+}
+
+function pointToOffset(root: HTMLElement, node: Node, offset: number): number | undefined {
+	try {
+		const range = root.ownerDocument.createRange();
+		range.setStart(root, 0);
+		range.setEnd(node, offset);
+		return range.toString().length;
+	} catch {
+		return undefined;
+	}
+}
+
+function offsetToPoint(root: HTMLElement, index: number): { node: Node; offset: number } | undefined {
+	const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	let remaining = index;
+	let last: Text | undefined;
+	let current: Node | null;
+	while ((current = walker.nextNode())) {
+		last = current as Text;
+		const len = last.data.length;
+		if (remaining <= len) {
+			return { node: last, offset: remaining };
+		}
+		remaining -= len;
+	}
+	if (last) {
+		return { node: last, offset: last.data.length };
+	}
+	return undefined;
+}
+
+function restoreTextOffsets(root: HTMLElement, start: number, end: number): boolean {
+	const anchor = offsetToPoint(root, start);
+	const focus = offsetToPoint(root, end);
+	if (!anchor || !focus) {
+		return false;
+	}
+	root.ownerDocument.getSelection()?.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
+	return true;
 }
 
 function testIdOf(el: HTMLElement): string | undefined {
@@ -150,21 +199,32 @@ function resolveScrollTarget(root: HTMLElement, entry: IScrollEntry): HTMLElemen
  * attached git/jobs panels, dialogs) are captured from the widget root and restored by a
  * stable key when siblings around them shift.
  */
-export function captureDomState(root: HTMLElement, skipScroller?: HTMLElement): IKnoxGuiDomSnapshot {
-	const snapshot: IKnoxGuiDomSnapshot = { scrolls: [] };
+export function captureSelection(root: HTMLElement): IKnoxGuiSelectionSnapshot | undefined {
 	const selection = root.ownerDocument.getSelection();
-	if (selection && selection.rangeCount && !selection.isCollapsed && selection.anchorNode && selection.focusNode) {
-		const active = root.ownerDocument.activeElement;
-		const inEditable = active instanceof HTMLElement && (active.isContentEditable || active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) && root.contains(active);
-		const anchor = pathTo(root, selection.anchorNode);
-		const focus = pathTo(root, selection.focusNode);
-		if (!inEditable && anchor && focus) {
-			snapshot.selection = {
-				anchor: { ...anchor, offset: selection.anchorOffset },
-				focus: { ...focus, offset: selection.focusOffset },
-			};
-		}
+	if (!selection || !selection.rangeCount || selection.isCollapsed || !selection.anchorNode || !selection.focusNode) {
+		return undefined;
 	}
+	const active = root.ownerDocument.activeElement;
+	const inEditable = active instanceof HTMLElement && (active.isContentEditable || active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) && root.contains(active);
+	if (inEditable) {
+		return undefined;
+	}
+	const anchor = pathTo(root, selection.anchorNode);
+	const focus = pathTo(root, selection.focusNode);
+	if (!anchor || !focus) {
+		return undefined;
+	}
+	return {
+		anchor: { ...anchor, offset: selection.anchorOffset },
+		focus: { ...focus, offset: selection.focusOffset },
+		text: selection.toString(),
+		start: pointToOffset(root, selection.anchorNode, selection.anchorOffset),
+		end: pointToOffset(root, selection.focusNode, selection.focusOffset),
+	};
+}
+
+export function captureDomState(root: HTMLElement, skipScroller?: HTMLElement): IKnoxGuiDomSnapshot {
+	const snapshot: IKnoxGuiDomSnapshot = { scrolls: [], selection: captureSelection(root) };
 	for (const el of Array.from(root.querySelectorAll<HTMLElement>('*'))) {
 		if (el === skipScroller || el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
 			continue;
@@ -197,8 +257,26 @@ export function restoreDomState(root: HTMLElement, snapshot: IKnoxGuiDomSnapshot
 	}
 	const anchor = resolve(root, saved.anchor.path, saved.anchor.names);
 	const focus = resolve(root, saved.focus.path, saved.focus.names);
-	if (!anchor || !focus || saved.anchor.offset > nodeLength(anchor) || saved.focus.offset > nodeLength(focus)) {
-		return;
+	if (anchor && focus && saved.anchor.offset <= nodeLength(anchor) && saved.focus.offset <= nodeLength(focus)) {
+		root.ownerDocument.getSelection()?.setBaseAndExtent(anchor, saved.anchor.offset, focus, saved.focus.offset);
+		if (!saved.text || root.ownerDocument.getSelection()?.toString() === saved.text) {
+			return;
+		}
 	}
-	root.ownerDocument.getSelection()?.setBaseAndExtent(anchor, saved.anchor.offset, focus, saved.focus.offset);
+	if (saved.start !== undefined && saved.end !== undefined) {
+		restoreTextOffsets(root, saved.start, saved.end);
+	}
+}
+
+/**
+ * Run a streaming DOM patch without dropping a transcript selection the user is copying.
+ * Scroll positions are left alone: live code/terminal windows manage those themselves.
+ */
+export function withPreservedSelection<T>(root: HTMLElement, fn: () => T): T {
+	const selection = captureSelection(root);
+	const result = fn();
+	if (selection) {
+		restoreDomState(root, { selection, scrolls: [] });
+	}
+	return result;
 }

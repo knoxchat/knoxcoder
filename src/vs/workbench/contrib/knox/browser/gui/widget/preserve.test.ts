@@ -100,4 +100,30 @@ suite('Knox GUI DOM preserve', () => {
 		const snapshot = captureDomState(root, body);
 		assert.deepStrictEqual(keyedScrolls(snapshot).scrolls.map(entry => entry.key), ['knox-gui-overlay-settings']);
 	});
+
+	test('restores a text selection after the live node is replaced', () => {
+		const root = document.createElement('div');
+		const p = document.createElement('p');
+		p.append('hello world');
+		root.appendChild(p);
+		document.body.appendChild(root);
+		const text = p.firstChild as Text;
+		const selection = document.getSelection()!;
+		const range = document.createRange();
+		range.setStart(text, 0);
+		range.setEnd(text, 5);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		const snapshot = captureDomState(root);
+		assert.strictEqual(snapshot.selection?.text, 'hello');
+		root.replaceChildren();
+		const wrap = document.createElement('div');
+		const next = document.createElement('span');
+		next.append('hello world more');
+		wrap.appendChild(next);
+		root.appendChild(wrap);
+		restoreDomState(root, snapshot);
+		assert.strictEqual(document.getSelection()?.toString(), 'hello');
+		root.remove();
+	});
 });

@@ -13,6 +13,27 @@ import { IDisposable } from '../../../../../../base/common/lifecycle.js';
  */
 export type KnoxEditCommand = 'selectAll' | 'undo' | 'redo';
 
+/** True when the window selection is inside a Knox GUI (chat transcript, composer, overlays). */
+export function knoxSelectionHost(node: Node | null | undefined): Element | undefined {
+	const el = node instanceof Element ? node : node?.parentElement;
+	return el?.closest('.knox-gui') ?? undefined;
+}
+
+/**
+ * Copy the current Knox text selection. Used by `editor.action.clipboardCopyAction` so Cmd/Ctrl+C
+ * copies highlighted chat text even when the code editor still has text focus.
+ */
+export function copyKnoxDocumentSelection(doc: Document = globalThis.document): boolean {
+	const selection = doc.getSelection();
+	if (!selection || selection.isCollapsed || !selection.toString() || !knoxSelectionHost(selection.anchorNode)) {
+		return false;
+	}
+	if (typeof doc.execCommand === 'function') {
+		doc.execCommand('copy');
+	}
+	return true;
+}
+
 export interface IKnoxEditHost {
 	/** @returns `true` when the command was handled inside the widget, `false` to let the workbench continue. */
 	run(command: KnoxEditCommand, active: HTMLElement): boolean;

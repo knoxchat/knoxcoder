@@ -17,8 +17,13 @@ import {
 	shouldShowThinkingIndicator,
 } from '../../../../common/knoxGuiTranscript.js';
 import { pastFileInfoFor, renderStreamingMarkdownInto } from './stream.js';
+import { withPreservedSelection } from '../preserve.js';
 
 export function patchLastAssistant(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
+	withPreservedSelection(widget.root, () => patchLastAssistantBody(widget, state));
+}
+
+function patchLastAssistantBody(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
 	const card = widget.lastAssistantCard;
 	const item = state.history[state.history.length - 1];
 	if (!card || !item) {
@@ -98,6 +103,10 @@ export function patchLastAssistant(widget: KnoxGuiWidget, state: IKnoxGuiState):
  * Returns false when a card is not mounted so the caller can fall back to a full render.
  */
 export function patchToolProgress(widget: KnoxGuiWidget, state: IKnoxGuiState, toolIds: readonly string[]): boolean {
+	return withPreservedSelection(widget.root, () => patchToolProgressBody(widget, state, toolIds));
+}
+
+function patchToolProgressBody(widget: KnoxGuiWidget, state: IKnoxGuiState, toolIds: readonly string[]): boolean {
 	const previous = widget.listenerStore;
 	try {
 		for (const id of toolIds) {

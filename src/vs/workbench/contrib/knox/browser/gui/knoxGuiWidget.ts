@@ -115,6 +115,21 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		return Boolean(this.editorEl && this.editorEl.contains(document.activeElement));
 	}
 
+	flushPendingLivePatch(): void {
+		if (!this.pendingLivePatch) {
+			return;
+		}
+		this.pendingLivePatch = false;
+		const state = this.controller.store.state;
+		if (this.lastAssistantCard) {
+			this.patchLastAssistant(state);
+		}
+		const ids = state.history.flatMap(item => item.toolCalls ?? []).filter(tool => tool.status === 'calling' || tool.status === 'generating').map(tool => tool.id);
+		if (ids.length) {
+			patchToolProgress(this, state, ids);
+		}
+	}
+
 	/**
 	 * Select All / Undo / Redo for whatever is focused inside this widget, so the workbench never
 	 * redirects them to the active code editor. Native `<input>` / `<textarea>` are left to the workbench.
@@ -172,7 +187,11 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		if (this.lastState && isKnoxGuiStreamingTokenChange(this.lastState, state) && this.lastAssistantCard) {
 			const ended = this.lastState.isStreaming && !state.isStreaming;
 			this.lastState = state;
-			this.patchLastAssistant(state);
+			if (this.pointerHeld) {
+				this.pendingLivePatch = true;
+			} else {
+				this.patchLastAssistant(state);
+			}
 			if (ended && this.autoScrollEnabled) {
 				knoxGuiChromeView.scheduleStreamEndStick(this);
 			}
@@ -184,6 +203,11 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		if (this.lastState) {
 			const progress = knoxGuiToolProgressOnlyChange(this.lastState, state);
 			if (progress) {
+				if (this.pointerHeld) {
+					this.pendingLivePatch = true;
+					this.lastState = state;
+					return;
+				}
 				if (!patchToolProgress(this, state, progress)) {
 					if (this.deferComposerImeRender()) {
 						return;
@@ -238,6 +262,7 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		}
 		const skipScroller = this.lastState?.route === KnoxGuiRoute.Chat ? this.bodyEl : undefined;
 		const domSnapshot = captureDomState(this.root, skipScroller);
+		this.pendingLivePatch = false;
 		this.checkpointGraphMount?.remove();
 		this.renderStore.clear();
 		this.filterStore.clear();

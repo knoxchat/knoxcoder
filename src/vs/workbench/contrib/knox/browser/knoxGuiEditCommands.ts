@@ -5,7 +5,8 @@
 
 import { getActiveElement } from '../../../../base/browser/dom.js';
 import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
-import { KnoxEditCommand, runKnoxEditCommand } from './gui/widget/editCommands.js';
+import { CopyAction } from '../../../../editor/contrib/clipboard/browser/clipboard.js';
+import { KnoxEditCommand, copyKnoxDocumentSelection, runKnoxEditCommand } from './gui/widget/editCommands.js';
 
 /**
  * Above the editor's `generic-dom-input-textarea` (1000) and `generic-dom` (0) fallbacks, which do not treat a
@@ -21,3 +22,4 @@ function overrideForKnox(command: MultiCommand, kind: KnoxEditCommand): void {
 overrideForKnox(SelectAllCommand, 'selectAll');
 overrideForKnox(UndoCommand, 'undo');
 overrideForKnox(RedoCommand, 'redo');
+CopyAction?.addImplementation(KNOX_EDIT_PRIORITY, 'knox-gui', () => copyKnoxDocumentSelection());

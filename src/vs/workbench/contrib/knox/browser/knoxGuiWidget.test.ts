@@ -32,7 +32,7 @@ import { KnoxGuiStore } from './knoxGuiStore.js';
 import { KnoxGuiWidget } from './gui/knoxGuiWidget.js';
 import { DEFAULT_CHECKPOINT_CONFIG } from '../common/knoxGuiCheckpoints.js';
 import { checkpointTimelineEscape } from './gui/widget/checkpoints.js';
-import { runKnoxEditCommand } from './gui/widget/editCommands.js';
+import { copyKnoxDocumentSelection, runKnoxEditCommand } from './gui/widget/editCommands.js';
 import { SelectAllCommand } from '../../../../editor/browser/editorExtensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import './knoxGuiEditCommands.js';
@@ -597,6 +597,50 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			assert.notStrictEqual(next, first);
 			assert.strictEqual(next.scrollTop, 240);
 		});
+	});
+
+	test('streaming patches keep a transcript selection so it can be copied', async () => {
+		const { widget, store } = await mount();
+		const user: IKnoxGuiHistoryItem = { id: 'u', role: 'user', content: 'hi' };
+		store.patch({ isStreaming: true, history: [user, { id: 'a', role: 'assistant', content: 'hello world' }] });
+		const paragraph = widget.root.querySelector('.knox-gui-stream-body p') ?? widget.root.querySelector('.knox-gui-stream-body');
+		assert.ok(paragraph);
+		let text = paragraph.firstChild;
+		while (text && text.nodeType !== Node.TEXT_NODE) {
+			text = text.firstChild;
+		}
+		assert.ok(text);
+		const selection = document.getSelection()!;
+		const range = document.createRange();
+		range.setStart(text, 0);
+		range.setEnd(text, 5);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		assert.strictEqual(selection.toString(), 'hello');
+		store.patch({ history: [user, { id: 'a', role: 'assistant', content: 'hello world and more' }] });
+		assert.strictEqual(document.getSelection()?.toString(), 'hello');
+		assert.strictEqual(copyKnoxDocumentSelection(), true);
+		assert.ok(widget.root.querySelector('.knox-gui-body-chat'));
+
+		const live = widget.root.querySelector('.knox-gui-stream-body') as HTMLElement;
+		live.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 24, clientY: 24 }));
+		const menu = widget.root.querySelector('[data-testid="knox-gui-osr-menu"]');
+		assert.ok(menu?.textContent?.toLowerCase().includes('copy'));
+	});
+
+	test('streaming token patches wait out a pointer drag so the selection can finish', async () => {
+		const { widget, store } = await mount();
+		const user: IKnoxGuiHistoryItem = { id: 'u', role: 'user', content: 'hi' };
+		store.patch({ isStreaming: true, history: [user, { id: 'a', role: 'assistant', content: 'hello' }] });
+		assert.ok(widget.root.querySelector('.knox-gui-stream-body')?.textContent?.includes('hello'));
+		widget.pointerHeld = true;
+		store.patch({ history: [user, { id: 'a', role: 'assistant', content: 'hello world' }] });
+		assert.ok(!(widget.root.querySelector('.knox-gui-stream-body')?.textContent ?? '').includes('world'));
+		assert.strictEqual(widget.pendingLivePatch, true);
+		widget.pointerHeld = false;
+		widget.flushPendingLivePatch();
+		assert.ok(widget.root.querySelector('.knox-gui-stream-body')?.textContent?.includes('hello world'));
+		assert.strictEqual(widget.pendingLivePatch, false);
 	});
 
 	test('C-13 streaming keeps finished blocks, heals the live one, and reasoning fences get a toolbar', async () => {
@@ -3299,6 +3343,27 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(editor.textContent?.includes('pasted text'), 'text must not be swallowed by the file');
 		assert.strictEqual(store.state.images.length, 0, 'unsupported image files are ignored');
 	});
+	test('Copy of a Knox selection is claimed so the workbench does not copy the editor', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			isStreaming: true,
+			history: [
+				{ id: 'u', role: 'user', content: 'hi' },
+				{ id: 'a', role: 'assistant', content: 'alpha beta' },
+			],
+		});
+		const node = widget.root.querySelector('.knox-gui-stream-body') as HTMLElement;
+		assert.ok(node.textContent?.includes('alpha'));
+		const selection = document.getSelection()!;
+		selection.removeAllRanges();
+		assert.strictEqual(copyKnoxDocumentSelection(), false, 'no selection is not handled');
+		const range = document.createRange();
+		range.selectNodeContents(node);
+		selection.addRange(range);
+		assert.ok(selection.toString().includes('alpha'));
+		assert.strictEqual(copyKnoxDocumentSelection(), true);
+	});
+
 	test('Cmd+A in the composer selects only the composer text, never the code editor', async () => {
 		const { widget, store } = await mount();
 		store.setInputDoc(inputDocFromPlainText('Use rust to create a snake game'));

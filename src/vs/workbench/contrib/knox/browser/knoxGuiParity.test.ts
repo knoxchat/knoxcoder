@@ -302,6 +302,7 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui-page-header-plain'));
 		assert.ok(css.includes('.knox-gui-reasoning-body.no-scroll'));
 		assert.ok(css.includes('.knox-gui-body-chat'));
+		assert.ok(/\.knox-gui-body-chat \{[^}]*-webkit-user-select:\s*text/.test(css));
 		assert.ok(css.includes('overscroll-behavior: contain'));
 		assert.ok(css.includes('.knox-gui-turn.last-message'));
 		assert.ok(css.includes('.knox-gui-thinking-redacted'));

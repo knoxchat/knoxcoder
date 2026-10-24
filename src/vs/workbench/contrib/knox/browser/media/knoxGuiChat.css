@@ -83,6 +83,46 @@
 	white-space: pre-wrap;
 }
 
+/* Workbench `body` is user-select:none. Chat streaming content is selectable so it can be copied. */
+.knox-gui-body-chat .knox-gui-msg,
+.knox-gui-body-chat .knox-gui-stream-body,
+.knox-gui-body-chat .knox-gui-reasoning,
+.knox-gui-body-chat .knox-gui-reasoning-body,
+.knox-gui-body-chat .knox-gui-reasoning-content,
+.knox-gui-body-chat .knox-gui-thinking,
+.knox-gui-body-chat .knox-gui-tool,
+.knox-gui-body-chat .knox-gui-tool-output,
+.knox-gui-body-chat .knox-gui-term,
+.knox-gui-body-chat .knox-gui-term-body,
+.knox-gui-body-chat .knox-gui-term-pre,
+.knox-gui-body-chat .knox-gui-tree-card,
+.knox-gui-body-chat .knox-gui-tree-body,
+.knox-gui-body-chat .knox-gui-search-card,
+.knox-gui-body-chat .knox-gui-raw-md,
+.knox-gui-body-chat .rendered-markdown,
+.knox-gui-body-chat .knox-gui-code-scroll,
+.knox-gui-body-chat .knox-gui-line-content {
+	-webkit-user-select: text;
+	user-select: text;
+}
+
+.knox-gui-body-chat button,
+.knox-gui-body-chat .knox-gui-icon-btn,
+.knox-gui-body-chat .knox-gui-msg-actions,
+.knox-gui-body-chat .knox-gui-code-actions,
+.knox-gui-body-chat .knox-gui-code-toolbar,
+.knox-gui-body-chat .knox-gui-tool-head,
+.knox-gui-body-chat .knox-gui-term-head,
+.knox-gui-body-chat .knox-gui-tree-head,
+.knox-gui-body-chat .knox-gui-search-head,
+.knox-gui-body-chat .knox-gui-line-number,
+.knox-gui-body-chat .knox-gui-reasoning-header,
+.knox-gui-body-chat .knox-gui-streaming-cursor,
+.knox-gui-body-chat .knox-gui-term-prompt {
+	-webkit-user-select: none;
+	user-select: none;
+}
+
 .knox-gui-raw-md {
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
@@ -650,6 +690,7 @@
 	padding: 4px 6px;
 	background: inherit;
 	border-bottom: 1px solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-widget-border, #3e4451));
+	-webkit-user-select: none;
 	user-select: none;
 }
 
@@ -889,6 +930,7 @@
 .knox-gui-term-prompt {
 	font-weight: 700;
 	margin-right: 6px;
+	-webkit-user-select: none;
 	user-select: none;
 }
 

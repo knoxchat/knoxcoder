@@ -909,6 +909,8 @@
 	scroll-behavior: auto;
 	font-size: var(--vscode-editor-font-size, 13px);
 	line-height: 19px;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .knox-gui-code-scroll.generating {
@@ -996,6 +998,7 @@
 	min-width: 2.5em;
 	padding-right: 8px;
 	text-align: right;
+	-webkit-user-select: none;
 	user-select: none;
 	font-variant-numeric: tabular-nums;
 	color: var(--vscode-editorLineNumber-foreground, #6e6e77);

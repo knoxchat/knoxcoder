@@ -43,6 +43,8 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	/** True while a wheel, pointer, touch, or transcript key is still in flight. */
 	userScrolling = false;
 	pointerHeld = false;
+	/** Streaming token/tool patches deferred while the pointer is down so a drag-select can finish. */
+	pendingLivePatch = false;
 	lastUserScrollAt = 0;
 	scrollAnchorEl: HTMLElement | undefined;
 	scrollAnchorOffset = 0;

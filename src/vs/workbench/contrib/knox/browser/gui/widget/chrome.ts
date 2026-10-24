@@ -625,21 +625,23 @@ export function onRootMouseDown(widget: KnoxGuiWidget, e: MouseEvent): void {
 }
 
 export function onRootContextMenu(widget: KnoxGuiWidget, e: MouseEvent): void {
-	if (isMacintosh) {
-		return;
-	}
 	const target = e.target as HTMLElement | null;
 	const editable = target?.closest('[contenteditable="true"], input, textarea') as HTMLElement | null;
-	if (!editable) {
+	const selection = window.getSelection();
+	const selected = selection?.toString() ?? '';
+	const inKnox = Boolean(selection?.anchorNode && (selection.anchorNode instanceof Element ? selection.anchorNode : selection.anchorNode.parentElement)?.closest('.knox-gui'));
+	// macOS native menu still handles focused inputs; transcript copy is ours on every platform.
+	if (isMacintosh && editable) {
+		return;
+	}
+	if (!editable && !(inKnox && selected)) {
 		return;
 	}
 	e.preventDefault();
 	e.stopPropagation();
 	widget.hideOsrMenu();
-	const selection = window.getSelection();
 	widget.osrSelectedRange = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : undefined;
-	const selected = selection?.toString() ?? '';
-	const isEditable = editable.isContentEditable || editable instanceof HTMLInputElement || editable instanceof HTMLTextAreaElement;
+	const isEditable = Boolean(editable && (editable.isContentEditable || editable instanceof HTMLInputElement || editable instanceof HTMLTextAreaElement));
 	const canCopy = selected.length > 0;
 	const canCut = isEditable && canCopy;
 	const menu = DOM.append(widget.root, DOM.$('.knox-gui-osr-menu'));
@@ -648,7 +650,9 @@ export function onRootContextMenu(widget: KnoxGuiWidget, e: MouseEvent): void {
 	menu.style.left = `${Math.max(4, e.clientX - rect.left)}px`;
 	menu.style.top = `${Math.max(4, e.clientY - rect.top)}px`;
 	const run = (command: 'cut' | 'copy' | 'paste') => {
-		editable.focus();
+		if (editable) {
+			editable.focus();
+		}
 		const range = widget.osrSelectedRange;
 		if (range && command !== 'paste') {
 			const next = window.getSelection();
@@ -882,6 +886,7 @@ export function clearTranscriptUserScrolling(widget: KnoxGuiWidget): void {
 	}
 	widget.userScrolling = false;
 	widget.pointerHeld = false;
+	widget.pendingLivePatch = false;
 }
 
 function transcriptGestureIsLive(widget: KnoxGuiWidget): boolean {
@@ -894,10 +899,14 @@ function transcriptGestureIsLive(widget: KnoxGuiWidget): boolean {
 
 /** Wheel / pointer / keys: pause follow before rAF stick can fight the gesture. */
 export function markTranscriptUserScrolling(widget: KnoxGuiWidget, pauseFollow?: boolean, pointerHeld?: boolean): void {
+	const wasHeld = widget.pointerHeld;
 	widget.userScrolling = true;
 	widget.lastUserScrollAt = Date.now();
 	if (pointerHeld !== undefined) {
 		widget.pointerHeld = pointerHeld;
+	}
+	if (wasHeld && !widget.pointerHeld) {
+		widget.flushPendingLivePatch();
 	}
 	if (pauseFollow) {
 		widget.autoScrollEnabled = false;
