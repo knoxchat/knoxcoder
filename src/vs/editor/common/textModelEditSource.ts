@@ -102,6 +102,8 @@ export const EditSources = {
 
 	chatApplyEdits(data: {
 		modelId: string | undefined;
+		autoTier?: string;
+		fusionModel?: string;
 		sessionId: string | undefined;
 		requestId: string | undefined;
 		languageId: string;
@@ -110,24 +112,57 @@ export const EditSources = {
 		codeBlockSuggestionId: EditSuggestionId | undefined;
 		origin?: 'agentHost';
 		harness?: string;
+		agentSessionId?: string;
+		chatSessionId?: string;
 	}) {
 		return createEditSource({
 			source: 'assist.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$autoTier: data.autoTier,
+			$fusionModel: data.fusionModel,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
 			$harness: data.harness,
 			$origin: data.origin,
 			$$languageId: data.languageId,
 			$$sessionId: data.sessionId,
+			...(data.agentSessionId !== undefined ? { $$agentSessionId: data.agentSessionId } : {}),
+			...(data.chatSessionId !== undefined ? { $$chatSessionId: data.chatSessionId } : {}),
 			$$requestId: data.requestId,
 			$$mode: data.mode,
 			$$codeBlockSuggestionId: data.codeBlockSuggestionId,
 		} as const);
 	},
 
-	chatUndoEdits: () => createEditSource({ source: 'assist.undoEdits' } as const),
-	chatReset: () => createEditSource({ source: 'assist.reset' } as const),
+	agentHostChatApplyEdits(data: {
+		modelId: string | undefined;
+		autoTier?: string;
+		fusionModel?: string;
+		sessionId: string;
+		agentSessionId?: string;
+		chatSessionId?: string;
+		requestId: string;
+		harness: string;
+	}) {
+		return EditSources.chatApplyEdits({
+			modelId: data.modelId,
+			autoTier: data.autoTier,
+			fusionModel: data.fusionModel,
+			sessionId: data.sessionId,
+			agentSessionId: data.agentSessionId,
+			chatSessionId: data.chatSessionId,
+			requestId: data.requestId,
+			languageId: '',
+			mode: undefined,
+			extensionId: undefined,
+			codeBlockSuggestionId: undefined,
+			origin: 'agentHost',
+			harness: data.harness,
+		});
+	},
+
+	chatUndoEdits: () => createEditSource({ source: 'Chat.undoEdits' } as const),
+	chatReset: () => createEditSource({ source: 'Chat.reset' } as const),
 
 	inlineCompletionAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId; correlationId: string | undefined }) {
 		return createEditSource({

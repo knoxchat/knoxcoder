@@ -29,6 +29,6 @@ export function createTestExtensionContext(subscriptions: vscode.Disposable[], s
 		logPath: storageUri.fsPath,
 		asAbsolutePath: relativePath => vscode.Uri.joinPath(extension.extensionUri, relativePath).fsPath,
 		get environmentVariableCollection(): vscode.GlobalEnvironmentVariableCollection { throw new Error('Unexpected environment access'); },
-		get languageModelAccessInformation(): vscode.LanguageModelAccessInformation { throw new Error('Unexpected language model access'); }
+		get textModelApiAccessInformation(): vscode.TextModelApiAccessInformation { throw new Error('Unexpected text model API access'); },
 	};
 }

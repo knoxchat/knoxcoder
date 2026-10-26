@@ -206,7 +206,7 @@ suite('Korean', () => {
 				['래ㅣ야ㅜㅎ', 'folding'],
 				['래금ㅅ', 'format'],
 				['ㅑㅟ묘ㅗㅑㅜㅅㄴ', 'inlayHints'],
-				['ㅑㅟㅑㅜㄷ촘ㅅ', 'inlineAssist'],
+				['ㅑㅟㅑㅜㄷ촘ㅅ', 'inlinechat'],
 				['ㅑㅜㅅㄷㄱㅁㅊ샾ㄷ', 'interactive'],
 				['ㅑㄴ녇', 'issue'],
 				['ㅏ됴ㅠㅑㅜ야ㅜㅎㄴ', 'keybindings'],

@@ -422,6 +422,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			case FocusMode.Force:
 				if (isMacintosh) {
+					if (electron.app.isHidden()) {
+						// Show first: a hidden app ignores window focus and re-focuses its last active window when un-hidden
+						this.win?.show();
+					}
 					electron.app.focus({ steal: true });
 				}
 				this.doFocusWindow();
@@ -736,6 +740,15 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private readonly jsCallStackCollector: Delayer<void>;
 	private readonly jsCallStackCollectorStopScheduler: RunOnceScheduler;
 
+	/**
+	 * How long an extension test window launched from the CLI may stay
+	 * unresponsive before the test run is failed. A window can stall
+	 * transiently, for example while a cold first launch in CI starts its
+	 * GPU process, and should not fail the run when it recovers.
+	 */
+	private static readonly EXTENSION_TEST_UNRESPONSIVE_GRACE_PERIOD = 60_000;
+	private readonly extensionTestUnresponsiveScheduler: RunOnceScheduler;
+
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService logService: ILogService,
@@ -812,6 +825,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}, samplePeriod));
 
 		//#endregion
+
+		this.extensionTestUnresponsiveScheduler = this._register(new RunOnceScheduler(() => {
+			this.logService.error(`CodeWindow: extension test window did not recover from unresponsive within ${CodeWindow.EXTENSION_TEST_UNRESPONSIVE_GRACE_PERIOD / 1000}s, exiting with code 1`);
+			this.lifecycleMainService.kill(1);
+		}, CodeWindow.EXTENSION_TEST_UNRESPONSIVE_GRACE_PERIOD));
 
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
@@ -999,9 +1017,18 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 				// If we run extension tests from CLI, we want to signal
 				// back this state to the test runner by exiting with a
-				// non-zero exit code.
+				// non-zero exit code. An unresponsive window may still
+				// recover, so only exit if it does not within a grace period.
 				if (this.isExtensionDevelopmentTestFromCli) {
-					this.lifecycleMainService.kill(1);
+					if (type === WindowError.UNRESPONSIVE) {
+						if (!this.extensionTestUnresponsiveScheduler.isScheduled()) {
+							this.logService.error(`CodeWindow: extension test window is unresponsive, exiting with code 1 unless it recovers within ${CodeWindow.EXTENSION_TEST_UNRESPONSIVE_GRACE_PERIOD / 1000}s`);
+							this.extensionTestUnresponsiveScheduler.schedule();
+						}
+					} else {
+						this.logService.error('CodeWindow: extension test window renderer process gone, exiting with code 1');
+						this.lifecycleMainService.kill(1);
+					}
 					return;
 				}
 
@@ -1084,6 +1111,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				}
 				break;
 			case WindowError.RESPONSIVE:
+				this.extensionTestUnresponsiveScheduler.cancel();
 				this.stopCollectingJScallStacks();
 				break;
 		}

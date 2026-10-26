@@ -15,6 +15,7 @@
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.customEditorDiffs.d.ts",
+		"../../src/vscode-dts/vscode.proposed.customTextEditorNavigation.d.ts",
 		"../../src/vscode-dts/vscode.proposed.documentDiff.d.ts",
 		"../../src/vscode-dts/vscode.proposed.documentSyntaxHighlighting.d.ts",
 		"../../src/vscode-dts/vscode.proposed.externalUriOpener.d.ts",

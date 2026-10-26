@@ -89,8 +89,12 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
 		if (product.extensionsGallery) {
-			console.error(`product.json: Contains 'extensionsGallery'`);
-			errorCount++;
+			const serviceUrl = String(product.extensionsGallery.serviceUrl ?? '');
+			// KnoxCoder ships Open VSX, not the Microsoft marketplace.
+			if (serviceUrl.includes('marketplace.visualstudio.com') || serviceUrl.includes('vscode.blob.core.windows.net')) {
+				console.error(`product.json: Contains 'extensionsGallery'`);
+				errorCount++;
+			}
 		}
 
 		this.emit('data', file);
@@ -222,7 +226,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		.pipe(copyrights);
 
 	const streams: NodeJS.ReadWriteStream[] = [
-		result.pipe(filter(Array.from(tsFormattingFilter))).pipe(trackCheckedFile()).pipe(formatting)
+		result.pipe(filter(Array.from(tsFormattingFilter))).pipe(trackCheckedFile()).pipe(formatting) as NodeJS.ReadWriteStream
 	];
 
 	if (runEslint) {
@@ -235,7 +239,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 						errorCount += results.warningCount;
 						errorCount += results.errorCount;
 					})
-				)
+				) as NodeJS.ReadWriteStream
 		);
 	}
 
@@ -247,7 +251,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 			} else {
 				console.warn(message);
 			}
-		}), false, false))
+		}), false, false)) as NodeJS.ReadWriteStream
 	);
 
 	let count = 0;
@@ -277,7 +281,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 				}
 			}
 		)
-	);
+	) as NodeJS.ReadWriteStream;
 }
 
 function createGitIndexVinyls(paths: string[]): Promise<VinylFile[]> {

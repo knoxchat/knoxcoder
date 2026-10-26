@@ -149,7 +149,7 @@ suite('production bundle helpers', () => {
 					assert.ok(Buffer.byteLength(code) < 2048, 'An explicit helper import must not retain unused tslib helpers');
 				});
 
-				test('preserves self-contained helpers in compiler-generated JavaScript inputs', async () => {
+				test('preserves self-contained helpers in compiler-generated JavaScript inputs', { skip: typeof ts.transpileModule !== 'function' }, async () => {
 					const source = `
 						const indices: number[] = [];
 						function parameter(_target: Function, _key: string | undefined, index: number) { indices.push(index); }
@@ -162,8 +162,8 @@ suite('production bundle helpers', () => {
 					`;
 					const { outputText } = ts.transpileModule(source, {
 						compilerOptions: {
-							module: ts.ModuleKind.ESNext,
-							target: ts.ScriptTarget.ES5,
+							module: ts.ModuleKind?.ESNext ?? 99,
+							target: ts.ScriptTarget?.ES5 ?? 1,
 							experimentalDecorators: true,
 							useDefineForClassFields: false,
 							importHelpers: false,

@@ -46,7 +46,7 @@ export interface IExtensionManifestPropertiesService {
 	canExecuteOnUI(manifest: IExtensionManifest): boolean;
 	canExecuteOnWorkspace(manifest: IExtensionManifest): boolean;
 	canExecuteOnWeb(manifest: IExtensionManifest): boolean;
-	canExecuteOnSessionsWindow(manifest: IExtensionManifest): boolean;
+	canExecuteOnSessionsWindow(manifest: IExtensionManifest, isBuiltin?: boolean): boolean;
 
 	getExtensionKind(manifest: IExtensionManifest): ExtensionKind[];
 	getUserConfiguredExtensionKind(extensionIdentifier: IExtensionIdentifier): ExtensionKind[] | undefined;
@@ -93,7 +93,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		}
 	}
 
-	canExecuteOnSessionsWindow(manifest: IExtensionManifest): boolean {
+	canExecuteOnSessionsWindow(manifest: IExtensionManifest, isBuiltin: boolean = false): boolean {
 		const configuredSessionsWindowSupport = this.getConfiguredSessionsWindowSupport(manifest);
 		if (configuredSessionsWindowSupport !== undefined) {
 			return configuredSessionsWindowSupport;

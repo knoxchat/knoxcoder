@@ -112,7 +112,7 @@ pub fn make_singleton_server(
 				.map(|s| protocol::singleton::StatusWithTunnelName {
 					name: Some(s.name.clone()),
 					tunnel_id: Some(s.tunnel_id.clone()),
-					has_editor_link: Some(s.has_editor_link),
+					has_editor_link: Some(true),
 					status: s.lock.read(),
 				})
 				.unwrap_or_default())

@@ -64,7 +64,7 @@ import { IWorkspaceSymbol, NotebookPriorityInfo } from '../../contrib/search/com
 import { IRawClosedNotebookFileMatch } from '../../contrib/search/common/searchNotebookHelpers.js';
 import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechToTextEvent, ITextToSpeechEvent } from '../../contrib/speech/common/speechService.js';
 import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestControllerCapability, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestsDiffOp } from '../../contrib/testing/common/testTypes.js';
-import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from '../../contrib/timeline/common/timeline.js';
+import { Timeline, TimelineOptions, TimelineProviderDescriptor, WorkspaceTimelineProviderDescriptor } from '../../contrib/timeline/common/timeline.js';
 import { TypeHierarchyItem } from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import { AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationConstraint, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
@@ -243,8 +243,10 @@ export interface MainThreadConfigurationShape extends IDisposable {
 	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void>;
 }
 
+export type IMarkerChange = [uri: UriComponents, markers: IMarkerData[] | undefined, isTruncated?: boolean];
+
 export interface MainThreadDiagnosticsShape extends IDisposable {
-	$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void;
+	$changeMany(owner: string, entries: IMarkerChange[]): void;
 	$clear(owner: string): void;
 }
 
@@ -392,6 +394,12 @@ export interface IOnEnterRuleDto {
 	previousLineText?: IRegExpDto;
 	action: EnterAction;
 }
+export interface IAutoClosingPairDto {
+	open: string;
+	close: string;
+	notIn?: string[];
+	beforeText?: IRegExpDto;
+}
 export interface ILanguageConfigurationDto {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
@@ -414,11 +422,7 @@ export interface ILanguageConfigurationDto {
 			notIn?: string[];
 		}[];
 	};
-	autoClosingPairs?: {
-		open: string;
-		close: string;
-		notIn?: string[];
-	}[];
+	autoClosingPairs?: IAutoClosingPairDto[];
 }
 
 export type GlobPattern = string | IRelativePattern;
@@ -1039,6 +1043,7 @@ export interface IWebviewPanelOptions {
 
 export interface CustomEditorProviderCapabilities {
 	readonly supportsMove?: boolean;
+	readonly supportsNavigation?: boolean;
 	readonly supportsInlineDiff?: boolean;
 	readonly supportsSideBySideDiff?: boolean;
 }
@@ -1125,6 +1130,7 @@ export interface MainThreadWebviewPanelsShape extends IDisposable {
 }
 
 export interface MainThreadCustomEditorsShape extends IDisposable {
+	$onDidChangeCustomTextEditorSelection(handle: WebviewHandle, selection: ISelection | undefined): void;
 	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomEditorProviderCapabilities, serializeBuffersForPostMessage: boolean): void;
 	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomEditorProviderCapabilities, supportsMultipleEditorsPerDocument: boolean, serializeBuffersForPostMessage: boolean): void;
 	$unregisterEditorProvider(viewType: string): void;
@@ -1175,6 +1181,12 @@ export interface ExtHostWebviewPanelsShape {
 }
 
 export interface ExtHostCustomEditorsShape {
+	$resolveCustomTextEditorNavigation(handle: WebviewHandle, viewType: string, resource: UriComponents, token: CancellationToken): Promise<{ selection: ISelection | undefined } | undefined>;
+	$disposeCustomTextEditorNavigation(handle: WebviewHandle): void;
+	$revealCustomTextEditorRange(handle: WebviewHandle, range: IRange, selection: ISelection | undefined, preserveFocus: boolean, token: CancellationToken): Promise<void>;
+	$captureCustomTextEditorViewState(handle: WebviewHandle, stateId: number): Promise<void>;
+	$restoreCustomTextEditorViewState(handle: WebviewHandle, stateId: number, token: CancellationToken): Promise<void>;
+	$releaseCustomTextEditorViewState(handle: WebviewHandle, stateId: number): void;
 	$resolveCustomEditor(
 		resource: UriComponents,
 		newWebviewHandle: WebviewHandle,
@@ -1890,7 +1902,13 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 export interface MainThreadTimelineShape extends IDisposable {
 	$registerTimelineProvider(provider: TimelineProviderDescriptor): void;
 	$unregisterTimelineProvider(source: string): void;
-	$emitTimelineChangeEvent(e: TimelineChangeEvent | undefined): void;
+	$registerWorkspaceTimelineProvider(provider: WorkspaceTimelineProviderDescriptor): void;
+	$unregisterWorkspaceTimelineProvider(source: string): void;
+	/**
+	 * @param uris The files or folders whose timelines changed, or `undefined` if all of them changed.
+	 */
+	$emitTimelineChangeEvent(source: string, uris: UriComponents[] | undefined): void;
+	$emitWorkspaceTimelineChangeEvent(source: string): void;
 }
 
 export interface HoverWithId extends languages.Hover {
@@ -3081,7 +3099,10 @@ export interface ExtHostTunnelServiceShape {
 }
 
 export interface ExtHostTimelineShape {
-	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken): Promise<Dto<Timeline> | undefined>;
+	/**
+	 * @param uri The file or folder to get the timeline for, or `undefined` for the workspace timeline.
+	 */
+	$getTimeline(source: string, uri: UriComponents | undefined, options: TimelineOptions, token: CancellationToken): Promise<Dto<Timeline> | undefined>;
 }
 
 export const enum ExtHostTestingResource {

@@ -1529,18 +1529,21 @@ suite('SettingsMerge - Add Setting', () => {
 {
 	"a": 1
 	// this is comment for a
+	,
 	"b": 2
 }`;
 		const targetContent = `
 {
 	"a": 1
 	// this is comment for a
+	,
 }`;
 
 		const expected = `
 {
 	"a": 1
 	// this is comment for a
+	,
 	"b": 2
 }`;
 
@@ -1555,6 +1558,7 @@ suite('SettingsMerge - Add Setting', () => {
 {
 	"a": 1
 	// this is comment for a
+	,
 	"b": 2,
 	"c": 3
 }`;
@@ -1562,6 +1566,7 @@ suite('SettingsMerge - Add Setting', () => {
 {
 	"a": 1
 	// this is comment for a
+	,
 	"c": 3
 }`;
 
@@ -1569,6 +1574,7 @@ suite('SettingsMerge - Add Setting', () => {
 {
 	"a": 1
 	// this is comment for a
+	,
 	"b": 2,
 	"c": 3
 }`;
@@ -1584,6 +1590,7 @@ suite('SettingsMerge - Add Setting', () => {
 {
 	"a": 1
 	// this is comment for a
+	,
 	"b": 2
 	// this is a comment
 }`;
@@ -1591,6 +1598,7 @@ suite('SettingsMerge - Add Setting', () => {
 {
 	"a": 1
 	// this is comment for a
+	,
 	// this is a comment
 }`;
 
@@ -1598,6 +1606,7 @@ suite('SettingsMerge - Add Setting', () => {
 {
 	"a": 1
 	// this is comment for a
+	,
 	"b": 2
 	// this is a comment
 }`;

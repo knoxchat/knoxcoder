@@ -75,7 +75,7 @@ impl From<AuthProvider> for crate::auth::AuthProvider {
 	}
 }
 
-pub(super) fn fulfill_existing_tunnel_args(
+fn fulfill_existing_tunnel_args(
 	d: ExistingTunnelArgs,
 	name_arg: &Option<String>,
 ) -> Option<dev_tunnels::ExistingTunnel> {

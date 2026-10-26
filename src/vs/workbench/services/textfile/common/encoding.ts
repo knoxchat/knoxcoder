@@ -335,18 +335,22 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 		candidateGuessEncodings = coalesce(candidateGuessEncodings.map(e => toJschardetEncoding(e)));
 		if (candidateGuessEncodings.length === 0) {
 			candidateGuessEncodings = undefined;
+		} else {
+			// Explicit candidates are resolved losslessly. Restricting jschardet to those
+			// names can report a match for valid UTF-8 (e.g. Chinese with only `cp950`).
+			return guessEncodingByCandidates(limitedBuffer, candidateGuessEncodings);
 		}
 	}
 
 	let guessed: { encoding: string | null | undefined } | undefined;
 	try {
-		guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
+		guessed = jschardet.detect(binaryString);
 	} catch (error) {
 		return null; // jschardet throws for unknown encodings (https://github.com/microsoft/vscode/issues/239928)
 	}
 
 	if (!guessed?.encoding) {
-		return candidateGuessEncodings ? guessEncodingByCandidates(limitedBuffer, candidateGuessEncodings) : null;
+		return null;
 	}
 
 	const enc = guessed.encoding.toLowerCase();
@@ -394,7 +398,8 @@ async function guessEncodingByCandidates(buffer: VSBuffer, candidates: string[])
 
 const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
 	'ibm866': 'cp866',
-	'big5': 'cp950'
+	'big5': 'cp950',
+	'cp932': 'shiftjis'
 };
 
 function normalizeEncoding(encodingName: string): string {

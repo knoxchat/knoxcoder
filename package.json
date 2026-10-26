@@ -1,7 +1,7 @@
 {
   "name": "knoxcoder-dev",
   "version": "2.2.2",
-  "distro": "a0e7521b2a1e3289e4118fad155277b200aebd35",
+  "distro": "9dc951d85c195663bfa3e0d631079d0fee839077",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -93,7 +93,7 @@
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.42",
     "@parcel/watcher": "^2.6.0",
     "@types/semver": "^7.8.0",
-    "@vscode/codicons": "^0.0.46-40",
+    "@vscode/codicons": "^0.0.46-46",
     "@vscode/deviceid": "^0.1.5",
     "@vscode/diff": "0.0.2-87",
     "@vscode/fs-copyfile": "3.0.0",

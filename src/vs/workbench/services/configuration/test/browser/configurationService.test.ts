@@ -1508,11 +1508,9 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	}));
 
 	test('policy value override all', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const result = await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-			await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policySetting": "policyValue" }'));
-			return promise;
-		});
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policySetting": "policyValue" }'));
+		const result = await promise;
 		assert.deepStrictEqual([...result.affectedKeys], ['configurationService.folder.policySetting']);
 		assert.strictEqual(testObject.getValue('configurationService.folder.policySetting'), 'policyValue');
 		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, 'policyValue');
@@ -1527,11 +1525,9 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	}));
 
 	test('policy value override all for object type setting', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-			await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policyObjectSetting": {"a": true} }'));
-			return promise;
-		});
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policyObjectSetting": {"a": true} }'));
+		await promise;
 
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.policyObjectSetting": {"b": true} }'));
 		await testObject.reloadConfiguration();

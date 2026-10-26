@@ -182,7 +182,7 @@ export const url = import.meta.url;
 		// The dependency exists only in the output. Resource processing must not resolve or bundle it.
 		await writeFile(outDir, `${preDirectory}/dependency.mjs`, 'export const externalValue = 41, increment = 1;\n');
 		await copyResources(srcDir, outDir, 'web', true);
-		const url = pathToFileURL(path.join(outDir, serviceWorkerPath)).href;
+		const url = pathToFileURL(await fs.promises.realpath(path.join(outDir, serviceWorkerPath))).href;
 		const result: { answer: number; reexported: number; moduleThis: boolean; url: string } = await import(url);
 		assert.deepStrictEqual({ ...result }, { answer: 42, reexported: 41, moduleThis: true, url });
 	});

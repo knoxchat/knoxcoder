@@ -27,7 +27,7 @@ import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
-import { copyCodiconsTask } from './lib/compilation.ts';
+import { checkApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
 import { getRipgrepExcludeFilter } from './lib/packagingFilters.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { glob } from 'glob';
@@ -171,6 +171,7 @@ task.task(task.define('core-ci-old', task.series(
 )));
 
 task.task(task.define('core-ci', task.series(
+	checkApiProposalNamesTask,
 	copyCodiconsTask,
 	compileNonNativeExtensionsBuildTask,
 	compileExtensionMediaBuildTask,

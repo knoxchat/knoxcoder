@@ -149,6 +149,43 @@ export default defineConfig(
 			]
 		},
 	},
+	// Production filesystem operations must not block the event loop.
+	{
+		files: [
+			'src/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}',
+			'extensions/**/src/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}',
+		],
+		ignores: [
+			'src/*',
+			'src/vs/amdX.ts',
+			'src/vs/code/electron-main/main.ts',
+			'src/vs/base/node/pfs.ts',
+			'src/vs/platform/environment/node/wait.ts',
+			'src/vs/server/node/remoteExtensionHostAgentServer.ts',
+			'src/vs/server/node/server.main.ts',
+			'src/vs/workbench/api/node/extHostCLIServer.ts',
+			'src/vs/workbench/api/node/extHostExtensionService.ts',
+			'src/vs/workbench/api/node/extHostStoragePaths.ts',
+			'**/test/**',
+			'**/tests/**',
+			'**/fixtures/**',
+			'**/*.{test,spec,stest,integrationTest}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}',
+			'**/scripts/**',
+			'**/script/**',
+			'**/build/**',
+			'extensions/vscode-test-resolver/**',
+			'extensions/vscode-api-tests/**',
+			'src/vs/code/node/cli.ts',
+			'src/vs/server/node/server.cli.ts',
+			'extensions/git/src/askpass-main.ts',
+		],
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-sync-fs': 'error',
+		},
+	},
 	// Disallow bracket notation for property names that can use dot notation.
 	{
 		files: [
@@ -825,6 +862,7 @@ export default defineConfig(
 			'local/code-must-use-super-dispose': 'off',
 			'local/code-no-test-only': 'error',
 			'local/code-no-test-async-suite': 'warn',
+			'local/code-no-nested-test': 'error',
 			'local/code-must-use-result': [
 				'warn',
 				[
@@ -859,7 +897,8 @@ export default defineConfig(
 						'src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts',
 					]
 				}
-			]
+			],
+			'local/code-run-with-faked-timers-whole-test': 'warn'
 		}
 	},
 	// git extension - ban non-type imports from git.d.ts (use git.constants for runtime values)
@@ -2237,6 +2276,7 @@ export default defineConfig(
 	{
 		files: [
 			'src/vs/workbench/contrib/knox/**/*.{ts,tsx,mts,cts}',
+			'src/vs/platform/native/common/nativeHostChannel.ts',
 			'extensions/knox/**/*.{ts,tsx,mts,cts}',
 		],
 		rules: {

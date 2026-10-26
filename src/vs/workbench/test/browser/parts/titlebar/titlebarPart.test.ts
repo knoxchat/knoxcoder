@@ -34,6 +34,11 @@ suite('TitlebarPart colors', () => {
 			this.element = parent;
 			return parent;
 		}
+
+		installTestMenubar(leftContent: HTMLElement): void {
+			Reflect.set(this, 'leftContent', leftContent);
+			this.installMenubar();
+		}
 	}
 
 	test('resolves shell and title colors from the target window focus', () => {

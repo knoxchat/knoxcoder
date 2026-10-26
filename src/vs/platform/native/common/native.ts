@@ -70,6 +70,7 @@ export type INativeZipFile =
 		readonly path: string;
 		readonly source: URI;
 		readonly size: number;
+		readonly compress?: boolean;
 		/** Skip this entry when its source cannot be opened or inspected. */
 		readonly skipSourceErrors?: boolean;
 	}
@@ -78,6 +79,14 @@ export type INativeZipFile =
 export interface INativeZipOptions {
 	readonly maxSize?: number;
 	readonly maxEntries: number;
+	readonly operationId?: string;
+}
+
+export interface INativeZipProgress {
+	readonly operationId: string;
+	readonly bytes: number;
+	readonly total: number;
+	readonly path: string;
 }
 
 export interface IOpenAgentsWindowOptions {
@@ -385,6 +394,8 @@ export interface ICommonNativeHostService {
 	 * @param files An array of file entries to include in the zip, each with a relative path and string contents.
 	 */
 	createZipFile(zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<void>;
+	readonly onDidProgressZipFile: Event<INativeZipProgress>;
+	cancelZipFile(operationId: string): Promise<void>;
 
 	// Power
 	getSystemIdleState(idleThreshold: number): Promise<SystemIdleState>;

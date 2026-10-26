@@ -19,7 +19,7 @@ import { IsMacContext } from '../../platform/contextkey/common/contextkeys.js';
 import { INativeHostService } from '../../platform/native/common/native.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { IJSONSchema } from '../../base/common/jsonSchema.js';
-import { InstallShellScriptAction, UninstallShellScriptAction } from './actions/installActions.js';
+import { UninstallShellScriptAction } from './actions/installActions.js';
 import { EditorsVisibleContext, SingleEditorGroupsContext } from '../common/contextkeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ShutdownReason } from '../services/lifecycle/common/lifecycle.js';
@@ -63,7 +63,6 @@ import product from '../../platform/product/common/product.js';
 
 	// Actions: Install Shell Script (macOS only)
 	if (isMacintosh) {
-		registerAction2(InstallShellScriptAction);
 		registerAction2(UninstallShellScriptAction);
 	}
 

@@ -87,6 +87,8 @@ import { ILoggerService, ILogService, NullLogService } from '../../../platform/l
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../platform/markdown/browser/markdownRenderer.js';
 import { IMarkerService } from '../../../platform/markers/common/markers.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { NullOpenerService } from '../../../platform/opener/test/common/nullOpenerService.js';
 import { TestNotificationService } from '../../../platform/notification/test/common/testNotificationService.js';
 import product from '../../../platform/product/common/product.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
@@ -358,7 +360,8 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IListService, new TestListService());
 	instantiationService.stub(IContextViewService, disposables.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.stub(IContextMenuService, disposables.add(instantiationService.createInstance(ContextMenuService)));
-	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService)));
+	instantiationService.stub(IOpenerService, NullOpenerService);
+	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService, NullOpenerService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 	instantiationService.stub(IWorkspaceTrustRequestService, disposables.add(new TestWorkspaceTrustRequestService(false)));

@@ -62,6 +62,13 @@ export interface IAgentHostConfigurationSync {
 	 */
 	readonly transform?: (value: unknown) => unknown;
 
+	/**
+	 * Additional root configuration keys written alongside {@link key}, each
+	 * computed from the mirrored value. Use to keep legacy keys that older agent
+	 * hosts still read in step with a setting that replaced them.
+	 */
+	readonly derivedKeys?: Readonly<Record<string, (value: unknown) => unknown>>;
+
 	/** Which Agent Host targets receive this setting. Defaults to {@link AgentHostConfigurationSyncScope.All}. */
 	readonly scope?: AgentHostConfigurationSyncScope;
 }
@@ -292,11 +299,14 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 */
 	policyReference?: IPolicyReference;
 
+	/** Explains an effective policy value and the saved value it overrides in Settings UI and JSON. */
+	policyValueDescription?: (policyValue: unknown, configuredValue: unknown) => string;
+
 	/**
 	 * Projects runtime-managed restrictions into the Settings UI without changing configuration values.
 	 * Return undefined when editable. Runtime policy enforcement remains authoritative.
 	 */
-	managedSettingsPresentation?: (read: (key: string) => ManagedSettingValue | undefined) => ManagedSettingsPresentationValue | undefined;
+	managedSettingsPresentation?: (read: (key: string) => ManagedSettingValue | undefined, localValue?: unknown) => ManagedSettingsPresentationValue | undefined;
 
 	/**
 	 * When specified, this setting's globally-scoped value is mirrored into the

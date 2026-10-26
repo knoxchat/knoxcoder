@@ -154,6 +154,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 */
 	hasPolicyValue = false;
 
+	policyValueDescription: string | undefined;
+
 	/**
 	 * Whether the setting is read-only in the Agents window.
 	 */
@@ -1077,7 +1079,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		combinedFilterMatches = this.sortResults(combinedFilterMatches);
 		const result = {
 			filterMatches: combinedFilterMatches,
-			exactMatch: localResult.exactMatch // remote results should never have an exact match
+			exactMatch: localResult?.exactMatch ?? false // remote results should never have an exact match
 		};
 		this.cachedUniqueSearchResults = result;
 		return result;

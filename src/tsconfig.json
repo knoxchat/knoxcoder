@@ -41,6 +41,7 @@
 		"vs/platform/mcp/**",
 		"vs/sessions/**",
 		"vs/workbench/contrib/agentsVoice/**",
+		"vs/workbench/contrib/canvases/**",
 		"vs/workbench/contrib/chat/**",
 		"vs/workbench/contrib/inlineChat/**",
 		"vs/workbench/contrib/mcp/**",

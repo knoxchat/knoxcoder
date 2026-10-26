@@ -234,8 +234,8 @@ suite('Encoding', () => {
 			{ name: 'invalid CP950', bytes: Buffer.from('ffff', 'hex'), candidates: ['cp950'], expected: null },
 			{ name: 'incomplete CP950', bytes: cp950Bytes.subarray(0, 7), candidates: ['cp950'], expected: null },
 			{ name: 'ambiguous candidates', bytes: Buffer.from('a4a4', 'hex'), candidates: ['cp950', 'eucjp'], expected: null },
-			{ name: 'no candidates', bytes: cp950Bytes, candidates: [], expected: 'windows1252' },
-			{ name: 'unsupported candidates', bytes: cp950Bytes, candidates: ['unsupported'], expected: 'windows1252' },
+			{ name: 'no candidates', bytes: cp950Bytes, candidates: [], expected: 'cp950' },
+			{ name: 'unsupported candidates', bytes: cp950Bytes, candidates: ['unsupported'], expected: 'cp950' },
 			{ name: 'BOM takes precedence', bytes: Buffer.from('efbbbf41', 'hex'), candidates: ['cp950'], expected: 'utf8bom' },
 		]) {
 			test(name, async () => {

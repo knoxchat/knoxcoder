@@ -3,6 +3,15 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Changed
+
+- **Upgrade editor host to VS Code 1.143.1**
+  Merged upstream `microsoft/vscode` 1.143.1 editor, workbench, terminal, Git, Markdown editor, and Electron 43.7.7 (`ms_build_id` 15743441) changes while keeping Knox branding, Open VSX gallery, the native TypeScript 7 toolchain, and Knox Agent isolated from upstream AI.
+
+  Editor-side additions from 1.142–1.143: diagnostic highlight limit 500→5,000, `editor.occurrencesHighlightFromAllProviders`, Markdown editor paste-image / rename-links / outline / copy-code-block, experimental multi-diff file list, custom text editor navigation, ZIP progress, and js-debug 1.140.0.
+
+  Not adopted from upstream: Copilot harness, Chat, Agents window, Agent Host, MCP, canvases, prompt/skill packs, inline chat, dictation, on-device models, Copilot CLI installer, sandbox/agent telemetry, experiment assignment, and related SDKs — KnoxCoder stays slim and uses its own Knox Agent.
+
 ## [2.2.2] - 2026-10-24
 
 ### Added

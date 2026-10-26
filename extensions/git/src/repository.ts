@@ -569,6 +569,7 @@ class ResourceCommandResolver {
 		const relPath = path.relative(this.repository.root, resource.resourceUri.fsPath);
 		const candidateFsPath = path.join(parentRepoRoot, relPath);
 
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: make compareWithWorkspace await this probe before constructing the diff command; otherwise a missing worktree path produces the wrong left-hand resource.
 		const leftUri = fs.existsSync(candidateFsPath) ? Uri.file(candidateFsPath) : undefined;
 
 		return this.resolveChangeCommand(resource, true, leftUri);
@@ -960,7 +961,7 @@ export class Repository implements Disposable {
 			? repository.dotGit.superProjectPath
 			: repository.kind === 'worktree' && repository.dotGit.commonPath
 				? path.dirname(repository.dotGit.commonPath)
-					: undefined;
+				: undefined;
 		const parent = parentRoot
 			? this.repositoryResolver.getRepository(parentRoot)?.sourceControl
 			: undefined;
@@ -2647,6 +2648,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.RebaseAbort, async () => await this.repository.rebaseAbort());
 	}
 
+	async rebaseContinue(): Promise<void> {
+		await this.run(Operation.RebaseContinue, () => this.repository.rebaseContinue());
+	}
+
 	checkIgnore(filePaths: string[]): Promise<Set<string>> {
 		return this.run(Operation.CheckIgnore, () => {
 			return new Promise<Set<string>>((resolve, reject) => {
@@ -3144,9 +3149,10 @@ export class Repository implements Disposable {
 	}
 
 	private async getRebaseCommit(): Promise<Commit | undefined> {
-		const rebaseHeadPath = path.join(this.repository.root, '.git', 'REBASE_HEAD');
-		const rebaseApplyPath = path.join(this.repository.root, '.git', 'rebase-apply');
-		const rebaseMergePath = path.join(this.repository.root, '.git', 'rebase-merge');
+		// Linked worktrees and submodules keep their rebase state in their own git directory, not in <root>/.git.
+		const rebaseHeadPath = path.join(this.repository.dotGit.path, 'REBASE_HEAD');
+		const rebaseApplyPath = path.join(this.repository.dotGit.path, 'rebase-apply');
+		const rebaseMergePath = path.join(this.repository.dotGit.path, 'rebase-merge');
 
 		try {
 			const [rebaseApplyExists, rebaseMergePathExists, rebaseHead] = await Promise.all([
@@ -3164,12 +3170,12 @@ export class Repository implements Disposable {
 	}
 
 	private isMergeInProgress(): Promise<boolean> {
-		const mergeHeadPath = path.join(this.repository.root, '.git', 'MERGE_HEAD');
+		const mergeHeadPath = path.join(this.repository.dotGit.path, 'MERGE_HEAD');
 		return new Promise<boolean>(resolve => fs.exists(mergeHeadPath, resolve));
 	}
 
 	private isCherryPickInProgress(): Promise<boolean> {
-		const cherryPickHeadPath = path.join(this.repository.root, '.git', 'CHERRY_PICK_HEAD');
+		const cherryPickHeadPath = path.join(this.repository.dotGit.path, 'CHERRY_PICK_HEAD');
 		return new Promise<boolean>(resolve => fs.exists(cherryPickHeadPath, resolve));
 	}
 

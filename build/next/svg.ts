@@ -5,22 +5,20 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { OptimizeOptions } from 'svgo';
+import type { Config } from 'svgo';
 import { mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS } from './transpile.ts';
 
-const svgOptions: OptimizeOptions = {
+const svgOptions: Config = {
 	// Match the legacy gulp-svgmin preset, except for externally observable SVG contracts.
 	plugins: [{
 		name: 'preset-default',
 		params: {
 			overrides: {
-				cleanupIDs: false,
+				cleanupIds: false,
 				// Preserve CSS keyframes, license comments, and structural selectors.
 				inlineStyles: false,
 				minifyStyles: false,
 				collapseGroups: false,
-				removeViewBox: false,
-				removeTitle: false,
 				removeDesc: false,
 				removeHiddenElems: false,
 				removeComments: false,
@@ -53,10 +51,6 @@ export async function optimizeSvgFiles(outDir: string, minify: boolean): Promise
 		try {
 			const input = await fs.promises.readFile(filePath);
 			const result = optimize(input.toString('utf8'), { ...svgOptions, path: filePath });
-			if (result.error !== undefined) {
-				throw new Error(result.error);
-			}
-
 			const output = Buffer.from(result.data);
 			inputBytes += input.byteLength;
 			if (output.byteLength < input.byteLength) {

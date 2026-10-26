@@ -25,6 +25,7 @@ import { createTsgoStream, spawnTsgo } from './tsgo.ts';
 
 
 import { extractExtensionPointNamesFromFile } from './extractExtensionPoints.ts';
+import { checkApiProposalNames } from './apiProposalNames.ts';
 
 
 // --- gulp-tsb: compile and transpile --------------------------------
@@ -116,7 +117,7 @@ export function transpileTask(src: string, out: string, esbuild?: boolean): task
 
 		return srcPipe
 			.pipe(transpile())
-			.pipe(gulp.dest(out, binaryFileOptions));
+			.pipe(gulp.dest(out));
 	};
 
 	task.taskName = `transpile-${path.basename(src)}`;
@@ -167,7 +168,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 			.pipe(mangleStream)
 			.pipe(generator.stream)
 			.pipe(compile())
-			.pipe(gulp.dest(out, binaryFileOptions)));
+			.pipe(gulp.dest(out)));
 
 		const typecheck = spawnTsgo(compile.projectPath, { taskName: `compile-${path.basename(src)}`, noEmit: true });
 
@@ -362,6 +363,10 @@ function generateApiProposalNames() {
 }
 
 const apiProposalNamesReporter = createReporter('api-proposal-names');
+
+export const checkApiProposalNamesTask = task.define('check-api-proposal-names', async () => {
+	checkApiProposalNames(process.cwd());
+});
 
 export const compileApiProposalNamesTask = task.define('compile-api-proposal-names', () => {
 	return gulp.src('src/vscode-dts/**')

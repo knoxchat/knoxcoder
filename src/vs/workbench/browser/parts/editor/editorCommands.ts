@@ -6,7 +6,7 @@
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
-import { extname, isEqual } from '../../../../base/common/resources.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { isNumber, isObject, isString, isUndefined } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -17,13 +17,12 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { CommandsRegistry, ICommandHandler, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { EditorResolution, IEditorOptions, IResourceEditorInput, ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IEditorOptions, IResourceEditorInput, ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService, IOpenEvent, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchTreeStickyScrollFocused } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAccess.js';
 import { SideBySideEditor } from './sideBySideEditor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
@@ -35,6 +34,7 @@ import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorIn
 import { EditorGroupColumn, columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
 import { EditorGroupLayout, GroupDirection, GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorReplacement, IModalEditorPart, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { OpenWithEditorPicker } from '../../../services/editor/browser/openWithEditorPicker.js';
 import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
@@ -44,7 +44,7 @@ import { IWorkingCopyEditorService } from '../../../services/workingCopy/common/
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, registerDiffEditorCommands } from './diffEditorCommands.js';
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
-import { prepareMoveCopyEditors } from './editor.js';
+import { fillActiveEditorSelection, prepareMoveCopyEditors } from './editor.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
@@ -935,7 +935,7 @@ function registerCloseEditorCommands() {
 		when: undefined,
 		primary: undefined,
 		handler: (accessor, ...args: unknown[]) => {
-			return reopenEditorWith(accessor, EditorResolution.PICK, ...args);
+			return reopenEditorWith(accessor, undefined, ...args);
 		}
 	});
 
@@ -945,17 +945,20 @@ function registerCloseEditorCommands() {
 		when: undefined,
 		primary: undefined,
 		handler: (accessor, override?: string, ...args: unknown[]) => {
-			return reopenEditorWith(accessor, override ?? EditorResolution.PICK, ...args);
+			return reopenEditorWith(accessor, override, ...args);
 		}
 	});
 
-	async function reopenEditorWith(accessor: ServicesAccessor, editorOverride: string | EditorResolution, ...args: unknown[]) {
+	/**
+	 * @param editorOverride The id of the editor to reopen with, or `undefined` to let the user pick it.
+	 */
+	async function reopenEditorWith(accessor: ServicesAccessor, editorOverride: string | undefined, ...args: unknown[]) {
 		const editorService = accessor.get(IEditorService);
 		const editorResolverService = accessor.get(IEditorResolverService);
-		const telemetryService = accessor.get(ITelemetryService);
 		const textFileService = accessor.get(ITextFileService);
 		const workingCopyService = accessor.get(IWorkingCopyService);
 		const workingCopyEditorService = accessor.get(IWorkingCopyEditorService);
+		const editorPicker = accessor.get(IInstantiationService).createInstance(OpenWithEditorPicker);
 
 		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
 		const editorReplacements = new Map<IEditorGroup, IEditorReplacement[]>();
@@ -969,7 +972,17 @@ function registerCloseEditorCommands() {
 					return; // Resolver can only resolve untyped editors
 				}
 
-				untypedEditor.options = { ...editorService.activeEditorPane?.options, override: editorOverride };
+				const options = fillActiveEditorSelection(group, editor, {
+					...untypedEditor.options,
+					...(group.activeEditor === editor ? group.activeEditorPane?.options : undefined),
+					override: editorOverride
+				});
+				const resolvedOptions = editorOverride === undefined ? await editorPicker.pick({ ...untypedEditor, options }) : options;
+				if (!resolvedOptions) {
+					return; // Picker was cancelled
+				}
+
+				untypedEditor.options = resolvedOptions;
 				const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
 				if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
 					return;
@@ -1015,30 +1028,6 @@ function registerCloseEditorCommands() {
 					replacement: resolvedEditor.editor,
 					forceReplaceDirty,
 					options: resolvedEditor.options
-				});
-
-				// Telemetry
-				type WorkbenchEditorReopenClassification = {
-					owner: 'rebornix';
-					comment: 'Identify how a document is reopened';
-					scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
-					ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
-					from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched from' };
-					to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched to' };
-				};
-
-				type WorkbenchEditorReopenEvent = {
-					scheme: string;
-					ext: string;
-					from: string;
-					to: string;
-				};
-
-				telemetryService.publicLog2<WorkbenchEditorReopenEvent, WorkbenchEditorReopenClassification>('workbenchEditorReopen', {
-					scheme: editorToResolve.resource?.scheme ?? '',
-					ext: editorToResolve.resource ? extname(editorToResolve.resource) : '',
-					from: editor.editorId ?? '',
-					to: resolvedEditor.editor.editorId ?? ''
 				});
 			}
 		}

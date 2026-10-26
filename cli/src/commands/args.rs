@@ -857,7 +857,7 @@ pub enum AuthProvider {
 
 #[cfg(test)]
 mod tests {
-	use super::{Commands, IntegratedCli};
+	use super::{AgentHostArgs, AgentSubcommand, Commands, IntegratedCli, TunnelServeArgs};
 	use clap::Parser;
 
 	const MACHINE_STATUS_ENV: &str = "VSCODE_CLI_MACHINE_STATUS";
@@ -869,6 +869,249 @@ mod tests {
 		};
 
 		tunnel_args.serve_args.machine_status
+	}
+
+	fn parse_agent_host_args(args: &[&str]) -> AgentHostArgs {
+		let cli = IntegratedCli::try_parse_from(args).unwrap();
+		let Some(Commands::Agent(args)) = cli.core.subcommand else {
+			panic!("expected agent arguments");
+		};
+		match args.subcommand {
+			Some(AgentSubcommand::Host(args)) => args,
+			None => args.host_args,
+			_ => panic!("expected agent host arguments"),
+		}
+	}
+
+	#[test]
+	fn agent_github_environment_accepts_remote_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--github-environment",
+				"--name",
+				"build-machine",
+				"--github-environment-root",
+				"project-a",
+				"--github-environment-root",
+				"project-b",
+				"--user-data-dir",
+				"profile",
+				"--server-data-dir",
+				"server-data",
+				"--accept-server-license-terms",
+			]);
+			let args = parse_agent_host_args(&argv);
+			assert_eq!(
+				(
+					args.github_environment,
+					args.name.as_deref(),
+					args.github_environment_root,
+					args.accept_server_license_terms
+				),
+				(
+					true,
+					Some("build-machine"),
+					vec!["project-a".into(), "project-b".into()],
+					true
+				)
+			);
+		}
+	}
+
+	#[test]
+	fn agent_github_environment_rejects_incompatible_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			for options in [
+				vec!["--tunnel"],
+				vec!["--host", "0.0.0.0"],
+				vec!["--port", "0"],
+				vec!["--connection-token", "token"],
+				vec!["--connection-token-file", "token"],
+				vec!["--without-connection-token"],
+				vec!["--replace"],
+				vec!["--new-instance"],
+				vec!["--foreground"],
+				vec!["--idle-timeout", "300"],
+				vec!["--random-name"],
+				vec!["--tunnel-id", "id"],
+				vec!["--host-token", "token"],
+				vec!["--cluster", "cluster"],
+				vec!["--tunnel-name", "name"],
+			] {
+				let mut argv = command.clone();
+				argv.push("--github-environment");
+				argv.extend(options);
+				assert_eq!(
+					IntegratedCli::try_parse_from(&argv).unwrap_err().kind(),
+					clap::error::ErrorKind::ArgumentConflict,
+					"{argv:?}"
+				);
+			}
+		}
+	}
+
+	#[test]
+	fn github_environment_options_require_hosting() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command.clone();
+			argv.extend(["--github-environment-root", "project"]);
+			assert!(IntegratedCli::try_parse_from(&argv).is_err());
+			let mut argv = command;
+			argv.extend(["--tunnel", "--github-environment-root", "project"]);
+			assert!(IntegratedCli::try_parse_from(&argv).is_err());
+		}
+	}
+
+	#[test]
+	fn github_environment_rejects_token_file_option() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--github-environment",
+				"--github-environment-token-file",
+				"token",
+			]);
+			assert_eq!(
+				IntegratedCli::try_parse_from(&argv).unwrap_err().kind(),
+				clap::error::ErrorKind::UnknownArgument,
+				"{argv:?}"
+			);
+		}
+	}
+
+	#[test]
+	fn agent_tunnel_alias_forwards_tunnel_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--tunnel",
+				"--name",
+				"my-machine",
+				"--random-name",
+				"--server-data-dir",
+				"server-data",
+				"--user-data-dir",
+				"user-data",
+				"--tunnel-id",
+				"existing-id",
+				"--host-token",
+				"host-token",
+				"--cluster",
+				"cluster",
+				"--tunnel-name",
+				"existing-name",
+				"--accept-server-license-terms",
+			]);
+			let args = parse_agent_host_args(&argv);
+			assert!(args.tunnel);
+			let args = TunnelServeArgs::from(args);
+			assert_eq!(
+				(
+					args.name.as_deref(),
+					args.random_name,
+					args.server_args.server_data_dir.as_deref(),
+					args.user_data_dir.as_deref(),
+					args.tunnel.tunnel_id.as_deref(),
+					args.tunnel.host_token.as_deref(),
+					args.tunnel.cluster.as_deref(),
+					args.tunnel.tunnel_name.as_deref(),
+					args.accept_server_license_terms,
+					args.delegate_to_editor,
+				),
+				(
+					Some("my-machine"),
+					true,
+					Some("server-data"),
+					Some("user-data"),
+					Some("existing-id"),
+					Some("host-token"),
+					Some("cluster"),
+					Some("existing-name"),
+					true,
+					false,
+				)
+			);
+		}
+	}
+
+	#[test]
+	fn agent_tunnel_alias_rejects_local_host_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			for options in [
+				vec!["--host", "0.0.0.0"],
+				vec!["--port", "0"],
+				vec!["--connection-token", "token"],
+				vec!["--connection-token-file", "token-file"],
+				vec!["--without-connection-token"],
+				vec!["--replace"],
+				vec!["--new-instance"],
+				vec!["--foreground"],
+				vec!["--idle-timeout", "300"],
+			] {
+				let mut argv = command.clone();
+				argv.push("--tunnel");
+				argv.extend(options);
+				assert_eq!(
+					IntegratedCli::try_parse_from(&argv).unwrap_err().kind(),
+					clap::error::ErrorKind::ArgumentConflict,
+					"{argv:?}"
+				);
+			}
+		}
+	}
+
+	#[test]
+	fn agent_host_without_tunnel_still_accepts_local_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--host",
+				"0.0.0.0",
+				"--port",
+				"1234",
+				"--connection-token",
+				"token",
+				"--replace",
+				"--new-instance",
+				"--foreground",
+				"--idle-timeout",
+				"300",
+			]);
+			let args = parse_agent_host_args(&argv);
+			assert_eq!(
+				(
+					args.tunnel,
+					args.host.as_deref(),
+					args.port,
+					args.connection_token.as_deref(),
+					args.replace,
+					args.new_instance,
+					args.foreground,
+					args.idle_timeout,
+				),
+				(
+					false,
+					Some("0.0.0.0"),
+					1234,
+					Some("token"),
+					true,
+					true,
+					true,
+					Some(300)
+				)
+			);
+		}
+	}
+
+	#[test]
+	fn tunnel_rejects_agent_host_only_mode() {
+		assert_eq!(
+			IntegratedCli::try_parse_from(["code", "tunnel", "--agent-host-only"])
+				.unwrap_err()
+				.kind(),
+			clap::error::ErrorKind::UnknownArgument
+		);
 	}
 
 	/// Mutates process-global environment, which `cargo test` runs in parallel
@@ -892,7 +1135,11 @@ mod tests {
 		assert!(!parse_machine_status(&["code", "tunnel"]));
 
 		std::env::remove_var(MACHINE_STATUS_ENV);
-		assert!(parse_machine_status(&["code", "tunnel", "--machine-status"]));
+		assert!(parse_machine_status(&[
+			"code",
+			"tunnel",
+			"--machine-status"
+		]));
 
 		match previous_value {
 			Some(value) => std::env::set_var(MACHINE_STATUS_ENV, value),

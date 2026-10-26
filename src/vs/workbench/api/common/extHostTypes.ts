@@ -29,6 +29,7 @@ import { TextEdit } from './extHostTypes/textEdit.js';
 import { WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
 
 export { CodeActionKind } from './extHostTypes/codeActionKind.js';
+export { ViewColumn } from '../../../platform/editor/common/editor.js';
 export {
 	Diagnostic, DiagnosticRelatedInformation,
 	DiagnosticSeverity, DiagnosticTag
@@ -638,20 +639,6 @@ export enum InlineCompletionEndOfLifeReasonKind {
 export enum InlineCompletionDisplayLocationKind {
 	Code = 1,
 	Label = 2
-}
-
-export enum ViewColumn {
-	Active = -1,
-	Beside = -2,
-	One = 1,
-	Two = 2,
-	Three = 3,
-	Four = 4,
-	Five = 5,
-	Six = 6,
-	Seven = 7,
-	Eight = 8,
-	Nine = 9
 }
 
 export enum StatusBarAlignment {
@@ -2706,6 +2693,11 @@ export enum NotebookVariablesRequestKind {
 @es5ClassCompat
 export class TimelineItem implements vscode.TimelineItem {
 	constructor(public label: string, public timestamp: number) { }
+}
+
+export enum TimelineTriggerKind {
+	Invoke = 1,
+	Automatic = 2
 }
 
 //#endregion Timeline
