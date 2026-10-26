@@ -15,6 +15,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { IShellLaunchConfig, ITerminalProcessOptions } from '../../common/terminal.js';
 import { ChildProcessMonitor } from '../../node/childProcessMonitor.js';
 import { TerminalProcess } from '../../node/terminalProcess.js';
+import { getWindowsCmdExePath } from '../../node/windowsShellLaunch.js';
 
 suite('TerminalProcess startup disposal', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -144,10 +145,12 @@ suite('TerminalProcess startup disposal', () => {
 
 	function defaultShellLaunch(): IShellLaunchConfig {
 		if (isWindows) {
-			const windir = process.env['windir'] || 'C:\\Windows';
 			return {
-				executable: `${windir}\\System32\\cmd.exe`,
-				args: ['/d', '/c', 'echo knox-terminal-ok']
+				executable: getWindowsCmdExePath(),
+				// Keep the shell alive until shutdown. `/c echo` exits immediately and
+				// races node-pty's deferred ConPTY connect, so pid is still 0 when
+				// start() used to return.
+				args: ['/d', '/k']
 			};
 		}
 
@@ -156,17 +159,19 @@ suite('TerminalProcess startup disposal', () => {
 
 	// node-pty on Windows is built for Electron. Plain Node mocha cannot load it, so skip
 	// there. Electron unit tests on windows-2022 are the gate for error 193.
-	(isWindows && !isElectron() ? test.skip : test)('starts a live native process and cleans up on normal shutdown', async () => {
+	(isWindows && !isElectron() ? test.skip : test)('starts a live native process and cleans up on normal shutdown', async function () {
+		this.timeout(15000);
 		const fixture = createTerminal(defaultShellLaunch());
-		let pid: number | undefined;
-		store.add(fixture.terminal.onProcessReady(event => pid = event.pid));
+		const ready = new DeferredPromise<number>();
+		store.add(fixture.terminal.onProcessReady(event => ready.complete(event.pid)));
 		try {
 			const result = await fixture.terminal.start();
 			if (result && hasKey(result, { message: true })) {
 				assert.fail(result.message);
 			}
-			assert.strictEqual(result, undefined);
-			assert.ok(pid && pid > 0);
+			assert.strictEqual(result, undefined, 'start() should succeed for a live native shell');
+			const pid = await ready.p;
+			assert.ok(pid > 0, `expected a native pid after start(), got ${pid}`);
 			await shutdown(fixture.terminal);
 			assert.deepStrictEqual(fixture.observe(), { spawnAttempts: 1, nativePtyPresent: false, titlePolling: false });
 		} finally {

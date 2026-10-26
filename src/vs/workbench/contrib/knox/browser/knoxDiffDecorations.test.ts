@@ -4,14 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
+import { createModelServices } from '../../../../editor/test/common/testTextModel.js';
 import { knoxAgentDiffPayloadIsEmpty, knoxAgentDiffToDeltaDecorations, KnoxDiffDecorationService } from './knoxDiffDecorations.js';
 
 suite('KnoxDiffDecorationService (KN-340)', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createDiffDecorationHarness(): { service: KnoxDiffDecorationService; modelService: IModelService } {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = createModelServices(store);
+		const modelService = instantiationService.get(IModelService);
+		const codeEditorService = new class extends mock<ICodeEditorService>() {
+			override onCodeEditorAdd = Event.None;
+		};
+		return {
+			service: store.add(new KnoxDiffDecorationService(modelService, codeEditorService)),
+			modelService,
+		};
+	}
 
 	test('empty payload is occupancy of red, green, and streaming index', () => {
 		assert.strictEqual(knoxAgentDiffPayloadIsEmpty({
@@ -43,9 +60,7 @@ suite('KnoxDiffDecorationService (KN-340)', () => {
 	});
 
 	test('setDecorations is model-scoped so every split of the uri sees the same ranges', () => {
-		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
-		const service = disposables.add(instantiationService.createInstance(KnoxDiffDecorationService));
-		const modelService = instantiationService.get(IModelService);
+		const { service, modelService } = createDiffDecorationHarness();
 		const uri = URI.parse('file:///knox-vertical-diff.ts');
 		const model = disposables.add(modelService.createModel('a\nb\nc\nd\n', null, uri));
 
@@ -66,9 +81,7 @@ suite('KnoxDiffDecorationService (KN-340)', () => {
 	});
 
 	test('decorations apply when the model is created after the payload', () => {
-		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
-		const service = disposables.add(instantiationService.createInstance(KnoxDiffDecorationService));
-		const modelService = instantiationService.get(IModelService);
+		const { service, modelService } = createDiffDecorationHarness();
 		const uri = URI.parse('file:///knox-vertical-diff-late.ts');
 
 		service.setDecorations({

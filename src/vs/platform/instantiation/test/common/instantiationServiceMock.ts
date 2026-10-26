@@ -139,16 +139,24 @@ export class TestInstantiationService extends InstantiationService implements ID
 	}
 
 	private _attachSinonOptions(service: any, opts: SinonOptions): any {
-		if (!service || typeof service !== 'object') {
+		if (!service || (typeof service !== 'object' && typeof service !== 'function')) {
 			return service;
 		}
-		if (Object.isExtensible(service)) {
-			service.sinonOptions = opts;
-			return service;
+		try {
+			if (Object.isExtensible(service)) {
+				service.sinonOptions = opts;
+				return service;
+			}
+		} catch {
+			// Frozen / non-extensible service objects (Electron frozen-intrinsics).
 		}
-		const copy = Object.assign(Object.create(Object.getPrototypeOf(service)), service);
-		copy.sinonOptions = opts;
-		return copy;
+		try {
+			const copy = Object.assign(Object.create(Object.getPrototypeOf(service)), service);
+			copy.sinonOptions = opts;
+			return copy;
+		} catch {
+			return Object.assign(Object.create(null), service, { sinonOptions: opts });
+		}
 	}
 
 	private _createStub(arg: any): any {

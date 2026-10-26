@@ -307,10 +307,10 @@ export function workbenchInstantiationService(
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
 	// eslint-disable-next-line local/code-no-any-casts
-	instantiationService.stub(IAccessibilitySignalService, {
-		playSignal: async () => { },
-		isSoundEnabled(signal: unknown) { return false; },
-	} as any);
+	instantiationService.stub(IAccessibilitySignalService, new class {
+		async playSignal() { }
+		isSoundEnabled(_signal: unknown) { return false; }
+	}() as any);
 	instantiationService.stub(IFileDialogService, instantiationService.createInstance(TestFileDialogService));
 	instantiationService.stub(ILanguageService, disposables.add(instantiationService.createInstance(LanguageService)));
 	instantiationService.stub(ILanguageFeaturesService, new LanguageFeaturesService());

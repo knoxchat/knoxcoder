@@ -58,6 +58,14 @@ const enum Constants {
 	 * interval.
 	 */
 	KillSpawnSpacingDuration = 50,
+	/**
+	 * node-pty defers `conptyNative.connect()` until the conout worker is ready
+	 * (microsoft/node-pty#885). Match its connection timeout so `start()` can
+	 * surface CreateProcess failures (including Windows error 193) instead of
+	 * returning success with pid 0.
+	 */
+	ConptyPidTimeout = 5000,
+	ConptyPidPollInterval = 10,
 }
 
 const posixShellTypeMap = new Map<string, PosixShellType>([
@@ -250,6 +258,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return undefined;
 		} catch (err) {
 			this._logService.trace('node-pty.node-pty.IPty#spawn native exception', err);
+			if (this._ptyProcess && !this._store.isDisposed && !this._closeTimeout) {
+				this._queueProcessExit();
+			}
 			const errorMessage = err.message;
 			if (errorMessage?.includes('Cannot launch conpty')) {
 				return { message: localize('conptyLaunchFailed', "A native exception occurred during launch (Cannot launch conpty). Winpty has been removed, see {0} for more details. You can also try enabling the `{1}` setting.", 'https://code.visualstudio.com/updates/v1_109#_removal-of-winpty-support', 'terminal.integrated.windowsUseConptyDll') };
@@ -350,11 +361,16 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._queueProcessExit();
 		}));
 		// node-pty >= 1.2.0-beta.11 defers conptyNative.connect() on Windows, so
-		// ptyProcess.pid may be 0 immediately after spawn. In that case we wait
-		// for the first data event which only fires after the connection completes
-		// and the real pid is available. See microsoft/node-pty#885.
+		// ptyProcess.pid may be 0 immediately after spawn. Wait until the real pid
+		// is available, or until connect fails (onExit), so start() can return a
+		// launch error instead of success. See microsoft/node-pty#885.
 		if (ptyProcess.pid > 0) {
 			this._sendProcessId(ptyProcess.pid);
+		} else if (isWindows) {
+			await this._waitForWindowsPtyPid(ptyProcess);
+			if (this._store.isDisposed) {
+				return;
+			}
 		} else {
 			const dataListener = ptyProcess.onData(() => {
 				dataListener.dispose();
@@ -364,6 +380,33 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._register(dataListener);
 		}
 		this._setupTitlePolling(ptyProcess);
+	}
+
+	private async _waitForWindowsPtyPid(ptyProcess: IPty): Promise<void> {
+		const deadline = Date.now() + Constants.ConptyPidTimeout;
+		while (ptyProcess.pid <= 0 && this._exitCode === undefined && !this._store.isDisposed) {
+			if (Date.now() >= deadline) {
+				throw this._windowsPtyLaunchError();
+			}
+			await timeout(Constants.ConptyPidPollInterval);
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
+		if (ptyProcess.pid <= 0) {
+			throw this._windowsPtyLaunchError();
+		}
+		this._childProcessMonitor?.setPid(ptyProcess.pid);
+		this._sendProcessId(ptyProcess.pid);
+	}
+
+	private _windowsPtyLaunchError(): Error {
+		const executable = this.shellLaunchConfig.executable || 'unknown';
+		if (this._exitCode === undefined) {
+			this._exitCode = -1;
+			return new Error(`Timed out waiting for ConPTY process id for "${executable}"`);
+		}
+		return new Error(`Cannot launch ConPTY process (error code: ${this._exitCode}) for "${executable}"`);
 	}
 
 	private _setupTitlePolling(ptyProcess: IPty) {
@@ -395,9 +438,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private async _kill(): Promise<void> {
-		// Wait to kill to process until the start up code has run. This prevents us from firing a process exit before a
-		// process start.
-		await this._processStartupComplete;
+		// Wait to kill the process until startup has reported a pid. If the child already
+		// exited (deferred ConPTY connect failed), do not wait for onProcessReady.
+		if (this._processStartupComplete && this._exitCode === undefined) {
+			await this._processStartupComplete;
+		}
 		if (this._store.isDisposed) {
 			return;
 		}
