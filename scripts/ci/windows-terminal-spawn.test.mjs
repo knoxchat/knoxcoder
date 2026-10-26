@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { isDisallowedUpdateDownloadUrl } from './check-update-feeds.mjs';
-import { PE_MACHINE, inspectWindowsTerminalBinaries, readPeMachineFromBuffer } from './windows-terminal-spawn.mjs';
+import { PE_MACHINE, cmdExePath, inspectWindowsTerminalBinaries, readPeMachineFromBuffer, waitForPid } from './windows-terminal-spawn.mjs';
 
 function makePe(machine) {
 	const buffer = Buffer.alloc(0x80);
@@ -62,5 +62,40 @@ describe('windows-terminal-spawn PE inspection', () => {
 		} finally {
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}
+	});
+});
+
+describe('windows-pty-live-spawn', () => {
+	it('uses Sysnative when a 32-bit process is running on 64-bit Windows', () => {
+		assert.equal(cmdExePath({ windir: 'C:\\Windows' }), 'C:\\Windows\\System32\\cmd.exe');
+		assert.equal(
+			cmdExePath({ windir: 'C:\\Windows', PROCESSOR_ARCHITEW6432: 'AMD64' }),
+			'C:\\Windows\\Sysnative\\cmd.exe',
+		);
+	});
+
+	it('resolves after a deferred pid and reports connect failures', async () => {
+		let pid = 0;
+		const ready = [];
+		const spawned = {
+			get pid() { return pid; },
+			onExit(listener) {
+				ready.push(listener);
+				return { dispose() { } };
+			}
+		};
+
+		const pending = waitForPid(spawned, 1000);
+		pid = 4242;
+		assert.equal(await pending, 4242);
+
+		const failed = waitForPid({
+			pid: 0,
+			onExit(listener) {
+				queueMicrotask(() => listener({ exitCode: 193 }));
+				return { dispose() { } };
+			}
+		}, 1000);
+		await assert.rejects(failed, /193/);
 	});
 });

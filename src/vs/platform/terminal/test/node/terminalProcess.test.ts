@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { IPty } from 'node-pty';
+import type { IPty, IPtyForkOptions, IWindowsPtyForkOptions } from 'node-pty';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { isWindows } from '../../../../base/common/platform.js';
@@ -15,7 +15,6 @@ import { IProductService } from '../../../product/common/productService.js';
 import { IShellLaunchConfig, ITerminalProcessOptions } from '../../common/terminal.js';
 import { ChildProcessMonitor } from '../../node/childProcessMonitor.js';
 import { TerminalProcess } from '../../node/terminalProcess.js';
-import { getWindowsCmdExePath } from '../../node/windowsShellLaunch.js';
 
 suite('TerminalProcess startup disposal', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,11 +26,14 @@ suite('TerminalProcess startup disposal', () => {
 		isScreenReaderOptimized: false
 	};
 
-	function createTerminal(shellLaunchConfig?: IShellLaunchConfig, cwd = process.cwd(), throttle?: () => Promise<void>) {
+	function createTerminal(shellLaunchConfig?: IShellLaunchConfig, cwd = process.cwd(), throttle?: () => Promise<void>, spawnPty?: () => IPty) {
 		let spawnAttempts = 0;
 		class TestTerminalProcess extends TerminalProcess {
 			protected override _throttleKillSpawn(): Promise<void> {
 				return throttle ? throttle() : super._throttleKillSpawn();
+			}
+			protected override _spawnPty(file: string, args: string | string[], options: IPtyForkOptions | IWindowsPtyForkOptions): IPty {
+				return spawnPty ? spawnPty() : super._spawnPty(file, args, options);
 			}
 		}
 		class Log extends NullLogService {
@@ -139,29 +141,67 @@ suite('TerminalProcess startup disposal', () => {
 		}
 	});
 
-	function isElectron(): boolean {
-		return typeof process.versions.electron === 'string';
-	}
+	function createDeferredPty(readyPid: number, readyDelayMs = 20, exitBeforeReady?: number): IPty {
+		const dataListeners = new Set<(data: string) => void>();
+		const exitListeners = new Set<(event: { exitCode: number; signal?: number }) => void>();
+		let pid = 0;
+		let killed = false;
+		let readyTimer: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
+			readyTimer = undefined;
+			if (exitBeforeReady !== undefined) {
+				fireExit(exitBeforeReady);
+				return;
+			}
+			pid = readyPid;
+			for (const listener of [...dataListeners]) {
+				listener('knox-terminal-ok');
+			}
+		}, readyDelayMs);
 
-	function defaultShellLaunch(): IShellLaunchConfig {
-		if (isWindows) {
-			return {
-				executable: getWindowsCmdExePath(),
-				// Keep the shell alive until shutdown. `/c echo` exits immediately and
-				// races node-pty's deferred ConPTY connect, so pid is still 0 when
-				// start() used to return.
-				args: ['/d', '/k']
-			};
+		function fireExit(exitCode: number): void {
+			if (killed) {
+				return;
+			}
+			killed = true;
+			if (readyTimer) {
+				clearTimeout(readyTimer);
+				readyTimer = undefined;
+			}
+			for (const listener of [...exitListeners]) {
+				listener({ exitCode });
+			}
 		}
 
-		return { executable: process.execPath, args: ['-e', 'setTimeout(() => process.exit(0), 250)'] };
+		return {
+			get pid() { return pid; },
+			cols: 80,
+			rows: 24,
+			process: 'fakeshell',
+			handleFlowControl: false,
+			onData: (listener: (data: string) => void) => {
+				dataListeners.add(listener);
+				return { dispose: () => dataListeners.delete(listener) };
+			},
+			onExit: (listener: (event: { exitCode: number; signal?: number }) => void) => {
+				exitListeners.add(listener);
+				return { dispose: () => exitListeners.delete(listener) };
+			},
+			write() { },
+			resize() { },
+			clear() { },
+			pause() { },
+			resume() { },
+			kill() { fireExit(0); }
+		} as IPty;
 	}
 
-	// node-pty on Windows is built for Electron. Plain Node mocha cannot load it, so skip
-	// there. Electron unit tests on windows-2022 are the gate for error 193.
-	(isWindows && !isElectron() ? test.skip : test)('starts a live native process and cleans up on normal shutdown', async function () {
+	// Electron mocha runs in the renderer. node-pty's ConPTY worker_threads cannot
+	// assign a live pid there, so this suite uses a deferred fake IPty. The real
+	// cmd.exe spawn (error 193) is gated by windows-terminal-spawn.mjs --spawn
+	// under ELECTRON_RUN_AS_NODE=1.
+	test('starts a deferred pty process and cleans up on normal shutdown', async function () {
 		this.timeout(15000);
-		const fixture = createTerminal(defaultShellLaunch());
+		const fixture = createTerminal(undefined, process.cwd(), undefined, () => createDeferredPty(4242));
 		const ready = new DeferredPromise<number>();
 		store.add(fixture.terminal.onProcessReady(event => ready.complete(event.pid)));
 		try {
@@ -169,9 +209,23 @@ suite('TerminalProcess startup disposal', () => {
 			if (result && hasKey(result, { message: true })) {
 				assert.fail(result.message);
 			}
-			assert.strictEqual(result, undefined, 'start() should succeed for a live native shell');
+			assert.strictEqual(result, undefined, 'start() should succeed after the deferred pid is assigned');
 			const pid = await ready.p;
-			assert.ok(pid > 0, `expected a native pid after start(), got ${pid}`);
+			assert.strictEqual(pid, 4242, `expected the deferred fake pid after start(), got ${pid}`);
+			await shutdown(fixture.terminal);
+			assert.deepStrictEqual(fixture.observe(), { spawnAttempts: 1, nativePtyPresent: false, titlePolling: false });
+		} finally {
+			fixture.cleanup();
+		}
+	});
+
+	(isWindows ? test : test.skip)('returns a launch error when ConPTY connect fails before pid', async function () {
+		this.timeout(15000);
+		const fixture = createTerminal(undefined, process.cwd(), undefined, () => createDeferredPty(4242, 20, 193));
+		try {
+			const result = await fixture.terminal.start();
+			assert.ok(result && hasKey(result, { message: true }) && result.message);
+			assert.match(result.message, /193/);
 			await shutdown(fixture.terminal);
 			assert.deepStrictEqual(fixture.observe(), { spawnAttempts: 1, nativePtyPresent: false, titlePolling: false });
 		} finally {

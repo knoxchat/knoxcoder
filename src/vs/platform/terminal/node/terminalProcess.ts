@@ -331,7 +331,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 		const sanitizedOptions = { ...options, env: sanitizeEnvForLogging(options.env as IProcessEnvironment | undefined) };
 		this._logService.trace('node-pty.IPty#spawn', shellLaunchConfig.executable, args, sanitizedOptions);
-		const ptyProcess = spawn(shellLaunchConfig.executable!, args, options);
+		const ptyProcess = this._spawnPty(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
 		this._register(this._childProcessMonitor.onDidChangeHasChildProcesses(value => this._onDidChangeProperty.fire({ type: ProcessPropertyType.HasChildProcesses, value })));
@@ -380,6 +380,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._register(dataListener);
 		}
 		this._setupTitlePolling(ptyProcess);
+	}
+
+	protected _spawnPty(file: string, args: string | string[], options: IPtyForkOptions | IWindowsPtyForkOptions): IPty {
+		return spawn(file, args, options);
 	}
 
 	private async _waitForWindowsPtyPid(ptyProcess: IPty): Promise<void> {

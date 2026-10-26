@@ -6,7 +6,8 @@
 #
 # This is the gate for Windows terminal error 193 (CreateProcess
 # ERROR_BAD_EXE_FORMAT): node-pty is Electron-ABI, so the live cmd.exe spawn
-# must run under scripts/test.bat, not plain Node mocha.
+# runs under Electron-as-Node (`windows-terminal-spawn.mjs --spawn`), not
+# the mocha renderer (worker_threads / ConPTY cannot assign a pid there).
 name: Windows tests
 
 on:
@@ -98,6 +99,14 @@ jobs:
       - name: CI script tests
         run: |
           node --test scripts/ci/check-update-feeds.test.mjs scripts/ci/windows-terminal-spawn.test.mjs scripts/ci/generate-update-metadata.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Live ConPTY spawn
+        run: |
+          $exe = Join-Path '.build\electron' 'KnoxCoder.exe'
+          if (-not (Test-Path $exe)) { throw "Missing $exe" }
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          & $exe .\scripts\ci\windows-terminal-spawn.mjs --spawn --require-spawn
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Electron unit tests (terminal)

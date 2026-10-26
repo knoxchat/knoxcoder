@@ -6,12 +6,15 @@
  * Windows terminal diagnostics for KnoxCoder error 193 (ERROR_BAD_EXE_FORMAT).
  *
  * Inspects PE machine types of KnoxCoder.exe, node-pty native modules,
- * conpty.dll, and OpenConsole.exe. Optionally lists them; never downloads
- * Microsoft VS Code builds.
+ * conpty.dll, and OpenConsole.exe. `--spawn` CreateProcess-es cmd.exe through
+ * node-pty and must run under Electron-as-Node (not the mocha renderer).
  */
+import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const require = createRequire(import.meta.url);
 
 export const PE_MACHINE = {
 	0x14c: 'ia32',
@@ -152,6 +155,82 @@ function flag(name) {
 	return process.argv.includes(`--${name}`);
 }
 
+export function cmdExePath(env = process.env) {
+	const windir = env.windir || 'C:\\Windows';
+	const sys = Object.prototype.hasOwnProperty.call(env, 'PROCESSOR_ARCHITEW6432') ? 'Sysnative' : 'System32';
+	return `${windir}\\${sys}\\cmd.exe`;
+}
+
+export function waitForPid(spawned, timeoutMs) {
+	return new Promise((resolve, reject) => {
+		const deadline = Date.now() + timeoutMs;
+		let settled = false;
+		const finish = (error, pid) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearInterval(timer);
+			try {
+				subscription.dispose();
+			} catch {
+				// node-pty onExit dispose is best-effort.
+			}
+			if (error) {
+				reject(error);
+				return;
+			}
+			resolve(pid);
+		};
+		const subscription = spawned.onExit(({ exitCode }) => {
+			if (spawned.pid > 0) {
+				finish(undefined, spawned.pid);
+				return;
+			}
+			finish(new Error(`ConPTY exited before pid was assigned (code ${exitCode}). Windows error 193 is ERROR_BAD_EXE_FORMAT.`));
+		});
+		const timer = setInterval(() => {
+			if (spawned.pid > 0) {
+				finish(undefined, spawned.pid);
+				return;
+			}
+			if (Date.now() >= deadline) {
+				finish(new Error('Timed out waiting for ConPTY pid'));
+			}
+		}, 20);
+	});
+}
+
+export async function spawnLiveConpty() {
+	if (process.platform !== 'win32') {
+		console.log('Skipping live ConPTY spawn off Windows');
+		return;
+	}
+	if (!process.versions.electron) {
+		throw new Error('Live ConPTY spawn must run under Electron (set ELECTRON_RUN_AS_NODE=1). node-pty is Electron-ABI.');
+	}
+
+	const pty = require('node-pty');
+	const spawned = pty.spawn(cmdExePath(), ['/d', '/c', 'echo knox-terminal-ok'], {
+		name: 'cmd.exe',
+		cols: 80,
+		rows: 24,
+		cwd: process.cwd(),
+		env: process.env
+	});
+
+	try {
+		const pid = await waitForPid(spawned, 8000);
+		console.log(`Live ConPTY spawn ok (pid ${pid})`);
+	} finally {
+		try {
+			spawned.kill();
+		} catch {
+			// The echo child may already have exited.
+		}
+	}
+}
+
 function defaultRoots() {
 	const roots = [];
 	const appDir = arg('app-dir');
@@ -167,7 +246,7 @@ function defaultRoots() {
 	return roots;
 }
 
-function main() {
+async function main() {
 	const expectedArch = arg('arch', process.arch === 'arm64' ? 'arm64' : 'x64');
 	const roots = defaultRoots();
 	if (roots.length === 0) {
@@ -193,18 +272,32 @@ function main() {
 	}
 
 	if (flag('spawn')) {
-		if (process.platform !== 'win32') {
-			console.log('Skipping cmd.exe spawn off Windows');
-			return;
-		}
-
-		console.error('Spawn checks run from Electron unit tests (node-pty is Electron-ABI). Use scripts/test.bat.');
-		if (flag('require-spawn')) {
-			process.exit(1);
+		try {
+			await spawnLiveConpty();
+		} catch (error) {
+			console.error(error && error.stack ? error.stack : error);
+			if (flag('require-spawn')) {
+				process.exit(1);
+			}
 		}
 	}
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-	main();
+function isMainModule() {
+	const entry = process.argv[1];
+	if (!entry) {
+		return false;
+	}
+	try {
+		return pathToFileURL(path.resolve(entry)).href === import.meta.url;
+	} catch {
+		return false;
+	}
+}
+
+if (isMainModule()) {
+	main().catch(error => {
+		console.error(error && error.stack ? error.stack : error);
+		process.exit(1);
+	});
 }
