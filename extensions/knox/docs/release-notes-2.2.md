@@ -2,6 +2,12 @@
 
 Full detail is in `CHANGELOG.md`; upgrade steps in [upgrade.md](upgrade.md); caveats in [known-issues.md](known-issues.md).
 
+## 2.2.3
+
+- Upgrade editor host to VS Code 1.143.1 (Electron 43.7.7) without Copilot or telemetry.
+- Auto-update stays on KnoxCoder GitHub releases.
+- Windows terminals: `.cmd`/`.bat` through `cmd.exe` (error 193), live ConPTY pid wait, size-to-content scrollbar no longer throws on xterm 6.
+
 ## 2.2.2
 
 - Memory write and correction from chat, Memories tab, and composer Remember (T1, T2). No model or tool call.

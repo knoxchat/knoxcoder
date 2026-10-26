@@ -3,9 +3,12 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.2.3] - 2026-10-26
+
 ### Fixed
 
-- **Windows terminal error 193.** `.cmd`/`.bat` shells are launched through `cmd.exe` instead of `CreateProcess`. The failure message now explains architecture mismatch. Windows packaging always ships the target-arch `conpty.dll` / `OpenConsole.exe`. GitHub Actions run Electron terminal tests on windows-2022 and inspect PE machine types of the packaged app.
+- **Windows terminal error 193.** `.cmd`/`.bat` shells are launched through `cmd.exe` instead of `CreateProcess`. The failure message now explains architecture mismatch. Windows packaging always ships the target-arch `conpty.dll` / `OpenConsole.exe`. GitHub Actions inspect PE machine types and spawn a live ConPTY under Electron-as-Node; `start()` waits for the deferred pid.
+- **Windows terminal size-to-content scrollbar.** Toggling horizontal scroll no longer throws on xterm 6 wrap flags after resize.
 - **Auto-update stays on KnoxCoder GitHub releases.** Clients refuse `update.code.visualstudio.com` and `microsoft/vscode` package URLs. The Update feeds workflow probes live `latest-*.json` on [knoxchat/knoxcoder](https://github.com/knoxchat/knoxcoder).
 
 ### Changed
