@@ -2939,6 +2939,9 @@ export function parseExitResult(
 					case 1260:
 						innerMessage = `Windows cannot open this program because it has been prevented by a software restriction policy. For more information, open Event Viewer or contact your system Administrator`;
 						break;
+					case 193:
+						innerMessage = `Windows error 193 (not a valid Win32 application) for "${shellLaunchConfig.executable}". This usually means the shell is a .cmd/.bat script, or the executable architecture does not match this KnoxCoder build (x64 vs ARM64). Pick Command Prompt or PowerShell from the terminal profile dropdown, or install the KnoxCoder build that matches your CPU from https://github.com/knoxchat/knoxcoder/releases/latest`;
+						break;
 				}
 			}
 			message = nls.localize('launchFailed.errorMessage', "The terminal process failed to launch: {0}.", innerMessage);

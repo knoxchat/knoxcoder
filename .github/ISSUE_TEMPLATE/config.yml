@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: KnoxCoder releases
+    url: https://github.com/knoxchat/knoxcoder/releases/latest
+    about: Download Windows, Linux, and macOS builds. Do not install Visual Studio Code to update KnoxCoder.
+  - name: Security
+    url: https://github.com/knoxchat/knoxcoder/blob/main/SECURITY.md
+    about: How to report a vulnerability.

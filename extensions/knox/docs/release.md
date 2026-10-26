@@ -68,7 +68,7 @@ sudo rpm -Uvh KnoxCoder-2.0.0-*.rpm
 
 ## GitHub auto-update
 
-Clients poll `https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-<platform>-<arch>[-<target>].json` (no API token). That JSON’s `productVersion` is compared with the running app; `url` is the package that **Download Update** fetches; Windows checks `sha256hash`. `/releases/latest` is the API fallback when the JSON is missing.
+Clients poll `https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-<platform>-<arch>[-<target>].json` (no API token). That JSON’s `productVersion` is compared with the running app; `url` is the package that **Download Update** fetches; Windows checks `sha256hash`. `/releases/latest` is the API fallback when the JSON is missing. The **Update feeds** workflow (`scripts/ci/check-update-feeds.mjs`) re-checks those URLs against `github.com/knoxchat/knoxcoder` and refuses `update.code.visualstudio.com` / `microsoft/vscode`.
 
 `scripts/ci/generate-update-metadata.mjs` always stamps download URLs with `v<package.json version>` (never `v{run}-build.{attempt}`). After tagging `v2.2.2`, run **Build desktop apps** by hand (Actions → Run workflow, tick `publish_release`) — tagging does not start a build. The draft attaches to `v2.2.2` even if you selected `main` as the workflow ref:
 

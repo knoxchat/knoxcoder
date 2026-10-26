@@ -138,12 +138,34 @@ suite('TerminalProcess startup disposal', () => {
 		}
 	});
 
-	(isWindows ? test.skip : test)('starts a live native process and cleans up on normal shutdown', async () => {
-		const fixture = createTerminal();
+	function isElectron(): boolean {
+		return typeof process.versions.electron === 'string';
+	}
+
+	function defaultShellLaunch(): IShellLaunchConfig {
+		if (isWindows) {
+			const windir = process.env['windir'] || 'C:\\Windows';
+			return {
+				executable: `${windir}\\System32\\cmd.exe`,
+				args: ['/d', '/c', 'echo knox-terminal-ok']
+			};
+		}
+
+		return { executable: process.execPath, args: ['-e', 'setTimeout(() => process.exit(0), 250)'] };
+	}
+
+	// node-pty on Windows is built for Electron. Plain Node mocha cannot load it, so skip
+	// there. Electron unit tests on windows-2022 are the gate for error 193.
+	(isWindows && !isElectron() ? test.skip : test)('starts a live native process and cleans up on normal shutdown', async () => {
+		const fixture = createTerminal(defaultShellLaunch());
 		let pid: number | undefined;
 		store.add(fixture.terminal.onProcessReady(event => pid = event.pid));
 		try {
-			assert.strictEqual(await fixture.terminal.start(), undefined);
+			const result = await fixture.terminal.start();
+			if (result && hasKey(result, { message: true })) {
+				assert.fail(result.message);
+			}
+			assert.strictEqual(result, undefined);
 			assert.ok(pid && pid > 0);
 			await shutdown(fixture.terminal);
 			assert.deepStrictEqual(fixture.observe(), { spawnAttempts: 1, nativePtyPresent: false, titlePolling: false });

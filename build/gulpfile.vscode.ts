@@ -235,6 +235,32 @@ function ensureBuildArtifacts(platform: string): void {
 	}
 }
 
+function resolveWin32ConptyDir(nodePtyDir: string, arch: string): string | undefined {
+	const conptyRoot = path.join(nodePtyDir, 'third_party', 'conpty');
+	if (!fs.existsSync(conptyRoot)) {
+		return undefined;
+	}
+
+	const versions = fs.readdirSync(conptyRoot)
+		.filter(name => {
+			try {
+				return fs.statSync(path.join(conptyRoot, name)).isDirectory();
+			} catch {
+				return false;
+			}
+		})
+		.sort();
+
+	for (let i = versions.length - 1; i >= 0; i--) {
+		const dir = path.join(conptyRoot, versions[i], `win10-${arch}`);
+		if (fs.existsSync(path.join(dir, 'conpty.dll')) && fs.existsSync(path.join(dir, 'OpenConsole.exe'))) {
+			return dir;
+		}
+	}
+
+	return undefined;
+}
+
 function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
@@ -358,22 +384,20 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
-		// node-pty's postinstall only copies `conpty.dll`/`OpenConsole.exe` into
-		// `build/Release/conpty` when installing on a Windows host. When packaging
-		// for win32 from another host (or after a cleaned install) they are missing,
-		// which makes terminals fail with "Cannot find conpty.dll". Inject them from
-		// `third_party/conpty` instead.
+		// node-pty's postinstall copies host-arch `conpty.dll`/`OpenConsole.exe`.
+		// Always replace them with the *target* arch from `third_party/conpty`.
+		// Shipping a host-arch OpenConsole.exe in a different-arch build makes
+		// Windows terminals fail with CreateProcess error 193.
 		let depsWithConpty: NodeJS.ReadWriteStream = cleanedDeps;
-		const nodePtyDir = path.join(root, 'node_modules', 'node-pty');
-		if (platform === 'win32' && (arch === 'x64' || arch === 'arm64') && !fs.existsSync(path.join(nodePtyDir, 'build', 'Release', 'conpty', 'conpty.dll'))) {
-			const conptyRoot = path.join(nodePtyDir, 'third_party', 'conpty');
-			const versions = fs.existsSync(conptyRoot) ? fs.readdirSync(conptyRoot) : [];
-			if (versions.length === 0) {
-				throw new Error(`node-pty conpty binaries not found in ${conptyRoot}`);
+		if (platform === 'win32' && (arch === 'x64' || arch === 'arm64')) {
+			const conptyDir = resolveWin32ConptyDir(path.join(root, 'node_modules', 'node-pty'), arch);
+			if (!conptyDir) {
+				throw new Error(`node-pty conpty binaries for win10-${arch} were not found under node_modules/node-pty/third_party/conpty`);
 			}
-			const conptyFiles = gulp.src([`${conptyRoot}/${versions[0]}/win10-${arch}/{conpty.dll,OpenConsole.exe}`], { base: root, dot: true })
+			const withoutHostConpty = cleanedDeps.pipe(filter(['**', '!**/node-pty/build/Release/conpty/**']));
+			const conptyFiles = gulp.src([`${conptyDir}/{conpty.dll,OpenConsole.exe}`], { base: root, dot: true })
 				.pipe(rename(f => { f.dirname = 'node_modules/node-pty/build/Release/conpty'; }));
-			depsWithConpty = merge(cleanedDeps, conptyFiles);
+			depsWithConpty = merge(withoutHostConpty, conptyFiles);
 		}
 		const deps = depsWithConpty
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))

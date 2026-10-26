@@ -176,6 +176,35 @@ export function isInstallerPackageUrl(url: string | undefined): boolean {
 	}
 }
 
+/**
+ * True when `url` is Microsoft's VS Code update CDN or the microsoft/vscode
+ * GitHub repo. KnoxCoder must never fetch installers from those hosts.
+ */
+export function isDisallowedUpdateDownloadUrl(url: string | undefined): boolean {
+	if (!url) {
+		return false;
+	}
+
+	let parsed: URL;
+	try {
+		parsed = new URL(url);
+	} catch {
+		return false;
+	}
+
+	const host = parsed.hostname.toLowerCase();
+	if (host === 'update.code.visualstudio.com' || host.endsWith('.gallerycdn.vsassets.io') || host === 'vscode.download.prss.microsoft.com') {
+		return true;
+	}
+
+	if (host.endsWith('.visualstudio.com') && (host.includes('vscode') || host.includes('vsassets'))) {
+		return true;
+	}
+
+	const repo = parseGitHubRepository(url);
+	return repo?.owner.toLowerCase() === 'microsoft' && repo.repo.toLowerCase() === 'vscode';
+}
+
 const CI_RUN_RELEASE_TAG = /^v\d+-build\.\d+$/i;
 const DIRECT_ASSET_SUFFIX = /\.(zip|dmg|tar\.gz|tgz|deb|rpm|appimage|exe|msi)$/i;
 
@@ -209,11 +238,17 @@ export function isDirectReleaseAssetUrl(url: string | undefined): boolean {
  * the generic `/releases/latest` page from `product.downloadUrl`.
  */
 export function resolveForcedDownloadUrl(update: Pick<IUpdate, 'url'>, productDownloadUrl?: string): string | undefined {
-	if (isDirectReleaseAssetUrl(update.url)) {
-		return update.url;
+	const candidates = isDirectReleaseAssetUrl(update.url)
+		? [update.url, productDownloadUrl]
+		: [productDownloadUrl, update.url];
+
+	for (const candidate of candidates) {
+		if (candidate && !isDisallowedUpdateDownloadUrl(candidate)) {
+			return candidate;
+		}
 	}
 
-	return productDownloadUrl || update.url;
+	return undefined;
 }
 
 /**

@@ -66,10 +66,14 @@ extensions/vscode-colorize-tests/test/colorize-fixtures/test.js
 extensions/vscode-colorize-tests/test/colorize-fixtures/test6916.js
 extensions/yaml/build/update-grammar.js
 gulpfile.mjs
+scripts/ci/check-update-feeds.mjs
+scripts/ci/check-update-feeds.test.mjs
 scripts/ci/generate-update-metadata.mjs
 scripts/ci/generate-update-metadata.test.mjs
 scripts/ci/release-check.mjs
 scripts/ci/release-check.test.mjs
+scripts/ci/windows-terminal-spawn.mjs
+scripts/ci/windows-terminal-spawn.test.mjs
 scripts/code-perf.js
 scripts/code-server.js
 scripts/code-sessions-web.js

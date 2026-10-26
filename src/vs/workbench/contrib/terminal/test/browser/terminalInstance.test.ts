@@ -741,6 +741,12 @@ suite('Workbench - TerminalInstance', () => {
 				{ code: 1260, message: `The terminal process failed to launch: Windows cannot open this program because it has been prevented by a software restriction policy. For more information, open Event Viewer or contact your system Administrator.` }
 			);
 		});
+		test('should format conpty failure code 193', () => {
+			deepStrictEqual(
+				parseExitResult({ code: 193, message: 'A native exception occurred during launch (Cannot create process, error code: 193)' }, { executable: 'C:\\Program Files\\nodejs\\npm.cmd' }, ProcessState.KilledDuringLaunch, undefined),
+				{ code: 193, message: `The terminal process failed to launch: Windows error 193 (not a valid Win32 application) for "C:\\Program Files\\nodejs\\npm.cmd". This usually means the shell is a .cmd/.bat script, or the executable architecture does not match this KnoxCoder build (x64 vs ARM64). Pick Command Prompt or PowerShell from the terminal profile dropdown, or install the KnoxCoder build that matches your CPU from https://github.com/knoxchat/knoxcoder/releases/latest.` }
+			);
+		});
 		test('should format conpty launch failure', () => {
 			deepStrictEqual(
 				parseExitResult({ message: 'A native exception occurred during launch (Cannot launch conpty). Winpty has been removed, see https://code.visualstudio.com/updates/v1_109#_removal-of-winpty-support for more details. You can also try enabling the `terminal.integrated.windowsUseConptyDll` setting.' }, {}, ProcessState.KilledDuringLaunch, undefined),

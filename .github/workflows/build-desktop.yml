@@ -322,6 +322,12 @@ jobs:
           VSCODE_PLATFORM: win32
         run: bash scripts/ci/mix-in-cli.sh
 
+      - name: PE machine types (packaged terminal / conpty)
+        run: |
+          $appDir = Join-Path (Split-Path -Parent $PWD.Path) "VSCode-win32-${{ matrix.arch }}"
+          node scripts/ci/windows-terminal-spawn.mjs --app-dir $appDir --arch ${{ matrix.arch }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Package zip
         run: |
           $version = node -p "require('./package.json').version"

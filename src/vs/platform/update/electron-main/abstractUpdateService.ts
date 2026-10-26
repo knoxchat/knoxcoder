@@ -21,7 +21,7 @@ import { asJson, IRequestService } from '../../request/common/request.js';
 import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { canonicalizeGitHubDownloadUrl, createGitHubLatestFeedUrl, createGitHubLatestReleaseUrl, githubReleaseToUpdate, IAvailableUpdateResult, IGitHubAssetQuery, isCurrentVersionLatest, isGitHubApiUrl, isGitHubLatestFeedUrl, isGitHubReleasePayload, isGitHubUpdateUrl, platformToGitHubAssetQuery, selectSquirrelFeedUrl, squirrelFeedToUpdate, type IGitHubRelease } from '../common/githubReleaseUpdate.js';
+import { canonicalizeGitHubDownloadUrl, createGitHubLatestFeedUrl, createGitHubLatestReleaseUrl, githubReleaseToUpdate, IAvailableUpdateResult, IGitHubAssetQuery, isCurrentVersionLatest, isDisallowedUpdateDownloadUrl, isGitHubApiUrl, isGitHubLatestFeedUrl, isGitHubReleasePayload, isGitHubUpdateUrl, platformToGitHubAssetQuery, selectSquirrelFeedUrl, squirrelFeedToUpdate, type IGitHubRelease } from '../common/githubReleaseUpdate.js';
 import { AvailableForDownload, DisablementReason, IUpdate, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
 
 const LAST_KNOWN_VERSION_STORAGE_KEY = 'abstractUpdateService/lastKnownVersion';
@@ -747,6 +747,11 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	private availableUpdateFromDetected(update: IUpdate, squirrelFeedUrl?: string): IAvailableUpdateResult {
 		const url = canonicalizeGitHubDownloadUrl(update.url, update.productVersion) ?? update.url;
 		if (!url || !update.version || !update.productVersion) {
+			return { isLatest: true };
+		}
+
+		if (isDisallowedUpdateDownloadUrl(url) || isDisallowedUpdateDownloadUrl(squirrelFeedUrl)) {
+			this.logService.error('update#fetchAvailableUpdate - refusing a VS Code / vscode.com download URL; KnoxCoder updates come from github.com/knoxchat/knoxcoder');
 			return { isLatest: true };
 		}
 

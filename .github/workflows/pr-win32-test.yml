@@ -1,0 +1,133 @@
+# Windows Electron unit tests for the integrated terminal and auto-update.
+# Adapted from microsoft/vscode .github/workflows/pr-win32-test.yml, but:
+#   - GitHub-hosted windows-2022 (no 1ES self-hosted pool)
+#   - no Agent Host, Copilot, WSL, or smoke shards
+#   - does not download Microsoft VS Code builds
+#
+# This is the gate for Windows terminal error 193 (CreateProcess
+# ERROR_BAD_EXE_FORMAT): node-pty is Electron-ABI, so the live cmd.exe spawn
+# must run under scripts/test.bat, not plain Node mocha.
+name: Windows tests
+
+on:
+  pull_request:
+    paths:
+      - 'src/vs/platform/terminal/**'
+      - 'src/vs/platform/update/**'
+      - 'src/vs/workbench/contrib/terminal/**'
+      - 'src/vs/workbench/contrib/terminalContrib/**'
+      - 'src/vs/workbench/contrib/update/**'
+      - 'build/gulpfile.vscode.ts'
+      - 'scripts/test.bat'
+      - 'scripts/ci/windows-terminal-spawn.mjs'
+      - 'scripts/ci/windows-terminal-spawn.test.mjs'
+      - '.github/workflows/pr-win32-test.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.nvmrc'
+      - '.npmrc'
+  push:
+    branches: [main]
+    paths:
+      - 'src/vs/platform/terminal/**'
+      - 'src/vs/platform/update/**'
+      - 'src/vs/workbench/contrib/terminal/**'
+      - 'src/vs/workbench/contrib/terminalContrib/**'
+      - 'src/vs/workbench/contrib/update/**'
+      - 'build/gulpfile.vscode.ts'
+      - 'scripts/test.bat'
+      - 'scripts/ci/windows-terminal-spawn.mjs'
+      - 'scripts/ci/windows-terminal-spawn.test.mjs'
+      - '.github/workflows/pr-win32-test.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.nvmrc'
+      - '.npmrc'
+  schedule:
+    - cron: '23 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-win32-test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-test:
+    name: Windows
+    runs-on: windows-2022
+    timeout-minutes: 75
+    env:
+      GYP_MSVS_VERSION: '2022'
+      npm_config_fund: 'false'
+      npm_config_audit: 'false'
+      VSCODE_SKIP_PRELAUNCH: '1'
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Download Electron
+        run: |
+          npm run electron
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Transpile client
+        run: |
+          npm run transpile-client
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: PE machine types (node-pty / conpty)
+        run: |
+          node scripts/ci/windows-terminal-spawn.mjs --arch x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: CI script tests
+        run: |
+          node --test scripts/ci/check-update-feeds.test.mjs scripts/ci/windows-terminal-spawn.test.mjs scripts/ci/generate-update-metadata.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Electron unit tests (terminal)
+        run: |
+          .\scripts\test.bat --glob "**/vs/platform/terminal/**/*.test.js"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\scripts\test.bat --glob "**/vs/workbench/contrib/terminal/**/*.test.js"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Electron unit tests (update)
+        run: |
+          .\scripts\test.bat --glob "**/vs/platform/update/**/*.test.js"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\scripts\test.bat --glob "**/vs/workbench/contrib/update/**/*.test.js"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish crash reports
+        uses: actions/upload-artifact@v4
+        if: failure()
+        continue-on-error: true
+        with:
+          name: crash-dump-windows-x64-${{ github.run_attempt }}
+          path: .build/crashes
+          if-no-files-found: ignore
+
+      - name: Publish logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        continue-on-error: true
+        with:
+          name: logs-windows-x64-${{ github.run_attempt }}
+          path: .build/logs
+          if-no-files-found: ignore

@@ -14,6 +14,10 @@ on:
       - 'scripts/ci/generate-update-metadata.test.mjs'
       - 'scripts/ci/release-check.mjs'
       - 'scripts/ci/release-check.test.mjs'
+      - 'scripts/ci/check-update-feeds.mjs'
+      - 'scripts/ci/check-update-feeds.test.mjs'
+      - 'scripts/ci/windows-terminal-spawn.mjs'
+      - 'scripts/ci/windows-terminal-spawn.test.mjs'
   push:
     branches: [main]
     paths:
@@ -24,6 +28,10 @@ on:
       - 'scripts/ci/generate-update-metadata.test.mjs'
       - 'scripts/ci/release-check.mjs'
       - 'scripts/ci/release-check.test.mjs'
+      - 'scripts/ci/check-update-feeds.mjs'
+      - 'scripts/ci/check-update-feeds.test.mjs'
+      - 'scripts/ci/windows-terminal-spawn.mjs'
+      - 'scripts/ci/windows-terminal-spawn.test.mjs'
   workflow_call:
 
 permissions:
@@ -141,7 +149,7 @@ jobs:
 
       - name: Update-feed checksums
         if: startsWith(matrix.os, 'ubuntu')
-        run: node --test scripts/ci/generate-update-metadata.test.mjs scripts/ci/release-check.test.mjs
+        run: node --test scripts/ci/generate-update-metadata.test.mjs scripts/ci/release-check.test.mjs scripts/ci/check-update-feeds.test.mjs scripts/ci/windows-terminal-spawn.test.mjs
 
   # Knox GUI / contract tests run inside Electron (scripts/test.sh) under xvfb.
   # continue-on-error until it has been green for several runs (v2-impl.md, P0-1); then remove it so it gates packaging.

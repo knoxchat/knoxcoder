@@ -18,6 +18,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType, ITerminalLaunchResult } from '../common/terminal.js';
 import { ChildProcessMonitor } from './childProcessMonitor.js';
 import { getShellIntegrationInjection, IShellIntegrationConfigInjection, sanitizeEnvForLogging } from './terminalEnvironment.js';
+import { rewriteWindowsScriptHostLaunch } from './windowsShellLaunch.js';
 import { WindowsShellHelper } from './windowsShellHelper.js';
 import { IPty, IPtyForkOptions, IWindowsPtyForkOptions, spawn } from 'node-pty';
 import { isNumber } from '../../../base/common/types.js';
@@ -293,6 +294,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			// Set the executable explicitly here so that node-pty doesn't need to search the
 			// $PATH too.
 			slc.executable = executable;
+			if (rewriteWindowsScriptHostLaunch(slc)) {
+				this._logService.info(`Rewrote Windows script-host shell "${executable}" to "${slc.executable}" to avoid CreateProcess error 193`);
+			}
 		} catch (err) {
 			if (err?.code === 'EACCES') {
 				// Swallow

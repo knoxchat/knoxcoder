@@ -1,0 +1,55 @@
+# Confirms KnoxCoder version auto-detect against github.com/knoxchat/knoxcoder
+# releases. Fetches latest-*.json and probes 16 bytes of each package URL.
+# Never downloads Microsoft VS Code / update.code.visualstudio.com builds.
+name: Update feeds
+
+on:
+  pull_request:
+    paths:
+      - 'product.json'
+      - 'src/vs/platform/update/**'
+      - 'src/vs/workbench/contrib/update/**'
+      - 'scripts/ci/check-update-feeds.mjs'
+      - 'scripts/ci/check-update-feeds.test.mjs'
+      - 'scripts/ci/generate-update-metadata.mjs'
+      - '.github/workflows/update-feeds.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'product.json'
+      - 'src/vs/platform/update/**'
+      - 'src/vs/workbench/contrib/update/**'
+      - 'scripts/ci/check-update-feeds.mjs'
+      - 'scripts/ci/check-update-feeds.test.mjs'
+      - 'scripts/ci/generate-update-metadata.mjs'
+      - '.github/workflows/update-feeds.yml'
+  schedule:
+    - cron: '11 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-feeds-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  feeds:
+    name: KnoxCoder GitHub release feeds
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Offline product.json + feed unit tests
+        run: node --test scripts/ci/check-update-feeds.test.mjs scripts/ci/generate-update-metadata.test.mjs scripts/ci/windows-terminal-spawn.test.mjs
+
+      - name: Live knoxchat/knoxcoder feeds (no vscode.com)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/ci/check-update-feeds.mjs

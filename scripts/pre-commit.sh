@@ -570,9 +570,15 @@ else
 		run_step "knox pkg tests (vitest)" npm --prefix extensions/knox run --silent test:pkg
 	fi
 
+	if changed_matches '^scripts/ci/'; then
+		run_step "CI script tests" node --test scripts/ci/generate-update-metadata.test.mjs scripts/ci/release-check.test.mjs scripts/ci/check-update-feeds.test.mjs scripts/ci/windows-terminal-spawn.test.mjs
+	else
+		skip_step "CI script tests" "no scripts/ci changes"
+	fi
+
 	if [ "$ALL" -eq 1 ]; then
 		skip_step "node unit tests" "--all does not run the full mocha suite"
-	elif changed_matches '^src/vs/.*/test/node/|^src/vs/base/test/common|^test/unit/node'; then
+	elif changed_matches '^src/vs/.*/test/node/|^src/vs/base/test/common|^src/vs/platform/update/test/|^test/unit/node'; then
 		if [ "$FULL" -eq 1 ] || [ -d out/vs ]; then
 			run_step "node unit tests (mocha)" npm run --silent test-node
 		else

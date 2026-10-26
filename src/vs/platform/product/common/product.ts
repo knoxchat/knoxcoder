@@ -79,7 +79,7 @@ else {
 			applicationName: 'knoxcoder',
 			dataFolderName: '.knoxcoder',
 			urlProtocol: 'knoxcoder',
-			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
+			reportIssueUrl: 'https://github.com/knoxchat/knoxcoder/issues/new',
 			licenseName: 'GPL-3.0',
 			licenseUrl: 'https://github.com/knoxchat/knoxcoder/blob/main/LICENSE.txt',
 			serverLicenseUrl: 'https://github.com/knoxchat/knoxcoder/blob/main/LICENSE.txt',

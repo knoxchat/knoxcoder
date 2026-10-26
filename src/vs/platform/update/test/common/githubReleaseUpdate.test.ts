@@ -13,6 +13,7 @@ import {
 	githubReleaseToUpdate,
 	isCurrentVersionLatest,
 	isDirectReleaseAssetUrl,
+	isDisallowedUpdateDownloadUrl,
 	isGitHubApiUrl,
 	isGitHubLatestFeedUrl,
 	isGitHubReleasePayload,
@@ -130,6 +131,23 @@ suite('KnoxCoder GitHub auto-update', () => {
 		assert.strictEqual(
 			resolveForcedDownloadUrl({ url: 'https://github.com/knoxchat/knoxcoder/releases/latest' }, 'https://github.com/knoxchat/knoxcoder/releases/latest'),
 			'https://github.com/knoxchat/knoxcoder/releases/latest',
+		);
+	});
+
+	test('refuses VS Code update CDN and microsoft/vscode release assets', () => {
+		assert.strictEqual(isDisallowedUpdateDownloadUrl('https://update.code.visualstudio.com/api/update/win32-x64/stable/abc'), true);
+		assert.strictEqual(isDisallowedUpdateDownloadUrl('https://github.com/microsoft/vscode/releases/download/1.143.1/VSCodeSetup.exe'), true);
+		assert.strictEqual(isDisallowedUpdateDownloadUrl('https://github.com/knoxchat/knoxcoder/releases/download/v2.2.2/KnoxCoder-2.2.2-win32-x64-user-setup.exe'), false);
+		assert.strictEqual(
+			resolveForcedDownloadUrl(
+				{ url: 'https://update.code.visualstudio.com/win32-x64/stable' },
+				'https://github.com/knoxchat/knoxcoder/releases/latest',
+			),
+			'https://github.com/knoxchat/knoxcoder/releases/latest',
+		);
+		assert.strictEqual(
+			resolveForcedDownloadUrl({ url: 'https://update.code.visualstudio.com/win32-x64/stable' }),
+			undefined,
 		);
 	});
 

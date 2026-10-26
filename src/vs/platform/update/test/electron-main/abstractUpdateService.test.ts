@@ -575,6 +575,16 @@ suite('AbstractUpdateService', () => {
 			createUpdateURL('https://github.com/knoxchat/knoxcoder', 'win32-x64', 'stable', 'abc'),
 			'https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-win32-x64-system.json',
 		);
+		assert.strictEqual(
+			createUpdateURL('https://github.com/knoxchat/knoxcoder', 'linux-x64', 'stable', 'abc'),
+			'https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-linux-x64.json',
+		);
+		assert.strictEqual(
+			createUpdateURL('https://github.com/knoxchat/knoxcoder', 'darwin-arm64', 'stable', 'abc'),
+			'https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-darwin-arm64.json',
+		);
+		assert.ok(!createUpdateURL('https://github.com/knoxchat/knoxcoder', 'win32-x64-user', 'stable', 'abc')?.includes('visualstudio.com'));
+		assert.ok(!createUpdateURL('https://github.com/knoxchat/knoxcoder', 'win32-x64-user', 'stable', 'abc')?.includes('microsoft/vscode'));
 	});
 
 	test('detects 2.2.1 dynamically from latest-*.json and is not latest on 2.2.0', async () => {
@@ -602,6 +612,22 @@ suite('AbstractUpdateService', () => {
 		await current.whenInitialized;
 		current.feedUrl = 'https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-linux-x64.json';
 		assert.strictEqual(await current.checkLatestVersionExplicitly(), true);
+	});
+
+	test('refuses a VS Code CDN payload even when the version is newer', async () => {
+		const service = createService('manual', {
+			updateUrl: 'https://github.com/knoxchat/knoxcoder',
+			version: '2.2.0',
+			request: async () => jsonResponse(200, {
+				url: 'https://update.code.visualstudio.com/win32-x64/stable',
+				name: '2.2.3',
+				version: 'deadbeef',
+				productVersion: '2.2.3',
+			}),
+		});
+		await service.whenInitialized;
+		service.feedUrl = 'https://github.com/knoxchat/knoxcoder/releases/latest/download/latest-win32-x64-user.json';
+		assert.strictEqual(await service.checkLatestVersionExplicitly(), true);
 	});
 
 	test('does not enter Cancelling when nothing is in flight', async () => {
