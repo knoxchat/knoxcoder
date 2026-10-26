@@ -135,8 +135,20 @@ export class TestInstantiationService extends InstantiationService implements ID
 	private _createService(serviceMock: IServiceMock<any>, opts: SinonOptions): any {
 		serviceMock.service = serviceMock.service ? serviceMock.service : this._servciesMap.get(serviceMock.id);
 		const service = opts.mock ? sinon.mock(serviceMock.service) : this._createStub(serviceMock.service);
-		service.sinonOptions = opts;
-		return service;
+		return this._attachSinonOptions(service, opts);
+	}
+
+	private _attachSinonOptions(service: any, opts: SinonOptions): any {
+		if (!service || typeof service !== 'object') {
+			return service;
+		}
+		if (Object.isExtensible(service)) {
+			service.sinonOptions = opts;
+			return service;
+		}
+		const copy = Object.assign(Object.create(Object.getPrototypeOf(service)), service);
+		copy.sinonOptions = opts;
+		return copy;
 	}
 
 	private _createStub(arg: any): any {

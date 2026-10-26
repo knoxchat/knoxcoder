@@ -12,6 +12,7 @@ import { createDecorator, IInstantiationService, ServicesAccessor } from '../../
 import { InstantiationService } from '../../common/instantiationService.js';
 import { ServiceCollection } from '../../common/serviceCollection.js';
 import { StrictServiceCollection } from '../../common/strictServiceCollection.js';
+import { TestInstantiationService } from './instantiationServiceMock.js';
 
 const IService1 = createDecorator<IService1>('service1');
 
@@ -846,6 +847,15 @@ suite('Instantiation Service', () => {
 
 		assert.throws(() => insta2.createInstance(Consumer)); // child is disposed by parent
 		assert.throws(() => insta1.createInstance(Consumer));
+	});
+
+	test('stub accepts frozen service objects used by workbenchInstantiationService', () => {
+		const instantiationService = new TestInstantiationService();
+		const id = createDecorator<{ open(): boolean }>('frozenOpener');
+		const frozen = Object.freeze({ open() { return true; } });
+		const stubbed = instantiationService.stub(id, frozen);
+		assert.strictEqual(stubbed.open(), true);
+		instantiationService.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
