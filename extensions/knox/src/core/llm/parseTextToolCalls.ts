@@ -474,15 +474,52 @@ export function looksLikeTextToolCall(text: string): boolean {
   );
 }
 
-function collapseResidualContent(text: string): string {
+/**
+ * Models (notably DeepSeek) leak namespaced control tags such as
+ * `<budget:token_budget>200000</budget:token_budget>`. Markdown treats
+ * `<budget:token_budget>` as an autolink, so the chat shows
+ * `budget:token_budget200000` and the next turn replays it.
+ */
+const CONTROL_QNAME =
+  "(?:(?:budget|token_budget|thinking_budget|reasoning_budget|context_budget):[A-Za-z_][\\w-]*|[A-Za-z_][\\w]*:(?:budget|token_budget|thinking_budget|reasoning_budget|context_budget))";
+const CONTROL_ELEMENT_RE = new RegExp(
+  `<\\s*(${CONTROL_QNAME})\\b[^>]*>[\\s\\S]*?<\\/\\s*\\1\\s*>`,
+  "gi",
+);
+const CONTROL_OPEN_NUMERIC_RE = new RegExp(
+  `<\\s*${CONTROL_QNAME}\\b[^>]*>\\s*-?\\d+\\s*"?`,
+  "gi",
+);
+const CONTROL_TAG_RE = new RegExp(
+  `<\\s*\\/?\\s*${CONTROL_QNAME}\\b[^>]*>`,
+  "gi",
+);
+const CONTROL_SPECIAL_TOKEN_RE = new RegExp(
+  `<\\|\\s*${CONTROL_QNAME}\\s*\\|>\\s*-?\\d*\\s*"?`,
+  "gi",
+);
+
+function stripLeakedControlMarkup(text: string): string {
+  if (!text) {
+    return text;
+  }
   return text
-    .replace(
+    .replace(CONTROL_ELEMENT_RE, "")
+    .replace(CONTROL_OPEN_NUMERIC_RE, "")
+    .replace(CONTROL_SPECIAL_TOKEN_RE, "")
+    .replace(CONTROL_TAG_RE, "");
+}
+
+function collapseResidualContent(text: string): string {
+  return stripLeakedControlMarkup(
+    text.replace(
       new RegExp(
         `<\\s*/?\\s*(?:/\\s*)*${DSML_BARS_RE}\\s*DSML\\s*${DSML_BARS_RE}\\s*[A-Za-z_][\\w]*\\b[^>]*>`,
         "gi",
       ),
       "",
-    )
+    ),
+  )
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/^\s+$/g, "")

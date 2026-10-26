@@ -11,8 +11,10 @@ import {
   collectAssistantTurn,
   lastOracleErrorCount,
   MAX_ORACLE_HOLD_ROUNDS,
+  MAX_PLAN_HOLD_ROUNDS,
   ORACLE_HOLD_MARKER,
   ORACLE_HOLD_STUCK_THRESHOLD,
+  PLAN_HOLD_STUCK_THRESHOLD,
   runAgentLoop,
 } from "./loop";
 import {
@@ -327,6 +329,59 @@ describe("runAgentLoop", () => {
         String(message.content).includes(PLAN_HOLD_MARKER),
     );
     expect(held).toHaveLength(1);
+  });
+
+  it("doom-loops three identical no-tool plan-holds including budget leaks", async () => {
+    createPlan({
+      sessionId: "sess-budget-leak",
+      title: "KnoxOS",
+      steps: ["runner", "qemu"],
+    });
+    const holds: unknown[] = [];
+    const leak = "<budget:token_budget>200000</budget:token_budget>";
+    const result = await runAgentLoop({
+      extras: extras([
+        [{ role: "assistant", content: leak }],
+        [{ role: "assistant", content: leak }],
+        [{ role: "assistant", content: leak }],
+        [{ role: "assistant", content: leak }],
+      ]),
+      messages: [{ role: "user", content: "Continue KnoxOS." }],
+      tools: [readTool],
+      compact: false,
+      sessionId: "sess-budget-leak",
+      onHold: (hold) => void holds.push(hold),
+      executeTool: vi.fn(),
+    });
+    expect(result.stoppedReason).toBe("doom_loop");
+    expect(holds).toHaveLength(PLAN_HOLD_STUCK_THRESHOLD);
+    expect(result.steps).toBe(PLAN_HOLD_STUCK_THRESHOLD);
+    expect(result.summary).toMatch(/plan|stuck|doom loop|strategy/i);
+  });
+
+  it("caps plan hold-completion instead of looping forever", async () => {
+    createPlan({
+      sessionId: "sess-plan-cap",
+      title: "KnoxOS",
+      steps: ["runner"],
+    });
+    const holds: unknown[] = [];
+    const turns: ChatMessage[][] = [];
+    for (let i = 0; i < MAX_PLAN_HOLD_ROUNDS + 2; i++) {
+      turns.push([{ role: "assistant", content: `Still working ${i}.` }]);
+    }
+    const result = await runAgentLoop({
+      extras: extras(turns),
+      messages: [{ role: "user", content: "Continue KnoxOS." }],
+      tools: [readTool],
+      compact: false,
+      sessionId: "sess-plan-cap",
+      onHold: (hold) => void holds.push(hold),
+      executeTool: vi.fn(),
+    });
+    expect(result.stoppedReason).toBe("completed");
+    expect(holds).toHaveLength(MAX_PLAN_HOLD_ROUNDS);
+    expect(result.steps).toBe(MAX_PLAN_HOLD_ROUNDS);
   });
 
   it("can disable plan hold-completion", async () => {

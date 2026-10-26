@@ -99,6 +99,19 @@ export const MAX_ORACLE_HOLD_ROUNDS = 8;
  */
 export const ORACLE_HOLD_STUCK_THRESHOLD = 3;
 
+/**
+ * Extra no-tool rounds while a task plan is still open. Unlimited `maxSteps`
+ * would otherwise loop forever when the model keeps printing junk (for
+ * example leaked `<budget:token_budget>`) instead of calling builtin_plan.
+ */
+export const MAX_PLAN_HOLD_ROUNDS = 8;
+
+/**
+ * Consecutive no-tool plan-holds with the same assistant text. A model that
+ * echoes the same leak every round must not sit on the plan-hold path.
+ */
+export const PLAN_HOLD_STUCK_THRESHOLD = 3;
+
 export interface AgentLoopToolCall {
   id?: string;
   name: string;
@@ -209,7 +222,8 @@ export interface AgentLoopOptions {
   /**
    * When a task plan still has pending/in_progress steps, a no-tool
    * assistant message is not `completed`. Same as oracle-red: keep
-   * going until remaining is 0, max-steps, or abort. Default on.
+   * going until remaining is 0, max-steps, abort, `MAX_PLAN_HOLD_ROUNDS`,
+   * or `PLAN_HOLD_STUCK_THRESHOLD` identical replies. Default on.
    * Pass `false` to disable.
    */
   holdCompletionWhilePlanOpen?: boolean;
@@ -729,6 +743,9 @@ export async function runAgentLoop(
   let oracleHoldRounds = 0;
   let lastOracleHoldSig: string | undefined;
   let oracleHoldSameStreak = 0;
+  let planHoldRounds = 0;
+  let lastPlanHoldText: string | undefined;
+  let planHoldSameStreak = 0;
   const compactFn =
     options.compact === false
       ? undefined
@@ -898,7 +915,20 @@ export async function runAgentLoop(
           messages,
         });
         const planRemaining = openPlan ? countPlanRemaining(openPlan) : 0;
-        if (holdPlanOpen && openPlan && planRemaining > 0) {
+        if (
+          holdPlanOpen &&
+          openPlan &&
+          planRemaining > 0 &&
+          planHoldRounds < MAX_PLAN_HOLD_ROUNDS
+        ) {
+          const holdText = lastText.trim() || "(empty)";
+          planHoldRounds += 1;
+          if (holdText === lastPlanHoldText) {
+            planHoldSameStreak += 1;
+          } else {
+            planHoldSameStreak = 1;
+            lastPlanHoldText = holdText;
+          }
           messages.push(assistant);
           messages.push({
             role: "system",
@@ -906,6 +936,17 @@ export async function runAgentLoop(
           });
           await options.onHold?.({ kind: "plan", remaining: planRemaining });
           steps += 1;
+          if (
+            doomThreshold !== null &&
+            planHoldSameStreak >= PLAN_HOLD_STUCK_THRESHOLD
+          ) {
+            return await finishDoomLoop({
+              kind: "plan_stuck",
+              threshold: PLAN_HOLD_STUCK_THRESHOLD,
+              count: planHoldSameStreak,
+              fingerprint: `plan_stuck::${holdText.slice(0, 80)}`,
+            });
+          }
           continue;
         }
         return finish("completed");

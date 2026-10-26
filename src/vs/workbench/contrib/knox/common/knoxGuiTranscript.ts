@@ -200,7 +200,24 @@ export function stripLeakedToolMarkup(text: string): string {
 		}
 	}
 	const sliced = cut >= 0 ? text.slice(0, cut) : text;
-	return sliced.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/^\s+$/g, '').trimEnd();
+	return stripLeakedControlMarkup(sliced).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/^\s+$/g, '').trimEnd();
+}
+
+/**
+ * Namespaced control tags (`<budget:token_budget>200000</budget:token_budget>`)
+ * render as `budget:token_budget200000` via markdown autolink. Drop them so
+ * they never flash in the live reply.
+ */
+function stripLeakedControlMarkup(text: string): string {
+	if (!text) {
+		return text;
+	}
+	const qname = '(?:(?:budget|token_budget|thinking_budget|reasoning_budget|context_budget):[A-Za-z_][\\w-]*|[A-Za-z_][\\w]*:(?:budget|token_budget|thinking_budget|reasoning_budget|context_budget))';
+	return text
+		.replace(new RegExp(`<\\s*(${qname})\\b[^>]*>[\\s\\S]*?<\\/\\s*\\1\\s*>`, 'gi'), '')
+		.replace(new RegExp(`<\\s*${qname}\\b[^>]*>\\s*-?\\d+\\s*"?`, 'gi'), '')
+		.replace(new RegExp(`<\\|\\s*${qname}\\s*\\|>\\s*-?\\d*\\s*"?`, 'gi'), '')
+		.replace(new RegExp(`<\\s*\\/?\\s*${qname}\\b[^>]*>`, 'gi'), '');
 }
 
 export function assistantReplyText(item: IKnoxGuiHistoryItem): string {

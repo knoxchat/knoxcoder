@@ -1,6 +1,6 @@
 import { ChatHistoryItem, ChatMessage, MessagePart } from "../";
 import { normalizeToMessageParts } from "../util/messageContent";
-import { hydrateAssistantTextToolCalls, looksLikeTextToolCall } from "./parseTextToolCalls";
+import { hydrateAssistantTextToolCalls } from "./parseTextToolCalls";
 import { formatPlanInject, formatPlanInjectFromHistory } from "../tools/planStore";
 import { formatCodebaseCardInject } from "../context/codebaseCard";
 import { formatRustPolicyInject } from "../context/rustPolicy";
@@ -50,15 +50,12 @@ function messageText(message: ChatMessage): string {
   return "";
 }
 
-/** Strip leaked DSML/XML tool markup so it is not replayed to the model. */
+/** Strip leaked DSML/XML tool and control markup so it is not replayed to the model. */
 function sanitizeAssistantMessage(message: ChatMessage): ChatMessage {
   if (message.role !== "assistant") {
     return message;
   }
   const text = messageText(message);
-  if (!looksLikeTextToolCall(text) && !message.toolCalls?.length) {
-    return message;
-  }
   const { content, toolCalls } = hydrateAssistantTextToolCalls(
     text,
     message.toolCalls ?? [],

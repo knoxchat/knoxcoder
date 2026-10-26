@@ -518,6 +518,18 @@ describe("looksLikeTextToolCall", () => {
 });
 
 describe("stripLeakedToolMarkup", () => {
+  it("drops leaked budget:token_budget control tags so they cannot render as chat text", () => {
+    const leaked = `<budget:token_budget>200000</budget:token_budget>`;
+    expect(stripLeakedToolMarkup(leaked).trim()).toBe("");
+    expect(stripLeakedToolMarkup(`Let me inspect the runner first.\n${leaked}`).trim()).toBe(
+      "Let me inspect the runner first.",
+    );
+    expect(stripLeakedToolMarkup(`<budget:token_budget>200000"`).trim()).toBe("");
+    expect(stripLeakedToolMarkup("use a <div> in the template")).toBe(
+      "use a <div> in the template",
+    );
+  });
+
   it("drops screenshot-style DSML so it cannot render as chat text", () => {
     const leaked = `< | DSML |  calls>
 < | DSML |  invoke name="builtin_edit_file">
@@ -539,6 +551,16 @@ parameter>
 });
 
 describe("hydrateAssistantTextToolCalls", () => {
+  it("strips leaked budget control tags without inventing a tool call", () => {
+    const { content, toolCalls } = hydrateAssistantTextToolCalls(
+      "Let me look at the harness.\n<budget:token_budget>200000</budget:token_budget>",
+      [],
+    );
+    expect(content).toContain("Let me look at the harness.");
+    expect(content).not.toMatch(/budget:token_budget/);
+    expect(toolCalls).toEqual([]);
+  });
+
   it("promotes leaked fullwidth DSML into toolCalls when the stream skipped them", () => {
     const { content, toolCalls } = hydrateAssistantTextToolCalls(
       FULLWIDTH_DSML,

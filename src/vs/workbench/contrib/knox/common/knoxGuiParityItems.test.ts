@@ -115,6 +115,9 @@ suite('Knox native parity items', () => {
 			assert.strictEqual(sniffStreamingCodeLanguage('hello world'), undefined);
 			assert.strictEqual(sniffStreamingCodeLanguage(''), undefined);
 			assert.ok(!stripLeakedToolMarkup('hi <function=run>x').includes('function=run'));
+			assert.strictEqual(stripLeakedToolMarkup('<budget:token_budget>200000</budget:token_budget>').trim(), '');
+			assert.ok(!stripLeakedToolMarkup('intro\n<budget:token_budget>200000</budget:token_budget>').includes('token_budget'));
+			assert.ok(stripLeakedToolMarkup('use a <div> in the template').includes('<div>'));
 			const tilde = splitMarkdownBlocks('intro\n~~~ts\nconst x = 1;');
 			assert.strictEqual(tilde[0].type, 'markdown');
 			assert.strictEqual(tilde[1]?.type, 'fence');

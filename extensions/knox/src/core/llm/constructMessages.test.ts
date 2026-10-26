@@ -113,6 +113,23 @@ describe("constructMessages", () => {
     expect(full.length).toBeLessThan(OLD_PROMPT_CHARS);
   });
 
+  it("strips leaked budget:token_budget control tags from assistant history", () => {
+    const msgs = constructMessages([
+      {
+        message: {
+          role: "assistant",
+          content:
+            "Let me inspect the runner first.\n<budget:token_budget>200000</budget:token_budget>",
+        },
+        contextItems: [],
+      },
+    ]);
+    const assistant = msgs.find((msg) => msg.role === "assistant");
+    expect(String(assistant?.content)).toContain("Let me inspect the runner first.");
+    expect(String(assistant?.content)).not.toMatch(/budget:token_budget/);
+    expect(String(assistant?.content)).not.toMatch(/200000/);
+  });
+
   it("strips leaked DSML tool markup from assistant history", () => {
     const msgs = constructMessages([
       {

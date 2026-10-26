@@ -43,6 +43,7 @@ export type DoomLoopKind =
   | "same_strategy"
   | "oscillating_edit"
   | "oracle_stuck"
+  | "plan_stuck"
   | "repeat_question";
 
 export interface DoomLoopHit {
@@ -424,6 +425,8 @@ function describeHit(hit: DoomLoopHit): string {
       return "the same file is being edited back and forth between two states";
     case "oracle_stuck":
       return `the build/test oracle failed with the same errors ${hit.count} times despite edits`;
+    case "plan_stuck":
+      return `the task plan is still open but the same no-tool reply repeated ${hit.count} times`;
     case "repeat_question":
       return "the same question was asked to the user again";
     default:
@@ -490,6 +493,9 @@ function alternativeFor(hit: DoomLoopHit): string {
   }
   if (hit.kind === "oracle_stuck" || (hit.kind === "repeat" && /build|terminal|await_shell/.test(name))) {
     return "Read the first error file; do not rebuild until an edit lands.";
+  }
+  if (hit.kind === "plan_stuck") {
+    return "Call builtin_plan to complete or skip the current step, or ask the user.";
   }
   if (/search|grep|exact_search/.test(name)) {
     return "Narrow path/fileType or use builtin_lsp workspaceSymbol.";
