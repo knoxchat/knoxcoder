@@ -165,7 +165,7 @@ jobs:
           test -n "$rpm_file"
           cp "$rpm_file" "dist/KnoxCoder-${VERSION}-linux-${{ matrix.arch }}.rpm"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: knoxcoder-linux-${{ matrix.arch }}
@@ -348,7 +348,7 @@ jobs:
             Copy-Item $installer.FullName "dist/KnoxCoder-$version-win32-${{ matrix.arch }}-$target-setup.exe"
           }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: knoxcoder-windows-${{ matrix.arch }}
