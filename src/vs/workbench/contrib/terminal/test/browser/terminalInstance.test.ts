@@ -30,7 +30,7 @@ import { Workspace } from '../../../../../platform/workspace/test/common/testWor
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
-import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
+import { clearWindowsWrappedLineFlags, parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
 import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
@@ -644,6 +644,33 @@ suite('Workbench - TerminalInstance', () => {
 				),
 				true
 			);
+		});
+	});
+	suite('clearWindowsWrappedLineFlags', () => {
+		test('does not throw when getLine returns undefined', () => {
+			clearWindowsWrappedLineFlags({
+				viewportY: 0,
+				length: 3,
+				getLine: () => undefined
+			});
+		});
+		test('clears nested _line.isWrapped for xterm 4 buffers', () => {
+			const inner = { isWrapped: true };
+			clearWindowsWrappedLineFlags({
+				viewportY: 0,
+				length: 1,
+				getLine: () => ({ _line: inner })
+			});
+			strictEqual(inner.isWrapped, false);
+		});
+		test('clears BufferLine.isWrapped for xterm 6 buffers', () => {
+			const line = { isWrapped: true };
+			clearWindowsWrappedLineFlags({
+				viewportY: 0,
+				length: 1,
+				getLine: () => line
+			});
+			strictEqual(line.isWrapped, false);
 		});
 	});
 	suite('parseExitResult', () => {
