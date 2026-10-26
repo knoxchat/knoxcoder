@@ -1,0 +1,45 @@
+# Restore compiled node_modules for this OS/arch/lockfile.
+#
+# `npm ci` here is not "just download packages". Root .npmrc sets
+# build_from_source=true and runtime=electron, so every native addon
+# (node-pty, native-keymap, @vscode/spdlog, sqlite3, …) is compiled
+# against Electron headers. That is the 30+ minute Windows arm64 step.
+# npm's own cache (setup-node cache: npm) only stores tarballs, not
+# those compiled .node binaries.
+#
+# An exact-key hit skips npm ci. No restore-keys: a partial match would
+# mix native binaries from a different Electron/lockfile.
+name: Cache compiled node_modules
+description: Restore compiled node_modules for this OS, arch, and lockfile
+
+inputs:
+  key-prefix:
+    description: OS and arch prefix, e.g. Windows-arm64 or Linux-x64
+    required: true
+
+outputs:
+  cache-hit:
+    description: true when compiled node_modules were restored
+    value: ${{ steps.cache.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - id: cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          node_modules
+          build/node_modules
+          build/rspack/node_modules
+          build/vite/node_modules
+          extensions/node_modules
+          extensions/*/node_modules
+          extensions/*/server/node_modules
+          remote/node_modules
+          remote/web/node_modules
+          test/automation/node_modules
+          test/integration/browser/node_modules
+          test/monaco/node_modules
+          test/smoke/node_modules
+        key: compiled-nm-${{ inputs.key-prefix }}-${{ hashFiles('package-lock.json', 'extensions/knox/package-lock.json', 'extensions/package-lock.json', 'build/package-lock.json', 'remote/package-lock.json', '.npmrc', '.nvmrc') }}

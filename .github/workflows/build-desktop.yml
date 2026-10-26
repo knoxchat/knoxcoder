@@ -14,6 +14,11 @@
 # output lands in ../VSCode-<platform>-<arch> next to the checkout, exactly like build_dmg.sh expects.
 # After packaging, scripts/ci/mix-in-cli.sh builds the Rust tunnel CLI (knoxcoder-tunnel)
 # into that tree so Linux deb/rpm dependency generation and Windows installers include it.
+#
+# Install speed: .npmrc forces native addons to build from source for Electron (Node
+# prebuilds are the wrong ABI). Windows arm64 then spends most of `npm ci` in MSVC.
+# The compiled node_modules tree is cached per OS/arch/lockfile so a lockfile hit
+# skips that compile; Windows also turns off Defender realtime scanning for the job.
 
 name: Build desktop apps
 
@@ -127,7 +132,14 @@ jobs:
             cli/target
           key: ${{ runner.os }}-${{ matrix.arch }}-cli-${{ hashFiles('cli/Cargo.lock') }}
 
+      - name: Cache compiled node_modules
+        id: compiled-deps
+        uses: ./.github/actions/cache-compiled-deps
+        with:
+          key-prefix: ${{ runner.os }}-${{ matrix.arch }}
+
       - name: Install dependencies
+        if: steps.compiled-deps.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Build app
@@ -195,6 +207,20 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # Defender realtime scanning of node-gyp output is most of why Windows
+      # arm64 `npm ci` sits at 30+ minutes. GitHub-hosted runners are admin.
+      - name: Disable Windows Defender realtime scanning
+        run: |
+          try {
+            Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction Stop
+            Add-MpPreference -ExclusionPath $pwd.Path
+            Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\npm-cache"
+            Add-MpPreference -ExclusionPath $env:TEMP
+            Write-Host 'Windows Defender realtime scanning disabled for this job'
+          } catch {
+            Write-Host "Could not change Defender settings: $_"
+          }
+
       - name: Add Windows SDK signtool to PATH
         run: |
           $archDir = if ('${{ matrix.arch }}' -eq 'arm64') { 'arm64' } else { 'x64' }
@@ -232,8 +258,14 @@ jobs:
             cli/target
           key: ${{ runner.os }}-${{ matrix.arch }}-cli-${{ hashFiles('cli/Cargo.lock') }}
 
+      - name: Cache compiled node_modules
+        id: compiled-deps
+        uses: ./.github/actions/cache-compiled-deps
+        with:
+          key-prefix: ${{ runner.os }}-${{ matrix.arch }}
+
       - name: Disable Spectre mitigation for native modules
-        if: matrix.arch == 'arm64'
+        if: matrix.arch == 'arm64' && steps.compiled-deps.outputs.cache-hit != 'true'
         run: |
           # windows-11-arm ships VS 18. Native modules set SpectreMitigation=Spectre
           # in binding.gyp. The toolset MSBuild then picks (v143 / 14.44) has no
@@ -267,6 +299,7 @@ jobs:
           Write-Host "ForceImportBeforeCppTargets=$propsPath"
 
       - name: Install dependencies
+        if: steps.compiled-deps.outputs.cache-hit != 'true'
         env:
           GYP_MSVS_VERSION: '2022'
         run: |
