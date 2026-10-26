@@ -93,6 +93,21 @@ function isOtherPlatformNativePath(filePath) {
 	return /\/(?:bin\/)?(?:darwin|linux|alpine|freebsd|android)-[^/]*\//.test(normalized);
 }
 
+export function windowsNativeArchFromPath(filePath) {
+	const normalized = filePath.replaceAll('\\', '/').toLowerCase();
+	const win32 = /win32-(ia32|x64|arm64)(?=[/._-]|$)/.exec(normalized);
+	if (win32) {
+		return win32[1];
+	}
+
+	const base = normalized.split('/').pop() ?? '';
+	if (!base.endsWith('.node')) {
+		return undefined;
+	}
+	const named = /(?:^|[._-])(ia32|x64|arm64)(?:[._-]|$)/.exec(base);
+	return named ? named[1] : undefined;
+}
+
 function shouldInspect(filePath, expectedArch) {
 	if (!interesting(filePath) || isOtherPlatformNativePath(filePath)) {
 		return false;
@@ -101,6 +116,13 @@ function shouldInspect(filePath, expectedArch) {
 	const normalized = filePath.replaceAll('\\', '/').toLowerCase();
 	if (normalized.includes('/third_party/conpty/')) {
 		return expectedArch ? normalized.includes(`/win10-${expectedArch.toLowerCase()}/`) : true;
+	}
+
+	if (expectedArch) {
+		const namedArch = windowsNativeArchFromPath(filePath);
+		if (namedArch && namedArch !== expectedArch.toLowerCase()) {
+			return false;
+		}
 	}
 
 	return true;

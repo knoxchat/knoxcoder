@@ -61,5 +61,51 @@ export function getRipgrepExcludeFilter(platform: string, arch: string): string[
 		.filter(dir => !keepPrebuilds.has(dir))
 		.map(dir => `!**/prebuilds/${dir}/**`);
 
-	return ['**', ...ripgrepExcludes, ...prebuildExcludes];
+	return ['**', ...ripgrepExcludes, ...prebuildExcludes, ...getWrongArchNativeExcludeFilter(platform, arch)];
+}
+
+const WINDOWS_NATIVE_ARCHES = ['ia32', 'x64', 'arm64'] as const;
+export type WindowsNativeArch = typeof WINDOWS_NATIVE_ARCHES[number];
+
+/**
+ * Arch encoded in a native path: napi `win32-<arch>`, js-debug
+ * `*.win32-<arch>-msvc-*.node`, and esbuild file-loader names such as
+ * `crypt32-ia32-<hash>.node`. Unnamed bindings (`kerberos-<hash>.node`)
+ * return `undefined` so PE inspection remains the source of truth.
+ */
+export function windowsNativeArchFromPath(filePath: string): WindowsNativeArch | undefined {
+	const normalized = filePath.replaceAll('\\', '/').toLowerCase();
+	const win32 = /win32-(ia32|x64|arm64)(?=[/._-]|$)/.exec(normalized);
+	if (win32) {
+		return win32[1] as WindowsNativeArch;
+	}
+
+	const base = normalized.split('/').pop() ?? '';
+	if (!base.endsWith('.node')) {
+		return undefined;
+	}
+	const named = /(?:^|[._-])(ia32|x64|arm64)(?:[._-]|$)/.exec(base);
+	return named ? named[1] as WindowsNativeArch : undefined;
+}
+
+/**
+ * Optional Windows natives whose filename already names a different arch
+ * than the package target. Loading them is Windows error 193; they also
+ * make the PE machine-type gate fail.
+ */
+export function getWrongArchNativeExcludeFilter(platform: string, arch: string): string[] {
+	if (platform !== 'win32') {
+		return [];
+	}
+
+	const { nodeArch } = toNodePlatformArch(platform, arch);
+	return WINDOWS_NATIVE_ARCHES
+		.filter(nativeArch => nativeArch !== nodeArch)
+		.flatMap(nativeArch => [
+			`!**/*.win32-${nativeArch}*.node`,
+			`!**/crypt32-${nativeArch}*.node`,
+			`!**/*-${nativeArch}-*.node`,
+			`!**/win32-${nativeArch}/**`,
+			`!**/win32-${nativeArch}-*/**`,
+		]);
 }

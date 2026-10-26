@@ -69,6 +69,37 @@ export interface NativeTarget {
 	readonly arch: string;
 }
 
+const WINDOWS_NATIVE_ARCHES = ['ia32', 'x64', 'arm64'] as const;
+
+/**
+ * Arch encoded in a native path: napi `win32-<arch>`, js-debug
+ * `*.win32-<arch>-msvc-*.node`, and esbuild file-loader names such as
+ * `crypt32-ia32-<hash>.node`.
+ */
+export function windowsNativeArchFromPath(rel: string): (typeof WINDOWS_NATIVE_ARCHES)[number] | undefined {
+	const normalized = rel.replaceAll('\\', '/').toLowerCase();
+	const win32 = /win32-(ia32|x64|arm64)(?=[/._-]|$)/.exec(normalized);
+	if (win32) {
+		return win32[1] as (typeof WINDOWS_NATIVE_ARCHES)[number];
+	}
+
+	const base = normalized.split('/').pop() ?? '';
+	if (!base.endsWith('.node')) {
+		return undefined;
+	}
+	const named = /(?:^|[._-])(ia32|x64|arm64)(?:[._-]|$)/.exec(base);
+	return named ? named[1] as (typeof WINDOWS_NATIVE_ARCHES)[number] : undefined;
+}
+
+/** False for optional Windows natives that name a different arch than `target`. */
+export function shouldShipWindowsNative(rel: string, target: NativeTarget): boolean {
+	if (target.platform !== 'win32') {
+		return true;
+	}
+	const named = windowsNativeArchFromPath(rel);
+	return named === undefined || named === target.arch;
+}
+
 /** Debug symbols and compiler/linker intermediates: never useful in a shipped extension. */
 const BUILD_ARTIFACT_FILE = /\.(pdb|ipdb|iobj|obj|o|a|lib|exp|ilk|tlog|mk|map)$/i;
 const BUILD_ARTIFACT_NAMES = new Set(['Makefile', '.forge-meta', 'config.gypi', 'gyp-mac-tool']);

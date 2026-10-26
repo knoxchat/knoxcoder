@@ -28,7 +28,7 @@ import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
 import { checkApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
-import { getRipgrepExcludeFilter } from './lib/packagingFilters.ts';
+import { getRipgrepExcludeFilter, getWrongArchNativeExcludeFilter } from './lib/packagingFilters.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { glob } from 'glob';
 import { rcedit } from 'rcedit';
@@ -313,7 +313,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			'.build/extensions/**',
 			...platformSpecificBuiltInExtensionsExclusions,
 			...desktopExtensionExclusions,
-		], { base: '.build', dot: true, ...binarySrcOptions });
+		], { base: '.build', dot: true, ...binarySrcOptions })
+			.pipe(filter(['**', ...getWrongArchNativeExcludeFilter(platform, arch)], { dot: true }));
 
 		// Minified (production) packages never ship source maps, whether built on CI or locally
 		// (build_dmg.sh): they add ~230 MB of unpacked files that no end user can use.
@@ -395,7 +396,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				throw new Error(`node-pty conpty binaries for win10-${arch} were not found under node_modules/node-pty/third_party/conpty`);
 			}
 			const withoutHostConpty = cleanedDeps.pipe(filter(['**', '!**/node-pty/build/Release/conpty/**']));
-			const conptyFiles = gulp.src([`${conptyDir}/{conpty.dll,OpenConsole.exe}`], { base: root, dot: true })
+			const conptyFiles = gulp.src([`${conptyDir}/{conpty.dll,OpenConsole.exe}`], { base: root, dot: true, ...binarySrcOptions })
 				.pipe(rename(f => { f.dirname = 'node_modules/node-pty/build/Release/conpty'; }));
 			depsWithConpty = merge(withoutHostConpty, conptyFiles);
 		}

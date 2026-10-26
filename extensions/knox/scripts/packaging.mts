@@ -156,6 +156,15 @@ export function desktopPackagingDropsBrowserBundles(source: string): boolean {
 		&& source.includes('dist/browser');
 }
 
+/** Gulp 5 UTF-8-encodes binaries unless `encoding: false`; that turns ConPTY into "not PE". */
+export function desktopPackagingCopiesWin32ConptyAsBinary(source: string): boolean {
+	return /gulp\.src\(\[`\$\{conptyDir\}\/\{conpty\.dll,OpenConsole\.exe\}`\], \{ base: root, dot: true, \.\.\.binarySrcOptions \}\)/.test(source);
+}
+
+export function desktopPackagingDropsWrongArchWindowsNatives(source: string): boolean {
+	return source.includes('getWrongArchNativeExcludeFilter');
+}
+
 export function gulpFileHasKnoxPackagingTasks(gulpSource: string): boolean {
 	const hasRequired = KNOX_GULP_COMPILE_TASKS.every((taskName) =>
 		gulpSource.includes(`task.define('${taskName}'`),

@@ -29,7 +29,9 @@ import {
   mermaidWebviewUsesSharedOutdir,
   isDesktopBrowserBundlePath,
   localPackagingExcludesDesktopSizeCuts,
+  desktopPackagingCopiesWin32ConptyAsBinary,
   desktopPackagingDropsBrowserBundles,
+  desktopPackagingDropsWrongArchWindowsNatives,
   JS_PROFILE_TABLE_MARKETPLACE_ID,
 } from "../../../scripts/packaging.mts";
 import { leftoverProductDirectoryExists } from "../../../scripts/inventory-gate.mts";
@@ -38,6 +40,7 @@ import {
   shouldCopyNodePtyEntry,
   shouldCopySqliteEntry,
   shouldShipTreeSitterWasm,
+  shouldShipWindowsNative,
   treeSitterWasmFileName,
 } from "../../../scripts/nativeFilters.mts";
 
@@ -275,6 +278,22 @@ suite("Installer size", () => {
     assert.ok(!shouldCopyNodePtyEntry("prebuilds/win32-x64/pty.pdb", win));
     assert.ok(!shouldCopyNodePtyEntry("prebuilds/win32-arm64/pty.node", win));
     assert.ok(!shouldCopyNodePtyEntry("prebuilds/darwin-arm64/pty.node", win));
+
+    assert.ok(shouldShipWindowsNative("crypt32-x64-DGNGT7PC.node", win));
+    assert.ok(shouldShipWindowsNative("kerberos-F63X3WJO.node", win));
+    assert.ok(!shouldShipWindowsNative("crypt32-ia32-ICQ243Y3.node", win));
+    assert.ok(
+      !shouldShipWindowsNative(
+        "win32-app-container-tokens.win32-arm64-msvc-4ZJZ3U55.node",
+        win,
+      ),
+    );
+    assert.ok(
+      shouldShipWindowsNative(
+        "win32-app-container-tokens.win32-x64-msvc-VCQE7GJP.node",
+        win,
+      ),
+    );
   });
 
   test("sqlite3 keeps only the JS wrapper and the compiled binding", () => {
@@ -309,6 +328,7 @@ suite("Installer size", () => {
     assert.ok(!script.includes("copyEsbuild("));
     assert.ok(script.includes("shouldCopyNodePtyEntry"));
     assert.ok(script.includes("shouldCopySqliteEntry"));
+    assert.ok(script.includes("shouldShipWindowsNative"));
     assert.ok(script.includes("SHIPPED_TREE_SITTER_LANGUAGES"));
     assert.ok(!readRepo("extensions/knox/esbuild.mts").includes("'esbuild', './xhr-sync-worker.js'"));
   });
@@ -338,6 +358,8 @@ suite("Installer size", () => {
     assert.ok(localPackagingExcludesDesktopSizeCuts(vscodeGulp));
     assert.ok(vscodeGulp.includes(JS_PROFILE_TABLE_MARKETPLACE_ID));
     assert.ok(desktopPackagingDropsBrowserBundles(vscodeGulp));
+    assert.ok(desktopPackagingCopiesWin32ConptyAsBinary(vscodeGulp));
+    assert.ok(desktopPackagingDropsWrongArchWindowsNatives(vscodeGulp));
   });
 
   test("mermaid preview, notebook, and editor share one webview-out bundle", () => {

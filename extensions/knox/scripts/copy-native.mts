@@ -33,7 +33,9 @@ import {
 	SHIPPED_TREE_SITTER_LANGUAGES,
 	shouldCopyNodePtyEntry,
 	shouldCopySqliteEntry,
+	shouldShipWindowsNative,
 	treeSitterWasmFileName,
+	type NativeTarget,
 } from './nativeFilters.mts';
 
 const extensionDir = path.dirname(import.meta.dirname);
@@ -231,6 +233,31 @@ function removeStaleEsbuild(destDir: string): void {
 	fs.rmSync(path.join(destDir, 'node_modules', '@esbuild'), { recursive: true, force: true });
 }
 
+/**
+ * esbuild `loader: { '.node': 'file' }` copies every optional native it sees,
+ * including `crypt32-ia32-*.node` on an x64 host. Drop names that cannot load.
+ */
+function removeWrongArchNativeFiles(destDir: string, target: NativeTarget): void {
+	if (target.platform !== 'win32' || !fs.existsSync(destDir)) {
+		return;
+	}
+	const walk = (dir: string): void => {
+		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+			const full = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				walk(full);
+				continue;
+			}
+			const rel = path.relative(destDir, full).split(path.sep).join('/');
+			if (!shouldShipWindowsNative(rel, target)) {
+				fs.rmSync(full);
+				console.log('Knox native: dropped other-arch', rel);
+			}
+		}
+	};
+	walk(destDir);
+}
+
 function copyBundledSkills(destDir: string): void {
 	const source = path.join(extensionDir, 'src', 'core', 'skills', 'bundled');
 	if (!fs.existsSync(source)) {
@@ -258,6 +285,7 @@ export async function copyKnoxNativeAssets(destDir: string): Promise<void> {
 	copyNodePty(destDir);
 	removeStaleEsbuild(destDir);
 	copyBundledSkills(destDir);
+	removeWrongArchNativeFiles(destDir, { platform: process.platform, arch: process.arch });
 }
 
 /** Node CLI assets: no Electron rebuild, sqlite3, node-pty, or platform ripgrep. */
