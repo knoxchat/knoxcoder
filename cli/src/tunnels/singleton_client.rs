@@ -36,6 +36,7 @@ pub struct SingletonClientArgs {
 	pub stream: AsyncPipe,
 	pub shutdown: Barrier<ShutdownSignal>,
 	pub machine_status_enabled: bool,
+	pub has_editor_link: bool,
 }
 
 struct SingletonServerContext {
@@ -97,6 +98,7 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 	}
 
 	let caller = rpc.get_caller(msg_tx);
+	let has_editor_link = args.has_editor_link;
 	let mut rpc = rpc.methods(SingletonServerContext {
 		log: args.log.clone(),
 		exit_entirely: exit_entirely.clone(),
