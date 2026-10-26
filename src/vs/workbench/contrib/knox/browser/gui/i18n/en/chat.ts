@@ -352,6 +352,8 @@ export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"recipeReplayApplied": "Applied verified recipe \"{{title}}\" to {{count}} file(s) with no model call. Use Undo to restore the previous state.",
 	"recipeReplayFailed": "The saved recipe \"{{title}}\" could not be applied ({{reason}}). Continuing with the model.",
 	"skipToComposer": "Skip to composer",
+	"expandFloatingSent": "Show full message",
+	"collapseFloatingSent": "Collapse message",
 	"chatTranscript": "Chat transcript",
 	"composerRegion": "Message composer",
 	"knoxGuiRegion": "Knox chat"

@@ -13,6 +13,7 @@ import { bindComposerIme, composerImeFromInput } from '../composer/ime.js';
 import { processImageFile, processImageFiles } from '../images.js';
 import { IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { historyUserInputDoc } from '../../../../common/knoxGuiTranscript.js';
+import { expandFloatingSent } from '../chrome.js';
 
 export function historyDraftFor(widget: KnoxGuiWidget, item: IKnoxGuiHistoryItem): { doc: IKnoxGuiInputBlock[]; images: string[] } {
 	const existing = widget.historyDrafts.get(item.id);
@@ -68,6 +69,9 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 	const revealEditor = (target?: EventTarget | null) => {
 		widget.focusedHistoryId = item.id;
 		bar.classList.remove('knox-gui-input-bar--hidden');
+		if (widget.floatingHostEl?.contains(box)) {
+			expandFloatingSent(widget);
+		}
 		if (target instanceof Node && bar.contains(target)) {
 			return;
 		}
@@ -76,6 +80,9 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'focus', () => {
 		widget.focusedHistoryId = item.id;
 		bar.classList.remove('knox-gui-input-bar--hidden');
+		if (widget.floatingHostEl?.contains(box)) {
+			expandFloatingSent(widget);
+		}
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(box, 'pointerdown', (e: PointerEvent) => {
 		if (e.button !== 0) {

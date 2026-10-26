@@ -352,6 +352,8 @@ export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"recipeReplayApplied": "已应用已验证的方案“{{title}}”（{{count}} 个文件），未调用模型。可点击“撤销”恢复原状。",
 	"recipeReplayFailed": "无法应用已保存的方案“{{title}}”（{{reason}}）。将继续交给模型处理。",
 	"skipToComposer": "跳到输入框",
+	"expandFloatingSent": "显示完整消息",
+	"collapseFloatingSent": "收起消息",
 	"chatTranscript": "对话记录",
 	"composerRegion": "消息输入",
 	"knoxGuiRegion": "Knox 对话"

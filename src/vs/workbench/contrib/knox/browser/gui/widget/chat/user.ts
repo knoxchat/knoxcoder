@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
+import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
 import { IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import {
@@ -25,6 +26,12 @@ export function renderUserTurn(widget: KnoxGuiWidget,
 	wrap.setAttribute('data-testid', isLastUser ? 'last-user-composer' : 'history-composer');
 	wrap.setAttribute('data-history-id', item.id);
 	wrap.setAttribute('data-index', String(index));
+	if (widget.floatingHostEl?.contains(body)) {
+		wrap.setAttribute('aria-expanded', String(widget.floatingSentExpanded));
+		if (!widget.floatingSentExpanded) {
+			wrap.title = t(state, 'expandFloatingSent');
+		}
+	}
 	if (highlight) {
 		wrap.classList.add('knox-gui-msg-hit');
 	}

@@ -14,6 +14,7 @@ import {
 	shouldFloatLastUser,
 	visibleTurnIndexes,
 } from '../../../../common/knoxGuiChat.js';
+import { applyFloatingSentExpanded } from '../chrome.js';
 import { IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { knoxGuiRecipeNotice } from '../../../../common/knoxGuiRecipe.js';
 import { memoryRecipeCaptureNotice } from '../../../../common/knoxGuiMemory.js';
@@ -218,6 +219,10 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 			const fade = DOM.append(widget.floatingHostEl, DOM.$('.knox-gui-sticky-last-user-fade'));
 			fade.setAttribute('aria-hidden', 'true');
 			fade.setAttribute('data-testid', 'sticky-last-user-fade');
+			applyFloatingSentExpanded(widget);
+		} else {
+			widget.floatingSentExpanded = false;
+			widget.floatingHostEl?.classList.remove('knox-gui-floating-sent-expanded');
 		}
 	} catch (error) {
 		widget.chatListFailed = true;

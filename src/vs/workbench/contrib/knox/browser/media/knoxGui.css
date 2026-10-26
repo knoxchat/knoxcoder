@@ -393,11 +393,15 @@
 	z-index: 40;
 	flex-shrink: 0;
 	min-width: 0;
-	max-height: min(40vh, 320px);
 	overflow-x: hidden;
-	overflow-y: auto;
+	overflow-y: hidden;
 	-webkit-user-select: text;
 	user-select: text;
+}
+
+.knox-gui-floating-sent-host.knox-gui-floating-sent-expanded {
+	max-height: min(40vh, 320px);
+	overflow-y: auto;
 }
 
 .knox-gui-floating-sent-host:empty {
@@ -415,10 +419,27 @@
 .knox-gui-floating-sent-host .knox-gui-history-composer .knox-gui-input {
 	font-size: calc(1em - 2px) !important;
 	line-height: 1.45;
+	padding: 4px 0;
 }
 
-.knox-gui-floating-sent-host .knox-gui-history-composer .knox-gui-input {
-	padding: 4px 0;
+.knox-gui-floating-sent-host:not(.knox-gui-floating-sent-expanded) .knox-gui-history-composer .knox-gui-input {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	max-height: calc(1.45em * 2 + 8px);
+	cursor: pointer;
+}
+
+.knox-gui-floating-sent-host.knox-gui-floating-sent-expanded .knox-gui-history-composer .knox-gui-input {
+	display: block;
+	-webkit-line-clamp: initial;
+	line-clamp: initial;
+	-webkit-box-orient: initial;
+	overflow: visible;
+	max-height: none;
+	cursor: text;
 }
 
 .knox-gui-pinned-user {
@@ -434,12 +455,21 @@
 
 .knox-gui-pinned-user-text {
 	display: -webkit-box;
-	-webkit-line-clamp: 3;
-	line-clamp: 3;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
 	white-space: pre-wrap;
 	word-break: break-word;
+}
+
+.knox-gui-pinned-user.knox-gui-pinned-user--expanded .knox-gui-pinned-user-text {
+	display: block;
+	-webkit-line-clamp: initial;
+	line-clamp: initial;
+	-webkit-box-orient: initial;
+	max-height: min(36vh, 280px);
+	overflow-y: auto;
 }
 
 .knox-gui-floating-sent-host:has(.knox-gui-pinned-user) {

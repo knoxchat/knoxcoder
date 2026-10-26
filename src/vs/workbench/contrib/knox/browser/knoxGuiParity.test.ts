@@ -210,6 +210,10 @@ suite('Knox native GUI i18n', () => {
 		assert.notStrictEqual(knoxGuiT('en', 'selectModelBelow'), knoxGuiT('zh', 'selectModelBelow'));
 		assert.ok(knoxGuiT('en', 'cannotSubmitWhileAwaitingTool').includes('tool'));
 		assert.ok(knoxGuiT('en', 'skipToComposer').length > 0);
+		assert.ok(knoxGuiT('en', 'expandFloatingSent').includes('full'));
+		assert.ok(knoxGuiT('zh', 'expandFloatingSent').length > 0);
+		assert.notStrictEqual(knoxGuiT('en', 'expandFloatingSent'), knoxGuiT('zh', 'expandFloatingSent'));
+		assert.ok(knoxGuiT('en', 'collapseFloatingSent').length > 0);
 		assert.ok(knoxGuiT('en', 'chatTranscript').length > 0);
 		assert.ok(knoxGuiT('zh', 'composerRegion').length > 0);
 		assert.notStrictEqual(knoxGuiT('en', 'knoxGuiRegion'), knoxGuiT('zh', 'knoxGuiRegion'));
@@ -364,6 +368,9 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui-attached-collapse'));
 		assert.ok(css.includes('transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out'));
 		assert.ok(css.includes('@media (prefers-reduced-motion: reduce)'));
+		assert.ok(css.includes('.knox-gui-floating-sent-expanded'));
+		assert.ok(css.includes('.knox-gui-floating-sent-host:not(.knox-gui-floating-sent-expanded) .knox-gui-history-composer .knox-gui-input'));
+		assert.ok(css.includes('.knox-gui-pinned-user--expanded'));
 		assert.ok(css.includes('.knox-gui-skip'));
 		assert.ok(css.includes('data-knox-theme-contrast="high"'));
 		assert.ok(css.includes('@property --knox-border-angle'));

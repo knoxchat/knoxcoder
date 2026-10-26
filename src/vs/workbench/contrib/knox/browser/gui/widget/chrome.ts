@@ -1103,6 +1103,38 @@ function restickAfterHostChange(widget: KnoxGuiWidget, body: HTMLElement): void 
 	holdPausedTranscriptScroll(widget);
 }
 
+export const KNOX_GUI_FLOATING_SENT_EXPANDED_CLASS = 'knox-gui-floating-sent-expanded';
+
+/** Apply or clear the click-to-expand class on the live floating sent prompt. */
+export function applyFloatingSentExpanded(widget: KnoxGuiWidget): void {
+	const host = widget.floatingHostEl;
+	if (!host) {
+		return;
+	}
+	if (!host.querySelector('.knox-gui-history-composer')) {
+		widget.floatingSentExpanded = false;
+	}
+	host.classList.toggle(KNOX_GUI_FLOATING_SENT_EXPANDED_CLASS, widget.floatingSentExpanded);
+	const composer = host.querySelector<HTMLElement>('[data-testid="last-user-composer"]');
+	if (composer) {
+		composer.setAttribute('aria-expanded', String(widget.floatingSentExpanded));
+		if (!widget.floatingSentExpanded) {
+			composer.title = t(widget.controller.store.state, 'expandFloatingSent');
+		} else {
+			composer.removeAttribute('title');
+		}
+	}
+}
+
+export function expandFloatingSent(widget: KnoxGuiWidget): void {
+	const already = widget.floatingSentExpanded;
+	widget.floatingSentExpanded = true;
+	applyFloatingSentExpanded(widget);
+	if (!already && widget.bodyEl) {
+		restickAfterHostChange(widget, widget.bodyEl);
+	}
+}
+
 /**
  * Keeps the sent message relevant to the scroll position pinned above the transcript, also when the model is idle:
  * the last user message whose row has scrolled above the viewport top. While a live turn is followed, the host
@@ -1146,6 +1178,10 @@ export function updatePinnedUserMessage(widget: KnoxGuiWidget): void {
 	pin.setAttribute('data-index', String(pinnedIndex));
 	pin.setAttribute('role', 'button');
 	pin.tabIndex = 0;
+	const expanded = widget.pinnedUserExpandedId === item.id;
+	pin.classList.toggle('knox-gui-pinned-user--expanded', expanded);
+	pin.setAttribute('aria-expanded', String(expanded));
+	pin.title = t(widget.controller.store.state, expanded ? 'collapseFloatingSent' : 'expandFloatingSent');
 	DOM.append(pin, DOM.$('.knox-gui-pinned-user-text', undefined, item.content.trim() || '\u2026'));
 	DOM.append(host, DOM.$('.knox-gui-sticky-last-user-fade')).setAttribute('aria-hidden', 'true');
 	// Fade is decoration owned by the pin: drop the stale one from a previous pin.
@@ -1159,11 +1195,22 @@ export function updatePinnedUserMessage(widget: KnoxGuiWidget): void {
 		const row = body.querySelector<HTMLElement>(`.knox-gui-history-composer[data-index="${pinnedIndex}"]`);
 		row?.scrollIntoView({ block: 'start', behavior: 'auto' });
 	};
-	pin.addEventListener('click', jump);
+	const toggleOrJump = () => {
+		if (!pin.classList.contains('knox-gui-pinned-user--expanded')) {
+			widget.pinnedUserExpandedId = item.id;
+			pin.classList.add('knox-gui-pinned-user--expanded');
+			pin.setAttribute('aria-expanded', 'true');
+			pin.title = t(widget.controller.store.state, 'collapseFloatingSent');
+			restickAfterHostChange(widget, body);
+			return;
+		}
+		jump();
+	};
+	pin.addEventListener('click', toggleOrJump);
 	pin.addEventListener('keydown', e => {
 		if (e.key === 'Enter' || e.key === ' ') {
 			e.preventDefault();
-			jump();
+			toggleOrJump();
 		}
 	});
 }

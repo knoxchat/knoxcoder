@@ -648,6 +648,39 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(nextBar.classList.contains('knox-gui-input-bar--hidden'), false);
 	});
 
+	test('floating sent prompt stays two lines until clicked, then expands with a scrollbar', async () => {
+		const { widget, store } = await mount();
+		const user: IKnoxGuiHistoryItem = {
+			id: 'u',
+			role: 'user',
+			content: Array.from({ length: 12 }, (_, i) => `warning line ${i}`).join('\n'),
+		};
+		store.patch({ isStreaming: true, history: [user, { id: 'a', role: 'assistant', content: '', thinking: 'planning' }] });
+		const host = widget.root.querySelector('[data-testid="floating-sent-host"]') as HTMLElement;
+		const composer = host.querySelector('[data-testid="last-user-composer"]') as HTMLElement;
+		assert.ok(host);
+		assert.ok(composer);
+		assert.strictEqual(host.classList.contains('knox-gui-floating-sent-expanded'), false);
+		assert.strictEqual(composer.getAttribute('aria-expanded'), 'false');
+		const input = host.querySelector('[data-testid="knox-gui-history-input"]') as HTMLElement;
+		input.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+		assert.ok(host.classList.contains('knox-gui-floating-sent-expanded'));
+		assert.strictEqual(composer.getAttribute('aria-expanded'), 'true');
+		assert.strictEqual(widget.floatingSentExpanded, true);
+		store.patch({ history: [user, { id: 'a', role: 'assistant', content: 'working on it' }] });
+		const nextHost = widget.root.querySelector('[data-testid="floating-sent-host"]') as HTMLElement;
+		assert.ok(nextHost.classList.contains('knox-gui-floating-sent-expanded'));
+		assert.strictEqual(nextHost.querySelector('[data-testid="last-user-composer"]')?.getAttribute('aria-expanded'), 'true');
+		store.patch({
+			isStreaming: false,
+			sessionTitle: 'done-chat',
+			history: [user, { id: 'a', role: 'assistant', content: 'done' }],
+		});
+		const idleHost = widget.root.querySelector('[data-testid="floating-sent-host"]') as HTMLElement;
+		assert.strictEqual(widget.floatingSentExpanded, false);
+		assert.strictEqual(idleHost?.classList.contains('knox-gui-floating-sent-expanded'), false);
+	});
+
 	test('streaming token patches wait out a pointer drag so the selection can finish', async () => {
 		const { widget, store } = await mount();
 		const user: IKnoxGuiHistoryItem = { id: 'u', role: 'user', content: 'hi' };

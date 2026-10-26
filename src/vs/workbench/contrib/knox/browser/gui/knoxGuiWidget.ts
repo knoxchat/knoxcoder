@@ -333,6 +333,8 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 			this.rejectedApplies.clear();
 			this.contextPeekOpen.clear();
 			this.focusedHistoryId = null;
+			this.floatingSentExpanded = false;
+			this.pinnedUserExpandedId = null;
 			this.compactionOpen = false;
 			this.taskPlanOpen = true;
 			this.taskPlanDismissedKey = null;
@@ -365,6 +367,9 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 			const host = DOM.append(this.root, DOM.$('.knox-gui-floating-sent-host'));
 			host.setAttribute('data-testid', 'floating-sent-host');
 			this.floatingHostEl = host;
+			if (this.floatingSentExpanded) {
+				host.classList.add('knox-gui-floating-sent-expanded');
+			}
 		}
 		const body = DOM.append(this.root, DOM.$('.knox-gui-body'));
 		this.bodyEl = body;
