@@ -1700,7 +1700,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 			},
 		});
 		assert.deepStrictEqual(store.state.contextProviders.map(provider => provider.title), [
-			'file', 'diff', 'problems', 'repo-map', 'terminal', 'memory', 'clipboard',
+			'file', 'diff', 'problems', 'repo-map', 'terminal', 'memory', 'recipe', 'clipboard',
 		]);
 		assert.ok(store.state.slashCommands.some(cmd => cmd.name === 'ship'));
 		assert.ok(store.state.slashCommands.some(cmd => cmd.name === 'autonomous'));

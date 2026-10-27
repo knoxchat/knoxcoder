@@ -170,7 +170,7 @@ suite('Knox GUI recipe settings, tab and metrics (MC-70/71/72)', () => {
 		assert.strictEqual(grouped.length, 1);
 		assert.strictEqual(grouped[0].recipes.length, 2);
 		assert.strictEqual(grouped[0].distinguishingSlot, 'componentName');
-		assert.strictEqual(filterAndSortRecipes([row!, card!], { query: 'src/card' }).map(r => r.id), [card!.id]);
+		assert.deepStrictEqual(filterAndSortRecipes([row!, card!], { query: 'src/card' }).map(r => r.id), [card!.id]);
 		assert.strictEqual(filterAndSortRecipes([row!, card!], { kind: 'slots' }).length, 2);
 		assert.strictEqual(parseRecipeIdFromMemory(`Verified recipe\nrecipe_id: ${'aa'.repeat(32)}`), 'aa'.repeat(32));
 		assert.strictEqual(parseRecipeIdFromMemory('nope'), undefined);

@@ -1918,7 +1918,7 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(DEFAULT_MENTION_PROVIDERS.find(provider => provider.title === 'file')?.type, 'submenu');
 		assert.strictEqual(DEFAULT_MENTION_PROVIDERS.find(provider => provider.title === 'memory')?.type, 'query');
 		assert.deepStrictEqual(mergeContextProvidersWithDefaults([{ title: 'clipboard', displayTitle: 'Clipboard' }]).map(provider => provider.title), [
-			'file', 'diff', 'problems', 'repo-map', 'terminal', 'memory', 'clipboard',
+			'file', 'diff', 'problems', 'repo-map', 'terminal', 'memory', 'recipe', 'clipboard',
 		]);
 		assert.deepStrictEqual(mergeSlashCommandsWithBuiltins([{ name: 'ship', description: 'Ship it', prompt: 'Ship {{{ input }}}' }]).map(cmd => cmd.name), [
 			'ship', ...SLASH_BUILTINS.map(cmd => cmd.name),
