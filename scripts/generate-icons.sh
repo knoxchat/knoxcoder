@@ -23,25 +23,15 @@ resize_png 1024 "$ROOT/resources/linux/code.png"
 cp "$ROOT/resources/linux/code.png" "$TMP_DIR/linux-code.png"
 pngtopnm "$TMP_DIR/linux-code.png" | ppmtoxpm -name code > "$ROOT/resources/linux/rpm/code.xpm"
 
-# Windows tiles
-resize_png 150 "$ROOT/resources/win32/code_150x150.png"
-resize_png 70 "$ROOT/resources/win32/code_70x70.png"
+# Windows ICO + tiles + favicon (resvg + Lanczos + BMP/PNG ICO packer).
+# Do not use sips/png-to-ico here: that path produced a 16/32/48/256 BMP-only
+# ICO that Windows Explorer upscales at 125-200% DPI, so the desktop icon
+# looked blurry next to the macOS ICNS / Linux 1024 PNG.
+node --experimental-strip-types "$ROOT/scripts/generate-app-icons.mts"
 
 # Server / web
 resize_png 192 "$ROOT/resources/server/code-192.png"
 resize_png 512 "$ROOT/resources/server/code-512.png"
-
-# ICO files (multi-size)
-ICO_SIZES=(16 24 32 48 64 128 256)
-ICO_INPUTS=()
-for size in "${ICO_SIZES[@]}"; do
-	out="$TMP_DIR/ico-${size}.png"
-	resize_png "$size" "$out"
-	ICO_INPUTS+=("$out")
-done
-
-npx --yes png-to-ico "${ICO_INPUTS[@]}" > "$ROOT/resources/win32/code.ico"
-npx --yes png-to-ico "$TMP_DIR/ico-16.png" "$TMP_DIR/ico-32.png" "$TMP_DIR/ico-48.png" > "$ROOT/resources/server/favicon.ico"
 
 # macOS .icns
 ICONSET="$TMP_DIR/code.iconset"

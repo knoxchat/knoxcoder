@@ -576,6 +576,12 @@ else
 		skip_step "CI script tests" "no scripts/ci changes"
 	fi
 
+	if changed_matches '^scripts/generate-app-icons|^scripts/generate-icons\.sh$|^resources/win32/code\.ico$|^resources/logo\.svg$'; then
+		run_step "Windows app icon tests" node --experimental-strip-types --test scripts/generate-app-icons.test.mts
+	else
+		skip_step "Windows app icon tests" "no icon pipeline changes"
+	fi
+
 	if [ "$ALL" -eq 1 ]; then
 		skip_step "node unit tests" "--all does not run the full mocha suite"
 	elif changed_matches '^src/vs/.*/test/node/|^src/vs/base/test/common|^src/vs/platform/update/test/|^test/unit/node'; then
