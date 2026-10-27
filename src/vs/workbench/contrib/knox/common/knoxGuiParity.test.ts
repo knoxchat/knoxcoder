@@ -40,7 +40,7 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(KNOX_GUI_DEFAULT_SESSION_MODE, 'agent');
 		assert.strictEqual(createInitialKnoxGuiState().mode, 'agent');
 		assert.strictEqual(createInitialKnoxGuiState().planMode, false);
-		assert.strictEqual(createInitialKnoxGuiState().showChatScrollbar, true);
+		assert.strictEqual(createInitialKnoxGuiState().showChatScrollbar, false);
 		assert.strictEqual(knoxGuiLumpLabelVisible('models', 'models'), true);
 		assert.strictEqual(knoxGuiLumpLabelVisible(null, 'models'), false);
 		assert.strictEqual(knoxGuiToolbarShowsAlwaysOnLabels(), false);

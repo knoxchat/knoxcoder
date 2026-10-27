@@ -1234,7 +1234,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		reasoningEfforts: [],
 		codeWrap: false,
 		codeBlockToolbarPosition: 'top',
-		showChatScrollbar: true,
+		showChatScrollbar: false,
 		autoNameSessionTitles: true,
 		markdownFormatting: true,
 		agentProfile: 'default',

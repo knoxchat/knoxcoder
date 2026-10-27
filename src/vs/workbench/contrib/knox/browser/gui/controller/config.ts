@@ -204,7 +204,7 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 		fontSize: typeof ui?.fontSize === 'number' ? ui.fontSize : controller.store.state.fontSize,
 		codeWrap: ui?.codeWrap === true || ui?.codeBlockWrap === true,
 		codeBlockToolbarPosition: ui?.codeBlockToolbarPosition === 'bottom' ? 'bottom' : 'top',
-		showChatScrollbar: ui?.showChatScrollbar !== false,
+		showChatScrollbar: ui?.showChatScrollbar === true,
 		autoNameSessionTitles: config.disableSessionTitles === true || ui?.autoNameSession === false ? false : true,
 		markdownFormatting: ui?.displayRawMarkdown === true || ui?.markdownFormatting === false ? false : true,
 		agentProfile: String(experimental?.agentProfileSetting ?? experimental?.agentProfile ?? controller.store.state.agentProfile),
