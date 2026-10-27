@@ -3,6 +3,20 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Added
+
+- **Recipes as reusable procedures (experimental, still off by default).** Verified work can now be a family of variants with slots (component name, path, package), not only a byte-identical snapshot. The Recipes tab is an inspector: search, filter, family grouping, inline preview, rename/pin/notes, and promote to all projects with consent. Chat can `@recipe` attach a procedure. `builtin_recipe` lists, previews, and applies (apply still uses the ask card and the same replayer). Sleep can draft family-slot merges for you to approve; it never auto-merges variants. Health reports (`npm run mc:self-improve`) include recipe counts, capture skips, quarantines, and wrong-reuse. How to use it: [recipes.md](extensions/knox/docs/recipes.md).
+- **`builtin_delete_file`.** Delete one workspace file through the normal tool path (permissions, review mode, turn checkpoint). Directories, parent traversal, and secret files (`.env`, keys, certs) are refused. Recipes can capture and replay deletes this way.
+
+### Changed
+
+- **Recipe capture and replay.** Capture records safe terminal commands, language/framework checks, and deletes; it ignores lockfiles/`dist/` noise and still diffs against the turn-start checkpoint when soul history overflows. Replay fills slots from the new message, open editors, and @-mentions, asks when a slot is empty, and can compose two disjoint verified recipes in sequence. Adapt remains previewed; extra files in an adapt patch stay off until you check them.
+- **Recipe matching.** Jaccard plus file/buffer overlap and linked workflow memories. Zero shared tokens still cannot match (no embeddings). A reverted recipe is quarantined. Default reuse stays **off**; Automatic still auto-applies only a byte-identical clean replay.
+
+### Security
+
+- Recipe deletes, slot substitution, adapt patches, and command steps stay on `callTool` with path, secret, and command guards. Imported skills and bundles start as `candidate` and are never auto-replayed. Recipes remain off until you turn on `knoxchat.recipes.enabled`.
+
 ## [2.2.3] - 2026-10-26
 
 ### Fixed

@@ -65,6 +65,7 @@ export const IDE_OPTIONAL_METHODS = [
 	"getGitStatusPorcelain",
 	"getGitDiffCached",
 	"debugControl",
+	"recipeControl",
 	"removeFile",
 	"getLastFileSaveTimestamp",
 	"updateLastFileSaveTimestamp",

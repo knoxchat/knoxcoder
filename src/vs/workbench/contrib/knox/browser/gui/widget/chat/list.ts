@@ -61,6 +61,19 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 			? t(state, notice.key, { title: notice.params.title, status: t(state, notice.params.statusKey) })
 			: t(state, notice.key);
 		DOM.append(banner, DOM.$('span', undefined, text));
+		if (cap.captured) {
+			widget.chromeButton(banner, {
+				label: t(state, 'memoryRecipeRefuse'),
+				testId: 'recipe-capture-toast-refuse',
+				onClick: () => void widget.controller.refuseMemoryRecipe(),
+			});
+		} else if (state.recipeSettings.enabled) {
+			widget.chromeButton(banner, {
+				label: t(state, 'memoryRecipeSave'),
+				testId: 'recipe-capture-toast-save',
+				onClick: () => void widget.controller.saveMemoryRecipe(),
+			});
+		}
 		widget.chromeButton(banner, {
 			label: t(state, 'memoryRecipeOpenTab'),
 			testId: 'recipe-capture-toast-open',
@@ -236,8 +249,13 @@ function renderRecipeDecision(widget: KnoxGuiWidget, parent: HTMLElement, state:
 	if (recipeNotice) {
 		const banner = DOM.append(parent, DOM.$('.knox-gui-large-banner'));
 		banner.setAttribute('role', 'status');
-		banner.setAttribute('data-testid', 'recipe-decision-notice');
+		banner.setAttribute('data-testid', recipeNotice.key === 'recipeDecisionSkipped' || recipeNotice.key === 'recipeDecisionSkippedNear' ? 'recipe-decision-skipped' : 'recipe-decision-notice');
 		DOM.append(banner, DOM.$('span', undefined, t(state, recipeNotice.key, recipeNotice.params)));
+		if (recipeNotice.whatIfBranch) {
+			const whatIf = DOM.append(banner, DOM.$('p.knox-gui-muted'));
+			whatIf.setAttribute('data-testid', 'recipe-whatif-branch');
+			whatIf.textContent = t(state, 'recipeWhatIfBranch', { branch: recipeNotice.whatIfBranch });
+		}
 		const undoId = recipeNotice.undoCheckpointId;
 		if (undoId) {
 			widget.chromeButton(banner, {
@@ -265,27 +283,77 @@ function renderRecipeDecision(widget: KnoxGuiWidget, parent: HTMLElement, state:
 		}
 	}
 	const pending = state.recipeDecision;
-	if (pending?.awaitingChoice && pending.preview && pending.recipe) {
+	if (pending?.awaitingChoice && pending.recipe && (pending.preview || pending.slots?.length || pending.files?.length || pending.compose)) {
 		const card = DOM.append(parent, DOM.$('.knox-gui-large-banner'));
 		card.setAttribute('role', 'group');
 		card.setAttribute('data-testid', 'recipe-preview-card');
-		const title = DOM.append(card, DOM.$('span', undefined, t(state, 'recipePreviewTitle', { title: pending.recipe.title })));
+		const title = DOM.append(card, DOM.$('span', undefined, t(state, pending.compose ? 'recipeComposeTitle' : 'recipePreviewTitle', { title: pending.recipe.title, count: pending.compose?.recipes.length ?? 1 })));
 		title.id = 'knox-recipe-preview-title';
 		card.setAttribute('aria-labelledby', title.id);
 		const latency = DOM.append(card, DOM.$('p.knox-gui-muted'));
 		latency.setAttribute('data-testid', 'recipe-preview-latency');
 		latency.textContent = t(state, 'recipePreviewLatency');
-		DOM.append(card, DOM.$('pre.knox-gui-raw-md', undefined, pending.preview));
-		widget.chromeButton(card, {
+		if (pending.compose?.recipes.length) {
+			const plan = DOM.append(card, DOM.$('ol'));
+			plan.setAttribute('data-testid', 'recipe-compose-plan');
+			for (const [index, child] of pending.compose.recipes.entries()) {
+				const item = DOM.append(plan, DOM.$('li'));
+				item.textContent = t(state, 'recipeComposeStep', { index: index + 1, title: child.title });
+			}
+		}
+		const slotsHost = pending.slots?.length ? DOM.append(card, DOM.$('div')) : undefined;
+		if (slotsHost) {
+			slotsHost.setAttribute('data-testid', 'recipe-slot-fields');
+		}
+		if (pending.files?.length) {
+			const filesHost = DOM.append(card, DOM.$('div'));
+			filesHost.setAttribute('data-testid', 'recipe-file-fields');
+			const extra = pending.files.some(file => file.extra);
+			DOM.append(filesHost, DOM.$('p.knox-gui-muted', undefined, t(state, extra ? 'recipeExtraFiles' : 'recipePartialFiles')));
+			for (const [index, file] of pending.files.entries()) {
+				const row = DOM.append(filesHost, DOM.$('label'));
+				const input = document.createElement('input');
+				input.type = 'checkbox';
+				input.checked = file.included;
+				input.setAttribute('data-testid', `recipe-file-include-${index}`);
+				row.appendChild(input);
+				row.append(` ${file.path}${file.extra ? ` (${t(state, 'recipeFileExtra')})` : ''}`);
+			}
+		}
+		if (pending.preview) {
+			DOM.append(card, DOM.$('pre.knox-gui-raw-md', undefined, pending.preview));
+		}
+		const slotsReady = !pending.slots?.length || pending.slots.every(slot => Boolean(slot.value?.trim()));
+		const applyBtn = widget.chromeButton(card, {
 			label: t(state, 'recipeApply'),
 			testId: 'recipe-preview-apply',
-			onClick: () => widget.controller.answerRecipeChoice('apply'),
+			disabled: !slotsReady,
+			onClick: () => {
+				widget.controller.flushRecipeSlotInputs(card);
+				widget.controller.answerRecipeChoice('apply');
+			},
 		});
 		widget.chromeButton(card, {
 			label: t(state, 'recipeSkip'),
 			testId: 'recipe-preview-skip',
 			onClick: () => widget.controller.answerRecipeChoice('skip'),
 		});
+		if (slotsHost && pending.slots) {
+			DOM.append(slotsHost, DOM.$('p.knox-gui-muted', undefined, t(state, 'recipeSlotsNeedValues')));
+			for (const slot of pending.slots) {
+				const row = DOM.append(slotsHost, DOM.$('label'));
+				row.textContent = slot.name;
+				const input = document.createElement('input');
+				input.type = 'text';
+				input.value = slot.value ?? '';
+				input.placeholder = slot.examples?.[0] ?? '';
+				input.setAttribute('data-testid', `recipe-slot-input-${slot.name}`);
+				input.addEventListener('input', () => {
+					applyBtn.disabled = ![...slotsHost.querySelectorAll('input')].every(el => (el as HTMLInputElement).value.trim());
+				});
+				row.appendChild(input);
+			}
+		}
 	}
 }
 

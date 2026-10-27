@@ -97,6 +97,7 @@ function contextProviderCodicon(provider: string | undefined): string {
 		case 'terminal': return 'codicon-terminal';
 		case 'diff': case 'problems': return 'codicon-diff';
 		case 'url': case 'web': case 'docs': return 'codicon-globe';
+		case 'memory': case 'recipe': return 'codicon-book';
 		case 'code': return 'codicon-symbol-method';
 		case 'os': return 'codicon-device-desktop';
 		case 'clipboard': return 'codicon-clippy';

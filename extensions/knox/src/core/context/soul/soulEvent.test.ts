@@ -9,6 +9,7 @@ import {
   formatSoulCheckpointStamp,
   formatSoulEventContent,
 } from "./extractToolFiles.js";
+import { MAX_SOUL_HISTORY, trimSoulHistory } from "./recordSoulEvent.js";
 import {
   isMemoryReadAction,
   memoryWriteBlockedMessage,
@@ -101,6 +102,25 @@ describe("soul formatters", () => {
     expect(offer).toContain("cp-1");
     expect(offer).toContain("builtin_workspace_checkpoint");
     expect(formatLinkedRestoreOffer()).toBe("");
+  });
+});
+
+describe("trimSoulHistory", () => {
+  it("keeps mutating events when the ring overflows with reads", () => {
+    const events = Array.from({ length: MAX_SOUL_HISTORY + 5 }, (_, i) => ({
+      sessionId: "s",
+      kind: "tool_success" as const,
+      files: i === 3 || i === 22 ? ["src/a.ts"] : [],
+      toolName: i === 3 || i === 22 ? "builtin_edit_file" : "builtin_read_file",
+      ok: true,
+      summary: "x",
+      episodicId: i + 1,
+      ...(i === 22 ? { oracle: { kind: "lsp" as const, passed: true } } : {}),
+    }));
+    const trimmed = trimSoulHistory(events);
+    expect(trimmed).toHaveLength(MAX_SOUL_HISTORY);
+    expect(trimmed.some((e) => e.files.includes("src/a.ts") && e.episodicId === 4)).toBe(true);
+    expect(trimmed.some((e) => e.oracle && e.episodicId === 23)).toBe(true);
   });
 });
 

@@ -712,6 +712,7 @@ const WRITE_TOOLS = new Set([
   BuiltInToolNames.CreateNewFile,
   BuiltInToolNames.EditFile,
   BuiltInToolNames.WriteFile,
+  BuiltInToolNames.DeleteFile,
   BuiltInToolNames.ApplyPatch,
   BuiltInToolNames.RunTerminalCommand,
   BuiltInToolNames.Build,

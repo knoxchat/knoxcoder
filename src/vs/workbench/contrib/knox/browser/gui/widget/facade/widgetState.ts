@@ -153,6 +153,11 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	openrouterModelQuery = '';
 	memorySearchDraft = '';
 	memorySearchTimer: ReturnType<typeof setTimeout> | undefined;
+	recipeSearchDraft = '';
+	recipeSearchTimer: ReturnType<typeof setTimeout> | undefined;
+	recipePromoteId: string | null = null;
+	recipePromoteConsent = false;
+	recipeEditId: string | null = null;
 	memorySessionSearchTimer: ReturnType<typeof setTimeout> | undefined;
 	memoryGraphSearchTimer: ReturnType<typeof setTimeout> | undefined;
 	memorySettingsOpen = new Set<string>();

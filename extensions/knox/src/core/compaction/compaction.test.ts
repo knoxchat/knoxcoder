@@ -7,6 +7,7 @@ import {
   compactMessages,
   compactMessagesAsync,
   expandIndicesWithToolPairs,
+  extractDevelopmentLoopState,
   heuristicSummarize,
   CONVERSATION_SUMMARY_MARKER,
   llmSummarizeConversation,
@@ -306,7 +307,7 @@ describe("K-063 current-edit protection", () => {
       ] as never),
       tool("e1", 'Updated "src/auth.ts" (1 replacement).\nPath: src/auth.ts'),
       system(
-        '<verified_recipe title="Fix JWT logout">\nA similar task was done before.\n</verified_recipe>',
+        '<verified_recipe title="Fix JWT logout" id="abc123def456">\nrecipe_id: abc123def456\nA similar task was done before.\n</verified_recipe>',
       ),
     ];
     for (let i = 0; i < 16; i++) {
@@ -326,6 +327,20 @@ describe("K-063 current-edit protection", () => {
     expect(joined).toMatch(/JWT/i);
     expect(joined).toContain("Last mutating file");
     expect(joined).toContain("Last recipe decision");
+    expect(joined).toContain("Fix JWT logout");
+    expect(joined).toContain("abc123def456");
+  });
+
+  it("extracts recipe id and title from a verified_recipe stub", () => {
+    const state = extractDevelopmentLoopState([
+      {
+        role: "system",
+        content:
+          '<verified_recipe_stub title="Add Button" id="abcdef123456">\nrecipe_id: abcdef123456\nFiles: src/Button.tsx\n</verified_recipe_stub>',
+      },
+    ]);
+    expect(state.recipeDecision).toContain("Add Button");
+    expect(state.recipeDecision).toContain("abcdef123456");
   });
 });
 

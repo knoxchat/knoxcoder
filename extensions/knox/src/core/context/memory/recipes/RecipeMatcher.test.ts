@@ -69,6 +69,45 @@ describe("RecipeMatcher (MC-21)", () => {
     expect(m.replayable).toBe(false);
   });
 
+  it("a slotted family treats a different name as the same kind of work (P1.9)", () => {
+    const slotted = recipe("create a React component called Button", {
+      memoryId: 1,
+      slots: [{ name: "componentName", kind: "identifier", examples: ["Button", "Card"] }],
+      slotValues: { componentName: "Button" },
+      familyId: "fam1",
+    });
+    const m = bestMatch({
+      message: "create a React component called Card",
+      projectId: "p1",
+      recipes: [slotted],
+    })!;
+    expect(m.replayable).toBe(true);
+    expect(m.reason).toBe("fingerprint_exact");
+    expect(m.score).toBe(1);
+  });
+
+  it("collapses family variants to the best track record", () => {
+    const weak = recipe("create a React component called Button", {
+      familyId: "fam",
+      slots: [{ name: "componentName", kind: "identifier", examples: ["Button"] }],
+      slotValues: { componentName: "Button" },
+      stats: { replays: 1, ok: 1, reverted: 0, failedVerify: 0 },
+    });
+    const strong = recipe("create a React component called Card", {
+      familyId: "fam",
+      slots: [{ name: "componentName", kind: "identifier", examples: ["Button", "Card"] }],
+      slotValues: { componentName: "Card" },
+      stats: { replays: 4, ok: 4, reverted: 0, failedVerify: 0 },
+    });
+    const hits = matchRecipes({
+      message: "create a React component called Header",
+      projectId: "p1",
+      recipes: [weak, strong],
+    });
+    expect(hits).toHaveLength(1);
+    expect(hits[0].recipe.id).toBe(strong.id);
+  });
+
   it("fusion evidence lifts a similar match but cannot reach replay alone", () => {
     const without = bestMatch({ message: "create a React component called Card", projectId: "p1", recipes: LIBRARY })!;
     const withFusion = bestMatch({
@@ -151,5 +190,54 @@ describe("RecipeMatcher (MC-21)", () => {
 
   it("thresholds are sane", () => {
     expect(MIN_MATCH_SCORE).toBeLessThan(REPLAY_THRESHOLD);
+  });
+
+  it("open / mentioned files lift a similar match but cannot admit a zero-token miss", () => {
+    const r = recipe("create a React component called Button", {
+      steps: [{ kind: "write_file", path: "src/Button.tsx" }],
+    });
+    const without = bestMatch({ message: "create a React component called Card", projectId: "p1", recipes: [r] })!;
+    const withFiles = bestMatch({
+      message: "create a React component called Card in src/Button.tsx",
+      projectId: "p1",
+      recipes: [r],
+      openPaths: ["src/Button.tsx"],
+    })!;
+    expect(withFiles.fileOverlap).toBeGreaterThan(0);
+    expect(withFiles.score).toBeGreaterThan(without.score);
+    expect(withFiles.replayable).toBe(false);
+    expect(
+      matchRecipes({
+        message: "rewrite the database layer",
+        projectId: "p1",
+        recipes: [r],
+        openPaths: ["src/Button.tsx"],
+      }),
+    ).toEqual([]);
+  });
+
+  it("a pinned recipe outranks an otherwise equal hit", () => {
+    const plain = recipe("create a React component called Button");
+    const pinned = recipe("create a React component called Button", { pinned: true });
+    const hits = matchRecipes({
+      message: "create a React component called Card",
+      projectId: "p1",
+      recipes: [plain, pinned],
+    });
+    expect(hits[0].recipe.id).toBe(pinned.id);
+    expect(hits[0].score).toBeGreaterThan(hits[1].score);
+  });
+
+  it("pin cannot admit a zero-token miss", () => {
+    const pinned = recipe("create Card component", { pinned: true });
+    expect(matchRecipes({ message: "rewrite the database layer", projectId: "p1", recipes: [pinned] })).toEqual([]);
+  });
+
+  it("returns top-k families, not only the best", () => {
+    const a = recipe("create Card component");
+    const b = recipe("create Card component");
+    const hits = matchRecipes({ message: "create Card component", projectId: "p1", recipes: [a, b] });
+    expect(hits).toHaveLength(2);
+    expect(hits.every((h) => h.replayable)).toBe(true);
   });
 });

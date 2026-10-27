@@ -985,8 +985,28 @@ export class VsCodeMessenger {
           });
           return res.contextItems;
         },
+        diagnostics: async (relPaths) => {
+          const path = await import("node:path");
+          const { DiagnosticSeverity, issuesNeedFixing, toDiagnosticIssue } = await import(
+            "../agent/diagnostics"
+          );
+          const root = workspaceFsPath(dirs[0] ?? "");
+          const issues = [];
+          for (const rel of relPaths) {
+            const uri = vscode.Uri.file(path.join(root, rel));
+            for (const d of vscode.languages.getDiagnostics(uri)) {
+              issues.push(toDiagnosticIssue(uri.fsPath, d));
+            }
+          }
+          if (!issuesNeedFixing(issues, DiagnosticSeverity.ERROR)) {
+            return { ok: true };
+          }
+          const first = issues.find((i) => i.severity === DiagnosticSeverity.ERROR);
+          return { ok: false, detail: first ? `${first.filePath}: ${first.message}` : "diagnostics failed" };
+        },
       };
     };
+    this.ide.bindRecipeReplayHost(recipeReplayHost);
     void import("./selfReviewHook")
       .then((m) => m.registerSelfReviewHook())
       .catch((error) => console.warn("[SelfReview] Hook not registered:", error));
@@ -996,7 +1016,7 @@ export class VsCodeMessenger {
     });
     this.onWebview("knox/recipePreview", async (msg) => {
       const { previewRecipe } = await import("./recipeReplay");
-      return previewRecipe(await recipeReplayHost(), msg.data.recipeId);
+      return previewRecipe(await recipeReplayHost(), msg.data.recipeId, msg.data.slotValues);
     });
     this.onWebview("knox/recipePromoteSkill", async (msg) => {
       const { promoteRecipeToSkill } = await import("./recipeSkill");
@@ -1023,9 +1043,29 @@ export class VsCodeMessenger {
       const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
       return setRecipeStatus(dirs[0] ?? "", msg.data.recipeId, msg.data.status);
     });
+    this.onWebview("knox/recipePatch", async (msg) => {
+      const { patchRecipe } = await import("./recipeList");
+      const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
+      return patchRecipe(dirs[0] ?? "", msg.data);
+    });
     this.onWebview("knox/recipeReplay", async (msg) => {
       const { replayRecipe } = await import("./recipeReplay");
-      return replayRecipe(await recipeReplayHost(), msg.data.recipeId);
+      return replayRecipe(await recipeReplayHost(), msg.data.recipeId, {
+        slotValues: msg.data.slotValues,
+        includePaths: msg.data.includePaths,
+        approvedExtraPaths: msg.data.approvedExtraPaths,
+        composeIds: msg.data.composeIds,
+      });
+    });
+    this.onWebview("knox/recipeSave", async (msg) => {
+      const { saveRecipeManually } = await import("./recipeCapture");
+      const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
+      return saveRecipeManually(dirs[0] ?? "", { ...msg.data, userAccepted: msg.data.userAccepted !== false });
+    });
+    this.onWebview("knox/recipeRefuse", async (msg) => {
+      const { refuseLastRecipe } = await import("./recipeCapture");
+      const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
+      return refuseLastRecipe(dirs[0] ?? "", msg.data?.sessionId);
     });
     this.onWebview("knox/finishTurn", async (msg) => {
       const dirs = await this.ide.getWorkspaceDirs().catch(() => []);
@@ -1175,6 +1215,9 @@ export class VsCodeMessenger {
     });
     this.onWebviewOrCore("debugControl", async (msg) => {
       return ide.debugControl(msg.data);
+    });
+    this.onWebviewOrCore("recipeControl", async (msg) => {
+      return ide.recipeControl(msg.data);
     });
     this.onWebviewOrCore("getTopLevelCallStackSources", async (msg) => {
       return ide.getTopLevelCallStackSources(

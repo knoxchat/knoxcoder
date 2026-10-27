@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRecipeHint } from "./recipeHint";
+import { buildRecipeHint, buildRecipeStub } from "./recipeHint";
 import type { Recipe } from "./types";
 
 const recipe = {
@@ -8,6 +8,7 @@ const recipe = {
   title: "Add Button",
   intentText: "",
   slots: [{ name: "componentName", kind: "identifier" }],
+  preconditions: [],
   oracle: { kind: "build", passedAt: "" },
   stats: { replays: 2, ok: 2, reverted: 0, failedVerify: 0 },
   steps: [
@@ -33,6 +34,38 @@ describe("buildRecipeHint", () => {
     expect(hint).toContain("Command: npm run build");
     expect(hint).toContain("componentName");
   });
+  it("builds a stub with title, paths, slots, id and why but no file bodies", () => {
+    const stub = buildRecipeStub(recipe, { why: "similar intent" });
+    expect(stub).toContain("<verified_recipe_stub");
+    expect(stub).toContain("src/Button.tsx");
+    expect(stub).toContain("componentName");
+    expect(stub).toContain("similar intent");
+    expect(stub).toContain(`id=${JSON.stringify(recipe.id)}`);
+    expect(stub).toContain(`recipe_id: ${recipe.id}`);
+    expect(stub).not.toContain("export const");
+  });
+
+  it("includes why, preconditions, and prefers a diff against current files", async () => {
+    const slotted = {
+      ...recipe,
+      preconditions: [{ kind: "file_exists", value: "package.json" }],
+    } as unknown as Recipe;
+    const hint = await buildRecipeHint(
+      slotted,
+      async () => "export const Button = () => 'x';\n",
+      6000,
+      {
+        why: "matched Jaccard 0.9",
+        readCurrent: async () => "export const Old = () => 'x';\n",
+      },
+    );
+    expect(hint).toContain("matched Jaccard 0.9");
+    expect(hint).toContain("file_exists=package.json");
+    expect(hint).toContain("@@");
+    expect(hint).toContain("-export const Old");
+    expect(hint).not.toContain("```\nexport const Button");
+  });
+
   it("respects the size cap", async () => {
     const hint = await buildRecipeHint(recipe, async () => "x".repeat(5000), 2500);
     expect(hint.length).toBeLessThan(3200);

@@ -233,8 +233,9 @@ async function startTurn(controller: KnoxGuiController, userMessage: string): Pr
 			sessionId: controller.store.state.sessionId,
 			title: controller.store.state.sessionTitle ?? '',
 			userMessage,
+			permissionMode: controller.store.state.permissionMode,
 		}), MEMORY_BUILD_TIMEOUT_MS);
-		if (result?.recipeDecision && result.recipeDecision.mode !== 'generate') {
+		if (result?.recipeDecision) {
 			controller.store.patch({ recipeDecision: result.recipeDecision });
 		}
 		if (typeof result?.recipeHint === 'string' && result.recipeHint) {

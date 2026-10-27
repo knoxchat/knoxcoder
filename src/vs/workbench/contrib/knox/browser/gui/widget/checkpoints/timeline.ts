@@ -8,8 +8,7 @@
 import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
-import type { KnoxGuiSvgIcon } from '../../knoxGuiIcons.js';
-import { appendKnoxGuiSvg } from '../../knoxGuiIcons.js';
+import { appendKnoxGuiSvg, type KnoxGuiSvgIcon } from '../../knoxGuiIcons.js';
 import {
 	activeHeadId,
 	checkpointGraphLaneColor,
@@ -157,7 +156,11 @@ export function renderCheckpointTimeline(widget: KnoxGuiWidget, body: HTMLElemen
 	if (widget.checkpointTimelineShowBranches && branches.length) {
 		const chips = DOM.append(DOM.append(body, DOM.$('.knox-gui-timeline-branches', { 'data-testid': 'checkpoint-timeline-branches' })), DOM.$('.knox-gui-timeline-branches-row'));
 		for (const branch of branches) {
-			const chip = checkpointButton(widget, chips, { label: branch.name, selected: branch.isActive, variant: branch.isActive ? 'default' : 'outline', size: 'xxs', extraClass: 'knox-gui-timeline-branch-chip', onClick: () => void widget.controller.switchCheckpointBranch(branch.id) });
+			const chip = checkpointButton(widget, chips, { label: branch.name, selected: branch.isActive, variant: branch.isActive ? 'default' : 'outline', size: 'xxs', extraClass: branch.name.startsWith('what-if/') ? 'knox-gui-timeline-branch-chip knox-gui-timeline-whatif' : 'knox-gui-timeline-branch-chip', onClick: () => void widget.controller.switchCheckpointBranch(branch.id) });
+			if (branch.name.startsWith('what-if/')) {
+				chip.title = t(state, 'checkpointGraph.whatIfBranch', { branch: branch.name });
+				chip.setAttribute('data-testid', 'checkpoint-timeline-whatif-branch');
+			}
 			const dot = DOM.$('span.knox-gui-timeline-branch-dot');
 			dot.style.background = branchColor(branch.id);
 			chip.prepend(dot);
@@ -231,6 +234,7 @@ export function renderCheckpointTimeline(widget: KnoxGuiWidget, body: HTMLElemen
 			if (node.isIncremental || node.timelineRisk) {
 				const badges = DOM.append(main, DOM.$('.knox-gui-timeline-badges'));
 				if (node.isIncremental) {
+					// allow-any-unicode-next-line
 					DOM.append(badges, DOM.$('span.odp-chip.odp-chip-purple', { 'data-testid': 'checkpoint-timeline-delta' }, `Δ${node.deltaDepth ?? 0}`));
 				}
 				if (node.timelineRisk) {
@@ -281,6 +285,17 @@ export function renderCheckpointTimeline(widget: KnoxGuiWidget, body: HTMLElemen
 				},
 			});
 			action({ svg: 'rotate-ccw', label: t(state, 'restore'), ariaLabel: t(state, 'restore') }, () => void widget.controller.openRestorePreview(node.id));
+			if (state.recipeSettings.enabled && (node.fileChanges.added || node.fileChanges.modified || node.fileChanges.deleted)) {
+				action({
+					svg: 'zap',
+					label: t(state, 'memoryRecipeSave'),
+					ariaLabel: t(state, 'memoryRecipeSave'),
+					testId: 'checkpoint-timeline-save-recipe',
+				}, () => void widget.controller.saveMemoryRecipe({
+					checkpointId: node.id,
+					intent: node.conversationContext?.messageContent || node.description,
+				}));
+			}
 			const comparing = pickId === node.id;
 			action({ svg: 'eye', label: t(state, comparing ? 'selectSecond' : 'compare'), ariaLabel: t(state, comparing ? 'selectSecond' : 'compare'), selected: comparing, variant: comparing ? 'default' : 'outline', testId: 'checkpoint-timeline-compare-button' }, () => {
 				if (!comparing) {

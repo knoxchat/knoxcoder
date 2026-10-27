@@ -17,6 +17,8 @@ import type {
   Thread,
   DebugControlRequest,
   DebugControlResult,
+  RecipeControlRequest,
+  RecipeControlResult,
 } from "../";
 
 export type SearchOutputMode = "content" | "files_with_matches" | "count";
@@ -116,6 +118,7 @@ export type ToIdeFromWebviewOrCoreProtocol = {
   ];
   getAvailableThreads: [undefined, Thread[]];
   debugControl: [DebugControlRequest, DebugControlResult];
+  recipeControl: [RecipeControlRequest, RecipeControlResult];
   getUniqueId: [undefined, string];
   getTags: [string, IndexTag[]];
   readSecrets: [{ keys: string[] }, Record<string, string>];

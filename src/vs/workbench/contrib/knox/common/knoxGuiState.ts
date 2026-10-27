@@ -517,13 +517,29 @@ export interface IKnoxGuiCheckpointConfig {
 	autoShowNotifications: boolean;
 }
 
+export interface IKnoxGuiRecipeMetrics {
+	attempts: number;
+	applied: number;
+	failedVerify: number;
+	reverted: number;
+	llmCallsAvoided: number;
+	tokensSaved: number;
+	wrongApplyRate: number;
+	slotReplays?: number;
+	nearMisses?: number;
+	skips?: number;
+	skipReasons?: Record<string, number>;
+	projectCount?: number;
+	globalCount?: number;
+}
+
 export interface IKnoxGuiCheckpointDashboard {
 	currentStorage?: { totalBytes: number; checkpointCount: number; blobCount?: number };
 	storageHistory: Array<{ timestamp: string; totalBytes: number; checkpointCount: number }>;
 	creationFrequency: Array<{ bucket: string; count: number }>;
 	restorationEvents: Array<{ timestamp: string; checkpointId: string; success: boolean; durationMs: number; filesRestored: number; filesFailed: number; error?: string }>;
 	aiSessionMetrics: Array<{ sessionId: string; startedAt: string; filesChanged: number; linesAdded?: number; linesDeleted?: number; checkpointsCreated: number; rollbacks?: number; durationSeconds: number }>;
-	recipeMetrics?: { attempts: number; applied: number; failedVerify: number; reverted: number; llmCallsAvoided: number; tokensSaved: number; wrongApplyRate: number };
+	recipeMetrics?: IKnoxGuiRecipeMetrics;
 	summary: {
 		totalCheckpointsCreated: number;
 		totalRestorations: number;
@@ -693,7 +709,7 @@ export interface IKnoxGuiEbbinghausStats {
 
 export interface IKnoxGuiRecipeSettings {
 	enabled: boolean;
-	autoReplay: 'off' | 'ask' | 'exact';
+	autoReplay: 'off' | 'ask' | 'exact' | 'adapt';
 	selfImprove: boolean;
 }
 
@@ -714,7 +730,34 @@ export interface IKnoxGuiMemoryRecipeCapture {
 	at?: string;
 }
 
-/** MC-70: a row of the Memory "Recipes" tab (mirrors the host's `RecipeListItem`). */
+/** Last turn's recipe matcher decision (near-miss and skip are inspectable). */
+export interface IKnoxGuiMemoryRecipeMatch {
+	mode: 'exact' | 'adapt' | 'suggest' | 'generate';
+	why: string;
+	title?: string;
+	score?: number;
+	replayable: boolean;
+	at?: string;
+}
+
+export interface IKnoxGuiMemoryRecipeSlot {
+	name: string;
+	kind: string;
+	examples?: string[];
+}
+
+export interface IKnoxGuiMemoryRecipePrecondition {
+	kind: string;
+	value: string;
+}
+
+export interface IKnoxGuiMemoryRecipeStep {
+	kind: string;
+	path?: string;
+	command?: string;
+}
+
+/** MC-70 / P5: a row of the Memory "Recipes" tab (mirrors the host's `RecipeListItem`). */
 export interface IKnoxGuiMemoryRecipe {
 	id: string;
 	title: string;
@@ -726,11 +769,24 @@ export interface IKnoxGuiMemoryRecipe {
 	failedVerify: number;
 	files: number;
 	oracleKind?: string;
+	oracleCommand?: string;
 	sourceCheckpointIds: string[];
 	lastReplayedAt?: string;
 	updatedAt?: string;
 	/** Host: verified with enough clean replays to offer "Promote to skill". */
 	skillEligible?: boolean;
+	intentText?: string;
+	intentFingerprint?: string;
+	familyId?: string;
+	slots?: IKnoxGuiMemoryRecipeSlot[];
+	slotValues?: Record<string, string>;
+	preconditions?: IKnoxGuiMemoryRecipePrecondition[];
+	steps?: IKnoxGuiMemoryRecipeStep[];
+	memoryId?: number;
+	sourceSessionId?: string;
+	pinned?: boolean;
+	notes?: string;
+	captureCount?: number;
 }
 
 export interface IKnoxGuiMemorySession {
@@ -830,12 +886,34 @@ export function withLockedEditorRoute(state: IKnoxGuiState): IKnoxGuiState {
 	return { ...state, route: state.lockedRoute!, overlay: null };
 }
 
+export interface IKnoxGuiRecipeSlot {
+	name: string;
+	kind: string;
+	value?: string;
+	examples?: string[];
+	filled: boolean;
+	source?: 'message' | 'extra' | 'default';
+}
+
+export interface IKnoxGuiRecipeFile {
+	path: string;
+	action: string;
+	included: boolean;
+	extra?: boolean;
+}
+
+export interface IKnoxGuiRecipeCompose {
+	recipes: { id: string; title: string; paths: string[] }[];
+	why: string;
+}
+
 /** Mirrors `RecipeDecisionEvent` from the extension (MC-24). */
 export interface IKnoxGuiRecipeDecision {
 	mode: 'exact' | 'adapt' | 'suggest' | 'generate';
 	why: string;
 	needsConfirmation: boolean;
 	recipe?: { id: string; title: string; uses: number; reverts: number; score: number; skillEligible?: boolean };
+	matches?: { id: string; title: string; score: number; replayable: boolean }[];
 	/** Pre-replay checkpoint; present only after a replay applied files. */
 	undoCheckpointId?: string;
 	/** `exact` + `ask`: what a replay would change (MC-35). */
@@ -848,6 +926,14 @@ export interface IKnoxGuiRecipeDecision {
 	skillResult?: string;
 	/** `tab` is Recipes-tab Preview/Replay (T5); `turn` is `knox/startTurn`. */
 	source?: 'turn' | 'tab';
+	/** Parameterized exact: values the user can edit before Apply. */
+	slots?: IKnoxGuiRecipeSlot[];
+	/** Files this apply would touch; uncheck for a one-off partial apply. Extra adapt files start unchecked. */
+	files?: IKnoxGuiRecipeFile[];
+	/** Disjoint recipes to run in sequence. */
+	compose?: IKnoxGuiRecipeCompose;
+	/** Adapt `what-if/*` branch, set after an adapt replay applied files. */
+	whatIfBranch?: string;
 }
 
 export interface IKnoxGuiState {
@@ -1073,10 +1159,23 @@ export interface IKnoxGuiState {
 	memoryRecipeError?: string;
 	/** Last turn's capture result; set even when the list is empty. */
 	memoryRecipeCapture?: IKnoxGuiMemoryRecipeCapture;
+	/** Recent capture attempts (newest last), for skip history on the Recipes tab. */
+	memoryRecipeCaptures?: IKnoxGuiMemoryRecipeCapture[];
+	/** Last matcher decision, including near-misses that were not reused. */
+	memoryRecipeLastMatch?: IKnoxGuiMemoryRecipeMatch;
 	/** Chat toast for the last capture; dismissed independently of the Recipes tab banner. */
 	recipeCaptureToast?: IKnoxGuiMemoryRecipeCapture;
 	/** Recipe id whose retire/quarantine/preview/replay request is in flight. */
 	memoryRecipeBusyId?: string;
+	memoryRecipeQuery: string;
+	memoryRecipeFilterStatus: 'all' | IKnoxGuiMemoryRecipe['status'];
+	memoryRecipeFilterScope: 'all' | 'project' | 'global';
+	memoryRecipeFilterOracle: 'all' | 'build' | 'test' | 'lsp' | 'user';
+	memoryRecipeFilterKind: 'all' | 'slots' | 'skill';
+	memoryRecipeSortBy: 'recent' | 'uses' | 'score';
+	memorySelectedRecipeId?: string;
+	memoryRecipePreview?: string;
+	memoryRecipePreviewLoading: boolean;
 	memorySessionQuery: string;
 	memorySelectedSessionId?: string;
 	memorySessionHistory?: IKnoxGuiMemorySessionHistory;
@@ -1323,6 +1422,13 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		memorySessions: [],
 		memoryRecipes: [],
 		memoryRecipesLoading: false,
+		memoryRecipeQuery: '',
+		memoryRecipeFilterStatus: 'all',
+		memoryRecipeFilterScope: 'all',
+		memoryRecipeFilterOracle: 'all',
+		memoryRecipeFilterKind: 'all',
+		memoryRecipeSortBy: 'recent',
+		memoryRecipePreviewLoading: false,
 		memorySessionQuery: '',
 		memoryBacklogMatches: [],
 		memoryGraphEntities: [],

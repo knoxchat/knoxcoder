@@ -76,6 +76,8 @@ export interface NativeStartTurnInput {
   sessionId: string;
   title: string;
   userMessage: string;
+  /** Chat permission bar (`Ask` forces recipe confirmation). */
+  permissionMode?: "default" | "acceptEdits" | "fullAuto";
 }
 
 export interface NativeStartTurnOutput {
@@ -97,6 +99,8 @@ export interface RecipePreviewOutput {
   removed: number;
   /** `formatReplayPreview` text: summary lines then diffs. */
   text: string;
+  /** Structured files for the ask card (partial apply / extra-file approval). */
+  entries?: { path: string; action: string; extra?: boolean }[];
 }
 
 export interface RecipeReplayOutput {
@@ -108,6 +112,8 @@ export interface RecipeReplayOutput {
   appliedPaths: string[];
   /** Text for the model when the replay did not land (`replayFailureContext`). */
   failureContext?: string;
+  /** Adapt `what-if/*` branch, when one was forked. */
+  whatIfBranch?: string;
 }
 
 /** Why the last qualifying turn did not become a recipe (host capture skip). */
@@ -123,6 +129,9 @@ export type RecipeCaptureSkipReason =
   | "too_many_files"
   | "secret_detected"
   | "no_intent"
+  | "delete_not_replayable"
+  | "user_refused"
+  | "too_large"
   | "disabled"
   | "error";
 
@@ -137,13 +146,26 @@ export interface RecipeCaptureOutcome {
   at: string;
 }
 
+/** Last turn's matcher decision, including near-misses that were not replayed. */
+export interface RecipeMatchOutcome {
+  mode: "exact" | "adapt" | "suggest" | "generate";
+  why: string;
+  title?: string;
+  score?: number;
+  replayable: boolean;
+  at: string;
+}
+
 /** MC-70: Memory page "Recipes" tab payload. */
 export interface RecipeListOutput {
   recipes: RecipeListItem[];
   lastCapture?: RecipeCaptureOutcome;
+  /** Newest last; capped. Explains more than the single last attempt. */
+  lastCaptures?: RecipeCaptureOutcome[];
+  lastMatch?: RecipeMatchOutcome;
 }
 
-/** MC-70: one row of the Memory page "Recipes" tab. No file bytes, no commands. */
+/** MC-70: one row of the Memory page "Recipes" tab. No file bytes. */
 export interface RecipeListItem {
   id: string;
   title: string;
@@ -156,18 +178,48 @@ export interface RecipeListItem {
   failedVerify: number;
   files: number;
   oracleKind?: string;
+  oracleCommand?: string;
   /** Checkpoints that hold the recipe's bytes. */
   sourceCheckpointIds: string[];
   lastReplayedAt?: string;
   updatedAt: string;
   /** Verified with enough clean replays to offer "Promote to skill" (MC-42). */
   skillEligible?: boolean;
+  intentText?: string;
+  intentFingerprint?: string;
+  familyId?: string;
+  slots?: { name: string; kind: string; examples?: string[] }[];
+  slotValues?: Record<string, string>;
+  preconditions?: { kind: string; value: string }[];
+  steps?: { kind: string; path?: string; command?: string }[];
+  memoryId?: number;
+  sourceSessionId?: string;
+  pinned?: boolean;
+  notes?: string;
+  captureCount?: number;
+}
+
+export interface RecipePatchInput {
+  recipeId: string;
+  title?: string;
+  notes?: string;
+  pinned?: boolean;
+  slots?: { name: string; kind: "identifier" | "path" | "package" | "text"; examples?: string[] }[];
+  userPreconditions?: { kind: string; value: string }[];
+  scope?: "project" | "global";
+  /** Required when `scope` is `global`. */
+  consent?: boolean;
+}
+
+export interface RecipePatchOutput {
+  ok: boolean;
+  reason?: "not_found" | "not_allowed" | "needs_consent" | "needs_precondition";
 }
 
 /** MC-72: `knoxchat.recipes.enabled`, `knoxchat.recipes.autoReplay`, `knoxchat.selfImprove.enabled`. */
 export interface RecipeSettings {
   enabled: boolean;
-  autoReplay: "off" | "ask" | "exact";
+  autoReplay: "off" | "ask" | "exact" | "adapt";
   selfImprove: boolean;
 }
 

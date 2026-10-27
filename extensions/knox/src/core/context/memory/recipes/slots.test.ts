@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { extractSlots, fillSlotsFromMessage, isSafeSlotValue } from "./slots";
+import type { Recipe } from "./types";
+import { applySlots, extractSlots, fillSlotsFromMessage, isSafeSlotValue } from "./slots";
 
 const comp = (name: string) => ({
   path: `src/components/${name}.tsx`,
@@ -91,33 +92,101 @@ describe("extractSlots", () => {
   });
 });
 
-describe("fillSlotsFromMessage (T5 / MC-32)", () => {
-  it("fills an identifier that also appears in the captured intent", () => {
+describe("fillSlotsFromMessage (P1.5)", () => {
+  it("fills an identifier from the new message", () => {
     const slots = [{ name: "componentName", kind: "identifier" as const }];
-    const intent = "Create a React component Button";
-    expect(fillSlotsFromMessage(slots, "please create a React component Button", intent)).toEqual({
+    expect(fillSlotsFromMessage(slots, "please create a React component Button")).toEqual({
       values: { componentName: "Button" },
       unfilled: 0,
+      fromMessage: 1,
+      guessed: {},
     });
   });
 
-  it("refuses exact fill when the path differs from the captured intent", () => {
+  it("fills a different path than the captured intent (parameterized exact)", () => {
     const slots = [{ name: "targetPath", kind: "path" as const }];
-    expect(fillSlotsFromMessage(slots, "create file src/b/util.ts", "create file src/a/util.ts").unfilled).toBe(1);
+    expect(fillSlotsFromMessage(slots, "create file src/b/util.ts")).toEqual({
+      values: { targetPath: "src/b/util.ts" },
+      unfilled: 0,
+      fromMessage: 1,
+      guessed: {},
+    });
   });
 
   it("does not treat filler words as identifiers", () => {
     const slots = [{ name: "x", kind: "identifier" as const }];
-    expect(fillSlotsFromMessage(slots, "add a lint script to package.json", "add a lint script to package.json").unfilled).toBe(1);
+    expect(fillSlotsFromMessage(slots, "add a lint script to package.json").unfilled).toBe(1);
   });
 
   it("returns unfilled 0 when the recipe has no slots", () => {
-    expect(fillSlotsFromMessage([], "create a React component Button")).toEqual({ values: {}, unfilled: 0 });
+    expect(fillSlotsFromMessage([], "create a React component Button")).toEqual({
+      values: {},
+      unfilled: 0,
+      fromMessage: 0,
+      guessed: {},
+    });
   });
 
   it("ignores unsafe path values", () => {
     const slots = [{ name: "targetPath", kind: "path" as const }];
-    expect(fillSlotsFromMessage(slots, "create file ../evil.ts", "create file ../evil.ts").unfilled).toBe(1);
+    expect(fillSlotsFromMessage(slots, "create file ../evil.ts").unfilled).toBe(1);
+  });
+
+  it("fills from open editors and @-mentions when the sentence has no name", () => {
+    const slots = [{ name: "componentName", kind: "identifier" as const }];
+    const fill = fillSlotsFromMessage(slots, "create a component", {
+      extra: { paths: ["src/Header.tsx"], identifiers: ["Header"] },
+    });
+    expect(fill).toMatchObject({ values: { componentName: "Header" }, unfilled: 0, fromMessage: 0 });
+    expect(fill.guessed.componentName).toBe("Header");
+  });
+});
+
+describe("applySlots (P1.4)", () => {
+  const button = `export function Button() { return <div>Button</div>; }`;
+  function recipe(): Recipe {
+    return {
+      id: "r",
+      projectId: "p",
+      scope: "project",
+      status: "verified",
+      title: "Create Button",
+      intentText: "Create a React component Button",
+      intentFingerprint: "create react component button",
+      slots: [{ name: "componentName", kind: "identifier", examples: ["Button", "Card"] }],
+      slotValues: { componentName: "Button" },
+      preconditions: [{ kind: "file_absent", value: "src/components/Button.tsx" }],
+      steps: [{ kind: "write_file", path: "src/components/Button.tsx", blobHash: "h" }],
+      sourceCheckpointIds: [],
+      stats: { replays: 0, ok: 0, reverted: 0, failedVerify: 0 },
+      captureCount: 1,
+      createdAt: "",
+      updatedAt: "",
+    };
+  }
+
+  it("substitutes an identifier into the path and file text", () => {
+    const applied = applySlots(recipe(), { componentName: "Card" }, new Map([["src/components/Button.tsx", button]]));
+    expect(applied.ok).toBe(true);
+    if (!applied.ok) return;
+    expect(applied.recipe.steps[0].path).toBe("src/components/Card.tsx");
+    expect(applied.merged.get("src/components/Card.tsx")).toBe(`export function Card() { return <div>Card</div>; }`);
+    expect(applied.recipe.preconditions[0].value).toBe("src/components/Card.tsx");
+  });
+
+  it("refuses traversal, absolute paths, and shell-bearing values", () => {
+    for (const hostile of ["../Evil", "/etc/passwd", "$TOKEN"]) {
+      const applied = applySlots(recipe(), { componentName: hostile }, new Map([["src/components/Button.tsx", button]]));
+      expect(applied.ok, hostile).toBe(false);
+    }
+  });
+
+  it("is a no-op when the filled value is the captured one", () => {
+    const applied = applySlots(recipe(), { componentName: "Button" }, new Map([["src/components/Button.tsx", button]]));
+    expect(applied.ok).toBe(true);
+    if (!applied.ok) return;
+    expect(applied.recipe.steps[0].path).toBe("src/components/Button.tsx");
+    expect(applied.merged.get("src/components/Button.tsx")).toBe(button);
   });
 });
 

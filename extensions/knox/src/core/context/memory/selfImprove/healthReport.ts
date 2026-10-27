@@ -26,6 +26,18 @@ export interface CheckpointChange {
   changedPaths: string[];
 }
 
+export interface RecipeHealth {
+  verified: number;
+  candidate: number;
+  quarantined: number;
+  unlinkedVerified: number;
+  wrongReuse: number;
+  replays: number;
+  skips: number;
+  skipReasons: Record<string, number>;
+  nearMisses: number;
+}
+
 export interface HealthInputs {
   projectName: string;
   generatedAt: string;
@@ -39,6 +51,7 @@ export interface HealthInputs {
   knownIssuesDoc?: string;
   /** Issues observed in history that the known-issues doc does not mention. */
   observedIssues: string[];
+  recipes?: RecipeHealth;
 }
 
 export interface FlakyTest {
@@ -141,7 +154,64 @@ export function buildHealthReport(inputs: HealthInputs): string {
   for (const u of undoc) lines.push(`- ${u}`);
   lines.push("");
 
+  lines.push("## Recipes", "");
+  if (!inputs.recipes) {
+    lines.push("Not collected (pass recipe stats from Memory Brain to include them).");
+  } else {
+    const r = inputs.recipes;
+    lines.push(`- Verified: ${r.verified}, candidate: ${r.candidate}, quarantined: ${r.quarantined}`);
+    lines.push(`- Unlinked verified (no workflow memory): ${r.unlinkedVerified}`);
+    lines.push(`- Replays: ${r.replays}, wrong-reuse (failed verify + revert): ${r.wrongReuse}`);
+    lines.push(`- Capture skips: ${r.skips}${formatSkipReasons(r.skipReasons)}`);
+    lines.push(`- Matcher near-misses: ${r.nearMisses}`);
+  }
+  lines.push("");
+
   return redactSecrets(lines.join("\n"));
+}
+
+function formatSkipReasons(reasons: Record<string, number>): string {
+  const parts = Object.entries(reasons)
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([k, n]) => `${k} ${n}`);
+  return parts.length ? ` (${parts.join(", ")})` : "";
+}
+
+export function gatherRecipeHealth(
+  recipes: readonly {
+    status: string;
+    memoryId?: number;
+    stats: { replays: number; reverted: number; failedVerify: number };
+  }[],
+  extra: { skips?: number; skipReasons?: Record<string, number>; nearMisses?: number } = {},
+): RecipeHealth {
+  let verified = 0;
+  let candidate = 0;
+  let quarantined = 0;
+  let unlinkedVerified = 0;
+  let wrongReuse = 0;
+  let replays = 0;
+  for (const r of recipes) {
+    if (r.status === "verified") {
+      verified++;
+      if (r.memoryId == null) unlinkedVerified++;
+    } else if (r.status === "candidate") candidate++;
+    else if (r.status === "quarantined") quarantined++;
+    replays += r.stats.replays;
+    wrongReuse += r.stats.reverted + r.stats.failedVerify;
+  }
+  return {
+    verified,
+    candidate,
+    quarantined,
+    unlinkedVerified,
+    wrongReuse,
+    replays,
+    skips: extra.skips ?? 0,
+    skipReasons: extra.skipReasons ?? {},
+    nearMisses: extra.nearMisses ?? 0,
+  };
 }
 
 const SKIP_DIRS = new Set(["node_modules", ".git", "out", "dist", "build", "target", ".next"]);
@@ -197,7 +267,7 @@ export function scanMarkers(
 
 export function gatherHealthInputs(
   root: string,
-  extra: Partial<Pick<HealthInputs, "audit" | "testRuns" | "checkpoints" | "observedIssues" | "generatedAt">> = {},
+  extra: Partial<Pick<HealthInputs, "audit" | "testRuns" | "checkpoints" | "observedIssues" | "generatedAt" | "recipes">> = {},
 ): HealthInputs {
   let pkg: { name?: string; dependencies?: object; devDependencies?: object } = {};
   try {
@@ -220,6 +290,7 @@ export function gatherHealthInputs(
     checkpoints: extra.checkpoints ?? [],
     observedIssues: extra.observedIssues ?? [],
     knownIssuesDoc,
+    ...(extra.recipes ? { recipes: extra.recipes } : {}),
     ...scanMarkers(root),
   };
 }

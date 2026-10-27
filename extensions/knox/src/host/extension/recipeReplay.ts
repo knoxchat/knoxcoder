@@ -13,9 +13,9 @@ import type { RecipePreviewOutput, RecipeReplayOutput } from "core/protocol/nati
 /**
  * Host binding for recipe replay (MC-30) and its preview (MC-35).
  *
- * Every write goes through `callTool` (the core `tools/call` path), so permissions, command guard,
- * staged review and per-turn checkpoints apply exactly as they do for the model. This file only
- * reads from disk (hashes, current text) and never writes by itself.
+ * Every write and delete goes through `callTool` (the core `tools/call` path), so permissions,
+ * command guard, staged review and per-turn checkpoints apply exactly as they do for the model.
+ * This file only reads from disk (hashes, current text) and never writes by itself.
  */
 
 export interface RecipeReplayHost {
@@ -31,9 +31,15 @@ export interface RecipeReplayHost {
   complete?(prompt: string): Promise<string>;
   /** MC-62: fork a `what-if/*` branch at the pre-replay checkpoint of an adapt replay. Default on; `false` disables. */
   whatIfBranch?: boolean;
+  /**
+   * Error diagnostics on the given workspace-relative paths. Used when the recipe's oracle is
+   * `lsp` or `user` and there is no command to re-run.
+   */
+  diagnostics?(relPaths: string[]): Promise<{ ok: boolean; detail?: string }>;
 }
 
 const WRITE_TOOL = "builtin_write_file";
+const DELETE_TOOL = "builtin_delete_file";
 const TERMINAL_TOOL = "builtin_run_terminal_command";
 /** Oracle and command steps must finish; this mirrors the verify loop's hard cap. */
 const COMMAND_WAIT_MS = 10 * 60 * 1000;
@@ -86,21 +92,24 @@ export async function createPreviewPorts(host: RecipeReplayHost): Promise<Previe
   };
 }
 
+export type RecipeReplayPorts = ReplayPorts & PreviewPorts & { whatIfBranchName?: string };
+
 export async function createReplayPorts(
   host: RecipeReplayHost,
   whatIf?: { recipeId: string; intent?: string },
-): Promise<ReplayPorts & PreviewPorts> {
+): Promise<RecipeReplayPorts> {
   const { CheckpointManager } = await import("../checkpoints/CheckpointManager");
   const manager = CheckpointManager.getInstance();
   const preview = await createPreviewPorts(host);
-  return {
+  const ports: RecipeReplayPorts = {
     ...preview,
     async createCheckpoint(label) {
       const id = await manager.createManualCheckpoint({ description: label, tags: ["pre-replay"] });
       if (!id) throw new Error("could not create the pre-replay checkpoint");
       // Never throws: no branch just means the replay runs on the current line.
       if (whatIf && host.whatIfBranch !== false) {
-        await manager.createWhatIfBranch(id, whatIf.recipeId, whatIf.intent).catch(() => null);
+        const branch = await manager.createWhatIfBranch(id, whatIf.recipeId, whatIf.intent).catch(() => null);
+        if (branch?.name) ports.whatIfBranchName = branch.name;
       }
       return id;
     },
@@ -125,9 +134,18 @@ export async function createReplayPorts(
       }
       return { ok: true };
     },
-    async deleteFile() {
-      // No delete tool exists on the normal tool path, and raw `fs` is not allowed here.
-      return { ok: false, error: "delete steps are not replayed" };
+    async deleteFile(rel) {
+      try {
+        await host.callTool(DELETE_TOOL, { filepath: rel });
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+      // Staged review keeps the delete off disk; a held delete must not count as applied.
+      const stillThere = await readBytes(host, rel);
+      if (stillThere) {
+        return { ok: false, error: "delete was held for review or the file is still on disk" };
+      }
+      return { ok: true };
     },
     async runCommand(command) {
       try {
@@ -140,7 +158,13 @@ export async function createReplayPorts(
     async verify(recipe) {
       const command = recipe.oracle?.command;
       if (!command) {
-        // No runnable oracle recorded (lsp/user): the recipe's own verification cannot be repeated.
+        const kind = recipe.oracle?.kind;
+        if ((kind === "lsp" || kind === "user") && host.diagnostics) {
+          const paths = recipe.steps
+            .filter((s) => s.kind === "write_file" && s.path)
+            .map((s) => s.path!);
+          return host.diagnostics(paths);
+        }
         return { ok: false, detail: "recipe has no command to verify the replay" };
       }
       const problem = replayableCommandProblem(command);
@@ -155,6 +179,7 @@ export async function createReplayPorts(
       }
     },
   };
+  return ports;
 }
 
 async function openStore() {
@@ -199,7 +224,10 @@ export async function planAdaptedRecipe(
   host: RecipeReplayHost,
   recipe: Recipe,
   request: string,
-): Promise<{ ok: true; preview: string } | { ok: false; reason: string }> {
+): Promise<
+  | { ok: true; preview: string; files: import("core/agent/recipeDecisionTurn").RecipeFilePrompt[] }
+  | { ok: false; reason: string }
+> {
   pendingAdapts.delete(recipe.id);
   if (!host.complete) return { ok: false, reason: "no model available for adapt" };
   const [{ planAdapt, previewAdaptPlan }, { formatReplayPreview }, preview] = await Promise.all([
@@ -214,10 +242,49 @@ export async function planAdaptedRecipe(
   if (!view.allowed) return { ok: false, reason: view.refusal ?? "replay refused" };
   if (view.conflicts.length > 0) return { ok: false, reason: `cannot merge: ${view.conflicts.join(", ")}` };
   pendingAdapts.set(recipe.id, plan);
-  return { ok: true, preview: formatReplayPreview(view) };
+  return { ok: true, preview: formatReplayPreview(view), files: filesFromEntries(view.entries) };
 }
 
-export async function previewRecipe(host: RecipeReplayHost, recipeId: string): Promise<RecipePreviewOutput | undefined> {
+function filesFromEntries(
+  entries: { path: string; action: string; needsApproval?: boolean }[],
+): import("core/agent/recipeDecisionTurn").RecipeFilePrompt[] {
+  return entries
+    .filter((e) => e.action !== "unchanged" && e.action !== "conflict" && e.action !== "missing_blob")
+    .map((e) => ({
+      path: e.path,
+      action: e.action,
+      included: !e.needsApproval,
+      extra: Boolean(e.needsApproval),
+    }));
+}
+
+async function applySlotPlan(
+  recipe: Recipe,
+  ports: { readBlob: ReplayPorts["readBlob"] },
+  slotValues?: Record<string, string>,
+): Promise<{ recipe: Recipe; merged?: Map<string, string>; error?: string }> {
+  if (!slotValues || !Object.keys(slotValues).length || !recipe.slots.length) {
+    return { recipe };
+  }
+  const { applySlots } = await import("core/context/memory/recipes/slots");
+  const contents = new Map<string, string>();
+  const decoder = new TextDecoder("utf-8");
+  for (const step of recipe.steps) {
+    if (step.kind !== "write_file" || !step.path || !step.blobHash) continue;
+    const bytes = await ports.readBlob(step.blobHash);
+    if (bytes === undefined) return { recipe, error: `blob for ${step.path} is no longer available` };
+    contents.set(step.path, typeof bytes === "string" ? bytes : decoder.decode(bytes));
+  }
+  const applied = applySlots(recipe, slotValues, contents);
+  if (!applied.ok) return { recipe, error: applied.reason };
+  return { recipe: applied.recipe, merged: applied.merged };
+}
+
+export async function previewRecipe(
+  host: RecipeReplayHost,
+  recipeId: string,
+  slotValues?: Record<string, string>,
+): Promise<RecipePreviewOutput | undefined> {
   const { store } = await openStore();
   const recipe = await store.get(recipeId);
   if (!recipe || (await outOfScope(host, recipe))) return undefined;
@@ -225,7 +292,21 @@ export async function previewRecipe(host: RecipeReplayHost, recipeId: string): P
     import("core/context/memory/recipes/replayPreview"),
     createPreviewPorts(host),
   ]);
-  const preview: ReplayPreview = await previewReplay(recipe, ports);
+  const slotted = await applySlotPlan(recipe, ports, slotValues);
+  if (slotted.error) {
+    return {
+      recipeId,
+      allowed: false,
+      refusal: slotted.error,
+      drifted: false,
+      conflicts: [],
+      files: 0,
+      added: 0,
+      removed: 0,
+      text: slotted.error,
+    };
+  }
+  const preview: ReplayPreview = await previewReplay(slotted.recipe, ports);
   return {
     recipeId,
     allowed: preview.allowed,
@@ -236,7 +317,15 @@ export async function previewRecipe(host: RecipeReplayHost, recipeId: string): P
     added: preview.totals.added,
     removed: preview.totals.removed,
     text: formatReplayPreview(preview),
+    entries: filesFromEntries(preview.entries).map((e) => ({ path: e.path, action: e.action, extra: e.extra })),
   };
+}
+
+export interface ReplayRecipeOpts {
+  slotValues?: Record<string, string>;
+  includePaths?: string[];
+  approvedExtraPaths?: string[];
+  composeIds?: string[];
 }
 
 /** MC-71: one audit event per replay that touched files, so the Dashboard can count them. Best-effort. */
@@ -245,6 +334,7 @@ async function recordReplayMetrics(
   result: ReplayResult,
   ports: ReplayPorts,
   adapted: (import("core/context/memory/recipes/adapt").AdaptPlan & { ok: true }) | undefined,
+  slotted?: boolean,
 ): Promise<void> {
   try {
     const { replayAuditEvent } = await import("core/context/memory/recipes/metrics");
@@ -264,6 +354,7 @@ async function recordReplayMetrics(
       mode: adapted ? "adapt" : "exact",
       writtenText,
       adaptReply: adapted?.response,
+      slotted: Boolean(slotted),
     });
     if (!event) return;
     const { CheckpointManager } = await import("../checkpoints/CheckpointManager");
@@ -280,6 +371,7 @@ async function recordReplayMetrics(
 export async function replayRecipe(
   host: RecipeReplayHost,
   recipeId: string,
+  opts: ReplayRecipeOpts = {},
 ): Promise<RecipeReplayOutput | undefined> {
   const { store, db } = await openStore();
   const recipe: Recipe | null = await store.get(recipeId);
@@ -292,11 +384,31 @@ export async function replayRecipe(
       import("../checkpoints/recipeBlobPins"),
     ]);
   registerRecipeBlobPins();
+  const composeIds = (opts.composeIds ?? []).filter((id) => id && id !== recipeId);
+  if (composeIds.length) {
+    return replayCompose(host, [recipeId, ...composeIds], opts);
+  }
+  const slotValues = opts.slotValues;
   const adapted = pendingAdapts.get(recipeId);
   pendingAdapts.delete(recipeId);
   const ports = await createReplayPorts(host, adapted ? { recipeId, intent: recipe.intentFingerprint } : undefined);
+  const slotted = adapted ? { recipe, merged: undefined as Map<string, string> | undefined } : await applySlotPlan(recipe, ports, slotValues);
+  if (!adapted && slotted.error) {
+    return {
+      status: "refused",
+      recipeId,
+      restored: false,
+      reason: slotted.error,
+      appliedPaths: [],
+      failureContext: replayFailureContext(
+        { status: "refused", recipeId, restored: false, appliedPaths: [], driftedPaths: [], reason: slotted.error },
+        { failedSlots: recipe.slots.map((s) => s.name) },
+      ),
+    };
+  }
+  const target = slotted.recipe;
   const adapt = adapted ? await import("core/context/memory/recipes/adapt") : undefined;
-  const preview = adapted && adapt ? await adapt.previewAdaptPlan(recipe, adapted, ports) : await previewReplay(recipe, ports);
+  const preview = adapted && adapt ? await adapt.previewAdaptPlan(recipe, adapted, ports) : await previewReplay(target, ports);
   let result: ReplayResult;
   if (!preview.allowed) {
     result = { status: "refused", recipeId, restored: false, appliedPaths: [], driftedPaths: [], reason: preview.refusal };
@@ -310,10 +422,17 @@ export async function replayRecipe(
       reason: `files changed since capture and cannot be merged: ${preview.conflicts.join(", ")}`,
     };
   } else {
+    const merged = new Map(preview.merged ?? []);
+    if (slotted.merged) for (const [p, text] of slotted.merged) merged.set(p, text);
+    const includePaths = opts.includePaths;
     result =
       adapted && adapt
-        ? await adapt.replayAdaptPlan(recipe, adapted, ports, { merged: preview.merged })
-        : await replayExact(recipe, ports, { merged: preview.merged });
+        ? await adapt.replayAdaptPlan(recipe, adapted, ports, {
+            merged,
+            includePaths,
+            approvedExtraPaths: opts.approvedExtraPaths,
+          })
+        : await replayExact(target, ports, { merged, includePaths });
   }
   try {
     await applyReplayResult(store, result, {
@@ -321,11 +440,15 @@ export async function replayRecipe(
         const { recordRecallOutcome } = await import("core/context/memory/brain/memoryOutcomes");
         await recordRecallOutcome(db, [memoryId], "reverted");
       },
+      boostMemory: async (memoryId) => {
+        const { recordRecallOutcome } = await import("core/context/memory/brain/memoryOutcomes");
+        await recordRecallOutcome(db, [memoryId], "verified");
+      },
     });
   } catch (error) {
     console.warn("[Recipes] Could not record replay outcome:", error instanceof Error ? error.message : error);
   }
-  await recordReplayMetrics(recipe, result, ports, adapted);
+  await recordReplayMetrics(recipe, result, ports, adapted, Boolean(slotValues && Object.keys(slotValues).length));
   return {
     status: result.status,
     recipeId,
@@ -333,6 +456,51 @@ export async function replayRecipe(
     restored: result.restored,
     reason: result.reason,
     appliedPaths: result.appliedPaths,
-    failureContext: result.status === "applied" ? undefined : replayFailureContext(result),
+    whatIfBranch: ports.whatIfBranchName,
+    failureContext:
+      result.status === "applied"
+        ? undefined
+        : replayFailureContext(result, {
+            preview: (await import("core/context/memory/recipes/replayPreview")).formatReplayPreview(preview),
+          }),
   };
+}
+
+async function replayCompose(
+  host: RecipeReplayHost,
+  recipeIds: string[],
+  opts: ReplayRecipeOpts,
+): Promise<RecipeReplayOutput | undefined> {
+  const applied: string[] = [];
+  let firstCheckpoint: string | undefined;
+  let last: RecipeReplayOutput | undefined;
+  for (const id of recipeIds) {
+    const one = await replayRecipe(host, id, {
+      slotValues: opts.slotValues,
+      includePaths: opts.includePaths,
+    });
+    if (!one) continue;
+    last = one;
+    if (!firstCheckpoint && one.checkpointId) firstCheckpoint = one.checkpointId;
+    applied.push(...one.appliedPaths);
+    if (one.status !== "applied") {
+      return {
+        ...one,
+        checkpointId: firstCheckpoint,
+        appliedPaths: applied,
+        failureContext: [
+          one.failureContext,
+          applied.length
+            ? `Applied before failure: ${applied.join(", ")}`
+            : undefined,
+          `Stopped before remaining recipes: ${recipeIds.slice(recipeIds.indexOf(id) + 1).join(", ") || "none"}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      };
+    }
+  }
+  return last
+    ? { ...last, checkpointId: firstCheckpoint ?? last.checkpointId, appliedPaths: applied }
+    : undefined;
 }

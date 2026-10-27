@@ -20,7 +20,9 @@ export type AuditAction =
     | 'storage_snapshot'
     | 'branch'
     | 'recipe_replay'
-    | 'recipe_revert';
+    | 'recipe_revert'
+    | 'recipe_capture'
+    | 'recipe_match';
 
 export type AuditOutcome = 'success' | 'failure';
 
@@ -65,7 +67,9 @@ function isAuditAction(value: unknown): value is AuditAction {
         value === 'storage_snapshot' ||
         value === 'branch' ||
         value === 'recipe_replay' ||
-        value === 'recipe_revert'
+        value === 'recipe_revert' ||
+        value === 'recipe_capture' ||
+        value === 'recipe_match'
     );
 }
 

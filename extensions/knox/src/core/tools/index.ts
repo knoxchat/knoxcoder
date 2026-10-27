@@ -1,6 +1,7 @@
 import { createNewFileTool } from "./definitions/createNewFile";
 import { editFileTool } from "./definitions/editFile";
 import { writeFileTool } from "./definitions/writeFile";
+import { deleteFileTool } from "./definitions/deleteFile";
 import { applyPatchTool } from "./definitions/applyPatch";
 import { exactSearchTool } from "./definitions/exactSearch";
 import { readCurrentlyOpenFileTool } from "./definitions/readCurrentlyOpenFile";
@@ -38,6 +39,7 @@ import { planTool } from "./definitions/plan";
 import { skillTool } from "./definitions/skill";
 import { lspTool } from "./definitions/lsp";
 import { memoryTool } from "./definitions/memory";
+import { recipeTool } from "./definitions/recipe";
 
 // Advanced tools (opt-in — not on default chat list except generate_tests)
 import { advancedTools, testGeneratorTool } from "./definitions/advanced";
@@ -89,6 +91,7 @@ export const allTools = [
   createNewFileTool,
   editFileTool,
   writeFileTool,
+  deleteFileTool,
   applyPatchTool,
   runTerminalCommandTool,
   buildTool,
@@ -107,6 +110,7 @@ export const allTools = [
   skillTool,
   lspTool,
   memoryTool,
+  recipeTool,
   taskTool,
   askUserTool,
   gitStatusTool,
@@ -155,6 +159,7 @@ export {
   createNewFileTool,
   editFileTool,
   writeFileTool,
+  deleteFileTool,
   applyPatchTool,
   runTerminalCommandTool,
   buildTool,
@@ -173,6 +178,7 @@ export {
   skillTool,
   lspTool,
   memoryTool,
+  recipeTool,
   taskTool,
   askUserTool,
   gitStatusTool,

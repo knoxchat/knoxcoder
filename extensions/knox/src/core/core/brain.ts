@@ -50,6 +50,10 @@ export function registerBrainHandlers(core: CoreRuntime): void {
       ok: msg.data.ok,
       policy: msg.data.policy,
       summary: msg.data.summary,
+      metadata: {
+        ...(msg.data.metadata ?? {}),
+        ...(msg.data.recipeId ? { recipeId: msg.data.recipeId } : {}),
+      },
     });
     return { id };
   });

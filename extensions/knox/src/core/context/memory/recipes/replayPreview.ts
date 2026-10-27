@@ -26,6 +26,8 @@ export interface PreviewEntry {
   diff: string;
   /** Why this entry is a conflict or missing. */
   reason?: string;
+  /** Extra adapt path: listed, never written unless the user checks it. */
+  needsApproval?: boolean;
 }
 
 export interface ReplayPreview {
@@ -147,7 +149,9 @@ export function formatReplayPreview(preview: ReplayPreview, maxDiffChars = 8000)
     `${preview.totals.files} file(s), +${preview.totals.added} -${preview.totals.removed}`,
   ];
   for (const e of preview.entries) {
-    lines.push(`${e.action.padEnd(9)} ${e.path}${e.reason ? ` (${e.reason})` : ""}`);
+    lines.push(
+      `${e.action.padEnd(9)} ${e.path}${e.needsApproval ? " (needs approval)" : ""}${e.reason ? ` (${e.reason})` : ""}`,
+    );
   }
   for (const c of preview.commands) lines.push(`command   ${c}`);
   let diffs = preview.entries.map((e) => e.diff).filter(Boolean).join("\n\n");

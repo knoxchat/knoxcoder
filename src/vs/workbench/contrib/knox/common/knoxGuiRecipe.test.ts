@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { knoxGuiRecipeNeedsChoice, knoxGuiRecipeNotice, parseRecipeSettings } from './knoxGuiRecipe.js';
+import { knoxGuiRecipeLoopLine, knoxGuiRecipeNeedsChoice, knoxGuiRecipeNotice, knoxGuiRecipeSlotsReady, parseRecipeSettings, recipeApplyPayload } from './knoxGuiRecipe.js';
 import { parseRecipeMetrics } from './knoxGuiCheckpoints.js';
-import { memoryRecipeActions, memoryRecipeCaptureNotice, parseMemoryRecipe, parseMemoryRecipeCapture, parseMemoryRecipeList } from './knoxGuiMemory.js';
+import { filterAndSortRecipes, groupRecipesByFamily, memoryRecipeActions, memoryRecipeCaptureNotice, memoryRecipeMatchNotice, parseMemoryRecipe, parseMemoryRecipeCapture, parseMemoryRecipeList, parseRecipeIdFromMemory } from './knoxGuiMemory.js';
 import type { IKnoxGuiRecipeDecision } from './knoxGuiState.js';
 
 suite('Knox GUI recipe notice (MC-25)', () => {
@@ -17,7 +17,9 @@ suite('Knox GUI recipe notice (MC-25)', () => {
 	const decision = (over: Partial<IKnoxGuiRecipeDecision>): IKnoxGuiRecipeDecision => ({ mode: 'exact', why: '', needsConfirmation: false, recipe, ...over });
 
 	test('exact shows title, uses and reverts', () => {
-		assert.deepStrictEqual(knoxGuiRecipeNotice(decision({})), { key: 'recipeDecisionExact', params: { title: 'Add lint script', uses: 5, reverts: 0 }, undoCheckpointId: undefined });
+		assert.deepStrictEqual(knoxGuiRecipeNotice(decision({})), { key: 'recipeDecisionExact', params: { title: 'Add lint script', uses: 5, reverts: 0 }, undoCheckpointId: undefined, whatIfBranch: undefined });
+		assert.ok(knoxGuiRecipeLoopLine(decision({}))?.includes('id=r1'));
+		assert.ok(knoxGuiRecipeLoopLine(decision({}))?.includes('Add lint script'));
 	});
 
 	test('undo is offered only once a replay created a checkpoint', () => {
@@ -25,10 +27,22 @@ suite('Knox GUI recipe notice (MC-25)', () => {
 		assert.strictEqual(knoxGuiRecipeNotice(decision({ mode: 'suggest', undoCheckpointId: 'cp1' }))?.undoCheckpointId, undefined);
 	});
 
-	test('generate and missing decisions show nothing', () => {
+	test('generate shows a skipped card; missing decisions show nothing', () => {
 		assert.strictEqual(knoxGuiRecipeNotice(undefined), undefined);
-		assert.strictEqual(knoxGuiRecipeNotice(decision({ mode: 'generate' })), undefined);
-		assert.strictEqual(knoxGuiRecipeNotice(decision({ recipe: undefined })), undefined);
+		assert.deepStrictEqual(knoxGuiRecipeNotice(decision({ mode: 'generate', recipe: undefined })), {
+			key: 'recipeDecisionSkipped',
+			params: { title: '', uses: 0, reverts: 0 },
+		});
+		assert.deepStrictEqual(knoxGuiRecipeNotice(decision({ mode: 'generate' })), {
+			key: 'recipeDecisionSkippedNear',
+			params: { title: 'Add lint script', uses: 5, reverts: 0 },
+		});
+		assert.ok(knoxGuiRecipeLoopLine(decision({ mode: 'generate' }))?.includes('skipped "Add lint script"'));
+		assert.strictEqual(knoxGuiRecipeNotice(decision({ recipe: undefined, mode: 'exact' })), undefined);
+	});
+
+	test('awaitingChoice uses the previewed banner', () => {
+		assert.strictEqual(knoxGuiRecipeNotice(decision({ awaitingChoice: true }))?.key, 'recipeDecisionPreviewed');
 	});
 
 	test('the preview card waits only for an unanswered exact+ask decision (MC-35)', () => {
@@ -40,6 +54,29 @@ suite('Knox GUI recipe notice (MC-25)', () => {
 		assert.strictEqual(knoxGuiRecipeNeedsChoice(decision({ needsConfirmation: true, preview: 'x', mode: 'adapt' })), true);
 		assert.strictEqual(knoxGuiRecipeNeedsChoice({ ...base, replay: { status: 'applied', appliedPaths: [] } }), false);
 		assert.strictEqual(knoxGuiRecipeNeedsChoice(undefined), false);
+		assert.strictEqual(knoxGuiRecipeNeedsChoice(decision({
+			needsConfirmation: true,
+			slots: [{ name: 'componentName', kind: 'identifier', filled: false }],
+		})), true);
+		assert.strictEqual(knoxGuiRecipeNeedsChoice(decision({
+			needsConfirmation: true,
+			files: [{ path: 'src/New.ts', action: 'create', included: false, extra: true }],
+		})), true);
+		assert.strictEqual(knoxGuiRecipeSlotsReady(decision({ slots: [{ name: 'x', kind: 'identifier', filled: false }] })), false);
+		assert.strictEqual(knoxGuiRecipeSlotsReady(decision({ slots: [{ name: 'x', kind: 'identifier', value: 'Card', filled: true }] })), true);
+		assert.deepStrictEqual(recipeApplyPayload(decision({
+			files: [
+				{ path: 'src/a.ts', action: 'modify', included: true },
+				{ path: 'src/Extra.ts', action: 'create', included: true, extra: true },
+				{ path: 'src/skip.ts', action: 'modify', included: false },
+			],
+			compose: { why: '2', recipes: [{ id: 'a', title: 'A', paths: ['src/a.ts'] }, { id: 'b', title: 'B', paths: ['src/b.ts'] }] },
+		})), {
+			slotValues: undefined,
+			includePaths: ['src/a.ts'],
+			approvedExtraPaths: ['src/Extra.ts'],
+			composeIds: ['a', 'b'],
+		});
 	});
 });
 
@@ -50,6 +87,7 @@ suite('Knox GUI recipe settings, tab and metrics (MC-70/71/72)', () => {
 		assert.deepStrictEqual(parseRecipeSettings(undefined), { enabled: false, autoReplay: 'off', selfImprove: false });
 		assert.deepStrictEqual(parseRecipeSettings({ enabled: 'yes', autoReplay: 'always', selfImprove: 1 }), { enabled: false, autoReplay: 'off', selfImprove: false });
 		assert.deepStrictEqual(parseRecipeSettings({ enabled: true, autoReplay: 'ask', selfImprove: true }), { enabled: true, autoReplay: 'ask', selfImprove: true });
+		assert.deepStrictEqual(parseRecipeSettings({ enabled: true, autoReplay: 'adapt' }), { enabled: true, autoReplay: 'adapt', selfImprove: false });
 	});
 
 	test('recipe rows parse defensively and drop unknown statuses', () => {
@@ -65,17 +103,77 @@ suite('Knox GUI recipe settings, tab and metrics (MC-70/71/72)', () => {
 		const wrapped = parseMemoryRecipeList({ recipes: [row], lastCapture: { captured: false, reason: 'no_mutation', at: '2026-01-01T00:00:00.000Z' } });
 		assert.strictEqual(wrapped.recipes[0]?.status, 'candidate');
 		assert.deepStrictEqual(wrapped.lastCapture, { captured: false, created: false, recipeId: undefined, title: undefined, status: undefined, reason: 'no_mutation', at: '2026-01-01T00:00:00.000Z' });
+		const history = parseMemoryRecipeList({
+			recipes: [row],
+			lastCapture: { captured: false, reason: 'no_oracle' },
+			lastCaptures: [
+				{ captured: false, reason: 'no_mutation' },
+				{ captured: false, reason: 'delete_not_replayable' },
+			],
+		});
+		assert.strictEqual(history.lastCaptures?.length, 2);
+		assert.strictEqual(history.lastCaptures?.[1]?.reason, 'delete_not_replayable');
+		const withMatch = parseMemoryRecipeList({
+			recipes: [row],
+			lastMatch: { mode: 'suggest', why: 'similar', title: 'Create Button', score: 0.62, replayable: false },
+		});
+		assert.deepStrictEqual(memoryRecipeMatchNotice(withMatch.lastMatch!), {
+			key: 'memoryRecipeMatchNearMiss',
+			params: { title: 'Create Button', percent: '62' },
+		});
+		assert.deepStrictEqual(memoryRecipeMatchNotice({ mode: 'generate', why: 'no verified recipe matches this task', replayable: false }), { key: 'memoryRecipeMatchNone' });
 		assert.strictEqual(parseMemoryRecipeCapture({ captured: true, title: 'X', status: 'verified' })?.captured, true);
 		assert.strictEqual(parseMemoryRecipeCapture({ captured: false, reason: 'nope' })?.reason, 'error');
 	});
 
 	test('actions follow the host state machine', () => {
-		assert.deepStrictEqual(memoryRecipeActions({ status: 'candidate' }), { quarantine: true, retire: true, preview: false, replay: false, verify: false, restore: false, promoteSkill: false });
-		assert.deepStrictEqual(memoryRecipeActions({ status: 'candidate', oracleKind: 'build' }), { quarantine: true, retire: true, preview: false, replay: false, verify: true, restore: false, promoteSkill: false });
-		assert.deepStrictEqual(memoryRecipeActions({ status: 'verified' }), { quarantine: true, retire: true, preview: true, replay: true, verify: false, restore: false, promoteSkill: false });
-		assert.deepStrictEqual(memoryRecipeActions({ status: 'verified', skillEligible: true }), { quarantine: true, retire: true, preview: true, replay: true, verify: false, restore: false, promoteSkill: true });
-		assert.deepStrictEqual(memoryRecipeActions({ status: 'quarantined' }), { quarantine: false, retire: true, preview: false, replay: false, verify: false, restore: true, promoteSkill: false });
-		assert.deepStrictEqual(memoryRecipeActions({ status: 'retired' }), { quarantine: false, retire: false, preview: false, replay: false, verify: false, restore: false, promoteSkill: false });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'candidate', scope: 'project' }), { quarantine: true, retire: true, preview: false, replay: false, verify: false, restore: false, promoteSkill: false, promoteScope: false, demoteScope: false });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'candidate', scope: 'project', oracleKind: 'build' }), { quarantine: true, retire: true, preview: false, replay: false, verify: true, restore: false, promoteSkill: false, promoteScope: false, demoteScope: false });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'verified', scope: 'project' }), { quarantine: true, retire: true, preview: true, replay: true, verify: false, restore: false, promoteSkill: false, promoteScope: false, demoteScope: false });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'verified', scope: 'project', skillEligible: true }), { quarantine: true, retire: true, preview: true, replay: true, verify: false, restore: false, promoteSkill: true, promoteScope: false, demoteScope: false });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'verified', scope: 'project', preconditions: [{ kind: 'file_exists', value: 'package.json' }] }), { quarantine: true, retire: true, preview: true, replay: true, verify: false, restore: false, promoteSkill: false, promoteScope: true, demoteScope: false });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'verified', scope: 'global' }), { quarantine: true, retire: true, preview: true, replay: true, verify: false, restore: false, promoteSkill: false, promoteScope: false, demoteScope: true });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'quarantined', scope: 'project' }), { quarantine: false, retire: true, preview: false, replay: false, verify: false, restore: true, promoteSkill: false, promoteScope: false, demoteScope: false });
+		assert.deepStrictEqual(memoryRecipeActions({ status: 'retired', scope: 'project' }), { quarantine: false, retire: false, preview: false, replay: false, verify: false, restore: false, promoteSkill: false, promoteScope: false, demoteScope: false });
+	});
+
+	test('inspector parse, search, family grouping, and memory recipe id', () => {
+		const row = parseMemoryRecipe({
+			id: 'aa'.repeat(32),
+			title: 'Create Button',
+			status: 'verified',
+			scope: 'project',
+			uses: 2,
+			intentText: 'create a Button component',
+			intentFingerprint: 'create button component',
+			familyId: 'fam1',
+			slots: [{ name: 'componentName', kind: 'identifier', examples: ['Button'] }],
+			slotValues: { componentName: 'Button' },
+			preconditions: [{ kind: 'file_exists', value: 'package.json' }],
+			steps: [{ kind: 'write_file', path: 'src/Button.tsx' }],
+			pinned: true,
+			notes: 'from lint turn',
+		});
+		assert.strictEqual(row?.pinned, true);
+		assert.strictEqual(row?.slots?.[0].name, 'componentName');
+		assert.strictEqual(row?.preconditions?.[0].value, 'package.json');
+		const card = parseMemoryRecipe({
+			id: 'bb'.repeat(32),
+			title: 'Create Card',
+			status: 'verified',
+			familyId: 'fam1',
+			slotValues: { componentName: 'Card' },
+			slots: [{ name: 'componentName', kind: 'identifier' }],
+			steps: [{ kind: 'write_file', path: 'src/Card.tsx' }],
+		});
+		const grouped = groupRecipesByFamily([row!, card!]);
+		assert.strictEqual(grouped.length, 1);
+		assert.strictEqual(grouped[0].recipes.length, 2);
+		assert.strictEqual(grouped[0].distinguishingSlot, 'componentName');
+		assert.strictEqual(filterAndSortRecipes([row!, card!], { query: 'src/card' }).map(r => r.id), [card!.id]);
+		assert.strictEqual(filterAndSortRecipes([row!, card!], { kind: 'slots' }).length, 2);
+		assert.strictEqual(parseRecipeIdFromMemory(`Verified recipe\nrecipe_id: ${'aa'.repeat(32)}`), 'aa'.repeat(32));
+		assert.strictEqual(parseRecipeIdFromMemory('nope'), undefined);
 	});
 
 	test('capture toast keys distinguish saved vs skip', () => {
@@ -84,12 +182,15 @@ suite('Knox GUI recipe settings, tab and metrics (MC-70/71/72)', () => {
 			params: { title: 'Add lint', statusKey: 'memoryRecipeStatus_candidate' },
 		});
 		assert.deepStrictEqual(memoryRecipeCaptureNotice({ captured: false, reason: 'no_oracle' }), { key: 'memoryRecipeSkip_no_oracle' });
+		assert.deepStrictEqual(memoryRecipeCaptureNotice({ captured: false, reason: 'delete_not_replayable' }), { key: 'memoryRecipeSkip_delete_not_replayable' });
+		assert.deepStrictEqual(memoryRecipeCaptureNotice({ captured: false, reason: 'user_refused' }), { key: 'memoryRecipeSkip_user_refused' });
 	});
 
 	test('dashboard metrics: absent stays absent, bad numbers become 0 and the rate is capped', () => {
 		assert.strictEqual(parseRecipeMetrics(undefined), undefined);
-		assert.deepStrictEqual(parseRecipeMetrics({ attempts: 4, applied: 3, failedVerify: 1, reverted: 'x', llmCallsAvoided: 3, tokensSaved: 900, wrongApplyRate: 7 }), {
+		assert.deepStrictEqual(parseRecipeMetrics({ attempts: 4, applied: 3, failedVerify: 1, reverted: 'x', llmCallsAvoided: 3, tokensSaved: 900, wrongApplyRate: 7, slotReplays: 2, nearMisses: 1, skips: 3, skipReasons: { no_mutation: 2 }, projectCount: 4, globalCount: 1 }), {
 			attempts: 4, applied: 3, failedVerify: 1, reverted: 0, llmCallsAvoided: 3, tokensSaved: 900, wrongApplyRate: 1,
+			slotReplays: 2, nearMisses: 1, skips: 3, skipReasons: { no_mutation: 2 }, projectCount: 4, globalCount: 1,
 		});
 	});
 });

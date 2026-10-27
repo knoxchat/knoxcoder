@@ -16,6 +16,7 @@ export const defaultContextProvidersVsCode: NonNullable<
   { provider: "repo-map" },
   { provider: "terminal" },
   { provider: "memory" },
+  { provider: "recipe" },
 ];
 
 export const defaultConfig: ConfigYaml = {

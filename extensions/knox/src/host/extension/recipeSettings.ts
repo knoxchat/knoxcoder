@@ -7,7 +7,7 @@ import type { RecipeSettings } from "core/protocol/nativeAgent";
  * the Settings UI and `settings.json` always agree. Values are validated here, not trusted.
  */
 
-const AUTO_REPLAY = ["off", "ask", "exact"] as const;
+const AUTO_REPLAY = ["off", "ask", "exact", "adapt"] as const;
 
 export function readRecipeSettings(): RecipeSettings {
   const cfg = vscode.workspace.getConfiguration("knoxchat");

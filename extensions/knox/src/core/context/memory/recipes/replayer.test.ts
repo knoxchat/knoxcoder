@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { applyBrainPragmas } from "../brain/store/dbSafety";
 import { createTables } from "../brain/store/schema";
 import { RecipeStore } from "./RecipeStore";
-import { applyReplayResult, isWithinRevertWindow, recordRevert } from "./feedback";
+import { applyReplayResult, isWithinRevertWindow, recentRevertCount, recordRevert } from "./feedback";
 import {
   classifyDrift,
   planReplay,
@@ -187,6 +187,40 @@ describe("replayExact", () => {
     expect((await replayExact(bad, ports)).status).toBe("refused");
   });
 
+  it("partial apply writes only the selected files", async () => {
+    const { ports, disk } = fakePorts();
+    const rec = recipe({
+      steps: [
+        { kind: "write_file", path: "src/a.ts", blobHash: "h-new", baseBlobHash: "h-old" },
+        { kind: "write_file", path: "src/b.ts", blobHash: "h-new" },
+      ],
+    });
+    const res = await replayExact(rec, ports, { includePaths: ["src/a.ts"] });
+    expect(res.status).toBe("applied");
+    expect(res.appliedPaths).toEqual(["src/a.ts"]);
+    expect(disk.has("src/b.ts")).toBe(false);
+    expect((await replayExact(rec, ports, { includePaths: [] })).status).toBe("refused");
+  });
+
+  it("writes approved extra files through the same path", async () => {
+    const { ports, disk } = fakePorts();
+    const res = await replayExact(recipe(), ports, { extraWrites: new Map([["src/Extra.ts", "hello"]]) });
+    expect(res.status).toBe("applied");
+    expect(disk.get("src/Extra.ts")).toBe("hello");
+  });
+
+  it("failure context includes preview, slots, and preconditions", () => {
+    const ctx = replayFailureContext(
+      { status: "refused", recipeId: "r", restored: false, appliedPaths: [], driftedPaths: [], reason: "unsafe slot" },
+      { failedSlots: ["componentName"], unfilledSlots: ["path"], preconditionFailures: ["file_exists src/a.ts"], preview: "modify src/a.ts" },
+    );
+    expect(ctx).toMatch(/unsafe slot/);
+    expect(ctx).toMatch(/componentName/);
+    expect(ctx).toMatch(/file_exists/);
+    expect(ctx).toMatch(/modify src\/a.ts/);
+    expect(ctx).toMatch(/Do not retry the same writes/);
+  });
+
   it("skips steps that are already applied", async () => {
     const { ports, disk, log } = fakePorts();
     disk.set("src/a.ts", "NEW");
@@ -234,6 +268,17 @@ describe("feedback (store-backed)", () => {
     expect(await applyReplayResult(store, { ...okRes, outcome: undefined })).toBeNull();
   });
 
+  it("boosts the linked memory on a verified ok replay (P7.2)", async () => {
+    const r = await verified(7);
+    const boosted: number[] = [];
+    await applyReplayResult(
+      store,
+      { status: "applied", recipeId: r.id, restored: false, appliedPaths: [], driftedPaths: [], outcome: "ok" },
+      { boostMemory: async (id) => void boosted.push(id) },
+    );
+    expect(boosted).toEqual([7]);
+  });
+
   it("a revert quarantines the recipe and demotes the linked memory", async () => {
     const r = await verified(42);
     await store.recordReplay(r.id, "ok");
@@ -251,5 +296,12 @@ describe("feedback (store-backed)", () => {
     expect(await recordRevert(store, r.id, later)).toBeNull();
     expect((await store.get(r.id))!.status).toBe("verified");
     expect(isWithinRevertWindow(undefined, new Date())).toBe(false);
+  });
+
+  it("counts only reverts still inside the window", () => {
+    const stats = { replays: 3, ok: 2, reverted: 1, failedVerify: 0 };
+    expect(recentRevertCount({ stats, lastReplayedAt: new Date().toISOString() })).toBe(1);
+    expect(recentRevertCount({ stats, lastReplayedAt: "2020-01-01T00:00:00.000Z" })).toBe(0);
+    expect(recentRevertCount({ stats: { ...stats, reverted: 0 }, lastReplayedAt: new Date().toISOString() })).toBe(0);
   });
 });

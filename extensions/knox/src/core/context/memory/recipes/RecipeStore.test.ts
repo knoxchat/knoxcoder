@@ -84,6 +84,20 @@ describe("RecipeStore.create", () => {
     expect(ids.size).toBe(4);
   });
 
+  it("persists family id and slot values without changing the snapshot id", async () => {
+    const { recipe } = await store.create(input());
+    const updated = await store.setFamily(recipe.id, {
+      familyId: "f".repeat(64),
+      slots: [{ name: "componentName", kind: "identifier", examples: ["Button"] }],
+      slotValues: { componentName: "Button" },
+    });
+    expect(updated.id).toBe(recipe.id);
+    expect(updated.familyId).toBe("f".repeat(64));
+    expect(updated.slots[0]).toMatchObject({ name: "componentName", examples: ["Button"] });
+    expect(updated.slotValues).toEqual({ componentName: "Button" });
+    expect(await store.list({ familyId: updated.familyId })).toHaveLength(1);
+  });
+
   it("canonical id ignores slot/precondition ordering", () => {
     const s1 = [{ name: "a", kind: "identifier" as const }, { name: "b", kind: "path" as const }];
     const p1 = [{ kind: "file", value: "x" }, { kind: "dep", value: "y" }];
@@ -197,6 +211,27 @@ describe("RecipeStore queries and stats", () => {
     expect(Object.fromEntries(await store.pinnedBlobRefCounts())).toEqual({ aaa: 1 });
     await store.retire(a.recipe.id);
     expect((await store.pinnedBlobRefCounts()).size).toBe(0);
+  });
+
+  it("rename, pin, notes, and procedure edits survive round-trip", async () => {
+    const { recipe } = await store.create(
+      input({ preconditions: [{ kind: "language", value: "typescript" }, { kind: "file_exists", value: "src/a.ts" }] }),
+    );
+    const renamed = await store.updateInspector(recipe.id, { title: "Create Button", notes: "from the lint turn", pinned: true });
+    expect(renamed.title).toBe("Create Button");
+    expect(renamed.notes).toBe("from the lint turn");
+    expect(renamed.pinned).toBe(true);
+    const edited = await store.updateProcedure(recipe.id, {
+      slots: [{ name: "componentName", kind: "identifier", examples: ["Button"] }],
+      userPreconditions: [{ kind: "file_exists", value: "src/Button.tsx" }],
+    });
+    expect(edited.slots).toEqual([{ name: "componentName", kind: "identifier", examples: ["Button"] }]);
+    expect(edited.preconditions).toEqual([
+      { kind: "language", value: "typescript" },
+      { kind: "file_exists", value: "src/Button.tsx" },
+    ]);
+    await store.retire(recipe.id);
+    await expect(store.updateInspector(recipe.id, { title: "nope" })).rejects.toThrow(/retired/);
   });
 
   it("delete cascades steps", async () => {

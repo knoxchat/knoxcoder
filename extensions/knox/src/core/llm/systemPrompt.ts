@@ -47,6 +47,7 @@ const EDITING = `Editing (use tools, never the terminal):
 - Read a file before editing it.
 - builtin_edit_file for precise changes. old_string/oldText must uniquely match (replace_all to replace every occurrence). Several disjoint replacements in one file: edits:[{old_string,new_string}] matched against the original file — merge overlapping or nearby changes into one edit. Prefer a few complete edits over a long list that may be cut off.
 - builtin_write_file to create a file or rewrite it entirely. builtin_create_new_file is the same as write (existing files are overwritten).
+- builtin_delete_file to remove one workspace file (never a directory or secret file). Do not rm in the terminal.
 - builtin_apply_patch only when one call must change several files atomically (Codex *** Update File or a unified diff).
 - Never write or patch files with cat, echo, heredoc or sed.`;
 
@@ -61,6 +62,8 @@ const SHELL = `Shell:
 const GIT = `Git: prefer builtin_git_status / builtin_git_diff / builtin_git_log / builtin_git_blame / builtin_git_commit / builtin_git_bisect over shell git. Never push or force via tools. Snapshots: builtin_workspace_checkpoint (restore always asks the user).`;
 
 const MEMORY = `Memory: durable facts and decisions only; do not store file contents.`;
+
+const RECIPE = `Recipes: verified procedures from past work. builtin_recipe list/preview/apply. Apply requires confirm=true and uses the replayer (permissions, ask card, oracle); do not rewrite those files yourself. import_skill turns a SKILL.md into a candidate — never auto-replayed.`;
 
 const PLAN = `Plan and delegation:
 - The injected Task Execution Plan is the work order, not a note. Do the [*] current step, then builtin_plan complete it (the next pending step becomes current). Never stop while remaining > 0: complete steps you finished, skip only what is obsolete.
@@ -80,7 +83,7 @@ export function buildSystemPrompt(options: SystemPromptOptions = {}): string {
     !names ||
     [...names].some((n) => prefixes.some((p) => n.startsWith(p)));
   const sections = [IDENTITY, CORE_RULES];
-  if (has("builtin_edit_file", "builtin_apply_patch", "builtin_write_file", "builtin_create_new_file")) {
+  if (has("builtin_edit_file", "builtin_apply_patch", "builtin_write_file", "builtin_create_new_file", "builtin_delete_file")) {
     sections.push(EDITING);
   }
   sections.push(VERIFICATION);
@@ -96,6 +99,9 @@ export function buildSystemPrompt(options: SystemPromptOptions = {}): string {
   }
   if (has("builtin_memory")) {
     sections.push(MEMORY);
+  }
+  if (has("builtin_recipe")) {
+    sections.push(RECIPE);
   }
   if (has("builtin_plan", "builtin_task")) {
     sections.push(PLAN);

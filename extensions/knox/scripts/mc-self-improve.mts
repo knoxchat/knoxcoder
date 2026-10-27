@@ -25,9 +25,10 @@ function arg(name: string): string | undefined {
 	return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'knox-self-improve-'));
+const cache = path.join(root, 'node_modules', '.cache');
+fs.mkdirSync(cache, { recursive: true });
+const outfile = path.join(cache, 'knox-self-improve.mjs');
 try {
-	const outfile = path.join(tmp, 'selfAnalysis.mjs');
 	await build({
 		entryPoints: [path.join(root, 'src/core/context/memory/selfImprove/selfAnalysis.ts')],
 		bundle: true,
@@ -35,6 +36,7 @@ try {
 		format: 'esm',
 		outfile,
 		logLevel: 'error',
+		external: ['sqlite3', 'sqlite'],
 	});
 	const { runSelfAnalysis } = await import(pathToFileURL(outfile).href);
 
@@ -48,7 +50,10 @@ try {
 	const baseline = JSON.parse(
 		fs.readFileSync(path.join(root, 'src/core/context/memory/bench/baseline.json'), 'utf8'),
 	);
-	const file = runSelfAnalysis({
+	const knoxDir = process.env.KNOX_GLOBAL_DIR ?? path.join(os.homedir(), '.knoxcoder');
+	const brainSqlitePath = arg('brain') ?? path.join(knoxDir, 'memory', 'brain.sqlite');
+	const auditEventsPath = arg('audit') ?? path.join(knoxDir, 'checkpoints', 'events.jsonl');
+	const file = await runSelfAnalysis({
 		repoRoot,
 		scanDirs,
 		packageDir: root,
@@ -56,8 +61,11 @@ try {
 		gitLog,
 		history: historyPath ? JSON.parse(fs.readFileSync(path.resolve(historyPath), 'utf8')) : undefined,
 		baseline,
+		brainSqlitePath: fs.existsSync(brainSqlitePath) ? brainSqlitePath : undefined,
+		auditEventsPath: fs.existsSync(auditEventsPath) ? auditEventsPath : undefined,
 	});
 	console.log(`[mc:self-improve] wrote ${path.relative(repoRoot, file)}`);
 } finally {
-	fs.rmSync(tmp, { recursive: true, force: true });
+	fs.rmSync(outfile, { force: true });
+	fs.rmSync(`${outfile}.map`, { force: true });
 }

@@ -8,12 +8,18 @@
  * Nothing here writes settings, files, or anything outside the brain DB.
  */
 
+import fs from "fs";
+import path from "path";
+
 import { redactSecrets } from "../../../util/redactSecrets.js";
 import type { DatabaseConnection } from "../../../util/refreshIndex.js";
 import type { StoreInput } from "../brain/types.js";
 import type { RecipeStore } from "./RecipeStore.js";
 import {
+  buildFamilyDraftMarkdown,
+  planFamilyDrafts,
   planMemoryUpdates,
+  type FamilyDraft,
   type MemoryUpdate,
   type ReviewEvent,
   type ReviewEventKind,
@@ -90,6 +96,7 @@ const KIND_MAP: Record<string, ReviewEventKind | undefined> = {
   tool_error: "tool_error",
   "build:fail": "build_fail",
   restore: "revert",
+  user_correction: "user_correction",
 };
 
 /** Default look-back for the sleep job. */
@@ -99,7 +106,7 @@ const MAX_EVENT_ROWS = 2000;
 /**
  * Review events from recorded soul events (episodic rows with `metadata.soul`). A workspace restore is
  * a revert; its text is the first affected file so the same file reverted repeatedly groups together.
- * User corrections have no recorded source yet, so none are produced.
+ * Rejected diffs, skip/"not this", and edits after a replay are `user_correction`.
  */
 export async function collectReviewEvents(
   db: DatabaseConnection,
@@ -130,15 +137,23 @@ export async function collectReviewEvents(
   return events;
 }
 
-/** One full review: read history, plan, apply the safe updates. */
+export function writeFamilyDraft(markdown: string, reportsDir: string, now = new Date()): string {
+  fs.mkdirSync(reportsDir, { recursive: true });
+  const file = path.join(reportsDir, `recipe-families-${now.toISOString().slice(0, 10)}.md`);
+  fs.writeFileSync(file, markdown);
+  return file;
+}
+
+/** One full review: read history, plan, apply the safe updates. Family drafts are not applied. */
 export async function runSelfReview(
   db: DatabaseConnection,
   deps: ApplyDeps,
   opts: { sinceDays?: number; now?: Date; threshold?: number } = {},
-): Promise<{ events: number; updates: MemoryUpdate[]; report: ApplyReport }> {
+): Promise<{ events: number; updates: MemoryUpdate[]; report: ApplyReport; drafts: FamilyDraft[]; draftMarkdown: string }> {
   const events = await collectReviewEvents(db, opts);
   const recipes: Recipe[] = await deps.store.list({ status: ["candidate", "verified"], limit: 1000 });
   const updates = planMemoryUpdates(events, recipes, opts.threshold);
   const report = await applyMemoryUpdates(updates, deps);
-  return { events: events.length, updates, report };
+  const drafts = planFamilyDrafts(recipes);
+  return { events: events.length, updates, report, drafts, draftMarkdown: buildFamilyDraftMarkdown(drafts, opts.now) };
 }

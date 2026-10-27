@@ -134,7 +134,12 @@ export async function finishNativeTurn(
   // Recipes (MC-14): silent capture of verified work. No-op unless enabled.
   // Awaited so the Recipes tab refresh sees the new row (or the skip reason).
   const captured = await captureRecipeAfterTurn(
-    { sessionId: input.sessionId, userMessage: input.userMessage },
+    {
+      sessionId: input.sessionId,
+      userMessage: input.userMessage,
+      turnTools: input.turnTools,
+      allowCommandRecipes: /^\s*Execute the approved plan\b/i.test(input.userMessage),
+    },
     workspaceDir,
   );
   if (captured !== undefined) {

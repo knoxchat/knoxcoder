@@ -141,6 +141,10 @@ export interface ExactOptions {
   label?: string;
   /** Clean 3-way merge results from `previewReplay` (MC-36). Written instead of the blob; these paths are not drift. */
   merged?: ReadonlyMap<string, string>;
+  /** One-off partial apply: only these recipe paths (P4.7). Commands still run. */
+  includePaths?: readonly string[];
+  /** Approved extra adapt files (P4.3). Written through the same tool path after recipe steps. */
+  extraWrites?: ReadonlyMap<string, string>;
 }
 
 function fail(
@@ -165,9 +169,17 @@ export async function replayExact(recipe: Recipe, ports: ReplayPorts, opts: Exac
     contents.set(i, bytes);
   }
 
+  const include = opts.includePaths ? new Set(opts.includePaths) : undefined;
+  const extraWrites = opts.extraWrites;
+  const fileSteps = recipe.steps.filter((s) => s.kind === "write_file" || s.kind === "delete_file");
+  const selectedFiles = include ? fileSteps.filter((s) => s.path && include.has(s.path)) : fileSteps;
+  if (fileSteps.length > 0 && selectedFiles.length === 0 && !extraWrites?.size) {
+    return fail(recipe, "refused", "no files selected");
+  }
+
   const detected = await detectDrift(recipe, ports.currentHash);
   const { skip } = detected;
-  const drifted = detected.drifted.filter((p) => !opts.merged?.has(p));
+  const drifted = detected.drifted.filter((p) => !opts.merged?.has(p) && (!include || include.has(p)));
   if (drifted.length > 0) {
     return fail(recipe, "drifted", `files changed since capture: ${drifted.join(", ")}`, { driftedPaths: drifted });
   }
@@ -200,12 +212,22 @@ export async function replayExact(recipe: Recipe, ports: ReplayPorts, opts: Exac
       if (!res.ok) return rollback("failed_apply", `command failed: ${step.command}`);
       continue;
     }
+    if (include && step.path && !include.has(step.path)) continue;
     const res =
       step.kind === "delete_file"
         ? await ports.deleteFile(step.path!)
         : await ports.writeFile(step.path!, opts.merged?.get(step.path!) ?? contents.get(i)!);
     if (!res.ok) return rollback("failed_apply", `could not apply ${step.path}: ${res.error ?? "rejected"}`);
     applied.push(step.path!);
+  }
+
+  if (extraWrites) {
+    for (const [path, text] of extraWrites) {
+      if (!isSafeRelPath(path)) return rollback("failed_apply", `unsafe extra path: ${path}`);
+      const res = await ports.writeFile(path, text);
+      if (!res.ok) return rollback("failed_apply", `could not apply extra file ${path}: ${res.error ?? "rejected"}`);
+      applied.push(path);
+    }
   }
 
   const verdict = await ports.verify(recipe);
@@ -227,11 +249,28 @@ export async function replayExact(recipe: Recipe, ports: ReplayPorts, opts: Exac
  * Text handed to the LLM loop when a replay did not land, so the model starts
  * from what went wrong instead of repeating it.
  */
-export function replayFailureContext(result: ReplayResult): string {
+export interface ReplayFailureExtras {
+  preview?: string;
+  unfilledSlots?: string[];
+  failedSlots?: string[];
+  preconditionFailures?: string[];
+}
+
+export function replayFailureContext(result: ReplayResult, extras: ReplayFailureExtras = {}): string {
   if (result.status === "applied") return "";
   const lines = [`A saved recipe was tried first and did not apply (${result.status}).`];
   if (result.reason) lines.push(`Reason: ${result.reason}`);
   if (result.driftedPaths.length) lines.push(`Changed since capture: ${result.driftedPaths.join(", ")}`);
+  if (extras.unfilledSlots?.length) lines.push(`Unfilled slots: ${extras.unfilledSlots.join(", ")}`);
+  if (extras.failedSlots?.length) lines.push(`Slot substitution refused: ${extras.failedSlots.join(", ")}`);
+  if (extras.preconditionFailures?.length) {
+    lines.push(`Preconditions failed: ${extras.preconditionFailures.join("; ")}`);
+  }
   lines.push(result.restored ? "Files were restored to their state before the attempt." : "No files were changed.");
+  if (extras.preview) {
+    const preview = extras.preview.length > 4000 ? `${extras.preview.slice(0, 4000)}\n… (truncated)` : extras.preview;
+    lines.push("", "Preview of what was attempted:", preview);
+  }
+  lines.push("Do not retry the same writes. Continue from the current files.");
   return lines.join("\n");
 }

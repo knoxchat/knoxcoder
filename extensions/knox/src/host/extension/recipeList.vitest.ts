@@ -17,7 +17,7 @@ vi.mock("core/context/memory/brain/store/connection", async (importOriginal) => 
   get: async () => db,
 }));
 
-import { listRecipes, setRecipeStatus } from "./recipeList";
+import { listRecipes, patchRecipe, setRecipeStatus } from "./recipeList";
 
 const HERE = "file:///work/here";
 const THERE = "file:///work/there";
@@ -74,6 +74,22 @@ describe("recipe list (MC-70)", () => {
     expect((await listRecipes(HERE)).recipes[0].status).toBe("candidate");
     expect(await setRecipeStatus(HERE, mine.id, "verified")).toEqual({ ok: true });
     expect((await listRecipes(HERE)).recipes[0].status).toBe("verified");
+    const store = new RecipeStore(db as never);
+    expect((await store.get(mine.id))?.userAcceptedAt).toBeTruthy();
+  });
+
+  it("patches title, pin, and promote-to-global with consent", async () => {
+    const mine = await make(HERE, "a");
+    const other = await make(THERE, "b");
+    const store = new RecipeStore(db as never);
+    await store.updateProcedure(mine.id, { userPreconditions: [{ kind: "file_exists", value: "package.json" }] });
+    expect(await patchRecipe(HERE, { recipeId: mine.id, title: "Add lint", pinned: true, notes: "from chat" })).toEqual({ ok: true });
+    const listed = (await listRecipes(HERE)).recipes[0];
+    expect(listed).toMatchObject({ title: "Add lint", pinned: true, notes: "from chat", intentText: expect.any(String) });
+    expect(await patchRecipe(HERE, { recipeId: other.id, title: "stolen" })).toEqual({ ok: false, reason: "not_found" });
+    expect(await patchRecipe(HERE, { recipeId: mine.id, scope: "global" })).toEqual({ ok: false, reason: "needs_consent" });
+    expect(await patchRecipe(HERE, { recipeId: mine.id, scope: "global", consent: true })).toEqual({ ok: true });
+    expect((await listRecipes(HERE)).recipes[0].scope).toBe("global");
   });
 
   it("marks skillEligible after enough clean replays", async () => {

@@ -1913,7 +1913,7 @@ suite('Knox native GUI parity', () => {
 	});
 
 	test('KN-374 composer helpers match KN-300 @ defaults and KN-304 slash builtins', () => {
-		assert.deepStrictEqual([...DEFAULT_MENTION_PROVIDER_TITLES], ['file', 'diff', 'problems', 'repo-map', 'terminal', 'memory']);
+		assert.deepStrictEqual([...DEFAULT_MENTION_PROVIDER_TITLES], ['file', 'diff', 'problems', 'repo-map', 'terminal', 'memory', 'recipe']);
 		assert.deepStrictEqual(DEFAULT_MENTION_PROVIDERS.map(provider => provider.title), [...DEFAULT_MENTION_PROVIDER_TITLES]);
 		assert.strictEqual(DEFAULT_MENTION_PROVIDERS.find(provider => provider.title === 'file')?.type, 'submenu');
 		assert.strictEqual(DEFAULT_MENTION_PROVIDERS.find(provider => provider.title === 'memory')?.type, 'query');

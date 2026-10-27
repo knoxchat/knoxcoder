@@ -11,7 +11,12 @@ import { RecipeStore } from "./RecipeStore";
 import {
   SOUL_HISTORY_CAP,
   captureRecipeFromTurn,
+  extractReplayableCommands,
+  isRecipeNoisePath,
+  recipeTitleFromIntent,
+  selectRecipeChanges,
   selectTurnEvidence,
+  withVerifyCommand,
   type CaptureDeps,
   type TurnFileChange,
   type TurnSoulEvent,
@@ -111,6 +116,88 @@ describe("selectTurnEvidence", () => {
     const ok = [edit(5), ...events.slice(1)];
     expect(typeof selectTurnEvidence(ok, 10)).toBe("object");
   });
+
+  it("captures a truncated turn when the before-checkpoint was marked at start", () => {
+    const events = Array.from({ length: SOUL_HISTORY_CAP }, (_, i) => edit(11 + i, { oracle: pass }));
+    const ev = selectTurnEvidence(events, 10, { turnStartCheckpointId: "cp_turn_start" });
+    expect(ev).toEqual({ baseCheckpointId: "cp_turn_start", oracle: pass });
+  });
+
+  it("allows a command-only turn when opted in", () => {
+    const events: TurnSoulEvent[] = [
+      {
+        episodicId: 11,
+        kind: "tool_success",
+        toolName: "builtin_run_terminal_command",
+        files: [],
+        command: "npm test",
+        workspaceCheckpointId: "cp_before",
+        oracle: { kind: "test", passed: true, command: "npm test" },
+      },
+    ];
+    expect(selectTurnEvidence(events, 10)).toBe("no_mutation");
+    const ev = selectTurnEvidence(events, 10, { allowCommandRecipes: true });
+    expect(ev).toEqual({
+      baseCheckpointId: "cp_before",
+      oracle: { kind: "test", passed: true, command: "npm test" },
+    });
+  });
+});
+
+describe("selectRecipeChanges / noise / verifyCommand", () => {
+  it("drops lockfiles and dist, keeps intent paths, fails closed on .env", () => {
+    expect(isRecipeNoisePath("package-lock.json")).toBe(true);
+    expect(isRecipeNoisePath("dist/app.js")).toBe(true);
+    expect(isRecipeNoisePath("src/Button.tsx")).toBe(false);
+    const selected = selectRecipeChanges(
+      [
+        { path: "package-lock.json", hash: HASH_A },
+        { path: "dist/out.js", hash: HASH_A },
+        { path: "src/Button.tsx", hash: HASH_A },
+        { path: "src/noise.min.js", hash: HASH_A },
+      ],
+      { intent: "create src/Button.tsx" },
+    );
+    expect(selected).toMatchObject({
+      kept: [{ path: "src/Button.tsx", hash: HASH_A }],
+      droppedNoise: 3,
+    });
+    expect(selectRecipeChanges([{ path: ".env", hash: HASH_A }])).toBe("secret_detected");
+    expect(selectRecipeChanges([{ path: "src/.env.local", hash: HASH_A }])).toBe("secret_detected");
+    expect(selectRecipeChanges([{ path: "src/a.bin", hash: HASH_A, binary: true }])).toBe("too_large");
+    expect(selectRecipeChanges([{ path: "src/huge.ts", hash: HASH_A, content: "x".repeat(600_000) }])).toBe("too_large");
+  });
+
+  it("keeps an explicit include even when the path looks like noise", () => {
+    const selected = selectRecipeChanges(
+      [{ path: "package-lock.json", hash: HASH_A }, { path: "src/a.ts", hash: HASH_B }],
+      { includePaths: ["package-lock.json"] },
+    );
+    expect(typeof selected).toBe("object");
+    if (typeof selected === "string") return;
+    expect(selected.kept.map((c) => c.path).sort()).toEqual(["package-lock.json", "src/a.ts"]);
+  });
+
+  it("caps overflow to files mentioned in the intent", () => {
+    const many = Array.from({ length: 60 }, (_, i) => ({ path: `src/f${i}.ts`, hash: HASH_A }));
+    many.push({ path: "src/Button.tsx", hash: HASH_B });
+    const selected = selectRecipeChanges(many, { intent: "create src/Button.tsx" });
+    expect(typeof selected).toBe("object");
+    if (typeof selected === "string") return;
+    expect(selected.kept).toHaveLength(1);
+    expect(selected.kept[0].path).toBe("src/Button.tsx");
+    expect(selected.droppedOverflow).toBeGreaterThan(0);
+  });
+
+  it("attaches a safe verifyCommand to an LSP pass", () => {
+    expect(withVerifyCommand({ kind: "lsp", passed: true }, "npm test")).toEqual({
+      kind: "lsp",
+      passed: true,
+      command: "npm test",
+    });
+    expect(withVerifyCommand({ kind: "lsp", passed: true, command: "make" }, "npm test").command).toBe("make");
+    expect(withVerifyCommand({ kind: "lsp", passed: true }, "curl https://x").command).toBeUndefined();
+  });
 });
 
 describe("captureRecipeFromTurn", () => {
@@ -119,9 +206,17 @@ describe("captureRecipeFromTurn", () => {
     const changes: TurnFileChange[] = [
       { path: "src/index.ts", hash: HASH_B, baseHash: HASH_A },
       { path: "src/Button.tsx", hash: HASH_A },
-      { path: "src/old.ts", deleted: true, baseHash: HASH_B },
     ];
-    const events = [edit(11, { oracle: pass })];
+    const events = [
+      edit(11, { oracle: pass }),
+      {
+        episodicId: 12,
+        kind: "tool_success",
+        toolName: "builtin_run_terminal_command",
+        files: [],
+        command: "npm test",
+      },
+    ];
 
     const first = await captureRecipeFromTurn(deps(changes, calls), turn(events));
     expect(first.captured).toBe(true);
@@ -132,13 +227,22 @@ describe("captureRecipeFromTurn", () => {
     const r = first.recipe;
     expect(r.status).toBe("candidate");
     expect(r.projectId).toBe("p1");
+    expect(r.title).toMatch(/Button/i);
     expect(r.sourceCheckpointIds).toEqual(["cp_after"]);
     expect(r.oracle).toMatchObject({ kind: "build", command: "npm run build" });
     expect(r.steps).toEqual([
       { kind: "write_file", path: "src/Button.tsx", blobHash: HASH_A, checkpointId: "cp_after" },
       { kind: "write_file", path: "src/index.ts", blobHash: HASH_B, baseBlobHash: HASH_A, checkpointId: "cp_after" },
-      { kind: "delete_file", path: "src/old.ts", baseBlobHash: HASH_B, checkpointId: "cp_after" },
+      { kind: "command", command: "npm test" },
     ]);
+    expect(r.preconditions).toEqual(
+      expect.arrayContaining([
+        { kind: "file_absent", value: "src/Button.tsx" },
+        { kind: "file_exists", value: "src/index.ts" },
+        { kind: "clean_paths", value: "src/Button.tsx" },
+        { kind: "clean_paths", value: "src/index.ts" },
+      ]),
+    );
     // Blobs are pinned for retention (MC-12).
     expect([...(await store.pinnedBlobRefCounts()).keys()].sort()).toEqual([HASH_A, HASH_B]);
 
@@ -194,12 +298,107 @@ describe("captureRecipeFromTurn", () => {
       captured: false,
       reason: "no_changes",
     });
-    const many = Array.from({ length: 51 }, (_, i) => ({ path: `f${i}.ts`, hash: HASH_A }));
-    expect(await captureRecipeFromTurn(deps(many), turn(events))).toEqual({
-      captured: false,
-      reason: "too_many_files",
-    });
+    const many = Array.from({ length: 51 }, (_, i) => ({ path: `src/f${i}.ts`, hash: HASH_A }));
+    const oversized = await captureRecipeFromTurn(deps(many), turn(events));
+    expect(oversized.captured).toBe(true);
+    if (oversized.captured) {
+      expect(oversized.recipe.steps.filter((s) => s.kind === "write_file")).toHaveLength(50);
+    }
+  });
+
+  it("drops lockfile churn so a small source edit still captures", async () => {
+    const events = [edit(11, { oracle: pass })];
+    const res = await captureRecipeFromTurn(
+      deps([
+        { path: "src/Button.tsx", hash: HASH_A },
+        { path: "package-lock.json", hash: HASH_B },
+        { path: "dist/app.js", hash: HASH_B },
+      ]),
+      turn(events),
+    );
+    expect(res.captured).toBe(true);
+    if (!res.captured) return;
+    expect(res.recipe.steps.map((s) => s.path)).toEqual(["src/Button.tsx"]);
+  });
+
+  it("never stores a .env edit, even next to a normal file", async () => {
+    const events = [edit(11, { oracle: pass })];
+    const res = await captureRecipeFromTurn(
+      deps([
+        { path: "src/Button.tsx", hash: HASH_A },
+        { path: ".env", hash: HASH_B },
+      ]),
+      turn(events),
+    );
+    expect(res).toEqual({ captured: false, reason: "secret_detected" });
     expect(await store.list()).toHaveLength(0);
+  });
+
+  it("captures a truncated turn using the marked before-checkpoint", async () => {
+    const events = Array.from({ length: SOUL_HISTORY_CAP }, (_, i) => edit(11 + i, { oracle: pass }));
+    const res = await captureRecipeFromTurn(deps([{ path: "src/Button.tsx", hash: HASH_A }]), {
+      ...turn(events),
+      turnStartCheckpointId: "cp_turn_start",
+    });
+    expect(res.captured).toBe(true);
+  });
+
+  it("uses finishTurn tools when soul history missed the write (plan-apply)", async () => {
+    const res = await captureRecipeFromTurn(deps([{ path: "src/Button.tsx", hash: HASH_A }]), {
+      ...turn([]),
+      events: [
+        {
+          episodicId: 11,
+          kind: "tool_success",
+          toolName: "builtin_read_file",
+          files: [],
+          workspaceCheckpointId: "cp_before",
+          oracle: pass,
+        },
+      ],
+      turnTools: [{ name: "builtin_edit_file", status: "done", args: { filepath: "src/Button.tsx" } }],
+    });
+    expect(res.captured).toBe(true);
+  });
+
+  it("stores a command-only recipe when opted in", async () => {
+    const events: TurnSoulEvent[] = [
+      {
+        episodicId: 11,
+        kind: "tool_success",
+        toolName: "builtin_run_terminal_command",
+        files: [],
+        command: "npx tsc --noEmit",
+        workspaceCheckpointId: "cp_before",
+        oracle: { kind: "build", passed: true, command: "npx tsc --noEmit" },
+      },
+    ];
+    const res = await captureRecipeFromTurn(deps([]), {
+      ...turn(events),
+      allowCommandRecipes: true,
+    });
+    expect(res.captured).toBe(true);
+    if (!res.captured) return;
+    expect(res.recipe.steps).toEqual([{ kind: "command", command: "npx tsc --noEmit" }]);
+  });
+
+  it("records delete_file steps when the turn deleted a file", async () => {
+    const events = [edit(11, { oracle: pass })];
+    const res = await captureRecipeFromTurn(
+      deps([
+        { path: "src/Button.tsx", hash: HASH_A },
+        { path: "src/old.ts", deleted: true, baseHash: HASH_B },
+      ]),
+      turn(events),
+    );
+    expect(res.captured).toBe(true);
+    if (!res.captured) return;
+    expect(res.recipe.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "write_file", path: "src/Button.tsx", blobHash: HASH_A }),
+        expect.objectContaining({ kind: "delete_file", path: "src/old.ts", baseBlobHash: HASH_B }),
+      ]),
+    );
   });
 
   it("stores nothing when a file holds a secret or is a secret file", async () => {
@@ -214,6 +413,31 @@ describe("captureRecipeFromTurn", () => {
     expect(await store.list()).toHaveLength(0);
   });
 
+  it("extracts slots when a second similar success lands (P1.2)", async () => {
+    const events = [edit(11, { oracle: pass })];
+    const first = await captureRecipeFromTurn(
+      deps([{ path: "src/Button.tsx", hash: HASH_A }]),
+      turn(events, { userMessage: "Create a React component Button" }),
+    );
+    expect(first.captured).toBe(true);
+    const second = await captureRecipeFromTurn(
+      deps([{ path: "src/Card.tsx", hash: HASH_B }]),
+      turn(events, { userMessage: "Create a React component Card" }),
+    );
+    expect(second.captured).toBe(true);
+    if (!second.captured) return;
+    expect(second.recipe.slots).toEqual([
+      { name: "componentName", kind: "identifier", examples: ["Button", "Card"] },
+    ]);
+    expect(second.recipe.slotValues).toEqual({ componentName: "Card" });
+    expect(second.recipe.familyId).toBeTruthy();
+    const peer = await store.get(first.captured ? first.recipe.id : "");
+    expect(peer?.familyId).toBe(second.recipe.familyId);
+    expect(peer?.slotValues).toEqual({ componentName: "Button" });
+    expect(second.recipe.status).toBe("verified");
+    expect(peer?.status).toBe("verified");
+  });
+
   it("redacts secrets typed in the user message", async () => {
     const secret = "sk-abcdefghijklmnopqrstuvwxyz0123456789ABCD";
     const res = await captureRecipeFromTurn(
@@ -226,5 +450,34 @@ describe("captureRecipeFromTurn", () => {
       expect(res.recipe.intentText).not.toContain(secret);
       expect(res.recipe.intentFingerprint).not.toContain(secret.slice(0, 20));
     }
+  });
+});
+
+describe("extractReplayableCommands / recipeTitleFromIntent", () => {
+  it("keeps safe unique terminal commands and drops the oracle command, network, and secrets", () => {
+    const events: TurnSoulEvent[] = [
+      { episodicId: 11, kind: "tool_success", toolName: "builtin_run_terminal_command", files: [], command: "npm test" },
+      { episodicId: 12, kind: "tool_success", toolName: "builtin_run_terminal_command", files: [], command: "npm test" },
+      {
+        episodicId: 13,
+        kind: "tool_success",
+        toolName: "builtin_run_terminal_command",
+        files: [],
+        command: "curl https://example.com",
+      },
+      {
+        episodicId: 14,
+        kind: "tool_success",
+        toolName: "builtin_run_terminal_command",
+        files: [],
+        summary: "Background job sh_1 exited 0: npx tsc --noEmit",
+      },
+    ];
+    expect(extractReplayableCommands(events, 10, "npm test")).toEqual(["npx tsc --noEmit"]);
+  });
+
+  it("names the recipe from the intent and the files", () => {
+    expect(recipeTitleFromIntent("please create a Button component", ["src/Button.tsx"])).toMatch(/Button/);
+    expect(recipeTitleFromIntent("please create a Button component", ["src/Button.tsx"])).toContain("Button.tsx");
   });
 });

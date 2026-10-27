@@ -69,6 +69,7 @@ export {
   LAST_USER_INTENT_MARKER,
   extractDevelopmentLoopState,
   formatDevelopmentLoopState,
+  formatRecipeDecisionLoopLine,
 } from "./loopState.js";
 
 export function countDroppableToolResults(

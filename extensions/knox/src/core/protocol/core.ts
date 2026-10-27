@@ -161,7 +161,7 @@ export type ToCoreFromIdeOrWebviewProtocol = {
     {
       sessionId: string;
       kind: "tool_success" | "tool_denied" | "tool_error" | "restore" | "compaction"
-        | "build:fail" | "build:pass" | "qemu:panic" | "bisect:step";
+        | "build:fail" | "build:pass" | "qemu:panic" | "bisect:step" | "user_correction";
       toolName?: string;
       files?: string[];
       workspaceCheckpointId?: string;
@@ -169,6 +169,8 @@ export type ToCoreFromIdeOrWebviewProtocol = {
       ok: boolean;
       policy?: "allow" | "ask" | "deny";
       summary: string;
+      recipeId?: string;
+      metadata?: Record<string, unknown>;
     },
     { id: number },
   ];

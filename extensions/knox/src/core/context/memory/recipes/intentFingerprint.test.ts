@@ -52,4 +52,21 @@ describe("intentFingerprint (MC-20)", () => {
     expect(fingerprintSimilarity("", "a")).toBe(0);
     expect(fingerprintSimilarity("a b", "a b")).toBe(1);
   });
+
+  it("maps JP and KR paraphrases onto the English fingerprint", () => {
+    const en = intentFingerprint("create a React component Button");
+    expect(intentFingerprint("React コンポーネント Button を作成")).toBe(en);
+    expect(intentFingerprint("React 컴포넌트 Button 생성")).toBe(en);
+  });
+
+  it("tokenizes mixed EN+CJK without requiring a CJK-majority message", () => {
+    expect(intentFingerprint("create a コンポーネント Button")).toBe(intentFingerprint("create a component Button"));
+    expect(intentFingerprint("add eslint 配置")).toBe(intentFingerprint("add eslint config"));
+  });
+
+  it("maps setup/lint/format synonyms", () => {
+    expect(intentFingerprint("setup a React component")).toBe(intentFingerprint("create a React component"));
+    expect(intentFingerprint("add eslint config")).toBe(intentFingerprint("add lint configuration"));
+    expect(intentFingerprint("prettier the file")).toBe(intentFingerprint("format the file"));
+  });
 });

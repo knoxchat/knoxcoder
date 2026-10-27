@@ -14,6 +14,7 @@ import {
   applyTurnBudget,
   applyTurnInjectToMessages,
   classifyInjectedContext,
+  classifyTurnInjectText,
   DEFAULT_TURN_INJECT_CAP,
   estimateTurnInjectTokens,
   getTurnInjectCap,
@@ -64,6 +65,29 @@ describe("turn inject budget (K-072)", () => {
     expect(tokens).toBeLessThanOrEqual(12_000);
     expect(kept.some((block) => block.kind === "turn_context")).toBe(true);
     expect(kept.some((block) => block.kind === "retrieved_memory")).toBe(false);
+  });
+
+  it("keeps a recipe stub when the full hint cannot fit", () => {
+    const stub = `<verified_recipe_stub title="Add lint">\nFiles: package.json\n</verified_recipe_stub>`;
+    const full = `<verified_recipe title="Add lint">\n${"x".repeat(20_000)}\n</verified_recipe>`;
+    const kept = applyTurnBudget(
+      [
+        { kind: "retrieved_memory", text: `=== Relevant Knowledge from Memory ===\n${"m".repeat(8_000)}` },
+        { kind: "recipe_stub", text: stub },
+        { kind: "recipe", text: full },
+      ],
+      2_000,
+    );
+    expect(kept.some((block) => block.kind === "recipe_stub")).toBe(true);
+    expect(kept.some((block) => block.kind === "recipe")).toBe(false);
+    expect(kept.find((block) => block.kind === "recipe_stub")?.text).toContain("package.json");
+  });
+
+  it("classifies verified_recipe markers", () => {
+    expect(classifyTurnInjectText("<verified_recipe_stub title=\"x\">\nFiles: a.ts\n</verified_recipe_stub>")).toBe(
+      "recipe_stub",
+    );
+    expect(classifyTurnInjectText("<verified_recipe title=\"x\">\nFile: a.ts\n</verified_recipe>")).toBe("recipe");
   });
 
   it("never drops pinned memory or the plan before unpinned memories", () => {

@@ -209,24 +209,71 @@ function extractLastMutatingFile(messages: ChatMessage[]): string | undefined {
   return undefined;
 }
 
+const RECIPE_ID_RE = /\b(?:recipe_id|id)\s*[=:]\s*["']?([a-f0-9]{12,64})["']?/i;
+
+export function formatRecipeDecisionLoopLine(input: {
+  mode?: string;
+  title?: string;
+  id?: string;
+  why?: string;
+}): string {
+  const verb =
+    input.mode === "exact"
+      ? "reused"
+      : input.mode === "adapt"
+        ? "adapted"
+        : input.mode === "suggest"
+          ? "hinted"
+          : input.mode === "preview"
+            ? "previewed"
+            : "skipped";
+  const title = (input.title ?? "").replace(/"/g, "").slice(0, 80);
+  const id = input.id ? ` id=${input.id}` : "";
+  const why = !title && input.why ? ` ${input.why.replace(/\s+/g, " ").slice(0, 120)}` : "";
+  return title ? `${verb} "${title}"${id}` : `${verb}${id}${why}`.trim();
+}
+
 function extractRecipeDecision(text: string): string | undefined {
-  const verified = text.match(
-    /<verified_recipe title=(?:"([^"]+)"|'([^']+)')/,
-  );
-  if (verified?.[1] || verified?.[2]) {
-    return `suggest "${verified[1] ?? verified[2]}"`;
-  }
   const labeled = text.match(
     new RegExp(`${LAST_RECIPE_DECISION_MARKER}:\\s*(.+)`, "i"),
   );
   if (labeled?.[1]) {
     return labeled[1].trim().slice(0, 240);
   }
+  const stub = text.match(
+    /<verified_recipe(?:_stub)? title=(?:"([^"]+)"|'([^']+)')(?:[^>]*\sid=(?:"([^"]+)"|'([^']+)'))?/i,
+  );
+  const recipeId =
+    stub?.[3] ||
+    stub?.[4] ||
+    text.match(RECIPE_ID_RE)?.[1];
+  if (stub?.[1] || stub?.[2]) {
+    const title = stub[1] ?? stub[2];
+    const mode = /<verified_recipe_stub/i.test(text) ? "suggest" : "suggest";
+    return formatRecipeDecisionLoopLine({ mode, title, id: recipeId });
+  }
+  const applied = text.match(
+    /Applied verified recipe\s+"([^"]+)"/i,
+  );
+  if (applied?.[1]) {
+    return formatRecipeDecisionLoopLine({ mode: "exact", title: applied[1], id: recipeId });
+  }
   const notice = text.match(
-    /(?:Reusing|Adapting|Using) verified recipe[^\n]{0,200}/i,
+    /(?:Reusing|Adapting|Using|Previewing) verified recipe[^\n]{0,200}/i,
   );
   if (notice) {
-    return notice[0].trim().slice(0, 240);
+    const title = notice[0].match(/"([^"]+)"/)?.[1];
+    const mode = /Adapting/i.test(notice[0])
+      ? "adapt"
+      : /Using/i.test(notice[0])
+        ? "suggest"
+        : /Previewing/i.test(notice[0])
+          ? "preview"
+          : "exact";
+    return formatRecipeDecisionLoopLine({ mode, title, id: recipeId }) || notice[0].trim().slice(0, 240);
+  }
+  if (recipeId) {
+    return formatRecipeDecisionLoopLine({ id: recipeId });
   }
   const decision = text.match(/recipe_decision[^\n]{0,200}/i);
   return decision?.[0]?.trim().slice(0, 240);

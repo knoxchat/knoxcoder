@@ -102,6 +102,7 @@ export const POST_EDIT_VERIFY_TOOL_NAMES = new Set([
   "builtin_create_new_file",
   "builtin_edit_file",
   "builtin_write_file",
+  "builtin_delete_file",
   "builtin_apply_patch",
   "composite_smart_edit",
   "builtin_generate_tests",
@@ -192,7 +193,7 @@ export function extractVerifiedFilePath(
   }
 
   // delete_file has nothing useful to lint after deletion
-  if (toolName === "delete_file") {
+  if (toolName === "delete_file" || toolName === "builtin_delete_file") {
     return undefined;
   }
 

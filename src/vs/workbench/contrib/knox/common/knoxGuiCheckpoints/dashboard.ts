@@ -3,6 +3,7 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IKnoxGuiRecipeMetrics } from '../knoxGuiState.js';
 import { arr, rec } from './parse.js';
 
 /** Performance dashboard charts and host-payload parsing. */
@@ -123,12 +124,22 @@ export function fillDailyCarryForward(
 }
 
 /** MC-71: undefined when the host sent none (older host), so the Dashboard hides the section. */
-export function parseRecipeMetrics(value: unknown): { attempts: number; applied: number; failedVerify: number; reverted: number; llmCallsAvoided: number; tokensSaved: number; wrongApplyRate: number } | undefined {
+export function parseRecipeMetrics(value: unknown): IKnoxGuiRecipeMetrics | undefined {
 	const row = rec(value);
 	if (!row) {
 		return undefined;
 	}
 	const count = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0;
+	const skipReasons: Record<string, number> = {};
+	const rawReasons = rec(row.skipReasons);
+	if (rawReasons) {
+		for (const [key, item] of Object.entries(rawReasons)) {
+			const n = count(item);
+			if (n) {
+				skipReasons[key] = n;
+			}
+		}
+	}
 	return {
 		attempts: count(row.attempts),
 		applied: count(row.applied),
@@ -137,6 +148,12 @@ export function parseRecipeMetrics(value: unknown): { attempts: number; applied:
 		llmCallsAvoided: count(row.llmCallsAvoided),
 		tokensSaved: count(row.tokensSaved),
 		wrongApplyRate: Math.min(1, count(row.wrongApplyRate)),
+		slotReplays: count(row.slotReplays) || undefined,
+		nearMisses: count(row.nearMisses) || undefined,
+		skips: count(row.skips) || undefined,
+		skipReasons: Object.keys(skipReasons).length ? skipReasons : undefined,
+		projectCount: count(row.projectCount) || undefined,
+		globalCount: count(row.globalCount) || undefined,
 	};
 }
 
@@ -146,7 +163,7 @@ export function parsePerformanceDashboard(value: unknown): {
 	creationFrequency: Array<{ bucket: string; count: number }>;
 	restorationEvents: Array<{ timestamp: string; checkpointId: string; success: boolean; durationMs: number; filesRestored: number; filesFailed: number; error?: string }>;
 	aiSessionMetrics: Array<{ sessionId: string; startedAt: string; filesChanged: number; linesAdded?: number; linesDeleted?: number; checkpointsCreated: number; rollbacks?: number; durationSeconds: number }>;
-	recipeMetrics?: { attempts: number; applied: number; failedVerify: number; reverted: number; llmCallsAvoided: number; tokensSaved: number; wrongApplyRate: number };
+	recipeMetrics?: IKnoxGuiRecipeMetrics;
 	summary: {
 		totalCheckpointsCreated: number;
 		totalRestorations: number;

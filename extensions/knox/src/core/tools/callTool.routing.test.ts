@@ -57,6 +57,8 @@ describe("callTool routing honesty", () => {
     expect(names.has("builtin_pty_send")).toBe(true);
     expect(names.has("builtin_pty_read")).toBe(true);
     expect(names.has("builtin_plan")).toBe(true);
+    expect(names.has("builtin_recipe")).toBe(true);
+    expect(names.has("builtin_delete_file")).toBe(true);
   });
 
   it("does not put builtin_debug on the default allTools catalog (HL-46)", () => {

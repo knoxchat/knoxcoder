@@ -20,13 +20,13 @@ describe("self analysis (MC-48)", () => {
     ]);
   });
 
-  it("writes one dated report under outDir with hot files, markers and no tuning when no history", () => {
+  it("writes one dated report under outDir with hot files, markers and no tuning when no history", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "knox-selfan-"));
     dirs.push(root);
     fs.mkdirSync(path.join(root, "pkg", "src"), { recursive: true });
     fs.writeFileSync(path.join(root, "pkg", "package.json"), JSON.stringify({ name: "knox", dependencies: { a: "1" } }));
     fs.writeFileSync(path.join(root, "pkg", "src", "x.ts"), "// TODO one\n// FIXME two\n");
-    const file = runSelfAnalysis({
+    const file = await runSelfAnalysis({
       repoRoot: root,
       scanDirs: ["pkg"],
       packageDir: path.join(root, "pkg"),
@@ -42,6 +42,38 @@ describe("self analysis (MC-48)", () => {
     expect(text).toContain("1 TODO, 1 FIXME");
     expect(text).toContain("falseInjectRate 0");
     expect(text).toContain("No recorded history was supplied");
+    expect(text).toContain("Not collected");
     expect(text).not.toContain(root);
+  });
+
+  it("writes live recipe stats when they are supplied", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "knox-selfan-"));
+    dirs.push(root);
+    fs.mkdirSync(path.join(root, "pkg"), { recursive: true });
+    fs.writeFileSync(path.join(root, "pkg", "package.json"), JSON.stringify({ name: "knox" }));
+    const file = await runSelfAnalysis({
+      repoRoot: root,
+      scanDirs: ["pkg"],
+      packageDir: path.join(root, "pkg"),
+      outDir: path.join(root, "pkg", "docs", "self-improve"),
+      gitLog: "",
+      now: new Date("2026-10-28T00:00:00Z"),
+      recipes: {
+        verified: 2,
+        candidate: 1,
+        quarantined: 1,
+        unlinkedVerified: 1,
+        wrongReuse: 3,
+        replays: 6,
+        skips: 4,
+        skipReasons: { no_oracle: 3 },
+        nearMisses: 2,
+      },
+    });
+    const text = fs.readFileSync(file, "utf8");
+    expect(text).toContain("Verified: 2");
+    expect(text).toContain("Unlinked verified");
+    expect(text).toContain("no_oracle 3");
+    expect(text).not.toContain("Not collected");
   });
 });

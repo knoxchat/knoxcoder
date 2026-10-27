@@ -7,7 +7,8 @@ export type SoulEventKind =
   | "build:fail"
   | "build:pass"
   | "qemu:panic"
-  | "bisect:step";
+  | "bisect:step"
+  | "user_correction";
 
 import type { SoulOracle } from "./oracleVerdict.js";
 

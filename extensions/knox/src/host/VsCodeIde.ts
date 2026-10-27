@@ -41,6 +41,8 @@ import type {
   Thread,
   DebugControlRequest,
   DebugControlResult,
+  RecipeControlRequest,
+  RecipeControlResult,
 } from "core";
 
 const subprocessLog = createKnoxLogger("subprocess");
@@ -63,6 +65,15 @@ class VsCodeIde implements IDE {
   ideUtils: VsCodeIdeUtils;
   secretStorage: SecretStorage;
   private lastFileSaveTimestamp: number = Date.now();
+  private recipeReplayHostFactory?: () => Promise<
+    import("./extension/recipeReplay").RecipeReplayHost
+  >;
+
+  bindRecipeReplayHost(
+    factory: () => Promise<import("./extension/recipeReplay").RecipeReplayHost>,
+  ): void {
+    this.recipeReplayHostFactory = factory;
+  }
 
   constructor(
     private readonly vscodeWebviewProtocolPromise: Promise<VsCodeWebviewProtocol>,
@@ -614,6 +625,17 @@ class VsCodeIde implements IDE {
 
   async debugControl(request: DebugControlRequest): Promise<DebugControlResult> {
     return await this.ideUtils.debugControl(request);
+  }
+
+  async recipeControl(request: RecipeControlRequest): Promise<RecipeControlResult> {
+    const { handleRecipeControl } = await import("./extension/recipeAgent");
+    const dirs = await this.getWorkspaceDirs();
+    return handleRecipeControl(request, {
+      workspaceDir: dirs[0] ?? "",
+      replayHost: this.recipeReplayHostFactory
+        ? await this.recipeReplayHostFactory()
+        : undefined,
+    });
   }
 
   async getWorkspaceDirs(): Promise<string[]> {

@@ -18,6 +18,10 @@ import {
 	IKnoxGuiMemorySession,
 	IKnoxGuiMemoryRecipe,
 	IKnoxGuiMemoryRecipeCapture,
+	IKnoxGuiMemoryRecipeMatch,
+	IKnoxGuiMemoryRecipePrecondition,
+	IKnoxGuiMemoryRecipeSlot,
+	IKnoxGuiMemoryRecipeStep,
 	IKnoxGuiMemorySessionHistory,
 	IKnoxGuiMetricsTrend,
 } from './knoxGuiState.js';
@@ -38,7 +42,7 @@ export const MEMORY_PANEL_TAB_BRAIN_MESSAGES = {
 	memories: ['brain/searchMemories', 'brain/store', 'brain/updateMemory', 'brain/mismatchMemory', 'brain/pinMemory', 'brain/unpinMemory', 'brain/pinMemories', 'brain/unpinMemories', 'brain/deleteMemory', 'brain/deleteMemories'],
 	sessions: ['brain/listSessions', 'brain/getSessionHistory', 'brain/searchBacklogs', 'brain/useSessionAsContext', 'history/delete'],
 	graph: ['brain/graphStats', 'brain/listEntities', 'brain/searchEntities', 'brain/exploreGraph'],
-	recipes: ['knox/recipeList', 'knox/recipeSetStatus', 'knox/recipePreview', 'knox/recipeReplay', 'knox/recipePromoteSkill'],
+	recipes: ['knox/recipeList', 'knox/recipeSetStatus', 'knox/recipePatch', 'knox/recipePreview', 'knox/recipeReplay', 'knox/recipePromoteSkill'],
 	settings: ['brain/getConfig', 'brain/updateConfig', 'brain/optimize', 'brain/heal', 'brain/export', 'brain/import', 'brain/consolidate', 'knox/memoryBrainSettings', 'knox/memoryBrainSettingsSet'],
 } as const;
 
@@ -646,7 +650,8 @@ export function parseMemorySession(item: unknown): IKnoxGuiMemorySession | undef
 const RECIPE_STATUSES = ['candidate', 'verified', 'quarantined', 'retired'] as const;
 const RECIPE_SKIP_REASONS = [
 	'no_session', 'no_turn_mark', 'history_truncated', 'no_mutation', 'no_oracle', 'oracle_failed',
-	'no_checkpoint', 'no_changes', 'too_many_files', 'secret_detected', 'no_intent', 'disabled', 'error',
+	'no_checkpoint', 'no_changes', 'too_many_files', 'secret_detected', 'no_intent', 'delete_not_replayable',
+	'user_refused', 'too_large', 'disabled', 'error',
 ] as const;
 
 export function parseMemoryRecipe(item: unknown): IKnoxGuiMemoryRecipe | undefined {
@@ -660,6 +665,10 @@ export function parseMemoryRecipe(item: unknown): IKnoxGuiMemoryRecipe | undefin
 		return undefined;
 	}
 	const count = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+	const slots = Array.isArray(rec.slots) ? rec.slots.map(parseMemoryRecipeSlot).filter((slot): slot is IKnoxGuiMemoryRecipeSlot => Boolean(slot)) : undefined;
+	const pres = Array.isArray(rec.preconditions) ? rec.preconditions.map(parseMemoryRecipePrecondition).filter((item): item is IKnoxGuiMemoryRecipePrecondition => Boolean(item)) : undefined;
+	const steps = Array.isArray(rec.steps) ? rec.steps.map(parseMemoryRecipeStep).filter((item): item is IKnoxGuiMemoryRecipeStep => Boolean(item)) : undefined;
+	const slotValues = parseSlotValues(rec.slotValues);
 	return {
 		id,
 		title: String(rec.title || id.slice(0, 12)),
@@ -671,11 +680,196 @@ export function parseMemoryRecipe(item: unknown): IKnoxGuiMemoryRecipe | undefin
 		failedVerify: count(rec.failedVerify),
 		files: count(rec.files),
 		oracleKind: typeof rec.oracleKind === 'string' ? rec.oracleKind : undefined,
+		oracleCommand: typeof rec.oracleCommand === 'string' && rec.oracleCommand ? rec.oracleCommand : undefined,
 		sourceCheckpointIds: Array.isArray(rec.sourceCheckpointIds) ? rec.sourceCheckpointIds.filter((v): v is string => typeof v === 'string') : [],
 		lastReplayedAt: typeof rec.lastReplayedAt === 'string' ? rec.lastReplayedAt : undefined,
 		updatedAt: typeof rec.updatedAt === 'string' ? rec.updatedAt : undefined,
 		skillEligible: rec.skillEligible === true,
+		intentText: typeof rec.intentText === 'string' && rec.intentText ? rec.intentText : undefined,
+		intentFingerprint: typeof rec.intentFingerprint === 'string' && rec.intentFingerprint ? rec.intentFingerprint : undefined,
+		familyId: typeof rec.familyId === 'string' && rec.familyId ? rec.familyId : undefined,
+		slots: slots?.length ? slots : undefined,
+		slotValues,
+		preconditions: pres?.length ? pres : undefined,
+		steps: steps?.length ? steps : undefined,
+		memoryId: typeof rec.memoryId === 'number' && Number.isFinite(rec.memoryId) ? rec.memoryId : undefined,
+		sourceSessionId: typeof rec.sourceSessionId === 'string' && rec.sourceSessionId ? rec.sourceSessionId : undefined,
+		pinned: rec.pinned === true,
+		notes: typeof rec.notes === 'string' && rec.notes ? rec.notes : undefined,
+		captureCount: count(rec.captureCount) || undefined,
 	};
+}
+
+function parseMemoryRecipeSlot(item: unknown): IKnoxGuiMemoryRecipeSlot | undefined {
+	const rec = asRecord(item);
+	if (!rec) {
+		return undefined;
+	}
+	const name = String(rec.name ?? '').trim();
+	const kind = String(rec.kind ?? '');
+	if (!name || !kind) {
+		return undefined;
+	}
+	const examples = Array.isArray(rec.examples) ? rec.examples.filter((v): v is string => typeof v === 'string' && Boolean(v)) : undefined;
+	return { name, kind, ...(examples?.length ? { examples } : {}) };
+}
+
+function parseMemoryRecipePrecondition(item: unknown): IKnoxGuiMemoryRecipePrecondition | undefined {
+	const rec = asRecord(item);
+	const kind = rec ? String(rec.kind ?? '').trim() : '';
+	const value = rec ? String(rec.value ?? '').trim() : '';
+	return kind && value ? { kind, value } : undefined;
+}
+
+function parseMemoryRecipeStep(item: unknown): IKnoxGuiMemoryRecipeStep | undefined {
+	const rec = asRecord(item);
+	if (!rec) {
+		return undefined;
+	}
+	const kind = String(rec.kind ?? '').trim();
+	if (!kind) {
+		return undefined;
+	}
+	return {
+		kind,
+		path: typeof rec.path === 'string' && rec.path ? rec.path : undefined,
+		command: typeof rec.command === 'string' && rec.command ? rec.command : undefined,
+	};
+}
+
+function parseSlotValues(value: unknown): Record<string, string> | undefined {
+	const rec = asRecord(value);
+	if (!rec) {
+		return undefined;
+	}
+	const out: Record<string, string> = {};
+	for (const [key, item] of Object.entries(rec)) {
+		if (typeof item === 'string' && item) {
+			out[key] = item;
+		}
+	}
+	return Object.keys(out).length ? out : undefined;
+}
+
+const RECIPE_ID_MARKER = /^recipe_id: ([0-9a-f]{64})$/m;
+
+/** Recipe id carried by a workflow memory's content, if any. */
+export function parseRecipeIdFromMemory(content: string | undefined | null): string | undefined {
+	return content ? RECIPE_ID_MARKER.exec(content)?.[1] : undefined;
+}
+
+export type KnoxRecipeSortBy = 'recent' | 'uses' | 'score';
+
+export function filterAndSortRecipes(
+	recipes: readonly IKnoxGuiMemoryRecipe[],
+	opts: {
+		query?: string;
+		status?: 'all' | IKnoxGuiMemoryRecipe['status'];
+		scope?: 'all' | 'project' | 'global';
+		oracle?: 'all' | string;
+		kind?: 'all' | 'slots' | 'skill';
+		sortBy?: KnoxRecipeSortBy;
+	},
+): IKnoxGuiMemoryRecipe[] {
+	const query = (opts.query ?? '').trim().toLowerCase();
+	const filtered = recipes.filter(recipe => {
+		if (opts.status && opts.status !== 'all' && recipe.status !== opts.status) {
+			return false;
+		}
+		if (opts.scope && opts.scope !== 'all' && recipe.scope !== opts.scope) {
+			return false;
+		}
+		if (opts.oracle && opts.oracle !== 'all' && recipe.oracleKind !== opts.oracle) {
+			return false;
+		}
+		if (opts.kind === 'slots' && !recipe.slots?.length) {
+			return false;
+		}
+		if (opts.kind === 'skill' && recipe.skillEligible !== true) {
+			return false;
+		}
+		if (!query) {
+			return true;
+		}
+		const hay = [
+			recipe.title,
+			recipe.intentText,
+			recipe.intentFingerprint,
+			recipe.notes,
+			...(recipe.steps ?? []).map(step => step.path ?? step.command ?? ''),
+			...(recipe.slots ?? []).map(slot => slot.name),
+		].join(' ').toLowerCase();
+		return hay.includes(query);
+	});
+	const sortBy = opts.sortBy ?? 'recent';
+	const track = (recipe: IKnoxGuiMemoryRecipe) => {
+		const total = recipe.ok + recipe.reverted + recipe.failedVerify;
+		return total <= 0 ? 0 : recipe.ok / total;
+	};
+	return [...filtered].sort((a, b) => {
+		if (sortBy === 'uses') {
+			return b.uses - a.uses || (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '') || a.id.localeCompare(b.id);
+		}
+		if (sortBy === 'score') {
+			return Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || track(b) - track(a) || b.uses - a.uses || a.id.localeCompare(b.id);
+		}
+		return (b.updatedAt ?? b.lastReplayedAt ?? '').localeCompare(a.updatedAt ?? a.lastReplayedAt ?? '') || a.id.localeCompare(b.id);
+	});
+}
+
+export interface IKnoxGuiRecipeFamilyGroup {
+	familyId: string;
+	title: string;
+	distinguishingSlot?: string;
+	recipes: IKnoxGuiMemoryRecipe[];
+}
+
+export function groupRecipesByFamily(recipes: readonly IKnoxGuiMemoryRecipe[]): IKnoxGuiRecipeFamilyGroup[] {
+	const groups = new Map<string, IKnoxGuiMemoryRecipe[]>();
+	for (const recipe of recipes) {
+		const key = recipe.familyId || recipe.id;
+		const list = groups.get(key);
+		if (list) {
+			list.push(recipe);
+		} else {
+			groups.set(key, [recipe]);
+		}
+	}
+	return [...groups.entries()].map(([familyId, members]) => {
+		const distinguishingSlot = distinguishingSlotName(members);
+		return {
+			familyId,
+			title: familyTitle(members, distinguishingSlot),
+			distinguishingSlot,
+			recipes: members,
+		};
+	});
+}
+
+function distinguishingSlotName(members: readonly IKnoxGuiMemoryRecipe[]): string | undefined {
+	const names = new Set(members.flatMap(recipe => (recipe.slots ?? []).map(slot => slot.name)));
+	for (const name of names) {
+		const values = new Set(members.map(recipe => recipe.slotValues?.[name] ?? '').filter(Boolean));
+		if (values.size > 1) {
+			return name;
+		}
+	}
+	return members[0]?.slots?.[0]?.name;
+}
+
+function familyTitle(members: readonly IKnoxGuiMemoryRecipe[], slot?: string): string {
+	const first = members[0];
+	if (!first) {
+		return '';
+	}
+	if (!slot) {
+		return first.title;
+	}
+	const value = first.slotValues?.[slot];
+	if (value && first.title.includes(value)) {
+		return first.title.split(value).join(`{${slot}}`);
+	}
+	return first.title;
 }
 
 export function parseMemoryRecipeCapture(raw: unknown): IKnoxGuiMemoryRecipeCapture | undefined {
@@ -698,19 +892,62 @@ export function parseMemoryRecipeCapture(raw: unknown): IKnoxGuiMemoryRecipeCapt
 	};
 }
 
+export function parseMemoryRecipeMatch(raw: unknown): IKnoxGuiMemoryRecipeMatch | undefined {
+	const rec = asRecord(raw);
+	if (!rec || typeof rec.why !== 'string') {
+		return undefined;
+	}
+	const mode = rec.mode === 'exact' || rec.mode === 'adapt' || rec.mode === 'suggest' || rec.mode === 'generate' ? rec.mode : undefined;
+	if (!mode) {
+		return undefined;
+	}
+	return {
+		mode,
+		why: rec.why,
+		title: typeof rec.title === 'string' ? rec.title : undefined,
+		score: typeof rec.score === 'number' ? rec.score : undefined,
+		replayable: rec.replayable === true,
+		at: typeof rec.at === 'string' ? rec.at : undefined,
+	};
+}
+
 /** Host may still return a bare array from older builds. */
-export function parseMemoryRecipeList(raw: unknown): { recipes: IKnoxGuiMemoryRecipe[]; lastCapture?: IKnoxGuiMemoryRecipeCapture } {
+export function parseMemoryRecipeList(raw: unknown): {
+	recipes: IKnoxGuiMemoryRecipe[];
+	lastCapture?: IKnoxGuiMemoryRecipeCapture;
+	lastCaptures?: IKnoxGuiMemoryRecipeCapture[];
+	lastMatch?: IKnoxGuiMemoryRecipeMatch;
+} {
 	if (Array.isArray(raw)) {
 		return { recipes: raw.map(parseMemoryRecipe).filter((recipe): recipe is IKnoxGuiMemoryRecipe => Boolean(recipe)) };
 	}
 	const rec = asRecord(raw);
 	const rows = Array.isArray(rec?.recipes) ? rec.recipes : [];
+	const lastCapture = parseMemoryRecipeCapture(rec?.lastCapture);
+	const lastCaptures = Array.isArray(rec?.lastCaptures)
+		? rec.lastCaptures.map(parseMemoryRecipeCapture).filter((cap): cap is IKnoxGuiMemoryRecipeCapture => Boolean(cap))
+		: undefined;
 	return {
 		recipes: rows.map(parseMemoryRecipe).filter((recipe): recipe is IKnoxGuiMemoryRecipe => Boolean(recipe)),
-		lastCapture: parseMemoryRecipeCapture(rec?.lastCapture),
+		lastCapture,
+		lastCaptures,
+		lastMatch: parseMemoryRecipeMatch(rec?.lastMatch),
 	};
 }
 
+/** i18n key + params for the Recipes tab last-match banner. */
+export function memoryRecipeMatchNotice(match: IKnoxGuiMemoryRecipeMatch): { key: string; params?: { title: string; percent: string } } {
+	if (match.replayable && (match.mode === 'exact' || match.mode === 'adapt')) {
+		return { key: 'memoryRecipeMatchReused', params: { title: match.title || '', percent: '' } };
+	}
+	if (match.title && !match.replayable) {
+		const percent = typeof match.score === 'number' ? String(Math.round(match.score * 100)) : '';
+		return { key: 'memoryRecipeMatchNearMiss', params: { title: match.title, percent } };
+	}
+	return { key: 'memoryRecipeMatchNone' };
+}
+
+/** Status moves follow RecipeStore. Preview/Replay are verified-only (T5). Verify/Restore/Promote (T13). */
 export type KnoxMemoryRecipeActions = {
 	quarantine: boolean;
 	retire: boolean;
@@ -719,10 +956,11 @@ export type KnoxMemoryRecipeActions = {
 	verify: boolean;
 	restore: boolean;
 	promoteSkill: boolean;
+	promoteScope: boolean;
+	demoteScope: boolean;
 };
 
-/** Status moves follow RecipeStore. Preview/Replay are verified-only (T5). Verify/Restore/Promote (T13). */
-export function memoryRecipeActions(recipe: Pick<IKnoxGuiMemoryRecipe, 'status' | 'oracleKind' | 'skillEligible'>): KnoxMemoryRecipeActions {
+export function memoryRecipeActions(recipe: Pick<IKnoxGuiMemoryRecipe, 'status' | 'oracleKind' | 'skillEligible' | 'scope' | 'preconditions'>): KnoxMemoryRecipeActions {
 	const verified = recipe.status === 'verified';
 	return {
 		quarantine: recipe.status === 'candidate' || verified,
@@ -732,6 +970,8 @@ export function memoryRecipeActions(recipe: Pick<IKnoxGuiMemoryRecipe, 'status' 
 		verify: recipe.status === 'candidate' && Boolean(recipe.oracleKind),
 		restore: recipe.status === 'quarantined',
 		promoteSkill: verified && recipe.skillEligible === true,
+		promoteScope: verified && recipe.scope !== 'global' && Boolean(recipe.preconditions?.length),
+		demoteScope: recipe.scope === 'global',
 	};
 }
 

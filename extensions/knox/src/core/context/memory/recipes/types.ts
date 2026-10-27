@@ -8,6 +8,8 @@ export type RecipeStepKind = "write_file" | "delete_file" | "command";
 export interface RecipeSlot {
   name: string;
   kind: "identifier" | "path" | "package" | "text";
+  /** Example values seen across variants (redacted, `isSafeSlotValue`-gated). */
+  examples?: string[];
 }
 
 export interface RecipePrecondition {
@@ -40,8 +42,13 @@ export interface RecipeStats {
 }
 
 export interface Recipe {
-  /** sha256 of the canonical form (see `canonicalRecipeId`). */
+  /** sha256 of the canonical form (see `canonicalRecipeId`). Snapshot identity (includes blob hashes). */
   id: string;
+  /**
+   * Family identity: project + slotted fingerprint + slot schema + path templates.
+   * Does not include blob hashes. Empty on rows captured before families existed.
+   */
+  familyId?: string;
   projectId: string;
   scope: RecipeScope;
   status: RecipeStatus;
@@ -49,6 +56,8 @@ export interface Recipe {
   intentText: string;
   intentFingerprint: string;
   slots: RecipeSlot[];
+  /** This variant's captured slot values (`Button`, `src/a.ts`). */
+  slotValues?: Record<string, string>;
   preconditions: RecipePrecondition[];
   steps: RecipeStep[];
   /** Distinct checkpoint ids referenced by steps (derived). */
@@ -61,6 +70,10 @@ export interface Recipe {
   userAcceptedAt?: string;
   sourceSessionId?: string;
   memoryId?: number;
+  /** User pin: matcher ranks this family first among similar hits. */
+  pinned?: boolean;
+  /** Free-text note (redacted). */
+  notes?: string;
   createdAt: string;
   updatedAt: string;
   lastReplayedAt?: string;
@@ -72,7 +85,9 @@ export interface NewRecipeInput {
   title?: string;
   intentText?: string;
   intentFingerprint: string;
+  familyId?: string;
   slots?: RecipeSlot[];
+  slotValues?: Record<string, string>;
   preconditions?: RecipePrecondition[];
   steps: RecipeStep[];
   oracle?: RecipeOracle;
@@ -84,5 +99,6 @@ export interface RecipeListFilter {
   projectId?: string;
   status?: RecipeStatus | RecipeStatus[];
   intentFingerprint?: string;
+  familyId?: string;
   limit?: number;
 }

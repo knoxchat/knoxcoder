@@ -10,7 +10,7 @@ import { applyBrainPragmas } from "../brain/store/dbSafety";
 import { createTables } from "../brain/store/schema";
 import { RecipeStore } from "./RecipeStore";
 import { matchRecipes } from "./RecipeMatcher";
-import { enforceRecipeBudget, planEviction, runRecipeMaintenance } from "./budget";
+import { enforceRecipeBudget, MAX_FAMILY_VARIANTS, planEviction, planFamilyVariantEviction, runRecipeMaintenance } from "./budget";
 import { intentFingerprint } from "./intentFingerprint";
 import type { NewRecipeInput, Recipe } from "./types";
 
@@ -78,6 +78,14 @@ describe("MC-53 global recipes", () => {
     await store.demoteToProject(a.id);
     expect((await store.listVisibleTo("B")).map((r) => r.id)).toEqual([b.id]);
   });
+
+  it("listVisibleTo filters in SQL so a busy foreign project cannot hide this one (P7.9)", async () => {
+    const local = await verified(input("B", 1));
+    for (let n = 2; n <= 6; n++) await verified(input("A", n));
+    const visible = await store.listVisibleTo("B", { limit: 2 });
+    expect(visible.map((r) => r.id)).toContain(local.id);
+    expect(visible.every((r) => r.projectId === "B" || r.scope === "global")).toBe(true);
+  });
 });
 
 describe("MC-54 growth budget", () => {
@@ -120,6 +128,33 @@ describe("MC-54 growth budget", () => {
     const { purged } = await runRecipeMaintenance(store, size);
     expect(purged).toBe(1);
     expect(await store.get(stale.id)).toBeNull();
+  });
+
+  it("a family of 20 variants keeps only N best and frees the extra pins (P7.10)", async () => {
+    const familyId = "fam-cap";
+    const created: Recipe[] = [];
+    for (let n = 1; n <= 20; n++) {
+      const rec = await verified(
+        input("A", n, {
+          familyId,
+          intentFingerprint: "create component $name",
+          steps: [{ kind: "write_file", path: `src/V${n}.tsx`, blobHash: `blob${n}`, checkpointId: "c" }],
+        }),
+      );
+      await store.setFamily(rec.id, { familyId, slots: [{ name: "componentName", kind: "identifier" }], slotValues: { componentName: `V${n}` } });
+      created.push((await store.get(rec.id))!);
+    }
+    await store.recordReplay(created[0].id, "ok");
+    await store.recordReplay(created[0].id, "ok");
+    const drop = planFamilyVariantEviction(await store.list({ familyId, status: ["verified"] }), MAX_FAMILY_VARIANTS);
+    expect(drop).toHaveLength(20 - MAX_FAMILY_VARIANTS);
+    expect(drop).not.toContain(created[0].id);
+    const { evicted } = await runRecipeMaintenance(store, size);
+    expect(evicted).toEqual(expect.arrayContaining(drop));
+    const live = await store.list({ familyId, status: ["verified"] });
+    expect(live).toHaveLength(MAX_FAMILY_VARIANTS);
+    expect(live.map((r) => r.id)).toContain(created[0].id);
+    expect((await store.pinnedBlobRefCounts()).size).toBe(MAX_FAMILY_VARIANTS);
   });
 
   it("counts a shared blob once", async () => {

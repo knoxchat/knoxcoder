@@ -8,8 +8,7 @@
 import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
-import type { KnoxGuiSvgIcon } from '../../knoxGuiIcons.js';
-import { appendKnoxGuiSvg } from '../../knoxGuiIcons.js';
+import { appendKnoxGuiSvg, type KnoxGuiSvgIcon } from '../../knoxGuiIcons.js';
 import {
 	checkpointChartTickInterval,
 	checkpointChartYTicks,
@@ -126,11 +125,21 @@ export function renderCheckpointDashboard(widget: KnoxGuiWidget, body: HTMLEleme
 		dashCard(widget, cards, t(state, 'checkpointDashboard.avgChanges'), summary.avgChangesPerSession.toFixed(1), 'trending-up');
 		dashCard(widget, cards, t(state, 'checkpointDashboard.totalRollbacks'), String(summary.totalRollbacks), 'activity');
 		const recipe = data.recipeMetrics;
-		if (recipe && (recipe.attempts > 0 || recipe.reverted > 0)) {
+		if (recipe && (recipe.attempts > 0 || recipe.reverted > 0 || (recipe.skips ?? 0) > 0 || (recipe.projectCount ?? 0) > 0 || (recipe.globalCount ?? 0) > 0)) {
 			const reuse = DOM.append(section, DOM.$('.knox-gui-dash-cards.is-three', { 'data-testid': 'checkpoint-dashboard-recipes' }));
 			dashCard(widget, reuse, t(state, 'checkpointDashboard.recipeTokensSaved'), recipe.tokensSaved.toLocaleString(), 'zap', t(state, 'checkpointDashboard.recipeTokensSavedHint'));
 			dashCard(widget, reuse, t(state, 'checkpointDashboard.recipeCallsAvoided'), String(recipe.llmCallsAvoided), 'bot', t(state, 'checkpointDashboard.recipeReplays', { count: recipe.attempts }));
 			dashCard(widget, reuse, t(state, 'checkpointDashboard.recipeWrongApply'), `${(recipe.wrongApplyRate * 100).toFixed(1)}%`, 'activity', t(state, 'checkpointDashboard.recipeWrongApplyHint', { failed: recipe.failedVerify, reverted: recipe.reverted }));
+			if ((recipe.slotReplays ?? 0) > 0 || (recipe.nearMisses ?? 0) > 0 || (recipe.skips ?? 0) > 0) {
+				const extra = DOM.append(section, DOM.$('.knox-gui-dash-cards.is-three', { 'data-testid': 'checkpoint-dashboard-recipe-inspector' }));
+				dashCard(widget, extra, t(state, 'checkpointDashboard.recipeSlotReplays'), String(recipe.slotReplays ?? 0), 'zap');
+				dashCard(widget, extra, t(state, 'checkpointDashboard.recipeNearMisses'), String(recipe.nearMisses ?? 0), 'activity');
+				dashCard(widget, extra, t(state, 'checkpointDashboard.recipeSkips'), String(recipe.skips ?? 0), 'bot');
+			}
+			if ((recipe.projectCount ?? 0) > 0 || (recipe.globalCount ?? 0) > 0) {
+				const mix = DOM.append(section, DOM.$('p.knox-gui-cp-muted', { 'data-testid': 'checkpoint-dashboard-recipe-scope' }));
+				mix.textContent = t(state, 'checkpointDashboard.recipeScopeMix', { project: recipe.projectCount ?? 0, global: recipe.globalCount ?? 0 });
+			}
 		}
 		const list = data.aiSessionMetrics.length ? DOM.append(section, DOM.$('.knox-gui-dash-list.is-capped')) : section;
 		for (const session of data.aiSessionMetrics.slice(0, 5)) {

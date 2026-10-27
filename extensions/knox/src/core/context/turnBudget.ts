@@ -3,7 +3,7 @@
  *
  * Priority, high to low: pinned memory → task plan → last oracle / restore
  * → turn context → codebase/rust/serial cards → retrieved memory → skill
- * names → recipe hint → hook context.
+ * names → recipe stub (protected) → recipe hint → hook context.
  *
  * Override with `KNOX_TURN_INJECT_CAP` (minimum 500).
  */
@@ -26,6 +26,7 @@ export type TurnInjectKind =
   | "cards"
   | "retrieved_memory"
   | "skill"
+  | "recipe_stub"
   | "recipe"
   | "hooks";
 
@@ -42,11 +43,12 @@ const PRIORITY: Record<TurnInjectKind, number> = {
   cards: 4,
   retrieved_memory: 5,
   skill: 6,
-  recipe: 7,
-  hooks: 8,
+  recipe_stub: 7,
+  recipe: 8,
+  hooks: 9,
 };
 
-const PROTECTED_KINDS = new Set<TurnInjectKind>(["pinned_memory", "plan"]);
+const PROTECTED_KINDS = new Set<TurnInjectKind>(["pinned_memory", "plan", "recipe_stub"]);
 
 export function getTurnInjectCap(): number {
   const raw = Number(process.env.KNOX_TURN_INJECT_CAP);
@@ -195,7 +197,10 @@ export function classifyTurnInjectText(text: string): TurnInjectKind {
   ) {
     return "skill";
   }
-  if (/recipe/i.test(trimmed) && /hint|replay|adapt/i.test(trimmed)) {
+  if (/<verified_recipe_stub\b/i.test(trimmed)) {
+    return "recipe_stub";
+  }
+  if (/<verified_recipe\b/i.test(trimmed) || (/recipe/i.test(trimmed) && /hint|replay|adapt/i.test(trimmed))) {
     return "recipe";
   }
   if (

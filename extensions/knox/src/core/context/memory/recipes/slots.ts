@@ -9,7 +9,8 @@
  * otherwise it is just wording, not something replay would need to fill.
  */
 
-import type { RecipeSlot } from "./types.js";
+import { isSafeRelPath } from "./preconditions.js";
+import type { Recipe, RecipeSlot, RecipeStep } from "./types.js";
 
 export interface SlotRun {
   intentText: string;
@@ -50,11 +51,29 @@ export function isSafeSlotValue(value: string): boolean {
   return /^[A-Za-z0-9_@][A-Za-z0-9_@./-]*$/.test(value);
 }
 
+export interface SlotFillExtra {
+  /** Open editors, @-mentioned files, recently edited paths. */
+  paths?: readonly string[];
+  /** Selection text and basenames of focused files. */
+  identifiers?: readonly string[];
+  packages?: readonly string[];
+}
+
+export interface FillSlotsOptions {
+  extra?: SlotFillExtra;
+  /** Prefill when the message has no candidate (shown on the ask card). */
+  defaults?: Record<string, string>;
+}
+
 export interface SlotFill {
-  /** Slot name → value taken from the message. */
+  /** Slot name → value taken from the message, extras, or defaults. */
   values: Record<string, string>;
   /** Slots that still need a value; exact replay is refused while this is > 0. */
   unfilled: number;
+  /** How many values came from the chat message itself. */
+  fromMessage: number;
+  /** Values inferred from extras / defaults (ask before applying). */
+  guessed: Record<string, string>;
 }
 
 const IDENTIFIER_STOPWORDS = new Set([
@@ -107,6 +126,8 @@ function candidatesOfKind(text: string, kind: RecipeSlot["kind"]): string[] {
       continue;
     }
     if (kind === "package") {
+      const word = value.toLowerCase();
+      if (PACKAGE_KEYWORDS.has(word)) continue;
       const neighbours = [tokens[i - 1], tokens[i + 1]].filter((w): w is string => !!w).map((w) => w.toLowerCase());
       if (value.includes("@") || neighbours.some((w) => PACKAGE_KEYWORDS.has(w))) uniquePush(out, seen, value);
       continue;
@@ -116,44 +137,62 @@ function candidatesOfKind(text: string, kind: RecipeSlot["kind"]): string[] {
   return out;
 }
 
+/** Candidates of this kind in `text` (paths, identifiers, packages). */
+export function slotCandidates(text: string, kind: RecipeSlot["kind"]): string[] {
+  return candidatesOfKind(text, kind);
+}
+
+function extraOfKind(extra: SlotFillExtra | undefined, kind: RecipeSlot["kind"]): string[] {
+  if (!extra) return [];
+  if (kind === "path") return [...(extra.paths ?? [])];
+  if (kind === "package") return [...(extra.packages ?? [])];
+  const names = [...(extra.identifiers ?? [])];
+  for (const p of extra.paths ?? []) {
+    const base = p.split("/").pop()?.replace(/\.[A-Za-z0-9]{1,8}$/, "");
+    if (base) names.push(base);
+  }
+  return names;
+}
+
 /**
- * Fill recipe slots from the user's message (MC-32). Exact replay is allowed
- * only when every slot can be filled with a value that also appears in the
- * captured intent (same path/identifier). A different path still refuses exact.
+ * Fill recipe slots from the new message (P1.5). A different path / name is
+ * the point of parameterized exact: values need not appear in the captured
+ * intent. Each value must be `isSafeSlotValue`. Unfilled slots refuse exact.
  */
 export function fillSlotsFromMessage(
   slots: readonly RecipeSlot[],
   message: string,
-  originalIntent = "",
+  opts: FillSlotsOptions | string = {},
 ): SlotFill {
+  const options: FillSlotsOptions = typeof opts === "string" ? {} : opts;
   const values: Record<string, string> = {};
-  if (!slots.length) return { values, unfilled: 0 };
+  const guessed: Record<string, string> = {};
+  if (!slots.length) return { values, unfilled: 0, fromMessage: 0, guessed };
   const used = new Set<string>();
-  const originalByKind = new Map<RecipeSlot["kind"], string[]>();
-  if (originalIntent) {
-    for (const kind of ["identifier", "path", "package", "text"] as const) {
-      originalByKind.set(
-        kind,
-        candidatesOfKind(originalIntent, kind).map((v) => v.toLowerCase()),
-      );
-    }
-  }
+  const text = message.replace(/(^|[\s])@/g, "$1");
   let unfilled = 0;
+  let fromMessage = 0;
   for (const slot of slots) {
-    const found = candidatesOfKind(message, slot.kind).find((value) => {
-      const key = value.toLowerCase();
-      if (used.has(key)) return false;
-      if (!originalIntent) return true;
-      return (originalByKind.get(slot.kind) ?? []).includes(key);
-    });
+    const found = candidatesOfKind(text, slot.kind).find((value) => !used.has(value.toLowerCase()));
     if (found) {
       used.add(found.toLowerCase());
       values[slot.name] = found;
+      fromMessage++;
+      continue;
+    }
+    const extraFound = extraOfKind(options.extra, slot.kind).find(
+      (value) => isSafeSlotValue(value) && !used.has(value.toLowerCase()),
+    );
+    const fallback = extraFound ?? options.defaults?.[slot.name];
+    if (fallback && isSafeSlotValue(fallback) && !used.has(fallback.toLowerCase())) {
+      used.add(fallback.toLowerCase());
+      values[slot.name] = fallback;
+      guessed[slot.name] = fallback;
     } else {
       unfilled++;
     }
   }
-  return { values, unfilled };
+  return { values, unfilled, fromMessage, guessed };
 }
 
 /** Longest-common-subsequence diff over lowercased tokens: returns the mismatched gaps. */
@@ -251,4 +290,107 @@ export function extractSlots(runA: SlotRun, runB: SlotRun): SlotPair[] {
     }
   }
   return out;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Identifier / package tokens only: do not replace a prefix of a longer name. */
+function replaceToken(text: string, from: string, to: string, kind: RecipeSlot["kind"]): string {
+  if (!from || from === to) return text;
+  if (kind === "path") return text.split(from).join(to);
+  return text.replace(new RegExp(`(?<![A-Za-z0-9_$@])${escapeRegExp(from)}(?![A-Za-z0-9_])`, "g"), to);
+}
+
+function capturedFrom(recipe: Recipe, slot: RecipeSlot, haystack: string): string | undefined {
+  const owned = recipe.slotValues?.[slot.name];
+  if (owned && haystack.includes(owned)) return owned;
+  for (const ex of slot.examples ?? []) {
+    if (haystack.includes(ex)) return ex;
+  }
+  return owned;
+}
+
+export type ApplySlotsResult =
+  | { ok: true; recipe: Recipe; merged: Map<string, string>; values: Record<string, string> }
+  | { ok: false; reason: string };
+
+/**
+ * Substitute filled slot values into step paths and file text, then hand the
+ * in-memory result to `replayExact({ merged })`. Refuses traversal, absolute
+ * paths, and shell-bearing values.
+ */
+export function applySlots(
+  recipe: Recipe,
+  values: Record<string, string>,
+  contents: ReadonlyMap<string, string>,
+): ApplySlotsResult {
+  if (recipe.slots.length === 0) {
+    return { ok: true, recipe, merged: new Map(contents), values: {} };
+  }
+  for (const [name, value] of Object.entries(values)) {
+    if (!recipe.slots.some((s) => s.name === name)) continue;
+    if (!isSafeSlotValue(value)) return { ok: false, reason: `unsafe slot value for ${name}` };
+  }
+  const missing = recipe.slots.filter((s) => !values[s.name]);
+  if (missing.length) return { ok: false, reason: `unfilled slots: ${missing.map((s) => s.name).join(", ")}` };
+
+  const haystack = [
+    ...recipe.steps.map((s) => s.path ?? s.command ?? ""),
+    ...contents.values(),
+    recipe.intentText,
+  ].join("\n");
+  const replacements: { name: string; kind: RecipeSlot["kind"]; from: string; to: string }[] = [];
+  for (const slot of recipe.slots) {
+    const to = values[slot.name];
+    const from = capturedFrom(recipe, slot, haystack);
+    if (!from) return { ok: false, reason: `no captured value for slot ${slot.name}` };
+    if (!isSafeSlotValue(from) || !isSafeSlotValue(to)) {
+      return { ok: false, reason: `unsafe slot value for ${slot.name}` };
+    }
+    replacements.push({ name: slot.name, kind: slot.kind, from, to });
+  }
+  replacements.sort((a, b) => b.from.length - a.from.length);
+
+  const identical = replacements.every((r) => r.from === r.to);
+  if (identical) return { ok: true, recipe, merged: new Map(contents), values };
+
+  const steps: RecipeStep[] = [];
+  const merged = new Map<string, string>();
+  for (const step of recipe.steps) {
+    if (step.kind === "command") {
+      steps.push(step);
+      continue;
+    }
+    let path = step.path ?? "";
+    for (const r of replacements) path = path.split(r.from).join(r.to);
+    if (!isSafeRelPath(path)) return { ok: false, reason: `substituted path is not inside the workspace: ${path}` };
+    const next: RecipeStep = { ...step, path };
+    if (path !== step.path) {
+      delete next.baseBlobHash;
+    }
+    steps.push(next);
+    const original = step.path ? contents.get(step.path) : undefined;
+    if (step.kind === "write_file") {
+      if (original === undefined) return { ok: false, reason: `no contents for ${step.path}` };
+      if (original.includes("\0")) return { ok: false, reason: `binary file cannot be slot-substituted: ${step.path}` };
+      let text = original;
+      for (const r of replacements) text = replaceToken(text, r.from, r.to, r.kind);
+      merged.set(path, text);
+    }
+  }
+
+  const preconditions = recipe.preconditions.map((p) => {
+    let value = p.value;
+    for (const r of replacements) value = value.split(r.from).join(r.to);
+    return { ...p, value };
+  });
+
+  return {
+    ok: true,
+    recipe: { ...recipe, steps, preconditions },
+    merged,
+    values,
+  };
 }

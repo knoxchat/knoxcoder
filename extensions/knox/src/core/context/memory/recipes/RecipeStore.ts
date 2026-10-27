@@ -11,6 +11,12 @@ import { createHash } from "crypto";
 
 import { redactSecrets } from "../../../util/redactSecrets.js";
 import type { DatabaseConnection } from "../../../util/refreshIndex.js";
+import {
+  mergeUserPreconditions,
+  sanitizeRecipeNotes,
+  sanitizeRecipeTitle,
+  sanitizeUserSlots,
+} from "./inspector.js";
 import type {
   NewRecipeInput,
   Recipe,
@@ -145,7 +151,9 @@ function rowToRecipe(row: any, stepRows: any[]): Recipe {
     title: row.title,
     intentText: row.intent_text,
     intentFingerprint: row.intent_fingerprint,
+    ...(row.family_id ? { familyId: row.family_id as string } : {}),
     slots: parseJson<RecipeSlot[]>(row.slots, []),
+    slotValues: parseJson<Record<string, string>>(row.slot_values, {}),
     preconditions: parseJson<RecipePrecondition[]>(row.preconditions, []),
     steps,
     sourceCheckpointIds,
@@ -160,6 +168,8 @@ function rowToRecipe(row: any, stepRows: any[]): Recipe {
     ...(row.user_accepted_at ? { userAcceptedAt: row.user_accepted_at } : {}),
     ...(row.source_session_id ? { sourceSessionId: row.source_session_id } : {}),
     ...(row.memory_id != null ? { memoryId: row.memory_id } : {}),
+    pinned: Number(row.pinned) === 1,
+    notes: typeof row.notes === "string" ? row.notes : "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.last_replayed_at ? { lastReplayedAt: row.last_replayed_at } : {}),
@@ -194,9 +204,9 @@ export class RecipeStore {
     try {
       const res = await this.db.run(
         `INSERT OR IGNORE INTO brain_recipes
-           (id, project_id, scope, status, title, intent_text, intent_fingerprint, slots, preconditions,
+           (id, project_id, scope, status, title, intent_text, intent_fingerprint, family_id, slots, slot_values, preconditions,
             oracle_kind, oracle_command, oracle_passed_at, source_session_id, memory_id, created_at, updated_at)
-         VALUES (?, ?, ?, 'candidate', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, 'candidate', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           safe.projectId ?? "",
@@ -204,7 +214,9 @@ export class RecipeStore {
           safe.title,
           safe.intentText,
           safe.intentFingerprint,
+          safe.familyId ?? "",
           JSON.stringify(safe.slots ?? []),
+          JSON.stringify(safe.slotValues ?? {}),
           JSON.stringify(safe.preconditions ?? []),
           safe.oracle?.kind ?? "",
           redactSecrets(safe.oracle?.command ?? ""),
@@ -244,24 +256,7 @@ export class RecipeStore {
     return rowToRecipe(row, steps);
   }
 
-  async list(filter: RecipeListFilter = {}): Promise<Recipe[]> {
-    const where: string[] = [];
-    const params: unknown[] = [];
-    if (filter.projectId !== undefined) {
-      where.push("project_id = ?");
-      params.push(filter.projectId);
-    }
-    if (filter.intentFingerprint !== undefined) {
-      where.push("intent_fingerprint = ?");
-      params.push(filter.intentFingerprint);
-    }
-    if (filter.status !== undefined) {
-      const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
-      if (statuses.length === 0) return [];
-      where.push(`status IN (${statuses.map(() => "?").join(", ")})`);
-      params.push(...statuses);
-    }
-    const limit = Math.max(1, Math.min(filter.limit ?? 200, 1000));
+  private async query(where: string[], params: unknown[], limit: number): Promise<Recipe[]> {
     const rows = await this.db.all(
       `SELECT * FROM brain_recipes ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
        ORDER BY updated_at DESC, id LIMIT ${limit}`,
@@ -281,6 +276,37 @@ export class RecipeStore {
       else byRecipe.set(s.recipe_id, [s]);
     }
     return rows.map((row) => rowToRecipe(row, byRecipe.get(row.id) ?? []));
+  }
+
+  private listWhere(filter: RecipeListFilter): { where: string[]; params: unknown[] } | null {
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (filter.projectId !== undefined) {
+      where.push("project_id = ?");
+      params.push(filter.projectId);
+    }
+    if (filter.intentFingerprint !== undefined) {
+      where.push("intent_fingerprint = ?");
+      params.push(filter.intentFingerprint);
+    }
+    if (filter.familyId !== undefined) {
+      where.push("family_id = ?");
+      params.push(filter.familyId);
+    }
+    if (filter.status !== undefined) {
+      const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
+      if (statuses.length === 0) return null;
+      where.push(`status IN (${statuses.map(() => "?").join(", ")})`);
+      params.push(...statuses);
+    }
+    return { where, params };
+  }
+
+  async list(filter: RecipeListFilter = {}): Promise<Recipe[]> {
+    const parsed = this.listWhere(filter);
+    if (!parsed) return [];
+    const limit = Math.max(1, Math.min(filter.limit ?? 200, 1000));
+    return this.query(parsed.where, parsed.params, limit);
   }
 
   /**
@@ -365,7 +391,16 @@ export class RecipeStore {
    * Successful captures of this recipe's intent in its project, across live
    * recipes that carry an oracle pass. Quarantined/retired work is not evidence.
    */
-  async countIntentSuccesses(recipe: Pick<Recipe, "projectId" | "intentFingerprint">): Promise<number> {
+  async countIntentSuccesses(recipe: Pick<Recipe, "projectId" | "intentFingerprint" | "familyId">): Promise<number> {
+    if (recipe.familyId) {
+      const byFamily = await this.db.get<{ n: number | null }>(
+        `SELECT SUM(capture_count) AS n FROM brain_recipes
+         WHERE project_id = ? AND family_id = ? AND family_id != '' AND status IN ('candidate', 'verified')
+           AND oracle_kind != '' AND oracle_passed_at IS NOT NULL`,
+        [recipe.projectId, recipe.familyId],
+      );
+      if (byFamily?.n) return byFamily.n;
+    }
     const row = await this.db.get<{ n: number | null }>(
       `SELECT SUM(capture_count) AS n FROM brain_recipes
        WHERE project_id = ? AND intent_fingerprint = ? AND status IN ('candidate', 'verified')
@@ -373,6 +408,32 @@ export class RecipeStore {
       [recipe.projectId, recipe.intentFingerprint],
     );
     return row?.n ?? 0;
+  }
+
+  /**
+   * Attach a recipe to a family and persist slots / captured values. Does not
+   * change `id` (the snapshot hash) or status.
+   */
+  async setFamily(
+    id: string,
+    patch: { familyId: string; slots: RecipeSlot[]; slotValues?: Record<string, string> },
+  ): Promise<Recipe> {
+    const slots = patch.slots.map((s) => ({
+      name: s.name,
+      kind: s.kind,
+      ...(s.examples?.length ? { examples: s.examples.map((v) => redactSecrets(v)) } : {}),
+    }));
+    const slotValues: Record<string, string> = {};
+    for (const [k, v] of Object.entries(patch.slotValues ?? {})) {
+      slotValues[k] = redactSecrets(v);
+    }
+    const res = await this.db.run(
+      `UPDATE brain_recipes SET family_id = ?, slots = ?, slot_values = ?, updated_at = ?
+       WHERE id = ? AND status != 'retired'`,
+      [patch.familyId, JSON.stringify(slots), JSON.stringify(slotValues), new Date().toISOString(), id],
+    );
+    if (!res.changes) throw new Error(`Recipe not found or retired: ${id}`);
+    return (await this.get(id))!;
   }
 
   /** Bump replay counters after a replay finished (used by replay/feedback tasks). */
@@ -424,6 +485,53 @@ export class RecipeStore {
   }
 
   /**
+   * P5 inspector: rename, pin, or attach a redacted note. Does not change identity or status.
+   */
+  async updateInspector(
+    id: string,
+    patch: { title?: string; notes?: string; pinned?: boolean },
+  ): Promise<Recipe> {
+    const current = await this.get(id);
+    if (!current) throw new Error(`Recipe not found: ${id}`);
+    if (current.status === "retired") throw new Error(`Recipe ${id} is retired`);
+    const title = patch.title !== undefined ? sanitizeRecipeTitle(patch.title) : current.title;
+    const notes = patch.notes !== undefined ? sanitizeRecipeNotes(patch.notes) : (current.notes ?? "");
+    const pinned = patch.pinned !== undefined ? (patch.pinned ? 1 : 0) : current.pinned ? 1 : 0;
+    const res = await this.db.run(
+      `UPDATE brain_recipes SET title = ?, notes = ?, pinned = ?, updated_at = ?
+       WHERE id = ? AND status != 'retired'`,
+      [title, notes, pinned, new Date().toISOString(), id],
+    );
+    if (!res.changes) throw new Error(`Recipe not found or retired: ${id}`);
+    return (await this.get(id))!;
+  }
+
+  /**
+   * P5.6: replace slots and user-editable preconditions (`file_exists` / `file_absent` /
+   * `dependency`). Language/framework checks captured at save time are kept.
+   */
+  async updateProcedure(
+    id: string,
+    patch: { slots?: RecipeSlot[]; userPreconditions?: RecipePrecondition[] },
+  ): Promise<Recipe> {
+    const current = await this.get(id);
+    if (!current) throw new Error(`Recipe not found: ${id}`);
+    if (current.status === "retired") throw new Error(`Recipe ${id} is retired`);
+    const slots = patch.slots !== undefined ? sanitizeUserSlots(patch.slots) : current.slots;
+    const preconditions =
+      patch.userPreconditions !== undefined
+        ? mergeUserPreconditions(current.preconditions, patch.userPreconditions)
+        : current.preconditions;
+    const res = await this.db.run(
+      `UPDATE brain_recipes SET slots = ?, preconditions = ?, updated_at = ?
+       WHERE id = ? AND status != 'retired'`,
+      [JSON.stringify(slots), JSON.stringify(preconditions), new Date().toISOString(), id],
+    );
+    if (!res.changes) throw new Error(`Recipe not found or retired: ${id}`);
+    return (await this.get(id))!;
+  }
+
+  /**
    * MC-53: explicit promotion to `global`. Requires the caller to pass `consent: true` (the user
    * said yes), a verified recipe, and at least one precondition so every other project re-checks
    * something before replay. Demotion back to `project` needs no consent.
@@ -449,8 +557,12 @@ export class RecipeStore {
 
   /** Recipes a project may see: its own, plus promoted global ones. Nothing else. */
   async listVisibleTo(projectId: string, filter: Omit<RecipeListFilter, "projectId"> = {}): Promise<Recipe[]> {
-    const all = await this.list({ ...filter, limit: 1000 });
-    return all.filter((r) => r.scope === "global" || r.projectId === projectId);
+    const parsed = this.listWhere(filter);
+    if (!parsed) return [];
+    parsed.where.unshift("(project_id = ? OR scope = 'global')");
+    parsed.params.unshift(projectId);
+    const limit = Math.max(1, Math.min(filter.limit ?? 1000, 1000));
+    return this.query(parsed.where, parsed.params, limit);
   }
 
   /**

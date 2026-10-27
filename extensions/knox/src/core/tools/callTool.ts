@@ -10,6 +10,7 @@ import {
 import { createNewFileImpl } from "./implementations/createNewFile";
 import { editFileImpl } from "./implementations/editFile";
 import { writeFileImpl } from "./implementations/writeFile";
+import { deleteFileImpl } from "./implementations/deleteFile";
 import { applyPatchImpl } from "./implementations/applyPatch";
 import { exactSearchImpl } from "./implementations/exactSearch";
 import { globImpl } from "./implementations/glob";
@@ -32,6 +33,7 @@ import { enhancedSearchImpl, intelligentChainImpl } from "./implementations/enha
 import { skillImpl } from "./implementations/skill";
 import { lspImpl } from "./implementations/lsp";
 import { memoryImpl } from "./implementations/memory";
+import { recipeImpl } from "./implementations/recipe";
 import { generateTestsImpl } from "./implementations/generateTests";
 import { taskImpl } from "./implementations/task";
 import { askUserImpl } from "./implementations/askUser";
@@ -154,6 +156,8 @@ function routeBuiltInTool(
       return editFileImpl(args, extras);
     case BuiltInToolNames.WriteFile:
       return writeFileImpl(args, extras);
+    case BuiltInToolNames.DeleteFile:
+      return deleteFileImpl(args, extras);
     case BuiltInToolNames.ApplyPatch:
       return applyPatchImpl(args, extras);
     case BuiltInToolNames.ExactSearch:
@@ -194,6 +198,8 @@ function routeBuiltInTool(
       return lspImpl(args, extras);
     case BuiltInToolNames.Memory:
       return memoryImpl(args, extras);
+    case BuiltInToolNames.Recipe:
+      return recipeImpl(args, extras);
     case BuiltInToolNames.GenerateTests:
       return generateTestsImpl(args, extras);
     case BuiltInToolNames.Task:

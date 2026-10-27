@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { replayAuditEvent, revertAuditEvent, summarizeRecipeMetrics } from "./metrics";
+import { captureAuditEvent, matchAuditEvent, replayAuditEvent, revertAuditEvent, summarizeRecipeMetrics } from "./metrics";
 import { replayExact, type ReplayPorts } from "./replayer";
 import type { Recipe } from "./types";
 
@@ -45,8 +45,8 @@ describe("recipe metrics (MC-71)", () => {
     const result = await replayExact(recipe(), ports(true));
     const event = replayAuditEvent(result, { mode: "exact", writtenText: [RESULT] })!;
     expect(event.outcome).toBe("success");
-    expect(summarizeRecipeMetrics([event])).toEqual({
-      attempts: 1, applied: 1, failedVerify: 0, reverted: 0, llmCallsAvoided: 1, tokensSaved: 100, wrongApplyRate: 0,
+    expect(summarizeRecipeMetrics([event])).toMatchObject({
+      attempts: 1, applied: 1, failedVerify: 0, reverted: 0, llmCallsAvoided: 1, tokensSaved: 100, wrongApplyRate: 0, slotReplays: 0,
     });
   });
 
@@ -77,5 +77,24 @@ describe("recipe metrics (MC-71)", () => {
   it("ignores unrelated events and an empty log", () => {
     expect(summarizeRecipeMetrics([{ action: "create" }])).toMatchObject({ attempts: 0, wrongApplyRate: 0 });
     expect(summarizeRecipeMetrics([])).toMatchObject({ attempts: 0 });
+  });
+
+  it("counts slot replays, capture skips, and matcher near-misses", () => {
+    const slotted = replayAuditEvent(
+      { status: "applied", recipeId: "a", appliedPaths: ["f"] },
+      { mode: "exact", writtenText: ["x".repeat(40)], slotted: true },
+    )!;
+    const summary = summarizeRecipeMetrics([
+      slotted,
+      captureAuditEvent({ captured: false, reason: "no_mutation" }),
+      captureAuditEvent({ captured: false, reason: "no_oracle" }),
+      captureAuditEvent({ captured: true, recipeId: "a" }),
+      matchAuditEvent({ replayable: false, title: "Create Button", score: 0.62 }),
+      matchAuditEvent({ replayable: true, title: "Create Button", score: 1 }),
+    ]);
+    expect(summary.slotReplays).toBe(1);
+    expect(summary.skips).toBe(2);
+    expect(summary.skipReasons).toEqual({ no_mutation: 1, no_oracle: 1 });
+    expect(summary.nearMisses).toBe(1);
   });
 });

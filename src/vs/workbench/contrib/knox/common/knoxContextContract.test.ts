@@ -16,8 +16,8 @@ function repoFile(...parts: string[]): string {
 suite('Knox context / slash / skills / rules contract (KN-300–307)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('KN-300: default @ providers are file, diff, problems, repo-map, terminal, memory', () => {
-		assert.deepStrictEqual([...DEFAULT_MENTION_PROVIDER_TITLES], ['file', 'diff', 'problems', 'repo-map', 'terminal', 'memory']);
+	test('KN-300: default @ providers are file, diff, problems, repo-map, terminal, memory, recipe', () => {
+		assert.deepStrictEqual([...DEFAULT_MENTION_PROVIDER_TITLES], ['file', 'diff', 'problems', 'repo-map', 'terminal', 'memory', 'recipe']);
 		const defaults = repoFile('extensions/knox/src/core/context/providers/defaultProviders.ts');
 		assert.ok(defaults.includes('"file"'));
 		assert.ok(defaults.includes('"diff"'));
@@ -25,12 +25,14 @@ suite('Knox context / slash / skills / rules contract (KN-300–307)', () => {
 		assert.ok(defaults.includes('"repo-map"'));
 		assert.ok(defaults.includes('"terminal"'));
 		assert.ok(defaults.includes('"memory"'));
+		assert.ok(defaults.includes('"recipe"'));
 		assert.ok(defaults.includes('new FileFolderContextProvider'));
 		assert.ok(defaults.includes('new DiffContextProvider'));
 		assert.ok(defaults.includes('new ProblemsContextProvider'));
 		assert.ok(defaults.includes('new RepoMapContextProvider'));
 		assert.ok(defaults.includes('new TerminalContextProvider'));
 		assert.ok(defaults.includes('new ProjectMemoryContextProvider'));
+		assert.ok(defaults.includes('new RecipeContextProvider'));
 	});
 
 	test('KN-301: core opt-in providers stay in the registry, not defaults', () => {

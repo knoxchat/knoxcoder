@@ -138,6 +138,12 @@ export async function executeToolWithSoulHooks(
   let mutatingBeforeId: string | null = null;
   let workspaceCheckpointId: string | undefined;
 
+  const parsedArgs = parseToolArgs(rawArgs);
+  const recordedCommand =
+    typeof parsedArgs?.command === "string" && parsedArgs.command.trim()
+      ? parsedArgs.command.trim()
+      : undefined;
+
   const emit = (
     kind: SoulEventKind,
     ok: boolean,
@@ -158,7 +164,10 @@ export async function executeToolWithSoulHooks(
       policy: kind === "tool_denied" ? "deny" : undefined,
       summary,
       oracle: verdict,
-      metadata,
+      metadata: {
+        ...(recordedCommand ? { command: recordedCommand } : {}),
+        ...metadata,
+      },
     }).catch(() => 0);
   };
 

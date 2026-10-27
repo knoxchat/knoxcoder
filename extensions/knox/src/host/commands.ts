@@ -314,6 +314,21 @@ async function processDiff(
 
   // Save the file
   await ide.saveFile(newOrCurrentUri);
+
+  if (action === "reject") {
+    const folder = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+    if (folder) {
+      void import("./extension/recipeFeedback")
+        .then(({ recordUserCorrection }) =>
+          recordUserCorrection({
+            kind: "rejected_diff",
+            files: [newOrCurrentUri],
+            text: `rejected diff: ${newOrCurrentUri}`,
+          }),
+        )
+        .catch(() => undefined);
+    }
+  }
 }
 
 function waitForSidebarReady(
@@ -438,6 +453,12 @@ const getCommandsMap: (
   }
 
   verticalDiffManager.onEditAccepted = (fileUri) => {
+    const folder = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+    if (folder) {
+      void import("./extension/recipeList")
+        .then(({ acceptCandidateRecipesForFile }) => acceptCandidateRecipesForFile(folder, fileUri))
+        .catch(() => undefined);
+    }
     const nextEnabled =
       vscode.workspace.getConfiguration("knoxchat").get<boolean>("editAssist.nextEdit") ?? true;
     const state = assistState;

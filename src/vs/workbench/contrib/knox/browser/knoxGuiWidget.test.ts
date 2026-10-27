@@ -2718,7 +2718,20 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const emptyRecipes = widget.root.querySelector('[data-testid="knox-gui-memory-recipes"]');
 		assert.ok(emptyRecipes?.textContent?.includes('Sending the same chat message twice does not create one'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipes-last-capture"]')?.textContent?.includes('did not edit files'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipes-save"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipes-empty"]'));
+
+		store.patch({
+			memoryTab: 'recipes',
+			memoryRecipeCapture: { captured: true, title: 'Add lint', status: 'candidate' },
+		});
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipes-refuse"]'));
+
+		store.patch({
+			memoryTab: 'recipes',
+			memoryRecipeLastMatch: { mode: 'suggest', why: 'similar', title: 'Create Button', score: 0.62, replayable: false },
+		});
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipes-last-match"]')?.textContent?.includes('Create Button'));
 
 		store.patch({
 			memoryTab: 'recipes',
@@ -2743,6 +2756,23 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="memory-recipe-replay-rec2"]'), null);
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-verify-rec3"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-restore-rec4"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipes-search"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-pin-rec1"]'));
+
+		store.patch({
+			memoryTab: 'recipes',
+			memoryRecipes: [
+				{ id: 'fam-a', title: 'Create Button', status: 'verified', scope: 'project', uses: 1, ok: 1, reverted: 0, failedVerify: 0, files: 1, sourceCheckpointIds: [], familyId: 'fam1', slots: [{ name: 'componentName', kind: 'identifier' }], slotValues: { componentName: 'Button' }, intentText: 'create a Button component', preconditions: [{ kind: 'file_exists', value: 'package.json' }] },
+				{ id: 'fam-b', title: 'Create Card', status: 'verified', scope: 'project', uses: 1, ok: 1, reverted: 0, failedVerify: 0, files: 1, sourceCheckpointIds: [], familyId: 'fam1', slots: [{ name: 'componentName', kind: 'identifier' }], slotValues: { componentName: 'Card' } },
+			],
+			memorySelectedRecipeId: 'fam-a',
+			memoryRecipePreview: '1 file(s), +12 -0\n--- src/Button.tsx',
+		});
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-family-fam1"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-detail-fam-a"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-inline-preview"]')?.textContent?.includes('src/Button.tsx'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-promote-scope-fam-a"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-intent-fam-a"]')?.textContent?.includes('create a Button'));
 
 		store.patch({
 			memoryTab: 'settings',
@@ -3670,6 +3700,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const toast = widget.root.querySelector('[data-testid="recipe-capture-toast"]');
 		assert.ok(toast?.textContent?.includes('Add lint script'));
 		assert.ok(widget.root.querySelector('[data-testid="recipe-capture-toast-open"]'));
+		assert.ok(widget.root.querySelector('[data-testid="recipe-capture-toast-refuse"]'));
 		(widget.root.querySelector('[data-testid="recipe-capture-toast-open"]') as HTMLButtonElement).click();
 		await timeout(0);
 		assert.strictEqual(store.state.route, KnoxGuiRoute.Memory);
@@ -3717,6 +3748,49 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="recipe-preview-latency"]')?.textContent);
 		assert.ok(widget.root.querySelector('[data-testid="recipe-preview-apply"]'));
 		assert.ok(widget.root.querySelector('[data-testid="recipe-preview-skip"]'));
+		assert.ok(widget.root.querySelector('[data-testid="recipe-decision-notice"]'));
+	});
+	test('P6 skipped recipe decision is a labelled status card', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			recipeDecision: {
+				mode: 'generate',
+				why: 'no verified recipe matches this task',
+				needsConfirmation: false,
+			},
+		});
+		const banner = widget.root.querySelector('[data-testid="recipe-decision-skipped"]');
+		assert.ok(banner);
+		assert.strictEqual(banner.getAttribute('role'), 'status');
+	});
+	test('P4 ask card lists extra files unchecked and a compose plan', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			recipeDecision: {
+				mode: 'adapt',
+				why: '',
+				needsConfirmation: true,
+				awaitingChoice: true,
+				preview: 'extra',
+				recipe: { id: 'r1', title: 'Create Button', uses: 1, reverts: 0, score: 1 },
+				files: [
+					{ path: 'src/Button.tsx', action: 'modify', included: true },
+					{ path: 'src/Extra.ts', action: 'create', included: false, extra: true },
+				],
+				compose: {
+					why: '2 disjoint',
+					recipes: [
+						{ id: 'r1', title: 'Create Button', paths: ['src/Button.tsx'] },
+						{ id: 'r2', title: 'Add test', paths: ['src/Button.test.tsx'] },
+					],
+				},
+			},
+		});
+		assert.ok(widget.root.querySelector('[data-testid="recipe-compose-plan"]')?.textContent?.includes('Create Button'));
+		assert.ok(widget.root.querySelector('[data-testid="recipe-file-fields"]'));
+		const extra = widget.root.querySelector('[data-testid="recipe-file-include-1"]') as HTMLInputElement | null;
+		assert.ok(extra);
+		assert.strictEqual(extra.checked, false);
 	});
 	test('NP-24 the Memory editor paints no tabs until the saved tab id is read', async () => {
 		const { widget, store } = await mount();

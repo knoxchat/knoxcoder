@@ -51,7 +51,7 @@ function ports(disk: Map<string, string>): PreviewPorts & ReplayPorts & { writes
   };
 }
 
-const match = (r: Recipe) => ({ recipe: r, score: 1, reason: "fingerprint_exact" as const, why: "", fingerprintSimilarity: 1, fusionScore: 1, replayable: true });
+const match = (r: Recipe) => ({ recipe: r, score: 1, reason: "fingerprint_exact" as const, why: "", fingerprintSimilarity: 1, fusionScore: 1, fileOverlap: 0, replayable: true });
 const okPre = { ok: true, failures: [], summary: "" };
 
 describe("previewReplay", () => {
@@ -89,8 +89,9 @@ describe("previewReplay", () => {
     const p = await previewReplay(recipe, pr);
     expect(p.entries[0].action).toBe("conflict");
     expect(driftAction(p)).toBe("adapt");
-    const d = decide({ match: match(recipe), preconditions: okPre, autoReplay: "exact", drifted: p.drifted });
+    const d = decide({ match: match(recipe), preconditions: okPre, autoReplay: "adapt", drifted: p.drifted });
     expect(d.mode).toBe("adapt");
+    expect(d.needsConfirmation).toBe(true);
     expect((await replayExact(recipe, pr)).status).toBe("drifted");
   });
 

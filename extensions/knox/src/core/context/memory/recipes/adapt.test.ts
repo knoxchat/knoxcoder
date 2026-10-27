@@ -75,10 +75,29 @@ describe("planAdapt (MC-32)", () => {
     expect(plan.ok).toBe(true);
   });
 
-  it("refuses paths the recipe did not write", async () => {
+  it("holds extra paths for approval instead of writing them", async () => {
     const reply = `*** Begin Patch\n*** Add File: src/Evil.ts\n+x\n*** End Patch`;
     const plan = await planAdapt(recipe(), "x", ports({ reply }));
-    expect(plan).toMatchObject({ ok: false, outsidePaths: ["src/Evil.ts"] });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.extraFiles).toEqual([{ path: "src/Evil.ts", action: "create", content: "x\n" }]);
+    expect(plan.merged.size).toBe(0);
+    const p = ports({ reply });
+    const res = await replayAdapt(recipe(), "x", p);
+    expect(res.status).toBe("applied");
+    expect(p.written.has("src/Evil.ts")).toBe(false);
+  });
+
+  it("writes extra files only after they are approved", async () => {
+    const reply = `*** Begin Patch\n*** Add File: src/Extra.ts\n+hello\n*** End Patch`;
+    const p = ports({ reply });
+    const plan = await planAdapt(recipe(), "x", p);
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    const { replayAdaptPlan } = await import("./adapt");
+    const res = await replayAdaptPlan(recipe(), plan, p, { approvedExtraPaths: ["src/Extra.ts"] });
+    expect(res.status).toBe("applied");
+    expect(p.written.get("src/Extra.ts")).toBe("hello\n");
   });
 
   it("refuses traversal, deletes and renames", async () => {

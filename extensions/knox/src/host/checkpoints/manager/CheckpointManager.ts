@@ -57,8 +57,8 @@ import { listFileCheckpointHistory as listFileVersions } from './fileHistory';
 import { getPerformanceDashboard as buildPerformanceDashboard } from './dashboard';
 import { inspectStoreHealth as inspectBoundStoreHealth, repairStoreHealth as repairBoundStoreHealth, type StoreRepairOptions } from './storeHealth';
 import { appendAuditEvent as persistAuditEvent, getAuditTrail as readAuditTrail, recordAISessionMetrics as persistAISessionMetrics, recordRestorationEvent as persistRestorationEvent, recordStorageSnapshot as persistStorageSnapshot } from './events';
-import { getBlob, summarizeObjectStore } from '../store/blobStore';
-import { readBlobOptions } from './blobCrypto';
+import { getBlob, putBlob, summarizeObjectStore } from '../store/blobStore';
+import { readBlobOptions, writeBlobOptions } from './blobCrypto';
 import { formatFileSize } from './format';
 import type { CheckpointEngineHost } from './host';
 import {
@@ -702,6 +702,11 @@ export class CheckpointManager implements CheckpointEngineHost {
         } catch {
             return undefined;
         }
+    }
+
+    /** Pin current-file bytes as a checkpoint blob (skill → candidate recipe). */
+    async pinBlobBytes(bytes: Buffer): Promise<string> {
+        return putBlob(this.getStoragePath(), bytes, await writeBlobOptions(this as never));
     }
 
     async reconstructStateAtCheckpoint(checkpointId: string) {

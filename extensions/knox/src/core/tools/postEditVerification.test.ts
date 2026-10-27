@@ -16,6 +16,8 @@ describe("postEditVerification helpers", () => {
     expect(shouldVerifyTool("builtin_create_new_file")).toBe(true);
     expect(shouldVerifyTool("builtin_edit_file")).toBe(true);
     expect(shouldVerifyTool("builtin_write_file")).toBe(true);
+    expect(shouldVerifyTool("builtin_delete_file")).toBe(true);
+    expect(shouldCheckpointTool("builtin_delete_file")).toBe(true);
     expect(shouldVerifyTool("builtin_apply_patch")).toBe(true);
     expect(shouldVerifyTool("builtin_generate_tests")).toBe(true);
     expect(shouldVerifyTool("composite_smart_edit")).toBe(true);
@@ -63,6 +65,10 @@ describe("postEditVerification helpers", () => {
         contents: "full",
       }),
     ).toBe("src/write.ts");
+
+    expect(
+      extractVerifiedFilePath("builtin_delete_file", { filepath: "src/old.ts" }),
+    ).toBeUndefined();
 
     expect(
       extractVerifiedFilePath("builtin_apply_patch", {
@@ -158,5 +164,8 @@ describe("postEditVerification helpers", () => {
     expect(extractMutatingWritePaths("builtin_read_file", { filepath: "x" })).toEqual(
       [],
     );
+    expect(
+      extractMutatingWritePaths("builtin_delete_file", { filepath: "src/old.ts" }),
+    ).toEqual([]);
   });
 });

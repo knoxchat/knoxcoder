@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKnoxGuiRecipeDecision, IKnoxGuiRecipeSettings } from '../../../common/knoxGuiState.js';
-import { knoxGuiRecipeFailureNote, knoxGuiRecipeNeedsChoice, parseRecipeSettings } from '../../../common/knoxGuiRecipe.js';
+import { knoxGuiRecipeFailureNote, knoxGuiRecipeLoopLine, knoxGuiRecipeNeedsChoice, knoxGuiRecipeSlotsReady, parseRecipeSettings, recipeApplyPayload } from '../../../common/knoxGuiRecipe.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 
@@ -14,10 +14,29 @@ interface IReplayReply {
 	reason?: string;
 	appliedPaths: string[];
 	failureContext?: string;
+	whatIfBranch?: string;
 }
 
 /** Answer from the preview card buttons (MC-35). Turn-path uses `recipeChoice`; Recipes-tab Preview/Replay (T5) applies here. */
+function recordSkippedRecipe(controller: KnoxGuiController): void {
+	const decision = controller.store.state.recipeDecision;
+	if (!decision?.recipe) {
+		return;
+	}
+	controller.messenger.post('brain/recordSoulEvent', {
+		sessionId: controller.store.state.sessionId,
+		kind: 'user_correction',
+		files: [],
+		ok: false,
+		summary: `not this: skipped recipe "${decision.recipe.title}"`,
+		recipeId: decision.recipe.id,
+	});
+}
+
 export function answerRecipeChoice(controller: KnoxGuiController, choice: 'apply' | 'skip'): void {
+	if (choice === 'skip') {
+		recordSkippedRecipe(controller);
+	}
 	if (controller.recipeChoice) {
 		controller.recipeChoice(choice);
 		return;
@@ -43,6 +62,7 @@ export function cancelRecipeChoice(controller: KnoxGuiController): void {
 
 interface IPreviewReply {
 	text?: string;
+	entries?: { path: string; action: string; extra?: boolean }[];
 }
 
 function verifiedRecipeRow(controller: KnoxGuiController, recipeId: string) {
@@ -72,6 +92,12 @@ export async function previewMemoryRecipe(controller: KnoxGuiController, recipeI
 				needsConfirmation: true,
 				awaitingChoice: true,
 				preview: preview.text,
+				files: (preview.entries ?? []).map(entry => ({
+					path: entry.path,
+					action: entry.action,
+					included: !entry.extra,
+					extra: entry.extra,
+				})),
 				source: 'tab',
 				recipe: { id: row.id, title: row.title, uses: row.uses, reverts: row.reverted, score: 1 },
 			},
@@ -106,7 +132,7 @@ async function applyTabRecipe(controller: KnoxGuiController): Promise<void> {
 	});
 	let reply: IReplayReply | undefined;
 	try {
-		reply = await controller.messenger.request<IReplayReply | undefined>('knox/recipeReplay', { recipeId });
+		reply = await controller.messenger.request<IReplayReply | undefined>('knox/recipeReplay', { recipeId, ...recipeApplyPayload(decision) });
 	} catch (error) {
 		reply = { status: 'failed_apply', reason: error instanceof Error ? error.message : String(error), appliedPaths: [] };
 	}
@@ -117,6 +143,7 @@ async function applyTabRecipe(controller: KnoxGuiController): Promise<void> {
 			awaitingChoice: false,
 			preview: undefined,
 			undoCheckpointId: reply?.status === 'applied' ? reply.checkpointId : undefined,
+			whatIfBranch: reply?.status === 'applied' ? reply.whatIfBranch : undefined,
 			replay: {
 				status: reply?.status ?? 'failed_apply',
 				appliedPaths: reply?.appliedPaths ?? [],
@@ -140,6 +167,13 @@ function appendToAssistant(controller: KnoxGuiController, text: string): void {
 	}
 }
 
+function stampRecipeLoopLine(controller: KnoxGuiController): void {
+	const line = knoxGuiRecipeLoopLine(controller.store.state.recipeDecision);
+	if (line) {
+		appendToAssistant(controller, line);
+	}
+}
+
 /**
  * After `knox/startTurn`: either the recipe was already applied by the host (autoReplay = exact),
  * or the user is asked first (autoReplay = ask). Returns `done` when the turn is finished
@@ -155,6 +189,10 @@ export async function resolveRecipeDecision(controller: KnoxGuiController): Prom
 
 	if (decision.replay?.status === 'applied') {
 		appendToAssistant(controller, knoxGuiT(language, 'recipeReplayApplied', { title, count: decision.replay.appliedPaths.length }));
+		if (decision.whatIfBranch) {
+			appendToAssistant(controller, knoxGuiT(language, 'recipeWhatIfBranch', { branch: decision.whatIfBranch }));
+		}
+		stampRecipeLoopLine(controller);
 		return 'done';
 	}
 
@@ -169,17 +207,24 @@ export async function resolveRecipeDecision(controller: KnoxGuiController): Prom
 		if (choice === 'skip' || controller.turnAborted) {
 			return 'continue';
 		}
+		if (!knoxGuiRecipeSlotsReady(decision)) {
+			return 'continue';
+		}
 		let reply: IReplayReply | undefined;
 		try {
-			reply = await controller.messenger.request<IReplayReply | undefined>('knox/recipeReplay', { recipeId: decision.recipe!.id });
+			reply = await controller.messenger.request<IReplayReply | undefined>('knox/recipeReplay', { recipeId: decision.recipe!.id, ...recipeApplyPayload(decision) });
 		} catch (error) {
 			reply = { status: 'failed_apply', reason: error instanceof Error ? error.message : String(error), appliedPaths: [] };
 		}
 		if (reply?.status === 'applied') {
 			controller.store.patch({
-				recipeDecision: { ...decision, awaitingChoice: false, preview: undefined, undoCheckpointId: reply.checkpointId, replay: { status: 'applied', appliedPaths: reply.appliedPaths } },
+				recipeDecision: { ...decision, awaitingChoice: false, preview: undefined, undoCheckpointId: reply.checkpointId, whatIfBranch: reply.whatIfBranch, replay: { status: 'applied', appliedPaths: reply.appliedPaths } },
 			});
 			appendToAssistant(controller, knoxGuiT(language, 'recipeReplayApplied', { title, count: reply.appliedPaths.length }));
+			if (reply.whatIfBranch) {
+				appendToAssistant(controller, knoxGuiT(language, 'recipeWhatIfBranch', { branch: reply.whatIfBranch }));
+			}
+			stampRecipeLoopLine(controller);
 			return 'done';
 		}
 		const reason = reply?.reason ?? 'unknown';
@@ -224,6 +269,42 @@ export async function promoteRecipeSkill(controller: KnoxGuiController, scope: '
 }
 
 /** MC-72: current host values; a failed read keeps what the UI has (all off by default). */
+export function setRecipeSlotValue(controller: KnoxGuiController, name: string, value: string): void {
+	const decision = controller.store.state.recipeDecision;
+	if (!decision?.slots?.length) {
+		return;
+	}
+	controller.store.patch({
+		recipeDecision: {
+			...decision,
+			slots: decision.slots.map(slot => slot.name === name ? { ...slot, value, filled: Boolean(value.trim()) } : slot),
+		},
+	});
+}
+
+/** Read slot inputs from the preview card in one patch so typing does not re-render on each keystroke. */
+export function flushRecipeSlotInputs(controller: KnoxGuiController, root: ParentNode): void {
+	const decision = controller.store.state.recipeDecision;
+	if (!decision) {
+		return;
+	}
+	const slots = decision.slots?.map(slot => {
+		const input = root.querySelector(`[data-testid="recipe-slot-input-${slot.name}"]`) as HTMLInputElement | null;
+		if (!input) {
+			return slot;
+		}
+		return { ...slot, value: input.value, filled: Boolean(input.value.trim()) };
+	});
+	const files = decision.files?.map((file, index) => {
+		const input = root.querySelector(`[data-testid="recipe-file-include-${index}"]`) as HTMLInputElement | null;
+		if (!input) {
+			return file;
+		}
+		return { ...file, included: input.checked };
+	});
+	controller.store.patch({ recipeDecision: { ...decision, slots: slots ?? decision.slots, files: files ?? decision.files } });
+}
+
 export async function loadRecipeSettings(controller: KnoxGuiController): Promise<void> {
 	try {
 		controller.store.patch({ recipeSettings: parseRecipeSettings(await controller.messenger.request<unknown>('knox/recipeSettings', undefined)) });

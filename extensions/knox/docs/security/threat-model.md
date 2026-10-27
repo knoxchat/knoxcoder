@@ -138,12 +138,22 @@ Stripe, Slack, npm, Anthropic/OpenAI/OpenRouter, JWT, PEM/OpenSSH keys, DB/Redis
 
 ## Recipe replay
 
-Replay applies saved files and may run saved commands, so it is a code-execution surface (experimental, off by
-default). Mitigations: verified recipes only; writes and commands use the normal tool path (permissions, command
-guard, path boundary, review mode); relative paths only, no traversal; commands that use the network, carry
-secrets, or fail the guard are refused; no delete or binary replay; pre-replay checkpoint and automatic restore when
-the re-run check fails; quarantine on revert; imported recipes arrive as candidates and are never auto-replayed.
-Cross-project recipe ids from the webview are refused (MC-82 / MC-90). Still open: a dedicated security review of replay.
+Replay applies saved files and may run saved commands, so it is a code-execution surface (experimental, **off by
+default**). Dedicated review (P7.7, 2026-10-28) of adapt patches, slot substitution, command steps, global recipes,
+and webview recipe ids:
+
+| Surface | Control |
+| --- | --- |
+| Exact replay | Verified recipes only. Writes go through `callTool` (permissions, command guard, `.knoxignore`, path boundary, review mode). Relative paths only. Pre-replay checkpoint; failed oracle restores it. Quarantine on revert. |
+| Slot substitution | `isSafeSlotValue` refuses `..`, absolute paths, `~`, `$TOKEN` / shell. Substituted paths must pass `isSafeRelPath`. Identifier / path / package tokens only. Parameterized replay always asks. |
+| Adapt patches | One model call; always previewed. Extra files start unchecked and are not written unless approved. Deletes, renames, unsafe paths, and secret files refuse the plan. Forks a `what-if/*` branch. |
+| Command steps | Capture and replay both run `replayableCommandProblem`. Network, secret-bearing, and guard-failing commands never run. Oracle commands get the same gate (MC-82). |
+| Delete / binary / secrets | Deletes go through `builtin_delete_file` (one workspace file, never a directory, never recursive, never a secret file). Binary, NUL, oversized text, `.env` and other secret files never become a recipe. |
+| Global recipes | `promoteToGlobal` needs explicit consent, verified status, and ≥1 precondition. Preconditions are re-checked in *this* workspace. |
+| Webview recipe ids | A project-scope id from the webview is not trusted (MC-82 / MC-90). Host `recipeOutOfHostProject`, list, patch, and replay all refuse a foreign project id. |
+| Import | Bundle and `SKILL.md` imports start as `candidate` and are never auto-replayed. |
+
+Default stays off (`knoxchat.recipes.enabled`, `knoxchat.recipes.autoReplay`). Silent exact auto-apply is never the candidate default; `ask` would be, after live eval shows a low wrong-reuse rate.
 
 ## Accepted risks and open items
 

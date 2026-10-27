@@ -13,7 +13,8 @@ import {
   hasGraphExpandableTokens,
   shouldJoinEntityToMemories,
 } from "./GraphRetrieval.js";
-import { applyOutcomeWeight, isVerifiedByOutcome, loadOutcomes, loadSupersededIds } from "./memoryOutcomes.js";
+import { recipeMemoryIsVerified } from "../recipes/memoryLink.js";
+import { applyOutcomeWeight, loadOutcomes, loadSupersededIds } from "./memoryOutcomes.js";
 import { evaluateRelevanceGate, LEXICAL_SCORE_MIN, resolveQueryEntities, applyMismatchPenalty, isMismatchActive } from "./RelevanceGate.js";
 import { cjkExpandSql } from "./cjkFts.js";
 import { buildFts5Query as buildRetrievalFts5Query, contentWords, FTS5_AND_TERM_CAP } from "./RetrievalQuery.js";
@@ -496,7 +497,7 @@ export class RetrievalFusion {
         requireLexical,
         demoted,
         // MC-50: verified-ness and prior mismatch raise/lower the bar (see RelevanceGate).
-        verified: sem ? isVerifiedByOutcome(outcomes.get(sem.id)) : undefined,
+        verified: sem ? recipeMemoryIsVerified(sem.content, outcomes.get(sem.id)) : undefined,
         mismatchCount: sem?.mismatch_count,
       }).passed;
     });

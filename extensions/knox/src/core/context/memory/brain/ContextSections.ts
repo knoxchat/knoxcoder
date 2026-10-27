@@ -4,6 +4,7 @@ import { LearningEngine } from "./LearningEngine.js";
 import { getBudgetQueryAdjustments, getBudgetRatios, getContextAssemblyLimits, getMemoryConfig, type ModeSettings } from "./memoryConfigAccess.js";
 import { filterSemanticByProjectScope, getProjectSessionIds } from "./projectScope.js";
 import { contentWords } from "./RetrievalQuery.js";
+import { recipeMemoryIsVerified } from "../recipes/memoryLink.js";
 import { evaluateRelevanceGate, isMismatchActive, LEXICAL_SCORE_MIN } from "./RelevanceGate.js";
 import { hasGraphExpandableTokens, isCommonNounEntityName, queryMentionsEntity } from "./GraphRetrieval.js";
 import type { FusionResult } from "./RetrievalFusion.js";
@@ -98,6 +99,7 @@ export class ContextSections {
           keywords: mem.keywords,
           content: mem.content,
           requireLexical,
+          verified: recipeMemoryIsVerified(mem.content),
         });
         return gate.passed;
       });
@@ -175,6 +177,7 @@ export class ContextSections {
           content: mem.content,
           fts5: hit?.scores.fts5,
           trigram: hit?.scores.trigram,
+          verified: recipeMemoryIsVerified(mem.content),
         });
         if (!gate.passed) return true;
       }
@@ -243,6 +246,7 @@ export class ContextSections {
       title: mem.title,
       keywords: mem.keywords,
       content: mem.content,
+      verified: recipeMemoryIsVerified(mem.content),
     });
     return (
       gate.lexicalOverlap.length > 0 ||
@@ -267,6 +271,7 @@ export class ContextSections {
       trigram: hit?.scores.trigram,
       pinned,
       requireLexical,
+      verified: recipeMemoryIsVerified(mem.content),
     });
     const evidence = uniqueEvidence(gate.lexicalOverlap, gate.sharedEntities);
     return {

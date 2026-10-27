@@ -776,7 +776,7 @@ suite('Knox agent host contract (KN-374)', () => {
 		const slash = repoFile('extensions/knox/src/core/commands/slash/index.ts');
 		assert.ok(input.includes('KN-300'));
 		assert.ok(input.includes('KN-304'));
-		assert.ok(input.includes("DEFAULT_MENTION_PROVIDER_TITLES = ['file', 'diff', 'problems', 'repo-map', 'terminal', 'memory']"));
+		assert.ok(input.includes("DEFAULT_MENTION_PROVIDER_TITLES = ['file', 'diff', 'problems', 'repo-map', 'terminal', 'memory', 'recipe']"));
 		assert.ok(input.includes('mergeContextProvidersWithDefaults'));
 		assert.ok(input.includes('mergeSlashCommandsWithBuiltins'));
 		assert.ok(input.includes('resolveComposerSlashCommand'));

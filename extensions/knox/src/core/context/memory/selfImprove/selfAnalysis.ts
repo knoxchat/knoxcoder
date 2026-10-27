@@ -11,10 +11,13 @@ import path from "path";
 import { redactSecrets } from "../../../util/redactSecrets";
 import {
   buildHealthReport,
+  gatherRecipeHealth,
   scanMarkers,
   type CheckpointChange,
   type HealthInputs,
+  type RecipeHealth,
 } from "./healthReport";
+import { loadRecipeHealthFromBrain } from "./recipeHealthLoad";
 import {
   formatTuningReport,
   proposeThresholds,
@@ -41,7 +44,15 @@ export interface SelfAnalysisOptions {
   history?: SelfAnalysisHistory;
   baseline?: { recallAtK: number; precision: number; falseInjectRate: number; tokensMean: number };
   now?: Date;
+  /** Pre-gathered recipe stats. Takes precedence over `brainSqlitePath`. */
+  recipes?: RecipeHealth;
+  /** Live Memory Brain sqlite. Loaded only when `recipes` is omitted. */
+  brainSqlitePath?: string;
+  /** Checkpoint `events.jsonl` for capture-skip / near-miss extras. */
+  auditEventsPath?: string;
 }
+
+export { gatherRecipeHealth, loadRecipeHealthFromBrain };
 
 /** One commit is one "checkpoint" of churn, limited to `prefixes`. */
 export function parseGitLog(output: string, prefixes: readonly string[]): CheckpointChange[] {
@@ -84,7 +95,7 @@ export function buildSelfAnalysisReport(
 }
 
 /** Gathers inputs, writes `<outDir>/<date>-self-improve.md`, returns its path. */
-export function runSelfAnalysis(options: SelfAnalysisOptions): string {
+export async function runSelfAnalysis(options: SelfAnalysisOptions): Promise<string> {
   const now = options.now ?? new Date();
   const prefixes = options.scanDirs.map((d) => d.replace(/\\/g, "/").replace(/\/?$/, "/"));
 
@@ -111,6 +122,12 @@ export function runSelfAnalysis(options: SelfAnalysisOptions): string {
     // optional
   }
 
+  const recipes =
+    options.recipes ??
+    (options.brainSqlitePath
+      ? await loadRecipeHealthFromBrain(options.brainSqlitePath, options.auditEventsPath)
+      : undefined);
+
   const health: HealthInputs = {
     projectName: pkg.name ?? path.basename(options.repoRoot),
     generatedAt: now.toISOString(),
@@ -122,6 +139,7 @@ export function runSelfAnalysis(options: SelfAnalysisOptions): string {
     scannedLines,
     knownIssuesDoc,
     observedIssues: [],
+    ...(recipes ? { recipes } : {}),
   };
 
   fs.mkdirSync(options.outDir, { recursive: true });

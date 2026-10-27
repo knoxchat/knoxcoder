@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { checkPreconditions, derivePreconditions, isSafeRelPath, type PreconditionEnv } from "./preconditions.js";
+import {
+  checkPreconditions,
+  deriveEnvironmentPreconditions,
+  derivePreconditions,
+  isSafeRelPath,
+  type PreconditionEnv,
+} from "./preconditions.js";
 
 function env(files: Record<string, string>, dirty: string[] | null = []): PreconditionEnv {
   return {
@@ -117,5 +123,13 @@ describe("checkPreconditions (MC-22)", () => {
       { kind: "file_exists", value: "src/gone.ts" },
       { kind: "clean_paths", value: "src/gone.ts" },
     ]);
+  });
+
+  it("deriveEnvironmentPreconditions records the specific language and frameworks, not every npm dep", async () => {
+    const pre = await deriveEnvironmentPreconditions(env(REACT_TS));
+    expect(pre).toContainEqual({ kind: "language", value: "typescript" });
+    expect(pre.some((p) => p.kind === "language" && p.value === "javascript")).toBe(false);
+    expect(pre).toContainEqual({ kind: "framework", value: "react" });
+    expect(pre.some((p) => p.kind === "dependency")).toBe(false);
   });
 });

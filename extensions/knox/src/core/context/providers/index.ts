@@ -15,7 +15,7 @@ import {
 /**
  * Built-in context providers.
  *
- * Defaults (always on): file, diff, problems, repo-map, terminal, memory.
+ * Defaults (always on): file, diff, problems, repo-map, terminal, memory, recipe.
  * Integrations (opt-in + key-gated): google, discord, greptile, postgres,
  * database, issue, http, web, debugger.
  *

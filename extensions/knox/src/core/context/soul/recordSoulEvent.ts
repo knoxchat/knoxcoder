@@ -12,6 +12,31 @@ const soulHistoryBySession = new Map<
 >();
 export const MAX_SOUL_HISTORY = 20;
 
+function isDurableSoulEvent(event: SoulEvent): boolean {
+  if (event.oracle) return true;
+  if (event.kind === "build:pass" || event.kind === "build:fail" || event.kind === "qemu:panic" || event.kind === "user_correction") return true;
+  return Boolean(
+    event.kind === "tool_success" &&
+      event.toolName &&
+      shouldVerifyTool(event.toolName) &&
+      event.files.length > 0,
+  );
+}
+
+/** Prefer mutating / oracle events when the in-memory ring overflows. */
+export function trimSoulHistory<T extends SoulEvent & { episodicId: number }>(
+  history: T[],
+  cap = MAX_SOUL_HISTORY,
+): T[] {
+  if (history.length <= cap) return history;
+  const durable = history.filter(isDurableSoulEvent);
+  if (durable.length >= cap) return durable.slice(-cap);
+  const rest = history.filter((event) => !isDurableSoulEvent(event));
+  const mixed = [...rest.slice(-(cap - durable.length)), ...durable];
+  mixed.sort((a, b) => a.episodicId - b.episodicId);
+  return mixed;
+}
+
 export function getLastSoulEvent(
   sessionId: string,
 ): (SoulEvent & { episodicId: number }) | undefined {
@@ -254,7 +279,8 @@ export async function recordSoulEvent(event: SoulEvent): Promise<number> {
     event.kind === "tool_denied" ||
     event.kind === "restore" ||
     event.kind === "build:fail" ||
-    event.kind === "qemu:panic"
+    event.kind === "qemu:panic" ||
+    event.kind === "user_correction"
       ? 0.8
       : event.kind === "compaction" || event.kind === "build:pass"
         ? 0.7
@@ -279,10 +305,7 @@ export async function recordSoulEvent(event: SoulEvent): Promise<number> {
   lastSoulBySession.set(sessionId, stored);
   const history = soulHistoryBySession.get(sessionId) ?? [];
   history.push(stored);
-  if (history.length > MAX_SOUL_HISTORY) {
-    history.splice(0, history.length - MAX_SOUL_HISTORY);
-  }
-  soulHistoryBySession.set(sessionId, history);
+  soulHistoryBySession.set(sessionId, trimSoulHistory(history));
 
   if (
     event.kind === "tool_success" &&

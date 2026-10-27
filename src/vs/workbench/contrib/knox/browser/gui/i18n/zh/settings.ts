@@ -42,10 +42,11 @@ export const knoxGuiStringsZhSettings: Record<string, unknown> = {
 	"recipesEnabled": "记住已验证的工作",
 	"recipesEnabledHint": "Knox 修改文件后，若构建或测试通过，就把这次工作保存为本地配方。配方只保存在本机，除非你分享检查点包。",
 	"recipesAutoReplay": "重复任务时复用配方",
-	"recipesAutoReplayHint": "关闭：只把配方作为提示给模型。询问：先显示具体改动并等待你确认（列表几乎即时；点应用才会走真实工具和校验，可能要几秒）。自动：不调用模型直接应用。每次复用后都会校验，校验失败会自动撤销。",
+	"recipesAutoReplayHint": "关闭：只把配方作为提示给模型。询问：先显示改动并等待你确认（接近的匹配可以改编）。自动：字节完全相同的匹配直接应用；带槽位、合并或改编的仍会先询问。改编：接近的匹配也会规划补丁；额外文件需要批准。每次复用后都会校验，校验失败会自动撤销。",
 	"recipesAutoReplay_off": "关闭",
 	"recipesAutoReplay_ask": "先询问我",
 	"recipesAutoReplay_exact": "自动",
+	"recipesAutoReplay_adapt": "改编接近的匹配",
 	"selfImproveEnabled": "允许 Knox 回顾自己的历史",
 	"selfImproveEnabledHint": "Knox 会在记忆和检查点中查找重复的失败与撤销，并提出修复建议。未经你同意，不会更改任何内容，也不会向外发布。"
 };

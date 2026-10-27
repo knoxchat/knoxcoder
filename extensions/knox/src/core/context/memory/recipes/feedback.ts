@@ -24,6 +24,8 @@ export const REVERT_WINDOW_MS = 10 * 60 * 1000;
 export interface FeedbackHooks {
   /** Demote the linked memory (mismatch_count++ / lower strength). */
   demoteMemory?: (memoryId: number, recipe: Recipe) => Promise<void>;
+  /** Strengthen the linked memory after a verified replay (Ebbinghaus / fusion). */
+  boostMemory?: (memoryId: number, recipe: Recipe) => Promise<void>;
 }
 
 export function shouldQuarantine(stats: Recipe["stats"]): boolean {
@@ -45,7 +47,23 @@ export async function applyReplayResult(
 ): Promise<Recipe | null> {
   if (!result.outcome) return null;
   const recipe = await store.recordReplay(result.recipeId, result.outcome);
+  if (result.outcome === "ok" && recipe.memoryId != null) {
+    await hooks.boostMemory?.(recipe.memoryId, recipe);
+  }
   return quarantineIfNeeded(store, recipe, hooks);
+}
+
+/**
+ * Reverts still inside the undo window (not the lifetime `stats.reverted`).
+ * After the window, a restored-and-reverified recipe may exact-replay again.
+ */
+export function recentRevertCount(
+  recipe: Pick<Recipe, "stats" | "lastReplayedAt">,
+  at: Date = new Date(),
+  windowMs = REVERT_WINDOW_MS,
+): number {
+  if (recipe.stats.reverted <= 0) return 0;
+  return isWithinRevertWindow(recipe.lastReplayedAt, at, windowMs) ? recipe.stats.reverted : 0;
 }
 
 /** Whether a user restore/edit at `at` counts as reverting a replay finished at `replayedAt`. */

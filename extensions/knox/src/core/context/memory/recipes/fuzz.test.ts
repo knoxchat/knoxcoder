@@ -36,14 +36,31 @@ describe("intent fingerprint properties (MC-81)", () => {
       const a = computeIntentFingerprint(c);
       expect(computeIntentFingerprint(c).key).toBe(a.key);
       expect(a.key).toBe(a.tokens.join(" "));
+      expect(computeIntentFingerprint(a.key).key).toBe(a.key);
     }
   });
 
-  it("is stable under case and whitespace changes", () => {
+  it("is stable under case, whitespace, and token order", () => {
     for (const c of cases) {
       const base = computeIntentFingerprint(c).key;
       expect(computeIntentFingerprint(c.toUpperCase()).key).toBe(computeIntentFingerprint(c.toLowerCase()).key);
       expect(computeIntentFingerprint(`  ${c.replace(/ /g, " \t\n ")}  `).key).toBe(base);
+      const shuffled = c.split(/\s+/).filter(Boolean).reverse().join(" ");
+      expect(computeIntentFingerprint(shuffled).key).toBe(base);
+    }
+  });
+
+  it("redacts secrets and substitutes paths, urls and numbers", () => {
+    const fp = computeIntentFingerprint(
+      "fix src/app/main.ts via https://example.com/x 3 times sk-abcdefghijklmnopqrstuvwxyz0123456789",
+    );
+    expect(fp.tokens).toEqual(expect.arrayContaining(["$path", "$url", "$num"]));
+    expect(fp.key).not.toContain("abcdefghijklmnop");
+    expect(fp.key).not.toContain("src/app");
+    expect(fp.key).not.toContain("example.com");
+    for (const c of cases) {
+      const keyed = computeIntentFingerprint(`${c} sk-abcdefghijklmnopqrstuvwxyz0123456789`).key;
+      expect(keyed).not.toMatch(/abcdefghijklmnop/);
     }
   });
 

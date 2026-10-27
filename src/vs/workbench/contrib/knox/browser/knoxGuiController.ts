@@ -451,6 +451,14 @@ export class KnoxGuiController extends Disposable {
 		knoxGuiRecipe.answerRecipeChoice(this, choice);
 	}
 
+	setRecipeSlotValue(name: string, value: string): void {
+		knoxGuiRecipe.setRecipeSlotValue(this, name, value);
+	}
+
+	flushRecipeSlotInputs(root: ParentNode): void {
+		knoxGuiRecipe.flushRecipeSlotInputs(this, root);
+	}
+
 	/** T5: Recipes tab Preview — ask card, nothing written. */
 	previewMemoryRecipe(recipeId: string): void {
 		void knoxGuiRecipe.previewMemoryRecipe(this, recipeId);
@@ -800,6 +808,26 @@ export class KnoxGuiController extends Disposable {
 
 	async setMemoryRecipeStatus(recipeId: string, status: 'retired' | 'quarantined' | 'candidate' | 'verified'): Promise<void> {
 		return knoxGuiMemory.setMemoryRecipeStatus(this, recipeId, status);
+	}
+
+	async saveMemoryRecipe(opts?: { checkpointId?: string; intent?: string }): Promise<void> {
+		return knoxGuiMemory.saveMemoryRecipe(this, opts);
+	}
+
+	async refuseMemoryRecipe(): Promise<void> {
+		return knoxGuiMemory.refuseMemoryRecipe(this);
+	}
+
+	async patchMemoryRecipe(patch: Parameters<typeof knoxGuiMemory.patchMemoryRecipe>[1]): Promise<boolean> {
+		return knoxGuiMemory.patchMemoryRecipe(this, patch);
+	}
+
+	selectMemoryRecipe(recipeId: string | undefined): void {
+		void knoxGuiMemory.selectMemoryRecipe(this, recipeId);
+	}
+
+	openRecipeMemory(recipe: { title: string; memoryId?: number; intentText?: string }): void {
+		knoxGuiMemory.openRecipeMemory(this, recipe);
 	}
 
 	/** T13: open the Checkpoint Graph focused on a recipe's source snapshot. */

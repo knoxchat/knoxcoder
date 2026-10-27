@@ -223,14 +223,14 @@ function renderRecipeSettings(widget: KnoxGuiWidget, body: HTMLElement, state: I
 	const replay = mk(replayRow, 'select', 'field setting-input');
 	replay.disabled = !state.recipeSettings.enabled;
 	replay.setAttribute('data-testid', 'memory-recipe-auto-replay');
-	for (const value of ['off', 'ask', 'exact'] as const) {
+	for (const value of ['off', 'ask', 'exact', 'adapt'] as const) {
 		const option = mk(replay, 'option', '', t(state, `recipesAutoReplay_${value}`));
 		option.value = value;
 		if (state.recipeSettings.autoReplay === value) {
 			option.selected = true;
 		}
 	}
-	widget.renderStore.add(DOM.addDisposableListener(replay, 'change', () => void widget.controller.setRecipeSettings({ autoReplay: replay.value as 'off' | 'ask' | 'exact' })));
+	widget.renderStore.add(DOM.addDisposableListener(replay, 'change', () => void widget.controller.setRecipeSettings({ autoReplay: replay.value as 'off' | 'ask' | 'exact' | 'adapt' })));
 	recipeToggle('selfImproveEnabled', 'selfImproveEnabledHint', 'memory-recipe-self-improve', state.recipeSettings.selfImprove, value => {
 		void widget.controller.setRecipeSettings({ selfImprove: value });
 	});

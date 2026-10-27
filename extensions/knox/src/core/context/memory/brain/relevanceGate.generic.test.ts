@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { recipeMemoryIsVerified } from "../recipes/memoryLink";
 import { evaluateRelevanceGate } from "./RelevanceGate";
 
 describe("RelevanceGate generic words (MC-50)", () => {
@@ -33,5 +34,19 @@ describe("RelevanceGate verified-ness and mismatch (MC-50)", () => {
   });
   it("lexicalScoreMin overrides the default bar", () => {
     expect(evaluateRelevanceGate({ ...base, fts5: 0.15, lexicalScoreMin: 0.1 }).passed).toBe(true);
+  });
+
+  it("a linked recipe memory gets the verified bar, a reverted one does not", () => {
+    const content = `Verified recipe: create Button\nrecipe_id: ${"a".repeat(64)}`;
+    expect(recipeMemoryIsVerified(content)).toBe(true);
+    expect(evaluateRelevanceGate({ ...base, content, fts5: 0.15, verified: recipeMemoryIsVerified(content) }).passed).toBe(true);
+    expect(
+      evaluateRelevanceGate({
+        ...base,
+        content,
+        fts5: 0.15,
+        verified: recipeMemoryIsVerified(content, { verified: 1, reverted: 1 }),
+      }).passed,
+    ).toBe(false);
   });
 });

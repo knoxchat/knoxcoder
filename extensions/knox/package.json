@@ -31,6 +31,7 @@
 		"test:tsc": "tsc -p src/core --noEmit",
 		"test:eval": "vitest run --config src/core/vitest.config.ts eval",
 		"test:live": "vitest run --config src/core/vitest.live.config.ts",
+		"test:live:recipes": "vitest run --config src/core/vitest.recipe-live.config.ts",
 		"test:host": "vitest run --config src/host/vitest.config.mts",
 		"test:host-tsc": "tsc -p src/host --noEmit",
 		"mc:gate": "node ./scripts/mc-gate.mts",
@@ -159,15 +160,17 @@
 					"enum": [
 						"off",
 						"ask",
-						"exact"
+						"exact",
+						"adapt"
 					],
 					"enumDescriptions": [
 						"Never replay a recipe.",
-						"Show the exact diff and ask before replaying a verified recipe.",
-						"Replay verified recipes with an exact match without asking. A pre-replay checkpoint is always taken."
+						"Show the exact diff and ask before replaying a verified recipe. Close matches may be adapted, still with a preview.",
+						"Replay a byte-identical verified recipe without asking. Parameterized, merged, or adapted work still asks first. A pre-replay checkpoint is always taken.",
+						"Like Automatic, and also plan a small patch when the match is close or files drifted. Adapted work always shows a preview; extra files need approval."
 					],
 					"default": "off",
-					"markdownDescription": "How a matching verified recipe is reused instead of generating the same code again. Requires `knoxchat.recipes.enabled`. Replay goes through normal permissions, command guard, and review mode, and is rolled back automatically if verification fails."
+					"markdownDescription": "How a matching verified recipe is reused instead of generating the same code again. Requires `knoxchat.recipes.enabled`. Replay goes through normal permissions, command guard, and review mode, and is rolled back automatically if verification fails. Parameterized, merged, and adapted replays always ask first."
 				},
 				"knoxchat.selfImprove.enabled": {
 					"type": "boolean",
@@ -1378,6 +1381,7 @@
 			{"name":"builtin_create_new_file","displayName":"Create File","modelDescription":"Create a new file that must not already exist."},
 			{"name":"builtin_edit_file","displayName":"Edit File","modelDescription":"Replace exact text in an existing file."},
 			{"name":"builtin_write_file","displayName":"Write File","modelDescription":"Create or overwrite a file with full contents."},
+			{"name":"builtin_delete_file","displayName":"Delete File","modelDescription":"Delete one workspace file (never a directory)."},
 			{"name":"builtin_apply_patch","displayName":"Apply Patch","modelDescription":"Apply a multi-hunk patch to one or more files."},
 			{"name":"builtin_run_terminal_command","displayName":"Run Terminal Command","modelDescription":"Run a shell command in the workspace."},
 			{"name":"builtin_build","displayName":"Build","modelDescription":"Run the workspace build or compile command."},
@@ -1396,6 +1400,7 @@
 			{"name":"builtin_skill","displayName":"Skill","modelDescription":"Load and run a SKILL.md skill."},
 			{"name":"builtin_lsp","displayName":"LSP","modelDescription":"Query language server symbols, defs, and refs."},
 			{"name":"builtin_memory","displayName":"Memory","modelDescription":"Search or write Knox Memory Brain entries."},
+			{"name":"builtin_recipe","displayName":"Recipe","modelDescription":"List, preview, or apply a verified recipe (apply uses the replayer; confirm=true required)."},
 			{"name":"builtin_task","displayName":"Task","modelDescription":"Run a subagent task."},
 			{"name":"builtin_ask_user","displayName":"Ask User","modelDescription":"Ask the user a question."},
 			{"name":"builtin_git_status","displayName":"Git Status","modelDescription":"Show git status (no push/force/amend)."},

@@ -513,6 +513,12 @@ export class VsCodeExtension {
       if (pathsReferToSameFile(event.uri.fsPath, configYamlPath)) {
         await this.configHandler.reloadConfig();
       }
+      const rel = vscode.workspace.asRelativePath(event.uri, false).replace(/\\/g, "/");
+      if (rel && !rel.startsWith("..") && !/^[A-Za-z]:/.test(rel) && !rel.startsWith("/")) {
+        void import("./recipeFeedback")
+          .then(({ recordEditAfterApply }) => recordEditAfterApply([rel]))
+          .catch(() => undefined);
+      }
     });
 
     vscode.workspace.onDidDeleteFiles(async (event) => {

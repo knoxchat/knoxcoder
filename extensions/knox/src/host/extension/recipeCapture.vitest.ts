@@ -19,8 +19,8 @@ describe("diffCheckpointStates", () => {
     ]);
     expect(diffCheckpointStates(before, after, never)).toEqual([
       { path: "gone.ts", deleted: true, baseHash: "h3" },
-      { path: "mod.ts", hash: "h2b", baseHash: "h2", hasSecret: false },
-      { path: "new.ts", hash: "h4", baseHash: undefined, hasSecret: false },
+      { path: "mod.ts", hash: "h2b", baseHash: "h2", hasSecret: false, content: "x", binary: false, byteLength: 1 },
+      { path: "new.ts", hash: "h4", baseHash: undefined, hasSecret: false, content: "x", binary: false, byteLength: 1 },
     ]);
   });
 

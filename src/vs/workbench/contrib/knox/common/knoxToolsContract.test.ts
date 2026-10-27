@@ -31,7 +31,7 @@ function coreSources(): string {
 
 const BUILTIN_CASES = [
 	'ReadFile', 'ReadCurrentlyOpenFile', 'ViewSubdirectory', 'Glob',
-	'CreateNewFile', 'WriteFile', 'EditFile', 'ApplyPatch',
+	'CreateNewFile', 'WriteFile', 'DeleteFile', 'EditFile', 'ApplyPatch',
 	'ViewDiff', 'ViewRepoMap', 'ExactSearch', 'SearchWeb',
 	'EnhancedSearch', 'IntelligentChain',
 	'RunTerminalCommand', 'AwaitShell', 'PtyStart', 'PtySend', 'PtyRead', 'Build',

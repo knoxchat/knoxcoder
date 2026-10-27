@@ -8,6 +8,7 @@ import {
   findFlakyTests,
   findHotFiles,
   gatherHealthInputs,
+  gatherRecipeHealth,
   parseNpmAudit,
   undocumentedIssues,
   writeHealthReport,
@@ -54,9 +55,10 @@ describe("health report (MC-43)", () => {
     const inputs = gatherHealthInputs(fixture, { generatedAt: "2026-10-13T00:00:00.000Z" });
     expect(inputs.scannedFiles).toBeGreaterThan(0);
     const md = buildHealthReport(inputs);
-    for (const h of ["## Dependencies", "## Flaky tests", "## Hot files", "## TODO / FIXME density", "## Undocumented known issues"]) {
+    for (const h of ["## Dependencies", "## Flaky tests", "## Hot files", "## TODO / FIXME density", "## Undocumented known issues", "## Recipes"]) {
       expect(md).toContain(h);
     }
+    expect(md).toContain("Not collected");
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "knox-health-"));
     try {
       const file = writeHealthReport(md, path.join(dir, "reports"), "mini c!", new Date("2026-10-13T00:00:00Z"));
@@ -65,6 +67,43 @@ describe("health report (MC-43)", () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("includes recipe capture skips, quarantines, wrong-reuse, and unlinked verified (P7.4)", () => {
+    const recipes = gatherRecipeHealth(
+      [
+        { status: "verified", memoryId: 1, stats: { replays: 3, reverted: 0, failedVerify: 0 } },
+        { status: "verified", stats: { replays: 1, reverted: 1, failedVerify: 0 } },
+        { status: "quarantined", stats: { replays: 2, reverted: 0, failedVerify: 2 } },
+        { status: "candidate", stats: { replays: 0, reverted: 0, failedVerify: 0 } },
+      ],
+      { skips: 4, skipReasons: { no_oracle: 3, secret_detected: 1 }, nearMisses: 2 },
+    );
+    expect(recipes).toMatchObject({
+      verified: 2,
+      candidate: 1,
+      quarantined: 1,
+      unlinkedVerified: 1,
+      wrongReuse: 3,
+      replays: 6,
+      skips: 4,
+      nearMisses: 2,
+    });
+    const md = buildHealthReport({
+      projectName: "x",
+      generatedAt: "t",
+      dependencies: { runtime: 0, dev: 0 },
+      testRuns: [],
+      checkpoints: [],
+      markers: [],
+      scannedFiles: 0,
+      scannedLines: 0,
+      observedIssues: [],
+      recipes,
+    });
+    expect(md).toContain("Unlinked verified");
+    expect(md).toContain("no_oracle 3");
+    expect(md).toContain("wrong-reuse");
   });
 
   it("counts markers and skips node_modules", () => {

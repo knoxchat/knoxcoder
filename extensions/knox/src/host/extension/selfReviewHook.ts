@@ -13,7 +13,7 @@ function enabled(): boolean {
  * `knoxchat.recipes.enabled` are on. Safe to call more than once.
  */
 export async function registerSelfReviewHook(): Promise<() => void> {
-  const [{ registerSleepCycleHook }, { runSelfReview }, { RecipeStore }, { get: getBrainDb }, { BrainManager }] =
+  const [{ registerSleepCycleHook }, { runSelfReview, writeFamilyDraft }, { RecipeStore }, { get: getBrainDb }, { BrainManager }] =
     await Promise.all([
       import("core/context/memory/brain/SleepConsolidation"),
       import("core/context/memory/recipes/selfReviewApply"),
@@ -36,14 +36,24 @@ export async function registerSelfReviewHook(): Promise<() => void> {
   const offReview = registerSleepCycleHook(HOOK_NAME, async () => {
     if (!enabled()) return;
     const db = await getBrainDb();
-    const { events, report } = await runSelfReview(db, {
-      store: new RecipeStore(db),
+    const store = new RecipeStore(db);
+    const { events, report, drafts, draftMarkdown } = await runSelfReview(db, {
+      store,
       storeMemory: (memory) => BrainManager.store(memory),
     });
     if (report.errorFixes || report.quarantined.length || report.merged.length) {
       console.info(
         `[SelfReview] ${events} events: ${report.errorFixes} error_fix, ${report.quarantined.length} quarantined, ${report.merged.length} merged`,
       );
+    }
+    if (drafts.length) {
+      try {
+        const { getKnoxGlobalPath } = await import("core/util/paths");
+        const file = writeFamilyDraft(draftMarkdown, `${getKnoxGlobalPath()}/reports`);
+        console.info(`[SelfReview] ${drafts.length} family draft(s) written to ${file}`);
+      } catch (error) {
+        console.warn("[SelfReview] Could not write family drafts:", error instanceof Error ? error.message : error);
+      }
     }
   });
   return () => {

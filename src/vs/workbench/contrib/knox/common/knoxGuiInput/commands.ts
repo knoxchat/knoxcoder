@@ -26,8 +26,8 @@ export const SLASH_BUILTINS: IKnoxGuiSlashCommand[] = [
 	{ name: 'hooks', description: 'Show configured lifecycle hooks and the recent hook audit log' },
 ];
 
-/** KN-300: same six default `@` providers as Core `DEFAULT_CONTEXT_PROVIDER_TITLES`. */
-export const DEFAULT_MENTION_PROVIDER_TITLES = ['file', 'diff', 'problems', 'repo-map', 'terminal', 'memory'] as const;
+/** KN-300: same default `@` providers as Core `DEFAULT_CONTEXT_PROVIDER_TITLES`. */
+export const DEFAULT_MENTION_PROVIDER_TITLES = ['file', 'diff', 'problems', 'repo-map', 'terminal', 'memory', 'recipe'] as const;
 
 export const DEFAULT_MENTION_PROVIDERS: IKnoxGuiContextProvider[] = [
 	{ title: 'file', displayTitle: 'File | Folder', description: 'Files', type: 'submenu' },
@@ -36,6 +36,7 @@ export const DEFAULT_MENTION_PROVIDERS: IKnoxGuiContextProvider[] = [
 	{ title: 'repo-map', displayTitle: 'Repository Structure Map', description: 'Repo map', type: 'submenu' },
 	{ title: 'terminal', displayTitle: 'Terminal', description: 'Terminal', type: 'normal' },
 	{ title: 'memory', displayTitle: 'Project Memory', description: 'Project memories', type: 'query' },
+	{ title: 'recipe', displayTitle: 'Recipe', description: 'Verified recipes', type: 'submenu' },
 ];
 
 export function mergeContextProvidersWithDefaults(providers: IKnoxGuiContextProvider[]): IKnoxGuiContextProvider[] {

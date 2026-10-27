@@ -7,7 +7,7 @@ import type { KnoxGuiController } from '../../knoxGuiController.js';
 import type { IKnoxGuiState } from '../../../common/knoxGuiState.js';
 import { asRecord, asArray } from './helpers.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
-import { memoryConfigUpdatePayload, isMemoryTabId, isMemoryWriteCategory, memoryExpertConfigKeys, MEMORY_DEFAULT_CONFIG, parseEbbinghausStats, parseEffectiveContext, parseExploreResult, parseGraphEntities, parseGraphStats, parseLastInject, parseMemoryBrainSettings, parseMemoryDashboard, parseMemoryItem, parseMemoryRecipeList, parseMemorySession, parseMetricsTrend, parsePhaseStatus, parseReviewDue, parseSessionHistory, unwrapBrainConfig, withMemoryConfigDefaults, memoryConsolidateParts } from '../../../common/knoxGuiMemory.js';
+import { memoryConfigUpdatePayload, isMemoryTabId, isMemoryWriteCategory, memoryExpertConfigKeys, MEMORY_DEFAULT_CONFIG, parseEbbinghausStats, parseEffectiveContext, parseExploreResult, parseGraphEntities, parseGraphStats, parseLastInject, parseMemoryBrainSettings, parseMemoryDashboard, parseMemoryItem, parseMemoryRecipeCapture, parseMemoryRecipeList, parseMemorySession, parseMetricsTrend, parsePhaseStatus, parseReviewDue, parseSessionHistory, unwrapBrainConfig, withMemoryConfigDefaults, memoryConsolidateParts } from '../../../common/knoxGuiMemory.js';
 
 const MEMORY_PAGE_SIZE = 50;
 
@@ -179,6 +179,8 @@ export async function loadMemoryRecipes(controller: KnoxGuiController): Promise<
 		controller.store.patch({
 			memoryRecipes: parsed.recipes,
 			memoryRecipeCapture: parsed.lastCapture,
+			memoryRecipeCaptures: parsed.lastCaptures,
+			memoryRecipeLastMatch: parsed.lastMatch,
 		});
 	} catch {
 		controller.store.patch({ memoryRecipeError: 'memoryRecipesLoadError' });
@@ -211,6 +213,128 @@ export function openRecipeCheckpoint(controller: KnoxGuiController, checkpointId
 	controller.store.patch({ selectedCheckpointId: checkpointId });
 	controller.store.navigate('/checkpoint-graph');
 	void controller.loadCheckpoints();
+}
+
+/** P5.8: open the linked workflow memory in the Memories tab. */
+export function openRecipeMemory(controller: KnoxGuiController, recipe: { title: string; memoryId?: number; intentText?: string }): void {
+	controller.store.patch({
+		memoryTab: 'memories',
+		memoryQuery: recipe.intentText || recipe.title,
+		memoryFilterCategory: 'workflow',
+	});
+	controller.store.navigate('/memory');
+	void controller.loadMemories(false);
+}
+
+/** P5 inspector writes (rename, pin, notes, slots, preconditions, scope). */
+export async function patchMemoryRecipe(controller: KnoxGuiController, patch: {
+	recipeId: string;
+	title?: string;
+	notes?: string;
+	pinned?: boolean;
+	slots?: { name: string; kind: 'identifier' | 'path' | 'package' | 'text'; examples?: string[] }[];
+	userPreconditions?: { kind: string; value: string }[];
+	scope?: 'project' | 'global';
+	consent?: boolean;
+}): Promise<boolean> {
+	if (controller.store.state.memoryRecipeBusyId) {
+		return false;
+	}
+	controller.store.patch({ memoryRecipeBusyId: patch.recipeId, memoryRecipeError: undefined });
+	try {
+		const out = asRecord(await controller.messenger.request<unknown>('knox/recipePatch', patch));
+		if (!out?.ok) {
+			const reason = typeof out?.reason === 'string' ? out.reason : '';
+			controller.store.patch({
+				memoryRecipeError: reason === 'needs_consent' ? 'memoryRecipeNeedsConsent' : reason === 'needs_precondition' ? 'memoryRecipeNeedsPrecondition' : 'memoryRecipesActionFailed',
+			});
+			return false;
+		}
+		return true;
+	} catch {
+		controller.store.patch({ memoryRecipeError: 'memoryRecipesActionFailed' });
+		return false;
+	} finally {
+		controller.store.patch({ memoryRecipeBusyId: undefined });
+		await loadMemoryRecipes(controller);
+	}
+}
+
+/** P5.1/P5.2: select a recipe and load the inline replay diff. */
+export async function selectMemoryRecipe(controller: KnoxGuiController, recipeId: string | undefined): Promise<void> {
+	if (controller.store.state.memorySelectedRecipeId === recipeId) {
+		controller.store.patch({ memorySelectedRecipeId: undefined, memoryRecipePreview: undefined, memoryRecipePreviewLoading: false });
+		return;
+	}
+	controller.store.patch({ memorySelectedRecipeId: recipeId, memoryRecipePreview: undefined, memoryRecipePreviewLoading: Boolean(recipeId) });
+	if (!recipeId) {
+		return;
+	}
+	const row = controller.store.state.memoryRecipes.find(recipe => recipe.id === recipeId);
+	if (!row || row.status !== 'verified') {
+		controller.store.patch({ memoryRecipePreviewLoading: false });
+		return;
+	}
+	try {
+		const preview = await controller.messenger.request<{ text?: string } | undefined>('knox/recipePreview', { recipeId });
+		if (controller.store.state.memorySelectedRecipeId === recipeId) {
+			controller.store.patch({ memoryRecipePreview: preview?.text, memoryRecipePreviewLoading: false });
+		}
+	} catch {
+		if (controller.store.state.memorySelectedRecipeId === recipeId) {
+			controller.store.patch({ memoryRecipePreviewLoading: false });
+		}
+	}
+}
+
+/** P3.4 / P5.7: save the last checkpoint / turn, or a chosen checkpoint, as a recipe (user accept). */
+export async function saveMemoryRecipe(controller: KnoxGuiController, opts?: { checkpointId?: string; intent?: string }): Promise<void> {
+	if (controller.store.state.memoryRecipeBusyId) {
+		return;
+	}
+	controller.store.patch({ memoryRecipeBusyId: 'save', memoryRecipeError: undefined });
+	try {
+		const raw = await controller.messenger.request<unknown>('knox/recipeSave', {
+			sessionId: controller.store.state.sessionId,
+			userAccepted: true,
+			...(opts?.checkpointId ? { checkpointId: opts.checkpointId } : {}),
+			...(opts?.intent ? { intent: opts.intent } : {}),
+		});
+		const parsed = parseMemoryRecipeCapture(raw);
+		if (parsed) {
+			controller.store.patch({ memoryRecipeCapture: parsed, recipeCaptureToast: parsed });
+		}
+		if (!parsed?.captured) {
+			controller.store.patch({ memoryRecipeError: parsed?.reason ? undefined : 'memoryRecipesActionFailed' });
+		}
+	} catch {
+		controller.store.patch({ memoryRecipeError: 'memoryRecipesActionFailed' });
+	} finally {
+		controller.store.patch({ memoryRecipeBusyId: undefined });
+		await loadMemoryRecipes(controller);
+	}
+}
+
+/** P3.5: don't remember the last captured recipe. */
+export async function refuseMemoryRecipe(controller: KnoxGuiController): Promise<void> {
+	if (controller.store.state.memoryRecipeBusyId) {
+		return;
+	}
+	controller.store.patch({ memoryRecipeBusyId: 'refuse', memoryRecipeError: undefined });
+	try {
+		const raw = await controller.messenger.request<unknown>('knox/recipeRefuse', {
+			sessionId: controller.store.state.sessionId,
+		});
+		const parsed = parseMemoryRecipeCapture(raw);
+		if (parsed) {
+			controller.store.patch({ memoryRecipeCapture: parsed, recipeCaptureToast: parsed });
+		}
+	} catch {
+		controller.store.patch({ memoryRecipeError: 'memoryRecipesActionFailed' });
+	} finally {
+		controller.store.patch({ memoryRecipeBusyId: undefined });
+		await loadMemoryRecipes(controller);
+	}
 }
 
 export async function loadMemorySessionHistory(controller: KnoxGuiController, sessionId: string): Promise<void> {

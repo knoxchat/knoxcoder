@@ -4,8 +4,11 @@
  * Only metadata and paths are emitted (never file bytes); text is passed through `redactSecrets`.
  */
 
-import { redactSecrets } from "../../../util/redactSecrets";
-import type { Recipe } from "./types";
+import { parseFrontmatter } from "../../../skills/frontmatter";
+import { isSensitiveSecretFile, redactSecrets } from "../../../util/redactSecrets";
+import { isSafeRelPath } from "./preconditions";
+import { replayableCommandProblem } from "./replayer";
+import type { Recipe, RecipePrecondition, RecipeSlot } from "./types";
 
 /** Replays (all ok) required before "Promote to skill" is offered. */
 export const SKILL_PROMOTION_MIN_OK = 3;
@@ -73,4 +76,122 @@ export function buildSkillFromRecipe(recipe: Recipe, minOk = SKILL_PROMOTION_MIN
   });
   lines.push("", "## Verify", "", recipe.oracle?.command ? `Run \`${oneLine(recipe.oracle.command, 120)}\` and confirm it passes.` : "Confirm the project builds and tests pass.", "");
   return { name, description, content: lines.join("\n") };
+}
+
+const SLOT_KINDS = new Set<RecipeSlot["kind"]>(["identifier", "path", "package", "text"]);
+
+export interface ParsedSkillRecipe {
+  name: string;
+  title: string;
+  description: string;
+  intentText: string;
+  filePaths: string[];
+  deletePaths: string[];
+  commands: string[];
+  verifyCommand?: string;
+  slots: RecipeSlot[];
+  preconditions: RecipePrecondition[];
+}
+
+/**
+ * P6.4: parse a user-written SKILL.md (files + verify command) into a candidate
+ * recipe sketch. No blobs yet — the host pins current-file hashes. Never
+ * auto-replay: imported skills start as `candidate`.
+ */
+export function parseSkillToCandidate(raw: string): ParsedSkillRecipe | { ok: false; reason: string } {
+  const text = redactSecrets(raw.replace(/\r\n/g, "\n"));
+  const fm = parseFrontmatter(text);
+  const body = fm?.content ?? (text.startsWith("---") ? "" : text);
+  const name = (fm?.data.name ?? "").trim() || "imported-skill";
+  const description = (fm?.data.description ?? "").trim();
+  if (!body.trim() && !description) return { ok: false, reason: "skill has no body" };
+
+  const filePaths: string[] = [];
+  const deletePaths: string[] = [];
+  const commands: string[] = [];
+  const slots: RecipeSlot[] = [];
+  const preconditions: RecipePrecondition[] = [];
+  let verifyCommand: string | undefined;
+
+  const addPath = (p: string, dest: string[]) => {
+    const path = p.replace(/\\/g, "/").replace(/^\.\//, "").trim();
+    if (!path || dest.includes(path)) return;
+    if (!isSafeRelPath(path) || isSensitiveSecretFile(path)) return;
+    dest.push(path);
+  };
+  const addCommand = (cmd: string, dest: string[]) => {
+    const command = cmd.trim();
+    if (!command || dest.includes(command) || replayableCommandProblem(command)) return;
+    dest.push(command);
+  };
+
+  const stepsBlock = section(body, "Steps");
+  const verifyBlock = section(body, "Verify");
+  const inputsBlock = section(body, "Inputs");
+  const preBlock = section(body, "Preconditions");
+
+  for (const line of (inputsBlock ?? "").split("\n")) {
+    const m = line.match(/`([^`]+)`\s*\((\w+)\)/);
+    if (!m) continue;
+    const kind = m[2].toLowerCase();
+    if (!SLOT_KINDS.has(kind as RecipeSlot["kind"])) continue;
+    if (slots.some((s) => s.name === m[1])) continue;
+    slots.push({ name: m[1], kind: kind as RecipeSlot["kind"] });
+  }
+  for (const line of (preBlock ?? "").split("\n")) {
+    const m = line.match(/[-*]\s*(\w+)\s*:\s*(.+)$/);
+    if (!m) continue;
+    const value = m[2].replace(/^`|`$/g, "").trim();
+    if (!value) continue;
+    preconditions.push({ kind: m[1], value });
+  }
+  for (const line of (stepsBlock ?? body).split("\n")) {
+    const run = line.match(/Run\s+`([^`]+)`/i);
+    if (run) {
+      addCommand(run[1], commands);
+      continue;
+    }
+    const del = line.match(/Delete\s+`([^`]+)`/i);
+    if (del) {
+      addPath(del[1], deletePaths);
+      continue;
+    }
+    const write = line.match(/Create or update\s+`([^`]+)`/i) || line.match(/update\s+`([^`]+)`/i);
+    if (write) addPath(write[1], filePaths);
+  }
+  const verifyRun = (verifyBlock ?? "").match(/Run\s+`([^`]+)`/i);
+  if (verifyRun) {
+    const cmd = verifyRun[1].trim();
+    if (!replayableCommandProblem(cmd)) verifyCommand = cmd;
+  }
+
+  if (!filePaths.length && !deletePaths.length && !commands.length && !verifyCommand) {
+    return { ok: false, reason: "skill describes no files or verify command" };
+  }
+  const title = oneLine(description || name.replace(/-/g, " "), 80);
+  return {
+    name,
+    title,
+    description: oneLine(description || title, 200),
+    intentText: description || title,
+    filePaths,
+    deletePaths,
+    commands,
+    verifyCommand,
+    slots,
+    preconditions,
+  };
+}
+
+function section(body: string, heading: string): string | undefined {
+  const re = new RegExp(`^##\\s+${heading}\\s*$`, "im");
+  const start = body.search(re);
+  if (start < 0) return undefined;
+  const after = body.slice(start).split(/\n/).slice(1);
+  const lines: string[] = [];
+  for (const line of after) {
+    if (/^##\s+/.test(line)) break;
+    lines.push(line);
+  }
+  return lines.join("\n");
 }

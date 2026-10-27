@@ -68,10 +68,12 @@ describe("decideRecipeForTurn", () => {
     expect(e.mode).toBe("suggest");
   });
 
-  it("adapt when the recipe has slots", async () => {
+  it("asks for unfilled slots instead of adapting", async () => {
     const r = recipe({ slots: [{ name: "x", kind: "identifier" }] });
     const e = await decideRecipeForTurn({ listRecipes: async () => [r], env: env(["package.json"]) }, args);
-    expect(e.mode).toBe("adapt");
+    expect(e.mode).toBe("exact");
+    expect(e.needsConfirmation).toBe(true);
+    expect(e.slots?.[0]).toMatchObject({ name: "x", filled: false });
   });
 
   it("exact when slot identifiers in the message match the captured intent (T5 / MC-32)", async () => {
@@ -90,20 +92,47 @@ describe("decideRecipeForTurn", () => {
     expect(e.mode).toBe("exact");
   });
 
-  it("adapt when a path slot differs from the captured files", async () => {
+  it("exact when a path slot is filled from the new message (P1.5)", async () => {
     const captured = "create file src/a/util.ts";
     const r = recipe({
       title: captured,
       intentText: captured,
       intentFingerprint: intentFingerprint(captured),
       slots: [{ name: "targetPath", kind: "path" }],
+      slotValues: { targetPath: "src/a/util.ts" },
       preconditions: [],
     });
     const e = await decideRecipeForTurn(
       { listRecipes: async () => [r], env: env([]) },
       { message: "create file src/b/util.ts", projectId: "p1", autoReplay: "exact" },
     );
-    expect(e.mode).toBe("adapt");
+    expect(e.mode).toBe("exact");
+    expect(e.needsConfirmation).toBe(true);
+    expect(e.slots?.[0]).toMatchObject({ name: "targetPath", value: "src/b/util.ts", filled: true, source: "message" });
+  });
+
+  it("fills an identifier from the focused editor (P1.6)", async () => {
+    const intent = "create a React component Button";
+    const r = recipe({
+      title: intent,
+      intentText: intent,
+      intentFingerprint: intentFingerprint(intent),
+      slots: [{ name: "componentName", kind: "identifier", examples: ["Button"] }],
+      slotValues: { componentName: "Button" },
+      preconditions: [],
+    });
+    const e = await decideRecipeForTurn(
+      { listRecipes: async () => [r], env: env([]) },
+      {
+        message: "create a component",
+        projectId: "p1",
+        autoReplay: "exact",
+        slotExtra: { paths: ["src/Header.tsx"], identifiers: ["Header"] },
+      },
+    );
+    expect(e.mode).toBe("exact");
+    expect(e.needsConfirmation).toBe(true);
+    expect(e.slots?.[0]).toMatchObject({ name: "componentName", value: "Header", source: "extra" });
   });
 
   it("ignores recipes from other projects", async () => {
@@ -114,12 +143,54 @@ describe("decideRecipeForTurn", () => {
     expect(e.mode).toBe("generate");
   });
 
-  it("never exact when target files drifted since capture (MC-36)", async () => {
+  it("never auto-applies when target files drifted since capture (MC-36)", async () => {
     const e = await decideRecipeForTurn(
       { listRecipes: async () => [recipe()], env: env(["package.json"]), isDrifted: async () => true },
       args,
     );
     expect(e.mode).not.toBe("exact");
+  });
+
+  it("asks on a clean merge and stays exact", async () => {
+    const e = await decideRecipeForTurn(
+      {
+        listRecipes: async () => [recipe()],
+        env: env(["package.json"]),
+        previewDrift: async () => ({ drifted: true, merged: true }),
+      },
+      args,
+    );
+    expect(e.mode).toBe("exact");
+    expect(e.needsConfirmation).toBe(true);
+    expect(e.why).toMatch(/clean merge/);
+  });
+
+  it("Ask permission confirms a byte-identical exact replay", async () => {
+    const e = await decideRecipeForTurn(
+      { listRecipes: async () => [recipe()], env: env(["package.json"]) },
+      { ...args, permissionMode: "default" },
+    );
+    expect(e.mode).toBe("exact");
+    expect(e.needsConfirmation).toBe(true);
+  });
+
+  it("composes two disjoint recipes and always asks", async () => {
+    const a = recipe({
+      steps: [{ kind: "write_file", path: "src/Button.tsx", blobHash: "h1" }],
+      preconditions: [],
+    });
+    const b = recipe({
+      id: "c".repeat(64),
+      title: "Add Button test",
+      intentText: INTENT,
+      intentFingerprint: intentFingerprint(INTENT),
+      steps: [{ kind: "write_file", path: "src/Button.test.tsx", blobHash: "h2" }],
+      preconditions: [],
+    });
+    const e = await decideRecipeForTurn({ listRecipes: async () => [a, b], env: env([]) }, args);
+    expect(e.compose?.recipes).toHaveLength(2);
+    expect(e.needsConfirmation).toBe(true);
+    expect(e.preview).toMatch(/Will run 2 recipes/);
   });
 
   it("treats a failing drift probe as drifted", async () => {
@@ -136,13 +207,71 @@ describe("decideRecipeForTurn", () => {
     expect(e.mode).not.toBe("exact");
   });
 
+  it("passes fusion hits into the matcher", async () => {
+    let queried = false;
+    const r = recipe({ memoryId: 7, intentFingerprint: intentFingerprint("create a Card component") });
+    await decideRecipeForTurn(
+      {
+        listRecipes: async () => [r],
+        env: env([]),
+        fusionHits: async () => {
+          queried = true;
+          return [{ memoryId: 7, score: 0.9 }];
+        },
+      },
+      { message: "create a Card component", projectId: "p1", autoReplay: "off" },
+    );
+    expect(queried).toBe(true);
+  });
+
+  it("exact-replays after the revert window, and suggests while a revert is recent", async () => {
+    const old = recipe({
+      stats: { replays: 5, ok: 4, reverted: 1, failedVerify: 0 },
+      lastReplayedAt: "2020-01-01T00:00:00.000Z",
+    });
+    expect((await decideRecipeForTurn({ listRecipes: async () => [old], env: env(["package.json"]) }, args)).mode).toBe("exact");
+    const recent = recipe({
+      stats: { replays: 5, ok: 4, reverted: 1, failedVerify: 0 },
+      lastReplayedAt: new Date().toISOString(),
+    });
+    expect((await decideRecipeForTurn({ listRecipes: async () => [recent], env: env(["package.json"]) }, args)).mode).toBe("suggest");
+  });
+
+  it("returns top-k matches and asks when two are replayable", async () => {
+    const a = recipe();
+    const b = recipe({
+      id: "c".repeat(64),
+      title: INTENT,
+      intentText: INTENT,
+      intentFingerprint: intentFingerprint(INTENT),
+    });
+    const e = await decideRecipeForTurn(
+      { listRecipes: async () => [a, b], env: env(["package.json"]) },
+      args,
+    );
+    expect(e.matches?.length).toBe(2);
+    expect(e.needsConfirmation).toBe(true);
+    expect(e.why).toMatch(/2 recipes match/);
+  });
+
+  it("explains a global recipe whose framework is missing here", async () => {
+    const r = recipe({
+      scope: "global",
+      preconditions: [{ kind: "framework", value: "react" }],
+    });
+    const e = await decideRecipeForTurn({ listRecipes: async () => [r], env: env(["package.json"]) }, args);
+    expect(e.mode).toBe("suggest");
+    expect(e.why).toMatch(/global recipe refused/);
+    expect(e.why).toMatch(/react/);
+  });
+
   it("only probes drift once preconditions pass", async () => {
     let probed = false;
     await decideRecipeForTurn(
       {
         listRecipes: async () => [recipe()],
         env: env([]),
-        isDrifted: async () => ((probed = true), false),
+        previewDrift: async () => ((probed = true), { drifted: false, merged: false }),
       },
       args,
     );

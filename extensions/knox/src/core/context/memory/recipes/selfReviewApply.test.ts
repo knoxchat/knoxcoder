@@ -49,10 +49,12 @@ async function verified(over: Partial<NewRecipeInput> = {}) {
 }
 
 describe("applyMemoryUpdates (MC-41)", () => {
-  it("merges duplicates: survivor keeps the summed stats, the rest are retired", async () => {
-    // Same fingerprint and path, different blob => distinct ids but the same shape.
-    const a = await verified();
-    const b = await verified({ steps: [{ kind: "write_file", path: "src/Button.tsx", blobHash: "bbb", checkpointId: "cp2" }] });
+  it("merges byte-and-path identical duplicates; keeps blob variants (P1.8)", async () => {
+    const variant = await verified({
+      steps: [{ kind: "write_file", path: "src/Button.tsx", blobHash: "bbb", checkpointId: "cp2" }],
+    });
+    const a = await verified({ slots: [{ name: "x", kind: "identifier" }] });
+    const b = await verified({ slots: [{ name: "y", kind: "identifier" }] });
     await store.recordReplay(a.id, "ok");
     await store.recordReplay(b.id, "ok");
     await store.recordReplay(b.id, "ok");
@@ -60,15 +62,15 @@ describe("applyMemoryUpdates (MC-41)", () => {
     const recipes = await store.list({ status: ["verified"] });
     const updates = planMemoryUpdates([], recipes);
     expect(updates).toHaveLength(1);
+    expect(updates[0]).toMatchObject({ action: "merge_recipes", keepId: b.id, dropIds: [a.id] });
     const report = await applyMemoryUpdates(updates, { store, storeMemory });
 
     expect(report.merged).toHaveLength(1);
-    const keepId = report.merged[0].keepId;
-    expect(keepId).toBe(b.id); // better stats
-    const keep = await store.get(keepId);
+    const keep = await store.get(b.id);
     expect(keep!.status).toBe("verified");
     expect(keep!.stats).toMatchObject({ replays: 3, ok: 3 });
     expect((await store.get(a.id))!.status).toBe("retired");
+    expect((await store.get(variant.id))!.status).toBe("verified");
   });
 
   it("retired duplicates no longer pin blobs", async () => {
@@ -132,11 +134,17 @@ describe("applyMemoryUpdates (MC-41)", () => {
 });
 
 describe("collectReviewEvents / runSelfReview", () => {
-  async function seed(kind: string, content: string, files: string[] = [], createdAt = new Date().toISOString()) {
+  async function seed(
+    kind: string,
+    content: string,
+    files: string[] = [],
+    createdAt = new Date().toISOString(),
+    extra: Record<string, unknown> = {},
+  ) {
     await db.run(`INSERT OR IGNORE INTO brain_sessions (id, title) VALUES ('s1', 't')`).catch(() => {});
     await db.run(
       `INSERT INTO brain_episodic (session_id, type, role, content, metadata, created_at) VALUES ('s1','tool_call','tool',?,?,?)`,
-      [content, JSON.stringify({ soul: true, kind, files }), createdAt.replace("T", " ").slice(0, 19)],
+      [content, JSON.stringify({ soul: true, kind, files, ...extra }), createdAt.replace("T", " ").slice(0, 19)],
     );
   }
 
@@ -148,6 +156,12 @@ describe("collectReviewEvents / runSelfReview", () => {
     const events = await collectReviewEvents(db as any);
     expect(events.map((e) => e.kind).sort()).toEqual(["build_fail", "revert"]);
     expect(events.find((e) => e.kind === "revert")!.text).toBe("src/a.ts");
+  });
+
+  it("collects user_correction soul rows with the recipe id (P7.1)", async () => {
+    await seed("user_correction", "not this: skipped recipe Button", [], new Date().toISOString(), { recipeId: "r1" });
+    const events = await collectReviewEvents(db as any);
+    expect(events).toEqual([expect.objectContaining({ kind: "user_correction", recipeId: "r1" })]);
   });
 
   it("runs end to end from seeded history", async () => {

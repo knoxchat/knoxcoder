@@ -59,10 +59,31 @@ describe("createReplayPorts", () => {
     expect(await ports.writeFile("a.txt", "x")).toEqual({ ok: false, error: "permission denied" });
   });
 
-  it("refuses binary content and deletes", async () => {
+  it("refuses binary content", async () => {
     const ports = await createReplayPorts(host(async () => []));
     expect((await ports.writeFile("a.bin", new Uint8Array([0xff, 0xfe, 0x00]))).ok).toBe(false);
-    expect((await ports.deleteFile("a.txt")).ok).toBe(false);
+  });
+
+  it("deletes through the tool path and confirms the file is gone", async () => {
+    await fsp.writeFile(path.join(dir, "a.txt"), "hello");
+    const calls: Array<[string, Record<string, unknown>]> = [];
+    const ports = await createReplayPorts(
+      host(async (name, args) => {
+        calls.push([name, args]);
+        await fsp.unlink(path.join(dir, args.filepath as string));
+        return [];
+      }),
+    );
+    expect(await ports.deleteFile("a.txt")).toEqual({ ok: true });
+    expect(calls).toEqual([["builtin_delete_file", { filepath: "a.txt" }]]);
+  });
+
+  it("does not count a delete held for review as applied", async () => {
+    await fsp.writeFile(path.join(dir, "a.txt"), "hello");
+    const ports = await createReplayPorts(host(async () => []));
+    const res = await ports.deleteFile("a.txt");
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/held for review|still on disk/);
   });
 
   it("hashes what is on disk and reads current text", async () => {
@@ -90,6 +111,26 @@ describe("createReplayPorts", () => {
   it("verify fails when the recipe has no command to repeat", async () => {
     const ports = await createReplayPorts(host(async () => term(0)));
     expect((await ports.verify({ oracle: { kind: "user", passedAt: "x" } } as never)).ok).toBe(false);
+  });
+
+  it("verify uses diagnostics for lsp/user oracles when no command was recorded", async () => {
+    const recipe = {
+      oracle: { kind: "lsp", passedAt: "x" },
+      steps: [{ kind: "write_file", path: "a.ts" }],
+    } as never;
+    const ok = await createReplayPorts({
+      ...host(async () => term(0)),
+      diagnostics: async (paths) => {
+        expect(paths).toEqual(["a.ts"]);
+        return { ok: true };
+      },
+    });
+    expect(await ok.verify(recipe)).toEqual({ ok: true });
+    const bad = await createReplayPorts({
+      ...host(async () => term(0)),
+      diagnostics: async () => ({ ok: false, detail: "a.ts: type error" }),
+    });
+    expect(await bad.verify(recipe)).toEqual({ ok: false, detail: "a.ts: type error" });
   });
 
   it("MC-90 refuses a project-scope recipe captured in another workspace", async () => {

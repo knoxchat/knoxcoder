@@ -22,6 +22,7 @@ describe("default context providers", () => {
       "repo-map",
       "terminal",
       "memory",
+      "recipe",
     ]);
 
     const created = createDefaultContextProviders().map(

@@ -325,6 +325,12 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
           llmCallsAvoided: number;
           tokensSaved: number;
           wrongApplyRate: number;
+          slotReplays?: number;
+          nearMisses?: number;
+          skips?: number;
+          skipReasons?: Record<string, number>;
+          projectCount?: number;
+          globalCount?: number;
         };
         aiSessionMetrics: Array<{
           sessionId: string;
@@ -615,7 +621,7 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
   ];
   /** MC-35: what replaying a recipe would change (read-only). Undefined when the recipe is gone. */
   "knox/recipePreview": [
-    { recipeId: string },
+    { recipeId: string; slotValues?: Record<string, string> },
     import("./nativeAgent").RecipePreviewOutput | undefined,
   ];
   /** MC-72: current values of the recipe settings. */
@@ -640,6 +646,11 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
     { recipeId: string; status: "retired" | "quarantined" | "candidate" | "verified" },
     import("./nativeAgent").RecipeSetStatusOutput,
   ];
+  /** P5 inspector: rename, pin, notes, slots, preconditions, promote/demote scope. */
+  "knox/recipePatch": [
+    import("./nativeAgent").RecipePatchInput,
+    import("./nativeAgent").RecipePatchOutput,
+  ];
   /** MC-42: the user chose "Promote to skill"; writes `SKILL.md` (project `skills/` or `~/.knoxcoder/skills`). */
   "knox/recipePromoteSkill": [
     { recipeId: string; scope: "project" | "global" },
@@ -647,9 +658,22 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
   ];
   /** MC-30: apply a verified recipe with no LLM call (after the user approved the preview). */
   "knox/recipeReplay": [
-    { recipeId: string },
+    {
+      recipeId: string;
+      slotValues?: Record<string, string>;
+      includePaths?: string[];
+      approvedExtraPaths?: string[];
+      composeIds?: string[];
+    },
     import("./nativeAgent").RecipeReplayOutput | undefined,
   ];
+  /** P3.4: save a recipe from a checkpoint / selected files. Requires user accept. */
+  "knox/recipeSave": [
+    { intent?: string; checkpointId?: string; paths?: string[]; userAccepted?: boolean; sessionId?: string },
+    import("./nativeAgent").RecipeCaptureOutcome,
+  ];
+  /** P3.5: don't remember the last captured recipe. */
+  "knox/recipeRefuse": [{ sessionId?: string }, import("./nativeAgent").RecipeCaptureOutcome];
   /**
    * Shared loop (K-010): run a whole chat turn on
    * `runAgentLoop`. Progress arrives as `knox/chatTurnEvent` notifications;

@@ -92,7 +92,7 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 
 	test('KN-315: soul events bind session.id across tools, oracles, and restore', () => {
 		const types = repoFile('extensions/knox/src/core/context/soul/types.ts');
-		for (const kind of ['tool_denied', 'compaction', 'build:fail', 'qemu:panic', 'bisect:step', 'restore']) {
+		for (const kind of ['tool_denied', 'compaction', 'build:fail', 'qemu:panic', 'bisect:step', 'restore', 'user_correction']) {
 			assert.ok(types.includes(`"${kind}"`), kind);
 		}
 		assert.ok(types.includes('sessionId: string'));

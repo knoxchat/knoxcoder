@@ -328,7 +328,9 @@ export async function createRecipeTables(db: DatabaseConnection): Promise<void> 
       title TEXT NOT NULL DEFAULT '',
       intent_text TEXT NOT NULL DEFAULT '',
       intent_fingerprint TEXT NOT NULL DEFAULT '',
+      family_id TEXT NOT NULL DEFAULT '',
       slots TEXT NOT NULL DEFAULT '[]',
+      slot_values TEXT NOT NULL DEFAULT '{}',
       preconditions TEXT NOT NULL DEFAULT '[]',
       oracle_kind TEXT NOT NULL DEFAULT ''
         CHECK (oracle_kind IN ('', 'build', 'test', 'lsp', 'user')),
@@ -342,6 +344,8 @@ export async function createRecipeTables(db: DatabaseConnection): Promise<void> 
       user_accepted_at DATETIME DEFAULT NULL,
       source_session_id TEXT DEFAULT NULL,
       memory_id INTEGER DEFAULT NULL,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      notes TEXT NOT NULL DEFAULT '',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       last_replayed_at DATETIME DEFAULT NULL
@@ -384,7 +388,9 @@ export async function createRecipeTables(db: DatabaseConnection): Promise<void> 
 
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_recipes_project_status ON brain_recipes(project_id, status)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_recipes_fingerprint ON brain_recipes(intent_fingerprint)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_recipes_family ON brain_recipes(family_id)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_recipes_memory ON brain_recipes(memory_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_recipes_scope ON brain_recipes(scope, project_id, status)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_recipe_steps_recipe ON brain_recipe_steps(recipe_id, seq)`);
   // Blob refcounts for retention (MC-12).
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_recipe_steps_blob ON brain_recipe_steps(blob_hash)`);
@@ -418,6 +424,14 @@ export async function migrateSchema(db: DatabaseConnection): Promise<void> {
   // Recipe promotion evidence (MC-15); tables may predate these columns.
   try { await db.exec("ALTER TABLE brain_recipes ADD COLUMN capture_count INTEGER NOT NULL DEFAULT 1"); } catch {}
   try { await db.exec("ALTER TABLE brain_recipes ADD COLUMN user_accepted_at DATETIME DEFAULT NULL"); } catch {}
+  // P1 families: snapshot id stays the content hash; family_id groups variants.
+  try { await db.exec("ALTER TABLE brain_recipes ADD COLUMN family_id TEXT NOT NULL DEFAULT ''"); } catch {}
+  try { await db.exec("ALTER TABLE brain_recipes ADD COLUMN slot_values TEXT NOT NULL DEFAULT '{}'"); } catch {}
+  try { await db.exec("CREATE INDEX IF NOT EXISTS idx_recipes_family ON brain_recipes(family_id)"); } catch {}
+  try { await db.exec("CREATE INDEX IF NOT EXISTS idx_recipes_scope ON brain_recipes(scope, project_id, status)"); } catch {}
+  // P5 inspector: pin boost + free-text note (redacted at write).
+  try { await db.exec("ALTER TABLE brain_recipes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0"); } catch {}
+  try { await db.exec("ALTER TABLE brain_recipes ADD COLUMN notes TEXT NOT NULL DEFAULT ''"); } catch {}
   try {
     const { hashProjectId } = await import("../projectScope.js");
     const rows = await db.all("SELECT id, workspace_directory FROM brain_sessions WHERE project_id = '' OR project_id IS NULL");

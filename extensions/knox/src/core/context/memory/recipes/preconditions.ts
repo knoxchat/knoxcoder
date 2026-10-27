@@ -115,6 +115,9 @@ export async function detectLanguages(env: PreconditionEnv): Promise<Set<string>
   return langs;
 }
 
+/** One language tag a recipe should carry; more specific wins over javascript. */
+const LANGUAGE_PRIORITY = ["rust", "python", "go", "typescript", "javascript"] as const;
+
 async function detectFrameworks(env: PreconditionEnv): Promise<Set<string>> {
   const out = new Set<string>();
   const deps = await npmDeps(env);
@@ -211,6 +214,21 @@ export async function checkPreconditions(
     failures,
     summary: failures.length ? `Replay refused: ${failures.map((f) => f.reason).join("; ")}` : "",
   };
+}
+
+/**
+ * Language / framework checks so a recipe captured in a React/TS tree does not
+ * exact-replay in a Rust crate. Does not list every dependency (too brittle).
+ */
+export async function deriveEnvironmentPreconditions(env: PreconditionEnv): Promise<RecipePrecondition[]> {
+  const out: RecipePrecondition[] = [];
+  const langs = await detectLanguages(env);
+  const language = LANGUAGE_PRIORITY.find((l) => langs.has(l));
+  if (language) out.push({ kind: "language", value: language });
+  for (const framework of [...(await detectFrameworks(env))].sort()) {
+    out.push({ kind: "framework", value: framework });
+  }
+  return out;
 }
 
 /**

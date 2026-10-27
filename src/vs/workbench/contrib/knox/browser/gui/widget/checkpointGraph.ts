@@ -724,7 +724,12 @@ function renderGraphRow(
 		const chip = DOM.append(desc, DOM.$('span.knox-gui-graph-branch', undefined, branch.name));
 		chip.setAttribute('data-testid', 'checkpoint-graph-branch');
 		chip.setAttribute('data-active', branch.isActive ? 'true' : 'false');
-		chip.title = branch.name;
+		chip.title = branch.name.startsWith('what-if/')
+			? t(state, 'checkpointGraph.whatIfBranch', { branch: branch.name })
+			: branch.name;
+		if (branch.name.startsWith('what-if/')) {
+			chip.setAttribute('data-whatif', 'true');
+		}
 		if (branch.isActive) {
 			const color = themedGraphColor(branch.color);
 			chip.style.color = color;
@@ -753,7 +758,7 @@ function renderGraphRow(
 	title.title = opts.node.description;
 	const when = formatCheckpointGraphTime(opts.node.created);
 	if (!state.checkpointGraphUi.hiddenColumns.includes('date')) {
-		const cell = DOM.append(row, DOM.$('div.knox-gui-graph-cell.knox-gui-graph-truncate.knox-gui-graph-dim', undefined, state.checkpointGraphUi.dateStyle === 'absolute' || !when.relativeKey ? when.absolute : t(state, when.relativeKey, when.count != null ? { count: when.count } : undefined)));
+		const cell = DOM.append(row, DOM.$('div.knox-gui-graph-cell.knox-gui-graph-truncate.knox-gui-graph-dim', undefined, state.checkpointGraphUi.dateStyle === 'absolute' || !when.relativeKey ? when.absolute : t(state, when.relativeKey, when.count !== undefined && when.count !== null ? { count: when.count } : undefined)));
 		cell.setAttribute('role', 'cell');
 		cell.title = when.absolute;
 	}
@@ -869,6 +874,7 @@ function renderPathTree(widget: KnoxGuiWidget, state: IKnoxGuiState, parent: HTM
 			continue;
 		}
 		const open = !widget.checkpointGraphExpandedFolders.has(node.path);
+		// allow-any-unicode-next-line
 		const toggle = DOM.append(item, DOM.$('button.knox-gui-graph-folder', undefined, `${open ? '▾' : '▸'} ${node.name}`)) as HTMLButtonElement;
 		toggle.type = 'button';
 		toggle.style.paddingLeft = `${depth * 12}px`;

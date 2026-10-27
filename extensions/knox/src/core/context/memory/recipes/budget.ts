@@ -17,6 +17,9 @@ export const DEFAULT_RECIPE_BUDGET: RecipeBudget = {
   maxBlobBytesPerProject: 256 * 1024 * 1024,
 };
 
+/** Live variants kept per family. Extra snapshots are retired so pins cannot grow without bound. */
+export const MAX_FAMILY_VARIANTS = 8;
+
 export type BlobSizeFn = (hash: string) => number;
 
 const STATUS_RANK: Record<string, number> = { quarantined: 0, candidate: 1, verified: 2 };
@@ -78,12 +81,54 @@ export async function enforceRecipeBudget(
   return ids;
 }
 
+/** Retire the least valuable extra variants of one family. */
+export function planFamilyVariantEviction(
+  recipes: Recipe[],
+  cap = MAX_FAMILY_VARIANTS,
+): string[] {
+  const byFamily = new Map<string, Recipe[]>();
+  for (const r of recipes) {
+    if (r.status === "retired" || !r.familyId) continue;
+    (byFamily.get(r.familyId) ?? byFamily.set(r.familyId, []).get(r.familyId)!).push(r);
+  }
+  const evict: string[] = [];
+  for (const group of byFamily.values()) {
+    if (group.length <= cap) continue;
+    const keep = [...group].sort((a, b) => recipeValue(b) - recipeValue(a) || a.id.localeCompare(b.id));
+    evict.push(...keep.slice(cap).map((r) => r.id));
+  }
+  return evict;
+}
+
+export async function enforceFamilyVariantCap(
+  store: RecipeStore,
+  familyId: string,
+  cap = MAX_FAMILY_VARIANTS,
+): Promise<string[]> {
+  if (!familyId) return [];
+  const members = await store.list({ familyId, status: ["candidate", "verified", "quarantined"], limit: 1000 });
+  const ids = planFamilyVariantEviction(members, cap);
+  for (const id of ids) await store.retire(id);
+  return ids;
+}
+
+export async function enforceAllFamilyVariantCaps(
+  store: RecipeStore,
+  cap = MAX_FAMILY_VARIANTS,
+): Promise<string[]> {
+  const live = await store.list({ status: ["candidate", "verified", "quarantined"], limit: 1000 });
+  const ids = planFamilyVariantEviction(live, cap);
+  for (const id of ids) await store.retire(id);
+  return ids;
+}
+
 /** Sleep / session-end scheduler: evict to the 200-recipe cap, then purge old rows. */
 export async function runRecipeMaintenance(
   store: RecipeStore,
   size: BlobSizeFn = () => 0,
 ): Promise<{ evicted: string[]; purged: number }> {
-  const evicted = await enforceRecipeBudget(store, size);
+  const familyEvicted = await enforceAllFamilyVariantCaps(store);
+  const evicted = [...familyEvicted, ...(await enforceRecipeBudget(store, size))];
   const purged = await store.purgeStale();
   return { evicted, purged };
 }

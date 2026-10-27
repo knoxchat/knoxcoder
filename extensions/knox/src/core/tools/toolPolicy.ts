@@ -117,6 +117,7 @@ const READONLY_PATH_TOOLS = new Set<string>([
 
 const MUTATING_PATH_TOOLS = new Set<string>([
   BuiltInToolNames.WriteFile,
+  BuiltInToolNames.DeleteFile,
   BuiltInToolNames.EditFile,
   BuiltInToolNames.ApplyPatch,
   BuiltInToolNames.CreateNewFile,
@@ -744,6 +745,17 @@ export function evaluateToolPolicy(params: {
         return {
           action: "deny",
           reason: `Sensitive path "${p}" is blocked (${hard})`,
+        };
+      }
+    }
+  }
+
+  if (params.toolName === BuiltInToolNames.DeleteFile) {
+    for (const p of targets.paths) {
+      if (isSensitiveSecretFile(p)) {
+        return {
+          action: "deny",
+          reason: `Refusing to delete secret file "${p}"`,
         };
       }
     }

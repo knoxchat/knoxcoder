@@ -65,6 +65,22 @@ export interface PerformanceDashboardData {
     summary: DashboardSummary;
 }
 
+async function withRecipeInspectorCounts(summary: RecipeMetricsSummary): Promise<RecipeMetricsSummary> {
+    try {
+        const [{ RecipeStore }, { get: getBrainDb }] = await Promise.all([
+            import("core/context/memory/recipes/RecipeStore"),
+            import("core/context/memory/brain/store/connection"),
+        ]);
+        const recipes = await new RecipeStore(await getBrainDb()).list({ limit: 1000 });
+        const live = recipes.filter((recipe) => recipe.status !== "retired");
+        summary.projectCount = live.filter((recipe) => recipe.scope === "project").length;
+        summary.globalCount = live.filter((recipe) => recipe.scope === "global").length;
+    } catch {
+        // Brain DB is optional for the checkpoint dashboard.
+    }
+    return summary;
+}
+
 function average(values: number[]): number {
     if (values.length === 0) {
         return 0;
@@ -207,7 +223,7 @@ export async function getPerformanceDashboard(
         dashboard.creationFrequency = creationFrequency(creates);
         dashboard.restorationEvents = [...restores].reverse();
         dashboard.aiSessionMetrics = aiSessions;
-        dashboard.recipeMetrics = summarizeRecipeMetrics(windowed);
+        dashboard.recipeMetrics = await withRecipeInspectorCounts(summarizeRecipeMetrics(windowed));
         dashboard.summary = {
             totalCheckpointsCreated: creates.length,
             totalRestorations: restores.length,

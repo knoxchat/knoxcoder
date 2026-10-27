@@ -684,6 +684,37 @@ export interface DebugControlResult {
   frames?: DebugStackFrame[];
 }
 
+export type RecipeControlOp = "list" | "preview" | "apply" | "import_skill";
+
+export interface RecipeControlRequest {
+  op: RecipeControlOp;
+  query?: string;
+  recipeId?: string;
+  confirm?: boolean;
+  slotValues?: Record<string, string>;
+  includePaths?: string[];
+  skillPath?: string;
+  skillContent?: string;
+  limit?: number;
+}
+
+export interface RecipeControlRow {
+  id: string;
+  title: string;
+  status: string;
+  files: number;
+  slots: string[];
+}
+
+export interface RecipeControlResult {
+  content: string;
+  status: "ok" | "needs_confirm" | "refused" | "unavailable" | "applied" | "error";
+  recipeId?: string;
+  title?: string;
+  preview?: string;
+  recipes?: RecipeControlRow[];
+}
+
 export type IdeType = "vscode";
 
 export interface IdeInfo {
@@ -795,6 +826,12 @@ export interface IDE {
 
   /** DAP control for builtin_debug (HL-31). Optional on headless IDEs. */
   debugControl?(request: DebugControlRequest): Promise<DebugControlResult>;
+
+  /**
+   * Optional IDE hook: list / preview / apply / import-skill for recipes.
+   * Apply uses the host replayer (callTool), never raw fs.
+   */
+  recipeControl?(request: RecipeControlRequest): Promise<RecipeControlResult>;
 
   getWorkspaceDirs(): Promise<string[]>;
 

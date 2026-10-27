@@ -2,7 +2,7 @@
  * Context provider tiers.
  *
  * **Core defaults** (always available after load):
- *   file, diff, problems, repo-map, terminal, memory
+ *   file, diff, problems, repo-map, terminal, memory, recipe
  *
  * **Core opt-in** (registry; add via config `context:`):
  *   currentFile, open, clipboard, commit, tree, search, os, url, serial
@@ -34,6 +34,7 @@ import OSContextProvider from "./OSContextProvider";
 import PostgresContextProvider from "./PostgresContextProvider";
 import ProblemsContextProvider from "./ProblemsContextProvider";
 import ProjectMemoryContextProvider from "./ProjectMemoryContextProvider";
+import RecipeContextProvider from "./RecipeContextProvider";
 import RepoMapContextProvider from "./RepoMapContextProvider";
 import SearchContextProvider from "./SearchContextProvider";
 import SerialContextProvider from "./SerialContextProvider";
@@ -50,6 +51,7 @@ export const DEFAULT_CONTEXT_PROVIDER_TITLES = [
   "repo-map",
   "terminal",
   "memory",
+  "recipe",
 ] as const;
 
 export type DefaultContextProviderTitle =
@@ -128,6 +130,7 @@ export function createDefaultContextProviders(): IContextProvider[] {
     new RepoMapContextProvider({}),
     new TerminalContextProvider({}),
     new ProjectMemoryContextProvider({}),
+    new RecipeContextProvider({}),
   ];
 }
 
@@ -176,6 +179,7 @@ export const Providers: (typeof BaseContextProvider)[] = [
   RepoMapContextProvider,
   TerminalContextProvider,
   ProjectMemoryContextProvider,
+  RecipeContextProvider,
   // Core opt-in
   CurrentFileContextProvider,
   OpenFilesContextProvider,

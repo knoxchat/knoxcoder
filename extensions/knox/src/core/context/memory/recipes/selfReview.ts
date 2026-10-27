@@ -61,13 +61,20 @@ function score(r: Recipe): number {
   return r.stats.ok * 2 - r.stats.reverted * 3 - r.stats.failedVerify * 2 + (r.status === "verified" ? 5 : 0);
 }
 
-/** Group live recipes with the same project + fingerprint + step shape; keep the best by stats. */
+/** Byte-and-path identity: same files at the same hashes. Variants (different blobs) are a family, not duplicates. */
+function snapshotKey(r: Recipe): string {
+  const steps = r.steps
+    .map((s) => `${s.kind}:${s.path ?? ""}:${s.blobHash ?? ""}:${s.command ?? ""}`)
+    .join("|");
+  return `${r.projectId}\u0000${r.intentFingerprint}\u0000${steps}`;
+}
+
+/** Group live recipes that are byte-and-path identical; keep the best by stats. */
 export function findDuplicateRecipes(recipes: Recipe[]): { keepId: string; dropIds: string[] }[] {
   const groups = new Map<string, Recipe[]>();
   for (const r of recipes) {
     if (r.status === "retired" || r.status === "quarantined") continue;
-    const shape = r.steps.map((s) => `${s.kind}:${s.path ?? s.command ?? ""}`).join("|");
-    const key = `${r.projectId}\u0000${r.intentFingerprint}\u0000${shape}`;
+    const key = snapshotKey(r);
     (groups.get(key) ?? groups.set(key, []).get(key)!).push(r);
   }
   const out: { keepId: string; dropIds: string[] }[] = [];
@@ -96,10 +103,10 @@ export function planMemoryUpdates(events: ReviewEvent[], recipes: Recipe[], thre
   const updates: MemoryUpdate[] = [];
   const live = new Set(recipes.filter((r) => r.status === "verified" || r.status === "candidate").map((r) => r.id));
   for (const f of findRepeats(events, threshold)) {
-    if (f.kind === "tool_error" || f.kind === "build_fail") {
+    if (f.kind === "tool_error" || f.kind === "build_fail" || f.kind === "user_correction") {
       updates.push({ action: "add_error_fix", signature: f.signature, count: f.count });
     }
-    if (f.kind === "build_fail" || f.kind === "revert") {
+    if (f.kind === "build_fail" || f.kind === "revert" || f.kind === "user_correction") {
       for (const id of f.recipeIds) {
         if (live.has(id)) updates.push({ action: "quarantine_recipe", recipeId: id, reason: `${f.kind} x${f.count}: ${f.signature}` });
       }
@@ -107,4 +114,71 @@ export function planMemoryUpdates(events: ReviewEvent[], recipes: Recipe[], thre
   }
   for (const d of findDuplicateRecipes(recipes)) updates.push({ action: "merge_recipes", ...d });
   return updates;
+}
+
+/** A sleep-cycle proposal the user must approve. Never applied automatically. */
+export interface FamilyDraft {
+  kind: "extract_slots";
+  recipeIds: string[];
+  titles: string[];
+  reason: string;
+}
+
+function draftGroupKey(r: Recipe): string {
+  const shape = r.steps.map((s) => (s.kind === "command" ? `c:${s.command ?? ""}` : s.kind)).join("|");
+  return `${r.projectId}\u0000${r.scope}\u0000${r.intentFingerprint}\u0000${shape}`;
+}
+
+/**
+ * Variants that look like one procedure (same fingerprint + step kinds) but are
+ * not yet a slotted family. Sleep writes these as a draft (rule 7); it does not
+ * extract slots or merge them. Byte-identical duplicates still auto-merge via
+ * `findDuplicateRecipes`.
+ */
+export function planFamilyDrafts(recipes: Recipe[]): FamilyDraft[] {
+  const groups = new Map<string, Recipe[]>();
+  for (const r of recipes) {
+    if (r.status !== "verified" && r.status !== "candidate") continue;
+    if (r.slots.length > 0 && r.familyId) continue;
+    const key = draftGroupKey(r);
+    (groups.get(key) ?? groups.set(key, []).get(key)!).push(r);
+  }
+  const drafts: FamilyDraft[] = [];
+  for (const g of groups.values()) {
+    if (g.length < 2) continue;
+    const blobs = new Set(g.map((r) => r.steps.map((s) => s.blobHash ?? s.path ?? s.command ?? "").join("|")));
+    if (blobs.size < 2) continue;
+    drafts.push({
+      kind: "extract_slots",
+      recipeIds: g.map((r) => r.id),
+      titles: g.map((r) => r.title || r.intentText || r.id.slice(0, 8)),
+      reason: `${g.length} variants share an intent and step shape but have no slots yet`,
+    });
+  }
+  return drafts.sort((a, b) => b.recipeIds.length - a.recipeIds.length || a.recipeIds[0].localeCompare(b.recipeIds[0]));
+}
+
+export function buildFamilyDraftMarkdown(drafts: FamilyDraft[], now = new Date()): string {
+  const lines = [
+    "# Recipe family drafts",
+    "",
+    `Generated ${now.toISOString()}. Local only; nothing was applied or sent anywhere.`,
+    "",
+    "These variants look like one procedure. Approve slot extraction from the Recipes tab",
+    "(edit slots, or recapture the second success). Sleep does not merge them automatically",
+    "unless they are byte-and-path identical.",
+    "",
+  ];
+  if (drafts.length === 0) {
+    lines.push("No unmerged family variants waiting on slot extraction.", "");
+    return lines.join("\n");
+  }
+  for (const d of drafts) {
+    lines.push(`## Extract slots (${d.recipeIds.length} variants)`, "", `- ${d.reason}`);
+    for (let i = 0; i < d.recipeIds.length; i++) {
+      lines.push(`- \`${d.titles[i]}\` \`${d.recipeIds[i].slice(0, 12)}\``);
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
 }

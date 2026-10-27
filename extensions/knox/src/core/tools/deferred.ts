@@ -26,6 +26,7 @@ export const CORE_TOOL_NAMES: ReadonlySet<string> = new Set<string>([
   N.CreateNewFile,
   N.EditFile,
   N.WriteFile,
+  N.DeleteFile,
   N.ApplyPatch,
   N.RunTerminalCommand,
   N.AwaitShell,
@@ -37,6 +38,7 @@ export const CORE_TOOL_NAMES: ReadonlySet<string> = new Set<string>([
   N.AskUser,
   N.Task,
   N.Skill,
+  N.Recipe,
   N.GitStatus,
   N.GitDiff,
 ]);

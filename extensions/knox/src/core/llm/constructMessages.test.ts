@@ -81,6 +81,7 @@ describe("constructMessages", () => {
     expect(content).toContain("builtin_exact_search");
     expect(content).toContain("builtin_edit_file");
     expect(content).toContain("builtin_write_file");
+    expect(content).toContain("builtin_delete_file");
     expect(content).toContain("builtin_apply_patch");
     expect(content).toMatch(/never the terminal|Do not write or patch files/i);
     expect(content).toContain("builtin_create_new_file");
@@ -102,14 +103,16 @@ describe("constructMessages", () => {
     expect(content).toMatch(/native tool|Never print DSML/i);
   });
 
-  it("omits systems tooling on the default profile and is >=40% smaller (K-031)", () => {
+  it("omits systems tooling on the default profile and stays much smaller (K-031)", () => {
     const full = String(constructMessages([])[0]?.content);
     const lean = String(constructMessages([], null, { systems: false })[0]?.content);
     expect(lean).not.toContain("builtin_pty_start");
     expect(lean).not.toContain("builtin_qemu");
     expect(lean).toContain("builtin_edit_file");
     expect(lean).toContain("Verification");
-    expect(lean.length).toBeLessThanOrEqual(OLD_PROMPT_CHARS * 0.61);
+    expect(lean).toContain("builtin_recipe");
+    // Recipe section + delete-file line; default still omits systems tools.
+    expect(lean.length).toBeLessThanOrEqual(OLD_PROMPT_CHARS * 0.70);
     expect(full.length).toBeLessThan(OLD_PROMPT_CHARS);
   });
 

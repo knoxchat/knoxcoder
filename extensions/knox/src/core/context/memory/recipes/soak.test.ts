@@ -19,10 +19,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { applyBrainPragmas } from "../brain/store/dbSafety";
 import { createTables } from "../brain/store/schema";
 import { computeIntentFingerprint } from "./intentFingerprint";
-import { enforceRecipeBudget, DEFAULT_RECIPE_BUDGET } from "./budget";
+import { enforceAllFamilyVariantCaps, enforceRecipeBudget, DEFAULT_RECIPE_BUDGET, MAX_FAMILY_VARIANTS } from "./budget";
+import { linkRecipeFamily } from "./family";
 import { bestMatch } from "./RecipeMatcher";
 import { RecipeStore } from "./RecipeStore";
 import { replayExact, type ReplayPorts } from "./replayer";
+import { applySlots, fillSlotsFromMessage } from "./slots";
 
 const TURNS = 1000;
 const DISTINCT_INTENTS = 400; // more than the 200-recipe budget, so eviction really runs
@@ -135,6 +137,47 @@ describe("1000-turn soak (MC-83)", () => {
       }
     }
 
+    let slotReplays = 0;
+    const variantNames = ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliet", "Kilo", "Lima", "Mike", "November", "Oscar", "Papa", "Quebec", "Romeo", "Sierra", "Tango"];
+    for (const name of variantNames) {
+      const message = `create a ${name} widget`;
+      const bytes = `export function ${name}() { return "${name}"; }\n`;
+      const hash = `slot-${name}`;
+      blobs.set(hash, bytes);
+      const { recipe } = await store.create({
+        projectId: PROJECT,
+        intentText: message,
+        intentFingerprint: computeIntentFingerprint(message).key,
+        title: message,
+        steps: [{ kind: "write_file", path: `src/${name}.ts`, blobHash: hash, checkpointId: `cp-slot-${name}` }],
+        oracle: ORACLE,
+      });
+      if (recipe.status === "candidate") await store.verify(recipe.id);
+      await linkRecipeFamily(store, (await store.get(recipe.id)) ?? recipe, { readBlob: async (h) => blobs.get(h) });
+    }
+    await enforceAllFamilyVariantCaps(store);
+    evicted += (await enforceRecipeBudget(store, blobSize)).length;
+    const familyLive = (await store.list({ status: ["candidate", "verified", "quarantined"], limit: 1000 })).filter((r) => r.familyId);
+    const byFamily = new Map<string, number>();
+    for (const r of familyLive) byFamily.set(r.familyId!, (byFamily.get(r.familyId!) ?? 0) + 1);
+    expect(Math.max(0, ...byFamily.values())).toBeLessThanOrEqual(MAX_FAMILY_VARIANTS);
+
+    const slotted = familyLive.find((r) => r.slots.length > 0);
+    if (slotted) {
+      const fill = fillSlotsFromMessage(slotted.slots, "create a WidgetX widget");
+      if (fill.unfilled === 0) {
+        const src = slotted.steps.find((s) => s.blobHash);
+        const text = src?.blobHash ? blobs.get(src.blobHash) : undefined;
+        if (text && src?.path) {
+          const applied = applySlots(slotted, fill.values, new Map([[src.path, text]]));
+          if (applied.ok) {
+            const result = await replayExact(applied.recipe, ports, { merged: applied.merged });
+            if (result.status === "applied") slotReplays++;
+          }
+        }
+      }
+    }
+
     const pinned = await store.pinnedBlobRefCounts();
     const pinnedBytes = [...pinned.keys()].reduce((n, h) => n + blobSize(h), 0);
     const retired = (await db.get<{ n: number }>("SELECT COUNT(*) n FROM brain_recipes WHERE status = 'retired'"))!.n;
@@ -156,6 +199,7 @@ describe("1000-turn soak (MC-83)", () => {
       pinnedBytes,
       matchP95Ms: +percentile(matchMs, 0.95).toFixed(2),
       replayP95Ms: +percentile(replayMs, 0.95).toFixed(2),
+      slotReplays,
     };
     console.info(`[mc-83 soak] ${JSON.stringify(summary)}`);
 

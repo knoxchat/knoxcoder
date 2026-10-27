@@ -31,8 +31,8 @@ const MATCH_THRESHOLD = 8;
 const TASK_ID_PREFIX = 'task:';
 const SELECTIVE_COLLAPSE_BELOW = 0.7;
 const WRITE_TOOLS = new Set([
-	'builtin_edit_file', 'builtin_write_file', 'builtin_apply_patch', 'builtin_create_new_file',
-	'edit_file', 'write_file', 'apply_patch', 'create_new_file', 'composite_smart_edit',
+	'builtin_edit_file', 'builtin_write_file', 'builtin_delete_file', 'builtin_apply_patch', 'builtin_create_new_file',
+	'edit_file', 'write_file', 'delete_file', 'apply_patch', 'create_new_file', 'composite_smart_edit',
 ]);
 const SHELL_TOOLS = new Set([
 	'builtin_run_terminal_command', 'builtin_await_shell', 'builtin_pty_start', 'builtin_build', 'builtin_qemu',

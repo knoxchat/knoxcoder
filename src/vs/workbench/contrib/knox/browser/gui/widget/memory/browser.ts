@@ -20,6 +20,7 @@ import {
 	MEMORY_TIER_COLORS,
 	memoryBrowserEmptyKey,
 	memorySnippet,
+	parseRecipeIdFromMemory,
 	rangeSelectMemoryIds,
 	uniqueMemoryCategories,
 } from '../../../../common/knoxGuiMemory.js';
@@ -377,6 +378,17 @@ function renderMemoryRow(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxG
 			title: t(state, 'memoryForget'),
 			onClick: () => { widget.memoryConfirmDeleteIds = [memory.id]; widget.memoryConfirmDeleteBulk = false; widget.render(); },
 		});
+		const recipeId = parseRecipeIdFromMemory(memory.content);
+		const linked = recipeId ? state.memoryRecipes.find(recipe => recipe.id === recipeId && recipe.status === 'verified') : undefined;
+		if (linked) {
+			memoryButton(widget, hover, {
+				tokens: 'row-action',
+				icon: 'rotate-cw',
+				title: t(state, 'memoryRecipeReplayFromMemory'),
+				testId: `memory-row-replay-${memory.id}`,
+				onClick: () => void widget.controller.replayMemoryRecipe(linked.id),
+			});
+		}
 	}
 	const inject = memoryInjectedLastTurnLine(memory.id, state.memoryLastInject);
 	if (inject) {

@@ -52,6 +52,13 @@ describe("resolveBuiltInToolName", () => {
     expect(resolveBuiltInToolName("checkpoint")).toBe(
       BuiltInToolNames.WorkspaceCheckpoint,
     );
+    expect(resolveBuiltInToolName("recipe")).toBe(BuiltInToolNames.Recipe);
+    expect(resolveBuiltInToolName("builtin_recipe_list")).toBe(
+      BuiltInToolNames.Recipe,
+    );
+    expect(resolveBuiltInToolName("recipe_apply")).toBe(BuiltInToolNames.Recipe);
+    expect(resolveBuiltInToolName("delete_file")).toBe(BuiltInToolNames.DeleteFile);
+    expect(resolveBuiltInToolName("unlink")).toBe(BuiltInToolNames.DeleteFile);
   });
 
   it("maps invented read_file_line onto builtin_read_file", () => {

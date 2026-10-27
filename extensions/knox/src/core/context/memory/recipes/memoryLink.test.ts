@@ -4,7 +4,7 @@ import path from "path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { buildRecipeMemory, parseRecipeId } from "./memoryLink";
+import { buildRecipeMemory, parseRecipeId, recipeGraphEntities, recipeMemoryIsVerified } from "./memoryLink";
 import type { Recipe } from "./types";
 
 const testDir = path.join(os.tmpdir(), `recipe-memory-link-${Date.now()}`);
@@ -76,6 +76,31 @@ describe("buildRecipeMemory", () => {
     expect(parseRecipeId("recipe_id: nope")).toBeUndefined();
     expect(parseRecipeId(undefined)).toBeUndefined();
     expect(parseRecipeId(`text recipe_id: ${ID}`)).toBeUndefined();
+  });
+
+  it("treats a linked recipe memory as verified unless it was reverted", () => {
+    const content = buildRecipeMemory(recipe()).content;
+    expect(recipeMemoryIsVerified(content)).toBe(true);
+    expect(recipeMemoryIsVerified(content, { verified: 2, reverted: 0 })).toBe(true);
+    expect(recipeMemoryIsVerified(content, { verified: 1, reverted: 1 })).toBe(false);
+    expect(recipeMemoryIsVerified("just a fact", { verified: 2, reverted: 0 })).toBe(true);
+    expect(recipeMemoryIsVerified("just a fact")).toBeUndefined();
+  });
+
+  it("extracts file, symbol and package entities without common nouns", () => {
+    const entities = recipeGraphEntities(
+      recipe({
+        preconditions: [{ kind: "framework", value: "react" }],
+        steps: [
+          { kind: "write_file", path: "src/Button.tsx", blobHash: HASH },
+          { kind: "write_file", path: "src/index.ts", blobHash: HASH },
+        ],
+      }),
+    );
+    expect(entities.some((e) => e.entity_type === "file" && e.name === "src/Button.tsx")).toBe(true);
+    expect(entities.some((e) => e.entity_type === "class" && e.name === "Button")).toBe(true);
+    expect(entities.some((e) => e.entity_type === "technology" && e.name === "react")).toBe(true);
+    expect(entities.some((e) => e.name.toLowerCase() === "index")).toBe(false);
   });
 });
 

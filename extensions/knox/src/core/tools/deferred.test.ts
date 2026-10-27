@@ -22,6 +22,7 @@ describe("deferred tools (K-021)", () => {
     expect(activeNames).toContain(BuiltInToolNames.ToolSearch);
     expect(activeNames).toContain(BuiltInToolNames.GitStatus);
     expect(activeNames).toContain(BuiltInToolNames.GitDiff);
+    expect(activeNames).toContain(BuiltInToolNames.Recipe);
     expect(activeNames).not.toContain(BuiltInToolNames.Lsp);
     expect(names(deferred)).toContain(BuiltInToolNames.Lsp);
     expect(names(deferred)).toContain(BuiltInToolNames.Memory);
