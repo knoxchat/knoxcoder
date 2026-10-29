@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { knoxGuiModelSupportsReasoning, knoxGuiResetModelCatalogForTests, knoxGuiShowsThinkingPlaceholder } from './knoxGuiCapabilities.js';
-import { CHAT_LOAD_EARLIER_THRESHOLD_PX, knoxGuiHoldPausedScrollTop, knoxGuiIsLiveUserScroll, knoxGuiNextScrollFollow, knoxGuiRestoreAnchorScrollTop, knoxGuiShouldLoadEarlier, knoxGuiTranscriptRestoreTop } from './knoxGuiChat.js';
+import { CHAT_LOAD_EARLIER_THRESHOLD_PX, knoxGuiHoldPausedScrollTop, knoxGuiIsLiveUserScroll, knoxGuiNextScrollFollow, knoxGuiRestoreAnchorScrollTop, knoxGuiShouldLoadEarlier, knoxGuiTranscriptAtStart, knoxGuiTranscriptRestoreTop } from './knoxGuiChat.js';
 import { alignSplitDiffRows, buildDiffSegments, checkpointGraphFindScroll, checkpointGraphMenuPosition, checkpointGraphRevealScroll, checkpointDiffContentBytes, checkpointDiffSummary, computeLineDiff, checkpointChartTickInterval, checkpointChartYTicks, checkpointConfigFieldErrors, checkpointConfigIsDirty, checkpointConfigNumber, checkpointDetailsDefaultTab, checkpointImageMime, DEFAULT_CHECKPOINT_CONFIG, formatCheckpointDuration, formatDashboardBytes, groupTimelineCheckpoints, checkpointMatchesQuery, checkpointTreeAncestors, clampCheckpointTreeWidth, compareCheckpointTargets, diffFromCheckpointSnapshots, formatSnapshotSize, parseCheckpointDetails, parseCheckpointDiff } from './knoxGuiCheckpoints.js';
 import { MEMORY_SETTING_GROUPS, memoriesToExportJson, memoriesToExportMarkdown, memoryBrowserEmptyKey, memoryConsolidateParts, memoryGraphTypeCounts, memoryInjectedLastTurnLine, parseLastInject, parseMemorySettingInput, rangeSelectMemoryIds, visibleMemoryExploreEdges, withMemoryConfigDefaults } from './knoxGuiMemory.js';
 import { knoxGuiResolveOpenPath } from './knoxGuiPanels.js';
@@ -174,9 +174,14 @@ suite('Knox native parity items', () => {
 			assert.strictEqual(knoxGuiTranscriptRestoreTop({ following: true, previousScrollTop: 100, previousScrollHeight: null, scrollHeight: 1000, clientHeight: 400 }), 600);
 			assert.strictEqual(knoxGuiTranscriptRestoreTop({ following: false, previousScrollTop: 250, previousScrollHeight: null, scrollHeight: 1000, clientHeight: 400 }), 250);
 			assert.strictEqual(knoxGuiTranscriptRestoreTop({ following: false, previousScrollTop: 40, previousScrollHeight: 800, scrollHeight: 1400, clientHeight: 400 }), 640);
+			assert.strictEqual(knoxGuiTranscriptRestoreTop({ following: false, previousScrollTop: 40, previousScrollHeight: 800, scrollHeight: 1400, clientHeight: 400, seekingStart: true }), 0, 'scroll-to-top stays at 0 while earlier windows mount');
+			assert.strictEqual(knoxGuiTranscriptAtStart({ scrollTop: 0, displayStart: 50 }), false);
+			assert.strictEqual(knoxGuiTranscriptAtStart({ scrollTop: 0, displayStart: 0 }), true);
+			assert.strictEqual(knoxGuiTranscriptAtStart({ scrollTop: 20, displayStart: 0 }), false);
 			assert.strictEqual(knoxGuiShouldLoadEarlier({ programmatic: false, scrollTop: 20, displayStart: 50, loadingEarlier: false }), true);
 			assert.strictEqual(knoxGuiShouldLoadEarlier({ programmatic: true, scrollTop: 20, displayStart: 50, loadingEarlier: false }), false);
 			assert.strictEqual(knoxGuiShouldLoadEarlier({ programmatic: false, scrollTop: 20, displayStart: 0, loadingEarlier: false }), false);
+			assert.strictEqual(knoxGuiShouldLoadEarlier({ programmatic: false, scrollTop: 20, displayStart: 50, loadingEarlier: false, seekingStart: true }), false);
 			assert.strictEqual(CHAT_LOAD_EARLIER_THRESHOLD_PX, 48);
 		});
 

@@ -38,6 +38,7 @@ import { SelectAllCommand } from '../../../../editor/browser/editorExtensions.js
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import './knoxGuiEditCommands.js';
 import { onCheckpointGraphKeyDown } from './gui/widget/checkpointGraph.js';
+import { updatePinnedUserMessage } from './gui/widget/chrome.js';
 
 suite('Knox native GUI widget chrome (GP-083)', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -638,14 +639,64 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const input = host.querySelector('[data-testid="knox-gui-history-input"]') as HTMLElement;
 		const bar = host.querySelector('.knox-gui-history-editor .knox-gui-input-bar') as HTMLElement;
 		assert.ok(input);
+		assert.strictEqual(input.contentEditable, 'false');
 		assert.ok(bar.classList.contains('knox-gui-input-bar--hidden'));
 		input.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
 		assert.strictEqual(bar.classList.contains('knox-gui-input-bar--hidden'), false);
 		assert.strictEqual(widget.focusedHistoryId, 'u');
+		assert.strictEqual(input.contentEditable, 'true');
+		await timeout(0);
+		assert.strictEqual(document.activeElement, input);
 		store.patch({ history: [user, { id: 'a', role: 'assistant', content: 'working on it' }] });
 		const nextBar = widget.root.querySelector('[data-testid="floating-sent-host"] .knox-gui-history-editor .knox-gui-input-bar') as HTMLElement;
 		assert.ok(nextBar);
 		assert.strictEqual(nextBar.classList.contains('knox-gui-input-bar--hidden'), false);
+		await timeout(0);
+		assert.strictEqual(document.activeElement, widget.root.querySelector('[data-testid="floating-sent-host"] [data-testid="knox-gui-history-input"]'));
+	});
+
+	test('clicking the pinned user preview shows the history input immediately', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			history: [
+				{ id: 'u1', role: 'user', content: 'first prompt to edit' },
+				{ id: 'a1', role: 'assistant', content: 'reply one' },
+				{ id: 'u2', role: 'user', content: 'second' },
+				{ id: 'a2', role: 'assistant', content: 'reply two' },
+			],
+		});
+		const body = widget.bodyEl!;
+		const firstComposer = widget.root.querySelector('.knox-gui-history-composer[data-index="0"]') as HTMLElement;
+		assert.ok(firstComposer);
+		const original = HTMLElement.prototype.getBoundingClientRect;
+		HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+			const box = { left: 0, right: 400, width: 400, x: 0, toJSON() { return {}; } };
+			if (this === body) {
+				return { ...box, top: 80, bottom: 480, height: 400, y: 80 };
+			}
+			if (this === firstComposer || this.getAttribute?.('data-index') === '0') {
+				return { ...box, top: 10, bottom: 50, height: 40, y: 10 };
+			}
+			return { ...box, top: 200, bottom: 280, height: 80, y: 200 };
+		};
+		try {
+			updatePinnedUserMessage(widget);
+			const pin = widget.root.querySelector('[data-testid="pinned-user-message"]') as HTMLElement;
+			assert.ok(pin);
+			assert.strictEqual(pin.querySelector('[data-testid="knox-gui-history-input"]'), null);
+			pin.click();
+			const input = pin.querySelector('[data-testid="knox-gui-history-input"]') as HTMLElement;
+			assert.ok(input);
+			assert.ok(pin.classList.contains('knox-gui-pinned-user--editing'));
+			assert.strictEqual(widget.focusedHistoryId, 'u1');
+			const bar = pin.querySelector('.knox-gui-input-bar') as HTMLElement;
+			assert.ok(bar);
+			assert.strictEqual(bar.classList.contains('knox-gui-input-bar--hidden'), false);
+			await timeout(0);
+			assert.strictEqual(document.activeElement, input);
+		} finally {
+			HTMLElement.prototype.getBoundingClientRect = original;
+		}
 	});
 
 	test('floating sent prompt stays two lines until clicked, then expands with a scrollbar', async () => {
@@ -3943,7 +3994,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(guesses, 1, 'auto-detect runs once after the stream ends');
 	});
 
-	test('long chats mount a 25-row window and prepend 25 more without loading everything', async () => {
+	test('long chats mount a 25-row window; load-earlier and scroll-to-top reach the start', async () => {
 		const { widget, store } = await mount();
 		const history: IKnoxGuiHistoryItem[] = Array.from({ length: 80 }, (_, i) => ({
 			id: `h-${i}`,
@@ -3958,16 +4009,24 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const load = widget.root.querySelector('[data-testid="load-earlier-messages"]') as HTMLButtonElement | null;
 		assert.ok(load);
 		assert.ok(load.textContent?.includes(String(80 - CHAT_DISPLAY_WINDOW)));
-		const expandedBefore = widget.expandedStart;
-		widget.scrollTranscript('top');
-		assert.strictEqual(widget.autoScrollEnabled, false);
-		assert.strictEqual(widget.expandedStart, expandedBefore, 'scroll-to-top must not mount the full session');
-		assert.strictEqual(rows().length, CHAT_DISPLAY_WINDOW);
 		load.click();
 		assert.strictEqual(rows().length, CHAT_DISPLAY_WINDOW + CHAT_LOAD_MORE_COUNT);
 		assert.ok(widget.root.querySelector('[data-testid="history-row-30"]'));
 		assert.strictEqual(widget.root.querySelector('[data-testid="history-row-0"]'), null);
-		assert.ok(widget.root.querySelector('[data-testid="load-earlier-messages"]'));
+		assert.ok(widget.scrollTopBtn);
+		assert.strictEqual(widget.scrollTopBtn.disabled, false, 'earlier windows keep scroll-to-top enabled');
+		widget.scrollTranscript('top');
+		assert.strictEqual(widget.autoScrollEnabled, false);
+		assert.ok(widget.displayStart < 80 - CHAT_DISPLAY_WINDOW - CHAT_LOAD_MORE_COUNT, 'scroll-to-top loads another earlier window');
+		assert.ok(rows().length > CHAT_DISPLAY_WINDOW + CHAT_LOAD_MORE_COUNT);
+		for (let i = 0; i < 16 && widget.displayStart > 0; i++) {
+			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+		}
+		assert.strictEqual(widget.displayStart, 0);
+		assert.ok(widget.root.querySelector('[data-testid="history-row-0"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="load-earlier-messages"]'), null);
+		widget.syncScrollButtons();
+		assert.strictEqual(widget.scrollTopBtn?.disabled, true);
 	});
 
 	test('scrolling up pauses follow without rebuilding; reaching the bottom resumes auto-scroll', async () => {

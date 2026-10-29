@@ -66,21 +66,34 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 	if (!focused && !keepToolbar) {
 		bar.classList.add('knox-gui-input-bar--hidden');
 	}
+	const floating = Boolean(widget.floatingHostEl?.contains(box) || widget.floatingHostEl?.contains(parent));
+	if (floating && !widget.floatingSentExpanded && !focused) {
+		editor.contentEditable = 'false';
+	}
 	const revealEditor = (target?: EventTarget | null) => {
 		widget.focusedHistoryId = item.id;
 		bar.classList.remove('knox-gui-input-bar--hidden');
-		if (widget.floatingHostEl?.contains(box)) {
+		editor.contentEditable = 'true';
+		if (floating) {
 			expandFloatingSent(widget);
 		}
 		if (target instanceof Node && bar.contains(target)) {
 			return;
 		}
-		editor.focus({ preventScroll: true });
+		queueMicrotask(() => {
+			if (widget.focusedHistoryId !== item.id || !editor.isConnected) {
+				return;
+			}
+			editor.contentEditable = 'true';
+			editor.focus({ preventScroll: true });
+			widget.placeCaretAtEndOf(editor);
+		});
 	};
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'focus', () => {
 		widget.focusedHistoryId = item.id;
 		bar.classList.remove('knox-gui-input-bar--hidden');
-		if (widget.floatingHostEl?.contains(box)) {
+		editor.contentEditable = 'true';
+		if (floating) {
 			expandFloatingSent(widget);
 		}
 	}));

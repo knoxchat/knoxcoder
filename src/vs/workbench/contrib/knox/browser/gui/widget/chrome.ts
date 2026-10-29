@@ -21,7 +21,7 @@ import {
 } from '../../../common/knoxGuiChrome.js';
 import { knoxGuiListboxNextIndex } from '../../../common/knoxGuiCapabilities.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
-import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, CHAT_USER_SCROLL_IDLE_MS, knoxGuiFindRegexInvalid, knoxGuiHoldPausedScrollTop, knoxGuiIsLiveUserScroll, knoxGuiNextScrollFollow, knoxGuiRestoreAnchorScrollTop, knoxGuiShouldLoadEarlier, knoxGuiTranscriptRestoreTop, nextExpandedStart } from '../../../common/knoxGuiChat.js';
+import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, CHAT_USER_SCROLL_IDLE_MS, knoxGuiFindRegexInvalid, knoxGuiHoldPausedScrollTop, knoxGuiIsLiveUserScroll, knoxGuiNextScrollFollow, knoxGuiRestoreAnchorScrollTop, knoxGuiShouldLoadEarlier, knoxGuiTranscriptAtStart, knoxGuiTranscriptRestoreTop, nextExpandedStart } from '../../../common/knoxGuiChat.js';
 import { knoxGuiIsImeComposing, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { visibleBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
@@ -864,12 +864,46 @@ export function loadEarlier(widget: KnoxGuiWidget): void {
 	}
 	const body = widget.bodyEl;
 	widget.loadingEarlier = true;
-	widget.pendingRestoreHeight = body?.scrollHeight ?? null;
-	if (body) {
-		widget.savedScrollTop = body.scrollTop;
+	if (widget.seekingTranscriptStart) {
+		widget.pendingRestoreHeight = null;
+		widget.savedScrollTop = 0;
+	} else {
+		widget.pendingRestoreHeight = body?.scrollHeight ?? null;
+		if (body) {
+			widget.savedScrollTop = body.scrollTop;
+		}
 	}
 	widget.expandedStart = nextExpandedStart(widget.displayStart);
 	widget.render();
+}
+
+function cancelSeekTranscriptStart(widget: KnoxGuiWidget): void {
+	if (widget.seekStartHandle !== undefined) {
+		cancelAnimationFrame(widget.seekStartHandle);
+		widget.seekStartHandle = undefined;
+	}
+	widget.seekingTranscriptStart = false;
+}
+
+function scheduleSeekTranscriptStart(widget: KnoxGuiWidget): void {
+	if (widget.seekStartHandle !== undefined) {
+		cancelAnimationFrame(widget.seekStartHandle);
+	}
+	widget.seekStartHandle = requestAnimationFrame(() => {
+		widget.seekStartHandle = undefined;
+		if (!widget.seekingTranscriptStart) {
+			return;
+		}
+		if (widget.displayStart <= 0) {
+			widget.seekingTranscriptStart = false;
+			if (widget.bodyEl) {
+				setTranscriptScrollTop(widget, widget.bodyEl, 0);
+			}
+			widget.syncScrollButtons();
+			return;
+		}
+		widget.loadEarlier();
+	});
 }
 
 function markProgrammaticTranscriptScroll(widget: KnoxGuiWidget): void {
@@ -985,7 +1019,7 @@ export function setTranscriptScrollTop(widget: KnoxGuiWidget, body: HTMLElement,
 
 export function holdPausedTranscriptScroll(widget: KnoxGuiWidget): void {
 	const body = widget.bodyEl;
-	if (!body || widget.autoScrollEnabled || transcriptGestureIsLive(widget)) {
+	if (!body || widget.autoScrollEnabled || widget.seekingTranscriptStart || transcriptGestureIsLive(widget)) {
 		return;
 	}
 	if (applyTranscriptAnchor(widget, body)) {
@@ -1021,6 +1055,7 @@ export function restoreTranscriptScroll(widget: KnoxGuiWidget, state: IKnoxGuiSt
 	if (!body || state.route !== KnoxGuiRoute.Chat) {
 		widget.loadingEarlier = false;
 		widget.pendingRestoreHeight = null;
+		cancelSeekTranscriptStart(widget);
 		return;
 	}
 	const top = knoxGuiTranscriptRestoreTop({
@@ -1029,11 +1064,19 @@ export function restoreTranscriptScroll(widget: KnoxGuiWidget, state: IKnoxGuiSt
 		previousScrollHeight: widget.pendingRestoreHeight,
 		scrollHeight: body.scrollHeight,
 		clientHeight: body.clientHeight,
+		seekingStart: widget.seekingTranscriptStart,
 	});
 	widget.pendingRestoreHeight = null;
 	widget.loadingEarlier = false;
 	setTranscriptScrollTop(widget, body, top);
-	if (!widget.autoScrollEnabled) {
+	if (widget.seekingTranscriptStart) {
+		widget.scrollAnchorEl = undefined;
+		if (widget.displayStart > 0) {
+			scheduleSeekTranscriptStart(widget);
+		} else {
+			widget.seekingTranscriptStart = false;
+		}
+	} else if (!widget.autoScrollEnabled) {
 		if (!applyTranscriptAnchor(widget, body)) {
 			captureTranscriptAnchor(widget, body);
 		}
@@ -1168,7 +1211,12 @@ export function updatePinnedUserMessage(widget: KnoxGuiWidget): void {
 		}
 		return;
 	}
-	if (existing?.getAttribute('data-history-id') === item.id && existing.getAttribute('data-index') === String(pinnedIndex)) {
+	const editing = widget.focusedHistoryId === item.id;
+	if (
+		existing?.getAttribute('data-history-id') === item.id
+		&& existing.getAttribute('data-index') === String(pinnedIndex)
+		&& editing === existing.classList.contains('knox-gui-pinned-user--editing')
+	) {
 		return;
 	}
 	existing?.remove();
@@ -1176,43 +1224,47 @@ export function updatePinnedUserMessage(widget: KnoxGuiWidget): void {
 	pin.setAttribute('data-testid', 'pinned-user-message');
 	pin.setAttribute('data-history-id', item.id);
 	pin.setAttribute('data-index', String(pinnedIndex));
-	pin.setAttribute('role', 'button');
-	pin.tabIndex = 0;
-	const expanded = widget.pinnedUserExpandedId === item.id;
-	pin.classList.toggle('knox-gui-pinned-user--expanded', expanded);
-	pin.setAttribute('aria-expanded', String(expanded));
-	pin.title = t(widget.controller.store.state, expanded ? 'collapseFloatingSent' : 'expandFloatingSent');
-	DOM.append(pin, DOM.$('.knox-gui-pinned-user-text', undefined, item.content.trim() || '\u2026'));
+	const mountPinnedEditor = () => {
+		if (pin.classList.contains('knox-gui-pinned-user--editing')) {
+			return;
+		}
+		widget.focusedHistoryId = item.id;
+		widget.pinnedUserExpandedId = item.id;
+		pin.classList.add('knox-gui-pinned-user--editing', 'knox-gui-pinned-user--expanded');
+		pin.setAttribute('aria-expanded', 'true');
+		pin.removeAttribute('role');
+		pin.removeAttribute('tabindex');
+		pin.removeAttribute('title');
+		pin.replaceChildren();
+		widget.renderHistoricalEditor(pin, widget.controller.store.state, item, pinnedIndex);
+		restickAfterHostChange(widget, body);
+	};
+	if (editing) {
+		mountPinnedEditor();
+	} else {
+		pin.setAttribute('role', 'button');
+		pin.tabIndex = 0;
+		pin.classList.toggle('knox-gui-pinned-user--expanded', widget.pinnedUserExpandedId === item.id);
+		pin.setAttribute('aria-expanded', String(widget.pinnedUserExpandedId === item.id));
+		pin.title = t(widget.controller.store.state, 'expandFloatingSent');
+		DOM.append(pin, DOM.$('.knox-gui-pinned-user-text', undefined, item.content.trim() || '\u2026'));
+		pin.addEventListener('click', mountPinnedEditor);
+		pin.addEventListener('keydown', e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				mountPinnedEditor();
+			}
+		});
+	}
 	DOM.append(host, DOM.$('.knox-gui-sticky-last-user-fade')).setAttribute('aria-hidden', 'true');
 	// Fade is decoration owned by the pin: drop the stale one from a previous pin.
 	const fades = host.querySelectorAll('.knox-gui-sticky-last-user-fade');
 	for (let i = 0; i < fades.length - 1; i++) {
 		fades[i].remove();
 	}
-	restickAfterHostChange(widget, body);
-	const jump = () => {
-		widget.autoScrollEnabled = false;
-		const row = body.querySelector<HTMLElement>(`.knox-gui-history-composer[data-index="${pinnedIndex}"]`);
-		row?.scrollIntoView({ block: 'start', behavior: 'auto' });
-	};
-	const toggleOrJump = () => {
-		if (!pin.classList.contains('knox-gui-pinned-user--expanded')) {
-			widget.pinnedUserExpandedId = item.id;
-			pin.classList.add('knox-gui-pinned-user--expanded');
-			pin.setAttribute('aria-expanded', 'true');
-			pin.title = t(widget.controller.store.state, 'collapseFloatingSent');
-			restickAfterHostChange(widget, body);
-			return;
-		}
-		jump();
-	};
-	pin.addEventListener('click', toggleOrJump);
-	pin.addEventListener('keydown', e => {
-		if (e.key === 'Enter' || e.key === ' ') {
-			e.preventDefault();
-			toggleOrJump();
-		}
-	});
+	if (!editing) {
+		restickAfterHostChange(widget, body);
+	}
 }
 
 function isTranscriptScrollKey(key: string): boolean {
@@ -1256,12 +1308,15 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 		const programmatic = widget.programmaticScroll;
 		widget.programmaticScroll = false;
 		const userGesture = transcriptGestureIsLive(widget);
+		if (userGesture && widget.seekingTranscriptStart) {
+			cancelSeekTranscriptStart(widget);
+		}
 		const previousScrollTop = widget.savedScrollTop;
 		const next = knoxGuiNextScrollFollow(
 			{ following: widget.autoScrollEnabled, lastScrollTop: widget.lastScrollTop, lastScrollHeight: widget.lastScrollHeight },
 			{ scrollTop: body.scrollTop, scrollHeight: body.scrollHeight, clientHeight: body.clientHeight, programmatic, userGesture },
 		);
-		if (!next.following && !userGesture && applyTranscriptAnchor(widget, body)) {
+		if (!widget.seekingTranscriptStart && !next.following && !userGesture && applyTranscriptAnchor(widget, body)) {
 			widget.autoScrollEnabled = false;
 			widget.syncScrollButtons();
 			return;
@@ -1274,7 +1329,7 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 			scrollHeight: body.scrollHeight,
 			clientHeight: body.clientHeight,
 		});
-		if (held !== undefined && Math.abs(body.scrollTop - held) >= 1) {
+		if (!widget.seekingTranscriptStart && held !== undefined && Math.abs(body.scrollTop - held) >= 1) {
 			widget.autoScrollEnabled = false;
 			setTranscriptScrollTop(widget, body, held);
 			widget.syncScrollButtons();
@@ -1302,6 +1357,7 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 			scrollTop: body.scrollTop,
 			displayStart: widget.displayStart,
 			loadingEarlier: widget.loadingEarlier,
+			seekingStart: widget.seekingTranscriptStart,
 		})) {
 			widget.loadEarlier();
 		}
@@ -1378,12 +1434,18 @@ export function scrollTranscript(widget: KnoxGuiWidget, to: 'top' | 'bottom'): v
 		return;
 	}
 	if (to === 'top') {
-		// Original `scrollToTop` only moves the current window. Expanding to index 0
-		// would mount a hours-long session in one frame.
 		clearTranscriptUserScrolling(widget);
 		widget.autoScrollEnabled = false;
-		setTranscriptScrollTop(widget, body, 0);
+		widget.scrollAnchorEl = undefined;
+		if (widget.displayStart > 0) {
+			widget.seekingTranscriptStart = true;
+			widget.loadEarlier();
+		} else {
+			cancelSeekTranscriptStart(widget);
+			setTranscriptScrollTop(widget, body, 0);
+		}
 	} else {
+		cancelSeekTranscriptStart(widget);
 		clearTranscriptUserScrolling(widget);
 		widget.autoScrollEnabled = true;
 		forceTranscriptStick(widget);
@@ -1397,9 +1459,13 @@ export function syncScrollButtons(widget: KnoxGuiWidget): void {
 	if (!body || !wrap) {
 		return;
 	}
-	const hasScrollable = knoxGuiShowsScrollButtons(widget.controller.store.state.history.length, body.scrollHeight > body.clientHeight + 8);
+	const hasMoreAbove = widget.displayStart > 0 || widget.seekingTranscriptStart;
+	const hasScrollable = knoxGuiShowsScrollButtons(
+		widget.controller.store.state.history.length,
+		body.scrollHeight > body.clientHeight + 8 || hasMoreAbove,
+	);
 	wrap.classList.toggle('hidden', !hasScrollable);
-	const atTop = body.scrollTop < 8;
+	const atTop = knoxGuiTranscriptAtStart({ scrollTop: body.scrollTop, displayStart: widget.displayStart });
 	const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < CHAT_SCROLL_BOTTOM_THRESHOLD_PX;
 	if (widget.scrollTopBtn) {
 		widget.scrollTopBtn.disabled = atTop;

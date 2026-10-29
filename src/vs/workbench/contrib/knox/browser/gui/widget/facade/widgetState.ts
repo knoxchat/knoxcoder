@@ -56,6 +56,9 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	streamEndStickHandle: ReturnType<typeof setTimeout> | undefined;
 	expandedStart = AUTO_DISPLAY_START;
 	displayStart = 0;
+	/** Scroll-to-top is walking earlier lazy windows; keep scrollTop at 0 until index 0. */
+	seekingTranscriptStart = false;
+	seekStartHandle: number | undefined;
 	pendingRestoreHeight: number | null = null;
 	lastSessionId = '';
 	loadingEarlier = false;

@@ -377,6 +377,7 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui-floating-sent-expanded'));
 		assert.ok(css.includes('.knox-gui-floating-sent-host:not(.knox-gui-floating-sent-expanded) .knox-gui-history-composer .knox-gui-input'));
 		assert.ok(css.includes('.knox-gui-pinned-user--expanded'));
+		assert.ok(css.includes('.knox-gui-pinned-user--editing'));
 		assert.ok(css.includes('.knox-gui-skip'));
 		assert.ok(css.includes('data-knox-theme-contrast="high"'));
 		assert.ok(css.includes('@property --knox-border-angle'));

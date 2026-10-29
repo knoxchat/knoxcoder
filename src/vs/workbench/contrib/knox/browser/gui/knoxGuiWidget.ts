@@ -297,6 +297,11 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		if (state.sessionId !== this.lastSessionId) {
 			this.lastSessionId = state.sessionId;
 			this.expandedStart = AUTO_DISPLAY_START;
+			this.seekingTranscriptStart = false;
+			if (this.seekStartHandle !== undefined) {
+				cancelAnimationFrame(this.seekStartHandle);
+				this.seekStartHandle = undefined;
+			}
 			knoxGuiChromeView.clearTranscriptUserScrolling(this);
 			this.autoScrollEnabled = true;
 			this.savedScrollTop = 0;

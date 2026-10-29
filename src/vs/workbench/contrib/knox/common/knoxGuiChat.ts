@@ -761,6 +761,7 @@ export function knoxGuiClampScrollTop(scrollHeight: number, clientHeight: number
 /**
  * After a DOM rebuild or a prepended window: keep the follow pin, restore the user's place,
  * or shift by the height added above so lazy-loading does not jump.
+ * Scroll-to-top stays pinned at 0 while earlier windows mount.
  */
 export function knoxGuiTranscriptRestoreTop(args: {
 	following: boolean;
@@ -768,7 +769,11 @@ export function knoxGuiTranscriptRestoreTop(args: {
 	previousScrollHeight: number | null;
 	scrollHeight: number;
 	clientHeight: number;
+	seekingStart?: boolean;
 }): number {
+	if (args.seekingStart) {
+		return 0;
+	}
 	if (args.previousScrollHeight !== null) {
 		return knoxGuiClampScrollTop(
 			args.scrollHeight,
@@ -782,14 +787,27 @@ export function knoxGuiTranscriptRestoreTop(args: {
 	return knoxGuiClampScrollTop(args.scrollHeight, args.clientHeight, args.previousScrollTop);
 }
 
-/** Near-top prepend of `CHAT_LOAD_MORE_COUNT` rows, never while a restore or programmatic stick is in flight. */
+/** True only at the real transcript start — not the top of a lazy window. */
+export function knoxGuiTranscriptAtStart(args: {
+	scrollTop: number;
+	displayStart: number;
+	threshold?: number;
+}): boolean {
+	return args.displayStart <= 0 && args.scrollTop < (args.threshold ?? 8);
+}
+
+/** Near-top prepend of `CHAT_LOAD_MORE_COUNT` rows, never while a restore, programmatic stick, or scroll-to-top seek is in flight. */
 export function knoxGuiShouldLoadEarlier(args: {
 	programmatic: boolean;
 	scrollTop: number;
 	displayStart: number;
 	loadingEarlier: boolean;
+	seekingStart?: boolean;
 	threshold?: number;
 }): boolean {
+	if (args.seekingStart) {
+		return false;
+	}
 	return !args.programmatic && !args.loadingEarlier && args.displayStart > 0
 		&& args.scrollTop < (args.threshold ?? CHAT_LOAD_EARLIER_THRESHOLD_PX);
 }
