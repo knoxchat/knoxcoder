@@ -59,6 +59,8 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	/** Scroll-to-top is walking earlier lazy windows; keep scrollTop at 0 until index 0. */
 	seekingTranscriptStart = false;
 	seekStartHandle: number | undefined;
+	/** Coalesce transcript ResizeObserver work so pin/editor mounts do not loop the observer. */
+	transcriptResizeHandle: number | undefined;
 	pendingRestoreHeight: number | null = null;
 	lastSessionId = '';
 	loadingEarlier = false;

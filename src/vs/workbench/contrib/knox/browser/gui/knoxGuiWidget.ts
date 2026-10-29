@@ -302,6 +302,10 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 				cancelAnimationFrame(this.seekStartHandle);
 				this.seekStartHandle = undefined;
 			}
+			if (this.transcriptResizeHandle !== undefined) {
+				cancelAnimationFrame(this.transcriptResizeHandle);
+				this.transcriptResizeHandle = undefined;
+			}
 			knoxGuiChromeView.clearTranscriptUserScrolling(this);
 			this.autoScrollEnabled = true;
 			this.savedScrollTop = 0;

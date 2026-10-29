@@ -692,8 +692,10 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			const bar = pin.querySelector('.knox-gui-input-bar') as HTMLElement;
 			assert.ok(bar);
 			assert.strictEqual(bar.classList.contains('knox-gui-input-bar--hidden'), false);
+			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 			await timeout(0);
 			assert.strictEqual(document.activeElement, input);
+			assert.ok(pin.isConnected);
 		} finally {
 			HTMLElement.prototype.getBoundingClientRect = original;
 		}

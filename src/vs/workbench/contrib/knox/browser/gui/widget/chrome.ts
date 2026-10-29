@@ -1369,12 +1369,19 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 	if (typeof ResizeObserver === 'undefined') {
 		return;
 	}
-	const observer = new ResizeObserver(entries => {
-		syncTranscriptFollow(widget);
-		widget.syncScrollButtons();
-		if (entries.some(entry => entry.target === body)) {
-			updatePinnedUserMessage(widget);
+	const observer = new ResizeObserver(() => {
+		if (widget.transcriptResizeHandle !== undefined) {
+			return;
 		}
+		widget.transcriptResizeHandle = requestAnimationFrame(() => {
+			widget.transcriptResizeHandle = undefined;
+			if (!widget.bodyEl?.isConnected) {
+				return;
+			}
+			syncTranscriptFollow(widget);
+			widget.syncScrollButtons();
+			updatePinnedUserMessage(widget);
+		});
 	});
 	observer.observe(body);
 	const content = body.querySelector('[data-testid="chat-scroll-content"]');
@@ -1404,6 +1411,10 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 	widget.renderStore.add({
 		dispose: () => {
 			observer.disconnect();
+			if (widget.transcriptResizeHandle !== undefined) {
+				cancelAnimationFrame(widget.transcriptResizeHandle);
+				widget.transcriptResizeHandle = undefined;
+			}
 			clearTranscriptUserScrolling(widget);
 		},
 	});
