@@ -3,6 +3,8 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.2.4] - 2026-10-30
+
 ### Added
 
 - **Recipes as reusable procedures (experimental, still off by default).** Verified work can now be a family of variants with slots (component name, path, package), not only a byte-identical snapshot. The Recipes tab is an inspector: search, filter, family grouping, inline preview, rename/pin/notes, and promote to all projects with consent. Chat can `@recipe` attach a procedure. `builtin_recipe` lists, previews, and applies (apply still uses the ask card and the same replayer). Sleep can draft family-slot merges for you to approve; it never auto-merges variants. Health reports (`npm run mc:self-improve`) include recipe counts, capture skips, quarantines, and wrong-reuse. How to use it: [recipes.md](extensions/knox/docs/recipes.md).
@@ -31,6 +33,9 @@ All notable changes to KnoxCoder are documented in this file.
 - **Recipes preview overflow.** Long paths, commands, and diffs wrap inside the ask card instead of crossing the rounded edge.
 - **Recipe precondition labels.** `clean_paths` shows as “No uncommitted changes” instead of a raw i18n key.
 - **Older brain recipe tables.** Opening a pre-family `brain.sqlite` adds `family_id` / `slot_values` / `pinned` / `notes` before indexes that name those columns, so migrate can finish.
+- **Floating sent prompt edit.** Clicking the top floating or pinned prompt opens the history editor immediately so you can type without a second click.
+- **Scroll to top.** The button stays enabled while older messages are still lazy-loaded, walks earlier windows, and only disables at the first message.
+- **Windows worktree reconstruct keys.** Checkpoint reconstruct keys stay posix so Windows worktrees and KN-375/382 contracts pass.
 
 ### Security
 

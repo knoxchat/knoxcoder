@@ -1,4 +1,4 @@
-# Known issues in 2.2.3
+# Known issues in 2.2.4
 
 - **Command guard limits.** One-hop `VAR=cmd; $VAR` / `eval "$VAR"` and “write a script, then run it” (`python evil.py` after a write this turn) are now blocked or prompted (K-091). Encoded scripts, `make` recipes, and deeper indirection are still open. Stay in Edits or Ask for untrusted work. See the [threat model](security/threat-model.md).
 - **Unsigned installers** may trigger SmartScreen (Windows) until a certificate is available.

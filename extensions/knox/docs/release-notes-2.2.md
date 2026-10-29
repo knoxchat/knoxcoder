@@ -2,6 +2,13 @@
 
 Full detail is in `CHANGELOG.md`; upgrade steps in [upgrade.md](upgrade.md); caveats in [known-issues.md](known-issues.md).
 
+## 2.2.4
+
+- Recipes as reusable procedures (experimental, off by default): families with slots, Recipes tab inspector, `@recipe`, and `builtin_recipe`.
+- `builtin_delete_file` on the normal tool path; recipes can capture and replay deletes.
+- Checkpoint SCM: stash, checkout, rename/copy, cherry-pick, revert, merge continue/abort, blame, worktrees, bisect, and portable patches. Still git-independent.
+- Chat chrome: click the floating or pinned prompt to edit immediately; scroll-to-top walks lazy-loaded history to the first message.
+
 ## 2.2.3
 
 - Upgrade editor host to VS Code 1.143.1 (Electron 43.7.7) without Copilot or telemetry.
