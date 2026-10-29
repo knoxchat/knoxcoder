@@ -6,7 +6,7 @@ import sqlite3 from "sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { BRAIN_SCHEMA_VERSION, applyBrainPragmas, prepareBrainDb } from "./dbSafety";
-import { createTables, migrateSchema } from "./schema";
+import { createRecipeTables, createTables, migrateSchema } from "./schema";
 
 let dir: string;
 let dbPath: string;
@@ -125,6 +125,55 @@ describe("recipe tables (MC-10)", () => {
     await createTables(db);
     await db.run("INSERT INTO brain_recipes (id) VALUES ('same')");
     await expect(db.run("INSERT INTO brain_recipes (id) VALUES ('same')")).rejects.toThrow();
+    await db.close();
+  });
+
+  it("adds family_id to a pre-P1 brain_recipes table without throwing on open", async () => {
+    // Shape of ~/.knoxcoder/memory/brain.sqlite before P1 families: recipes exist,
+    // but family_id / slot_values / pinned / notes do not. createTables used to
+    // CREATE INDEX on family_id first and abort before migrateSchema could ALTER.
+    const db = await openDb();
+    await db.exec(`
+      CREATE TABLE brain_recipes (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL DEFAULT '',
+        scope TEXT NOT NULL DEFAULT 'project',
+        status TEXT NOT NULL DEFAULT 'candidate',
+        title TEXT NOT NULL DEFAULT '',
+        intent_text TEXT NOT NULL DEFAULT '',
+        intent_fingerprint TEXT NOT NULL DEFAULT '',
+        slots TEXT NOT NULL DEFAULT '[]',
+        preconditions TEXT NOT NULL DEFAULT '[]',
+        oracle_kind TEXT NOT NULL DEFAULT '',
+        oracle_command TEXT NOT NULL DEFAULT '',
+        oracle_passed_at DATETIME DEFAULT NULL,
+        replay_count INTEGER NOT NULL DEFAULT 0,
+        ok_count INTEGER NOT NULL DEFAULT 0,
+        reverted_count INTEGER NOT NULL DEFAULT 0,
+        failed_verify_count INTEGER NOT NULL DEFAULT 0,
+        capture_count INTEGER NOT NULL DEFAULT 1,
+        user_accepted_at DATETIME DEFAULT NULL,
+        source_session_id TEXT DEFAULT NULL,
+        memory_id INTEGER DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_replayed_at DATETIME DEFAULT NULL
+      )
+    `);
+    await db.run("INSERT INTO brain_recipes (id, title) VALUES ('r1', 'pre-family')");
+
+    await expect(createRecipeTables(db)).resolves.toBeUndefined();
+    await expect(createTables(db)).resolves.toBeUndefined();
+    await migrateSchema(db);
+
+    const cols = (await db.all<{ name: string }[]>("PRAGMA table_info(brain_recipes)")).map((c) => c.name);
+    expect(cols).toEqual(expect.arrayContaining(["family_id", "slot_values", "pinned", "notes"]));
+    const row = await db.get<{ family_id: string; slot_values: string; pinned: number; notes: string; title: string }>(
+      "SELECT family_id, slot_values, pinned, notes, title FROM brain_recipes WHERE id = 'r1'",
+    );
+    expect(row).toMatchObject({ family_id: "", slot_values: "{}", pinned: 0, notes: "", title: "pre-family" });
+    await db.run("UPDATE brain_recipes SET family_id = 'fam' WHERE id = 'r1'");
+    expect((await db.get<{ n: number }>("SELECT COUNT(*) n FROM brain_recipes WHERE family_id = 'fam'"))?.n).toBe(1);
     await db.close();
   });
 

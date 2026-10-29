@@ -601,6 +601,18 @@
 :is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-role-system {
 	color: #92400e;
 }
+:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-recipe-status-candidate {
+	color: #92400e;
+}
+:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-recipe-status-verified {
+	color: #0f766e;
+}
+:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-recipe-status-quarantined {
+	color: #92400e;
+}
+:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-recipe-status-retired {
+	color: #4b5563;
+}
 :is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-memory-page .knox-gui-memory-md-badge.is-ok {
 	color: #15803d;
 }

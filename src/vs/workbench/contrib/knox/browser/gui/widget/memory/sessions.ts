@@ -11,7 +11,7 @@ import { t } from '../t.js';
 import { KnoxGuiSvgIcon } from '../../knoxGuiIcons.js';
 import { formatMemoryDate } from '../../../../common/knoxGuiMemory.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
-import { mk, svg, memoryButton } from './kit.js';
+import { mk, svg, memoryButton, renderCollapsibleMarkdown } from './kit.js';
 import { applyMemorySessionFilter, memorySessionMatchesQuery } from './filters.js';
 
 export function renderMemorySessions(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void { // KN-376 KN-315
@@ -159,7 +159,7 @@ export function renderMemorySessions(widget: KnoxGuiWidget, body: HTMLElement, s
 		detailLabel(section, 'file-text', t(state, 'memorySessionHistoryEpisodic'));
 		const items = mk(section, 'div', 'sy-1_5');
 		for (const item of history.episodic.slice(0, 20)) {
-			renderEpisodicCard(widget, state, items, item.role ?? '', item.content);
+			renderEpisodicCard(widget, items, item.role ?? '', item.content);
 		}
 		if (history.episodic.length > 20) {
 			mk(items, 'p', 't-10 o-50', t(state, 'memorySessionHistoryTruncated', { count: history.episodic.length - 20 }));
@@ -176,7 +176,7 @@ export function renderMemorySessions(widget: KnoxGuiWidget, body: HTMLElement, s
 				mk(head, 'span', `md-badge knox-gui-memory-md-cat cat-${item.category.replace(/[^a-z0-9_-]/gi, '')}`, item.category);
 			}
 			mk(head, 'span', 'md-card-title', item.title ?? '');
-			renderCollapsibleMarkdown(widget, state, row, item.content, 220);
+			renderCollapsibleMarkdown(widget, row, item.content, 220);
 		}
 	}
 }
@@ -215,7 +215,7 @@ function parseToolLog(content: string): { status?: string; tool?: string; ok?: s
 	return { status: m[1], tool, ok, rest: rest.trim() };
 }
 
-function renderEpisodicCard(widget: KnoxGuiWidget, state: IKnoxGuiState, parent: HTMLElement, role: string, content: string): void {
+function renderEpisodicCard(widget: KnoxGuiWidget, parent: HTMLElement, role: string, content: string): void {
 	const roleKey = (role || 'unknown').toLowerCase().replace(/[^a-z0-9_-]/g, '');
 	const row = mk(parent, 'div', `detail-card md-card role-${roleKey}`);
 	const head = mk(row, 'div', 'md-card-head');
@@ -231,36 +231,6 @@ function renderEpisodicCard(widget: KnoxGuiWidget, state: IKnoxGuiState, parent:
 		}
 		body = parsed.rest;
 	}
-	renderCollapsibleMarkdown(widget, state, row, body, 200);
+	renderCollapsibleMarkdown(widget, row, body, 200);
 }
 
-/** Native markdown (with highlighted code fences) clamped to a max height, expandable on demand. */
-function renderCollapsibleMarkdown(widget: KnoxGuiWidget, state: IKnoxGuiState, parent: HTMLElement, source: string, maxHeight: number): void {
-	const wrap = mk(parent, 'div', 'md-body is-collapsed');
-	wrap.style.maxHeight = `${maxHeight}px`;
-	widget.appendMarkdown(wrap, source, widget.renderStore);
-	const toggle = mk(parent, 'button', 'md-toggle');
-	toggle.type = 'button';
-	toggle.hidden = true;
-	let expanded = false;
-	const sync = () => {
-		wrap.classList.toggle('is-collapsed', !expanded);
-		wrap.style.maxHeight = expanded ? '' : `${maxHeight}px`;
-		// allow-any-unicode-next-line
-		toggle.textContent = expanded ? '▲' : '▼';
-	};
-	sync();
-	widget.renderStore.add(DOM.addDisposableListener(toggle, 'click', () => {
-		expanded = !expanded;
-		sync();
-	}));
-	DOM.getWindow(parent).requestAnimationFrame(() => {
-		if (wrap.scrollHeight > maxHeight + 4) {
-			toggle.hidden = false;
-		} else {
-			wrap.classList.remove('is-collapsed');
-			wrap.style.maxHeight = '';
-		}
-	});
-	void state;
-}

@@ -132,6 +132,49 @@
 	font-size: calc(1em - 2px);
 }
 
+.knox-gui-recipe-preview-card {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 8px;
+	min-width: 0;
+	margin: 8px 12px;
+	padding: 10px 12px;
+	overflow: hidden;
+	border: 1px solid var(--knox-accent, #159994);
+	border-radius: 10px;
+	background: rgba(21, 153, 148, 0.08);
+	color: var(--vscode-foreground);
+	font-size: 12px;
+}
+
+.knox-gui-recipe-preview-title {
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+
+.knox-gui-recipe-preview-md {
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+	word-break: break-word;
+}
+
+.knox-gui-recipe-preview-md .rendered-markdown pre,
+.knox-gui-recipe-preview-md .knox-gui-md-fence {
+	max-width: 100%;
+	overflow-x: hidden;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
+.knox-gui-recipe-preview-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
 .knox-gui-msg-actions,
 .knox-gui-code-actions {
 	display: flex;

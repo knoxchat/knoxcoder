@@ -172,6 +172,107 @@
 	}
 }
 
+.knox-gui-memory-page .knox-gui-memory-recipes-view {
+	display: flex;
+	flex: 1 1 0%;
+	flex-direction: column;
+	gap: 12px;
+	min-width: 0;
+	padding: 16px 0;
+	overflow-wrap: break-word;
+}
+
+.knox-gui-memory-page .knox-gui-memory-recipe-preview-card {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 8px;
+	min-width: 0;
+	overflow: hidden;
+	padding: 12px;
+	border: 1px solid var(--knox-accent, #159994);
+	border-radius: 10px;
+	background-color: rgba(21, 153, 148, 0.06);
+	color: var(--vscode-foreground);
+}
+
+.knox-gui-memory-page .knox-gui-memory-recipe-preview-card > * {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.knox-gui-memory-page .knox-gui-memory-recipes-view .knox-gui-memory-recipe-input {
+	display: block;
+	width: 100%;
+	min-width: 0;
+	max-width: 100%;
+	margin-top: 4px;
+	padding: 4px 8px;
+	box-sizing: border-box;
+}
+
+.knox-gui-memory-page .knox-gui-memory-recipes-view textarea.knox-gui-memory-recipe-input {
+	resize: vertical;
+	min-height: 48px;
+}
+
+.knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-recipe-status-candidate {
+	background-color: rgba(245, 158, 11, 0.2);
+	color: #f59e0b;
+}
+
+.knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-recipe-status-verified {
+	background-color: rgba(21, 153, 148, 0.2);
+	color: #2fc4bd;
+}
+
+.knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-recipe-status-quarantined {
+	background-color: rgba(229, 192, 123, 0.2);
+	color: #e5c07b;
+}
+
+.knox-gui-memory-page .knox-gui-memory-md-badge.knox-gui-memory-recipe-status-retired {
+	background-color: rgba(128, 128, 128, 0.2);
+	color: #9ca3af;
+}
+
+.knox-gui-memory-page .knox-gui-memory-md-card.knox-gui-memory-recipe-verified {
+	border-left-color: #159994;
+}
+
+.knox-gui-memory-page .knox-gui-memory-md-card.knox-gui-memory-recipe-candidate {
+	border-left-color: #f59e0b;
+}
+
+.knox-gui-memory-page .knox-gui-memory-md-card.knox-gui-memory-recipe-quarantined {
+	border-left-color: #e5c07b;
+}
+
+.knox-gui-memory-page .knox-gui-memory-md-card.knox-gui-memory-recipe-retired {
+	border-left-color: #6b7280;
+	opacity: 0.72;
+}
+
+.knox-gui-memory-page .knox-gui-memory-md-card.selected {
+	border-color: #159994;
+	box-shadow: 0 0 0 1px rgba(21, 153, 148, 0.35);
+}
+
+.knox-gui-memory-page .knox-gui-memory-recipe-toggle {
+	width: 100%;
+	cursor: pointer;
+	text-align: left;
+}
+
+.knox-gui-memory-page .knox-gui-memory-recipe-toggle:hover {
+	color: var(--vscode-foreground);
+}
+
+.knox-gui-memory-page .knox-gui-memory-recipe-toggle:focus-visible {
+	outline: 1px solid var(--knox-accent, #159994);
+	outline-offset: 2px;
+}
+
 /* shared components */
 
 .knox-gui-memory-page .knox-gui-memory-spinner {
@@ -756,8 +857,10 @@
 /* MemorySessionHistory.tsx */
 
 .knox-gui-memory-page .knox-gui-memory-panel {
+	min-width: 0;
 	border: 1px solid var(--vscode-panel-border, #3c3c3c);
 	border-radius: 10px;
+	overflow: hidden;
 }
 
 .knox-gui-memory-page .knox-gui-memory-panel-head {
@@ -869,6 +972,8 @@
 
 .knox-gui-memory-page .knox-gui-memory-md-card {
 	position: relative;
+	min-width: 0;
+	overflow: hidden;
 	border-left: 3px solid var(--vscode-panel-border, #3c3c3c);
 	background-color: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.03));
 	padding: 8px 10px;
@@ -886,7 +991,7 @@
 	gap: 6px;
 	margin-bottom: 6px;
 }
-.knox-gui-memory-page .knox-gui-memory-md-card-title { font-weight: 600; }
+.knox-gui-memory-page .knox-gui-memory-md-card-title { min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
 .knox-gui-memory-page .knox-gui-memory-md-mono { font-family: var(--monaco-monospace-font, monospace); font-size: 11px; }
 
 .knox-gui-memory-page .knox-gui-memory-md-badge {
@@ -947,15 +1052,22 @@
 	color: var(--vscode-textPreformat-foreground, #d7ba7d);
 	background-color: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.15));
 }
-.knox-gui-memory-page .knox-gui-memory-md-body pre {
+.knox-gui-memory-page .knox-gui-memory-md-body pre,
+.knox-gui-memory-page .knox-gui-memory-md-body .knox-gui-md-fence,
+.knox-gui-memory-page .knox-gui-memory-recipe-preview-card .rendered-markdown pre,
+.knox-gui-memory-page .knox-gui-memory-recipe-preview-card .knox-gui-md-fence {
 	margin: 6px 0;
 	padding: 8px 10px;
-	overflow-x: auto;
+	max-width: 100%;
+	overflow-x: hidden;
 	border-radius: 4px;
 	font-family: var(--monaco-monospace-font, monospace);
 	font-size: 11px;
 	line-height: 1.5;
 	background-color: var(--vscode-textCodeBlock-background, rgba(0, 0, 0, 0.25));
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	word-break: break-word;
 }
 .knox-gui-memory-page .knox-gui-memory-md-body table { border-collapse: collapse; margin: 6px 0; }
 .knox-gui-memory-page .knox-gui-memory-md-body th,

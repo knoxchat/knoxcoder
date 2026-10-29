@@ -120,6 +120,40 @@ export function memoryConfirmDialog(widget: KnoxGuiWidget, body: HTMLElement, op
 	return overlay;
 }
 
+/** Native markdown (highlighted fences) clamped to a max height, expandable on demand. */
+export function renderCollapsibleMarkdown(widget: KnoxGuiWidget, parent: HTMLElement, source: string, maxHeight: number, testId?: string): HTMLElement {
+	const wrap = mk(parent, 'div', 'md-body is-collapsed');
+	wrap.style.maxHeight = `${maxHeight}px`;
+	if (testId) {
+		wrap.setAttribute('data-testid', testId);
+	}
+	widget.appendMarkdown(wrap, source, widget.renderStore);
+	const toggle = mk(parent, 'button', 'md-toggle');
+	toggle.type = 'button';
+	toggle.hidden = true;
+	let expanded = false;
+	const sync = () => {
+		wrap.classList.toggle('is-collapsed', !expanded);
+		wrap.style.maxHeight = expanded ? '' : `${maxHeight}px`;
+		// allow-any-unicode-next-line
+		toggle.textContent = expanded ? '▲' : '▼';
+	};
+	sync();
+	widget.renderStore.add(DOM.addDisposableListener(toggle, 'click', () => {
+		expanded = !expanded;
+		sync();
+	}));
+	DOM.getWindow(parent).requestAnimationFrame(() => {
+		if (wrap.scrollHeight > maxHeight + 4) {
+			toggle.hidden = false;
+		} else {
+			wrap.classList.remove('is-collapsed');
+			wrap.style.maxHeight = '';
+		}
+	});
+	return wrap;
+}
+
 export function openMemoryForm(widget: KnoxGuiWidget, form: IKnoxMemoryFormState): void {
 	widget.memoryForm = form;
 	widget.render();

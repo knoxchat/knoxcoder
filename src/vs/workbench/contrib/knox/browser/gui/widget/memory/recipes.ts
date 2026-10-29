@@ -17,7 +17,8 @@ import {
 	memoryRecipeMatchNotice,
 } from '../../../../common/knoxGuiMemory.js';
 import { IKnoxGuiMemoryRecipe, IKnoxGuiState } from '../../../../common/knoxGuiState.js';
-import { mk, svg, memoryButton, memoryConfirmDialog } from './kit.js';
+import { recipePreviewToMarkdown } from '../../../../common/knoxGuiRecipe.js';
+import { mk, svg, memoryButton, memoryConfirmDialog, renderCollapsibleMarkdown } from './kit.js';
 
 /** Recipe waiting for the retire confirmation, per widget. Retiring is final, so it asks first. */
 const retireConfirm = new WeakMap<KnoxGuiWidget, string>();
@@ -27,13 +28,14 @@ const USER_PRE_KINDS = ['file_exists', 'file_absent', 'dependency'] as const;
 
 export function renderMemoryRecipes(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 	body.classList.add('knox-gui-memory-recipes-view');
-	const header = mk(body, 'div', 'kv shrink-0 gap-2');
-	const title = mk(header, 'h2', 'flex items-center gap-1_5 sm fw-6');
+	const header = mk(body, 'div', 'kv shrink-0 gap-2 flex-wrap');
+	const title = mk(header, 'h2', 'flex min-w-0 items-center gap-1_5 sm fw-6');
 	svg(title, 'zap', 14, 'teal');
 	title.append(t(state, 'memoryRecipesTitle'));
-	memoryButton(widget, header, { tokens: 'pill-btn is-quiet btn-secondary', icon: 'refresh-cw', label: t(state, 'memoryRefresh'), onClick: () => void widget.controller.loadMemoryRecipes() });
+	const actions = mk(header, 'div', 'flex flex-wrap items-center gap-2');
+	memoryButton(widget, actions, { tokens: 'pill-btn is-quiet btn-secondary', icon: 'refresh-cw', label: t(state, 'memoryRefresh'), onClick: () => void widget.controller.loadMemoryRecipes() });
 	if (state.recipeSettings.enabled) {
-		memoryButton(widget, header, {
+		memoryButton(widget, actions, {
 			tokens: 'pill-btn is-quiet btn-secondary',
 			icon: 'plus',
 			label: t(state, 'memoryRecipeSave'),
@@ -43,7 +45,7 @@ export function renderMemoryRecipes(widget: KnoxGuiWidget, body: HTMLElement, st
 			onClick: () => void widget.controller.saveMemoryRecipe(),
 		});
 	}
-	mk(body, 'p', 'xs o-60 shrink-0', t(state, 'memoryRecipesIntro'));
+	mk(body, 'p', 'xs o-60 shrink-0 min-w-0', t(state, 'memoryRecipesIntro'));
 
 	if (!state.recipeSettings.enabled) {
 		const off = mk(body, 'div', 'session-error');
@@ -206,12 +208,21 @@ function renderRecipeRow(widget: KnoxGuiWidget, scroll: HTMLElement, state: IKno
 		}
 		widget.controller.selectMemoryRecipe(recipe.id);
 	}));
-	const head = mk(row, 'div', 'md-card-head');
+	const head = mk(row, 'button', 'md-card-head recipe-toggle');
+	head.type = 'button';
+	head.setAttribute('aria-expanded', String(selected));
+	head.setAttribute('data-testid', `memory-recipe-toggle-${recipe.id}`);
+	head.setAttribute('aria-label', t(state, selected ? 'memoryRecipeCollapse' : 'memoryRecipeExpand', { title: recipe.title }));
+	svg(head, selected ? 'chevron-down' : 'chevron-right', 14, selected ? 'teal' : 'o-60');
+	widget.renderStore.add(DOM.addDisposableListener(head, 'click', e => {
+		e.stopPropagation();
+		widget.controller.selectMemoryRecipe(recipe.id);
+	}));
 	mk(head, 'span', `md-badge recipe-status-${recipe.status}`, t(state, `memoryRecipeStatus_${recipe.status}`));
 	if (recipe.pinned) {
 		svg(head, 'pin', 11, 'teal');
 	}
-	const title = mk(head, 'span', 'md-card-title', recipe.title);
+	const title = mk(head, 'span', 'md-card-title min-w-0', recipe.title);
 	if (distinguishingSlot && recipe.slotValues?.[distinguishingSlot]) {
 		mk(head, 'span', 'teal-badge ml-1_5 px-1 t-10', t(state, 'memoryRecipeVariant', { slot: distinguishingSlot, value: recipe.slotValues[distinguishingSlot] }));
 	}
@@ -392,15 +403,15 @@ function renderRecipeDetail(widget: KnoxGuiWidget, row: HTMLElement, state: IKno
 	const titleInput = document.createElement('input');
 	titleInput.type = 'text';
 	titleInput.value = recipe.title;
-	titleInput.className = 'knox-gui-memory-field';
+	titleInput.className = 'knox-gui-memory-field knox-gui-memory-recipe-input';
 	titleInput.setAttribute('data-testid', `memory-recipe-title-input-${recipe.id}`);
 	titleLabel.appendChild(titleInput);
 
 	if (recipe.intentText) {
-		mk(detail, 'p', 'xs o-60', `${t(state, 'memoryRecipeIntent')}: ${recipe.intentText}`).setAttribute('data-testid', `memory-recipe-intent-${recipe.id}`);
+		mk(detail, 'p', 'xs o-60 min-w-0', `${t(state, 'memoryRecipeIntent')}: ${recipe.intentText}`).setAttribute('data-testid', `memory-recipe-intent-${recipe.id}`);
 	}
 	if (recipe.intentFingerprint) {
-		mk(detail, 'p', 'xs o-50', `${t(state, 'memoryRecipeFingerprint')}: ${recipe.intentFingerprint}`).setAttribute('data-testid', `memory-recipe-fingerprint-${recipe.id}`);
+		mk(detail, 'p', 'xs o-50 min-w-0 mono', `${t(state, 'memoryRecipeFingerprint')}: ${recipe.intentFingerprint}`).setAttribute('data-testid', `memory-recipe-fingerprint-${recipe.id}`);
 	}
 
 	const notesLabel = mk(detail, 'label', 'block xs o-60 mt-1', t(state, 'memoryRecipeNotes'));
@@ -408,7 +419,7 @@ function renderRecipeDetail(widget: KnoxGuiWidget, row: HTMLElement, state: IKno
 	const notesInput = document.createElement('textarea');
 	notesInput.value = recipe.notes ?? '';
 	notesInput.rows = 2;
-	notesInput.className = 'knox-gui-memory-field';
+	notesInput.className = 'knox-gui-memory-field knox-gui-memory-recipe-input';
 	notesInput.setAttribute('data-testid', `memory-recipe-notes-input-${recipe.id}`);
 	notesLabel.appendChild(notesInput);
 
@@ -416,7 +427,7 @@ function renderRecipeDetail(widget: KnoxGuiWidget, row: HTMLElement, state: IKno
 	mk(slotsBox, 'p', 'xs o-60', t(state, 'memoryRecipeSlots'));
 	slotsBox.setAttribute('data-testid', `memory-recipe-slots-${recipe.id}`);
 	for (const slot of recipe.slots ?? []) {
-		const line = mk(slotsBox, 'p', 'xs');
+		const line = mk(slotsBox, 'p', 'xs min-w-0');
 		const examples = slot.examples?.length ? t(state, 'memoryRecipeSlotExamples', { examples: slot.examples.join(', ') }) : '';
 		const captured = recipe.slotValues?.[slot.name] ? ` = ${recipe.slotValues[slot.name]}` : '';
 		line.textContent = `${slot.name} (${t(state, `memoryRecipeSlotKind_${slot.kind}`)})${captured}${examples ? ` · ${examples}` : ''}`;
@@ -425,9 +436,11 @@ function renderRecipeDetail(widget: KnoxGuiWidget, row: HTMLElement, state: IKno
 	const slotName = document.createElement('input');
 	slotName.type = 'text';
 	slotName.placeholder = 'componentName';
+	slotName.className = 'knox-gui-memory-field knox-gui-memory-recipe-input';
 	slotName.setAttribute('data-testid', `memory-recipe-slot-name-${recipe.id}`);
 	addSlot.appendChild(slotName);
 	const slotKind = document.createElement('select');
+	slotKind.className = 'knox-gui-memory-dropdown knox-gui-memory-recipe-input';
 	slotKind.setAttribute('data-testid', `memory-recipe-slot-kind-${recipe.id}`);
 	for (const kind of SLOT_KINDS) {
 		const opt = document.createElement('option');
@@ -441,21 +454,23 @@ function renderRecipeDetail(widget: KnoxGuiWidget, row: HTMLElement, state: IKno
 	mk(presBox, 'p', 'xs o-60', t(state, 'memoryRecipePreconditions'));
 	presBox.setAttribute('data-testid', `memory-recipe-preconditions-${recipe.id}`);
 	for (const pre of recipe.preconditions ?? []) {
-		mk(presBox, 'p', 'xs', `${t(state, `memoryRecipePreKind_${pre.kind}`)}: ${pre.value}`);
+		mk(presBox, 'p', 'xs min-w-0', `${recipePreKindLabel(state, pre.kind)}: ${pre.value}`);
 	}
 	const addPre = mk(presBox, 'div', 'flex flex-wrap gap-1 mt-1');
 	const preKind = document.createElement('select');
+	preKind.className = 'knox-gui-memory-dropdown knox-gui-memory-recipe-input';
 	preKind.setAttribute('data-testid', `memory-recipe-pre-kind-${recipe.id}`);
 	for (const kind of USER_PRE_KINDS) {
 		const opt = document.createElement('option');
 		opt.value = kind;
-		opt.textContent = t(state, `memoryRecipePreKind_${kind}`);
+		opt.textContent = recipePreKindLabel(state, kind);
 		preKind.appendChild(opt);
 	}
 	addPre.appendChild(preKind);
 	const preValue = document.createElement('input');
 	preValue.type = 'text';
 	preValue.placeholder = 'src/Button.tsx';
+	preValue.className = 'knox-gui-memory-field knox-gui-memory-recipe-input';
 	preValue.setAttribute('data-testid', `memory-recipe-pre-value-${recipe.id}`);
 	addPre.appendChild(preValue);
 
@@ -465,7 +480,7 @@ function renderRecipeDetail(widget: KnoxGuiWidget, row: HTMLElement, state: IKno
 		steps.setAttribute('data-testid', `memory-recipe-steps-${recipe.id}`);
 		for (const step of recipe.steps) {
 			const label = t(state, `memoryRecipeStep_${step.kind}`);
-			mk(steps, 'p', 'xs', step.kind === 'command' ? `${label}: ${step.command ?? ''}` : `${label} ${step.path ?? ''}`);
+			mk(steps, 'p', 'xs min-w-0 mono', step.kind === 'command' ? `${label}: ${step.command ?? ''}` : `${label} ${step.path ?? ''}`);
 		}
 	}
 	if (recipe.oracleKind) {
@@ -487,7 +502,7 @@ function renderRecipeDetail(widget: KnoxGuiWidget, row: HTMLElement, state: IKno
 	if (state.memoryRecipePreviewLoading && state.memorySelectedRecipeId === recipe.id) {
 		mk(preview, 'p', 'xs o-50', t(state, 'memoryRecipePreviewLoading')).setAttribute('data-testid', 'memory-recipe-inline-preview-loading');
 	} else if (state.memoryRecipePreview && state.memorySelectedRecipeId === recipe.id) {
-		mk(preview, 'pre', 'mt-1 xs', state.memoryRecipePreview).setAttribute('data-testid', 'memory-recipe-inline-preview');
+		renderCollapsibleMarkdown(widget, preview, recipePreviewToMarkdown(state.memoryRecipePreview), 280, 'memory-recipe-inline-preview');
 	} else {
 		mk(preview, 'p', 'xs o-50', t(state, 'memoryRecipeNoPreview'));
 	}
@@ -538,25 +553,33 @@ async function saveRecipeEdits(widget: KnoxGuiWidget, recipe: IKnoxGuiMemoryReci
 	});
 }
 
+function recipePreKindLabel(state: IKnoxGuiState, kind: string): string {
+	const key = `memoryRecipePreKind_${kind}`;
+	const label = t(state, key);
+	return label === key ? kind.replace(/_/g, ' ') : label;
+}
+
 function renderTabPreview(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
 	const tabDecision = state.recipeDecision;
 	if (tabDecision?.source === 'tab' && tabDecision.awaitingChoice && tabDecision.recipe && (tabDecision.preview || tabDecision.slots?.length || tabDecision.files?.length || tabDecision.compose)) {
-		const card = mk(body, 'div', 'banner is-notice');
+		const card = mk(body, 'div', 'recipe-preview-card');
 		card.setAttribute('role', 'group');
 		card.setAttribute('data-testid', 'memory-recipe-preview-card');
-		mk(card, 'p', 'sm fw-6', t(state, tabDecision.compose ? 'recipeComposeTitle' : 'recipePreviewTitle', { title: tabDecision.recipe.title, count: tabDecision.compose?.recipes.length ?? 1 }));
-		const latency = mk(card, 'p', 'xs o-60');
+		const title = mk(card, 'p', 'sm fw-6 min-w-0', t(state, tabDecision.compose ? 'recipeComposeTitle' : 'recipePreviewTitle', { title: tabDecision.recipe.title, count: tabDecision.compose?.recipes.length ?? 1 }));
+		title.id = 'knox-memory-recipe-preview-title';
+		card.setAttribute('aria-labelledby', title.id);
+		const latency = mk(card, 'p', 'xs o-60 min-w-0');
 		latency.setAttribute('data-testid', 'memory-recipe-preview-latency');
 		latency.textContent = t(state, 'recipePreviewLatency');
 		if (tabDecision.compose?.recipes.length) {
-			const plan = mk(card, 'ol', 'mt-1 xs');
+			const plan = mk(card, 'ol', 'mt-1 xs min-w-0');
 			plan.setAttribute('data-testid', 'recipe-compose-plan');
 			for (const [index, child] of tabDecision.compose.recipes.entries()) {
 				mk(plan, 'li', '', t(state, 'recipeComposeStep', { index: index + 1, title: child.title }));
 			}
 		}
 		if (tabDecision.slots?.length) {
-			const slots = mk(card, 'div', 'mt-1');
+			const slots = mk(card, 'div', 'mt-1 min-w-0');
 			slots.setAttribute('data-testid', 'recipe-slot-fields');
 			mk(slots, 'p', 'xs o-60', t(state, 'recipeSlotsNeedValues'));
 			for (const slot of tabDecision.slots) {
@@ -566,16 +589,17 @@ function renderTabPreview(widget: KnoxGuiWidget, body: HTMLElement, state: IKnox
 				input.type = 'text';
 				input.value = slot.value ?? '';
 				input.placeholder = slot.examples?.[0] ?? '';
+				input.className = 'knox-gui-memory-field knox-gui-memory-recipe-input';
 				input.setAttribute('data-testid', `recipe-slot-input-${slot.name}`);
 				row.appendChild(input);
 			}
 		}
 		if (tabDecision.files?.length) {
-			const files = mk(card, 'div', 'mt-1');
+			const files = mk(card, 'div', 'mt-1 min-w-0');
 			files.setAttribute('data-testid', 'recipe-file-fields');
 			mk(files, 'p', 'xs o-60', t(state, tabDecision.files.some(file => file.extra) ? 'recipeExtraFiles' : 'recipePartialFiles'));
 			for (const [index, file] of tabDecision.files.entries()) {
-				const row = mk(files, 'label', 'block xs mt-1');
+				const row = mk(files, 'label', 'block xs mt-1 min-w-0');
 				const input = document.createElement('input');
 				input.type = 'checkbox';
 				input.checked = file.included;
@@ -585,9 +609,9 @@ function renderTabPreview(widget: KnoxGuiWidget, body: HTMLElement, state: IKnox
 			}
 		}
 		if (tabDecision.preview) {
-			mk(card, 'pre', 'mt-1 xs', tabDecision.preview);
+			renderCollapsibleMarkdown(widget, card, recipePreviewToMarkdown(tabDecision.preview), 360, 'memory-recipe-preview-body');
 		}
-		const choice = mk(card, 'div', 'mt-2 flex gap-2');
+		const choice = mk(card, 'div', 'mt-2 flex flex-wrap gap-2');
 		const slotsReady = !tabDecision.slots?.length || tabDecision.slots.every(slot => Boolean(slot.value?.trim()));
 		memoryButton(widget, choice, {
 			tokens: 'pill-btn btn-primary',

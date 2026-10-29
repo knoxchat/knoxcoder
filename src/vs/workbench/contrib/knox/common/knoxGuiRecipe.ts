@@ -137,3 +137,89 @@ export function knoxGuiRecipeNeedsChoice(decision: IKnoxGuiRecipeDecision | unde
 export function knoxGuiRecipeFailureNote(reason: string): string {
 	return `A saved recipe was tried first and did not apply. Reason: ${reason}\nNo files were changed by it.`;
 }
+
+const RECIPE_PREVIEW_FILE = /^(create|modify|delete|unchanged|merge|conflict|missing_blob)\s+(\S.*)$/;
+const RECIPE_PREVIEW_COMMAND = /^command\s+(.*)$/;
+const RECIPE_PREVIEW_SUMMARY = /^\d+\s+file\(s\),/;
+const RECIPE_PREVIEW_DIFF = /^(--- |\+\+\+ |diff --git |@@ )/;
+const RECIPE_PREVIEW_LATENCY = /^This listing is instant/;
+
+function recipePreviewPathMarkdown(rest: string): string {
+	const match = /^(\S+)(\s+\(.*\))?$/.exec(rest.trim());
+	if (!match) {
+		return `\`${rest.trim()}\``;
+	}
+	return `\`${match[1]}\`${match[2] ?? ''}`;
+}
+
+/**
+ * Host `formatReplayPreview` is a flat listing + unified diffs. Turn it into
+ * markdown so the GUI can highlight fences instead of dumping a raw `<pre>`.
+ */
+export function recipePreviewToMarkdown(source: string): string {
+	const text = source.replace(/\r\n/g, '\n').replace(/\s+$/, '');
+	if (!text.trim()) {
+		return '';
+	}
+	if (/^```/m.test(text.trim())) {
+		return text.trim();
+	}
+	if (text.trimStart().startsWith('Replay refused:')) {
+		return `**${text.trim()}**`;
+	}
+
+	const lines = text.split('\n');
+	let index = 0;
+	while (index < lines.length && (!lines[index].trim() || RECIPE_PREVIEW_LATENCY.test(lines[index]))) {
+		index += 1;
+	}
+
+	const out: string[] = [];
+	if (index < lines.length && RECIPE_PREVIEW_SUMMARY.test(lines[index].trim())) {
+		out.push(`**${lines[index].trim()}**`, '');
+		index += 1;
+	}
+
+	const files: string[] = [];
+	const commands: string[] = [];
+	while (index < lines.length) {
+		const line = lines[index];
+		if (!line.trim()) {
+			index += 1;
+			break;
+		}
+		if (RECIPE_PREVIEW_DIFF.test(line)) {
+			break;
+		}
+		const command = RECIPE_PREVIEW_COMMAND.exec(line);
+		if (command) {
+			commands.push(command[1]);
+			index += 1;
+			continue;
+		}
+		const file = RECIPE_PREVIEW_FILE.exec(line);
+		if (file) {
+			files.push(`- \`${file[1]}\` ${recipePreviewPathMarkdown(file[2])}`);
+			index += 1;
+			continue;
+		}
+		out.push(line);
+		index += 1;
+	}
+
+	if (files.length) {
+		out.push(...files, '');
+	}
+	if (commands.length) {
+		out.push('```bash', ...commands, '```', '');
+	}
+	const rest = lines.slice(index).join('\n').replace(/^\n+/, '').replace(/\n+$/, '');
+	if (rest) {
+		if (RECIPE_PREVIEW_DIFF.test(rest) || /\n(?:--- |\+\+\+ |diff --git |@@ )/.test(rest)) {
+			out.push('```diff', rest, '```');
+		} else {
+			out.push(rest);
+		}
+	}
+	return out.join('\n').trim();
+}

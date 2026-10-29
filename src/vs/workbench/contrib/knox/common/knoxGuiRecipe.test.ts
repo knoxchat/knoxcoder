@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { knoxGuiRecipeLoopLine, knoxGuiRecipeNeedsChoice, knoxGuiRecipeNotice, knoxGuiRecipeSlotsReady, parseRecipeSettings, recipeApplyPayload } from './knoxGuiRecipe.js';
+import { knoxGuiRecipeLoopLine, knoxGuiRecipeNeedsChoice, knoxGuiRecipeNotice, knoxGuiRecipeSlotsReady, parseRecipeSettings, recipeApplyPayload, recipePreviewToMarkdown } from './knoxGuiRecipe.js';
 import { parseRecipeMetrics } from './knoxGuiCheckpoints.js';
 import { filterAndSortRecipes, groupRecipesByFamily, memoryRecipeActions, memoryRecipeCaptureNotice, memoryRecipeMatchNotice, parseMemoryRecipe, parseMemoryRecipeCapture, parseMemoryRecipeList, parseRecipeIdFromMemory } from './knoxGuiMemory.js';
 import type { IKnoxGuiRecipeDecision } from './knoxGuiState.js';
@@ -184,6 +184,32 @@ suite('Knox GUI recipe settings, tab and metrics (MC-70/71/72)', () => {
 		assert.deepStrictEqual(memoryRecipeCaptureNotice({ captured: false, reason: 'no_oracle' }), { key: 'memoryRecipeSkip_no_oracle' });
 		assert.deepStrictEqual(memoryRecipeCaptureNotice({ captured: false, reason: 'delete_not_replayable' }), { key: 'memoryRecipeSkip_delete_not_replayable' });
 		assert.deepStrictEqual(memoryRecipeCaptureNotice({ captured: false, reason: 'user_refused' }), { key: 'memoryRecipeSkip_user_refused' });
+	});
+
+	test('preview listing becomes highlighted markdown instead of a raw dump', () => {
+		const markdown = recipePreviewToMarkdown([
+			'This listing is instant; Apply runs the real tool path and the recorded check, which can take seconds.',
+			'2 file(s), +260 -0',
+			'unchanged .gitignore',
+			'create    assets/main.css',
+			'conflict  Cargo.toml (cannot merge: no base version or file missing)',
+			'command   cargo test 2>&1 | tail -30',
+			'',
+			'--- /dev/null',
+			'+++ b/assets/main.css',
+			'@@ -0,0 +1,2 @@',
+			'+:root {',
+			'+}',
+		].join('\n'));
+		assert.ok(markdown.startsWith('**2 file(s), +260 -0**'));
+		assert.ok(markdown.includes('- `create` `assets/main.css`'));
+		assert.ok(markdown.includes('- `conflict` `Cargo.toml` (cannot merge: no base version or file missing)'));
+		assert.ok(markdown.includes('```bash\ncargo test 2>&1 | tail -30\n```'));
+		assert.ok(markdown.includes('```diff\n--- /dev/null\n+++ b/assets/main.css'));
+		assert.ok(!markdown.includes('This listing is instant'));
+		assert.strictEqual(recipePreviewToMarkdown('Replay refused: recipe is a candidate'), '**Replay refused: recipe is a candidate**');
+		assert.strictEqual(recipePreviewToMarkdown('```diff\n+already\n```'), '```diff\n+already\n```');
+		assert.strictEqual(recipePreviewToMarkdown('1 file(s), +12 -0\n--- src/Button.tsx'), '**1 file(s), +12 -0**\n\n```diff\n--- src/Button.tsx\n```');
 	});
 
 	test('dashboard metrics: absent stays absent, bad numbers become 0 and the rate is capped', () => {

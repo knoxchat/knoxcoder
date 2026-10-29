@@ -2807,6 +2807,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-restore-rec4"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipes-search"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-pin-rec1"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="memory-recipe-toggle-rec1"]')?.getAttribute('aria-expanded'), 'false');
+		assert.strictEqual(widget.root.querySelector('[data-testid="memory-recipe-detail-rec1"]'), null);
 
 		store.patch({
 			memoryTab: 'recipes',
@@ -2818,6 +2820,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			memoryRecipePreview: '1 file(s), +12 -0\n--- src/Button.tsx',
 		});
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-family-fam1"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="memory-recipe-toggle-fam-a"]')?.getAttribute('aria-expanded'), 'true');
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-detail-fam-a"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-inline-preview"]')?.textContent?.includes('src/Button.tsx'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-promote-scope-fam-a"]'));
@@ -3770,11 +3773,14 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 				needsConfirmation: true,
 				awaitingChoice: true,
 				source: 'tab',
-				preview: '1 file(s), +1 -0',
+				preview: '1 file(s), +1 -0\ncreate    src/lint.js\n\n--- /dev/null\n+++ b/src/lint.js\n+module.exports = {};',
 				recipe: { id: 'rec1', title: 'Add lint script', uses: 1, reverts: 0, score: 1 },
 			},
 		});
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-preview-card"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-preview-body"]')?.classList.contains('knox-gui-memory-md-body'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-preview-card"]')?.querySelector('.rendered-markdown'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-preview-card"]')?.textContent?.includes('src/lint.js'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-preview-apply"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-preview-skip"]'));
 	});
@@ -3794,6 +3800,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(card);
 		assert.strictEqual(card.getAttribute('role'), 'group');
 		assert.ok(card.getAttribute('aria-labelledby'));
+		assert.ok(card.querySelector('.rendered-markdown'));
 		assert.ok(widget.root.querySelector('[data-testid="recipe-preview-latency"]')?.textContent);
 		assert.ok(widget.root.querySelector('[data-testid="recipe-preview-apply"]'));
 		assert.ok(widget.root.querySelector('[data-testid="recipe-preview-skip"]'));

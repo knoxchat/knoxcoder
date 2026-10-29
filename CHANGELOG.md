@@ -12,6 +12,13 @@ All notable changes to KnoxCoder are documented in this file.
 
 - **Recipe capture and replay.** Capture records safe terminal commands, language/framework checks, and deletes; it ignores lockfiles/`dist/` noise and still diffs against the turn-start checkpoint when soul history overflows. Replay fills slots from the new message, open editors, and @-mentions, asks when a slot is empty, and can compose two disjoint verified recipes in sequence. Adapt remains previewed; extra files in an adapt patch stay off until you check them.
 - **Recipe matching.** Jaccard plus file/buffer overlap and linked workflow memories. Zero shared tokens still cannot match (no embeddings). A reverted recipe is quarantined. Default reuse stays **off**; Automatic still auto-applies only a byte-identical clean replay.
+- **Recipes tab and chat preview.** Replay listings render as markdown (file list, highlighted commands, unified diffs) instead of a raw dump. Recipe cards have a chevron to expand or collapse the inspector.
+
+### Fixed
+
+- **Recipes preview overflow.** Long paths, commands, and diffs wrap inside the ask card instead of crossing the rounded edge.
+- **Recipe precondition labels.** `clean_paths` shows as “No uncommitted changes” instead of a raw i18n key.
+- **Older brain recipe tables.** Opening a pre-family `brain.sqlite` adds `family_id` / `slot_values` / `pinned` / `notes` before indexes that name those columns, so migrate can finish.
 
 ### Security
 
