@@ -380,6 +380,11 @@
 					"default": true,
 					"markdownDescription": "Create a checkpoint after AI conversation turns when workspace files changed. Default is **true**. Independent of time/file-threshold auto-checkpoints (`knox.checkpoints.auto.enabled`)."
 				},
+				"knox.checkpoints.autoStashOnCheckout": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Before switching a checkpoint branch or checking out a node, stash dirty files then restore the target. If disabled, Knox refuses the switch when the working tree differs from the current head."
+				},
 				"knox.checkpoints.auto.enabled": {
 					"type": "boolean",
 					"default": true,
@@ -500,6 +505,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Highlight word-level changes inside modified lines"
+				},
+				"knox.checkpoints.blame": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show checkpoint line blame in the editor when the checkpoint graph is open, or after Blame File"
 				}
 			}
 		},
@@ -878,6 +888,72 @@
 				"group": "Knox"
 			},
 			{
+				"command": "knox.checkpoints.blame",
+				"category": "Knox Checkpoints",
+				"title": "Blame File",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.hideBlame",
+				"category": "Knox Checkpoints",
+				"title": "Hide Blame",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.materializeWorktree",
+				"category": "Knox Checkpoints",
+				"title": "Open Checkpoint in Worktree",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.removeWorktree",
+				"category": "Knox Checkpoints",
+				"title": "Remove Checkpoint Worktree",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.bisectStart",
+				"category": "Knox Checkpoints",
+				"title": "Bisect Start",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.bisectGood",
+				"category": "Knox Checkpoints",
+				"title": "Bisect Good",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.bisectBad",
+				"category": "Knox Checkpoints",
+				"title": "Bisect Bad",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.bisectSkip",
+				"category": "Knox Checkpoints",
+				"title": "Bisect Skip",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.bisectReset",
+				"category": "Knox Checkpoints",
+				"title": "Bisect Reset",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.exportPatch",
+				"category": "Knox Checkpoints",
+				"title": "Export Checkpoint Patch",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.applyPatch",
+				"category": "Knox Checkpoints",
+				"title": "Apply Checkpoint Patch",
+				"group": "Knox"
+			},
+			{
 				"command": "knox.checkpoints.showInlineDiff",
 				"category": "Knox Checkpoints",
 				"title": "Show Inline Diff",
@@ -962,15 +1038,63 @@
 				"group": "Knox"
 			},
 			{
+				"command": "knox.checkpoints.checkout",
+				"category": "Knox Checkpoints",
+				"title": "Check Out Checkpoint",
+				"group": "Knox"
+			},
+			{
 				"command": "knox.checkpoints.mergeBranch",
 				"category": "Knox Checkpoints",
 				"title": "Merge Checkpoint Branch",
 				"group": "Knox"
 			},
 			{
+				"command": "knox.checkpoints.mergeContinue",
+				"category": "Knox Checkpoints",
+				"title": "Continue Merge",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.mergeAbort",
+				"category": "Knox Checkpoints",
+				"title": "Abort Merge",
+				"group": "Knox"
+			},
+			{
 				"command": "knox.checkpoints.deleteBranch",
 				"category": "Knox Checkpoints",
 				"title": "Delete Checkpoint Branch",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.stash",
+				"category": "Knox Checkpoints",
+				"title": "Stash Working Tree",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.stashPop",
+				"category": "Knox Checkpoints",
+				"title": "Pop Stash",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.stashList",
+				"category": "Knox Checkpoints",
+				"title": "Show Stash",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.cherryPick",
+				"category": "Knox Checkpoints",
+				"title": "Cherry-pick Checkpoint",
+				"group": "Knox"
+			},
+			{
+				"command": "knox.checkpoints.revert",
+				"category": "Knox Checkpoints",
+				"title": "Revert Checkpoint",
 				"group": "Knox"
 			},
 			{
@@ -1266,6 +1390,11 @@
 					"when": "resourceScheme == file"
 				},
 				{
+					"command": "knox.checkpoints.blame",
+					"group": "modification@10",
+					"when": "resourceScheme == file"
+				},
+				{
 					"submenu": "knoxchat.knoxSubMenu",
 					"group": "0_aknox"
 				}
@@ -1311,6 +1440,10 @@
 				{
 					"command": "knox.checkpoints.fileHistory",
 					"group": "Knox@20"
+				},
+				{
+					"command": "knox.checkpoints.blame",
+					"group": "Knox@21"
 				}
 			],
 			"explorer/context": [

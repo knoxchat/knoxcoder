@@ -409,12 +409,16 @@ export function checkpointDiffContentBytes(content: string | null, encoding?: st
 }
 
 export function buildCheckpointDiffFiles(
-	files: Array<{ relativePath: string; status?: string; oldContent: string | null; newContent: string | null; oldEncoding?: string; newEncoding?: string }>,
+	files: Array<{ relativePath: string; status?: string; oldPath?: string; oldContent: string | null; newContent: string | null; oldEncoding?: string; newEncoding?: string }>,
 ): IKnoxGuiCheckpointDiffFile[] {
 	return files.map(file => {
 		const isBinary = file.oldEncoding === 'base64' || file.newEncoding === 'base64';
 		let status: KnoxCheckpointDiffStatus = 'modified';
-		if (file.status === 'added' || (!file.oldContent && file.newContent !== null)) {
+		if (file.status === 'renamed') {
+			status = 'renamed';
+		} else if (file.status === 'copied') {
+			status = 'copied';
+		} else if (file.status === 'added' || (!file.oldContent && file.newContent !== null)) {
 			status = 'added';
 		} else if (file.status === 'deleted' || (file.oldContent !== null && file.newContent === null)) {
 			status = 'deleted';
@@ -425,6 +429,7 @@ export function buildCheckpointDiffFiles(
 		return {
 			relativePath: file.relativePath,
 			status,
+			oldPath: typeof file.oldPath === 'string' && file.oldPath ? file.oldPath : undefined,
 			oldContent: file.oldContent,
 			newContent: file.newContent,
 			oldEncoding: file.oldEncoding,
@@ -484,6 +489,7 @@ export function parseCheckpointDiff(value: unknown, fallbackNewDescription?: str
 		return {
 			relativePath: String(file.relativePath ?? ''),
 			status: typeof file.status === 'string' ? file.status : undefined,
+			oldPath: typeof file.oldPath === 'string' ? file.oldPath : undefined,
 			oldContent: file.oldContent === null || file.oldContent === undefined ? null : String(file.oldContent),
 			newContent: file.newContent === null || file.newContent === undefined ? null : String(file.newContent),
 			oldEncoding: file.oldEncoding ? String(file.oldEncoding) : undefined,

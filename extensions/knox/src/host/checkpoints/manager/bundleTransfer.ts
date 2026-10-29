@@ -89,6 +89,8 @@ function snapshotFromRecord(snapshot: Record<string, unknown>): FileSnapshot {
             || snapshot.changeType === 'deleted'
             ? snapshot.changeType
             : undefined,
+        renamedFrom: typeof snapshot.renamedFrom === 'string' ? snapshot.renamedFrom : undefined,
+        copiedFrom: typeof snapshot.copiedFrom === 'string' ? snapshot.copiedFrom : undefined,
     };
 }
 
@@ -295,6 +297,8 @@ function checkpointToBundleRecord(checkpoint: CheckpointInfo): Record<string, un
             size: snapshot.size,
             deleted: snapshot.deleted,
             changeType: snapshot.changeType,
+            ...(snapshot.renamedFrom ? { renamedFrom: snapshot.renamedFrom } : {}),
+            ...(snapshot.copiedFrom ? { copiedFrom: snapshot.copiedFrom } : {}),
         })),
     };
 }

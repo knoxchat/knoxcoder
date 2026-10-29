@@ -87,6 +87,25 @@ suite('checkpoint graph payload (CPG-03)', () => {
         assert.strictEqual(JSON.stringify(graph).includes('content'), false);
     });
 
+    test('rename snapshots become renamedFrom on the graph node', () => {
+        const graph = buildCheckpointGraph({
+            history: [cp('cp_rename', {
+                description: 'mv a to b',
+                fileSnapshots: [{
+                    relativePath: 'b.ts',
+                    renamedFrom: 'a.ts',
+                    encoding: 'utf8',
+                    lastModified: new Date('2026-08-17T12:00:00.000Z'),
+                    size: 5,
+                }],
+            })],
+            branches: [],
+        });
+        assert.deepStrictEqual(graph.nodes[0]?.renamedFrom, { 'b.ts': 'a.ts' });
+        assert.deepStrictEqual(graph.nodes[0]?.changedPaths, ['b.ts']);
+        assert.strictEqual(JSON.stringify(graph).includes('fileSnapshots'), false);
+    });
+
     test('a checkpoint with no parent has an empty parents array', () => {
         const graph = buildCheckpointGraph({
             history: [cp('cp_orphan', { description: 'alone' })],
@@ -205,6 +224,19 @@ suite('checkpoint graph payload (CPG-03)', () => {
         assert.deepStrictEqual(none.nodes, []);
         assert.strictEqual(none.branches.length, 2);
         assert.strictEqual(none.headCheckpointId, 'cp_feat');
+
+        const detached = buildCheckpointGraph({
+            history: [
+                cp('cp_root', { branchId: 'br_main' }),
+                cp('cp_feat', { branchId: 'br_feature', parentCheckpointId: 'cp_root' }),
+            ],
+            branches: [main, feature],
+            activeBranchId: 'br_feature',
+            detachedFrom: { checkpointId: 'cp_root', previousBranchId: 'br_feature' },
+        });
+        assert.strictEqual(detached.headCheckpointId, 'cp_root');
+        assert.strictEqual(detached.detachedFrom?.checkpointId, 'cp_root');
+        assert.ok(detached.branches.every((branch) => branch.isActive === false));
     });
 
     test('equal timestamps break ties by id, and limit keeps the newest page', () => {

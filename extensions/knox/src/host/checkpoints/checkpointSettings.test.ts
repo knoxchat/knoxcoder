@@ -24,6 +24,10 @@ suite('Checkpoint settings (CP-12)', () => {
             true,
         );
         assert.strictEqual(
+            checkpoints.inspect('autoStashOnCheckout')?.defaultValue,
+            true,
+        );
+        assert.strictEqual(
             checkpoints.inspect('maxFilesPerCheckpoint')?.defaultValue,
             DEFAULT_MAX_FILES_PER_CHECKPOINT,
         );

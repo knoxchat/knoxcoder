@@ -94,7 +94,7 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
     activeWorkspacePath?: string;
   }];
   runCheckpointGraphAction: [{
-    action: "openFolder" | "createCheckpoint" | "retryInit" | "showConfiguration";
+    action: "openFolder" | "createCheckpoint" | "retryInit" | "showConfiguration" | "stashPop" | "mergeContinue" | "mergeAbort" | "bisectGood" | "bisectBad" | "bisectSkip" | "bisectReset";
   }, { ok: boolean }];
   /** Column, filter, and view prefs. `null` when this window has none yet. */
   getCheckpointGraphUiState: [undefined, {
@@ -161,6 +161,7 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
   }];
   deleteCheckpointBranch: [{ branchId: string }, { success: boolean; message?: string }];
   exportCheckpoint: [{ checkpointId: string }, { success: boolean; cancelled?: boolean }];
+  exportPatch: [{ checkpointId: string }, { success: boolean; cancelled?: boolean; path?: string; message?: string }];
   /**
    * Lean graph for the editor panel. Omit `branchIds` for every branch; an
    * empty list selects none. Nodes omit file snapshots and file bytes.
@@ -198,6 +199,22 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
     headCheckpointId: string | null;
     /** True when a later page exists under the requested limit. */
     hasMore?: boolean;
+    /** CP-38: working-tree stash stack length. */
+    stashCount?: number;
+    /** CP-39: detached checkout pointer. */
+    detachedFrom?: { checkpointId: string; previousBranchId?: string };
+    /** CP-43: in-progress merge / cherry-pick / revert. */
+    mergeInProgress?: {
+      operation: "merge" | "cherry_pick" | "revert";
+      sourceName?: string;
+      targetName?: string;
+      conflictPaths: string[];
+    } | null;
+    bisectInProgress?: {
+      currentId?: string;
+      remaining: number;
+      firstBadId?: string;
+    } | null;
   }];
   listCheckpoints: [{
     query?: string;
@@ -461,7 +478,35 @@ export type ToIdeFromWebviewProtocol = ToIdeFromWebviewOrCoreProtocol & {
   ];
   switchCheckpointBranch: [
     { branchId: string },
-    { success: boolean; message?: string },
+    { success: boolean; message?: string; stashId?: string; stashed?: boolean },
+  ];
+  checkoutCheckpoint: [
+    { checkpointId: string },
+    { success: boolean; message?: string; detached?: boolean; stashId?: string; stashed?: boolean },
+  ];
+  cherryPickCheckpoint: [
+    { checkpointId: string },
+    {
+      success: boolean;
+      empty?: boolean;
+      checkpointId?: string;
+      conflicts: Array<{ path: string }>;
+      message?: string;
+    },
+  ];
+  revertCheckpoint: [
+    { checkpointId: string },
+    {
+      success: boolean;
+      empty?: boolean;
+      checkpointId?: string;
+      conflicts: Array<{ path: string }>;
+      message?: string;
+    },
+  ];
+  materializeWorktree: [
+    { checkpointId: string },
+    { success: boolean; worktreeId?: string; path?: string; message?: string },
   ];
   analyzeCheckpoint: [
     { checkpointId: string },
@@ -729,6 +774,8 @@ export type ToWebviewFromIdeProtocol = ToWebviewFromIdeOrCoreProtocol & {
   checkpointListUpdated: [undefined, void];
   /** Graph panel should reload `checkpointGraph` while it is visible. */
   checkpointGraphUpdated: [undefined, void];
+  /** Focus a checkpoint on the graph (CP-44 blame click). */
+  selectCheckpoint: [{ checkpointId: string }, void];
   /** Memory panel should reload its active tab while it is visible. */
   memoryViewUpdated: [undefined, void];
   guiLanguageChanged: [{ language: "en" | "zh" }, void];

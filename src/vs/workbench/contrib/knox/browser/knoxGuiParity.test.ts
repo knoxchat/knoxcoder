@@ -181,6 +181,12 @@ suite('Knox native GUI i18n', () => {
 		assert.notStrictEqual(knoxGuiT('en', 'checkpointGraph.noWorkspace'), knoxGuiT('zh', 'checkpointGraph.noWorkspace'));
 		assert.ok(knoxGuiT('en', 'checkpointGraph.find').length > 0);
 		assert.ok(knoxGuiT('en', 'checkpointGraph.workingTree').includes('Uncheckpointed'));
+		assert.ok(knoxGuiT('en', 'checkpointGraph.stashed', { count: 2 }).includes('2'));
+		assert.ok(knoxGuiT('en', 'checkpointGraph.stashPop').length > 0);
+		assert.ok(knoxGuiT('en', 'checkpointGraph.detached', { id: 'cp_abc' }).includes('cp_abc'));
+		assert.ok(knoxGuiT('en', 'checkpointGraph.menu.checkout').includes('Check out'));
+		assert.ok(knoxGuiT('en', 'checkpointGraph.menu.cherryPick').includes('Cherry-pick'));
+		assert.ok(knoxGuiT('en', 'checkpointGraph.menu.revert').includes('Revert'));
 		assert.ok(knoxGuiT('en', 'checkpointGraph.menu.restore').includes('Restore'));
 		assert.ok(knoxGuiT('en', 'checkpointGraph.justNow').length > 0);
 		assert.ok(knoxGuiT('en', 'restorePreviewWillOverwrite').includes('overwrite'));

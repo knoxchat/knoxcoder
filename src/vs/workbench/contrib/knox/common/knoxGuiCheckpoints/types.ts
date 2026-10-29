@@ -6,7 +6,7 @@
 /** Restore preview and checkpoint diff shapes shared by parsers and the overlay. */
 
 export type KnoxRestorePreviewAction = 'overwrite' | 'create' | 'delete';
-export type KnoxCheckpointDiffStatus = 'added' | 'deleted' | 'modified' | 'unchanged';
+export type KnoxCheckpointDiffStatus = 'added' | 'deleted' | 'modified' | 'unchanged' | 'renamed' | 'copied';
 export type KnoxCheckpointDiffView = 'split' | 'unified';
 
 export interface IKnoxGuiRestorePreviewFile {
@@ -39,6 +39,8 @@ export interface IKnoxGuiCheckpointFileSnapshot {
 export interface IKnoxGuiCheckpointDiffFile {
 	relativePath: string;
 	status: KnoxCheckpointDiffStatus;
+	/** Previous path when status is renamed or copied (CP-40). */
+	oldPath?: string;
 	oldContent: string | null;
 	newContent: string | null;
 	oldEncoding?: string;

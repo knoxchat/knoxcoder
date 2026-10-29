@@ -121,6 +121,9 @@ export class VsCodeExtension {
     CheckpointGraphView.setNotifier(() => {
       this.sidebar.webviewProtocol.send("checkpointGraphUpdated", undefined);
     });
+    CheckpointGraphView.setSelectHandler((checkpointId) => {
+      this.sidebar.webviewProtocol.send("selectCheckpoint", { checkpointId });
+    });
     MemoryView.setNotifier(() => {
       this.sidebar.webviewProtocol.send("memoryViewUpdated", undefined);
     });
@@ -179,20 +182,37 @@ export class VsCodeExtension {
       const manager = CheckpointManager.getInstance();
       const { buildCheckpointGraph } = await import("../checkpoints/manager/graphPayload");
       if (!manager.initialized) {
-        return buildCheckpointGraph({ history: [], branches: [] });
+        return { ...buildCheckpointGraph({ history: [], branches: [] }), stashCount: 0, mergeInProgress: null, bisectInProgress: null };
       }
       const history = manager.getCheckpointHistoryForWorkspace();
       const branches = await manager.listBranches();
       const branchIds = msg.data?.activeBranchOnly
         ? (manager.activeBranchId ? [manager.activeBranchId] : [])
         : msg.data?.branchIds;
-      return buildCheckpointGraph({
-        history,
-        branches,
-        activeBranchId: manager.activeBranchId,
-        limit: msg.data?.limit,
-        branchIds,
-      });
+      const stash = await manager.stashList();
+        return {
+        ...buildCheckpointGraph({
+          history,
+          branches,
+          activeBranchId: manager.activeBranchId,
+          detachedFrom: manager.detachedFrom,
+          limit: msg.data?.limit,
+          branchIds,
+        }),
+        stashCount: stash.length,
+        detachedFrom: manager.detachedFrom,
+        mergeInProgress: await manager.getMergeState().then((state) => state ? {
+          operation: state.operation,
+          sourceName: state.sourceName,
+          targetName: state.targetName,
+          conflictPaths: state.conflictPaths,
+        } : null),
+        bisectInProgress: await manager.getBisectState().then((state) => state ? {
+          currentId: state.current,
+          remaining: state.remaining.length,
+          firstBadId: state.firstBadId,
+        } : null),
+      };
     });
     this.sidebar.webviewProtocol.on("runCheckpointGraphAction", async (msg) => {
       const action = msg.data.action;
@@ -206,6 +226,26 @@ export class VsCodeExtension {
       }
       if (action === "showConfiguration") {
         await vscode.commands.executeCommand("knox.checkpoints.showConfiguration");
+        return { ok: true };
+      }
+      if (action === "stashPop") {
+        await vscode.commands.executeCommand("knox.checkpoints.stashPop");
+        CheckpointGraphView.notifyHistoryChanged();
+        return { ok: true };
+      }
+      if (action === "mergeContinue") {
+        await vscode.commands.executeCommand("knox.checkpoints.mergeContinue");
+        CheckpointGraphView.notifyHistoryChanged();
+        return { ok: true };
+      }
+      if (action === "mergeAbort") {
+        await vscode.commands.executeCommand("knox.checkpoints.mergeAbort");
+        CheckpointGraphView.notifyHistoryChanged();
+        return { ok: true };
+      }
+      if (action === "bisectGood" || action === "bisectBad" || action === "bisectSkip" || action === "bisectReset") {
+        await vscode.commands.executeCommand(`knox.checkpoints.${action}`);
+        CheckpointGraphView.notifyHistoryChanged();
         return { ok: true };
       }
       try {

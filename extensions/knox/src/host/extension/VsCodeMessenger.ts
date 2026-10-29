@@ -783,6 +783,57 @@ export class VsCodeMessenger {
       }
     });
 
+    this.onWebview("checkoutCheckpoint", async (msg) => {
+      if (!this.checkpointIntegration) {
+        return { success: false, message: "Checkpoint integration not available" };
+      }
+      try {
+        const result = await this.checkpointIntegration.checkoutCheckpoint(msg.data.checkpointId);
+        if (result.success) {
+          notifyCheckpointHistoryChanged();
+        }
+        return result;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("Failed to check out checkpoint:", error);
+        return { success: false, message };
+      }
+    });
+
+    this.onWebview("cherryPickCheckpoint", async (msg) => {
+      if (!this.checkpointIntegration) {
+        return { success: false, conflicts: [], message: "Checkpoint integration not available" };
+      }
+      try {
+        const result = await this.checkpointIntegration.cherryPickCheckpoint(msg.data.checkpointId);
+        if (result.success) {
+          notifyCheckpointHistoryChanged();
+        }
+        return result;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("Failed to cherry-pick checkpoint:", error);
+        return { success: false, conflicts: [], message };
+      }
+    });
+
+    this.onWebview("revertCheckpoint", async (msg) => {
+      if (!this.checkpointIntegration) {
+        return { success: false, conflicts: [], message: "Checkpoint integration not available" };
+      }
+      try {
+        const result = await this.checkpointIntegration.revertCheckpoint(msg.data.checkpointId);
+        if (result.success) {
+          notifyCheckpointHistoryChanged();
+        }
+        return result;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("Failed to revert checkpoint:", error);
+        return { success: false, conflicts: [], message };
+      }
+    });
+
     this.onWebview("analyzeCheckpoint", async (msg) => {
       if (!this.checkpointIntegration) {
         return { success: false, analysis: null, message: "Checkpoint integration not available" };

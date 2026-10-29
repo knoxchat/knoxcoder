@@ -46,7 +46,7 @@ export function registerAutoCheckpointCommands(context: vscode.ExtensionContext)
             { placeHolder: t('checkpoint.auto.selectBranch') },
         );
         if (selected) {
-            await autoCheckpoint.switchBranch(selected.branchId, { offerRestore: true });
+            await autoCheckpoint.switchBranch(selected.branchId);
         }
     });
     registerCanonicalCommand(context, CheckpointCommand.mergeBranch, async () => {

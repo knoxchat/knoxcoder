@@ -7,6 +7,7 @@ import { classificationOptionsFrom, classifyFileBuffer } from './fileClassificat
 import type { CheckpointEngineHost } from './host';
 import { reconstructStateAtCheckpoint } from './restore';
 import { hydrateCheckpointSnapshots } from './persistence';
+import { collapseDiffByLineage } from './renameDetect';
 import type { CheckpointDiffResult, CheckpointFileDiff, CheckpointInfo, FileSnapshot } from './types';
 import { getCheckpointHistoryForWorkspace, resolveWorkspaceRelativePath } from './workspace';
 
@@ -139,10 +140,15 @@ export async function computeCheckpointDiff(
         });
     }
 
+    const lineageSnapshots: FileSnapshot[] = [];
+    for (let i = lowIndex + 1; i <= highIndex; i++) {
+        lineageSnapshots.push(...await getSnapshots(history[i]));
+    }
+
     return {
         oldCheckpoint: toMeta(base),
         newCheckpoint: toMeta(target),
-        files,
+        files: collapseDiffByLineage(files, lineageSnapshots),
     };
 }
 
@@ -239,6 +245,6 @@ export async function computeCheckpointDiffAgainstWorkspace(
             description: 'Current workspace',
             created: new Date().toISOString(),
         },
-        files,
+        files: collapseDiffByLineage(files),
     };
 }

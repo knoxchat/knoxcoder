@@ -77,7 +77,10 @@ export function renderDiffViewer(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	const pane = DOM.append(split, DOM.$('.knox-gui-diff-pane'));
 	const fileHead = DOM.append(pane, DOM.$('.knox-gui-diff-file-head'));
 	widget.appendFileIcon(fileHead, selected.relativePath, 14);
-	DOM.append(fileHead, DOM.$('div.knox-gui-diff-file-name', { title: selected.relativePath }, selected.relativePath));
+	const fileTitle = selected.oldPath
+		? t(state, selected.status === 'copied' ? 'copiedFrom' : 'renamedFrom', { path: selected.relativePath, from: selected.oldPath })
+		: selected.relativePath;
+	DOM.append(fileHead, DOM.$('div.knox-gui-diff-file-name', { title: fileTitle }, fileTitle));
 	if (selected.isBinary) {
 		renderBinaryDiff(pane, state, selected);
 		return;
@@ -88,7 +91,7 @@ export function renderDiffViewer(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	const lines = computeLineDiff(selected.oldContent ?? '', selected.newContent ?? '');
 	const wordAlt = hunkWordAltRanges(lines);
 	const view = DOM.append(pane, DOM.$(state.checkpointDiffWrap ? 'div.knox-gui-diff-hunks.wrap.pierre-diff-container' : 'div.knox-gui-diff-hunks.pierre-diff-container'));
-	const gutter = (el: HTMLElement, value: number | null) => DOM.append(el, DOM.$('span.knox-gui-diff-gutter', undefined, value != null ? String(value) : ''));
+	const gutter = (el: HTMLElement, value: number | null) => DOM.append(el, DOM.$('span.knox-gui-diff-gutter', undefined, value !== null ? String(value) : ''));
 	const renderRun = (block: HTMLElement, start: number, end: number) => {
 		const run = lines.slice(start, end);
 		if (state.checkpointDiffView === 'unified') {
@@ -131,8 +134,8 @@ export function renderDiffViewer(widget: KnoxGuiWidget, parent: HTMLElement, sta
 		const block = DOM.append(view, DOM.$('.knox-gui-diff-hunk'));
 		if (segment.kind === 'lines') {
 			const run = lines.slice(segment.start, segment.end);
-			const oldStart = run.find(line => line.oldLineNum != null)?.oldLineNum ?? 0;
-			const newStart = run.find(line => line.newLineNum != null)?.newLineNum ?? 0;
+			const oldStart = run.find(line => line.oldLineNum !== null)?.oldLineNum ?? 0;
+			const newStart = run.find(line => line.newLineNum !== null)?.newLineNum ?? 0;
 			DOM.append(block, DOM.$('div.knox-gui-diff-hunk-head', undefined, `@@ -${oldStart} +${newStart} @@`));
 		}
 		renderRun(block, segment.start, segment.end);
@@ -246,6 +249,10 @@ export function renderFileTree(widget: KnoxGuiWidget, parent: HTMLElement, state
 					chip(stats, 'A', 'odp-chip-green');
 				} else if (file.status === 'deleted') {
 					chip(stats, 'D', 'odp-chip-red');
+				} else if (file.status === 'renamed') {
+					chip(stats, 'R', 'odp-chip-yellow');
+				} else if (file.status === 'copied') {
+					chip(stats, 'C', 'odp-chip-yellow');
 				} else if (!file.isBinary) {
 					if (file.additions) {
 						DOM.append(stats, DOM.$('span.odp-text-green', undefined, `+${file.additions}`));

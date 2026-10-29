@@ -99,6 +99,37 @@ describe("isToolAutoApproved", () => {
     ).toBe(true);
   });
 
+  it("never auto-runs workspace checkpoint stash or stash_pop", () => {
+    const base = {
+      toolName: BuiltInToolNames.WorkspaceCheckpoint,
+      toolSettings: {},
+      permissionMode: "fullAuto" as const,
+      workspaceDirs,
+    };
+    expect(isToolAutoApproved({ ...base, args: { action: "stash" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "stash_pop" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "switch_branch" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "checkout" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "cherry_pick" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "revert" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "merge_continue" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "merge_abort" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "stash_list" } })).toBe(true);
+    expect(isToolAutoApproved({ ...base, args: { action: "blame" } })).toBe(true);
+    expect(isToolAutoApproved({ ...base, args: { action: "list_worktrees" } })).toBe(true);
+    expect(isToolAutoApproved({ ...base, args: { action: "materialize_worktree" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "remove_worktree" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "bisect_start" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "bisect_good" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "bisect_bad" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "bisect_skip" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "bisect_reset" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "bisect_run" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "export_patch" } })).toBe(true);
+    expect(isToolAutoApproved({ ...base, args: { action: "apply_patch" } })).toBe(false);
+    expect(isToolAutoApproved({ ...base, args: { action: "create" } })).toBe(true);
+  });
+
   it("Auto never runs a guarded command", () => {
     expect(
       isToolAutoApproved({

@@ -437,6 +437,7 @@ export interface IKnoxGuiCheckpointNode {
 	shortId: string;
 	pinned: boolean;
 	changedPaths: string[];
+	renamedFrom?: Record<string, string>;
 	sessionId?: string;
 	conversationContext?: { role: string; messageContent: string };
 	parents: string[];
@@ -482,7 +483,8 @@ export interface IKnoxGuiRestorePreview {
 
 export interface IKnoxGuiCheckpointDiffFile {
 	relativePath: string;
-	status: 'added' | 'deleted' | 'modified' | 'unchanged';
+	status: 'added' | 'deleted' | 'modified' | 'unchanged' | 'renamed' | 'copied';
+	oldPath?: string;
 	oldContent: string | null;
 	newContent: string | null;
 	oldEncoding?: string;
@@ -1249,6 +1251,23 @@ export interface IKnoxGuiState {
 	checkpointGraphHasMore: boolean;
 	checkpointGraphLimit: number;
 	checkpointGraphLoadMoreError?: string;
+	/** CP-38: working-tree stash stack length for the graph chip. */
+	checkpointStashCount: number;
+	/** CP-39: detached checkout pointer shown on the graph. */
+	checkpointDetachedFrom?: { checkpointId: string; previousBranchId?: string };
+	/** CP-43: in-progress merge / cherry-pick / revert. */
+	checkpointMergeInProgress?: {
+		operation: 'merge' | 'cherry_pick' | 'revert';
+		sourceName?: string;
+		targetName?: string;
+		conflictPaths: string[];
+	};
+	/** CP-46: in-progress bisect. */
+	checkpointBisectInProgress?: {
+		currentId?: string;
+		remaining: number;
+		firstBadId?: string;
+	};
 	checkpointWorkingTreePaths: string[];
 	checkpointWorkspaceFolders: Array<{ path: string; name: string }>;
 	checkpointActiveWorkspace?: string;
@@ -1477,6 +1496,8 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		},
 		checkpointGraphHasMore: false,
 		checkpointGraphLimit: 100,
+		checkpointStashCount: 0,
+		checkpointDetachedFrom: undefined,
 		checkpointWorkingTreePaths: [],
 		checkpointWorkspaceFolders: [],
 		checkpointListTotal: 0,

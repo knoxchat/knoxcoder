@@ -196,6 +196,24 @@ suite('Knox IDE façade contract (KN-210–222)', () => {
 			'previewWorkspaceCheckpointRestore',
 			'diffWorkspaceCheckpoint',
 			'pinWorkspaceCheckpoint',
+			'stashWorkspaceCheckpoint',
+			'listWorkspaceStashes',
+			'popWorkspaceStash',
+			'cherryPickWorkspaceCheckpoint',
+			'revertWorkspaceCheckpoint',
+			'continueWorkspaceCheckpointMerge',
+			'abortWorkspaceCheckpointMerge',
+			'listWorkspaceCheckpointFileHistory',
+			'blameWorkspaceCheckpoint',
+			'materializeWorkspaceCheckpointWorktree',
+			'listWorkspaceCheckpointWorktrees',
+			'removeWorkspaceCheckpointWorktree',
+			'startWorkspaceCheckpointBisect',
+			'markWorkspaceCheckpointBisect',
+			'resetWorkspaceCheckpointBisect',
+			'runWorkspaceCheckpointBisect',
+			'exportWorkspaceCheckpointPatch',
+			'applyWorkspaceCheckpointPatch',
 			'ensureTurnCheckpoint',
 		]) {
 			assert.ok(hostDeclares(hostSrc, name), name);
@@ -203,6 +221,17 @@ suite('Knox IDE façade contract (KN-210–222)', () => {
 		assert.ok(repoFile('extensions/knox/src/core/tools/implementations/workspaceCheckpoint.ts').includes('extras.ide'));
 		const tool = repoFile('extensions/knox/src/core/tools/definitions/workspaceCheckpoint.ts');
 		assert.ok(tool.includes('create_branch'));
+		assert.ok(tool.includes('stash_pop'));
+		assert.ok(tool.includes('cherry_pick'));
+		assert.ok(tool.includes('"revert"'));
+		assert.ok(tool.includes('merge_continue'));
+		assert.ok(tool.includes('merge_abort'));
+		assert.ok(tool.includes('file_history'));
+		assert.ok(tool.includes('"blame"'));
+		assert.ok(tool.includes('materialize_worktree'));
+		assert.ok(tool.includes('bisect_run'));
+		assert.ok(tool.includes('export_patch'));
+		assert.ok(tool.includes('apply_patch'));
 		const impl = repoFile('extensions/knox/src/core/tools/implementations/workspaceCheckpoint.ts');
 		assert.ok(impl.includes('row.branch'));
 		assert.ok(impl.includes('row.label'));

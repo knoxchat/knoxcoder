@@ -22,7 +22,14 @@ export type AuditAction =
     | 'recipe_replay'
     | 'recipe_revert'
     | 'recipe_capture'
-    | 'recipe_match';
+    | 'recipe_match'
+    | 'stash'
+    | 'checkout'
+    | 'cherry_pick'
+    | 'revert'
+    | 'worktree'
+    | 'bisect'
+    | 'patch';
 
 export type AuditOutcome = 'success' | 'failure';
 
@@ -69,7 +76,14 @@ function isAuditAction(value: unknown): value is AuditAction {
         value === 'recipe_replay' ||
         value === 'recipe_revert' ||
         value === 'recipe_capture' ||
-        value === 'recipe_match'
+        value === 'recipe_match' ||
+        value === 'stash' ||
+        value === 'checkout' ||
+        value === 'cherry_pick' ||
+        value === 'revert' ||
+        value === 'worktree' ||
+        value === 'bisect' ||
+        value === 'patch'
     );
 }
 

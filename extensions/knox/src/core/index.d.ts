@@ -951,6 +951,65 @@ export interface IDE {
     message?: string;
   }>;
 
+  switchWorkspaceCheckpointBranch?(params: {
+    branchId?: string;
+    name?: string;
+  }): Promise<{
+    success: boolean;
+    branchId?: string;
+    headCheckpointId?: string;
+    stashed?: boolean;
+    stashId?: string;
+    message?: string;
+  }>;
+
+  checkoutWorkspaceCheckpoint?(params: {
+    checkpointId: string;
+  }): Promise<{
+    success: boolean;
+    checkpointId?: string;
+    detached?: boolean;
+    stashed?: boolean;
+    stashId?: string;
+    message?: string;
+  }>;
+
+  cherryPickWorkspaceCheckpoint?(params: {
+    checkpointId: string;
+  }): Promise<{
+    success: boolean;
+    empty?: boolean;
+    checkpointId?: string;
+    restoredFiles: string[];
+    removedFiles: string[];
+    conflicts: Array<{ path: string }>;
+    message?: string;
+  }>;
+
+  revertWorkspaceCheckpoint?(params: {
+    checkpointId: string;
+  }): Promise<{
+    success: boolean;
+    empty?: boolean;
+    checkpointId?: string;
+    restoredFiles: string[];
+    removedFiles: string[];
+    conflicts: Array<{ path: string }>;
+    message?: string;
+  }>;
+
+  continueWorkspaceCheckpointMerge?(): Promise<{
+    success: boolean;
+    checkpointId?: string;
+    conflicts: Array<{ path: string }>;
+    message?: string;
+  }>;
+
+  abortWorkspaceCheckpointMerge?(): Promise<{
+    success: boolean;
+    message?: string;
+  }>;
+
   restoreWorkspaceCheckpoint?(params: {
     checkpointId: string;
     rewindMemory?: boolean;
@@ -993,7 +1052,8 @@ export interface IDE {
     newCheckpoint: { id: string; description: string; created: string };
     files: Array<{
       relativePath: string;
-      status: "added" | "deleted" | "modified";
+      status: "added" | "deleted" | "modified" | "renamed" | "copied";
+      oldPath?: string;
       additions: number;
       deletions: number;
       hunkCount: number;
@@ -1008,6 +1068,149 @@ export interface IDE {
     checkpointId: string;
     pinned: boolean;
   }): Promise<{ success: boolean; message?: string }>;
+
+  stashWorkspaceCheckpoint?(params?: {
+    message?: string;
+  }): Promise<{
+    success: boolean;
+    empty?: boolean;
+    stashId?: string;
+    fileCount?: number;
+    message?: string;
+  }>;
+
+  listWorkspaceStashes?(): Promise<
+    Array<{
+      id: string;
+      message?: string;
+      created: string;
+      fileCount: number;
+    }>
+  >;
+
+  listWorkspaceCheckpointFileHistory?(params: {
+    path: string;
+    follow?: boolean;
+  }): Promise<
+    Array<{
+      checkpointId: string;
+      description: string;
+      created: string;
+      relativePath: string;
+      hash?: string;
+      deleted: boolean;
+    }>
+  >;
+
+  startWorkspaceCheckpointBisect?(params: {
+    badId: string;
+    goodId?: string;
+  }): Promise<{
+    success: boolean;
+    done: boolean;
+    currentId?: string;
+    firstBadId?: string;
+    remaining: number;
+    message?: string;
+  }>;
+
+  markWorkspaceCheckpointBisect?(params: {
+    verdict: "good" | "bad" | "skip";
+  }): Promise<{
+    success: boolean;
+    done: boolean;
+    currentId?: string;
+    firstBadId?: string;
+    remaining: number;
+    message?: string;
+  }>;
+
+  resetWorkspaceCheckpointBisect?(): Promise<{ success: boolean; message?: string }>;
+
+  runWorkspaceCheckpointBisect?(params: {
+    command: string;
+  }): Promise<{
+    success: boolean;
+    done: boolean;
+    firstBadId?: string;
+    remaining: number;
+    steps: number;
+    message?: string;
+  }>;
+
+  exportWorkspaceCheckpointPatch?(params: {
+    checkpointId: string;
+  }): Promise<{
+    success: boolean;
+    patch?: string;
+    checkpointId?: string;
+    fileCount?: number;
+    message?: string;
+  }>;
+
+  applyWorkspaceCheckpointPatch?(params: {
+    patch: string;
+  }): Promise<{
+    success: boolean;
+    checkpointId?: string;
+    restoredFiles: string[];
+    removedFiles: string[];
+    conflicts: Array<{ path: string }>;
+    message?: string;
+  }>;
+
+  materializeWorkspaceCheckpointWorktree?(params: {
+    checkpointId: string;
+  }): Promise<{
+    success: boolean;
+    worktreeId?: string;
+    path?: string;
+    fileCount?: number;
+    message?: string;
+  }>;
+
+  listWorkspaceCheckpointWorktrees?(): Promise<
+    Array<{
+      id: string;
+      path: string;
+      checkpointId: string;
+      createdAt: string;
+      fileCount: number;
+    }>
+  >;
+
+  removeWorkspaceCheckpointWorktree?(params: {
+    worktreeId: string;
+  }): Promise<{ success: boolean; message?: string }>;
+
+  blameWorkspaceCheckpoint?(params: {
+    path: string;
+    atCheckpointId?: string;
+  }): Promise<{
+    relativePath: string;
+    atCheckpointId?: string;
+    unsupported?: "binary" | "missing";
+    ranges: Array<{
+      startLine: number;
+      endLine: number;
+      checkpointId?: string;
+      label?: string;
+      description?: string;
+      originPath?: string;
+    }>;
+  }>;
+
+  popWorkspaceStash?(params?: {
+    stashId?: string;
+  }): Promise<{
+    success: boolean;
+    empty?: boolean;
+    stashId?: string;
+    restoredFiles: string[];
+    removedFiles: string[];
+    conflicts: Array<{ path: string }>;
+    message?: string;
+  }>;
 
   /**
    * Optional IDE hook: snapshot target file bytes before a mutating tool.

@@ -17,6 +17,8 @@ export const DEFAULT_CAPTURE_BINARY_FILES = true;
 export const DEFAULT_ENABLE_COMPRESSION = true;
 export const DEFAULT_ENCRYPT_AT_REST = false;
 export const DEFAULT_ENABLE_AUTO_CHECKPOINTS = true;
+/** Before a hard branch switch / detached checkout, stash dirty files (CP-39). */
+export const DEFAULT_AUTO_STASH_ON_CHECKOUT = true;
 export const DEFAULT_AUTO_CLEANUP = true;
 export const DEFAULT_CLEANUP_INTERVAL_HOURS = 24;
 
@@ -138,6 +140,18 @@ export function readSmartCheckpointSettings(): SmartCheckpointSettings {
         verboseLogging: config.get('verboseLogging', SMART_CHECKPOINT_DEFAULTS.verboseLogging),
         enableMetrics: config.get('enableMetrics', SMART_CHECKPOINT_DEFAULTS.enableMetrics),
     };
+}
+
+/** package.json default is true — stash dirty files before checkout. */
+export function isAutoStashOnCheckoutEnabled(): boolean {
+    try {
+        return vscode.workspace.getConfiguration('knox.checkpoints').get(
+            'autoStashOnCheckout',
+            DEFAULT_AUTO_STASH_ON_CHECKOUT,
+        ) === true;
+    } catch {
+        return DEFAULT_AUTO_STASH_ON_CHECKOUT;
+    }
 }
 
 /** package.json default is true — do not fall back to false. */

@@ -15,6 +15,7 @@ import {
     saveCheckpointToDisk,
     toIndexRecord,
 } from './persistence';
+import { stashBaseCheckpointIds } from './stash';
 import { computeCheckpointFileStats, type CheckpointInfo, type FileSnapshot, type SkippedFile } from './types';
 import { getCheckpointHistoryForWorkspace } from './workspace';
 
@@ -157,6 +158,14 @@ export async function removeFromHistoryAndDisk(
     if (options?.retention && isPinned(target)) {
         log.info(`📌 Skipping pinned checkpoint ${checkpointId.substring(0, 8)} during retention`);
         return false;
+    }
+
+    if (options?.retention) {
+        const stashBases = await stashBaseCheckpointIds(host);
+        if (stashBases.has(checkpointId)) {
+            log.info(`📦 Skipping stash-base checkpoint ${checkpointId.substring(0, 8)} during retention`);
+            return false;
+        }
     }
 
     if (options?.retention) {

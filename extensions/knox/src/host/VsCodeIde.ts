@@ -1209,6 +1209,111 @@ class VsCodeIde implements IDE {
     }
   }
 
+  async switchWorkspaceCheckpointBranch(params: {
+    branchId?: string;
+    name?: string;
+  }): Promise<{
+    success: boolean;
+    branchId?: string;
+    headCheckpointId?: string;
+    stashed?: boolean;
+    stashId?: string;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    const manager = CheckpointManager.getInstance();
+    const listed = await manager.listBranches();
+    const wantedId = params.branchId?.trim();
+    const wantedName = params.name?.trim();
+    const branch = wantedId
+      ? listed.find((item) => item.id === wantedId)
+      : wantedName
+        ? listed.find((item) => item.name === wantedName)
+        : undefined;
+    if (!branch) {
+      return { success: false, message: "Checkpoint branch not found" };
+    }
+    const result = await manager.switchBranch(branch.id);
+    return {
+      success: result.success,
+      branchId: result.branchId ?? branch.id,
+      headCheckpointId: result.headCheckpointId ?? branch.headCheckpointId,
+      stashed: result.stashed,
+      stashId: result.stashId,
+      message: result.message,
+    };
+  }
+
+  async checkoutWorkspaceCheckpoint(params: {
+    checkpointId: string;
+  }): Promise<{
+    success: boolean;
+    checkpointId?: string;
+    detached?: boolean;
+    stashed?: boolean;
+    stashId?: string;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    const result = await CheckpointManager.getInstance().checkoutCheckpoint(params.checkpointId);
+    return {
+      success: result.success,
+      checkpointId: result.checkpointId ?? params.checkpointId,
+      detached: result.detached,
+      stashed: result.stashed,
+      stashId: result.stashId,
+      message: result.message,
+    };
+  }
+
+  async cherryPickWorkspaceCheckpoint(params: {
+    checkpointId: string;
+  }): Promise<{
+    success: boolean;
+    empty?: boolean;
+    checkpointId?: string;
+    restoredFiles: string[];
+    removedFiles: string[];
+    conflicts: Array<{ path: string }>;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().cherryPick(params.checkpointId);
+  }
+
+  async revertWorkspaceCheckpoint(params: {
+    checkpointId: string;
+  }): Promise<{
+    success: boolean;
+    empty?: boolean;
+    checkpointId?: string;
+    restoredFiles: string[];
+    removedFiles: string[];
+    conflicts: Array<{ path: string }>;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().revertCheckpoint(params.checkpointId);
+  }
+
+  async continueWorkspaceCheckpointMerge(): Promise<{
+    success: boolean;
+    checkpointId?: string;
+    conflicts: Array<{ path: string }>;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().mergeContinue();
+  }
+
+  async abortWorkspaceCheckpointMerge(): Promise<{
+    success: boolean;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().mergeAbort();
+  }
+
   async restoreWorkspaceCheckpoint(params: {
     checkpointId: string;
     rewindMemory?: boolean;
@@ -1274,7 +1379,8 @@ class VsCodeIde implements IDE {
     newCheckpoint: { id: string; description: string; created: string };
     files: Array<{
       relativePath: string;
-      status: "added" | "deleted" | "modified";
+      status: "added" | "deleted" | "modified" | "renamed" | "copied";
+      oldPath?: string;
       additions: number;
       deletions: number;
       hunkCount: number;
@@ -1326,6 +1432,241 @@ class VsCodeIde implements IDE {
         ? undefined
         : "Checkpoint not found or pin state could not be updated",
     };
+  }
+
+  async stashWorkspaceCheckpoint(params?: {
+    message?: string;
+  }): Promise<{
+    success: boolean;
+    empty?: boolean;
+    stashId?: string;
+    fileCount?: number;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().stashPush({
+      message: params?.message,
+    });
+  }
+
+  async listWorkspaceStashes(): Promise<
+    Array<{
+      id: string;
+      message?: string;
+      created: string;
+      fileCount: number;
+    }>
+  > {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    const listed = await CheckpointManager.getInstance().stashList();
+    return listed.map((entry) => ({
+      id: entry.id,
+      message: entry.message,
+      created: entry.createdAt.toISOString(),
+      fileCount: entry.fileCount,
+    }));
+  }
+
+  async listWorkspaceCheckpointFileHistory(params: {
+    path: string;
+    follow?: boolean;
+  }): Promise<
+    Array<{
+      checkpointId: string;
+      description: string;
+      created: string;
+      relativePath: string;
+      hash?: string;
+      deleted: boolean;
+    }>
+  > {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    const versions = await CheckpointManager.getInstance().listFileCheckpointHistory(
+      params.path,
+      { follow: params.follow },
+    );
+    return versions.map((version) => ({
+      checkpointId: version.checkpointId,
+      description: version.description,
+      created: version.created.toISOString(),
+      relativePath: version.relativePath,
+      hash: version.hash,
+      deleted: version.deleted,
+    }));
+  }
+
+  async startWorkspaceCheckpointBisect(params: {
+    badId: string;
+    goodId?: string;
+  }): Promise<{
+    success: boolean;
+    done: boolean;
+    currentId?: string;
+    firstBadId?: string;
+    remaining: number;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().bisectStart({ bad: params.badId, good: params.goodId });
+  }
+
+  async markWorkspaceCheckpointBisect(params: {
+    verdict: "good" | "bad" | "skip";
+  }): Promise<{
+    success: boolean;
+    done: boolean;
+    currentId?: string;
+    firstBadId?: string;
+    remaining: number;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().bisectMark(params.verdict);
+  }
+
+  async resetWorkspaceCheckpointBisect(): Promise<{ success: boolean; message?: string }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().bisectReset();
+  }
+
+  async exportWorkspaceCheckpointPatch(params: {
+    checkpointId: string;
+  }): Promise<{
+    success: boolean;
+    patch?: string;
+    checkpointId?: string;
+    fileCount?: number;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().exportPatch(params.checkpointId);
+  }
+
+  async applyWorkspaceCheckpointPatch(params: {
+    patch: string;
+  }): Promise<{
+    success: boolean;
+    checkpointId?: string;
+    restoredFiles: string[];
+    removedFiles: string[];
+    conflicts: Array<{ path: string }>;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().applyPatch(params.patch);
+  }
+
+  async runWorkspaceCheckpointBisect(params: {
+    command: string;
+  }): Promise<{
+    success: boolean;
+    done: boolean;
+    firstBadId?: string;
+    remaining: number;
+    steps: number;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const execFileAsync = promisify(execFile);
+    const command = params.command.trim();
+    if (!command) {
+      return { success: false, done: false, remaining: 0, steps: 0, message: "command is required" };
+    }
+    const { refuseDangerousBisectCommand, bisectOracleExitCode } = await import("./checkpoints/manager/bisect");
+    const refused = refuseDangerousBisectCommand(command);
+    if (refused) {
+      return { success: false, done: false, remaining: 0, steps: 0, message: refused };
+    }
+    return CheckpointManager.getInstance().bisectRun(async (_id, worktreePath) => {
+      try {
+        await execFileAsync("/bin/sh", ["-lc", command], {
+          cwd: worktreePath,
+          timeout: 60_000,
+        });
+        return bisectOracleExitCode();
+      } catch (error: unknown) {
+        return bisectOracleExitCode(error);
+      }
+    });
+  }
+
+  async materializeWorkspaceCheckpointWorktree(params: {
+    checkpointId: string;
+  }): Promise<{
+    success: boolean;
+    worktreeId?: string;
+    path?: string;
+    fileCount?: number;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().materializeWorktree(params.checkpointId);
+  }
+
+  async listWorkspaceCheckpointWorktrees(): Promise<
+    Array<{
+      id: string;
+      path: string;
+      checkpointId: string;
+      createdAt: string;
+      fileCount: number;
+    }>
+  > {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().listWorktrees();
+  }
+
+  async removeWorkspaceCheckpointWorktree(params: {
+    worktreeId: string;
+  }): Promise<{ success: boolean; message?: string }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().removeWorktree(params.worktreeId);
+  }
+
+  async blameWorkspaceCheckpoint(params: {
+    path: string;
+    atCheckpointId?: string;
+  }): Promise<{
+    relativePath: string;
+    atCheckpointId?: string;
+    unsupported?: "binary" | "missing";
+    ranges: Array<{
+      startLine: number;
+      endLine: number;
+      checkpointId?: string;
+      label?: string;
+      description?: string;
+      originPath?: string;
+    }>;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    const { collapseBlameRanges } = await import("./checkpoints/manager/blame");
+    const result = await CheckpointManager.getInstance().blameFile(params.path, {
+      atCheckpointId: params.atCheckpointId,
+    });
+    return {
+      relativePath: result.relativePath,
+      atCheckpointId: result.atCheckpointId,
+      unsupported: result.unsupported,
+      ranges: collapseBlameRanges(result.lines),
+    };
+  }
+
+  async popWorkspaceStash(params?: {
+    stashId?: string;
+  }): Promise<{
+    success: boolean;
+    empty?: boolean;
+    stashId?: string;
+    restoredFiles: string[];
+    removedFiles: string[];
+    conflicts: Array<{ path: string }>;
+    message?: string;
+  }> {
+    const { CheckpointManager } = await import("./checkpoints/CheckpointManager");
+    return CheckpointManager.getInstance().stashPop(params?.stashId);
   }
 
   /**

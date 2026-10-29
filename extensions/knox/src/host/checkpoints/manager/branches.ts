@@ -1,9 +1,10 @@
 import { createKnoxLogger } from 'core/util/knoxLog';
 
 import { t } from '../../i18n';
+import { isAutoStashOnCheckoutEnabled } from '../checkpointSettings';
 
 import { generateCheckpointId } from '../checkpointId';
-import { applySnapshotHashes } from './capture';
+import { applySnapshotHashes, captureWorkspaceState } from './capture';
 import {
     DEFAULT_BRANCH_NAME,
     defaultBranch,
@@ -24,12 +25,20 @@ import {
     rebuildSnapshotHashIndexFromDisk,
     saveCheckpointToDisk,
 } from './persistence';
+import { restoreCheckpoint } from './restore';
 import { enforceRetentionPolicies } from './retention';
+import { applyMergedHashState, beginConflict, inProgressMergeMessage, overlappingDirtyConflicts, resolveContentConflicts } from './mergeState';
+import { stashPush } from './stash';
 import type {
+    BranchCheckoutMode,
     BranchMergeResult,
     CheckpointBranch,
     CheckpointInfo,
+    CheckoutCheckpointOptions,
+    CheckoutCheckpointResult,
     FileHashState,
+    SwitchBranchOptions,
+    SwitchBranchResult,
 } from './types';
 import { getCheckpointHistoryForWorkspace, workspaceStorageKey } from './workspace';
 
@@ -49,32 +58,10 @@ function latestCheckpoint(host: CheckpointEngineHost): CheckpointInfo | undefine
     return history[history.length - 1];
 }
 
-export function bindCheckpointToActiveLine(
-    host: CheckpointEngineHost,
-    checkpoint: CheckpointInfo,
-): void {
-    if (!Array.isArray(host.branches)) {
-        host.branches = [];
-    }
-    const active = host.activeBranchId
-        ? findBranchById(host.branches, host.activeBranchId)
-        : undefined;
-    const previous = active
-        ? workspaceHistory(host).find((item) => item.id === active.headCheckpointId)
-        : latestCheckpoint(host);
-    if (previous && previous.id !== checkpoint.id) {
-        checkpoint.parentCheckpointId = previous.id;
-    }
-    if (active) {
-        checkpoint.branchId = active.id;
-        active.headCheckpointId = checkpoint.id;
-    }
-}
-
-export async function ensureDefaultBranch(
+function ensureDefaultBranchSync(
     host: CheckpointEngineHost,
     baseCheckpointId: string,
-): Promise<CheckpointBranch> {
+): CheckpointBranch {
     if (!Array.isArray(host.branches)) {
         host.branches = [];
     }
@@ -102,6 +89,43 @@ export async function ensureDefaultBranch(
     host.branches.push(main);
     host.activeBranchId = main.id;
     return main;
+}
+
+export function bindCheckpointToActiveLine(
+    host: CheckpointEngineHost,
+    checkpoint: CheckpointInfo,
+): void {
+    if (!Array.isArray(host.branches)) {
+        host.branches = [];
+    }
+    if (host.detachedFrom) {
+        const parentId = host.detachedFrom.checkpointId;
+        if (parentId && parentId !== checkpoint.id) {
+            checkpoint.parentCheckpointId = parentId;
+        }
+        host.detachedFrom = {
+            checkpointId: checkpoint.id,
+            previousBranchId: host.detachedFrom.previousBranchId,
+        };
+        return;
+    }
+    const active = (host.activeBranchId
+        ? findBranchById(host.branches, host.activeBranchId)
+        : undefined) ?? ensureDefaultBranchSync(host, checkpoint.id);
+    const previous = workspaceHistory(host).find((item) => item.id === active.headCheckpointId)
+        ?? latestCheckpoint(host);
+    if (previous && previous.id !== checkpoint.id) {
+        checkpoint.parentCheckpointId = previous.id;
+    }
+    checkpoint.branchId = active.id;
+    active.headCheckpointId = checkpoint.id;
+}
+
+export async function ensureDefaultBranch(
+    host: CheckpointEngineHost,
+    baseCheckpointId: string,
+): Promise<CheckpointBranch> {
+    return ensureDefaultBranchSync(host, baseCheckpointId);
 }
 
 export async function createBranch(
@@ -140,6 +164,7 @@ export async function createBranch(
     };
     host.branches.push(branch);
     host.activeBranchId = branch.id;
+    host.detachedFrom = undefined;
     await host.saveCheckpointHistory();
     await rebuildSnapshotHashIndexFromDisk(host);
     await host.appendAuditEvent({
@@ -203,25 +228,284 @@ export function getActiveBranch(host: CheckpointEngineHost): CheckpointBranch | 
     return findBranchById(host.branches, host.activeBranchId) ?? defaultBranch(host.branches);
 }
 
+async function workspaceDiffersFromHead(host: CheckpointEngineHost): Promise<boolean> {
+    if (!host.initialized || !host.currentWorkspacePath) {
+        return false;
+    }
+    const captured = await captureWorkspaceState(host, 'delta');
+    return captured.fileSnapshots.length > 0;
+}
+
+async function stashDirtyTreeBeforeCheckout(
+    host: CheckpointEngineHost,
+    options: { autoStash?: boolean; message: string },
+): Promise<{ ok: true; stashed: boolean; stashId?: string } | { ok: false; refused: 'dirty' | 'stash_failed'; message: string }> {
+    const dirty = await workspaceDiffersFromHead(host);
+    if (!dirty) {
+        return { ok: true, stashed: false };
+    }
+    const autoStash = options.autoStash ?? isAutoStashOnCheckoutEnabled();
+    if (!autoStash) {
+        return {
+            ok: false,
+            refused: 'dirty',
+            message: t('checkpoint.checkout.refusedDirty'),
+        };
+    }
+    const pushed = await stashPush(host, { message: options.message });
+    if (!pushed.success) {
+        return {
+            ok: false,
+            refused: 'stash_failed',
+            message: pushed.message ?? t('checkpoint.checkout.stashFailed'),
+        };
+    }
+    return { ok: true, stashed: !pushed.empty, stashId: pushed.stashId };
+}
+
+async function restoreCheckedOutHead(
+    host: CheckpointEngineHost,
+    checkpointId: string,
+): Promise<{ ok: true; restoredFiles: string[]; removedFiles: string[] } | { ok: false; message: string }> {
+    const restored = await restoreCheckpoint(host, checkpointId, {
+        createBackup: false,
+        conflictResolution: 'overwrite',
+        cleanupExtraFiles: true,
+    });
+    if (!restored.success) {
+        return {
+            ok: false,
+            message: restored.failedFiles[0]?.error ?? t('checkpoint.checkout.restoreFailed'),
+        };
+    }
+    return {
+        ok: true,
+        restoredFiles: restored.restoredFiles,
+        removedFiles: restored.removedFiles,
+    };
+}
+
+function pointerOnlySwitchResult(
+    branch: CheckpointBranch,
+    checkout: BranchCheckoutMode,
+): SwitchBranchResult {
+    return {
+        success: true,
+        checkout,
+        branchId: branch.id,
+        headCheckpointId: branch.headCheckpointId,
+    };
+}
+
 export async function switchBranch(
     host: CheckpointEngineHost,
     branchId: string,
-): Promise<boolean> {
+    options?: SwitchBranchOptions,
+): Promise<SwitchBranchResult> {
+    const checkout: BranchCheckoutMode = options?.checkout ?? 'none';
     const branch = findBranchById(host.branches, branchId);
     if (!branch) {
-        return false;
+        return {
+            success: false,
+            checkout,
+            refused: 'missing',
+            message: t('checkpoint.checkout.missingBranch'),
+        };
     }
+
+    const alreadyOnBranch = host.activeBranchId === branch.id && !host.detachedFrom;
+    if (alreadyOnBranch && checkout === 'none') {
+        return pointerOnlySwitchResult(branch, checkout);
+    }
+
+    let stashed = false;
+    let stashId: string | undefined;
+    let restoredFiles: string[] = [];
+    let removedFiles: string[] = [];
+
+    if (checkout === 'hard') {
+        const parked = await stashDirtyTreeBeforeCheckout(host, {
+            autoStash: options?.autoStash,
+            message: t('checkpoint.checkout.stashMessage', { name: branch.name }),
+        });
+        if (!parked.ok) {
+            await host.appendAuditEvent({
+                action: 'checkout',
+                resourceId: branch.id,
+                outcome: 'failure',
+                error: parked.message,
+                details: { op: 'switch', checkout, refused: parked.refused, name: branch.name },
+            }).catch(() => false);
+            return {
+                success: false,
+                checkout,
+                branchId: branch.id,
+                headCheckpointId: branch.headCheckpointId,
+                refused: parked.refused,
+                message: parked.message,
+            };
+        }
+        stashed = parked.stashed;
+        stashId = parked.stashId;
+
+        const restored = await restoreCheckedOutHead(host, branch.headCheckpointId);
+        if (!restored.ok) {
+            await host.appendAuditEvent({
+                action: 'checkout',
+                resourceId: branch.id,
+                outcome: 'failure',
+                error: restored.message,
+                details: { op: 'switch', checkout, name: branch.name, stashId },
+            }).catch(() => false);
+            return {
+                success: false,
+                checkout,
+                branchId: branch.id,
+                headCheckpointId: branch.headCheckpointId,
+                stashed,
+                stashId,
+                refused: 'restore_failed',
+                message: restored.message,
+            };
+        }
+        restoredFiles = restored.restoredFiles;
+        removedFiles = restored.removedFiles;
+    }
+
     host.activeBranchId = branch.id;
+    host.detachedFrom = undefined;
     await host.saveCheckpointHistory();
     await rebuildSnapshotHashIndexFromDisk(host);
     await host.appendAuditEvent({
-        action: 'branch',
+        action: checkout === 'hard' ? 'checkout' : 'branch',
         resourceId: branch.id,
         outcome: 'success',
-        details: { op: 'switch', name: branch.name, headCheckpointId: branch.headCheckpointId },
+        details: {
+            op: 'switch',
+            checkout,
+            name: branch.name,
+            headCheckpointId: branch.headCheckpointId,
+            ...(stashId ? { stashId } : {}),
+        },
     }).catch(() => false);
-    log.info(`Switched checkpoint branch to ${branch.name} (head ${branch.headCheckpointId})`);
-    return true;
+    log.info(
+        checkout === 'hard'
+            ? `Checked out checkpoint branch ${branch.name} (head ${branch.headCheckpointId})`
+            : `Switched checkpoint branch to ${branch.name} (head ${branch.headCheckpointId})`,
+    );
+    return {
+        success: true,
+        checkout,
+        branchId: branch.id,
+        headCheckpointId: branch.headCheckpointId,
+        stashed,
+        stashId,
+        restoredFiles,
+        removedFiles,
+    };
+}
+
+export async function checkoutCheckpoint(
+    host: CheckpointEngineHost,
+    checkpointId: string,
+    options?: CheckoutCheckpointOptions,
+): Promise<CheckoutCheckpointResult> {
+    const checkpoint = workspaceHistory(host).find((item) => item.id === checkpointId)
+        ?? host.checkpointHistory.find((item) => item.id === checkpointId);
+    if (!checkpoint) {
+        return {
+            success: false,
+            checkout: 'hard',
+            refused: 'missing',
+            message: t('checkpoint.checkout.missingCheckpoint'),
+        };
+    }
+
+    const owningBranch = (host.branches ?? []).find(
+        (branch) => branch.headCheckpointId === checkpointId,
+    );
+    if (owningBranch) {
+        const switched = await switchBranch(host, owningBranch.id, {
+            checkout: 'hard',
+            autoStash: options?.autoStash,
+        });
+        return {
+            ...switched,
+            checkpointId,
+            detached: false,
+        };
+    }
+
+    const parked = await stashDirtyTreeBeforeCheckout(host, {
+        autoStash: options?.autoStash,
+        message: t('checkpoint.checkout.stashMessageDetached', { id: checkpointId.slice(0, 11) }),
+    });
+    if (!parked.ok) {
+        await host.appendAuditEvent({
+            action: 'checkout',
+            resourceId: checkpointId,
+            outcome: 'failure',
+            error: parked.message,
+            details: { op: 'detached', refused: parked.refused },
+        }).catch(() => false);
+        return {
+            success: false,
+            checkout: 'hard',
+            checkpointId,
+            refused: parked.refused,
+            message: parked.message,
+        };
+    }
+
+    const restored = await restoreCheckedOutHead(host, checkpointId);
+    if (!restored.ok) {
+        await host.appendAuditEvent({
+            action: 'checkout',
+            resourceId: checkpointId,
+            outcome: 'failure',
+            error: restored.message,
+            details: { op: 'detached', stashId: parked.stashId },
+        }).catch(() => false);
+        return {
+            success: false,
+            checkout: 'hard',
+            checkpointId,
+            stashed: parked.stashed,
+            stashId: parked.stashId,
+            refused: 'restore_failed',
+            message: restored.message,
+        };
+    }
+
+    host.detachedFrom = {
+        checkpointId,
+        previousBranchId: host.activeBranchId,
+    };
+    await host.saveCheckpointHistory();
+    await rebuildSnapshotHashIndexFromDisk(host);
+    await host.appendAuditEvent({
+        action: 'checkout',
+        resourceId: checkpointId,
+        outcome: 'success',
+        details: {
+            op: 'detached',
+            previousBranchId: host.detachedFrom.previousBranchId,
+            ...(parked.stashId ? { stashId: parked.stashId } : {}),
+        },
+    }).catch(() => false);
+    log.info(`Checked out checkpoint ${checkpointId} (detached)`);
+    return {
+        success: true,
+        checkout: 'hard',
+        checkpointId,
+        detached: true,
+        branchId: host.activeBranchId,
+        headCheckpointId: checkpointId,
+        stashed: parked.stashed,
+        stashId: parked.stashId,
+        restoredFiles: restored.restoredFiles,
+        removedFiles: restored.removedFiles,
+    };
 }
 
 export async function deleteBranch(
@@ -316,6 +600,10 @@ export async function mergeBranches(
     if (source.id === target.id) {
         return { success: true, conflicts: [] };
     }
+    const busy = await inProgressMergeMessage(host);
+    if (busy) {
+        return { success: false, conflicts: [], message: busy };
+    }
 
     const history = workspaceHistory(host);
     const lcaId = lowestCommonAncestorId(history, source.headCheckpointId, target.headCheckpointId);
@@ -335,8 +623,44 @@ export async function mergeBranches(
         return { success: false, conflicts: [] };
     }
 
-    const { merged, conflicts } = threeWayMergeHashes(baseState, sourceState, targetState);
+    const hashed = threeWayMergeHashes(baseState, sourceState, targetState);
+    const content = await resolveContentConflicts(host, hashed.conflicts, targetState, sourceState);
+    const merged = new Map(hashed.merged);
+    for (const [relativePath, state] of content.merged) {
+        merged.set(relativePath, state);
+    }
+    const conflicts = content.remaining;
+    const dirty = await overlappingDirtyConflicts(host, targetState, merged, sourceState);
+    if (dirty.length > 0) {
+        await host.appendAuditEvent({
+            action: 'branch',
+            resourceId: target.id,
+            outcome: 'failure',
+            error: `dirty: ${dirty.map((conflict) => conflict.path).join(', ')}`,
+            details: { op: 'merge', sourceBranchId, targetBranchId, dirty: true },
+        }).catch(() => false);
+        return {
+            success: false,
+            conflicts: dirty.map((conflict) => ({ path: conflict.path })),
+            message: 'Working tree has overlapping uncheckpointed changes',
+        };
+    }
     if (conflicts.length > 0) {
+        await beginConflict(host, {
+            operation: 'merge',
+            sourceId: source.id,
+            targetId: target.id,
+            sourceHeadId: source.headCheckpointId,
+            targetHeadId: target.headCheckpointId,
+            targetBranchId: target.id,
+            lcaId,
+            conflictPaths: conflicts.map((conflict) => conflict.path),
+            preMergeCheckpointId: target.headCheckpointId,
+            sourceName: source.name,
+            targetName: target.name,
+            oursLabel: target.name,
+            theirsLabel: source.name,
+        }, targetState, sourceState, merged, conflicts);
         await host.appendAuditEvent({
             action: 'branch',
             resourceId: target.id,
@@ -347,9 +671,10 @@ export async function mergeBranches(
                 sourceBranchId,
                 targetBranchId,
                 conflictCount: conflicts.length,
+                mergeInProgress: true,
             },
         }).catch(() => false);
-        return { success: false, conflicts };
+        return { success: false, conflicts, mergeInProgress: true };
     }
 
     const unionPaths = new Set<string>([
@@ -391,9 +716,11 @@ export async function mergeBranches(
         changedPaths: changedPathsFromSnapshots(snapshots),
     };
 
+    await applyMergedHashState(host, targetState, merged);
     host.checkpointHistory.push(checkpointInfo);
     target.headCheckpointId = checkpointId;
     host.activeBranchId = target.id;
+    host.detachedFrom = undefined;
     await saveCheckpointToDisk(host, checkpointInfo);
     await host.saveCheckpointHistory();
     applySnapshotHashes(host, snapshots);

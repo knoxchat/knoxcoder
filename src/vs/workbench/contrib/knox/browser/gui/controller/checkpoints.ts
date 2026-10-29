@@ -73,6 +73,20 @@ function parseFileChanges(value: unknown): { added: number; modified: number; de
 	};
 }
 
+function parseRenamedFrom(value: unknown): Record<string, string> | undefined {
+	const rec = asRecord(value);
+	if (!rec) {
+		return undefined;
+	}
+	const map: Record<string, string> = {};
+	for (const [path, from] of Object.entries(rec)) {
+		if (typeof from === 'string' && from.trim() && path.trim()) {
+			map[path] = from;
+		}
+	}
+	return Object.keys(map).length ? map : undefined;
+}
+
 function parseCheckpointNode(item: unknown): IKnoxGuiState['checkpoints'][number] {
 	const rec = asRecord(item) ?? {};
 	const conversation = asRecord(rec.conversationContext);
@@ -86,6 +100,7 @@ function parseCheckpointNode(item: unknown): IKnoxGuiState['checkpoints'][number
 		shortId: String(rec.shortId ?? rec.id ?? '').slice(0, 10),
 		pinned: Boolean(rec.pinned),
 		changedPaths: asArray(rec.changedPaths).map(String),
+		renamedFrom: parseRenamedFrom(rec.renamedFrom),
 		sessionId: rec.sessionId ? String(rec.sessionId) : (conversation?.sessionId ? String(conversation.sessionId) : undefined),
 		conversationContext: conversation && typeof conversation.messageContent === 'string'
 			? { role: String(conversation.role ?? ''), messageContent: conversation.messageContent }
@@ -115,6 +130,44 @@ function parseCheckpointBranch(item: unknown): IKnoxGuiState['checkpointBranches
 	};
 }
 
+function parseDetachedFrom(value: unknown): IKnoxGuiState['checkpointDetachedFrom'] {
+	const rec = asRecord(value);
+	const checkpointId = rec?.checkpointId ? String(rec.checkpointId) : '';
+	if (!checkpointId) {
+		return undefined;
+	}
+	const previousBranchId = rec?.previousBranchId ? String(rec.previousBranchId) : undefined;
+	return previousBranchId ? { checkpointId, previousBranchId } : { checkpointId };
+}
+
+function parseBisectInProgress(value: unknown): IKnoxGuiState['checkpointBisectInProgress'] {
+	const rec = asRecord(value);
+	if (!rec) {
+		return undefined;
+	}
+	return {
+		currentId: rec.currentId ? String(rec.currentId) : undefined,
+		remaining: typeof rec.remaining === 'number' ? rec.remaining : 0,
+		firstBadId: rec.firstBadId ? String(rec.firstBadId) : undefined,
+	};
+}
+
+function parseMergeInProgress(value: unknown): IKnoxGuiState['checkpointMergeInProgress'] {
+	const rec = asRecord(value);
+	if (!rec || typeof rec.operation !== 'string') {
+		return undefined;
+	}
+	if (rec.operation !== 'merge' && rec.operation !== 'cherry_pick' && rec.operation !== 'revert') {
+		return undefined;
+	}
+	return {
+		operation: rec.operation,
+		sourceName: rec.sourceName ? String(rec.sourceName) : undefined,
+		targetName: rec.targetName ? String(rec.targetName) : undefined,
+		conflictPaths: asArray(rec.conflictPaths).map(String),
+	};
+}
+
 function graphRequestPayload(controller: KnoxGuiController, limit: number): Record<string, unknown> {
 	const ui = controller.store.state.checkpointGraphUi;
 	return {
@@ -129,7 +182,7 @@ export async function loadCheckpoints(controller: KnoxGuiController): Promise<vo
 	const seq = ++controller.checkpointLoadSeq;
 	const failed = () => {
 		if (seq === controller.checkpointLoadSeq) {
-			controller.store.patch({ checkpointShell: { state: 'failed', checkpointCount: 0 }, checkpoints: [], checkpointBranches: [] });
+			controller.store.patch({ checkpointShell: { state: 'failed', checkpointCount: 0 }, checkpoints: [], checkpointBranches: [], checkpointStashCount: 0, checkpointDetachedFrom: undefined, checkpointMergeInProgress: undefined, checkpointBisectInProgress: undefined });
 		}
 	};
 	try {
@@ -160,7 +213,7 @@ export async function loadCheckpoints(controller: KnoxGuiController): Promise<vo
 			checkpointActiveWorkspace: shell.activeWorkspacePath ? String(shell.activeWorkspacePath) : controller.store.state.checkpointActiveWorkspace,
 		});
 		if (shellState !== 'ready') {
-			controller.store.patch({ checkpoints: [], checkpointBranches: [], checkpointWorkingTreePaths: [] });
+			controller.store.patch({ checkpoints: [], checkpointBranches: [], checkpointWorkingTreePaths: [], checkpointStashCount: 0, checkpointDetachedFrom: undefined, checkpointMergeInProgress: undefined, checkpointBisectInProgress: undefined });
 			reloadActiveCheckpointTab(controller);
 			return;
 		}
@@ -182,6 +235,10 @@ export async function loadCheckpoints(controller: KnoxGuiController): Promise<vo
 			checkpointGraphHasMore: graph?.hasMore === true,
 			checkpointGraphLimit: limit,
 			checkpointGraphLoadMoreError: undefined,
+			checkpointStashCount: Number(graph?.stashCount ?? 0) || 0,
+			checkpointDetachedFrom: parseDetachedFrom(graph?.detachedFrom),
+			checkpointMergeInProgress: parseMergeInProgress(graph?.mergeInProgress),
+			checkpointBisectInProgress: parseBisectInProgress(graph?.bisectInProgress),
 		});
 		if (nodes.length) {
 			try {
@@ -621,6 +678,10 @@ export async function loadMoreCheckpoints(controller: KnoxGuiController): Promis
 			checkpointGraphHasMore: graph.hasMore === true,
 			checkpointGraphLimit: nextLimit,
 			checkpointGraphLoadMoreError: undefined,
+			checkpointStashCount: Number(graph.stashCount ?? controller.store.state.checkpointStashCount) || 0,
+			checkpointDetachedFrom: parseDetachedFrom(graph.detachedFrom) ?? controller.store.state.checkpointDetachedFrom,
+			checkpointMergeInProgress: parseMergeInProgress(graph.mergeInProgress) ?? controller.store.state.checkpointMergeInProgress,
+			checkpointBisectInProgress: parseBisectInProgress(graph.bisectInProgress) ?? controller.store.state.checkpointBisectInProgress,
 		});
 	} catch {
 		controller.store.patch({ checkpointGraphLoadMoreError: 'checkpointGraph.loadMoreFailed' });
@@ -793,11 +854,61 @@ export async function createCheckpointBranch(controller: KnoxGuiController, name
 	}
 }
 
-export async function switchCheckpointBranch(controller: KnoxGuiController, branchId: string): Promise<void> { // KN-375
+export type CheckpointGraphMutationResult = {
+	success?: boolean;
+	message?: string;
+	conflicts?: Array<{ path?: string }>;
+	mergeInProgress?: boolean;
+};
+
+export async function switchCheckpointBranch(controller: KnoxGuiController, branchId: string): Promise<CheckpointGraphMutationResult | undefined> { // KN-375
 	try {
-		await controller.messenger.request('switchCheckpointBranch', { branchId });
+		const result = await controller.messenger.request<CheckpointGraphMutationResult>('switchCheckpointBranch', { branchId });
 		await loadCheckpoints(controller);
+		return result ?? undefined;
 	} catch {
 		controller.messenger.post('switchCheckpointBranch', { branchId });
+		return undefined;
+	}
+}
+
+export async function checkoutCheckpoint(controller: KnoxGuiController, checkpointId: string): Promise<CheckpointGraphMutationResult | undefined> {
+	try {
+		const result = await controller.messenger.request<CheckpointGraphMutationResult>('checkoutCheckpoint', { checkpointId });
+		await loadCheckpoints(controller);
+		return result ?? undefined;
+	} catch {
+		controller.messenger.post('checkoutCheckpoint', { checkpointId });
+		return undefined;
+	}
+}
+
+export async function cherryPickCheckpoint(controller: KnoxGuiController, checkpointId: string): Promise<CheckpointGraphMutationResult | undefined> {
+	try {
+		const result = await controller.messenger.request<CheckpointGraphMutationResult>('cherryPickCheckpoint', { checkpointId });
+		await loadCheckpoints(controller);
+		return result ?? undefined;
+	} catch {
+		controller.messenger.post('cherryPickCheckpoint', { checkpointId });
+		return undefined;
+	}
+}
+
+export async function materializeWorktree(controller: KnoxGuiController, checkpointId: string): Promise<void> {
+	try {
+		await controller.messenger.request('materializeWorktree', { checkpointId });
+	} catch {
+		controller.messenger.post('materializeWorktree', { checkpointId });
+	}
+}
+
+export async function revertCheckpoint(controller: KnoxGuiController, checkpointId: string): Promise<CheckpointGraphMutationResult | undefined> {
+	try {
+		const result = await controller.messenger.request<CheckpointGraphMutationResult>('revertCheckpoint', { checkpointId });
+		await loadCheckpoints(controller);
+		return result ?? undefined;
+	} catch {
+		controller.messenger.post('revertCheckpoint', { checkpointId });
+		return undefined;
 	}
 }

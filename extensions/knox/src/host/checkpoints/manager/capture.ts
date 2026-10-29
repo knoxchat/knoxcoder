@@ -360,6 +360,7 @@ export async function captureFilteredFiles(
         }
         fileSnapshots.push({
             relativePath,
+            hash: host.lastSnapshotHashes.get(relativePath),
             encoding: 'utf8',
             lastModified: new Date(),
             size: 0,
@@ -438,6 +439,7 @@ export async function captureBaselineFiles(
         }
         fileSnapshots.push({
             relativePath,
+            hash: host.lastSnapshotHashes.get(relativePath),
             encoding: 'utf8',
             lastModified: new Date(),
             size: 0,
@@ -603,6 +605,7 @@ export async function captureChangedFiles(
             if (host.lastSnapshotHashes.has(relativePath) || host.previousCheckpointFiles.has(relativePath)) {
                 fileSnapshots.push({
                     relativePath,
+                    hash: host.lastSnapshotHashes.get(relativePath),
                     encoding: 'utf8',
                     lastModified: new Date(),
                     size: 0,
@@ -610,6 +613,34 @@ export async function captureChangedFiles(
                     changeType: 'deleted',
                 });
                 log.debug(`📝 Tracked deletion: ${relativePath}`);
+            }
+        }
+
+        if (fileInventory) {
+            const inventorySet = new Set(fileInventory);
+            const already = new Set(fileSnapshots.map((snapshot) => snapshot.relativePath));
+            const skippedPaths = new Set(skippedFiles.map((skipped) => skipped.path));
+            for (const relativePath of host.lastSnapshotHashes.keys()) {
+                if (inventorySet.has(relativePath) || already.has(relativePath) || skippedPaths.has(relativePath)) {
+                    continue;
+                }
+                if (!shouldCaptureRelativePath(workspacePath, relativePath, filter)) {
+                    continue;
+                }
+                const resolved = resolveWorkspaceRelativePath(host, relativePath);
+                if (!resolved.ok) {
+                    continue;
+                }
+                fileSnapshots.push({
+                    relativePath,
+                    hash: host.lastSnapshotHashes.get(relativePath),
+                    encoding: 'utf8',
+                    lastModified: new Date(),
+                    size: 0,
+                    deleted: true,
+                    changeType: 'deleted',
+                });
+                log.debug(`📝 Inventory deletion: ${relativePath}`);
             }
         }
 

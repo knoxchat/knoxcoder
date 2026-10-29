@@ -2265,6 +2265,55 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(sent.some(message => message.type === 'createCheckpointBranch' && (message.data as { name: string }).name === 'feature'));
 	});
 
+	test('graph merge conflict reloads so Continue/Abort is reachable', async () => {
+		const node = (id: string): IKnoxGuiCheckpointNode => ({
+			id, description: id, created: '2026-09-26T00:00:00.000Z', kind: 'manual', tags: [], shortId: id, pinned: false, changedPaths: [], parents: [], fileChanges: { added: 0, modified: 0, deleted: 0 },
+		});
+		const { widget, store } = await mount(message => {
+			if (message.messageType === 'getCheckpointGraphUiState') {
+				return { mute: true, detailsLocation: 'dock' };
+			}
+			if (message.messageType === 'mergeCheckpointBranches') {
+				return { success: false, conflicts: [{ path: 'a.ts' }], mergeInProgress: true };
+			}
+			if (message.messageType === 'getCheckpointGraphShell') {
+				return { state: 'ready', checkpointCount: 2, workspaceFolders: [], activeWorkspacePath: '/tmp' };
+			}
+			if (message.messageType === 'checkpointGraph') {
+				return {
+					nodes: [node('cp-1')],
+					branches: [{ id: 'main', name: 'main', headCheckpointId: 'cp-1', isActive: true }],
+					headCheckpointId: 'cp-1',
+					mergeInProgress: { operation: 'merge', sourceName: 'other', targetName: 'feature', conflictPaths: ['a.ts'] },
+				};
+			}
+			if (message.messageType === 'checkpointWorkingTree') {
+				return { paths: [] };
+			}
+			return { success: true };
+		});
+		store.navigate('/checkpoint-graph');
+		store.patch({
+			checkpointShell: { state: 'ready', checkpointCount: 2 },
+			checkpoints: [node('cp-1')],
+			checkpointBranches: [
+				{ id: 'main', name: 'main', headCheckpointId: 'cp-1', isActive: true },
+				{ id: 'other', name: 'other', headCheckpointId: 'cp-1', isActive: false },
+			],
+			checkpointHeadId: 'cp-1',
+			checkpointView: 'graph',
+		});
+		widget.checkpointGraphPrompt = { kind: 'merge', sourceId: 'other', targetId: 'main' };
+		widget.render();
+		(widget.root.querySelector('[data-testid="checkpoint-graph-dialog-confirm"]') as HTMLButtonElement).click();
+		for (let i = 0; i < 20 && !widget.root.querySelector('[data-testid="checkpoint-graph-merge"]'); i++) {
+			await timeout(0);
+		}
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-graph-merge"]'), 'merge banner appears after conflict');
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-graph-merge-continue"]'));
+		assert.ok(widget.root.querySelector('[data-testid="checkpoint-graph-merge-abort"]'));
+	});
+
 	test('K-08 diff viewer: changed files only, summary header, aligned split rows, collapsed context, folder tree chips, binary previews, empty state', async () => {
 		const { widget, store } = await mount();
 		const oldLines = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`);

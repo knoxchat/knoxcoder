@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { knoxGuiModelSupportsReasoning, knoxGuiResetModelCatalogForTests, knoxGuiShowsThinkingPlaceholder } from './knoxGuiCapabilities.js';
 import { CHAT_LOAD_EARLIER_THRESHOLD_PX, knoxGuiHoldPausedScrollTop, knoxGuiIsLiveUserScroll, knoxGuiNextScrollFollow, knoxGuiRestoreAnchorScrollTop, knoxGuiShouldLoadEarlier, knoxGuiTranscriptRestoreTop } from './knoxGuiChat.js';
-import { alignSplitDiffRows, buildDiffSegments, checkpointGraphFindScroll, checkpointGraphMenuPosition, checkpointGraphRevealScroll, checkpointDiffContentBytes, checkpointDiffSummary, computeLineDiff, checkpointChartTickInterval, checkpointChartYTicks, checkpointConfigFieldErrors, checkpointConfigIsDirty, checkpointConfigNumber, checkpointDetailsDefaultTab, checkpointImageMime, DEFAULT_CHECKPOINT_CONFIG, formatCheckpointDuration, formatDashboardBytes, groupTimelineCheckpoints, checkpointMatchesQuery, checkpointTreeAncestors, clampCheckpointTreeWidth, compareCheckpointTargets, diffFromCheckpointSnapshots, formatSnapshotSize, parseCheckpointDetails } from './knoxGuiCheckpoints.js';
+import { alignSplitDiffRows, buildDiffSegments, checkpointGraphFindScroll, checkpointGraphMenuPosition, checkpointGraphRevealScroll, checkpointDiffContentBytes, checkpointDiffSummary, computeLineDiff, checkpointChartTickInterval, checkpointChartYTicks, checkpointConfigFieldErrors, checkpointConfigIsDirty, checkpointConfigNumber, checkpointDetailsDefaultTab, checkpointImageMime, DEFAULT_CHECKPOINT_CONFIG, formatCheckpointDuration, formatDashboardBytes, groupTimelineCheckpoints, checkpointMatchesQuery, checkpointTreeAncestors, clampCheckpointTreeWidth, compareCheckpointTargets, diffFromCheckpointSnapshots, formatSnapshotSize, parseCheckpointDetails, parseCheckpointDiff } from './knoxGuiCheckpoints.js';
 import { MEMORY_SETTING_GROUPS, memoriesToExportJson, memoriesToExportMarkdown, memoryBrowserEmptyKey, memoryConsolidateParts, memoryGraphTypeCounts, memoryInjectedLastTurnLine, parseLastInject, parseMemorySettingInput, rangeSelectMemoryIds, visibleMemoryExploreEdges, withMemoryConfigDefaults } from './knoxGuiMemory.js';
 import { knoxGuiResolveOpenPath } from './knoxGuiPanels.js';
 import { renderToolTemplateHtml } from './knoxGuiTools.js';
@@ -457,6 +457,13 @@ suite('Knox native parity items', () => {
 				{ id: 'new', description: 'n', created: '2', fileSnapshots: [snap('a.ts', 'x\nz\n'), snap('b.ts', 'b')] },
 			);
 			assert.deepStrictEqual(diff.files.map(file => [file.relativePath, file.status]), [['a.ts', 'modified'], ['b.ts', 'added'], ['gone.ts', 'deleted']]);
+			const parsed = parseCheckpointDiff({
+				oldCheckpoint: { id: 'o', description: 'o', created: '1' },
+				newCheckpoint: { id: 'n', description: 'n', created: '2' },
+				files: [{ relativePath: 'b.ts', status: 'renamed', oldPath: 'a.ts', oldContent: 'x', newContent: 'x' }],
+			})!;
+			assert.strictEqual(parsed.files[0].status, 'renamed');
+			assert.strictEqual(parsed.files[0].oldPath, 'a.ts');
 			assert.strictEqual(diff.oldCheckpoint.id, 'old');
 			assert.strictEqual(diff.files[0].additions, 1);
 		});

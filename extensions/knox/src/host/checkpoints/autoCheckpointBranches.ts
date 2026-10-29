@@ -90,14 +90,15 @@ export class AutoCheckpointBranches {
     }
 
     /**
-     * Switch the active capture line. Does not restore the workspace unless the
-     * user accepts the optional restore-to-head prompt from the command.
+     * Switch the active capture line and restore that line's head (CP-39).
      */
     async switchBranch(branchId: string, options?: { offerRestore?: boolean }): Promise<boolean> {
         try {
             const switched = await this.manager().switchBranch(branchId);
-            if (!switched) {
-                vscode.window.showWarningMessage(t('checkpoint.auto.branchNotFound'));
+            if (!switched.success) {
+                vscode.window.showWarningMessage(
+                    switched.message || t('checkpoint.auto.branchNotFound'),
+                );
                 return false;
             }
             this.currentBranchId = branchId;
@@ -107,19 +108,11 @@ export class AutoCheckpointBranches {
             this.cacheBranches(branches);
             const branch = branches.find((item: { id: string }) => item.id === branchId);
             if (branch) {
-                vscode.window.showInformationMessage(t('checkpoint.auto.switchedBranch', { name: branch.name }));
-            }
-
-            if (options?.offerRestore && branch?.headCheckpointId) {
-                const choice = await vscode.window.showInformationMessage(
-                    t('checkpoint.auto.restoreHeadPrompt', { name: branch.name }),
-                    t('checkpoint.auto.restoreHead'),
-                    t('checkpoint.auto.keepWorkspace'),
+                vscode.window.showInformationMessage(
+                    t('checkpoint.auto.checkedOutBranch', { name: branch.name }),
                 );
-                if (choice === t('checkpoint.auto.restoreHead')) {
-                    await this.manager().restoreCheckpoint(branch.headCheckpointId);
-                }
             }
+            void options;
             return true;
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);

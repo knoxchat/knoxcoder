@@ -59,7 +59,7 @@ const SHELL = `Shell:
 - Long-running commands (tests, servers, builds): set background=true on builtin_run_terminal_command, or wait; after ~30s it backgrounds and returns a job_id. Poll, wait or kill with builtin_await_shell.
 - Do not pipe builds or tests to grep; a no-match exit 1 looks like a failed job.`;
 
-const GIT = `Git: prefer builtin_git_status / builtin_git_diff / builtin_git_log / builtin_git_blame / builtin_git_commit / builtin_git_bisect over shell git. Never push or force via tools. Snapshots: builtin_workspace_checkpoint (restore always asks the user).`;
+const GIT = `Git: prefer builtin_git_status / builtin_git_diff / builtin_git_log / builtin_git_blame / builtin_git_commit / builtin_git_bisect over shell git. Never push or force via tools. Snapshots: builtin_workspace_checkpoint (restore, stash, switch, checkout, cherry_pick, revert always ask).`;
 
 const MEMORY = `Memory: durable facts and decisions only; do not store file contents.`;
 

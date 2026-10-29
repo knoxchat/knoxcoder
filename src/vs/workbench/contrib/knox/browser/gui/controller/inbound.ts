@@ -258,7 +258,7 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 				if (next) {
 					controller.store.patch({
 						editStatus: next,
-						editFileAfterEdit: rec?.fileAfterEdit != null ? String(rec.fileAfterEdit) : controller.store.state.editFileAfterEdit,
+						editFileAfterEdit: rec?.fileAfterEdit !== null && rec?.fileAfterEdit !== undefined ? String(rec.fileAfterEdit) : controller.store.state.editFileAfterEdit,
 					});
 				}
 			}
@@ -344,6 +344,15 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 		case 'checkpointListUpdated':
 		case 'checkpointGraphUpdated':
 			void controller.loadCheckpoints();
+			return;
+		case 'selectCheckpoint':
+			if (rec && typeof rec.checkpointId === 'string' && rec.checkpointId.trim()) {
+				controller.store.patch({
+					selectedCheckpointId: rec.checkpointId.trim(),
+					route: KnoxGuiRoute.CheckpointGraph,
+				});
+				controller.store.navigate(KNOX_GUI_PATH_BY_ROUTE[KnoxGuiRoute.CheckpointGraph]);
+			}
 			return;
 		case 'checkpointRestored': {
 			const restored = parseCheckpointRestored(rec);

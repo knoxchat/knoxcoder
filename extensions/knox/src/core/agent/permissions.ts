@@ -131,7 +131,27 @@ export function isToolAutoApproved(params: {
   }
   if (toolName === BuiltInToolNames.WorkspaceCheckpoint) {
     const parsed = parseToolArgs(params.args) ?? {};
-    if (parsed.action === "restore" || parsed.action === "delete") {
+    if (
+      parsed.action === "restore"
+      || parsed.action === "delete"
+      || parsed.action === "stash"
+      || parsed.action === "stash_pop"
+      || parsed.action === "switch_branch"
+      || parsed.action === "checkout"
+      || parsed.action === "cherry_pick"
+      || parsed.action === "revert"
+      || parsed.action === "merge_continue"
+      || parsed.action === "merge_abort"
+      || parsed.action === "materialize_worktree"
+      || parsed.action === "remove_worktree"
+      || parsed.action === "bisect_start"
+      || parsed.action === "bisect_good"
+      || parsed.action === "bisect_bad"
+      || parsed.action === "bisect_skip"
+      || parsed.action === "bisect_reset"
+      || parsed.action === "bisect_run"
+      || parsed.action === "apply_patch"
+    ) {
       return false;
     }
   }

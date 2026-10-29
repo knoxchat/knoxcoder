@@ -32,16 +32,25 @@ export interface Paginated<T> {
 }
 
 export function changedPathsFromSnapshots(
-    snapshots?: Array<{ relativePath?: string }>,
+    snapshots?: Array<{ relativePath?: string; renamedFrom?: string; deleted?: boolean; changeType?: string }>,
 ): string[] {
     if (!snapshots?.length) {
         return [];
     }
+    const renameSources = new Set(
+        snapshots
+            .map((snapshot) => (snapshot.renamedFrom ?? "").replace(/\\/g, "/").trim())
+            .filter(Boolean),
+    );
     const unique: string[] = [];
     const seen = new Set<string>();
     for (const snapshot of snapshots) {
         const relativePath = (snapshot.relativePath ?? "").replace(/\\/g, "/").trim();
         if (!relativePath || seen.has(relativePath)) {
+            continue;
+        }
+        const deleted = snapshot.deleted === true || snapshot.changeType === "deleted";
+        if (deleted && renameSources.has(relativePath)) {
             continue;
         }
         seen.add(relativePath);
@@ -51,6 +60,20 @@ export function changedPathsFromSnapshots(
         }
     }
     return unique;
+}
+
+export function renamedFromByPath(
+    snapshots?: Array<{ relativePath?: string; renamedFrom?: string }>,
+): Record<string, string> {
+    const map: Record<string, string> = {};
+    for (const snapshot of snapshots ?? []) {
+        const to = (snapshot.relativePath ?? '').replace(/\\/g, '/').trim();
+        const from = (snapshot.renamedFrom ?? '').replace(/\\/g, '/').trim();
+        if (to && from && to !== from) {
+            map[to] = from;
+        }
+    }
+    return map;
 }
 
 export function searchablePaths(checkpoint: CheckpointSearchFields): string[] {

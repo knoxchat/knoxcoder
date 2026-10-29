@@ -263,6 +263,70 @@ export function registerCheckpointGraphMessages(
         }
     });
 
+    protocol.on('checkoutCheckpoint', async (msg) => {
+        const chat = integration();
+        if (!chat) {
+            return { success: false, message: t('checkpoint.graph.integrationUnavailable') };
+        }
+        try {
+            const result = await chat.checkoutCheckpoint(msg.data.checkpointId);
+            if (result.success) {
+                notify();
+            }
+            return result;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return { success: false, message };
+        }
+    });
+
+    protocol.on('cherryPickCheckpoint', async (msg) => {
+        const chat = integration();
+        if (!chat) {
+            return { success: false, conflicts: [], message: t('checkpoint.graph.integrationUnavailable') };
+        }
+        try {
+            const result = await chat.cherryPickCheckpoint(msg.data.checkpointId);
+            if (result.success) {
+                notify();
+            }
+            return result;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return { success: false, conflicts: [], message };
+        }
+    });
+
+    protocol.on('materializeWorktree', async (msg) => {
+        try {
+            const result = await CheckpointManager.getInstance().materializeWorktree(msg.data.checkpointId);
+            if (result.success && result.path) {
+                await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(result.path));
+            }
+            return { success: result.success, worktreeId: result.worktreeId, path: result.path, message: result.message };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return { success: false, message };
+        }
+    });
+
+    protocol.on('revertCheckpoint', async (msg) => {
+        const chat = integration();
+        if (!chat) {
+            return { success: false, conflicts: [], message: t('checkpoint.graph.integrationUnavailable') };
+        }
+        try {
+            const result = await chat.revertCheckpoint(msg.data.checkpointId);
+            if (result.success) {
+                notify();
+            }
+            return result;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return { success: false, conflicts: [], message };
+        }
+    });
+
     protocol.on('mergeCheckpointBranches', async (msg) => {
         try {
             const result = await CheckpointManager.getInstance().mergeBranches(
@@ -275,7 +339,8 @@ export function registerCheckpointGraphMessages(
             return {
                 success: result.success,
                 conflicts: result.conflicts.map((conflict) => ({ path: conflict.path })),
-                message: result.success ? undefined : t('checkpoint.graph.mergeFailed'),
+                mergeInProgress: result.mergeInProgress === true,
+                message: result.success ? undefined : (result.message || t('checkpoint.graph.mergeFailed')),
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -293,6 +358,29 @@ export function registerCheckpointGraphMessages(
         } catch (error) {
             return { success: false, message: branchDeleteMessage(error) };
         }
+    });
+
+    protocol.on('exportPatch', async (msg) => {
+        const exported = await CheckpointManager.getInstance().exportPatch(msg.data.checkpointId);
+        if (!exported.success || !exported.patch) {
+            vscode.window.showErrorMessage(t('checkpoint.patch.failed', {
+                error: exported.message || 'unknown error',
+            }));
+            return { success: false, message: exported.message };
+        }
+        const uri = await vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file(`knox-checkpoint-${msg.data.checkpointId.slice(0, 12)}.patch`),
+            filters: {
+                [t('checkpoint.patch.filter')]: ['patch', 'diff'],
+                [t('checkpoint.graph.allFilesFilter')]: ['*'],
+            },
+        });
+        if (!uri) {
+            return { success: false, cancelled: true };
+        }
+        await vscode.workspace.fs.writeFile(uri, Buffer.from(exported.patch, 'utf8'));
+        vscode.window.showInformationMessage(t('checkpoint.patch.exported', { id: msg.data.checkpointId.slice(0, 11) }));
+        return { success: true, path: uri.fsPath };
     });
 
     protocol.on('exportCheckpoint', async (msg) => {

@@ -8,6 +8,7 @@ import type {
     CheckpointBranch,
     CheckpointHealthIssue,
     CheckpointInfo,
+    DetachedCheckoutState,
     CheckpointPerformanceMetrics,
     FileSnapshot,
     ManualCheckpointOptions,
@@ -35,6 +36,8 @@ export interface CheckpointEngineHost {
     /** Named restore lines persisted in the workspace index (CP-24). */
     branches: CheckpointBranch[];
     activeBranchId: string | undefined;
+    /** CP-39: checked-out checkpoint that is not a branch head. */
+    detachedFrom?: DetachedCheckoutState;
     sessionStartTime: number;
     lastCheckpointTime: number;
     healthIssues: CheckpointHealthIssue[];

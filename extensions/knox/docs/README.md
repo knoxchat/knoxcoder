@@ -145,6 +145,79 @@ Each turn checkpoint records the redacted request that caused it and gets a
 short summary label (for example "Add JWT middleware · 3 files in src/auth")
 shown in the Checkpoint Graph and used by checkpoint search.
 
+**Stash** parks dirty files (not a checkpoint, not a branch) and restores the
+current line’s head, like `git stash`. Pop applies the latest stash with a
+three-way merge against the live tree; overlapping edits stop and leave the
+workspace unchanged. Palette: Stash Working Tree / Pop Stash / Show Stash.
+The graph shows an “N stashed” chip when the stack is not empty.
+
+**Switch branch** now checks out that line’s head, like `git switch`. Dirty
+files are stashed first (`knox.checkpoints.autoStashOnCheckout`, default on).
+If auto-stash is off and the tree is dirty, the switch is refused. Checking
+out a graph node that is not a branch head leaves a detached pointer
+(`detachedFrom` in the workspace index) so later captures do not move the
+previous line. Palette: Switch Checkpoint Branch / Check Out Checkpoint.
+
+**Rename and copy detection** treats `mv a.ts b.ts` as one renamed file, not
+a delete plus an add. Capture records `renamedFrom` / `copiedFrom` on the
+child snapshot (same hash is a sure match; similar text above ~60% also
+counts). Diff shows status `renamed` or `copied` with the old path. File
+history follows the old name, so versions of `b.ts` include earlier `a.ts`
+turns. The `workspaceCheckpoint` tool action `file_history` is readonly.
+
+**Cherry-pick** applies one checkpoint’s delta (vs its first parent) onto the
+current line, like `git cherry-pick`. Non-overlapping files land as a new
+checkpoint tagged `cherry-pick`; already-present changes are a no-op.
+Overlapping edits write conflict markers, leave HEAD unchanged, and wait for
+continue or abort. Graph node menu: Cherry-pick onto current. Palette:
+Cherry-pick Checkpoint. Agent tool action `cherry_pick` always asks.
+
+**Revert** writes a new checkpoint that undoes one turn and keeps later work,
+like `git revert`. Restore still rewinds the tree. Revert of B after C keeps
+C’s unique files and restores B’s preimage on overlapping files. Merge
+checkpoints need an explicit `mainline` (`1` is the first parent). Graph: Revert this
+checkpoint. Palette: Revert Checkpoint. Agent tool action `revert` always
+asks. The original checkpoint stays in history.
+
+**Merge conflicts** no longer abort the whole operation. Overlapping hashes
+try a line-level three-way merge first; remaining paths get standard
+`<<<<<<<` markers and a merge-in-progress record. Auto-merged files are
+applied immediately. Continue writes the merge (or cherry-pick / revert)
+node once markers are gone; abort restores the pre-merge tree. Graph banner:
+Continue / Abort. Palette: Continue Merge / Abort Merge. Agent actions
+`merge_continue` and `merge_abort` always ask.
+
+**Blame** attributes each current line to the newest checkpoint that introduced
+it, following renames (same walk as file history). Binary files are
+unsupported; missing blobs stay “unknown” and do not throw. Palette: Blame
+File / Hide Blame. Editor gutter and hover show the short id and label;
+click opens that checkpoint on the graph. Setting `knox.checkpoints.blame`
+(default on) also annotates the active file when the checkpoint graph opens.
+Agent tool action `blame` is readonly.
+
+**Worktrees** reconstruct a checkpoint into an isolated folder
+(`~/.knoxcoder/worktrees/…`) so you can compare or test without touching the
+main workspace. Destinations inside the project are refused. At most four
+worktrees stay registered. Graph: Open in worktree. Palette: Open Checkpoint
+in Worktree / Remove Checkpoint Worktree. Agent actions `materialize_worktree`
+and `remove_worktree` always ask; `list_worktrees` is readonly.
+
+**Bisect** binary-searches the ancestor line between a known-good and
+known-bad checkpoint. Each probe is materialized in an isolated worktree, so
+the main workspace is not rewritten. Graph banner: Good / Bad / Skip / Reset.
+Palette: Bisect Start and the mark/reset commands. Agent actions
+`bisect_start`, `bisect_good`, `bisect_bad`, `bisect_skip`, `bisect_reset`,
+and `bisect_run` always ask. `bisect_run` uses exit 0 = good, 1–127 = bad,
+125 = skip.
+
+**Patches** export one checkpoint’s delta as a portable unified diff
+(`From` / `Date` / `Subject` plus `X-Knox-Checkpoint`). Apply uses the same
+three-way merge as cherry-pick onto the live tree and creates a checkpoint
+tagged `patch`. Binary files are skipped on export. A conflict or malformed
+patch writes nothing. Graph: Export patch. Palette: Export Checkpoint Patch /
+Apply Checkpoint Patch. Agent `export_patch` is readonly; `apply_patch`
+always asks. Bundles still clone a full reconstructable tree.
+
 ## Jev (network calls)
 
 Jev routing and gates call `api.knoxstudio.ai` or, when the selected model is

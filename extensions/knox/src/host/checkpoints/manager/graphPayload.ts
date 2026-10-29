@@ -1,11 +1,11 @@
-import { checkpointSessionId, isListableCheckpoint, searchablePaths } from './listQuery';
+import { checkpointSessionId, isListableCheckpoint, renamedFromByPath, searchablePaths } from './listQuery';
 import {
     CHECKPOINT_TIMELINE_LIMIT,
     TIMELINE_BRANCH_COLORS,
     classifyCheckpointKind,
     type CheckpointTimelineKind,
 } from './timeline';
-import type { CheckpointBranch, CheckpointInfo } from './types';
+import type { CheckpointBranch, CheckpointInfo, DetachedCheckoutState } from './types';
 
 export interface CheckpointGraphFileChanges {
     added: number;
@@ -31,6 +31,8 @@ export interface CheckpointGraphNode {
     fileChanges: CheckpointGraphFileChanges;
     /** Relative paths only, capped. Never file bytes. */
     changedPaths: string[];
+    /** Dest path → old path when capture recorded a rename (CP-40). */
+    renamedFrom?: Record<string, string>;
     sessionId?: string;
     /** `cp_` plus the next 8 characters of the id. */
     shortId: string;
@@ -49,16 +51,18 @@ export interface CheckpointGraphBranch {
 export interface CheckpointGraphPayload {
     nodes: CheckpointGraphNode[];
     branches: CheckpointGraphBranch[];
-    /** Active branch head, or null when there is no active branch. */
+    /** Active branch head, or detached checkout, or null when there is no head. */
     headCheckpointId: string | null;
     /** True when the limit cut off older checkpoints. */
     hasMore: boolean;
+    detachedFrom?: DetachedCheckoutState;
 }
 
 export interface CheckpointGraphQuery {
     history: CheckpointInfo[];
     branches: CheckpointBranch[];
     activeBranchId?: string;
+    detachedFrom?: DetachedCheckoutState;
     limit?: number;
     /**
      * Omitted: every checkpoint. An array: a checkpoint is included if its
@@ -155,15 +159,17 @@ export function buildCheckpointGraph(input: CheckpointGraphQuery): CheckpointGra
         });
     const page = listable.slice(0, limit);
 
+    const detachedId = input.detachedFrom?.checkpointId?.trim();
     const active = input.activeBranchId
         ? input.branches.find((branch) => branch.id === input.activeBranchId)
         : undefined;
-    const head = active?.headCheckpointId?.trim();
+    const head = detachedId || active?.headCheckpointId?.trim();
 
     return {
         nodes: page.map((checkpoint) => {
             const stats = checkpoint.fileStats;
             const sessionId = checkpointSessionId(checkpoint);
+            const renamedFrom = renamedFromByPath(checkpoint.fileSnapshots);
             return {
                 id: checkpoint.id,
                 description: checkpoint.label || checkpoint.description || '',
@@ -176,10 +182,11 @@ export function buildCheckpointGraph(input: CheckpointGraphQuery): CheckpointGra
                 tags: [...(checkpoint.tags ?? [])],
                 fileChanges: {
                     added: stats?.created ?? 0,
-                    modified: stats?.modified ?? 0,
+                    modified: (stats?.modified ?? 0) + (stats?.renamed ?? 0) + (stats?.copied ?? 0),
                     deleted: stats?.deleted ?? 0,
                 },
                 changedPaths: searchablePaths(checkpoint),
+                ...(Object.keys(renamedFrom).length ? { renamedFrom } : {}),
                 sessionId,
                 shortId: checkpointGraphShortId(checkpoint.id),
                 pinned: checkpoint.pinned === true,
@@ -191,10 +198,11 @@ export function buildCheckpointGraph(input: CheckpointGraphQuery): CheckpointGra
             headCheckpointId: branch.headCheckpointId,
             baseCheckpointId: branch.baseCheckpointId,
             color: TIMELINE_BRANCH_COLORS[index % TIMELINE_BRANCH_COLORS.length],
-            isActive: branch.id === input.activeBranchId,
+            isActive: !detachedId && branch.id === input.activeBranchId,
         })),
         headCheckpointId: head ? head : null,
         hasMore: listable.length > page.length,
+        ...(input.detachedFrom ? { detachedFrom: input.detachedFrom } : {}),
     };
 }
 

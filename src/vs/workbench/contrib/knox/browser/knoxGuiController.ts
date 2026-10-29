@@ -1115,7 +1115,23 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiCheckpoints.createCheckpointBranch(this, name, baseCheckpointId);
 	}
 
-	async switchCheckpointBranch(branchId: string): Promise<void> {
+	async switchCheckpointBranch(branchId: string): Promise<knoxGuiCheckpoints.CheckpointGraphMutationResult | undefined> {
 		return knoxGuiCheckpoints.switchCheckpointBranch(this, branchId);
+	}
+
+	async checkoutCheckpoint(checkpointId: string): Promise<knoxGuiCheckpoints.CheckpointGraphMutationResult | undefined> {
+		return knoxGuiCheckpoints.checkoutCheckpoint(this, checkpointId);
+	}
+
+	async cherryPickCheckpoint(checkpointId: string): Promise<knoxGuiCheckpoints.CheckpointGraphMutationResult | undefined> {
+		return knoxGuiCheckpoints.cherryPickCheckpoint(this, checkpointId);
+	}
+
+	async revertCheckpointNode(checkpointId: string): Promise<knoxGuiCheckpoints.CheckpointGraphMutationResult | undefined> {
+		return knoxGuiCheckpoints.revertCheckpoint(this, checkpointId);
+	}
+
+	async materializeWorktree(checkpointId: string): Promise<void> {
+		return knoxGuiCheckpoints.materializeWorktree(this, checkpointId);
 	}
 }

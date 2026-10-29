@@ -608,7 +608,7 @@ export function knoxGuiLocalAutoApprove(params: {
 	if (setting === 'disabled' || isAskUserToolName(params.name)) {
 		return false;
 	}
-	if (WORKSPACE_CHECKPOINT_TOOL_NAMES.has(params.name) && (params.args?.action === 'restore' || params.args?.action === 'delete')) {
+	if (WORKSPACE_CHECKPOINT_TOOL_NAMES.has(params.name) && (params.args?.action === 'restore' || params.args?.action === 'delete' || params.args?.action === 'stash' || params.args?.action === 'stash_pop' || params.args?.action === 'cherry_pick' || params.args?.action === 'revert' || params.args?.action === 'merge_continue' || params.args?.action === 'merge_abort' || params.args?.action === 'materialize_worktree' || params.args?.action === 'remove_worktree' || params.args?.action === 'bisect_start' || params.args?.action === 'bisect_good' || params.args?.action === 'bisect_bad' || params.args?.action === 'bisect_skip' || params.args?.action === 'bisect_reset' || params.args?.action === 'bisect_run' || params.args?.action === 'apply_patch')) {
 		return false;
 	}
 	if (params.sessionAllowlist.includes(params.name) || params.permissionMode === 'fullAuto') {

@@ -166,7 +166,8 @@ export async function previewRestore(
 
 export interface CheckpointDiffSummaryFile {
     relativePath: string;
-    status: 'added' | 'deleted' | 'modified';
+    status: 'added' | 'deleted' | 'modified' | 'renamed' | 'copied';
+    oldPath?: string;
     additions: number;
     deletions: number;
     hunkCount: number;
@@ -199,6 +200,7 @@ export function summarizeCheckpointDiff(diff: CheckpointDiffResult): CheckpointD
             return {
                 relativePath: file.relativePath,
                 status: file.status,
+                ...(file.oldPath ? { oldPath: file.oldPath } : {}),
                 additions: stats.additions,
                 deletions: stats.deletions,
                 hunkCount: stats.hunkCount,

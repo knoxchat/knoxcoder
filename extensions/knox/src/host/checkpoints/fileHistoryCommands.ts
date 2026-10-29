@@ -28,7 +28,7 @@ export function uriFromFileHistoryArg(arg?: unknown): vscode.Uri | undefined {
     return vscode.window.activeTextEditor?.document.uri;
 }
 
-function versionQuickPickItems(versions: FileCheckpointVersion[]) {
+function versionQuickPickItems(versions: FileCheckpointVersion[], queryPath: string) {
     return [...versions].reverse().map((version) => ({
         label: version.deleted
             ? `$(trash) ${t('checkpoint.fileHistory.deletedLabel')}`
@@ -36,10 +36,16 @@ function versionQuickPickItems(versions: FileCheckpointVersion[]) {
         description: version.created.toLocaleString(),
         detail: version.deleted
             ? t('checkpoint.fileHistory.deletedDetail', { id: version.checkpointId.substring(0, 8) })
-            : t('checkpoint.fileHistory.versionDetail', {
-                id: version.checkpointId.substring(0, 8),
-                hash: (version.hash ?? '').slice(0, 8),
-            }),
+            : version.relativePath !== queryPath
+                ? t('checkpoint.fileHistory.followedDetail', {
+                    id: version.checkpointId.substring(0, 8),
+                    hash: (version.hash ?? '').slice(0, 8),
+                    path: version.relativePath,
+                })
+                : t('checkpoint.fileHistory.versionDetail', {
+                    id: version.checkpointId.substring(0, 8),
+                    hash: (version.hash ?? '').slice(0, 8),
+                }),
         version,
     }));
 }
@@ -96,7 +102,7 @@ export async function showFileCheckpointHistory(arg?: unknown): Promise<void> {
         return;
     }
 
-    const selected = await vscode.window.showQuickPick(versionQuickPickItems(versions), {
+    const selected = await vscode.window.showQuickPick(versionQuickPickItems(versions, relativePath), {
         placeHolder: t('checkpoint.fileHistory.placeholder', { path: relativePath }),
         matchOnDescription: true,
         matchOnDetail: true,

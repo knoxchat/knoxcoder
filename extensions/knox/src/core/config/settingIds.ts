@@ -54,6 +54,7 @@ export const KNOX_CHECKPOINT_SETTING_IDS = [
   "knox.checkpoints.autoCleanup",
   "knox.checkpoints.cleanupIntervalHours",
   "knox.checkpoints.enableAutoCheckpoints",
+  "knox.checkpoints.autoStashOnCheckout",
   "knox.checkpoints.auto.enabled",
   "knox.checkpoints.auto.minIntervalMs",
   "knox.checkpoints.auto.maxIntervalMs",
@@ -75,6 +76,7 @@ export const KNOX_CHECKPOINT_SETTING_IDS = [
   "knox.checkpoints.inlineDiff.showHoverPreviews",
   "knox.checkpoints.inlineDiff.showCodeLens",
   "knox.checkpoints.inlineDiff.highlightWordChanges",
+  "knox.checkpoints.blame",
 ] as const;
 
 /** Removed keys kept so old settings.json / Settings Sync still load. */

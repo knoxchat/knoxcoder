@@ -35,6 +35,16 @@ export {
     type BranchMergeResult,
     type CheckpointAnalysis,
     type SuggestedCheckpointGroup,
+    type CheckpointStashListItem,
+    type StashPushResult,
+    type StashApplyResult,
+    type CherryPickOptions,
+    type CherryPickResult,
+    type RevertOptions,
+    type SwitchBranchOptions,
+    type SwitchBranchResult,
+    type CheckoutCheckpointResult,
+    type DetachedCheckoutState,
 } from './manager/types';
 export {
     CheckpointBundleError,

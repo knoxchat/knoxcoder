@@ -93,6 +93,11 @@ suite('Knox native persistence and permission helpers', () => {
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_generate_tests', toolSettings: { builtin_generate_tests: 'allowedWithPermission' }, permissionMode: 'acceptEdits' }), true);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_run_terminal_command', toolSettings: { builtin_run_terminal_command: 'allowedWithPermission' }, sessionAllowlist: ['builtin_run_terminal_command'] }), true);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'restore' }, permissionMode: 'fullAuto' }), false);
+		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'stash' }, permissionMode: 'fullAuto' }), false);
+		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'stash_pop' }, permissionMode: 'fullAuto' }), false);
+		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'cherry_pick' }, permissionMode: 'fullAuto' }), false);
+		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'revert' }, permissionMode: 'fullAuto' }), false);
+		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'stash_list' } }), true);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'create' } }), true);
 		// K-005: shell prompts by default outside Auto; an explicit setting still wins.
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_run_terminal_command', permissionMode: 'acceptEdits' }), false);

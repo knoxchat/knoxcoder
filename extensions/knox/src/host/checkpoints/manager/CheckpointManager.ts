@@ -11,7 +11,12 @@
  *   retention.ts          fold / max-count / age cleanup (CP-09, CP-36)
  *   diff.ts               checkpoint↔checkpoint and vs-workspace diffs
  *   restorePreview.ts     dry-run restore vs live workspace (CP-18)
- *   fileHistory.ts        per-file hash timeline (CP-19)
+ *   fileHistory.ts        per-file hash timeline (CP-19, follow CP-40)
+ *   blame.ts              line annotate / blame (CP-44)
+ *   worktree.ts           isolated reconstruct export (CP-45)
+ *   bisect.ts             binary search a line (CP-46)
+ *   patch.ts              portable unified patch (CP-47)
+ *   renameDetect.ts       rename / copy detection (CP-40)
  *   create.ts             message / manual / agent create
  *   watcher.ts            FileSystemWatcher (single owner; AutoCheckpoint subscribes, CP-31)
  *   config.ts             runtime settings
@@ -24,6 +29,8 @@
  *   bundleTransfer.ts     checksummed import/export bundles (CP-22)
  *   shareBundles.ts       local share files + audit list (CP-27)
  *   branches.ts           durable local branching (CP-24)
+ *   stash.ts              working-tree stash stack (CP-38)
+ *   cherryPick.ts         apply one turn's delta onto HEAD (CP-41); inverse revert (CP-42)
  *   analysis.ts           local risk/impact/grouping heuristics (CP-26)
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -36,6 +43,7 @@ import { CheckpointConflictResolver } from '../ConflictResolver';
 import { DEFAULT_CHECKPOINT_IGNORE_PATTERNS } from '../checkpointIgnore';
 import { hasWorkspaceChanges } from './capture';
 import {
+    checkoutCheckpoint as checkoutCheckpointRecord,
     createBranch as createCheckpointBranch,
     createWhatIfBranch as createWhatIfCheckpointBranch,
     deleteBranch as deleteCheckpointBranch,
@@ -49,11 +57,25 @@ import {
     analyzeCheckpoint as analyzeCheckpointRecord,
     suggestCheckpointGroups as suggestCheckpointGroupRecords,
 } from './analysis';
+import {
+    listStash as listCheckpointStash,
+    stashApply as applyCheckpointStash,
+    stashClear as clearCheckpointStash,
+    stashDrop as dropCheckpointStash,
+    stashPop as popCheckpointStash,
+    stashPush as pushCheckpointStash,
+} from './stash';
+import { cherryPick as cherryPickCheckpoint, revertCheckpoint as revertCheckpointRecord } from './cherryPick';
+import { loadMergeState, mergeAbort as abortCheckpointMerge, mergeContinue as continueCheckpointMerge } from './mergeState';
 import { applyRuntimeConfig, loadRuntimeConfiguration, registerCheckpointConfigurationWatcher } from './config';
 import { createAgentCheckpoint as createBoundAgentCheckpoint, createCheckpointForMessage as createMessageCheckpoint, createIncrementalCheckpoint as createIncrementalCheckpointRecord, createManualCheckpoint as createManualCheckpointRecord } from './create';
 import { computeCheckpointDiff, computeCheckpointDiffAgainstWorkspace } from './diff';
 import { previewRestore as computeRestorePreview } from './restorePreview';
 import { listFileCheckpointHistory as listFileVersions } from './fileHistory';
+import { blameFile as blameCheckpointFile } from './blame';
+import { listWorktrees as listCheckpointWorktrees, materializeWorktree as materializeCheckpointWorktree, removeWorktree as removeCheckpointWorktree } from './worktree';
+import { bisectMark as markCheckpointBisect, bisectReset as resetCheckpointBisect, bisectRun as runCheckpointBisect, bisectStart as startCheckpointBisect, loadBisectState } from './bisect';
+import { applyPatch as applyCheckpointPatch, exportPatch as exportCheckpointPatch } from './patch';
 import { getPerformanceDashboard as buildPerformanceDashboard } from './dashboard';
 import { inspectStoreHealth as inspectBoundStoreHealth, repairStoreHealth as repairBoundStoreHealth, type StoreRepairOptions } from './storeHealth';
 import { appendAuditEvent as persistAuditEvent, getAuditTrail as readAuditTrail, recordAISessionMetrics as persistAISessionMetrics, recordRestorationEvent as persistRestorationEvent, recordStorageSnapshot as persistStorageSnapshot } from './events';
@@ -105,6 +127,9 @@ import type {
     BranchMergeResult,
     CheckpointAnalysis,
     CheckpointBranch,
+    CheckoutCheckpointOptions,
+    CheckoutCheckpointResult,
+    DetachedCheckoutState,
     CheckpointDiffResult,
     CheckpointHealthIssue,
     CheckpointInfo,
@@ -117,11 +142,33 @@ import type {
     RestoreCheckpointOptions,
     RestoreCheckpointResult,
     FileCheckpointVersion,
+    FileHistoryOptions,
+    BlameOptions,
+    BlameResult,
+    CheckpointWorktree,
+    MaterializeWorktreeOptions,
+    MaterializeWorktreeResult,
+    BisectOptions,
+    BisectResult,
+    BisectVerdict,
+    CheckpointBisectState,
+    ApplyPatchResult,
+    ExportPatchResult,
     RestoreFilesResult,
     RestorePreview,
     ShareCheckpointsOptions,
     SharedCheckpointBundle,
+    StashApplyResult,
+    StashPushResult,
+    CherryPickOptions,
+    CherryPickResult,
+    CheckpointMergeState,
+    MergeContinueResult,
+    RevertOptions,
     SuggestedCheckpointGroup,
+    SwitchBranchOptions,
+    SwitchBranchResult,
+    CheckpointStashListItem,
 } from './types';
 import { turnIntents } from 'core/context/soul/turnIntent';
 import { countSessionRollbacks } from './aiSessionMetrics';
@@ -150,6 +197,7 @@ interface WorkspaceStoreSession {
     watcherTrusted: boolean;
     branches: CheckpointBranch[];
     activeBranchId: string | undefined;
+    detachedFrom?: DetachedCheckoutState;
 }
 
 export class CheckpointManager implements CheckpointEngineHost {
@@ -163,6 +211,7 @@ export class CheckpointManager implements CheckpointEngineHost {
     checkpointHistory: CheckpointInfo[] = [];
     branches: CheckpointBranch[] = [];
     activeBranchId: string | undefined;
+    detachedFrom: DetachedCheckoutState | undefined;
     sessionStartTime: number = Date.now();
     lastCheckpointTime: number = Date.now();
     healthIssues: CheckpointHealthIssue[] = [];
@@ -365,6 +414,7 @@ export class CheckpointManager implements CheckpointEngineHost {
             watcherTrusted: this.watcherTrusted,
             branches: this.branches,
             activeBranchId: this.activeBranchId,
+            detachedFrom: this.detachedFrom,
         };
     }
 
@@ -380,6 +430,7 @@ export class CheckpointManager implements CheckpointEngineHost {
         this.watcherTrusted = session.watcherTrusted;
         this.branches = session.branches;
         this.activeBranchId = session.activeBranchId;
+        this.detachedFrom = session.detachedFrom;
     }
 
     private resetSessionState(): void {
@@ -397,6 +448,7 @@ export class CheckpointManager implements CheckpointEngineHost {
         this.ignoreFilterFailed = false;
         this.branches = [];
         this.activeBranchId = undefined;
+        this.detachedFrom = undefined;
     }
 
     private stashCurrentSession(): void {
@@ -463,6 +515,7 @@ export class CheckpointManager implements CheckpointEngineHost {
                 watcherTrusted: false,
                 branches: [],
                 activeBranchId: undefined,
+                detachedFrom: undefined,
             };
             this.workspaceSessions.set(key, session);
         }
@@ -736,8 +789,55 @@ export class CheckpointManager implements CheckpointEngineHost {
         );
     }
 
-    async listFileCheckpointHistory(relativePath: string): Promise<FileCheckpointVersion[]> {
-        return listFileVersions(this, relativePath);
+    async listFileCheckpointHistory(
+        relativePath: string,
+        options?: FileHistoryOptions,
+    ): Promise<FileCheckpointVersion[]> {
+        return listFileVersions(this, relativePath, options);
+    }
+
+    async blameFile(relativePath: string, options?: BlameOptions): Promise<BlameResult> {
+        return blameCheckpointFile(this, relativePath, options);
+    }
+
+    async materializeWorktree(checkpointId: string, options?: MaterializeWorktreeOptions): Promise<MaterializeWorktreeResult> {
+        return materializeCheckpointWorktree(this, checkpointId, options);
+    }
+
+    async listWorktrees(): Promise<CheckpointWorktree[]> {
+        return listCheckpointWorktrees(this);
+    }
+
+    async removeWorktree(worktreeId: string): Promise<{ success: boolean; message?: string }> {
+        return removeCheckpointWorktree(this, worktreeId);
+    }
+
+    async getBisectState(): Promise<CheckpointBisectState | null> {
+        return loadBisectState(this);
+    }
+
+    async bisectStart(options: BisectOptions): Promise<BisectResult> {
+        return startCheckpointBisect(this, options);
+    }
+
+    async bisectMark(verdict: BisectVerdict): Promise<BisectResult> {
+        return markCheckpointBisect(this, verdict);
+    }
+
+    async bisectReset(): Promise<{ success: boolean; message?: string }> {
+        return resetCheckpointBisect(this);
+    }
+
+    async bisectRun(predicate: (checkpointId: string, worktreePath: string) => Promise<number>): Promise<BisectResult> {
+        return runCheckpointBisect(this, predicate);
+    }
+
+    async exportPatch(checkpointId: string): Promise<ExportPatchResult> {
+        return exportCheckpointPatch(this, checkpointId);
+    }
+
+    async applyPatch(patchText: string): Promise<ApplyPatchResult> {
+        return applyCheckpointPatch(this, patchText);
     }
 
     async restoreCheckpointFiles(
@@ -1126,11 +1226,44 @@ export class CheckpointManager implements CheckpointEngineHost {
         return getActiveBranch(this);
     }
 
-    async switchBranch(branchId: string): Promise<boolean> {
+    async switchBranch(branchId: string, options?: SwitchBranchOptions): Promise<SwitchBranchResult> {
+        const checkout = options?.checkout ?? 'hard';
         return this.withConflictGuard(
             'branch',
             [],
-            () => switchCheckpointBranch(this, branchId),
+            () => switchCheckpointBranch(this, branchId, {
+                checkout,
+                autoStash: options?.autoStash,
+            }),
+            {
+                onDenied: (message) => ({
+                    success: false,
+                    checkout,
+                    branchId,
+                    refused: 'restore_failed',
+                    message,
+                }),
+            },
+        );
+    }
+
+    async checkoutCheckpoint(
+        checkpointId: string,
+        options?: CheckoutCheckpointOptions,
+    ): Promise<CheckoutCheckpointResult> {
+        return this.withConflictGuard(
+            'restore',
+            [],
+            () => checkoutCheckpointRecord(this, checkpointId, options),
+            {
+                onDenied: (message) => ({
+                    success: false,
+                    checkout: 'hard',
+                    checkpointId,
+                    refused: 'restore_failed',
+                    message,
+                }),
+            },
         );
     }
 
@@ -1151,6 +1284,89 @@ export class CheckpointManager implements CheckpointEngineHost {
             'merge',
             [],
             () => mergeCheckpointBranches(this, sourceBranchId, targetBranchId, strategy),
+        );
+    }
+
+    async stashPush(options?: { message?: string }): Promise<StashPushResult> {
+        return this.withConflictGuard('stash', [], () => pushCheckpointStash(this, options));
+    }
+
+    async stashList(): Promise<CheckpointStashListItem[]> {
+        return listCheckpointStash(this);
+    }
+
+    async stashApply(stashId?: string): Promise<StashApplyResult> {
+        return this.withConflictGuard('stash', [], () => applyCheckpointStash(this, stashId));
+    }
+
+    async stashPop(stashId?: string): Promise<StashApplyResult> {
+        return this.withConflictGuard('stash', [], () => popCheckpointStash(this, stashId));
+    }
+
+    async stashDrop(stashId?: string): Promise<{ success: boolean; stashId?: string; empty?: boolean; message?: string }> {
+        return this.withConflictGuard('stash', [], () => dropCheckpointStash(this, stashId));
+    }
+
+    async stashClear(): Promise<{ success: boolean; dropped: number }> {
+        return this.withConflictGuard('stash', [], () => clearCheckpointStash(this));
+    }
+
+    async cherryPick(sourceId: string, options?: CherryPickOptions): Promise<CherryPickResult> {
+        return this.withConflictGuard(
+            'cherry_pick',
+            [],
+            () => cherryPickCheckpoint(this, sourceId, options),
+            {
+                onDenied: (message) => ({
+                    success: false,
+                    sourceId,
+                    restoredFiles: [],
+                    removedFiles: [],
+                    conflicts: [],
+                    message,
+                }),
+            },
+        );
+    }
+
+    async getMergeState(): Promise<CheckpointMergeState | null> {
+        return loadMergeState(this);
+    }
+
+    async mergeContinue(): Promise<MergeContinueResult> {
+        return this.withConflictGuard(
+            'merge',
+            [],
+            () => continueCheckpointMerge(this),
+            {
+                onDenied: (message) => ({
+                    success: false,
+                    conflicts: [],
+                    message,
+                }),
+            },
+        );
+    }
+
+    async mergeAbort(): Promise<{ success: boolean; message?: string }> {
+        return this.withConflictGuard('merge', [], () => abortCheckpointMerge(this));
+    }
+
+    async revertCheckpoint(sourceId: string, options?: RevertOptions): Promise<CherryPickResult> {
+        return this.withConflictGuard(
+            'revert',
+            [],
+            () => revertCheckpointRecord(this, sourceId, options),
+            {
+                onDenied: (message) => ({
+                    success: false,
+                    sourceId,
+                    restoredFiles: [],
+                    removedFiles: [],
+                    conflicts: [],
+                    message,
+                }),
+            },
         );
     }
 

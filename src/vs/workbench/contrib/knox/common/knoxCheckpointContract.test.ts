@@ -101,6 +101,7 @@ suite('Knox checkpoint engine contract (KN-320–332)', () => {
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/store/bundleHmac.ts').includes('createHmac'));
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/manager/shareBundles.ts').includes('export'));
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/manager/fileHistory.ts').includes('export'));
+		assert.ok(repoFile('extensions/knox/src/host/checkpoints/manager/renameDetect.ts').includes('detectRenamesAndCopies'));
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/InlineDiffDecorator.ts').includes('export') || repoFile('extensions/knox/src/host/checkpoints/inlineDiffLines.ts').includes('export'));
 	});
 
@@ -114,6 +115,9 @@ suite('Knox checkpoint engine contract (KN-320–332)', () => {
 	test('KN-331: canonical knox.checkpoints.* plus aliases', () => {
 		const ids = repoFile('extensions/knox/src/host/checkpoints/commandIds.ts');
 		assert.ok(ids.includes("create: 'knox.checkpoints.create'"));
+		assert.ok(ids.includes("stash: 'knox.checkpoints.stash'"));
+		assert.ok(ids.includes("cherryPick: 'knox.checkpoints.cherryPick'"));
+		assert.ok(ids.includes("revert: 'knox.checkpoints.revert'"));
 		assert.ok(ids.includes("alias: 'knoxchat.checkpoints.create'"));
 		assert.ok(ids.includes("alias: 'knox.checkpoint.undo'"));
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/commandIds.test.ts').includes('CHECKPOINT_PALETTE_COMMANDS'));

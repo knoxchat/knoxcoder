@@ -41,6 +41,7 @@ async function withIsolatedManager(
         workspaceSessions: manager.workspaceSessions,
         branches: manager.branches,
         activeBranchId: manager.activeBranchId,
+        detachedFrom: manager.detachedFrom,
         recentlyModifiedFiles: manager.recentlyModifiedFiles,
     };
 
@@ -68,6 +69,7 @@ async function withIsolatedManager(
     manager.workspaceSessions = new Map();
     manager.branches = [];
     manager.activeBranchId = undefined;
+    manager.detachedFrom = undefined;
     manager.extensionContext = undefined;
 
     try {
@@ -131,7 +133,7 @@ suite('Durable local branching (CP-24)', () => {
         }
     });
 
-    test('switch does not restore files; reconstruct follows branch lineage', async () => {
+    test('pointer-only switch does not restore files; reconstruct follows branch lineage', async () => {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         assert.ok(workspaceFolder, 'Expected an active workspace folder');
 
@@ -156,10 +158,10 @@ suite('Durable local branching (CP-24)', () => {
 
                 const main = (await manager.listBranches()).find((item: { name: string }) => item.name === 'main');
                 assert.ok(main);
-                const switched = await manager.switchBranch(main.id);
-                assert.ok(switched);
+                const switched = await manager.switchBranch(main.id, { checkout: 'none' });
+                assert.strictEqual(switched.success, true);
                 assert.strictEqual(await fs.readFile(fileA, 'utf8'), 'A-feature\n',
-                    'switchBranch must not rewrite the workspace');
+                    'switchBranch({ checkout: "none" }) must not rewrite the workspace');
 
                 await fs.writeFile(fileA, 'A0\n');
                 await fs.writeFile(fileB, 'B-main\n');
@@ -204,7 +206,7 @@ suite('Durable local branching (CP-24)', () => {
 
                 const main = (await manager.listBranches()).find((item: { name: string }) => item.name === 'main');
                 assert.ok(main);
-                await manager.switchBranch(main.id);
+                await manager.switchBranch(main.id, { checkout: 'none' });
                 await fs.writeFile(fileA, 'A0\n');
                 await fs.writeFile(fileB, 'B-main\n');
                 const mainId = await manager.createManualCheckpoint({ description: 'main b' });
@@ -229,11 +231,13 @@ suite('Durable local branching (CP-24)', () => {
                 await fs.writeFile(fileA, 'A-other\n');
                 await manager.createManualCheckpoint({ description: 'other a' });
 
-                await manager.switchBranch(feature.id);
+                await manager.switchBranch(feature.id, { checkout: 'none' });
                 const conflicted = await manager.mergeBranches(other.id, feature.id);
                 assert.strictEqual(conflicted.success, false);
+                assert.strictEqual(conflicted.mergeInProgress, true);
                 assert.ok(conflicted.conflicts.some((conflict: { path: string }) => conflict.path === 'a.ts'));
                 assert.ok(!conflicted.mergeCheckpointId);
+                assert.ok((await fs.readFile(fileA, 'utf8')).includes('<<<<<<<'));
             });
         } finally {
             await fs.rm(fixtureRoot, { recursive: true, force: true });

@@ -43,6 +43,25 @@ import { knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 
 type GraphNode = IKnoxGuiCheckpointNode & { workingTree?: boolean };
+
+function graphMutationNotice(result: { success?: boolean; message?: string; conflicts?: Array<{ path?: string }> } | undefined): string | undefined {
+	if (!result || result.success !== false) {
+		return undefined;
+	}
+	if (result.message?.trim()) {
+		return result.message.trim();
+	}
+	const paths = (result.conflicts ?? []).map(conflict => conflict.path ?? '').filter(Boolean);
+	return paths.length ? paths.join('\n') : undefined;
+}
+
+async function runGraphMutation(widget: KnoxGuiWidget, action: Promise<{ success?: boolean; message?: string; conflicts?: Array<{ path?: string }> } | undefined>): Promise<void> {
+	const notice = graphMutationNotice(await action);
+	if (notice) {
+		widget.checkpointGraphPrompt = { kind: 'notice', message: notice };
+	}
+	widget.render();
+}
 type GraphCompare = { kind: 'checkpoint'; id: string } | { kind: 'workspace' };
 
 /** One Dark Pro tokens in `CHECKPOINT_GRAPH_LANE_COLORS` order; `.vscode-light` swaps them to the light palette. */
@@ -449,6 +468,61 @@ function renderGraphControlBar(widget: KnoxGuiWidget, parent: HTMLElement, state
 		}, true);
 	}
 	graphButton(widget, bar, t(state, 'checkpointGraph.refresh'), () => void widget.controller.loadCheckpoints());
+	if (state.checkpointDetachedFrom?.checkpointId) {
+		const detachedChip = DOM.append(bar, DOM.$('span.knox-gui-graph-compare'));
+		detachedChip.setAttribute('data-testid', 'checkpoint-graph-detached');
+		DOM.append(detachedChip, DOM.$('span', undefined, t(state, 'checkpointGraph.detached', { id: state.checkpointDetachedFrom.checkpointId.slice(0, 11) })));
+	}
+	if (state.checkpointMergeInProgress) {
+		const merge = state.checkpointMergeInProgress;
+		const mergeChip = DOM.append(bar, DOM.$('span.knox-gui-graph-compare'));
+		mergeChip.setAttribute('data-testid', 'checkpoint-graph-merge');
+		const mergeLabel = merge.operation === 'cherry_pick'
+			? t(state, 'checkpointGraph.mergingCherryPick', { name: merge.sourceName || 'checkpoint' })
+			: merge.operation === 'revert'
+				? t(state, 'checkpointGraph.mergingRevert', { name: merge.sourceName || 'checkpoint' })
+				: t(state, 'checkpointGraph.merging', { source: merge.sourceName || 'source', target: merge.targetName || 'target' });
+		DOM.append(mergeChip, DOM.$('span', undefined, mergeLabel));
+		if (merge.conflictPaths?.length) {
+			DOM.append(mergeChip, DOM.$('span.knox-gui-graph-dim', undefined, merge.conflictPaths.slice(0, 3).join(', ')));
+		}
+		graphButton(widget, mergeChip, t(state, 'checkpointGraph.mergeContinue'), () => {
+			void widget.controller.runCheckpointGraphAction('mergeContinue');
+		}, { testId: 'checkpoint-graph-merge-continue' });
+		graphButton(widget, mergeChip, t(state, 'checkpointGraph.mergeAbort'), () => {
+			void widget.controller.runCheckpointGraphAction('mergeAbort');
+		}, { testId: 'checkpoint-graph-merge-abort' });
+	}
+	if (state.checkpointBisectInProgress) {
+		const bisect = state.checkpointBisectInProgress;
+		const bisectChip = DOM.append(bar, DOM.$('span.knox-gui-graph-compare'));
+		bisectChip.setAttribute('data-testid', 'checkpoint-graph-bisect');
+		DOM.append(bisectChip, DOM.$('span', undefined, bisect.firstBadId
+			? t(state, 'checkpointGraph.bisectFound', { id: bisect.firstBadId.slice(0, 11) })
+			: t(state, 'checkpointGraph.bisecting', { id: (bisect.currentId || '').slice(0, 11), remaining: bisect.remaining })));
+		if (!bisect.firstBadId) {
+			graphButton(widget, bisectChip, t(state, 'checkpointGraph.bisectGood'), () => {
+				void widget.controller.runCheckpointGraphAction('bisectGood');
+			});
+			graphButton(widget, bisectChip, t(state, 'checkpointGraph.bisectBad'), () => {
+				void widget.controller.runCheckpointGraphAction('bisectBad');
+			});
+			graphButton(widget, bisectChip, t(state, 'checkpointGraph.bisectSkip'), () => {
+				void widget.controller.runCheckpointGraphAction('bisectSkip');
+			});
+		}
+		graphButton(widget, bisectChip, t(state, 'checkpointGraph.bisectReset'), () => {
+			void widget.controller.runCheckpointGraphAction('bisectReset');
+		});
+	}
+	if ((state.checkpointStashCount ?? 0) > 0) {
+		const stashChip = DOM.append(bar, DOM.$('span.knox-gui-graph-compare'));
+		stashChip.setAttribute('data-testid', 'checkpoint-graph-stash');
+		DOM.append(stashChip, DOM.$('span', undefined, t(state, 'checkpointGraph.stashed', { count: state.checkpointStashCount })));
+		graphButton(widget, stashChip, t(state, 'checkpointGraph.stashPop'), () => {
+			void widget.controller.runCheckpointGraphAction('stashPop');
+		}, { testId: 'checkpoint-graph-stash-pop' });
+	}
 	graphButton(widget, bar, t(state, 'checkpointGraph.find'), () => {
 		widget.checkpointGraphFindOpen = true;
 		widget.render();
@@ -830,7 +904,10 @@ function renderGraphDetails(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 		const list = DOM.append(panel, DOM.$('ul.knox-gui-graph-files'));
 		for (const path of paths) {
 			const item = DOM.append(list, DOM.$('li'));
-			const btn = DOM.append(item, DOM.$('button.knox-gui-graph-path', undefined, path)) as HTMLButtonElement;
+			const label = node.renamedFrom?.[path]
+				? t(state, 'renamedFrom', { path, from: node.renamedFrom[path] })
+				: path;
+			const btn = DOM.append(item, DOM.$('button.knox-gui-graph-path', undefined, label)) as HTMLButtonElement;
 			btn.type = 'button';
 			btn.setAttribute('data-testid', 'checkpoint-graph-path');
 			btn.title = path;
@@ -852,10 +929,15 @@ function addDetail(dl: HTMLElement, label: string, classes: string, value?: stri
 
 function renderPathTree(widget: KnoxGuiWidget, state: IKnoxGuiState, parent: HTMLElement, nodes: CheckpointGraphPathTreeNode[], graphNode: GraphNode, depth: number): void {
 	const fileButton = (item: HTMLElement, node: CheckpointGraphPathTreeNode) => {
+		const renamed = graphNode.renamedFrom?.[node.path];
 		const btn = DOM.append(item, DOM.$('button.knox-gui-graph-path', undefined, node.name)) as HTMLButtonElement;
 		btn.type = 'button';
 		btn.setAttribute('data-testid', 'checkpoint-graph-path');
-		btn.title = node.path;
+		btn.title = renamed ? t(state, 'renamedFrom', { path: node.path, from: renamed }) : node.path;
+		if (renamed) {
+			// allow-any-unicode-next-line
+			DOM.append(item, DOM.$('span.knox-gui-graph-dim', undefined, `← ${renamed}`));
+		}
 		btn.style.paddingLeft = `${(depth + (node.children.length ? 1 : 0)) * 12}px`;
 		widget.listenerStore.add(DOM.addDisposableListener(btn, 'click', () => openGraphPath(widget, state, graphNode, node.path)));
 		widget.listenerStore.add(DOM.addDisposableListener(btn, 'contextmenu', e => {
@@ -998,6 +1080,10 @@ function graphMenuEntries(
 			];
 		}
 		return [
+			{ kind: 'action', id: 'checkout', label: t(state, 'checkpointGraph.menu.checkout'), detail: t(state, 'checkpointGraph.menu.checkoutHint'), run: () => void runGraphMutation(widget, widget.controller.checkoutCheckpoint(node.id)) },
+			{ kind: 'action', id: 'cherryPick', label: t(state, 'checkpointGraph.menu.cherryPick'), detail: t(state, 'checkpointGraph.menu.cherryPickHint'), run: () => void runGraphMutation(widget, widget.controller.cherryPickCheckpoint(node.id)) },
+			{ kind: 'action', id: 'revert', label: t(state, 'checkpointGraph.menu.revert'), detail: t(state, 'checkpointGraph.menu.revertHint'), run: () => void runGraphMutation(widget, widget.controller.revertCheckpointNode(node.id)) },
+			{ kind: 'action', id: 'openWorktree', label: t(state, 'checkpointGraph.menu.openWorktree'), detail: t(state, 'checkpointGraph.menu.openWorktreeHint'), run: () => void widget.controller.materializeWorktree(node.id) },
 			{ kind: 'action', id: 'restore', label: t(state, 'checkpointGraph.menu.restore'), run: () => void widget.controller.openRestorePreview(node.id, false) },
 			{ kind: 'action', id: 'restoreFiles', label: t(state, 'checkpointGraph.menu.restoreFiles'), run: () => void widget.controller.openRestorePreview(node.id, false) },
 			{ kind: 'action', id: 'restoreMemory', label: t(state, 'checkpointGraph.menu.restoreMemory'), run: () => void widget.controller.openRestorePreview(node.id, true) },
@@ -1012,6 +1098,7 @@ function graphMenuEntries(
 			{ kind: 'action', id: 'copyId', label: t(state, 'checkpointGraph.menu.copyId'), run: () => widget.controller.messenger.post('copyText', { text: node.id }) },
 			{ kind: 'action', id: 'copyDescription', label: t(state, 'checkpointGraph.menu.copyDescription'), run: () => widget.controller.messenger.post('copyText', { text: node.description }) },
 			{ kind: 'action', id: 'export', label: t(state, 'checkpointGraph.menu.export'), run: () => widget.controller.messenger.post('exportCheckpoint', { checkpointId: node.id }) },
+			{ kind: 'action', id: 'exportPatch', label: t(state, 'checkpointGraph.menu.exportPatch'), detail: t(state, 'checkpointGraph.menu.exportPatchHint'), run: () => widget.controller.messenger.post('exportPatch', { checkpointId: node.id }) },
 			{ kind: 'divider', id: 'd4' },
 			{ kind: 'action', id: 'delete', label: t(state, 'checkpointGraph.menu.delete'), run: () => { widget.checkpointGraphPrompt = { kind: 'delete', id: node.id }; } },
 		];
@@ -1053,7 +1140,7 @@ function graphMenuEntries(
 		const filtered = checkpointBranchIsFiltered(branch, filter);
 		const entries: Array<{ kind: 'action'; id: string; label: string; detail?: string; run: () => void }> = [];
 		if (!branch.isActive) {
-			entries.push({ kind: 'action', id: 'switch', label: t(state, 'checkpointGraph.menu.switchBranch'), detail: t(state, 'checkpointGraph.menu.switchHint'), run: () => void widget.controller.switchCheckpointBranch(branch.id) });
+			entries.push({ kind: 'action', id: 'switch', label: t(state, 'checkpointGraph.menu.switchBranch'), detail: t(state, 'checkpointGraph.menu.switchHint'), run: () => void runGraphMutation(widget, widget.controller.switchCheckpointBranch(branch.id)) });
 			if (state.checkpointBranches.some(item => item.isActive)) {
 				const target = state.checkpointBranches.find(item => item.isActive);
 				entries.push({ kind: 'action', id: 'merge', label: t(state, 'checkpointGraph.menu.merge'), run: () => { if (target) { widget.checkpointGraphPrompt = { kind: 'merge', sourceId: branch.id, targetId: target.id }; } } });
@@ -1209,15 +1296,11 @@ function runGraphPrompt(widget: KnoxGuiWidget, prompt: NonNullable<KnoxGuiWidget
 			});
 			if (response?.conflicts?.length) {
 				widget.checkpointGraphPrompt = { kind: 'notice', message: response.conflicts.map(conflict => conflict.path ?? '').filter(Boolean).join('\n') };
-				widget.render();
-				return;
-			}
-			if (response && response.success === false && response.message) {
+			} else if (response && response.success === false && response.message) {
 				widget.checkpointGraphPrompt = { kind: 'notice', message: response.message };
-				widget.render();
-				return;
 			}
-			void widget.controller.loadCheckpoints();
+			await widget.controller.loadCheckpoints();
+			widget.render();
 		})();
 		return;
 	}

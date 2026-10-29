@@ -5,6 +5,7 @@ import { createKnoxLogger } from 'core/util/knoxLog';
 import { generateCheckpointId } from '../checkpointId';
 import { bindCheckpointToActiveLine } from './branches';
 import { applySnapshotHashes, captureWorkspaceState } from './capture';
+import { annotateCaptureSnapshots } from './renameDetect';
 import type { CheckpointEngineHost } from './host';
 import { captureFilterIsActive, type CaptureFilter } from './pathFilter';
 import {
@@ -122,8 +123,10 @@ async function createCheckpointRecord(
         if (filtered) {
             captured.captureMode = 'delta';
         }
-        const fileSnapshots = captured.fileSnapshots;
+        const fileSnapshots = await annotateCaptureSnapshots(host, captured.fileSnapshots);
         const fileInventory = captured.fileInventory;
+        const renamedCount = fileSnapshots.filter((snapshot) => snapshot.renamedFrom).length;
+        const copiedCount = fileSnapshots.filter((snapshot) => snapshot.copiedFrom && !snapshot.renamedFrom).length;
 
         const isContextOnly = options.conversationContext?.role === 'user';
         const allowEmpty =
@@ -204,7 +207,7 @@ async function createCheckpointRecord(
             resourceId: checkpointId,
             outcome: 'success',
             durationMs: Date.now() - createdAt,
-            counts: { files: fileSnapshots.length },
+            counts: { files: fileSnapshots.length, renamed: renamedCount, copied: copiedCount },
         }).catch(() => false);
         await host.recordStorageSnapshot().catch(() => false);
         await enforceRetentionPolicies(host);

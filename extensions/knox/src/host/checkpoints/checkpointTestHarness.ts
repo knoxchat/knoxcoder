@@ -83,6 +83,7 @@ export async function withIsolatedManager(
         workspaceSessions: manager.workspaceSessions,
         branches: manager.branches,
         activeBranchId: manager.activeBranchId,
+        detachedFrom: manager.detachedFrom,
         trackedAIFiles: manager.trackedAIFiles,
         boundAgentSessionId: manager.boundAgentSessionId,
         boundWorkspaceSessionId: manager.boundWorkspaceSessionId,
@@ -125,6 +126,7 @@ export async function withIsolatedManager(
     manager.workspaceSessions = new Map();
     manager.branches = [];
     manager.activeBranchId = undefined;
+    manager.detachedFrom = undefined;
     manager.extensionContext = undefined;
 
     try {

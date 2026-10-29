@@ -86,6 +86,9 @@ export interface CheckpointFileStats {
     deleted: number;
     modified: number;
     inventoryCount?: number;
+    /** Rename pairs recorded at capture (CP-40). Counted separately from created/deleted. */
+    renamed?: number;
+    copied?: number;
 }
 
 export interface FileSnapshot {
@@ -100,6 +103,10 @@ export interface FileSnapshot {
     size: number;
     deleted?: boolean;
     changeType?: 'created' | 'modified' | 'deleted';
+    /** Parent path when this snapshot is a rename of that file (CP-40). */
+    renamedFrom?: string;
+    /** Parent path when this snapshot is a copy of that file (CP-40). */
+    copiedFrom?: string;
 }
 
 /**
@@ -129,17 +136,43 @@ export function computeCheckpointFileStats(
             deleted: checkpoint.fileStats.deleted,
             modified: checkpoint.fileStats.modified,
             inventoryCount: checkpoint.fileInventory?.length ?? checkpoint.fileStats.inventoryCount,
+            ...(checkpoint.fileStats.renamed ? { renamed: checkpoint.fileStats.renamed } : {}),
+            ...(checkpoint.fileStats.copied ? { copied: checkpoint.fileStats.copied } : {}),
         };
     }
     const snapshots = checkpoint.fileSnapshots ?? [];
-    const created = snapshots.filter((snapshot) => snapshot.changeType === 'created').length;
-    const deleted = snapshots.filter((snapshot) => snapshot.deleted || snapshot.changeType === 'deleted').length;
+    const renameSources = new Set(
+        snapshots
+            .map((snapshot) => snapshot.renamedFrom)
+            .filter((path): path is string => typeof path === 'string' && path.length > 0),
+    );
+    const renamed = snapshots.filter((snapshot) => snapshot.renamedFrom && !snapshot.deleted).length;
+    const copied = snapshots.filter((snapshot) => snapshot.copiedFrom && !snapshot.renamedFrom && !snapshot.deleted).length;
+    const created = snapshots.filter((snapshot) =>
+        snapshot.changeType === 'created' && !snapshot.renamedFrom && !snapshot.copiedFrom,
+    ).length;
+    const deleted = snapshots.filter((snapshot) =>
+        (snapshot.deleted || snapshot.changeType === 'deleted')
+        && !renameSources.has(snapshot.relativePath)
+        && !renameSources.has(snapshot.relativePath.replace(/\\/g, '/')),
+    ).length;
+    const modified = snapshots.filter((snapshot) => {
+        if (snapshot.deleted || snapshot.changeType === 'deleted') {
+            return false;
+        }
+        if (snapshot.renamedFrom || snapshot.copiedFrom || snapshot.changeType === 'created') {
+            return false;
+        }
+        return true;
+    }).length;
     return {
         total: snapshots.length,
         created,
         deleted,
-        modified: Math.max(0, snapshots.length - created - deleted),
+        modified,
         inventoryCount: checkpoint.fileInventory?.length ?? checkpoint.fileStats?.inventoryCount,
+        ...(renamed > 0 ? { renamed } : {}),
+        ...(copied > 0 ? { copied } : {}),
     };
 }
 
@@ -149,7 +182,9 @@ export interface MessageCheckpointMap {
 
 export interface CheckpointFileDiff {
     relativePath: string;
-    status: 'added' | 'deleted' | 'modified';
+    status: 'added' | 'deleted' | 'modified' | 'renamed' | 'copied';
+    /** Previous path when status is renamed or copied (CP-40). */
+    oldPath?: string;
     oldContent: string | null;
     newContent: string | null;
     oldEncoding?: string;
@@ -239,6 +274,101 @@ export interface FileCheckpointVersion {
     encoding?: string;
 }
 
+export interface FileHistoryOptions {
+    /** Walk `renamedFrom` and hash-similarity (git log --follow). Default true. */
+    follow?: boolean;
+}
+
+/** One current line attributed to the checkpoint that last introduced it (CP-44). */
+export interface BlameLine {
+    line: number;
+    text: string;
+    checkpointId?: string;
+    label?: string;
+    description?: string;
+    originPath?: string;
+}
+
+export interface BlameRange {
+    startLine: number;
+    endLine: number;
+    checkpointId?: string;
+    label?: string;
+    description?: string;
+    originPath?: string;
+}
+
+export interface BlameOptions {
+    atCheckpointId?: string;
+}
+
+export interface BlameResult {
+    relativePath: string;
+    atCheckpointId?: string;
+    unsupported?: 'binary' | 'missing';
+    lines: BlameLine[];
+}
+
+/** Isolated reconstructable tree (CP-45). */
+export interface CheckpointWorktree {
+    id: string;
+    path: string;
+    checkpointId: string;
+    createdAt: string;
+    bytes: number;
+    fileCount: number;
+}
+
+export interface MaterializeWorktreeOptions {
+    destDir?: string;
+    allowInsideWorkspace?: boolean;
+}
+
+export type BisectVerdict = 'good' | 'bad' | 'skip';
+
+export interface CheckpointBisectState {
+    badId: string;
+    goodId?: string;
+    remaining: string[];
+    current?: string;
+    goodIds: string[];
+    badIds: string[];
+    skippedIds: string[];
+    worktreeId?: string;
+    worktreePath?: string;
+    firstBadId?: string;
+    createdAt: string;
+}
+
+export interface BisectOptions {
+    bad: string;
+    good?: string;
+}
+
+export interface BisectResult {
+    success: boolean;
+    done: boolean;
+    currentId?: string;
+    firstBadId?: string;
+    remaining: number;
+    steps: number;
+    worktreePath?: string;
+    message?: string;
+    label?: string;
+    intent?: string;
+    changedPaths?: string[];
+}
+
+export interface MaterializeWorktreeResult {
+    success: boolean;
+    worktreeId?: string;
+    path?: string;
+    fileCount?: number;
+    bytes?: number;
+    skipped?: string[];
+    message?: string;
+}
+
 export interface ManualCheckpointOptions {
     description?: string;
     /** MC-61: user intent to record on the manifest. */
@@ -325,6 +455,43 @@ export interface CheckpointBranch {
     description?: string;
 }
 
+/** CP-39: `git switch` analog. `'none'` is pointer-only; `'hard'` restores the head. */
+export type BranchCheckoutMode = 'none' | 'hard';
+
+export interface SwitchBranchOptions {
+    checkout?: BranchCheckoutMode;
+    /** Override `knox.checkpoints.autoStashOnCheckout`. */
+    autoStash?: boolean;
+}
+
+export interface SwitchBranchResult {
+    success: boolean;
+    checkout: BranchCheckoutMode;
+    branchId?: string;
+    headCheckpointId?: string;
+    stashed?: boolean;
+    stashId?: string;
+    restoredFiles?: string[];
+    removedFiles?: string[];
+    detached?: boolean;
+    refused?: 'dirty' | 'stash_failed' | 'restore_failed' | 'missing';
+    message?: string;
+}
+
+export interface CheckoutCheckpointOptions {
+    autoStash?: boolean;
+}
+
+export interface CheckoutCheckpointResult extends SwitchBranchResult {
+    checkpointId?: string;
+}
+
+/** Durable detached HEAD (CP-39). Not a hidden branch. */
+export interface DetachedCheckoutState {
+    checkpointId: string;
+    previousBranchId?: string;
+}
+
 export interface FileHashState {
     hash?: string;
     encoding: string;
@@ -344,6 +511,101 @@ export interface BranchMergeResult {
     unavailable?: boolean;
     mergeCheckpointId?: string;
     conflicts: BranchMergeConflict[];
+    mergeInProgress?: boolean;
+    message?: string;
+}
+
+export type CheckpointMergeOperation = 'merge' | 'cherry_pick' | 'revert';
+
+/** In-progress merge / cherry-pick / revert (CP-43). */
+export interface CheckpointMergeState {
+    operation: CheckpointMergeOperation;
+    sourceId: string;
+    targetId: string;
+    sourceHeadId?: string;
+    targetHeadId: string;
+    targetBranchId?: string;
+    lcaId?: string;
+    conflictPaths: string[];
+    autoMergedPaths?: string[];
+    autoMerged?: Array<{
+        path: string;
+        hash?: string;
+        encoding: string;
+        size: number;
+        deleted?: boolean;
+    }>;
+    inventory?: string[];
+    preMergeCheckpointId?: string;
+    stashId?: string;
+    sourceName?: string;
+    targetName?: string;
+    oursLabel?: string;
+    theirsLabel?: string;
+    description?: string;
+    label?: string;
+    intent?: string;
+    tags?: string[];
+    createdAt?: string;
+}
+
+export interface MergeContinueResult {
+    success: boolean;
+    checkpointId?: string;
+    conflicts: Array<{ path: string }>;
+    message?: string;
+}
+
+/** Lean stash stack row (CP-38). File bytes stay in the blob store. */
+export interface CheckpointStashListItem {
+    id: string;
+    message?: string;
+    createdAt: Date;
+    baseCheckpointId?: string;
+    branchId?: string;
+    fileCount: number;
+}
+
+export interface StashPushResult {
+    success: boolean;
+    empty: boolean;
+    stashId?: string;
+    fileCount?: number;
+    message?: string;
+}
+
+export interface StashApplyResult {
+    success: boolean;
+    empty?: boolean;
+    stashId?: string;
+    restoredFiles: string[];
+    removedFiles: string[];
+    conflicts: Array<{ path: string }>;
+    message?: string;
+}
+
+/** CP-41: apply one checkpoint's parent→source delta onto HEAD. */
+export interface CherryPickOptions {
+    onto?: string;
+}
+
+export interface CherryPickResult {
+    success: boolean;
+    empty?: boolean;
+    checkpointId?: string;
+    sourceId?: string;
+    ontoId?: string;
+    restoredFiles: string[];
+    removedFiles: string[];
+    conflicts: Array<{ path: string }>;
+    message?: string;
+    mergeInProgress?: boolean;
+}
+
+/** CP-42: inverse of cherry-pick. `mainline` is git `-m` (1-based). */
+export interface RevertOptions {
+    onto?: string;
+    mainline?: number;
 }
 
 export type CheckpointRiskLevel = 'Low' | 'Medium' | 'High' | 'Critical';
@@ -406,4 +668,22 @@ export interface CheckpointAnalysis {
         lockfile: number;
         tests: number;
     };
+}
+
+/** CP-47 portable unified patch. */
+export interface ExportPatchResult {
+    success: boolean;
+    patch?: string;
+    checkpointId?: string;
+    fileCount?: number;
+    message?: string;
+}
+
+export interface ApplyPatchResult {
+    success: boolean;
+    checkpointId?: string;
+    restoredFiles: string[];
+    removedFiles: string[];
+    conflicts: Array<{ path: string }>;
+    message?: string;
 }

@@ -457,8 +457,46 @@ export class CheckpointChatIntegration {
     }
 
     async switchCheckpointBranch(branchId: string) {
-        const success = await this.checkpointManager.switchBranch(branchId);
-        return { success };
+        const result = await this.checkpointManager.switchBranch(branchId);
+        return {
+            success: result.success,
+            message: result.message,
+            stashId: result.stashId,
+            stashed: result.stashed,
+        };
+    }
+
+    async checkoutCheckpoint(checkpointId: string) {
+        const result = await this.checkpointManager.checkoutCheckpoint(checkpointId);
+        return {
+            success: result.success,
+            message: result.message,
+            detached: result.detached,
+            stashId: result.stashId,
+            stashed: result.stashed,
+        };
+    }
+
+    async cherryPickCheckpoint(checkpointId: string) {
+        const result = await this.checkpointManager.cherryPick(checkpointId);
+        return {
+            success: result.success,
+            empty: result.empty,
+            checkpointId: result.checkpointId,
+            conflicts: result.conflicts,
+            message: result.message,
+        };
+    }
+
+    async revertCheckpoint(checkpointId: string) {
+        const result = await this.checkpointManager.revertCheckpoint(checkpointId);
+        return {
+            success: result.success,
+            empty: result.empty,
+            checkpointId: result.checkpointId,
+            conflicts: result.conflicts,
+            message: result.message,
+        };
     }
 
     async analyzeCheckpoint(checkpointId: string) {

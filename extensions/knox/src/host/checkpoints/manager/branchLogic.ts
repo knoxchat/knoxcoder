@@ -272,6 +272,150 @@ export function threeWayMergeHashes(
     return { merged, conflicts };
 }
 
+export const CONFLICT_OURS_MARK = '<<<<<<<';
+export const CONFLICT_MID_MARK = '=======';
+export const CONFLICT_THEIRS_MARK = '>>>>>>>';
+
+export function splitMergeLines(text: string): string[] {
+    return text.split('\n');
+}
+
+export function joinMergeLines(lines: string[]): string {
+    return lines.join('\n');
+}
+
+interface LineHunk {
+    start: number;
+    deleted: number;
+    inserted: string[];
+}
+
+function lcsTable(a: string[], b: string[]): Uint32Array[] {
+    const rows: Uint32Array[] = [new Uint32Array(b.length + 1)];
+    for (let i = 1; i <= a.length; i++) {
+        const prev = rows[i - 1];
+        const next = new Uint32Array(b.length + 1);
+        for (let j = 1; j <= b.length; j++) {
+            next[j] = a[i - 1] === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], next[j - 1]);
+        }
+        rows.push(next);
+    }
+    return rows;
+}
+
+function diffHunks(base: string[], side: string[]): LineHunk[] {
+    const table = lcsTable(base, side);
+    const hunks: LineHunk[] = [];
+    let i = base.length;
+    let j = side.length;
+    let pending: LineHunk | undefined;
+    const flush = () => {
+        if (pending) {
+            hunks.unshift(pending);
+            pending = undefined;
+        }
+    };
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && base[i - 1] === side[j - 1]) {
+            flush();
+            i -= 1;
+            j -= 1;
+            continue;
+        }
+        if (j > 0 && (i === 0 || table[i][j - 1] >= table[i - 1][j])) {
+            pending = pending ?? { start: i, deleted: 0, inserted: [] };
+            pending.inserted.unshift(side[j - 1]);
+            j -= 1;
+            continue;
+        }
+        pending = pending ?? { start: i - 1, deleted: 0, inserted: [] };
+        pending.start = i - 1;
+        pending.deleted += 1;
+        i -= 1;
+    }
+    flush();
+    return hunks;
+}
+
+function hunksOverlap(left: LineHunk[], right: LineHunk[]): boolean {
+    for (const a of left) {
+        const aEnd = a.start + Math.max(a.deleted, 1);
+        for (const b of right) {
+            const bEnd = b.start + Math.max(b.deleted, 1);
+            if (a.start < bEnd && b.start < aEnd) {
+                if (a.deleted === 0 && b.deleted === 0 && a.start === b.start) {
+                    return true;
+                }
+                if (a.deleted > 0 && b.deleted > 0) {
+                    return true;
+                }
+                if ((a.deleted === 0 && b.deleted > 0 && a.start >= b.start && a.start < bEnd)
+                    || (b.deleted === 0 && a.deleted > 0 && b.start >= a.start && b.start < aEnd)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+function applyHunks(base: string[], hunks: LineHunk[]): string {
+    const ordered = [...hunks].sort((a, b) => a.start - b.start || b.deleted - a.deleted);
+    const out: string[] = [];
+    let cursor = 0;
+    for (const hunk of ordered) {
+        out.push(...base.slice(cursor, hunk.start));
+        out.push(...hunk.inserted);
+        cursor = hunk.start + hunk.deleted;
+    }
+    out.push(...base.slice(cursor));
+    return joinMergeLines(out);
+}
+
+/**
+ * Line-level three-way merge. Non-overlapping hunks auto-resolve; overlapping
+ * edits stay a conflict (CP-43). Lexical only — no embeddings.
+ */
+export function threeWayMergeText(
+    base: string,
+    ours: string,
+    theirs: string,
+): { content: string } | { conflict: true } {
+    if (ours === theirs) {
+        return { content: ours };
+    }
+    if (ours === base) {
+        return { content: theirs };
+    }
+    if (theirs === base) {
+        return { content: ours };
+    }
+    const baseLines = splitMergeLines(base);
+    const oursHunks = diffHunks(baseLines, splitMergeLines(ours));
+    const theirsHunks = diffHunks(baseLines, splitMergeLines(theirs));
+    if (hunksOverlap(oursHunks, theirsHunks)) {
+        return { conflict: true };
+    }
+    return { content: applyHunks(baseLines, [...oursHunks, ...theirsHunks]) };
+}
+
+export function formatConflictMarkers(
+    ours: string,
+    theirs: string,
+    oursLabel: string = 'HEAD',
+    theirsLabel: string = 'theirs',
+): string {
+    const oursBody = ours.endsWith('\n') || ours.length === 0 ? ours : `${ours}\n`;
+    const theirsBody = theirs.endsWith('\n') || theirs.length === 0 ? theirs : `${theirs}\n`;
+    return `${CONFLICT_OURS_MARK} ${oursLabel}\n${oursBody}${CONFLICT_MID_MARK}\n${theirsBody}${CONFLICT_THEIRS_MARK} ${theirsLabel}\n`;
+}
+
+export function fileHasConflictMarkers(content: string): boolean {
+    return content.includes(CONFLICT_OURS_MARK)
+        && content.includes(CONFLICT_MID_MARK)
+        && content.includes(CONFLICT_THEIRS_MARK);
+}
+
 export function hashStateToSnapshots(
     merged: Map<string, FileHashState>,
     unionPaths: Iterable<string>,

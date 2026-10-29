@@ -1374,7 +1374,12 @@ suite('Knox native GUI parity', () => {
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('setActiveCheckpointWorkspace'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('openCheckpointFileDiff'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('exportCheckpoint'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('exportPatch'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('materializeWorktree'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('switchCheckpointBranch'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('checkoutCheckpoint'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('cherryPickCheckpoint'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('revertCheckpoint'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('listCheckpoints'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('getCheckpointDetails'));
 		assert.deepStrictEqual(groupCheckpointsByDate([
@@ -1941,6 +1946,9 @@ suite('Knox native GUI parity', () => {
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('suggestCheckpointGroups'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('createCheckpointBranch'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('switchCheckpointBranch'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('checkoutCheckpoint'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('cherryPickCheckpoint'));
+		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('revertCheckpoint'));
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('mergeCheckpointBranches'));
 		const preview = parseRestorePreview({
 			success: true,

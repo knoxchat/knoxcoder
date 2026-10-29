@@ -10,6 +10,7 @@ import { importBundleWithWorkspacePrompt, shareCheckpointsInteractive } from './
 import { registerCheckpointCommands as registerNewCheckpointCommands } from './CheckpointCommands';
 import { registerAutoCheckpointCommands } from './autoCheckpointCommands';
 import { registerInlineDiffCommands } from './InlineDiffDecorator';
+import { registerBlameCommands } from './BlameDecorator';
 import { CheckpointChatIntegration } from './commands';
 
 /**
@@ -329,6 +330,547 @@ export function registerCheckpointCommands(context: vscode.ExtensionContext): vo
         }
     });
 
+    registerCanonicalCommand(context, CheckpointCommand.checkout, async (arg?: unknown) => {
+        try {
+            let targetCheckpointId = checkpointIdFromArg(arg) ?? '';
+            if (!targetCheckpointId) {
+                const history = checkpointManager.getCheckpointHistoryForWorkspace();
+                if (history.length === 0) {
+                    vscode.window.showInformationMessage(t('checkpoint.noCheckpoints'));
+                    return;
+                }
+                const selected = await vscode.window.showQuickPick(
+                    [...history]
+                        .sort((a, b) => b.created.getTime() - a.created.getTime())
+                        .map((checkpoint) => ({
+                            label: checkpoint.label || checkpoint.description || checkpoint.id,
+                            description: checkpoint.created.toLocaleString(),
+                            detail: checkpoint.id,
+                            checkpoint,
+                        })),
+                    { placeHolder: t('checkpoint.checkout.pickCheckpoint') },
+                );
+                if (!selected) {
+                    return;
+                }
+                targetCheckpointId = selected.checkpoint.id;
+            }
+            const result = await checkpointManager.checkoutCheckpoint(targetCheckpointId);
+            if (!result.success) {
+                vscode.window.showErrorMessage(
+                    t('checkpoint.checkout.failed', { error: result.message || 'unknown error' }),
+                );
+                return result;
+            }
+            vscode.window.showInformationMessage(
+                result.detached
+                    ? t('checkpoint.checkout.detached', { id: targetCheckpointId.slice(0, 11) })
+                    : t('checkpoint.checkout.switched', { name: result.branchId ?? targetCheckpointId.slice(0, 11) }),
+            );
+            return result;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.checkout.failed', { error }));
+            return undefined;
+        }
+    });
+
+    registerCanonicalCommand(context, CheckpointCommand.stash, async (arg?: unknown) => {
+        try {
+            let message = checkpointDescriptionFromArg(arg);
+            if (message === undefined && !checkpointSkipConfirmFromArg(arg)) {
+                message = await vscode.window.showInputBox({
+                    prompt: t('checkpoint.stash.enterMessage'),
+                    placeHolder: t('checkpoint.stash.messagePlaceholder'),
+                });
+                if (message === undefined) {
+                    return;
+                }
+            }
+            const result = await checkpointManager.stashPush({ message: message?.trim() || undefined });
+            if (result.empty) {
+                vscode.window.showInformationMessage(t('checkpoint.stash.empty'));
+                return result;
+            }
+            if (!result.success) {
+                vscode.window.showErrorMessage(t('checkpoint.stash.failed', { error: result.message || 'unknown error' }));
+                return result;
+            }
+            vscode.window.showInformationMessage(t('checkpoint.stash.pushed', { count: result.fileCount ?? 0 }));
+            return result;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.stash.failed', { error }));
+            return undefined;
+        }
+    });
+
+    registerCanonicalCommand(context, CheckpointCommand.stashPop, async (arg?: unknown) => {
+        try {
+            const stashId = checkpointIdFromArg(arg);
+            const result = await checkpointManager.stashPop(stashId);
+            if (result.empty) {
+                vscode.window.showInformationMessage(t('checkpoint.stash.none'));
+                return result;
+            }
+            if (result.conflicts.length > 0) {
+                vscode.window.showWarningMessage(
+                    t('checkpoint.stash.conflicts', { paths: result.conflicts.map((conflict) => conflict.path).join(', ') }),
+                );
+                return result;
+            }
+            if (!result.success) {
+                vscode.window.showErrorMessage(t('checkpoint.stash.failed', { error: result.message || 'unknown error' }));
+                return result;
+            }
+            const files = (result.restoredFiles?.length ?? 0) + (result.removedFiles?.length ?? 0);
+            vscode.window.showInformationMessage(t('checkpoint.stash.popped', { id: (result.stashId ?? '').slice(0, 11), files }));
+            return result;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.stash.failed', { error }));
+            return undefined;
+        }
+    });
+
+    registerCanonicalCommand(context, CheckpointCommand.stashList, async () => {
+        try {
+            const listed = await checkpointManager.stashList();
+            if (listed.length === 0) {
+                vscode.window.showInformationMessage(t('checkpoint.stash.none'));
+                return listed;
+            }
+            const selected = await vscode.window.showQuickPick(
+                listed.map((entry) => ({
+                    label: entry.message || entry.id,
+                    description: entry.createdAt.toLocaleString(),
+                    detail: `${entry.fileCount} file(s) · ${entry.id}`,
+                    entry,
+                })),
+                { placeHolder: t('checkpoint.stash.listPlaceholder') },
+            );
+            if (!selected) {
+                return listed;
+            }
+            const action = await vscode.window.showQuickPick(
+                [
+                    { label: t('checkpoint.stash.popAction'), value: 'pop' as const },
+                    { label: t('checkpoint.stash.applyAction'), value: 'apply' as const },
+                    { label: t('checkpoint.stash.dropAction'), value: 'drop' as const },
+                ],
+                { placeHolder: selected.entry.id },
+            );
+            if (!action) {
+                return listed;
+            }
+            if (action.value === 'drop') {
+                const dropped = await checkpointManager.stashDrop(selected.entry.id);
+                if (dropped.success) {
+                    vscode.window.showInformationMessage(t('checkpoint.stash.dropped', { id: selected.entry.id.slice(0, 11) }));
+                } else {
+                    vscode.window.showErrorMessage(t('checkpoint.stash.failed', { error: dropped.message || 'unknown error' }));
+                }
+                return listed;
+            }
+            const result = action.value === 'pop'
+                ? await checkpointManager.stashPop(selected.entry.id)
+                : await checkpointManager.stashApply(selected.entry.id);
+            if (result.conflicts.length > 0) {
+                vscode.window.showWarningMessage(
+                    t('checkpoint.stash.conflicts', { paths: result.conflicts.map((conflict) => conflict.path).join(', ') }),
+                );
+                return listed;
+            }
+            if (!result.success) {
+                vscode.window.showErrorMessage(t('checkpoint.stash.failed', { error: result.message || 'unknown error' }));
+                return listed;
+            }
+            const files = (result.restoredFiles?.length ?? 0) + (result.removedFiles?.length ?? 0);
+            vscode.window.showInformationMessage(
+                t(action.value === 'pop' ? 'checkpoint.stash.popped' : 'checkpoint.stash.applied', {
+                    id: (result.stashId ?? '').slice(0, 11),
+                    files,
+                }),
+            );
+            return listed;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.stash.failed', { error }));
+            return undefined;
+        }
+    });
+
+    registerCanonicalCommand(context, CheckpointCommand.cherryPick, async (arg?: unknown) => {
+        try {
+            let targetCheckpointId = checkpointIdFromArg(arg) ?? '';
+            if (!targetCheckpointId) {
+                const history = checkpointManager.getCheckpointHistoryForWorkspace();
+                if (history.length === 0) {
+                    vscode.window.showInformationMessage(t('checkpoint.noCheckpoints'));
+                    return;
+                }
+                const selected = await vscode.window.showQuickPick(
+                    [...history]
+                        .sort((a, b) => b.created.getTime() - a.created.getTime())
+                        .map((checkpoint) => ({
+                            label: checkpoint.label || checkpoint.description || checkpoint.id,
+                            description: checkpoint.created.toLocaleString(),
+                            detail: checkpoint.id,
+                            checkpoint,
+                        })),
+                    { placeHolder: t('checkpoint.cherryPick.pickCheckpoint') },
+                );
+                if (!selected) {
+                    return;
+                }
+                targetCheckpointId = selected.checkpoint.id;
+            }
+            const result = await checkpointManager.cherryPick(targetCheckpointId);
+            if (result.conflicts.length > 0) {
+                vscode.window.showWarningMessage(
+                    t('checkpoint.cherryPick.conflicts', { paths: result.conflicts.map((conflict) => conflict.path).join(', ') }),
+                );
+                return result;
+            }
+            if (result.empty) {
+                vscode.window.showInformationMessage(t('checkpoint.cherryPick.empty'));
+                return result;
+            }
+            if (!result.success) {
+                vscode.window.showErrorMessage(
+                    t('checkpoint.cherryPick.failed', { error: result.message || 'unknown error' }),
+                );
+                return result;
+            }
+            vscode.window.showInformationMessage(
+                t('checkpoint.cherryPick.applied', { id: (result.checkpointId ?? '').slice(0, 11) }),
+            );
+            return result;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.cherryPick.failed', { error }));
+            return undefined;
+        }
+    });
+
+    registerCanonicalCommand(context, CheckpointCommand.revert, async (arg?: unknown) => {
+        try {
+            let targetCheckpointId = checkpointIdFromArg(arg) ?? '';
+            if (!targetCheckpointId) {
+                const history = checkpointManager.getCheckpointHistoryForWorkspace();
+                if (history.length === 0) {
+                    vscode.window.showInformationMessage(t('checkpoint.noCheckpoints'));
+                    return;
+                }
+                const selected = await vscode.window.showQuickPick(
+                    [...history]
+                        .sort((a, b) => b.created.getTime() - a.created.getTime())
+                        .map((checkpoint) => ({
+                            label: checkpoint.label || checkpoint.description || checkpoint.id,
+                            description: checkpoint.created.toLocaleString(),
+                            detail: checkpoint.id,
+                            checkpoint,
+                        })),
+                    { placeHolder: t('checkpoint.revert.pickCheckpoint') },
+                );
+                if (!selected) {
+                    return;
+                }
+                targetCheckpointId = selected.checkpoint.id;
+            }
+            const result = await checkpointManager.revertCheckpoint(targetCheckpointId);
+            if (result.conflicts.length > 0) {
+                vscode.window.showWarningMessage(
+                    t('checkpoint.revert.conflicts', { paths: result.conflicts.map((conflict) => conflict.path).join(', ') }),
+                );
+                return result;
+            }
+            if (result.empty) {
+                vscode.window.showInformationMessage(t('checkpoint.revert.empty'));
+                return result;
+            }
+            if (!result.success) {
+                vscode.window.showErrorMessage(
+                    t('checkpoint.revert.failed', { error: result.message || 'unknown error' }),
+                );
+                return result;
+            }
+            vscode.window.showInformationMessage(
+                t('checkpoint.revert.applied', { id: (result.checkpointId ?? '').slice(0, 11) }),
+            );
+            return result;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.revert.failed', { error }));
+            return undefined;
+        }
+    });
+
+    registerCanonicalCommand(context, CheckpointCommand.mergeContinue, async () => {
+        try {
+            const result = await checkpointManager.mergeContinue();
+            if (result.conflicts.length > 0) {
+                vscode.window.showWarningMessage(
+                    t('checkpoint.merge.unresolved', { paths: result.conflicts.map((conflict) => conflict.path).join(', ') }),
+                );
+                return result;
+            }
+            if (!result.success) {
+                vscode.window.showErrorMessage(t('checkpoint.merge.continueFailed', { error: result.message || 'unknown error' }));
+                return result;
+            }
+            vscode.window.showInformationMessage(t('checkpoint.merge.continued', { id: (result.checkpointId ?? '').slice(0, 11) }));
+            return result;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.merge.continueFailed', { error }));
+            return undefined;
+        }
+    });
+
+    registerCanonicalCommand(context, CheckpointCommand.materializeWorktree, async (arg?: unknown) => {
+        try {
+            let targetCheckpointId = checkpointIdFromArg(arg) ?? '';
+            if (!targetCheckpointId) {
+                const history = checkpointManager.getCheckpointHistoryForWorkspace();
+                if (history.length === 0) {
+                    vscode.window.showInformationMessage(t('checkpoint.noCheckpoints'));
+                    return;
+                }
+                const selected = await vscode.window.showQuickPick(
+                    [...history]
+                        .sort((a, b) => b.created.getTime() - a.created.getTime())
+                        .map((checkpoint) => ({
+                            label: checkpoint.label || checkpoint.description || checkpoint.id,
+                            description: checkpoint.created.toLocaleString(),
+                            detail: checkpoint.id,
+                            checkpoint,
+                        })),
+                    { placeHolder: t('checkpoint.worktree.pickCheckpoint') },
+                );
+                if (!selected) {
+                    return;
+                }
+                targetCheckpointId = selected.checkpoint.id;
+            }
+            const result = await checkpointManager.materializeWorktree(targetCheckpointId);
+            if (!result.success || !result.path) {
+                vscode.window.showErrorMessage(t('checkpoint.worktree.failed', { error: result.message || 'unknown error' }));
+                return result;
+            }
+            vscode.window.showInformationMessage(t('checkpoint.worktree.created', { path: result.path }));
+            await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(result.path));
+            return result;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.worktree.failed', { error }));
+            return undefined;
+        }
+    });
+
+    registerCanonicalCommand(context, CheckpointCommand.removeWorktree, async () => {
+        try {
+            const worktrees = await checkpointManager.listWorktrees();
+            if (worktrees.length === 0) {
+                vscode.window.showInformationMessage(t('checkpoint.worktree.none'));
+                return;
+            }
+            const selected = await vscode.window.showQuickPick(
+                worktrees.map((item) => ({
+                    label: item.path,
+                    description: item.checkpointId.slice(0, 11),
+                    detail: item.id,
+                    item,
+                })),
+                { placeHolder: t('checkpoint.worktree.pickRemove') },
+            );
+            if (!selected) {
+                return;
+            }
+            const result = await checkpointManager.removeWorktree(selected.item.id);
+            if (!result.success) {
+                vscode.window.showErrorMessage(t('checkpoint.worktree.failed', { error: result.message || 'unknown error' }));
+                return result;
+            }
+            vscode.window.showInformationMessage(t('checkpoint.worktree.removed', { id: selected.item.id.slice(0, 11) }));
+            return result;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.worktree.failed', { error }));
+            return undefined;
+        }
+    });
+
+    registerCanonicalCommand(context, CheckpointCommand.bisectStart, async (arg?: unknown) => {
+        try {
+            const history = checkpointManager.getCheckpointHistoryForWorkspace();
+            if (history.length === 0) {
+                vscode.window.showInformationMessage(t('checkpoint.noCheckpoints'));
+                return;
+            }
+            const items = [...history]
+                .sort((a, b) => b.created.getTime() - a.created.getTime())
+                .map((checkpoint) => ({
+                    label: checkpoint.label || checkpoint.description || checkpoint.id,
+                    description: checkpoint.created.toLocaleString(),
+                    detail: checkpoint.id,
+                    checkpoint,
+                }));
+            const bad = await vscode.window.showQuickPick(items, { placeHolder: t('checkpoint.bisect.pickBad') });
+            if (!bad) {
+                return;
+            }
+            const good = await vscode.window.showQuickPick(
+                [{ label: '(branch base)', checkpoint: undefined as { id: string } | undefined }, ...items],
+                { placeHolder: t('checkpoint.bisect.pickGood') },
+            );
+            const result = await checkpointManager.bisectStart({
+                bad: checkpointIdFromArg(arg) || bad.checkpoint.id,
+                good: good?.checkpoint?.id,
+            });
+            if (!result.success) {
+                vscode.window.showErrorMessage(t('checkpoint.bisect.failed', { error: result.message || 'unknown error' }));
+                return result;
+            }
+            vscode.window.showInformationMessage(
+                result.firstBadId
+                    ? t('checkpoint.bisect.found', { id: result.firstBadId.slice(0, 11) })
+                    : t('checkpoint.bisect.started', { id: (result.currentId ?? '').slice(0, 11), remaining: result.remaining }),
+            );
+            CheckpointGraphView.notifyHistoryChanged();
+            return result;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.bisect.failed', { error }));
+            return undefined;
+        }
+    });
+
+    const markBisect = (verdict: 'good' | 'bad' | 'skip') => async () => {
+        try {
+            const result = await checkpointManager.bisectMark(verdict);
+            if (!result.success) {
+                vscode.window.showErrorMessage(t('checkpoint.bisect.failed', { error: result.message || t('checkpoint.bisect.none') }));
+                return result;
+            }
+            vscode.window.showInformationMessage(
+                result.firstBadId
+                    ? t('checkpoint.bisect.found', { id: result.firstBadId.slice(0, 11) })
+                    : t('checkpoint.bisect.stepped', { verdict, id: (result.currentId ?? '').slice(0, 11), remaining: result.remaining }),
+            );
+            CheckpointGraphView.notifyHistoryChanged();
+            return result;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.bisect.failed', { error }));
+            return undefined;
+        }
+    };
+    registerCanonicalCommand(context, CheckpointCommand.bisectGood, markBisect('good'));
+    registerCanonicalCommand(context, CheckpointCommand.bisectBad, markBisect('bad'));
+    registerCanonicalCommand(context, CheckpointCommand.bisectSkip, markBisect('skip'));
+    registerCanonicalCommand(context, CheckpointCommand.bisectReset, async () => {
+        try {
+            const result = await checkpointManager.bisectReset();
+            vscode.window.showInformationMessage(t('checkpoint.bisect.reset'));
+            CheckpointGraphView.notifyHistoryChanged();
+            return result;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.bisect.failed', { error }));
+            return undefined;
+        }
+    });
+
+    registerCanonicalCommand(context, CheckpointCommand.exportPatch, async (arg?: unknown) => {
+        try {
+            let targetCheckpointId = checkpointIdFromArg(arg) ?? '';
+            if (!targetCheckpointId) {
+                const history = checkpointManager.getCheckpointHistoryForWorkspace();
+                if (history.length === 0) {
+                    vscode.window.showInformationMessage(t('checkpoint.noCheckpoints'));
+                    return;
+                }
+                const selected = await vscode.window.showQuickPick(
+                    [...history]
+                        .sort((a, b) => b.created.getTime() - a.created.getTime())
+                        .map((checkpoint) => ({
+                            label: checkpoint.label || checkpoint.description || checkpoint.id,
+                            description: checkpoint.created.toLocaleString(),
+                            detail: checkpoint.id,
+                            checkpoint,
+                        })),
+                    { placeHolder: t('checkpoint.patch.pickCheckpoint') },
+                );
+                if (!selected) {
+                    return;
+                }
+                targetCheckpointId = selected.checkpoint.id;
+            }
+            const exported = await checkpointManager.exportPatch(targetCheckpointId);
+            if (!exported.success || !exported.patch) {
+                vscode.window.showErrorMessage(t('checkpoint.patch.failed', { error: exported.message || 'unknown error' }));
+                return exported;
+            }
+            const uri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(`knox-checkpoint-${targetCheckpointId.slice(0, 12)}.patch`),
+                filters: {
+                    [t('checkpoint.patch.filter')]: ['patch', 'diff'],
+                    [t('checkpoint.graph.allFilesFilter')]: ['*'],
+                },
+            });
+            if (!uri) {
+                return exported;
+            }
+            await vscode.workspace.fs.writeFile(uri, Buffer.from(exported.patch, 'utf8'));
+            vscode.window.showInformationMessage(t('checkpoint.patch.exported', { id: targetCheckpointId.slice(0, 11) }));
+            return { ...exported, path: uri.fsPath };
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.patch.failed', { error }));
+            return undefined;
+        }
+    });
+
+    registerCanonicalCommand(context, CheckpointCommand.applyPatch, async (arg?: unknown) => {
+        try {
+            let patchText = typeof arg === 'string' && arg.includes('diff --git') ? arg : '';
+            if (!patchText) {
+                const uri = await vscode.window.showOpenDialog({
+                    canSelectMany: false,
+                    filters: {
+                        [t('checkpoint.patch.filter')]: ['patch', 'diff'],
+                        [t('checkpoint.graph.allFilesFilter')]: ['*'],
+                    },
+                    openLabel: t('checkpoint.patch.pickFile'),
+                });
+                if (!uri?.[0]) {
+                    return;
+                }
+                patchText = Buffer.from(await vscode.workspace.fs.readFile(uri[0])).toString('utf8');
+            }
+            const result = await checkpointManager.applyPatch(patchText);
+            if (result.conflicts.length > 0) {
+                vscode.window.showErrorMessage(t('checkpoint.patch.conflicts', {
+                    paths: result.conflicts.map((conflict) => conflict.path).join(', '),
+                }));
+                return result;
+            }
+            if (!result.success) {
+                vscode.window.showErrorMessage(t('checkpoint.patch.failed', { error: result.message || 'unknown error' }));
+                return result;
+            }
+            vscode.window.showInformationMessage(t('checkpoint.patch.applied', { id: (result.checkpointId ?? '').slice(0, 11) }));
+            CheckpointGraphView.notifyHistoryChanged();
+            return result;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.patch.failed', { error }));
+            return undefined;
+        }
+    });
+
+    registerCanonicalCommand(context, CheckpointCommand.mergeAbort, async () => {
+        try {
+            const result = await checkpointManager.mergeAbort();
+            if (!result.success) {
+                vscode.window.showErrorMessage(t('checkpoint.merge.abortFailed', { error: result.message || 'unknown error' }));
+                return result;
+            }
+            vscode.window.showInformationMessage(t('checkpoint.merge.aborted'));
+            return result;
+        } catch (error) {
+            vscode.window.showErrorMessage(t('checkpoint.merge.abortFailed', { error }));
+            return undefined;
+        }
+    });
+
     registerCanonicalCommand(context, CheckpointCommand.fileHistory, async (arg?: unknown) => {
         try {
             await showFileCheckpointHistory(arg);
@@ -353,6 +895,7 @@ export function registerCheckpointCommands(context: vscode.ExtensionContext): vo
     
     // Register inline diff decorator commands (show/hide diff in editor)
     registerInlineDiffCommands(context);
+    registerBlameCommands(context);
     
     console.log('📋 Checkpoint commands registered');
 }

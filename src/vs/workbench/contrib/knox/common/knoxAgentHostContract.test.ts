@@ -827,6 +827,9 @@ suite('Knox agent host contract (KN-375)', () => {
 		assert.ok(protocol.includes("'suggestCheckpointGroups'"));
 		assert.ok(protocol.includes("'createCheckpointBranch'"));
 		assert.ok(protocol.includes("'switchCheckpointBranch'"));
+		assert.ok(protocol.includes("'checkoutCheckpoint'"));
+		assert.ok(protocol.includes("'cherryPickCheckpoint'"));
+		assert.ok(protocol.includes("'revertCheckpoint'"));
 		assert.ok(controller.includes('KN-375'));
 		assert.ok(controller.includes('historyDays: CHECKPOINT_DASHBOARD_HISTORY_DAYS'));
 		assert.ok(controller.includes("request('previewRestore'"));
@@ -834,6 +837,9 @@ suite('Knox agent host contract (KN-375)', () => {
 		assert.ok(controller.includes("request('suggestCheckpointGroups'"));
 		assert.ok(controller.includes("request<Record<string, unknown>>('createCheckpointBranch'"));
 		assert.ok(controller.includes("request('switchCheckpointBranch'"));
+		assert.ok(controller.includes("request('checkoutCheckpoint'"));
+		assert.ok(controller.includes("request('cherryPickCheckpoint'"));
+		assert.ok(controller.includes("request('revertCheckpoint'"));
 		assert.ok(widget.includes('KN-375'));
 		assert.ok(widget.includes('pierre-diff-container'));
 		assert.ok(widget.includes('knox-gui-diff-word-alt'));
@@ -841,12 +847,18 @@ suite('Knox agent host contract (KN-375)', () => {
 		assert.ok(widget.includes('knox-gui-checkpoint-analysis'));
 		assert.ok(graph.includes('createCheckpointBranch'));
 		assert.ok(graph.includes('switchCheckpointBranch'));
+		assert.ok(graph.includes('checkoutCheckpoint'));
+		assert.ok(graph.includes('cherryPickCheckpoint'));
+		assert.ok(graph.includes('revertCheckpointNode'));
 		assert.ok(graph.includes('mergeCheckpointBranches'));
 		assert.ok(hostMessenger.includes('"previewRestore"'));
 		assert.ok(hostMessenger.includes('"getPerformanceDashboard"'));
 		assert.ok(hostMessenger.includes('"analyzeCheckpoint"'));
 		assert.ok(hostMessenger.includes('"suggestCheckpointGroups"'));
 		assert.ok(hostMessenger.includes('"createCheckpointBranch"'));
+		assert.ok(hostMessenger.includes('"checkoutCheckpoint"'));
+		assert.ok(hostMessenger.includes('"cherryPickCheckpoint"'));
+		assert.ok(hostMessenger.includes('"revertCheckpoint"'));
 		assert.ok(hostManager.includes('previewRestore'));
 		assert.ok(hostManager.includes('getPerformanceDashboard'));
 		assert.ok(hostManager.includes('analyzeCheckpoint'));

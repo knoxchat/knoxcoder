@@ -19,6 +19,7 @@ import {
 } from '../store/blobStore';
 import { BlobEncryptionError } from '../store/blobEncryption';
 import { collectPinnedBlobHashes } from '../store/blobPins';
+import { collectStashBlobHashes } from '../store/stashIndex';
 import { STORE_LOCK_DIRNAME, withStoreLock } from '../store/storeLock';
 import {
     CHECKPOINT_SCHEMA_VERSION,
@@ -41,6 +42,7 @@ import {
     type CheckpointBranch,
     type CheckpointHealthIssue,
     type CheckpointInfo,
+    type DetachedCheckoutState,
     type FileSnapshot,
     type MessageCheckpointMap,
 } from './types';
@@ -140,12 +142,30 @@ function indexLooksFat(history: any[] | undefined): boolean {
     );
 }
 
+function parseDetachedFrom(raw: unknown): DetachedCheckoutState | undefined {
+    if (!raw || typeof raw !== 'object') {
+        return undefined;
+    }
+    const checkpointId = (raw as { checkpointId?: unknown }).checkpointId;
+    if (typeof checkpointId !== 'string' || !checkpointId.trim()) {
+        return undefined;
+    }
+    const previousBranchId = (raw as { previousBranchId?: unknown }).previousBranchId;
+    return {
+        checkpointId: checkpointId.trim(),
+        ...(typeof previousBranchId === 'string' && previousBranchId.trim()
+            ? { previousBranchId: previousBranchId.trim() }
+            : {}),
+    };
+}
+
 function parseIndexPayload(raw: string): {
     messageCheckpoints: MessageCheckpointMap;
     stableIdCheckpoints: { [stableId: string]: string };
     checkpointHistory: CheckpointInfo[];
     branches: CheckpointBranch[];
     activeBranchId?: string;
+    detachedFrom?: DetachedCheckoutState;
     indexVersion?: number;
     fat: boolean;
 } {
@@ -163,6 +183,7 @@ function parseIndexPayload(raw: string): {
         })),
         branches: parseBranches(stored.branches),
         activeBranchId,
+        detachedFrom: parseDetachedFrom(stored.detachedFrom),
         indexVersion: stored.indexVersion,
         fat: indexLooksFat(history) || stored.indexVersion !== CHECKPOINT_INDEX_VERSION,
     };
@@ -185,9 +206,10 @@ export async function rebuildSnapshotHashIndexFromDisk(host: CheckpointEngineHos
     const chronological = [...host.checkpointHistory].sort(
         (a, b) => a.created.getTime() - b.created.getTime(),
     );
-    const headId = host.activeBranchId
-        ? host.branches.find((branch) => branch.id === host.activeBranchId)?.headCheckpointId
-        : chronological[chronological.length - 1]?.id;
+    const headId = host.detachedFrom?.checkpointId
+        ?? (host.activeBranchId
+            ? host.branches.find((branch) => branch.id === host.activeBranchId)?.headCheckpointId
+            : chronological[chronological.length - 1]?.id);
     const chain = headId
         ? (lineageCheckpoints(chronological, headId) ?? chronological)
         : chronological;
@@ -271,6 +293,8 @@ function serializeSnapshotForDisk(snapshot: FileSnapshot) {
         size: snapshot.size,
         deleted: snapshot.deleted,
         changeType: snapshot.changeType,
+        ...(snapshot.renamedFrom ? { renamedFrom: snapshot.renamedFrom } : {}),
+        ...(snapshot.copiedFrom ? { copiedFrom: snapshot.copiedFrom } : {}),
         // Schema 1 fallback: keep inlined content only when no blob hash exists.
         ...(snapshot.hash ? {} : snapshot.content != null ? { content: snapshot.content } : {}),
     };
@@ -335,6 +359,11 @@ export async function collectReferencedBlobHashes(host: CheckpointEngineHost): P
     // Blobs pinned by other subsystems (recipes, MC-12). Rejects on provider
     // failure so GC aborts rather than freeing something still wanted.
     for (const hash of await collectPinnedBlobHashes()) {
+        hashes.add(hash);
+    }
+
+    // CP-38: parked working trees are not checkpoints; keep their blobs.
+    for (const hash of await collectStashBlobHashes(storagePath)) {
         hashes.add(hash);
     }
 
@@ -547,6 +576,7 @@ export async function rebuildHistoryFromManifests(host: CheckpointEngineHost): P
     host.stableIdCheckpoints = {};
     host.branches = synthesizeBranchesFromHistory(loaded);
     host.activeBranchId = defaultBranch(host.branches)?.id;
+    host.detachedFrom = undefined;
     host.lastSnapshotHashes.clear();
     for (const checkpoint of loaded) {
         if (checkpoint.messageId) {
@@ -608,6 +638,7 @@ export async function mergeForeignIndexEntries(host: CheckpointEngineHost): Prom
         const branchIds = new Set((host.branches ?? []).map((branch) => branch.id));
         host.branches = [...(host.branches ?? []), ...stored.branches.filter((branch) => !branchIds.has(branch.id))];
         host.activeBranchId ??= stored.activeBranchId;
+        host.detachedFrom ??= stored.detachedFrom;
         host.checkpointHistory.sort((a, b) => a.created.getTime() - b.created.getTime());
         log.info(`🔀 Merged ${added} checkpoint(s) created by another window into the index`);
     }
@@ -635,6 +666,7 @@ async function saveCheckpointHistoryUnlocked(host: CheckpointEngineHost): Promis
             checkpointHistory: host.checkpointHistory.map(serializeIndexRecord),
             branches: (host.branches ?? []).map(serializeBranch),
             activeBranchId: host.activeBranchId,
+            detachedFrom: host.detachedFrom,
             lastUpdated: new Date().toISOString(),
         };
         const serialized = JSON.stringify(payload, null, 2);
@@ -666,6 +698,7 @@ function applyLoadedIndex(
         checkpointHistory: CheckpointInfo[];
         branches?: CheckpointBranch[];
         activeBranchId?: string;
+        detachedFrom?: DetachedCheckoutState;
     },
 ): void {
     host.messageCheckpoints = stored.messageCheckpoints;
@@ -676,6 +709,7 @@ function applyLoadedIndex(
         && host.branches.some((branch) => branch.id === stored.activeBranchId)
         ? stored.activeBranchId
         : host.branches[0]?.id;
+    host.detachedFrom = stored.detachedFrom;
 }
 
 export async function loadIndexFromCurrentStore(host: CheckpointEngineHost): Promise<boolean> {

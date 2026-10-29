@@ -4,6 +4,7 @@ import {
     CHANGED_PATHS_INDEX_LIMIT,
     CHECKPOINT_LIST_PAGE_SIZE,
     changedPathsFromSnapshots,
+    renamedFromByPath,
     checkpointMatchesQuery,
     checkpointMatchesSession,
     isListableCheckpoint,
@@ -27,6 +28,20 @@ suite('checkpoint list query (CP-32)', () => {
             })),
         );
         assert.strictEqual(many.length, CHANGED_PATHS_INDEX_LIMIT);
+
+        const renamed = changedPathsFromSnapshots([
+            { relativePath: 'a.ts', deleted: true, changeType: 'deleted' },
+            { relativePath: 'b.ts', renamedFrom: 'a.ts' },
+        ]);
+        assert.deepStrictEqual(renamed, ['b.ts']);
+    });
+
+    test('renamedFromByPath maps dest to source', () => {
+        assert.deepStrictEqual(renamedFromByPath([
+            { relativePath: 'b.ts', renamedFrom: 'a.ts' },
+            { relativePath: 'c.ts' },
+            { relativePath: 'same.ts', renamedFrom: 'same.ts' },
+        ]), { 'b.ts': 'a.ts' });
     });
 
     test('matches description, id, tag, path, and session', () => {

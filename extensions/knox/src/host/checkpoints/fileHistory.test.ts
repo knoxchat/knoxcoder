@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 
 import { CheckpointManager } from './CheckpointManager';
 import { uriFromFileHistoryArg } from './fileHistoryCommands';
-import { uniqueFileVersionsFromSnapshots } from './manager/fileHistory';
+import { uniqueFileVersionsFollowingRenames, uniqueFileVersionsFromSnapshots } from './manager/fileHistory';
 import type { FileSnapshot } from './manager/types';
 
 function snap(relativePath: string, hash: string, extra?: Partial<FileSnapshot>): FileSnapshot {
@@ -174,6 +174,33 @@ suite('Per-file checkpoint history (CP-19)', () => {
         assert.strictEqual(versions[1].deleted, true);
         assert.strictEqual(versions[2].deleted, false);
         assert.strictEqual(versions[2].hash, 'hash-a1');
+    });
+
+    test('follow includes the old path after a recorded rename', () => {
+        const versions = uniqueFileVersionsFollowingRenames(
+            [
+                {
+                    info: info('cp1', 'created', '2026-01-01T00:00:00.000Z'),
+                    snapshots: [snap('a.ts', 'hash-a1')],
+                },
+                {
+                    info: info('cp2', 'renamed', '2026-01-02T00:00:00.000Z'),
+                    snapshots: [
+                        snap('a.ts', 'hash-a1', { deleted: true, changeType: 'deleted' }),
+                        snap('b.ts', 'hash-a1', { changeType: 'created', renamedFrom: 'a.ts' }),
+                    ],
+                },
+                {
+                    info: info('cp3', 'edited', '2026-01-03T00:00:00.000Z'),
+                    snapshots: [snap('b.ts', 'hash-a2')],
+                },
+            ],
+            'b.ts',
+        );
+        assert.deepStrictEqual(
+            versions.map((version) => [version.checkpointId, version.relativePath, version.hash]),
+            [['cp1', 'a.ts', 'hash-a1'], ['cp3', 'b.ts', 'hash-a2']],
+        );
     });
 
     test('uriFromFileHistoryArg reads explorer URIs and falls back to the active editor', () => {

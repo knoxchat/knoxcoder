@@ -1760,6 +1760,9 @@ suite('Knox native GUI controller (GP-084)', () => {
 				},
 				createCheckpointBranch: { success: true, id: 'br-feat', branch: { id: 'br-feat' } },
 				switchCheckpointBranch: { success: true },
+				checkoutCheckpoint: { success: true, detached: true },
+				cherryPickCheckpoint: { success: true, conflicts: [] },
+				revertCheckpoint: { success: true, conflicts: [] },
 			},
 		});
 		await timeout(0);
@@ -1814,6 +1817,15 @@ suite('Knox native GUI controller (GP-084)', () => {
 
 		await controller.switchCheckpointBranch('br-feat');
 		assert.ok(posted.some(message => message.messageType === 'switchCheckpointBranch' && (message.data as { branchId?: string }).branchId === 'br-feat'));
+
+		await controller.checkoutCheckpoint('cp-1');
+		assert.ok(posted.some(message => message.messageType === 'checkoutCheckpoint' && (message.data as { checkpointId?: string }).checkpointId === 'cp-1'));
+
+		await controller.cherryPickCheckpoint('cp-1');
+		assert.ok(posted.some(message => message.messageType === 'cherryPickCheckpoint' && (message.data as { checkpointId?: string }).checkpointId === 'cp-1'));
+
+		await controller.revertCheckpointNode('cp-1');
+		assert.ok(posted.some(message => message.messageType === 'revertCheckpoint' && (message.data as { checkpointId?: string }).checkpointId === 'cp-1'));
 	});
 
 	test('Restore extras stay optional and a failed restore stays visible', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

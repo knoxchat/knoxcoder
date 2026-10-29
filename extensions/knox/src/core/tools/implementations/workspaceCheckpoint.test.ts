@@ -361,4 +361,329 @@ describe("workspaceCheckpointImpl", () => {
     expect(result[0].description).toBe("unavailable");
     expect(result[0].content).toContain("VS Code host");
   });
+
+  it("stashes dirty files through the IDE hook", async () => {
+    const stash = vi.fn(async () => ({
+      success: true,
+      empty: false,
+      stashId: "st_1",
+      fileCount: 2,
+    }));
+    const result = await workspaceCheckpointImpl(
+      { action: "stash", label: "wip" },
+      extras({ stashWorkspaceCheckpoint: stash }),
+    );
+    expect(stash).toHaveBeenCalledWith({ message: "wip" });
+    expect(result[0].description).toBe("stashed");
+    expect(result[0].content).toContain("st_1");
+  });
+
+  it("lists stashes from the IDE hook", async () => {
+    const result = await workspaceCheckpointImpl(
+      { action: "stash_list" },
+      extras({
+        listWorkspaceStashes: async () => [
+          {
+            id: "st_1",
+            message: "wip",
+            created: "2026-10-29T00:00:00.000Z",
+            fileCount: 2,
+          },
+        ],
+      }),
+    );
+    expect(result[0].content).toContain("st_1");
+    expect(result[0].content).toContain("note=wip");
+    expect(result[0].content).toContain("files=2");
+  });
+
+  it("pops a stash through the IDE hook", async () => {
+    const pop = vi.fn(async () => ({
+      success: true,
+      stashId: "st_1",
+      restoredFiles: ["a.ts"],
+      removedFiles: [],
+      conflicts: [],
+    }));
+    const result = await workspaceCheckpointImpl(
+      { action: "stash_pop", stash_id: "st_1" },
+      extras({ popWorkspaceStash: pop }),
+    );
+    expect(pop).toHaveBeenCalledWith({ stashId: "st_1" });
+    expect(result[0].description).toBe("popped");
+    expect(result[0].content).toContain("st_1");
+  });
+
+  it("reports stash conflicts without claiming a pop", async () => {
+    const result = await workspaceCheckpointImpl(
+      { action: "stash_pop" },
+      extras({
+        popWorkspaceStash: async () => ({
+          success: false,
+          stashId: "st_1",
+          restoredFiles: [],
+          removedFiles: [],
+          conflicts: [{ path: "a.ts" }],
+        }),
+      }),
+    );
+    expect(result[0].description).toBe("conflicts");
+    expect(result[0].content).toContain("a.ts");
+    expect(result[0].content).toContain("unchanged");
+  });
+
+  it("switches a checkpoint branch through the IDE hook", async () => {
+    const switchBranch = vi.fn(async () => ({
+      success: true,
+      branchId: "br_1",
+      headCheckpointId: "cp-2",
+      stashed: true,
+      stashId: "st_1",
+    }));
+    const result = await workspaceCheckpointImpl(
+      { action: "switch_branch", name: "feature" },
+      extras({ switchWorkspaceCheckpointBranch: switchBranch }),
+    );
+    expect(switchBranch).toHaveBeenCalledWith({ name: "feature", branchId: undefined });
+    expect(result[0].description).toBe("switched");
+    expect(result[0].content).toContain("br_1");
+    expect(result[0].content).toContain("st_1");
+  });
+
+  it("checks out a checkpoint through the IDE hook", async () => {
+    const checkout = vi.fn(async () => ({
+      success: true,
+      checkpointId: "cp-mid",
+      detached: true,
+    }));
+    const result = await workspaceCheckpointImpl(
+      { action: "checkout", checkpoint_id: "cp-mid" },
+      extras({ checkoutWorkspaceCheckpoint: checkout }),
+    );
+    expect(checkout).toHaveBeenCalledWith({ checkpointId: "cp-mid" });
+    expect(result[0].description).toBe("detached");
+    expect(result[0].content).toContain("cp-mid");
+  });
+
+  it("cherry-picks a checkpoint through the IDE hook", async () => {
+    const cherryPick = vi.fn(async () => ({
+      success: true,
+      checkpointId: "cp-new",
+      restoredFiles: ["a.ts"],
+      removedFiles: [],
+      conflicts: [],
+    }));
+    const result = await workspaceCheckpointImpl(
+      { action: "cherry_pick", checkpoint_id: "cp-feat" },
+      extras({ cherryPickWorkspaceCheckpoint: cherryPick }),
+    );
+    expect(cherryPick).toHaveBeenCalledWith({ checkpointId: "cp-feat" });
+    expect(result[0].description).toBe("cherry-picked");
+    expect(result[0].content).toContain("cp-new");
+  });
+
+  it("reverts a checkpoint through the IDE hook", async () => {
+    const revert = vi.fn(async () => ({
+      success: true,
+      checkpointId: "cp-revert",
+      restoredFiles: ["a.ts"],
+      removedFiles: [],
+      conflicts: [],
+    }));
+    const result = await workspaceCheckpointImpl(
+      { action: "revert", checkpoint_id: "cp-b" },
+      extras({ revertWorkspaceCheckpoint: revert }),
+    );
+    expect(revert).toHaveBeenCalledWith({ checkpointId: "cp-b" });
+    expect(result[0].description).toBe("reverted");
+    expect(result[0].content).toContain("cp-revert");
+    expect(result[0].content).toContain("still in history");
+  });
+
+  it("reports cherry-pick conflicts without claiming a write", async () => {
+    const result = await workspaceCheckpointImpl(
+      { action: "cherry_pick", checkpoint_id: "cp-feat" },
+      extras({
+        cherryPickWorkspaceCheckpoint: async () => ({
+          success: false,
+          restoredFiles: [],
+          removedFiles: [],
+          conflicts: [{ path: "a.ts" }],
+        }),
+      }),
+    );
+    expect(result[0].description).toBe("conflicts");
+    expect(result[0].content).toContain("a.ts");
+    expect(result[0].content).toContain("continue");
+  });
+
+  it("continues an in-progress merge through the IDE hook", async () => {
+    const mergeContinue = vi.fn(async () => ({
+      success: true,
+      checkpointId: "cp-merged",
+      conflicts: [],
+    }));
+    const result = await workspaceCheckpointImpl(
+      { action: "merge_continue" },
+      extras({ continueWorkspaceCheckpointMerge: mergeContinue }),
+    );
+    expect(mergeContinue).toHaveBeenCalled();
+    expect(result[0].description).toBe("continued");
+    expect(result[0].content).toContain("cp-merged");
+  });
+
+  it("aborts an in-progress merge through the IDE hook", async () => {
+    const mergeAbort = vi.fn(async () => ({ success: true }));
+    const result = await workspaceCheckpointImpl(
+      { action: "merge_abort" },
+      extras({ abortWorkspaceCheckpointMerge: mergeAbort }),
+    );
+    expect(mergeAbort).toHaveBeenCalled();
+    expect(result[0].description).toBe("aborted");
+    expect(result[0].content).toContain("pre-merge");
+  });
+
+  it("never claims switch_branch on a headless IDE", async () => {
+    const result = await workspaceCheckpointImpl(
+      { action: "switch_branch", name: "feature" },
+      extras({}),
+    );
+    expect(result[0].description).toBe("unavailable");
+  });
+
+  it("materializes a worktree through the IDE hook", async () => {
+    const materialize = vi.fn(async () => ({
+      success: true,
+      worktreeId: "wt_1",
+      path: "/tmp/wt",
+      fileCount: 2,
+    }));
+    const result = await workspaceCheckpointImpl(
+      { action: "materialize_worktree", checkpoint_id: "cp-1" },
+      extras({ materializeWorkspaceCheckpointWorktree: materialize }),
+    );
+    expect(materialize).toHaveBeenCalledWith({ checkpointId: "cp-1" });
+    expect(result[0].content).toContain("wt_1");
+    expect(result[0].content).toContain("/tmp/wt");
+  });
+
+  it("blames a file through the IDE hook", async () => {
+    const blame = vi.fn(async () => ({
+      relativePath: "a.ts",
+      ranges: [
+        { startLine: 1, endLine: 2, checkpointId: "cp-a", description: "first" },
+        { startLine: 3, endLine: 3, checkpointId: "cp-b", description: "second" },
+      ],
+    }));
+    const result = await workspaceCheckpointImpl(
+      { action: "blame", path: "a.ts" },
+      extras({ blameWorkspaceCheckpoint: blame }),
+    );
+    expect(blame).toHaveBeenCalledWith({ path: "a.ts", atCheckpointId: undefined });
+    expect(result[0].content).toContain("1-2  cp-a");
+    expect(result[0].content).toContain("3  cp-b");
+  });
+
+  it("exports a readonly patch", async () => {
+    const exportPatch = vi.fn(async () => ({
+      success: true,
+      patch: "From cp-1\nSubject: add\nX-Knox-Checkpoint: cp-1\n\ndiff --git a/a.ts b/a.ts\n",
+      checkpointId: "cp-1",
+      fileCount: 1,
+    }));
+    const result = await workspaceCheckpointImpl(
+      { action: "export_patch", checkpoint_id: "cp-1" },
+      extras({ exportWorkspaceCheckpointPatch: exportPatch }),
+    );
+    expect(exportPatch).toHaveBeenCalledWith({ checkpointId: "cp-1" });
+    expect(result[0].content).toContain("X-Knox-Checkpoint: cp-1");
+    expect(result[0].content).toContain("No files written");
+  });
+
+  it("applies a patch through the IDE hook", async () => {
+    const applyPatch = vi.fn(async () => ({
+      success: true,
+      checkpointId: "cp-new",
+      restoredFiles: ["a.ts"],
+      removedFiles: [],
+      conflicts: [],
+    }));
+    const result = await workspaceCheckpointImpl(
+      { action: "apply_patch", patch: "diff --git a/a.ts b/a.ts\n" },
+      extras({ applyWorkspaceCheckpointPatch: applyPatch }),
+    );
+    expect(applyPatch).toHaveBeenCalledWith({ patch: "diff --git a/a.ts b/a.ts\n" });
+    expect(result[0].description).toBe("applied");
+    expect(result[0].content).toContain("cp-new");
+  });
+
+  it("reports patch conflicts without claiming a write", async () => {
+    const result = await workspaceCheckpointImpl(
+      { action: "apply_patch", patch: "diff --git a/a.ts b/a.ts\n" },
+      extras({
+        applyWorkspaceCheckpointPatch: async () => ({
+          success: false,
+          restoredFiles: [],
+          removedFiles: [],
+          conflicts: [{ path: "a.ts" }],
+        }),
+      }),
+    );
+    expect(result[0].description).toBe("conflicts");
+    expect(result[0].content).toContain("unchanged");
+    expect(result[0].content).toContain("a.ts");
+  });
+
+  it("lists file history following renames", async () => {
+    const history = vi.fn(async () => [
+      {
+        checkpointId: "cp-1",
+        description: "created a.ts",
+        created: "2026-10-29T00:00:00.000Z",
+        relativePath: "a.ts",
+        hash: "aa".repeat(32),
+        deleted: false,
+      },
+      {
+        checkpointId: "cp-2",
+        description: "renamed",
+        created: "2026-10-29T01:00:00.000Z",
+        relativePath: "b.ts",
+        hash: "bb".repeat(32),
+        deleted: false,
+      },
+    ]);
+    const result = await workspaceCheckpointImpl(
+      { action: "file_history", path: "b.ts" },
+      extras({ listWorkspaceCheckpointFileHistory: history }),
+    );
+    expect(history).toHaveBeenCalledWith({ path: "b.ts", follow: true });
+    expect(result[0].content).toContain("No files written");
+    expect(result[0].content).toContain("was=a.ts");
+    expect(result[0].content).toContain("cp-1");
+  });
+
+  it("formats renamed diffs with the old path", async () => {
+    const result = await workspaceCheckpointImpl(
+      { action: "diff", checkpoint_id: "cp-1" },
+      extras({
+        diffWorkspaceCheckpoint: async () => ({
+          oldCheckpoint: { id: "cp-0", description: "old", created: "2026-10-29T00:00:00.000Z" },
+          newCheckpoint: { id: "cp-1", description: "new", created: "2026-10-29T01:00:00.000Z" },
+          files: [
+            {
+              relativePath: "b.ts",
+              status: "renamed" as const,
+              oldPath: "a.ts",
+              additions: 0,
+              deletions: 0,
+              hunkCount: 1,
+            },
+          ],
+        }),
+      }),
+    );
+    expect(result[0].content).toContain("b.ts ← a.ts");
+    expect(result[0].content).toContain("renamed");
+  });
 });
