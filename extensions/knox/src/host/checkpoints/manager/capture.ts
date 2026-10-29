@@ -19,6 +19,7 @@ import {
     isExactIncludePath,
     normalizeCapturePath,
     shouldCaptureRelativePath,
+    toPosixRelative,
     type CaptureFilter,
 } from './pathFilter';
 import type { CaptureMode, CaptureResult, FileSnapshot, SkippedFile } from './types';
@@ -59,12 +60,13 @@ export function rebuildSnapshotHashIndex(host: CheckpointEngineHost): void {
 
     for (const checkpoint of chronological) {
         for (const snapshot of checkpoint.fileSnapshots || []) {
+            const relativePath = toPosixRelative(snapshot.relativePath);
             if (snapshot.deleted || snapshot.changeType === 'deleted') {
-                host.lastSnapshotHashes.delete(snapshot.relativePath);
+                host.lastSnapshotHashes.delete(relativePath);
             } else {
                 const digest = snapshotContentHash(snapshot);
                 if (digest) {
-                    host.lastSnapshotHashes.set(snapshot.relativePath, digest);
+                    host.lastSnapshotHashes.set(relativePath, digest);
                 }
             }
         }
@@ -75,12 +77,13 @@ export function rebuildSnapshotHashIndex(host: CheckpointEngineHost): void {
 
 export function applySnapshotHashes(host: CheckpointEngineHost, fileSnapshots: FileSnapshot[]): void {
     for (const snapshot of fileSnapshots) {
+        const relativePath = toPosixRelative(snapshot.relativePath);
         if (snapshot.deleted || snapshot.changeType === 'deleted') {
-            host.lastSnapshotHashes.delete(snapshot.relativePath);
+            host.lastSnapshotHashes.delete(relativePath);
         } else {
             const digest = snapshotContentHash(snapshot);
             if (digest) {
-                host.lastSnapshotHashes.set(snapshot.relativePath, digest);
+                host.lastSnapshotHashes.set(relativePath, digest);
             }
         }
     }
@@ -199,11 +202,12 @@ export async function trySnapshotFile(
     options: { skipUnchanged: boolean },
 ): Promise<{ snapshot?: FileSnapshot; skipped?: SkippedFile }> {
     const fsPromises = fs.promises;
+    const posixPath = toPosixRelative(relativePath);
     try {
         const stats = await fsPromises.stat(fullPath);
         if (stats.size > host.maxFileSize) {
-            log.debug(`Skipping large file: ${relativePath} (${stats.size} bytes, limit: ${host.maxFileSize})`);
-            return { skipped: { path: relativePath, reason: 'too_large' } };
+            log.debug(`Skipping large file: ${posixPath} (${stats.size} bytes, limit: ${host.maxFileSize})`);
+            return { skipped: { path: posixPath, reason: 'too_large' } };
         }
         if (!shouldTrackFile(fullPath, classificationOptionsFrom(host))) {
             return {};
@@ -211,17 +215,17 @@ export async function trySnapshotFile(
         const buffer = await fsPromises.readFile(fullPath);
         const classified = classifyFileBuffer(fullPath, buffer, classificationOptionsFrom(host));
         if (!classified) {
-            return { skipped: { path: relativePath, reason: 'binary_disabled' } };
+            return { skipped: { path: posixPath, reason: 'binary_disabled' } };
         }
         const contentHash = hashBlobBytes(buffer);
-        if (options.skipUnchanged && host.lastSnapshotHashes.get(relativePath) === contentHash) {
+        if (options.skipUnchanged && host.lastSnapshotHashes.get(posixPath) === contentHash) {
             return {};
         }
         await putBlob(host.getStoragePath(), buffer, await writeBlobOptions(host));
-        const changeType = host.lastSnapshotHashes.has(relativePath) ? 'modified' : 'created';
+        const changeType = host.lastSnapshotHashes.has(posixPath) ? 'modified' : 'created';
         return {
             snapshot: {
-                relativePath,
+                relativePath: posixPath,
                 content: classified.content,
                 hash: contentHash,
                 encoding: classified.encoding,
@@ -231,8 +235,8 @@ export async function trySnapshotFile(
             },
         };
     } catch (error) {
-        log.debug(`Skipping file ${relativePath}:`, error instanceof Error ? error.message : String(error));
-        return { skipped: { path: relativePath, reason: 'unreadable' } };
+        log.debug(`Skipping file ${posixPath}:`, error instanceof Error ? error.message : String(error));
+        return { skipped: { path: posixPath, reason: 'unreadable' } };
     }
 }
 
@@ -566,7 +570,7 @@ export async function captureChangedFiles(
             const fullPath = path.isAbsolute(filePath)
                 ? filePath
                 : path.join(host.currentWorkspacePath!, filePath);
-            const relativePath = path.relative(host.currentWorkspacePath!, fullPath);
+            const relativePath = toPosixRelative(path.relative(host.currentWorkspacePath!, fullPath));
             const resolved = resolveWorkspaceRelativePath(host, relativePath);
             if (!resolved.ok) {
                 return { skipped: { path: relativePath, reason: 'unsafe_path' as const } };
@@ -592,7 +596,7 @@ export async function captureChangedFiles(
         }
 
         for (const fullPath of Array.from(host.recentlyDeletedFiles)) {
-            const relativePath = path.relative(host.currentWorkspacePath, fullPath);
+            const relativePath = toPosixRelative(path.relative(host.currentWorkspacePath, fullPath));
             const resolved = resolveWorkspaceRelativePath(host, relativePath);
             if (!resolved.ok) {
                 continue;

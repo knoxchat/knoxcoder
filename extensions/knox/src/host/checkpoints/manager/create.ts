@@ -1,5 +1,3 @@
-import * as path from 'path';
-
 import { createKnoxLogger } from 'core/util/knoxLog';
 
 import { generateCheckpointId } from '../checkpointId';
@@ -7,7 +5,7 @@ import { bindCheckpointToActiveLine } from './branches';
 import { applySnapshotHashes, captureWorkspaceState } from './capture';
 import { annotateCaptureSnapshots } from './renameDetect';
 import type { CheckpointEngineHost } from './host';
-import { captureFilterIsActive, type CaptureFilter } from './pathFilter';
+import { captureFilterIsActive, normalizeCapturePath, type CaptureFilter } from './pathFilter';
 import {
     initializeStorageDirectories,
     saveCheckpointToDisk,
@@ -58,10 +56,10 @@ function buildCaptureFilter(
     if (options?.applyTrackedAIFiles && host.trackedAIFiles.size > 0 && host.currentWorkspacePath) {
         include.push(...host.trackedAIFiles);
         for (const absPath of host.recentlyModifiedFiles) {
-            include.push(path.relative(host.currentWorkspacePath, absPath));
+            include.push(normalizeCapturePath(host.currentWorkspacePath, absPath));
         }
         for (const absPath of host.recentlyDeletedFiles) {
-            include.push(path.relative(host.currentWorkspacePath, absPath));
+            include.push(normalizeCapturePath(host.currentWorkspacePath, absPath));
         }
     }
 

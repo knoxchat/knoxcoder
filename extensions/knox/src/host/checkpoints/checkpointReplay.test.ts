@@ -58,6 +58,31 @@ suite("checkpointReplay", () => {
     });
   });
 
+  test("normalizes Windows snapshot paths to posix keys", () => {
+    const state = replaySnapshotsToState([
+      {
+        fileSnapshots: [
+          {
+            relativePath: "src\\b.ts",
+            content: "world\n",
+            encoding: "utf8",
+            changeType: "created",
+          },
+        ],
+      },
+    ]);
+
+    assert.strictEqual(state.get("src/b.ts")?.content, "world\n");
+    assert.strictEqual(state.has("src\\b.ts"), false);
+
+    const folded = foldSnapshotsIntoSuccessor(
+      [{ relativePath: "src\\b.ts", content: "old", encoding: "utf8" }],
+      [{ relativePath: "src/b.ts", content: "new", encoding: "utf8" }],
+    );
+    assert.strictEqual(folded.length, 1);
+    assert.strictEqual(folded[0]?.content, "new");
+  });
+
   test("defaults missing encoding to utf8", () => {
     const state = replaySnapshotsToState([
       {

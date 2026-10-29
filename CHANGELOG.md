@@ -7,12 +7,24 @@ All notable changes to KnoxCoder are documented in this file.
 
 - **Recipes as reusable procedures (experimental, still off by default).** Verified work can now be a family of variants with slots (component name, path, package), not only a byte-identical snapshot. The Recipes tab is an inspector: search, filter, family grouping, inline preview, rename/pin/notes, and promote to all projects with consent. Chat can `@recipe` attach a procedure. `builtin_recipe` lists, previews, and applies (apply still uses the ask card and the same replayer). Sleep can draft family-slot merges for you to approve; it never auto-merges variants. Health reports (`npm run mc:self-improve`) include recipe counts, capture skips, quarantines, and wrong-reuse. How to use it: [recipes.md](extensions/knox/docs/recipes.md).
 - **`builtin_delete_file`.** Delete one workspace file through the normal tool path (permissions, review mode, turn checkpoint). Directories, parent traversal, and secret files (`.env`, keys, certs) are refused. Recipes can capture and replay deletes this way.
+- **Checkpoint SCM.** Knox Checkpoint can now do the local-SCM jobs that used to stop at labeled snapshots. Still git-independent (no remotes, push/pull, or LFS). Graph, palette, and `builtin_workspace_checkpoint` cover each action; restore-class actions still ask. How to use it: [Checkpoints](extensions/knox/docs/README.md#checkpoints).
+  - **Stash.** Park dirty files on a sidecar stack and restore the current line’s head. Pop three-way-applies; overlap leaves the tree unchanged. Graph shows an “N stashed” chip.
+  - **Checkout.** Switching a branch writes that line’s head. Dirty files auto-stash (`knox.checkpoints.autoStashOnCheckout`, default on) or the switch is refused. Checking out a non-head node is detached (`detachedFrom`).
+  - **Rename and copy.** `mv a.ts b.ts` is one renamed file, not delete+add. Diff shows `renamed` / `copied`; file history follows the old path.
+  - **Cherry-pick.** Apply one turn’s delta onto the current line. Already-present changes are a no-op; conflicts wait for continue/abort.
+  - **Revert.** Undo one turn and keep later work. Restore still rewinds. Merge checkpoints need an explicit `mainline`.
+  - **Merge continue / abort.** Overlapping hashes try a line-level three-way; leftovers get `<<<<<<<` markers. Continue writes the merge (or cherry-pick / revert) node; abort restores the pre-merge tree.
+  - **Blame.** Editor gutter and hover attribute each line to the newest introducing checkpoint (rename-follow). `knox.checkpoints.blame` (default on) annotates when the graph is open. Binary files unsupported.
+  - **Worktrees.** Reconstruct a snapshot under `~/.knoxcoder/worktrees/…` (cap 4). Destinations inside the project are refused.
+  - **Bisect.** Binary-search a known-good / known-bad range in an isolated worktree. `bisect_run` uses exit 0 = good, 1–127 = bad, 125 = skip.
+  - **Portable patches.** Export a turn as a unified diff (`X-Knox-Checkpoint` trailer). Apply uses the cherry-pick three-way and tags the result `patch`. Bundles still clone a full tree.
 
 ### Changed
 
 - **Recipe capture and replay.** Capture records safe terminal commands, language/framework checks, and deletes; it ignores lockfiles/`dist/` noise and still diffs against the turn-start checkpoint when soul history overflows. Replay fills slots from the new message, open editors, and @-mentions, asks when a slot is empty, and can compose two disjoint verified recipes in sequence. Adapt remains previewed; extra files in an adapt patch stay off until you check them.
 - **Recipe matching.** Jaccard plus file/buffer overlap and linked workflow memories. Zero shared tokens still cannot match (no embeddings). A reverted recipe is quarantined. Default reuse stays **off**; Automatic still auto-applies only a byte-identical clean replay.
 - **Recipes tab and chat preview.** Replay listings render as markdown (file list, highlighted commands, unified diffs) instead of a raw dump. Recipe cards have a chevron to expand or collapse the inspector.
+- **Checkpoint branch switch checks out files.** Graph / palette / agent `switch_branch` default to a hard checkout of that line’s head (pointer-only stays available for internal bookkeeping).
 
 ### Fixed
 

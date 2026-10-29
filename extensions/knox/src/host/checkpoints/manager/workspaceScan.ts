@@ -99,10 +99,11 @@ export function isScanPathIgnored(
     host: Pick<WorkspaceScanHost, 'ignoreFilter' | 'ignoreFilterFailed' | 'captureBinaryFiles' | 'extraTrackedExtensions'>,
     isDirectory: boolean,
 ): boolean {
-    const relativePath = path.relative(workspacePath, fullPath);
-    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    const rawRelative = path.relative(workspacePath, fullPath);
+    if (rawRelative.startsWith('..') || path.isAbsolute(rawRelative)) {
         return true;
     }
+    const relativePath = posixRelative(workspacePath, fullPath);
 
     if (!isDirectory) {
         const ext = path.extname(fullPath).toLowerCase().substring(1);
@@ -227,7 +228,7 @@ export async function scanWorkspaceFiles(
                 continue;
             }
 
-            const relativePath = path.relative(workspacePath, fullPath);
+            const relativePath = posixRelative(workspacePath, fullPath);
             try {
                 const fileStats = await fsPromises.stat(fullPath);
                 if (fileStats.size > host.maxFileSize) {

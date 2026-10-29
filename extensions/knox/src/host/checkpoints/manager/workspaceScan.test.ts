@@ -50,9 +50,10 @@ suite('workspaceScan', () => {
 
             const scan = await scanWorkspaceFiles(makeHost(root));
             const inventory = inventoryPathsFromScan(scan);
-            const deepRelative = path.join(...nestedParts, 'deep.ts');
+            const deepRelative = [...nestedParts, 'deep.ts'].join('/');
 
             assert.ok(inventory.includes(deepRelative), 'nested file beyond 10 levels must be inventoried');
+            assert.ok(inventory.every((relativePath) => !relativePath.includes('\\')), 'inventory paths stay posix');
             assert.ok(
                 !inventory.some((relativePath) => relativePath.includes('node_modules')),
                 'ignored node_modules files must not be inventoried',
@@ -79,7 +80,7 @@ suite('workspaceScan', () => {
             const scan = await scanWorkspaceFiles(makeHost(root, { maxScanDepth: 3 }));
             const inventory = inventoryPathsFromScan(scan);
             assert.ok(inventory.includes('top.ts'));
-            assert.ok(!inventory.includes(path.join(...nestedParts, 'deep.ts')));
+            assert.ok(!inventory.includes([...nestedParts, 'deep.ts'].join('/')));
         });
     });
 

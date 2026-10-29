@@ -836,10 +836,10 @@ suite('Knox agent host contract (KN-375)', () => {
 		assert.ok(controller.includes("request('analyzeCheckpoint'"));
 		assert.ok(controller.includes("request('suggestCheckpointGroups'"));
 		assert.ok(controller.includes("request<Record<string, unknown>>('createCheckpointBranch'"));
-		assert.ok(controller.includes("request('switchCheckpointBranch'"));
-		assert.ok(controller.includes("request('checkoutCheckpoint'"));
-		assert.ok(controller.includes("request('cherryPickCheckpoint'"));
-		assert.ok(controller.includes("request('revertCheckpoint'"));
+		assert.ok(controller.includes("request<CheckpointGraphMutationResult>('switchCheckpointBranch'"));
+		assert.ok(controller.includes("request<CheckpointGraphMutationResult>('checkoutCheckpoint'"));
+		assert.ok(controller.includes("request<CheckpointGraphMutationResult>('cherryPickCheckpoint'"));
+		assert.ok(controller.includes("request<CheckpointGraphMutationResult>('revertCheckpoint'"));
 		assert.ok(widget.includes('KN-375'));
 		assert.ok(widget.includes('pierre-diff-container'));
 		assert.ok(widget.includes('knox-gui-diff-word-alt'));
@@ -1151,7 +1151,7 @@ suite('Knox agent host contract (KN-382)', () => {
 			.map(match => match[1])
 			.sort();
 		assert.deepStrictEqual(contributed, frozen);
-		assert.strictEqual(contributed.length, 66);
+		assert.strictEqual(contributed.length, 68);
 		assert.ok(contributed.includes('knoxchat.jev.enabled'));
 		assert.ok(contributed.includes('knoxchat.memoryBrain.maxBytes'));
 		assert.ok(contributed.includes('knox.checkpoints.enableAutoCheckpoints'));

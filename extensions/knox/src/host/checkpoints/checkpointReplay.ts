@@ -22,6 +22,11 @@ export interface ResolvedFileState {
   hash?: string;
 }
 
+/** Snapshot keys stay posix so Windows captures match `src/b.ts` lookups. */
+export function posixReplayPath(relativePath: string): string {
+  return relativePath.replace(/\\/g, "/");
+}
+
 /**
  * Replay checkpoint deltas in chronological order into a full path → content map.
  * Deleted snapshots remove a path from the map.
@@ -33,11 +38,12 @@ export function replaySnapshotsToState(
 
   for (const checkpoint of checkpoints) {
     for (const snapshot of checkpoint.fileSnapshots || []) {
+      const relativePath = posixReplayPath(snapshot.relativePath);
       if (snapshot.deleted || snapshot.changeType === "deleted") {
-        state.delete(snapshot.relativePath);
+        state.delete(relativePath);
         continue;
       }
-      state.set(snapshot.relativePath, {
+      state.set(relativePath, {
         content: snapshot.content ?? "",
         encoding: snapshot.encoding || "utf8",
         ...(snapshot.hash ? { hash: snapshot.hash } : {}),
@@ -59,10 +65,10 @@ export function foldSnapshotsIntoSuccessor<T extends ReplaySnapshot>(
 ): T[] {
   const merged = new Map<string, T>();
   for (const snapshot of current ?? []) {
-    merged.set(snapshot.relativePath, snapshot);
+    merged.set(posixReplayPath(snapshot.relativePath), snapshot);
   }
   for (const snapshot of successor ?? []) {
-    merged.set(snapshot.relativePath, snapshot);
+    merged.set(posixReplayPath(snapshot.relativePath), snapshot);
   }
   return Array.from(merged.values());
 }
