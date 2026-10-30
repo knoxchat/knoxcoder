@@ -80,6 +80,7 @@ describe("REL-11 graph helpers (pure)", () => {
     expect(hasGraphExpandableTokens("ok now do it")).toBe(false);
     expect(hasGraphExpandableTokens("fix the login button")).toBe(true);
     expect(hasGraphExpandableTokens("wire AuthService")).toBe(true);
+    expect(hasGraphExpandableTokens("TS")).toBe(true);
   });
 
   it("does not join denylisted neighbors unless the query names them", () => {
@@ -88,6 +89,9 @@ describe("REL-11 graph helpers (pure)", () => {
     expect(shouldJoinEntityToMemories("wire AuthService", "AuthService")).toBe(true);
     expect(queryMentionsEntity("fix the login button", "file")).toBe(false);
     expect(queryMentionsEntity("wire AuthService", "AuthService")).toBe(true);
+    expect(queryMentionsEntity("use TS", "TypeScript")).toBe(true);
+    expect(shouldJoinEntityToMemories("use TS", "TypeScript")).toBe(true);
+    expect(shouldJoinEntityToMemories("fix the login button", "TS")).toBe(false);
   });
 });
 

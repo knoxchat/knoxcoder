@@ -60,7 +60,7 @@ async function reset(): Promise<void> {
   await BrainStore.saveConfig("w_graph", "1");
   await BrainStore.saveConfig("w_tree", "1");
   await BrainStore.saveConfig("calibrated_theta", "0.35");
-  await BrainStore.saveConfig("retrieval_threshold", "0.6");
+  await BrainStore.saveConfig("retrieval_threshold", "0.35");
 }
 
 async function semanticState(id: number): Promise<{
@@ -250,7 +250,7 @@ describe("MEM-18 attribution drives U and recipe replay", () => {
     expect(row).toEqual({ channel: "graph", score: 0.72, helpful: 1 });
   });
 
-  it("sleep φ₇ refits w_s and calibrated θ without flipping live retrieval_threshold", async () => {
+  it("sleep φ₇ refits w_s and copies calibrated θ into live retrieval_threshold", async () => {
     await reset();
     const db = await BrainStore.get();
     for (let i = 0; i < 6; i++) {
@@ -283,7 +283,7 @@ describe("MEM-18 attribution drives U and recipe replay", () => {
     expect(cfg.w_lexical).toBeCloseTo(1.3, 8);
     expect(cfg.w_graph).toBeCloseTo(0.95, 8);
     expect(cfg.calibrated_theta).toBeCloseTo(6 / 11, 8);
-    expect(cfg.retrieval_threshold).toBe(0.6);
+    expect(cfg.retrieval_threshold).toBeCloseTo(6 / 11, 8);
     expect(cfg.w_ripgrep).toBe(1);
     expect(cfg.w_tree).toBe(1);
   });

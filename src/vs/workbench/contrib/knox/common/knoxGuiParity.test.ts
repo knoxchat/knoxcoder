@@ -1229,7 +1229,7 @@ suite('Knox native GUI parity', () => {
 			stats: { total_semantic: 4, total_episodic: 2, tier_counts: { hot: 1, warm: 2, cold: 3 }, db_size_bytes: 2048 },
 			health: { status: 'healthy', issues: [], recommendations: [] },
 			healthScore: { overall: 91, grade: 'A' },
-			graphStats: { max_entities: 5000, total_entities: 12, total_edges: 8, cap_utilization: 0.2, max_depth: 3, depth_decay_gamma: 0.7 },
+			graphStats: { max_entities: 0, total_entities: 12, total_edges: 8, cap_utilization: 0, max_depth: 3, ppr_alpha: 0.15, ppr_epsilon: 1e-4 },
 			sessions: [{ id: 's1', title: 'Chat', message_count: 3, updated_at: new Date().toISOString() }],
 			consolidation: { total_runs: 2, last_run_at: new Date().toISOString(), avg_duration_ms: 40 },
 		});
@@ -1238,7 +1238,9 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(dashboard?.tierCounts?.hot, 1);
 		assert.strictEqual(dashboard?.sessions?.length, 1);
 		assert.strictEqual(dashboard?.consolidation?.totalRuns, 2);
-		assert.strictEqual(dashboard?.graphMaxEntities, 5000);
+		assert.strictEqual(dashboard?.graphMaxEntities, undefined);
+		assert.strictEqual(dashboard?.graphPprAlpha, 0.15);
+		assert.strictEqual(dashboard?.graphChannelSize, 12);
 		assert.strictEqual(dashboard?.lastInject, undefined);
 		const withInject = parseMemoryDashboard({
 			lastInject: { items: [{ id: 7, kind: 'semantic', title: 'JWT', reason: 'lexical: jwt', evidence: ['jwt'] }] },
@@ -1293,9 +1295,12 @@ suite('Knox native GUI parity', () => {
 		assert.ok(theorem?.fields.some(field => field.key === 'forgetting_F'));
 		assert.ok(theorem?.fields.some(field => field.key === 'w_mem_tokens'));
 		assert.ok(theorem?.fields.some(field => field.key === 'calibrated_theta'));
+		assert.ok(theorem?.fields.some(field => field.key === 'ppr_alpha'));
+		assert.ok(theorem?.fields.some(field => field.key === 'ppr_epsilon'));
 		assert.strictEqual(MEMORY_DEFAULT_CONFIG.calibrated_theta, 0.35);
-		assert.strictEqual(MEMORY_DEFAULT_CONFIG.retrieval_threshold, 0.6);
-		assert.strictEqual(MEMORY_DEFAULT_CONFIG.retrieval_top_k, 20);
+		assert.strictEqual(MEMORY_DEFAULT_CONFIG.ppr_alpha, 0.15);
+		assert.strictEqual(MEMORY_DEFAULT_CONFIG.retrieval_threshold, 0.35);
+		assert.strictEqual(MEMORY_DEFAULT_CONFIG.retrieval_top_k, 50);
 		assert.strictEqual(MEMORY_DEFAULT_CONFIG.w_mem_tokens, 4096);
 		assert.ok(MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryProductSettings')?.fields.some(field => field.key === 'retrieval_top_k'));
 		assert.ok(!MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryProductSettings')?.expert);
@@ -2042,8 +2047,8 @@ suite('Knox native GUI parity', () => {
 
 	test('KN-376 Memory panel helpers match KN-310–317 tabs, retrieval defaults, and brain/* surface', () => {
 		assert.deepStrictEqual([...MEMORY_TAB_IDS], ['overview', 'memories', 'sessions', 'graph', 'recipes', 'settings']);
-		assert.strictEqual(MEMORY_RETRIEVAL_THRESHOLD, 0.6);
-		assert.strictEqual(MEMORY_RETRIEVAL_TOP_K, 20);
+		assert.strictEqual(MEMORY_RETRIEVAL_THRESHOLD, 0.35);
+		assert.strictEqual(MEMORY_RETRIEVAL_TOP_K, 50);
 		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.fields.some(field => field.key === 'retrieval_threshold')));
 		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.fields.some(field => field.key === 'retrieval_top_k')));
 		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.fields.some(field => field.key === 'ebbinghaus_lambda')));

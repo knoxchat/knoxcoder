@@ -14,6 +14,7 @@ import { BrainStore } from "../BrainStore.js";
 import { RetrievalFusion, type FusionResult } from "../RetrievalFusion.js";
 import { getMemoryConfig } from "../memoryConfigAccess.js";
 import { getProjectSessionIds } from "../projectScope.js";
+import { ingestSessionLeaves } from "../SummaryTree.js";
 import type { StoreInput } from "../types.js";
 import { BasalGanglia } from "./BasalGanglia.js";
 import { PrefrontalCortex } from "./PrefrontalCortex.js";
@@ -100,15 +101,19 @@ export const Hippocampus = {
   /**
    * φ₅ — pointer-summarize(m) → M₄, M₅ after consolidation (φ₄).
    * Promotes high-importance hot memories to warm (M₄), counts live recipes
-   * as product M₅, and writes summary-tree pointers for long warm content.
-   * Leaf `content` stays intact (MEM-05). Unlinked code_patterns may still
-   * write a leftover learning pattern; they are not the M₅ store.
+   * as product M₅, and inserts each new leaf under the session summary tree
+   * (MEM-24, branching b). Leaf `content` stays intact (MEM-05). Unlinked
+   * code_patterns may still write a leftover learning pattern; they are not
+   * the M₅ store.
    */
   async persistToLongTerm(
     sessionId: string,
     extracted: { semantic_count: number; entity_count: number },
   ): Promise<LongTermPersistResult> {
     const result: LongTermPersistResult = { promoted: 0, recipes: 0, procedural: 0, compressed: 0 };
+
+    const ingested = await ingestSessionLeaves(sessionId);
+    result.compressed = ingested.linked;
 
     if (extracted.semantic_count === 0 && extracted.entity_count === 0) {
       return result;
@@ -142,31 +147,6 @@ export const Hippocampus = {
         success: true,
       }).catch(() => {});
       result.procedural++;
-    }
-
-    // φ₅: write a summary-tree pointer; do not overwrite leaf content.
-    const warmRows = await db.all(
-      `SELECT id, content FROM brain_semantic
-       WHERE source_session_id = ? AND tier = 'warm'
-       AND length(content) > 200
-       AND CAST(id AS TEXT) NOT IN (
-         SELECT leaf_id FROM brain_summary_tree
-         WHERE kind = 'leaf' AND leaf_type = 'semantic'
-       )`,
-      [sessionId],
-    );
-    if (warmRows.length > 0) {
-      const sources = warmRows.map((row) => {
-        const r = row as { id: number; content: string };
-        const original = BrainStore.decompressContent(r.content);
-        return { type: "semantic" as const, id: r.id, text: original.slice(0, 400) };
-      });
-      const digest = sources.map((s) => s.text ?? "").join("\n");
-      const written = await BrainStore.writeSummaryPointer({
-        text: `Warm-tier pointer summary (${sources.length} leaves)\n${digest}`.slice(0, 2000),
-        sources,
-      });
-      result.compressed = written.linked;
     }
 
     return result;

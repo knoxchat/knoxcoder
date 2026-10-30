@@ -4,69 +4,107 @@ import {
   detectFusionWeights,
   getFusionParams,
   getMemoryConfig,
+  getTheoremParams,
   type FusionWeights,
 } from "./memoryConfigAccess.js";
 import { expandQuerySynonyms, getSynonymAdditions } from "./EnhancedSemantic.js";
 import {
   capGraphContribution,
-  entityNameMatchesMemory,
   hasGraphExpandableTokens,
-  shouldJoinEntityToMemories,
 } from "./GraphRetrieval.js";
 import { recipeMemoryIsVerified } from "../recipes/memoryLink.js";
-import { applyOutcomeWeight, loadOutcomes, loadSupersededIds } from "./memoryOutcomes.js";
+import {
+  applyOutcomeWeight,
+  FUSION_CHANNELS,
+  loadOutcomes,
+  loadSupersededIds,
+  type ChannelWeights,
+  type FusionChannel,
+} from "./memoryOutcomes.js";
 import { evaluateRelevanceGate, LEXICAL_SCORE_MIN, resolveQueryEntities, applyMismatchPenalty, isMismatchActive } from "./RelevanceGate.js";
 import { cjkExpandSql } from "./cjkFts.js";
 import { buildFts5Query as buildRetrievalFts5Query, contentWords, FTS5_AND_TERM_CAP } from "./RetrievalQuery.js";
 import type { RetrievalIntent } from "./RetrievalQuery.js";
 export type { FusionWeights } from "./memoryConfigAccess.js";
+export type { ChannelWeights, FusionChannel } from "./memoryOutcomes.js";
+import { isValidAt } from "./entityResolution.js";
 import type { SemanticMemory, EpisodicMemory, SemanticCategory } from "./types.js";
 import type { DatabaseConnection } from "../../../util/refreshIndex.js";
-import { isLiveRetrieveRow, liveRetrieveSql } from "./store/tombstone.js";
-import { isDefaultRetrieveValue } from "./Value.js";
+import { isLiveRetrieveRow } from "./store/tombstone.js";
+import { queryScopeSql } from "./store/validity.js";
+import {
+  isDefaultRetrieveValue,
+  modulateRelevance,
+  priorModulation,
+  retrievabilityFromSource,
+  utilityFromSource,
+} from "./Value.js";
+import { hasRipgrepHit, searchRipgrepChannel } from "./channels/ripgrep.js";
+import { hasTreeHit, searchTreeChannel } from "./SummaryTree.js";
 
 /**
- * RetrievalFusion — Multi-strategy local retrieval (BM25 + trigram + graph).
+ * RetrievalFusion — Reciprocal Rank Fusion over lexical channels (MEM-20).
  *
- * Combines proven text-retrieval strategies — no vector stores or ML models:
+ * Channels return ranked lists over the same rows. They are never added as
+ * raw scores (BM25, trigram, graph activation, recency, and importance live
+ * on different scales). Fusion is rank-only:
  *
- * 1. **FTS5 BM25** — SQLite full-text search with Okapi BM25 ranking
- * 2. **Trigram Similarity** — Character-level n-gram overlap for fuzzy matching
- * 3. **Graph Traversal** — Spreading activation through the knowledge graph
- * 4. **Recency Decay** — Exponential time-based weighting
- * 5. **Importance Boost** — User-assigned and system-scored importance
+ *   rel(m,q) = Σ_s w_s / (k₀ + rank_s(m)),  k₀ = 60
  *
- * Score scale (REL-02): every component is in [0, 1] with an *absolute* mapping
- * so θ is comparable across queries. BM25 is `1 - e^(-k·raw)` on negated FTS5
- * bm25() — never min-max stretched within the current hit list. Recency and
- * importance may rank but cannot qualify a miss: their weighted sum is capped
- * at θ − 0.05. Graph is also capped unless fts5+trigram already meets the
- * REL-03 lexical floor, so a common-noun graph hit cannot clear θ alone.
+ * A channel that did not return `m` contributes 0. REL-03: if the lexical
+ * gate fails, rel = 0 (relevance-dominance — importance cannot resurrect a
+ * miss). Synonym expansion stays inside the lexical channel.
  *
- * Final score: S = w1·BM25 + w2·Trigram + cap(w3·Graph) + min(w4·Recency + w5·Importance, θ−0.05)
+ * Live channels today: lexical (BM25-then-trigram), ripgrep (exact /
+ * identifier hits on stored text + project files), graph (hub-damped PPR,
+ * MEM-25), and the summary
+ * tree (beam over session pointers, MEM-24). Priors modulate, they do not
+ * compete:
+ * score = rel · (1 + η_U U) · (1 + η_R R) (MEM-21). Topic/task bias is a
+ * small multiplier after the gate and cannot resurrect rel=0.
+ * MEM-22 takes the top `fusion_candidate_cutoff` (50) fused candidates, then
+ * cuts by calibrated θ (default 0.35). Raw RRF is ~1/61 at rank 1, so θ is
+ * applied as a fraction of the active-channel RRF ceiling: keep
+ * `score ≥ θ · Σ_s w_s/(k₀+1)` for channels that ranked this query. Leftover
+ * additive admission stays at a REL-02 floor of 0.6 so recency cannot close
+ * the gap when live θ is 0.35.
  *
- * REL-11: graph cannot lift a weak/zero-lexical candidate over θ. Neighbor→memory
- * joins use word-boundary matches and skip common-noun names (`file`, `config`, …).
- *
- * REL-09 weight profiles: recency + importance is always < θ, so a mismatch
- * cannot qualify. Continuation uses a dedicated profile (high recency *within*
- * the gated set). Conversational favors lexical (fts5) over recency.
- *
- * Works fully offline with zero model loading.
+ * Works fully offline with zero model loading. No embeddings or neural rerank.
  */
 
 // ── Types ────────────────────────────────────────────────────────────────────
+
+export interface ChannelRanks {
+  lexical?: number;
+  ripgrep?: number;
+  graph?: number;
+  tree?: number;
+}
 
 export interface FusionResult {
   id: number;
   type: "semantic" | "episodic";
   score: number;
+  /** Raw RRF relevance before priors, leftover mismatch / outcome, and topic/task. */
+  rel?: number;
+  /** Bounded utility U(m) used in MEM-21 prior modulation. */
+  utility?: number;
+  /** Retrievability R(t, S) used in MEM-21 prior modulation. */
+  retrievability?: number;
+  /** (1 + η_U U) · (1 + η_R R), in [1, (1+η_U)(1+η_R)]. */
+  priorFactor?: number;
+  ranks?: ChannelRanks;
+  channel?: FusionChannel;
   scores: {
     fts5: number;
     trigram: number;
     graph: number;
     recency: number;
     importance: number;
+    /** MEM-23 ripgrep channel strength. Missing / 0 = not in the channel. */
+    ripgrep?: number;
+    /** MEM-24 summary-tree beam strength. Missing / 0 = not in the channel. */
+    tree?: number;
   };
   data: SemanticMemory | EpisodicMemory;
 }
@@ -80,7 +118,12 @@ export interface FusionOptions {
   limit?: number;
   minScore?: number;
   includeEpisodic?: boolean;
+  /** Leftover additive FusionWeights. Unused for scoring after MEM-20. */
   weights?: Partial<FusionWeights>;
+  /** Override theorem channel weights for this search. */
+  channelWeights?: Partial<ChannelWeights>;
+  /** Override RRF k₀ for this search. */
+  rrfK0?: number;
   /** REL-05: current topic for same-topic boost. Fetched from session when omitted. */
   currentTopicId?: number | null;
   /** REL-13: current open task for same-task boost. Fetched from session when omitted. */
@@ -89,13 +132,26 @@ export interface FusionOptions {
   intent?: RetrievalIntent;
   /** Original user text for profile detection (search query may be expanded/stripped). */
   originalQuery?: string;
+  /** Workspace root for the ripgrep file channel. Session workspace is used when omitted. */
+  workspaceDir?: string;
+  /** MEM-26: Ω(q) validity clock. Default is now. */
+  queryTime?: Date | string | number;
 }
 
-/** Additive score for memories tagged with the active topic (after REL-03 gate). */
+/**
+ * REL-05 same-topic multiplier increment: score *= (1 + TOPIC_SAME_BOOST).
+ * Must stay multiplicative so it cannot dominate raw RRF or resurrect rel=0.
+ */
 export const TOPIC_SAME_BOOST = 0.12;
-/** Penalty for other topics in the same session. Does not drop the candidate. */
+/**
+ * REL-05 other-topic multiplier decrement: score *= (1 − TOPIC_OTHER_PENALTY).
+ * Does not drop the candidate.
+ */
 export const TOPIC_OTHER_PENALTY = 0.08;
-/** Additive score for memories tagged with the open task (after REL-03 / REL-05). */
+/**
+ * REL-13 same-task multiplier increment: score *= (1 + TASK_SAME_BOOST).
+ * After the gate; cannot resurrect rel=0.
+ */
 export const TASK_SAME_BOOST = 0.18;
 
 /**
@@ -104,8 +160,32 @@ export const TASK_SAME_BOOST = 0.18;
  */
 export const BM25_SCALE_K = 1.0;
 
-/** Recency+importance may not reach θ by themselves (REL-02). */
+/** Recency+importance leftover cap. Unused for scoring after MEM-20. */
 export const RECENCY_IMPORTANCE_THETA_MARGIN = 0.05;
+
+/** Theorem default RRF constant k₀. */
+export const RRF_K0_DEFAULT = 60;
+
+export const RRF_CHANNEL_WEIGHTS_DEFAULT: ChannelWeights = {
+  lexical: 1,
+  ripgrep: 1,
+  graph: 1,
+  tree: 1,
+};
+
+/** Theorem default fused-candidate count before the calibrated θ cut-off. */
+export const FUSION_CANDIDATE_CUTOFF_DEFAULT = 50;
+
+/** Theorem default calibrated P(helpful) cut-off. */
+export const RETRIEVAL_THRESHOLD_DEFAULT = 0.35;
+
+/**
+ * REL-02 leftover additive floor. Raw RRF cannot encode BM25 strength, so
+ * admission still uses leftover additive scores. At live θ=0.35 the ri cap
+ * would otherwise let recency close the gap; keep this floor so a miss
+ * cannot qualify.
+ */
+export const REL02_ADDITIVE_FLOOR = 0.6;
 
 /**
  * Absolute BM25 → [0, 1]. Does not depend on other hits in the result set.
@@ -116,11 +196,188 @@ export function normalizeBm25(raw: number, k = BM25_SCALE_K): number {
   return scaled > 1 ? 1 : scaled;
 }
 
+export function candidateKey(result: Pick<FusionResult, "type" | "id">): string {
+  return `${result.type}:${result.id}`;
+}
+
 /**
- * Weighted fusion with recency/importance cap at θ − margin.
- * Lexical (fts5 + trigram) or graph must supply the rest to clear θ.
+ * Reciprocal Rank Fusion: rel(m,q) = Σ_s w_s / (k₀ + rank_s(m)).
+ * Missing / invalid ranks contribute 0. Ranks are 1-indexed.
+ */
+export function rrfScore(
+  ranks: ChannelRanks,
+  weights: ChannelWeights = RRF_CHANNEL_WEIGHTS_DEFAULT,
+  k0: number = RRF_K0_DEFAULT,
+): number {
+  if (!Number.isFinite(k0) || k0 <= 0) return 0;
+  let rel = 0;
+  for (const channel of FUSION_CHANNELS) {
+    const rank = ranks[channel];
+    if (rank == null || !Number.isFinite(rank) || rank < 1) continue;
+    const w = weights[channel];
+    if (!Number.isFinite(w) || w === 0) continue;
+    rel += w / (k0 + rank);
+  }
+  return rel;
+}
+
+/** Channel with the largest RRF term. Used for attribution w_s. */
+export function winningRrfChannel(
+  ranks: ChannelRanks,
+  weights: ChannelWeights = RRF_CHANNEL_WEIGHTS_DEFAULT,
+  k0: number = RRF_K0_DEFAULT,
+): FusionChannel | null {
+  if (!Number.isFinite(k0) || k0 <= 0) return null;
+  let best: FusionChannel | null = null;
+  let bestTerm = 0;
+  for (const channel of FUSION_CHANNELS) {
+    const rank = ranks[channel];
+    if (rank == null || !Number.isFinite(rank) || rank < 1) continue;
+    const w = weights[channel];
+    if (!Number.isFinite(w) || w === 0) continue;
+    const term = w / (k0 + rank);
+    if (term > bestTerm) {
+      best = channel;
+      bestTerm = term;
+    }
+  }
+  return best;
+}
+
+/**
+ * Single lexical list: BM25 first, then trigram. Items with neither score
+ * are not in the channel (contribute 0).
+ */
+export function assignLexicalRanks(candidates: Iterable<FusionResult>): Map<string, number> {
+  const items = [...candidates].filter((c) => c.scores.fts5 > 0 || c.scores.trigram > 0);
+  items.sort((a, b) => {
+    if (b.scores.fts5 !== a.scores.fts5) return b.scores.fts5 - a.scores.fts5;
+    if (b.scores.trigram !== a.scores.trigram) return b.scores.trigram - a.scores.trigram;
+    return candidateKey(a).localeCompare(candidateKey(b));
+  });
+  const ranks = new Map<string, number>();
+  items.forEach((c, i) => ranks.set(candidateKey(c), i + 1));
+  return ranks;
+}
+
+export function assignScoreRanks(
+  entries: Array<{ key: string; score: number }>,
+): Map<string, number> {
+  const items = entries.filter((e) => Number.isFinite(e.score) && e.score > 0);
+  items.sort((a, b) => b.score - a.score || a.key.localeCompare(b.key));
+  const ranks = new Map<string, number>();
+  items.forEach((e, i) => ranks.set(e.key, i + 1));
+  return ranks;
+}
+
+/**
+ * Map leftover component scores onto rank-1 channel presence for unit tests.
+ * Recency / importance are not channels. REL-03: no lexical floor → rel=0.
+ */
+export function channelRanksFromComponentScores(
+  scores: FusionResult["scores"],
+): ChannelRanks {
+  const lexical = (scores.fts5 ?? 0) + (scores.trigram ?? 0);
+  const ranks: ChannelRanks = {};
+  if (lexical >= LEXICAL_SCORE_MIN) ranks.lexical = 1;
+  if ((scores.ripgrep ?? 0) > 0) ranks.ripgrep = 1;
+  if ((scores.tree ?? 0) > 0) ranks.tree = 1;
+  if ((scores.graph ?? 0) > 0 && lexical >= LEXICAL_SCORE_MIN) ranks.graph = 1;
+  return ranks;
+}
+
+/**
+ * MEM-20: `fuseCandidateScore` is now RRF from channel presence.
+ * Recency and importance do not score (relevance-dominance).
  */
 export function fuseCandidateScore(
+  scores: FusionResult["scores"],
+  _weights?: FusionWeights,
+  _theta?: number,
+): number {
+  return rrfScore(channelRanksFromComponentScores(scores));
+}
+
+/**
+ * Max RRF if every listed channel ranks m #1: Σ_s w_s / (k₀+1).
+ * Unused / zero-weight channels contribute 0. Live retrieve compares θ
+ * against this ceiling so 0.35 is not applied to raw 1/61.
+ */
+export function rrfCeiling(
+  weights: ChannelWeights = RRF_CHANNEL_WEIGHTS_DEFAULT,
+  k0: number = RRF_K0_DEFAULT,
+  channels: readonly FusionChannel[] = FUSION_CHANNELS,
+): number {
+  if (!Number.isFinite(k0) || k0 <= 0) return 0;
+  let max = 0;
+  for (const channel of channels) {
+    const w = weights[channel];
+    if (!Number.isFinite(w) || w <= 0) continue;
+    max += w / (k0 + 1);
+  }
+  return max;
+}
+
+/** Channels that assigned a 1-indexed rank to at least one candidate. */
+export function activeFusionChannels(
+  results: Iterable<Pick<FusionResult, "ranks">>,
+): FusionChannel[] {
+  const seen = new Set<FusionChannel>();
+  for (const result of results) {
+    const ranks = result.ranks;
+    if (!ranks) continue;
+    for (const channel of FUSION_CHANNELS) {
+      const rank = ranks[channel];
+      if (rank == null || !Number.isFinite(rank) || rank < 1) continue;
+      seen.add(channel);
+    }
+  }
+  return FUSION_CHANNELS.filter((channel) => seen.has(channel));
+}
+
+/**
+ * Calibrated cut-off on the fused score: θ · rrfCeiling(active channels).
+ * θ is P(helpful | m,q); the ceiling maps it onto RRF scale.
+ */
+export function calibratedScoreCutoff(
+  theta: number,
+  weights: ChannelWeights = RRF_CHANNEL_WEIGHTS_DEFAULT,
+  k0: number = RRF_K0_DEFAULT,
+  channels: readonly FusionChannel[] = FUSION_CHANNELS,
+): number {
+  if (!Number.isFinite(theta) || theta <= 0) return 0;
+  return theta * rrfCeiling(weights, k0, channels);
+}
+
+/** Fused score as a fraction of the active-channel RRF ceiling. */
+export function normalizeFusedScore(score: number, ceiling: number): number {
+  if (!Number.isFinite(score) || score <= 0) return 0;
+  if (!Number.isFinite(ceiling) || ceiling <= 0) return 0;
+  return score / ceiling;
+}
+
+/**
+ * MEM-22 admission: score > 0 (REL-03) and score ≥ θ · ceiling.
+ * Pinned rows that already have a fused score skip the θ cut.
+ */
+export function passesCalibratedTheta(
+  score: number,
+  theta: number,
+  ceiling: number,
+  pinned = false,
+): boolean {
+  if (!Number.isFinite(score) || score <= 0) return false;
+  if (pinned) return true;
+  if (!Number.isFinite(theta) || theta <= 0) return true;
+  if (!Number.isFinite(ceiling) || ceiling <= 0) return true;
+  return score >= theta * ceiling;
+}
+
+/**
+ * Leftover additive admission (REL-02/09). Recency+importance stay capped so
+ * they cannot admit a miss. Retired as a live cutoff in MEM-22; ranking is RRF.
+ */
+export function leftoverAdditiveScore(
   scores: FusionResult["scores"],
   weights: FusionWeights,
   theta: number,
@@ -143,9 +400,16 @@ export function fuseCandidateScore(
   return textLexical + graphPart + ri;
 }
 
+/** Multiplier for REL-05/13. 0 · factor stays 0 (cannot resurrect a miss). */
+export function scopeBiasMultiplier(delta: number): number {
+  if (!Number.isFinite(delta)) return 1;
+  return Math.max(0, 1 + delta);
+}
+
 /**
- * REL-05: after the mismatch gate, boost the current topic and penalize
+ * REL-05: after the mismatch gate, multiply the current topic and scale down
  * other topics in the same session. Never hard-excludes (user may refer back).
+ * A zero-rel miss stays 0 — do not add raw +0.12 after fusion (MEM-21).
  */
 export function applyTopicBias(
   results: FusionResult[],
@@ -157,17 +421,17 @@ export function applyTopicBias(
     const topicId = data.topic_id;
     if (topicId == null) continue;
     if (topicId === opts.currentTopicId) {
-      result.score += TOPIC_SAME_BOOST;
+      result.score *= scopeBiasMultiplier(TOPIC_SAME_BOOST);
     } else if (data.source_session_id === opts.sessionId) {
-      result.score = Math.max(0, result.score - TOPIC_OTHER_PENALTY);
+      result.score *= scopeBiasMultiplier(-TOPIC_OTHER_PENALTY);
     }
   }
   return results.sort((a, b) => b.score - a.score);
 }
 
 /**
- * REL-13: after the gate (and topic bias), boost the open task above the
- * current topic. Never hard-excludes other tasks.
+ * REL-13: after the gate (and topic bias), multiply the open task above the
+ * current topic. Never hard-excludes other tasks. Cannot resurrect rel=0.
  */
 export function applyTaskBias(
   results: FusionResult[],
@@ -177,7 +441,7 @@ export function applyTaskBias(
     if (result.type !== "semantic") continue;
     const data = result.data as SemanticMemory;
     if (data.task_id === opts.currentTaskId) {
-      result.score += TASK_SAME_BOOST;
+      result.score *= scopeBiasMultiplier(TASK_SAME_BOOST);
     }
   }
   return results.sort((a, b) => b.score - a.score);
@@ -307,36 +571,46 @@ export class RetrievalFusion {
   // ── Multi-Strategy Fusion Search ───────────────────────────────────────────
 
   /**
-   * Main fusion search entry point.
-   * Combines FTS5, trigram, graph, recency, and importance scores.
+   * Main fusion search. RRF over lexical (BM25-then-trigram + synonyms),
+   * ripgrep (MEM-23), graph, and the summary tree (MEM-24).
    */
   static async search(options: FusionOptions): Promise<FusionResult[]> {
     const db = await BrainStore.get();
     const config = getMemoryConfig();
     const fusionParams = getFusionParams();
+    const theorem = getTheoremParams();
     const limit = options.limit ?? config.retrieval_top_k;
     const minScore = options.minScore;
+    const fusedCap = Math.max(1, theorem.fusionCandidateCutoff || FUSION_CANDIDATE_CUTOFF_DEFAULT);
     const candidateLimit = Math.max(
-      limit * fusionParams.candidateMultiplier,
+      Math.max(limit, fusedCap) * fusionParams.candidateMultiplier,
       fusionParams.candidateMin,
     );
+    const channelWeights: ChannelWeights = {
+      ...theorem.channelWeights,
+      ...options.channelWeights,
+    };
+    const k0 = options.rrfK0 ?? theorem.rrfK0;
+    const etaU = theorem.etaUtility;
+    const etaR = theorem.etaRetrievability;
+    const theta = minScore ?? config.retrieval_threshold;
 
     // REL-01: never concatenate synonyms into the AND query. OR them in FTS5 only.
     const searchQuery = options.query;
+    const leftoverWeights = {
+      ...detectFusionWeights(searchQuery, {
+        intent: options.intent,
+        originalQuery: options.originalQuery,
+      }),
+      ...options.weights,
+    };
+    const leftoverTheta = Math.max(REL02_ADDITIVE_FLOOR, theta);
     const synonymExtras = config.enable_enhanced_semantic
       ? getSynonymAdditions(searchQuery, { continuation: options.intent === "continuation" })
       : [];
     const trigramQuery = synonymExtras.length > 0
       ? expandQuerySynonyms(searchQuery, { continuation: options.intent === "continuation" })
       : searchQuery;
-
-    const detected = detectFusionWeights(searchQuery, {
-      intent: options.intent,
-      originalQuery: options.originalQuery,
-    });
-    const weights = options.weights
-      ? { ...detected, ...options.weights }
-      : detected;
 
     // 1. FTS5 BM25 search
     const fts5Semantic = await RetrievalFusion.fts5SearchSemantic(
@@ -354,8 +628,32 @@ export class RetrievalFusion {
       db, trigramQuery, options.category, Math.floor(candidateLimit / 2),
     );
 
-    // 3. Graph-based expansion
-    const graphIds = await RetrievalFusion.graphExpansion(searchQuery);
+    // 3. Graph-based expansion + ripgrep channel (MEM-23). Independent lists.
+    const workspaceDir = await RetrievalFusion.resolveWorkspaceDir(options);
+    const searchWorkspace =
+      config.memory_scope === "project" && Boolean(workspaceDir);
+    const [graphIds, ripgrepHits, treeHits] = await Promise.all([
+      RetrievalFusion.graphExpansion(searchQuery),
+      searchRipgrepChannel({
+        query: searchQuery,
+        db,
+        includeEpisodic: options.includeEpisodic !== false,
+        category: options.category,
+        sessionId: options.sessionId,
+        projectSessionIds: options.projectSessionIds,
+        workspaceDir,
+        searchWorkspace,
+        limit: candidateLimit,
+      }),
+      searchTreeChannel({
+        query: searchQuery,
+        db,
+        includeEpisodic: options.includeEpisodic !== false,
+        sessionId: options.sessionId,
+        projectSessionIds: options.projectSessionIds,
+        limit: candidateLimit,
+      }),
+    ]);
 
     // 4. Merge and score all candidates
     const candidateMap = new Map<string, FusionResult>();
@@ -401,18 +699,208 @@ export class RetrievalFusion {
       }
     }
 
-    // Apply graph scores
+    // Apply graph scores. Graph is its own channel: hits that lexical missed
+    // still enter the pool (gate may still drop them).
+    const pendingGraphOnly: Array<[number, number]> = [];
     for (const [memId, graphScore] of graphIds) {
       const key = `semantic:${memId}`;
       const existing = candidateMap.get(key);
       if (existing) {
         existing.scores.graph = graphScore;
+      } else {
+        pendingGraphOnly.push([memId, graphScore]);
+      }
+    }
+    if (pendingGraphOnly.length > 0) {
+      const ids = pendingGraphOnly.map(([id]) => id);
+      const placeholders = ids.map(() => "?").join(",");
+      const rows = await db.all(
+        `SELECT * FROM brain_semantic WHERE id IN (${placeholders}) AND ${queryScopeSql("semantic")}`,
+        ids,
+      );
+      const scoreById = new Map(pendingGraphOnly);
+      for (const r of rows) {
+        const memory = RetrievalFusion.rowToSemantic(r);
+        candidateMap.set(`semantic:${memory.id}`, {
+          id: memory.id,
+          type: "semantic",
+          score: 0,
+          scores: {
+            fts5: 0,
+            trigram: 0,
+            graph: scoreById.get(memory.id) ?? 0,
+            recency: 0,
+            importance: 0,
+          },
+          data: memory,
+        });
+      }
+    }
+
+    // Apply ripgrep scores. Corpus hits and file-mapped rows enter the pool
+    // the same way graph-only hits do (gate may still drop them).
+    const pendingRipgrepOnly: Array<{
+      type: "semantic" | "episodic";
+      id: number;
+      score: number;
+    }> = [];
+    for (const hit of ripgrepHits) {
+      const key = `${hit.type}:${hit.id}`;
+      const existing = candidateMap.get(key);
+      if (existing) {
+        existing.scores.ripgrep = hit.score;
+      } else {
+        pendingRipgrepOnly.push(hit);
+      }
+    }
+    if (pendingRipgrepOnly.length > 0) {
+      const semIds = pendingRipgrepOnly.filter((h) => h.type === "semantic").map((h) => h.id);
+      const epIds = pendingRipgrepOnly.filter((h) => h.type === "episodic").map((h) => h.id);
+      const scoreByKey = new Map<string, number>(
+        pendingRipgrepOnly.map((h) => [`${h.type}:${h.id}`, h.score]),
+      );
+      if (semIds.length > 0) {
+        const placeholders = semIds.map(() => "?").join(",");
+        const rows = await db.all(
+          `SELECT * FROM brain_semantic WHERE id IN (${placeholders}) AND ${queryScopeSql("semantic")}`,
+          semIds,
+        );
+        for (const r of rows) {
+          const memory = RetrievalFusion.rowToSemantic(r);
+          const key = `semantic:${memory.id}`;
+          candidateMap.set(key, {
+            id: memory.id,
+            type: "semantic",
+            score: 0,
+            scores: {
+              fts5: 0,
+              trigram: 0,
+              graph: 0,
+              recency: 0,
+              importance: 0,
+              ripgrep: scoreByKey.get(key) ?? 0,
+            },
+            data: memory,
+          });
+        }
+      }
+      if (epIds.length > 0 && options.includeEpisodic !== false) {
+        const placeholders = epIds.map(() => "?").join(",");
+        const rows = await db.all(
+          `SELECT * FROM brain_episodic WHERE id IN (${placeholders}) AND ${queryScopeSql("episodic")}`,
+          epIds,
+        );
+        for (const r of rows) {
+          const memory = RetrievalFusion.rowToEpisodic(r);
+          const key = `episodic:${memory.id}`;
+          candidateMap.set(key, {
+            id: memory.id,
+            type: "episodic",
+            score: 0,
+            scores: {
+              fts5: 0,
+              trigram: 0,
+              graph: 0,
+              recency: 0,
+              importance: 0,
+              ripgrep: scoreByKey.get(key) ?? 0,
+            },
+            data: memory,
+          });
+        }
+      }
+    }
+
+    const pendingTreeOnly: Array<{
+      type: "semantic" | "episodic";
+      id: number;
+      score: number;
+    }> = [];
+    for (const hit of treeHits) {
+      const key = `${hit.type}:${hit.id}`;
+      const existing = candidateMap.get(key);
+      if (existing) {
+        existing.scores.tree = hit.score;
+      } else {
+        pendingTreeOnly.push(hit);
+      }
+    }
+    if (pendingTreeOnly.length > 0) {
+      const semIds = pendingTreeOnly.filter((h) => h.type === "semantic").map((h) => h.id);
+      const epIds = pendingTreeOnly.filter((h) => h.type === "episodic").map((h) => h.id);
+      const scoreByKey = new Map<string, number>(
+        pendingTreeOnly.map((h) => [`${h.type}:${h.id}`, h.score]),
+      );
+      if (semIds.length > 0) {
+        const placeholders = semIds.map(() => "?").join(",");
+        const rows = await db.all(
+          `SELECT * FROM brain_semantic WHERE id IN (${placeholders}) AND ${queryScopeSql("semantic")}`,
+          semIds,
+        );
+        for (const r of rows) {
+          const memory = RetrievalFusion.rowToSemantic(r);
+          const key = `semantic:${memory.id}`;
+          candidateMap.set(key, {
+            id: memory.id,
+            type: "semantic",
+            score: 0,
+            scores: {
+              fts5: 0,
+              trigram: 0,
+              graph: 0,
+              recency: 0,
+              importance: 0,
+              tree: scoreByKey.get(key) ?? 0,
+            },
+            data: memory,
+          });
+        }
+      }
+      if (epIds.length > 0 && options.includeEpisodic !== false) {
+        const placeholders = epIds.map(() => "?").join(",");
+        const rows = await db.all(
+          `SELECT * FROM brain_episodic WHERE id IN (${placeholders}) AND ${queryScopeSql("episodic")}`,
+          epIds,
+        );
+        for (const r of rows) {
+          const memory = RetrievalFusion.rowToEpisodic(r);
+          const key = `episodic:${memory.id}`;
+          candidateMap.set(key, {
+            id: memory.id,
+            type: "episodic",
+            score: 0,
+            scores: {
+              fts5: 0,
+              trigram: 0,
+              graph: 0,
+              recency: 0,
+              importance: 0,
+              tree: scoreByKey.get(key) ?? 0,
+            },
+            data: memory,
+          });
+        }
       }
     }
 
     // MEM-04: frozen / tombstoned stay SELECTable but drop from default fusion
     for (const [key, candidate] of candidateMap) {
       if (!isLiveRetrieveRow(candidate.data)) candidateMap.delete(key);
+    }
+
+    // MEM-26: Ω(q) — valid at query time. Superseded facts stay queryable by id.
+    const queryTime = options.queryTime;
+    for (const [key, candidate] of candidateMap) {
+      if (!isValidAt(candidate.data, queryTime)) candidateMap.delete(key);
+    }
+    const candidateSemanticIdsEarly = [...candidateMap.values()]
+      .filter((c) => c.type === "semantic")
+      .map((c) => c.id);
+    try {
+      const superseded = await loadSupersededIds(db, candidateSemanticIdsEarly);
+      for (const id of superseded) candidateMap.delete(`semantic:${id}`);
+    } catch {
+      // older DB without the table
     }
 
     const pinnedIds = new Set(
@@ -425,21 +913,52 @@ export class RetrievalFusion {
       if (!isDefaultRetrieveValue(candidate.data, { pinned })) candidateMap.delete(key);
     }
 
-    // Compute recency and importance for all candidates
+    // Recency / importance stay on the candidate for diagnostics. They do not
+    // enter rel (MEM-20). U and R modulate rel (MEM-21); they cannot add to it.
     const now = Date.now();
-    const theta = minScore ?? config.retrieval_threshold;
+    const lexicalRanks = assignLexicalRanks(candidateMap.values());
+    const graphRanks = assignScoreRanks(
+      [...candidateMap.values()]
+        .filter((c) => c.type === "semantic" && c.scores.graph > 0)
+        .map((c) => ({ key: candidateKey(c), score: c.scores.graph })),
+    );
+    const ripgrepRanks = assignScoreRanks(
+      [...candidateMap.values()]
+        .filter((c) => (c.scores.ripgrep ?? 0) > 0)
+        .map((c) => ({ key: candidateKey(c), score: c.scores.ripgrep ?? 0 })),
+    );
+    const treeRanks = assignScoreRanks(
+      [...candidateMap.values()]
+        .filter((c) => (c.scores.tree ?? 0) > 0)
+        .map((c) => ({ key: candidateKey(c), score: c.scores.tree ?? 0 })),
+    );
     for (const candidate of candidateMap.values()) {
       const data = candidate.data;
       const createdAt = new Date(data.created_at).getTime();
       const ageHours = (now - createdAt) / 3600000;
-
-      // Exponential recency decay: score = e^(-λt)
       candidate.scores.recency = Math.exp(-fusionParams.recencyDecayLambda * ageHours);
-
-      // Importance from data
       candidate.scores.importance = data.importance_score ?? 0.5;
 
-      candidate.score = fuseCandidateScore(candidate.scores, weights, theta);
+      const key = candidateKey(candidate);
+      const ranks: ChannelRanks = {};
+      const lexicalRank = lexicalRanks.get(key);
+      const graphRank = graphRanks.get(key);
+      const ripgrepRank = ripgrepRanks.get(key);
+      const treeRank = treeRanks.get(key);
+      if (lexicalRank != null) ranks.lexical = lexicalRank;
+      if (ripgrepRank != null) ranks.ripgrep = ripgrepRank;
+      if (treeRank != null) ranks.tree = treeRank;
+      if (graphRank != null) ranks.graph = graphRank;
+      candidate.ranks = ranks;
+      const rel = rrfScore(ranks, channelWeights, k0);
+      const U = utilityFromSource(data);
+      const R = retrievabilityFromSource(data, undefined, now);
+      candidate.rel = rel;
+      candidate.utility = U;
+      candidate.retrievability = R;
+      candidate.priorFactor = priorModulation(U, R, etaU, etaR);
+      candidate.score = modulateRelevance(rel, U, R, etaU, etaR);
+      candidate.channel = winningRrfChannel(ranks, channelWeights, k0) ?? undefined;
     }
     const currentTopicId =
       options.currentTopicId ??
@@ -453,11 +972,13 @@ export class RetrievalFusion {
     let outcomes = new Map<number, { verified: number; reverted: number }>();
     try {
       outcomes = await loadOutcomes(db, candidateSemanticIds);
-      const superseded = await loadSupersededIds(db, candidateSemanticIds);
-      for (const id of superseded) candidateMap.delete(`semantic:${id}`);
     } catch {
-      // older DB without the tables
+      // older DB without the table
     }
+
+    const activeChannels = activeFusionChannels(candidateMap.values());
+    const scoreCeiling = rrfCeiling(channelWeights, k0, activeChannels);
+    const scoreCutoff = calibratedScoreCutoff(theta, channelWeights, k0, activeChannels);
 
     for (const candidate of candidateMap.values()) {
       if (candidate.type !== "semantic") continue;
@@ -467,13 +988,17 @@ export class RetrievalFusion {
         sem.mismatch_count,
         pinnedIds.has(sem.id),
       );
-      candidate.score = applyOutcomeWeight(candidate.score, outcomes.get(sem.id), theta, pinnedIds.has(sem.id));
+      candidate.score = applyOutcomeWeight(
+        candidate.score,
+        outcomes.get(sem.id),
+        scoreCutoff,
+        pinnedIds.has(sem.id),
+      );
     }
 
-    // Sort by fusion score, apply θ threshold, then REL-03 mismatch gate, then top-K
-    let results = Array.from(candidateMap.values())
-      .sort((a, b) => b.score - a.score)
-      .filter((r) => minScore === undefined || r.score >= minScore);
+    // Sort by modulated score, then REL-03 mismatch gate (rel=0 if the gate
+    // fails), then top fused-candidates, then calibrated θ (MEM-22).
+    let results = Array.from(candidateMap.values()).sort((a, b) => b.score - a.score);
 
     // Project scope (IMP-25): episodic must belong to project sessions; semantic must have project source_session_id
     if (options.projectSessionIds !== undefined) {
@@ -493,12 +1018,12 @@ export class RetrievalFusion {
 
     const queryEntities = await resolveQueryEntities(searchQuery);
     const requireLexical = config.retrieval_require_lexical !== false;
-    results = results.filter((r) => {
+    for (const r of results) {
       const sem = r.type === "semantic" ? (r.data as SemanticMemory) : undefined;
       const ep = r.type === "episodic" ? (r.data as EpisodicMemory) : undefined;
       const pinned = sem ? pinnedIds.has(sem.id) : false;
       const demoted = sem ? isMismatchActive(sem, currentTopicId) && !pinned : false;
-      return evaluateRelevanceGate({
+      const gate = evaluateRelevanceGate({
         query: searchQuery,
         title: sem?.title,
         keywords: sem?.keywords,
@@ -509,13 +1034,38 @@ export class RetrievalFusion {
         pinned,
         requireLexical,
         demoted,
+        ripgrepHit: hasRipgrepHit(r),
         // MC-50: verified-ness and prior mismatch raise/lower the bar (see RelevanceGate).
         verified: sem ? recipeMemoryIsVerified(sem.content, outcomes.get(sem.id)) : undefined,
         mismatchCount: sem?.mismatch_count,
-      }).passed;
-    });
+      });
+      // REL-03: gate fail → rel=0 (relevance-dominance).
+      if (!gate.passed) {
+        r.rel = 0;
+        r.score = 0;
+      }
+    }
+    // REL-02: leftover additive strength when the caller passes a live θ
+    // (pipeline / ContextBuilder, θ ≥ 0.15). Tiny minScore values are raw
+    // RRF cutoffs (MC-51). Floor is max(0.6, θ) so live θ=0.35 is not looser
+    // than the old admission set. Recency/importance stay capped.
+    if (minScore !== undefined && minScore >= RETRIEVAL_THRESHOLD_DEFAULT) {
+      for (const r of results) {
+        if (r.score <= 0) continue;
+        const sem = r.type === "semantic" ? (r.data as SemanticMemory) : undefined;
+        if (sem && pinnedIds.has(sem.id)) continue;
+        if (
+          leftoverAdditiveScore(r.scores, leftoverWeights, leftoverTheta) < leftoverTheta &&
+          !hasRipgrepHit(r) &&
+          !hasTreeHit(r)
+        ) {
+          r.score = 0;
+        }
+      }
+    }
+    results = results.filter((r) => r.score > 0).sort((a, b) => b.score - a.score);
 
-    // REL-05: topic boost/penalty after the gate, before top-K
+    // REL-05: topic boost/penalty after the gate, before the fused cut-off
     if (config.memory_scope === "project" && options.sessionId) {
       if (currentTopicId != null) {
         results = applyTopicBias(results, {
@@ -535,14 +1085,22 @@ export class RetrievalFusion {
       results = applyTaskBias(results, { currentTaskId: taskId });
     }
 
+    results = results.slice(0, fusedCap).filter((r) => {
+      const sem = r.type === "semantic" ? (r.data as SemanticMemory) : undefined;
+      return passesCalibratedTheta(
+        r.score,
+        theta,
+        scoreCeiling,
+        Boolean(sem && pinnedIds.has(sem.id)),
+      );
+    });
     results = results.slice(0, limit);
 
     // REL-12 / MEM-16: calibration inject_count only — not retrieval_count
-    // (leftover S / I) and not last_accessed_at (R clock). Topic bias may
-    // drop a gated hit below θ — those must not be counted as injected.
-    const bumpThreshold = config.retrieval_threshold;
+    // (leftover S / I) and not last_accessed_at (R clock). Returned hits
+    // already passed the gate and the calibrated θ cut-off.
     const semanticIds = results
-      .filter((r) => r.type === "semantic" && r.score >= bumpThreshold)
+      .filter((r) => r.type === "semantic" && r.score > 0)
       .map((r) => r.id);
     await BrainStore.recordSemanticInject(semanticIds);
 
@@ -564,7 +1122,7 @@ export class RetrievalFusion {
     try {
       const extra: string[] = [
         "(s.expires_at IS NULL OR s.expires_at > datetime('now'))",
-        liveRetrieveSql("s"),
+        queryScopeSql("semantic", "s"),
       ];
       const extraParams: any[] = [];
 
@@ -614,7 +1172,7 @@ export class RetrievalFusion {
     try {
       // Parameters must follow placeholder order: MATCH ?, then extra
       // conditions, then LIMIT ?.
-      const extraConditions: string[] = [liveRetrieveSql("e")];
+      const extraConditions: string[] = [queryScopeSql("episodic", "e")];
       const extraParams: any[] = [];
 
       if (sessionId) {
@@ -667,7 +1225,7 @@ export class RetrievalFusion {
     // Fetch candidate rows (use existing indexes for pre-filtering)
     const conditions = [
       "(expires_at IS NULL OR expires_at > datetime('now'))",
-      liveRetrieveSql(),
+      queryScopeSql("semantic"),
     ];
     const params: any[] = [];
 
@@ -700,7 +1258,7 @@ export class RetrievalFusion {
       try {
         const ftsConditions = [
           "(s.expires_at IS NULL OR s.expires_at > datetime('now'))",
-          liveRetrieveSql("s"),
+          queryScopeSql("semantic", "s"),
         ];
         const ftsParams: any[] = [];
         if (category) {
@@ -765,114 +1323,31 @@ export class RetrievalFusion {
   // ── Graph Expansion ────────────────────────────────────────────────────────
 
   /**
-   * Find memories related through the knowledge graph.
-   * Extracts entities from the query, then follows graph edges
-   * to find semantically related memories.
-   *
-   * Returns a map of semantic memory IDs to graph relevance scores.
+   * Graph channel: hub-damped PPR from query entities, then
+   * S_graph(m,q) = max_e π_q(e) for entities mentioned in m.
    */
   private static async graphExpansion(query: string): Promise<Map<number, number>> {
-    const graphScores = new Map<number, number>();
-    if (!hasGraphExpandableTokens(query)) return graphScores;
-
-    const config = getMemoryConfig();
-    const fusionParams = getFusionParams();
-    const maxDepth = config.graph_max_depth;
-
+    if (!hasGraphExpandableTokens(query)) return new Map();
     try {
-      const entities = await KnowledgeGraph.searchEntities(
-        query,
-        undefined,
-        fusionParams.graphEntitySearchLimit,
-      );
-      if (entities.length === 0) return graphScores;
-
-      const countRow = await (await BrainStore.get())
-        .get("SELECT COUNT(*) AS n FROM brain_semantic")
-        .catch(() => null);
-      const largeBrain = ((countRow as any)?.n ?? 0) > 5000;
-
-      for (const entity of entities) {
-        void BrainStore.touchEntity(entity.id);
-        const neighbors = await KnowledgeGraph.explore({
-          entity_id: entity.id,
-          depth: maxDepth,
-          limit: fusionParams.graphNeighborLimit,
-        });
-
-        const db = await BrainStore.get();
-        const fetchLimit = Math.max(config.graph_neighbor_memory_limit * 3, 15);
-
-        for (const neighbor of neighbors.entities) {
-          if (!shouldJoinEntityToMemories(query, neighbor.name)) continue;
-
-          const depth = neighbors.entity_depths[neighbor.id] ?? 0;
-          const activation =
-            neighbors.activation_scores[neighbor.id] ??
-            neighbor.confidence * Math.pow(fusionParams.graphDepthDecayGamma, depth);
-
-          const needle = neighbor.name.toLowerCase();
-          let ftsRelated: any[] | null = null;
-          // Big brains: one full-table LIKE scan per neighbour is the slow part. The post-filter
-          // below already requires a whole-name match, so an FTS5 phrase lookup finds the same rows.
-          if (largeBrain) {
-            const phrase = needle.replace(/"/g, "").trim();
-            if (phrase) {
-              try {
-                ftsRelated = await db.all(
-                  `WITH hits AS (
-                     SELECT rowid AS id, bm25(brain_semantic_fts, 5.0, 1.0, 3.0) AS rank
-                     FROM brain_semantic_fts
-                     WHERE brain_semantic_fts MATCH ?
-                     ORDER BY rank
-                     LIMIT ?
-                   )
-                   SELECT s.id, s.title, s.content, s.keywords
-                   FROM hits JOIN brain_semantic s ON s.id = hits.id
-                   WHERE (s.expires_at IS NULL OR s.expires_at > datetime('now'))
-                     AND ${liveRetrieveSql("s")}
-                   ORDER BY hits.rank
-                   LIMIT ?`,
-                  [`"${phrase}"`, fetchLimit * 10, fetchLimit],
-                );
-              } catch {
-                ftsRelated = null; // FTS5 unavailable: LIKE below
-              }
-            }
-          }
-          const related: any[] = ftsRelated ?? await db.all(
-            `SELECT id, title, content, keywords FROM brain_semantic
-             WHERE (LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(keywords) LIKE ?)
-             AND (expires_at IS NULL OR expires_at > datetime('now'))
-             AND ${liveRetrieveSql()}
-             LIMIT ?`,
-            [`%${needle}%`, `%${needle}%`, `%${needle}%`, fetchLimit],
-          );
-
-          let kept = 0;
-          for (const r of related) {
-            const row = r as { id: number; title?: string; content?: string; keywords?: string };
-            const haystack = `${row.title ?? ""} ${row.content ?? ""} ${row.keywords ?? ""}`;
-            if (!entityNameMatchesMemory(haystack, neighbor.name)) continue;
-            const currentScore = graphScores.get(row.id) ?? 0;
-            const neighborFactor = depth === 0
-              ? 1.0
-              : config.graph_indirect_neighbor_factor;
-            const boost = activation * neighborFactor;
-            graphScores.set(
-              row.id,
-              Math.min(1.0, currentScore + boost * fusionParams.graphMemoryBoostFactor),
-            );
-            kept++;
-            if (kept >= config.graph_neighbor_memory_limit) break;
-          }
-        }
-      }
+      return await KnowledgeGraph.searchMemoriesByPpr(query);
     } catch {
-      // Graph expansion is best-effort
+      return new Map();
     }
+  }
 
-    return graphScores;
+  private static async resolveWorkspaceDir(
+    options: FusionOptions,
+  ): Promise<string | undefined> {
+    const explicit = options.workspaceDir?.trim();
+    if (explicit) return explicit;
+    if (!options.sessionId) return undefined;
+    try {
+      const session = await BrainStore.getSession(options.sessionId);
+      const dir = session?.workspace_directory?.trim();
+      return dir || undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   // ── Query Type Detection (delegates to config) ─────────────────────────────
@@ -955,6 +1430,8 @@ export class RetrievalFusion {
       i0: r.i0 ?? null,
       helpful_count: r.helpful_count ?? 0,
       unhelpful_count: r.unhelpful_count ?? 0,
+      valid_from: r.valid_from ?? null,
+      valid_to: r.valid_to ?? null,
     };
   }
 
@@ -979,6 +1456,8 @@ export class RetrievalFusion {
       i0: r.i0 ?? null,
       helpful_count: r.helpful_count ?? 0,
       unhelpful_count: r.unhelpful_count ?? 0,
+      valid_from: r.valid_from ?? null,
+      valid_to: r.valid_to ?? null,
     };
   }
 

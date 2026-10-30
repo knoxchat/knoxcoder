@@ -392,6 +392,13 @@ export async function markSuperseded(db: DatabaseConnection, oldId: number, newI
      ON CONFLICT(old_id) DO UPDATE SET new_id = excluded.new_id, reason = excluded.reason`,
     [oldId, newId, reason],
   );
+  // MEM-26: close the old fact's validity interval. The row stays queryable by id.
+  await db.run(
+    `UPDATE brain_semantic
+     SET valid_to = COALESCE(valid_to, datetime('now'))
+     WHERE id = ? AND (valid_to IS NULL OR datetime(valid_to) > datetime('now'))`,
+    [oldId],
+  );
 }
 
 export async function loadSupersededIds(db: DatabaseConnection, ids: number[]): Promise<Set<number>> {

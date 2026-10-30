@@ -8,7 +8,7 @@ import path from "path";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { fuseCandidateScore, RECENCY_IMPORTANCE_THETA_MARGIN } from "./RetrievalFusion.js";
+import { fuseCandidateScore } from "./RetrievalFusion.js";
 import { getFusionWeights } from "./memoryConfigAccess.js";
 
 const testDir = path.join(os.tmpdir(), `brain-mismatch-${Date.now()}`);
@@ -149,15 +149,14 @@ describe("REL-17 mismatch suite (Sprint A)", () => {
     expect(semanticTitles).not.toContain("README badge layout");
   });
 
-  it("4. min-max: zero-overlap recency+importance stays below θ", () => {
-    const theta = 0.6;
+  it("4. min-max: zero-overlap recency+importance scores 0", () => {
+    const theta = 0.35;
     const score = fuseCandidateScore(
       { fts5: 0, trigram: 0, graph: 0, recency: 1, importance: 1 },
       getFusionWeights("conversational"),
       theta,
     );
-    expect(score).toBeLessThan(theta);
-    expect(score).toBeLessThanOrEqual(theta - RECENCY_IMPORTANCE_THETA_MARGIN + 1e-9);
+    expect(score).toBe(0);
   });
 
   it("9. φ₆ fusion search is invoked once per runPreTurn", async () => {
@@ -412,7 +411,7 @@ describe("REL-03 / REL-04 assembly provenance", () => {
     const hits = await RetrievalFusion.search({
       query: "update the README badges",
       limit: 20,
-      minScore: 0.6,
+      minScore: 0.35,
       includeEpisodic: false,
     });
     expect(hits.some((h) => h.id === authId)).toBe(false);

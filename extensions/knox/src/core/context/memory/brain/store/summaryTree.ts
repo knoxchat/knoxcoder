@@ -2,8 +2,8 @@
  * MEM-05 — summary-tree pointers. A summary is a node that lists original
  * leaf ids; it must not replace leaf `content`.
  *
- * Beam search over this tree is MEM-24. This module only writes / reads
- * pointers so sleep and persist stay lossless.
+ * Pointer writes for sleep / persist (lossless). Branched insertion and
+ * beam search over session roots live in `brain/SummaryTree.ts` (MEM-24).
  */
 
 import { get } from "./connection.js";

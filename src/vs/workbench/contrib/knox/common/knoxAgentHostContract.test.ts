@@ -879,8 +879,8 @@ suite('Knox agent host contract (KN-376)', () => {
 		const hierarchy = repoFile('extensions/knox/src/core/context/memory/brain/MemoryHierarchy.ts');
 		const sanitizer = repoFile('extensions/knox/src/core/context/memory/brain/InputSanitizer.ts');
 		assert.ok(overlays.includes("MEMORY_TAB_IDS = ['overview', 'memories', 'sessions', 'graph', 'recipes', 'settings']"));
-		assert.ok(helpers.includes('MEMORY_RETRIEVAL_THRESHOLD = 0.6'));
-		assert.ok(helpers.includes('MEMORY_RETRIEVAL_TOP_K = 20'));
+		assert.ok(helpers.includes('MEMORY_RETRIEVAL_THRESHOLD = 0.35'));
+		assert.ok(helpers.includes('MEMORY_RETRIEVAL_TOP_K = 50'));
 		assert.ok(helpers.includes('MEMORY_PANEL_TAB_BRAIN_MESSAGES'));
 		assert.ok(helpers.includes('parseMemoryDashboard'));
 		assert.ok(helpers.includes('parseExploreResult'));
@@ -912,8 +912,8 @@ suite('Knox agent host contract (KN-376)', () => {
 		assert.ok(core.includes('on("brain/listSessions"'));
 		assert.ok(core.includes('on("brain/exploreGraph"'));
 		assert.ok(core.includes('on("brain/heal"'));
-		assert.ok(store.includes('retrieval_threshold: 0.6'));
-		assert.ok(store.includes('retrieval_top_k: 20'));
+		assert.ok(store.includes('retrieval_threshold: 0.35'));
+		assert.ok(store.includes('retrieval_top_k: 50'));
 		assert.ok(hierarchy.includes('"M1"'));
 		assert.ok(hierarchy.includes('"M5"'));
 		assert.ok(sanitizer.includes('credential_leak'));

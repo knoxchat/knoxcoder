@@ -1920,7 +1920,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 				'brain/graphStats': { total_entities: 2, total_edges: 1, entity_types: { concept: 1, library: 1 }, max_entities: 5000, max_depth: 3 },
 				'brain/listEntities': { entities: [{ id: 1, name: 'Auth', entity_type: 'concept', mention_count: 2 }], total: 1 },
 				'brain/exploreGraph': { center: { id: 1, name: 'Auth', entity_type: 'concept' }, entities: [{ id: 1, name: 'Auth' }, { id: 2, name: 'JWT' }], edges: [{ id: 10, source_entity_id: 1, target_entity_id: 2, relationship: 'uses', weight: 1 }], depth_reached: 1, entity_depths: { 1: 0, 2: 1 } },
-				'brain/getConfig': { config: { retrieval_threshold: 0.6, retrieval_top_k: 20, ebbinghaus_lambda: 0.05 } },
+				'brain/getConfig': { config: { retrieval_threshold: 0.35, retrieval_top_k: 50, ebbinghaus_lambda: 0.05 } },
 				'brain/updateConfig': { ok: true },
 				'brain/consolidate': { result: { promoted: 1, demoted: 0, pruned: 0, merged: 0 } },
 				'brain/deleteMemory': { success: true },
@@ -1960,10 +1960,10 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.memoryExplore?.entityDepths?.['2'], 1);
 
 		await controller.loadMemoryConfig();
-		assert.strictEqual(store.state.memoryConfig.retrieval_threshold, 0.6);
+		assert.strictEqual(store.state.memoryConfig.retrieval_threshold, 0.35);
 		assert.strictEqual(store.state.memoryConfig.post_turn_min_chars, 80, 'DEFAULT_CONFIG fills fields the host omits');
 		assert.strictEqual(store.state.memoryConfigLoading, false);
-		controller.updateMemoryConfig('retrieval_top_k', 20);
+		controller.updateMemoryConfig('retrieval_top_k', 50);
 		assert.ok(posted.some(message => message.messageType === 'brain/updateConfig' && (message.data as { key?: string }).key === 'retrieval_top_k'));
 		await timeout(0);
 		assert.strictEqual(store.state.memorySavedKey, 'retrieval_top_k');
@@ -2005,10 +2005,10 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.memoryBrainSettings.enabled, false);
 		assert.ok(posted.some(message => message.messageType === 'knox/memoryBrainSettingsSet' && (message.data as { enabled?: boolean }).enabled === false));
 
-		store.patch({ memoryConfig: { ebbinghaus_lambda: 0.9, retrieval_top_k: 20 } });
+		store.patch({ memoryConfig: { ebbinghaus_lambda: 0.9, retrieval_top_k: 50 } });
 		await controller.resetMemoryExpertConfig();
 		assert.strictEqual(store.state.memoryConfig.ebbinghaus_lambda, 0.03);
-		assert.strictEqual(store.state.memoryConfig.retrieval_top_k, 20, 'product inject cap is not an expert default reset');
+		assert.strictEqual(store.state.memoryConfig.retrieval_top_k, 50, 'product inject cap is not an expert default reset');
 
 		store.patch({
 			memorySessions: [{ id: 's1', title: 'Ship', messageCount: 2 }],

@@ -234,29 +234,35 @@ export interface GraphExploreResult {
   entities: GraphEntity[];
   edges: GraphEdge[];
   depth_reached: number;
-  /** BFS depth from center for spreading activation (γ^depth). IMP-11 */
+  /** First-touch hop from the PPR seed (display). IMP-11 / MEM-25 */
   entity_depths: Record<number, number>;
-  /** Spreading activation score per entity: confidence × γ^depth. IMP-11 */
+  /** Hub-damped Personalized PageRank π_q. IMP-11 / MEM-25 */
   activation_scores: Record<number, number>;
 }
 
 /**
- * Knowledge graph channel gauge (IMP-11 / MEM-08).
- * Entity count is channel size, not C_addr. `cap_utilization` is an LRU cache
- * hint until MEM-25 removes the cap — not a success metric.
+ * Knowledge graph channel gauge (IMP-11 / MEM-08 / MEM-25 / MEM-26).
+ * Entity count is canonical channel size (aliases collapsed), not C_addr.
+ * There is no entity cap.
  */
 export interface GraphCapStatus {
   entity_count: number;
-  /** Same as `entity_count`. Channel size over stored rows, not capacity. */
+  /** Same as `entity_count`. Canonical entities valid now, not capacity. */
   channel_size: number;
+  /** Always 0 — leftover unused cap (MEM-25). */
   max_entities: number;
-  /** LRU cache fill vs `graph_max_entities`. Not C_addr / not a success metric. */
+  /** Always 0 — no capacity policy. */
   cap_utilization: number;
   at_cap: boolean;
   /** Always false: the graph is a retrieval channel, not addressable storage. */
   is_capacity: false;
   max_depth: number;
+  /** Leftover unused BFS γ (MEM-25). Live score is PPR. */
   depth_decay_gamma: number;
+  /** PPR restart α. Theorem default 0.15. */
+  ppr_alpha: number;
+  /** Push-PPR residual tolerance ε. */
+  ppr_epsilon: number;
   edges: number;
   entity_types: Record<string, number>;
 }

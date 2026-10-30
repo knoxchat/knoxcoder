@@ -16,6 +16,7 @@ import { addTag } from "./organization.js";
 import { auditLog, getLatestSessionTopic, getOpenTask } from "./runtime.js";
 import { parseSummaryOf, serializeSummaryOf } from "./summaryTree.js";
 import { TOMBSTONE_REASON, liveRetrieveSql, tombstoneMemories } from "./tombstone.js";
+import { notSupersededSql, queryScopeSql, validAtSql } from "./validity.js";
 import { computeSalience, detectEmotionalValence } from "./valence.js";
 
 // ── Semantic Memory Operations ─────────────────────────────────────────────
@@ -146,8 +147,8 @@ export async function storeSemantic(input: StoreInput): Promise<number> {
   });
 
   const result = await db.run(
-    `INSERT INTO brain_semantic (category, title, content, source_session_id, keywords, importance_score, emotional_valence, salience, expires_at, topic_id, task_id, summary_of, parent_id, stability, difficulty, i0)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO brain_semantic (category, title, content, source_session_id, keywords, importance_score, emotional_valence, salience, expires_at, topic_id, task_id, summary_of, parent_id, stability, difficulty, i0, valid_from)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
     [
       input.category,
       cleanedTitle,
@@ -232,6 +233,8 @@ async function findContentNearDuplicate(
      WHERE category = ?
        AND tombstoned_at IS NULL
        AND (expires_at IS NULL OR expires_at > datetime('now'))
+       AND ${validAtSql()}
+       AND ${notSupersededSql()}
      ORDER BY created_at DESC
      LIMIT 40`,
     [input.category],
@@ -333,7 +336,7 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
     try {
       const ftsConditions = [
         "(s.expires_at IS NULL OR s.expires_at > datetime('now'))",
-        liveRetrieveSql("s"),
+        queryScopeSql("semantic", "s"),
       ];
       const ftsParams: any[] = [];
       if (category) {
@@ -375,7 +378,7 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
   } else {
     const conditions: string[] = [
       "(expires_at IS NULL OR expires_at > datetime('now'))",
-      liveRetrieveSql(),
+      queryScopeSql("semantic"),
     ];
     const params: any[] = [];
 
@@ -539,6 +542,8 @@ export async function findDuplicates(title: string, keywords: string, category?:
   const conditions: string[] = [
     "tombstoned_at IS NULL",
     "(expires_at IS NULL OR expires_at > datetime('now'))",
+    validAtSql(),
+    notSupersededSql(),
   ];
   const params: any[] = [];
 

@@ -68,6 +68,10 @@ describe("MEM-13 bounded utility U and Value = R·U", () => {
     expect(p.archiveThreshold).toBe(0.05);
     expect(Value.UTILITY_KAPPA_DEFAULT).toBe(5);
     expect(Value.ARCHIVE_VALUE_THRESHOLD).toBe(0.05);
+    expect(p.etaUtility).toBe(0.5);
+    expect(p.etaRetrievability).toBe(0.3);
+    expect(Value.ETA_UTILITY_DEFAULT).toBe(0.5);
+    expect(Value.ETA_RETRIEVABILITY_DEFAULT).toBe(0.3);
   });
 
   it("h=u=0 → U=I₀ (prior only until attributed)", () => {

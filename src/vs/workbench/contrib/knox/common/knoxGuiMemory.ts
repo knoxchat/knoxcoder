@@ -33,8 +33,8 @@ export type KnoxMemorySortBy = 'recent' | 'importance' | 'accessed';
 export type KnoxMemoryPinnedFilter = 'all' | 'pinned' | 'unpinned';
 
 /** KN-376: KN-311 retrieval defaults used by BrainStore and Settings. */
-export const MEMORY_RETRIEVAL_THRESHOLD = 0.6;
-export const MEMORY_RETRIEVAL_TOP_K = 20;
+export const MEMORY_RETRIEVAL_THRESHOLD = 0.35;
+export const MEMORY_RETRIEVAL_TOP_K = 50;
 
 /** KN-376: each Memory panel tab's KN-310-317 `brain/*` surface. */
 export const MEMORY_PANEL_TAB_BRAIN_MESSAGES = {
@@ -444,6 +444,8 @@ export function parseMemoryDashboard(raw: Record<string, unknown> | undefined): 
 		graphTotalEdges: (graph?.total_edges !== undefined && graph?.total_edges !== null) ? Number(graph.total_edges) : undefined,
 		graphMaxDepth: (graph?.max_depth !== undefined && graph?.max_depth !== null) ? Number(graph.max_depth) : undefined,
 		graphDepthDecayGamma: (graph?.depth_decay_gamma !== undefined && graph?.depth_decay_gamma !== null) ? Number(graph.depth_decay_gamma) : undefined,
+		graphPprAlpha: (graph?.ppr_alpha !== undefined && graph?.ppr_alpha !== null) ? Number(graph.ppr_alpha) : undefined,
+		graphPprEpsilon: (graph?.ppr_epsilon !== undefined && graph?.ppr_epsilon !== null) ? Number(graph.ppr_epsilon) : undefined,
 		sessions: asArray(raw.sessions).map(parseMemorySession).filter((session): session is NonNullable<typeof session> => Boolean(session)),
 		consolidation: consolidation ? {
 			totalRuns: Number(consolidation.total_runs ?? 0),
@@ -577,6 +579,8 @@ export function parseEffectiveContext(raw: Record<string, unknown> | undefined):
 		graphIsCapacity: rec.graph_is_capacity === true,
 		graphMaxEntities: (rec.graph_max_entities !== undefined && rec.graph_max_entities !== null) ? Number(rec.graph_max_entities) : undefined,
 		graphCapUtilization: (rec.graph_cap_utilization !== undefined && rec.graph_cap_utilization !== null) ? Number(rec.graph_cap_utilization) : undefined,
+		graphPprAlpha: (rec.graph_ppr_alpha !== undefined && rec.graph_ppr_alpha !== null) ? Number(rec.graph_ppr_alpha) : undefined,
+		graphPprEpsilon: (rec.graph_ppr_epsilon !== undefined && rec.graph_ppr_epsilon !== null) ? Number(rec.graph_ppr_epsilon) : undefined,
 		tierTokens: asNumberRecord(rec.tier_tokens),
 		compressionRatios: asNumberRecord(rec.compression_ratios),
 		levels,
@@ -1098,6 +1102,8 @@ export function parseGraphStats(raw: Record<string, unknown> | undefined): IKnox
 		atCap: rec.at_cap === true,
 		maxDepth: (rec.max_depth !== undefined && rec.max_depth !== null) ? Number(rec.max_depth) : undefined,
 		depthDecayGamma: (rec.depth_decay_gamma !== undefined && rec.depth_decay_gamma !== null) ? Number(rec.depth_decay_gamma) : undefined,
+		pprAlpha: (rec.ppr_alpha !== undefined && rec.ppr_alpha !== null) ? Number(rec.ppr_alpha) : undefined,
+		pprEpsilon: (rec.ppr_epsilon !== undefined && rec.ppr_epsilon !== null) ? Number(rec.ppr_epsilon) : undefined,
 	};
 }
 
@@ -1335,6 +1341,8 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 			{ key: 'w_mem_tokens', labelKey: 'memoryTheoremWMem', descKey: 'memoryTheoremWMemDesc', kind: 'number', min: 512, max: 32000 },
 			{ key: 'fusion_candidate_cutoff', labelKey: 'memoryTheoremFusionCutoff', descKey: 'memoryTheoremFusionCutoffDesc', kind: 'number', min: 10, max: 200 },
 			{ key: 'calibrated_theta', labelKey: 'memoryTheoremCalibratedTheta', descKey: 'memoryTheoremCalibratedThetaDesc', kind: 'number', min: 0.15, max: 0.85, percent: true, float: true },
+			{ key: 'ppr_alpha', labelKey: 'memoryTheoremPprAlpha', descKey: 'memoryTheoremPprAlphaDesc', kind: 'number', min: 0.05, max: 0.5, step: 0.01, float: true },
+			{ key: 'ppr_epsilon', labelKey: 'memoryTheoremPprEpsilon', descKey: 'memoryTheoremPprEpsilonDesc', kind: 'number', min: 0.000001, max: 0.01, step: 0.0001, float: true },
 			{ key: 'w_lexical', labelKey: 'memoryTheoremWLexical', descKey: 'memoryTheoremWLexicalDesc', kind: 'number', min: 0, max: 4, step: 0.1, float: true },
 			{ key: 'w_ripgrep', labelKey: 'memoryTheoremWRipgrep', descKey: 'memoryTheoremWRipgrepDesc', kind: 'number', min: 0, max: 4, step: 0.1, float: true },
 			{ key: 'w_graph', labelKey: 'memoryTheoremWGraph', descKey: 'memoryTheoremWGraphDesc', kind: 'number', min: 0, max: 4, step: 0.1, float: true },
@@ -1456,8 +1464,8 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 			{ key: 'fusion_candidate_multiplier', labelKey: 'memoryFusionCandidateMultiplier', descKey: 'memoryFusionCandidateMultiplierDesc', kind: 'number', min: 2, max: 20 },
 			{ key: 'fusion_candidate_min', labelKey: 'memoryFusionCandidateMin', descKey: 'memoryFusionCandidateMinDesc', kind: 'number', min: 10, max: 200 },
 			{ key: 'recency_decay_lambda', labelKey: 'memoryRecencyDecayLambda', descKey: 'memoryRecencyDecayLambdaDesc', kind: 'number', min: 0.001, max: 0.02, step: 0.0001, float: true },
-			{ key: 'graph_depth_decay_gamma', labelKey: 'memoryGraphDepthDecayGamma', descKey: 'memoryGraphDepthDecayGammaDesc', kind: 'number', min: 0.3, max: 0.95, percent: true },
-			{ key: 'graph_memory_boost_factor', labelKey: 'memoryGraphMemoryBoost', descKey: 'memoryGraphMemoryBoostDesc', kind: 'number', min: 0.1, max: 0.8, percent: true },
+			{ key: 'graph_depth_decay_gamma', labelKey: 'memoryGraphDepthDecayGamma', descKey: 'memoryGraphDepthDecayGammaDesc', kind: 'number', min: 0.3, max: 0.95, percent: true, legacy: true },
+			{ key: 'graph_memory_boost_factor', labelKey: 'memoryGraphMemoryBoost', descKey: 'memoryGraphMemoryBoostDesc', kind: 'number', min: 0.1, max: 0.8, percent: true, legacy: true },
 			{ key: 'graph_neighbor_limit', labelKey: 'memoryGraphNeighborLimit', descKey: 'memoryGraphNeighborLimitDesc', kind: 'number', min: 3, max: 50 },
 		],
 	},
@@ -1488,7 +1496,7 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 		expert: true,
 		collapsed: true,
 		fields: [
-			{ key: 'graph_max_entities', labelKey: 'memoryGraphMaxEntities', descKey: 'memoryGraphMaxEntitiesDesc', kind: 'number', min: 500, max: 10000 },
+			{ key: 'graph_max_entities', labelKey: 'memoryGraphMaxEntities', descKey: 'memoryGraphMaxEntitiesDesc', kind: 'number', min: 500, max: 10000, legacy: true },
 			{ key: 'graph_max_depth', labelKey: 'memoryGraphMaxDepth', descKey: 'memoryGraphMaxDepthDesc', kind: 'number', min: 1, max: 5 },
 			{ key: 'enable_knowledge_extraction', labelKey: 'memoryKnowledgeExtraction', descKey: 'memoryKnowledgeExtractionDesc', kind: 'toggle' },
 			{ key: 'post_turn_min_chars', labelKey: 'memoryPostTurnMinChars', descKey: 'memoryPostTurnMinCharsDesc', kind: 'number', min: 20, max: 2000 },
@@ -1544,7 +1552,7 @@ export function memoryExpertConfigKeys(): string[] {
 export const MEMORY_DEFAULT_CONFIG: Readonly<Record<string, string | number | boolean>> = {
 	auto_extract_enabled: true, consolidation_interval_hours: 24, max_hot_memories: 500, max_episodic_per_session: 1000,
 	context_max_tokens: 10_000_000, max_context_tokens: 10_000_000, context_goal_budget_ratio: 0.1, memory_mode: 'summarized',
-	retrieval_threshold: 0.6, retrieval_top_k: 20, retrieval_require_lexical: true, retrieval_continuation_expand: true,
+	retrieval_threshold: 0.35, retrieval_top_k: 50, retrieval_require_lexical: true, retrieval_continuation_expand: true,
 	fts5_use_and_for_content: true, topic_shift_jaccard: 0.35, wm_mismatch_decay: 0.25, wm_inject_min_relevance: 0.35,
 	summary_inject_min_overlap: 0.2, pinned_unmatched_cap: 2, graph_max_entities: 5000, graph_max_depth: 3, memory_scope: 'project',
 	auto_summarize: true, summarize_threshold: 50, enable_knowledge_extraction: true, post_turn_min_chars: 80,
@@ -1570,6 +1578,7 @@ export const MEMORY_DEFAULT_CONFIG: Readonly<Record<string, string | number | bo
 	utility_kappa: 5, archive_value_threshold: 0.05, rrf_k0: 60, eta_utility: 0.5, eta_retrievability: 0.3,
 	tree_branching_b: 8, tree_beam_B: 4, coverage_lambda: 0.5, w_mem_tokens: 4096, fusion_candidate_cutoff: 50,
 	calibrated_theta: 0.35,
+	ppr_alpha: 0.15, ppr_epsilon: 1e-4,
 	w_lexical: 1, w_ripgrep: 1, w_graph: 1, w_tree: 1,
 	sensory_buffer_ms: 250, enable_enhanced_semantic: true,
 };

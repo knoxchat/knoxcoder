@@ -118,6 +118,20 @@ describe("REL-03 RelevanceGate (pure)", () => {
     );
   });
 
+  it("ripgrepHit is lexical evidence (MEM-23)", () => {
+    const gate = evaluateRelevanceGate({
+      query: "knoxRgGateTokenAlpha",
+      title: "Decision about src/auth.ts",
+      keywords: "src/auth.ts",
+      content: "We changed src/auth.ts last week.",
+      fts5: 0,
+      trigram: 0,
+      ripgrepHit: true,
+    });
+    expect(gate.passed).toBe(true);
+    expect(gate.reason).toBe("lexical: exact");
+  });
+
   it("requireLexical false passes a disjoint candidate (REL-20)", () => {
     const gate = evaluateRelevanceGate({
       query: "update the README badges",

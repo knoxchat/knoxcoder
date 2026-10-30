@@ -533,7 +533,7 @@ describe("memory brain regressions", () => {
     await BrainManager.forget(highId);
   });
 
-  it("enforces knowledge graph entity cap via LRU prune", async () => {
+  it("does not prune entities — no capacity cap (IMP-11 / MEM-25)", async () => {
     await resetDatabase();
     await BrainStore.saveConfig("graph_max_entities", "3");
 
@@ -546,20 +546,19 @@ describe("memory brain regressions", () => {
       });
     }
 
-    const count = await BrainStore.countEntities();
-    expect(count).toBeLessThanOrEqual(3);
-
+    expect(await BrainStore.countEntities()).toBe(5);
     const stats = await KnowledgeGraph.getStats();
-    expect(stats.entities).toBeLessThanOrEqual(3);
+    expect(stats.entities).toBe(5);
+    expect(await KnowledgeGraph.enforceEntityCap({ makeRoom: true })).toBe(0);
 
     const pruneAudit = await BrainStore.getAuditLog({
       action: "graph:entity_cap_prune",
       limit: 5,
     });
-    expect(pruneAudit.length).toBeGreaterThan(0);
+    expect(pruneAudit.length).toBe(0);
   });
 
-  it("refreshes LRU on re-mention so entity survives cap enforcement (IMP-11)", async () => {
+  it("refreshes LRU on re-mention without deleting others (IMP-11 / MEM-25)", async () => {
     await resetDatabase();
     await BrainStore.saveConfig("graph_max_entities", "3");
     const { KnowledgeGraph } = await import("./KnowledgeGraph.js");
@@ -580,7 +579,6 @@ describe("memory brain regressions", () => {
       description: "Low priority B",
     });
 
-    // Re-mention PinnedConcept to bump LRU score
     for (let i = 0; i < 5; i++) {
       await KnowledgeGraph.addEntity({
         name: "PinnedConcept",
@@ -592,19 +590,20 @@ describe("memory brain regressions", () => {
     await KnowledgeGraph.addEntity({
       name: "NewEntityOverflow",
       entity_type: "concept",
-      description: "Triggers cap prune",
+      description: "Must not trigger a delete",
     });
 
     const pinned = await BrainStore.findEntity("pinnedconcept", "concept");
     expect(pinned).not.toBeNull();
     expect(pinned!.mention_count).toBeGreaterThan(1);
-    expect(await BrainStore.countEntities()).toBeLessThanOrEqual(3);
+    expect(await BrainStore.countEntities()).toBe(4);
+    expect(await BrainStore.findEntity("ephemerala", "concept")).not.toBeNull();
   });
 
-  it("tracks BFS depth and γ spreading activation in graph explore (IMP-11)", async () => {
+  it("scores explore with hub-damped PPR, not γ^depth (IMP-11 / MEM-25)", async () => {
     await resetDatabase();
     await BrainStore.saveConfig("graph_max_depth", "3");
-    await BrainStore.saveConfig("graph_depth_decay_gamma", "0.7");
+    await BrainStore.saveConfig("ppr_alpha", "0.15");
     const { KnowledgeGraph } = await import("./KnowledgeGraph.js");
 
     const a = await KnowledgeGraph.addEntity({
@@ -642,12 +641,21 @@ describe("memory brain regressions", () => {
     expect(explored.entity_depths[a]).toBe(0);
     expect(explored.entity_depths[b]).toBe(1);
     expect(explored.entity_depths[c]).toBe(2);
-    expect(explored.activation_scores[b]).toBeCloseTo(0.7, 5);
-    expect(explored.activation_scores[c]).toBeCloseTo(0.49, 5);
+    expect(explored.activation_scores[a]).toBeGreaterThan(0);
+    expect(explored.activation_scores[b]).toBeGreaterThan(0);
+    expect(explored.activation_scores[c]).toBeGreaterThan(0);
+    expect(explored.activation_scores[a]).toBeGreaterThan(explored.activation_scores[c]!);
     expect(explored.activation_scores[c]).toBeLessThan(explored.activation_scores[b]!);
+    expect(explored.activation_scores[b]).not.toBeCloseTo(0.7, 2);
+    const mass =
+      (explored.activation_scores[a] ?? 0) +
+      (explored.activation_scores[b] ?? 0) +
+      (explored.activation_scores[c] ?? 0);
+    expect(mass).toBeGreaterThan(0.9);
+    expect(mass).toBeLessThanOrEqual(1.01);
   });
 
-  it("trims excess entities when graph_max_entities is lowered (IMP-11)", async () => {
+  it("does not delete entities when leftover graph_max_entities is lowered (IMP-11 / MEM-25)", async () => {
     await resetDatabase();
     await BrainStore.saveConfig("graph_max_entities", "5");
     const { KnowledgeGraph } = await import("./KnowledgeGraph.js");
@@ -662,14 +670,13 @@ describe("memory brain regressions", () => {
     expect(await BrainStore.countEntities()).toBe(5);
 
     await BrainManager.updateConfig({ key: "graph_max_entities", value: "2" });
-    expect(await BrainStore.countEntities()).toBeLessThanOrEqual(2);
+    expect(await BrainStore.countEntities()).toBe(5);
   });
 
-  it("reports graph cap status for dashboard (IMP-11)", async () => {
+  it("reports graph channel size and PPR α, not cap fill (IMP-11 / MEM-25)", async () => {
     await resetDatabase();
-    await BrainStore.saveConfig("graph_max_entities", "5000");
-    await BrainStore.saveConfig("graph_max_depth", "3");
-    await BrainStore.saveConfig("graph_depth_decay_gamma", "0.7");
+    await BrainStore.saveConfig("ppr_alpha", "0.15");
+    await BrainStore.saveConfig("ppr_epsilon", "0.0001");
     const { KnowledgeGraph } = await import("./KnowledgeGraph.js");
 
     await KnowledgeGraph.addEntity({
@@ -679,20 +686,22 @@ describe("memory brain regressions", () => {
     });
 
     const cap = await KnowledgeGraph.getCapStatus();
-    expect(cap.max_entities).toBe(5000);
-    expect(cap.max_depth).toBe(3);
-    expect(cap.depth_decay_gamma).toBeCloseTo(0.7, 5);
-    expect(cap.entity_count).toBe(1);
-    expect(cap.cap_utilization).toBeCloseTo(1 / 5000, 6);
+    expect(cap.max_entities).toBe(0);
+    expect(cap.cap_utilization).toBe(0);
     expect(cap.at_cap).toBe(false);
+    expect(cap.is_capacity).toBe(false);
+    expect(cap.entity_count).toBe(1);
+    expect(cap.channel_size).toBe(1);
+    expect(cap.ppr_alpha).toBeCloseTo(0.15, 5);
+    expect(cap.ppr_epsilon).toBeCloseTo(1e-4, 8);
 
     const viaManager = await BrainManager.getGraphCapStatus();
     expect(viaManager.entity_count).toBe(1);
+    expect(viaManager.ppr_alpha).toBeCloseTo(0.15, 5);
   });
 
   it("refreshes LRU when entities are searched (IMP-11)", async () => {
     await resetDatabase();
-    await BrainStore.saveConfig("graph_max_entities", "3");
     const { KnowledgeGraph } = await import("./KnowledgeGraph.js");
 
     const id = await KnowledgeGraph.addEntity({

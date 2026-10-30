@@ -179,14 +179,13 @@ export async function getEffectiveContext() {
     graph_channel_size: graphEntityCount,
     graph_role: "channel" as const,
     graph_is_capacity: false,
-    graph_max_entities: config.graph_max_entities,
+    graph_max_entities: 0,
     graph_max_depth: config.graph_max_depth,
     graph_depth_decay_gamma: config.graph_depth_decay_gamma,
-    // LRU cache fill vs graph_max_entities — not C_addr and not a success metric.
-    graph_cap_utilization:
-      config.graph_max_entities > 0
-        ? graphEntityCount / config.graph_max_entities
-        : 0,
+    graph_ppr_alpha: config.ppr_alpha,
+    graph_ppr_epsilon: config.ppr_epsilon,
+    // No entity cap (MEM-25). Not C_addr and not a success metric.
+    graph_cap_utilization: 0,
     compression_ratios: hierarchy.compression_ratios,
     memory_tokens_saved: compression.total_tokens_saved,
     last_compression_tokens_saved: compression.last_tokens_saved,

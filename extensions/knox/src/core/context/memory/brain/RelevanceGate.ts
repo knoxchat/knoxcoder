@@ -10,6 +10,7 @@
  * requirement but still need an explicit reason starting with "pinned".
  */
 
+import { isKnownEntityAlias, textMentionsEntityAliases } from "./entityResolution.js";
 import { contentWords, isStopword } from "./RetrievalQuery.js";
 import type { InjectedMemoryItem, SemanticMemory } from "./types.js";
 
@@ -53,6 +54,11 @@ export interface RelevanceGateInput {
   mismatchCount?: number;
   /** MC-47: override for `LEXICAL_SCORE_MIN` (offline sweeps; production uses the default). */
   lexicalScoreMin?: number;
+  /**
+   * MEM-23: exact / identifier hit from the ripgrep channel (memory corpus
+   * or a project-file hit mapped to this row). Counts as lexical evidence.
+   */
+  ripgrepHit?: boolean;
 }
 
 export interface RelevanceGateResult {
@@ -94,9 +100,11 @@ export function entitiesRelevantToQuery(entityNames: string[], query: string): s
   return uniquePreserve(
     entityNames.filter((name) => {
       const n = name.trim();
-      if (n.length < 3) return false;
+      if (!n) return false;
+      if (n.length < 3 && !isKnownEntityAlias(n)) return false;
       if (contentWords(n).some((w) => qWords.has(w))) return true;
-      return like.has(n.toLowerCase());
+      if (like.has(n.toLowerCase())) return true;
+      return textMentionsEntityAliases(query, n);
     }),
   );
 }
@@ -126,7 +134,8 @@ export function evaluateRelevanceGate(input: RelevanceGateInput): RelevanceGateR
     input.pinned === true ||
     lexicalOverlap.length >= 1 ||
     sharedEntities.length > 0 ||
-    lexicalStrong;
+    lexicalStrong ||
+    input.ripgrepHit === true;
   const passed = input.demoted === true
     ? input.pinned === true
     : !requireLexical || evidencePassed;
@@ -141,6 +150,7 @@ export function evaluateRelevanceGate(input: RelevanceGateInput): RelevanceGateR
           sharedEntities,
           lexicalScore,
           lexicalStrong,
+          ripgrepHit: input.ripgrepHit === true,
         }),
     lexicalOverlap,
     sharedEntities,
@@ -192,6 +202,7 @@ export function formatGateReason(input: {
   sharedEntities: string[];
   lexicalScore: number;
   lexicalStrong: boolean;
+  ripgrepHit?: boolean;
 }): string {
   const parts: string[] = [];
   if (input.pinned) parts.push("pinned");
@@ -208,6 +219,15 @@ export function formatGateReason(input: {
     !input.pinned
   ) {
     parts.push(`lexical-score: ${input.lexicalScore.toFixed(2)}`);
+  }
+  if (
+    input.ripgrepHit &&
+    input.lexicalOverlap.length === 0 &&
+    input.sharedEntities.length === 0 &&
+    !input.lexicalStrong &&
+    !input.pinned
+  ) {
+    parts.push("lexical: exact");
   }
   return parts.join("; ") || "no-evidence";
 }
@@ -239,7 +259,9 @@ function findSharedEntities(
   const haystack = memoryText;
   const shared: string[] = [];
   for (const name of names) {
-    if (hasWordBoundary(haystack, name)) shared.push(name);
+    if (hasWordBoundary(haystack, name) || textMentionsEntityAliases(haystack, name)) {
+      shared.push(name);
+    }
   }
   return uniquePreserve(shared);
 }

@@ -88,19 +88,26 @@ describe("REL-05 applyTopicBias (pure)", () => {
       { currentTopicId: 20, sessionId },
     );
     expect(ranked[0].id).toBe(2);
-    expect(ranked[0].score).toBeCloseTo(0.7 + TOPIC_SAME_BOOST);
+    expect(ranked[0].score).toBeCloseTo(0.7 * (1 + TOPIC_SAME_BOOST));
     expect(ranked[1].id).toBe(1);
-    expect(ranked[1].score).toBeCloseTo(0.7 - TOPIC_OTHER_PENALTY);
+    expect(ranked[1].score).toBeCloseTo(0.7 * (1 - TOPIC_OTHER_PENALTY));
     expect(ranked[1].score).toBeGreaterThan(0);
   });
 
-  it("does not drop other-topic candidates", () => {
+  it("does not drop other-topic candidates and cannot resurrect rel=0", () => {
     const ranked = applyTopicBias(
       [stubHit(1, 0.05, 10, "s1")],
       { currentTopicId: 20, sessionId: "s1" },
     );
     expect(ranked).toHaveLength(1);
-    expect(ranked[0].score).toBe(0);
+    expect(ranked[0].score).toBeCloseTo(0.05 * (1 - TOPIC_OTHER_PENALTY));
+
+    const zero = applyTopicBias(
+      [stubHit(1, 0, 20, "s1")],
+      { currentTopicId: 20, sessionId: "s1" },
+    );
+    expect(zero).toHaveLength(1);
+    expect(zero[0].score).toBe(0);
   });
 });
 

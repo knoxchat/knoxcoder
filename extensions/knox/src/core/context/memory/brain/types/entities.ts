@@ -68,6 +68,12 @@ export interface GraphEntity {
   mention_count: number;
   created_at: string;
   updated_at: string;
+  /** MEM-26: alias rows point at the preferred entity. NULL = this row is canonical. */
+  canonical_id?: number | null;
+  /** MEM-26: open interval. NULL start = unbounded. */
+  valid_from?: string | null;
+  /** MEM-26: exclusive end. NULL = still valid. */
+  valid_to?: string | null;
 }
 
 export interface GraphEdge {
@@ -78,6 +84,10 @@ export interface GraphEdge {
   weight: number;
   properties: string; // JSON
   created_at: string;
+  /** MEM-26: unused for merge (entities hold canonical_id). Mapped for completeness. */
+  canonical_id?: number | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
 }
 
 // ── Learning Pattern Types ───────────────────────────────────────────────────
@@ -208,7 +218,9 @@ export interface EffectiveContextMetrics {
   graph_max_entities?: number;
   graph_max_depth?: number;
   graph_depth_decay_gamma?: number;
-  /** LRU cache fill vs graph_max_entities. Not C_addr and not a success metric. */
+  graph_ppr_alpha?: number;
+  graph_ppr_epsilon?: number;
+  /** Always 0 — no entity cap (MEM-25). */
   graph_cap_utilization?: number;
   compression_ratios?: Record<string, number>;
   memory_tokens_saved?: number;
@@ -246,6 +258,10 @@ export interface EpisodicMemory {
   helpful_count?: number;
   /** MEM-13 / MEM-17: unhelpful attribution count u. */
   unhelpful_count?: number;
+  /** MEM-26: open validity start. NULL = unbounded / legacy. */
+  valid_from?: string | null;
+  /** MEM-26: exclusive validity end. NULL = still valid. */
+  valid_to?: string | null;
 }
 
 export interface SemanticMemory {
@@ -294,6 +310,10 @@ export interface SemanticMemory {
   helpful_count?: number;
   /** MEM-13 / MEM-17: unhelpful attribution count u. */
   unhelpful_count?: number;
+  /** MEM-26: open validity start. NULL = unbounded / legacy. */
+  valid_from?: string | null;
+  /** MEM-26: exclusive validity end. NULL = still valid. */
+  valid_to?: string | null;
 }
 
 export interface MemoryAssociation {
@@ -364,6 +384,10 @@ export interface AddEntityInput {
   description?: string;
   properties?: Record<string, any>;
   confidence?: number;
+  /** MEM-26: set on alias rows. */
+  canonical_id?: number | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
 }
 
 export interface AddEdgeInput {
@@ -372,6 +396,9 @@ export interface AddEdgeInput {
   relationship: string;
   weight?: number;
   properties?: Record<string, any>;
+  /** MEM-26: open validity start. Store defaults to now. */
+  valid_from?: string | null;
+  valid_to?: string | null;
 }
 
 export interface ExploreGraphInput {

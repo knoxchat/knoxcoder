@@ -34,9 +34,7 @@ export function renderMemoryGraph(widget: KnoxGuiWidget, body: HTMLElement, stat
 		graphStat(row, String(stats.totalEdges), t(state, 'memoryEdges'));
 		graphStat(row, String(Object.keys(stats.entityTypes ?? {}).length), t(state, 'memoryEntityTypesCount'));
 		mk(body, 'p', 't-10 o-50', t(state, 'memoryGraphCapLruHint'));
-		if (stats.maxDepth !== undefined || stats.depthDecayGamma !== undefined) {
-			mk(body, 'p', 't-10 o-50', t(state, 'memoryGraphSpreadingHint', { depth: stats.maxDepth ?? 3, gamma: stats.depthDecayGamma ?? 0.7 }));
-		}
+		mk(body, 'p', 't-10 o-50', t(state, 'memoryGraphPprHint', { alpha: stats.pprAlpha ?? 0.15 }));
 	}
 	const filters = mk(body, 'div', 'flex gap-2');
 	const searchWrap = mk(filters, 'div', 'search flex-1 knox-gui-memory-search');

@@ -6,6 +6,7 @@
 import crypto from "crypto";
 
 import { BrainStore } from "./BrainStore.js";
+import { filterValidAt, isValidAt, type ValidityBounds } from "./entityResolution.js";
 import { getMemoryConfig } from "./memoryConfigAccess.js";
 import type { EpisodicMemory, MemoryScope, SemanticMemory } from "./types.js";
 
@@ -88,4 +89,43 @@ export function filterEpisodicByProjectScope(
   if (projectSessionIds.length === 0) return [];
   const allowed = new Set(projectSessionIds);
   return memories.filter((e) => allowed.has(e.session_id));
+}
+
+export interface QueryScopeOptions {
+  projectSessionIds?: string[];
+  queryTime?: Date | string | number;
+  supersededIds?: Iterable<number>;
+}
+
+/** MEM-26: facts valid at query time. Legacy NULL bounds stay in Ω(q). */
+export function filterByValidity<T extends ValidityBounds>(
+  rows: T[],
+  queryTime?: Date | string | number,
+): T[] {
+  return filterValidAt(rows, queryTime);
+}
+
+/**
+ * Ω(q) over semantic rows: project scope ∩ valid-at-query-time ∩ not superseded.
+ * Old superseded rows stay queryable by id; they are not in default retrieve.
+ */
+export function filterSemanticByQueryScope(
+  memories: SemanticMemory[],
+  options: QueryScopeOptions = {},
+): SemanticMemory[] {
+  const superseded = options.supersededIds ? new Set(options.supersededIds) : undefined;
+  const valid = memories.filter((memory) => {
+    if (!isValidAt(memory, options.queryTime)) return false;
+    if (superseded?.has(memory.id)) return false;
+    return true;
+  });
+  return filterSemanticByProjectScope(valid, options.projectSessionIds);
+}
+
+export function filterEpisodicByQueryScope(
+  memories: EpisodicMemory[],
+  options: QueryScopeOptions = {},
+): EpisodicMemory[] {
+  const valid = memories.filter((memory) => isValidAt(memory, options.queryTime));
+  return filterEpisodicByProjectScope(valid, options.projectSessionIds);
 }

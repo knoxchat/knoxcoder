@@ -15,8 +15,11 @@ import {
 } from "./memoryConfigAccess.js";
 import {
   fuseCandidateScore,
+  leftoverAdditiveScore,
   normalizeBm25,
-  RECENCY_IMPORTANCE_THETA_MARGIN,
+  rrfScore,
+  RETRIEVAL_THRESHOLD_DEFAULT,
+  RRF_K0_DEFAULT,
 } from "./RetrievalFusion.js";
 
 describe("REL-02 absolute BM25 + fusion cap (pure)", () => {
@@ -34,20 +37,19 @@ describe("REL-02 absolute BM25 + fusion cap (pure)", () => {
     expect(weak).not.toBeCloseTo(1, 1);
   });
 
-  it("a high-importance memory with zero overlap scores below θ", () => {
-    const theta = 0.6;
+  it("a high-importance memory with zero overlap scores 0 (relevance-dominance)", () => {
+    const theta = RETRIEVAL_THRESHOLD_DEFAULT;
     const conversational = getFusionWeights("conversational");
     const score = fuseCandidateScore(
       { fts5: 0, trigram: 0, graph: 0, recency: 1, importance: 1 },
       conversational,
       theta,
     );
-    expect(score).toBeLessThan(theta);
-    expect(score).toBeLessThanOrEqual(theta - RECENCY_IMPORTANCE_THETA_MARGIN + 1e-9);
+    expect(score).toBe(0);
   });
 
-  it("caps recency+importance so they cannot clear θ alone even with heavy weights", () => {
-    const theta = 0.6;
+  it("recency+importance never contribute; only channel ranks score", () => {
+    const theta = RETRIEVAL_THRESHOLD_DEFAULT;
     const heavyRi = {
       fts5: 0.1,
       trigram: 0.1,
@@ -60,19 +62,19 @@ describe("REL-02 absolute BM25 + fusion cap (pure)", () => {
       heavyRi,
       theta,
     );
-    expect(zeroLexical).toBeLessThan(theta);
-    expect(zeroLexical).toBeCloseTo(theta - RECENCY_IMPORTANCE_THETA_MARGIN, 5);
+    expect(zeroLexical).toBe(0);
 
     const withLexical = fuseCandidateScore(
       { fts5: 0.8, trigram: 0, graph: 0, recency: 1, importance: 1 },
       heavyRi,
       theta,
     );
-    expect(withLexical).toBeGreaterThan(theta);
+    expect(withLexical).toBeCloseTo(rrfScore({ lexical: 1 }), 10);
+    expect(withLexical).toBeGreaterThan(0);
   });
 
-  it("REL-11: graph cannot lift a zero-lexical candidate over θ", () => {
-    const theta = 0.6;
+  it("REL-11 / REL-03: graph cannot score without the lexical floor", () => {
+    const theta = RETRIEVAL_THRESHOLD_DEFAULT;
     const heavyGraph = {
       fts5: 0.1,
       trigram: 0.1,
@@ -85,42 +87,54 @@ describe("REL-02 absolute BM25 + fusion cap (pure)", () => {
       heavyGraph,
       theta,
     );
-    expect(score).toBeLessThan(theta);
+    expect(score).toBe(0);
 
     const withLexicalFloor = fuseCandidateScore(
       { fts5: 0.3, trigram: 0, graph: 1, recency: 0.5, importance: 0.5 },
       heavyGraph,
       theta,
     );
+    expect(withLexicalFloor).toBeCloseTo(rrfScore({ lexical: 1, graph: 1 }), 10);
     expect(withLexicalFloor).toBeGreaterThan(score);
   });
 });
 
 describe("REL-09 fusion weight safety (pure)", () => {
-  const theta = 0.6;
+  const theta = RETRIEVAL_THRESHOLD_DEFAULT;
 
-  it("every profile has w_recency + w_importance < retrieval_threshold", () => {
+  it("recency+importance cannot reach live θ on leftover or RRF scores", () => {
     for (const profile of FUSION_WEIGHT_PROFILES) {
       const weights = getFusionWeights(profile);
-      expect(fusionWeightsAreSafe(weights, theta)).toBe(true);
-      expect(weights.recency + weights.importance).toBeLessThan(theta);
+      const leftover = leftoverAdditiveScore(
+        { fts5: 0, trigram: 0, graph: 0, recency: 1, importance: 1 },
+        weights,
+        theta,
+      );
+      expect(leftover).toBeLessThan(theta);
       const zeroOverlap = fuseCandidateScore(
         { fts5: 0, trigram: 0, graph: 0, recency: 1, importance: 1 },
         weights,
         theta,
       );
-      expect(zeroOverlap).toBeLessThan(theta);
+      expect(zeroOverlap).toBe(0);
     }
+    expect(fusionWeightsAreSafe(getFusionWeights("default"), 0.6)).toBe(true);
   });
 
   it("conversational recency is lowered and fts5 is raised", () => {
     const conversational = getFusionWeights("conversational");
     expect(conversational.recency).toBeLessThanOrEqual(0.15);
     expect(conversational.fts5).toBeGreaterThanOrEqual(0.40);
-    expect(conversational.recency + conversational.importance).toBeLessThan(theta);
+    expect(
+      leftoverAdditiveScore(
+        { fts5: 0, trigram: 0, graph: 0, recency: 1, importance: 1 },
+        conversational,
+        theta,
+      ),
+    ).toBeLessThan(theta);
   });
 
-  it("continuation ranks recency higher within a gated (lexical) set", () => {
+  it("continuation recency is leftover profile math; RRF ignores recency (MEM-21)", () => {
     const continuation = getFusionWeights("continuation");
     expect(continuation.recency).toBeGreaterThan(getFusionWeights("conversational").recency);
     const recent = fuseCandidateScore(
@@ -133,7 +147,8 @@ describe("REL-09 fusion weight safety (pure)", () => {
       continuation,
       theta,
     );
-    expect(recent).toBeGreaterThan(stale);
+    expect(recent).toBe(stale);
+    expect(recent).toBeCloseTo(1 / (RRF_K0_DEFAULT + 1), 10);
   });
 
   it("detects continuation even after REL-01 query expansion", () => {
@@ -179,7 +194,7 @@ describe("REL-02 fusion search wiring", () => {
     await BrainStore.saveConfig("auto_extract_enabled", "false");
     await BrainStore.saveConfig("enable_knowledge_extraction", "false");
     await BrainStore.saveConfig("memory_scope", "global");
-    await BrainStore.saveConfig("retrieval_threshold", "0.6");
+    await BrainStore.saveConfig("retrieval_threshold", "0.35");
   });
 
   afterAll(() => {
@@ -217,7 +232,7 @@ describe("REL-02 fusion search wiring", () => {
     const results = await RetrievalFusion.search({
       query: "readme-badges-shields-zeta unique docs header",
       limit: 20,
-      minScore: 0.6,
+      minScore: 0.35,
       includeEpisodic: false,
     });
     expect(results.some((r) => r.id === id)).toBe(false);

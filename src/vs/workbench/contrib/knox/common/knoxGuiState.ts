@@ -643,6 +643,8 @@ export interface IKnoxGuiMemoryDashboard {
 	graphTotalEdges?: number;
 	graphMaxDepth?: number;
 	graphDepthDecayGamma?: number;
+	graphPprAlpha?: number;
+	graphPprEpsilon?: number;
 	sessions?: IKnoxGuiMemorySession[];
 	consolidation?: IKnoxGuiMemoryConsolidation;
 	/** Semantic/episodic items injected on the last pre-turn (T6). */
@@ -666,6 +668,8 @@ export interface IKnoxGuiEffectiveContext {
 	graphIsCapacity?: boolean;
 	graphMaxEntities?: number;
 	graphCapUtilization?: number;
+	graphPprAlpha?: number;
+	graphPprEpsilon?: number;
 	tierTokens?: Record<string, number>;
 	compressionRatios?: Record<string, number>;
 	levels: Array<{
@@ -846,6 +850,8 @@ export interface IKnoxGuiMemoryGraphStats {
 	atCap?: boolean;
 	maxDepth?: number;
 	depthDecayGamma?: number;
+	pprAlpha?: number;
+	pprEpsilon?: number;
 }
 
 export interface IKnoxGuiMemoryGraphExplore {

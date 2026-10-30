@@ -293,6 +293,8 @@ export type ToCoreFromIdeOrWebviewProtocol = {
       is_capacity?: boolean;
       max_depth?: number;
       depth_decay_gamma?: number;
+      ppr_alpha?: number;
+      ppr_epsilon?: number;
     },
   ];
   "brain/searchEntities": [{ query: string; entity_type?: string; limit?: number }, { entities: any[] }];

@@ -27,9 +27,9 @@ export interface MemoryConfig {
   context_goal_budget_ratio: number;
   /** How context is assembled: full, summarized (default), or selective. */
   memory_mode: MemoryMode;
-  /** Minimum fusion score (θ) for retrieval. */
+  /** Calibrated P(helpful) cut-off (θ) after the fused-candidate list (MEM-22). */
   retrieval_threshold: number;
-  /** Default top-K for fusion retrieval. */
+  /** Default top-K returned after fused candidates and the θ cut-off (MEM-22). */
   retrieval_top_k: number;
   /** Expand continuation queries with topic + last substantial turn (REL-01). */
   retrieval_continuation_expand: boolean;
@@ -47,9 +47,9 @@ export interface MemoryConfig {
   summary_inject_min_overlap: number;
   /** REL-10 unmatched pinned items kept when none match the query. */
   pinned_unmatched_cap: number;
-  /** Max knowledge graph entities before LRU refresh. */
+  /** Unused leftover cap (MEM-25). Graph has no entity capacity. */
   graph_max_entities: number;
-  /** Max graph traversal depth. */
+  /** Explore display hop cap. Live retrieve is push-PPR, not BFS depth. */
   graph_max_depth: number;
   /** Scope retrieval to current workspace by default. */
   memory_scope: MemoryScope;
@@ -116,7 +116,9 @@ export interface MemoryConfig {
   // ── Fusion retrieval ────────────────────────────────────────────────────
   fusion_candidate_multiplier: number;
   fusion_candidate_min: number;
+  /** Unused leftover BFS γ (MEM-25). Live graph score is hub-damped PPR. */
   graph_depth_decay_gamma: number;
+  /** Unused leftover additive graph boost (MEM-25). S_graph is max π. */
   graph_memory_boost_factor: number;
   graph_entity_search_limit: number;
   graph_neighbor_limit: number;
@@ -199,11 +201,11 @@ export interface MemoryConfig {
   utility_kappa: number;
   /** Archive when Value < θ_arch (do not DELETE). */
   archive_value_threshold: number;
-  /** Reciprocal Rank Fusion k₀. */
+  /** Reciprocal Rank Fusion k₀ (live in MEM-20). */
   rrf_k0: number;
-  /** Prior modulation η_U on U. */
+  /** Prior modulation η_U on U (live in MEM-21). */
   eta_utility: number;
-  /** Prior modulation η_R on retrievability R. */
+  /** Prior modulation η_R on retrievability R (live in MEM-21). */
   eta_retrievability: number;
   /** Summary-tree branching factor b. */
   tree_branching_b: number;
@@ -213,17 +215,21 @@ export interface MemoryConfig {
   coverage_lambda: number;
   /** Local C_mem cap (tokens). Not the live inject hard cap until MEM-28. */
   w_mem_tokens: number;
-  /** Fused candidates before the calibrated θ cut-off. Not retrieval_top_k until MEM-22. */
+  /** Fused candidates before the calibrated θ cut-off (MEM-22). */
   fusion_candidate_cutoff: number;
   /**
    * Fitted P(helpful | injected) from `brain_attribution` (MEM-18).
-   * Live retrieve still uses `retrieval_threshold` until MEM-22.
+   * Sleep copies this into live `retrieval_threshold` (MEM-22).
    */
   calibrated_theta: number;
   /** RRF channel weight — lexical (BM25 + trigram + synonyms). */
   w_lexical: number;
   /** RRF channel weight — ripgrep. */
   w_ripgrep: number;
+  /** PPR restart α. Theorem default 0.15 (MEM-25). */
+  ppr_alpha: number;
+  /** Push-PPR residual tolerance ε. Cost is O(1/(αε)). */
+  ppr_epsilon: number;
   /** RRF channel weight — graph PPR. */
   w_graph: number;
   /** RRF channel weight — summary tree. */

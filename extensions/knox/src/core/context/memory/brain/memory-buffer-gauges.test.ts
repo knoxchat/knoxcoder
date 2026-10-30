@@ -176,8 +176,11 @@ describe("MEM-08 buffer and channel gauges", () => {
     expect(after.graph_is_capacity).toBe(false);
     expect(cap.channel_size).toBe(1);
     expect(cap.is_capacity).toBe(false);
+    expect(cap.max_entities).toBe(0);
+    expect(cap.cap_utilization).toBe(0);
+    expect(cap.ppr_alpha).toBeCloseTo(0.15, 5);
     expect(after.c_addr).not.toBe(after.graph_entity_count);
-    expect(after.graph_cap_utilization).toBeGreaterThan(0);
+    expect(after.graph_cap_utilization ?? 0).toBe(0);
     expect(after.c_addr).toBe(
       (after.memory_levels ?? [])
         .filter((l) => l.in_c_addr)

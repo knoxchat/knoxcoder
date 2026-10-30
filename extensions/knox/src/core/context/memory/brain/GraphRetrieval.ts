@@ -8,6 +8,12 @@
  *   - require word-boundary (or exact name) matches instead of `%name%`
  */
 
+import {
+  entityAliasNames,
+  isKnownEntityAlias,
+  knownAliasTokens,
+  textMentionsEntityAliases,
+} from "./entityResolution.js";
 import { extractEntityLikeTokens, hasWordBoundary } from "./RelevanceGate.js";
 import { contentWords, isStopword } from "./RetrievalQuery.js";
 
@@ -66,10 +72,11 @@ export function isShortEntityName(name: string): boolean {
   return name.trim().length > 0 && name.trim().length <= GRAPH_SHORT_NAME_MAX;
 }
 
-/** Query is worth graph expansion: quoted/CamelCase token, or a content word ≥ 3 chars. */
+/** Query is worth graph expansion: quoted/CamelCase token, a content word ≥ 3 chars, or a known alias (`TS`). */
 export function hasGraphExpandableTokens(query: string): boolean {
   if (!query?.trim()) return false;
   if (extractEntityLikeTokens(query).length > 0) return true;
+  if (knownAliasTokens(query).length > 0) return true;
   return contentWords(query).some((w) => w.length >= 3 && !isStopword(w));
 }
 
@@ -77,6 +84,7 @@ export function queryMentionsEntity(query: string, name: string): boolean {
   const n = name.trim();
   if (!n) return false;
   if (hasWordBoundary(query, n)) return true;
+  if (textMentionsEntityAliases(query, n)) return true;
   const lower = n.toLowerCase();
   return extractEntityLikeTokens(query).some((t) => t.toLowerCase() === lower);
 }
@@ -90,7 +98,7 @@ export function entitySearchTerms(query: string): string[] {
   const out: string[] = [];
   const push = (raw: string) => {
     const t = raw.trim();
-    if (t.length < 3) return;
+    if (t.length < 3 && !isKnownEntityAlias(t)) return;
     const key = t.toLowerCase();
     if (seen.has(key) || isStopword(key)) return;
     if (isCommonNounEntityName(t) && !queryMentionsEntity(query, t)) return;
@@ -99,6 +107,11 @@ export function entitySearchTerms(query: string): string[] {
   };
   for (const tok of extractEntityLikeTokens(query)) push(tok);
   for (const w of contentWords(query)) push(w);
+  for (const alias of knownAliasTokens(query)) push(alias);
+  const expanded = [...out];
+  for (const term of expanded) {
+    for (const alias of entityAliasNames(term)) push(alias);
+  }
   return out;
 }
 
@@ -108,7 +121,10 @@ export function entitySearchTerms(query: string): string[] {
  */
 export function shouldJoinEntityToMemories(query: string, entityName: string): boolean {
   const n = entityName.trim();
-  if (n.length < 3 || isStopword(n)) return false;
+  if (!n || isStopword(n)) return false;
+  if (n.length < 3) {
+    return isKnownEntityAlias(n) && queryMentionsEntity(query, n);
+  }
   if (isCommonNounEntityName(n) && !queryMentionsEntity(query, n)) return false;
   return true;
 }
@@ -121,12 +137,13 @@ export function requiresBoundedEntityMatch(entityName: string): boolean {
 export function entityNameMatchesMemory(memoryText: string, entityName: string): boolean {
   const n = entityName.trim();
   if (!n || !memoryText) return false;
-  return hasWordBoundary(memoryText, n);
+  if (hasWordBoundary(memoryText, n)) return true;
+  return textMentionsEntityAliases(memoryText, n);
 }
 
 /**
- * REL-11: graph may rank, but must not lift a weak/zero-lexical candidate over θ.
- * Returns the allowed weighted graph contribution.
+ * Leftover additive-fusion cap (REL-11). Live retrieve scores by RRF ranks
+ * (MEM-20) and S_graph = max π (MEM-25); this helper is not on the hot path.
  */
 export function capGraphContribution(
   textLexical: number,

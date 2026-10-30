@@ -82,15 +82,29 @@ export type { FusionWeightProfile, FusionWeights } from "./memoryConfigAccess.js
 export {
   RetrievalFusion,
   normalizeBm25,
+  rrfScore,
+  rrfCeiling,
+  calibratedScoreCutoff,
+  normalizeFusedScore,
+  passesCalibratedTheta,
   fuseCandidateScore,
+  assignLexicalRanks,
+  assignScoreRanks,
+  winningRrfChannel,
   applyTopicBias,
   BM25_SCALE_K,
+  RRF_K0_DEFAULT,
+  FUSION_CANDIDATE_CUTOFF_DEFAULT,
+  RETRIEVAL_THRESHOLD_DEFAULT,
+  REL02_ADDITIVE_FLOOR,
   RECENCY_IMPORTANCE_THETA_MARGIN,
   TOPIC_SAME_BOOST,
   TOPIC_OTHER_PENALTY,
   TASK_SAME_BOOST,
   applyTaskBias,
+  scopeBiasMultiplier,
 } from "./RetrievalFusion.js";
+export type { ChannelRanks } from "./RetrievalFusion.js";
 export {
   evaluateRelevanceGate,
   formatGateReason,
@@ -111,6 +125,21 @@ export {
   shouldJoinEntityToMemories,
   capGraphContribution,
 } from "./GraphRetrieval.js";
+export {
+  extractRipgrepNeedles,
+  hasRipgrepHit,
+  searchRipgrepChannel,
+} from "./channels/ripgrep.js";
+export {
+  ingestSessionLeaves,
+  insertTreeLeaf,
+  isTreeReady,
+  scoreTreeText,
+  searchTreeChannel,
+  treeBeamStatus,
+  TREE_BEAM_DEFAULT,
+  TREE_BRANCHING_DEFAULT,
+} from "./SummaryTree.js";
 export {
   ensureTaskForTurn,
   getOpenTask,

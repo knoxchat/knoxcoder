@@ -44,13 +44,17 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 		assert.ok(mgr.includes('legacy_memory_migrated'));
 	});
 
-	test('KN-311: retrieval fusion is BM25 + trigram + graph, θ=0.6, top-k=20', () => {
+	test('KN-311: retrieval fusion is RRF over lexical + graph, candidates 50, θ=0.35', () => {
 		const fusion = repoFile('extensions/knox/src/core/context/memory/brain/RetrievalFusion.ts');
 		assert.ok(fusion.includes('FTS5 BM25'));
 		assert.ok(fusion.includes('trigram'));
+		assert.ok(fusion.includes('rrfScore'));
+		assert.ok(fusion.includes('FUSION_CANDIDATE_CUTOFF_DEFAULT = 50'));
+		assert.ok(fusion.includes('RETRIEVAL_THRESHOLD_DEFAULT = 0.35'));
 		const store = repoFile('extensions/knox/src/core/context/memory/brain/store/state.ts');
-		assert.ok(store.includes('retrieval_threshold: 0.6'));
-		assert.ok(store.includes('retrieval_top_k: 20'));
+		assert.ok(store.includes('retrieval_threshold: 0.35'));
+		assert.ok(store.includes('retrieval_top_k: 50'));
+		assert.ok(store.includes('fusion_candidate_cutoff: 50'));
 	});
 
 	test('KN-312: M1–M5 hierarchy, Ebbinghaus, NREM/REM sleep', () => {

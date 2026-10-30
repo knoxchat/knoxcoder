@@ -8,6 +8,7 @@ import { recipeMemoryIsVerified } from "../recipes/memoryLink.js";
 import { evaluateRelevanceGate, isMismatchActive, LEXICAL_SCORE_MIN } from "./RelevanceGate.js";
 import { hasGraphExpandableTokens, isCommonNounEntityName, queryMentionsEntity } from "./GraphRetrieval.js";
 import type { FusionResult } from "./RetrievalFusion.js";
+import { hasRipgrepHit } from "./channels/ripgrep.js";
 import { memoryCiteToken } from "./attribution.js";
 import { winningChannel } from "./memoryOutcomes.js";
 import type { InjectedMemoryItem, SemanticMemory, EpisodicMemory } from "./types.js";
@@ -180,6 +181,7 @@ export class ContextSections {
           fts5: hit?.scores.fts5,
           trigram: hit?.scores.trigram,
           verified: recipeMemoryIsVerified(mem.content),
+          ripgrepHit: hasRipgrepHit(hit),
         });
         if (!gate.passed) return true;
       }
@@ -275,6 +277,7 @@ export class ContextSections {
       pinned,
       requireLexical,
       verified: recipeMemoryIsVerified(mem.content),
+      ripgrepHit: hasRipgrepHit(hit),
     });
     const evidence = uniqueEvidence(gate.lexicalOverlap, gate.sharedEntities);
     return {
@@ -286,7 +289,7 @@ export class ContextSections {
       category: mem.category,
       pinned,
       score: hit?.score ?? overlapScore(query, gate),
-      channel: winningChannel(hit?.scores) ?? undefined,
+      channel: hit?.channel ?? winningChannel(hit?.scores) ?? undefined,
       reason: gate.reason,
       fts5: hit?.scores.fts5,
       trigram: hit?.scores.trigram,
@@ -338,6 +341,7 @@ export class ContextSections {
             fts5: r.scores.fts5,
             trigram: r.scores.trigram,
             requireLexical,
+            ripgrepHit: hasRipgrepHit(r),
           });
           return {
             ep,

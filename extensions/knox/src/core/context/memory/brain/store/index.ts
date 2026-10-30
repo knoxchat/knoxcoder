@@ -80,7 +80,13 @@ export class BrainStore {
   static countEntities = graph.countEntities;
   static pruneEntities = graph.pruneEntities;
   static getEntity = graph.getEntity;
+  static getEntitiesByIds = graph.getEntitiesByIds;
   static findEntity = graph.findEntity;
+  static findEntitiesByNames = graph.findEntitiesByNames;
+  static resolveCanonicalId = graph.resolveCanonicalId;
+  static listEntityCluster = graph.listEntityCluster;
+  static listEntityClusterIds = graph.listEntityClusterIds;
+  static setEntityCanonical = graph.setEntityCanonical;
   static incrementEntityMention = graph.incrementEntityMention;
   static touchEntity = graph.touchEntity;
   static updateEntity = graph.updateEntity;
@@ -91,6 +97,7 @@ export class BrainStore {
   static findEdge = graph.findEdge;
   static updateEdgeWeight = graph.updateEdgeWeight;
   static getEntityEdges = graph.getEntityEdges;
+  static getEdgesAmong = graph.getEdgesAmong;
   static getGraphStats = graph.getGraphStats;
   static addPattern = learning.addPattern;
   static findPattern = learning.findPattern;

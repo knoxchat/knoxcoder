@@ -59,9 +59,7 @@ export async function get(): Promise<DatabaseConnection> {
       } catch {
         // Strategy hydrate is best-effort on first open.
       }
-      const { KnowledgeGraph } = await import("../KnowledgeGraph.js");
-      await KnowledgeGraph.enforceEntityCap().catch(() => {});
-      // FTS triggers exist by now, so pruned rows leave the indexes too.
+      // MEM-25: no entity cap. Disk budget is max_bytes on the sqlite file.
       // loadConfig may have set max_bytes; env still wins inside brainMaxBytes().
       await enforceBrainSizeCap(db, dbPath).catch(() => {});
 

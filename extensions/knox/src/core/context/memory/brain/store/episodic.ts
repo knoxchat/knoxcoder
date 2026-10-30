@@ -11,6 +11,7 @@ import { get } from "./connection.js";
 import { rowToEpisodic } from "./mappers.js";
 import { createSession, getSession } from "./sessions.js";
 import { liveRetrieveSql } from "./tombstone.js";
+import { queryScopeSql } from "./validity.js";
 import { computeSalience, detectEmotionalValence } from "./valence.js";
 
 // ── Episodic Memory Operations ─────────────────────────────────────────────
@@ -45,8 +46,8 @@ export async function addEpisodic(
   const forgetting = insertForgettingFields("episodic", importanceScore);
 
   const result = await db.run(
-    `INSERT INTO brain_episodic (session_id, type, role, content, token_count, importance_score, emotional_valence, salience, metadata, stability, difficulty, i0)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO brain_episodic (session_id, type, role, content, token_count, importance_score, emotional_valence, salience, metadata, stability, difficulty, i0, valid_from)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
     [
       sessionId,
       type,
@@ -123,7 +124,7 @@ export async function searchEpisodic(query: string, sessionId?: string, limit: n
   const db = await get();
 
   const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
-  const conditions: string[] = [liveRetrieveSql()];
+  const conditions: string[] = [queryScopeSql("episodic")];
   const params: any[] = [];
 
   if (sessionId) {
@@ -164,7 +165,7 @@ export async function searchEpisodic(query: string, sessionId?: string, limit: n
              WHERE brain_episodic_fts MATCH ? ORDER BY rank LIMIT ?
            )
            SELECT e.* FROM hits JOIN brain_episodic e ON e.id = hits.id
-           WHERE ${liveRetrieveSql("e")}${sessionId ? " AND e.session_id = ?" : ""}
+           WHERE ${queryScopeSql("episodic", "e")}${sessionId ? " AND e.session_id = ?" : ""}
            ORDER BY hits.rank, e.importance_score DESC LIMIT ?`,
           sessionId
             ? [match, fetchLimit * 10, sessionId, fetchLimit]

@@ -409,7 +409,7 @@ export class SleepConsolidation {
 
   /**
    * Increment the winning channel's w_s from cited+helpful vs unhelpful.
-   * Calibrate θ as the running P(helpful | injected). Does not flip live
+   * Calibrate θ as the running P(helpful | injected) and copy it into live
    * `retrieval_threshold` (MEM-22).
    */
   private static async refitAttributionPriors(): Promise<AttributionRefitResult> {
@@ -437,6 +437,7 @@ export class SleepConsolidation {
       }
       if (result.theta_updated) {
         await BrainStore.saveConfig("calibrated_theta", String(result.theta));
+        await BrainStore.saveConfig("retrieval_threshold", String(result.theta));
       }
       await BrainStore.auditLog("refit", "sleep", null, {
         calibration_n: result.calibration_n,

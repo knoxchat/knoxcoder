@@ -75,6 +75,8 @@ export function rowToEpisodic(row: any): EpisodicMemory {
     i0: row.i0 ?? null,
     helpful_count: row.helpful_count ?? 0,
     unhelpful_count: row.unhelpful_count ?? 0,
+    valid_from: row.valid_from ?? null,
+    valid_to: row.valid_to ?? null,
   };
 }
 
@@ -109,6 +111,8 @@ export function rowToSemantic(row: any): SemanticMemory {
     i0: row.i0 ?? null,
     helpful_count: row.helpful_count ?? 0,
     unhelpful_count: row.unhelpful_count ?? 0,
+    valid_from: row.valid_from ?? null,
+    valid_to: row.valid_to ?? null,
   };
 }
 
@@ -136,6 +140,9 @@ export function rowToEntity(row: any): GraphEntity {
     mention_count: row.mention_count,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    canonical_id: row.canonical_id ?? null,
+    valid_from: row.valid_from ?? null,
+    valid_to: row.valid_to ?? null,
   };
 }
 
@@ -148,6 +155,9 @@ export function rowToEdge(row: any): GraphEdge {
     weight: row.weight,
     properties: row.properties,
     created_at: row.created_at,
+    canonical_id: row.canonical_id ?? null,
+    valid_from: row.valid_from ?? null,
+    valid_to: row.valid_to ?? null,
   };
 }
 

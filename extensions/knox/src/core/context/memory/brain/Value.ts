@@ -8,6 +8,14 @@
  * recipe replay ok/revert (MEM-18).
  * Default retrieve skips Value < θ_arch (archive, not DELETE). Value is derived —
  * never a sqlite column.
+ *
+ * MEM-21 retrieval score uses the same U and R as priors, not as competing
+ * additive terms:
+ *
+ *   score = rel · (1 + η_U U) · (1 + η_R R),  η_U = 0.5, η_R = 0.3
+ *
+ * The product of the prior factors is in [1, (1+η_U)(1+η_R)] = [1, 1.95]
+ * at theorem defaults. rel = 0 ⇒ score = 0 (relevance-dominance).
  */
 
 import {
@@ -24,11 +32,23 @@ export const UTILITY_KAPPA_DEFAULT = 5;
 export const ARCHIVE_VALUE_THRESHOLD = 0.05;
 export const KAPPA_EPSILON = 1e-9;
 export const DEFAULT_INITIAL_IMPORTANCE = 0.5;
+/** Theorem η_U: score = rel · (1 + η_U U) · (1 + η_R R). */
+export const ETA_UTILITY_DEFAULT = 0.5;
+/** Theorem η_R. */
+export const ETA_RETRIEVABILITY_DEFAULT = 0.3;
+/** Prior product at U=R=0. */
+export const PRIOR_FACTOR_MIN = 1;
+/** (1+η_U)(1+η_R) at theorem defaults. */
+export const PRIOR_FACTOR_MAX_DEFAULT = (1 + ETA_UTILITY_DEFAULT) * (1 + ETA_RETRIEVABILITY_DEFAULT);
 
 export interface ValueParams {
   kappa: number;
   archiveThreshold: number;
   forgetting?: Partial<ForgettingParams>;
+  /** Prior modulation η_U on U (MEM-21). */
+  etaUtility: number;
+  /** Prior modulation η_R on R (MEM-21). */
+  etaRetrievability: number;
 }
 
 export interface UtilitySource {
@@ -54,6 +74,8 @@ export function defaultValueParams(): ValueParams {
     kappa: UTILITY_KAPPA_DEFAULT,
     archiveThreshold: ARCHIVE_VALUE_THRESHOLD,
     forgetting: defaultForgettingParams(),
+    etaUtility: ETA_UTILITY_DEFAULT,
+    etaRetrievability: ETA_RETRIEVABILITY_DEFAULT,
   };
 }
 
@@ -68,6 +90,8 @@ export function getValueParams(): ValueParams {
         F: theorem.forgettingF,
         c: theorem.forgettingC,
       },
+      etaUtility: theorem.etaUtility,
+      etaRetrievability: theorem.etaRetrievability,
     };
   } catch {
     return defaultValueParams();
@@ -80,7 +104,15 @@ function resolveParams(params?: Partial<ValueParams>): ValueParams {
     kappa: params?.kappa ?? fallback.kappa,
     archiveThreshold: params?.archiveThreshold ?? fallback.archiveThreshold,
     forgetting: params?.forgetting ?? fallback.forgetting,
+    etaUtility: params?.etaUtility ?? fallback.etaUtility,
+    etaRetrievability: params?.etaRetrievability ?? fallback.etaRetrievability,
   };
+}
+
+export function resolveEta(eta: number | null | undefined, fallback: number): number {
+  const n = Number(eta);
+  if (!Number.isFinite(n)) return Math.max(0, fallback);
+  return Math.max(0, n);
 }
 
 export function clamp01(value: number): number {
@@ -160,7 +192,7 @@ export function memoryValue(
   return clamp01(r * clamp01(u));
 }
 
-export function memoryValueFromSource(
+export function retrievabilityFromSource(
   source?: ValueSource | null,
   params?: Partial<ValueParams>,
   nowMs: number = Date.now(),
@@ -168,8 +200,73 @@ export function memoryValueFromSource(
   const p = resolveParams(params);
   const accessed = lastAccessAt(source);
   const tDays = accessed ? daysSince(accessed, nowMs) : 0;
-  const r = retrievability(tDays, resolveStability(source?.stability, source?.category), p.forgetting);
-  return clamp01(r * utilityFromSource(source, p));
+  return retrievability(tDays, resolveStability(source?.stability, source?.category), p.forgetting);
+}
+
+export function memoryValueFromSource(
+  source?: ValueSource | null,
+  params?: Partial<ValueParams>,
+  nowMs: number = Date.now(),
+): number {
+  const p = resolveParams(params);
+  return clamp01(retrievabilityFromSource(source, p, nowMs) * utilityFromSource(source, p));
+}
+
+/**
+ * Single prior term 1 + η · prior, prior clamped to [0, 1].
+ * η < 0 is treated as 0 so a prior cannot invert relevance.
+ */
+export function priorFactor(eta: number, prior: number): number {
+  return 1 + resolveEta(eta, 0) * clamp01(prior);
+}
+
+/**
+ * (1 + η_U U) · (1 + η_R R), clamped to [1, (1+η_U)(1+η_R)].
+ * At theorem defaults that interval is [1, 1.95].
+ */
+export function priorModulation(
+  U: number,
+  R: number,
+  etaU: number = ETA_UTILITY_DEFAULT,
+  etaR: number = ETA_RETRIEVABILITY_DEFAULT,
+): number {
+  const eu = resolveEta(etaU, ETA_UTILITY_DEFAULT);
+  const er = resolveEta(etaR, ETA_RETRIEVABILITY_DEFAULT);
+  const raw = priorFactor(eu, U) * priorFactor(er, R);
+  const cap = priorFactor(eu, 1) * priorFactor(er, 1);
+  if (!Number.isFinite(raw)) return PRIOR_FACTOR_MIN;
+  return Math.max(PRIOR_FACTOR_MIN, Math.min(cap, raw));
+}
+
+/**
+ * score = rel · (1 + η_U U) · (1 + η_R R).
+ * rel ≤ 0 stays 0 — priors cannot resurrect a miss.
+ */
+export function modulateRelevance(
+  rel: number,
+  U: number,
+  R: number,
+  etaU: number = ETA_UTILITY_DEFAULT,
+  etaR: number = ETA_RETRIEVABILITY_DEFAULT,
+): number {
+  if (!Number.isFinite(rel) || rel <= 0) return 0;
+  return rel * priorModulation(U, R, etaU, etaR);
+}
+
+export function modulateRelevanceFromSource(
+  rel: number,
+  source?: ValueSource | null,
+  params?: Partial<ValueParams>,
+  nowMs: number = Date.now(),
+): number {
+  const p = resolveParams(params);
+  return modulateRelevance(
+    rel,
+    utilityFromSource(source, p),
+    retrievabilityFromSource(source, p, nowMs),
+    p.etaUtility,
+    p.etaRetrievability,
+  );
 }
 
 /** Archive (drop from default retrieve) when Value < θ_arch. Never DELETE. */
@@ -198,17 +295,27 @@ export function isDefaultRetrieveValue(
 export const Value = {
   UTILITY_KAPPA_DEFAULT,
   ARCHIVE_VALUE_THRESHOLD,
+  ETA_UTILITY_DEFAULT,
+  ETA_RETRIEVABILITY_DEFAULT,
+  PRIOR_FACTOR_MIN,
+  PRIOR_FACTOR_MAX_DEFAULT,
   defaultValueParams,
   getValueParams,
   clamp01,
   resolveKappa,
   resolveCount,
+  resolveEta,
   resolveInitialImportance,
   utility,
   utilityFromSource,
   lastAccessAt,
+  retrievabilityFromSource,
   memoryValue,
   memoryValueFromSource,
+  priorFactor,
+  priorModulation,
+  modulateRelevance,
+  modulateRelevanceFromSource,
   shouldArchiveByValue,
   isDefaultRetrieveValue,
 };

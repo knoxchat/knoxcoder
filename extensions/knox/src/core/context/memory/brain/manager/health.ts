@@ -1,7 +1,6 @@
 /** Stats, health, optimize, and config. */
 
 import { BrainStore } from "../BrainStore.js";
-import { KnowledgeGraph } from "../KnowledgeGraph.js";
 import type {
   BrainStats,
   MemoryConfigInput,
@@ -42,12 +41,6 @@ export async function updateConfig(input: MemoryConfigInput): Promise<string> {
   if (input.key === "sensory_buffer_ms") {
     const { SensoryBuffer } = await import("../SensoryBuffer.js");
     SensoryBuffer.rescheduleAll();
-  }
-  if (input.key === "graph_max_entities") {
-    const pruned = await KnowledgeGraph.enforceEntityCap();
-    if (pruned > 0) {
-      return `Config updated: ${input.key} = ${input.value} (pruned ${pruned} entities to fit cap)`;
-    }
   }
   return `Config updated: ${input.key} = ${input.value}`;
 }

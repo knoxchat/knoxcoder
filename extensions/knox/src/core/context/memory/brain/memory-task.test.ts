@@ -80,7 +80,7 @@ describe("REL-13 TaskContext helpers (pure)", () => {
       { currentTaskId: "task-b" },
     );
     expect(ranked[0].id).toBe(2);
-    expect(ranked[0].score).toBeCloseTo(0.7 + TASK_SAME_BOOST);
+    expect(ranked[0].score).toBeCloseTo(0.7 * (1 + TASK_SAME_BOOST));
     expect(ranked[1].score).toBe(0.7);
   });
 });

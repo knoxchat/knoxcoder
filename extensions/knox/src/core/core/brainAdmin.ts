@@ -47,6 +47,8 @@ export function registerBrainAdminHandlers(core: CoreRuntime): void {
               is_capacity: graphCap.is_capacity,
               max_depth: graphCap.max_depth,
               depth_decay_gamma: graphCap.depth_decay_gamma,
+              ppr_alpha: graphCap.ppr_alpha,
+              ppr_epsilon: graphCap.ppr_epsilon,
             }
           : null,
         sessions: sessionsData,
@@ -85,6 +87,8 @@ export function registerBrainAdminHandlers(core: CoreRuntime): void {
       is_capacity: cap.is_capacity,
       max_depth: cap.max_depth,
       depth_decay_gamma: cap.depth_decay_gamma,
+      ppr_alpha: cap.ppr_alpha,
+      ppr_epsilon: cap.ppr_epsilon,
     };
   });
 

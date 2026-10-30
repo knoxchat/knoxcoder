@@ -7,6 +7,7 @@
  * IMP-04 must not treat ratios as rᵢ capacity (MEM-11). Tiers are R/Value (MEM-15).
  */
 
+import { resolvePprAlpha, resolvePprEpsilon } from "./channels/ppr.js";
 import { BrainStore } from "./BrainStore.js";
 import { detectIntent, type RetrievalIntent } from "./RetrievalQuery.js";
 import type { MemoryConfig, MemoryMode } from "./types.js";
@@ -312,7 +313,7 @@ export function getEbbinghausConfig(): EbbinghausConfig {
   };
 }
 
-/** Revised Knox-MS parameter table. forgetting_F / forgetting_c (MEM-12), FSRS a/b/g (MEM-14), and κ / θ_arch (MEM-13) are live. */
+/** Revised Knox-MS parameter table. forgetting_F / forgetting_c (MEM-12), FSRS a/b/g (MEM-14), κ / θ_arch (MEM-13), RRF k₀ / w_s (MEM-20), η_U / η_R (MEM-21), fused-candidate / θ cut-off (MEM-22), and PPR α / ε (MEM-25) are live. */
 export interface TheoremParams {
   forgettingF: number;
   forgettingC: number;
@@ -330,6 +331,8 @@ export interface TheoremParams {
   wMemTokens: number;
   fusionCandidateCutoff: number;
   calibratedTheta: number;
+  pprAlpha: number;
+  pprEpsilon: number;
   channelWeights: { lexical: number; ripgrep: number; graph: number; tree: number };
 }
 
@@ -352,6 +355,8 @@ export function getTheoremParams(): TheoremParams {
     wMemTokens: cfg.w_mem_tokens,
     fusionCandidateCutoff: cfg.fusion_candidate_cutoff,
     calibratedTheta: cfg.calibrated_theta,
+    pprAlpha: resolvePprAlpha(cfg.ppr_alpha),
+    pprEpsilon: resolvePprEpsilon(cfg.ppr_epsilon),
     channelWeights: {
       lexical: cfg.w_lexical,
       ripgrep: cfg.w_ripgrep,
@@ -417,8 +422,8 @@ export function getFusionWeights(profile: FusionWeightProfile): FusionWeights {
 }
 
 /**
- * REL-09: recency + importance must stay below θ so a zero-overlap memory
- * cannot clear the retrieval threshold on those channels alone.
+ * Leftover additive-profile safety (REL-09). Live retrieve scores by RRF
+ * (MEM-20); recency + importance are not channels.
  */
 export function fusionWeightsAreSafe(
   weights: FusionWeights,

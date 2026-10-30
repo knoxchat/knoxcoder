@@ -223,14 +223,13 @@ export function renderMemoryOverview(widget: KnoxGuiWidget, body: HTMLElement, s
 		});
 	}
 
-	if (d.graphMaxEntities || (d.graphTotalEntities ?? d.totalEntities ?? 0) > 0) {
+	if ((d.graphChannelSize ?? d.graphTotalEntities ?? d.totalEntities ?? 0) > 0) {
 		const card = sectionCard(body, t(state, 'memoryKnowledgeGraphCap'), 'link');
 		const grid = mk(card, 'div', 'stat-grid');
 		statCard(grid, 'link', t(state, 'memoryGraphEntities'), String(d.graphChannelSize ?? d.graphTotalEntities ?? d.totalEntities ?? 0));
 		statCard(grid, 'refresh-cw', t(state, 'memoryEdges'), d.graphTotalEdges ?? d.totalEdges);
-		statCard(grid, 'compass', t(state, 'memoryGraphBfsDepth'), d.graphMaxDepth ?? 3);
 		// allow-any-unicode-next-line
-		statCard(grid, 'bar-chart-3', t(state, 'memoryGraphDepthDecayGamma'), `γ=${d.graphDepthDecayGamma ?? 0.7}`);
+		statCard(grid, 'compass', t(state, 'memoryGraphPprAlpha'), `α=${d.graphPprAlpha ?? 0.15}`);
 		mk(card, 'p', 'mt-3 t-10 o-50', t(state, 'memoryGraphCapLruHint'));
 	}
 

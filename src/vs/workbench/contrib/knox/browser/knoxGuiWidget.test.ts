@@ -2702,7 +2702,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		store.patch({ memoryTab: 'settings', memoryConfig: {}, memoryConfigLoading: true });
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-settings"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-settings-loading"]'));
-		store.patch({ memoryConfigLoading: false, memoryConfig: { retrieval_top_k: 20, wm_inject_min_relevance: 0.35 } });
+		store.patch({ memoryConfigLoading: false, memoryConfig: { retrieval_top_k: 50, wm_inject_min_relevance: 0.35 } });
 		assert.ok(widget.root.querySelector('[data-testid="memory-brain-enabled"]'));
 		assert.ok(widget.root.querySelector('[data-setting="retrieval_top_k"]'));
 		assert.strictEqual(widget.root.querySelector('[data-setting="wm_inject_min_relevance"]'), null, 'expert retrieval stays collapsed');
@@ -2716,7 +2716,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		sent.length = 0;
 		topK().value = '2';
 		topK().dispatchEvent(new FocusEvent('blur'));
-		assert.strictEqual(topK().value, '20', 'out-of-range input reverts');
+		assert.strictEqual(topK().value, '50', 'out-of-range input reverts');
 		assert.ok(!sent.some(message => message.type === 'brain/updateConfig'));
 		topK().value = '30';
 		topK().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
@@ -2895,7 +2895,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 
 		store.patch({
 			memoryTab: 'settings',
-			memoryConfig: { retrieval_threshold: 0.6, retrieval_top_k: 20, auto_extract_enabled: true },
+			memoryConfig: { retrieval_threshold: 0.35, retrieval_top_k: 50, auto_extract_enabled: true },
 		});
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-memory-settings"]'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-recipe-settings"]'));
