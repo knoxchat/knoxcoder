@@ -106,6 +106,10 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 		assert.ok(repoFile('extensions/knox/src/core/context/soul/recordSoulEvent.ts').includes('findNearestCheckpointBefore'));
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/manager/create.ts').includes('pinMemoryForWorkspaceCheckpoint'));
 		assert.ok(repoFile('extensions/knox/src/core/context/soul/extractToolFiles.ts').includes('Do not assume later edits still exist'));
+		const pairing = repoFile('extensions/knox/docs/knox-memory-checkpoint.md');
+		assert.ok(pairing.includes('workspace_checkpoint_id'));
+		assert.ok(pairing.includes('C_addr'));
+		assert.ok(pairing.includes('builtin_workspace_checkpoint'));
 	});
 
 	test('KN-317: sanitizer strips credentials, injection, invisible Unicode; recall is fenced', () => {

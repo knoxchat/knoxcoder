@@ -117,7 +117,7 @@ export function renderMemoryBrowser(widget: KnoxGuiWidget, body: HTMLElement, st
 		widget.controller.store.patch({ memoryFilterCategory: value });
 		reload();
 	});
-	filterSelect([['all', t(state, 'memoryAllTiers')], ['hot', t(state, 'memoryTierHot')], ['warm', t(state, 'memoryTierWarm')], ['cold', t(state, 'memoryTierCold')]], state.memoryFilterTier, value => {
+	filterSelect([['all', t(state, 'memoryAllTiers')], ['active', t(state, 'memoryTierActive')], ['hot', t(state, 'memoryTierHot')], ['warm', t(state, 'memoryTierWarm')], ['cold', t(state, 'memoryTierCold')], ['frozen', t(state, 'memoryTierFrozen')]], state.memoryFilterTier, value => {
 		widget.controller.store.patch({ memoryFilterTier: value });
 		reload();
 	}).setAttribute('data-testid', 'memory-filter-tier');

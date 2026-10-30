@@ -8,6 +8,7 @@
 
 import { BrainStore } from "./BrainStore.js";
 import { InputSanitizer } from "./InputSanitizer.js";
+import { TOMBSTONE_REASON } from "./store/tombstone.js";
 import type {
   StoreInput,
   SemanticMemory,
@@ -93,6 +94,37 @@ export class BatchOperations {
     const errors: string[] = [];
     let deleted = 0;
 
+    if (input.target_type === "semantic" || input.target_type === "episodic") {
+      for (const id of input.ids) {
+        if (!Number.isInteger(id) || id <= 0) {
+          errors.push(`${input.target_type} #${id} not found`);
+          continue;
+        }
+        const n = await BrainStore.tombstoneMemories(
+          input.target_type,
+          [id],
+          TOMBSTONE_REASON.forget,
+          { via: "forget" },
+        );
+        if (n > 0) {
+          deleted++;
+          continue;
+        }
+        if (input.target_type === "semantic" && await BrainStore.isPinned(id)) {
+          errors.push(`${input.target_type} #${id} is pinned`);
+          continue;
+        }
+        errors.push(`${input.target_type} #${id} not found`);
+      }
+      return {
+        target_type: input.target_type,
+        requested: input.ids.length,
+        deleted,
+        failed: input.ids.length - deleted,
+        errors,
+      };
+    }
+
     // Use a transaction for atomicity
     await db.exec("BEGIN TRANSACTION");
     try {
@@ -105,16 +137,7 @@ export class BatchOperations {
             continue;
           }
 
-          // Delete associations if semantic
-          if (input.target_type === "semantic") {
-            await db.run(
-              "DELETE FROM brain_associations WHERE (source_type = 'semantic' AND source_id = ?) OR (target_type = 'semantic' AND target_id = ?)",
-              [id, id],
-            );
-          }
-
-          // Delete tags
-          if (["semantic", "episodic", "entity", "procedure"].includes(input.target_type)) {
+          if (input.target_type === "entity" || input.target_type === "procedure") {
             await db.run(
               "DELETE FROM brain_tags WHERE memory_type = ? AND memory_id = ?",
               [input.target_type, id],

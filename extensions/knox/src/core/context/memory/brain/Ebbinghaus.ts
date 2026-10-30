@@ -1,58 +1,102 @@
 /**
- * Ebbinghaus — Unified forgetting-curve math (Knox-MS Part IV).
+ * Ebbinghaus — compatibility facade over power-law forgetting (MEM-12).
  *
- * Forgetting curve:
- *   R(t) = R₀ · e^(-λ · t / S(m))     where R₀ = 1.0
+ * Live retrievability is the revised Knox-MS curve in Forgetting.ts:
+ *   R(t, S) = (1 + F · t / S)^(-c)
+ *   F = forgetting_F (default 19/81), c = forgetting_c (default 0.5)
+ *   S = max(ε, stability)  — never access-count
  *
- * Memory strength (grows with spaced repetition):
- *   S(m) = S₀ + β · access_count + modifiers(salience, importance)
- *   S_new(m) = S_old(m) + β · 1[accessed(m, t)]
+ * Leftover until later MEM items (do not use as R or live S):
+ *   S(m) = S₀ + β · access_count          (leftover; live S is FSRS in Fsrs.ts)
+ *   I(m, t) = I₀ · R(t) · (1 + α · n)     (leftover; live Value is Value.ts)
+ *   outcomeFactor                         (MEM-18)
  *
- * Importance evolution:
- *   I(m, t) = I₀(m) · R(t) · (1 + α · access_count(m))
- *
- * Prune when R(t) < θ_prune.
+ * KN-312: ebbinghaus_lambda remains as a leftover config key.
  */
 
-import { getMemoryConfig } from "./memoryConfigAccess.js";
+import {
+  type ForgettingParams,
+  type StabilitySource,
+  defaultForgettingParams,
+  initialStability,
+  resolveStability,
+  retention as powerLawRetention,
+  retrievability,
+  shouldPruneFromSource,
+} from "./Forgetting.js";
+import {
+  applyFsrs,
+  applyFsrsFromSource,
+  nextStability,
+} from "./Fsrs.js";
+import { getEbbinghausConfig, getMemoryConfig, getTheoremParams } from "./memoryConfigAccess.js";
 
 export interface EbbinghausParams {
-  /** R₀ — initial retention (always 1.0 in Knox-MS theorem). */
+  /** R₀ — unused by the power-law (R(0)=1). Kept for leftover I(m,t). */
   initialRetention: number;
-  /** S₀ — base memory strength. */
+  /** Leftover S₀ for memoryStrength. Live S is stored stability / FSRS. */
   baseStrength: number;
-  /** λ — decay rate (~0.03/day ≈ 3% daily decay). */
+  /** Leftover exponential λ. Live R uses forgetting_F / forgetting_c. */
   lambda: number;
-  /** θ_prune — prune threshold. */
+  /** θ_prune — archive + tombstone when R < θ (age never DELETEs). */
   pruneThreshold: number;
   /** Review threshold for spaced repetition surfacing. */
   reviewThreshold: number;
-  /** α — strengthening factor per access in I(m,t). */
+  /** α — leftover strengthening in I(m,t). Live S uses FSRS on use. */
   strengtheningAlpha: number;
-  /** β — additive strength gain per access in S_new(m). */
+  /** β — leftover strength gain per access. Live S uses FSRS on use. */
   repetitionBeta: number;
   salienceWeight: number;
   importanceWeight: number;
+  forgettingF: number;
+  forgettingC: number;
+}
+
+export function getForgettingParams(): ForgettingParams {
+  try {
+    const theorem = getTheoremParams();
+    const ebbinghaus = getEbbinghausConfig();
+    return {
+      F: theorem.forgettingF,
+      c: theorem.forgettingC,
+      pruneThreshold: ebbinghaus.pruneThreshold,
+      reviewThreshold: ebbinghaus.reviewThreshold,
+    };
+  } catch {
+    return defaultForgettingParams();
+  }
 }
 
 export function getEbbinghausParams(): EbbinghausParams {
   const cfg = getMemoryConfig();
+  const forget = getForgettingParams();
   return {
     initialRetention: 1.0,
     baseStrength: cfg.ebbinghaus_base_strength,
     lambda: cfg.ebbinghaus_lambda,
-    pruneThreshold: cfg.ebbinghaus_prune_threshold,
-    reviewThreshold: cfg.ebbinghaus_review_threshold,
+    pruneThreshold: forget.pruneThreshold,
+    reviewThreshold: forget.reviewThreshold,
     strengtheningAlpha: cfg.ebbinghaus_strengthening_alpha,
     repetitionBeta: cfg.ebbinghaus_repetition_beta,
     salienceWeight: cfg.ebbinghaus_salience_weight,
     importanceWeight: cfg.ebbinghaus_importance_weight,
+    forgettingF: forget.F,
+    forgettingC: forget.c,
+  };
+}
+
+function toForgettingParams(params?: EbbinghausParams): ForgettingParams {
+  if (!params) return getForgettingParams();
+  return {
+    F: params.forgettingF,
+    c: params.forgettingC,
+    pruneThreshold: params.pruneThreshold,
+    reviewThreshold: params.reviewThreshold,
   };
 }
 
 /**
- * Memory strength S(m) — denominator of R(t).
- * Theorem: S_new = S_old + β on each access; salience/importance add modifiers.
+ * Leftover access-count strength. Live R / S use stored stability and FSRS on use.
  */
 export function memoryStrength(
   retrievalCount: number,
@@ -71,6 +115,7 @@ export function memoryStrength(
 /**
  * MC-51: outcome-aware strength. Memories recalled before a verified turn gain strength, ones
  * recalled before a revert lose more (wrong memory costs more than a right one earns).
+ * Not retrievability R — kept for recipes until MEM-18.
  */
 export const OUTCOME_VERIFIED_GAIN = 0.05;
 export const OUTCOME_REVERT_LOSS = 0.15;
@@ -86,47 +131,52 @@ export function outcomeAdjustedStrength(strength: number, verified: number, reve
   return Math.max(0.01, strength * outcomeFactor(verified, reverted));
 }
 
-/** Retention R(t) = R₀ · e^(-λ · t / S) ∈ [0, 1]. */
+/** Retention R(t, S) = (1 + F · t / S)^(-c) ∈ (0, 1]. `stability` is S. */
 export function retention(
   lastAccessedAt: string,
-  strength: number,
+  stability: number,
   params?: EbbinghausParams,
 ): number {
-  const p = params ?? getEbbinghausParams();
-  const elapsedMs = Date.now() - new Date(lastAccessedAt).getTime();
-  const elapsedDays = Math.max(0, elapsedMs / 86400000);
-  const s = Math.max(0.01, strength);
-  const r = p.initialRetention * Math.exp(-p.lambda * elapsedDays / s);
-  return Math.max(0, Math.min(1, r));
+  return powerLawRetention(lastAccessedAt, stability, toForgettingParams(params));
 }
 
-/** Convenience: R(t) from retrieval metadata. */
+/** Convenience: R(t) from stored stability (or category S₀). Access count is not S. */
 export function retentionFromMemory(
   lastAccessedAt: string,
   retrievalCount: number,
   salience: number = 0.5,
   importance: number = 0.5,
   params?: EbbinghausParams,
+  source?: StabilitySource,
 ): number {
-  const s = memoryStrength(retrievalCount, salience, importance, params);
-  return retention(lastAccessedAt, s, params);
+  void retrievalCount;
+  void salience;
+  void importance;
+  return powerLawRetention(
+    lastAccessedAt,
+    resolveStability(source?.stability, source?.category),
+    toForgettingParams(params),
+  );
 }
 
-/** Whether a memory should be pruned (R < θ_prune). */
+/** Whether a memory should be archived + tombstoned (R < θ_prune). Age never DELETEs. */
 export function shouldPrune(
   lastAccessedAt: string,
   retrievalCount: number,
   salience: number = 0.5,
   importance: number = 0.5,
   params?: EbbinghausParams,
+  source?: StabilitySource,
 ): boolean {
-  const p = params ?? getEbbinghausParams();
-  return retentionFromMemory(lastAccessedAt, retrievalCount, salience, importance, p) < p.pruneThreshold;
+  void retrievalCount;
+  void salience;
+  void importance;
+  return shouldPruneFromSource(lastAccessedAt, source, toForgettingParams(params));
 }
 
 /**
- * Importance evolution: I(m,t) = I₀ · R(t) · (1 + α · access_count).
- * Used during sleep consolidation decay (NREM-2).
+ * Leftover importance evolution: I(m,t) = I₀ · R(t) · (1 + α · access_count).
+ * Live retrieve uses Value = R·U in Value.ts.
  */
 export function importanceEvolution(
   initialImportance: number,
@@ -135,9 +185,10 @@ export function importanceEvolution(
   salience: number = 0.5,
   importance: number = 0.5,
   params?: EbbinghausParams,
+  source?: StabilitySource,
 ): number {
   const p = params ?? getEbbinghausParams();
-  const r = retentionFromMemory(lastAccessedAt, retrievalCount, salience, importance, p);
+  const r = retentionFromMemory(lastAccessedAt, retrievalCount, salience, importance, p, source);
   const accessBoost = 1 + p.strengtheningAlpha * Math.max(0, retrievalCount);
   return Math.max(0.05, initialImportance * r * accessBoost);
 }
@@ -149,6 +200,7 @@ export function importanceFromRetention(
   retrievalCount: number,
   salience: number = 0.5,
   params?: EbbinghausParams,
+  source?: StabilitySource,
 ): number {
   return importanceEvolution(
     currentImportance,
@@ -157,12 +209,12 @@ export function importanceFromRetention(
     salience,
     currentImportance,
     params,
+    source,
   );
 }
 
 /**
- * Spaced repetition boost after access: I₀ · (1 + α · n) with R(0) ≈ 1.
- * Returns capped importance score ∈ [0, 1].
+ * Leftover I(m,t) access boost. Not a retrieve-time update — live S uses FSRS on use.
  */
 export function boostImportanceOnAccess(
   currentImportance: number,
@@ -175,7 +227,7 @@ export function boostImportanceOnAccess(
   return Math.min(1.0, boosted);
 }
 
-/** Strength gain from a single access: ΔS = β. */
+/** Leftover ΔS = β. Live strengthening is FSRS (Fsrs.ts). */
 export function strengthGainOnAccess(params?: EbbinghausParams): number {
   return (params ?? getEbbinghausParams()).repetitionBeta;
 }
@@ -192,4 +244,10 @@ export const Ebbinghaus = {
   strengthGainOnAccess,
   outcomeFactor,
   outcomeAdjustedStrength,
+  retrievability,
+  initialStability,
+  resolveStability,
+  nextStability,
+  applyFsrs,
+  applyFsrsFromSource,
 };

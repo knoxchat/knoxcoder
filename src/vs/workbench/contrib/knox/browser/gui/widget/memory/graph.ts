@@ -22,7 +22,7 @@ import {
 	spinner,
 	memoryButton,
 } from './kit.js';
-import { graphStat, meterHead, meterBar } from './cards.js';
+import { graphStat } from './cards.js';
 import { applyMemoryGraphFilter } from './filters.js';
 
 export function renderMemoryGraph(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void { // KN-376 KN-311
@@ -30,17 +30,12 @@ export function renderMemoryGraph(widget: KnoxGuiWidget, body: HTMLElement, stat
 	const stats = state.memoryGraphStats;
 	if (stats) {
 		const row = mk(body, 'div', 'grid-3 gap-3');
-		graphStat(row, stats.maxEntities ? `${stats.totalEntities}/${stats.maxEntities}` : String(stats.totalEntities), t(state, 'memoryEntities'));
+		graphStat(row, String(stats.channelSize ?? stats.totalEntities), t(state, 'memoryGraphEntities'));
 		graphStat(row, String(stats.totalEdges), t(state, 'memoryEdges'));
 		graphStat(row, String(Object.keys(stats.entityTypes ?? {}).length), t(state, 'memoryEntityTypesCount'));
-		if (stats.maxEntities) {
-			const meter = mk(body, 'div', 'sy-1');
-			const value = meterHead(meter, t(state, 'memoryGraphCapUtilization'), `${((stats.capUtilization ?? 0) * 100).toFixed(1)}%`);
-			if (stats.atCap) {
-				mk(value, 'span', 'ml-1 text-amber', t(state, 'memoryGraphAtCap'));
-			}
-			meterBar(meter, Math.min(100, (stats.capUtilization ?? 0) * 100), stats.atCap ? '#f59e0b' : '#159994');
-			mk(meter, 'p', 't-10 o-50', t(state, 'memoryGraphSpreadingHint', { depth: stats.maxDepth ?? 3, gamma: stats.depthDecayGamma ?? 0.7 }));
+		mk(body, 'p', 't-10 o-50', t(state, 'memoryGraphCapLruHint'));
+		if (stats.maxDepth !== undefined || stats.depthDecayGamma !== undefined) {
+			mk(body, 'p', 't-10 o-50', t(state, 'memoryGraphSpreadingHint', { depth: stats.maxDepth ?? 3, gamma: stats.depthDecayGamma ?? 0.7 }));
 		}
 	}
 	const filters = mk(body, 'div', 'flex gap-2');
@@ -81,7 +76,7 @@ export function renderMemoryGraph(widget: KnoxGuiWidget, body: HTMLElement, stat
 		svg(title, 'compass', 14);
 		const centerName = explore.centerName ?? explore.entities.find(entity => entity.id === explore.centerId)?.name ?? '';
 		title.append(`${t(state, 'memoryExploring')}: ${centerName}`);
-		if (explore.depthReached != null) {
+		if (explore.depthReached !== undefined && explore.depthReached !== null) {
 			mk(title, 'span', 'xs o-50', `(${t(state, 'memoryGraphDepth', { count: explore.depthReached })})`);
 		}
 		const close = memoryButton(widget, head, { tokens: 'explore-close xs o-60', icon: 'x', onClick: () => widget.controller.store.patch({ memoryExplore: undefined }) });
@@ -171,7 +166,7 @@ export function renderMemoryGraph(widget: KnoxGuiWidget, body: HTMLElement, stat
 		}
 		const meta = mk(main, 'div', 'mt-0_5 flex items-center gap-3 xs o-40');
 		mk(meta, 'span', '', `${t(state, 'memoryEntityMentions')}: ${entity.mentionCount}`);
-		if (entity.edgeCount != null) {
+		if (entity.edgeCount !== undefined && entity.edgeCount !== null) {
 			mk(meta, 'span', '', `${t(state, 'memoryGraphEntityEdges')}: ${entity.edgeCount}`);
 		}
 		const exploring = widget.memoryExploringId === entity.id;

@@ -166,7 +166,8 @@ export class MemoryManager {
     const db = await BrainStore.get();
     const rows = await db.all(
       `SELECT * FROM brain_semantic
-       WHERE (expires_at IS NULL OR expires_at > datetime('now'))
+       WHERE tombstoned_at IS NULL
+         AND (expires_at IS NULL OR expires_at > datetime('now'))
        ORDER BY created_at DESC
        LIMIT ?`,
       [limit],
@@ -179,12 +180,7 @@ export class MemoryManager {
    */
   static async cleanup(): Promise<number> {
     await MemoryManager.ensureLegacyMigrated();
-    const db = await BrainStore.get();
-    const result = await db.run(
-      `DELETE FROM brain_semantic
-       WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`,
-    );
-    return result.changes ?? 0;
+    return BrainStore.forgetExpiredTtl();
   }
 
   private static semanticToItem(mem: any): MemoryItem {

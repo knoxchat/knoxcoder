@@ -262,6 +262,7 @@ ${conversationExcerpt.substring(0, 6000)}`;
         session_id: sessionId,
         keywords: LlmMemoryService.extractKeywords(summary),
         importance: 0.75,
+        summary_of: history.map((h) => ({ type: "episodic" as const, id: h.id })),
       });
 
       return { summary, llm_used: true };

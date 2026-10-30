@@ -88,7 +88,7 @@ export class SensoryBuffer {
     }, ms);
   }
 
-  /** Estimated tokens currently buffered (M₁ contribution to C_effective). */
+  /** Estimated tokens currently buffered (M₁ buffer gauge, not C_addr). */
   static estimateBufferedTokens(sessionId?: string): number {
     let chars = 0;
     if (sessionId) {

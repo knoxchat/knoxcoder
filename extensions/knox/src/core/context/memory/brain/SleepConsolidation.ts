@@ -4,7 +4,7 @@
  *
  * Mirrors Knox-MS NeuralMemory sleep consolidation patterns:
  * - NREM Phase 1: Replay and strengthen high-importance memories
- * - NREM Phase 2: Decay low-importance memories (Ebbinghaus curve)
+ * - NREM Phase 2: leftover I(m,t) + R/Value tiers (MEM-15; no tombstone)
  * - NREM Phase 3: Compress cold-tier memories
  * - REM Phase: Episodic-to-semantic distillation — find recurring patterns
  *   in episodic memories and extract stable knowledge into semantic memory
@@ -15,14 +15,12 @@
  */
 
 import { BrainStore } from "./BrainStore.js";
-import { KnowledgeGraph } from "./KnowledgeGraph.js";
 import { Ebbinghaus } from "./Ebbinghaus.js";
 import { GRAPH_COMMON_NOUN_DENYLIST, isCommonNounEntityName } from "./GraphRetrieval.js";
 import { contentWords } from "./RetrievalQuery.js";
+import { recomputeMemoryTiers } from "./store/tiers.js";
 import type {
   ConsolidationResult,
-  EpisodicMemory,
-  SemanticMemory,
   SleepSubPhaseCounts,
 } from "./types.js";
 
@@ -80,12 +78,13 @@ export class SleepConsolidation {
     result.replayed = await SleepConsolidation.nremReplay();
     result.sub_phases.nrem_replay = result.replayed;
 
-    // Phase 2 (NREM-2): Decay — apply Ebbinghaus forgetting curve
+    // Phase 2 (NREM-2): leftover I(m,t) + R/Value tiers (MEM-15). Never tombstone.
     const decayResult = await SleepConsolidation.nremDecay();
     result.demoted = decayResult.demoted;
-    result.pruned = decayResult.pruned;
+    result.pruned = 0;
+    result.promoted = decayResult.promoted;
     result.sub_phases.nrem_decay_demoted = decayResult.demoted;
-    result.sub_phases.nrem_decay_pruned = decayResult.pruned;
+    result.sub_phases.nrem_decay_pruned = 0;
 
     // Phase 3 (NREM-3): Compress — compress cold-tier content
     result.compressed = await SleepConsolidation.nremCompress();
@@ -99,8 +98,8 @@ export class SleepConsolidation {
     result.edges_strengthened = await SleepConsolidation.strengthenGraph();
     result.sub_phases.graph_strengthen = result.edges_strengthened;
 
-    // Phase 6: Promote hot memories based on retrieval and salience
-    result.promoted = await SleepConsolidation.promoteHighValue();
+    // Phase 6: leftover hook. Tiers already assigned from R/Value in nremDecay.
+    await SleepConsolidation.promoteHighValue();
     result.sub_phases.promote = result.promoted;
 
     for (const [name, hook] of cycleHooks) {
@@ -124,7 +123,8 @@ export class SleepConsolidation {
   private static async nremReplay(): Promise<number> {
     const db = await BrainStore.get();
 
-    // Boost semantic memories that were accessed recently AND have high salience
+    // Leftover I boost. MEM-16: inject no longer increments retrieval_count,
+    // so mere retrieve/inject cannot satisfy retrieval_count >= 2.
     const result = await db.run(
       `UPDATE brain_semantic
        SET importance_score = MIN(1.0, importance_score + 0.05)
@@ -149,31 +149,38 @@ export class SleepConsolidation {
   // ── NREM Phase 2: Decay ────────────────────────────────────────────────────
 
   /**
-   * Apply Ebbinghaus forgetting curve: R(t) = e^(-λt/S(m)).
-   * Updates importance from retention; prunes when R(t) < θ_prune.
+   * Leftover I(m,t) update, then assign tiers from R and Value (MEM-15).
+   * Frozen is archive (skip retrieve). Tombstone is only forget/TTL/privacy.
    */
-  private static async nremDecay(): Promise<{ demoted: number; pruned: number }> {
+  private static async nremDecay(): Promise<{ demoted: number; pruned: number; promoted: number }> {
     const db = await BrainStore.get();
-    let demoted = 0;
-    let pruned = 0;
-
     const notPinned = `id NOT IN (SELECT memory_id FROM brain_tags WHERE memory_type = 'semantic' AND tag = 'pinned')`;
 
-    // Semantic: apply R(t) to importance_score
     const semanticRows = await db.all(
-      `SELECT id, importance_score, retrieval_count, last_accessed_at, salience, tier
+      `SELECT id, importance_score, retrieval_count, last_accessed_at, salience, stability, category
        FROM brain_semantic
-       WHERE tier IN ('hot', 'warm') AND ${notPinned}`,
+       WHERE tombstoned_at IS NULL AND ${notPinned}`,
     );
     for (const row of semanticRows) {
-      const r = row as any;
+      const r = row as {
+        id: number;
+        importance_score: number;
+        retrieval_count: number;
+        last_accessed_at: string;
+        salience: number | null;
+        stability: number | null;
+        category: string | null;
+      };
       const salience = r.salience ?? 0.5;
       const importance = r.importance_score ?? 0.5;
+      const source = { stability: r.stability, category: r.category };
       const newImportance = Ebbinghaus.importanceFromRetention(
         importance,
         r.last_accessed_at,
         r.retrieval_count ?? 0,
         salience,
+        undefined,
+        source,
       );
       if (Math.abs(newImportance - importance) > 0.001) {
         await db.run(
@@ -181,95 +188,16 @@ export class SleepConsolidation {
           [newImportance, r.id],
         );
       }
-      if (
-        Ebbinghaus.shouldPrune(r.last_accessed_at, r.retrieval_count ?? 0, salience, importance)
-        && r.tier === "warm"
-      ) {
-        await db.run("UPDATE brain_semantic SET tier = 'cold' WHERE id = ?", [r.id]);
-        demoted++;
-      }
     }
 
-    // Episodic tier demotion (age + importance gates)
-    const hotToWarm = await db.run(
-      `UPDATE brain_episodic SET tier = 'warm'
-       WHERE tier = 'hot' AND importance_score < 0.7
-       AND COALESCE(salience, 0.5) < 0.7
-       AND created_at < datetime('now', '-1 day')`,
-    );
-    demoted += hotToWarm.changes ?? 0;
-
-    const warmToCold = await db.run(
-      `UPDATE brain_episodic SET tier = 'cold'
-       WHERE tier = 'warm' AND importance_score < 0.5
-       AND created_at < datetime('now', '-7 days')`,
-    );
-    demoted += warmToCold.changes ?? 0;
-
-    // Episodic prune: R(t) < θ_prune on cold tier
-    const coldEpisodic = await db.all(
-      `SELECT id, importance_score, salience, created_at FROM brain_episodic
-       WHERE tier = 'cold' AND created_at < datetime('now', '-30 days')`,
-    );
-    for (const row of coldEpisodic) {
-      const r = row as any;
-      if (
-        Ebbinghaus.shouldPrune(
-          r.created_at,
-          0,
-          r.salience ?? 0.5,
-          r.importance_score ?? 0.5,
-        )
-      ) {
-        await db.run("DELETE FROM brain_episodic WHERE id = ?", [r.id]);
-        pruned++;
-      }
-    }
-
-    // Semantic: Hot → Warm (stale access)
-    const semHotToWarm = await db.run(
-      `UPDATE brain_semantic SET tier = 'warm'
-       WHERE tier = 'hot' AND importance_score < 0.6
-       AND last_accessed_at < datetime('now', '-7 days')
-       AND ${notPinned}`,
-    );
-    demoted += semHotToWarm.changes ?? 0;
-
-    // Semantic: retention-based prune on cold tier
-    const coldSemantic = await db.all(
-      `SELECT id, importance_score, retrieval_count, last_accessed_at, salience
-       FROM brain_semantic WHERE tier = 'cold' AND ${notPinned}`,
-    );
-    for (const row of coldSemantic) {
-      const r = row as any;
-      if (
-        Ebbinghaus.shouldPrune(
-          r.last_accessed_at,
-          r.retrieval_count ?? 0,
-          r.salience ?? 0.5,
-          r.importance_score ?? 0.5,
-        )
-      ) {
-        await db.run("DELETE FROM brain_semantic WHERE id = ?", [r.id]);
-        pruned++;
-      }
-    }
-
-    // Prune expired semantic
-    const prunedSemantic = await db.run(
-      `DELETE FROM brain_semantic
-       WHERE expires_at IS NOT NULL AND expires_at < datetime('now')
-       AND ${notPinned}`,
-    );
-    pruned += prunedSemantic.changes ?? 0;
-
-    return { demoted, pruned };
+    const tiers = await recomputeMemoryTiers();
+    return { demoted: tiers.demoted, pruned: 0, promoted: tiers.promoted };
   }
 
   // ── NREM Phase 3: Compress ─────────────────────────────────────────────────
 
   /**
-   * Compress cold-tier memory content to save space.
+   * Write summary-tree pointers for cold-tier leaves. Originals stay intact.
    */
   private static async nremCompress(): Promise<number> {
     try {
@@ -359,15 +287,19 @@ export class SleepConsolidation {
         if (existing) continue;
 
         const representative: string[] = [];
-        for (const sid of sids.slice(0, 3)) {
-          const topMsg = await db.get(
-            `SELECT content FROM brain_episodic
+        const sourceRefs: Array<{ type: "episodic"; id: number; text: string }> = [];
+        for (const sid of sids) {
+          const topMsgs = await db.all(
+            `SELECT id, content FROM brain_episodic
              WHERE session_id = ? AND LOWER(content) LIKE ?
-             ORDER BY importance_score DESC LIMIT 1`,
+             ORDER BY importance_score DESC LIMIT 5`,
             [sid, `%${keyword}%`],
           );
-          if (topMsg) {
-            representative.push((topMsg as { content: string }).content.substring(0, 200));
+          for (const msg of topMsgs as { id: number; content: string }[]) {
+            sourceRefs.push({ type: "episodic", id: msg.id, text: msg.content });
+            if (representative.length < 3) {
+              representative.push(msg.content.substring(0, 200));
+            }
           }
         }
         if (representative.length < 2) continue;
@@ -375,7 +307,7 @@ export class SleepConsolidation {
         const title = `Recurring pattern: ${keyword}`;
         const content = `This topic appears across ${sids.length} conversation sessions. Key references:\n${representative.map((r, i) => `  ${i + 1}. ${r}`).join("\n")}`;
 
-        await BrainStore.storeSemantic({
+        const insightId = await BrainStore.storeSemantic({
           category: "insight",
           title,
           content,
@@ -383,7 +315,20 @@ export class SleepConsolidation {
           importance: 0.6 + Math.min(sids.length * 0.05, 0.3),
           session_id: sids[0],
           topic_id: cluster.topicId,
+          summary_of: sourceRefs,
         });
+        await BrainStore.writeSummaryPointer({
+          text: content,
+          sources: sourceRefs,
+        });
+        if (insightId && sourceRefs.length > 0) {
+          const ids = [...new Set(sourceRefs.map((s) => s.id))];
+          const placeholders = ids.map(() => "?").join(",");
+          await db.run(
+            `UPDATE brain_episodic SET parent_id = ? WHERE id IN (${placeholders}) AND parent_id IS NULL`,
+            [insightId, ...ids],
+          );
+        }
         distilled++;
       }
     }
@@ -448,22 +393,10 @@ export class SleepConsolidation {
   // ── Post-Sleep: Promote High-Value ─────────────────────────────────────────
 
   /**
-   * Promote high-value cold/warm memories back to hot tier.
-   * Memories that are frequently accessed or have high salience get promoted.
+   * Leftover sleep hook. Hot is R ≥ 0.9 from nremDecay, not retrieval_count.
    */
   private static async promoteHighValue(): Promise<number> {
-    const db = await BrainStore.get();
-
-    const result = await db.run(
-      `UPDATE brain_semantic SET tier = 'hot'
-       WHERE tier IN ('warm', 'cold')
-       AND (
-         (retrieval_count >= 5 AND last_accessed_at > datetime('now', '-3 days'))
-         OR (COALESCE(salience, 0.5) >= 0.85 AND importance_score >= 0.8)
-       )`,
-    );
-
-    return result.changes ?? 0;
+    return 0;
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

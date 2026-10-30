@@ -67,6 +67,7 @@ export async function summarizeSession(input: SessionSummaryInput): Promise<stri
     session_id: input.session_id,
     keywords: extractKeywords(summary),
     importance: 0.7,
+    summary_of: history.map((h) => ({ type: "episodic" as const, id: h.id })),
   });
 
   return summary;

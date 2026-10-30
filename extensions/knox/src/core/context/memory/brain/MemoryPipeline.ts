@@ -307,7 +307,7 @@ export class MemoryPipeline {
             break;
           }
           const persisted = await Hippocampus.persistToLongTerm(input.session_id, extracted);
-          detail = `M₄ promoted ${persisted.promoted}, M₅ procedural ${persisted.procedural}, compressed ${persisted.compressed}`;
+          detail = `M₄ promoted ${persisted.promoted}, M₅ recipes ${persisted.recipes}, leftover procedural ${persisted.procedural}, compressed ${persisted.compressed}`;
           break;
         }
 

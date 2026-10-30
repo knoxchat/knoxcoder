@@ -112,6 +112,7 @@ export const MEMORY_SETTING_GROUP_ICONS: Record<string, string> = {
 	memoryExpertRetrieval: 'sliders-horizontal',
 	memoryGeneralSettings: 'settings',
 	memoryEbbinghausSettings: 'brain',
+	memoryTheoremSettings: 'brain',
 	memoryCapacitySettings: 'package',
 	memoryPrecisionSettings: 'crosshair',
 	memoryWorkingMemorySettings: 'brain',
@@ -149,9 +150,11 @@ export const MEMORY_STATUS_COLORS: Record<string, string> = {
 export const MEMORY_EFFECTIVE_TIERS = ['active', 'hot', 'warm', 'cold', 'frozen'] as const;
 
 export const MEMORY_TIER_COLORS: Record<string, { bg: string; text: string }> = {
+	active: { bg: 'rgba(34, 197, 94, 0.15)', text: '#22c55e' },
 	hot: { bg: 'rgba(239, 68, 68, 0.15)', text: '#ef4444' },
 	warm: { bg: 'rgba(245, 158, 11, 0.15)', text: '#f59e0b' },
 	cold: { bg: 'rgba(59, 130, 246, 0.15)', text: '#3b82f6' },
+	frozen: { bg: 'rgba(100, 116, 139, 0.15)', text: '#64748b' },
 };
 
 export const MEMORY_GRAPH_TYPE_COLORS: Record<string, string> = {
@@ -431,6 +434,10 @@ export function parseMemoryDashboard(raw: Record<string, unknown> | undefined): 
 		oldestMemory: stats.oldest_memory ? String(stats.oldest_memory) : undefined,
 		newestMemory: stats.newest_memory ? String(stats.newest_memory) : undefined,
 		graphMaxEntities: Number(graph?.max_entities ?? stats.graph_max_entities ?? 0) || undefined,
+		graphChannelSize: (graph?.channel_size !== undefined && graph?.channel_size !== null)
+			? Number(graph.channel_size)
+			: ((graph?.total_entities !== undefined && graph?.total_entities !== null) ? Number(graph.total_entities) : undefined),
+		graphIsCapacity: graph?.is_capacity === true,
 		graphCapUtilization: Number(graph?.cap_utilization ?? 0) || undefined,
 		graphAtCap: graph?.at_cap === true,
 		graphTotalEntities: (graph?.total_entities !== undefined && graph?.total_entities !== null) ? Number(graph.total_entities) : undefined,
@@ -533,29 +540,63 @@ export function parseEffectiveContext(raw: Record<string, unknown> | undefined):
 	}
 	const levels = asArray(rec.memory_levels ?? rec.levels).map(item => {
 		const row = asRecord(item) ?? {};
+		const role: 'buffer' | 'store' | undefined = row.role === 'buffer' ? 'buffer' : row.role === 'store' ? 'store' : undefined;
 		return {
 			id: String(row.id ?? ''),
 			name: String(row.name ?? row.id ?? ''),
 			tokens: Number(row.tokens ?? 0),
 			ratio: typeof row.ratio === 'number' ? row.ratio : undefined,
 			effectiveTokens: (row.effective_tokens !== undefined && row.effective_tokens !== null) ? Number(row.effective_tokens) : undefined,
+			role,
+			inCAddr: typeof row.in_c_addr === 'boolean' ? row.in_c_addr : (typeof row.inCAddr === 'boolean' ? row.inCAddr : undefined),
 		};
 	}).filter(level => level.name);
+	const cAddr = Number(rec.c_addr ?? rec.cAddr ?? 0);
+	const cUse = (rec.c_use !== undefined && rec.c_use !== null)
+		? Number(rec.c_use)
+		: ((rec.last_context_tokens_used !== undefined && rec.last_context_tokens_used !== null) ? Number(rec.last_context_tokens_used) : undefined);
+	const w = (rec.w !== undefined && rec.w !== null)
+		? Number(rec.w)
+		: ((rec.active_window_tokens !== undefined && rec.active_window_tokens !== null) ? Number(rec.active_window_tokens) : undefined);
 	return {
-		totalEffective: Number(rec.total_effective ?? rec.hierarchy_effective_tokens ?? 0),
-		activeWindowTokens: (rec.active_window_tokens !== undefined && rec.active_window_tokens !== null) ? Number(rec.active_window_tokens) : undefined,
-		lastContextTokensUsed: (rec.last_context_tokens_used !== undefined && rec.last_context_tokens_used !== null) ? Number(rec.last_context_tokens_used) : undefined,
-		hierarchyEffectiveTokens: (rec.hierarchy_effective_tokens !== undefined && rec.hierarchy_effective_tokens !== null) ? Number(rec.hierarchy_effective_tokens) : undefined,
+		cAddr,
+		cUse,
+		w,
+		recRolling: (rec.rec_rolling !== undefined && rec.rec_rolling !== null) ? Number(rec.rec_rolling) : undefined,
+		activeWindowTokens: w,
+		lastContextTokensUsed: cUse,
 		workingMemoryBudget: (rec.working_memory_budget !== undefined && rec.working_memory_budget !== null) ? Number(rec.working_memory_budget) : undefined,
-		contextMaxTokens: (rec.context_max_tokens !== undefined && rec.context_max_tokens !== null) ? Number(rec.context_max_tokens) : undefined,
+		contextMaxTokens: (rec.context_max_tokens !== undefined && rec.context_max_tokens !== null) ? Number(rec.context_max_tokens) : w,
 		windowUtilization: (rec.window_utilization !== undefined && rec.window_utilization !== null) ? Number(rec.window_utilization) : undefined,
 		memoryTokensSaved: (rec.memory_tokens_saved !== undefined && rec.memory_tokens_saved !== null) ? Number(rec.memory_tokens_saved) : undefined,
 		graphEntityCount: (rec.graph_entity_count !== undefined && rec.graph_entity_count !== null) ? Number(rec.graph_entity_count) : undefined,
+		graphChannelSize: (rec.graph_channel_size !== undefined && rec.graph_channel_size !== null)
+			? Number(rec.graph_channel_size)
+			: ((rec.graph_entity_count !== undefined && rec.graph_entity_count !== null) ? Number(rec.graph_entity_count) : undefined),
+		graphRole: rec.graph_role === 'channel' ? 'channel' : undefined,
+		graphIsCapacity: rec.graph_is_capacity === true,
 		graphMaxEntities: (rec.graph_max_entities !== undefined && rec.graph_max_entities !== null) ? Number(rec.graph_max_entities) : undefined,
 		graphCapUtilization: (rec.graph_cap_utilization !== undefined && rec.graph_cap_utilization !== null) ? Number(rec.graph_cap_utilization) : undefined,
 		tierTokens: asNumberRecord(rec.tier_tokens),
 		compressionRatios: asNumberRecord(rec.compression_ratios),
 		levels,
+	};
+}
+
+/** MEM-10 headline: C_addr, C_use, optional W and Rec. */
+export function memoryHeadlineMetrics(ctx: IKnoxGuiEffectiveContext): {
+	cAddr: number;
+	cUse: number;
+	w?: number;
+	recRolling?: number;
+} {
+	const wRaw = ctx.w ?? ctx.activeWindowTokens;
+	const rec = ctx.recRolling;
+	return {
+		cAddr: Math.round(ctx.cAddr ?? 0),
+		cUse: Math.round(ctx.cUse ?? ctx.lastContextTokensUsed ?? 0),
+		w: (wRaw !== undefined && wRaw !== null && Number.isFinite(wRaw)) ? Math.round(wRaw) : undefined,
+		recRolling: (rec !== undefined && rec !== null && Number.isFinite(rec)) ? rec : undefined,
 	};
 }
 
@@ -570,7 +611,8 @@ export function parseMetricsTrend(raw: Record<string, unknown> | undefined): IKn
 			avgResponseMs: Number(row.avg_response_ms ?? 0),
 			successRate: Number(row.success_rate ?? 0),
 			memoryCount: Number(row.memory_count ?? 0),
-			totalEffective: (row.total_effective !== undefined && row.total_effective !== null) ? Number(row.total_effective) : undefined,
+			cAddr: (row.c_addr !== undefined && row.c_addr !== null) ? Number(row.c_addr) : undefined,
+			cUse: (row.c_use !== undefined && row.c_use !== null) ? Number(row.c_use) : undefined,
 			tokensSaved: (row.memory_tokens_saved !== undefined && row.memory_tokens_saved !== null) ? Number(row.memory_tokens_saved) : undefined,
 		};
 	});
@@ -579,7 +621,7 @@ export function parseMetricsTrend(raw: Record<string, unknown> | undefined): IKn
 		success: rec.success_rate_trend ? String(rec.success_rate_trend) : rec.success ? String(rec.success) : undefined,
 		growth: rec.growth_rate_trend ? String(rec.growth_rate_trend) : rec.growth ? String(rec.growth) : undefined,
 		compression: rec.compression_trend ? String(rec.compression_trend) : rec.compression ? String(rec.compression) : undefined,
-		effectiveContext: rec.effective_context_trend ? String(rec.effective_context_trend) : rec.effective_context ? String(rec.effective_context) : rec.effectiveContext ? String(rec.effectiveContext) : undefined,
+		addressableMemory: rec.addressable_memory_trend ? String(rec.addressable_memory_trend) : rec.addressable_memory ? String(rec.addressable_memory) : undefined,
 		periodHours: (rec.period_hours !== undefined && rec.period_hours !== null) ? Number(rec.period_hours) : undefined,
 		snapshots,
 	};
@@ -1048,6 +1090,10 @@ export function parseGraphStats(raw: Record<string, unknown> | undefined): IKnox
 		totalEdges: Number(rec.total_edges ?? 0),
 		entityTypes: asNumberRecord(rec.entity_types ?? rec.entity_type_counts),
 		maxEntities: (rec.max_entities !== undefined && rec.max_entities !== null) ? Number(rec.max_entities) : undefined,
+		channelSize: (rec.channel_size !== undefined && rec.channel_size !== null)
+			? Number(rec.channel_size)
+			: ((rec.total_entities !== undefined && rec.total_entities !== null) ? Number(rec.total_entities) : undefined),
+		isCapacity: rec.is_capacity === true,
 		capUtilization: (rec.cap_utilization !== undefined && rec.cap_utilization !== null) ? Number(rec.cap_utilization) : undefined,
 		atCap: rec.at_cap === true,
 		maxDepth: (rec.max_depth !== undefined && rec.max_depth !== null) ? Number(rec.max_depth) : undefined,
@@ -1189,6 +1235,8 @@ export interface IKnoxGuiMemorySettingField {
 	suffixKey?: string;
 	sectionKey?: string;
 	options?: Array<{ value: string; labelKey: string }>;
+	/** Hidden leftover until Phase 3 removes the knob (MEM-10 / MEM-15). */
+	legacy?: boolean;
 }
 
 export interface IKnoxGuiMemorySettingGroup {
@@ -1198,6 +1246,8 @@ export interface IKnoxGuiMemorySettingGroup {
 	descKey?: string;
 	/** lambda / fusion / budget and other retrieval knobs; hidden behind Expert retrieval. */
 	expert?: boolean;
+	/** Hidden leftover until Phase 3 removes the group (MEM-10 / MEM-15). */
+	legacy?: boolean;
 }
 
 /** Core `brain/updateConfig` only accepts `{ key, value: string }`. */
@@ -1261,6 +1311,33 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 			{ key: 'ebbinghaus_repetition_beta', labelKey: 'memoryEbbinghausRepetitionBeta', descKey: 'memoryEbbinghausRepetitionBetaDesc', kind: 'number', min: 0, max: 0.5, step: 0.01, float: true },
 			{ key: 'ebbinghaus_salience_weight', labelKey: 'memoryEbbinghausSalienceWeight', descKey: 'memoryEbbinghausSalienceWeightDesc', kind: 'number', min: 0, max: 2, step: 0.1 },
 			{ key: 'ebbinghaus_importance_weight', labelKey: 'memoryEbbinghausImportanceWeight', descKey: 'memoryEbbinghausImportanceWeightDesc', kind: 'number', min: 0, max: 2, step: 0.1 },
+		],
+	},
+	{
+		titleKey: 'memoryTheoremSettings',
+		expert: true,
+		collapsed: true,
+		descKey: 'memoryTheoremSettingsDesc',
+		fields: [
+			{ key: 'forgetting_F', labelKey: 'memoryTheoremForgettingF', descKey: 'memoryTheoremForgettingFDesc', kind: 'number', min: 0.05, max: 1, step: 0.01, float: true },
+			{ key: 'forgetting_c', labelKey: 'memoryTheoremForgettingC', descKey: 'memoryTheoremForgettingCDesc', kind: 'number', min: 0.1, max: 2, step: 0.1, float: true },
+			{ key: 'fsrs_a', labelKey: 'memoryTheoremFsrsA', descKey: 'memoryTheoremFsrsADesc', kind: 'number', min: 1, max: 10, step: 0.1, float: true },
+			{ key: 'fsrs_b', labelKey: 'memoryTheoremFsrsB', descKey: 'memoryTheoremFsrsBDesc', kind: 'number', min: 0.05, max: 1, step: 0.05, float: true },
+			{ key: 'fsrs_g', labelKey: 'memoryTheoremFsrsG', descKey: 'memoryTheoremFsrsGDesc', kind: 'number', min: 0.1, max: 4, step: 0.1, float: true },
+			{ key: 'utility_kappa', labelKey: 'memoryTheoremUtilityKappa', descKey: 'memoryTheoremUtilityKappaDesc', kind: 'number', min: 1, max: 20 },
+			{ key: 'archive_value_threshold', labelKey: 'memoryTheoremArchiveValue', descKey: 'memoryTheoremArchiveValueDesc', kind: 'number', min: 0.01, max: 0.3, percent: true },
+			{ key: 'rrf_k0', labelKey: 'memoryTheoremRrfK0', descKey: 'memoryTheoremRrfK0Desc', kind: 'number', min: 10, max: 200 },
+			{ key: 'eta_utility', labelKey: 'memoryTheoremEtaUtility', descKey: 'memoryTheoremEtaUtilityDesc', kind: 'number', min: 0, max: 2, step: 0.05, float: true },
+			{ key: 'eta_retrievability', labelKey: 'memoryTheoremEtaRetrievability', descKey: 'memoryTheoremEtaRetrievabilityDesc', kind: 'number', min: 0, max: 2, step: 0.05, float: true },
+			{ key: 'tree_branching_b', labelKey: 'memoryTheoremTreeBranching', descKey: 'memoryTheoremTreeBranchingDesc', kind: 'number', min: 2, max: 16 },
+			{ key: 'tree_beam_B', labelKey: 'memoryTheoremTreeBeam', descKey: 'memoryTheoremTreeBeamDesc', kind: 'number', min: 1, max: 16 },
+			{ key: 'coverage_lambda', labelKey: 'memoryTheoremCoverageLambda', descKey: 'memoryTheoremCoverageLambdaDesc', kind: 'number', min: 0, max: 2, step: 0.05, float: true },
+			{ key: 'w_mem_tokens', labelKey: 'memoryTheoremWMem', descKey: 'memoryTheoremWMemDesc', kind: 'number', min: 512, max: 32000 },
+			{ key: 'fusion_candidate_cutoff', labelKey: 'memoryTheoremFusionCutoff', descKey: 'memoryTheoremFusionCutoffDesc', kind: 'number', min: 10, max: 200 },
+			{ key: 'w_lexical', labelKey: 'memoryTheoremWLexical', descKey: 'memoryTheoremWLexicalDesc', kind: 'number', min: 0, max: 4, step: 0.1, float: true },
+			{ key: 'w_ripgrep', labelKey: 'memoryTheoremWRipgrep', descKey: 'memoryTheoremWRipgrepDesc', kind: 'number', min: 0, max: 4, step: 0.1, float: true },
+			{ key: 'w_graph', labelKey: 'memoryTheoremWGraph', descKey: 'memoryTheoremWGraphDesc', kind: 'number', min: 0, max: 4, step: 0.1, float: true },
+			{ key: 'w_tree', labelKey: 'memoryTheoremWTree', descKey: 'memoryTheoremWTreeDesc', kind: 'number', min: 0, max: 4, step: 0.1, float: true },
 		],
 	},
 	{
@@ -1387,6 +1464,7 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 		titleKey: 'memoryCompressionSettings',
 		expert: true,
 		collapsed: true,
+		legacy: true,
 		descKey: 'memoryCompressionSettingsDesc',
 		fields: [
 			{ key: 'compression_ratio_hot', labelKey: 'memoryCompressionHot', descKey: 'memoryCompressionHotDesc', kind: 'number', min: 0.05, max: 1, percent: true },
@@ -1422,9 +1500,9 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 		expert: true,
 		collapsed: true,
 		fields: [
-			{ key: 'hot_to_warm_hours', labelKey: 'memoryHotToWarm', descKey: 'memoryHotToWarmDesc', kind: 'number', min: 1, max: 720, suffixKey: 'memoryHoursSuffix' },
-			{ key: 'warm_to_cold_days', labelKey: 'memoryWarmToCold', descKey: 'memoryWarmToColdDesc', kind: 'number', min: 1, max: 365, suffixKey: 'memoryDaysSuffix' },
-			{ key: 'cold_prune_days', labelKey: 'memoryColdPrune', descKey: 'memoryColdPruneDesc', kind: 'number', min: 7, max: 3650, suffixKey: 'memoryDaysSuffix' },
+			{ key: 'hot_to_warm_hours', labelKey: 'memoryHotToWarm', descKey: 'memoryHotToWarmDesc', kind: 'number', min: 1, max: 720, suffixKey: 'memoryHoursSuffix', legacy: true },
+			{ key: 'warm_to_cold_days', labelKey: 'memoryWarmToCold', descKey: 'memoryWarmToColdDesc', kind: 'number', min: 1, max: 365, suffixKey: 'memoryDaysSuffix', legacy: true },
+			{ key: 'cold_prune_days', labelKey: 'memoryColdPrune', descKey: 'memoryColdPruneDesc', kind: 'number', min: 7, max: 3650, suffixKey: 'memoryDaysSuffix', legacy: true },
 		],
 	},
 	{
@@ -1442,12 +1520,19 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 	},
 ];
 
+function withoutLegacySettings(groups: IKnoxGuiMemorySettingGroup[]): IKnoxGuiMemorySettingGroup[] {
+	return groups
+		.filter(group => !group.legacy)
+		.map(group => ({ ...group, fields: group.fields.filter(field => !field.legacy) }))
+		.filter(group => group.fields.length > 0);
+}
+
 export function memoryProductSettingGroups(): IKnoxGuiMemorySettingGroup[] {
-	return MEMORY_SETTING_GROUPS.filter(group => !group.expert);
+	return withoutLegacySettings(MEMORY_SETTING_GROUPS.filter(group => !group.expert));
 }
 
 export function memoryExpertSettingGroups(): IKnoxGuiMemorySettingGroup[] {
-	return MEMORY_SETTING_GROUPS.filter(group => group.expert);
+	return withoutLegacySettings(MEMORY_SETTING_GROUPS.filter(group => group.expert));
 }
 
 export function memoryExpertConfigKeys(): string[] {
@@ -1480,6 +1565,10 @@ export const MEMORY_DEFAULT_CONFIG: Readonly<Record<string, string | number | bo
 	memory_build_timeout_ms: 5000, memory_track_session_timeout_ms: 1500,
 	ebbinghaus_base_strength: 1.0, ebbinghaus_lambda: 0.03, ebbinghaus_prune_threshold: 0.1, ebbinghaus_review_threshold: 0.5,
 	ebbinghaus_strengthening_alpha: 0.1, ebbinghaus_repetition_beta: 0.1, ebbinghaus_salience_weight: 0.5, ebbinghaus_importance_weight: 0.3,
+	forgetting_F: 19 / 81, forgetting_c: 0.5, fsrs_a: Math.exp(1.5), fsrs_b: 0.2, fsrs_g: 1,
+	utility_kappa: 5, archive_value_threshold: 0.05, rrf_k0: 60, eta_utility: 0.5, eta_retrievability: 0.3,
+	tree_branching_b: 8, tree_beam_B: 4, coverage_lambda: 0.5, w_mem_tokens: 4096, fusion_candidate_cutoff: 50,
+	w_lexical: 1, w_ripgrep: 1, w_graph: 1, w_tree: 1,
 	sensory_buffer_ms: 250, enable_enhanced_semantic: true,
 };
 

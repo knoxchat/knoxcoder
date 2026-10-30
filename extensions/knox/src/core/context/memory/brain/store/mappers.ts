@@ -47,6 +47,7 @@ export function rowToSession(row: any): BrainSession {
     updated_at: row.updated_at,
     message_count: row.message_count,
     summary: row.summary,
+    summary_node_id: row.summary_node_id ?? null,
     is_active: !!row.is_active,
   };
 }
@@ -65,6 +66,15 @@ export function rowToEpisodic(row: any): EpisodicMemory {
     tier: row.tier as MemoryTier,
     metadata: row.metadata,
     created_at: row.created_at,
+    tombstoned_at: row.tombstoned_at ?? null,
+    tombstone_reason: row.tombstone_reason ?? null,
+    parent_id: row.parent_id ?? null,
+    summary_of: row.summary_of ?? null,
+    stability: row.stability ?? null,
+    difficulty: row.difficulty ?? 5,
+    i0: row.i0 ?? null,
+    helpful_count: row.helpful_count ?? 0,
+    unhelpful_count: row.unhelpful_count ?? 0,
   };
 }
 
@@ -80,6 +90,7 @@ export function rowToSemantic(row: any): SemanticMemory {
     emotional_valence: (row.emotional_valence ?? "neutral") as EmotionalValence,
     salience: row.salience ?? 0.5,
     retrieval_count: row.retrieval_count,
+    inject_count: row.inject_count ?? 0,
     tier: row.tier as MemoryTier,
     created_at: row.created_at,
     last_accessed_at: row.last_accessed_at,
@@ -89,6 +100,15 @@ export function rowToSemantic(row: any): SemanticMemory {
     mismatch_count: row.mismatch_count ?? 0,
     mismatch_until: row.mismatch_until ?? null,
     mismatch_topic_id: row.mismatch_topic_id ?? null,
+    tombstoned_at: row.tombstoned_at ?? null,
+    tombstone_reason: row.tombstone_reason ?? null,
+    parent_id: row.parent_id ?? null,
+    summary_of: row.summary_of ?? null,
+    stability: row.stability ?? null,
+    difficulty: row.difficulty ?? 5,
+    i0: row.i0 ?? null,
+    helpful_count: row.helpful_count ?? 0,
+    unhelpful_count: row.unhelpful_count ?? 0,
   };
 }
 

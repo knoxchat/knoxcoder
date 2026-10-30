@@ -15,7 +15,7 @@ import { appendMentionChip, applySuggestToDoc, appendTriggerToDoc, buildTopLevel
 import { applyKnoxGuiAutonomousEvent, applyLivePlanProgress, autonomousBannerKey, collectLatestTaskPlanSnapshot, collectLiveTaskPlan, collectRunningTaskJobs, compactionMethodKey, countFailedJobs, countRunningJobs, extractPathHints, finalizeGitDiffFiles, formatExecutePlanPrompt, formatPlanText, gitDiffTotals, gitFileType, gitFilesFromDiffs, isCompactionBannerVisible, isInjectedMemoryTimeout, isTaskJobId, isVisibleTaskPlanPeekItem, mergeBackgroundJobs, mergeGitChangedWithDiffs, parseCompactionPayload, parseDiffStats, parsePlanText, shouldShowAutonomousBanner, splitSelectiveMemories, stepIntent, taskPlanFillPercent, truncateJobTitle, visibleBackgroundJobs, visibleToolOutputPeekItems } from './knoxGuiPanels.js';
 import { DEFAULT_REASONING_EFFORT, DEFAULT_REASONING_EFFORT_ALLOWED, knoxGuiChatPickerModels, knoxGuiFindCatalogModel, knoxGuiGetReasoningModelKeys, knoxGuiModelSelectTitle, knoxGuiModelTriggerLabel, knoxGuiModelSupportsImages, knoxGuiModelSupportsTools, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelToolsSupportKnown, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResetModelCatalogForTests, knoxGuiResolveReasoningEffort, knoxGuiResolveToolsSupported, knoxGuiSeedModelCatalog, knoxGuiShouldOpenAddModelDirectly } from './knoxGuiCapabilities.js';
 import { ADD_MODEL_PROVIDERS, addModelBrowseGroups, addModelPackagesByProvider, addModelProviderById, addModelRequiredSatisfied, agentProfileSharedConfig, appendNewPromptFileMentionAction, applyHistoryRowSelection, batchDiffTotals, buildAddModelPayload, categorizeKnoxChatModel, DEFAULT_AGENT_TOOL_POLICY_TEXT, duplicateToolNames, emptyPromptDraft, exploreBlocksButton, filterHistorySessions, filterKnoxChatModels, formatPolicyLines, formatPromptCommandName, formatSessionExportMarkdown, groupHistoryByDate, groupKnoxChatModels, historyDateSection, historySessionMatchesQuery, isNewPromptFileMentionAction, isPromptFileMentionSubmenu, knoxGuiOAuthErrorI18nKey, knoxGuiOAuthHandle, knoxGuiOAuthPane, knoxGuiOpenRouterKeyLogsUrl, knoxGuiOpenRouterKeySettingsUrl, knoxGuiProviderLogoUri, mergeDimensionOptions, mergeReasoningEffortPrefs, mergeRuleCards, MODEL_OVERLAY_ROLES, modelUsesChatFallback, NEW_PROMPT_FILE_ACTION_ID, parseKnoxOAuthStatus, parseOpenRouterOAuthStatus, parseYamlRules, pendingGeneratedToolName, policyEditorText, PROMPT_FILE_SUBMENU_TITLE, promptDraftFromCommand, promptDraftIsEditing, promptDraftIsValid, promptSlashName, reasoningEffortLabelKey, ruleCardOpensProfile, ruleCardTitleKey, selectHistoryIdRange, sessionExportFilename, setPathValue, sortConfigErrors, sortPromptsBookmarkedFirst, splitFilePath, toggleHistorySelection, toolPermissionBadgeKey, workspaceBasename } from './knoxGuiOverlays.js';
-import { composerRememberContent, filterAndSortMemories, formatBytes, formatMemoryTimeAgo, groupMemoriesByDate, healthStatusColor, hitTestMemoryGraph, isMemoryTabId, layoutMemoryGraph, MEMORY_PANEL_TAB_BRAIN_MESSAGES, MEMORY_REMEMBER_CATEGORIES, MEMORY_RETRIEVAL_THRESHOLD, MEMORY_RETRIEVAL_TOP_K, MEMORY_SETTING_GROUPS, MEMORY_TAB_ICONS, MEMORY_TAB_IDS, MEMORY_TIER_COLORS, memoryConfigUpdatePayload, memoryEditorCategories, memoryExploreEdgeDepth, memorySnippet, memoryTitleFromContent, parseEffectiveContext, parseExploreResult, parseMemoryDashboard, parseMetricsTrend, sortMemoryExploreEdges, unwrapBrainConfig, memoriesToExportJson } from './knoxGuiMemory.js';
+import { composerRememberContent, filterAndSortMemories, formatBytes, formatMemoryTimeAgo, groupMemoriesByDate, healthStatusColor, hitTestMemoryGraph, isMemoryTabId, layoutMemoryGraph, MEMORY_DEFAULT_CONFIG, MEMORY_PANEL_TAB_BRAIN_MESSAGES, MEMORY_REMEMBER_CATEGORIES, MEMORY_RETRIEVAL_THRESHOLD, MEMORY_RETRIEVAL_TOP_K, MEMORY_SETTING_GROUPS, MEMORY_TAB_ICONS, MEMORY_TAB_IDS, MEMORY_TIER_COLORS, memoryConfigUpdatePayload, memoryEditorCategories, memoryExploreEdgeDepth, memoryExpertSettingGroups, memoryHeadlineMetrics, memorySnippet, memoryTitleFromContent, parseEffectiveContext, parseExploreResult, parseMemoryDashboard, parseMetricsTrend, sortMemoryExploreEdges, unwrapBrainConfig, memoriesToExportJson } from './knoxGuiMemory.js';
 import { KNOX_GUI_HEARTBEAT_MS, KNOX_GUI_HOST_INBOUND, KNOX_GUI_HOST_INBOUND_EMPTY_ACK, KNOX_GUI_HOST_OUTBOUND, KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME, KNOX_GUI_OVERLAYS, KNOX_GUI_PATH_BY_ROUTE, KnoxGuiRoute, knoxGuiRouteFromPath, lumpOverlaySectionForPath } from './knoxGuiProtocol.js';
 import { isSingleRangeEditOrInsertion, knoxGuiMultifileEditPrompt, knoxGuiNextEditStatus, knoxGuiResetEditModeState, mergeCodeToEdit, parseCodeToEdit, shouldSendEditPrompt } from './knoxGuiEdit.js';
 import { KNOX_AGENT_MODE_CONTEXT_KEY, knoxGuiHostAgentActiveFromPayload, knoxGuiModeAfterEditExit, knoxGuiModeAfterHostAgentFlag, knoxGuiResolveSessionMode, knoxGuiSessionModeIsAgent } from './knoxGuiAgentMode.js';
@@ -1172,6 +1172,7 @@ suite('Knox native GUI parity', () => {
 			'memoryProductSettings',
 			'memoryGeneralSettings',
 			'memoryEbbinghausSettings',
+			'memoryTheoremSettings',
 			'memoryCapacitySettings',
 			'memoryPrecisionSettings',
 			'memoryWorkingMemorySettings',
@@ -1190,7 +1191,7 @@ suite('Knox native GUI parity', () => {
 			avg_response_trend: 'improving',
 			success_rate_trend: 'stable',
 			period_hours: 24,
-			snapshots: [{ avg_response_ms: 12, success_rate: 1, memory_count: 3, total_effective: 40 }],
+			snapshots: [{ avg_response_ms: 12, success_rate: 1, memory_count: 3, c_addr: 40 }],
 		});
 		assert.strictEqual(trend?.response, 'improving');
 		assert.strictEqual(trend?.snapshots?.[0].memoryCount, 3);
@@ -1202,13 +1203,15 @@ suite('Knox native GUI parity', () => {
 		assert.ok(KNOX_GUI_HOST_OUTBOUND.includes('brain/searchMemories'));
 		assert.deepStrictEqual(JSON.parse(memoriesToExportJson([{ id: '1', title: 't', content: 'c' }])).memories[0].title, 't');
 		assert.strictEqual(unwrapBrainConfig({ config: { graph_max_depth: 4 } }).graph_max_depth, 4);
-		assert.strictEqual(parseEffectiveContext({ total_effective: 12, memory_levels: [{ id: 'm1', name: 'M1', tokens: 3 }] })?.totalEffective, 12);
+		assert.strictEqual(parseEffectiveContext({ c_addr: 12, memory_levels: [{ id: 'm1', name: 'M1', tokens: 3 }] })?.cAddr, 12);
 		assert.strictEqual(healthStatusColor('healthy'), '#22c55e');
 		assert.strictEqual(healthStatusColor('degraded'), '#f59e0b');
 		assert.strictEqual(healthStatusColor('critical'), '#ef4444');
+		assert.strictEqual(MEMORY_TIER_COLORS.active.text, '#22c55e');
 		assert.strictEqual(MEMORY_TIER_COLORS.hot.text, '#ef4444');
 		assert.strictEqual(MEMORY_TIER_COLORS.warm.text, '#f59e0b');
 		assert.strictEqual(MEMORY_TIER_COLORS.cold.text, '#3b82f6');
+		assert.strictEqual(MEMORY_TIER_COLORS.frozen.text, '#64748b');
 		assert.strictEqual(formatBytes(0), '0 B');
 		assert.ok(formatBytes(1536).includes('KB'));
 		assert.ok(formatBytes(2 * 1024 * 1024 * 1024).includes('GB'));
@@ -1242,21 +1245,56 @@ suite('Knox native GUI parity', () => {
 		});
 		assert.strictEqual(withInject?.lastInject?.[0]?.reason, 'lexical: jwt');
 		const ctx = parseEffectiveContext({
-			total_effective: 80,
+			c_addr: 80,
+			c_use: 12,
+			w: 10,
 			active_window_tokens: 10,
-			hierarchy_effective_tokens: 20,
 			window_utilization: 0.4,
 			tier_tokens: { hot: 8 },
 			compression_ratios: { hot: 2 },
-			memory_levels: [{ id: 'M1', name: 'Sensory', tokens: 4, ratio: 1, effective_tokens: 4 }],
+			memory_levels: [{ id: 'M1', name: 'Sensory', tokens: 4, ratio: 1, effective_tokens: 4, role: 'buffer', in_c_addr: false }],
+			graph_entity_count: 12,
+			graph_channel_size: 12,
+			graph_role: 'channel',
+			graph_is_capacity: false,
 		});
+		assert.strictEqual(ctx?.cAddr, 80);
+		assert.strictEqual(ctx?.cUse, 12);
+		assert.strictEqual(ctx?.w, 10);
 		assert.strictEqual(ctx?.activeWindowTokens, 10);
 		assert.strictEqual(ctx?.levels[0].effectiveTokens, 4);
+		assert.strictEqual(ctx?.levels[0].role, 'buffer');
+		assert.strictEqual(ctx?.levels[0].inCAddr, false);
+		assert.strictEqual(ctx?.graphChannelSize, 12);
+		assert.strictEqual(ctx?.graphRole, 'channel');
+		assert.strictEqual(ctx?.graphIsCapacity, false);
+		assert.ok(ctx);
+		const headline = memoryHeadlineMetrics({ ...ctx, recRolling: 0.85 });
+		assert.strictEqual(headline.cAddr, 80);
+		assert.strictEqual(headline.cUse, 12);
+		assert.strictEqual(headline.w, 10);
+		assert.strictEqual(headline.recRolling, 0.85);
+		const compression = MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryCompressionSettings');
+		assert.ok(compression?.legacy);
+		assert.ok(!memoryExpertSettingGroups().some(group => group.titleKey === 'memoryCompressionSettings'));
+		assert.ok(!memoryExpertSettingGroups().some(group => group.fields.some(field => field.key === 'hot_to_warm_hours')));
+		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.fields.some(field => field.key === 'hot_to_warm_hours' && field.legacy)));
+		assert.ok(!memoryExpertSettingGroups().some(group => group.fields.some(field => field.key === 'warm_to_cold_days')));
+		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.fields.some(field => field.key === 'warm_to_cold_days' && field.legacy)));
+		assert.ok(!memoryExpertSettingGroups().some(group => group.fields.some(field => field.key === 'cold_prune_days')));
+		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.fields.some(field => field.key === 'cold_prune_days' && field.legacy)));
 		const ebbinghaus = MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryEbbinghausSettings');
 		assert.ok(ebbinghaus?.expert);
 		assert.ok(ebbinghaus?.fields.some(field => field.key === 'ebbinghaus_salience_weight'));
 		assert.ok(ebbinghaus?.fields.some(field => field.key === 'ebbinghaus_importance_weight'));
 		assert.strictEqual(ebbinghaus?.fields.find(field => field.key === 'ebbinghaus_prune_threshold')?.percent, true);
+		const theorem = MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryTheoremSettings');
+		assert.ok(theorem?.expert && theorem.collapsed);
+		assert.ok(theorem?.fields.some(field => field.key === 'forgetting_F'));
+		assert.ok(theorem?.fields.some(field => field.key === 'w_mem_tokens'));
+		assert.strictEqual(MEMORY_DEFAULT_CONFIG.retrieval_threshold, 0.6);
+		assert.strictEqual(MEMORY_DEFAULT_CONFIG.retrieval_top_k, 20);
+		assert.strictEqual(MEMORY_DEFAULT_CONFIG.w_mem_tokens, 4096);
 		assert.ok(MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryProductSettings')?.fields.some(field => field.key === 'retrieval_top_k'));
 		assert.ok(!MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryProductSettings')?.expert);
 		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.titleKey === 'memoryTaskRoutingSettings'));

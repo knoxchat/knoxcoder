@@ -118,8 +118,10 @@ half-applied.
 Memory Brain stores facts from your sessions locally and injects the relevant
 ones (hard cap 8000 tokens per turn; `KNOX_MEMORY_INJECT_CAP` overrides). Open
 it with "Knox: View Memory" to see what was used, pin or remove items.
-First-run chat shows what is stored. Off: `knoxchat.memoryBrain.enabled` (user)
-or `knoxchat.memoryBrain.workspaceEnabled` (this folder). Export / wipe from
+Remove / `builtin_memory` delete tombstones the row (reversible via audit);
+command-palette wipe is destructive and keeps a backup. First-run chat shows
+what is stored. Off: `knoxchat.memoryBrain.enabled` (user) or
+`knoxchat.memoryBrain.workspaceEnabled` (this folder). Export / wipe from
 the command palette. Size cap: `knoxchat.memoryBrain.maxBytes`.
 
 Experimental, off by default: `knoxchat.recipes.enabled` lets Memory Brain keep

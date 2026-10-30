@@ -14,6 +14,7 @@ export async function createTables(db: DatabaseConnection): Promise<void> {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       message_count INTEGER NOT NULL DEFAULT 0,
       summary TEXT DEFAULT NULL,
+      summary_node_id INTEGER,
       is_active INTEGER NOT NULL DEFAULT 1
     )
   `);
@@ -33,6 +34,17 @@ export async function createTables(db: DatabaseConnection): Promise<void> {
       tier TEXT NOT NULL DEFAULT 'hot',
       metadata TEXT NOT NULL DEFAULT '{}',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      stability REAL,
+      difficulty REAL NOT NULL DEFAULT 5,
+      i0 REAL,
+      helpful_count INTEGER NOT NULL DEFAULT 0,
+      unhelpful_count INTEGER NOT NULL DEFAULT 0,
+      valid_from DATETIME,
+      valid_to DATETIME,
+      parent_id INTEGER,
+      summary_of TEXT,
+      tombstoned_at DATETIME,
+      tombstone_reason TEXT,
       FOREIGN KEY (session_id) REFERENCES brain_sessions(id) ON DELETE CASCADE
     )
   `);
@@ -50,6 +62,7 @@ export async function createTables(db: DatabaseConnection): Promise<void> {
       emotional_valence TEXT NOT NULL DEFAULT 'neutral',
       salience REAL NOT NULL DEFAULT 0.5,
       retrieval_count INTEGER NOT NULL DEFAULT 0,
+      inject_count INTEGER NOT NULL DEFAULT 0,
       tier TEXT NOT NULL DEFAULT 'hot',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -59,6 +72,17 @@ export async function createTables(db: DatabaseConnection): Promise<void> {
       mismatch_count INTEGER NOT NULL DEFAULT 0,
       mismatch_until DATETIME DEFAULT NULL,
       mismatch_topic_id INTEGER DEFAULT NULL,
+      stability REAL,
+      difficulty REAL NOT NULL DEFAULT 5,
+      i0 REAL,
+      helpful_count INTEGER NOT NULL DEFAULT 0,
+      unhelpful_count INTEGER NOT NULL DEFAULT 0,
+      valid_from DATETIME,
+      valid_to DATETIME,
+      parent_id INTEGER,
+      summary_of TEXT,
+      tombstoned_at DATETIME,
+      tombstone_reason TEXT,
       FOREIGN KEY (source_session_id) REFERENCES brain_sessions(id) ON DELETE SET NULL
     )
   `);
@@ -88,7 +112,10 @@ export async function createTables(db: DatabaseConnection): Promise<void> {
       confidence REAL NOT NULL DEFAULT 0.8,
       mention_count INTEGER NOT NULL DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      valid_from DATETIME,
+      valid_to DATETIME,
+      canonical_id INTEGER
     )
   `);
 
@@ -102,6 +129,9 @@ export async function createTables(db: DatabaseConnection): Promise<void> {
       weight REAL NOT NULL DEFAULT 0.5,
       properties TEXT NOT NULL DEFAULT '{}',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      valid_from DATETIME,
+      valid_to DATETIME,
+      canonical_id INTEGER,
       FOREIGN KEY (source_entity_id) REFERENCES brain_entities(id) ON DELETE CASCADE,
       FOREIGN KEY (target_entity_id) REFERENCES brain_entities(id) ON DELETE CASCADE
     )
@@ -289,6 +319,7 @@ export async function createTables(db: DatabaseConnection): Promise<void> {
   `);
 
   await createRecipeTables(db);
+  await createTheoremTables(db);
 
   // Indexes — cross-session backlog search optimization
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_episodic_content ON brain_episodic(content)`);
@@ -423,6 +454,111 @@ export async function createRecipeTables(db: DatabaseConnection): Promise<void> 
   await createRecipeIndexes(db);
 }
 
+// ── Revised theorem columns / tables (MEM-03) ─────────────────────────────
+//
+// Additive only: CREATE … IF NOT EXISTS + ALTER try/catch. Do not bump
+// BRAIN_SCHEMA_VERSION — older Knox builds must open the same file, read
+// the old columns, and ignore these extras.
+
+const THEOREM_LEAF_TABLES = ["brain_semantic", "brain_episodic"] as const;
+
+const THEOREM_LEAF_ALTERS = [
+  "stability REAL",
+  "difficulty REAL NOT NULL DEFAULT 5",
+  "i0 REAL",
+  "helpful_count INTEGER NOT NULL DEFAULT 0",
+  "unhelpful_count INTEGER NOT NULL DEFAULT 0",
+  "valid_from DATETIME",
+  "valid_to DATETIME",
+  "parent_id INTEGER",
+  "summary_of TEXT",
+  "tombstoned_at DATETIME",
+  "tombstone_reason TEXT",
+] as const;
+
+const THEOREM_GRAPH_ALTERS = [
+  "valid_from DATETIME",
+  "valid_to DATETIME",
+  "canonical_id INTEGER",
+] as const;
+
+/** Columns added after the first semantic / episodic / graph shape. Safe when they already exist. */
+export async function ensureTheoremColumns(db: DatabaseConnection): Promise<void> {
+  for (const table of THEOREM_LEAF_TABLES) {
+    for (const col of THEOREM_LEAF_ALTERS) {
+      await tryExec(db, `ALTER TABLE ${table} ADD COLUMN ${col}`);
+    }
+  }
+  // Keep the session summary string and add a tree-node pointer (MEM-05).
+  await tryExec(db, "ALTER TABLE brain_sessions ADD COLUMN summary_node_id INTEGER");
+  // MEM-16: inject calibration only. Must not live on retrieval_count (S / I).
+  await tryExec(db, "ALTER TABLE brain_semantic ADD COLUMN inject_count INTEGER NOT NULL DEFAULT 0");
+  for (const table of ["brain_entities", "brain_graph_edges"] as const) {
+    for (const col of THEOREM_GRAPH_ALTERS) {
+      await tryExec(db, `ALTER TABLE ${table} ADD COLUMN ${col}`);
+    }
+  }
+}
+
+async function createTheoremIndexes(db: DatabaseConnection): Promise<void> {
+  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_semantic_tombstoned ON brain_semantic(tombstoned_at)");
+  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_episodic_tombstoned ON brain_episodic(tombstoned_at)");
+  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_semantic_parent ON brain_semantic(parent_id)");
+  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_episodic_parent ON brain_episodic(parent_id)");
+  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_entity_canonical ON brain_entities(canonical_id)");
+  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_graph_edge_canonical ON brain_graph_edges(canonical_id)");
+  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_sessions_summary_node ON brain_sessions(summary_node_id)");
+  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_summary_tree_parent ON brain_summary_tree(parent_id)");
+  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_summary_tree_leaf ON brain_summary_tree(leaf_type, leaf_id)");
+  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_attribution_turn ON brain_attribution(turn_id)");
+  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_attribution_session ON brain_attribution(session_id)");
+  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_attribution_mem ON brain_attribution(mem_type, mem_id)");
+}
+
+/**
+ * Stability / utility / tombstone / summary-tree / attribution. Additive only:
+ * `CREATE ... IF NOT EXISTS`, no `BRAIN_SCHEMA_VERSION` bump, so older Knox
+ * builds open the same file and ignore these tables and columns.
+ *
+ * New tables have no foreign keys into pre-theorem tables, so an older build
+ * can delete sessions or facts without failing on unknown constraints.
+ * `leaf_id` / `mem_id` are TEXT so later recipe hashes fit the same columns.
+ */
+export async function createTheoremTables(db: DatabaseConnection): Promise<void> {
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS brain_summary_tree (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      parent_id INTEGER,
+      kind TEXT NOT NULL DEFAULT 'node',
+      leaf_type TEXT,
+      leaf_id TEXT,
+      text TEXT NOT NULL DEFAULT '',
+      token_count INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS brain_attribution (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      turn_id TEXT,
+      session_id TEXT,
+      mem_type TEXT NOT NULL DEFAULT '',
+      mem_id TEXT NOT NULL DEFAULT '',
+      injected INTEGER NOT NULL DEFAULT 0,
+      cited INTEGER NOT NULL DEFAULT 0,
+      helpful INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // CREATE TABLE IF NOT EXISTS is a no-op when the file already has older
+  // semantic / episodic / graph tables. Add the theorem columns before any
+  // index that names them.
+  await ensureTheoremColumns(db);
+  await createTheoremIndexes(db);
+}
+
 // ── Migrate Schema (add columns if missing) ───────────────────────────────
 
 /**
@@ -450,6 +586,8 @@ export async function migrateSchema(db: DatabaseConnection): Promise<void> {
   // Recipe columns added after the first MC-10 table. Idempotent on fresh DBs.
   await ensureRecipeColumns(db);
   try { await createRecipeIndexes(db); } catch {}
+  // Theorem columns / tables (MEM-03). Additive; does not bump user_version.
+  await createTheoremTables(db);
   try {
     const { hashProjectId } = await import("../projectScope.js");
     const rows = await db.all("SELECT id, workspace_directory FROM brain_sessions WHERE project_id = '' OR project_id IS NULL");

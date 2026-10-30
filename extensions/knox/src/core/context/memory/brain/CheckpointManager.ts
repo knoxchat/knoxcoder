@@ -496,8 +496,8 @@ export class CheckpointManager {
    * a full rollback to a checkpoint.
    *
    * Supports undoing:
-   * - store / create → deletes the created record
-   * - delete → re-inserts using the data stored in audit details
+   * - store / create → tombstones a semantic leaf (or hard-deletes other types)
+   * - tombstone / delete → restores the leaf (or re-inserts a legacy hard-delete)
    * - update → reverts to old values stored in audit details
    *
    * The audit log must contain enough detail to reverse the operation
@@ -524,9 +524,14 @@ export class CheckpointManager {
       // ── Undo a "store" / "create" → delete the created record ────────
       if (action === "store" || action === "create" || action === "create_semantic" || action === "store_semantic") {
         if (targetType === "semantic" && targetId) {
-          await db.run("DELETE FROM brain_semantic WHERE id = ?", [Number(targetId)]);
-          await BrainStore.auditLog("undo_store", "semantic", targetId, { undone_audit_id: auditEntryId });
-          return { success: true, action_undone: action, target_type: targetType, target_id: targetId, details: `Deleted semantic #${targetId}` };
+          const n = await BrainStore.tombstoneMemories(
+            "semantic",
+            [Number(targetId)],
+            "forget",
+            { via: "undo_store" },
+          );
+          await BrainStore.auditLog("undo_store", "semantic", targetId, { undone_audit_id: auditEntryId, tombstoned: n > 0 });
+          return { success: true, action_undone: action, target_type: targetType, target_id: targetId, details: `Forgot semantic #${targetId}` };
         }
         if (targetType === "entity" && targetId) {
           await db.run("DELETE FROM brain_entities WHERE id = ?", [Number(targetId)]);
@@ -550,8 +555,34 @@ export class CheckpointManager {
         }
       }
 
-      // ── Undo a "delete" → re-insert from audit details ──────────────
-      if (action === "delete" || action === "delete_semantic" || action === "delete_entity" || action === "delete_pattern" || action === "delete_procedure") {
+      // ── Undo a tombstone / legacy delete ────────────────────────────
+      if (
+        action === "tombstone"
+        || action === "delete"
+        || action === "delete_semantic"
+        || action === "delete_entity"
+        || action === "delete_pattern"
+        || action === "delete_procedure"
+      ) {
+        if (targetType === "semantic" || targetType === "episodic") {
+          const leafId = Number(targetId);
+          const table = targetType === "semantic" ? "brain_semantic" : "brain_episodic";
+          const existing = await db.get(`SELECT id, tombstoned_at FROM ${table} WHERE id = ?`, [leafId]) as
+            | { id: number; tombstoned_at: string | null }
+            | undefined;
+          if (existing?.tombstoned_at) {
+            const prevTier = details.record?.tier ?? details.previous_tier ?? null;
+            const ok = await BrainStore.restoreTombstoned(targetType, leafId, prevTier);
+            if (ok) {
+              await BrainStore.auditLog("undo_delete", targetType, targetId, { undone_audit_id: auditEntryId, via: "restore_tombstone" });
+              return { success: true, action_undone: action, target_type: targetType, target_id: targetId, details: `Restored ${targetType} #${targetId}` };
+            }
+          }
+          if (existing && !existing.tombstoned_at) {
+            return { success: true, action_undone: action, target_type: targetType, target_id: targetId, details: `${targetType} #${targetId} is already live` };
+          }
+        }
+
         if (!details.record) {
           return { success: false, action_undone: action, target_type: targetType, target_id: targetId, details: "Cannot undo delete: audit entry lacks original record data" };
         }
@@ -614,6 +645,7 @@ export class CheckpointManager {
     const entries = await BrainStore.getAuditLog({ limit: limit * 3 });
     const undoableActions = new Set([
       "store", "create", "create_semantic", "store_semantic",
+      "tombstone",
       "delete", "delete_semantic", "delete_entity", "delete_pattern", "delete_procedure",
       "update",
     ]);

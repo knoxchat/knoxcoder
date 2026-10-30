@@ -232,6 +232,17 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(enKeys.includes('askAnything'));
 		assert.ok(enKeys.includes('checkpointGraph.title'));
 		assert.ok(enKeys.includes('memoryOverview'));
+		assert.ok(enKeys.includes('memoryAddressableDesc'));
+		assert.ok(enKeys.includes('memoryContextUseVsWindow'));
+		assert.ok(!enKeys.includes('memoryEffectiveContextFormula'));
+		assert.ok(!enKeys.includes('memoryTotalEffective'));
+		assert.ok(!enKeys.includes('memoryTrendEffectiveContext'));
+		assert.ok(!enKeys.includes('memoryHierarchyEffective'));
+		assert.ok(!knoxGuiT('en', 'memoryCompressionSettingsDesc').includes('C_effective'));
+		assert.ok(!knoxGuiT('en', 'memorySensoryBufferMsDesc').includes('Knox-MS'));
+		assert.ok(!knoxGuiT('en', 'memoryWorkingMemoryTtlDesc').includes('Knox-MS'));
+		assert.ok(!knoxGuiT('en', 'memoryGraphMaxEntitiesDesc').includes('Knox-MS'));
+		assert.ok(!knoxGuiT('en', 'memoryGraphMaxDepthDesc').includes('Knox-MS'));
 		assert.ok(enKeys.length > 1000);
 	});
 

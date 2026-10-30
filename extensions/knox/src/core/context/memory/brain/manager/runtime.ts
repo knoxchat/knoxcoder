@@ -131,6 +131,9 @@ export async function switchWorkingMemorySession(sessionId: string): Promise<voi
 export async function pinMemory(id: number): Promise<boolean> {
   const mem = await BrainStore.getSemanticById(id);
   if (!mem) return false;
+  if (mem.tombstoned_at) {
+    await BrainStore.restoreTombstoned("semantic", id, "hot");
+  }
   await BrainStore.addTag("semantic", id, "pinned");
   await BrainStore.removeTag("semantic", id, "mismatch");
   const db = await BrainStore.get();

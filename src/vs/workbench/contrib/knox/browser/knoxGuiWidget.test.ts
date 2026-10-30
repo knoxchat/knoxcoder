@@ -2708,6 +2708,10 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-setting="wm_inject_min_relevance"]'), null, 'expert retrieval stays collapsed');
 		(widget.root.querySelector('[data-testid="memory-expert-retrieval-toggle"]') as HTMLButtonElement).click();
 		assert.strictEqual(widget.root.querySelector<HTMLInputElement>('[data-setting="wm_inject_min_relevance"] input')?.value, '35');
+		assert.strictEqual(widget.root.querySelector('[data-setting="compression_ratio_hot"]'), null, 'compression ratios stay hidden leftover');
+		assert.strictEqual(widget.root.querySelector('[data-setting="hot_to_warm_hours"]'), null, 'hot_to_warm_hours stays hidden leftover');
+		assert.strictEqual(widget.root.querySelector('[data-setting="warm_to_cold_days"]'), null, 'warm_to_cold_days stays hidden leftover');
+		assert.strictEqual(widget.root.querySelector('[data-setting="cold_prune_days"]'), null, 'cold_prune_days stays hidden leftover');
 		const topK = () => widget.root.querySelector<HTMLInputElement>('[data-setting="retrieval_top_k"] input')!;
 		sent.length = 0;
 		topK().value = '2';
@@ -2752,7 +2756,10 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 				tierCounts: { hot: 1, warm: 1, cold: 1 },
 			},
 			memoryEffectiveContext: {
-				totalEffective: 80,
+				cAddr: 80,
+				cUse: 12,
+				w: 4096,
+				recRolling: 0.85,
 				levels: [{ id: 'M1', name: 'Sensory', tokens: 4, ratio: 1, effectiveTokens: 4 }],
 			},
 			memoryEbbinghausStats: { reviewDueCount: 1, avgRetention: 0.8, lambda: 0.05 },
@@ -2761,8 +2768,15 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		for (const id of MEMORY_TAB_IDS) {
 			assert.ok(widget.root.querySelector(`[data-testid="knox-gui-memory-tab-${id}"]`), id);
 		}
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-memory-overview"]')?.textContent?.includes('M1'));
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-memory-overview"]')?.textContent?.includes('λ=0.05'));
+		const overview = widget.root.querySelector('[data-testid="knox-gui-memory-overview"]')?.textContent ?? '';
+		assert.ok(overview.includes('M1'));
+		assert.ok(overview.includes('λ=0.05'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-addressable-headline"]'));
+		assert.ok(overview.includes('C_addr'));
+		assert.ok(overview.includes('C_use'));
+		assert.ok(overview.includes('85.0%'));
+		assert.ok(!overview.includes('C_effective'));
+		assert.ok(!overview.includes('C_eff'));
 
 		store.patch({
 			memoryTab: 'memories',

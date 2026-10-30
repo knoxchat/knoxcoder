@@ -347,21 +347,21 @@ describe("REL-17 mismatch suite (Sprint B / REL-07 + REL-10)", () => {
 });
 
 describe("REL-17 mismatch suite (Sprint C / REL-12)", () => {
-  async function retrievalCount(id: number): Promise<number> {
+  async function injectAndRetrieval(id: number): Promise<{ inject: number; retrieval: number }> {
     const db = await BrainStore.get();
     const row = (await db.get(
-      "SELECT retrieval_count FROM brain_semantic WHERE id = ?",
+      "SELECT inject_count, retrieval_count FROM brain_semantic WHERE id = ?",
       [id],
-    )) as { retrieval_count: number };
-    return row.retrieval_count;
+    )) as { inject_count: number; retrieval_count: number };
+    return { inject: row.inject_count ?? 0, retrieval: row.retrieval_count };
   }
 
-  it("8. retrieval_count: mismatched query does not bump gated-out ids", async () => {
+  it("8. inject_count: mismatched query does not bump gated-out ids", async () => {
     await reset();
     const sessionId = "mismatch-retrieval-count";
     const { authId, readmeId } = await storeAuthAndReadme(sessionId);
-    expect(await retrievalCount(authId)).toBe(0);
-    expect(await retrievalCount(readmeId)).toBe(0);
+    expect(await injectAndRetrieval(authId)).toEqual({ inject: 0, retrieval: 0 });
+    expect(await injectAndRetrieval(readmeId)).toEqual({ inject: 0, retrieval: 0 });
 
     for (let i = 0; i < 10; i++) {
       await MemoryPipeline.runPreTurn({
@@ -371,20 +371,22 @@ describe("REL-17 mismatch suite (Sprint C / REL-12)", () => {
       });
     }
 
-    expect(await retrievalCount(authId)).toBe(0);
-    expect(await retrievalCount(readmeId)).toBeGreaterThanOrEqual(1);
+    expect(await injectAndRetrieval(authId)).toEqual({ inject: 0, retrieval: 0 });
+    const readme = await injectAndRetrieval(readmeId);
+    expect(readme.inject).toBeGreaterThanOrEqual(1);
+    expect(readme.retrieval).toBe(0);
   });
 
-  it("LIKE candidate search does not bump retrieval_count", async () => {
+  it("LIKE candidate search does not bump inject_count or retrieval_count", async () => {
     await reset();
     const sessionId = "mismatch-like-no-bump";
     const { authId } = await storeAuthAndReadme(sessionId);
     const hits = await BrainStore.searchSemantic("oauth jwt", undefined, 10);
     expect(hits.some((h) => h.id === authId)).toBe(true);
-    expect(await retrievalCount(authId)).toBe(0);
+    expect(await injectAndRetrieval(authId)).toEqual({ inject: 0, retrieval: 0 });
   });
 
-  it("LIKE fallback bumps only assembled items", async () => {
+  it("LIKE fallback records inject_count only for assembled items", async () => {
     await reset();
     const sessionId = "mismatch-like-assembled";
     const { authId, readmeId } = await storeAuthAndReadme(sessionId);
@@ -397,8 +399,8 @@ describe("REL-17 mismatch suite (Sprint C / REL-12)", () => {
 
     expect(built.items.some((i) => i.id === readmeId)).toBe(true);
     expect(built.items.some((i) => i.id === authId)).toBe(false);
-    expect(await retrievalCount(readmeId)).toBe(1);
-    expect(await retrievalCount(authId)).toBe(0);
+    expect(await injectAndRetrieval(readmeId)).toEqual({ inject: 1, retrieval: 0 });
+    expect(await injectAndRetrieval(authId)).toEqual({ inject: 0, retrieval: 0 });
   });
 });
 

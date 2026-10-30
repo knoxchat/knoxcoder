@@ -63,6 +63,20 @@ async function resetDatabase(): Promise<void> {
   (BrainManager as any).activeSessionId = null;
 }
 
+/** Hard-truncate suffix / fence slack. Overflow strategy itself is leftover until MEM-30. */
+const OVERFLOW_TOKEN_SLACK = 16;
+
+/** Recalled payload inside the memory fence (or the raw string if unfenced). */
+function recalledMemoryBody(fenced: string): string {
+  const marker = "on using that tool.]";
+  const start = fenced.indexOf(marker);
+  const closeAt = fenced.lastIndexOf("</memory-context>");
+  if (start >= 0 && closeAt > start) {
+    return fenced.slice(start + marker.length, closeAt).trim();
+  }
+  return fenced.replace(/<\/?memory-context>/g, "").trim();
+}
+
 describe("memory brain regressions", () => {
   it("T2 updateMemory edits the same semantic row", async () => {
     await resetDatabase();
@@ -416,7 +430,7 @@ describe("memory brain regressions", () => {
     expect(detailed.context).toContain("Pinned Auth Fact");
     expect(detailed.items.some((i) => i.id === pinnedId && i.pinned)).toBe(true);
 
-    // Demote path should not move pinned out of hot
+    // Pin overrides archive (never frozen). R(30d, S=14) is warm, not a clock keep-hot.
     const db = await BrainStore.get();
     await db.run(
       `UPDATE brain_semantic SET last_accessed_at = datetime('now', '-30 days') WHERE id = ?`,
@@ -424,7 +438,8 @@ describe("memory brain regressions", () => {
     );
     await BrainStore.consolidate();
     const pinnedRow = await BrainStore.getSemanticById(pinnedId);
-    expect(pinnedRow?.tier).toBe("hot");
+    expect(pinnedRow?.tier).toBe("warm");
+    expect(pinnedRow?.tier).not.toBe("frozen");
 
     expect(await BrainManager.unpinMemory(pinnedId)).toBe(true);
     expect(await BrainStore.isPinned(pinnedId)).toBe(false);
@@ -461,11 +476,15 @@ describe("memory brain regressions", () => {
     expect(await BrainStore.isPinned(ids[0])).toBe(false);
 
     const deleted = await BrainManager.forgetMany(ids);
-    expect(deleted.deleted).toBe(3);
-    expect(deleted.failed).toBe(0);
-    expect(await BrainStore.getSemanticById(ids[0])).toBeNull();
-    expect(await BrainStore.getSemanticById(ids[1])).toBeNull();
-    expect(await BrainStore.getSemanticById(ids[2])).toBeNull();
+    expect(deleted.deleted).toBe(2);
+    expect(deleted.failed).toBe(1);
+    expect(await BrainStore.isPinned(ids[1])).toBe(true);
+    const forgotten0 = await BrainStore.getSemanticById(ids[0]);
+    const pinned1 = await BrainStore.getSemanticById(ids[1]);
+    const forgotten2 = await BrainStore.getSemanticById(ids[2]);
+    expect(forgotten0?.tombstoned_at).toBeTruthy();
+    expect(pinned1?.tombstoned_at).toBeFalsy();
+    expect(forgotten2?.tombstoned_at).toBeTruthy();
   });
 
   it("applies retrieval threshold and runs memory pipeline pre-turn", async () => {
@@ -691,30 +710,36 @@ describe("memory brain regressions", () => {
     expect(after!.updated_at >= before!.updated_at).toBe(true);
   });
 
-  it("compresses oldest context sections and tracks tokens saved", async () => {
+  it("keeps injected context at or under the token budget (IMP-15 / MEM-11)", async () => {
     await resetDatabase();
-    const sessionId = "compress-session";
-    await BrainManager.trackSession(sessionId, "Compress Test", testDir);
+    const sessionId = "budget-session";
+    await BrainManager.trackSession(sessionId, "Budget Test", testDir);
 
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 20; i++) {
       await BrainManager.store({
         category: "fact",
         title: `Bulk memory ${i}`,
-        content: `Bulk content entry number ${i} with extra words for token budget testing.`,
+        content: `Bulk content entry number ${i} with extra words for token budget testing. `.repeat(30),
         importance: 0.8,
         keywords: `bulk,${i}`,
       });
     }
 
+    const budget = 150;
     const result = await BrainManager.buildContextDetailed(
       "bulk content token budget",
       sessionId,
-      400,
-      { goal: "Test compress-oldest overflow handling" },
+      budget,
+      { goal: "Stay under the inject budget" },
     );
-    expect(result.context).toContain("Current Task");
-    expect(result.memory_tokens_saved).toBeGreaterThanOrEqual(0);
-    // IMP-15 section order: summary before retrieved before immediate (inside fence)
+    expect(result.context.length).toBeGreaterThan(0);
+    const { ContextSections } = await import("./ContextSections.js");
+    const recalled = recalledMemoryBody(result.context);
+    // Overflow strategy is leftover until MEM-30; only |C(q)| ≤ budget is required.
+    expect(ContextSections.estimateTokens(recalled)).toBeLessThanOrEqual(
+      budget + OVERFLOW_TOKEN_SLACK,
+    );
+    // Current assembly order (not an overflow strategy). MEM-29 may sandwich.
     const inner = result.context.replace(/<\/?memory-context>/g, "");
     const summaryIdx = inner.indexOf("Current Session Context");
     const semanticIdx = inner.indexOf("Semantic");
@@ -951,7 +976,7 @@ describe("memory brain regressions", () => {
     expect(titles.some((t) => t.includes("Orphan global"))).toBe(false);
   });
 
-  it("calculates effective context from tier token counts", async () => {
+  it("calculates addressable memory from stored tokens (MEM-07)", async () => {
     await resetDatabase();
     await BrainManager.store({
       category: "fact",
@@ -961,11 +986,9 @@ describe("memory brain regressions", () => {
     });
 
     const metrics = await BrainManager.getEffectiveContext();
-    expect(metrics.active_window_tokens).toBeGreaterThan(0);
-    expect(metrics.hierarchy_effective_tokens).toBeGreaterThan(0);
-    expect(metrics.total_effective).toBe(
-      metrics.active_window_tokens + metrics.hierarchy_effective_tokens,
-    );
+    expect(metrics.w).toBeGreaterThan(0);
+    expect(metrics.c_addr).toBeGreaterThan(0);
+    expect(metrics.c_addr).not.toBe((metrics.w ?? 0) + metrics.c_addr);
     expect(typeof metrics.tier_tokens.hot).toBe("number");
   });
 
@@ -1048,9 +1071,10 @@ describe("memory brain regressions", () => {
     expect(match).toBeTruthy();
   });
 
-  it("uses unified Ebbinghaus S(m) and configurable λ, θ_prune", async () => {
+  it("uses power-law R(t,S) and configurable F, θ_prune", async () => {
     await resetDatabase();
     const { Ebbinghaus } = await import("./Ebbinghaus.js");
+    const { Forgetting } = await import("./Forgetting.js");
     const { getEbbinghausConfig } = await import("./memoryConfigAccess.js");
 
     const cfg = getEbbinghausConfig();
@@ -1059,38 +1083,34 @@ describe("memory brain regressions", () => {
     expect(cfg.pruneThreshold).toBe(0.1);
     expect(cfg.strengtheningAlpha).toBe(0.1);
     expect(cfg.repetitionBeta).toBe(0.1);
-
-    const sLow = Ebbinghaus.memoryStrength(0, 0.5, 0.5);
-    const sHigh = Ebbinghaus.memoryStrength(10, 0.9, 0.9);
-    expect(sHigh).toBeGreaterThan(sLow);
+    expect(Forgetting.initialStability("episodic")).toBe(1);
 
     const now = new Date().toISOString();
-    expect(Ebbinghaus.retentionFromMemory(now, 5, 0.8, 0.8)).toBeGreaterThan(0.9);
+    expect(Ebbinghaus.retentionFromMemory(now, 5, 0.8, 0.8, undefined, { stability: 1 })).toBeGreaterThan(0.9);
 
-    const old = new Date(Date.now() - 365 * 86400000).toISOString();
-    expect(Ebbinghaus.retentionFromMemory(old, 0, 0.3, 0.3)).toBeLessThan(0.5);
-    expect(Ebbinghaus.shouldPrune(old, 0, 0.3, 0.3)).toBe(true);
+    const old = new Date(Date.now() - 500 * 86400000).toISOString();
+    expect(Ebbinghaus.retentionFromMemory(old, 0, 0.3, 0.3, undefined, { stability: 1, category: "episodic" })).toBeLessThan(0.5);
+    expect(Ebbinghaus.shouldPrune(old, 0, 0.3, 0.3, undefined, { stability: 1, category: "episodic" })).toBe(true);
 
     const mid = new Date(Date.now() - 90 * 86400000).toISOString();
-    const baselineRetention = Ebbinghaus.retentionFromMemory(mid, 2, 0.5, 0.5);
+    const baselineRetention = Ebbinghaus.retentionFromMemory(mid, 2, 0.5, 0.5, undefined, { stability: 1 });
 
-    await BrainStore.saveConfig("ebbinghaus_lambda", "0.06");
+    await BrainStore.saveConfig("forgetting_F", "0.5");
     await BrainStore.saveConfig("ebbinghaus_prune_threshold", "0.5");
     const updated = getEbbinghausConfig();
-    expect(updated.lambda).toBe(0.06);
     expect(updated.pruneThreshold).toBe(0.5);
 
-    const fasterDecay = Ebbinghaus.retentionFromMemory(mid, 2, 0.5, 0.5);
+    const fasterDecay = Ebbinghaus.retentionFromMemory(mid, 2, 0.5, 0.5, undefined, { stability: 1 });
     expect(fasterDecay).toBeLessThan(baselineRetention);
   });
 
-  it("SpacedRepetition uses memory_strength S(m) in retention", async () => {
+  it("SpacedRepetition uses stored stability S in retention", async () => {
     await resetDatabase();
     const { SpacedRepetition } = await import("./AdvancedFeatures.js");
     const oneDayAgo = new Date(Date.now() - 86400000).toISOString();
 
-    const low = SpacedRepetition.calculateRetention(oneDayAgo, 1, 0.5, 0.5);
-    const high = SpacedRepetition.calculateRetention(oneDayAgo, 10, 0.9, 0.9);
+    const low = SpacedRepetition.calculateRetention(oneDayAgo, 1, 0.5, 0.5, 1, "episodic");
+    const high = SpacedRepetition.calculateRetention(oneDayAgo, 10, 0.9, 0.9, 14, "fact");
     expect(high).toBeGreaterThan(low);
     expect(SpacedRepetition.getStrength(10, 0.9, 0.9)).toBeGreaterThan(
       SpacedRepetition.getStrength(1, 0.5, 0.5),
@@ -1247,7 +1267,7 @@ describe("memory brain regressions", () => {
 
     const metricsRaw = await BrainManager.dispatch("get_effective_context", {});
     const metrics = JSON.parse(metricsRaw as string);
-    expect(metrics.hierarchy_effective_tokens).toBeGreaterThanOrEqual(0);
+    expect(metrics.c_addr).toBeGreaterThanOrEqual(0);
   });
 
   it("stores metrics snapshots and returns trend data", async () => {
@@ -1261,14 +1281,14 @@ describe("memory brain regressions", () => {
     const trend = await BrainManager.getMetricsTrend(24);
     expect(trend.snapshots.length).toBeGreaterThan(0);
     expect(trend.snapshots[0].memory_tokens_saved).toBeGreaterThan(0);
-    expect(trend.snapshots[0].total_effective).toBeGreaterThan(0);
-    expect(trend.snapshots[0].hierarchy_effective_tokens).toBeGreaterThanOrEqual(0);
+    expect(trend.snapshots[0].c_addr).toBeGreaterThanOrEqual(0);
+    expect(trend.snapshots[0].c_use).toBeGreaterThanOrEqual(0);
     expect(["improving", "stable", "degrading"]).toContain(trend.avg_response_trend);
     expect(["improving", "stable", "degrading"]).toContain(trend.compression_trend);
-    expect(["improving", "stable", "degrading"]).toContain(trend.effective_context_trend);
+    expect(["improving", "stable", "degrading"]).toContain(trend.addressable_memory_trend);
   });
 
-  it("tracks last context build utilization for IMP-16 dashboard", async () => {
+  it("tracks last context build utilization as C_use / W (IMP-16 / MEM-11)", async () => {
     await resetDatabase();
     BrainManager.recordContextBuild(8000, 16000);
     const buildStats = BrainManager.getContextBuildStats();
@@ -1312,21 +1332,25 @@ describe("memory brain regressions", () => {
     expect(wmA.some((i) => i.content.includes("session-b-scratchpad"))).toBe(false);
   });
 
-  it("builds context for very long messages without crashing (IMP-15/H)", async () => {
+  it("builds context for very long messages without exceeding the budget (IMP-15/H)", async () => {
     await resetDatabase();
     const sessionId = "long-msg-session";
     await BrainManager.trackSession(sessionId, "Long Message", testDir);
     await BrainManager.store({
       category: "fact",
       title: "Long context test",
-      content: "Supporting memory for long message compression test.",
+      content: "Supporting memory for long message budget test.",
       importance: 0.7,
     });
 
-    const longMessage = `Supporting memory for compression test ${"x".repeat(9900)}`;
-    const result = await BrainManager.buildContextDetailed(longMessage, sessionId, 2000);
+    const budget = 2000;
+    const longMessage = `Supporting memory for budget test ${"x".repeat(9900)}`;
+    const result = await BrainManager.buildContextDetailed(longMessage, sessionId, budget);
     expect(result.context.length).toBeGreaterThan(0);
-    expect(result.memory_tokens_saved).toBeGreaterThanOrEqual(0);
+    const { ContextSections } = await import("./ContextSections.js");
+    expect(ContextSections.estimateTokens(recalledMemoryBody(result.context))).toBeLessThanOrEqual(
+      budget + OVERFLOW_TOKEN_SLACK,
+    );
   });
 
   it("hot-reloads working memory when config changes", async () => {
@@ -1510,46 +1534,82 @@ describe("memory brain regressions", () => {
     expect(BrainStore.getConfig().sensory_buffer_ms).toBe(400);
   });
 
-  it("uses Knox-MS theorem rᵢ for C_effective (IMP-04)", async () => {
-    const { getCompressionRatios, normalizeCompressionRatio } = await import(
-      "./memoryConfigAccess.js"
-    );
-    expect(normalizeCompressionRatio(2)).toBeCloseTo(0.5, 5);
-    expect(normalizeCompressionRatio(0.2)).toBeCloseTo(0.2, 5);
-
+  it("reports C_addr as raw |M3|+|M4|+|M5| without rᵢ or M1/M2 (IMP-04 / MEM-11)", async () => {
     await resetDatabase();
-    await BrainStore.saveConfig("compression_ratio_hot", "0.5");
-    await BrainStore.saveConfig("compression_ratio_warm", "0.2");
-    const ratios = getCompressionRatios();
-    expect(ratios.hot).toBeCloseTo(0.5, 5);
-    expect(ratios.warm).toBeCloseTo(0.2, 5);
+    await BrainStore.saveConfig("sensory_buffer_ms", "60000");
+    const { SensoryBuffer } = await import("./SensoryBuffer.js");
+    const { calculateAddressableMemory, levelEffective } = await import("./MemoryHierarchy.js");
 
-    const { calculateHierarchyEffective, levelEffective } = await import(
-      "./MemoryHierarchy.js"
-    );
-    expect(levelEffective(1000, 0.5)).toBe(2000);
-    expect(levelEffective(1000, 0.2)).toBe(5000);
+    const sessionId = "hier-session";
+    try {
+      await BrainManager.trackSession(sessionId, "Hierarchy", testDir);
+      SensoryBuffer.ingest(sessionId, "pending sensory chunk that must not enter C_addr");
+      await BrainManager.store({
+        category: "fact",
+        title: "Hierarchy test",
+        content: "Stored leaf used to measure addressable memory without compression ratios.",
+        importance: 0.8,
+      });
 
-    await BrainManager.trackSession("hier-session", "Hierarchy", testDir);
-    await BrainManager.store({
-      category: "fact",
-      title: "Hierarchy test",
-      content: "Part II hierarchy effective context test content.",
-      importance: 0.8,
-    });
+      const wmTokens = 500;
+      const hierarchy = await calculateAddressableMemory({
+        activeSessionId: sessionId,
+        workingMemoryTokens: wmTokens,
+      });
+      const m1 = hierarchy.levels.find((l) => l.id === "M1");
+      const m2 = hierarchy.levels.find((l) => l.id === "M2");
+      const m4 = hierarchy.levels.find((l) => l.id === "M4");
+      expect(hierarchy.levels.length).toBe(5);
+      expect(m1?.in_c_addr).toBe(false);
+      expect(m1?.role).toBe("buffer");
+      expect(m1?.tokens).toBeGreaterThan(0);
+      expect(m2?.in_c_addr).toBe(false);
+      expect(m2?.role).toBe("buffer");
+      expect(m2?.tokens).toBe(wmTokens);
+      expect(hierarchy.c_addr).toBe(
+        hierarchy.m3_tokens + hierarchy.m4_tokens + hierarchy.m5_tokens,
+      );
+      expect(hierarchy.c_addr).toBeGreaterThan(0);
+      expect(hierarchy.c_addr).not.toBe(
+        (m1?.tokens ?? 0) + (m2?.tokens ?? 0) + hierarchy.m3_tokens +
+          hierarchy.m4_tokens + hierarchy.m5_tokens,
+      );
+      expect(m4?.effective_tokens).toBe(m4?.tokens);
+      expect(m4?.tokens).toBeGreaterThan(0);
+      expect(m4!.tokens / m4!.ratio).not.toBeCloseTo(m4!.effective_tokens ?? 0, 5);
+      expect(hierarchy.c_addr).not.toBe(
+        hierarchy.levels.reduce((sum, level) => sum + levelEffective(level.tokens, level.ratio), 0),
+      );
 
-    const hierarchy = await calculateHierarchyEffective({
-      activeSessionId: "hier-session",
-      workingMemoryTokens: 500,
-    });
-    expect(hierarchy.levels.length).toBe(5);
-    expect(hierarchy.levels.find((l) => l.id === "M1")).toBeDefined();
-    expect(hierarchy.levels.find((l) => l.id === "M2")?.tokens).toBe(500);
-    expect(hierarchy.hierarchy_effective_tokens).toBeGreaterThan(0);
+      const emptyWm = await calculateAddressableMemory({
+        activeSessionId: sessionId,
+        workingMemoryTokens: 0,
+      });
+      expect(emptyWm.c_addr).toBe(hierarchy.c_addr);
 
-    const metrics = await BrainManager.getEffectiveContext();
-    expect(metrics.memory_levels?.length).toBe(5);
-    expect(metrics.working_memory_budget).toBeLessThanOrEqual(30_000);
+      await BrainStore.saveConfig("compression_ratio_hot", "0.01");
+      await BrainStore.saveConfig("compression_ratio_warm", "2");
+      await BrainStore.saveConfig("compression_ratio_cold", "0.01");
+      await BrainStore.saveConfig("compression_ratio_frozen", "2");
+      const afterRatios = await calculateAddressableMemory({
+        activeSessionId: sessionId,
+        workingMemoryTokens: wmTokens,
+      });
+      expect(afterRatios.c_addr).toBe(hierarchy.c_addr);
+      expect(afterRatios.m3_tokens).toBe(hierarchy.m3_tokens);
+      expect(afterRatios.m4_tokens).toBe(hierarchy.m4_tokens);
+      expect(afterRatios.m5_tokens).toBe(hierarchy.m5_tokens);
+      expect(afterRatios.levels.find((l) => l.id === "M4")?.effective_tokens).toBe(
+        afterRatios.levels.find((l) => l.id === "M4")?.tokens,
+      );
+
+      const metrics = await BrainManager.getEffectiveContext();
+      expect(metrics.c_addr).toBe(hierarchy.c_addr);
+      expect(metrics.memory_levels?.find((l) => l.id === "M1")?.in_c_addr).toBe(false);
+      expect(metrics.memory_levels?.find((l) => l.id === "M2")?.in_c_addr).toBe(false);
+    } finally {
+      SensoryBuffer.clear(sessionId);
+    }
   });
 
   it("caps M₂ working memory at 30K tokens (IMP-05)", async () => {

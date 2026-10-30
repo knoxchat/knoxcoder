@@ -265,10 +265,16 @@ export async function enforceBrainSizeCap(
     return (pages - free) * size;
   };
 
-  // Pass 1: audit log and expired facts.
+  // max_bytes disk valve (not forget/TTL). Reclaim tombstoned/expired rows, then oldest episodic.
   deleted += await tryRun("DELETE FROM brain_audit_log");
   deleted += await tryRun(
+    "DELETE FROM brain_semantic WHERE tombstoned_at IS NOT NULL",
+  );
+  deleted += await tryRun(
     "DELETE FROM brain_semantic WHERE expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP",
+  );
+  deleted += await tryRun(
+    "DELETE FROM brain_episodic WHERE tombstoned_at IS NOT NULL",
   );
   // Pass 2: oldest episodic turns, 20% at a time, until the live data fits.
   for (let i = 0; i < 20 && (await used()) > maxBytes * 0.9; i++) {

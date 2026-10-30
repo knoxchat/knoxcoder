@@ -5,7 +5,7 @@
  *
  * Part III:
  *   φ₄ consolidation — extract + store to M₃ (hot/short-term)
- *   φ₅ long-term storage — compress → M₄ (warm), patterns → M₅ (procedural)
+ *   φ₅ long-term storage — pointer-summarize M₄ leaves, recipes → M₅ (product)
  *   φ₆ retrieval — fusion search
  */
 
@@ -19,12 +19,46 @@ import { BasalGanglia } from "./BasalGanglia.js";
 import { PrefrontalCortex } from "./PrefrontalCortex.js";
 
 export interface LongTermPersistResult {
-  /** Memories promoted hot → warm (M₄). */
+  /** Leftover: clock hot→warm is retired (MEM-15). Always 0. */
   promoted: number;
-  /** Code patterns archived to procedural memory (M₅). */
+  /** Live recipes in this session counted as product M₅ (MEM-09). */
+  recipes: number;
+  /**
+   * Leftover learning-pattern writes for unlinked code_patterns.
+   * Not the product M₅ — recipes are. Folded in MEM-37.
+   */
   procedural: number;
-  /** Content compressed for long-term tiers. */
+  /** Leaves pointed at by a new summary-tree node (originals kept). */
   compressed: number;
+}
+
+const LIVE_RECIPE = "status IN ('candidate', 'verified', 'quarantined')";
+
+async function sessionLiveRecipes(
+  db: Awaited<ReturnType<typeof BrainStore.get>>,
+  sessionId: string,
+): Promise<{ count: number; linkedMemoryIds: Set<number> }> {
+  try {
+    const rows = (await db.all(
+      `
+      SELECT memory_id FROM brain_recipes
+      WHERE ${LIVE_RECIPE}
+        AND (
+          source_session_id = ?
+          OR memory_id IN (SELECT id FROM brain_semantic WHERE source_session_id = ?)
+        )
+      `,
+      [sessionId, sessionId],
+    )) as { memory_id: number | null }[];
+    const linkedMemoryIds = new Set<number>();
+    for (const row of rows) {
+      const id = Math.trunc(Number(row.memory_id));
+      if (id > 0) linkedMemoryIds.add(id);
+    }
+    return { count: rows.length, linkedMemoryIds };
+  } catch {
+    return { count: 0, linkedMemoryIds: new Set() };
+  }
 }
 
 export const Hippocampus = {
@@ -64,15 +98,17 @@ export const Hippocampus = {
   },
 
   /**
-   * φ₅ — compress(m) → M₄, M₅ after consolidation (φ₄).
-   * Promotes high-importance hot memories to warm (M₄), archives code patterns
-   * to BasalGanglia procedural store (M₅), and compresses long warm content.
+   * φ₅ — pointer-summarize(m) → M₄, M₅ after consolidation (φ₄).
+   * Promotes high-importance hot memories to warm (M₄), counts live recipes
+   * as product M₅, and writes summary-tree pointers for long warm content.
+   * Leaf `content` stays intact (MEM-05). Unlinked code_patterns may still
+   * write a leftover learning pattern; they are not the M₅ store.
    */
   async persistToLongTerm(
     sessionId: string,
     extracted: { semantic_count: number; entity_count: number },
   ): Promise<LongTermPersistResult> {
-    const result: LongTermPersistResult = { promoted: 0, procedural: 0, compressed: 0 };
+    const result: LongTermPersistResult = { promoted: 0, recipes: 0, procedural: 0, compressed: 0 };
 
     if (extracted.semantic_count === 0 && extracted.entity_count === 0) {
       return result;
@@ -80,18 +116,15 @@ export const Hippocampus = {
 
     const db = await BrainStore.get();
 
-    // M₄ — promote high-importance recent hot memories to warm (long-term)
-    const promoteResult = await db.run(
-      `UPDATE brain_semantic SET tier = 'warm'
-       WHERE source_session_id = ?
-       AND tier = 'hot'
-       AND importance_score >= 0.65
-       AND created_at > datetime('now', '-2 hours')`,
-      [sessionId],
-    );
-    result.promoted = promoteResult.changes ?? 0;
+    // M₄ leaves keep the R/Value tier. Sleep/attribution recompute (MEM-15).
 
-    // M₅ — archive code_pattern entries to procedural memory (Basal Ganglia)
+    // M₅ — product store is live recipes (and their linked workflow, once).
+    const sessionRecipes = await sessionLiveRecipes(db, sessionId);
+    result.recipes = sessionRecipes.count;
+
+    // Leftover: unlinked code_patterns may still train BasalGanglia. Skip
+    // any row already used as a recipe's lexical handle so we do not treat
+    // brain_procedures / learning patterns as the only M₅.
     const codePatterns = await db.all(
       `SELECT id, title, content FROM brain_semantic
        WHERE source_session_id = ?
@@ -101,6 +134,7 @@ export const Hippocampus = {
     );
     for (const row of codePatterns) {
       const r = row as { id: number; title: string; content: string };
+      if (sessionRecipes.linkedMemoryIds.has(r.id)) continue;
       await BasalGanglia.recordSuccess({
         goal_type: "coding",
         pattern_signature: r.title.slice(0, 80),
@@ -110,20 +144,29 @@ export const Hippocampus = {
       result.procedural++;
     }
 
-    // Compress long warm-tier content (φ₅ compress step)
+    // φ₅: write a summary-tree pointer; do not overwrite leaf content.
     const warmRows = await db.all(
       `SELECT id, content FROM brain_semantic
        WHERE source_session_id = ? AND tier = 'warm'
-       AND length(content) > 200 AND content NOT LIKE 'z:%'`,
+       AND length(content) > 200
+       AND CAST(id AS TEXT) NOT IN (
+         SELECT leaf_id FROM brain_summary_tree
+         WHERE kind = 'leaf' AND leaf_type = 'semantic'
+       )`,
       [sessionId],
     );
-    for (const row of warmRows) {
-      const r = row as { id: number; content: string };
-      const compressed = BrainStore.compressContent(r.content);
-      if (compressed !== r.content) {
-        await db.run("UPDATE brain_semantic SET content = ? WHERE id = ?", [compressed, r.id]);
-        result.compressed++;
-      }
+    if (warmRows.length > 0) {
+      const sources = warmRows.map((row) => {
+        const r = row as { id: number; content: string };
+        const original = BrainStore.decompressContent(r.content);
+        return { type: "semantic" as const, id: r.id, text: original.slice(0, 400) };
+      });
+      const digest = sources.map((s) => s.text ?? "").join("\n");
+      const written = await BrainStore.writeSummaryPointer({
+        text: `Warm-tier pointer summary (${sources.length} leaves)\n${digest}`.slice(0, 2000),
+        sources,
+      });
+      result.compressed = written.linked;
     }
 
     return result;

@@ -106,8 +106,8 @@ export class RootCauseAnalyzer {
             `Total: ${totalMem}`,
           ],
           recommended_actions: [
-            "Run 'consolidate' to tier down aging memories",
-            "Lower hot_to_warm_hours config",
+            "Run 'consolidate' to recompute R/Value tiers",
+            "Review archive_value_threshold / stability (clock knobs are unused)",
             "Increase consolidation frequency",
           ],
           estimated_impact: "Better memory retrieval performance and reduced working set",

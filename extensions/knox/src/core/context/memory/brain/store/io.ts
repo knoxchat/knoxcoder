@@ -9,6 +9,7 @@ import type {
 } from "../types.js";
 import { loadConfig } from "./config.js";
 import { get } from "./connection.js";
+import { liveRetrieveSql } from "./tombstone.js";
 import { rowToAssociation, rowToAuditLogEntry, rowToCollection, rowToCollectionItem, rowToEdge, rowToEntity, rowToEpisodic, rowToPattern, rowToProcedure, rowToSemantic, rowToSession, rowToSessionTopic, rowToTag, rowToTask } from "./mappers.js";
 
 // ── Import/Export ──────────────────────────────────────────────────────────
@@ -71,8 +72,8 @@ export async function importData(data: MemoryExport): Promise<{ imported: Record
     let count = 0;
     for (const session of data.sessions ?? []) {
       const result = await db.run(
-        `INSERT OR IGNORE INTO brain_sessions (id, title, workspace_directory, project_id, created_at, updated_at, message_count, summary, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO brain_sessions (id, title, workspace_directory, project_id, created_at, updated_at, message_count, summary, summary_node_id, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           session.id,
           session.title,
@@ -82,6 +83,7 @@ export async function importData(data: MemoryExport): Promise<{ imported: Record
           session.updated_at,
           session.message_count,
           session.summary,
+          session.summary_node_id ?? null,
           session.is_active ? 1 : 0,
         ],
       );
@@ -301,7 +303,7 @@ export async function searchBacklogs(
 
   // Episodic search across all sessions
   if (options.include_episodic !== false) {
-    const epConditions: string[] = [];
+    const epConditions: string[] = [liveRetrieveSql("e")];
     const epParams: any[] = [];
 
     if (terms.length > 0) {
@@ -346,7 +348,10 @@ export async function searchBacklogs(
 
   // Semantic search across all sessions
   if (options.include_semantic !== false) {
-    const semConditions: string[] = ["(expires_at IS NULL OR expires_at > datetime('now'))"];
+    const semConditions: string[] = [
+      liveRetrieveSql(),
+      "(expires_at IS NULL OR expires_at > datetime('now'))",
+    ];
     const semParams: any[] = [];
 
     if (terms.length > 0) {
@@ -385,17 +390,8 @@ export async function searchBacklogs(
       semParams,
     );
     semantic = semRows.map(rowToSemantic);
-
-    // Update retrieval stats
-    if (semantic.length > 0) {
-      const ids = semantic.map((r) => r.id).join(",");
-      await db.exec(`
-        UPDATE brain_semantic
-        SET retrieval_count = retrieval_count + 1,
-            last_accessed_at = datetime('now')
-        WHERE id IN (${ids})
-      `);
-    }
+    // MEM-16: backlog search is retrieve-not-used. Do not write
+    // retrieval_count, last_accessed_at, S, or I.
   }
 
   return {

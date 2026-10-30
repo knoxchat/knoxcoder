@@ -5,6 +5,7 @@ import type {
 } from "../types.js";
 import { get } from "./connection.js";
 import { rowToSession } from "./mappers.js";
+import { ensureSessionSummaryNode } from "./summaryTree.js";
 
 // ── Session Operations ─────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ export async function listSessionIdsByProject(projectId: string): Promise<string
 }
 
 /**
- * Estimate token counts per memory tier for C_effective calculation.
+ * Estimate token counts per memory tier. Tombstoned rows are not addressable.
  */
 export async function getTierTokenCounts(): Promise<Record<string, number>> {
   const db = await get();
@@ -56,6 +57,7 @@ export async function getTierTokenCounts(): Promise<Record<string, number>> {
     SELECT tier,
       SUM(CAST((LENGTH(title) + LENGTH(content) + LENGTH(keywords)) / 4 AS INTEGER)) AS tokens
     FROM brain_semantic
+    WHERE tombstoned_at IS NULL OR tombstoned_at = ''
     GROUP BY tier
   `);
   for (const r of semRows) {
@@ -70,6 +72,7 @@ export async function getTierTokenCounts(): Promise<Record<string, number>> {
       SUM(CASE WHEN token_count > 0 THEN token_count
            ELSE CAST(LENGTH(content) / 4 AS INTEGER) END) AS tokens
     FROM brain_episodic
+    WHERE tombstoned_at IS NULL OR tombstoned_at = ''
     GROUP BY tier
   `);
   for (const r of epRows) {
@@ -94,6 +97,17 @@ export async function updateSession(id: string, updates: Partial<Pick<BrainSessi
 
   params.push(id);
   await db.run(`UPDATE brain_sessions SET ${sets.join(", ")} WHERE id = ?`, params);
+
+  if (updates.summary) {
+    try {
+      const nodeId = await ensureSessionSummaryNode(id, updates.summary);
+      if (nodeId > 0) {
+        await db.run("UPDATE brain_sessions SET summary_node_id = ? WHERE id = ?", [nodeId, id]);
+      }
+    } catch {
+      // Pointer write is best-effort; the summary string already landed.
+    }
+  }
 }
 
 export async function getSession(id: string): Promise<BrainSession | null> {

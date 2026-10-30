@@ -1,4 +1,4 @@
-/** Context build, pipeline, C_effective, task routing. */
+/** Context build, pipeline, C_addr / C_use, task routing. */
 
 import { isBrainEnabled } from "../store/dbSafety.js";
 import { BrainStore } from "../BrainStore.js";
@@ -108,12 +108,12 @@ export function getPhaseStatus() {
   return MemoryPipeline.getPhaseStatus(consolidationStats.scheduler_active);
 }
 
-/** Local C_effective metrics (IMP-04 / IMP-16). Part II M₁–M₅ hierarchy. */
+/** Local C_addr / C_use / W metrics (MEM-07). Rec is filled when a rolling window exists. */
 export async function getEffectiveContext() {
-  const { calculateHierarchyEffective } = await import("../MemoryHierarchy.js");
+  const { calculateAddressableMemory } = await import("../MemoryHierarchy.js");
   const config = BrainStore.getConfig();
   const wmStats = getWorkingMemory().getStats();
-  const hierarchy = await calculateHierarchyEffective({
+  const hierarchy = await calculateAddressableMemory({
     activeSessionId: brainRuntime.activeSessionId,
     workingMemoryTokens: wmStats.total_tokens,
   });
@@ -124,29 +124,38 @@ export async function getEffectiveContext() {
     brainRuntime.activeSessionId ?? undefined,
   );
 
+  const w = config.context_max_tokens;
+  const c_use = buildStats.last_context_tokens_used ?? 0;
+
   return {
-    /** W_max — configured active context window (Part VII). */
-    active_window_tokens: config.context_max_tokens,
-    context_max_tokens: config.context_max_tokens,
-    last_context_tokens_used: buildStats.last_context_tokens_used,
+    c_addr: hierarchy.c_addr,
+    c_use,
+    w,
+    rec_rolling: undefined as number | undefined,
+    levels: hierarchy.levels,
+    tier_tokens: hierarchy.tier_tokens,
+    active_window_tokens: w,
+    context_max_tokens: w,
+    last_context_tokens_used: c_use,
     last_context_max_tokens: buildStats.last_context_max_tokens,
     window_utilization: buildStats.window_utilization,
-    tier_tokens: hierarchy.tier_tokens,
     memory_levels: hierarchy.levels,
-    hierarchy_effective_tokens: hierarchy.hierarchy_effective_tokens,
     working_memory_tokens: wmStats.total_tokens,
     working_memory_budget: wmStats.token_budget,
     sensory_buffer_tokens: sensory.estimated_tokens,
     sensory_buffer_ms: sensory.buffer_ms,
     graph_entity_count: graphEntityCount,
+    graph_channel_size: graphEntityCount,
+    graph_role: "channel" as const,
+    graph_is_capacity: false,
     graph_max_entities: config.graph_max_entities,
     graph_max_depth: config.graph_max_depth,
     graph_depth_decay_gamma: config.graph_depth_decay_gamma,
+    // LRU cache fill vs graph_max_entities — not C_addr and not a success metric.
     graph_cap_utilization:
       config.graph_max_entities > 0
         ? graphEntityCount / config.graph_max_entities
         : 0,
-    total_effective: config.context_max_tokens + hierarchy.hierarchy_effective_tokens,
     compression_ratios: hierarchy.compression_ratios,
     memory_tokens_saved: compression.total_tokens_saved,
     last_compression_tokens_saved: compression.last_tokens_saved,

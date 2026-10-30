@@ -128,6 +128,7 @@ describe("memory checkpoints", () => {
       session_id: sessionId,
       importance: 0.5,
     });
+    await BrainStore.removeTag("semantic", first, "pinned");
     await BrainStore.deleteSemantic(first);
 
     await BrainManager.rollbackCheckpoint(checkpoint.id);
@@ -336,14 +337,21 @@ describe("memory checkpoints", () => {
     expect(await BrainStore.getSemanticById(later)).toBeNull();
 
     await BrainManager.forget(original);
+    const forgotten = await BrainStore.getSemanticById(original);
+    expect(forgotten).not.toBeNull();
+    expect(forgotten?.tombstoned_at).toBeTruthy();
     const undoable = await CheckpointManager.getUndoableOperations(20);
     const deleteEntry = undoable.find(
-      (entry) => entry.action === "delete" && String(entry.target_id) === String(original),
+      (entry) =>
+        (entry.action === "tombstone" || entry.action === "delete")
+        && String(entry.target_id) === String(original),
     );
     expect(deleteEntry).toBeTruthy();
     const undone = await CheckpointManager.undoOperation(deleteEntry!.id);
     expect(undone.success).toBe(true);
-    expect(await BrainStore.getSemanticById(original)).not.toBeNull();
+    const restored = await BrainStore.getSemanticById(original);
+    expect(restored).not.toBeNull();
+    expect(restored?.tombstoned_at).toBeFalsy();
   });
 
   it("prunes checkpoint rows whose snapshot files are missing", async () => {

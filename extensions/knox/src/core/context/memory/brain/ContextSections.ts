@@ -218,9 +218,9 @@ export class ContextSections {
       }
     }
 
-    // REL-12: LIKE fallback must not bump the candidate list — only items
-    // that passed the gate and were actually assembled. Fusion hits are
-    // touched in RetrievalFusion.search.
+    // REL-12 / MEM-16: LIKE fallback records inject_count for assembled
+    // items only. Fusion hits are recorded in RetrievalFusion.search.
+    // retrieve / inject must not write retrieval_count or last_accessed_at.
     if (fusion.fusionEmpty) {
       const bumpable = new Set([
         ...matchingUnique.map((m) => m.id),
@@ -229,7 +229,7 @@ export class ContextSections {
       const injectedIds = items
         .map((item) => item.id)
         .filter((id): id is number => typeof id === "number" && bumpable.has(id));
-      await BrainStore.touchSemanticRetrieval(injectedIds);
+      await BrainStore.recordSemanticInject(injectedIds);
     }
 
     return {

@@ -1904,7 +1904,9 @@ suite('Knox native GUI controller (GP-084)', () => {
 					healthScore: { overall: 91, grade: 'A' },
 				},
 				'brain/getEffectiveContext': {
-					total_effective: 80,
+					c_addr: 80,
+					c_use: 12,
+					w: 4096,
 					memory_levels: [{ id: 'M1', name: 'Sensory', tokens: 4, ratio: 1, effective_tokens: 4 }],
 				},
 				'brain/getMetricsTrend': { avg_response_trend: 'stable', snapshots: [] },

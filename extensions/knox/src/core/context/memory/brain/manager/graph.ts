@@ -44,7 +44,7 @@ export async function getGraphStats() {
   return KnowledgeGraph.getStats();
 }
 
-/** Knowledge graph cap + γ decay config (IMP-11). */
+/** Graph channel gauge + γ decay config (IMP-11 / MEM-08). Not C_addr. */
 export async function getGraphCapStatus() {
   return KnowledgeGraph.getCapStatus();
 }

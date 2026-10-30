@@ -635,6 +635,8 @@ export interface IKnoxGuiMemoryDashboard {
 	oldestMemory?: string;
 	newestMemory?: string;
 	graphMaxEntities?: number;
+	graphChannelSize?: number;
+	graphIsCapacity?: boolean;
 	graphCapUtilization?: number;
 	graphAtCap?: boolean;
 	graphTotalEntities?: number;
@@ -648,20 +650,33 @@ export interface IKnoxGuiMemoryDashboard {
 }
 
 export interface IKnoxGuiEffectiveContext {
-	totalEffective: number;
+	cAddr: number;
+	cUse?: number;
+	w?: number;
+	recRolling?: number;
 	activeWindowTokens?: number;
 	lastContextTokensUsed?: number;
-	hierarchyEffectiveTokens?: number;
 	workingMemoryBudget?: number;
 	contextMaxTokens?: number;
 	windowUtilization?: number;
 	memoryTokensSaved?: number;
 	graphEntityCount?: number;
+	graphChannelSize?: number;
+	graphRole?: 'channel';
+	graphIsCapacity?: boolean;
 	graphMaxEntities?: number;
 	graphCapUtilization?: number;
 	tierTokens?: Record<string, number>;
 	compressionRatios?: Record<string, number>;
-	levels: Array<{ id: string; name: string; tokens: number; ratio?: number; effectiveTokens?: number }>;
+	levels: Array<{
+		id: string;
+		name: string;
+		tokens: number;
+		ratio?: number;
+		effectiveTokens?: number;
+		role?: 'buffer' | 'store';
+		inCAddr?: boolean;
+	}>;
 }
 
 export interface IKnoxGuiMemoryConsolidation {
@@ -676,13 +691,14 @@ export interface IKnoxGuiMetricsTrend {
 	success?: string;
 	growth?: string;
 	compression?: string;
-	effectiveContext?: string;
+	addressableMemory?: string;
 	periodHours?: number;
 	snapshots?: Array<{
 		avgResponseMs: number;
 		successRate: number;
 		memoryCount: number;
-		totalEffective?: number;
+		cAddr?: number;
+		cUse?: number;
 		tokensSaved?: number;
 	}>;
 }
@@ -824,6 +840,8 @@ export interface IKnoxGuiMemoryGraphStats {
 	totalEdges: number;
 	entityTypes: Record<string, number>;
 	maxEntities?: number;
+	channelSize?: number;
+	isCapacity?: boolean;
 	capUtilization?: number;
 	atCap?: boolean;
 	maxDepth?: number;

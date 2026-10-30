@@ -17,10 +17,10 @@ export interface StoredMetricsSnapshot {
   db_size_bytes: number;
   memory_count: number;
   memory_tokens_saved: number;
-  /** Part VIII–IX: Σ |Mᵢ| / rᵢ at snapshot time. */
-  hierarchy_effective_tokens: number;
-  /** W_max + hierarchy effective at snapshot time. */
-  total_effective: number;
+  /** Addressable stored tokens (|M₃| + |M₄| + |M₅|). */
+  c_addr: number;
+  /** Last inject tokens (C_use). */
+  c_use: number;
   by_operation_json: string; // JSON
 }
 
@@ -31,8 +31,8 @@ export interface MetricsTrend {
   success_rate_trend: "improving" | "stable" | "degrading";
   growth_rate_trend: "stable" | "growing" | "shrinking" | "accelerating";
   compression_trend: "improving" | "stable" | "degrading";
-  /** C_effective growth trend (unlimited context capacity). */
-  effective_context_trend: "improving" | "stable" | "degrading";
+  /** C_addr growth trend (addressable store, not window capacity). */
+  addressable_memory_trend: "improving" | "stable" | "degrading";
 }
 
 export class MetricsStorage {
@@ -54,13 +54,15 @@ export class MetricsStorage {
         db_size_bytes INTEGER DEFAULT 0,
         memory_count INTEGER DEFAULT 0,
         memory_tokens_saved INTEGER DEFAULT 0,
-        hierarchy_effective_tokens REAL DEFAULT 0,
-        total_effective REAL DEFAULT 0,
+        c_addr REAL DEFAULT 0,
+        c_use REAL DEFAULT 0,
         by_operation_json TEXT DEFAULT '{}'
       )
     `);
     for (const col of [
       "memory_tokens_saved INTEGER DEFAULT 0",
+      "c_addr REAL DEFAULT 0",
+      "c_use REAL DEFAULT 0",
       "hierarchy_effective_tokens REAL DEFAULT 0",
       "total_effective REAL DEFAULT 0",
     ]) {
@@ -80,8 +82,8 @@ export class MetricsStorage {
     dbSizeBytes: number,
     memoryCount: number,
     memoryTokensSaved = 0,
-    hierarchyEffectiveTokens = 0,
-    totalEffective = 0,
+    cAddr = 0,
+    cUse = 0,
   ): Promise<number> {
     await MetricsStorage.ensureTable();
     const db = await BrainStore.get();
@@ -90,7 +92,7 @@ export class MetricsStorage {
       `INSERT INTO brain_metrics_snapshots
        (total_operations, success_rate, avg_response_ms, p95_response_ms,
         total_tokens_used, operations_per_minute, db_size_bytes, memory_count,
-        memory_tokens_saved, hierarchy_effective_tokens, total_effective, by_operation_json)
+        memory_tokens_saved, c_addr, c_use, by_operation_json)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         metrics.total_operations,
@@ -102,8 +104,8 @@ export class MetricsStorage {
         dbSizeBytes,
         memoryCount,
         memoryTokensSaved,
-        hierarchyEffectiveTokens,
-        totalEffective,
+        cAddr,
+        cUse,
         JSON.stringify(metrics.by_operation),
       ],
     );
@@ -154,8 +156,8 @@ export class MetricsStorage {
       db_size_bytes: r.db_size_bytes,
       memory_count: r.memory_count,
       memory_tokens_saved: r.memory_tokens_saved ?? 0,
-      hierarchy_effective_tokens: r.hierarchy_effective_tokens ?? 0,
-      total_effective: r.total_effective ?? 0,
+      c_addr: r.c_addr ?? 0,
+      c_use: r.c_use ?? 0,
       by_operation_json: r.by_operation_json,
     }));
   }
@@ -171,7 +173,7 @@ export class MetricsStorage {
     let successRateTrend: MetricsTrend["success_rate_trend"] = "stable";
     let growthRateTrend: MetricsTrend["growth_rate_trend"] = "stable";
     let compressionTrend: MetricsTrend["compression_trend"] = "stable";
-    let effectiveContextTrend: MetricsTrend["effective_context_trend"] = "stable";
+    let addressableTrend: MetricsTrend["addressable_memory_trend"] = "stable";
 
     if (snapshots.length >= 3) {
       // Compare first third vs last third
@@ -209,12 +211,10 @@ export class MetricsStorage {
       if (recentCompression > olderCompression * 1.1) compressionTrend = "improving";
       else if (recentCompression < olderCompression * 0.9) compressionTrend = "degrading";
 
-      const recentEffective =
-        recent.reduce((s, r) => s + (r.total_effective ?? 0), 0) / recent.length;
-      const olderEffective =
-        older.reduce((s, r) => s + (r.total_effective ?? 0), 0) / older.length;
-      if (recentEffective > olderEffective * 1.05) effectiveContextTrend = "improving";
-      else if (recentEffective < olderEffective * 0.95) effectiveContextTrend = "degrading";
+      const recentAddr = recent.reduce((s, r) => s + (r.c_addr ?? 0), 0) / recent.length;
+      const olderAddr = older.reduce((s, r) => s + (r.c_addr ?? 0), 0) / older.length;
+      if (recentAddr > olderAddr * 1.05) addressableTrend = "improving";
+      else if (recentAddr < olderAddr * 0.95) addressableTrend = "degrading";
     }
 
     return {
@@ -224,7 +224,7 @@ export class MetricsStorage {
       success_rate_trend: successRateTrend,
       growth_rate_trend: growthRateTrend,
       compression_trend: compressionTrend,
-      effective_context_trend: effectiveContextTrend,
+      addressable_memory_trend: addressableTrend,
     };
   }
 
@@ -247,7 +247,8 @@ export class MetricsStorage {
       `  Avg response: ${latest.avg_response_ms.toFixed(1)}ms (trend: ${trend.avg_response_trend})`,
       `  Success rate: ${(latest.success_rate * 100).toFixed(1)}% (trend: ${trend.success_rate_trend})`,
       `  DB growth: ${dbGrowthKb >= 0 ? "+" : ""}${dbGrowthKb.toFixed(1)}KB (trend: ${trend.growth_rate_trend})`,
-      `  C_effective: ${Math.round(latest.total_effective ?? 0).toLocaleString()} (trend: ${trend.effective_context_trend})`,
+      `  C_addr: ${Math.round(latest.c_addr ?? 0).toLocaleString()} (trend: ${trend.addressable_memory_trend})`,
+      `  C_use: ${Math.round(latest.c_use ?? 0).toLocaleString()}`,
       `  Total ops: ${latest.total_operations}`,
       `  Memory count: ${latest.memory_count}`,
     ].join("\n");

@@ -11,8 +11,11 @@ export interface MemoryConfig {
   consolidation_interval_hours: number;
   max_episodic_per_session: number;
   max_hot_memories: number;
+  /** Unused leftover clock (MEM-15). Tiers come from R / Value. */
   hot_to_warm_hours: number;
+  /** Unused leftover clock (MEM-15). Tiers come from R / Value. */
   warm_to_cold_days: number;
+  /** Unused leftover clock (MEM-15). Tiers come from R / Value. */
   cold_prune_days: number;
   graph_enabled: boolean;
   learning_enabled: boolean;
@@ -155,7 +158,7 @@ export interface MemoryConfig {
   /** Rule-based synonym/concept expansion for fusion (no ML). */
   enable_enhanced_semantic: boolean;
 
-  // ── Hierarchy compression (C_effective = Σ |Mᵢ| / rᵢ) ───────────────────
+  // Leftover rᵢ knobs (hidden). Not C_addr. IMP-04 asserts raw |M₃|+|M₄|+|M₅|.
   compression_ratio_active: number;
   compression_ratio_hot: number;
   compression_ratio_warm: number;
@@ -181,10 +184,50 @@ export interface MemoryConfig {
   /** Max outer iterations for local autonomous loop. 0 = unlimited (stop with Cancel). */
   autonomous_max_iterations: number;
 
-  // ── Ebbinghaus forgetting curve (Part IV) ───────────────────────────────
-  /** Base memory strength S₀ (days) — denominator baseline for R(t). */
+  // ── Revised theorem parameters (MEM-02). forgetting_F / forgetting_c (MEM-12), FSRS a/b/g (MEM-14), and κ / θ_arch (MEM-13) are live. ──
+  /** Power-law F in R(t,S)=(1+F·t/S)^(-c). Theorem default 19/81. */
+  forgetting_F: number;
+  /** Power-law exponent c. Theorem default 0.5. */
+  forgetting_c: number;
+  /** FSRS stability-gain a (e^1.5). */
+  fsrs_a: number;
+  /** FSRS saturation exponent b. */
+  fsrs_b: number;
+  /** FSRS spacing gain g. */
+  fsrs_g: number;
+  /** Utility prior strength κ in U=(h+κ I₀)/(h+u+κ). */
+  utility_kappa: number;
+  /** Archive when Value < θ_arch (do not DELETE). */
+  archive_value_threshold: number;
+  /** Reciprocal Rank Fusion k₀. */
+  rrf_k0: number;
+  /** Prior modulation η_U on U. */
+  eta_utility: number;
+  /** Prior modulation η_R on retrievability R. */
+  eta_retrievability: number;
+  /** Summary-tree branching factor b. */
+  tree_branching_b: number;
+  /** Summary-tree beam width B. */
+  tree_beam_B: number;
+  /** Submodular coverage weight λ. */
+  coverage_lambda: number;
+  /** Local C_mem cap (tokens). Not the live inject hard cap until MEM-28. */
+  w_mem_tokens: number;
+  /** Fused candidates before the calibrated θ cut-off. Not retrieval_top_k until MEM-22. */
+  fusion_candidate_cutoff: number;
+  /** RRF channel weight — lexical (BM25 + trigram + synonyms). */
+  w_lexical: number;
+  /** RRF channel weight — ripgrep. */
+  w_ripgrep: number;
+  /** RRF channel weight — graph PPR. */
+  w_graph: number;
+  /** RRF channel weight — summary tree. */
+  w_tree: number;
+
+  // ── Leftover Ebbinghaus knobs (live R is power-law F/c + category S₀) ──
+  /** Leftover S₀ for memoryStrength. Live S is stored stability / FSRS. */
   ebbinghaus_base_strength: number;
-  /** Decay multiplier λ in R(t) = e^(-λt/S). Default 0.03 ≈ 3%/day. */
+  /** Leftover exponential λ. Live R uses forgetting_F / forgetting_c. */
   ebbinghaus_lambda: number;
   /** Prune threshold θ_prune — memories below this retention are candidates for removal. */
   ebbinghaus_prune_threshold: number;

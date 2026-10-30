@@ -1,5 +1,6 @@
 /** Episodic memory writes, reads, and lexical search. */
 
+import { insertForgettingFields } from "../Forgetting.js";
 import { InputSanitizer } from "../InputSanitizer.js";
 import type {
   EmotionalValence,
@@ -9,6 +10,7 @@ import type {
 import { get } from "./connection.js";
 import { rowToEpisodic } from "./mappers.js";
 import { createSession, getSession } from "./sessions.js";
+import { liveRetrieveSql } from "./tombstone.js";
 import { computeSalience, detectEmotionalValence } from "./valence.js";
 
 // ── Episodic Memory Operations ─────────────────────────────────────────────
@@ -40,10 +42,25 @@ export async function addEpisodic(
   const valence = emotionalValence ?? detectEmotionalValence(cleanedContent, role);
   const sal = salience ?? computeSalience(cleanedContent, role, importanceScore);
 
+  const forgetting = insertForgettingFields("episodic", importanceScore);
+
   const result = await db.run(
-    `INSERT INTO brain_episodic (session_id, type, role, content, token_count, importance_score, emotional_valence, salience, metadata)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [sessionId, type, role, cleanedContent, tokenCount, importanceScore, valence, sal, JSON.stringify(metadata)],
+    `INSERT INTO brain_episodic (session_id, type, role, content, token_count, importance_score, emotional_valence, salience, metadata, stability, difficulty, i0)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      sessionId,
+      type,
+      role,
+      cleanedContent,
+      tokenCount,
+      importanceScore,
+      valence,
+      sal,
+      JSON.stringify(metadata),
+      forgetting.stability,
+      forgetting.difficulty,
+      forgetting.i0,
+    ],
   );
 
   // Update session message count
@@ -58,7 +75,9 @@ export async function addEpisodic(
 export async function getEpisodicBySession(sessionId: string, limit = 100): Promise<EpisodicMemory[]> {
   const db = await get();
   const rows = await db.all(
-    `SELECT * FROM brain_episodic WHERE session_id = ? ORDER BY created_at ASC LIMIT ?`,
+    `SELECT * FROM brain_episodic
+     WHERE session_id = ? AND ${liveRetrieveSql()}
+     ORDER BY created_at ASC LIMIT ?`,
     [sessionId, limit],
   );
   return rows.map(rowToEpisodic);
@@ -79,7 +98,7 @@ export async function getRecentUserMessages(sessionId: string, limit = 8): Promi
   const db = await get();
   const rows = await db.all(
     `SELECT content FROM brain_episodic
-     WHERE session_id = ? AND role = 'user'
+     WHERE session_id = ? AND role = 'user' AND ${liveRetrieveSql()}
      ORDER BY created_at DESC LIMIT ?`,
     [sessionId, limit],
   );
@@ -104,7 +123,7 @@ export async function searchEpisodic(query: string, sessionId?: string, limit: n
   const db = await get();
 
   const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
-  const conditions: string[] = [];
+  const conditions: string[] = [liveRetrieveSql()];
   const params: any[] = [];
 
   if (sessionId) {
@@ -145,7 +164,7 @@ export async function searchEpisodic(query: string, sessionId?: string, limit: n
              WHERE brain_episodic_fts MATCH ? ORDER BY rank LIMIT ?
            )
            SELECT e.* FROM hits JOIN brain_episodic e ON e.id = hits.id
-           ${sessionId ? "WHERE e.session_id = ?" : ""}
+           WHERE ${liveRetrieveSql("e")}${sessionId ? " AND e.session_id = ?" : ""}
            ORDER BY hits.rank, e.importance_score DESC LIMIT ?`,
           sessionId
             ? [match, fetchLimit * 10, sessionId, fetchLimit]

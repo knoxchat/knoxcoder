@@ -219,12 +219,21 @@ export interface GraphExploreResult {
   activation_scores: Record<number, number>;
 }
 
-/** Knowledge graph capacity & spreading-activation config (IMP-11). */
+/**
+ * Knowledge graph channel gauge (IMP-11 / MEM-08).
+ * Entity count is channel size, not C_addr. `cap_utilization` is an LRU cache
+ * hint until MEM-25 removes the cap — not a success metric.
+ */
 export interface GraphCapStatus {
   entity_count: number;
+  /** Same as `entity_count`. Channel size over stored rows, not capacity. */
+  channel_size: number;
   max_entities: number;
+  /** LRU cache fill vs `graph_max_entities`. Not C_addr / not a success metric. */
   cap_utilization: number;
   at_cap: boolean;
+  /** Always false: the graph is a retrieval channel, not addressable storage. */
+  is_capacity: false;
   max_depth: number;
   depth_decay_gamma: number;
   edges: number;

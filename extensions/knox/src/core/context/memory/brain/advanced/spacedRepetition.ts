@@ -1,5 +1,7 @@
 import { BrainStore } from "../BrainStore.js";
 import { Ebbinghaus } from "../Ebbinghaus.js";
+import { resolveStability } from "../Forgetting.js";
+import { type FsrsMemoryKind, type FsrsOutcome, type FsrsState } from "../Fsrs.js";
 import { getMemoryConfig } from "../memoryConfigAccess.js";
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -7,11 +9,8 @@ import { getMemoryConfig } from "../memoryConfigAccess.js";
 // ══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Implements the Ebbinghaus forgetting curve for memory strengthening (Part IV):
- *
- *   R(t) = R₀ · e^(-λt / S(m))
- *   I(m,t) = I₀ · R(t) · (1 + α · access_count)
- *   S_new(m) = S_old(m) + β · 1[accessed]
+ * Live R is power-law (MEM-12): R(t,S)=(1+F·t/S)^(-c), S = stored stability.
+ * Live S updates are FSRS on use (MEM-14). Retrieve / inject must not change S.
  *
  * Optimal review intervals follow an expanding schedule:
  *   1st review: 1 day, 2nd: 3 days, 3rd: 7 days, 4th: 14 days, 5th: 30 days, etc.
@@ -36,15 +35,24 @@ export class SpacedRepetition {
   private static readonly REVIEW_INTERVALS = [1, 3, 7, 14, 30, 60, 120, 365];
 
   /**
-   * Calculate current retention for a memory using the Ebbinghaus curve.
+   * Calculate current retention for a memory using power-law R(t,S).
    */
   static calculateRetention(
     lastAccessedAt: string,
     retrievalCount: number,
     salience: number = 0.5,
     importance: number = 0.5,
+    stability?: number | null,
+    category?: string | null,
   ): number {
-    return Ebbinghaus.retentionFromMemory(lastAccessedAt, retrievalCount, salience, importance);
+    return Ebbinghaus.retentionFromMemory(
+      lastAccessedAt,
+      retrievalCount,
+      salience,
+      importance,
+      undefined,
+      { stability, category },
+    );
   }
 
   /**
@@ -67,8 +75,7 @@ export class SpacedRepetition {
   }
 
   /**
-   * Boost importance when a memory is retrieved (spaced repetition strengthening).
-   * Uses theorem: I(m,t) = I₀ · (1 + α · access_count) after fresh access (R≈1).
+   * Leftover I(m,t) access boost. Not applied on retrieve — live S is FSRS on use.
    */
   static calculateBoostedImportance(
     currentImportance: number,
@@ -78,43 +85,29 @@ export class SpacedRepetition {
   }
 
   /**
-   * Apply spaced repetition boost to a memory on retrieval.
-   * Updates importance_score; optionally increments retrieval_count + last_accessed.
-   *
-   * @param incrementAccess — false when caller already incremented retrieval_count (e.g. recall path)
+   * Leftover retrieve-time boost. MEM-14: retrieved-not-used is a no-op (S, D, I stay).
+   * Live strengthening is {@link SpacedRepetition.applyOnUse}.
    */
   static async boostOnRetrieval(
     memoryId: number,
-    options?: { incrementAccess?: boolean },
+    _options?: { incrementAccess?: boolean },
   ): Promise<number> {
     const db = await BrainStore.get();
     const row = (await db.get(
-      "SELECT importance_score, retrieval_count, salience FROM brain_semantic WHERE id = ?",
+      "SELECT importance_score FROM brain_semantic WHERE id = ?",
       [memoryId],
-    )) as { importance_score: number; retrieval_count: number; salience?: number } | undefined;
-    if (!row) return 0;
+    )) as { importance_score: number } | undefined;
+    return row?.importance_score ?? 0;
+  }
 
-    const increment = options?.incrementAccess !== false;
-    const newCount = increment ? (row.retrieval_count ?? 0) + 1 : (row.retrieval_count ?? 0);
-
-    const newImportance = SpacedRepetition.calculateBoostedImportance(
-      row.importance_score,
-      newCount,
-    );
-
-    if (increment) {
-      await db.run(
-        `UPDATE brain_semantic SET importance_score = ?, retrieval_count = ?, last_accessed_at = datetime('now') WHERE id = ?`,
-        [newImportance, newCount, memoryId],
-      );
-    } else {
-      await db.run(
-        "UPDATE brain_semantic SET importance_score = ? WHERE id = ?",
-        [newImportance, memoryId],
-      );
-    }
-
-    return newImportance;
+  /** Used+helpful / used+harmful FSRS write. Unused leaves the row unchanged. */
+  static async applyOnUse(
+    memoryId: number,
+    outcome: FsrsOutcome,
+    kind: FsrsMemoryKind = "semantic",
+    nowMs?: number,
+  ): Promise<FsrsState | null> {
+    return BrainStore.applyMemoryFsrs(kind, memoryId, outcome, nowMs);
   }
 
   /**
@@ -131,7 +124,7 @@ export class SpacedRepetition {
 
     // Get semantic memories with retrieval history, ordered by importance
     const rows = await db.all(
-      `SELECT id, category, title, importance_score, retrieval_count, last_accessed_at, salience
+      `SELECT id, category, title, importance_score, retrieval_count, last_accessed_at, salience, stability
        FROM brain_semantic
        WHERE tier IN ('hot', 'warm', 'active')
        AND importance_score >= 0.3
@@ -150,8 +143,10 @@ export class SpacedRepetition {
         r.retrieval_count,
         salience,
         r.importance_score,
+        r.stability,
+        r.category,
       );
-      const strength = SpacedRepetition.getStrength(r.retrieval_count, salience, r.importance_score);
+      const strength = resolveStability(r.stability, r.category);
       const nextIntervalDays = SpacedRepetition.getNextReviewInterval(r.retrieval_count);
       const lastAccessed = new Date(r.last_accessed_at).getTime();
       const nextReview = new Date(lastAccessed + nextIntervalDays * 86400000);

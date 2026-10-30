@@ -6,9 +6,6 @@ import { BatchOperations } from "../BatchOperations.js";
 import type {
   BatchDeleteResult,
 } from "../BatchOperations.js";
-import {
-  SpacedRepetition,
-} from "../AdvancedFeatures.js";
 import { InputSanitizer } from "../InputSanitizer.js";
 import { parseRecipeId } from "../../recipes/memoryLink.js";
 import { RetrievalFusion } from "../RetrievalFusion.js";
@@ -157,10 +154,8 @@ export async function recall(input: RecallInput): Promise<RecallResult> {
     if (recipeId) mem.recipe_id = recipeId;
   }
 
-  // Boost spaced repetition scores for retrieved memories (recall already increments access count)
-  for (const mem of semantic) {
-    SpacedRepetition.boostOnRetrieval(mem.id, { incrementAccess: false }).catch(() => {});
-  }
+  // MEM-14 / MEM-16: retrieve / recall must not apply FSRS, leftover I(m,t)
+  // boosts, or SpacedRepetition.boostOnRetrieval. Fusion may record inject_count.
 
   let episodic: any[] = [];
   if (input.include_episodic !== false) {
@@ -191,10 +186,10 @@ export async function recall(input: RecallInput): Promise<RecallResult> {
 }
 
 /**
- * Delete a semantic memory by ID.
+ * Forget a semantic memory by ID (MEM-06 tombstone, reversible via audit).
+ * Pinned rows stay.
  */
 export async function forget(id: number): Promise<boolean> {
-  // Safety checkpoint before destructive operation
   await CheckpointManager.beforeDestructiveOp("delete").catch(() => {});
 
   const result = await BrainStore.deleteSemantic(id);

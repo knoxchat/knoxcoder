@@ -22,6 +22,8 @@ import type { RetrievalIntent } from "./RetrievalQuery.js";
 export type { FusionWeights } from "./memoryConfigAccess.js";
 import type { SemanticMemory, EpisodicMemory, SemanticCategory } from "./types.js";
 import type { DatabaseConnection } from "../../../util/refreshIndex.js";
+import { isLiveRetrieveRow, liveRetrieveSql } from "./store/tombstone.js";
+import { isDefaultRetrieveValue } from "./Value.js";
 
 /**
  * RetrievalFusion — Multi-strategy local retrieval (BM25 + trigram + graph).
@@ -408,6 +410,21 @@ export class RetrievalFusion {
       }
     }
 
+    // MEM-04: frozen / tombstoned stay SELECTable but drop from default fusion
+    for (const [key, candidate] of candidateMap) {
+      if (!isLiveRetrieveRow(candidate.data)) candidateMap.delete(key);
+    }
+
+    const pinnedIds = new Set(
+      (await BrainStore.searchByTag("pinned", "semantic", 500)).map((t) => t.memory_id),
+    );
+
+    // MEM-13: Value < θ_arch archives from default retrieve (row stays, no DELETE)
+    for (const [key, candidate] of candidateMap) {
+      const pinned = candidate.type === "semantic" && pinnedIds.has(candidate.id);
+      if (!isDefaultRetrieveValue(candidate.data, { pinned })) candidateMap.delete(key);
+    }
+
     // Compute recency and importance for all candidates
     const now = Date.now();
     const theta = minScore ?? config.retrieval_threshold;
@@ -424,10 +441,6 @@ export class RetrievalFusion {
 
       candidate.score = fuseCandidateScore(candidate.scores, weights, theta);
     }
-
-    const pinnedIds = new Set(
-      (await BrainStore.searchByTag("pinned", "semantic", 500)).map((t) => t.memory_id),
-    );
     const currentTopicId =
       options.currentTopicId ??
       (options.sessionId
@@ -524,13 +537,14 @@ export class RetrievalFusion {
 
     results = results.slice(0, limit);
 
-    // REL-12: bump only semantic hits that passed REL-03 and still score ≥ θ
-    // (topic bias may drop a gated hit below θ — those must not pollute rank).
+    // REL-12 / MEM-16: calibration inject_count only — not retrieval_count
+    // (leftover S / I) and not last_accessed_at (R clock). Topic bias may
+    // drop a gated hit below θ — those must not be counted as injected.
     const bumpThreshold = config.retrieval_threshold;
     const semanticIds = results
       .filter((r) => r.type === "semantic" && r.score >= bumpThreshold)
       .map((r) => r.id);
-    await BrainStore.touchSemanticRetrieval(semanticIds);
+    await BrainStore.recordSemanticInject(semanticIds);
 
     return results;
   }
@@ -548,27 +562,33 @@ export class RetrievalFusion {
     if (!ftsQuery) return [];
 
     try {
-      const conditions = ["(expires_at IS NULL OR expires_at > datetime('now'))"];
-      const params: any[] = [];
+      const extra: string[] = [
+        "(s.expires_at IS NULL OR s.expires_at > datetime('now'))",
+        liveRetrieveSql("s"),
+      ];
+      const extraParams: any[] = [];
 
       if (category) {
-        conditions.push("s.category = ?");
-        params.push(category);
+        extra.push("s.category = ?");
+        extraParams.push(category);
       }
 
-      params.push(ftsQuery, limit);
-
-      // Use FTS5 with BM25 ranking
-      // bm25() returns negative values (more negative = more relevant), so we negate
+      // MATCH first: a tombstoned_at / expires filter on the JOIN can make SQLite
+      // walk idx_semantic_tombstoned (almost every row) and probe FTS per row at 100k.
       const rows = await db.all(`
-        SELECT s.*, -bm25(brain_semantic_fts, 5.0, 1.0, 3.0) AS bm25_score
-        FROM brain_semantic s
-        JOIN brain_semantic_fts fts ON s.id = fts.rowid
-        WHERE ${conditions.join(" AND ")}
-          AND brain_semantic_fts MATCH ?
-        ORDER BY bm25_score DESC
+        WITH hits AS (
+          SELECT rowid AS id, -bm25(brain_semantic_fts, 5.0, 1.0, 3.0) AS bm25_score
+          FROM brain_semantic_fts
+          WHERE brain_semantic_fts MATCH ?
+          ORDER BY bm25_score DESC
+          LIMIT ?
+        )
+        SELECT s.*, hits.bm25_score AS bm25_score
+        FROM hits JOIN brain_semantic s ON s.id = hits.id
+        WHERE ${extra.join(" AND ")}
+        ORDER BY hits.bm25_score DESC
         LIMIT ?
-      `, params);
+      `, [ftsQuery, limit * 10, ...extraParams, limit]);
 
       return rows.map((r: any) => ({
         id: r.id,
@@ -594,7 +614,7 @@ export class RetrievalFusion {
     try {
       // Parameters must follow placeholder order: MATCH ?, then extra
       // conditions, then LIMIT ?.
-      const extraConditions: string[] = [];
+      const extraConditions: string[] = [liveRetrieveSql("e")];
       const extraParams: any[] = [];
 
       if (sessionId) {
@@ -645,7 +665,10 @@ export class RetrievalFusion {
     if (queryTrigrams.size === 0) return [];
 
     // Fetch candidate rows (use existing indexes for pre-filtering)
-    const conditions = ["(expires_at IS NULL OR expires_at > datetime('now'))"];
+    const conditions = [
+      "(expires_at IS NULL OR expires_at > datetime('now'))",
+      liveRetrieveSql(),
+    ];
     const params: any[] = [];
 
     if (category) {
@@ -675,19 +698,28 @@ export class RetrievalFusion {
     const ftsQuery = RetrievalFusion.buildFts5Query(query);
     if (ftsQuery) {
       try {
-        const ftsConditions = ["(s.expires_at IS NULL OR s.expires_at > datetime('now'))"];
+        const ftsConditions = [
+          "(s.expires_at IS NULL OR s.expires_at > datetime('now'))",
+          liveRetrieveSql("s"),
+        ];
         const ftsParams: any[] = [];
         if (category) {
           ftsConditions.push("s.category = ?");
           ftsParams.push(category);
         }
         rows = await db.all(
-          `SELECT s.* FROM brain_semantic s
-           JOIN brain_semantic_fts fts ON s.id = fts.rowid
-           WHERE ${ftsConditions.join(" AND ")} AND brain_semantic_fts MATCH ?
-           ORDER BY bm25(brain_semantic_fts, 5.0, 1.0, 3.0)
+          `WITH hits AS (
+             SELECT rowid AS id, bm25(brain_semantic_fts, 5.0, 1.0, 3.0) AS rank
+             FROM brain_semantic_fts
+             WHERE brain_semantic_fts MATCH ?
+             ORDER BY rank
+             LIMIT ?
+           )
+           SELECT s.* FROM hits JOIN brain_semantic s ON s.id = hits.id
+           WHERE ${ftsConditions.join(" AND ")}
+           ORDER BY hits.rank
            LIMIT ?`,
-          [...ftsParams, ftsQuery, poolSize],
+          [ftsQuery, poolSize * 10, ...ftsParams, poolSize],
         );
       } catch {
         rows = []; // FTS5 unavailable: LIKE pool below
@@ -788,13 +820,20 @@ export class RetrievalFusion {
             if (phrase) {
               try {
                 ftsRelated = await db.all(
-                  `SELECT s.id, s.title, s.content, s.keywords FROM brain_semantic s
-                   JOIN brain_semantic_fts fts ON s.id = fts.rowid
-                   WHERE brain_semantic_fts MATCH ?
-                   AND (s.expires_at IS NULL OR s.expires_at > datetime('now'))
-                   ORDER BY bm25(brain_semantic_fts, 5.0, 1.0, 3.0)
+                  `WITH hits AS (
+                     SELECT rowid AS id, bm25(brain_semantic_fts, 5.0, 1.0, 3.0) AS rank
+                     FROM brain_semantic_fts
+                     WHERE brain_semantic_fts MATCH ?
+                     ORDER BY rank
+                     LIMIT ?
+                   )
+                   SELECT s.id, s.title, s.content, s.keywords
+                   FROM hits JOIN brain_semantic s ON s.id = hits.id
+                   WHERE (s.expires_at IS NULL OR s.expires_at > datetime('now'))
+                     AND ${liveRetrieveSql("s")}
+                   ORDER BY hits.rank
                    LIMIT ?`,
-                  [`"${phrase}"`, fetchLimit],
+                  [`"${phrase}"`, fetchLimit * 10, fetchLimit],
                 );
               } catch {
                 ftsRelated = null; // FTS5 unavailable: LIKE below
@@ -805,6 +844,7 @@ export class RetrievalFusion {
             `SELECT id, title, content, keywords FROM brain_semantic
              WHERE (LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(keywords) LIKE ?)
              AND (expires_at IS NULL OR expires_at > datetime('now'))
+             AND ${liveRetrieveSql()}
              LIMIT ?`,
             [`%${needle}%`, `%${needle}%`, `%${needle}%`, fetchLimit],
           );
@@ -898,6 +938,7 @@ export class RetrievalFusion {
       emotional_valence: r.emotional_valence ?? "neutral",
       salience: r.salience ?? 0.5,
       retrieval_count: r.retrieval_count,
+      inject_count: r.inject_count ?? 0,
       tier: r.tier,
       created_at: r.created_at,
       last_accessed_at: r.last_accessed_at,
@@ -907,6 +948,13 @@ export class RetrievalFusion {
       mismatch_count: r.mismatch_count ?? 0,
       mismatch_until: r.mismatch_until ?? null,
       mismatch_topic_id: r.mismatch_topic_id ?? null,
+      tombstoned_at: r.tombstoned_at ?? null,
+      tombstone_reason: r.tombstone_reason ?? null,
+      stability: r.stability ?? null,
+      difficulty: r.difficulty ?? 5,
+      i0: r.i0 ?? null,
+      helpful_count: r.helpful_count ?? 0,
+      unhelpful_count: r.unhelpful_count ?? 0,
     };
   }
 
@@ -924,6 +972,13 @@ export class RetrievalFusion {
       tier: r.tier,
       metadata: r.metadata ?? "{}",
       created_at: r.created_at,
+      tombstoned_at: r.tombstoned_at ?? null,
+      tombstone_reason: r.tombstone_reason ?? null,
+      stability: r.stability ?? null,
+      difficulty: r.difficulty ?? 5,
+      i0: r.i0 ?? null,
+      helpful_count: r.helpful_count ?? 0,
+      unhelpful_count: r.unhelpful_count ?? 0,
     };
   }
 

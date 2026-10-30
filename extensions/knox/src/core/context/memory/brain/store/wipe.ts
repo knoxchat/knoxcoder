@@ -1,5 +1,6 @@
 /**
- * Wipe Memory Brain: backup sqlite, drop the live files, reopen empty.
+ * Wipe Memory Brain: tombstone every leaf (deleted-by-policy), backup sqlite,
+ * drop the live files, reopen empty. Destructive. forget/TTL stay reversible.
  */
 
 import fs from "fs";
@@ -7,6 +8,7 @@ import path from "path";
 
 import { getMemoryBrainSqlitePath } from "../../../../util/paths.js";
 import { close, get } from "./connection.js";
+import { tombstoneAllForPrivacyWipe } from "./tombstone.js";
 
 function stamp(): string {
   return new Date().toISOString().replace(/[:.]/g, "-");
@@ -14,6 +16,13 @@ function stamp(): string {
 
 export async function wipeAll(): Promise<{ backup?: string; recreated: boolean }> {
   const dbPath = getMemoryBrainSqlitePath();
+  try {
+    await tombstoneAllForPrivacyWipe();
+    const db = await get();
+    await db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+  } catch {
+    // Still wipe — backup + unlink is the destructive step.
+  }
   await close();
   let backup: string | undefined;
   if (fs.existsSync(dbPath)) {

@@ -35,8 +35,8 @@ export async function storeMetricsSnapshot(windowMs?: number): Promise<number> {
     stats.db_size_bytes,
     stats.total_semantic + stats.total_episodic,
     compression.total_tokens_saved,
-    effective.hierarchy_effective_tokens,
-    effective.total_effective,
+    effective.c_addr,
+    effective.c_use,
   );
 }
 

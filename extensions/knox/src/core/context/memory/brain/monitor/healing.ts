@@ -287,12 +287,8 @@ export class HealingEngine {
   }
 
   private static async pruneExpired(): Promise<string> {
-    const db = await BrainStore.get();
-    const deleted = await db.run(
-      `DELETE FROM brain_semantic
-       WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`,
-    );
-    return `Pruned ${deleted.changes ?? 0} expired semantic memories`;
+    const n = await BrainStore.forgetExpiredTtl();
+    return `Tombstoned ${n} expired semantic memories`;
   }
 
   private static async repairCounts(): Promise<string> {

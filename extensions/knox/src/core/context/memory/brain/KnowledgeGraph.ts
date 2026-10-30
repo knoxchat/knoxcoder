@@ -184,8 +184,9 @@ export class KnowledgeGraph {
   }
 
   /**
-   * Entity cap + spreading-activation config for dashboard (IMP-11).
-   * Knox-MS: max 5K entities, LRU refresh via mention_count + updated_at.
+   * Graph channel gauge for dashboard (IMP-11 / MEM-08).
+   * Entity count is channel size over stored rows, not C_addr. The 5K cap
+   * remains an LRU cache hint until MEM-25 removes it.
    */
   static async getCapStatus(): Promise<GraphCapStatus> {
     const config = BrainStore.getConfig();
@@ -194,9 +195,11 @@ export class KnowledgeGraph {
     const count = stats.entities;
     return {
       entity_count: count,
+      channel_size: count,
       max_entities: max,
       cap_utilization: max > 0 ? count / max : 0,
       at_cap: max > 0 && count >= max,
+      is_capacity: false,
       max_depth: config.graph_max_depth,
       depth_decay_gamma: config.graph_depth_decay_gamma,
       edges: stats.edges,
@@ -470,9 +473,10 @@ export class KnowledgeGraph {
     ];
     if (stats.cap) {
       parts.push(
-        `  Cap: ${stats.cap.entity_count}/${stats.cap.max_entities} (${(stats.cap.cap_utilization * 100).toFixed(1)}%)`,
+        `  Channel size: ${stats.cap.channel_size} entities (not C_addr)`,
+        `  LRU cache hint: ${stats.cap.entity_count}/${stats.cap.max_entities} (${(stats.cap.cap_utilization * 100).toFixed(1)}%)`,
         `  Max depth: ${stats.cap.max_depth}, γ=${stats.cap.depth_decay_gamma}`,
-        stats.cap.at_cap ? "  ⚠ At entity cap — LRU prune active on new inserts" : "",
+        stats.cap.at_cap ? "  ⚠ LRU prune active on new inserts (cache hint, not capacity)" : "",
       );
     }
     return parts.filter(Boolean).join("\n");

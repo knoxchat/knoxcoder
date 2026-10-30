@@ -287,8 +287,10 @@ export type ToCoreFromIdeOrWebviewProtocol = {
       total_edges: number;
       entity_types: Record<string, number>;
       max_entities?: number;
+      channel_size?: number;
       cap_utilization?: number;
       at_cap?: boolean;
+      is_capacity?: boolean;
       max_depth?: number;
       depth_decay_gamma?: number;
     },
@@ -393,23 +395,39 @@ export type ToCoreFromIdeOrWebviewProtocol = {
   "brain/getEffectiveContext": [
     undefined,
     {
-      active_window_tokens: number;
+      c_addr: number;
+      c_use: number;
+      w: number;
+      rec_rolling?: number;
+      levels?: Array<{
+        id: string;
+        name: string;
+        tokens: number;
+        ratio?: number;
+        effective_tokens?: number;
+        role?: "buffer" | "store";
+        in_c_addr?: boolean;
+      }>;
+      tier_tokens: Record<string, number>;
+      active_window_tokens?: number;
       context_max_tokens?: number;
       last_context_tokens_used?: number;
       last_context_max_tokens?: number;
       window_utilization?: number;
-      tier_tokens: Record<string, number>;
-      hierarchy_effective_tokens: number;
       memory_levels?: Array<{
         id: string;
         name: string;
         tokens: number;
-        ratio: number;
-        effective_tokens: number;
+        ratio?: number;
+        effective_tokens?: number;
+        role?: "buffer" | "store";
+        in_c_addr?: boolean;
       }>;
-      graph_entity_count: number;
-      total_effective: number;
-      compression_ratios: {
+      graph_entity_count?: number;
+      graph_channel_size?: number;
+      graph_role?: "channel";
+      graph_is_capacity?: boolean;
+      compression_ratios?: {
         active: number;
         hot: number;
         warm: number;
@@ -543,15 +561,15 @@ export type ToCoreFromIdeOrWebviewProtocol = {
         db_size_bytes: number;
         memory_count: number;
         memory_tokens_saved?: number;
-        hierarchy_effective_tokens?: number;
-        total_effective?: number;
+        c_addr?: number;
+        c_use?: number;
       }>;
       period_hours: number;
       avg_response_trend: "improving" | "stable" | "degrading";
       success_rate_trend: "improving" | "stable" | "degrading";
       growth_rate_trend: "stable" | "growing" | "shrinking" | "accelerating";
       compression_trend?: "improving" | "stable" | "degrading";
-      effective_context_trend?: "improving" | "stable" | "degrading";
+      addressable_memory_trend?: "improving" | "stable" | "degrading";
     },
   ];
   "context/loadSubmenuItems": [{ title: string }, ContextSubmenuItem[]];

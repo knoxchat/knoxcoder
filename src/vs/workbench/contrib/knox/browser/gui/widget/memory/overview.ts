@@ -3,7 +3,7 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/** Overview tab: health banner, stats, spaced repetition, cycle phases, context, graph cap, trends, tiers, categories and sessions. */
+/** Overview tab: health banner, stats, spaced repetition, cycle phases, context, graph channel, trends, tiers, categories and sessions. */
 
 import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
@@ -19,6 +19,7 @@ import {
 	MEMORY_SLEEP_PHASE_LABELS,
 	MEMORY_TIER_COLORS,
 	formatInjectedLastTurn,
+	memoryHeadlineMetrics,
 } from '../../../../common/knoxGuiMemory.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import {
@@ -48,6 +49,60 @@ function renderCenteredLoading(body: HTMLElement, size: number, caption?: string
 		spinner(wrap, size);
 	}
 	return wrap;
+}
+
+/** MEM-10: C_addr, C_use bound by W, and rolling Rec when a bench window exists. */
+function renderAddressableHeadline(body: HTMLElement, state: IKnoxGuiState): void {
+	const ctx = state.memoryEffectiveContext;
+	if (!ctx) {
+		return;
+	}
+	const headline = memoryHeadlineMetrics(ctx);
+	const card = sectionCard(body, t(state, 'memoryEffectiveContext'), 'layers');
+	card.setAttribute('data-testid', 'memory-addressable-headline');
+	mk(card, 'p', 'mb-3 xs o-60', t(state, 'memoryAddressableDesc'));
+	const grid = mk(card, 'div', 'stat-grid');
+	statCard(grid, 'database', t(state, 'memoryAddressable'), headline.cAddr.toLocaleString());
+	const useValue = headline.w !== undefined
+		? t(state, 'memoryContextUseBound', { use: headline.cUse.toLocaleString(), w: headline.w.toLocaleString() })
+		: headline.cUse.toLocaleString();
+	statCard(grid, 'file-text', t(state, 'memoryContextUseVsWindow'), useValue);
+	if (headline.recRolling !== undefined) {
+		statCard(grid, 'crosshair', t(state, 'memoryRollingRec'), `${(headline.recRolling * 100).toFixed(1)}%`);
+	}
+	if ((ctx.windowUtilization ?? 0) > 0) {
+		const meter = mk(card, 'div', 'mt-3 sy-1');
+		meterHead(meter, t(state, 'memoryContextUtilization'), `${((ctx.windowUtilization ?? 0) * 100).toFixed(1)}%`);
+		meterBar(meter, Math.min(100, (ctx.windowUtilization ?? 0) * 100), '#159994');
+	}
+	const visibleLevels = ctx.levels.filter(level => level.role === 'buffer' || level.tokens !== 0);
+	if (visibleLevels.length) {
+		const levels = mk(card, 'div', 'divided mt-3 pt-3 sy-1');
+		mk(levels, 'div', 'xs fw-5 o-70 mb-1', t(state, 'memoryHierarchyLevels'));
+		for (const level of visibleLevels) {
+			const row = mk(levels, 'div', 'kv xs o-80');
+			const role = level.role === 'buffer'
+				? t(state, 'memoryBufferGauge')
+				: (level.role === 'store' ? t(state, 'memoryStoreLevel') : undefined);
+			mk(row, 'span', '', role ? `${level.id} ${level.name} · ${role}` : `${level.id} ${level.name}`);
+			mk(row, 'span', '', `${level.tokens.toLocaleString()} tokens`);
+		}
+		if ((ctx.workingMemoryBudget ?? 0) > 0) {
+			const row = mk(levels, 'div', 'kv xs o-60');
+			mk(row, 'span', '', t(state, 'memoryWorkingMemoryBudget'));
+			mk(row, 'span', '', `${ctx.workingMemoryBudget?.toLocaleString()} tokens`);
+		}
+	}
+	const tiers = mk(card, 'div', 'mt-3 sy-1');
+	for (const tier of MEMORY_EFFECTIVE_TIERS) {
+		const tokens = ctx.tierTokens?.[tier] ?? 0;
+		if (!tokens) {
+			continue;
+		}
+		const row = mk(tiers, 'div', 'kv xs o-80');
+		mk(row, 'span', 'capitalize', tier);
+		mk(row, 'span', '', `${tokens.toLocaleString()} tokens`);
+	}
 }
 
 export function renderMemoryOverview(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void { // KN-376 KN-310-313
@@ -91,6 +146,8 @@ export function renderMemoryOverview(widget: KnoxGuiWidget, body: HTMLElement, s
 		testId: 'memory-consolidate',
 		onClick: () => void widget.controller.consolidateMemory(),
 	});
+
+	renderAddressableHeadline(body, state);
 
 	const stats = mk(body, 'div', 'stat-grid');
 	statCard(stats, 'brain', t(state, 'memorySemantic'), d.totalSemantic);
@@ -166,73 +223,15 @@ export function renderMemoryOverview(widget: KnoxGuiWidget, body: HTMLElement, s
 		});
 	}
 
-	if (state.memoryEffectiveContext) {
-		const ctx = state.memoryEffectiveContext;
-		const card = sectionCard(body, t(state, 'memoryEffectiveContext'), 'layers');
-		mk(card, 'p', 'mb-3 xs o-60', t(state, 'memoryEffectiveContextFormula'));
-		const grid = mk(card, 'div', 'stat-grid');
-		if ((ctx.activeWindowTokens !== undefined && ctx.activeWindowTokens !== null)) {
-			statCard(grid, 'target', t(state, 'memoryActiveWindow'), ctx.activeWindowTokens.toLocaleString());
-		}
-		if ((ctx.lastContextTokensUsed ?? 0) > 0) {
-			statCard(grid, 'file-text', t(state, 'memoryContextTokensUsed'), ctx.lastContextTokensUsed!.toLocaleString());
-		}
-		statCard(grid, 'bar-chart-3', t(state, 'memoryHierarchyEffective'), Math.round(ctx.hierarchyEffectiveTokens ?? 0).toLocaleString());
-		statCard(grid, 'link', t(state, 'memoryGraphEntities'), ctx.graphMaxEntities ? `${ctx.graphEntityCount ?? 0}/${ctx.graphMaxEntities}` : String(ctx.graphEntityCount ?? 0));
-		statCard(grid, 'zap', t(state, 'memoryTotalEffective'), Math.round(ctx.totalEffective).toLocaleString());
-		if ((ctx.memoryTokensSaved ?? 0) > 0) {
-			statCard(grid, 'minimize-2', t(state, 'memoryTokensSaved'), ctx.memoryTokensSaved!.toLocaleString());
-		}
-		if ((ctx.windowUtilization ?? 0) > 0) {
-			const meter = mk(card, 'div', 'mt-3 sy-1');
-			meterHead(meter, t(state, 'memoryContextUtilization'), `${((ctx.windowUtilization ?? 0) * 100).toFixed(1)}%`);
-			meterBar(meter, Math.min(100, (ctx.windowUtilization ?? 0) * 100), '#159994');
-		}
-		const visibleLevels = ctx.levels.filter(level => level.tokens !== 0 || (level.effectiveTokens ?? 0) !== 0);
-		if (visibleLevels.length) {
-			const levels = mk(card, 'div', 'divided mt-3 pt-3 sy-1');
-			// allow-any-unicode-next-line
-			mk(levels, 'div', 'xs fw-5 o-70 mb-1', 'M₁–M₅ Hierarchy');
-			for (const level of visibleLevels) {
-				const row = mk(levels, 'div', 'kv xs o-80');
-				mk(row, 'span', '', `${level.id} ${level.name}`);
-				mk(row, 'span', '', `${level.tokens.toLocaleString()} / r=${level.ratio ?? 1} → ${Math.round(level.effectiveTokens ?? 0).toLocaleString()}`);
-			}
-			if ((ctx.workingMemoryBudget ?? 0) > 0) {
-				const row = mk(levels, 'div', 'kv xs o-60');
-				// allow-any-unicode-next-line
-				mk(row, 'span', '', 'M₂ budget cap');
-				mk(row, 'span', '', `${ctx.workingMemoryBudget?.toLocaleString()} tokens`);
-			}
-		}
-		const tiers = mk(card, 'div', 'mt-3 sy-1');
-		for (const tier of MEMORY_EFFECTIVE_TIERS) {
-			const tokens = ctx.tierTokens?.[tier] ?? 0;
-			if (!tokens) {
-				continue;
-			}
-			const ratio = ctx.compressionRatios?.[tier] ?? 1;
-			const row = mk(tiers, 'div', 'kv xs o-80');
-			mk(row, 'span', 'capitalize', tier);
-			mk(row, 'span', '', `${tokens.toLocaleString()} tokens / r=${ratio} → ${Math.round(tokens / ratio).toLocaleString()}`);
-		}
-	}
-
-	if (d.graphMaxEntities) {
+	if (d.graphMaxEntities || (d.graphTotalEntities ?? d.totalEntities ?? 0) > 0) {
 		const card = sectionCard(body, t(state, 'memoryKnowledgeGraphCap'), 'link');
 		const grid = mk(card, 'div', 'stat-grid');
-		statCard(grid, 'link', t(state, 'memoryGraphEntities'), `${d.graphTotalEntities ?? d.totalEntities}/${d.graphMaxEntities}`);
+		statCard(grid, 'link', t(state, 'memoryGraphEntities'), String(d.graphChannelSize ?? d.graphTotalEntities ?? d.totalEntities ?? 0));
 		statCard(grid, 'refresh-cw', t(state, 'memoryEdges'), d.graphTotalEdges ?? d.totalEdges);
 		statCard(grid, 'compass', t(state, 'memoryGraphBfsDepth'), d.graphMaxDepth ?? 3);
 		// allow-any-unicode-next-line
 		statCard(grid, 'bar-chart-3', t(state, 'memoryGraphDepthDecayGamma'), `γ=${d.graphDepthDecayGamma ?? 0.7}`);
-		const meter = mk(card, 'div', 'mt-3 sy-1');
-		const value = meterHead(meter, t(state, 'memoryGraphCapUtilization'), `${((d.graphCapUtilization ?? 0) * 100).toFixed(1)}%`);
-		if (d.graphAtCap) {
-			mk(value, 'span', 'ml-1 text-yellow-500', t(state, 'memoryGraphAtCap'));
-		}
-		meterBar(meter, Math.min(100, (d.graphCapUtilization ?? 0) * 100), d.graphAtCap ? '#f59e0b' : '#159994');
-		mk(meter, 'p', 't-10 o-50', t(state, 'memoryGraphCapLruHint'));
+		mk(card, 'p', 'mt-3 t-10 o-50', t(state, 'memoryGraphCapLruHint'));
 	}
 
 	const trend = state.memoryMetricsTrend;
@@ -243,11 +242,10 @@ export function renderMemoryOverview(widget: KnoxGuiWidget, body: HTMLElement, s
 		} else {
 			const grid = mk(card, 'div', 'trend-grid');
 			const snap = trend.snapshots[0];
-			trendCell(grid, trend.effectiveContext, t(state, 'memoryTrendEffectiveContext'), (snap.totalEffective !== undefined && snap.totalEffective !== null) ? Math.round(snap.totalEffective).toLocaleString() : undefined);
+			trendCell(grid, trend.addressableMemory, t(state, 'memoryTrendAddressable'), (snap.cAddr !== undefined && snap.cAddr !== null) ? Math.round(snap.cAddr).toLocaleString() : undefined);
 			trendCell(grid, trend.response, t(state, 'memoryTrendResponse'), `${snap.avgResponseMs.toFixed(0)}ms`);
 			trendCell(grid, trend.success, t(state, 'memoryTrendSuccess'), `${(snap.successRate * 100).toFixed(1)}%`);
 			trendCell(grid, trend.growth, t(state, 'memoryTrendGrowth'), `${snap.memoryCount.toLocaleString()} ${t(state, 'memoryTotalMemories').toLowerCase()}`);
-			trendCell(grid, trend.compression, t(state, 'memoryTrendCompression'), (snap.tokensSaved !== undefined && snap.tokensSaved !== null) ? `${snap.tokensSaved.toLocaleString()} ${t(state, 'memoryTokensSaved').toLowerCase()}` : undefined);
 			if ((trend.periodHours !== undefined && trend.periodHours !== null)) {
 				mk(card, 'div', 'mt-2 text-center t-10 o-50', t(state, 'memoryTrendPeriod', { hours: trend.periodHours, count: trend.snapshots.length }));
 			}
@@ -257,8 +255,8 @@ export function renderMemoryOverview(widget: KnoxGuiWidget, body: HTMLElement, s
 	const tierCard = sectionCard(body, t(state, 'memoryTierDistribution'), 'bar-chart-3');
 	const tierList = mk(tierCard, 'div', 'sy-2');
 	const tierCounts = d.tierCounts ?? {};
-	const tierTotal = (tierCounts.hot ?? 0) + (tierCounts.warm ?? 0) + (tierCounts.cold ?? 0);
-	for (const tier of ['hot', 'warm', 'cold'] as const) {
+	const tierTotal = MEMORY_EFFECTIVE_TIERS.reduce((sum, tier) => sum + (tierCounts[tier] ?? 0), 0);
+	for (const tier of MEMORY_EFFECTIVE_TIERS) {
 		const count = tierCounts[tier] ?? 0;
 		const pct = tierTotal > 0 ? (count / tierTotal) * 100 : 0;
 		const color = MEMORY_TIER_COLORS[tier]?.text ?? '#6b7280';

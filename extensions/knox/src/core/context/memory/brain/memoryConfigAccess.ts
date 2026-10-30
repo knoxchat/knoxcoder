@@ -2,8 +2,9 @@
  * MemoryConfigAccess — Single runtime accessor for all memory tunables.
  *
  * Defaults live ONLY in BrainStore.config. Every module reads values here
- * instead of embedding magic numbers. Enables unlimited effective context via
- * hierarchical compression ratios (C_effective = Σ |Mᵢ| / rᵢ).
+ * instead of embedding magic numbers. Addressable memory is C_addr = |M₃|+|M₄|+|M₅|
+ * (raw tokens). Compression ratios and clock knobs are leftover display;
+ * IMP-04 must not treat ratios as rᵢ capacity (MEM-11). Tiers are R/Value (MEM-15).
  */
 
 import { BrainStore } from "./BrainStore.js";
@@ -229,13 +230,13 @@ export function getBudgetRatios(): BudgetRatios {
   };
 }
 
-/** Normalize rᵢ: legacy configs stored divisor (2 → r=0.5). IMP-04 */
+/** Normalize leftover rᵢ knobs. Legacy configs stored a divisor (2 → 0.5). Not C_addr. */
 export function normalizeCompressionRatio(value: number): number {
   if (value > 1) return 1 / value;
   return Math.max(0.01, value);
 }
 
-/** Knox-MS hierarchy compression factors (rᵢ) for C_effective. */
+/** Leftover hierarchy compression factors (rᵢ). Display-only; never divide C_addr. */
 export function getCompressionRatios(): CompressionRatios {
   const cfg = getMemoryConfig();
   return {
@@ -247,16 +248,11 @@ export function getCompressionRatios(): CompressionRatios {
   };
 }
 
-/** Calculate effective context capacity from tier token counts. */
+/** Raw sum of SQLite tier token counts. Not C_addr and not Σ |Mᵢ|/rᵢ. */
 export function calculateEffectiveContext(tierTokens: Record<string, number>): number {
-  const ratios = getCompressionRatios();
   let total = 0;
-  for (const [tier, count] of Object.entries(tierTokens)) {
-    if (typeof count !== "number") continue;
-    const ratio = ratios[tier as keyof CompressionRatios];
-    if (ratio && ratio > 0) {
-      total += count / ratio;
-    }
+  for (const count of Object.values(tierTokens)) {
+    if (typeof count === "number" && count > 0) total += count;
   }
   return total;
 }
@@ -313,6 +309,53 @@ export function getEbbinghausConfig(): EbbinghausConfig {
     repetitionBeta: cfg.ebbinghaus_repetition_beta,
     salienceWeight: cfg.ebbinghaus_salience_weight,
     importanceWeight: cfg.ebbinghaus_importance_weight,
+  };
+}
+
+/** Revised Knox-MS parameter table. forgetting_F / forgetting_c (MEM-12), FSRS a/b/g (MEM-14), and κ / θ_arch (MEM-13) are live. */
+export interface TheoremParams {
+  forgettingF: number;
+  forgettingC: number;
+  fsrsA: number;
+  fsrsB: number;
+  fsrsG: number;
+  utilityKappa: number;
+  archiveValueThreshold: number;
+  rrfK0: number;
+  etaUtility: number;
+  etaRetrievability: number;
+  treeBranchingB: number;
+  treeBeamB: number;
+  coverageLambda: number;
+  wMemTokens: number;
+  fusionCandidateCutoff: number;
+  channelWeights: { lexical: number; ripgrep: number; graph: number; tree: number };
+}
+
+export function getTheoremParams(): TheoremParams {
+  const cfg = getMemoryConfig();
+  return {
+    forgettingF: cfg.forgetting_F,
+    forgettingC: cfg.forgetting_c,
+    fsrsA: cfg.fsrs_a,
+    fsrsB: cfg.fsrs_b,
+    fsrsG: cfg.fsrs_g,
+    utilityKappa: cfg.utility_kappa,
+    archiveValueThreshold: cfg.archive_value_threshold,
+    rrfK0: cfg.rrf_k0,
+    etaUtility: cfg.eta_utility,
+    etaRetrievability: cfg.eta_retrievability,
+    treeBranchingB: cfg.tree_branching_b,
+    treeBeamB: cfg.tree_beam_B,
+    coverageLambda: cfg.coverage_lambda,
+    wMemTokens: cfg.w_mem_tokens,
+    fusionCandidateCutoff: cfg.fusion_candidate_cutoff,
+    channelWeights: {
+      lexical: cfg.w_lexical,
+      ripgrep: cfg.w_ripgrep,
+      graph: cfg.w_graph,
+      tree: cfg.w_tree,
+    },
   };
 }
 

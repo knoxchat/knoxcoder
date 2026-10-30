@@ -41,8 +41,10 @@ export function registerBrainAdminHandlers(core: CoreRuntime): void {
               total_edges: graphCap.edges,
               entity_types: graphCap.entity_types,
               max_entities: graphCap.max_entities,
+              channel_size: graphCap.channel_size,
               cap_utilization: graphCap.cap_utilization,
               at_cap: graphCap.at_cap,
+              is_capacity: graphCap.is_capacity,
               max_depth: graphCap.max_depth,
               depth_decay_gamma: graphCap.depth_decay_gamma,
             }
@@ -77,8 +79,10 @@ export function registerBrainAdminHandlers(core: CoreRuntime): void {
       total_edges: raw?.edges ?? 0,
       entity_types: raw?.entityTypes ?? {},
       max_entities: cap.max_entities,
+      channel_size: cap.channel_size,
       cap_utilization: cap.cap_utilization,
       at_cap: cap.at_cap,
+      is_capacity: cap.is_capacity,
       max_depth: cap.max_depth,
       depth_decay_gamma: cap.depth_decay_gamma,
     };

@@ -1,5 +1,6 @@
 /** Semantic memory, pinning, mismatch, and dedup. */
 
+import { insertForgettingFields, resolveStability } from "../Forgetting.js";
 import { InputSanitizer } from "../InputSanitizer.js";
 import { CONTRADICTION_CATEGORIES, conflictsWith, supersedeConflicts } from "../memoryOutcomes.js";
 import type {
@@ -13,6 +14,8 @@ import { get } from "./connection.js";
 import { rowToSemantic } from "./mappers.js";
 import { addTag } from "./organization.js";
 import { auditLog, getLatestSessionTopic, getOpenTask } from "./runtime.js";
+import { parseSummaryOf, serializeSummaryOf } from "./summaryTree.js";
+import { TOMBSTONE_REASON, liveRetrieveSql, tombstoneMemories } from "./tombstone.js";
 import { computeSalience, detectEmotionalValence } from "./valence.js";
 
 // ── Semantic Memory Operations ─────────────────────────────────────────────
@@ -20,7 +23,9 @@ import { computeSalience, detectEmotionalValence } from "./valence.js";
 export async function getSemanticBySession(sessionId: string, limit = 200): Promise<SemanticMemory[]> {
   const db = await get();
   const rows = await db.all(
-    `SELECT * FROM brain_semantic WHERE source_session_id = ? ORDER BY created_at ASC LIMIT ?`,
+    `SELECT * FROM brain_semantic
+     WHERE source_session_id = ? AND ${liveRetrieveSql()}
+     ORDER BY created_at ASC LIMIT ?`,
     [sessionId, limit],
   );
   return rows.map(rowToSemantic);
@@ -33,11 +38,12 @@ export async function getSemanticById(id: number): Promise<SemanticMemory | null
 }
 
 /**
- * REL-12: increment retrieval_count only for memories that were actually
- * used (fusion hits that passed the gate and θ, or LIKE items assembled
- * into context). Candidate lists must not call this.
+ * MEM-16: record an inject for calibration. Does not write S, D, I,
+ * retrieval_count, or last_accessed_at — leftover I(m,t) and FSRS use those.
+ * REL-12: only fusion hits that passed the gate and θ, or LIKE items
+ * assembled into context. Candidate lists must not call this.
  */
-export async function touchSemanticRetrieval(ids: number[]): Promise<void> {
+export async function recordSemanticInject(ids: number[]): Promise<void> {
   const unique = [
     ...new Set(
       ids.map((id) => Math.trunc(Number(id))).filter((id) => id > 0),
@@ -48,12 +54,14 @@ export async function touchSemanticRetrieval(ids: number[]): Promise<void> {
   const placeholders = unique.map(() => "?").join(",");
   await db.run(
     `UPDATE brain_semantic
-     SET retrieval_count = retrieval_count + 1,
-         last_accessed_at = datetime('now')
+     SET inject_count = COALESCE(inject_count, 0) + 1
      WHERE id IN (${placeholders})`,
     unique,
   );
 }
+
+/** Leftover name. MEM-16: calibration inject only — not a retrieve-time strengthen. */
+export const touchSemanticRetrieval = recordSemanticInject;
 
 export async function isPinned(memoryId: number): Promise<boolean> {
   const db = await get();
@@ -64,6 +72,43 @@ export async function isPinned(memoryId: number): Promise<boolean> {
     [memoryId],
   );
   return !!row;
+}
+
+async function resolveInheritStability(input: StoreInput): Promise<number | null> {
+  if (input.category !== "summary" && input.category !== "insight") return null;
+
+  const summaryOf = serializeSummaryOf(input.summary_of);
+  const linked = Boolean(input.parent_id) || Boolean(summaryOf);
+  if (!linked) return null;
+
+  const db = await get();
+  const values: number[] = [];
+
+  if (input.parent_id) {
+    const parent = await db.get<{ stability: number | null; category: string }>(
+      "SELECT stability, category FROM brain_semantic WHERE id = ?",
+      [input.parent_id],
+    );
+    if (parent) values.push(resolveStability(parent.stability, parent.category));
+  }
+
+  for (const ref of parseSummaryOf(summaryOf)) {
+    if (ref.type === "semantic") {
+      const row = await db.get<{ stability: number | null; category: string }>(
+        "SELECT stability, category FROM brain_semantic WHERE id = ?",
+        [ref.id],
+      );
+      if (row) values.push(resolveStability(row.stability, row.category));
+    } else {
+      const row = await db.get<{ stability: number | null }>(
+        "SELECT stability FROM brain_episodic WHERE id = ?",
+        [ref.id],
+      );
+      if (row) values.push(resolveStability(row.stability, "episodic"));
+    }
+  }
+
+  return values.length > 0 ? Math.max(...values) : null;
 }
 
 export async function storeSemantic(input: StoreInput): Promise<number> {
@@ -77,8 +122,9 @@ export async function storeSemantic(input: StoreInput): Promise<number> {
     ? new Date(Date.now() + input.ttl_days * 86400000).toISOString()
     : null;
 
+  const importance = input.importance ?? 0.5;
   const valence = input.emotional_valence ?? detectEmotionalValence(cleanedContent, "assistant");
-  const sal = input.salience ?? computeSalience(cleanedContent, "assistant", input.importance ?? 0.5);
+  const sal = input.salience ?? computeSalience(cleanedContent, "assistant", importance);
 
   let topicId = input.topic_id ?? null;
   if (topicId == null && input.session_id) {
@@ -92,21 +138,33 @@ export async function storeSemantic(input: StoreInput): Promise<number> {
     taskId = open?.id ?? null;
   }
 
+  const summaryOf = serializeSummaryOf(input.summary_of);
+  const inheritStability = await resolveInheritStability(input);
+  const forgetting = insertForgettingFields(input.category, importance, {
+    inheritStability,
+    linkedAsTreeNode: inheritStability != null || Boolean(input.parent_id) || Boolean(summaryOf),
+  });
+
   const result = await db.run(
-    `INSERT INTO brain_semantic (category, title, content, source_session_id, keywords, importance_score, emotional_valence, salience, expires_at, topic_id, task_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO brain_semantic (category, title, content, source_session_id, keywords, importance_score, emotional_valence, salience, expires_at, topic_id, task_id, summary_of, parent_id, stability, difficulty, i0)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.category,
       cleanedTitle,
       cleanedContent,
       input.session_id ?? null,
       input.keywords ?? "",
-      input.importance ?? 0.5,
+      importance,
       valence,
       sal,
       expiresAt,
       topicId,
       taskId,
+      summaryOf,
+      input.parent_id ?? null,
+      forgetting.stability,
+      forgetting.difficulty,
+      forgetting.i0,
     ],
   );
 
@@ -172,6 +230,7 @@ async function findContentNearDuplicate(
   const rows = (await db.all(
     `SELECT id, category, title, content FROM brain_semantic
      WHERE category = ?
+       AND tombstoned_at IS NULL
        AND (expires_at IS NULL OR expires_at > datetime('now'))
      ORDER BY created_at DESC
      LIMIT 40`,
@@ -272,7 +331,10 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
   ];
   if (ftsTerms.length > 0) {
     try {
-      const ftsConditions = ["(s.expires_at IS NULL OR s.expires_at > datetime('now'))"];
+      const ftsConditions = [
+        "(s.expires_at IS NULL OR s.expires_at > datetime('now'))",
+        liveRetrieveSql("s"),
+      ];
       const ftsParams: any[] = [];
       if (category) {
         ftsConditions.push("s.category = ?");
@@ -283,13 +345,20 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
           isCjkToken(t) ? `"${t.replace(/"/g, "")}"` : `"${t}"*`,
         )
         .join(" OR ");
+      // MATCH first so tombstone/expires filters cannot walk 100k rows (P1-5).
       ftsRows = await db.all(
-        `SELECT s.* FROM brain_semantic s
-         JOIN brain_semantic_fts fts ON s.id = fts.rowid
-         WHERE ${ftsConditions.join(" AND ")} AND brain_semantic_fts MATCH ?
-         ORDER BY bm25(brain_semantic_fts, 5.0, 1.0, 3.0)
+        `WITH hits AS (
+           SELECT rowid AS id, bm25(brain_semantic_fts, 5.0, 1.0, 3.0) AS rank
+           FROM brain_semantic_fts
+           WHERE brain_semantic_fts MATCH ?
+           ORDER BY rank
+           LIMIT ?
+         )
+         SELECT s.* FROM hits JOIN brain_semantic s ON s.id = hits.id
+         WHERE ${ftsConditions.join(" AND ")}
+         ORDER BY hits.rank
          LIMIT ?`,
-        [...ftsParams, match, fetchLimit],
+        [match, fetchLimit * 10, ...ftsParams, fetchLimit],
       );
       if (ftsRows!.length === 0) {
         const total = await db.get("SELECT COUNT(*) AS n FROM brain_semantic");
@@ -304,7 +373,10 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
   if (ftsRows !== null) {
     rows = ftsRows;
   } else {
-    const conditions: string[] = ["(expires_at IS NULL OR expires_at > datetime('now'))"];
+    const conditions: string[] = [
+      "(expires_at IS NULL OR expires_at > datetime('now'))",
+      liveRetrieveSql(),
+    ];
     const params: any[] = [];
 
     if (category) {
@@ -409,7 +481,7 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
 
     scored.sort((a, b) => b.score - a.score);
     const topRows = scored.slice(0, limit).map((s) => s.row);
-    // REL-12: LIKE is a candidate hunt — do not bump retrieval_count here.
+    // REL-12: LIKE is a candidate hunt — do not bump inject_count here.
     return topRows.map(rowToSemantic);
   }
 
@@ -418,24 +490,14 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
   return topRows.map(rowToSemantic);
 }
 
+/**
+ * MEM-06: forget is a tombstone, not a DELETE.
+ * Row, tags, associations, and FTS stay so undo can restore.
+ * Pinned rows are exempt.
+ */
 export async function deleteSemantic(id: number): Promise<boolean> {
-  const record = await getSemanticById(id);
-  const db = await get();
-  const result = await db.run("DELETE FROM brain_semantic WHERE id = ?", [id]);
-  // Also remove associations and tags so bulk/single delete stay consistent
-  await db.run(
-    "DELETE FROM brain_associations WHERE (source_type = 'semantic' AND source_id = ?) OR (target_type = 'semantic' AND target_id = ?)",
-    [id, id],
-  );
-  await db.run(
-    "DELETE FROM brain_tags WHERE memory_type = 'semantic' AND memory_id = ?",
-    [id],
-  );
-  const deleted = (result.changes ?? 0) > 0;
-  if (deleted && record) {
-    await auditLog("delete", "semantic", id, { record });
-  }
-  return deleted;
+  const n = await tombstoneMemories("semantic", [id], TOMBSTONE_REASON.forget, { via: "forget" });
+  return n > 0;
 }
 
 /**
@@ -474,7 +536,10 @@ export async function findDuplicates(title: string, keywords: string, category?:
   const titleWords = new Set(title.toLowerCase().split(/\s+/).filter((w) => w.length > 2));
   const kwSet = new Set(keywords.toLowerCase().split(/[,\s]+/).filter((w) => w.length > 2));
 
-  const conditions: string[] = ["(expires_at IS NULL OR expires_at > datetime('now'))"];
+  const conditions: string[] = [
+    "tombstoned_at IS NULL",
+    "(expires_at IS NULL OR expires_at > datetime('now'))",
+  ];
   const params: any[] = [];
 
   if (category) {

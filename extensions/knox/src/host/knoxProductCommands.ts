@@ -299,7 +299,7 @@ export function registerKnoxProductCommands(
 
   register("knox.memoryBrain.wipe", async () => {
     const choice = await vscode.window.showWarningMessage(
-      "Wipe Memory Brain? A backup copy is kept under ~/.knoxcoder/memory/backups.",
+      "Wipe Memory Brain? This permanently deletes the live database (forget/delete is reversible; wipe is not). A backup is kept under ~/.knoxcoder/memory/backups.",
       { modal: true },
       "Wipe",
     );

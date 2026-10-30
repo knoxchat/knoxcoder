@@ -10,15 +10,22 @@ export {
   PINNED_NONE_MATCH_THRESHOLD,
 } from "./ContextBuilder.js";
 export { Ebbinghaus } from "./Ebbinghaus.js";
+export { Forgetting } from "./Forgetting.js";
+export { Value } from "./Value.js";
+export { Fsrs } from "./Fsrs.js";
+export { Tiers } from "./Tiers.js";
 export {
+  calculateAddressableMemory,
   calculateHierarchyEffective,
   getMemoryLevelSpecs,
   levelEffective,
 } from "./MemoryHierarchy.js";
 export type {
   MemoryLevelId,
+  MemoryLevelRole,
   MemoryLevelSpec,
   MemoryLevelMetrics,
+  AddressableMemoryResult,
   HierarchyEffectiveResult,
 } from "./MemoryHierarchy.js";
 export { MemoryPipeline } from "./MemoryPipeline.js";

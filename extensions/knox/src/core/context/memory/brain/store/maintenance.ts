@@ -7,97 +7,27 @@ import type {
   ConsolidationResult,
   HealthStatus
 } from "../types.js";
-import { compressColdTier, decompressContent } from "./compression.js";
+import { compressColdTier } from "./compression.js";
 import { get } from "./connection.js";
 import { brainState } from "./state.js";
+import { decompressLiveTiers, recomputeMemoryTiers } from "./tiers.js";
 
 // ── Consolidation (Knox-MS Memory Tiering Pattern) ─────────────────────────
 
 /**
- * Consolidate memories using Ebbinghaus-inspired decay.
- * - Hot memories older than 24h with low importance → warm
- * - Warm memories older than 7 days with low importance → cold
- * - Cold memories older than 90 days with no retrievals → pruned
- * - Expired semantic memories → pruned
+ * Recompute stored tiers from R and Value (MEM-15).
+ * Clock knobs are unused. Age never tombstones; forget/TTL/privacy are MEM-06.
  */
 export async function consolidate(): Promise<ConsolidationResult> {
-  const db = await get();
   const result: ConsolidationResult = { promoted: 0, demoted: 0, pruned: 0, summaries_created: 0 };
 
-  // Hot → Warm (episodic older than 24h, importance < 0.7)
-  const hotToWarm = await db.run(
-    `UPDATE brain_episodic SET tier = 'warm'
-     WHERE tier = 'hot' AND importance_score < 0.7
-     AND created_at < datetime('now', '-1 day')`,
-  );
-  result.demoted += hotToWarm.changes ?? 0;
+  const tiers = await recomputeMemoryTiers();
+  result.promoted = tiers.promoted;
+  result.demoted = tiers.demoted;
 
-  // Warm → Cold (episodic older than 7 days, importance < 0.5)
-  const warmToCold = await db.run(
-    `UPDATE brain_episodic SET tier = 'cold'
-     WHERE tier = 'warm' AND importance_score < 0.5
-     AND created_at < datetime('now', '-7 days')`,
-  );
-  result.demoted += warmToCold.changes ?? 0;
-
-  // Prune cold episodic older than 90 days with very low importance
-  const prunedEpisodic = await db.run(
-    `DELETE FROM brain_episodic
-     WHERE tier = 'cold' AND importance_score < 0.3
-     AND created_at < datetime('now', '-90 days')`,
-  );
-  result.pruned += prunedEpisodic.changes ?? 0;
-
-  // Hot → Warm (semantic older than 7 days, importance < 0.6, no recent access)
-  // Pinned memories are exempt from demotion/pruning.
-  const notPinned = `id NOT IN (SELECT memory_id FROM brain_tags WHERE memory_type = 'semantic' AND tag = 'pinned')`;
-  const semHotToWarm = await db.run(
-    `UPDATE brain_semantic SET tier = 'warm'
-     WHERE tier = 'hot' AND importance_score < 0.6
-     AND last_accessed_at < datetime('now', '-7 days')
-     AND ${notPinned}`,
-  );
-  result.demoted += semHotToWarm.changes ?? 0;
-
-  // Warm → Cold (semantic older than 30 days, low retrieval count)
-  const semWarmToCold = await db.run(
-    `UPDATE brain_semantic SET tier = 'cold'
-     WHERE tier = 'warm' AND retrieval_count < 3
-     AND last_accessed_at < datetime('now', '-30 days')
-     AND ${notPinned}`,
-  );
-  result.demoted += semWarmToCold.changes ?? 0;
-
-  // Prune expired semantic memories (never prune pinned)
-  const prunedSemantic = await db.run(
-    `DELETE FROM brain_semantic
-     WHERE expires_at IS NOT NULL AND expires_at < datetime('now')
-     AND ${notPinned}`,
-  );
-  result.pruned += prunedSemantic.changes ?? 0;
-
-  // Promote frequently accessed memories (cold/warm → hot)
-  const promoted = await db.run(
-    `UPDATE brain_semantic SET tier = 'hot'
-     WHERE tier IN ('warm', 'cold') AND retrieval_count >= 5
-     AND last_accessed_at > datetime('now', '-3 days')`,
-  );
-  result.promoted += promoted.changes ?? 0;
-
-  // Compress cold-tier content to save space
   await compressColdTier().catch(() => {});
-
-  // Decompress promoted memories (cold → hot)
-  if ((promoted.changes ?? 0) > 0) {
-    const hotRows = await db.all(
-      `SELECT id, content FROM brain_semantic WHERE tier = 'hot' AND content LIKE 'z:%'`,
-    );
-    for (const r of hotRows) {
-      const decompressed = decompressContent((r as any).content);
-      if (decompressed !== (r as any).content) {
-        await db.run("UPDATE brain_semantic SET content = ? WHERE id = ?", [decompressed, (r as any).id]);
-      }
-    }
+  if (tiers.promoted > 0) {
+    await decompressLiveTiers().catch(() => {});
   }
 
   return result;
@@ -151,7 +81,7 @@ export async function getStats(): Promise<BrainStats> {
     dbSizeBytes = stat.size;
   } catch {}
 
-  const tierMap: Record<string, number> = { hot: 0, warm: 0, cold: 0 };
+  const tierMap: Record<string, number> = { active: 0, hot: 0, warm: 0, cold: 0, frozen: 0 };
   for (const row of tierCounts) {
     tierMap[(row as any).tier] = (row as any).c;
   }
@@ -214,7 +144,7 @@ export async function getHealth(): Promise<HealthStatus> {
 
   // Check oldest unaccessed semantic memory
   const oldestUnaccessed = await db.get(
-    `SELECT MIN(last_accessed_at) as m FROM brain_semantic WHERE tier != 'cold'`,
+    `SELECT MIN(last_accessed_at) as m FROM brain_semantic WHERE tier != 'cold' AND tier != 'frozen'`,
   );
   const oldestDate = (oldestUnaccessed as any)?.m;
   const oldestDays = oldestDate
@@ -227,7 +157,7 @@ export async function getHealth(): Promise<HealthStatus> {
   // Check for issues
   if (dbSizeBytes > 100 * 1024 * 1024) {
     issues.push("Database exceeds 100MB");
-    recommendations.push("Run 'consolidate' to prune old memories and 'optimize' to compact the database");
+    recommendations.push("Run 'consolidate' to archive old memories and 'optimize' to compact the database");
   }
 
   if (fragRatio > 0.2) {
@@ -242,12 +172,12 @@ export async function getHealth(): Promise<HealthStatus> {
   );
   if ((hotCount as any)?.c > brainState.config.max_hot_memories) {
     issues.push(`Too many hot memories (${(hotCount as any).c}/${brainState.config.max_hot_memories})`);
-    recommendations.push("Run 'consolidate' to tier down old hot memories");
+    recommendations.push("Run 'consolidate' to recompute R/Value tiers");
   }
 
   if (oldestDays > 30) {
     issues.push(`Some memories haven't been accessed in ${oldestDays.toFixed(0)} days`);
-    recommendations.push("Run 'consolidate' to review and tier down unused memories");
+    recommendations.push("Run 'consolidate' to recompute R/Value tiers for unused memories");
   }
 
   const checkpointRows = await db.all("SELECT id, snapshot_path FROM brain_checkpoints");

@@ -162,6 +162,10 @@ export async function dispatch(action: MemoryBrainAction, params: any): Promise<
     }
 
     case "delete": {
+      const forgetId = Number(params.id);
+      if (Number.isInteger(forgetId) && forgetId > 0 && await BrainStore.isPinned(forgetId)) {
+        return `Memory #${params.id} is pinned; unpin first.`;
+      }
       const success = await forget(params.id);
       if (!success) {
         return `Memory #${params.id} not found.`;
@@ -711,7 +715,7 @@ export async function dispatch(action: MemoryBrainAction, params: any): Promise<
       const configs = FiveTierHierarchy.getConfigs();
       const parts = ["5-Tier Configuration:"];
       for (const cfg of configs) {
-        parts.push(`  ${cfg.tier}: max_age=${cfg.max_age_hours}h, importance_threshold=${cfg.importance_threshold}, retrieval_threshold=${cfg.retrieval_threshold}, compress=${cfg.compress}`);
+        parts.push(`  ${cfg.tier}: r=[${cfg.r_min}, ${cfg.r_max}), compress=${cfg.compress} (clock knobs unused)`);
       }
       return parts.join("\n");
     }
@@ -743,10 +747,22 @@ export async function dispatch(action: MemoryBrainAction, params: any): Promise<
     }
 
     case "boost_memory": {
-      const newImportance = await SpacedRepetition.boostOnRetrieval(params.id ?? params.memory_id);
-      return newImportance > 0
-        ? `Memory #${params.id ?? params.memory_id} boosted — new importance: ${newImportance.toFixed(3)}`
-        : `Memory #${params.id ?? params.memory_id} not found.`;
+      // Leftover admin action. MEM-14: retrieve-time leftover α boost is gone.
+      // Live S changes only on used+helpful / used+harmful (FSRS).
+      const id = params.id ?? params.memory_id;
+      const outcome = params.outcome === "harmful" || params.outcome === "helpful" || params.outcome === "unused"
+        ? params.outcome
+        : undefined;
+      if (outcome) {
+        const next = await SpacedRepetition.applyOnUse(id, outcome);
+        return next
+          ? `Memory #${id} FSRS ${outcome} — stability: ${next.stability.toFixed(3)}, difficulty: ${next.difficulty.toFixed(3)}`
+          : `Memory #${id} not found.`;
+      }
+      const importance = await SpacedRepetition.boostOnRetrieval(id);
+      return importance > 0
+        ? `Memory #${id} retrieved-not-used — S unchanged (FSRS applies on use). Importance: ${importance.toFixed(3)}`
+        : `Memory #${id} not found.`;
     }
 
     // ── LRU Cache (Tier D) ──────────────────────────────────────────────
@@ -771,8 +787,8 @@ export async function dispatch(action: MemoryBrainAction, params: any): Promise<
         stats.db_size_bytes,
         stats.total_semantic + stats.total_episodic,
         compression.total_tokens_saved,
-        effective.hierarchy_effective_tokens,
-        effective.total_effective,
+        effective.c_addr,
+        effective.c_use,
       );
       return `Metrics snapshot stored (ID: ${snapshotId}).`;
     }

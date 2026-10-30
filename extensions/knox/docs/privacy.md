@@ -5,7 +5,10 @@ config, sessions, Memory Brain sqlite, checkpoints, credentials, job logs.
 
 - Memory Brain: local sqlite. Off: `knoxchat.memoryBrain.enabled` or
   `knoxchat.memoryBrain.workspaceEnabled` (this folder) or `KNOX_BRAIN_ENABLED=0`.
-  Export / wipe from the command palette.
+  `builtin_memory` delete / forget and TTL tombstone the row (reversible via
+  audit). **Wipe** (`knox.memoryBrain.wipe`) is destructive: it writes
+  tombstones, copies a backup under `~/.knoxcoder/memory/backups`, then
+  recreates an empty database. Export / wipe from the command palette.
 - Checkpoints: byte-exact, not redacted (by design).
 - Session files: user messages at rest are not redacted; tool output is.
 - Session share links (`knoxcoder://vscode.knox/session/import?path=`) point at a local Markdown file. Knox does not upload transcripts.

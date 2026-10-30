@@ -162,35 +162,58 @@ export interface BrainSession {
   updated_at: string;
   message_count: number;
   summary: string | null;
+  /** MEM-05: `brain_summary_tree` node listing this session's original turns. */
+  summary_node_id?: number | null;
   is_active: boolean;
 }
 
-/** C_effective metrics for local unlimited-context dashboard. */
+/** Revised-theorem dashboard metrics: C_addr / C_use / W. Rec is optional until benches exist. */
 export interface EffectiveContextMetrics {
-  /** W_max — configured active context window budget. */
-  active_window_tokens: number;
+  /** Addressable stored tokens: |M₃| + |M₄| + |M₅| (raw, no / rᵢ). */
+  c_addr: number;
+  /** Tokens actually injected in the last model call. */
+  c_use: number;
+  /** Window placeholder until MEM-27 wires W(Model(x)). */
+  w: number;
+  /** Rolling Rec(q) when a bench / attribution window exists. */
+  rec_rolling?: number;
+  /** Alias of `w` until callers switch. */
+  active_window_tokens?: number;
   context_max_tokens?: number;
-  /** Tokens in the last injected context (actual usage). */
+  /** Tokens in the last injected context (same as `c_use`). */
   last_context_tokens_used?: number;
   last_context_max_tokens?: number;
-  /** last_context_tokens_used / W_max (0–1). */
+  /** last_context_tokens_used / last build budget (0–1). */
   window_utilization?: number;
   tier_tokens: Record<string, number>;
-  hierarchy_effective_tokens: number;
   memory_levels?: Array<{
     id: string;
     name: string;
     tokens: number;
-    ratio: number;
-    effective_tokens: number;
+    ratio?: number;
+    effective_tokens?: number;
+    role?: "buffer" | "store";
+    in_c_addr?: boolean;
   }>;
   working_memory_tokens?: number;
   working_memory_budget?: number;
   sensory_buffer_tokens?: number;
-  graph_entity_count: number;
-  total_effective: number;
-  compression_ratios: Record<string, number>;
+  sensory_buffer_ms?: number;
+  /** Graph channel size (entity count). Not C_addr. */
+  graph_entity_count?: number;
+  graph_channel_size?: number;
+  graph_role?: "channel";
+  /** Always false: graph is a channel, not addressable storage. */
+  graph_is_capacity?: boolean;
+  graph_max_entities?: number;
+  graph_max_depth?: number;
+  graph_depth_decay_gamma?: number;
+  /** LRU cache fill vs graph_max_entities. Not C_addr and not a success metric. */
+  graph_cap_utilization?: number;
+  compression_ratios?: Record<string, number>;
   memory_tokens_saved?: number;
+  last_compression_tokens_saved?: number;
+  compression_events?: number;
 }
 
 export interface EpisodicMemory {
@@ -206,6 +229,23 @@ export interface EpisodicMemory {
   tier: MemoryTier;
   metadata: string; // JSON
   created_at: string;
+  /** MEM-04/06: set only for true deletes (forget/TTL/privacy or age-prune replacement). */
+  tombstoned_at?: string | null;
+  tombstone_reason?: string | null;
+  /** MEM-05: parent summary row, when this leaf was distilled. */
+  parent_id?: number | null;
+  /** MEM-05: JSON id list if this episodic row is itself a summary. */
+  summary_of?: string | null;
+  /** MEM-12: power-law stability S (days). */
+  stability?: number | null;
+  /** MEM-12: FSRS difficulty D. Default 5. */
+  difficulty?: number;
+  /** MEM-12: initial importance I₀. */
+  i0?: number | null;
+  /** MEM-13 / MEM-17: helpful attribution count h. */
+  helpful_count?: number;
+  /** MEM-13 / MEM-17: unhelpful attribution count u. */
+  unhelpful_count?: number;
 }
 
 export interface SemanticMemory {
@@ -219,6 +259,8 @@ export interface SemanticMemory {
   emotional_valence: EmotionalValence;
   salience: number;
   retrieval_count: number;
+  /** MEM-16: injects for calibration. Not S or I. */
+  inject_count?: number;
   tier: MemoryTier;
   created_at: string;
   last_accessed_at: string;
@@ -235,6 +277,23 @@ export interface SemanticMemory {
   mismatch_topic_id: number | null;
   /** MC-17: set by recall when this memory describes a recipe (parsed from its content marker). */
   recipe_id?: string;
+  /** MEM-04/06: set only for true deletes (forget/TTL/privacy or age-prune replacement). */
+  tombstoned_at?: string | null;
+  tombstone_reason?: string | null;
+  /** MEM-05: parent summary row, when this leaf was pointed at. */
+  parent_id?: number | null;
+  /** MEM-05: JSON id list of original leaves this row summarizes. */
+  summary_of?: string | null;
+  /** MEM-12: power-law stability S (days). */
+  stability?: number | null;
+  /** MEM-12: FSRS difficulty D. Default 5. */
+  difficulty?: number;
+  /** MEM-12: initial importance I₀. */
+  i0?: number | null;
+  /** MEM-13 / MEM-17: helpful attribution count h. */
+  helpful_count?: number;
+  /** MEM-13 / MEM-17: unhelpful attribution count u. */
+  unhelpful_count?: number;
 }
 
 export interface MemoryAssociation {
@@ -264,6 +323,9 @@ export interface StoreInput {
   topic_id?: number | null;
   /** REL-13: attach to the session's open task when omitted. */
   task_id?: string | null;
+  /** MEM-05: JSON id list (or `{ type, id }` refs) of leaves this row summarizes. */
+  summary_of?: string | Array<number | { type?: string; id: number }>;
+  parent_id?: number | null;
 }
 
 /** In-place edit of an existing semantic row. Does not insert a new table. */

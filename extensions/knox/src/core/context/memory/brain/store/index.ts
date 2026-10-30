@@ -15,14 +15,18 @@ import * as wipe from "./wipe.js";
 import * as checkpoints from "./checkpoints.js";
 import * as runtime from "./runtime.js";
 import * as compression from "./compression.js";
+import * as summaryTree from "./summaryTree.js";
 import * as valence from "./valence.js";
+import * as tombstone from "./tombstone.js";
+import * as fsrs from "./fsrs.js";
+import * as tiers from "./tiers.js";
 
 /**
  * BrainStore — SQLite-backed human-brain-like persistent memory.
  *
  * Architecture mirrors Knox-MS patterns:
  * - Singleton database connection with busy timeout
- * - Three-tier memory (hot/warm/cold) with Ebbinghaus-inspired decay
+ * - R/Value tiers (active/hot/warm/cold/frozen) with power-law forgetting (MEM-15)
  * - Episodic memory (conversation events) + Semantic memory (extracted knowledge)
  * - Knowledge graph (entities + edges + traversal)
  * - Learning patterns (success/failure tracking + suggestion)
@@ -58,6 +62,7 @@ export class BrainStore {
   static searchEpisodic = episodic.searchEpisodic;
   static getSemanticBySession = semantic.getSemanticBySession;
   static getSemanticById = semantic.getSemanticById;
+  static recordSemanticInject = semantic.recordSemanticInject;
   static touchSemanticRetrieval = semantic.touchSemanticRetrieval;
   static isPinned = semantic.isPinned;
   static storeSemantic = semantic.storeSemantic;
@@ -141,6 +146,20 @@ export class BrainStore {
   static compressContent = compression.compressContent;
   static decompressContent = compression.decompressContent;
   static compressColdTier = compression.compressColdTier;
+  static writeCompressionPointers = compression.writeCompressionPointers;
+  static writeSummaryPointer = summaryTree.writeSummaryPointer;
+  static parseSummaryOf = summaryTree.parseSummaryOf;
+  static listSummaryLeaves = summaryTree.listSummaryLeaves;
   static detectEmotionalValence = valence.detectEmotionalValence;
   static computeSalience = valence.computeSalience;
+  static tombstoneMemories = tombstone.tombstoneMemories;
+  static tombstoneWhere = tombstone.tombstoneWhere;
+  static forgetExpiredTtl = tombstone.forgetExpiredTtl;
+  static restoreTombstoned = tombstone.restoreTombstoned;
+  static tombstoneAllForPrivacyWipe = tombstone.tombstoneAllForPrivacyWipe;
+  static liveRetrieveSql = tombstone.liveRetrieveSql;
+  static getFsrsState = fsrs.getFsrsState;
+  static applyMemoryFsrs = fsrs.applyMemoryFsrs;
+  static recomputeMemoryTiers = tiers.recomputeMemoryTiers;
+  static applyMemoryTier = tiers.applyMemoryTier;
 }
