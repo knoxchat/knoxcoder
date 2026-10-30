@@ -2188,7 +2188,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.isStreaming, false);
 	});
 
-	test('T5 finishTurn stores a recipe capture toast; Recipes tab Preview/Apply reuse host replay', async () => {
+	test('T5 finishTurn stores a recipe capture on Memory; Recipes tab Preview/Apply reuse host replay', async () => {
 		const { controller, store, posted } = createHarness({
 			replies: {
 				'knox/finishTurn': { captured: true, created: true, recipeId: 'rec1', title: 'Add lint script', status: 'candidate', at: '2026-10-24T00:00:00.000Z' },
@@ -2207,8 +2207,8 @@ suite('Knox native GUI controller (GP-084)', () => {
 		finishTurn(controller);
 		await timeout(0);
 		assert.ok(posted.some(message => message.messageType === 'knox/finishTurn'));
-		assert.strictEqual(store.state.recipeCaptureToast?.captured, true);
-		assert.strictEqual(store.state.recipeCaptureToast?.title, 'Add lint script');
+		assert.strictEqual(store.state.memoryRecipeCapture?.captured, true);
+		assert.strictEqual(store.state.memoryRecipeCapture?.title, 'Add lint script');
 		assert.strictEqual(store.state.memoryRecipeCapture?.status, 'candidate');
 
 		store.patch({

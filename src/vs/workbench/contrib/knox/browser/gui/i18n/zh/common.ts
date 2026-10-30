@@ -597,7 +597,6 @@ export const knoxGuiStringsZhCommon: Record<string, unknown> = {
 	"memoryRecipeRetireHint": "永久移除此配方",
 	"memoryRecipeRetireConfirmTitle": "停用“{{title}}”？",
 	"memoryRecipeRetireConfirmBody": "Knox 将不再使用此配方。你的文件不会被更改。",
-	"memoryRecipeOpenTab": "记忆 → 配方",
 	"memoryRecipePreview": "预览",
 	"memoryRecipePreviewHint": "查看重放此配方会改哪些文件。批准前不会应用。",
 	"memoryRecipeReplay": "重放",

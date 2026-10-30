@@ -801,11 +801,6 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiMemory.loadMemoryRecipes(this);
 	}
 
-	/** T5: chat toast link to Memory → Recipes. */
-	openMemoryRecipes(): void {
-		void knoxGuiMemory.openMemoryRecipes(this);
-	}
-
 	async setMemoryRecipeStatus(recipeId: string, status: 'retired' | 'quarantined' | 'candidate' | 'verified'): Promise<void> {
 		return knoxGuiMemory.setMemoryRecipeStatus(this, recipeId, status);
 	}

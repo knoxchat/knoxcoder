@@ -113,7 +113,7 @@ export async function submit(controller: KnoxGuiController, starterPrompt?: stri
 		controller.store.setInput('');
 		controller.store.patch({ images: [], historicalImages: [] });
 	}
-	controller.store.patch({ editingUserIndex: undefined, autoScroll: true, isGatheringContext: true, streamError: undefined, recipeDecision: undefined, recipeCaptureToast: undefined, toolLoopSteps: 0 });
+	controller.store.patch({ editingUserIndex: undefined, autoScroll: true, isGatheringContext: true, streamError: undefined, recipeDecision: undefined, toolLoopSteps: 0 });
 	controller.closeSuggest();
 	controller.ensureSessionId();
 	if (!controller.store.state.sessionTitle) {
@@ -324,7 +324,7 @@ export function finishTurn(controller: KnoxGuiController): void {
 	}).then(raw => {
 		const parsed = parseMemoryRecipeCapture(raw);
 		if (parsed) {
-			controller.store.patch({ memoryRecipeCapture: parsed, recipeCaptureToast: parsed });
+			controller.store.patch({ memoryRecipeCapture: parsed });
 		}
 	}, () => { /* older host */ });
 }

@@ -3797,20 +3797,17 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="chat-list-error"]'), null);
 		assert.ok(widget.root.querySelector('[data-testid="large-session-banner"]'));
 	});
-	test('T5 recipe capture toast links to Memory → Recipes', async () => {
+	test('chat does not show a recipe capture toast; Save / Don\'t save live on Memory → Recipes', async () => {
 		const { widget, store } = await mount();
 		store.patch({
-			recipeCaptureToast: { captured: true, title: 'Add lint script', status: 'candidate' },
+			memoryRecipeCapture: { captured: true, title: 'Add lint script', status: 'candidate' },
 		});
-		const toast = widget.root.querySelector('[data-testid="recipe-capture-toast"]');
-		assert.ok(toast?.textContent?.includes('Add lint script'));
-		assert.ok(widget.root.querySelector('[data-testid="recipe-capture-toast-open"]'));
-		assert.ok(widget.root.querySelector('[data-testid="recipe-capture-toast-refuse"]'));
-		(widget.root.querySelector('[data-testid="recipe-capture-toast-open"]') as HTMLButtonElement).click();
+		assert.strictEqual(widget.root.querySelector('[data-testid="recipe-capture-toast"]'), null);
+		store.navigate('/memory');
 		await timeout(0);
-		assert.strictEqual(store.state.route, KnoxGuiRoute.Memory);
-		assert.strictEqual(store.state.memoryTab, 'recipes');
-		assert.strictEqual(store.state.recipeCaptureToast, undefined);
+		store.patch({ memoryTab: 'recipes' });
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipes-last-capture"]')?.textContent?.includes('Add lint script'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-recipes-refuse"]'));
 	});
 	test('T5 Recipes tab Preview shows the ask card for a verified recipe', async () => {
 		const { widget, store } = await mount();
@@ -3859,7 +3856,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="recipe-preview-skip"]'));
 		assert.ok(widget.root.querySelector('[data-testid="recipe-decision-notice"]'));
 	});
-	test('P6 skipped recipe decision is a labelled status card', async () => {
+	test('P6 skipped recipe decision is not shown in chat', async () => {
 		const { widget, store } = await mount();
 		store.patch({
 			recipeDecision: {
@@ -3868,9 +3865,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 				needsConfirmation: false,
 			},
 		});
-		const banner = widget.root.querySelector('[data-testid="recipe-decision-skipped"]');
-		assert.ok(banner);
-		assert.strictEqual(banner.getAttribute('role'), 'status');
+		assert.strictEqual(widget.root.querySelector('[data-testid="recipe-decision-skipped"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="recipe-decision-notice"]'), null);
 	});
 	test('P4 ask card lists extra files unchecked and a compose plan', async () => {
 		const { widget, store } = await mount();

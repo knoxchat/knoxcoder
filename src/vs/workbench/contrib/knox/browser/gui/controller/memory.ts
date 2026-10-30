@@ -159,17 +159,6 @@ export async function loadMemorySessions(controller: KnoxGuiController): Promise
 	}
 }
 
-/** T5: chat toast link — open Memory on the Recipes tab. */
-export async function openMemoryRecipes(controller: KnoxGuiController): Promise<void> {
-	controller.store.patch({ memoryTab: 'recipes', recipeCaptureToast: undefined });
-	try {
-		await controller.messenger.request('saveMemoryViewUiState', { activeTabId: 'recipes' });
-	} catch {
-		controller.messenger.post('saveMemoryViewUiState', { activeTabId: 'recipes' });
-	}
-	controller.store.navigate('/memory');
-}
-
 /** MC-70: recipes of this project. A failed load keeps the previous rows and shows one error line. */
 export async function loadMemoryRecipes(controller: KnoxGuiController): Promise<void> {
 	controller.store.patch({ memoryRecipesLoading: true, memoryRecipeError: undefined });
@@ -302,7 +291,7 @@ export async function saveMemoryRecipe(controller: KnoxGuiController, opts?: { c
 		});
 		const parsed = parseMemoryRecipeCapture(raw);
 		if (parsed) {
-			controller.store.patch({ memoryRecipeCapture: parsed, recipeCaptureToast: parsed });
+			controller.store.patch({ memoryRecipeCapture: parsed });
 		}
 		if (!parsed?.captured) {
 			controller.store.patch({ memoryRecipeError: parsed?.reason ? undefined : 'memoryRecipesActionFailed' });
@@ -327,7 +316,7 @@ export async function refuseMemoryRecipe(controller: KnoxGuiController): Promise
 		});
 		const parsed = parseMemoryRecipeCapture(raw);
 		if (parsed) {
-			controller.store.patch({ memoryRecipeCapture: parsed, recipeCaptureToast: parsed });
+			controller.store.patch({ memoryRecipeCapture: parsed });
 		}
 	} catch {
 		controller.store.patch({ memoryRecipeError: 'memoryRecipesActionFailed' });

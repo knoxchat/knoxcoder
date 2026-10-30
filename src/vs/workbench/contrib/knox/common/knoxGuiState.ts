@@ -1165,8 +1165,6 @@ export interface IKnoxGuiState {
 	memoryRecipeCaptures?: IKnoxGuiMemoryRecipeCapture[];
 	/** Last matcher decision, including near-misses that were not reused. */
 	memoryRecipeLastMatch?: IKnoxGuiMemoryRecipeMatch;
-	/** Chat toast for the last capture; dismissed independently of the Recipes tab banner. */
-	recipeCaptureToast?: IKnoxGuiMemoryRecipeCapture;
 	/** Recipe id whose retire/quarantine/preview/replay request is in flight. */
 	memoryRecipeBusyId?: string;
 	memoryRecipeQuery: string;

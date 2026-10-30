@@ -47,7 +47,7 @@ export function knoxGuiRecipeLoopLine(decision: IKnoxGuiRecipeDecision | undefin
 	return `${LAST_RECIPE_DECISION_MARKER}: ${body}`;
 }
 
-/** P6.5: a compact card for reused / previewed / hinted / skipped. */
+/** P6.5: a compact card for reused / previewed / hinted. Chat does not render skipped. */
 export function knoxGuiRecipeNotice(decision: IKnoxGuiRecipeDecision | undefined): IKnoxGuiRecipeNotice | undefined {
 	if (!decision) {
 		return undefined;

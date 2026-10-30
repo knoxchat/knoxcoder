@@ -17,7 +17,6 @@ import {
 import { applyFloatingSentExpanded } from '../chrome.js';
 import { IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { knoxGuiRecipeNotice, recipePreviewToMarkdown } from '../../../../common/knoxGuiRecipe.js';
-import { memoryRecipeCaptureNotice } from '../../../../common/knoxGuiMemory.js';
 import {
 	collectDuplicateAssistantMessageIds,
 	assistantReplyText,
@@ -49,39 +48,6 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 		widget.chromeButton(banner, {
 			label: t(state, 'hide'),
 			onClick: () => widget.controller.store.patch({ historyHydrateNotice: null }),
-		});
-	}
-	if (state.recipeCaptureToast) {
-		const cap = state.recipeCaptureToast;
-		const notice = memoryRecipeCaptureNotice(cap);
-		const banner = DOM.append(body, DOM.$('.knox-gui-large-banner'));
-		banner.setAttribute('role', 'status');
-		banner.setAttribute('data-testid', 'recipe-capture-toast');
-		const text = notice.params
-			? t(state, notice.key, { title: notice.params.title, status: t(state, notice.params.statusKey) })
-			: t(state, notice.key);
-		DOM.append(banner, DOM.$('span', undefined, text));
-		if (cap.captured) {
-			widget.chromeButton(banner, {
-				label: t(state, 'memoryRecipeRefuse'),
-				testId: 'recipe-capture-toast-refuse',
-				onClick: () => void widget.controller.refuseMemoryRecipe(),
-			});
-		} else if (state.recipeSettings.enabled) {
-			widget.chromeButton(banner, {
-				label: t(state, 'memoryRecipeSave'),
-				testId: 'recipe-capture-toast-save',
-				onClick: () => void widget.controller.saveMemoryRecipe(),
-			});
-		}
-		widget.chromeButton(banner, {
-			label: t(state, 'memoryRecipeOpenTab'),
-			testId: 'recipe-capture-toast-open',
-			onClick: () => void widget.controller.openMemoryRecipes(),
-		});
-		widget.chromeButton(banner, {
-			label: t(state, 'hide'),
-			onClick: () => widget.controller.store.patch({ recipeCaptureToast: undefined }),
 		});
 	}
 	if (!state.permissionNoticeDismissed && state.permissionMode === 'default' && state.permissionDefaultReason === 'fresh_clone' && state.history.length === 0) {
@@ -246,10 +212,10 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 
 function renderRecipeDecision(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
 	const recipeNotice = knoxGuiRecipeNotice(state.recipeDecision);
-	if (recipeNotice) {
+	if (recipeNotice && recipeNotice.key !== 'recipeDecisionSkipped' && recipeNotice.key !== 'recipeDecisionSkippedNear') {
 		const banner = DOM.append(parent, DOM.$('.knox-gui-large-banner'));
 		banner.setAttribute('role', 'status');
-		banner.setAttribute('data-testid', recipeNotice.key === 'recipeDecisionSkipped' || recipeNotice.key === 'recipeDecisionSkippedNear' ? 'recipe-decision-skipped' : 'recipe-decision-notice');
+		banner.setAttribute('data-testid', 'recipe-decision-notice');
 		DOM.append(banner, DOM.$('span', undefined, t(state, recipeNotice.key, recipeNotice.params)));
 		if (recipeNotice.whatIfBranch) {
 			const whatIf = DOM.append(banner, DOM.$('p.knox-gui-muted'));

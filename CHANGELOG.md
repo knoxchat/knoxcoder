@@ -3,6 +3,10 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Changed
+
+- **Chat recipe chrome.** Chat no longer shows a capture toast (Saved as candidate / Don't save / Memory → Recipes) or a “No verified recipe reused this turn” banner. Save and refuse stay on **Memory → Recipes**; chat still shows a card when a verified recipe is actually reused, previewed, or hinted.
+
 ## [2.2.4] - 2026-10-30
 
 ### Added

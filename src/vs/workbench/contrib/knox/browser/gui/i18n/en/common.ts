@@ -597,7 +597,6 @@ export const knoxGuiStringsEnCommon: Record<string, unknown> = {
 	"memoryRecipeRetireHint": "Remove this recipe for good",
 	"memoryRecipeRetireConfirmTitle": "Retire \"{{title}}\"?",
 	"memoryRecipeRetireConfirmBody": "Knox will never reuse this recipe again. Your files are not changed.",
-	"memoryRecipeOpenTab": "Memory → Recipes",
 	"memoryRecipePreview": "Preview",
 	"memoryRecipePreviewHint": "Show what replaying this recipe would change. Nothing is applied until you approve.",
 	"memoryRecipeReplay": "Replay",
