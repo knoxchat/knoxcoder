@@ -4,7 +4,8 @@
  *   U(m) = (h + κ I₀) / (h + u + κ) ∈ [0, 1],  κ = 5
  *   Value(m, t) = R(t, S_m) · U(m) ∈ [0, 1]
  *
- * I₀ is the prior. h / u stay 0 until MEM-17 attribution, so U = I₀ until then.
+ * I₀ is the prior. h / u increment on cited+helpful / correction (MEM-17) and
+ * recipe replay ok/revert (MEM-18).
  * Default retrieve skips Value < θ_arch (archive, not DELETE). Value is derived —
  * never a sqlite column.
  */

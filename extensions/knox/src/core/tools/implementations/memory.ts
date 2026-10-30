@@ -4,6 +4,7 @@ import {
   memoryWriteBlockedMessage,
 } from "../../context/soul/memoryAccess.js";
 import {
+  MEMORY_PRODUCT_ACTION_LIST,
   MEMORY_PRODUCT_ACTIONS,
   type MemoryProductAction,
 } from "../definitions/memory.js";
@@ -25,7 +26,7 @@ export const memoryImpl: ToolImpl = async (args, extras) => {
         name: "Memory",
         description: "Memory Brain Error",
         content:
-          'Missing required parameter: "action". Product actions: store, recall, search, delete, build_context, pin, unpin.',
+          `Missing required parameter: "action". Product actions: ${MEMORY_PRODUCT_ACTION_LIST}.`,
       },
     ];
   }
@@ -35,7 +36,7 @@ export const memoryImpl: ToolImpl = async (args, extras) => {
       {
         name: "Memory",
         description: "Memory Brain Error",
-        content: `Action "${action}" is not available on builtin_memory. Use store, recall, search, delete, build_context, pin, or unpin. Admin stays on brain/* host handlers.`,
+        content: `Action "${action}" is not available on builtin_memory. Use ${MEMORY_PRODUCT_ACTION_LIST}. Admin stays on brain/* host handlers.`,
       },
     ];
   }

@@ -9,7 +9,7 @@
  * Leftover until later MEM items (do not use as R or live S):
  *   S(m) = S₀ + β · access_count          (leftover; live S is FSRS in Fsrs.ts)
  *   I(m, t) = I₀ · R(t) · (1 + α · n)     (leftover; live Value is Value.ts)
- *   outcomeFactor                         (MEM-18)
+ *   outcomeFactor                         (leftover fusion modulation; Value is R·U)
  *
  * KN-312: ebbinghaus_lambda remains as a leftover config key.
  */
@@ -115,7 +115,7 @@ export function memoryStrength(
 /**
  * MC-51: outcome-aware strength. Memories recalled before a verified turn gain strength, ones
  * recalled before a revert lose more (wrong memory costs more than a right one earns).
- * Not retrievability R — kept for recipes until MEM-18.
+ * Not retrievability R. Recipe Value is R·U from attribution h/u (MEM-18).
  */
 export const OUTCOME_VERIFIED_GAIN = 0.05;
 export const OUTCOME_REVERT_LOSS = 0.15;

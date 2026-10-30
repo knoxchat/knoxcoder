@@ -774,6 +774,8 @@ export const knoxGuiStringsZhCommon: Record<string, unknown> = {
 	"memoryTheoremWMemDesc": "本地记忆块上限。默认 4096。装配工作落地前，现行注入上限仍为 8000。",
 	"memoryTheoremFusionCutoff": "融合候选截断",
 	"memoryTheoremFusionCutoffDesc": "校准 θ 前的候选数。默认 50。融合工作落地前，现行 top-k 仍为 20。",
+	"memoryTheoremCalibratedTheta": "校准 θ",
+	"memoryTheoremCalibratedThetaDesc": "来自归因日志的 P(helpful | injected) 运行比率。融合工作落地前，现行检索阈值仍为 0.6。",
 	"memoryTheoremWLexical": "通道权重 w_lexical",
 	"memoryTheoremWLexicalDesc": "BM25 + 三元组 + 同义词的 RRF 权重。默认 1。",
 	"memoryTheoremWRipgrep": "通道权重 w_ripgrep",

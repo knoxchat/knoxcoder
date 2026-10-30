@@ -13,6 +13,10 @@ export interface PostTurnWriteInput {
   toolSummary?: string;
   title?: string;
   workspaceDir?: string;
+  turnId?: string;
+  turnSucceeded?: boolean;
+  userCorrected?: boolean;
+  recipeHint?: string;
 }
 
 export interface PostTurnWriteResult {
@@ -39,6 +43,19 @@ export async function runPostTurnWrite(
   const extractable = [userMessage, assistantMessage].filter(Boolean).join("\n\n");
 
   await BrainStore.get();
+  await MemoryPipeline.attributeTurn({
+    message: assistantMessage || userMessage,
+    session_id: data.sessionId,
+    role: "assistant",
+    user_message: userMessage || undefined,
+    assistant_message: assistantMessage || undefined,
+    tool_summary: toolSummary || undefined,
+    turn_id: data.turnId,
+    turn_succeeded: data.turnSucceeded,
+    user_corrected: data.userCorrected,
+    recipe_hint: data.recipeHint,
+  }).catch(() => undefined);
+
   const minChars = BrainStore.getConfig().post_turn_min_chars ?? 80;
   if (
     AutoMemory.shouldSkipPostTurnExtract({
@@ -87,6 +104,10 @@ export async function runPostTurnWrite(
     user_message: userMessage || undefined,
     assistant_message: assistantMessage || undefined,
     tool_summary: toolSummary || undefined,
+    turn_id: data.turnId,
+    turn_succeeded: data.turnSucceeded,
+    user_corrected: data.userCorrected,
+    recipe_hint: data.recipeHint,
   });
 
   const heuristicStored =

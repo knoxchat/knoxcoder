@@ -1,15 +1,18 @@
 /**
- * Replay feedback (MC-34). Outcomes of a replay flow back into the recipe and
- * the memory that describes it:
+ * Replay feedback (MC-34 / MEM-18). Outcomes of a replay flow back into the
+ * recipe, the linked workflow memory, and `brain_attribution` so Value has one
+ * table:
  *
  *   ok            recorded once the replay verified
  *   failedVerify  recorded by `applyReplayResult` when verification failed
  *   reverted      the user restored/reverted/edited the result in the window
  *
  * `reverted` counts quarantine a recipe at `QUARANTINE_REVERTS` and demote the
- * linked memory (via an injected callback to keep this module DB-agnostic).
+ * linked memory (via an injected callback; attribution is written even without
+ * hooks).
  */
 
+import { attributeRecipeReplay } from "../brain/memoryOutcomes.js";
 import type { RecipeStore } from "./RecipeStore.js";
 import type { ReplayResult } from "./replayer.js";
 import type { Recipe } from "./types.js";
@@ -39,6 +42,21 @@ async function quarantineIfNeeded(store: RecipeStore, recipe: Recipe, hooks: Fee
   return next;
 }
 
+async function writeReplayAttribution(
+  store: RecipeStore,
+  recipe: Recipe,
+  outcome: "ok" | "reverted" | "failedVerify",
+): Promise<void> {
+  try {
+    await attributeRecipeReplay(store.connection, recipe, outcome);
+  } catch (error) {
+    console.warn(
+      "[Recipes] Could not write replay attribution:",
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
+
 /** Record the result of `replayExact`. Refused/drifted replays are not outcomes. */
 export async function applyReplayResult(
   store: RecipeStore,
@@ -47,6 +65,7 @@ export async function applyReplayResult(
 ): Promise<Recipe | null> {
   if (!result.outcome) return null;
   const recipe = await store.recordReplay(result.recipeId, result.outcome);
+  await writeReplayAttribution(store, recipe, result.outcome);
   if (result.outcome === "ok" && recipe.memoryId != null) {
     await hooks.boostMemory?.(recipe.memoryId, recipe);
   }
@@ -87,6 +106,7 @@ export async function recordRevert(
   const recipe = await store.get(recipeId);
   if (!recipe || !isWithinRevertWindow(recipe.lastReplayedAt, at)) return null;
   const updated = await store.recordRevert(recipeId);
+  await writeReplayAttribution(store, updated, "reverted");
   return quarantineIfNeeded(store, updated, hooks);
 }
 

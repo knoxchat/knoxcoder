@@ -1292,6 +1292,8 @@ suite('Knox native GUI parity', () => {
 		assert.ok(theorem?.expert && theorem.collapsed);
 		assert.ok(theorem?.fields.some(field => field.key === 'forgetting_F'));
 		assert.ok(theorem?.fields.some(field => field.key === 'w_mem_tokens'));
+		assert.ok(theorem?.fields.some(field => field.key === 'calibrated_theta'));
+		assert.strictEqual(MEMORY_DEFAULT_CONFIG.calibrated_theta, 0.35);
 		assert.strictEqual(MEMORY_DEFAULT_CONFIG.retrieval_threshold, 0.6);
 		assert.strictEqual(MEMORY_DEFAULT_CONFIG.retrieval_top_k, 20);
 		assert.strictEqual(MEMORY_DEFAULT_CONFIG.w_mem_tokens, 4096);

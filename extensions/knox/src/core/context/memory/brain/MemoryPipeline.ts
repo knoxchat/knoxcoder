@@ -28,6 +28,14 @@ import { Hippocampus } from "./regions/Hippocampus.js";
 import { PrefrontalCortex } from "./regions/PrefrontalCortex.js";
 import { SensoryCortex } from "./regions/SensoryCortex.js";
 import { Thalamus } from "./regions/Thalamus.js";
+import {
+  emptyAttributionResult,
+  finalizePreviousAttribution,
+  generateTurnId,
+  recipeInjectItem,
+  recordTurnAttribution,
+  type AttributionTurnResult,
+} from "./attribution.js";
 import type { BuildContextResult, InjectedMemoryItem, MemoryPhase, PipelineInput, PipelinePhaseResult } from "./types.js";
 
 /** Canonical 8-phase order for cycle-invariant audit logging (IMP-01 / Part III). */
@@ -55,6 +63,7 @@ export interface PipelineResult {
   phases: PipelinePhaseResult[];
   context?: BuildContextResult;
   extracted?: { semantic_count: number; entity_count: number };
+  attribution?: AttributionTurnResult;
 }
 
 export type { PipelineInput, PipelinePhaseResult };
@@ -62,6 +71,7 @@ export type { PipelineInput, PipelinePhaseResult };
 /** Compact last-turn inject snapshot for Memories / Overview (T6). */
 export interface LastInjectSnapshot {
   at: number;
+  turn_id: string;
   session_id?: string;
   items: InjectedMemoryItem[];
 }
@@ -75,6 +85,8 @@ export class MemoryPipeline {
   private static phaseRunCounts: Partial<Record<MemoryPhase, number>> = {};
   /** Last pre-turn inject provenance (Memories tab + Overview). */
   private static lastInject: LastInjectSnapshot | null = null;
+  /** Recipe hints noted before or after φ₈ lastInject is written (MEM-17). */
+  private static pendingRecipeInjects: InjectedMemoryItem[] = [];
 
   static getActivePhase(): MemoryPhase | null {
     return MemoryPipeline.activePhase;
@@ -88,12 +100,15 @@ export class MemoryPipeline {
   /** JSON payload for `brain/dashboard` and `brain/searchMemories`. */
   static lastInjectPayload(): {
     at: number;
+    turn_id: string;
     session_id?: string;
     items: Array<{
       id: number | null;
       kind: string;
       title: string;
       reason: string;
+      cite?: string;
+      mem_id?: string;
       evidence?: string[];
       gate_passed?: boolean;
       score?: number;
@@ -108,17 +123,21 @@ export class MemoryPipeline {
     if (!snap) return null;
     return {
       at: snap.at,
+      turn_id: snap.turn_id,
       session_id: snap.session_id,
       items: snap.items
-        .filter((item) => item.kind === "semantic" || item.kind === "episodic")
+        .filter((item) => item.kind === "semantic" || item.kind === "episodic" || item.kind === "recipe")
         .map((item) => ({
           id: item.id,
           kind: item.kind,
           title: item.title,
           reason: item.reason,
+          cite: item.cite,
+          mem_id: item.mem_id,
           evidence: item.evidence,
           gate_passed: item.gate_passed,
           score: item.score,
+          channel: item.channel,
           fts5: item.fts5,
           trigram: item.trigram,
           graph: item.graph,
@@ -126,6 +145,69 @@ export class MemoryPipeline {
           importance: item.importance,
         })),
     };
+  }
+
+  /** Record a recipe hint/stub as an injected cite for this turn (MEM-17). */
+  static noteRecipeInject(recipe: { id: string; title?: string }, reason = "recipe-hint"): InjectedMemoryItem {
+    const item = recipeInjectItem(recipe, reason);
+    MemoryPipeline.pendingRecipeInjects.push(item);
+    if (MemoryPipeline.lastInject) {
+      MemoryPipeline.lastInject.items.push(item);
+    }
+    return item;
+  }
+
+  /** Test helper — forget lastInject / pending recipe cites. */
+  static resetInjectStateForTests(): void {
+    MemoryPipeline.lastInject = null;
+    MemoryPipeline.pendingRecipeInjects = [];
+  }
+
+  private static rememberInject(
+    input: PipelineInput,
+    items: InjectedMemoryItem[],
+  ): LastInjectSnapshot {
+    const recipes = MemoryPipeline.pendingRecipeInjects.splice(0);
+    const snap: LastInjectSnapshot = {
+      at: Date.now(),
+      turn_id: input.turn_id?.trim() || generateTurnId(input.session_id),
+      session_id: input.session_id,
+      items: [...items, ...recipes],
+    };
+    MemoryPipeline.lastInject = snap;
+    return snap;
+  }
+
+  private static injectedItemsForTurn(input: PipelineInput): InjectedMemoryItem[] {
+    const items: InjectedMemoryItem[] = [];
+    const snap = MemoryPipeline.lastInject;
+    if (
+      snap &&
+      (!input.session_id || !snap.session_id || snap.session_id === input.session_id)
+    ) {
+      items.push(...snap.items);
+    }
+    items.push(...MemoryPipeline.pendingRecipeInjects);
+    return items;
+  }
+
+  /**
+   * Bs→H: parse `[mem:id]` cites, persist `brain_attribution`, apply h/u + FSRS
+   * when the turn succeeded or the next user turn corrects a cited memory.
+   */
+  static async attributeTurn(input: PipelineInput): Promise<AttributionTurnResult> {
+    try {
+      const turnId =
+        input.turn_id?.trim() ||
+        MemoryPipeline.lastInject?.turn_id ||
+        generateTurnId(input.session_id);
+      return await recordTurnAttribution(
+        { ...input, turn_id: turnId },
+        MemoryPipeline.injectedItemsForTurn(input),
+      );
+    } catch {
+      return emptyAttributionResult(input.turn_id ?? "");
+    }
   }
 
   /** Part III cycle status — at least one phase active or recently completed. */
@@ -338,6 +420,7 @@ export class MemoryPipeline {
             .map((item) => item.title)
             .filter(Boolean);
           Thalamus.feedbackFromBrainstem(wm, highlights);
+          MemoryPipeline.rememberInject(input, result.items);
           detail = `${result.items.length} items, context fenced`;
           audit = {
             retrieval_query: input.retrieval_query ?? input.message,
@@ -345,6 +428,7 @@ export class MemoryPipeline {
             items: result.items.map((item) => ({
               id: item.id,
               kind: item.kind,
+              cite: item.cite ?? null,
               fusion_score: item.score ?? null,
               fts5: item.fts5 ?? null,
               trigram: item.trigram ?? null,
@@ -426,6 +510,13 @@ export class MemoryPipeline {
         ? "encoded"
         : `sanitized (${scan.threats.length} threats)`,
     });
+
+    // Next-user-turn correction / delayed accept of the previous cite log (MEM-17).
+    await finalizePreviousAttribution({
+      session_id: input.session_id,
+      user_message: encodedMessage,
+      user_corrected: input.user_corrected,
+    }).catch(() => undefined);
 
     const wmStart = Date.now();
     if (input.session_id) {
@@ -542,6 +633,7 @@ export class MemoryPipeline {
           kind: item.kind,
           title: item.title,
           reason: item.reason,
+          cite: item.cite ?? null,
           evidence: item.evidence,
           fusion_score: item.score ?? null,
           fts5: item.fts5 ?? null,
@@ -555,11 +647,7 @@ export class MemoryPipeline {
         })),
       },
     });
-    MemoryPipeline.lastInject = {
-      at: Date.now(),
-      session_id: input.session_id,
-      items: context.items,
-    };
+    MemoryPipeline.rememberInject(input, context.items);
 
     for (const phase of phases) {
       await MemoryPipeline.logPhaseAudit(phase, input.session_id, "pre_turn");
@@ -585,9 +673,10 @@ export class MemoryPipeline {
   static async runPostTurn(input: PipelineInput): Promise<PipelineResult> {
     const phases: PipelinePhaseResult[] = [];
     const config = getMemoryConfig();
+    const attribution = await MemoryPipeline.attributeTurn(input);
 
     if (!config.enable_knowledge_extraction && !config.auto_extract_enabled) {
-      return { phases, extracted: { semantic_count: 0, entity_count: 0 } };
+      return { phases, extracted: { semantic_count: 0, entity_count: 0 }, attribution };
     }
 
     const consolidation = await MemoryPipeline.runPhase("consolidation", input);
@@ -622,7 +711,7 @@ export class MemoryPipeline {
 
     await MemoryPipeline.logCycleInvariant("post_turn", phases, input.session_id);
 
-    return { phases, extracted };
+    return { phases, extracted, attribution };
   }
 
   /**
@@ -661,7 +750,8 @@ export class MemoryPipeline {
 
     const lastConsolidation = phases.find((p) => p.phase === "consolidation");
     const extracted = MemoryPipeline.parseExtractionDetail(lastConsolidation?.detail);
+    const attribution = await MemoryPipeline.attributeTurn(input);
 
-    return { phases, context: pre.context, extracted };
+    return { phases, context: pre.context, extracted, attribution };
   }
 }

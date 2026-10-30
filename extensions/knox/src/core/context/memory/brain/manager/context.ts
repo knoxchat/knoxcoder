@@ -64,6 +64,13 @@ export async function runPipeline(params: {
   goal?: string;
   max_tokens?: number;
   turn_content?: string;
+  user_message?: string;
+  assistant_message?: string;
+  tool_summary?: string;
+  turn_id?: string;
+  turn_succeeded?: boolean;
+  user_corrected?: boolean;
+  recipe_hint?: string;
 }) {
   if (params.mode === "pre_turn") {
     return MemoryPipeline.runPreTurn({
@@ -71,6 +78,9 @@ export async function runPipeline(params: {
       session_id: params.session_id,
       goal: params.goal,
       max_tokens: params.max_tokens,
+      turn_id: params.turn_id,
+      user_corrected: params.user_corrected,
+      user_message: params.user_message,
     });
   }
   if (params.mode === "post_turn") {
@@ -79,6 +89,13 @@ export async function runPipeline(params: {
       session_id: params.session_id,
       role: params.role,
       turn_content: params.turn_content,
+      user_message: params.user_message,
+      assistant_message: params.assistant_message,
+      tool_summary: params.tool_summary,
+      turn_id: params.turn_id,
+      turn_succeeded: params.turn_succeeded,
+      user_corrected: params.user_corrected,
+      recipe_hint: params.recipe_hint,
     });
   }
   if (params.mode === "full_cycle") {
@@ -89,6 +106,13 @@ export async function runPipeline(params: {
       goal: params.goal,
       max_tokens: params.max_tokens,
       turn_content: params.turn_content,
+      user_message: params.user_message,
+      assistant_message: params.assistant_message,
+      tool_summary: params.tool_summary,
+      turn_id: params.turn_id,
+      turn_succeeded: params.turn_succeeded,
+      user_corrected: params.user_corrected,
+      recipe_hint: params.recipe_hint,
     });
   }
   return {
@@ -98,6 +122,13 @@ export async function runPipeline(params: {
         session_id: params.session_id,
         role: params.role,
         turn_content: params.turn_content,
+        user_message: params.user_message,
+        assistant_message: params.assistant_message,
+        tool_summary: params.tool_summary,
+        turn_id: params.turn_id,
+        turn_succeeded: params.turn_succeeded,
+        user_corrected: params.user_corrected,
+        recipe_hint: params.recipe_hint,
       }),
     ],
   };

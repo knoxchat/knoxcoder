@@ -1,5 +1,6 @@
 /** Persist FSRS S / D updates. Retrieve paths must not call this (MEM-14). */
 
+import type { DatabaseConnection } from "../../../../util/refreshIndex.js";
 import { applyFsrsFromSource, type FsrsMemoryKind, type FsrsOutcome, type FsrsState } from "../Fsrs.js";
 import { get } from "./connection.js";
 
@@ -41,7 +42,8 @@ export async function getFsrsState(kind: FsrsMemoryKind, id: number): Promise<Fs
  * Used+helpful / used+harmful write S (and D). Retrieved-not-used is a no-op.
  * Does not bump retrieval_count or leftover importance.
  */
-export async function applyMemoryFsrs(
+export async function applyMemoryFsrsOn(
+  db: DatabaseConnection,
   kind: FsrsMemoryKind,
   id: number,
   outcome: FsrsOutcome,
@@ -50,7 +52,6 @@ export async function applyMemoryFsrs(
   const memId = Math.trunc(Number(id));
   if (!(memId > 0)) return null;
 
-  const db = await get();
   const table = tableFor(kind);
   const row = (await db.get(
     kind === "episodic"
@@ -80,4 +81,13 @@ export async function applyMemoryFsrs(
     [next.stability, next.difficulty, memId],
   );
   return next;
+}
+
+export async function applyMemoryFsrs(
+  kind: FsrsMemoryKind,
+  id: number,
+  outcome: FsrsOutcome,
+  nowMs: number = Date.now(),
+): Promise<FsrsState | null> {
+  return applyMemoryFsrsOn(await get(), kind, id, outcome, nowMs);
 }

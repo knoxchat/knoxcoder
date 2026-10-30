@@ -24,6 +24,7 @@ import {
 import type {
   HealingAction,
 } from "../PerformanceMonitor.js";
+import { attributeMemory } from "../attribution.js";
 import { RetrievalFusion } from "../RetrievalFusion.js";
 import { MemorySnapshot } from "../MemorySnapshot.js";
 import {
@@ -159,6 +160,18 @@ export async function dispatch(action: MemoryBrainAction, params: any): Promise<
       }
       const ok = await unpinMemory(id);
       return ok ? `Unpinned memory ${id}.` : `Memory #${id} not found.`;
+    }
+
+    case "attribute": {
+      const result = await attributeMemory({
+        id: params.id ?? params.memory_id ?? params.cite,
+        helpful: params.helpful,
+        mem_type: params.mem_type ?? params.type,
+        session_id: params.session_id ?? getActiveSessionId(),
+        turn_id: params.turn_id,
+      });
+      if (result.ok) invalidateMemoryCaches();
+      return result.message;
     }
 
     case "delete": {

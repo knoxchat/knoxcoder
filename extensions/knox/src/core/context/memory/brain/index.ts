@@ -15,6 +15,27 @@ export { Value } from "./Value.js";
 export { Fsrs } from "./Fsrs.js";
 export { Tiers } from "./Tiers.js";
 export {
+  Attribution,
+  attributeMemory,
+  memoryCiteToken,
+  parseMemoryCites,
+  parseAttributeTarget,
+  parseHelpfulFlag,
+  generateTurnId,
+  inferTurnOutcome,
+  looksLikeMemoryCorrection,
+  persistAttributionDecision,
+  recordTurnAttribution,
+} from "./attribution.js";
+export type {
+  AttributableMemType,
+  AttributeMemoryInput,
+  AttributeMemoryResult,
+  AttributionTurnResult,
+  MemoryCite,
+  TurnAttributionOutcome,
+} from "./attribution.js";
+export {
   calculateAddressableMemory,
   calculateHierarchyEffective,
   getMemoryLevelSpecs,

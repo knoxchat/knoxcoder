@@ -20,6 +20,7 @@ import * as valence from "./valence.js";
 import * as tombstone from "./tombstone.js";
 import * as fsrs from "./fsrs.js";
 import * as tiers from "./tiers.js";
+import * as attribution from "./attribution.js";
 
 /**
  * BrainStore — SQLite-backed human-brain-like persistent memory.
@@ -162,4 +163,11 @@ export class BrainStore {
   static applyMemoryFsrs = fsrs.applyMemoryFsrs;
   static recomputeMemoryTiers = tiers.recomputeMemoryTiers;
   static applyMemoryTier = tiers.applyMemoryTier;
+  static upsertAttribution = attribution.upsertAttribution;
+  static upsertAttributionOn = attribution.upsertAttributionOn;
+  static listAttributionsForTurn = attribution.listAttributionsForTurn;
+  static listAttributionLog = attribution.listAttributionLog;
+  static listLatestAttributedTurn = attribution.listLatestAttributedTurn;
+  static incrementUtilityCounts = attribution.incrementUtilityCounts;
+  static incrementUtilityCountsOn = attribution.incrementUtilityCountsOn;
 }

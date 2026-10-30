@@ -329,6 +329,7 @@ export interface TheoremParams {
   coverageLambda: number;
   wMemTokens: number;
   fusionCandidateCutoff: number;
+  calibratedTheta: number;
   channelWeights: { lexical: number; ripgrep: number; graph: number; tree: number };
 }
 
@@ -350,6 +351,7 @@ export function getTheoremParams(): TheoremParams {
     coverageLambda: cfg.coverage_lambda,
     wMemTokens: cfg.w_mem_tokens,
     fusionCandidateCutoff: cfg.fusion_candidate_cutoff,
+    calibratedTheta: cfg.calibrated_theta,
     channelWeights: {
       lexical: cfg.w_lexical,
       ripgrep: cfg.w_ripgrep,

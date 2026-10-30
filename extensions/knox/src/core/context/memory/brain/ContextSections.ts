@@ -8,6 +8,8 @@ import { recipeMemoryIsVerified } from "../recipes/memoryLink.js";
 import { evaluateRelevanceGate, isMismatchActive, LEXICAL_SCORE_MIN } from "./RelevanceGate.js";
 import { hasGraphExpandableTokens, isCommonNounEntityName, queryMentionsEntity } from "./GraphRetrieval.js";
 import type { FusionResult } from "./RetrievalFusion.js";
+import { memoryCiteToken } from "./attribution.js";
+import { winningChannel } from "./memoryOutcomes.js";
 import type { InjectedMemoryItem, SemanticMemory, EpisodicMemory } from "./types.js";
 
 /** REL-10: session summary needs this fraction of query content-words to inject (non-full modes). */
@@ -181,7 +183,8 @@ export class ContextSections {
         });
         if (!gate.passed) return true;
       }
-      const entry = `${pinned ? "[pinned] " : ""}[${mem.category}] ${mem.title}: ${mem.content}`;
+      const cite = memoryCiteToken("semantic", mem.id);
+      const entry = `${cite} ${pinned ? "[pinned] " : ""}[${mem.category}] ${mem.title}: ${mem.content}`;
       const entryTokens = ContextSections.estimateTokens(entry);
       if (tokens + entryTokens > maxTokens) return false;
       lines.push(entry);
@@ -277,10 +280,13 @@ export class ContextSections {
     return {
       id: mem.id,
       kind: "semantic",
+      mem_id: String(mem.id),
+      cite: memoryCiteToken("semantic", mem.id),
       title: mem.title,
       category: mem.category,
       pinned,
       score: hit?.score ?? overlapScore(query, gate),
+      channel: winningChannel(hit?.scores) ?? undefined,
       reason: gate.reason,
       fts5: hit?.scores.fts5,
       trigram: hit?.scores.trigram,
@@ -386,7 +392,8 @@ export class ContextSections {
 
     for (const row of filtered) {
       const ep = row.ep;
-      const entry = `[Session ${ep.session_id.substring(0, 8)}, ${ep.role}]: ${ep.content.substring(0, mode.episodicSnippetLen)}`;
+      const cite = memoryCiteToken("episodic", ep.id);
+      const entry = `${cite} [Session ${ep.session_id.substring(0, 8)}, ${ep.role}]: ${ep.content.substring(0, mode.episodicSnippetLen)}`;
       const entryTokens = ContextSections.estimateTokens(entry);
       if (tokens + entryTokens > maxTokens) break;
       lines.push(entry);
@@ -394,8 +401,11 @@ export class ContextSections {
       items.push({
         id: ep.id,
         kind: "episodic",
+        mem_id: String(ep.id),
+        cite,
         title: `Past ${ep.role} turn`,
         score: row.score,
+        channel: winningChannel(row) ?? undefined,
         reason: row.reason || "lexical",
         fts5: row.fts5,
         trigram: row.trigram,

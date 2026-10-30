@@ -33,9 +33,11 @@ describe("buildRecipeHint", () => {
     expect(hint).toContain("gone.ts (content unavailable)");
     expect(hint).toContain("Command: npm run build");
     expect(hint).toContain("componentName");
+    expect(hint).toContain(`[mem:recipe:${recipe.id}]`);
   });
   it("builds a stub with title, paths, slots, id and why but no file bodies", () => {
     const stub = buildRecipeStub(recipe, { why: "similar intent" });
+    expect(stub).toContain(`[mem:recipe:${recipe.id}]`);
     expect(stub).toContain("<verified_recipe_stub");
     expect(stub).toContain("src/Button.tsx");
     expect(stub).toContain("componentName");

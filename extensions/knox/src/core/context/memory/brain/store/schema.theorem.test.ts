@@ -185,6 +185,8 @@ describe("theorem schema (MEM-03)", () => {
         "injected",
         "cited",
         "helpful",
+        "channel",
+        "score",
         "created_at",
       ]),
     );

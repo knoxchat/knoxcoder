@@ -111,12 +111,7 @@ export async function recordRestoreFeedback(restoredFiles: string[]): Promise<vo
     ]);
     for (const recipe of hit) {
       void CheckpointManager.getInstance().appendAuditEvent(revertAuditEvent(recipe.id)).catch(() => undefined);
-      await recordRevert(store, recipe.id, now, {
-        demoteMemory: async (memoryId) => {
-          const { recordRecallOutcome } = await import("core/context/memory/brain/memoryOutcomes");
-          await recordRecallOutcome(db, [memoryId], "reverted");
-        },
-      });
+      await recordRevert(store, recipe.id, now);
     }
   } catch (error) {
     console.warn("[Recipes] Restore feedback failed:", error instanceof Error ? error.message : error);

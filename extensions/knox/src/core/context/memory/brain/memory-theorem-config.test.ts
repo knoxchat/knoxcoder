@@ -51,9 +51,11 @@ describe("MEM-02 theorem parameter table", () => {
     expect(theorem.coverageLambda).toBe(0.5);
     expect(theorem.wMemTokens).toBe(4096);
     expect(theorem.fusionCandidateCutoff).toBe(50);
+    expect(theorem.calibratedTheta).toBe(0.35);
     expect(theorem.channelWeights).toEqual({ lexical: 1, ripgrep: 1, graph: 1, tree: 1 });
 
     expect(cfg.retrieval_threshold).toBe(0.6);
+    expect(cfg.calibrated_theta).toBe(0.35);
     expect(cfg.retrieval_top_k).toBe(20);
     expect(cfg.ebbinghaus_lambda).toBe(0.03);
     expect(getMemoryInjectHardCap()).toBe(MEMORY_INJECT_HARD_CAP_TOKENS);

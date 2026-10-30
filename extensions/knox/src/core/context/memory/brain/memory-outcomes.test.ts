@@ -101,5 +101,15 @@ describe("MC-51 / MC-52 with a real brain", () => {
     expect(after).toBeLessThan(before);
     const loaded = await outcomes.loadOutcomes(db as any, [aId]);
     expect(loaded.get(aId)).toEqual({ verified: 0, reverted: 1 });
+    const leaf = await db.get<{ helpful_count: number; unhelpful_count: number }>(
+      "SELECT helpful_count, unhelpful_count FROM brain_semantic WHERE id = ?",
+      [aId],
+    );
+    expect(leaf).toEqual({ helpful_count: 0, unhelpful_count: 1 });
+    const attr = await db.get<{ injected: number; cited: number; helpful: number }>(
+      "SELECT injected, cited, helpful FROM brain_attribution WHERE mem_id = ?",
+      [String(aId)],
+    );
+    expect(attr).toEqual({ injected: 1, cited: 1, helpful: 0 });
   });
 });

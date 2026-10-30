@@ -373,7 +373,7 @@ export async function replayRecipe(
   recipeId: string,
   opts: ReplayRecipeOpts = {},
 ): Promise<RecipeReplayOutput | undefined> {
-  const { store, db } = await openStore();
+  const { store } = await openStore();
   const recipe: Recipe | null = await store.get(recipeId);
   if (!recipe || (await outOfScope(host, recipe))) return undefined;
   const [{ replayExact, replayFailureContext }, { previewReplay }, { applyReplayResult }, { registerRecipeBlobPins }] =
@@ -435,16 +435,7 @@ export async function replayRecipe(
         : await replayExact(target, ports, { merged, includePaths });
   }
   try {
-    await applyReplayResult(store, result, {
-      demoteMemory: async (memoryId) => {
-        const { recordRecallOutcome } = await import("core/context/memory/brain/memoryOutcomes");
-        await recordRecallOutcome(db, [memoryId], "reverted");
-      },
-      boostMemory: async (memoryId) => {
-        const { recordRecallOutcome } = await import("core/context/memory/brain/memoryOutcomes");
-        await recordRecallOutcome(db, [memoryId], "verified");
-      },
-    });
+    await applyReplayResult(store, result);
   } catch (error) {
     console.warn("[Recipes] Could not record replay outcome:", error instanceof Error ? error.message : error);
   }

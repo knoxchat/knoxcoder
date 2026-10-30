@@ -164,6 +164,7 @@ export const brainState: {
     coverage_lambda: 0.5,
     w_mem_tokens: 4096,
     fusion_candidate_cutoff: 50,
+    calibrated_theta: 0.35,
     w_lexical: 1,
     w_ripgrep: 1,
     w_graph: 1,

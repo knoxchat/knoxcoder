@@ -262,7 +262,12 @@ describe("feedback (store-backed)", () => {
     const r = await verified();
     const okRes: ReplayResult = { status: "applied", recipeId: r.id, restored: false, appliedPaths: [], driftedPaths: [], outcome: "ok" };
     const bad: ReplayResult = { ...okRes, status: "failed_verify", outcome: "failedVerify" };
-    expect((await applyReplayResult(store, okRes))!.stats.ok).toBe(1);
+    const afterOk = await applyReplayResult(store, okRes);
+    expect(afterOk!.stats.ok).toBe(1);
+    const attr = await db.get<{ mem_type: string; mem_id: string; helpful: number }>(
+      "SELECT mem_type, mem_id, helpful FROM brain_attribution WHERE mem_type = 'recipe'",
+    );
+    expect(attr).toEqual({ mem_type: "recipe", mem_id: r.id, helpful: 1 });
     expect((await applyReplayResult(store, bad))!.status).toBe("verified");
     expect((await applyReplayResult(store, bad))!.status).toBe("quarantined");
     expect(await applyReplayResult(store, { ...okRes, outcome: undefined })).toBeNull();

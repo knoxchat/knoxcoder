@@ -493,6 +493,9 @@ export async function ensureTheoremColumns(db: DatabaseConnection): Promise<void
   await tryExec(db, "ALTER TABLE brain_sessions ADD COLUMN summary_node_id INTEGER");
   // MEM-16: inject calibration only. Must not live on retrieval_count (S / I).
   await tryExec(db, "ALTER TABLE brain_semantic ADD COLUMN inject_count INTEGER NOT NULL DEFAULT 0");
+  // MEM-18: winning channel + inject score for w_s / θ refit.
+  await tryExec(db, "ALTER TABLE brain_attribution ADD COLUMN channel TEXT");
+  await tryExec(db, "ALTER TABLE brain_attribution ADD COLUMN score REAL");
   for (const table of ["brain_entities", "brain_graph_edges"] as const) {
     for (const col of THEOREM_GRAPH_ALTERS) {
       await tryExec(db, `ALTER TABLE ${table} ADD COLUMN ${col}`);
@@ -548,6 +551,8 @@ export async function createTheoremTables(db: DatabaseConnection): Promise<void>
       injected INTEGER NOT NULL DEFAULT 0,
       cited INTEGER NOT NULL DEFAULT 0,
       helpful INTEGER,
+      channel TEXT,
+      score REAL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);

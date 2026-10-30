@@ -1334,6 +1334,7 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 			{ key: 'coverage_lambda', labelKey: 'memoryTheoremCoverageLambda', descKey: 'memoryTheoremCoverageLambdaDesc', kind: 'number', min: 0, max: 2, step: 0.05, float: true },
 			{ key: 'w_mem_tokens', labelKey: 'memoryTheoremWMem', descKey: 'memoryTheoremWMemDesc', kind: 'number', min: 512, max: 32000 },
 			{ key: 'fusion_candidate_cutoff', labelKey: 'memoryTheoremFusionCutoff', descKey: 'memoryTheoremFusionCutoffDesc', kind: 'number', min: 10, max: 200 },
+			{ key: 'calibrated_theta', labelKey: 'memoryTheoremCalibratedTheta', descKey: 'memoryTheoremCalibratedThetaDesc', kind: 'number', min: 0.15, max: 0.85, percent: true, float: true },
 			{ key: 'w_lexical', labelKey: 'memoryTheoremWLexical', descKey: 'memoryTheoremWLexicalDesc', kind: 'number', min: 0, max: 4, step: 0.1, float: true },
 			{ key: 'w_ripgrep', labelKey: 'memoryTheoremWRipgrep', descKey: 'memoryTheoremWRipgrepDesc', kind: 'number', min: 0, max: 4, step: 0.1, float: true },
 			{ key: 'w_graph', labelKey: 'memoryTheoremWGraph', descKey: 'memoryTheoremWGraphDesc', kind: 'number', min: 0, max: 4, step: 0.1, float: true },
@@ -1568,6 +1569,7 @@ export const MEMORY_DEFAULT_CONFIG: Readonly<Record<string, string | number | bo
 	forgetting_F: 19 / 81, forgetting_c: 0.5, fsrs_a: Math.exp(1.5), fsrs_b: 0.2, fsrs_g: 1,
 	utility_kappa: 5, archive_value_threshold: 0.05, rrf_k0: 60, eta_utility: 0.5, eta_retrievability: 0.3,
 	tree_branching_b: 8, tree_beam_B: 4, coverage_lambda: 0.5, w_mem_tokens: 4096, fusion_candidate_cutoff: 50,
+	calibrated_theta: 0.35,
 	w_lexical: 1, w_ripgrep: 1, w_graph: 1, w_tree: 1,
 	sensory_buffer_ms: 250, enable_enhanced_semantic: true,
 };

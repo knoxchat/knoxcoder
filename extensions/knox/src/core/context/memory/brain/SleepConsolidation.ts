@@ -9,6 +9,7 @@
  * - REM Phase: Episodic-to-semantic distillation — find recurring patterns
  *   in episodic memories and extract stable knowledge into semantic memory
  * - Post-sleep: Graph strengthening (reinforce frequently co-activated edges)
+ * - φ₇: Refit channel weights w_s and calibrated θ from brain_attribution (MEM-18)
  *
  * This runs as part of the consolidation pipeline (not time-based sleep).
  * Each invocation performs one full "sleep cycle".
@@ -17,6 +18,13 @@
 import { BrainStore } from "./BrainStore.js";
 import { Ebbinghaus } from "./Ebbinghaus.js";
 import { GRAPH_COMMON_NOUN_DENYLIST, isCommonNounEntityName } from "./GraphRetrieval.js";
+import {
+  CALIBRATED_THETA_DEFAULT,
+  computeAttributionRefit,
+  emptyChannelWeights,
+  loadAttributionRefit,
+  type AttributionRefitResult,
+} from "./memoryOutcomes.js";
 import { contentWords } from "./RetrievalQuery.js";
 import { recomputeMemoryTiers } from "./store/tiers.js";
 import type {
@@ -32,6 +40,8 @@ export interface SleepCycleResult extends ConsolidationResult {
   compressed: number;
   /** Breakdown of each sleep sub-phase (IMP-06). */
   sub_phases: SleepSubPhaseCounts;
+  /** φ₇ attribution refit of w_s and calibrated θ (MEM-18). */
+  refit?: AttributionRefitResult;
 }
 
 /** Work that runs after each sleep cycle (MC-40). Hooks must not throw into the cycle; failures are logged. */
@@ -71,6 +81,7 @@ export class SleepConsolidation {
         rem_distill: 0,
         graph_strengthen: 0,
         promote: 0,
+        refit: 0,
       },
     };
 
@@ -101,6 +112,10 @@ export class SleepConsolidation {
     // Phase 6: leftover hook. Tiers already assigned from R/Value in nremDecay.
     await SleepConsolidation.promoteHighValue();
     result.sub_phases.promote = result.promoted;
+
+    // Phase 7 (φ₇): refit channel weights w_s and calibrated θ from attribution.
+    result.refit = await SleepConsolidation.refitAttributionPriors();
+    result.sub_phases.refit = result.refit?.rows ?? 0;
 
     for (const [name, hook] of cycleHooks) {
       try {
@@ -388,6 +403,54 @@ export class SleepConsolidation {
     );
 
     return result.changes ?? 0;
+  }
+
+  // ── φ₇: Refit w_s and θ ────────────────────────────────────────────────────
+
+  /**
+   * Increment the winning channel's w_s from cited+helpful vs unhelpful.
+   * Calibrate θ as the running P(helpful | injected). Does not flip live
+   * `retrieval_threshold` (MEM-22).
+   */
+  private static async refitAttributionPriors(): Promise<AttributionRefitResult> {
+    const empty = computeAttributionRefit([], {
+      theta: CALIBRATED_THETA_DEFAULT,
+      weights: emptyChannelWeights(),
+    });
+    try {
+      const db = await BrainStore.get();
+      const cfg = BrainStore.getConfig();
+      const result = await loadAttributionRefit(db, {
+        theta: cfg.calibrated_theta,
+        weights: {
+          lexical: cfg.w_lexical,
+          ripgrep: cfg.w_ripgrep,
+          graph: cfg.w_graph,
+          tree: cfg.w_tree,
+        },
+      });
+      if (result.channel_updated) {
+        await BrainStore.saveConfig("w_lexical", String(result.channel_weights.lexical));
+        await BrainStore.saveConfig("w_ripgrep", String(result.channel_weights.ripgrep));
+        await BrainStore.saveConfig("w_graph", String(result.channel_weights.graph));
+        await BrainStore.saveConfig("w_tree", String(result.channel_weights.tree));
+      }
+      if (result.theta_updated) {
+        await BrainStore.saveConfig("calibrated_theta", String(result.theta));
+      }
+      await BrainStore.auditLog("refit", "sleep", null, {
+        calibration_n: result.calibration_n,
+        helpful_rate: result.helpful_rate,
+        theta: result.theta,
+        theta_updated: result.theta_updated,
+        channel_weights: result.channel_weights,
+        channel_updated: result.channel_updated,
+      }).catch(() => {});
+      return result;
+    } catch (error) {
+      console.warn("[Sleep] Attribution refit failed:", error instanceof Error ? error.message : error);
+      return empty;
+    }
   }
 
   // ── Post-Sleep: Promote High-Value ─────────────────────────────────────────

@@ -69,6 +69,17 @@ export interface PipelineInput {
   retrieval_query?: string;
   /** φ₆ hits forwarded to φ₈ when phases run separately (REL-04). */
   fusion_hits?: FusionHit[];
+  /** MEM-17: stable id for this turn's `brain_attribution` rows. */
+  turn_id?: string;
+  /**
+   * MEM-17: cited + succeeded → helpful (h, FSRS useful).
+   * When omitted, outcome is inferred from tools or left pending.
+   */
+  turn_succeeded?: boolean;
+  /** MEM-17: this user message corrects a previously cited memory. */
+  user_corrected?: boolean;
+  /** Injected recipe hint/stub text (cite tokens counted as injected). */
+  recipe_hint?: string;
 }
 
 export type MemoryMode = "full" | "summarized" | "selective";
@@ -97,16 +108,24 @@ export interface BuildContextInput {
   include_graph?: boolean;
   include_procedures?: boolean;
   include_patterns?: boolean;
+  /** MEM-17: stable id written onto lastInject for post-turn attribution. */
+  turn_id?: string;
 }
 
 /** Provenance item returned alongside automatic memory inject. */
 export interface InjectedMemoryItem {
   id: number | null;
-  kind: "semantic" | "episodic" | "entity" | "procedure" | "pattern" | "working" | "goal";
+  kind: "semantic" | "episodic" | "entity" | "procedure" | "pattern" | "working" | "goal" | "recipe";
+  /** Stable `[mem:type:id]` token rendered next to the injected line (MEM-17). */
+  cite?: string;
+  /** String id for recipe hashes (and a text form of numeric leaf ids). */
+  mem_id?: string;
   title: string;
   reason: string;
   category?: string;
   score?: number;
+  /** Winning retrieval channel at inject time (MEM-18). */
+  channel?: "lexical" | "ripgrep" | "graph" | "tree";
   pinned?: boolean;
   fts5?: number;
   trigram?: number;
@@ -187,6 +206,8 @@ export interface SleepSubPhaseCounts {
   rem_distill: number;
   graph_strengthen: number;
   promote: number;
+  /** Attribution rows considered while refitting w_s / θ (MEM-18). */
+  refit: number;
 }
 
 export interface SessionHistoryResult {

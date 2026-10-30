@@ -250,6 +250,7 @@ export class LocalAutonomousLoop {
           session_id: input.session_id,
           role: "assistant",
           turn_content: `${input.goal}\n${step.result}`,
+          assistant_message: step.result,
         });
 
         // Memory snapshot (adaptive) plus a workspace file CP when the host can.

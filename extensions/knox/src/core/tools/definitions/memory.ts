@@ -10,9 +10,12 @@ export const MEMORY_PRODUCT_ACTIONS = [
   "build_context",
   "pin",
   "unpin",
+  "attribute",
 ] as const;
 
 export type MemoryProductAction = (typeof MEMORY_PRODUCT_ACTIONS)[number];
+
+export const MEMORY_PRODUCT_ACTION_LIST = MEMORY_PRODUCT_ACTIONS.join(", ");
 
 export const memoryTool: Tool = {
   type: "function",
@@ -25,7 +28,7 @@ export const memoryTool: Tool = {
   function: {
     name: BuiltInToolNames.Memory,
     description:
-      "Durable facts and decisions only; do not store file contents. Actions: store, recall, search, delete, build_context, pin, unpin.",
+      `Durable facts and decisions only; do not store file contents. Actions: ${MEMORY_PRODUCT_ACTION_LIST}.`,
     parameters: {
       type: "object",
       required: ["action"],
@@ -33,8 +36,7 @@ export const memoryTool: Tool = {
         action: {
           type: "string",
           enum: [...MEMORY_PRODUCT_ACTIONS],
-          description:
-            "store / recall / search / delete / build_context / pin / unpin",
+          description: MEMORY_PRODUCT_ACTION_LIST.replace(/, /g, " / "),
         },
         category: {
           type: "string",
@@ -81,15 +83,20 @@ export const memoryTool: Tool = {
         },
         session_id: {
           type: "string",
-          description: "[recall/build_context] Session id",
+          description: "[recall/build_context/attribute] Session id",
         },
         id: {
-          type: "number",
-          description: "[delete/pin/unpin] Memory id",
+          type: ["number", "string"],
+          description:
+            "[delete/pin/unpin/attribute] Memory id. attribute also accepts a [mem:type:id] cite.",
         },
         memory_id: {
-          type: "number",
-          description: "[pin/unpin] Alias for id",
+          type: ["number", "string"],
+          description: "[pin/unpin/attribute] Alias for id",
+        },
+        helpful: {
+          type: "boolean",
+          description: "[attribute] true if the memory helped; false if it was wrong or unused",
         },
         limit: {
           type: "number",

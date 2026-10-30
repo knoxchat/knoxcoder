@@ -70,7 +70,7 @@ describe("MEM-13 bounded utility U and Value = R·U", () => {
     expect(Value.ARCHIVE_VALUE_THRESHOLD).toBe(0.05);
   });
 
-  it("h=u=0 → U=I₀ (prior only until MEM-17)", () => {
+  it("h=u=0 → U=I₀ (prior only until attributed)", () => {
     expect(Value.utility(0, 0, 0.8, 5)).toBeCloseTo(0.8, 10);
     expect(Value.utilityFromSource({ i0: 0.6, helpful_count: 0, unhelpful_count: 0 }, VALUE)).toBeCloseTo(0.6, 10);
     expect(Value.utilityFromSource({ importance_score: 0.4 }, VALUE)).toBeCloseTo(0.4, 10);

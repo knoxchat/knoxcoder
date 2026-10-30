@@ -12,8 +12,9 @@
  *   decision / project_context: 60
  *   summary / insight: 14, or inherit when linked as a tree node
  *
- * FSRS strengthen-on-use lives in Fsrs.ts (MEM-14). `outcomeFactor` stays on
- * Ebbinghaus until MEM-18 and is not R.
+ * FSRS strengthen-on-use lives in Fsrs.ts (MEM-14). `outcomeFactor` is leftover
+ * fusion-score modulation (MC-51), not R. Recipe / recall Value comes from
+ * attribution h/u (MEM-18).
  */
 
 export const FORGETTING_F_DEFAULT = 19 / 81;

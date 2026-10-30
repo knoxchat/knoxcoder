@@ -181,6 +181,11 @@ function rowToRecipe(row: any, stepRows: any[]): Recipe {
 export class RecipeStore {
   constructor(private readonly db: DatabaseConnection) {}
 
+  /** Same sqlite the recipe rows live in. Replay attribution must hit this file. */
+  get connection(): DatabaseConnection {
+    return this.db;
+  }
+
   /**
    * Insert a `candidate` recipe, or return the existing one when the canonical
    * hash matches (no fields are overwritten, whatever its status: a retired or

@@ -87,7 +87,7 @@ Recipes stay **off by default** (`knoxchat.recipes.enabled`).
 
 | Tool | May do | Must not do |
 | --- | --- | --- |
-| `builtin_memory` | store / recall / search / delete / pin / `build_context` | restore files, rollback brain snapshots, grow “context” by attaching checkpoint trees |
+| `builtin_memory` | store / recall / search / delete / pin / unpin / `build_context` / `attribute` | restore files, rollback brain snapshots, grow “context” by attaching checkpoint trees |
 | `builtin_recipe` | list / preview / apply (confirm) / import skill | raw `fs` writes; apply without the replayer |
 | `builtin_workspace_checkpoint` | disk graph (create, restore, stash, …); `rewind_memory` on restore | Memory Brain CRUD (that is `builtin_memory`) |
 

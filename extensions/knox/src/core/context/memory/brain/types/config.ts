@@ -215,6 +215,11 @@ export interface MemoryConfig {
   w_mem_tokens: number;
   /** Fused candidates before the calibrated θ cut-off. Not retrieval_top_k until MEM-22. */
   fusion_candidate_cutoff: number;
+  /**
+   * Fitted P(helpful | injected) from `brain_attribution` (MEM-18).
+   * Live retrieve still uses `retrieval_threshold` until MEM-22.
+   */
+  calibrated_theta: number;
   /** RRF channel weight — lexical (BM25 + trigram + synonyms). */
   w_lexical: number;
   /** RRF channel weight — ripgrep. */

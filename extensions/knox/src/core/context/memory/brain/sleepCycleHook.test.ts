@@ -2,10 +2,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { registerSleepCycleHook, SleepConsolidation } from "./SleepConsolidation";
 
-const phases = ["nremReplay", "nremCompress", "remDistill", "strengthenGraph", "promoteHighValue"] as const;
+const phases = ["nremReplay", "nremCompress", "remDistill", "strengthenGraph", "promoteHighValue", "refitAttributionPriors"] as const;
 
 function stubPhases() {
-  for (const p of phases) vi.spyOn(SleepConsolidation as any, p).mockResolvedValue(0);
+  for (const p of phases) {
+    if (p === "refitAttributionPriors") {
+      vi.spyOn(SleepConsolidation as any, p).mockResolvedValue({ rows: 0 });
+      continue;
+    }
+    vi.spyOn(SleepConsolidation as any, p).mockResolvedValue(0);
+  }
   vi.spyOn(SleepConsolidation as any, "nremDecay").mockResolvedValue({ demoted: 0, pruned: 0 });
 }
 

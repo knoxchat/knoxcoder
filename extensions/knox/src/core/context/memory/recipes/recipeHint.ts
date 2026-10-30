@@ -5,6 +5,7 @@
  */
 
 import { redactSecrets } from "../../../util/redactSecrets.js";
+import { memoryCiteToken } from "../brain/attribution.js";
 import { unifiedDiff } from "./merge3.js";
 import type { Recipe } from "./types.js";
 
@@ -27,6 +28,7 @@ export function buildRecipeStub(recipe: Recipe, extra?: { why?: string }): strin
   const pres = recipe.preconditions.slice(0, 6).map((p) => `${p.kind}=${redactSecrets(p.value)}`);
   const title = redactSecrets(recipe.title || recipe.intentText || recipe.id.slice(0, 8));
   const lines = [
+    memoryCiteToken("recipe", recipe.id),
     `<${RECIPE_STUB_MARKER} title=${JSON.stringify(title)} id=${JSON.stringify(recipe.id)}>`,
     extra?.why ? redactSecrets(extra.why) : "",
     `recipe_id: ${recipe.id}`,
@@ -57,6 +59,7 @@ export async function buildRecipeHint(
 ): Promise<string> {
   const title = redactSecrets(recipe.title || recipe.intentText || recipe.id.slice(0, 8));
   const head = [
+    memoryCiteToken("recipe", recipe.id),
     `<verified_recipe title=${JSON.stringify(title)} id=${JSON.stringify(recipe.id)}>`,
     `recipe_id: ${recipe.id}`,
     extra?.why ? redactSecrets(extra.why) : "",

@@ -774,6 +774,8 @@ export const knoxGuiStringsEnCommon: Record<string, unknown> = {
 	"memoryTheoremWMemDesc": "Local memory-block cap. Default 4096. Live inject cap stays 8000 until assembly work lands.",
 	"memoryTheoremFusionCutoff": "Fused candidate cut-off",
 	"memoryTheoremFusionCutoffDesc": "Candidates before calibrated θ. Default 50. Live top-k stays 20 until fusion work lands.",
+	"memoryTheoremCalibratedTheta": "Calibrated θ",
+	"memoryTheoremCalibratedThetaDesc": "Running P(helpful | injected) from the attribution log. Live retrieve still uses 0.6 until fusion work lands.",
 	"memoryTheoremWLexical": "Channel weight w_lexical",
 	"memoryTheoremWLexicalDesc": "RRF weight for BM25 + trigram + synonyms. Default 1.",
 	"memoryTheoremWRipgrep": "Channel weight w_ripgrep",

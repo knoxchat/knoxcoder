@@ -30,15 +30,24 @@ describe("memory tool family (K-021 / K-070)", () => {
     expect(enumValues.length).toBeLessThanOrEqual(12);
     expect(enumValues).toEqual([...MEMORY_PRODUCT_ACTIONS]);
     expect(memoryTool.function.description).toMatch(/durable facts and decisions only/i);
+    expect(enumValues).toContain("attribute");
+    expect(memoryTool.function.description).toMatch(/attribute/i);
     for (const banned of [
       "heal",
       "five_tier_consolidate",
       "get_cache_stats",
       "root_cause_analysis",
+      "restore",
+      "rollback_checkpoint",
+      "create_checkpoint",
     ]) {
       expect(enumValues).not.toContain(banned);
       expect(JSON.stringify(memoryTool.function)).not.toContain(banned);
     }
+    const helpful = (memoryTool.function.parameters as {
+      properties: { helpful?: { type?: string } };
+    }).properties.helpful;
+    expect(helpful?.type).toBe("boolean");
   });
 });
 
@@ -100,7 +109,14 @@ describe("product memory store + recall (K-070)", () => {
     const { BrainManager } = await import("../context/memory/brain/BrainManager.js");
     const dispatch = vi.spyOn(BrainManager, "dispatch");
     try {
-      for (const action of ["heal", "export", "run_pipeline"] as const) {
+      for (const action of [
+        "heal",
+        "export",
+        "run_pipeline",
+        "restore",
+        "rollback_checkpoint",
+        "create_checkpoint",
+      ] as const) {
         const result = await memoryImpl({ action }, extras);
         expect(result[0]?.content).toMatch(/not available on builtin_memory/i);
         expect(result[0]?.content).toMatch(/brain\/\*/i);
@@ -109,5 +125,80 @@ describe("product memory store + recall (K-070)", () => {
     } finally {
       dispatch.mockRestore();
     }
+  });
+
+  it("attributes a stored memory helpful or unhelpful (MEM-19)", async () => {
+    const extras = {
+      ide: {} as never,
+      llm: undefined,
+    } as never;
+    const stored = await memoryImpl(
+      {
+        action: "store",
+        category: "fact",
+        title: "zephyrlint attribute leaf",
+        content: "zephyrlint attribute leaf marks the reports JWT path.",
+        keywords: "zephyrlint,attribute,jwt",
+      },
+      extras,
+    );
+    const id = Number(/ID:\s*(\d+)/i.exec(String(stored[0]?.content))?.[1]);
+    expect(id).toBeGreaterThan(0);
+
+    const helped = await memoryImpl(
+      { action: "attribute", id, helpful: true, session_id: "mem19-catalog" },
+      extras,
+    );
+    expect(helped[0]?.content).toMatch(/\[mem:semantic:/);
+    expect(helped[0]?.content).toMatch(/helpful/i);
+
+    const { BrainStore } = await import("../context/memory/brain/BrainStore.js");
+    const afterHelp = await BrainStore.getSemanticById(id);
+    expect(afterHelp?.helpful_count).toBe(1);
+    expect(afterHelp?.unhelpful_count).toBe(0);
+
+    const cited = await memoryImpl(
+      {
+        action: "attribute",
+        id: `[mem:semantic:${id}]`,
+        helpful: false,
+        session_id: "mem19-catalog",
+      },
+      extras,
+    );
+    expect(cited[0]?.content).toMatch(/unhelpful/i);
+    const afterHarm = await BrainStore.getSemanticById(id);
+    expect(afterHarm?.unhelpful_count).toBe(1);
+
+    const db = await BrainStore.get();
+    const rows = await db.all<{ helpful: number }[]>(
+      "SELECT helpful FROM brain_attribution WHERE mem_id = ? ORDER BY id ASC",
+      [String(id)],
+    );
+    expect(rows.map((row) => row.helpful)).toEqual([1, 0]);
+  });
+
+  it("requires helpful and a real id, and blocks child readonly writes", async () => {
+    const extras = {
+      ide: {} as never,
+      llm: undefined,
+    } as never;
+    const missingFlag = await memoryImpl({ action: "attribute", id: 1 }, extras);
+    expect(missingFlag[0]?.content).toMatch(/helpful/i);
+
+    const missingId = await memoryImpl({ action: "attribute", helpful: true }, extras);
+    expect(missingId[0]?.content).toMatch(/id/i);
+
+    const missingRow = await memoryImpl(
+      { action: "attribute", id: 9_999_999, helpful: true },
+      extras,
+    );
+    expect(missingRow[0]?.content).toMatch(/not found/i);
+
+    const blocked = await memoryImpl(
+      { action: "attribute", id: 1, helpful: true },
+      { ide: {} as never, llm: undefined, soul: { readonlyMemory: true } } as never,
+    );
+    expect(blocked[0]?.content).toMatch(/writes the brain/i);
   });
 });

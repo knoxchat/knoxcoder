@@ -163,6 +163,12 @@ async function buildHint(
   const id = event.recipe?.id ?? event.matches?.[0]?.id;
   const recipe = id ? recipes.find((r) => r.id === id) : undefined;
   if (!recipe) return loopLine;
+  try {
+    const { MemoryPipeline } = await import("core/context/memory/brain/MemoryPipeline");
+    MemoryPipeline.noteRecipeInject(recipe, "recipe-hint");
+  } catch {
+    // Attribution is best-effort; the cite token still lands in the hint.
+  }
   const manager = CheckpointManager.getInstance();
   const stub = buildRecipeStub(recipe, { why: event.why });
   if (event.mode === "generate") return `${loopLine}\n${stub}`;
