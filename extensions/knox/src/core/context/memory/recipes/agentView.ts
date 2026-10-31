@@ -4,7 +4,8 @@
  */
 
 import { redactSecrets } from "../../../util/redactSecrets.js";
-import type { Recipe, RecipeStatus } from "./types.js";
+import type { Recipe, RecipeListFilter, RecipeSearchFilter, RecipeStatus } from "./types.js";
+import { RECIPE_CHANNEL_CANDIDATE_CAP } from "./types.js";
 
 export interface RecipeAgentRow {
   id: string;
@@ -90,7 +91,15 @@ export function formatRecipeAgentMeta(recipe: Recipe, extra?: { why?: string; pr
   return lines.filter((l) => l.length > 0).join("\n");
 }
 
-/** Filter a list by a lexical query (title, intent, paths, slots). */
+export interface RecipeQueryStore {
+  searchVisibleTo(projectId: string, filter?: Omit<RecipeSearchFilter, "projectId">): Promise<Recipe[]>;
+  listVisibleTo(projectId: string, filter?: Omit<RecipeListFilter, "projectId">): Promise<Recipe[]>;
+}
+
+/**
+ * Rank an already-retrieved Ω(q) page by a lexical query (title, intent,
+ * paths, slots). Not the recall path — callers must not pass `list({limit:1000})`.
+ */
 export function filterRecipesByQuery(recipes: readonly Recipe[], query: string, limit = 8): Recipe[] {
   const q = query.trim().toLowerCase();
   if (!q) return [...recipes].slice(0, limit);
@@ -106,4 +115,24 @@ export function filterRecipesByQuery(recipes: readonly Recipe[], query: string, 
     .filter((x): x is { r: Recipe; score: number } => Boolean(x))
     .sort((a, b) => b.score - a.score || b.r.stats.ok - a.r.stats.ok);
   return scored.map((s) => s.r).slice(0, limit);
+}
+
+/**
+ * MEM-34: agent list over the recipe channel. Empty query is a short
+ * inventory page (the requested limit), not a 1000-row scan.
+ */
+export async function searchRecipesByQuery(
+  store: RecipeQueryStore,
+  projectId: string,
+  query: string,
+  limit = 8,
+  status: RecipeStatus[] = ["verified", "candidate"],
+): Promise<Recipe[]> {
+  const cap = Math.max(1, Math.min(limit, RECIPE_CHANNEL_CANDIDATE_CAP));
+  const q = query.trim();
+  if (!q) {
+    return store.listVisibleTo(projectId, { status, limit: cap });
+  }
+  const hits = await store.searchVisibleTo(projectId, { query: q, status, limit: cap });
+  return filterRecipesByQuery(hits, q, cap);
 }

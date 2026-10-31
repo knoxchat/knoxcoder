@@ -3,9 +3,10 @@
  * reusing and say why.
  *
  * Pipeline: exact intent-fingerprint match -> fusion retrieval evidence ->
- * file/buffer overlap -> rerank by track record. Pure: the host runs
- * `RetrievalFusion` (recipes are linked to `workflow` memories by MC-17) and
- * passes the hits in, so this stays testable and never touches the DB.
+ * file/buffer overlap -> rerank by track record. Pure scoring: the host
+ * retrieves Ω(q) via `RecipeStore.search` / `matchRecipesFromChannel` (MEM-34)
+ * and passes those candidates in. Do not feed `RecipeStore.list` (the 1000-row
+ * inventory page) as the recall path.
  *
  * Only `verified` recipes are ever returned (README rule 1). `candidate`,
  * `quarantined` and `retired` recipes are invisible here.
@@ -18,7 +19,10 @@ import { pickBestVariant } from "./family.js";
 import { RECIPE_PIN_BOOST } from "./inspector.js";
 import { computeIntentFingerprint, extractMentionedPaths, fingerprintSimilarity } from "./intentFingerprint.js";
 import { slotCandidates } from "./slots.js";
-import type { Recipe } from "./types.js";
+import type { Recipe, RecipeSearchFilter, RecipeStatus } from "./types.js";
+import { RECIPE_CHANNEL_CANDIDATE_CAP } from "./types.js";
+
+export { RECIPE_CHANNEL_CANDIDATE_CAP };
 
 /** Scores at or above this may drive replay (exact/adapt). Below it, only suggest. */
 export const REPLAY_THRESHOLD = 0.85;
@@ -56,6 +60,7 @@ export interface RecipeMatch {
 
 export interface MatchArgs {
   message: string;
+  /** Ω(q) candidates from the recipe channel — not an inventory dump. */
   recipes: readonly Recipe[];
   fusionHits?: readonly FusionHit[];
   /** Project being worked in. Project-scope recipes of any other project (or with no project id given) never match. */
@@ -65,6 +70,10 @@ export interface MatchArgs {
   /** Extra paths (e.g. @-mentions) counted toward file overlap. */
   mentionedPaths?: readonly string[];
   limit?: number;
+}
+
+export interface RecipeChannelSearch {
+  searchVisibleTo(projectId: string, filter?: Omit<RecipeSearchFilter, "projectId">): Promise<Recipe[]>;
 }
 
 /**
@@ -253,4 +262,23 @@ export function matchRecipes(args: MatchArgs): RecipeMatch[] {
 
 export function bestMatch(args: MatchArgs): RecipeMatch | undefined {
   return matchRecipes({ ...args, limit: 1 })[0];
+}
+
+/**
+ * MEM-34: retrieve Ω(q) via the recipe channel, then score. Callers that
+ * still have a tiny in-memory list (tests) use `matchRecipes` directly.
+ */
+export async function matchRecipesFromChannel(
+  search: RecipeChannelSearch,
+  args: Omit<MatchArgs, "recipes"> & { status?: RecipeStatus | RecipeStatus[] },
+): Promise<RecipeMatch[]> {
+  const memoryIds = [...new Set((args.fusionHits ?? []).map((h) => h.memoryId))];
+  const recipes = await search.searchVisibleTo(args.projectId ?? "", {
+    query: args.message,
+    status: args.status ?? "verified",
+    memoryIds,
+    mentionedPaths: [...(args.mentionedPaths ?? []), ...(args.openPaths ?? [])],
+    limit: RECIPE_CHANNEL_CANDIDATE_CAP,
+  });
+  return matchRecipes({ ...args, recipes });
 }

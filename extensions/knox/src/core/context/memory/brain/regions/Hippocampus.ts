@@ -14,6 +14,11 @@
 
 import { AutoMemory } from "../AutoMemory.js";
 import { BrainStore } from "../BrainStore.js";
+import {
+  leftoverCoveredByFingerprints,
+  leftoverFingerprints,
+  loadLiveRecipeCoverage,
+} from "../m5Surface.js";
 import { RetrievalFusion, type FusionResult } from "../RetrievalFusion.js";
 import { getMemoryConfig } from "../memoryConfigAccess.js";
 import { getProjectSessionIds } from "../projectScope.js";
@@ -28,8 +33,8 @@ export interface LongTermPersistResult {
   /** Live recipes in this session counted as product M₅ (MEM-09). */
   recipes: number;
   /**
-   * Leftover learning-pattern writes for unlinked code_patterns.
-   * Not the product M₅ — recipes are. Folded in MEM-37.
+   * Leftover learning-pattern writes for code_patterns no live recipe covers.
+   * Product M₅ is recipes; leftovers yield on the same fingerprint (MEM-37).
    */
   procedural: number;
   /** Leaves pointed at by a new summary-tree node (originals kept). */
@@ -106,8 +111,8 @@ export const Hippocampus = {
    * Promotes high-importance hot memories to warm (M₄), counts live recipes
    * as product M₅, and inserts each new leaf under the session summary tree
    * (MEM-24, branching b). Leaf `content` stays intact (MEM-05). Unlinked
-   * code_patterns may still write a leftover learning pattern; they are not
-   * the M₅ store.
+   * code_patterns may still write a leftover learning pattern when no live
+   * recipe owns the same fingerprint (MEM-37).
    */
   async persistToLongTerm(
     sessionId: string,
@@ -131,8 +136,9 @@ export const Hippocampus = {
     result.recipes = sessionRecipes.count;
 
     // Leftover: unlinked code_patterns may still train BasalGanglia. Skip
-    // any row already used as a recipe's lexical handle so we do not treat
-    // brain_procedures / learning patterns as the only M₅.
+    // any row a live recipe already owns (linked handle or same fingerprint)
+    // so leftover procedures / patterns are not a second M₅ surface.
+    const coverage = await loadLiveRecipeCoverage();
     const codePatterns = await db.all(
       `SELECT id, title, content FROM brain_semantic
        WHERE source_session_id = ?
@@ -142,14 +148,22 @@ export const Hippocampus = {
     );
     for (const row of codePatterns) {
       const r = row as { id: number; title: string; content: string };
-      if (sessionRecipes.linkedMemoryIds.has(r.id)) continue;
-      await BasalGanglia.recordSuccess({
+      if (coverage.memoryIds.has(r.id) || sessionRecipes.linkedMemoryIds.has(r.id)) continue;
+      if (
+        leftoverCoveredByFingerprints(
+          leftoverFingerprints([r.title, r.content]),
+          coverage.fingerprints,
+        )
+      ) {
+        continue;
+      }
+      const written = await BasalGanglia.recordSuccess({
         goal_type: "coding",
         pattern_signature: r.title.slice(0, 80),
         description: r.content.slice(0, 300),
         success: true,
-      }).catch(() => {});
-      result.procedural++;
+      }).catch(() => 0);
+      if (written > 0) result.procedural++;
     }
 
     return result;

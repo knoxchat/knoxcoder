@@ -12,6 +12,8 @@ const testDir = path.join(os.tmpdir(), `brain-checkpoint-${Date.now()}`);
 let BrainManager: typeof import("./BrainManager.js").BrainManager;
 let BrainStore: typeof import("./BrainStore.js").BrainStore;
 let CheckpointManager: typeof import("./CheckpointManager.js").CheckpointManager;
+let RecipeStore: typeof import("../recipes/RecipeStore.js").RecipeStore;
+let linkRecipeMemory: typeof import("../recipes/memoryLink.js").linkRecipeMemory;
 let rewindMemoryForWorkspaceCheckpoint: typeof import("../../soul/recordSoulEvent.js").rewindMemoryForWorkspaceCheckpoint;
 let pinMemoryForWorkspaceCheckpoint: typeof import("../../soul/recordSoulEvent.js").pinMemoryForWorkspaceCheckpoint;
 
@@ -21,6 +23,8 @@ beforeAll(async () => {
   ({ BrainManager } = await import("./BrainManager.js"));
   ({ BrainStore } = await import("./BrainStore.js"));
   ({ CheckpointManager } = await import("./CheckpointManager.js"));
+  ({ RecipeStore } = await import("../recipes/RecipeStore.js"));
+  ({ linkRecipeMemory } = await import("../recipes/memoryLink.js"));
   ({
     rewindMemoryForWorkspaceCheckpoint,
     pinMemoryForWorkspaceCheckpoint,
@@ -52,6 +56,16 @@ async function reset(): Promise<void> {
   await db.exec("DELETE FROM brain_audit_log");
   await db.exec("DELETE FROM brain_checkpoints");
   await db.exec("DELETE FROM brain_sessions");
+  try {
+    await db.exec("DELETE FROM brain_recipe_steps");
+    await db.exec("DELETE FROM brain_recipes");
+    await db.exec("DELETE FROM brain_memory_outcomes");
+    await db.exec("DELETE FROM brain_memory_supersessions");
+    await db.exec("DELETE FROM brain_attribution");
+    await db.exec("DELETE FROM brain_summary_tree");
+  } catch {
+    // Recipe / theorem tables may be absent on a stripped fixture.
+  }
   (BrainManager as any).workingMem = null;
   (BrainManager as any).workingMemSessionId = null;
   (BrainManager as any).activeSessionId = null;
@@ -117,6 +131,13 @@ describe("memory checkpoints", () => {
     const checkpoint = await BrainManager.createCheckpoint("complete");
     const snapshot = BrainStore.readKnowledgeSnapshot(checkpoint.snapshot_path);
     expect(snapshot.version).toBe(BrainStore.KNOWLEDGE_SNAPSHOT_VERSION);
+    expect(snapshot.version).toBe(3);
+    expect(Array.isArray(snapshot.recipes)).toBe(true);
+    expect(Array.isArray(snapshot.recipe_steps)).toBe(true);
+    expect(Array.isArray(snapshot.memory_outcomes)).toBe(true);
+    expect(Array.isArray(snapshot.memory_supersessions)).toBe(true);
+    expect(Array.isArray(snapshot.attribution)).toBe(true);
+    expect(Array.isArray(snapshot.summary_tree)).toBe(true);
     expect(snapshot.associations.length).toBeGreaterThan(0);
     expect(snapshot.tags.length).toBeGreaterThan(0);
 
@@ -392,4 +413,203 @@ describe("memory checkpoints", () => {
     const semanticAfter = await BrainStore.getSemanticBySession(sessionId, 20);
     expect(semanticAfter.length).toBe(semanticBefore.length);
   });
+
+  it("rewinds recipes, outcomes, and supersessions with the workflow memory (MEM-36)", async () => {
+    await reset();
+    const sessionId = "cp-mem36-session";
+    await BrainManager.trackSession(sessionId, "MEM-36 rewind", testDir);
+    const captured = await captureVerifiedRecipe({
+      sessionId,
+      title: "Replay login form",
+      intent: "scaffold the login form from the verified recipe",
+    });
+    const db = await BrainStore.get();
+    await db.run(
+      "INSERT INTO brain_memory_outcomes (memory_id, verified_count, revert_count) VALUES (?, 2, 0)",
+      [captured.memoryId],
+    );
+    await db.run(
+      "INSERT INTO brain_memory_supersessions (old_id, new_id, reason) VALUES (?, ?, ?)",
+      [captured.memoryId, captured.memoryId + 100, "mem36-supersede"],
+    );
+    await db.run(
+      `INSERT INTO brain_attribution (turn_id, session_id, mem_type, mem_id, injected, cited, helpful)
+       VALUES ('t-mem36', ?, 'recipe', ?, 1, 1, 1)`,
+      [sessionId, captured.id],
+    );
+    await db.run(
+      "INSERT INTO brain_summary_tree (kind, text, token_count) VALUES ('node', 'mem36-tree', 4)",
+    );
+
+    const pinned = await BrainManager.pinForWorkspaceCheckpoint(
+      "ws-mem36",
+      "recipe capture",
+    );
+    expect(pinned).toBeTruthy();
+    const snapshot = BrainStore.readKnowledgeSnapshot(pinned!.snapshot_path);
+    expect(snapshot.version).toBe(3);
+    expect(snapshot.recipes.some((row: { id: string }) => row.id === captured.id)).toBe(true);
+    expect(snapshot.recipe_steps.some((row: { path: string }) => row.path === "src/auth.ts")).toBe(true);
+    expect(snapshot.memory_outcomes.some((row: { memory_id: number }) => row.memory_id === captured.memoryId)).toBe(true);
+    expect(snapshot.memory_supersessions.some((row: { reason: string }) => row.reason === "mem36-supersede")).toBe(true);
+    expect(snapshot.attribution.some((row: { mem_id: string }) => row.mem_id === captured.id)).toBe(true);
+    expect(snapshot.summary_tree.some((row: { text: string }) => row.text === "mem36-tree")).toBe(true);
+
+    const laterFact = await BrainManager.store({
+      category: "fact",
+      title: "After recipe pin",
+      content: "post-recipe-checkpoint-token",
+      keywords: "after",
+      session_id: sessionId,
+      importance: 0.5,
+    });
+    const laterRecipe = await captureVerifiedRecipe({
+      sessionId,
+      title: "Later recipe",
+      intent: "this recipe is captured after the pin and must vanish",
+    });
+    await db.run("DELETE FROM brain_recipe_steps WHERE recipe_id = ?", [captured.id]);
+    await db.run("DELETE FROM brain_recipes WHERE id = ?", [captured.id]);
+    await BrainStore.deleteSemantic(captured.memoryId);
+
+    const result = await rewindMemoryForWorkspaceCheckpoint({
+      sessionId,
+      workspaceCheckpointId: "ws-mem36",
+      createdAt: pinned!.created_at,
+    });
+    expect(result.rewound).toBe(true);
+    expect(result.memoryCheckpointId).toBe(pinned?.id);
+
+    const store = new RecipeStore(await BrainStore.get());
+    const recipe = await store.get(captured.id);
+    expect(recipe).not.toBeNull();
+    expect(recipe?.status).toBe("verified");
+    expect(recipe?.steps.some((step) => step.path === "src/auth.ts")).toBe(true);
+    expect(recipe?.memoryId).toBeTruthy();
+    expect(await BrainStore.getSemanticById(recipe!.memoryId!)).not.toBeNull();
+    expect(await store.get(laterRecipe.id)).toBeNull();
+    expect(await BrainStore.getSemanticById(laterFact)).toBeNull();
+
+    const after = await BrainStore.get();
+    expect(
+      await after.get("SELECT * FROM brain_memory_outcomes WHERE memory_id = ?", [captured.memoryId]),
+    ).toBeTruthy();
+    expect(
+      await after.get("SELECT * FROM brain_memory_supersessions WHERE reason = ?", ["mem36-supersede"]),
+    ).toBeTruthy();
+    expect(
+      await after.get("SELECT * FROM brain_attribution WHERE mem_id = ?", [captured.id]),
+    ).toBeTruthy();
+    expect(
+      await after.get("SELECT * FROM brain_summary_tree WHERE text = ?", ["mem36-tree"]),
+    ).toBeTruthy();
+  });
+
+  it("relinks a verified recipe when rewind drops its workflow memory (MEM-36)", async () => {
+    await reset();
+    const sessionId = "cp-mem36-relink";
+    await BrainManager.trackSession(sessionId, "MEM-36 relink", testDir);
+    const captured = await captureVerifiedRecipe({
+      sessionId,
+      title: "Relink workflow",
+      intent: "relink when the workflow row is missing after rewind",
+    });
+    const checkpoint = await BrainManager.createCheckpoint("relink");
+    const snapshot = BrainStore.readKnowledgeSnapshot(checkpoint.snapshot_path);
+    snapshot.semantic = (snapshot.semantic ?? []).filter(
+      (row: { id: number }) => row.id !== captured.memoryId,
+    );
+    fs.writeFileSync(checkpoint.snapshot_path, JSON.stringify(snapshot, null, 2));
+
+    await BrainManager.rollbackCheckpoint(checkpoint.id);
+
+    const store = new RecipeStore(await BrainStore.get());
+    const recipe = await store.get(captured.id);
+    expect(recipe).not.toBeNull();
+    expect(recipe?.status).toBe("verified");
+    expect(recipe?.memoryId).toBeTruthy();
+    expect(recipe?.memoryId).not.toBe(captured.memoryId);
+    const workflow = await BrainStore.getSemanticById(recipe!.memoryId!);
+    expect(workflow).not.toBeNull();
+    expect(workflow?.content).toContain(`recipe_id: ${captured.id}`);
+    expect(await BrainStore.getSemanticById(captured.memoryId)).toBeNull();
+  });
+
+  it("leaves recipes in place for a v2 snapshot and still relinks a missing workflow", async () => {
+    await reset();
+    const sessionId = "cp-mem36-v2";
+    await BrainManager.trackSession(sessionId, "MEM-36 v2", testDir);
+    const captured = await captureVerifiedRecipe({
+      sessionId,
+      title: "Legacy snapshot",
+      intent: "v2 snapshots omit recipes so rewind must not drop them",
+    });
+    const checkpoint = await BrainManager.createCheckpoint("v2-compat");
+    const snapshot = BrainStore.readKnowledgeSnapshot(checkpoint.snapshot_path);
+    snapshot.version = 2;
+    snapshot.semantic = (snapshot.semantic ?? []).filter(
+      (row: { id: number }) => row.id !== captured.memoryId,
+    );
+    delete snapshot.recipes;
+    delete snapshot.recipe_steps;
+    delete snapshot.memory_outcomes;
+    delete snapshot.memory_supersessions;
+    delete snapshot.attribution;
+    delete snapshot.summary_tree;
+    fs.writeFileSync(checkpoint.snapshot_path, JSON.stringify(snapshot, null, 2));
+    const afterRecipe = await captureVerifiedRecipe({
+      sessionId,
+      title: "Captured after v2 rewrite",
+      intent: "v2 rewind must not delete a recipe that was never snapshotted",
+    });
+
+    await BrainManager.rollbackCheckpoint(checkpoint.id);
+
+    const store = new RecipeStore(await BrainStore.get());
+    expect(await store.get(captured.id)).not.toBeNull();
+    expect(await store.get(afterRecipe.id)).not.toBeNull();
+    const recipe = await store.get(captured.id);
+    expect(recipe?.memoryId).toBeTruthy();
+    expect(await BrainStore.getSemanticById(recipe!.memoryId!)).not.toBeNull();
+  });
 });
+
+async function captureVerifiedRecipe(opts: {
+  sessionId: string;
+  title: string;
+  intent: string;
+}): Promise<{ id: string; memoryId: number }> {
+  const store = new RecipeStore(await BrainStore.get());
+  const created = await store.create({
+    projectId: "mem36",
+    intentFingerprint: opts.intent,
+    title: opts.title,
+    intentText: opts.intent,
+    steps: [
+      {
+        kind: "write_file",
+        path: "src/auth.ts",
+        blobHash: "ab".repeat(32),
+        checkpointId: "ws-mem36",
+      },
+      { kind: "command", command: "npm test" },
+    ],
+    oracle: {
+      kind: "build",
+      passedAt: new Date().toISOString(),
+      command: "npm run build",
+    },
+    sourceSessionId: opts.sessionId,
+  });
+  await store.verify(created.recipe.id);
+  const recipe = await linkRecipeMemory(
+    store,
+    (await store.get(created.recipe.id))!,
+    (memory) => BrainManager.store(memory),
+    async (id) => (await BrainStore.getSemanticById(id)) != null,
+  );
+  if (recipe.memoryId == null) {
+    throw new Error("expected a linked workflow memory");
+  }
+  return { id: recipe.id, memoryId: recipe.memoryId };
+}

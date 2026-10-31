@@ -2,10 +2,19 @@
  * Recipe hint (suggest/adapt/exact-not-yet-replayable): a worked example injected into the
  * prompt so the model reuses verified work instead of re-deriving it. Pure; the host supplies
  * blob bytes. Text only, secrets redacted, size capped. Never contains file bytes of binary blobs.
+ *
+ * Every stub/hint carries `[mem:recipe:<id>]`. A cited hint whose turn succeeds
+ * increments recipe leaf h; a user correction or revert increments u (MEM-39).
+ * Same `brain_attribution` table (`mem_type='recipe'`) as replay (MEM-18).
  */
 
 import { redactSecrets } from "../../../util/redactSecrets.js";
-import { memoryCiteToken } from "../brain/attribution.js";
+import {
+  memoryCiteToken,
+  parseMemoryCites,
+  recipeInjectItem,
+} from "../brain/attribution.js";
+import type { InjectedMemoryItem } from "../brain/types.js";
 import { unifiedDiff } from "./merge3.js";
 import type { Recipe } from "./types.js";
 
@@ -14,6 +23,26 @@ export const HINT_MAX_CHARS = 6000;
 export const HINT_FILE_MAX_CHARS = 800;
 export const HINT_DIFF_MAX_CHARS = 600;
 export const RECIPE_STUB_MARKER = "verified_recipe_stub";
+
+/** Stable cite token rendered on every stub/hint (MEM-17 / MEM-39). */
+export function recipeHintCite(recipe: { id: string }): string {
+  return memoryCiteToken("recipe", recipe.id);
+}
+
+/** Injected-memory item the pipeline attributes after the turn (MEM-39). */
+export function recipeHintInjectItem(
+  recipe: { id: string; title?: string },
+  reason = "recipe-hint",
+): InjectedMemoryItem {
+  return recipeInjectItem(recipe, reason);
+}
+
+/** Recipe ids cited in an injected stub/hint. */
+export function parseRecipeHintCites(text: string | null | undefined): string[] {
+  return parseMemoryCites(text)
+    .filter((cite) => cite.type === "recipe")
+    .map((cite) => cite.mem_id);
+}
 
 export interface RecipeHintExtra {
   why?: string;
@@ -28,7 +57,7 @@ export function buildRecipeStub(recipe: Recipe, extra?: { why?: string }): strin
   const pres = recipe.preconditions.slice(0, 6).map((p) => `${p.kind}=${redactSecrets(p.value)}`);
   const title = redactSecrets(recipe.title || recipe.intentText || recipe.id.slice(0, 8));
   const lines = [
-    memoryCiteToken("recipe", recipe.id),
+    recipeHintCite(recipe),
     `<${RECIPE_STUB_MARKER} title=${JSON.stringify(title)} id=${JSON.stringify(recipe.id)}>`,
     extra?.why ? redactSecrets(extra.why) : "",
     `recipe_id: ${recipe.id}`,
@@ -59,7 +88,7 @@ export async function buildRecipeHint(
 ): Promise<string> {
   const title = redactSecrets(recipe.title || recipe.intentText || recipe.id.slice(0, 8));
   const head = [
-    memoryCiteToken("recipe", recipe.id),
+    recipeHintCite(recipe),
     `<verified_recipe title=${JSON.stringify(title)} id=${JSON.stringify(recipe.id)}>`,
     `recipe_id: ${recipe.id}`,
     extra?.why ? redactSecrets(extra.why) : "",

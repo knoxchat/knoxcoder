@@ -77,6 +77,20 @@ export interface Recipe {
   createdAt: string;
   updatedAt: string;
   lastReplayedAt?: string;
+  /**
+   * MEM-39 hint-attribution leaf h. Added to replay `stats.ok` for Value.
+   * Omitted / 0 means no hint outcomes yet.
+   */
+  helpfulCount?: number;
+  /**
+   * MEM-39 hint-attribution leaf u. Added to
+   * `stats.reverted + stats.failedVerify` for Value.
+   */
+  unhelpfulCount?: number;
+  /** Power-law S (days). Missing → workflow S₀ = 30. */
+  stability?: number;
+  /** Prior I₀. Missing → 0.5. */
+  i0?: number;
 }
 
 export interface NewRecipeInput {
@@ -100,5 +114,23 @@ export interface RecipeListFilter {
   status?: RecipeStatus | RecipeStatus[];
   intentFingerprint?: string;
   familyId?: string;
+  limit?: number;
+}
+
+/**
+ * MEM-34: recipe recall over Ω(q). Not an inventory page — the channel cap
+ * is 50 (same as fusion candidates), never RecipeStore.list's 1000.
+ */
+export const RECIPE_CHANNEL_CANDIDATE_CAP = 50;
+
+export interface RecipeSearchFilter {
+  projectId?: string;
+  status?: RecipeStatus | RecipeStatus[];
+  query?: string;
+  /** Union recipes whose linked workflow memory was a fusion hit. */
+  memoryIds?: readonly number[];
+  /** Extra FTS terms (open / @-mentioned paths). */
+  mentionedPaths?: readonly string[];
+  /** Channel cap; default `RECIPE_CHANNEL_CANDIDATE_CAP`. */
   limit?: number;
 }

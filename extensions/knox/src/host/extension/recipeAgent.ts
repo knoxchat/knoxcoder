@@ -57,7 +57,7 @@ export async function handleRecipeControl(
 }
 
 async function listOp(workspaceDir: string, query?: string, limit?: number): Promise<RecipeControlResult> {
-  const [{ listRecipes }, { filterRecipesByQuery, formatRecipeAgentList, toRecipeAgentRow }] = await Promise.all([
+  const [{ listRecipes }, { searchRecipesByQuery, formatRecipeAgentList, toRecipeAgentRow }] = await Promise.all([
     import("./recipeList"),
     import("core/context/memory/recipes/agentView"),
   ]);
@@ -66,9 +66,9 @@ async function listOp(workspaceDir: string, query?: string, limit?: number): Pro
   const { get: getBrainDb } = await import("core/context/memory/brain/store/connection");
   const { hashProjectId } = await import("core/context/memory/brain/projectScope");
   const store = new RecipeStore(await getBrainDb());
-  const recipes = await store.listVisibleTo(hashProjectId(workspaceDir), { status: ["verified", "candidate"] });
-  const filtered = filterRecipesByQuery(
-    recipes.filter((r) => r.status === "verified" || r.status === "candidate"),
+  const filtered = await searchRecipesByQuery(
+    store,
+    hashProjectId(workspaceDir),
     query ?? "",
     Math.max(1, Math.min(limit ?? 12, 30)),
   );

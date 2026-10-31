@@ -39,6 +39,8 @@ describe("recipe tables (MC-10)", () => {
     const names = await tableNames(db);
     expect(names).toContain("brain_recipes");
     expect(names).toContain("brain_recipe_steps");
+    expect(names).toContain("brain_recipe_lex");
+    expect(names).toContain("brain_recipes_fts");
     await db.close();
   });
 
@@ -61,7 +63,7 @@ describe("recipe tables (MC-10)", () => {
     await createTables(db);
     await migrateSchema(db);
     expect(await tableNames(db)).toEqual(
-      expect.arrayContaining(["brain_recipes", "brain_recipe_steps"]),
+      expect.arrayContaining(["brain_recipes", "brain_recipe_steps", "brain_recipe_lex", "brain_recipes_fts"]),
     );
     expect(
       (await db.get<{ content: string }>("SELECT content FROM brain_semantic WHERE title = 'keep'"))?.content,
@@ -85,6 +87,8 @@ describe("recipe tables (MC-10)", () => {
       ok_count: 0,
       reverted_count: 0,
       failed_verify_count: 0,
+      helpful_count: 0,
+      unhelpful_count: 0,
       slots: "[]",
       preconditions: "[]",
     });
@@ -167,13 +171,21 @@ describe("recipe tables (MC-10)", () => {
     await migrateSchema(db);
 
     const cols = (await db.all<{ name: string }[]>("PRAGMA table_info(brain_recipes)")).map((c) => c.name);
-    expect(cols).toEqual(expect.arrayContaining(["family_id", "slot_values", "pinned", "notes"]));
+    expect(cols).toEqual(
+      expect.arrayContaining(["family_id", "slot_values", "pinned", "notes", "helpful_count", "unhelpful_count"]),
+    );
     const row = await db.get<{ family_id: string; slot_values: string; pinned: number; notes: string; title: string }>(
       "SELECT family_id, slot_values, pinned, notes, title FROM brain_recipes WHERE id = 'r1'",
     );
     expect(row).toMatchObject({ family_id: "", slot_values: "{}", pinned: 0, notes: "", title: "pre-family" });
     await db.run("UPDATE brain_recipes SET family_id = 'fam' WHERE id = 'r1'");
     expect((await db.get<{ n: number }>("SELECT COUNT(*) n FROM brain_recipes WHERE family_id = 'fam'"))?.n).toBe(1);
+    const fts = await db.get<{ recipe_id: string }>(
+      `SELECT lex.recipe_id AS recipe_id FROM brain_recipes_fts
+         JOIN brain_recipe_lex lex ON lex.id = brain_recipes_fts.rowid
+        WHERE brain_recipes_fts MATCH '"pre-family"'`,
+    );
+    expect(fts?.recipe_id).toBe("r1");
     await db.close();
   });
 

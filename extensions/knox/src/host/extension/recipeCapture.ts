@@ -233,12 +233,14 @@ export async function decideRecipeAtTurnStart(
 ): Promise<{ event: import("core/agent/recipeDecisionTurn").RecipeDecisionEvent; hint?: string } | undefined> {
   if (!recipesEnabled() || !input.userMessage?.trim()) return undefined;
   try {
-    const [{ decideRecipeForTurn }, { RecipeStore }, { get: getBrainDb }, { hashProjectId }] = await Promise.all([
-      import("core/agent/recipeDecisionTurn"),
-      import("core/context/memory/recipes/RecipeStore"),
-      import("core/context/memory/brain/store/connection"),
-      import("core/context/memory/brain/projectScope"),
-    ]);
+    const [{ decideRecipeForTurn }, { RecipeStore }, { get: getBrainDb }, { hashProjectId }, { RECIPE_CHANNEL_CANDIDATE_CAP }] =
+      await Promise.all([
+        import("core/agent/recipeDecisionTurn"),
+        import("core/context/memory/recipes/RecipeStore"),
+        import("core/context/memory/brain/store/connection"),
+        import("core/context/memory/brain/projectScope"),
+        import("core/context/memory/recipes/types"),
+      ]);
     const projectId = hashProjectId(workspaceDir);
     const store = new RecipeStore(await getBrainDb());
     const setting = vscode.workspace.getConfiguration("knoxchat").get<string>("recipes.autoReplay", "off");
@@ -246,12 +248,18 @@ export async function decideRecipeAtTurnStart(
       setting === "ask" || setting === "exact" || setting === "adapt"
         ? (setting as "ask" | "exact" | "adapt")
         : "off";
-    const recipes = await store.listVisibleTo(projectId, { status: "verified" });
     const replay = replayHost ? await import("./recipeReplay") : undefined;
     const slotCtx = slotFillContext(workspaceDir);
     const event = await decideRecipeForTurn(
       {
-        listRecipes: async () => recipes,
+        searchRecipes: async (query, fusionHits) =>
+          store.searchVisibleTo(projectId, {
+            query,
+            status: "verified",
+            memoryIds: fusionHits?.map((h) => h.memoryId),
+            mentionedPaths: [...(slotCtx.openPaths ?? []), ...(slotCtx.extra.paths ?? [])],
+            limit: RECIPE_CHANNEL_CANDIDATE_CAP,
+          }),
         env: workspacePreconditionEnv(workspaceDir),
         fusionHits: async () => {
           try {
@@ -329,9 +337,11 @@ export async function decideRecipeAtTurnStart(
         }
       }
     }
+    const hintId = event.recipe?.id ?? event.matches?.[0]?.id;
+    const hintRecipe = hintId ? await store.get(hintId) : null;
     if (replay && replayHost && event.mode === "adapt" && event.recipe && !event.compose) {
       // MC-32: one model call plans the change; the user always sees the diff before anything is written.
-      const recipe = recipes.find((r) => r.id === event.recipe!.id);
+      const recipe = hintRecipe?.id === event.recipe.id ? hintRecipe : await store.get(event.recipe.id);
       const planned = recipe ? await replay.planAdaptedRecipe(replayHost, recipe, input.userMessage).catch((e) => ({ ok: false as const, reason: String(e?.message ?? e) })) : undefined;
       if (planned?.ok) {
         event.needsConfirmation = true;
@@ -343,7 +353,7 @@ export async function decideRecipeAtTurnStart(
       }
     }
     rememberMatch(event);
-    const hint = await buildHint(event, recipes, workspaceDir);
+    const hint = await buildHint(event, hintRecipe ? [hintRecipe] : [], workspaceDir);
     return { event, hint: [failureContext, hint].filter(Boolean).join("\n\n") || undefined };
   } catch (error) {
     console.warn("[Recipes] Decision failed:", error instanceof Error ? error.message : error);

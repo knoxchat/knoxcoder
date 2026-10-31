@@ -1,21 +1,29 @@
 /**
- * Replay feedback (MC-34 / MEM-18). Outcomes of a replay flow back into the
- * recipe, the linked workflow memory, and `brain_attribution` so Value has one
- * table:
+ * Replay feedback (MC-34 / MEM-18) and hint attribution (MEM-39). Outcomes
+ * flow back into the recipe, the linked workflow memory, and
+ * `brain_attribution` so Value has one table:
  *
  *   ok            recorded once the replay verified
  *   failedVerify  recorded by `applyReplayResult` when verification failed
  *   reverted      the user restored/reverted/edited the result in the window
+ *   hint          a cited stub/hint: success increments leaf h, correction
+ *                 / revert increments leaf u (`mem_type='recipe'`)
+ *
+ * Replay h/u stay on `stats.ok` / `reverted` / `failedVerify`. Hint h/u are
+ * the recipe leaf counts; Value adds both.
  *
  * `reverted` counts quarantine a recipe at `QUARANTINE_REVERTS` and demote the
  * linked memory (via an injected callback; attribution is written even without
  * hooks).
  */
 
+import { attributeRecipeHint } from "../brain/attribution.js";
 import { attributeRecipeReplay } from "../brain/memoryOutcomes.js";
 import type { RecipeStore } from "./RecipeStore.js";
 import type { ReplayResult } from "./replayer.js";
 import type { Recipe } from "./types.js";
+
+export { attributeRecipeHint };
 
 /** Reverts at or above this quarantine the recipe. One revert is enough: wrong replay is worse than slow. */
 export const QUARANTINE_REVERTS = 1;

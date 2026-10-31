@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatCheckpointInjectPointer,
+  formatCheckpointMetadataLeaf,
+  isCheckpointPointerLeaf,
+  looksLikeCheckpointDump,
+  parseCheckpointPointerLeaf,
+} from "./checkpointPointer.js";
+import {
   extractSoulCheckpointId,
   extractSoulFiles,
   formatLinkedRestoreOffer,
@@ -52,7 +59,7 @@ describe("soul formatters", () => {
       summary: "replaced x",
     });
     expect(content).toContain("tool=builtin_edit_file");
-    expect(content).toContain("checkpoint=cp-1");
+    expect(content).toContain("checkpoint_id=cp-1");
     expect(content).toContain("src/a.ts");
 
     const notice = formatRestoreNotice({
@@ -102,6 +109,43 @@ describe("soul formatters", () => {
     expect(offer).toContain("cp-1");
     expect(offer).toContain("builtin_workspace_checkpoint");
     expect(formatLinkedRestoreOffer()).toBe("");
+  });
+});
+
+describe("checkpoint pointer leaf (MEM-38)", () => {
+  it("stores metadata and injects a pointer, never snapshot JSON", () => {
+    const stored = formatCheckpointMetadataLeaf({
+      workspaceCheckpointId: "ws-auth",
+      memoryCheckpointId: 7,
+      label: "workspace ws-auth: auth fix",
+      sessionId: "sess-1",
+      files: ["src/auth.ts", "src/login.ts"],
+      recipeIds: ["recipe-auth"],
+    });
+    expect(stored).toContain("checkpoint_id=ws-auth");
+    expect(stored).toContain("turn that changed: src/auth.ts, src/login.ts");
+    expect(stored).toContain("recipes: recipe-auth");
+    expect(stored).not.toContain("fileSnapshots");
+    expect(looksLikeCheckpointDump(stored)).toBe(false);
+    expect(isCheckpointPointerLeaf(stored, { kind: "checkpoint", workspaceCheckpointId: "ws-auth" })).toBe(true);
+
+    const parsed = parseCheckpointPointerLeaf(stored, {
+      kind: "checkpoint",
+      workspaceCheckpointId: "ws-auth",
+      files: ["src/auth.ts", "src/login.ts"],
+      recipeIds: ["recipe-auth"],
+    });
+    expect(parsed?.files).toEqual(["src/auth.ts", "src/login.ts"]);
+    expect(parsed?.recipeIds).toEqual(["recipe-auth"]);
+
+    const injected = formatCheckpointInjectPointer({
+      cite: "[mem:episodic:9]",
+      workspaceCheckpointId: "ws-auth",
+      label: "workspace ws-auth: auth fix",
+    });
+    expect(injected).toBe("[mem:episodic:9] checkpoint_id=ws-auth workspace ws-auth: auth fix");
+    expect(injected).not.toContain("{");
+    expect(looksLikeCheckpointDump(injected)).toBe(false);
   });
 });
 

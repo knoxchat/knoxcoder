@@ -216,7 +216,9 @@ async function createCheckpointRecord(
                 );
                 await pinMemoryForWorkspaceCheckpoint({
                     workspaceCheckpointId: checkpointId,
-                    label: `workspace ${checkpointId.slice(0, 8)}: ${options.description || 'checkpoint'}`,
+                    label: `workspace ${checkpointId.slice(0, 8)}: ${options.description || checkpointInfo.description || 'checkpoint'}`,
+                    sessionId,
+                    files: checkpointInfo.changedPaths ?? changedPathsFromSnapshots(fileSnapshots),
                 });
             } catch {
                 // Brain pin is best-effort; the file snapshot already exists.

@@ -207,6 +207,28 @@ describe("decideRecipeForTurn", () => {
     expect(e.mode).not.toBe("exact");
   });
 
+  it("prefers searchRecipes over listing the inventory page", async () => {
+    let listed = false;
+    let searched = "";
+    const e = await decideRecipeForTurn(
+      {
+        listRecipes: async () => {
+          listed = true;
+          return [recipe()];
+        },
+        searchRecipes: async (query) => {
+          searched = query;
+          return [recipe()];
+        },
+        env: env(["package.json"]),
+      },
+      args,
+    );
+    expect(listed).toBe(false);
+    expect(searched).toBe(INTENT);
+    expect(e.mode).toBe("exact");
+  });
+
   it("passes fusion hits into the matcher", async () => {
     let queried = false;
     const r = recipe({ memoryId: 7, intentFingerprint: intentFingerprint("create a Card component") });

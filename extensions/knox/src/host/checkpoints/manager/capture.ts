@@ -26,6 +26,7 @@ import type { CaptureMode, CaptureResult, FileSnapshot, SkippedFile } from './ty
 import { getLastCheckpointTime, resolveWorkspaceRelativePath, workspaceHasBaseline } from './workspace';
 import {
     SCAN_CONCURRENCY,
+    CHECKPOINT_MTIME_SLACK_MS,
     changedFullPathsFromScan,
     inventoryPathsFromScan,
     isScanPathIgnored,
@@ -482,7 +483,11 @@ export async function getChangedFilesFromFileSystem(host: CheckpointEngineHost):
     try {
         const scan = await scanTrackedWorkspace(host);
         markFullScanComplete(host);
-        const changedFiles = changedFullPathsFromScan(scan, getLastCheckpointTime(host));
+        const changedFiles = changedFullPathsFromScan(
+            scan,
+            getLastCheckpointTime(host),
+            host.lastSnapshotHashes,
+        );
         log.debug(
             `🔍 Found ${changedFiles.length} changed files from file system ` +
             `(scanned ${scan.stats.filesSeen} files in ${scan.stats.directoriesRead} directories, ` +
@@ -555,7 +560,11 @@ export async function captureChangedFiles(
         } else {
             const scan = await scanTrackedWorkspace(host);
             markFullScanComplete(host);
-            filesToCheck = changedFullPathsFromScan(scan, getLastCheckpointTime(host));
+            filesToCheck = changedFullPathsFromScan(
+                scan,
+                getLastCheckpointTime(host),
+                host.lastSnapshotHashes,
+            );
             if (filesToCheck.length === 0) {
                 filesToCheck = await getRecentlyModifiedFiles(host);
             }
@@ -710,14 +719,19 @@ export async function hasWorkspaceChanges(host: CheckpointEngineHost): Promise<b
 
         try {
             const entries = await fs.promises.readdir(host.currentWorkspacePath, { withFileTypes: true });
-            const lastCheckpointTime = getLastCheckpointTime(host);
+            const lastCheckpointTime = getLastCheckpointTime(host) - CHECKPOINT_MTIME_SLACK_MS;
+            const haveKnown = host.lastSnapshotHashes.size > 0;
 
             for (const entry of entries) {
                 if (entry.isFile()) {
                     const fullPath = path.join(host.currentWorkspacePath, entry.name);
                     if (shouldTrackFile(fullPath, classificationOptionsFrom(host)) && !(await isFileIgnored(host, fullPath))) {
+                        const relativePath = toPosixRelative(path.relative(host.currentWorkspacePath, fullPath));
                         const stats = await fs.promises.stat(fullPath);
-                        if (stats.mtime.getTime() > lastCheckpointTime) {
+                        if (
+                            stats.mtime.getTime() > lastCheckpointTime
+                            || (haveKnown && !host.lastSnapshotHashes.has(relativePath))
+                        ) {
                             return true;
                         }
                     }

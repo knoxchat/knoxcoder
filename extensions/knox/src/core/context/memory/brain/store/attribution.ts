@@ -202,3 +202,44 @@ export async function incrementUtilityCounts(
 ): Promise<{ helpful_count: number; unhelpful_count: number } | null> {
   return incrementUtilityCountsOn(await get(), kind, id, delta);
 }
+
+/**
+ * MEM-39: hint-only leaf h/u on `brain_recipes`. Replay ok/revert stay in
+ * `ok_count` / `reverted_count`; Value adds both (see `recipeHelpfulCount`).
+ */
+export async function incrementRecipeUtilityCountsOn(
+  db: DatabaseConnection,
+  recipeId: string,
+  delta: { helpful?: number; unhelpful?: number },
+): Promise<{ helpful_count: number; unhelpful_count: number } | null> {
+  const id = recipeId.trim();
+  const h = Math.trunc(Number(delta.helpful ?? 0));
+  const u = Math.trunc(Number(delta.unhelpful ?? 0));
+  if (!id || (h === 0 && u === 0)) return null;
+
+  try {
+    const result = await db.run(
+      `UPDATE brain_recipes
+       SET helpful_count = MAX(COALESCE(helpful_count, 0) + ?, 0),
+           unhelpful_count = MAX(COALESCE(unhelpful_count, 0) + ?, 0),
+           updated_at = datetime('now')
+       WHERE id = ?`,
+      [h, u, id],
+    );
+    if (!result.changes) return null;
+  } catch {
+    return null;
+  }
+  const row = (await db.get(
+    `SELECT helpful_count, unhelpful_count FROM brain_recipes WHERE id = ?`,
+    [id],
+  )) as { helpful_count: number; unhelpful_count: number } | undefined;
+  return row ?? null;
+}
+
+export async function incrementRecipeUtilityCounts(
+  recipeId: string,
+  delta: { helpful?: number; unhelpful?: number },
+): Promise<{ helpful_count: number; unhelpful_count: number } | null> {
+  return incrementRecipeUtilityCountsOn(await get(), recipeId, delta);
+}

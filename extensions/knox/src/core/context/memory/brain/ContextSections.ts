@@ -17,6 +17,17 @@ import {
   type ContextCandidate,
 } from "./selectContext.js";
 import { searchSummaryNodes } from "./SummaryTree.js";
+import {
+  leftoverCoveredByFingerprints,
+  leftoverFingerprints,
+  leftoverTextCovered,
+  loadLiveRecipeCoverage,
+} from "./m5Surface.js";
+import {
+  formatCheckpointInjectPointer,
+  isCheckpointPointerLeaf,
+  parseCheckpointPointerLeaf,
+} from "../../soul/checkpointPointer.js";
 import type { InjectedMemoryItem, SemanticMemory, EpisodicMemory } from "./types.js";
 
 /** REL-10: session summary needs this fraction of query content-words to inject (non-full modes). */
@@ -463,7 +474,10 @@ export class ContextSections {
     }
 
     let crossSession = currentSessionId
-      ? scored.filter((row) => row.ep.session_id !== currentSessionId)
+      ? scored.filter((row) =>
+          row.ep.session_id !== currentSessionId
+          || isCheckpointPointerLeaf(row.ep.content, row.ep.metadata),
+        )
       : scored;
 
     if (projectSessionIds !== undefined) {
@@ -478,7 +492,14 @@ export class ContextSections {
     return filtered.map((row) => {
       const ep = row.ep;
       const cite = memoryCiteToken("episodic", ep.id);
-      const entry = `${cite} [Session ${ep.session_id.substring(0, 8)}, ${ep.role}]: ${ep.content.substring(0, mode.episodicSnippetLen)}`;
+      const pointer = parseCheckpointPointerLeaf(ep.content, ep.metadata);
+      const entry = pointer && isCheckpointPointerLeaf(ep.content, ep.metadata)
+        ? formatCheckpointInjectPointer({
+            cite,
+            workspaceCheckpointId: pointer.workspaceCheckpointId,
+            label: pointer.label,
+          })
+        : `${cite} [Session ${ep.session_id.substring(0, 8)}, ${ep.role}]: ${ep.content.substring(0, mode.episodicSnippetLen)}`;
       const overlap = row.evidence && contentWords(query).length > 0
         ? Math.min(1, row.evidence.length / contentWords(query).length)
         : 0;
@@ -606,10 +627,19 @@ export class ContextSections {
     const k0 = fusionRankScale();
     const procedures = await BrainStore.searchProcedures(query, limit);
     if (procedures.length === 0) return [];
+    const coverage = await loadLiveRecipeCoverage();
 
     const out: ContextCandidate[] = [];
     let rank = 0;
     for (const proc of procedures) {
+      if (
+        leftoverCoveredByFingerprints(
+          leftoverFingerprints([proc.name, proc.trigger_pattern, proc.description]),
+          coverage.fingerprints,
+        )
+      ) {
+        continue;
+      }
       const gate = evaluateRelevanceGate({
         query,
         title: proc.name,
@@ -658,10 +688,19 @@ export class ContextSections {
     const k0 = fusionRankScale();
     const suggestions = await LearningEngine.suggestApproach(query, undefined, limit);
     if (suggestions.length === 0) return [];
+    const coverage = await loadLiveRecipeCoverage();
 
     const out: ContextCandidate[] = [];
     let rank = 0;
     for (const s of suggestions) {
+      if (
+        leftoverCoveredByFingerprints(
+          leftoverFingerprints([s.pattern.pattern_signature, s.pattern.description, s.reason]),
+          coverage.fingerprints,
+        )
+      ) {
+        continue;
+      }
       const gate = evaluateRelevanceGate({
         query,
         title: s.pattern.pattern_signature,
@@ -793,11 +832,14 @@ export class ContextSections {
 
   /**
    * Leftover per-section shares (MEM-28). Not the live allocator — MEM-29
-   * selects across sources with budgeted submodular F(X).
+   * selects across sources with budgeted submodular F(X). The how-to /
+   * workflow boost must not raise leftover procedure quota when a live
+   * recipe already owns that fingerprint (MEM-37).
    */
   static computeBudget(
     query: string,
     maxTokens: number,
+    options?: { coveredByRecipe?: boolean },
   ): { semantic: number; episodic: number; graph: number; procedures: number; patterns: number } {
     const base = getBudgetRatios();
     const adj = getBudgetQueryAdjustments();
@@ -808,7 +850,10 @@ export class ContextSections {
     let procPct = base.procedures;
     let patPct = base.patterns;
 
-    if (/\b(how to|steps|workflow|procedure|guide|process|setup)\b/.test(lower)) {
+    if (
+      !options?.coveredByRecipe &&
+      /\b(how to|steps|workflow|procedure|guide|process|setup)\b/.test(lower)
+    ) {
       procPct += adj.proceduralBoost;
       semPct -= adj.proceduralBoost / 2;
       epPct -= adj.proceduralBoost / 2;
@@ -859,6 +904,17 @@ export class ContextSections {
       procedures: Math.floor(maxTokens * procPct),
       patterns: Math.floor(maxTokens * patPct),
     };
+  }
+
+  /** Live leftover shares: suppress the how-to boost when a recipe covers q. */
+  static async computeBudgetForQuery(
+    query: string,
+    maxTokens: number,
+  ): Promise<ReturnType<typeof ContextSections.computeBudget>> {
+    const coverage = await loadLiveRecipeCoverage();
+    return ContextSections.computeBudget(query, maxTokens, {
+      coveredByRecipe: leftoverTextCovered(query, coverage.fingerprints),
+    });
   }
 
   /**

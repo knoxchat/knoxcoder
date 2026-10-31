@@ -17,16 +17,21 @@ import {
   sanitizeRecipeTitle,
   sanitizeUserSlots,
 } from "./inspector.js";
+import { buildFts5Query } from "../brain/RetrievalQuery.js";
+import { computeIntentFingerprint } from "./intentFingerprint.js";
+import { recipeFtsReady } from "./recipeFts.js";
 import type {
   NewRecipeInput,
   Recipe,
   RecipeListFilter,
   RecipeOracle,
   RecipePrecondition,
+  RecipeSearchFilter,
   RecipeSlot,
   RecipeStatus,
   RecipeStep,
 } from "./types.js";
+import { RECIPE_CHANNEL_CANDIDATE_CAP } from "./types.js";
 
 /** Allowed status moves. `retired` is terminal. */
 const TRANSITIONS: Record<RecipeStatus, readonly RecipeStatus[]> = {
@@ -125,6 +130,12 @@ function parseJson<T>(text: unknown, fallback: T): T {
   }
 }
 
+function optionalCount(value: unknown): number | undefined {
+  if (value == null || value === "") return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, n) : undefined;
+}
+
 function rowToRecipe(row: any, stepRows: any[]): Recipe {
   const steps: RecipeStep[] = stepRows.map((s) => ({
     kind: s.kind,
@@ -135,6 +146,8 @@ function rowToRecipe(row: any, stepRows: any[]): Recipe {
     ...(s.command ? { command: s.command } : {}),
   }));
   const sourceCheckpointIds = [...new Set(steps.map((s) => s.checkpointId).filter((x): x is string => !!x))];
+  const hintH = optionalCount(row.helpful_count);
+  const hintU = optionalCount(row.unhelpful_count);
   const oracle: RecipeOracle | undefined =
     row.oracle_kind && row.oracle_passed_at
       ? {
@@ -173,6 +186,8 @@ function rowToRecipe(row: any, stepRows: any[]): Recipe {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.last_replayed_at ? { lastReplayedAt: row.last_replayed_at } : {}),
+    ...(hintH != null ? { helpfulCount: hintH } : {}),
+    ...(hintU != null ? { unhelpfulCount: hintU } : {}),
   };
 }
 
@@ -261,15 +276,10 @@ export class RecipeStore {
     return rowToRecipe(row, steps);
   }
 
-  private async query(where: string[], params: unknown[], limit: number): Promise<Recipe[]> {
-    const rows = await this.db.all(
-      `SELECT * FROM brain_recipes ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-       ORDER BY updated_at DESC, id LIMIT ${limit}`,
-      params,
-    );
+  private async hydrate(rows: any[]): Promise<Recipe[]> {
     if (rows.length === 0) return [];
-    // MC-84: one query for every recipe's steps (this runs at each turn start), not one per recipe.
-    // The page is already capped at 1000 rows, so the IN list stays bounded.
+    // One query for every recipe's steps, not one per recipe. Recall pages are
+    // the channel cap (50); inventory list is still bounded at 1000.
     const stepRows = await this.db.all(
       `SELECT * FROM brain_recipe_steps WHERE recipe_id IN (${rows.map(() => "?").join(", ")}) ORDER BY recipe_id, seq`,
       rows.map((r) => r.id),
@@ -281,6 +291,15 @@ export class RecipeStore {
       else byRecipe.set(s.recipe_id, [s]);
     }
     return rows.map((row) => rowToRecipe(row, byRecipe.get(row.id) ?? []));
+  }
+
+  private async query(where: string[], params: unknown[], limit: number): Promise<Recipe[]> {
+    const rows = await this.db.all(
+      `SELECT * FROM brain_recipes ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+       ORDER BY updated_at DESC, id LIMIT ${limit}`,
+      params,
+    );
+    return this.hydrate(rows);
   }
 
   private listWhere(filter: RecipeListFilter): { where: string[]; params: unknown[] } | null {
@@ -307,11 +326,146 @@ export class RecipeStore {
     return { where, params };
   }
 
+  /**
+   * Inventory page (dashboard, soak). Recency-ordered, capped at 1000.
+   * Not the recall path — use `search` / `searchVisibleTo` (MEM-34).
+   * Not Value / disk maintenance — use `listLive` (MEM-35).
+   */
   async list(filter: RecipeListFilter = {}): Promise<Recipe[]> {
     const parsed = this.listWhere(filter);
     if (!parsed) return [];
     const limit = Math.max(1, Math.min(filter.limit ?? 200, 1000));
     return this.query(parsed.where, parsed.params, limit);
+  }
+
+  /**
+   * All live recipes for Value archive / disk / family pin budget (MEM-35).
+   * Uncapped so old unused rows stay visible to `shouldRetireRecipeByValue`.
+   */
+  async listLive(filter: Omit<RecipeListFilter, "limit"> = {}): Promise<Recipe[]> {
+    const parsed = this.listWhere({
+      ...filter,
+      status: filter.status ?? ["candidate", "verified", "quarantined"],
+    });
+    if (!parsed) return [];
+    return this.query(parsed.where, parsed.params, 1_000_000);
+  }
+
+  /**
+   * MEM-34: Ω(q) recipe channel. FTS on title/intent/paths, plus exact
+   * fingerprint and linked `memory_id`. Never scans the inventory page.
+   */
+  async search(filter: RecipeSearchFilter = {}): Promise<Recipe[]> {
+    const scope = this.searchScope(filter);
+    if (!scope) return [];
+    return this.searchScoped(scope.where, scope.params, filter);
+  }
+
+  /**
+   * Project-visible Ω(q): this project's recipes plus promoted global ones.
+   */
+  async searchVisibleTo(projectId: string, filter: Omit<RecipeSearchFilter, "projectId"> = {}): Promise<Recipe[]> {
+    const scope = this.searchScope(filter);
+    if (!scope) return [];
+    scope.where.unshift("(project_id = ? OR scope = 'global')");
+    scope.params.unshift(projectId);
+    return this.searchScoped(scope.where, scope.params, filter);
+  }
+
+  private searchScope(filter: RecipeSearchFilter): { where: string[]; params: unknown[] } | null {
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (filter.projectId !== undefined) {
+      where.push("project_id = ?");
+      params.push(filter.projectId);
+    }
+    const statuses = filter.status === undefined
+      ? (["candidate", "verified"] as RecipeStatus[])
+      : Array.isArray(filter.status)
+        ? filter.status
+        : [filter.status];
+    if (statuses.length === 0) return null;
+    where.push(`status IN (${statuses.map(() => "?").join(", ")})`);
+    params.push(...statuses);
+    return { where, params };
+  }
+
+  private async searchScoped(
+    scopeWhere: string[],
+    scopeParams: unknown[],
+    filter: RecipeSearchFilter,
+  ): Promise<Recipe[]> {
+    const limit = Math.max(1, Math.min(filter.limit ?? RECIPE_CHANNEL_CANDIDATE_CAP, RECIPE_CHANNEL_CANDIDATE_CAP));
+    const query = (filter.query ?? "").trim();
+    const memoryIds = [...new Set((filter.memoryIds ?? []).filter((id) => Number.isFinite(id) && id > 0))];
+    const fp = query ? computeIntentFingerprint(query) : { key: "", tokens: [] as string[] };
+    const extraOrTerms = [...fp.tokens, ...(filter.mentionedPaths ?? [])];
+    const ftsQuery = query ? buildFts5Query(query, { useAnd: false, extraOrTerms }) : null;
+
+    const unions: string[] = [];
+    const unionParams: unknown[] = [];
+
+    if (ftsQuery && (await recipeFtsReady(this.db))) {
+      unions.push(`
+        SELECT lex.recipe_id AS id, -bm25(brain_recipes_fts, 0, 4.0, 3.0, 2.0, 2.0) AS score
+          FROM brain_recipes_fts
+          JOIN brain_recipe_lex lex ON lex.id = brain_recipes_fts.rowid
+         WHERE brain_recipes_fts MATCH ?
+      `);
+      unionParams.push(ftsQuery);
+    }
+    if (fp.key) {
+      unions.push(`SELECT id, 1.0 AS score FROM brain_recipes WHERE intent_fingerprint = ?`);
+      unionParams.push(fp.key);
+    }
+    if (memoryIds.length > 0) {
+      unions.push(
+        `SELECT id, 0.5 AS score FROM brain_recipes WHERE memory_id IN (${memoryIds.map(() => "?").join(", ")})`,
+      );
+      unionParams.push(...memoryIds);
+    }
+    if (unions.length === 0) return [];
+
+    const scopeSql = scopeWhere.join(" AND ").replace(/\b(project_id|status|scope)\b/g, "r.$1");
+    const sql = `
+      WITH cand AS (
+        ${unions.join(" UNION ALL ")}
+      )
+      SELECT r.*, MAX(cand.score) AS channel_score
+        FROM cand
+        JOIN brain_recipes r ON r.id = cand.id
+       WHERE ${scopeSql}
+       GROUP BY r.id
+       ORDER BY channel_score DESC, r.updated_at DESC, r.id
+       LIMIT ${limit}
+    `;
+    try {
+      const rows = await this.db.all(sql, [...unionParams, ...scopeParams]);
+      return this.hydrate(rows);
+    } catch {
+      return this.searchWithoutFts(scopeWhere, scopeParams, { fpKey: fp.key, memoryIds, limit });
+    }
+  }
+
+  private async searchWithoutFts(
+    scopeWhere: string[],
+    scopeParams: unknown[],
+    args: { fpKey: string; memoryIds: number[]; limit: number },
+  ): Promise<Recipe[]> {
+    const where = [...scopeWhere];
+    const params = [...scopeParams];
+    const idClauses: string[] = [];
+    if (args.fpKey) {
+      idClauses.push("intent_fingerprint = ?");
+      params.push(args.fpKey);
+    }
+    if (args.memoryIds.length > 0) {
+      idClauses.push(`memory_id IN (${args.memoryIds.map(() => "?").join(", ")})`);
+      params.push(...args.memoryIds);
+    }
+    if (idClauses.length === 0) return [];
+    where.push(`(${idClauses.join(" OR ")})`);
+    return this.query(where, params, args.limit);
   }
 
   /**

@@ -5,6 +5,14 @@
  */
 export type { SoulEvent, SoulEventKind, SoulToolContext } from "./types.js";
 export {
+  CHECKPOINT_POINTER_KIND,
+  formatCheckpointInjectPointer,
+  formatCheckpointMetadataLeaf,
+  isCheckpointPointerLeaf,
+  parseCheckpointPointerLeaf,
+} from "./checkpointPointer.js";
+export type { CheckpointPointerLeaf } from "./checkpointPointer.js";
+export {
   extractSoulCheckpointId,
   extractSoulFiles,
   formatLinkedRestoreOffer,

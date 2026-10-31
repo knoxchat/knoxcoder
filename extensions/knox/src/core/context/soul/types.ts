@@ -3,6 +3,7 @@ export type SoulEventKind =
   | "tool_denied"
   | "tool_error"
   | "restore"
+  | "checkpoint"
   | "compaction"
   | "build:fail"
   | "build:pass"

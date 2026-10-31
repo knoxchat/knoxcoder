@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRecipeHint, buildRecipeStub } from "./recipeHint";
+import {
+  buildRecipeHint,
+  buildRecipeStub,
+  parseRecipeHintCites,
+  recipeHintCite,
+  recipeHintInjectItem,
+} from "./recipeHint";
 import type { Recipe } from "./types";
 
 const recipe = {
@@ -34,6 +40,14 @@ describe("buildRecipeHint", () => {
     expect(hint).toContain("Command: npm run build");
     expect(hint).toContain("componentName");
     expect(hint).toContain(`[mem:recipe:${recipe.id}]`);
+    expect(recipeHintCite(recipe)).toBe(`[mem:recipe:${recipe.id}]`);
+    expect(parseRecipeHintCites(hint)).toEqual([recipe.id]);
+    expect(recipeHintInjectItem(recipe)).toMatchObject({
+      kind: "recipe",
+      mem_id: recipe.id,
+      cite: `[mem:recipe:${recipe.id}]`,
+      reason: "recipe-hint",
+    });
   });
   it("builds a stub with title, paths, slots, id and why but no file bodies", () => {
     const stub = buildRecipeStub(recipe, { why: "similar intent" });

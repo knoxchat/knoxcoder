@@ -73,6 +73,60 @@ export async function addEpisodic(
   return result.lastID!;
 }
 
+/** MEM-38: one pointer leaf per workspace checkpoint id. */
+export async function findCheckpointPointerLeaf(
+  workspaceCheckpointId: string,
+): Promise<EpisodicMemory | null> {
+  const id = workspaceCheckpointId.trim();
+  if (!id) return null;
+  const db = await get();
+  const row = await db.get(
+    `SELECT * FROM brain_episodic
+     WHERE tombstoned_at IS NULL
+       AND json_extract(metadata, '$.kind') = 'checkpoint'
+       AND json_extract(metadata, '$.workspaceCheckpointId') = ?
+     ORDER BY id ASC LIMIT 1`,
+    [id],
+  );
+  return row ? rowToEpisodic(row) : null;
+}
+
+export async function updateEpisodicContent(
+  id: number,
+  content: string,
+  options?: {
+    metadata?: Record<string, unknown>;
+    tokenCount?: number;
+    importanceScore?: number;
+  },
+): Promise<boolean> {
+  const leafId = Math.trunc(Number(id));
+  if (leafId <= 0) return false;
+  const db = await get();
+  const scanResult = InputSanitizer.scan(content);
+  const cleaned = scanResult.cleaned;
+  const assignments = ["content = ?"];
+  const params: unknown[] = [cleaned];
+  if (options?.metadata) {
+    assignments.push("metadata = ?");
+    params.push(JSON.stringify(options.metadata));
+  }
+  if (options?.tokenCount != null && Number.isFinite(options.tokenCount)) {
+    assignments.push("token_count = ?");
+    params.push(Math.max(0, Math.floor(options.tokenCount)));
+  }
+  if (options?.importanceScore != null && Number.isFinite(options.importanceScore)) {
+    assignments.push("importance_score = ?");
+    params.push(options.importanceScore);
+  }
+  params.push(leafId);
+  const result = await db.run(
+    `UPDATE brain_episodic SET ${assignments.join(", ")} WHERE id = ? AND tombstoned_at IS NULL`,
+    params,
+  );
+  return (result.changes ?? 0) > 0;
+}
+
 export async function getEpisodicBySession(sessionId: string, limit = 100): Promise<EpisodicMemory[]> {
   const db = await get();
   const rows = await db.all(

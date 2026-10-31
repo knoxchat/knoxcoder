@@ -68,7 +68,7 @@ export function formatSoulEventContent(event: {
   const files =
     event.files.length > 0 ? event.files.join(", ") : "(no paths recorded)";
   const cp = event.workspaceCheckpointId
-    ? ` checkpoint=${event.workspaceCheckpointId}`
+    ? ` checkpoint_id=${event.workspaceCheckpointId}`
     : "";
   const tool = event.toolName ? ` tool=${event.toolName}` : "";
   return `[soul ${event.kind}]${tool}${cp} ok=${event.ok} files=${files}\n${event.summary}`.trim();

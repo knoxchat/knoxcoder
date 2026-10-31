@@ -1,7 +1,18 @@
 import { BrainManager } from "../memory/brain/BrainManager.js";
+import { BrainStore } from "../memory/brain/BrainStore.js";
 import { MemorySnapshot } from "../memory/brain/MemorySnapshot.js";
 import { shouldVerifyTool } from "../../tools/postEditVerification.js";
 
+import {
+  CHECKPOINT_LEAF_RECIPE_CAP,
+  CHECKPOINT_POINTER_KIND,
+  checkpointPointerMetadata,
+  formatCheckpointMetadataLeaf,
+  mergeCheckpointIds,
+  normalizeCheckpointPaths,
+  normalizeCheckpointRecipeIds,
+  parseCheckpointPointerLeaf,
+} from "./checkpointPointer.js";
 import { formatSoulEventContent } from "./extractToolFiles.js";
 import type { SoulEvent } from "./types.js";
 
@@ -15,6 +26,7 @@ export const MAX_SOUL_HISTORY = 20;
 function isDurableSoulEvent(event: SoulEvent): boolean {
   if (event.oracle) return true;
   if (event.kind === "build:pass" || event.kind === "build:fail" || event.kind === "qemu:panic" || event.kind === "user_correction") return true;
+  if (event.kind === "checkpoint") return true;
   return Boolean(
     event.kind === "tool_success" &&
       event.toolName &&
@@ -164,22 +176,153 @@ export interface MemoryRewindResult {
 export async function pinMemoryForWorkspaceCheckpoint(input: {
   workspaceCheckpointId: string;
   label?: string;
+  sessionId?: string;
+  files?: string[];
+  recipeIds?: string[];
 }): Promise<number | undefined> {
   if (!input.workspaceCheckpointId.trim()) {
     return undefined;
   }
+  let memoryCheckpointId: number | undefined;
   try {
-    if (!BrainManager.isBrainOpen()) {
-      return undefined;
+    if (BrainManager.isBrainOpen()) {
+      const checkpoint = await BrainManager.pinForWorkspaceCheckpoint(
+        input.workspaceCheckpointId,
+        input.label ?? `workspace ${input.workspaceCheckpointId.slice(0, 8)}`,
+      );
+      memoryCheckpointId = checkpoint?.id;
     }
-    const checkpoint = await BrainManager.pinForWorkspaceCheckpoint(
-      input.workspaceCheckpointId,
-      input.label ?? `workspace ${input.workspaceCheckpointId.slice(0, 8)}`,
-    );
-    return checkpoint?.id;
   } catch {
-    return undefined;
+    // Brain snapshot is best-effort; the pointer leaf can still be indexed.
   }
+  try {
+    await indexWorkspaceCheckpointMetadata({
+      workspaceCheckpointId: input.workspaceCheckpointId,
+      memoryCheckpointId,
+      label: input.label,
+      sessionId: input.sessionId,
+      files: input.files,
+      recipeIds: input.recipeIds,
+    });
+  } catch {
+    // Pointer leaf is best-effort; the file snapshot already exists.
+  }
+  return memoryCheckpointId;
+}
+
+async function lookupRecipeIdsForCheckpoint(workspaceCheckpointId: string): Promise<string[]> {
+  try {
+    if (!BrainManager.isBrainOpen()) return [];
+    const db = await BrainStore.get();
+    const rows = (await db.all(
+      `SELECT DISTINCT recipe_id FROM brain_recipe_steps
+       WHERE checkpoint_id = ? AND recipe_id != ''
+       ORDER BY recipe_id LIMIT ?`,
+      [workspaceCheckpointId, CHECKPOINT_LEAF_RECIPE_CAP],
+    )) as Array<{ recipe_id?: string }>;
+    return normalizeCheckpointRecipeIds(rows.map((row) => String(row.recipe_id ?? "")));
+  } catch {
+    return [];
+  }
+}
+
+function checkpointSoulSummary(label: string | undefined, workspaceCheckpointId: string): string {
+  const text = (label ?? "").replace(/\s+/g, " ").trim();
+  return text || `workspace ${workspaceCheckpointId.slice(0, 8)}`;
+}
+
+/**
+ * Upsert an episodic pointer leaf for a workspace checkpoint (MEM-38).
+ * Fusion retrieves this row; inject is `checkpoint_id=…` only.
+ */
+export async function indexWorkspaceCheckpointMetadata(input: {
+  workspaceCheckpointId: string;
+  memoryCheckpointId?: number;
+  label?: string;
+  sessionId?: string;
+  files?: string[];
+  recipeIds?: string[];
+}): Promise<number> {
+  const workspaceCheckpointId = input.workspaceCheckpointId.trim();
+  if (!workspaceCheckpointId) return 0;
+  try {
+    if (!BrainManager.isBrainOpen()) return 0;
+  } catch {
+    return 0;
+  }
+
+  const sessionId =
+    input.sessionId?.trim() ||
+    BrainManager.getActiveSessionId() ||
+    `checkpoint:${workspaceCheckpointId}`;
+  const lookedUpRecipes = input.recipeIds
+    ? normalizeCheckpointRecipeIds(input.recipeIds)
+    : await lookupRecipeIdsForCheckpoint(workspaceCheckpointId);
+  const incomingFiles = normalizeCheckpointPaths(input.files);
+  const existing = await BrainStore.findCheckpointPointerLeaf(workspaceCheckpointId);
+  const existingParsed = existing
+    ? parseCheckpointPointerLeaf(existing.content, existing.metadata)
+    : undefined;
+  const files = incomingFiles.length > 0 ? incomingFiles : existingParsed?.files ?? [];
+  const recipeIds = mergeCheckpointIds(
+    existingParsed?.recipeIds,
+    lookedUpRecipes,
+    CHECKPOINT_LEAF_RECIPE_CAP,
+  );
+  const label = checkpointSoulSummary(input.label ?? existingParsed?.label, workspaceCheckpointId);
+  const memoryCheckpointId = input.memoryCheckpointId ?? existingParsed?.memoryCheckpointId;
+  const content = formatCheckpointMetadataLeaf({
+    workspaceCheckpointId,
+    memoryCheckpointId,
+    label,
+    sessionId,
+    files,
+    recipeIds,
+  });
+  const metadata = checkpointPointerMetadata({
+    workspaceCheckpointId,
+    memoryCheckpointId,
+    label,
+    sessionId,
+    files,
+    recipeIds,
+  });
+
+  if (existing) {
+    await BrainStore.updateEpisodicContent(existing.id, content, {
+      metadata,
+      tokenCount: Math.ceil(content.length / 4),
+      importanceScore: 0.75,
+    });
+    const history = soulHistoryBySession.get(existing.session_id) ?? [];
+    for (const event of history) {
+      if (event.kind === "checkpoint" && event.workspaceCheckpointId === workspaceCheckpointId) {
+        event.files = files;
+        event.summary = label;
+        event.memoryCheckpointId = memoryCheckpointId;
+        event.metadata = { ...event.metadata, ...metadata };
+      }
+    }
+    const last = lastSoulBySession.get(existing.session_id);
+    if (last?.kind === "checkpoint" && last.workspaceCheckpointId === workspaceCheckpointId) {
+      last.files = files;
+      last.summary = label;
+      last.memoryCheckpointId = memoryCheckpointId;
+      last.metadata = { ...last.metadata, ...metadata };
+    }
+    return existing.id;
+  }
+
+  return recordSoulEvent({
+    sessionId,
+    kind: CHECKPOINT_POINTER_KIND,
+    files,
+    workspaceCheckpointId,
+    memoryCheckpointId,
+    ok: true,
+    summary: label,
+    metadata,
+  });
 }
 
 export async function deleteMemoryPinsForWorkspaceCheckpoint(
@@ -274,7 +417,19 @@ export async function recordSoulEvent(event: SoulEvent): Promise<number> {
     return 0;
   }
 
-  const content = formatSoulEventContent(event);
+  const content =
+    event.kind === "checkpoint"
+      ? formatCheckpointMetadataLeaf({
+          workspaceCheckpointId: event.workspaceCheckpointId ?? "",
+          memoryCheckpointId: event.memoryCheckpointId,
+          label: event.summary,
+          sessionId,
+          files: event.files,
+          recipeIds: Array.isArray(event.metadata?.recipeIds)
+            ? event.metadata.recipeIds.filter((id): id is string => typeof id === "string")
+            : undefined,
+        })
+      : formatSoulEventContent(event);
   const importance =
     event.kind === "tool_denied" ||
     event.kind === "restore" ||
@@ -282,6 +437,8 @@ export async function recordSoulEvent(event: SoulEvent): Promise<number> {
     event.kind === "qemu:panic" ||
     event.kind === "user_correction"
       ? 0.8
+      : event.kind === "checkpoint"
+        ? 0.75
       : event.kind === "compaction" || event.kind === "build:pass"
         ? 0.7
         : 0.55;

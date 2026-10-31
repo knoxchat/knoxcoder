@@ -8,16 +8,23 @@
  * | M₂    | Working memory (this call)    | no        |
  * | M₃    | Session + summary-tree nodes  | yes       |
  * | M₄    | Semantic / episodic leaves    | yes       |
- * | M₅    | Live recipes + leftover procs | yes       |
+ * | M₅    | Live recipes (leftover procs if uncovered) | yes |
  *
  * Graph / BM25 / ripgrep / tree walk are channels over the same rows, not
  * extra capacity. Recipe blob bytes and checkpoint trees are not C_addr.
+ * MEM-38 checkpoint leaves are pointer text (`checkpoint_id=…`), never `|blobs|/rᵢ`.
  * M₅ counts a linked live workflow row **or** the recipe title/intent, not
- * both (MEM-09). `brain_procedures` stays a leftover store until MEM-37.
+ * both (MEM-09). Leftover `brain_procedures` count only when no live recipe
+ * owns the same fingerprint (MEM-37).
  * IMP-04 (MEM-11) asserts this sum — never Σ |Mᵢ|/rᵢ and never M₁/M₂.
  */
 
 import { BrainStore } from "./BrainStore.js";
+import {
+  leftoverCoveredByFingerprints,
+  leftoverFingerprints,
+  leftoverIntentFingerprint,
+} from "./m5Surface.js";
 import { getCompressionRatios, normalizeCompressionRatio } from "./memoryConfigAccess.js";
 import { SensoryBuffer } from "./SensoryBuffer.js";
 import type { CompressionRatios } from "./memoryConfigAccess.js";
@@ -121,7 +128,7 @@ export function getMemoryLevelSpecs(ratios?: CompressionRatios): MemoryLevelSpec
     {
       id: "M5",
       name: "procedural",
-      knox_label: "Recipes + leftover procedures",
+      knox_label: "Recipes",
       ratio: normalizeCompressionRatio(r.frozen),
       retention: "stored",
       lifetime: "stored",
@@ -203,23 +210,54 @@ async function getLiveKnowledgeTokens(excludeSemanticIds: number[]): Promise<num
   return asTokens(semantic as { tokens?: number }) + asTokens(episodic as { tokens?: number });
 }
 
-async function getProcedureTokenEstimate(): Promise<number> {
+function procedureRowTokens(row: {
+  name?: string | null;
+  description?: string | null;
+  steps?: string | null;
+  trigger_pattern?: string | null;
+}): number {
+  return Math.floor(
+    (
+      String(row.name ?? "").length +
+      String(row.description ?? "").length +
+      String(row.steps ?? "").length +
+      String(row.trigger_pattern ?? "").length
+    ) / 4,
+  );
+}
+
+/** Leftover procedures whose fingerprint a live recipe already owns are not M₅. */
+async function getUncoveredProcedureTokens(recipeFingerprints: Set<string>): Promise<number> {
   const db = await BrainStore.get();
   try {
-    const row = await db.get(`
-      SELECT SUM(
-        CAST((LENGTH(COALESCE(name, '')) + LENGTH(COALESCE(description, '')) + LENGTH(COALESCE(steps, '')) + LENGTH(COALESCE(trigger_pattern, ''))) / 4 AS INTEGER)
-      ) AS tokens
-      FROM brain_procedures
-    `);
-    return asTokens(row as { tokens?: number });
+    const rows = (await db.all(
+      `SELECT name, description, steps, trigger_pattern FROM brain_procedures`,
+    )) as {
+      name?: string | null;
+      description?: string | null;
+      steps?: string | null;
+      trigger_pattern?: string | null;
+    }[];
+    let tokens = 0;
+    for (const row of rows) {
+      if (
+        leftoverCoveredByFingerprints(
+          leftoverFingerprints([row.name, row.trigger_pattern, row.description]),
+          recipeFingerprints,
+        )
+      ) {
+        continue;
+      }
+      tokens += procedureRowTokens(row);
+    }
+    return tokens;
   } catch {
     return 0;
   }
 }
 
 interface M5Contribution {
-  /** Title/intent **or** live linked workflow, plus leftover procedures. */
+  /** Title/intent **or** live linked workflow, plus uncovered leftover procedures. */
   tokens: number;
   /** Live semantic ids counted in M₅ — exclude them from M₄. */
   linkedWorkflowIds: number[];
@@ -229,20 +267,33 @@ interface M5Contribution {
  * Product M₅ is live recipes. A linked live workflow is the stored handle:
  * count that row once and skip the recipe title/intent. Unlinked or
  * tombstoned links fall back to title/intent. Leftover `brain_procedures`
- * stay in M₅ until MEM-37 folds them.
+ * count only when no live recipe owns the same fingerprint (MEM-37).
  */
 async function getM5Contribution(): Promise<M5Contribution> {
   const db = await BrainStore.get();
-  type RecipeRow = { title: string | null; intent_text: string | null; memory_id: number | null };
+  type RecipeRow = {
+    title: string | null;
+    intent_text: string | null;
+    intent_fingerprint: string | null;
+    memory_id: number | null;
+  };
   let recipes: RecipeRow[] = [];
   try {
     recipes = (await db.all(`
-      SELECT title, intent_text, memory_id
+      SELECT title, intent_text, intent_fingerprint, memory_id
       FROM brain_recipes
       WHERE ${LIVE_RECIPE}
     `)) as RecipeRow[];
   } catch {
-    recipes = [];
+    try {
+      recipes = (await db.all(`
+        SELECT title, intent_text, memory_id
+        FROM brain_recipes
+        WHERE ${LIVE_RECIPE}
+      `)) as RecipeRow[];
+    } catch {
+      recipes = [];
+    }
   }
 
   const candidateIds = [
@@ -284,8 +335,15 @@ async function getM5Contribution(): Promise<M5Contribution> {
     }
   }
 
+  const fingerprints = new Set<string>();
+  for (const recipe of recipes) {
+    const stored = String(recipe.intent_fingerprint ?? "").trim();
+    if (stored) fingerprints.add(stored);
+    const derived = leftoverIntentFingerprint(recipe.title, recipe.intent_text);
+    if (derived) fingerprints.add(derived);
+  }
   return {
-    tokens: recipeOrWorkflow + (await getProcedureTokenEstimate()),
+    tokens: recipeOrWorkflow + (await getUncoveredProcedureTokens(fingerprints)),
     linkedWorkflowIds: [...countedWorkflows],
   };
 }

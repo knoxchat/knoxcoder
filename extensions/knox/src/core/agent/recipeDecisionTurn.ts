@@ -80,8 +80,13 @@ export interface RecipeFilePrompt {
 }
 
 export interface RecipeDecisionDeps {
-  /** Verified recipes for this project. */
-  listRecipes(): Promise<Recipe[]>;
+  /**
+   * Test / leftover seam that already has Ω(q) candidates.
+   * Live recall should set `searchRecipes` (MEM-34) instead of listing.
+   */
+  listRecipes?(): Promise<Recipe[]>;
+  /** Recipe channel over Ω(q). Preferred over `listRecipes`. */
+  searchRecipes?(query: string, fusionHits?: readonly FusionHit[]): Promise<Recipe[]>;
   env: PreconditionEnv;
   fusionHits?(): Promise<FusionHit[]>;
   /** True when target files changed since capture (MC-36); only asked once a replay is otherwise allowed. */
@@ -103,12 +108,15 @@ export async function decideRecipeForTurn(
   deps: RecipeDecisionDeps,
   args: RecipeDecisionArgs,
 ): Promise<RecipeDecisionEvent> {
-  const recipes = await deps.listRecipes();
+  const fusionHits = deps.fusionHits ? await deps.fusionHits() : undefined;
+  const recipes = deps.searchRecipes
+    ? await deps.searchRecipes(args.message, fusionHits)
+    : (await deps.listRecipes?.()) ?? [];
   const matches = matchRecipes({
     message: args.message,
     recipes,
     projectId: args.projectId,
-    fusionHits: deps.fusionHits ? await deps.fusionHits() : undefined,
+    fusionHits,
     openPaths: args.openPaths,
     mentionedPaths: args.slotExtra?.paths,
   });

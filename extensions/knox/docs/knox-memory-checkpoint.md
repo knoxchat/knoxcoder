@@ -25,7 +25,7 @@ Workspace checkpoints and brain snapshots are **rewind machinery and linkable po
 | Kind | Store | Role |
 | --- | --- | --- |
 | Workspace file CP | `extensions/knox/src/host/checkpoints/` (disk tree + blob store) | What the files were. Recipe **bytes** live here (`blob_hash` + `checkpoint_id`). Agent tool: `builtin_workspace_checkpoint`. |
-| Brain knowledge CP | `brain_checkpoints` + a JSON/JSON.gz under `~/.knoxcoder/memory/` | Rewind pin of **knowledge tables** (semantic, graph, procedures, tags, …). Episodic and sessions are **not** in the snapshot. |
+| Brain knowledge CP | `brain_checkpoints` + a JSON/JSON.gz under `~/.knoxcoder/memory/` | Rewind pin of **knowledge tables** (semantic, graph, procedures, tags, recipes, outcomes, supersessions, attribution, summary tree). Episodic and sessions are **not** in the snapshot. |
 | Link | `brain_checkpoints.workspace_checkpoint_id` | One action can restore files and rewind knowledge. |
 
 Soul events (`recordSoulEvent`) are episodic rows that may **name** both ids. They are a 20-event in-memory ring plus sqlite episodic, not a summary tree over the checkpoint graph.
@@ -46,8 +46,8 @@ workspace CP  ──workspace_checkpoint_id──►  brain CP (rewind pin)
 
 ### Create (pin)
 
-1. A **non-auto** workspace capture calls `pinMemoryForWorkspaceCheckpoint` (`host/checkpoints/manager/create.ts`). Auto captures (`messageId` starts with `auto-`) stay file-only; restore may use `findNearestCheckpointBefore`.
-2. Pin is best-effort. A failed brain pin must not fail the file snapshot.
+1. A **non-auto** workspace capture calls `pinMemoryForWorkspaceCheckpoint` (`host/checkpoints/manager/create.ts`). That pins a brain snapshot **and** upserts an episodic pointer leaf (id, label, session, files, recipe ids). Auto captures (`messageId` starts with `auto-`) stay file-only; restore may use `findNearestCheckpointBefore`.
+2. Pin is best-effort. A failed brain pin must not fail the file snapshot. A failed leaf write must not fail the file snapshot.
 3. `BrainManager.pinForWorkspaceCheckpoint` is idempotent per workspace id (same brain row if already linked). Tests: `memory-checkpoint.test.ts`.
 4. Compaction may pin both ids (`pinCompactionSoul`) so a compacted chat still names the last workspace CP.
 5. Contract **KN-316**: create pins a brain snapshot; restore can be files-only or files+memory.
@@ -77,7 +77,7 @@ Recipes store **hashes and checkpoint ids**, never file bytes (`recipes/README.m
 
 - Replay takes a pre-replay workspace CP so one restore undoes the apply.
 - A linked `workflow` semantic row (`linkRecipeMemory`) is the lexical handle. Count that row **or** the recipe title/intent in `C_addr` M₅, not both (MEM-09).
-- Knowledge snapshot v2 (`collectKnowledgeSnapshot`) **omits** `brain_recipes`, `brain_recipe_steps`, `brain_memory_outcomes`, and `brain_memory_supersessions`. Rewind can leave a verified recipe whose `memory_id` is gone. Fix is MEM-36 (v3 snapshot + relink). Until then: document the hole; do not paper over it by dumping recipe blobs into context.
+- Knowledge snapshot v3 (`collectKnowledgeSnapshot`) includes `brain_recipes`, `brain_recipe_steps`, `brain_memory_outcomes`, `brain_memory_supersessions`, `brain_attribution`, and `brain_summary_tree`. Rollback restores those tables. A verified recipe whose linked `memory_id` is missing after rewind is relinked (`linkRecipeMemory` + `memoryExists`). Recipe **bytes** stay in workspace checkpoint blobs — the snapshot stores hashes and ids only.
 
 Recipes stay **off by default** (`knoxchat.recipes.enabled`).
 
@@ -97,13 +97,13 @@ Product catalog already refuses admin brain actions on `builtin_memory`. Keep it
 
 ## What “the agent knew” after rewind
 
-Today a linked rewind restores snapshot v2 knowledge + trims later episodic. It does **not** restore recipes, attribution, or the in-memory soul ring.
+Today a linked rewind restores snapshot v3 knowledge (including recipes, outcomes, supersessions, attribution, and the summary tree) + trims later episodic. It does **not** restore the in-memory soul ring.
 
-Until MEM-36 / MEM-38:
+MEM-38: workspace capture / pin upserts one episodic pointer leaf (`kind=checkpoint`) with id, label, session, file list, and recipe ids. Fusion retrieves that row through the existing lexical channels. Inject is `checkpoint_id=…` only — never snapshot JSON, blob trees, or worktree contents. Overview still does not count `|blobs|/rᵢ`.
 
 - Treat a restore soul event as the episodic record of the rewind.
 - Do not claim Overview “effective context” includes checkpoint blobs.
-- Do not scan the checkpoint graph as a retrieval channel except via existing soul/episodic text (file names, labels already in those rows).
+- Do not scan the checkpoint graph as a retrieval channel except via those pointer / soul / episodic rows.
 
 ---
 

@@ -42,4 +42,17 @@ describe("agentView", () => {
     expect(filterRecipesByQuery([recipe(), card], "card").map((r) => r.title)).toEqual(["Create Card"]);
     expect(filterRecipesByQuery([recipe(), card], "src/button").map((r) => r.title)).toEqual(["Create Button"]);
   });
+
+  it("ranks an Ω(q) page without needing the full inventory", () => {
+    const extras = Array.from({ length: 4 }, (_, i) =>
+      recipe({
+        id: `${i}`.repeat(32),
+        title: `Other ${i}`,
+        intentText: "unrelated",
+        intentFingerprint: "unrelated",
+        steps: [],
+      }),
+    );
+    expect(filterRecipesByQuery([recipe(), ...extras], "button", 2)).toHaveLength(1);
+  });
 });

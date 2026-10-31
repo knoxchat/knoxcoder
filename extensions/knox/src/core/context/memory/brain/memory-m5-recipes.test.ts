@@ -188,7 +188,7 @@ describe("MEM-09 live recipes are M5", () => {
   it("counts leftover procedures in M5 without recipe blob bytes", async () => {
     await reset();
     const name = "Leftover procedure";
-    const description = "still counted until MEM-37 folds procedures into recipes";
+    const description = "counted when no live recipe covers the leftover fingerprint";
     const steps = ["step-one", "step-two"];
     const trigger = "when leftover procedures remain";
     await BrainManager.storeProcedure({

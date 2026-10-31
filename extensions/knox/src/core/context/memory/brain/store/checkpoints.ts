@@ -14,11 +14,96 @@ import { auditLog } from "./runtime.js";
 // ── Checkpoint / Rollback ──────────────────────────────────────────────────
 
 /**
- * Knowledge snapshot schema v2 includes associations, tags, collections,
- * topics, and tasks so a rewind matches what the agent knew — not only
- * semantic/graph rows.
+ * Knowledge snapshot schema v3 includes associations, tags, collections,
+ * topics, tasks, plus M₅ recipes (hashes/ids only — never blob bytes),
+ * recipe steps, outcomes, supersessions, attribution, and the summary tree.
+ * Episodic rows and sessions stay out of the rewind pin.
  */
-export const KNOWLEDGE_SNAPSHOT_VERSION = 2;
+export const KNOWLEDGE_SNAPSHOT_VERSION = 3;
+
+const SAFE_IDENT = /^[a-z_][a-z0-9_]*$/;
+
+/** v3 tables keyed the way `collectKnowledgeSnapshot` writes them. */
+const V3_TABLES = [
+  { key: "recipes", table: "brain_recipes" },
+  { key: "recipe_steps", table: "brain_recipe_steps" },
+  { key: "memory_outcomes", table: "brain_memory_outcomes" },
+  { key: "memory_supersessions", table: "brain_memory_supersessions" },
+  { key: "attribution", table: "brain_attribution" },
+  { key: "summary_tree", table: "brain_summary_tree" },
+] as const;
+
+type SnapshotV3Key = (typeof V3_TABLES)[number]["key"];
+
+/** Child table first so FK ON does not block the parent delete. */
+const V3_DELETE_ORDER = [
+  "brain_recipe_steps",
+  "brain_recipes",
+  "brain_memory_outcomes",
+  "brain_memory_supersessions",
+  "brain_attribution",
+  "brain_summary_tree",
+] as const;
+
+function snapshotHasTable(snapshot: any, key: SnapshotV3Key): boolean {
+  return Array.isArray(snapshot?.[key]);
+}
+
+function assertSafeIdent(name: string): string {
+  if (!SAFE_IDENT.test(name)) {
+    throw new Error(`Unsafe SQL identifier: ${name}`);
+  }
+  return name;
+}
+
+async function selectAll(
+  db: Awaited<ReturnType<typeof get>>,
+  table: string,
+  orderBy?: string,
+): Promise<any[]> {
+  try {
+    const sql = orderBy
+      ? `SELECT * FROM ${assertSafeIdent(table)} ORDER BY ${orderBy}`
+      : `SELECT * FROM ${assertSafeIdent(table)}`;
+    return await db.all(sql);
+  } catch {
+    return [];
+  }
+}
+
+async function deleteAll(
+  db: Awaited<ReturnType<typeof get>>,
+  table: string,
+): Promise<void> {
+  try {
+    await db.exec(`DELETE FROM ${assertSafeIdent(table)}`);
+  } catch {
+    // Table may be absent on a stripped / pre-recipe file.
+  }
+}
+
+async function insertSnapshotRows(
+  db: Awaited<ReturnType<typeof get>>,
+  table: string,
+  rows: any[],
+): Promise<void> {
+  if (!Array.isArray(rows) || rows.length === 0) return;
+  const info = await db.all<{ name: string }[]>(
+    `PRAGMA table_info(${assertSafeIdent(table)})`,
+  );
+  const allowed = new Set((info ?? []).map((col) => col.name));
+  if (allowed.size === 0) return;
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const cols = Object.keys(row).filter((key) => allowed.has(key));
+    if (cols.length === 0) continue;
+    const placeholders = cols.map(() => "?").join(", ");
+    await db.run(
+      `INSERT INTO ${table} (${cols.map(assertSafeIdent).join(", ")}) VALUES (${placeholders})`,
+      cols.map((col) => (row as any)[col] ?? null),
+    );
+  }
+}
 
 export async function collectKnowledgeSnapshot(
   label: string,
@@ -38,6 +123,12 @@ export async function collectKnowledgeSnapshot(
     collectionItems,
     sessionTopics,
     tasks,
+    recipes,
+    recipeSteps,
+    memoryOutcomes,
+    memorySupersessions,
+    attribution,
+    summaryTree,
   ] = await Promise.all([
     db.all("SELECT * FROM brain_semantic"),
     db.all("SELECT * FROM brain_entities"),
@@ -50,6 +141,12 @@ export async function collectKnowledgeSnapshot(
     db.all("SELECT * FROM brain_collection_items"),
     db.all("SELECT * FROM brain_session_topics"),
     db.all("SELECT * FROM brain_tasks"),
+    selectAll(db, "brain_recipes", "id"),
+    selectAll(db, "brain_recipe_steps", "recipe_id, seq"),
+    selectAll(db, "brain_memory_outcomes", "memory_id"),
+    selectAll(db, "brain_memory_supersessions", "old_id"),
+    selectAll(db, "brain_attribution", "id"),
+    selectAll(db, "brain_summary_tree", "id"),
   ]);
 
   return {
@@ -69,6 +166,12 @@ export async function collectKnowledgeSnapshot(
     collection_items: collectionItems,
     session_topics: sessionTopics,
     tasks,
+    recipes,
+    recipe_steps: recipeSteps,
+    memory_outcomes: memoryOutcomes,
+    memory_supersessions: memorySupersessions,
+    attribution,
+    summary_tree: summaryTree,
   };
 }
 
@@ -99,6 +202,7 @@ export async function restoreKnowledgeTables(snapshot: any): Promise<void> {
   await db.exec("DELETE FROM brain_learning_patterns");
   await db.exec("DELETE FROM brain_procedures");
   await db.exec("DELETE FROM brain_collections");
+  await deleteV3KnowledgeTables(db, snapshot);
 
   for (const mem of snapshot.semantic ?? []) {
     const sessionId =
@@ -295,11 +399,103 @@ export async function restoreKnowledgeTables(snapshot: any): Promise<void> {
       ],
     );
   }
+
+  await restoreV3KnowledgeTables(db, snapshot);
+}
+
+function v3TablesToReplace(snapshot: any): Set<string> {
+  const tables = new Set<string>();
+  const recipesPresent =
+    snapshotHasTable(snapshot, "recipes") || snapshotHasTable(snapshot, "recipe_steps");
+  if (recipesPresent) {
+    tables.add("brain_recipes");
+    tables.add("brain_recipe_steps");
+  }
+  if (snapshotHasTable(snapshot, "memory_outcomes")) {
+    tables.add("brain_memory_outcomes");
+  }
+  if (snapshotHasTable(snapshot, "memory_supersessions")) {
+    tables.add("brain_memory_supersessions");
+  }
+  if (snapshotHasTable(snapshot, "attribution")) {
+    tables.add("brain_attribution");
+  }
+  if (snapshotHasTable(snapshot, "summary_tree")) {
+    tables.add("brain_summary_tree");
+  }
+  return tables;
+}
+
+async function deleteV3KnowledgeTables(
+  db: Awaited<ReturnType<typeof get>>,
+  snapshot: any,
+): Promise<void> {
+  const replace = v3TablesToReplace(snapshot);
+  for (const table of V3_DELETE_ORDER) {
+    if (replace.has(table)) {
+      await deleteAll(db, table);
+    }
+  }
+}
+
+async function restoreV3KnowledgeTables(
+  db: Awaited<ReturnType<typeof get>>,
+  snapshot: any,
+): Promise<void> {
+  const replace = v3TablesToReplace(snapshot);
+  for (const spec of V3_TABLES) {
+    if (!replace.has(spec.table) || !snapshotHasTable(snapshot, spec.key)) continue;
+    await insertSnapshotRows(db, spec.table, snapshot[spec.key]);
+  }
+}
+
+/**
+ * MEM-36: a verified recipe whose `memory_id` was rolled away (or never
+ * restored) gets a fresh workflow row via `linkRecipeMemory` + `memoryExists`.
+ * Best-effort — a relink miss must not fail the rewind.
+ */
+export async function relinkDanglingRecipeMemories(): Promise<number> {
+  const db = await get();
+  let rows: Array<{ id: string }>;
+  try {
+    rows = await db.all(
+      "SELECT id FROM brain_recipes WHERE status = 'verified'",
+    );
+  } catch {
+    return 0;
+  }
+  if (rows.length === 0) return 0;
+
+  const { RecipeStore } = await import("../../recipes/RecipeStore.js");
+  const { linkRecipeMemory } = await import("../../recipes/memoryLink.js");
+  const { getSemanticById, storeSemanticDeduped } = await import("./semantic.js");
+  const store = new RecipeStore(db);
+  let relinked = 0;
+  for (const row of rows) {
+    const recipe = await store.get(row.id).catch(() => null);
+    if (!recipe) continue;
+    const next = await linkRecipeMemory(
+      store,
+      recipe,
+      async (input) => {
+        const stored = await storeSemanticDeduped(input);
+        return stored.id;
+      },
+      async (memoryId) => (await getSemanticById(memoryId)) != null,
+    ).catch(() => recipe);
+    if (next.memoryId != null && next.memoryId !== recipe.memoryId) {
+      relinked++;
+    } else if (recipe.memoryId == null && next.memoryId != null) {
+      relinked++;
+    }
+  }
+  return relinked;
 }
 
 /**
  * Create a checkpoint snapshot of the current memory state.
- * v2 snapshots include associations, tags, collections, topics, and tasks.
+ * v3 snapshots include associations, tags, collections, topics, tasks,
+ * recipes, outcomes, supersessions, attribution, and the summary tree.
  */
 export async function createCheckpoint(
   label: string,
@@ -482,8 +678,10 @@ export function mapCheckpointRow(row: any): MemoryCheckpoint {
 /**
  * Rollback memory to a checkpoint state.
  * Replaces knowledge tables (semantic, graph, patterns, procedures,
- * associations, tags, collections, topics, tasks) inside one transaction.
+ * associations, tags, collections, topics, tasks, and v3 recipe / outcome /
+ * supersession / attribution / tree rows) inside one transaction.
  * Episodic memory and sessions are NOT rolled back.
+ * Verified recipes whose linked workflow row is gone are relinked after commit.
  */
 export async function rollbackCheckpoint(checkpointId: number): Promise<string> {
   const db = await get();
@@ -503,10 +701,20 @@ export async function rollbackCheckpoint(checkpointId: number): Promise<string> 
   }
 
   await RetrievalFusion.rebuildFts5(db).catch(() => {});
+  try {
+    const { ensureRecipeFts } = await import("../../recipes/recipeFts.js");
+    await ensureRecipeFts(db);
+  } catch {
+    // Recipe FTS is a channel; rewind must not fail if MATCH is unavailable.
+  }
+  await relinkDanglingRecipeMemories().catch(() => 0);
 
   const label = (row as any).label;
   const linked = (row as any).workspace_checkpoint_id as string | undefined;
-  const base = `Rolled back to checkpoint "${label}" — restored ${snapshot.semantic?.length ?? 0} semantic, ${snapshot.entities?.length ?? 0} entities, ${snapshot.patterns?.length ?? 0} patterns, ${snapshot.edges?.length ?? 0} edges, ${snapshot.procedures?.length ?? 0} procedures, ${snapshot.associations?.length ?? 0} associations, ${snapshot.tags?.length ?? 0} tags`;
+  const recipeBit = Array.isArray(snapshot.recipes)
+    ? `, ${snapshot.recipes.length} recipes`
+    : "";
+  const base = `Rolled back to checkpoint "${label}" — restored ${snapshot.semantic?.length ?? 0} semantic, ${snapshot.entities?.length ?? 0} entities, ${snapshot.patterns?.length ?? 0} patterns, ${snapshot.edges?.length ?? 0} edges, ${snapshot.procedures?.length ?? 0} procedures, ${snapshot.associations?.length ?? 0} associations, ${snapshot.tags?.length ?? 0} tags${recipeBit}`;
   if (!linked) {
     return base;
   }

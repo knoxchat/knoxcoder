@@ -1,5 +1,5 @@
 /**
- * MEM-17 / MEM-18 — attribution log and `[mem:id]` cites.
+ * MEM-17 / MEM-18 / MEM-39 — attribution log and `[mem:id]` cites.
  *
  * Injected semantic / episodic / recipe hints render a stable cite token.
  * After the turn, model output is parsed for those tokens and written to
@@ -7,6 +7,8 @@
  *
  *   Helpful = cited and turn succeeded → h += 1, FSRS useful
  *   Next user turn corrects a cited memory → u += 1, FSRS harmful
+ *   Recipe hint/stub cites use `mem_type='recipe'` and increment recipe leaf
+ *   h/u (MEM-39). Replay ok/revert writes the same table (MEM-18).
  *   Injected-not-cited → calibration only (feeds θ, not S)
  *   Sleep φ₇ refits w_s and calibrated θ from this log (MEM-18)
  *   Product tool `attribute` writes the same helper (MEM-19)
@@ -225,7 +227,13 @@ async function applyLeafOutcome(
   cite: MemoryCite,
   helpful: boolean,
 ): Promise<boolean> {
-  if (cite.type === "recipe") return false;
+  if (cite.type === "recipe") {
+    const row = await BrainStore.incrementRecipeUtilityCounts(
+      cite.mem_id,
+      helpful ? { helpful: 1 } : { unhelpful: 1 },
+    );
+    return Boolean(row);
+  }
   const id = Number(cite.mem_id);
   if (!(id > 0)) return false;
   await BrainStore.incrementUtilityCounts(cite.type, id, helpful ? { helpful: 1 } : { unhelpful: 1 });
@@ -385,6 +393,26 @@ export async function attributeMemory(input: AttributeMemoryInput): Promise<Attr
 }
 
 /**
+ * MEM-39: mark an injected recipe hint/stub helpful or not. Same helper as
+ * {@link attributeMemory}; recipe leaf h/u move, replay stats do not.
+ */
+export async function attributeRecipeHint(input: {
+  recipeId: string;
+  helpful: unknown;
+  session_id?: string | null;
+  turn_id?: string | null;
+}): Promise<AttributeMemoryResult> {
+  const id = input.recipeId.trim();
+  return attributeMemory({
+    id,
+    mem_type: "recipe",
+    helpful: input.helpful,
+    session_id: input.session_id,
+    turn_id: input.turn_id?.trim() || `recipe-hint:${id}:${Date.now()}:${++attributeSeq}`,
+  });
+}
+
+/**
  * Write or update one attribution row and apply h/u + FSRS when the
  * helpful flag newly becomes 0 or 1.
  */
@@ -440,7 +468,12 @@ async function loadCiteText(
     )) as { content?: string } | undefined;
     return { title: "", content: row?.content ?? "" };
   }
-  return { title: cite.mem_id, content: cite.mem_id };
+  const db = await BrainStore.get();
+  const row = (await db.get(
+    "SELECT title, intent_text FROM brain_recipes WHERE id = ?",
+    [cite.mem_id],
+  )) as { title?: string; intent_text?: string } | undefined;
+  return { title: row?.title ?? cite.mem_id, content: row?.intent_text ?? cite.mem_id };
 }
 
 function sharesContentWords(user: string, title: string, content: string): boolean {
@@ -611,6 +644,7 @@ export const Attribution = {
   parseHelpfulFlag,
   parseAttributeTarget,
   attributeMemory,
+  attributeRecipeHint,
   attributableRef,
   recipeInjectItem,
   inferTurnOutcome,

@@ -27,7 +27,7 @@ import { replayExact, type ReplayPorts } from "./replayer";
 import { applySlots, fillSlotsFromMessage } from "./slots";
 
 const TURNS = 1000;
-const DISTINCT_INTENTS = 400; // more than the 200-recipe budget, so eviction really runs
+const DISTINCT_INTENTS = 400; // many live recipes; count cap is leftover (MEM-35)
 const PROJECT = "soak-project";
 const ORACLE = { kind: "build" as const, passedAt: "2026-01-01T00:00:00.000Z", command: "npm run build" };
 
@@ -131,9 +131,9 @@ describe("1000-turn soak (MC-83)", () => {
       if (turn % 100 === 99) {
         evicted += (await enforceRecipeBudget(store, blobSize)).length;
         sizeAt[turn + 1] = dbBytes();
-        const live = await store.list({ status: ["candidate", "verified", "quarantined"], limit: 1000 });
+        const live = await store.listLive();
         maxLive = Math.max(maxLive, live.length);
-        expect(live.length).toBeLessThanOrEqual(DEFAULT_RECIPE_BUDGET.maxRecipesPerProject);
+        expect(live.length).toBeLessThanOrEqual(DISTINCT_INTENTS + MAX_FAMILY_VARIANTS);
       }
     }
 
@@ -157,7 +157,7 @@ describe("1000-turn soak (MC-83)", () => {
     }
     await enforceAllFamilyVariantCaps(store);
     evicted += (await enforceRecipeBudget(store, blobSize)).length;
-    const familyLive = (await store.list({ status: ["candidate", "verified", "quarantined"], limit: 1000 })).filter((r) => r.familyId);
+    const familyLive = (await store.listLive()).filter((r) => r.familyId);
     const byFamily = new Map<string, number>();
     for (const r of familyLive) byFamily.set(r.familyId!, (byFamily.get(r.familyId!) ?? 0) + 1);
     expect(Math.max(0, ...byFamily.values())).toBeLessThanOrEqual(MAX_FAMILY_VARIANTS);
@@ -207,8 +207,8 @@ describe("1000-turn soak (MC-83)", () => {
     expect(percentile(replayMs, 0.95)).toBeLessThan(300); // 300ms p95 replay target
     expect(percentile(matchMs, 0.95)).toBeLessThan(300); // list + match at turn start
     expect(pinnedBytes).toBeLessThanOrEqual(DEFAULT_RECIPE_BUDGET.maxBlobBytesPerProject);
-    // Eviction frees pins: only live recipes hold blobs.
-    expect(pinned.size).toBeLessThanOrEqual(DEFAULT_RECIPE_BUDGET.maxRecipesPerProject);
+    // Disk budget is the pin valve (MEM-35). Family cap still bounds variants.
+    expect(pinned.size).toBeLessThanOrEqual(DISTINCT_INTENTS + MAX_FAMILY_VARIANTS);
     // The database stays small, and the second half does not grow like the first (it plateaus).
     expect(dbBytes()).toBeLessThan(16 * 1024 * 1024);
     expect(dbBytes() - sizeAt[500]).toBeLessThan(sizeAt[500] * 1.5 + 1024 * 1024);

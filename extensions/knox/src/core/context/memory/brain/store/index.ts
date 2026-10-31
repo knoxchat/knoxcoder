@@ -56,6 +56,8 @@ export class BrainStore {
   static listSessions = sessions.listSessions;
   static deleteSession = sessions.deleteSession;
   static addEpisodic = episodic.addEpisodic;
+  static findCheckpointPointerLeaf = episodic.findCheckpointPointerLeaf;
+  static updateEpisodicContent = episodic.updateEpisodicContent;
   static getEpisodicBySession = episodic.getEpisodicBySession;
   static getRecentEpisodic = episodic.getRecentEpisodic;
   static getRecentUserMessages = episodic.getRecentUserMessages;
@@ -177,4 +179,6 @@ export class BrainStore {
   static listLatestAttributedTurn = attribution.listLatestAttributedTurn;
   static incrementUtilityCounts = attribution.incrementUtilityCounts;
   static incrementUtilityCountsOn = attribution.incrementUtilityCountsOn;
+  static incrementRecipeUtilityCounts = attribution.incrementRecipeUtilityCounts;
+  static incrementRecipeUtilityCountsOn = attribution.incrementRecipeUtilityCountsOn;
 }

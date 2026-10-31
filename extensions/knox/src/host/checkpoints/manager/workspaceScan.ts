@@ -53,15 +53,29 @@ export function inventoryPathsFromScan(result: WorkspaceScanResult): string[] {
     return result.files.map((file) => file.relativePath);
 }
 
+/**
+ * FAT is 2s; Windows timer / NTFS-through-a-VM can report mtime on or
+ * slightly before `Date.now()` from the previous capture. Slack so a file
+ * written immediately after a checkpoint is still treated as changed.
+ * `skipUnchanged` still drops no-ops by content hash.
+ */
+export const CHECKPOINT_MTIME_SLACK_MS = 2000;
+
 export function changedFullPathsFromScan(
     result: WorkspaceScanResult,
     changedSinceMs?: number,
+    knownRelativePaths?: Pick<Set<string>, 'size' | 'has'>,
 ): string[] {
     if (changedSinceMs === undefined) {
         return result.files.map((file) => file.fullPath);
     }
+    const since = changedSinceMs - CHECKPOINT_MTIME_SLACK_MS;
+    const haveKnown = knownRelativePaths !== undefined && knownRelativePaths.size > 0;
     return result.files
-        .filter((file) => file.mtimeMs > changedSinceMs)
+        .filter((file) =>
+            file.mtimeMs > since
+            || (haveKnown && !knownRelativePaths.has(file.relativePath)),
+        )
         .map((file) => file.fullPath);
 }
 

@@ -91,27 +91,23 @@ describe("MC-53 global recipes", () => {
 describe("MC-54 growth budget", () => {
   const size = () => 100;
 
-  it("evicts quarantined, then candidates, then the weakest verified, per project", async () => {
+  it("does not evict by the leftover per-project count cap (MEM-35)", async () => {
     const strong = await verified(input("A", 1));
     await store.recordReplay(strong.id, "ok");
     const weak = await verified(input("A", 2));
     const cand = (await store.create(input("A", 3))).recipe;
     const other = await verified(input("B", 4));
 
-    const live = await store.list();
-    const evict = planEviction(live, size, { maxRecipesPerProject: 2, maxBlobBytesPerProject: 1e9 });
-    expect(evict).toEqual([cand.id]);
-    expect(evict).not.toContain(other.id);
-
-    const evict1 = planEviction(live, size, { maxRecipesPerProject: 1, maxBlobBytesPerProject: 1e9 });
-    expect(evict1).toEqual([cand.id, weak.id]);
+    const live = await store.listLive();
+    expect(planEviction(live, size, { maxRecipesPerProject: 1, maxBlobBytesPerProject: 1e9 })).toEqual([]);
+    expect(live.map((r) => r.id)).toEqual(expect.arrayContaining([strong.id, weak.id, cand.id, other.id]));
   });
 
   it("enforces the byte cap on distinct blobs and frees pins when retiring", async () => {
     await verified(input("A", 1));
     await verified(input("A", 2));
     await verified(input("A", 3));
-    expect(planEviction(await store.list(), size, { maxRecipesPerProject: 99, maxBlobBytesPerProject: 300 })).toEqual([]);
+    expect(planEviction(await store.listLive(), size, { maxRecipesPerProject: 99, maxBlobBytesPerProject: 300 })).toEqual([]);
 
     const evicted = await enforceRecipeBudget(store, size, { maxRecipesPerProject: 99, maxBlobBytesPerProject: 200 });
     expect(evicted).toHaveLength(1);
@@ -160,6 +156,6 @@ describe("MC-54 growth budget", () => {
   it("counts a shared blob once", async () => {
     await verified(input("A", 1, { steps: [{ kind: "write_file", path: "a", blobHash: "same", checkpointId: "c" }] }));
     await verified(input("A", 2, { steps: [{ kind: "write_file", path: "b", blobHash: "same", checkpointId: "c" }] }));
-    expect(planEviction(await store.list(), size, { maxRecipesPerProject: 99, maxBlobBytesPerProject: 100 })).toEqual([]);
+    expect(planEviction(await store.listLive(), size, { maxRecipesPerProject: 99, maxBlobBytesPerProject: 100 })).toEqual([]);
   });
 });

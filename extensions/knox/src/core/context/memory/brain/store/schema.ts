@@ -1,6 +1,7 @@
 /** Table creation and additive schema migrations. */
 
 import type { DatabaseConnection } from "../../../../util/refreshIndex.js";
+import { ensureRecipeFts } from "../../recipes/recipeFts.js";
 
 export async function createTables(db: DatabaseConnection): Promise<void> {
   // Sessions table — tracks every conversation session
@@ -355,6 +356,9 @@ export async function ensureRecipeColumns(db: DatabaseConnection): Promise<void>
   // P5 inspector: pin boost + free-text note (redacted at write).
   await tryExec(db, "ALTER TABLE brain_recipes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0");
   await tryExec(db, "ALTER TABLE brain_recipes ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+  // MEM-39: hint-attribution leaf h/u. Added to replay stats for Value.
+  await tryExec(db, "ALTER TABLE brain_recipes ADD COLUMN helpful_count INTEGER NOT NULL DEFAULT 0");
+  await tryExec(db, "ALTER TABLE brain_recipes ADD COLUMN unhelpful_count INTEGER NOT NULL DEFAULT 0");
 }
 
 async function createRecipeIndexes(db: DatabaseConnection): Promise<void> {
@@ -406,6 +410,8 @@ export async function createRecipeTables(db: DatabaseConnection): Promise<void> 
       memory_id INTEGER DEFAULT NULL,
       pinned INTEGER NOT NULL DEFAULT 0,
       notes TEXT NOT NULL DEFAULT '',
+      helpful_count INTEGER NOT NULL DEFAULT 0,
+      unhelpful_count INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       last_replayed_at DATETIME DEFAULT NULL
@@ -452,6 +458,8 @@ export async function createRecipeTables(db: DatabaseConnection): Promise<void> 
   // `SQLITE_ERROR: no such column: family_id` and migrateSchema never runs.
   await ensureRecipeColumns(db);
   await createRecipeIndexes(db);
+  // MEM-34: recipe FTS channel. Fail-open if this SQLite has no FTS5.
+  await ensureRecipeFts(db).catch(() => {});
 }
 
 // ── Revised theorem columns / tables (MEM-03) ─────────────────────────────
@@ -591,6 +599,7 @@ export async function migrateSchema(db: DatabaseConnection): Promise<void> {
   // Recipe columns added after the first MC-10 table. Idempotent on fresh DBs.
   await ensureRecipeColumns(db);
   try { await createRecipeIndexes(db); } catch {}
+  await ensureRecipeFts(db).catch(() => {});
   // Theorem columns / tables (MEM-03). Additive; does not bump user_version.
   await createTheoremTables(db);
   try {
