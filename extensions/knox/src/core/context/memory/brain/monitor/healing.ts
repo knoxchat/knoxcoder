@@ -1,4 +1,9 @@
 import { BrainStore } from "../BrainStore.js";
+import { RetrievalFusion } from "../RetrievalFusion.js";
+import {
+  checkStoreInvariants,
+  getInvariantSnapshot,
+} from "../invariants.js";
 import type { HealthStatus } from "../types.js";
 import type { HealingAction, HealingResult, HealingStrategy } from "../PerformanceMonitor.js";
 
@@ -84,6 +89,29 @@ export class HealingEngine {
           success = true;
           break;
         }
+        case "check_invariants": {
+          let report = await checkStoreInvariants({ audit: true });
+          let repaired = false;
+          if (!report.reachability.met || report.reachability.missing_fts > 0) {
+            const db = await BrainStore.get();
+            await RetrievalFusion.rebuildFts5(db);
+            repaired = true;
+            report = await checkStoreInvariants({ audit: true });
+          }
+          const budget = getInvariantSnapshot().budget;
+          const budgetNote = budget.checked
+            ? ` last Budget: ${budget.met ? "met" : "failed"} (|C(q)|=${budget.c_use} W=${budget.w})`
+            : "";
+          details =
+            `Reachability: ${report.reachability.met ? "met" : "failed"} ` +
+            `(live=${report.reachability.live}, missing=${report.reachability.missing}, ` +
+            `fts_gaps=${report.reachability.missing_fts}); ` +
+            `Losslessness: ${report.losslessness.met ? "met" : "failed"} ` +
+            `(leaves=${report.losslessness.leaves}, dangling=${report.losslessness.dangling})` +
+            `${repaired ? "; FTS rebuilt" : ""}.${budgetNote}`;
+          success = report.met;
+          break;
+        }
       }
 
       // Measure health after and compute impact
@@ -146,6 +174,9 @@ export class HealingEngine {
       }
       if (lower.includes("checkpoint snapshot")) {
         actions.push({ action: "prune_missing_checkpoints", priority: 9 });
+      }
+      if (lower.includes("reachability") || lower.includes("losslessness")) {
+        actions.push({ action: "check_invariants", priority: 10 });
       }
     }
 

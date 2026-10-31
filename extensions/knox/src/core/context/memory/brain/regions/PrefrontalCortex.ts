@@ -1,9 +1,10 @@
 /**
- * PrefrontalCortex — Goal/plan integration facade (φ₃ planning step).
- * REL-07: C_goal is session-scoped. Hippocampus/Amygdala feedback may
- * record a recent-knowledge hint, never overwrite the active goal.
+ * PrefrontalCortex — planning stage P (MEM-31).
  *
- * Part III φ₃: Working Memory = Thalamus(Prefrontal(x)) → M₂
+ *   A ─plan→ P ─recall/store→ H
+ *
+ * REL-07: C_goal is session-scoped. Hippocampus/Amygdala feedback may
+ * record a hint, never overwrite the active goal. H→P is re-plan hint only.
  */
 
 const DEFAULT_SESSION_KEY = "__default__";
@@ -11,6 +12,7 @@ const DEFAULT_SESSION_KEY = "__default__";
 interface SessionGoalState {
   goal: string | null;
   recentKnowledgeHint: string | null;
+  salienceHint: { content: string; salience: number } | null;
 }
 
 const sessionGoals = new Map<string, SessionGoalState>();
@@ -26,7 +28,7 @@ function getState(sessionId?: string | null): SessionGoalState {
   const key = sessionKey(sessionId);
   let state = sessionGoals.get(key);
   if (!state) {
-    state = { goal: null, recentKnowledgeHint: null };
+    state = { goal: null, recentKnowledgeHint: null, salienceHint: null };
     sessionGoals.set(key, state);
   }
   return state;
@@ -134,9 +136,18 @@ export const PrefrontalCortex = {
   },
 
   /**
-   * Amygdala→Prefrontal: high-salience input must not set C_goal (REL-07).
+   * Amygdala→Prefrontal: record I₀ / salience. Never sets C_goal (REL-07).
    */
-  feedbackFromAmygdala(_content: string, _salience: number): void {
-    // Intentionally no-op for C_goal.
+  feedbackFromAmygdala(content: string, salience: number, sessionId?: string): void {
+    const trimmed = content.trim();
+    if (!trimmed) return;
+    getState(sessionId).salienceHint = {
+      content: trimmed.slice(0, 80),
+      salience,
+    };
+  },
+
+  getSalienceHint(sessionId?: string): { content: string; salience: number } | null {
+    return getState(sessionId).salienceHint;
   },
 };

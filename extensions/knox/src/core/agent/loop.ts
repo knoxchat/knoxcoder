@@ -57,6 +57,7 @@ import {
   calibrationRatio,
   resolveContextWindow,
 } from "./contextBudget";
+import { resolveMemoryWindow } from "../context/memory/brain/window.js";
 import type { PermissionMode } from "./permissions";
 import {
   computeRetryDelayMs,
@@ -252,6 +253,7 @@ export function createAgentLoopCompactor(
   llm: Pick<ToolExtras, "llm">["llm"],
 ): AgentLoopCompactor {
   let ratio = 1;
+  resolveMemoryWindow({ llm, remember: true });
   async function compact(messages: ChatMessage[]): Promise<ChatMessage[]> {
     const window = resolveContextWindow(llm);
     // A ratio > 1 means the provider counts more tokens than we do: shrink the window.
@@ -735,6 +737,7 @@ export function lastOracleDiagnosticSignature(
 export async function runAgentLoop(
   options: AgentLoopOptions,
 ): Promise<AgentLoopResult> {
+  resolveMemoryWindow({ llm: options.extras.llm, remember: true });
   const maxSteps = options.maxSteps === undefined ? null : options.maxSteps;
   const abortOnCancelled = options.abortOnCancelled !== false;
   const parallelReadonly = options.parallelReadonly !== false;

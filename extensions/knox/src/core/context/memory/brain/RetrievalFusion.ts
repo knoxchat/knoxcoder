@@ -545,18 +545,37 @@ export class RetrievalFusion {
 
   /**
    * Rebuild FTS5 indexes from scratch (for migration from pre-FTS5 data).
+   *
+   * `delete-all` is not valid on content= FTS5 tables — it corrupts the
+   * index. Drop and recreate, then repopulate from the content tables.
    */
   static async rebuildFts5(db: DatabaseConnection): Promise<{ semantic: number; episodic: number }> {
-    // Clear and repopulate semantic FTS
-    await db.exec(`INSERT INTO brain_semantic_fts(brain_semantic_fts) VALUES ('delete-all')`);
+    await db.exec(`DROP TABLE IF EXISTS brain_semantic_fts`);
+    await db.exec(`DROP TABLE IF EXISTS brain_episodic_fts`);
+    await db.exec(`
+      CREATE VIRTUAL TABLE brain_semantic_fts USING fts5(
+        title,
+        content,
+        keywords,
+        content='brain_semantic',
+        content_rowid='id',
+        tokenize='porter unicode61 remove_diacritics 2'
+      )
+    `);
+    await db.exec(`
+      CREATE VIRTUAL TABLE brain_episodic_fts USING fts5(
+        content,
+        content='brain_episodic',
+        content_rowid='id',
+        tokenize='porter unicode61 remove_diacritics 2'
+      )
+    `);
+
     const semResult = await db.run(`
       INSERT INTO brain_semantic_fts(rowid, title, content, keywords)
       SELECT id, ${cjkExpandSql("title")}, ${cjkExpandSql("content")}, ${cjkExpandSql("keywords")}
       FROM brain_semantic
     `);
-
-    // Clear and repopulate episodic FTS
-    await db.exec(`INSERT INTO brain_episodic_fts(brain_episodic_fts) VALUES ('delete-all')`);
     const epResult = await db.run(`
       INSERT INTO brain_episodic_fts(rowid, content)
       SELECT id, ${cjkExpandSql("content")} FROM brain_episodic

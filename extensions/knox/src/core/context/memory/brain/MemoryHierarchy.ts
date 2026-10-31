@@ -26,6 +26,8 @@ export type MemoryLevelId = "M1" | "M2" | "M3" | "M4" | "M5";
 
 /** M₁/M₂ are per-turn / per-call buffers. M₃–M₅ are stored rows in C_addr. */
 export type MemoryLevelRole = "buffer" | "store";
+/** M₁ turn, M₂ call, M₃ session, M₄/M₅ stored (MEM-33). */
+export type MemoryLevelLifetime = "turn" | "call" | "session" | "stored";
 
 export interface MemoryLevelSpec {
   id: MemoryLevelId;
@@ -33,6 +35,7 @@ export interface MemoryLevelSpec {
   knox_label: string;
   ratio: number;
   retention: string;
+  lifetime: MemoryLevelLifetime;
   capacity: string;
   role: MemoryLevelRole;
   in_c_addr: boolean;
@@ -49,6 +52,7 @@ export interface MemoryLevelMetrics {
   role: MemoryLevelRole;
   /** False for M₁/M₂ buffer gauges. */
   in_c_addr: boolean;
+  lifetime: MemoryLevelLifetime;
 }
 
 export interface AddressableMemoryResult {
@@ -76,6 +80,7 @@ export function getMemoryLevelSpecs(ratios?: CompressionRatios): MemoryLevelSpec
       knox_label: "Sensory Buffer",
       ratio: 1.0,
       retention: "one turn",
+      lifetime: "turn",
       capacity: "buffer",
       role: "buffer",
       in_c_addr: false,
@@ -86,6 +91,7 @@ export function getMemoryLevelSpecs(ratios?: CompressionRatios): MemoryLevelSpec
       knox_label: "Working Memory",
       ratio: 0.5,
       retention: "one call",
+      lifetime: "call",
       capacity: "buffer",
       role: "buffer",
       in_c_addr: false,
@@ -96,6 +102,7 @@ export function getMemoryLevelSpecs(ratios?: CompressionRatios): MemoryLevelSpec
       knox_label: "Session + tree",
       ratio: normalizeCompressionRatio(r.warm),
       retention: "session",
+      lifetime: "session",
       capacity: "unbounded",
       role: "store",
       in_c_addr: true,
@@ -106,6 +113,7 @@ export function getMemoryLevelSpecs(ratios?: CompressionRatios): MemoryLevelSpec
       knox_label: "Semantic / episodic",
       ratio: normalizeCompressionRatio(r.cold),
       retention: "stored",
+      lifetime: "stored",
       capacity: "unbounded",
       role: "store",
       in_c_addr: true,
@@ -116,6 +124,7 @@ export function getMemoryLevelSpecs(ratios?: CompressionRatios): MemoryLevelSpec
       knox_label: "Recipes + leftover procedures",
       ratio: normalizeCompressionRatio(r.frozen),
       retention: "stored",
+      lifetime: "stored",
       capacity: "unbounded",
       role: "store",
       in_c_addr: true,
@@ -316,6 +325,7 @@ export async function calculateAddressableMemory(options?: {
       effective_tokens: tokens,
       role: spec.role,
       in_c_addr: spec.in_c_addr,
+      lifetime: spec.lifetime,
     };
   });
 

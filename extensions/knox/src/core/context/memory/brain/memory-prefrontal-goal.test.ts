@@ -55,6 +55,7 @@ describe("REL-07 session-scoped goal", () => {
       0.95,
     );
     expect(PrefrontalCortex.getGoal()).toBeNull();
+    expect(PrefrontalCortex.getSalienceHint()?.salience).toBe(0.95);
   });
 
   it("formatMemoryGoal prefers plan title, else first line", () => {

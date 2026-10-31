@@ -446,6 +446,9 @@ export type ToCoreFromIdeOrWebviewProtocol = {
       last_completed?: { phase: string; at: number } | null;
       phase_counts?: Record<string, number>;
       cycle_invariant_met?: boolean;
+      budget_invariant_met?: boolean;
+      reachability_invariant_met?: boolean;
+      losslessness_invariant_met?: boolean;
       background_sleep_active?: boolean;
       canonical_order?: string[];
     },
@@ -488,7 +491,7 @@ export type ToCoreFromIdeOrWebviewProtocol = {
   ];
   "brain/routeTask": [
     { message: string; toolCount?: number; codeBlockCount?: number },
-    { difficulty: string; score: number; modelId: string },
+    { difficulty: string; score: number; modelId: string; w?: number; wOut?: number },
   ];
   "brain/runAutonomousLoop": [
     {

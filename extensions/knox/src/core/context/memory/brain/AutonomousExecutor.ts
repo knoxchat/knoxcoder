@@ -19,6 +19,7 @@ import { formatCodebaseCardInject } from "../../../context/codebaseCard.js";
 import { formatSerialContextInject } from "../../../context/serialContext.js";
 import { ResilientLlm } from "./LlmResilience.js";
 import { TaskRouter } from "./TaskRouter.js";
+import { resolveMemoryWindow } from "./window.js";
 import type { AutonomousStepResult } from "./LocalAutonomousLoop.js";
 import {
   compactAutonomousArgs,
@@ -359,6 +360,7 @@ export async function executeAutonomousStep(
   const route = TaskRouter.scoreAndRoute({
     message: ctx.goal + "\n" + ctx.memoryContext,
     toolCount: toolRuntime?.catalog.length ?? 0,
+    llm,
   });
 
   let stepLlm = llm;
@@ -368,6 +370,7 @@ export async function executeAutonomousStep(
       stepLlm = resolved;
     }
   }
+  resolveMemoryWindow({ llm: stepLlm, remember: true });
 
   if (toolRuntime?.catalog.length) {
     return executeToolIteration(stepLlm, ctx, toolRuntime, abortSignal);

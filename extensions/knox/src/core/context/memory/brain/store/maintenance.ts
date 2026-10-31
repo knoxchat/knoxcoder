@@ -11,6 +11,7 @@ import { compressColdTier } from "./compression.js";
 import { get } from "./connection.js";
 import { brainState } from "./state.js";
 import { decompressLiveTiers, recomputeMemoryTiers } from "./tiers.js";
+import { checkStoreInvariants, getInvariantSnapshot } from "../invariants.js";
 
 // ── Consolidation (Knox-MS Memory Tiering Pattern) ─────────────────────────
 
@@ -191,6 +192,28 @@ export async function getHealth(): Promise<HealthStatus> {
   if (missingSnapshots > 0) {
     issues.push(`${missingSnapshots} memory checkpoint snapshot file${missingSnapshots === 1 ? " is" : "s are"} missing`);
     recommendations.push("Run heal action: prune_missing_checkpoints");
+  }
+
+  try {
+    const store = await checkStoreInvariants();
+    if (!store.reachability.met) {
+      issues.push(
+        `Reachability: ${store.reachability.missing} non-tombstoned memories not in FTS, ripgrep corpus, graph, or tree`,
+      );
+      recommendations.push("Run heal action: check_invariants");
+    }
+    if (!store.losslessness.met) {
+      issues.push(
+        `Losslessness: ${store.losslessness.dangling} summary-tree leaves have no original row or tombstone`,
+      );
+      recommendations.push("Run heal action: check_invariants");
+    }
+    const budget = getInvariantSnapshot().budget;
+    if (budget.checked && !budget.met) {
+      issues.push(`Budget: last |C(q)|=${budget.c_use} exceeded W=${budget.w}`);
+    }
+  } catch {
+    // Health must stay available if an invariant query fails.
   }
 
   let status: "healthy" | "degraded" | "critical" = "healthy";

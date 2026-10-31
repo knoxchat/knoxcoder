@@ -61,7 +61,7 @@ describe("MEM-02 theorem parameter table", () => {
     expect(cfg.retrieval_top_k).toBe(50);
     expect(cfg.ebbinghaus_lambda).toBe(0.03);
     expect(getMemoryInjectHardCap()).toBe(MEMORY_INJECT_HARD_CAP_TOKENS);
-    expect(MEMORY_INJECT_HARD_CAP_TOKENS).toBe(8000);
+    expect(MEMORY_INJECT_HARD_CAP_TOKENS).toBe(4096);
   });
 
   it("persists theorem keys through brain_config reload", async () => {

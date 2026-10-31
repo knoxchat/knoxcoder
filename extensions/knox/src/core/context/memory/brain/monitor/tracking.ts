@@ -156,7 +156,7 @@ export class EffectiveContextTracker {
   }
 }
 
-/** Tracks local memory_tokens_saved from compress-oldest overflow (knox_ms_meta equivalent). */
+/** Tracks local memory_tokens_saved from session-summary overflow (MEM-30). */
 export class CompressionMetrics {
   private totalTokensSaved = 0;
   private lastTokensSaved = 0;

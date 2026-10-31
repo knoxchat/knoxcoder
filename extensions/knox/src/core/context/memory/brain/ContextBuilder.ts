@@ -1,11 +1,31 @@
 import { omitJevToolDenialLines } from "../../../jev/toolGate.js";
 import { BrainStore } from "./BrainStore.js";
-import { getContextAssemblyLimits, getContextMaxTokens, getGoalBudgetTokens, getMemoryConfig, getMemoryInjectHardCap, getModeSettings } from "./memoryConfigAccess.js";
+import { computeWMem, getContextAssemblyLimits, getMemoryConfig, getModeSettings, getTheoremParams, planRecentShare } from "./memoryConfigAccess.js";
+import { resolveMemoryWindow } from "./window.js";
 import { getProjectSessionIds } from "./projectScope.js";
 import { resolveRetrievalQuery, contentWords } from "./RetrievalQuery.js";
 import { RetrievalFusion, type FusionResult } from "./RetrievalFusion.js";
 import type { BuildContextInput, BuildContextResult, InjectedMemoryItem, MemoryMode, SemanticMemory } from "./types.js";
-import { ContextSections, getBrainManager, SUMMARY_INJECT_MIN_OVERLAP, type ContextSection } from "./ContextSections.js";
+import {
+  ContextSections,
+  getBrainManager,
+  RECALLED_MEMORY_HEADER,
+  SUMMARY_INJECT_MIN_OVERLAP,
+  type ContextSection,
+} from "./ContextSections.js";
+import { selectBudgetedSubmodular, type ContextCandidate } from "./selectContext.js";
+import { resolveSessionOverflowNode, type SessionOverflowNode } from "./SummaryTree.js";
+import { applyBudgetInvariant } from "./invariants.js";
+
+/**
+ * ContextBuilder input plus B_g pre-selection (MEM-31).
+ * When `procedure_hits` / `pattern_hits` are defined (even empty), assembly
+ * does not search those sources again.
+ */
+export type AssembleContextInput = BuildContextInput & {
+  procedure_hits?: ContextCandidate[];
+  pattern_hits?: ContextCandidate[];
+};
 
 export {
   SUMMARY_INJECT_MIN_OVERLAP,
@@ -14,25 +34,24 @@ export {
 } from "./ContextSections.js";
 
 /**
- * ContextBuilder — Smart token-budgeted context assembly.
+ * ContextBuilder — budgeted submodular context assembly (MEM-29/30).
  *
- * Mirrors Knox-MS context window management:
- * - Builds context from ALL memory types (semantic, episodic, graph, procedures, patterns)
- * - Token-budgeted allocation across memory categories
- * - Relevance-ranked insertion
- * - Prevents duplication between current session and memory recall
- *
- * Token budget is capped (K-072: 12k inject via TurnBudget / memory inject
- * hard cap). Empty categories are not reserved.
+ * Sources (facts, episodes, graph, procedures/recipes, patterns, summary
+ * nodes) compete on F(X) inside W_mem. Leftover per-section quotas are not
+ * the allocator. Selected items are sandwich-ordered (highest at start and
+ * end). Token budget is W_mem = min(w_mem_tokens, W − |C_system| − |C_goal|
+ * − |C_recent| − W_out) (MEM-28). If C_recent exceeds its share, this call
+ * injects the session/tree node and drops raw old turns (MEM-30). Originals
+ * stay retrievable. There is no compress-oldest step.
  */
 export class ContextBuilder {
   /**
    * Build a comprehensive context block from all memory types.
    *
-   * Token budget: leftover goes to the next non-empty category. Empty
-   * graph / procedures / patterns no longer reserve 10–15% (K-072).
+   * Token budget: all retrieved sources compete via selectContext. Working
+   * memory is reserved from W_mem; C_goal stays outside it.
    */
-  static async build(input: BuildContextInput): Promise<string> {
+  static async build(input: AssembleContextInput): Promise<string> {
     const result = await ContextBuilder.buildDetailed(input);
     return result.context;
   }
@@ -40,21 +59,51 @@ export class ContextBuilder {
   /**
    * Same as build(), but also returns provenance items for UI (why each memory was injected).
    */
-  static async buildDetailed(input: BuildContextInput): Promise<BuildContextResult> {
+  static async buildDetailed(input: AssembleContextInput): Promise<BuildContextResult> {
     const config = getMemoryConfig();
     const assemblyLimits = getContextAssemblyLimits();
     const memoryMode: MemoryMode = input.memory_mode ?? config.memory_mode;
     const mode = getModeSettings(memoryMode);
-    const maxTokens = Math.min(
-      getContextMaxTokens(input.max_tokens),
-      getMemoryInjectHardCap(),
-    );
-    const goalBudget = getGoalBudgetTokens(maxTokens);
-    const contentBudget = maxTokens - goalBudget;
+    const window = resolveMemoryWindow({
+      llm: input.llm,
+      model: input.model,
+      contextLength: input.w,
+      maxTokens: input.w_out,
+      remember: Boolean(input.llm || input.model),
+    });
+    const w = input.w && input.w > 0 ? Math.floor(input.w) : window.w;
+    const wOut = input.w_out && input.w_out > 0 ? Math.floor(input.w_out) : window.wOut;
+    const goalText = input.goal?.trim() ? `=== Current Task ===\n${input.goal.trim()}` : null;
+    const estimatedGoal = goalText ? ContextSections.estimateTokens(goalText) : 0;
+    const share = planRecentShare({
+      w,
+      wOut,
+      systemTokens: input.system_tokens,
+      goalTokens: input.goal_tokens ?? estimatedGoal,
+      recentTokens: input.recent_tokens,
+    });
+    let overflowNode: SessionOverflowNode | null = null;
+    if (share.overflowed && input.session_id) {
+      overflowNode = await resolveSessionOverflowNode({
+        sessionId: input.session_id,
+        recentShare: share.recentShare,
+      });
+    }
+    const budget = computeWMem({
+      w,
+      wOut,
+      maxTokensOverride: input.max_tokens,
+      window: { ...window, w, wOut },
+      systemTokens: input.system_tokens,
+      goalTokens: input.goal_tokens ?? estimatedGoal,
+      recentTokens: share.recentTokens,
+    });
+    const wMem = budget.wMem;
+    const goalBudget = budget.goalTokens;
     const sections: ContextSection[] = [];
     const parts: string[] = [];
     const items: InjectedMemoryItem[] = [];
-    let tokenBudget = contentBudget;
+    let tokenBudget = wMem;
     let sectionAge = 0;
 
     // REL-01: search with expanded retrieval query; C_goal / budget stay on the user message.
@@ -97,9 +146,8 @@ export class ContextBuilder {
       fusionById.set(`${hit.type}:${hit.id}`, hit);
     }
 
-    const MIN_SECTION_TOKENS = 8;
-
-    // C_immediate — working memory filtered by retrieval query (REL-06)
+    // C_immediate — working memory filtered by retrieval query (REL-06).
+    // Reserved from W_mem so M₂ scratchpad does not compete with C_mem.
     let wmContext: string | null = null;
     try {
       const BrainManager = await getBrainManager();
@@ -108,11 +156,24 @@ export class ContextBuilder {
     } catch {
       // Working memory is optional — never fail context building
     }
+    const wmTokens = wmContext ? ContextSections.estimateTokens(wmContext) : 0;
+    if (wmContext && wmTokens <= tokenBudget) {
+      tokenBudget = Math.max(0, tokenBudget - wmTokens);
+    } else if (wmContext && wmTokens > tokenBudget) {
+      wmContext = null;
+    }
 
-    // Section order (IMP-15): summary → retrieved → immediate → goal
-    // C_summary — skip when the summary has no overlap with the retrieval query
-    // or current topic (REL-05; REL-10 can refine the threshold).
-    if (input.session_id && tokenBudget > assemblyLimits.sessionSummaryMinTokens) {
+    const pool: ContextCandidate[] = [];
+    let omittedUnmatched = 0;
+
+    // C_summary: overflow injects the session/tree node (MEM-30). Otherwise
+    // REL-10 overlap / full mode decides whether the string summary competes.
+    if (overflowNode) {
+      pool.push(ContextSections.collectOverflowSummaryCandidate({
+        nodeId: overflowNode.nodeId,
+        text: overflowNode.text,
+      }));
+    } else if (input.session_id && tokenBudget > assemblyLimits.sessionSummaryMinTokens) {
       const session = await BrainStore.getSession(input.session_id);
       if (session?.summary) {
         const includeSummary = await ContextBuilder.sessionSummaryOverlaps(
@@ -122,29 +183,22 @@ export class ContextBuilder {
           memoryMode,
         );
         if (includeSummary) {
-          const summaryTokens = ContextSections.estimateTokens(session.summary);
-          if (summaryTokens <= tokenBudget) {
-            const summaryText = `=== Current Session Context ===\n${session.summary}`;
-            sections.push({ text: summaryText, priority: 5, ageRank: sectionAge++ });
-            parts.push(summaryText);
-            items.push({
-              id: null,
-              kind: "episodic",
-              title: "Current session summary",
-              reason: "Summary of the active conversation",
-            });
-            tokenBudget -= summaryTokens;
-          }
+          const queryWords = contentWords(searchQuery);
+          const summaryWords = new Set(contentWords(session.summary));
+          const hits = queryWords.filter((w) => summaryWords.has(w)).length;
+          const overlap = queryWords.length > 0 ? hits / queryWords.length : 0;
+          pool.push(ContextSections.collectSessionSummaryCandidate({
+            summary: session.summary,
+            overlap,
+            fullMode: memoryMode === "full",
+          }));
         }
       }
     }
 
-    // C_retrieved — semantic memory (uses leftover budget; empty later categories
-    // do not reserve a fixed 10–15%).
-    const semantic = await ContextSections.buildSemanticContext(
+    const semantic = await ContextSections.collectSemanticCandidates(
       searchQuery,
       input.session_id,
-      tokenBudget,
       mode,
       {
         fusionHits: fusionHits.filter((h) => h.type === "semantic"),
@@ -152,96 +206,121 @@ export class ContextBuilder {
         fusionById,
       },
     );
-    if (semantic.text) {
-      sections.push({ text: semantic.text, priority: 3, ageRank: sectionAge++ });
-      parts.push(semantic.text);
-      tokenBudget -= ContextSections.estimateTokens(semantic.text);
-      items.push(...semantic.items);
-    }
+    omittedUnmatched = semantic.omittedUnmatched;
+    pool.push(...semantic.candidates);
 
-    // 2. Episodic memory
-    if (mode.includeEpisodic && tokenBudget >= MIN_SECTION_TOKENS) {
-      const episodic = await ContextSections.buildEpisodicContext(
-        searchQuery,
-        input.session_id,
-        tokenBudget,
-        mode,
-        {
-          fusionHits: fusionHits.filter((h) => h.type === "episodic"),
-          fusionEmpty,
-          fusionById,
-        },
+    if (mode.includeEpisodic) {
+      pool.push(
+        ...(await ContextSections.collectEpisodicCandidates(
+          searchQuery,
+          input.session_id,
+          mode,
+          {
+            fusionHits: fusionHits.filter((h) => h.type === "episodic"),
+            fusionEmpty,
+            fusionById,
+          },
+        )),
       );
-      if (episodic.text) {
-        sections.push({ text: episodic.text, priority: 2, ageRank: sectionAge++ });
-        parts.push(episodic.text);
-        tokenBudget -= ContextSections.estimateTokens(episodic.text);
-        items.push(...episodic.items);
-      }
     }
 
-    // 3. Knowledge graph
-    if (
-      mode.includeGraph &&
-      input.include_graph !== false &&
-      config.graph_enabled &&
-      tokenBudget >= MIN_SECTION_TOKENS
-    ) {
-      const graph = await ContextSections.buildGraphContext(
-        searchQuery,
-        tokenBudget,
-      );
-      if (graph.text) {
-        sections.push({ text: graph.text, priority: 1, ageRank: sectionAge++ });
-        parts.push(graph.text);
-        tokenBudget -= ContextSections.estimateTokens(graph.text);
-        items.push(...graph.items);
-      }
+    if (mode.includeGraph && input.include_graph !== false && config.graph_enabled) {
+      pool.push(...(await ContextSections.collectGraphCandidates(searchQuery)));
     }
 
-    // 4. Procedures
     if (
       mode.includeProcedures &&
       input.include_procedures !== false &&
-      config.learning_enabled &&
-      tokenBudget >= MIN_SECTION_TOKENS
+      config.learning_enabled
     ) {
-      const procs = await ContextSections.buildProcedureContext(
-        searchQuery,
-        tokenBudget,
-      );
-      if (procs.text) {
-        sections.push({ text: procs.text, priority: 1, ageRank: sectionAge++ });
-        parts.push(procs.text);
-        tokenBudget -= ContextSections.estimateTokens(procs.text);
-        items.push(...procs.items);
-      }
+      // B_g already chose these when the field is present (MEM-31).
+      const procedures =
+        input.procedure_hits !== undefined
+          ? input.procedure_hits
+          : await ContextSections.collectProcedureCandidates(searchQuery);
+      pool.push(...procedures);
     }
 
-    // C_retrieved — learning patterns
     if (
       mode.includePatterns &&
       input.include_patterns !== false &&
-      config.learning_enabled &&
-      tokenBudget >= MIN_SECTION_TOKENS
+      config.learning_enabled
     ) {
-      const patterns = await ContextSections.buildPatternContext(
-        searchQuery,
-        tokenBudget,
-      );
-      if (patterns.text) {
-        sections.push({ text: patterns.text, priority: 1, ageRank: sectionAge++ });
-        parts.push(patterns.text);
-        tokenBudget -= ContextSections.estimateTokens(patterns.text);
-        items.push(...patterns.items);
+      const patterns =
+        input.pattern_hits !== undefined
+          ? input.pattern_hits
+          : await ContextSections.collectPatternCandidates(searchQuery);
+      pool.push(...patterns);
+    }
+
+    const summaryNodes = await ContextSections.collectSummaryNodeCandidates(searchQuery, input.session_id);
+    if (overflowNode) {
+      pool.push(...summaryNodes.filter((c) => c.item.id !== overflowNode.nodeId));
+    } else {
+      pool.push(...summaryNodes);
+    }
+
+    const droppedTurns = new Set(overflowNode?.droppedTurnIds ?? []);
+    if (droppedTurns.size > 0) {
+      for (let i = pool.length - 1; i >= 0; i--) {
+        const cand = pool[i]!;
+        if (cand.kind === "episodic" && cand.item.id != null && droppedTurns.has(cand.item.id)) {
+          pool.splice(i, 1);
+        }
       }
     }
 
-    // C_immediate — working memory (most recent scratchpad)
+    const headerTokens = pool.some((c) => c.kind !== "summary")
+      ? ContextSections.estimateTokens(RECALLED_MEMORY_HEADER)
+      : 0;
+    const selectBudget = Math.max(0, tokenBudget - headerTokens);
+    const selected = selectBudgetedSubmodular(pool, selectBudget, {
+      lambda: getTheoremParams().coverageLambda,
+    });
+
+    const recalledLines: string[] = [];
+    const hasNonSummary = selected.ordered.some((c) => c.kind !== "summary");
+    if (hasNonSummary) recalledLines.push(RECALLED_MEMORY_HEADER);
+    for (const cand of selected.ordered) {
+      recalledLines.push(cand.text);
+      items.push(cand.item);
+    }
+    if (omittedUnmatched > 0 && selected.ordered.length > 0) {
+      const note = `[note] ${omittedUnmatched} other pinned memories omitted (no query overlap)`;
+      const used = selected.tokens + (hasNonSummary ? headerTokens : 0);
+      if (used + ContextSections.estimateTokens(note) <= tokenBudget) {
+        recalledLines.push(note);
+        items.push({
+          id: null,
+          kind: "semantic",
+          title: "Pinned memories omitted",
+          reason: `${omittedUnmatched} other pinned items omitted (no query overlap)`,
+        });
+      }
+    }
+    if (recalledLines.length > 0) {
+      const recalled = recalledLines.join("\n");
+      sections.push({
+        text: recalled,
+        priority: 3,
+        ageRank: sectionAge++,
+      });
+      parts.push(recalled);
+    }
+
+    if (fusionEmpty) {
+      const bumpable = selected.ordered
+        .filter((c) => c.recordInject && typeof c.item.id === "number")
+        .map((c) => c.item.id as number);
+      if (bumpable.length > 0) {
+        await BrainStore.recordSemanticInject(bumpable);
+      }
+    }
+
+    // C_immediate — working memory after the sandwiched C_mem block.
     if (wmContext) {
       sections.push({ text: wmContext, priority: 4, ageRank: sectionAge++ });
       parts.push(wmContext);
-      tokenBudget -= ContextSections.estimateTokens(wmContext);
       items.push({
         id: null,
         kind: "working",
@@ -250,11 +329,10 @@ export class ContextBuilder {
       });
     }
 
-    // C_goal — current task / goal (Part VII context assembly)
+    // C_goal — reserved outside W_mem (MEM-28).
     let goalPart: string | null = null;
     let goalItem: InjectedMemoryItem | null = null;
-    if (input.goal?.trim()) {
-      const goalText = `=== Current Task ===\n${input.goal.trim()}`;
+    if (goalText && goalBudget > 0) {
       const goalTokens = ContextSections.estimateTokens(goalText);
       if (goalTokens <= goalBudget) {
         goalPart = goalText;
@@ -275,159 +353,92 @@ export class ContextBuilder {
       }
     }
 
+    const overflowFields = {
+      recent_tokens_raw: share.recentTokensRaw,
+      recent_overflow: share.overflowed,
+      summary_node_id: overflowNode?.nodeId ?? null,
+      dropped_turn_ids: overflowNode?.droppedTurnIds ?? [],
+    };
+    const budgetFields = {
+      w,
+      w_out: wOut,
+      inject_budget: wMem,
+      w_mem: wMem,
+      system_tokens: budget.systemTokens,
+      goal_tokens: budget.goalTokens,
+      recent_tokens: budget.recentTokens,
+      ...overflowFields,
+    };
+    const overflowSaved = Math.max(0, share.recentTokensRaw - share.recentTokens);
+
     if (parts.length === 0 && !goalPart) {
-      return { context: "No relevant memories found.", items: [], memory_tokens_saved: 0 };
+      return ContextBuilder.commitBudget({
+        context: "No relevant memories found.",
+        items: [],
+        memory_tokens_saved: overflowSaved,
+        ...budgetFields,
+      }, input.session_id);
     }
 
-    // Compress memory sections (oldest first); C_goal appended after.
     const rawCombined = sections.map((s) => s.text).join("\n\n");
     const rawTokens = ContextSections.estimateTokens(rawCombined);
-    const compressed = ContextBuilder.compressContextSections(
-      sections,
-      goalPart ? maxTokens - goalBudget : maxTokens,
-    );
-    const compressedTokens = ContextSections.estimateTokens(compressed);
-    const memoryTokensSaved = Math.max(0, rawTokens - compressedTokens);
+    const assembled = ContextBuilder.fitAssembledMemory(sections, wMem);
+    const assembledTokens = ContextSections.estimateTokens(assembled);
+    const memoryTokensSaved = overflowSaved + Math.max(0, rawTokens - assembledTokens);
     const finalContext = goalPart
-      ? ContextBuilder.applyContextFence([compressed, goalPart].filter(Boolean).join("\n\n"))
-      : ContextBuilder.applyContextFence(compressed);
+      ? ContextBuilder.applyContextFence([assembled, goalPart].filter(Boolean).join("\n\n"))
+      : ContextBuilder.applyContextFence(assembled);
 
     if (goalItem) {
       items.push(goalItem);
     }
 
-    return {
+    return ContextBuilder.commitBudget({
       context: finalContext,
       items,
       memory_tokens_saved: memoryTokensSaved,
-    };
+      ...budgetFields,
+    }, input.session_id);
   }
 
-  // ── Context Compression (compress-oldest) ──────────────────────────────────
+  /** MEM-32 Budget: |C(q)| ≤ W or fail-open to empty memory. */
+  private static commitBudget(
+    result: BuildContextResult,
+    sessionId?: string,
+  ): Promise<BuildContextResult> {
+    return applyBudgetInvariant(result, {
+      sessionId,
+      tokens: ContextSections.estimateTokens(result.context ?? ""),
+    });
+  }
 
   /**
-   * Compress sections to fit budget: C ← compress(C_oldest) ∪ C_recent.
-   * Drops/compresses lowest-priority, highest-ageRank sections first.
+   * Keep assembled C_mem ≤ W_mem without compress-oldest. Drop whole
+   * sections (lowest priority first); hard-truncate only as last resort.
    */
-  private static compressContextSections(
+  private static fitAssembledMemory(
     sections: ContextSection[],
     maxTokens: number,
   ): string {
     if (sections.length === 0) return "";
-
-    const limits = getContextAssemblyLimits();
     let working = sections.map((s) => ({ ...s }));
     let combined = working.map((s) => s.text).join("\n\n");
-    let currentTokens = ContextSections.estimateTokens(combined);
-    if (currentTokens <= maxTokens) return combined;
+    if (ContextSections.estimateTokens(combined) <= maxTokens) return combined;
 
-    // Sort for compression order: lowest priority, highest age first
-    const compressionOrder = [...working].sort((a, b) => {
-      if (a.priority !== b.priority) return a.priority - b.priority;
-      return b.ageRank - a.ageRank;
-    });
-
-    for (const target of compressionOrder) {
-      if (currentTokens <= maxTokens) break;
+    const dropOrder = [...working].sort((a, b) => a.priority - b.priority || b.ageRank - a.ageRank);
+    for (const target of dropOrder) {
+      if (working.length <= 1) break;
+      if (ContextSections.estimateTokens(combined) <= maxTokens) break;
       const idx = working.findIndex((s) => s.text === target.text && s.ageRank === target.ageRank);
       if (idx < 0) continue;
-
-      const lines = working[idx].text.split("\n");
-      if (lines.length > limits.compressKeepLines + 1) {
-        const truncated = [
-          ...lines.slice(0, limits.compressKeepLines),
-          `  ... (${lines.length - limits.compressKeepLines} more entries, compressed)`,
-        ].join("\n");
-        working[idx] = { ...working[idx], text: truncated };
-      } else if (working[idx].text.length > limits.lineCompressChars) {
-        working[idx] = {
-          ...working[idx],
-          text: working[idx].text.substring(0, limits.lineCompressChars) + "...",
-        };
-      } else if (working.length > 1) {
-        working.splice(idx, 1);
-      }
-
+      working.splice(idx, 1);
       combined = working.map((s) => s.text).join("\n\n");
-      currentTokens = ContextSections.estimateTokens(combined);
     }
 
-    // Hard truncate as last resort (preserve highest-priority sections)
-    if (currentTokens > maxTokens) {
-      const keepOrder = [...working].sort((a, b) => b.priority - a.priority || a.ageRank - b.ageRank);
-      const kept: ContextSection[] = [];
-      let tokens = 0;
-      for (const section of keepOrder) {
-        const t = ContextSections.estimateTokens(section.text);
-        if (tokens + t <= maxTokens) {
-          kept.push(section);
-          tokens += t;
-        }
-      }
-      combined = kept.map((s) => s.text).join("\n\n");
-      if (ContextSections.estimateTokens(combined) > maxTokens) {
-        const charLimit = maxTokens * 4;
-        combined = combined.substring(0, charLimit) + "\n... (context truncated)";
-      }
-    }
-
-    return combined;
-  }
-
-  /** @deprecated Use compressContextSections */
-  private static compressContext(parts: string[], maxTokens: number): string {
-    let combined = parts.join("\n\n");
-    let currentTokens = ContextSections.estimateTokens(combined);
-
-    // Already within budget
-    if (currentTokens <= maxTokens) return combined;
-
-    // Strategy 1: Truncate long individual lines
-    const limits = getContextAssemblyLimits();
-    const compressed = parts.map((part) => {
-      const lines = part.split("\n");
-      return lines.map((line) => {
-        if (line.startsWith("===")) return line; // Keep section headers
-        if (line.length > limits.lineTruncateChars) {
-          return line.substring(0, limits.lineCompressChars) + "...";
-        }
-        return line;
-      }).join("\n");
-    });
-
-    combined = compressed.join("\n\n");
-    currentTokens = ContextSections.estimateTokens(combined);
-    if (currentTokens <= maxTokens) return combined;
-
-    // Strategy 2: Drop trailing entries from each section (keep headers + top N)
-    const maxLinesPerSection = Math.max(3, Math.floor(maxTokens / (parts.length * 30)));
-    const trimmed = compressed.map((part) => {
-      const lines = part.split("\n");
-      if (lines.length <= maxLinesPerSection) return part;
-      const kept = lines.slice(0, maxLinesPerSection);
-      const dropped = lines.length - maxLinesPerSection;
-      kept.push(`  ... (${dropped} more entries)`);
-      return kept.join("\n");
-    });
-
-    combined = trimmed.join("\n\n");
-    currentTokens = ContextSections.estimateTokens(combined);
-    if (currentTokens <= maxTokens) return combined;
-
-    // Strategy 3: Remove lowest-priority sections entirely
-    // Priority order: semantic > episodic > graph > procedures > patterns > session
-    while (trimmed.length > 1 && currentTokens > maxTokens) {
-      trimmed.pop();
-      combined = trimmed.join("\n\n");
-      currentTokens = ContextSections.estimateTokens(combined);
-    }
-
-    // Strategy 4: Hard truncate as last resort
-    if (currentTokens > maxTokens) {
-      const charLimit = maxTokens * 4; // ~4 chars per token
+    if (ContextSections.estimateTokens(combined) > maxTokens) {
+      const charLimit = Math.max(0, maxTokens * 4);
       combined = combined.substring(0, charLimit) + "\n... (context truncated)";
     }
-
     return combined;
   }
 

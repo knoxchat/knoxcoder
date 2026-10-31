@@ -3,7 +3,7 @@
  *
  * Covers:
  *   φ₁–φ₈ phase order and execution
- *   φ₃ Thalamus(Prefrontal(x)) planning step
+ *   T → A → P then H → B_g → B_s (MEM-31)
  *   φ₅ long-term storage (M₄/M₅)
  *   Cycle invariant audit logging
  *   φ₇ sleep sub-phases
@@ -21,6 +21,8 @@ let BrainManager: typeof import("./BrainManager.js").BrainManager;
 let BrainStore: typeof import("./BrainStore.js").BrainStore;
 let MemoryPipeline: typeof import("./MemoryPipeline.js").MemoryPipeline;
 let PrefrontalCortex: typeof import("./regions/PrefrontalCortex.js").PrefrontalCortex;
+let checkStoreInvariants: typeof import("./invariants.js").checkStoreInvariants;
+let resetInvariantSnapshotForTests: typeof import("./invariants.js").resetInvariantSnapshotForTests;
 
 beforeAll(async () => {
   fs.mkdirSync(path.join(testDir, "memory"), { recursive: true });
@@ -30,6 +32,7 @@ beforeAll(async () => {
   ({ BrainStore } = await import("./BrainStore.js"));
   ({ MemoryPipeline } = await import("./MemoryPipeline.js"));
   ({ PrefrontalCortex } = await import("./regions/PrefrontalCortex.js"));
+  ({ checkStoreInvariants, resetInvariantSnapshotForTests } = await import("./invariants.js"));
 
   await BrainStore.get();
   await BrainStore.saveConfig("auto_extract_enabled", "true");
@@ -49,6 +52,7 @@ async function resetDatabase(): Promise<void> {
   await db.exec("DELETE FROM brain_associations");
   await db.exec("DELETE FROM brain_graph_edges");
   await db.exec("DELETE FROM brain_session_topics");
+  await db.exec("DELETE FROM brain_summary_tree");
   await db.exec("DELETE FROM brain_episodic");
   await db.exec("DELETE FROM brain_semantic");
   await db.exec("DELETE FROM brain_sessions");
@@ -79,7 +83,7 @@ describe("Part III — 8-Phase Memory Cycle", () => {
     expect(result.context?.context).toBeTruthy();
   });
 
-  it("φ₃ applies Prefrontal planning before Thalamus attention", async () => {
+  it("P plans after T filter and sets C_goal (MEM-31)", async () => {
     await resetDatabase();
     PrefrontalCortex.resetAll();
     const plan = PrefrontalCortex.plan("What is the best way to implement JWT refresh tokens?");
@@ -164,8 +168,9 @@ describe("Part III — 8-Phase Memory Cycle", () => {
     expect(details.canonical_order).toContain("sleep_consolidation");
   });
 
-  it("returns enriched phase status with cycle invariant", async () => {
+  it("returns enriched phase status with Budget/Reachability/Losslessness (IMP-01 / MEM-32)", async () => {
     await resetDatabase();
+    resetInvariantSnapshotForTests();
     const sessionId = "status-session";
     await BrainManager.trackSession(sessionId, "Status", testDir);
 
@@ -173,13 +178,20 @@ describe("Part III — 8-Phase Memory Cycle", () => {
       message: "phase status test",
       session_id: sessionId,
     });
+    await checkStoreInvariants();
 
     const status = BrainManager.getPhaseStatus();
     expect(status).toHaveProperty("active_phase");
     expect(status).toHaveProperty("last_completed");
     expect(status).toHaveProperty("cycle_invariant_met");
+    expect(status).toHaveProperty("budget_invariant_met");
+    expect(status).toHaveProperty("reachability_invariant_met");
+    expect(status).toHaveProperty("losslessness_invariant_met");
     expect(status).toHaveProperty("canonical_order");
     expect(status.canonical_order).toHaveLength(8);
+    expect(status.budget_invariant_met).toBe(true);
+    expect(status.reachability_invariant_met).toBe(true);
+    expect(status.losslessness_invariant_met).toBe(true);
     expect(status.cycle_invariant_met).toBe(true);
     expect(status.last_completed?.phase).toBeTruthy();
   });

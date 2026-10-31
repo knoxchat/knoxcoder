@@ -1,5 +1,9 @@
 /**
- * SensoryCortex — M₁ facade: raw input capture and sanitization (φ₁).
+ * SensoryCortex — encode stage S (MEM-31).
+ *
+ *   x ─encode→ S ─filter→ T
+ *
+ * M₁ facade: raw input capture and sanitization (φ₁+φ₂).
  * Wraps InputSanitizer + SensoryBuffer. No logic duplication.
  */
 

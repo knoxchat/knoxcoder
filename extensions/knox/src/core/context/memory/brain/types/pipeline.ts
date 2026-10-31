@@ -22,13 +22,16 @@ export interface PipelinePhaseResult {
   audit?: Record<string, unknown>;
 }
 
-/** Part III 8-phase cycle status (IMP-01). */
+/** Part III 8-phase cycle status (IMP-01 / MEM-32). */
 export interface MemoryPhaseStatus {
   active_phase: MemoryPhase | null;
   last_completed: { phase: MemoryPhase; at: number } | null;
   phase_counts: Partial<Record<MemoryPhase, number>>;
-  /** ∀t: Σ 1[active(φᵢ,t)] ≥ 1 — true when a phase ran recently or φ₇ scheduler is active. */
+  /** Budget ∧ Reachability ∧ Losslessness. Not “a phase ran in the last hour”. */
   cycle_invariant_met: boolean;
+  budget_invariant_met: boolean;
+  reachability_invariant_met: boolean;
+  losslessness_invariant_met: boolean;
   background_sleep_active: boolean;
   canonical_order: MemoryPhase[];
 }
@@ -54,6 +57,20 @@ export interface PipelineInput {
   role?: string;
   goal?: string;
   max_tokens?: number;
+  /** Routed model handle. W = resolveContextWindow(llm).contextLength (MEM-27). */
+  llm?: unknown;
+  /** Routed model id when the handle is not yet resolved. */
+  model?: string;
+  /** Explicit W(Model(x)). */
+  w?: number;
+  /** Explicit W_out (reserved completion tokens). */
+  w_out?: number;
+  /** |C_system| already placed in this call (MEM-28). */
+  system_tokens?: number;
+  /** |C_goal| already reserved for this call (MEM-28). */
+  goal_tokens?: number;
+  /** |C_recent| already placed in this call (MEM-28). */
+  recent_tokens?: number;
   /** Combined user+assistant text for post-turn extraction */
   turn_content?: string;
   /** REL-08: extract these separately when present instead of one blob. */
@@ -89,7 +106,22 @@ export type MemoryScope = "project" | "global";
 export interface BuildContextInput {
   message: string;
   session_id?: string;
+  /** Optional tighter inject cap. Not W — ignore the 10M stored ceiling (MEM-27). */
   max_tokens?: number;
+  /** Routed model handle. W = resolveContextWindow(llm).contextLength (MEM-27). */
+  llm?: unknown;
+  /** Routed model id when the handle is not yet resolved. */
+  model?: string;
+  /** Explicit W(Model(x)). */
+  w?: number;
+  /** Explicit W_out (reserved completion tokens). */
+  w_out?: number;
+  /** |C_system| already placed in this call (MEM-28). */
+  system_tokens?: number;
+  /** |C_goal| already reserved for this call (MEM-28). */
+  goal_tokens?: number;
+  /** |C_recent| already placed in this call (MEM-28). */
+  recent_tokens?: number;
   memory_mode?: MemoryMode;
   /** Current task / goal (C_goal in Knox-MS context assembly). */
   goal?: string;
@@ -143,6 +175,29 @@ export interface BuildContextResult {
   items: InjectedMemoryItem[];
   /** Tokens saved via compression during assembly. */
   memory_tokens_saved?: number;
+  /** W(Model(x)) used for this build (MEM-27). */
+  w?: number;
+  /** W_out reserved for the response (MEM-27). */
+  w_out?: number;
+  /** Tokens allowed for C_mem this call (`W_mem`, MEM-28). */
+  inject_budget?: number;
+  /** Same as `inject_budget` — min(w_mem_tokens, remainder). */
+  w_mem?: number;
+  /** |C(q)| after assemble, before a budget fail-open (MEM-32). */
+  c_use?: number;
+  /** |C(q)| ≤ W. False means this call returned empty memory. */
+  budget_invariant_met?: boolean;
+  system_tokens?: number;
+  goal_tokens?: number;
+  recent_tokens?: number;
+  /** Occupancy before MEM-30 overflow collapse. */
+  recent_tokens_raw?: number;
+  /** C_recent ate its share; old turns were replaced by a session/tree node. */
+  recent_overflow?: boolean;
+  /** Session summary-tree node injected for overflow (MEM-30). */
+  summary_node_id?: number | null;
+  /** Original turn ids dropped from this call only. */
+  dropped_turn_ids?: number[];
 }
 
 /** Envelope for password-protected local brain backups. */

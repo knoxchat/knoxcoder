@@ -9,6 +9,8 @@ import { CheckpointManager } from "./CheckpointManager.js";
 import { MemoryPipeline } from "./MemoryPipeline.js";
 import { getMemoryConfig } from "./memoryConfigAccess.js";
 import { PrefrontalCortex } from "./regions/PrefrontalCortex.js";
+import { TaskRouter } from "./TaskRouter.js";
+import { resolveMemoryWindow } from "./window.js";
 import type { ModelResolver, AutonomousToolRuntime } from "./AutonomousExecutor.js";
 import { rejectAutonomousApprovals } from "../../../agent/autonomousApproval.js";
 
@@ -206,11 +208,33 @@ export class LocalAutonomousLoop {
           max_iterations: statusCap,
         });
 
+        // Route Model(x) first so W is the routed window (MEM-27).
+        const currentLlm = input.toolRuntime?.extras.llm ?? BrainManager.getLlm();
+        const route = TaskRouter.scoreAndRoute({
+          message: input.goal,
+          toolCount: input.toolRuntime?.catalog.length ?? 0,
+          llm: currentLlm ?? undefined,
+        });
+        let routedLlm = currentLlm;
+        if (route.modelId && input.resolveModel) {
+          const resolved = await input.resolveModel(route.modelId);
+          if (resolved) {
+            routedLlm = resolved;
+          }
+        }
+        if (routedLlm) {
+          resolveMemoryWindow({ llm: routedLlm, remember: true });
+        }
+
         // Pre-turn memory pipeline (φ₁–φ₃, φ₆, φ₈)
         const preTurn = await MemoryPipeline.runPreTurn({
           message: input.goal,
           session_id: input.session_id,
           goal: PrefrontalCortex.getGoal(input.session_id) ?? input.goal,
+          llm: routedLlm ?? undefined,
+          model: route.modelId || undefined,
+          w: routedLlm ? undefined : route.w,
+          w_out: routedLlm ? undefined : route.wOut,
         });
 
         if (abort.signal.aborted) {

@@ -84,7 +84,17 @@ function renderAddressableHeadline(body: HTMLElement, state: IKnoxGuiState): voi
 			const role = level.role === 'buffer'
 				? t(state, 'memoryBufferGauge')
 				: (level.role === 'store' ? t(state, 'memoryStoreLevel') : undefined);
-			mk(row, 'span', '', role ? `${level.id} ${level.name} · ${role}` : `${level.id} ${level.name}`);
+			const lifetime = level.lifetime === 'turn'
+				? t(state, 'memoryLifetimeTurn')
+				: level.lifetime === 'call'
+					? t(state, 'memoryLifetimeCall')
+					: level.lifetime === 'session'
+						? t(state, 'memoryLifetimeSession')
+						: level.lifetime === 'stored'
+							? t(state, 'memoryLifetimeStored')
+							: undefined;
+			const label = [level.id, level.name, role, lifetime].filter(Boolean).join(' · ');
+			mk(row, 'span', '', label);
 			mk(row, 'span', '', `${level.tokens.toLocaleString()} tokens`);
 		}
 		if ((ctx.workingMemoryBudget ?? 0) > 0) {

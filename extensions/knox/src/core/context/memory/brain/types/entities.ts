@@ -183,12 +183,17 @@ export interface EffectiveContextMetrics {
   c_addr: number;
   /** Tokens actually injected in the last model call. */
   c_use: number;
-  /** Window placeholder until MEM-27 wires W(Model(x)). */
+  /** W(Model(x)) — routed model contextLength (MEM-27). */
   w: number;
+  /** W_out — reserved completion tokens for that model (MEM-27). */
+  w_out?: number;
+  /** Model id that produced W. */
+  routed_model?: string;
   /** Rolling Rec(q) when a bench / attribution window exists. */
   rec_rolling?: number;
-  /** Alias of `w` until callers switch. */
+  /** Alias of `w`. */
   active_window_tokens?: number;
+  /** Alias of `w`. Leftover name; not the 10M stored ceiling. */
   context_max_tokens?: number;
   /** Tokens in the last injected context (same as `c_use`). */
   last_context_tokens_used?: number;
@@ -204,11 +209,17 @@ export interface EffectiveContextMetrics {
     effective_tokens?: number;
     role?: "buffer" | "store";
     in_c_addr?: boolean;
+    /** M₁ turn / M₂ call / M₃ session / M₄–M₅ stored (MEM-33). */
+    lifetime?: "turn" | "call" | "session" | "stored";
   }>;
   working_memory_tokens?: number;
   working_memory_budget?: number;
   sensory_buffer_tokens?: number;
   sensory_buffer_ms?: number;
+  /** M₁ theorem lifetime. */
+  sensory_lifetime?: "turn";
+  /** M₂ theorem lifetime. */
+  working_memory_lifetime?: "call";
   /** Graph channel size (entity count). Not C_addr. */
   graph_entity_count?: number;
   graph_channel_size?: number;

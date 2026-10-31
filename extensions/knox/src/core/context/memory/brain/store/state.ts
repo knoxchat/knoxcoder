@@ -45,7 +45,8 @@ export const brainState: {
     graph_max_entities: 5000,
     graph_max_depth: 3,
     memory_scope: "project",
-    sensory_buffer_ms: 250,
+    // 0 = turn-boundary flush only. Positive values are optional debounce (MEM-33).
+    sensory_buffer_ms: 0,
     auto_summarize: true,
     summarize_threshold: 50,
     enable_knowledge_extraction: true,
@@ -141,10 +142,12 @@ export const brainState: {
     compression_ratio_cold: 0.1,
     compression_ratio_frozen: 0.05,
     working_memory_max_slots: 7,
+    // UX scratchpad default. Not W_mem and not a 30K theorem cap (MEM-33).
     working_memory_token_budget: 30000,
     working_memory_token_ratio: 0.125,
     working_memory_decay_rate: 0.001,
-    working_memory_ttl_seconds: 30,
+    // 0 = session/call lifetime. Leftover clock when > 0 (MEM-33).
+    working_memory_ttl_seconds: 0,
     easy_model: "",
     medium_model: "",
     hard_model: "",

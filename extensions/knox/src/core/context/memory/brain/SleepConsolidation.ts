@@ -27,6 +27,7 @@ import {
 } from "./memoryOutcomes.js";
 import { contentWords } from "./RetrievalQuery.js";
 import { recomputeMemoryTiers } from "./store/tiers.js";
+import { checkStoreInvariants, type StoreInvariantReport } from "./invariants.js";
 import type {
   ConsolidationResult,
   SleepSubPhaseCounts,
@@ -42,6 +43,8 @@ export interface SleepCycleResult extends ConsolidationResult {
   sub_phases: SleepSubPhaseCounts;
   /** φ₇ attribution refit of w_s and calibrated θ (MEM-18). */
   refit?: AttributionRefitResult;
+  /** Reachability ∧ Losslessness after this cycle (MEM-32). */
+  invariants?: StoreInvariantReport;
 }
 
 /** Work that runs after each sleep cycle (MC-40). Hooks must not throw into the cycle; failures are logged. */
@@ -123,6 +126,12 @@ export class SleepConsolidation {
       } catch (error) {
         console.warn(`[Sleep] Hook "${name}" failed:`, error instanceof Error ? error.message : error);
       }
+    }
+
+    try {
+      result.invariants = await checkStoreInvariants({ audit: true });
+    } catch (error) {
+      console.warn("[Sleep] Invariant check failed:", error instanceof Error ? error.message : error);
     }
 
     return result;

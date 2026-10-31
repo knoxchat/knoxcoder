@@ -20,6 +20,7 @@ import { extractEntityLikeTokens } from "./RelevanceGate.js";
 import { contentWords, jaccard } from "./RetrievalQuery.js";
 import { liveRetrieveSql } from "./store/tombstone.js";
 import {
+  ensureSessionSummaryNode,
   estimateSummaryTokens,
   type SummaryLeafRef,
   type SummaryLeafType,
@@ -228,6 +229,179 @@ export async function searchTreeChannel(options: TreeSearchOptions): Promise<Tre
     return [];
   }
 }
+
+export interface TreeNodeHit {
+  id: number;
+  text: string;
+  score: number;
+  tokenCount: number;
+}
+
+/**
+ * Scored summary **nodes** (pointers, not leaves) for MEM-29 assembly.
+ * Silent when the scoped tree is smaller than `b`.
+ */
+export async function searchSummaryNodes(options: TreeSearchOptions): Promise<TreeNodeHit[]> {
+  try {
+    const query = options.query ?? "";
+    if (!query.trim()) return [];
+    const db = options.db ?? (await BrainStore.get());
+    const theorem = getTheoremParams();
+    const branching = resolveTreeBranching(options.branching ?? theorem.treeBranchingB);
+    const beam = resolveTreeBeam(options.beam ?? theorem.treeBeamB);
+    const roots = await loadSessionRoots(db, options);
+    const leafCount = await countLeavesUnder(db, roots.map((r) => r.id));
+    if (!isTreeReady(leafCount, branching)) return [];
+
+    const hits: TreeNodeHit[] = [];
+    const seen = new Set<number>();
+    for (const root of roots) {
+      for (const id of await descendantNodeIds(db, root.id)) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const row = (await db.get(
+          `SELECT id, parent_id, kind, leaf_type, leaf_id, text FROM brain_summary_tree WHERE id = ?`,
+          [id],
+        )) as TreeRow | undefined;
+        if (!row || row.kind !== "node") continue;
+        const text = displaySummaryNodeText(row.text);
+        if (!text) continue;
+        const score = scoreTreeText(query, text);
+        if (score <= 0) continue;
+        hits.push({
+          id: row.id,
+          text,
+          score,
+          tokenCount: estimateSummaryTokens(text),
+        });
+      }
+    }
+    return hits
+      .sort((a, b) => b.score - a.score || a.id - b.id)
+      .slice(0, Math.max(1, beam));
+  } catch {
+    return [];
+  }
+}
+
+export function displaySummaryNodeText(text: string): string {
+  const raw = String(text ?? "").trim();
+  if (!raw) return "";
+  if (isSessionRootText(raw)) {
+    const nl = raw.indexOf("\n");
+    return nl >= 0 ? raw.slice(nl + 1).trim() : "";
+  }
+  return raw;
+}
+
+export interface SessionTurnRef {
+  id: number;
+  content?: string;
+  token_count?: number;
+}
+
+export interface SessionOverflowNode {
+  nodeId: number;
+  text: string;
+  leafIds: number[];
+  droppedTurnIds: number[];
+  keptTurnIds: number[];
+}
+
+/**
+ * Oldest turns first. Keep newest turns that fit `recentShare`; the rest
+ * are dropped from this call only (originals stay in the tree).
+ */
+export function splitTurnsByRecentShare(
+  turns: readonly SessionTurnRef[],
+  recentShare: number,
+): { droppedTurnIds: number[]; keptTurnIds: number[] } {
+  const share = Number.isFinite(recentShare) ? Math.max(0, Math.floor(recentShare)) : 0;
+  const kept: number[] = [];
+  const dropped: number[] = [];
+  let used = 0;
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const turn = turns[i]!;
+    const id = Math.trunc(Number(turn.id));
+    if (id <= 0) continue;
+    const stored = Number(turn.token_count);
+    const tokens = Number.isFinite(stored) && stored > 0
+      ? Math.floor(stored)
+      : estimateSummaryTokens(turn.content ?? "");
+    if (used + tokens <= share) {
+      kept.unshift(id);
+      used += tokens;
+    } else {
+      dropped.unshift(id);
+    }
+  }
+  return { droppedTurnIds: dropped, keptTurnIds: kept };
+}
+
+/**
+ * MEM-30 — session/tree node that replaces overflowing C_recent.
+ * Writes a pointer if needed; never overwrites leaf `content`.
+ */
+export async function resolveSessionOverflowNode(options: {
+  sessionId: string;
+  recentShare: number;
+  db?: DatabaseConnection;
+}): Promise<SessionOverflowNode | null> {
+  const sessionId = options.sessionId?.trim();
+  if (!sessionId) return null;
+  try {
+    const db = options.db ?? (await BrainStore.get());
+    await ingestSessionLeaves(sessionId, { db });
+    const turns = await BrainStore.getEpisodicBySession(sessionId, 1000);
+    const split = splitTurnsByRecentShare(
+      turns.map((t) => ({ id: t.id, content: t.content, token_count: t.token_count })),
+      options.recentShare,
+    );
+    const session = await BrainStore.getSession(sessionId);
+    const root = await findSessionRoot(db, sessionId);
+
+    let nodeId = root?.id ?? Number(session?.summary_node_id ?? 0);
+    let text = root ? displaySummaryNodeText(root.text) : "";
+    if (!text && session?.summary?.trim()) text = session.summary.trim();
+    if (!text) text = heuristicTurnDigest(turns);
+    if (!text) return null;
+
+    if (!(nodeId > 0)) {
+      nodeId = await ensureSessionSummaryNode(sessionId, text);
+      if (nodeId > 0) {
+        await db.run("UPDATE brain_sessions SET summary_node_id = ? WHERE id = ?", [nodeId, sessionId]);
+      }
+    } else if (root && !displaySummaryNodeText(root.text)) {
+      const stored = `${sessionRootText(sessionId)}\n${text}`.slice(0, NODE_TEXT_CAP);
+      await db.run(
+        "UPDATE brain_summary_tree SET text = ?, token_count = ? WHERE id = ?",
+        [stored, estimateSummaryTokens(stored), root.id],
+      );
+      nodeId = root.id;
+    }
+
+    if (!(nodeId > 0)) return null;
+    return {
+      nodeId,
+      text,
+      leafIds: turns.map((t) => t.id),
+      droppedTurnIds: split.droppedTurnIds,
+      keptTurnIds: split.keptTurnIds,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function heuristicTurnDigest(turns: readonly { content?: string }[]): string {
+  return turns
+    .map((t) => (t.content ?? "").replace(/\s+/g, " ").trim().slice(0, 160))
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, NODE_TEXT_CAP);
+}
+
+export { planRecentShare } from "./memoryConfigAccess.js";
 
 export async function beamSearchTree(options: TreeSearchOptions): Promise<{
   hits: TreeMemoryHit[];

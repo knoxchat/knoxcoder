@@ -196,7 +196,7 @@ describe("REL-03 RelevanceGate (pure)", () => {
 });
 
 describe("K-073 buildContext hot path", () => {
-  it("does not import Amygdala / BasalGanglia / Brainstem / NeuralArchitecture", () => {
+  it("ContextBuilder stays region-free; pipeline owns S→…→B_s (MEM-31)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     for (const rel of ["ContextBuilder.ts", "manager/context.ts"]) {
       const source = readFileSync(join(here, rel), "utf8");
@@ -205,8 +205,9 @@ describe("K-073 buildContext hot path", () => {
       );
     }
     const pipeline = readFileSync(join(here, "MemoryPipeline.ts"), "utf8");
-    expect(pipeline).not.toMatch(/NeuralArchitecture/);
-    expect(pipeline).not.toMatch(/from "\.\/regions\/Amygdala/);
-    expect(pipeline).not.toMatch(/from "\.\/regions\/Brainstem/);
+    expect(pipeline).not.toMatch(/from "\.\/regions\/NeuralArchitecture/);
+    expect(pipeline).toMatch(/from "\.\/regions\/Amygdala/);
+    expect(pipeline).toMatch(/from "\.\/regions\/Brainstem/);
+    expect(pipeline).toMatch(/from "\.\/regions\/BasalGanglia/);
   });
 });

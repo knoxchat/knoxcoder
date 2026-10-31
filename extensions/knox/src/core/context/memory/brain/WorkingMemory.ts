@@ -1,17 +1,16 @@
 /**
- * WorkingMemory — Limited-capacity active workspace (prefrontal cortex model).
+ * WorkingMemory — M₂ per-call scratchpad (MEM-33).
  *
- * Mirrors Knox-MS "working memory" / "scratch pad" concept:
- * - Fixed capacity (configurable slot count, default 7 ± 2 like Miller's Law)
+ * Theorem lifetime is the **model call**. Session persist (IMP-18) and
+ * attention gating keep useful slots across turns in the same session.
+ * There is no 30s human TTL and no 30K theorem cap — slot count is a UX
+ * knob; the token budget is a scratchpad cap, not W_mem.
+ *
+ * - Configurable slot count (UX, not Miller's Law)
  * - Attention gating: only the most relevant items stay active
  * - Automatic eviction: least-relevant items drop out as new ones enter
- * - Token-budgeted: total content respects a token budget
- * - Decay: items lose activation over time unless refreshed
- * - Integration with ContextBuilder for seamless context injection
- *
- * Working memory is session-scoped and ephemeral (lives in-memory, not DB).
- * It serves as the "currently thinking about" buffer between long-term
- * memory (BrainStore) and the LLM context window.
+ * - Token-budgeted scratchpad (not the inject budget)
+ * - Optional leftover clock TTL when `ttlSeconds > 0`
  */
 
 import { getMemoryConfig, getWorkingMemoryOptions } from "./memoryConfigAccess.js";
@@ -27,6 +26,8 @@ export const WM_EVICT_BELOW = 0.2;
 export const WM_INJECT_MIN_RELEVANCE = 0.35;
 /** REL-06: Thalamus replaces this slot instead of accumulating `salient:${Date.now()}`. */
 export const CURRENT_TURN_SLOT_ID = "current-turn";
+/** Theorem lifetime for M₂ scratch. Session persist is IMP-18, not a 30s clock. */
+export const WORKING_MEMORY_LIFETIME = "call" as const;
 
 function getWmMismatchDecay(): number {
   const n = getMemoryConfig().wm_mismatch_decay;
@@ -56,6 +57,9 @@ export interface WorkingMemoryStats {
   token_budget: number;
   oldest_item_age_ms: number;
   average_relevance: number;
+  lifetime: typeof WORKING_MEMORY_LIFETIME;
+  /** Leftover optional clock; 0 = session/call (MEM-33). */
+  ttl_seconds: number;
 }
 
 export class WorkingMemory {
@@ -183,6 +187,22 @@ export class WorkingMemory {
   }
 
   /**
+   * Drop call-scoped scratch (current-turn + tool results). Session-attended
+   * slots stay until topic shift, session switch, or slot/token eviction.
+   */
+  flushOnCallBoundary(): void {
+    const toRemove: string[] = [];
+    for (const [id, item] of this.items) {
+      if (id === CURRENT_TURN_SLOT_ID || item.source === "tool") {
+        toRemove.push(id);
+      }
+    }
+    for (const id of toRemove) {
+      this.items.delete(id);
+    }
+  }
+
+  /**
    * Get stats about current working memory state.
    */
   getStats(): WorkingMemoryStats {
@@ -199,6 +219,8 @@ export class WorkingMemory {
       average_relevance: items.length > 0
         ? items.reduce((sum, i) => sum + i.relevance, 0) / items.length
         : 0,
+      lifetime: WORKING_MEMORY_LIFETIME,
+      ttl_seconds: this.ttlMs > 0 ? this.ttlMs / 1000 : 0,
     };
   }
 
@@ -313,7 +335,7 @@ export class WorkingMemory {
     }
   }
 
-  /** Evict items older than TTL (M₂ ~30s retention). */
+  /** Evict items older than the leftover clock TTL. 0 = session/call (MEM-33). */
   private evictExpired(): void {
     if (this.ttlMs <= 0) return;
     const now = Date.now();

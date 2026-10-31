@@ -5,6 +5,7 @@ import { WorkingMemory } from "../WorkingMemory.js";
 import type { WorkingMemoryState } from "../WorkingMemory.js";
 import { PrefrontalCortex } from "../regions/PrefrontalCortex.js";
 import type { ILLM } from "../../../../index.js";
+import { resolveMemoryWindow } from "../window.js";
 import { brainRuntime } from "./state.js";
 import { emit } from "./events.js";
 import { invalidateMemoryCaches } from "./helpers.js";
@@ -15,6 +16,7 @@ import { invalidateMemoryCaches } from "./helpers.js";
  */
 export function setLlm(llm: ILLM): void {
   brainRuntime.llm = llm;
+  resolveMemoryWindow({ llm, remember: true });
 }
 
 export function getLlm(): ILLM | null {
@@ -25,19 +27,17 @@ export function getActiveSessionId(): string | null {
   return brainRuntime.activeSessionId;
 }
 
-/** Ingest editor/document text into M₁ sensory buffer (φ₁). */
-export function ingestSensoryInput(content: string, sessionId?: string): void {
+/** Ingest editor/document text into M₁. Flushes on the next turn (MEM-33). */
+export async function ingestSensoryInput(content: string, sessionId?: string): Promise<void> {
   const sid = sessionId ?? brainRuntime.activeSessionId;
   if (!sid || !content.trim()) return;
-  void import("../regions/SensoryCortex.js").then(({ SensoryCortex }) => {
-    const wm = getWorkingMemory();
-    SensoryCortex.setFlushHandler(sid, (text) => {
-      void import("../regions/Thalamus.js").then(({ Thalamus }) => {
-        Thalamus.attend(wm, text, "user");
-      });
-    });
-    SensoryCortex.ingest(sid, content);
+  const { SensoryCortex } = await import("../regions/SensoryCortex.js");
+  const { Thalamus } = await import("../regions/Thalamus.js");
+  const wm = getWorkingMemory();
+  SensoryCortex.setFlushHandler(sid, (text) => {
+    Thalamus.attend(wm, text, "user");
   });
+  SensoryCortex.ingest(sid, content);
 }
 
 /**

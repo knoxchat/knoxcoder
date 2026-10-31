@@ -1,11 +1,15 @@
 /**
- * SensoryBuffer — M₁ sensory register (~250ms streaming buffer).
+ * SensoryBuffer — M₁ per-turn buffer (MEM-33).
  *
- * Captures raw input before encoding (φ₁). Session-scoped in-memory ring buffer
- * that auto-flushes to working memory on turn boundaries or timeout.
+ * Captures raw input before encoding (φ₁). Session-scoped in-memory ring.
+ * Lifetime is the **turn**: flush on the chat turn boundary. `sensory_buffer_ms`
+ * is an optional debounce for streaming editor ingest, not the theorem spec.
  */
 
 import { getMemoryConfig } from "./memoryConfigAccess.js";
+
+/** Theorem lifetime for M₁. Clock debounce is leftover / optional. */
+export const SENSORY_LIFETIME = "turn" as const;
 
 interface SessionBuffer {
   chunks: string[];
@@ -32,7 +36,8 @@ export class SensoryBuffer {
   }
 
   /**
-   * Flush on chat turn boundary — returns combined buffered text and clears state.
+   * Flush on chat turn boundary — returns combined buffered text and clears
+   * pending chunks, then holds this turn's message in M₁ until the next turn.
    * Called at the start of each pre-turn pipeline run.
    */
   static flushOnTurnBoundary(sessionId: string | undefined, message: string): string {
@@ -78,10 +83,19 @@ export class SensoryBuffer {
     return buf;
   }
 
+  /**
+   * Optional debounce. `sensory_buffer_ms <= 0` means turn-boundary only
+   * (MEM-33). A positive value may flush streaming chunks mid-turn.
+   */
   private static scheduleFlush(sessionId: string, buf: SessionBuffer): void {
-    if (buf.timer) clearTimeout(buf.timer);
+    if (buf.timer) {
+      clearTimeout(buf.timer);
+      buf.timer = null;
+    }
 
-    const ms = getMemoryConfig().sensory_buffer_ms;
+    const ms = Number(getMemoryConfig().sensory_buffer_ms);
+    if (!Number.isFinite(ms) || ms <= 0) return;
+
     buf.timer = setTimeout(() => {
       const text = SensoryBuffer.flush(sessionId);
       if (text) buf.onFlush?.(text);
@@ -102,9 +116,13 @@ export class SensoryBuffer {
     return Math.ceil(chars / 4);
   }
 
-  /** Reschedule pending flush timers after sensory_buffer_ms config change. */
+  /** Reschedule or cancel pending debounce timers after config change. */
   static rescheduleAll(): void {
     for (const [sessionId, buf] of SensoryBuffer.buffers.entries()) {
+      if (buf.timer) {
+        clearTimeout(buf.timer);
+        buf.timer = null;
+      }
       if (buf.chunks.length > 0) {
         SensoryBuffer.scheduleFlush(sessionId, buf);
       }
@@ -117,6 +135,7 @@ export class SensoryBuffer {
     pending_chunks: number;
     estimated_tokens: number;
     buffer_ms: number;
+    lifetime: typeof SENSORY_LIFETIME;
   } {
     const cfg = getMemoryConfig();
     if (sessionId) {
@@ -126,6 +145,7 @@ export class SensoryBuffer {
         pending_chunks: buf?.chunks.length ?? 0,
         estimated_tokens: SensoryBuffer.estimateBufferedTokens(sessionId),
         buffer_ms: cfg.sensory_buffer_ms,
+        lifetime: SENSORY_LIFETIME,
       };
     }
     let chunks = 0;
@@ -137,6 +157,7 @@ export class SensoryBuffer {
       pending_chunks: chunks,
       estimated_tokens: SensoryBuffer.estimateBufferedTokens(),
       buffer_ms: cfg.sensory_buffer_ms,
+      lifetime: SENSORY_LIFETIME,
     };
   }
 }

@@ -94,7 +94,8 @@ export type HealingAction =
   | "prune_expired"
   | "repair_counts"
   | "defragment_graph"
-  | "prune_missing_checkpoints";
+  | "prune_missing_checkpoints"
+  | "check_invariants";
 
 export interface HealingResult {
   action: HealingAction;

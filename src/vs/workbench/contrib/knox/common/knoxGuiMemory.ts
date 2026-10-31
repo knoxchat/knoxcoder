@@ -543,6 +543,11 @@ export function parseEffectiveContext(raw: Record<string, unknown> | undefined):
 	const levels = asArray(rec.memory_levels ?? rec.levels).map(item => {
 		const row = asRecord(item) ?? {};
 		const role: 'buffer' | 'store' | undefined = row.role === 'buffer' ? 'buffer' : row.role === 'store' ? 'store' : undefined;
+		const rawLifetime = row.lifetime;
+		const lifetime: 'turn' | 'call' | 'session' | 'stored' | undefined =
+			rawLifetime === 'turn' || rawLifetime === 'call' || rawLifetime === 'session' || rawLifetime === 'stored'
+				? rawLifetime
+				: undefined;
 		return {
 			id: String(row.id ?? ''),
 			name: String(row.name ?? row.id ?? ''),
@@ -551,6 +556,7 @@ export function parseEffectiveContext(raw: Record<string, unknown> | undefined):
 			effectiveTokens: (row.effective_tokens !== undefined && row.effective_tokens !== null) ? Number(row.effective_tokens) : undefined,
 			role,
 			inCAddr: typeof row.in_c_addr === 'boolean' ? row.in_c_addr : (typeof row.inCAddr === 'boolean' ? row.inCAddr : undefined),
+			lifetime,
 		};
 	}).filter(level => level.name);
 	const cAddr = Number(rec.c_addr ?? rec.cAddr ?? 0);
@@ -641,6 +647,9 @@ export function parsePhaseStatus(raw: Record<string, unknown> | undefined): IKno
 		activePhase: rec.active_phase ? String(rec.active_phase) : undefined,
 		phaseCounts: asNumberRecord(rec.phase_counts),
 		cycleInvariantMet: rec.cycle_invariant_met === true,
+		budgetInvariantMet: rec.budget_invariant_met === true,
+		reachabilityInvariantMet: rec.reachability_invariant_met === true,
+		losslessnessInvariantMet: rec.losslessness_invariant_met === true,
 		backgroundSleepActive: rec.background_sleep_active === true,
 		lastCompleted: last?.phase ? String(last.phase) : (typeof rec.last_completed === 'string' ? rec.last_completed : undefined),
 	};
@@ -1391,10 +1400,10 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 		fields: [
 			{ key: 'working_memory_max_slots', labelKey: 'memoryWorkingMemorySlots', descKey: 'memoryWorkingMemorySlotsDesc', kind: 'number', min: 3, max: 15 },
 			{ key: 'working_memory_token_ratio', labelKey: 'memoryWorkingMemoryTokenRatio', descKey: 'memoryWorkingMemoryTokenRatioDesc', kind: 'number', min: 0.05, max: 0.5, percent: true },
-			{ key: 'working_memory_token_budget', labelKey: 'memoryWorkingMemoryTokenBudget', descKey: 'memoryWorkingMemoryTokenBudgetDesc', kind: 'number', min: 0, max: 30000 },
+			{ key: 'working_memory_token_budget', labelKey: 'memoryWorkingMemoryTokenBudget', descKey: 'memoryWorkingMemoryTokenBudgetDesc', kind: 'number', min: 0, max: 200000 },
 			{ key: 'working_memory_decay_rate', labelKey: 'memoryWorkingMemoryDecay', descKey: 'memoryWorkingMemoryDecayDesc', kind: 'number', min: 0.0001, max: 0.01, step: 0.0001, float: true },
-			{ key: 'working_memory_ttl_seconds', labelKey: 'memoryWorkingMemoryTtl', descKey: 'memoryWorkingMemoryTtlDesc', kind: 'number', min: 5, max: 120 },
-			{ key: 'sensory_buffer_ms', labelKey: 'memorySensoryBufferMs', descKey: 'memorySensoryBufferMsDesc', kind: 'number', min: 100, max: 2000 },
+			{ key: 'working_memory_ttl_seconds', labelKey: 'memoryWorkingMemoryTtl', descKey: 'memoryWorkingMemoryTtlDesc', kind: 'number', min: 0, max: 3600 },
+			{ key: 'sensory_buffer_ms', labelKey: 'memorySensoryBufferMs', descKey: 'memorySensoryBufferMsDesc', kind: 'number', min: 0, max: 2000 },
 		],
 	},
 	{
@@ -1559,7 +1568,7 @@ export const MEMORY_DEFAULT_CONFIG: Readonly<Record<string, string | number | bo
 	hot_to_warm_hours: 24, warm_to_cold_days: 7, cold_prune_days: 90, graph_enabled: true, learning_enabled: true,
 	llm_entity_extraction_enabled: true, llm_summarization_enabled: true, llm_importance_scoring_enabled: true, llm_post_action_memory_enabled: true,
 	working_memory_max_slots: 7, working_memory_token_budget: 30000, working_memory_token_ratio: 0.125, working_memory_decay_rate: 0.001,
-	working_memory_ttl_seconds: 30, easy_model: '', medium_model: '', hard_model: '', autonomous_max_iterations: 0,
+	working_memory_ttl_seconds: 0, easy_model: '', medium_model: '', hard_model: '', autonomous_max_iterations: 0,
 	mode_full_semantic_multiplier: 1.25, mode_full_episodic_multiplier: 2.0, mode_full_min_importance: 0, mode_full_episodic_snippet_len: 400,
 	mode_summarized_semantic_multiplier: 0.75, mode_summarized_episodic_multiplier: 0.75, mode_summarized_min_importance: 0.3, mode_summarized_episodic_snippet_len: 150,
 	mode_selective_semantic_multiplier: 0.5, mode_selective_episodic_multiplier: 0.25, mode_selective_min_importance: 0.7, mode_selective_episodic_snippet_len: 200,
@@ -1580,7 +1589,7 @@ export const MEMORY_DEFAULT_CONFIG: Readonly<Record<string, string | number | bo
 	calibrated_theta: 0.35,
 	ppr_alpha: 0.15, ppr_epsilon: 1e-4,
 	w_lexical: 1, w_ripgrep: 1, w_graph: 1, w_tree: 1,
-	sensory_buffer_ms: 250, enable_enhanced_semantic: true,
+	sensory_buffer_ms: 0, enable_enhanced_semantic: true,
 };
 
 export function withMemoryConfigDefaults(config: Record<string, unknown>): Record<string, unknown> {

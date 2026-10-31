@@ -9,6 +9,23 @@ export {
   PINNED_UNMATCHED_CAP,
   PINNED_NONE_MATCH_THRESHOLD,
 } from "./ContextBuilder.js";
+export {
+  selectBudgetedSubmodular,
+  sandwichOrder,
+  coverageSimilarity,
+  coverageFeatures,
+  characterTrigrams,
+  submodularObjective,
+  COVERAGE_LAMBDA_DEFAULT,
+  RANK1_RRF,
+} from "./selectContext.js";
+export type {
+  ContextCandidate,
+  ContextCandidateKind,
+  CoverageFeatures,
+  SelectContextResult,
+  SelectStrategy,
+} from "./selectContext.js";
 export { Ebbinghaus } from "./Ebbinghaus.js";
 export { Forgetting } from "./Forgetting.js";
 export { Value } from "./Value.js";
@@ -44,6 +61,7 @@ export {
 export type {
   MemoryLevelId,
   MemoryLevelRole,
+  MemoryLevelLifetime,
   MemoryLevelSpec,
   MemoryLevelMetrics,
   AddressableMemoryResult,
@@ -51,12 +69,13 @@ export type {
 } from "./MemoryHierarchy.js";
 export { MemoryPipeline } from "./MemoryPipeline.js";
 export { PrefrontalCortex, formatMemoryGoal } from "./regions/PrefrontalCortex.js";
-export { SensoryBuffer } from "./SensoryBuffer.js";
+export { SensoryBuffer, SENSORY_LIFETIME } from "./SensoryBuffer.js";
 export { TaskRouter } from "./TaskRouter.js";
 export { expandQuerySynonyms } from "./EnhancedSemantic.js";
 export {
   WorkingMemory,
   CURRENT_TURN_SLOT_ID,
+  WORKING_MEMORY_LIFETIME,
   WM_MISMATCH_DECAY,
   WM_MISMATCH_FLOOR,
   WM_EVICT_BELOW,
@@ -77,8 +96,22 @@ export {
   getFusionWeights,
   fusionWeightsAreSafe,
   FUSION_WEIGHT_PROFILES,
+  getMemoryInjectBudget,
+  getContextMaxTokens,
+  computeWMem,
+  getMemoryInjectHardCap,
 } from "./memoryConfigAccess.js";
-export type { FusionWeightProfile, FusionWeights } from "./memoryConfigAccess.js";
+export type { FusionWeightProfile, FusionWeights, MemoryBudget, MemoryOccupancy } from "./memoryConfigAccess.js";
+export {
+  resolveMemoryWindow,
+  rememberRoutedWindow,
+  getLastRoutedWindow,
+  resetRoutedWindow,
+  isMemoryContextCeiling,
+  sanitizeInjectOverride,
+  memoryWindowBuildFields,
+} from "./window.js";
+export type { MemoryWindow, MemoryWindowInput } from "./window.js";
 export {
   RetrievalFusion,
   normalizeBm25,
@@ -131,11 +164,35 @@ export {
   searchRipgrepChannel,
 } from "./channels/ripgrep.js";
 export {
+  evaluateBudget,
+  applyBudgetInvariant,
+  checkReachability,
+  checkLosslessness,
+  checkStoreInvariants,
+  cycleInvariantsMet,
+  getInvariantSnapshot,
+  resetInvariantSnapshotForTests,
+  AUDIT_BUDGET,
+  AUDIT_REACHABILITY,
+  AUDIT_LOSSLESSNESS,
+} from "./invariants.js";
+export type {
+  BudgetInvariantResult,
+  CycleInvariantSnapshot,
+  LosslessnessInvariantResult,
+  ReachabilityInvariantResult,
+  StoreInvariantReport,
+} from "./invariants.js";
+export {
   ingestSessionLeaves,
   insertTreeLeaf,
   isTreeReady,
+  planRecentShare,
+  resolveSessionOverflowNode,
   scoreTreeText,
+  searchSummaryNodes,
   searchTreeChannel,
+  splitTurnsByRecentShare,
   treeBeamStatus,
   TREE_BEAM_DEFAULT,
   TREE_BRANCHING_DEFAULT,

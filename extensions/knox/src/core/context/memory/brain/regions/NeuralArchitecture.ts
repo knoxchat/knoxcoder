@@ -1,25 +1,19 @@
 /**
- * NeuralArchitecture — Knox-MS Part I flow (IMP-01 / IMP-02).
+ * NeuralArchitecture — Knox-MS Part I flow (MEM-31 / IMP-01 / IMP-02).
  *
- *   O(x) = Brainstem(M(Thalamus(Sensory(x))))
- *
- * Feedback loops:
- *   Hippocampus → PrefrontalCortex (H→P)
- *   Brainstem → Thalamus (Bs→T)
- *   Amygdala → PrefrontalCortex via Thalamus (A→P)
+ * Live path is MemoryPipeline.runPreTurn. This module only describes the
+ * boxed composition and delegates so the two entry points stay one path.
  */
 
-import { ContextBuilder } from "../ContextBuilder.js";
-import { getContextMaxTokens, getMemoryConfig, getModeSettings } from "../memoryConfigAccess.js";
-import { getProjectSessionIds } from "../projectScope.js";
-import { injectedItemPassedGate } from "../RelevanceGate.js";
-import { RetrievalFusion } from "../RetrievalFusion.js";
-import { resolveRetrievalQuery } from "../RetrievalQuery.js";
-import { BrainStore } from "../BrainStore.js";
+import { MemoryPipeline, type PipelineResult } from "../MemoryPipeline.js";
 import type { BuildContextResult, MemoryPhase, PipelineInput, PipelinePhaseResult } from "../types.js";
-import { PrefrontalCortex } from "./PrefrontalCortex.js";
-import { SensoryCortex } from "./SensoryCortex.js";
-import { Thalamus } from "./Thalamus.js";
+import {
+  BOXED_O_X,
+  LIVE_ARROW,
+  LIVE_FEEDBACK,
+  LIVE_STAGES,
+  type LiveStage,
+} from "./flow.js";
 
 export interface NeuralProcessResult {
   phases: PipelinePhaseResult[];
@@ -27,198 +21,47 @@ export interface NeuralProcessResult {
   encoded_message: string;
   goal?: string;
   fusion_hits: number;
-}
-
-let _BrainManager: { getWorkingMemory(): import("../WorkingMemory.js").WorkingMemory } | null = null;
-async function getBrainManager() {
-  if (!_BrainManager) {
-    const mod = await import("../BrainManager.js");
-    _BrainManager = mod.BrainManager;
-  }
-  return _BrainManager;
+  salience?: PipelineResult["salience"];
+  procedural_hits?: number;
 }
 
 export const NeuralArchitecture = {
   /**
-   * Pre-turn neural path: φ₁ → φ₂ → φ₃ → φ₆ → φ₈
-   * Implements O(x) = Brainstem(M(Thalamus(Sensory(x))))
+   * Same path as MemoryPipeline.runPreTurn:
+   *   S → T → A → P → H → B_g → B_s
    */
   async processPreTurn(input: PipelineInput): Promise<NeuralProcessResult> {
-    const BrainManager = await getBrainManager();
-    const wm = BrainManager.getWorkingMemory();
-    const phases: PipelinePhaseResult[] = [];
-
-    // REL-07: bind C_goal to this session; do not copy the previous session's goal.
-    PrefrontalCortex.switchSession(input.session_id);
-
-    // φ₁ — Sensory(x)
-    const sensoryStart = Date.now();
-    let message = input.message;
-    if (input.session_id) {
-      SensoryCortex.setFlushHandler(input.session_id, (text) =>
-        Thalamus.attend(wm, text, "user"),
-      );
-      message = SensoryCortex.flushOnTurnBoundary(input.session_id, input.message);
-    }
-    phases.push({
-      phase: "sensory_input",
-      duration_ms: Date.now() - sensoryStart,
-      success: true,
-      detail: "input accepted",
-    });
-
-    // φ₂ — encode / sanitize (still SensoryCortex facade)
-    const encodingStart = Date.now();
-    const scan = SensoryCortex.scan(message);
-    const encodedMessage = scan.cleaned;
-    phases.push({
-      phase: "encoding",
-      duration_ms: Date.now() - encodingStart,
-      success: true,
-      detail: scan.safe
-        ? "encoded"
-        : `sanitized (${scan.threats.length} threats)`,
-    });
-
-    // φ₃ — Thalamus(Prefrontal(x)) → M₂  (REL-06: isolate on new-task)
-    const wmStart = Date.now();
-    const plan = PrefrontalCortex.plan(encodedMessage);
-
-    const retrieval = await resolveRetrievalQuery({
-      message: encodedMessage,
-      sessionId: input.session_id,
-      retrievalQueryOverride: input.retrieval_query,
-      workingMemoryItems: wm.getAll().map((item) => ({
-        content: item.content,
-        source: item.source,
-        added_at: item.added_at,
-      })),
-    });
-
-    if (input.session_id) {
-      const { ensureTaskForTurn } = await import("../TaskContext.js");
-      await ensureTaskForTurn(input.session_id, encodedMessage, retrieval.intent).catch(
-        () => undefined,
-      );
-    }
-
-    // REL-07: new-task drops the previous C_goal; never keep an extracted title.
-    if (retrieval.intent === "new_task") {
-      PrefrontalCortex.clearGoal(input.session_id);
-    }
-    if (input.goal?.trim()) {
-      PrefrontalCortex.setGoal(input.goal, input.session_id);
-    } else if (plan.intent) {
-      PrefrontalCortex.setGoal(plan.intent, input.session_id);
-    }
-
-    Thalamus.gateTurn(wm, {
-      message: encodedMessage,
-      framed: plan.framed,
-      role: input.role ?? "user",
-      intent: retrieval.intent,
-      retrievalQuery: retrieval.retrievalQuery,
-    });
-
-    phases.push({
-      phase: "working_memory",
-      duration_ms: Date.now() - wmStart,
-      success: true,
-      detail: plan.intent ? `attention applied (intent: ${plan.intent.slice(0, 40)}…)` : "attention applied",
-    });
-
-    const goal = PrefrontalCortex.resolveGoal(input.goal, input.session_id);
-    const config = getMemoryConfig();
-    const mode = getModeSettings(config.memory_mode);
-
-    // φ₆ — fusion retrieval (expanded query, not raw follow-up)
-    const retrievalStart = Date.now();
-    const projectSessionIds = await getProjectSessionIds(input.session_id);
-    const currentTaskId = input.session_id
-      ? (await BrainStore.getOpenTask(input.session_id))?.id ?? null
-      : null;
-    const fusionResults = await RetrievalFusion.search({
-      query: retrieval.retrievalQuery,
-      sessionId: input.session_id,
-      limit: config.retrieval_top_k,
-      minScore: config.retrieval_threshold,
-      includeEpisodic: mode.includeEpisodic,
-      projectSessionIds,
-      intent: retrieval.intent,
-      originalQuery: encodedMessage,
-      currentTaskId,
-    });
-    phases.push({
-      phase: "retrieval",
-      duration_ms: Date.now() - retrievalStart,
-      success: true,
-      detail: `${fusionResults.length} fusion hits`,
-      audit: {
-        retrieval_query: retrieval.retrievalQuery,
-        hit_count: fusionResults.length,
-      },
-    });
-
-    // φ₈ — ContextBuilder consumes φ₆ hits; no second fusion/LIKE hunt (K-073)
-    const outputStart = Date.now();
-    const context = await ContextBuilder.buildDetailed({
-      message: encodedMessage,
-      session_id: input.session_id,
-      max_tokens: getContextMaxTokens(input.max_tokens),
-      memory_mode: config.memory_mode,
-      goal,
-      retrieval_query: retrieval.retrievalQuery,
-      fusion_hits: fusionResults,
-    });
-    const highlights = context.items
-      .filter(injectedItemPassedGate)
-      .map((item) => item.title)
-      .filter(Boolean);
-    Thalamus.feedbackFromBrainstem(wm, highlights);
-    phases.push({
-      phase: "output_generation",
-      duration_ms: Date.now() - outputStart,
-      success: true,
-      detail: `${context.items.length} items, context fenced`,
-      audit: {
-        retrieval_query: retrieval.retrievalQuery,
-        item_count: context.items.length,
-        items: context.items.map((item) => ({
-          id: item.id,
-          kind: item.kind,
-          fusion_score: item.score ?? null,
-          fts5: item.fts5 ?? null,
-          trigram: item.trigram ?? null,
-          graph: item.graph ?? null,
-          recency: item.recency ?? null,
-          importance: item.importance ?? null,
-          topic_id: item.topic_id ?? null,
-          task_id: item.task_id ?? null,
-          gate_passed: item.gate_passed ?? false,
-        })),
-      },
-    });
-
+    const result = await MemoryPipeline.runPreTurn(input);
     return {
-      phases,
-      context,
-      encoded_message: encodedMessage,
-      goal,
-      fusion_hits: fusionResults.length,
+      phases: result.phases,
+      context: result.context ?? { context: "", items: [] },
+      encoded_message: result.encoded_message ?? input.message,
+      goal: result.goal,
+      fusion_hits: result.fusion_hits ?? 0,
+      salience: result.salience,
+      procedural_hits: result.procedural_hits,
     };
   },
 
-  /** Human-readable summary of the Part I flow for diagnostics. */
+  /** Boxed O(x) plus stage map for diagnostics (IMP-01/02). */
   describeFlow(): string {
     return [
-      "O(x) = Brainstem(M(Thalamus(Sensory(x))))",
-      "  SensoryCortex  → φ₁ capture + φ₂ encode",
-      "  PrefrontalCortex → φ₃ plan / task framing",
-      "  Thalamus       → φ₃ attention gating (+ Amygdala→Prefrontal)",
-      "  Hippocampus    → φ₆ fusion retrieval (M)",
-      "  Brainstem      → φ₈ context assembly (+ Brainstem→Thalamus)",
-      "  PrefrontalCortex → C_goal / plan integration (+ Hippocampus→Prefrontal)",
+      BOXED_O_X,
+      `  ${LIVE_ARROW}`,
+      "  S  SensoryCortex     encode / φ₁+φ₂ → M₁",
+      "  T  Thalamus          filter / attention",
+      "  A  Amygdala          salience weight → I₀",
+      "  P  PrefrontalCortex  plan / C_goal",
+      "  H  Hippocampus       recall (φ₆)",
+      "  B_g BasalGanglia     procedures / leftover M₅",
+      "  B_s Brainstem        generate (φ₈)",
+      "Feedback:",
+      ...LIVE_FEEDBACK.map((line) => `  ${line}`),
     ].join("\n");
+  },
+
+  liveStageOrder(): LiveStage[] {
+    return [...LIVE_STAGES];
   },
 
   canonicalPhaseOrder(): MemoryPhase[] {

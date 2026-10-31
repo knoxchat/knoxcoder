@@ -63,7 +63,7 @@ async function resetDatabase(): Promise<void> {
   (BrainManager as any).activeSessionId = null;
 }
 
-/** Hard-truncate suffix / fence slack. Overflow strategy itself is leftover until MEM-30. */
+/** Hard-truncate suffix / fence slack after MEM-30 summary-node overflow. */
 const OVERFLOW_TOKEN_SLACK = 16;
 
 /** Recalled payload inside the memory fence (or the raw string if unfenced). */
@@ -744,20 +744,19 @@ describe("memory brain regressions", () => {
     expect(result.context.length).toBeGreaterThan(0);
     const { ContextSections } = await import("./ContextSections.js");
     const recalled = recalledMemoryBody(result.context);
-    // Overflow strategy is leftover until MEM-30; only |C(q)| ≤ budget is required.
-    expect(ContextSections.estimateTokens(recalled)).toBeLessThanOrEqual(
+    const memoryOnly = recalled.replace(/=== Current Task ===[\s\S]*$/, "").trim();
+    // MEM-30: C_mem ≤ W_mem; overflow injects a summary node, not compress-oldest.
+    expect(result.inject_budget).toBeLessThanOrEqual(budget);
+    expect(result.context).not.toContain("more entries, compressed");
+    expect(ContextSections.estimateTokens(memoryOnly)).toBeLessThanOrEqual(
       budget + OVERFLOW_TOKEN_SLACK,
     );
-    // Current assembly order (not an overflow strategy). MEM-29 may sandwich.
+    // MEM-29 sandwiches C_mem; WM stays after the recalled block when present.
     const inner = result.context.replace(/<\/?memory-context>/g, "");
-    const summaryIdx = inner.indexOf("Current Session Context");
-    const semanticIdx = inner.indexOf("Semantic");
+    const recalledIdx = inner.indexOf("Relevant Knowledge from Memory");
     const wmIdx = inner.indexOf("Working Memory");
-    if (summaryIdx >= 0 && semanticIdx >= 0) {
-      expect(summaryIdx).toBeLessThan(semanticIdx);
-    }
-    if (semanticIdx >= 0 && wmIdx >= 0) {
-      expect(semanticIdx).toBeLessThan(wmIdx);
+    if (recalledIdx >= 0 && wmIdx >= 0) {
+      expect(recalledIdx).toBeLessThan(wmIdx);
     }
   });
 
@@ -773,7 +772,10 @@ describe("memory brain regressions", () => {
       getIntegrationTimeouts,
     } = await import("./memoryConfigAccess.js");
 
-    expect(getContextMaxTokens()).toBe(cfg.context_max_tokens);
+    const { resetRoutedWindow, resolveMemoryWindow } = await import("./window.js");
+    resetRoutedWindow();
+    expect(getContextMaxTokens()).toBe(resolveMemoryWindow().w);
+    expect(getContextMaxTokens()).toBeLessThan(cfg.context_max_tokens);
     expect(getContextMaxTokens(50_000)).toBe(50_000);
 
     const summarized = getModeSettings("summarized");
@@ -783,14 +785,8 @@ describe("memory brain regressions", () => {
 
     const wm = getWorkingMemoryOptions();
     expect(wm.maxSlots).toBe(cfg.working_memory_max_slots);
-    const expectedWmBudget =
-      cfg.working_memory_token_budget > 0
-        ? Math.min(cfg.working_memory_token_budget, 30_000)
-        : Math.min(
-            Math.floor(cfg.context_max_tokens * cfg.working_memory_token_ratio),
-            30_000,
-          );
-    expect(wm.tokenBudget).toBe(expectedWmBudget);
+    expect(wm.tokenBudget).toBe(cfg.working_memory_token_budget);
+    expect(wm.ttlSeconds).toBe(0);
 
     const timeouts = getIntegrationTimeouts();
     expect(timeouts.memoryBuildMs).toBe(cfg.memory_build_timeout_ms);
@@ -1153,6 +1149,8 @@ describe("memory brain regressions", () => {
     const easy = TaskRouter.scoreAndRoute({ message: "hi" });
     expect(easy.difficulty).toBe("easy");
     expect(easy.modelId).toBe("model-easy");
+    expect(easy.w).toBeGreaterThan(0);
+    expect(easy.w).toBeLessThan(10_000_000);
 
     const hard = TaskRouter.scoreAndRoute({
       message: "x".repeat(5000) + "```\n".repeat(10),
@@ -1161,6 +1159,9 @@ describe("memory brain regressions", () => {
     });
     expect(hard.difficulty).toBe("hard");
     expect(hard.modelId).toBe("model-hard");
+    expect(hard.w).toBeGreaterThan(0);
+    expect(hard.wOut).toBeGreaterThan(0);
+    expect(hard.wOut).toBeLessThan(hard.w);
   });
 
   it("treats autonomous max_iterations 0 as unlimited", async () => {
@@ -1252,10 +1253,14 @@ describe("memory brain regressions", () => {
 
     const wm = new WorkingMemory({ maxSlots: 3, tokenBudget: 500, ttlSeconds: 30 });
     Thalamus.attend(wm, "hello");
-    expect(wm.getAll().length).toBe(0);
+    expect(wm.getAll().length).toBe(1);
+    expect(wm.getAll()[0].id).toBe("current-turn");
+    const hello = Amygdala.weight("hello", "user");
+    expect(wm.getAll()[0].relevance).toBeCloseTo(hello.i0);
 
     const salience = Amygdala.computeSalience("URGENT fix needed!!!", "user", 0.8);
-    expect(salience).toBeGreaterThan(0.4);
+    expect(salience).toBeGreaterThan(hello.salience);
+    expect(Amygdala.weight("URGENT fix needed!!!", "user").i0).toBeGreaterThan(hello.i0);
 
     PrefrontalCortex.setGoal("Fix auth bug");
     expect(PrefrontalCortex.getGoal()).toBe("Fix auth bug");
@@ -1429,20 +1434,37 @@ describe("memory brain regressions", () => {
     expect(result.phases.length).toBeGreaterThanOrEqual(8);
   });
 
-  it("flushes editor sensory input into working memory (IMP-03)", async () => {
+  it("flushes M1 sensory input on the turn boundary, not a 250ms clock (IMP-03 / MEM-33)", async () => {
     await resetDatabase();
+    const { SensoryBuffer } = await import("./SensoryBuffer.js");
     const sessionId = "sensory-ingest-session";
     await BrainManager.trackSession(sessionId, "Sensory Ingest", testDir);
+    BrainManager.getWorkingMemory().clear();
+    SensoryBuffer.clear(sessionId);
 
-    BrainManager.ingestSensoryInput(
+    await BrainManager.ingestSensoryInput(
       "URGENT: fix authentication bug in login handler immediately!!!",
       sessionId,
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(BrainStore.getConfig().sensory_buffer_ms).toBe(0);
+    expect(SensoryBuffer.getStats(sessionId).lifetime).toBe("turn");
+    expect(SensoryBuffer.estimateBufferedTokens(sessionId)).toBeGreaterThan(0);
+    expect(
+      BrainManager.getWorkingMemory().getAll().some((i) => i.content.includes("authentication")),
+    ).toBe(false);
 
-    const wm = BrainManager.getWorkingMemory().getAll();
-    expect(wm.some((i) => i.content.includes("authentication"))).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(SensoryBuffer.estimateBufferedTokens(sessionId)).toBeGreaterThan(0);
+    expect(
+      BrainManager.getWorkingMemory().getAll().some((i) => i.content.includes("authentication")),
+    ).toBe(false);
+
+    SensoryBuffer.flushOnTurnBoundary(sessionId, "now send the turn");
+    expect(
+      BrainManager.getWorkingMemory().getAll().some((i) => i.content.includes("authentication")),
+    ).toBe(true);
+    SensoryBuffer.clear(sessionId);
   });
 
   it("Amygdala→Prefrontal feedback does not overwrite C_goal (REL-07)", async () => {
@@ -1459,7 +1481,7 @@ describe("memory brain regressions", () => {
     expect(PrefrontalCortex.getGoal()).toBeNull();
   });
 
-  it("implements Part I O(x)=Brainstem(M(Thalamus(Sensory(x)))) via NeuralArchitecture (IMP-01/02)", async () => {
+  it("implements boxed O(x)=B_s(B_g(H(P(A(T(S(x))))))) via NeuralArchitecture (IMP-01/02 / MEM-31)", async () => {
     await resetDatabase();
     const sessionId = "neural-arch-session";
     await BrainManager.trackSession(sessionId, "Neural Arch", testDir);
@@ -1472,7 +1494,18 @@ describe("memory brain regressions", () => {
     });
 
     const { NeuralArchitecture } = await import("./regions/NeuralArchitecture.js");
-    expect(NeuralArchitecture.describeFlow()).toContain("O(x) = Brainstem");
+    expect(NeuralArchitecture.describeFlow()).toContain(
+      "O(x) = B_s(B_g(H(P(A(T(S(x)))))))",
+    );
+    expect(NeuralArchitecture.liveStageOrder()).toEqual([
+      "S",
+      "T",
+      "A",
+      "P",
+      "H",
+      "B_g",
+      "B_s",
+    ]);
 
     const result = await NeuralArchitecture.processPreTurn({
       message: "authentication OAuth PKCE",
@@ -1621,12 +1654,20 @@ describe("memory brain regressions", () => {
     }
   });
 
-  it("caps M₂ working memory at 30K tokens (IMP-05)", async () => {
+  it("treats M2 token budget as a scratchpad knob, not W_mem or a 30K spec (IMP-05 / MEM-33)", async () => {
     await resetDatabase();
     await BrainManager.updateConfig({ key: "working_memory_token_budget", value: "50000" });
-    const { getWorkingMemoryOptions } = await import("./memoryConfigAccess.js");
-    expect(getWorkingMemoryOptions().tokenBudget).toBe(30_000);
-    expect(getWorkingMemoryOptions().ttlSeconds).toBe(BrainStore.getConfig().working_memory_ttl_seconds);
+    const { getWorkingMemoryOptions, getMemoryInjectHardCap } = await import("./memoryConfigAccess.js");
+    const opts = getWorkingMemoryOptions();
+    expect(opts.tokenBudget).toBe(50_000);
+    expect(opts.tokenBudget).not.toBe(30_000);
+    expect(opts.tokenBudget).not.toBe(getMemoryInjectHardCap());
+    expect(opts.ttlSeconds).toBe(0);
+    expect(opts.maxSlots).toBe(BrainStore.getConfig().working_memory_max_slots);
+    const stats = BrainManager.getWorkingMemory().getStats();
+    expect(stats.lifetime).toBe("call");
+    expect(stats.ttl_seconds).toBe(0);
+    expect(stats.token_budget).toBe(50_000);
   });
 
   it("includes M₁ sensory buffer in hierarchy metrics (IMP-03)", async () => {
@@ -1637,6 +1678,7 @@ describe("memory brain regressions", () => {
     expect(SensoryBuffer.estimateBufferedTokens(sessionId)).toBeGreaterThan(0);
     const stats = SensoryBuffer.getStats(sessionId);
     expect(stats.pending_chunks).toBe(1);
+    expect(stats.lifetime).toBe("turn");
     SensoryBuffer.clear(sessionId);
   });
 

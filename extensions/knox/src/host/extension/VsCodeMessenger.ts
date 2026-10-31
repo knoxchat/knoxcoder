@@ -1130,13 +1130,14 @@ export class VsCodeMessenger {
       try {
         const { MemoryPipeline } = await import("core/context/memory/brain/MemoryPipeline");
         const { BrainStore } = await import("core/context/memory/brain/BrainStore");
+        const { BrainManager } = await import("core/context/memory/brain/BrainManager");
         await BrainStore.get();
-        const config = BrainStore.getConfig();
         const result = await MemoryPipeline.runPreTurn({
           message: msg.data.message,
           session_id: msg.data.sessionId,
-          max_tokens: msg.data.maxTokens ?? config.context_max_tokens,
+          max_tokens: msg.data.maxTokens,
           goal: msg.data.goal,
+          llm: BrainManager.getLlm() ?? undefined,
         });
         return {
           context: result.context?.context ?? null,
@@ -1167,7 +1168,7 @@ export class VsCodeMessenger {
       }
     });
 
-    // M₁ sensory buffer: stream editor changes into active session (IMP-03, optional)
+    // M₁: optional editor stream into the turn buffer. Lifetime is the turn (MEM-33).
     let sensoryDebounce: ReturnType<typeof setTimeout> | null = null;
     vscode.workspace.onDidChangeTextDocument((event) => {
       if (event.document.uri.scheme !== "file") return;

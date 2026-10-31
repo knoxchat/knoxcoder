@@ -1,16 +1,22 @@
 import { BrainStore } from "./BrainStore.js";
 import { KnowledgeGraph } from "./KnowledgeGraph.js";
 import { LearningEngine } from "./LearningEngine.js";
-import { getBudgetQueryAdjustments, getBudgetRatios, getContextAssemblyLimits, getMemoryConfig, type ModeSettings } from "./memoryConfigAccess.js";
+import { getBudgetQueryAdjustments, getBudgetRatios, getContextAssemblyLimits, getMemoryConfig, getTheoremParams, type ModeSettings } from "./memoryConfigAccess.js";
 import { filterSemanticByProjectScope, getProjectSessionIds } from "./projectScope.js";
 import { contentWords } from "./RetrievalQuery.js";
 import { recipeMemoryIsVerified } from "../recipes/memoryLink.js";
-import { evaluateRelevanceGate, isMismatchActive, LEXICAL_SCORE_MIN } from "./RelevanceGate.js";
+import { evaluateRelevanceGate, extractEntityLikeTokens, isMismatchActive, LEXICAL_SCORE_MIN } from "./RelevanceGate.js";
 import { hasGraphExpandableTokens, isCommonNounEntityName, queryMentionsEntity } from "./GraphRetrieval.js";
 import type { FusionResult } from "./RetrievalFusion.js";
 import { hasRipgrepHit } from "./channels/ripgrep.js";
 import { memoryCiteToken } from "./attribution.js";
 import { winningChannel } from "./memoryOutcomes.js";
+import {
+  coverageFeatures,
+  rankScaledScore,
+  type ContextCandidate,
+} from "./selectContext.js";
+import { searchSummaryNodes } from "./SummaryTree.js";
 import type { InjectedMemoryItem, SemanticMemory, EpisodicMemory } from "./types.js";
 
 /** REL-10: session summary needs this fraction of query content-words to inject (non-full modes). */
@@ -59,19 +65,85 @@ export async function getBrainManager() {
   return _BrainManager;
 }
 
-/** Section builders and budgeting for ContextBuilder (split out; no logic change). */
+export const RECALLED_MEMORY_HEADER = "=== Relevant Knowledge from Memory ===";
+
+export interface SemanticCollectResult {
+  candidates: ContextCandidate[];
+  omittedUnmatched: number;
+}
+
+function fusionRankScale(): number {
+  return getTheoremParams().rrfK0;
+}
+
+function memoryEntities(title?: string, keywords?: string, content?: string): string[] {
+  const names = new Set<string>();
+  for (const raw of (keywords ?? "").split(/[,;|]/)) {
+    const key = raw.trim();
+    if (key) names.add(key);
+  }
+  for (const ident of extractEntityLikeTokens([title, keywords, content].filter(Boolean).join(" "))) {
+    names.add(ident);
+  }
+  return [...names];
+}
+
+function toCandidate(input: {
+  key: string;
+  kind: ContextCandidate["kind"];
+  score: number;
+  text: string;
+  item: InjectedMemoryItem;
+  entities?: string[];
+  /** Text used for trigram / entity Jaccard (defaults to `text`). */
+  simText?: string;
+  mustKeep?: boolean;
+  recordInject?: boolean;
+}): ContextCandidate {
+  const entities = input.entities ?? input.item.evidence ?? [];
+  return {
+    key: input.key,
+    kind: input.kind,
+    score: Math.max(0, input.score),
+    tokens: ContextSections.estimateTokens(input.text),
+    text: input.text,
+    features: coverageFeatures(input.simText ?? input.text, entities),
+    item: input.item,
+    mustKeep: input.mustKeep,
+    recordInject: input.recordInject,
+  };
+}
+
+/** Section builders and candidate collection for ContextBuilder (MEM-29). */
 export class ContextSections {
-  static async buildSemanticContext(
+  static takeCandidatesUntil(
+    candidates: ContextCandidate[],
+    maxTokens: number,
+    header?: string,
+  ): { text: string | null; items: InjectedMemoryItem[] } {
+    const lines: string[] = header ? [header] : [];
+    const items: InjectedMemoryItem[] = [];
+    let tokens = header ? ContextSections.estimateTokens(header) : 0;
+    for (const cand of candidates) {
+      if (tokens + cand.tokens > maxTokens) break;
+      lines.push(cand.text);
+      tokens += cand.tokens;
+      items.push(cand.item);
+    }
+    if (items.length === 0) return { text: null, items: [] };
+    return { text: lines.join("\n"), items };
+  }
+
+  static async collectSemanticCandidates(
     query: string,
     sessionId: string | undefined,
-    maxTokens: number,
     mode: ModeSettings,
     fusion: {
       fusionHits: FusionResult[];
       fusionEmpty: boolean;
       fusionById: Map<string, FusionResult>;
     },
-  ): Promise<{ text: string | null; items: InjectedMemoryItem[] }> {
+  ): Promise<SemanticCollectResult> {
     const pinnedLimit = getContextAssemblyLimits().pinnedLimit;
     const pinnedTags = await BrainStore.searchByTag("pinned", "semantic", pinnedLimit);
     const pinnedMemories: SemanticMemory[] = [];
@@ -161,18 +233,19 @@ export class ContextSections {
 
     const primary = [...matchingUnique, ...fusionOrFallback];
     if (primary.length === 0 && unmatchedUnique.length === 0) {
-      return { text: null, items: [] };
+      return { candidates: [], omittedUnmatched };
     }
 
-    const lines: string[] = ["=== Relevant Knowledge from Memory ==="];
-    const items: InjectedMemoryItem[] = [];
-    let tokens = ContextSections.estimateTokens(lines[0]);
     const pinnedIds = new Set(scopedPins.map((m) => m.id));
+    const matchingIds = new Set(matchingUnique.map((m) => m.id));
+    const fallbackIds = new Set(fusionOrFallback.map((m) => m.id));
+    const k0 = fusionRankScale();
+    const candidates: ContextCandidate[] = [];
 
-    const appendMem = (mem: SemanticMemory): boolean => {
+    const pushMem = (mem: SemanticMemory, opts: { mustKeep: boolean; unmatched: boolean }): void => {
       const pinned = pinnedIds.has(mem.id);
+      const hit = fusion.fusionById.get(`semantic:${mem.id}`);
       if (!pinned) {
-        const hit = fusion.fusionById.get(`semantic:${mem.id}`);
         const gate = evaluateRelevanceGate({
           query,
           title: mem.title,
@@ -183,64 +256,78 @@ export class ContextSections {
           verified: recipeMemoryIsVerified(mem.content),
           ripgrepHit: hasRipgrepHit(hit),
         });
-        if (!gate.passed) return true;
+        if (!gate.passed) return;
       }
       const cite = memoryCiteToken("semantic", mem.id);
       const entry = `${cite} ${pinned ? "[pinned] " : ""}[${mem.category}] ${mem.title}: ${mem.content}`;
-      const entryTokens = ContextSections.estimateTokens(entry);
-      if (tokens + entryTokens > maxTokens) return false;
-      lines.push(entry);
-      tokens += entryTokens;
-      items.push(
-        ContextSections.semanticProvenance(
-          mem,
-          query,
-          pinned,
-          fusion.fusionById.get(`semantic:${mem.id}`),
-        ),
-      );
-      return true;
+      const item = ContextSections.semanticProvenance(mem, query, pinned, hit);
+      const overlap = item.evidence && contentWords(query).length > 0
+        ? Math.min(1, item.evidence.length / contentWords(query).length)
+        : 0;
+      let score = hit?.score ?? (overlap > 0 ? rankScaledScore(1, overlap, k0) : 0);
+      if (opts.unmatched) score = Math.max(score, rankScaledScore(200, 1, k0));
+      if (mode.preferSummaries && mem.category === "summary" && score > 0) {
+        score *= 1.05;
+      }
+      candidates.push(toCandidate({
+        key: `semantic:${mem.id}`,
+        kind: mem.category === "summary" ? "summary" : "semantic",
+        score,
+        text: entry,
+        item,
+        simText: `${mem.title} ${mem.keywords ?? ""} ${mem.content}`,
+        entities: memoryEntities(mem.title, mem.keywords, mem.content),
+        mustKeep: opts.mustKeep,
+        recordInject: fusion.fusionEmpty && (matchingIds.has(mem.id) || fallbackIds.has(mem.id)),
+      }));
     };
 
     for (const mem of primary) {
-      if (!appendMem(mem)) break;
+      pushMem(mem, { mustKeep: matchingIds.has(mem.id), unmatched: false });
     }
     for (const mem of unmatchedUnique) {
-      if (!appendMem(mem)) break;
+      pushMem(mem, { mustKeep: true, unmatched: true });
     }
 
-    if (omittedUnmatched > 0) {
-      const note = `[note] ${omittedUnmatched} other pinned memories omitted (no query overlap)`;
-      const noteTokens = ContextSections.estimateTokens(note);
-      if (tokens + noteTokens <= maxTokens) {
-        lines.push(note);
-        items.push({
+    return { candidates, omittedUnmatched };
+  }
+
+  static async buildSemanticContext(
+    query: string,
+    sessionId: string | undefined,
+    maxTokens: number,
+    mode: ModeSettings,
+    fusion: {
+      fusionHits: FusionResult[];
+      fusionEmpty: boolean;
+      fusionById: Map<string, FusionResult>;
+    },
+  ): Promise<{ text: string | null; items: InjectedMemoryItem[] }> {
+    const collected = await ContextSections.collectSemanticCandidates(query, sessionId, mode, fusion);
+    const taken = ContextSections.takeCandidatesUntil(
+      collected.candidates,
+      maxTokens,
+      RECALLED_MEMORY_HEADER,
+    );
+    if (collected.omittedUnmatched > 0 && taken.text) {
+      const note = `[note] ${collected.omittedUnmatched} other pinned memories omitted (no query overlap)`;
+      if (ContextSections.estimateTokens(taken.text) + ContextSections.estimateTokens(note) <= maxTokens) {
+        taken.text = `${taken.text}\n${note}`;
+        taken.items.push({
           id: null,
           kind: "semantic",
           title: "Pinned memories omitted",
-          reason: `${omittedUnmatched} other pinned items omitted (no query overlap)`,
+          reason: `${collected.omittedUnmatched} other pinned items omitted (no query overlap)`,
         });
       }
     }
-
-    // REL-12 / MEM-16: LIKE fallback records inject_count for assembled
-    // items only. Fusion hits are recorded in RetrievalFusion.search.
-    // retrieve / inject must not write retrieval_count or last_accessed_at.
     if (fusion.fusionEmpty) {
-      const bumpable = new Set([
-        ...matchingUnique.map((m) => m.id),
-        ...fusionOrFallback.map((m) => m.id),
-      ]);
-      const injectedIds = items
+      const injectedIds = taken.items
         .map((item) => item.id)
-        .filter((id): id is number => typeof id === "number" && bumpable.has(id));
+        .filter((id): id is number => typeof id === "number");
       await BrainStore.recordSemanticInject(injectedIds);
     }
-
-    return {
-      text: lines.length > 1 ? lines.join("\n") : null,
-      items,
-    };
+    return taken;
   }
 
   /** REL-10: pinned items that share query evidence sort ahead of unmatched pins. */
@@ -303,21 +390,21 @@ export class ContextSections {
     };
   }
 
-  static async buildEpisodicContext(
+  static async collectEpisodicCandidates(
     query: string,
     currentSessionId: string | undefined,
-    maxTokens: number,
     mode: ModeSettings,
     fusion: {
       fusionHits: FusionResult[];
       fusionEmpty: boolean;
       fusionById: Map<string, FusionResult>;
     },
-  ): Promise<{ text: string | null; items: InjectedMemoryItem[] }> {
+  ): Promise<ContextCandidate[]> {
     const projectSessionIds = await getProjectSessionIds(currentSessionId);
     const hasLexicalQuery = contentWords(query).length > 0;
 
     const requireLexical = getMemoryConfig().retrieval_require_lexical !== false;
+    const k0 = fusionRankScale();
     let scored: Array<{
       ep: EpisodicMemory;
       score?: number;
@@ -388,27 +475,23 @@ export class ContextSections {
       (row) => row.ep.importance_score >= mode.minImportance,
     );
 
-    if (filtered.length === 0) return { text: null, items: [] };
-
-    const lines: string[] = ["=== Related Past Conversations ==="];
-    const items: InjectedMemoryItem[] = [];
-    let tokens = ContextSections.estimateTokens(lines[0]);
-
-    for (const row of filtered) {
+    return filtered.map((row) => {
       const ep = row.ep;
       const cite = memoryCiteToken("episodic", ep.id);
       const entry = `${cite} [Session ${ep.session_id.substring(0, 8)}, ${ep.role}]: ${ep.content.substring(0, mode.episodicSnippetLen)}`;
-      const entryTokens = ContextSections.estimateTokens(entry);
-      if (tokens + entryTokens > maxTokens) break;
-      lines.push(entry);
-      tokens += entryTokens;
-      items.push({
+      const overlap = row.evidence && contentWords(query).length > 0
+        ? Math.min(1, row.evidence.length / contentWords(query).length)
+        : 0;
+      const score = row.score && row.score > 0
+        ? row.score
+        : rankScaledScore(1, overlap, k0);
+      const item: InjectedMemoryItem = {
         id: ep.id,
         kind: "episodic",
         mem_id: String(ep.id),
         cite,
         title: `Past ${ep.role} turn`,
-        score: row.score,
+        score,
         channel: winningChannel(row) ?? undefined,
         reason: row.reason || "lexical",
         fts5: row.fts5,
@@ -418,29 +501,49 @@ export class ContextSections {
         importance: row.importance,
         evidence: row.evidence,
         gate_passed: row.gate_passed,
+      };
+      return toCandidate({
+        key: `episodic:${ep.id}`,
+        kind: "episodic",
+        score,
+        text: entry,
+        item,
+        simText: ep.content,
+        entities: memoryEntities(undefined, undefined, ep.content),
       });
-    }
-
-    return {
-      text: lines.length > 1 ? lines.join("\n") : null,
-      items,
-    };
+    });
   }
 
-  static async buildGraphContext(
+  static async buildEpisodicContext(
     query: string,
+    currentSessionId: string | undefined,
     maxTokens: number,
+    mode: ModeSettings,
+    fusion: {
+      fusionHits: FusionResult[];
+      fusionEmpty: boolean;
+      fusionById: Map<string, FusionResult>;
+    },
   ): Promise<{ text: string | null; items: InjectedMemoryItem[] }> {
-    if (contentWords(query).length === 0) return { text: null, items: [] };
-    if (!hasGraphExpandableTokens(query)) return { text: null, items: [] };
+    const candidates = await ContextSections.collectEpisodicCandidates(
+      query,
+      currentSessionId,
+      mode,
+      fusion,
+    );
+    return ContextSections.takeCandidatesUntil(candidates, maxTokens, "=== Related Past Conversations ===");
+  }
+
+  static async collectGraphCandidates(query: string): Promise<ContextCandidate[]> {
+    if (contentWords(query).length === 0) return [];
+    if (!hasGraphExpandableTokens(query)) return [];
     const limits = getContextAssemblyLimits();
+    const k0 = fusionRankScale();
     const entities = await KnowledgeGraph.searchEntities(query, undefined, limits.graphEntitySearch);
-    if (entities.length === 0) return { text: null, items: [] };
+    if (entities.length === 0) return [];
 
-    const lines: string[] = ["=== Knowledge Graph Context ==="];
-    const items: InjectedMemoryItem[] = [];
-    let tokens = ContextSections.estimateTokens(lines[0]);
-
+    const out: ContextCandidate[] = [];
+    let rank = 0;
     for (const entity of entities.slice(0, limits.graphEntityDisplay)) {
       if (isCommonNounEntityName(entity.name) && !queryMentionsEntity(query, entity.name)) {
         continue;
@@ -452,56 +555,60 @@ export class ContextSections {
         requireLexical: getMemoryConfig().retrieval_require_lexical !== false,
       });
       if (!gate.passed) continue;
-      const entry = `[${entity.entity_type}] ${entity.name}: ${entity.description}`;
-      const entryTokens = ContextSections.estimateTokens(entry);
-      if (tokens + entryTokens > maxTokens) break;
-      lines.push(entry);
-      tokens += entryTokens;
-      items.push({
-        id: entity.id,
-        kind: "entity",
-        title: entity.name,
-        category: entity.entity_type,
-        reason: gate.reason,
-      });
-
-      if (tokens < maxTokens * limits.graphEdgeBudgetRatio) {
-        const edges = await BrainStore.getEntityEdges(entity.id);
-        for (const edge of edges.slice(0, limits.graphEdgePerEntity)) {
-          const neighborId = edge.source_entity_id === entity.id
-            ? edge.target_entity_id
-            : edge.source_entity_id;
-          const neighbor = await BrainStore.getEntity(neighborId);
-          if (neighbor) {
-            const edgeEntry = `  → [${edge.relationship}] ${neighbor.name}`;
-            const edgeTokens = ContextSections.estimateTokens(edgeEntry);
-            if (tokens + edgeTokens > maxTokens) break;
-            lines.push(edgeEntry);
-            tokens += edgeTokens;
-          }
+      rank += 1;
+      const lines = [`[${entity.entity_type}] ${entity.name}: ${entity.description}`];
+      const edges = await BrainStore.getEntityEdges(entity.id);
+      for (const edge of edges.slice(0, limits.graphEdgePerEntity)) {
+        const neighborId = edge.source_entity_id === entity.id
+          ? edge.target_entity_id
+          : edge.source_entity_id;
+        const neighbor = await BrainStore.getEntity(neighborId);
+        if (neighbor) {
+          lines.push(`  → [${edge.relationship}] ${neighbor.name}`);
         }
       }
+      const overlap = uniqueEvidence(gate.lexicalOverlap, gate.sharedEntities);
+      const frac = contentWords(query).length > 0
+        ? Math.min(1, overlap.length / contentWords(query).length)
+        : 1;
+      out.push(toCandidate({
+        key: `entity:${entity.id}`,
+        kind: "entity",
+        score: rankScaledScore(rank, Math.max(frac, 0.25), k0),
+        text: lines.join("\n"),
+        item: {
+          id: entity.id,
+          kind: "entity",
+          title: entity.name,
+          category: entity.entity_type,
+          reason: gate.reason,
+          evidence: overlap,
+          gate_passed: true,
+        },
+        simText: `${entity.name} ${entity.description}`,
+        entities: [entity.name, ...gate.sharedEntities],
+      }));
     }
-
-    return {
-      text: lines.length > 1 ? lines.join("\n") : null,
-      items,
-    };
+    return out;
   }
 
-  static async buildProcedureContext(
+  static async buildGraphContext(
     query: string,
     maxTokens: number,
   ): Promise<{ text: string | null; items: InjectedMemoryItem[] }> {
-    if (contentWords(query).length === 0) return { text: null, items: [] };
+    const candidates = await ContextSections.collectGraphCandidates(query);
+    return ContextSections.takeCandidatesUntil(candidates, maxTokens, "=== Knowledge Graph Context ===");
+  }
+
+  static async collectProcedureCandidates(query: string): Promise<ContextCandidate[]> {
+    if (contentWords(query).length === 0) return [];
     const limit = getContextAssemblyLimits().procedureLimit;
+    const k0 = fusionRankScale();
     const procedures = await BrainStore.searchProcedures(query, limit);
-    if (procedures.length === 0) return { text: null, items: [] };
+    if (procedures.length === 0) return [];
 
-    const lines: string[] = ["=== Relevant Procedures ==="];
-    const items: InjectedMemoryItem[] = [];
-    let tokens = ContextSections.estimateTokens(lines[0]);
-
+    const out: ContextCandidate[] = [];
+    let rank = 0;
     for (const proc of procedures) {
       const gate = evaluateRelevanceGate({
         query,
@@ -509,40 +616,51 @@ export class ContextSections {
         content: `${proc.description} ${proc.category}`,
       });
       if (!gate.passed) continue;
+      rank += 1;
       const steps = JSON.parse(proc.steps) as string[];
       const entry = `[${proc.category}] ${proc.name}: ${proc.description}\n  Steps: ${steps.map((s, i) => `${i + 1}. ${s}`).join(", ")}`;
-      const entryTokens = ContextSections.estimateTokens(entry);
-      if (tokens + entryTokens > maxTokens) break;
-      lines.push(entry);
-      tokens += entryTokens;
-      items.push({
-        id: proc.id,
+      const overlap = uniqueEvidence(gate.lexicalOverlap, gate.sharedEntities);
+      const frac = contentWords(query).length > 0
+        ? Math.min(1, overlap.length / contentWords(query).length)
+        : 1;
+      out.push(toCandidate({
+        key: `procedure:${proc.id}`,
         kind: "procedure",
-        title: proc.name,
-        category: proc.category,
-        reason: gate.reason,
-      });
+        score: rankScaledScore(rank, Math.max(frac, 0.25), k0),
+        text: entry,
+        item: {
+          id: proc.id,
+          kind: "procedure",
+          title: proc.name,
+          category: proc.category,
+          reason: gate.reason,
+          evidence: overlap,
+          gate_passed: true,
+        },
+        simText: `${proc.name} ${proc.description} ${proc.category}`,
+        entities: memoryEntities(proc.name, undefined, proc.description),
+      }));
     }
-
-    return {
-      text: lines.length > 1 ? lines.join("\n") : null,
-      items,
-    };
+    return out;
   }
 
-  static async buildPatternContext(
+  static async buildProcedureContext(
     query: string,
     maxTokens: number,
   ): Promise<{ text: string | null; items: InjectedMemoryItem[] }> {
-    if (contentWords(query).length === 0) return { text: null, items: [] };
+    const candidates = await ContextSections.collectProcedureCandidates(query);
+    return ContextSections.takeCandidatesUntil(candidates, maxTokens, "=== Relevant Procedures ===");
+  }
+
+  static async collectPatternCandidates(query: string): Promise<ContextCandidate[]> {
+    if (contentWords(query).length === 0) return [];
     const limit = getContextAssemblyLimits().patternLimit;
+    const k0 = fusionRankScale();
     const suggestions = await LearningEngine.suggestApproach(query, undefined, limit);
-    if (suggestions.length === 0) return { text: null, items: [] };
+    if (suggestions.length === 0) return [];
 
-    const lines: string[] = ["=== Suggested Approaches (from learned patterns) ==="];
-    const items: InjectedMemoryItem[] = [];
-    let tokens = ContextSections.estimateTokens(lines[0]);
-
+    const out: ContextCandidate[] = [];
+    let rank = 0;
     for (const s of suggestions) {
       const gate = evaluateRelevanceGate({
         query,
@@ -550,31 +668,132 @@ export class ContextSections {
         content: s.reason,
       });
       if (!gate.passed) continue;
+      rank += 1;
       const entry = `[${s.pattern.goal_type}] ${s.pattern.pattern_signature}: ${s.reason}`;
-      const entryTokens = ContextSections.estimateTokens(entry);
-      if (tokens + entryTokens > maxTokens) break;
-      lines.push(entry);
-      tokens += entryTokens;
-      items.push({
-        id: s.pattern.id,
+      const overlap = uniqueEvidence(gate.lexicalOverlap, gate.sharedEntities);
+      const frac = contentWords(query).length > 0
+        ? Math.min(1, Math.max(s.relevance_score, overlap.length / contentWords(query).length))
+        : Math.min(1, s.relevance_score);
+      out.push(toCandidate({
+        key: `pattern:${s.pattern.id}`,
         kind: "pattern",
-        title: s.pattern.pattern_signature,
-        category: s.pattern.goal_type,
-        reason: gate.reason,
-      });
+        score: rankScaledScore(rank, Math.max(frac, 0.25), k0),
+        text: entry,
+        item: {
+          id: s.pattern.id,
+          kind: "pattern",
+          title: s.pattern.pattern_signature,
+          category: s.pattern.goal_type,
+          reason: gate.reason,
+          evidence: overlap,
+          gate_passed: true,
+        },
+        simText: `${s.pattern.pattern_signature} ${s.reason}`,
+        entities: memoryEntities(s.pattern.pattern_signature, undefined, s.reason),
+      }));
     }
+    return out;
+  }
 
-    return {
-      text: lines.length > 1 ? lines.join("\n") : null,
-      items,
-    };
+  static async buildPatternContext(
+    query: string,
+    maxTokens: number,
+  ): Promise<{ text: string | null; items: InjectedMemoryItem[] }> {
+    const candidates = await ContextSections.collectPatternCandidates(query);
+    return ContextSections.takeCandidatesUntil(
+      candidates,
+      maxTokens,
+      "=== Suggested Approaches (from learned patterns) ===",
+    );
+  }
+
+  static collectSessionSummaryCandidate(input: {
+    summary: string;
+    overlap: number;
+    fullMode: boolean;
+  }): ContextCandidate {
+    const k0 = fusionRankScale();
+    const text = `=== Current Session Context ===\n${input.summary}`;
+    const score = input.fullMode
+      ? rankScaledScore(1, 1, k0)
+      : rankScaledScore(1, Math.max(0, Math.min(1, input.overlap)), k0);
+    return toCandidate({
+      key: "summary:session",
+      kind: "summary",
+      score,
+      text,
+      item: {
+        id: null,
+        kind: "episodic",
+        title: "Current session summary",
+        reason: "Summary of the active conversation",
+        score,
+      },
+      simText: input.summary,
+      entities: memoryEntities(undefined, undefined, input.summary),
+      mustKeep: input.fullMode,
+    });
+  }
+
+  /** MEM-30: C_recent overflow injects the session/tree node (must-keep). */
+  static collectOverflowSummaryCandidate(input: {
+    nodeId: number;
+    text: string;
+  }): ContextCandidate {
+    const k0 = fusionRankScale();
+    const score = rankScaledScore(1, 1, k0);
+    const body = `=== Current Session Context ===\n[summary-node ${input.nodeId}] ${input.text}`;
+    return toCandidate({
+      key: "summary:session",
+      kind: "summary",
+      score,
+      text: body,
+      item: {
+        id: input.nodeId,
+        kind: "episodic",
+        title: "Session summary node",
+        reason: "C_recent overflow — old turns replaced by the session tree node for this call",
+        score,
+      },
+      simText: input.text,
+      entities: memoryEntities(undefined, undefined, input.text),
+      mustKeep: true,
+    });
+  }
+
+  static async collectSummaryNodeCandidates(
+    query: string,
+    sessionId?: string,
+  ): Promise<ContextCandidate[]> {
+    if (!sessionId || contentWords(query).length === 0) return [];
+    const k0 = fusionRankScale();
+    const nodes = await searchSummaryNodes({ query, sessionId });
+    return nodes.map((node, index) => {
+      const text = `[summary-node ${node.id}] ${node.text}`;
+      const frac = Math.max(0.25, Math.min(1, node.score));
+      return toCandidate({
+        key: `summary:${node.id}`,
+        kind: "summary",
+        score: rankScaledScore(index + 1, frac, k0),
+        text,
+        item: {
+          id: node.id,
+          kind: "episodic",
+          title: "Summary tree node",
+          reason: "Session summary-tree pointer",
+          score: node.score,
+        },
+        simText: node.text,
+        entities: memoryEntities(undefined, undefined, node.text),
+      });
+    });
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   /**
-   * Compute dynamic budget allocation based on query complexity and content.
-   * Base ratios come from config; query-type boosts adjust within min floors.
+   * Leftover per-section shares (MEM-28). Not the live allocator — MEM-29
+   * selects across sources with budgeted submodular F(X).
    */
   static computeBudget(
     query: string,
@@ -640,6 +859,34 @@ export class ContextSections {
       procedures: Math.floor(maxTokens * procPct),
       patterns: Math.floor(maxTokens * patPct),
     };
+  }
+
+  /**
+   * Leftover helper: disabled categories donate their computeBudget share.
+   * Unused after MEM-29 (submodular selection is the primary allocator).
+   */
+  static leftoverSectionShares(
+    shares: ReturnType<typeof ContextSections.computeBudget>,
+    enabled: {
+      semantic: boolean;
+      episodic: boolean;
+      graph: boolean;
+      procedures: boolean;
+      patterns: boolean;
+    },
+  ): ReturnType<typeof ContextSections.computeBudget> {
+    let leftover = 0;
+    const out = { ...shares };
+    for (const key of ["semantic", "episodic", "graph", "procedures", "patterns"] as const) {
+      if (!enabled[key]) {
+        leftover += shares[key];
+        out[key] = 0;
+        continue;
+      }
+      out[key] = shares[key] + leftover;
+      leftover = 0;
+    }
+    return out;
   }
 
   static estimateTokens(text: string): number {

@@ -33,7 +33,7 @@ export function getConfig() {
 
 export async function updateConfig(input: MemoryConfigInput): Promise<string> {
   await BrainStore.saveConfig(input.key, input.value);
-  // Hot-reload working memory when its config keys change (IMP-05).
+  // Hot-reload working memory when its config keys change (IMP-05 / MEM-33).
   if (input.key.startsWith("working_memory_")) {
     brainRuntime.workingMem = null;
     brainRuntime.workingMemSessionId = null;

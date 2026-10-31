@@ -12,8 +12,9 @@ import type {
   MemoryMode,
   MemoryPhase,
 } from "../types.js";
+import { getLastRoutedWindow, resolveMemoryWindow, sanitizeInjectOverride } from "../window.js";
 import { brainRuntime } from "./state.js";
-import { getWorkingMemory } from "./runtime.js";
+import { getLlm, getWorkingMemory } from "./runtime.js";
 import { recordMetric } from "./telemetry.js";
 
 // ── Auto-context: Build context from memory for conversation ───────────────
@@ -39,7 +40,17 @@ export async function buildContextDetailed(
   message: string,
   currentSessionId?: string,
   maxTokens?: number,
-  options?: { goal?: string; memory_mode?: MemoryMode },
+  options?: {
+    goal?: string;
+    memory_mode?: MemoryMode;
+    llm?: unknown;
+    model?: string;
+    w?: number;
+    w_out?: number;
+    system_tokens?: number;
+    goal_tokens?: number;
+    recent_tokens?: number;
+  },
 ): Promise<BuildContextResult> {
   if (!isBrainEnabled()) {
     return { context: "", items: [] };
@@ -47,8 +58,15 @@ export async function buildContextDetailed(
   const result = await MemoryPipeline.runPreTurn({
     message,
     session_id: currentSessionId,
-    max_tokens: maxTokens,
+    max_tokens: sanitizeInjectOverride(maxTokens),
     goal: options?.goal,
+    llm: options?.llm ?? getLlm() ?? undefined,
+    model: options?.model,
+    w: options?.w,
+    w_out: options?.w_out,
+    system_tokens: options?.system_tokens,
+    goal_tokens: options?.goal_tokens,
+    recent_tokens: options?.recent_tokens,
   });
   return result.context!;
 }
@@ -77,10 +95,11 @@ export async function runPipeline(params: {
       message: params.message ?? "",
       session_id: params.session_id,
       goal: params.goal,
-      max_tokens: params.max_tokens,
+      max_tokens: sanitizeInjectOverride(params.max_tokens),
       turn_id: params.turn_id,
       user_corrected: params.user_corrected,
       user_message: params.user_message,
+      llm: getLlm() ?? undefined,
     });
   }
   if (params.mode === "post_turn") {
@@ -104,7 +123,8 @@ export async function runPipeline(params: {
       session_id: params.session_id,
       role: params.role,
       goal: params.goal,
-      max_tokens: params.max_tokens,
+      max_tokens: sanitizeInjectOverride(params.max_tokens),
+      llm: getLlm() ?? undefined,
       turn_content: params.turn_content,
       user_message: params.user_message,
       assistant_message: params.assistant_message,
@@ -155,13 +175,19 @@ export async function getEffectiveContext() {
     brainRuntime.activeSessionId ?? undefined,
   );
 
-  const w = config.context_max_tokens;
+  const window = getLastRoutedWindow() ?? resolveMemoryWindow({
+    llm: getLlm() ?? undefined,
+    remember: Boolean(getLlm()),
+  });
+  const w = window.w;
   const c_use = buildStats.last_context_tokens_used ?? 0;
 
   return {
     c_addr: hierarchy.c_addr,
     c_use,
     w,
+    w_out: window.wOut,
+    routed_model: window.model,
     rec_rolling: undefined as number | undefined,
     levels: hierarchy.levels,
     tier_tokens: hierarchy.tier_tokens,
@@ -173,8 +199,10 @@ export async function getEffectiveContext() {
     memory_levels: hierarchy.levels,
     working_memory_tokens: wmStats.total_tokens,
     working_memory_budget: wmStats.token_budget,
+    working_memory_lifetime: wmStats.lifetime,
     sensory_buffer_tokens: sensory.estimated_tokens,
     sensory_buffer_ms: sensory.buffer_ms,
+    sensory_lifetime: sensory.lifetime,
     graph_entity_count: graphEntityCount,
     graph_channel_size: graphEntityCount,
     graph_role: "channel" as const,
@@ -193,7 +221,7 @@ export async function getEffectiveContext() {
   };
 }
 
-/** Record tokens saved from compress-oldest overflow (IMP-15). */
+/** Record tokens saved when overflow replaces old turns with a summary node (MEM-30). */
 export function recordCompressionMetrics(tokensSaved: number): void {
   if (tokensSaved <= 0) return;
   brainRuntime.compressionMetrics.record(tokensSaved);
@@ -213,9 +241,12 @@ export function getCompressionStats() {
   return brainRuntime.compressionMetrics.getStats();
 }
 
-/** Score task difficulty and route to configured model (IMP-17). */
+/** Score task difficulty and route to configured model (IMP-17 / MEM-27). */
 export function routeTask(input: TaskScoreInput): TaskRouteResult {
-  return TaskRouter.scoreAndRoute(input);
+  return TaskRouter.scoreAndRoute({
+    ...input,
+    llm: input.llm ?? getLlm() ?? undefined,
+  });
 }
 
 /** Start local autonomous execution loop (IMP-24). */

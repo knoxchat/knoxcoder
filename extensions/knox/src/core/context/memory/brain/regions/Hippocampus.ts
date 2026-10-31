@@ -1,7 +1,10 @@
 /**
- * Hippocampus — Encoding + long-term storage facade (φ₄, φ₅, φ₆).
- * Wraps AutoMemory and BrainStore. Sends Hippocampus→Prefrontal feedback
- * as a recent-knowledge hint (REL-07: never overwrites C_goal).
+ * Hippocampus — recall / store stage H (MEM-31).
+ *
+ *   P ─recall/store→ H ─procedure→ B_g
+ *
+ * Wraps AutoMemory, fusion retrieval, and φ₄/φ₅ persist. H→P is a
+ * recent-knowledge hint (REL-07: never overwrites C_goal).
  *
  * Part III:
  *   φ₄ consolidation — extract + store to M₃ (hot/short-term)
@@ -166,11 +169,30 @@ export const Hippocampus = {
   },
 
   /**
-   * @deprecated K-073: hot path uses `RetrievalFusion.search` from ContextBuilder.
-   * Kept as a thin wrapper for tests and the pipeline.
-   *
-   * φ₆ — multi-strategy fusion retrieval (M layer in O(x)).
-   * Callers must pass the returned hits into φ₈ (`fusion_hits`) so assembly
+   * H→P: retrieved memory can re-plan. Hint only — never C_goal (REL-07).
+   */
+  replanFromHits(hits: FusionResult[], sessionId?: string): void {
+    const top = hits[0];
+    if (!top) return;
+    if (top.type === "semantic") {
+      const row = top.data as { title?: string; category?: string };
+      PrefrontalCortex.feedbackFromHippocampus(
+        { title: row.title, category: row.category },
+        sessionId,
+      );
+      return;
+    }
+    const content = String((top.data as { content?: string }).content ?? "").trim();
+    if (!content) return;
+    PrefrontalCortex.feedbackFromHippocampus(
+      { title: content.slice(0, 80), category: "episodic" },
+      sessionId,
+    );
+  },
+
+  /**
+   * φ₆ — multi-strategy fusion retrieval (H on the live path).
+   * Callers must pass the returned hits into B_s (`fusion_hits`) so assembly
    * does not search again (REL-04).
    */
   async fusionRetrieve(input: {

@@ -680,6 +680,7 @@ export interface IKnoxGuiEffectiveContext {
 		effectiveTokens?: number;
 		role?: 'buffer' | 'store';
 		inCAddr?: boolean;
+		lifetime?: 'turn' | 'call' | 'session' | 'stored';
 	}>;
 }
 
@@ -711,6 +712,9 @@ export interface IKnoxGuiMemoryPhaseStatus {
 	activePhase?: string;
 	phaseCounts: Record<string, number>;
 	cycleInvariantMet?: boolean;
+	budgetInvariantMet?: boolean;
+	reachabilityInvariantMet?: boolean;
+	losslessnessInvariantMet?: boolean;
 	backgroundSleepActive?: boolean;
 	lastCompleted?: string;
 }

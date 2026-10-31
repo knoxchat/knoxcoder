@@ -11,6 +11,11 @@ import { resolvePprAlpha, resolvePprEpsilon } from "./channels/ppr.js";
 import { BrainStore } from "./BrainStore.js";
 import { detectIntent, type RetrievalIntent } from "./RetrievalQuery.js";
 import type { MemoryConfig, MemoryMode } from "./types.js";
+import {
+  resolveMemoryWindow,
+  sanitizeInjectOverride,
+  type MemoryWindow,
+} from "./window.js";
 
 export interface ModeSettings {
   semanticLimit: number;
@@ -118,24 +123,148 @@ export function getMemoryConfig(): MemoryConfig {
 }
 
 /**
- * K-035: hard ceiling on tokens injected into one turn, whatever the stored
- * `context_max_tokens` says (its default ceiling is 10M, i.e. unlimited).
+ * Leftover name for the local C_mem cap. Live default is `w_mem_tokens` (4096).
  * Override with `KNOX_MEMORY_INJECT_CAP` (minimum 500).
  */
-export const MEMORY_INJECT_HARD_CAP_TOKENS = 8_000;
+export const MEMORY_INJECT_HARD_CAP_TOKENS = 4096;
 
-export function getMemoryInjectHardCap(): number {
-  const raw = Number(process.env.KNOX_MEMORY_INJECT_CAP);
-  return Number.isFinite(raw) && raw >= 500
-    ? Math.floor(raw)
-    : MEMORY_INJECT_HARD_CAP_TOKENS;
+export interface MemoryOccupancy {
+  systemTokens?: number;
+  goalTokens?: number;
+  recentTokens?: number;
 }
 
-/** Active context window cap (W_max) — primary knob for injection budget. */
+export interface MemoryBudget {
+  w: number;
+  wOut: number;
+  systemTokens: number;
+  goalTokens: number;
+  recentTokens: number;
+  /** W − |C_system| − |C_goal| − |C_recent| − W_out */
+  remainder: number;
+  /** min(remainder, local w_mem cap, optional tighter override) */
+  wMem: number;
+}
+
+function nonNegInt(value?: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+  return Math.floor(value);
+}
+
+/** Local C_mem cap (`w_mem_tokens`, default 4096). Not a third 8k constant. */
+export function getMemoryInjectHardCap(): number {
+  const raw = Number(process.env.KNOX_MEMORY_INJECT_CAP);
+  if (Number.isFinite(raw) && raw >= 500) {
+    return Math.floor(raw);
+  }
+  const n = Number(getMemoryConfig().w_mem_tokens);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : MEMORY_INJECT_HARD_CAP_TOKENS;
+}
+
+/**
+ * Live W(Model(x)). Never the 10M stored ceiling.
+ * An explicit override is a tighter cap, not a way to request 10M.
+ */
 export function getContextMaxTokens(override?: number): number {
-  const cfg = getMemoryConfig();
-  const cap = override ?? cfg.context_max_tokens;
-  return Math.min(cap, cfg.max_context_tokens);
+  const window = resolveMemoryWindow();
+  const requested = sanitizeInjectOverride(override);
+  if (requested !== undefined) {
+    return Math.min(requested, window.w);
+  }
+  return window.w;
+}
+
+/**
+ * W_mem = min(w_mem_tokens, W − |C_system| − |C_goal| − |C_recent| − W_out).
+ * The old 8k constant is not a third cap (MEM-28).
+ */
+export function computeWMem(options?: {
+  w?: number;
+  wOut?: number;
+  maxTokensOverride?: number;
+  llm?: unknown;
+  model?: string;
+  window?: MemoryWindow;
+} & MemoryOccupancy): MemoryBudget {
+  const resolved =
+    options?.window ??
+    (options?.w !== undefined && options?.wOut !== undefined
+      ? undefined
+      : resolveMemoryWindow({
+          llm: options?.llm,
+          model: options?.model,
+          contextLength: options?.w,
+          maxTokens: options?.wOut,
+          remember: Boolean(options?.llm || options?.model),
+        }));
+  const w = Math.max(0, Math.floor(options?.w ?? resolved?.w ?? resolveMemoryWindow().w));
+  const rawOut = Math.floor(options?.wOut ?? resolved?.wOut ?? 0);
+  const wOut = Math.min(Math.max(0, rawOut), w);
+  const systemTokens = nonNegInt(options?.systemTokens);
+  const goalTokens = nonNegInt(options?.goalTokens);
+  const recentTokens = nonNegInt(options?.recentTokens);
+  const remainder = Math.max(0, w - systemTokens - goalTokens - recentTokens - wOut);
+  const localCap = getMemoryInjectHardCap();
+  const requested = sanitizeInjectOverride(options?.maxTokensOverride);
+  const wMem = Math.max(0, Math.min(remainder, localCap, requested ?? remainder));
+  return { w, wOut, systemTokens, goalTokens, recentTokens, remainder, wMem };
+}
+
+export interface RecentSharePlan {
+  usable: number;
+  /** Remainder after reserving the local W_mem cap. */
+  recentShare: number;
+  recentTokensRaw: number;
+  /** |C_recent| after overflow collapse (this call only). */
+  recentTokens: number;
+  overflowed: boolean;
+}
+
+/**
+ * MEM-30 — C_recent's share is the usable window after reserving W_mem.
+ * Overflow only when recent occupancy leaves no remainder (it ate W_mem).
+ * Then old turns collapse to `recentShare` so C_mem recovers.
+ */
+export function planRecentShare(options: {
+  w: number;
+  wOut: number;
+  systemTokens?: number;
+  goalTokens?: number;
+  recentTokens?: number;
+  wMemCap?: number;
+}): RecentSharePlan {
+  const w = Math.max(0, Math.floor(options.w));
+  const wOut = Math.min(Math.max(0, Math.floor(options.wOut)), w);
+  const systemTokens = nonNegInt(options.systemTokens);
+  const goalTokens = nonNegInt(options.goalTokens);
+  const recentTokensRaw = nonNegInt(options.recentTokens);
+  const usable = Math.max(0, w - systemTokens - goalTokens - wOut);
+  const wMemCap = Math.max(0, Math.floor(options.wMemCap ?? getMemoryInjectHardCap()));
+  const reservedMem = Math.min(wMemCap, usable);
+  const recentShare = Math.max(0, usable - reservedMem);
+  const remainder = Math.max(0, usable - recentTokensRaw);
+  const overflowed = recentTokensRaw > 0 && remainder === 0;
+  return {
+    usable,
+    recentShare,
+    recentTokensRaw,
+    recentTokens: overflowed ? recentShare : recentTokensRaw,
+    overflowed,
+  };
+}
+
+/** Tokens allowed for C_mem this call (MEM-28). */
+export function getMemoryInjectBudget(options?: {
+  w?: number;
+  wOut?: number;
+  maxTokensOverride?: number;
+  llm?: unknown;
+  model?: string;
+  window?: MemoryWindow;
+} & MemoryOccupancy): number {
+  return computeWMem(options).wMem;
 }
 
 /** C_goal token budget share. */
@@ -258,19 +387,22 @@ export function calculateEffectiveContext(tierTokens: Record<string, number>): n
   return total;
 }
 
+/**
+ * M₂ scratchpad knobs. Token budget is not W_mem and is not capped at 30K
+ * (MEM-33). `ttlSeconds` 0 means session/call lifetime (no wall-clock TTL).
+ */
 export function getWorkingMemoryOptions(): WorkingMemoryOptions {
   const cfg = getMemoryConfig();
-  const derived =
+  const tokenBudget =
     cfg.working_memory_token_budget > 0
-      ? cfg.working_memory_token_budget
-      : Math.floor(cfg.context_max_tokens * cfg.working_memory_token_ratio);
-  /** Knox-MS M₂ spec cap: 30K tokens (IMP-05). */
-  const tokenBudget = Math.min(derived, 30_000);
+      ? Math.floor(cfg.working_memory_token_budget)
+      : Math.max(1, Math.floor(getContextMaxTokens() * cfg.working_memory_token_ratio));
+  const ttl = Number(cfg.working_memory_ttl_seconds);
   return {
     maxSlots: cfg.working_memory_max_slots,
     tokenBudget,
     decayRatePerSecond: cfg.working_memory_decay_rate,
-    ttlSeconds: cfg.working_memory_ttl_seconds,
+    ttlSeconds: Number.isFinite(ttl) && ttl > 0 ? ttl : 0,
   };
 }
 
@@ -313,7 +445,7 @@ export function getEbbinghausConfig(): EbbinghausConfig {
   };
 }
 
-/** Revised Knox-MS parameter table. forgetting_F / forgetting_c (MEM-12), FSRS a/b/g (MEM-14), κ / θ_arch (MEM-13), RRF k₀ / w_s (MEM-20), η_U / η_R (MEM-21), fused-candidate / θ cut-off (MEM-22), and PPR α / ε (MEM-25) are live. */
+/** Revised Knox-MS parameter table. forgetting_F / forgetting_c (MEM-12), FSRS a/b/g (MEM-14), κ / θ_arch (MEM-13), RRF k₀ / w_s (MEM-20), η_U / η_R (MEM-21), fused-candidate / θ cut-off (MEM-22), PPR α / ε (MEM-25), and coverage λ (MEM-29) are live. */
 export interface TheoremParams {
   forgettingF: number;
   forgettingC: number;

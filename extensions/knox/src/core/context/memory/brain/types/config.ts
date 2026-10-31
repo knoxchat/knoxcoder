@@ -2,7 +2,10 @@
 
 import type { MemoryMode, MemoryScope } from "./pipeline.js";
 
-/** Maximum memory context token ceiling (10M). W_max for injection budget. */
+/**
+ * Leftover stored ceiling (10M). Not live W (MEM-27).
+ * W is `resolveContextWindow(llm).contextLength` of the routed model.
+ */
 export const MEMORY_CONTEXT_TOKEN_CEILING = 10_000_000;
 
 export interface MemoryConfig {
@@ -19,9 +22,12 @@ export interface MemoryConfig {
   cold_prune_days: number;
   graph_enabled: boolean;
   learning_enabled: boolean;
-  /** Active injection budget per turn (W_active). */
+  /**
+   * Leftover stored ceiling. Live W is the routed model's window (MEM-27).
+   * Do not use this as the inject budget.
+   */
   context_max_tokens: number;
-  /** Hard ceiling for context window (W_max). Default: 10M tokens. */
+  /** Leftover stored ceiling alias. Not live W (MEM-27). */
   max_context_tokens: number;
   /** Share of context_max_tokens reserved for C_goal. */
   context_goal_budget_ratio: number;
@@ -53,7 +59,10 @@ export interface MemoryConfig {
   graph_max_depth: number;
   /** Scope retrieval to current workspace by default. */
   memory_scope: MemoryScope;
-  /** M₁ sensory buffer flush delay in milliseconds. */
+  /**
+   * Optional M₁ debounce in milliseconds (MEM-33).
+   * 0 = flush only on the turn boundary. Not the theorem lifetime.
+   */
   sensory_buffer_ms: number;
   /** Auto-summarize sessions on close. */
   auto_summarize: boolean;
@@ -168,12 +177,19 @@ export interface MemoryConfig {
   compression_ratio_frozen: number;
 
   // ── Working memory (M₂) ───────────────────────────────────────────────────
+  /** UX scratchpad slot count for this call. Not W_mem. */
   working_memory_max_slots: number;
-  /** Fixed token budget; 0 = derive from context_max_tokens × working_memory_token_ratio */
+  /**
+   * M₂ scratchpad token cap. 0 = derive from live W × ratio.
+   * Not W_mem (inject budget) and not a 30K theorem spec (MEM-33).
+   */
   working_memory_token_budget: number;
   working_memory_token_ratio: number;
   working_memory_decay_rate: number;
-  /** Item TTL in seconds (~30s per Knox-MS M₂ spec). */
+  /**
+   * Optional leftover eviction clock in seconds (MEM-33).
+   * 0 = session/call lifetime (no wall-clock TTL). Not a 30s spec.
+   */
   working_memory_ttl_seconds: number;
 
   // ── Task difficulty routing (IMP-17) ──────────────────────────────────────
@@ -211,9 +227,9 @@ export interface MemoryConfig {
   tree_branching_b: number;
   /** Summary-tree beam width B. */
   tree_beam_B: number;
-  /** Submodular coverage weight λ. */
+  /** Submodular coverage weight λ. Live in MEM-29. */
   coverage_lambda: number;
-  /** Local C_mem cap (tokens). Not the live inject hard cap until MEM-28. */
+  /** Local C_mem cap (tokens). Live in MEM-28 when the W remainder is larger. */
   w_mem_tokens: number;
   /** Fused candidates before the calibrated θ cut-off (MEM-22). */
   fusion_candidate_cutoff: number;

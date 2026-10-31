@@ -90,10 +90,13 @@ describe("MEM-07 addressable memory metrics", () => {
     expect(hierarchy.c_addr).toBe(hierarchy.m3_tokens + hierarchy.m4_tokens + hierarchy.m5_tokens);
     expect(hierarchy.c_addr).not.toBe(500 + hierarchy.m4_tokens);
 
+    const { resetRoutedWindow, resolveMemoryWindow } = await import("./window.js");
+    resetRoutedWindow();
     const metrics = await BrainManager.getEffectiveContext();
     expect(metrics.c_addr).toBe(hierarchy.c_addr);
     expect(metrics.c_use).toBe(0);
-    expect(metrics.w).toBe(BrainStore.getConfig().context_max_tokens);
+    expect(metrics.w).toBe(resolveMemoryWindow().w);
+    expect(metrics.w).toBeLessThan(BrainStore.getConfig().context_max_tokens);
     expect(metrics).not.toHaveProperty("total_effective");
     expect(metrics).not.toHaveProperty("hierarchy_effective_tokens");
     expect(metrics.c_addr).not.toBe(metrics.w + hierarchy.c_addr);

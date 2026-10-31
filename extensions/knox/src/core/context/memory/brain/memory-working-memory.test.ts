@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { injectedItemPassedGate } from "./RelevanceGate.js";
 import { Brainstem } from "./regions/Brainstem.js";
-import { Thalamus } from "./regions/Thalamus.js";
+import { Thalamus, WM_SALIENCE_SLOT_THRESHOLD } from "./regions/Thalamus.js";
 import {
   CURRENT_TURN_SLOT_ID,
   WM_EVICT_BELOW,
@@ -203,10 +203,13 @@ describe("REL-06 topic shift + current-turn slot", () => {
     expect(slots[0].content).toMatch(/readme badges/i);
   });
 
-  it("does not add a current-turn slot for low-salience filler", () => {
+  it("weights low-salience filler with I₀ instead of dropping the slot (MEM-31)", () => {
     const wm = freshWm();
     Thalamus.attend(wm, "hello");
-    expect(wm.getAll()).toHaveLength(0);
+    const slots = wm.getAll();
+    expect(slots).toHaveLength(1);
+    expect(slots[0].id).toBe(CURRENT_TURN_SLOT_ID);
+    expect(slots[0].relevance).toBeLessThan(WM_SALIENCE_SLOT_THRESHOLD);
   });
 });
 

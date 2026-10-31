@@ -1,11 +1,13 @@
 /**
- * TaskRouter — Local task difficulty scoring and model routing (IMP-17).
+ * TaskRouter — Local task difficulty scoring and model routing (IMP-17 / MEM-27).
  *
  * Scores D(x) from message length, code blocks, and tool count.
- * Maps to easy/medium/hard models from local MemoryConfig — not Knox API.
+ * Maps to easy/medium/hard models from local MemoryConfig when those ids
+ * are set. W follows Model(x) via resolveContextWindow.
  */
 
 import { getMemoryConfig } from "./memoryConfigAccess.js";
+import { resolveMemoryWindow, type MemoryWindow } from "./window.js";
 
 export type TaskDifficulty = "easy" | "medium" | "hard";
 
@@ -13,6 +15,8 @@ export interface TaskScoreInput {
   message: string;
   toolCount?: number;
   codeBlockCount?: number;
+  /** Current / fallback LLM. Used when a tier model id is empty, and for W. */
+  llm?: unknown;
 }
 
 export interface TaskScoreResult {
@@ -29,8 +33,13 @@ export interface TaskScoreResult {
 export interface TaskRouteResult {
   difficulty: TaskDifficulty;
   score: number;
-  /** Resolved model ID, or empty string if no model configured for tier */
+  /** Configured easy/medium/hard model, else the current LLM model id. */
   modelId: string;
+  /** W(Model(x)) — routed model contextLength (MEM-27). */
+  w: number;
+  /** W_out — reserved completion tokens (MEM-27). */
+  wOut: number;
+  window: MemoryWindow;
 }
 
 /** Score task difficulty locally. */
@@ -63,23 +72,39 @@ export function scoreDifficulty(input: TaskScoreInput): TaskScoreResult {
   return { difficulty, score, factors: { lengthScore, codeScore, toolScore } };
 }
 
-/** Map difficulty to configured model ID. */
-export function routeModel(difficulty: TaskDifficulty): string {
+function configuredTierModel(difficulty: TaskDifficulty): string {
   const cfg = getMemoryConfig();
-  switch (difficulty) {
-    case "easy":
-      return cfg.easy_model;
-    case "medium":
-      return cfg.medium_model;
-    case "hard":
-      return cfg.hard_model;
-  }
+  const raw =
+    difficulty === "easy"
+      ? cfg.easy_model
+      : difficulty === "medium"
+        ? cfg.medium_model
+        : cfg.hard_model;
+  return typeof raw === "string" ? raw.trim() : "";
 }
 
-/** Score and route in one call. */
+function fallbackModelId(llm?: unknown): string {
+  const model = (llm as { model?: unknown } | undefined)?.model;
+  return typeof model === "string" ? model.trim() : "";
+}
+
+/** Map difficulty to configured model ID, else the current LLM. */
+export function routeModel(difficulty: TaskDifficulty, llm?: unknown): string {
+  return configuredTierModel(difficulty) || fallbackModelId(llm);
+}
+
+/** Score and route in one call. W follows the routed Model(x). */
 export function scoreAndRoute(input: TaskScoreInput): TaskRouteResult {
   const { difficulty, score } = scoreDifficulty(input);
-  return { difficulty, score, modelId: routeModel(difficulty) };
+  const modelId = routeModel(difficulty, input.llm);
+  const llmModel = fallbackModelId(input.llm);
+  const llmMatches = !modelId || !llmModel || llmModel === modelId;
+  const window = resolveMemoryWindow({
+    model: modelId || undefined,
+    llm: llmMatches ? input.llm : undefined,
+    remember: true,
+  });
+  return { difficulty, score, modelId, w: window.w, wOut: window.wOut, window };
 }
 
 export const TaskRouter = {

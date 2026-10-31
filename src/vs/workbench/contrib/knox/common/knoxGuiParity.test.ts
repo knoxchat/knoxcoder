@@ -1254,7 +1254,7 @@ suite('Knox native GUI parity', () => {
 			window_utilization: 0.4,
 			tier_tokens: { hot: 8 },
 			compression_ratios: { hot: 2 },
-			memory_levels: [{ id: 'M1', name: 'Sensory', tokens: 4, ratio: 1, effective_tokens: 4, role: 'buffer', in_c_addr: false }],
+			memory_levels: [{ id: 'M1', name: 'Sensory', tokens: 4, ratio: 1, effective_tokens: 4, role: 'buffer', in_c_addr: false, lifetime: 'turn' }],
 			graph_entity_count: 12,
 			graph_channel_size: 12,
 			graph_role: 'channel',
@@ -1267,6 +1267,7 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(ctx?.levels[0].effectiveTokens, 4);
 		assert.strictEqual(ctx?.levels[0].role, 'buffer');
 		assert.strictEqual(ctx?.levels[0].inCAddr, false);
+		assert.strictEqual(ctx?.levels[0].lifetime, 'turn');
 		assert.strictEqual(ctx?.graphChannelSize, 12);
 		assert.strictEqual(ctx?.graphRole, 'channel');
 		assert.strictEqual(ctx?.graphIsCapacity, false);
@@ -1302,6 +1303,11 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(MEMORY_DEFAULT_CONFIG.retrieval_threshold, 0.35);
 		assert.strictEqual(MEMORY_DEFAULT_CONFIG.retrieval_top_k, 50);
 		assert.strictEqual(MEMORY_DEFAULT_CONFIG.w_mem_tokens, 4096);
+		assert.strictEqual(MEMORY_DEFAULT_CONFIG.sensory_buffer_ms, 0);
+		assert.strictEqual(MEMORY_DEFAULT_CONFIG.working_memory_ttl_seconds, 0);
+		assert.ok((MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryWorkingMemorySettings')?.fields.find(field => field.key === 'sensory_buffer_ms')?.min ?? 1) === 0);
+		assert.ok((MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryWorkingMemorySettings')?.fields.find(field => field.key === 'working_memory_ttl_seconds')?.min ?? 1) === 0);
+		assert.ok((MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryWorkingMemorySettings')?.fields.find(field => field.key === 'working_memory_token_budget')?.max ?? 0) > 30000);
 		assert.ok(MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryProductSettings')?.fields.some(field => field.key === 'retrieval_top_k'));
 		assert.ok(!MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryProductSettings')?.expert);
 		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.titleKey === 'memoryTaskRoutingSettings'));
