@@ -181,4 +181,5 @@ export class BrainStore {
   static incrementUtilityCountsOn = attribution.incrementUtilityCountsOn;
   static incrementRecipeUtilityCounts = attribution.incrementRecipeUtilityCounts;
   static incrementRecipeUtilityCountsOn = attribution.incrementRecipeUtilityCountsOn;
+  static rollingInjectCiteRate = attribution.rollingInjectCiteRate;
 }

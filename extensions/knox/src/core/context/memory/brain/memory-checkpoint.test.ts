@@ -572,6 +572,109 @@ describe("memory checkpoints", () => {
     expect(recipe?.memoryId).toBeTruthy();
     expect(await BrainStore.getSemanticById(recipe!.memoryId!)).not.toBeNull();
   });
+
+  it("rewinds theorem columns on semantic and graph rows (MEM-36)", async () => {
+    await reset();
+    const sessionId = "cp-mem36-theorem";
+    await BrainManager.trackSession(sessionId, "MEM-36 theorem", testDir);
+    const memoryId = await BrainManager.store({
+      category: "fact",
+      title: "Valid TypeScript alias",
+      content: "TS is TypeScript for this project.",
+      keywords: "typescript, ts",
+      session_id: sessionId,
+      importance: 0.8,
+    });
+    const db = await BrainStore.get();
+    await db.run(
+      `UPDATE brain_semantic
+       SET stability = 14, difficulty = 4, i0 = 0.8,
+           helpful_count = 3, unhelpful_count = 1, inject_count = 7,
+           valid_from = '2024-01-01', valid_to = '2026-12-31',
+           summary_of = '[1]', tombstoned_at = NULL
+       WHERE id = ?`,
+      [memoryId],
+    );
+    const entityId = await BrainStore.addEntity({
+      name: "TypeScript",
+      entity_type: "concept",
+      description: "Language",
+      properties: {},
+      confidence: 0.9,
+    });
+    await db.run(
+      `UPDATE brain_entities
+       SET canonical_id = ?, valid_from = '2024-01-01', valid_to = '2026-12-31'
+       WHERE id = ?`,
+      [entityId, entityId],
+    );
+    const edgeId = await BrainStore.addEdge({
+      source_entity_id: entityId,
+      target_entity_id: entityId,
+      relationship: "alias_of",
+      weight: 1,
+    });
+    await db.run(
+      `UPDATE brain_graph_edges
+       SET valid_from = '2024-01-01', valid_to = '2026-12-31', canonical_id = ?
+       WHERE id = ?`,
+      [entityId, edgeId],
+    );
+
+    const checkpoint = await BrainManager.createCheckpoint("theorem-cols");
+    await db.run(
+      `UPDATE brain_semantic
+       SET stability = 1, helpful_count = 0, unhelpful_count = 0, inject_count = 0,
+           valid_to = NULL
+       WHERE id = ?`,
+      [memoryId],
+    );
+    await db.run(
+      "UPDATE brain_entities SET canonical_id = NULL, valid_to = NULL WHERE id = ?",
+      [entityId],
+    );
+
+    await BrainManager.rollbackCheckpoint(checkpoint.id);
+
+    const fact = await db.get<{
+      stability: number;
+      difficulty: number;
+      i0: number;
+      helpful_count: number;
+      unhelpful_count: number;
+      inject_count: number;
+      valid_from: string;
+      valid_to: string;
+      summary_of: string;
+    }>("SELECT stability, difficulty, i0, helpful_count, unhelpful_count, inject_count, valid_from, valid_to, summary_of FROM brain_semantic WHERE id = ?", [memoryId]);
+    expect(fact?.stability).toBe(14);
+    expect(fact?.difficulty).toBe(4);
+    expect(fact?.i0).toBeCloseTo(0.8);
+    expect(fact?.helpful_count).toBe(3);
+    expect(fact?.unhelpful_count).toBe(1);
+    expect(fact?.inject_count).toBe(7);
+    expect(fact?.valid_from).toContain("2024-01-01");
+    expect(fact?.valid_to).toContain("2026-12-31");
+    expect(fact?.summary_of).toBe("[1]");
+
+    const entity = await db.get<{
+      canonical_id: number;
+      valid_from: string;
+      valid_to: string;
+    }>("SELECT canonical_id, valid_from, valid_to FROM brain_entities WHERE id = ?", [entityId]);
+    expect(entity?.canonical_id).toBe(entityId);
+    expect(entity?.valid_from).toContain("2024-01-01");
+    expect(entity?.valid_to).toContain("2026-12-31");
+
+    const edge = await db.get<{
+      canonical_id: number;
+      valid_from: string;
+      valid_to: string;
+    }>("SELECT canonical_id, valid_from, valid_to FROM brain_graph_edges WHERE id = ?", [edgeId]);
+    expect(edge?.canonical_id).toBe(entityId);
+    expect(edge?.valid_from).toContain("2024-01-01");
+    expect(edge?.valid_to).toContain("2026-12-31");
+  });
 });
 
 async function captureVerifiedRecipe(opts: {

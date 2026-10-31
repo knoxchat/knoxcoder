@@ -7,7 +7,7 @@ import path from "path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { applyOutcomeWeight, conflictsWith } from "./memoryOutcomes.js";
+import { conflictsWith } from "./memoryOutcomes.js";
 
 const testDir = path.join(os.tmpdir(), `brain-outcomes-${Date.now()}`);
 
@@ -46,14 +46,6 @@ describe("MC-51 outcome-aware strength (pure)", () => {
     expect(Ebbinghaus.outcomeFactor(1000, 0)).toBe(1.3);
     expect(Ebbinghaus.outcomeFactor(0, 1000)).toBe(0.4);
     expect(Ebbinghaus.outcomeFactor(0, 0)).toBe(1);
-  });
-
-  it("boost cannot admit a below-threshold candidate; penalty always applies unless pinned", () => {
-    expect(applyOutcomeWeight(0.3, { verified: 6, reverted: 0 }, 0.6)).toBe(0.3);
-    expect(applyOutcomeWeight(0.7, { verified: 6, reverted: 0 }, 0.6)).toBeGreaterThan(0.7);
-    expect(applyOutcomeWeight(0.7, { verified: 0, reverted: 2 }, 0.6)).toBeLessThan(0.7);
-    expect(applyOutcomeWeight(0.7, { verified: 0, reverted: 2 }, 0.6, true)).toBe(0.7);
-    expect(applyOutcomeWeight(0.7, undefined, 0.6)).toBe(0.7);
   });
 });
 

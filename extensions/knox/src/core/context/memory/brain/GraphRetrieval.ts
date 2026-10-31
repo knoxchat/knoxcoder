@@ -140,26 +140,3 @@ export function entityNameMatchesMemory(memoryText: string, entityName: string):
   if (hasWordBoundary(memoryText, n)) return true;
   return textMentionsEntityAliases(memoryText, n);
 }
-
-/**
- * Leftover additive-fusion cap (REL-11). Live retrieve scores by RRF ranks
- * (MEM-20) and S_graph = max π (MEM-25); this helper is not on the hot path.
- */
-export function capGraphContribution(
-  textLexical: number,
-  graphWeighted: number,
-  recencyImportanceCapped: number,
-  theta: number,
-  fts5: number,
-  trigram: number,
-  lexicalFloor: number,
-  thetaMargin: number,
-): number {
-  if (graphWeighted <= 0) return 0;
-  if (fts5 + trigram >= lexicalFloor) return graphWeighted;
-  const maxGraph = Math.max(
-    0,
-    theta - thetaMargin - textLexical - recencyImportanceCapped,
-  );
-  return Math.min(graphWeighted, maxGraph);
-}

@@ -130,6 +130,7 @@ interface Db {
   exec(sql: string): Promise<unknown>;
   run(sql: string, ...params: unknown[]): Promise<{ changes?: number }>;
   get<T = unknown>(sql: string, ...params: unknown[]): Promise<T | undefined>;
+  all<T = unknown>(sql: string, ...params: unknown[]): Promise<T[]>;
 }
 
 /** Default cap on `brain.sqlite` (+ WAL). Override with `KNOX_BRAIN_MAX_BYTES`; `0` disables. */
@@ -231,11 +232,150 @@ export interface SizeCapResult {
   capped: boolean;
 }
 
+const SIZE_CAP_REASON = "max_bytes";
+const SIZE_CAP_AUDIT_KEEP = 1000;
+
+async function usedPages(db: Db): Promise<number> {
+  const pc = await db.get<{ n: number }>("PRAGMA page_count");
+  const fl = await db.get<{ n: number }>("PRAGMA freelist_count");
+  const ps = await db.get<{ n: number }>("PRAGMA page_size");
+  const pages = (pc as { page_count?: number; n?: number } | undefined)?.page_count ?? pc?.n ?? 0;
+  const free = (fl as { freelist_count?: number; n?: number } | undefined)?.freelist_count ?? fl?.n ?? 0;
+  const size = (ps as { page_size?: number; n?: number } | undefined)?.page_size ?? ps?.n ?? 4096;
+  return (pages - free) * size;
+}
+
+async function tryRun(db: Db, sql: string, params: unknown[] = []): Promise<number> {
+  try {
+    return (params.length > 0 ? await db.run(sql, params) : await db.run(sql)).changes ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function auditSizeCap(
+  db: Db,
+  kind: string,
+  ids: number[],
+  extra: Record<string, unknown> = {},
+): Promise<void> {
+  if (ids.length === 0) return;
+  await tryRun(
+    db,
+    "INSERT INTO brain_audit_log (action, target_type, target_id, details) VALUES (?, ?, ?, ?)",
+    [
+      "tombstone",
+      kind,
+      String(ids[0] ?? ""),
+      JSON.stringify({
+        reason: SIZE_CAP_REASON,
+        via: "max_bytes",
+        count: ids.length,
+        ids: ids.slice(0, 32),
+        ...extra,
+      }),
+    ],
+  );
+}
+
+/** Tombstone live ids (pinned semantic stays). Returns how many rows flipped. */
+async function tombstoneLeafIds(
+  db: Db,
+  table: "brain_semantic" | "brain_episodic",
+  kind: "semantic" | "episodic",
+  ids: number[],
+): Promise<number> {
+  const unique = [...new Set(ids.map((id) => Math.trunc(Number(id))).filter((id) => id > 0))];
+  if (unique.length === 0) return 0;
+  let candidates = unique;
+  if (kind === "semantic") {
+    const placeholders = unique.map(() => "?").join(",");
+    const pinned = await db.all<{ memory_id: number }>(
+      `SELECT memory_id FROM brain_tags
+       WHERE memory_type = 'semantic' AND tag = 'pinned'
+         AND memory_id IN (${placeholders})`,
+      unique,
+    ).catch(() => [] as { memory_id: number }[]);
+    const pinnedIds = new Set((pinned ?? []).map((row) => Number(row.memory_id)));
+    candidates = unique.filter((id) => !pinnedIds.has(id));
+  }
+  if (candidates.length === 0) return 0;
+  const placeholders = candidates.map(() => "?").join(",");
+  const n = await tryRun(
+    db,
+    `UPDATE ${table}
+     SET tombstoned_at = datetime('now'),
+         tombstone_reason = ?,
+         tier = 'frozen'
+     WHERE id IN (${placeholders}) AND tombstoned_at IS NULL`,
+    [SIZE_CAP_REASON, ...candidates],
+  );
+  if (n > 0) await auditSizeCap(db, kind, candidates);
+  return n;
+}
+
+async function tombstoneExpiredSemantic(db: Db): Promise<number> {
+  const rows = await db.all<{ id: number }>(
+    `SELECT id FROM brain_semantic
+     WHERE tombstoned_at IS NULL
+       AND expires_at IS NOT NULL
+       AND expires_at < datetime('now')
+       AND id NOT IN (
+         SELECT memory_id FROM brain_tags
+         WHERE memory_type = 'semantic' AND tag = 'pinned'
+       )`,
+  ).catch(() => [] as { id: number }[]);
+  return tombstoneLeafIds(
+    db,
+    "brain_semantic",
+    "semantic",
+    (rows ?? []).map((row) => Number(row.id)),
+  );
+}
+
+async function reclaimTombstones(db: Db): Promise<number> {
+  let deleted = 0;
+  deleted += await tryRun(db, "DELETE FROM brain_semantic WHERE tombstoned_at IS NOT NULL");
+  deleted += await tryRun(db, "DELETE FROM brain_episodic WHERE tombstoned_at IS NOT NULL");
+  return deleted;
+}
+
+async function tombstoneOldestEpisodic(db: Db, limit: number): Promise<number> {
+  if (limit <= 0) return 0;
+  const rows = await db.all<{ id: number }>(
+    `SELECT id FROM brain_episodic
+     WHERE tombstoned_at IS NULL
+     ORDER BY created_at ASC, id ASC
+     LIMIT ?`,
+    [limit],
+  ).catch(() => [] as { id: number }[]);
+  return tombstoneLeafIds(
+    db,
+    "brain_episodic",
+    "episodic",
+    (rows ?? []).map((row) => Number(row.id)),
+  );
+}
+
+/** Last-resort disk valve: drop oldest audit rows, keep the newest. Never wipe the log. */
+async function trimOldestAudit(db: Db): Promise<number> {
+  return tryRun(
+    db,
+    `DELETE FROM brain_audit_log WHERE id IN (
+       SELECT id FROM brain_audit_log
+       ORDER BY created_at ASC, id ASC
+       LIMIT MAX(0, (SELECT COUNT(*) FROM brain_audit_log) - ${SIZE_CAP_AUDIT_KEEP})
+     )`,
+  );
+}
+
 /**
- * Keep the database under `maxBytes`. Folds the WAL in first, then deletes the
- * least valuable rows in passes (audit log, expired facts, oldest episodic turns
- * of finished sessions) and VACUUMs. Curated knowledge (semantic facts that have
- * not expired, entities, procedures) is never pruned here.
+ * Keep the database under `maxBytes`. Folds the WAL in first, then tombstones
+ * (TTL + oldest episodic) and reclaims already-tombstoned rows, then VACUUMs.
+ *
+ * This is the `max_bytes` disk valve (MEM-04 / MEM-06 / §8). It never
+ * hard-deletes a live leaf, never wipes `brain_audit_log`, and never prunes
+ * curated live semantic / entities / procedures.
  */
 export async function enforceBrainSizeCap(
   db: Db,
@@ -248,44 +388,25 @@ export async function enforceBrainSizeCap(
   }
   await db.exec("PRAGMA wal_checkpoint(TRUNCATE);").catch(() => {});
   let deleted = 0;
-  const tryRun = async (sql: string): Promise<number> => {
-    try {
-      return (await db.run(sql)).changes ?? 0;
-    } catch {
-      return 0;
-    }
-  };
-  const used = async (): Promise<number> => {
-    const pc = await db.get<{ n: number }>("PRAGMA page_count");
-    const fl = await db.get<{ n: number }>("PRAGMA freelist_count");
-    const ps = await db.get<{ n: number }>("PRAGMA page_size");
-    const pages = (pc as any)?.page_count ?? pc?.n ?? 0;
-    const free = (fl as any)?.freelist_count ?? fl?.n ?? 0;
-    const size = (ps as any)?.page_size ?? ps?.n ?? 4096;
-    return (pages - free) * size;
-  };
 
-  // max_bytes disk valve (not forget/TTL). Reclaim tombstoned/expired rows, then oldest episodic.
-  deleted += await tryRun("DELETE FROM brain_audit_log");
-  deleted += await tryRun(
-    "DELETE FROM brain_semantic WHERE tombstoned_at IS NOT NULL",
-  );
-  deleted += await tryRun(
-    "DELETE FROM brain_semantic WHERE expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP",
-  );
-  deleted += await tryRun(
-    "DELETE FROM brain_episodic WHERE tombstoned_at IS NOT NULL",
-  );
-  // Pass 2: oldest episodic turns, 20% at a time, until the live data fits.
-  for (let i = 0; i < 20 && (await used()) > maxBytes * 0.9; i++) {
-    const n = await tryRun(`
-      DELETE FROM brain_episodic WHERE id IN (
-        SELECT id FROM brain_episodic ORDER BY created_at ASC, id ASC
-        LIMIT MAX(100, (SELECT COUNT(*) / 5 FROM brain_episodic))
-      )`);
+  deleted += await tombstoneExpiredSemantic(db);
+  deleted += await reclaimTombstones(db);
+
+  for (let i = 0; i < 20 && (await usedPages(db)) > maxBytes * 0.9; i++) {
+    const live = await db.get<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM brain_episodic WHERE tombstoned_at IS NULL",
+    );
+    const batch = Math.max(100, Math.floor((live?.n ?? 0) / 5));
+    const n = await tombstoneOldestEpisodic(db, batch);
     if (n === 0) break;
     deleted += n;
+    deleted += await reclaimTombstones(db);
   }
+
+  if ((await usedPages(db)) > maxBytes * 0.9) {
+    deleted += await trimOldestAudit(db);
+  }
+
   await db.exec("PRAGMA wal_checkpoint(TRUNCATE);").catch(() => {});
   if (deleted > 0) {
     await db.exec("VACUUM;").catch(() => {});

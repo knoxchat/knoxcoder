@@ -183,6 +183,15 @@ describe("MEM-34 recipe channel", () => {
     expect(matches[0]?.recipe.id).toBe(hit.id);
   });
 
+  it("finds by title / intent / path when FTS is missing (MEM-34 fail-open)", async () => {
+    const hit = await verified();
+    await db.exec("DROP TABLE IF EXISTS brain_recipes_fts");
+    const byTitle = await store.searchVisibleTo("p1", { query: "oauth jwt refresh", status: "verified" });
+    expect(byTitle.map((r) => r.id)).toContain(hit.id);
+    const byPath = await store.searchVisibleTo("p1", { query: "src/auth/jwt.ts", status: "verified" });
+    expect(byPath.map((r) => r.id)).toContain(hit.id);
+  });
+
   it("searchRecipesByQuery ranks channel hits and does not scan list(1000)", async () => {
     await verified();
     await verified({

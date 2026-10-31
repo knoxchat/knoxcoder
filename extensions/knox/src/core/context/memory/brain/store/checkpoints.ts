@@ -204,71 +204,22 @@ export async function restoreKnowledgeTables(snapshot: any): Promise<void> {
   await db.exec("DELETE FROM brain_collections");
   await deleteV3KnowledgeTables(db, snapshot);
 
-  for (const mem of snapshot.semantic ?? []) {
-    const sessionId =
-      mem.source_session_id && sessionIds.has(String(mem.source_session_id))
-        ? mem.source_session_id
-        : null;
-    await db.run(
-      `INSERT INTO brain_semantic (id, category, title, content, source_session_id, keywords, importance_score, retrieval_count, tier, created_at, last_accessed_at, expires_at, emotional_valence, salience, topic_id, task_id, mismatch_count, mismatch_until, mismatch_topic_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        mem.id,
-        mem.category,
-        mem.title,
-        mem.content,
-        sessionId,
-        mem.keywords,
-        mem.importance_score,
-        mem.retrieval_count,
-        mem.tier,
-        mem.created_at,
-        mem.last_accessed_at,
-        mem.expires_at,
-        mem.emotional_valence ?? "neutral",
-        mem.salience ?? 0.5,
-        mem.topic_id ?? null,
-        mem.task_id ?? null,
-        mem.mismatch_count ?? 0,
-        mem.mismatch_until ?? null,
-        mem.mismatch_topic_id ?? null,
-      ],
-    );
-  }
-
-  for (const entity of snapshot.entities ?? []) {
-    await db.run(
-      `INSERT INTO brain_entities (id, name, entity_type, description, properties, confidence, mention_count, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        entity.id,
-        entity.name,
-        entity.entity_type,
-        entity.description,
-        entity.properties,
-        entity.confidence,
-        entity.mention_count,
-        entity.created_at,
-        entity.updated_at,
-      ],
-    );
-  }
-
-  for (const edge of snapshot.edges ?? []) {
-    await db.run(
-      `INSERT INTO brain_graph_edges (id, source_entity_id, target_entity_id, relationship, weight, properties, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        edge.id,
-        edge.source_entity_id,
-        edge.target_entity_id,
-        edge.relationship,
-        edge.weight,
-        edge.properties,
-        edge.created_at,
-      ],
-    );
-  }
+  // MEM-36: restore every snapshot column the live table has, including
+  // theorem fields (stability / h/u / validity / tombstone / aliases).
+  await insertSnapshotRows(
+    db,
+    "brain_semantic",
+    (snapshot.semantic ?? []).map((mem: Record<string, unknown>) => {
+      const source = mem.source_session_id;
+      return {
+        ...mem,
+        source_session_id:
+          source && sessionIds.has(String(source)) ? source : null,
+      };
+    }),
+  );
+  await insertSnapshotRows(db, "brain_entities", snapshot.entities ?? []);
+  await insertSnapshotRows(db, "brain_graph_edges", snapshot.edges ?? []);
 
   for (const pattern of snapshot.patterns ?? []) {
     await db.run(

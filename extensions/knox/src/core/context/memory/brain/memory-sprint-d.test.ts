@@ -27,7 +27,7 @@ beforeAll(async () => {
   await BrainStore.saveConfig("auto_extract_enabled", "false");
   await BrainStore.saveConfig("enable_knowledge_extraction", "false");
   await BrainStore.saveConfig("memory_scope", "project");
-  await BrainStore.saveConfig("retrieval_threshold", "0.6");
+  await BrainStore.saveConfig("retrieval_threshold", "0.35");
   await BrainStore.saveConfig("retrieval_require_lexical", "true");
 });
 

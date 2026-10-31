@@ -70,7 +70,7 @@ export async function recordEditAfterApply(savedFiles: string[]): Promise<void> 
     const store = new RecipeStore(await getBrainDb());
     const now = new Date();
     const files = new Set(savedFiles.map((f) => f.replace(/\\/g, "/")));
-    const hit = (await store.list({ status: "verified", limit: 1000 })).filter((r) => {
+    const hit = (await store.listLive({ status: "verified" })).filter((r) => {
       if (!isWithinRevertWindow(r.lastReplayedAt, now)) return false;
       const elapsed = now.getTime() - Date.parse(r.lastReplayedAt!);
       if (!Number.isFinite(elapsed) || elapsed < EDIT_GRACE_MS) return false;
@@ -104,7 +104,7 @@ export async function recordRestoreFeedback(restoredFiles: string[]): Promise<vo
     const db = await getBrainDb();
     const store = new RecipeStore(db);
     const now = new Date();
-    const hit = recipesRevertedByRestore(await store.list({ status: "verified", limit: 1000 }), restoredFiles, now);
+    const hit = recipesRevertedByRestore(await store.listLive({ status: "verified" }), restoredFiles, now);
     const [{ revertAuditEvent }, { CheckpointManager }] = await Promise.all([
       import("core/context/memory/recipes/metrics"),
       import("../checkpoints/CheckpointManager"),

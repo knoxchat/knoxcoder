@@ -74,32 +74,6 @@ export class SpacedRepetition {
     return SpacedRepetition.REVIEW_INTERVALS[idx];
   }
 
-  /**
-   * Leftover I(m,t) access boost. Not applied on retrieve — live S is FSRS on use.
-   */
-  static calculateBoostedImportance(
-    currentImportance: number,
-    retrievalCount: number,
-  ): number {
-    return Ebbinghaus.boostImportanceOnAccess(currentImportance, retrievalCount);
-  }
-
-  /**
-   * Leftover retrieve-time boost. MEM-14: retrieved-not-used is a no-op (S, D, I stay).
-   * Live strengthening is {@link SpacedRepetition.applyOnUse}.
-   */
-  static async boostOnRetrieval(
-    memoryId: number,
-    _options?: { incrementAccess?: boolean },
-  ): Promise<number> {
-    const db = await BrainStore.get();
-    const row = (await db.get(
-      "SELECT importance_score FROM brain_semantic WHERE id = ?",
-      [memoryId],
-    )) as { importance_score: number } | undefined;
-    return row?.importance_score ?? 0;
-  }
-
   /** Used+helpful / used+harmful FSRS write. Unused leaves the row unchanged. */
   static async applyOnUse(
     memoryId: number,
@@ -128,7 +102,7 @@ export class SpacedRepetition {
        FROM brain_semantic
        WHERE tier IN ('hot', 'warm', 'active')
        AND importance_score >= 0.3
-       ORDER BY importance_score DESC
+       ORDER BY last_accessed_at ASC, id DESC
        LIMIT ?`,
       [limit * 5], // Fetch more, then filter by retention
     );

@@ -2005,9 +2005,10 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.memoryBrainSettings.enabled, false);
 		assert.ok(posted.some(message => message.messageType === 'knox/memoryBrainSettingsSet' && (message.data as { enabled?: boolean }).enabled === false));
 
-		store.patch({ memoryConfig: { ebbinghaus_lambda: 0.9, retrieval_top_k: 50 } });
+		store.patch({ memoryConfig: { eta_utility: 0.9, ebbinghaus_lambda: 0.9, retrieval_top_k: 50 } });
 		await controller.resetMemoryExpertConfig();
-		assert.strictEqual(store.state.memoryConfig.ebbinghaus_lambda, 0.03);
+		assert.strictEqual(store.state.memoryConfig.eta_utility, 0.5);
+		assert.strictEqual(store.state.memoryConfig.ebbinghaus_lambda, 0.9, 'leftover ebbinghaus is not an expert default reset');
 		assert.strictEqual(store.state.memoryConfig.retrieval_top_k, 50, 'product inject cap is not an expert default reset');
 
 		store.patch({

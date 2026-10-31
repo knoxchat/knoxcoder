@@ -154,8 +154,8 @@ export async function recall(input: RecallInput): Promise<RecallResult> {
     if (recipeId) mem.recipe_id = recipeId;
   }
 
-  // MEM-14 / MEM-16: retrieve / recall must not apply FSRS, leftover I(m,t)
-  // boosts, or SpacedRepetition.boostOnRetrieval. Fusion may record inject_count.
+  // MEM-14 / MEM-16: retrieve / recall must not apply FSRS or leftover I(m,t).
+  // Fusion may record inject_count.
 
   let episodic: any[] = [];
   if (input.include_episodic !== false) {

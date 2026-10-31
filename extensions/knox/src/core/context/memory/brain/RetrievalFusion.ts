@@ -1,7 +1,6 @@
 import { BrainStore } from "./BrainStore.js";
 import { KnowledgeGraph } from "./KnowledgeGraph.js";
 import {
-  detectFusionWeights,
   getFusionParams,
   getMemoryConfig,
   getTheoremParams,
@@ -9,12 +8,10 @@ import {
 } from "./memoryConfigAccess.js";
 import { expandQuerySynonyms, getSynonymAdditions } from "./EnhancedSemantic.js";
 import {
-  capGraphContribution,
   hasGraphExpandableTokens,
 } from "./GraphRetrieval.js";
 import { recipeMemoryIsVerified } from "../recipes/memoryLink.js";
 import {
-  applyOutcomeWeight,
   FUSION_CHANNELS,
   loadOutcomes,
   loadSupersededIds,
@@ -40,7 +37,7 @@ import {
   utilityFromSource,
 } from "./Value.js";
 import { hasRipgrepHit, searchRipgrepChannel } from "./channels/ripgrep.js";
-import { hasTreeHit, searchTreeChannel } from "./SummaryTree.js";
+import { searchTreeChannel } from "./SummaryTree.js";
 
 /**
  * RetrievalFusion — Reciprocal Rank Fusion over lexical channels (MEM-20).
@@ -65,9 +62,7 @@ import { hasTreeHit, searchTreeChannel } from "./SummaryTree.js";
  * MEM-22 takes the top `fusion_candidate_cutoff` (50) fused candidates, then
  * cuts by calibrated θ (default 0.35). Raw RRF is ~1/61 at rank 1, so θ is
  * applied as a fraction of the active-channel RRF ceiling: keep
- * `score ≥ θ · Σ_s w_s/(k₀+1)` for channels that ranked this query. Leftover
- * additive admission stays at a REL-02 floor of 0.6 so recency cannot close
- * the gap when live θ is 0.35.
+ * `score ≥ θ · Σ_s w_s/(k₀+1)` for channels that ranked this query.
  *
  * Works fully offline with zero model loading. No embeddings or neural rerank.
  */
@@ -85,7 +80,7 @@ export interface FusionResult {
   id: number;
   type: "semantic" | "episodic";
   score: number;
-  /** Raw RRF relevance before priors, leftover mismatch / outcome, and topic/task. */
+  /** Raw RRF relevance before priors, mismatch, and topic/task. */
   rel?: number;
   /** Bounded utility U(m) used in MEM-21 prior modulation. */
   utility?: number;
@@ -118,8 +113,6 @@ export interface FusionOptions {
   limit?: number;
   minScore?: number;
   includeEpisodic?: boolean;
-  /** Leftover additive FusionWeights. Unused for scoring after MEM-20. */
-  weights?: Partial<FusionWeights>;
   /** Override theorem channel weights for this search. */
   channelWeights?: Partial<ChannelWeights>;
   /** Override RRF k₀ for this search. */
@@ -160,9 +153,6 @@ export const TASK_SAME_BOOST = 0.18;
  */
 export const BM25_SCALE_K = 1.0;
 
-/** Recency+importance leftover cap. Unused for scoring after MEM-20. */
-export const RECENCY_IMPORTANCE_THETA_MARGIN = 0.05;
-
 /** Theorem default RRF constant k₀. */
 export const RRF_K0_DEFAULT = 60;
 
@@ -178,14 +168,6 @@ export const FUSION_CANDIDATE_CUTOFF_DEFAULT = 50;
 
 /** Theorem default calibrated P(helpful) cut-off. */
 export const RETRIEVAL_THRESHOLD_DEFAULT = 0.35;
-
-/**
- * REL-02 leftover additive floor. Raw RRF cannot encode BM25 strength, so
- * admission still uses leftover additive scores. At live θ=0.35 the ri cap
- * would otherwise let recency close the gap; keep this floor so a miss
- * cannot qualify.
- */
-export const REL02_ADDITIVE_FLOOR = 0.6;
 
 /**
  * Absolute BM25 → [0, 1]. Does not depend on other hits in the result set.
@@ -371,33 +353,6 @@ export function passesCalibratedTheta(
   if (!Number.isFinite(theta) || theta <= 0) return true;
   if (!Number.isFinite(ceiling) || ceiling <= 0) return true;
   return score >= theta * ceiling;
-}
-
-/**
- * Leftover additive admission (REL-02/09). Recency+importance stay capped so
- * they cannot admit a miss. Retired as a live cutoff in MEM-22; ranking is RRF.
- */
-export function leftoverAdditiveScore(
-  scores: FusionResult["scores"],
-  weights: FusionWeights,
-  theta: number,
-): number {
-  const textLexical = weights.fts5 * scores.fts5 + weights.trigram * scores.trigram;
-  const recencyImportance =
-    weights.recency * scores.recency + weights.importance * scores.importance;
-  const riCap = Math.max(0, theta - RECENCY_IMPORTANCE_THETA_MARGIN);
-  const ri = Math.min(recencyImportance, riCap);
-  const graphPart = capGraphContribution(
-    textLexical,
-    weights.graph * scores.graph,
-    ri,
-    theta,
-    scores.fts5,
-    scores.trigram,
-    LEXICAL_SCORE_MIN,
-    RECENCY_IMPORTANCE_THETA_MARGIN,
-  );
-  return textLexical + graphPart + ri;
 }
 
 /** Multiplier for REL-05/13. 0 · factor stays 0 (cannot resurrect a miss). */
@@ -616,14 +571,6 @@ export class RetrievalFusion {
 
     // REL-01: never concatenate synonyms into the AND query. OR them in FTS5 only.
     const searchQuery = options.query;
-    const leftoverWeights = {
-      ...detectFusionWeights(searchQuery, {
-        intent: options.intent,
-        originalQuery: options.originalQuery,
-      }),
-      ...options.weights,
-    };
-    const leftoverTheta = Math.max(REL02_ADDITIVE_FLOOR, theta);
     const synonymExtras = config.enable_enhanced_semantic
       ? getSynonymAdditions(searchQuery, { continuation: options.intent === "continuation" })
       : [];
@@ -997,7 +944,6 @@ export class RetrievalFusion {
 
     const activeChannels = activeFusionChannels(candidateMap.values());
     const scoreCeiling = rrfCeiling(channelWeights, k0, activeChannels);
-    const scoreCutoff = calibratedScoreCutoff(theta, channelWeights, k0, activeChannels);
 
     for (const candidate of candidateMap.values()) {
       if (candidate.type !== "semantic") continue;
@@ -1005,12 +951,6 @@ export class RetrievalFusion {
       candidate.score = applyMismatchPenalty(
         candidate.score,
         sem.mismatch_count,
-        pinnedIds.has(sem.id),
-      );
-      candidate.score = applyOutcomeWeight(
-        candidate.score,
-        outcomes.get(sem.id),
-        scoreCutoff,
         pinnedIds.has(sem.id),
       );
     }
@@ -1062,24 +1002,6 @@ export class RetrievalFusion {
       if (!gate.passed) {
         r.rel = 0;
         r.score = 0;
-      }
-    }
-    // REL-02: leftover additive strength when the caller passes a live θ
-    // (pipeline / ContextBuilder, θ ≥ 0.15). Tiny minScore values are raw
-    // RRF cutoffs (MC-51). Floor is max(0.6, θ) so live θ=0.35 is not looser
-    // than the old admission set. Recency/importance stay capped.
-    if (minScore !== undefined && minScore >= RETRIEVAL_THRESHOLD_DEFAULT) {
-      for (const r of results) {
-        if (r.score <= 0) continue;
-        const sem = r.type === "semantic" ? (r.data as SemanticMemory) : undefined;
-        if (sem && pinnedIds.has(sem.id)) continue;
-        if (
-          leftoverAdditiveScore(r.scores, leftoverWeights, leftoverTheta) < leftoverTheta &&
-          !hasRipgrepHit(r) &&
-          !hasTreeHit(r)
-        ) {
-          r.score = 0;
-        }
       }
     }
     results = results.filter((r) => r.score > 0).sort((a, b) => b.score - a.score);
@@ -1254,7 +1176,7 @@ export class RetrievalFusion {
     }
 
     // Pre-filter with simple LIKE on first few meaningful terms to avoid scanning entire table
-    const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2).slice(0, 3);
+    const terms = contentWords(query).filter((t) => t.length > 2).slice(0, 3);
     if (terms.length > 0) {
       const likeConditions = terms.map(() => "(LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(keywords) LIKE ?)");
       conditions.push(`(${likeConditions.join(" OR ")})`);
@@ -1316,7 +1238,7 @@ export class RetrievalFusion {
       const likeRows = await db.all(`
         SELECT * FROM brain_semantic
         WHERE ${conditions.join(" AND ")}
-        ORDER BY importance_score DESC
+        ORDER BY id DESC
         LIMIT ?
       `, params);
       for (const r of likeRows) {

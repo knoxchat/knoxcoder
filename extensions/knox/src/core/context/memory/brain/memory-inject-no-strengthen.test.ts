@@ -199,4 +199,31 @@ describe("MEM-16 retrieve / inject do not strengthen", () => {
     expect(afterSearch.last_accessed_at).toBe(AGED);
     expect(afterSearch.inject_count).toBe(afterInject.inject_count);
   });
+
+  it("LIKE fallback ranks by BM25, not leftover retrieval_count", async () => {
+    await reset();
+    const weak = await BrainManager.store({
+      category: "fact",
+      title: "unrelated noise",
+      content: "zzzz filler document with no shared tokens",
+      keywords: "noise",
+      importance: 1,
+    });
+    const strong = await BrainManager.store({
+      category: "fact",
+      title: "oauth jwt refresh",
+      content: "oauth jwt refresh login service",
+      keywords: "oauth, jwt",
+      importance: 0.2,
+    });
+    const db = await BrainStore.get();
+    await db.run(
+      "UPDATE brain_semantic SET retrieval_count = 80, importance_score = 1 WHERE id = ?",
+      [weak],
+    );
+    await db.exec("DROP TABLE IF EXISTS brain_semantic_fts");
+    const hits = await BrainStore.searchSemantic("oauth jwt refresh", undefined, 10);
+    expect(hits[0]?.id).toBe(strong);
+    await RetrievalFusion.initFts5Tables(db).catch(() => undefined);
+  });
 });

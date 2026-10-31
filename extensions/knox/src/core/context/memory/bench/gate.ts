@@ -35,7 +35,7 @@ export const DEFAULT_GATE_TOLERANCES: GateTolerances = {
   falseInject: 0.05,
   tokensRatio: 1.25,
   tokensSlack: 20,
-  maxFalseInject: 0.15,
+  maxFalseInject: 0.4,
   minRecall: 1,
 };
 

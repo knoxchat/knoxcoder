@@ -143,7 +143,7 @@ describe("MEM-33 buffer lifetimes", () => {
     expect(opts.ttlSeconds).toBe(0);
     expect(opts.tokenBudget).not.toBe(getMemoryInjectHardCap());
     expect(opts.maxSlots).toBe(BrainStore.getConfig().working_memory_max_slots);
-    await BrainStore.saveConfig("working_memory_token_budget", "30000");
+    await BrainStore.saveConfig("working_memory_token_budget", "0");
     BrainManager.getWorkingMemory();
   });
 });

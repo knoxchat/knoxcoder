@@ -243,3 +243,31 @@ export async function incrementRecipeUtilityCounts(
 ): Promise<{ helpful_count: number; unhelpful_count: number } | null> {
   return incrementRecipeUtilityCountsOn(await get(), recipeId, delta);
 }
+
+/**
+ * Live rolling Rec proxy when no bench window is published: cited / injected
+ * over the newest injects. Gold Rec(q) still comes from a bench window.
+ */
+export async function rollingInjectCiteRate(limit = 50): Promise<number | undefined> {
+  const cap = Math.max(1, Math.min(Math.trunc(limit) || 50, 500));
+  try {
+    const db = await get();
+    const row = (await db.get(
+      `SELECT
+         SUM(CASE WHEN injected = 1 THEN 1 ELSE 0 END) AS injected,
+         SUM(CASE WHEN injected = 1 AND cited = 1 THEN 1 ELSE 0 END) AS cited
+       FROM (
+         SELECT injected, cited FROM brain_attribution
+         WHERE injected = 1
+         ORDER BY datetime(created_at) DESC, id DESC
+         LIMIT ?
+       )`,
+      [cap],
+    )) as { injected: number | null; cited: number | null } | undefined;
+    const injected = Number(row?.injected ?? 0);
+    if (!(injected > 0)) return undefined;
+    return Number(row?.cited ?? 0) / injected;
+  } catch {
+    return undefined;
+  }
+}

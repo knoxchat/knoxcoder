@@ -14,7 +14,6 @@ let BrainManager: typeof import("./BrainManager.js").BrainManager;
 let BrainStore: typeof import("./BrainStore.js").BrainStore;
 let Ebbinghaus: typeof import("./Ebbinghaus.js").Ebbinghaus;
 let Forgetting: typeof import("./Forgetting.js").Forgetting;
-let SpacedRepetition: typeof import("./AdvancedFeatures.js").SpacedRepetition;
 
 const THEOREM = { F: 19 / 81, c: 0.5, pruneThreshold: 0.1, reviewThreshold: 0.5 };
 
@@ -30,7 +29,6 @@ beforeAll(async () => {
   ({ BrainStore } = await import("./BrainStore.js"));
   ({ Ebbinghaus } = await import("./Ebbinghaus.js"));
   ({ Forgetting } = await import("./Forgetting.js"));
-  ({ SpacedRepetition } = await import("./AdvancedFeatures.js"));
 
   await BrainStore.get();
 });
@@ -225,7 +223,7 @@ describe("MEM-12 power-law forgetting + category S₀", () => {
     expect(boosted).toBeCloseTo(0.5 * (1 + 0.1 * 5), 5);
   });
 
-  it("SpacedRepetition.boostOnRetrieval is a leftover no-op (retrieved-not-used)", async () => {
+  it("retrieved-not-used leaves S, D, I, and retrieval_count unchanged", async () => {
     await resetDatabase();
     const id = await BrainManager.store({
       category: "fact",
@@ -234,8 +232,7 @@ describe("MEM-12 power-law forgetting + category S₀", () => {
       importance: 0.5,
     });
 
-    const newImportance = await SpacedRepetition.boostOnRetrieval(id);
-    expect(newImportance).toBeCloseTo(0.5, 5);
+    await BrainManager.recall({ query: "spaced repetition boost testing", include_episodic: false });
 
     const db = await BrainStore.get();
     const row = (await db.get(
@@ -251,6 +248,31 @@ describe("MEM-12 power-law forgetting + category S₀", () => {
     expect(row.importance_score).toBeCloseTo(0.5, 5);
     expect(row.stability).toBe(14);
     expect(row.difficulty).toBe(5);
+  });
+
+  it("sleep does not rewrite leftover I (MEM-14)", async () => {
+    await resetDatabase();
+    const id = await BrainManager.store({
+      category: "fact",
+      title: "Sleep I leaf",
+      content: "Sleep must not raise leftover importance_score.",
+      importance: 0.4,
+    });
+    const db = await BrainStore.get();
+    await db.run(
+      `UPDATE brain_semantic
+       SET importance_score = 0.4, retrieval_count = 4, salience = 0.9,
+           last_accessed_at = datetime('now'), tier = 'hot'
+       WHERE id = ?`,
+      [id],
+    );
+    const { SleepConsolidation } = await import("./SleepConsolidation.js");
+    await SleepConsolidation.runCycle();
+    const row = (await db.get(
+      "SELECT importance_score FROM brain_semantic WHERE id = ?",
+      [id],
+    )) as { importance_score: number };
+    expect(row.importance_score).toBeCloseTo(0.4, 5);
   });
 
   it("getReviewDue returns fading memories", async () => {

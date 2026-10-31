@@ -12,10 +12,8 @@ import {
   assignLexicalRanks,
   assignScoreRanks,
   fuseCandidateScore,
-  leftoverAdditiveScore,
   rrfScore,
   winningRrfChannel,
-  RECENCY_IMPORTANCE_THETA_MARGIN,
   RETRIEVAL_THRESHOLD_DEFAULT,
   RRF_CHANNEL_WEIGHTS_DEFAULT,
   RRF_K0_DEFAULT,
@@ -110,16 +108,9 @@ describe("MEM-20 RRF (pure)", () => {
     expect(winningRrfChannel({})).toBeNull();
   });
 
-  it("leftover additive admission still cannot qualify a miss by importance", () => {
+  it("recency and importance cannot admit a lexical miss", () => {
     const theta = RETRIEVAL_THRESHOLD_DEFAULT;
     const conversational = getFusionWeights("conversational");
-    const leftover = leftoverAdditiveScore(
-      { fts5: 0, trigram: 0, graph: 0, recency: 1, importance: 1 },
-      conversational,
-      theta,
-    );
-    expect(leftover).toBeLessThan(theta);
-    expect(leftover).toBeLessThanOrEqual(theta - RECENCY_IMPORTANCE_THETA_MARGIN + 1e-9);
     expect(
       fuseCandidateScore(
         { fts5: 0, trigram: 0, graph: 0, recency: 1, importance: 1 },

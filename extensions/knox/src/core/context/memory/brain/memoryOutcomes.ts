@@ -1,12 +1,11 @@
 /**
  * MC-51 / MC-52 outcomes plus MEM-18 attribution refit.
  *
- * `brain_memory_outcomes` still ranks leftover fusion scores. The theorem path
+ * `brain_memory_outcomes` records verified / revert counts. The theorem path
  * is `brain_attribution` → h/u (U) / FSRS / w_s / θ. Recipe replay writes that
  * same attribution table so Value has one feed.
  */
 import type { DatabaseConnection } from "../../../util/refreshIndex.js";
-import { outcomeFactor } from "./Ebbinghaus.js";
 import {
   incrementUtilityCountsOn,
   listAttributionLog,
@@ -261,19 +260,6 @@ export async function attributeRecipeReplay(
 }
 
 // ── MC-51 ──────────────────────────────────────────────────────────────────
-
-/**
- * Leftover fusion-score modulation (MC-51). Not retrievability R and not U.
- * Value is R·U from attribution h/u (MEM-18). A penalty always applies; a boost
- * only lifts a candidate that already qualified (`score >= theta`).
- */
-export function applyOutcomeWeight(score: number, outcome: MemoryOutcome | undefined, theta: number, pinned = false): number {
-  if (!outcome) return score;
-  const f = outcomeFactor(outcome.verified, outcome.reverted);
-  if (f < 1) return pinned ? score : score * f;
-  if (f > 1 && score >= theta) return score * f;
-  return score;
-}
 
 /** MC-50: at least one verified turn and no reverts. */
 export function isVerifiedByOutcome(outcome: MemoryOutcome | undefined): boolean {

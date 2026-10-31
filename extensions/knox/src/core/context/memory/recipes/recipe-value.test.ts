@@ -24,7 +24,6 @@ import {
   recipeHelpfulCount,
   recipeMemoryValue,
   recipeUnhelpfulCount,
-  recipeValue,
   recipeValueSource,
   shouldRetireRecipeByValue,
 } from "./budget";
@@ -84,7 +83,6 @@ describe("MEM-35 recipe Value = R·U", () => {
     const expected = Value.memoryValue(0, RECIPE_STABILITY_S0, u, VALUE);
     expect(recipeMemoryValue(fresh, NOW, VALUE)).toBeCloseTo(expected, 10);
     expect(recipeMemoryValue(fresh, NOW, VALUE)).toBeCloseTo(0.5, 10);
-    expect(recipeValue(fresh, NOW, VALUE)).toBe(recipeMemoryValue(fresh, NOW, VALUE));
     expect(recipeMemoryValue(fresh, NOW, VALUE)).toBeLessThanOrEqual(1);
     expect(recipeMemoryValue(fresh, NOW, VALUE)).toBeGreaterThan(ARCHIVE_VALUE_THRESHOLD);
   });

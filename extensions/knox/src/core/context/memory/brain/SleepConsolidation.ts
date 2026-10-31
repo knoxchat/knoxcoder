@@ -3,8 +3,8 @@
  * and episodic-to-semantic distillation.
  *
  * Mirrors Knox-MS NeuralMemory sleep consolidation patterns:
- * - NREM Phase 1: Replay and strengthen high-importance memories
- * - NREM Phase 2: leftover I(m,t) + R/Value tiers (MEM-15; no tombstone)
+ * - NREM Phase 1: Replay recently accessed hot leaves (count only; no I/S write)
+ * - NREM Phase 2: R/Value tiers (MEM-15; no tombstone, no leftover I write)
  * - NREM Phase 3: Compress cold-tier memories
  * - REM Phase: Episodic-to-semantic distillation — find recurring patterns
  *   in episodic memories and extract stable knowledge into semantic memory
@@ -18,7 +18,6 @@
  */
 
 import { BrainStore } from "./BrainStore.js";
-import { Ebbinghaus } from "./Ebbinghaus.js";
 import { GRAPH_COMMON_NOUN_DENYLIST, isCommonNounEntityName } from "./GraphRetrieval.js";
 import {
   CALIBRATED_THETA_DEFAULT,
@@ -90,11 +89,11 @@ export class SleepConsolidation {
       },
     };
 
-    // Phase 1 (NREM-1): Replay — boost recently accessed important memories
+    // Phase 1 (NREM-1): Replay — count recently accessed hot leaves. No I/S write (MEM-14).
     result.replayed = await SleepConsolidation.nremReplay();
     result.sub_phases.nrem_replay = result.replayed;
 
-    // Phase 2 (NREM-2): leftover I(m,t) + R/Value tiers (MEM-15). Never tombstone.
+    // Phase 2 (NREM-2): R/Value tiers (MEM-15). Never tombstone. Never rewrite leftover I.
     const decayResult = await SleepConsolidation.nremDecay();
     result.demoted = decayResult.demoted;
     result.pruned = 0;
@@ -142,80 +141,34 @@ export class SleepConsolidation {
   // ── NREM Phase 1: Replay ────────────────────────────────────────────────────
 
   /**
-   * "Replay" recently accessed important memories by boosting their importance.
-   * Simulates hippocampal replay during NREM sleep where important memories
-   * get strengthened through reactivation.
+   * NREM replay: count recently accessed hot leaves. Strength changes only
+   * come from attribution (MEM-14 / MEM-16). Sleep must not rewrite leftover I.
    */
   private static async nremReplay(): Promise<number> {
     const db = await BrainStore.get();
-
-    // Leftover I boost. MEM-16: inject no longer increments retrieval_count,
-    // so mere retrieve/inject cannot satisfy retrieval_count >= 2.
-    const result = await db.run(
-      `UPDATE brain_semantic
-       SET importance_score = MIN(1.0, importance_score + 0.05)
-       WHERE tier = 'hot'
-       AND last_accessed_at > datetime('now', '-1 day')
-       AND retrieval_count >= 2
-       AND (salience > 0.6 OR importance_score >= 0.7)`,
-    );
-
-    // Also boost high-salience episodic memories (emotional memories consolidate faster)
-    const epResult = await db.run(
-      `UPDATE brain_episodic
-       SET importance_score = MIN(1.0, importance_score + 0.03)
-       WHERE tier = 'hot'
-       AND salience > 0.7
-       AND created_at > datetime('now', '-2 days')`,
-    );
-
-    return (result.changes ?? 0) + (epResult.changes ?? 0);
+    const row = (await db.get(
+      `SELECT (
+         (SELECT COUNT(*) FROM brain_semantic
+           WHERE tombstoned_at IS NULL AND tier = 'hot'
+             AND last_accessed_at > datetime('now', '-1 day')
+             AND (salience > 0.6 OR importance_score >= 0.7))
+         +
+         (SELECT COUNT(*) FROM brain_episodic
+           WHERE tombstoned_at IS NULL AND tier = 'hot'
+             AND salience > 0.7
+             AND created_at > datetime('now', '-2 days'))
+       ) AS n`,
+    )) as { n: number } | undefined;
+    return Number(row?.n ?? 0);
   }
 
   // ── NREM Phase 2: Decay ────────────────────────────────────────────────────
 
   /**
-   * Leftover I(m,t) update, then assign tiers from R and Value (MEM-15).
-   * Frozen is archive (skip retrieve). Tombstone is only forget/TTL/privacy.
+   * Assign tiers from R and Value (MEM-15). Frozen is archive (skip retrieve).
+   * Tombstone is only forget/TTL/privacy. Leftover I(m,t) is not written.
    */
   private static async nremDecay(): Promise<{ demoted: number; pruned: number; promoted: number }> {
-    const db = await BrainStore.get();
-    const notPinned = `id NOT IN (SELECT memory_id FROM brain_tags WHERE memory_type = 'semantic' AND tag = 'pinned')`;
-
-    const semanticRows = await db.all(
-      `SELECT id, importance_score, retrieval_count, last_accessed_at, salience, stability, category
-       FROM brain_semantic
-       WHERE tombstoned_at IS NULL AND ${notPinned}`,
-    );
-    for (const row of semanticRows) {
-      const r = row as {
-        id: number;
-        importance_score: number;
-        retrieval_count: number;
-        last_accessed_at: string;
-        salience: number | null;
-        stability: number | null;
-        category: string | null;
-      };
-      const salience = r.salience ?? 0.5;
-      const importance = r.importance_score ?? 0.5;
-      const source = { stability: r.stability, category: r.category };
-      const newImportance = Ebbinghaus.importanceFromRetention(
-        importance,
-        r.last_accessed_at,
-        r.retrieval_count ?? 0,
-        salience,
-        undefined,
-        source,
-      );
-      if (Math.abs(newImportance - importance) > 0.001) {
-        await db.run(
-          "UPDATE brain_semantic SET importance_score = ? WHERE id = ?",
-          [newImportance, r.id],
-        );
-      }
-    }
-
     const tiers = await recomputeMemoryTiers();
     return { demoted: tiers.demoted, pruned: 0, promoted: tiers.promoted };
   }

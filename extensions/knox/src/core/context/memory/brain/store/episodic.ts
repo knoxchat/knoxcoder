@@ -220,7 +220,7 @@ export async function searchEpisodic(query: string, sessionId?: string, limit: n
            )
            SELECT e.* FROM hits JOIN brain_episodic e ON e.id = hits.id
            WHERE ${queryScopeSql("episodic", "e")}${sessionId ? " AND e.session_id = ?" : ""}
-           ORDER BY hits.rank, e.importance_score DESC LIMIT ?`,
+           ORDER BY hits.rank, e.id DESC LIMIT ?`,
           sessionId
             ? [match, fetchLimit * 10, sessionId, fetchLimit]
             : [match, fetchLimit, fetchLimit],
@@ -233,7 +233,7 @@ export async function searchEpisodic(query: string, sessionId?: string, limit: n
 
   const rows: any[] = ftsHits ?? await db.all(
     `SELECT * FROM brain_episodic ${whereClause}
-     ORDER BY importance_score DESC, created_at DESC LIMIT ?`,
+     ORDER BY id DESC LIMIT ?`,
     params,
   );
 
@@ -268,8 +268,7 @@ export async function searchEpisodic(query: string, sessionId?: string, limit: n
         bm25Score += termIdf * tfNorm;
       }
 
-      const importanceBoost = r.importance_score * 0.2;
-      return { row: r, score: bm25Score + importanceBoost };
+      return { row: r, score: bm25Score };
     });
 
     scored.sort((a, b) => b.score - a.score);

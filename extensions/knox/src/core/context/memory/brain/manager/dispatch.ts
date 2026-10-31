@@ -760,21 +760,16 @@ export async function dispatch(action: MemoryBrainAction, params: any): Promise<
     }
 
     case "boost_memory": {
-      // Leftover admin action. MEM-14: retrieve-time leftover α boost is gone.
-      // Live S changes only on used+helpful / used+harmful (FSRS).
       const id = params.id ?? params.memory_id;
       const outcome = params.outcome === "harmful" || params.outcome === "helpful" || params.outcome === "unused"
         ? params.outcome
         : undefined;
-      if (outcome) {
-        const next = await SpacedRepetition.applyOnUse(id, outcome);
-        return next
-          ? `Memory #${id} FSRS ${outcome} — stability: ${next.stability.toFixed(3)}, difficulty: ${next.difficulty.toFixed(3)}`
-          : `Memory #${id} not found.`;
+      if (!outcome) {
+        return `Memory #${id} needs outcome=helpful|harmful|unused. Retrieved-not-used does not change S.`;
       }
-      const importance = await SpacedRepetition.boostOnRetrieval(id);
-      return importance > 0
-        ? `Memory #${id} retrieved-not-used — S unchanged (FSRS applies on use). Importance: ${importance.toFixed(3)}`
+      const next = await SpacedRepetition.applyOnUse(id, outcome);
+      return next
+        ? `Memory #${id} FSRS ${outcome} — stability: ${next.stability.toFixed(3)}, difficulty: ${next.difficulty.toFixed(3)}`
         : `Memory #${id} not found.`;
     }
 

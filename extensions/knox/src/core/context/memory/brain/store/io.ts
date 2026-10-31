@@ -340,7 +340,7 @@ export async function searchBacklogs(
       `SELECT e.*, s.title as session_title FROM brain_episodic e
        LEFT JOIN brain_sessions s ON e.session_id = s.id
        ${epWhere}
-       ORDER BY e.importance_score DESC, e.created_at DESC LIMIT ?`,
+       ORDER BY e.id DESC LIMIT ?`,
       epParams,
     );
     episodic = epRows.map(rowToEpisodic);
@@ -386,7 +386,7 @@ export async function searchBacklogs(
     const semRows = await db.all(
       `SELECT * FROM brain_semantic
        WHERE ${semConditions.join(" AND ")}
-       ORDER BY importance_score DESC, retrieval_count DESC, last_accessed_at DESC LIMIT ?`,
+       ORDER BY id DESC LIMIT ?`,
       semParams,
     );
     semantic = semRows.map(rowToSemantic);

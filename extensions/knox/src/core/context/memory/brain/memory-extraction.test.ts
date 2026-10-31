@@ -174,7 +174,7 @@ describe("T1 post-turn write policy", () => {
 });
 
 describe("REL-08 store path", () => {
-  it("storing the same decision twice boosts one row", async () => {
+  it("storing the same decision twice keeps one row", async () => {
     await reset();
     const sessionId = "rel08-dedup";
     await BrainManager.trackSession(sessionId, "Dedup", testDir);
@@ -189,8 +189,9 @@ describe("REL-08 store path", () => {
       [sessionId],
     );
     expect(rows.length).toBe(1);
-    expect((rows[0] as { importance_score: number }).importance_score).toBeGreaterThan(
+    expect((rows[0] as { importance_score: number }).importance_score).toBeCloseTo(
       HEURISTIC_IMPORTANCE,
+      5,
     );
   });
 

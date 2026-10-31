@@ -266,7 +266,7 @@ export class HealingEngine {
       `UPDATE brain_episodic SET tier = 'warm'
        WHERE tier = 'hot' AND id NOT IN (
          SELECT id FROM brain_episodic WHERE tier = 'hot'
-         ORDER BY importance_score DESC, created_at DESC LIMIT 200
+         ORDER BY created_at DESC, id DESC LIMIT 200
        )`,
     );
     moved += excess.changes ?? 0;
@@ -276,7 +276,7 @@ export class HealingEngine {
       `UPDATE brain_semantic SET tier = 'warm'
        WHERE tier = 'hot' AND id NOT IN (
          SELECT id FROM brain_semantic WHERE tier = 'hot'
-         ORDER BY importance_score DESC, retrieval_count DESC LIMIT 100
+         ORDER BY created_at DESC, id DESC LIMIT 100
        )`,
     );
     moved += semExcess.changes ?? 0;

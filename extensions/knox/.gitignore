@@ -6,3 +6,4 @@ gui-src/
 /build/
 node_modules/
 *.tsbuildinfo
+docs/memory-impl.md

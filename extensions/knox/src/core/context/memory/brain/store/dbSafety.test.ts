@@ -174,6 +174,49 @@ describe("size cap", () => {
     expect(left.length).toBeLessThan(1500);
     expect(left[left.length - 1].content.startsWith("1499:")).toBe(true); // newest survives
     expect((await db.get("SELECT COUNT(*) n FROM brain_semantic")) as any).toEqual({ n: 1 });
+    const audit = (await db.get("SELECT COUNT(*) n FROM brain_audit_log")) as { n: number };
+    expect(audit.n).toBeGreaterThan(0);
+    await db.close();
+  });
+
+  it("tombstones expired semantic before reclaim and never wipes the audit log", async () => {
+    const { enforceBrainSizeCap } = await import("./dbSafety");
+    const db = await open({ filename: dbPath, driver: sqlite3.Database });
+    await db.exec("PRAGMA journal_mode = WAL;");
+    await createTables(db);
+    await db.run("INSERT INTO brain_sessions (id) VALUES ('s')");
+    await db.run(
+      "INSERT INTO brain_semantic (title, content, expires_at) VALUES ('keep', 'curated fact', NULL)",
+    );
+    await db.run(
+      "INSERT INTO brain_semantic (title, content, expires_at) VALUES ('old', 'expired fact', datetime('now', '-2 days'))",
+    );
+    await db.run(
+      "INSERT INTO brain_audit_log (action, target_type, target_id, details) VALUES ('store', 'semantic', '1', '{}')",
+    );
+    const blob = "x".repeat(2000);
+    await db.exec("BEGIN");
+    for (let i = 0; i < 1500; i++) {
+      await db.run(
+        "INSERT INTO brain_episodic (session_id, content, created_at) VALUES ('s', ?, datetime('2020-01-01', '+' || ? || ' seconds'))",
+        [`${i}:${blob}`, i],
+      );
+    }
+    await db.exec("COMMIT");
+
+    const r = await enforceBrainSizeCap(db, dbPath, 6 * 1024 * 1024);
+    expect(r.capped).toBe(true);
+    expect(
+      await db.get("SELECT id FROM brain_semantic WHERE title = 'keep'"),
+    ).toBeTruthy();
+    expect(
+      await db.get("SELECT id FROM brain_semantic WHERE title = 'old'"),
+    ).toBeFalsy();
+    const audit = (await db.get("SELECT COUNT(*) n FROM brain_audit_log")) as { n: number };
+    expect(audit.n).toBeGreaterThan(0);
+    expect(
+      await db.get("SELECT id FROM brain_audit_log WHERE action = 'store'"),
+    ).toBeTruthy();
     await db.close();
   });
 

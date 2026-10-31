@@ -52,26 +52,12 @@ export async function countEntities(): Promise<number> {
 }
 
 /**
- * LRU-lowest delete. Not a capacity policy (MEM-25). Disk budget is
- * `max_bytes` on the sqlite file; aliases merge via canonical_id (MEM-26).
+ * Leftover surface. Not a capacity policy (MEM-25): never DELETE entities.
+ * Disk budget is `max_bytes` on the sqlite file; aliases merge via canonical_id
+ * (MEM-26). LRU-on-mention stays a cache hint on the entity row itself.
  */
-export async function pruneEntities(count: number): Promise<number> {
-  if (count <= 0) return 0;
-  const db = await get();
-  const victims = await db.all(
-    `SELECT id FROM brain_entities
-     ORDER BY mention_count ASC, updated_at ASC
-     LIMIT ?`,
-    [count],
-  );
-  let pruned = 0;
-  for (const row of victims) {
-    const id = (row as any).id;
-    await db.run("DELETE FROM brain_graph_edges WHERE source_entity_id = ? OR target_entity_id = ?", [id, id]);
-    const result = await db.run("DELETE FROM brain_entities WHERE id = ?", [id]);
-    pruned += result.changes ?? 0;
-  }
-  return pruned;
+export async function pruneEntities(_count: number): Promise<number> {
+  return 0;
 }
 
 export async function getEntity(id: number): Promise<GraphEntity | null> {

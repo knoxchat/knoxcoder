@@ -785,7 +785,11 @@ describe("memory brain regressions", () => {
 
     const wm = getWorkingMemoryOptions();
     expect(wm.maxSlots).toBe(cfg.working_memory_max_slots);
-    expect(wm.tokenBudget).toBe(cfg.working_memory_token_budget);
+    expect(wm.tokenBudget).toBe(
+      cfg.working_memory_token_budget > 0
+        ? cfg.working_memory_token_budget
+        : Math.max(1, Math.floor(getContextMaxTokens() * cfg.working_memory_token_ratio)),
+    );
     expect(wm.ttlSeconds).toBe(0);
 
     const timeouts = getIntegrationTimeouts();
@@ -1580,7 +1584,7 @@ describe("memory brain regressions", () => {
     await resetDatabase();
     await BrainStore.saveConfig("sensory_buffer_ms", "60000");
     const { SensoryBuffer } = await import("./SensoryBuffer.js");
-    const { calculateAddressableMemory, levelEffective } = await import("./MemoryHierarchy.js");
+    const { calculateAddressableMemory } = await import("./MemoryHierarchy.js");
 
     const sessionId = "hier-session";
     try {
@@ -1620,7 +1624,10 @@ describe("memory brain regressions", () => {
       expect(m4?.tokens).toBeGreaterThan(0);
       expect(m4!.tokens / m4!.ratio).not.toBeCloseTo(m4!.effective_tokens ?? 0, 5);
       expect(hierarchy.c_addr).not.toBe(
-        hierarchy.levels.reduce((sum, level) => sum + levelEffective(level.tokens, level.ratio), 0),
+        hierarchy.levels.reduce((sum, level) => {
+          const ratio = level.ratio > 0 ? level.ratio : 1;
+          return sum + level.tokens / ratio;
+        }, 0),
       );
 
       const emptyWm = await calculateAddressableMemory({

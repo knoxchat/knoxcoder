@@ -606,14 +606,6 @@ export function detectFusionProfile(
   return "default";
 }
 
-/** Auto-detect query type and return config-driven fusion weights. */
-export function detectFusionWeights(
-  query: string,
-  options?: DetectFusionWeightsOptions,
-): FusionWeights {
-  return getFusionWeights(detectFusionProfile(query, options));
-}
-
 export interface BudgetQueryAdjustments {
   proceduralBoost: number;
   graphBoost: number;

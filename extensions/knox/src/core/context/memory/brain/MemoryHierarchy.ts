@@ -74,9 +74,6 @@ export interface AddressableMemoryResult {
   compression_ratios: CompressionRatios;
 }
 
-/** @deprecated MEM-07: use AddressableMemoryResult. */
-export type HierarchyEffectiveResult = AddressableMemoryResult;
-
 /** Level labels. Compression ratios are leftover display until MEM-15. */
 export function getMemoryLevelSpecs(ratios?: CompressionRatios): MemoryLevelSpec[] {
   const r = ratios ?? getCompressionRatios();
@@ -137,12 +134,6 @@ export function getMemoryLevelSpecs(ratios?: CompressionRatios): MemoryLevelSpec
       in_c_addr: true,
     },
   ];
-}
-
-/** @deprecated Leftover tokens/rᵢ. IMP-04 / C_addr use raw tokens (MEM-11). */
-export function levelEffective(tokens: number, ratio: number): number {
-  if (tokens <= 0 || ratio <= 0) return 0;
-  return tokens / ratio;
 }
 
 function asTokens(row: { tokens?: number } | undefined): number {
@@ -397,6 +388,3 @@ export async function calculateAddressableMemory(options?: {
     compression_ratios: ratios,
   };
 }
-
-/** @deprecated MEM-07: use calculateAddressableMemory. */
-export const calculateHierarchyEffective = calculateAddressableMemory;

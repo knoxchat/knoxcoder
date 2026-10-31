@@ -54,9 +54,7 @@ export type {
 } from "./attribution.js";
 export {
   calculateAddressableMemory,
-  calculateHierarchyEffective,
   getMemoryLevelSpecs,
-  levelEffective,
 } from "./MemoryHierarchy.js";
 export type {
   MemoryLevelId,
@@ -65,7 +63,6 @@ export type {
   MemoryLevelSpec,
   MemoryLevelMetrics,
   AddressableMemoryResult,
-  HierarchyEffectiveResult,
 } from "./MemoryHierarchy.js";
 export { MemoryPipeline } from "./MemoryPipeline.js";
 export { PrefrontalCortex, formatMemoryGoal } from "./regions/PrefrontalCortex.js";
@@ -91,7 +88,6 @@ export {
   RETRIEVAL_STOPWORDS,
 } from "./RetrievalQuery.js";
 export {
-  detectFusionWeights,
   detectFusionProfile,
   getFusionWeights,
   fusionWeightsAreSafe,
@@ -129,8 +125,6 @@ export {
   RRF_K0_DEFAULT,
   FUSION_CANDIDATE_CUTOFF_DEFAULT,
   RETRIEVAL_THRESHOLD_DEFAULT,
-  REL02_ADDITIVE_FLOOR,
-  RECENCY_IMPORTANCE_THETA_MARGIN,
   TOPIC_SAME_BOOST,
   TOPIC_OTHER_PENALTY,
   TASK_SAME_BOOST,
@@ -156,7 +150,6 @@ export {
   isCommonNounEntityName,
   queryMentionsEntity,
   shouldJoinEntityToMemories,
-  capGraphContribution,
 } from "./GraphRetrieval.js";
 export {
   extractRipgrepNeedles,

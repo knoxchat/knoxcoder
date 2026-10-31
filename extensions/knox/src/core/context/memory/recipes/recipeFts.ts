@@ -6,7 +6,8 @@
  * index in sync so recall is MATCH, not `list LIMIT 1000`.
  *
  * Additive: CREATE IF NOT EXISTS, no schema-version bump. FTS5 missing →
- * no throw; RecipeStore.search falls back to fingerprint + memory_id indexes.
+ * no throw; RecipeStore.search falls back to title/intent/path LIKE plus
+ * fingerprint + memory_id indexes.
  */
 
 import { cjkExpandSql } from "../brain/cjkFts.js";

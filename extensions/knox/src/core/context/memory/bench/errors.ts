@@ -200,6 +200,14 @@ function readEpsilonB(value: unknown): number | null | undefined {
   return readFinite(value);
 }
 
+/** Own-key pick so `epsilon_b: null` (flat FTS) is not dropped by `??`. */
+function firstOwn(rec: Record<string, unknown>, ...keys: string[]): unknown {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(rec, key)) return rec[key];
+  }
+  return undefined;
+}
+
 /** Read σ / ε_B / ε_S from baseline.json or a sibling theorem-errors.json. */
 export function readTheoremErrors(raw: unknown): TheoremErrorReport | undefined {
   const rec = asRecord(raw);
@@ -208,7 +216,7 @@ export function readTheoremErrors(raw: unknown): TheoremErrorReport | undefined 
   const src = nested ?? rec;
   const sigma = readFinite(src.sigma ?? src.σ);
   const epsilonS = readFinite(src.epsilon_s ?? src.epsilonS ?? src.ε_S);
-  const epsilonB = readEpsilonB(src.epsilon_b ?? src.epsilonB ?? src.ε_B);
+  const epsilonB = readEpsilonB(firstOwn(src, "epsilon_b", "epsilonB", "ε_B"));
   if (sigma === undefined && epsilonS === undefined && epsilonB === undefined) {
     return undefined;
   }

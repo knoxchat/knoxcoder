@@ -151,7 +151,7 @@ export async function runSelfReview(
   opts: { sinceDays?: number; now?: Date; threshold?: number } = {},
 ): Promise<{ events: number; updates: MemoryUpdate[]; report: ApplyReport; drafts: FamilyDraft[]; draftMarkdown: string }> {
   const events = await collectReviewEvents(db, opts);
-  const recipes: Recipe[] = await deps.store.list({ status: ["candidate", "verified"], limit: 1000 });
+  const recipes: Recipe[] = await deps.store.listLive({ status: ["candidate", "verified"] });
   const updates = planMemoryUpdates(events, recipes, opts.threshold);
   const report = await applyMemoryUpdates(updates, deps);
   const drafts = planFamilyDrafts(recipes);

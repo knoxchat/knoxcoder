@@ -71,7 +71,7 @@ async function withRecipeInspectorCounts(summary: RecipeMetricsSummary): Promise
             import("core/context/memory/recipes/RecipeStore"),
             import("core/context/memory/brain/store/connection"),
         ]);
-        const recipes = await new RecipeStore(await getBrainDb()).list({ limit: 1000 });
+        const recipes = await new RecipeStore(await getBrainDb()).listLive();
         const live = recipes.filter((recipe) => recipe.status !== "retired");
         summary.projectCount = live.filter((recipe) => recipe.scope === "project").length;
         summary.globalCount = live.filter((recipe) => recipe.scope === "global").length;

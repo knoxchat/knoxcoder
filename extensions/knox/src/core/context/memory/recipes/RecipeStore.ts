@@ -46,6 +46,26 @@ export function canTransition(from: RecipeStatus, to: RecipeStatus): boolean {
   return TRANSITIONS[from].includes(to);
 }
 
+function likeContains(term: string): string {
+  return `%${term.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
+}
+
+/** Title / intent / path LIKE terms when FTS is missing (MEM-34 fail-open). */
+function lexicalLikeTerms(query: string, extra: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of [...extra, ...query.split(/[\s/._-]+/)]) {
+    const term = raw.trim();
+    if (term.length < 2 || term.startsWith("$")) continue;
+    const key = term.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(term);
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
 export class RecipeTransitionError extends Error {
   constructor(
     readonly recipeId: string,
@@ -405,7 +425,8 @@ export class RecipeStore {
     const unions: string[] = [];
     const unionParams: unknown[] = [];
 
-    if (ftsQuery && (await recipeFtsReady(this.db))) {
+    const ftsReady = ftsQuery ? await recipeFtsReady(this.db) : false;
+    if (ftsQuery && ftsReady) {
       unions.push(`
         SELECT lex.recipe_id AS id, -bm25(brain_recipes_fts, 0, 4.0, 3.0, 2.0, 2.0) AS score
           FROM brain_recipes_fts
@@ -413,6 +434,17 @@ export class RecipeStore {
          WHERE brain_recipes_fts MATCH ?
       `);
       unionParams.push(ftsQuery);
+    } else if (query) {
+      for (const term of lexicalLikeTerms(query, extraOrTerms)) {
+        const like = likeContains(term);
+        unions.push(`
+          SELECT id, 0.25 AS score FROM brain_recipes
+           WHERE title LIKE ? ESCAPE '\\'
+              OR intent_text LIKE ? ESCAPE '\\'
+              OR id IN (SELECT recipe_id FROM brain_recipe_steps WHERE path LIKE ? ESCAPE '\\')
+        `);
+        unionParams.push(like, like, like);
+      }
     }
     if (fp.key) {
       unions.push(`SELECT id, 1.0 AS score FROM brain_recipes WHERE intent_fingerprint = ?`);
@@ -443,14 +475,26 @@ export class RecipeStore {
       const rows = await this.db.all(sql, [...unionParams, ...scopeParams]);
       return this.hydrate(rows);
     } catch {
-      return this.searchWithoutFts(scopeWhere, scopeParams, { fpKey: fp.key, memoryIds, limit });
+      return this.searchWithoutFts(scopeWhere, scopeParams, {
+        query,
+        extraOrTerms,
+        fpKey: fp.key,
+        memoryIds,
+        limit,
+      });
     }
   }
 
   private async searchWithoutFts(
     scopeWhere: string[],
     scopeParams: unknown[],
-    args: { fpKey: string; memoryIds: number[]; limit: number },
+    args: {
+      query: string;
+      extraOrTerms: string[];
+      fpKey: string;
+      memoryIds: number[];
+      limit: number;
+    },
   ): Promise<Recipe[]> {
     const where = [...scopeWhere];
     const params = [...scopeParams];
@@ -462,6 +506,13 @@ export class RecipeStore {
     if (args.memoryIds.length > 0) {
       idClauses.push(`memory_id IN (${args.memoryIds.map(() => "?").join(", ")})`);
       params.push(...args.memoryIds);
+    }
+    for (const term of lexicalLikeTerms(args.query, args.extraOrTerms)) {
+      idClauses.push(
+        `(title LIKE ? ESCAPE '\\' OR intent_text LIKE ? ESCAPE '\\' OR id IN (SELECT recipe_id FROM brain_recipe_steps WHERE path LIKE ? ESCAPE '\\'))`,
+      );
+      const like = likeContains(term);
+      params.push(like, like, like);
     }
     if (idClauses.length === 0) return [];
     where.push(`(${idClauses.join(" OR ")})`);
@@ -772,9 +823,8 @@ export class RecipeStore {
   }): Promise<number> {
     const retiredDays = opts?.retiredDays ?? 30;
     const quarantinedDays = opts?.quarantinedDays ?? 90;
-    const rows = await this.list({
+    const rows = await this.listLive({
       status: ["retired", "quarantined"],
-      limit: 1000,
     });
     const now = Date.now();
     let n = 0;

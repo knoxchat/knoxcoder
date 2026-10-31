@@ -57,7 +57,7 @@ export const memoryImpl: ToolImpl = async (args, extras) => {
   }
 
   // MEM-16: recall / search / build_context are retrieve-not-used.
-  // They must not call SpacedRepetition.boostOnRetrieval or write S / I.
+  // They must not write S / I.
 
   try {
     const result = await BrainManager.dispatch(action, args);

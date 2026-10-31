@@ -402,7 +402,7 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
     rows = await db.all(
       `SELECT * FROM brain_semantic
        WHERE ${conditions.join(" AND ")}
-       ORDER BY importance_score DESC, retrieval_count DESC, last_accessed_at DESC
+       ORDER BY id DESC
        LIMIT ?`,
       params,
     );
@@ -473,11 +473,10 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
         bm25Score += termIdf * tfNorm;
       }
 
-      // Blend BM25 with importance and recency; pinned memories win ties.
-      const importanceBoost = r.importance_score * 0.3;
-      const retrievalBoost = Math.min(r.retrieval_count * 0.02, 0.2);
+      // MEM-16 / MEM-21: LIKE is lexical BM25 only. Leftover I / retrieval_count
+      // do not score. Pinned still wins ties as a UX pin, not strengthening.
       const pinnedBoost = pinnedIdSet.has(r.id) ? 2.0 : 0;
-      const finalScore = bm25Score + importanceBoost + retrievalBoost + pinnedBoost;
+      const finalScore = bm25Score + pinnedBoost;
 
       return { row: r, score: finalScore };
     });
@@ -593,15 +592,13 @@ export async function findDuplicates(title: string, keywords: string, category?:
 }
 
 /**
- * Boost an existing memory that was identified as a near-duplicate.
- * Increases importance and updates content if new content is longer.
+ * Merge a longer near-duplicate into the existing leaf. Does not write leftover
+ * I / last_accessed_at (MEM-14 / MEM-16). Strength stays attribution-only.
  */
 export async function boostDuplicate(id: number, newContent: string): Promise<void> {
   const db = await get();
   await db.run(
     `UPDATE brain_semantic SET
-       importance_score = MIN(1.0, importance_score + 0.1),
-       last_accessed_at = datetime('now'),
        content = CASE WHEN length(?) > length(content) THEN ? ELSE content END
      WHERE id = ?`,
     [newContent, newContent, id],

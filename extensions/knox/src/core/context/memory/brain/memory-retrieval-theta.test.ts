@@ -12,10 +12,8 @@ import {
   activeFusionChannels,
   calibratedScoreCutoff,
   fuseCandidateScore,
-  leftoverAdditiveScore,
   normalizeFusedScore,
   passesCalibratedTheta,
-  REL02_ADDITIVE_FLOOR,
   rrfCeiling,
   rrfScore,
   FUSION_CANDIDATE_CUTOFF_DEFAULT,
@@ -24,7 +22,6 @@ import {
   RRF_K0_DEFAULT,
   type FusionResult,
 } from "./RetrievalFusion.js";
-import { getFusionWeights } from "./memoryConfigAccess.js";
 
 const testDir = path.join(os.tmpdir(), `brain-mem22-${Date.now()}`);
 
@@ -73,21 +70,6 @@ describe("MEM-22 calibrated θ (pure)", () => {
         ceiling,
       ),
     ).toBe(false);
-    expect(REL02_ADDITIVE_FLOOR).toBe(0.6);
-    expect(
-      leftoverAdditiveScore(
-        { fts5: 0, trigram: 0, graph: 0, recency: 1, importance: 1 },
-        getFusionWeights("conversational"),
-        REL02_ADDITIVE_FLOOR,
-      ),
-    ).toBeLessThan(REL02_ADDITIVE_FLOOR);
-    expect(
-      leftoverAdditiveScore(
-        { fts5: 0.2, trigram: 0, graph: 0, recency: 1, importance: 1 },
-        getFusionWeights("conversational"),
-        REL02_ADDITIVE_FLOOR,
-      ),
-    ).toBeLessThan(REL02_ADDITIVE_FLOOR);
   });
 
   it("active channels ignore ranks that never fired", () => {

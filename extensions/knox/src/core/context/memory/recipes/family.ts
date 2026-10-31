@@ -182,10 +182,9 @@ export async function linkRecipeFamily(
 ): Promise<Recipe> {
   if (recipe.status !== "candidate" && recipe.status !== "verified") return recipe;
 
-  const live = await store.list({
+  const live = await store.listLive({
     projectId: recipe.projectId,
     status: ["candidate", "verified"],
-    limit: 1000,
   });
   const siblings = live.filter((s) => s.id !== recipe.id && isFamilyCandidate(s, recipe));
   if (siblings.length === 0) {

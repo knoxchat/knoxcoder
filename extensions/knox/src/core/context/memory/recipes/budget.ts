@@ -81,22 +81,12 @@ export function recipeValueSource(r: Recipe): ValueSource {
   };
 }
 
-/** Theorem Value = R·U ∈ [0, 1]. Replaces the leftover status/track-record score. */
 export function recipeMemoryValue(
   r: Recipe,
   nowMs: number = Date.now(),
   params?: Partial<ValueParams>,
 ): number {
   return memoryValueFromSource(recipeValueSource(r), params, nowMs);
-}
-
-/** @deprecated Use recipeMemoryValue — this is theorem Value, not the old score. */
-export function recipeValue(
-  r: Recipe,
-  nowMs: number = Date.now(),
-  params?: Partial<ValueParams>,
-): number {
-  return recipeMemoryValue(r, nowMs, params);
 }
 
 export function shouldRetireRecipeByValue(

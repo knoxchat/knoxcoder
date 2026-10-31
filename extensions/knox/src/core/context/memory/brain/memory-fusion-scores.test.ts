@@ -15,7 +15,6 @@ import {
 } from "./memoryConfigAccess.js";
 import {
   fuseCandidateScore,
-  leftoverAdditiveScore,
   normalizeBm25,
   rrfScore,
   RETRIEVAL_THRESHOLD_DEFAULT,
@@ -102,15 +101,9 @@ describe("REL-02 absolute BM25 + fusion cap (pure)", () => {
 describe("REL-09 fusion weight safety (pure)", () => {
   const theta = RETRIEVAL_THRESHOLD_DEFAULT;
 
-  it("recency+importance cannot reach live θ on leftover or RRF scores", () => {
+  it("recency+importance cannot reach live θ on RRF scores", () => {
     for (const profile of FUSION_WEIGHT_PROFILES) {
       const weights = getFusionWeights(profile);
-      const leftover = leftoverAdditiveScore(
-        { fts5: 0, trigram: 0, graph: 0, recency: 1, importance: 1 },
-        weights,
-        theta,
-      );
-      expect(leftover).toBeLessThan(theta);
       const zeroOverlap = fuseCandidateScore(
         { fts5: 0, trigram: 0, graph: 0, recency: 1, importance: 1 },
         weights,
@@ -118,7 +111,7 @@ describe("REL-09 fusion weight safety (pure)", () => {
       );
       expect(zeroOverlap).toBe(0);
     }
-    expect(fusionWeightsAreSafe(getFusionWeights("default"), 0.6)).toBe(true);
+    expect(fusionWeightsAreSafe(getFusionWeights("default"), 0.35)).toBe(true);
   });
 
   it("conversational recency is lowered and fts5 is raised", () => {
@@ -126,12 +119,12 @@ describe("REL-09 fusion weight safety (pure)", () => {
     expect(conversational.recency).toBeLessThanOrEqual(0.15);
     expect(conversational.fts5).toBeGreaterThanOrEqual(0.40);
     expect(
-      leftoverAdditiveScore(
+      fuseCandidateScore(
         { fts5: 0, trigram: 0, graph: 0, recency: 1, importance: 1 },
         conversational,
         theta,
       ),
-    ).toBeLessThan(theta);
+    ).toBe(0);
   });
 
   it("continuation recency is leftover profile math; RRF ignores recency (MEM-21)", () => {

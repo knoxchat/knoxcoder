@@ -28,8 +28,8 @@ describe("mc:gate comparison (MC-46)", () => {
   });
 
   it("enforces the absolute false-inject target even with a loose baseline", () => {
-    const loose = { ...base, falseInjectRate: 0.333 };
-    const r = compareToBaseline({ ...loose, falseInjectRate: 0.333 }, loose);
+    const loose = { ...base, falseInjectRate: 0.5 };
+    const r = compareToBaseline({ ...loose, falseInjectRate: 0.5 }, loose);
     expect(r.ok).toBe(false);
     expect(r.failures[0]).toContain("target");
   });

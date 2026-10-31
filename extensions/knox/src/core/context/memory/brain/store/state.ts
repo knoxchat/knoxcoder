@@ -142,8 +142,8 @@ export const brainState: {
     compression_ratio_cold: 0.1,
     compression_ratio_frozen: 0.05,
     working_memory_max_slots: 7,
-    // UX scratchpad default. Not W_mem and not a 30K theorem cap (MEM-33).
-    working_memory_token_budget: 30000,
+    // 0 = derive from W × working_memory_token_ratio. Not W_mem (MEM-33).
+    working_memory_token_budget: 0,
     working_memory_token_ratio: 0.125,
     working_memory_decay_rate: 0.001,
     // 0 = session/call lifetime. Leftover clock when > 0 (MEM-33).

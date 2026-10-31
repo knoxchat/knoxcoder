@@ -1328,6 +1328,7 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(MEMORY_DEFAULT_CONFIG.w_mem_tokens, 4096);
 		assert.strictEqual(MEMORY_DEFAULT_CONFIG.sensory_buffer_ms, 0);
 		assert.strictEqual(MEMORY_DEFAULT_CONFIG.working_memory_ttl_seconds, 0);
+		assert.strictEqual(MEMORY_DEFAULT_CONFIG.working_memory_token_budget, 0);
 		assert.ok((MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryWorkingMemorySettings')?.fields.find(field => field.key === 'sensory_buffer_ms')?.min ?? 1) === 0);
 		assert.ok((MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryWorkingMemorySettings')?.fields.find(field => field.key === 'working_memory_ttl_seconds')?.min ?? 1) === 0);
 		assert.ok((MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryWorkingMemorySettings')?.fields.find(field => field.key === 'working_memory_token_budget')?.max ?? 0) > 30000);

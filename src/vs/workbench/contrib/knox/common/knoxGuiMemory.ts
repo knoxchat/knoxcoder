@@ -574,7 +574,7 @@ export function parseEffectiveContext(raw: Record<string, unknown> | undefined):
 		recRolling: (rec.rec_rolling !== undefined && rec.rec_rolling !== null) ? Number(rec.rec_rolling) : undefined,
 		answerableHorizon: parseAnswerableHorizon(rec),
 		sigma: parseOptionalFinite(rec.sigma),
-		epsilonB: parseOptionalEpsilon(rec.epsilon_b ?? rec.epsilonB),
+		epsilonB: parseOptionalEpsilon(firstOwn(rec, 'epsilon_b', 'epsilonB')),
 		epsilonBNote: typeof rec.epsilon_b_note === 'string' ? rec.epsilon_b_note : (typeof rec.epsilonBNote === 'string' ? rec.epsilonBNote : undefined),
 		epsilonS: parseOptionalFinite(rec.epsilon_s ?? rec.epsilonS),
 		theoremHeld: rec.theorem_held === true || rec.theoremHeld === true ? true : (rec.theorem_held === false || rec.theoremHeld === false ? false : undefined),
@@ -657,6 +657,16 @@ function parseOptionalEpsilon(raw: unknown): number | null | undefined {
 		return null;
 	}
 	return parseOptionalFinite(raw);
+}
+
+/** Own-key pick so `epsilon_b: null` (flat FTS) is not dropped by `??`. */
+function firstOwn(rec: Record<string, unknown>, ...keys: string[]): unknown {
+	for (const key of keys) {
+		if (Object.prototype.hasOwnProperty.call(rec, key)) {
+			return rec[key];
+		}
+	}
+	return undefined;
 }
 
 /** Format eps_B / eps_S (`0.020`, or `n/a — flat FTS`). */
@@ -1316,7 +1326,7 @@ export interface IKnoxGuiMemorySettingField {
 	suffixKey?: string;
 	sectionKey?: string;
 	options?: Array<{ value: string; labelKey: string }>;
-	/** Hidden leftover until Phase 3 removes the knob (MEM-10 / MEM-15). */
+	/** Hidden unused leftover knob. */
 	legacy?: boolean;
 }
 
@@ -1327,7 +1337,7 @@ export interface IKnoxGuiMemorySettingGroup {
 	descKey?: string;
 	/** lambda / fusion / budget and other retrieval knobs; hidden behind Expert retrieval. */
 	expert?: boolean;
-	/** Hidden leftover until Phase 3 removes the group (MEM-10 / MEM-15). */
+	/** Hidden unused leftover group. */
 	legacy?: boolean;
 }
 
@@ -1634,7 +1644,7 @@ export const MEMORY_DEFAULT_CONFIG: Readonly<Record<string, string | number | bo
 	auto_summarize: true, summarize_threshold: 50, enable_knowledge_extraction: true, post_turn_min_chars: 80,
 	hot_to_warm_hours: 24, warm_to_cold_days: 7, cold_prune_days: 90, graph_enabled: true, learning_enabled: true,
 	llm_entity_extraction_enabled: true, llm_summarization_enabled: true, llm_importance_scoring_enabled: true, llm_post_action_memory_enabled: true,
-	working_memory_max_slots: 7, working_memory_token_budget: 30000, working_memory_token_ratio: 0.125, working_memory_decay_rate: 0.001,
+	working_memory_max_slots: 7, working_memory_token_budget: 0, working_memory_token_ratio: 0.125, working_memory_decay_rate: 0.001,
 	working_memory_ttl_seconds: 0, easy_model: '', medium_model: '', hard_model: '', autonomous_max_iterations: 0,
 	mode_full_semantic_multiplier: 1.25, mode_full_episodic_multiplier: 2.0, mode_full_min_importance: 0, mode_full_episodic_snippet_len: 400,
 	mode_summarized_semantic_multiplier: 0.75, mode_summarized_episodic_multiplier: 0.75, mode_summarized_min_importance: 0.3, mode_summarized_episodic_snippet_len: 150,

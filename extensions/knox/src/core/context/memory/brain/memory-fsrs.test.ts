@@ -175,7 +175,7 @@ describe("MEM-14 FSRS strengthen only on use", () => {
     expect(row.importance_score).toBeCloseTo(0.7, 5);
   });
 
-  it("leftover boostOnRetrieval does not write S, D, I, or retrieval_count", async () => {
+  it("retrieve does not write S, D, I, or retrieval_count", async () => {
     await reset();
     const id = await BrainManager.store({
       category: "fact",
@@ -184,8 +184,11 @@ describe("MEM-14 FSRS strengthen only on use", () => {
       importance: 0.4,
     });
     const before = await semanticState(id);
-    const returned = await SpacedRepetition.boostOnRetrieval(id, { incrementAccess: true });
-    expect(returned).toBeCloseTo(0.4, 5);
+    await RetrievalFusion.search({
+      query: "quartzfsrsboostleaf leftover retrieve must not strengthen",
+      includeEpisodic: false,
+      limit: 10,
+    });
     expect(await semanticState(id)).toEqual(before);
   });
 

@@ -39,8 +39,9 @@ async function reset(): Promise<void> {
   await db.exec("DELETE FROM brain_procedures");
   try {
     await db.exec("DELETE FROM brain_recipes");
+    await db.exec("DELETE FROM brain_attribution");
   } catch {
-    // Recipe table may be absent on a stripped fixture.
+    // Recipe / attribution tables may be absent on a stripped fixture.
   }
   await db.exec("DELETE FROM brain_session_topics");
   await db.exec("DELETE FROM brain_sessions");
@@ -147,5 +148,77 @@ describe("MEM-07 addressable memory metrics", () => {
     expect(trend.snapshots[0].c_use).toBe(8000);
     expect(trend.snapshots[0]).not.toHaveProperty("total_effective");
     expect(["improving", "stable", "degrading"]).toContain(trend.addressable_memory_trend);
+  });
+
+  it("fills Rec from attribution and H / σ / ε from a published bench window", async () => {
+    await reset();
+    const { publishTheoremWindow, THEOREM_WINDOW_FILENAME } = await import("./theoremWindow.js");
+    const windowPath = path.join(testDir, "memory", THEOREM_WINDOW_FILENAME);
+    try {
+      await BrainStore.upsertAttribution({
+        turn_id: "t-rec-1",
+        session_id: "mem07-session",
+        mem_type: "semantic",
+        mem_id: "1",
+        injected: true,
+        cited: true,
+      });
+      await BrainStore.upsertAttribution({
+        turn_id: "t-rec-2",
+        session_id: "mem07-session",
+        mem_type: "semantic",
+        mem_id: "2",
+        injected: true,
+        cited: false,
+      });
+      const live = await BrainManager.getEffectiveContext();
+      expect(live.rec_rolling).toBeCloseTo(0.5);
+      expect(live.h_0_85).toBeUndefined();
+
+      publishTheoremWindow({
+        rec_rolling: 0.91,
+        h_0_85: 12,
+        sigma: 0.2,
+        epsilon_b: 0.05,
+        epsilon_s: 0.1,
+        theorem_held: true,
+        source: "test",
+      }, path.join(testDir, "memory"));
+
+      const published = await BrainManager.getEffectiveContext();
+      expect(published.rec_rolling).toBeCloseTo(0.91);
+      expect(published.h_0_85).toBe(12);
+      expect(published.sigma).toBeCloseTo(0.2);
+      expect(published.epsilon_b).toBeCloseTo(0.05);
+      expect(published.epsilon_s).toBeCloseTo(0.1);
+      expect(published.theorem_held).toBe(true);
+    } finally {
+      try {
+        fs.unlinkSync(windowPath);
+      } catch {}
+    }
+  });
+
+  it("loads a published window with epsilon_b null (flat FTS)", async () => {
+    await reset();
+    const { publishTheoremWindow, loadPublishedTheoremWindow, THEOREM_WINDOW_FILENAME } = await import("./theoremWindow.js");
+    const dir = path.join(testDir, "memory");
+    const windowPath = path.join(dir, THEOREM_WINDOW_FILENAME);
+    try {
+      publishTheoremWindow({
+        epsilon_b: null,
+        epsilon_b_note: "n/a — flat FTS",
+        theorem_held: false,
+        source: "test",
+      }, dir);
+      const loaded = loadPublishedTheoremWindow(dir);
+      expect(loaded?.epsilon_b).toBeNull();
+      expect(loaded?.epsilon_b_note).toBe("n/a — flat FTS");
+      expect(loaded?.theorem_held).toBe(false);
+    } finally {
+      try {
+        fs.unlinkSync(windowPath);
+      } catch {}
+    }
   });
 });

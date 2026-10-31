@@ -63,8 +63,6 @@ export class MetricsStorage {
       "memory_tokens_saved INTEGER DEFAULT 0",
       "c_addr REAL DEFAULT 0",
       "c_use REAL DEFAULT 0",
-      "hierarchy_effective_tokens REAL DEFAULT 0",
-      "total_effective REAL DEFAULT 0",
     ]) {
       try {
         await db.run(`ALTER TABLE brain_metrics_snapshots ADD COLUMN ${col}`);
