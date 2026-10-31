@@ -9,6 +9,7 @@ export {
   mapJevModel,
   mergeJevConfigWithFallback,
   normalizeJevBaseUrl,
+  onJevConfig,
   pickKnoxChatJevFallback,
   resolveJevApiKey,
   resolveJevRuntime,

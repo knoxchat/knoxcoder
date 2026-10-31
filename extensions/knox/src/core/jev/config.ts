@@ -318,11 +318,32 @@ export function jevCanCallNetwork(runtime: JevRuntime): boolean {
 let activeYaml: JevYamlConfig | null | undefined;
 let lastUserMessage = "";
 let confirmedProfile: ResolvedAgentProfile | undefined;
+const configListeners = new Set<(runtime: JevRuntime) => void>();
+
+function emitJevConfig(runtime: JevRuntime): void {
+  for (const listener of configListeners) {
+    try {
+      listener(runtime);
+    } catch {
+      // listeners must never break config load
+    }
+  }
+}
+
+/** Fires after each `applyJevConfig` (GUI toggle, YAML, vscode overlay). */
+export function onJevConfig(listener: (runtime: JevRuntime) => void): () => void {
+  configListeners.add(listener);
+  return () => {
+    configListeners.delete(listener);
+  };
+}
 
 /** Snapshot from the last loaded config.yaml `jev:` block. */
 export function applyJevConfig(yaml?: JevYamlConfig | null): JevRuntime {
   activeYaml = yaml;
-  return resolveJevRuntime(yaml);
+  const runtime = resolveJevRuntime(yaml);
+  emitJevConfig(runtime);
+  return runtime;
 }
 
 export function getActiveJevRuntime(): JevRuntime {

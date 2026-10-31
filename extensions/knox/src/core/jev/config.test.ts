@@ -8,6 +8,7 @@ import {
   mapJevModel,
   mergeJevConfigWithFallback,
   normalizeJevBaseUrl,
+  onJevConfig,
   pickKnoxChatJevFallback,
   resolveJevApiKey,
   resolveJevRuntime,
@@ -250,6 +251,23 @@ describe("mergeJevConfigWithFallback", () => {
     expect(
       mergeJevConfigWithFallback(undefined, { apiKey: "sk-knox" }),
     ).toBeUndefined();
+  });
+});
+
+describe("onJevConfig", () => {
+  let stop: (() => void) | undefined;
+  afterEach(() => {
+    stop?.();
+    stop = undefined;
+  });
+
+  it("notifies listeners when harness enablement changes", () => {
+    const seen: boolean[] = [];
+    stop = onJevConfig((runtime) => seen.push(runtime.enabled));
+    applyJevConfig({ enabled: true });
+    applyJevConfig({ enabled: false });
+    applyJevConfig();
+    expect(seen).toEqual([true, false, false]);
   });
 });
 

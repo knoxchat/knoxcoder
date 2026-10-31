@@ -23,6 +23,7 @@ All notable changes to KnoxCoder are documented in this file.
 
 ### Fixed
 
+- **Jev status bar.** The editor status bar Jev chip is hidden while Jev harness judgments are off (Knox Settings toggle, YAML `jev.enabled`, or `knoxchat.jev.enabled`). It used to stay visible because it only read the VS Code setting, which stays on by default after the GUI toggle writes shared config.
 - **False Critical on large brains.** Overview treated every sqlite `tier='hot'` row as a 500-cap overflow and any file over 100 MB as a problem, so a ~150 MB brain with tens of thousands of never-reclassified turns looked Critical with grade A. Inserts classify from R/Value; Refresh/Consolidate recompute stale labels; heal no longer force-demotes by recency. The 0-1 health score is shown as 0-100.
 - **Dangling summary-tree leaves after disk reclaim.** When `max_bytes` dropped original rows, tree pointers stayed (Losslessness). Health, consolidate, and heal prune them. Under the cap, forgotten tombstones stay reversible; reclaim is oldest-first.
 - **Project-scope lexical recall.** FTS JOIN-filters to this project's sessions and retries MATCH when tombstones filled the first window, so live in-scope rows are not dropped.

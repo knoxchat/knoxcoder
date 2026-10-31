@@ -234,8 +234,9 @@ Jev routing and gates call `api.knoxstudio.ai` or, when the selected model is
 OpenRouter, `openrouter.ai/api/v1/systemone` (`typesafe/jev-1.14`). Only the
 user message and tool names are sent, never file contents. Every call has a
 hard time budget and a circuit breaker (3 failures, 5 minutes off). Disable
-with `knoxchat.jev.enabled`; see calls in "Knox: Show Jev Log" and the status
-bar (`knoxchat.jev.showStatusBar`).
+with `knoxchat.jev.enabled` (or the Knox Settings toggle). The editor status
+bar chip (`knoxchat.jev.showStatusBar`) is hidden while Jev is off; see calls
+in "Knox: Show Jev Log".
 
 ## Tool loading
 
