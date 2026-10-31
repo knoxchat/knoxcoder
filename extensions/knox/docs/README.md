@@ -115,9 +115,13 @@ half-applied.
 
 ## Memory
 
-Memory Brain stores facts from your sessions locally and injects the relevant
-ones (hard cap 8000 tokens per turn; `KNOX_MEMORY_INJECT_CAP` overrides). Open
-it with "Knox: View Memory" to see what was used, pin or remove items.
+Memory Brain stores facts from your sessions locally. Stored memory is
+unbounded (`C_addr`); each model call is a bounded context (`C_use ≤ W` of the
+routed model). Injected tokens are `W_mem` — the remainder after system, goal,
+recent turns, and `W_out`, capped locally at 4096 (`KNOX_MEMORY_INJECT_CAP`
+can tighten that). Success is measured recall of relevant facts, not a bigger
+inject number. Open it with "Knox: View Memory" to see what was used, pin or
+remove items.
 Remove / `builtin_memory` delete tombstones the row (reversible via audit);
 command-palette wipe is destructive and keeps a backup. First-run chat shows
 what is stored. Off: `knoxchat.memoryBrain.enabled` (user) or
@@ -133,11 +137,15 @@ analysis that proposes fixes and issue drafts for you to approve. Design rules:
 [recipes README](../src/core/context/memory/recipes/README.md).
 How to use it: [recipes.md](recipes.md). Threat model: [security/threat-model.md](security/threat-model.md).
 
-Run `npm run mc:self-improve` from `extensions/knox` to analyze this repo
-(hot files, TODO density, bench baseline, optional threshold sweep from
-`--history file.json`). It writes a dated report to
-[`docs/self-improve/`](self-improve/) and sends nothing anywhere. Threshold
-proposals are never applied automatically.
+Run `npm run mc:self-improve` from `extensions/knox` to measure this repo
+against the Bounded-Context Recall Theorem: Rec vs N, `ε_S`, false-inject,
+attribution coverage, and recipe `wrongApplyRate`. Git history is labeled
+commit churn, not checkpoints. It writes a dated report to
+[`docs/self-improve/`](self-improve/) (section contract:
+[`REPORT.md`](self-improve/REPORT.md)) and sends nothing anywhere.
+`proposeThresholds` fits `θ` and `w_s` from `brain_attribution`; leftover
+lexical-gate and replay sweeps stay available. Proposals are never applied
+automatically.
 
 ## Checkpoints
 

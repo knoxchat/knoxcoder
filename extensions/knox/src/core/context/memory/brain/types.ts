@@ -1,8 +1,8 @@
 /**
  * Types for the Memory Brain system.
  *
- * Human-brain-like persistent memory that spans all conversation sessions,
- * enabling unlimited context window with any LLM.
+ * Persistent memory that spans conversation sessions: bounded context
+ * (`C_use ≤ W`), unbounded addressable memory (`C_addr`), measured recall.
  *
  * Modeled after Knox-MS architecture patterns:
  * - Episodic memory (conversation turns / events)

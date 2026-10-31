@@ -7,8 +7,8 @@
  * channel over the same rows, not extra `C_addr` capacity.
  *
  * Until a scoped forest has ≥ `b` leaves, the channel is silent (flat FTS
- * inside `Ω(q)`). `ε_B` is reported as `null` (n/a) until MEM-42 measures
- * per-level beam miss.
+ * inside `Ω(q)`). `ε_B` is `null` (`n/a — flat FTS`) until a caller passes
+ * `relevantLeaves` (MEM-42).
  *
  * Scoring is lexical (content-word Jaccard + identifier overlap). No
  * embeddings or neural rerank.
@@ -47,8 +47,16 @@ export interface TreeBeamStatus {
   leafCount: number;
   branching: number;
   beam: number;
-  /** Per-level beam miss. `null` until MEM-42 measures it. */
+  /** Per-level beam miss. `null` when unpublished (flat FTS / no R(q)). */
   epsilonB: number | null;
+  epsilonBNote?: string;
+  epsilonBOpportunities?: number;
+  epsilonBMisses?: number;
+}
+
+export interface TreeRelevantLeaf {
+  type: TreeMemoryType;
+  id: number;
 }
 
 export interface TreeSearchOptions {
@@ -60,12 +68,25 @@ export interface TreeSearchOptions {
   limit?: number;
   branching?: number;
   beam?: number;
+  /** Gold R(q) leaves. When set, beam search measures ε_B (MEM-42). */
+  relevantLeaves?: TreeRelevantLeaf[];
 }
 
 export interface TreeInsertOptions {
   sessionId: string;
   db?: DatabaseConnection;
   branching?: number;
+  /** Default true. φ₅ defers a forest refresh until every leaf is in. */
+  refresh?: boolean;
+}
+
+export interface TreeBeamMiss {
+  ready: boolean;
+  leafCount: number;
+  epsilonB: number | null;
+  epsilonBNote?: string;
+  opportunities: number;
+  misses: number;
 }
 
 type TreeRow = {
@@ -133,12 +154,14 @@ export async function treeBeamStatus(options: TreeSearchOptions = { query: "" })
   const beam = resolveTreeBeam(options.beam ?? theorem.treeBeamB);
   const roots = await loadSessionRoots(db, options);
   const leafCount = await countLeavesUnder(db, roots.map((r) => r.id));
+  const ready = isTreeReady(leafCount, branching);
   return {
-    ready: isTreeReady(leafCount, branching),
+    ready,
     leafCount,
     branching,
     beam,
     epsilonB: null,
+    epsilonBNote: ready ? undefined : "n/a — flat FTS",
   };
 }
 
@@ -171,7 +194,9 @@ export async function insertTreeLeaf(
       estimateSummaryTokens((source.text ?? "").slice(0, 400)),
     ],
   );
-  await refreshAncestorText(db, parentId, options.sessionId);
+  if (options.refresh !== false) {
+    await refreshAncestorText(db, parentId, options.sessionId);
+  }
   return true;
 }
 
@@ -196,7 +221,7 @@ export async function ingestSessionLeaves(
     const text = [row.title, row.content, row.keywords].filter(Boolean).join("\n");
     const ok = await insertTreeLeaf(
       { type: "semantic", id: row.id, text },
-      { sessionId, db, branching },
+      { sessionId, db, branching, refresh: false },
     );
     if (ok) linked++;
   }
@@ -209,10 +234,11 @@ export async function ingestSessionLeaves(
   for (const row of episodic) {
     const ok = await insertTreeLeaf(
       { type: "episodic", id: row.id, text: row.content },
-      { sessionId, db, branching },
+      { sessionId, db, branching, refresh: false },
     );
     if (ok) linked++;
   }
+  if (linked > 0) await refreshSessionForest(db, sessionId);
   return { linked };
 }
 
@@ -408,10 +434,13 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
   ready: boolean;
   leafCount: number;
   epsilonB: number | null;
+  epsilonBNote?: string;
+  epsilonBOpportunities?: number;
+  epsilonBMisses?: number;
 }> {
   const query = options.query ?? "";
   if (!query.trim()) {
-    return { hits: [], ready: false, leafCount: 0, epsilonB: null };
+    return unpublishedBeam([], false, 0);
   }
   const db = options.db ?? (await BrainStore.get());
   const theorem = getTheoremParams();
@@ -420,19 +449,40 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
   const roots = await loadSessionRoots(db, options);
   const leafCount = await countLeavesUnder(db, roots.map((r) => r.id));
   if (!isTreeReady(leafCount, branching)) {
-    return { hits: [], ready: false, leafCount, epsilonB: null };
+    return unpublishedBeam([], false, leafCount);
   }
+
+  const paths = options.relevantLeaves?.length
+    ? await loadRelevantPaths(db, options.relevantLeaves)
+    : new Map<string, TreePathNode[]>();
+  const measure = paths.size > 0;
+  const alive = new Set(paths.keys());
+  let opportunities = 0;
+  let misses = 0;
 
   let beam = roots
     .map((root) => ({ id: root.id, score: scoreTreeText(query, root.text) }))
     .sort((a, b) => b.score - a.score || a.id - b.id)
     .slice(0, beamWidth);
+  if (measure) {
+    const rootBeam = new Set(beam.map((n) => n.id));
+    for (const key of [...alive]) {
+      const rootId = paths.get(key)?.[0]?.id;
+      opportunities++;
+      if (rootId == null || !rootBeam.has(rootId)) {
+        misses++;
+        alive.delete(key);
+      }
+    }
+  }
+
   const leafScores = new Map<string, { type: TreeMemoryType; id: number; score: number }>();
   const visited = new Set<number>(beam.map((n) => n.id));
 
   for (let depth = 0; depth < TREE_MAX_DEPTH && beam.length > 0; depth++) {
     const candidates: Array<{
       id: number;
+      parentId: number;
       kind: string;
       text: string;
       leafType: TreeMemoryType | null;
@@ -451,6 +501,7 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
         const leafId = child.kind === "leaf" ? Number(child.leaf_id) : null;
         candidates.push({
           id: child.id,
+          parentId: node.id,
           kind: child.kind,
           text: child.text,
           leafType,
@@ -463,6 +514,30 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
     const considered = candidates
       .sort((a, b) => b.score - a.score || a.id - b.id)
       .slice(0, beamWidth * branching);
+    const nextBeam = considered
+      .filter((c) => c.kind === "node")
+      .slice(0, beamWidth)
+      .map((c) => ({ id: c.id, score: c.score }));
+
+    if (measure && alive.size > 0) {
+      const consideredIds = new Set(considered.map((c) => c.id));
+      const nextBeamIds = new Set(nextBeam.map((n) => n.id));
+      const beamIds = new Set(beam.map((n) => n.id));
+      for (const key of [...alive]) {
+        const path = paths.get(key);
+        if (!path) continue;
+        const step = path.find((node) => node.parentId != null && beamIds.has(node.parentId));
+        if (!step) continue;
+        opportunities++;
+        const isLeaf = step.id === path[path.length - 1]?.id;
+        if (!consideredIds.has(step.id) || (!isLeaf && !nextBeamIds.has(step.id))) {
+          misses++;
+          alive.delete(key);
+        } else if (isLeaf) {
+          alive.delete(key);
+        }
+      }
+    }
 
     for (const cand of considered) {
       if (cand.kind !== "leaf" || cand.leafId == null || cand.leafType == null) continue;
@@ -475,16 +550,42 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
       }
     }
 
-    beam = considered
-      .filter((c) => c.kind === "node")
-      .slice(0, beamWidth)
-      .map((c) => ({ id: c.id, score: c.score }));
+    beam = nextBeam;
   }
 
   const hits = [...leafScores.values()]
     .sort((a, b) => b.score - a.score || a.type.localeCompare(b.type) || a.id - b.id)
     .slice(0, Math.max(1, options.limit ?? 50));
-  return { hits, ready: true, leafCount, epsilonB: null };
+  return {
+    hits,
+    ready: true,
+    leafCount,
+    ...publishedBeamMiss(measure, opportunities, misses),
+  };
+}
+
+/** MEM-42: per-level beam miss for a known R(q). */
+export async function measureTreeBeamMiss(options: TreeSearchOptions): Promise<TreeBeamMiss> {
+  const result = await beamSearchTree(options);
+  return {
+    ready: result.ready,
+    leafCount: result.leafCount,
+    epsilonB: result.epsilonB,
+    epsilonBNote: result.epsilonBNote,
+    opportunities: result.epsilonBOpportunities ?? 0,
+    misses: result.epsilonBMisses ?? 0,
+  };
+}
+
+type TreePathNode = { id: number; parentId: number | null };
+
+export async function leafAncestorPath(
+  type: TreeMemoryType,
+  leafId: number,
+  options: { db?: DatabaseConnection } = {},
+): Promise<TreePathNode[] | null> {
+  const db = options.db ?? (await BrainStore.get());
+  return loadLeafPath(db, type, leafId);
 }
 
 export async function maxChildCount(
@@ -501,6 +602,120 @@ export async function maxChildCount(
     if (n > max) max = n;
   }
   return max;
+}
+
+function unpublishedBeam(
+  hits: TreeMemoryHit[],
+  ready: boolean,
+  leafCount: number,
+): {
+  hits: TreeMemoryHit[];
+  ready: boolean;
+  leafCount: number;
+  epsilonB: number | null;
+  epsilonBNote: string;
+  epsilonBOpportunities: number;
+  epsilonBMisses: number;
+} {
+  return {
+    hits,
+    ready,
+    leafCount,
+    epsilonB: null,
+    epsilonBNote: "n/a — flat FTS",
+    epsilonBOpportunities: 0,
+    epsilonBMisses: 0,
+  };
+}
+
+function publishedBeamMiss(
+  measure: boolean,
+  opportunities: number,
+  misses: number,
+): {
+  epsilonB: number | null;
+  epsilonBNote?: string;
+  epsilonBOpportunities?: number;
+  epsilonBMisses?: number;
+} {
+  if (!measure) {
+    return { epsilonB: null };
+  }
+  if (opportunities <= 0) {
+    return {
+      epsilonB: null,
+      epsilonBNote: "n/a — no relevant leaves in tree",
+      epsilonBOpportunities: 0,
+      epsilonBMisses: 0,
+    };
+  }
+  return {
+    epsilonB: misses / opportunities,
+    epsilonBOpportunities: opportunities,
+    epsilonBMisses: misses,
+  };
+}
+
+async function loadRelevantPaths(
+  db: DatabaseConnection,
+  leaves: readonly TreeRelevantLeaf[],
+): Promise<Map<string, TreePathNode[]>> {
+  const paths = new Map<string, TreePathNode[]>();
+  for (const leaf of leaves) {
+    const type = leaf.type === "semantic" ? "semantic" : "episodic";
+    const id = Math.trunc(Number(leaf.id));
+    if (id <= 0) continue;
+    const path = await loadLeafPath(db, type, id);
+    if (path && path.length > 0) paths.set(`${type}:${id}`, path);
+  }
+  return paths;
+}
+
+async function loadLeafPath(
+  db: DatabaseConnection,
+  type: TreeMemoryType,
+  leafId: number,
+): Promise<TreePathNode[] | null> {
+  const leaf = (await db.get(
+    `SELECT id, parent_id FROM brain_summary_tree
+     WHERE kind = 'leaf' AND leaf_type = ? AND leaf_id = ?
+     ORDER BY id DESC LIMIT 1`,
+    [type, String(leafId)],
+  )) as { id: number; parent_id: number | null } | undefined;
+  if (!leaf) return null;
+  const chain: TreePathNode[] = [{ id: leaf.id, parentId: leaf.parent_id ?? null }];
+  const seen = new Set<number>([leaf.id]);
+  let current = leaf.parent_id;
+  while (current != null && current > 0 && !seen.has(current)) {
+    seen.add(current);
+    const row = (await db.get(
+      "SELECT id, parent_id FROM brain_summary_tree WHERE id = ?",
+      [current],
+    )) as { id: number; parent_id: number | null } | undefined;
+    if (!row) break;
+    chain.push({ id: row.id, parentId: row.parent_id ?? null });
+    current = row.parent_id;
+  }
+  chain.reverse();
+  return chain;
+}
+
+async function refreshSessionForest(db: DatabaseConnection, sessionId: string): Promise<void> {
+  const root = await findSessionRoot(db, sessionId);
+  if (!root) return;
+  await refreshSubtree(db, root.id, sessionId);
+}
+
+async function refreshSubtree(
+  db: DatabaseConnection,
+  nodeId: number,
+  sessionId: string,
+): Promise<void> {
+  const children = await listChildren(db, nodeId);
+  for (const child of children) {
+    if (child.kind === "node") await refreshSubtree(db, child.id, sessionId);
+  }
+  await refreshNodeText(db, nodeId, sessionId);
 }
 
 async function ensureSessionRoot(db: DatabaseConnection, sessionId: string): Promise<number> {

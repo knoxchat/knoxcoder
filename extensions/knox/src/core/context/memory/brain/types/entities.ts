@@ -177,7 +177,7 @@ export interface BrainSession {
   is_active: boolean;
 }
 
-/** Revised-theorem dashboard metrics: C_addr / C_use / W. Rec is optional until benches exist. */
+/** Revised-theorem dashboard metrics: C_addr / C_use / W. Rec / H_0.85 are optional until benches exist. */
 export interface EffectiveContextMetrics {
   /** Addressable stored tokens: |M₃| + |M₄| + |M₅| (raw, no / rᵢ). */
   c_addr: number;
@@ -191,6 +191,17 @@ export interface EffectiveContextMetrics {
   routed_model?: string;
   /** Rolling Rec(q) when a bench / attribution window exists. */
   rec_rolling?: number;
+  /** Answerable horizon H_0.85 in days (MEM-41). */
+  h_0_85?: number;
+  /** A1 selectivity σ = mean_q N_q / N (MEM-42). */
+  sigma?: number;
+  /** A2 per-level beam miss. `null` = n/a — flat FTS. */
+  epsilon_b?: number | null;
+  epsilon_b_note?: string;
+  /** A3 selection / budget miss (MEM-42). */
+  epsilon_s?: number;
+  /** Finite ε_B and Rec on the theorem floor. */
+  theorem_held?: boolean;
   /** Alias of `w`. */
   active_window_tokens?: number;
   /** Alias of `w`. Leftover name; not the 10M stored ceiling. */

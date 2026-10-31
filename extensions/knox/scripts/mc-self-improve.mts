@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * MC-48: manual self-analysis of this repo (knoxchat/knoxcoder).
+ * MC-48 / MEM-43: manual self-analysis of this repo (knoxchat/knoxcoder).
  *
- *   npm run mc:self-improve [-- --since "90 days ago"] [--history history.json]
+ *   npm run mc:self-improve [-- --since "90 days ago"] [--history history.json] [--brain path]
  *
- * Writes `docs/self-improve/<date>-self-improve.md`. Local only: no network, no issue is opened.
+ * Writes `docs/self-improve/<date>-self-improve.md` with Rec vs N, epsilon_S,
+ * false-inject, attribution coverage, and recipe wrongApplyRate. Git log is
+ * commit churn. theta / w_s are fitted from brain_attribution when a brain sqlite
+ * or `--history` dump is present. Local only: no network, no issue is opened.
  */
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
@@ -47,9 +50,12 @@ try {
 		{ cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
 	);
 	const historyPath = arg('history');
-	const baseline = JSON.parse(
-		fs.readFileSync(path.join(root, 'src/core/context/memory/bench/baseline.json'), 'utf8'),
-	);
+	const baselinePath = path.join(root, 'src/core/context/memory/bench/baseline.json');
+	const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
+	const theoremErrorsPath = path.join(path.dirname(baselinePath), 'theorem-errors.json');
+	const theoremErrors = fs.existsSync(theoremErrorsPath)
+		? JSON.parse(fs.readFileSync(theoremErrorsPath, 'utf8'))
+		: undefined;
 	const knoxDir = process.env.KNOX_GLOBAL_DIR ?? path.join(os.homedir(), '.knoxcoder');
 	const brainSqlitePath = arg('brain') ?? path.join(knoxDir, 'memory', 'brain.sqlite');
 	const auditEventsPath = arg('audit') ?? path.join(knoxDir, 'checkpoints', 'events.jsonl');
@@ -61,6 +67,7 @@ try {
 		gitLog,
 		history: historyPath ? JSON.parse(fs.readFileSync(path.resolve(historyPath), 'utf8')) : undefined,
 		baseline,
+		theoremErrors,
 		brainSqlitePath: fs.existsSync(brainSqlitePath) ? brainSqlitePath : undefined,
 		auditEventsPath: fs.existsSync(auditEventsPath) ? auditEventsPath : undefined,
 	});

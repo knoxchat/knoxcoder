@@ -1,12 +1,28 @@
 /**
- * MC-47: offline threshold tuning. Sweeps the relevance-gate score bar and the replay threshold
- * over recorded history and PROPOSES new values with before/after numbers.
+ * MC-47 / MEM-43: offline threshold tuning. Sweeps the leftover relevance-gate
+ * score bar and the replay threshold, and fits theorem θ / w_s from
+ * `brain_attribution` (and leftover outcomes that write that same table).
  *
  * Nothing here writes a setting. `applyApproved` only calls the injected writer for proposals the
  * user named, so "no setting is written without consent" is enforced in one place and tested.
  */
 import { evaluateRelevanceGate, LEXICAL_SCORE_MIN, type RelevanceGateInput } from "../brain/RelevanceGate";
+import {
+  ATTRIBUTION_THETA_MIN_SAMPLES,
+  CALIBRATED_THETA_DEFAULT,
+  computeAttributionRefit,
+  emptyChannelWeights,
+  FUSION_CHANNELS,
+  type AttributionChannelCounts,
+  type AttributionRefitInput,
+  type ChannelWeights,
+  type FusionChannel,
+} from "../brain/memoryOutcomes";
+import type { AttributionRow } from "../brain/store/attribution";
 import { REPLAY_THRESHOLD } from "../recipes/RecipeMatcher";
+import type { AttributionSample } from "./attributionStats";
+
+export type { AttributionSample, AttributionRefitInput, ChannelWeights, FusionChannel };
 
 /** A recalled memory and whether it turned out to be relevant (kept by the user / helped a verified turn). */
 export interface RelevanceSample {
@@ -33,15 +49,39 @@ export interface ReplayMetrics {
   replayed: number;
 }
 
+export interface ThetaMetrics {
+  helpfulRate: number;
+  calibrationN: number;
+}
+
+export type NumericProposalId =
+  | "relevance.lexicalScoreMin"
+  | "recipes.replayThreshold"
+  | "retrieval.theta";
+
+export type TuningSettingId = NumericProposalId | "fusion.channelWeights";
+export type TuningSettingValue = number | ChannelWeights;
+
 export interface Proposal<M> {
   /** Stable name; also the key passed to `applyApproved`. */
-  id: "relevance.lexicalScoreMin" | "recipes.replayThreshold";
+  id: NumericProposalId;
   current: number;
   proposed: number;
   before: M;
   after: M;
   samples: number;
   /** Why this value, or why nothing changed. */
+  rationale: string;
+  changed: boolean;
+}
+
+export interface ChannelWeightsProposal {
+  id: "fusion.channelWeights";
+  current: ChannelWeights;
+  proposed: ChannelWeights;
+  before: Record<FusionChannel, AttributionChannelCounts>;
+  after: Record<FusionChannel, AttributionChannelCounts>;
+  samples: number;
   rationale: string;
   changed: boolean;
 }
@@ -155,32 +195,158 @@ export function tuneReplayThreshold(
 export interface TuningReport {
   relevance: Proposal<RelevanceMetrics>;
   replay: Proposal<ReplayMetrics>;
+  theta: Proposal<ThetaMetrics>;
+  channelWeights: ChannelWeightsProposal;
 }
 
-export function proposeThresholds(history: { relevance: readonly RelevanceSample[]; replays: readonly ReplaySample[] }): TuningReport {
-  return { relevance: tuneRelevance(history.relevance), replay: tuneReplayThreshold(history.replays) };
+function asAttributionRows(rows: readonly AttributionSample[]): AttributionRow[] {
+  return rows.map((row, i) => ({
+    id: i + 1,
+    turn_id: `sample-${i}`,
+    session_id: null,
+    mem_type: row.mem_type ?? "semantic",
+    mem_id: row.mem_id ?? String(i + 1),
+    injected: Number(row.injected) === 1 ? 1 : 0,
+    cited: Number(row.cited ?? (row.helpful != null ? 1 : 0)) === 1 ? 1 : 0,
+    helpful: row.helpful == null ? null : Number(row.helpful) === 1 ? 1 : 0,
+    channel: row.channel ?? null,
+    score: row.score ?? null,
+    created_at: null,
+  }));
+}
+
+function formatWeights(weights: ChannelWeights): string {
+  return FUSION_CHANNELS.map((channel) => `${channel} ${r3(weights[channel])}`).join(", ");
+}
+
+function citedChannelSamples(counts: Record<FusionChannel, AttributionChannelCounts>): number {
+  return FUSION_CHANNELS.reduce(
+    (sum, channel) => sum + counts[channel].helpful + counts[channel].unhelpful,
+    0,
+  );
+}
+
+/** Fit θ = P(helpful | injected) from the attribution log (MEM-18 / MEM-43). */
+export function tuneTheta(
+  rows: readonly AttributionSample[],
+  current = CALIBRATED_THETA_DEFAULT,
+): Proposal<ThetaMetrics> {
+  const refit = computeAttributionRefit(asAttributionRows(rows), {
+    theta: current,
+    weights: emptyChannelWeights(),
+  });
+  const metrics = { helpfulRate: r3(refit.helpful_rate), calibrationN: refit.calibration_n };
+  const base = { id: "retrieval.theta" as const, current, samples: refit.calibration_n, before: metrics };
+  if (refit.calibration_n < ATTRIBUTION_THETA_MIN_SAMPLES) {
+    return {
+      ...base,
+      proposed: current,
+      after: metrics,
+      changed: false,
+      rationale: `only ${refit.calibration_n} injected outcomes (need ${ATTRIBUTION_THETA_MIN_SAMPLES}); not enough attribution to fit θ`,
+    };
+  }
+  if (!refit.theta_updated) {
+    return {
+      ...base,
+      proposed: current,
+      after: metrics,
+      changed: false,
+      rationale: "fitted θ matches the current bar",
+    };
+  }
+  return {
+    ...base,
+    proposed: r3(refit.theta),
+    after: metrics,
+    changed: true,
+    rationale: `P(helpful | injected) ${metrics.helpfulRate} -> proposed θ ${r3(refit.theta)}`,
+  };
+}
+
+/** Fit RRF channel weights w_s from cited+helpful vs unhelpful (MEM-18 / MEM-43). */
+export function tuneChannelWeights(
+  rows: readonly AttributionSample[],
+  current: ChannelWeights = emptyChannelWeights(),
+): ChannelWeightsProposal {
+  const refit = computeAttributionRefit(asAttributionRows(rows), {
+    theta: CALIBRATED_THETA_DEFAULT,
+    weights: current,
+  });
+  const samples = citedChannelSamples(refit.channel_counts);
+  const base = {
+    id: "fusion.channelWeights" as const,
+    current,
+    proposed: current,
+    before: refit.channel_counts,
+    after: refit.channel_counts,
+    samples,
+  };
+  if (samples === 0) {
+    return { ...base, changed: false, rationale: "no cited channel outcomes in brain_attribution; keep current w_s" };
+  }
+  if (!refit.channel_updated) {
+    return {
+      ...base,
+      proposed: refit.channel_weights,
+      changed: false,
+      rationale: "fitted w_s matches the current weights",
+    };
+  }
+  return {
+    ...base,
+    proposed: refit.channel_weights,
+    changed: true,
+    rationale: `refit w_s from cited+helpful vs unhelpful: ${formatWeights(current)} -> ${formatWeights(refit.channel_weights)}`,
+  };
+}
+
+export interface TuningHistory {
+  relevance?: readonly RelevanceSample[];
+  replays?: readonly ReplaySample[];
+  attribution?: readonly AttributionSample[];
+  current?: AttributionRefitInput;
+}
+
+export function proposeThresholds(history: TuningHistory): TuningReport {
+  return {
+    relevance: tuneRelevance(history.relevance ?? []),
+    replay: tuneReplayThreshold(history.replays ?? []),
+    theta: tuneTheta(history.attribution ?? [], history.current?.theta),
+    channelWeights: tuneChannelWeights(history.attribution ?? [], history.current?.weights),
+  };
 }
 
 export function formatTuningReport(report: TuningReport, generatedAt: string): string {
-  const row = (label: string, p: Proposal<object>) => {
-    const m = (x: object) => Object.entries(x).map(([k, v]) => `${k} ${v}`).join(", ");
-    return [
-      `### ${label} (\`${p.id}\`)`,
-      "",
-      `- Current: ${p.current}`,
-      `- Proposed: ${p.changed ? p.proposed : "no change"}`,
-      `- Before: ${m(p.before)}`,
-      `- After: ${m(p.after)}`,
-      `- Samples: ${p.samples}`,
-      `- Why: ${p.rationale}`,
-      "",
-    ].join("\n");
-  };
+  const metrics = (x: object) => Object.entries(x).map(([k, v]) => `${k} ${v}`).join(", ");
+  const row = (label: string, p: Proposal<object>) => [
+    `### ${label} (\`${p.id}\`)`,
+    "",
+    `- Current: ${p.current}`,
+    `- Proposed: ${p.changed ? p.proposed : "no change"}`,
+    `- Before: ${metrics(p.before)}`,
+    `- After: ${metrics(p.after)}`,
+    `- Samples: ${p.samples}`,
+    `- Why: ${p.rationale}`,
+    "",
+  ].join("\n");
+  const weights = report.channelWeights;
+  const weightBlock = [
+    `### Channel weights w_s (\`${weights.id}\`)`,
+    "",
+    `- Current: ${formatWeights(weights.current)}`,
+    `- Proposed: ${weights.changed ? formatWeights(weights.proposed) : "no change"}`,
+    `- Samples: ${weights.samples}`,
+    `- Why: ${weights.rationale}`,
+    "",
+  ].join("\n");
   return [
     "# Threshold tuning proposal",
     "",
-    `Generated ${generatedAt}. Offline sweep over recorded history. **No setting was changed**; apply a value only after you approve it.`,
+    `Generated ${generatedAt}. Fits θ and w_s from brain_attribution / outcomes; leftover lexical and replay sweeps stay available. **No setting was changed**; apply a value only after you approve it.`,
     "",
+    row("Retrieval θ", report.theta),
+    weightBlock,
     row("Relevance gate score bar", report.relevance),
     row("Replay threshold", report.replay),
   ].join("\n");
@@ -192,14 +358,18 @@ export function formatTuningReport(report: TuningReport, generatedAt: string): s
  */
 export async function applyApproved(
   report: TuningReport,
-  approved: ReadonlySet<Proposal<object>["id"]>,
-  write: (id: Proposal<object>["id"], value: number) => Promise<void>,
+  approved: ReadonlySet<TuningSettingId>,
+  write: (id: TuningSettingId, value: TuningSettingValue) => Promise<void>,
 ): Promise<string[]> {
   const done: string[] = [];
-  for (const p of [report.relevance, report.replay] as Proposal<object>[]) {
+  for (const p of [report.theta, report.relevance, report.replay]) {
     if (!p.changed || !approved.has(p.id)) continue;
     await write(p.id, p.proposed);
     done.push(p.id);
+  }
+  if (report.channelWeights.changed && approved.has(report.channelWeights.id)) {
+    await write(report.channelWeights.id, report.channelWeights.proposed);
+    done.push(report.channelWeights.id);
   }
   return done;
 }

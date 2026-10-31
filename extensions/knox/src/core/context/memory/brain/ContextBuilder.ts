@@ -274,6 +274,12 @@ export class ContextBuilder {
       ? ContextSections.estimateTokens(RECALLED_MEMORY_HEADER)
       : 0;
     const selectBudget = Math.max(0, tokenBudget - headerTokens);
+    const candItems = pool.map((c) => ({
+      key: c.key,
+      kind: c.kind,
+      id: typeof c.item.id === "number" ? c.item.id : null,
+      title: c.item.title,
+    }));
     const selected = selectBudgetedSubmodular(pool, selectBudget, {
       lambda: getTheoremParams().coverageLambda,
     });
@@ -367,6 +373,7 @@ export class ContextBuilder {
       system_tokens: budget.systemTokens,
       goal_tokens: budget.goalTokens,
       recent_tokens: budget.recentTokens,
+      cand: candItems,
       ...overflowFields,
     };
     const overflowSaved = Math.max(0, share.recentTokensRaw - share.recentTokens);

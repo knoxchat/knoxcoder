@@ -69,6 +69,7 @@ describe("loadRecipeHealthFromBrain", () => {
       quarantined: 0,
       unlinkedVerified: 1,
       replays: 1,
+      wrongApplyRate: 0,
       skips: 2,
       nearMisses: 1,
     });

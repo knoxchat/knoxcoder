@@ -1,5 +1,8 @@
 /**
- * P1-5: Memory Brain retrieval latency at scale.
+ * P1-5: Memory Brain retrieval latency at one flat N (leftover soak).
+ *
+ * Rec vs N under project scope (`N_q = σ N`) lives in `runRecallScaleBench`
+ * (MEM-40) and is what `brainScale.test.ts` runs.
  *
  * Seeds the 20 benchmark memories (the needles) plus N generated filler memories directly into
  * the throwaway brain DB (one transaction, FTS triggers still fire), then runs the benchmark

@@ -159,7 +159,7 @@ export function getPhaseStatus() {
   return MemoryPipeline.getPhaseStatus(consolidationStats.scheduler_active);
 }
 
-/** Local C_addr / C_use / W metrics (MEM-07). Rec is filled when a rolling window exists. */
+/** Local C_addr / C_use / W metrics (MEM-07). Rec / H_0.85 / σ / ε_* are filled when a bench window exists. */
 export async function getEffectiveContext() {
   const { calculateAddressableMemory } = await import("../MemoryHierarchy.js");
   const config = BrainStore.getConfig();
@@ -189,6 +189,12 @@ export async function getEffectiveContext() {
     w_out: window.wOut,
     routed_model: window.model,
     rec_rolling: undefined as number | undefined,
+    h_0_85: undefined as number | undefined,
+    sigma: undefined as number | undefined,
+    epsilon_b: undefined as number | null | undefined,
+    epsilon_b_note: undefined as string | undefined,
+    epsilon_s: undefined as number | undefined,
+    theorem_held: undefined as boolean | undefined,
     levels: hierarchy.levels,
     tier_tokens: hierarchy.tier_tokens,
     active_window_tokens: w,

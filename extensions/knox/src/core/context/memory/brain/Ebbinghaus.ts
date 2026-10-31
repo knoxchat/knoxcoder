@@ -6,12 +6,11 @@
  *   F = forgetting_F (default 19/81), c = forgetting_c (default 0.5)
  *   S = max(ε, stability)  — never access-count
  *
- * Leftover until later MEM items (do not use as R or live S):
+ * Leftover unused knobs (not R or live S):
  *   S(m) = S₀ + β · access_count          (leftover; live S is FSRS in Fsrs.ts)
  *   I(m, t) = I₀ · R(t) · (1 + α · n)     (leftover; live Value is Value.ts)
  *   outcomeFactor                         (leftover fusion modulation; Value is R·U)
- *
- * KN-312: ebbinghaus_lambda remains as a leftover config key.
+ *   ebbinghaus_lambda                     (leftover exponential; live R is power-law)
  */
 
 import {

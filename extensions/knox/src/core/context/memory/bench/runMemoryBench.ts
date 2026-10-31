@@ -16,12 +16,20 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 
+import {
+  aggregateQueryErrors,
+  keysFromRefs,
+  selectionMissRate,
+  type TheoremErrorReport,
+} from "./errors";
 import { BENCH_MEMORIES, BENCH_QUERIES, type BenchMemory, type BenchQuery } from "./fixtures";
 
 export interface BenchQueryResult {
   id: string;
   expected: string[];
   injected: string[];
+  /** Gold keys that reached Cand(q). */
+  candidates?: string[];
   tokens: number;
   ms: number;
 }
@@ -40,6 +48,15 @@ export interface BenchReport {
   latencyMaxMs: number;
   seedMs: number;
   perQuery: BenchQueryResult[];
+  /** A1: σ = mean_q N_q / N (MEM-42). */
+  sigma: number;
+  /** A2: per-level beam miss. `null` = n/a — flat FTS. */
+  epsilon_b: number | null;
+  epsilon_b_note?: string;
+  /** A3: budget miss on R ∩ Cand. */
+  epsilon_s: number;
+  theorem_held: boolean;
+  tree_ready?: boolean;
 }
 
 const round = (n: number, digits = 3) => Number(n.toFixed(digits));
@@ -78,10 +95,11 @@ export async function runMemoryBench(
     const sessionId = "bench-session";
     await BrainManager.trackSession(sessionId, "Bench", dir);
 
-    const idByKey = new Map<string, string>();
+    const idByTitle = new Map<string, string>();
+    const keyById = new Map<number, string>();
     const seedStart = performance.now();
     for (const m of BENCH_MEMORIES) {
-      await BrainManager.store({
+      const id = await BrainManager.store({
         category: m.category,
         title: m.title,
         content: m.content,
@@ -89,7 +107,8 @@ export async function runMemoryBench(
         session_id: sessionId,
         importance: m.importance,
       });
-      idByKey.set(m.title, m.key);
+      idByTitle.set(m.title, m.key);
+      if (Number.isFinite(id) && id > 0) keyById.set(id, m.key);
     }
     const seedMs = performance.now() - seedStart;
 
@@ -113,12 +132,20 @@ export async function runMemoryBench(
       const items = result.context?.items ?? [];
       const injected = items
         .filter((i) => i.kind === "semantic")
-        .map((i) => idByKey.get(i.title))
+        .map((i) => idByTitle.get(i.title) ?? (i.id != null ? keyById.get(i.id) : undefined))
         .filter((k): k is string => Boolean(k));
+      const candidateKeys = keysFromRefs(result.context?.cand ?? [], idByTitle, keyById);
       const text = result.context?.context ?? "";
       const tokens = Math.ceil(text.length / 4);
 
-      perQuery.push({ id: q.id, expected: q.expected, injected, tokens, ms: round(ms, 1) });
+      perQuery.push({
+        id: q.id,
+        expected: q.expected,
+        injected,
+        candidates: candidateKeys,
+        tokens,
+        ms: round(ms, 1),
+      });
 
       if (q.expected.length === 0) {
         unrelated++;
@@ -133,6 +160,8 @@ export async function runMemoryBench(
 
     const lat = perQuery.map((r) => r.ms).sort((a, b) => a - b);
     const tok = perQuery.map((r) => r.tokens);
+    const n = BENCH_MEMORIES.length;
+    const theorem = measureFixtureErrors(perQuery, n);
     return {
       memories: BENCH_MEMORIES.length,
       queries: BENCH_QUERIES.length,
@@ -147,6 +176,12 @@ export async function runMemoryBench(
       latencyMaxMs: round(lat[lat.length - 1] ?? 0, 1),
       seedMs: Math.round(seedMs),
       perQuery,
+      sigma: theorem.sigma,
+      epsilon_b: theorem.epsilon_b,
+      epsilon_b_note: theorem.epsilon_b_note,
+      epsilon_s: theorem.epsilon_s,
+      theorem_held: theorem.theorem_held,
+      tree_ready: theorem.tree_ready,
     };
   } finally {
     try {
@@ -155,4 +190,32 @@ export async function runMemoryBench(
       // temp dir cleanup is best effort
     }
   }
+}
+
+function measureFixtureErrors(perQuery: BenchQueryResult[], n: number): TheoremErrorReport {
+  const gold = perQuery.filter((q) => q.expected.length > 0);
+  return aggregateQueryErrors(
+    gold.map((q) => {
+      const select = selectionMissRate({
+        relevant: q.expected,
+        candidates: q.candidates ?? [],
+        selected: q.injected,
+      });
+      const rec = q.expected.length
+        ? q.expected.filter((k) => q.injected.includes(k)).length / q.expected.length
+        : 1;
+      return {
+        epsilonB: null,
+        epsilonBNote: "n/a — flat FTS",
+        epsilonBOpportunities: 0,
+        epsilonBMisses: 0,
+        epsilonS: select.epsilonS,
+        epsilonSOpportunities: select.opportunities,
+        epsilonSMisses: select.misses,
+        n_q: n,
+        n,
+        rec,
+      };
+    }),
+  );
 }

@@ -2760,6 +2760,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 				cUse: 12,
 				w: 4096,
 				recRolling: 0.85,
+				answerableHorizon: 365,
 				levels: [{ id: 'M1', name: 'Sensory', tokens: 4, ratio: 1, effectiveTokens: 4 }],
 			},
 			memoryEbbinghausStats: { reviewDueCount: 1, avgRetention: 0.8, lambda: 0.05 },
@@ -2770,11 +2771,14 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		}
 		const overview = widget.root.querySelector('[data-testid="knox-gui-memory-overview"]')?.textContent ?? '';
 		assert.ok(overview.includes('M1'));
-		assert.ok(overview.includes('λ=0.05'));
+		assert.ok(overview.includes('80%'));
+		assert.ok(!overview.includes('λ=0.05'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-addressable-headline"]'));
 		assert.ok(overview.includes('C_addr'));
 		assert.ok(overview.includes('C_use'));
 		assert.ok(overview.includes('85.0%'));
+		assert.ok(overview.includes('H_0.85'));
+		assert.ok(overview.includes('365d'));
 		assert.ok(!overview.includes('C_effective'));
 		assert.ok(!overview.includes('C_eff'));
 

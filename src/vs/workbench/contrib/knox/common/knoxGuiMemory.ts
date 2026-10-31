@@ -32,7 +32,7 @@ export { MEMORY_CYCLE_PHASES, MEMORY_TAB_IDS, isMemoryTabId };
 export type KnoxMemorySortBy = 'recent' | 'importance' | 'accessed';
 export type KnoxMemoryPinnedFilter = 'all' | 'pinned' | 'unpinned';
 
-/** KN-376: KN-311 retrieval defaults used by BrainStore and Settings. */
+/** KN-376 / KN-311: RRF over lexical + ripgrep + graph + tree, then theta=0.35. */
 export const MEMORY_RETRIEVAL_THRESHOLD = 0.35;
 export const MEMORY_RETRIEVAL_TOP_K = 50;
 
@@ -128,10 +128,11 @@ export const MEMORY_SETTING_GROUP_ICONS: Record<string, string> = {
 	memoryFeatureSettings: 'search',
 };
 
+/** KN-312: NREM/REM stay sleep sub-step labels. They do not delete. */
 export const MEMORY_SLEEP_PHASE_LABELS: Record<string, string> = {
 	nrem_replay: 'NREM Replay',
 	nrem_decay_demoted: 'NREM Decay (demoted)',
-	nrem_decay_pruned: 'NREM Decay (pruned)',
+	nrem_decay_pruned: 'NREM Decay (archived)',
 	nrem_compress: 'NREM Compress',
 	rem_distill: 'REM Distill',
 	graph_strengthen: 'Graph Strengthen',
@@ -571,6 +572,12 @@ export function parseEffectiveContext(raw: Record<string, unknown> | undefined):
 		cUse,
 		w,
 		recRolling: (rec.rec_rolling !== undefined && rec.rec_rolling !== null) ? Number(rec.rec_rolling) : undefined,
+		answerableHorizon: parseAnswerableHorizon(rec),
+		sigma: parseOptionalFinite(rec.sigma),
+		epsilonB: parseOptionalEpsilon(rec.epsilon_b ?? rec.epsilonB),
+		epsilonBNote: typeof rec.epsilon_b_note === 'string' ? rec.epsilon_b_note : (typeof rec.epsilonBNote === 'string' ? rec.epsilonBNote : undefined),
+		epsilonS: parseOptionalFinite(rec.epsilon_s ?? rec.epsilonS),
+		theoremHeld: rec.theorem_held === true || rec.theoremHeld === true ? true : (rec.theorem_held === false || rec.theoremHeld === false ? false : undefined),
 		activeWindowTokens: w,
 		lastContextTokensUsed: cUse,
 		workingMemoryBudget: (rec.working_memory_budget !== undefined && rec.working_memory_budget !== null) ? Number(rec.working_memory_budget) : undefined,
@@ -593,21 +600,80 @@ export function parseEffectiveContext(raw: Record<string, unknown> | undefined):
 	};
 }
 
-/** MEM-10 headline: C_addr, C_use, optional W and Rec. */
+function parseAnswerableHorizon(rec: Record<string, unknown>): number | undefined {
+	const raw = rec.h_0_85 ?? rec.h085 ?? rec.answerableHorizon ?? rec.answerable_horizon;
+	if (raw === undefined || raw === null) {
+		return undefined;
+	}
+	const n = Number(raw);
+	return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
+/** MEM-10 / MEM-41 / MEM-42 headline: C_addr, C_use, optional W, Rec, H_0.85, sigma / eps_*. */
 export function memoryHeadlineMetrics(ctx: IKnoxGuiEffectiveContext): {
 	cAddr: number;
 	cUse: number;
 	w?: number;
 	recRolling?: number;
+	answerableHorizon?: number;
+	sigma?: number;
+	epsilonB?: number | null;
+	epsilonBNote?: string;
+	epsilonS?: number;
+	theoremHeld?: boolean;
 } {
 	const wRaw = ctx.w ?? ctx.activeWindowTokens;
 	const rec = ctx.recRolling;
+	const horizon = ctx.answerableHorizon;
 	return {
 		cAddr: Math.round(ctx.cAddr ?? 0),
 		cUse: Math.round(ctx.cUse ?? ctx.lastContextTokensUsed ?? 0),
 		w: (wRaw !== undefined && wRaw !== null && Number.isFinite(wRaw)) ? Math.round(wRaw) : undefined,
 		recRolling: (rec !== undefined && rec !== null && Number.isFinite(rec)) ? rec : undefined,
+		answerableHorizon: (horizon !== undefined && horizon !== null && Number.isFinite(horizon) && horizon >= 0)
+			? horizon
+			: undefined,
+		sigma: (ctx.sigma !== undefined && ctx.sigma !== null && Number.isFinite(ctx.sigma)) ? ctx.sigma : undefined,
+		epsilonB: ctx.epsilonB === null ? null : ((ctx.epsilonB !== undefined && Number.isFinite(ctx.epsilonB)) ? ctx.epsilonB : undefined),
+		epsilonBNote: ctx.epsilonBNote,
+		epsilonS: (ctx.epsilonS !== undefined && ctx.epsilonS !== null && Number.isFinite(ctx.epsilonS)) ? ctx.epsilonS : undefined,
+		theoremHeld: ctx.theoremHeld,
 	};
+}
+
+function parseOptionalFinite(raw: unknown): number | undefined {
+	if (raw === undefined || raw === null) {
+		return undefined;
+	}
+	const n = Number(raw);
+	return Number.isFinite(n) ? n : undefined;
+}
+
+function parseOptionalEpsilon(raw: unknown): number | null | undefined {
+	if (raw === undefined) {
+		return undefined;
+	}
+	if (raw === null || (typeof raw === 'string' && /n\/a/i.test(raw))) {
+		return null;
+	}
+	return parseOptionalFinite(raw);
+}
+
+/** Format eps_B / eps_S (`0.020`, or `n/a — flat FTS`). */
+export function formatTheoremError(value: number | null | undefined, note?: string): string {
+	if (value === null || value === undefined || !Number.isFinite(value)) {
+		return (note && note.trim()) ? note.trim() : 'n/a — flat FTS';
+	}
+	return value.toFixed(3);
+}
+
+/** Format H_0.85 for the overview card (`365d`, `4.4d`). */
+export function formatAnswerableHorizon(days: number): string {
+	if (!Number.isFinite(days) || days < 0) {
+		return '—';
+	}
+	const rounded = days >= 10 ? Math.round(days) : Number(days.toFixed(1));
+	return `${rounded}d`;
 }
 
 export function parseMetricsTrend(raw: Record<string, unknown> | undefined): IKnoxGuiMetricsTrend | undefined {
@@ -1317,6 +1383,7 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 		titleKey: 'memoryEbbinghausSettings',
 		expert: true,
 		collapsed: true,
+		legacy: true,
 		fields: [
 			{ key: 'ebbinghaus_base_strength', labelKey: 'memoryEbbinghausBaseStrength', descKey: 'memoryEbbinghausBaseStrengthDesc', kind: 'number', min: 0.1, max: 30, step: 0.1 },
 			{ key: 'ebbinghaus_lambda', labelKey: 'memoryEbbinghausLambda', descKey: 'memoryEbbinghausLambdaDesc', kind: 'number', min: 0.01, max: 1, step: 0.01, float: true },

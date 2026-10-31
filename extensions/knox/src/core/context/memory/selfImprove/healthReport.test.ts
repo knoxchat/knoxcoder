@@ -27,11 +27,11 @@ describe("health report (MC-43)", () => {
     expect(flaky.map((f) => f.name)).toEqual(["a"]);
   });
 
-  it("ranks hot files by checkpoints touched, ignoring single changes", () => {
+  it("ranks hot files by commits touched, ignoring single changes", () => {
     const hot = findHotFiles([
-      { checkpointId: "1", changedPaths: ["a.ts", "b.ts", "a.ts"] },
-      { checkpointId: "2", changedPaths: ["a.ts"] },
-      { checkpointId: "3", changedPaths: ["b.ts", "c.ts"] },
+      { commitId: "1", changedPaths: ["a.ts", "b.ts", "a.ts"] },
+      { commitId: "2", changedPaths: ["a.ts"] },
+      { commitId: "3", changedPaths: ["b.ts", "c.ts"] },
     ]);
     expect(hot).toEqual([
       { path: "a.ts", changes: 2 },
@@ -59,6 +59,8 @@ describe("health report (MC-43)", () => {
       expect(md).toContain(h);
     }
     expect(md).toContain("Not collected");
+    expect(md).toContain("## Hot files (commit churn)");
+    expect(md).not.toMatch(/checkpoint/i);
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "knox-health-"));
     try {
       const file = writeHealthReport(md, path.join(dir, "reports"), "mini c!", new Date("2026-10-13T00:00:00Z"));
@@ -86,6 +88,7 @@ describe("health report (MC-43)", () => {
       unlinkedVerified: 1,
       wrongReuse: 3,
       replays: 6,
+      wrongApplyRate: 0.5,
       skips: 4,
       nearMisses: 2,
     });
@@ -94,7 +97,7 @@ describe("health report (MC-43)", () => {
       generatedAt: "t",
       dependencies: { runtime: 0, dev: 0 },
       testRuns: [],
-      checkpoints: [],
+      commitChurn: [],
       markers: [],
       scannedFiles: 0,
       scannedLines: 0,
@@ -104,6 +107,7 @@ describe("health report (MC-43)", () => {
     expect(md).toContain("Unlinked verified");
     expect(md).toContain("no_oracle 3");
     expect(md).toContain("wrong-reuse");
+    expect(md).toContain("wrongApplyRate 0.5");
   });
 
   it("counts markers and skips node_modules", () => {

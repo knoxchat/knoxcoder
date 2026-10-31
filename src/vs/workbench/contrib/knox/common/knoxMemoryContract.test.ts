@@ -44,28 +44,55 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 		assert.ok(mgr.includes('legacy_memory_migrated'));
 	});
 
-	test('KN-311: retrieval fusion is RRF over lexical + graph, candidates 50, θ=0.35', () => {
+	test('KN-311: retrieval fusion is RRF over lexical + ripgrep + graph + tree, candidates 50, θ=0.35', () => {
 		const fusion = repoFile('extensions/knox/src/core/context/memory/brain/RetrievalFusion.ts');
 		assert.ok(fusion.includes('FTS5 BM25'));
 		assert.ok(fusion.includes('trigram'));
 		assert.ok(fusion.includes('rrfScore'));
+		assert.ok(fusion.includes('searchRipgrepChannel'));
+		assert.ok(fusion.includes('searchTreeChannel'));
+		assert.ok(fusion.includes('lexical: 1'));
+		assert.ok(fusion.includes('ripgrep: 1'));
+		assert.ok(fusion.includes('graph: 1'));
+		assert.ok(fusion.includes('tree: 1'));
 		assert.ok(fusion.includes('FUSION_CANDIDATE_CUTOFF_DEFAULT = 50'));
 		assert.ok(fusion.includes('RETRIEVAL_THRESHOLD_DEFAULT = 0.35'));
 		const store = repoFile('extensions/knox/src/core/context/memory/brain/store/state.ts');
 		assert.ok(store.includes('retrieval_threshold: 0.35'));
 		assert.ok(store.includes('retrieval_top_k: 50'));
 		assert.ok(store.includes('fusion_candidate_cutoff: 50'));
+		const helpers = repoFile('src/vs/workbench/contrib/knox/common/knoxGuiMemory.ts');
+		assert.ok(helpers.includes('MEMORY_RETRIEVAL_THRESHOLD = 0.35'));
+		assert.ok(helpers.includes('MEMORY_RETRIEVAL_TOP_K = 50'));
 	});
 
-	test('KN-312: M1–M5 hierarchy, Ebbinghaus, NREM/REM sleep', () => {
+	test('KN-312: M1–M5 theorem lifetimes, power-law forgetting, sleep does not delete', () => {
 		const hierarchy = repoFile('extensions/knox/src/core/context/memory/brain/MemoryHierarchy.ts');
 		for (const id of ['M1', 'M2', 'M3', 'M4', 'M5']) {
 			assert.ok(hierarchy.includes(`"${id}"`), id);
 		}
-		assert.ok(repoFile('extensions/knox/src/core/context/memory/brain/Ebbinghaus.ts').includes('ebbinghaus_lambda'));
+		assert.ok(hierarchy.includes('lifetime: "turn"'));
+		assert.ok(hierarchy.includes('lifetime: "call"'));
+		assert.ok(hierarchy.includes('lifetime: "session"'));
+		assert.ok(hierarchy.includes('lifetime: "stored"'));
+		assert.ok(hierarchy.includes('role: "buffer"'));
+		assert.ok(hierarchy.includes('in_c_addr: true'));
+		const forgetting = repoFile('extensions/knox/src/core/context/memory/brain/Forgetting.ts');
+		assert.ok(forgetting.includes('R(t, S) = (1 + F · t / S)^(-c)'));
+		assert.ok(forgetting.includes('F = 19/81'));
+		assert.ok(forgetting.includes('c = 0.5'));
 		const sleep = repoFile('extensions/knox/src/core/context/memory/brain/SleepConsolidation.ts');
 		assert.ok(sleep.includes('NREM Phase 1'));
 		assert.ok(sleep.includes('REM Phase'));
+		assert.ok(sleep.includes('Tombstone is only forget/TTL/privacy'));
+		assert.ok(!/DELETE\s+FROM\s+brain_/i.test(sleep));
+		const readme = repoFile('extensions/knox/docs/README.md');
+		assert.ok(readme.includes('C_use ≤ W') || readme.includes('C_use <= W'));
+		assert.ok(readme.includes('W_mem'));
+		assert.ok(!readme.includes('hard cap 8000'));
+		assert.match(readme, /[Bb]ounded context/);
+		assert.match(readme, /[Uu]nbounded/);
+		assert.match(readme, /[Mm]easured recall/);
 	});
 
 	test('KN-313: MemoryPipeline pre_turn / post_turn injects fenced context, fail-open', () => {

@@ -198,6 +198,13 @@ export interface BuildContextResult {
   summary_node_id?: number | null;
   /** Original turn ids dropped from this call only. */
   dropped_turn_ids?: number[];
+  /** Assembly candidate pool before budgeted select (MEM-42 ε_S). */
+  cand?: Array<{
+    key: string;
+    kind: string;
+    id: number | null;
+    title: string;
+  }>;
 }
 
 /** Envelope for password-protected local brain backups. */

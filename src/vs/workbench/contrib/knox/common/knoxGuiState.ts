@@ -656,6 +656,16 @@ export interface IKnoxGuiEffectiveContext {
 	cUse?: number;
 	w?: number;
 	recRolling?: number;
+	/** H_0.85 in days when a horizon bench has published it (MEM-41). */
+	answerableHorizon?: number;
+	/** A1 sigma = mean_q N_q / N (MEM-42). */
+	sigma?: number;
+	/** A2 eps_B. `null` = n/a — flat FTS. */
+	epsilonB?: number | null;
+	epsilonBNote?: string;
+	/** A3 eps_S budget miss (MEM-42). */
+	epsilonS?: number;
+	theoremHeld?: boolean;
 	activeWindowTokens?: number;
 	lastContextTokensUsed?: number;
 	workingMemoryBudget?: number;

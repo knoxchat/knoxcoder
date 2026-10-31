@@ -143,6 +143,8 @@ that are byte-and-path identical. Rejected diffs, Skip / Don't save, and edits o
 strengthens the linked workflow memory; a revert demotes it. Variants that look like one procedure but have no
 slots yet are written as a local draft under `~/.knoxcoder/reports/` (nothing is merged until you approve).
 Reports and issue drafts are drafts for you to approve; nothing is posted anywhere automatically.
+`npm run mc:self-improve` reports Rec vs N, `ε_S`, false-inject, attribution coverage, and recipe
+`wrongApplyRate`; git history is commit churn, not checkpoints. See [`self-improve/REPORT.md`](self-improve/REPORT.md).
 
 Live eval of the generate side of typical recipe work (lint script, failing test, create a component):
 `npm run test:live:recipes` from `extensions/knox` after Knox OAuth sign-in. No `KNOX_API_KEY`. To measure

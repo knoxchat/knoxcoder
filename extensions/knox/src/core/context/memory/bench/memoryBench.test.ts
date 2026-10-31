@@ -54,6 +54,13 @@ describe("memory benchmark (K-035)", () => {
     // MC-50 absolute targets: wrong memories must not leak into unrelated turns, recall must hold.
     expect(report.falseInjectRate).toBeLessThanOrEqual(0.15);
     expect(report.recallAtK).toBe(1);
+    // MEM-42: fixture bench stays a smoke test. Tree is not ingested, so ε_B
+    // is n/a — flat FTS and the theorem is not claimed from this run.
+    expect(report.sigma).toBe(1);
+    expect(report.epsilon_b).toBeNull();
+    expect(report.epsilon_b_note).toBe("n/a — flat FTS");
+    expect(report.epsilon_s).toBeGreaterThanOrEqual(0);
+    expect(report.theorem_held).toBe(false);
   }, 60_000);
 
   it("reads the hard cap from the environment with a floor", async () => {

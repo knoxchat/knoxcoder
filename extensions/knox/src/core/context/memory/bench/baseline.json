@@ -11,6 +11,11 @@
   "latencyP95Ms": 10.7,
   "latencyMaxMs": 10.7,
   "seedMs": 15,
+  "sigma": 1,
+  "epsilon_b": null,
+  "epsilon_b_note": "n/a — flat FTS",
+  "epsilon_s": 0,
+  "theorem_held": false,
   "perQuery": [
     {
       "id": "q-auth",

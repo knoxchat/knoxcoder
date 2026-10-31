@@ -127,7 +127,7 @@ import { recordMetric, getMetrics, measureOperation } from "./telemetry.js";
  *   Controller → Service → Store → SQLite
  *
  * Features (fully mirrors Knox-MS):
- * - Store/recall across all sessions (unlimited context window)
+ * - Store/recall across sessions (unbounded C_addr; inject is C_use ≤ W)
  * - Automatic conversation tracking (episodic memory)
  * - Knowledge extraction and storage (semantic memory)
  * - Knowledge graph (entities, edges, traversal, spreading activation)

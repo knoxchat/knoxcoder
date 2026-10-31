@@ -21,8 +21,9 @@ export interface TestRun {
   sessionId: string;
 }
 
-export interface CheckpointChange {
-  checkpointId: string;
+/** One `git log` commit. This is commit churn, not a workspace / brain checkpoint. */
+export interface CommitChurn {
+  commitId: string;
   changedPaths: string[];
 }
 
@@ -33,6 +34,8 @@ export interface RecipeHealth {
   unlinkedVerified: number;
   wrongReuse: number;
   replays: number;
+  /** (failed verify + revert) / replays, or 0 when there were no replays. */
+  wrongApplyRate: number;
   skips: number;
   skipReasons: Record<string, number>;
   nearMisses: number;
@@ -44,7 +47,7 @@ export interface HealthInputs {
   dependencies: { runtime: number; dev: number };
   audit?: AuditSummary;
   testRuns: TestRun[];
-  checkpoints: CheckpointChange[];
+  commitChurn: CommitChurn[];
   markers: { file: string; todo: number; fixme: number }[];
   scannedFiles: number;
   scannedLines: number;
@@ -82,9 +85,9 @@ export function findFlakyTests(runs: TestRun[]): FlakyTest[] {
     .sort((a, b) => b.failures - a.failures || a.name.localeCompare(b.name));
 }
 
-export function findHotFiles(checkpoints: CheckpointChange[], limit = 10): HotFile[] {
+export function findHotFiles(churn: CommitChurn[], limit = 10): HotFile[] {
   const counts = new Map<string, number>();
-  for (const c of checkpoints) {
+  for (const c of churn) {
     for (const p of new Set(c.changedPaths)) counts.set(p, (counts.get(p) ?? 0) + 1);
   }
   return [...counts.entries()]
@@ -134,10 +137,10 @@ export function buildHealthReport(inputs: HealthInputs): string {
   for (const f of flaky) lines.push(`- \`${f.name}\`: ${f.failures} fail / ${f.passes} pass over ${f.sessions} sessions`);
   lines.push("");
 
-  const hot = findHotFiles(inputs.checkpoints);
-  lines.push("## Hot files (most churn in checkpoints)", "");
-  if (hot.length === 0) lines.push("No file changed in more than one checkpoint.");
-  for (const h of hot) lines.push(`- \`${h.path}\`: ${h.changes} checkpoints`);
+  const hot = findHotFiles(inputs.commitChurn);
+  lines.push("## Hot files (commit churn)", "");
+  if (hot.length === 0) lines.push("No file changed in more than one commit.");
+  for (const h of hot) lines.push(`- \`${h.path}\`: ${h.changes} commits`);
   lines.push("");
 
   const d = markerDensity(inputs);
@@ -161,7 +164,7 @@ export function buildHealthReport(inputs: HealthInputs): string {
     const r = inputs.recipes;
     lines.push(`- Verified: ${r.verified}, candidate: ${r.candidate}, quarantined: ${r.quarantined}`);
     lines.push(`- Unlinked verified (no workflow memory): ${r.unlinkedVerified}`);
-    lines.push(`- Replays: ${r.replays}, wrong-reuse (failed verify + revert): ${r.wrongReuse}`);
+    lines.push(`- Replays: ${r.replays}, wrong-reuse (failed verify + revert): ${r.wrongReuse}, wrongApplyRate ${r.wrongApplyRate}`);
     lines.push(`- Capture skips: ${r.skips}${formatSkipReasons(r.skipReasons)}`);
     lines.push(`- Matcher near-misses: ${r.nearMisses}`);
   }
@@ -184,7 +187,7 @@ export function gatherRecipeHealth(
     memoryId?: number;
     stats: { replays: number; reverted: number; failedVerify: number };
   }[],
-  extra: { skips?: number; skipReasons?: Record<string, number>; nearMisses?: number } = {},
+  extra: { skips?: number; skipReasons?: Record<string, number>; nearMisses?: number; wrongApplyRate?: number } = {},
 ): RecipeHealth {
   let verified = 0;
   let candidate = 0;
@@ -208,6 +211,8 @@ export function gatherRecipeHealth(
     unlinkedVerified,
     wrongReuse,
     replays,
+    wrongApplyRate:
+      extra.wrongApplyRate ?? (replays === 0 ? 0 : Math.min(1, wrongReuse / replays)),
     skips: extra.skips ?? 0,
     skipReasons: extra.skipReasons ?? {},
     nearMisses: extra.nearMisses ?? 0,
@@ -267,7 +272,7 @@ export function scanMarkers(
 
 export function gatherHealthInputs(
   root: string,
-  extra: Partial<Pick<HealthInputs, "audit" | "testRuns" | "checkpoints" | "observedIssues" | "generatedAt" | "recipes">> = {},
+  extra: Partial<Pick<HealthInputs, "audit" | "testRuns" | "commitChurn" | "observedIssues" | "generatedAt" | "recipes">> = {},
 ): HealthInputs {
   let pkg: { name?: string; dependencies?: object; devDependencies?: object } = {};
   try {
@@ -287,7 +292,7 @@ export function gatherHealthInputs(
     dependencies: { runtime: Object.keys(pkg.dependencies ?? {}).length, dev: Object.keys(pkg.devDependencies ?? {}).length },
     audit: extra.audit,
     testRuns: extra.testRuns ?? [],
-    checkpoints: extra.checkpoints ?? [],
+    commitChurn: extra.commitChurn ?? [],
     observedIssues: extra.observedIssues ?? [],
     knownIssuesDoc,
     ...(extra.recipes ? { recipes: extra.recipes } : {}),

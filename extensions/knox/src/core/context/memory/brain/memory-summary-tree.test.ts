@@ -26,6 +26,7 @@ let ingestSessionLeaves: typeof import("./SummaryTree.js").ingestSessionLeaves;
 let maxChildCount: typeof import("./SummaryTree.js").maxChildCount;
 let searchTreeChannel: typeof import("./SummaryTree.js").searchTreeChannel;
 let treeBeamStatus: typeof import("./SummaryTree.js").treeBeamStatus;
+let measureTreeBeamMiss: typeof import("./SummaryTree.js").measureTreeBeamMiss;
 
 describe("MEM-24 tree (pure)", () => {
   it("defaults are b=8 and B=4", () => {
@@ -58,6 +59,7 @@ describe("MEM-24 tree insertion + beam", () => {
       maxChildCount,
       searchTreeChannel,
       treeBeamStatus,
+      measureTreeBeamMiss,
     } = await import("./SummaryTree.js"));
     await BrainStore.get();
     await BrainStore.saveConfig("auto_extract_enabled", "false");
@@ -226,6 +228,61 @@ describe("MEM-24 tree insertion + beam", () => {
     });
     expect(hits[0]?.id).toBe(targetId);
     expect(hits[0]?.score).toBeGreaterThan(0);
+  });
+
+  it("ε_B is n/a — flat FTS until the tree is ready, then counts ancestor drops", async () => {
+    await reset();
+    const sessionId = "mem42-epsb";
+    await BrainManager.trackSession(sessionId, "MEM-42 epsilonB", testDir);
+    const db = await BrainStore.get();
+    let goldId = 0;
+    for (let i = 0; i < 4; i++) {
+      const token = i === 0 ? "knoxTreeGoldOmega" : "knoxTreeAlphaFill";
+      const id = await BrainStore.storeSemantic({
+        category: "fact",
+        title: `Miss ${i} ${token}`,
+        content: i === 0
+          ? `quiet leaf ${i} knoxTreeGoldOmega unique-${i}`
+          : `alpha alpha alpha branch ${i} knoxTreeAlphaFill unique-${i}`,
+        keywords: `${token}, leaf${i}`,
+        session_id: sessionId,
+      });
+      if (i === 0) goldId = id;
+      await insertTreeLeaf(
+        {
+          type: "semantic",
+          id,
+          text: i === 0
+            ? `quiet leaf ${i} knoxTreeGoldOmega`
+            : `alpha alpha alpha branch ${i} knoxTreeAlphaFill`,
+        },
+        { sessionId, db, branching: 2 },
+      );
+    }
+    const unpublished = await measureTreeBeamMiss({
+      query: "knoxTreeAlphaFill",
+      sessionId,
+      includeEpisodic: false,
+      branching: 8,
+      beam: 4,
+      relevantLeaves: [{ type: "semantic", id: goldId }],
+    });
+    expect(unpublished.ready).toBe(false);
+    expect(unpublished.epsilonB).toBeNull();
+    expect(unpublished.epsilonBNote).toBe("n/a — flat FTS");
+
+    const miss = await measureTreeBeamMiss({
+      query: "knoxTreeAlphaFill",
+      sessionId,
+      includeEpisodic: false,
+      branching: 2,
+      beam: 1,
+      relevantLeaves: [{ type: "semantic", id: goldId }],
+    });
+    expect(miss.ready).toBe(true);
+    expect(miss.opportunities).toBeGreaterThan(0);
+    expect(miss.epsilonB).toBeGreaterThan(0);
+    expect(miss.misses).toBeGreaterThan(0);
   });
 
   it("does not resurrect a disjoint high-importance memory", async () => {

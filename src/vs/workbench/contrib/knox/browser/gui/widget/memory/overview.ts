@@ -18,6 +18,8 @@ import {
 	MEMORY_EFFECTIVE_TIERS,
 	MEMORY_SLEEP_PHASE_LABELS,
 	MEMORY_TIER_COLORS,
+	formatAnswerableHorizon,
+	formatTheoremError,
 	formatInjectedLastTurn,
 	memoryHeadlineMetrics,
 } from '../../../../common/knoxGuiMemory.js';
@@ -51,7 +53,7 @@ function renderCenteredLoading(body: HTMLElement, size: number, caption?: string
 	return wrap;
 }
 
-/** MEM-10: C_addr, C_use bound by W, and rolling Rec when a bench window exists. */
+/** MEM-10 / MEM-41 / MEM-42: C_addr, C_use bound by W, Rec / H_0.85 / sigma / eps_* when published. */
 function renderAddressableHeadline(body: HTMLElement, state: IKnoxGuiState): void {
 	const ctx = state.memoryEffectiveContext;
 	if (!ctx) {
@@ -69,6 +71,18 @@ function renderAddressableHeadline(body: HTMLElement, state: IKnoxGuiState): voi
 	statCard(grid, 'file-text', t(state, 'memoryContextUseVsWindow'), useValue);
 	if (headline.recRolling !== undefined) {
 		statCard(grid, 'crosshair', t(state, 'memoryRollingRec'), `${(headline.recRolling * 100).toFixed(1)}%`);
+	}
+	if (headline.answerableHorizon !== undefined) {
+		statCard(grid, 'clock', t(state, 'memoryAnswerableHorizon'), formatAnswerableHorizon(headline.answerableHorizon));
+	}
+	if (headline.sigma !== undefined) {
+		statCard(grid, 'sliders-horizontal', t(state, 'memorySelectivity'), headline.sigma.toFixed(3));
+	}
+	if (headline.epsilonB !== undefined || headline.epsilonBNote) {
+		statCard(grid, 'git-branch', t(state, 'memoryEpsilonB'), formatTheoremError(headline.epsilonB, headline.epsilonBNote));
+	}
+	if (headline.epsilonS !== undefined) {
+		statCard(grid, 'split', t(state, 'memoryEpsilonS'), formatTheoremError(headline.epsilonS));
 	}
 	if ((ctx.windowUtilization ?? 0) > 0) {
 		const meter = mk(card, 'div', 'mt-3 sy-1');
@@ -187,10 +201,6 @@ export function renderMemoryOverview(widget: KnoxGuiWidget, body: HTMLElement, s
 		const ebb = mk(card, 'div', 'metric-grid');
 		metricCell(ebb, String(state.memoryEbbinghausStats.reviewDueCount), t(state, 'memoryReviewDueCount'));
 		metricCell(ebb, `${Math.round(state.memoryEbbinghausStats.avgRetention * 100)}%`, t(state, 'memoryAvgRetention'));
-		if (state.memoryEbbinghausStats.lambda !== undefined && state.memoryEbbinghausStats.lambda !== null) {
-			// allow-any-unicode-next-line
-			metricCell(ebb, `λ=${state.memoryEbbinghausStats.lambda}`, t(state, 'memoryDecayRate'));
-		}
 		if (state.memoryReviewDue.length) {
 			const list = mk(card, 'div', 'divided mt-3 pt-2 sy-1');
 			mk(list, 'div', 'xs fw-5 o-70 mb-1', t(state, 'memoryReviewDueList'));

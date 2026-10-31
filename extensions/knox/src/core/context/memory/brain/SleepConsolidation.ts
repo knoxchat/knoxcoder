@@ -13,6 +13,8 @@
  *
  * This runs as part of the consolidation pipeline (not time-based sleep).
  * Each invocation performs one full "sleep cycle".
+ * KN-312: NREM/REM are sleep sub-steps. They must not DELETE. Frozen is
+ * archive; tombstone is only forget/TTL/privacy.
  */
 
 import { BrainStore } from "./BrainStore.js";

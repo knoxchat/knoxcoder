@@ -187,6 +187,7 @@ export {
   ingestSessionLeaves,
   insertTreeLeaf,
   isTreeReady,
+  measureTreeBeamMiss,
   planRecentShare,
   resolveSessionOverflowNode,
   scoreTreeText,

@@ -13,6 +13,7 @@ export function recipeHealthExtrasFromAuditJsonl(text: string): {
   skips: number;
   skipReasons: Record<string, number>;
   nearMisses: number;
+  wrongApplyRate?: number;
 } {
   const events: RecipeMetricEventLike[] = [];
   for (const line of text.split("\n")) {
@@ -30,6 +31,7 @@ export function recipeHealthExtrasFromAuditJsonl(text: string): {
     skips: metrics.skips,
     skipReasons: metrics.skipReasons,
     nearMisses: metrics.nearMisses,
+    ...(metrics.attempts > 0 ? { wrongApplyRate: metrics.wrongApplyRate } : {}),
   };
 }
 
@@ -42,7 +44,7 @@ export async function loadRecipeHealthFromBrain(
   auditEventsPath?: string,
 ): Promise<RecipeHealth | undefined> {
   if (!sqlitePath || !fs.existsSync(sqlitePath)) return undefined;
-  let extras: { skips?: number; skipReasons?: Record<string, number>; nearMisses?: number } = {};
+  let extras: { skips?: number; skipReasons?: Record<string, number>; nearMisses?: number; wrongApplyRate?: number } = {};
   if (auditEventsPath && fs.existsSync(auditEventsPath)) {
     try {
       extras = recipeHealthExtrasFromAuditJsonl(fs.readFileSync(auditEventsPath, "utf8"));
