@@ -206,6 +206,60 @@ export async function recomputeMemoryTiers(
   return result;
 }
 
+const STALE_TIER_SAMPLE = 24;
+const STALE_TIER_MIN_ROWS = 8;
+const STALE_RECOMPUTE_COOLDOWN_MS = 10 * 60 * 1000;
+let lastStaleRecomputeMs = 0;
+
+/**
+ * True when stored hot/active labels disagree with live R/Value on the oldest
+ * sample. Inserts defaulted to 'hot' and leftover max_hot_memories=500 left
+ * tens of thousands of rows labeled hot until sleep/attribution ran.
+ */
+export async function storedTiersLookStale(nowMs: number = Date.now()): Promise<boolean> {
+  const db = await get();
+  const rows = (await db.all(
+    `SELECT id, kind, tier, importance_score, i0, helpful_count, unhelpful_count,
+            stability, category, last_accessed_at, created_at FROM (
+       SELECT id, 'semantic' AS kind, tier, importance_score, i0, helpful_count, unhelpful_count,
+              stability, category, last_accessed_at, created_at
+         FROM brain_semantic
+        WHERE tombstoned_at IS NULL AND tier IN ('hot', 'active')
+       UNION ALL
+       SELECT id, 'episodic' AS kind, tier, importance_score, i0, helpful_count, unhelpful_count,
+              stability, 'episodic' AS category, NULL AS last_accessed_at, created_at
+         FROM brain_episodic
+        WHERE tombstoned_at IS NULL AND tier IN ('hot', 'active')
+     ) AS sample ORDER BY created_at ASC, id ASC LIMIT ?`,
+    [STALE_TIER_SAMPLE],
+  )) as Array<TierRow & { kind: string }>;
+  if (rows.length < STALE_TIER_MIN_ROWS) return false;
+  const pinned = await loadPinnedSemanticIds();
+  const active = new Set<string>();
+  let mismatch = 0;
+  for (const row of rows) {
+    const kind: MemoryLeafKind = row.kind === "semantic" ? "semantic" : "episodic";
+    const to = classifyRow(kind, row, active, pinned, nowMs);
+    if (to !== "hot" && to !== "active") mismatch++;
+  }
+  return mismatch >= Math.ceil(rows.length * 0.5);
+}
+
+/** Recompute stored tiers when leftover DEFAULT 'hot' labels have gone stale. */
+export async function recomputeStaleTiersIfNeeded(
+  nowMs: number = Date.now(),
+): Promise<RecomputeTiersResult | null> {
+  if (nowMs - lastStaleRecomputeMs < STALE_RECOMPUTE_COOLDOWN_MS) return null;
+  if (!(await storedTiersLookStale(nowMs))) return null;
+  lastStaleRecomputeMs = nowMs;
+  return recomputeMemoryTiers({ nowMs });
+}
+
+/** Test hook: clear the dashboard auto-recompute cooldown. */
+export function resetStaleTierRecomputeForTests(): void {
+  lastStaleRecomputeMs = 0;
+}
+
 /** Single-leaf write used by attribution (MEM-17). Tombstoned rows are left alone. */
 export async function applyMemoryTier(
   kind: MemoryLeafKind,

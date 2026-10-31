@@ -266,8 +266,10 @@ export function formatForecast(f: CapacityForecast): string {
     `  EMA tokens/op: ${f.ema_tokens_per_op.toFixed(1)}`,
     `  Memory growth: ${f.memory_growth_rate_per_day.toFixed(1)} memories/day`,
   ];
-  if (f.days_until_100mb !== null) parts.push(`  Days until 100MB: ${Math.ceil(f.days_until_100mb)}`);
-  if (f.days_until_500mb !== null) parts.push(`  Days until 500MB: ${Math.ceil(f.days_until_500mb)}`);
+  if (f.days_until_cap !== null) {
+    const capMb = Math.round((f.cap_bytes || 0) / (1024 * 1024));
+    parts.push(`  Days until max_bytes (${capMb}MB): ${Math.ceil(f.days_until_cap)}`);
+  }
   if (f.recommendations.length > 0) {
     parts.push("  Recommendations:");
     for (const r of f.recommendations) parts.push(`    → ${r}`);

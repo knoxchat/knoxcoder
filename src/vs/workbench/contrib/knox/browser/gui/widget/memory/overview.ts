@@ -10,6 +10,7 @@ import { t } from '../t.js';
 import { KnoxGuiSvgIcon } from '../../knoxGuiIcons.js';
 import {
 	dashboardHealthGrade,
+	formatHealthScore,
 	formatBytes,
 	formatMemoryTimeAgo,
 	healthStatusColor,
@@ -23,7 +24,7 @@ import {
 	formatInjectedLastTurn,
 	memoryHeadlineMetrics,
 } from '../../../../common/knoxGuiMemory.js';
-import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
+import { IKnoxGuiEffectiveContext, IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import {
 	memoryClasses,
 	mk,
@@ -53,7 +54,111 @@ function renderCenteredLoading(body: HTMLElement, size: number, caption?: string
 	return wrap;
 }
 
-/** MEM-10 / MEM-41 / MEM-42: C_addr, C_use bound by W, Rec / H_0.85 / sigma / eps_* when published. */
+type MemoryLevel = IKnoxGuiEffectiveContext['levels'][number];
+
+function levelIsStore(level: MemoryLevel): boolean {
+	if (level.inCAddr === true || level.role === 'store') {
+		return true;
+	}
+	if (level.inCAddr === false || level.role === 'buffer') {
+		return false;
+	}
+	return /^M[345]($|[^0-9])/i.test(level.id);
+}
+
+function levelLifetimeLabel(state: IKnoxGuiState, lifetime: MemoryLevel['lifetime']): string | undefined {
+	switch (lifetime) {
+		case 'turn': return t(state, 'memoryLifetimeTurn');
+		case 'call': return t(state, 'memoryLifetimeCall');
+		case 'session': return t(state, 'memoryLifetimeSession');
+		case 'stored': return t(state, 'memoryLifetimeStored');
+		default: return undefined;
+	}
+}
+
+function tokenCountLabel(state: IKnoxGuiState, tokens: number): string {
+	return t(state, 'memoryTokenCount', { count: tokens.toLocaleString() });
+}
+
+function sharePct(tokens: number, maxTokens: number): number {
+	if (maxTokens <= 0 || tokens <= 0) {
+		return 0;
+	}
+	return Math.min(100, Math.max(2.5, (tokens / maxTokens) * 100));
+}
+
+function boundColor(pct: number): string {
+	if (pct >= 100) {
+		return '#ef4444';
+	}
+	if (pct >= 85) {
+		return '#f59e0b';
+	}
+	return '#159994';
+}
+
+function renderAddrChip(parent: HTMLElement, label: string, value: string): void {
+	const chip = mk(parent, 'div', 'addr-chip');
+	mk(chip, 'span', 'addr-chip-label', label);
+	mk(chip, 'span', 'addr-chip-value', value);
+}
+
+function renderLevelRow(parent: HTMLElement, state: IKnoxGuiState, level: MemoryLevel, options: {
+	maxTokens: number;
+	store: boolean;
+	budget?: number;
+}): void {
+	const row = mk(parent, 'div', options.store ? 'addr-level' : 'addr-level is-buffer');
+	const head = mk(row, 'div', 'kv xs');
+	const left = mk(head, 'div', 'flex items-center gap-1_5 min-w-0');
+	mk(left, 'span', options.store ? 'addr-id' : 'addr-id is-buffer', level.id);
+	mk(left, 'span', 'truncate', level.name);
+	const lifetime = levelLifetimeLabel(state, level.lifetime);
+	if (lifetime) {
+		mk(left, 'span', 'addr-life', lifetime);
+	}
+	mk(head, 'span', 'shrink-0 mono xs', tokenCountLabel(state, level.tokens));
+	if (options.store) {
+		meterBar(row, sharePct(level.tokens, options.maxTokens), '#159994');
+	}
+	if (!options.store && (options.budget ?? 0) > 0) {
+		const budget = options.budget ?? 0;
+		const cap = mk(row, 'div', 'mt-1');
+		meterHead(cap, t(state, 'memoryWorkingMemoryBudget'), t(state, 'memoryContextUseOfWindow', {
+			use: level.tokens.toLocaleString(),
+			w: budget.toLocaleString(),
+		}));
+		meterBar(cap, Math.min(100, (level.tokens / budget) * 100), '#64748b');
+	}
+}
+
+function renderLevelGroup(parent: HTMLElement, state: IKnoxGuiState, options: {
+	titleKey: string;
+	testId: string;
+	levels: MemoryLevel[];
+	store: boolean;
+	budget?: number;
+}): void {
+	if (!options.levels.length) {
+		return;
+	}
+	const group = mk(parent, 'div', 'addr-group sy-1_5');
+	group.setAttribute('data-testid', options.testId);
+	const head = mk(group, 'div', 'kv xs fw-5 o-70');
+	mk(head, 'span', '', t(state, options.titleKey));
+	const total = options.levels.reduce((sum, level) => sum + level.tokens, 0);
+	mk(head, 'span', 'mono fw-5', tokenCountLabel(state, total));
+	const maxTokens = options.levels.reduce((max, level) => Math.max(max, level.tokens), 0);
+	for (const level of options.levels) {
+		renderLevelRow(group, state, level, {
+			maxTokens,
+			store: options.store,
+			budget: level.id === 'M2' ? options.budget : undefined,
+		});
+	}
+}
+
+/** MEM-10 / MEM-41 / MEM-42: C_addr hero, C_use bound by W, Rec / H_0.85 / sigma / eps_* chips when published. */
 function renderAddressableHeadline(body: HTMLElement, state: IKnoxGuiState): void {
 	const ctx = state.memoryEffectiveContext;
 	if (!ctx) {
@@ -62,70 +167,103 @@ function renderAddressableHeadline(body: HTMLElement, state: IKnoxGuiState): voi
 	const headline = memoryHeadlineMetrics(ctx);
 	const card = sectionCard(body, t(state, 'memoryEffectiveContext'), 'layers');
 	card.setAttribute('data-testid', 'memory-addressable-headline');
-	mk(card, 'p', 'mb-3 xs o-60', t(state, 'memoryAddressableDesc'));
-	const grid = mk(card, 'div', 'stat-grid');
-	statCard(grid, 'database', t(state, 'memoryAddressable'), headline.cAddr.toLocaleString());
-	const useValue = headline.w !== undefined
-		? t(state, 'memoryContextUseBound', { use: headline.cUse.toLocaleString(), w: headline.w.toLocaleString() })
-		: headline.cUse.toLocaleString();
-	statCard(grid, 'file-text', t(state, 'memoryContextUseVsWindow'), useValue);
+	mk(card, 'p', 'mb-2 xs o-60', t(state, 'memoryAddressableDesc'));
+
+	const top = mk(card, 'div', 'addr-top');
+	const stored = mk(top, 'div', 'addr-hero');
+	mk(stored, 'div', 'addr-kicker', t(state, 'memoryAddressable'));
+	mk(stored, 'div', 'addr-value', headline.cAddr.toLocaleString());
+	mk(stored, 'div', 'addr-caption', t(state, 'memoryAddressableStoredCaption'));
+
+	const use = mk(top, 'div', 'addr-use');
+	const useHead = mk(use, 'div', 'kv xs o-70');
+	mk(useHead, 'span', '', t(state, 'memoryContextUseVsWindow'));
+	const usePct = headline.w && headline.w > 0
+		? (headline.cUse / headline.w) * 100
+		: (ctx.windowUtilization ?? 0) * 100;
+	const showUseMeter = headline.w !== undefined || (ctx.windowUtilization ?? 0) > 0;
+	if (showUseMeter) {
+		mk(useHead, 'span', 'mono', `${Math.min(100, usePct).toFixed(1)}%`);
+	}
+	const useLine = mk(use, 'div', 'flex items-center gap-1 min-w-0');
+	mk(useLine, 'span', 'addr-use-value', headline.cUse.toLocaleString());
+	if (headline.w !== undefined) {
+		mk(useLine, 'span', 'addr-use-window truncate', `/ ${headline.w.toLocaleString()}`);
+		use.title = t(state, 'memoryContextUseBound', { use: headline.cUse.toLocaleString(), w: headline.w.toLocaleString() });
+	}
+	if (showUseMeter) {
+		meterBar(use, Math.min(100, usePct), boundColor(usePct));
+	}
+	mk(use, 'div', 't-10 o-50', t(state, 'memoryLastInjectHint'));
+
+	const chips: Array<{ label: string; value: string }> = [];
 	if (headline.recRolling !== undefined) {
-		statCard(grid, 'crosshair', t(state, 'memoryRollingRec'), `${(headline.recRolling * 100).toFixed(1)}%`);
+		chips.push({ label: t(state, 'memoryRollingRec'), value: `${(headline.recRolling * 100).toFixed(1)}%` });
 	}
 	if (headline.answerableHorizon !== undefined) {
-		statCard(grid, 'clock', t(state, 'memoryAnswerableHorizon'), formatAnswerableHorizon(headline.answerableHorizon));
+		chips.push({ label: t(state, 'memoryAnswerableHorizon'), value: formatAnswerableHorizon(headline.answerableHorizon) });
 	}
 	if (headline.sigma !== undefined) {
-		statCard(grid, 'sliders-horizontal', t(state, 'memorySelectivity'), headline.sigma.toFixed(3));
+		chips.push({ label: t(state, 'memorySelectivity'), value: headline.sigma.toFixed(3) });
 	}
 	if (headline.epsilonB !== undefined || headline.epsilonBNote) {
-		statCard(grid, 'git-branch', t(state, 'memoryEpsilonB'), formatTheoremError(headline.epsilonB, headline.epsilonBNote));
+		chips.push({ label: t(state, 'memoryEpsilonB'), value: formatTheoremError(headline.epsilonB, headline.epsilonBNote) });
 	}
 	if (headline.epsilonS !== undefined) {
-		statCard(grid, 'split', t(state, 'memoryEpsilonS'), formatTheoremError(headline.epsilonS));
+		chips.push({ label: t(state, 'memoryEpsilonS'), value: formatTheoremError(headline.epsilonS) });
 	}
-	if ((ctx.windowUtilization ?? 0) > 0) {
-		const meter = mk(card, 'div', 'mt-3 sy-1');
-		meterHead(meter, t(state, 'memoryContextUtilization'), `${((ctx.windowUtilization ?? 0) * 100).toFixed(1)}%`);
-		meterBar(meter, Math.min(100, (ctx.windowUtilization ?? 0) * 100), '#159994');
+	if (chips.length) {
+		const row = mk(card, 'div', 'addr-chips mt-3');
+		for (const chip of chips) {
+			renderAddrChip(row, chip.label, chip.value);
+		}
 	}
+
 	const visibleLevels = ctx.levels.filter(level => level.role === 'buffer' || level.tokens !== 0);
-	if (visibleLevels.length) {
-		const levels = mk(card, 'div', 'divided mt-3 pt-3 sy-1');
-		mk(levels, 'div', 'xs fw-5 o-70 mb-1', t(state, 'memoryHierarchyLevels'));
-		for (const level of visibleLevels) {
-			const row = mk(levels, 'div', 'kv xs o-80');
-			const role = level.role === 'buffer'
-				? t(state, 'memoryBufferGauge')
-				: (level.role === 'store' ? t(state, 'memoryStoreLevel') : undefined);
-			const lifetime = level.lifetime === 'turn'
-				? t(state, 'memoryLifetimeTurn')
-				: level.lifetime === 'call'
-					? t(state, 'memoryLifetimeCall')
-					: level.lifetime === 'session'
-						? t(state, 'memoryLifetimeSession')
-						: level.lifetime === 'stored'
-							? t(state, 'memoryLifetimeStored')
-							: undefined;
-			const label = [level.id, level.name, role, lifetime].filter(Boolean).join(' · ');
-			mk(row, 'span', '', label);
-			mk(row, 'span', '', `${level.tokens.toLocaleString()} tokens`);
-		}
-		if ((ctx.workingMemoryBudget ?? 0) > 0) {
-			const row = mk(levels, 'div', 'kv xs o-60');
-			mk(row, 'span', '', t(state, 'memoryWorkingMemoryBudget'));
-			mk(row, 'span', '', `${ctx.workingMemoryBudget?.toLocaleString()} tokens`);
-		}
+	const stores = visibleLevels.filter(levelIsStore);
+	const buffers = visibleLevels.filter(level => !levelIsStore(level));
+	if (stores.length || buffers.length) {
+		const levels = mk(card, 'div', 'divided mt-3 pt-3 sy-3');
+		mk(levels, 'div', 'xs fw-5 o-70', t(state, 'memoryHierarchyLevels'));
+		renderLevelGroup(levels, state, {
+			titleKey: 'memoryHierarchyStored',
+			testId: 'memory-addressable-stored',
+			levels: stores,
+			store: true,
+		});
+		renderLevelGroup(levels, state, {
+			titleKey: 'memoryHierarchyBuffers',
+			testId: 'memory-addressable-buffers',
+			levels: buffers,
+			store: false,
+			budget: ctx.workingMemoryBudget,
+		});
 	}
-	const tiers = mk(card, 'div', 'mt-3 sy-1');
-	for (const tier of MEMORY_EFFECTIVE_TIERS) {
-		const tokens = ctx.tierTokens?.[tier] ?? 0;
-		if (!tokens) {
-			continue;
+
+	const ageTiers = MEMORY_EFFECTIVE_TIERS
+		.map(tier => ({ tier, tokens: ctx.tierTokens?.[tier] ?? 0 }))
+		.filter(item => item.tokens > 0);
+	if (ageTiers.length) {
+		const age = mk(card, 'div', 'divided mt-3 pt-3 sy-1_5');
+		age.setAttribute('data-testid', 'memory-addressable-age');
+		const ageHead = mk(age, 'div', 'kv xs fw-5 o-70');
+		mk(ageHead, 'span', '', t(state, 'memoryAgeMix'));
+		const ageTotal = ageTiers.reduce((sum, item) => sum + item.tokens, 0);
+		mk(ageHead, 'span', 'mono fw-5', tokenCountLabel(state, ageTotal));
+		const stack = mk(age, 'div', 'addr-stack');
+		for (const item of ageTiers) {
+			const seg = mk(stack, 'div', 'addr-stack-seg');
+			seg.style.width = `${(item.tokens / ageTotal) * 100}%`;
+			seg.style.backgroundColor = MEMORY_TIER_COLORS[item.tier]?.text ?? '#6b7280';
+			seg.title = `${t(state, `memoryTier${item.tier[0].toUpperCase()}${item.tier.slice(1)}`)} · ${tokenCountLabel(state, item.tokens)}`;
 		}
-		const row = mk(tiers, 'div', 'kv xs o-80');
-		mk(row, 'span', 'capitalize', tier);
-		mk(row, 'span', '', `${tokens.toLocaleString()} tokens`);
+		const legend = mk(age, 'div', 'addr-age-legend');
+		for (const item of ageTiers) {
+			const cell = mk(legend, 'div', 'addr-age-item');
+			mk(cell, 'span', 'dot-2').style.backgroundColor = MEMORY_TIER_COLORS[item.tier]?.text ?? '#6b7280';
+			mk(cell, 'span', 'capitalize', t(state, `memoryTier${item.tier[0].toUpperCase()}${item.tier.slice(1)}`));
+			mk(cell, 'span', 'mono o-70', item.tokens.toLocaleString());
+		}
 	}
 }
 
@@ -158,7 +296,7 @@ export function renderMemoryOverview(widget: KnoxGuiWidget, body: HTMLElement, s
 	grade.style.backgroundColor = healthColor;
 	const status = mk(left, 'div', '');
 	mk(status, 'div', 'sm fw-6 capitalize', `${t(state, 'memorySystemStatus')}: ${healthStatus}`);
-	mk(status, 'div', 'xs o-70', (d.healthScore !== undefined && d.healthScore !== null) ? `${t(state, 'memoryHealthScore')}: ${d.healthScore}/100` : `${totalMemories.toLocaleString()} ${t(state, 'memoryTotalMemories')}`);
+	mk(status, 'div', 'xs o-70', (d.healthScore !== undefined && d.healthScore !== null) ? `${t(state, 'memoryHealthScore')}: ${formatHealthScore(d.healthScore)}` : `${totalMemories.toLocaleString()} ${t(state, 'memoryTotalMemories')}`);
 	const actions = mk(banner, 'div', 'flex items-center gap-2');
 	memoryButton(widget, actions, { tokens: 'pill-btn btn-secondary', icon: 'refresh-cw', label: t(state, 'memoryRefresh'), onClick: () => void widget.controller.loadMemoryOverview() });
 	memoryButton(widget, actions, {

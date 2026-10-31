@@ -12,6 +12,7 @@ const testDir = path.join(os.tmpdir(), `brain-value-${Date.now()}`);
 
 let BrainManager: typeof import("./BrainManager.js").BrainManager;
 let BrainStore: typeof import("./BrainStore.js").BrainStore;
+let ContextBuilder: typeof import("./ContextBuilder.js").ContextBuilder;
 let Forgetting: typeof import("./Forgetting.js").Forgetting;
 let RetrievalFusion: typeof import("./RetrievalFusion.js").RetrievalFusion;
 let Value: typeof import("./Value.js").Value;
@@ -29,6 +30,7 @@ beforeAll(async () => {
 
   ({ BrainManager } = await import("./BrainManager.js"));
   ({ BrainStore } = await import("./BrainStore.js"));
+  ({ ContextBuilder } = await import("./ContextBuilder.js"));
   ({ Forgetting } = await import("./Forgetting.js"));
   ({ RetrievalFusion } = await import("./RetrievalFusion.js"));
   ({ Value } = await import("./Value.js"));
@@ -184,5 +186,37 @@ describe("MEM-13 bounded utility U and Value = R·U", () => {
     expect(await fusionHits(token, id)).toBe(true);
     const row = await BrainStore.getSemanticById(id);
     expect(row?.tombstoned_at).toBeFalsy();
+  });
+
+  it("LIKE fallback does not resurrect a Value < θ_arch leaf", async () => {
+    await reset();
+    const sessionId = "mem13-like-fallback";
+    const token = "quartzvaluelikefallback";
+    await BrainManager.trackSession(sessionId, "MEM-13 like", testDir);
+    const keepId = await BrainManager.store({
+      category: "fact",
+      title: `Keep ${token}`,
+      content: `This document is about ${token} and should stay in retrieve.`,
+      keywords: token,
+      importance: 0.8,
+      session_id: sessionId,
+    });
+    const archiveId = await BrainManager.store({
+      category: "fact",
+      title: `Archive ${token}`,
+      content: `This document is about ${token} and should archive by Value.`,
+      keywords: token,
+      importance: 0.01,
+      session_id: sessionId,
+    });
+
+    const built = await ContextBuilder.buildDetailed({
+      message: `please recall ${token}`,
+      session_id: sessionId,
+      fusion_hits: [],
+    });
+    expect(built.items.some((i) => i.id === keepId)).toBe(true);
+    expect(built.items.some((i) => i.id === archiveId)).toBe(false);
+    expect(await BrainStore.getSemanticById(archiveId)).toBeTruthy();
   });
 });

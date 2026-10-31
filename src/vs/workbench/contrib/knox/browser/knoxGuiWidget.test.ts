@@ -2761,7 +2761,14 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 				w: 4096,
 				recRolling: 0.85,
 				answerableHorizon: 365,
-				levels: [{ id: 'M1', name: 'Sensory', tokens: 4, ratio: 1, effectiveTokens: 4 }],
+				workingMemoryBudget: 100,
+				tierTokens: { hot: 50, warm: 20, cold: 10 },
+				levels: [
+					{ id: 'M1', name: 'Sensory', tokens: 4, role: 'buffer', inCAddr: false, lifetime: 'turn' },
+					{ id: 'M2', name: 'Working Memory', tokens: 4, role: 'buffer', inCAddr: false, lifetime: 'call' },
+					{ id: 'M3', name: 'Session + tree', tokens: 20, role: 'store', inCAddr: true, lifetime: 'session' },
+					{ id: 'M4', name: 'Semantic / episodic', tokens: 60, role: 'store', inCAddr: true, lifetime: 'stored' },
+				],
 			},
 			memoryEbbinghausStats: { reviewDueCount: 1, avgRetention: 0.8, lambda: 0.05 },
 		});
@@ -2774,11 +2781,16 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(overview.includes('80%'));
 		assert.ok(!overview.includes('λ=0.05'));
 		assert.ok(widget.root.querySelector('[data-testid="memory-addressable-headline"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-addressable-stored"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-addressable-buffers"]'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-addressable-age"]'));
 		assert.ok(overview.includes('C_addr'));
 		assert.ok(overview.includes('C_use'));
 		assert.ok(overview.includes('85.0%'));
 		assert.ok(overview.includes('H_0.85'));
 		assert.ok(overview.includes('365d'));
+		assert.ok(overview.includes('Session + tree'));
+		assert.ok(overview.includes('Working Memory'));
 		assert.ok(!overview.includes('C_effective'));
 		assert.ok(!overview.includes('C_eff'));
 

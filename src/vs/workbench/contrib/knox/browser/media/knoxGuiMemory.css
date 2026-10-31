@@ -615,6 +615,167 @@
 	font-weight: 700;
 }
 
+.knox-gui-memory-page .knox-gui-memory-addr-top {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 12px;
+	align-items: stretch;
+}
+
+@container (min-width: 330px) {
+	.knox-gui-memory-page .knox-gui-memory-addr-top {
+		grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+	}
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-hero {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 2px;
+	min-width: 0;
+	padding: 4px 2px 2px 12px;
+	border-left: 2px solid var(--knox-accent, #159994);
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-kicker,
+.knox-gui-memory-page .knox-gui-memory-addr-chip-label {
+	font-size: 11px;
+	line-height: 1.2;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	opacity: 0.65;
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-value {
+	font-size: 22px;
+	line-height: 1.15;
+	font-weight: 700;
+	letter-spacing: -0.03em;
+	font-variant-numeric: tabular-nums;
+	color: var(--knox-accent, #159994);
+}
+
+@container (min-width: 330px) {
+	.knox-gui-memory-page .knox-gui-memory-addr-value {
+		font-size: 26px;
+	}
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-caption,
+.knox-gui-memory-page .knox-gui-memory-addr-use-window,
+.knox-gui-memory-page .knox-gui-memory-addr-life {
+	font-size: 10px;
+	line-height: 1.3;
+	opacity: 0.55;
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-life {
+	flex-shrink: 0;
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-use {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	gap: 6px;
+	min-width: 0;
+	padding: 10px 12px;
+	border: 1px solid var(--vscode-panel-border, #3c3c3c);
+	border-radius: 10px;
+	background-color: var(--vscode-input-background, rgba(255, 255, 255, 0.03));
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-use-value {
+	font-size: 18px;
+	line-height: 1.2;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	color: var(--knox-accent, #159994);
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-use .knox-gui-memory-meter {
+	height: 8px;
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-chip {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 72px;
+	max-width: 100%;
+	padding: 6px 8px;
+	border: 1px solid var(--vscode-panel-border, #3c3c3c);
+	border-radius: 8px;
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-chip-value {
+	font-size: 12px;
+	line-height: 1.25;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	overflow-wrap: anywhere;
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-id {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 26px;
+	padding: 1px 5px;
+	border-radius: 4px;
+	background-color: rgba(21, 153, 148, 0.14);
+	color: var(--knox-accent, #159994);
+	font-size: 10px;
+	line-height: 1.4;
+	font-weight: 700;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-id.is-buffer {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-level .knox-gui-memory-meter {
+	margin-top: 4px;
+	height: 5px;
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-stack {
+	display: flex;
+	width: 100%;
+	height: 8px;
+	overflow: hidden;
+	border-radius: 9999px;
+	background-color: var(--vscode-input-background);
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-stack-seg {
+	height: 100%;
+	min-width: 0;
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-age-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 12px;
+}
+
+.knox-gui-memory-page .knox-gui-memory-addr-age-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	line-height: calc(1 / 0.75);
+}
+
 .knox-gui-memory-page .knox-gui-memory-stat-grid,
 .knox-gui-memory-page .knox-gui-memory-trend-grid {
 	display: grid;

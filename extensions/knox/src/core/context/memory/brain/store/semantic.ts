@@ -2,6 +2,7 @@
 
 import { insertForgettingFields, resolveStability } from "../Forgetting.js";
 import { InputSanitizer } from "../InputSanitizer.js";
+import { classifyInsertTier } from "../Tiers.js";
 import { CONTRADICTION_CATEGORIES, conflictsWith, supersedeConflicts } from "../memoryOutcomes.js";
 import type {
   SemanticCategory,
@@ -145,10 +146,16 @@ export async function storeSemantic(input: StoreInput): Promise<number> {
     inheritStability,
     linkedAsTreeNode: inheritStability != null || Boolean(input.parent_id) || Boolean(summaryOf),
   });
+  const tier = classifyInsertTier({
+    importance_score: importance,
+    i0: forgetting.i0,
+    stability: forgetting.stability,
+    category: input.category,
+  });
 
   const result = await db.run(
-    `INSERT INTO brain_semantic (category, title, content, source_session_id, keywords, importance_score, emotional_valence, salience, expires_at, topic_id, task_id, summary_of, parent_id, stability, difficulty, i0, valid_from)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    `INSERT INTO brain_semantic (category, title, content, source_session_id, keywords, importance_score, emotional_valence, salience, expires_at, topic_id, task_id, summary_of, parent_id, stability, difficulty, i0, valid_from, tier)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)`,
     [
       input.category,
       cleanedTitle,
@@ -166,6 +173,7 @@ export async function storeSemantic(input: StoreInput): Promise<number> {
       forgetting.stability,
       forgetting.difficulty,
       forgetting.i0,
+      tier,
     ],
   );
 

@@ -179,6 +179,24 @@ describe("size cap", () => {
     await db.close();
   });
 
+  it("leaves a forgotten leaf in place when the file is under the cap", async () => {
+    const { enforceBrainSizeCap } = await import("./dbSafety");
+    const db = await open({ filename: dbPath, driver: sqlite3.Database });
+    await db.exec("PRAGMA journal_mode = WAL;");
+    await createTables(db);
+    await db.run("INSERT INTO brain_sessions (id) VALUES ('s')");
+    await db.run(
+      "INSERT INTO brain_semantic (title, content, tombstoned_at, tombstone_reason) VALUES ('keep', 'forgotten fact', datetime('now'), 'forget')",
+    );
+    const r = await enforceBrainSizeCap(db, dbPath, 100 * 1024 * 1024);
+    expect(r.capped).toBe(false);
+    expect(r.deleted).toBe(0);
+    expect(
+      await db.get("SELECT title FROM brain_semantic WHERE title = 'keep'"),
+    ).toEqual({ title: "keep" });
+    await db.close();
+  });
+
   it("tombstones expired semantic before reclaim and never wipes the audit log", async () => {
     const { enforceBrainSizeCap } = await import("./dbSafety");
     const db = await open({ filename: dbPath, driver: sqlite3.Database });
@@ -268,5 +286,42 @@ describe("size cap", () => {
     expect(isBrainEnabled()).toBe(false);
     if (prev === undefined) delete process.env.KNOX_BRAIN_ENABLED;
     else process.env.KNOX_BRAIN_ENABLED = prev;
+  });
+
+  it("defaults the disk valve to 1 GiB", async () => {
+    const { BRAIN_DEFAULT_MAX_BYTES, brainMaxBytes } = await import("./dbSafety");
+    const { brainState } = await import("./state");
+    expect(BRAIN_DEFAULT_MAX_BYTES).toBe(1024 * 1024 * 1024);
+    const prev = brainState.config.max_bytes;
+    const prevEnv = process.env.KNOX_BRAIN_MAX_BYTES;
+    delete process.env.KNOX_BRAIN_MAX_BYTES;
+    try {
+      brainState.config.max_bytes = BRAIN_DEFAULT_MAX_BYTES;
+      expect(brainMaxBytes()).toBe(1024 * 1024 * 1024);
+    } finally {
+      brainState.config.max_bytes = prev;
+      if (prevEnv === undefined) delete process.env.KNOX_BRAIN_MAX_BYTES;
+      else process.env.KNOX_BRAIN_MAX_BYTES = prevEnv;
+    }
+  });
+
+  it("pruneDanglingSummaryLeaves drops leaves whose original row is gone", async () => {
+    const { pruneDanglingSummaryLeaves } = await import("./dbSafety");
+    const db = await open({ filename: dbPath, driver: sqlite3.Database });
+    await createTables(db);
+    await db.run("INSERT INTO brain_sessions (id) VALUES ('s')");
+    await db.run("INSERT INTO brain_episodic (session_id, content) VALUES ('s', 'turn')");
+    const epi = (await db.get("SELECT id FROM brain_episodic")) as { id: number };
+    await db.run(
+      "INSERT INTO brain_summary_tree (kind, leaf_type, leaf_id, text) VALUES ('leaf', 'episodic', ?, 'turn')",
+      [String(epi.id)],
+    );
+    await db.run(
+      "INSERT INTO brain_summary_tree (kind, leaf_type, leaf_id, text) VALUES ('leaf', 'semantic', '999', 'ghost')",
+    );
+    expect(await pruneDanglingSummaryLeaves(db)).toBe(1);
+    const left = (await db.get("SELECT COUNT(*) AS n FROM brain_summary_tree WHERE kind = 'leaf'")) as { n: number };
+    expect(left.n).toBe(1);
+    await db.close();
   });
 });

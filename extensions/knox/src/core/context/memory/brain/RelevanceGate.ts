@@ -184,13 +184,18 @@ export function isMismatchActive(
   return mem.mismatch_topic_id === currentTopicId;
 }
 
-/** REL-14: score penalty unless the item is pinned. */
+/**
+ * REL-14: leftover subtract while the 7-day demote is active.
+ * After `mismatch_until` the count is history, not a score — a 0.15 scar is
+ * ~10× one RRF channel and would permanently zero a real hit (MEM-21).
+ */
 export function applyMismatchPenalty(
   score: number,
   mismatchCount: number | undefined,
   pinned: boolean,
+  demoted = true,
 ): number {
-  if (pinned) return score;
+  if (pinned || !demoted) return score;
   const n = mismatchCount ?? 0;
   if (n <= 0) return score;
   return Math.max(0, score - MISMATCH_SCORE_PENALTY * n);

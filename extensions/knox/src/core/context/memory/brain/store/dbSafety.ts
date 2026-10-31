@@ -134,7 +134,7 @@ interface Db {
 }
 
 /** Default cap on `brain.sqlite` (+ WAL). Override with `KNOX_BRAIN_MAX_BYTES`; `0` disables. */
-export const BRAIN_DEFAULT_MAX_BYTES = 256 * 1024 * 1024;
+export const BRAIN_DEFAULT_MAX_BYTES = 1024 * 1024 * 1024;
 
 export function brainMaxBytes(): number {
   const raw = process.env.KNOX_BRAIN_MAX_BYTES;
@@ -333,11 +333,61 @@ async function tombstoneExpiredSemantic(db: Db): Promise<number> {
   );
 }
 
-async function reclaimTombstones(db: Db): Promise<number> {
+const RECLAIM_BATCH = 250;
+
+/**
+ * Disk valve: drop oldest tombstoned leaves first, not every tombstone at once.
+ * A recent forget stays reversible until the file is actually over `max_bytes`.
+ */
+async function reclaimTombstones(db: Db, limit: number = RECLAIM_BATCH): Promise<number> {
+  if (limit <= 0) return 0;
+  let remaining = limit;
   let deleted = 0;
-  deleted += await tryRun(db, "DELETE FROM brain_semantic WHERE tombstoned_at IS NOT NULL");
-  deleted += await tryRun(db, "DELETE FROM brain_episodic WHERE tombstoned_at IS NOT NULL");
+  for (const table of ["brain_semantic", "brain_episodic"] as const) {
+    if (remaining <= 0) break;
+    const n = await tryRun(
+      db,
+      `DELETE FROM ${table} WHERE id IN (
+         SELECT id FROM ${table}
+         WHERE tombstoned_at IS NOT NULL
+         ORDER BY created_at ASC, id ASC
+         LIMIT ?
+       )`,
+      [remaining],
+    );
+    deleted += n;
+    remaining -= n;
+  }
+  if (deleted > 0) {
+    deleted += await pruneDanglingSummaryLeaves(db);
+  }
   return deleted;
+}
+
+/**
+ * Drop summary-tree leaves whose original row is gone (hard-deleted, not
+ * tombstoned). Tombstones still satisfy Losslessness; dangling pointers do not.
+ */
+export async function pruneDanglingSummaryLeaves(db: Db): Promise<number> {
+  return tryRun(
+    db,
+    `DELETE FROM brain_summary_tree
+     WHERE kind = 'leaf' AND id IN (
+       SELECT t.id FROM brain_summary_tree t
+       WHERE t.kind = 'leaf' AND (
+         t.leaf_id IS NULL OR TRIM(t.leaf_id) = ''
+         OR (
+           COALESCE(t.leaf_type, '') = 'semantic'
+           AND CAST(t.leaf_id AS INTEGER) NOT IN (SELECT id FROM brain_semantic)
+         )
+         OR (
+           COALESCE(t.leaf_type, '') = 'episodic'
+           AND CAST(t.leaf_id AS INTEGER) NOT IN (SELECT id FROM brain_episodic)
+         )
+         OR COALESCE(t.leaf_type, '') NOT IN ('semantic', 'episodic')
+       )
+     )`,
+  );
 }
 
 async function tombstoneOldestEpisodic(db: Db, limit: number): Promise<number> {
@@ -371,11 +421,13 @@ async function trimOldestAudit(db: Db): Promise<number> {
 
 /**
  * Keep the database under `maxBytes`. Folds the WAL in first, then tombstones
- * (TTL + oldest episodic) and reclaims already-tombstoned rows, then VACUUMs.
+ * (TTL + oldest episodic) and reclaims already-tombstoned rows oldest-first,
+ * then VACUUMs.
  *
  * This is the `max_bytes` disk valve (MEM-04 / MEM-06 / §8). It never
  * hard-deletes a live leaf, never wipes `brain_audit_log`, and never prunes
- * curated live semantic / entities / procedures.
+ * curated live semantic / entities / procedures. Under the cap, forgotten
+ * tombstones stay SELECTable.
  */
 export async function enforceBrainSizeCap(
   db: Db,
@@ -390,9 +442,13 @@ export async function enforceBrainSizeCap(
   let deleted = 0;
 
   deleted += await tombstoneExpiredSemantic(db);
-  deleted += await reclaimTombstones(db);
 
-  for (let i = 0; i < 20 && (await usedPages(db)) > maxBytes * 0.9; i++) {
+  for (let i = 0; i < 40 && (await usedPages(db)) > maxBytes * 0.9; i++) {
+    const reclaimed = await reclaimTombstones(db);
+    if (reclaimed > 0) {
+      deleted += reclaimed;
+      continue;
+    }
     const live = await db.get<{ n: number }>(
       "SELECT COUNT(*) AS n FROM brain_episodic WHERE tombstoned_at IS NULL",
     );

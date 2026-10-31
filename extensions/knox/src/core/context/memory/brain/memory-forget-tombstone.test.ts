@@ -217,4 +217,30 @@ describe("MEM-06 forget / TTL / privacy tombstone", () => {
       await bak.close();
     }
   });
+
+  it("forgotten near-duplicates do not hide a live gold fact from fusion", async () => {
+    await reset();
+    const sessionId = "mem06-fts-crowd";
+    const token = "oauthjwtcrowdtoken";
+    await BrainManager.trackSession(sessionId, "MEM-06 crowd", testDir);
+    const db = await BrainStore.get();
+    await db.exec("BEGIN");
+    for (let i = 0; i < 2800; i++) {
+      await db.run(
+        `INSERT INTO brain_semantic (category, title, content, keywords, source_session_id, importance_score, tombstoned_at, tombstone_reason, tier)
+         VALUES ('fact', ?, ?, ?, ?, 0.8, datetime('now'), 'forget', 'frozen')`,
+        [`Dead ${token} ${i}`, `document ${i} about ${token} unique-${i}`, token, sessionId],
+      );
+    }
+    await db.exec("COMMIT");
+    const goldId = await BrainManager.store({
+      category: "fact",
+      title: `Live ${token}`,
+      content: `The only live document about ${token} in this project.`,
+      keywords: token,
+      importance: 0.8,
+      session_id: sessionId,
+    });
+    expect(await fusionHits(token, goldId)).toBe(true);
+  }, 60_000);
 });

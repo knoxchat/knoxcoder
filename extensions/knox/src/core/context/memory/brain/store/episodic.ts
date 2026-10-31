@@ -2,6 +2,7 @@
 
 import { insertForgettingFields } from "../Forgetting.js";
 import { InputSanitizer } from "../InputSanitizer.js";
+import { classifyInsertTier } from "../Tiers.js";
 import type {
   EmotionalValence,
   EpisodicMemory,
@@ -44,10 +45,16 @@ export async function addEpisodic(
   const sal = salience ?? computeSalience(cleanedContent, role, importanceScore);
 
   const forgetting = insertForgettingFields("episodic", importanceScore);
+  const tier = classifyInsertTier({
+    importance_score: importanceScore,
+    i0: forgetting.i0,
+    stability: forgetting.stability,
+    category: "episodic",
+  });
 
   const result = await db.run(
-    `INSERT INTO brain_episodic (session_id, type, role, content, token_count, importance_score, emotional_valence, salience, metadata, stability, difficulty, i0, valid_from)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    `INSERT INTO brain_episodic (session_id, type, role, content, token_count, importance_score, emotional_valence, salience, metadata, stability, difficulty, i0, valid_from, tier)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)`,
     [
       sessionId,
       type,
@@ -61,6 +68,7 @@ export async function addEpisodic(
       forgetting.stability,
       forgetting.difficulty,
       forgetting.i0,
+      tier,
     ],
   );
 

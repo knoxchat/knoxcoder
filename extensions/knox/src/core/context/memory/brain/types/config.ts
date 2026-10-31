@@ -13,6 +13,7 @@ export interface MemoryConfig {
   auto_extract_min_importance: number;
   consolidation_interval_hours: number;
   max_episodic_per_session: number;
+  /** Unused leftover count cap (MEM-15). Tiers come from R / Value, not a 500-hot quota. */
   max_hot_memories: number;
   /** Unused leftover clock (MEM-15). Tiers come from R / Value. */
   hot_to_warm_hours: number;

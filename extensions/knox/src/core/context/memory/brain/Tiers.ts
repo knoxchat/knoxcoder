@@ -135,6 +135,31 @@ export function classifyRankedTier(
   return "cold";
 }
 
+/** Classify a just-written leaf (t≈0) so INSERT does not rely on DEFAULT 'hot'. */
+export function classifyInsertTier(
+  source: {
+    importance_score?: number | null;
+    i0?: number | null;
+    stability?: number | null;
+    category?: string | null;
+  },
+  nowMs: number = Date.now(),
+): MemoryTier {
+  return classifyMemoryTier(
+    {
+      importance_score: source.importance_score,
+      i0: source.i0,
+      stability: source.stability,
+      category: source.category,
+      helpful_count: 0,
+      unhelpful_count: 0,
+    },
+    undefined,
+    undefined,
+    nowMs,
+  );
+}
+
 export function classifyMemoryTier(
   source?: ValueSource | null,
   options?: ClassifyTierOptions,
@@ -235,6 +260,7 @@ export const Tiers = {
   parseMemoryTier,
   archiveThresholdOf,
   classifyRankedTier,
+  classifyInsertTier,
   classifyMemoryTier,
   retrievabilityFromSource,
   memoryRefKey,

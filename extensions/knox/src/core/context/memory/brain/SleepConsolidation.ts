@@ -231,6 +231,7 @@ export class SleepConsolidation {
       const messages = await db.all(
         `SELECT content, importance_score FROM brain_episodic
          WHERE session_id = ? AND role IN ('user', 'assistant')
+           AND tombstoned_at IS NULL
          ORDER BY importance_score DESC LIMIT 30`,
         [sid],
       );
@@ -271,6 +272,7 @@ export class SleepConsolidation {
           const topMsgs = await db.all(
             `SELECT id, content FROM brain_episodic
              WHERE session_id = ? AND LOWER(content) LIKE ?
+               AND tombstoned_at IS NULL
              ORDER BY importance_score DESC LIMIT 5`,
             [sid, `%${keyword}%`],
           );

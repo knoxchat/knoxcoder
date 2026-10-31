@@ -20,6 +20,7 @@ const testDir = path.join(os.tmpdir(), `brain-mem24-${Date.now()}`);
 let BrainManager: typeof import("./BrainManager.js").BrainManager;
 let BrainStore: typeof import("./BrainStore.js").BrainStore;
 let Hippocampus: typeof import("./regions/Hippocampus.js").Hippocampus;
+let MemoryPipeline: typeof import("./MemoryPipeline.js").MemoryPipeline;
 let RetrievalFusion: typeof import("./RetrievalFusion.js").RetrievalFusion;
 let insertTreeLeaf: typeof import("./SummaryTree.js").insertTreeLeaf;
 let ingestSessionLeaves: typeof import("./SummaryTree.js").ingestSessionLeaves;
@@ -52,6 +53,7 @@ describe("MEM-24 tree insertion + beam", () => {
     ({ BrainManager } = await import("./BrainManager.js"));
     ({ BrainStore } = await import("./BrainStore.js"));
     ({ Hippocampus } = await import("./regions/Hippocampus.js"));
+    ({ MemoryPipeline } = await import("./MemoryPipeline.js"));
     ({ RetrievalFusion } = await import("./RetrievalFusion.js"));
     ({
       insertTreeLeaf,
@@ -310,5 +312,33 @@ describe("MEM-24 tree insertion + beam", () => {
       minScore: 0.35,
     });
     expect(hits.some((h) => ids.includes(h.id))).toBe(false);
+  });
+
+  it("φ₅ still inserts episodic leaves when the turn extracted no facts", async () => {
+    await reset();
+    const sessionId = "mem24-episodic-only";
+    await BrainManager.trackSession(sessionId, "MEM-24 episodic", testDir);
+    await BrainManager.recordMessage(
+      sessionId,
+      "user",
+      "we keep hitting knoxTreeEpisodicOnlyToken while chatting",
+    );
+    await BrainManager.recordMessage(
+      sessionId,
+      "assistant",
+      "knoxTreeEpisodicOnlyToken showed up again in the notes",
+    );
+    const result = await MemoryPipeline.runPhase("long_term_storage", {
+      message: "",
+      session_id: sessionId,
+      extracted: { semantic_count: 0, entity_count: 0 },
+    });
+    expect(result.success).toBe(true);
+    expect(result.detail).toMatch(/tree linked/i);
+    const db = await BrainStore.get();
+    const leaves = (await db.all(
+      "SELECT leaf_type FROM brain_summary_tree WHERE leaf_type = 'episodic'",
+    )) as { leaf_type: string }[];
+    expect(leaves.length).toBeGreaterThan(0);
   });
 });

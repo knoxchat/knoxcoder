@@ -23,6 +23,7 @@ import {
   leftoverTextCovered,
   loadLiveRecipeCoverage,
 } from "./m5Surface.js";
+import { isDefaultRetrieveValue } from "./Value.js";
 import {
   formatCheckpointInjectPointer,
   isCheckpointPointerLeaf,
@@ -179,6 +180,7 @@ export class ContextSections {
       const fallbackRaw = await BrainStore.searchSemantic(query, undefined, mode.semanticLimit);
       fallback = filterSemanticByProjectScope(fallbackRaw, projectSessionIds).filter((mem) => {
         if (isMismatchActive(mem, currentTopicId)) return false;
+        if (!isDefaultRetrieveValue(mem)) return false;
         const gate = evaluateRelevanceGate({
           query,
           title: mem.title,
@@ -460,6 +462,14 @@ export class ContextSections {
     } else if (fusion.fusionEmpty && hasLexicalQuery) {
       const results = await BrainStore.searchEpisodic(query, undefined, mode.episodicLimit);
       scored = results.map((ep) => {
+        if (!isDefaultRetrieveValue(ep)) {
+          return {
+            ep,
+            reason: "archived",
+            passed: false,
+            gate_passed: false,
+          };
+        }
         const gate = evaluateRelevanceGate({ query, content: ep.content, requireLexical });
         return {
           ep,

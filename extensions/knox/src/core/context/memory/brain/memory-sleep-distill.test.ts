@@ -79,4 +79,29 @@ describe("REL-15 sleep distill per topic", () => {
       false,
     );
   });
+
+  it("does not quote a forgotten episodic leaf into a new insight", async () => {
+    await reset();
+    const keyword = "galaxyfoo";
+    const forgotten = "forgottenleafxyz";
+    const topic = "OAuth login";
+    await seedWarmSession("sleep-auth-a", topic, keyword);
+    await seedWarmSession("sleep-auth-b", topic, keyword);
+    await seedWarmSession("sleep-auth-c", topic, keyword);
+
+    const db = await BrainStore.get();
+    await db.run(
+      `INSERT INTO brain_episodic (session_id, role, content, importance_score, tier, tombstoned_at, tombstone_reason)
+       VALUES ('sleep-auth-a', 'user', ?, 0.99, 'warm', datetime('now'), 'forget')`,
+      [`We keep hitting ${keyword} because ${forgotten} leaked.`],
+    );
+
+    const distilled = await SleepConsolidation.remDistill();
+    expect(distilled).toBeGreaterThan(0);
+    const rows = (await db.all(
+      `SELECT content FROM brain_semantic WHERE category = 'insight'`,
+    )) as { content: string }[];
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.some((r) => r.content.includes(forgotten))).toBe(false);
+  });
 });

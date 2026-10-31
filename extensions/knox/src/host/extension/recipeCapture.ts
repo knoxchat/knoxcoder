@@ -233,7 +233,7 @@ export async function decideRecipeAtTurnStart(
 ): Promise<{ event: import("core/agent/recipeDecisionTurn").RecipeDecisionEvent; hint?: string } | undefined> {
   if (!recipesEnabled() || !input.userMessage?.trim()) return undefined;
   try {
-    const [{ decideRecipeForTurn }, { RecipeStore }, { get: getBrainDb }, { hashProjectId }, { RECIPE_CHANNEL_CANDIDATE_CAP }] =
+    const [{ decideRecipeForTurn }, { RecipeStore }, { get: getBrainDb }, { hashProjectId, getProjectSessionIds }, { RECIPE_CHANNEL_CANDIDATE_CAP }] =
       await Promise.all([
         import("core/agent/recipeDecisionTurn"),
         import("core/context/memory/recipes/RecipeStore"),
@@ -264,11 +264,14 @@ export async function decideRecipeAtTurnStart(
         fusionHits: async () => {
           try {
             const { RetrievalFusion } = await import("core/context/memory/brain/RetrievalFusion");
+            const projectSessionIds = await getProjectSessionIds(undefined, workspaceDir);
             const hits = await RetrievalFusion.search({
               query: input.userMessage,
               category: "workflow",
               includeEpisodic: false,
               limit: 8,
+              projectSessionIds,
+              workspaceDir,
             });
             return hits
               .filter((h) => h.type === "semantic")

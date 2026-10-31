@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { captureRecipeAfterTurn, diffCheckpointStates, markRecipeTurnStart, recipesEnabled } from "./recipeCapture";
@@ -46,5 +48,13 @@ describe("flag off (default)", () => {
     expect(recipesEnabled()).toBe(false);
     await expect(markRecipeTurnStart("s1")).resolves.toBeUndefined();
     await expect(captureRecipeAfterTurn({ sessionId: "s1", userMessage: "x" }, "/w")).resolves.toBeUndefined();
+  });
+});
+
+describe("MEM-34 recipe fusion scope", () => {
+  it("passes projectSessionIds into RetrievalFusion.search", () => {
+    const src = readFileSync(fileURLToPath(new URL("./recipeCapture.ts", import.meta.url)), "utf8");
+    expect(src).toContain("getProjectSessionIds");
+    expect(src).toContain("projectSessionIds");
   });
 });

@@ -4,6 +4,7 @@ import {
   checkStoreInvariants,
   getInvariantSnapshot,
 } from "../invariants.js";
+import { pruneDanglingSummaryLeaves } from "../store/dbSafety.js";
 import type { HealthStatus } from "../types.js";
 import type { HealingAction, HealingResult, HealingStrategy } from "../PerformanceMonitor.js";
 
@@ -91,11 +92,17 @@ export class HealingEngine {
         }
         case "check_invariants": {
           let report = await checkStoreInvariants({ audit: true });
-          let repaired = false;
+          const notes: string[] = [];
+          const db = await BrainStore.get();
+          if (!report.losslessness.met) {
+            await pruneDanglingSummaryLeaves(db);
+            notes.push("dangling leaves pruned");
+          }
           if (!report.reachability.met || report.reachability.missing_fts > 0) {
-            const db = await BrainStore.get();
             await RetrievalFusion.rebuildFts5(db);
-            repaired = true;
+            notes.push("FTS rebuilt");
+          }
+          if (notes.length > 0) {
             report = await checkStoreInvariants({ audit: true });
           }
           const budget = getInvariantSnapshot().budget;
@@ -108,7 +115,7 @@ export class HealingEngine {
             `fts_gaps=${report.reachability.missing_fts}); ` +
             `Losslessness: ${report.losslessness.met ? "met" : "failed"} ` +
             `(leaves=${report.losslessness.leaves}, dangling=${report.losslessness.dangling})` +
-            `${repaired ? "; FTS rebuilt" : ""}.${budgetNote}`;
+            `${notes.length > 0 ? `; ${notes.join(", ")}` : ""}.${budgetNote}`;
           success = report.met;
           break;
         }
@@ -161,14 +168,14 @@ export class HealingEngine {
       if (lower.includes("fragmentation")) {
         actions.push({ action: "vacuum", priority: 10 });
       }
-      if (lower.includes("hot memories") || lower.includes("too many")) {
+      if (lower.includes("hot memories") || lower.includes("too many") || lower.includes("r/value")) {
         actions.push({ action: "rebalance_tiers", priority: 9 });
       }
       if (lower.includes("haven't been accessed")) {
         actions.push({ action: "prune_expired", priority: 7 });
         actions.push({ action: "clear_stale_sessions", priority: 6 });
       }
-      if (lower.includes("exceeds") || lower.includes("100mb")) {
+      if (lower.includes("exceeds") || lower.includes("max_bytes") || lower.includes("100mb")) {
         actions.push({ action: "compress_cold", priority: 8 });
         actions.push({ action: "vacuum", priority: 7 });
       }
@@ -258,30 +265,8 @@ export class HealingEngine {
   // ── Individual Healing Actions ─────────────────────────────────────────────
 
   private static async rebalanceTiers(): Promise<string> {
-    const db = await BrainStore.get();
-    let moved = 0;
-
-    // Force-demote excess hot episodic (keep only last 200 hot)
-    const excess = await db.run(
-      `UPDATE brain_episodic SET tier = 'warm'
-       WHERE tier = 'hot' AND id NOT IN (
-         SELECT id FROM brain_episodic WHERE tier = 'hot'
-         ORDER BY created_at DESC, id DESC LIMIT 200
-       )`,
-    );
-    moved += excess.changes ?? 0;
-
-    // Force-demote excess hot semantic (keep only top 100 by importance)
-    const semExcess = await db.run(
-      `UPDATE brain_semantic SET tier = 'warm'
-       WHERE tier = 'hot' AND id NOT IN (
-         SELECT id FROM brain_semantic WHERE tier = 'hot'
-         ORDER BY created_at DESC, id DESC LIMIT 100
-       )`,
-    );
-    moved += semExcess.changes ?? 0;
-
-    return `Rebalanced tiers: moved ${moved} memories from hot to warm`;
+    const tiers = await BrainStore.recomputeMemoryTiers();
+    return `Recomputed R/Value tiers: promoted ${tiers.promoted}, demoted ${tiers.demoted}, unchanged ${tiers.unchanged}`;
   }
 
   private static async clearStaleSessions(): Promise<string> {

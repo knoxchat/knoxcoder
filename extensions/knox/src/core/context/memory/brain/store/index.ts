@@ -171,6 +171,8 @@ export class BrainStore {
   static getFsrsState = fsrs.getFsrsState;
   static applyMemoryFsrs = fsrs.applyMemoryFsrs;
   static recomputeMemoryTiers = tiers.recomputeMemoryTiers;
+  static recomputeStaleTiersIfNeeded = tiers.recomputeStaleTiersIfNeeded;
+  static resetStaleTierRecomputeForTests = tiers.resetStaleTierRecomputeForTests;
   static applyMemoryTier = tiers.applyMemoryTier;
   static upsertAttribution = attribution.upsertAttribution;
   static upsertAttributionOn = attribution.upsertAttributionOn;

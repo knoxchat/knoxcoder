@@ -136,9 +136,9 @@
 				},
 				"knoxchat.memoryBrain.maxBytes": {
 					"type": "number",
-					"default": 268435456,
+					"default": 1073741824,
 					"minimum": 0,
-					"markdownDescription": "Cap on Memory Brain `brain.sqlite` (plus WAL) in bytes. Oldest episodic turns are pruned when the cap is exceeded; curated facts are kept. `0` disables. Environment variable `KNOX_BRAIN_MAX_BYTES` overrides this. Enforced on open and on each consolidation tick."
+					"markdownDescription": "Cap on Memory Brain `brain.sqlite` (plus WAL) in bytes. Default 1 GiB. Oldest tombstoned rows are reclaimed when the cap is exceeded; live curated facts are kept. `0` disables. Environment variable `KNOX_BRAIN_MAX_BYTES` overrides this. Enforced on open and on each consolidation tick."
 				},
 				"knoxchat.memoryBrain.enabled": {
 					"type": "boolean",

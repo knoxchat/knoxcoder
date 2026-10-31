@@ -308,20 +308,40 @@ export function uniqueMemoryTiers(memories: IKnoxGuiMemoryItem[]): string[] {
 	return [...new Set(memories.map(memory => memory.tier).filter((value): value is string => Boolean(value)))];
 }
 
-export function dashboardHealthGrade(score: number | undefined): string {
-	if ((score === undefined || score === null)) {
+/** Live `HealthScore.overall` is 0-1; tests and the banner use 0-100. */
+export function healthScoreToPercent(score: number | undefined | null): number | undefined {
+	if (score === undefined || score === null || !Number.isFinite(score)) {
+		return undefined;
+	}
+	if (score > 0 && score <= 1) {
+		return score * 100;
+	}
+	return score;
+}
+
+export function formatHealthScore(score: number | undefined | null): string {
+	const pct = healthScoreToPercent(score);
+	if (pct === undefined) {
 		return '';
 	}
-	if (score >= 90) {
+	return `${pct.toFixed(1)}/100`;
+}
+
+export function dashboardHealthGrade(score: number | undefined): string {
+	const pct = healthScoreToPercent(score);
+	if ((pct === undefined || pct === null)) {
+		return '';
+	}
+	if (pct >= 90) {
 		return 'A';
 	}
-	if (score >= 80) {
+	if (pct >= 80) {
 		return 'B';
 	}
-	if (score >= 70) {
+	if (pct >= 70) {
 		return 'C';
 	}
-	if (score >= 60) {
+	if (pct >= 60) {
 		return 'D';
 	}
 	return 'F';
@@ -421,7 +441,7 @@ export function parseMemoryDashboard(raw: Record<string, unknown> | undefined): 
 		totalTags: Number(stats.total_tags ?? stats.totalTags ?? 0) || undefined,
 		totalCollections: Number(stats.total_collections ?? stats.totalCollections ?? 0) || undefined,
 		dbSizeBytes: Number(stats.db_size_bytes ?? health?.db_size_bytes ?? 0),
-		healthScore: (healthScore?.overall !== undefined && healthScore?.overall !== null) ? Number(healthScore.overall) : ((healthScore?.score !== undefined && healthScore?.score !== null) ? Number(healthScore.score) : ((raw.healthScore !== undefined && raw.healthScore !== null) && typeof raw.healthScore !== 'object' ? Number(raw.healthScore) : undefined)),
+		healthScore: healthScoreToPercent((healthScore?.overall !== undefined && healthScore?.overall !== null) ? Number(healthScore.overall) : ((healthScore?.score !== undefined && healthScore?.score !== null) ? Number(healthScore.score) : ((raw.healthScore !== undefined && raw.healthScore !== null) && typeof raw.healthScore !== 'object' ? Number(raw.healthScore) : undefined))),
 		healthGrade: healthScore?.grade ? String(healthScore.grade) : undefined,
 		healthStatus: health?.status ? String(health.status) : undefined,
 		healthIssues: asArray(health?.issues).map(String),
@@ -1440,7 +1460,7 @@ export const MEMORY_SETTING_GROUPS: IKnoxGuiMemorySettingGroup[] = [
 		expert: true,
 		collapsed: true,
 		fields: [
-			{ key: 'max_hot_memories', labelKey: 'memoryMaxHot', descKey: 'memoryMaxHotDesc', kind: 'number', min: 100, max: 10000 },
+			{ key: 'max_hot_memories', labelKey: 'memoryMaxHot', descKey: 'memoryMaxHotDesc', kind: 'number', min: 100, max: 10000, legacy: true },
 			{ key: 'max_episodic_per_session', labelKey: 'memoryMaxEpisodic', descKey: 'memoryMaxEpisodicDesc', kind: 'number', min: 100, max: 10000 },
 			{ key: 'context_max_tokens', labelKey: 'memoryContextTokens', descKey: 'memoryContextTokensDesc', kind: 'number', min: 1000, max: 10000000 },
 			{

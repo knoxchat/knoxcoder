@@ -157,6 +157,41 @@ describe("REL-14 user mismatch feedback", () => {
     expect(pinned?.pinned).toBe(true);
     expect(pinned?.reason.startsWith("pinned")).toBe(true);
   });
+
+  it("expired mismatch_until does not permanently zero a rank-1 RRF hit", async () => {
+    await reset();
+    const sessionId = "rel14-mismatch-ttl";
+    const alphaId = await storeAlpha(sessionId);
+    await BrainStore.addSessionTopic(
+      sessionId,
+      "alpha-topic",
+      "mismatch-alpha-aaa unique token",
+      0,
+      2,
+      0.9,
+    );
+    const topic = await BrainStore.getLatestSessionTopic(sessionId);
+    const db = await BrainStore.get();
+    await db.run("UPDATE brain_semantic SET topic_id = ? WHERE id = ?", [
+      topic?.id ?? null,
+      alphaId,
+    ]);
+
+    expect(await BrainManager.recordMismatch(alphaId, sessionId)).toBe(true);
+    await db.run(
+      `UPDATE brain_semantic SET mismatch_until = datetime('now', '-1 day') WHERE id = ?`,
+      [alphaId],
+    );
+    const mem = await BrainStore.getSemanticById(alphaId);
+    expect(mem?.mismatch_count).toBe(1);
+    expect(Date.parse(mem?.mismatch_until ?? "")).toBeLessThan(Date.now());
+
+    const after = await MemoryPipeline.runPreTurn({
+      message: "what was mismatch-alpha-aaa?",
+      session_id: sessionId,
+    });
+    expect(after.context?.items.some((i) => i.id === alphaId)).toBe(true);
+  });
 });
 
 describe("REL-19 observability", () => {

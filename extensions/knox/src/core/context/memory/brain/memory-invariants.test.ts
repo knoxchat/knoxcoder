@@ -302,20 +302,27 @@ describe("MEM-32 sleep / heal / phase status", () => {
     expect(status.cycle_invariant_met).toBe(true);
   });
 
-  it("getHealth reports a dangling leaf and heal check_invariants sees it", async () => {
+  it("getHealth and heal prune dangling summary-tree leaves", async () => {
     await reset();
     const db = await BrainStore.get();
     await db.run(
       `INSERT INTO brain_summary_tree (parent_id, kind, leaf_type, leaf_id, text, token_count)
        VALUES (NULL, 'leaf', 'semantic', '888888', 'ghost', 1)`,
     );
-    const health = await BrainStore.getHealth();
-    expect(health.issues.some((issue) => issue.includes("Losslessness"))).toBe(true);
-    expect(health.recommendations.some((r) => r.includes("check_invariants"))).toBe(true);
+    expect((await checkLosslessness()).met).toBe(false);
 
+    const health = await BrainStore.getHealth();
+    expect(health.issues.some((issue) => issue.includes("Losslessness"))).toBe(false);
+    expect((await checkLosslessness()).met).toBe(true);
+
+    await db.run(
+      `INSERT INTO brain_summary_tree (parent_id, kind, leaf_type, leaf_id, text, token_count)
+       VALUES (NULL, 'leaf', 'semantic', '777777', 'ghost2', 1)`,
+    );
     const healed = await BrainManager.runHealingAction("check_invariants");
-    expect(healed.details).toMatch(/Losslessness: failed/);
-    expect(healed.success).toBe(false);
+    expect(healed.details).toMatch(/Losslessness: met/);
+    expect(healed.success).toBe(true);
+    expect((await checkLosslessness()).met).toBe(true);
   });
 
   it("heal rebuilds FTS when reachability only failed the index", async () => {

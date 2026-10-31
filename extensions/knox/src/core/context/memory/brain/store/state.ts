@@ -21,6 +21,7 @@ export const brainState: {
     auto_extract_min_importance: 0.3,
     consolidation_interval_hours: 24,
     max_episodic_per_session: 1000,
+    // Unused leftover count cap (MEM-15). Tiers come from R / Value, not a quota.
     max_hot_memories: 500,
     // Unused leftover clocks (MEM-15). Tiers come from R / Value.
     hot_to_warm_hours: 24,
@@ -192,6 +193,6 @@ export const brainState: {
     llm_tokens_per_hour_limit: 500000,
     preferred_summary_detail: "detailed",
     auto_checkpoint_interval: 5,
-    max_bytes: 256 * 1024 * 1024,
+    max_bytes: 1024 * 1024 * 1024,
   },
 };

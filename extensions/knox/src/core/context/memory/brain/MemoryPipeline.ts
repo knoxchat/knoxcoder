@@ -426,11 +426,15 @@ export class MemoryPipeline {
             break;
           }
           const extracted = input.extracted ?? { semantic_count: 0, entity_count: 0 };
+          const persisted = await Hippocampus.persistToLongTerm(input.session_id, extracted);
           if (extracted.semantic_count === 0 && extracted.entity_count === 0) {
-            detail = input.turn_content ? "no new knowledge to persist" : "skipped (no extraction)";
+            detail = persisted.compressed
+              ? `M₃/M₄ tree linked ${persisted.compressed} (no new extract)`
+              : input.turn_content
+                ? "no new knowledge to persist"
+                : "skipped (no extraction)";
             break;
           }
-          const persisted = await Hippocampus.persistToLongTerm(input.session_id, extracted);
           detail = `M₄ promoted ${persisted.promoted}, M₅ recipes ${persisted.recipes}, leftover procedural ${persisted.procedural}, compressed ${persisted.compressed}`;
           break;
         }

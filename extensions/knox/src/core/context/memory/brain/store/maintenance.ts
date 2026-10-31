@@ -9,8 +9,8 @@ import type {
 } from "../types.js";
 import { compressColdTier } from "./compression.js";
 import { get } from "./connection.js";
-import { brainState } from "./state.js";
-import { decompressLiveTiers, recomputeMemoryTiers } from "./tiers.js";
+import { brainMaxBytes, pruneDanglingSummaryLeaves } from "./dbSafety.js";
+import { decompressLiveTiers, recomputeMemoryTiers, recomputeStaleTiersIfNeeded } from "./tiers.js";
 import { checkStoreInvariants, getInvariantSnapshot } from "../invariants.js";
 
 // ── Consolidation (Knox-MS Memory Tiering Pattern) ─────────────────────────
@@ -25,6 +25,9 @@ export async function consolidate(): Promise<ConsolidationResult> {
   const tiers = await recomputeMemoryTiers();
   result.promoted = tiers.promoted;
   result.demoted = tiers.demoted;
+
+  const db = await get();
+  await pruneDanglingSummaryLeaves(db).catch(() => 0);
 
   await compressColdTier().catch(() => {});
   if (tiers.promoted > 0) {
@@ -117,6 +120,14 @@ export async function getStats(): Promise<BrainStats> {
   };
 }
 
+function formatDiskBytes(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return "0 B";
+  if (n >= 1024 * 1024 * 1024) return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  if (n >= 1024 * 1024) return `${Math.round(n / (1024 * 1024))} MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${Math.round(n)} B`;
+}
+
 // ── Health & Optimization ──────────────────────────────────────────────────
 
 export async function getHealth(): Promise<HealthStatus> {
@@ -155,30 +166,18 @@ export async function getHealth(): Promise<HealthStatus> {
   const issues: string[] = [];
   const recommendations: string[] = [];
 
-  // Check for issues
-  if (dbSizeBytes > 100 * 1024 * 1024) {
-    issues.push("Database exceeds 100MB");
-    recommendations.push("Run 'consolidate' to archive old memories and 'optimize' to compact the database");
+  await recomputeStaleTiersIfNeeded().catch(() => null);
+  await pruneDanglingSummaryLeaves(db).catch(() => 0);
+
+  const cap = brainMaxBytes();
+  if (cap > 0 && dbSizeBytes > cap) {
+    issues.push(`Database exceeds max_bytes (${formatDiskBytes(dbSizeBytes)} / ${formatDiskBytes(cap)})`);
+    recommendations.push("Run 'optimize' to compact the database, or raise knoxchat.memoryBrain.maxBytes");
   }
 
   if (fragRatio > 0.2) {
     issues.push(`Database fragmentation is ${(fragRatio * 100).toFixed(1)}%`);
     recommendations.push("Run 'optimize' to vacuum the database");
-  }
-
-  const hotCount = await db.get(
-    `SELECT COUNT(*) as c FROM (
-      SELECT id FROM brain_episodic WHERE tier = 'hot' UNION ALL SELECT id FROM brain_semantic WHERE tier = 'hot'
-    )`,
-  );
-  if ((hotCount as any)?.c > brainState.config.max_hot_memories) {
-    issues.push(`Too many hot memories (${(hotCount as any).c}/${brainState.config.max_hot_memories})`);
-    recommendations.push("Run 'consolidate' to recompute R/Value tiers");
-  }
-
-  if (oldestDays > 30) {
-    issues.push(`Some memories haven't been accessed in ${oldestDays.toFixed(0)} days`);
-    recommendations.push("Run 'consolidate' to recompute R/Value tiers for unused memories");
   }
 
   const checkpointRows = await db.all("SELECT id, snapshot_path FROM brain_checkpoints");

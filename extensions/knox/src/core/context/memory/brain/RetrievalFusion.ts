@@ -169,6 +169,53 @@ export const FUSION_CANDIDATE_CUTOFF_DEFAULT = 50;
 /** Theorem default calibrated P(helpful) cut-off. */
 export const RETRIEVAL_THRESHOLD_DEFAULT = 0.35;
 
+/** First MATCH window vs the JOIN `LIMIT` (tombstones / other projects drop in JOIN). */
+const FTS_MATCH_OVERFETCH = 10;
+/** Cap on MATCH over-fetch retries so a 100k tombstone pile cannot scan forever. */
+const FTS_MATCH_OVERFETCH_MAX = 40;
+
+type LexicalScope = {
+  projectSessionIds?: string[];
+};
+
+/** `"none"` = Ω(q) is empty (fail closed). `"ok"` = filter applied or global. */
+function appendProjectSessionScope(
+  extra: string[],
+  params: unknown[],
+  column: string,
+  sessionIds: string[] | undefined,
+): "ok" | "none" {
+  if (sessionIds === undefined) return "ok";
+  if (sessionIds.length === 0) return "none";
+  extra.push(`${column} IN (${sessionIds.map(() => "?").join(",")})`);
+  params.push(...sessionIds);
+  return "ok";
+}
+
+/**
+ * MATCH first (P1-5), then JOIN Ω(q). If tombstones / other-project rows fill
+ * the MATCH window, grow it until we have `resultLimit` live hits or the cap.
+ */
+async function fts5MatchJoin(
+  db: DatabaseConnection,
+  sql: string,
+  matchQuery: string,
+  extraParams: unknown[],
+  resultLimit: number,
+): Promise<any[]> {
+  let fetch = Math.max(resultLimit * FTS_MATCH_OVERFETCH, resultLimit);
+  const cap = Math.max(resultLimit * FTS_MATCH_OVERFETCH_MAX, 2_000);
+  let prevLive = -1;
+  while (true) {
+    const rows = await db.all(sql, [matchQuery, fetch, ...extraParams, resultLimit]);
+    if (rows.length >= resultLimit || rows.length === prevLive || fetch >= cap) {
+      return rows;
+    }
+    prevLive = rows.length;
+    fetch = Math.min(Math.max(fetch * 2, fetch + 1), cap);
+  }
+}
+
 /**
  * Absolute BM25 → [0, 1]. Does not depend on other hits in the result set.
  */
@@ -578,20 +625,22 @@ export class RetrievalFusion {
       ? expandQuerySynonyms(searchQuery, { continuation: options.intent === "continuation" })
       : searchQuery;
 
+    const lexicalScope: LexicalScope = { projectSessionIds: options.projectSessionIds };
+
     // 1. FTS5 BM25 search
     const fts5Semantic = await RetrievalFusion.fts5SearchSemantic(
-      db, searchQuery, options.category, candidateLimit, synonymExtras,
+      db, searchQuery, options.category, candidateLimit, synonymExtras, lexicalScope,
     );
 
     const fts5Episodic = options.includeEpisodic !== false
       ? await RetrievalFusion.fts5SearchEpisodic(
-          db, searchQuery, options.sessionId, candidateLimit, synonymExtras,
+          db, searchQuery, options.sessionId, candidateLimit, synonymExtras, lexicalScope,
         )
       : [];
 
     // 2. Trigram fuzzy search (for candidates not found by FTS5)
     const trigramSemantic = await RetrievalFusion.trigramSearchSemantic(
-      db, trigramQuery, options.category, Math.floor(candidateLimit / 2),
+      db, trigramQuery, options.category, Math.floor(candidateLimit / 2), lexicalScope,
     );
 
     // 3. Graph-based expansion + ripgrep channel (MEM-23). Independent lists.
@@ -948,10 +997,12 @@ export class RetrievalFusion {
     for (const candidate of candidateMap.values()) {
       if (candidate.type !== "semantic") continue;
       const sem = candidate.data as SemanticMemory;
+      const pinned = pinnedIds.has(sem.id);
       candidate.score = applyMismatchPenalty(
         candidate.score,
         sem.mismatch_count,
-        pinnedIds.has(sem.id),
+        pinned,
+        isMismatchActive(sem, currentTopicId) && !pinned,
       );
     }
 
@@ -1056,6 +1107,7 @@ export class RetrievalFusion {
     category: SemanticCategory | undefined,
     limit: number,
     extraOrTerms: string[] = [],
+    scope: LexicalScope = {},
   ): Promise<Array<{ id: number; bm25Score: number; memory: SemanticMemory }>> {
     const ftsQuery = RetrievalFusion.buildFts5Query(query, extraOrTerms);
     if (!ftsQuery) return [];
@@ -1071,10 +1123,15 @@ export class RetrievalFusion {
         extra.push("s.category = ?");
         extraParams.push(category);
       }
+      if (appendProjectSessionScope(extra, extraParams, "s.source_session_id", scope.projectSessionIds) === "none") {
+        return [];
+      }
 
       // MATCH first: a tombstoned_at / expires filter on the JOIN can make SQLite
       // walk idx_semantic_tombstoned (almost every row) and probe FTS per row at 100k.
-      const rows = await db.all(`
+      const rows = await fts5MatchJoin(
+        db,
+        `
         WITH hits AS (
           SELECT rowid AS id, -bm25(brain_semantic_fts, 5.0, 1.0, 3.0) AS bm25_score
           FROM brain_semantic_fts
@@ -1087,7 +1144,11 @@ export class RetrievalFusion {
         WHERE ${extra.join(" AND ")}
         ORDER BY hits.bm25_score DESC
         LIMIT ?
-      `, [ftsQuery, limit * 10, ...extraParams, limit]);
+      `,
+        ftsQuery,
+        extraParams,
+        limit,
+      );
 
       return rows.map((r: any) => ({
         id: r.id,
@@ -1106,6 +1167,7 @@ export class RetrievalFusion {
     sessionId: string | undefined,
     limit: number,
     extraOrTerms: string[] = [],
+    scope: LexicalScope = {},
   ): Promise<Array<{ id: number; bm25Score: number; memory: EpisodicMemory }>> {
     const ftsQuery = RetrievalFusion.buildFts5Query(query, extraOrTerms);
     if (!ftsQuery) return [];
@@ -1119,13 +1181,17 @@ export class RetrievalFusion {
       if (sessionId) {
         extraConditions.push("e.session_id = ?");
         extraParams.push(sessionId);
+      } else if (appendProjectSessionScope(extraConditions, extraParams, "e.session_id", scope.projectSessionIds) === "none") {
+        return [];
       }
 
       const whereExtra = extraConditions.length > 0 ? ` AND ${extraConditions.join(" AND ")}` : "";
 
       // MATCH first, in a CTE: with a session filter SQLite otherwise walks the session index and
       // probes the FTS table once per episodic row, which takes seconds at ~10k rows.
-      const rows = await db.all(`
+      const rows = await fts5MatchJoin(
+        db,
+        `
         WITH hits AS (
           SELECT rowid AS id, -bm25(brain_episodic_fts) AS bm25_score FROM brain_episodic_fts
           WHERE brain_episodic_fts MATCH ? ORDER BY bm25_score DESC LIMIT ?
@@ -1135,7 +1201,11 @@ export class RetrievalFusion {
         WHERE 1 = 1${whereExtra}
         ORDER BY hits.bm25_score DESC
         LIMIT ?
-      `, [ftsQuery, sessionId ? limit * 10 : limit, ...extraParams, limit]);
+      `,
+        ftsQuery,
+        extraParams,
+        limit,
+      );
 
       return rows.map((r: any) => ({
         id: r.id,
@@ -1159,6 +1229,7 @@ export class RetrievalFusion {
     query: string,
     category: SemanticCategory | undefined,
     limit: number,
+    scope: LexicalScope = {},
   ): Promise<Array<{ id: number; similarity: number; memory: SemanticMemory }>> {
     const queryTrigrams = RetrievalFusion.generateTrigrams(query.toLowerCase());
     if (queryTrigrams.size === 0) return [];
@@ -1173,6 +1244,9 @@ export class RetrievalFusion {
     if (category) {
       conditions.push("category = ?");
       params.push(category);
+    }
+    if (appendProjectSessionScope(conditions, params, "source_session_id", scope.projectSessionIds) === "none") {
+      return [];
     }
 
     // Pre-filter with simple LIKE on first few meaningful terms to avoid scanning entire table
@@ -1206,7 +1280,11 @@ export class RetrievalFusion {
           ftsConditions.push("s.category = ?");
           ftsParams.push(category);
         }
-        rows = await db.all(
+        if (appendProjectSessionScope(ftsConditions, ftsParams, "s.source_session_id", scope.projectSessionIds) === "none") {
+          return [];
+        }
+        rows = await fts5MatchJoin(
+          db,
           `WITH hits AS (
              SELECT rowid AS id, bm25(brain_semantic_fts, 5.0, 1.0, 3.0) AS rank
              FROM brain_semantic_fts
@@ -1218,7 +1296,9 @@ export class RetrievalFusion {
            WHERE ${ftsConditions.join(" AND ")}
            ORDER BY hits.rank
            LIMIT ?`,
-          [ftsQuery, poolSize * 10, ...ftsParams, poolSize],
+          ftsQuery,
+          ftsParams,
+          poolSize,
         );
       } catch {
         rows = []; // FTS5 unavailable: LIKE pool below

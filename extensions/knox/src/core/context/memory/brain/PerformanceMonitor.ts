@@ -22,7 +22,7 @@
  *    last run time, average duration, and cycle history.
  */
 
-import { BrainStore } from "./BrainStore.js";
+import { brainMaxBytes } from "./store/dbSafety.js";
 import type { HealthStatus, SleepSubPhaseCounts } from "./types.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -75,6 +75,9 @@ export interface HealthScore {
 export interface CapacityForecast {
   current_db_size_bytes: number;
   growth_rate_bytes_per_day: number;
+  /** Days until `max_bytes`. Leftover `days_until_100mb` aliases this. */
+  days_until_cap: number | null;
+  cap_bytes: number;
   days_until_100mb: number | null;
   days_until_500mb: number | null;
   memory_growth_rate_per_day: number;
@@ -312,31 +315,14 @@ export class HealthScorer {
       : Math.max(0.2, 0.4 - ((avgTokensPerOp - 2000) / 10000) * 0.2);
 
     // ── Capacity dimension ──
-    // Based on tier balance and total memory count
-    const db = await BrainStore.get();
-    const tierCounts = await db.all(
-      `SELECT tier, COUNT(*) as c FROM (
-        SELECT tier FROM brain_episodic UNION ALL SELECT tier FROM brain_semantic
-      ) GROUP BY tier`,
-    );
-    const tiers: Record<string, number> = { hot: 0, warm: 0, cold: 0 };
-    for (const r of tierCounts) {
-      tiers[(r as any).tier] = (r as any).c;
-    }
-    const totalMem = tiers.hot + tiers.warm + tiers.cold;
-
+    // Disk valve is max_bytes (MEM-04). Tiers are R/Value, not a hot quota.
     let capacity = 1.0;
-    if (totalMem > 0) {
-      const hotRatio = tiers.hot / totalMem;
-      // Ideal: 20-40% hot. Too many hot = overloaded, too few = under-utilized
-      if (hotRatio > 0.6) capacity -= (hotRatio - 0.6) * 1.5;
-      else if (hotRatio < 0.1 && totalMem > 50) capacity -= 0.2;
-
-      // Penalize very large DBs
-      const dbMb = basicHealth.db_size_bytes / (1024 * 1024);
-      if (dbMb > 200) capacity -= 0.3;
-      else if (dbMb > 100) capacity -= 0.15;
-      else if (dbMb > 50) capacity -= 0.05;
+    const cap = brainMaxBytes();
+    if (cap > 0) {
+      const ratio = basicHealth.db_size_bytes / cap;
+      if (ratio >= 1) capacity = 0.2;
+      else if (ratio > 0.9) capacity = 0.5;
+      else if (ratio > 0.75) capacity = 0.75;
     }
     capacity = Math.max(0.1, Math.min(1.0, capacity));
 
@@ -431,15 +417,9 @@ export class PredictiveAnalytics {
    */
   forecast(currentDbSizeBytes: number, currentMemoryCount: number): CapacityForecast {
     const growthRate = Math.max(0, this.emaMemoryGrowth);
-    const limit100mb = 100 * 1024 * 1024;
-    const limit500mb = 500 * 1024 * 1024;
-
-    const daysUntil100mb = growthRate > 0 && currentDbSizeBytes < limit100mb
-      ? (limit100mb - currentDbSizeBytes) / growthRate
-      : null;
-
-    const daysUntil500mb = growthRate > 0 && currentDbSizeBytes < limit500mb
-      ? (limit500mb - currentDbSizeBytes) / growthRate
+    const cap = brainMaxBytes();
+    const daysUntilCap = cap > 0 && growthRate > 0 && currentDbSizeBytes < cap
+      ? (cap - currentDbSizeBytes) / growthRate
       : null;
 
     // Estimate memory count growth from DB growth
@@ -465,8 +445,9 @@ export class PredictiveAnalytics {
     }
 
     const recommendations: string[] = [];
-    if (daysUntil100mb !== null && daysUntil100mb < 30) {
-      recommendations.push(`DB will reach 100MB in ~${Math.ceil(daysUntil100mb)} days. Consider running consolidation more frequently.`);
+    if (daysUntilCap !== null && daysUntilCap < 30) {
+      const capMb = Math.round(cap / (1024 * 1024));
+      recommendations.push(`DB will reach max_bytes (${capMb}MB) in ~${Math.ceil(daysUntilCap)} days.`);
     }
     if (this.emaResponseMs > 500) {
       recommendations.push(`Average response time trending to ${this.emaResponseMs.toFixed(0)}ms. Consider optimizing queries.`);
@@ -478,8 +459,10 @@ export class PredictiveAnalytics {
     return {
       current_db_size_bytes: currentDbSizeBytes,
       growth_rate_bytes_per_day: growthRate,
-      days_until_100mb: daysUntil100mb,
-      days_until_500mb: daysUntil500mb,
+      days_until_cap: daysUntilCap,
+      cap_bytes: cap,
+      days_until_100mb: daysUntilCap,
+      days_until_500mb: null,
       memory_growth_rate_per_day: memGrowthPerDay,
       ema_response_ms: this.emaResponseMs,
       ema_tokens_per_op: this.emaTokensPerOp,

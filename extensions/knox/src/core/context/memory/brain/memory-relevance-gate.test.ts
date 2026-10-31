@@ -192,6 +192,8 @@ describe("REL-03 RelevanceGate (pure)", () => {
     );
     expect(applyMismatchPenalty(0.8, 2, true)).toBe(0.8);
     expect(applyMismatchPenalty(0.1, 3, false)).toBe(0);
+    const rrfHit = 1 / 61;
+    expect(applyMismatchPenalty(rrfHit, 1, false, false)).toBe(rrfHit);
   });
 });
 

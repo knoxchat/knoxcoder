@@ -1235,6 +1235,8 @@ suite('Knox native GUI parity', () => {
 		});
 		assert.strictEqual(dashboard?.healthGrade, 'A');
 		assert.strictEqual(dashboard?.healthScore, 91);
+		const fractionScore = parseMemoryDashboard({ healthScore: { overall: 0.9624, grade: 'A' } });
+		assert.ok(Math.abs((fractionScore?.healthScore ?? 0) - 96.24) < 0.01);
 		assert.strictEqual(dashboard?.tierCounts?.hot, 1);
 		assert.strictEqual(dashboard?.sessions?.length, 1);
 		assert.strictEqual(dashboard?.consolidation?.totalRuns, 2);
@@ -2086,6 +2088,7 @@ suite('Knox native GUI parity', () => {
 		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.fields.some(field => field.key === 'w_ripgrep')));
 		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.fields.some(field => field.key === 'w_tree')));
 		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.fields.some(field => field.key === 'ebbinghaus_lambda' && group.legacy)));
+		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.fields.some(field => field.key === 'max_hot_memories' && field.legacy)));
 		assert.ok(MEMORY_SETTING_GROUPS.some(group => group.fields.some(field => field.key === 'working_memory_max_slots')));
 		for (const tab of MEMORY_TAB_IDS) {
 			assert.ok(MEMORY_PANEL_TAB_BRAIN_MESSAGES[tab].length > 0, tab);
