@@ -19,7 +19,7 @@ troubleshooting. Setting names are `knoxchat.*` in Settings.
 - [Release](release.md) — version scheme, checksums, rollback
 - [Third-party notices](third-party-notices.md) — Knox bundled production licenses
 - [Testing policy](testing-policy.md)
-- [Upgrade guide](upgrade.md), [2.0 release notes](release-notes-2.0.md), [Known issues](known-issues.md)
+- [Upgrade guide](upgrade.md), [2.3 release notes](release-notes-2.3.md), [2.2 release notes](release-notes-2.2.md), [2.0 release notes](release-notes-2.0.md), [Known issues](known-issues.md)
 
 Knox ships **English and Chinese** only (`en` / `zh`, plus `package.nls.json` / `package.nls.zh-cn.json`). Extra locales are out of scope.
 

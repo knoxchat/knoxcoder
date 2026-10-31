@@ -3,6 +3,8 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.3.0] - 2026-10-31
+
 ### Added
 
 - **Memory Brain rewrite (revised Knox-MS theorem).** Stored memory is unbounded (`C_addr` = sessions + facts + recipes, counted once). Each model call is a bounded context (`C_use ≤ W` of the routed model). Success is measured recall of relevant facts, not a bigger inject number. Retrieval stays local lexical (sqlite FTS, BM25, trigrams, rule synonyms, graph, tree) — no embeddings, vector index, or neural rerank. How to use it: [Memory](extensions/knox/docs/README.md#memory). Pairing: [knox-memory-checkpoint.md](extensions/knox/docs/knox-memory-checkpoint.md). Math: [KMS Unlimited Context Theorem](https://docs.knoxstudio.ai/knox-ms-unlimited-formula/).
@@ -31,6 +33,7 @@ All notable changes to KnoxCoder are documented in this file.
 - **Project-scope lexical recall.** FTS JOIN-filters to this project's sessions and retries MATCH when tombstones filled the first window, so live in-scope rows are not dropped.
 - **Mismatch scar after the 7-day demote.** The leftover 0.15 penalty no longer applies once `mismatch_until` has passed (it was about 10x one RRF channel).
 - **Sleep and inject leftovers.** Distill skips tombstones. LIKE fallback skips `Value < θ_arch`. φ₅ still links the summary tree when a turn extracted no new facts. Recipe capture uses project session ids for scope.
+- **Pinning an editor.** Transcript resize waits a frame so pinning a message does not trip ResizeObserver.
 
 ### Removed
 
