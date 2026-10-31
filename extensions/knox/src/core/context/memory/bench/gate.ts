@@ -7,6 +7,8 @@
  *   `RECALL_SCALE_DROP_SLACK`. When MEM-42 publishes finite ε_S / ε_B, also
  *   enforce `1 - ε_S - ε_B ceil(log_b N_q)`. Flat FTS (ε_B n/a) does not
  *   claim that floor.
+ * - `gateSearchCost` — leftover P1-5 scan detector. Search(q) is
+ *   O(log N_q); an absolute ms SLO is machine-dependent.
  * - `answerableHorizon` / `gateHorizon` — H_0.85 from Rec vs fact age (MEM-41).
  */
 export interface GateSummary {
@@ -94,6 +96,22 @@ export const RECALL_SCALE_NS = [1_000, 10_000, 100_000] as const;
 
 export const RECALL_SCALE_NIGHTLY_N = 1_000_000;
 
+/**
+ * Leftover P1-5: pre-turn p95 at large N. Catches a table scan (seconds at
+ * 100k), not a laptop SLO. GHA windows-2022 full pipeline sat ~1.1 s p95
+ * with Rec held; the old 750 ms ceiling was searchSemantic-only on a laptop.
+ */
+export const PRE_TURN_P95_SCAN_MS = 2_500;
+
+export const PRE_TURN_MAX_SCAN_MS = 4_000;
+
+/**
+ * last/first p95 may not track N. 100× N and a linear scan is ~100×;
+ * inverted-index + tree on GHA Windows is ~2–3×. Slack 8 leaves room for
+ * one cold query when the curve has ~13 points (p95 ≈ max).
+ */
+export const SEARCH_COST_VS_N_SLACK = 8;
+
 export interface RecallScaleGatePoint {
   n: number;
   n_q: number;
@@ -165,6 +183,67 @@ export function gateRecallScale(
       }
     }
     prev = point;
+  }
+
+  return { ok: failures.length === 0, failures };
+}
+
+export interface SearchCostGatePoint {
+  n: number;
+  latencyP95Ms: number;
+  latencyMaxMs?: number;
+}
+
+export interface SearchCostGateOptions {
+  p95BudgetMs?: number;
+  maxBudgetMs?: number;
+  vsNSlack?: number;
+  /** Apply the absolute ceiling only at this N or above. Default 10_000. */
+  minN?: number;
+}
+
+/**
+ * Search(q) = O(B b log_b N_q). Fail a leftover O(N) scan: p95/max over a
+ * CI-safe ceiling, or p95 growing with N faster than `SEARCH_COST_VS_N_SLACK`.
+ */
+export function gateSearchCost(
+  points: readonly SearchCostGatePoint[],
+  opts: SearchCostGateOptions = {},
+): GateResult {
+  const failures: string[] = [];
+  const p95Budget = opts.p95BudgetMs ?? PRE_TURN_P95_SCAN_MS;
+  const maxBudget = opts.maxBudgetMs ?? PRE_TURN_MAX_SCAN_MS;
+  const slack = opts.vsNSlack ?? SEARCH_COST_VS_N_SLACK;
+  const minN = opts.minN ?? 10_000;
+
+  if (points.length === 0) {
+    return { ok: false, failures: ["search-cost: no points"] };
+  }
+
+  const ordered = [...points].sort((a, b) => a.n - b.n);
+  const first = ordered[0];
+  const last = ordered[ordered.length - 1];
+
+  if (last.n >= minN) {
+    if (!(last.latencyP95Ms < p95Budget)) {
+      failures.push(
+        `latencyP95 ${last.latencyP95Ms} at N=${last.n} >= scan ceiling ${p95Budget}`,
+      );
+    }
+    if (last.latencyMaxMs != null && !(last.latencyMaxMs < maxBudget)) {
+      failures.push(
+        `latencyMax ${last.latencyMaxMs} at N=${last.n} >= scan ceiling ${maxBudget}`,
+      );
+    }
+  }
+
+  if (last.n >= 10 * first.n && first.latencyP95Ms > 0) {
+    const ratio = last.latencyP95Ms / first.latencyP95Ms;
+    if (ratio >= slack) {
+      failures.push(
+        `latencyP95 grew ${first.latencyP95Ms} → ${last.latencyP95Ms} (${ratio.toFixed(1)}×) from N=${first.n} to N=${last.n} (slack ${slack}×; Search is O(log N_q))`,
+      );
+    }
   }
 
   return { ok: failures.length === 0, failures };

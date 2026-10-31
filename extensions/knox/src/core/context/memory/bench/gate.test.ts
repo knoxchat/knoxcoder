@@ -5,10 +5,13 @@ import {
   compareToBaseline,
   gateHorizon,
   gateRecallScale,
+  gateSearchCost,
   theoremRecallFloor,
   HORIZON_RHO,
+  PRE_TURN_P95_SCAN_MS,
   RECALL_SCALE_DROP_SLACK,
   RECALL_SCALE_MIN_REC,
+  SEARCH_COST_VS_N_SLACK,
   type GateSummary,
 } from "./gate";
 
@@ -79,6 +82,43 @@ describe("MEM-40 recall-scale gate", () => {
 
   it("rejects an empty curve", () => {
     expect(gateRecallScale([]).ok).toBe(false);
+  });
+});
+
+describe("leftover P1-5 search-cost gate", () => {
+  const point = (n: number, latencyP95Ms: number, latencyMaxMs = latencyP95Ms) => ({
+    n,
+    latencyP95Ms,
+    latencyMaxMs,
+  });
+
+  it("passes log-ish growth under the scan ceiling", () => {
+    expect(
+      gateSearchCost([
+        point(1_000, 451),
+        point(10_000, 988),
+        point(100_000, 1_145),
+      ]).ok,
+    ).toBe(true);
+  });
+
+  it("fails a leftover table-scan p95", () => {
+    const r = gateSearchCost([point(1_000, 200), point(100_000, PRE_TURN_P95_SCAN_MS)]);
+    expect(r.ok).toBe(false);
+    expect(r.failures.join()).toContain("scan ceiling");
+  });
+
+  it("fails when p95 tracks N linearly", () => {
+    const r = gateSearchCost([
+      point(1_000, 200),
+      point(100_000, 200 * SEARCH_COST_VS_N_SLACK),
+    ]);
+    expect(r.ok).toBe(false);
+    expect(r.failures.join()).toContain("O(log N_q)");
+  });
+
+  it("rejects an empty curve", () => {
+    expect(gateSearchCost([]).ok).toBe(false);
   });
 });
 

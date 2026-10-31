@@ -1,6 +1,6 @@
 /**
  * MEM-40 / MEM-42: Rec vs N under project scope (`N_q = σ N`), plus σ / ε_B
- * / ε_S and the leftover P1-5 latency ceiling at the largest N.
+ * / ε_S and leftover P1-5 `gateSearchCost` (scan detector, not a laptop SLO).
  *
  *   npx vitest run context/memory/bench/brainScale
  *   KNOX_SCALE_ITEMS=20000 npx vitest run context/memory/bench/brainScale
@@ -15,16 +15,13 @@ import path from "path";
 
 import { describe, expect, it } from "vitest";
 
-import { gateRecallScale, RECALL_SCALE_NS } from "./gate";
+import { gateRecallScale, gateSearchCost, RECALL_SCALE_NS } from "./gate";
 import { EPSILON_B_FLAT_FTS, THEOREM_ERRORS_FILENAME, canClaimTheorem } from "./errors";
 import {
   resolveRecallScaleNs,
   runRecallScaleBench,
   RECALL_SCALE_PROJECTS,
 } from "./runRecallScaleBench";
-
-const PRE_TURN_P95_BUDGET_MS = 750;
-const PRE_TURN_MAX_BUDGET_MS = 1_500;
 
 describe("MEM-40 recall scale schedule", () => {
   it("defaults to 1e3, 1e4, 1e5 and adds 1e6 only when nightly", () => {
@@ -95,11 +92,8 @@ describe("memory recall vs N (MEM-40)", () => {
       });
       expect(gate.ok, gate.failures.join("; ")).toBe(true);
 
-      const last = report.points[report.points.length - 1];
-      if (last && last.n >= 10_000) {
-        expect(last.latencyP95Ms).toBeLessThan(PRE_TURN_P95_BUDGET_MS);
-        expect(last.latencyMaxMs).toBeLessThan(PRE_TURN_MAX_BUDGET_MS);
-      }
+      const cost = gateSearchCost(report.points);
+      expect(cost.ok, cost.failures.join("; ")).toBe(true);
       if (process.env.KNOX_BENCH_WRITE === "1") {
         fs.writeFileSync(
           path.join(__dirname, THEOREM_ERRORS_FILENAME),
