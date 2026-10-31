@@ -6,8 +6,9 @@
  *   KNOX_SCALE_ITEMS=20000 npx vitest run context/memory/bench/brainScale
  *   KNOX_SCALE_NIGHTLY=1 npx vitest run context/memory/bench/brainScale
  *
- * Latency depends on the machine, so the budgets catch a regression to a
- * full-table scan, not a performance promise.
+ * Latency depends on the machine, so the budgets catch a regression to an
+ * O(N) scan (Dilution Lemma / leftover Ω(q) dump), not a performance promise.
+ * Search(q) is inverted-index + tree routing, O(log N_q).
  */
 import fs from "fs";
 import path from "path";

@@ -7,6 +7,10 @@
  * recent rows that mention those paths). This is a channel over the same
  * rows, not a second store.
  *
+ * Part V: four channels over Ω(q); ripgrep is not BM25 (that is lexical) and
+ * not extra C_addr. Search cost is inverted-index MATCH then rg on that hit
+ * list — not a recency dump of Ω(q) (Dilution Lemma / Search(q) = O(log N_q)).
+ *
  * Reuses `core/tools/ripgrep` (bundled rg + knoxignore). Fail-open if the
  * binary is missing. Never shells out.
  */
@@ -31,18 +35,25 @@ import type { SemanticCategory } from "../types.js";
 
 export const RIPGREP_NEEDLE_CAP = 6;
 export const RIPGREP_WORKSPACE_NEEDLE_CAP = 3;
-export const RIPGREP_CORPUS_ROW_CAP = 12_000;
+/** Rows written for rg after FTS MATCH. Must not scan Ω(q). */
+export const RIPGREP_CORPUS_ROW_CAP = 256;
 export const RIPGREP_FILE_HIT_CAP = 20;
 export const RIPGREP_MEMORIES_PER_FILE = 5;
 export const RIPGREP_MATCH_CAP_PER_NEEDLE = 8;
+/** Recency dump only when FTS is missing and the table is still small. */
+const RIPGREP_CORPUS_LIKE_MAX_ROWS = 5000;
+const FTS_CORPUS_OVERFETCH = 10;
 
 export const RIPGREP_IDENTIFIER_WEIGHT = 2;
 export const RIPGREP_EXACT_WEIGHT = 1.5;
 export const RIPGREP_REGEX_WEIGHT = 1;
 export const RIPGREP_FILE_MAP_WEIGHT = 0.75;
 
-const CONTENT_WORD_NEEDLE_MIN = 6;
-const WORKSPACE_NEEDLE_MIN = 8;
+/**
+ * Whole-word tokens shorter than this are lexical BM25, not ripgrep-exact
+ * (`session`, `refresh`). Quoted / identifier / regex needles have no floor.
+ */
+const RIPGREP_EXACT_WORD_MIN = 12;
 const CORPUS_FILENAME = "corpus.txt";
 
 export type RipgrepNeedleKind = "identifier" | "exact" | "regex";
@@ -157,7 +168,7 @@ export function extractRipgrepNeedles(query: string): RipgrepNeedle[] {
   }
 
   for (const word of contentWords(query)) {
-    if (word.length < CONTENT_WORD_NEEDLE_MIN) continue;
+    if (word.length < RIPGREP_EXACT_WORD_MIN) continue;
     add({
       pattern: word,
       kind: "exact",
@@ -170,14 +181,43 @@ export function extractRipgrepNeedles(query: string): RipgrepNeedle[] {
 }
 
 export function workspaceNeedles(needles: readonly RipgrepNeedle[]): RipgrepNeedle[] {
-  return needles
-    .filter(
-      (n) =>
-        n.kind === "identifier" ||
-        n.kind === "regex" ||
-        n.pattern.length >= WORKSPACE_NEEDLE_MIN,
-    )
-    .slice(0, RIPGREP_WORKSPACE_NEEDLE_CAP);
+  return corpusNeedles(needles).slice(0, RIPGREP_WORKSPACE_NEEDLE_CAP);
+}
+
+/**
+ * Ω(q) corpus needles: exact / regex / identifier only (Part V). Short
+ * whole-word content tokens stay on the lexical channel.
+ */
+export function corpusNeedles(needles: readonly RipgrepNeedle[]): RipgrepNeedle[] {
+  return needles.filter((n) => {
+    if (n.kind === "identifier" || n.kind === "regex") return true;
+    if (n.kind === "exact" && !n.wholeWord) return true;
+    return n.kind === "exact" && n.wholeWord && n.pattern.length >= RIPGREP_EXACT_WORD_MIN;
+  });
+}
+
+/** FTS5 MATCH clause that finds Ω(q) candidate rows for one corpus needle. */
+export function ftsMatchQueryForNeedle(needle: RipgrepNeedle): string | null {
+  if (needle.kind === "regex") {
+    const literals = needle.pattern.match(/[A-Za-z0-9_]{3,}/g) ?? [];
+    const parts = uniqueKeep(literals).map(formatFtsToken).filter((t): t is string => Boolean(t));
+    return parts.length > 0 ? parts.join(" OR ") : null;
+  }
+  const parts = needle.pattern
+    .split(/[^\w]+/)
+    .map(formatFtsToken)
+    .filter((t): t is string => Boolean(t));
+  if (parts.length === 0) return null;
+  if (needle.kind === "exact" && !needle.wholeWord && parts.length === 1) return parts[0];
+  return parts.join(" AND ");
+}
+
+function formatFtsToken(raw: string): string | null {
+  const token = raw.trim().replace(/"/g, "");
+  if (token.length < 2) return null;
+  if (/^(AND|OR|NOT|NEAR)$/i.test(token)) return null;
+  if (/^\w+$/.test(token)) return `${token}*`;
+  return `"${token}"`;
 }
 
 export function needleWeight(kind: RipgrepNeedleKind): number {
@@ -341,13 +381,15 @@ async function searchMemoryCorpus(
   binary: string,
   add: (key: string, delta: number, source: RipgrepHitSource) => void,
 ): Promise<void> {
-  const rows = await loadCorpusRows(options);
+  const scoped = corpusNeedles(needles);
+  if (scoped.length === 0) return;
+  const rows = await loadCorpusRows(options, scoped);
   if (rows.length === 0) return;
 
   const tmp = mkdtempSync(path.join(tmpdir(), "knox-rg-mem-"));
   try {
     const { lineToKey } = writeCorpusFile(path.join(tmp, CORPUS_FILENAME), rows);
-    for (const needle of needles) {
+    for (const needle of scoped) {
       const output = await runRipgrepSearch(binary, tmp, needle.pattern, {
         path: CORPUS_FILENAME,
         maxResults: 80,
@@ -425,63 +467,185 @@ type CorpusRow = {
   keywords?: string;
 };
 
-async function loadCorpusRows(options: RipgrepChannelOptions): Promise<CorpusRow[]> {
+async function loadCorpusRows(
+  options: RipgrepChannelOptions,
+  needles: readonly RipgrepNeedle[],
+): Promise<CorpusRow[]> {
+  const semantic = await loadScopedCorpusRows(options, needles, "semantic");
+  if (options.includeEpisodic === false) return semantic;
+  const episodic = await loadScopedCorpusRows(options, needles, "episodic");
+  return [...semantic, ...episodic];
+}
+
+async function loadScopedCorpusRows(
+  options: RipgrepChannelOptions,
+  needles: readonly RipgrepNeedle[],
+  type: RipgrepMemoryType,
+): Promise<CorpusRow[]> {
+  const seen = new Set<number>();
   const rows: CorpusRow[] = [];
-  const semExtra: string[] = [
-    "(expires_at IS NULL OR expires_at > datetime('now'))",
-    queryScopeSql("semantic"),
-  ];
-  const semParams: unknown[] = [];
-  if (options.category) {
-    semExtra.push("category = ?");
-    semParams.push(options.category);
+  let ftsFailed = false;
+  for (const needle of needles) {
+    const match = ftsMatchQueryForNeedle(needle);
+    if (!match) continue;
+    try {
+      const hits = await ftsCorpusHits(options, type, match);
+      for (const row of hits) {
+        if (seen.has(row.id) || rows.length >= RIPGREP_CORPUS_ROW_CAP) continue;
+        seen.add(row.id);
+        rows.push(row);
+      }
+    } catch {
+      ftsFailed = true;
+      break;
+    }
+    if (rows.length >= RIPGREP_CORPUS_ROW_CAP) break;
   }
-  appendSessionScope(semExtra, semParams, "source_session_id", options.projectSessionIds);
-  semParams.push(RIPGREP_CORPUS_ROW_CAP);
-  const semantic = await options.db.all(
-    `SELECT id, title, content, keywords FROM brain_semantic
-     WHERE ${semExtra.join(" AND ")}
-     ORDER BY created_at DESC
-     LIMIT ?`,
-    semParams,
-  );
-  for (const row of semantic as Array<{
-    id: number;
-    title?: string;
-    content?: string;
-    keywords?: string;
-  }>) {
-    rows.push({
-      type: "semantic",
+  if (rows.length > 0 || !ftsFailed) return rows;
+  return recencyCorpusFallback(options, type);
+}
+
+async function ftsCorpusHits(
+  options: RipgrepChannelOptions,
+  type: RipgrepMemoryType,
+  matchQuery: string,
+): Promise<CorpusRow[]> {
+  const fetch = Math.min(RIPGREP_CORPUS_ROW_CAP * FTS_CORPUS_OVERFETCH, 2_000);
+  if (type === "semantic") {
+    const extra: string[] = [
+      "(s.expires_at IS NULL OR s.expires_at > datetime('now'))",
+      queryScopeSql("semantic", "s"),
+    ];
+    const extraParams: unknown[] = [];
+    if (options.category) {
+      extra.push("s.category = ?");
+      extraParams.push(options.category);
+    }
+    appendSessionScope(extra, extraParams, "s.source_session_id", options.projectSessionIds);
+    extraParams.push(RIPGREP_CORPUS_ROW_CAP);
+    const semantic = await options.db.all(
+      `WITH hits AS (
+         SELECT rowid AS id, -bm25(brain_semantic_fts, 5.0, 1.0, 3.0) AS rank
+         FROM brain_semantic_fts
+         WHERE brain_semantic_fts MATCH ?
+         ORDER BY rank DESC
+         LIMIT ?
+       )
+       SELECT s.id, s.title, s.content, s.keywords
+       FROM hits JOIN brain_semantic s ON s.id = hits.id
+       WHERE ${extra.join(" AND ")}
+       ORDER BY hits.rank DESC
+       LIMIT ?`,
+      [matchQuery, fetch, ...extraParams],
+    );
+    return (semantic as Array<{
+      id: number;
+      title?: string;
+      content?: string;
+      keywords?: string;
+    }>).map((row) => ({
+      type: "semantic" as const,
       id: row.id,
       title: row.title,
       content: row.content,
       keywords: row.keywords,
-    });
+    }));
   }
 
-  if (options.includeEpisodic === false) return rows;
-
-  const epExtra: string[] = [queryScopeSql("episodic")];
-  const epParams: unknown[] = [];
+  const extra: string[] = [queryScopeSql("episodic", "e")];
+  const extraParams: unknown[] = [];
   if (options.projectSessionIds !== undefined) {
-    appendSessionScope(epExtra, epParams, "session_id", options.projectSessionIds);
+    appendSessionScope(extra, extraParams, "e.session_id", options.projectSessionIds);
   } else if (options.sessionId) {
-    epExtra.push("session_id = ?");
-    epParams.push(options.sessionId);
+    extra.push("e.session_id = ?");
+    extraParams.push(options.sessionId);
   }
-  epParams.push(RIPGREP_CORPUS_ROW_CAP);
+  extraParams.push(RIPGREP_CORPUS_ROW_CAP);
+  const episodic = await options.db.all(
+    `WITH hits AS (
+       SELECT rowid AS id, -bm25(brain_episodic_fts) AS rank
+       FROM brain_episodic_fts
+       WHERE brain_episodic_fts MATCH ?
+       ORDER BY rank DESC
+       LIMIT ?
+     )
+     SELECT e.id, e.content
+     FROM hits JOIN brain_episodic e ON e.id = hits.id
+     WHERE ${extra.join(" AND ")}
+     ORDER BY hits.rank DESC
+     LIMIT ?`,
+    [matchQuery, fetch, ...extraParams],
+  );
+  return (episodic as Array<{ id: number; content?: string }>).map((row) => ({
+    type: "episodic" as const,
+    id: row.id,
+    content: row.content,
+  }));
+}
+
+/** Leftover FTS-less path for small tables only. Not a ranking over Ω(q). */
+async function recencyCorpusFallback(
+  options: RipgrepChannelOptions,
+  type: RipgrepMemoryType,
+): Promise<CorpusRow[]> {
+  const table = type === "semantic" ? "brain_semantic" : "brain_episodic";
+  const total = await options.db.get(`SELECT COUNT(*) AS n FROM ${table}`).catch(() => null);
+  if (((total as { n?: number } | null)?.n ?? 0) > RIPGREP_CORPUS_LIKE_MAX_ROWS) return [];
+
+  if (type === "semantic") {
+    const extra: string[] = [
+      "(expires_at IS NULL OR expires_at > datetime('now'))",
+      queryScopeSql("semantic"),
+    ];
+    const extraParams: unknown[] = [];
+    if (options.category) {
+      extra.push("category = ?");
+      extraParams.push(options.category);
+    }
+    appendSessionScope(extra, extraParams, "source_session_id", options.projectSessionIds);
+    extraParams.push(RIPGREP_CORPUS_LIKE_MAX_ROWS);
+    const semantic = await options.db.all(
+      `SELECT id, title, content, keywords FROM brain_semantic
+       WHERE ${extra.join(" AND ")}
+       ORDER BY created_at DESC
+       LIMIT ?`,
+      extraParams,
+    );
+    return (semantic as Array<{
+      id: number;
+      title?: string;
+      content?: string;
+      keywords?: string;
+    }>).map((row) => ({
+      type: "semantic" as const,
+      id: row.id,
+      title: row.title,
+      content: row.content,
+      keywords: row.keywords,
+    }));
+  }
+
+  const extra: string[] = [queryScopeSql("episodic")];
+  const extraParams: unknown[] = [];
+  if (options.projectSessionIds !== undefined) {
+    appendSessionScope(extra, extraParams, "session_id", options.projectSessionIds);
+  } else if (options.sessionId) {
+    extra.push("session_id = ?");
+    extraParams.push(options.sessionId);
+  }
+  extraParams.push(RIPGREP_CORPUS_LIKE_MAX_ROWS);
   const episodic = await options.db.all(
     `SELECT id, content FROM brain_episodic
-     WHERE ${epExtra.join(" AND ")}
+     WHERE ${extra.join(" AND ")}
      ORDER BY created_at DESC
      LIMIT ?`,
-    epParams,
+    extraParams,
   );
-  for (const row of episodic as Array<{ id: number; content?: string }>) {
-    rows.push({ type: "episodic", id: row.id, content: row.content });
-  }
-  return rows;
+  return (episodic as Array<{ id: number; content?: string }>).map((row) => ({
+    type: "episodic" as const,
+    id: row.id,
+    content: row.content,
+  }));
 }
 
 function appendSessionScope(

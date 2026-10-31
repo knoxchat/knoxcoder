@@ -116,6 +116,9 @@ describe("REL-03 RelevanceGate (pure)", () => {
     expect(extractEntityLikeTokens("fix AuthService login")).toEqual(
       expect.arrayContaining(["AuthService"]),
     );
+    expect(extractEntityLikeTokens("mention knoxRgCorpusTokenAlpha")).toEqual(
+      expect.arrayContaining(["knoxRgCorpusTokenAlpha"]),
+    );
   });
 
   it("ripgrepHit is lexical evidence (MEM-23)", () => {

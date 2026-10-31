@@ -23,6 +23,7 @@ All notable changes to KnoxCoder are documented in this file.
 
 ### Fixed
 
+- **Pre-turn ripgrep corpus scan.** The memory ripgrep channel dumped up to 12k recent Ω(q) rows to a temp file on every turn (an O(N_q) leftover, against Search(q) = O(log N_q)). Rec-vs-N pre-turn p95 on GitHub Actions was ~1.5 s (budget 750 ms). Corpus search now MATCH-then-JOIN Ω(q) for exact / regex / identifier needles and runs bundled rg on that hit list; conversational BM25 terms stay on the lexical channel.
 - **Jev status bar.** The editor status bar Jev chip is hidden while Jev harness judgments are off (Knox Settings toggle, YAML `jev.enabled`, or `knoxchat.jev.enabled`). It used to stay visible because it only read the VS Code setting, which stays on by default after the GUI toggle writes shared config.
 - **False Critical on large brains.** Overview treated every sqlite `tier='hot'` row as a 500-cap overflow and any file over 100 MB as a problem, so a ~150 MB brain with tens of thousands of never-reclassified turns looked Critical with grade A. Inserts classify from R/Value; Refresh/Consolidate recompute stale labels; heal no longer force-demotes by recency. The 0-1 health score is shown as 0-100.
 - **Dangling summary-tree leaves after disk reclaim.** When `max_bytes` dropped original rows, tree pointers stayed (Losslessness). Health, consolidate, and heal prune them. Under the cap, forgotten tombstones stay reversible; reclaim is oldest-first.

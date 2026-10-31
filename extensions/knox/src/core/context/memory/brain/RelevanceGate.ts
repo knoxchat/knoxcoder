@@ -88,7 +88,7 @@ export function extractEntityLikeTokens(text: string): string[] {
     }
   }
   const idents = text.match(
-    /\b[A-Z][a-zA-Z0-9]*(?:[A-Z][a-zA-Z0-9]+)+\b|\b[A-Z]{2,}[a-zA-Z0-9]*\b|\b[a-z][a-zA-Z0-9]*(?:_[a-zA-Z0-9]+)+\b/g,
+    /\b[A-Z][a-zA-Z0-9]*(?:[A-Z][a-zA-Z0-9]+)+\b|\b[A-Z]{2,}[a-zA-Z0-9]*\b|\b[a-z][a-zA-Z0-9]*(?:_[a-zA-Z0-9]+)+\b|\b[a-z]+[A-Z][a-zA-Z0-9]*\b/g,
   );
   if (idents) out.push(...idents);
   return uniquePreserve(out);

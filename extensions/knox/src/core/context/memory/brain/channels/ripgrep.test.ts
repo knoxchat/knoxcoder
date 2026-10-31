@@ -7,9 +7,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  RIPGREP_CORPUS_ROW_CAP,
+  corpusNeedles,
   countCorpusMatches,
   extractRipgrepNeedles,
   filePathMatches,
+  ftsMatchQueryForNeedle,
   hasRipgrepHit,
   looksLikeRegex,
   needleWeight,
@@ -45,6 +48,29 @@ describe("MEM-23 ripgrep needles", () => {
     expect(looksLikeRegex("fn ui(&mut self,")).toBe(false);
     const needles = extractRipgrepNeedles("foo|bar");
     expect(needles.some((n) => n.kind === "regex" && n.pattern === "foo|bar")).toBe(true);
+  });
+
+  it("corpus needles skip conversational BM25 terms and MATCH Ω(q) by bm25", () => {
+    expect(RIPGREP_CORPUS_ROW_CAP).toBeLessThanOrEqual(512);
+    expect(extractRipgrepNeedles(
+      "how should login and token refresh work for a user session",
+    )).toEqual([]);
+    const withIdent = extractRipgrepNeedles("fix AuthService plus knoxRgCorpusTokenAlpha");
+    expect(corpusNeedles(withIdent).map((n) => n.pattern)).toEqual(
+      expect.arrayContaining(["AuthService", "knoxRgCorpusTokenAlpha"]),
+    );
+    expect(ftsMatchQueryForNeedle({
+      pattern: "AuthService",
+      kind: "identifier",
+      wholeWord: true,
+      fixedStrings: true,
+    })).toBe("AuthService*");
+    expect(ftsMatchQueryForNeedle({
+      pattern: "src/auth.ts",
+      kind: "identifier",
+      wholeWord: false,
+      fixedStrings: true,
+    })).toBe("src* AND auth* AND ts*");
   });
 
   it("workspace needles skip short generic exact words", () => {
@@ -112,6 +138,8 @@ describe("MEM-23 path + parse helpers", () => {
     );
     expect(src).toMatch(/searchWorkspaceWithRipgrep/);
     expect(src).toMatch(/runRipgrepSearch/);
+    expect(src).toMatch(/brain_semantic_fts MATCH/);
+    expect(src).toMatch(/ORDER BY rank DESC/);
     expect(src).toMatch(/knoxignore|knoxIgnoreFilesFor|searchWorkspaceWithRipgrep/);
     expect(src).not.toMatch(/execSync|shell:\s*true|(?<!\.)\bexec\(/);
     expect(src).not.toMatch(/from ["']node:child_process["']/);
