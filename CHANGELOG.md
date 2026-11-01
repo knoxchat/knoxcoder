@@ -3,6 +3,15 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Changed
+
+- **Conversation History in the title bar.** The History control now sits in the top title bar after Memory and Checkpoint (same 22×22 icon box). Clicking it opens a dedicated History editor with the same search, select, pin, rename, export, delete, and keyboard behavior. Opening a conversation still loads it in Knox chat. The composer toolbar no longer has a History button.
+- **History title-bar icon size.** History uses the same contributed icon font as Memory and Checkpoint, sized to sit with those two instead of the smaller built-in history icon.
+
+### Fixed
+
+- **History list while the editor stays open.** A new chat turn, rename, delete, or pin now updates the already-open History editor (and the leftover `/history` overlay) the way the original same-store overlay did — including the current-conversation badge and auto-title. Deleting the conversation that is open in chat starts a fresh chat without writing that session back.
+
 ## [2.3.0] - 2026-10-31
 
 ### Added

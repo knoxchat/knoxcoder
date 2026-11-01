@@ -6,15 +6,14 @@
 import { KnoxGuiRoute, type KnoxGuiOverlay } from './knoxGuiProtocol.js';
 import { isAskUserToolName } from './knoxGuiChat.js';
 import { countRunningJobs } from './knoxGuiPanels.js';
-import type { IKnoxGuiBackgroundJob, IKnoxGuiHistoryItem, IKnoxGuiSessionTab, IKnoxGuiState, IKnoxGuiToolCall, KnoxChatMode, KnoxToolSetting } from './knoxGuiState.js';
+import { knoxGuiIsDedicatedEditor, type IKnoxGuiBackgroundJob, type IKnoxGuiHistoryItem, type IKnoxGuiSessionTab, type IKnoxGuiState, type IKnoxGuiToolCall, type KnoxChatMode, type KnoxToolSetting } from './knoxGuiState.js';
 
-/** Lump toolbar sections in `BlockSettingsTopToolbar` (context is overlay-only). Icons match lucide. */
+/** Lump toolbar sections in `BlockSettingsTopToolbar` (context is overlay-only). History lives in the title bar. Icons match lucide. */
 export const KNOX_GUI_LUMP_TOOLBAR = [
 	{ id: 'models' as const, key: 'models', svg: 'cpu' as const },
 	{ id: 'rules' as const, key: 'rules', svg: 'square-pen' as const },
 	{ id: 'prompts' as const, key: 'prompts', svg: 'scroll-text' as const },
 	{ id: 'tools' as const, key: 'tools', svg: 'wrench' as const },
-	{ id: 'history' as const, key: 'history', svg: 'history' as const },
 	{ id: 'settings' as const, key: 'settings', svg: 'settings' as const },
 ];
 
@@ -64,7 +63,7 @@ export function knoxGuiShowsMainComposer(state: {
 	history: readonly unknown[];
 	lockedRoute?: KnoxGuiRoute;
 }): boolean {
-	if (state.lockedRoute === KnoxGuiRoute.Memory || state.lockedRoute === KnoxGuiRoute.CheckpointGraph) {
+	if (knoxGuiIsDedicatedEditor(state)) {
 		return false;
 	}
 	if (state.route !== KnoxGuiRoute.Chat) {
@@ -75,10 +74,10 @@ export function knoxGuiShowsMainComposer(state: {
 
 /** TabBar is hidden while there is only one tab, matching TabBar. Dedicated editors never show it. */
 export function knoxGuiShowsSessionTabs(state: { showSessionTabs: boolean; tabs: IKnoxGuiSessionTab[]; route?: KnoxGuiRoute; lockedRoute?: KnoxGuiRoute }): boolean {
-	if (state.lockedRoute === KnoxGuiRoute.Memory || state.lockedRoute === KnoxGuiRoute.CheckpointGraph) {
+	if (knoxGuiIsDedicatedEditor(state)) {
 		return false;
 	}
-	if (state.route === KnoxGuiRoute.Memory || state.route === KnoxGuiRoute.CheckpointGraph) {
+	if (state.route === KnoxGuiRoute.History || state.route === KnoxGuiRoute.Memory || state.route === KnoxGuiRoute.CheckpointGraph) {
 		return false;
 	}
 	return Boolean(state.showSessionTabs && state.tabs.length > 1);

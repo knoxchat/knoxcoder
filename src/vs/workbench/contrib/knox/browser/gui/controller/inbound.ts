@@ -5,6 +5,7 @@
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { asRecord, asArray, contextItemFromRaw } from './helpers.js';
+import { applyHistorySessions, applyHistorySessionTitle, parseHistorySessions } from './sessions.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { applyKnoxGuiAutonomousEvent, parseBackgroundJob, parseBackgroundJobs, parseCompactionPayload } from '../../../common/knoxGuiPanels.js';
 import { parseCheckpointRestored } from '../../../common/knoxGuiCheckpoints.js';
@@ -94,6 +95,14 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 		mirrorChatSession(controller, data);
 		return;
 	}
+	if (type === 'activeChatSessionChanged' && controller.store.state.lockedRoute === KnoxGuiRoute.History) {
+		const raw = asRecord(data)?.sessionId;
+		const next = typeof raw === 'string' ? raw : '';
+		if (next !== controller.store.state.sessionId) {
+			controller.store.patch({ sessionId: next });
+		}
+		return;
+	}
 	if (knoxGuiIsDedicatedEditor(controller.store.state) && KNOX_GUI_CHAT_ONLY_INBOUND.has(type)) {
 		return;
 	}
@@ -107,7 +116,8 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 				// Original Layout.tsx: after saveCurrentSession({ openNewSession }) always exitEditMode() (reject diffs, edit/exit, leave Cmd+I).
 				// The original newSession reducer keeps codeToEdit, so exitEditMode still rejects those diffs; keep them across the reset.
 				const editCode = controller.store.state.mode === 'edit' ? controller.store.state.codeToEdit : undefined;
-				await controller.newSession();
+				// History delete of the current chat must not save it back (original overlay called openFreshSession).
+				await controller.newSession({ saveCurrent: rec?.saveCurrent !== false });
 				if (editCode && controller.store.state.mode === 'edit') {
 					controller.store.patch({ codeToEdit: editCode });
 					await controller.exitEditMode(undefined, { restoreLastSession: false });
@@ -378,6 +388,16 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 				controller.refreshMemoryActiveTab();
 			}
 			return;
+		case 'historySessionsUpdated': {
+			const parsed = rec && Array.isArray(rec.sessions) ? parseHistorySessions(rec.sessions) : undefined;
+			if (parsed) {
+				applyHistorySessions(controller, parsed);
+				applyHistorySessionTitle(controller, parsed);
+			} else {
+				void controller.refreshHistorySessions();
+			}
+			return;
+		}
 		case 'activeChatSessionChanged':
 			if (knoxGuiIsDedicatedEditor(controller.store.state)) {
 				return;
@@ -395,6 +415,11 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 }
 
 export function onRouteChanged(controller: KnoxGuiController, state: IKnoxGuiState): void {
+	const historyOpen = state.overlay === 'history' || state.route === KnoxGuiRoute.History;
+	if (historyOpen && !controller.lastHistoryOpen) {
+		void controller.refreshHistoryOnShow();
+	}
+	controller.lastHistoryOpen = historyOpen;
 	if (state.route === controller.lastRoute && state.providerName === controller.lastProviderName) {
 		return;
 	}
@@ -426,5 +451,8 @@ export async function onNavigated(controller: KnoxGuiController, path: string): 
 	}
 	if (path === '/checkpoint-graph') {
 		await controller.loadCheckpoints();
+	}
+	if (path === '/history') {
+		await controller.refreshHistoryOnShow();
 	}
 }

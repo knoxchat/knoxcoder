@@ -20,7 +20,9 @@ import { KnoxGuiMessenger } from './knoxGuiMessenger.js';
 import { KnoxGuiStore } from './knoxGuiStore.js';
 import { KnoxGuiWidget } from './gui/knoxGuiWidget.js';
 
-// Contributed by the Knox extension (`contributes.icons`).
+// History / Memory / Checkpoint Graph share extension `contributes.icons`
+// (same 22×22 title-bar action box and the same optical glyph size).
+const historyIcon = ThemeIcon.fromId('knox-history');
 const memoryIcon = ThemeIcon.fromId('knox-memory');
 const checkpointIcon = ThemeIcon.fromId('knox-checkpoint-graph');
 
@@ -59,6 +61,14 @@ abstract class KnoxGuiEditorInputBase extends EditorInput {
 	}
 }
 
+export class KnoxHistoryEditorInput extends KnoxGuiEditorInputBase {
+	static readonly ID = 'workbench.input.knoxHistory';
+
+	constructor() {
+		super(KnoxHistoryEditorInput.ID, localize('knox.history', "History"), URI.from({ scheme: 'knox', path: '/history' }), historyIcon);
+	}
+}
+
 export class KnoxMemoryEditorInput extends KnoxGuiEditorInputBase {
 	static readonly ID = 'workbench.input.knoxMemory';
 
@@ -77,6 +87,7 @@ export class KnoxCheckpointGraphEditorInput extends KnoxGuiEditorInputBase {
 
 abstract class KnoxGuiEditorPane extends EditorPane {
 	private widget: KnoxGuiWidget | undefined;
+	private controller: KnoxGuiController | undefined;
 
 	constructor(
 		id: string,
@@ -99,12 +110,36 @@ abstract class KnoxGuiEditorPane extends EditorPane {
 		const store = this._register(this.instantiationService.createInstance(KnoxGuiStore));
 		store.lockView(this.route);
 		const messenger = this._register(this.instantiationService.createInstance(KnoxGuiMessenger));
-		const controller = this._register(this.instantiationService.createInstance(KnoxGuiController, store, messenger));
-		this.widget = this._register(this.instantiationService.createInstance(KnoxGuiWidget, parent, controller));
+		this.controller = this._register(this.instantiationService.createInstance(KnoxGuiController, store, messenger));
+		this.widget = this._register(this.instantiationService.createInstance(KnoxGuiWidget, parent, this.controller));
+	}
+
+	protected override setEditorVisible(visible: boolean): void {
+		if (visible && this.route === KnoxGuiRoute.History) {
+			void this.controller?.refreshHistoryOnShow();
+		}
+	}
+
+	getController(): KnoxGuiController | undefined {
+		return this.controller;
 	}
 
 	override layout(dimension: { height: number; width: number }): void {
 		this.widget?.layout(dimension.height, dimension.width);
+	}
+}
+
+export class KnoxHistoryEditor extends KnoxGuiEditorPane {
+	static readonly ID = 'workbench.editor.knoxHistory';
+
+	constructor(
+		group: IEditorGroup,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(KnoxHistoryEditor.ID, group, KnoxGuiRoute.History, telemetryService, themeService, storageService, instantiationService);
 	}
 }
 
@@ -119,6 +154,20 @@ export class KnoxMemoryEditor extends KnoxGuiEditorPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(KnoxMemoryEditor.ID, group, KnoxGuiRoute.Memory, telemetryService, themeService, storageService, instantiationService);
+	}
+}
+
+export class KnoxHistoryEditorInputSerializer implements IEditorSerializer {
+	canSerialize(): boolean {
+		return true;
+	}
+
+	serialize(): string {
+		return '{}';
+	}
+
+	deserialize(): KnoxHistoryEditorInput {
+		return new KnoxHistoryEditorInput();
 	}
 }
 

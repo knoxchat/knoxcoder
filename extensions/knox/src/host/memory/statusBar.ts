@@ -13,7 +13,7 @@ import {
 import { t } from '../i18n';
 import { onGuiLanguageChanged } from '../i18n/guiLanguage';
 
-// The Memory and Checkpoint Graph buttons now live in the workbench title bar
+// History, Memory, and Checkpoint Graph buttons live in the workbench title bar
 // (src/vs/workbench/contrib/knox/browser/knoxTitlebarActions.ts).
 
 export const JEV_LOG_COMMAND = 'knoxchat.showJevLog';

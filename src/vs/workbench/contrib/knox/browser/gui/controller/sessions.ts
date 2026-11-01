@@ -15,15 +15,17 @@ import { formatSessionExportMarkdown, sessionExportFilename } from '../../../com
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { knoxGuiResetEditModeState, shouldFocusEditorOnEditExit } from '../../../common/knoxGuiEdit.js';
 import { knoxGuiIsSessionTabMode, knoxGuiModeAfterEditExit } from '../../../common/knoxGuiAgentMode.js';
-import { applyCloseTab, IKnoxGuiHistoryItem, IKnoxGuiPromptLog, IKnoxGuiToolCall, KnoxChatMode } from '../../../common/knoxGuiState.js';
+import { applyCloseTab, IKnoxGuiHistoryItem, IKnoxGuiHistorySession, IKnoxGuiPromptLog, IKnoxGuiToolCall, KnoxChatMode, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
 import { postSetAgentMode } from './models.js';
 import { knoxGuiHistoryToSessionHistory } from '../../../common/knoxGuiAgentRequest.js';
 import { updateFileSymbolsFromHistory } from './stream.js';
 
-export async function newSession(controller: KnoxGuiController, options?: { generateTitle?: boolean }): Promise<void> {
+export async function newSession(controller: KnoxGuiController, options?: { generateTitle?: boolean; saveCurrent?: boolean }): Promise<void> {
 	if (controller.store.state.history.length) {
-		await controller.saveCurrentSession({ generateTitle: options?.generateTitle ?? true });
+		if (options?.saveCurrent !== false) {
+			await controller.saveCurrentSession({ generateTitle: options?.generateTitle ?? true });
+		}
 		if (controller.store.state.sessionId) {
 			controller.messenger.post('brain/dispatch', { action: 'close_session', session_id: controller.store.state.sessionId });
 		}
@@ -71,6 +73,11 @@ function historyItemsFromSession(session: Record<string, unknown>): Array<Record
  */
 export async function openHistorySession(controller: KnoxGuiController, sessionId: string): Promise<void> {
 	const listed = sessionId ?? '';
+	if (knoxGuiIsDedicatedEditor(controller.store.state)) {
+		controller.messenger.focusChatSession(listed);
+		controller.store.patch({ sessionId: listed });
+		return;
+	}
 	const current = controller.store.state.sessionId ?? '';
 	const alreadyOpen = current === listed && (Boolean(listed.trim()) || controller.store.state.history.length > 0);
 	if (!alreadyOpen) {
@@ -167,7 +174,10 @@ export async function deleteSessions(controller: KnoxGuiController, ids: string[
 		tabs: controller.store.state.tabs.filter(tab => !tab.sessionId || !unique.includes(tab.sessionId)),
 	});
 	if (unique.includes(controller.store.state.sessionId)) {
-		if (stayInHistory) {
+		if (knoxGuiIsDedicatedEditor(controller.store.state) && controller.store.state.lockedRoute === KnoxGuiRoute.History) {
+			controller.messenger.requestNewChatSession();
+			controller.store.patch({ sessionId: '', history: [] });
+		} else if (stayInHistory) {
 			openFreshSession(controller);
 			controller.store.patch({
 				overlay: overlay === 'history' ? 'history' : null,
@@ -182,6 +192,7 @@ export async function deleteSessions(controller: KnoxGuiController, ids: string[
 			}
 		}
 	}
+	notifyHistorySessionsUpdated(controller);
 }
 
 function openFreshSession(controller: KnoxGuiController): void {
@@ -269,10 +280,11 @@ export async function saveCurrentSession(controller: KnoxGuiController, options?
 		const existing = controller.store.state.historySessions.filter(session => session.id !== sessionId);
 		controller.store.patch({
 			historySessions: [
-				{ id: sessionId, title, date: new Date().toISOString() },
+				{ id: sessionId, title, date: new Date().toISOString(), workspaceDirectory: controller.workspaceDirectory || undefined },
 				...existing,
 			],
 		});
+		notifyHistorySessionsUpdated(controller);
 	} catch {
 		// save is best-effort
 	}
@@ -473,19 +485,70 @@ export async function resolveWorkspaceDirectory(controller: KnoxGuiController): 
 /** `refreshSessionMetadata`: sessions of the current workspace only. */
 export async function refreshHistorySessions(controller: KnoxGuiController): Promise<void> {
 	try {
-		const sessions = await controller.messenger.request<Array<Record<string, unknown>>>('history/list', { workspaceDirectory: controller.workspaceDirectory });
-		if (Array.isArray(sessions)) {
-			controller.store.patch({
-				historySessions: sessions.map(session => ({
-					id: String(session.sessionId ?? session.id ?? ''),
-					title: String(session.title ?? 'Session'),
-					date: String(session.date ?? session.dateCreated ?? session.timestamp ?? ''),
-					workspaceDirectory: session.workspaceDirectory ? String(session.workspaceDirectory) : undefined,
-				})),
-			});
+		const sessions = await controller.messenger.request<unknown>('history/list', { workspaceDirectory: controller.workspaceDirectory });
+		const parsed = parseHistorySessions(sessions);
+		if (parsed) {
+			applyHistorySessions(controller, parsed);
 		}
 	} catch {
 		// history optional
+	}
+}
+
+export function parseHistorySessions(value: unknown): IKnoxGuiHistorySession[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	return value.map(item => {
+		const session = asRecord(item) ?? {};
+		return {
+			id: String(session.sessionId ?? session.id ?? ''),
+			title: String(session.title ?? 'Session'),
+			date: String(session.date ?? session.dateCreated ?? session.timestamp ?? ''),
+			workspaceDirectory: session.workspaceDirectory ? String(session.workspaceDirectory) : undefined,
+		};
+	});
+}
+
+export function applyHistorySessions(controller: KnoxGuiController, sessions: IKnoxGuiHistorySession[]): void {
+	const ids = new Set(sessions.map(session => session.id));
+	const historySelected = controller.store.state.historySelected.filter(id => ids.has(id));
+	controller.store.patch({
+		historySessions: sessions,
+		historySelected,
+		historyConfirmDelete: historySelected.length ? controller.store.state.historyConfirmDelete : false,
+	});
+}
+
+/** Overlay rename of the current chat used the same store; dedicated History must push the title over. */
+export function applyHistorySessionTitle(controller: KnoxGuiController, sessions: readonly IKnoxGuiHistorySession[]): void {
+	if (knoxGuiIsDedicatedEditor(controller.store.state)) {
+		return;
+	}
+	const current = sessions.find(session => session.id === controller.store.state.sessionId);
+	if (!current || current.title === controller.store.state.sessionTitle) {
+		return;
+	}
+	controller.store.patch({ sessionTitle: current.title });
+	controller.store.syncSessionTab(current.id, current.title);
+}
+
+export function notifyHistorySessionsUpdated(controller: KnoxGuiController): void {
+	controller.messenger.notifyHistorySessionsUpdated(controller.store.state.historySessions);
+}
+
+/**
+ * Original overlay `setOverlay('history')`: re-list this workspace and
+ * (in the dedicated editor) follow the chat view's current session.
+ */
+export async function refreshHistoryOnShow(controller: KnoxGuiController): Promise<void> {
+	await resolveWorkspaceDirectory(controller);
+	await refreshHistorySessions(controller);
+	if (controller.store.state.lockedRoute === KnoxGuiRoute.History) {
+		const next = controller.messenger.activeChatSessionId ?? '';
+		if (next !== controller.store.state.sessionId) {
+			controller.store.patch({ sessionId: next });
+		}
 	}
 }
 
@@ -498,7 +561,8 @@ export async function renameSession(controller: KnoxGuiController, id: string, t
 		historySessions: controller.store.state.historySessions.map(session => session.id === id ? { ...session, title: trimmed } : session),
 		sessionTitle: controller.store.state.sessionId === id ? trimmed : controller.store.state.sessionTitle,
 	});
-	if (controller.store.state.sessionId === id) {
+	notifyHistorySessionsUpdated(controller);
+	if (controller.store.state.sessionId === id && !knoxGuiIsDedicatedEditor(controller.store.state)) {
 		controller.store.syncSessionTab(id, trimmed);
 		await controller.saveCurrentSession();
 		return;
@@ -610,5 +674,6 @@ export async function forkSession(controller: KnoxGuiController, index: number):
 	if (source?.role === 'user') {
 		controller.store.patch({ input: source.content, inputDoc: inputDocFromPlainText(source.content) });
 	}
-	void controller.refreshHistorySessions();
+	await controller.refreshHistorySessions();
+	notifyHistorySessionsUpdated(controller);
 }

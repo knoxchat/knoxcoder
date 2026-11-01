@@ -14,7 +14,7 @@ import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { KNOX_VIEW_ID } from '../../../common/knox.js';
 import { IKnoxService } from '../common/knoxService.js';
 import { KnoxChatViewPane } from './knoxChatViewPane.js';
-import { KnoxCheckpointGraphEditorInput, KnoxMemoryEditorInput } from './knoxGuiEditors.js';
+import { KnoxCheckpointGraphEditorInput, KnoxHistoryEditorInput, KnoxMemoryEditorInput } from './knoxGuiEditors.js';
 
 async function knoxPane(accessor: ServicesAccessor): Promise<KnoxChatViewPane | undefined> {
 	const view = await accessor.get(IViewsService).openView<KnoxChatViewPane>(KNOX_VIEW_ID, true);
@@ -97,9 +97,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const knoxService = accessor.get(IKnoxService);
 		const pane = await knoxPane(accessor);
 		await pane?.getController()?.newSession();
-		await accessor.get(IKnoxService).newSession();
+		await knoxService.newSession();
 	}
 });
 
@@ -113,9 +114,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const knoxService = accessor.get(IKnoxService);
 		const pane = await knoxPane(accessor);
 		await pane?.getController()?.newSession();
-		await accessor.get(IKnoxService).newSession();
+		await knoxService.newSession();
 	}
 });
 
@@ -129,8 +131,8 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const pane = await knoxPane(accessor);
-		pane?.getController()?.store.navigate('/history');
+		const editorService = accessor.get(IEditorService);
+		await editorService.openEditor(new KnoxHistoryEditorInput(), { pinned: true });
 	}
 });
 
@@ -159,7 +161,8 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IEditorService).openEditor(new KnoxMemoryEditorInput(), { pinned: true });
+		const editorService = accessor.get(IEditorService);
+		await editorService.openEditor(new KnoxMemoryEditorInput(), { pinned: true });
 	}
 });
 
@@ -173,6 +176,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IEditorService).openEditor(new KnoxCheckpointGraphEditorInput(), { pinned: true });
+		const editorService = accessor.get(IEditorService);
+		await editorService.openEditor(new KnoxCheckpointGraphEditorInput(), { pinned: true });
 	}
 });

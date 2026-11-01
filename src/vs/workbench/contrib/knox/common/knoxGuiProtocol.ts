@@ -154,6 +154,7 @@ export const KNOX_GUI_HOST_INBOUND = [
 	'memoryViewUpdated',
 	'guiLanguageChanged',
 	'activeChatSessionChanged',
+	'historySessionsUpdated',
 	'addImageAttachment',
 	'getWebviewHistoryLength',
 	'getCurrentSessionId',

@@ -29,6 +29,10 @@ const INPUT_ONLY_KEYS: ReadonlySet<keyof IKnoxGuiState> = new Set([
 /** Overlay / page search boxes (`History.tsx`, `Checkpoints/index.tsx`, Memory) keep query in the store. */
 const FILTER_ONLY_KEYS: ReadonlySet<keyof IKnoxGuiState> = new Set([
 	'historyQuery',
+	'historySessions',
+	'historyContentHits',
+	'pinnedSessionIds',
+	'sessionId',
 	'checkpointQuery',
 	'memoryQuery',
 	'memorySessionQuery',

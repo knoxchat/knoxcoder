@@ -123,15 +123,23 @@ suite('Knox checkpoint engine contract (KN-320–332)', () => {
 		assert.ok(repoFile('extensions/knox/src/host/checkpoints/commandIds.test.ts').includes('CHECKPOINT_PALETTE_COMMANDS'));
 	});
 
-	test('KN-332: MemoryView and CheckpointGraphView are native routers, not webviews', () => {
+	test('KN-332: HistoryView, MemoryView and CheckpointGraphView are native routers, not webviews', () => {
+		const history = repoFile('extensions/knox/src/host/history/HistoryView.ts');
 		const graph = repoFile('extensions/knox/src/host/checkpoints/CheckpointGraphView.ts');
 		const memory = repoFile('extensions/knox/src/host/memory/MemoryView.ts');
+		assert.ok(history.includes('workbench.action.knox.openHistory'));
 		assert.ok(graph.includes('workbench.action.knox.openCheckpointGraph'));
 		assert.ok(memory.includes('workbench.action.knox.openMemory'));
+		assert.ok(!history.includes('createWebviewPanel'));
 		assert.ok(!graph.includes('createWebviewPanel'));
 		assert.ok(!memory.includes('createWebviewPanel'));
+		assert.ok(!history.includes('renderKnoxWebviewHtml'));
 		assert.ok(!graph.includes('renderKnoxWebviewHtml'));
 		assert.ok(!memory.includes('renderKnoxWebviewHtml'));
+		const titlebar = repoFile('src/vs/workbench/contrib/knox/browser/knoxTitlebarActions.ts');
+		assert.ok(titlebar.includes('OPEN_KNOX_HISTORY_TITLEBAR_ID'));
+		assert.ok(titlebar.includes('TitleBarLeadingActionsGroup'));
+		assert.ok(titlebar.includes("ThemeIcon.fromId('knox-history')"));
 		const ext = repoFile('extensions/knox/src/host/extension/VsCodeExtension.ts');
 		assert.ok(ext.includes('CheckpointGraphView.setNotifier'));
 		assert.ok(ext.includes('MemoryView.setNotifier'));

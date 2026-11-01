@@ -33,15 +33,30 @@ import { finishTurn } from './gui/controller/stream.js';
 suite('Knox native GUI controller (GP-084)', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(options?: { listModels?: unknown; replies?: Record<string, unknown>; respond?: (message: IKnoxGuiMessage) => { content: unknown; chunks?: unknown[] } | { error: string } | undefined; lock?: KnoxGuiRoute; storage?: InMemoryStorageService; activeChatSessionId?: string; silent?: string[] }): { controller: KnoxGuiController; store: KnoxGuiStore; posted: IKnoxGuiMessage[] } {
+	function createHarness(options?: { listModels?: unknown; replies?: Record<string, unknown>; respond?: (message: IKnoxGuiMessage) => { content: unknown; chunks?: unknown[] } | { error: string } | undefined; lock?: KnoxGuiRoute; storage?: InMemoryStorageService; activeChatSessionId?: string; silent?: string[]; bus?: Emitter<IKnoxGuiMessage> }): { controller: KnoxGuiController; store: KnoxGuiStore; posted: IKnoxGuiMessage[]; notified: IKnoxGuiMessage[]; openChatCalls: number } {
 		knoxGuiResetModelCatalogForTests();
-		const incoming = disposables.add(new Emitter<IKnoxGuiMessage>());
+		const incoming = options?.bus ?? disposables.add(new Emitter<IKnoxGuiMessage>());
 		const posted: IKnoxGuiMessage[] = [];
+		const notified: IKnoxGuiMessage[] = [];
+		let openChatCalls = 0;
 		const knoxService = new class extends mock<IKnoxService>() {
 			override onDidReceiveGuiMessage = incoming.event;
 			override activeChatSessionId = options?.activeChatSessionId ?? null;
+			override async openChat(): Promise<void> {
+				openChatCalls += 1;
+			}
+			override notifyGuiMessage(message: IKnoxGuiMessage): void {
+				notified.push(message);
+				incoming.fire(message);
+			}
 			override async guiPost(message: IKnoxGuiMessage): Promise<void> {
 				posted.push(message);
+				if (options?.bus && message.messageType === 'setActiveChatSession') {
+					const raw = message.data && typeof message.data === 'object' ? (message.data as { sessionId?: unknown }).sessionId : undefined;
+					const next = typeof raw === 'string' && raw ? raw : null;
+					this.activeChatSessionId = next;
+					incoming.fire({ messageType: 'activeChatSessionChanged', messageId: `${message.messageId}-active`, data: { sessionId: next } });
+				}
 				if (options?.silent?.includes(message.messageType)) {
 					return; // host-reply types: the real host does not echo them back into the GUI
 				}
@@ -87,7 +102,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		const messenger = disposables.add(new KnoxGuiMessenger(knoxService));
 		const storage = options?.storage ?? disposables.add(new InMemoryStorageService());
 		const controller = disposables.add(new KnoxGuiController(store, messenger, storage));
-		return { controller, store, posted };
+		return { controller, store, posted, notified, get openChatCalls(): number { return openChatCalls; } };
 	}
 
 	const visionModel: IKnoxGuiModel = {
@@ -356,6 +371,180 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
 	});
 
+	test('History editor lists sessions, opens chat, and ignores chat inbound', async () => {
+		const harness = createHarness({
+			lock: KnoxGuiRoute.History,
+			activeChatSessionId: 'chat-live',
+			replies: {
+				'config/getSerializedProfileInfo': { config: {} },
+				getWorkspaceDirs: ['/tmp/demo'],
+				'history/list': [{ sessionId: 'sess-1', title: 'Old chat', dateCreated: '1' }],
+				'history/load': { sessionId: 'sess-1', title: 'Old chat', history: [{ role: 'user', content: 'hi' }] },
+			},
+		});
+		const { controller, store, posted, notified } = harness;
+		await timeout(0);
+		assert.strictEqual(store.state.route, KnoxGuiRoute.History);
+		assert.strictEqual(store.state.lockedRoute, KnoxGuiRoute.History);
+		assert.strictEqual(store.state.sessionId, 'chat-live');
+		assert.deepStrictEqual(store.state.historySessions.map(session => session.id), ['sess-1']);
+		assert.ok(posted.some(message => message.messageType === 'history/list'));
+		assert.ok(!posted.some(message => message.messageType === 'history/load' || message.messageType === 'setActiveChatSession'));
+
+		posted.length = 0;
+		await controller.openHistorySession('sess-1');
+		assert.strictEqual(harness.openChatCalls, 1);
+		assert.ok(notified.some(message => message.messageType === 'focusKnoxSessionId' && (message.data as { sessionId?: string }).sessionId === 'sess-1'));
+		assert.ok(!posted.some(message => message.messageType === 'history/load'));
+		assert.strictEqual(store.state.route, KnoxGuiRoute.History);
+		assert.strictEqual(store.state.sessionId, 'sess-1');
+		assert.deepStrictEqual(store.state.history, []);
+
+		await controller.handleInbound('newSession', undefined, 'ns-hist');
+		assert.strictEqual(store.state.route, KnoxGuiRoute.History);
+		store.patch({ route: KnoxGuiRoute.Chat, sessionId: 'stolen' });
+		assert.strictEqual(store.state.route, KnoxGuiRoute.History);
+		store.navigate('/');
+		assert.strictEqual(store.state.route, KnoxGuiRoute.History);
+	});
+
+	test('History editor picks up a new chat save while it stays open', async () => {
+		const bus = disposables.add(new Emitter<IKnoxGuiMessage>());
+		const yesterday = { sessionId: 'yesterday', title: 'Use rust to create a snake game', dateCreated: '2026-11-01' };
+		const chat = createHarness({
+			bus,
+			replies: {
+				'config/getSerializedProfileInfo': { config: {} },
+				'history/save': {},
+				getWorkspaceDirs: ['/tmp/demo'],
+				'history/list': [yesterday],
+			},
+		});
+		const history = createHarness({
+			bus,
+			lock: KnoxGuiRoute.History,
+			activeChatSessionId: 'yesterday',
+			replies: {
+				'config/getSerializedProfileInfo': { config: {} },
+				getWorkspaceDirs: ['/tmp/demo'],
+				'history/list': [yesterday],
+			},
+		});
+		await timeout(0);
+		assert.deepStrictEqual(history.store.state.historySessions.map(session => session.id), ['yesterday']);
+
+		chat.store.patch({
+			sessionId: 'howdy',
+			sessionTitle: '',
+			history: [
+				{ id: 'u', role: 'user', content: 'howdy' },
+				{ id: 'a', role: 'assistant', content: 'Howworldy!' },
+			],
+		});
+		chat.controller.workspaceDirectory = '/tmp/demo';
+		chat.controller.syncActiveSession();
+		await chat.controller.saveCurrentSession({ generateTitle: false });
+		await timeout(0);
+
+		assert.ok(history.store.state.historySessions.some(session => session.id === 'howdy'), 'the new turn is in the already-open History list');
+		assert.strictEqual(history.store.state.historySessions.find(session => session.id === 'howdy')?.title, 'howdy');
+		assert.strictEqual(history.store.state.sessionId, 'howdy');
+		assert.ok(chat.notified.some(message => message.messageType === 'historySessionsUpdated'));
+	});
+
+	test('History editor rename and delete update the chat store; delete of current chat does not save it back', async () => {
+		const bus = disposables.add(new Emitter<IKnoxGuiMessage>());
+		const sessions = [
+			{ sessionId: 'a', title: 'Alpha', dateCreated: '1' },
+			{ sessionId: 'b', title: 'Beta', dateCreated: '2' },
+		];
+		const chat = createHarness({
+			bus,
+			replies: {
+				'config/getSerializedProfileInfo': { config: {} },
+				'history/save': {},
+				'history/load': { sessionId: 'b', title: 'Beta', history: [{ role: 'user', content: 'keep' }] },
+				getWorkspaceDirs: ['/tmp/demo'],
+				'history/list': sessions,
+			},
+		});
+		const history = createHarness({
+			bus,
+			lock: KnoxGuiRoute.History,
+			activeChatSessionId: 'a',
+			replies: {
+				'config/getSerializedProfileInfo': { config: {} },
+				getWorkspaceDirs: ['/tmp/demo'],
+				'history/list': sessions,
+				'history/load': { sessionId: 'b', title: 'Beta', history: [] },
+				'history/save': {},
+			},
+		});
+		await timeout(0);
+		chat.store.patch({
+			sessionId: 'a',
+			sessionTitle: 'Alpha',
+			history: [{ id: 'u', role: 'user', content: 'doomed' }],
+			historySessions: [
+				{ id: 'a', title: 'Alpha', date: '1' },
+				{ id: 'b', title: 'Beta', date: '2' },
+			],
+		});
+		history.store.patch({
+			sessionId: 'a',
+			historySessions: [
+				{ id: 'a', title: 'Alpha', date: '1' },
+				{ id: 'b', title: 'Beta', date: '2' },
+			],
+		});
+
+		await history.controller.renameSession('b', 'Beta notes');
+		await timeout(0);
+		assert.strictEqual(chat.store.state.historySessions.find(session => session.id === 'b')?.title, 'Beta notes');
+		assert.strictEqual(chat.store.state.sessionTitle, 'Alpha');
+
+		const savesBeforeDelete = chat.posted.filter(message => message.messageType === 'history/save').length;
+		await history.controller.deleteSessions(['a']);
+		await timeout(0);
+		assert.deepStrictEqual(history.store.state.historySessions.map(session => session.id), ['b']);
+		assert.deepStrictEqual(chat.store.state.historySessions.map(session => session.id), ['b']);
+		assert.ok(chat.posted.filter(message => message.messageType === 'history/save').length === savesBeforeDelete, 'deleting the current chat must not save it back');
+		assert.notStrictEqual(chat.store.state.sessionId, 'a');
+		assert.deepStrictEqual(chat.store.state.history, []);
+	});
+
+	test('History pins follow profile storage across chat and the History editor', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const chat = createHarness({ storage });
+		const history = createHarness({ storage, lock: KnoxGuiRoute.History });
+		await timeout(0);
+		chat.controller.togglePinnedSession('sess-1');
+		assert.deepStrictEqual(history.store.state.pinnedSessionIds, ['sess-1']);
+		history.controller.togglePinnedSession('sess-1');
+		assert.deepStrictEqual(chat.store.state.pinnedSessionIds, []);
+	});
+
+	test('navigating to /history re-lists workspace sessions like the original overlay', async () => {
+		let listed = [{ sessionId: 'old', title: 'Old', dateCreated: '1' }];
+		const { controller, store } = createHarness({
+			respond: message => {
+				if (message.messageType === 'history/list') {
+					return { content: listed };
+				}
+				return undefined;
+			},
+		});
+		await timeout(0);
+		listed = [{ sessionId: 'new', title: 'howdy', dateCreated: '2' }, { sessionId: 'old', title: 'Old', dateCreated: '1' }];
+		await controller.onNavigated('/history');
+		assert.deepStrictEqual(store.state.historySessions.map(session => session.id), ['new', 'old']);
+		listed = [{ sessionId: 'later', title: 'Later', dateCreated: '3' }];
+		controller.setOverlay('history');
+		await timeout(0);
+		assert.strictEqual(store.state.overlay, 'history');
+		assert.deepStrictEqual(store.state.historySessions.map(session => session.id), ['later']);
+	});
+
 	test('Memory and Checkpoint Graph editors stay on their route and ignore chat inbound', async () => {
 		const { controller, store, posted } = createHarness({
 			lock: KnoxGuiRoute.Memory,
@@ -411,13 +600,16 @@ suite('Knox native GUI controller (GP-084)', () => {
 		const chat = createHarness({ storage });
 		const memory = createHarness({ storage, lock: KnoxGuiRoute.Memory });
 		const checkpoints = createHarness({ storage, lock: KnoxGuiRoute.CheckpointGraph });
+		const history = createHarness({ storage, lock: KnoxGuiRoute.History });
 		await timeout(0);
 		await chat.controller.setLanguage('zh');
 		assert.strictEqual(memory.store.state.language, 'zh');
 		assert.strictEqual(checkpoints.store.state.language, 'zh');
+		assert.strictEqual(history.store.state.language, 'zh');
 		await checkpoints.controller.setLanguage('en');
 		assert.strictEqual(chat.store.state.language, 'en');
 		assert.strictEqual(memory.store.state.language, 'en');
+		assert.strictEqual(history.store.state.language, 'en');
 		storage.store('knox.gui.language', 'fr', StorageScope.PROFILE, StorageTarget.USER);
 		assert.strictEqual(memory.store.state.language, 'en', 'unsupported values are ignored');
 	});
@@ -434,6 +626,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 	for (const [name, route, tabBar] of [
 		['Checkpoint Graph', KnoxGuiRoute.CheckpointGraph, '.knox-gui-checkpoint-tab-bar'],
 		['Memory', KnoxGuiRoute.Memory, '.knox-gui-memory-tabbar'],
+		['History', KnoxGuiRoute.History, '.knox-gui-history-header'],
 	] as const) {
 		test(`${name} editor does not render a duplicate language toggle`, async () => {
 			const { controller, store } = createHarness({ lock: route });
@@ -1299,6 +1492,30 @@ suite('Knox native GUI controller (GP-084)', () => {
 		await controller.deleteSessions(['a']);
 		assert.strictEqual(store.state.sessionId, 'b');
 		assert.ok(!posted.some(message => message.messageType === 'history/save'));
+	});
+
+	test('History editor delete of the current chat starts a new chat and stays on the list', async () => {
+		const harness = createHarness({
+			lock: KnoxGuiRoute.History,
+			activeChatSessionId: 'a',
+		});
+		const { controller, store, posted, notified } = harness;
+		await timeout(0);
+		store.patch({
+			sessionId: 'a',
+			historySessions: [{ id: 'a', title: 'A', date: '' }, { id: 'b', title: 'B', date: '' }],
+			historySelected: ['a'],
+			historyConfirmDelete: true,
+		});
+		posted.length = 0;
+		await controller.deleteSessions(['a']);
+		assert.strictEqual(store.state.route, KnoxGuiRoute.History);
+		assert.deepStrictEqual(store.state.historySessions.map(session => session.id), ['b']);
+		assert.strictEqual(store.state.sessionId, '');
+		assert.strictEqual(harness.openChatCalls, 1);
+		assert.ok(notified.some(message => message.messageType === 'newSession'));
+		assert.ok(posted.some(message => message.messageType === 'history/delete'));
+		assert.ok(!posted.some(message => message.messageType === 'history/load'));
 	});
 
 	test('S-09 bulk delete from the history overlay stays on the list', async () => {

@@ -103,7 +103,8 @@
 	opacity: 1;
 }
 
-/* Tab icons of the Memory / Checkpoint Graph editors: the webview panels use teal SVG icons. */
+/* Tab icons of the History / Memory / Checkpoint Graph editors: teal like the webview SVGs. */
+.monaco-workbench .predefined-file-icon.codicon-knox-history::before,
 .monaco-workbench .predefined-file-icon.codicon-knox-memory::before,
 .monaco-workbench .predefined-file-icon.codicon-knox-checkpoint-graph::before {
 	color: var(--knox-accent, #159994);
@@ -345,6 +346,11 @@
 .knox-gui-body.knox-gui-memory-page,
 .knox-gui-dedicated .knox-gui-body.knox-gui-checkpoint-page {
 	padding: 0;
+}
+
+.knox-gui-dedicated .knox-gui-body.knox-gui-history-page {
+	padding: 12px 16px;
+	gap: 8px;
 }
 
 .knox-gui-body-spacer {

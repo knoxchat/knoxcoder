@@ -41,7 +41,7 @@ export interface IKnoxService {
 
 	/**
 	 * Chat session the chat view last posted with `setActiveChatSession` (host `historyEvents`).
-	 * Changes are re-broadcast as `activeChatSessionChanged` so the Checkpoint Graph editor can follow it.
+	 * Changes are re-broadcast as `activeChatSessionChanged` so History and the Checkpoint Graph can follow it.
 	 */
 	readonly activeChatSessionId: string | null;
 

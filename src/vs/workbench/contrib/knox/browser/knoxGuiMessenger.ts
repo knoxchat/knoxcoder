@@ -8,6 +8,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IKnoxGuiMessage, IKnoxGuiResponseEnvelope, isKnoxGuiResponseEnvelope } from '../common/knoxGuiProtocol.js';
 import { IKnoxService } from '../common/knoxService.js';
+import type { IKnoxGuiHistorySession } from '../common/knoxGuiState.js';
 
 export class KnoxGuiMessenger extends Disposable {
 	constructor(@IKnoxService private readonly knoxService: IKnoxService) {
@@ -132,6 +133,39 @@ export class KnoxGuiMessenger extends Disposable {
 
 	get activeChatSessionId(): string | null {
 		return this.knoxService.activeChatSessionId ?? null;
+	}
+
+	/** Open Knox chat and load this session there. Used by the History editor. */
+	focusChatSession(sessionId: string): void {
+		void this.knoxService.openChat();
+		this.knoxService.notifyGuiMessage({
+			messageType: 'focusKnoxSessionId',
+			messageId: generateUuid(),
+			data: { sessionId },
+		});
+	}
+
+	/** Open Knox chat and start a new session there. Used when History deletes the active chat. */
+	requestNewChatSession(): void {
+		void this.knoxService.openChat();
+		this.knoxService.notifyGuiMessage({
+			messageType: 'newSession',
+			messageId: generateUuid(),
+			data: { saveCurrent: false },
+		});
+	}
+
+	/**
+	 * Chat, History, and the leftover `/history` overlay each own a store.
+	 * After save / rename / delete, broadcast the list so an already-open
+	 * History editor updates the way the original same-store overlay did.
+	 */
+	notifyHistorySessionsUpdated(sessions: readonly IKnoxGuiHistorySession[]): void {
+		this.knoxService.notifyGuiMessage({
+			messageType: 'historySessionsUpdated',
+			messageId: generateUuid(),
+			data: { sessions },
+		});
 	}
 
 	subscribeHost(listener: (message: IKnoxGuiMessage) => void): void {

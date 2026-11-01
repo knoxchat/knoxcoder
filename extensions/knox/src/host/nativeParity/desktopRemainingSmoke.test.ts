@@ -236,6 +236,24 @@ suite("KN-144 remaining desktop smoke", function () {
     assert.strictEqual(afterRestore, original);
   });
 
+  test("History panel opens", async () => {
+    await knoxApi();
+    await vscode.commands.executeCommand("workbench.action.knox.openHistory");
+    const tabs = vscode.window.tabGroups.all.flatMap((group) => group.tabs);
+    const opened = tabs.some((tab) => {
+      const input = tab.input as { viewType?: string } | undefined;
+      return (
+        /history/i.test(tab.label) ||
+        input?.viewType === "workbench.editor.knoxHistory" ||
+        input?.viewType === "workbench.input.knoxHistory"
+      );
+    });
+    assert.ok(
+      opened,
+      `expected History editor, got tabs: ${tabs.map((tab) => tab.label).join(", ") || "(none)"}`,
+    );
+  });
+
   test("Memory panel opens", async () => {
     await knoxApi();
     await vscode.commands.executeCommand("workbench.action.knox.openMemory");

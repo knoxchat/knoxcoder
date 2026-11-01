@@ -68,6 +68,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const incoming = disposables.add(new Emitter<IKnoxGuiMessage>());
 		const knoxService = new class extends mock<IKnoxService>() {
 			override onDidReceiveGuiMessage = incoming.event;
+			override async openChat(): Promise<void> { }
+			override notifyGuiMessage(): void { }
 			override async guiPost(message: IKnoxGuiMessage): Promise<void> {
 				const content = respond?.(message);
 				incoming.fire({
@@ -124,6 +126,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const ids = Array.from(lump.querySelectorAll('[data-testid^="knox-gui-lump-"]')).map(el => el.getAttribute('data-testid'));
 		assert.deepStrictEqual(ids, KNOX_GUI_LUMP_TOOLBAR.map(entry => `knox-gui-lump-${entry.id}`));
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-context"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-history"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-starters'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="sample-prompts"]'), null);
 	});
@@ -328,6 +331,54 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(store.state.addModelRole, 'chat');
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-modal"]'));
 		assert.strictEqual(store.state.route, 'chat');
+	});
+
+	test('locked History editor renders conversation history, not the chat composer', async () => {
+		const { widget, store } = await mount();
+		store.lockView(KnoxGuiRoute.History);
+		store.patch({
+			historySessions: [{ id: 'sess-1', title: 'Ship API', date: String(Date.now()) }],
+		});
+		assert.strictEqual(store.state.route, KnoxGuiRoute.History);
+		assert.ok(widget.root.classList.contains('knox-gui-dedicated'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-history"]'));
+		assert.ok(widget.root.querySelector('[data-testid="history-search"]'));
+		assert.ok(widget.root.querySelector('[data-testid="history-select"]'));
+		assert.ok(widget.root.querySelector('[data-session-id="sess-1"]'));
+		assert.strictEqual(widget.root.querySelector('.knox-gui-input'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump"]'), null);
+		assert.strictEqual(widget.root.querySelector('.knox-gui-page-back'), null);
+		store.patch({ route: KnoxGuiRoute.Chat, overlay: 'history' });
+		assert.strictEqual(store.state.route, KnoxGuiRoute.History);
+		assert.strictEqual(store.state.overlay, null);
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-history"]'));
+	});
+
+	test('locked History editor adds a saved session live and keeps search', async () => {
+		const { widget, store } = await mount();
+		store.lockView(KnoxGuiRoute.History);
+		const yesterday = String(Date.now() - 86_400_000);
+		store.patch({
+			sessionId: '',
+			historySessions: [{ id: 'old', title: 'Yesterday snake', date: yesterday }],
+		});
+		const search = widget.root.querySelector('[data-testid="history-search"]') as HTMLInputElement;
+		assert.ok(search);
+		search.value = 'how';
+		search.dispatchEvent(new Event('input', { bubbles: true }));
+		store.patch({
+			sessionId: 'howdy',
+			historySessions: [
+				{ id: 'howdy', title: 'howdy', date: String(Date.now()) },
+				{ id: 'old', title: 'Yesterday snake', date: yesterday },
+			],
+		});
+		const howdy = widget.root.querySelector('[data-session-id="howdy"]');
+		assert.ok(howdy);
+		assert.ok(howdy.classList.contains('current'));
+		assert.strictEqual(widget.root.querySelector('[data-session-id="old"]'), null);
+		assert.ok(widget.root.querySelector('[data-testid="history-count"]')?.textContent?.includes('1'));
+		assert.strictEqual((widget.root.querySelector('[data-testid="history-search"]') as HTMLInputElement).value, 'how');
 	});
 
 	test('locked Memory editor renders the panel, not the chat composer', async () => {

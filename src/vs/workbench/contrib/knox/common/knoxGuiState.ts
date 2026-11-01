@@ -911,7 +911,9 @@ export interface IKnoxGuiPromptDraft {
 }
 
 export function knoxGuiIsDedicatedEditor(state: { lockedRoute?: KnoxGuiRoute }): boolean {
-	return state.lockedRoute === KnoxGuiRoute.Memory || state.lockedRoute === KnoxGuiRoute.CheckpointGraph;
+	return state.lockedRoute === KnoxGuiRoute.History
+		|| state.lockedRoute === KnoxGuiRoute.Memory
+		|| state.lockedRoute === KnoxGuiRoute.CheckpointGraph;
 }
 
 /** Session the "This session" checkpoint filter uses: the mirrored chat session in the Checkpoint Graph editor. */

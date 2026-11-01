@@ -44,7 +44,7 @@ import {
 } from '../../../common/knoxGuiOverlays.js';
 import { KnoxGuiOverlay, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { isSlashBookmarked, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
-import { IKnoxGuiHistorySession, IKnoxGuiState } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiHistorySession, IKnoxGuiState, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
 
 export function renderOverlay(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, overlay: Exclude<KnoxGuiOverlay, null>): void {
 	switch (overlay) {
@@ -608,7 +608,12 @@ function selectHistoryRow(widget: KnoxGuiWidget, sessions: IKnoxGuiHistorySessio
 }
 
 export function renderHistoryPage(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, compact?: boolean): void {
-	if (!compact) {
+	const dedicated = knoxGuiIsDedicatedEditor(state);
+	if (dedicated) {
+		body.classList.add('knox-gui-history-page');
+		body.setAttribute('data-testid', 'knox-gui-history');
+	}
+	if (!compact && !dedicated) {
 		widget.back(body, state);
 		const tab = DOM.append(body, DOM.$('.knox-gui-page-tab'));
 		const cell = DOM.append(tab, DOM.$('.knox-gui-page-tab-cell'));

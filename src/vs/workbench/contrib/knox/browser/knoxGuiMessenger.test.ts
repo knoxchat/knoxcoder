@@ -143,4 +143,21 @@ suite('KnoxGuiMessenger', () => {
 		await timeout(0);
 		assert.strictEqual(forwarded.filter(message => message.messageType === 'setActiveChatSession').length, 3, 'the host still gets every post');
 	});
+
+	test('notifyHistorySessionsUpdated broadcasts the list to every subscribed editor', () => {
+		const incoming = disposables.add(new Emitter<IKnoxGuiMessage>());
+		const knoxService = new class extends mock<IKnoxService>() {
+			override onDidReceiveGuiMessage = incoming.event;
+			override notifyGuiMessage(message: IKnoxGuiMessage): void {
+				incoming.fire(message);
+			}
+			override async guiPost(): Promise<void> { }
+		};
+		const messenger = disposables.add(new KnoxGuiMessenger(knoxService));
+		const seen: IKnoxGuiMessage[] = [];
+		messenger.subscribeHost(message => seen.push(message));
+		messenger.notifyHistorySessionsUpdated([{ id: 'howdy', title: 'howdy', date: '2026-11-02' }]);
+		assert.strictEqual(seen[0]?.messageType, 'historySessionsUpdated');
+		assert.deepStrictEqual((seen[0]?.data as { sessions: Array<{ id: string }> }).sessions.map(session => session.id), ['howdy']);
+	});
 });

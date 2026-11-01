@@ -139,9 +139,6 @@ export function setReasoningEffort(controller: KnoxGuiController, effort: string
 
 export function setOverlay(controller: KnoxGuiController, overlay: KnoxGuiOverlay): void {
 	controller.store.setOverlay(overlay);
-	if (controller.store.state.overlay === 'history') {
-		void controller.refreshHistorySessions();
-	}
 	if (overlay === 'models') {
 		controller.messenger.post('config/refreshProfiles', undefined);
 	}
@@ -244,7 +241,7 @@ function mapCatalogRawToGuiModels(raw: unknown[]): IKnoxGuiState['knoxChatModels
 				owned_by: rec.owned_by ? String(rec.owned_by) : undefined,
 				tokenizer: architecture?.tokenizer ? String(architecture.tokenizer) : undefined,
 			}),
-			maxTokens: knoxChatRecommendedMaxTokens(rec) ?? (rec.max_tokens != null ? Number(rec.max_tokens) : (completion?.maxTokens != null ? Number(completion.maxTokens) : undefined)),
+			maxTokens: knoxChatRecommendedMaxTokens(rec) ?? (rec.max_tokens !== undefined && rec.max_tokens !== null ? Number(rec.max_tokens) : (completion?.maxTokens !== undefined && completion.maxTokens !== null ? Number(completion.maxTokens) : undefined)),
 			supportsTools: capabilities?.tools === true || toolsFromParams,
 			supportsReasoning: capabilities?.reasoning === true || reasoningFromParams,
 			supportsWebSearch: capabilities?.webSearch === true || webFromParams || knoxChatPricingHasWebSearch(rec.pricing),

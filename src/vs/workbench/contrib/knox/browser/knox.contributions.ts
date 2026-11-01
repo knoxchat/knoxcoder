@@ -53,13 +53,18 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import './knoxGuiActions.js';
 import './knoxTitlebarActions.js';
 import './knoxGuiEditCommands.js';
-import { KnoxCheckpointGraphEditor, KnoxCheckpointGraphEditorInput, KnoxCheckpointGraphEditorInputSerializer, KnoxMemoryEditor, KnoxMemoryEditorInput, KnoxMemoryEditorInputSerializer } from './knoxGuiEditors.js';
+import { KnoxCheckpointGraphEditor, KnoxCheckpointGraphEditorInput, KnoxCheckpointGraphEditorInputSerializer, KnoxHistoryEditor, KnoxHistoryEditorInput, KnoxHistoryEditorInputSerializer, KnoxMemoryEditor, KnoxMemoryEditorInput, KnoxMemoryEditorInputSerializer } from './knoxGuiEditors.js';
 import './knoxChatViewPane.js';
 
 registerSingleton(IKnoxService, KnoxService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(KnoxStatusBarContribution.ID, KnoxStatusBarContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(KnoxAuxiliaryBarContribution.ID, KnoxAuxiliaryBarContribution, WorkbenchPhase.AfterRestored);
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(KnoxHistoryEditor, KnoxHistoryEditor.ID, localize('knox.historyEditor', "Knox History")),
+	[new SyncDescriptor(KnoxHistoryEditorInput)]
+);
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(KnoxMemoryEditor, KnoxMemoryEditor.ID, localize('knox.memoryEditor', "Knox Memory")),
@@ -71,6 +76,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[new SyncDescriptor(KnoxCheckpointGraphEditorInput)]
 );
 
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KnoxHistoryEditorInput.ID, KnoxHistoryEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KnoxMemoryEditorInput.ID, KnoxMemoryEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KnoxCheckpointGraphEditorInput.ID, KnoxCheckpointGraphEditorInputSerializer);
 

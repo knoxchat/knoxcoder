@@ -38,6 +38,7 @@ import {
   type SuggestionRanges,
 } from "./suggestions";
 import { KnoxGUIWebviewViewProvider } from "./KnoxGUIWebviewViewProvider";
+import { HistoryView } from "./history/HistoryView";
 import { MemoryView } from "./memory/MemoryView";
 import {
   NextEditState,
@@ -859,7 +860,7 @@ const getCommandsMap: (
       sidebar.webviewProtocol?.request("newSession", undefined);
     },
     "knoxchat.viewHistory": () => {
-      vscode.commands.executeCommand("knoxchat.navigateTo", "/history", true);
+      HistoryView.createOrShow();
     },
     "knoxchat.viewRestore": () => {
       vscode.commands.executeCommand(CheckpointCommand.view);

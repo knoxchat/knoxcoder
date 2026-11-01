@@ -1495,6 +1495,13 @@
 					"fontCharacter": "\\F101"
 				}
 			},
+			"knox-history": {
+				"description": "History",
+				"default": {
+					"fontPath": "./media/history.woff",
+					"fontCharacter": "\\F101"
+				}
+			},
 			"knox-memory": {
 				"description": "Memory",
 				"default": {

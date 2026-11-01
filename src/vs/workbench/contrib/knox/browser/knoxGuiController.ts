@@ -18,6 +18,7 @@ import { DEFAULT_CHECKPOINT_CONFIG } from '../common/knoxGuiCheckpoints.js';
 import { KnoxGuiMessenger } from './knoxGuiMessenger.js';
 import { KnoxGuiStore } from './knoxGuiStore.js';
 import { LANGUAGE_KEY } from './gui/controller/helpers.js';
+import { KNOX_PINNED_SESSIONS_KEY, knoxGuiParsePinned } from '../common/knoxGuiSessions.js';
 import * as knoxGuiConfig from './gui/controller/config.js';
 import * as knoxGuiInbound from './gui/controller/inbound.js';
 import * as knoxGuiSessions from './gui/controller/sessions.js';
@@ -80,6 +81,7 @@ export class KnoxGuiController extends Disposable {
 	wasStreaming = false;
 	lastRoute: KnoxGuiRoute | undefined;
 	lastProviderName: string | undefined;
+	lastHistoryOpen = false;
 	checkpointGraphUiLoaded = false;
 	checkpointLoadSeq = 0;
 	checkpointAnalysisSeq = 0;
@@ -109,13 +111,19 @@ export class KnoxGuiController extends Disposable {
 		if (storedLanguage !== language) {
 			this.storageService.store(LANGUAGE_KEY, language, StorageScope.PROFILE, StorageTarget.USER);
 		}
-		// The sidebar chat, Memory and Checkpoint Graph each own a controller; they share the
+		// The sidebar chat, History, Memory and Checkpoint Graph each own a controller; they share the
 		// stored choice so switching it in any one of them re-renders the others
 		// (the original panels follow `guiLanguageChanged` the same way).
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, LANGUAGE_KEY, this._store)(() => {
 			const next = this.storageService.get(LANGUAGE_KEY, StorageScope.PROFILE);
 			if ((next === 'en' || next === 'zh') && next !== this.store.state.language) {
 				this.store.setLanguage(next);
+			}
+		}));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, KNOX_PINNED_SESSIONS_KEY, this._store)(() => {
+			const pinnedSessionIds = knoxGuiParsePinned(this.storageService.get(KNOX_PINNED_SESSIONS_KEY, StorageScope.PROFILE));
+			if (pinnedSessionIds.join('\0') !== this.store.state.pinnedSessionIds.join('\0')) {
+				this.store.patch({ pinnedSessionIds });
 			}
 		}));
 		knoxGuiPersistence.restorePersistedState(this);
@@ -174,7 +182,7 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiInbound.onNavigated(this, path);
 	}
 
-	async newSession(options?: { generateTitle?: boolean }): Promise<void> {
+	async newSession(options?: { generateTitle?: boolean; saveCurrent?: boolean }): Promise<void> {
 		return knoxGuiSessions.newSession(this, options);
 	}
 
@@ -272,6 +280,10 @@ export class KnoxGuiController extends Disposable {
 
 	async refreshHistorySessions(): Promise<void> {
 		return knoxGuiSessions.refreshHistorySessions(this);
+	}
+
+	async refreshHistoryOnShow(): Promise<void> {
+		return knoxGuiSessions.refreshHistoryOnShow(this);
 	}
 
 	applyAgentProfile(value: string): void {

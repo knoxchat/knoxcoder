@@ -31,13 +31,17 @@ export async function setup(controller: KnoxGuiController): Promise<void> {
 		}
 		if (knoxGuiIsDedicatedEditor(controller.store.state)) {
 			controller.messenger.post('setGuiLanguage', { language: controller.store.state.language });
-			void controller.loadMemoryMode();
-			void controller.loadRecipeSettings();
 			if (controller.store.state.lockedRoute === KnoxGuiRoute.Memory) {
+				void controller.loadMemoryMode();
+				void controller.loadRecipeSettings();
 				await controller.hydrateMemoryTab();
 				await controller.loadMemory();
-			} else {
+			} else if (controller.store.state.lockedRoute === KnoxGuiRoute.CheckpointGraph) {
+				void controller.loadMemoryMode();
+				void controller.loadRecipeSettings();
 				await controller.loadCheckpoints();
+			} else if (controller.store.state.lockedRoute === KnoxGuiRoute.History) {
+				await controller.refreshHistoryOnShow();
 			}
 			controller.startHeartbeat();
 		} else {
@@ -70,6 +74,9 @@ export async function setup(controller: KnoxGuiController): Promise<void> {
 		}
 	} catch {
 		// Extension host not ready yet; UI still loads.
+	}
+	if (controller.store.state.lockedRoute === KnoxGuiRoute.History) {
+		await controller.refreshHistoryOnShow();
 	}
 	void controller.loadKnoxChatModels();
 	controller.store.patch({ setupComplete: true });
