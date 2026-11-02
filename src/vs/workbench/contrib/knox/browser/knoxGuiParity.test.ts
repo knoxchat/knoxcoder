@@ -406,6 +406,7 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(!/\.knox-gui-tool-approve \{[^}]*--vscode-button-background/.test(css));
 		assert.ok(css.includes('.knox-gui .rendered-markdown :not(pre) > code'));
 		assert.ok(css.includes('.knox-gui-input-bar-icons'));
+		assert.ok(css.includes('.knox-gui-toolbar-center'));
 		assert.ok(css.includes('.knox-gui-model-wrap {\n	flex: 0 1 auto;'));
 		assert.ok(css.includes('overflow: visible;'));
 		assert.ok(css.includes('.knox-gui-popover-anchored'));

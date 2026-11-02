@@ -16,7 +16,6 @@ import {
 } from '../../../../common/knoxGuiInput.js';
 import { bindComposerIme, composerImeActive, composerImeFromInput } from './ime.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
-import { setComposerCollapsed } from './layout.js';
 import { renderImageAttach } from './attachments.js';
 import { composerRememberContent, memoryTitleFromContent } from '../../../../common/knoxGuiMemory.js';
 import { openMemoryForm, renderMemoryFormDialog } from '../memory/kit.js';
@@ -171,23 +170,6 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 			disabled: state.isStreaming,
 			onClick: () => widget.controller.store.patch({ webSearchEnabled: !state.webSearchEnabled }),
 		});
-	}
-
-	const hide = widget.chromeButton(right, {
-		svg: 'list-chevrons-down-up',
-		svgSize: 14,
-		title: t(state, 'hideInput'),
-		testId: 'knox-gui-composer-collapse',
-		extraClass: 'knox-gui-composer-toggle',
-		onClick: () => setComposerCollapsed(widget, true),
-	});
-	hide.setAttribute('aria-expanded', 'true');
-	hide.setAttribute('aria-label', t(state, 'hideInput'));
-	if (widget.composerToggle?.dir === 'expand') {
-		hide.classList.add('knox-gui-toggle-pop');
-	}
-	if (!widget.composerCollapsed) {
-		widget.renderScrollButtons(right, state);
 	}
 
 	if (state.mode === 'edit') {

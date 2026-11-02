@@ -275,19 +275,19 @@
 	transform: translateY(-1.5px);
 }
 
-/* "Hide panel" in the toolbar is a plain glyph like its neighbours: no ring, no fill. */
-.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-toggle {
+/* "Hide panel" in the top toolbar is a plain glyph like New chat: no ring, no fill. */
+.knox-gui-toolbar .knox-gui-icon-btn.knox-gui-composer-toggle {
 	color: #20c997;
 	opacity: 0.8;
 	transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
-.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-toggle:hover:not(:disabled) {
+.knox-gui-toolbar .knox-gui-icon-btn.knox-gui-composer-toggle:hover:not(:disabled) {
 	opacity: 1;
 	filter: none;
 }
 
-.knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-toggle:active:not(:disabled) {
+.knox-gui-toolbar .knox-gui-icon-btn.knox-gui-composer-toggle:active:not(:disabled) {
 	transform: scale(0.9);
 }
 

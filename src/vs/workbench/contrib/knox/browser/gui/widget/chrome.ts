@@ -71,6 +71,26 @@ export function renderToolbar(widget: KnoxGuiWidget, parent: HTMLElement, state:
 		});
 	}
 	DOM.append(bar, DOM.$('.knox-gui-toolbar-spacer'));
+	// Hide-panel + transcript scroll sit in the gap between New chat and Auto, not next to Send.
+	const center = DOM.append(bar, DOM.$('.knox-gui-toolbar-center'));
+	center.setAttribute('data-testid', 'knox-gui-toolbar-center');
+	if (!widget.composerCollapsed) {
+		const hide = widget.chromeButton(center, {
+			svg: 'list-chevrons-down-up',
+			svgSize: 14,
+			title: t(state, 'hideInput'),
+			testId: 'knox-gui-composer-collapse',
+			extraClass: 'knox-gui-composer-toggle',
+			onClick: () => widget.setComposerCollapsed(true),
+		});
+		hide.setAttribute('aria-expanded', 'true');
+		hide.setAttribute('aria-label', t(state, 'hideInput'));
+		if (widget.composerToggle?.dir === 'expand') {
+			hide.classList.add('knox-gui-toggle-pop');
+		}
+		widget.renderScrollButtons(center, state);
+	}
+	DOM.append(bar, DOM.$('.knox-gui-toolbar-spacer'));
 	widget.renderMode(bar, state);
 }
 

@@ -223,6 +223,29 @@
 	flex: 1;
 }
 
+/* Hide panel + scroll-to-top/bottom sit in the gap between New chat and Auto. */
+.knox-gui-toolbar-center {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 2px;
+	flex: 0 0 auto;
+}
+
+.knox-gui-toolbar-center .knox-gui-icon-btn {
+	gap: 0;
+	padding: 2px 4px;
+}
+
+.knox-gui-toolbar .knox-gui-scroll-btns .knox-gui-icon-btn {
+	padding: 2px 4px !important;
+}
+
+.knox-gui-toolbar .knox-gui-scroll-btns .knox-gui-svg {
+	width: 14px;
+	height: 14px;
+}
+
 .knox-gui-mode {
 	display: flex;
 	gap: 2px;
@@ -685,7 +708,7 @@
 :is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-orb {
 	color: #0f766e;
 }
-:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-input-bar .knox-gui-icon-btn.knox-gui-composer-toggle {
+:is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-toolbar .knox-gui-icon-btn.knox-gui-composer-toggle {
 	color: #0f766e;
 }
 :is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-job-status.failed {

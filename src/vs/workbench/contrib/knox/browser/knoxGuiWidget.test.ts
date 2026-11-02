@@ -134,6 +134,16 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-rules"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-starters'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="sample-prompts"]'), null);
+		const newChat = lump.querySelector('[data-testid="knox-gui-new-chat"]') as HTMLElement;
+		const center = lump.querySelector('[data-testid="knox-gui-toolbar-center"]') as HTMLElement;
+		const mode = lump.querySelector('[data-testid="knox-gui-mode"]') as HTMLElement;
+		assert.ok(newChat);
+		assert.ok(center);
+		assert.ok(mode);
+		assert.ok(newChat.compareDocumentPosition(center) & Node.DOCUMENT_POSITION_FOLLOWING);
+		assert.ok(center.compareDocumentPosition(mode) & Node.DOCUMENT_POSITION_FOLLOWING);
+		assert.ok(center.querySelector('[data-testid="knox-gui-composer-collapse"]'));
+		assert.strictEqual(center.querySelector('[data-testid="knox-gui-scroll-top"]'), null);
 	});
 
 	test('Ask/Edits/Auto is the mode dropdown; Chat vs Agent is not a user tab', async () => {
@@ -1168,9 +1178,15 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const liveRight = liveBar.querySelector('.knox-gui-input-bar-right') as HTMLElement;
 		assert.ok(liveLeft.querySelector('[data-testid="knox-gui-reasoning-select"]'));
 		assert.ok(liveLeft.querySelector('.knox-gui-effort-wrap'));
-		assert.ok(liveRight.querySelector('[data-testid="knox-gui-scroll-top"]')?.querySelector('svg.knox-gui-svg'));
-		assert.ok(liveRight.querySelector('[data-testid="knox-gui-scroll-bottom"]')?.querySelector('svg.knox-gui-svg'));
+		assert.strictEqual(liveRight.querySelector('[data-testid="knox-gui-scroll-top"]'), null);
+		assert.strictEqual(liveRight.querySelector('[data-testid="knox-gui-scroll-bottom"]'), null);
+		assert.strictEqual(liveRight.querySelector('[data-testid="knox-gui-composer-collapse"]'), null);
 		assert.ok(liveRight.querySelector('[data-testid="knox-gui-send"]'));
+		const toolbarCenter = widget.root.querySelector('[data-testid="knox-gui-toolbar-center"]') as HTMLElement;
+		assert.ok(toolbarCenter);
+		assert.ok(toolbarCenter.querySelector('[data-testid="knox-gui-composer-collapse"]')?.querySelector('svg.knox-gui-svg'));
+		assert.ok(toolbarCenter.querySelector('[data-testid="knox-gui-scroll-top"]')?.querySelector('svg.knox-gui-svg'));
+		assert.ok(toolbarCenter.querySelector('[data-testid="knox-gui-scroll-bottom"]')?.querySelector('svg.knox-gui-svg'));
 	});
 
 	test('composer toolbar model, effort, mention, and image follow original InputToolbar', async () => {
@@ -1328,8 +1344,11 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 	test('collapsed composer dock shows dynamic scroll-to-top/bottom buttons', async () => {
 		const { widget, store } = await mount();
 		store.patch({ history: [{ id: 'u', role: 'user', content: 'hi' }] });
-		assert.ok(widget.root.querySelector('.knox-gui-input-bar [data-testid="knox-gui-scroll-top"]'));
-		assert.ok(widget.root.querySelector('.knox-gui-input-bar [data-testid="knox-gui-scroll-bottom"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-toolbar [data-testid="knox-gui-scroll-top"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-toolbar [data-testid="knox-gui-scroll-bottom"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-toolbar [data-testid="knox-gui-composer-collapse"]'));
+		assert.strictEqual(widget.root.querySelector('.knox-gui-input-bar [data-testid="knox-gui-scroll-top"]'), null);
+		assert.strictEqual(widget.root.querySelector('.knox-gui-input-bar [data-testid="knox-gui-composer-collapse"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-composer-dock"]'), null);
 
 		widget.setComposerCollapsed(true);
@@ -1352,8 +1371,9 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.autoScrollEnabled, true);
 
 		widget.setComposerCollapsed(false);
-		assert.ok(widget.root.querySelector('.knox-gui-input-bar [data-testid="knox-gui-scroll-top"]'));
-		assert.ok(widget.root.querySelector('.knox-gui-input-bar [data-testid="knox-gui-scroll-bottom"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-toolbar [data-testid="knox-gui-scroll-top"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-toolbar [data-testid="knox-gui-scroll-bottom"]'));
+		assert.strictEqual(widget.root.querySelector('.knox-gui-input-bar [data-testid="knox-gui-scroll-top"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-composer-dock"] [data-testid="knox-gui-scroll-top"]'), null);
 
 		widget.setComposerCollapsed(true);
