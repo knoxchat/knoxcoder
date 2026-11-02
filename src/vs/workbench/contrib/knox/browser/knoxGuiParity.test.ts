@@ -63,6 +63,8 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(knoxGuiT('zh', 'generalSettings').length > 0);
 		assert.ok(knoxGuiT('en', 'appearanceSettings').length > 0);
 		assert.ok(knoxGuiT('en', 'toolsHint').length > 0);
+		assert.ok(knoxGuiT('en', 'modelsHint').length > 0);
+		assert.ok(knoxGuiT('zh', 'modelsHint').length > 0);
 		assert.ok(knoxGuiT('en', 'promptsHint').length > 0);
 		assert.ok(knoxGuiT('zh', 'promptsHint').length > 0);
 		assert.ok(knoxGuiT('en', 'rulesHint').length > 0);
@@ -335,6 +337,10 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(/\.knox-gui > \.knox-gui-tabs > \.knox-gui-tab \{[^}]*flex:\s*0 0 auto/.test(css));
 		assert.ok(css.includes('.knox-gui-settings-nav'));
 		assert.ok(css.includes('.knox-gui-settings-nav-item.active'));
+		assert.ok(css.includes('.knox-gui-settings-heading + .knox-gui-model-roles'));
+		assert.ok(css.includes('.knox-gui-model-roles-full'));
+		assert.ok(css.includes('.knox-gui-listbox-btn-full .knox-gui-lump-label'));
+		assert.ok(css.includes('max-width: none'));
 		assert.ok(css.includes('.knox-gui-settings-heading + .knox-gui-prompt-list'));
 		assert.ok(css.includes('.knox-gui-settings-heading + .knox-gui-rule-list'));
 		assert.ok(css.includes('.knox-gui-find'));

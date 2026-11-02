@@ -115,6 +115,18 @@ export function knoxGuiMergePersistedToolPermissions(
 	});
 }
 
+/** Dedicated Settings writes the last Add Model provider tab without clobbering overlay/mode. */
+export function knoxGuiMergePersistedAddModelProvider(
+	raw: string | undefined,
+	addModelModalProvider: IKnoxGuiPersistedUi['addModelModalProvider'],
+): string {
+	const rec = parseJson(raw) ?? {};
+	return JSON.stringify({
+		...rec,
+		addModelModalProvider,
+	});
+}
+
 export function knoxGuiToolPermissionsFingerprint(state: Pick<IKnoxGuiState, 'toolSettings' | 'toolGroupExcluded'>): string {
 	return JSON.stringify({ toolSettings: state.toolSettings, toolGroupExcluded: state.toolGroupExcluded });
 }

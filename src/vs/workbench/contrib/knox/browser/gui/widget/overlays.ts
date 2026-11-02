@@ -11,7 +11,7 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
 import { parseToolArgs, toolDisplayKind } from '../../../common/knoxGuiChat.js';
 import { knoxGuiLocalAutoApprove } from '../../../common/knoxGuiAgentRequest.js';
-import { knoxGuiModelSelectTitle } from '../../../common/knoxGuiCapabilities.js';
+import { knoxGuiModelRoleMinCh, knoxGuiModelSelectTitle } from '../../../common/knoxGuiCapabilities.js';
 import { getCategorizedToolName, isSamePermissionTool, toolPermissionDisplay } from '../../../common/knoxGuiTools.js';
 import {
 	contextProviderInsertId,
@@ -74,7 +74,9 @@ export function renderOverlay(widget: KnoxGuiWidget, body: HTMLElement, state: I
 }
 
 export function renderModels(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
-	const grid = DOM.append(body, DOM.$('.knox-gui-model-roles'));
+	const fullLabels = knoxGuiIsDedicatedEditor(state);
+	const grid = DOM.append(body, DOM.$(fullLabels ? '.knox-gui-model-roles.knox-gui-model-roles-full' : '.knox-gui-model-roles'));
+	const titles: string[] = [];
 	for (const role of MODEL_OVERLAY_ROLES) {
 		const label = t(state, MODEL_ROLE_LABEL_KEY[role]);
 		const labelWrap = DOM.append(grid, DOM.$('span.knox-gui-model-role-label', undefined, label));
@@ -83,17 +85,22 @@ export function renderModels(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 		const models = state.modelsByRole[role];
 		const selected = state.selectedModelByRole[role] ?? (role === 'chat' ? state.modelTitle : undefined);
 		const selectedModel = models.find(model => model.title === selected);
+		const triggerLabel = models.length
+			? (knoxGuiModelSelectTitle(selectedModel, models) || selected || t(state, 'selectRoleModel', { role: label }))
+			: `${t(state, 'noModelsForRole', { role: label })}${modelUsesChatFallback(role, models) ? `. ${t(state, 'usingChatModel')}` : ''}`;
+		titles.push(triggerLabel);
+		for (const model of models) {
+			titles.push(knoxGuiModelSelectTitle(model, models));
+		}
 		const wrap = DOM.append(row, DOM.$('.knox-gui-listbox'));
 		const trigger = widget.chromeButton(wrap, {
-			label: models.length
-				? (knoxGuiModelSelectTitle(selectedModel, models) || selected || t(state, 'selectRoleModel', { role: label }))
-				: `${t(state, 'noModelsForRole', { role: label })}${modelUsesChatFallback(role, models) ? `. ${t(state, 'usingChatModel')}` : ''}`,
+			label: triggerLabel,
 			svg: models.length ? 'chevrons-up-down' : undefined,
 			svgSize: 12,
 			svgAfter: true,
 			title: t(state, MODEL_ROLE_USED_FOR_KEY[role]),
 			disabled: models.length === 0,
-			extraClass: 'knox-gui-listbox-btn',
+			extraClass: fullLabels ? 'knox-gui-listbox-btn knox-gui-listbox-btn-full' : 'knox-gui-listbox-btn',
 			menuTrigger: true,
 			testId: `knox-gui-role-${role}`,
 			onClick: () => {
@@ -113,7 +120,8 @@ export function renderModels(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 				const option = DOM.append(menu, DOM.$('button.knox-gui-popover-item')) as HTMLButtonElement;
 				option.type = 'button';
 				option.setAttribute('role', 'option');
-				DOM.append(option, DOM.$('span.knox-gui-listbox-option', undefined, knoxGuiModelSelectTitle(model, models)));
+				const optionClass = fullLabels ? 'span.knox-gui-listbox-option.knox-gui-listbox-option-full' : 'span.knox-gui-listbox-option';
+				DOM.append(option, DOM.$(optionClass, undefined, knoxGuiModelSelectTitle(model, models)));
 				if (model.title === selected) {
 					appendKnoxGuiSvg(option, 'check', 12);
 				}
@@ -133,6 +141,9 @@ export function renderModels(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 		});
 		widget.renderStore.add(DOM.addDisposableListener(row, 'mouseenter', () => gear.classList.remove('knox-gui-role-gear-hidden')));
 		widget.renderStore.add(DOM.addDisposableListener(row, 'mouseleave', () => gear.classList.add('knox-gui-role-gear-hidden')));
+	}
+	if (fullLabels) {
+		grid.style.gridTemplateColumns = `max-content minmax(min(100%, ${knoxGuiModelRoleMinCh(titles)}ch), 1fr)`;
 	}
 	widget.chromeButton(body, {
 		svg: 'settings',
@@ -1040,10 +1051,15 @@ export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: 
 			}
 			appendKnoxGuiSvg(btn, item.svg, 16);
 			DOM.append(btn, DOM.$('span', undefined, t(state, item.key)));
-			widget.renderStore.add(DOM.addDisposableListener(btn, 'click', () => widget.controller.store.patch({ settingsTab: item.id })));
+			widget.renderStore.add(DOM.addDisposableListener(btn, 'click', () => widget.controller.setSettingsTab(item.id)));
 		}
 		const main = DOM.append(body, DOM.$('.knox-gui-settings-main'));
 		main.setAttribute('data-testid', `knox-gui-settings-${tab}`);
+		if (tab === 'models') {
+			renderSettingsHeading(main, t(state, 'models'), t(state, 'modelsHint'));
+			widget.renderModels(main, state);
+			return;
+		}
 		if (tab === 'tools') {
 			renderSettingsHeading(main, t(state, 'tools'), t(state, 'toolsHint'));
 			widget.renderTools(main, state);

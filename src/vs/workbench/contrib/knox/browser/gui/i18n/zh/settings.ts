@@ -6,6 +6,7 @@
 export const knoxGuiStringsZhSettings: Record<string, unknown> = {
 	"generalSettings": "常规",
 	"generalSettingsHint": "语言、外观和助理行为。",
+	"modelsHint": "此配置的对话、编辑、应用和搜索模型。",
 	"toolsHint": "预设、策略规则和各工具权限。",
 	"promptsHint": "可在对话输入框中用斜杠插入的提示词。",
 	"rulesHint": "应用于助理的工作区和配置规则。",

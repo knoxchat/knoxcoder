@@ -6,6 +6,7 @@
 export const knoxGuiStringsEnSettings: Record<string, unknown> = {
 	"generalSettings": "General",
 	"generalSettingsHint": "Language, appearance, and agent behavior.",
+	"modelsHint": "Chat, edit, apply, and search models for this profile.",
 	"toolsHint": "Presets, policy rules, and per-tool permissions.",
 	"promptsHint": "Slash prompts you can insert from the chat input.",
 	"rulesHint": "Workspace and profile rules applied to the agent.",

@@ -130,6 +130,7 @@ export class KnoxGuiController extends Disposable {
 		this._register(knoxGuiPersistence.installPersistence(this));
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, knoxGuiPersistence.UI_STATE_KEY, this._store)(() => {
 			knoxGuiPersistence.applyPersistedToolPermissions(this);
+			knoxGuiPersistence.applyPersistedAddModelProvider(this);
 		}));
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, knoxGuiPersistence.PROFILE_PREFERENCES_KEY, this._store)(() => {
 			knoxGuiPersistence.applyPersistedProfilePreferences(this);
@@ -278,6 +279,10 @@ export class KnoxGuiController extends Disposable {
 
 	setOverlay(overlay: KnoxGuiOverlay): void {
 		return knoxGuiModels.setOverlay(this, overlay);
+	}
+
+	setSettingsTab(tab: string): void {
+		return knoxGuiModels.setSettingsTab(this, tab);
 	}
 
 	async resolveWorkspaceDirectory(): Promise<string> {

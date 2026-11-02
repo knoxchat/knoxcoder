@@ -683,6 +683,44 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.deepStrictEqual(chat.store.state.recentSlash, ['ship']);
 	});
 
+	test('Settings Models tab refreshes profiles, selects a model, and keeps the Add Model provider', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const chat = createHarness({ storage });
+		const settings = createHarness({ storage, lock: KnoxGuiRoute.Config });
+		await timeout(0);
+		chat.store.patch({ overlay: 'tools', mode: 'agent', addModelModalProvider: 'knoxchat' });
+		settings.controller.setSettingsTab('models');
+		assert.strictEqual(settings.store.state.settingsTab, 'models');
+		assert.ok(settings.posted.some(message => message.messageType === 'config/refreshProfiles'));
+		const grok = { title: 'Grok', provider: 'knoxchat', model: 'spacexai/grok' };
+		settings.store.patch({
+			profileId: 'p1',
+			models: [grok],
+			modelsByRole: { chat: [grok], edit: [], apply: [], viewRead: [], realTimeSearch: [] },
+			selectedModelByRole: { chat: 'GPT-4o' },
+			modelTitle: 'GPT-4o',
+		});
+		settings.controller.selectModel('chat', 'Grok');
+		assert.strictEqual(settings.store.state.modelTitle, 'Grok');
+		assert.ok(settings.posted.some(message => message.messageType === 'config/updateSelectedModel' && (message.data as { title?: string }).title === 'Grok'));
+		chat.controller.applyConfig({
+			config: {
+				models: [grok],
+				modelsByRole: { chat: [grok] },
+				selectedModelByRole: { chat: { title: 'Grok' } },
+				selectedModelTitle: 'Grok',
+			},
+		});
+		assert.strictEqual(chat.store.state.modelTitle, 'Grok');
+		assert.strictEqual(chat.store.state.overlay, 'tools');
+		assert.strictEqual(chat.store.state.mode, 'agent');
+		settings.store.patch({ addModelModalProvider: 'openrouter' });
+		assert.strictEqual(chat.store.state.addModelModalProvider, 'openrouter');
+		const persisted = JSON.parse(storage.get(UI_STATE_KEY, StorageScope.PROFILE) ?? '{}') as { addModelModalProvider?: string; overlay?: string };
+		assert.strictEqual(persisted.addModelModalProvider, 'openrouter');
+		assert.strictEqual(persisted.overlay, 'tools');
+	});
+
 	test('stream response envelopes are not applied as host inbound', async () => {
 		const { controller, store } = createHarness();
 		await timeout(0);

@@ -119,7 +119,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		return { widget, store };
 	}
 
-	test('lump icons follow BlockSettingsTopToolbar order and omit Context, History, Settings, Tools, Prompts, and Rules', async () => {
+	test('lump icons follow BlockSettingsTopToolbar order and omit Context, History, Settings, Models, Tools, Prompts, and Rules', async () => {
 		const { widget } = await mount();
 		const lump = widget.root.querySelector('[data-testid="knox-gui-lump"]');
 		assert.ok(lump);
@@ -128,6 +128,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-context"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-history"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-settings"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-models"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-tools"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-prompts"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-rules"]'), null);
@@ -397,7 +398,38 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('.knox-gui-settings-card'));
 		assert.ok(widget.root.textContent?.includes('Appearance') || widget.root.textContent?.includes('外观'));
 		assert.strictEqual(widget.root.querySelector('.knox-gui-tools'), null);
-		store.patch({ settingsTab: 'tools' });
+		store.patch({
+			settingsTab: 'models',
+			modelsByRole: {
+				chat: [{ title: 'KnoxStudio · DeepSeek: V3.2', provider: 'knoxchat', model: 'deepseek/deepseek-chat' }],
+				edit: [],
+				apply: [],
+				viewRead: [],
+				realTimeSearch: [],
+			},
+			selectedModelByRole: { chat: 'KnoxStudio · DeepSeek: V3.2' },
+			modelTitle: 'KnoxStudio · DeepSeek: V3.2',
+			profileType: 'local',
+			profileId: 'p1',
+		});
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-tab-models"]')?.getAttribute('aria-selected'), 'true');
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-settings-models"]'));
+		const roles = widget.root.querySelector('.knox-gui-model-roles-full') as HTMLElement;
+		assert.ok(roles);
+		assert.ok(roles.style.gridTemplateColumns.includes('ch'));
+		assert.ok(widget.root.querySelector('.knox-gui-listbox-btn-full'));
+		const chatRole = widget.root.querySelector('[data-testid="knox-gui-role-chat"]') as HTMLButtonElement;
+		assert.ok(chatRole);
+		assert.ok(chatRole.textContent?.includes('KnoxStudio · DeepSeek: V3.2'));
+		assert.ok(chatRole.classList.contains('knox-gui-listbox-btn-full'));
+		assert.strictEqual(widget.root.querySelector('.knox-gui-model-roles select'), null);
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-open-config"]'));
+		(widget.root.querySelector('.knox-gui-role-gear') as HTMLButtonElement).click();
+		assert.strictEqual(store.state.addModelModal, true);
+		assert.strictEqual(store.state.addModelRole, 'chat');
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-modal"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-general"]'), null);
+		store.patch({ settingsTab: 'tools', addModelModal: false });
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-tab-tools"]')?.getAttribute('aria-selected'), 'true');
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-settings-tools"]'));
 		assert.ok(widget.root.querySelector('.knox-gui-tools'));

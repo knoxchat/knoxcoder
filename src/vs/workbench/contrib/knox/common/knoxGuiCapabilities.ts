@@ -496,6 +496,17 @@ function knoxGuiModelBaseTitle(model: IKnoxGuiModel): string {
 	return model.provider ?? '';
 }
 
+/** Settings Models pickers grow with the longest title instead of the 8rem composer lump cap. */
+export function knoxGuiModelRoleMinCh(titles: readonly string[]): number {
+	let longest = 0;
+	for (const title of titles) {
+		if (title.length > longest) {
+			longest = title.length;
+		}
+	}
+	return Math.min(80, Math.max(16, longest + 1));
+}
+
 export function knoxGuiModelSelectTitle(model: IKnoxGuiModel | undefined, models?: readonly IKnoxGuiModel[]): string {
 	if (!model) {
 		return '';

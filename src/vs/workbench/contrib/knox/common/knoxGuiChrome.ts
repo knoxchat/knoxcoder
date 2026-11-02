@@ -8,14 +8,13 @@ import { isAskUserToolName } from './knoxGuiChat.js';
 import { countRunningJobs } from './knoxGuiPanels.js';
 import { knoxGuiIsDedicatedEditor, knoxGuiVisibleSessionTabs, type IKnoxGuiBackgroundJob, type IKnoxGuiHistoryItem, type IKnoxGuiHistorySession, type IKnoxGuiSessionTab, type IKnoxGuiState, type IKnoxGuiToolCall, type KnoxChatMode, type KnoxToolSetting } from './knoxGuiState.js';
 
-/** Lump toolbar sections in `BlockSettingsTopToolbar` (context is overlay-only). History and Settings live in the title bar; Tools, Prompts, and Rules are Settings tabs. Icons match lucide. */
-export const KNOX_GUI_LUMP_TOOLBAR = [
-	{ id: 'models' as const, key: 'models', svg: 'cpu' as const },
-];
+/** Lump toolbar sections in `BlockSettingsTopToolbar` (context is overlay-only). History and Settings live in the title bar; Models, Tools, Prompts, and Rules are Settings tabs. Icons match lucide. */
+export const KNOX_GUI_LUMP_TOOLBAR: ReadonlyArray<{ id: Exclude<KnoxGuiOverlay, null>; key: string; svg: 'cpu' }> = [];
 
-/** Vertical Settings tabs: General options, Tools permissions, Prompts, and Rules. */
+/** Vertical Settings tabs: General options, then Models, Tools, Prompts, and Rules. */
 export const KNOX_GUI_SETTINGS_NAV = [
 	{ id: 'general' as const, key: 'generalSettings', svg: 'settings' as const },
+	{ id: 'models' as const, key: 'models', svg: 'cpu' as const },
 	{ id: 'tools' as const, key: 'tools', svg: 'wrench' as const },
 	{ id: 'prompts' as const, key: 'prompts', svg: 'scroll-text' as const },
 	{ id: 'rules' as const, key: 'rules', svg: 'square-pen' as const },

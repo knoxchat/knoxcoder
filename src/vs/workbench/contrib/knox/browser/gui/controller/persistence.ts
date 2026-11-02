@@ -9,7 +9,7 @@ import { StorageScope, StorageTarget } from '../../../../../../platform/storage/
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { knoxGuiIsDedicatedEditor, knoxGuiPruneSessionTabs, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
 import { composerInputHistoryFromStorage, type IKnoxGuiComposerInputHistory, type IKnoxGuiInputBlock } from '../../../common/knoxGuiInput.js';
-import { KNOX_AUTOSAVE_DEBOUNCE_MS, KNOX_AUTOSAVE_MIN_INTERVAL_MS, KNOX_PERSIST_THROTTLE_MS, knoxGuiMergePersistedToolPermissions, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, knoxGuiToolPermissionsFingerprint, type IKnoxGuiDraftSession, type IKnoxGuiLastActiveSession, type IKnoxGuiProfilePreferences } from '../../../common/knoxGuiPersist.js';
+import { KNOX_AUTOSAVE_DEBOUNCE_MS, KNOX_AUTOSAVE_MIN_INTERVAL_MS, KNOX_PERSIST_THROTTLE_MS, knoxGuiMergePersistedAddModelProvider, knoxGuiMergePersistedToolPermissions, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, knoxGuiToolPermissionsFingerprint, type IKnoxGuiDraftSession, type IKnoxGuiLastActiveSession, type IKnoxGuiProfilePreferences } from '../../../common/knoxGuiPersist.js';
 import { KNOX_QUEUE_STORAGE_KEY, knoxGuiParseQueue, knoxGuiSerializeQueue } from '../../../common/knoxGuiQueue.js';
 import { KNOX_PINNED_SESSIONS_KEY, knoxGuiParsePinned } from '../../../common/knoxGuiSessions.js';
 import { BOOKMARK_KEY } from './helpers.js';
@@ -56,6 +56,16 @@ export function applyPersistedToolPermissions(controller: KnoxGuiController): vo
 		return;
 	}
 	controller.store.patch({ toolSettings, toolGroupExcluded });
+}
+
+/** Chat and Settings share the last Add Model provider tab through `knox.gui.uiState`. */
+export function applyPersistedAddModelProvider(controller: KnoxGuiController): void {
+	const ui = knoxGuiParsePersistedUi(controller.storageService.get(UI_STATE_KEY, StorageScope.PROFILE));
+	const addModelModalProvider = ui.addModelModalProvider ?? controller.store.state.addModelModalProvider;
+	if (addModelModalProvider === controller.store.state.addModelModalProvider) {
+		return;
+	}
+	controller.store.patch({ addModelModalProvider });
 }
 
 /** `useInputHistory.ts`: one history per composer mode, `inputHistory_chat` / `inputHistory_edit`. */
@@ -212,15 +222,21 @@ export function installPersistence(controller: KnoxGuiController): IDisposable {
 	};
 
 	let lastTools = knoxGuiToolPermissionsFingerprint(controller.store.state);
-	const writeToolPermissions = (state: typeof controller.store.state) => {
+	let lastAddModelProvider = controller.store.state.addModelModalProvider;
+	const writeDedicatedConfigUi = (state: typeof controller.store.state) => {
 		const tools = knoxGuiToolPermissionsFingerprint(state);
-		if (tools === lastTools) {
+		const provider = state.addModelModalProvider;
+		if (tools === lastTools && provider === lastAddModelProvider) {
 			return;
 		}
 		lastTools = tools;
+		lastAddModelProvider = provider;
 		storage.store(
 			UI_STATE_KEY,
-			knoxGuiMergePersistedToolPermissions(storage.get(UI_STATE_KEY, StorageScope.PROFILE), state.toolSettings, state.toolGroupExcluded),
+			knoxGuiMergePersistedAddModelProvider(
+				knoxGuiMergePersistedToolPermissions(storage.get(UI_STATE_KEY, StorageScope.PROFILE), state.toolSettings, state.toolGroupExcluded),
+				provider,
+			),
 			StorageScope.PROFILE,
 			StorageTarget.USER,
 		);
@@ -229,7 +245,7 @@ export function installPersistence(controller: KnoxGuiController): IDisposable {
 	const listener = controller.store.onDidChange(state => {
 		if (knoxGuiIsDedicatedEditor(state)) {
 			if (state.lockedRoute === KnoxGuiRoute.Config) {
-				writeToolPermissions(state);
+				writeDedicatedConfigUi(state);
 			}
 			return;
 		}

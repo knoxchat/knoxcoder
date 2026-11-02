@@ -8,6 +8,7 @@ import { asRecord, asArray } from './helpers.js';
 import { knoxGuiCatalogEntriesFromOverlayModels, knoxGuiGetReasoningModelKeys, knoxGuiModelSupportsImages, knoxGuiModelToolsSupportKnown, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiResolveToolsSupported, knoxGuiSeedModelCatalog, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
 import { knoxGuiIsSessionTabMode, knoxGuiResolveSessionMode, knoxGuiSessionModeIsAgent } from '../../../common/knoxGuiAgentMode.js';
 import { addModelProviderById, applyOpenRouterAliasFloorPricing, buildAddModelPayload, categorizeKnoxChatModel, KNOX_CHAT_FALLBACK_MODELS, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, parseKnoxOAuthStatus, parseOpenRouterOAuthStatus, type IKnoxGuiAddModelPackage } from '../../../common/knoxGuiOverlays.js';
+import { knoxGuiSettingsTab, type KnoxGuiSettingsTab } from '../../../common/knoxGuiChrome.js';
 import { KnoxGuiOverlay } from '../../../common/knoxGuiProtocol.js';
 import { IKnoxGuiModel, IKnoxGuiState, KnoxChatMode, KnoxModelRole } from '../../../common/knoxGuiState.js';
 
@@ -140,6 +141,14 @@ export function setReasoningEffort(controller: KnoxGuiController, effort: string
 export function setOverlay(controller: KnoxGuiController, overlay: KnoxGuiOverlay): void {
 	controller.store.setOverlay(overlay);
 	if (overlay === 'models') {
+		controller.messenger.post('config/refreshProfiles', undefined);
+	}
+}
+
+export function setSettingsTab(controller: KnoxGuiController, tab: string): void {
+	const next: KnoxGuiSettingsTab = knoxGuiSettingsTab(tab);
+	controller.store.patch({ settingsTab: next });
+	if (next === 'models') {
 		controller.messenger.post('config/refreshProfiles', undefined);
 	}
 }
