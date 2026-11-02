@@ -63,12 +63,16 @@ export type IKnoxGuiTurnActiveState = {
 	history: ReadonlyArray<{
 		role?: string;
 		thinkingActive?: boolean;
-		toolCalls?: ReadonlyArray<{ status: string }>;
+		toolCalls?: ReadonlyArray<{ status: string; name?: string }>;
 	}>;
 };
 
-export function knoxGuiToolIsInFlight(status: string): boolean {
-	return IN_FLIGHT_TOOL_STATUS.has(status);
+export function knoxGuiToolIsInFlight(status: string, name?: string): boolean {
+	if (!IN_FLIGHT_TOOL_STATUS.has(status)) {
+		return false;
+	}
+	// `generated` Ask User is a question, not live generation — Send stays available.
+	return !(status === 'generated' && isAskUserToolName(name));
 }
 
 /**
@@ -88,7 +92,7 @@ export function knoxGuiTurnIsActive(state: IKnoxGuiTurnActiveState): boolean {
 		if (item.thinkingActive) {
 			return true;
 		}
-		if (item.toolCalls?.some(call => knoxGuiToolIsInFlight(call.status))) {
+		if (item.toolCalls?.some(call => knoxGuiToolIsInFlight(call.status, call.name))) {
 			return true;
 		}
 	}

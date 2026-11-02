@@ -95,25 +95,31 @@ describe("MEM-15 tiers from R and Value only", () => {
     expect(Forgetting.retrievability(1, 1, THEOREM)).toBeCloseTo(0.9, 5);
     expect(Forgetting.retrievability(4.4, 1, THEOREM)).toBeCloseTo(0.7, 2);
     expect(Forgetting.retrievability(43, 1, THEOREM)).toBeCloseTo(0.3, 2);
+    const now = Date.now();
+    const at = (days: number) => new Date(now - days * 86_400_000).toISOString();
     expect(Tiers.classifyMemoryTier(
-      { stability: 1, category: "episodic", i0: 1, created_at: daysAgo(1) },
+      { stability: 1, category: "episodic", i0: 1, created_at: at(1) },
       undefined,
       TIER,
+      now,
     )).toBe("hot");
     expect(Tiers.classifyMemoryTier(
-      { stability: 1, category: "episodic", i0: 1, created_at: daysAgo(4.4) },
+      { stability: 1, category: "episodic", i0: 1, created_at: at(4.4) },
       undefined,
       TIER,
+      now,
     )).toBe("warm");
     expect(Tiers.classifyMemoryTier(
-      { stability: 1, category: "episodic", i0: 1, created_at: daysAgo(43) },
+      { stability: 1, category: "episodic", i0: 1, created_at: at(43) },
       undefined,
       TIER,
+      now,
     )).toBe("cold");
     expect(Tiers.classifyMemoryTier(
-      { stability: 1, category: "episodic", i0: 1, created_at: daysAgo(50) },
+      { stability: 1, category: "episodic", i0: 1, created_at: at(50) },
       undefined,
       TIER,
+      now,
     )).toBe("frozen");
   });
 

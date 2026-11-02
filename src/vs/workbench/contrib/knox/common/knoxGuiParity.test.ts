@@ -85,6 +85,14 @@ suite('Knox native GUI parity', () => {
 			isStreaming: false,
 			history: [{ role: 'assistant', toolCalls: [{ status: 'calling' }] }],
 		}), true);
+		assert.strictEqual(knoxGuiTurnIsActive({
+			isStreaming: false,
+			history: [{ role: 'assistant', toolCalls: [{ status: 'generated', name: 'builtin_run_terminal_command' }] }],
+		}), true);
+		assert.strictEqual(knoxGuiTurnIsActive({
+			isStreaming: false,
+			history: [{ role: 'assistant', toolCalls: [{ status: 'generated', name: 'builtin_ask_user' }] }],
+		}), false);
 		assert.strictEqual(knoxGuiCanCancel({
 			isStreaming: false,
 			history: [{ role: 'assistant', thinkingActive: false }],
