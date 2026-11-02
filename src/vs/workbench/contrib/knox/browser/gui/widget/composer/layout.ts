@@ -6,7 +6,7 @@
 import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
-import { knoxGuiCanCancel, knoxGuiShowsAgentMeter } from '../../../../common/knoxGuiChrome.js';
+import { knoxGuiCanCancel, knoxGuiShowsComposerAgentMeter } from '../../../../common/knoxGuiChrome.js';
 import { appendKnoxGuiSvg } from '../../knoxGuiIcons.js';
 import { inputDocIsEmpty } from '../../../../common/knoxGuiInput.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
@@ -49,7 +49,7 @@ export function renderComposer(widget: KnoxGuiWidget, state: IKnoxGuiState): voi
 	const lump = DOM.append(section, DOM.$('.knox-gui-lump-shell'));
 	widget.renderToolbar(lump, state);
 	renderLumpOverlay(widget, lump, state);
-	if (knoxGuiShowsAgentMeter(state.mode)) {
+	if (knoxGuiShowsComposerAgentMeter(state)) {
 		widget.renderAgentMeter(section, state);
 	}
 	widget.renderPanels(section, state);

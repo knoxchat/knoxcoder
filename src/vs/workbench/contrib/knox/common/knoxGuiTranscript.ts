@@ -876,6 +876,33 @@ export function loadingVariantFor(kind?: KnoxGuiActivityKind): KnoxGuiLoadingVar
 	}
 }
 
+/** Meter clock and loading row stay on while the model streams, context gathers, or a foreground tool is calling. */
+export function knoxGuiMeterIsLive(state: {
+	isStreaming?: boolean;
+	isGatheringContext?: boolean;
+	history: IKnoxGuiHistoryItem[];
+}): boolean {
+	return Boolean(state.isStreaming || state.isGatheringContext || hasForegroundCallingToolCalls(state.history));
+}
+
+/** Gathering owns the meter label until context is ready; then the current activity kind. */
+export function knoxGuiMeterLoadingLabelKey(state: {
+	isGatheringContext?: boolean;
+	currentKind?: KnoxGuiActivityKind;
+}): string {
+	if (state.isGatheringContext) {
+		return 'gatheringContext';
+	}
+	return state.currentKind ? activityKindLabelKey(state.currentKind) : 'activityLoading';
+}
+
+export function knoxGuiMeterLoadingVariant(state: {
+	isGatheringContext?: boolean;
+	currentKind?: KnoxGuiActivityKind;
+}): KnoxGuiLoadingVariant {
+	return state.isGatheringContext ? 'dots' : loadingVariantFor(state.currentKind);
+}
+
 export function isBackgroundJobTool(call: IKnoxGuiToolCall): boolean {
 	return call.name.replace(/^builtin_/, '').toLowerCase().replace(/-/g, '_') === 'task';
 }

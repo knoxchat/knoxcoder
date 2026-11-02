@@ -100,10 +100,10 @@ export function renderChatPermissionBar(widget: KnoxGuiWidget, parent: HTMLEleme
 }
 
 export function renderContextPeek(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
-	if (!state.contextItems.length && !state.isGatheringContext) {
+	if (!state.contextItems.length) {
 		return;
 	}
-	widget.renderContextItemsPeek(parent, state, 'main', state.contextItems, Boolean(state.isGatheringContext));
+	widget.renderContextItemsPeek(parent, state, 'main', state.contextItems);
 	const peek = parent.querySelector('.knox-gui-context-peek');
 	peek?.setAttribute('data-testid', 'knox-gui-context-peek');
 	peek?.setAttribute('data-composer-slot', 'contextPeek');

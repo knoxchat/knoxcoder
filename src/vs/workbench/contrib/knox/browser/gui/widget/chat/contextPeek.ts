@@ -11,15 +11,14 @@ import { visibleToolOutputPeekItems } from '../../../../common/knoxGuiPanels.js'
 import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { knoxGuiContextItemFileIconName } from '../../../../common/knoxGuiTranscript.js';
 
-/** `ContextItemsPeek.tsx`: collapsed by default; rows open the item. The latest turn shows gathering progress. */
+/** `ContextItemsPeek.tsx`: collapsed by default; rows open the item. Gathering status lives on the agent meter. */
 export function renderHistoryContextPeek(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, item: IKnoxGuiHistoryItem): void {
-	const lastUser = [...state.history].reverse().find(h => h.role === 'user');
-	renderContextItemsPeek(widget, parent, state, item.id, item.contextItems ?? [], !!state.isGatheringContext && lastUser?.id === item.id);
+	renderContextItemsPeek(widget, parent, state, item.id, item.contextItems ?? []);
 }
 
-export function renderContextItemsPeek(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, key: string, all: readonly IKnoxGuiContextItem[], gathering: boolean): void {
+export function renderContextItemsPeek(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, key: string, all: readonly IKnoxGuiContextItem[]): void {
 	const items = all.filter(ctx => !ctx.hidden);
-	if (!items.length && !gathering) {
+	if (!items.length) {
 		return;
 	}
 	const open = widget.contextPeekOpen.has(key);
@@ -29,11 +28,7 @@ export function renderContextItemsPeek(widget: KnoxGuiWidget, parent: HTMLElemen
 	toggle.setAttribute('data-testid', 'context-items-peek');
 	toggle.setAttribute('aria-expanded', String(open));
 	appendKnoxGuiSvg(toggle, open ? 'chevron-down' : 'chevron-right', 14);
-	if (gathering) {
-		DOM.append(toggle, DOM.$('span.knox-gui-thinking-dots', undefined, t(state, 'gatheringContext')));
-	} else {
-		toggle.append(t(state, 'relatedContextItems', { count: items.length }));
-	}
+	toggle.append(t(state, 'relatedContextItems', { count: items.length }));
 	widget.renderStore.add(DOM.addDisposableListener(toggle, 'click', () => {
 		if (open) {
 			widget.contextPeekOpen.delete(key);
@@ -111,7 +106,7 @@ export function renderToolOutputPeek(widget: KnoxGuiWidget, parent: HTMLElement,
 	const items = visibleToolOutputPeekItems(raw.length ? raw : (item.content.trim() ? [{ name: 'Tool', content: item.content }] : []));
 	const wrap = DOM.append(parent, DOM.$('div'));
 	wrap.setAttribute('data-testid', 'knox-gui-tool-output');
-	renderContextItemsPeek(widget, wrap, state, `${item.id}:tool-output`, items.map(output => ({ ...output, name: output.name || 'Tool', content: output.content ?? '' })), false);
+	renderContextItemsPeek(widget, wrap, state, `${item.id}:tool-output`, items.map(output => ({ ...output, name: output.name || 'Tool', content: output.content ?? '' })));
 	if (!wrap.childElementCount) {
 		wrap.remove();
 	}

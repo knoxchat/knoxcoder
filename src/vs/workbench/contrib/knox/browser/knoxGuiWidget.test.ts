@@ -1363,6 +1363,41 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-composer-dock"] [data-testid="knox-gui-scroll-bottom"]'), null);
 	});
 
+	test('Gathering context shows on the agent meter, not below the input', async () => {
+		const { widget, store } = await mount();
+		store.patch({
+			mode: 'agent',
+			isStreaming: true,
+			isGatheringContext: true,
+			history: [
+				{ id: 'u', role: 'user', content: 'hello', createdAt: new Date().toISOString() },
+				{ id: 'a', role: 'assistant', content: '' },
+			],
+		});
+		const loading = widget.root.querySelector('[data-testid="agent-turn-meter-loading"]');
+		assert.ok(loading);
+		assert.ok(loading.textContent?.includes('Gathering context'));
+		const editor = widget.root.querySelector('[data-testid="knox-gui-input"]');
+		assert.ok(editor);
+		const meter = widget.root.querySelector('[data-testid="agent-turn-meter"]');
+		assert.ok(meter);
+		assert.ok(meter.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-context-peek"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="context-items-peek"]'), null);
+
+		store.patch({
+			contextItems: [{ name: 'foo.ts', content: 'export const n = 1;', uri: 'file:///foo.ts' }],
+		});
+		const peek = widget.root.querySelector('[data-testid="knox-gui-context-peek"]');
+		assert.ok(peek);
+		assert.ok(!peek.textContent?.includes('Gathering context'));
+		assert.ok(peek.textContent?.includes('related context'));
+		const liveEditor = widget.root.querySelector('[data-testid="knox-gui-input"]');
+		assert.ok(liveEditor);
+		assert.ok(liveEditor.compareDocumentPosition(peek) & Node.DOCUMENT_POSITION_FOLLOWING);
+		assert.ok(widget.root.querySelector('[data-testid="agent-turn-meter-loading"]')?.textContent?.includes('Gathering context'));
+	});
+
 	test('Thinking and Loading stay off the composer; collapsed dock still cancels', async () => {
 		const posted: string[] = [];
 		const { widget, store } = await mount(message => {

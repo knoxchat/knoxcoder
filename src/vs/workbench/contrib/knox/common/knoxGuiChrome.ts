@@ -158,6 +158,7 @@ export function knoxGuiEditSendKey(state: { mode: KnoxChatMode; applyStates?: Ar
 /**
  * Chat.tsx `input-container` then KnoxInputBox: pending tool bar → lump →
  * overlay → meter → panels → editor → context peek → accept/reject.
+ * Gathering context is a meter label, not a peek row under the editor.
  */
 export const KNOX_GUI_COMPOSER_SLOTS = [
 	'pendingToolBar',
@@ -194,6 +195,11 @@ export function knoxGuiShowsAgentMeter(mode: KnoxChatMode): boolean {
 	return mode === 'agent';
 }
 
+/** Agent always has the meter. Chat/edit only mount it while context is gathering. */
+export function knoxGuiShowsComposerAgentMeter(state: { mode: KnoxChatMode; isGatheringContext?: boolean }): boolean {
+	return knoxGuiShowsAgentMeter(state.mode) || Boolean(state.isGatheringContext);
+}
+
 /** Chat.tsx ToolCallButtons: generated, not AskUser, not auto-approved. */
 export function knoxGuiShowsChatPermissionBar(
 	call: IKnoxGuiToolCall | undefined,
@@ -213,8 +219,9 @@ export function knoxGuiShowsChatPermissionBar(
 }
 
 /**
- * Composer pending bar is permission prompts only. Thinking / Loading already live on the
- * always-visible agent meter (and the dock cancel orb), so they must not stack above the toolbar.
+ * Composer pending bar is permission prompts only. Thinking / Loading / Gathering context
+ * already live on the agent meter (and the dock cancel orb), so they must not stack under
+ * the input or above the toolbar.
  */
 export function knoxGuiShowsChatToolButtons(call: IKnoxGuiToolCall | undefined): call is IKnoxGuiToolCall {
 	if (!call || isAskUserToolName(call.name)) {

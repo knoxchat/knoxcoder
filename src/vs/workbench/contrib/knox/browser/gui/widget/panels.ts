@@ -39,7 +39,6 @@ import {
 	IKnoxGuiTaskPlanStep,
 } from '../../../common/knoxGuiState.js';
 import {
-	activityKindLabelKey,
 	buildAgentActivitySteps,
 	collectTurnPromptLogs,
 	countTurnToolLoopSteps,
@@ -48,11 +47,12 @@ import {
 	formatDurationMs,
 	formatLoadingElapsed,
 	formatTokenCount,
-	hasForegroundCallingToolCalls,
 	itemCreatedAtMs,
+	knoxGuiMeterIsLive,
+	knoxGuiMeterLoadingLabelKey,
+	knoxGuiMeterLoadingVariant,
 	knoxGuiShowsCodeToEditOnEmptyComposer,
 	loadingPixelDelays,
-	loadingVariantFor,
 	resolveAgentMaxSteps,
 	summarizeJevPromptLogs,
 	turnElapsedMs,
@@ -62,14 +62,14 @@ import { makeKnoxGuiActivatable } from './a11y.js';
 export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
 	const userIndex = lastUserHistoryIndex(state.history);
 	const steps = buildAgentActivitySteps(state.history, userIndex, { inProgress: state.isStreaming });
-	const live = state.isStreaming || hasForegroundCallingToolCalls(state.history);
+	const live = knoxGuiMeterIsLive(state);
 	const autonomousActive = state.autonomous !== undefined && state.autonomous !== null && state.autonomous.status !== 'idle';
 	const used = Math.max(state.toolLoopSteps, countTurnToolLoopSteps(state.history, userIndex));
-	if (userIndex < 0 && !state.isStreaming && !autonomousActive) {
+	if (userIndex < 0 && !live && !autonomousActive) {
 		widget.clearMeterClock();
 		return;
 	}
-	if (!steps.length && !state.isStreaming && used === 0 && !autonomousActive) {
+	if (!steps.length && !live && used === 0 && !autonomousActive) {
 		widget.clearMeterClock();
 		return;
 	}
@@ -92,8 +92,12 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	const turnKey = `${userIndex}:${startedAt ?? ''}`;
 	if (widget.meterTurnKey !== turnKey) {
 		widget.meterFollowEnabled = true;
+		widget.meterStartedAt = startedAt ?? Date.now();
+	} else if (startedAt !== undefined) {
+		widget.meterStartedAt = startedAt;
+	} else if (widget.meterStartedAt === undefined) {
+		widget.meterStartedAt = Date.now();
 	}
-	widget.meterStartedAt = startedAt;
 	widget.meterTurnKey = turnKey;
 	const jevSummary = summarizeJevPromptLogs(logs);
 	const elapsed = turnElapsedMs(state.history, userIndex, Date.now(), live);
@@ -118,9 +122,9 @@ export function renderAgentMeter(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	}
 	if (live) {
 		renderLoadingState(widget, toggle, {
-			label: current ? t(state, activityKindLabelKey(current.kind)) : t(state, 'activityLoading'),
-			variant: loadingVariantFor(current?.kind),
-			startedAt,
+			label: t(state, knoxGuiMeterLoadingLabelKey({ isGatheringContext: state.isGatheringContext, currentKind: current?.kind })),
+			variant: knoxGuiMeterLoadingVariant({ isGatheringContext: state.isGatheringContext, currentKind: current?.kind }),
+			startedAt: widget.meterStartedAt,
 			testId: 'agent-turn-meter-loading',
 		});
 	}

@@ -92,8 +92,8 @@ export abstract class KnoxGuiChatFacade extends KnoxGuiControlsFacade {
 		knoxGuiChatView.renderHistoryContextPeek(this, parent, state, item);
 	}
 
-	renderContextItemsPeek(this: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, key: string, items: readonly IKnoxGuiContextItem[], gathering: boolean): void {
-		knoxGuiChatView.renderContextItemsPeek(this, parent, state, key, items, gathering);
+	renderContextItemsPeek(this: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, key: string, items: readonly IKnoxGuiContextItem[]): void {
+		knoxGuiChatView.renderContextItemsPeek(this, parent, state, key, items);
 	}
 
 	renderContextPeekItem(this: KnoxGuiWidget, parent: HTMLElement, ctx: IKnoxGuiContextItem): HTMLElement {
