@@ -1508,6 +1508,13 @@
 					"fontPath": "./media/memory.woff",
 					"fontCharacter": "\\F101"
 				}
+			},
+			"knox-settings": {
+				"description": "Settings",
+				"default": {
+					"fontPath": "./media/settings.woff",
+					"fontCharacter": "\\F101"
+				}
 			}
 		},
 		"textModelApiAssistProviders": [

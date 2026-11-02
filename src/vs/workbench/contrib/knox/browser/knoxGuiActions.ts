@@ -14,7 +14,7 @@ import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { KNOX_VIEW_ID } from '../../../common/knox.js';
 import { IKnoxService } from '../common/knoxService.js';
 import { KnoxChatViewPane } from './knoxChatViewPane.js';
-import { KnoxCheckpointGraphEditorInput, KnoxHistoryEditorInput, KnoxMemoryEditorInput } from './knoxGuiEditors.js';
+import { KnoxCheckpointGraphEditorInput, KnoxHistoryEditorInput, KnoxMemoryEditorInput, KnoxSettingsEditorInput } from './knoxGuiEditors.js';
 
 async function knoxPane(accessor: ServicesAccessor): Promise<KnoxChatViewPane | undefined> {
 	const view = await accessor.get(IViewsService).openView<KnoxChatViewPane>(KNOX_VIEW_ID, true);
@@ -82,8 +82,8 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const pane = await knoxPane(accessor);
-		pane?.getController()?.openSettingsOverlay();
+		const editorService = accessor.get(IEditorService);
+		await editorService.openEditor(new KnoxSettingsEditorInput(), { pinned: true });
 	}
 });
 
@@ -146,8 +146,8 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const pane = await knoxPane(accessor);
-		pane?.getController()?.store.setOverlay('settings');
+		const editorService = accessor.get(IEditorService);
+		await editorService.openEditor(new KnoxSettingsEditorInput(), { pinned: true });
 	}
 });
 

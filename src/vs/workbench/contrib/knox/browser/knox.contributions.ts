@@ -53,7 +53,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import './knoxGuiActions.js';
 import './knoxTitlebarActions.js';
 import './knoxGuiEditCommands.js';
-import { KnoxCheckpointGraphEditor, KnoxCheckpointGraphEditorInput, KnoxCheckpointGraphEditorInputSerializer, KnoxHistoryEditor, KnoxHistoryEditorInput, KnoxHistoryEditorInputSerializer, KnoxMemoryEditor, KnoxMemoryEditorInput, KnoxMemoryEditorInputSerializer } from './knoxGuiEditors.js';
+import { KnoxCheckpointGraphEditor, KnoxCheckpointGraphEditorInput, KnoxCheckpointGraphEditorInputSerializer, KnoxHistoryEditor, KnoxHistoryEditorInput, KnoxHistoryEditorInputSerializer, KnoxMemoryEditor, KnoxMemoryEditorInput, KnoxMemoryEditorInputSerializer, KnoxSettingsEditor, KnoxSettingsEditorInput, KnoxSettingsEditorInputSerializer } from './knoxGuiEditors.js';
 import './knoxChatViewPane.js';
 
 registerSingleton(IKnoxService, KnoxService, InstantiationType.Delayed);
@@ -76,9 +76,15 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[new SyncDescriptor(KnoxCheckpointGraphEditorInput)]
 );
 
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(KnoxSettingsEditor, KnoxSettingsEditor.ID, localize('knox.settingsEditor', "Knox Settings")),
+	[new SyncDescriptor(KnoxSettingsEditorInput)]
+);
+
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KnoxHistoryEditorInput.ID, KnoxHistoryEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KnoxMemoryEditorInput.ID, KnoxMemoryEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KnoxCheckpointGraphEditorInput.ID, KnoxCheckpointGraphEditorInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KnoxSettingsEditorInput.ID, KnoxSettingsEditorInputSerializer);
 
 CommandsRegistry.registerCommand(KNOX_WORKBENCH_DIFF_COMMAND, (accessor, payload: IKnoxAgentDiffRanges | undefined) => {
 	const service = accessor.get(IKnoxDiffDecorationService);

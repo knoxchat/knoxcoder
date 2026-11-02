@@ -21,7 +21,7 @@ import { KNOX_VIEW_ID } from '../../../common/knox.js';
 import { knoxGuiNextLanguage, knoxGuiResolveLanguage } from '../common/knoxGuiPersist.js';
 import { LANGUAGE_KEY } from './gui/controller/helpers.js';
 import { KnoxChatViewPane } from './knoxChatViewPane.js';
-import { KnoxCheckpointGraphEditor, KnoxCheckpointGraphEditorInput, KnoxHistoryEditor, KnoxHistoryEditorInput, KnoxMemoryEditor, KnoxMemoryEditorInput } from './knoxGuiEditors.js';
+import { KnoxCheckpointGraphEditor, KnoxCheckpointGraphEditorInput, KnoxHistoryEditor, KnoxHistoryEditorInput, KnoxMemoryEditor, KnoxMemoryEditorInput, KnoxSettingsEditor, KnoxSettingsEditorInput } from './knoxGuiEditors.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { TitleBarLeadingActionsGroup } from '../../../browser/parts/titlebar/titlebarActions.js';
@@ -31,6 +31,7 @@ export const TOGGLE_KNOX_COLOR_THEME_ID = 'workbench.action.knox.toggleColorThem
 export const OPEN_KNOX_HISTORY_TITLEBAR_ID = 'workbench.action.knox.titlebar.openHistory';
 export const OPEN_KNOX_MEMORY_TITLEBAR_ID = 'workbench.action.knox.titlebar.openMemory';
 export const OPEN_KNOX_CHECKPOINT_GRAPH_TITLEBAR_ID = 'workbench.action.knox.titlebar.openCheckpointGraph';
+export const OPEN_KNOX_SETTINGS_TITLEBAR_ID = 'workbench.action.knox.titlebar.openSettings';
 
 export const KnoxGuiLanguageContext = new RawContextKey<string>('knoxGuiLanguage', 'en', {
 	type: 'string',
@@ -43,6 +44,7 @@ const titlebarThemeIcon = registerIcon('titlebar-theme', Codicon.colorMode, loca
 const titlebarHistoryIcon = registerIcon('titlebar-knox-history', ThemeIcon.fromId('knox-history'), localize('titlebarKnoxHistory', "Open Knox History"));
 const titlebarMemoryIcon = registerIcon('titlebar-knox-memory', ThemeIcon.fromId('knox-memory'), localize('titlebarKnoxMemory', "Open Knox Memory"));
 const titlebarCheckpointGraphIcon = registerIcon('titlebar-knox-checkpoint-graph', ThemeIcon.fromId('knox-checkpoint-graph'), localize('titlebarKnoxCheckpointGraph', "Open Knox Checkpoint Graph"));
+const titlebarSettingsIcon = registerIcon('titlebar-knox-settings', ThemeIcon.fromId('knox-settings'), localize('titlebarKnoxSettings', "Open Knox Settings"));
 
 const titlebarToggleWhen = ContextKeyExpr.and(
 	IsAuxiliaryWindowContext.negate(),
@@ -52,7 +54,7 @@ const titlebarToggleWhen = ContextKeyExpr.and(
 	),
 );
 
-// Memory, Checkpoint Graph, then History: leading group of the right title bar
+// Memory, Checkpoint Graph, History, then Settings: leading group of the right title bar
 // toolbar (same 22×22 action-label box), i.e. directly left of Customize Layout.
 registerAction2(class KnoxTitlebarOpenHistoryAction extends Action2 {
 	constructor() {
@@ -76,6 +78,31 @@ registerAction2(class KnoxTitlebarOpenHistoryAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		await accessor.get(IEditorService).openEditor(new KnoxHistoryEditorInput(), { pinned: true });
+	}
+});
+
+registerAction2(class KnoxTitlebarOpenSettingsAction extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_KNOX_SETTINGS_TITLEBAR_ID,
+			title: localize2('knox.titlebar.openSettings', 'Knox Settings'),
+			tooltip: localize('knox.titlebar.openSettingsTooltip', "Knox settings — click to open Settings"),
+			icon: titlebarSettingsIcon,
+			toggled: {
+				condition: ActiveEditorContext.isEqualTo(KnoxSettingsEditor.ID),
+				icon: titlebarSettingsIcon,
+			},
+			menu: {
+				id: MenuId.TitleBar,
+				group: TitleBarLeadingActionsGroup,
+				order: 3,
+				when: IsAuxiliaryWindowContext.negate(),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IEditorService).openEditor(new KnoxSettingsEditorInput(), { pinned: true });
 	}
 });
 

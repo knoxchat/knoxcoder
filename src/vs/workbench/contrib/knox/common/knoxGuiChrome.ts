@@ -6,15 +6,14 @@
 import { KnoxGuiRoute, type KnoxGuiOverlay } from './knoxGuiProtocol.js';
 import { isAskUserToolName } from './knoxGuiChat.js';
 import { countRunningJobs } from './knoxGuiPanels.js';
-import { knoxGuiIsDedicatedEditor, type IKnoxGuiBackgroundJob, type IKnoxGuiHistoryItem, type IKnoxGuiSessionTab, type IKnoxGuiState, type IKnoxGuiToolCall, type KnoxChatMode, type KnoxToolSetting } from './knoxGuiState.js';
+import { knoxGuiIsDedicatedEditor, knoxGuiVisibleSessionTabs, type IKnoxGuiBackgroundJob, type IKnoxGuiHistoryItem, type IKnoxGuiHistorySession, type IKnoxGuiSessionTab, type IKnoxGuiState, type IKnoxGuiToolCall, type KnoxChatMode, type KnoxToolSetting } from './knoxGuiState.js';
 
-/** Lump toolbar sections in `BlockSettingsTopToolbar` (context is overlay-only). History lives in the title bar. Icons match lucide. */
+/** Lump toolbar sections in `BlockSettingsTopToolbar` (context is overlay-only). History and Settings live in the title bar. Icons match lucide. */
 export const KNOX_GUI_LUMP_TOOLBAR = [
 	{ id: 'models' as const, key: 'models', svg: 'cpu' as const },
 	{ id: 'rules' as const, key: 'rules', svg: 'square-pen' as const },
 	{ id: 'prompts' as const, key: 'prompts', svg: 'scroll-text' as const },
 	{ id: 'tools' as const, key: 'tools', svg: 'wrench' as const },
-	{ id: 'settings' as const, key: 'settings', svg: 'settings' as const },
 ];
 
 /** Session Chat/Agent tabs are gone; Jev (or Agent-only) picks. Edit is Cmd+I only. */
@@ -72,15 +71,23 @@ export function knoxGuiShowsMainComposer(state: {
 	return !(state.mode === 'edit' && state.history.length > 0);
 }
 
-/** TabBar is hidden while there is only one tab, matching TabBar. Dedicated editors never show it. */
-export function knoxGuiShowsSessionTabs(state: { showSessionTabs: boolean; tabs: IKnoxGuiSessionTab[]; route?: KnoxGuiRoute; lockedRoute?: KnoxGuiRoute }): boolean {
+/** TabBar is hidden while there is only one real tab, matching TabBar. Dedicated editors never show it. */
+export function knoxGuiShowsSessionTabs(state: {
+	showSessionTabs: boolean;
+	tabs: IKnoxGuiSessionTab[];
+	route?: KnoxGuiRoute;
+	lockedRoute?: KnoxGuiRoute;
+	activeTabId?: string;
+	sessionId?: string;
+	historySessions?: ReadonlyArray<Pick<IKnoxGuiHistorySession, 'id'>>;
+}): boolean {
 	if (knoxGuiIsDedicatedEditor(state)) {
 		return false;
 	}
-	if (state.route === KnoxGuiRoute.History || state.route === KnoxGuiRoute.Memory || state.route === KnoxGuiRoute.CheckpointGraph) {
+	if (state.route === KnoxGuiRoute.History || state.route === KnoxGuiRoute.Memory || state.route === KnoxGuiRoute.CheckpointGraph || state.route === KnoxGuiRoute.Config) {
 		return false;
 	}
-	return Boolean(state.showSessionTabs && state.tabs.length > 1);
+	return Boolean(state.showSessionTabs && knoxGuiVisibleSessionTabs(state).length > 1);
 }
 
 export function knoxGuiShowsFatalBanner(state: { fatalConfig: boolean; route: KnoxGuiRoute }): boolean {

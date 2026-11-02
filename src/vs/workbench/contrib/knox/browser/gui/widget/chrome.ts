@@ -25,7 +25,7 @@ import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, CHAT_USER_SCROLL_IDLE_MS, knoxGuiFindR
 import { knoxGuiIsImeComposing, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { visibleBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
-import { IKnoxGuiState, KnoxPermissionMode, knoxGuiPermissionModeHintKey, knoxGuiPermissionModeLabelKey, PERMISSION_MODES } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiState, KnoxPermissionMode, knoxGuiPermissionModeHintKey, knoxGuiPermissionModeLabelKey, knoxGuiVisibleSessionTabs, PERMISSION_MODES } from '../../../common/knoxGuiState.js';
 import { pendingApplyStates } from '../../../common/knoxGuiTranscript.js';
 import { onCheckpointGraphKeyDown } from './checkpointGraph.js';
 import { checkpointTimelineEscape } from './checkpoints.js';
@@ -407,7 +407,7 @@ export function renderTabs(widget: KnoxGuiWidget, state: IKnoxGuiState): void { 
 	row.setAttribute('data-testid', 'knox-gui-tabs');
 	row.setAttribute('role', 'tablist');
 	row.setAttribute('aria-label', t(state, 'knoxGuiRegion'));
-	for (const tab of state.tabs) {
+	for (const tab of knoxGuiVisibleSessionTabs(state)) {
 		const active = tab.id === state.activeTabId;
 		const el = DOM.append(row, DOM.$('div.knox-gui-tab'));
 		el.setAttribute('role', 'tab');

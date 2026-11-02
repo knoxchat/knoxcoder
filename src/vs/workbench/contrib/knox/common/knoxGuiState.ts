@@ -913,7 +913,8 @@ export interface IKnoxGuiPromptDraft {
 export function knoxGuiIsDedicatedEditor(state: { lockedRoute?: KnoxGuiRoute }): boolean {
 	return state.lockedRoute === KnoxGuiRoute.History
 		|| state.lockedRoute === KnoxGuiRoute.Memory
-		|| state.lockedRoute === KnoxGuiRoute.CheckpointGraph;
+		|| state.lockedRoute === KnoxGuiRoute.CheckpointGraph
+		|| state.lockedRoute === KnoxGuiRoute.Config;
 }
 
 /** Session the "This session" checkpoint filter uses: the mirrored chat session in the Checkpoint Graph editor. */
@@ -1556,6 +1557,76 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 	};
 }
 
+const PLACEHOLDER_SESSION_TAB_TITLE = /^(?:Chat|\u5bf9\u8bdd)\s+\d+$/i;
+const NEW_CHAT_TAB_TITLES = new Set(['New Chat', '\u65b0\u5efa\u5bf9\u8bdd']);
+
+/** Untitled leftover tabs (`Chat 12`, `New Chat`) — not a real conversation title. */
+export function knoxGuiIsPlaceholderSessionTabTitle(title: string): boolean {
+	const trimmed = title.trim();
+	return !trimmed || PLACEHOLDER_SESSION_TAB_TITLE.test(trimmed) || NEW_CHAT_TAB_TITLES.has(trimmed);
+}
+
+export function knoxGuiPruneSessionTabs(
+	tabs: readonly IKnoxGuiSessionTab[],
+	opts: { activeTabId: string; currentSessionId?: string; savedSessionIds?: ReadonlySet<string> },
+): { tabs: IKnoxGuiSessionTab[]; activeTabId: string } {
+	const next = tabs.filter(tab => {
+		if (tab.id === opts.activeTabId) {
+			return true;
+		}
+		if (opts.currentSessionId && tab.sessionId === opts.currentSessionId) {
+			return true;
+		}
+		if (tab.sessionId && opts.savedSessionIds?.has(tab.sessionId)) {
+			return true;
+		}
+		return !knoxGuiIsPlaceholderSessionTabTitle(tab.title);
+	});
+	return {
+		tabs: next,
+		activeTabId: next.some(tab => tab.id === opts.activeTabId) ? opts.activeTabId : (next[0]?.id ?? ''),
+	};
+}
+
+export function knoxGuiPruneSessionTabsFromState(state: {
+	tabs: readonly IKnoxGuiSessionTab[];
+	activeTabId: string;
+	sessionId?: string;
+	historySessions?: ReadonlyArray<{ id: string }>;
+}): { tabs: IKnoxGuiSessionTab[]; activeTabId: string } {
+	return knoxGuiPruneSessionTabs(state.tabs, {
+		activeTabId: state.activeTabId,
+		currentSessionId: state.sessionId,
+		savedSessionIds: new Set((state.historySessions ?? []).map(session => session.id)),
+	});
+}
+
+export function knoxGuiVisibleSessionTabs(state: {
+	tabs: readonly IKnoxGuiSessionTab[];
+	activeTabId?: string;
+	sessionId?: string;
+	historySessions?: ReadonlyArray<{ id: string }>;
+}): IKnoxGuiSessionTab[] {
+	return knoxGuiPruneSessionTabsFromState({
+		tabs: state.tabs,
+		activeTabId: state.activeTabId ?? '',
+		sessionId: state.sessionId,
+		historySessions: state.historySessions,
+	}).tabs;
+}
+
+function assignSessionTab(
+	tabs: IKnoxGuiSessionTab[],
+	tabId: string,
+	sessionId: string,
+	title: string,
+): { tabs: IKnoxGuiSessionTab[]; activeTabId: string } {
+	return {
+		tabs: tabs.map(tab => tab.id === tabId ? { ...tab, sessionId, title: title || tab.title } : tab),
+		activeTabId: tabId,
+	};
+}
+
 export function applySessionTabChange(
 	tabs: IKnoxGuiSessionTab[],
 	activeTabId: string,
@@ -1590,12 +1661,16 @@ export function applySessionTabChange(
 		};
 	}
 	if (!activeTab.sessionId) {
-		return {
-			tabs: tabs.map(tab => tab.id === activeTab.id
-				? { ...tab, sessionId: currentSessionId, title: currentSessionTitle || tab.title }
-				: tab),
-			activeTabId: activeTab.id,
-		};
+		return assignSessionTab(tabs, activeTab.id, currentSessionId, currentSessionTitle);
+	}
+	if (knoxGuiIsPlaceholderSessionTabTitle(currentSessionTitle)) {
+		const vacant = tabs.find(tab => !tab.sessionId || knoxGuiIsPlaceholderSessionTabTitle(tab.title));
+		if (vacant) {
+			return assignSessionTab(tabs, vacant.id, currentSessionId, currentSessionTitle);
+		}
+	}
+	if (knoxGuiIsPlaceholderSessionTabTitle(activeTab.title)) {
+		return assignSessionTab(tabs, activeTab.id, currentSessionId, currentSessionTitle);
 	}
 	const tab = { id: newTabId, title: currentSessionTitle || 'Chat', sessionId: currentSessionId };
 	return { tabs: [...tabs, tab], activeTabId: tab.id };

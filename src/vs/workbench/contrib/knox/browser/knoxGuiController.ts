@@ -111,7 +111,7 @@ export class KnoxGuiController extends Disposable {
 		if (storedLanguage !== language) {
 			this.storageService.store(LANGUAGE_KEY, language, StorageScope.PROFILE, StorageTarget.USER);
 		}
-		// The sidebar chat, History, Memory and Checkpoint Graph each own a controller; they share the
+		// The sidebar chat, History, Memory, Checkpoint Graph and Settings each own a controller; they share the
 		// stored choice so switching it in any one of them re-renders the others
 		// (the original panels follow `guiLanguageChanged` the same way).
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, LANGUAGE_KEY, this._store)(() => {

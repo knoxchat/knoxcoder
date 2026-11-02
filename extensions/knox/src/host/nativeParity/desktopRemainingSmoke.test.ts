@@ -254,6 +254,24 @@ suite("KN-144 remaining desktop smoke", function () {
     );
   });
 
+  test("Settings panel opens", async () => {
+    await knoxApi();
+    await vscode.commands.executeCommand("workbench.action.knox.openSettings");
+    const tabs = vscode.window.tabGroups.all.flatMap((group) => group.tabs);
+    const opened = tabs.some((tab) => {
+      const input = tab.input as { viewType?: string } | undefined;
+      return (
+        /settings/i.test(tab.label) ||
+        input?.viewType === "workbench.editor.knoxSettings" ||
+        input?.viewType === "workbench.input.knoxSettings"
+      );
+    });
+    assert.ok(
+      opened,
+      `expected Settings editor, got tabs: ${tabs.map((tab) => tab.label).join(", ") || "(none)"}`,
+    );
+  });
+
   test("Memory panel opens", async () => {
     await knoxApi();
     await vscode.commands.executeCommand("workbench.action.knox.openMemory");

@@ -23,7 +23,7 @@ import { IKnoxGuiMessage, KNOX_GUI_HEARTBEAT_MS, KnoxGuiRoute } from '../common/
 import { DEFAULT_MENTION_PROVIDER_TITLES, inputDocFromPlainText, SLASH_BUILTINS } from '../common/knoxGuiInput.js';
 import { DEFAULT_PERMISSION_MODE, IKnoxGuiModel } from '../common/knoxGuiState.js';
 import { IKnoxService } from '../common/knoxService.js';
-import { DRAFT_SESSION_KEY, UI_STATE_KEY, WORKSPACE_PERMISSION_KEY } from './gui/controller/persistence.js';
+import { DRAFT_SESSION_KEY, TABS_KEY, UI_STATE_KEY, WORKSPACE_PERMISSION_KEY } from './gui/controller/persistence.js';
 import { KnoxGuiController } from './knoxGuiController.js';
 import { KnoxGuiMessenger } from './knoxGuiMessenger.js';
 import { KnoxGuiStore } from './knoxGuiStore.js';
@@ -568,6 +568,29 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.notStrictEqual(store.state.sessionId, 'other');
 	});
 
+	test('Settings editor stays on config and ignores chat inbound', async () => {
+		const { controller, store } = createHarness({
+			lock: KnoxGuiRoute.Config,
+			replies: {
+				'history/list': [{ id: 'sess-1', title: 'Old chat' }],
+				'history/load': { sessionId: 'sess-1', title: 'Old chat', history: [{ role: 'user', content: 'hi' }] },
+			},
+		});
+		await timeout(0);
+		assert.strictEqual(store.state.route, KnoxGuiRoute.Config);
+		assert.strictEqual(store.state.lockedRoute, KnoxGuiRoute.Config);
+		await controller.handleInbound('newSession', undefined, 'ns-settings');
+		assert.strictEqual(store.state.route, KnoxGuiRoute.Config);
+		store.patch({ route: KnoxGuiRoute.Chat, overlay: 'settings' });
+		assert.strictEqual(store.state.route, KnoxGuiRoute.Config);
+		assert.strictEqual(store.state.overlay, null);
+		store.navigate('/');
+		assert.strictEqual(store.state.route, KnoxGuiRoute.Config);
+		await controller.handleInbound('activeChatSessionChanged', { sessionId: 'other' }, 'ac-settings');
+		assert.strictEqual(store.state.route, KnoxGuiRoute.Config);
+		assert.notStrictEqual(store.state.sessionId, 'other');
+	});
+
 	test('Checkpoint Graph editor lists "This session" checkpoints for the mirrored chat session', async () => {
 		const { controller, store, posted } = createHarness({
 			lock: KnoxGuiRoute.CheckpointGraph,
@@ -601,15 +624,18 @@ suite('Knox native GUI controller (GP-084)', () => {
 		const memory = createHarness({ storage, lock: KnoxGuiRoute.Memory });
 		const checkpoints = createHarness({ storage, lock: KnoxGuiRoute.CheckpointGraph });
 		const history = createHarness({ storage, lock: KnoxGuiRoute.History });
+		const settings = createHarness({ storage, lock: KnoxGuiRoute.Config });
 		await timeout(0);
 		await chat.controller.setLanguage('zh');
 		assert.strictEqual(memory.store.state.language, 'zh');
 		assert.strictEqual(checkpoints.store.state.language, 'zh');
 		assert.strictEqual(history.store.state.language, 'zh');
+		assert.strictEqual(settings.store.state.language, 'zh');
 		await checkpoints.controller.setLanguage('en');
 		assert.strictEqual(chat.store.state.language, 'en');
 		assert.strictEqual(memory.store.state.language, 'en');
 		assert.strictEqual(history.store.state.language, 'en');
+		assert.strictEqual(settings.store.state.language, 'en');
 		storage.store('knox.gui.language', 'fr', StorageScope.PROFILE, StorageTarget.USER);
 		assert.strictEqual(memory.store.state.language, 'en', 'unsupported values are ignored');
 	});
@@ -627,6 +653,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		['Checkpoint Graph', KnoxGuiRoute.CheckpointGraph, '.knox-gui-checkpoint-tab-bar'],
 		['Memory', KnoxGuiRoute.Memory, '.knox-gui-memory-tabbar'],
 		['History', KnoxGuiRoute.History, '.knox-gui-history-header'],
+		['Settings', KnoxGuiRoute.Config, '.knox-gui-settings-card'],
 	] as const) {
 		test(`${name} editor does not render a duplicate language toggle`, async () => {
 			const { controller, store } = createHarness({ lock: route });
@@ -795,6 +822,38 @@ suite('Knox native GUI controller (GP-084)', () => {
 		await timeout(2500);
 		assert.ok(storage.get(DRAFT_SESSION_KEY, StorageScope.WORKSPACE)?.includes('draft body'), 'the last state is flushed after streaming');
 	}));
+
+	test('leftover Chat N session tabs are dropped on restore and New Chat does not stack another empty tab', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(TABS_KEY, JSON.stringify({
+			tabs: [
+				{ id: 't1', title: 'Chat 1', sessionId: 's1' },
+				{ id: 't2', title: 'Chat 2', sessionId: 's2' },
+				{ id: 't3', title: 'Use rust', sessionId: 's3' },
+			],
+			activeTabId: 't3',
+		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const { controller, store } = createHarness({ storage });
+		await timeout(0);
+		assert.deepStrictEqual(store.state.tabs.map(tab => tab.id), ['t3']);
+		assert.strictEqual(store.state.activeTabId, 't3');
+		store.patch({ sessionId: 'empty', history: [], tabs: [{ id: 'cur', title: 'New Chat', sessionId: 'empty' }], activeTabId: 'cur' });
+		await controller.newSession();
+		assert.strictEqual(store.state.tabs.length, 1);
+		assert.strictEqual(store.state.sessionId, 'empty');
+		store.patch({
+			history: [{ id: 'u', role: 'user', content: 'hello' }],
+			sessionTitle: 'hello',
+			tabs: [{ id: 'cur', title: 'hello', sessionId: 'empty' }],
+			activeTabId: 'cur',
+		});
+		await controller.newSession();
+		assert.strictEqual(store.state.history.length, 0);
+		assert.notStrictEqual(store.state.sessionId, 'empty');
+		assert.strictEqual(store.state.tabs.length, 2);
+		assert.ok(store.state.tabs.some(tab => tab.sessionId === 'empty' && tab.title === 'hello'));
+		assert.ok(store.state.tabs.some(tab => tab.sessionId === store.state.sessionId && tab.title === 'New Chat'));
+	});
 
 	test('K-042 typing while the agent runs queues the message, persists it, and restores it after a reload', async () => {
 		const storage = disposables.add(new InMemoryStorageService());

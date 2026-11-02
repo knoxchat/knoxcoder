@@ -348,7 +348,8 @@
 	padding: 0;
 }
 
-.knox-gui-dedicated .knox-gui-body.knox-gui-history-page {
+.knox-gui-dedicated .knox-gui-body.knox-gui-history-page,
+.knox-gui-dedicated .knox-gui-body.knox-gui-settings-page {
 	padding: 12px 16px;
 	gap: 8px;
 }
@@ -674,4 +675,29 @@
 }
 :is(.vscode-light, .vscode-high-contrast-light) .knox-gui .knox-gui-cancel {
 	color: #b45309;
+}
+
+/* Session tabs stay one row at the top of chat. More specific than knoxGuiPanels.css wrap. */
+.knox-gui > .knox-gui-tabs {
+	flex-wrap: nowrap;
+	align-items: stretch;
+	overflow-x: auto;
+	overflow-y: hidden;
+	max-height: 22px;
+	scrollbar-width: thin;
+}
+
+.knox-gui > .knox-gui-tabs::-webkit-scrollbar {
+	height: 3px;
+}
+
+.knox-gui > .knox-gui-tabs > .knox-gui-tab {
+	flex: 0 0 auto;
+	width: 120px;
+	min-width: 80px;
+}
+
+.knox-gui > .knox-gui-tabs > .knox-gui-tabs-rest {
+	flex: 1 1 auto;
+	min-width: 8px;
 }

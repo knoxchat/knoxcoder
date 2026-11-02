@@ -44,7 +44,7 @@ import {
 } from '../../../common/knoxGuiOverlays.js';
 import { KnoxGuiOverlay, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { isSlashBookmarked, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
-import { IKnoxGuiHistorySession, IKnoxGuiState, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiHistorySession, IKnoxGuiState, knoxGuiIsDedicatedEditor, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
 
 export function renderOverlay(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, overlay: Exclude<KnoxGuiOverlay, null>): void {
 	switch (overlay) {
@@ -1018,7 +1018,12 @@ export function onHistoryKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent, state:
 }
 
 export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, compact: boolean): void {
-	if (!compact) {
+	const dedicated = knoxGuiIsDedicatedEditor(state);
+	if (dedicated) {
+		body.classList.add('knox-gui-settings-page');
+		body.setAttribute('data-testid', 'knox-gui-settings');
+	}
+	if (!compact && !dedicated) {
 		widget.back(body, state);
 		const tab = DOM.append(body, DOM.$('.knox-gui-page-tab'));
 		const cell = DOM.append(tab, DOM.$('.knox-gui-page-tab-cell'));
@@ -1046,7 +1051,8 @@ export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: 
 	});
 	card(t(state, 'interfaceSettings'), el => {
 		widget.toggle(el, t(state, 'showSessionTabs'), state.showSessionTabs, value => {
-			widget.controller.store.patch({ showSessionTabs: value });
+			const tabs = knoxGuiPruneSessionTabsFromState(widget.controller.store.state);
+			widget.controller.store.patch({ showSessionTabs: value, tabs: tabs.tabs, activeTabId: tabs.activeTabId });
 			void widget.controller.updateSharedConfig({ showSessionTabs: value });
 		});
 		widget.toggle(el, t(state, 'codeBlockAutoWrap'), state.codeWrap, value => {
@@ -1106,7 +1112,7 @@ export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: 
 		widget.toggle(jev, '', state.jevEnabled, value => {
 			widget.controller.store.patch({ jevEnabled: value });
 			void widget.controller.updateSharedConfig({ jevEnabled: value });
-			if (widget.controller.store.state.toolsSupported && widget.controller.store.state.mode === 'chat') {
+			if (!dedicated && widget.controller.store.state.toolsSupported && widget.controller.store.state.mode === 'chat') {
 				widget.controller.setMode('agent');
 			}
 		});

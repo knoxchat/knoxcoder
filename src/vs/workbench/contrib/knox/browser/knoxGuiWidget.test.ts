@@ -119,7 +119,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		return { widget, store };
 	}
 
-	test('lump icons follow BlockSettingsTopToolbar order and omit Context', async () => {
+	test('lump icons follow BlockSettingsTopToolbar order and omit Context, History, and Settings', async () => {
 		const { widget } = await mount();
 		const lump = widget.root.querySelector('[data-testid="knox-gui-lump"]');
 		assert.ok(lump);
@@ -127,6 +127,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.deepStrictEqual(ids, KNOX_GUI_LUMP_TOOLBAR.map(entry => `knox-gui-lump-${entry.id}`));
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-context"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-history"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-settings"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-starters'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="sample-prompts"]'), null);
 	});
@@ -379,6 +380,29 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-session-id="old"]'), null);
 		assert.ok(widget.root.querySelector('[data-testid="history-count"]')?.textContent?.includes('1'));
 		assert.strictEqual((widget.root.querySelector('[data-testid="history-search"]') as HTMLInputElement).value, 'how');
+	});
+
+	test('locked Settings editor renders settings, not the chat composer', async () => {
+		const { widget, store } = await mount();
+		store.lockView(KnoxGuiRoute.Config);
+		assert.strictEqual(store.state.route, KnoxGuiRoute.Config);
+		assert.ok(widget.root.classList.contains('knox-gui-dedicated'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-settings"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-settings-card'));
+		assert.strictEqual(widget.root.querySelector('.knox-gui-input'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump"]'), null);
+		assert.strictEqual(widget.root.querySelector('.knox-gui-page-back'), null);
+		store.patch({
+			route: KnoxGuiRoute.Chat,
+			overlay: 'settings',
+			showSessionTabs: true,
+			tabs: [{ id: 'a', title: 'Chat 1' }, { id: 'b', title: 'Chat 2' }, { id: 'c', title: 'Use rust' }],
+			activeTabId: 'c',
+		});
+		assert.strictEqual(store.state.route, KnoxGuiRoute.Config);
+		assert.strictEqual(store.state.overlay, null);
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-settings"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-tabs"]'), null);
 	});
 
 	test('locked Memory editor renders the panel, not the chat composer', async () => {
@@ -2997,14 +3021,21 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 
 		store.patch({
 			showSessionTabs: true,
-			tabs: [{ id: 'tab-a', title: 'Chat 1', sessionId: 's1' }, { id: 'tab-b', title: 'Chat 2', sessionId: 's2' }],
+			tabs: [
+				{ id: 'tab-empty', title: 'Chat 1', sessionId: 'empty' },
+				{ id: 'tab-a', title: 'Auth', sessionId: 's1' },
+				{ id: 'tab-b', title: 'Ship', sessionId: 's2' },
+			],
 			activeTabId: 'tab-a',
+			sessionId: 's1',
 		});
 		const tabs = widget.root.querySelector('[data-testid="knox-gui-tabs"]');
 		assert.ok(tabs);
 		assert.strictEqual(tabs.getAttribute('role'), 'tablist');
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-tab-tab-empty"]'), null);
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-tab-tab-a"]')?.classList.contains('active'));
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-tab-tab-a"]')?.getAttribute('aria-selected'), 'true');
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-tab-tab-b"]'));
 
 		store.patch({ fatalConfig: true, route: KnoxGuiRoute.Chat });
 		const fatal = widget.root.querySelector('[data-testid="knox-gui-fatal"]') as HTMLElement | null;

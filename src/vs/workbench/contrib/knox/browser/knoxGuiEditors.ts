@@ -20,11 +20,12 @@ import { KnoxGuiMessenger } from './knoxGuiMessenger.js';
 import { KnoxGuiStore } from './knoxGuiStore.js';
 import { KnoxGuiWidget } from './gui/knoxGuiWidget.js';
 
-// History / Memory / Checkpoint Graph share extension `contributes.icons`
+// History / Memory / Checkpoint Graph / Settings share extension `contributes.icons`
 // (same 22×22 title-bar action box and the same optical glyph size).
 const historyIcon = ThemeIcon.fromId('knox-history');
 const memoryIcon = ThemeIcon.fromId('knox-memory');
 const checkpointIcon = ThemeIcon.fromId('knox-checkpoint-graph');
+const settingsIcon = ThemeIcon.fromId('knox-settings');
 
 abstract class KnoxGuiEditorInputBase extends EditorInput {
 	override get capabilities(): EditorInputCapabilities {
@@ -82,6 +83,14 @@ export class KnoxCheckpointGraphEditorInput extends KnoxGuiEditorInputBase {
 
 	constructor() {
 		super(KnoxCheckpointGraphEditorInput.ID, localize('knox.checkpointGraph', "Checkpoint Graph"), URI.from({ scheme: 'knox', path: '/checkpoint-graph' }), checkpointIcon);
+	}
+}
+
+export class KnoxSettingsEditorInput extends KnoxGuiEditorInputBase {
+	static readonly ID = 'workbench.input.knoxSettings';
+
+	constructor() {
+		super(KnoxSettingsEditorInput.ID, localize('knox.settings', "Settings"), URI.from({ scheme: 'knox', path: '/config' }), settingsIcon);
 	}
 }
 
@@ -199,6 +208,20 @@ export class KnoxCheckpointGraphEditorInputSerializer implements IEditorSerializ
 	}
 }
 
+export class KnoxSettingsEditorInputSerializer implements IEditorSerializer {
+	canSerialize(): boolean {
+		return true;
+	}
+
+	serialize(): string {
+		return '{}';
+	}
+
+	deserialize(): KnoxSettingsEditorInput {
+		return new KnoxSettingsEditorInput();
+	}
+}
+
 export class KnoxCheckpointGraphEditor extends KnoxGuiEditorPane {
 	static readonly ID = 'workbench.editor.knoxCheckpointGraph';
 
@@ -210,5 +233,19 @@ export class KnoxCheckpointGraphEditor extends KnoxGuiEditorPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(KnoxCheckpointGraphEditor.ID, group, KnoxGuiRoute.CheckpointGraph, telemetryService, themeService, storageService, instantiationService);
+	}
+}
+
+export class KnoxSettingsEditor extends KnoxGuiEditorPane {
+	static readonly ID = 'workbench.editor.knoxSettings';
+
+	constructor(
+		group: IEditorGroup,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(KnoxSettingsEditor.ID, group, KnoxGuiRoute.Config, telemetryService, themeService, storageService, instantiationService);
 	}
 }

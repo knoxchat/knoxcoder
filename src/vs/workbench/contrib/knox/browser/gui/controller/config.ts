@@ -13,7 +13,7 @@ import { knoxGuiResolveProfileId, knoxGuiStartupSession } from '../../../common/
 import { agentProfileDefaults, agentProfileSharedConfig, formatPolicyLines, mergeReasoningEffortPrefs, parseYamlRules } from '../../../common/knoxGuiOverlays.js';
 import { KNOX_GUI_HEARTBEAT_MS, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { mergeContextProvidersWithDefaults, mergeSlashCommandsWithBuiltins } from '../../../common/knoxGuiInput.js';
-import { IKnoxGuiContextProvider, IKnoxGuiModel, IKnoxGuiSlashCommand, IKnoxGuiState, IKnoxGuiTool, KnoxGuiLanguage, KnoxModelRole, KnoxPermissionDefaultReason, KnoxPermissionMode, MODEL_ROLES, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiContextProvider, IKnoxGuiModel, IKnoxGuiSlashCommand, IKnoxGuiState, IKnoxGuiTool, KnoxGuiLanguage, KnoxModelRole, KnoxPermissionDefaultReason, KnoxPermissionMode, MODEL_ROLES, knoxGuiIsDedicatedEditor, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
 
 export async function setup(controller: KnoxGuiController): Promise<void> {
 	if (controller.store.state.lockedRoute === KnoxGuiRoute.CheckpointGraph) {
@@ -193,6 +193,7 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 	if (applyHeuristic) {
 		controller.sessionPermissionApplied = true;
 	}
+	const prunedTabs = knoxGuiPruneSessionTabsFromState(controller.store.state);
 	controller.store.patch({
 		models,
 		modelsByRole,
@@ -208,6 +209,8 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 		profileType: typeof top?.profileType === 'string' ? String(top.profileType) : (controller.store.state.profileType ?? (top?.profileId ? 'local' : undefined)),
 		yamlRules: Array.isArray(top?.yamlRules) ? top.yamlRules : controller.store.state.yamlRules,
 		showSessionTabs: Boolean(ui?.showSessionTabs),
+		tabs: prunedTabs.tabs,
+		activeTabId: prunedTabs.activeTabId,
 		fontSize: typeof ui?.fontSize === 'number' ? ui.fontSize : controller.store.state.fontSize,
 		codeWrap: ui?.codeWrap === true || ui?.codeBlockWrap === true,
 		codeBlockToolbarPosition: ui?.codeBlockToolbarPosition === 'bottom' ? 'bottom' : 'top',

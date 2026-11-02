@@ -322,6 +322,9 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(!css.includes('.knox-gui-stats-table'));
 		assert.ok(css.includes('.knox-gui-fatal'));
 		assert.ok(css.includes('.knox-gui-tabs'));
+		assert.ok(/\.knox-gui > \.knox-gui-tabs \{[^}]*flex-wrap:\s*nowrap/.test(css));
+		assert.ok(/\.knox-gui > \.knox-gui-tabs \{[^}]*overflow-x:\s*auto/.test(css));
+		assert.ok(/\.knox-gui > \.knox-gui-tabs > \.knox-gui-tab \{[^}]*flex:\s*0 0 auto/.test(css));
 		assert.ok(css.includes('.knox-gui-find'));
 		assert.ok(css.includes('.knox-gui-find.is-closed'));
 		assert.ok(css.includes('.knox-gui-text-dialog'));

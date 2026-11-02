@@ -15,24 +15,36 @@ import { formatSessionExportMarkdown, sessionExportFilename } from '../../../com
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { knoxGuiResetEditModeState, shouldFocusEditorOnEditExit } from '../../../common/knoxGuiEdit.js';
 import { knoxGuiIsSessionTabMode, knoxGuiModeAfterEditExit } from '../../../common/knoxGuiAgentMode.js';
-import { applyCloseTab, IKnoxGuiHistoryItem, IKnoxGuiHistorySession, IKnoxGuiPromptLog, IKnoxGuiToolCall, KnoxChatMode, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
+import { applyCloseTab, IKnoxGuiHistoryItem, IKnoxGuiHistorySession, IKnoxGuiPromptLog, IKnoxGuiToolCall, KnoxChatMode, knoxGuiIsDedicatedEditor, knoxGuiPruneSessionTabs } from '../../../common/knoxGuiState.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
 import { postSetAgentMode } from './models.js';
 import { knoxGuiHistoryToSessionHistory } from '../../../common/knoxGuiAgentRequest.js';
 import { updateFileSymbolsFromHistory } from './stream.js';
 
 export async function newSession(controller: KnoxGuiController, options?: { generateTitle?: boolean; saveCurrent?: boolean }): Promise<void> {
-	if (controller.store.state.history.length) {
-		if (options?.saveCurrent !== false) {
-			await controller.saveCurrentSession({ generateTitle: options?.generateTitle ?? true });
-		}
+	if (!controller.store.state.history.length) {
+		controller.streamCancel?.cancel();
 		if (controller.store.state.sessionId) {
-			controller.messenger.post('brain/dispatch', { action: 'close_session', session_id: controller.store.state.sessionId });
+			const untitled = knoxGuiT(controller.store.state.language, 'newChat');
+			controller.store.patch({ sessionTitle: untitled, overlay: null, route: KnoxGuiRoute.Chat });
+			controller.store.syncSessionTab(controller.store.state.sessionId, untitled);
+		} else {
+			controller.store.newSession();
+			controller.store.syncSessionTab(controller.store.state.sessionId, knoxGuiT(controller.store.state.language, 'newChat'));
+			controller.syncActiveSession();
 		}
+		postSetAgentMode(controller);
+		return;
+	}
+	if (options?.saveCurrent !== false) {
+		await controller.saveCurrentSession({ generateTitle: options?.generateTitle ?? true });
+	}
+	if (controller.store.state.sessionId) {
+		controller.messenger.post('brain/dispatch', { action: 'close_session', session_id: controller.store.state.sessionId });
 	}
 	controller.streamCancel?.cancel();
 	controller.store.newSession();
-	const untitled = knoxGuiT(controller.store.state.language, 'chatTab', { number: controller.store.state.tabs.length + 1 });
+	const untitled = knoxGuiT(controller.store.state.language, 'newChat');
 	controller.store.syncSessionTab(controller.store.state.sessionId, untitled);
 	controller.syncActiveSession();
 	postSetAgentMode(controller);
@@ -197,7 +209,7 @@ export async function deleteSessions(controller: KnoxGuiController, ids: string[
 
 function openFreshSession(controller: KnoxGuiController): void {
 	controller.store.newSession();
-	controller.store.syncSessionTab(controller.store.state.sessionId, knoxGuiT(controller.store.state.language, 'chatTab', { number: controller.store.state.tabs.length + 1 }));
+	controller.store.syncSessionTab(controller.store.state.sessionId, knoxGuiT(controller.store.state.language, 'newChat'));
 	controller.syncActiveSession();
 }
 
@@ -419,7 +431,7 @@ export function enterEditMode(controller: KnoxGuiController, options: { clearSes
 		}
 		controller.streamCancel?.cancel();
 		controller.store.newSession();
-		const untitled = knoxGuiT(controller.store.state.language, 'chatTab', { number: controller.store.state.tabs.length + 1 });
+		const untitled = knoxGuiT(controller.store.state.language, 'newChat');
 		controller.store.syncSessionTab(controller.store.state.sessionId, untitled);
 		controller.syncActiveSession();
 	}
@@ -513,10 +525,17 @@ export function parseHistorySessions(value: unknown): IKnoxGuiHistorySession[] |
 export function applyHistorySessions(controller: KnoxGuiController, sessions: IKnoxGuiHistorySession[]): void {
 	const ids = new Set(sessions.map(session => session.id));
 	const historySelected = controller.store.state.historySelected.filter(id => ids.has(id));
+	const tabs = knoxGuiPruneSessionTabs(controller.store.state.tabs, {
+		activeTabId: controller.store.state.activeTabId,
+		currentSessionId: controller.store.state.sessionId,
+		savedSessionIds: ids,
+	});
 	controller.store.patch({
 		historySessions: sessions,
 		historySelected,
 		historyConfirmDelete: historySelected.length ? controller.store.state.historyConfirmDelete : false,
+		tabs: tabs.tabs,
+		activeTabId: tabs.activeTabId,
 	});
 }
 

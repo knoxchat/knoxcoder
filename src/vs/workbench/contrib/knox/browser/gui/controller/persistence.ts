@@ -6,7 +6,7 @@
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
+import { knoxGuiIsDedicatedEditor, knoxGuiPruneSessionTabs, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
 import { composerInputHistoryFromStorage, type IKnoxGuiComposerInputHistory, type IKnoxGuiInputBlock } from '../../../common/knoxGuiInput.js';
 import { KNOX_AUTOSAVE_DEBOUNCE_MS, KNOX_AUTOSAVE_MIN_INTERVAL_MS, KNOX_PERSIST_THROTTLE_MS, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, type IKnoxGuiDraftSession, type IKnoxGuiLastActiveSession, type IKnoxGuiProfilePreferences } from '../../../common/knoxGuiPersist.js';
 import { KNOX_QUEUE_STORAGE_KEY, knoxGuiParseQueue, knoxGuiSerializeQueue } from '../../../common/knoxGuiQueue.js';
@@ -29,7 +29,10 @@ export function restorePersistedState(controller: KnoxGuiController): void {
 		ui.permissionMode = workspaceMode;
 		controller.workspacePermissionSaved = true;
 	}
-	const tabs = knoxGuiParsePersistedTabs(controller.storageService.get(TABS_KEY, StorageScope.WORKSPACE));
+	const parsedTabs = knoxGuiParsePersistedTabs(controller.storageService.get(TABS_KEY, StorageScope.WORKSPACE));
+	const tabs = parsedTabs
+		? knoxGuiPruneSessionTabs(parsedTabs.tabs, { activeTabId: parsedTabs.activeTabId })
+		: undefined;
 	// K-042: what the user queued before a crash or reload comes back as chips; nothing is sent by itself.
 	const messageQueue = knoxGuiParseQueue(controller.storageService.get(QUEUE_KEY, StorageScope.WORKSPACE));
 	const pinnedSessionIds = knoxGuiParsePinned(controller.storageService.get(KNOX_PINNED_SESSIONS_KEY, StorageScope.PROFILE));
@@ -199,7 +202,8 @@ export function installPersistence(controller: KnoxGuiController): IDisposable {
 		if (!state.setupComplete) {
 			return;
 		}
-		const tabs = JSON.stringify({ tabs: state.tabs, activeTabId: state.activeTabId });
+		const pruned = knoxGuiPruneSessionTabsFromState(state);
+		const tabs = JSON.stringify({ tabs: pruned.tabs, activeTabId: pruned.activeTabId });
 		if (tabs !== lastTabs) {
 			lastTabs = tabs;
 			storage.store(TABS_KEY, tabs, StorageScope.WORKSPACE, StorageTarget.MACHINE);
