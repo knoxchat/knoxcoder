@@ -3,14 +3,21 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.3.1] - 2026-11-02
+
 ### Changed
 
 - **Conversation History in the title bar.** The History control now sits in the top title bar after Memory and Checkpoint (same 22×22 icon box). Clicking it opens a dedicated History editor with the same search, select, pin, rename, export, delete, and keyboard behavior. Opening a conversation still loads it in Knox chat. The composer toolbar no longer has a History button.
 - **History title-bar icon size.** History uses the same contributed icon font as Memory and Checkpoint, sized to sit with those two instead of the smaller built-in history icon.
+- **Settings in the title bar.** Settings sits with History, Memory, and Checkpoint. The editor is a General / Tools / Prompts / Rules / Models sidebar. Tools, Prompts, Rules, and Models leave the composer toolbar; permission edits, slash bookmarks, workspace rules, and the model picker still apply to chat. Role titles show in full. Session tabs stay on real chats in one row — New Chat reuses an empty tab so leftover “Chat N” labels no longer wrap over the sidebar.
+- **Composer send row.** Hide-panel and transcript scroll buttons sit between New chat and Auto. Gathering context moves onto the agent meter instead of under the input. Model and Send icons match the Memory brain size so the input toolbar stays on one line.
+- **README as a product brief.** The repo README states why KnoxCoder exists, how it differs from upstream VS Code, and describes native Knox, Memory Brain, checkpoints, and recipes.
 
 ### Fixed
 
 - **History list while the editor stays open.** A new chat turn, rename, delete, or pin now updates the already-open History editor (and the leftover `/history` overlay) the way the original same-store overlay did — including the current-conversation badge and auto-title. Deleting the conversation that is open in chat starts a fresh chat without writing that session back.
+- **Send and Cancel during a live turn.** The composer keeps Send and Cancel while a turn is streaming so generation does not look finished mid-stream.
+- **Send during Ask User.** A generated question is no longer counted as in-flight, which had blocked submit. Send stays available so answering does not look like a live turn.
 
 ## [2.3.0] - 2026-10-31
 

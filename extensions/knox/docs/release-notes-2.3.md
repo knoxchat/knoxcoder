@@ -2,6 +2,13 @@
 
 Full detail is in `CHANGELOG.md`; upgrade steps in [upgrade.md](upgrade.md); caveats in [known-issues.md](known-issues.md).
 
+## 2.3.1
+
+- **Title-bar History and Settings.** Conversation History and Settings sit with Memory and Checkpoint. Tools, Prompts, Rules, and Models live in the Settings sidebar; the composer stays a send row.
+- **Composer chrome.** Hide-panel and transcript scroll sit between New chat and Auto. Gathering context is on the agent meter. Model and Send icons match the Memory brain size.
+- **Send during a live turn or Ask User.** Send and Cancel stay on the composer while a turn streams. A generated question no longer looks like a live turn or blocks submit.
+- **README.** Product brief for KnoxCoder and native Knox (no gallery / data-directory packaging note).
+
 ## 2.3.0
 
 - **Memory Brain rewrite.** Stored memory is unbounded (`C_addr`); each model call is a bounded context (`C_use ≤ W` of the routed model). Success is measured recall, not a bigger inject number. Retrieval stays local lexical — no embeddings.
