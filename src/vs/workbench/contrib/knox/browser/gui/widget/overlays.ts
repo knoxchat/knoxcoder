@@ -1054,6 +1054,11 @@ export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: 
 			widget.renderPrompts(main, state);
 			return;
 		}
+		if (tab === 'rules') {
+			renderSettingsHeading(main, t(state, 'rules'), t(state, 'rulesHint'));
+			widget.renderRules(main, state);
+			return;
+		}
 		renderSettingsGeneral(widget, main, state, false);
 		return;
 	}

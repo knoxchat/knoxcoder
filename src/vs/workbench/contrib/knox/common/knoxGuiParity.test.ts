@@ -33,13 +33,14 @@ suite('Knox native GUI parity', () => {
 	});
 
 	test('Pass 1 chrome matches native GUI BlockSettingsTopToolbar and ModeSelect', () => {
-		assert.deepStrictEqual(KNOX_GUI_LUMP_TOOLBAR.map(entry => entry.id), ['models', 'rules']);
-		assert.ok(!(KNOX_GUI_LUMP_TOOLBAR as ReadonlyArray<{ id: string }>).some(entry => entry.id === 'context' || entry.id === 'history' || entry.id === 'settings' || entry.id === 'tools' || entry.id === 'prompts'));
-		assert.deepStrictEqual(KNOX_GUI_LUMP_TOOLBAR.map(entry => entry.svg), ['cpu', 'square-pen']);
-		assert.deepStrictEqual(KNOX_GUI_SETTINGS_NAV.map(entry => entry.id), ['general', 'tools', 'prompts']);
+		assert.deepStrictEqual(KNOX_GUI_LUMP_TOOLBAR.map(entry => entry.id), ['models']);
+		assert.ok(!(KNOX_GUI_LUMP_TOOLBAR as ReadonlyArray<{ id: string }>).some(entry => entry.id === 'context' || entry.id === 'history' || entry.id === 'settings' || entry.id === 'tools' || entry.id === 'prompts' || entry.id === 'rules'));
+		assert.deepStrictEqual(KNOX_GUI_LUMP_TOOLBAR.map(entry => entry.svg), ['cpu']);
+		assert.deepStrictEqual(KNOX_GUI_SETTINGS_NAV.map(entry => entry.id), ['general', 'tools', 'prompts', 'rules']);
 		assert.strictEqual(knoxGuiSettingsTab(undefined), 'general');
 		assert.strictEqual(knoxGuiSettingsTab('tools'), 'tools');
 		assert.strictEqual(knoxGuiSettingsTab('prompts'), 'prompts');
+		assert.strictEqual(knoxGuiSettingsTab('rules'), 'rules');
 		assert.ok(knoxGuiIsDedicatedEditor({ lockedRoute: KnoxGuiRoute.History }));
 		assert.ok(knoxGuiIsDedicatedEditor({ lockedRoute: KnoxGuiRoute.Memory }));
 		assert.ok(knoxGuiIsDedicatedEditor({ lockedRoute: KnoxGuiRoute.CheckpointGraph }));

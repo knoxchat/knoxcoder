@@ -8,6 +8,7 @@ export const knoxGuiStringsEnSettings: Record<string, unknown> = {
 	"generalSettingsHint": "Language, appearance, and agent behavior.",
 	"toolsHint": "Presets, policy rules, and per-tool permissions.",
 	"promptsHint": "Slash prompts you can insert from the chat input.",
+	"rulesHint": "Workspace and profile rules applied to the agent.",
 	"appearanceSettings": "Appearance",
 	"interfaceSettings": "Interface Settings",
 	"showSessionTabs": "Show Session Tabs",

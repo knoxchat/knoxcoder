@@ -65,6 +65,8 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(knoxGuiT('en', 'toolsHint').length > 0);
 		assert.ok(knoxGuiT('en', 'promptsHint').length > 0);
 		assert.ok(knoxGuiT('zh', 'promptsHint').length > 0);
+		assert.ok(knoxGuiT('en', 'rulesHint').length > 0);
+		assert.ok(knoxGuiT('zh', 'rulesHint').length > 0);
 		assert.ok(knoxGuiT('en', 'sendMessage').length > 0);
 		assert.strictEqual(knoxGuiT('en', 'send'), 'Send');
 		assert.ok(knoxGuiT('en', 'webSearchTooltipInactive').includes('web search'));
@@ -334,6 +336,7 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui-settings-nav'));
 		assert.ok(css.includes('.knox-gui-settings-nav-item.active'));
 		assert.ok(css.includes('.knox-gui-settings-heading + .knox-gui-prompt-list'));
+		assert.ok(css.includes('.knox-gui-settings-heading + .knox-gui-rule-list'));
 		assert.ok(css.includes('.knox-gui-find'));
 		assert.ok(css.includes('.knox-gui-find.is-closed'));
 		assert.ok(css.includes('.knox-gui-text-dialog'));

@@ -8,6 +8,7 @@ export const knoxGuiStringsZhSettings: Record<string, unknown> = {
 	"generalSettingsHint": "语言、外观和助理行为。",
 	"toolsHint": "预设、策略规则和各工具权限。",
 	"promptsHint": "可在对话输入框中用斜杠插入的提示词。",
+	"rulesHint": "应用于助理的工作区和配置规则。",
 	"appearanceSettings": "外观",
 	"interfaceSettings": "界面设置",
 	"showSessionTabs": "显示会话标签",

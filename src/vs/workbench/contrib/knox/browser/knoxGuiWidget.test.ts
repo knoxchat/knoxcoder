@@ -119,7 +119,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		return { widget, store };
 	}
 
-	test('lump icons follow BlockSettingsTopToolbar order and omit Context, History, Settings, Tools, and Prompts', async () => {
+	test('lump icons follow BlockSettingsTopToolbar order and omit Context, History, Settings, Tools, Prompts, and Rules', async () => {
 		const { widget } = await mount();
 		const lump = widget.root.querySelector('[data-testid="knox-gui-lump"]');
 		assert.ok(lump);
@@ -130,6 +130,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-settings"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-tools"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-prompts"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-rules"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-starters'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="sample-prompts"]'), null);
 	});
@@ -412,6 +413,20 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		(widget.root.querySelector('[data-testid="knox-gui-add-prompt"]') as HTMLButtonElement).click();
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-prompt-dialog"]'));
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-tools"]'), null);
+		store.patch({
+			settingsTab: 'rules',
+			promptDraft: undefined,
+			rules: [{ title: 'Always be concise', body: 'Be concise', source: 'local' }],
+			profileType: 'local',
+			profileId: 'p1',
+		});
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-tab-rules"]')?.getAttribute('aria-selected'), 'true');
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-settings-rules"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-rule-card-0"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-explore-blocks"]'));
+		(widget.root.querySelector('[data-testid="knox-gui-rule-expand-0"]') as HTMLButtonElement).click();
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-rule-dialog"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-prompts"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-input'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-page-back'), null);

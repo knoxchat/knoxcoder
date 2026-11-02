@@ -418,7 +418,8 @@
 
 .knox-gui-settings-heading + .knox-gui-settings-card,
 .knox-gui-settings-heading + .knox-gui-tools,
-.knox-gui-settings-heading + .knox-gui-prompt-list {
+.knox-gui-settings-heading + .knox-gui-prompt-list,
+.knox-gui-settings-heading + .knox-gui-rule-list {
 	margin-top: 4px;
 	padding-top: 16px;
 	border-top: 1px solid var(--vscode-widget-border, transparent);
