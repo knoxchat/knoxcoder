@@ -119,7 +119,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		return { widget, store };
 	}
 
-	test('lump icons follow BlockSettingsTopToolbar order and omit Context, History, and Settings', async () => {
+	test('lump icons follow BlockSettingsTopToolbar order and omit Context, History, Settings, and Tools', async () => {
 		const { widget } = await mount();
 		const lump = widget.root.querySelector('[data-testid="knox-gui-lump"]');
 		assert.ok(lump);
@@ -128,6 +128,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-context"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-history"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-settings"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-tools"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-starters'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="sample-prompts"]'), null);
 	});
@@ -388,7 +389,17 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(store.state.route, KnoxGuiRoute.Config);
 		assert.ok(widget.root.classList.contains('knox-gui-dedicated'));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-settings"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-settings-nav"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-tab-general"]')?.getAttribute('aria-selected'), 'true');
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-settings-general"]'));
 		assert.ok(widget.root.querySelector('.knox-gui-settings-card'));
+		assert.ok(widget.root.textContent?.includes('Appearance') || widget.root.textContent?.includes('外观'));
+		assert.strictEqual(widget.root.querySelector('.knox-gui-tools'), null);
+		store.patch({ settingsTab: 'tools' });
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-tab-tools"]')?.getAttribute('aria-selected'), 'true');
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-settings-tools"]'));
+		assert.ok(widget.root.querySelector('.knox-gui-tools'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-general"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-input'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-page-back'), null);

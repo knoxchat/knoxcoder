@@ -101,6 +101,24 @@ export function knoxGuiSerializePersistedUi(state: IKnoxGuiState): string {
 	return JSON.stringify(ui);
 }
 
+/** Dedicated Settings writes only tool permissions so it cannot clobber chat overlay/mode. */
+export function knoxGuiMergePersistedToolPermissions(
+	raw: string | undefined,
+	toolSettings: Record<string, KnoxToolSetting>,
+	toolGroupExcluded: string[],
+): string {
+	const rec = parseJson(raw) ?? {};
+	return JSON.stringify({
+		...rec,
+		toolSettings,
+		toolGroupExcluded,
+	});
+}
+
+export function knoxGuiToolPermissionsFingerprint(state: Pick<IKnoxGuiState, 'toolSettings' | 'toolGroupExcluded'>): string {
+	return JSON.stringify({ toolSettings: state.toolSettings, toolGroupExcluded: state.toolGroupExcluded });
+}
+
 /** Only well-formed fields come back. */
 export function knoxGuiParsePersistedUi(raw: string | undefined): Partial<IKnoxGuiPersistedUi> {
 	const rec = parseJson(raw);

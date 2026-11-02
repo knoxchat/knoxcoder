@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { knoxGuiLocalAutoApprove } from './knoxGuiAgentRequest.js';
 import { knoxGuiListboxNextIndex, knoxGuiSortModelsByApiKey } from './knoxGuiCapabilities.js';
 import { composerInputHistoryFromStorage, inputDocFromPlainText, MAX_COMPOSER_INPUT_HISTORY } from './knoxGuiInput.js';
-import { knoxGuiNormalizeWorkspace, knoxGuiNextLanguage, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiResolveProfileId, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiResolveLanguage, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, knoxGuiStartupSession } from './knoxGuiPersist.js';
+import { knoxGuiMergePersistedToolPermissions, knoxGuiNormalizeWorkspace, knoxGuiNextLanguage, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiResolveProfileId, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiResolveLanguage, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, knoxGuiStartupSession, knoxGuiToolPermissionsFingerprint } from './knoxGuiPersist.js';
 import { createInitialKnoxGuiState, DEFAULT_PERMISSION_MODE, IKnoxGuiHistoryItem } from './knoxGuiState.js';
 import { knoxGuiContextItemFileIconName, knoxGuiContextItemOpenAction, knoxGuiMatchCodeToSymbolOrFile, knoxGuiMissingSymbolUris, knoxGuiParseSymbolMap, knoxGuiPastFileInfo, knoxGuiSymbolTooltip, patchNestedMarkdown, splitMarkdownBlocks } from './knoxGuiTranscript.js';
 
@@ -41,6 +41,13 @@ suite('Knox native persistence and permission helpers', () => {
 		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ addModelModalProvider: 'nope' })).addModelModalProvider, undefined);
 		assert.deepStrictEqual(knoxGuiParsePersistedUi('{not json'), {});
 		assert.deepStrictEqual(knoxGuiParsePersistedUi(undefined), {});
+		const merged = knoxGuiMergePersistedToolPermissions(knoxGuiSerializePersistedUi({ ...state, overlay: 'models', mode: 'agent' }), { builtin_edit_file: 'disabled' }, ['search']);
+		const parsedMerge = knoxGuiParsePersistedUi(merged);
+		assert.deepStrictEqual(parsedMerge.toolSettings, { builtin_edit_file: 'disabled' });
+		assert.deepStrictEqual(parsedMerge.toolGroupExcluded, ['search']);
+		assert.strictEqual(parsedMerge.overlay, 'models');
+		assert.strictEqual(parsedMerge.mode, 'agent');
+		assert.strictEqual(knoxGuiToolPermissionsFingerprint({ toolSettings: { a: 'disabled' }, toolGroupExcluded: [] }), JSON.stringify({ toolSettings: { a: 'disabled' }, toolGroupExcluded: [] }));
 	});
 
 	test('S-03 draft session drops prompt logs and malformed items; profile preferences are per profile', () => {

@@ -640,6 +640,28 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(memory.store.state.language, 'en', 'unsupported values are ignored');
 	});
 
+	test('Settings Tools tab writes permissions that chat applies live', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const chat = createHarness({ storage });
+		const settings = createHarness({ storage, lock: KnoxGuiRoute.Config });
+		await timeout(0);
+		chat.store.patch({ overlay: 'models', mode: 'agent' });
+		settings.store.patch({
+			tools: [{ name: 'builtin_edit_file', group: 'Built-In' }],
+			toolSettings: { builtin_edit_file: 'allowedWithoutPermission' },
+		});
+		settings.controller.cycleToolPermission('builtin_edit_file');
+		assert.strictEqual(settings.store.state.toolSettings.builtin_edit_file, 'allowedWithPermission');
+		assert.strictEqual(chat.store.state.toolSettings.builtin_edit_file, 'allowedWithPermission');
+		assert.strictEqual(chat.store.state.overlay, 'models');
+		assert.strictEqual(chat.store.state.mode, 'agent');
+		const persisted = JSON.parse(storage.get(UI_STATE_KEY, StorageScope.PROFILE) ?? '{}') as { toolSettings?: Record<string, string>; overlay?: string };
+		assert.strictEqual(persisted.toolSettings?.builtin_edit_file, 'allowedWithPermission');
+		assert.strictEqual(persisted.overlay, 'models');
+		settings.controller.toggleToolGroup('Built-In');
+		assert.deepStrictEqual(chat.store.state.toolGroupExcluded, ['Built-In']);
+	});
+
 	test('stream response envelopes are not applied as host inbound', async () => {
 		const { controller, store } = createHarness();
 		await timeout(0);

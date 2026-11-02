@@ -6,9 +6,10 @@
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { knoxGuiIsDedicatedEditor, knoxGuiPruneSessionTabs, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
 import { composerInputHistoryFromStorage, type IKnoxGuiComposerInputHistory, type IKnoxGuiInputBlock } from '../../../common/knoxGuiInput.js';
-import { KNOX_AUTOSAVE_DEBOUNCE_MS, KNOX_AUTOSAVE_MIN_INTERVAL_MS, KNOX_PERSIST_THROTTLE_MS, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, type IKnoxGuiDraftSession, type IKnoxGuiLastActiveSession, type IKnoxGuiProfilePreferences } from '../../../common/knoxGuiPersist.js';
+import { KNOX_AUTOSAVE_DEBOUNCE_MS, KNOX_AUTOSAVE_MIN_INTERVAL_MS, KNOX_PERSIST_THROTTLE_MS, knoxGuiMergePersistedToolPermissions, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, knoxGuiToolPermissionsFingerprint, type IKnoxGuiDraftSession, type IKnoxGuiLastActiveSession, type IKnoxGuiProfilePreferences } from '../../../common/knoxGuiPersist.js';
 import { KNOX_QUEUE_STORAGE_KEY, knoxGuiParseQueue, knoxGuiSerializeQueue } from '../../../common/knoxGuiQueue.js';
 import { KNOX_PINNED_SESSIONS_KEY, knoxGuiParsePinned } from '../../../common/knoxGuiSessions.js';
 import { BOOKMARK_KEY } from './helpers.js';
@@ -44,6 +45,17 @@ export function restorePersistedState(controller: KnoxGuiController): void {
 		jobsPanelOpen: controller.jobsPanelExpanded(),
 		permissionDefaultReason: controller.workspacePermissionSaved ? 'saved' : undefined,
 	});
+}
+
+/** Chat and Settings share tool permissions through `knox.gui.uiState`. */
+export function applyPersistedToolPermissions(controller: KnoxGuiController): void {
+	const ui = knoxGuiParsePersistedUi(controller.storageService.get(UI_STATE_KEY, StorageScope.PROFILE));
+	const toolSettings = ui.toolSettings ?? controller.store.state.toolSettings;
+	const toolGroupExcluded = ui.toolGroupExcluded ?? controller.store.state.toolGroupExcluded;
+	if (knoxGuiToolPermissionsFingerprint({ toolSettings, toolGroupExcluded }) === knoxGuiToolPermissionsFingerprint(controller.store.state)) {
+		return;
+	}
+	controller.store.patch({ toolSettings, toolGroupExcluded });
 }
 
 /** `useInputHistory.ts`: one history per composer mode, `inputHistory_chat` / `inputHistory_edit`. */
@@ -176,8 +188,26 @@ export function installPersistence(controller: KnoxGuiController): IDisposable {
 		}, KNOX_AUTOSAVE_DEBOUNCE_MS);
 	};
 
+	let lastTools = knoxGuiToolPermissionsFingerprint(controller.store.state);
+	const writeToolPermissions = (state: typeof controller.store.state) => {
+		const tools = knoxGuiToolPermissionsFingerprint(state);
+		if (tools === lastTools) {
+			return;
+		}
+		lastTools = tools;
+		storage.store(
+			UI_STATE_KEY,
+			knoxGuiMergePersistedToolPermissions(storage.get(UI_STATE_KEY, StorageScope.PROFILE), state.toolSettings, state.toolGroupExcluded),
+			StorageScope.PROFILE,
+			StorageTarget.USER,
+		);
+	};
+
 	const listener = controller.store.onDidChange(state => {
 		if (knoxGuiIsDedicatedEditor(state)) {
+			if (state.lockedRoute === KnoxGuiRoute.Config) {
+				writeToolPermissions(state);
+			}
 			return;
 		}
 		if (state.messageQueue !== lastQueue) {

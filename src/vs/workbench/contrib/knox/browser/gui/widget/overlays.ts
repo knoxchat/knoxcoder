@@ -45,6 +45,7 @@ import {
 import { KnoxGuiOverlay, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { isSlashBookmarked, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { IKnoxGuiHistorySession, IKnoxGuiState, knoxGuiIsDedicatedEditor, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
+import { KNOX_GUI_SETTINGS_NAV, knoxGuiSettingsTab } from '../../../common/knoxGuiChrome.js';
 
 export function renderOverlay(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, overlay: Exclude<KnoxGuiOverlay, null>): void {
 	switch (overlay) {
@@ -1022,20 +1023,62 @@ export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: 
 	if (dedicated) {
 		body.classList.add('knox-gui-settings-page');
 		body.setAttribute('data-testid', 'knox-gui-settings');
+		const tab = knoxGuiSettingsTab(state.settingsTab);
+		const nav = DOM.append(body, DOM.$('nav.knox-gui-settings-nav'));
+		nav.setAttribute('role', 'tablist');
+		nav.setAttribute('aria-label', t(state, 'settings'));
+		nav.setAttribute('data-testid', 'knox-gui-settings-nav');
+		for (const item of KNOX_GUI_SETTINGS_NAV) {
+			const active = item.id === tab;
+			const btn = DOM.append(nav, DOM.$('button.knox-gui-settings-nav-item')) as HTMLButtonElement;
+			btn.type = 'button';
+			btn.setAttribute('role', 'tab');
+			btn.setAttribute('aria-selected', active ? 'true' : 'false');
+			btn.setAttribute('data-testid', `knox-gui-settings-tab-${item.id}`);
+			if (active) {
+				btn.classList.add('active');
+			}
+			appendKnoxGuiSvg(btn, item.svg, 16);
+			DOM.append(btn, DOM.$('span', undefined, t(state, item.key)));
+			widget.renderStore.add(DOM.addDisposableListener(btn, 'click', () => widget.controller.store.patch({ settingsTab: item.id })));
+		}
+		const main = DOM.append(body, DOM.$('.knox-gui-settings-main'));
+		main.setAttribute('data-testid', `knox-gui-settings-${tab}`);
+		if (tab === 'tools') {
+			renderSettingsHeading(main, t(state, 'tools'), t(state, 'toolsHint'));
+			widget.renderTools(main, state);
+			return;
+		}
+		renderSettingsGeneral(widget, main, state, false);
+		return;
 	}
-	if (!compact && !dedicated) {
+	if (!compact) {
 		widget.back(body, state);
 		const tab = DOM.append(body, DOM.$('.knox-gui-page-tab'));
 		const cell = DOM.append(tab, DOM.$('.knox-gui-page-tab-cell'));
 		appendKnoxGuiSvg(cell, 'settings', 14);
 		DOM.append(cell, DOM.$('span', undefined, t(state, 'settings')));
 	}
+	renderSettingsGeneral(widget, body, state, compact);
+}
+
+function renderSettingsHeading(parent: HTMLElement, title: string, hint: string): void {
+	const head = DOM.append(parent, DOM.$('.knox-gui-settings-heading'));
+	DOM.append(head, DOM.$('h2', undefined, title));
+	DOM.append(head, DOM.$('p.knox-gui-muted', undefined, hint));
+}
+
+function renderSettingsGeneral(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, compact: boolean): void {
+	const dedicated = knoxGuiIsDedicatedEditor(state);
+	if (!compact) {
+		renderSettingsHeading(parent, t(state, 'generalSettings'), t(state, 'generalSettingsHint'));
+	}
 	const card = (title: string, render: (el: HTMLElement) => void) => {
-		const wrap = DOM.append(body, DOM.$(compact ? '.knox-gui-settings-card.compact' : '.knox-gui-settings-card'));
+		const wrap = DOM.append(parent, DOM.$(compact ? '.knox-gui-settings-card.compact' : '.knox-gui-settings-card'));
 		DOM.append(wrap, DOM.$('h3.knox-gui-cyan', undefined, title));
 		render(wrap);
 	};
-	card(t(state, 'language'), el => {
+	card(t(state, 'appearanceSettings'), el => {
 		const row = DOM.append(el, DOM.$('label.knox-gui-row'));
 		DOM.append(row, DOM.$('span', undefined, t(state, 'language')));
 		const lang = DOM.append(row, DOM.$('select.knox-gui-select')) as HTMLSelectElement;
@@ -1048,8 +1091,10 @@ export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: 
 			}
 		}
 		widget.renderStore.add(DOM.addDisposableListener(lang, 'change', () => void widget.controller.setLanguage(lang.value as 'en' | 'zh')));
-	});
-	card(t(state, 'interfaceSettings'), el => {
+		widget.numberField(el, t(state, 'fontSize'), state.fontSize, 7, 50, value => {
+			widget.controller.store.patch({ fontSize: value });
+			void widget.controller.updateSharedConfig({ fontSize: value });
+		});
 		widget.toggle(el, t(state, 'showSessionTabs'), state.showSessionTabs, value => {
 			const tabs = knoxGuiPruneSessionTabsFromState(widget.controller.store.state);
 			widget.controller.store.patch({ showSessionTabs: value, tabs: tabs.tabs, activeTabId: tabs.activeTabId });
@@ -1070,12 +1115,6 @@ export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: 
 		widget.toggle(el, t(state, 'markdownFormatting'), state.markdownFormatting, value => {
 			widget.controller.store.patch({ markdownFormatting: value });
 			void widget.controller.updateSharedConfig({ displayRawMarkdown: !value });
-		});
-	});
-	card(t(state, 'accessibilityDisplay'), el => {
-		widget.numberField(el, t(state, 'fontSize'), state.fontSize, 7, 50, value => {
-			widget.controller.store.patch({ fontSize: value });
-			void widget.controller.updateSharedConfig({ fontSize: value });
 		});
 	});
 	card(t(state, 'agentSettings'), el => {

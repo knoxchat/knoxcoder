@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const knoxGuiStringsEnSettings: Record<string, unknown> = {
+	"generalSettings": "General",
+	"generalSettingsHint": "Language, appearance, and agent behavior.",
+	"toolsHint": "Presets, policy rules, and per-tool permissions.",
+	"appearanceSettings": "Appearance",
 	"interfaceSettings": "Interface Settings",
 	"showSessionTabs": "Show Session Tabs",
 	"codeBlockAutoWrap": "Code Block Auto-wrap",
@@ -25,7 +29,7 @@ export const knoxGuiStringsEnSettings: Record<string, unknown> = {
 	"agentDoomLoopThresholdHint": "Stop after this many identical tool calls or consecutive failures and summarize. Default 3 (rust: 4, systems: 5). Set 0 to disable.",
 	"agentViewSubdirectoryMaxFiles": "Directory listing max files",
 	"agentViewSubdirectoryMaxFilesHint": "Default cap for View Subdirectory when the model does not pass maxFiles. Raise this for large repos. Default 1000.",
-	"agentPolicyHint": "Path and command allow/ask/deny rules live in the Tools permissions panel. Project AGENTS.md can add always / ask / never blocks.",
+	"agentPolicyHint": "Path and command allow/ask/deny rules live in Settings → Tools. Project AGENTS.md can add always / ask / never blocks.",
 	"defaultParameterSettings": "Default Parameter Settings",
 	"defaultMaxTokens": "Default Max Tokens",
 	"defaultTemperature": "Default Temperature",

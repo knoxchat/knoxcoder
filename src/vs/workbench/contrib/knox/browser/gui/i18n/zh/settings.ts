@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const knoxGuiStringsZhSettings: Record<string, unknown> = {
+	"generalSettings": "常规",
+	"generalSettingsHint": "语言、外观和助理行为。",
+	"toolsHint": "预设、策略规则和各工具权限。",
+	"appearanceSettings": "外观",
 	"interfaceSettings": "界面设置",
 	"showSessionTabs": "显示会话标签",
 	"codeBlockAutoWrap": "代码块自动换行",
@@ -25,7 +29,7 @@ export const knoxGuiStringsZhSettings: Record<string, unknown> = {
 	"agentDoomLoopThresholdHint": "相同工具调用或连续失败达到该次数后停止并总结。默认 3（rust: 4，systems: 5）。设为 0 表示关闭。",
 	"agentViewSubdirectoryMaxFiles": "目录列表最大文件数",
 	"agentViewSubdirectoryMaxFilesHint": "模型未指定 maxFiles 时，查看子目录的默认上限。大型仓库可调高。默认 1000。",
-	"agentPolicyHint": "路径和命令的 allow/ask/deny 规则在工具权限面板中编辑。项目 AGENTS.md 可使用 always / ask / never 块。",
+	"agentPolicyHint": "路径和命令的 allow/ask/deny 规则在设置 → 工具中编辑。项目 AGENTS.md 可使用 always / ask / never 块。",
 	"defaultParameterSettings": "默认参数设置",
 	"defaultMaxTokens": "默认最大Token数",
 	"defaultTemperature": "默认温度",

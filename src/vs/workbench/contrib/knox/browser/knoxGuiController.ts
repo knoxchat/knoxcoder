@@ -128,6 +128,9 @@ export class KnoxGuiController extends Disposable {
 		}));
 		knoxGuiPersistence.restorePersistedState(this);
 		this._register(knoxGuiPersistence.installPersistence(this));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, knoxGuiPersistence.UI_STATE_KEY, this._store)(() => {
+			knoxGuiPersistence.applyPersistedToolPermissions(this);
+		}));
 		this.messenger.subscribeHost(message => this.onHostMessage(message));
 		this._register(store.onDidChange(state => this.onRouteChanged(state)));
 		let findStreaming = store.state.isStreaming;

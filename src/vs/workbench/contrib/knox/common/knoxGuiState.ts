@@ -1018,6 +1018,8 @@ export interface IKnoxGuiState {
 	profileType?: string;
 	yamlRules?: unknown[];
 	showSessionTabs: boolean;
+	/** Dedicated Settings page: General (current options) or Tools permissions. */
+	settingsTab: 'general' | 'tools';
 	fontSize: number;
 	/** Converted TextMate/Monaco theme from host `setTheme`. */
 	vscTheme?: IKnoxGuiVscTheme;
@@ -1380,6 +1382,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		defaultContext: [],
 		recentSlash: [],
 		showSessionTabs: false,
+		settingsTab: 'general',
 		fontSize: 14,
 		vscColors: {},
 		vscTokenColors: {},

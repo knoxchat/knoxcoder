@@ -348,10 +348,79 @@
 	padding: 0;
 }
 
-.knox-gui-dedicated .knox-gui-body.knox-gui-history-page,
-.knox-gui-dedicated .knox-gui-body.knox-gui-settings-page {
+.knox-gui-dedicated .knox-gui-body.knox-gui-history-page {
 	padding: 12px 16px;
 	gap: 8px;
+}
+
+.knox-gui-dedicated .knox-gui-body.knox-gui-settings-page {
+	padding: 0;
+	gap: 0;
+	flex-direction: row;
+	overflow: hidden;
+}
+
+.knox-gui-settings-nav {
+	display: flex;
+	flex-direction: column;
+	flex: 0 0 220px;
+	width: 220px;
+	gap: 4px;
+	padding: 16px 12px;
+	border-right: 1px solid var(--vscode-widget-border, transparent);
+	overflow: auto;
+}
+
+.knox-gui-settings-nav-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 10px 14px;
+	border: none;
+	border-radius: 999px;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+	text-align: left;
+	font: inherit;
+	font-size: 13px;
+}
+
+.knox-gui-settings-nav-item.active {
+	background: color-mix(in srgb, var(--knox-accent, #159994) 16%, transparent);
+	color: var(--knox-accent, #159994);
+}
+
+.knox-gui-settings-nav-item:not(.active):hover {
+	background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.08));
+}
+
+.knox-gui-settings-main {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: 16px;
+	min-width: 0;
+	overflow: auto;
+	padding: 24px 28px 32px;
+}
+
+.knox-gui-settings-heading h2 {
+	margin: 0;
+	font-size: 20px;
+	font-weight: 600;
+}
+
+.knox-gui-settings-heading p {
+	margin: 6px 0 0;
+}
+
+.knox-gui-settings-heading + .knox-gui-settings-card,
+.knox-gui-settings-heading + .knox-gui-tools {
+	margin-top: 4px;
+	padding-top: 16px;
+	border-top: 1px solid var(--vscode-widget-border, transparent);
 }
 
 .knox-gui-body-spacer {

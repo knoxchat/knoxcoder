@@ -59,6 +59,10 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(knoxGuiT('en', 'checkpointDashboard.tab').length > 0);
 		assert.ok(knoxGuiT('zh', 'checkpointAnalysis.tab').length > 0);
 		assert.ok(knoxGuiT('en', 'newChat').length > 0);
+		assert.strictEqual(knoxGuiT('en', 'generalSettings'), 'General');
+		assert.ok(knoxGuiT('zh', 'generalSettings').length > 0);
+		assert.ok(knoxGuiT('en', 'appearanceSettings').length > 0);
+		assert.ok(knoxGuiT('en', 'toolsHint').length > 0);
 		assert.ok(knoxGuiT('en', 'sendMessage').length > 0);
 		assert.strictEqual(knoxGuiT('en', 'send'), 'Send');
 		assert.ok(knoxGuiT('en', 'webSearchTooltipInactive').includes('web search'));
@@ -325,6 +329,8 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(/\.knox-gui > \.knox-gui-tabs \{[^}]*flex-wrap:\s*nowrap/.test(css));
 		assert.ok(/\.knox-gui > \.knox-gui-tabs \{[^}]*overflow-x:\s*auto/.test(css));
 		assert.ok(/\.knox-gui > \.knox-gui-tabs > \.knox-gui-tab \{[^}]*flex:\s*0 0 auto/.test(css));
+		assert.ok(css.includes('.knox-gui-settings-nav'));
+		assert.ok(css.includes('.knox-gui-settings-nav-item.active'));
 		assert.ok(css.includes('.knox-gui-find'));
 		assert.ok(css.includes('.knox-gui-find.is-closed'));
 		assert.ok(css.includes('.knox-gui-text-dialog'));
