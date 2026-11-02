@@ -406,6 +406,10 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(!/\.knox-gui-tool-approve \{[^}]*--vscode-button-background/.test(css));
 		assert.ok(css.includes('.knox-gui .rendered-markdown :not(pre) > code'));
 		assert.ok(css.includes('.knox-gui-input-bar-icons'));
+		assert.ok(css.includes('.knox-gui-input-bar .knox-gui-model-trigger .knox-gui-svg,'));
+		assert.ok(css.includes('.knox-gui-input-bar .knox-gui-effort-trigger .knox-gui-svg,'));
+		assert.ok(css.includes('.knox-gui-input-bar .knox-gui-send .knox-gui-svg {'));
+		assert.ok(/\.knox-gui-input-bar \.knox-gui-send \.knox-gui-svg \{[^}]*width:\s*12px/.test(css));
 		assert.ok(css.includes('.knox-gui-toolbar-center'));
 		assert.ok(css.includes('.knox-gui-model-wrap {\n	flex: 0 1 auto;'));
 		assert.ok(css.includes('overflow: visible;'));

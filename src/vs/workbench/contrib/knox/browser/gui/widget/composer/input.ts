@@ -237,7 +237,7 @@ function paintComposerSendButton(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	if (knoxGuiCanCancel(state)) {
 		return widget.chromeButton(parent, {
 			svg: 'cancel',
-			svgSize: 14,
+			svgSize: 12,
 			title: t(state, 'cancelGeneration'),
 			testId: 'knox-gui-send',
 			extraClass: 'knox-gui-cancel knox-gui-send',
@@ -246,7 +246,7 @@ function paintComposerSendButton(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	}
 	const send = widget.chromeButton(parent, {
 		svg: 'send',
-		svgSize: 14,
+		svgSize: 12,
 		label: t(state, knoxGuiEditSendKey(state)),
 		title: t(state, 'sendMessage'),
 		testId: 'knox-gui-send',

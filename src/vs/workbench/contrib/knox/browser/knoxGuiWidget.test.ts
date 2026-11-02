@@ -1237,6 +1237,21 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 
 		const effort = widget.root.querySelector('[data-testid="knox-gui-reasoning-select"]') as HTMLButtonElement;
 		assert.ok(effort.textContent?.includes('Minimal'));
+		const modelSvg = model.querySelector('svg.knox-gui-svg') as SVGSVGElement;
+		const effortBrain = effort.querySelector('svg.knox-gui-svg') as SVGSVGElement;
+		const send = widget.root.querySelector('[data-testid="knox-gui-send"]') as HTMLButtonElement;
+		const sendSvg = send.querySelector('svg.knox-gui-svg') as SVGSVGElement;
+		assert.ok(modelSvg);
+		assert.ok(effortBrain);
+		assert.ok(sendSvg);
+		assert.strictEqual(modelSvg.getAttribute('width'), '12');
+		assert.strictEqual(effortBrain.getAttribute('width'), '12');
+		assert.strictEqual(sendSvg.getAttribute('width'), '12');
+		const toolbar = model.closest('.knox-gui-input-bar');
+		assert.ok(toolbar);
+		assert.ok(toolbar.querySelector('.knox-gui-input-bar-left')?.contains(model));
+		assert.ok(toolbar.querySelector('.knox-gui-input-bar-left')?.contains(effort));
+		assert.ok(toolbar.querySelector('.knox-gui-input-bar-right')?.contains(send));
 		effort.click();
 		const effortMenu = widget.root.querySelector('[data-testid="knox-gui-effort-menu"]') as HTMLElement;
 		assert.ok(effortMenu);

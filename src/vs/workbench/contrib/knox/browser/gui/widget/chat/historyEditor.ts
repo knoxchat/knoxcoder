@@ -248,7 +248,7 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 	}
 	widget.chromeButton(right, {
 		svg: 'send',
-		svgSize: 14,
+		svgSize: 12,
 		label: t(state, knoxGuiEditSendKey(state)),
 		title: t(state, 'sendMessage'),
 		testId: 'knox-gui-history-send',

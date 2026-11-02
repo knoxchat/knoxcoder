@@ -20,7 +20,7 @@ export function renderModelSelect(widget: KnoxGuiWidget, parent: HTMLElement, st
 	const trigger = widget.chromeButton(wrap, {
 		label: knoxGuiModelTriggerLabel(current, models) || t(state, 'selectModel'),
 		svg: 'chevrons-down',
-		svgSize: 16,
+		svgSize: 12,
 		svgAfter: true,
 		title: t(state, 'models'),
 		testId: source === 'main' ? 'knox-gui-model-select' : `knox-gui-model-select-${source}`,

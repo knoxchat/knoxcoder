@@ -1170,14 +1170,12 @@
 	overflow: visible;
 }
 
-/* InputToolbar.tsx: image/add-context sit in a nested row with -mb-1 next to mt-1 selects. */
 .knox-gui-input-bar-icons {
 	display: flex;
 	flex-direction: row;
 	align-items: center;
 	gap: 4px;
 	flex-shrink: 0;
-	margin-bottom: -4px;
 }
 
 .knox-gui-input-bar-right {
@@ -1187,9 +1185,11 @@
 
 .knox-gui-input-bar .knox-gui-icon-btn {
 	border-radius: 0;
-	padding: 2px 4px;
+	height: 18px;
+	padding: 0 4px;
 	background: transparent;
 	flex-shrink: 0;
+	align-items: center;
 }
 
 .knox-gui-input-bar .knox-gui-icon-btn:hover:not(:disabled) {
@@ -1286,20 +1286,12 @@
 	max-width: 100%;
 }
 
-.knox-gui-model-wrap,
-.knox-gui-effort-wrap {
-	margin-top: 4px;
-}
-
-.knox-gui-input-bar .knox-gui-model-trigger .knox-gui-svg {
-	width: 16px;
-	height: 16px;
-	margin-top: 2px;
-}
-
-.knox-gui-input-bar .knox-gui-effort-trigger .knox-gui-svg {
+.knox-gui-input-bar .knox-gui-model-trigger .knox-gui-svg,
+.knox-gui-input-bar .knox-gui-effort-trigger .knox-gui-svg,
+.knox-gui-input-bar .knox-gui-send .knox-gui-svg {
 	width: 12px;
 	height: 12px;
+	margin: 0;
 }
 
 .knox-gui-input-bar .knox-gui-effort-trigger .knox-gui-svg.knox-gui-effort-chevron {
@@ -1312,7 +1304,6 @@
 }
 
 .knox-gui-input-bar-left > [data-testid="knox-gui-web-search"] {
-	margin-top: 4px;
 	flex-shrink: 0;
 }
 
@@ -1325,8 +1316,10 @@
 	background: transparent !important;
 	border-radius: 4px !important;
 	color: var(--knox-accent, #159994) !important;
-	padding: 2px 8px 2px 4px !important;
+	height: 18px;
+	padding: 0 8px 0 4px !important;
 	gap: 4px;
+	align-items: center;
 	transition: all 0.2s;
 }
 
@@ -1347,7 +1340,7 @@
 }
 
 .knox-gui-send.knox-gui-cancel {
-	padding: 2px 4px !important;
+	padding: 0 4px !important;
 }
 
 .knox-gui-cancel {
