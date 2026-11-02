@@ -116,8 +116,31 @@ export function saveProfilePreferences(controller: KnoxGuiController): void {
 		return;
 	}
 	const all = allProfilePreferences(controller);
-	all[profileId] = { bookmarkedSlashCommands: bookmarkedSlash, recentSlashCommands: recentSlash };
+	const existing = knoxGuiProfilePreferences(all, profileId);
+	all[profileId] = {
+		bookmarkedSlashCommands: bookmarkedSlash,
+		recentSlashCommands: knoxGuiIsDedicatedEditor(controller.store.state) ? existing.recentSlashCommands : recentSlash,
+	};
 	controller.storageService.store(PROFILE_PREFERENCES_KEY, JSON.stringify(all), StorageScope.PROFILE, StorageTarget.USER);
+}
+
+/** Chat and Settings share slash bookmarks through `knox.gui.profilePreferences`. */
+export function applyPersistedProfilePreferences(controller: KnoxGuiController): void {
+	const profileId = controller.store.state.profileId;
+	if (!profileId) {
+		return;
+	}
+	const prefs = knoxGuiProfilePreferences(allProfilePreferences(controller), profileId);
+	const patch: { bookmarkedSlash?: string[]; recentSlash?: string[] } = {};
+	if (prefs.bookmarkedSlashCommands.join('\0') !== controller.store.state.bookmarkedSlash.join('\0')) {
+		patch.bookmarkedSlash = prefs.bookmarkedSlashCommands;
+	}
+	if (!knoxGuiIsDedicatedEditor(controller.store.state) && prefs.recentSlashCommands.join('\0') !== controller.store.state.recentSlash.join('\0')) {
+		patch.recentSlash = prefs.recentSlashCommands;
+	}
+	if (patch.bookmarkedSlash || patch.recentSlash) {
+		controller.store.patch(patch);
+	}
 }
 
 export function noteMainComposerSend(controller: KnoxGuiController): boolean {

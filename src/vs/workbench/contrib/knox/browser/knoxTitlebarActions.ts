@@ -86,7 +86,7 @@ registerAction2(class KnoxTitlebarOpenSettingsAction extends Action2 {
 		super({
 			id: OPEN_KNOX_SETTINGS_TITLEBAR_ID,
 			title: localize2('knox.titlebar.openSettings', 'Knox Settings'),
-			tooltip: localize('knox.titlebar.openSettingsTooltip', "Knox settings — General and Tools"),
+			tooltip: localize('knox.titlebar.openSettingsTooltip', "Knox settings — General, Tools, and Prompts"),
 			icon: titlebarSettingsIcon,
 			toggled: {
 				condition: ActiveEditorContext.isEqualTo(KnoxSettingsEditor.ID),

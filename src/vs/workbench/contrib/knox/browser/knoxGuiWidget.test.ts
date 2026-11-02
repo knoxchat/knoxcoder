@@ -119,7 +119,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		return { widget, store };
 	}
 
-	test('lump icons follow BlockSettingsTopToolbar order and omit Context, History, Settings, and Tools', async () => {
+	test('lump icons follow BlockSettingsTopToolbar order and omit Context, History, Settings, Tools, and Prompts', async () => {
 		const { widget } = await mount();
 		const lump = widget.root.querySelector('[data-testid="knox-gui-lump"]');
 		assert.ok(lump);
@@ -129,6 +129,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-history"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-settings"]'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-tools"]'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump-prompts"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-starters'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="sample-prompts"]'), null);
 	});
@@ -400,6 +401,17 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-settings-tools"]'));
 		assert.ok(widget.root.querySelector('.knox-gui-tools'));
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-general"]'), null);
+		store.patch({
+			settingsTab: 'prompts',
+			slashCommands: [{ name: 'commit', description: 'Commit changes', prompt: 'commit the work' }],
+		});
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-tab-prompts"]')?.getAttribute('aria-selected'), 'true');
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-settings-prompts"]'));
+		assert.strictEqual(widget.root.querySelector('.knox-gui-prompt-name')?.textContent, 'commit');
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-prompt"]'));
+		(widget.root.querySelector('[data-testid="knox-gui-add-prompt"]') as HTMLButtonElement).click();
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-prompt-dialog"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-tools"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-input'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-lump"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-page-back'), null);

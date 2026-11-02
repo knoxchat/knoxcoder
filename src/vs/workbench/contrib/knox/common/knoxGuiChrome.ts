@@ -8,23 +8,23 @@ import { isAskUserToolName } from './knoxGuiChat.js';
 import { countRunningJobs } from './knoxGuiPanels.js';
 import { knoxGuiIsDedicatedEditor, knoxGuiVisibleSessionTabs, type IKnoxGuiBackgroundJob, type IKnoxGuiHistoryItem, type IKnoxGuiHistorySession, type IKnoxGuiSessionTab, type IKnoxGuiState, type IKnoxGuiToolCall, type KnoxChatMode, type KnoxToolSetting } from './knoxGuiState.js';
 
-/** Lump toolbar sections in `BlockSettingsTopToolbar` (context is overlay-only). History and Settings live in the title bar; Tools is a Settings tab. Icons match lucide. */
+/** Lump toolbar sections in `BlockSettingsTopToolbar` (context is overlay-only). History and Settings live in the title bar; Tools and Prompts are Settings tabs. Icons match lucide. */
 export const KNOX_GUI_LUMP_TOOLBAR = [
 	{ id: 'models' as const, key: 'models', svg: 'cpu' as const },
 	{ id: 'rules' as const, key: 'rules', svg: 'square-pen' as const },
-	{ id: 'prompts' as const, key: 'prompts', svg: 'scroll-text' as const },
 ];
 
-/** Vertical Settings tabs: current options under General, Tools permissions under Tools. */
+/** Vertical Settings tabs: current options under General, Tools permissions and Prompts under their tabs. */
 export const KNOX_GUI_SETTINGS_NAV = [
 	{ id: 'general' as const, key: 'generalSettings', svg: 'settings' as const },
 	{ id: 'tools' as const, key: 'tools', svg: 'wrench' as const },
+	{ id: 'prompts' as const, key: 'prompts', svg: 'scroll-text' as const },
 ];
 
 export type KnoxGuiSettingsTab = typeof KNOX_GUI_SETTINGS_NAV[number]['id'];
 
 export function knoxGuiSettingsTab(tab: string | undefined): KnoxGuiSettingsTab {
-	return tab === 'tools' ? 'tools' : 'general';
+	return KNOX_GUI_SETTINGS_NAV.some(item => item.id === tab) ? tab as KnoxGuiSettingsTab : 'general';
 }
 
 /** Session Chat/Agent tabs are gone; Jev (or Agent-only) picks. Edit is Cmd+I only. */

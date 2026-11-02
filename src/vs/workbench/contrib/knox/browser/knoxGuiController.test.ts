@@ -662,6 +662,27 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.deepStrictEqual(chat.store.state.toolGroupExcluded, ['Built-In']);
 	});
 
+	test('Settings Prompts tab bookmarks apply to chat without wiping recent slashes', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const chat = createHarness({ storage });
+		const settings = createHarness({ storage, lock: KnoxGuiRoute.Config });
+		await timeout(0);
+		chat.store.patch({ profileId: 'local', recentSlash: ['ship'], bookmarkedSlash: [] });
+		chat.controller.toggleBookmark('ship');
+		assert.deepStrictEqual(chat.store.state.bookmarkedSlash, ['ship']);
+		settings.store.patch({
+			profileId: 'local',
+			slashCommands: [{ name: 'commit', description: 'Commit changes', prompt: 'commit the work' }],
+			bookmarkedSlash: ['ship'],
+			recentSlash: [],
+		});
+		settings.controller.toggleBookmark('commit');
+		assert.ok(settings.store.state.bookmarkedSlash.includes('commit'));
+		assert.ok(chat.store.state.bookmarkedSlash.includes('commit'));
+		assert.ok(chat.store.state.bookmarkedSlash.includes('ship'));
+		assert.deepStrictEqual(chat.store.state.recentSlash, ['ship']);
+	});
+
 	test('stream response envelopes are not applied as host inbound', async () => {
 		const { controller, store } = createHarness();
 		await timeout(0);

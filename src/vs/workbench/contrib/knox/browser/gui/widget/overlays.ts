@@ -1049,6 +1049,11 @@ export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: 
 			widget.renderTools(main, state);
 			return;
 		}
+		if (tab === 'prompts') {
+			renderSettingsHeading(main, t(state, 'prompts'), t(state, 'promptsHint'));
+			widget.renderPrompts(main, state);
+			return;
+		}
 		renderSettingsGeneral(widget, main, state, false);
 		return;
 	}

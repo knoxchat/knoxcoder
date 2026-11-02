@@ -1018,8 +1018,8 @@ export interface IKnoxGuiState {
 	profileType?: string;
 	yamlRules?: unknown[];
 	showSessionTabs: boolean;
-	/** Dedicated Settings page: General (current options) or Tools permissions. */
-	settingsTab: 'general' | 'tools';
+	/** Dedicated Settings page: General, Tools permissions, or Prompts. */
+	settingsTab: 'general' | 'tools' | 'prompts';
 	fontSize: number;
 	/** Converted TextMate/Monaco theme from host `setTheme`. */
 	vscTheme?: IKnoxGuiVscTheme;
