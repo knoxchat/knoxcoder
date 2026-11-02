@@ -11,7 +11,7 @@ import { knoxGuiStreamErrorFromState } from '../../../common/knoxGuiTranscript.j
 import { IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
 import { IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiExecuteDoomCalls, knoxGuiFlushStreamText, knoxGuiHistoryToCoreHistory, knoxGuiShouldSplitForTools, knoxGuiToolFailureOutput, knoxGuiToolIsSettled } from '../../../common/knoxGuiAgentRequest.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
-import { finishTurn, hydrateLastAssistant, recordPromptLog, streamUpdate } from './stream.js';
+import { ensureTurnStreaming, finishTurn, hydrateLastAssistant, recordPromptLog, streamUpdate } from './stream.js';
 
 /**
  * Shared loop (K-010). The host runs the whole turn on
@@ -29,6 +29,27 @@ export interface IKnoxGuiSharedTurn {
 	awaitingUser: boolean;
 	/** Calls waiting for the user's answer: the step result must not settle them. */
 	askCallIds?: string[];
+	/** Host `done` (or cancel) landed; `runSharedTurn` can return. */
+	finished?: boolean;
+	resolveDone?: () => void;
+	whenDone?: Promise<void>;
+}
+
+/** Host request can resolve before the last `knox/chatTurnEvent` reaches the webview. */
+const SHARED_TURN_DONE_GRACE_MS = 250;
+
+function attachDoneGate(turn: IKnoxGuiSharedTurn): void {
+	let settled = false;
+	turn.whenDone = new Promise<void>(resolve => {
+		turn.resolveDone = () => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			turn.finished = true;
+			resolve();
+		};
+	});
 }
 
 /** Calls that settle with a result instead of an error card (the model was told why). */
@@ -52,6 +73,7 @@ function newAssistantItem() {
 export async function runSharedTurn(controller: KnoxGuiController): Promise<void> {
 	const state = controller.store.state;
 	const turn: IKnoxGuiSharedTurn = { sessionId: state.sessionId, acc: knoxGuiEmptyStreamText(), toolCalls: [], awaitingUser: false };
+	attachDoneGate(turn);
 	controller.sharedTurn = turn;
 	const history = knoxGuiHistoryToCoreHistory(state.history);
 	const lastUser = [...state.history].reverse().find(item => item.role === 'user');
@@ -83,15 +105,25 @@ export async function runSharedTurn(controller: KnoxGuiController): Promise<void
 			},
 		});
 		await controller.sharedTurnQueue;
+		if (!turn.finished && !controller.turnAborted && turn.whenDone) {
+			await Promise.race([
+				turn.whenDone,
+				new Promise<void>(resolve => setTimeout(resolve, SHARED_TURN_DONE_GRACE_MS)),
+			]);
+		}
 	} catch (error) {
 		await controller.sharedTurnQueue;
+		turn.resolveDone?.();
 		controller.finishThinking();
 		if (!controller.turnAborted) {
 			controller.store.patch({ streamError: knoxGuiStreamErrorFromState(error, controller.store.state) });
 		}
 		controller.cancelInFlightTools();
 	} finally {
-		controller.sharedTurn = undefined;
+		turn.resolveDone?.();
+		if (controller.sharedTurn === turn) {
+			controller.sharedTurn = undefined;
+		}
 	}
 }
 
@@ -108,6 +140,9 @@ async function applyChatTurnEvent(controller: KnoxGuiController, data: unknown):
 	const turn = controller.sharedTurn;
 	if (!rec || !event || !turn || rec.sessionId !== turn.sessionId || controller.turnAborted) {
 		return;
+	}
+	if (event.type !== 'done') {
+		ensureTurnStreaming(controller);
 	}
 	switch (event.type) {
 		case 'chunk':
@@ -292,6 +327,7 @@ async function onStep(controller: KnoxGuiController, turn: IKnoxGuiSharedTurn, e
 }
 
 async function onDone(controller: KnoxGuiController, turn: IKnoxGuiSharedTurn, event: Record<string, unknown>): Promise<void> {
+	turn.resolveDone?.();
 	controller.store.patch({ streamRetry: undefined });
 	controller.streamCoalescer.flush();
 	controller.finishThinking();

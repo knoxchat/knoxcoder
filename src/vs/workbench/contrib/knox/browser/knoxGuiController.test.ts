@@ -1940,6 +1940,37 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(posted.some(message => message.messageType === 'knox/cancelChatTurn'));
 	});
 
+	test('live stream updates restore isStreaming so Cancel stays available', async () => {
+		const { controller, store } = createHarness();
+		await timeout(0);
+		store.patch({
+			isStreaming: false,
+			history: [{ id: 'a', role: 'assistant', content: '', thinking: 'plan' }],
+		});
+		controller.streamCoalescer.enqueue({
+			content: '',
+			toolCalls: [],
+			thinking: 'plan more',
+			thinkingMeta: { active: true },
+		});
+		controller.streamCoalescer.flush();
+		assert.strictEqual(store.state.isStreaming, true);
+		assert.strictEqual(store.state.history.at(-1)?.thinking, 'plan more');
+		assert.strictEqual(store.state.history.at(-1)?.thinkingActive, true);
+	});
+
+	test('setInactive does not drop Cancel while a turn is in flight', async () => {
+		const { controller, store } = createHarness();
+		await timeout(0);
+		controller.turnActive = true;
+		store.patch({ isStreaming: true });
+		await controller.handleInbound('setInactive', undefined, 'inactive-1');
+		assert.strictEqual(store.state.isStreaming, true);
+		controller.turnActive = false;
+		await controller.handleInbound('setInactive', undefined, 'inactive-2');
+		assert.strictEqual(store.state.isStreaming, false);
+	});
+
 	test('K-010 shared loop: a turn that stops at ask_user stays open for the answer', async () => {
 		const call = { id: 'q1', name: 'builtin_ask_user', args: { questions: [{ id: 'which', prompt: 'Which file?', options: [{ id: 'a', label: 'a.ts' }] }] }, rawArguments: '{"questions":[{"id":"which","prompt":"Which file?","options":[{"id":"a","label":"a.ts"}]}]}' };
 		const { controller, store, posted } = sharedLoopHarness(() => [

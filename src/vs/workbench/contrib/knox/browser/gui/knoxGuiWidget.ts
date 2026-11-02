@@ -26,7 +26,7 @@ import * as knoxGuiMemoryView from './widget/memory.js';
 import * as knoxGuiCheckpointsView from './widget/checkpoints.js';
 import * as knoxGuiDialogView from './widget/dialog.js';
 import { captureDomState, keyedScrolls, restoreDomState } from './widget/preserve.js';
-import { composerImeActive, stepComposerUndo } from './widget/composer.js';
+import { composerImeActive, stepComposerUndo, syncComposerAction } from './widget/composer.js';
 import { stepHistoryUndo } from './widget/chat/historyEditor.js';
 import { isNativeTextInput, KnoxEditCommand, registerKnoxEditHost, selectAllContents } from './widget/editCommands.js';
 import { KnoxGuiCheckpointsFacade } from './widget/facade/checkpointsFacade.js';
@@ -128,6 +128,7 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		if (ids.length) {
 			patchToolProgress(this, state, ids);
 		}
+		syncComposerAction(this, state);
 	}
 
 	/**
@@ -192,6 +193,7 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 			} else {
 				this.patchLastAssistant(state);
 			}
+			syncComposerAction(this, state);
 			if (ended && this.autoScrollEnabled) {
 				knoxGuiChromeView.scheduleStreamEndStick(this);
 			}
@@ -210,12 +212,14 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 				}
 				if (!patchToolProgress(this, state, progress)) {
 					if (this.deferComposerImeRender()) {
+						syncComposerAction(this, state);
 						return;
 					}
 					this.lastState = state;
 					this.render();
 				} else {
 					this.lastState = state;
+					syncComposerAction(this, state);
 					knoxGuiChromeView.syncTranscriptFollow(this);
 				}
 				return;
@@ -232,6 +236,7 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 			this.refocusComposerAfterStream = true;
 		}
 		if (this.deferComposerImeRender()) {
+			syncComposerAction(this, state);
 			return;
 		}
 		this.lastState = state;

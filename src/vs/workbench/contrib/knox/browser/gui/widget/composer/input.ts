@@ -228,30 +228,7 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 		DOM.append(meter, DOM.$('span.knox-gui-context-label', undefined, `${pct}%`));
 		meter.title = `${t(state, 'contextMeterTitle')} ${pct}%: ${knoxGuiFormatTokens(usage.used)} / ${knoxGuiFormatTokens(usage.limit)}${usage.source === 'estimated' ? ' (~)' : ''}`;
 	}
-	const canCancel = knoxGuiCanCancel(state);
-	if (canCancel) {
-		widget.chromeButton(right, {
-			svg: 'cancel',
-			svgSize: 14,
-			title: t(state, 'cancelGeneration'),
-			testId: 'knox-gui-send',
-			extraClass: 'knox-gui-cancel knox-gui-send',
-			onClick: () => widget.controller.cancel(),
-		});
-	} else {
-		const blocked = knoxGuiSendButtonDisabled(state);
-		const send = widget.chromeButton(right, {
-			svg: 'send',
-			svgSize: 14,
-			label: t(state, knoxGuiEditSendKey(state)),
-			title: t(state, 'sendMessage'),
-			testId: 'knox-gui-send',
-			extraClass: 'knox-gui-send',
-			disabled: blocked,
-			onClick: (_button, event) => widget.submitFromComposer(Boolean(event?.altKey)),
-		});
-		send.style.fontSize = `${knoxGuiRelativeFontSize(state.fontSize, -3)}px`;
-	}
+	paintComposerSendButton(widget, right, state);
 	if (widget.memoryForm?.origin === 'composer') {
 		renderMemoryFormDialog(widget, widget.root, state);
 	}
@@ -272,6 +249,78 @@ function composerSelectionText(widget: KnoxGuiWidget): string {
 		return selection.toString();
 	}
 	return '';
+}
+
+function paintComposerSendButton(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): HTMLButtonElement {
+	if (knoxGuiCanCancel(state)) {
+		return widget.chromeButton(parent, {
+			svg: 'cancel',
+			svgSize: 14,
+			title: t(state, 'cancelGeneration'),
+			testId: 'knox-gui-send',
+			extraClass: 'knox-gui-cancel knox-gui-send',
+			onClick: () => widget.controller.cancel(),
+		});
+	}
+	const send = widget.chromeButton(parent, {
+		svg: 'send',
+		svgSize: 14,
+		label: t(state, knoxGuiEditSendKey(state)),
+		title: t(state, 'sendMessage'),
+		testId: 'knox-gui-send',
+		extraClass: 'knox-gui-send',
+		disabled: knoxGuiSendButtonDisabled(state),
+		onClick: (_button, event) => widget.submitFromComposer(Boolean(event?.altKey)),
+	});
+	send.style.fontSize = `${knoxGuiRelativeFontSize(state.fontSize, -3)}px`;
+	return send;
+}
+
+function paintDockCancel(widget: KnoxGuiWidget, dock: HTMLElement, state: IKnoxGuiState): HTMLButtonElement {
+	const button = widget.chromeButton(dock, {
+		svg: 'cancel',
+		svgSize: 12,
+		title: t(state, 'cancelGeneration'),
+		testId: 'knox-gui-dock-cancel',
+		extraClass: 'knox-gui-cancel knox-gui-composer-dock-cancel',
+		onClick: () => widget.controller.cancel(),
+	});
+	const end = dock.querySelector('.knox-gui-composer-dock-end');
+	if (end) {
+		dock.insertBefore(button, end);
+	}
+	return button;
+}
+
+/**
+ * Incremental stream patches skip a full composer rebuild. Swap Send/Cancel
+ * (and the hide-panel dock orb) the moment turn-active status changes.
+ */
+export function syncComposerAction(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
+	const canCancel = knoxGuiCanCancel(state);
+	const send = widget.root.querySelector('[data-testid="knox-gui-send"]') as HTMLButtonElement | null;
+	if (send) {
+		const showingCancel = send.classList.contains('knox-gui-cancel');
+		if (showingCancel !== canCancel) {
+			const parent = send.parentElement;
+			send.remove();
+			if (parent) {
+				paintComposerSendButton(widget, parent, state);
+			}
+		} else if (!canCancel) {
+			send.disabled = knoxGuiSendButtonDisabled(state);
+		}
+	}
+	const dock = widget.root.querySelector('[data-testid="knox-gui-composer-dock"]') as HTMLElement | null;
+	if (!dock) {
+		return;
+	}
+	const dockCancel = dock.querySelector('[data-testid="knox-gui-dock-cancel"]');
+	if (canCancel && !dockCancel) {
+		paintDockCancel(widget, dock, state);
+	} else if (!canCancel && dockCancel) {
+		dockCancel.remove();
+	}
 }
 
 export function syncPlaceholder(widget: KnoxGuiWidget, editor: HTMLElement, state: IKnoxGuiState): void {

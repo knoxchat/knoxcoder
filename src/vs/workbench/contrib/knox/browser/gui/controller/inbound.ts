@@ -15,6 +15,8 @@ import { knoxGuiHostAgentActiveFromPayload, knoxGuiModeAfterHostAgentFlag } from
 import { IKnoxGuiState, KnoxModelRole, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
 import { applyKnoxGuiSetColors, applyKnoxGuiSetTheme } from '../../../common/knoxGuiTheme.js';
 import { insertTextAtCaret } from '../../../common/knoxGuiInput.js';
+import { isAutonomousRunning } from './stream.js';
+import { isSharedTurnActive } from './sharedTurn.js';
 
 export function onHostMessage(controller: KnoxGuiController, message: IKnoxGuiMessage): void {
 	void controller.handleInbound(message.messageType, message.data, message.messageId);
@@ -231,6 +233,9 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 			}
 			return;
 		case 'setInactive':
+			if (controller.turnActive || isSharedTurnActive(controller) || isAutonomousRunning(controller)) {
+				return;
+			}
 			controller.store.setStreaming(false);
 			return;
 		case 'configUpdate':

@@ -37,6 +37,8 @@ export class KnoxGuiController extends Disposable {
 	streamCancel: CancellationTokenSource | undefined;
 	/** Set by Stop; no further rounds or tool continuations until the next submit. */
 	turnAborted = false;
+	/** True from submit() start until its `finally`; outlives a dropped `isStreaming` flag. */
+	turnActive = false;
 	/** Memory / restore inject built at submit, reused by every round of the turn. */
 	turnInject: { sessionId: string; content: string } | undefined;
 	/** Alt-submit / noContext: skip Turn Context (open files / git / diagnostics). */
@@ -90,12 +92,7 @@ export class KnoxGuiController extends Disposable {
 	availableProfiles: Record<string, unknown>[] | null = null;
 	readonly partialOutputCoalescer = createLatestValueCoalescer<string, unknown>((id, value) => this.applyPartialToolOutput(id, value));
 	readonly streamCoalescer = createStreamUpdateCoalescer<{ content: string; toolCalls: IKnoxGuiToolCall[]; thinking?: string; thinkingMeta?: knoxGuiStream.IKnoxGuiThinkingMeta }>(
-		value => {
-			this.store.updateLastAssistant(value.content, value.toolCalls);
-			if (value.thinking) {
-				this.patchLastThinking(value.thinking, value.thinkingMeta);
-			}
-		},
+		value => knoxGuiStream.applyLiveStreamUpdate(this, value),
 		{ flushNow: value => value.toolCalls.length > 0 },
 	);
 

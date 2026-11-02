@@ -53,16 +53,51 @@ export function knoxGuiRunningJobCount(jobs: IKnoxGuiBackgroundJob[]): number {
 	return countRunningJobs(jobs);
 }
 
-/** `InputToolbar` only cancels from the main composer. Historical Send stays Send. */
-export function knoxGuiCanCancel(state: { isStreaming: boolean; history: IKnoxGuiHistoryItem[] }, isMainInput = true): boolean {
-	if (!isMainInput) {
-		return false;
-	}
-	if (state.isStreaming) {
+const IN_FLIGHT_TOOL_STATUS = new Set(['calling', 'generating', 'generated']);
+
+export type IKnoxGuiTurnActiveState = {
+	isStreaming?: boolean;
+	isGatheringContext?: boolean;
+	editStatus?: string;
+	autonomous?: { status?: string };
+	history: ReadonlyArray<{
+		role?: string;
+		thinkingActive?: boolean;
+		toolCalls?: ReadonlyArray<{ status: string }>;
+	}>;
+};
+
+export function knoxGuiToolIsInFlight(status: string): boolean {
+	return IN_FLIGHT_TOOL_STATUS.has(status);
+}
+
+/**
+ * True while the agent is still working: model stream, context gather, live
+ * thinking, in-flight tools, edit apply, or `/autonomous`. `isStreaming` alone
+ * is not enough — a token-only patch or a dropped flag can hide Cancel while
+ * the user can still see Thinking.
+ */
+export function knoxGuiTurnIsActive(state: IKnoxGuiTurnActiveState): boolean {
+	if (state.isStreaming || state.isGatheringContext || state.editStatus === 'streaming') {
 		return true;
 	}
-	return state.history.some(item => item.toolCalls?.some(call =>
-		call.status === 'calling' || call.status === 'generating' || call.status === 'generated'));
+	if (state.autonomous?.status === 'running') {
+		return true;
+	}
+	for (const item of state.history) {
+		if (item.thinkingActive) {
+			return true;
+		}
+		if (item.toolCalls?.some(call => knoxGuiToolIsInFlight(call.status))) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/** `InputToolbar` only cancels from the main composer. Historical Send stays Send. */
+export function knoxGuiCanCancel(state: IKnoxGuiTurnActiveState, isMainInput = true): boolean {
+	return isMainInput && knoxGuiTurnIsActive(state);
 }
 
 /** `Chat.tsx`: hide the bottom composer after the first edit-mode turn. */

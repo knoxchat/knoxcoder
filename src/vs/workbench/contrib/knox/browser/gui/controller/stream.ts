@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { knoxGuiContextUsageFromLog, knoxGuiResolveContextLimit } from '../../../common/knoxGuiContextMeter.js';
+import { knoxGuiTurnIsActive } from '../../../common/knoxGuiChrome.js';
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { AUTO_CONTEXT_TIMEOUT_MS, MEMORY_BUILD_TIMEOUT_MS, asRecord, asArray, contextItemFromRaw, withTimeout } from './helpers.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -13,7 +14,7 @@ import { collectLatestTaskPlanSnapshot, parseInjectedMemories } from '../../../c
 import { knoxGuiMissingSymbolUris, knoxGuiParseSymbolMap, nextCodeBlockToApply, knoxGuiStreamErrorFromState, pendingApplyStates } from '../../../common/knoxGuiTranscript.js';
 import { extractMentionsFromDoc, extractSlashFromDoc, inputDocFromPlainText, inputDocToPlainText, knoxGuiPendingToolBlocksSubmit, knoxGuiShouldBlockSubmit, mentionContextProviderName, resolveComposerSlashCommand, slashCommandBareName, submitUsesActiveFile, useActiveFileFromDefaultContext } from '../../../common/knoxGuiInput.js';
 import { editSendPromptPayload, knoxGuiMultifileEditPrompt, shouldSendEditPrompt } from '../../../common/knoxGuiEdit.js';
-import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiRecipeDecision, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiContextItem, IKnoxGuiHistoryItem, IKnoxGuiRecipeDecision, IKnoxGuiState, IKnoxGuiToolCall } from '../../../common/knoxGuiState.js';
 import { IKnoxCoreChatHistoryItem, IKnoxCoreChatMessage, IKnoxGuiStreamText, knoxGuiAccumulateChunk, knoxGuiChunkToolCalls, knoxGuiEmptyStreamText, knoxGuiExecuteDoomCalls, knoxGuiFlushStreamText, knoxGuiShouldSplitForTools, knoxGuiFallbackMessages, knoxGuiFormatTurnInject, knoxGuiHistoryToCoreHistory, knoxGuiMemoryGoal, knoxGuiShouldContinueTurn, knoxGuiToolIsSettled, knoxGuiTurnMessages, knoxGuiTurnTools } from '../../../common/knoxGuiAgentRequest.js';
 import { knoxGuiDequeue, knoxGuiEnqueue, knoxGuiNextToDrain } from '../../../common/knoxGuiQueue.js';
 import { knoxGuiT } from '../knoxGuiI18n.js';
@@ -35,7 +36,7 @@ interface IKnoxGuiLegacySlash {
 export async function submit(controller: KnoxGuiController, starterPrompt?: string, modifiers?: { noContext?: boolean; altKey?: boolean; index?: number; doc?: ReturnType<typeof inputDocFromPlainText>; images?: string[] }): Promise<void> {
 	const resubmitting = typeof modifiers?.index === 'number';
 	// K-042: typing while the agent runs queues the message instead of dropping it.
-	if (starterPrompt === undefined && modifiers === undefined && controller.store.state.isStreaming && controller.store.state.mode !== 'edit' && enqueueCurrentInput(controller)) {
+	if (starterPrompt === undefined && modifiers === undefined && knoxGuiTurnIsActive(controller.store.state) && controller.store.state.mode !== 'edit' && enqueueCurrentInput(controller)) {
 		return;
 	}
 	if (resubmitting && (controller.store.state.isStreaming || knoxGuiPendingToolBlocksSubmit({
@@ -122,6 +123,7 @@ export async function submit(controller: KnoxGuiController, starterPrompt?: stri
 		controller.store.syncSessionTab(controller.store.state.sessionId, title);
 	}
 	controller.turnAborted = false;
+	controller.turnActive = true;
 	controller.turnInject = undefined;
 	controller.turnRecipeHint = undefined;
 	controller.store.setStreaming(true);
@@ -162,7 +164,11 @@ export async function submit(controller: KnoxGuiController, starterPrompt?: stri
 			});
 		}
 	} finally {
-		controller.store.setStreaming(false);
+		controller.turnActive = false;
+		if (!isSharedTurnActive(controller) && !isAutonomousRunning(controller)) {
+			controller.store.setStreaming(false);
+			finishThinking(controller);
+		}
 		controller.store.patch({ isGatheringContext: false });
 		void controller.refreshGitDiff(true);
 		if (controller.store.state.worktree.enabled) {
@@ -203,7 +209,7 @@ function drainMessageQueue(controller: KnoxGuiController): void {
 		aborted: controller.turnAborted,
 		blockedByPendingTool: knoxGuiPendingToolBlocksSubmit({ isStreaming: false, history: state.history }),
 		hasError: Boolean(state.streamError),
-		isStreaming: state.isStreaming,
+		isStreaming: knoxGuiTurnIsActive(state),
 	});
 	if (!next) {
 		return;
@@ -220,7 +226,7 @@ export async function sendQueuedMessageNow(controller: KnoxGuiController, id: st
 		return;
 	}
 	controller.store.patch({ messageQueue: knoxGuiDequeue(state.messageQueue, id) });
-	if (state.isStreaming) {
+	if (knoxGuiTurnIsActive(state)) {
 		controller.cancel();
 	}
 	await controller.submit(undefined, { doc: inputDocFromPlainText(queued.text), images: queued.images ?? [] });
@@ -359,6 +365,60 @@ async function buildAgentRequest(controller: KnoxGuiController): Promise<{ messa
 		// fall through to the local transcript
 	}
 	return { messages: knoxGuiFallbackMessages(history, injectedContext), tools: [] };
+}
+
+export interface IKnoxGuiThinkingMeta {
+	/** Reasoning is still streaming; reply text or `</think>` ends it. */
+	active: boolean;
+	redactedThinking?: string;
+	thinkingSignature?: string;
+}
+
+/** Keep Cancel available while tokens or thinking still arrive after `isStreaming` was cleared. */
+export function ensureTurnStreaming(controller: KnoxGuiController): void {
+	if (!controller.turnAborted && !controller.store.state.isStreaming) {
+		controller.store.setStreaming(true);
+	}
+}
+
+export function applyLiveStreamUpdate(controller: KnoxGuiController, value: {
+	content: string;
+	toolCalls: IKnoxGuiToolCall[];
+	thinking?: string;
+	thinkingMeta?: IKnoxGuiThinkingMeta;
+}): void {
+	const history = controller.store.state.history.slice();
+	for (let i = history.length - 1; i >= 0; i--) {
+		if (history[i].role !== 'assistant') {
+			continue;
+		}
+		const current = history[i];
+		const now = Date.now();
+		const active = value.thinking
+			? (value.thinkingMeta?.active ?? true)
+			: current.thinkingActive;
+		history[i] = {
+			...current,
+			content: value.content,
+			toolCalls: value.toolCalls ?? current.toolCalls,
+			...(value.thinking ? {
+				thinking: value.thinking,
+				thinkingActive: active,
+				thinkingStartAt: current.thinkingStartAt ?? now,
+				thinkingEndAt: active ? undefined : current.thinkingEndAt ?? now,
+				...(value.thinkingMeta?.redactedThinking ? { redactedThinking: value.thinkingMeta.redactedThinking } : {}),
+				...(value.thinkingMeta?.thinkingSignature ? { thinkingSignature: value.thinkingMeta.thinkingSignature } : {}),
+			} : {}),
+		};
+		const patch: Partial<IKnoxGuiState> = { history };
+		if (!controller.turnAborted && !controller.store.state.isStreaming) {
+			patch.isStreaming = true;
+		}
+		controller.store.patch(patch);
+		return;
+	}
+	controller.store.appendHistory({ id: generateUuid(), role: 'assistant', content: value.content, toolCalls: value.toolCalls });
+	ensureTurnStreaming(controller);
 }
 
 export function streamUpdate(acc: IKnoxGuiStreamText, toolCalls: IKnoxGuiToolCall[]) {
@@ -528,12 +588,16 @@ async function runRound(controller: KnoxGuiController, legacySlash?: IKnoxGuiLeg
 		controller.cancelInFlightTools();
 	} finally {
 		controller.streamCoalescer.flush();
-		controller.store.setStreaming(false);
+		if (!isSharedTurnActive(controller) && !isAutonomousRunning(controller)) {
+			controller.store.setStreaming(false);
+			finishThinking(controller);
+		}
 	}
 }
 
 export function cancel(controller: KnoxGuiController): void { // cancelStream.ts
 	controller.turnAborted = true;
+	controller.sharedTurn?.resolveDone?.();
 	cancelRecipeChoice(controller);
 	controller.streamCancel?.cancel();
 	controller.messenger.post('abort', undefined);
@@ -691,13 +755,6 @@ export function updateFileSymbolsFromHistory(controller: KnoxGuiController): Pro
 	return updateFileSymbols(controller, knoxGuiMissingSymbolUris(controller.store.state.history, controller.store.state.fileSymbols));
 }
 
-export interface IKnoxGuiThinkingMeta {
-	/** Reasoning is still streaming; reply text or `</think>` ends it. */
-	active: boolean;
-	redactedThinking?: string;
-	thinkingSignature?: string;
-}
-
 export function patchLastThinking(controller: KnoxGuiController, thinking: string, meta?: IKnoxGuiThinkingMeta): void {
 	const history = controller.store.state.history.slice();
 	const now = Date.now();
@@ -713,7 +770,11 @@ export function patchLastThinking(controller: KnoxGuiController, thinking: strin
 				...(meta?.redactedThinking ? { redactedThinking: meta.redactedThinking } : {}),
 				...(meta?.thinkingSignature ? { thinkingSignature: meta.thinkingSignature } : {}),
 			};
-			controller.store.patch({ history });
+			const patch: Partial<IKnoxGuiState> = { history };
+			if (active && !controller.turnAborted && !controller.store.state.isStreaming) {
+				patch.isStreaming = true;
+			}
+			controller.store.patch(patch);
 			return;
 		}
 	}

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IKnoxGuiToolCall, KnoxChatMode } from '../knoxGuiState.js';
+import { knoxGuiTurnIsActive } from '../knoxGuiChrome.js';
 import { isAskUserToolName } from '../knoxGuiChat.js';
 
 /** Send-button gating, pending tools, and active-file submit invert. */
@@ -19,14 +20,17 @@ export function submitUsesActiveFile(useActiveFile: boolean, altKey: boolean): b
 
 export function knoxGuiShouldBlockSubmit(state: {
 	isStreaming: boolean;
+	isGatheringContext?: boolean;
+	editStatus?: string;
+	autonomous?: { status?: string };
 	input: string;
 	images: unknown[];
 	mode: KnoxChatMode;
 	codeToEdit: unknown[];
-	history: Array<{ toolCalls?: IKnoxGuiToolCall[] }>;
+	history: Array<{ role?: string; thinkingActive?: boolean; toolCalls?: IKnoxGuiToolCall[] }>;
 	resubmitting?: boolean;
 }): boolean {
-	if (state.isStreaming && !state.resubmitting) {
+	if (knoxGuiTurnIsActive(state) && !state.resubmitting) {
 		return true;
 	}
 	if (state.mode === 'edit' && state.codeToEdit.length === 0) {

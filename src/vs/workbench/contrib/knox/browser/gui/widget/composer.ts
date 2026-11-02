@@ -15,7 +15,7 @@ export { renderComposer, KNOX_COMPOSER_TOGGLE_MS, setComposerCollapsed } from '.
 export { renderAcceptRejectAll, renderChatPermissionBar, renderContextPeek } from './composer/bars.js';
 export { placeCaretAtEndOf, caretDocPosition, placeCaretAtDocPosition, caretClientRect, caretAtEdge, placeCaretAtStart, placeCaretAtEnd } from './composer/caret.js';
 export { paintTypedMention, renderSuggest, renderSuggestItem } from './composer/suggest.js';
-export { syncInput, renderInput, syncPlaceholder } from './composer/input.js';
+export { syncInput, renderInput, syncPlaceholder, syncComposerAction } from './composer/input.js';
 export { renderModelSelect, renderReasoningSelect } from './composer/selects.js';
 export { insertAddContext, onEditorKeyDown, submitFromComposer, stepInputHistory, stepComposerUndo, insertPlainText, onEditorPaste } from './composer/editing.js';
 export { composerImeActive, bindComposerIme, composerImeFromInput } from './composer/ime.js';

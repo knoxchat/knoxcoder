@@ -20,6 +20,7 @@ import {
 	knoxGuiPendingToolBlocksSubmit,
 	knoxGuiShouldBlockSubmit,
 } from '../../../../common/knoxGuiInput.js';
+import { knoxGuiCanCancel } from '../../../../common/knoxGuiChrome.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { pendingApplyStates } from '../../../../common/knoxGuiTranscript.js';
 
@@ -47,7 +48,7 @@ export function onEditorKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent, _state?
 	const action = knoxGuiComposerKeyAction(e, {
 		suggestOpen: state.mentionOpen || state.slashOpen,
 		inSubmenu: Boolean(state.suggestSubmenu),
-		isStreaming: state.isStreaming,
+		isStreaming: knoxGuiCanCancel(state),
 		caretAtStart: widget.caretAtEdge('start'),
 		caretAtEnd: widget.caretAtEdge('end'),
 		suggestSelected: state.suggestSelected,

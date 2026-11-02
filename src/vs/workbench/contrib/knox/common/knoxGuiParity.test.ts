@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildCheckpointFileTree, CHECKPOINT_ANALYSIS_GROUP_LIMIT, CHECKPOINT_DASHBOARD_HISTORY_DAYS, checkpointAncestorIds, checkpointConfigHasChanges, checkpointConfigHasErrors, checkpointGraphForceMountKey, CHECKPOINT_GRAPH_ROW_HEIGHT, CHECKPOINT_GRAPH_WORKING_TREE_ID, CHECKPOINT_PANEL_TABS, CHECKPOINT_TAB_ICON, checkpointGraphMatches, checkpointGraphRowTop, checkpointGraphWindow, checkpointImpactChipClass, checkpointLaneNeighbor, checkpointRiskChipClass, checkpointScopeChipClass, checkpointShellAction, checkpointShellMessageKey, checkpointShellViewState, compactAxisNumber, computeLineDiff, defaultCheckpointGraphUi, drawCheckpointGraph, fillDailyCounts, filterCheckpoints, formatCheckpointGraphTime, formatRestoreNotice, groupCheckpointsByDate, groupDiffHunks, hunkWordAltRanges, layoutCheckpointLanes, normalizeCheckpointConfig, parseCheckpointAnalysis, parseCheckpointGraphUi, parseCheckpointRestored, parsePerformanceDashboard, parseRestorePreview, parseStorageBytes, parseSuggestedCheckpointGroups, restorePreviewActionKey, selectCheckpointIdRange, validateCheckpointConfig, withWorkingTreeNode, wordAltRanges } from './knoxGuiCheckpoints.js';
-import { knoxGuiAcceptRejectLabelKeys, knoxGuiAcceptRejectShortcut, knoxGuiAcceptRejectWidthKeys, knoxGuiAnchorPopoverBox, knoxGuiCanCancel, knoxGuiComposerShowsJobsButton, knoxGuiEditSendKey, knoxGuiEmptyTranscriptShowsPlaceholder, knoxGuiLumpLabelVisible, knoxGuiMetaKeyLabel, knoxGuiNextMainTextEntry, knoxGuiParseMainTextEntryCount, knoxGuiPermissionModeIsTopTab, knoxGuiRelativeFontSize, knoxGuiRunningJobCount, knoxGuiShowsAgentMeter, knoxGuiShowsBatchDiffEntry, knoxGuiShowsChatPermissionBar, knoxGuiShowsChatScrollbar, knoxGuiShowsChatToolButtons, knoxGuiShowsComposerAcceptReject, knoxGuiShowsEditResponseAcceptReject, knoxGuiShowsFatalBanner, knoxGuiShowsLumpOverlay, knoxGuiShowsMainComposer, knoxGuiShowsScrollButtons, knoxGuiShowsSessionTabs, knoxGuiToolbarShowsAlwaysOnLabels, KNOX_GUI_CHAT_SCROLLBAR_MIN_HEIGHT, KNOX_GUI_COMPOSER_SLOTS, KNOX_GUI_FIND_DEBOUNCE_MS, KNOX_GUI_FIND_RESIZE_DEBOUNCE_MS, KNOX_GUI_LUMP_TOOLBAR, KNOX_GUI_MAIN_TEXT_ENTRY_DIALOG_AT, KNOX_GUI_MODE_TABS, KNOX_GUI_SETTINGS_NAV, KNOX_GUI_SM_MIN_PX, KNOX_GUI_XS_MAX_PX, knoxGuiSettingsTab } from './knoxGuiChrome.js';
+import { knoxGuiAcceptRejectLabelKeys, knoxGuiAcceptRejectShortcut, knoxGuiAcceptRejectWidthKeys, knoxGuiAnchorPopoverBox, knoxGuiCanCancel, knoxGuiComposerShowsJobsButton, knoxGuiEditSendKey, knoxGuiEmptyTranscriptShowsPlaceholder, knoxGuiLumpLabelVisible, knoxGuiMetaKeyLabel, knoxGuiNextMainTextEntry, knoxGuiParseMainTextEntryCount, knoxGuiPermissionModeIsTopTab, knoxGuiRelativeFontSize, knoxGuiRunningJobCount, knoxGuiShowsAgentMeter, knoxGuiShowsBatchDiffEntry, knoxGuiShowsChatPermissionBar, knoxGuiShowsChatScrollbar, knoxGuiShowsChatToolButtons, knoxGuiShowsComposerAcceptReject, knoxGuiShowsEditResponseAcceptReject, knoxGuiShowsFatalBanner, knoxGuiShowsLumpOverlay, knoxGuiShowsMainComposer, knoxGuiShowsScrollButtons, knoxGuiShowsSessionTabs, knoxGuiToolbarShowsAlwaysOnLabels, knoxGuiTurnIsActive, KNOX_GUI_CHAT_SCROLLBAR_MIN_HEIGHT, KNOX_GUI_COMPOSER_SLOTS, KNOX_GUI_FIND_DEBOUNCE_MS, KNOX_GUI_FIND_RESIZE_DEBOUNCE_MS, KNOX_GUI_LUMP_TOOLBAR, KNOX_GUI_MAIN_TEXT_ENTRY_DIALOG_AT, KNOX_GUI_MODE_TABS, KNOX_GUI_SETTINGS_NAV, KNOX_GUI_SM_MIN_PX, KNOX_GUI_XS_MAX_PX, knoxGuiSettingsTab } from './knoxGuiChrome.js';
 import { applyCloseTab, applyNavigateTo, applySessionTabChange, createInitialKnoxGuiState, DEFAULT_PERMISSION_MODE, IKnoxGuiHistoryItem, IKnoxGuiState, IKnoxGuiToolCall, KNOX_GUI_DEFAULT_SESSION_MODE, knoxGuiIsDedicatedEditor, knoxGuiIsPlaceholderSessionTabTitle, knoxGuiPermissionModeLabelKey, knoxGuiPruneSessionTabs, knoxGuiShowsFreshCloneNotice, knoxGuiShowsYoloNotice, knoxGuiVisibleSessionTabs, nextPermissionMode } from './knoxGuiState.js';
 import { AUTO_DISPLAY_START, capDisplayText, GUI_DISPLAY_MAX_CHARS, GUI_SESSION_HYDRATE_BUDGET_BYTES, shouldWarnLargeSession, CHAT_DISPLAY_WINDOW, CHAT_LOAD_EARLIER_THRESHOLD_PX, compileSearchPattern, computeDisplayStart, createStreamUpdateCoalescer, expandPromptSlashCommand, extractCodeFences, findCurrentToolCall, findMatchingHistoryIndexes, groupHistoryTurns, incrementalParseJson, isAskUserToolName, isKnoxGuiFilterOnlyChange, isKnoxGuiInputOnlyChange, isKnoxGuiStreamingTokenChange, knoxGuiToolProgressOnlyChange, knoxGuiFindRegexInvalid, nextExpandedStart, parseLeadingSlash, parseToolArgs, resolveDisplayStart, shouldFloatLastUser, snapStartToTurn, STREAM_COALESCE_MS, toolDisplayKind, visibleTurnIndexes } from './knoxGuiChat.js';
 import { activityAnchorId, activityKindLabelKey, activitySummaryLine, applyUiAfterAppliedTimeout, applyUiForState, APPLIED_PILL_MS, buildAgentActivitySteps, collectDuplicateAssistantMessageIds, collectTurnPromptLogs, countTurnToolSteps, estimateTokensFromPromptLogs, extractSoulCheckpointId, fenceApplyStreamId, fenceHasFileToolbar, formatDurationMs, formatLoadingElapsed, formatTokenCount, hasForegroundCallingToolCalls, historyUserInputDoc, isResponseTruncated, isTerminalCodeBlock, isThinkingCollapsed, knoxGuiShowsCodeToEditOnEmptyComposer, knoxGuiShowsCodeToEditOnHistoryUser, loadingVariantFor, looksLikeFilePath, parseCodeFenceRange, parseStreamError, formatStreamErrorDiagnostic, streamErrorHintKey, summarizeSessionCost, pendingApplyStates, resolveAgentMaxSteps, resubmitHistory, shouldShineSentFrame, shouldShowThinkingIndicator, splitDisplayPath, splitMarkdownBlocks, summarizeJevPromptLogs, toolStepDetail, turnElapsedMs, turnHasVisibleProgress } from './knoxGuiTranscript.js';
@@ -63,6 +63,32 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(knoxGuiCanCancel(streaming), true);
 		assert.strictEqual(knoxGuiCanCancel(streaming, false), false);
 		assert.strictEqual(knoxGuiCanCancel(createInitialKnoxGuiState()), false);
+		assert.strictEqual(knoxGuiTurnIsActive({
+			isStreaming: false,
+			history: [{ role: 'assistant', thinkingActive: true }],
+		}), true);
+		assert.strictEqual(knoxGuiCanCancel({
+			isStreaming: false,
+			history: [{ role: 'assistant', thinkingActive: true }],
+		}), true);
+		assert.strictEqual(knoxGuiCanCancel({
+			isStreaming: false,
+			isGatheringContext: true,
+			history: [],
+		}), true);
+		assert.strictEqual(knoxGuiCanCancel({
+			isStreaming: false,
+			autonomous: { status: 'running' },
+			history: [],
+		}), true);
+		assert.strictEqual(knoxGuiCanCancel({
+			isStreaming: false,
+			history: [{ role: 'assistant', toolCalls: [{ status: 'calling' }] }],
+		}), true);
+		assert.strictEqual(knoxGuiCanCancel({
+			isStreaming: false,
+			history: [{ role: 'assistant', thinkingActive: false }],
+		}), false);
 		assert.strictEqual(knoxGuiShowsMainComposer({ route: KnoxGuiRoute.Chat, mode: 'edit', history: [] }), true);
 		assert.strictEqual(knoxGuiShowsMainComposer({ route: KnoxGuiRoute.Chat, mode: 'edit', history: [{}] }), false);
 		assert.strictEqual(knoxGuiShowsMainComposer({ route: KnoxGuiRoute.Chat, mode: 'chat', history: [{}] }), true);
@@ -2426,6 +2452,15 @@ suite('Knox native GUI parity', () => {
 			isStreaming: false,
 			resubmitting: false,
 			history: [{ toolCalls: [{ id: 't', name: 'builtin_edit_file', arguments: '{}', status: 'generated' }] }],
+		}), true);
+		assert.strictEqual(knoxGuiShouldBlockSubmit({
+			mode: 'agent',
+			input: 'follow up',
+			images: [],
+			codeToEdit: [],
+			isStreaming: false,
+			resubmitting: false,
+			history: [{ role: 'assistant', thinkingActive: true }],
 		}), true);
 
 		assert.deepStrictEqual(addModelPackagesByProvider().map(group => group.providerId), ['openai', 'anthropic']);

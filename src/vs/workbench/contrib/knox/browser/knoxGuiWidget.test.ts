@@ -1412,6 +1412,54 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(store.state.isStreaming, false);
 	});
 
+	test('Send and Cancel follow live generation, including hide-panel and leftover thinking', async () => {
+		const { widget, store } = await mount();
+		const user: IKnoxGuiHistoryItem = { id: 'u', role: 'user', content: 'Use rust to create a snake game' };
+		store.patch({
+			history: [user, { id: 'a', role: 'assistant', content: 'hello' }],
+			isStreaming: false,
+		});
+		const send = () => widget.root.querySelector('[data-testid="knox-gui-send"]') as HTMLButtonElement | null;
+		assert.ok(send());
+		assert.strictEqual(send()?.classList.contains('knox-gui-cancel'), false);
+
+		store.patch({
+			isStreaming: true,
+			history: [user, { id: 'a', role: 'assistant', content: 'hello world' }],
+		});
+		assert.ok(send()?.classList.contains('knox-gui-cancel'), 'token-only isStreaming flip must swap Send to Cancel');
+
+		store.patch({
+			isStreaming: false,
+			history: [user, { id: 'a', role: 'assistant', content: '', thinking: 'Signals: game', thinkingActive: true, thinkingCollapsed: false }],
+		});
+		assert.ok(send()?.classList.contains('knox-gui-cancel'), 'live thinking is cancelable even if isStreaming was dropped');
+
+		widget.setComposerCollapsed(true);
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-dock-cancel"]'), 'hide-panel dock shows Cancel while thinking');
+
+		store.patch({
+			isStreaming: false,
+			history: [user, { id: 'a', role: 'assistant', content: '', thinking: 'Signals: game; loop', thinkingActive: true, thinkingCollapsed: false }],
+		});
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-dock-cancel"]'), 'hide-panel Cancel stays as thinking grows');
+
+		store.patch({
+			isStreaming: true,
+			history: [user, { id: 'a', role: 'assistant', content: 'almost', thinking: 'Signals: game; loop', thinkingActive: false }],
+		});
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-dock-cancel"]'));
+
+		store.patch({
+			isStreaming: false,
+			history: [user, { id: 'a', role: 'assistant', content: 'done', thinking: 'Signals: game; loop', thinkingActive: false }],
+		});
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-dock-cancel"]'), null, 'dock Cancel leaves when the turn is idle');
+		widget.setComposerCollapsed(false);
+		assert.ok(send());
+		assert.strictEqual(send()?.classList.contains('knox-gui-cancel'), false);
+	});
+
 	test('mention ArrowUp/Down select after @ opens without a full re-render', async () => {
 		const { widget, store } = await mount();
 		await widget.controller.loadMentions('');
