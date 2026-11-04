@@ -3,6 +3,10 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Changed
+
+- **New-version popup.** When an update is available, KnoxCoder now shows a centered "Update Available" dialog with the new version, the size, the GitHub release notes, and Skip Version / Later / Download & Install. It shows download progress and then installs and restarts without further clicks. Turn it off with `update.showModal`; reopen it from the command palette with "Show Available Update".
+
 ## [2.3.1] - 2026-11-02
 
 ### Changed

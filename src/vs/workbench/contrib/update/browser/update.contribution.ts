@@ -14,6 +14,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, showReleaseNotesInEditor, DefaultAccountUpdateContribution } from './update.js';
 import { UpdateTitleBarContribution } from './updateTitleBarEntry.js';
 import { PostUpdateWidgetContribution } from './postUpdateWidget.js';
+import { UpdateModalContribution } from './updateModal.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import product from '../../../../platform/product/common/product.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
@@ -35,6 +36,7 @@ workbench.registerWorkbenchContribution(SwitchProductQualityContribution, Lifecy
 workbench.registerWorkbenchContribution(DefaultAccountUpdateContribution, LifecyclePhase.Eventually);
 workbench.registerWorkbenchContribution(UpdateTitleBarContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(PostUpdateWidgetContribution, LifecyclePhase.Restored);
+workbench.registerWorkbenchContribution(UpdateModalContribution, LifecyclePhase.Restored);
 
 // Release notes
 

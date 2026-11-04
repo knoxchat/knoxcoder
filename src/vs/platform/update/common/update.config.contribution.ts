@@ -71,6 +71,13 @@ configurationRegistry.registerConfiguration({
 			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new KnoxCoder versions in the background."),
 			included: isWindows && !isWeb
 		},
+		'update.showModal': {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('updateShowModal', "Show a popup dialog when a new KnoxCoder version is available. When disabled, the update is only shown in the title bar and the Manage menu."),
+			included: !isWeb
+		},
 		'update.showReleaseNotes': {
 			type: 'boolean',
 			default: true,

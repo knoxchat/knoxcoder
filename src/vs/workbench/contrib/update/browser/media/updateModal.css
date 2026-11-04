@@ -1,0 +1,260 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.update-modal-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 2600;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background-color: rgba(0, 0, 0, 0.5);
+}
+
+.update-modal {
+	position: relative;
+	box-sizing: border-box;
+	width: min(480px, calc(100% - 32px));
+	max-height: calc(100% - 48px);
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 20px 24px;
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	border-radius: 12px;
+	box-shadow: 0 8px 32px var(--vscode-widget-shadow);
+	font-size: 13px;
+}
+
+.update-modal .update-modal-close {
+	position: absolute;
+	top: 14px;
+	right: 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+}
+
+.update-modal .update-modal-close:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.update-modal .update-modal-heading {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+	padding-right: 32px;
+	font-size: 18px;
+	font-weight: 600;
+	line-height: 1.3;
+}
+
+.update-modal .update-modal-heading .codicon {
+	font-size: 18px;
+	color: var(--vscode-button-background);
+}
+
+.update-modal .update-modal-version {
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.update-modal .update-modal-meta {
+	color: var(--vscode-descriptionForeground);
+}
+
+.update-modal .update-modal-notes-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-top: 8px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.update-modal .update-modal-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 4px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	font: inherit;
+	cursor: pointer;
+}
+
+.update-modal .update-modal-link:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.update-modal .update-modal-notes {
+	box-sizing: border-box;
+	height: 220px;
+	overflow-y: auto;
+	padding: 4px 16px;
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	border-radius: 8px;
+	background-color: var(--vscode-editor-background);
+	line-height: 1.5;
+	user-select: text;
+}
+
+.update-modal .update-modal-notes h1,
+.update-modal .update-modal-notes h2,
+.update-modal .update-modal-notes h3 {
+	margin: 12px 0 6px;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.update-modal .update-modal-notes h1 {
+	font-size: 15px;
+}
+
+.update-modal .update-modal-notes p {
+	margin: 8px 0;
+}
+
+.update-modal .update-modal-notes ul {
+	margin: 6px 0;
+	padding-left: 20px;
+}
+
+.update-modal .update-modal-notes code {
+	padding: 1px 5px;
+	border-radius: 4px;
+	background-color: var(--vscode-textPreformat-background);
+	color: var(--vscode-textPreformat-foreground);
+	font-family: var(--monaco-monospace-font);
+}
+
+.update-modal .update-modal-notes-empty {
+	margin: 12px 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.update-modal .update-modal-progress {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px 16px;
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	border-radius: 8px;
+}
+
+.update-modal .update-modal-progress-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.update-modal .update-modal-progress-label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.update-modal .update-modal-progress-size {
+	color: var(--vscode-descriptionForeground);
+}
+
+.update-modal .update-modal-progress-track {
+	height: 6px;
+	overflow: hidden;
+	border-radius: 3px;
+	background-color: color-mix(in srgb, var(--vscode-button-background) 25%, transparent);
+}
+
+.update-modal .update-modal-progress-bar {
+	height: 100%;
+	width: 0;
+	border-radius: 3px;
+	background-color: var(--vscode-button-background);
+	transition: width 0.2s ease;
+}
+
+.update-modal .update-modal-progress-bar.indeterminate {
+	width: 30%;
+	animation: update-modal-indeterminate 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes update-modal-indeterminate {
+	from { margin-left: 0; }
+	to { margin-left: 70%; }
+}
+
+.update-modal .update-modal-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.update-modal .update-modal-actions .update-modal-skip {
+	margin-right: auto;
+	padding: 8px 4px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-foreground);
+	font: inherit;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.update-modal .update-modal-actions .update-modal-skip:hover {
+	text-decoration: underline;
+}
+
+.update-modal .update-modal-button {
+	padding: 8px 16px;
+	border: 1px solid transparent;
+	border-radius: 8px;
+	font: inherit;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.update-modal .update-modal-button.primary {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.update-modal .update-modal-button.primary:hover:not(:disabled) {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.update-modal .update-modal-button.secondary {
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border));
+}
+
+.update-modal .update-modal-button.secondary:hover:not(:disabled) {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.update-modal .update-modal-button:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.update-modal button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
