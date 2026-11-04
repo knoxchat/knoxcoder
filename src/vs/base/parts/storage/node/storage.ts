@@ -53,6 +53,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private readonly busyTimeout: number | undefined;
 
 	private readonly whenConnected: Promise<IDatabaseConnection>;
+	private readonly pendingUpdates = new Set<Promise<void>>();
 
 	constructor(
 		private readonly path: string,
@@ -83,7 +84,13 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	async updateItems(request: IUpdateRequest): Promise<void> {
 		const connection = await this.whenConnected;
 
-		return this.doUpdateItems(connection, request);
+		const pending = this.doUpdateItems(connection, request);
+		this.pendingUpdates.add(pending);
+		try {
+			return await pending;
+		} finally {
+			this.pendingUpdates.delete(pending);
+		}
 	}
 
 	private doUpdateItems(connection: IDatabaseConnection, request: IUpdateRequest): Promise<void> {
@@ -92,6 +99,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		}
 
 		return this.transaction(connection, () => {
+			const statements: Promise<void>[] = [];
 			const toInsert = request.insert;
 			const toDelete = request.delete;
 
@@ -116,7 +124,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				});
 
 				keysValuesChunks.forEach(keysValuesChunk => {
-					this.prepare(connection, `INSERT INTO ItemTable VALUES ${new Array(keysValuesChunk.length / 2).fill('(?,?)').join(',')} ON CONFLICT (key) DO UPDATE SET value = excluded.value WHERE value != excluded.value`, stmt => stmt.run(keysValuesChunk), () => {
+					statements.push(this.prepare(connection, `INSERT INTO ItemTable VALUES ${new Array(keysValuesChunk.length / 2).fill('(?,?)').join(',')} ON CONFLICT (key) DO UPDATE SET value = excluded.value WHERE value != excluded.value`, stmt => stmt.run(keysValuesChunk), () => {
 						const keys: string[] = [];
 						let length = 0;
 						toInsert.forEach((value, key) => {
@@ -125,7 +133,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 						});
 
 						return `Keys: ${keys.join(', ')} Length: ${length}`;
-					});
+					}));
 				});
 			}
 
@@ -151,16 +159,18 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				});
 
 				keysChunks.forEach(keysChunk => {
-					this.prepare(connection, `DELETE FROM ItemTable WHERE key IN (${new Array(keysChunk.length).fill('?').join(',')})`, stmt => stmt.run(keysChunk), () => {
+					statements.push(this.prepare(connection, `DELETE FROM ItemTable WHERE key IN (${new Array(keysChunk.length).fill('?').join(',')})`, stmt => stmt.run(keysChunk), () => {
 						const keys: string[] = [];
 						toDelete.forEach(key => {
 							keys.push(key);
 						});
 
 						return `Keys: ${keys.join(', ')}`;
-					});
+					}));
 				});
 			}
+
+			return statements;
 		});
 	}
 
@@ -176,6 +186,10 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		this.logger.trace(`[storage ${this.name}] close()`);
 
 		const connection = await this.whenConnected;
+
+		// Drain in-flight updates (and their statement finalizers) before closing
+		// to avoid finalizing statements while the process is tearing down.
+		await Promise.allSettled([...this.pendingUpdates]);
 
 		return this.doClose(connection, recovery);
 	}
@@ -410,27 +424,32 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		});
 	}
 
-	private transaction(connection: IDatabaseConnection, transactions: () => void): Promise<void> {
-		return new Promise((resolve, reject) => {
+	private transaction(connection: IDatabaseConnection, transactions: () => Promise<void>[]): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			let statements: Promise<void>[] = [];
 			connection.db.serialize(() => {
 				connection.db.run('BEGIN TRANSACTION');
 
-				transactions();
+				statements = transactions();
 
 				connection.db.run('END TRANSACTION', error => {
-					if (error) {
-						this.handleSQLiteError(connection, `[storage ${this.name}] transaction(): ${error}`);
+					// Make sure all statements are finalized before settling, otherwise
+					// a close() right after could finalize statements during shutdown.
+					Promise.all(statements).then(() => {
+						if (error) {
+							this.handleSQLiteError(connection, `[storage ${this.name}] transaction(): ${error}`);
 
-						return reject(error);
-					}
+							return reject(error);
+						}
 
-					return resolve();
+						return resolve();
+					});
 				});
 			});
 		});
 	}
 
-	private prepare(connection: IDatabaseConnection, sql: string, runCallback: (stmt: Statement) => void, errorDetails: () => string): void {
+	private prepare(connection: IDatabaseConnection, sql: string, runCallback: (stmt: Statement) => void, errorDetails: () => string): Promise<void> {
 		const stmt = connection.db.prepare(sql);
 
 		const statementErrorListener = (error: Error) => {
@@ -441,12 +460,15 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 		runCallback(stmt);
 
-		stmt.finalize(error => {
-			if (error) {
-				statementErrorListener(error);
-			}
+		return new Promise<void>(resolve => {
+			stmt.finalize(error => {
+				if (error) {
+					statementErrorListener(error);
+				}
 
-			stmt.removeListener('error', statementErrorListener);
+				stmt.removeListener('error', statementErrorListener);
+				resolve();
+			});
 		});
 	}
 }
