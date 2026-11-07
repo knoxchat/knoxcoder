@@ -25,6 +25,7 @@ import { getSkillManager } from "../implementations/skillSingleton";
 import { evaluateAgentTurn } from "../../jev/turn";
 import { formatGuardrailHint } from "../../jev/guardrail";
 import { getActiveJevRuntime } from "../../jev/config";
+import { formatMemoryUserMessage } from "../../context/memory/brain/injectFormat";
 
 import {
   startSubagentJob,
@@ -445,7 +446,7 @@ export async function runSubagent(
           built.context &&
           built.context !== "No relevant memories found."
         ) {
-          memoryBlock = `\n\n## Parent memory\n${built.context}`;
+          memoryBlock = formatMemoryUserMessage(`## Parent memory\n${built.context}`);
         }
       }
     } catch {
@@ -463,8 +464,10 @@ export async function runSubagent(
           input.custom
             ? `You are a child agent (${input.custom.name}). Complete only the assigned task. Return a concise summary. Do not spawn further subagents.\n\n${input.custom.prompt}`
             : subagentSystemPrompt(baseProfile)
-        }${memoryBlock}${loopState}`,
+        }${loopState}`,
       },
+      // MEM-63: retrieved memory is a quoted user-role block, never system text.
+      ...(memoryBlock ? [{ role: "user" as const, content: memoryBlock }] : []),
       { role: "user", content: prompt },
     ];
 

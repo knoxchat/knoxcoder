@@ -101,6 +101,19 @@ function memoryEntities(title?: string, keywords?: string, content?: string): st
   return [...names];
 }
 
+/** MEM-60 / MEM-62: what the attribution log needs from a fused hit. */
+function fusionLogFields(
+  hit?: FusionResult,
+): Pick<InjectedMemoryItem, "propensity" | "features"> {
+  if (!hit) return {};
+  const out: Pick<InjectedMemoryItem, "propensity" | "features"> = {};
+  if (hit.propensity != null) out.propensity = hit.propensity;
+  if (hit.rel != null && hit.utility != null && hit.retrievability != null) {
+    out.features = { rel: hit.rel, U: hit.utilityGreedy ?? hit.utility, R: hit.retrievability };
+  }
+  return out;
+}
+
 function toCandidate(input: {
   key: string;
   kind: ContextCandidate["kind"];
@@ -398,6 +411,7 @@ export class ContextSections {
       pinned,
       score: hit?.score ?? overlapScore(query, gate),
       channel: hit?.channel ?? winningChannel(hit?.scores) ?? undefined,
+      ...fusionLogFields(hit),
       reason: gate.reason,
       fts5: hit?.scores.fts5,
       trigram: hit?.scores.trigram,
@@ -437,6 +451,7 @@ export class ContextSections {
       importance?: number;
       evidence?: string[];
       gate_passed?: boolean;
+      log?: Pick<InjectedMemoryItem, "propensity" | "features">;
     }> = [];
     if (fusion.fusionHits.length > 0) {
       scored = fusion.fusionHits
@@ -463,6 +478,7 @@ export class ContextSections {
             importance: r.scores.importance,
             evidence: uniqueEvidence(gate.lexicalOverlap, gate.sharedEntities),
             gate_passed: gate.passed,
+            log: fusionLogFields(r),
           };
         })
         .filter((row) => row.passed)
@@ -540,6 +556,7 @@ export class ContextSections {
         importance: row.importance,
         evidence: row.evidence,
         gate_passed: row.gate_passed,
+        ...(row.log ?? {}),
       };
       return toCandidate({
         key: `episodic:${ep.id}`,

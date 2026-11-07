@@ -158,6 +158,10 @@ export interface InjectedMemoryItem {
   score?: number;
   /** Winning retrieval channel at inject time (MEM-18). */
   channel?: "lexical" | "ripgrep" | "graph" | "tree";
+  /** MEM-60: P(selected) at inject time, logged for IPW calibration. */
+  propensity?: number;
+  /** MEM-62: rel / U / R at inject time, replayed to refit η_U and η_R. */
+  features?: { rel: number; U: number; R: number };
   pinned?: boolean;
   fts5?: number;
   trigram?: number;

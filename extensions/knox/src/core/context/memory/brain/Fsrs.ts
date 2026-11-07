@@ -52,6 +52,8 @@ export interface FsrsParams {
   reversion?: number;
   /** Helpful D decrement. */
   helpfulStep?: number;
+  /** D₀, the difficulty D reverts toward. */
+  difficultyInitial?: number;
 }
 
 export const STABILITY_GAIN_CAP_DEFAULT = 10;
@@ -81,6 +83,7 @@ export function defaultFsrsParams(): FsrsParams {
     stabilityMin: STABILITY_MIN_DAYS_DEFAULT,
     reversion: DIFFICULTY_REVERSION_DEFAULT,
     helpfulStep: DIFFICULTY_HELPFUL_STEP_DEFAULT,
+    difficultyInitial: DEFAULT_DIFFICULTY,
   };
 }
 
@@ -94,6 +97,7 @@ export function getFsrsParams(): FsrsParams {
       stabilityMin: v2.stabilityMinDays,
       reversion: v2.difficultyReversion,
       helpfulStep: v2.difficultyHelpfulStep,
+      difficultyInitial: v2.difficultyInitial,
       a: theorem.fsrsA,
       b: theorem.fsrsB,
       g: theorem.fsrsG,
@@ -120,6 +124,7 @@ function resolveParams(params?: Partial<FsrsParams>): FsrsParams {
     stabilityMin: params?.stabilityMin ?? fallback.stabilityMin,
     reversion: params?.reversion ?? fallback.reversion,
     helpfulStep: params?.helpfulStep ?? fallback.helpfulStep,
+    difficultyInitial: params?.difficultyInitial ?? fallback.difficultyInitial,
   };
 }
 
@@ -133,8 +138,10 @@ function unitOr(value: number | undefined, fallback: number): number {
 
 /** D ← 0.95 D + 0.05 D₀, clamped to [1, 10]. Runs after every helpful / harmful update. */
 export function revertDifficulty(difficulty: number, params?: Partial<FsrsParams>): number {
-  const rho = unitOr(resolveParams(params).reversion, DIFFICULTY_REVERSION_DEFAULT);
-  return clampDifficulty((1 - rho) * clampDifficulty(difficulty) + rho * DEFAULT_DIFFICULTY);
+  const p = resolveParams(params);
+  const rho = unitOr(p.reversion, DIFFICULTY_REVERSION_DEFAULT);
+  const d0 = clampDifficulty(p.difficultyInitial);
+  return clampDifficulty((1 - rho) * clampDifficulty(difficulty) + rho * d0);
 }
 
 function finiteOr(value: number | null | undefined, fallback: number): number {

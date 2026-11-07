@@ -82,11 +82,16 @@ export type { WorkingMemoryItem, WorkingMemoryStats, WorkingMemoryState } from "
 export {
   contentWords,
   detectIntent,
+  detectAsOfIntent,
   expandRetrievalQuery,
   buildFts5Query,
   resolveRetrievalQuery,
   RETRIEVAL_STOPWORDS,
 } from "./RetrievalQuery.js";
+export { USER_GLOBAL_CATEGORIES, isUserGlobalCategory, appendRelevanceScope } from "./projectScope.js";
+export { mergeReservedCandidates, resolveReservedTreeSlots } from "./reservedSlots.js";
+export { BeamCapacity, treeRoutedCount, exceedsBeamCapacity } from "./beamCapacity.js";
+export { getLastSearchMeta } from "./channelCost.js";
 export {
   detectFusionProfile,
   getFusionWeights,
@@ -122,6 +127,7 @@ export {
   winningRrfChannel,
   applyTopicBias,
   BM25_SCALE_K,
+  FTS_MATCH_HARD_CAP,
   RRF_K0_DEFAULT,
   FUSION_CANDIDATE_CUTOFF_DEFAULT,
   RETRIEVAL_THRESHOLD_DEFAULT,
@@ -188,6 +194,7 @@ export {
   searchTreeChannel,
   splitTurnsByRecentShare,
   treeBeamStatus,
+  treeVisitBudget,
   TREE_BEAM_DEFAULT,
   TREE_BRANCHING_DEFAULT,
 } from "./SummaryTree.js";

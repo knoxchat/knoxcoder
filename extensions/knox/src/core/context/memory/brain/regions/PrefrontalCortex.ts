@@ -131,6 +131,16 @@ export const PrefrontalCortex = {
     }
   },
 
+  /**
+   * MEM-68: A4 re-plan. Extra titles from a crowded first hop become the
+   * second-hop hint. Still never C_goal.
+   */
+  replanForCapacity(titles: readonly string[], sessionId?: string): void {
+    const cleaned = titles.map((t) => t.trim()).filter(Boolean).slice(0, 8);
+    if (cleaned.length === 0) return;
+    getState(sessionId).recentKnowledgeHint = cleaned.join(" ");
+  },
+
   getRecentKnowledgeHint(sessionId?: string): string | null {
     return getState(sessionId).recentKnowledgeHint;
   },

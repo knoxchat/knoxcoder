@@ -105,7 +105,7 @@ describe("MEM-26 entity resolution + validity", () => {
       session_id: sessionId,
     });
 
-    const graph = await KnowledgeGraph.searchMemoriesByPpr("TS");
+    const graph = (await KnowledgeGraph.searchMemoriesByPpr("TS")).scores;
     expect(graph.get(memoryId) ?? 0).toBeGreaterThan(0);
 
     const hits = await RetrievalFusion.search({
@@ -228,7 +228,7 @@ describe("MEM-26 entity resolution + validity", () => {
       session_id: sessionId,
     });
 
-    const graph = await KnowledgeGraph.searchMemoriesByPpr("Mem26EdgeSeedAuth");
+    const graph = (await KnowledgeGraph.searchMemoriesByPpr("Mem26EdgeSeedAuth")).scores;
     expect(graph.get(memoryId) ?? 0).toBe(0);
   });
 

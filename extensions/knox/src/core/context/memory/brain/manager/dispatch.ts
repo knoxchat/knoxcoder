@@ -323,18 +323,8 @@ export async function dispatch(action: MemoryBrainAction, params: any): Promise<
       const sessionId = params.session_id;
       const message = params.message ?? params.query;
 
-      // P3.1 — The snapshot cache only serves generic session-start
-      // context. A concrete message needs query-specific retrieval, so
-      // never answer it with a frozen generic snapshot.
-      if (sessionId && !message) {
-        try {
-          const snapshot = await MemorySnapshot.getSnapshot(sessionId, params.max_tokens);
-          if (snapshot) {
-            return snapshot.context;
-          }
-        } catch {}
-      }
-
+      // MEM-63: the session snapshot is a static pointer line, not memory, so
+      // a call without a message builds the generic context live as a tool result.
       const context = await ContextBuilder.build({
         ...params,
         message: message ?? "session context overview",

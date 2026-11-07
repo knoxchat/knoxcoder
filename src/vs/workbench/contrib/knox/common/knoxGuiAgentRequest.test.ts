@@ -88,6 +88,20 @@ suite('Knox native agent request helpers', () => {
 		]);
 	});
 
+	test('fallback transcript quotes retrieved memory in a user message, never system', () => {
+		const core = knoxGuiHistoryToCoreHistory([{ id: 'u', role: 'user', content: 'q', contextItems: [] }]);
+		const inject = knoxGuiFormatTurnInject('[mem:semantic:1] use tabs\n\n[mem:semantic:2] x', 'Restored to cp-1');
+		const messages = knoxGuiFallbackMessages(core, inject);
+		assert.deepStrictEqual(messages.map(m => m.role), ['system', 'user', 'user']);
+		assert.strictEqual(messages[0].content, 'Restored to cp-1');
+		assert.ok(!JSON.stringify(messages.filter(m => m.role === 'system')).includes('use tabs'));
+		const block = String(messages[1].content);
+		assert.ok(block.startsWith('[memory: quoted notes'));
+		assert.ok(block.includes('> [mem:semantic:1] use tabs'));
+		assert.ok(block.endsWith('[/memory]'));
+		assert.strictEqual(messages[2].content, 'q');
+	});
+
 	test('stream chunks split visible text from thinking and never stringify objects', () => {
 		assert.strictEqual(knoxGuiChunkText({ role: 'assistant', content: 'hi' }), 'hi');
 		assert.strictEqual(knoxGuiChunkText({ role: 'thinking', content: 'plan' }), '');

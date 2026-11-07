@@ -263,12 +263,18 @@ export interface MemoryConfig {
   difficulty_reversion: number;
   /** Difficulty drop on a helpful use: D ← max(1, D − step). */
   difficulty_helpful_step: number;
+  /** D₀: the difficulty D reverts toward (MEM-62 refits it). */
+  difficulty_initial: number;
   /** ω: fractional unhelpful evidence for an injected-but-uncited memory. */
   utility_omega: number;
   /** Share of calls that replace U(m) with a Thompson draw. */
   explore_rate: number;
   /** Share of successful turns that get an ablation probe. */
   ablation_rate: number;
+  /** MEM-59: ablation probes cost an extra LLM call, so they are opt-in. */
+  ablation_enabled: boolean;
+  /** MEM-59: hard cap on probes per UTC day (regeneration cost budget). */
+  ablation_daily_budget: number;
   /** Logged injections a scope needs before its own isotonic fit is used. */
   calibration_min_injections: number;
   /** Cut-off before any fit exists: top-k by score. */

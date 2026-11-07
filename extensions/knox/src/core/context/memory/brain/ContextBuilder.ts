@@ -128,7 +128,6 @@ export class ContextBuilder {
           query: searchQuery,
           sessionId: input.session_id,
           limit: Math.max(mode.semanticLimit, config.retrieval_top_k),
-          minScore: config.retrieval_threshold,
           includeEpisodic: mode.includeEpisodic,
           projectSessionIds,
           intent: retrieval.intent,

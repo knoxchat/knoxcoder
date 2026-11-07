@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { ChatMessage } from "..";
+import { parseMemoryCites } from "./memory/brain/attribution";
+import { isMemoryUserMessage } from "./memory/brain/injectFormat";
 import { createPlan, resetPlansForTests } from "../tools/planStore";
 import { constructMessages } from "../llm/constructMessages";
 import {
@@ -167,13 +170,65 @@ describe("turn inject budget (K-072)", () => {
       },
       { kind: "pinned_memory", text: "[pinned] [decision] Keep me" },
     ]);
+    // MEM-63: memory is a quoted user-role block; the plan stays a system inject.
     const injects = packed
-      .filter((message) => message.role === "system")
+      .filter((message) => message.role === "system" || message.role === "user")
       .slice(1)
       .map((message) => String(message.content))
       .join("\n");
     expect(injects).toMatch(/Plan stays/);
     expect(injects).toMatch(/Keep me/);
     expect(estimateTurnInjectTokens(injects)).toBeLessThanOrEqual(800);
+  });
+
+  it("MEM-63: retrieved memory is a quoted user-role block, never system text", () => {
+    const base: ChatMessage[] = [
+      { role: "system", content: "You are Knox." },
+      { role: "user", content: "earlier" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "now do it" },
+    ];
+    const packed = applyTurnInjectToMessages(base, [
+      {
+        kind: "retrieved_memory",
+        text: "## Relevant Memory Context\n[mem:semantic:7] [fact] Use tabs\n\n[mem:semantic:8] [fact] Port 5173",
+      },
+      { kind: "pinned_memory", text: "[pinned] [decision] Auth: JWT" },
+    ]);
+    const system = packed.filter((m) => m.role === "system").map((m) => String(m.content)).join("\n");
+    expect(system).not.toMatch(/Use tabs|JWT|Port 5173|\[mem:/);
+    const memory = packed.filter((m) => m.role === "user" && isMemoryUserMessage(String(m.content)));
+    expect(memory).toHaveLength(1);
+    const text = String(memory[0].content);
+    expect(text).toContain("> [mem:semantic:7] [fact] Use tabs");
+    expect(text).toContain("> [pinned] [decision] Auth: JWT");
+    // placed right before the final user message
+    expect(packed[packed.length - 1]).toEqual({ role: "user", content: "now do it" });
+    expect(packed[packed.length - 2]).toBe(memory[0]);
+    // cite round-trip: the attribution parser still sees every cite inside the quote
+    expect(parseMemoryCites(text).map((c) => c.mem_id)).toEqual(["7", "8"]);
+  });
+
+  it("MEM-63: repacking does not duplicate the memory block", () => {
+    const base: ChatMessage[] = [
+      { role: "system", content: "You are Knox." },
+      { role: "user", content: "now do it" },
+    ];
+    const once = applyTurnInjectToMessages(base, [
+      { kind: "retrieved_memory", text: "## Relevant Memory Context\n[mem:semantic:1] [fact] A" },
+    ]);
+    const twice = applyTurnInjectToMessages(once, []);
+    const blocks = twice.filter((m) => m.role === "user" && isMemoryUserMessage(String(m.content)));
+    expect(blocks).toHaveLength(1);
+    expect(String(blocks[0].content)).toContain("> [mem:semantic:1] [fact] A");
+  });
+
+  it("MEM-63: unrecognised system injects are not moved to the user role", () => {
+    const packed = applyTurnInjectToMessages(
+      [{ role: "system", content: "You are Knox." }, { role: "user", content: "hi" }],
+      [{ kind: "oracle", text: "Restored to cp-1" }],
+    );
+    expect(packed.filter((m) => m.role === "system").map((m) => String(m.content))).toContain("Restored to cp-1");
+    expect(packed.some((m) => m.role === "user" && isMemoryUserMessage(String(m.content)))).toBe(false);
   });
 });

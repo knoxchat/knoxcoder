@@ -537,6 +537,12 @@ export async function ensureTheoremColumns(db: DatabaseConnection): Promise<void
   // MEM-18: winning channel + inject score for w_s / θ refit.
   await tryExec(db, "ALTER TABLE brain_attribution ADD COLUMN channel TEXT");
   await tryExec(db, "ALTER TABLE brain_attribution ADD COLUMN score REAL");
+  // MEM-59 / 60 / 61: provenance of the row, P(selected) at inject time, scope, and
+  // the score features (rel, U, R) the refit replays.
+  await tryExec(db, "ALTER TABLE brain_attribution ADD COLUMN source TEXT NOT NULL DEFAULT 'turn'");
+  await tryExec(db, "ALTER TABLE brain_attribution ADD COLUMN propensity REAL");
+  await tryExec(db, "ALTER TABLE brain_attribution ADD COLUMN scope_key TEXT");
+  await tryExec(db, "ALTER TABLE brain_attribution ADD COLUMN features TEXT");
   for (const table of ["brain_entities", "brain_graph_edges"] as const) {
     for (const col of THEOREM_GRAPH_ALTERS) {
       await tryExec(db, `ALTER TABLE ${table} ADD COLUMN ${col}`);
@@ -602,7 +608,21 @@ export async function createTheoremTables(db: DatabaseConnection): Promise<void>
       helpful INTEGER,
       channel TEXT,
       score REAL,
+      source TEXT NOT NULL DEFAULT 'turn',
+      propensity REAL,
+      scope_key TEXT,
+      features TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // MEM-61: fitted isotonic maps score -> P(helpful). scope_key '' is the global fit.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS brain_calibration (
+      scope_key TEXT PRIMARY KEY,
+      n INTEGER NOT NULL DEFAULT 0,
+      points TEXT NOT NULL DEFAULT '[]',
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 

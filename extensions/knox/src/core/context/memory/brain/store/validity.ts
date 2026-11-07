@@ -70,9 +70,26 @@ export function bitemporalSql(
   return { sql: parts.join(" AND "), params };
 }
 
-/** Default retrieve / channel scope over a semantic or episodic leaf. */
-export function queryScopeSql(kind: "semantic" | "episodic", alias?: string): string {
-  const parts = [liveRetrieveSql(alias), validAtSql(alias)];
+/**
+ * Default retrieve / channel scope over a semantic or episodic leaf.
+ * MEM-65: pass `asOf` to include superseded facts that were valid then.
+ */
+export function queryScopeClause(
+  kind: "semantic" | "episodic",
+  alias?: string,
+  temporal: BitemporalQuery = {},
+): { sql: string; params: string[] } {
+  const live = liveRetrieveSql(alias);
+  if (temporal.asOf) {
+    const t = bitemporalSql(temporal, alias);
+    return { sql: `${live} AND ${t.sql}`, params: t.params };
+  }
+  const parts = [live, validAtSql(alias)];
   if (kind === "semantic") parts.push(notSupersededSql(alias));
-  return parts.join(" AND ");
+  return { sql: parts.join(" AND "), params: [] };
+}
+
+/** Default retrieve (valid now, not superseded). For as-of mode use {@link queryScopeClause}. */
+export function queryScopeSql(kind: "semantic" | "episodic", alias?: string): string {
+  return queryScopeClause(kind, alias).sql;
 }

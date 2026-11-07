@@ -5,6 +5,8 @@ import { get } from "./connection.js";
 
 export type AttributionMemType = "semantic" | "episodic" | "recipe";
 export type AttributionChannel = "lexical" | "ripgrep" | "graph" | "tree";
+/** `turn` = normal inject/cite; `ablation` = MEM-59 probe row. */
+export type AttributionSource = "turn" | "ablation";
 
 export interface AttributionRow {
   id: number;
@@ -17,6 +19,12 @@ export interface AttributionRow {
   helpful: number | null;
   channel: string | null;
   score: number | null;
+  source?: string;
+  /** P(selected) at inject time (MEM-60). Null = not logged (treated as 1). */
+  propensity?: number | null;
+  scope_key?: string | null;
+  /** JSON `{rel, U, R}` at inject time (MEM-62 replay). */
+  features?: string | null;
   created_at: string | null;
 }
 
@@ -30,10 +38,47 @@ export interface UpsertAttributionInput {
   helpful?: boolean | null;
   channel?: AttributionChannel | string | null;
   score?: number | null;
+  source?: AttributionSource;
+  propensity?: number | null;
+  scope_key?: string | null;
+  features?: AttributionFeatures | null;
+}
+
+/** Score features logged at inject time so MEM-62 can replay η_U / η_R. */
+export interface AttributionFeatures {
+  rel: number;
+  U: number;
+  R: number;
 }
 
 const ATTRIBUTION_SELECT =
-  "id, turn_id, session_id, mem_type, mem_id, injected, cited, helpful, channel, score, created_at";
+  "id, turn_id, session_id, mem_type, mem_id, injected, cited, helpful, channel, score, source, propensity, scope_key, features, created_at";
+
+function asFeatures(value: AttributionFeatures | null | undefined): string | null {
+  if (!value) return null;
+  const { rel, U, R } = value;
+  if (![rel, U, R].every((n) => Number.isFinite(n))) return null;
+  return JSON.stringify({ rel, U, R });
+}
+
+export function parseFeatures(raw: string | null | undefined): AttributionFeatures | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as Partial<AttributionFeatures>;
+    if ([v.rel, v.U, v.R].every((n) => typeof n === "number" && Number.isFinite(n))) {
+      return { rel: v.rel as number, U: v.U as number, R: v.R as number };
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function asPropensity(value: number | null | undefined): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.min(1, n) : null;
+}
 
 function asBoolInt(value: boolean | null | undefined): number | null {
   if (value === true) return 1;
@@ -64,6 +109,10 @@ function rowOf(raw: Record<string, unknown>): AttributionRow {
     helpful: raw.helpful == null ? null : Number(raw.helpful),
     channel: raw.channel == null || raw.channel === "" ? null : String(raw.channel),
     score: raw.score == null ? null : Number(raw.score),
+    source: raw.source == null || raw.source === "" ? "turn" : String(raw.source),
+    propensity: raw.propensity == null ? null : Number(raw.propensity),
+    scope_key: raw.scope_key == null ? null : String(raw.scope_key),
+    features: raw.features == null ? null : String(raw.features),
     created_at: raw.created_at == null ? null : String(raw.created_at),
   };
 }
@@ -132,12 +181,30 @@ export async function upsertAttributionOn(
   const helpful = asBoolInt(input.helpful);
   const channel = asChannel(input.channel);
   const score = asScore(input.score);
+  const source: AttributionSource = input.source === "ablation" ? "ablation" : "turn";
+  const propensity = asPropensity(input.propensity);
+  const scopeKey = input.scope_key ?? null;
+  const features = asFeatures(input.features);
 
   if (!existing) {
     const result = await db.run(
-      `INSERT INTO brain_attribution (turn_id, session_id, mem_type, mem_id, injected, cited, helpful, channel, score)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [turnId, input.session_id ?? null, input.mem_type, memId, injected, cited, helpful, channel, score],
+      `INSERT INTO brain_attribution (turn_id, session_id, mem_type, mem_id, injected, cited, helpful, channel, score, source, propensity, scope_key, features)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        turnId,
+        input.session_id ?? null,
+        input.mem_type,
+        memId,
+        injected,
+        cited,
+        helpful,
+        channel,
+        score,
+        source,
+        propensity,
+        scopeKey,
+        features,
+      ],
     );
     const id = Number(result.lastID);
     const inserted = await db.get(
@@ -154,9 +221,21 @@ export async function upsertAttributionOn(
   const nextScore = score ?? (existing.score == null ? null : Number(existing.score));
   await db.run(
     `UPDATE brain_attribution
-     SET injected = ?, cited = ?, helpful = ?, channel = ?, score = ?, session_id = COALESCE(session_id, ?)
+     SET injected = ?, cited = ?, helpful = ?, channel = ?, score = ?, session_id = COALESCE(session_id, ?),
+         propensity = COALESCE(propensity, ?), scope_key = COALESCE(scope_key, ?), features = COALESCE(features, ?)
      WHERE id = ?`,
-    [nextInjected, nextCited, nextHelpful, nextChannel, nextScore, input.session_id ?? null, existing.id],
+    [
+      nextInjected,
+      nextCited,
+      nextHelpful,
+      nextChannel,
+      nextScore,
+      input.session_id ?? null,
+      propensity,
+      scopeKey,
+      features,
+      existing.id,
+    ],
   );
   const updated = await db.get(
     `SELECT ${ATTRIBUTION_SELECT} FROM brain_attribution WHERE id = ?`,

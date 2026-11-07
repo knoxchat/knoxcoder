@@ -508,9 +508,12 @@ export interface TheoremParamsV2 {
   stabilityGainCap: number;
   difficultyReversion: number;
   difficultyHelpfulStep: number;
+  difficultyInitial: number;
   utilityOmega: number;
   exploreRate: number;
   ablationRate: number;
+  ablationEnabled: boolean;
+  ablationDailyBudget: number;
   calibrationMinInjections: number;
   calibrationFallbackTopK: number;
   wMemFloorTokens: number;
@@ -534,9 +537,12 @@ export function getTheoremParamsV2(): TheoremParamsV2 {
     stabilityGainCap: cfg.stability_gain_cap,
     difficultyReversion: cfg.difficulty_reversion,
     difficultyHelpfulStep: cfg.difficulty_helpful_step,
+    difficultyInitial: cfg.difficulty_initial,
     utilityOmega: cfg.utility_omega,
     exploreRate: cfg.explore_rate,
     ablationRate: cfg.ablation_rate,
+    ablationEnabled: cfg.ablation_enabled === true,
+    ablationDailyBudget: cfg.ablation_daily_budget,
     calibrationMinInjections: cfg.calibration_min_injections,
     calibrationFallbackTopK: cfg.calibration_fallback_top_k,
     wMemFloorTokens: cfg.w_mem_floor_tokens,
@@ -567,6 +573,7 @@ export const REFIT_KEYS = [
   "fsrs_a",
   "fsrs_b",
   "fsrs_g",
+  "difficulty_initial",
   "utility_omega",
   "w_lexical",
   "w_ripgrep",

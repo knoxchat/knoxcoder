@@ -239,6 +239,34 @@ export class MemoryPipeline {
   }
 
   /**
+   * MEM-59: queue an ablation probe for this turn (opt-in, budgeted) and drain
+   * the queue in the background. Never blocks or fails the turn.
+   */
+  private static scheduleAblation(input: PipelineInput, attribution: AttributionTurnResult): void {
+    void (async () => {
+      try {
+        if (!getMemoryConfig().ablation_enabled) return;
+        const { maybeEnqueueAblation, drainAblationQueue, getAblationRunner, setAblationRunner, createLlmAblationRunner } =
+          await import("./ablation.js");
+        if (!getAblationRunner()) {
+          const { getLlm } = await import("./manager/runtime.js");
+          setAblationRunner(createLlmAblationRunner(getLlm));
+        }
+        const job = await maybeEnqueueAblation({
+          turn_id: attribution.turn_id,
+          session_id: input.session_id,
+          user_message: input.user_message ?? input.message,
+          original_answer: input.assistant_message ?? input.turn_content ?? "",
+          outcome: attribution.outcome,
+        });
+        if (job) await drainAblationQueue();
+      } catch {
+        /* a probe is optional */
+      }
+    })();
+  }
+
+  /**
    * Part III cycle status (MEM-32).
    * `cycle_invariant_met` is Budget ∧ Reachability ∧ Losslessness,
    * not “a phase ran in the last hour”.
@@ -639,13 +667,60 @@ export class MemoryPipeline {
 
     // H — recall
     const retrievalStart = Date.now();
-    const fusionResults = await Hippocampus.fusionRetrieve({
+    const { BeamCapacity } = await import("./beamCapacity.js");
+    const { getTheoremParams } = await import("./memoryConfigAccess.js");
+    const { getLastSearchMeta, setLastSearchMeta } = await import("./channelCost.js");
+    let fusionResults = await Hippocampus.fusionRetrieve({
       message: encodedMessage,
       session_id: input.session_id,
       retrieval_query: retrieval.retrievalQuery,
       includeEpisodic: mode.includeEpisodic,
+      recordInject: false,
     });
+    const beam = getTheoremParams().treeBeamB;
+    const treeLeaves = BeamCapacity.treeRoutedCount(fusionResults);
+    const gwOverBeam = BeamCapacity.exceedsBeamCapacity(treeLeaves, beam);
+    BeamCapacity.record(gwOverBeam);
     Hippocampus.replanFromHits(fusionResults, input.session_id);
+    let hops = 1;
+    if (gwOverBeam) {
+      const titles = fusionResults
+        .filter((h) => (h.ranks?.tree ?? 0) >= 1 || (h.scores.tree ?? 0) > 0)
+        .map((h) => {
+          const data = h.data as { title?: string; content?: string };
+          return (data.title ?? data.content ?? "").slice(0, 80);
+        });
+      PrefrontalCortex.replanForCapacity(titles, input.session_id);
+      const hint = PrefrontalCortex.getRecentKnowledgeHint(input.session_id);
+      const extraOrTerms = hint
+        ? hint.split(/\s+/).map((t) => t.trim()).filter((t) => t.length >= 3).slice(0, 8)
+        : [];
+      if (extraOrTerms.length > 0) {
+        const hop2 = await Hippocampus.fusionRetrieve({
+          message: encodedMessage,
+          session_id: input.session_id,
+          retrieval_query: retrieval.retrievalQuery,
+          includeEpisodic: mode.includeEpisodic,
+          recordInject: false,
+          extraOrTerms,
+        });
+        Hippocampus.replanFromHits(hop2, input.session_id);
+        const merged = new Map<string, (typeof fusionResults)[number]>();
+        for (const hit of [...fusionResults, ...hop2]) {
+          const key = `${hit.type}:${hit.id}`;
+          const prev = merged.get(key);
+          if (!prev || hit.score > prev.score) merged.set(key, hit);
+        }
+        fusionResults = [...merged.values()].sort((a, b) => b.score - a.score);
+        hops = 2;
+      }
+    }
+    const semanticIds = fusionResults
+      .filter((r) => r.type === "semantic" && r.score > 0)
+      .map((r) => r.id);
+    await BrainStore.recordSemanticInject(semanticIds).catch(() => undefined);
+    const meta = getLastSearchMeta();
+    if (meta) setLastSearchMeta({ ...meta, hops, gwOverBeam });
     phases.push({
       phase: "retrieval",
       duration_ms: Date.now() - retrievalStart,
@@ -654,6 +729,11 @@ export class MemoryPipeline {
       audit: {
         retrieval_query: retrieval.retrievalQuery,
         hit_count: fusionResults.length,
+        hops,
+        gw_over_beam: gwOverBeam,
+        tree_routed: treeLeaves,
+        beam_capacity_share: BeamCapacity.share(),
+        channel_costs: meta?.channels,
       },
     });
 
@@ -751,6 +831,7 @@ export class MemoryPipeline {
     const phases: PipelinePhaseResult[] = [];
     const config = getMemoryConfig();
     const attribution = await MemoryPipeline.attributeTurn(input);
+    MemoryPipeline.scheduleAblation(input, attribution);
 
     if (!config.enable_knowledge_extraction && !config.auto_extract_enabled) {
       return { phases, extracted: { semantic_count: 0, entity_count: 0 }, attribution };

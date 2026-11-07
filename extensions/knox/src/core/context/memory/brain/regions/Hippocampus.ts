@@ -217,16 +217,19 @@ export const Hippocampus = {
     includeEpisodic?: boolean;
     /** Pre-expanded REL-01 query. When omitted, continuation text is expanded here. */
     retrieval_query?: string;
+    recordInject?: boolean;
+    extraOrTerms?: string[];
   }): Promise<FusionResult[]> {
     const config = getMemoryConfig();
     const projectSessionIds = await getProjectSessionIds(input.session_id);
-    const { resolveRetrievalQuery } = await import("../RetrievalQuery.js");
+    const { detectAsOfIntent, resolveRetrievalQuery } = await import("../RetrievalQuery.js");
     const resolved = await resolveRetrievalQuery({
       message: input.message,
       sessionId: input.session_id,
       retrievalQueryOverride: input.retrieval_query,
     });
     const query = resolved.retrievalQuery;
+    const asOf = detectAsOfIntent(input.message);
     const currentTaskId = input.session_id
       ? (await BrainStore.getOpenTask(input.session_id))?.id ?? null
       : null;
@@ -234,12 +237,16 @@ export const Hippocampus = {
       query,
       sessionId: input.session_id,
       limit: input.limit ?? config.retrieval_top_k,
-      minScore: input.minScore ?? config.retrieval_threshold,
+      minScore: input.minScore,
       includeEpisodic: input.includeEpisodic ?? true,
       projectSessionIds,
       intent: resolved.intent,
       originalQuery: input.message,
       currentTaskId,
+      asOf: asOf?.asOf,
+      queryTime: asOf?.asOf,
+      recordInject: input.recordInject,
+      extraOrTerms: input.extraOrTerms,
     });
   },
 };

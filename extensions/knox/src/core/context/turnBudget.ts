@@ -14,6 +14,12 @@ import { RUST_POLICY_MARKER } from "./rustPolicy";
 import { SERIAL_CONTEXT_MARKER } from "./serialContext";
 import { TURN_CONTEXT_MARKER } from "./turnContext";
 import { TASK_EXECUTION_PLAN_MARKER } from "../tools/planStore";
+import {
+  formatMemoryUserMessage,
+  isMemoryUserMessage,
+  looksLikeMemoryText,
+  unquoteMemoryUserMessage,
+} from "./memory/brain/injectFormat";
 
 export const DEFAULT_TURN_INJECT_CAP = 12_000;
 export const MIN_TURN_INJECT_CAP = 500;
@@ -256,9 +262,22 @@ function systemText(message: ChatMessage): string {
   return "";
 }
 
+/** Retrieved memory (pinned or not) that MEM-63 moves out of the system role. */
+function isMemoryBlock(block: TurnInjectBlock): boolean {
+  return (
+    (block.kind === "pinned_memory" || block.kind === "retrieved_memory") &&
+    looksLikeMemoryText(block.text)
+  );
+}
+
 /**
  * Re-pack leading system injects (everything after the stable prompt) plus
  * extra blocks so the union stays ≤ the turn cap.
+ *
+ * MEM-63: retrieved memory is not a system inject. The kept memory blocks go
+ * out as one quoted `[memory]` block in a **user-role** message placed just
+ * before the final user message; a block already packed that way by an earlier
+ * pass is unpacked and re-budgeted, so repacking never duplicates it.
  */
 export function applyTurnInjectToMessages(
   messages: ChatMessage[],
@@ -282,15 +301,39 @@ export function applyTurnInjectToMessages(
       continue;
     }
     seenTranscript = true;
+    if (message.role === "user") {
+      const text = systemText(message);
+      if (isMemoryUserMessage(text)) {
+        existing.push(...classifyInjectedContext(unquoteMemoryUserMessage(text)));
+        continue;
+      }
+    }
     after.push(message);
   }
   const kept = applyTurnBudget([...existing, ...extra], cap);
+  const memory = kept.filter(isMemoryBlock);
+  const system = kept.filter((block) => !isMemoryBlock(block));
   const next: ChatMessage[] = [];
   if (prompt) {
     next.push(prompt);
   }
-  for (const block of kept) {
+  for (const block of system) {
     next.push({ role: "system", content: block.text });
+  }
+  if (memory.length > 0) {
+    const block: ChatMessage = {
+      role: "user",
+      content: formatMemoryUserMessage(memory.map((b) => b.text).join("\n\n")),
+    };
+    let at = -1;
+    for (let i = after.length - 1; i >= 0; i--) {
+      if (after[i].role === "user") {
+        at = i;
+        break;
+      }
+    }
+    if (at < 0) after.push(block);
+    else after.splice(at, 0, block);
   }
   next.push(...after);
   return next;

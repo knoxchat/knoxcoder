@@ -12,6 +12,7 @@ import {
   hubDampedTransitions,
   normalizeSeedMass,
   pprMass,
+  pprPushBudget,
   pushPersonalizedPageRankSync,
   resolvePprAlpha,
   topPprEntities,
@@ -25,6 +26,7 @@ describe("MEM-25 PPR helpers", () => {
     expect(resolvePprAlpha(1)).toBe(0.15);
     expect(PPR_EPSILON_DEFAULT).toBeGreaterThan(0);
     expect(PPR_EPSILON_DEFAULT).toBeLessThan(1);
+    expect(pprPushBudget()).toBe(Math.ceil(1 / (PPR_ALPHA_DEFAULT * PPR_EPSILON_DEFAULT)));
   });
 
   it("normalizes the query indicator e_q", () => {

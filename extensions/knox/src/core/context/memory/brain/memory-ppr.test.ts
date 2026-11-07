@@ -96,7 +96,7 @@ describe("MEM-25 graph channel", () => {
       session_id: sessionId,
     });
 
-    const graph = await KnowledgeGraph.searchMemoriesByPpr("Mem25PprSeedAuth");
+    const graph = (await KnowledgeGraph.searchMemoriesByPpr("Mem25PprSeedAuth")).scores;
     expect(graph.get(midId) ?? 0).toBeGreaterThan(0);
     expect(graph.get(leafId) ?? 0).toBeGreaterThan(0);
     expect(graph.get(midId)!).toBeGreaterThan(graph.get(leafId)!);

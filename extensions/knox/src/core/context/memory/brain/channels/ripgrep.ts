@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
+  isRipgrepTimeoutOutput,
   isSearchFileHeader,
   isSearchMatchLine,
   resolveRipgrepBinary,
@@ -28,7 +29,8 @@ import {
 } from "../../../../tools/ripgrep.js";
 import { GENERIC_GATE_WORDS, extractEntityLikeTokens } from "../RelevanceGate.js";
 import { contentWords } from "../RetrievalQuery.js";
-import { queryScopeSql } from "../store/validity.js";
+import { appendRelevanceScope } from "../projectScope.js";
+import { queryScopeClause } from "../store/validity.js";
 import { truncateSqliteLikePattern } from "../../../../util/refreshIndex.js";
 import type { DatabaseConnection } from "../../../../util/refreshIndex.js";
 import type { SemanticCategory } from "../types.js";
@@ -90,6 +92,16 @@ export interface RipgrepChannelOptions {
   /** Workspace file search. Caller sets this when `memory_scope=project`. */
   searchWorkspace?: boolean;
   limit?: number;
+  /** MEM-65: valid-time clock. */
+  asOf?: string;
+  /** MEM-67: hard stop. Default from `ripgrep_timeout_ms`. */
+  timeoutMs?: number;
+}
+
+export interface RipgrepChannelResult {
+  hits: RipgrepMemoryHit[];
+  visited: number;
+  timed_out: boolean;
 }
 
 export function hasRipgrepHit(hit?: {
@@ -304,12 +316,13 @@ export function parseMemoryKey(key: string): { type: RipgrepMemoryType; id: numb
  */
 export async function searchRipgrepChannel(
   options: RipgrepChannelOptions,
-): Promise<RipgrepMemoryHit[]> {
+): Promise<RipgrepChannelResult> {
+  const empty: RipgrepChannelResult = { hits: [], visited: 0, timed_out: false };
   try {
     const needles = extractRipgrepNeedles(options.query);
-    if (needles.length === 0) return [];
+    if (needles.length === 0) return empty;
     const binary = resolveRipgrepBinary();
-    if (!binary) return [];
+    if (!binary) return empty;
 
     const scores = new Map<string, { score: number; source: RipgrepHitSource }>();
     const add = (key: string, delta: number, source: RipgrepHitSource) => {
@@ -328,14 +341,19 @@ export async function searchRipgrepChannel(
       }
     };
 
-    await searchMemoryCorpus(options, needles, binary, add);
+    const timeoutMs = options.timeoutMs;
+    const corpus = await searchMemoryCorpus(options, needles, binary, add, timeoutMs);
+    let timedOut = corpus.timed_out;
+    let visited = corpus.visited;
 
     if (options.searchWorkspace && options.workspaceDir) {
-      await searchWorkspaceFiles(options, needles, binary, add);
+      const files = await searchWorkspaceFiles(options, needles, binary, add, timeoutMs);
+      timedOut = timedOut || files.timed_out;
+      visited += files.visited;
     }
 
     const limit = Math.max(1, options.limit ?? 50);
-    return [...scores.entries()]
+    const hits = [...scores.entries()]
       .map(([key, value]) => {
         const parsed = parseMemoryKey(key);
         if (!parsed) return null;
@@ -349,8 +367,9 @@ export async function searchRipgrepChannel(
       .filter((hit): hit is RipgrepMemoryHit => hit != null)
       .sort((a, b) => b.score - a.score || a.type.localeCompare(b.type) || a.id - b.id)
       .slice(0, limit);
+    return { hits, visited, timed_out: timedOut };
   } catch {
-    return [];
+    return empty;
   }
 }
 
@@ -380,13 +399,15 @@ async function searchMemoryCorpus(
   needles: readonly RipgrepNeedle[],
   binary: string,
   add: (key: string, delta: number, source: RipgrepHitSource) => void,
-): Promise<void> {
+  timeoutMs?: number,
+): Promise<{ visited: number; timed_out: boolean }> {
   const scoped = corpusNeedles(needles);
-  if (scoped.length === 0) return;
+  if (scoped.length === 0) return { visited: 0, timed_out: false };
   const rows = await loadCorpusRows(options, scoped);
-  if (rows.length === 0) return;
+  if (rows.length === 0) return { visited: 0, timed_out: false };
 
   const tmp = mkdtempSync(path.join(tmpdir(), "knox-rg-mem-"));
+  let timedOut = false;
   try {
     const { lineToKey } = writeCorpusFile(path.join(tmp, CORPUS_FILENAME), rows);
     for (const needle of scoped) {
@@ -397,13 +418,16 @@ async function searchMemoryCorpus(
         fixedStrings: needle.fixedStrings,
         wholeWord: needle.wholeWord,
         caseSensitive: false,
+        timeoutMs,
       });
+      if (isRipgrepTimeoutOutput(output)) timedOut = true;
       addScore(
         countCorpusMatches(output, lineToKey),
         needleWeight(needle.kind),
         "corpus",
         add,
       );
+      if (timedOut) break;
     }
   } finally {
     try {
@@ -412,6 +436,7 @@ async function searchMemoryCorpus(
       // already gone
     }
   }
+  return { visited: rows.length, timed_out: timedOut };
 }
 
 async function searchWorkspaceFiles(
@@ -419,10 +444,12 @@ async function searchWorkspaceFiles(
   needles: readonly RipgrepNeedle[],
   binary: string,
   add: (key: string, delta: number, source: RipgrepHitSource) => void,
-): Promise<void> {
+  timeoutMs?: number,
+): Promise<{ visited: number; timed_out: boolean }> {
   const workspaceDir = options.workspaceDir;
-  if (!workspaceDir) return;
+  if (!workspaceDir) return { visited: 0, timed_out: false };
   const fileScores = new Map<string, number>();
+  let timedOut = false;
   for (const needle of workspaceNeedles(needles)) {
     const output = await searchWorkspaceWithRipgrep(
       [workspaceDir],
@@ -433,20 +460,23 @@ async function searchWorkspaceFiles(
         fixedStrings: needle.fixedStrings,
         wholeWord: needle.wholeWord,
         caseSensitive: false,
+        timeoutMs,
       },
       binary,
     );
+    if (isRipgrepTimeoutOutput(output)) timedOut = true;
     for (const hit of parseRipgrepContentHits(output)) {
       const rel = normalizeRelPath(hit.file, workspaceDir);
       if (!rel) continue;
       fileScores.set(rel, (fileScores.get(rel) ?? 0) + hit.matches);
     }
+    if (timedOut) break;
   }
 
   const rankedFiles = [...fileScores.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, RIPGREP_FILE_HIT_CAP);
-  if (rankedFiles.length === 0) return;
+  if (rankedFiles.length === 0) return { visited: 0, timed_out: timedOut };
 
   const mapped = await memoriesForFilePaths(
     options,
@@ -457,6 +487,7 @@ async function searchWorkspaceFiles(
     const matches = fileScore.get(file) ?? 1;
     add(key, RIPGREP_FILE_MAP_WEIGHT * Math.min(RIPGREP_MATCH_CAP_PER_NEEDLE, matches), "file");
   }
+  return { visited: rankedFiles.length, timed_out: timedOut };
 }
 
 type CorpusRow = {
@@ -512,16 +543,17 @@ async function ftsCorpusHits(
 ): Promise<CorpusRow[]> {
   const fetch = Math.min(RIPGREP_CORPUS_ROW_CAP * FTS_CORPUS_OVERFETCH, 2_000);
   if (type === "semantic") {
+    const scope = queryScopeClause("semantic", "s", options.asOf ? { asOf: options.asOf } : {});
     const extra: string[] = [
       "(s.expires_at IS NULL OR s.expires_at > datetime('now'))",
-      queryScopeSql("semantic", "s"),
+      scope.sql,
     ];
-    const extraParams: unknown[] = [];
+    const extraParams: unknown[] = [...scope.params];
     if (options.category) {
       extra.push("s.category = ?");
       extraParams.push(options.category);
     }
-    appendSessionScope(extra, extraParams, "s.source_session_id", options.projectSessionIds);
+    appendSessionScope(extra, extraParams, "s.source_session_id", options.projectSessionIds, "s.category");
     extraParams.push(RIPGREP_CORPUS_ROW_CAP);
     const semantic = await options.db.all(
       `WITH hits AS (
@@ -552,8 +584,9 @@ async function ftsCorpusHits(
     }));
   }
 
-  const extra: string[] = [queryScopeSql("episodic", "e")];
-  const extraParams: unknown[] = [];
+  const epScope = queryScopeClause("episodic", "e", options.asOf ? { asOf: options.asOf } : {});
+  const extra: string[] = [epScope.sql];
+  const extraParams: unknown[] = [...epScope.params];
   if (options.projectSessionIds !== undefined) {
     appendSessionScope(extra, extraParams, "e.session_id", options.projectSessionIds);
   } else if (options.sessionId) {
@@ -593,16 +626,17 @@ async function recencyCorpusFallback(
   if (((total as { n?: number } | null)?.n ?? 0) > RIPGREP_CORPUS_LIKE_MAX_ROWS) return [];
 
   if (type === "semantic") {
+    const scope = queryScopeClause("semantic", undefined, options.asOf ? { asOf: options.asOf } : {});
     const extra: string[] = [
       "(expires_at IS NULL OR expires_at > datetime('now'))",
-      queryScopeSql("semantic"),
+      scope.sql,
     ];
-    const extraParams: unknown[] = [];
+    const extraParams: unknown[] = [...scope.params];
     if (options.category) {
       extra.push("category = ?");
       extraParams.push(options.category);
     }
-    appendSessionScope(extra, extraParams, "source_session_id", options.projectSessionIds);
+    appendSessionScope(extra, extraParams, "source_session_id", options.projectSessionIds, "category");
     extraParams.push(RIPGREP_CORPUS_LIKE_MAX_ROWS);
     const semantic = await options.db.all(
       `SELECT id, title, content, keywords FROM brain_semantic
@@ -625,8 +659,9 @@ async function recencyCorpusFallback(
     }));
   }
 
-  const extra: string[] = [queryScopeSql("episodic")];
-  const extraParams: unknown[] = [];
+  const epScope = queryScopeClause("episodic", undefined, options.asOf ? { asOf: options.asOf } : {});
+  const extra: string[] = [epScope.sql];
+  const extraParams: unknown[] = [...epScope.params];
   if (options.projectSessionIds !== undefined) {
     appendSessionScope(extra, extraParams, "session_id", options.projectSessionIds);
   } else if (options.sessionId) {
@@ -653,14 +688,11 @@ function appendSessionScope(
   params: unknown[],
   column: string,
   sessionIds: string[] | undefined,
+  categoryColumn?: string,
 ): void {
-  if (sessionIds === undefined) return;
-  if (sessionIds.length === 0) {
+  if (appendRelevanceScope(extra, params, column, sessionIds, categoryColumn) === "none") {
     extra.push("1 = 0");
-    return;
   }
-  extra.push(`${column} IN (${sessionIds.map(() => "?").join(",")})`);
-  params.push(...sessionIds);
 }
 
 function writeCorpusFile(
@@ -751,17 +783,18 @@ async function memoriesMentioning(
     const safe = truncateSqliteLikePattern(name);
     if (!safe) continue;
     const like = `%${safe.toLowerCase()}%`;
+    const scope = queryScopeClause("semantic", undefined, options.asOf ? { asOf: options.asOf } : {});
     const semExtra: string[] = [
       "(expires_at IS NULL OR expires_at > datetime('now'))",
-      queryScopeSql("semantic"),
+      scope.sql,
       "(LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(keywords) LIKE ?)",
     ];
-    const semParams: unknown[] = [like, like, like];
+    const semParams: unknown[] = [...scope.params, like, like, like];
     if (options.category) {
       semExtra.push("category = ?");
       semParams.push(options.category);
     }
-    appendSessionScope(semExtra, semParams, "source_session_id", options.projectSessionIds);
+    appendSessionScope(semExtra, semParams, "source_session_id", options.projectSessionIds, "category");
     semParams.push(RIPGREP_MEMORIES_PER_FILE);
     const semantic = await options.db.all(
       `SELECT id FROM brain_semantic
@@ -778,8 +811,9 @@ async function memoriesMentioning(
     }
 
     if (options.includeEpisodic === false) continue;
-    const epExtra: string[] = [queryScopeSql("episodic"), "LOWER(content) LIKE ?"];
-    const epParams: unknown[] = [like];
+    const epScope = queryScopeClause("episodic", undefined, options.asOf ? { asOf: options.asOf } : {});
+    const epExtra: string[] = [epScope.sql, "LOWER(content) LIKE ?"];
+    const epParams: unknown[] = [...epScope.params, like];
     if (options.projectSessionIds !== undefined) {
       appendSessionScope(epExtra, epParams, "session_id", options.projectSessionIds);
     } else if (options.sessionId) {

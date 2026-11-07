@@ -15,6 +15,8 @@
  */
 
 import { BrainStore } from "./BrainStore.js";
+import { scopeKeyForSession } from "./reconcile.js";
+import type { AttributionFeatures, AttributionSource } from "./store/attribution.js";
 import { getTheoremParamsV2 } from "./memoryConfigAccess.js";
 import { winningChannel, type FusionChannel } from "./memoryOutcomes.js";
 import { contentWords } from "./RetrievalQuery.js";
@@ -33,6 +35,10 @@ export interface MemoryCite {
   token: string;
   channel?: FusionChannel;
   score?: number;
+  /** MEM-60: P(selected) when injected. */
+  propensity?: number;
+  /** MEM-62: rel / U / R when injected. */
+  features?: AttributionFeatures;
 }
 
 export interface AttributionApplyCounts {
@@ -190,6 +196,8 @@ function citeFromInjected(item: InjectedMemoryItem): MemoryCite | null {
     ...cite,
     ...(channel ? { channel } : {}),
     ...(item.score != null ? { score: item.score } : {}),
+    ...(item.propensity != null ? { propensity: item.propensity } : {}),
+    ...(item.features ? { features: item.features } : {}),
   };
 }
 
@@ -205,6 +213,8 @@ function collectInjected(input: PipelineInput, extra: InjectedMemoryItem[]): Mem
     }
     if (!prev.channel && cite.channel) prev.channel = cite.channel;
     if (prev.score == null && cite.score != null) prev.score = cite.score;
+    if (prev.propensity == null && cite.propensity != null) prev.propensity = cite.propensity;
+    if (!prev.features && cite.features) prev.features = cite.features;
   };
   for (const item of extra) add(citeFromInjected(item));
   if (input.recipe_hint) {
@@ -224,7 +234,7 @@ function helpfulForOutcome(
   return null;
 }
 
-async function applyLeafOutcome(
+export async function applyLeafOutcome(
   cite: MemoryCite,
   helpful: boolean,
 ): Promise<boolean> {
@@ -447,6 +457,10 @@ export async function persistAttributionDecision(input: {
   helpful?: boolean | null;
   channel?: FusionChannel | string | null;
   score?: number | null;
+  source?: AttributionSource;
+  propensity?: number | null;
+  scope_key?: string | null;
+  features?: AttributionFeatures | null;
 }): Promise<{ row_helpful: number | null; applied: "helpful" | "unhelpful" | null }> {
   const existing = (await BrainStore.listAttributionsForTurn(input.turn_id)).find(
     (row) => row.mem_type === input.cite.type && row.mem_id === input.cite.mem_id,
@@ -462,6 +476,10 @@ export async function persistAttributionDecision(input: {
     helpful: input.helpful,
     channel: input.channel ?? input.cite.channel,
     score: input.score ?? input.cite.score,
+    source: input.source,
+    propensity: input.propensity ?? input.cite.propensity,
+    scope_key: input.scope_key,
+    features: input.features ?? input.cite.features,
   });
   const nextHelpful = row?.helpful ?? (input.helpful === true ? 1 : input.helpful === false ? 0 : null);
   if (nextHelpful === 1 && prevHelpful !== 1) {
@@ -475,7 +493,7 @@ export async function persistAttributionDecision(input: {
   return { row_helpful: nextHelpful, applied: null };
 }
 
-async function loadCiteText(
+export async function loadCiteText(
   cite: MemoryCite,
 ): Promise<{ title: string; content: string }> {
   if (cite.type === "semantic") {
@@ -593,6 +611,12 @@ export async function recordTurnAttribution(
   });
 
   const turnId = input.turn_id?.trim() || generateTurnId(sessionId);
+  let scopeKey = "";
+  try {
+    scopeKey = await scopeKeyForSession(await BrainStore.get(), sessionId);
+  } catch {
+    scopeKey = "";
+  }
   const finalized = await finalizePreviousAttribution({
     session_id: sessionId,
     user_message: input.user_message,
@@ -636,6 +660,7 @@ export async function recordTurnAttribution(
       injected,
       cited,
       helpful,
+      scope_key: scopeKey,
     });
     if (result.applied === "helpful") applied.helpful += 1;
     else if (result.applied === "unhelpful") applied.unhelpful += 1;

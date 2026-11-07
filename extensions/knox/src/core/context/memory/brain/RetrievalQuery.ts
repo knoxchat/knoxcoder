@@ -357,3 +357,104 @@ export async function resolveRetrievalQuery(options: {
     fts5UseAnd,
   });
 }
+
+// ── MEM-65 as-of intent (lexical / regex only) ───────────────────────────────
+
+export type AsOfKind = "date" | "relative" | "originally";
+
+export interface AsOfIntent {
+  /** Sqlite datetime (`YYYY-MM-DD HH:MM:SS`), UTC. */
+  asOf: string;
+  phrase: string;
+  kind: AsOfKind;
+}
+
+const MONTHS: Record<string, number> = {
+  january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+  july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
+  jan: 0, feb: 1, mar: 2, apr: 3, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+
+/** UTC sqlite datetime. */
+export function toSqliteUtc(date: Date): string {
+  return date.toISOString().slice(0, 19).replace("T", " ");
+}
+
+function startOfUtcDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+/**
+ * Rule-based detector. Default retrieve stays "valid now" when this returns null.
+ * Undated "originally" / "before" / "used to" maps to one year ago so superseded
+ * facts that were valid then enter Ω(q).
+ */
+export function detectAsOfIntent(text: string, now: Date = new Date()): AsOfIntent | null {
+  const raw = text?.trim() ?? "";
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+
+  const iso = raw.match(/\b(20\d{2}|19\d{2})-(\d{2})-(\d{2})\b/);
+  if (iso) {
+    const asOf = `${iso[1]}-${iso[2]}-${iso[3]} 00:00:00`;
+    if (!Number.isNaN(Date.parse(asOf.replace(" ", "T") + "Z"))) {
+      return { asOf, phrase: iso[0], kind: "date" };
+    }
+  }
+
+  const monthYear = lower.match(
+    /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\s+(20\d{2}|19\d{2})\b/,
+  );
+  if (monthYear) {
+    const month = MONTHS[monthYear[1]!] ?? 0;
+    const year = Number(monthYear[2]);
+    return {
+      asOf: toSqliteUtc(new Date(Date.UTC(year, month, 1))),
+      phrase: monthYear[0],
+      kind: "date",
+    };
+  }
+
+  const nAgo = lower.match(/\b(\d+)\s+(day|days|week|weeks|month|months|year|years)\s+ago\b/);
+  if (nAgo) {
+    const n = Number(nAgo[1]);
+    const unit = nAgo[2]!;
+    const d = new Date(now.getTime());
+    if (unit.startsWith("day")) d.setUTCDate(d.getUTCDate() - n);
+    else if (unit.startsWith("week")) d.setUTCDate(d.getUTCDate() - n * 7);
+    else if (unit.startsWith("month")) d.setUTCMonth(d.getUTCMonth() - n);
+    else d.setUTCFullYear(d.getUTCFullYear() - n);
+    return { asOf: toSqliteUtc(d), phrase: nAgo[0], kind: "relative" };
+  }
+
+  if (/\byesterday\b/.test(lower)) {
+    const d = startOfUtcDay(now);
+    d.setUTCDate(d.getUTCDate() - 1);
+    return { asOf: toSqliteUtc(d), phrase: "yesterday", kind: "relative" };
+  }
+  if (/\blast\s+week\b/.test(lower)) {
+    const d = new Date(now.getTime());
+    d.setUTCDate(d.getUTCDate() - 7);
+    return { asOf: toSqliteUtc(d), phrase: "last week", kind: "relative" };
+  }
+  if (/\blast\s+month\b/.test(lower)) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+    return { asOf: toSqliteUtc(d), phrase: "last month", kind: "relative" };
+  }
+  if (/\blast\s+year\b/.test(lower)) {
+    const d = new Date(Date.UTC(now.getUTCFullYear() - 1, 0, 1));
+    return { asOf: toSqliteUtc(d), phrase: "last year", kind: "relative" };
+  }
+
+  if (
+    /\b(?:what did we use before|originally|previously|used to|back then|at the time)\b/.test(lower)
+  ) {
+    const d = new Date(now.getTime());
+    d.setUTCFullYear(d.getUTCFullYear() - 1);
+    const phrase =
+      lower.match(/what did we use before|originally|previously|used to|back then|at the time/)?.[0]
+      ?? "originally";
+    return { asOf: toSqliteUtc(d), phrase, kind: "originally" };
+  }
+  return null;
+}

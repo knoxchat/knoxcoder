@@ -4,8 +4,18 @@ import {
   getFusionParams,
   getMemoryConfig,
   getTheoremParams,
+  getTheoremParamsV2,
   type FusionWeights,
 } from "./memoryConfigAccess.js";
+import { planAdmission, type AdmissionItem, type AdmissionRanked } from "./admission.js";
+import {
+  applyCalibratedCut,
+  loadCalibration,
+  predictIsotonic,
+  type CalibrationSelection,
+} from "./calibration.js";
+import { scopeKeyForSession } from "./reconcile.js";
+import { explorationAllowed, getExplorationRng, thompsonUtility, type Rng } from "./thompson.js";
 import { expandQuerySynonyms, getSynonymAdditions } from "./EnhancedSemantic.js";
 import {
   hasGraphExpandableTokens,
@@ -28,16 +38,26 @@ import { isValidAt } from "./entityResolution.js";
 import type { SemanticMemory, EpisodicMemory, SemanticCategory } from "./types.js";
 import type { DatabaseConnection } from "../../../util/refreshIndex.js";
 import { isLiveRetrieveRow } from "./store/tombstone.js";
-import { queryScopeSql } from "./store/validity.js";
 import {
+  getValueParams,
   isDefaultRetrieveValue,
   modulateRelevance,
   priorModulation,
+  resolveInitialImportance,
   retrievabilityFromSource,
   utilityFromSource,
 } from "./Value.js";
 import { hasRipgrepHit, searchRipgrepChannel } from "./channels/ripgrep.js";
-import { searchTreeChannel } from "./SummaryTree.js";
+import { beamSearchTree } from "./SummaryTree.js";
+import { appendRelevanceScope, isUserGlobalCategory } from "./projectScope.js";
+import { queryScopeClause } from "./store/validity.js";
+import { mergeReservedCandidates, resolveReservedTreeSlots } from "./reservedSlots.js";
+import {
+  emptyChannelCost,
+  setLastSearchMeta,
+  timed,
+  type ChannelCost,
+} from "./channelCost.js";
 
 /**
  * RetrievalFusion — Reciprocal Rank Fusion over lexical channels (MEM-20).
@@ -88,6 +108,16 @@ export interface FusionResult {
   retrievability?: number;
   /** (1 + η_U U) · (1 + η_R R), in [1, (1+η_U)(1+η_R)]. */
   priorFactor?: number;
+  /** Greedy U from counts, even on a call that explored with a Thompson draw (MEM-60). */
+  utilityGreedy?: number;
+  /** This call replaced U with a Thompson draw (MEM-60). */
+  explored?: boolean;
+  /** P(selected) under the greedy/Thompson mixture, logged for IPW (MEM-60). */
+  propensity?: number;
+  /** iso(score) when a fitted calibration cut this call (MEM-61). */
+  calibrated_p?: number;
+  /** MEM-66: kept because the tree routed it, not because it made the fused head. */
+  reserved?: boolean;
   ranks?: ChannelRanks;
   channel?: FusionChannel;
   scores: {
@@ -129,6 +159,14 @@ export interface FusionOptions {
   workspaceDir?: string;
   /** MEM-26: Ω(q) validity clock. Default is now. */
   queryTime?: Date | string | number;
+  /** MEM-65: sqlite datetime for as-of mode. Implies include-superseded. */
+  asOf?: string;
+  /** MEM-60: override the exploration rate / RNG (tests inject a seeded RNG). */
+  explore?: { rate?: number; rng?: Rng };
+  /** Skip inject_count write (A4 first hop). Default true. */
+  recordInject?: boolean;
+  /** Extra FTS5 OR terms (MEM-68 second hop). Never AND'd into the MATCH. */
+  extraOrTerms?: string[];
 }
 
 /**
@@ -172,24 +210,41 @@ export const RETRIEVAL_THRESHOLD_DEFAULT = 0.35;
 /** First MATCH window vs the JOIN `LIMIT` (tombstones / other projects drop in JOIN). */
 const FTS_MATCH_OVERFETCH = 10;
 /** Cap on MATCH over-fetch retries so a 100k tombstone pile cannot scan forever. */
-const FTS_MATCH_OVERFETCH_MAX = 40;
+const FTS_MATCH_OVERFETCH_MAX = 8;
+/** MEM-67: hard MATCH window. Equivalent to WAND/MaxScore top-k; never a table scan. */
+export const FTS_MATCH_HARD_CAP = 2048;
 
 type LexicalScope = {
   projectSessionIds?: string[];
+  asOf?: string;
 };
 
-/** `"none"` = Ω(q) is empty (fail closed). `"ok"` = filter applied or global. */
-function appendProjectSessionScope(
+function pushQueryScope(
   extra: string[],
   params: unknown[],
-  column: string,
-  sessionIds: string[] | undefined,
-): "ok" | "none" {
-  if (sessionIds === undefined) return "ok";
-  if (sessionIds.length === 0) return "none";
-  extra.push(`${column} IN (${sessionIds.map(() => "?").join(",")})`);
-  params.push(...sessionIds);
-  return "ok";
+  kind: "semantic" | "episodic",
+  alias: string | undefined,
+  asOf?: string,
+): void {
+  const clause = queryScopeClause(kind, alias, asOf ? { asOf } : {});
+  extra.push(clause.sql);
+  params.push(...clause.params);
+}
+
+async function loadRowsByIds(
+  db: DatabaseConnection,
+  kind: "semantic" | "episodic",
+  ids: number[],
+  asOf?: string,
+): Promise<any[]> {
+  if (ids.length === 0) return [];
+  const placeholders = ids.map(() => "?").join(",");
+  const table = kind === "semantic" ? "brain_semantic" : "brain_episodic";
+  const clause = queryScopeClause(kind, undefined, asOf ? { asOf } : {});
+  return db.all(
+    `SELECT * FROM ${table} WHERE id IN (${placeholders}) AND ${clause.sql}`,
+    [...ids, ...clause.params],
+  );
 }
 
 /**
@@ -204,7 +259,7 @@ async function fts5MatchJoin(
   resultLimit: number,
 ): Promise<any[]> {
   let fetch = Math.max(resultLimit * FTS_MATCH_OVERFETCH, resultLimit);
-  const cap = Math.max(resultLimit * FTS_MATCH_OVERFETCH_MAX, 2_000);
+  const cap = Math.min(FTS_MATCH_HARD_CAP, Math.max(resultLimit * FTS_MATCH_OVERFETCH_MAX, resultLimit));
   let prevLive = -1;
   while (true) {
     const rows = await db.all(sql, [matchQuery, fetch, ...extraParams, resultLimit]);
@@ -615,41 +670,56 @@ export class RetrievalFusion {
     const etaU = theorem.etaUtility;
     const etaR = theorem.etaRetrievability;
     const theta = minScore ?? config.retrieval_threshold;
+    const theoremV2 = getTheoremParamsV2();
+    const kappa = getValueParams().kappa;
+    // MEM-60: explore_rate of calls replace U with a Thompson draw.
+    const exploreRng = options.explore?.rng ?? getExplorationRng();
+    const exploreRate = explorationAllowed(options.explore?.rng)
+      ? Math.max(0, options.explore?.rate ?? theoremV2.exploreRate)
+      : 0;
+    const exploring = exploreRate > 0 && exploreRng() < exploreRate;
 
     // REL-01: never concatenate synonyms into the AND query. OR them in FTS5 only.
     const searchQuery = options.query;
-    const synonymExtras = config.enable_enhanced_semantic
-      ? getSynonymAdditions(searchQuery, { continuation: options.intent === "continuation" })
-      : [];
+    const synonymExtras = [
+      ...(config.enable_enhanced_semantic
+        ? getSynonymAdditions(searchQuery, { continuation: options.intent === "continuation" })
+        : []),
+      ...(options.extraOrTerms ?? []).map((t) => t.trim()).filter(Boolean),
+    ];
     const trigramQuery = synonymExtras.length > 0
       ? expandQuerySynonyms(searchQuery, { continuation: options.intent === "continuation" })
       : searchQuery;
 
-    const lexicalScope: LexicalScope = { projectSessionIds: options.projectSessionIds };
+    const asOf = options.asOf?.trim() || undefined;
+    const lexicalScope: LexicalScope = { projectSessionIds: options.projectSessionIds, asOf };
+    const channelCosts: ChannelCost[] = [];
 
-    // 1. FTS5 BM25 search
-    const fts5Semantic = await RetrievalFusion.fts5SearchSemantic(
-      db, searchQuery, options.category, candidateLimit, synonymExtras, lexicalScope,
-    );
+    // 1–2. Lexical: FTS5 BM25 then trigram over the MATCH window (MEM-67: no table scan).
+    const lexicalTimed = await timed("lexical", async () => {
+      const fts5Semantic = await RetrievalFusion.fts5SearchSemantic(
+        db, searchQuery, options.category, candidateLimit, synonymExtras, lexicalScope,
+      );
+      const fts5Episodic = options.includeEpisodic !== false
+        ? await RetrievalFusion.fts5SearchEpisodic(
+            db, searchQuery, options.sessionId, candidateLimit, synonymExtras, lexicalScope,
+          )
+        : [];
+      const trigramSemantic = await RetrievalFusion.trigramSearchSemantic(
+        db, trigramQuery, options.category, Math.floor(candidateLimit / 2), lexicalScope,
+      );
+      return { fts5Semantic, fts5Episodic, trigramSemantic };
+    }, (r) => r.fts5Semantic.length + r.fts5Episodic.length + r.trigramSemantic.length);
+    channelCosts.push(lexicalTimed.cost);
+    const { fts5Semantic, fts5Episodic, trigramSemantic } = lexicalTimed.result;
 
-    const fts5Episodic = options.includeEpisodic !== false
-      ? await RetrievalFusion.fts5SearchEpisodic(
-          db, searchQuery, options.sessionId, candidateLimit, synonymExtras, lexicalScope,
-        )
-      : [];
-
-    // 2. Trigram fuzzy search (for candidates not found by FTS5)
-    const trigramSemantic = await RetrievalFusion.trigramSearchSemantic(
-      db, trigramQuery, options.category, Math.floor(candidateLimit / 2), lexicalScope,
-    );
-
-    // 3. Graph-based expansion + ripgrep channel (MEM-23). Independent lists.
+    // 3. Graph + ripgrep + tree. Independent lists, each with a hard cost cap.
     const workspaceDir = await RetrievalFusion.resolveWorkspaceDir(options);
     const searchWorkspace =
       config.memory_scope === "project" && Boolean(workspaceDir);
-    const [graphIds, ripgrepHits, treeHits] = await Promise.all([
-      RetrievalFusion.graphExpansion(searchQuery),
-      searchRipgrepChannel({
+    const [graphTimed, ripgrepTimed, treeTimed] = await Promise.all([
+      timed("graph", () => RetrievalFusion.graphExpansion(searchQuery, lexicalScope), (r) => r.visited),
+      timed("ripgrep", () => searchRipgrepChannel({
         query: searchQuery,
         db,
         includeEpisodic: options.includeEpisodic !== false,
@@ -659,16 +729,24 @@ export class RetrievalFusion {
         workspaceDir,
         searchWorkspace,
         limit: candidateLimit,
-      }),
-      searchTreeChannel({
+        asOf,
+        timeoutMs: theoremV2.ripgrepTimeoutMs,
+      }), (r) => r.visited),
+      timed("tree", () => beamSearchTree({
         query: searchQuery,
         db,
         includeEpisodic: options.includeEpisodic !== false,
         sessionId: options.sessionId,
         projectSessionIds: options.projectSessionIds,
         limit: candidateLimit,
-      }),
+      }), (r) => r.visited),
     ]);
+    const graphRun = graphTimed.result;
+    const graphIds = graphRun.scores;
+    const ripgrepHits = ripgrepTimed.result.hits;
+    const treeHits = treeTimed.result.hits;
+    const ripgrepCost: ChannelCost = { ...ripgrepTimed.cost, timed_out: ripgrepTimed.result.timed_out || undefined };
+    channelCosts.push(graphTimed.cost, ripgrepCost, treeTimed.cost);
 
     // 4. Merge and score all candidates
     const candidateMap = new Map<string, FusionResult>();
@@ -728,11 +806,7 @@ export class RetrievalFusion {
     }
     if (pendingGraphOnly.length > 0) {
       const ids = pendingGraphOnly.map(([id]) => id);
-      const placeholders = ids.map(() => "?").join(",");
-      const rows = await db.all(
-        `SELECT * FROM brain_semantic WHERE id IN (${placeholders}) AND ${queryScopeSql("semantic")}`,
-        ids,
-      );
+      const rows = await loadRowsByIds(db, "semantic", ids, asOf);
       const scoreById = new Map(pendingGraphOnly);
       for (const r of rows) {
         const memory = RetrievalFusion.rowToSemantic(r);
@@ -775,11 +849,7 @@ export class RetrievalFusion {
         pendingRipgrepOnly.map((h) => [`${h.type}:${h.id}`, h.score]),
       );
       if (semIds.length > 0) {
-        const placeholders = semIds.map(() => "?").join(",");
-        const rows = await db.all(
-          `SELECT * FROM brain_semantic WHERE id IN (${placeholders}) AND ${queryScopeSql("semantic")}`,
-          semIds,
-        );
+        const rows = await loadRowsByIds(db, "semantic", semIds, asOf);
         for (const r of rows) {
           const memory = RetrievalFusion.rowToSemantic(r);
           const key = `semantic:${memory.id}`;
@@ -800,11 +870,7 @@ export class RetrievalFusion {
         }
       }
       if (epIds.length > 0 && options.includeEpisodic !== false) {
-        const placeholders = epIds.map(() => "?").join(",");
-        const rows = await db.all(
-          `SELECT * FROM brain_episodic WHERE id IN (${placeholders}) AND ${queryScopeSql("episodic")}`,
-          epIds,
-        );
+        const rows = await loadRowsByIds(db, "episodic", epIds, asOf);
         for (const r of rows) {
           const memory = RetrievalFusion.rowToEpisodic(r);
           const key = `episodic:${memory.id}`;
@@ -847,11 +913,7 @@ export class RetrievalFusion {
         pendingTreeOnly.map((h) => [`${h.type}:${h.id}`, h.score]),
       );
       if (semIds.length > 0) {
-        const placeholders = semIds.map(() => "?").join(",");
-        const rows = await db.all(
-          `SELECT * FROM brain_semantic WHERE id IN (${placeholders}) AND ${queryScopeSql("semantic")}`,
-          semIds,
-        );
+        const rows = await loadRowsByIds(db, "semantic", semIds, asOf);
         for (const r of rows) {
           const memory = RetrievalFusion.rowToSemantic(r);
           const key = `semantic:${memory.id}`;
@@ -872,11 +934,7 @@ export class RetrievalFusion {
         }
       }
       if (epIds.length > 0 && options.includeEpisodic !== false) {
-        const placeholders = epIds.map(() => "?").join(",");
-        const rows = await db.all(
-          `SELECT * FROM brain_episodic WHERE id IN (${placeholders}) AND ${queryScopeSql("episodic")}`,
-          epIds,
-        );
+        const rows = await loadRowsByIds(db, "episodic", epIds, asOf);
         for (const r of rows) {
           const memory = RetrievalFusion.rowToEpisodic(r);
           const key = `episodic:${memory.id}`;
@@ -903,19 +961,21 @@ export class RetrievalFusion {
       if (!isLiveRetrieveRow(candidate.data)) candidateMap.delete(key);
     }
 
-    // MEM-26: Ω(q) — valid at query time. Superseded facts stay queryable by id.
-    const queryTime = options.queryTime;
+    // MEM-26 / MEM-65: Ω(q) — valid at query time. As-of keeps superseded facts.
+    const queryTime = options.queryTime ?? asOf;
     for (const [key, candidate] of candidateMap) {
       if (!isValidAt(candidate.data, queryTime)) candidateMap.delete(key);
     }
-    const candidateSemanticIdsEarly = [...candidateMap.values()]
-      .filter((c) => c.type === "semantic")
-      .map((c) => c.id);
-    try {
-      const superseded = await loadSupersededIds(db, candidateSemanticIdsEarly);
-      for (const id of superseded) candidateMap.delete(`semantic:${id}`);
-    } catch {
-      // older DB without the table
+    if (!asOf) {
+      const candidateSemanticIdsEarly = [...candidateMap.values()]
+        .filter((c) => c.type === "semantic")
+        .map((c) => c.id);
+      try {
+        const superseded = await loadSupersededIds(db, candidateSemanticIdsEarly);
+        for (const id of superseded) candidateMap.delete(`semantic:${id}`);
+      } catch {
+        // older DB without the table
+      }
     }
 
     const pinnedIds = new Set(
@@ -966,10 +1026,21 @@ export class RetrievalFusion {
       if (graphRank != null) ranks.graph = graphRank;
       candidate.ranks = ranks;
       const rel = rrfScore(ranks, channelWeights, k0);
-      const U = utilityFromSource(data);
+      const greedyU = utilityFromSource(data);
+      const U = exploring
+        ? thompsonUtility(
+            data.helpful_count ?? 0,
+            data.unhelpful_count ?? 0,
+            resolveInitialImportance(data),
+            kappa,
+            exploreRng,
+          )
+        : greedyU;
       const R = retrievabilityFromSource(data, undefined, now);
       candidate.rel = rel;
       candidate.utility = U;
+      candidate.utilityGreedy = greedyU;
+      candidate.explored = exploring;
       candidate.retrievability = R;
       candidate.priorFactor = priorModulation(U, R, etaU, etaR);
       candidate.score = modulateRelevance(rel, U, R, etaU, etaR);
@@ -1010,20 +1081,17 @@ export class RetrievalFusion {
     // fails), then top fused-candidates, then calibrated θ (MEM-22).
     let results = Array.from(candidateMap.values()).sort((a, b) => b.score - a.score);
 
-    // Project scope (IMP-25): episodic must belong to project sessions; semantic must have project source_session_id
+    // MEM-64: access + relevance. User-global categories cross projects.
     if (options.projectSessionIds !== undefined) {
       const allowed = new Set(options.projectSessionIds);
-      if (allowed.size === 0) {
-        results = [];
-      } else {
-        results = results.filter((r) => {
-          if (r.type === "episodic") {
-            return allowed.has((r.data as EpisodicMemory).session_id);
-          }
-          const sourceSession = (r.data as SemanticMemory).source_session_id;
-          return Boolean(sourceSession && allowed.has(sourceSession));
-        });
-      }
+      results = results.filter((r) => {
+        if (r.type === "episodic") {
+          return allowed.has((r.data as EpisodicMemory).session_id);
+        }
+        const sem = r.data as SemanticMemory;
+        if (isUserGlobalCategory(sem.category)) return true;
+        return Boolean(sem.source_session_id && allowed.has(sem.source_session_id));
+      });
     }
 
     const queryEntities = await resolveQueryEntities(searchQuery);
@@ -1077,24 +1145,103 @@ export class RetrievalFusion {
       results = applyTaskBias(results, { currentTaskId: taskId });
     }
 
-    results = results.slice(0, fusedCap).filter((r) => {
-      const sem = r.type === "semantic" ? (r.data as SemanticMemory) : undefined;
-      return passesCalibratedTheta(
-        r.score,
-        theta,
-        scoreCeiling,
-        Boolean(sem && pinnedIds.has(sem.id)),
-      );
+    // MEM-61: cut = iso(score) ≥ θ (scope fit, else global fit, else top-k).
+    // An explicit `minScore` keeps the leftover θ · rrfCeiling cut for callers that ask for it.
+    const legacyCut = minScore !== undefined;
+    let calibration: CalibrationSelection = { mode: "cold", fit: null, n: 0 };
+    if (!legacyCut) {
+      const scopeKey = await scopeKeyForSession(db, options.sessionId);
+      calibration = await loadCalibration(db, scopeKey, theoremV2.calibrationMinInjections);
+    }
+    const coldTopK = Math.min(fusedCap, Math.max(1, theoremV2.calibrationFallbackTopK));
+    const reservedCap = resolveReservedTreeSlots({
+      configured: theoremV2.treeReservedSlots,
+      beam: theorem.treeBeamB,
+      branching: theorem.treeBranchingB,
     });
-    results = results.slice(0, limit);
+    const treeKeys = new Set(
+      results.filter((r) => (r.scores.tree ?? 0) > 0).map((r) => candidateKey(r)),
+    );
+    const admissionCut = (ranked: AdmissionRanked[]): AdmissionRanked[] => {
+      const head = mergeReservedCandidates(ranked, fusedCap, treeKeys, reservedCap);
+      if (legacyCut) {
+        return head.filter((r) => passesCalibratedTheta(r.score, theta, scoreCeiling, r.pinned));
+      }
+      return applyCalibratedCut(head, calibration, theta, coldTopK);
+    };
+
+    const byKey = new Map<string, FusionResult>();
+    const items: AdmissionItem[] = [];
+    for (const r of results) {
+      const key = candidateKey(r);
+      byKey.set(key, r);
+      const data = r.data;
+      items.push({
+        key,
+        score: r.score,
+        priorFactor: r.priorFactor ?? 1,
+        retrievability: r.retrievability ?? 0,
+        utilityUsed: r.utility ?? 0,
+        utilityGreedy: r.utilityGreedy ?? r.utility ?? 0,
+        helpful: data.helpful_count ?? 0,
+        unhelpful: data.unhelpful_count ?? 0,
+        i0: resolveInitialImportance(data),
+        pinned: r.type === "semantic" && pinnedIds.has(r.id),
+      });
+    }
+    const plan = planAdmission({
+      items,
+      etaU,
+      etaR,
+      kappa,
+      cut: admissionCut,
+      limit,
+      rate: exploreRate,
+      rng: exploreRng,
+      explored: exploring,
+    });
+    results = [];
+    const fusedHead = new Set(
+      [...byKey.values()]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, fusedCap)
+        .map((r) => candidateKey(r)),
+    );
+    let reservedTreeKept = 0;
+    for (const key of plan.final) {
+      const r = byKey.get(key);
+      if (!r) continue;
+      r.propensity = plan.propensity.get(key);
+      if (calibration.fit) r.calibrated_p = predictIsotonic(calibration.fit, r.score);
+      if (treeKeys.has(key) && !fusedHead.has(key)) {
+        r.reserved = true;
+        reservedTreeKept++;
+      }
+      results.push(r);
+    }
 
     // REL-12 / MEM-16: calibration inject_count only — not retrieval_count
     // (leftover S / I) and not last_accessed_at (R clock). Returned hits
     // already passed the gate and the calibrated θ cut-off.
-    const semanticIds = results
-      .filter((r) => r.type === "semantic" && r.score > 0)
-      .map((r) => r.id);
-    await BrainStore.recordSemanticInject(semanticIds);
+    if (options.recordInject !== false) {
+      const semanticIds = results
+        .filter((r) => r.type === "semantic" && r.score > 0)
+        .map((r) => r.id);
+      await BrainStore.recordSemanticInject(semanticIds);
+    }
+
+    setLastSearchMeta({
+      channels: channelCosts.length ? channelCosts : [
+        emptyChannelCost("lexical"),
+        emptyChannelCost("ripgrep"),
+        emptyChannelCost("graph"),
+        emptyChannelCost("tree"),
+      ],
+      asOf,
+      reservedTreeKept,
+      hops: 1,
+      gwOverBeam: false,
+    });
 
     return results;
   }
@@ -1115,15 +1262,15 @@ export class RetrievalFusion {
     try {
       const extra: string[] = [
         "(s.expires_at IS NULL OR s.expires_at > datetime('now'))",
-        queryScopeSql("semantic", "s"),
       ];
       const extraParams: any[] = [];
+      pushQueryScope(extra, extraParams, "semantic", "s", scope.asOf);
 
       if (category) {
         extra.push("s.category = ?");
         extraParams.push(category);
       }
-      if (appendProjectSessionScope(extra, extraParams, "s.source_session_id", scope.projectSessionIds) === "none") {
+      if (appendRelevanceScope(extra, extraParams, "s.source_session_id", scope.projectSessionIds, "s.category") === "none") {
         return [];
       }
 
@@ -1175,13 +1322,14 @@ export class RetrievalFusion {
     try {
       // Parameters must follow placeholder order: MATCH ?, then extra
       // conditions, then LIMIT ?.
-      const extraConditions: string[] = [queryScopeSql("episodic", "e")];
+      const extraConditions: string[] = [];
       const extraParams: any[] = [];
+      pushQueryScope(extraConditions, extraParams, "episodic", "e", scope.asOf);
 
       if (sessionId) {
         extraConditions.push("e.session_id = ?");
         extraParams.push(sessionId);
-      } else if (appendProjectSessionScope(extraConditions, extraParams, "e.session_id", scope.projectSessionIds) === "none") {
+      } else if (appendRelevanceScope(extraConditions, extraParams, "e.session_id", scope.projectSessionIds) === "none") {
         return [];
       }
 
@@ -1237,15 +1385,15 @@ export class RetrievalFusion {
     // Fetch candidate rows (use existing indexes for pre-filtering)
     const conditions = [
       "(expires_at IS NULL OR expires_at > datetime('now'))",
-      queryScopeSql("semantic"),
     ];
     const params: any[] = [];
+    pushQueryScope(conditions, params, "semantic", undefined, scope.asOf);
 
     if (category) {
       conditions.push("category = ?");
       params.push(category);
     }
-    if (appendProjectSessionScope(conditions, params, "source_session_id", scope.projectSessionIds) === "none") {
+    if (appendRelevanceScope(conditions, params, "source_session_id", scope.projectSessionIds, "category") === "none") {
       return [];
     }
 
@@ -1273,14 +1421,14 @@ export class RetrievalFusion {
       try {
         const ftsConditions = [
           "(s.expires_at IS NULL OR s.expires_at > datetime('now'))",
-          queryScopeSql("semantic", "s"),
         ];
         const ftsParams: any[] = [];
+        pushQueryScope(ftsConditions, ftsParams, "semantic", "s", scope.asOf);
         if (category) {
           ftsConditions.push("s.category = ?");
           ftsParams.push(category);
         }
-        if (appendProjectSessionScope(ftsConditions, ftsParams, "s.source_session_id", scope.projectSessionIds) === "none") {
+        if (appendRelevanceScope(ftsConditions, ftsParams, "s.source_session_id", scope.projectSessionIds, "s.category") === "none") {
           return [];
         }
         rows = await fts5MatchJoin(
@@ -1305,11 +1453,12 @@ export class RetrievalFusion {
       }
     }
 
-    // Substring top-up reads every row; on a big brain a short FTS5 pool means "nothing relevant".
+    // MEM-67: substring top-up is a table scan. Allow it only on a small store
+    // (tests / empty brain). A 1e5-row scope never takes this path.
     let allowLikeScan = !ftsQuery;
     if (!allowLikeScan && rows.length < poolSize) {
       const total = await db.get("SELECT COUNT(*) AS n FROM brain_semantic").catch(() => null);
-      allowLikeScan = ((total as any)?.n ?? 0) <= 5000;
+      allowLikeScan = ((total as { n?: number } | null)?.n ?? 0) <= 5000;
     }
 
     if (rows.length < poolSize && allowLikeScan) {
@@ -1347,12 +1496,19 @@ export class RetrievalFusion {
    * Graph channel: hub-damped PPR from query entities, then
    * S_graph(m,q) = max_e π_q(e) for entities mentioned in m.
    */
-  private static async graphExpansion(query: string): Promise<Map<number, number>> {
-    if (!hasGraphExpandableTokens(query)) return new Map();
+  private static async graphExpansion(
+    query: string,
+    scope: LexicalScope = {},
+  ): Promise<{ scores: Map<number, number>; visited: number }> {
+    const empty = { scores: new Map<number, number>(), visited: 0 };
+    if (!hasGraphExpandableTokens(query)) return empty;
     try {
-      return await KnowledgeGraph.searchMemoriesByPpr(query);
+      return await KnowledgeGraph.searchMemoriesByPpr(query, {
+        projectSessionIds: scope.projectSessionIds,
+        asOf: scope.asOf,
+      });
     } catch {
-      return new Map();
+      return empty;
     }
   }
 

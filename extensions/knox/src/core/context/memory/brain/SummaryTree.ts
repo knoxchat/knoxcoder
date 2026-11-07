@@ -45,6 +45,15 @@ export const TREE_BRANCHING_DEFAULT = 8;
 export const TREE_BEAM_DEFAULT = 4;
 export const TREE_ROOT_PREFIX = "tree-root:";
 const TREE_MAX_DEPTH = 16;
+
+/** Hard node-visit cap: O(B · b · log_b N_q). */
+export function treeVisitBudget(beam: number, branching: number, leafCount: number): number {
+  const b = Math.max(2, Math.floor(branching) || TREE_BRANCHING_DEFAULT);
+  const B = Math.max(1, Math.floor(beam) || TREE_BEAM_DEFAULT);
+  const n = Math.max(b, Math.floor(leafCount) || b);
+  const levels = Math.max(1, Math.ceil(Math.log(n) / Math.log(b)));
+  return B * b * levels;
+}
 const NODE_TEXT_CAP = 2000;
 const IDENTIFIER_BONUS = 0.25;
 
@@ -478,6 +487,7 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
   hits: TreeMemoryHit[];
   ready: boolean;
   leafCount: number;
+  visited: number;
   epsilonB: number | null;
   epsilonBNote?: string;
   epsilonBOpportunities?: number;
@@ -496,6 +506,7 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
   if (!isTreeReady(leafCount, branching)) {
     return unpublishedBeam([], false, leafCount);
   }
+  const visitBudget = treeVisitBudget(beamWidth, branching, leafCount);
 
   const paths = options.relevantLeaves?.length
     ? await loadRelevantPaths(db, options.relevantLeaves)
@@ -525,7 +536,7 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
   const leafScores = new Map<string, { type: TreeMemoryType; id: number; score: number }>();
   const visited = new Set<number>(beam.map((n) => n.id));
 
-  for (let depth = 0; depth < TREE_MAX_DEPTH && beam.length > 0; depth++) {
+  for (let depth = 0; depth < TREE_MAX_DEPTH && beam.length > 0 && visited.size < visitBudget; depth++) {
     const candidates: Array<{
       id: number;
       parentId: number;
@@ -536,9 +547,11 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
       score: number;
     }> = [];
     for (const node of beam) {
+      if (visited.size >= visitBudget) break;
       const children = await listChildren(db, node.id, true);
       for (const child of children) {
         if (visited.has(child.id)) continue;
+        if (visited.size >= visitBudget) break;
         visited.add(child.id);
         const leafType =
           child.kind === "leaf"
@@ -606,6 +619,7 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
     hits,
     ready: true,
     leafCount,
+    visited: visited.size,
     ...publishedBeamMiss(measure, opportunities, misses),
   };
 }
@@ -658,6 +672,7 @@ function unpublishedBeam(
   hits: TreeMemoryHit[];
   ready: boolean;
   leafCount: number;
+  visited: number;
   epsilonB: number | null;
   epsilonBNote: string;
   epsilonBOpportunities: number;
@@ -667,6 +682,7 @@ function unpublishedBeam(
     hits,
     ready,
     leafCount,
+    visited: 0,
     epsilonB: null,
     epsilonBNote: "n/a — flat FTS",
     epsilonBOpportunities: 0,

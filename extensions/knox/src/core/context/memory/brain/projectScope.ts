@@ -1,6 +1,14 @@
 /**
  * Project scope helpers — local project_id = hash(workspace_directory).
- * IMP-25: filter retrieval to current workspace when memory_scope is "project".
+ *
+ * MEM-64 splits two filters:
+ *   Access boundary — this sqlite is one tenant/user. Fail closed when the
+ *     project session list is unknown and the row is not user-global.
+ *   Relevance scope — project sessions + session + user-global categories
+ *     (`preference`, `workflow`) that apply across projects.
+ *
+ * Both are applied **inside** every index (lexical, ripgrep, graph, tree)
+ * before ranking, not as a post-filter.
  */
 
 import crypto from "crypto";
@@ -8,7 +16,14 @@ import crypto from "crypto";
 import { BrainStore } from "./BrainStore.js";
 import { filterValidAt, isValidAt, type ValidityBounds } from "./entityResolution.js";
 import { getMemoryConfig } from "./memoryConfigAccess.js";
-import type { EpisodicMemory, MemoryScope, SemanticMemory } from "./types.js";
+import type { EpisodicMemory, MemoryScope, SemanticCategory, SemanticMemory } from "./types.js";
+
+/** Categories that follow the user across projects (relevance, not access). */
+export const USER_GLOBAL_CATEGORIES: readonly SemanticCategory[] = ["preference", "workflow"];
+
+export function isUserGlobalCategory(category: string | null | undefined): boolean {
+  return category === "preference" || category === "workflow";
+}
 
 /** Stable local project identifier from workspace root path. */
 export function hashProjectId(workspaceDir: string): string {
@@ -74,11 +89,39 @@ export function filterSemanticByProjectScope(
   projectSessionIds: string[] | undefined,
 ): SemanticMemory[] {
   if (projectSessionIds === undefined) return memories;
-  if (projectSessionIds.length === 0) return [];
   const allowed = new Set(projectSessionIds);
-  return memories.filter(
-    (m) => Boolean(m.source_session_id && allowed.has(m.source_session_id)),
-  );
+  return memories.filter((m) => {
+    if (isUserGlobalCategory(m.category)) return true;
+    return Boolean(m.source_session_id && allowed.has(m.source_session_id));
+  });
+}
+
+/**
+ * SQL relevance-scope predicate. `"none"` = Ω(q) is empty (fail closed).
+ * `"ok"` = filter applied, global mode, or only user-global rows remain.
+ *
+ * `categoryColumn` (semantic only) lets `preference` / `workflow` cross projects.
+ */
+export function appendRelevanceScope(
+  extra: string[],
+  params: unknown[],
+  column: string,
+  sessionIds: string[] | undefined,
+  categoryColumn?: string,
+): "ok" | "none" {
+  if (sessionIds === undefined) return "ok";
+  const global = categoryColumn
+    ? `${categoryColumn} IN ('preference','workflow')`
+    : null;
+  if (sessionIds.length === 0) {
+    if (!global) return "none";
+    extra.push(global);
+    return "ok";
+  }
+  const inList = `${column} IN (${sessionIds.map(() => "?").join(",")})`;
+  extra.push(global ? `(${inList} OR ${global})` : inList);
+  params.push(...sessionIds);
+  return "ok";
 }
 
 export function filterEpisodicByProjectScope(

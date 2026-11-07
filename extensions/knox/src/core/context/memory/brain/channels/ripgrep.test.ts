@@ -138,6 +138,8 @@ describe("MEM-23 path + parse helpers", () => {
     );
     expect(src).toMatch(/searchWorkspaceWithRipgrep/);
     expect(src).toMatch(/runRipgrepSearch/);
+    expect(src).toMatch(/timeoutMs/);
+    expect(src).toMatch(/appendRelevanceScope/);
     expect(src).toMatch(/brain_semantic_fts MATCH/);
     expect(src).toMatch(/ORDER BY rank DESC/);
     expect(src).toMatch(/knoxignore|knoxIgnoreFilesFor|searchWorkspaceWithRipgrep/);

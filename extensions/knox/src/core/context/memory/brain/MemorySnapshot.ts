@@ -1,24 +1,14 @@
-import { ContextBuilder } from "./ContextBuilder.js";
-import { BrainStore } from "./BrainStore.js";
-import type { BuildContextInput } from "./types.js";
+import { MEMORY_POINTER_LINE } from "./injectFormat.js";
 
 /**
- * MemorySnapshot — Frozen snapshot pattern for memory context injection.
+ * MemorySnapshot — session-start pointer (MEM-63).
  *
- * Injects memory context into the system prompt at session start, immutable mid-session.
- * This preserves the LLM's prefix/KV cache (latency + cost savings).
- *
- * Architecture:
- * - On session start: build a comprehensive context snapshot from all memory types
- * - Freeze the snapshot: no changes to injected context during the session
- * - DB writes still happen live (new memories, episodic tracking)
- * - On next session: snapshot refreshes with latest data
- *
- * Benefits:
- * - Consistent context throughout a session (no mid-turn context shifts)
- * - LLM prefix cache reuse (significant latency reduction on long sessions)
- * - Lower API costs (fewer context-building calls)
- * - Deterministic behavior within a session
+ * The snapshot used to freeze a built memory context into the system prompt at
+ * session start. Retrieved memory is now a quoted `[memory]` block in a
+ * user-role message built per turn, so a snapshot carries no memory content:
+ * only a static pointer line that is identical for every session (so the
+ * prefix / KV cache still holds). Memory text must never enter the system
+ * message.
  */
 
 export interface Snapshot {
@@ -73,43 +63,24 @@ export class MemorySnapshot {
   }
 
   /**
-   * Build a fresh snapshot for the session.
+   * Build the snapshot: the static pointer line, no retrieved memory.
    */
   private static async buildSnapshot(
     sessionId: string,
-    maxTokens: number,
-    query?: string,
+    _maxTokens: number,
+    _query?: string,
   ): Promise<Snapshot> {
-    // Use ContextBuilder to assemble the best context
-    const input: BuildContextInput = {
-      message: query ?? "session context overview",
-      session_id: sessionId,
-      max_tokens: maxTokens,
-      include_graph: true,
-      include_procedures: true,
-      include_patterns: true,
-    };
-
-    const context = await ContextBuilder.build(input);
-
-    // Count sources for diagnostics
-    const semanticCount = (context.match(/\[(?:fact|preference|decision|summary|insight|code_pattern|error_fix|project_context|workflow)\]/g) ?? []).length;
-    const episodicCount = (context.match(/\[Session [a-f0-9]/g) ?? []).length;
-    const entityCount = (context.match(/\[(?:person|organization|technology|concept|project|file|function|class)\]/g) ?? []).length;
-    const procedureCount = (context.match(/\[(?:general|coding|debugging)\]/g) ?? []).length;
-    const patternCount = (context.match(/Suggested Approaches/g) ?? []).length;
-
     return {
       sessionId,
-      context,
-      tokenCount: Math.ceil(context.length / 4),
+      context: MEMORY_POINTER_LINE,
+      tokenCount: Math.ceil(MEMORY_POINTER_LINE.length / 4),
       createdAt: Date.now(),
       sources: {
-        semanticCount,
-        episodicCount,
-        entityCount,
-        procedureCount,
-        patternCount,
+        semanticCount: 0,
+        episodicCount: 0,
+        entityCount: 0,
+        procedureCount: 0,
+        patternCount: 0,
       },
     };
   }

@@ -11,7 +11,9 @@ import {
   fileTypeToRipgrepFlags,
   mergeWorkspaceSearchResults,
   prefixGitignorePattern,
+  isRipgrepTimeoutOutput,
   resolveRipgrepBinary,
+  resolveRipgrepTimeoutMs,
   resolveSearchMaxResults,
   resolveSearchRoots,
   runRipgrepSearch,
@@ -334,6 +336,14 @@ describe("bundled ripgrep", () => {
 });
 
 describe("runRipgrepSearch ignore + limits", () => {
+  it("MEM-67 timeout helpers honor an explicit 200 ms budget", () => {
+    expect(resolveRipgrepTimeoutMs({ timeoutMs: 200 })).toBe(200);
+    expect(isRipgrepTimeoutOutput(
+      "[search stopped: timed out after 200 ms; results are partial. Narrow with path/fileGlob/fileType.]",
+    )).toBe(true);
+    expect(isRipgrepTimeoutOutput("No matches found")).toBe(false);
+  });
+
   const rg = resolveRipgrepBinary();
   const withTree = async (fn: (dir: string) => Promise<void>) => {
     const dir = mkdtempSync(path.join(os.tmpdir(), "knox-rg-"));

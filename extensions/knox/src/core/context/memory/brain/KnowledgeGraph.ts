@@ -20,7 +20,8 @@ import {
   preferredEntityName,
 } from "./entityResolution.js";
 import { getFusionParams, getMemoryConfig, getTheoremParams } from "./memoryConfigAccess.js";
-import { queryScopeSql } from "./store/validity.js";
+import { appendRelevanceScope } from "./projectScope.js";
+import { queryScopeClause } from "./store/validity.js";
 import type {
   GraphEntity,
   GraphEdge,
@@ -261,9 +262,14 @@ export class KnowledgeGraph {
   /**
    * Graph channel over stored semantic rows: S_graph(m,q) = max_e π_q(e)
    * for entities mentioned in m. REL-11 join guards still apply.
+   * MEM-64: relevance scope is applied on the memory join, before ranking.
    */
-  static async searchMemoriesByPpr(query: string): Promise<Map<number, number>> {
+  static async searchMemoriesByPpr(
+    query: string,
+    scope: { projectSessionIds?: string[]; asOf?: string } = {},
+  ): Promise<{ scores: Map<number, number>; visited: number }> {
     const graphScores = new Map<number, number>();
+    const empty = { scores: graphScores, visited: 0 };
     const config = getMemoryConfig();
     const fusionParams = getFusionParams();
     const theorem = getTheoremParams();
@@ -272,7 +278,7 @@ export class KnowledgeGraph {
       undefined,
       fusionParams.graphEntitySearchLimit,
     );
-    if (seeds.length === 0) return graphScores;
+    if (seeds.length === 0) return empty;
 
     const seedIds: number[] = [];
     const seenSeeds = new Set<number>();
@@ -285,7 +291,7 @@ export class KnowledgeGraph {
       seenSeeds.add(canonicalId);
       seedIds.push(canonicalId);
     }
-    if (seedIds.length === 0) return graphScores;
+    if (seedIds.length === 0) return empty;
 
     const ppr = await KnowledgeGraph.personalizedPageRank(seedIds);
     const joinCap = Math.max(fusionParams.graphNeighborLimit, 10);
@@ -294,7 +300,7 @@ export class KnowledgeGraph {
       Math.max(joinCap * 3, 20),
       theorem.pprEpsilon,
     );
-    if (ranked.length === 0) return graphScores;
+    if (ranked.length === 0) return { scores: graphScores, visited: ppr.visited };
 
     const entities = await BrainStore.getEntitiesByIds(ranked.map((row) => row.id));
     const byId = new Map(entities.map((entity) => [entity.id, entity]));
@@ -315,6 +321,8 @@ export class KnowledgeGraph {
       const related = await KnowledgeGraph.loadMemoriesMentioning(names, {
         largeBrain,
         fetchLimit,
+        projectSessionIds: scope.projectSessionIds,
+        asOf: scope.asOf,
       });
 
       let kept = 0;
@@ -327,19 +335,32 @@ export class KnowledgeGraph {
         if (kept >= config.graph_neighbor_memory_limit) break;
       }
     }
-    return graphScores;
+    return { scores: graphScores, visited: ppr.visited };
   }
 
   private static async loadMemoriesMentioning(
     names: string[],
-    options: { largeBrain: boolean; fetchLimit: number },
+    options: {
+      largeBrain: boolean;
+      fetchLimit: number;
+      projectSessionIds?: string[];
+      asOf?: string;
+    },
   ): Promise<Array<{ id: number; title?: string; content?: string; keywords?: string }>> {
     const db = await BrainStore.get();
     const needles = [...new Set(names.map((name) => name.trim()).filter((name) => name.length > 0))];
     if (needles.length === 0) return [];
     const seen = new Map<number, { id: number; title?: string; content?: string; keywords?: string }>();
+    const temporal = options.asOf ? { asOf: options.asOf } : {};
+    const ftsScope = queryScopeClause("semantic", "s", temporal);
+    const extra: string[] = [];
+    const extraParams: unknown[] = [];
+    if (appendRelevanceScope(extra, extraParams, "s.source_session_id", options.projectSessionIds, "s.category") === "none") {
+      return [];
+    }
+    const extraSql = extra.length > 0 ? ` AND ${extra.join(" AND ")}` : "";
 
-    if (options.largeBrain) {
+    const ftsSearch = async () => {
       for (const name of needles) {
         const phrase = name.toLowerCase().replace(/"/g, "").trim();
         if (!phrase) continue;
@@ -355,21 +376,29 @@ export class KnowledgeGraph {
              SELECT s.id, s.title, s.content, s.keywords
              FROM hits JOIN brain_semantic s ON s.id = hits.id
              WHERE (s.expires_at IS NULL OR s.expires_at > datetime('now'))
-               AND ${queryScopeSql("semantic", "s")}
+               AND ${ftsScope.sql}${extraSql}
              ORDER BY hits.rank
              LIMIT ?`,
-            [`"${phrase}"`, options.fetchLimit * 10, options.fetchLimit],
+            [`"${phrase}"`, options.fetchLimit * 10, ...ftsScope.params, ...extraParams, options.fetchLimit],
           );
           for (const row of rows as Array<{ id: number; title?: string; content?: string; keywords?: string }>) {
             seen.set(row.id, row);
           }
         } catch {
-          // FTS miss — LIKE below
+          // FTS miss
         }
       }
-      if (seen.size > 0) return [...seen.values()];
-    }
+    };
 
+    await ftsSearch();
+    if (seen.size > 0 || options.largeBrain) return [...seen.values()];
+
+    const likeScope = queryScopeClause("semantic", undefined, temporal);
+    const likeExtra: string[] = [];
+    const likeExtraParams: unknown[] = [];
+    if (appendRelevanceScope(likeExtra, likeExtraParams, "source_session_id", options.projectSessionIds, "category") === "none") {
+      return [];
+    }
     const likeSql = needles.map(() =>
       "(LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(keywords) LIKE ?)",
     ).join(" OR ");
@@ -377,13 +406,14 @@ export class KnowledgeGraph {
       const like = `%${name.toLowerCase()}%`;
       return [like, like, like];
     });
+    const likeWhere = likeExtra.length > 0 ? ` AND ${likeExtra.join(" AND ")}` : "";
     const rows = await db.all(
       `SELECT id, title, content, keywords FROM brain_semantic
        WHERE (${likeSql})
          AND (expires_at IS NULL OR expires_at > datetime('now'))
-         AND ${queryScopeSql("semantic")}
+         AND ${likeScope.sql}${likeWhere}
        LIMIT ?`,
-      [...likeParams, options.fetchLimit],
+      [...likeParams, ...likeScope.params, ...likeExtraParams, options.fetchLimit],
     );
     return rows as Array<{ id: number; title?: string; content?: string; keywords?: string }>;
   }

@@ -26,6 +26,8 @@ import {
   loadAttributionRefit,
   type AttributionRefitResult,
 } from "./memoryOutcomes.js";
+import { refitCalibration, type CalibrationRefitResult } from "./calibration.js";
+import { runRefit, type RefitRunResult } from "./refit.js";
 import { contentWords } from "./RetrievalQuery.js";
 import { recomputeMemoryTiers } from "./store/tiers.js";
 import { checkStoreInvariants, type StoreInvariantReport } from "./invariants.js";
@@ -44,6 +46,10 @@ export interface SleepCycleResult extends ConsolidationResult {
   sub_phases: SleepSubPhaseCounts;
   /** φ₇ attribution refit of w_s and calibrated θ (MEM-18). */
   refit?: AttributionRefitResult;
+  /** MEM-61: isotonic fits written this cycle. */
+  calibration?: CalibrationRefitResult;
+  /** MEM-62: guarded parameter refit report. */
+  param_refit?: RefitRunResult;
   /** Reachability ∧ Losslessness after this cycle (MEM-32). */
   invariants?: StoreInvariantReport;
 }
@@ -120,6 +126,16 @@ export class SleepConsolidation {
     // Phase 7 (φ₇): refit channel weights w_s and calibrated θ from attribution.
     result.refit = await SleepConsolidation.refitAttributionPriors();
     result.sub_phases.refit = result.refit?.rows ?? 0;
+
+    // MEM-59: finish queued ablation probes (opt-in, budgeted) so their rows
+    // are in the log before the calibration and parameter refits read it.
+    await SleepConsolidation.drainAblations();
+
+    // MEM-61: isotonic fit of score -> P(helpful), IPW-weighted, per scope + global.
+    result.calibration = await SleepConsolidation.refitCalibrationFits();
+
+    // MEM-62: bounded, guarded refit of the ✓ parameters.
+    result.param_refit = await SleepConsolidation.refitParameters();
 
     for (const [name, hook] of cycleHooks) {
       try {
@@ -375,8 +391,8 @@ export class SleepConsolidation {
 
   /**
    * Increment the winning channel's w_s from cited+helpful vs unhelpful.
-   * Calibrate θ as the running P(helpful | injected) and copy it into live
-   * `retrieval_threshold` (MEM-22).
+   * Track θ as the running P(helpful | injected) in `calibrated_theta` (diagnostic;
+   * MEM-61 replaced the live cut with an isotonic fit).
    */
   private static async refitAttributionPriors(): Promise<AttributionRefitResult> {
     const empty = computeAttributionRefit([], {
@@ -402,8 +418,9 @@ export class SleepConsolidation {
         await BrainStore.saveConfig("w_tree", String(result.channel_weights.tree));
       }
       if (result.theta_updated) {
+        // Diagnostic only (running P(helpful)). The live cut is the isotonic fit
+        // (MEM-61); `retrieval_threshold` is θ in P̂ ≥ θ and only MEM-62 refits it.
         await BrainStore.saveConfig("calibrated_theta", String(result.theta));
-        await BrainStore.saveConfig("retrieval_threshold", String(result.theta));
       }
       await BrainStore.auditLog("refit", "sleep", null, {
         calibration_n: result.calibration_n,
@@ -417,6 +434,47 @@ export class SleepConsolidation {
     } catch (error) {
       console.warn("[Sleep] Attribution refit failed:", error instanceof Error ? error.message : error);
       return empty;
+    }
+  }
+
+  private static async drainAblations(): Promise<void> {
+    try {
+      if (!BrainStore.getConfig().ablation_enabled) return;
+      const { drainAblationQueue } = await import("./ablation.js");
+      await drainAblationQueue();
+    } catch (error) {
+      console.warn("[Sleep] Ablation drain failed:", error instanceof Error ? error.message : error);
+    }
+  }
+
+  private static async refitCalibrationFits(): Promise<CalibrationRefitResult | undefined> {
+    try {
+      const db = await BrainStore.get();
+      const result = await refitCalibration(db);
+      await BrainStore.auditLog("refit", "calibration", null, {
+        samples: result.samples,
+        global_n: result.global_n,
+        scopes: result.scopes.length,
+      }).catch(() => {});
+      return result;
+    } catch (error) {
+      console.warn("[Sleep] Calibration refit failed:", error instanceof Error ? error.message : error);
+      return undefined;
+    }
+  }
+
+  private static async refitParameters(): Promise<RefitRunResult | undefined> {
+    try {
+      const db = await BrainStore.get();
+      const result = await runRefit(db, {
+        getConfig: () => BrainStore.getConfig() as unknown as Record<string, unknown>,
+        saveConfig: (key, value) => BrainStore.saveConfig(key as never, value),
+        auditLog: (action, kind, id, details) => BrainStore.auditLog(action, kind, id, details),
+      });
+      return result;
+    } catch (error) {
+      console.warn("[Sleep] Parameter refit failed:", error instanceof Error ? error.message : error);
+      return undefined;
     }
   }
 

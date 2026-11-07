@@ -193,7 +193,7 @@ describe("MEM-22 calibrated θ search wiring", () => {
       query: token,
       includeEpisodic: false,
     });
-    expect(hits.length).toBeLessThanOrEqual(3);
+    expect(hits.filter((h) => !h.reserved).length).toBeLessThanOrEqual(3);
     expect(hits.every((h) => h.score > 0)).toBe(true);
 
     await BrainStore.saveConfig("fusion_candidate_cutoff", "50");

@@ -710,14 +710,31 @@ export function knoxIgnoreFilesFor(cwd: string): {
   };
 }
 
+export type RipgrepRunOptions = Partial<SearchOptions> & {
+  /** MEM-67: hard stop. Default: KNOX_SEARCH_TIMEOUT_MS or 60s. */
+  timeoutMs?: number;
+};
+
+export function resolveRipgrepTimeoutMs(options?: { timeoutMs?: number }): number {
+  const explicit = Number(options?.timeoutMs);
+  if (Number.isFinite(explicit) && explicit > 0) return Math.floor(explicit);
+  return searchTimeoutMs();
+}
+
+/** True when rg returned a partial result because the timer fired. */
+export function isRipgrepTimeoutOutput(output: string): boolean {
+  return /\[search stopped: timed out after \d+ ms/.test(output ?? "");
+}
+
 export function runRipgrepSearch(
   rgPath: string,
   cwd: string,
   query: string,
-  options?: Partial<SearchOptions>,
+  options?: RipgrepRunOptions,
 ): Promise<string> {
   const { files, cleanup } = knoxIgnoreFilesFor(cwd);
   const rgArgs = buildRipgrepArgs(query, options, files);
+  const timeoutMs = resolveRipgrepTimeoutMs(options);
   return new Promise((resolve, reject) => {
     const child = spawn(rgPath, rgArgs, { cwd });
     const finish = (fn: () => void) => {
@@ -736,7 +753,7 @@ export function runRipgrepSearch(
       stopReason = reason;
       child.kill("SIGKILL");
     };
-    const timer = setTimeout(() => stop("timeout"), searchTimeoutMs());
+    const timer = setTimeout(() => stop("timeout"), timeoutMs);
 
     child.stdout.on("data", (data: Buffer) => {
       if (stopReason) {
@@ -760,7 +777,7 @@ export function runRipgrepSearch(
       if (stopReason) {
         const why =
           stopReason === "timeout"
-            ? `timed out after ${searchTimeoutMs()} ms`
+            ? `timed out after ${timeoutMs} ms`
             : `output exceeded ${SEARCH_MAX_OUTPUT_BYTES} bytes`;
         const lines = output.split("\n");
         lines.pop(); // drop a possibly cut-off last line
@@ -795,7 +812,7 @@ export function runRipgrepSearch(
 export async function searchWorkspaceWithRipgrep(
   workspaceFsPaths: string[],
   query: string,
-  options?: Partial<SearchOptions>,
+  options?: RipgrepRunOptions,
   rgPath?: string,
 ): Promise<string> {
   const binary = rgPath ?? resolveRipgrepBinary();

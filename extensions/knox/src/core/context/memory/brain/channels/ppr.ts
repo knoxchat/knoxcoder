@@ -19,6 +19,13 @@ export const PPR_ALPHA_DEFAULT = 0.15;
 export const PPR_EPSILON_DEFAULT = 1e-4;
 export const PPR_MAX_PUSHES_DEFAULT = 20_000;
 
+/** Hard push cap: O(1/(α ε)), independent of |V|. */
+export function pprPushBudget(alpha = PPR_ALPHA_DEFAULT, epsilon = PPR_EPSILON_DEFAULT): number {
+  const a = resolvePprAlpha(alpha);
+  const e = resolvePprEpsilon(epsilon);
+  return Math.max(1, Math.ceil(1 / (a * e)));
+}
+
 export interface GraphNeighbor {
   id: number;
   weight: number;
@@ -34,6 +41,8 @@ export interface PprResult {
   scores: Map<number, number>;
   depths: Map<number, number>;
   pushes: number;
+  /** Distinct nodes whose residual was touched. */
+  visited: number;
   alpha: number;
   epsilon: number;
 }
@@ -163,7 +172,7 @@ export async function pushPersonalizedPageRank(
 ): Promise<PprResult> {
   const alpha = resolvePprAlpha(options.alpha);
   const epsilon = resolvePprEpsilon(options.epsilon);
-  const maxPushes = resolvePprMaxPushes(options.maxPushes);
+  const maxPushes = Math.min(resolvePprMaxPushes(options.maxPushes), pprPushBudget(alpha, epsilon));
   const e = normalizeSeedMass(seeds);
   const scores = new Map<number, number>();
   const residual = new Map<number, number>();
@@ -217,7 +226,7 @@ export async function pushPersonalizedPageRank(
     pushes++;
   }
 
-  return { scores, depths, pushes, alpha, epsilon };
+  return { scores, depths, pushes, visited: depths.size, alpha, epsilon };
 }
 
 export function pushPersonalizedPageRankSync(
@@ -227,7 +236,7 @@ export function pushPersonalizedPageRankSync(
 ): PprResult {
   const alpha = resolvePprAlpha(options.alpha);
   const epsilon = resolvePprEpsilon(options.epsilon);
-  const maxPushes = resolvePprMaxPushes(options.maxPushes);
+  const maxPushes = Math.min(resolvePprMaxPushes(options.maxPushes), pprPushBudget(alpha, epsilon));
   const e = normalizeSeedMass(seeds);
   const scores = new Map<number, number>();
   const residual = new Map<number, number>();
@@ -274,7 +283,7 @@ export function pushPersonalizedPageRankSync(
     pushes++;
   }
 
-  return { scores, depths, pushes, alpha, epsilon };
+  return { scores, depths, pushes, visited: depths.size, alpha, epsilon };
 }
 
 /**
