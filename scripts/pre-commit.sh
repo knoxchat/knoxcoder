@@ -146,12 +146,12 @@ if [ ! -d node_modules ]; then
 	echo "${RED}node_modules missing. Run: npm ci${RST}"; exit 1
 fi
 
-TSC="node node_modules/@typescript/native/lib/tsc.js"
+TSC="node node_modules/tsrs/lib/tsrs.js --fast"
 TSC6="node node_modules/@typescript/typescript6/lib/tsc.js"
 TS6_PRELOAD="$ROOT/scripts/ts6-for-eslint.cjs"
 
-# typescript-eslint 8 cannot load TypeScript >= 7. Keep TS 7 as `tsc`, and
-# redirect eslint's `require('typescript')` to @typescript/typescript6.
+# typescript-eslint 8 cannot load TypeScript >= 7. Typecheck uses tsrs (TS 7),
+# and eslint's `require('typescript')` is redirected to @typescript/typescript6.
 NODE_OPTS=()
 [ -n "${NODE_OPTIONS:-}" ] && NODE_OPTS+=($NODE_OPTIONS)
 case " ${NODE_OPTS[*]} " in
@@ -210,7 +210,7 @@ changed_list() {
 # pin it to @typescript/typescript6, which only happens on a clean `npm ci`.
 check_toolchain() {
 	local missing=0
-	[ -f node_modules/@typescript/native/lib/tsc.js ] || { echo "missing @typescript/native (npm ci)"; missing=1; }
+	[ -f node_modules/tsrs/lib/tsrs.js ] || { echo "missing tsrs (npm ci)"; missing=1; }
 	[ -f node_modules/@typescript/typescript6/lib/typescript.js ] || { echo "missing @typescript/typescript6 (npm ci)"; missing=1; }
 	[ -f node_modules/typescript-eslint/package.json ] || { echo "missing typescript-eslint (npm ci)"; missing=1; }
 	[ -f "$TS6_PRELOAD" ] || { echo "missing $TS6_PRELOAD"; missing=1; }

@@ -128,6 +128,7 @@ export const indentationFilter = Object.freeze<string[]>([
 
 	// except multiple specific files
 	'!**/package.json',
+	'!.eslint-plugin-local/package.json',
 	'!**/package-lock.json',
 	'!**/Cargo.lock',
 
@@ -173,6 +174,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'**',
 	'!**/*.desktop',
 	'!**/*.json',
+	'!.eslint-plugin-local/package.json',
 	'!**/*.jsonc',
 	'!**/*.jsonl',
 	'!**/*.html',

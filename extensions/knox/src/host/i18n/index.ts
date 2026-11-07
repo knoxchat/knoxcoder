@@ -123,7 +123,12 @@ export function detectAndApplyLanguage(): SupportedLanguage {
 /**
  * Translation function shorthand.
  * Usage: t("key") or t("key", { param: "value" })
+ *
+ * i18next 27's TFunction overloads are not assignable to a simple
+ * `(key, vars?) => string`, so wrap instead of exporting `i18n.t` bound.
  */
-export const t = i18n.t.bind(i18n);
+export function t(key: string, vars?: Record<string, unknown>): string {
+  return vars ? i18n.t(key, vars) : i18n.t(key);
+}
 
 export default i18n;

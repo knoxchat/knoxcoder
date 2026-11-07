@@ -8,16 +8,16 @@ import * as cp from 'child_process';
 import es from 'event-stream';
 import fancyLog from 'fancy-log';
 import * as path from 'path';
-import { nativeTscPath } from './nativeTsc.ts';
+import { nativeTscExtraArgs, nativeTscPath } from './nativeTsc.ts';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 const ansiRegex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 const timestampRegex = /^\[\d{2}:\d{2}:\d{2}\]\s*/;
 
 /**
- * Invokes the TypeScript 7 native (Go) compiler via {@link nativeTscPath}.
- * Despite the historical "tsgo" naming in callers, this always runs the native
- * `tsc` binary — never the legacy JavaScript compiler from `@typescript/typescript6`.
+ * Invokes tsrs (Rust TypeScript 7) via {@link nativeTscPath}.
+ * Despite the historical "tsgo" naming in callers, this always runs tsrs,
+ * never the JavaScript compiler from `@typescript/typescript6`.
  */
 export function spawnTsgo(projectPath: string, config: { taskName: string; noEmit?: boolean }, onComplete?: () => Promise<void> | void): Promise<void> {
 	function runReporter(output: string) {
@@ -29,7 +29,7 @@ export function spawnTsgo(projectPath: string, config: { taskName: string; noEmi
 		}
 	}
 
-	const args = [nativeTscPath, '--project', projectPath, '--pretty', 'false', '--incremental'];
+	const args = [nativeTscPath, ...nativeTscExtraArgs, '--project', projectPath, '--pretty', 'false', '--incremental'];
 	if (config.noEmit) {
 		// Emitting builds delete their build info before compiling, so concurrent type checks need a separate cache.
 		const tsBuildInfoFile = path.join(path.dirname(projectPath), `${path.basename(projectPath, '.json')}.typecheck.tsbuildinfo`);

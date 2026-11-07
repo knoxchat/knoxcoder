@@ -1171,7 +1171,7 @@ suite('Knox agent host contract (KN-382)', () => {
 suite('Knox agent host contract (KN-383)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('sqlite3 and node-pty rebuild for Electron 43.7.7 ABI 148, with KNOX_SKIP_ELECTRON_REBUILD', () => {
+	test('sqlite3 and node-pty rebuild for Electron 43.8.3 ABI 148, with KNOX_SKIP_ELECTRON_REBUILD', () => {
 		const policy = repoFile('extensions/knox/scripts/electronRebuild.mts');
 		const policyTest = repoFile('extensions/knox/src/host/activation/electronRebuild.test.ts');
 		const copyNative = repoFile('extensions/knox/scripts/copy-native.mts');
@@ -1187,7 +1187,7 @@ suite('Knox agent host contract (KN-383)', () => {
 		};
 
 		assert.ok(policy.includes('KN-383'));
-		assert.ok(policy.includes("KNOX_ELECTRON_VERSION = '43.7.7'"));
+		assert.ok(policy.includes("KNOX_ELECTRON_VERSION = '43.8.3'"));
 		assert.ok(policy.includes('KNOX_ELECTRON_ABI = 148'));
 		assert.ok(policy.includes('KNOX_SKIP_ELECTRON_REBUILD'));
 		assert.ok(policy.includes('KNOX_FORCE_ELECTRON_REBUILD'));
@@ -1203,14 +1203,14 @@ suite('Knox agent host contract (KN-383)', () => {
 		assert.ok(copyNative.includes("from './electronRebuild.mts'"));
 		assert.ok(readme.includes('KNOX_SKIP_ELECTRON_REBUILD=1'));
 		assert.ok(readme.includes('ABI **148**'));
-		assert.ok(readme.includes('43.7.7'));
+		assert.ok(readme.includes('43.8.3'));
 		assert.ok(gulp.includes("compile-extension-knox-native"));
 		assert.ok(gulp.includes('scripts/copy-native.mts'));
 		assert.ok(knoxPkg.dependencies?.['@electron/rebuild']);
 		assert.ok(knoxPkg.dependencies?.sqlite3);
 		assert.ok(knoxPkg.optionalDependencies?.['node-pty']);
 		assert.ok(knoxPkg.scripts?.['compile-native']?.includes('compile-extension-knox-native'));
-		assert.strictEqual(rootPkg.devDependencies?.electron, '43.7.7');
+		assert.strictEqual(rootPkg.devDependencies?.electron, '43.8.3');
 	});
 });
 

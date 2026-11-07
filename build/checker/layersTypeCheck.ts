@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import { createRequire } from 'module';
 import { availableParallelism, freemem } from 'os';
-import { dirname, join } from 'path';
+import { join } from 'path';
+import { nativeTscExtraArgs, nativeTscPath } from '../lib/nativeTsc.ts';
 
 //
 // Type checks the sources of every target environment against the lib and type
@@ -35,11 +35,10 @@ const MEMORY_PER_CHECK = 4 * 1024 * 1024 * 1024;
 const MEMORY_HEADROOM = 0.25;
 
 /**
- * Absolute path to the TypeScript 7 (native) compiler entrypoint. It is installed
- * under the `@typescript/native` alias, so resolving it explicitly and invoking it
- * via `node` guarantees we run TS7 rather than the `typescript` (<= 6.x) install.
+ * Absolute path to the tsrs (Rust TypeScript 7) launcher. Invoking it via `node`
+ * guarantees we run tsrs rather than the `typescript` (<= 6.x) install.
  */
-const tscPath = join(dirname(createRequire(import.meta.url).resolve('@typescript/native/package.json')), 'bin', 'tsc');
+const tscPath = nativeTscPath;
 
 /**
  * The projects overlap heavily but are independent, so they can be checked in
@@ -56,7 +55,7 @@ function getConcurrency(): number {
 
 function typeCheck(project: string): Promise<string> {
 	return new Promise((resolve, reject) => {
-		const child = cp.spawn(process.execPath, [tscPath, '--project', join(import.meta.dirname, `tsconfig.${project}.json`), '--pretty', 'false'], { stdio: ['ignore', 'pipe', 'pipe'] });
+		const child = cp.spawn(process.execPath, [tscPath, ...nativeTscExtraArgs, '--project', join(import.meta.dirname, `tsconfig.${project}.json`), '--pretty', 'false'], { stdio: ['ignore', 'pipe', 'pipe'] });
 
 		let output = '';
 		child.stdout.on('data', data => output += data.toString());

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { API, SymbolFlags, type Checker, type Program, type Project, type Symbol } from '@typescript/native/async';
-import { isExportSpecifier, isIdentifier, isImportSpecifier, isPropertyAccessExpression, type Identifier, type Node, type SourceFile } from '@typescript/native/ast';
+import { API, SymbolFlags, type Checker, type Program, type Project, type Symbol } from 'tsrs/async';
+import { isExportSpecifier, isIdentifier, isImportSpecifier, isPropertyAccessExpression, type Identifier, type Node, type SourceFile } from 'tsrs/ast';
 import { dirname, join, relative, resolve } from 'path';
 import { minimatch } from 'minimatch';
 

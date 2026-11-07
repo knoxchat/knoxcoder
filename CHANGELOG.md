@@ -15,8 +15,10 @@ All notable changes to KnoxCoder are documented in this file.
 
 ### Changed
 
+- **Typecheck and emit with tsrs.** Native TypeScript 7 CLI, gulp compile, and the layers checker now run [tsrs](https://github.com/oxc-project/tsrs) (Rust port of TypeScript 7.1) instead of `@typescript/native` (Go `tsc`). `--fast` is on. TypeScript 6 stays for eslint, tsec, and the compiler API.
+
 - **Upgrade editor host to VS Code 1.145.2**
-  Merged upstream `microsoft/vscode` 1.145.2 editor, workbench, terminal, Git, Markdown editor, and Electron 43.8.3 (`ms_build_id` 15784459) changes while keeping Knox branding, Open VSX gallery, the native TypeScript 7 toolchain, and Knox Agent isolated from upstream AI.
+  Merged upstream `microsoft/vscode` 1.145.2 editor, workbench, terminal, Git, Markdown editor, and Electron 43.8.3 (`ms_build_id` 15784459) changes while keeping Knox branding, Open VSX gallery, the native TypeScript 7 toolchain, and Knox Agent isolated from upstream AI. The npm `electron` package and Knox native rebuild (`KNOX_ELECTRON_VERSION`) now pin 43.8.3 as well (ABI 148, same as 43.7.7).
 
   Editor-side additions from 1.144–1.145.2: `files.exclude` / `search.exclude` `!` exception patterns, Timeline API finalized (`registerWorkspaceTimelineProvider`, `TimelineItem.resourceUri`), Mermaid subgraph titles, media preview moved into the workbench, Windows terminal dialog reparenting, Markdown preview refresh before a hidden panel rebuild, task-system readiness and terminal auto-reply leak fixes, Electron 43.8.3, and the 1.145.2 restricted-event drop.
 
