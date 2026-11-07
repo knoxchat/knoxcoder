@@ -35,8 +35,9 @@ const MEMORY_PER_CHECK = 4 * 1024 * 1024 * 1024;
 const MEMORY_HEADROOM = 0.25;
 
 /**
- * Absolute path to the tsrs (Rust TypeScript 7) launcher. Invoking it via `node`
- * guarantees we run tsrs rather than the `typescript` (<= 6.x) install.
+ * Absolute path to the native TypeScript 7 launcher (tsrs, or Go `tsc` when
+ * tsrs has no binary for this host). Invoking it via `node` keeps us off the
+ * JavaScript `@typescript/typescript6` install.
  */
 const tscPath = nativeTscPath;
 

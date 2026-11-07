@@ -15,17 +15,23 @@ const ansiRegex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-O
 const timestampRegex = /^\[\d{2}:\d{2}:\d{2}\]\s*/;
 
 /**
- * Invokes tsrs (Rust TypeScript 7) via {@link nativeTscPath}.
- * Despite the historical "tsgo" naming in callers, this always runs tsrs,
- * never the JavaScript compiler from `@typescript/typescript6`.
+ * Invokes the native TypeScript 7 CLI via {@link nativeTscPath} (tsrs, or
+ * Go `tsc` on hosts tsrs does not ship, such as Windows ARM64).
+ * Despite the historical "tsgo" naming in callers, this never runs the
+ * JavaScript compiler from `@typescript/typescript6`.
  */
 export function spawnTsgo(projectPath: string, config: { taskName: string; noEmit?: boolean }, onComplete?: () => Promise<void> | void): Promise<void> {
-	function runReporter(output: string) {
-		const lines = (output || '').split('\n');
+	function runReporter(output: string, failed: boolean) {
+		const lines = (output || '').split('\n').filter(line => line.length > 0);
 		const errorLines = lines.filter(line => /error \w+:/.test(line));
 		fancyLog(`Finished ${ansiColors.green(config.taskName)} ${projectPath} with ${errorLines.length} errors.`);
 		for (const line of errorLines) {
 			fancyLog(line);
+		}
+		if (failed) {
+			for (const line of lines.filter(line => !errorLines.includes(line))) {
+				fancyLog(line);
+			}
 		}
 	}
 
@@ -62,12 +68,13 @@ export function spawnTsgo(projectPath: string, config: { taskName: string; noEmi
 				.filter(line => line.length > 0)
 				.filter(line => !/Starting compilation|File change detected|Compilation complete/i.test(line));
 
-			runReporter(lines.join('\n'));
+			runReporter(lines.join('\n'), code !== 0);
 
 			if (code === 0) {
 				Promise.resolve(onComplete?.()).then(() => resolve(), reject);
 			} else {
-				reject(new Error(`tsc exited with code ${code ?? 'unknown'}`));
+				const detail = lines.length ? `\n${lines.join('\n')}` : '';
+				reject(new Error(`tsc exited with code ${code ?? 'unknown'}${detail}`));
 			}
 		});
 
