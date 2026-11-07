@@ -482,6 +482,27 @@ const THEOREM_LEAF_ALTERS = [
   "summary_of TEXT",
   "tombstoned_at DATETIME",
   "tombstone_reason TEXT",
+  // MEM-47: provenance (user | assistant | tool | external).
+  "src TEXT",
+  // MEM-50: transaction time (when Knox-MS learned the fact). valid_* is valid time.
+  "recorded_at DATETIME",
+  // MEM-51: idempotency key (category + normalized content) within `scope_key`.
+  "content_hash TEXT",
+  // MEM-51: project scope of the write (sessions.project_id, '' when unknown).
+  "scope_key TEXT",
+  // MEM-58: MinHash signature (little-endian u32 × minhash_permutations) of the 3-shingles.
+  "minhash BLOB",
+] as const;
+
+/** MEM-50: transaction time at which `valid_to` was set (semantic only). */
+const THEOREM_SEMANTIC_ONLY_ALTERS = ["closed_at DATETIME"] as const;
+
+/** MEM-53: term sketches on the summary tree. */
+const THEOREM_TREE_ALTERS = [
+  // Bloom filter over descendant terms (nodes).
+  "sketch_bloom BLOB",
+  // Node: JSON top-term counts. Leaf: JSON array of its terms.
+  "sketch_terms TEXT",
 ] as const;
 
 const THEOREM_GRAPH_ALTERS = [
@@ -497,6 +518,18 @@ export async function ensureTheoremColumns(db: DatabaseConnection): Promise<void
       await tryExec(db, `ALTER TABLE ${table} ADD COLUMN ${col}`);
     }
   }
+  for (const col of THEOREM_SEMANTIC_ONLY_ALTERS) {
+    await tryExec(db, `ALTER TABLE brain_semantic ADD COLUMN ${col}`);
+  }
+  // MEM-53: brain_summary_tree is created in createTheoremTables before this runs.
+  for (const col of THEOREM_TREE_ALTERS) {
+    await tryExec(db, `ALTER TABLE brain_summary_tree ADD COLUMN ${col}`);
+  }
+  // MEM-47 / MEM-50 backfill. Idempotent: only rows still NULL.
+  await tryExec(db, "UPDATE brain_episodic SET src = CASE role WHEN 'user' THEN 'user' WHEN 'tool' THEN 'tool' ELSE 'assistant' END WHERE src IS NULL");
+  await tryExec(db, "UPDATE brain_semantic SET src = 'assistant' WHERE src IS NULL");
+  await tryExec(db, "UPDATE brain_episodic SET recorded_at = created_at WHERE recorded_at IS NULL");
+  await tryExec(db, "UPDATE brain_semantic SET recorded_at = created_at WHERE recorded_at IS NULL");
   // Keep the session summary string and add a tree-node pointer (MEM-05).
   await tryExec(db, "ALTER TABLE brain_sessions ADD COLUMN summary_node_id INTEGER");
   // MEM-16: inject calibration only. Must not live on retrieval_count (S / I).
@@ -514,7 +547,15 @@ export async function ensureTheoremColumns(db: DatabaseConnection): Promise<void
 async function createTheoremIndexes(db: DatabaseConnection): Promise<void> {
   await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_semantic_tombstoned ON brain_semantic(tombstoned_at)");
   await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_episodic_tombstoned ON brain_episodic(tombstoned_at)");
-  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_semantic_parent ON brain_semantic(parent_id)");
+  // MEM-51: at most one valid, live fact per (scope, content hash). Superseded
+  // (valid_to set) and tombstoned rows leave the index, so history is kept.
+  await tryExec(
+    db,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_semantic_scope_hash
+       ON brain_semantic(scope_key, content_hash)
+       WHERE content_hash IS NOT NULL AND tombstoned_at IS NULL AND valid_to IS NULL`,
+  );
+  await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_semantic_src ON brain_semantic(src)");
   await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_episodic_parent ON brain_episodic(parent_id)");
   await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_entity_canonical ON brain_entities(canonical_id)");
   await tryExec(db, "CREATE INDEX IF NOT EXISTS idx_graph_edge_canonical ON brain_graph_edges(canonical_id)");

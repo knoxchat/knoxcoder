@@ -26,6 +26,20 @@ import {
   type SummaryLeafType,
 } from "./store/summaryTree.js";
 import type { DatabaseConnection } from "../../../util/refreshIndex.js";
+import {
+  emptyNodeSketch,
+  leafTermsJson,
+  addTermsToAncestors,
+  rebuildSubtreeSketches,
+} from "./store/treeSketches.js";
+import {
+  leafSketchScore,
+  parseLeafTerms,
+  parseTermCounts,
+  sketchScore,
+  sketchTerms,
+  toBytes,
+} from "./treeSketch.js";
 
 export const TREE_BRANCHING_DEFAULT = 8;
 export const TREE_BEAM_DEFAULT = 4;
@@ -78,6 +92,12 @@ export interface TreeInsertOptions {
   branching?: number;
   /** Default true. φ₅ defers a forest refresh until every leaf is in. */
   refresh?: boolean;
+  /**
+   * Bulk callers only: skip the per-leaf sketch update and rebuild the forest's
+   * sketches once at the end (`ingestSessionLeaves` does). Default false: the
+   * sketch is written synchronously with the leaf (MEM-53).
+   */
+  deferSketch?: boolean;
 }
 
 export interface TreeBeamMiss {
@@ -96,6 +116,9 @@ type TreeRow = {
   leaf_type: string | null;
   leaf_id: string | null;
   text: string;
+  /** MEM-53: only selected when sketches are needed. */
+  sketch_bloom?: unknown;
+  sketch_terms?: string | null;
 };
 
 export function resolveTreeBranching(value?: number): number {
@@ -183,17 +206,24 @@ export async function insertTreeLeaf(
   if (await leafInTree(db, rootId, type, id)) return false;
 
   const parentId = await allocateOpenParent(db, options.sessionId, rootId, branching);
+  // MEM-53: the leaf keeps its exact terms (full text), the display text stays 400 chars.
+  const terms = sketchTerms(source.text ?? "");
   await db.run(
-    `INSERT INTO brain_summary_tree (parent_id, kind, leaf_type, leaf_id, text, token_count)
-     VALUES (?, 'leaf', ?, ?, ?, ?)`,
+    `INSERT INTO brain_summary_tree (parent_id, kind, leaf_type, leaf_id, text, token_count, sketch_terms)
+     VALUES (?, 'leaf', ?, ?, ?, ?, ?)`,
     [
       parentId,
       type,
       String(id),
       (source.text ?? "").slice(0, 400),
       estimateSummaryTokens((source.text ?? "").slice(0, 400)),
+      leafTermsJson(source.text ?? ""),
     ],
   );
+  // φ₅: ancestor sketches are synchronous. Only summary text (below) may lag.
+  if (options.deferSketch !== true) {
+    await addTermsToAncestors(db, parentId, terms);
+  }
   if (options.refresh !== false) {
     await refreshAncestorText(db, parentId, options.sessionId);
   }
@@ -221,7 +251,7 @@ export async function ingestSessionLeaves(
     const text = [row.title, row.content, row.keywords].filter(Boolean).join("\n");
     const ok = await insertTreeLeaf(
       { type: "semantic", id: row.id, text },
-      { sessionId, db, branching, refresh: false },
+      { sessionId, db, branching, refresh: false, deferSketch: true },
     );
     if (ok) linked++;
   }
@@ -234,11 +264,26 @@ export async function ingestSessionLeaves(
   for (const row of episodic) {
     const ok = await insertTreeLeaf(
       { type: "episodic", id: row.id, text: row.content },
-      { sessionId, db, branching, refresh: false },
+      { sessionId, db, branching, refresh: false, deferSketch: true },
     );
     if (ok) linked++;
   }
-  if (linked > 0) await refreshSessionForest(db, sessionId);
+  if (linked > 0) {
+    await refreshSessionForest(db, sessionId);
+    const root = await findSessionRoot(db, sessionId);
+    if (root) await rebuildSubtreeSketches(db, root.id);
+  } else {
+    // Sketch-less forest (legacy / restored snapshot): repair it lazily on the next ingest.
+    const root = await findSessionRoot(db, sessionId);
+    if (root) {
+      const missing = await db.get<{ n: number }>(
+        `SELECT COUNT(*) AS n FROM brain_summary_tree WHERE kind = 'node' AND sketch_bloom IS NULL
+           AND (id = ? OR parent_id IS NOT NULL)`,
+        [root.id],
+      );
+      if ((missing?.n ?? 0) > 0) await rebuildSubtreeSketches(db, root.id);
+    }
+  }
   return { linked };
 }
 
@@ -460,8 +505,9 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
   let opportunities = 0;
   let misses = 0;
 
+  const qTerms = sketchTerms(query).slice(0, 32);
   let beam = roots
-    .map((root) => ({ id: root.id, score: scoreTreeText(query, root.text) }))
+    .map((root) => ({ id: root.id, score: scoreTreeRow(query, qTerms, root) }))
     .sort((a, b) => b.score - a.score || a.id - b.id)
     .slice(0, beamWidth);
   if (measure) {
@@ -490,7 +536,7 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
       score: number;
     }> = [];
     for (const node of beam) {
-      const children = await listChildren(db, node.id);
+      const children = await listChildren(db, node.id, true);
       for (const child of children) {
         if (visited.has(child.id)) continue;
         visited.add(child.id);
@@ -506,7 +552,7 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
           text: child.text,
           leafType,
           leafId: leafId != null && Number.isFinite(leafId) && leafId > 0 ? leafId : null,
-          score: scoreTreeText(query, child.text),
+          score: scoreTreeRow(query, qTerms, child),
         });
       }
     }
@@ -722,10 +768,11 @@ async function ensureSessionRoot(db: DatabaseConnection, sessionId: string): Pro
   const existing = await findSessionRoot(db, sessionId);
   if (existing) return existing.id;
   const text = sessionRootText(sessionId);
+  const sketch = emptyNodeSketch(0);
   const inserted = await db.run(
-    `INSERT INTO brain_summary_tree (parent_id, kind, text, token_count)
-     VALUES (NULL, 'node', ?, ?)`,
-    [text, estimateSummaryTokens(text)],
+    `INSERT INTO brain_summary_tree (parent_id, kind, text, token_count, sketch_bloom, sketch_terms)
+     VALUES (NULL, 'node', ?, ?, ?, ?)`,
+    [text, estimateSummaryTokens(text), Buffer.from(sketch.bloom), sketch.terms],
   );
   return inserted.lastID ?? 0;
 }
@@ -752,7 +799,7 @@ async function loadSessionRoots(
   const sessionIds = resolveScopeSessions(options);
   if (sessionIds && sessionIds.length === 0) return [];
   const rows = (await db.all(
-    `SELECT id, parent_id, kind, leaf_type, leaf_id, text FROM brain_summary_tree
+    `SELECT id, parent_id, kind, leaf_type, leaf_id, text, sketch_bloom, sketch_terms FROM brain_summary_tree
      WHERE parent_id IS NULL AND kind = 'node' AND text LIKE ?`,
     [`${TREE_ROOT_PREFIX}%`],
   )) as TreeRow[];
@@ -775,82 +822,149 @@ function resolveScopeSessions(options: TreeSearchOptions): string[] | undefined 
   return undefined;
 }
 
+/**
+ * MEM-53 — B-tree style insertion. All leaf-parents sit at one depth, so depth
+ * is ⌈log_b N⌉. Fill the rightmost leaf-parent; when it is full, climb to the
+ * nearest ancestor with room and grow a fresh chain down to leaf-parent depth;
+ * when every ancestor is full, split the root (promote) and grow a chain under
+ * the new root.
+ */
 async function allocateOpenParent(
   db: DatabaseConnection,
   sessionId: string,
   rootId: number,
   branching: number,
 ): Promise<number> {
-  const leafParents = await collectLeafParents(db, rootId);
-  for (let i = leafParents.length - 1; i >= 0; i--) {
-    const id = leafParents[i]!;
-    if ((await childCount(db, id)) < branching) return id;
+  const path = await rightmostPath(db, rootId);
+  const depth = path.length;
+  const leafParent = path[depth - 1]!;
+  if ((await childCount(db, leafParent)) < branching) return leafParent;
+
+  for (let i = depth - 2; i >= 0; i--) {
+    if ((await childCount(db, path[i]!)) < branching) {
+      let parent = path[i]!;
+      for (let k = i + 1; k < depth; k++) {
+        parent = await createChildNode(db, parent, depth - 1 - k);
+      }
+      return parent;
+    }
   }
 
-  const children = await listChildren(db, rootId);
-  const nodeChildren = children.filter((c) => c.kind === "node");
-  if (nodeChildren.length === 0) {
-    const newRoot = await promoteRoot(db, sessionId, rootId);
-    return createChildNode(db, newRoot);
+  const newRoot = await promoteRoot(db, sessionId, rootId, depth - 1);
+  let parent = newRoot;
+  for (let k = 1; k <= depth; k++) {
+    parent = await createChildNode(db, parent, depth - k);
   }
-  if (nodeChildren.length < branching) {
-    return createChildNode(db, rootId);
-  }
-  const newRoot = await promoteRoot(db, sessionId, rootId);
-  return createChildNode(db, newRoot);
+  return parent;
 }
 
+/** Root → … → deepest node reached by always taking the newest node child. */
+async function rightmostPath(db: DatabaseConnection, rootId: number): Promise<number[]> {
+  const path = [rootId];
+  const seen = new Set<number>(path);
+  for (let guard = 0; guard < TREE_MAX_DEPTH * 4; guard++) {
+    const row = await db.get<{ id: number }>(
+      `SELECT id FROM brain_summary_tree WHERE parent_id = ? AND kind = 'node'
+        ORDER BY id DESC LIMIT 1`,
+      [path[path.length - 1]],
+    );
+    if (!row || seen.has(row.id)) break;
+    seen.add(row.id);
+    path.push(row.id);
+  }
+  return path;
+}
+
+/** Split the root: the old root becomes a child of a new root (height + 1). */
 async function promoteRoot(
   db: DatabaseConnection,
   sessionId: string,
   oldRootId: number,
+  oldHeight: number,
 ): Promise<number> {
   const digest = await nodeDigest(db, oldRootId);
   const newText = sessionRootText(sessionId);
+  const sketch = emptyNodeSketch(oldHeight + 1);
   const inserted = await db.run(
-    `INSERT INTO brain_summary_tree (parent_id, kind, text, token_count)
-     VALUES (NULL, 'node', ?, ?)`,
-    [newText, estimateSummaryTokens(newText)],
+    `INSERT INTO brain_summary_tree (parent_id, kind, text, token_count, sketch_bloom, sketch_terms)
+     VALUES (NULL, 'node', ?, ?, ?, ?)`,
+    [newText, estimateSummaryTokens(newText), Buffer.from(sketch.bloom), sketch.terms],
   );
   const newRootId = inserted.lastID ?? 0;
   await db.run(
     "UPDATE brain_summary_tree SET parent_id = ?, text = ?, token_count = ? WHERE id = ?",
     [newRootId, digest, estimateSummaryTokens(digest), oldRootId],
   );
+  // The new root's Bloom has a different size and must hold every descendant term, and
+  // the stored top-term counts are pruned, so rebuild from the leaves. Splits are rare (log_b N).
+  await rebuildSubtreeSketches(db, newRootId);
   return newRootId;
 }
 
-async function createChildNode(db: DatabaseConnection, parentId: number): Promise<number> {
+async function createChildNode(
+  db: DatabaseConnection,
+  parentId: number,
+  height: number,
+): Promise<number> {
+  const sketch = emptyNodeSketch(height);
   const inserted = await db.run(
-    `INSERT INTO brain_summary_tree (parent_id, kind, text, token_count)
-     VALUES (?, 'node', '', 1)`,
-    [parentId],
+    `INSERT INTO brain_summary_tree (parent_id, kind, text, token_count, sketch_bloom, sketch_terms)
+     VALUES (?, 'node', '', 1, ?, ?)`,
+    [parentId, Buffer.from(sketch.bloom), sketch.terms],
   );
   return inserted.lastID ?? 0;
 }
 
-async function collectLeafParents(db: DatabaseConnection, rootId: number): Promise<number[]> {
-  const out: number[] = [];
-  const queue = [rootId];
-  while (queue.length > 0) {
-    const id = queue.shift()!;
-    const children = await listChildren(db, id);
-    const nodes = children.filter((c) => c.kind === "node");
-    if (nodes.length === 0) {
-      out.push(id);
-    } else {
-      for (const node of nodes) queue.push(node.id);
+/** Node levels from the session root down (a root holding only leaves = 1). */
+export async function treeDepth(
+  sessionId: string,
+  options: { db?: DatabaseConnection } = {},
+): Promise<number> {
+  const db = options.db ?? (await BrainStore.get());
+  const root = await findSessionRoot(db, sessionId);
+  if (!root) return 0;
+  let level = [root.id];
+  let depth = 0;
+  while (level.length > 0 && depth < TREE_MAX_DEPTH * 4) {
+    depth++;
+    const next: number[] = [];
+    for (const id of level) {
+      const kids = await listChildren(db, id);
+      for (const kid of kids) if (kid.kind === "node") next.push(kid.id);
     }
+    level = next;
   }
-  return out;
+  return depth;
 }
 
-async function listChildren(db: DatabaseConnection, parentId: number): Promise<TreeRow[]> {
+async function listChildren(
+  db: DatabaseConnection,
+  parentId: number,
+  withSketch = false,
+): Promise<TreeRow[]> {
+  const cols = withSketch
+    ? "id, parent_id, kind, leaf_type, leaf_id, text, sketch_bloom, sketch_terms"
+    : "id, parent_id, kind, leaf_type, leaf_id, text";
   return (await db.all(
-    `SELECT id, parent_id, kind, leaf_type, leaf_id, text FROM brain_summary_tree
-     WHERE parent_id = ? ORDER BY id`,
+    `SELECT ${cols} FROM brain_summary_tree WHERE parent_id = ? ORDER BY id`,
     [parentId],
   )) as TreeRow[];
+}
+
+/**
+ * Routing score of one tree row: display-text overlap, or its term sketch
+ * (whichever is higher). The sketch makes exact-term routing independent of
+ * the 160-char digest, so a term deep inside a leaf still routes to it.
+ */
+function scoreTreeRow(query: string, qTerms: readonly string[], row: TreeRow): number {
+  const text = scoreTreeText(query, row.text);
+  if (qTerms.length === 0) return text;
+  if (row.kind === "leaf") {
+    return Math.max(text, leafSketchScore(qTerms, parseLeafTerms(row.sketch_terms)));
+  }
+  const bloom = toBytes(row.sketch_bloom);
+  if (!bloom) return text;
+  return Math.max(text, sketchScore(qTerms, bloom, parseTermCounts(row.sketch_terms)));
 }
 
 async function childCount(db: DatabaseConnection, parentId: number): Promise<number> {

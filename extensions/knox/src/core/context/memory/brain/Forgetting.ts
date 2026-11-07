@@ -63,6 +63,16 @@ export interface StabilitySource {
 export interface InitialStabilityOptions {
   inheritStability?: number | null;
   linkedAsTreeNode?: boolean;
+  /** I₀ ∈ [0,1]. When set, S₀ = S_cat · 2^{2(I₀ − 0.5)} (MEM-55). summary / insight ignore it. */
+  i0?: number | null;
+}
+
+/** 2^{2(I₀ − 0.5)} ∈ [1/2, 2]. Non-finite I₀ is neutral (factor 1). */
+export function importanceStabilityFactor(i0: number | null | undefined): number {
+  const n = Number(i0);
+  if (i0 == null || !Number.isFinite(n)) return 1;
+  const clamped = Math.max(0, Math.min(1, n));
+  return 2 ** (2 * (clamped - 0.5));
 }
 
 /** Pure defaults. Live config is applied by Ebbinghaus.getEbbinghausParams. */
@@ -102,11 +112,13 @@ export function initialStability(
       return clampStability(inherited);
     }
   }
-  if (cat === "episodic" || cat === "") return INITIAL_STABILITY.episodic;
+  const factor = importanceStabilityFactor(options?.i0);
+  if (cat === "episodic" || cat === "") return INITIAL_STABILITY.episodic * factor;
+  if (cat === "summary" || cat === "insight") return INITIAL_STABILITY[cat];
   if (Object.prototype.hasOwnProperty.call(INITIAL_STABILITY, cat)) {
-    return INITIAL_STABILITY[cat as StabilityCategory];
+    return INITIAL_STABILITY[cat as StabilityCategory] * factor;
   }
-  return INITIAL_STABILITY.fact;
+  return INITIAL_STABILITY.fact * factor;
 }
 
 /** Stored S, or category S₀ when the row predates MEM-12. */
@@ -126,7 +138,7 @@ export function insertForgettingFields(
   options?: InitialStabilityOptions,
 ): { stability: number; difficulty: number; i0: number } {
   return {
-    stability: initialStability(category, options),
+    stability: initialStability(category, { ...options, i0: options?.i0 ?? importance }),
     difficulty: DEFAULT_DIFFICULTY,
     i0: importance,
   };
@@ -191,6 +203,7 @@ export const Forgetting = {
   defaultForgettingParams,
   clampStability,
   initialStability,
+  importanceStabilityFactor,
   resolveStability,
   insertForgettingFields,
   daysSince,

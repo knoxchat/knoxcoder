@@ -8,6 +8,8 @@ This is the file `AGENTS.md` points at. The rewrite plan is [`memory-impl.md`](m
 
 ---
 
+Revision notes 16–25 of that page add two cycle invariants beyond Budget / Reachability / Losslessness: **Freshness** (a memory written in turn `t` is retrievable at `t+1`) and **Erasure** (no index, edge, summary, or snapshot holds content of a tombstoned memory). Checkpoint consequence: an erased memory must also be scrubbed from brain snapshot JSON and from the episodic checkpoint pointer leaf. Plan: [`memory-impl.md`](memory-impl.md) §11–§14 (MEM-45 … MEM-80). Parameter defaults live in `store/state.ts` (`getTheoremParamsV2`).
+
 ## Three quantities (do not mix)
 
 | Symbol | What it is here | What it is not |

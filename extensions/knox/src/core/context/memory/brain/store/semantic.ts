@@ -1,9 +1,17 @@
 /** Semantic memory, pinning, mismatch, and dedup. */
 
 import { insertForgettingFields, resolveStability } from "../Forgetting.js";
+import { encodeMinhash, minhashSignature, minhashSimilarity, signatureFromBytes } from "../minhash.js";
 import { InputSanitizer } from "../InputSanitizer.js";
 import { classifyInsertTier } from "../Tiers.js";
 import { CONTRADICTION_CATEGORIES, conflictsWith, supersedeConflicts } from "../memoryOutcomes.js";
+import { canSupersede, normalizeSrc, type MemorySrc } from "../provenance.js";
+import {
+  contentHash,
+  scopeKeyForSession,
+  withScopeLock,
+  type ReconcileVerdict,
+} from "../reconcile.js";
 import type {
   SemanticCategory,
   SemanticMemory,
@@ -17,7 +25,7 @@ import { addTag } from "./organization.js";
 import { auditLog, getLatestSessionTopic, getOpenTask } from "./runtime.js";
 import { parseSummaryOf, serializeSummaryOf } from "./summaryTree.js";
 import { TOMBSTONE_REASON, liveRetrieveSql, tombstoneMemories } from "./tombstone.js";
-import { notSupersededSql, queryScopeSql, validAtSql } from "./validity.js";
+import { bitemporalSql, notSupersededSql, queryScopeSql, validAtSql, type BitemporalQuery } from "./validity.js";
 import { computeSalience, detectEmotionalValence } from "./valence.js";
 
 // ── Semantic Memory Operations ─────────────────────────────────────────────
@@ -113,7 +121,19 @@ async function resolveInheritStability(input: StoreInput): Promise<number | null
   return values.length > 0 ? Math.max(...values) : null;
 }
 
+/**
+ * MEM-51 / MEM-52: idempotent, serialized write. Writing the same fact (same
+ * category + normalized content) in the same scope returns the existing valid
+ * row instead of a second one. Calls for one scope run one at a time.
+ */
 export async function storeSemantic(input: StoreInput): Promise<number> {
+  const db = await get();
+  const scopeKey = await scopeKeyForSession(db, input.session_id);
+  return withScopeLock(scopeKey, () => insertSemantic(input, scopeKey));
+}
+
+/** Unserialized insert. Callers hold the scope lock (see `storeSemantic`). */
+async function insertSemantic(input: StoreInput, scopeKey: string): Promise<number> {
   const db = await get();
 
   // Security scanning on all memory writes (P1.1)
@@ -153,31 +173,89 @@ export async function storeSemantic(input: StoreInput): Promise<number> {
     category: input.category,
   });
 
-  const result = await db.run(
-    `INSERT INTO brain_semantic (category, title, content, source_session_id, keywords, importance_score, emotional_valence, salience, expires_at, topic_id, task_id, summary_of, parent_id, stability, difficulty, i0, valid_from, tier)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)`,
-    [
-      input.category,
-      cleanedTitle,
-      cleanedContent,
-      input.session_id ?? null,
-      input.keywords ?? "",
-      importance,
-      valence,
-      sal,
-      expiresAt,
-      topicId,
-      taskId,
-      summaryOf,
-      input.parent_id ?? null,
-      forgetting.stability,
-      forgetting.difficulty,
-      forgetting.i0,
-      tier,
-    ],
-  );
+  const hash = contentHash(input.category, cleanedContent);
+  const existing = await findValidByHash(scopeKey, hash);
+  if (existing != null) return existing;
+
+  let result;
+  try {
+    result = await db.run(
+      `INSERT INTO brain_semantic (category, title, content, source_session_id, keywords, importance_score, emotional_valence, salience, expires_at, topic_id, task_id, summary_of, parent_id, stability, difficulty, i0, valid_from, tier, src, recorded_at, content_hash, scope_key, minhash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, datetime('now'), ?, ?, ?)`,
+      [
+        input.category,
+        cleanedTitle,
+        cleanedContent,
+        input.session_id ?? null,
+        input.keywords ?? "",
+        importance,
+        valence,
+        sal,
+        expiresAt,
+        topicId,
+        taskId,
+        summaryOf,
+        input.parent_id ?? null,
+        forgetting.stability,
+        forgetting.difficulty,
+        forgetting.i0,
+        tier,
+        normalizeSrc(input.src),
+        hash,
+        scopeKey,
+        encodeMinhash(`${cleanedTitle} ${input.keywords ?? ""} ${cleanedContent}`),
+      ],
+    );
+  } catch (err) {
+    // Another connection won the unique index race: return its row.
+    if (/UNIQUE|constraint/i.test(String((err as Error)?.message ?? err))) {
+      const winner = await findValidByHash(scopeKey, hash);
+      if (winner != null) return winner;
+    }
+    throw err;
+  }
 
   return result.lastID!;
+}
+
+/** The valid, live row for (scope, hash), if any. */
+async function findValidByHash(scopeKey: string, hash: string): Promise<number | null> {
+  const db = await get();
+  const row = await db.get<{ id: number }>(
+    `SELECT id FROM brain_semantic
+      WHERE scope_key = ? AND content_hash = ?
+        AND tombstoned_at IS NULL AND valid_to IS NULL
+      LIMIT 1`,
+    [scopeKey, hash],
+  );
+  return row?.id ?? null;
+}
+
+/**
+ * MEM-50: facts as they were. `asOf` is valid time, `knownAt` transaction time.
+ * Superseded facts are included when they were valid at `asOf`. Direct id
+ * lookup (`getSemanticById`) is unaffected.
+ */
+export async function getSemanticAsOf(
+  query: BitemporalQuery & { sessionIds?: string[]; limit?: number } = {},
+): Promise<SemanticMemory[]> {
+  const db = await get();
+  const t = bitemporalSql(query);
+  const params: unknown[] = [...t.params];
+  let scope = "";
+  if (query.sessionIds) {
+    if (query.sessionIds.length === 0) return [];
+    scope = ` AND source_session_id IN (${query.sessionIds.map(() => "?").join(",")})`;
+    params.push(...query.sessionIds);
+  }
+  params.push(Math.max(1, query.limit ?? 200));
+  const rows = await db.all(
+    `SELECT * FROM brain_semantic
+      WHERE tombstoned_at IS NULL AND ${t.sql}${scope}
+      ORDER BY created_at ASC, id ASC LIMIT ?`,
+    params,
+  );
+  return rows.map(rowToSemantic);
 }
 
 /**
@@ -224,6 +302,8 @@ export async function updateSemantic(input: {
  */
 export const DEDUP_SIMILARITY = 0.7;
 const CONTENT_SHARED_MIN = 2;
+/** MEM-58: estimated 3-shingle Jaccard at or above which two facts are the same fact. */
+export const MERGE_MINHASH_MIN = 0.8;
 
 /**
  * LLM titles often differ from heuristic titles ("Always use bun" vs
@@ -237,7 +317,7 @@ async function findContentNearDuplicate(
   if (incoming.size < CONTENT_SHARED_MIN) return undefined;
   const db = await get();
   const rows = (await db.all(
-    `SELECT id, category, title, content FROM brain_semantic
+    `SELECT id, category, title, content, minhash FROM brain_semantic
      WHERE category = ?
        AND tombstoned_at IS NULL
        AND (expires_at IS NULL OR expires_at > datetime('now'))
@@ -246,8 +326,12 @@ async function findContentNearDuplicate(
      ORDER BY created_at DESC
      LIMIT 40`,
     [input.category],
-  )) as { id: number; category: string; title: string; content: string }[];
+  )) as { id: number; category: string; title: string; content: string; minhash?: Uint8Array | null }[];
+  const incomingSig = minhashSignature(`${input.title} ${input.keywords ?? ""} ${input.content}`);
   for (const row of rows) {
+    // MEM-58: near-duplicate by MinHash estimate (stored at encode time).
+    const stored = signatureFromBytes(row.minhash);
+    if (stored && minhashSimilarity(incomingSig, stored) >= MERGE_MINHASH_MIN) return row;
     const existing = new Set(contentWords(row.content));
     if (existing.size < CONTENT_SHARED_MIN) continue;
     if (isContentWordSubset(incoming, existing)) {
@@ -265,48 +349,116 @@ function isContentWordSubset(a: Set<string>, b: Set<string>): boolean {
   return true;
 }
 
-export async function storeSemanticDeduped(
+/**
+ * MEM-49 — φ₄ reconcile against the valid facts of the same scope.
+ *
+ *   NOOP       identical fact already valid (same hash) — nothing to write
+ *   SUPERSEDE  a decision / preference contradicts its near-duplicate: write the
+ *              new row, close the old one (the row stays; earlier states stay queryable)
+ *   UPDATE     near-duplicate whose content the new write extends: keep the richer text
+ *   MERGE      near-duplicate that adds nothing new: fold into the existing row
+ *   ADD        no match
+ *
+ * The trust order (MEM-48) can turn SUPERSEDE / UPDATE / MERGE into ADD: a `tool` or
+ * `external` write never changes a `user` fact on its own.
+ */
+export async function reconcileSemantic(
   input: StoreInput,
-): Promise<{ id: number; deduplicated: boolean }> {
-  const duplicates = await findDuplicates(
-    input.title,
-    input.keywords ?? "",
-    input.category,
-  );
+  scopeKey: string,
+): Promise<ReconcileVerdict> {
+  const src: MemorySrc = normalizeSrc(input.src);
+  const cleanedContent = InputSanitizer.enforce(input.content, "semantic.content");
+  const exact = await findValidByHash(scopeKey, contentHash(input.category, cleanedContent));
+  if (exact != null) return { action: "NOOP", targetId: exact, reason: "same content hash" };
+
+  const db = await get();
+  const target = await findNearDuplicate(input);
+  if (!target) return { action: "ADD", reason: "no near-duplicate" };
+
+  const old = (await db.get(
+    "SELECT id, category, title, content, src FROM brain_semantic WHERE id = ?",
+    [target.id],
+  )) as { id: number; category: string; title: string; content: string; src?: string | null } | undefined;
+  if (!old) return { action: "ADD", reason: "near-duplicate vanished" };
+
+  if (!canSupersede(src, old.src as MemorySrc | null | undefined)) {
+    return {
+      action: "ADD",
+      targetId: old.id,
+      reason: `${src} write cannot change a ${old.src ?? "user"} fact`,
+      trustBlocked: true,
+    };
+  }
+
+  if (
+    CONTRADICTION_CATEGORIES.has(input.category) &&
+    conflictsWith({ id: -1, category: input.category, title: input.title, content: input.content }, old)
+  ) {
+    return { action: "SUPERSEDE", targetId: old.id, reason: "contradicts near-duplicate" };
+  }
+  if (cleanedContent.length > String(old.content ?? "").length) {
+    return { action: "UPDATE", targetId: old.id, reason: "extends near-duplicate" };
+  }
+  return { action: "MERGE", targetId: old.id, reason: "near-duplicate adds nothing" };
+}
+
+/** Best near-duplicate by title/keywords first, then content-word subset. */
+async function findNearDuplicate(input: StoreInput): Promise<{ id: number } | undefined> {
+  const duplicates = await findDuplicates(input.title, input.keywords ?? "", input.category);
   if (duplicates.length > 0 && duplicates[0].similarity >= DEDUP_SIMILARITY) {
-    // MC-52: a decision/preference that contradicts its near-duplicate is a change, not a repeat.
-    // Keep both rows; the older one is marked superseded and skipped by recall.
-    if (CONTRADICTION_CATEGORIES.has(input.category)) {
-      const db = await get();
-      const old = (await db.get("SELECT id, category, title, content FROM brain_semantic WHERE id = ?", [
-        duplicates[0].id,
-      ])) as { id: number; category: string; title: string; content: string } | undefined;
-      if (old && conflictsWith({ id: -1, category: input.category, title: input.title, content: input.content }, old)) {
-        const id = await storeSemantic(input);
-        const row = (await db.get("SELECT id, category, title, content, created_at FROM brain_semantic WHERE id = ?", [id])) as any;
-        await supersedeConflicts(db, row).catch(() => []);
-        return { id, deduplicated: false };
-      }
-    }
-    await boostDuplicate(duplicates[0].id, input.content);
-    return { id: duplicates[0].id, deduplicated: true };
+    return { id: duplicates[0].id };
   }
   const contentDup = await findContentNearDuplicate(input);
-  if (contentDup) {
-    if (CONTRADICTION_CATEGORIES.has(input.category)) {
-      if (conflictsWith({ id: -1, category: input.category, title: input.title, content: input.content }, contentDup)) {
-        const id = await storeSemantic(input);
-        const db = await get();
-        const row = (await db.get("SELECT id, category, title, content, created_at FROM brain_semantic WHERE id = ?", [id])) as any;
+  return contentDup ? { id: contentDup.id } : undefined;
+}
+
+export async function storeSemanticDeduped(
+  input: StoreInput,
+): Promise<{ id: number; deduplicated: boolean; verdict?: ReconcileVerdict }> {
+  const db = await get();
+  const scopeKey = await scopeKeyForSession(db, input.session_id);
+  // MEM-52: reconcile + insert + supersede are one unit per scope.
+  return withScopeLock(scopeKey, async () => {
+    const verdict = await reconcileSemantic(input, scopeKey);
+    const src = normalizeSrc(input.src);
+    let id: number;
+    let deduplicated = false;
+    switch (verdict.action) {
+      case "NOOP":
+        id = verdict.targetId!;
+        deduplicated = true;
+        break;
+      case "UPDATE":
+      case "MERGE":
+        id = verdict.targetId!;
+        await boostDuplicate(id, input.content);
+        deduplicated = true;
+        break;
+      case "SUPERSEDE": {
+        id = await insertSemantic(input, scopeKey);
+        const row = (await db.get(
+          "SELECT id, category, title, content, created_at, src FROM brain_semantic WHERE id = ?",
+          [id],
+        )) as any;
         await supersedeConflicts(db, row).catch(() => []);
-        return { id, deduplicated: false };
+        break;
       }
+      case "ADD":
+      default:
+        id = await insertSemantic(input, scopeKey);
+        break;
     }
-    await boostDuplicate(contentDup.id, input.content);
-    return { id: contentDup.id, deduplicated: true };
-  }
-  const id = await storeSemantic(input);
-  return { id, deduplicated: false };
+    if (verdict.action !== "ADD" || verdict.trustBlocked) {
+      await auditLog("reconcile", "semantic", id, {
+        action: verdict.action,
+        reason: verdict.reason,
+        src,
+        target: verdict.targetId ?? null,
+        trust_blocked: verdict.trustBlocked ?? false,
+      });
+    }
+    return { id, deduplicated, verdict };
+  });
 }
 
 /** Below this many rows a zero-hit FTS5 query is retried with the substring LIKE scan. */

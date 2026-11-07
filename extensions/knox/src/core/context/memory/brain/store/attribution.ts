@@ -169,6 +169,15 @@ export async function upsertAttribution(input: UpsertAttributionInput): Promise<
   return upsertAttributionOn(await get(), input);
 }
 
+/**
+ * h / u deltas may be fractional (MEM-57: an uncited injection adds ω = 0.1 to u).
+ * SQLite keeps a non-integral value in an INTEGER-affinity column as REAL.
+ */
+function finiteDelta(value: number | undefined): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export async function incrementUtilityCountsOn(
   db: DatabaseConnection,
   kind: "semantic" | "episodic",
@@ -176,8 +185,8 @@ export async function incrementUtilityCountsOn(
   delta: { helpful?: number; unhelpful?: number },
 ): Promise<{ helpful_count: number; unhelpful_count: number } | null> {
   const memId = Math.trunc(Number(id));
-  const h = Math.trunc(Number(delta.helpful ?? 0));
-  const u = Math.trunc(Number(delta.unhelpful ?? 0));
+  const h = finiteDelta(delta.helpful);
+  const u = finiteDelta(delta.unhelpful);
   if (!(memId > 0) || (h === 0 && u === 0)) return null;
 
   const table = kind === "episodic" ? "brain_episodic" : "brain_semantic";
@@ -213,8 +222,8 @@ export async function incrementRecipeUtilityCountsOn(
   delta: { helpful?: number; unhelpful?: number },
 ): Promise<{ helpful_count: number; unhelpful_count: number } | null> {
   const id = recipeId.trim();
-  const h = Math.trunc(Number(delta.helpful ?? 0));
-  const u = Math.trunc(Number(delta.unhelpful ?? 0));
+  const h = finiteDelta(delta.helpful);
+  const u = finiteDelta(delta.unhelpful);
   if (!id || (h === 0 && u === 0)) return null;
 
   try {

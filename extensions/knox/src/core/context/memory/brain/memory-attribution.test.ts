@@ -89,6 +89,8 @@ async function semanticState(id: number): Promise<{
   return row;
 }
 
+const S0 = 14 * 2 ** (2 * (0.99 - 0.5)); // MEM-55: S_cat · 2^{2(I₀ − 0.5)}
+
 describe("MEM-17 attribution log and [mem:id] cites", () => {
   it("formats and parses stable cite tokens", () => {
     expect(Attribution.memoryCiteToken("semantic", 42)).toBe("[mem:semantic:42]");
@@ -181,7 +183,8 @@ describe("MEM-17 attribution log and [mem:id] cites", () => {
     expect(after.helpful_count).toBe(1);
     expect(after.unhelpful_count).toBe(0);
     expect(after.stability).toBeGreaterThan(before.stability);
-    expect(after.difficulty).toBe(5);
+    // MEM-56: helpful D − 0.5, then D ← 0.95 D + 0.05 D₀.
+    expect(after.difficulty).toBeCloseTo(0.95 * 4.5 + 0.25, 10);
 
     const db = await BrainStore.get();
     const row = await db.get<{ injected: number; cited: number; helpful: number }>(
@@ -190,7 +193,7 @@ describe("MEM-17 attribution log and [mem:id] cites", () => {
     expect(row).toEqual({ injected: 1, cited: 1, helpful: 1 });
   });
 
-  it("injected-not-cited is calibration only (no h, no S)", async () => {
+  it("injected-not-cited adds ω=0.1 to u only (no h, no S, no D)", async () => {
     await reset();
     const sessionId = "mem17-uncited";
     const id = await storeFact(sessionId);
@@ -213,7 +216,8 @@ describe("MEM-17 attribution log and [mem:id] cites", () => {
     expect(result.attribution?.applied.helpful).toBe(0);
 
     const after = await semanticState(id);
-    expect(after).toEqual(before);
+    expect(after.unhelpful_count).toBeCloseTo(before.unhelpful_count + 0.1, 10);
+    expect({ ...after, unhelpful_count: 0 }).toEqual({ ...before, unhelpful_count: 0 });
 
     const db = await BrainStore.get();
     const row = await db.get<{ injected: number; cited: number; helpful: number | null }>(
@@ -240,7 +244,7 @@ describe("MEM-17 attribution log and [mem:id] cites", () => {
     });
     const pending = await semanticState(id);
     expect(pending.helpful_count).toBe(0);
-    expect(pending.stability).toBe(14);
+    expect(pending.stability).toBeCloseTo(S0, 8);
 
     await MemoryPipeline.runPreTurn({
       message: "next, add rate limiting to that login path",
@@ -249,7 +253,7 @@ describe("MEM-17 attribution log and [mem:id] cites", () => {
     });
     const after = await semanticState(id);
     expect(after.helpful_count).toBe(1);
-    expect(after.stability).toBeGreaterThan(14);
+    expect(after.stability).toBeGreaterThan(S0);
 
     const db = await BrainStore.get();
     const row = await db.get<{ helpful: number }>(
@@ -276,7 +280,7 @@ describe("MEM-17 attribution log and [mem:id] cites", () => {
     });
     const helped = await semanticState(id);
     expect(helped.helpful_count).toBe(1);
-    expect(helped.stability).toBeGreaterThan(14);
+    expect(helped.stability).toBeGreaterThan(S0);
 
     await MemoryPipeline.runPreTurn({
       message: `that's wrong, we do not use ${TOKEN} oauth-jwt-refresh`,
@@ -287,7 +291,7 @@ describe("MEM-17 attribution log and [mem:id] cites", () => {
     expect(after.helpful_count).toBe(1);
     expect(after.unhelpful_count).toBe(1);
     expect(after.stability).toBeCloseTo(helped.stability * 0.3, 8);
-    expect(after.difficulty).toBe(6);
+    expect(after.difficulty).toBeCloseTo(0.95 * (helped.difficulty + 1) + 0.25, 10);
 
     const db = await BrainStore.get();
     const row = await db.get<{ helpful: number }>(

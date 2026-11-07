@@ -95,6 +95,38 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 		assert.match(readme, /[Mm]easured recall/);
 	});
 
+	test('KN-317: theorem parameter block v2 defaults (MEM-45); Freshness invariant (MEM-54); Erasure pending MEM-73', () => {
+		const store = repoFile('extensions/knox/src/core/context/memory/brain/store/state.ts');
+		for (const entry of [
+			'stability_max_days: 3650',
+			'stability_min_days: 0.1',
+			'stability_gain_cap: 10',
+			'difficulty_reversion: 0.05',
+			'utility_omega: 0.1',
+			'explore_rate: 0.05',
+			'ablation_rate: 0.02',
+			'calibration_min_injections: 200',
+			'calibration_fallback_top_k: 20',
+			'tokenizer_margin: 0.05',
+			'consolidate_active_session_minutes: 30',
+			'ripgrep_timeout_ms: 200',
+			'minhash_permutations: 128',
+		]) {
+			assert.ok(store.includes(entry), entry);
+		}
+		const access = repoFile('extensions/knox/src/core/context/memory/brain/memoryConfigAccess.ts');
+		assert.ok(access.includes('REFIT_KEYS'));
+		const contract = repoFile('extensions/knox/docs/knox-memory-checkpoint.md');
+		assert.ok(contract.includes('Revision notes 16'));
+		const invariants = repoFile('extensions/knox/src/core/context/memory/brain/invariants.ts');
+		assert.ok(invariants.includes('export async function checkFreshness'));
+		assert.ok(invariants.includes('checkFreshness({ db, audit: options.audit })'));
+		const provenance = repoFile('extensions/knox/src/core/context/memory/brain/provenance.ts');
+		assert.ok(provenance.includes('user: 1.0'));
+		assert.ok(provenance.includes('export function canSupersede'));
+		// Erasure assertions land with MEM-73.
+	});
+
 	test('KN-313: MemoryPipeline pre_turn / post_turn injects fenced context, fail-open', () => {
 		const pipeline = repoFile('extensions/knox/src/core/context/memory/brain/MemoryPipeline.ts');
 		assert.ok(pipeline.includes('pre_turn') || repoFile('extensions/knox/src/core/context/memory/brain/memory-pipeline.test.ts').includes('pre_turn'));

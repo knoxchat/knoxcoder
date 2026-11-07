@@ -1453,6 +1453,9 @@ export class RetrievalFusion {
       unhelpful_count: r.unhelpful_count ?? 0,
       valid_from: r.valid_from ?? null,
       valid_to: r.valid_to ?? null,
+      src: r.src ?? null,
+      recorded_at: r.recorded_at ?? null,
+      closed_at: r.closed_at ?? null,
     };
   }
 

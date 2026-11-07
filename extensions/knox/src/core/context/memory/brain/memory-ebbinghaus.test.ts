@@ -132,9 +132,13 @@ describe("MEM-12 power-law forgetting + category S₀", () => {
       [epiId],
     );
 
-    expect(fact).toEqual({ stability: 14, difficulty: 5, i0: 0.8 });
-    expect(decision).toEqual({ stability: 60, difficulty: 5, i0: 0.6 });
-    expect(epi).toEqual({ stability: 1, difficulty: 5, i0: 0.4 });
+    // MEM-55: S₀ = S_cat · 2^{2(I₀ − 0.5)}
+    expect(fact).toMatchObject({ difficulty: 5, i0: 0.8 });
+    expect(fact!.stability).toBeCloseTo(14 * 2 ** 0.6, 10);
+    expect(decision).toMatchObject({ difficulty: 5, i0: 0.6 });
+    expect(decision!.stability).toBeCloseTo(60 * 2 ** 0.2, 10);
+    expect(epi).toMatchObject({ difficulty: 5, i0: 0.4 });
+    expect(epi!.stability).toBeCloseTo(2 ** -0.2, 10);
   });
 
   it("summary/insight inherit S₀ when linked as a tree node", async () => {
@@ -167,8 +171,10 @@ describe("MEM-12 power-law forgetting + category S₀", () => {
     const db = await BrainStore.get();
     const insight = await db.get<{ stability: number }>("SELECT stability FROM brain_semantic WHERE id = ?", [insightId]);
     const lone = await db.get<{ stability: number }>("SELECT stability FROM brain_semantic WHERE id = ?", [loneId]);
-    expect(insight?.stability).toBe(60);
-    expect(lone?.stability).toBe(14);
+    const decision = await db.get<{ stability: number }>("SELECT stability FROM brain_semantic WHERE id = ?", [decisionId]);
+    expect(insight?.stability).toBeCloseTo(decision!.stability, 10);
+    expect(decision!.stability).toBeCloseTo(60 * 2 ** 0.4, 10);
+    expect(lone?.stability).toBe(14); // summary / insight ignore I₀ unless linked
   });
 
   it("age never DELETEs a shouldPrune leaf", async () => {
@@ -246,7 +252,7 @@ describe("MEM-12 power-law forgetting + category S₀", () => {
     };
     expect(row.retrieval_count).toBe(0);
     expect(row.importance_score).toBeCloseTo(0.5, 5);
-    expect(row.stability).toBe(14);
+    expect(row.stability).toBeCloseTo(14, 10); // I₀ = 0.5 → factor 1
     expect(row.difficulty).toBe(5);
   });
 

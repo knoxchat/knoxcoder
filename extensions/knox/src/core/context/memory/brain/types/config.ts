@@ -252,6 +252,49 @@ export interface MemoryConfig {
   /** RRF channel weight — summary tree. */
   w_tree: number;
 
+  // ── Theorem parameter block v2 (MEM-45). Declared only; behavior is wired by MEM-47 … MEM-75. ──
+  /** S_max: stability cap in days (ten years). */
+  stability_max_days: number;
+  /** S_min: floor after a harmful update, in days. */
+  stability_min_days: number;
+  /** ρ_max: one use can multiply S by at most this factor. */
+  stability_gain_cap: number;
+  /** Difficulty reversion toward D₀ after every update: D ← (1−r) D + r D₀. */
+  difficulty_reversion: number;
+  /** Difficulty drop on a helpful use: D ← max(1, D − step). */
+  difficulty_helpful_step: number;
+  /** ω: fractional unhelpful evidence for an injected-but-uncited memory. */
+  utility_omega: number;
+  /** Share of calls that replace U(m) with a Thompson draw. */
+  explore_rate: number;
+  /** Share of successful turns that get an ablation probe. */
+  ablation_rate: number;
+  /** Logged injections a scope needs before its own isotonic fit is used. */
+  calibration_min_injections: number;
+  /** Cut-off before any fit exists: top-k by score. */
+  calibration_fallback_top_k: number;
+  /** W_mem^min absolute floor in tokens. Floor is min(this, W × fraction). */
+  w_mem_floor_tokens: number;
+  /** W_mem^min as a fraction of W. */
+  w_mem_floor_fraction: number;
+  /** Tokenizer drift safety margin on every counted size. */
+  tokenizer_margin: number;
+  /** Trust order of provenance. Only the order matters; never a fusion score term. */
+  trust_user: number;
+  trust_assistant: number;
+  trust_tool: number;
+  trust_external: number;
+  /** Active tier = memories of sessions touched within this many minutes. */
+  consolidate_active_session_minutes: number;
+  /** Hard time limit for the ripgrep channel. */
+  ripgrep_timeout_ms: number;
+  /** Reserved candidate slots for tree-routed leaves. 0 = derive B·b. */
+  tree_reserved_slots: number;
+  /** MinHash permutations per leaf signature. */
+  minhash_permutations: number;
+  /** MinHash shingle size (tokens). */
+  minhash_shingle: number;
+
   // ── Leftover Ebbinghaus knobs (live R is power-law F/c + category S₀) ──
   /** Leftover S₀ for memoryStrength. Live S is stored stability / FSRS. */
   ebbinghaus_base_strength: number;

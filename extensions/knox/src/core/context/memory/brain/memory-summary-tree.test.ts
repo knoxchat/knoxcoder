@@ -238,26 +238,27 @@ describe("MEM-24 tree insertion + beam", () => {
     await BrainManager.trackSession(sessionId, "MEM-42 epsilonB", testDir);
     const db = await BrainStore.get();
     let goldId = 0;
+    // Leaves 0–1 share a branch with no query term; leaves 2–3 carry it. With b=2, B=1 the
+    // beam keeps the branch with the term and drops the gold leaf's ancestor (a real ε_B miss).
+    // Term sketches (MEM-53) make routing exact, so a miss needs the branch to truly lack the term.
+    const textFor = (i: number): string =>
+      i === 0
+        ? `quiet leaf ${i} knoxTreeGoldOmega unique-${i}`
+        : i === 1
+          ? `quiet leaf ${i} knoxTreeQuietFill unique-${i}`
+          : `alpha alpha alpha branch ${i} knoxTreeAlphaFill unique-${i}`;
     for (let i = 0; i < 4; i++) {
-      const token = i === 0 ? "knoxTreeGoldOmega" : "knoxTreeAlphaFill";
+      const token = i === 0 ? "knoxTreeGoldOmega" : i === 1 ? "knoxTreeQuietFill" : "knoxTreeAlphaFill";
       const id = await BrainStore.storeSemantic({
         category: "fact",
         title: `Miss ${i} ${token}`,
-        content: i === 0
-          ? `quiet leaf ${i} knoxTreeGoldOmega unique-${i}`
-          : `alpha alpha alpha branch ${i} knoxTreeAlphaFill unique-${i}`,
+        content: textFor(i),
         keywords: `${token}, leaf${i}`,
         session_id: sessionId,
       });
       if (i === 0) goldId = id;
       await insertTreeLeaf(
-        {
-          type: "semantic",
-          id,
-          text: i === 0
-            ? `quiet leaf ${i} knoxTreeGoldOmega`
-            : `alpha alpha alpha branch ${i} knoxTreeAlphaFill`,
-        },
+        { type: "semantic", id, text: textFor(i) },
         { sessionId, db, branching: 2 },
       );
     }

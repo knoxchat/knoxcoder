@@ -284,6 +284,12 @@ export interface EpisodicMemory {
   valid_from?: string | null;
   /** MEM-26: exclusive validity end. NULL = still valid. */
   valid_to?: string | null;
+  /** MEM-47: provenance. NULL on rows that predate it (read as `assistant`). */
+  src?: "user" | "assistant" | "tool" | "external" | null;
+  /** MEM-50: transaction time (when Knox-MS learned this row). */
+  recorded_at?: string | null;
+  /** MEM-58: MinHash signature bytes (u32 LE × permutations). */
+  minhash?: Uint8Array | null;
 }
 
 export interface SemanticMemory {
@@ -336,6 +342,14 @@ export interface SemanticMemory {
   valid_from?: string | null;
   /** MEM-26: exclusive validity end. NULL = still valid. */
   valid_to?: string | null;
+  /** MEM-47: provenance. NULL on rows that predate it (read as `assistant`). */
+  src?: "user" | "assistant" | "tool" | "external" | null;
+  /** MEM-50: transaction time (when Knox-MS learned this row). */
+  recorded_at?: string | null;
+  /** MEM-58: MinHash signature bytes (u32 LE × permutations). */
+  minhash?: Uint8Array | null;
+  /** MEM-50: transaction time at which `valid_to` was set. */
+  closed_at?: string | null;
 }
 
 export interface MemoryAssociation {
@@ -368,6 +382,8 @@ export interface StoreInput {
   /** MEM-05: JSON id list (or `{ type, id }` refs) of leaves this row summarizes. */
   summary_of?: string | Array<number | { type?: string; id: number }>;
   parent_id?: number | null;
+  /** MEM-47: provenance. Default `assistant`. `tool` / `external` are quoted data (MEM-48). */
+  src?: "user" | "assistant" | "tool" | "external";
 }
 
 /** In-place edit of an existing semantic row. Does not insert a new table. */

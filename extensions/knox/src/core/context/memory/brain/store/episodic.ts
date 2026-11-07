@@ -1,7 +1,9 @@
 /** Episodic memory writes, reads, and lexical search. */
 
 import { insertForgettingFields } from "../Forgetting.js";
+import { encodeMinhash } from "../minhash.js";
 import { InputSanitizer } from "../InputSanitizer.js";
+import { normalizeSrc, srcFromRole } from "../provenance.js";
 import { classifyInsertTier } from "../Tiers.js";
 import type {
   EmotionalValence,
@@ -53,8 +55,8 @@ export async function addEpisodic(
   });
 
   const result = await db.run(
-    `INSERT INTO brain_episodic (session_id, type, role, content, token_count, importance_score, emotional_valence, salience, metadata, stability, difficulty, i0, valid_from, tier)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)`,
+    `INSERT INTO brain_episodic (session_id, type, role, content, token_count, importance_score, emotional_valence, salience, metadata, stability, difficulty, i0, valid_from, tier, src, recorded_at, minhash)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, datetime('now'), ?)`,
     [
       sessionId,
       type,
@@ -69,6 +71,8 @@ export async function addEpisodic(
       forgetting.difficulty,
       forgetting.i0,
       tier,
+      normalizeSrc(metadata?.src, srcFromRole(role, type)),
+      encodeMinhash(cleanedContent),
     ],
   );
 

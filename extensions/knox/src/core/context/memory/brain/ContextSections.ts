@@ -10,6 +10,7 @@ import { hasGraphExpandableTokens, isCommonNounEntityName, queryMentionsEntity }
 import type { FusionResult } from "./RetrievalFusion.js";
 import { hasRipgrepHit } from "./channels/ripgrep.js";
 import { memoryCiteToken } from "./attribution.js";
+import { isUntrustedSrc, normalizeSrc, quoteUntrusted } from "./provenance.js";
 import { winningChannel } from "./memoryOutcomes.js";
 import {
   coverageFeatures,
@@ -109,6 +110,8 @@ function toCandidate(input: {
   entities?: string[];
   /** Text used for trigram / entity Jaccard (defaults to `text`). */
   simText?: string;
+  /** Stored MinHash bytes of the leaf (MEM-58). */
+  minhash?: ArrayLike<number> | null;
   mustKeep?: boolean;
   recordInject?: boolean;
 }): ContextCandidate {
@@ -119,7 +122,7 @@ function toCandidate(input: {
     score: Math.max(0, input.score),
     tokens: ContextSections.estimateTokens(input.text),
     text: input.text,
-    features: coverageFeatures(input.simText ?? input.text, entities),
+    features: coverageFeatures(input.simText ?? input.text, entities, input.minhash),
     item: input.item,
     mustKeep: input.mustKeep,
     recordInject: input.recordInject,
@@ -272,7 +275,11 @@ export class ContextSections {
         if (!gate.passed) return;
       }
       const cite = memoryCiteToken("semantic", mem.id);
-      const entry = `${cite} ${pinned ? "[pinned] " : ""}[${mem.category}] ${mem.title}: ${mem.content}`;
+      // MEM-48: tool / external memories are quoted data, never instructions.
+      const memSrc = normalizeSrc(mem.src);
+      const entry = isUntrustedSrc(memSrc)
+        ? `${cite} ${pinned ? "[pinned] " : ""}[${mem.category}] ${mem.title}: ${quoteUntrusted(mem.content, memSrc)}`
+        : `${cite} ${pinned ? "[pinned] " : ""}[${mem.category}] ${mem.title}: ${mem.content}`;
       const item = ContextSections.semanticProvenance(mem, query, pinned, hit);
       const overlap = item.evidence && contentWords(query).length > 0
         ? Math.min(1, item.evidence.length / contentWords(query).length)
@@ -289,6 +296,7 @@ export class ContextSections {
         text: entry,
         item,
         simText: `${mem.title} ${mem.keywords ?? ""} ${mem.content}`,
+        minhash: mem.minhash,
         entities: memoryEntities(mem.title, mem.keywords, mem.content),
         mustKeep: opts.mustKeep,
         recordInject: fusion.fusionEmpty && (matchingIds.has(mem.id) || fallbackIds.has(mem.id)),
@@ -540,6 +548,7 @@ export class ContextSections {
         text: entry,
         item,
         simText: ep.content,
+        minhash: ep.minhash,
         entities: memoryEntities(undefined, undefined, ep.content),
       });
     });

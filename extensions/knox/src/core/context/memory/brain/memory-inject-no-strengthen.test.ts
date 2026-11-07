@@ -90,12 +90,14 @@ async function storeFact(sessionId: string): Promise<number> {
 
 const extras = { ide: {} as never, llm: undefined } as never;
 
+const S0 = 14 * 2 ** (2 * (0.99 - 0.5)); // MEM-55: S_cat · 2^{2(I₀ − 0.5)}
+
 describe("MEM-16 retrieve / inject do not strengthen", () => {
   it("injecting the same fact 100 times does not raise S, I, or retrieval_count", async () => {
     await reset();
     const id = await storeFact("mem16-hundred");
     const before = await semanticState(id);
-    expect(before.stability).toBe(14);
+    expect(before.stability).toBeCloseTo(S0, 8);
     expect(before.difficulty).toBe(5);
     expect(before.retrieval_count).toBe(0);
     expect(before.inject_count).toBe(0);
@@ -110,7 +112,7 @@ describe("MEM-16 retrieve / inject do not strengthen", () => {
     }
 
     const after = await semanticState(id);
-    expect(after.stability).toBe(14);
+    expect(after.stability).toBeCloseTo(S0, 8);
     expect(after.difficulty).toBe(5);
     expect(after.importance_score).toBeCloseTo(0.99, 5);
     expect(after.retrieval_count).toBe(0);
@@ -129,7 +131,7 @@ describe("MEM-16 retrieve / inject do not strengthen", () => {
       });
     }
     const after = await semanticState(id);
-    expect(after.stability).toBe(14);
+    expect(after.stability).toBeCloseTo(S0, 8);
     expect(after.retrieval_count).toBe(0);
     expect(after.last_accessed_at).toBe(AGED);
     expect(after.importance_score).toBeCloseTo(0.99, 5);
@@ -161,7 +163,7 @@ describe("MEM-16 retrieve / inject do not strengthen", () => {
     expect(built[0]?.content).toMatch(new RegExp(TOKEN, "i"));
 
     const row = await semanticState(id);
-    expect(row.stability).toBe(14);
+    expect(row.stability).toBeCloseTo(S0, 8);
     expect(row.difficulty).toBe(5);
     expect(row.importance_score).toBeCloseTo(0.99, 5);
     expect(row.retrieval_count).toBe(0);
@@ -182,7 +184,7 @@ describe("MEM-16 retrieve / inject do not strengthen", () => {
     }
 
     const afterInject = await semanticState(id);
-    expect(afterInject.stability).toBe(14);
+    expect(afterInject.stability).toBeCloseTo(S0, 8);
     expect(afterInject.retrieval_count).toBe(0);
     expect(afterInject.last_accessed_at).toBe(AGED);
     expect(afterInject.inject_count).toBeGreaterThanOrEqual(1);
@@ -194,7 +196,7 @@ describe("MEM-16 retrieve / inject do not strengthen", () => {
       limit: 10,
     });
     const afterSearch = await semanticState(id);
-    expect(afterSearch.stability).toBe(14);
+    expect(afterSearch.stability).toBeCloseTo(S0, 8);
     expect(afterSearch.retrieval_count).toBe(0);
     expect(afterSearch.last_accessed_at).toBe(AGED);
     expect(afterSearch.inject_count).toBe(afterInject.inject_count);

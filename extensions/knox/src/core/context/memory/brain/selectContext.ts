@@ -8,13 +8,16 @@
  *
  * λ = 0.5, max over ∅ is 0. F is monotone submodular, so lazy greedy
  * (better of value-greedy and value-per-token-greedy) is a ½(1−1/e)
- * approximation. sim is trigram / entity Jaccard — near-duplicates add
- * almost no coverage. Highest-scoring items sit at the start and end of
+ * approximation. sim is a lexical Jaccard estimate — near-duplicates add
+ * almost no coverage. MEM-58: sim is the MinHash estimate of 3-shingle Jaccard,
+ * from the signature stored at encode time (trigram Jaccard only when a side has
+ * no signature). Highest-scoring items sit at the start and end of
  * the memory block (lost-in-the-middle sandwich).
  *
  * Lexical only: no embeddings, vector index, or neural rerank.
  */
 
+import { minhashSignature, minhashSimilarity, signatureFromBytes } from "./minhash.js";
 import type { InjectedMemoryItem } from "./types.js";
 
 export const COVERAGE_LAMBDA_DEFAULT = 0.5;
@@ -36,6 +39,8 @@ export type SelectStrategy = "value" | "value-per-token";
 export interface CoverageFeatures {
   trigrams: ReadonlySet<string>;
   entities: ReadonlySet<string>;
+  /** MEM-58 MinHash signature of the 3-shingles. */
+  minhash?: Uint32Array | null;
 }
 
 export interface ContextCandidate {
@@ -100,12 +105,21 @@ export function jaccardSets(a: ReadonlySet<string>, b: ReadonlySet<string>): num
  * when both sides name entities.
  */
 export function coverageSimilarity(a: CoverageFeatures, b: CoverageFeatures): number {
-  const trigram = jaccardSets(a.trigrams, b.trigrams);
+  const lexical =
+    a.minhash && b.minhash && a.minhash.length === b.minhash.length
+      ? minhashSimilarity(a.minhash, b.minhash)
+      : jaccardSets(a.trigrams, b.trigrams);
+  const trigram = lexical;
   if (a.entities.size === 0 || b.entities.size === 0) return trigram;
   return Math.max(trigram, jaccardSets(a.entities, b.entities));
 }
 
-export function coverageFeatures(text: string, entities: readonly string[] = []): CoverageFeatures {
+export function coverageFeatures(
+  text: string,
+  entities: readonly string[] = [],
+  /** Stored signature bytes from the leaf row; computed from `text` when absent. */
+  storedMinhash?: ArrayLike<number> | null,
+): CoverageFeatures {
   const names = new Set<string>();
   for (const raw of entities) {
     const key = raw.trim().toLowerCase();
@@ -114,6 +128,7 @@ export function coverageFeatures(text: string, entities: readonly string[] = [])
   return {
     trigrams: characterTrigrams(text),
     entities: names,
+    minhash: signatureFromBytes(storedMinhash) ?? minhashSignature(text),
   };
 }
 

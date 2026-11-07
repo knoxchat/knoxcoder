@@ -1,5 +1,6 @@
 /**
- * MEM-32 — cycle invariants: Budget, Reachability, Losslessness.
+ * MEM-32 / MEM-54 — cycle invariants: Budget, Reachability, Losslessness, Freshness.
+ * (Erasure lands with MEM-73.)
  *
  * Replaces “a phase ran in the last hour” as `cycle_invariant_met`.
  *
@@ -8,6 +9,10 @@
  *   Reachability:  every non-tombstoned semantic/episodic id is in at least
  *                  one of FTS, ripgrep corpus, graph, or the summary tree.
  *   Losslessness:  every summary-tree leaf is an original row or a tombstone.
+ *   Freshness:     a memory written in turn t is retrievable from turn t+1
+ *                  (read-your-writes). φ₂ (FTS), φ₄ (row) and φ₅ (tree + term
+ *                  sketches) run on the write path; only summary text and refits
+ *                  are deferred.
  *
  * Sleep and heal run the store checks. Budget is recorded on each assemble.
  * The snapshot is process-local so `getPhaseStatus` stays synchronous.
@@ -16,11 +21,16 @@
 import type { BuildContextResult } from "./types.js";
 import { get } from "./store/connection.js";
 import { auditLog } from "./store/runtime.js";
+import { findStaleSketches, type StaleSketch } from "./store/treeSketches.js";
 import type { DatabaseConnection } from "../../../util/refreshIndex.js";
 
 export const AUDIT_BUDGET = "invariant:budget";
 export const AUDIT_REACHABILITY = "invariant:reachability";
 export const AUDIT_LOSSLESSNESS = "invariant:losslessness";
+export const AUDIT_FRESHNESS = "invariant:freshness";
+
+/** Most recent leaves probed per freshness check. */
+export const FRESHNESS_PROBE_LIMIT = 50;
 
 export const MISSING_REPORT_CAP = 50;
 
@@ -68,9 +78,29 @@ export interface LosslessnessInvariantResult {
   at: number;
 }
 
+export interface FreshnessGap {
+  type: MemoryLeafKind | "tree_sketch";
+  id: number;
+  reason: "not_in_fts" | StaleSketch["reason"];
+}
+
+export interface FreshnessInvariantResult {
+  met: boolean;
+  checked: boolean;
+  /** Recent rows probed in the lexical index. */
+  probed: number;
+  not_in_fts: number;
+  /** Recent tree leaves whose ancestor sketches were probed. */
+  sketches_probed: number;
+  stale_sketches: number;
+  stale_ids: FreshnessGap[];
+  at: number;
+}
+
 export interface StoreInvariantReport {
   reachability: ReachabilityInvariantResult;
   losslessness: LosslessnessInvariantResult;
+  freshness: FreshnessInvariantResult;
   met: boolean;
   at: number;
 }
@@ -79,8 +109,20 @@ export interface CycleInvariantSnapshot {
   budget: BudgetInvariantResult;
   reachability: ReachabilityInvariantResult;
   losslessness: LosslessnessInvariantResult;
+  freshness: FreshnessInvariantResult;
   met: boolean;
 }
+
+const emptyFreshness = (): FreshnessInvariantResult => ({
+  met: true,
+  checked: false,
+  probed: 0,
+  not_in_fts: 0,
+  sketches_probed: 0,
+  stale_sketches: 0,
+  stale_ids: [],
+  at: 0,
+});
 
 const emptyBudget = (): BudgetInvariantResult => ({
   met: true,
@@ -117,12 +159,14 @@ function snapshotFrom(
   budget: BudgetInvariantResult,
   reachability: ReachabilityInvariantResult,
   losslessness: LosslessnessInvariantResult,
+  freshness: FreshnessInvariantResult = emptyFreshness(),
 ): CycleInvariantSnapshot {
   return {
     budget,
     reachability,
     losslessness,
-    met: budget.met && reachability.met && losslessness.met,
+    freshness,
+    met: budget.met && reachability.met && losslessness.met && freshness.met,
   };
 }
 
@@ -139,12 +183,16 @@ export function getInvariantSnapshot(): CycleInvariantSnapshot {
       ...lastSnapshot.losslessness,
       dangling_ids: lastSnapshot.losslessness.dangling_ids.slice(),
     },
+    freshness: {
+      ...lastSnapshot.freshness,
+      stale_ids: lastSnapshot.freshness.stale_ids.slice(),
+    },
     met: lastSnapshot.met,
   };
 }
 
 export function cycleInvariantsMet(snap: CycleInvariantSnapshot = lastSnapshot): boolean {
-  return snap.budget.met && snap.reachability.met && snap.losslessness.met;
+  return snap.budget.met && snap.reachability.met && snap.losslessness.met && snap.freshness.met;
 }
 
 export function resetInvariantSnapshotForTests(): void {
@@ -170,7 +218,7 @@ export function evaluateBudget(cUse: number, w: number): BudgetInvariantResult {
 }
 
 export function recordBudgetInvariant(budget: BudgetInvariantResult): void {
-  lastSnapshot = snapshotFrom(budget, lastSnapshot.reachability, lastSnapshot.losslessness);
+  lastSnapshot = snapshotFrom(budget, lastSnapshot.reachability, lastSnapshot.losslessness, lastSnapshot.freshness);
 }
 
 /**
@@ -372,7 +420,7 @@ export async function checkReachability(
     at: Date.now(),
   };
 
-  lastSnapshot = snapshotFrom(lastSnapshot.budget, result, lastSnapshot.losslessness);
+  lastSnapshot = snapshotFrom(lastSnapshot.budget, result, lastSnapshot.losslessness, lastSnapshot.freshness);
   if (options.audit) {
     await auditLog(AUDIT_REACHABILITY, "pipeline", null, {
       met: result.met,
@@ -459,7 +507,7 @@ export async function checkLosslessness(
     at: Date.now(),
   };
 
-  lastSnapshot = snapshotFrom(lastSnapshot.budget, lastSnapshot.reachability, result);
+  lastSnapshot = snapshotFrom(lastSnapshot.budget, lastSnapshot.reachability, result, lastSnapshot.freshness);
   if (options.audit) {
     await auditLog(AUDIT_LOSSLESSNESS, "pipeline", null, {
       met: result.met,
@@ -471,17 +519,116 @@ export async function checkLosslessness(
   return result;
 }
 
+/** Rowids (of `ids`) present in the FTS index. `*_docsize` is the index; see `loadFtsIds`. */
+async function indexedIds(
+  db: DatabaseConnection,
+  table: "brain_semantic_fts" | "brain_episodic_fts",
+  ids: number[],
+): Promise<Set<number>> {
+  if (ids.length === 0) return new Set();
+  const marks = ids.map(() => "?").join(",");
+  try {
+    const rows = (await db.all(`SELECT id FROM ${table}_docsize WHERE id IN (${marks})`, ids)) as Array<{ id: number }>;
+    return new Set(rows.map((r) => Number(r.id)));
+  } catch {
+    try {
+      const rows = (await db.all(`SELECT rowid AS id FROM ${table} WHERE rowid IN (${marks})`, ids)) as Array<{ id: number }>;
+      return new Set(rows.map((r) => Number(r.id)));
+    } catch {
+      return new Set();
+    }
+  }
+}
+
+/**
+ * MEM-54 — read-your-writes. Probes the most recent live rows:
+ *   φ₂  each is in the lexical (FTS) index,
+ *   φ₅  every ancestor sketch of the most recent tree leaves holds the leaf's terms.
+ * Needs no sleep and no later ingest: those would be deferred work, not the write path.
+ */
+export async function checkFreshness(
+  options: { db?: DatabaseConnection; audit?: boolean; limit?: number } = {},
+): Promise<FreshnessInvariantResult> {
+  const db = options.db ?? (await get());
+  const limit = Math.max(1, options.limit ?? FRESHNESS_PROBE_LIMIT);
+  const gaps: FreshnessGap[] = [];
+
+  const recentSemantic = (await db.all(
+    `SELECT id FROM brain_semantic WHERE tombstoned_at IS NULL ORDER BY id DESC LIMIT ?`,
+    [limit],
+  )) as Array<{ id: number }>;
+  const recentEpisodic = (await db.all(
+    `SELECT id FROM brain_episodic WHERE tombstoned_at IS NULL ORDER BY id DESC LIMIT ?`,
+    [limit],
+  )) as Array<{ id: number }>;
+
+  const semIds = recentSemantic.map((r) => Number(r.id));
+  const epIds = recentEpisodic.map((r) => Number(r.id));
+  const semIndexed = await indexedIds(db, "brain_semantic_fts", semIds);
+  const epIndexed = await indexedIds(db, "brain_episodic_fts", epIds);
+
+  let notInFts = 0;
+  for (const id of semIds) {
+    if (semIndexed.has(id)) continue;
+    notInFts++;
+    if (gaps.length < MISSING_REPORT_CAP) gaps.push({ type: "semantic", id, reason: "not_in_fts" });
+  }
+  for (const id of epIds) {
+    if (epIndexed.has(id)) continue;
+    notInFts++;
+    if (gaps.length < MISSING_REPORT_CAP) gaps.push({ type: "episodic", id, reason: "not_in_fts" });
+  }
+
+  let sketches = { checked: 0, stale: [] as StaleSketch[] };
+  try {
+    sketches = await findStaleSketches(db, { limit });
+  } catch {
+    // brain_summary_tree predates sketches or is absent: nothing to probe.
+  }
+  for (const s of sketches.stale) {
+    if (gaps.length < MISSING_REPORT_CAP) {
+      gaps.push({ type: "tree_sketch", id: s.leaf_tree_id, reason: s.reason });
+    }
+  }
+
+  const result: FreshnessInvariantResult = {
+    met: notInFts === 0 && sketches.stale.length === 0,
+    checked: true,
+    probed: semIds.length + epIds.length,
+    not_in_fts: notInFts,
+    sketches_probed: sketches.checked,
+    stale_sketches: sketches.stale.length,
+    stale_ids: gaps,
+    at: Date.now(),
+  };
+
+  lastSnapshot = snapshotFrom(lastSnapshot.budget, lastSnapshot.reachability, lastSnapshot.losslessness, result);
+  if (options.audit) {
+    await auditLog(AUDIT_FRESHNESS, "pipeline", null, {
+      met: result.met,
+      probed: result.probed,
+      not_in_fts: result.not_in_fts,
+      sketches_probed: result.sketches_probed,
+      stale_sketches: result.stale_sketches,
+      stale_ids: result.stale_ids,
+    });
+  }
+  return result;
+}
+
 export async function checkStoreInvariants(
   options: { db?: DatabaseConnection; audit?: boolean } = {},
 ): Promise<StoreInvariantReport> {
   const db = options.db ?? (await get());
   const reachability = await checkReachability({ db, audit: options.audit });
   const losslessness = await checkLosslessness({ db, audit: options.audit });
-  lastSnapshot = snapshotFrom(lastSnapshot.budget, reachability, losslessness);
+  const freshness = await checkFreshness({ db, audit: options.audit });
+  lastSnapshot = snapshotFrom(lastSnapshot.budget, reachability, losslessness, freshness);
   return {
     reachability,
     losslessness,
-    met: reachability.met && losslessness.met,
+    freshness,
+    met: reachability.met && losslessness.met && freshness.met,
     at: Date.now(),
   };
 }

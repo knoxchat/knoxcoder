@@ -12,6 +12,7 @@ import {
   upsertAttributionOn,
   type AttributionRow,
 } from "./store/attribution.js";
+import { canSupersede, type MemorySrc } from "./provenance.js";
 import { applyMemoryFsrsOn } from "./store/fsrs.js";
 
 export type RecallOutcome = "verified" | "reverted";
@@ -330,6 +331,8 @@ export interface ContradictionCandidate {
   title: string;
   content: string;
   created_at?: string;
+  /** MEM-47: provenance. Missing / NULL reads as `assistant`. */
+  src?: string | null;
 }
 
 function tokens(text: string): Set<string> {
@@ -379,9 +382,12 @@ export async function markSuperseded(db: DatabaseConnection, oldId: number, newI
     [oldId, newId, reason],
   );
   // MEM-26: close the old fact's validity interval. The row stays queryable by id.
+  // MEM-50: `closed_at` is the transaction time of the closure, so a `knownAt` query
+  // before it still sees the fact as open.
   await db.run(
     `UPDATE brain_semantic
-     SET valid_to = COALESCE(valid_to, datetime('now'))
+     SET valid_to = COALESCE(valid_to, datetime('now')),
+         closed_at = COALESCE(closed_at, datetime('now'))
      WHERE id = ? AND (valid_to IS NULL OR datetime(valid_to) > datetime('now'))`,
     [oldId],
   );
@@ -421,12 +427,14 @@ export async function explainSupersession(db: DatabaseConnection, newId: number)
 export async function supersedeConflicts(db: DatabaseConnection, next: ContradictionCandidate): Promise<number[]> {
   if (!CONTRADICTION_CATEGORIES.has(next.category)) return [];
   const rows = await db.all<ContradictionCandidate[]>(
-    `SELECT id, category, title, content, created_at FROM brain_semantic
+    `SELECT id, category, title, content, created_at, src FROM brain_semantic
       WHERE category = ? AND id != ?
         AND id NOT IN (SELECT old_id FROM brain_memory_supersessions)`,
     [next.category, next.id],
   );
-  const hit = findSuperseded(next, rows.filter((r) => !r.created_at || !next.created_at || r.created_at <= next.created_at));
+  // MEM-48: a tool / external write never closes a `user` fact on its own.
+  const hit = findSuperseded(next, rows.filter((r) => !r.created_at || !next.created_at || r.created_at <= next.created_at))
+    .filter((o) => canSupersede(next.src as MemorySrc | null | undefined, o.src as MemorySrc | null | undefined));
   for (const o of hit) await markSuperseded(db, o.id, next.id, supersessionNote(next, o));
   return hit.map((o) => o.id);
 }

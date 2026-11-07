@@ -22,6 +22,54 @@ export function notSupersededSql(alias?: string): string {
   return `${col}id NOT IN (SELECT old_id FROM brain_memory_supersessions)`;
 }
 
+/**
+ * MEM-50 — bitemporal predicate.
+ *
+ *   asOf    valid time: the fact was true at this instant.
+ *   knownAt transaction time: Knox-MS had learned the fact by this instant
+ *           (and had not yet learned that it was closed, see `closed_at`).
+ *
+ * `knownAt` defaults to `asOf`'s "now" (no transaction-time filter). Both are
+ * bound as parameters, never interpolated. Superseded rows stay in range for a
+ * past `asOf`, which is the point of as-of mode (MEM-65).
+ */
+export interface BitemporalQuery {
+  /** ISO / sqlite datetime. Default: now. */
+  asOf?: string;
+  /** ISO / sqlite datetime. Default: no transaction-time filter. */
+  knownAt?: string;
+}
+
+export function bitemporalSql(
+  query: BitemporalQuery = {},
+  alias?: string,
+): { sql: string; params: string[] } {
+  const col = alias ? `${alias}.` : "";
+  const asOf = query.asOf ?? null;
+  const knownAt = query.knownAt ?? null;
+  const params: string[] = [];
+  const at = asOf ? "datetime(?)" : "datetime('now')";
+  const parts: string[] = [];
+
+  if (asOf) params.push(asOf);
+  parts.push(`(${col}valid_from IS NULL OR datetime(${col}valid_from) <= ${at})`);
+
+  if (asOf) params.push(asOf);
+  if (knownAt) {
+    // valid_to counts only once the closure itself was known (closed_at <= knownAt).
+    params.push(knownAt);
+    parts.push(
+      `(${col}valid_to IS NULL OR datetime(${col}valid_to) > ${at}` +
+        ` OR (${col}closed_at IS NOT NULL AND datetime(${col}closed_at) > datetime(?)))`,
+    );
+    params.push(knownAt);
+    parts.push(`(${col}recorded_at IS NULL OR datetime(${col}recorded_at) <= datetime(?))`);
+  } else {
+    parts.push(`(${col}valid_to IS NULL OR datetime(${col}valid_to) > ${at})`);
+  }
+  return { sql: parts.join(" AND "), params };
+}
+
 /** Default retrieve / channel scope over a semantic or episodic leaf. */
 export function queryScopeSql(kind: "semantic" | "episodic", alias?: string): string {
   const parts = [liveRetrieveSql(alias), validAtSql(alias)];

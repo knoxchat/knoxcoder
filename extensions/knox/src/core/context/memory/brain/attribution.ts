@@ -9,12 +9,13 @@
  *   Next user turn corrects a cited memory → u += 1, FSRS harmful
  *   Recipe hint/stub cites use `mem_type='recipe'` and increment recipe leaf
  *   h/u (MEM-39). Replay ok/revert writes the same table (MEM-18).
- *   Injected-not-cited → calibration only (feeds θ, not S)
+ *   Injected-not-cited → u += ω (0.1, MEM-57); no FSRS change; also feeds θ calibration
  *   Sleep φ₇ refits w_s and calibrated θ from this log (MEM-18)
  *   Product tool `attribute` writes the same helper (MEM-19)
  */
 
 import { BrainStore } from "./BrainStore.js";
+import { getTheoremParamsV2 } from "./memoryConfigAccess.js";
 import { winningChannel, type FusionChannel } from "./memoryOutcomes.js";
 import { contentWords } from "./RetrievalQuery.js";
 import type { InjectedMemoryItem, PipelineInput } from "./types.js";
@@ -240,6 +241,27 @@ async function applyLeafOutcome(
   await BrainStore.applyMemoryFsrs(cite.type, id, helpful ? "helpful" : "harmful");
   await BrainStore.applyMemoryTier(cite.type, id).catch(() => null);
   return true;
+}
+
+/**
+ * MEM-57: injected but not cited adds fractional ω to u. No FSRS change, no tier
+ * recompute — an uncited injection is weak evidence, not a harmful use.
+ */
+async function applyUncitedInjection(cite: MemoryCite): Promise<void> {
+  let omega = 0.1;
+  try {
+    omega = getTheoremParamsV2().utilityOmega;
+  } catch {
+    /* defaults */
+  }
+  if (!(omega > 0)) return;
+  if (cite.type === "recipe") {
+    await BrainStore.incrementRecipeUtilityCounts(cite.mem_id, { unhelpful: omega });
+    return;
+  }
+  const id = Number(cite.mem_id);
+  if (!(id > 0)) return;
+  await BrainStore.incrementUtilityCounts(cite.type, id, { unhelpful: omega });
 }
 
 export function parseHelpfulFlag(value: unknown): boolean | null {
@@ -594,12 +616,19 @@ export async function recordTurnAttribution(
   const citedMap = new Map(citedList.map((c) => [citeKey(c.type, c.mem_id), c]));
   const applied = { ...EMPTY_APPLIED };
 
+  const alreadyLogged = new Set(
+    (await BrainStore.listAttributionsForTurn(turnId)).map((row) => citeKey(row.mem_type, row.mem_id)),
+  );
+
   for (const key of keys) {
     const cite = injectedMap.get(key) ?? citedMap.get(key);
     if (!cite) continue;
     const injected = injectedMap.has(key);
     const cited = citedMap.has(key);
     const helpful = helpfulForOutcome(injected, cited, outcome);
+    if (injected && !cited && !alreadyLogged.has(key)) {
+      await applyUncitedInjection(cite).catch(() => {});
+    }
     const result = await persistAttributionDecision({
       turn_id: turnId,
       session_id: sessionId,

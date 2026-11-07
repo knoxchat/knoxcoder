@@ -18,8 +18,10 @@ let SpacedRepetition: typeof import("./AdvancedFeatures.js").SpacedRepetition;
 
 const FSRS = { a: Math.exp(1.5), b: 0.2, g: 1 };
 
+/** S' with the MEM-56 caps: ρ_max · S = 10 S and S_max = 3650. */
 function expectedSPrime(s: number, d: number, r: number): number {
-  return s * (1 + FSRS.a * (11 - d) * s ** -FSRS.b * (Math.exp(FSRS.g * (1 - r)) - 1));
+  const raw = s * (1 + FSRS.a * (11 - d) * s ** -FSRS.b * (Math.exp(FSRS.g * (1 - r)) - 1));
+  return Math.min(raw, 10 * s, 3650);
 }
 
 beforeAll(async () => {
@@ -96,14 +98,14 @@ describe("MEM-14 FSRS strengthen only on use", () => {
     const r = 0.5;
     const helpful = Fsrs.applyFsrs(s, d, r, "helpful", FSRS);
     expect(helpful.stability).toBeCloseTo(expectedSPrime(s, d, r), 10);
-    expect(helpful.difficulty).toBe(5);
+    expect(helpful.difficulty).toBeCloseTo(0.95 * 4.5 + 0.25, 10);
 
     const harmful = Fsrs.applyFsrs(s, d, r, "harmful", FSRS);
     expect(harmful.stability).toBeCloseTo(s * 0.3, 10);
-    expect(harmful.difficulty).toBe(6);
+    expect(harmful.difficulty).toBeCloseTo(0.95 * 6 + 0.25, 10);
 
     const capped = Fsrs.applyFsrs(s, 10, r, "harmful", FSRS);
-    expect(capped.difficulty).toBe(10);
+    expect(capped.difficulty).toBeCloseTo(0.95 * 10 + 0.25, 10);
 
     const unused = Fsrs.applyFsrs(s, d, r, "unused", FSRS);
     expect(unused).toEqual({ stability: s, difficulty: d });
@@ -127,27 +129,29 @@ describe("MEM-14 FSRS strengthen only on use", () => {
     );
 
     const before = await semanticState(id);
-    expect(before.stability).toBe(14);
+    const s0 = 14 * 2 ** 0.6; // MEM-55: I₀ = 0.8
+    expect(before.stability).toBeCloseTo(s0, 10);
     expect(before.difficulty).toBe(5);
 
     const unused = await SpacedRepetition.applyOnUse(id, "unused");
-    expect(unused).toEqual({ stability: 14, difficulty: 5 });
-    expect(await semanticState(id)).toMatchObject({ stability: 14, difficulty: 5, importance_score: 0.8 });
+    expect(unused!.stability).toBeCloseTo(s0, 10);
+    expect(unused!.difficulty).toBe(5);
+    expect(await semanticState(id)).toMatchObject({ difficulty: 5, importance_score: 0.8 });
 
     const helpful = await SpacedRepetition.applyOnUse(id, "helpful");
     expect(helpful).toBeTruthy();
-    expect(helpful!.stability).toBeGreaterThan(14);
-    expect(helpful!.difficulty).toBe(5);
+    expect(helpful!.stability).toBeGreaterThan(s0);
+    expect(helpful!.difficulty).toBeCloseTo(4.525, 10);
     const afterHelpful = await semanticState(id);
     expect(afterHelpful.stability).toBeCloseTo(helpful!.stability, 10);
-    expect(afterHelpful.difficulty).toBe(5);
+    expect(afterHelpful.difficulty).toBeCloseTo(4.525, 10);
     expect(afterHelpful.importance_score).toBeCloseTo(0.8, 5);
 
     const aged = afterHelpful.stability;
     const harmful = await SpacedRepetition.applyOnUse(id, "harmful");
     expect(harmful!.stability).toBeCloseTo(aged * 0.3, 10);
-    expect(harmful!.difficulty).toBe(6);
-    expect((await semanticState(id)).difficulty).toBe(6);
+    expect(harmful!.difficulty).toBeCloseTo(0.95 * 5.525 + 0.25, 10);
+    expect((await semanticState(id)).difficulty).toBeCloseTo(0.95 * 5.525 + 0.25, 10);
   });
 
   it("recall and fusion retrieve do not raise S", async () => {
@@ -170,7 +174,7 @@ describe("MEM-14 FSRS strengthen only on use", () => {
     }
 
     const row = await semanticState(id);
-    expect(row.stability).toBe(14);
+    expect(row.stability).toBeCloseTo(14 * 2 ** 0.4, 10); // I₀ = 0.7
     expect(row.difficulty).toBe(5);
     expect(row.importance_score).toBeCloseTo(0.7, 5);
   });
@@ -205,12 +209,15 @@ describe("MEM-14 FSRS strengthen only on use", () => {
       0.4,
     );
     const next = await BrainStore.applyMemoryFsrs("episodic", id, "harmful");
-    expect(next).toEqual({ stability: 0.3, difficulty: 6 });
+    const s0 = 2 ** -0.2; // episodic S_cat = 1, I₀ = 0.4
+    expect(next!.stability).toBeCloseTo(s0 * 0.3, 10);
+    expect(next!.difficulty).toBeCloseTo(0.95 * 6 + 0.25, 10);
     const db = await BrainStore.get();
     const row = await db.get<{ stability: number; difficulty: number }>(
       "SELECT stability, difficulty FROM brain_episodic WHERE id = ?",
       [id],
     );
-    expect(row).toEqual({ stability: 0.3, difficulty: 6 });
+    expect(row!.stability).toBeCloseTo(s0 * 0.3, 10);
+    expect(row!.difficulty).toBeCloseTo(0.95 * 6 + 0.25, 10);
   });
 });

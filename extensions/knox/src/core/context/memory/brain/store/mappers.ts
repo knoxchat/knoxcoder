@@ -77,6 +77,9 @@ export function rowToEpisodic(row: any): EpisodicMemory {
     unhelpful_count: row.unhelpful_count ?? 0,
     valid_from: row.valid_from ?? null,
     valid_to: row.valid_to ?? null,
+    src: row.src ?? null,
+    recorded_at: row.recorded_at ?? null,
+    minhash: row.minhash ?? null,
   };
 }
 
@@ -113,6 +116,10 @@ export function rowToSemantic(row: any): SemanticMemory {
     unhelpful_count: row.unhelpful_count ?? 0,
     valid_from: row.valid_from ?? null,
     valid_to: row.valid_to ?? null,
+    src: row.src ?? null,
+    recorded_at: row.recorded_at ?? null,
+    minhash: row.minhash ?? null,
+    closed_at: row.closed_at ?? null,
   };
 }
 

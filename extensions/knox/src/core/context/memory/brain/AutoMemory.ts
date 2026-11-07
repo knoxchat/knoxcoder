@@ -2,6 +2,7 @@ import { BrainStore } from "./BrainStore.js";
 import { KnowledgeGraph } from "./KnowledgeGraph.js";
 import type { SemanticCategory, SessionTopic, StoreInput } from "./types.js";
 import { contentWords, RETRIEVAL_STOPWORDS } from "./RetrievalQuery.js";
+import { srcFromRole, type MemorySrc } from "./provenance.js";
 
 export const HEURISTIC_IMPORTANCE = 0.45;
 export const EXPLICIT_REMEMBER_IMPORTANCE = 0.85;
@@ -57,6 +58,8 @@ export class AutoMemory {
     content: string,
     role: string,
     sessionId: string,
+    /** MEM-47: provenance override (e.g. `tool` for tool output). Default follows `role`. */
+    src?: MemorySrc,
   ): Promise<{ semantic_count: number; entity_count: number; should_llm_extract: boolean }> {
     let semanticCount = 0;
     let entityCount = 0;
@@ -108,6 +111,8 @@ export class AutoMemory {
       mem.session_id = sessionId;
       mem.topic_id = topicId;
       mem.task_id = openTaskId;
+      // MEM-47: provenance follows the turn the fact was extracted from.
+      mem.src = src ?? srcFromRole(role);
       if (entityResult.entities.length > 0) {
         mem.keywords = KnowledgeGraph.mergeEntityKeywords(
           mem.keywords ?? "",
@@ -137,10 +142,10 @@ export class AutoMemory {
     let entityCount = 0;
     let shouldLlmExtract = false;
 
-    const run = async (text: string | undefined, role: string) => {
+    const run = async (text: string | undefined, role: string, src?: MemorySrc) => {
       const trimmed = text?.trim();
       if (!trimmed) return;
-      const result = await AutoMemory.extract(trimmed, role, input.sessionId);
+      const result = await AutoMemory.extract(trimmed, role, input.sessionId, src);
       semanticCount += result.semantic_count;
       entityCount += result.entity_count;
       shouldLlmExtract = shouldLlmExtract || result.should_llm_extract;
@@ -149,7 +154,7 @@ export class AutoMemory {
     await run(input.userMessage, "user");
     await run(input.assistantMessage, "assistant");
     if (input.toolSummary && AutoMemory.looksLikeErrorFix(input.toolSummary)) {
-      await run(input.toolSummary, "assistant");
+      await run(input.toolSummary, "assistant", "tool");
     }
 
     return { semantic_count: semanticCount, entity_count: entityCount, should_llm_extract: shouldLlmExtract };

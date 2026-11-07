@@ -498,6 +498,88 @@ export function getTheoremParams(): TheoremParams {
   };
 }
 
+/**
+ * Theorem parameter block v2 (MEM-45). Defaults equal the docs page Parameters table.
+ * Declared only: later todos (MEM-47 … MEM-75) wire each key into behavior.
+ */
+export interface TheoremParamsV2 {
+  stabilityMaxDays: number;
+  stabilityMinDays: number;
+  stabilityGainCap: number;
+  difficultyReversion: number;
+  difficultyHelpfulStep: number;
+  utilityOmega: number;
+  exploreRate: number;
+  ablationRate: number;
+  calibrationMinInjections: number;
+  calibrationFallbackTopK: number;
+  wMemFloorTokens: number;
+  wMemFloorFraction: number;
+  tokenizerMargin: number;
+  /** Order only: user > assistant > tool > external. */
+  trust: { user: number; assistant: number; tool: number; external: number };
+  activeSessionMinutes: number;
+  ripgrepTimeoutMs: number;
+  /** 0 = derive B·b from the tree params. */
+  treeReservedSlots: number;
+  minhashPermutations: number;
+  minhashShingle: number;
+}
+
+export function getTheoremParamsV2(): TheoremParamsV2 {
+  const cfg = getMemoryConfig();
+  return {
+    stabilityMaxDays: cfg.stability_max_days,
+    stabilityMinDays: cfg.stability_min_days,
+    stabilityGainCap: cfg.stability_gain_cap,
+    difficultyReversion: cfg.difficulty_reversion,
+    difficultyHelpfulStep: cfg.difficulty_helpful_step,
+    utilityOmega: cfg.utility_omega,
+    exploreRate: cfg.explore_rate,
+    ablationRate: cfg.ablation_rate,
+    calibrationMinInjections: cfg.calibration_min_injections,
+    calibrationFallbackTopK: cfg.calibration_fallback_top_k,
+    wMemFloorTokens: cfg.w_mem_floor_tokens,
+    wMemFloorFraction: cfg.w_mem_floor_fraction,
+    tokenizerMargin: cfg.tokenizer_margin,
+    trust: {
+      user: cfg.trust_user,
+      assistant: cfg.trust_assistant,
+      tool: cfg.trust_tool,
+      external: cfg.trust_external,
+    },
+    activeSessionMinutes: cfg.consolidate_active_session_minutes,
+    ripgrepTimeoutMs: cfg.ripgrep_timeout_ms,
+    treeReservedSlots: cfg.tree_reserved_slots,
+    minhashPermutations: cfg.minhash_permutations,
+    minhashShingle: cfg.minhash_shingle,
+  };
+}
+
+/**
+ * Parameters marked "refit from outcomes" (✓) in the docs Parameters table.
+ * MEM-62 refits exactly these, per user, with guard rails. Keys are `MemoryConfig` keys.
+ */
+export const REFIT_KEYS = [
+  "w_mem_tokens",
+  "forgetting_F",
+  "forgetting_c",
+  "fsrs_a",
+  "fsrs_b",
+  "fsrs_g",
+  "utility_omega",
+  "w_lexical",
+  "w_ripgrep",
+  "w_graph",
+  "w_tree",
+  "eta_utility",
+  "eta_retrievability",
+  "retrieval_threshold",
+  "coverage_lambda",
+] as const;
+
+export type RefitKey = (typeof REFIT_KEYS)[number];
+
 export function getFusionWeights(profile: FusionWeightProfile): FusionWeights {
   const cfg = getMemoryConfig();
   switch (profile) {

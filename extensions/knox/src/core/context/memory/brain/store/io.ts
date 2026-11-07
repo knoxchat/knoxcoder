@@ -18,8 +18,9 @@ export async function exportAll(): Promise<MemoryExport> {
   const db = await get();
 
   const sessions = (await db.all("SELECT * FROM brain_sessions")).map(rowToSession);
-  const semantic = (await db.all("SELECT * FROM brain_semantic")).map(rowToSemantic);
-  const episodic = (await db.all("SELECT * FROM brain_episodic")).map(rowToEpisodic);
+  // MinHash signatures are derived from content; exports omit them (recomputed on write).
+  const semantic = (await db.all("SELECT * FROM brain_semantic")).map((r) => ({ ...rowToSemantic(r), minhash: undefined }));
+  const episodic = (await db.all("SELECT * FROM brain_episodic")).map((r) => ({ ...rowToEpisodic(r), minhash: undefined }));
   const associations = (await db.all("SELECT * FROM brain_associations")).map(rowToAssociation);
   const entities = (await db.all("SELECT * FROM brain_entities")).map(rowToEntity);
   const edges = (await db.all("SELECT * FROM brain_graph_edges")).map(rowToEdge);

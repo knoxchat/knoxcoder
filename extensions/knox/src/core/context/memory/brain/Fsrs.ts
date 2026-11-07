@@ -5,8 +5,12 @@
  *   a = e^{1.5}, b = 0.2, g = 1
  *
  *   Used+helpful → S ← S'
- *   Used+harmful → S ← 0.3 S,  D ← min(10, D+1)
+ *   Used+harmful → S ← max(S_min, 0.3 S),  D ← min(10, D+1)
+ *   Used+helpful → D ← max(1, D − 0.5)
+ *   Every update (helpful / harmful) → D ← 0.95 D + 0.05 D₀  (D₀ = 5)
  *   Retrieved-not-used → no change
+ *
+ * MEM-56 caps: S' ≤ ρ_max · S and S' ≤ S_max.
  *
  * Attribution (MEM-17) is the live caller. Retrieve / inject must not apply this.
  */
@@ -20,7 +24,7 @@ import {
   resolveStability,
   retrievability,
 } from "./Forgetting.js";
-import { getTheoremParams } from "./memoryConfigAccess.js";
+import { getTheoremParams, getTheoremParamsV2 } from "./memoryConfigAccess.js";
 import { clamp01, lastAccessAt, type ValueSource } from "./Value.js";
 
 export const FSRS_A_DEFAULT = Math.exp(1.5);
@@ -38,7 +42,23 @@ export interface FsrsParams {
   b: number;
   g: number;
   forgetting?: Partial<ForgettingParams>;
+  /** ρ_max: one use multiplies S by at most this (MEM-56). */
+  gainCap?: number;
+  /** S_max (days). */
+  stabilityMax?: number;
+  /** S_min (days), floor after a harmful event. */
+  stabilityMin?: number;
+  /** Pull of D toward D₀ after every update. */
+  reversion?: number;
+  /** Helpful D decrement. */
+  helpfulStep?: number;
 }
+
+export const STABILITY_GAIN_CAP_DEFAULT = 10;
+export const STABILITY_MAX_DAYS_DEFAULT = 3650;
+export const STABILITY_MIN_DAYS_DEFAULT = 0.1;
+export const DIFFICULTY_REVERSION_DEFAULT = 0.05;
+export const DIFFICULTY_HELPFUL_STEP_DEFAULT = 0.5;
 
 export interface FsrsState {
   stability: number;
@@ -56,13 +76,24 @@ export function defaultFsrsParams(): FsrsParams {
     b: FSRS_B_DEFAULT,
     g: FSRS_G_DEFAULT,
     forgetting: defaultForgettingParams(),
+    gainCap: STABILITY_GAIN_CAP_DEFAULT,
+    stabilityMax: STABILITY_MAX_DAYS_DEFAULT,
+    stabilityMin: STABILITY_MIN_DAYS_DEFAULT,
+    reversion: DIFFICULTY_REVERSION_DEFAULT,
+    helpfulStep: DIFFICULTY_HELPFUL_STEP_DEFAULT,
   };
 }
 
 export function getFsrsParams(): FsrsParams {
   try {
     const theorem = getTheoremParams();
+    const v2 = getTheoremParamsV2();
     return {
+      gainCap: v2.stabilityGainCap,
+      stabilityMax: v2.stabilityMaxDays,
+      stabilityMin: v2.stabilityMinDays,
+      reversion: v2.difficultyReversion,
+      helpfulStep: v2.difficultyHelpfulStep,
       a: theorem.fsrsA,
       b: theorem.fsrsB,
       g: theorem.fsrsG,
@@ -84,7 +115,26 @@ function resolveParams(params?: Partial<FsrsParams>): FsrsParams {
     b: params?.b ?? fallback.b,
     g: params?.g ?? fallback.g,
     forgetting: params?.forgetting ?? fallback.forgetting,
+    gainCap: params?.gainCap ?? fallback.gainCap,
+    stabilityMax: params?.stabilityMax ?? fallback.stabilityMax,
+    stabilityMin: params?.stabilityMin ?? fallback.stabilityMin,
+    reversion: params?.reversion ?? fallback.reversion,
+    helpfulStep: params?.helpfulStep ?? fallback.helpfulStep,
   };
+}
+
+function positiveOr(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function unitOr(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : fallback;
+}
+
+/** D ← 0.95 D + 0.05 D₀, clamped to [1, 10]. Runs after every helpful / harmful update. */
+export function revertDifficulty(difficulty: number, params?: Partial<FsrsParams>): number {
+  const rho = unitOr(resolveParams(params).reversion, DIFFICULTY_REVERSION_DEFAULT);
+  return clampDifficulty((1 - rho) * clampDifficulty(difficulty) + rho * DEFAULT_DIFFICULTY);
 }
 
 function finiteOr(value: number | null | undefined, fallback: number): number {
@@ -121,19 +171,34 @@ export function nextStability(
   const g = Number.isFinite(p.g) ? p.g : FSRS_G_DEFAULT;
   const spacing = Math.exp(g * (1 - r)) - 1;
   const gain = a * (11 - d) * s ** -b * spacing;
-  const next = s * (1 + gain);
-  if (!Number.isFinite(next)) return s;
+  const raw = s * (1 + gain);
+  if (!Number.isFinite(raw)) return s;
+  const cap = positiveOr(p.gainCap, STABILITY_GAIN_CAP_DEFAULT);
+  const sMax = positiveOr(p.stabilityMax, STABILITY_MAX_DAYS_DEFAULT);
+  // A row already above S_max does not grow, and is not yanked down by a helpful use.
+  const next = Math.min(raw, cap * s, Math.max(sMax, s));
   return resolveStability(next);
 }
 
 export function applyHarmful(
   stability: number,
   difficulty: number,
+  params?: Partial<FsrsParams>,
 ): FsrsState {
+  const p = resolveParams(params);
+  const sMin = positiveOr(p.stabilityMin, STABILITY_MIN_DAYS_DEFAULT);
+  const harmed = resolveStability(stability) * FSRS_HARMFUL_STABILITY_FACTOR;
   return {
-    stability: resolveStability(resolveStability(stability) * FSRS_HARMFUL_STABILITY_FACTOR),
-    difficulty: Math.min(MAX_DIFFICULTY, resolveDifficulty(difficulty) + 1),
+    stability: resolveStability(Math.max(sMin, harmed)),
+    difficulty: revertDifficulty(Math.min(MAX_DIFFICULTY, resolveDifficulty(difficulty) + 1), p),
   };
+}
+
+/** Helpful use lowers D by `helpfulStep` (floor 1), then reverts toward D₀. */
+export function applyHelpfulDifficulty(difficulty: number, params?: Partial<FsrsParams>): number {
+  const p = resolveParams(params);
+  const step = Number.isFinite(p.helpfulStep) ? Math.max(0, p.helpfulStep as number) : DIFFICULTY_HELPFUL_STEP_DEFAULT;
+  return revertDifficulty(Math.max(MIN_DIFFICULTY, resolveDifficulty(difficulty) - step), p);
 }
 
 /** Apply one FSRS event. `unused` returns the resolved current state. */
@@ -147,8 +212,11 @@ export function applyFsrs(
   const s = resolveStability(stability);
   const d = resolveDifficulty(difficulty);
   if (outcome === "unused") return { stability: s, difficulty: d };
-  if (outcome === "harmful") return applyHarmful(s, d);
-  return { stability: nextStability(s, d, retrievabilityR, params), difficulty: d };
+  if (outcome === "harmful") return applyHarmful(s, d, params);
+  return {
+    stability: nextStability(s, d, retrievabilityR, params),
+    difficulty: applyHelpfulDifficulty(d, params),
+  };
 }
 
 export function retrievabilityFromSource(
@@ -190,6 +258,8 @@ export const Fsrs = {
   clampDifficulty,
   resolveDifficulty,
   nextStability,
+  revertDifficulty,
+  applyHelpfulDifficulty,
   applyHarmful,
   applyFsrs,
   retrievabilityFromSource,
