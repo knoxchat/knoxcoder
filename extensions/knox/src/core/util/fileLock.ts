@@ -54,6 +54,19 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * mkdir failed because someone else holds (or is tearing down) the lock.
+ * On Windows, mkdir of a directory that is pending delete/rename by another
+ * process reports EPERM/EACCES instead of EEXIST.
+ */
+function isContention(e: unknown): boolean {
+  const code = (e as NodeJS.ErrnoException).code;
+  if (code === "EEXIST") {
+    return true;
+  }
+  return process.platform === "win32" && (code === "EPERM" || code === "EACCES" || code === "EBUSY");
+}
+
 function processAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -126,7 +139,7 @@ export async function withFileLock<T>(
       await fs.mkdir(normalized);
       break;
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "EEXIST") {
+      if (!isContention(e)) {
         throw e;
       }
     }
@@ -219,7 +232,7 @@ export function withFileLockSync<T>(
       fsSync.mkdirSync(normalized);
       break;
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "EEXIST") {
+      if (!isContention(e)) {
         throw e;
       }
     }
