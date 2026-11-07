@@ -21,7 +21,7 @@
  */
 
 import { getMemoryConfig, getModeSettings } from "./memoryConfigAccess.js";
-import { memoryWindowBuildFields, resolveMemoryWindow } from "./window.js";
+import { countMemoryTokens, memoryWindowBuildFields, resolveMemoryWindow } from "./window.js";
 import { resolveRetrievalQuery } from "./RetrievalQuery.js";
 import { BrainStore } from "./BrainStore.js";
 import { SleepConsolidation } from "./SleepConsolidation.js";
@@ -809,7 +809,7 @@ export class MemoryPipeline {
         maxTokens: context.w_out ?? input.w_out,
         remember: Boolean(input.llm || input.model),
       });
-      const tokensUsed = Math.ceil(context.context.length / 4);
+      const tokensUsed = countMemoryTokens(context.context);
       BrainManager.recordContextBuild(tokensUsed, context.w ?? window.w);
     }
 

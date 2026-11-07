@@ -7,6 +7,7 @@
  */
 
 import { get } from "./connection.js";
+import { collectBindChunks, sqlPlaceholders } from "./sqlChunks.js";
 
 export type SummaryLeafType = "semantic" | "episodic";
 
@@ -98,10 +99,12 @@ export async function filterUnlinkedSources(sources: SummaryLeafRef[]): Promise<
   for (const type of ["semantic", "episodic"] as const) {
     const ids = unique.filter((s) => s.type === type).map((s) => String(s.id));
     if (ids.length === 0) continue;
-    const rows = await db.all(
-      `SELECT leaf_id FROM brain_summary_tree
-       WHERE kind = 'leaf' AND leaf_type = ? AND leaf_id IN (${ids.map(() => "?").join(",")})`,
-      [type, ...ids],
+    const rows = await collectBindChunks(ids, 1, (chunk) =>
+      db.all(
+        `SELECT leaf_id FROM brain_summary_tree
+         WHERE kind = 'leaf' AND leaf_type = ? AND leaf_id IN (${sqlPlaceholders(chunk.length)})`,
+        [type, ...chunk],
+      ),
     );
     for (const row of rows) {
       existing.add(`${type}:${String((row as { leaf_id: string }).leaf_id)}`);

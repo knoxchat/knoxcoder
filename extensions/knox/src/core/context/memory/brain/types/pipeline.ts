@@ -187,10 +187,16 @@ export interface BuildContextResult {
   inject_budget?: number;
   /** Same as `inject_budget` — min(w_mem_tokens, remainder). */
   w_mem?: number;
+  /** W_mem^min for this W (MEM-70). */
+  w_mem_min?: number;
   /** |C(q)| after assemble, before a budget fail-open (MEM-32). */
   c_use?: number;
-  /** |C(q)| ≤ W. False means this call returned empty memory. */
+  /** |C(q)| + W_out ≤ W. False means this call returned empty memory. */
   budget_invariant_met?: boolean;
+  /** MEM-70: window cannot hold the floor; never truncated. */
+  budget_error?: string;
+  /** MEM-70: model id chosen because the current W was too small. */
+  rerouted_model?: string;
   system_tokens?: number;
   goal_tokens?: number;
   recent_tokens?: number;

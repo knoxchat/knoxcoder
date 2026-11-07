@@ -8,6 +8,8 @@
  */
 
 import {
+  TOKENIZER_MARGIN_DEFAULT,
+  countRoutedTokensWithMargin,
   resolveContextWindow,
   type ContextWindow,
 } from "../../../agent/contextBudget.js";
@@ -122,6 +124,26 @@ export function resolveMemoryWindow(input?: MemoryWindowInput): MemoryWindow {
     return lastRoutedWindow;
   }
   return fromContextWindow(resolveContextWindow({}));
+}
+
+/**
+ * Count a C_* size with the routed model's tokenizer plus tokenizer_margin
+ * (MEM-69). Fallback is chars ÷ 4. `margin` defaults to the theorem 5%.
+ */
+export function countMemoryTokens(
+  text: string,
+  options?: { llm?: unknown; model?: string; margin?: number; window?: MemoryWindow },
+): number {
+  const model =
+    (typeof options?.model === "string" && options.model) ||
+    options?.window?.model ||
+    lastRoutedWindow?.model ||
+    "";
+  return countRoutedTokensWithMargin(text, {
+    llm: options?.llm,
+    model,
+    margin: options?.margin ?? TOKENIZER_MARGIN_DEFAULT,
+  });
 }
 
 /** Caller max_tokens is an inject cap, not W. Ignore the 10M stored ceiling. */

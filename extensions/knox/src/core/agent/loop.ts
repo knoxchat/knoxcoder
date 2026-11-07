@@ -55,8 +55,10 @@ import {
 import {
   COMPACT_TRIGGER_RATIO,
   calibrationRatio,
+  countRoutedTokensWithMargin,
   resolveContextWindow,
 } from "./contextBudget";
+import { fitWindowForCall } from "../context/memory/brain/TaskRouter.js";
 import { resolveMemoryWindow } from "../context/memory/brain/window.js";
 import type { PermissionMode } from "./permissions";
 import {
@@ -734,9 +736,34 @@ export function lastOracleDiagnosticSignature(
 /**
  * One Agent cycle: stream → tools → append → repeat until text-only, cap, abort, or doom-loop.
  */
+function systemOccupancyTokens(messages: ChatMessage[], llm: unknown): number {
+  const model = (llm as { model?: string } | undefined)?.model ?? "";
+  const text = messages
+    .filter((m) => m.role === "system")
+    .map((m) => renderChatMessage(m))
+    .join("\n");
+  return countRoutedTokensWithMargin(text, { llm, model });
+}
+
 export async function runAgentLoop(
   options: AgentLoopOptions,
 ): Promise<AgentLoopResult> {
+  const fit = fitWindowForCall({
+    llm: options.extras.llm,
+    fallbackLlm: options.fallbackLlm,
+    systemTokens: systemOccupancyTokens(options.messages, options.extras.llm),
+  });
+  if (fit.error) {
+    return {
+      stoppedReason: "error",
+      steps: 0,
+      summary: fit.error,
+      messages: options.messages,
+    };
+  }
+  if (fit.rerouted && fit.llm) {
+    (options.extras as { llm: typeof options.extras.llm }).llm = fit.llm as typeof options.extras.llm;
+  }
   resolveMemoryWindow({ llm: options.extras.llm, remember: true });
   const maxSteps = options.maxSteps === undefined ? null : options.maxSteps;
   const abortOnCancelled = options.abortOnCancelled !== false;

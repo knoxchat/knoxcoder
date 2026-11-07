@@ -94,6 +94,8 @@ describe("MEM-32 Budget", () => {
     expect(evaluateBudget(100, 100).met).toBe(true);
     expect(evaluateBudget(101, 100).met).toBe(false);
     expect(evaluateBudget(1, 0).met).toBe(false);
+    expect(evaluateBudget(80, 100, 20).met).toBe(true);
+    expect(evaluateBudget(81, 100, 20).met).toBe(false);
   });
 
   it("buildContext fails open to empty memory when |C(q)| > W", async () => {

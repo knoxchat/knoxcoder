@@ -9,6 +9,7 @@
 
 import { get } from "./connection.js";
 import { auditLog } from "./runtime.js";
+import { collectBindChunks, forBindChunks, sqlPlaceholders } from "./sqlChunks.js";
 
 export type MemoryLeafKind = "semantic" | "episodic";
 
@@ -82,35 +83,38 @@ export async function tombstoneMemories(
 
   let candidates = unique;
   if (kind === "semantic" && !options.includePinned) {
-    const placeholders = unique.map(() => "?").join(",");
-    const pinned = await db.all(
-      `SELECT memory_id FROM brain_tags
-       WHERE memory_type = 'semantic' AND tag = 'pinned'
-       AND memory_id IN (${placeholders})`,
-      unique,
+    const pinned = await collectBindChunks(unique, 0, (chunk) =>
+      db.all(
+        `SELECT memory_id FROM brain_tags
+         WHERE memory_type = 'semantic' AND tag = 'pinned'
+         AND memory_id IN (${sqlPlaceholders(chunk.length)})`,
+        chunk,
+      ) as Promise<Array<{ memory_id: number }>>,
     );
-    const pinnedIds = new Set(pinned.map((r: { memory_id: number }) => Number(r.memory_id)));
+    const pinnedIds = new Set(pinned.map((r) => Number(r.memory_id)));
     candidates = unique.filter((id) => !pinnedIds.has(id));
     if (candidates.length === 0) return 0;
   }
 
-  const placeholders = candidates.map(() => "?").join(",");
-  const live = await db.all(
-    `SELECT * FROM ${table} WHERE id IN (${placeholders}) AND tombstoned_at IS NULL`,
-    candidates,
-  );
-  const fresh = live.map((r: { id: number }) => Number(r.id)).filter((id) => id > 0);
+  const live = await collectBindChunks(candidates, 0, (chunk) =>
+    db.all(
+      `SELECT * FROM ${table} WHERE id IN (${sqlPlaceholders(chunk.length)}) AND tombstoned_at IS NULL`,
+      chunk,
+    ),
+  ) as Array<{ id: number }>;
+  const fresh = live.map((r) => Number(r.id)).filter((id) => id > 0);
   if (fresh.length === 0) return 0;
 
-  const freshPlaceholders = fresh.map(() => "?").join(",");
-  await db.run(
-    `UPDATE ${table}
-     SET tombstoned_at = datetime('now'),
-         tombstone_reason = ?,
-         tier = 'frozen'
-     WHERE id IN (${freshPlaceholders}) AND tombstoned_at IS NULL`,
-    [reason, ...fresh],
-  );
+  await forBindChunks(fresh, 1, async (chunk) => {
+    await db.run(
+      `UPDATE ${table}
+       SET tombstoned_at = datetime('now'),
+           tombstone_reason = ?,
+           tier = 'frozen'
+       WHERE id IN (${sqlPlaceholders(chunk.length)}) AND tombstoned_at IS NULL`,
+      [reason, ...chunk],
+    );
+  });
 
   if (auditEach) {
     const byId = new Map(live.map((r: { id: number }) => [Number(r.id), r]));

@@ -1,7 +1,8 @@
 import { omitJevToolDenialLines } from "../../../jev/toolGate.js";
 import { BrainStore } from "./BrainStore.js";
 import { computeWMem, getContextAssemblyLimits, getMemoryConfig, getModeSettings, getTheoremParams, planRecentShare } from "./memoryConfigAccess.js";
-import { resolveMemoryWindow } from "./window.js";
+import { countMemoryTokens, rememberRoutedWindow, resolveMemoryWindow } from "./window.js";
+import { rerouteForWindow } from "./TaskRouter.js";
 import { getProjectSessionIds } from "./projectScope.js";
 import { resolveRetrievalQuery, contentWords } from "./RetrievalQuery.js";
 import { RetrievalFusion, type FusionResult } from "./RetrievalFusion.js";
@@ -40,9 +41,11 @@ export {
  * nodes) compete on F(X) inside W_mem. Leftover per-section quotas are not
  * the allocator. Selected items are sandwich-ordered (highest at start and
  * end). Token budget is W_mem = min(w_mem_tokens, W − |C_system| − |C_goal|
- * − |C_recent| − W_out) (MEM-28). If C_recent exceeds its share, this call
- * injects the session/tree node and drops raw old turns (MEM-30). Originals
- * stay retrievable. There is no compress-oldest step.
+ * − |C_recent| − W_out) (MEM-28). C_* sizes use the routed-model tokenizer
+ * plus tokenizer_margin (MEM-69). If C_recent would push W_mem below the
+ * floor, this call injects the session/tree node (MEM-30). If the floor still
+ * does not fit, reroute or return an explicit error — never silent truncation
+ * (MEM-70). Originals stay retrievable. There is no compress-oldest step.
  */
 export class ContextBuilder {
   /**
@@ -64,24 +67,75 @@ export class ContextBuilder {
     const assemblyLimits = getContextAssemblyLimits();
     const memoryMode: MemoryMode = input.memory_mode ?? config.memory_mode;
     const mode = getModeSettings(memoryMode);
-    const window = resolveMemoryWindow({
+    let window = resolveMemoryWindow({
       llm: input.llm,
       model: input.model,
       contextLength: input.w,
       maxTokens: input.w_out,
       remember: Boolean(input.llm || input.model),
     });
-    const w = input.w && input.w > 0 ? Math.floor(input.w) : window.w;
-    const wOut = input.w_out && input.w_out > 0 ? Math.floor(input.w_out) : window.wOut;
+    let w = input.w && input.w > 0 ? Math.floor(input.w) : window.w;
+    let wOut = input.w_out && input.w_out > 0 ? Math.floor(input.w_out) : window.wOut;
     const goalText = input.goal?.trim() ? `=== Current Task ===\n${input.goal.trim()}` : null;
     const estimatedGoal = goalText ? ContextSections.estimateTokens(goalText) : 0;
-    const share = planRecentShare({
-      w,
-      wOut,
+    const occupancy = {
       systemTokens: input.system_tokens,
       goalTokens: input.goal_tokens ?? estimatedGoal,
       recentTokens: input.recent_tokens,
+    };
+    let share = planRecentShare({
+      w,
+      wOut,
+      ...occupancy,
     });
+    let reroutedModel: string | undefined;
+    if (share.unsatisfiable) {
+      const needed =
+        (occupancy.systemTokens ?? 0) +
+        (occupancy.goalTokens ?? 0) +
+        wOut +
+        share.wMemMin;
+      const reroute = rerouteForWindow({
+        currentW: w,
+        needed,
+        llm: input.llm,
+      });
+      if (reroute) {
+        window = reroute.window;
+        rememberRoutedWindow(window);
+        w = window.w;
+        wOut = window.wOut;
+        reroutedModel = reroute.modelId;
+        share = planRecentShare({ w, wOut, ...occupancy });
+      }
+    }
+    if (share.unsatisfiable) {
+      const needed =
+        (occupancy.systemTokens ?? 0) +
+        (occupancy.goalTokens ?? 0) +
+        wOut +
+        share.wMemMin;
+      return ContextBuilder.commitBudget({
+        context: "",
+        items: [],
+        w,
+        w_out: wOut,
+        inject_budget: 0,
+        w_mem: 0,
+        w_mem_min: share.wMemMin,
+        system_tokens: occupancy.systemTokens ?? 0,
+        goal_tokens: occupancy.goalTokens ?? 0,
+        recent_tokens: occupancy.recentTokens ?? 0,
+        recent_tokens_raw: share.recentTokensRaw,
+        recent_overflow: false,
+        budget_error:
+          `Memory window too small: need ${needed} tokens ` +
+          `(C_system + C_goal + W_out + W_mem^min), W=${w}. ` +
+          `Route to a larger-window model or shorten system/goal. ` +
+          `The request was not truncated.`,
+        rerouted_model: reroutedModel,
+      }, input.session_id);
+    }
     let overflowNode: SessionOverflowNode | null = null;
     if (share.overflowed && input.session_id) {
       overflowNode = await resolveSessionOverflowNode({
@@ -94,8 +148,8 @@ export class ContextBuilder {
       wOut,
       maxTokensOverride: input.max_tokens,
       window: { ...window, w, wOut },
-      systemTokens: input.system_tokens,
-      goalTokens: input.goal_tokens ?? estimatedGoal,
+      systemTokens: occupancy.systemTokens,
+      goalTokens: occupancy.goalTokens,
       recentTokens: share.recentTokens,
     });
     const wMem = budget.wMem;
@@ -369,9 +423,11 @@ export class ContextBuilder {
       w_out: wOut,
       inject_budget: wMem,
       w_mem: wMem,
+      w_mem_min: budget.wMemMin,
       system_tokens: budget.systemTokens,
       goal_tokens: budget.goalTokens,
       recent_tokens: budget.recentTokens,
+      rerouted_model: reroutedModel,
       cand: candItems,
       ...overflowFields,
     };
@@ -414,7 +470,7 @@ export class ContextBuilder {
   ): Promise<BuildContextResult> {
     return applyBudgetInvariant(result, {
       sessionId,
-      tokens: ContextSections.estimateTokens(result.context ?? ""),
+      tokens: countMemoryTokens(result.context ?? ""),
     });
   }
 

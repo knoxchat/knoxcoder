@@ -144,6 +144,12 @@ export interface MemoryBudget {
   remainder: number;
   /** min(remainder, local w_mem cap, optional tighter override) */
   wMem: number;
+  /** W_mem^min = min(w_mem_floor_tokens, W × w_mem_floor_fraction) (MEM-70). */
+  wMemMin: number;
+  /** Remainder after occupancy is below the floor (caller should overflow C_recent). */
+  belowFloor: boolean;
+  /** C_system + C_goal + W_out + W_mem^min > W even with C_recent = 0. */
+  unsatisfiable: boolean;
 }
 
 function nonNegInt(value?: number): number {
@@ -151,6 +157,27 @@ function nonNegInt(value?: number): number {
     return 0;
   }
   return Math.floor(value);
+}
+
+/**
+ * W_mem^min = min(1K, W/8). Never negative. A window smaller than the floor
+ * even with C_recent = 0 is unsatisfiable (MEM-70).
+ */
+export function wMemFloor(
+  w: number,
+  options?: { tokens?: number; fraction?: number },
+): number {
+  const window = Math.max(0, Math.floor(w));
+  const tokens = Math.max(
+    0,
+    Math.floor(options?.tokens ?? getTheoremParamsV2().wMemFloorTokens),
+  );
+  const fraction = options?.fraction ?? getTheoremParamsV2().wMemFloorFraction;
+  const frac = Number.isFinite(fraction) && fraction > 0 ? fraction : 1 / 8;
+  if (window === 0 || tokens === 0) {
+    return 0;
+  }
+  return Math.min(tokens, Math.floor(window * frac));
 }
 
 /** Local C_mem cap (`w_mem_tokens`, default 4096). Not a third 8k constant. */
@@ -209,7 +236,22 @@ export function computeWMem(options?: {
   const localCap = getMemoryInjectHardCap();
   const requested = sanitizeInjectOverride(options?.maxTokensOverride);
   const wMem = Math.max(0, Math.min(remainder, localCap, requested ?? remainder));
-  return { w, wOut, systemTokens, goalTokens, recentTokens, remainder, wMem };
+  const wMemMin = wMemFloor(w);
+  const usable = Math.max(0, w - systemTokens - goalTokens - wOut);
+  const unsatisfiable = usable < wMemMin;
+  const belowFloor = remainder < wMemMin;
+  return {
+    w,
+    wOut,
+    systemTokens,
+    goalTokens,
+    recentTokens,
+    remainder,
+    wMem,
+    wMemMin,
+    belowFloor,
+    unsatisfiable,
+  };
 }
 
 export interface RecentSharePlan {
@@ -220,12 +262,17 @@ export interface RecentSharePlan {
   /** |C_recent| after overflow collapse (this call only). */
   recentTokens: number;
   overflowed: boolean;
+  /** W_mem^min for this W (MEM-70). */
+  wMemMin: number;
+  /** Even C_recent = 0 cannot meet the floor. */
+  unsatisfiable: boolean;
 }
 
 /**
- * MEM-30 — C_recent's share is the usable window after reserving W_mem.
- * Overflow only when recent occupancy leaves no remainder (it ate W_mem).
- * Then old turns collapse to `recentShare` so C_mem recovers.
+ * MEM-30 / MEM-70 — C_recent's share is the usable window after reserving W_mem.
+ * Overflow when keeping recent turns would push W_mem below the floor (or to
+ * 0). Then old turns collapse to `recentShare` so C_mem recovers. If the floor
+ * still does not fit, the caller reroutes or errors — never silent truncation.
  */
 export function planRecentShare(options: {
   w: number;
@@ -241,17 +288,21 @@ export function planRecentShare(options: {
   const goalTokens = nonNegInt(options.goalTokens);
   const recentTokensRaw = nonNegInt(options.recentTokens);
   const usable = Math.max(0, w - systemTokens - goalTokens - wOut);
+  const wMemMin = wMemFloor(w);
   const wMemCap = Math.max(0, Math.floor(options.wMemCap ?? getMemoryInjectHardCap()));
   const reservedMem = Math.min(wMemCap, usable);
   const recentShare = Math.max(0, usable - reservedMem);
-  const remainder = Math.max(0, usable - recentTokensRaw);
-  const overflowed = recentTokensRaw > 0 && remainder === 0;
+  const wMemIfKept = Math.max(0, usable - recentTokensRaw);
+  const unsatisfiable = usable < wMemMin;
+  const overflowed = !unsatisfiable && recentTokensRaw > 0 && wMemIfKept < wMemMin;
   return {
     usable,
     recentShare,
     recentTokensRaw,
     recentTokens: overflowed ? recentShare : recentTokensRaw,
     overflowed,
+    wMemMin,
+    unsatisfiable,
   };
 }
 

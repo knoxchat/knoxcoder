@@ -1,7 +1,8 @@
 import { BrainStore } from "./BrainStore.js";
 import { KnowledgeGraph } from "./KnowledgeGraph.js";
 import { LearningEngine } from "./LearningEngine.js";
-import { getBudgetQueryAdjustments, getBudgetRatios, getContextAssemblyLimits, getMemoryConfig, getTheoremParams, type ModeSettings } from "./memoryConfigAccess.js";
+import { getBudgetQueryAdjustments, getBudgetRatios, getContextAssemblyLimits, getMemoryConfig, getTheoremParams, getTheoremParamsV2, type ModeSettings } from "./memoryConfigAccess.js";
+import { countMemoryTokens } from "./window.js";
 import { filterSemanticByProjectScope, getProjectSessionIds } from "./projectScope.js";
 import { contentWords } from "./RetrievalQuery.js";
 import { recipeMemoryIsVerified } from "../recipes/memoryLink.js";
@@ -982,14 +983,6 @@ export class ContextSections {
   }
 
   static estimateTokens(text: string): number {
-    // Try to use the LLM's actual tokenizer via BrainManager
-    try {
-      if (_BrainManager) {
-        return _BrainManager.countTokensAccurate(text);
-      }
-    } catch {
-      // fall through
-    }
-    return Math.ceil(text.length / 4);
+    return countMemoryTokens(text, { margin: getTheoremParamsV2().tokenizerMargin });
   }
 }

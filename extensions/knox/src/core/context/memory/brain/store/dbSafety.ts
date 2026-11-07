@@ -13,6 +13,7 @@ import sqlite3 from "sqlite3";
 import { open } from "sqlite";
 
 import { brainState } from "./state.js";
+import { collectBindChunks, forBindChunks, sqlPlaceholders } from "./sqlChunks.js";
 
 /** Bump when `migrateSchema` gains a step. 0 = created before versioning (1.138.x, 2.0.0-beta). */
 export const BRAIN_SCHEMA_VERSION = 1;
@@ -289,27 +290,30 @@ async function tombstoneLeafIds(
   if (unique.length === 0) return 0;
   let candidates = unique;
   if (kind === "semantic") {
-    const placeholders = unique.map(() => "?").join(",");
-    const pinned = await db.all<{ memory_id: number }>(
-      `SELECT memory_id FROM brain_tags
-       WHERE memory_type = 'semantic' AND tag = 'pinned'
-         AND memory_id IN (${placeholders})`,
-      unique,
-    ).catch(() => [] as { memory_id: number }[]);
-    const pinnedIds = new Set((pinned ?? []).map((row) => Number(row.memory_id)));
+    const pinned = await collectBindChunks(unique, 0, (chunk) =>
+      db.all<{ memory_id: number }>(
+        `SELECT memory_id FROM brain_tags
+         WHERE memory_type = 'semantic' AND tag = 'pinned'
+           AND memory_id IN (${sqlPlaceholders(chunk.length)})`,
+        chunk,
+      ).catch(() => [] as { memory_id: number }[]),
+    );
+    const pinnedIds = new Set(pinned.map((row) => Number(row.memory_id)));
     candidates = unique.filter((id) => !pinnedIds.has(id));
   }
   if (candidates.length === 0) return 0;
-  const placeholders = candidates.map(() => "?").join(",");
-  const n = await tryRun(
-    db,
-    `UPDATE ${table}
-     SET tombstoned_at = datetime('now'),
-         tombstone_reason = ?,
-         tier = 'frozen'
-     WHERE id IN (${placeholders}) AND tombstoned_at IS NULL`,
-    [SIZE_CAP_REASON, ...candidates],
-  );
+  let n = 0;
+  await forBindChunks(candidates, 1, async (chunk) => {
+    n += await tryRun(
+      db,
+      `UPDATE ${table}
+       SET tombstoned_at = datetime('now'),
+           tombstone_reason = ?,
+           tier = 'frozen'
+       WHERE id IN (${sqlPlaceholders(chunk.length)}) AND tombstoned_at IS NULL`,
+      [SIZE_CAP_REASON, ...chunk],
+    );
+  });
   if (n > 0) await auditSizeCap(db, kind, candidates);
   return n;
 }

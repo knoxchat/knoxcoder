@@ -263,7 +263,7 @@ describe("MEM-29 ContextBuilder assembly", () => {
     expect(titles.length).toBe(2);
     const recalled = built.context.replace(/[\s\S]*on using that tool.\]/, "");
     const memoryOnly = recalled.replace(/=== Current Task ===[\s\S]*$/, "").replace("</memory-context>", "");
-    expect(ContextSections.estimateTokens(memoryOnly)).toBeLessThanOrEqual(50 + 8);
+    expect(ContextSections.estimateTokens(memoryOnly)).toBeLessThanOrEqual((built.w_mem ?? 0) + 16);
   });
 
   it("leftover computeBudget shares are not the live allocator", () => {

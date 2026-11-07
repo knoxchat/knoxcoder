@@ -4,8 +4,8 @@
  *
  * Replaces “a phase ran in the last hour” as `cycle_invariant_met`.
  *
- *   Budget:        |C(q)| ≤ W on every buildContext. Over-budget fails open
- *                  to empty memory and writes an audit row.
+ *   Budget:        |C(q)| + W_out ≤ W on every buildContext. Over-budget
+ *                  fails open to empty memory and writes an audit row.
  *   Reachability:  every non-tombstoned semantic/episodic id is in at least
  *                  one of FTS, ripgrep corpus, graph, or the summary tree.
  *   Losslessness:  every summary-tree leaf is an original row or a tombstone.
@@ -21,6 +21,7 @@
 import type { BuildContextResult } from "./types.js";
 import { get } from "./store/connection.js";
 import { auditLog } from "./store/runtime.js";
+import { collectBindChunks, sqlPlaceholders } from "./store/sqlChunks.js";
 import { findStaleSketches, type StaleSketch } from "./store/treeSketches.js";
 import type { DatabaseConnection } from "../../../util/refreshIndex.js";
 
@@ -41,6 +42,7 @@ export interface BudgetInvariantResult {
   checked: boolean;
   c_use: number;
   w: number;
+  w_out: number;
   at: number;
 }
 
@@ -129,6 +131,7 @@ const emptyBudget = (): BudgetInvariantResult => ({
   checked: false,
   c_use: 0,
   w: 0,
+  w_out: 0,
   at: 0,
 });
 
@@ -204,15 +207,17 @@ function finiteInt(value: number, fallback = 0): number {
   return Math.floor(value);
 }
 
-/** |C(q)| ≤ W. Unchecked callers treat a missing window as 0 (only empty inject is safe). */
-export function evaluateBudget(cUse: number, w: number): BudgetInvariantResult {
+/** |C(q)| + W_out ≤ W (rev 21 / MEM-70). Missing window is 0 (only empty inject is safe). */
+export function evaluateBudget(cUse: number, w: number, wOut = 0): BudgetInvariantResult {
   const use = Math.max(0, finiteInt(cUse));
   const window = Math.max(0, finiteInt(w));
+  const out = Math.max(0, finiteInt(wOut));
   return {
-    met: use <= window,
+    met: use + out <= window,
     checked: true,
     c_use: use,
     w: window,
+    w_out: out,
     at: Date.now(),
   };
 }
@@ -222,7 +227,7 @@ export function recordBudgetInvariant(budget: BudgetInvariantResult): void {
 }
 
 /**
- * After assemble: if |C(q)| > W, fail open to empty memory and audit.
+ * After assemble: if |C(q)| + W_out > W, fail open to empty memory and audit.
  * `tokens` should be the same estimator the builder used for C_use.
  */
 export async function applyBudgetInvariant(
@@ -230,8 +235,9 @@ export async function applyBudgetInvariant(
   options: { sessionId?: string; tokens?: number } = {},
 ): Promise<BuildContextResult> {
   const w = result.w != null && Number.isFinite(result.w) ? Math.floor(result.w) : 0;
+  const wOut = result.w_out != null && Number.isFinite(result.w_out) ? Math.floor(result.w_out) : 0;
   const tokens = options.tokens ?? Math.ceil((result.context ?? "").length / 4);
-  const budget = evaluateBudget(tokens, w);
+  const budget = evaluateBudget(tokens, w, wOut);
   recordBudgetInvariant(budget);
   if (budget.met) {
     return { ...result, c_use: budget.c_use, budget_invariant_met: true };
@@ -239,6 +245,7 @@ export async function applyBudgetInvariant(
   await auditLog(AUDIT_BUDGET, "pipeline", options.sessionId ?? null, {
     c_use: budget.c_use,
     w: budget.w,
+    w_out: budget.w_out,
     met: false,
   });
   return {
@@ -457,19 +464,21 @@ export async function checkLosslessness(
   const existingSemantic = new Set<number>();
   const existingEpisodic = new Set<number>();
   if (semanticIds.size > 0) {
-    const placeholders = [...semanticIds].map(() => "?").join(",");
-    const rows = (await db.all(
-      `SELECT id FROM brain_semantic WHERE id IN (${placeholders})`,
-      [...semanticIds],
-    )) as Array<{ id: number }>;
+    const rows = await collectBindChunks([...semanticIds], 0, (chunk) =>
+      db.all(
+        `SELECT id FROM brain_semantic WHERE id IN (${sqlPlaceholders(chunk.length)})`,
+        chunk,
+      ) as Promise<Array<{ id: number }>>,
+    );
     for (const row of rows) existingSemantic.add(Number(row.id));
   }
   if (episodicIds.size > 0) {
-    const placeholders = [...episodicIds].map(() => "?").join(",");
-    const rows = (await db.all(
-      `SELECT id FROM brain_episodic WHERE id IN (${placeholders})`,
-      [...episodicIds],
-    )) as Array<{ id: number }>;
+    const rows = await collectBindChunks([...episodicIds], 0, (chunk) =>
+      db.all(
+        `SELECT id FROM brain_episodic WHERE id IN (${sqlPlaceholders(chunk.length)})`,
+        chunk,
+      ) as Promise<Array<{ id: number }>>,
+    );
     for (const row of rows) existingEpisodic.add(Number(row.id));
   }
 
@@ -526,14 +535,26 @@ async function indexedIds(
   ids: number[],
 ): Promise<Set<number>> {
   if (ids.length === 0) return new Set();
-  const marks = ids.map(() => "?").join(",");
+  const found = new Set<number>();
   try {
-    const rows = (await db.all(`SELECT id FROM ${table}_docsize WHERE id IN (${marks})`, ids)) as Array<{ id: number }>;
-    return new Set(rows.map((r) => Number(r.id)));
+    const rows = await collectBindChunks(ids, 0, (chunk) =>
+      db.all(
+        `SELECT id FROM ${table}_docsize WHERE id IN (${sqlPlaceholders(chunk.length)})`,
+        chunk,
+      ) as Promise<Array<{ id: number }>>,
+    );
+    for (const row of rows) found.add(Number(row.id));
+    return found;
   } catch {
     try {
-      const rows = (await db.all(`SELECT rowid AS id FROM ${table} WHERE rowid IN (${marks})`, ids)) as Array<{ id: number }>;
-      return new Set(rows.map((r) => Number(r.id)));
+      const rows = await collectBindChunks(ids, 0, (chunk) =>
+        db.all(
+          `SELECT rowid AS id FROM ${table} WHERE rowid IN (${sqlPlaceholders(chunk.length)})`,
+          chunk,
+        ) as Promise<Array<{ id: number }>>,
+      );
+      for (const row of rows) found.add(Number(row.id));
+      return found;
     } catch {
       return new Set();
     }

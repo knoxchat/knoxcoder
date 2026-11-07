@@ -30,6 +30,7 @@ import { refitCalibration, type CalibrationRefitResult } from "./calibration.js"
 import { runRefit, type RefitRunResult } from "./refit.js";
 import { contentWords } from "./RetrievalQuery.js";
 import { recomputeMemoryTiers } from "./store/tiers.js";
+import { forBindChunks, sqlPlaceholders } from "./store/sqlChunks.js";
 import { checkStoreInvariants, type StoreInvariantReport } from "./invariants.js";
 import type {
   ConsolidationResult,
@@ -320,11 +321,12 @@ export class SleepConsolidation {
         });
         if (insightId && sourceRefs.length > 0) {
           const ids = [...new Set(sourceRefs.map((s) => s.id))];
-          const placeholders = ids.map(() => "?").join(",");
-          await db.run(
-            `UPDATE brain_episodic SET parent_id = ? WHERE id IN (${placeholders}) AND parent_id IS NULL`,
-            [insightId, ...ids],
-          );
+          await forBindChunks(ids, 1, async (chunk) => {
+            await db.run(
+              `UPDATE brain_episodic SET parent_id = ? WHERE id IN (${sqlPlaceholders(chunk.length)}) AND parent_id IS NULL`,
+              [insightId, ...chunk],
+            );
+          });
         }
         distilled++;
       }

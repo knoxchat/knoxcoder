@@ -67,7 +67,21 @@ export type {
 export { MemoryPipeline } from "./MemoryPipeline.js";
 export { PrefrontalCortex, formatMemoryGoal } from "./regions/PrefrontalCortex.js";
 export { SensoryBuffer, SENSORY_LIFETIME } from "./SensoryBuffer.js";
-export { TaskRouter } from "./TaskRouter.js";
+export {
+  TaskRouter,
+  scoreDifficulty,
+  routeModel,
+  scoreAndRoute,
+  detectTaskType,
+  difficultyFromDelta,
+  rerouteForWindow,
+  fitWindowForCall,
+  neededMemoryWindow,
+  MemoryBudgetError,
+  DELTA_EASY_MAX,
+  DELTA_HARD_MIN,
+} from "./TaskRouter.js";
+export type { TaskDifficulty, TaskType, TaskScoreInput, TaskScoreResult, TaskRouteResult, WindowReroute, FitWindowResult } from "./TaskRouter.js";
 export { expandQuerySynonyms } from "./EnhancedSemantic.js";
 export {
   WorkingMemory,
@@ -101,6 +115,7 @@ export {
   getContextMaxTokens,
   computeWMem,
   getMemoryInjectHardCap,
+  wMemFloor,
 } from "./memoryConfigAccess.js";
 export type { FusionWeightProfile, FusionWeights, MemoryBudget, MemoryOccupancy } from "./memoryConfigAccess.js";
 export {
@@ -111,6 +126,7 @@ export {
   isMemoryContextCeiling,
   sanitizeInjectOverride,
   memoryWindowBuildFields,
+  countMemoryTokens,
 } from "./window.js";
 export type { MemoryWindow, MemoryWindowInput } from "./window.js";
 export {

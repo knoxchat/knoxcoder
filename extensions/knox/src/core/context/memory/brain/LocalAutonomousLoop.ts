@@ -236,6 +236,17 @@ export class LocalAutonomousLoop {
           w: routedLlm ? undefined : route.w,
           w_out: routedLlm ? undefined : route.wOut,
         });
+        if (preTurn.context?.budget_error) {
+          finalResult = preTurn.context.budget_error;
+          break;
+        }
+        if (preTurn.context?.rerouted_model && input.resolveModel) {
+          const resolved = await input.resolveModel(preTurn.context.rerouted_model);
+          if (resolved) {
+            routedLlm = resolved;
+            resolveMemoryWindow({ llm: routedLlm, remember: true });
+          }
+        }
 
         if (abort.signal.aborted) {
           cancelled = true;

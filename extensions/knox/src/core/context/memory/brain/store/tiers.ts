@@ -14,6 +14,7 @@ import {
 import type { MemoryTier } from "../types.js";
 import { get } from "./connection.js";
 import { decompressContent } from "./compression.js";
+import { SQLITE_BIND_CHUNK, forBindChunks, sqlPlaceholders, yieldEventLoop } from "./sqlChunks.js";
 
 export type MemoryLeafKind = "semantic" | "episodic";
 
@@ -149,11 +150,13 @@ async function applyTierUpdates(
   const table = TABLES[kind];
   for (const [tier, ids] of updates) {
     if (ids.length === 0) continue;
-    const placeholders = ids.map(() => "?").join(",");
-    await db.run(
-      `UPDATE ${table} SET tier = ? WHERE id IN (${placeholders}) AND tombstoned_at IS NULL`,
-      [tier, ...ids],
-    );
+    // extra bind: the tier itself. Chunk so we stay under SQLITE_MAX_VARIABLE_NUMBER.
+    await forBindChunks(ids, 1, async (chunk) => {
+      await db.run(
+        `UPDATE ${table} SET tier = ? WHERE id IN (${sqlPlaceholders(chunk.length)}) AND tombstoned_at IS NULL`,
+        [tier, ...chunk],
+      );
+    });
   }
 }
 
@@ -180,6 +183,7 @@ export async function recomputeMemoryTiers(
   const semUpdates = new Map<MemoryTier, number[]>();
   const epiUpdates = new Map<MemoryTier, number[]>();
 
+  let classified = 0;
   for (const row of semanticRows) {
     const from = isMemoryTier(row.tier) ? row.tier : "hot";
     const to = classifyRow("semantic", row, active, pinned, nowMs);
@@ -189,6 +193,8 @@ export async function recomputeMemoryTiers(
       list.push(row.id);
       semUpdates.set(to, list);
     }
+    classified++;
+    if (classified % SQLITE_BIND_CHUNK === 0) await yieldEventLoop();
   }
   for (const row of episodicRows) {
     const from = isMemoryTier(row.tier) ? row.tier : "hot";
@@ -199,6 +205,8 @@ export async function recomputeMemoryTiers(
       list.push(row.id);
       epiUpdates.set(to, list);
     }
+    classified++;
+    if (classified % SQLITE_BIND_CHUNK === 0) await yieldEventLoop();
   }
 
   await applyTierUpdates("semantic", semUpdates);

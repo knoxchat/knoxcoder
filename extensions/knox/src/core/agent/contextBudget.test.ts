@@ -3,9 +3,14 @@ import type { ChatMessage } from "..";
 
 import { compileChatMessages } from "../llm/countTokens";
 import {
+  applyTokenizerMargin,
   calibrationRatio,
   computeContextUsage,
+  countRoutedTokens,
+  countRoutedTokensWithMargin,
+  estimateCharRatioTokens,
   resolveContextWindow,
+  TOKENIZER_MARGIN_DEFAULT,
 } from "./contextBudget";
 import { createAgentLoopCompactor, type AgentLoopCompactor } from "./loop";
 
@@ -49,6 +54,19 @@ describe("calibration and meter", () => {
     const w = resolveContextWindow({ model: "x", contextLength: 10000 });
     const u = computeContextUsage([{ role: "user", content: "hi" }], w, 5000);
     expect(u).toMatchObject({ used: 5000, limit: 10000, ratio: 0.5, source: "reported" });
+  });
+
+  it("MEM-69: estimates use the routed tokenizer plus a 5% margin", () => {
+    expect(TOKENIZER_MARGIN_DEFAULT).toBe(0.05);
+    expect(estimateCharRatioTokens("abcd")).toBe(1);
+    expect(applyTokenizerMargin(100)).toBe(105);
+    const llm = { countTokens: (t: string) => t.length };
+    expect(countRoutedTokens("abcd", llm)).toBe(4);
+    expect(countRoutedTokensWithMargin("abcd", { llm, margin: 0.05 })).toBe(5);
+    const w = resolveContextWindow({ model: "x", contextLength: 10_000 });
+    const estimated = computeContextUsage([{ role: "user", content: "hi" }], w);
+    expect(estimated.source).toBe("estimated");
+    expect(estimated.used).toBeGreaterThan(0);
   });
 });
 

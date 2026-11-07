@@ -4,7 +4,9 @@ import { BrainStore } from "../BrainStore.js";
 import { KnowledgeGraph } from "../KnowledgeGraph.js";
 import { LlmMemoryService } from "../LlmMemoryService.js";
 import { brainRuntime } from "./state.js";
-import { estimateImportance, estimateTokens } from "./helpers.js";
+import { estimateImportance } from "./helpers.js";
+import { countMemoryTokens } from "../window.js";
+import { getTheoremParamsV2 } from "../memoryConfigAccess.js";
 import { summarizeSession } from "./summarize.js";
 
 // ── LLM-Enhanced Features ─────────────────────────────────────────────────
@@ -69,8 +71,8 @@ export async function llmPostActionMemory(
 }
 
 /**
- * Local context-budget estimate (chars ÷ 4). KnoxChat bills at the provider.
+ * Routed-model tokenizer plus tokenizer_margin (MEM-69). Fallback: chars ÷ 4.
  */
 export function countTokensAccurate(text: string): number {
-  return estimateTokens(text);
+  return countMemoryTokens(text, { margin: getTheoremParamsV2().tokenizerMargin });
 }

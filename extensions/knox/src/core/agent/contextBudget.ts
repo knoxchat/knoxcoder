@@ -11,6 +11,10 @@ export const COMPACT_TRIGGER_RATIO = 0.75;
 /** Used only when nothing at all is known about the model. */
 export const UNKNOWN_CONTEXT_FALLBACK = 128_000;
 const DEFAULT_MAX_TOKENS = 2048;
+/** Fallback estimator: chars ÷ 4. Used when the routed model has no tokenizer. */
+export const CHAR_RATIO_FALLBACK = 4;
+/** Theorem tokenizer_margin: inflate every estimated C_* size for tokenizer drift. */
+export const TOKENIZER_MARGIN_DEFAULT = 0.05;
 
 export interface ContextWindow {
   /** Name used for local token counting. */
@@ -72,6 +76,64 @@ export function resolveContextWindow(llm: unknown): ContextWindow {
   return { model: model || "anthropic/claude-sonnet-5.5", contextLength, maxTokens, source };
 }
 
+/** Char-ratio token estimate (chars ÷ 4). Fallback when no model tokenizer is available. */
+export function estimateCharRatioTokens(text: string): number {
+  if (!text) {
+    return 0;
+  }
+  return Math.ceil(text.length / CHAR_RATIO_FALLBACK);
+}
+
+/**
+ * Inflate a counted size by tokenizer_margin so estimates stay on the safe
+ * side of tokenizer drift. Reported provider usage must not pass through here.
+ */
+export function applyTokenizerMargin(
+  tokens: number,
+  margin: number = TOKENIZER_MARGIN_DEFAULT,
+): number {
+  if (!(tokens > 0) || !Number.isFinite(tokens)) {
+    return 0;
+  }
+  const m = Number.isFinite(margin) && margin >= 0 ? margin : TOKENIZER_MARGIN_DEFAULT;
+  return Math.ceil(tokens * (1 + m));
+}
+
+/**
+ * Count tokens with the routed model's tokenizer (`llm.countTokens`).
+ * Fallback: char-ratio estimator. Does not apply tokenizer_margin.
+ */
+export function countRoutedTokens(
+  text: string,
+  llm?: unknown,
+  model?: string,
+): number {
+  if (!text) {
+    return 0;
+  }
+  const handle = (llm ?? (model ? { model } : undefined)) as
+    | { countTokens?: (t: string) => number; model?: string }
+    | undefined;
+  if (handle && typeof handle.countTokens === "function") {
+    const n = Number(handle.countTokens(text));
+    if (Number.isFinite(n) && n >= 0) {
+      return Math.ceil(n);
+    }
+  }
+  return estimateCharRatioTokens(text);
+}
+
+/** Routed-model count plus tokenizer_margin (MEM-69). */
+export function countRoutedTokensWithMargin(
+  text: string,
+  options?: { llm?: unknown; model?: string; margin?: number },
+): number {
+  return applyTokenizerMargin(
+    countRoutedTokens(text, options?.llm, options?.model),
+    options?.margin,
+  );
+}
+
 /**
  * Ratio of provider-reported prompt tokens to our local estimate, clamped.
  * Used to scale the local window so estimates converge on real usage.
@@ -94,7 +156,10 @@ export function computeContextUsage(
     reportedPromptTokens !== undefined && reportedPromptTokens > 0
       ? reportedPromptTokens
       : undefined;
-  const used = reported ?? totalMessageTokens(messages, window.model);
+  const estimated = applyTokenizerMargin(
+    totalMessageTokens(messages, window.model),
+  );
+  const used = reported ?? estimated;
   return {
     used,
     limit,

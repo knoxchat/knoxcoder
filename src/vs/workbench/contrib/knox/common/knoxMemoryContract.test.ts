@@ -116,6 +116,7 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 		}
 		const access = repoFile('extensions/knox/src/core/context/memory/brain/memoryConfigAccess.ts');
 		assert.ok(access.includes('REFIT_KEYS'));
+		assert.ok(access.includes('export function wMemFloor'));
 		const contract = repoFile('extensions/knox/docs/knox-memory-checkpoint.md');
 		assert.ok(contract.includes('Revision notes 16'));
 		const invariants = repoFile('extensions/knox/src/core/context/memory/brain/invariants.ts');
@@ -124,6 +125,13 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 		const provenance = repoFile('extensions/knox/src/core/context/memory/brain/provenance.ts');
 		assert.ok(provenance.includes('user: 1.0'));
 		assert.ok(provenance.includes('export function canSupersede'));
+		const router = repoFile('extensions/knox/src/core/context/memory/brain/TaskRouter.ts');
+		assert.ok(router.includes('DELTA_EASY_MAX = 0.3'));
+		assert.ok(router.includes('DELTA_HARD_MIN = 0.7'));
+		assert.ok(router.includes('export function detectTaskType'));
+		assert.ok(router.includes('export function fitWindowForCall'));
+		const windowSrc = repoFile('extensions/knox/src/core/context/memory/brain/window.ts');
+		assert.ok(windowSrc.includes('export function countMemoryTokens'));
 		// Erasure assertions land with MEM-73.
 	});
 
