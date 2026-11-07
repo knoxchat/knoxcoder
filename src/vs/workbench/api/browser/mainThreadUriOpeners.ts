@@ -72,7 +72,8 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 			canOpen: (uri, token) => {
 				return this.proxy.$canOpenUri(id, uri, token);
 			},
-			openExternalUri: async (uri, ctx, token) => {
+			openExternalUri: async (href, ctx, token) => {
+				const uri = URI.parse(href);
 				try {
 					await this.proxy.$openUri(id, { resolvedUri: uri, sourceUri: ctx.sourceUri }, token);
 				} catch (e) {
@@ -83,7 +84,7 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 								allowContributedOpeners: defaultExternalUriOpenerId,
 							});
 						});
-						openDefaultAction.tooltip = uri.toString();
+						openDefaultAction.tooltip = href;
 
 						this.notificationService.notify({
 							severity: Severity.Error,

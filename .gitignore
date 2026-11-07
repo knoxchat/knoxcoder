@@ -17,7 +17,7 @@ build/darwin/.dmgbuild
 coverage/
 test_data/
 test-results/
-test-results.xml
+test-results*.xml
 vscode.lsif
 vscode.db
 /.profile-oss

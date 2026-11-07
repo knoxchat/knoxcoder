@@ -26,6 +26,7 @@ export const all = Object.freeze<string[]>([
 	'!out*/**',
 	'!extensions/**/out*/**',
 	'!test/**/out/**',
+	'!build/ripple/target/**',
 	'!**/node_modules/**',
 	'!**/*.js.map',
 ]);
@@ -128,6 +129,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	// except multiple specific files
 	'!**/package.json',
 	'!**/package-lock.json',
+	'!**/Cargo.lock',
 
 	// except multiple specific folders
 	'!**/codicon/**',
@@ -197,6 +199,8 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!**/*.yml',
 	'!**/*.yaml',
 	'!**/*.provisionprofile',
+	'!**/*.toml',
+	'!**/Cargo.lock',
 	'!build/**/*.init',
 	'!build/darwin/patch-dmg.py',
 	'!build/linux/libcxx-fetcher.*',

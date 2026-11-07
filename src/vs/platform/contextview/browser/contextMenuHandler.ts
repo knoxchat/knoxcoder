@@ -125,7 +125,7 @@ export class ContextMenuHandler {
 			},
 
 			focus: () => {
-				menu?.focus(!!delegate.autoSelectFirstItem);
+				menu?.focus(!!delegate.autoSelectItem);
 			},
 
 			onHide: (didCancel?: boolean) => {

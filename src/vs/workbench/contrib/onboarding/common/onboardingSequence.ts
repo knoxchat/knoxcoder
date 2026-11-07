@@ -30,6 +30,7 @@ export interface IOnboardingSequenceStepContext extends IOnboardingRunContext {
 	readonly visualStepCount: number;
 	readonly canGoBack: boolean;
 	readonly isLastVisualStep: boolean;
+	readonly onDidShow?: () => void;
 }
 
 /** Traversal result returned by one sequence step. */

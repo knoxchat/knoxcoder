@@ -72,7 +72,6 @@ const compilations = [
 	'extensions/json-language-features/server/tsconfig.json',
 	'extensions/markdown-language-features/tsconfig.json',
 	'extensions/markdown-math/tsconfig.json',
-	'extensions/media-preview/tsconfig.json',
 	'extensions/merge-conflict/tsconfig.json',
 	'extensions/mermaid-markdown-features/tsconfig.json',
 	'extensions/terminal-suggest/tsconfig.json',
@@ -216,7 +215,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 				onExtensionCompilationEnd();
 				result.emit('end');
 			});
-			return result;
+			return result as NodeJS.ReadWriteStream;
 		}, 200));
 		const watchStream = merge(nonts.pipe(gulp.dest(out)), watchNonTs, tsgoStream);
 

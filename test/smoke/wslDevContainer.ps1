@@ -52,7 +52,10 @@ function Format-WslResult($Result) {
 }
 
 function Save-Download([string] $Url, [string] $Destination) {
-	curl.exe --fail --location --retry 5 --retry-all-errors --retry-max-time 120 --connect-timeout 30 --max-time 180 --output $Destination $Url
+	# curl only retries until --retry-max-time has passed, so it is longer than --max-time, or a transfer that runs until
+	# --max-time would never be retried. Below 1 MiB/s, the 210-325 MiB downloads can't finish within --max-time, so such
+	# a transfer is stopped after 30 seconds and retried on a fresh connection.
+	curl.exe --fail --location --retry 5 --retry-all-errors --retry-max-time 300 --connect-timeout 30 --max-time 180 --speed-limit 1048576 --speed-time 30 --output $Destination $Url
 	if ($LASTEXITCODE -ne 0) {
 		throw "Download failed with exit code ${LASTEXITCODE}: $Url"
 	}
@@ -246,10 +249,30 @@ $linuxArchive = $wslPath.Output.Trim()
 if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/_.-]+$') {
 	throw 'Cannot safely resolve the Linux server archive path.'
 }
+# From the Azure-hosted agents, archive.ubuntu.com and security.ubuntu.com are at times so slow that apt runs past this
+# command's timeout, so apt uses the Azure Ubuntu mirror, and retries downloads that fail.
+# The Azure mirror usually serves the 80 MB of packages in 2-17 seconds, but its package files can come at only about
+# 250 KB/s for minutes on every connection (its index files stay fast), and the mirror is at times unreachable. A slow
+# but progressing download therefore gets the whole budget of this command rather than a per-attempt wall clock, while
+# a connection that stops sending data fails after 30 seconds and apt retries it. apt only warns about index files it
+# could not fetch, so the index update fails on any fetch error and is retried.
+$aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3'
 Invoke-Wsl @"
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y --no-install-recommends ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3
+sed -i -e 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' -e 's|http://security.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list
+printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries
+retry() {
+	for attempt in 1 2 3; do
+		if "`$@"; then
+			return 0
+		fi
+		echo "Attempt `$attempt of 3 failed: `$*" >&2
+	done
+	return 1
+}
+retry timeout --kill-after=10 45 apt-get update --error-on=any
+retry apt-get install -y --download-only --no-install-recommends $aptPackages
+apt-get install -y --no-install-recommends $aptPackages
 mkdir -p /opt/vscode-smoke-server
 tar -xzf '$linuxArchive' --strip-components=1 -C /opt/vscode-smoke-server
 /opt/vscode-smoke-server/node --version
@@ -257,7 +280,7 @@ test -f /opt/vscode-smoke-server/out/bootstrap-fork.js
 useradd --create-home --shell /bin/bash vscode-smoke
 usermod -aG docker vscode-smoke
 printf '[user]\ndefault=vscode-smoke\n' > /etc/wsl.conf
-"@
+"@ 720
 if ((Invoke-WslExe -ArgumentList '--terminate', $Distribution).ExitCode -ne 0) {
 	throw 'Failed to restart the owned distribution to apply its non-root default user.'
 }

@@ -142,7 +142,8 @@ function createExtensionGalleryManifestService(): IExtensionGalleryManifestServi
 		extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Available,
 		onDidChangeExtensionGalleryManifestStatus: Event.None,
 		onDidChangeExtensionGalleryManifest: Event.None,
-		getExtensionGalleryManifest: async () => extensionGalleryManifest
+		getExtensionGalleryManifest: async () => extensionGalleryManifest,
+		getAccessToken: async () => undefined
 	};
 }
 

@@ -10,8 +10,11 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { ICanonicalUriService } from '../../../../../platform/workspace/common/canonicalUri.js';
+import { CanonicalUriService } from '../../common/canonicalUriService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -41,10 +44,15 @@ suite('Workspace Trust', () => {
 		environmentService = {} as IWorkbenchEnvironmentService;
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 
-		const fileService = store.add(new FileService(new NullLogService()));
+		const logService = new NullLogService();
+		const fileService = store.add(new FileService(logService));
 		const uriIdentityService = store.add(new UriIdentityService(fileService));
+		const canonicalUriService = store.add(new CanonicalUriService());
 
+		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IUriIdentityService, uriIdentityService);
+		instantiationService.stub(ICanonicalUriService, canonicalUriService);
+		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() { });
 	});
 

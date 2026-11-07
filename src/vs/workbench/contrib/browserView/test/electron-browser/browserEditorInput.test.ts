@@ -19,6 +19,7 @@ import { BrowserEditorInput, BrowserEditorSerializer, IBrowserEditorInputData } 
 import { BrowserViewSharingState, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IUntypedEditorInput, Verbosity } from '../../../../common/editor.js';
 import { applyAvailableEditorIds } from '../../../../common/contextkeys.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { type PreferredGroup } from '../../../../services/editor/common/editorService.js';
@@ -119,33 +120,33 @@ suite('BrowserEditorInput', () => {
 			untypedResource: input.resource.toString(),
 			override: BrowserEditorInput.EDITOR_ID
 		});
+	});
 
-		test('reports sharing availability from the model state', () => {
-			const input = createInput({ id: 'sharing-state-browser' });
-			let sharingState = BrowserViewSharingState.BlockedByNetworkPolicy;
-			input.model = new class extends mock<IBrowserViewModel>() {
-				override get sharingState(): BrowserViewSharingState { return sharingState; }
-				override readonly onWillDispose = Event.None;
-				override readonly onDidClose = Event.None;
-				override readonly onDidChangeTitle = Event.None;
-				override readonly onDidChangeFavicon = Event.None;
-				override readonly onDidChangeLoadingState = Event.None;
-			}();
+	test('reports sharing availability from the model state', () => {
+		const input = createInput({ id: 'sharing-state-browser' });
+		let sharingState = BrowserViewSharingState.BlockedByNetworkPolicy;
+		input.model = new class extends mock<IBrowserViewModel>() {
+			override get sharingState(): BrowserViewSharingState { return sharingState; }
+			override readonly onWillDispose = Event.None;
+			override readonly onDidClose = Event.None;
+			override readonly onDidChangeTitle = Event.None;
+			override readonly onDidChangeFavicon = Event.None;
+			override readonly onDidChangeLoadingState = Event.None;
+		}();
 
-			const blocked = input.isSharingAvailable;
-			sharingState = BrowserViewSharingState.Available;
-			const notShared = input.isSharingAvailable;
-			sharingState = BrowserViewSharingState.Shared;
-			const shared = input.isSharingAvailable;
-			sharingState = BrowserViewSharingState.Unavailable;
-			const unavailable = input.isSharingAvailable;
+		const blocked = input.isSharingAvailable;
+		sharingState = BrowserViewSharingState.Available;
+		const notShared = input.isSharingAvailable;
+		sharingState = BrowserViewSharingState.Shared;
+		const shared = input.isSharingAvailable;
+		sharingState = BrowserViewSharingState.Unavailable;
+		const unavailable = input.isSharingAvailable;
 
-			assert.deepStrictEqual({ blocked, notShared, shared, unavailable }, {
-				blocked: false,
-				notShared: true,
-				shared: true,
-				unavailable: false,
-			});
+		assert.deepStrictEqual({ blocked, notShared, shared, unavailable }, {
+			blocked: false,
+			notShared: true,
+			shared: true,
+			unavailable: false,
 		});
 	});
 
@@ -310,7 +311,7 @@ suite('BrowserEditorInput', () => {
 		}, {}, {}));
 		const contextKey = new RawContextKey<string>('browserEditorAvailableEditorIds', '').bindTo(instantiationService.get(IContextKeyService));
 
-		applyAvailableEditorIds(contextKey, input, editorResolverService);
+		applyAvailableEditorIds(contextKey, input, editorResolverService, instantiationService.get(IModelService));
 
 		assert.strictEqual(contextKey.get()?.split(',').includes('test.browserEditor'), true);
 	});

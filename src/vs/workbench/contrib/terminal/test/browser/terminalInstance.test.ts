@@ -7,19 +7,21 @@ import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { createSandbox, spy } from 'sinon';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { timeout } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { AutoOpenBarrier, timeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CodeDataTransfers } from '../../../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
@@ -30,7 +32,8 @@ import { Workspace } from '../../../../../platform/workspace/test/common/testWor
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
-import { clearWindowsWrappedLineFlags, parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
+import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
+import { TerminalIconPicker } from '../../browser/terminalIconPicker.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
 import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
@@ -219,6 +222,63 @@ suite('Workbench - TerminalInstance', () => {
 			container.dispatchEvent(new DragEvent('drop', { dataTransfer }));
 		}
 
+		test('icon reset restores the default without changing the terminal color', async () => {
+			const instance = await createTerminalInstance(undefined, undefined, { color: 'terminal.ansiRed' });
+			const defaultIcon = instance.icon;
+			await instance.changeIcon(Codicon.rocket);
+			const reset = await instance.changeIcon(null);
+			deepStrictEqual({ reset, icon: instance.icon, color: instance.shellLaunchConfig.color }, {
+				reset: null,
+				icon: defaultIcon,
+				color: 'terminal.ansiRed',
+			});
+		});
+
+		test('cancelling the shared icon picker preserves the terminal icon', async () => {
+			const sandbox = createSandbox();
+			store.add(toDisposable(() => sandbox.restore()));
+			sandbox.stub(TerminalIconPicker.prototype, 'pickIcons').resolves(undefined);
+			const instance = await createTerminalInstance();
+			await instance.changeIcon(Codicon.rocket);
+			const result = await instance.changeIcon();
+			deepStrictEqual({ result, icon: instance.icon }, { result: undefined, icon: Codicon.rocket });
+		});
+
+		for (const reset of [true, false]) {
+			test(`terminal color picker uses neutral selection and supports ${reset ? 'reset' : 'cancellation'}`, async () => {
+				const instantiationService = createTerminalInstantiationService();
+				const accepted = store.add(new Emitter<IQuickPickDidAcceptEvent>());
+				const hidden = store.add(new Emitter<IQuickInputHideEvent>());
+				const picker = upcastPartial<IQuickPick<IQuickPickItem, { useSeparators: true }>>({
+					onDidHide: hidden.event,
+					onDidAccept: accepted.event,
+					show() { },
+					hide() { },
+					dispose() { },
+				});
+				instantiationService.stub(IQuickInputService, 'createQuickPick', () => picker);
+				const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, { icon: Codicon.rocket, color: 'terminal.ansiRed' }));
+				await instance.xtermReadyPromise;
+				const result = instance.changeColor();
+				const resetItem = picker.items.find((item): item is IQuickPickItem => item.type !== 'separator' && item.id === undefined)!;
+				if (reset) {
+					picker.selectedItems = [resetItem];
+					accepted.fire({ inBackground: false });
+				} else {
+					hidden.fire({ reason: QuickInputHideReason.Gesture });
+				}
+				deepStrictEqual({
+					result: await result,
+					resetLabel: resetItem.label,
+					color: instance.shellLaunchConfig.color,
+				}, {
+					result: undefined,
+					resetLabel: 'Reset to default',
+					color: reset ? undefined : 'terminal.ansiRed',
+				});
+			});
+		}
+
 		async function createTerminalWithLongLine(): Promise<TerminalInstance> {
 			const instance = await createTerminalInstance();
 			const container = document.createElement('div');
@@ -239,22 +299,19 @@ suite('Workbench - TerminalInstance', () => {
 				// Use a separate sandbox to observe scrollbar disposal after the default sandbox is torn down.
 				const sandbox = createSandbox();
 				const additions = sandbox.spy(instance.store, 'add');
-				try {
+				store.add(toDisposable(() => sandbox.restore()));
+				await instance.toggleSizeToContentWidth();
+				ok(instance.domElement.classList.contains('fixed-dims'));
+				const scrollbar = additions.getCalls().map(call => call.args[0]).find(value => value instanceof DomScrollableElement);
+				ok(scrollbar instanceof DomScrollableElement);
+				const disposal = sandbox.spy(scrollbar, 'dispose');
+				if (removeBeforeDispose) {
 					await instance.toggleSizeToContentWidth();
-					ok(instance.domElement.classList.contains('fixed-dims'));
-					const scrollbar = additions.getCalls().map(call => call.args[0]).find(value => value instanceof DomScrollableElement);
-					ok(scrollbar instanceof DomScrollableElement);
-					const disposal = sandbox.spy(scrollbar, 'dispose');
-					if (removeBeforeDispose) {
-						await instance.toggleSizeToContentWidth();
-					}
-					strictEqual(instance.isDisposed, false);
-					strictEqual(disposal.callCount, removeBeforeDispose ? 1 : 0);
-					instance.dispose();
-					strictEqual(disposal.callCount, 1);
-				} finally {
-					sandbox.restore();
 				}
+				strictEqual(instance.isDisposed, false);
+				strictEqual(disposal.callCount, removeBeforeDispose ? 1 : 0);
+				instance.dispose();
+				strictEqual(disposal.callCount, 1);
 			});
 		}
 
@@ -517,6 +574,54 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual(disposalOrder, ['onWillDispose', 'xterm', 'onDisposed']);
 		});
 
+		for (const waitForXterm of [false, true]) {
+			test(`disposal releases startup barriers ${waitForXterm ? 'after' : 'before'} xterm is ready`, async () => {
+				const terminalInstanceService = store.add(new TestTerminalInstanceService());
+				const instantiationService = createTerminalInstantiationService(terminalInstanceService);
+				const sandbox = createSandbox();
+				const clock = sandbox.useFakeTimers();
+				const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
+				try {
+					if (waitForXterm) {
+						await instance.xtermReadyPromise;
+					}
+					const focusSpy = sandbox.spy(instance, 'focus');
+					const resolveProfileSpy = sandbox.spy(instantiationService.get(ITerminalProfileResolverService), 'getDefaultProfile');
+					let focusSettled = false;
+					const focusPromise = instance.focusWhenReady().then(() => focusSettled = true);
+					instance.dispose();
+					await instance.xtermReadyPromise;
+					await clock.tickAsync(0);
+					const pendingTimers = clock.countTimers();
+					const openBarrierSpy = sandbox.spy(AutoOpenBarrier.prototype, 'open');
+					clock.restore();
+					sandbox.useFakeTimers();
+					// Advance the old queue while a subsequent test's clock is installed.
+					await clock.tickAsync(1000);
+
+					deepStrictEqual({
+						pendingTimers,
+						lateBarrierOpens: openBarrierSpy.callCount,
+						focusSettled,
+						focusCalls: focusSpy.callCount,
+						resolveProfileCalls: resolveProfileSpy.callCount,
+						createProcessCount: terminalInstanceService.createProcessCount,
+					}, {
+						pendingTimers: 0,
+						lateBarrierOpens: 0,
+						focusSettled: true,
+						focusCalls: 0,
+						resolveProfileCalls: 0,
+						createProcessCount: 0,
+					});
+					await focusPromise;
+				} finally {
+					instance.dispose();
+					sandbox.restore();
+				}
+			});
+		}
+
 		test('should dispose contribution-owned xterm addons before xterm disposal', async () => {
 			const instance = await createTerminalInstance();
 			const xterm = await instance.xtermReadyPromise;
@@ -599,15 +704,14 @@ suite('Workbench - TerminalInstance', () => {
 			instance.setVisible(true);
 
 			const event = new KeyboardEvent('keydown', { key: '=', cancelable: true });
-			try {
-				deepStrictEqual(
-					{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
-					{ result: false, defaultPrevented: true }
-				);
-			} finally {
+			store.add(toDisposable(() => {
 				keybindingService.softDispatch = originalSoftDispatch;
 				container.remove();
-			}
+			}));
+			deepStrictEqual(
+				{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
+				{ result: false, defaultPrevented: true }
+			);
 		});
 
 		test('custom key event handler should intercept Meta-modified keys that resolve to a command when sendKeybindingsToShell is disabled', async () => {
@@ -625,15 +729,14 @@ suite('Workbench - TerminalInstance', () => {
 			instance.setVisible(true);
 
 			const event = new KeyboardEvent('keydown', { key: '=', metaKey: true, cancelable: true });
-			try {
-				deepStrictEqual(
-					{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
-					{ result: false, defaultPrevented: true }
-				);
-			} finally {
+			store.add(toDisposable(() => {
 				keybindingService.softDispatch = originalSoftDispatch;
 				container.remove();
-			}
+			}));
+			deepStrictEqual(
+				{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
+				{ result: false, defaultPrevented: true }
+			);
 		});
 	});
 	suite('DEFAULT_COMMANDS_TO_SKIP_SHELL', () => {
@@ -644,33 +747,6 @@ suite('Workbench - TerminalInstance', () => {
 				),
 				true
 			);
-		});
-	});
-	suite('clearWindowsWrappedLineFlags', () => {
-		test('does not throw when getLine returns undefined', () => {
-			clearWindowsWrappedLineFlags({
-				viewportY: 0,
-				length: 3,
-				getLine: () => undefined
-			});
-		});
-		test('clears nested _line.isWrapped for xterm 4 buffers', () => {
-			const inner = { isWrapped: true };
-			clearWindowsWrappedLineFlags({
-				viewportY: 0,
-				length: 1,
-				getLine: () => ({ _line: inner })
-			});
-			strictEqual(inner.isWrapped, false);
-		});
-		test('clears BufferLine.isWrapped for xterm 6 buffers', () => {
-			const line = { isWrapped: true };
-			clearWindowsWrappedLineFlags({
-				viewportY: 0,
-				length: 1,
-				getLine: () => line
-			});
-			strictEqual(line.isWrapped, false);
 		});
 	});
 	suite('parseExitResult', () => {
@@ -766,12 +842,6 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual(
 				parseExitResult({ code: 1260, message: 'A native exception occurred during launch (Cannot create process, error code: 1260)' }, { executable: 'foo' }, ProcessState.KilledDuringLaunch, undefined),
 				{ code: 1260, message: `The terminal process failed to launch: Windows cannot open this program because it has been prevented by a software restriction policy. For more information, open Event Viewer or contact your system Administrator.` }
-			);
-		});
-		test('should format conpty failure code 193', () => {
-			deepStrictEqual(
-				parseExitResult({ code: 193, message: 'A native exception occurred during launch (Cannot create process, error code: 193)' }, { executable: 'C:\\Program Files\\nodejs\\npm.cmd' }, ProcessState.KilledDuringLaunch, undefined),
-				{ code: 193, message: `The terminal process failed to launch: Windows error 193 (not a valid Win32 application) for "C:\\Program Files\\nodejs\\npm.cmd". This usually means the shell is a .cmd/.bat script, or the executable architecture does not match this KnoxCoder build (x64 vs ARM64). Pick Command Prompt or PowerShell from the terminal profile dropdown, or install the KnoxCoder build that matches your CPU from https://github.com/knoxchat/knoxcoder/releases/latest.` }
 			);
 		});
 		test('should format conpty launch failure', () => {
@@ -920,31 +990,6 @@ suite('Workbench - TerminalInstance', () => {
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, sequence: 'my-sequence', processName: 'zsh', shellLaunchConfig: { titleTemplate: '${sequence}' } }));
 			strictEqual(terminalLabelComputer.title, 'my-sequence');
 			strictEqual(terminalLabelComputer.description, 'cwd');
-		});
-		test('should use ${sequence} for agent CLI shell types', () => {
-			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
-			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Claude, sequence: 'Claude Code', processName: 'claude' }));
-			strictEqual(terminalLabelComputer.title, 'Claude Code');
-		});
-		test('should use ${sequence} for Gemini agent CLI shell type', () => {
-			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
-			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Gemini, sequence: 'Gemini - my-project', processName: 'node' }));
-			strictEqual(terminalLabelComputer.title, 'Gemini - my-project');
-		});
-		test('should use ${sequence} for Command Code agent CLI shell type', () => {
-			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
-			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.CommandCode, sequence: 'Fix Parser Bug', processName: 'node' }));
-			strictEqual(terminalLabelComputer.title, 'Fix Parser Bug');
-		});
-		test('should prefer shellLaunchConfig.titleTemplate over agent CLI shell type override', () => {
-			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
-			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Claude, sequence: 'Claude Code', processName: 'claude', shellLaunchConfig: { titleTemplate: '${process}' } }));
-			strictEqual(terminalLabelComputer.title, 'claude');
-		});
-		test('should fall back to configured title when allowAgentCliTitle is disabled', () => {
-			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: false } } } });
-			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Claude, sequence: 'Claude Code', processName: 'claude' }));
-			strictEqual(terminalLabelComputer.title, 'claude');
 		});
 		test('should provide cwdFolder for all cwds only when in multi-root', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } } } });

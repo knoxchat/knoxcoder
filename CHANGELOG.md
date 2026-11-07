@@ -5,6 +5,13 @@ All notable changes to KnoxCoder are documented in this file.
 
 ### Changed
 
+- **Upgrade editor host to VS Code 1.145.2**
+  Merged upstream `microsoft/vscode` 1.145.2 editor, workbench, terminal, Git, Markdown editor, and Electron 43.8.3 (`ms_build_id` 15784459) changes while keeping Knox branding, Open VSX gallery, the native TypeScript 7 toolchain, and Knox Agent isolated from upstream AI.
+
+  Editor-side additions from 1.144–1.145.2: `files.exclude` / `search.exclude` `!` exception patterns, Timeline API finalized (`registerWorkspaceTimelineProvider`, `TimelineItem.resourceUri`), Mermaid subgraph titles, media preview moved into the workbench, Windows terminal dialog reparenting, Markdown preview refresh before a hidden panel rebuild, task-system readiness and terminal auto-reply leak fixes, Electron 43.8.3, and the 1.145.2 restricted-event drop.
+
+  Not adopted from upstream: Copilot harness, Chat, Agents window, Agent Host, MCP, canvases, prompt/skill packs, inline chat, dictation, on-device models, Copilot CLI installer, sandbox/agent telemetry, experiment assignment, and related SDKs — KnoxCoder stays slim and uses its own Knox Agent.
+
 - **New-version popup.** When an update is available, KnoxCoder now shows a centered "Update Available" dialog with the new version, the size, the GitHub release notes, and Skip Version / Later / Download & Install. It shows download progress and then installs and restarts without further clicks. Turn it off with `update.showModal`; reopen it from the command palette with "Show Available Update".
 
 ## [2.3.1] - 2026-11-02

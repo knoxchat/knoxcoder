@@ -433,7 +433,11 @@ const terminalPlatformConfiguration: IConfigurationNode = {
  * Registers terminal configurations required by shared process and remote server.
  */
 export function registerTerminalPlatformConfiguration() {
-	Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(terminalPlatformConfiguration);
+	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	// Each PtyHostService constructs this; a second register strips keys from the shared node.
+	if (!registry.getConfigurationProperties()[TerminalSettingId.AutomationProfileLinux]) {
+		registry.registerConfiguration(terminalPlatformConfiguration);
+	}
 	registerTerminalDefaultProfileConfiguration();
 }
 

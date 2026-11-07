@@ -86,5 +86,5 @@ export function createTsgoStream(projectPath: string, config: { taskName: string
 		stream.emit('error', err);
 	});
 
-	return stream;
+	return stream as NodeJS.ReadWriteStream;
 }

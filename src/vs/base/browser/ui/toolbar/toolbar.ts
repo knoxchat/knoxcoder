@@ -45,6 +45,10 @@ export interface IToolBarOptions {
 	toggleMenuTitle?: string;
 	anchorAlignmentProvider?: () => AnchorAlignment;
 	renderDropdownAsChildElement?: boolean;
+	/**
+	 * Host dropdown menus as popovers inside the dropdown element, see {@link IContextMenuDelegate.hostAsPopover}.
+	 */
+	renderDropdownAsPopover?: boolean;
 	moreIcon?: ThemeIcon;
 	allowContextMenu?: boolean;
 	skipTelemetry?: boolean;
@@ -130,6 +134,7 @@ export class ToolBar extends Disposable {
 							classNames: ThemeIcon.asClassNameArray(options.moreIcon ?? Codicon.toolBarMore),
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
 							menuAsChild: !!this.options.renderDropdownAsChildElement,
+							menuAsPopover: !!this.options.renderDropdownAsPopover,
 							skipTelemetry: this.options.skipTelemetry,
 							isMenu: true,
 							hoverDelegate: this.options.hoverDelegate
@@ -161,6 +166,7 @@ export class ToolBar extends Disposable {
 							classNames: action.class,
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
 							menuAsChild: !!this.options.renderDropdownAsChildElement,
+							menuAsPopover: !!this.options.renderDropdownAsPopover,
 							skipTelemetry: this.options.skipTelemetry,
 							hoverDelegate: this.options.hoverDelegate
 						}

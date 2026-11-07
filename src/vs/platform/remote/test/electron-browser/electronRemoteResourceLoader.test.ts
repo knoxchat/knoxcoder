@@ -13,7 +13,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IFileContent, IFileService } from '../../../files/common/files.js';
 import { IMainProcessService } from '../../../ipc/common/mainProcessService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse } from '../../common/electronRemoteResources.js';
-import { ElectronRemoteResourceLoader } from '../../electron-browser/electronRemoteResourceLoader.js';
+import { createBrowserResourceUriProvider, ElectronRemoteResourceLoader } from '../../electron-browser/electronRemoteResourceLoader.js';
+import { BrowserResourceService } from '../../../files/browser/browserResourceService.js';
 
 suite('ElectronRemoteResourceLoader', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -44,7 +45,8 @@ suite('ElectronRemoteResourceLoader', () => {
 				};
 			}
 		}();
-		const loader = store.add(new ElectronRemoteResourceLoader(windowId, mainProcessService, fileService));
+		const browserResources = store.add(new BrowserResourceService(createBrowserResourceUriProvider(windowId), fileService));
+		const loader = store.add(new ElectronRemoteResourceLoader(windowId, mainProcessService, fileService, browserResources));
 		assert.ok(channel);
 		return { loader, channel, reads };
 	}

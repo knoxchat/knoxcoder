@@ -36,6 +36,7 @@
 	"exclude": [
 		"vs/platform/agentHost/**",
 		"vs/platform/agentPlugins/**",
+		"vs/platform/artifactIntegrations/**",
 		"vs/platform/chat/**",
 		"vs/platform/localTranscription/**",
 		"vs/platform/mcp/**",
