@@ -52,6 +52,14 @@ async function reset(): Promise<void> {
   await db.exec("DELETE FROM brain_sessions");
 }
 
+async function ageSession(sessionId: string): Promise<void> {
+  const db = await BrainStore.get();
+  await db.run(
+    `UPDATE brain_sessions SET updated_at = datetime('now', '-2 hours') WHERE id = ?`,
+    [sessionId],
+  );
+}
+
 async function fusionHits(query: string, id: number, type: "episodic" | "semantic"): Promise<boolean> {
   const hits = await RetrievalFusion.search({
     query,
@@ -100,6 +108,7 @@ describe("MEM-04 stop age/retention DELETE", () => {
        WHERE id = ?`,
       [id],
     );
+    await ageSession(sessionId);
 
     const result = await BrainStore.consolidate();
     expect(result.pruned).toBe(0);
@@ -152,6 +161,7 @@ describe("MEM-04 stop age/retention DELETE", () => {
        WHERE id = ?`,
       [id],
     );
+    await ageSession(sessionId);
     const aged = (await db.get("SELECT created_at FROM brain_episodic WHERE id = ?", [id])) as {
       created_at: string;
     };
@@ -192,6 +202,7 @@ describe("MEM-04 stop age/retention DELETE", () => {
        WHERE id = ?`,
       [id],
     );
+    await ageSession(sessionId);
 
     const result = await FiveTierHierarchy.consolidate();
     expect(result.pruned).toBe(0);

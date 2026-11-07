@@ -69,7 +69,7 @@ workspace CP  ──workspace_checkpoint_id──►  brain CP (rewind pin)
 2. Brain lifecycle cleanup **must not** evict a snapshot that has `workspace_checkpoint_id` (`CheckpointManager.runLifecycleCleanup`).
 3. Recipe blob pins (`registerRecipeBlobPins` / `recipeBlobPins.ts`) keep live-recipe `blob_hash`es off the workspace GC list (MC-12). Call at host init when recipes are on, and again on capture/replay (idempotent).
 4. `max_bytes` on `brain.sqlite` is a disk valve. It is not a reason to treat checkpoints as `C_addr`.
-5. `builtin_memory` delete / forget and TTL tombstone the leaf (row + FTS stay). Privacy wipe (`knox.memoryBrain.wipe`) tombstones first, then hard-deletes the live sqlite. Pinned rows are exempt from forget/TTL, not from wipe.
+5. `builtin_memory` delete / forget and TTL **erase** the leaf (content-free tombstone; FTS, graph, summaries, and snapshots scrubbed). `archive` is the reversible path (frozen, out of default retrieve). Privacy wipe (`knox.memoryBrain.wipe`) erases first, then hard-deletes the live sqlite. Pinned rows are exempt from forget/TTL, not from wipe.
 
 ---
 

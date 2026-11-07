@@ -43,6 +43,7 @@ interface TierRow {
   category?: string | null;
   last_accessed_at?: string | null;
   created_at?: string | null;
+  session_key?: string | null;
 }
 
 const TABLES: Record<MemoryLeafKind, "brain_semantic" | "brain_episodic"> = {
@@ -51,9 +52,9 @@ const TABLES: Record<MemoryLeafKind, "brain_semantic" | "brain_episodic"> = {
 };
 
 const SEMANTIC_SELECT = `id, tier, importance_score, i0, helpful_count, unhelpful_count,
-  stability, category, last_accessed_at, created_at`;
+  stability, category, last_accessed_at, created_at, source_session_id AS session_key`;
 const EPISODIC_SELECT = `id, tier, importance_score, i0, helpful_count, unhelpful_count,
-  stability, created_at`;
+  stability, created_at, session_id AS session_key`;
 
 function emptyResult(): RecomputeTiersResult {
   return { promoted: 0, demoted: 0, unchanged: 0, active: 0, frozen: 0 };
@@ -106,6 +107,26 @@ async function resolveActiveKeys(
   return workingMemoryActiveKeys(await loadWorkingMemoryItems());
 }
 
+function sqliteDatetime(ms: number): string {
+  return new Date(ms).toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "");
+}
+
+async function loadActiveSessionIds(nowMs: number): Promise<Set<string>> {
+  try {
+    const { getTheoremParamsV2 } = await import("../memoryConfigAccess.js");
+    const minutes = Math.max(1, Math.floor(getTheoremParamsV2().activeSessionMinutes) || 30);
+    const db = await get();
+    const cutoff = sqliteDatetime(nowMs - minutes * 60 * 1000);
+    const rows = (await db.all(
+      `SELECT id FROM brain_sessions WHERE updated_at >= datetime(?)`,
+      [cutoff],
+    )) as Array<{ id: string }>;
+    return new Set(rows.map((r) => String(r.id)).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
 async function loadPinnedSemanticIds(): Promise<Set<number>> {
   const db = await get();
   const rows = await db.all(
@@ -120,9 +141,12 @@ function classifyRow(
   active: ReadonlySet<string>,
   pinned: ReadonlySet<number>,
   nowMs: number,
+  activeSessions: ReadonlySet<string> = new Set(),
 ): MemoryTier {
+  const sessionKey = row.session_key ? String(row.session_key) : "";
   const options: ClassifyTierOptions = {
     inWorkingMemory: isActiveMemory(kind, row.id, active),
+    inActiveSession: sessionKey.length > 0 && activeSessions.has(sessionKey),
     pinned: kind === "semantic" && pinned.has(row.id),
   };
   return classifyMemoryTier(
@@ -170,6 +194,7 @@ export async function recomputeMemoryTiers(
   const db = await get();
   const nowMs = options.nowMs ?? Date.now();
   const active = await resolveActiveKeys(options.active);
+  const activeSessions = await loadActiveSessionIds(nowMs);
   const pinned = await loadPinnedSemanticIds();
   const result = emptyResult();
 
@@ -186,7 +211,7 @@ export async function recomputeMemoryTiers(
   let classified = 0;
   for (const row of semanticRows) {
     const from = isMemoryTier(row.tier) ? row.tier : "hot";
-    const to = classifyRow("semantic", row, active, pinned, nowMs);
+    const to = classifyRow("semantic", row, active, pinned, nowMs, activeSessions);
     recordChange(result, from, to);
     if (to !== row.tier) {
       const list = semUpdates.get(to) ?? [];
@@ -198,7 +223,7 @@ export async function recomputeMemoryTiers(
   }
   for (const row of episodicRows) {
     const from = isMemoryTier(row.tier) ? row.tier : "hot";
-    const to = classifyRow("episodic", row, active, pinned, nowMs);
+    const to = classifyRow("episodic", row, active, pinned, nowMs, activeSessions);
     recordChange(result, from, to);
     if (to !== row.tier) {
       const list = epiUpdates.get(to) ?? [];
@@ -211,6 +236,12 @@ export async function recomputeMemoryTiers(
 
   await applyTierUpdates("semantic", semUpdates);
   await applyTierUpdates("episodic", epiUpdates);
+  try {
+    const { syncFrozenSegment } = await import("./frozenSegment.js");
+    await syncFrozenSegment();
+  } catch {
+    // Frozen FTS is additive.
+  }
   return result;
 }
 
@@ -291,11 +322,13 @@ export async function applyMemoryTier(
   ) as { tombstoned_at: string | null } | undefined;
   if (tombstoned?.tombstoned_at) return "frozen";
 
+  const nowMs = options.nowMs ?? Date.now();
   const active = await resolveActiveKeys(options.active);
   if (options.inWorkingMemory) active.add(memoryRefKey(kind, memId));
   const pinned = kind === "semantic" ? await loadPinnedSemanticIds() : new Set<number>();
   if (options.pinned) pinned.add(memId);
-  const next = classifyRow(kind, row, active, pinned, options.nowMs ?? Date.now());
+  const activeSessions = await loadActiveSessionIds(nowMs);
+  const next = classifyRow(kind, row, active, pinned, nowMs, activeSessions);
   if (next !== row.tier) {
     await db.run(
       `UPDATE ${table} SET tier = ? WHERE id = ? AND tombstoned_at IS NULL`,

@@ -95,7 +95,7 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 		assert.match(readme, /[Mm]easured recall/);
 	});
 
-	test('KN-317: theorem parameter block v2 defaults (MEM-45); Freshness invariant (MEM-54); Erasure pending MEM-73', () => {
+	test('KN-317: theorem parameter block v2 defaults (MEM-45); Freshness (MEM-54); Erasure (MEM-73)', () => {
 		const store = repoFile('extensions/knox/src/core/context/memory/brain/store/state.ts');
 		for (const entry of [
 			'stability_max_days: 3650',
@@ -122,6 +122,17 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 		const invariants = repoFile('extensions/knox/src/core/context/memory/brain/invariants.ts');
 		assert.ok(invariants.includes('export async function checkFreshness'));
 		assert.ok(invariants.includes('checkFreshness({ db, audit: options.audit })'));
+		assert.ok(invariants.includes('export async function checkErasure'));
+		assert.ok(invariants.includes('checkErasure({ db, audit: options.audit })'));
+		const sleep = repoFile('extensions/knox/src/core/context/memory/brain/SleepConsolidation.ts');
+		assert.ok(sleep.includes('dedup,reconcile,tree,index,archive,refit'));
+		assert.ok(sleep.includes('Tombstone is only forget/TTL/privacy'));
+		const idle = repoFile('extensions/knox/src/core/context/memory/brain/idleSleep.ts');
+		assert.ok(idle.includes('MEM-74'));
+		const tiers = repoFile('extensions/knox/src/core/context/memory/brain/Tiers.ts');
+		assert.ok(tiers.includes('inActiveSession'));
+		const frozen = repoFile('extensions/knox/src/core/context/memory/brain/store/frozenSegment.ts');
+		assert.ok(frozen.includes('brain_semantic_fts_frozen'));
 		const provenance = repoFile('extensions/knox/src/core/context/memory/brain/provenance.ts');
 		assert.ok(provenance.includes('user: 1.0'));
 		assert.ok(provenance.includes('export function canSupersede'));
@@ -132,7 +143,6 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 		assert.ok(router.includes('export function fitWindowForCall'));
 		const windowSrc = repoFile('extensions/knox/src/core/context/memory/brain/window.ts');
 		assert.ok(windowSrc.includes('export function countMemoryTokens'));
-		// Erasure assertions land with MEM-73.
 	});
 
 	test('KN-313: MemoryPipeline pre_turn / post_turn injects fenced context, fail-open', () => {

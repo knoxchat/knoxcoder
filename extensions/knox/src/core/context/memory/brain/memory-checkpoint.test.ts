@@ -150,7 +150,7 @@ describe("memory checkpoints", () => {
       importance: 0.5,
     });
     await BrainStore.removeTag("semantic", first, "pinned");
-    await BrainStore.deleteSemantic(first);
+    await BrainStore.archiveMemories("semantic", [first]);
 
     await BrainManager.rollbackCheckpoint(checkpoint.id);
 
@@ -361,18 +361,17 @@ describe("memory checkpoints", () => {
     const forgotten = await BrainStore.getSemanticById(original);
     expect(forgotten).not.toBeNull();
     expect(forgotten?.tombstoned_at).toBeTruthy();
+    expect(String(forgotten?.content ?? "").trim()).toBe("");
     const undoable = await CheckpointManager.getUndoableOperations(20);
     const deleteEntry = undoable.find(
       (entry) =>
-        (entry.action === "tombstone" || entry.action === "delete")
+        (entry.action === "forget" || entry.action === "tombstone" || entry.action === "delete")
         && String(entry.target_id) === String(original),
     );
-    expect(deleteEntry).toBeTruthy();
-    const undone = await CheckpointManager.undoOperation(deleteEntry!.id);
-    expect(undone.success).toBe(true);
-    const restored = await BrainStore.getSemanticById(original);
-    expect(restored).not.toBeNull();
-    expect(restored?.tombstoned_at).toBeFalsy();
+    expect(deleteEntry).toBeFalsy();
+    const stillGone = await BrainStore.getSemanticById(original);
+    expect(stillGone?.tombstoned_at).toBeTruthy();
+    expect(String(stillGone?.content ?? "").trim()).toBe("");
   });
 
   it("prunes checkpoint rows whose snapshot files are missing", async () => {
@@ -470,7 +469,6 @@ describe("memory checkpoints", () => {
     });
     await db.run("DELETE FROM brain_recipe_steps WHERE recipe_id = ?", [captured.id]);
     await db.run("DELETE FROM brain_recipes WHERE id = ?", [captured.id]);
-    await BrainStore.deleteSemantic(captured.memoryId);
 
     const result = await rewindMemoryForWorkspaceCheckpoint({
       sessionId,

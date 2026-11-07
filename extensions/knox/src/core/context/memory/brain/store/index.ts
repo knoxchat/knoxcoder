@@ -18,6 +18,7 @@ import * as compression from "./compression.js";
 import * as summaryTree from "./summaryTree.js";
 import * as valence from "./valence.js";
 import * as tombstone from "./tombstone.js";
+import * as erasure from "./erasure.js";
 import * as fsrs from "./fsrs.js";
 import * as tiers from "./tiers.js";
 import * as attribution from "./attribution.js";
@@ -73,6 +74,7 @@ export class BrainStore {
   static storeSemanticDeduped = semantic.storeSemanticDeduped;
   static searchSemantic = semantic.searchSemantic;
   static deleteSemantic = semantic.deleteSemantic;
+  static archiveSemantic = semantic.archiveSemantic;
   static recordMismatch = semantic.recordMismatch;
   static findDuplicates = semantic.findDuplicates;
   static boostDuplicate = semantic.boostDuplicate;
@@ -156,6 +158,7 @@ export class BrainStore {
   static compressContent = compression.compressContent;
   static decompressContent = compression.decompressContent;
   static compressColdTier = compression.compressColdTier;
+  static compressFrozenSegment = compression.compressFrozenSegment;
   static writeCompressionPointers = compression.writeCompressionPointers;
   static writeSummaryPointer = summaryTree.writeSummaryPointer;
   static parseSummaryOf = summaryTree.parseSummaryOf;
@@ -164,10 +167,14 @@ export class BrainStore {
   static computeSalience = valence.computeSalience;
   static tombstoneMemories = tombstone.tombstoneMemories;
   static tombstoneWhere = tombstone.tombstoneWhere;
+  static archiveMemories = tombstone.archiveMemories;
+  static restoreArchived = tombstone.restoreArchived;
+  static eraseMemories = erasure.eraseMemories;
   static forgetExpiredTtl = tombstone.forgetExpiredTtl;
   static restoreTombstoned = tombstone.restoreTombstoned;
   static tombstoneAllForPrivacyWipe = tombstone.tombstoneAllForPrivacyWipe;
   static liveRetrieveSql = tombstone.liveRetrieveSql;
+  static notTombstonedSql = tombstone.notTombstonedSql;
   static getFsrsState = fsrs.getFsrsState;
   static applyMemoryFsrs = fsrs.applyMemoryFsrs;
   static recomputeMemoryTiers = tiers.recomputeMemoryTiers;

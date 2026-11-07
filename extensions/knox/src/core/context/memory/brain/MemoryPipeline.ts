@@ -268,8 +268,8 @@ export class MemoryPipeline {
 
   /**
    * Part III cycle status (MEM-32).
-   * `cycle_invariant_met` is Budget ∧ Reachability ∧ Losslessness,
-   * not “a phase ran in the last hour”.
+   * `cycle_invariant_met` is Budget ∧ Reachability ∧ Losslessness ∧
+   * Freshness ∧ Erasure, not "a phase ran in the last hour".
    */
   static getPhaseStatus(backgroundConsolidationActive = false): MemoryPhaseStatus {
     const snap = getInvariantSnapshot();
@@ -281,6 +281,8 @@ export class MemoryPipeline {
       budget_invariant_met: snap.budget.met,
       reachability_invariant_met: snap.reachability.met,
       losslessness_invariant_met: snap.losslessness.met,
+      freshness_invariant_met: snap.freshness.met,
+      erasure_invariant_met: snap.erasure.met,
       background_sleep_active: backgroundConsolidationActive,
       canonical_order: FULL_CYCLE_ORDER,
     };
@@ -333,6 +335,8 @@ export class MemoryPipeline {
       budget_invariant_met: snap.budget.met,
       reachability_invariant_met: snap.reachability.met,
       losslessness_invariant_met: snap.losslessness.met,
+      freshness_invariant_met: snap.freshness.met,
+      erasure_invariant_met: snap.erasure.met,
     }).catch(() => {});
   }
 
@@ -524,7 +528,7 @@ export class MemoryPipeline {
         }
 
         case "sleep_consolidation": {
-          const cycle = await SleepConsolidation.runCycle();
+          const cycle = await SleepConsolidation.runCycle({ trigger: "manual" });
           detail = `promoted ${cycle.promoted}, pruned ${cycle.pruned}`;
           break;
         }
@@ -830,6 +834,14 @@ export class MemoryPipeline {
   static async runPostTurn(input: PipelineInput): Promise<PipelineResult> {
     const phases: PipelinePhaseResult[] = [];
     const config = getMemoryConfig();
+    if (input.session_id) {
+      try {
+        const { noteScopeActivity } = await import("./idleSleep.js");
+        noteScopeActivity(input.session_id);
+      } catch {
+        /* idle timer is optional */
+      }
+    }
     const attribution = await MemoryPipeline.attributeTurn(input);
     MemoryPipeline.scheduleAblation(input, attribution);
 

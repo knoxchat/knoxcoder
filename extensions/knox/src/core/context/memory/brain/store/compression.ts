@@ -111,3 +111,8 @@ async function pointerizeTierLeaves(
 export async function compressColdTier(): Promise<number> {
   return writeCompressionPointers(["cold"]);
 }
+
+/** MEM-75: Frozen postings are the slower segment; pointers still keep originals. */
+export async function compressFrozenSegment(): Promise<number> {
+  return writeCompressionPointers(["frozen"]);
+}

@@ -902,6 +902,10 @@ export class KnoxGuiController extends Disposable {
 		return knoxGuiMemory.deleteMemories(this, ids, bulk);
 	}
 
+	async archiveMemories(ids: string[], bulk?: boolean): Promise<void> {
+		return knoxGuiMemory.archiveMemories(this, ids, bulk);
+	}
+
 	async pinMemories(ids: string[], pinned: boolean, bulk?: boolean): Promise<void> {
 		return knoxGuiMemory.pinMemories(this, ids, pinned, bulk);
 	}

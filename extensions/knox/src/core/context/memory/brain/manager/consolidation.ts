@@ -70,7 +70,9 @@ export async function consolidate(): Promise<SleepCycleResult> {
   await CheckpointManager.beforeDestructiveOp("consolidate").catch(() => {});
 
   const start = performance.now();
-  const result = await brainRuntime.metrics.measure("consolidate", () => SleepConsolidation.runCycle());
+  const result = await brainRuntime.metrics.measure("consolidate", () =>
+    SleepConsolidation.runCycle({ trigger: "timer" }),
+  );
   const durationMs = performance.now() - start;
 
   brainRuntime.consolidationTracker.record(result, durationMs);

@@ -1,5 +1,5 @@
 /**
- * MEM-32 — Budget, Reachability, Losslessness (IMP-01).
+ * MEM-32 / MEM-54 / MEM-73 — Budget, Reachability, Losslessness, Freshness, Erasure.
  */
 import fs from "fs";
 import os from "os";
@@ -342,7 +342,7 @@ describe("MEM-32 sleep / heal / phase status", () => {
     expect(after.missing_ids.some((g) => g.id === id)).toBe(false);
   });
 
-  it("getPhaseStatus is the AND of the three invariants (IMP-01)", async () => {
+  it("getPhaseStatus is the AND of the five invariants (IMP-01)", async () => {
     await reset();
     await ContextBuilder.buildDetailed({
       message: "phase status invariants",
@@ -354,9 +354,13 @@ describe("MEM-32 sleep / heal / phase status", () => {
     expect(status).toHaveProperty("budget_invariant_met");
     expect(status).toHaveProperty("reachability_invariant_met");
     expect(status).toHaveProperty("losslessness_invariant_met");
+    expect(status).toHaveProperty("freshness_invariant_met");
+    expect(status).toHaveProperty("erasure_invariant_met");
     expect(status.budget_invariant_met).toBe(true);
     expect(status.reachability_invariant_met).toBe(true);
     expect(status.losslessness_invariant_met).toBe(true);
+    expect(status.freshness_invariant_met).toBe(true);
+    expect(status.erasure_invariant_met).toBe(true);
     expect(status.cycle_invariant_met).toBe(true);
     expect(status.canonical_order).toHaveLength(8);
   });

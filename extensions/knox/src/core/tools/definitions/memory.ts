@@ -7,6 +7,7 @@ export const MEMORY_PRODUCT_ACTIONS = [
   "recall",
   "search",
   "delete",
+  "archive",
   "build_context",
   "pin",
   "unpin",
@@ -88,7 +89,7 @@ export const memoryTool: Tool = {
         id: {
           type: ["number", "string"],
           description:
-            "[delete/pin/unpin/attribute] Memory id. attribute also accepts a [mem:type:id] cite.",
+            "[delete/archive/pin/unpin/attribute] Memory id. delete erases; archive is reversible. attribute also accepts a [mem:type:id] cite.",
         },
         memory_id: {
           type: ["number", "string"],

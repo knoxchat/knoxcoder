@@ -17,7 +17,7 @@ import { checkStoreInvariants, getInvariantSnapshot } from "../invariants.js";
 
 /**
  * Recompute stored tiers from R and Value (MEM-15).
- * Clock knobs are unused. Age never tombstones; forget/TTL/privacy are MEM-06.
+ * Clock knobs are unused. Age never tombstones; forget/TTL/privacy erase (MEM-73).
  */
 export async function consolidate(): Promise<ConsolidationResult> {
   const result: ConsolidationResult = { promoted: 0, demoted: 0, pruned: 0, summaries_created: 0 };

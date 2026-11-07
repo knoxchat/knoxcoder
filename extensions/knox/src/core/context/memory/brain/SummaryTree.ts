@@ -18,7 +18,7 @@ import { BrainStore } from "./BrainStore.js";
 import { getTheoremParams } from "./memoryConfigAccess.js";
 import { extractEntityLikeTokens } from "./RelevanceGate.js";
 import { contentWords, jaccard } from "./RetrievalQuery.js";
-import { liveRetrieveSql } from "./store/tombstone.js";
+import { notTombstonedSql } from "./store/tombstone.js";
 import {
   ensureSessionSummaryNode,
   estimateSummaryTokens,
@@ -253,7 +253,7 @@ export async function ingestSessionLeaves(
     `SELECT id, title, content, keywords FROM brain_semantic
      WHERE source_session_id = ?
        AND (expires_at IS NULL OR expires_at > datetime('now'))
-       AND ${liveRetrieveSql()}`,
+       AND ${notTombstonedSql()}`,
     [sessionId],
   )) as Array<{ id: number; title?: string; content?: string; keywords?: string }>;
   for (const row of semantic) {
@@ -267,7 +267,7 @@ export async function ingestSessionLeaves(
 
   const episodic = (await db.all(
     `SELECT id, content FROM brain_episodic
-     WHERE session_id = ? AND ${liveRetrieveSql()}`,
+     WHERE session_id = ? AND ${notTombstonedSql()}`,
     [sessionId],
   )) as Array<{ id: number; content?: string }>;
   for (const row of episodic) {
@@ -766,6 +766,85 @@ async function refreshSessionForest(db: DatabaseConnection, sessionId: string): 
   const root = await findSessionRoot(db, sessionId);
   if (!root) return;
   await refreshSubtree(db, root.id, sessionId);
+}
+
+/** φ₇: refresh lazy summary **text** from current children (sketches stay sync). */
+export async function refreshLazySummaryText(
+  sessionId?: string,
+  db?: DatabaseConnection,
+): Promise<number> {
+  const conn = db ?? (await BrainStore.get());
+  if (sessionId) {
+    const root = await findSessionRoot(conn, sessionId);
+    if (!root) return 0;
+    await refreshSubtree(conn, root.id, sessionId);
+    return 1;
+  }
+  const roots = (await conn.all(
+    `SELECT id, text FROM brain_summary_tree WHERE parent_id IS NULL AND kind = 'node'`,
+  )) as Array<{ id: number; text: string }>;
+  let n = 0;
+  for (const root of roots) {
+    const sid = root.text.startsWith(TREE_ROOT_PREFIX)
+      ? root.text.slice(TREE_ROOT_PREFIX.length).split("\n")[0]
+      : "";
+    await refreshSubtree(conn, root.id, sid);
+    n++;
+  }
+  return n;
+}
+
+/**
+ * MEM-73 step 4: blank erased leaves and regenerate every ancestor from
+ * remaining children. The leaf row stays (Losslessness: tombstone is OK).
+ */
+export async function regenerateAncestorsAfterErasure(
+  kind: "semantic" | "episodic",
+  ids: number[],
+): Promise<number> {
+  const unique = [...new Set(ids.map((id) => Math.trunc(Number(id))).filter((id) => id > 0))];
+  if (unique.length === 0) return 0;
+  const db = await BrainStore.get();
+  let regenerated = 0;
+  for (const id of unique) {
+    const leaves = (await db.all(
+      `SELECT id, parent_id FROM brain_summary_tree
+       WHERE kind = 'leaf' AND leaf_type = ? AND leaf_id = ?`,
+      [kind, String(id)],
+    )) as Array<{ id: number; parent_id: number | null }>;
+    for (const leaf of leaves) {
+      await db.run(
+        `UPDATE brain_summary_tree SET text = '', token_count = 0, sketch_terms = '[]' WHERE id = ?`,
+        [leaf.id],
+      );
+      const parentId = leaf.parent_id;
+      if (parentId != null && parentId > 0) {
+        const sessionId = await sessionIdOfNode(db, parentId);
+        await refreshAncestorText(db, parentId, sessionId);
+        await rebuildSubtreeSketches(db, parentId);
+      }
+      regenerated++;
+    }
+  }
+  return regenerated;
+}
+
+async function sessionIdOfNode(db: DatabaseConnection, nodeId: number): Promise<string> {
+  let current: number | null = nodeId;
+  const seen = new Set<number>();
+  while (current != null && current > 0 && !seen.has(current)) {
+    seen.add(current);
+    const row = (await db.get(
+      "SELECT id, parent_id, text FROM brain_summary_tree WHERE id = ?",
+      [current],
+    )) as { id: number; parent_id: number | null; text: string } | undefined;
+    if (!row) break;
+    if (row.parent_id == null && row.text.startsWith(TREE_ROOT_PREFIX)) {
+      return row.text.slice(TREE_ROOT_PREFIX.length).split("\n")[0] ?? "";
+    }
+    current = row.parent_id;
+  }
+  return "";
 }
 
 async function refreshSubtree(

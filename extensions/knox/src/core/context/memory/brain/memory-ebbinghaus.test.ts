@@ -197,6 +197,10 @@ describe("MEM-12 power-law forgetting + category S₀", () => {
        WHERE id = ?`,
       [id],
     );
+    await db.run(
+      `UPDATE brain_sessions SET updated_at = datetime('now', '-2 hours') WHERE id = ?`,
+      [sessionId],
+    );
     const aged = (await db.get("SELECT created_at, content FROM brain_episodic WHERE id = ?", [id])) as {
       created_at: string;
       content: string;

@@ -316,6 +316,11 @@ export type ToCoreFromIdeOrWebviewProtocol = {
     { result: string },
   ];
   "brain/deleteMemory": [{ id: number }, { success: boolean }];
+  "brain/archiveMemory": [{ id: number }, { success: boolean }];
+  "brain/archiveMemories": [
+    { ids: number[] },
+    { archived: number; failed: number },
+  ];
   "brain/searchMemories": [
     {
       query?: string;
@@ -455,6 +460,8 @@ export type ToCoreFromIdeOrWebviewProtocol = {
       budget_invariant_met?: boolean;
       reachability_invariant_met?: boolean;
       losslessness_invariant_met?: boolean;
+      freshness_invariant_met?: boolean;
+      erasure_invariant_met?: boolean;
       background_sleep_active?: boolean;
       canonical_order?: string[];
     },

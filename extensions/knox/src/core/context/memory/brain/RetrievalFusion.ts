@@ -598,6 +598,12 @@ export class RetrievalFusion {
     if (needsRebuild) {
       await RetrievalFusion.rebuildFts5(db);
     }
+    try {
+      const { ensureFrozenFtsTables } = await import("./store/frozenSegment.js");
+      await ensureFrozenFtsTables(db);
+    } catch {
+      // Frozen FTS is additive.
+    }
   }
 
   /**
@@ -637,6 +643,14 @@ export class RetrievalFusion {
       INSERT INTO brain_episodic_fts(rowid, content)
       SELECT id, ${cjkExpandSql("content")} FROM brain_episodic
     `);
+
+    try {
+      const { rebuildFrozenFts, ensureFrozenFtsTables } = await import("./store/frozenSegment.js");
+      await ensureFrozenFtsTables(db);
+      await rebuildFrozenFts(db);
+    } catch {
+      // Frozen segment is optional on a fresh migrate.
+    }
 
     return {
       semantic: semResult.changes ?? 0,

@@ -186,8 +186,8 @@ export async function recall(input: RecallInput): Promise<RecallResult> {
 }
 
 /**
- * Forget a semantic memory by ID (MEM-06 tombstone, reversible via audit).
- * Pinned rows stay.
+ * Forget a semantic memory by ID (MEM-72 / MEM-73 erasure).
+ * Pinned rows stay. Archive is the reversible path.
  */
 export async function forget(id: number): Promise<boolean> {
   await CheckpointManager.beforeDestructiveOp("delete").catch(() => {});
@@ -199,6 +199,26 @@ export async function forget(id: number): Promise<boolean> {
     MemorySnapshot.invalidateAll();
   }
   return result;
+}
+
+/** MEM-72: reversible archive (frozen, out of default retrieve). */
+export async function archive(id: number): Promise<boolean> {
+  const result = await BrainStore.archiveSemantic(id);
+  if (result) {
+    invalidateMemoryCaches();
+    emit("memory:archived", { id });
+    MemorySnapshot.invalidateAll();
+  }
+  return result;
+}
+
+export async function archiveMany(ids: number[]): Promise<{ archived: number; failed: number }> {
+  const unique = [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))];
+  let archived = 0;
+  for (const id of unique) {
+    if (await archive(id)) archived++;
+  }
+  return { archived, failed: unique.length - archived };
 }
 
 /**

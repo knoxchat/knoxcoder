@@ -10,7 +10,7 @@ import sqlite3 from "sqlite3";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  AUDIT_TOMBSTONE,
+  AUDIT_FORGET,
   TOMBSTONE_REASON,
 } from "./store/tombstone.js";
 
@@ -73,8 +73,8 @@ async function ftsHas(token: string, id: number): Promise<boolean> {
   }
 }
 
-describe("MEM-06 forget / TTL / privacy tombstone", () => {
-  it("builtin delete tombstones, keeps FTS, skips default retrieve, and undoes", async () => {
+describe("MEM-06 / MEM-72 forget erasure", () => {
+  it("builtin delete erases content, drops FTS, and is not reversible", async () => {
     await reset();
     const sessionId = "mem06-forget";
     const token = "forgettombstoneleafxyz";
@@ -82,7 +82,7 @@ describe("MEM-06 forget / TTL / privacy tombstone", () => {
     const id = await BrainManager.store({
       category: "fact",
       title: "Forget this fact",
-      content: `Keep the ${token} text after forget.`,
+      content: `Erase the ${token} text after forget.`,
       keywords: token,
       importance: 0.8,
       session_id: sessionId,
@@ -94,31 +94,32 @@ describe("MEM-06 forget / TTL / privacy tombstone", () => {
 
     const row = await BrainStore.getSemanticById(id);
     expect(row).not.toBeNull();
-    expect(row?.content).toContain(token);
+    expect(String(row?.content ?? "").trim()).toBe("");
+    expect(String(row?.title ?? "").trim()).toBe("");
     expect(row?.tombstoned_at).toBeTruthy();
     expect(row?.tombstone_reason).toBe(TOMBSTONE_REASON.forget);
     expect(row?.tier).toBe("frozen");
 
     const audit = await BrainStore.getAuditLog({
-      action: AUDIT_TOMBSTONE,
+      action: AUDIT_FORGET,
       target_type: "semantic",
       target_id: String(id),
     });
     expect(audit.length).toBeGreaterThanOrEqual(1);
 
     expect(await fusionHits(token, id)).toBe(false);
-    expect(await ftsHas(token, id)).toBe(true);
+    expect(await ftsHas(token, id)).toBe(false);
 
     const undoable = await CheckpointManager.getUndoableOperations(20);
     const entry = undoable.find(
-      (e) => e.action === "tombstone" && String(e.target_id) === String(id),
+      (e) => String(e.target_id) === String(id)
+        && (e.action === "forget" || e.action === "tombstone" || e.action === "delete"),
     );
-    expect(entry).toBeTruthy();
-    const undone = await CheckpointManager.undoOperation(entry!.id);
-    expect(undone.success).toBe(true);
+    expect(entry).toBeFalsy();
     const restored = await BrainStore.getSemanticById(id);
-    expect(restored?.tombstoned_at).toBeFalsy();
-    expect(await fusionHits(token, id)).toBe(true);
+    expect(restored?.tombstoned_at).toBeTruthy();
+    expect(String(restored?.content ?? "").trim()).toBe("");
+    expect(await fusionHits(token, id)).toBe(false);
   });
 
   it("pinned rows stay exempt from forget and TTL", async () => {
@@ -173,7 +174,8 @@ describe("MEM-06 forget / TTL / privacy tombstone", () => {
     expect(row?.tombstoned_at).toBeTruthy();
     expect(row?.tombstone_reason).toBe(TOMBSTONE_REASON.ttl);
     expect(await fusionHits(token, id)).toBe(false);
-    expect(await ftsHas(token, id)).toBe(true);
+    expect(await ftsHas(token, id)).toBe(false);
+    expect(String(row?.content ?? "").trim()).toBe("");
   });
 
   it("privacy wipe tombstones first then destroys the live database", async () => {
@@ -228,8 +230,8 @@ describe("MEM-06 forget / TTL / privacy tombstone", () => {
     for (let i = 0; i < 2800; i++) {
       await db.run(
         `INSERT INTO brain_semantic (category, title, content, keywords, source_session_id, importance_score, tombstoned_at, tombstone_reason, tier)
-         VALUES ('fact', ?, ?, ?, ?, 0.8, datetime('now'), 'forget', 'frozen')`,
-        [`Dead ${token} ${i}`, `document ${i} about ${token} unique-${i}`, token, sessionId],
+         VALUES ('fact', '', '', '', ?, 0.8, datetime('now'), 'forget', 'frozen')`,
+        [sessionId],
       );
     }
     await db.exec("COMMIT");

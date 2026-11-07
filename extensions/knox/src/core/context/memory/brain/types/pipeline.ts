@@ -27,11 +27,13 @@ export interface MemoryPhaseStatus {
   active_phase: MemoryPhase | null;
   last_completed: { phase: MemoryPhase; at: number } | null;
   phase_counts: Partial<Record<MemoryPhase, number>>;
-  /** Budget ∧ Reachability ∧ Losslessness. Not “a phase ran in the last hour”. */
+  /** Budget ∧ Reachability ∧ Losslessness ∧ Freshness ∧ Erasure. */
   cycle_invariant_met: boolean;
   budget_invariant_met: boolean;
   reachability_invariant_met: boolean;
   losslessness_invariant_met: boolean;
+  freshness_invariant_met: boolean;
+  erasure_invariant_met: boolean;
   background_sleep_active: boolean;
   canonical_order: MemoryPhase[];
 }

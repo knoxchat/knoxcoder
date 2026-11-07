@@ -59,6 +59,14 @@ async function reset(): Promise<void> {
   BrainManager.getWorkingMemory().clear();
 }
 
+async function ageSession(sessionId: string): Promise<void> {
+  const db = await BrainStore.get();
+  await db.run(
+    `UPDATE brain_sessions SET updated_at = datetime('now', '-2 hours') WHERE id = ?`,
+    [sessionId],
+  );
+}
+
 async function fusionHits(query: string, id: number, type: "semantic" | "episodic"): Promise<boolean> {
   const hits = await RetrievalFusion.search({
     query,
@@ -160,6 +168,7 @@ describe("MEM-15 tiers from R and Value only", () => {
       `UPDATE brain_semantic SET created_at = datetime('now', '-400 days') WHERE id = ?`,
       [id],
     );
+    await ageSession(sessionId);
 
     await BrainStore.consolidate();
     const row = await BrainStore.getSemanticById(id);
@@ -185,6 +194,7 @@ describe("MEM-15 tiers from R and Value only", () => {
       `UPDATE brain_episodic SET created_at = datetime('now', '-91 days'), stability = 1 WHERE id = ?`,
       [id],
     );
+    await ageSession(sessionId);
 
     const cycle = await SleepConsolidation.runCycle();
     expect(cycle.pruned).toBe(0);
@@ -217,6 +227,7 @@ describe("MEM-15 tiers from R and Value only", () => {
        WHERE id = ?`,
       [id],
     );
+    await ageSession(sessionId);
 
     await BrainStore.recomputeMemoryTiers();
     expect((await BrainStore.getSemanticById(id))?.tier).toBe("frozen");
@@ -254,6 +265,7 @@ describe("MEM-15 tiers from R and Value only", () => {
       `UPDATE brain_episodic SET created_at = datetime('now', '-400 days'), stability = 1 WHERE id = ?`,
       [id],
     );
+    await ageSession(sessionId);
 
     const result = await FiveTierHierarchy.consolidate();
     expect(result.pruned).toBe(0);
@@ -263,5 +275,32 @@ describe("MEM-15 tiers from R and Value only", () => {
     )) as { tier: string; tombstoned_at: string | null };
     expect(row.tier).toBe("frozen");
     expect(row.tombstoned_at).toBeNull();
+  });
+
+  it("MEM-75: sessions touched in the last 30 min are Active", async () => {
+    await reset();
+    const sessionId = "mem75-active-window";
+    await BrainManager.trackSession(sessionId, "MEM-75 active", testDir);
+    const id = await BrainManager.store({
+      category: "fact",
+      title: "Recent session fact",
+      content: "A fact in a session touched just now.",
+      keywords: "mem75activewindow",
+      importance: 0.2,
+      session_id: sessionId,
+    });
+    const db = await BrainStore.get();
+    await db.run(
+      `UPDATE brain_semantic
+       SET last_accessed_at = datetime('now', '-91 days'), stability = 1, i0 = 0.2, importance_score = 0.2
+       WHERE id = ?`,
+      [id],
+    );
+    await BrainStore.recomputeMemoryTiers();
+    expect((await BrainStore.getSemanticById(id))?.tier).toBe("active");
+
+    await ageSession(sessionId);
+    await BrainStore.recomputeMemoryTiers();
+    expect((await BrainStore.getSemanticById(id))?.tier).toBe("frozen");
   });
 });

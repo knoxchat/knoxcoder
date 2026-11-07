@@ -1,6 +1,7 @@
 /**
- * Wipe Memory Brain: tombstone every leaf (deleted-by-policy), backup sqlite,
- * drop the live files, reopen empty. Destructive. forget/TTL stay reversible.
+ * Wipe Memory Brain: erase every leaf (content-free tombstone), backup sqlite,
+ * drop the live files, reopen empty. Destructive. forget/TTL/privacy erase;
+ * archive is the reversible path.
  */
 
 import fs from "fs";

@@ -555,7 +555,28 @@ export class CheckpointManager {
         }
       }
 
-      // ── Undo a tombstone / legacy delete ────────────────────────────
+      if (action === "forget") {
+        return {
+          success: false,
+          action_undone: action,
+          target_type: targetType,
+          target_id: targetId,
+          details: "Forget is not reversible",
+        };
+      }
+
+      if (action === "archive" && (targetType === "semantic" || targetType === "episodic")) {
+        const leafId = Number(targetId);
+        const prevTier = details.previous_tier ?? details.record?.tier ?? null;
+        const ok = await BrainStore.restoreArchived(targetType, leafId, prevTier);
+        if (ok) {
+          await BrainStore.auditLog("undo_archive", targetType, targetId, { undone_audit_id: auditEntryId });
+          return { success: true, action_undone: action, target_type: targetType, target_id: targetId, details: `Unarchived ${targetType} #${targetId}` };
+        }
+        return { success: false, action_undone: action, target_type: targetType, target_id: targetId, details: `Cannot unarchive ${targetType} #${targetId}` };
+      }
+
+      // ── Undo a leftover content-bearing tombstone / legacy delete ──
       if (
         action === "tombstone"
         || action === "delete"
@@ -645,6 +666,7 @@ export class CheckpointManager {
     const entries = await BrainStore.getAuditLog({ limit: limit * 3 });
     const undoableActions = new Set([
       "store", "create", "create_semantic", "store_semantic",
+      "archive",
       "tombstone",
       "delete", "delete_semantic", "delete_entity", "delete_pattern", "delete_procedure",
       "update",

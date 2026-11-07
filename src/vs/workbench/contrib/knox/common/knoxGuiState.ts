@@ -725,6 +725,8 @@ export interface IKnoxGuiMemoryPhaseStatus {
 	budgetInvariantMet?: boolean;
 	reachabilityInvariantMet?: boolean;
 	losslessnessInvariantMet?: boolean;
+	freshnessInvariantMet?: boolean;
+	erasureInvariantMet?: boolean;
 	backgroundSleepActive?: boolean;
 	lastCompleted?: string;
 }

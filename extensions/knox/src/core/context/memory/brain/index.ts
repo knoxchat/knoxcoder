@@ -65,6 +65,12 @@ export type {
   AddressableMemoryResult,
 } from "./MemoryHierarchy.js";
 export { MemoryPipeline } from "./MemoryPipeline.js";
+export {
+  noteScopeActivity,
+  runIdleSleepIfDue,
+  resetIdleSleepForTests,
+  lastScopeActivity,
+} from "./idleSleep.js";
 export { PrefrontalCortex, formatMemoryGoal } from "./regions/PrefrontalCortex.js";
 export { SensoryBuffer, SENSORY_LIFETIME } from "./SensoryBuffer.js";
 export {
@@ -183,6 +189,8 @@ export {
   applyBudgetInvariant,
   checkReachability,
   checkLosslessness,
+  checkFreshness,
+  checkErasure,
   checkStoreInvariants,
   cycleInvariantsMet,
   getInvariantSnapshot,
@@ -190,10 +198,14 @@ export {
   AUDIT_BUDGET,
   AUDIT_REACHABILITY,
   AUDIT_LOSSLESSNESS,
+  AUDIT_FRESHNESS,
+  AUDIT_ERASURE,
 } from "./invariants.js";
 export type {
   BudgetInvariantResult,
   CycleInvariantSnapshot,
+  ErasureInvariantResult,
+  FreshnessInvariantResult,
   LosslessnessInvariantResult,
   ReachabilityInvariantResult,
   StoreInvariantReport,

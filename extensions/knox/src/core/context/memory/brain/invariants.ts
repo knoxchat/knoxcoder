@@ -1,18 +1,21 @@
 /**
- * MEM-32 / MEM-54 — cycle invariants: Budget, Reachability, Losslessness, Freshness.
- * (Erasure lands with MEM-73.)
+ * MEM-32 / MEM-54 / MEM-73 — cycle invariants: Budget, Reachability,
+ * Losslessness, Freshness, Erasure.
  *
- * Replaces “a phase ran in the last hour” as `cycle_invariant_met`.
+ * Replaces "a phase ran in the last hour" as `cycle_invariant_met`.
  *
  *   Budget:        |C(q)| + W_out ≤ W on every buildContext. Over-budget
  *                  fails open to empty memory and writes an audit row.
  *   Reachability:  every non-tombstoned semantic/episodic id is in at least
- *                  one of FTS, ripgrep corpus, graph, or the summary tree.
+ *                  one of FTS (live or Frozen), ripgrep corpus, graph, or the
+ *                  summary tree. Frozen is still reachable (MEM-75).
  *   Losslessness:  every summary-tree leaf is an original row or a tombstone.
  *   Freshness:     a memory written in turn t is retrievable from turn t+1
  *                  (read-your-writes). φ₂ (FTS), φ₄ (row) and φ₅ (tree + term
  *                  sketches) run on the write path; only summary text and refits
  *                  are deferred.
+ *   Erasure:       a forgotten row is a content-free tombstone with no
+ *                  postings, graph evidence, ancestor text, or snapshot copy.
  *
  * Sleep and heal run the store checks. Budget is recorded on each assemble.
  * The snapshot is process-local so `getPhaseStatus` stays synchronous.
@@ -29,6 +32,7 @@ export const AUDIT_BUDGET = "invariant:budget";
 export const AUDIT_REACHABILITY = "invariant:reachability";
 export const AUDIT_LOSSLESSNESS = "invariant:losslessness";
 export const AUDIT_FRESHNESS = "invariant:freshness";
+export const AUDIT_ERASURE = "invariant:erasure";
 
 /** Most recent leaves probed per freshness check. */
 export const FRESHNESS_PROBE_LIMIT = 50;
@@ -99,10 +103,26 @@ export interface FreshnessInvariantResult {
   at: number;
 }
 
+export interface ErasureLeak {
+  type: MemoryLeafKind | "tree" | "snapshot" | "association";
+  id: number;
+  reason: "content" | "fts" | "tree_text" | "snapshot" | "association";
+}
+
+export interface ErasureInvariantResult {
+  met: boolean;
+  checked: boolean;
+  tombstoned: number;
+  leaks: number;
+  leak_ids: ErasureLeak[];
+  at: number;
+}
+
 export interface StoreInvariantReport {
   reachability: ReachabilityInvariantResult;
   losslessness: LosslessnessInvariantResult;
   freshness: FreshnessInvariantResult;
+  erasure: ErasureInvariantResult;
   met: boolean;
   at: number;
 }
@@ -112,6 +132,7 @@ export interface CycleInvariantSnapshot {
   reachability: ReachabilityInvariantResult;
   losslessness: LosslessnessInvariantResult;
   freshness: FreshnessInvariantResult;
+  erasure: ErasureInvariantResult;
   met: boolean;
 }
 
@@ -158,18 +179,29 @@ const emptyLosslessness = (): LosslessnessInvariantResult => ({
   at: 0,
 });
 
+const emptyErasure = (): ErasureInvariantResult => ({
+  met: true,
+  checked: false,
+  tombstoned: 0,
+  leaks: 0,
+  leak_ids: [],
+  at: 0,
+});
+
 function snapshotFrom(
   budget: BudgetInvariantResult,
   reachability: ReachabilityInvariantResult,
   losslessness: LosslessnessInvariantResult,
   freshness: FreshnessInvariantResult = emptyFreshness(),
+  erasure: ErasureInvariantResult = emptyErasure(),
 ): CycleInvariantSnapshot {
   return {
     budget,
     reachability,
     losslessness,
     freshness,
-    met: budget.met && reachability.met && losslessness.met && freshness.met,
+    erasure,
+    met: budget.met && reachability.met && losslessness.met && freshness.met && erasure.met,
   };
 }
 
@@ -190,12 +222,20 @@ export function getInvariantSnapshot(): CycleInvariantSnapshot {
       ...lastSnapshot.freshness,
       stale_ids: lastSnapshot.freshness.stale_ids.slice(),
     },
+    erasure: {
+      ...lastSnapshot.erasure,
+      leak_ids: lastSnapshot.erasure.leak_ids.slice(),
+    },
     met: lastSnapshot.met,
   };
 }
 
 export function cycleInvariantsMet(snap: CycleInvariantSnapshot = lastSnapshot): boolean {
-  return snap.budget.met && snap.reachability.met && snap.losslessness.met && snap.freshness.met;
+  return snap.budget.met
+    && snap.reachability.met
+    && snap.losslessness.met
+    && snap.freshness.met
+    && snap.erasure.met;
 }
 
 export function resetInvariantSnapshotForTests(): void {
@@ -223,7 +263,13 @@ export function evaluateBudget(cUse: number, w: number, wOut = 0): BudgetInvaria
 }
 
 export function recordBudgetInvariant(budget: BudgetInvariantResult): void {
-  lastSnapshot = snapshotFrom(budget, lastSnapshot.reachability, lastSnapshot.losslessness, lastSnapshot.freshness);
+  lastSnapshot = snapshotFrom(
+    budget,
+    lastSnapshot.reachability,
+    lastSnapshot.losslessness,
+    lastSnapshot.freshness,
+    lastSnapshot.erasure,
+  );
 }
 
 /**
@@ -272,17 +318,37 @@ function inRipgrepCorpus(haystack: string): boolean {
  * so an unindexed leaf would look indexed. `*_docsize` is the index.
  */
 async function loadFtsIds(db: DatabaseConnection, table: "brain_semantic_fts" | "brain_episodic_fts"): Promise<Set<number>> {
+  const ids = new Set<number>();
   try {
     const rows = (await db.all(`SELECT id FROM ${table}_docsize`)) as Array<{ id: number }>;
-    return new Set(rows.map((r) => Number(r.id)).filter((id) => id > 0));
+    for (const r of rows) {
+      const id = Number(r.id);
+      if (id > 0) ids.add(id);
+    }
   } catch {
     try {
       const rows = (await db.all(`SELECT rowid AS id FROM ${table}`)) as Array<{ id: number }>;
-      return new Set(rows.map((r) => Number(r.id)).filter((id) => id > 0));
+      for (const r of rows) {
+        const id = Number(r.id);
+        if (id > 0) ids.add(id);
+      }
     } catch {
-      return new Set();
+      // missing live FTS
     }
   }
+  const frozen = table === "brain_semantic_fts"
+    ? "brain_semantic_fts_frozen"
+    : "brain_episodic_fts_frozen";
+  try {
+    const rows = (await db.all(`SELECT rowid AS id FROM ${frozen}`)) as Array<{ id: number }>;
+    for (const r of rows) {
+      const id = Number(r.id);
+      if (id > 0) ids.add(id);
+    }
+  } catch {
+    // Frozen segment is additive.
+  }
+  return ids;
 }
 
 async function loadTreeLeafIds(db: DatabaseConnection): Promise<{ semantic: Set<number>; episodic: Set<number> }> {
@@ -427,7 +493,13 @@ export async function checkReachability(
     at: Date.now(),
   };
 
-  lastSnapshot = snapshotFrom(lastSnapshot.budget, result, lastSnapshot.losslessness, lastSnapshot.freshness);
+  lastSnapshot = snapshotFrom(
+    lastSnapshot.budget,
+    result,
+    lastSnapshot.losslessness,
+    lastSnapshot.freshness,
+    lastSnapshot.erasure,
+  );
   if (options.audit) {
     await auditLog(AUDIT_REACHABILITY, "pipeline", null, {
       met: result.met,
@@ -516,7 +588,13 @@ export async function checkLosslessness(
     at: Date.now(),
   };
 
-  lastSnapshot = snapshotFrom(lastSnapshot.budget, lastSnapshot.reachability, result, lastSnapshot.freshness);
+  lastSnapshot = snapshotFrom(
+    lastSnapshot.budget,
+    lastSnapshot.reachability,
+    result,
+    lastSnapshot.freshness,
+    lastSnapshot.erasure,
+  );
   if (options.audit) {
     await auditLog(AUDIT_LOSSLESSNESS, "pipeline", null, {
       met: result.met,
@@ -544,7 +622,6 @@ async function indexedIds(
       ) as Promise<Array<{ id: number }>>,
     );
     for (const row of rows) found.add(Number(row.id));
-    return found;
   } catch {
     try {
       const rows = await collectBindChunks(ids, 0, (chunk) =>
@@ -554,11 +631,25 @@ async function indexedIds(
         ) as Promise<Array<{ id: number }>>,
       );
       for (const row of rows) found.add(Number(row.id));
-      return found;
     } catch {
-      return new Set();
+      // Live FTS missing; Frozen may still hold the posting (MEM-75).
     }
   }
+  const frozen = table === "brain_semantic_fts"
+    ? "brain_semantic_fts_frozen"
+    : "brain_episodic_fts_frozen";
+  try {
+    const rows = await collectBindChunks(ids, 0, (chunk) =>
+      db.all(
+        `SELECT rowid AS id FROM ${frozen} WHERE rowid IN (${sqlPlaceholders(chunk.length)})`,
+        chunk,
+      ) as Promise<Array<{ id: number }>>,
+    );
+    for (const row of rows) found.add(Number(row.id));
+  } catch {
+    // Frozen segment is additive.
+  }
+  return found;
 }
 
 /**
@@ -623,7 +714,13 @@ export async function checkFreshness(
     at: Date.now(),
   };
 
-  lastSnapshot = snapshotFrom(lastSnapshot.budget, lastSnapshot.reachability, lastSnapshot.losslessness, result);
+  lastSnapshot = snapshotFrom(
+    lastSnapshot.budget,
+    lastSnapshot.reachability,
+    lastSnapshot.losslessness,
+    result,
+    lastSnapshot.erasure,
+  );
   if (options.audit) {
     await auditLog(AUDIT_FRESHNESS, "pipeline", null, {
       met: result.met,
@@ -637,6 +734,136 @@ export async function checkFreshness(
   return result;
 }
 
+function hasText(value: unknown): boolean {
+  return String(value ?? "").trim().length > 0;
+}
+
+/**
+ * MEM-73 — forgotten rows leave no content in any index, edge, summary, or
+ * snapshot. Tombstones still satisfy Losslessness (the id remains).
+ */
+export async function checkErasure(
+  options: { db?: DatabaseConnection; audit?: boolean } = {},
+): Promise<ErasureInvariantResult> {
+  const db = options.db ?? (await get());
+  const leaks: ErasureLeak[] = [];
+  const push = (leak: ErasureLeak) => {
+    if (leaks.length < MISSING_REPORT_CAP) leaks.push(leak);
+  };
+
+  const semantic = (await db.all(
+    `SELECT id, title, content, keywords FROM brain_semantic WHERE tombstoned_at IS NOT NULL`,
+  )) as Array<{ id: number; title?: string | null; content?: string | null; keywords?: string | null }>;
+  const episodic = (await db.all(
+    `SELECT id, content FROM brain_episodic WHERE tombstoned_at IS NOT NULL`,
+  )) as Array<{ id: number; content?: string | null }>;
+
+  for (const row of semantic) {
+    const id = Number(row.id);
+    if (hasText(row.title) || hasText(row.content) || hasText(row.keywords)) {
+      push({ type: "semantic", id, reason: "content" });
+    }
+  }
+  for (const row of episodic) {
+    const id = Number(row.id);
+    if (hasText(row.content)) push({ type: "episodic", id, reason: "content" });
+  }
+
+  const tombstonedSemantic = new Set(semantic.map((r) => Number(r.id)));
+  const tombstonedEpisodic = new Set(episodic.map((r) => Number(r.id)));
+  const leaves = (await db.all(
+    `SELECT id, leaf_type, leaf_id, text FROM brain_summary_tree WHERE kind = 'leaf'`,
+  )) as Array<{ id: number; leaf_type: string | null; leaf_id: string | null; text: string | null }>;
+  for (const leaf of leaves) {
+    const leafId = Math.trunc(Number(leaf.leaf_id));
+    const erased =
+      (leaf.leaf_type === "semantic" && tombstonedSemantic.has(leafId))
+      || (leaf.leaf_type === "episodic" && tombstonedEpisodic.has(leafId));
+    if (erased && hasText(leaf.text)) {
+      push({ type: "tree", id: Number(leaf.id), reason: "tree_text" });
+    }
+  }
+
+  const assocs = (await db.all(
+    `SELECT source_type, source_id, target_type, target_id FROM brain_associations`,
+  )) as Array<{ source_type: string; source_id: number; target_type: string; target_id: number }>;
+  for (const a of assocs) {
+    const srcErased =
+      (a.source_type === "semantic" && tombstonedSemantic.has(Number(a.source_id)))
+      || (a.source_type === "episodic" && tombstonedEpisodic.has(Number(a.source_id)));
+    const tgtErased =
+      (a.target_type === "semantic" && tombstonedSemantic.has(Number(a.target_id)))
+      || (a.target_type === "episodic" && tombstonedEpisodic.has(Number(a.target_id)));
+    if (srcErased || tgtErased) {
+      push({
+        type: "association",
+        id: Number(srcErased ? a.source_id : a.target_id),
+        reason: "association",
+      });
+    }
+  }
+
+  try {
+    const { readKnowledgeSnapshot } = await import("./store/checkpoints.js");
+    const cps = (await db.all(
+      "SELECT id, snapshot_path FROM brain_checkpoints",
+    )) as Array<{ id: number; snapshot_path: string }>;
+    for (const cp of cps) {
+      if (!cp.snapshot_path) continue;
+      let snapshot: { semantic?: Array<{ id?: number; content?: string; title?: string; keywords?: string }>; summary_tree?: Array<{ kind?: string; leaf_type?: string; leaf_id?: string; text?: string }> };
+      try {
+        snapshot = readKnowledgeSnapshot(cp.snapshot_path);
+      } catch {
+        continue;
+      }
+      for (const mem of snapshot.semantic ?? []) {
+        if (!tombstonedSemantic.has(Number(mem.id))) continue;
+        if (hasText(mem.content) || hasText(mem.title) || hasText(mem.keywords)) {
+          push({ type: "snapshot", id: Number(mem.id), reason: "snapshot" });
+        }
+      }
+      for (const node of snapshot.summary_tree ?? []) {
+        if (node.kind !== "leaf") continue;
+        const leafId = Math.trunc(Number(node.leaf_id));
+        const erased =
+          (node.leaf_type === "semantic" && tombstonedSemantic.has(leafId))
+          || (node.leaf_type === "episodic" && tombstonedEpisodic.has(leafId));
+        if (erased && hasText(node.text)) {
+          push({ type: "snapshot", id: leafId, reason: "snapshot" });
+        }
+      }
+    }
+  } catch {
+    // Snapshots optional in tests that never create them.
+  }
+
+  const result: ErasureInvariantResult = {
+    met: leaks.length === 0,
+    checked: true,
+    tombstoned: semantic.length + episodic.length,
+    leaks: leaks.length,
+    leak_ids: leaks,
+    at: Date.now(),
+  };
+
+  lastSnapshot = snapshotFrom(
+    lastSnapshot.budget,
+    lastSnapshot.reachability,
+    lastSnapshot.losslessness,
+    lastSnapshot.freshness,
+    result,
+  );
+  if (options.audit) {
+    await auditLog(AUDIT_ERASURE, "pipeline", null, {
+      met: result.met,
+      tombstoned: result.tombstoned,
+      leaks: result.leaks,
+      leak_ids: result.leak_ids,
+    });
+  }
+  return result;
+}
+
 export async function checkStoreInvariants(
   options: { db?: DatabaseConnection; audit?: boolean } = {},
 ): Promise<StoreInvariantReport> {
@@ -644,12 +871,14 @@ export async function checkStoreInvariants(
   const reachability = await checkReachability({ db, audit: options.audit });
   const losslessness = await checkLosslessness({ db, audit: options.audit });
   const freshness = await checkFreshness({ db, audit: options.audit });
-  lastSnapshot = snapshotFrom(lastSnapshot.budget, reachability, losslessness, freshness);
+  const erasure = await checkErasure({ db, audit: options.audit });
+  lastSnapshot = snapshotFrom(lastSnapshot.budget, reachability, losslessness, freshness, erasure);
   return {
     reachability,
     losslessness,
     freshness,
-    met: reachability.met && losslessness.met && freshness.met,
+    erasure,
+    met: reachability.met && losslessness.met && freshness.met && erasure.met,
     at: Date.now(),
   };
 }

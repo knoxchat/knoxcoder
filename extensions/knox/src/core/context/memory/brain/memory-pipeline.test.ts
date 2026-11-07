@@ -168,7 +168,7 @@ describe("Part III — 8-Phase Memory Cycle", () => {
     expect(details.canonical_order).toContain("sleep_consolidation");
   });
 
-  it("returns enriched phase status with Budget/Reachability/Losslessness (IMP-01 / MEM-32)", async () => {
+  it("returns enriched phase status with five invariants (IMP-01 / MEM-32 / MEM-73)", async () => {
     await resetDatabase();
     resetInvariantSnapshotForTests();
     const sessionId = "status-session";
@@ -187,11 +187,15 @@ describe("Part III — 8-Phase Memory Cycle", () => {
     expect(status).toHaveProperty("budget_invariant_met");
     expect(status).toHaveProperty("reachability_invariant_met");
     expect(status).toHaveProperty("losslessness_invariant_met");
+    expect(status).toHaveProperty("freshness_invariant_met");
+    expect(status).toHaveProperty("erasure_invariant_met");
     expect(status).toHaveProperty("canonical_order");
     expect(status.canonical_order).toHaveLength(8);
     expect(status.budget_invariant_met).toBe(true);
     expect(status.reachability_invariant_met).toBe(true);
     expect(status.losslessness_invariant_met).toBe(true);
+    expect(status.freshness_invariant_met).toBe(true);
+    expect(status.erasure_invariant_met).toBe(true);
     expect(status.cycle_invariant_met).toBe(true);
     expect(status.last_completed?.phase).toBeTruthy();
   });

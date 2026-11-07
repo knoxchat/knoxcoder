@@ -65,7 +65,7 @@ import { llmEvaluateImportance, llmExtractEntities, llmPostActionMemory, llmSumm
 import { autoHeal, getCapacityForecast, getConsolidationStats, getHealingStrategies, getHealthScore, runHealingAction } from "./metrics.js";
 import { addToCollection, createCollection, listCollections, searchByTag, tag, untag } from "./organization.js";
 import { getActiveSessionId, pinMemory, recordMismatch, unpinMemory } from "./runtime.js";
-import { forget, recall, store } from "./semantic.js";
+import { archive, forget, recall, store } from "./semantic.js";
 import { closeSession, getSession, listSessions } from "./sessions.js";
 import { summarizeSession } from "./summarize.js";
 import { getMetrics } from "./telemetry.js";
@@ -172,6 +172,18 @@ export async function dispatch(action: MemoryBrainAction, params: any): Promise<
       });
       if (result.ok) invalidateMemoryCaches();
       return result.message;
+    }
+
+    case "archive": {
+      const archiveId = Number(params.id);
+      if (Number.isInteger(archiveId) && archiveId > 0 && await BrainStore.isPinned(archiveId)) {
+        return `Memory #${params.id} is pinned; unpin first.`;
+      }
+      const archived = await archive(params.id);
+      if (!archived) {
+        return `Memory #${params.id} not found.`;
+      }
+      return `Memory #${params.id} archived.`;
     }
 
     case "delete": {

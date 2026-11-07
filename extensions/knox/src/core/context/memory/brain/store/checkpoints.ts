@@ -696,6 +696,126 @@ export async function pruneMissingCheckpointSnapshots(): Promise<number> {
   return pruned;
 }
 
+function writeSnapshotFile(snapshotPath: string, snapshot: Record<string, unknown>): void {
+  const compressed = snapshotPath.endsWith(".gz")
+    || (fs.existsSync(snapshotPath) && (() => {
+      try {
+        const head = fs.readFileSync(snapshotPath).subarray(0, 2);
+        return head[0] === 0x1f && head[1] === 0x8b;
+      } catch {
+        return false;
+      }
+    })());
+  const json = JSON.stringify(snapshot, null, compressed ? 0 : 2);
+  if (compressed) {
+    fs.writeFileSync(
+      snapshotPath,
+      zlib.gzipSync(Buffer.from(json, "utf-8") as Uint8Array) as Uint8Array,
+    );
+    return;
+  }
+  fs.writeFileSync(snapshotPath, json);
+}
+
+function scrubSnapshotRow(
+  row: Record<string, unknown>,
+  id: number,
+): Record<string, unknown> {
+  if (Number(row.id) !== id) return row;
+  return {
+    ...row,
+    title: "",
+    content: "",
+    keywords: "",
+    minhash: null,
+    tombstoned_at: row.tombstoned_at ?? new Date().toISOString(),
+    tombstone_reason: row.tombstone_reason ?? "forget",
+  };
+}
+
+/**
+ * MEM-73: rewrite brain snapshot JSON so an erased id has no content.
+ * A snapshot that cannot be rewritten is deleted; the workspace link stays.
+ */
+export async function scrubErasedIdsFromSnapshots(
+  kind: "semantic" | "episodic",
+  ids: number[],
+  _tokensById?: Map<number, string[]>,
+): Promise<{ rewritten: number; deleted: number }> {
+  const unique = [...new Set(ids.map((id) => Math.trunc(Number(id))).filter((id) => id > 0))];
+  if (unique.length === 0) return { rewritten: 0, deleted: 0 };
+  const idSet = new Set(unique);
+  const db = await get();
+  const rows = (await db.all(
+    "SELECT id, snapshot_path, workspace_checkpoint_id FROM brain_checkpoints",
+  )) as Array<{ id: number; snapshot_path: string; workspace_checkpoint_id: string | null }>;
+
+  let rewritten = 0;
+  let deleted = 0;
+  for (const row of rows) {
+    const snapshotPath = row.snapshot_path;
+    if (!snapshotPath || !fs.existsSync(snapshotPath)) continue;
+    let snapshot: Record<string, unknown>;
+    try {
+      snapshot = readKnowledgeSnapshot(snapshotPath);
+    } catch {
+      try {
+        fs.unlinkSync(snapshotPath);
+      } catch {
+        /* ignore */
+      }
+      await db.run(
+        "UPDATE brain_checkpoints SET snapshot_path = '' WHERE id = ?",
+        [row.id],
+      );
+      deleted++;
+      continue;
+    }
+
+    let changed = false;
+    if (kind === "semantic" && Array.isArray(snapshot.semantic)) {
+      snapshot.semantic = (snapshot.semantic as Array<Record<string, unknown>>).map((mem) => {
+        if (!idSet.has(Number(mem.id))) return mem;
+        changed = true;
+        return scrubSnapshotRow(mem, Number(mem.id));
+      });
+    }
+    if (Array.isArray(snapshot.summary_tree)) {
+      snapshot.summary_tree = (snapshot.summary_tree as Array<Record<string, unknown>>).map((node) => {
+        if (node.kind !== "leaf") return node;
+        if (String(node.leaf_type) !== kind) return node;
+        if (!idSet.has(Number(node.leaf_id))) return node;
+        changed = true;
+        return { ...node, text: "", sketch_terms: "[]", token_count: 0 };
+      });
+    }
+    if (kind === "episodic" && Array.isArray(snapshot.episodic)) {
+      snapshot.episodic = (snapshot.episodic as Array<Record<string, unknown>>).map((mem) => {
+        if (!idSet.has(Number(mem.id))) return mem;
+        changed = true;
+        return scrubSnapshotRow(mem, Number(mem.id));
+      });
+    }
+    if (!changed) continue;
+    try {
+      writeSnapshotFile(snapshotPath, snapshot);
+      rewritten++;
+    } catch {
+      try {
+        fs.unlinkSync(snapshotPath);
+      } catch {
+        /* ignore */
+      }
+      await db.run(
+        "UPDATE brain_checkpoints SET snapshot_path = '' WHERE id = ?",
+        [row.id],
+      );
+      deleted++;
+    }
+  }
+  return { rewritten, deleted };
+}
+
 /**
  * Delete a checkpoint and its snapshot file.
  */

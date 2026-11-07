@@ -202,6 +202,15 @@ export function registerBrainHandlers(core: CoreRuntime): void {
     };
   });
 
+  on("brain/archiveMemory", async (msg) => {
+    const result = await BrainManager.archive(msg.data.id);
+    return { success: result };
+  });
+
+  on("brain/archiveMemories", async (msg) => {
+    return BrainManager.archiveMany(msg.data.ids ?? []);
+  });
+
   on("brain/store", async (msg) => {
     const id = await BrainManager.store(msg.data);
     return { id };

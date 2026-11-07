@@ -141,9 +141,13 @@ describe("MEM-05 summaries are pointers", () => {
        WHERE id = ?`,
       [id],
     );
+    await db.run(
+      `UPDATE brain_sessions SET updated_at = datetime('now', '-2 hours') WHERE id = ?`,
+      [sessionId],
+    );
 
     const cycle = await SleepConsolidation.runCycle();
-    expect(cycle.compressed).toBeGreaterThanOrEqual(1);
+    expect(cycle.tree_refreshed + cycle.compressed).toBeGreaterThanOrEqual(1);
     expect(await rawContent("semantic", id)).toBe(original);
     expect(await treeLists("semantic", id)).toBe(true);
   });
@@ -168,6 +172,10 @@ describe("MEM-05 summaries are pointers", () => {
        SET created_at = datetime('now', '-400 days'), stability = 1, i0 = 0.2
        WHERE id = ?`,
       [id],
+    );
+    await db.run(
+      `UPDATE brain_sessions SET updated_at = datetime('now', '-2 hours') WHERE id = ?`,
+      [sessionId],
     );
 
     const result = await FiveTierHierarchy.consolidate();

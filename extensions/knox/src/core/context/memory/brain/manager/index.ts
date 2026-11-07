@@ -105,6 +105,8 @@ import {
   recall,
   forget,
   forgetMany,
+  archive,
+  archiveMany,
   pinMemories,
   unpinMemories,
 } from "./semantic.js";
@@ -177,6 +179,8 @@ export class BrainManager {
   static recall = recall;
   static forget = forget;
   static forgetMany = forgetMany;
+  static archive = archive;
+  static archiveMany = archiveMany;
   static pinMemories = pinMemories;
   static unpinMemories = unpinMemories;
   static summarizeSession = summarizeSession;

@@ -216,6 +216,7 @@ export function renderMemoryBrowser(widget: KnoxGuiWidget, body: HTMLElement, st
 		};
 		toolButton('file-json', 'JSON', t(state, 'memoryExportSelectedJson'), () => exportSelected('json'), { disabled: !selected.length });
 		toolButton('copy', 'MD', t(state, 'memoryExportSelectedMarkdown'), () => exportSelected('markdown'), { disabled: !selected.length });
+		toolButton('archive', t(state, 'memoryArchive'), t(state, 'memoryArchiveSelected'), () => void widget.controller.archiveMemories(selected, true), { disabled: !selected.length || busy, smInline: true });
 		toolButton('trash-2', t(state, 'deleteCount', { count: selected.length }), t(state, 'memoryDeleteSelected'), () => { widget.memoryConfirmDeleteIds = selected; widget.memoryConfirmDeleteBulk = true; widget.render(); }, { disabled: !selected.length || busy, danger: true });
 		toolButton('x', t(state, 'exit'), t(state, 'exitSelectionMode'), exitSelection);
 	}
@@ -371,6 +372,13 @@ function renderMemoryRow(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxG
 			title: t(state, 'memoryNotRelevant'),
 			testId: `memory-mismatch-${memory.id}`,
 			onClick: () => void widget.controller.mismatchMemory(memory.id),
+		});
+		memoryButton(widget, hover, {
+			tokens: 'row-action',
+			icon: 'archive',
+			title: t(state, 'memoryArchive'),
+			testId: `memory-archive-${memory.id}`,
+			onClick: () => void widget.controller.archiveMemories([memory.id], false),
 		});
 		memoryButton(widget, hover, {
 			tokens: 'row-action is-forget',

@@ -1,20 +1,17 @@
 /**
- * SleepConsolidation — REM/NREM-cycle memory replay, strengthening,
- * and episodic-to-semantic distillation.
+ * SleepConsolidation — φ₇ on schedule and idle (MEM-74).
  *
- * Mirrors Knox-MS NeuralMemory sleep consolidation patterns:
- * - NREM Phase 1: Replay recently accessed hot leaves (count only; no I/S write)
- * - NREM Phase 2: R/Value tiers (MEM-15; no tombstone, no leftover I write)
- * - NREM Phase 3: Compress cold-tier memories
- * - REM Phase: Episodic-to-semantic distillation — find recurring patterns
- *   in episodic memories and extract stable knowledge into semantic memory
- * - Post-sleep: Graph strengthening (reinforce frequently co-activated edges)
- * - φ₇: Refit channel weights w_s and calibrated θ from brain_attribution (MEM-18)
+ * Order: dedup → reconcile / contradiction scan → tree (lazy summary text)
+ * → lexical index refresh → archive Value < θ_arch → refit.
+ * NREM/REM stay sleep sub-steps (replay, compress, distill, graph). They must
+ * not DELETE. Frozen is archive; Tombstone is only forget/TTL/privacy.
  *
- * This runs as part of the consolidation pipeline (not time-based sleep).
- * Each invocation performs one full "sleep cycle".
- * KN-312: NREM/REM are sleep sub-steps. They must not DELETE. Frozen is
- * archive; tombstone is only forget/TTL/privacy.
+ * NREM Phase 1: Replay recently accessed hot leaves (count only; no I/S write)
+ * NREM Phase 2: R/Value tiers (MEM-15; no tombstone, no leftover I write)
+ * NREM Phase 3: Compress cold-tier memories
+ * REM Phase: Episodic-to-semantic distillation
+ * Post-sleep: Graph strengthening
+ * φ₇: Refit channel weights, isotonic θ, ✓ parameters
  */
 
 import { BrainStore } from "./BrainStore.js";
@@ -37,12 +34,27 @@ import type {
   SleepSubPhaseCounts,
 } from "./types.js";
 
+export type SleepCycleTrigger = "timer" | "idle" | "manual";
+
+export interface SleepCycleOptions {
+  trigger?: SleepCycleTrigger;
+  sessionId?: string;
+}
+
 export interface SleepCycleResult extends ConsolidationResult {
   replayed: number;
   strengthened: number;
   distilled: number;
   edges_strengthened: number;
   compressed: number;
+  /** MEM-74: near-duplicates merged this cycle. */
+  deduped: number;
+  /** MEM-74: contradictions superseded this cycle. */
+  contradictions: number;
+  /** MEM-74: forests whose lazy summary text was refreshed. */
+  tree_refreshed: number;
+  trigger: SleepCycleTrigger;
+  scope: string | null;
   /** Breakdown of each sleep sub-phase (IMP-06). */
   sub_phases: SleepSubPhaseCounts;
   /** φ₇ attribution refit of w_s and calibrated θ (MEM-18). */
@@ -51,7 +63,7 @@ export interface SleepCycleResult extends ConsolidationResult {
   calibration?: CalibrationRefitResult;
   /** MEM-62: guarded parameter refit report. */
   param_refit?: RefitRunResult;
-  /** Reachability ∧ Losslessness after this cycle (MEM-32). */
+  /** Reachability ∧ Losslessness ∧ Freshness ∧ Erasure after this cycle. */
   invariants?: StoreInvariantReport;
 }
 
@@ -73,7 +85,8 @@ export class SleepConsolidation {
    * Run a full sleep consolidation cycle.
    * This enhances the basic hot→warm→cold tiering with brain-like phases.
    */
-  static async runCycle(): Promise<SleepCycleResult> {
+  static async runCycle(options: SleepCycleOptions = {}): Promise<SleepCycleResult> {
+    const trigger = options.trigger ?? "manual";
     const result: SleepCycleResult = {
       promoted: 0,
       demoted: 0,
@@ -84,6 +97,11 @@ export class SleepConsolidation {
       distilled: 0,
       edges_strengthened: 0,
       compressed: 0,
+      deduped: 0,
+      contradictions: 0,
+      tree_refreshed: 0,
+      trigger,
+      scope: options.sessionId ?? null,
       sub_phases: {
         nrem_replay: 0,
         nrem_decay_demoted: 0,
@@ -96,35 +114,66 @@ export class SleepConsolidation {
       },
     };
 
-    // Phase 1 (NREM-1): Replay — count recently accessed hot leaves. No I/S write (MEM-14).
+    await BrainStore.auditLog("sleep:start", "sleep", options.sessionId ?? null, {
+      trigger,
+      order: "dedup,reconcile,tree,index,archive,refit",
+    }).catch(() => {});
+
+    // φ₇.1 dedup near-duplicates (MERGE). Never DELETE.
+    result.deduped = await SleepConsolidation.dedupNearDuplicates(options.sessionId);
+    await BrainStore.auditLog("sleep:dedup", "sleep", options.sessionId ?? null, {
+      deduped: result.deduped,
+    }).catch(() => {});
+
+    // φ₇.2 reconcile / contradiction scan (SUPERSEDE valid_to). Never DELETE.
+    result.contradictions = await SleepConsolidation.scanContradictions(options.sessionId);
+    await BrainStore.auditLog("sleep:reconcile", "sleep", options.sessionId ?? null, {
+      contradictions: result.contradictions,
+    }).catch(() => {});
+
+    // φ₇.3 tree: ingest unlinked leaves + lazy summary text (MEM-53 / MEM-74).
+    result.tree_refreshed = await SleepConsolidation.refreshTree(options.sessionId);
+    await BrainStore.auditLog("sleep:tree", "sleep", options.sessionId ?? null, {
+      tree_refreshed: result.tree_refreshed,
+    }).catch(() => {});
+
+    // φ₇.4 lexical index refresh (live FTS + Frozen segment).
+    await SleepConsolidation.refreshLexicalIndex();
+    await BrainStore.auditLog("sleep:index", "sleep", options.sessionId ?? null, {
+      ok: true,
+    }).catch(() => {});
+
+    // NREM-1 replay (count only).
     result.replayed = await SleepConsolidation.nremReplay();
     result.sub_phases.nrem_replay = result.replayed;
 
-    // Phase 2 (NREM-2): R/Value tiers (MEM-15). Never tombstone. Never rewrite leftover I.
+    // φ₇.5 archive Value < θ_arch (Frozen, not tombstone).
     const decayResult = await SleepConsolidation.nremDecay();
     result.demoted = decayResult.demoted;
     result.pruned = 0;
     result.promoted = decayResult.promoted;
     result.sub_phases.nrem_decay_demoted = decayResult.demoted;
     result.sub_phases.nrem_decay_pruned = 0;
+    await BrainStore.auditLog("sleep:archive", "sleep", options.sessionId ?? null, {
+      demoted: result.demoted,
+      promoted: result.promoted,
+    }).catch(() => {});
 
-    // Phase 3 (NREM-3): Compress — compress cold-tier content
+    // NREM-3 / Frozen pointers. Originals stay.
     result.compressed = await SleepConsolidation.nremCompress();
     result.sub_phases.nrem_compress = result.compressed;
 
-    // Phase 4 (REM): Distill — extract recurring patterns from episodic memory
+    // REM distill.
     result.distilled = await SleepConsolidation.remDistill();
     result.sub_phases.rem_distill = result.distilled;
 
-    // Phase 5 (Post-sleep): Strengthen graph edges that co-occur frequently
     result.edges_strengthened = await SleepConsolidation.strengthenGraph();
     result.sub_phases.graph_strengthen = result.edges_strengthened;
 
-    // Phase 6: leftover hook. Tiers already assigned from R/Value in nremDecay.
     await SleepConsolidation.promoteHighValue();
     result.sub_phases.promote = result.promoted;
 
-    // Phase 7 (φ₇): refit channel weights w_s and calibrated θ from attribution.
+    // φ₇.6 refit.
     result.refit = await SleepConsolidation.refitAttributionPriors();
     result.sub_phases.refit = result.refit?.rows ?? 0;
 
@@ -153,6 +202,131 @@ export class SleepConsolidation {
     }
 
     return result;
+  }
+
+  // ── φ₇.1 Dedup ─────────────────────────────────────────────────────────────
+
+  /**
+   * MERGE near-duplicates in the same scope. Closes valid_to on the extra
+   * row; never DELETEs. Sleep archives by Value; forget is a separate path.
+   */
+  private static async dedupNearDuplicates(sessionId?: string): Promise<number> {
+    try {
+      const db = await BrainStore.get();
+      const rows = (await db.all(
+        sessionId
+          ? `SELECT id, category, title, content, keywords, source_session_id, scope_key
+             FROM brain_semantic
+             WHERE tombstoned_at IS NULL AND valid_to IS NULL AND source_session_id = ?
+             ORDER BY id ASC`
+          : `SELECT id, category, title, content, keywords, source_session_id, scope_key
+             FROM brain_semantic
+             WHERE tombstoned_at IS NULL AND valid_to IS NULL
+             ORDER BY id ASC LIMIT 400`,
+        sessionId ? [sessionId] : [],
+      )) as Array<{
+        id: number;
+        category: string;
+        title: string;
+        content: string;
+        keywords: string;
+        source_session_id: string | null;
+        scope_key: string | null;
+      }>;
+      let merged = 0;
+      const closed = new Set<number>();
+      for (let i = 0; i < rows.length; i++) {
+        if (closed.has(rows[i].id)) continue;
+        const dups = await BrainStore.findDuplicates(
+          rows[i].title,
+          rows[i].keywords,
+          rows[i].category as never,
+        );
+        for (const dup of dups) {
+          if (dup.id === rows[i].id || closed.has(dup.id)) continue;
+          if (dup.similarity < 0.85) continue;
+          await db.run(
+            `UPDATE brain_semantic SET valid_to = datetime('now') WHERE id = ? AND valid_to IS NULL`,
+            [dup.id],
+          );
+          closed.add(dup.id);
+          merged++;
+        }
+      }
+      return merged;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * Close valid_to on a live fact that contradicts a later one in the same
+   * category. SUPERSEDE, not DELETE.
+   */
+  private static async scanContradictions(sessionId?: string): Promise<number> {
+    try {
+      const { CONTRADICTION_CATEGORIES, conflictsWith } = await import("./memoryOutcomes.js");
+      const db = await BrainStore.get();
+      const rows = (await db.all(
+        sessionId
+          ? `SELECT id, category, title, content FROM brain_semantic
+             WHERE tombstoned_at IS NULL AND valid_to IS NULL AND source_session_id = ?
+             ORDER BY id ASC`
+          : `SELECT id, category, title, content FROM brain_semantic
+             WHERE tombstoned_at IS NULL AND valid_to IS NULL
+             ORDER BY id ASC LIMIT 400`,
+        sessionId ? [sessionId] : [],
+      )) as Array<{ id: number; category: string; title: string; content: string }>;
+      let n = 0;
+      for (let i = 0; i < rows.length; i++) {
+        if (!CONTRADICTION_CATEGORIES.has(rows[i].category as never)) continue;
+        for (let j = i + 1; j < rows.length; j++) {
+          if (rows[i].category !== rows[j].category) continue;
+          if (!conflictsWith(rows[j], rows[i])) continue;
+          await db.run(
+            `UPDATE brain_semantic SET valid_to = datetime('now') WHERE id = ? AND valid_to IS NULL`,
+            [rows[i].id],
+          );
+          n++;
+          break;
+        }
+      }
+      return n;
+    } catch {
+      return 0;
+    }
+  }
+
+  private static async refreshTree(sessionId?: string): Promise<number> {
+    try {
+      const { ingestSessionLeaves, refreshLazySummaryText } = await import("./SummaryTree.js");
+      if (sessionId) {
+        await ingestSessionLeaves(sessionId);
+        return refreshLazySummaryText(sessionId);
+      }
+      const db = await BrainStore.get();
+      const sessions = (await db.all(
+        `SELECT id FROM brain_sessions ORDER BY updated_at DESC LIMIT 20`,
+      )) as Array<{ id: string }>;
+      for (const s of sessions) {
+        await ingestSessionLeaves(s.id);
+      }
+      return refreshLazySummaryText();
+    } catch {
+      return 0;
+    }
+  }
+
+  private static async refreshLexicalIndex(): Promise<void> {
+    try {
+      const db = await BrainStore.get();
+      const { RetrievalFusion } = await import("./RetrievalFusion.js");
+      await RetrievalFusion.rebuildFts5(db);
+      const { syncFrozenSegment } = await import("./store/frozenSegment.js");
+      await syncFrozenSegment(db);
+    } catch {
+      // Index refresh is best-effort; next heal can rebuild.
+    }
   }
 
   // ── NREM Phase 1: Replay ────────────────────────────────────────────────────
@@ -193,14 +367,21 @@ export class SleepConsolidation {
   // ── NREM Phase 3: Compress ─────────────────────────────────────────────────
 
   /**
-   * Write summary-tree pointers for cold-tier leaves. Originals stay intact.
+   * Write summary-tree pointers for cold and Frozen leaves. Originals stay intact.
    */
   private static async nremCompress(): Promise<number> {
+    let n = 0;
     try {
-      return await BrainStore.compressColdTier();
+      n += await BrainStore.compressColdTier();
     } catch {
-      return 0;
+      // Pointer writes are best-effort.
     }
+    try {
+      n += await BrainStore.compressFrozenSegment();
+    } catch {
+      // Frozen pointers are additive.
+    }
+    return n;
   }
 
   // ── REM Phase: Episodic-to-Semantic Distillation ───────────────────────────

@@ -436,6 +436,10 @@ describe("memory brain regressions", () => {
       `UPDATE brain_semantic SET last_accessed_at = datetime('now', '-30 days') WHERE id = ?`,
       [pinnedId],
     );
+    await db.run(
+      `UPDATE brain_sessions SET updated_at = datetime('now', '-2 hours') WHERE id = ?`,
+      [sessionId],
+    );
     await BrainStore.consolidate();
     const pinnedRow = await BrainStore.getSemanticById(pinnedId);
     expect(pinnedRow?.tier).toBe("warm");

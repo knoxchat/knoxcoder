@@ -31,6 +31,8 @@ describe("memory tool family (K-021 / K-070)", () => {
     expect(enumValues).toEqual([...MEMORY_PRODUCT_ACTIONS]);
     expect(memoryTool.function.description).toMatch(/durable facts and decisions only/i);
     expect(enumValues).toContain("attribute");
+    expect(enumValues).toContain("archive");
+    expect(enumValues).toContain("delete");
     expect(memoryTool.function.description).toMatch(/attribute/i);
     for (const banned of [
       "heal",

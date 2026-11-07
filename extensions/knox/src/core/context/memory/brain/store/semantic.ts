@@ -24,7 +24,8 @@ import { rowToSemantic } from "./mappers.js";
 import { addTag } from "./organization.js";
 import { auditLog, getLatestSessionTopic, getOpenTask } from "./runtime.js";
 import { parseSummaryOf, serializeSummaryOf } from "./summaryTree.js";
-import { TOMBSTONE_REASON, liveRetrieveSql, tombstoneMemories } from "./tombstone.js";
+import { TOMBSTONE_REASON, liveRetrieveSql, archiveMemories } from "./tombstone.js";
+import { eraseMemories } from "./erasure.js";
 import { bitemporalSql, notSupersededSql, queryScopeSql, validAtSql, type BitemporalQuery } from "./validity.js";
 import { computeSalience, detectEmotionalValence } from "./valence.js";
 
@@ -653,12 +654,17 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
 }
 
 /**
- * MEM-06: forget is a tombstone, not a DELETE.
- * Row, tags, associations, and FTS stay so undo can restore.
- * Pinned rows are exempt.
+ * MEM-72 / MEM-73: `delete` / forget is erasure, not a reversible tombstone.
+ * Pinned rows are exempt (unpin first). Archive is `archiveSemantic`.
  */
 export async function deleteSemantic(id: number): Promise<boolean> {
-  const n = await tombstoneMemories("semantic", [id], TOMBSTONE_REASON.forget, { via: "forget" });
+  const n = await eraseMemories("semantic", [id], TOMBSTONE_REASON.forget, { via: "forget" });
+  return n > 0;
+}
+
+/** MEM-72: reversible archive. Out of default retrieve; content and undo stay. */
+export async function archiveSemantic(id: number): Promise<boolean> {
+  const n = await archiveMemories("semantic", [id], { via: "archive" });
   return n > 0;
 }
 

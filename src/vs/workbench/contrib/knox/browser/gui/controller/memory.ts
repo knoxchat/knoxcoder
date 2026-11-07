@@ -571,6 +571,41 @@ export function showMemoryBanner(controller: KnoxGuiController, kind: 'error' | 
 	}
 }
 
+/** MEM-72: reversible archive. Frozen, out of default retrieve, content stays. */
+export async function archiveMemories(controller: KnoxGuiController, ids: string[], bulk = ids.length > 1): Promise<void> {
+	const numeric = ids.map(id => Number(id)).filter(id => !Number.isNaN(id));
+	if (!numeric.length) {
+		return;
+	}
+	showMemoryBanner(controller, 'error', undefined);
+	controller.store.patch({ memoryBrowserBusy: true });
+	try {
+		if (!bulk) {
+			const result = asRecord(await controller.messenger.request('brain/archiveMemory', { id: numeric[0] }));
+			if (!result?.success) {
+				showMemoryBanner(controller, 'error', { key: 'memoryArchiveFailed' });
+				return;
+			}
+			controller.store.patch({ memories: controller.store.state.memories.filter(memory => memory.id !== ids[0]) });
+			showMemoryBanner(controller, 'notice', { key: 'memoryArchived' });
+			return;
+		}
+		const result = asRecord(await controller.messenger.request('brain/archiveMemories', { ids: numeric }));
+		const archived = Number(result?.archived ?? 0);
+		const failed = Number(result?.failed ?? Math.max(0, numeric.length - archived));
+		controller.store.patch({ memories: controller.store.state.memories.filter(memory => !ids.includes(memory.id)) });
+		if (failed > 0) {
+			showMemoryBanner(controller, 'error', { key: 'memoryBulkArchivePartialFail', count: failed });
+		} else {
+			showMemoryBanner(controller, 'notice', { key: 'memoryArchived' });
+		}
+	} catch {
+		showMemoryBanner(controller, 'error', { key: 'memoryArchiveFailed' });
+	} finally {
+		controller.store.patch({ memoryBrowserBusy: false });
+	}
+}
+
 /** `bulk` uses `brain/deleteMemories` and reports partial failures; a single forget checks `success`. */
 export async function deleteMemories(controller: KnoxGuiController, ids: string[], bulk = ids.length > 1): Promise<void> {
 	const numeric = ids.map(id => Number(id)).filter(id => !Number.isNaN(id));

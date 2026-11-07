@@ -122,8 +122,9 @@ recent turns, and `W_out`, capped locally at 4096 (`KNOX_MEMORY_INJECT_CAP`
 can tighten that). Success is measured recall of relevant facts, not a bigger
 inject number. Open it with "Knox: View Memory" to see what was used, pin or
 remove items.
-Remove / `builtin_memory` delete tombstones the row (reversible via audit);
-command-palette wipe is destructive and keeps a backup. First-run chat shows
+Forget / `builtin_memory` delete erases the row (content-free tombstone).
+Archive is reversible and drops the row from default retrieve. Command-palette
+wipe is destructive and keeps a backup. First-run chat shows
 what is stored. Off: `knoxchat.memoryBrain.enabled` (user) or
 `knoxchat.memoryBrain.workspaceEnabled` (this folder). Export / wipe from
 the command palette. Size cap: `knoxchat.memoryBrain.maxBytes`.

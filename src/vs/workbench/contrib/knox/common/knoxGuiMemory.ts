@@ -39,7 +39,7 @@ export const MEMORY_RETRIEVAL_TOP_K = 50;
 /** KN-376: each Memory panel tab's KN-310-317 `brain/*` surface. */
 export const MEMORY_PANEL_TAB_BRAIN_MESSAGES = {
 	overview: ['brain/dashboard', 'brain/getEffectiveContext', 'brain/getMetricsTrend', 'brain/getPhaseStatus', 'brain/getReviewDue', 'brain/getEbbinghausStats', 'brain/consolidate'],
-	memories: ['brain/searchMemories', 'brain/store', 'brain/updateMemory', 'brain/mismatchMemory', 'brain/pinMemory', 'brain/unpinMemory', 'brain/pinMemories', 'brain/unpinMemories', 'brain/deleteMemory', 'brain/deleteMemories'],
+	memories: ['brain/searchMemories', 'brain/store', 'brain/updateMemory', 'brain/mismatchMemory', 'brain/pinMemory', 'brain/unpinMemory', 'brain/pinMemories', 'brain/unpinMemories', 'brain/deleteMemory', 'brain/deleteMemories', 'brain/archiveMemory', 'brain/archiveMemories'],
 	sessions: ['brain/listSessions', 'brain/getSessionHistory', 'brain/searchBacklogs', 'brain/useSessionAsContext', 'history/delete'],
 	graph: ['brain/graphStats', 'brain/listEntities', 'brain/searchEntities', 'brain/exploreGraph'],
 	recipes: ['knox/recipeList', 'knox/recipeSetStatus', 'knox/recipePatch', 'knox/recipePreview', 'knox/recipeReplay', 'knox/recipePromoteSkill'],
@@ -746,6 +746,8 @@ export function parsePhaseStatus(raw: Record<string, unknown> | undefined): IKno
 		budgetInvariantMet: rec.budget_invariant_met === true,
 		reachabilityInvariantMet: rec.reachability_invariant_met === true,
 		losslessnessInvariantMet: rec.losslessness_invariant_met === true,
+		freshnessInvariantMet: rec.freshness_invariant_met === true,
+		erasureInvariantMet: rec.erasure_invariant_met === true,
 		backgroundSleepActive: rec.background_sleep_active === true,
 		lastCompleted: last?.phase ? String(last.phase) : (typeof rec.last_completed === 'string' ? rec.last_completed : undefined),
 	};

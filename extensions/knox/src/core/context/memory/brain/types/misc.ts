@@ -81,6 +81,7 @@ export interface RateLimitState {
 export type MemoryEventType =
   | "memory:stored"
   | "memory:deleted"
+  | "memory:archived"
   | "memory:mismatched"
   | "memory:recalled"
   | "session:created"

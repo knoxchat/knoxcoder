@@ -1,15 +1,17 @@
 /**
- * Memory tiers from R and Value only (revised Knox-MS Part IV, MEM-15).
+ * Memory tiers from R and Value only (revised Knox-MS Part IV, MEM-15 / MEM-75).
  *
- *   Active  = in current session working memory
+ *   Active  = memories of sessions touched within
+ *             consolidate_active_session_minutes (30), or in current WM
  *   Hot     = R ≥ 0.9
  *   Warm    = 0.7 ≤ R < 0.9
  *   Cold    = 0.3 ≤ R < 0.7
- *   Frozen  = R < 0.3 or Value < θ_arch
- *   Deleted = tombstone (MEM-06) — not a stored tier
+ *   Frozen  = R < 0.3 or Value < θ_arch; postings in the slower segment
+ *   Deleted = tombstone (MEM-06 / MEM-73) - not a stored tier
  *
  * Clock knobs (`hot_to_warm_hours`, `warm_to_cold_days`, `cold_prune_days`)
  * are unused leftovers. Recompute on sleep and on attribution, not on a clock.
+ * Frozen changes cost, never reachability: the tree still routes to the leaf.
  */
 
 import {
@@ -56,6 +58,8 @@ export interface TierParams {
 export interface ClassifyTierOptions {
   /** Current-session WM holds this leaf → Active. */
   inWorkingMemory?: boolean;
+  /** Session touched within consolidate_active_session_minutes → Active (MEM-75). */
+  inActiveSession?: boolean;
   /** Pin overrides archive-by-Value; never store Frozen. */
   pinned?: boolean;
 }
@@ -166,7 +170,7 @@ export function classifyMemoryTier(
   params?: Partial<TierParams>,
   nowMs: number = Date.now(),
 ): MemoryTier {
-  if (options?.inWorkingMemory) return "active";
+  if (options?.inWorkingMemory || options?.inActiveSession) return "active";
   const p = resolveParams(params);
   const r = retrievabilityFromSource(source, p.forgetting, nowMs);
   const value = memoryValueFromSource(source, {
