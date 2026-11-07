@@ -1349,6 +1349,7 @@ suite('Knox native GUI parity', () => {
 			epsilon_b: null,
 			epsilon_b_note: 'n/a — flat FTS',
 			epsilon_s: 0,
+			epsilon_omega: 0.05,
 			theorem_held: false,
 		});
 		assert.strictEqual(ctx?.cAddr, 80);
@@ -1367,6 +1368,7 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(ctx?.epsilonB, null);
 		assert.strictEqual(ctx?.epsilonBNote, 'n/a — flat FTS');
 		assert.strictEqual(ctx?.epsilonS, 0);
+		assert.strictEqual(ctx?.epsilonOmega, 0.05);
 		assert.strictEqual(ctx?.theoremHeld, false);
 		assert.strictEqual(formatAnswerableHorizon(365), '365d');
 		assert.strictEqual(formatAnswerableHorizon(4.4), '4.4d');
@@ -1382,6 +1384,7 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(headline.sigma, 0.2);
 		assert.strictEqual(headline.epsilonB, null);
 		assert.strictEqual(headline.epsilonS, 0);
+		assert.strictEqual(headline.epsilonOmega, 0.05);
 		const compression = MEMORY_SETTING_GROUPS.find(group => group.titleKey === 'memoryCompressionSettings');
 		assert.ok(compression?.legacy);
 		assert.ok(!memoryExpertSettingGroups().some(group => group.titleKey === 'memoryCompressionSettings'));

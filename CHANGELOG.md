@@ -3,6 +3,16 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Added
+
+- **Memory Brain Rev 2 (revised Knox-MS notes 16-25).** Write path, forgetting, calibration, erasure, and a release gate on top of the 2.3.0 rewrite. Retrieval stays local lexical (sqlite FTS, BM25, trigrams, MinHash, graph, tree). No embeddings, vector index, or neural rerank. How to use it: [Memory](extensions/knox/docs/README.md#memory). Pairing: [knox-memory-checkpoint.md](extensions/knox/docs/knox-memory-checkpoint.md). Math: [KMS Unlimited Context Theorem](https://docs.knoxstudio.ai/knox-ms-unlimited-formula/). Plan: [memory-impl.md](extensions/knox/docs/memory-impl.md) (MEM-45 through MEM-80).
+  - **Write path.** Every row has provenance `src` (`user` / `assistant` / `tool` / `external`). Tool and external facts are quoted data and cannot supersede a user fact. φ₄ reconcile returns `ADD / UPDATE / SUPERSEDE / MERGE / NOOP` under a per-scope lock. Facts are bitemporal (`valid_*` plus `recorded_at`). Repeat writes are idempotent by content hash. Summary-tree ancestors store Bloom + top-term sketches on insert and split so depth stays `⌈log_b N⌉`.
+  - **Forgetting and Value.** `S₀` scales with `I₀`. FSRS is capped (`ρ_max`, `S_max`, `S_min`) and difficulty reverts. Uncited injection adds fractional `ω` to `u`. Near-duplicate MERGE uses 128-permutation MinHash of 3-shingles stored at encode time.
+  - **Calibration.** Opt-in ablation probes (2%, lexical judge) and Thompson exploration (5%) log propensity. θ is an isotonic, inverse-propensity `P(helpful)` fit (pool-adjacent-violators), per-scope after 200 injections, else global, else top 20. Sleep refits the ✓ parameter block with holdout rollback. Injected memory is a quoted `[mem:]` user-role block, never the system prompt.
+  - **Scope and channels.** Access is this sqlite (fail-closed). Relevance is the project plus user-global `preference` / `workflow`. As-of intent keeps superseded facts for past queries. Candidates are top 50 plus reserved tree-routed leaves (`≤ B·b`). Each channel has a hard cost cap (FTS MATCH 2048, ripgrep 200 ms, PPR `O(1/(αε))`, tree `O(B b log_b N)`). `|G_W| > B` triggers an H→P second hop. `W_mem` has a floor; an impossible window reroutes or errors, never truncates silently.
+  - **Archive vs forget.** Archive freezes (reversible, out of default retrieve). Forget / TTL / privacy erases: content-free tombstone, FTS/n-gram/rg postings, graph evidence, ancestor summaries, and snapshot JSON. Health checks five invariants: Budget, Reachability, Losslessness, Freshness (read-your-writes), Erasure. Sleep runs on the 24h timer and when a scope is idle. Frozen postings sit in a slower FTS segment and stay tree-routable. Active is the last 30 minutes of session activity.
+  - **Proof gate.** Scale bench publishes `Rec_W` against budgeted gold `G_W(q)`, `ε_Ω` (scope miss), per-tier `ε_S` (4K / 32K / 200K), per-level `ε_B`, and a flat top-k Dilution Lemma baseline. Nightly `N_q = 1e6` requires p95 < 300 ms. LongMemEval / LoCoMo / held-out adapters (env paths, never vendored) plus a synthetic fixture; grader is lexical. Erasure bench plants, forgets, and searches (zero hits). `gateRelease` aggregates recall, accuracy, `H_0.85`, latency, and erasure. Overview shows `ε_Ω` and the five invariant chips.
+
 ### Changed
 
 - **Upgrade editor host to VS Code 1.145.2**
@@ -13,6 +23,12 @@ All notable changes to KnoxCoder are documented in this file.
   Not adopted from upstream: Copilot harness, Chat, Agents window, Agent Host, MCP, canvases, prompt/skill packs, inline chat, dictation, on-device models, Copilot CLI installer, sandbox/agent telemetry, experiment assignment, and related SDKs — KnoxCoder stays slim and uses its own Knox Agent.
 
 - **New-version popup.** When an update is available, KnoxCoder now shows a centered "Update Available" dialog with the new version, the size, the GitHub release notes, and Skip Version / Later / Download & Install. It shows download progress and then installs and restarts without further clicks. Turn it off with `update.showModal`; reopen it from the command palette with "Show Available Update".
+
+### Fixed
+
+- **Retrieve-path table count.** Graph, trigram, semantic, episodic, and ripgrep no longer `COUNT(*)` the store to decide a LIKE scan. Empty FTS is a miss. LIKE is FTS-less only. Search stays `O(log N_q)`.
+- **Rec-vs-N scan detector.** With ~13 gold queries, p95 is the max. Growth is gated on p50 so one Windows cold sample is not a table scan. Absolute ceilings stay a leftover-scan tripwire, not a laptop SLO.
+- **Memory GUI contracts.** Fusion uses the public tree channel (`searchTreeChannel`). The bulk-forget banner matches Forget copy (`could not be forgotten`).
 
 ## [2.3.1] - 2026-11-02
 

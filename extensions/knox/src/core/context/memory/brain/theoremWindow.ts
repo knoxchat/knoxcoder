@@ -19,6 +19,8 @@ export interface PublishedTheoremWindow {
   epsilon_b?: number | null;
   epsilon_b_note?: string;
   epsilon_s?: number;
+  epsilon_omega?: number;
+  rec_w?: number;
   theorem_held?: boolean;
   published_at: string;
   source?: string;
@@ -74,6 +76,8 @@ export function loadPublishedTheoremWindow(dir?: string): PublishedTheoremWindow
     const sigma = readFinite(raw.sigma);
     const epsilonB = readEpsilonB(firstOwn(raw, "epsilon_b", "epsilonB"));
     const epsilonS = readFinite(raw.epsilon_s ?? raw.epsilonS);
+    const epsilonOmega = readFinite(raw.epsilon_omega ?? raw.epsilonOmega);
+    const recW = readFinite(raw.rec_w ?? raw.recW);
     const note = typeof raw.epsilon_b_note === "string" && raw.epsilon_b_note.trim()
       ? raw.epsilon_b_note.trim()
       : undefined;
@@ -82,7 +86,8 @@ export function loadPublishedTheoremWindow(dir?: string): PublishedTheoremWindow
       horizon === undefined &&
       sigma === undefined &&
       epsilonB === undefined &&
-      epsilonS === undefined
+      epsilonS === undefined &&
+      epsilonOmega === undefined
     ) {
       return undefined;
     }
@@ -95,6 +100,8 @@ export function loadPublishedTheoremWindow(dir?: string): PublishedTheoremWindow
     if (epsilonB !== undefined) published.epsilon_b = epsilonB;
     if (note) published.epsilon_b_note = note;
     if (epsilonS !== undefined) published.epsilon_s = epsilonS;
+    if (epsilonOmega !== undefined) published.epsilon_omega = epsilonOmega;
+    if (recW !== undefined) published.rec_w = recW;
     if (typeof raw.theorem_held === "boolean") published.theorem_held = raw.theorem_held;
     if (typeof raw.source === "string" && raw.source.trim()) published.source = raw.source.trim();
     return published;

@@ -48,7 +48,7 @@ import {
   utilityFromSource,
 } from "./Value.js";
 import { hasRipgrepHit, searchRipgrepChannel } from "./channels/ripgrep.js";
-import { beamSearchTree } from "./SummaryTree.js";
+import { searchTreeChannel } from "./SummaryTree.js";
 import { appendRelevanceScope, isUserGlobalCategory } from "./projectScope.js";
 import { queryScopeClause } from "./store/validity.js";
 import { mergeReservedCandidates, resolveReservedTreeSlots } from "./reservedSlots.js";
@@ -75,7 +75,7 @@ import {
  * Live channels today: lexical (BM25-then-trigram), ripgrep (exact /
  * identifier hits on stored text + project files), graph (hub-damped PPR,
  * MEM-25), and the summary
- * tree (beam over session pointers, MEM-24). Priors modulate, they do not
+ * tree (searchTreeChannel: beam over session pointers, MEM-24). Priors modulate, they do not
  * compete:
  * score = rel · (1 + η_U U) · (1 + η_R R) (MEM-21). Topic/task bias is a
  * small multiplier after the gate and cannot resurrect rel=0.
@@ -746,7 +746,7 @@ export class RetrievalFusion {
         asOf,
         timeoutMs: theoremV2.ripgrepTimeoutMs,
       }), (r) => r.visited),
-      timed("tree", () => beamSearchTree({
+      timed("tree", () => searchTreeChannel({
         query: searchQuery,
         db,
         includeEpisodic: options.includeEpisodic !== false,
@@ -1426,10 +1426,10 @@ export class RetrievalFusion {
 
     // Candidate pool, best lexical match first. Ordering the LIKE pool by importance alone lets
     // common words in unrelated rows crowd out the one relevant memory once the brain holds
-    // thousands of items (P1-5 scale bench), so FTS5 BM25 picks the pool and LIKE only tops it up
-    // (substring / non-stemmed matches). With a big brain the pool is full from FTS5 and the
-    // LIKE table scan never runs.
+    // thousands of items (P1-5 scale bench), so FTS5 BM25 picks the pool. LIKE is FTS-less
+    // only (MEM-67): never COUNT(*) and never scan Ω(q) after a successful MATCH.
     let rows: any[] = [];
+    let ftsUsed = false;
     const ftsQuery = RetrievalFusion.buildFts5Query(query);
     if (ftsQuery) {
       try {
@@ -1462,20 +1462,15 @@ export class RetrievalFusion {
           ftsParams,
           poolSize,
         );
+        ftsUsed = true;
       } catch {
         rows = []; // FTS5 unavailable: LIKE pool below
       }
     }
 
-    // MEM-67: substring top-up is a table scan. Allow it only on a small store
-    // (tests / empty brain). A 1e5-row scope never takes this path.
-    let allowLikeScan = !ftsQuery;
-    if (!allowLikeScan && rows.length < poolSize) {
-      const total = await db.get("SELECT COUNT(*) AS n FROM brain_semantic").catch(() => null);
-      allowLikeScan = ((total as { n?: number } | null)?.n ?? 0) <= 5000;
-    }
-
-    if (rows.length < poolSize && allowLikeScan) {
+    // MEM-67: substring top-up is a table scan. Allow it only when FTS5 is
+    // unavailable. Do not COUNT(*) the store to decide; that walk is O(N).
+    if (rows.length < poolSize && !ftsUsed) {
       const seen = new Set<number>(rows.map((r: any) => r.id));
       params.push(poolSize);
       const likeRows = await db.all(`

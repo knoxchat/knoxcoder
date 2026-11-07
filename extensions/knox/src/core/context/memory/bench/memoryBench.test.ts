@@ -62,6 +62,8 @@ describe("memory benchmark (K-035)", () => {
     expect(report.epsilon_b).toBeNull();
     expect(report.epsilon_b_note).toBe("n/a — flat FTS");
     expect(report.epsilon_s).toBeGreaterThanOrEqual(0);
+    expect(report.epsilon_omega ?? 0).toBe(0);
+    expect(report.rec_w ?? report.recallAtK).toBe(1);
     expect(report.theorem_held).toBe(false);
   }, 60_000);
 

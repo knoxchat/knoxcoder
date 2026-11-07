@@ -2417,7 +2417,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		}
 		assert.deepStrictEqual(store.state.memories.map(memory => memory.id), ['3']);
 		assert.strictEqual(widget.memorySelectionMode, false);
-		assert.ok(widget.root.querySelector('[data-testid="memory-browser-error"]')?.textContent?.includes('1 memories could not be deleted'));
+		assert.ok(widget.root.querySelector('[data-testid="memory-browser-error"]')?.textContent?.includes('1 memories could not be forgotten'));
 
 		await widget.controller.pinMemories(['3'], true, false);
 		assert.strictEqual(store.state.memories[0].pinned, undefined);

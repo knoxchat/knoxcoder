@@ -411,6 +411,8 @@ export type ToCoreFromIdeOrWebviewProtocol = {
       epsilon_b?: number | null;
       epsilon_b_note?: string;
       epsilon_s?: number;
+      epsilon_omega?: number;
+      rec_w?: number;
       theorem_held?: boolean;
       levels?: Array<{
         id: string;

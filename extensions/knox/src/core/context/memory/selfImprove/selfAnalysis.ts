@@ -69,6 +69,8 @@ export interface SelfAnalysisOptions {
     epsilon_b?: number | null;
     epsilon_b_note?: string;
     epsilon_s?: number;
+    epsilon_omega?: number;
+    rec_w?: number;
     theorem_held?: boolean;
   };
   /** Scale-bench sibling of baseline.json (MEM-42). Preferred for ε_B and Rec vs N. */

@@ -1,16 +1,17 @@
 /**
- * MEM-40: Recall-versus-N scale bench.
+ * MEM-40 / MEM-76 / MEM-77 / MEM-78: Recall-versus-N scale bench.
  *
  * Seeds gold memories `R(q)` into one project and overlapping-vocab filler
  * across several projects so `N_q = σ N` (project scope), not one flat
- * session of 100k. Measures Rec, |C(q)|, and pre-turn latency at each N.
+ * session of 100k. Measures Rec_W, |C(q)|, and pre-turn latency at each N.
  *
  *   N ∈ {1e3, 1e4, 1e5} by default. 1e6 is nightly (`KNOX_SCALE_NIGHTLY=1`).
  *   Cap / override with `KNOX_SCALE_ITEMS` or `KNOX_RECALL_SCALE_NS=1000,10000`.
  *
- * Publishes σ, ε_B, ε_S on every point (MEM-42). ε_B is `n/a — flat FTS`
+ * Publishes σ, ε_Ω, ε_B (per level), ε_S (per W_mem tier), Rec_W, and a
+ * flat top-k baseline (Dilution Lemma) on every point. ε_B is `n/a — flat FTS`
  * until the query-session tree has ≥ b leaves. `theorem_held` is true only
- * when ε_B is finite and Rec stays at `1 − ε_S − ε_B ⌈log_b N_q⌉`.
+ * when ε_B is finite and Rec_W stays at `1 − ε_Ω − ε_S − ε_B ⌈log_b N_q⌉`.
  */
 import fs from "fs";
 import os from "os";
@@ -25,15 +26,38 @@ import {
   aggregateQueryErrors,
   buildTheoremErrorReport,
   keysFromRefs,
+  recW,
+  scopeMissRate,
+  selectionMissByTier,
   selectionMissRate,
+  type BudgetedGoldItem,
   type TheoremErrorReport,
 } from "./errors";
-import { BENCH_MEMORIES, BENCH_QUERIES, type BenchMemory, type BenchQuery } from "./fixtures";
+import {
+  BENCH_MEMORIES,
+  BENCH_QUERIES,
+  estimateMemoryTokens,
+  goldSetForQuery,
+  inOmegaKeys,
+  type BenchMemory,
+  type BenchQuery,
+} from "./fixtures";
+import { buildFts5Query } from "../brain/RetrievalQuery.js";
 
 export { RECALL_SCALE_NIGHTLY_N, RECALL_SCALE_NS };
 
 /** Projects in the seeded brain. Query project is index 0, so σ ≈ 1 / this. */
 export const RECALL_SCALE_PROJECTS = 5;
+
+/** Gold planted in a distractor project so ε_Ω is measurable (MEM-76). */
+export const SCOPE_MISS_MEMORY: BenchMemory = {
+  key: "scope-miss-foreign",
+  category: "fact",
+  title: "Foreign project uses ZephyrScopeMissAuth",
+  content: "Only the distractor project stores ZephyrScopeMissAuth as the session secret.",
+  keywords: "zephyrscope, miss, auth, foreign",
+  importance: 0.9,
+};
 
 /** Full φ₅ ingest stays cheap below this N_q; larger N still ingest gold so ε_B is defined. */
 const TREE_INGEST_CAP = 512;
@@ -52,6 +76,8 @@ export interface RecallScaleQueryResult {
   candidates: string[];
   epsilon_b: number | null;
   epsilon_s: number;
+  rec_w?: number;
+  epsilon_omega?: number;
 }
 
 export interface RecallScalePoint {
@@ -72,6 +98,12 @@ export interface RecallScalePoint {
   epsilon_b: number | null;
   epsilon_b_note?: string;
   epsilon_s: number;
+  epsilon_omega?: number;
+  rec_w?: number;
+  epsilon_s_by_tier?: Record<string, number>;
+  epsilon_b_by_level?: Array<{ n_q: number; level: number; epsilon_b: number }>;
+  /** Flat top-k Rec over all N (Dilution Lemma baseline, MEM-78). */
+  flat_rec?: number;
   theorem_held: boolean;
   tree_ready?: boolean;
 }
@@ -87,6 +119,10 @@ export interface RecallScaleReport {
   epsilon_b: number | null;
   epsilon_b_note?: string;
   epsilon_s: number;
+  epsilon_omega?: number;
+  rec_w?: number;
+  epsilon_s_by_tier?: Record<string, number>;
+  epsilon_b_by_level?: Array<{ n_q: number; level: number; epsilon_b: number }>;
   theorem_held: boolean;
   tree_ready?: boolean;
 }
@@ -157,8 +193,13 @@ function sqliteBytes(dir: string): number {
 export async function runRecallScaleBench(
   options: RecallScaleBenchOptions = {},
 ): Promise<RecallScaleReport> {
-  const memories = options.memories ?? BENCH_MEMORIES;
-  const queries = options.queries ?? BENCH_QUERIES;
+  const memories = options.memories ?? [...BENCH_MEMORIES, SCOPE_MISS_MEMORY];
+  const plantScopeMiss = memories.some((m) => m.key === SCOPE_MISS_MEMORY.key);
+  const queries = (options.queries ?? BENCH_QUERIES).map((q) =>
+    plantScopeMiss && q.id === "q-auth" && !q.out_of_scope?.length
+      ? { ...q, out_of_scope: [SCOPE_MISS_MEMORY.key] }
+      : q,
+  );
   const projects = Math.max(2, Math.floor(options.projects ?? RECALL_SCALE_PROJECTS));
   const requested = options.ns ?? resolveRecallScaleNs();
   const minN = memories.length;
@@ -198,19 +239,22 @@ export async function runRecallScaleBench(
     const idByTitle = new Map<string, string>();
     const keyById = new Map<number, string>();
     const goldLeaves: Array<{ type: "semantic"; id: number }> = [];
+    const tokenByKey = new Map<string, number>();
     for (const memory of memories) {
+      tokenByKey.set(memory.key, estimateMemoryTokens(memory.content));
+      const session_id = memory.key === SCOPE_MISS_MEMORY.key ? sessionIds[1] : querySession;
       const id = await BrainManager.store({
         category: memory.category,
         title: memory.title,
         content: memory.content,
         keywords: memory.keywords,
-        session_id: querySession,
+        session_id,
         importance: memory.importance,
       });
       idByTitle.set(memory.title, memory.key);
       if (Number.isFinite(id) && id > 0) {
         keyById.set(id, memory.key);
-        goldLeaves.push({ type: "semantic", id });
+        if (session_id === querySession) goldLeaves.push({ type: "semantic", id });
       }
     }
 
@@ -241,6 +285,7 @@ export async function runRecallScaleBench(
           queries,
           idByTitle,
           keyById,
+          tokenByKey,
           goldLeaves,
           querySession,
         }),
@@ -259,6 +304,10 @@ export async function runRecallScaleBench(
       epsilon_b: theorem.epsilon_b,
       epsilon_b_note: theorem.epsilon_b_note,
       epsilon_s: theorem.epsilon_s,
+      epsilon_omega: theorem.epsilon_omega,
+      rec_w: theorem.rec_w,
+      epsilon_s_by_tier: theorem.epsilon_s_by_tier,
+      epsilon_b_by_level: theorem.epsilon_b_by_level,
       theorem_held: theorem.theorem_held,
       tree_ready: theorem.tree_ready,
     };
@@ -383,6 +432,7 @@ async function measurePoint(args: {
   queries: BenchQuery[];
   idByTitle: Map<string, string>;
   keyById: Map<number, string>;
+  tokenByKey: Map<string, number>;
   goldLeaves: Array<{ type: "semantic"; id: number }>;
   querySession: string;
 }): Promise<RecallScalePoint> {
@@ -400,6 +450,8 @@ async function measurePoint(args: {
   }
 
   const recs: number[] = [];
+  const recWs: number[] = [];
+  const flatRecs: number[] = [];
   const cUses: number[] = [];
   const latencies: number[] = [];
   const misses: RecallScalePoint["misses"] = [];
@@ -422,13 +474,24 @@ async function measurePoint(args: {
       .map((item) => args.idByTitle.get(item.title) ?? (item.id != null ? args.keyById.get(item.id) : undefined))
       .filter((key): key is string => Boolean(key));
     const candidateKeys = keysFromRefs(result.context?.cand ?? [], args.idByTitle, args.keyById);
+    const gW = goldSetForQuery(query);
+    const omega = inOmegaKeys(query);
     const found = query.expected.filter((key) => injected.includes(key));
     const rec = query.expected.length ? found.length / query.expected.length : 1;
+    const recWValue = recW(gW, injected);
+    const scope = scopeMissRate({ relevant: gW, inOmega: omega });
+    const candItems: BudgetedGoldItem[] = candidateKeys.map((key) => ({
+      key,
+      tokens: args.tokenByKey.get(key) ?? 64,
+    }));
+    const byTier = selectionMissByTier({ relevant: gW, candidates: candItems });
     const select = selectionMissRate({
-      relevant: query.expected,
+      relevant: gW,
       candidates: candidateKeys,
       selected: injected,
     });
+    const flatKeys = await flatTopKKeys(args.db, query.message, args.idByTitle, args.keyById);
+    const flat = recW(gW, flatKeys);
     const relevantLeaves = args.goldLeaves.filter((leaf) => {
       const key = args.keyById.get(leaf.id);
       return Boolean(key && query.expected.includes(key));
@@ -444,6 +507,8 @@ async function measurePoint(args: {
       Math.ceil((result.context?.context ?? "").length / 4);
 
     recs.push(rec);
+    recWs.push(recWValue);
+    flatRecs.push(flat);
     cUses.push(cUse);
     latencies.push(ms);
     expectedTotal += query.expected.length;
@@ -466,6 +531,8 @@ async function measurePoint(args: {
       candidates: candidateKeys,
       epsilon_b: beam.epsilonB,
       epsilon_s: round(select.epsilonS),
+      rec_w: round(recWValue),
+      epsilon_omega: round(scope.epsilonOmega),
     });
     samples.push({
       epsilonB: beam.epsilonB,
@@ -475,14 +542,20 @@ async function measurePoint(args: {
       epsilonS: select.epsilonS,
       epsilonSOpportunities: select.opportunities,
       epsilonSMisses: select.misses,
+      epsilonOmega: scope.epsilonOmega,
+      epsilonOmegaOpportunities: scope.opportunities,
+      epsilonOmegaMisses: scope.misses,
+      recW: recWValue,
       n_q: nQ,
       n,
       rec,
+      epsilonSByTier: byTier,
+      epsilonBByLevel: beam.byLevel,
     });
   }
 
   latencies.sort((a, b) => a - b);
-  const theorem = aggregateQueryErrors(samples, { rec: mean(recs), n_q: nQ, b: RECALL_SCALE_TREE_B });
+  const theorem = aggregateQueryErrors(samples, { rec: mean(recWs.length ? recWs : recs), n_q: nQ, b: RECALL_SCALE_TREE_B });
   return {
     n,
     n_q: nQ,
@@ -499,21 +572,69 @@ async function measurePoint(args: {
     epsilon_b: theorem.epsilon_b,
     epsilon_b_note: theorem.epsilon_b_note,
     epsilon_s: round(theorem.epsilon_s),
+    epsilon_omega: round(theorem.epsilon_omega ?? 0),
+    rec_w: round(theorem.rec_w ?? mean(recWs)),
+    epsilon_s_by_tier: theorem.epsilon_s_by_tier,
+    epsilon_b_by_level: theorem.epsilon_b_by_level,
+    flat_rec: round(mean(flatRecs)),
     theorem_held: theorem.theorem_held,
     tree_ready: theorem.tree_ready,
   };
 }
 
+async function flatTopKKeys(
+  db: any,
+  query: string,
+  idByTitle: Map<string, string>,
+  keyById: Map<number, string>,
+  k = 50,
+): Promise<string[]> {
+  const fts = buildFts5Query(query);
+  if (!fts) return [];
+  try {
+    const rows = (await db.all(
+      `WITH hits AS (
+         SELECT rowid AS id
+         FROM brain_semantic_fts
+         WHERE brain_semantic_fts MATCH ?
+         ORDER BY bm25(brain_semantic_fts)
+         LIMIT ?
+       )
+       SELECT s.id, s.title FROM hits JOIN brain_semantic s ON s.id = hits.id`,
+      [fts, k],
+    )) as Array<{ id: number; title?: string }>;
+    return keysFromRefs(rows, idByTitle, keyById);
+  } catch {
+    return [];
+  }
+}
+
 function rollupScaleErrors(points: RecallScalePoint[]): TheoremErrorReport {
   const measured = points.filter((p) => p.epsilon_b != null);
   const epsilonB = measured.length ? mean(measured.map((p) => p.epsilon_b as number)) : null;
+  const recWMean = mean(points.map((p) => p.rec_w ?? p.rec));
+  const levels = points.flatMap((p) => p.epsilon_b_by_level ?? []);
+  const tiers: Record<string, number[]> = {};
+  for (const point of points) {
+    for (const [key, value] of Object.entries(point.epsilon_s_by_tier ?? {})) {
+      (tiers[key] ??= []).push(value);
+    }
+  }
+  const epsilonSByTier: Record<string, number> = {};
+  for (const [key, values] of Object.entries(tiers)) {
+    epsilonSByTier[key] = mean(values);
+  }
   return buildTheoremErrorReport({
     sigma: mean(points.map((p) => p.sigma)),
     epsilonB,
     epsilonS: mean(points.map((p) => p.epsilon_s)),
+    epsilonOmega: mean(points.map((p) => p.epsilon_omega ?? 0)),
+    recW: recWMean,
+    epsilonSByTier: Object.keys(epsilonSByTier).length ? epsilonSByTier : undefined,
+    epsilonBByLevel: levels.length ? levels : undefined,
     treeReady: measured.length > 0,
     epsilonBNote: measured.length ? undefined : points[0]?.epsilon_b_note,
-    points: points.map((p) => ({ n_q: p.n_q, rec: p.rec })),
+    points: points.map((p) => ({ n_q: p.n_q, rec: p.rec_w ?? p.rec })),
     b: RECALL_SCALE_TREE_B,
   });
 }

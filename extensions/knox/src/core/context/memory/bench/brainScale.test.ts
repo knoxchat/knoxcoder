@@ -8,14 +8,15 @@
  *
  * Latency depends on the machine, so the budgets catch a regression to an
  * O(N) scan (Dilution Lemma / leftover Ω(q) dump), not a performance promise.
- * Search(q) is inverted-index + tree routing, O(log N_q).
+ * Search(q) is inverted-index + tree routing, O(log N_q). Growth is gated on
+ * p50: Rec-vs-N has ~13 queries, so p95 is the max (one Windows cold sample).
  */
 import fs from "fs";
 import path from "path";
 
 import { describe, expect, it } from "vitest";
 
-import { gateRecallScale, gateSearchCost, RECALL_SCALE_NS } from "./gate";
+import { gateLatencyAt1e6, gateRecallScale, gateSearchCost, RECALL_SCALE_NS } from "./gate";
 import { EPSILON_B_FLAT_FTS, THEOREM_ERRORS_FILENAME, canClaimTheorem } from "./errors";
 import {
   resolveRecallScaleNs,
@@ -50,6 +51,9 @@ describe("memory recall vs N (MEM-40)", () => {
         expect(point.c_use_mean).toBeGreaterThan(0);
         expect(point.rec).toBeGreaterThan(0);
         expect(point.epsilon_s).toBeGreaterThanOrEqual(0);
+        expect(point.epsilon_omega ?? 0).toBeGreaterThanOrEqual(0);
+        expect(point.rec_w ?? point.rec).toBeGreaterThan(0);
+        expect(point.flat_rec ?? 0).toBeGreaterThanOrEqual(0);
         if (point.epsilon_b == null) {
           expect(point.epsilon_b_note).toBe(EPSILON_B_FLAT_FTS);
         } else {
@@ -58,12 +62,17 @@ describe("memory recall vs N (MEM-40)", () => {
       }
       expect(report.sigma).toBeGreaterThan(0);
       expect(report.epsilon_s).toBeGreaterThanOrEqual(0);
+      expect(report.epsilon_omega ?? 0).toBeGreaterThan(0);
       expect(report.points[1].n).toBeGreaterThan(report.points[0].n);
 
-      const gate = gateRecallScale(report.points, {
-        epsilonS: report.epsilon_s,
-        epsilonB: report.epsilon_b ?? undefined,
-      });
+      const gate = gateRecallScale(
+        report.points.map((p) => ({ ...p, rec: p.rec_w ?? p.rec })),
+        {
+          epsilonS: report.epsilon_s,
+          epsilonB: report.epsilon_b ?? undefined,
+          epsilonOmega: report.epsilon_omega,
+        },
+      );
       expect(gate.ok, gate.failures.join("; ")).toBe(true);
       expect(report.theorem_held).toBe(canClaimTheorem(report.epsilon_b) && gate.ok);
     },
@@ -86,14 +95,20 @@ describe("memory recall vs N (MEM-40)", () => {
         expect(Number.isFinite(point.epsilon_s)).toBe(true);
       }
 
-      const gate = gateRecallScale(report.points, {
-        epsilonS: report.epsilon_s,
-        epsilonB: report.epsilon_b ?? undefined,
-      });
+      const gate = gateRecallScale(
+        report.points.map((p) => ({ ...p, rec: p.rec_w ?? p.rec })),
+        {
+          epsilonS: report.epsilon_s,
+          epsilonB: report.epsilon_b ?? undefined,
+          epsilonOmega: report.epsilon_omega,
+        },
+      );
       expect(gate.ok, gate.failures.join("; ")).toBe(true);
 
       const cost = gateSearchCost(report.points);
       expect(cost.ok, cost.failures.join("; ")).toBe(true);
+      const latency = gateLatencyAt1e6(report.points);
+      expect(latency.ok, latency.failures.join("; ")).toBe(true);
       if (process.env.KNOX_BENCH_WRITE === "1") {
         fs.writeFileSync(
           path.join(__dirname, THEOREM_ERRORS_FILENAME),
@@ -102,15 +117,24 @@ describe("memory recall vs N (MEM-40)", () => {
             epsilon_b: report.epsilon_b,
             epsilon_b_note: report.epsilon_b_note,
             epsilon_s: report.epsilon_s,
+            epsilon_omega: report.epsilon_omega,
+            rec_w: report.rec_w,
+            epsilon_s_by_tier: report.epsilon_s_by_tier,
+            epsilon_b_by_level: report.epsilon_b_by_level,
             theorem_held: report.theorem_held,
             tree_ready: report.tree_ready,
             points: report.points.map((p) => ({
               n: p.n,
               n_q: p.n_q,
               sigma: p.sigma,
-              rec: p.rec,
+              rec: p.rec_w ?? p.rec,
+              rec_w: p.rec_w,
               epsilon_b: p.epsilon_b,
               epsilon_s: p.epsilon_s,
+              epsilon_omega: p.epsilon_omega,
+              flat_rec: p.flat_rec,
+              epsilon_s_by_tier: p.epsilon_s_by_tier,
+              epsilon_b_by_level: p.epsilon_b_by_level,
             })),
           }, null, 2)}\n`,
         );

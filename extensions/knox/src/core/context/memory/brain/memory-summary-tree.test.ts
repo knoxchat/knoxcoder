@@ -135,7 +135,7 @@ describe("MEM-24 tree insertion + beam", () => {
     expect(status.leafCount).toBeGreaterThanOrEqual(3);
     expect(status.leafCount).toBeLessThan(8);
     expect(status.epsilonB).toBeNull();
-    expect(await searchTreeChannel({ query: token, sessionId })).toEqual([]);
+    expect((await searchTreeChannel({ query: token, sessionId })).hits).toEqual([]);
 
     const hits = await RetrievalFusion.search({
       query: token,
@@ -187,7 +187,7 @@ describe("MEM-24 tree insertion + beam", () => {
     expect(status.epsilonB).toBeNull();
 
     const channel = await searchTreeChannel({ query: token, sessionId, includeEpisodic: false });
-    expect(channel.some((h) => ids.includes(h.id))).toBe(true);
+    expect(channel.hits.some((h) => ids.includes(h.id))).toBe(true);
 
     const hits = await RetrievalFusion.search({
       query: token,
@@ -228,8 +228,8 @@ describe("MEM-24 tree insertion + beam", () => {
       branching: 8,
       beam: 4,
     });
-    expect(hits[0]?.id).toBe(targetId);
-    expect(hits[0]?.score).toBeGreaterThan(0);
+    expect(hits.hits[0]?.id).toBe(targetId);
+    expect(hits.hits[0]?.score).toBeGreaterThan(0);
   });
 
   it("ε_B is n/a — flat FTS until the tree is ready, then counts ancestor drops", async () => {

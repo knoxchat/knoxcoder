@@ -117,11 +117,12 @@ half-applied.
 
 Memory Brain stores facts from your sessions locally. Stored memory is
 unbounded (`C_addr`); each model call is a bounded context (`C_use ≤ W` of the
-routed model). Injected tokens are `W_mem` — the remainder after system, goal,
-recent turns, and `W_out`, capped locally at 4096 (`KNOX_MEMORY_INJECT_CAP`
-can tighten that). Success is measured recall of relevant facts, not a bigger
-inject number. Open it with "Knox: View Memory" to see what was used, pin or
-remove items.
+routed model). Injected tokens are `W_mem` (the remainder after system, goal,
+recent turns, and `W_out`, capped locally at 4096; `KNOX_MEMORY_INJECT_CAP`
+can tighten that). Success is measured recall `Rec_W` of the budgeted gold
+set, with published `ε_Ω` / `ε_B` / `ε_S`. Open it with "Knox: View Memory"
+to see what was used, pin or remove items. The Overview shows the five
+cycle invariants (Budget, Reachability, Losslessness, Freshness, Erasure).
 Forget / `builtin_memory` delete erases the row (content-free tombstone).
 Archive is reversible and drops the row from default retrieve. Command-palette
 wipe is destructive and keeps a backup. First-run chat shows
@@ -139,9 +140,9 @@ analysis that proposes fixes and issue drafts for you to approve. Design rules:
 How to use it: [recipes.md](recipes.md). Threat model: [security/threat-model.md](security/threat-model.md).
 
 Run `npm run mc:self-improve` from `extensions/knox` to measure this repo
-against the Bounded-Context Recall Theorem: Rec vs N, `ε_S`, false-inject,
-attribution coverage, and recipe `wrongApplyRate`. Git history is labeled
-commit churn, not checkpoints. It writes a dated report to
+against the Bounded-Context Recall Theorem: Rec_W vs N, `ε_Ω` / `ε_S` /
+`ε_B`, false-inject, attribution coverage, and recipe `wrongApplyRate`. Git
+history is labeled commit churn, not checkpoints. It writes a dated report to
 [`docs/self-improve/`](self-improve/) (section contract:
 [`REPORT.md`](self-improve/REPORT.md)) and sends nothing anywhere.
 `proposeThresholds` fits `θ` and `w_s` from `brain_attribution`; leftover

@@ -462,9 +462,6 @@ export async function storeSemanticDeduped(
   });
 }
 
-/** Below this many rows a zero-hit FTS5 query is retried with the substring LIKE scan. */
-const LIKE_SCAN_MAX_ROWS = 5000;
-
 export async function searchSemantic(query: string, category?: SemanticCategory, limit: number = 10): Promise<SemanticMemory[]> {
   const db = await get();
 
@@ -484,8 +481,8 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
 
   // Candidates from FTS5 (BM25 order). The LIKE scan below reads every row, which costs
   // ~0.4 s at 100k items and, ordered by importance, lets common words crowd out the real
-  // match. LIKE stays only for FTS-less builds and for small brains where its substring
-  // matches are cheap and useful.
+  // match. LIKE stays only for FTS-less builds. Empty MATCH is a miss; do not COUNT(*)
+  // the store to decide (MEM-67).
   const ftsTerms = [
     ...cjkTerms,
     ...terms
@@ -524,12 +521,8 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
          LIMIT ?`,
         [match, fetchLimit * 10, ...ftsParams, fetchLimit],
       );
-      if (ftsRows!.length === 0) {
-        const total = await db.get("SELECT COUNT(*) AS n FROM brain_semantic");
-        if (((total as any)?.n ?? 0) <= LIKE_SCAN_MAX_ROWS) ftsRows = null;
-      }
     } catch {
-      ftsRows = null; // FTS5 unavailable
+      ftsRows = null; // FTS5 unavailable: LIKE scan below
     }
   }
 

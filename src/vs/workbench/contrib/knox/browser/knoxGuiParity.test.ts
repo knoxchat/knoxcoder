@@ -248,6 +248,8 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(enKeys.includes('memorySelectivity'));
 		assert.ok(enKeys.includes('memoryEpsilonB'));
 		assert.ok(enKeys.includes('memoryEpsilonS'));
+		assert.ok(enKeys.includes('memoryEpsilonOmega'));
+		assert.ok(enKeys.includes('memoryInvariantErasure'));
 		assert.ok(!enKeys.includes('memoryEffectiveContextFormula'));
 		assert.ok(!enKeys.includes('memoryTotalEffective'));
 		assert.ok(!enKeys.includes('memoryTrendEffectiveContext'));

@@ -203,7 +203,7 @@ describe("MEM-20 RRF search wiring", () => {
     const weakId = await BrainManager.store({
       category: "fact",
       title: `Also ${needle}`,
-      content: `Passing mention of ${needle} only.`,
+      content: `Passing mention of alpha beta ${needle} only.`,
       keywords: needle,
       session_id: sessionId,
       importance: 0.99,

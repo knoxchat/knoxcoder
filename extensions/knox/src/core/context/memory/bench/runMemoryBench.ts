@@ -22,7 +22,15 @@ import {
   selectionMissRate,
   type TheoremErrorReport,
 } from "./errors";
-import { BENCH_MEMORIES, BENCH_QUERIES, type BenchMemory, type BenchQuery } from "./fixtures";
+import {
+  BENCH_MEMORIES,
+  BENCH_QUERIES,
+  goldSetForQuery,
+  inOmegaKeys,
+  type BenchMemory,
+  type BenchQuery,
+} from "./fixtures";
+import { recW, scopeMissRate } from "./errors";
 
 export interface BenchQueryResult {
   id: string;
@@ -55,6 +63,10 @@ export interface BenchReport {
   epsilon_b_note?: string;
   /** A3: budget miss on R ∩ Cand. */
   epsilon_s: number;
+  /** A1 scope miss (MEM-76). */
+  epsilon_omega?: number;
+  /** Rec_W against G_W(q). */
+  rec_w?: number;
   theorem_held: boolean;
   tree_ready?: boolean;
 }
@@ -161,7 +173,7 @@ export async function runMemoryBench(
     const lat = perQuery.map((r) => r.ms).sort((a, b) => a - b);
     const tok = perQuery.map((r) => r.tokens);
     const n = BENCH_MEMORIES.length;
-    const theorem = measureFixtureErrors(perQuery, n);
+    const theorem = measureFixtureErrors(perQuery, n, BENCH_QUERIES);
     return {
       memories: BENCH_MEMORIES.length,
       queries: BENCH_QUERIES.length,
@@ -180,6 +192,8 @@ export async function runMemoryBench(
       epsilon_b: theorem.epsilon_b,
       epsilon_b_note: theorem.epsilon_b_note,
       epsilon_s: theorem.epsilon_s,
+      epsilon_omega: theorem.epsilon_omega,
+      rec_w: theorem.rec_w,
       theorem_held: theorem.theorem_held,
       tree_ready: theorem.tree_ready,
     };
@@ -192,12 +206,21 @@ export async function runMemoryBench(
   }
 }
 
-function measureFixtureErrors(perQuery: BenchQueryResult[], n: number): TheoremErrorReport {
-  const gold = perQuery.filter((q) => q.expected.length > 0);
+function measureFixtureErrors(
+  perQuery: BenchQueryResult[],
+  n: number,
+  queries: BenchQuery[],
+): TheoremErrorReport {
+  const byId = new Map(queries.map((q) => [q.id, q]));
+  const gold = perQuery.filter((q) => (byId.get(q.id) ? goldSetForQuery(byId.get(q.id)!).length : q.expected.length) > 0);
   return aggregateQueryErrors(
     gold.map((q) => {
+      const spec = byId.get(q.id);
+      const gW = spec ? goldSetForQuery(spec) : q.expected;
+      const omega = spec ? inOmegaKeys(spec) : q.expected;
+      const scope = scopeMissRate({ relevant: gW, inOmega: omega });
       const select = selectionMissRate({
-        relevant: q.expected,
+        relevant: gW,
         candidates: q.candidates ?? [],
         selected: q.injected,
       });
@@ -212,6 +235,10 @@ function measureFixtureErrors(perQuery: BenchQueryResult[], n: number): TheoremE
         epsilonS: select.epsilonS,
         epsilonSOpportunities: select.opportunities,
         epsilonSMisses: select.misses,
+        epsilonOmega: scope.epsilonOmega,
+        epsilonOmegaOpportunities: scope.opportunities,
+        epsilonOmegaMisses: scope.misses,
+        recW: recW(gW, q.injected),
         n_q: n,
         n,
         rec,

@@ -109,6 +109,12 @@ export interface TreeInsertOptions {
   deferSketch?: boolean;
 }
 
+export interface TreeLevelMiss {
+  level: number;
+  opportunities: number;
+  misses: number;
+}
+
 export interface TreeBeamMiss {
   ready: boolean;
   leafCount: number;
@@ -116,6 +122,8 @@ export interface TreeBeamMiss {
   epsilonBNote?: string;
   opportunities: number;
   misses: number;
+  /** Per-level miss counts (MEM-77). Empty when the tree is silent. */
+  byLevel?: TreeLevelMiss[];
 }
 
 type TreeRow = {
@@ -300,13 +308,17 @@ export async function ingestSessionLeaves(
  * Ranked leaves reached by beam search. Empty when the scoped tree is
  * smaller than `b` (flat FTS fallback).
  */
-export async function searchTreeChannel(options: TreeSearchOptions): Promise<TreeMemoryHit[]> {
+export async function searchTreeChannel(options: TreeSearchOptions): Promise<{
+  hits: TreeMemoryHit[];
+  visited: number;
+  ready: boolean;
+}> {
   try {
     const result = await beamSearchTree(options);
-    if (!result.ready) return [];
-    return result.hits;
+    if (!result.ready) return { hits: [], visited: result.visited, ready: false };
+    return { hits: result.hits, visited: result.visited, ready: true };
   } catch {
-    return [];
+    return { hits: [], visited: 0, ready: false };
   }
 }
 
@@ -492,6 +504,7 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
   epsilonBNote?: string;
   epsilonBOpportunities?: number;
   epsilonBMisses?: number;
+  epsilonBByLevel?: TreeLevelMiss[];
 }> {
   const query = options.query ?? "";
   if (!query.trim()) {
@@ -515,6 +528,13 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
   const alive = new Set(paths.keys());
   let opportunities = 0;
   let misses = 0;
+  const byLevel: TreeLevelMiss[] = [];
+  const recordLevel = (level: number, opp: number, miss: number) => {
+    if (opp <= 0 && miss <= 0) return;
+    opportunities += opp;
+    misses += miss;
+    byLevel.push({ level, opportunities: opp, misses: miss });
+  };
 
   const qTerms = sketchTerms(query).slice(0, 32);
   let beam = roots
@@ -523,14 +543,17 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
     .slice(0, beamWidth);
   if (measure) {
     const rootBeam = new Set(beam.map((n) => n.id));
+    let opp = 0;
+    let miss = 0;
     for (const key of [...alive]) {
       const rootId = paths.get(key)?.[0]?.id;
-      opportunities++;
+      opp++;
       if (rootId == null || !rootBeam.has(rootId)) {
-        misses++;
+        miss++;
         alive.delete(key);
       }
     }
+    recordLevel(0, opp, miss);
   }
 
   const leafScores = new Map<string, { type: TreeMemoryType; id: number; score: number }>();
@@ -582,20 +605,23 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
       const consideredIds = new Set(considered.map((c) => c.id));
       const nextBeamIds = new Set(nextBeam.map((n) => n.id));
       const beamIds = new Set(beam.map((n) => n.id));
+      let opp = 0;
+      let miss = 0;
       for (const key of [...alive]) {
         const path = paths.get(key);
         if (!path) continue;
         const step = path.find((node) => node.parentId != null && beamIds.has(node.parentId));
         if (!step) continue;
-        opportunities++;
+        opp++;
         const isLeaf = step.id === path[path.length - 1]?.id;
         if (!consideredIds.has(step.id) || (!isLeaf && !nextBeamIds.has(step.id))) {
-          misses++;
+          miss++;
           alive.delete(key);
         } else if (isLeaf) {
           alive.delete(key);
         }
       }
+      recordLevel(depth + 1, opp, miss);
     }
 
     for (const cand of considered) {
@@ -620,7 +646,7 @@ export async function beamSearchTree(options: TreeSearchOptions): Promise<{
     ready: true,
     leafCount,
     visited: visited.size,
-    ...publishedBeamMiss(measure, opportunities, misses),
+    ...publishedBeamMiss(measure, opportunities, misses, byLevel),
   };
 }
 
@@ -634,6 +660,7 @@ export async function measureTreeBeamMiss(options: TreeSearchOptions): Promise<T
     epsilonBNote: result.epsilonBNote,
     opportunities: result.epsilonBOpportunities ?? 0,
     misses: result.epsilonBMisses ?? 0,
+    byLevel: result.epsilonBByLevel,
   };
 }
 
@@ -694,11 +721,13 @@ function publishedBeamMiss(
   measure: boolean,
   opportunities: number,
   misses: number,
+  byLevel: TreeLevelMiss[] = [],
 ): {
   epsilonB: number | null;
   epsilonBNote?: string;
   epsilonBOpportunities?: number;
   epsilonBMisses?: number;
+  epsilonBByLevel?: TreeLevelMiss[];
 } {
   if (!measure) {
     return { epsilonB: null };
@@ -715,6 +744,7 @@ function publishedBeamMiss(
     epsilonB: misses / opportunities,
     epsilonBOpportunities: opportunities,
     epsilonBMisses: misses,
+    epsilonBByLevel: byLevel.length ? byLevel : undefined,
   };
 }
 

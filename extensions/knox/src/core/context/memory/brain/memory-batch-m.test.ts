@@ -126,6 +126,23 @@ describe("MEM-67 channel cost limits (pure)", () => {
     expect(FTS_MATCH_HARD_CAP).toBeGreaterThan(0);
   });
 
+  it("retrieve path does not COUNT(*) semantic or episodic tables to pick LIKE", () => {
+    const countSemantic = /SELECT COUNT\(\*\) AS n FROM brain_semantic/;
+    const countEpisodic = /SELECT COUNT\(\*\) AS n FROM brain_episodic/;
+    const files = [
+      "RetrievalFusion.ts",
+      "KnowledgeGraph.ts",
+      "store/semantic.ts",
+      "store/episodic.ts",
+      "channels/ripgrep.ts",
+    ];
+    for (const rel of files) {
+      const src = fs.readFileSync(new URL(`./${rel}`, import.meta.url), "utf8");
+      expect(src, rel).not.toMatch(countSemantic);
+      expect(src, rel).not.toMatch(countEpisodic);
+    }
+  });
+
   it("PPR push budget is O(1/(αε)) and independent of |V|", () => {
     const budget = pprPushBudget(PPR_ALPHA_DEFAULT, PPR_EPSILON_DEFAULT);
     expect(budget).toBe(Math.ceil(1 / (PPR_ALPHA_DEFAULT * PPR_EPSILON_DEFAULT)));

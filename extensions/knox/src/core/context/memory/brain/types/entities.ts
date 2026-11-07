@@ -200,6 +200,10 @@ export interface EffectiveContextMetrics {
   epsilon_b_note?: string;
   /** A3 selection / budget miss (MEM-42). */
   epsilon_s?: number;
+  /** A1 scope miss (MEM-76). */
+  epsilon_omega?: number;
+  /** Rec_W against G_W(q). */
+  rec_w?: number;
   /** Finite ε_B and Rec on the theorem floor. */
   theorem_held?: boolean;
   /** Alias of `w`. */

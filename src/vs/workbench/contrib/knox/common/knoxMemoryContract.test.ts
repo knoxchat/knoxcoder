@@ -57,6 +57,7 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 		assert.ok(fusion.includes('tree: 1'));
 		assert.ok(fusion.includes('FUSION_CANDIDATE_CUTOFF_DEFAULT = 50'));
 		assert.ok(fusion.includes('RETRIEVAL_THRESHOLD_DEFAULT = 0.35'));
+		assert.ok(fusion.includes('mergeReservedCandidates'));
 		const store = repoFile('extensions/knox/src/core/context/memory/brain/store/state.ts');
 		assert.ok(store.includes('retrieval_threshold: 0.35'));
 		assert.ok(store.includes('retrieval_top_k: 50'));
@@ -93,6 +94,15 @@ suite('Knox Memory Brain + Soul contract (KN-310–317)', () => {
 		assert.match(readme, /[Bb]ounded context/);
 		assert.match(readme, /[Uu]nbounded/);
 		assert.match(readme, /[Mm]easured recall/);
+		assert.ok(readme.includes('Rec_W') || readme.includes('ε_Ω') || readme.includes('eps_O'));
+		const errors = repoFile('extensions/knox/src/core/context/memory/bench/errors.ts');
+		assert.ok(errors.includes('budgetedGoldSet'));
+		assert.ok(errors.includes('epsilon_omega'));
+		const overview = repoFile('src/vs/workbench/contrib/knox/browser/gui/widget/memory/overview.ts');
+		assert.ok(overview.includes('memoryEpsilonOmega'));
+		assert.ok(overview.includes('memory-cycle-invariants'));
+		assert.ok(repoFile('extensions/knox/src/core/context/memory/bench/runErasureBench.ts').includes('MEM-80'));
+		assert.ok(repoFile('extensions/knox/src/core/context/memory/bench/gate.ts').includes('gateRelease'));
 	});
 
 	test('KN-317: theorem parameter block v2 defaults (MEM-45); Freshness (MEM-54); Erasure (MEM-73)', () => {

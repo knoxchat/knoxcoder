@@ -597,6 +597,8 @@ export function parseEffectiveContext(raw: Record<string, unknown> | undefined):
 		epsilonB: parseOptionalEpsilon(firstOwn(rec, 'epsilon_b', 'epsilonB')),
 		epsilonBNote: typeof rec.epsilon_b_note === 'string' ? rec.epsilon_b_note : (typeof rec.epsilonBNote === 'string' ? rec.epsilonBNote : undefined),
 		epsilonS: parseOptionalFinite(rec.epsilon_s ?? rec.epsilonS),
+		epsilonOmega: parseOptionalFinite(rec.epsilon_omega ?? rec.epsilonOmega),
+		recW: parseOptionalFinite(rec.rec_w ?? rec.recW),
 		theoremHeld: rec.theorem_held === true || rec.theoremHeld === true ? true : (rec.theorem_held === false || rec.theoremHeld === false ? false : undefined),
 		activeWindowTokens: w,
 		lastContextTokensUsed: cUse,
@@ -640,6 +642,8 @@ export function memoryHeadlineMetrics(ctx: IKnoxGuiEffectiveContext): {
 	epsilonB?: number | null;
 	epsilonBNote?: string;
 	epsilonS?: number;
+	epsilonOmega?: number;
+	recW?: number;
 	theoremHeld?: boolean;
 } {
 	const wRaw = ctx.w ?? ctx.activeWindowTokens;
@@ -657,6 +661,8 @@ export function memoryHeadlineMetrics(ctx: IKnoxGuiEffectiveContext): {
 		epsilonB: ctx.epsilonB === null ? null : ((ctx.epsilonB !== undefined && Number.isFinite(ctx.epsilonB)) ? ctx.epsilonB : undefined),
 		epsilonBNote: ctx.epsilonBNote,
 		epsilonS: (ctx.epsilonS !== undefined && ctx.epsilonS !== null && Number.isFinite(ctx.epsilonS)) ? ctx.epsilonS : undefined,
+		epsilonOmega: (ctx.epsilonOmega !== undefined && ctx.epsilonOmega !== null && Number.isFinite(ctx.epsilonOmega)) ? ctx.epsilonOmega : undefined,
+		recW: (ctx.recW !== undefined && ctx.recW !== null && Number.isFinite(ctx.recW)) ? ctx.recW : undefined,
 		theoremHeld: ctx.theoremHeld,
 	};
 }

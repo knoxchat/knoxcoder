@@ -313,7 +313,7 @@ describe("MEM-75 Active window and Frozen tree reachability", () => {
     expect(await ftsHas("brain_semantic_fts_frozen", token, frozenId)).toBe(true);
 
     const treeHits = await searchTreeChannel({ query: token, sessionId, includeEpisodic: false });
-    expect(treeHits.some((h) => h.id === frozenId)).toBe(true);
+    expect(treeHits.hits.some((h) => h.id === frozenId)).toBe(true);
 
     const reach = await checkReachability();
     expect(reach.missing_ids.some((g) => g.id === frozenId)).toBe(false);

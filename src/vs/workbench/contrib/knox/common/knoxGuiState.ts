@@ -665,6 +665,10 @@ export interface IKnoxGuiEffectiveContext {
 	epsilonBNote?: string;
 	/** A3 eps_S budget miss (MEM-42). */
 	epsilonS?: number;
+	/** A1 eps_O scope miss (MEM-76). */
+	epsilonOmega?: number;
+	/** Rec_W against G_W(q). */
+	recW?: number;
 	theoremHeld?: boolean;
 	activeWindowTokens?: number;
 	lastContextTokensUsed?: number;

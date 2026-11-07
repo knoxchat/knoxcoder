@@ -212,6 +212,9 @@ function renderAddressableHeadline(body: HTMLElement, state: IKnoxGuiState): voi
 	if (headline.epsilonS !== undefined) {
 		chips.push({ label: t(state, 'memoryEpsilonS'), value: formatTheoremError(headline.epsilonS) });
 	}
+	if (headline.epsilonOmega !== undefined) {
+		chips.push({ label: t(state, 'memoryEpsilonOmega'), value: formatTheoremError(headline.epsilonOmega) });
+	}
 	if (chips.length) {
 		const row = mk(card, 'div', 'addr-chips mt-3');
 		for (const chip of chips) {
@@ -359,6 +362,18 @@ export function renderMemoryOverview(widget: KnoxGuiWidget, body: HTMLElement, s
 		const phaseCard = sectionCard(body, t(state, 'memoryCyclePhases'), 'refresh-cw');
 		const phaseHead = mk(phaseCard, 'div', 'kv mb-2 xs');
 		mk(phaseHead, 'span', 'o-70', phase.cycleInvariantMet ? t(state, 'memoryCycleInvariantMet') : t(state, 'memoryCycleInvariantIdle'));
+		const invariantChips: Array<{ label: string; ok: boolean | undefined }> = [
+			{ label: t(state, 'memoryInvariantBudget'), ok: phase.budgetInvariantMet },
+			{ label: t(state, 'memoryInvariantReachability'), ok: phase.reachabilityInvariantMet },
+			{ label: t(state, 'memoryInvariantLosslessness'), ok: phase.losslessnessInvariantMet },
+			{ label: t(state, 'memoryInvariantFreshness'), ok: phase.freshnessInvariantMet },
+			{ label: t(state, 'memoryInvariantErasure'), ok: phase.erasureInvariantMet },
+		];
+		const invRow = mk(phaseCard, 'div', 'addr-chips mb-2');
+		invRow.setAttribute('data-testid', 'memory-cycle-invariants');
+		for (const chip of invariantChips) {
+			renderAddrChip(invRow, chip.label, chip.ok ? 'ok' : 'fail');
+		}
 		if (phase.backgroundSleepActive) {
 			// allow-any-unicode-next-line
 			mk(phaseHead, 'span', 'teal-badge px-1_5 py-0_5 o-80', `φ₇ ${t(state, 'memoryPhaseSleep')} active`);

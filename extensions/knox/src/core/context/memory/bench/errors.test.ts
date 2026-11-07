@@ -1,19 +1,25 @@
 /**
- * MEM-42: σ, ε_B, ε_S helpers.
+ * MEM-42 / MEM-76 / MEM-77: σ, ε_Ω, ε_B, ε_S, Rec_W helpers.
  */
 import { describe, expect, it } from "vitest";
 
 import {
   EPSILON_B_FLAT_FTS,
+  EPSILON_S_TIERS,
   aggregateQueryErrors,
+  budgetedGoldSet,
   buildTheoremErrorReport,
   canClaimTheorem,
   formatTheoremErrorsLine,
+  greedySelectByBudget,
   keysFromRefs,
   loadTheoremErrors,
   meanSelectivity,
   readTheoremErrors,
+  recW,
+  scopeMissRate,
   scopeSelectivity,
+  selectionMissByTier,
   selectionMissRate,
   theoremHeldOnCurve,
 } from "./errors";
@@ -93,6 +99,70 @@ describe("MEM-42 theorem errors", () => {
     const keyById = new Map([[42, "auth-jwt"]]);
     expect(keysFromRefs([{ title: "JWT auth", id: 42 }], idByTitle, keyById)).toEqual(["auth-jwt"]);
     expect(keysFromRefs([{ title: "other", id: 42 }], idByTitle, keyById)).toEqual(["auth-jwt"]);
+  });
+
+  it("G_W is annotator-prioritized gold that fits W_mem (MEM-76)", () => {
+    const gold = [
+      { key: "a", tokens: 100 },
+      { key: "b", tokens: 100 },
+      { key: "c", tokens: 100 },
+    ];
+    expect(budgetedGoldSet(gold, 250)).toEqual(["a", "b"]);
+    expect(budgetedGoldSet(gold, 10)).toEqual(["a"]);
+    expect(budgetedGoldSet(gold, 10_000)).toEqual(["a", "b", "c"]);
+  });
+
+  it("Rec_W is |G_W ∩ C| / |G_W|", () => {
+    expect(recW(["a", "b"], ["a", "x"])).toBe(0.5);
+    expect(recW([], ["a"])).toBe(1);
+    expect(recW(["a"], [])).toBe(0);
+  });
+
+  it("ε_Ω is gold outside Ω(q)", () => {
+    expect(scopeMissRate({
+      relevant: ["a", "b", "c"],
+      inOmega: ["a", "b"],
+    })).toEqual({ epsilonOmega: 1 / 3, opportunities: 3, misses: 1 });
+    expect(scopeMissRate({ relevant: ["a"], inOmega: ["a"] }).epsilonOmega).toBe(0);
+    expect(scopeMissRate({ relevant: [], inOmega: [] }).epsilonOmega).toBe(0);
+  });
+
+  it("ε_S is measured at 4K / 32K / 200K tiers (MEM-77)", () => {
+    expect([...EPSILON_S_TIERS]).toEqual([4_096, 32_768, 200_000]);
+    const ranked = [
+      { key: "noise", tokens: 4_000 },
+      { key: "gold", tokens: 200 },
+    ];
+    expect(greedySelectByBudget(ranked, 4_096)).toEqual(["noise"]);
+    const byTier = selectionMissByTier({
+      relevant: ["gold"],
+      candidates: ranked,
+    });
+    expect(byTier["4096"].epsilonS).toBe(1);
+    expect(byTier["32768"].epsilonS).toBe(0);
+    expect(byTier["200000"].epsilonS).toBe(0);
+  });
+
+  it("bound includes ε_Ω", () => {
+    const points = [{ n_q: 4096, rec: 0.80 }];
+    expect(theoremHeldOnCurve(points, { epsilonOmega: 0.07, epsilonS: 0.05, epsilonB: 0.02, b: 8 })).toBe(true);
+    // floor = 1 - 0.07 - 0.05 - 0.03*4 = 0.76
+    expect(theoremHeldOnCurve([{ n_q: 4096, rec: 0.75 }], { epsilonOmega: 0.07, epsilonS: 0.05, epsilonB: 0.03, b: 8 })).toBe(false);
+  });
+
+  it("reads ε_Ω and Rec_W from theorem-errors.json", () => {
+    const loaded = readTheoremErrors({
+      sigma: 0.2,
+      epsilon_b: 0.01,
+      epsilon_s: 0,
+      epsilon_omega: 0.05,
+      rec_w: 0.94,
+      theorem_held: true,
+    });
+    expect(loaded?.epsilon_omega).toBeCloseTo(0.05);
+    expect(loaded?.rec_w).toBeCloseTo(0.94);
+    expect(formatTheoremErrorsLine(loaded!)).toContain("ε_Ω 0.05");
+    expect(formatTheoremErrorsLine(loaded!)).toContain("Rec_W 0.94");
   });
 
   it("pools per-query miss counts", () => {

@@ -616,15 +616,11 @@ async function ftsCorpusHits(
   }));
 }
 
-/** Leftover FTS-less path for small tables only. Not a ranking over Ω(q). */
+/** Leftover FTS-less path. Capped dump, not a COUNT(*) size probe and not a ranking over Ω(q). */
 async function recencyCorpusFallback(
   options: RipgrepChannelOptions,
   type: RipgrepMemoryType,
 ): Promise<CorpusRow[]> {
-  const table = type === "semantic" ? "brain_semantic" : "brain_episodic";
-  const total = await options.db.get(`SELECT COUNT(*) AS n FROM ${table}`).catch(() => null);
-  if (((total as { n?: number } | null)?.n ?? 0) > RIPGREP_CORPUS_LIKE_MAX_ROWS) return [];
-
   if (type === "semantic") {
     const scope = queryScopeClause("semantic", undefined, options.asOf ? { asOf: options.asOf } : {});
     const extra: string[] = [

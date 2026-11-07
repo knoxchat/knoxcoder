@@ -183,9 +183,6 @@ export async function estimateSessionTokens(sessionId: string): Promise<number> 
   return (row as any)?.tokens ?? 0;
 }
 
-/** Above this many rows `searchEpisodic` takes candidates from FTS5 instead of a LIKE scan. */
-const EPISODIC_LIKE_SCAN_MAX_ROWS = 5000;
-
 export async function searchEpisodic(query: string, sessionId?: string, limit: number = 20): Promise<EpisodicMemory[]> {
   const db = await get();
 
@@ -212,32 +209,27 @@ export async function searchEpisodic(query: string, sessionId?: string, limit: n
 
   let ftsHits: any[] | null = null;
 
-  // Big brains: a substring LIKE reads every episodic row. Take the candidates from FTS5 (BM25
-  // order) instead; the LIKE scan stays for small tables and FTS-less builds.
-  const ftsTerms = terms.map((t) => t.replace(/[^\p{L}\p{N}_]/gu, "")).filter((t) => t.length > 1);
+  // MATCH first. LIKE is FTS-less only. Do not COUNT(*) the store to choose a path (MEM-67).
+  const ftsTerms = terms
+    .flatMap((t) => t.match(/[\p{L}\p{N}_]+/gu) ?? [])
+    .filter((t) => t.length > 1);
   if (ftsTerms.length > 0) {
     try {
-      const total = await db.get(
-        sessionId ? "SELECT COUNT(*) AS n FROM brain_episodic WHERE session_id = ?" : "SELECT COUNT(*) AS n FROM brain_episodic",
-        sessionId ? [sessionId] : [],
+      const match = ftsTerms.map((t) => `"${t}"*`).join(" OR ");
+      // The MATCH runs first, in a CTE: with a session filter SQLite otherwise walks the
+      // session index and probes the FTS table once per episodic row (seconds at 10k rows).
+      ftsHits = await db.all(
+        `WITH hits AS (
+           SELECT rowid AS id, bm25(brain_episodic_fts) AS rank FROM brain_episodic_fts
+           WHERE brain_episodic_fts MATCH ? ORDER BY rank LIMIT ?
+         )
+         SELECT e.* FROM hits JOIN brain_episodic e ON e.id = hits.id
+         WHERE ${queryScopeSql("episodic", "e")}${sessionId ? " AND e.session_id = ?" : ""}
+         ORDER BY hits.rank, e.id DESC LIMIT ?`,
+        sessionId
+          ? [match, fetchLimit * 10, sessionId, fetchLimit]
+          : [match, fetchLimit * 10, fetchLimit],
       );
-      if (((total as any)?.n ?? 0) > EPISODIC_LIKE_SCAN_MAX_ROWS) {
-        const match = ftsTerms.map((t) => `"${t}"*`).join(" OR ");
-        // The MATCH runs first, in a CTE: with a session filter SQLite otherwise walks the
-        // session index and probes the FTS table once per episodic row (seconds at 10k rows).
-        ftsHits = await db.all(
-          `WITH hits AS (
-             SELECT rowid AS id, bm25(brain_episodic_fts) AS rank FROM brain_episodic_fts
-             WHERE brain_episodic_fts MATCH ? ORDER BY rank LIMIT ?
-           )
-           SELECT e.* FROM hits JOIN brain_episodic e ON e.id = hits.id
-           WHERE ${queryScopeSql("episodic", "e")}${sessionId ? " AND e.session_id = ?" : ""}
-           ORDER BY hits.rank, e.id DESC LIMIT ?`,
-          sessionId
-            ? [match, fetchLimit * 10, sessionId, fetchLimit]
-            : [match, fetchLimit, fetchLimit],
-        );
-      }
     } catch {
       ftsHits = null; // FTS5 unavailable: LIKE scan below
     }

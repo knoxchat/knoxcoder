@@ -21,6 +21,37 @@ export interface BenchQuery {
   message: string;
   /** Keys of memories that should be injected. Empty = should inject none. */
   expected: string[];
+  /**
+   * Annotator-prioritized gold G_W(q) that should fit W_mem (MEM-76).
+   * Defaults to `expected`. Out-of-scope gold is listed separately.
+   */
+  g_w?: string[];
+  /** Gold planted outside default Ω(q): wrong project or missing as-of. */
+  out_of_scope?: string[];
+}
+
+/** G_W(q): annotator gold that the budgeted recall is measured against. */
+export function goldSetForQuery(query: BenchQuery): string[] {
+  const primary = query.g_w?.length ? query.g_w : query.expected;
+  const extra = query.out_of_scope ?? [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const key of [...primary, ...extra]) {
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(key);
+  }
+  return out;
+}
+
+/** In-scope gold (Ω(q) membership known from planting). */
+export function inOmegaKeys(query: BenchQuery): string[] {
+  const outOfScope = new Set(query.out_of_scope ?? []);
+  return goldSetForQuery(query).filter((key) => !outOfScope.has(key));
+}
+
+export function estimateMemoryTokens(content: string): number {
+  return Math.max(1, Math.ceil((content || "").length / 4));
 }
 
 export const BENCH_MEMORIES: BenchMemory[] = [

@@ -507,7 +507,7 @@ describe("MEM-53 term sketches and B-tree depth", () => {
       );
     }
     const hits = await searchTreeChannel({ query: "knoxDeepNeedleToken", sessionId, branching: 4, beam: 2 });
-    expect(hits.map((h) => h.id)).toContain(18);
+    expect(hits.hits.map((h) => h.id)).toContain(18);
   });
 
   it("exact-term routing finds every sampled leaf (no false negatives)", async () => {
@@ -522,7 +522,7 @@ describe("MEM-53 term sketches and B-tree depth", () => {
     }
     for (const i of [0, 7, 8, 31, 63, 64, 99, 42, 55, 90]) {
       const hits = await searchTreeChannel({ query: `uniqtok${i}qq`, sessionId, branching: 8, beam: 4 });
-      expect(hits.map((h) => h.id), `leaf ${i}`).toContain(i + 1);
+      expect(hits.hits.map((h) => h.id), `leaf ${i}`).toContain(i + 1);
     }
   });
 

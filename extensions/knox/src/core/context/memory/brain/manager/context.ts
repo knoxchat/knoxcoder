@@ -200,6 +200,8 @@ export async function getEffectiveContext() {
     epsilon_b: published?.epsilon_b,
     epsilon_b_note: published?.epsilon_b_note,
     epsilon_s: published?.epsilon_s,
+    epsilon_omega: published?.epsilon_omega,
+    rec_w: published?.rec_w,
     theorem_held: published?.theorem_held,
     levels: hierarchy.levels,
     tier_tokens: hierarchy.tier_tokens,

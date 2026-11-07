@@ -304,9 +304,6 @@ export class KnowledgeGraph {
 
     const entities = await BrainStore.getEntitiesByIds(ranked.map((row) => row.id));
     const byId = new Map(entities.map((entity) => [entity.id, entity]));
-    const db = await BrainStore.get();
-    const countRow = await db.get("SELECT COUNT(*) AS n FROM brain_semantic").catch(() => null);
-    const largeBrain = ((countRow as { n?: number } | null)?.n ?? 0) > 5000;
     const fetchLimit = Math.max(config.graph_neighbor_memory_limit * 3, 15);
 
     for (const row of ranked) {
@@ -319,7 +316,6 @@ export class KnowledgeGraph {
       if (!names.some((name) => shouldJoinEntityToMemories(query, name))) continue;
 
       const related = await KnowledgeGraph.loadMemoriesMentioning(names, {
-        largeBrain,
         fetchLimit,
         projectSessionIds: scope.projectSessionIds,
         asOf: scope.asOf,
@@ -341,7 +337,6 @@ export class KnowledgeGraph {
   private static async loadMemoriesMentioning(
     names: string[],
     options: {
-      largeBrain: boolean;
       fetchLimit: number;
       projectSessionIds?: string[];
       asOf?: string;
@@ -360,6 +355,7 @@ export class KnowledgeGraph {
     }
     const extraSql = extra.length > 0 ? ` AND ${extra.join(" AND ")}` : "";
 
+    let ftsUsed = false;
     const ftsSearch = async () => {
       for (const name of needles) {
         const phrase = name.toLowerCase().replace(/"/g, "").trim();
@@ -381,6 +377,7 @@ export class KnowledgeGraph {
              LIMIT ?`,
             [`"${phrase}"`, options.fetchLimit * 10, ...ftsScope.params, ...extraParams, options.fetchLimit],
           );
+          ftsUsed = true;
           for (const row of rows as Array<{ id: number; title?: string; content?: string; keywords?: string }>) {
             seen.set(row.id, row);
           }
@@ -391,7 +388,8 @@ export class KnowledgeGraph {
     };
 
     await ftsSearch();
-    if (seen.size > 0 || options.largeBrain) return [...seen.values()];
+    // MEM-67: empty FTS is a miss. LIKE is FTS-less only, never a COUNT(*) size probe.
+    if (seen.size > 0 || ftsUsed) return [...seen.values()];
 
     const likeScope = queryScopeClause("semantic", undefined, temporal);
     const likeExtra: string[] = [];
