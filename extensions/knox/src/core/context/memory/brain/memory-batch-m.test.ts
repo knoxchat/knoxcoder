@@ -243,13 +243,16 @@ describe("MEM-64/65 live retrieve", () => {
     });
     const { hashProjectId } = await import("./projectScope.js");
     const projectA = hashProjectId(wa);
-    const scoped = await RetrievalFusion.search({
-      query: `${prefToken} ${factToken}`,
-      includeEpisodic: false,
-      sessionId: "m64-a",
-      projectSessionIds: await BrainStore.listSessionIdsByProject(projectA),
-    });
-    const titles = scoped.map((r) => (r.data as { title?: string }).title);
+    const projectSessionIds = await BrainStore.listSessionIdsByProject(projectA);
+    // One token per query: multi-token queries are ANDed in FTS5, and neither row holds both.
+    const titlesFor = async (query: string): Promise<Array<string | undefined>> =>
+      (await RetrievalFusion.search({
+        query,
+        includeEpisodic: false,
+        sessionId: "m64-a",
+        projectSessionIds,
+      })).map((r) => (r.data as { title?: string }).title);
+    const titles = [...(await titlesFor(prefToken)), ...(await titlesFor(factToken))];
     expect(titles.some((t) => t?.includes("Editor tabs"))).toBe(true);
     expect(titles.some((t) => t?.includes("Secret of B"))).toBe(false);
   });

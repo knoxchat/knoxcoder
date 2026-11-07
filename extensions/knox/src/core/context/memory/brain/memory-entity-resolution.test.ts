@@ -141,14 +141,13 @@ describe("MEM-26 entity resolution + validity", () => {
       [closedId],
     );
 
-    const hits = await RetrievalFusion.search({
-      query: "Mem26ClosedQuartz Mem26LiveQuartz",
-      includeEpisodic: false,
-      sessionId,
-    });
-    const ids = hits.filter((hit) => hit.type === "semantic").map((hit) => hit.id);
-    expect(ids).toContain(liveId);
-    expect(ids).not.toContain(closedId);
+    // One token per query: multi-token queries are ANDed in FTS5, and neither row holds both.
+    const semanticIds = async (query: string): Promise<number[]> =>
+      (await RetrievalFusion.search({ query, includeEpisodic: false, sessionId }))
+        .filter((hit) => hit.type === "semantic")
+        .map((hit) => hit.id);
+    expect(await semanticIds("Mem26LiveQuartz")).toContain(liveId);
+    expect(await semanticIds("Mem26ClosedQuartz")).not.toContain(closedId);
 
     const row = await BrainStore.getSemanticById(closedId);
     expect(row).not.toBeNull();
