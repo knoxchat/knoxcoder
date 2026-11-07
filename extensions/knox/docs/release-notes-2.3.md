@@ -2,6 +2,14 @@
 
 Full detail is in `CHANGELOG.md`; upgrade steps in [upgrade.md](upgrade.md); caveats in [known-issues.md](known-issues.md).
 
+## 2.3.2
+
+- **Memory Brain Rev 2.** Write path, forgetting, calibration, erasure, and a release gate on the 2.3.0 rewrite. Retrieval stays local lexical (no embeddings). Overview shows `ε_Ω` and the five invariant chips.
+- **tsrs typecheck.** Native TypeScript 7 CLI, gulp compile, and the layers checker run [tsrs](https://github.com/oxc-project/tsrs) instead of Go `tsc`.
+- **Editor host VS Code 1.145.2.** Electron 43.8.3, without Copilot or telemetry. Knox Agent stays isolated from upstream AI.
+- **Update Available popup.** Centered dialog with version, size, GitHub release notes, and Skip Version / Later / Download & Install.
+- **Retrieve stays O(log N).** Graph, trigram, semantic, episodic, and ripgrep no longer `COUNT(*)` the store. Rec-vs-N gates growth on p50.
+
 ## 2.3.1
 
 - **Title-bar History and Settings.** Conversation History and Settings sit with Memory and Checkpoint. Tools, Prompts, Rules, and Models live in the Settings sidebar; the composer stays a send row.

@@ -3,6 +3,8 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.3.2] - 2026-11-08
+
 ### Added
 
 - **Memory Brain Rev 2 (revised Knox-MS notes 16-25).** Write path, forgetting, calibration, erasure, and a release gate on top of the 2.3.0 rewrite. Retrieval stays local lexical (sqlite FTS, BM25, trigrams, MinHash, graph, tree). No embeddings, vector index, or neural rerank. How to use it: [Memory](extensions/knox/docs/README.md#memory). Pairing: [knox-memory-checkpoint.md](extensions/knox/docs/knox-memory-checkpoint.md). Math: [KMS Unlimited Context Theorem](https://docs.knoxstudio.ai/knox-ms-unlimited-formula/). Plan: [memory-impl.md](extensions/knox/docs/memory-impl.md) (MEM-45 through MEM-80).
