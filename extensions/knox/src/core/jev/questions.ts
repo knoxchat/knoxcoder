@@ -86,17 +86,18 @@ export const CLARIFY_HINT = [
   "</clarify_first>",
 ].join("\n");
 
-/** `chat_high` bumps reasoning when the current effort is at or below this floor. */
+/**
+ * `chat_high` bumps reasoning when the current effort is at or below this floor.
+ * An explicit "none" is the user turning reasoning off, so it is never escalated.
+ */
 export const CHAT_HIGH_REASONING_EFFORT = "high";
-export const CHAT_HIGH_REASONING_FLOOR = [
-  "none",
-  "minimal",
-  "low",
-  "medium",
-] as const;
+export const CHAT_HIGH_REASONING_FLOOR = ["minimal", "low", "medium"] as const;
 
 export function escalateReasoningEffort(current?: string): string {
   const effort = (current ?? "").trim().toLowerCase();
+  if (effort === "none") {
+    return "none";
+  }
   if (
     !effort ||
     (CHAT_HIGH_REASONING_FLOOR as readonly string[]).includes(effort)

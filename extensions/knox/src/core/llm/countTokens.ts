@@ -98,6 +98,29 @@ function mustStayAtomic(msg: ChatMessage): boolean {
   return messageHasToolCalls(msg) || msg.role === "tool";
 }
 
+/**
+ * Join two same-role message contents. Content can be a string or an array of parts
+ * (user messages built by constructMessages are always parts), so never use string `+=`
+ * on it: that turns a parts array into "[object Object]".
+ */
+function mergeMessageContent(
+  a: MessageContent,
+  b: MessageContent,
+): MessageContent {
+  if (typeof a === "string" && typeof b === "string") {
+    return `${a}\n\n${b || ""}`;
+  }
+  const toParts = (content: MessageContent): MessagePart[] =>
+    Array.isArray(content)
+      ? content
+      : [{ type: "text", text: content || "" }];
+  return [
+    ...toParts(a),
+    { type: "text", text: "\n\n" },
+    ...toParts(b),
+  ] as MessagePart[];
+}
+
 export function flattenMessages(msgs: ChatMessage[]): ChatMessage[] {
   const flattened: ChatMessage[] = [];
 
@@ -110,7 +133,14 @@ export function flattenMessages(msgs: ChatMessage[]): ChatMessage[] {
       !mustStayAtomic(msg) &&
       !mustStayAtomic(flattened[flattened.length - 1])
     ) {
-      flattened[flattened.length - 1].content += `\n\n${msg.content || ""}`;
+      const prev = flattened[flattened.length - 1];
+      flattened[flattened.length - 1] = {
+        ...prev,
+        content: mergeMessageContent(
+          prev.content as MessageContent,
+          msg.content as MessageContent,
+        ),
+      } as ChatMessage;
     } else {
       flattened.push(msg);
     }

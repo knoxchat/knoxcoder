@@ -423,8 +423,14 @@ describe("evaluateAgentTurn", () => {
 });
 
 describe("escalateReasoningEffort", () => {
-  it("bumps none/low/medium up to high", () => {
+  it("keeps an explicit none (reasoning off)", () => {
+    expect(escalateReasoningEffort("none")).toBe("none");
+    expect(escalateReasoningEffort(" None ")).toBe("none");
+  });
+
+  it("bumps unset/minimal/low/medium up to high", () => {
     expect(escalateReasoningEffort(undefined)).toBe("high");
+    expect(escalateReasoningEffort("minimal")).toBe("high");
     expect(escalateReasoningEffort("low")).toBe("high");
     expect(escalateReasoningEffort("medium")).toBe("high");
   });

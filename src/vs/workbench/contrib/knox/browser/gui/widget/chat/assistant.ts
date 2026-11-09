@@ -10,6 +10,7 @@ import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { syncTranscriptFollow } from '../chrome.js';
 import { patchLiveTool, toolStreamFingerprint } from '../tools.js';
 import { IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../../common/knoxGuiState.js';
+import { knoxGuiThinkingPlaceholderActive } from '../../../../common/knoxGuiCapabilities.js';
 import {
 	activityAnchorId,
 	assistantReplyText,
@@ -77,7 +78,7 @@ function patchLastAssistantBody(widget: KnoxGuiWidget, state: IKnoxGuiState): vo
 		hasContent: hasReply,
 		hasReasoning: Boolean(item.thinking?.trim()),
 		isGatheringContext: state.isGatheringContext,
-		showForModel: state.thinkingPlaceholder,
+		showForModel: knoxGuiThinkingPlaceholderActive(state),
 	});
 	let indicator = card.querySelector('.knox-gui-thinking-indicator') as HTMLElement | null;
 	if (showIndicator && !indicator) {
@@ -245,7 +246,7 @@ export function renderAssistantTurn(widget: KnoxGuiWidget,
 		hasContent: hasReply,
 		hasReasoning: Boolean(item.thinking?.trim()),
 		isGatheringContext: state.isGatheringContext,
-		showForModel: state.thinkingPlaceholder,
+		showForModel: knoxGuiThinkingPlaceholderActive(state),
 	})) {
 		const indicator = DOM.append(card, DOM.$('.knox-gui-thinking-indicator'));
 		indicator.setAttribute('data-testid', 'knox-gui-thinking-indicator');

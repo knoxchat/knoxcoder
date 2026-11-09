@@ -341,6 +341,18 @@ export function knoxGuiShowsThinkingPlaceholder(model: IKnoxGuiModel | undefined
 }
 
 /**
+ * Reasoning effort "none" means reasoning is off, so the Thinking placeholder must follow it.
+ * Evaluated at render time so changing the effort takes effect on the next paint.
+ */
+export function knoxGuiThinkingPlaceholderActive(state: { thinkingPlaceholder: boolean; reasoningEffort?: string; reasoningEfforts?: readonly string[] }): boolean {
+	if (!state.thinkingPlaceholder) {
+		return false;
+	}
+	const effort = (state.reasoningEffort ?? '').trim().toLowerCase();
+	return !(effort === 'none' && !!state.reasoningEfforts?.length);
+}
+
+/**
  * Effort selector requires adjustable effort, matching getReasoningEffortConfig.
  * API `reasoning.supported_efforts` → sidecar JSON → gateway default.
  */

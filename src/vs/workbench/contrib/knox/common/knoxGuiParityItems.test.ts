@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { knoxGuiModelSupportsReasoning, knoxGuiResetModelCatalogForTests, knoxGuiShowsThinkingPlaceholder } from './knoxGuiCapabilities.js';
+import { knoxGuiModelSupportsReasoning, knoxGuiResetModelCatalogForTests, knoxGuiShowsThinkingPlaceholder, knoxGuiThinkingPlaceholderActive } from './knoxGuiCapabilities.js';
 import { CHAT_LOAD_EARLIER_THRESHOLD_PX, knoxGuiHoldPausedScrollTop, knoxGuiIsLiveUserScroll, knoxGuiNextScrollFollow, knoxGuiRestoreAnchorScrollTop, knoxGuiShouldLoadEarlier, knoxGuiTranscriptAtStart, knoxGuiTranscriptRestoreTop } from './knoxGuiChat.js';
 import { alignSplitDiffRows, buildDiffSegments, checkpointGraphFindScroll, checkpointGraphMenuPosition, checkpointGraphRevealScroll, checkpointDiffContentBytes, checkpointDiffSummary, computeLineDiff, checkpointChartTickInterval, checkpointChartYTicks, checkpointConfigFieldErrors, checkpointConfigIsDirty, checkpointConfigNumber, checkpointDetailsDefaultTab, checkpointImageMime, DEFAULT_CHECKPOINT_CONFIG, formatCheckpointDuration, formatDashboardBytes, groupTimelineCheckpoints, checkpointMatchesQuery, checkpointTreeAncestors, clampCheckpointTreeWidth, compareCheckpointTargets, diffFromCheckpointSnapshots, formatSnapshotSize, parseCheckpointDetails, parseCheckpointDiff } from './knoxGuiCheckpoints.js';
 import { MEMORY_SETTING_GROUPS, memoriesToExportJson, memoriesToExportMarkdown, memoryBrowserEmptyKey, memoryConsolidateParts, memoryGraphTypeCounts, memoryInjectedLastTurnLine, parseLastInject, parseMemorySettingInput, rangeSelectMemoryIds, visibleMemoryExploreEdges, withMemoryConfigDefaults } from './knoxGuiMemory.js';
@@ -202,6 +202,12 @@ suite('Knox native parity items', () => {
 			assert.strictEqual(knoxGuiShowsThinkingPlaceholder({ title: 'c', provider: 'x', model: 'c', supportedParameters: ['reasoning_effort'] }), true);
 			assert.strictEqual(knoxGuiShowsThinkingPlaceholder({ title: 'd', provider: 'x', model: 'd' }), false);
 			assert.strictEqual(knoxGuiShowsThinkingPlaceholder(undefined), false);
+			const efforts = ['none', 'low', 'high'];
+			assert.strictEqual(knoxGuiThinkingPlaceholderActive({ thinkingPlaceholder: true, reasoningEffort: 'high', reasoningEfforts: efforts }), true);
+			assert.strictEqual(knoxGuiThinkingPlaceholderActive({ thinkingPlaceholder: true, reasoningEffort: 'none', reasoningEfforts: efforts }), false);
+			assert.strictEqual(knoxGuiThinkingPlaceholderActive({ thinkingPlaceholder: true, reasoningEffort: 'None', reasoningEfforts: efforts }), false);
+			assert.strictEqual(knoxGuiThinkingPlaceholderActive({ thinkingPlaceholder: true, reasoningEffort: 'none', reasoningEfforts: [] }), true);
+			assert.strictEqual(knoxGuiThinkingPlaceholderActive({ thinkingPlaceholder: false, reasoningEffort: 'high', reasoningEfforts: efforts }), false);
 		});
 
 		test('C-14 code line window: 12 collapsed, 400 expanded, end anchor follows the tail and shifts', () => {

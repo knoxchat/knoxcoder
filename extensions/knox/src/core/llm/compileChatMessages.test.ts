@@ -89,6 +89,21 @@ describe("compileChatMessages memory inject", () => {
     ]);
   });
 
+  it("merges consecutive user messages with parts content without [object Object]", () => {
+    const flat = flattenMessages([
+      { role: "user", content: [{ type: "text", text: "memory" }] },
+      { role: "user", content: [{ type: "text", text: "real question" }] },
+      { role: "user", content: "plain" },
+    ]);
+    expect(flat).toHaveLength(1);
+    expect(JSON.stringify(flat[0].content)).not.toContain("[object Object]");
+    const text = (flat[0].content as { type: string; text: string }[])
+      .map((p) => p.text)
+      .join("");
+    expect(text).toContain("real question");
+    expect(text).toContain("plain");
+  });
+
   it("merges multiple system messages rather than keeping only the first", () => {
     const msgs: ChatMessage[] = [
       { role: "system", content: "A" },
