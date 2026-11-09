@@ -22,6 +22,9 @@ import { withPreservedSelection } from '../preserve.js';
 
 export function patchLastAssistant(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
 	withPreservedSelection(widget.root, () => patchLastAssistantBody(widget, state));
+	// Do not rely only on ResizeObserver targets captured at the last render: a patch can add
+	// nodes (reply body, tool cards) that were never observed, which left follow stuck mid-turn.
+	syncTranscriptFollow(widget);
 }
 
 function patchLastAssistantBody(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
