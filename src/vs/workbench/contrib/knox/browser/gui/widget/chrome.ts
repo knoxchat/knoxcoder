@@ -969,30 +969,13 @@ export function markTranscriptUserScrolling(widget: KnoxGuiWidget, pauseFollow?:
 		clearTimeout(widget.userScrollIdleHandle);
 		widget.userScrollIdleHandle = undefined;
 	}
-	// A held pointer normally ends on pointerup. If that event never arrives (context menu,
-	// drag out of the window, focus loss) the watchdog releases it so follow cannot stall forever.
-	const holding = widget.pointerHeld;
+	if (widget.pointerHeld) {
+		return;
+	}
 	widget.userScrollIdleHandle = setTimeout(() => {
 		widget.userScrollIdleHandle = undefined;
 		widget.userScrolling = false;
-		if (holding) {
-			widget.pointerHeld = false;
-		}
-		widget.flushPendingLivePatch();
-		// Stick requests made during the gesture were dropped; resume following now.
-		syncTranscriptFollow(widget);
-	}, holding ? CHAT_POINTER_HOLD_MAX_MS : CHAT_USER_SCROLL_IDLE_MS);
-}
-
-/** Hard stop for a pointer that never reported release. */
-const CHAT_POINTER_HOLD_MAX_MS = 5000;
-
-/** Drop a pointer hold that was lost (no pointerup), then let follow and live patches resume. */
-export function releaseTranscriptPointer(widget: KnoxGuiWidget): void {
-	if (!widget.pointerHeld) {
-		return;
-	}
-	markTranscriptUserScrolling(widget, false, false);
+	}, CHAT_USER_SCROLL_IDLE_MS);
 }
 
 const TRANSCRIPT_ANCHOR_SELECTOR = [
@@ -1315,16 +1298,8 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 	widget.programmaticScroll = false;
 	widget.renderStore.add(DOM.addDisposableListener(body, 'wheel', (e: WheelEvent) => {
 		widget.programmaticScroll = false;
-		// A wheel means the pointer is not dragging anymore; a lost pointerup must not pin the gesture.
-		markTranscriptUserScrolling(widget, e.deltaY < 0, widget.pointerHeld ? false : undefined);
+		markTranscriptUserScrolling(widget, e.deltaY < 0);
 	}, { passive: true }));
-	widget.renderStore.add(DOM.addDisposableListener(body, 'contextmenu', () => releaseTranscriptPointer(widget), { passive: true }));
-	widget.renderStore.add(DOM.addDisposableListener(body, 'dragend', () => releaseTranscriptPointer(widget), { passive: true }));
-	widget.renderStore.add(DOM.addDisposableListener(body, 'lostpointercapture', () => releaseTranscriptPointer(widget), { passive: true }));
-	const view = body.ownerDocument.defaultView;
-	if (view) {
-		widget.renderStore.add(DOM.addDisposableListener(view, 'blur', () => releaseTranscriptPointer(widget), { passive: true }));
-	}
 	widget.renderStore.add(DOM.addDisposableListener(body, 'pointerdown', () => {
 		markTranscriptUserScrolling(widget, false, true);
 	}, { passive: true }));
@@ -1353,10 +1328,6 @@ export function attachTranscriptScroll(widget: KnoxGuiWidget, body: HTMLElement,
 		const programmatic = widget.programmaticScroll;
 		widget.programmaticScroll = false;
 		const userGesture = transcriptGestureIsLive(widget);
-		if (widget.pointerHeld) {
-			// Scrollbar drag is still alive: refresh the lost-pointerup watchdog.
-			markTranscriptUserScrolling(widget);
-		}
 		if (userGesture && widget.seekingTranscriptStart) {
 			cancelSeekTranscriptStart(widget);
 		}
