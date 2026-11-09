@@ -136,8 +136,35 @@ function arg(name) {
 	return process.argv.includes(`--${name}`);
 }
 
+const RETRY_ATTEMPTS = 5;
+
+function isTransientStatus(status) {
+	return status === 408 || status === 429 || status >= 500;
+}
+
+/** GitHub release CDN occasionally returns 5xx; retry with backoff before failing. */
+async function fetchWithRetry(url, init) {
+	let lastError;
+	for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
+		try {
+			const response = await fetch(url, init);
+			if (!isTransientStatus(response.status) || attempt === RETRY_ATTEMPTS) {
+				return response;
+			}
+			await response.arrayBuffer().catch(() => undefined);
+		} catch (error) {
+			lastError = error;
+			if (attempt === RETRY_ATTEMPTS) {
+				throw lastError;
+			}
+		}
+		await new Promise(resolve => setTimeout(resolve, attempt * 3000));
+	}
+	throw lastError;
+}
+
 async function fetchJson(url, headers) {
-	const response = await fetch(url, { headers, redirect: 'follow' });
+	const response = await fetchWithRetry(url, { headers, redirect: 'follow' });
 	if (!response.ok) {
 		return { ok: false, status: response.status };
 	}
@@ -146,7 +173,7 @@ async function fetchJson(url, headers) {
 }
 
 async function probeAsset(url, headers) {
-	const response = await fetch(url, {
+	const response = await fetchWithRetry(url, {
 		headers: { ...headers, Range: 'bytes=0-15' },
 		redirect: 'follow',
 	});
