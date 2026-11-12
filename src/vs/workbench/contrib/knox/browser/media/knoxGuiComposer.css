@@ -780,6 +780,17 @@
 	padding: 8px 0;
 }
 
+.knox-gui-floating-sent-host:not(:focus-within):not(.knox-gui-floating-sent-expanded) .knox-gui-history-editor .knox-gui-input {
+	max-height: calc(1.45em * 2 + 8px);
+	overflow: hidden;
+}
+
+.knox-gui-floating-sent-host:is(:focus-within, .knox-gui-floating-sent-expanded) .knox-gui-history-editor .knox-gui-input {
+	max-height: min(40vh, 320px);
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
 .knox-gui-delete-orange {
 	color: #fd7e14 !important;
 }

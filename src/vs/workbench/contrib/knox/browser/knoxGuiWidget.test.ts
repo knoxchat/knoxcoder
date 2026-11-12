@@ -938,6 +938,17 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const nextHost = widget.root.querySelector('[data-testid="floating-sent-host"]') as HTMLElement;
 		assert.ok(nextHost.classList.contains('knox-gui-floating-sent-expanded'));
 		assert.strictEqual(nextHost.querySelector('[data-testid="last-user-composer"]')?.getAttribute('aria-expanded'), 'true');
+		await timeout(0);
+		const nextInput = nextHost.querySelector('[data-testid="knox-gui-history-input"]') as HTMLElement;
+		const nextBox = nextHost.querySelector('.knox-gui-history-editor') as HTMLElement;
+		assert.ok(nextInput);
+		assert.ok(nextBox);
+		nextInput.blur();
+		nextBox.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: widget.root }));
+		assert.strictEqual(widget.floatingSentExpanded, false);
+		assert.strictEqual(nextHost.classList.contains('knox-gui-floating-sent-expanded'), false);
+		assert.strictEqual(nextHost.querySelector('[data-testid="last-user-composer"]')?.getAttribute('aria-expanded'), 'false');
+		assert.strictEqual(nextInput.contentEditable, 'false');
 		store.patch({
 			isStreaming: false,
 			sessionTitle: 'done-chat',

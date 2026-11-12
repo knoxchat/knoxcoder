@@ -13,7 +13,7 @@ import { bindComposerIme, composerImeActive, composerImeFromInput } from '../com
 import { processImageFile, processImageFiles } from '../images.js';
 import { IKnoxGuiHistoryItem, IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { historyUserInputDoc } from '../../../../common/knoxGuiTranscript.js';
-import { expandFloatingSent } from '../chrome.js';
+import { collapseFloatingSent, expandFloatingSent } from '../chrome.js';
 
 export function historyDraftFor(widget: KnoxGuiWidget, item: IKnoxGuiHistoryItem): { doc: IKnoxGuiInputBlock[]; images: string[] } {
 	const existing = widget.historyDrafts.get(item.id);
@@ -105,20 +105,37 @@ export function renderHistoricalEditor(widget: KnoxGuiWidget, parent: HTMLElemen
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(box, 'focusout', (e: FocusEvent) => {
 		const next = e.relatedTarget as Node | null;
-		if (next && box.contains(next)) {
+		if (next && (box.contains(next) || widget.suggestEl?.contains(next))) {
 			return;
 		}
-		window.setTimeout(() => {
-			if (widget.focusedHistoryId === item.id && !box.contains(document.activeElement)) {
-				widget.focusedHistoryId = null;
-				if (!keepToolbar) {
-					bar.classList.add('knox-gui-input-bar--hidden');
-				}
-				if (widget.controller.suggestTarget === item.id) {
-					widget.controller.closeSuggest();
-				}
+		const collapseIfIdle = () => {
+			const active = document.activeElement;
+			if (widget.focusedHistoryId !== item.id) {
+				return;
 			}
-		}, 100);
+			if (active && (box.contains(active) || widget.suggestEl?.contains(active))) {
+				return;
+			}
+			widget.focusedHistoryId = null;
+			if (!keepToolbar) {
+				bar.classList.add('knox-gui-input-bar--hidden');
+			}
+			if (floating) {
+				collapseFloatingSent(widget);
+				editor.contentEditable = 'false';
+			}
+			if (widget.pinnedUserExpandedId === item.id) {
+				widget.pinnedUserExpandedId = null;
+			}
+			if (widget.controller.suggestTarget === item.id) {
+				widget.controller.closeSuggest();
+			}
+		};
+		if (next) {
+			collapseIfIdle();
+			return;
+		}
+		window.setTimeout(collapseIfIdle, 100);
 	}));
 	const recheckTrigger = () => {
 		if (composerImeActive(widget)) {

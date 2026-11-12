@@ -30,7 +30,7 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	imagePreviewEl: HTMLElement | undefined;
 	bodyEl: HTMLElement | undefined;
 	floatingHostEl: HTMLElement | undefined;
-	/** Live floating sent prompt is showing its full text (click-to-expand). */
+	/** Live floating sent prompt is showing its full text (focused / click-to-expand). */
 	floatingSentExpanded = false;
 	/** History id of a scroll-pinned user preview the user expanded in place. */
 	pinnedUserExpandedId: string | null = null;

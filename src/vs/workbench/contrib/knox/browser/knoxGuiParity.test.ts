@@ -429,7 +429,10 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out'));
 		assert.ok(css.includes('@media (prefers-reduced-motion: reduce)'));
 		assert.ok(css.includes('.knox-gui-floating-sent-expanded'));
-		assert.ok(css.includes('.knox-gui-floating-sent-host:not(.knox-gui-floating-sent-expanded) .knox-gui-history-composer .knox-gui-input'));
+		assert.ok(css.includes('.knox-gui-floating-sent-host:not(:focus-within):not(.knox-gui-floating-sent-expanded) .knox-gui-history-composer .knox-gui-input'));
+		assert.ok(css.includes('.knox-gui-floating-sent-host:is(:focus-within, .knox-gui-floating-sent-expanded) .knox-gui-history-composer .knox-gui-input'));
+		assert.ok(/\.knox-gui-floating-sent-host:is\(:focus-within, \.knox-gui-floating-sent-expanded\) \.knox-gui-history-composer \.knox-gui-input,\n\.knox-gui-floating-sent-host:is\(:focus-within, \.knox-gui-floating-sent-expanded\) \.knox-gui-pinned-user \.knox-gui-input,\n\.knox-gui-pinned-user:focus-within \.knox-gui-pinned-user-text \{[^}]*overflow-y:\s*auto/.test(css));
+		assert.ok(!/\.knox-gui-floating-sent-host\.knox-gui-floating-sent-expanded \.knox-gui-history-composer \.knox-gui-input \{[^}]*overflow:\s*visible/.test(css));
 		assert.ok(css.includes('.knox-gui-pinned-user--expanded'));
 		assert.ok(css.includes('.knox-gui-pinned-user--editing'));
 		assert.ok(css.includes('.knox-gui-skip'));

@@ -1177,7 +1177,7 @@ export function applyFloatingSentExpanded(widget: KnoxGuiWidget): void {
 		if (!widget.floatingSentExpanded) {
 			composer.title = t(widget.controller.store.state, 'expandFloatingSent');
 		} else {
-			composer.removeAttribute('title');
+			composer.title = t(widget.controller.store.state, 'collapseFloatingSent');
 		}
 	}
 }
@@ -1185,6 +1185,16 @@ export function applyFloatingSentExpanded(widget: KnoxGuiWidget): void {
 export function expandFloatingSent(widget: KnoxGuiWidget): void {
 	const already = widget.floatingSentExpanded;
 	widget.floatingSentExpanded = true;
+	applyFloatingSentExpanded(widget);
+	if (!already && widget.bodyEl) {
+		restickAfterHostChange(widget, widget.bodyEl);
+	}
+}
+
+/** Collapse the floating sent prompt back to two lines after it loses focus. */
+export function collapseFloatingSent(widget: KnoxGuiWidget): void {
+	const already = !widget.floatingSentExpanded;
+	widget.floatingSentExpanded = false;
 	applyFloatingSentExpanded(widget);
 	if (!already && widget.bodyEl) {
 		restickAfterHostChange(widget, widget.bodyEl);
