@@ -7,7 +7,7 @@ import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import { t } from '../t.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
 import { appendKnoxGuiSvg } from '../../knoxGuiIcons.js';
-import { lastRelativePathParts, knoxGuiCodeToEditTitle } from '../../../../common/knoxGuiInput.js';
+import { lastRelativePathParts, knoxGuiCodeToEditTitle, knoxGuiIsImeComposing } from '../../../../common/knoxGuiInput.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { displayLanguageForFile } from '../../../../common/knoxGuiTools.js';
 
@@ -158,7 +158,7 @@ export function renderCodeToEditCard(widget: KnoxGuiWidget, parent: HTMLElement,
 				e.preventDefault();
 				widget.addFileSelected = (widget.addFileSelected - 1 + widget.addFileHits.length) % widget.addFileHits.length;
 				paintAddFileHits(widget);
-			} else if (e.key === 'Enter' && !e.isComposing) {
+			} else if (e.key === 'Enter' && !knoxGuiIsImeComposing(e)) {
 				e.preventDefault();
 				const hit = widget.addFileHits[widget.addFileSelected];
 				const uri = hit?.query || hit?.id || input.value.trim();

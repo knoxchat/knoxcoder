@@ -23,6 +23,7 @@ import { knoxGuiListboxNextIndex } from '../../../common/knoxGuiCapabilities.js'
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
 import { CHAT_SCROLL_BOTTOM_THRESHOLD_PX, CHAT_USER_SCROLL_IDLE_MS, knoxGuiFindRegexInvalid, knoxGuiHoldPausedScrollTop, knoxGuiIsLiveUserScroll, knoxGuiNextScrollFollow, knoxGuiRestoreAnchorScrollTop, knoxGuiShouldLoadEarlier, knoxGuiTranscriptAtStart, knoxGuiTranscriptRestoreTop, nextExpandedStart } from '../../../common/knoxGuiChat.js';
 import { knoxGuiIsImeComposing, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
+import { composerImeActive } from './composer/ime.js';
 import { visibleBackgroundJobs } from '../../../common/knoxGuiPanels.js';
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { IKnoxGuiState, KnoxPermissionMode, knoxGuiPermissionModeHintKey, knoxGuiPermissionModeLabelKey, knoxGuiVisibleSessionTabs, PERMISSION_MODES } from '../../../common/knoxGuiState.js';
@@ -342,7 +343,7 @@ export function renderFind(widget: KnoxGuiWidget, state: IKnoxGuiState): void { 
 		if (e.key === 'Escape') {
 			e.preventDefault();
 			widget.controller.closeFind();
-		} else if (e.key === 'Enter' && !e.isComposing) {
+		} else if (e.key === 'Enter' && !knoxGuiIsImeComposing(e)) {
 			e.preventDefault();
 			if (widget.findQueryTimer) {
 				clearTimeout(widget.findQueryTimer);
@@ -534,7 +535,7 @@ export function renderScrollButtons(widget: KnoxGuiWidget, parent: HTMLElement, 
 }
 
 export function onRootKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent): void {
-	if (knoxGuiIsImeComposing(e)) {
+	if (knoxGuiIsImeComposing(e) || composerImeActive(widget)) {
 		return;
 	}
 	const state = widget.controller.store.state;

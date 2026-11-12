@@ -184,6 +184,8 @@ export abstract class KnoxGuiWidgetState extends Disposable {
 	composerImeDepth = 0;
 	/** Full GUI render skipped during IME; replayed on `compositionend`. */
 	composerImeNeedsReplay = false;
+	/** Ignore composer Enter/Tab until this time so an IME confirm does not submit. */
+	composerImeIgnoreSubmitUntil = 0;
 	editInputHistory: IKnoxGuiComposerInputHistory = createComposerInputHistory();
 	addFileHits: IKnoxGuiSuggestItem[] = [];
 	addFileQuery = '';

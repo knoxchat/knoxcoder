@@ -23,6 +23,7 @@ import {
 import { knoxGuiCanCancel } from '../../../../common/knoxGuiChrome.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { pendingApplyStates } from '../../../../common/knoxGuiTranscript.js';
+import { composerImeActive } from './ime.js';
 
 /** `TipTapEditor.insertCharacterWithWhitespace("@")`: focus end, insert @, open mentions. */
 export function insertAddContext(widget: KnoxGuiWidget): void {
@@ -37,7 +38,12 @@ export function insertAddContext(widget: KnoxGuiWidget): void {
 }
 
 export function onEditorKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent, _state?: IKnoxGuiState): void {
-	if (knoxGuiIsImeComposing(e)) {
+	if (knoxGuiIsImeComposing(e) || composerImeActive(widget)) {
+		return;
+	}
+	if ((e.key === 'Enter' || e.key === 'Tab') && widget.composerImeIgnoreSubmitUntil > Date.now()) {
+		e.preventDefault();
+		e.stopPropagation();
 		return;
 	}
 	const state = widget.controller.store.state;
@@ -53,6 +59,7 @@ export function onEditorKeyDown(widget: KnoxGuiWidget, e: KeyboardEvent, _state?
 		caretAtEnd: widget.caretAtEdge('end'),
 		suggestSelected: state.suggestSelected,
 		suggestCount: flat.length,
+		imeIgnoreSubmitUntil: widget.composerImeIgnoreSubmitUntil,
 	});
 	if (action.type === 'suggest') {
 		if (action.action.type === 'move') {

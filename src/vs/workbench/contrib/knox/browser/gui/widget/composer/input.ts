@@ -14,7 +14,7 @@ import {
 	inputDocToPlainText,
 	knoxGuiSendButtonDisabled,
 } from '../../../../common/knoxGuiInput.js';
-import { bindComposerIme, composerImeActive, composerImeFromInput } from './ime.js';
+import { bindComposerIme, composerImeActive, composerImeFromInput, markComposerImeDom } from './ime.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { renderImageAttach } from './attachments.js';
 import { composerRememberContent, memoryTitleFromContent } from '../../../../common/knoxGuiMemory.js';
@@ -79,17 +79,21 @@ export function renderInput(widget: KnoxGuiWidget, parent: HTMLElement, state: I
 		widget.controller.store.patch({ inputFocused: false });
 	}));
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'input', (e: Event) => {
-		const composing = composerImeFromInput(widget, e);
-		widget.controller.store.setInputDoc(widget.readInputDoc(editor));
-		widget.syncPlaceholder(editor, widget.controller.store.state);
+		const composing = composerImeFromInput(widget, e, editor);
 		if (composing) {
+			widget.syncPlaceholder(editor, widget.controller.store.state);
 			return;
 		}
+		widget.controller.store.setInputDoc(widget.readInputDoc(editor));
+		widget.syncPlaceholder(editor, widget.controller.store.state);
 		widget.controller.onComposerInput(widget.caretDocPosition(editor));
 		widget.paintTypedMention(widget.controller.store.state);
 	}));
 	bindComposerIme(widget, editor);
 	const recheckTrigger = () => {
+		if (composerImeActive(widget)) {
+			return;
+		}
 		const current = widget.controller.store.state;
 		if (current.mentionOpen || current.slashOpen) {
 			widget.controller.onComposerInput(widget.caretDocPosition(editor));
@@ -306,9 +310,13 @@ export function syncComposerAction(widget: KnoxGuiWidget, state: IKnoxGuiState):
 }
 
 export function syncPlaceholder(widget: KnoxGuiWidget, editor: HTMLElement, state: IKnoxGuiState): void {
-	const empty = inputDocIsEmpty(widget.readInputDoc(editor));
-	editor.dataset.empty = empty ? 'true' : 'false';
 	const placeholder = t(state, composerPlaceholderKey(state.mode, state.history.length));
 	editor.dataset.placeholder = placeholder;
 	editor.setAttribute('aria-label', placeholder);
+	if (composerImeActive(widget) || editor.dataset.composing === 'true') {
+		markComposerImeDom(editor, true);
+		return;
+	}
+	const empty = inputDocIsEmpty(widget.readInputDoc(editor));
+	editor.dataset.empty = empty ? 'true' : 'false';
 }

@@ -17,6 +17,7 @@ import {
 	groupTimelineCheckpoints,
 	remapCheckpointBranchColor,
 } from '../../../../common/knoxGuiCheckpoints.js';
+import { knoxGuiIsImeComposing } from '../../../../common/knoxGuiInput.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import { checkpointAgeLabel, checkpointBadge, checkpointButton, checkpointDialog, checkpointDialogHeader, checkpointRiskIcon, checkpointSearch, checkpointSelect } from './primitives.js';
 
@@ -362,7 +363,7 @@ function renderTimelineForms(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 		input.value = widget.checkpointTimelineBranchName;
 		widget.renderStore.add(DOM.addDisposableListener(input, 'input', () => { widget.checkpointTimelineBranchName = input.value; }));
 		widget.renderStore.add(DOM.addDisposableListener(input, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'Enter' && !e.isComposing) {
+			if (e.key === 'Enter' && !knoxGuiIsImeComposing(e)) {
 				e.preventDefault();
 				submit();
 			}

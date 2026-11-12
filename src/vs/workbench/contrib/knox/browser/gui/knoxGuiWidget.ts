@@ -253,6 +253,9 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 	}
 
 	render(): void {
+		if (this.deferComposerImeRender()) {
+			return;
+		}
 		this.composerImeDepth = 0;
 		const active = document.activeElement;
 		const restoreEditor = Boolean(active instanceof HTMLElement && active.isContentEditable && active.classList.contains('knox-gui-input'));

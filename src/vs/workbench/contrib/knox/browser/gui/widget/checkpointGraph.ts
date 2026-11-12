@@ -39,7 +39,7 @@ import {
 	type KnoxCheckpointGraphColumn,
 } from '../../../common/knoxGuiCheckpoints.js';
 import { IKnoxGuiCheckpointBranch, IKnoxGuiCheckpointNode, IKnoxGuiState } from '../../../common/knoxGuiState.js';
-import { knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
+import { knoxGuiIsImeComposing, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 
 type GraphNode = IKnoxGuiCheckpointNode & { workingTree?: boolean };
@@ -1265,7 +1265,7 @@ function renderGraphPrompt(widget: KnoxGuiWidget, parent: HTMLElement, state: IK
 	}));
 	if (input) {
 		widget.listenerStore.add(DOM.addDisposableListener(input, 'keydown', e => {
-			if (e.key === 'Enter' && !e.isComposing) {
+			if (e.key === 'Enter' && !knoxGuiIsImeComposing(e)) {
 				e.preventDefault();
 				confirm();
 			}

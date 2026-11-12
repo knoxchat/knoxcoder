@@ -43,7 +43,7 @@ import {
 	workspaceBasename,
 } from '../../../common/knoxGuiOverlays.js';
 import { KnoxGuiOverlay, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
-import { isSlashBookmarked, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
+import { isSlashBookmarked, knoxGuiIsImeComposing, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
 import { IKnoxGuiHistorySession, IKnoxGuiState, knoxGuiIsDedicatedEditor, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
 import { KNOX_GUI_SETTINGS_NAV, knoxGuiSettingsTab } from '../../../common/knoxGuiChrome.js';
 
@@ -361,7 +361,7 @@ export function renderPromptEditor(widget: KnoxGuiWidget, state: IKnoxGuiState):
 	}));
 	for (const field of [name, desc]) {
 		widget.renderStore.add(DOM.addDisposableListener(field, 'keydown', e => {
-			if (e.key === 'Enter' && !e.isComposing) {
+			if (e.key === 'Enter' && !knoxGuiIsImeComposing(e)) {
 				e.preventDefault();
 				submit();
 			}
@@ -830,7 +830,7 @@ export function renderHistorySessionRow(widget: KnoxGuiWidget, parent: HTMLEleme
 			widget.render();
 		};
 		widget.listenerStore.add(DOM.addDisposableListener(title, 'keydown', e => {
-			if (e.key === 'Enter' && !e.isComposing) {
+			if (e.key === 'Enter' && !knoxGuiIsImeComposing(e)) {
 				e.preventDefault();
 				commit();
 			} else if (e.key === 'Escape') {

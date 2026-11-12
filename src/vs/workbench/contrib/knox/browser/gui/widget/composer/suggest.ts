@@ -17,6 +17,8 @@ import {
 	isFolderMentionItem,
 	isOpenableMentionRow,
 	isPathMentionItem,
+	KNOX_COMPOSER_IME_SUBMIT_GUARD_MS,
+	knoxGuiIsImeComposing,
 	mentionIndexIsTruncated,
 	mentionOptionId,
 	shouldShowMentionSectionHeaders,
@@ -110,15 +112,31 @@ function renderQueryProviderBox(widget: KnoxGuiWidget, list: HTMLElement, state:
 		widget.queryProviderValue = '';
 	}
 	box.value = widget.queryProviderValue;
+	let queryImeDepth = 0;
+	let queryImeIgnoreSubmitUntil = 0;
 	widget.renderStore.add(DOM.addDisposableListener(box, 'input', () => {
 		widget.queryProviderValue = box.value;
 	}));
+	widget.renderStore.add(DOM.addDisposableListener(box, 'compositionstart', () => {
+		queryImeDepth += 1;
+	}));
+	widget.renderStore.add(DOM.addDisposableListener(box, 'compositionend', () => {
+		if (queryImeDepth === 0) {
+			return;
+		}
+		queryImeDepth -= 1;
+		if (queryImeDepth === 0) {
+			queryImeIgnoreSubmitUntil = Date.now() + KNOX_COMPOSER_IME_SUBMIT_GUARD_MS;
+		}
+	}));
 	widget.renderStore.add(DOM.addDisposableListener(box, 'keydown', (e: KeyboardEvent) => {
 		e.stopPropagation();
-		if (e.key === 'Enter' && !e.isComposing && !e.shiftKey) {
+		const ime = knoxGuiIsImeComposing(e) || queryImeDepth > 0
+			|| ((e.key === 'Enter' || e.key === 'Tab') && queryImeIgnoreSubmitUntil > Date.now());
+		if (e.key === 'Enter' && !ime && !e.shiftKey) {
 			e.preventDefault();
 			widget.controller.submitQueryProvider(box.value);
-		} else if (e.key === 'Escape') {
+		} else if (e.key === 'Escape' && !ime) {
 			e.preventDefault();
 			widget.controller.cancelQueryProvider();
 		}

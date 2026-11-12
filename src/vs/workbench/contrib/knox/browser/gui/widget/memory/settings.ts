@@ -17,6 +17,7 @@ import {
 	IKnoxGuiMemorySettingField,
 	IKnoxGuiMemorySettingGroup,
 } from '../../../../common/knoxGuiMemory.js';
+import { knoxGuiIsImeComposing } from '../../../../common/knoxGuiInput.js';
 import { IKnoxGuiState } from '../../../../common/knoxGuiState.js';
 import {
 	memoryClasses,
@@ -282,7 +283,7 @@ function renderMemorySettingRow(widget: KnoxGuiWidget, card: HTMLElement, state:
 	const commitOnBlurOrEnter = (input: HTMLInputElement, commit: () => void) => {
 		widget.renderStore.add(DOM.addDisposableListener(input, 'blur', commit));
 		widget.renderStore.add(DOM.addDisposableListener(input, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'Enter' && !e.isComposing) {
+			if (e.key === 'Enter' && !knoxGuiIsImeComposing(e)) {
 				commit();
 			}
 		}));

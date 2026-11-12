@@ -623,16 +623,71 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		editor.dispatchEvent(new InputEvent('input', { bubbles: true, isComposing: true, data: 'wenhua', inputType: 'insertCompositionText' }));
 		assert.strictEqual(widget.composerImeDepth > 0, true);
 		assert.strictEqual(composing.parentNode, paragraph);
+		assert.ok(!store.state.input.includes('wenhua'), 'store must not snapshot pinyin while composing');
 		store.setInputDoc(inputDocFromPlainText('stale'));
 		assert.strictEqual(composing.parentNode, paragraph, 'paintInputDoc must not replaceChildren during composition');
 		assert.strictEqual(widget.editorEl, editor);
 		store.patch({ sessionTitle: 'during-ime' });
 		assert.strictEqual(widget.editorEl, editor, 'full render must wait until compositionend');
+		widget.render();
+		assert.strictEqual(widget.editorEl, editor, 'direct render() must wait until compositionend');
 		composing.textContent = '文化';
 		editor.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '文化' }));
 		assert.strictEqual(widget.composerImeDepth, 0);
 		assert.ok(store.state.input.includes('文化'));
 		assert.ok(!store.state.input.includes('wenhua'));
+	});
+
+	test('empty composer hides the placeholder for the whole IME composition', async () => {
+		const { widget } = await mount();
+		const editor = widget.root.querySelector<HTMLElement>('[data-testid="knox-gui-input"]')!;
+		assert.strictEqual(editor.dataset.empty, 'true');
+		editor.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '' }));
+		assert.strictEqual(editor.dataset.composing, 'true');
+		assert.strictEqual(editor.dataset.empty, 'false');
+		editor.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '' }));
+		assert.ok(!editor.dataset.composing);
+	});
+
+	test('IME candidate Enter does not submit while composing or right after compositionend', async () => {
+		const { widget, store } = await mount();
+		store.setInputDoc(inputDocFromPlainText('文化'));
+		let submitted = 0;
+		widget.controller.submit = (async () => { submitted++; }) as typeof widget.controller.submit;
+		const editor = widget.root.querySelector<HTMLElement>('[data-testid="knox-gui-input"]')!;
+		const enter = () => new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+		editor.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: 'wenhua' }));
+		widget.onEditorKeyDown(enter());
+		assert.strictEqual(submitted, 0);
+		assert.ok(widget.composerImeDepth > 0);
+		editor.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '文化' }));
+		const leftover = enter();
+		widget.onEditorKeyDown(leftover);
+		assert.strictEqual(submitted, 0, 'confirm Enter after compositionend must not submit');
+		assert.strictEqual(leftover.defaultPrevented, true);
+		widget.composerImeIgnoreSubmitUntil = 0;
+		widget.onEditorKeyDown(enter());
+		assert.strictEqual(submitted, 1);
+	});
+
+	test('stray compositionend does not rebuild the composer', async () => {
+		const { widget, store } = await mount();
+		store.setInputDoc(inputDocFromPlainText('文化'));
+		const editor = widget.root.querySelector<HTMLElement>('[data-testid="knox-gui-input"]')!;
+		assert.strictEqual(widget.composerImeDepth, 0);
+		editor.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '' }));
+		assert.strictEqual(widget.editorEl, editor);
+		assert.strictEqual(widget.composerImeDepth, 0);
+		assert.ok(store.state.input.includes('文化'));
+	});
+
+	test('root shortcuts stay idle while the composer IME is composing', async () => {
+		const { widget, store } = await mount();
+		const editor = widget.root.querySelector<HTMLElement>('[data-testid="knox-gui-input"]')!;
+		editor.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: 'ni' }));
+		widget.onRootKeyDown(new KeyboardEvent('keydown', { key: 'f', metaKey: true, ctrlKey: true, bubbles: true, cancelable: true }));
+		assert.strictEqual(store.state.find.open, false);
+		editor.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '你' }));
 	});
 
 	test('I-05 composer code block: newest expanded, header toggles, name opens lines, X deletes', async () => {

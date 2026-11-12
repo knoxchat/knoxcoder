@@ -2231,7 +2231,7 @@ suite('Knox native GUI parity', () => {
 		const key = (partial: Partial<{ key: string; shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean; isComposing: boolean; keyCode: number }>) => ({
 			key: 'Enter', shiftKey: false, altKey: false, metaKey: false, ctrlKey: false, ...partial,
 		});
-		const ctx = (partial: Partial<{ suggestOpen: boolean; inSubmenu: boolean; isStreaming: boolean; caretAtStart: boolean; caretAtEnd: boolean; suggestSelected: number; suggestCount: number }>) => ({
+		const ctx = (partial: Partial<{ suggestOpen: boolean; inSubmenu: boolean; isStreaming: boolean; caretAtStart: boolean; caretAtEnd: boolean; suggestSelected: number; suggestCount: number; imeActive: boolean; imeIgnoreSubmitUntil: number; now: number }>) => ({
 			suggestOpen: false, inSubmenu: false, isStreaming: false, caretAtStart: true, caretAtEnd: true, suggestSelected: 0, suggestCount: 3, ...partial,
 		});
 		// NP-01: Enter that confirms an IME candidate must not submit / select a suggestion.
@@ -2241,6 +2241,10 @@ suite('Knox native GUI parity', () => {
 		assert.strictEqual(knoxGuiComposerKeyAction(key({ isComposing: true }), ctx({})).type, 'ignore');
 		assert.strictEqual(knoxGuiComposerKeyAction(key({ keyCode: 229 }), ctx({})).type, 'ignore');
 		assert.strictEqual(knoxGuiComposerKeyAction(key({ isComposing: true }), ctx({ suggestOpen: true })).type, 'ignore');
+		assert.strictEqual(knoxGuiComposerKeyAction(key({}), ctx({ imeActive: true })).type, 'ignore');
+		assert.strictEqual(knoxGuiComposerKeyAction(key({}), ctx({ imeIgnoreSubmitUntil: 50, now: 10 })).type, 'ignore');
+		assert.strictEqual(knoxGuiComposerKeyAction(key({ key: 'Tab' }), ctx({ imeIgnoreSubmitUntil: 50, now: 10 })).type, 'ignore');
+		assert.deepStrictEqual(knoxGuiComposerKeyAction(key({}), ctx({ imeIgnoreSubmitUntil: 50, now: 50 })), { type: 'submit', altKey: false });
 		assert.deepStrictEqual(knoxGuiComposerKeyAction(key({}), ctx({})), { type: 'submit', altKey: false });
 		assert.deepStrictEqual(knoxGuiComposerKeyAction(key({ shiftKey: true }), ctx({})), { type: 'newline' });
 		assert.deepStrictEqual(knoxGuiComposerKeyAction(key({ altKey: true }), ctx({})), { type: 'submit', altKey: true });

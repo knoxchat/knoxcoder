@@ -5,26 +5,46 @@
 
 import type { KnoxGuiWidget } from '../../knoxGuiWidget.js';
 import * as DOM from '../../../../../../../base/browser/dom.js';
-import { inputDocIsEmpty, knoxGuiIsImeComposing } from '../../../../common/knoxGuiInput.js';
+import { inputDocIsEmpty, KNOX_COMPOSER_IME_SUBMIT_GUARD_MS, knoxGuiIsImeComposing } from '../../../../common/knoxGuiInput.js';
 
 export function composerImeActive(widget: KnoxGuiWidget): boolean {
 	return widget.composerImeDepth > 0;
 }
 
-export function beginComposerIme(widget: KnoxGuiWidget): void {
+/** Hide the empty-state placeholder for the whole composition so it cannot clip pinyin. */
+export function markComposerImeDom(editor: HTMLElement, composing: boolean): void {
+	if (composing) {
+		editor.dataset.composing = 'true';
+		editor.dataset.empty = 'false';
+		return;
+	}
+	delete editor.dataset.composing;
+}
+
+export function beginComposerIme(widget: KnoxGuiWidget, editor: HTMLElement): void {
 	widget.composerImeDepth += 1;
+	markComposerImeDom(editor, true);
 }
 
 /**
  * TipTap/ProseMirror keeps `view.composing` and never re-applies editor state onto the
  * composition range. The native composer must do the same: the IME owns the DOM until
  * `compositionend`, then we read the committed characters back into the store.
+ *
+ * A stray `compositionend` with no matching start (macOS/iOS Chinese IME extra empty
+ * end) must not commit or rebuild the editor.
  */
 export function endComposerIme(widget: KnoxGuiWidget, editor: HTMLElement, historyId?: string): void {
-	widget.composerImeDepth = Math.max(0, widget.composerImeDepth - 1);
+	if (widget.composerImeDepth === 0) {
+		return;
+	}
+	widget.composerImeDepth -= 1;
 	if (widget.composerImeDepth > 0) {
 		return;
 	}
+	markComposerImeDom(editor, false);
+	// Candidate-confirm Enter often arrives after this event with isComposing false.
+	widget.composerImeIgnoreSubmitUntil = Date.now() + KNOX_COMPOSER_IME_SUBMIT_GUARD_MS;
 	const replay = widget.composerImeNeedsReplay;
 	widget.composerImeNeedsReplay = false;
 	if (historyId) {
@@ -49,7 +69,7 @@ export function endComposerIme(widget: KnoxGuiWidget, editor: HTMLElement, histo
 }
 
 export function bindComposerIme(widget: KnoxGuiWidget, editor: HTMLElement, historyId?: string): void {
-	widget.renderStore.add(DOM.addDisposableListener(editor, 'compositionstart', () => beginComposerIme(widget), true));
+	widget.renderStore.add(DOM.addDisposableListener(editor, 'compositionstart', () => beginComposerIme(widget, editor), true));
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'compositionend', () => endComposerIme(widget, editor, historyId), true));
 	// A composition that loses focus may never deliver `compositionend`; a stuck depth would freeze syncInput/render replay.
 	widget.renderStore.add(DOM.addDisposableListener(editor, 'blur', () => {
@@ -60,12 +80,19 @@ export function bindComposerIme(widget: KnoxGuiWidget, editor: HTMLElement, hist
 	}));
 }
 
-export function composerImeFromInput(widget: KnoxGuiWidget, event: Event): boolean {
+export function composerImeFromInput(widget: KnoxGuiWidget, event: Event, editor?: HTMLElement): boolean {
 	if (event instanceof InputEvent && event.isComposing) {
 		if (widget.composerImeDepth === 0) {
 			widget.composerImeDepth = 1;
 		}
+		if (editor) {
+			markComposerImeDom(editor, true);
+		}
 		return true;
 	}
-	return composerImeActive(widget) || knoxGuiIsImeComposing(event as { isComposing?: boolean; keyCode?: number });
+	const active = composerImeActive(widget) || knoxGuiIsImeComposing(event as { isComposing?: boolean; keyCode?: number });
+	if (active && editor) {
+		markComposerImeDom(editor, true);
+	}
+	return active;
 }
