@@ -6,4 +6,6 @@ declare module '@electron/asar/lib/filesystem.js' {
 		insertDirectory(path: string, shouldUnpack?: boolean): unknown;
 		insertFile(path: string, shouldUnpack: boolean, file: { stat: { size: number; mode: number } }, options: {}): Promise<void>;
 	}
+
+	export { AsarFilesystem as Filesystem };
 }

@@ -6,9 +6,17 @@
 import path from 'path';
 import es from 'event-stream';
 import pickle from 'chromium-pickle-js';
-import Filesystem from '@electron/asar/lib/filesystem.js';
+import asarFilesystem from '@electron/asar/lib/filesystem.js';
 import VinylFile from 'vinyl';
 import { minimatch } from 'minimatch';
+
+// Pin @electron/asar@3.2.1 in both root and build/package.json. gulp resolves this
+// file from build/node_modules, where vscode-universal-bundler otherwise hoists
+// 3.4.x. That build exports a named `Filesystem` (so `new default()` throws) and
+// changed insertFile to take a stream generator, which would scramble the archive.
+const Filesystem = typeof asarFilesystem === 'function'
+	? asarFilesystem
+	: (asarFilesystem as unknown as { Filesystem: typeof asarFilesystem }).Filesystem;
 
 export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs: string[], duplicateGlobs: string[], destFilename: string): NodeJS.ReadWriteStream {
 
