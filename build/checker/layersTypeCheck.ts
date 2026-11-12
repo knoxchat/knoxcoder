@@ -35,9 +35,10 @@ const MEMORY_PER_CHECK = 4 * 1024 * 1024 * 1024;
 const MEMORY_HEADROOM = 0.25;
 
 /**
- * Absolute path to the native TypeScript 7 launcher (tsrs, or Go `tsc` when
- * tsrs has no binary for this host). Invoking it via `node` keeps us off the
- * JavaScript `@typescript/typescript6` install.
+ * Absolute path to the native TypeScript 7 launcher (tsrs, including Windows
+ * ARM64; Go `tsc` only if the optional tsrs platform package is missing).
+ * Invoking it via `node` keeps us off the JavaScript `@typescript/typescript6`
+ * install.
  */
 const tscPath = nativeTscPath;
 

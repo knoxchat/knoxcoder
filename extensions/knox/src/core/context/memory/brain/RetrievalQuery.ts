@@ -196,7 +196,9 @@ export function buildFts5Query(
   }
 
   const formatTerm = (term: string): string => {
-    if (/^\w+$/.test(term)) return `${term}*`;
+    // FTS5 porter does not support prefix queries. `auth*` is a MATCH miss
+    // (not a syntax error) on sqlite3 builds used in windows-2022 CI.
+    if (/^\w+$/.test(term)) return term;
     return `"${term.replace(/"/g, "")}"`;
   };
 

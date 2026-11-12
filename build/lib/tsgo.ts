@@ -15,8 +15,9 @@ const ansiRegex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-O
 const timestampRegex = /^\[\d{2}:\d{2}:\d{2}\]\s*/;
 
 /**
- * Invokes the native TypeScript 7 CLI via {@link nativeTscPath} (tsrs, or
- * Go `tsc` on hosts tsrs does not ship, such as Windows ARM64).
+ * Invokes the native TypeScript 7 CLI via {@link nativeTscPath} (tsrs,
+ * including Windows ARM64; Go `tsc` only if the optional tsrs platform
+ * package is missing).
  * Despite the historical "tsgo" naming in callers, this never runs the
  * JavaScript compiler from `@typescript/typescript6`.
  */

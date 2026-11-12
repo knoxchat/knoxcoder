@@ -47,7 +47,18 @@ suite('nativeTsc', () => {
 		assert.deepStrictEqual([...resolution.extraArgs], ['--fast']);
 	});
 
-	test('falls back to TypeScript 7 Go tsc when tsrs has no win32-arm64 package', () => {
+	test('uses tsrs on Windows ARM64 when @tsrs/win32-arm64 is installed', () => {
+		const resolution = resolveNativeTsc({
+			platform: 'win32',
+			arch: 'arm64',
+			requireResolve: fakeResolve(['@tsrs/win32-arm64']),
+		});
+		assert.strictEqual(resolution.kind, 'tsrs');
+		assert.strictEqual(resolution.path, path.join('/repo/node_modules/tsrs', 'lib', 'tsrs.js'));
+		assert.deepStrictEqual([...resolution.extraArgs], ['--fast']);
+	});
+
+	test('falls back to TypeScript 7 Go tsc when the tsrs platform package is missing', () => {
 		const resolution = resolveNativeTsc({
 			platform: 'win32',
 			arch: 'arm64',
@@ -58,9 +69,15 @@ suite('nativeTsc', () => {
 		assert.deepStrictEqual([...resolution.extraArgs], []);
 	});
 
-	test('resolves a launcher that exists on this machine', () => {
+	test('resolves tsrs on this machine when the host is a shipped desktop platform', () => {
 		const resolution = resolveNativeTsc();
-		assert.ok(resolution.kind === 'tsrs' || resolution.kind === 'typescript-native');
+		const shipped = ['darwin', 'linux', 'win32'].includes(process.platform) && ['arm64', 'x64'].includes(process.arch);
+		if (shipped) {
+			assert.strictEqual(resolution.kind, 'tsrs');
+			assert.deepStrictEqual([...resolution.extraArgs], ['--fast']);
+		} else {
+			assert.ok(resolution.kind === 'tsrs' || resolution.kind === 'typescript-native');
+		}
 		assert.ok(existsSync(resolution.path), `missing launcher ${resolution.path}`);
 	});
 });

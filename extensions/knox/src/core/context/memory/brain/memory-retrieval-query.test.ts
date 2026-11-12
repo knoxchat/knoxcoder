@@ -49,15 +49,15 @@ describe("REL-01 RetrievalQuery (pure)", () => {
     expect(expanded.intent).toBe("new_task");
     expect(expanded.retrievalQuery).toBe("update readme");
     expect(expanded.fts5Query).toBeTruthy();
-    expect(expanded.fts5Query).not.toMatch(/\bnow\*/i);
-    expect(expanded.fts5Query).toMatch(/update\*/);
-    expect(expanded.fts5Query).toMatch(/readme\*/);
+    expect(expanded.fts5Query).not.toMatch(/\bnow\b/i);
+    expect(expanded.fts5Query).toMatch(/\bupdate\b/);
+    expect(expanded.fts5Query).toMatch(/\breadme\b/);
     expect(expanded.fts5Query).toContain("AND");
   });
 
   it("ANDs content words and never ORs stopwords", () => {
     const fts = buildFts5Query("ok now update the README please");
-    expect(fts).toBe("update* AND readme*");
+    expect(fts).toBe("update AND readme");
     expect(fts).not.toContain("ok");
     expect(fts).not.toContain("now");
     expect(fts).not.toContain("please");
@@ -66,7 +66,7 @@ describe("REL-01 RetrievalQuery (pure)", () => {
   it("quotes hyphenated FTS terms (valid MATCH syntax)", () => {
     const fts = buildFts5Query("build-cache invalidation");
     expect(fts).toContain('"build-cache"');
-    expect(fts).toContain("invalidation*");
+    expect(fts).toContain("invalidation");
     expect(fts).toContain("AND");
   });
 
@@ -122,7 +122,7 @@ describe("REL-01 RetrievalQuery (pure)", () => {
       useAnd: true,
       extraOrTerms: ["login", "signin"],
     });
-    expect(fts).toMatch(/^\(auth\* AND jwt\*\) OR login\* OR signin\*$/);
+    expect(fts).toMatch(/^\(auth AND jwt\) OR login OR signin$/);
   });
 });
 

@@ -21,13 +21,15 @@ All notable changes to KnoxCoder are documented in this file.
 
 - **Compact Settings > Models catalog.** The Models tab drops the page heading, hint, and Add Model title. Provider tabs are compact logo pills, account actions sit on the same toolbar as Connect, and the catalog fills the remaining height so only the model list scrolls.
 
+- **tsrs 0.25.0 with Windows ARM64.** Native TypeScript 7 CLI, gulp compile, and the layers checker use [tsrs](https://github.com/oxc-project/tsrs) `0.25.0-ts7.1.0-beta`, which ships `@tsrs/win32-arm64`. gulp `vscode-win32-arm64-min` typecheck uses tsrs instead of Go `tsc`.
+
 ### Fixed
 
 - **Knox GUI tests after Ask removal.** Local auto-approve in Edits no longer treats file edits as a deny, checkpoint switch/checkout still prompt, and unused `devdata/log` is off the GUI outbound catalog.
 
 - **Settings > Models Connect stays a one-shot per catalog model.** After a model is connected and selected, Connect is inactive so extra clicks cannot add duplicate picker entries.
 
-- **Windows ARM64 desktop build.** gulp `vscode-win32-arm64-min` typecheck no longer dies because tsrs has no `@tsrs/win32-arm64` binary. That host uses TypeScript 7 Go `tsc` (`@typescript/typescript-win32-arm64`) instead.
+- **Windows Core tests: project-scoped recall (IMP-25).** FTS5 porter does not support prefix MATCH (`orphan*`), which windows-2022 sqlite3 treats as zero hits. Latin FTS terms are exact tokens, and the orphan-scope regression queries a unique hyphenated token like the other IMP-25 tests.
 
 ## [2.3.2] - 2026-11-08
 

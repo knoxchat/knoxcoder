@@ -963,30 +963,46 @@ describe("memory brain regressions", () => {
     await BrainStore.saveConfig("memory_scope", "project");
 
     const workspaceA = path.join(testDir, "orphan-workspace-a");
+    fs.mkdirSync(workspaceA, { recursive: true });
     await BrainManager.trackSession("orphan-session-a", "Orphan A", workspaceA);
+
+    // Unique hyphenated tokens (quoted FTS phrases). A bare query like "orphan"
+    // becomes `orphan*` and the porter tokenizer does not support prefix MATCH,
+    // which windows-2022 sqlite3 treats as zero hits.
+    const projectToken = "imp25-project-tied-unique-token";
+    const orphanToken = "imp25-orphan-global-unique-token";
 
     await BrainManager.store({
       category: "fact",
       title: "Orphan global fact",
-      content: "orphan-no-session-marker",
+      content: orphanToken,
+      keywords: orphanToken,
       importance: 0.9,
     });
     await BrainManager.store({
       category: "fact",
       title: "Project tied fact",
-      content: "orphan-with-session-marker",
+      content: projectToken,
+      keywords: projectToken,
       importance: 0.9,
       session_id: "orphan-session-a",
     });
 
     const result = await BrainManager.recall({
-      query: "orphan",
+      query: projectToken,
       session_id: "orphan-session-a",
       limit: 10,
     });
     const titles = result.semantic.map((m) => m.title);
     expect(titles.some((t) => t.includes("Project tied"))).toBe(true);
     expect(titles.some((t) => t.includes("Orphan global"))).toBe(false);
+
+    const leaked = await BrainManager.recall({
+      query: orphanToken,
+      session_id: "orphan-session-a",
+      limit: 10,
+    });
+    expect(leaked.semantic.map((m) => m.title).some((t) => t.includes("Orphan global"))).toBe(false);
   });
 
   it("calculates addressable memory from stored tokens (MEM-07)", async () => {

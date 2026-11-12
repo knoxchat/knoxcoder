@@ -8,9 +8,10 @@ import path from 'path';
 
 /**
  * Native TypeScript 7 CLI used by gulp compile, extension typecheck, and the
- * layers checker. Prefers tsrs (Rust). tsrs 0.23 has no Windows ARM64 package
- * (`@tsrs/win32-arm64` is still unpublished), so that host falls back to the
- * Go `typescript` launcher, which does ship `@typescript/typescript-win32-arm64`.
+ * layers checker. Prefers tsrs (Rust), including Windows ARM64 via
+ * `@tsrs/win32-arm64` since 0.25. If that optional platform package is missing
+ * (install skipped, or an OS/CPU tsrs does not ship), falls back to the Go
+ * `typescript` launcher.
  *
  * `--fast` is tsrs-only. The Go fallback gets no extra args.
  */

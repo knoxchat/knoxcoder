@@ -503,7 +503,7 @@ export async function searchSemantic(query: string, category?: SemanticCategory,
       }
       const match = ftsTerms
         .map((t) =>
-          isCjkToken(t) ? `"${t.replace(/"/g, "")}"` : `"${t}"*`,
+          isCjkToken(t) || !/^\w+$/.test(t) ? `"${t.replace(/"/g, "")}"` : t,
         )
         .join(" OR ");
       // MATCH first so tombstone/expires filters cannot walk 100k rows (P1-5).

@@ -49,13 +49,40 @@ describe("CJK FTS bigrams", () => {
 
   it("latin queries still AND content words", () => {
     expect(buildFts5Query("ok now update the README please")).toBe(
-      "update* AND readme*",
+      "update AND readme",
     );
   });
 
   it("SQL expander only accepts identifiers", () => {
     expect(cjkExpandSql("new.content")).toContain("cjk_seq");
     expect(() => cjkExpandSql("content; drop")).toThrow(/unsafe/);
+  });
+
+  it("FTS MATCH finds a hyphenated latin token without a prefix query", async () => {
+    live = await openMem();
+    await live.exec(`
+      CREATE TABLE brain_semantic (
+        id INTEGER PRIMARY KEY,
+        title TEXT,
+        content TEXT,
+        keywords TEXT
+      );
+      CREATE TABLE brain_episodic (
+        id INTEGER PRIMARY KEY,
+        content TEXT
+      );
+    `);
+    await RetrievalFusion.initFts5Tables(live as unknown as DatabaseConnection);
+    await live.run(
+      `INSERT INTO brain_semantic(id, title, content, keywords)
+       VALUES (1, 'Project tied fact', 'orphan-with-session-marker', 'orphan-with-session-marker')`,
+    );
+    const exact = await live.get<{ id: number }>(
+      `SELECT rowid AS id FROM brain_semantic_fts WHERE brain_semantic_fts MATCH ?`,
+      [buildFts5Query("orphan")],
+    );
+    expect(buildFts5Query("orphan")).toBe("orphan");
+    expect(exact?.id).toBe(1);
   });
 
   it("FTS MATCH finds a CJK substring after trigger expand", async () => {
