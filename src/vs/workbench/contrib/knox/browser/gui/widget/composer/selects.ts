@@ -35,11 +35,11 @@ export function renderModelSelect(widget: KnoxGuiWidget, parent: HTMLElement, st
 			widget.toggleMenu('model', source);
 		},
 	});
-	trigger.setAttribute('aria-haspopup', skipPicker ? 'dialog' : 'listbox');
-	trigger.setAttribute('aria-expanded', String(open));
 	if (!skipPicker) {
+		trigger.setAttribute('aria-haspopup', 'listbox');
 		trigger.setAttribute('aria-controls', 'knox-gui-model-menu');
 	}
+	trigger.setAttribute('aria-expanded', String(open));
 	if (!open) {
 		return;
 	}

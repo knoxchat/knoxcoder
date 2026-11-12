@@ -470,6 +470,7 @@ suite('Knox agent host contract (OpenRouter OAuth)', () => {
 		assert.ok(pages.includes('signInOpenRouter'));
 		assert.ok(pages.includes('knox-gui-openrouter-sign-in'));
 		assert.ok(pages.includes('addModelModalProvider'));
+		assert.ok(pages.includes('knox-gui-add-model-catalog'));
 		assert.ok(pages.includes('knox-gui-add-model-provider-${id}'));
 		assert.ok(pages.includes('manageKey'));
 		assert.ok(protocol.includes("'openrouter/oauth/update'"));

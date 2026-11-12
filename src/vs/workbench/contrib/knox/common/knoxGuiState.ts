@@ -1142,8 +1142,7 @@ export interface IKnoxGuiState {
 	openrouterOauthError?: string;
 	openrouterOauthKeyHash?: string;
 	addModelRole?: KnoxModelRole;
-	addModelModal: boolean;
-	/** Catalog shown in the Add Model modal. Isolated from KnoxStudio OAuth. */
+	/** Catalog provider tab in Settings > Models. Isolated from KnoxStudio OAuth. */
 	addModelModalProvider: 'knoxchat' | 'openrouter';
 	addModelSelectedModel?: string;
 	addModelDraft: Record<string, string>;
@@ -1475,7 +1474,6 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		toolLoopSteps: 0,
 		oauthConnected: false,
 		openrouterOauthConnected: false,
-		addModelModal: false,
 		addModelModalProvider: 'knoxchat',
 		addModelDraft: {},
 		addModelBulk: false,

@@ -9,11 +9,11 @@ import { StorageScope, StorageTarget } from '../../../../../../platform/storage/
 import { KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { knoxGuiIsDedicatedEditor, knoxGuiPruneSessionTabs, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
 import { composerInputHistoryFromStorage, type IKnoxGuiComposerInputHistory, type IKnoxGuiInputBlock } from '../../../common/knoxGuiInput.js';
-import { KNOX_AUTOSAVE_DEBOUNCE_MS, KNOX_AUTOSAVE_MIN_INTERVAL_MS, KNOX_PERSIST_THROTTLE_MS, knoxGuiMergePersistedAddModelProvider, knoxGuiMergePersistedToolPermissions, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, knoxGuiToolPermissionsFingerprint, type IKnoxGuiDraftSession, type IKnoxGuiLastActiveSession, type IKnoxGuiProfilePreferences } from '../../../common/knoxGuiPersist.js';
+import { KNOX_AUTOSAVE_DEBOUNCE_MS, KNOX_AUTOSAVE_MIN_INTERVAL_MS, KNOX_PERSIST_THROTTLE_MS, knoxGuiMergePersistedAddModelIntent, knoxGuiMergePersistedAddModelProvider, knoxGuiMergePersistedSettingsTab, knoxGuiMergePersistedToolPermissions, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, knoxGuiToolPermissionsFingerprint, type IKnoxGuiDraftSession, type IKnoxGuiLastActiveSession, type IKnoxGuiProfilePreferences } from '../../../common/knoxGuiPersist.js';
 import { KNOX_QUEUE_STORAGE_KEY, knoxGuiParseQueue, knoxGuiSerializeQueue } from '../../../common/knoxGuiQueue.js';
 import { KNOX_PINNED_SESSIONS_KEY, knoxGuiParsePinned } from '../../../common/knoxGuiSessions.js';
 import { BOOKMARK_KEY } from './helpers.js';
-import { KNOX_GUI_MAIN_TEXT_ENTRY_KEY, KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY, knoxGuiNextMainTextEntry, knoxGuiParseMainTextEntryCount } from '../../../common/knoxGuiChrome.js';
+import { KNOX_GUI_MAIN_TEXT_ENTRY_KEY, KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY, knoxGuiNextMainTextEntry, knoxGuiParseMainTextEntryCount, knoxGuiSettingsTab } from '../../../common/knoxGuiChrome.js';
 
 export const UI_STATE_KEY = 'knox.gui.uiState';
 export const WORKSPACE_PERMISSION_KEY = 'knox.gui.workspacePermissionMode';
@@ -37,8 +37,10 @@ export function restorePersistedState(controller: KnoxGuiController): void {
 	// K-042: what the user queued before a crash or reload comes back as chips; nothing is sent by itself.
 	const messageQueue = knoxGuiParseQueue(controller.storageService.get(QUEUE_KEY, StorageScope.WORKSPACE));
 	const pinnedSessionIds = knoxGuiParsePinned(controller.storageService.get(KNOX_PINNED_SESSIONS_KEY, StorageScope.PROFILE));
+	const { addModelRole, ...restUi } = ui;
 	controller.store.patch({
-		...ui,
+		...restUi,
+		addModelRole: addModelRole ?? undefined,
 		...(tabs ?? {}),
 		messageQueue,
 		pinnedSessionIds,
@@ -66,6 +68,33 @@ export function applyPersistedAddModelProvider(controller: KnoxGuiController): v
 		return;
 	}
 	controller.store.patch({ addModelModalProvider });
+}
+
+/** Chat and Settings share the Settings tab so Add Model can open Models. */
+export function applyPersistedSettingsTab(controller: KnoxGuiController): void {
+	const ui = knoxGuiParsePersistedUi(controller.storageService.get(UI_STATE_KEY, StorageScope.PROFILE));
+	if (!ui.settingsTab || ui.settingsTab === controller.store.state.settingsTab) {
+		return;
+	}
+	if (controller.store.state.lockedRoute === KnoxGuiRoute.Config) {
+		controller.setSettingsTab(ui.settingsTab);
+		return;
+	}
+	controller.store.patch({ settingsTab: knoxGuiSettingsTab(ui.settingsTab) });
+}
+
+/** Chat Add Model (role gear, empty picker) and Settings Connect share the same role/bulk. */
+export function applyPersistedAddModelIntent(controller: KnoxGuiController): void {
+	const ui = knoxGuiParsePersistedUi(controller.storageService.get(UI_STATE_KEY, StorageScope.PROFILE));
+	if (!('addModelRole' in ui) && !('addModelBulk' in ui)) {
+		return;
+	}
+	const addModelRole = ui.addModelRole ?? undefined;
+	const addModelBulk = ui.addModelBulk === true;
+	if (addModelRole === controller.store.state.addModelRole && addModelBulk === controller.store.state.addModelBulk) {
+		return;
+	}
+	controller.store.patch({ addModelRole, addModelBulk });
 }
 
 /** `useInputHistory.ts`: one history per composer mode, `inputHistory_chat` / `inputHistory_edit`. */
@@ -223,19 +252,35 @@ export function installPersistence(controller: KnoxGuiController): IDisposable {
 
 	let lastTools = knoxGuiToolPermissionsFingerprint(controller.store.state);
 	let lastAddModelProvider = controller.store.state.addModelModalProvider;
+	let lastSettingsTab = knoxGuiSettingsTab(controller.store.state.settingsTab);
+	let lastAddModelRole = controller.store.state.addModelRole;
+	let lastAddModelBulk = controller.store.state.addModelBulk;
 	const writeDedicatedConfigUi = (state: typeof controller.store.state) => {
 		const tools = knoxGuiToolPermissionsFingerprint(state);
 		const provider = state.addModelModalProvider;
-		if (tools === lastTools && provider === lastAddModelProvider) {
+		const settingsTab = knoxGuiSettingsTab(state.settingsTab);
+		const addModelRole = state.addModelRole;
+		const addModelBulk = state.addModelBulk;
+		if (tools === lastTools && provider === lastAddModelProvider && settingsTab === lastSettingsTab && addModelRole === lastAddModelRole && addModelBulk === lastAddModelBulk) {
 			return;
 		}
 		lastTools = tools;
 		lastAddModelProvider = provider;
+		lastSettingsTab = settingsTab;
+		lastAddModelRole = addModelRole;
+		lastAddModelBulk = addModelBulk;
 		storage.store(
 			UI_STATE_KEY,
-			knoxGuiMergePersistedAddModelProvider(
-				knoxGuiMergePersistedToolPermissions(storage.get(UI_STATE_KEY, StorageScope.PROFILE), state.toolSettings, state.toolGroupExcluded),
-				provider,
+			knoxGuiMergePersistedAddModelIntent(
+				knoxGuiMergePersistedAddModelProvider(
+					knoxGuiMergePersistedSettingsTab(
+						knoxGuiMergePersistedToolPermissions(storage.get(UI_STATE_KEY, StorageScope.PROFILE), state.toolSettings, state.toolGroupExcluded),
+						settingsTab,
+					),
+					provider,
+				),
+				addModelRole,
+				addModelBulk,
 			),
 			StorageScope.PROFILE,
 			StorageTarget.USER,

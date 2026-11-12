@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { providerDisplayName, uniqueYamlModelName } from "./util";
+import { addModelSelectRole, providerDisplayName, uniqueYamlModelName } from "./util";
+
+describe("addModelSelectRole", () => {
+  it("maps GUI and legacy role names onto ModelRole", () => {
+    expect(addModelSelectRole(undefined)).toBe("chat");
+    expect(addModelSelectRole("chat")).toBe("chat");
+    expect(addModelSelectRole("edit")).toBe("edit");
+    expect(addModelSelectRole("inlineEdit")).toBe("edit");
+    expect(addModelSelectRole("apply")).toBe("apply");
+    expect(addModelSelectRole("applyCodeBlock")).toBe("apply");
+    expect(addModelSelectRole("viewRead")).toBe("viewRead");
+  });
+});
 
 describe("uniqueYamlModelName", () => {
   it("keeps the first title unchanged", () => {

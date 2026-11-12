@@ -7,6 +7,10 @@ All notable changes to KnoxCoder are documented in this file.
 
 - **Harness judgments (Decisions models).** Knox Settings lists Decisions models when the toggle is on: TypeSafe Jev (Knox Chat or OpenRouter) and Google Gemini Decision 1 (`google/gemini-decision-1`, OpenRouter-only). Gemini reads images from the top-level System One `state` array (any `image/*` data URL or public https URL). Settings copy, the status bar chip (Jev or Gemini), and "Show Judgments Log" describe harness judgments rather than Jev alone. Pick the model in Settings or with `knoxchat.jev.model` / YAML `jev.model`.
 
+### Changed
+
+- **Add Model in Settings > Models.** The KnoxStudio / OpenRouter catalog (sign-in, search, Connect) no longer overlays chat. Empty model picker, first-run Add Model, role gears, and quota "Add API key" open Settings on the Models tab, under the Chat / Edit / Apply / View/Read / RealTime Search pickers. Connect also selects that model for the role. The configs hint and Open Config File control under Connect are gone.
+
 ### Fixed
 
 - **Windows ARM64 desktop build.** gulp `vscode-win32-arm64-min` typecheck no longer dies because tsrs has no `@tsrs/win32-arm64` binary. That host uses TypeScript 7 Go `tsc` (`@typescript/typescript-win32-arm64`) instead.

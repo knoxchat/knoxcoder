@@ -9,6 +9,7 @@ import { applyHistorySessions, applyHistorySessionTitle, parseHistorySessions } 
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { applyKnoxGuiAutonomousEvent, parseBackgroundJob, parseBackgroundJobs, parseCompactionPayload } from '../../../common/knoxGuiPanels.js';
 import { parseCheckpointRestored } from '../../../common/knoxGuiCheckpoints.js';
+import { knoxGuiSettingsTab } from '../../../common/knoxGuiChrome.js';
 import { IKnoxGuiMessage, KNOX_GUI_HOST_INBOUND_EMPTY_ACK, KNOX_GUI_PATH_BY_ROUTE, KnoxGuiRoute, isKnoxGuiResponseEnvelope } from '../../../common/knoxGuiProtocol.js';
 import { knoxGuiNextEditStatus, mergeCodeToEdit, parseCodeToEditList } from '../../../common/knoxGuiEdit.js';
 import { knoxGuiHostAgentActiveFromPayload, knoxGuiModeAfterHostAgentFlag } from '../../../common/knoxGuiAgentMode.js';
@@ -444,15 +445,11 @@ export async function onNavigated(controller: KnoxGuiController, path: string): 
 		await controller.hydrateMemoryTab();
 		await controller.loadMemory();
 	}
+	if (path === '/config' && knoxGuiSettingsTab(controller.store.state.settingsTab) === 'models') {
+		controller.loadAddModelCatalogs();
+	}
 	if (path === '/addModel' || path.startsWith('/addModel/provider/')) {
-		await controller.loadOAuthStatus();
-		await controller.loadOpenRouterOAuthStatus();
-		if (controller.store.state.providerName === 'knoxchat' || path === '/addModel') {
-			void controller.loadKnoxChatModels();
-		}
-		if (controller.store.state.providerName === 'openrouter') {
-			void controller.loadOpenRouterModels();
-		}
+		controller.loadAddModelCatalogs();
 	}
 	if (path === '/checkpoint-graph') {
 		await controller.loadCheckpoints();

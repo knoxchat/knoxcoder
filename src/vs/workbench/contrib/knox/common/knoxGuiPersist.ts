@@ -3,8 +3,9 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { KNOX_GUI_SETTINGS_NAV, type KnoxGuiSettingsTab } from './knoxGuiChrome.js';
 import { KNOX_GUI_OVERLAYS, KnoxGuiOverlay } from './knoxGuiProtocol.js';
-import { IKnoxGuiHistoryItem, IKnoxGuiSessionTab, IKnoxGuiState, KnoxChatMode, KnoxGuiLanguage, KnoxPermissionMode, KnoxToolSetting } from './knoxGuiState.js';
+import { IKnoxGuiHistoryItem, IKnoxGuiSessionTab, IKnoxGuiState, KnoxChatMode, KnoxGuiLanguage, KnoxModelRole, KnoxPermissionMode, KnoxToolSetting, MODEL_ROLES } from './knoxGuiState.js';
 
 /** `redux/store.ts` persisted `ui` subset plus `session.mode`. */
 export interface IKnoxGuiPersistedUi {
@@ -24,6 +25,12 @@ export interface IKnoxGuiPersistedUi {
 	overlay: KnoxGuiOverlay;
 	/** Last Add Model provider tab (KnoxStudio vs OpenRouter). */
 	addModelModalProvider: IKnoxGuiState['addModelModalProvider'];
+	/** Dedicated Settings tab (General, Models, Tools, Prompts, Rules). */
+	settingsTab: KnoxGuiSettingsTab;
+	/** Role Connect will assign; `null` clears a previous chat/Settings intent. */
+	addModelRole?: KnoxModelRole | null;
+	/** Model-picker Add Model assigns chat+edit+apply. */
+	addModelBulk?: boolean;
 }
 
 /** `profiles.preferencesByProfileId` entry. */
@@ -97,6 +104,9 @@ export function knoxGuiSerializePersistedUi(state: IKnoxGuiState): string {
 		codeToEdit: state.codeToEdit,
 		overlay: state.overlay,
 		addModelModalProvider: state.addModelModalProvider,
+		settingsTab: state.settingsTab,
+		addModelRole: state.addModelRole ?? null,
+		addModelBulk: state.addModelBulk,
 	};
 	return JSON.stringify(ui);
 }
@@ -124,6 +134,32 @@ export function knoxGuiMergePersistedAddModelProvider(
 	return JSON.stringify({
 		...rec,
 		addModelModalProvider,
+	});
+}
+
+/** Dedicated Settings writes the Models/Tools/… tab without clobbering overlay/mode. */
+export function knoxGuiMergePersistedSettingsTab(
+	raw: string | undefined,
+	settingsTab: KnoxGuiSettingsTab,
+): string {
+	const rec = parseJson(raw) ?? {};
+	return JSON.stringify({
+		...rec,
+		settingsTab,
+	});
+}
+
+/** Chat and Settings share which role Connect will select. */
+export function knoxGuiMergePersistedAddModelIntent(
+	raw: string | undefined,
+	addModelRole: KnoxModelRole | undefined,
+	addModelBulk: boolean,
+): string {
+	const rec = parseJson(raw) ?? {};
+	return JSON.stringify({
+		...rec,
+		addModelRole: addModelRole ?? null,
+		addModelBulk,
 	});
 }
 
@@ -177,6 +213,17 @@ export function knoxGuiParsePersistedUi(raw: string | undefined): Partial<IKnoxG
 	}
 	if (rec.addModelModalProvider === 'knoxchat' || rec.addModelModalProvider === 'openrouter') {
 		out.addModelModalProvider = rec.addModelModalProvider;
+	}
+	if (typeof rec.settingsTab === 'string' && KNOX_GUI_SETTINGS_NAV.some(item => item.id === rec.settingsTab)) {
+		out.settingsTab = rec.settingsTab as KnoxGuiSettingsTab;
+	}
+	if ('addModelRole' in rec) {
+		out.addModelRole = typeof rec.addModelRole === 'string' && MODEL_ROLES.includes(rec.addModelRole as KnoxModelRole)
+			? rec.addModelRole as KnoxModelRole
+			: null;
+	}
+	if (typeof rec.addModelBulk === 'boolean') {
+		out.addModelBulk = rec.addModelBulk;
 	}
 	return out;
 }

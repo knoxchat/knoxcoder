@@ -16,8 +16,9 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { KNOX_GUI_LUMP_TOOLBAR, KNOX_GUI_MAIN_TEXT_ENTRY_KEY, KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY } from '../common/knoxGuiChrome.js';
+import { KNOX_GUI_LUMP_TOOLBAR, KNOX_GUI_MAIN_TEXT_ENTRY_KEY, KNOX_GUI_MAIN_TEXT_ENTRY_SHOWN_KEY, KNOX_OPEN_SETTINGS_COMMAND_ID } from '../common/knoxGuiChrome.js';
 import { IKnoxGuiMessage, KnoxGuiRoute } from '../common/knoxGuiProtocol.js';
 import { IKnoxGuiCheckpointDiffFile, IKnoxGuiCheckpointNode, IKnoxGuiGitDiffFile, IKnoxGuiHistoryItem, IKnoxGuiToolCall } from '../common/knoxGuiState.js';
 import { CHAT_DISPLAY_WINDOW, CHAT_LOAD_MORE_COUNT } from '../common/knoxGuiChat.js';
@@ -64,7 +65,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		}
 	}
 
-	async function mount(respond?: (message: IKnoxGuiMessage) => unknown): Promise<{ widget: KnoxGuiWidget; store: KnoxGuiStore }> {
+	async function mount(respond?: (message: IKnoxGuiMessage) => unknown): Promise<{ widget: KnoxGuiWidget; store: KnoxGuiStore; commands: string[] }> {
 		const incoming = disposables.add(new Emitter<IKnoxGuiMessage>());
 		const knoxService = new class extends mock<IKnoxService>() {
 			override onDidReceiveGuiMessage = incoming.event;
@@ -82,7 +83,14 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const store = disposables.add(new KnoxGuiStore());
 		const messenger = disposables.add(new KnoxGuiMessenger(knoxService));
 		const storage = disposables.add(new InMemoryStorageService());
-		const controller = disposables.add(new KnoxGuiController(store, messenger, storage));
+		const commands: string[] = [];
+		const commandService = new class extends mock<ICommandService>() {
+			override executeCommand(commandId: string): Promise<undefined> {
+				commands.push(commandId);
+				return Promise.resolve(undefined);
+			}
+		};
+		const controller = disposables.add(new KnoxGuiController(store, messenger, storage, commandService));
 		await timeout(0);
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
@@ -116,7 +124,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		};
 		const widget = disposables.add(new KnoxGuiWidget(parent, controller, openerService, hoverService, languageService, { getModel: () => null } as unknown as IModelService, markdownRendererService));
 		disposables.add({ dispose: () => parent.remove() });
-		return { widget, store };
+		return { widget, store, commands };
 	}
 
 	test('lump icons follow BlockSettingsTopToolbar order and omit Context, History, Settings, Models, Tools, Prompts, and Rules', async () => {
@@ -323,8 +331,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-attach-image"]'), null);
 	});
 
-	test('models overlay uses listbox roles and gear opens add-model modal', async () => {
-		const { widget, store } = await mount();
+	test('models overlay uses listbox roles and gear opens Settings Models', async () => {
+		const { widget, store, commands } = await mount();
 		store.patch({
 			overlay: 'models',
 			modelsByRole: {
@@ -342,9 +350,10 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const gear = widget.root.querySelector('.knox-gui-role-gear') as HTMLButtonElement | null;
 		assert.ok(gear);
 		gear.click();
-		assert.strictEqual(store.state.addModelModal, true);
+		assert.strictEqual(store.state.settingsTab, 'models');
 		assert.strictEqual(store.state.addModelRole, 'chat');
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-modal"]'));
+		assert.ok(commands.includes(KNOX_OPEN_SETTINGS_COMMAND_ID));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-add-model-catalog"]'), null);
 		assert.strictEqual(store.state.route, 'chat');
 	});
 
@@ -433,13 +442,15 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(chatRole.textContent?.includes('KnoxStudio · DeepSeek: V3.2'));
 		assert.ok(chatRole.classList.contains('knox-gui-listbox-btn-full'));
 		assert.strictEqual(widget.root.querySelector('.knox-gui-model-roles select'), null);
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-open-config"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-open-config"]'), null);
+		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-subtext'), null);
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-catalog"]'));
+		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-form-title')?.textContent, 'Add Model');
 		(widget.root.querySelector('.knox-gui-role-gear') as HTMLButtonElement).click();
-		assert.strictEqual(store.state.addModelModal, true);
 		assert.strictEqual(store.state.addModelRole, 'chat');
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-modal"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-catalog"]'));
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-general"]'), null);
-		store.patch({ settingsTab: 'tools', addModelModal: false });
+		store.patch({ settingsTab: 'tools' });
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-tab-tools"]')?.getAttribute('aria-selected'), 'true');
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-settings-tools"]'));
 		assert.ok(widget.root.querySelector('.knox-gui-tools'));
@@ -1330,20 +1341,19 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(JSON.stringify(store.state.inputDoc).includes('@'));
 	});
 
-	test('empty model picker opens Add Model modal instead of the Add Model dropdown', async () => {
-		const { widget, store } = await mount();
+	test('empty model picker opens Settings Models instead of the Add Model dropdown', async () => {
+		const { widget, store, commands } = await mount();
 		store.patch({ profileType: 'local', models: [], modelsByRole: { chat: [], edit: [], apply: [], viewRead: [], realTimeSearch: [] } });
 		const model = widget.root.querySelector('[data-testid="knox-gui-model-select"]') as HTMLButtonElement;
 		assert.ok(model);
 		assert.ok(model.textContent?.includes('Select Model'));
-		assert.strictEqual(model.getAttribute('aria-haspopup'), 'dialog');
+		assert.strictEqual(model.getAttribute('aria-haspopup'), null);
 		model.click();
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-model-menu"]'), null);
-		assert.strictEqual(store.state.addModelModal, true);
+		assert.strictEqual(store.state.settingsTab, 'models');
 		assert.strictEqual(store.state.addModelBulk, true);
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-modal"]'));
-		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-form-title')?.textContent, 'Add Model');
-		assert.ok(!widget.root.querySelector('.knox-gui-add-model-form-title')?.textContent?.includes('Chat'));
+		assert.ok(commands.includes(KNOX_OPEN_SETTINGS_COMMAND_ID));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-add-model-catalog"]'), null);
 	});
 
 	test('empty chat with a model does not show Try sample prompt chips', async () => {
@@ -1357,8 +1367,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('.knox-gui-sample-prompt'), null);
 	});
 
-	test('custom config.yaml models still open the model dropdown instead of the Add Model modal', async () => {
-		const { widget, store } = await mount();
+	test('custom config.yaml models still open the model dropdown instead of Settings Models', async () => {
+		const { widget, store, commands } = await mount();
 		store.patch({
 			profileType: 'local',
 			models: [{ title: 'Local Llama', provider: 'ollama', model: 'llama3' }],
@@ -1369,7 +1379,8 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(model.getAttribute('aria-haspopup'), 'listbox');
 		model.click();
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-model-menu"]'));
-		assert.strictEqual(store.state.addModelModal, false);
+		assert.strictEqual(store.state.settingsTab, 'general');
+		assert.ok(!commands.includes(KNOX_OPEN_SETTINGS_COMMAND_ID));
 		assert.ok(widget.root.querySelector('.knox-gui-model-add'));
 	});
 
@@ -3772,7 +3783,6 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			],
 			openrouterSelectedModel: 'openai/gpt-4o',
 			addModelDraft: { apiKey: 'sk-or-v1-paste' },
-			addModelModal: false,
 		});
 		assert.ok(!(widget.root.querySelector('[data-testid="knox-gui-openrouter-connect"]') as HTMLButtonElement).disabled);
 		(widget.root.querySelector('[data-testid="knox-gui-openrouter-connect"]') as HTMLButtonElement).click();
@@ -3781,17 +3791,18 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(pastedAdd?.data?.model?.apiKey, 'sk-or-v1-paste');
 	});
 
-	test('Add Model modal can switch to OpenRouter sign-in without mixing KnoxChat OAuth', async () => {
+	test('Settings Models catalog can switch to OpenRouter sign-in without mixing KnoxChat OAuth', async () => {
 		const posted: Array<{ type: string; data: unknown }> = [];
-		const { widget, store } = await mount(message => {
+		const { widget, store, commands } = await mount(message => {
 			posted.push({ type: message.messageType, data: message.data });
 			if (message.messageType === 'openrouter/listModels') {
 				return [{ id: 'anthropic/claude-sonnet-4.6', name: 'Claude Sonnet 4.6', supported_parameters: ['tools'] }];
 			}
 			return {};
 		});
+		store.lockView(KnoxGuiRoute.Config);
 		store.patch({
-			addModelModal: true,
+			settingsTab: 'models',
 			addModelRole: 'chat',
 			addModelModalProvider: 'knoxchat',
 			knoxChatModelsLoading: false,
@@ -3799,8 +3810,12 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			openrouterModelsLoading: false,
 			openrouterModels: [{ title: 'Claude Sonnet 4.6', model: 'anthropic/claude-sonnet-4.6', category: 'Anthropic', contextLength: 200000, supportsTools: true }],
 		});
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-modal"]'));
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-catalog"]'));
 		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-form-title')?.textContent, 'Add Model');
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-connect"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-open-config"]'), null);
+		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-subtext'), null);
+		assert.ok(!widget.root.textContent?.includes('This setting will update your'));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-toggle"]'));
 		assert.ok(widget.root.textContent?.includes('KnoxStudio'));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-knoxchat"]')?.classList.contains('selected'));
@@ -3832,11 +3847,13 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(store.state.oauthConnected, false);
 		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
 		widget.controller.closeAddModelModal();
-		assert.strictEqual(store.state.addModelModal, false);
+		assert.strictEqual(store.state.addModelRole, undefined);
 		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
+		commands.length = 0;
 		widget.controller.openAddModel('chat');
-		assert.strictEqual(store.state.addModelModal, true);
+		assert.strictEqual(store.state.settingsTab, 'models');
 		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
+		assert.ok(!commands.includes(KNOX_OPEN_SETTINGS_COMMAND_ID));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-openrouter"]')?.classList.contains('selected'));
 		assert.ok(widget.root.textContent?.includes('Connected as KnoxCoder'));
 	});

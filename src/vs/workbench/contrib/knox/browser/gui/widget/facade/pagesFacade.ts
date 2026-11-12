@@ -22,8 +22,8 @@ export abstract class KnoxGuiPagesFacade extends KnoxGuiOverlaysFacade {
 		knoxGuiPagesView.renderAddModel(this, body, state);
 	}
 
-	renderAddModelForm(this: KnoxGuiWidget, state: IKnoxGuiState): void {
-		knoxGuiPagesView.renderAddModelForm(this, state);
+	renderAddModelForm(this: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {
+		knoxGuiPagesView.renderAddModelForm(this, body, state);
 	}
 
 	renderConfigureProvider(this: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState): void {

@@ -1,3 +1,5 @@
+import { ModelRole } from "knoxdev-package/config-yaml";
+
 import {
   KnoxConfig,
   ExperimentalModelRoles,
@@ -46,21 +48,41 @@ export function uniqueYamlModelName(
   return `${withProvider} (${n})`;
 }
 
+/** GUI sends chat/edit/apply; older callers used inlineEdit / applyCodeBlock. */
+export function addModelSelectRole(role?: string): ModelRole {
+  if (role === "inlineEdit" || role === "edit") {
+    return "edit";
+  }
+  if (role === "applyCodeBlock" || role === "apply") {
+    return "apply";
+  }
+  if (
+    role === "summarize" ||
+    role === "viewRead" ||
+    role === "realTimeSearch"
+  ) {
+    return role;
+  }
+  return "chat";
+}
+
 export function addModel(
   model: ModelDescription,
   role?: keyof ExperimentalModelRoles,
-) {
+): string {
   console.log(`Adding model '${model.title}' with role '${role}'`);
   console.log(`Global path: ${getKnoxGlobalPath()}`);
 
   const configYamlPath = getConfigYamlPath();
   console.log(`Config YAML path: ${configYamlPath}`);
 
+  let yamlTitle = model.title ?? "";
   editConfigFile((config) => {
     const existing = (config.models ?? [])
       .map((m: any) => (typeof m?.name === "string" ? m.name : ""))
       .filter(Boolean);
-    model.title = uniqueYamlModelName(existing, model.title, model.provider);
+    model.title = uniqueYamlModelName(existing, model.title ?? yamlTitle, model.provider);
+    yamlTitle = model.title ?? yamlTitle;
 
     if (!config.models) {
       config.models = [];
@@ -166,6 +188,7 @@ export function addModel(
     console.log(`Added model to YAML config: ${JSON.stringify(yamlModel, null, 2)}`);
     return config;
   });
+  return yamlTitle;
 }
 
 export function deleteModel(title: string) {

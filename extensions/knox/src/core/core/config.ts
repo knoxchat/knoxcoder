@@ -1,5 +1,5 @@
 import { attachSessionPermission } from "../agent/sessionPermission";
-import { addModel, deleteModel, addPrompt } from "../config/util";
+import { addModel, addModelSelectRole, deleteModel, addPrompt } from "../config/util";
 import { createNewPromptFileV2 } from "../promptFiles/v2/createNewPromptFile";
 
 import type { CoreRuntime } from "./runtime";
@@ -8,10 +8,21 @@ export function registerConfigHandlers(core: CoreRuntime): void {
   const on = core.messenger.on.bind(core.messenger);
 
   // Edit config
-  on("config/addModel", (msg) => {
+  on("config/addModel", async (msg) => {
     const model = msg.data.model;
-    addModel(model, msg.data.role);
-    void core.configHandler.reloadConfig();
+    const title = addModel(model, msg.data.role);
+    const profileId = core.configHandler.currentProfile?.profileDescription.id;
+    if (profileId && title) {
+      // Select before reload so rectify sees the new yaml name and does not
+      // fall back to the previous chat/edit/apply model.
+      core.globalContext.updateSelectedModel(
+        profileId,
+        addModelSelectRole(msg.data.role),
+        title,
+      );
+    }
+    await core.configHandler.reloadConfig();
+    return title;
   });
 
   on("config/deleteModel", (msg) => {

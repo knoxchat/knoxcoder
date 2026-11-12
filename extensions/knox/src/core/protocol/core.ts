@@ -64,7 +64,7 @@ export type ToCoreFromIdeOrWebviewProtocol = {
       model: ModelDescription;
       role?: keyof ExperimentalModelRoles;
     },
-    void,
+    string,
   ];
   "config/newPromptFile": [undefined, void];
   "config/ideSettingsUpdate": [IdeSettings, void];

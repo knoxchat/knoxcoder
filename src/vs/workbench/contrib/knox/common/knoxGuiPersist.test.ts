@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { knoxGuiLocalAutoApprove } from './knoxGuiAgentRequest.js';
 import { knoxGuiListboxNextIndex, knoxGuiSortModelsByApiKey } from './knoxGuiCapabilities.js';
 import { composerInputHistoryFromStorage, inputDocFromPlainText, MAX_COMPOSER_INPUT_HISTORY } from './knoxGuiInput.js';
-import { knoxGuiMergePersistedAddModelProvider, knoxGuiMergePersistedToolPermissions, knoxGuiNormalizeWorkspace, knoxGuiNextLanguage, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiResolveProfileId, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiResolveLanguage, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, knoxGuiStartupSession, knoxGuiToolPermissionsFingerprint } from './knoxGuiPersist.js';
+import { knoxGuiMergePersistedAddModelIntent, knoxGuiMergePersistedAddModelProvider, knoxGuiMergePersistedSettingsTab, knoxGuiMergePersistedToolPermissions, knoxGuiNormalizeWorkspace, knoxGuiNextLanguage, knoxGuiParseDraftSession, knoxGuiParseLastActiveSession, knoxGuiParseProfilePreferences, knoxGuiProfilePreferences, knoxGuiResolveProfileId, knoxGuiParsePersistedTabs, knoxGuiParsePersistedUi, knoxGuiResolveLanguage, knoxGuiSerializeDraftSession, knoxGuiSerializePersistedUi, knoxGuiStartupSession, knoxGuiToolPermissionsFingerprint } from './knoxGuiPersist.js';
 import { createInitialKnoxGuiState, DEFAULT_PERMISSION_MODE, IKnoxGuiHistoryItem } from './knoxGuiState.js';
 import { knoxGuiContextItemFileIconName, knoxGuiContextItemOpenAction, knoxGuiMatchCodeToSymbolOrFile, knoxGuiMissingSymbolUris, knoxGuiParseSymbolMap, knoxGuiPastFileInfo, knoxGuiSymbolTooltip, patchNestedMarkdown, splitMarkdownBlocks } from './knoxGuiTranscript.js';
 
@@ -26,6 +26,9 @@ suite('Knox native persistence and permission helpers', () => {
 			codeToEdit: [],
 			overlay: null,
 			addModelModalProvider: 'knoxchat',
+			settingsTab: 'general',
+			addModelRole: null,
+			addModelBulk: false,
 			permissionNoticeDismissed: false,
 			memoryNoticeDismissed: false,
 		});
@@ -39,6 +42,8 @@ suite('Knox native persistence and permission helpers', () => {
 		assert.deepStrictEqual(knoxGuiParsePersistedUi(knoxGuiSerializePersistedUi({ ...state, overlay: 'tools' })).overlay, 'tools');
 		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ addModelModalProvider: 'openrouter' })).addModelModalProvider, 'openrouter');
 		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ addModelModalProvider: 'nope' })).addModelModalProvider, undefined);
+		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ settingsTab: 'models' })).settingsTab, 'models');
+		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ settingsTab: 'nope' })).settingsTab, undefined);
 		assert.deepStrictEqual(knoxGuiParsePersistedUi('{not json'), {});
 		assert.deepStrictEqual(knoxGuiParsePersistedUi(undefined), {});
 		const merged = knoxGuiMergePersistedToolPermissions(knoxGuiSerializePersistedUi({ ...state, overlay: 'models', mode: 'agent' }), { builtin_edit_file: 'disabled' }, ['search']);
@@ -52,6 +57,18 @@ suite('Knox native persistence and permission helpers', () => {
 		assert.strictEqual(parsedProvider.addModelModalProvider, 'openrouter');
 		assert.strictEqual(parsedProvider.overlay, 'models');
 		assert.strictEqual(parsedProvider.mode, 'agent');
+		const mergedTab = knoxGuiMergePersistedSettingsTab(knoxGuiSerializePersistedUi({ ...state, overlay: 'models', mode: 'agent' }), 'models');
+		const parsedTab = knoxGuiParsePersistedUi(mergedTab);
+		assert.strictEqual(parsedTab.settingsTab, 'models');
+		assert.strictEqual(parsedTab.overlay, 'models');
+		assert.strictEqual(parsedTab.mode, 'agent');
+		const mergedIntent = knoxGuiMergePersistedAddModelIntent(knoxGuiSerializePersistedUi({ ...state, overlay: 'models', mode: 'agent' }), 'edit', true);
+		const parsedIntent = knoxGuiParsePersistedUi(mergedIntent);
+		assert.strictEqual(parsedIntent.addModelRole, 'edit');
+		assert.strictEqual(parsedIntent.addModelBulk, true);
+		assert.strictEqual(parsedIntent.overlay, 'models');
+		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ addModelRole: 'edit' })).addModelRole, 'edit');
+		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ addModelRole: null })).addModelRole, null);
 		assert.strictEqual(knoxGuiToolPermissionsFingerprint({ toolSettings: { a: 'disabled' }, toolGroupExcluded: [] }), JSON.stringify({ toolSettings: { a: 'disabled' }, toolGroupExcluded: [] }));
 	});
 

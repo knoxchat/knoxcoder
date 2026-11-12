@@ -176,7 +176,7 @@ export function applyOpenRouterAliasFloorPricing(models: unknown[]): unknown[] {
 		const rec = asObjectRecord(item);
 		const target = asObjectRecord(rec?.alias_target);
 		const slug = typeof target?.slug === 'string' ? target.slug : undefined;
-		if (!rec || !slug || rec.pricing == null) {
+		if (!rec || !slug || rec.pricing === undefined || rec.pricing === null) {
 			continue;
 		}
 		const existing = floorByTarget.get(slug);
@@ -620,6 +620,30 @@ export function knoxGuiProviderLogoUri(icon: string | undefined): string | undef
 	} catch {
 		return `vs/workbench/contrib/knox/browser/media/logos/${icon}`;
 	}
+}
+
+/** Same uniqueness rule as core `uniqueYamlModelName` so Connect can select the yaml name. */
+export function knoxGuiUniqueYamlModelName(existing: readonly string[], title: string, provider?: string): string {
+	const names = new Set(existing.filter(Boolean));
+	if (!names.has(title)) {
+		return title;
+	}
+	const id = provider?.trim() ?? '';
+	const label = id === 'knoxchat' ? 'KnoxStudio'
+		: id === 'openrouter' ? 'OpenRouter'
+			: id === 'openai' ? 'OpenAI'
+				: id === 'anthropic' ? 'Anthropic'
+					: id;
+	// allow-any-unicode-next-line
+	const withProvider = label ? `${label} · ${title}` : title;
+	if (withProvider !== title && !names.has(withProvider)) {
+		return withProvider;
+	}
+	let n = 1;
+	while (names.has(`${withProvider} (${n})`)) {
+		n += 1;
+	}
+	return `${withProvider} (${n})`;
 }
 
 export function buildAddModelPayload(

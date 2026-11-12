@@ -98,7 +98,7 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 			onClick: () => widget.controller.store.patch({ memoryNoticeDismissed: true }),
 		});
 	}
-	if (state.history.length === 0 && state.models.length === 0 && !state.isStreaming && !state.addModelModal) {
+	if (state.history.length === 0 && state.models.length === 0 && !state.isStreaming) {
 		const banner = DOM.append(body, DOM.$('.knox-gui-large-banner'));
 		banner.setAttribute('role', 'status');
 		banner.setAttribute('data-testid', 'first-run-no-model');

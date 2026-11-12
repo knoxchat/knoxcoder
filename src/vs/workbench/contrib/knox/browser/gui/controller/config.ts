@@ -11,6 +11,7 @@ import { postSetAgentMode, syncAgentTabWithModel } from './models.js';
 import { draftSession, lastActiveSession, loadProfilePreferences } from './persistence.js';
 import { knoxGuiResolveProfileId, knoxGuiStartupSession } from '../../../common/knoxGuiPersist.js';
 import { agentProfileDefaults, agentProfileSharedConfig, formatPolicyLines, mergeReasoningEffortPrefs, parseYamlRules } from '../../../common/knoxGuiOverlays.js';
+import { knoxGuiSettingsTab } from '../../../common/knoxGuiChrome.js';
 import { KNOX_GUI_HEARTBEAT_MS, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { mergeContextProvidersWithDefaults, mergeSlashCommandsWithBuiltins } from '../../../common/knoxGuiInput.js';
 import { IKnoxGuiContextProvider, IKnoxGuiModel, IKnoxGuiSlashCommand, IKnoxGuiState, IKnoxGuiTool, KnoxGuiLanguage, KnoxModelRole, KnoxPermissionDefaultReason, KnoxPermissionMode, MODEL_ROLES, knoxGuiIsDedicatedEditor, knoxGuiJevCatalogId, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
@@ -42,6 +43,8 @@ export async function setup(controller: KnoxGuiController): Promise<void> {
 				await controller.loadCheckpoints();
 			} else if (controller.store.state.lockedRoute === KnoxGuiRoute.History) {
 				await controller.refreshHistoryOnShow();
+			} else if (controller.store.state.lockedRoute === KnoxGuiRoute.Config && knoxGuiSettingsTab(controller.store.state.settingsTab) === 'models') {
+				controller.loadAddModelCatalogs();
 			}
 			controller.startHeartbeat();
 		} else {

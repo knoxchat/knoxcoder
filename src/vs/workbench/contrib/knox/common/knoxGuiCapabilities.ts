@@ -418,7 +418,7 @@ export function knoxGuiChatPickerModels(state: { models: readonly IKnoxGuiModel[
 
 /**
  * First-run empty picker: no configured models and no custom config.yaml models.
- * Skip the extra "Add Model" dropdown and open the Add Model modal directly.
+ * Skip the extra "Add Model" dropdown and open Settings, Models tab.
  */
 export function knoxGuiShouldOpenAddModelDirectly(models: readonly unknown[]): boolean {
 	return models.length === 0;

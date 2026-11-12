@@ -416,9 +416,6 @@ export class KnoxGuiWidget extends KnoxGuiCheckpointsFacade {
 		if (state.promptDraft) {
 			this.renderPromptEditor(state);
 		}
-		if (state.addModelModal) {
-			this.renderAddModelForm(state);
-		}
 		if (state.streamError) {
 			this.renderStreamError(this.root, state);
 		}

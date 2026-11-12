@@ -145,6 +145,10 @@ export function renderModels(widget: KnoxGuiWidget, body: HTMLElement, state: IK
 	if (fullLabels) {
 		grid.style.gridTemplateColumns = `max-content minmax(min(100%, ${knoxGuiModelRoleMinCh(titles)}ch), 1fr)`;
 	}
+	if (knoxGuiIsDedicatedEditor(state)) {
+		widget.renderAddModelForm(body, state);
+		return;
+	}
 	widget.chromeButton(body, {
 		svg: 'settings',
 		svgSize: 12,

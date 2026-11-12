@@ -7,10 +7,10 @@ import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { asRecord, asArray } from './helpers.js';
 import { knoxGuiCatalogEntriesFromOverlayModels, knoxGuiGetReasoningModelKeys, knoxGuiModelSupportsImages, knoxGuiModelToolsSupportKnown, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiResolveToolsSupported, knoxGuiSeedModelCatalog, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
 import { knoxGuiIsSessionTabMode, knoxGuiResolveSessionMode, knoxGuiSessionModeIsAgent } from '../../../common/knoxGuiAgentMode.js';
-import { addModelProviderById, applyOpenRouterAliasFloorPricing, buildAddModelPayload, categorizeKnoxChatModel, KNOX_CHAT_FALLBACK_MODELS, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, parseKnoxOAuthStatus, parseOpenRouterOAuthStatus, type IKnoxGuiAddModelPackage } from '../../../common/knoxGuiOverlays.js';
-import { knoxGuiSettingsTab, type KnoxGuiSettingsTab } from '../../../common/knoxGuiChrome.js';
-import { KnoxGuiOverlay } from '../../../common/knoxGuiProtocol.js';
-import { IKnoxGuiModel, IKnoxGuiState, KnoxChatMode, KnoxModelRole } from '../../../common/knoxGuiState.js';
+import { addModelProviderById, applyOpenRouterAliasFloorPricing, buildAddModelPayload, categorizeKnoxChatModel, KNOX_CHAT_FALLBACK_MODELS, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, knoxGuiUniqueYamlModelName, parseKnoxOAuthStatus, parseOpenRouterOAuthStatus, type IKnoxGuiAddModelPackage } from '../../../common/knoxGuiOverlays.js';
+import { KNOX_OPEN_SETTINGS_COMMAND_ID, knoxGuiSettingsTab, type KnoxGuiSettingsTab } from '../../../common/knoxGuiChrome.js';
+import { KnoxGuiOverlay, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
+import { IKnoxGuiModel, IKnoxGuiState, KnoxChatMode, KnoxModelRole, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
 
 /** `thunks/setSessionMode.ts`: no switch while streaming; entering edit saves and opens a new session. */
 export function setMode(controller: KnoxGuiController, mode: KnoxChatMode): void {
@@ -150,6 +150,9 @@ export function setSettingsTab(controller: KnoxGuiController, tab: string): void
 	controller.store.patch({ settingsTab: next });
 	if (next === 'models') {
 		controller.messenger.post('config/refreshProfiles', undefined);
+		if (knoxGuiIsDedicatedEditor(controller.store.state)) {
+			loadAddModelCatalogs(controller);
+		}
 	}
 }
 
@@ -157,22 +160,29 @@ export function openSettingsOverlay(controller: KnoxGuiController): void {
 	controller.store.setOverlay('settings');
 }
 
-export function openAddModel(controller: KnoxGuiController, role: KnoxModelRole = 'chat', options?: { bulk?: boolean }): void {
-	controller.store.patch({
-		addModelRole: role,
-		addModelModal: true,
-		addModelBulk: options?.bulk === true,
-		addModelDraft: {},
-		addModelSelectedModel: undefined,
-	});
+export function loadAddModelCatalogs(controller: KnoxGuiController): void {
 	void controller.loadOAuthStatus();
 	void controller.loadOpenRouterOAuthStatus();
 	void controller.loadKnoxChatModels();
 	void controller.loadOpenRouterModels();
 }
 
+export function openAddModel(controller: KnoxGuiController, role: KnoxModelRole = 'chat', options?: { bulk?: boolean }): void {
+	controller.store.patch({
+		addModelRole: role,
+		addModelBulk: options?.bulk === true,
+		addModelDraft: {},
+		addModelSelectedModel: undefined,
+	});
+	controller.setSettingsTab('models');
+	if (controller.store.state.lockedRoute === KnoxGuiRoute.Config) {
+		return;
+	}
+	void controller.commandService.executeCommand(KNOX_OPEN_SETTINGS_COMMAND_ID);
+}
+
 export function closeAddModelModal(controller: KnoxGuiController): void {
-	controller.store.patch({ addModelModal: false, addModelRole: undefined, addModelSelectedModel: undefined, addModelDraft: {}, addModelBulk: false });
+	controller.store.patch({ addModelRole: undefined, addModelSelectedModel: undefined, addModelDraft: {}, addModelBulk: false });
 }
 
 export function applyOAuthStatus(controller: KnoxGuiController, data: unknown): void {
@@ -319,24 +329,45 @@ export async function loadOpenRouterModels(controller: KnoxGuiController): Promi
 	}
 }
 
+function addModelResponseTitle(returned: unknown, fallback: string): string {
+	if (typeof returned === 'string' && returned.trim()) {
+		return returned.trim();
+	}
+	const rec = returned && typeof returned === 'object' ? returned as { title?: unknown } : undefined;
+	if (typeof rec?.title === 'string' && rec.title.trim()) {
+		return rec.title.trim();
+	}
+	return fallback;
+}
+
 export async function addConfiguredModel(controller: KnoxGuiController, providerId: string, pack: IKnoxGuiAddModelPackage, extras?: { dimensionChoices?: string[]; selectedProvider?: string }): Promise<void> {
 	const provider = addModelProviderById(providerId);
 	if (!provider) {
 		return;
 	}
-	const { model, role } = buildAddModelPayload(provider, pack, controller.store.state.addModelDraft, controller.store.state.addModelRole, {
+	const role = controller.store.state.addModelRole ?? 'chat';
+	const bulk = controller.store.state.addModelBulk || !controller.store.state.addModelRole;
+	const { model } = buildAddModelPayload(provider, pack, controller.store.state.addModelDraft, role, {
 		...extras,
-		bulk: controller.store.state.addModelBulk,
+		bulk,
 	});
-	controller.messenger.post('config/addModel', { model, role });
-	if (controller.store.state.addModelRole) {
-		controller.selectModel(controller.store.state.addModelRole, String(model.title ?? pack.title));
-	} else {
-		controller.selectModel('chat', String(model.title ?? pack.title));
+	const fallbackTitle = knoxGuiUniqueYamlModelName(
+		controller.store.state.models.map(item => item.title).filter(Boolean),
+		String(model.title ?? pack.title),
+		String(model.provider ?? provider.provider),
+	);
+	model.title = fallbackTitle;
+	model.name = fallbackTitle;
+	let title = fallbackTitle;
+	try {
+		const returned = await controller.messenger.request<unknown>('config/addModel', { model, role });
+		title = addModelResponseTitle(returned, fallbackTitle);
+	} catch {
+		// Host still received the add. Select locally so the picker switches even without a reply.
 	}
-	const wasModal = controller.store.state.addModelModal;
-	controller.store.patch({ addModelDraft: {}, addModelRole: undefined, addModelModal: false, addModelSelectedModel: undefined, addModelBulk: false });
-	if (!wasModal) {
+	controller.selectModel(role, title);
+	controller.store.patch({ addModelDraft: {}, addModelRole: undefined, addModelSelectedModel: undefined, addModelBulk: false });
+	if (!knoxGuiIsDedicatedEditor(controller.store.state)) {
 		controller.store.navigate('/');
 	}
 }

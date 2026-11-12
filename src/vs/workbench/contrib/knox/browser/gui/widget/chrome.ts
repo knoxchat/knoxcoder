@@ -766,12 +766,6 @@ export function onEscape(widget: KnoxGuiWidget, e: KeyboardEvent, state: IKnoxGu
 		widget.closeImageViewer();
 		return;
 	}
-	if (state.addModelModal) {
-		e.preventDefault();
-		e.stopPropagation();
-		widget.controller.closeAddModelModal();
-		return;
-	}
 	if (state.streamError) {
 		e.preventDefault();
 		e.stopPropagation();

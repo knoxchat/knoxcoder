@@ -475,11 +475,13 @@ function paintKnoxChatModelRows(widget: KnoxGuiWidget, list: HTMLElement, state:
 			DOM.append(top, DOM.$('div.knox-gui-knoxchat-title', undefined, model.title));
 			const badges = DOM.append(top, DOM.$('.knox-gui-knoxchat-meta'));
 			const ctx = DOM.append(badges, DOM.$('span.knox-gui-knoxchat-badge'));
+			// allow-any-unicode-next-line
 			ctx.textContent = Number.isFinite(model.contextLength) ? formatTokenCount(model.contextLength) : '∞';
 			if (Number.isFinite(model.contextLength)) {
 				ctx.title = model.contextLength.toLocaleString();
 			}
 			if (model.maxTokens !== undefined) {
+				// allow-any-unicode-next-line
 				const max = DOM.append(badges, DOM.$('span.knox-gui-knoxchat-badge', undefined, `↑${formatTokenCount(model.maxTokens)}`));
 				max.title = `Max completion tokens: ${model.maxTokens.toLocaleString()}`;
 			}
@@ -536,24 +538,10 @@ function knoxChatPack(model: IKnoxGuiState['knoxChatModels'][number]): IKnoxGuiA
 	};
 }
 
-export function renderAddModelForm(widget: KnoxGuiWidget, state: IKnoxGuiState): void {
-	const overlay = DOM.append(widget.root, DOM.$('.knox-gui-text-dialog.knox-gui-add-model-dialog'));
-	overlay.setAttribute('data-testid', 'knox-gui-add-model-modal');
-	overlay.setAttribute('role', 'presentation');
-	widget.renderStore.add(DOM.addDisposableListener(overlay, 'click', () => widget.controller.closeAddModelModal()));
-	const panel = DOM.append(overlay, DOM.$('.knox-gui-text-dialog-panel'));
-	widget.renderStore.add(DOM.addDisposableListener(panel, 'click', e => e.stopPropagation()));
-	const box = DOM.append(panel, DOM.$('.knox-gui-text-dialog-body.knox-gui-add-model-form'));
-	box.setAttribute('role', 'dialog');
-	box.setAttribute('aria-modal', 'true');
-	widget.chromeButton(box, {
-		svg: 'x',
-		svgSize: 20,
-		title: t(state, 'close'),
-		extraClass: 'knox-gui-text-dialog-close',
-		onClick: () => widget.controller.closeAddModelModal(),
-	});
-	DOM.append(box, DOM.$('h4.knox-gui-add-model-form-title', undefined, t(state, 'addModel')));
+export function renderAddModelForm(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
+	const box = DOM.append(parent, DOM.$('.knox-gui-settings-add-model.knox-gui-add-model-form'));
+	box.setAttribute('data-testid', 'knox-gui-add-model-catalog');
+	DOM.append(box, DOM.$('h3.knox-gui-add-model-form-title', undefined, t(state, 'addModel')));
 	const form = DOM.append(box, DOM.$('.knox-gui-add-model-form-body'));
 	const source: CatalogSource = state.addModelModalProvider === 'openrouter' ? 'openrouter' : 'knoxchat';
 	const connected = source === 'openrouter' ? state.openrouterOauthConnected : state.oauthConnected;
@@ -599,14 +587,6 @@ export function renderAddModelForm(widget: KnoxGuiWidget, state: IKnoxGuiState):
 			void widget.controller.addConfiguredModel(source, knoxChatPack(selected));
 		},
 	});
-	const sub = DOM.append(actions, DOM.$('span.knox-gui-add-model-subtext'));
-	sub.append(t(state, 'thisSettingWillUpdate'));
-	sub.append(' ');
-	const configs = DOM.append(sub, DOM.$('span.knox-gui-link', undefined, t(state, 'configs')));
-	widget.renderStore.add(DOM.addDisposableListener(configs, 'click', e => {
-		e.stopPropagation();
-		widget.controller.messenger.post('config/openProfile', { profileId: undefined });
-	}));
 }
 
 /** `components/index.tsx` `Button` (primary) and `SecondaryButton`. */
@@ -688,17 +668,17 @@ export function renderAddModelInput(widget: KnoxGuiWidget, body: HTMLElement, st
 	DOM.append(row, DOM.$('span', undefined, t(state, input.labelKey)));
 	const field = DOM.append(row, DOM.$('input')) as HTMLInputElement;
 	field.type = input.inputType === 'password' ? 'password' : input.inputType === 'number' ? 'number' : 'text';
-	field.value = state.addModelDraft[input.key] ?? (input.defaultValue != null ? String(input.defaultValue) : '');
+	field.value = state.addModelDraft[input.key] ?? (input.defaultValue !== undefined && input.defaultValue !== null ? String(input.defaultValue) : '');
 	if (input.placeholderKey) {
 		field.placeholder = t(state, input.placeholderKey, { provider: addModelProviderById(state.providerName)?.title ?? '' });
 	}
-	if (input.min != null) {
+	if (input.min !== undefined) {
 		field.min = String(input.min);
 	}
-	if (input.max != null) {
+	if (input.max !== undefined) {
 		field.max = String(input.max);
 	}
-	if (input.step != null) {
+	if (input.step !== undefined) {
 		field.step = String(input.step);
 	}
 	widget.renderStore.add(DOM.addDisposableListener(field, 'input', () => {

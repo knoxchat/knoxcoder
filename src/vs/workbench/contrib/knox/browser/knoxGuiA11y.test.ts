@@ -15,6 +15,7 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InMemoryStorageService } from '../../../../platform/storage/common/storage.js';
 import { IKnoxGuiMessage, KnoxGuiRoute } from '../common/knoxGuiProtocol.js';
 import { knoxGuiEmptyStreamText } from '../common/knoxGuiAgentRequest.js';
@@ -71,7 +72,12 @@ suite('K-102 Knox GUI screen-reader and theme pass', () => {
 		const store = disposables.add(new KnoxGuiStore());
 		const messenger = disposables.add(new KnoxGuiMessenger(knoxService));
 		const storage = disposables.add(new InMemoryStorageService());
-		const controller = disposables.add(new KnoxGuiController(store, messenger, storage));
+		const commandService = new class extends mock<ICommandService>() {
+			override executeCommand(): Promise<undefined> {
+				return Promise.resolve(undefined);
+			}
+		};
+		const controller = disposables.add(new KnoxGuiController(store, messenger, storage, commandService));
 		await timeout(0);
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
@@ -220,7 +226,12 @@ suite('K-101 Knox GUI DOM event soak', () => {
 		const store = disposables.add(new KnoxGuiStore());
 		const messenger = disposables.add(new KnoxGuiMessenger(knoxService));
 		const storage = disposables.add(new InMemoryStorageService());
-		const controller = disposables.add(new KnoxGuiController(store, messenger, storage));
+		const commandService = new class extends mock<ICommandService>() {
+			override executeCommand(): Promise<undefined> {
+				return Promise.resolve(undefined);
+			}
+		};
+		const controller = disposables.add(new KnoxGuiController(store, messenger, storage, commandService));
 		await timeout(0);
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);

@@ -22,6 +22,9 @@ export const KNOX_GUI_SETTINGS_NAV = [
 
 export type KnoxGuiSettingsTab = typeof KNOX_GUI_SETTINGS_NAV[number]['id'];
 
+/** F1 / inbound Add Model: open the dedicated Settings editor (Models tab). */
+export const KNOX_OPEN_SETTINGS_COMMAND_ID = 'workbench.action.knox.openSettings';
+
 export function knoxGuiSettingsTab(tab: string | undefined): KnoxGuiSettingsTab {
 	return KNOX_GUI_SETTINGS_NAV.some(item => item.id === tab) ? tab as KnoxGuiSettingsTab : 'general';
 }

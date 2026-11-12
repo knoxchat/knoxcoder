@@ -16,8 +16,10 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { DEFAULT_REASONING_EFFORT_ALLOWED, knoxGuiResetModelCatalogForTests, knoxGuiSeedModelCatalog } from '../common/knoxGuiCapabilities.js';
+import { KNOX_OPEN_SETTINGS_COMMAND_ID } from '../common/knoxGuiChrome.js';
 import { formatModelPricingPerMillion } from '../common/knoxGuiOverlays.js';
 import { IKnoxGuiMessage, KNOX_GUI_HEARTBEAT_MS, KnoxGuiRoute } from '../common/knoxGuiProtocol.js';
 import { DEFAULT_MENTION_PROVIDER_TITLES, inputDocFromPlainText, SLASH_BUILTINS } from '../common/knoxGuiInput.js';
@@ -33,7 +35,7 @@ import { finishTurn } from './gui/controller/stream.js';
 suite('Knox native GUI controller (GP-084)', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(options?: { listModels?: unknown; replies?: Record<string, unknown>; respond?: (message: IKnoxGuiMessage) => { content: unknown; chunks?: unknown[] } | { error: string } | undefined; lock?: KnoxGuiRoute; storage?: InMemoryStorageService; activeChatSessionId?: string; silent?: string[]; bus?: Emitter<IKnoxGuiMessage> }): { controller: KnoxGuiController; store: KnoxGuiStore; posted: IKnoxGuiMessage[]; notified: IKnoxGuiMessage[]; openChatCalls: number } {
+	function createHarness(options?: { listModels?: unknown; replies?: Record<string, unknown>; respond?: (message: IKnoxGuiMessage) => { content: unknown; chunks?: unknown[] } | { error: string } | undefined; lock?: KnoxGuiRoute; storage?: InMemoryStorageService; activeChatSessionId?: string; silent?: string[]; bus?: Emitter<IKnoxGuiMessage> }): { controller: KnoxGuiController; store: KnoxGuiStore; posted: IKnoxGuiMessage[]; notified: IKnoxGuiMessage[]; openChatCalls: number; commands: string[] } {
 		knoxGuiResetModelCatalogForTests();
 		const incoming = options?.bus ?? disposables.add(new Emitter<IKnoxGuiMessage>());
 		const posted: IKnoxGuiMessage[] = [];
@@ -101,8 +103,15 @@ suite('Knox native GUI controller (GP-084)', () => {
 		}
 		const messenger = disposables.add(new KnoxGuiMessenger(knoxService));
 		const storage = options?.storage ?? disposables.add(new InMemoryStorageService());
-		const controller = disposables.add(new KnoxGuiController(store, messenger, storage));
-		return { controller, store, posted, notified, get openChatCalls(): number { return openChatCalls; } };
+		const commands: string[] = [];
+		const commandService = new class extends mock<ICommandService>() {
+			override executeCommand(commandId: string): Promise<undefined> {
+				commands.push(commandId);
+				return Promise.resolve(undefined);
+			}
+		};
+		const controller = disposables.add(new KnoxGuiController(store, messenger, storage, commandService));
+		return { controller, store, posted, notified, commands, get openChatCalls(): number { return openChatCalls; } };
 	}
 
 	const visionModel: IKnoxGuiModel = {
@@ -335,23 +344,23 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(second.controller.workspacePermissionSaved, false);
 	});
 
-	test('openAddModel remembers the last provider tab and preloads both catalogs', async () => {
-		const { controller, store, posted } = createHarness();
+	test('openAddModel opens Settings Models and remembers the last provider tab', async () => {
+		const { controller, store, posted, commands } = createHarness();
 		await timeout(0);
 		controller.openAddModel('edit');
-		assert.strictEqual(store.state.addModelModal, true);
+		assert.strictEqual(store.state.settingsTab, 'models');
 		assert.strictEqual(store.state.addModelRole, 'edit');
 		assert.strictEqual(store.state.addModelModalProvider, 'knoxchat');
 		assert.strictEqual(store.state.addModelBulk, false);
 		assert.strictEqual(store.state.route, KnoxGuiRoute.Chat);
-		assert.ok(posted.some(message => message.messageType === 'knoxchat/listModels'));
-		assert.ok(posted.some(message => message.messageType === 'openrouter/listModels'));
+		assert.ok(commands.includes(KNOX_OPEN_SETTINGS_COMMAND_ID));
+		assert.ok(posted.some(message => message.messageType === 'config/refreshProfiles'));
 		store.patch({ addModelModalProvider: 'openrouter' });
 		controller.closeAddModelModal();
-		assert.strictEqual(store.state.addModelModal, false);
+		assert.strictEqual(store.state.addModelRole, undefined);
 		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
 		controller.openAddModel();
-		assert.strictEqual(store.state.addModelModal, true);
+		assert.strictEqual(store.state.settingsTab, 'models');
 		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
 		assert.strictEqual(store.state.addModelRole, 'chat');
 		assert.strictEqual(store.state.route, KnoxGuiRoute.Chat);
@@ -363,12 +372,13 @@ suite('Knox native GUI controller (GP-084)', () => {
 	test('openAddModel restores the persisted provider tab after reload', async () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storage.store(UI_STATE_KEY, JSON.stringify({ addModelModalProvider: 'openrouter' }), StorageScope.PROFILE, StorageTarget.USER);
-		const { controller, store } = createHarness({ storage });
+		const { controller, store, commands } = createHarness({ storage });
 		await timeout(0);
 		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
 		controller.openAddModel();
-		assert.strictEqual(store.state.addModelModal, true);
+		assert.strictEqual(store.state.settingsTab, 'models');
 		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
+		assert.ok(commands.includes(KNOX_OPEN_SETTINGS_COMMAND_ID));
 	});
 
 	test('History editor lists sessions, opens chat, and ignores chat inbound', async () => {
@@ -692,6 +702,12 @@ suite('Knox native GUI controller (GP-084)', () => {
 		settings.controller.setSettingsTab('models');
 		assert.strictEqual(settings.store.state.settingsTab, 'models');
 		assert.ok(settings.posted.some(message => message.messageType === 'config/refreshProfiles'));
+		assert.ok(settings.posted.some(message => message.messageType === 'knoxchat/listModels'));
+		assert.ok(settings.posted.some(message => message.messageType === 'openrouter/listModels'));
+		settings.commands.length = 0;
+		settings.controller.openAddModel('edit');
+		assert.strictEqual(settings.store.state.addModelRole, 'edit');
+		assert.ok(!settings.commands.includes(KNOX_OPEN_SETTINGS_COMMAND_ID));
 		const grok = { title: 'Grok', provider: 'knoxchat', model: 'spacexai/grok' };
 		settings.store.patch({
 			profileId: 'p1',
@@ -716,9 +732,91 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(chat.store.state.mode, 'agent');
 		settings.store.patch({ addModelModalProvider: 'openrouter' });
 		assert.strictEqual(chat.store.state.addModelModalProvider, 'openrouter');
-		const persisted = JSON.parse(storage.get(UI_STATE_KEY, StorageScope.PROFILE) ?? '{}') as { addModelModalProvider?: string; overlay?: string };
+		const persisted = JSON.parse(storage.get(UI_STATE_KEY, StorageScope.PROFILE) ?? '{}') as { addModelModalProvider?: string; overlay?: string; settingsTab?: string };
 		assert.strictEqual(persisted.addModelModalProvider, 'openrouter');
+		assert.strictEqual(persisted.settingsTab, 'models');
 		assert.strictEqual(persisted.overlay, 'tools');
+	});
+
+	test('Connect in Settings Models selects the model for chat and configUpdate selects it in the composer', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const chat = createHarness({ storage });
+		const settings = createHarness({
+			storage,
+			lock: KnoxGuiRoute.Config,
+			replies: { 'config/addModel': 'Anthropic: Claude Haiku 5.5' },
+		});
+		await timeout(0);
+		chat.store.patch({ overlay: 'tools', mode: 'agent', modelTitle: 'DeepSeek V4.1 Flash', selectedModelByRole: { chat: 'DeepSeek V4.1 Flash' } });
+		settings.store.patch({
+			profileId: 'p1',
+			settingsTab: 'models',
+			modelTitle: 'DeepSeek V4.1 Flash',
+			selectedModelByRole: { chat: 'DeepSeek V4.1 Flash', edit: 'Existing Haiku 5.5' },
+			models: [
+				{ title: 'DeepSeek V4.1 Flash', provider: 'knoxchat', model: 'deepseek/deepseek-v4.1-flash' },
+				{ title: 'Existing Haiku 5.5', provider: 'knoxchat', model: 'anthropic/claude-haiku-5.5' },
+			],
+		});
+		settings.posted.length = 0;
+		await settings.controller.addConfiguredModel('knoxchat', {
+			title: 'Anthropic: Claude Haiku 5.5',
+			params: { title: 'Anthropic: Claude Haiku 5.5', model: 'anthropic/claude-haiku-5.5', contextLength: 128000 },
+		});
+		const added = settings.posted.find(message => message.messageType === 'config/addModel');
+		const addedModel = (added?.data as { model?: Record<string, unknown> } | undefined)?.model;
+		assert.strictEqual(addedModel?.title, 'Anthropic: Claude Haiku 5.5');
+		assert.deepStrictEqual(addedModel?.roles, ['chat', 'edit', 'apply']);
+		assert.strictEqual(settings.store.state.modelTitle, 'Anthropic: Claude Haiku 5.5');
+		assert.strictEqual(settings.store.state.selectedModelByRole.chat, 'Anthropic: Claude Haiku 5.5');
+		assert.strictEqual(settings.store.state.selectedModelByRole.edit, 'Existing Haiku 5.5');
+		assert.ok(settings.posted.some(message => message.messageType === 'config/updateSelectedModel' && (message.data as { title?: string; role?: string }).title === 'Anthropic: Claude Haiku 5.5' && (message.data as { role?: string }).role === 'chat'));
+		chat.controller.applyConfig({
+			config: {
+				models: [
+					{ title: 'DeepSeek V4.1 Flash', provider: 'knoxchat', model: 'deepseek/deepseek-v4.1-flash' },
+					{ title: 'Anthropic: Claude Haiku 5.5', provider: 'knoxchat', model: 'anthropic/claude-haiku-5.5' },
+				],
+				modelsByRole: {
+					chat: [
+						{ title: 'DeepSeek V4.1 Flash' },
+						{ title: 'Anthropic: Claude Haiku 5.5' },
+					],
+				},
+				selectedModelByRole: { chat: { title: 'Anthropic: Claude Haiku 5.5' } },
+				selectedModelTitle: 'Anthropic: Claude Haiku 5.5',
+			},
+		});
+		assert.strictEqual(chat.store.state.modelTitle, 'Anthropic: Claude Haiku 5.5');
+		assert.strictEqual(chat.store.state.overlay, 'tools');
+		assert.strictEqual(chat.store.state.mode, 'agent');
+	});
+
+	test('chat Add Model for edit reaches Settings Connect and selects edit, not chat', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const chat = createHarness({ storage });
+		const settings = createHarness({
+			storage,
+			lock: KnoxGuiRoute.Config,
+			replies: { 'config/addModel': 'Grok' },
+		});
+		await timeout(0);
+		chat.store.patch({ modelTitle: 'DeepSeek V4.1 Flash', selectedModelByRole: { chat: 'DeepSeek V4.1 Flash' } });
+		chat.controller.openAddModel('edit');
+		assert.strictEqual(settings.store.state.settingsTab, 'models');
+		assert.strictEqual(settings.store.state.addModelRole, 'edit');
+		assert.strictEqual(settings.store.state.addModelBulk, false);
+		settings.store.patch({ profileId: 'p1', modelTitle: 'DeepSeek V4.1 Flash', selectedModelByRole: { chat: 'DeepSeek V4.1 Flash' } });
+		settings.posted.length = 0;
+		await settings.controller.addConfiguredModel('knoxchat', {
+			title: 'Grok',
+			params: { title: 'Grok', model: 'spacexai/grok' },
+		});
+		assert.strictEqual(settings.store.state.selectedModelByRole.edit, 'Grok');
+		assert.strictEqual(settings.store.state.modelTitle, 'DeepSeek V4.1 Flash');
+		assert.ok(settings.posted.some(message => message.messageType === 'config/updateSelectedModel' && (message.data as { role?: string; title?: string }).role === 'edit' && (message.data as { title?: string }).title === 'Grok'));
+		const added = settings.posted.find(message => message.messageType === 'config/addModel');
+		assert.deepStrictEqual((added?.data as { model?: { roles?: string[] } } | undefined)?.model?.roles, ['edit']);
 	});
 
 	test('stream response envelopes are not applied as host inbound', async () => {
@@ -861,11 +959,12 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.deepStrictEqual(blocks.map(block => block.type === 'codeBlock' ? block.itemName : ''), ['a.ts (1-3)', 'a.ts (6-9)']);
 	});
 
-	test('NP-12 host addApiKey opens Add Model and answers the request', async () => {
-		const { controller, store, posted } = createHarness({ silent: ['addApiKey'] });
+	test('NP-12 host addApiKey opens Settings Models and answers the request', async () => {
+		const { controller, store, posted, commands } = createHarness({ silent: ['addApiKey'] });
 		await timeout(0);
 		await controller.handleInbound('addApiKey', undefined, 'np12');
-		assert.strictEqual(store.state.addModelModal, true);
+		assert.strictEqual(store.state.settingsTab, 'models');
+		assert.ok(commands.includes(KNOX_OPEN_SETTINGS_COMMAND_ID));
 		assert.ok(posted.some(message => message.messageId === 'np12'));
 	});
 

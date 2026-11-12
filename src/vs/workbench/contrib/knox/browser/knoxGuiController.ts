@@ -6,6 +6,7 @@
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { language as platformLanguage } from '../../../../base/common/platform.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { knoxGuiResolveLanguage } from '../common/knoxGuiPersist.js';
 import { createStreamUpdateCoalescer } from '../common/knoxGuiChat.js';
@@ -100,6 +101,7 @@ export class KnoxGuiController extends Disposable {
 		readonly store: KnoxGuiStore,
 		readonly messenger: KnoxGuiMessenger,
 		@IStorageService readonly storageService: IStorageService,
+		@ICommandService readonly commandService: ICommandService,
 	) {
 		super();
 		const storedLanguage = this.storageService.get(LANGUAGE_KEY, StorageScope.PROFILE);
@@ -128,6 +130,8 @@ export class KnoxGuiController extends Disposable {
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, knoxGuiPersistence.UI_STATE_KEY, this._store)(() => {
 			knoxGuiPersistence.applyPersistedToolPermissions(this);
 			knoxGuiPersistence.applyPersistedAddModelProvider(this);
+			knoxGuiPersistence.applyPersistedSettingsTab(this);
+			knoxGuiPersistence.applyPersistedAddModelIntent(this);
 		}));
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, knoxGuiPersistence.PROFILE_PREFERENCES_KEY, this._store)(() => {
 			knoxGuiPersistence.applyPersistedProfilePreferences(this);
@@ -1064,6 +1068,10 @@ export class KnoxGuiController extends Disposable {
 
 	applyOpenRouterOAuthStatus(data: unknown): void {
 		return knoxGuiModels.applyOpenRouterOAuthStatus(this, data);
+	}
+
+	loadAddModelCatalogs(): void {
+		return knoxGuiModels.loadAddModelCatalogs(this);
 	}
 
 	async loadOAuthStatus(): Promise<void> {

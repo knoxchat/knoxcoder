@@ -12,6 +12,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { KNOX_VIEW_ID } from '../../../common/knox.js';
+import { KNOX_OPEN_SETTINGS_COMMAND_ID } from '../common/knoxGuiChrome.js';
 import { IKnoxService } from '../common/knoxService.js';
 import { KnoxChatViewPane } from './knoxChatViewPane.js';
 import { KnoxCheckpointGraphEditorInput, KnoxHistoryEditorInput, KnoxMemoryEditorInput, KnoxSettingsEditorInput } from './knoxGuiEditors.js';
@@ -139,7 +140,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.knox.openSettings',
+			id: KNOX_OPEN_SETTINGS_COMMAND_ID,
 			title: localize2('knox.openSettings', 'Knox: Open Settings'),
 			category: localize2('knox.category', 'Knox'),
 			f1: true,
