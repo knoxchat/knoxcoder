@@ -165,13 +165,13 @@ describe("decideRecipeForTurn", () => {
     expect(e.why).toMatch(/clean merge/);
   });
 
-  it("Ask permission confirms a byte-identical exact replay", async () => {
+  it("Auto permission does not force confirm a byte-identical exact replay", async () => {
     const e = await decideRecipeForTurn(
       { listRecipes: async () => [recipe()], env: env(["package.json"]) },
-      { ...args, permissionMode: "default" },
+      { ...args, permissionMode: "fullAuto" },
     );
     expect(e.mode).toBe("exact");
-    expect(e.needsConfirmation).toBe(true);
+    expect(e.needsConfirmation).toBe(false);
   });
 
   it("composes two disjoint recipes and always asks", async () => {

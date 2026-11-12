@@ -1,7 +1,7 @@
 /**
- * Shared Agent permission rules (GUI chat + `/autonomous` + `runAgentLoop`).
+ * Shared Agent permission rules (GUI + `/autonomous` + `runAgentLoop`).
  *
- * Ask/accept/fullAuto live here so every agent loop uses the same auto-approve
+ * Edits/fullAuto live here so every agent loop uses the same auto-approve
  * decision as the product permission bar.
  */
 
@@ -15,21 +15,21 @@ import {
   type AgentToolPolicy,
 } from "../tools/toolPolicy";
 
-export type PermissionMode = "default" | "acceptEdits" | "fullAuto";
+export type PermissionMode = "acceptEdits" | "fullAuto";
 
-export const PERMISSION_MODES: PermissionMode[] = [
-  "default",
-  "acceptEdits",
-  "fullAuto",
-];
+export const PERMISSION_MODES: PermissionMode[] = ["acceptEdits", "fullAuto"];
 
 /**
- * New sessions start in Auto (YOLO) unless K-090 says the folder is a
- * fresh clone (`resolveWorkspacePermissionMode`). Users can switch to Ask
- * (or Edits) from the permission bar; saved modes are never overwritten.
- * Command guard still denies destructive patterns.
+ * New sessions start in Auto (YOLO). Users can switch to Edits from the
+ * permission bar; saved modes are never overwritten. Command guard still
+ * denies destructive patterns. Legacy Ask (`default`) maps to Auto.
  */
 export const DEFAULT_PERMISSION_MODE: PermissionMode = "fullAuto";
+
+/** Accept persisted/protocol Ask (`default`) as Auto. */
+export function normalizePermissionMode(raw: unknown): PermissionMode {
+  return raw === "acceptEdits" ? "acceptEdits" : "fullAuto";
+}
 
 export {
   resolveDefaultPermissionMode,
@@ -117,9 +117,7 @@ export function isToolAutoApproved(params: {
   const explicit =
     params.toolSettings[toolName] ?? params.toolSettings[params.toolName];
   const promptByDefault =
-    params.permissionMode !== "fullAuto" &&
-    (SHELL_CLASS_TOOLS.has(toolName) ||
-      (params.permissionMode === "default" && FILE_EDIT_TOOLS.has(toolName)));
+    params.permissionMode !== "fullAuto" && SHELL_CLASS_TOOLS.has(toolName);
   const setting: ToolSetting =
     explicit ??
     (promptByDefault ? "allowedWithPermission" : DEFAULT_TOOL_SETTING);

@@ -23,7 +23,7 @@ export function onHostMessage(controller: KnoxGuiController, message: IKnoxGuiMe
 	void controller.handleInbound(message.messageType, message.data, message.messageId);
 }
 
-/** Host can force Agent on. Turning it off no longer switches to Chat. */
+/** Host can force Agent on. Turning it off does not change the GUI session. */
 function applyHostAgentMode(controller: KnoxGuiController, active: boolean): void {
 	const next = knoxGuiModeAfterHostAgentFlag(controller.store.state.mode, active);
 	if (!next) {

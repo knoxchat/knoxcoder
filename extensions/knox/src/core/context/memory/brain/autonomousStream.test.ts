@@ -102,15 +102,15 @@ describe("autonomous tool stream events", () => {
       {
         toolCalls: [
           {
-            name: BuiltInToolNames.EditFile,
-            args: { filepath: "a.c", old_string: "x", new_string: "y" },
+            name: BuiltInToolNames.RunTerminalCommand,
+            args: { command: "echo x" },
           },
         ],
       },
       { content: "denied the edit\n[GOAL_COMPLETE]" },
     ]);
-    const editTool = {
-      function: { name: BuiltInToolNames.EditFile },
+    const shellTool = {
+      function: { name: BuiltInToolNames.RunTerminalCommand },
       readonly: false,
     } as Tool;
     const executeTool = vi.fn(async () => [
@@ -121,7 +121,7 @@ describe("autonomous tool stream events", () => {
       llm as unknown as ILLM,
       {
         iteration: 1,
-        goal: "edit a.c",
+        goal: "run a command",
         memoryContext: "",
         maxIterations: 2,
         sessionId: "sess-ask",
@@ -130,7 +130,7 @@ describe("autonomous tool stream events", () => {
       undefined,
       undefined,
       {
-        catalog: [editTool],
+        catalog: [shellTool],
         extras: {
           ide: {} as ToolExtras["ide"],
           llm: llm as unknown as ToolExtras["llm"],
@@ -138,9 +138,9 @@ describe("autonomous tool stream events", () => {
         },
         executeTool,
         permission: {
-          mode: "default",
+          mode: "acceptEdits",
           toolSettings: {
-            [BuiltInToolNames.EditFile]: "allowedWithPermission",
+            [BuiltInToolNames.RunTerminalCommand]: "allowedWithPermission",
           },
           sessionAllowlist: [],
         },

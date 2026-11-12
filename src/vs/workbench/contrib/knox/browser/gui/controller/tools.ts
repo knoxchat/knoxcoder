@@ -318,7 +318,7 @@ export function cyclePermissionMode(controller: KnoxGuiController): void {
 		kind: 'tool_success',
 		files: [],
 		ok: true,
-		policy: next === 'default' ? 'ask' : 'allow',
+		policy: next === 'acceptEdits' ? 'ask' : 'allow',
 		summary: `Permission mode → ${next}`,
 	});
 	void controller.syncPendingTools();

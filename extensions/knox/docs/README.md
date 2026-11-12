@@ -27,23 +27,20 @@ Knox ships **English and Chinese** only (`en` / `zh`, plus `package.nls.json` / 
 
 | Mode | Reads | Edits | Shell |
 |---|---|---|---|
-| Ask | auto | asks | asks |
 | Edits | auto | auto | asks |
 | Auto (default, YOLO) | auto | auto | auto |
 
-New sessions start in Auto for folders Knox has already used, or whose git
-remote is in `knoxchat.trustedGitRemotes`. A **fresh clone** (no prior Knox
-sessions, remote not allowlisted) starts in **Ask**, with a one-line notice
-on the permission bar. `knoxchat.permissionDefault` (`auto` / `ask` / `edits`)
-overrides that heuristic. Saved modes for the folder still win. Switch
-Ask / Edits / Auto from the permission bar, or Shift+Tab.
+New sessions start in Auto. `knoxchat.permissionDefault` (`auto` / `edits`)
+overrides that when the folder has no saved bar choice. Saved modes for the
+folder still win. Switch Edits / Auto from the permission bar, or Shift+Tab.
+Checkpoints restore the tree if a turn goes wrong. Legacy Ask is treated as Auto.
 
-**Plan** is a composer toggle next to those modes, not a fourth permission.
+**Plan** is a composer toggle next to those modes, not a third permission.
 In Plan mode the agent may only read, search, ask, and write a `builtin_plan`
 checklist (explore/review children only). Writes, shell, PTY, and QEMU are
 refused with “leave Plan mode to execute.” When a plan still has remaining
 steps, **Execute plan** switches back to Agent on the same session and runs
-it. Ask / Edits / Auto still apply at execute time.
+it. Edits / Auto still apply at execute time.
 
 Always, in every mode: destructive commands (`git push --force`,
 `git reset --hard`, `git clean -fd`, `chmod -R`, raw device writes, `curl | sh`,

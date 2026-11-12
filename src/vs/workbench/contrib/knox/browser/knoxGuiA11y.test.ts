@@ -126,7 +126,7 @@ suite('K-102 Knox GUI screen-reader and theme pass', () => {
 		assert.deepStrictEqual(unnamedInteractive(widget.root), []);
 
 		store.patch({
-			permissionMode: 'default',
+			permissionMode: 'acceptEdits',
 			toolSettings: { builtin_run_terminal_command: 'allowedWithPermission' },
 			history: [
 				{ id: 'u', role: 'user', content: 'run tests' },

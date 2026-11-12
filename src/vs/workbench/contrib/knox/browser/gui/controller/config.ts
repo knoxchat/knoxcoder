@@ -14,7 +14,7 @@ import { agentProfileDefaults, agentProfileSharedConfig, formatPolicyLines, merg
 import { knoxGuiSettingsTab } from '../../../common/knoxGuiChrome.js';
 import { KNOX_GUI_HEARTBEAT_MS, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { mergeContextProvidersWithDefaults, mergeSlashCommandsWithBuiltins } from '../../../common/knoxGuiInput.js';
-import { IKnoxGuiContextProvider, IKnoxGuiModel, IKnoxGuiSlashCommand, IKnoxGuiState, IKnoxGuiTool, KnoxGuiLanguage, KnoxModelRole, KnoxPermissionDefaultReason, KnoxPermissionMode, MODEL_ROLES, knoxGuiIsDedicatedEditor, knoxGuiJevCatalogId, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiContextProvider, IKnoxGuiModel, IKnoxGuiSlashCommand, IKnoxGuiState, IKnoxGuiTool, KnoxGuiLanguage, KnoxModelRole, MODEL_ROLES, knoxGuiIsDedicatedEditor, knoxGuiIsPersistedPermissionMode, knoxGuiJevCatalogId, knoxGuiNormalizePermissionMode, knoxGuiNormalizePermissionReason, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
 
 export async function setup(controller: KnoxGuiController): Promise<void> {
 	if (controller.store.state.lockedRoute === KnoxGuiRoute.CheckpointGraph) {
@@ -189,10 +189,9 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 	}
 	const sessionPermission = asRecord(experimental?.sessionPermission);
 	const sessionMode = sessionPermission?.mode;
-	const sessionReason = sessionPermission?.reason;
 	const applyHeuristic = !controller.workspacePermissionSaved
 		&& !controller.sessionPermissionApplied
-		&& (sessionMode === 'default' || sessionMode === 'acceptEdits' || sessionMode === 'fullAuto');
+		&& knoxGuiIsPersistedPermissionMode(sessionMode);
 	if (applyHeuristic) {
 		controller.sessionPermissionApplied = true;
 	}
@@ -245,8 +244,8 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 		fatalConfig: errors.some(error => error.fatal),
 		...(applyHeuristic
 			? {
-				permissionMode: sessionMode as KnoxPermissionMode,
-				permissionDefaultReason: (typeof sessionReason === 'string' ? sessionReason : 'fresh_clone') as KnoxPermissionDefaultReason,
+				permissionMode: knoxGuiNormalizePermissionMode(sessionMode),
+				permissionDefaultReason: knoxGuiNormalizePermissionReason(sessionPermission?.reason),
 			}
 			: {}),
 	});

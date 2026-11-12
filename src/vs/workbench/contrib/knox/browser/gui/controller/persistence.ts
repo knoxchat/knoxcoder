@@ -26,8 +26,8 @@ export const PROFILE_PREFERENCES_KEY = 'knox.gui.profilePreferences';
 export function restorePersistedState(controller: KnoxGuiController): void {
 	const ui = knoxGuiParsePersistedUi(controller.storageService.get(UI_STATE_KEY, StorageScope.PROFILE));
 	const workspaceMode = controller.storageService.get(WORKSPACE_PERMISSION_KEY, StorageScope.WORKSPACE);
-	if (workspaceMode === 'default' || workspaceMode === 'acceptEdits' || workspaceMode === 'fullAuto') {
-		ui.permissionMode = workspaceMode;
+	if (workspaceMode === 'acceptEdits' || workspaceMode === 'fullAuto' || workspaceMode === 'default') {
+		ui.permissionMode = workspaceMode === 'acceptEdits' ? 'acceptEdits' : 'fullAuto';
 		controller.workspacePermissionSaved = true;
 	}
 	const parsedTabs = knoxGuiParsePersistedTabs(controller.storageService.get(TABS_KEY, StorageScope.WORKSPACE));

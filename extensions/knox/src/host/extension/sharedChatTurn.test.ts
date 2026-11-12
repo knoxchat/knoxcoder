@@ -112,25 +112,20 @@ suite("K-010 shared chat turn (host runner)", () => {
     assert.strictEqual(isChatTurnRunning("host-s1"), false);
   });
 
-  test("an unknown permission mode falls back to the default (shell/edit still ask)", async () => {
+  test("an unknown permission mode falls back to Auto", async () => {
     const { deps, events } = makeDeps([
       toolRound("c1"),
       [{ role: "assistant", content: "ok" }],
     ]);
-    const turn = runSharedChatTurn(
+    const out = await runSharedChatTurn(
       baseInput({
         permissionMode: "bogus",
         toolSettings: { [READ]: "allowedWithPermission" },
       }),
       deps,
     );
-    // Wait for the ask, then allow it.
-    for (let i = 0; i < 50 && !events.some((e) => e.type === "tool_ask"); i++) {
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-    assert.ok(events.some((e) => e.type === "tool_ask"));
-    resolveAutonomousToolApproval({ sessionId: "host-s1", callId: "c1", allow: true });
-    assert.strictEqual((await turn).stoppedReason, "completed");
+    assert.ok(!events.some((e) => e.type === "tool_ask"));
+    assert.strictEqual(out.stoppedReason, "completed");
   });
 
   test("cancel aborts a pending permission card and kills tools", async () => {
@@ -140,7 +135,7 @@ suite("K-010 shared chat turn (host runner)", () => {
     });
     const turn = runSharedChatTurn(
       baseInput({
-        permissionMode: "default",
+        permissionMode: "acceptEdits",
         toolSettings: { [READ]: "allowedWithPermission" },
       }),
       deps,
@@ -191,7 +186,7 @@ suite("K-010 shared chat turn (host runner)", () => {
     });
     const firstTurn = runSharedChatTurn(
       baseInput({
-        permissionMode: "default",
+        permissionMode: "acceptEdits",
         toolSettings: { [READ]: "allowedWithPermission" },
       }),
       first.deps,

@@ -34,7 +34,6 @@ export const KNOX_CHAT_SETTING_IDS = [
   "knoxchat.deferTools",
   "knoxchat.enableCompositeTools",
   "knoxchat.permissionDefault",
-  "knoxchat.trustedGitRemotes",
   "knoxchat.verifyCommand",
   "knoxchat.verifyMode",
   "knoxchat.verifyMaxIterations",
@@ -84,6 +83,7 @@ export const KNOX_CHECKPOINT_SETTING_IDS = [
 export const KNOX_DEPRECATED_SETTING_IDS = [
   "knoxchat.sandbox",
   "knoxchat.sharedLoop",
+  "knoxchat.trustedGitRemotes",
   "knox.checkpoints.smart.maxCheckpoints",
 ] as const;
 

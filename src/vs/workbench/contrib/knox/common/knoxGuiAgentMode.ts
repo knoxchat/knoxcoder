@@ -3,7 +3,7 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KNOX_GUI_DEFAULT_SESSION_MODE, KnoxChatMode } from './knoxGuiState.js';
+import { KNOX_GUI_DEFAULT_SESSION_MODE, KnoxChatMode, knoxGuiNormalizeSessionMode } from './knoxGuiState.js';
 
 /**
  * KN-350: VS Code when-clause owned by AgentModeManager. Undo/redo keybindings
@@ -16,38 +16,36 @@ export function knoxGuiSessionModeIsAgent(mode: KnoxChatMode): boolean {
 }
 
 /** Session modes the toolbar used to tab between. Edit is a temporary overlay that returns here. */
-export function knoxGuiIsSessionTabMode(mode: KnoxChatMode): mode is 'chat' | 'agent' {
-	return mode === 'chat' || mode === 'agent';
+export function knoxGuiIsSessionTabMode(mode: KnoxChatMode): mode is 'agent' {
+	return mode === 'agent';
 }
 
 /**
- * Users do not pick Chat vs Agent. Chat remains only when the model cannot
- * call tools; Cmd+I edit is unchanged. Harness judgments choose tools per turn when enabled.
+ * Session stays Agent. Models without tools still stream a tool-free turn.
+ * Cmd+I edit is unchanged.
  */
-export function knoxGuiResolveSessionMode(input: { mode: KnoxChatMode; toolsSupported: boolean }): KnoxChatMode {
+export function knoxGuiResolveSessionMode(input: { mode: KnoxChatMode; toolsSupported?: boolean }): KnoxChatMode {
 	if (input.mode === 'edit') {
 		return 'edit';
 	}
-	return input.toolsSupported ? 'agent' : 'chat';
+	return 'agent';
 }
 
 /**
- * Native Composer Cmd+I: leave edit on Agent when tools work. Chat is only
- * restored for models that cannot call tools.
+ * Native Composer Cmd+I: leave edit on Agent. Leftover Chat sessions become Agent.
  */
-export function knoxGuiModeAfterEditExit(returnMode?: KnoxChatMode, nextMode?: KnoxChatMode, toolsSupported = true): KnoxChatMode {
+export function knoxGuiModeAfterEditExit(returnMode?: KnoxChatMode, nextMode?: KnoxChatMode, _toolsSupported = true): KnoxChatMode {
 	const candidate = nextMode && knoxGuiIsSessionTabMode(nextMode)
 		? nextMode
 		: returnMode && knoxGuiIsSessionTabMode(returnMode)
 			? returnMode
 			: KNOX_GUI_DEFAULT_SESSION_MODE;
-	return knoxGuiResolveSessionMode({ mode: candidate, toolsSupported });
+	return knoxGuiResolveSessionMode({ mode: knoxGuiNormalizeSessionMode(candidate) });
 }
 
 /**
  * Host AgentModeManager can force Agent on. Turning the switch off no longer
- * means Chat: harness judgments pick Chat vs Agent when enabled, otherwise Agent only.
- * Cmd+I edit is left only when turning agent on.
+ * changes the GUI session. Cmd+I edit is left only when turning agent on.
  */
 export function knoxGuiModeAfterHostAgentFlag(mode: KnoxChatMode, active: boolean): KnoxChatMode | undefined {
 	if (active) {
@@ -59,7 +57,7 @@ export function knoxGuiModeAfterHostAgentFlag(mode: KnoxChatMode, active: boolea
 /**
  * Parse host `agentModeChanged` `{ active }`. Request/response envelopes from
  * `setAgentMode` (same messageType on the reply path) are ignored so a success
- * reply cannot flip Agent → Chat.
+ * reply cannot flip the session.
  */
 export function knoxGuiHostAgentActiveFromPayload(data: unknown): boolean | undefined {
 	if (!data || typeof data !== 'object') {

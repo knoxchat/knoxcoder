@@ -508,7 +508,7 @@ export async function hydrateLastAssistant(controller: KnoxGuiController, acc: I
 	}
 }
 
-/** `runGuiAgentLoop.ts` onPromptLog: keep the log on the reply; chat mode also sends `devdata/log`. */
+/** `runGuiAgentLoop.ts` onPromptLog: keep the log on the reply. */
 export function recordPromptLog(controller: KnoxGuiController, value: unknown): void {
 	const log = asRecord(value);
 	if (!log || (typeof log.prompt !== 'string' && typeof log.completion !== 'string')) {
@@ -543,19 +543,6 @@ export function recordPromptLog(controller: KnoxGuiController, value: unknown): 
 			break;
 		}
 	}
-	if (state.mode === 'chat') {
-		const model = state.models.find(item => item.title === state.modelTitle);
-		controller.messenger.post('devdata/log', {
-			name: 'chatInteraction',
-			data: {
-				prompt: entry.prompt,
-				completion: entry.completion,
-				modelProvider: model?.provider,
-				modelTitle: state.modelTitle,
-				sessionId: state.sessionId,
-			},
-		});
-	}
 }
 
 /**
@@ -572,7 +559,7 @@ async function runRound(controller: KnoxGuiController, legacySlash?: IKnoxGuiLeg
 			await runSharedTurn(controller);
 			return;
 		}
-		// Chat mode, models without tools and legacy slash commands: one tool-free stream.
+		// Models without tools and legacy slash commands: one tool-free stream.
 		await streamRound(controller, cancel.token, legacySlash);
 		if (controller.turnAborted) {
 			return;

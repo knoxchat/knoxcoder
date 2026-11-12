@@ -636,10 +636,8 @@ export function knoxGuiLocalAutoApprove(params: {
 	permissionMode: KnoxPermissionMode;
 	sessionAllowlist: readonly string[];
 }): boolean {
-	// Mirrors permissions.ts: with no explicit setting, shell-class tools prompt outside Auto,
-	// and in Ask mode file edits prompt too.
-	const promptByDefault = params.permissionMode !== 'fullAuto'
-		&& (KNOX_SHELL_CLASS_TOOL_NAMES.has(params.name) || (params.permissionMode === 'default' && FILE_EDIT_TOOL_NAMES.has(params.name)));
+	// Mirrors permissions.ts: with no explicit setting, shell-class tools prompt outside Auto.
+	const promptByDefault = params.permissionMode !== 'fullAuto' && KNOX_SHELL_CLASS_TOOL_NAMES.has(params.name);
 	const setting = params.toolSettings[params.name] ?? (promptByDefault ? 'allowedWithPermission' : 'allowedWithoutPermission');
 	if (setting === 'disabled' || isAskUserToolName(params.name)) {
 		return false;

@@ -29,14 +29,14 @@ describe("isToolAutoApproved", () => {
     ).toBe(false);
   });
 
-  it("Ask mode prompts on write when the tool requires approval", () => {
+  it("Edits mode still prompts when a write tool is disabled", () => {
     expect(
       isToolAutoApproved({
         toolName: BuiltInToolNames.WriteFile,
         toolSettings: {
-          [BuiltInToolNames.WriteFile]: "allowedWithPermission",
+          [BuiltInToolNames.WriteFile]: "disabled",
         },
-        permissionMode: "default",
+        permissionMode: "acceptEdits",
         args: {
           filepath: path.join(workspaceDirs[0], "src", "a.ts"),
           contents: "x",
@@ -62,7 +62,7 @@ describe("isToolAutoApproved", () => {
     ).toBe(true);
   });
 
-  it("defaults to Auto (YOLO); Ask is opt-in", () => {
+  it("defaults to Auto (YOLO); Edits is opt-in", () => {
     expect(DEFAULT_PERMISSION_MODE).toBe("fullAuto");
   });
 
@@ -77,9 +77,6 @@ describe("isToolAutoApproved", () => {
     expect(
       isToolAutoApproved({ ...base, permissionMode: "acceptEdits" }),
     ).toBe(false);
-    expect(isToolAutoApproved({ ...base, permissionMode: "default" })).toBe(
-      false,
-    );
     expect(isToolAutoApproved({ ...base, permissionMode: "fullAuto" })).toBe(
       true,
     );
@@ -142,7 +139,7 @@ describe("isToolAutoApproved", () => {
     ).toBe(false);
   });
 
-  it("K-091: Auto asks for write-then-run; Ask denies", () => {
+  it("K-091: Auto asks for write-then-run; Edits denies", () => {
     const args = { command: "python evil.py" };
     const recentWrites = [path.join(workspaceDirs[0], "evil.py")];
     expect(
@@ -159,7 +156,7 @@ describe("isToolAutoApproved", () => {
       isToolAutoApproved({
         toolName: BuiltInToolNames.RunTerminalCommand,
         toolSettings: {},
-        permissionMode: "default",
+        permissionMode: "acceptEdits",
         args,
         workspaceDirs,
         recentWrites,
@@ -180,7 +177,7 @@ describe("isToolAutoApproved", () => {
         args,
         workspaceDirs,
         recentWrites,
-        permissionMode: "default",
+        permissionMode: "acceptEdits",
       }),
     ).toBe(true);
   });

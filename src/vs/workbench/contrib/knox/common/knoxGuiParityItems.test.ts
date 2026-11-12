@@ -245,7 +245,7 @@ suite('Knox native parity items', () => {
 		test('I-10 `#` opens the code-to-edit picker only in edit mode and is removed on pick', () => {
 			const doc = [para({ type: 'text', text: 'fix #app' })];
 			assert.deepStrictEqual(detectComposerTrigger(doc, undefined, { mode: 'edit' }), { kind: 'codeToEdit', query: 'app' });
-			assert.strictEqual(detectComposerTrigger(doc, undefined, { mode: 'chat' }), undefined);
+			assert.strictEqual(detectComposerTrigger(doc, undefined, { mode: 'agent' }), undefined);
 			const removed = removeCodeToEditTrigger(doc, { block: 0, offset: 8 });
 			assert.strictEqual(inputDocToPlainText(removed.doc), 'fix ');
 			assert.deepStrictEqual(removed.caret, { block: 0, offset: 4 });

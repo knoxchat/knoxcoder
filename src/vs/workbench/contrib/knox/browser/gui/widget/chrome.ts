@@ -172,12 +172,10 @@ export function renderAgentMenu(widget: KnoxGuiWidget, trigger: HTMLElement, sta
 	const group = DOM.append(menu, DOM.$('.knox-gui-popover-group'));
 	DOM.append(group, DOM.$('.knox-gui-popover-label', undefined, t(state, 'permissionModeGroup')));
 	const permissionLabel: Record<KnoxPermissionMode, string> = {
-		default: t(state, knoxGuiPermissionModeLabelKey('default')),
 		acceptEdits: t(state, knoxGuiPermissionModeLabelKey('acceptEdits')),
 		fullAuto: t(state, knoxGuiPermissionModeLabelKey('fullAuto')),
 	};
 	const permissionHint: Record<KnoxPermissionMode, string> = {
-		default: t(state, knoxGuiPermissionModeHintKey('default')),
 		acceptEdits: t(state, knoxGuiPermissionModeHintKey('acceptEdits')),
 		fullAuto: t(state, knoxGuiPermissionModeHintKey('fullAuto')),
 	};

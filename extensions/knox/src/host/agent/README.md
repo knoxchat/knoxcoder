@@ -4,7 +4,7 @@ The product Agent loop is GUI / CLI / eval → `runChatTurn` / `runAgentLoop` �
 
 ## Keep
 
-- `AgentModeManager` — Ask / Edits / Auto switch and `knox.executeToolCall` → `knox.callToolDirect`
+- `AgentModeManager` — Edits / Auto switch and `knox.executeToolCall` → `knox.callToolDirect`
 - `CommandHistoryService` — snapshot undo/redo (`knox.undoLastOperation`)
 - `ShadowWorkspaceManager` — optional Accept/Reject preview
 - `DiagnosticChecker` / `DiagnosticFixManager` — thin `IDE.runPostEditVerification` adapter (Core owns compile-oracle vs LSP)

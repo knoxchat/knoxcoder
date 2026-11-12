@@ -42,21 +42,16 @@ export function postSetAgentMode(controller: KnoxGuiController): void {
 }
 
 /**
- * Chat vs Agent is not a user tab. Stay on Agent unless the model is known
- * not to support tools (then Chat, no tools). Unknown keeps Agent so harness
- * judgments can still send candidate tools.
+ * Session stays Agent. Models without tools stream a tool-free turn; leftover
+ * Chat from persist is migrated here.
  */
 export function syncAgentTabWithModel(controller: KnoxGuiController): void {
 	if (controller.store.state.mode === 'edit') {
 		return;
 	}
-	const title = controller.store.state.modelTitle;
-	const selected = controller.chatModels().find(model => model.title === title)
-		?? controller.store.state.models.find(model => model.title === title);
-	const toolsKnown = knoxGuiModelToolsSupportKnown(selected);
 	const next = knoxGuiResolveSessionMode({
 		mode: controller.store.state.mode,
-		toolsSupported: toolsKnown !== false,
+		toolsSupported: controller.store.state.toolsSupported,
 	});
 	if (next !== controller.store.state.mode) {
 		setMode(controller, next);

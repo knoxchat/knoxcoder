@@ -636,10 +636,10 @@ export function evaluateToolPolicy(params: {
   /** K-091: files this turn (or last N mutating tools) wrote. */
   recentWrites?: string[];
   /**
-   * Write-then-run: deny in Ask/Edits, ask in Auto. Omitted (middleware)
+   * Write-then-run: deny in Edits, ask in Auto. Omitted (middleware)
    * stays ask so a user-approved Auto call is not hard-denied.
    */
-  permissionMode?: "default" | "acceptEdits" | "fullAuto";
+  permissionMode?: "acceptEdits" | "fullAuto";
 }): PolicyDecision {
   const policy = mergeAgentToolPolicies(
     DEFAULT_AGENT_TOOL_POLICY,
@@ -832,7 +832,7 @@ export function evaluateToolPolicy(params: {
 
 export function policyBlocksAutoApprove(
   decision: PolicyDecision,
-  permissionMode: "default" | "acceptEdits" | "fullAuto",
+  permissionMode: "acceptEdits" | "fullAuto",
 ): boolean {
   if (decision.action === "deny") {
     return true;
@@ -857,7 +857,7 @@ export function assertToolPolicyAllowed(params: {
   policy?: AgentToolPolicy | null;
   workspaceDirs?: string[];
   recentWrites?: string[];
-  permissionMode?: "default" | "acceptEdits" | "fullAuto";
+  permissionMode?: "acceptEdits" | "fullAuto";
 }): void {
   const decision = evaluateToolPolicy(params);
   if (decision.action === "deny") {

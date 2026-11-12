@@ -44,7 +44,7 @@ export const knoxGuiStringsEnSettings: Record<string, unknown> = {
 	"discardChanges": "Discard Changes",
 	"noChangesToReview": "No changes to review",
 	"jevEnabled": "Harness judgments",
-	"jevEnabledHint": "Decisions models for Chat vs Agent routing, skill hints, context/tool gates, and citation checks. Uses your signed-in Knox Chat or OpenRouter account. Fail-open to current heuristics. When off, Agent mode is always used.",
+	"jevEnabledHint": "Decisions models for View/Read vs main-model routing, skill hints, context/tool gates, and citation checks. Uses your signed-in Knox Chat or OpenRouter account. Fail-open to current heuristics. When off, Agent always uses the main model.",
 	"jevModel": "Decisions model",
 	"jevModelHint": "TypeSafe Jev works with Knox Chat or OpenRouter. Gemini Decision 1 is OpenRouter-only (text, images, audio, video, and documents). Knox currently sends attached images from chat.",
 	"jevModelJev": "Jev (TypeSafe)",

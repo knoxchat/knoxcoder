@@ -39,7 +39,6 @@ export const KNOX_SETTING_GROUPS: KnoxSettingGroup[] = [
       "knoxchat.deferTools",
       "knoxchat.enableCompositeTools",
       "knoxchat.permissionDefault",
-      "knoxchat.trustedGitRemotes",
     ],
   },
   {
@@ -76,7 +75,7 @@ export const KNOX_SETTING_GROUPS: KnoxSettingGroup[] = [
     id: "deprecated",
     label: "Deprecated",
     description: "Removed keys kept so old settings.json still loads; they are ignored",
-    match: ["knoxchat.sandbox", "knoxchat.sharedLoop"],
+    match: ["knoxchat.sandbox", "knoxchat.sharedLoop", "knoxchat.trustedGitRemotes"],
   },
 ];
 

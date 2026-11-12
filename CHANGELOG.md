@@ -3,6 +3,10 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+### Removed
+
+- **Chat session mode and Ask permission mode.** Knox Agent is Agent-only (plus Cmd+I edit). The permission bar is Edits / Auto. Leftover Chat sessions become Agent; leftover Ask (`default`) becomes Auto. Models without tools still stream a tool-free turn. Checkpoints are the rollback path. `knoxchat.trustedGitRemotes` and the fresh-clone Ask heuristic are gone; `knoxchat.permissionDefault` is `auto` / `edits`.
+
 ### Added
 
 - **Harness judgments (Decisions models).** Knox Settings lists Decisions models when the toggle is on: TypeSafe Jev (Knox Chat or OpenRouter) and Google Gemini Decision 1 (`google/gemini-decision-1`, OpenRouter-only). Gemini reads images from the top-level System One `state` array (any `image/*` data URL or public https URL). Settings copy, the status bar chip (Jev or Gemini), and "Show Judgments Log" describe harness judgments rather than Jev alone. Pick the model in Settings or with `knoxchat.jev.model` / YAML `jev.model`.

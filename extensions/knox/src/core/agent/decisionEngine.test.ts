@@ -153,17 +153,16 @@ describe("DecisionEngine decision table", () => {
     expect(d.needsConfirmation).toBe(false);
   });
 
-  it("asks for confirmation in ask mode and default permission mode", () => {
+  it("asks for confirmation when autoReplay is ask", () => {
     expect(decide(base({ autoReplay: "ask" })).needsConfirmation).toBe(true);
-    expect(decide(base({ permissionMode: "default" })).needsConfirmation).toBe(true);
     expect(decide(base({ permissionMode: "fullAuto" })).needsConfirmation).toBe(false);
     expect(decide(base({ permissionMode: "acceptEdits" })).needsConfirmation).toBe(false);
   });
 
-  it("Ask permission still confirms a byte-identical exact replay", () => {
-    const d = decide(base({ permissionMode: "default", autoReplay: "exact" }));
+  it("Auto and Edits do not force confirm a byte-identical exact replay", () => {
+    const d = decide(base({ permissionMode: "fullAuto", autoReplay: "exact" }));
     expect(d.mode).toBe("exact");
-    expect(d.needsConfirmation).toBe(true);
+    expect(d.needsConfirmation).toBe(false);
   });
 
   it("asks before composing disjoint recipes", () => {

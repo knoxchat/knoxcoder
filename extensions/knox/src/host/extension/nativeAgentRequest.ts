@@ -44,11 +44,9 @@ import type {
 } from "core/protocol/nativeAgent";
 import { hydrateAssistantTextToolCalls } from "core/llm/parseTextToolCalls";
 import {
-  DEFAULT_PERMISSION_MODE,
-  PERMISSION_MODES,
   isToolAutoApproved,
+  normalizePermissionMode,
   resolvePermissionToolName,
-  type PermissionMode,
   type ToolSetting,
 } from "core/agent/permissions";
 import {
@@ -281,8 +279,6 @@ export async function buildNativeAgentRequest(
   return output;
 }
 
-const PERMISSION_MODE_SET = new Set<string>(PERMISSION_MODES);
-
 export function evaluateNativeToolPolicy(
   input: NativeToolPolicyInput,
   experimental: PolicyExperimental | undefined,
@@ -303,9 +299,7 @@ export function evaluateNativeToolPolicy(
   if (hardDeny) {
     return { hardDeny, autoApproved: false, reason: decision.reason };
   }
-  const permissionMode = PERMISSION_MODE_SET.has(input.permissionMode)
-    ? (input.permissionMode as PermissionMode)
-    : DEFAULT_PERMISSION_MODE;
+  const permissionMode = normalizePermissionMode(input.permissionMode);
   return {
     hardDeny,
     autoApproved: isToolAutoApproved({

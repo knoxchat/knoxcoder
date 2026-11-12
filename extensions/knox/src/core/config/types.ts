@@ -557,8 +557,7 @@ declare global {
     deferTools?: boolean;
     enableCompositeTools?: boolean;
     rustAnalyzerAvailable?: boolean;
-    permissionDefault?: "auto" | "ask" | "edits";
-    trustedGitRemotes?: string[];
+    permissionDefault?: "auto" | "edits";
   }
   
   export interface IDE {
@@ -1050,17 +1049,10 @@ declare global {
       baseUrl?: string;
     };
 
-    permissionDefault?: "auto" | "ask" | "edits";
-    trustedGitRemotes?: string[];
+    permissionDefault?: "auto" | "edits";
     sessionPermission?: {
-      mode: "default" | "acceptEdits" | "fullAuto";
-      reason:
-        | "saved"
-        | "setting"
-        | "known_project"
-        | "trusted_remote"
-        | "fresh_clone"
-        | "default";
+      mode: "acceptEdits" | "fullAuto";
+      reason: "saved" | "setting" | "default";
     };
   }
   

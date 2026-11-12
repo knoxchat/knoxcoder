@@ -1,6 +1,6 @@
 /**
  * User-facing Plan mode (P2.1): read-only explore + builtin_plan until Execute.
- * Not a fourth permission; Ask/Edits/Auto still apply when the user executes.
+ * Not a third permission; Edits/Auto still apply when the user executes.
  */
 
 import type { Tool } from "..";

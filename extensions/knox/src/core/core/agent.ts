@@ -8,11 +8,7 @@ import {
   workspaceKindHints,
 } from "../config/agentProfile";
 import { getJevConfirmedProfile } from "../jev/config";
-import {
-  DEFAULT_PERMISSION_MODE,
-  PERMISSION_MODES,
-  type PermissionMode,
-} from "../agent/permissions";
+import { normalizePermissionMode } from "../agent/permissions";
 import { startBackgroundAgentJob } from "../cli/backgroundRun";
 import type { AgentJobsRequest, AgentJobsResponse } from "../protocol/agentJobs";
 import { localPathOrUriToPath } from "../util/pathToUri";
@@ -79,11 +75,7 @@ async function startBackgroundFromCore(
   const settings: IdeSettings = await core.ide.getIdeSettings().catch(
     (): IdeSettings => ({}),
   );
-  const permissionMode = PERMISSION_MODES.includes(
-    data.permissionMode as PermissionMode,
-  )
-    ? (data.permissionMode as PermissionMode)
-    : DEFAULT_PERMISSION_MODE;
+  const permissionMode = normalizePermissionMode(data.permissionMode);
   const kind = await detectWorkspaceKindFromIde(core.ide);
   const profile = overlayAutoProfile(
     config?.experimental,

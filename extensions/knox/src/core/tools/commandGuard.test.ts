@@ -111,7 +111,7 @@ describe("evaluateToolPolicy shell guard", () => {
     expect(run("export Y=rm; $Y -rf /tmp/x").action).toBe("deny");
   });
 
-  it("K-091: write-then-run is deny in Ask and ask in Auto", () => {
+  it("K-091: write-then-run is deny in Edits and ask in Auto", () => {
     const recentWrites = ["/ws/evil.py"];
     expect(
       evaluateToolPolicy({
@@ -120,7 +120,7 @@ describe("evaluateToolPolicy shell guard", () => {
         workspaceDirs: ["/ws"],
         home: "/home/u",
         recentWrites,
-        permissionMode: "default",
+        permissionMode: "acceptEdits",
       }).action,
     ).toBe("deny");
     const auto = evaluateToolPolicy({

@@ -336,7 +336,6 @@ export function ideSettingsToExperimental(ide: {
   memoryBrainEnabled?: unknown;
   memoryBrainWorkspaceEnabled?: unknown;
   permissionDefault?: unknown;
-  trustedGitRemotes?: unknown;
 }): {
   agentProfile?: AgentProfileSetting;
   agentMaxSteps?: number;
@@ -350,8 +349,7 @@ export function ideSettingsToExperimental(ide: {
   compatInstructions?: Array<"cursor" | "copilot">;
   memoryBrainEnabled?: boolean;
   memoryBrainWorkspaceEnabled?: boolean;
-  permissionDefault?: "auto" | "ask" | "edits";
-  trustedGitRemotes?: string[];
+  permissionDefault?: "auto" | "edits";
 } {
   const out: ReturnType<typeof ideSettingsToExperimental> = {};
   if (isAgentProfileSetting(ide.agentProfile)) {
@@ -382,17 +380,8 @@ export function ideSettingsToExperimental(ide: {
   if (typeof ide.memoryBrainWorkspaceEnabled === "boolean") {
     out.memoryBrainWorkspaceEnabled = ide.memoryBrainWorkspaceEnabled;
   }
-  if (
-    ide.permissionDefault === "auto" ||
-    ide.permissionDefault === "ask" ||
-    ide.permissionDefault === "edits"
-  ) {
+  if (ide.permissionDefault === "auto" || ide.permissionDefault === "edits") {
     out.permissionDefault = ide.permissionDefault;
-  }
-  if (Array.isArray(ide.trustedGitRemotes)) {
-    out.trustedGitRemotes = ide.trustedGitRemotes.filter(
-      (h): h is string => typeof h === "string" && h.trim().length > 0,
-    );
   }
   if (typeof ide.agentMaxSteps === "number" && Number.isFinite(ide.agentMaxSteps)) {
     out.agentMaxSteps = ide.agentMaxSteps;

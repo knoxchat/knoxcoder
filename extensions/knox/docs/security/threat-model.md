@@ -63,7 +63,7 @@ A page tries to steer the agent or to make it request internal URLs.
   size and time are capped. Fetched text is redacted on the way in.
 - Not covered: DNS rebinding between check and connect (documented in `fetchUrl.ts`). Data can still
   be leaked to a public URL by a fetch whose query string carries it. `knoxchat.networkMode` (`deny`
-  or `allowlist`) limits `builtin_fetch_url`; keep sensitive work in Edits or Ask mode.
+  or `allowlist`) limits `builtin_fetch_url`; keep sensitive work in Edits mode.
 
 ### Tool output
 Build logs or test output contain instructions or secrets.
@@ -113,11 +113,11 @@ robustness against adversarial input).
 **Known limits.** A denylist cannot be complete. Closed cheap cases (K-091): one-hop
 `VAR=cmd; $VAR …` / `eval "$VAR"` for the existing destructive patterns, and an interpreter
 (`sh`/`bash`/`python`/`node`) running a workspace path this turn (or the last N mutating
-tools) just wrote — deny in Ask/Edits, ask in Auto. Still open: encoded scripts, `make`
+tools) just wrote — deny in Edits, ask in Auto. Still open: encoded scripts, `make`
 recipes, multi-hop indirection, and scripts written outside the recent-write window.
-Product default is `fullAuto` (YOLO) except fresh clones (K-090). Switch to `default`
-(Ask) or `acceptEdits` for untrusted work so writes and shell prompt. `fullAuto`
-on an untrusted repo should be treated as a disposable environment.
+Product default is `fullAuto` (YOLO). Switch to `acceptEdits` so the terminal
+prompts. Checkpoints restore the tree after Auto. `fullAuto` on an untrusted
+repo should be treated as a disposable environment.
 
 ## Redaction sinks
 

@@ -76,8 +76,8 @@ export interface NativeStartTurnInput {
   sessionId: string;
   title: string;
   userMessage: string;
-  /** Chat permission bar (`Ask` forces recipe confirmation). */
-  permissionMode?: "default" | "acceptEdits" | "fullAuto";
+  /** Agent permission bar (Edits asks for terminal; Auto YOLO). */
+  permissionMode?: "acceptEdits" | "fullAuto";
 }
 
 export interface NativeStartTurnOutput {

@@ -9,10 +9,10 @@ import { emptyInputDoc, IKnoxGuiInputBlock } from './knoxGuiInput.js';
 import { KnoxGuiOverlay, KnoxGuiRoute, lumpOverlaySectionForPath, knoxGuiRouteFromPath } from './knoxGuiProtocol.js';
 import type { IKnoxGuiCheckpointGraphUi } from './knoxGuiCheckpoints.js';
 
-export type KnoxChatMode = 'chat' | 'agent' | 'edit';
+export type KnoxChatMode = 'agent' | 'edit';
 export type KnoxGuiEditStatus = 'not-started' | 'streaming' | 'accepting' | 'accepting:full-diff' | 'done';
-export type KnoxPermissionMode = 'default' | 'acceptEdits' | 'fullAuto';
-export type KnoxPermissionDefaultReason = 'saved' | 'setting' | 'known_project' | 'trusted_remote' | 'fresh_clone' | 'default';
+export type KnoxPermissionMode = 'acceptEdits' | 'fullAuto';
+export type KnoxPermissionDefaultReason = 'saved' | 'setting' | 'default';
 export type KnoxGuiLanguage = 'en' | 'zh';
 export type KnoxToolStatus = 'generating' | 'generated' | 'calling' | 'done' | 'canceled' | 'errored';
 export type KnoxToolSetting = 'allowedWithPermission' | 'allowedWithoutPermission' | 'disabled';
@@ -35,10 +35,10 @@ export interface IKnoxGuiVscTheme {
 	colors?: Record<string, string>;
 }
 
-/** Session starts in Agent. Chat vs Agent is not a user tab; harness judgments pick per turn when enabled. */
+/** Session is Agent. Cmd+I is a temporary edit overlay that returns here. */
 export const KNOX_GUI_DEFAULT_SESSION_MODE: KnoxChatMode = 'agent';
 export const DEFAULT_PERMISSION_MODE: KnoxPermissionMode = 'fullAuto';
-export const PERMISSION_MODES: KnoxPermissionMode[] = ['default', 'acceptEdits', 'fullAuto'];
+export const PERMISSION_MODES: KnoxPermissionMode[] = ['acceptEdits', 'fullAuto'];
 export const MODEL_ROLES: KnoxModelRole[] = ['chat', 'edit', 'apply', 'viewRead', 'realTimeSearch'];
 
 /** Harness judgments catalog (`jev.model` / `knoxchat.jev.model`). */
@@ -60,36 +60,42 @@ export function knoxGuiJevCatalogId(model: unknown): KnoxGuiJevModelId {
 	return KNOX_GUI_JEV_MODEL_JEV;
 }
 
-export function knoxGuiPermissionModeLabelKey(mode: KnoxPermissionMode): 'permissionModeAsk' | 'permissionModeEdits' | 'permissionModeAuto' {
-	if (mode === 'acceptEdits') {
-		return 'permissionModeEdits';
-	}
-	if (mode === 'fullAuto') {
-		return 'permissionModeAuto';
-	}
-	return 'permissionModeAsk';
+/** Leftover Chat session mode becomes Agent. */
+export function knoxGuiNormalizeSessionMode(raw: unknown): KnoxChatMode {
+	return raw === 'edit' ? 'edit' : 'agent';
 }
 
-export function knoxGuiPermissionModeHintKey(mode: KnoxPermissionMode): 'permissionModeAskHint' | 'permissionModeEditsHint' | 'permissionModeAutoHint' {
-	if (mode === 'acceptEdits') {
-		return 'permissionModeEditsHint';
+export function knoxGuiIsPersistedSessionMode(raw: unknown): raw is KnoxChatMode | 'chat' {
+	return raw === 'agent' || raw === 'edit' || raw === 'chat';
+}
+
+/** Leftover Ask (`default`) becomes Auto. */
+export function knoxGuiNormalizePermissionMode(raw: unknown): KnoxPermissionMode {
+	return raw === 'acceptEdits' ? 'acceptEdits' : 'fullAuto';
+}
+
+export function knoxGuiIsPersistedPermissionMode(raw: unknown): raw is KnoxPermissionMode | 'default' {
+	return raw === 'acceptEdits' || raw === 'fullAuto' || raw === 'default';
+}
+
+export function knoxGuiNormalizePermissionReason(raw: unknown): KnoxPermissionDefaultReason {
+	if (raw === 'saved' || raw === 'setting') {
+		return raw;
 	}
-	if (mode === 'fullAuto') {
-		return 'permissionModeAutoHint';
-	}
-	return 'permissionModeAskHint';
+	return 'default';
+}
+
+export function knoxGuiPermissionModeLabelKey(mode: KnoxPermissionMode): 'permissionModeEdits' | 'permissionModeAuto' {
+	return mode === 'acceptEdits' ? 'permissionModeEdits' : 'permissionModeAuto';
+}
+
+export function knoxGuiPermissionModeHintKey(mode: KnoxPermissionMode): 'permissionModeEditsHint' | 'permissionModeAutoHint' {
+	return mode === 'acceptEdits' ? 'permissionModeEditsHint' : 'permissionModeAutoHint';
 }
 
 export function nextPermissionMode(current: KnoxPermissionMode): KnoxPermissionMode {
 	const idx = PERMISSION_MODES.indexOf(current);
 	return PERMISSION_MODES[(idx + 1) % PERMISSION_MODES.length];
-}
-
-export function knoxGuiShowsFreshCloneNotice(state: Pick<IKnoxGuiState, 'permissionMode' | 'permissionDefaultReason' | 'permissionNoticeDismissed' | 'history'>): boolean {
-	return !state.permissionNoticeDismissed
-		&& state.permissionMode === 'default'
-		&& state.permissionDefaultReason === 'fresh_clone'
-		&& state.history.length === 0;
 }
 
 export function knoxGuiShowsYoloNotice(state: Pick<IKnoxGuiState, 'permissionMode' | 'permissionNoticeDismissed' | 'history'>): boolean {
@@ -1021,7 +1027,7 @@ export interface IKnoxGuiState {
 	isLoadingHistory: boolean;
 	mode: KnoxChatMode;
 	permissionMode: KnoxPermissionMode;
-	/** K-090: why this session started in Ask/Auto. Not persisted. */
+	/** Why this session started in Auto/Edits. Not persisted. */
 	permissionDefaultReason?: KnoxPermissionDefaultReason;
 	/** Plan-mode toggle: read-only explore + builtin_plan until Execute. */
 	planMode: boolean;
@@ -1121,7 +1127,7 @@ export interface IKnoxGuiState {
 	editStatus: KnoxGuiEditStatus;
 	editPreviousInputs: string[];
 	editFileAfterEdit?: string;
-	/** Session tab to restore after Cmd+I edit. Never persisted. Chat vs Agent is judgment-picked. */
+	/** Session tab to restore after Cmd+I edit. Never persisted. */
 	editReturnMode?: KnoxChatMode;
 	images: { name: string; imageUrl: string }[];
 	historicalImages: string[];

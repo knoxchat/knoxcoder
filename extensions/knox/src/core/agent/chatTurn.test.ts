@@ -161,7 +161,7 @@ describe("runChatTurn", () => {
         }
       },
       permission: {
-        mode: "default",
+        mode: "acceptEdits",
         toolSettings: { [BuiltInToolNames.ReadFile]: "allowedWithPermission" },
         sessionAllowlist,
       },
@@ -200,7 +200,7 @@ describe("runChatTurn", () => {
         }
       },
       permission: {
-        mode: "default",
+        mode: "acceptEdits",
         toolSettings: { [BuiltInToolNames.ReadFile]: "allowedWithPermission" },
         sessionAllowlist: [],
       },
@@ -229,7 +229,7 @@ describe("runChatTurn", () => {
         }
       },
       permission: {
-        mode: "default",
+        mode: "acceptEdits",
         toolSettings: { [BuiltInToolNames.ReadFile]: "allowedWithPermission" },
         sessionAllowlist: [],
       },

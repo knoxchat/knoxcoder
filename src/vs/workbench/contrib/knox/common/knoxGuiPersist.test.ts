@@ -16,13 +16,13 @@ suite('Knox native persistence and permission helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('persisted UI round-trips and drops malformed fields', () => {
-		const state = { ...createInitialKnoxGuiState(), toolSettings: { builtin_run_terminal_command: 'disabled' as const }, toolGroupExcluded: ['web'], webSearchEnabled: true, permissionMode: 'acceptEdits' as const, mode: 'chat' as const };
+		const state = { ...createInitialKnoxGuiState(), toolSettings: { builtin_run_terminal_command: 'disabled' as const }, toolGroupExcluded: ['web'], webSearchEnabled: true, permissionMode: 'acceptEdits' as const, mode: 'agent' as const };
 		assert.deepStrictEqual(knoxGuiParsePersistedUi(knoxGuiSerializePersistedUi(state)), {
 			toolSettings: { builtin_run_terminal_command: 'disabled' },
 			toolGroupExcluded: ['web'],
 			webSearchEnabled: true,
 			permissionMode: 'acceptEdits',
-			mode: 'chat',
+			mode: 'agent',
 			codeToEdit: [],
 			overlay: null,
 			addModelModalProvider: 'knoxchat',
@@ -113,7 +113,7 @@ suite('Knox native persistence and permission helpers', () => {
 	});
 
 	test('local auto-approve follows permissions.ts ordering and guards checkpoint restore/delete', () => {
-		const base = { toolSettings: {}, permissionMode: 'default' as const, sessionAllowlist: [] };
+		const base = { toolSettings: {}, permissionMode: 'acceptEdits' as const, sessionAllowlist: [] };
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_read_file' }), true);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_ask_user', permissionMode: 'fullAuto' }), false);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_edit_file', toolSettings: { builtin_edit_file: 'disabled' }, permissionMode: 'fullAuto' }), false);
@@ -134,11 +134,12 @@ suite('Knox native persistence and permission helpers', () => {
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_run_terminal_command', permissionMode: 'acceptEdits', toolSettings: { builtin_run_terminal_command: 'allowedWithoutPermission' } }), true);
 	});
 
-	test('saved Ask/Edits survive the Auto (YOLO) default', () => {
+	test('saved Edits survive the Auto (YOLO) default; leftover Chat/Ask become Agent/Auto', () => {
 		assert.strictEqual(DEFAULT_PERMISSION_MODE, 'fullAuto');
 		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ permissionMode: 'fullAuto' })).permissionMode, 'fullAuto');
-		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ permissionMode: 'default' })).permissionMode, 'default');
+		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ permissionMode: 'default' })).permissionMode, 'fullAuto');
 		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ permissionMode: 'acceptEdits' })).permissionMode, 'acceptEdits');
+		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({ mode: 'chat' })).mode, 'agent');
 		assert.strictEqual(knoxGuiParsePersistedUi(JSON.stringify({})).permissionMode, undefined);
 	});
 

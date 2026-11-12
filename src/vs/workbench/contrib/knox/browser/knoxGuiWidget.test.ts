@@ -154,7 +154,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(center.querySelector('[data-testid="knox-gui-scroll-top"]'), null);
 	});
 
-	test('Ask/Edits/Auto is the mode dropdown; Chat vs Agent is not a user tab', async () => {
+	test('Edits/Auto is the mode dropdown', async () => {
 		const { widget, store } = await mount();
 		const trigger = widget.root.querySelector('[data-testid="knox-gui-mode-select"]') as HTMLButtonElement | null;
 		assert.ok(trigger);
@@ -172,7 +172,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(menu.parentElement, widget.root);
 		const items = Array.from(menu.querySelectorAll<HTMLButtonElement>('.knox-gui-popover-item'));
 		assert.ok(items.length >= 5);
-		items[2].click();
+		items[1].click();
 		assert.strictEqual(store.state.permissionMode, 'fullAuto');
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-agent-menu"]'), null);
 		const reopen = widget.root.querySelector('[data-testid="knox-gui-mode-select"]') as HTMLButtonElement | null;
@@ -744,7 +744,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(!row().querySelector('[data-testid="permission-action-buttons"]'));
 		store.patch({ sessionToolAllowlist: [], permissionMode: 'fullAuto' });
 		assert.ok(!row().querySelector('[data-testid="permission-action-buttons"]'));
-		store.patch({ permissionMode: 'default' });
+		store.patch({ permissionMode: 'acceptEdits' });
 		const actions = row().querySelector('[data-testid="permission-action-buttons"]');
 		assert.ok(actions);
 		assert.strictEqual(actions.getAttribute('role'), 'group');

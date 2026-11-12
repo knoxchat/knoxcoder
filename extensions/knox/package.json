@@ -127,7 +127,7 @@
 				"knoxchat.jev.enabled": {
 					"type": "boolean",
 					"default": true,
-					"markdownDescription": "Enable harness judgments (System One Decisions models): Chat vs Agent routing, skill hints, passage/tool gates, citation checks, and `auto` profile confirm. Uses your KnoxStudio or OpenRouter API key (OAuth session or yaml). Optional `jev.apiKey` override. KnoxStudio calls https://api.knoxstudio.ai/v1/systemone; OpenRouter calls https://openrouter.ai/api/v1/systemone. Pick the Decisions model with `knoxchat.jev.model` (TypeSafe Jev or Gemini Decision 1). Fail-open to current heuristics. YAML `jev.enabled` overrides this."
+					"markdownDescription": "Enable harness judgments (System One Decisions models): View/Read vs main-model routing, skill hints, passage/tool gates, citation checks, and `auto` profile confirm. Uses your KnoxStudio or OpenRouter API key (OAuth session or yaml). Optional `jev.apiKey` override. KnoxStudio calls https://api.knoxstudio.ai/v1/systemone; OpenRouter calls https://openrouter.ai/api/v1/systemone. Pick the Decisions model with `knoxchat.jev.model` (TypeSafe Jev or Gemini Decision 1). Fail-open to current heuristics. YAML `jev.enabled` overrides this."
 				},
 				"knoxchat.jev.model": {
 					"type": "string",
@@ -243,10 +243,9 @@
 					"type": "string",
 					"enum": [
 						"auto",
-						"ask",
 						"edits"
 					],
-					"markdownDescription": "Override the new-session permission heuristic. Unset: Auto for folders Knox already used (or remotes in `knoxchat.trustedGitRemotes`); Ask for a fresh clone. Saved permission-bar modes still win."
+					"markdownDescription": "New-session permission when this folder has no saved bar choice. Unset or `auto`: Auto (YOLO). `edits`: auto-approve file edits and ask for the terminal. Saved permission-bar modes still win. Checkpoints can restore the tree after Auto runs. Legacy `ask` is treated as Auto."
 				},
 				"knoxchat.trustedGitRemotes": {
 					"type": "array",
@@ -254,7 +253,8 @@
 						"type": "string"
 					},
 					"default": [],
-					"markdownDescription": "Git remote URL substrings that keep new sessions in Auto even without prior Knox state (e.g. `github.com/torvalds/linux`). Empty = no remotes are trusted for that heuristic."
+					"deprecationMessage": "Removed. New sessions start in Auto; use the permission bar or knoxchat.permissionDefault. Checkpoints are the rollback path.",
+					"markdownDeprecationMessage": "Removed. New sessions start in Auto; use the permission bar or `knoxchat.permissionDefault`. Checkpoints are the rollback path. This key is ignored."
 				},
 				"knoxchat.verifyCommand": {
 					"type": "string",

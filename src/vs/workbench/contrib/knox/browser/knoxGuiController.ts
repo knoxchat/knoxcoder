@@ -56,9 +56,9 @@ export class KnoxGuiController extends Disposable {
 	sharedTurnQueue: Promise<void> = Promise.resolve();
 	/** First workspace folder URI (`window.workspacePaths[0]` in the reference); '' without a folder. */
 	workspaceDirectory = '';
-	/** K-090: this folder already has a saved permission mode; heuristic must not overwrite. */
+	/** This folder already has a saved permission mode; heuristic must not overwrite. */
 	workspacePermissionSaved = false;
-	/** K-090: Core sessionPermission applied this window; config reloads must not re-flip. */
+	/** Core sessionPermission applied this window; config reloads must not re-flip. */
 	sessionPermissionApplied = false;
 	mentionLiveTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Caret of the last composer input; triggers and chips are resolved there instead of at the end. */

@@ -77,11 +77,11 @@ suite('Knox native GUI i18n', () => {
 		assert.strictEqual(knoxGuiT('en', 'jevEnabled'), 'Harness judgments');
 		assert.strictEqual(knoxGuiT('en', 'jevModel'), 'Decisions model');
 		assert.notStrictEqual(knoxGuiT('en', 'jevEnabled'), knoxGuiT('zh', 'jevEnabled'));
-		assert.ok(knoxGuiT('en', 'permissionModeAsk').includes('Ask'));
-		assert.ok(knoxGuiT('en', 'permissionNoticeAsk').includes('Ask'));
-		assert.ok(knoxGuiT('zh', 'permissionNoticeAsk').length > 0);
-		assert.ok(knoxGuiT('en', 'permissionNoticeFreshClone').includes('Ask'));
-		assert.ok(knoxGuiT('zh', 'permissionNoticeFreshClone').length > 0);
+		assert.ok(knoxGuiT('en', 'permissionModeEdits').includes('Edits'));
+		assert.ok(knoxGuiT('en', 'permissionNoticeEdits').includes('Edits'));
+		assert.ok(knoxGuiT('zh', 'permissionNoticeEdits').length > 0);
+		assert.ok(knoxGuiT('en', 'policyAsk').includes('Ask'));
+		assert.ok(knoxGuiT('zh', 'policyAsk').length > 0);
 		assert.ok(knoxGuiT('en', 'planMode').includes('Plan'));
 		assert.ok(knoxGuiT('zh', 'planMode').length > 0);
 		assert.ok(knoxGuiT('en', 'executePlan').includes('Execute'));

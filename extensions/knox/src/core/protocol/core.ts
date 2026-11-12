@@ -514,7 +514,7 @@ export type ToCoreFromIdeOrWebviewProtocol = {
       goal: string;
       maxIterations?: number;
       modelTitle?: string;
-      permissionMode?: "default" | "acceptEdits" | "fullAuto";
+      permissionMode?: "acceptEdits" | "fullAuto";
       toolSettings?: Record<
         string,
         "allowedWithPermission" | "allowedWithoutPermission" | "disabled"
@@ -706,7 +706,7 @@ export type ToCoreFromIdeOrWebviewProtocol = {
     {
       toolName: string;
       args?: unknown;
-      permissionMode?: "default" | "acceptEdits" | "fullAuto";
+      permissionMode?: "acceptEdits" | "fullAuto";
     },
     {
       action: "allow" | "ask" | "deny";

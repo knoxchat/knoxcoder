@@ -50,25 +50,7 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 			onClick: () => widget.controller.store.patch({ historyHydrateNotice: null }),
 		});
 	}
-	if (!state.permissionNoticeDismissed && state.permissionMode === 'default' && state.permissionDefaultReason === 'fresh_clone' && state.history.length === 0) {
-		const banner = DOM.append(body, DOM.$('.knox-gui-large-banner'));
-		banner.setAttribute('role', 'status');
-		banner.setAttribute('data-testid', 'permission-notice');
-		DOM.append(banner, DOM.$('span', undefined, t(state, 'permissionNoticeFreshClone')));
-		widget.chromeButton(banner, {
-			label: t(state, 'permissionNoticeKeepAsk'),
-			testId: 'permission-notice-keep',
-			onClick: () => widget.controller.store.patch({ permissionNoticeDismissed: true }),
-		});
-		widget.chromeButton(banner, {
-			label: t(state, 'permissionNoticeUseAuto'),
-			testId: 'permission-notice-auto',
-			onClick: () => {
-				widget.controller.setPermissionMode('fullAuto');
-				widget.controller.store.patch({ permissionNoticeDismissed: true });
-			},
-		});
-	} else if (!state.permissionNoticeDismissed && state.permissionMode === 'fullAuto' && state.history.length === 0) {
+	if (!state.permissionNoticeDismissed && state.permissionMode === 'fullAuto' && state.history.length === 0) {
 		const banner = DOM.append(body, DOM.$('.knox-gui-large-banner'));
 		banner.setAttribute('role', 'status');
 		banner.setAttribute('data-testid', 'permission-notice');
@@ -79,10 +61,10 @@ export function renderChat(widget: KnoxGuiWidget, body: HTMLElement, state: IKno
 			onClick: () => widget.controller.store.patch({ permissionNoticeDismissed: true }),
 		});
 		widget.chromeButton(banner, {
-			label: t(state, 'permissionNoticeAsk'),
-			testId: 'permission-notice-ask',
+			label: t(state, 'permissionNoticeEdits'),
+			testId: 'permission-notice-edits',
 			onClick: () => {
-				widget.controller.setPermissionMode('default');
+				widget.controller.setPermissionMode('acceptEdits');
 				widget.controller.store.patch({ permissionNoticeDismissed: true });
 			},
 		});

@@ -5,7 +5,7 @@
 
 import { KNOX_GUI_SETTINGS_NAV, type KnoxGuiSettingsTab } from './knoxGuiChrome.js';
 import { KNOX_GUI_OVERLAYS, KnoxGuiOverlay } from './knoxGuiProtocol.js';
-import { IKnoxGuiHistoryItem, IKnoxGuiSessionTab, IKnoxGuiState, KnoxChatMode, KnoxGuiLanguage, KnoxModelRole, KnoxPermissionMode, KnoxToolSetting, MODEL_ROLES } from './knoxGuiState.js';
+import { IKnoxGuiHistoryItem, IKnoxGuiSessionTab, IKnoxGuiState, KnoxChatMode, KnoxGuiLanguage, KnoxModelRole, KnoxPermissionMode, KnoxToolSetting, MODEL_ROLES, knoxGuiIsPersistedPermissionMode, knoxGuiIsPersistedSessionMode, knoxGuiNormalizePermissionMode, knoxGuiNormalizeSessionMode } from './knoxGuiState.js';
 
 /** `redux/store.ts` persisted `ui` subset plus `session.mode`. */
 export interface IKnoxGuiPersistedUi {
@@ -77,8 +77,6 @@ export const KNOX_AUTOSAVE_DEBOUNCE_MS = 2000;
 export const KNOX_AUTOSAVE_MIN_INTERVAL_MS = 5000;
 
 const TOOL_SETTINGS = new Set<string>(['allowedWithPermission', 'allowedWithoutPermission', 'disabled']);
-const PERMISSION_MODES = new Set<string>(['default', 'acceptEdits', 'fullAuto']);
-const PERSISTED_MODES = new Set<string>(['chat', 'agent', 'edit']);
 
 function parseJson(raw: string | undefined): Record<string, unknown> | undefined {
 	if (!raw) {
@@ -190,8 +188,8 @@ export function knoxGuiParsePersistedUi(raw: string | undefined): Partial<IKnoxG
 	if (typeof rec.webSearchEnabled === 'boolean') {
 		out.webSearchEnabled = rec.webSearchEnabled;
 	}
-	if (typeof rec.permissionMode === 'string' && PERMISSION_MODES.has(rec.permissionMode)) {
-		out.permissionMode = rec.permissionMode as KnoxPermissionMode;
+	if (knoxGuiIsPersistedPermissionMode(rec.permissionMode)) {
+		out.permissionMode = knoxGuiNormalizePermissionMode(rec.permissionMode);
 	}
 	if (typeof rec.permissionNoticeDismissed === 'boolean') {
 		out.permissionNoticeDismissed = rec.permissionNoticeDismissed;
@@ -199,8 +197,8 @@ export function knoxGuiParsePersistedUi(raw: string | undefined): Partial<IKnoxG
 	if (typeof rec.memoryNoticeDismissed === 'boolean') {
 		out.memoryNoticeDismissed = rec.memoryNoticeDismissed;
 	}
-	if (typeof rec.mode === 'string' && PERSISTED_MODES.has(rec.mode)) {
-		out.mode = rec.mode as KnoxChatMode;
+	if (knoxGuiIsPersistedSessionMode(rec.mode)) {
+		out.mode = knoxGuiNormalizeSessionMode(rec.mode);
 	}
 	if (Array.isArray(rec.codeToEdit)) {
 		out.codeToEdit = rec.codeToEdit.filter((code): code is IKnoxGuiState['codeToEdit'][number] => {

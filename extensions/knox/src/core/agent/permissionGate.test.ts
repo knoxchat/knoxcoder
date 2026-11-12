@@ -4,7 +4,7 @@ import { resolveToolPermission } from "./permissionGate";
 
 const base = (over = {}) => ({
   permission: {
-    mode: "default" as const,
+    mode: "acceptEdits" as const,
     toolSettings: {},
     sessionAllowlist: [] as string[],
   },

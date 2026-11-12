@@ -29,7 +29,7 @@ export function knoxGuiSettingsTab(tab: string | undefined): KnoxGuiSettingsTab 
 	return KNOX_GUI_SETTINGS_NAV.some(item => item.id === tab) ? tab as KnoxGuiSettingsTab : 'general';
 }
 
-/** Session Chat/Agent tabs are gone; harness judgments (or Agent-only) pick. Edit is Cmd+I only. */
+/** Session stays Agent. Edit is Cmd+I only. */
 export const KNOX_GUI_MODE_TABS: KnoxChatMode[] = [];
 
 export function knoxGuiLumpLabelVisible(overlay: KnoxGuiOverlay, id: string): boolean {
@@ -202,7 +202,7 @@ export function knoxGuiShowsAgentMeter(mode: KnoxChatMode): boolean {
 	return mode === 'agent';
 }
 
-/** Agent always has the meter. Chat/edit only mount it while context is gathering. */
+/** Agent always has the meter. Edit only mounts it while context is gathering. */
 export function knoxGuiShowsComposerAgentMeter(state: { mode: KnoxChatMode; isGatheringContext?: boolean }): boolean {
 	return knoxGuiShowsAgentMeter(state.mode) || Boolean(state.isGatheringContext);
 }

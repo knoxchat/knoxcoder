@@ -346,7 +346,7 @@ describe("evaluateToolPolicy", () => {
       policyBlocksAutoApprove({ action: "deny", reason: "x" }, "fullAuto"),
     ).toBe(true);
     expect(
-      policyBlocksAutoApprove({ action: "ask", reason: "x" }, "default"),
+      policyBlocksAutoApprove({ action: "ask", reason: "x" }, "acceptEdits"),
     ).toBe(true);
     expect(
       policyBlocksAutoApprove({ action: "ask", reason: "x" }, "fullAuto"),

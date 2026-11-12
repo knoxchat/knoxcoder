@@ -554,7 +554,7 @@ function renderPolicyRulesEditor(widget: KnoxGuiWidget, parent: HTMLElement, sta
 	for (const value of ['ask', 'deny', 'allow'] as const) {
 		const option = DOM.append(external, DOM.$('option')) as HTMLOptionElement;
 		option.value = value;
-		option.textContent = value === 'ask' ? t(state, 'permissionModeAsk') : value === 'deny' ? t(state, 'deny') : t(state, 'policyAllow');
+		option.textContent = value === 'ask' ? t(state, 'policyAsk') : value === 'deny' ? t(state, 'deny') : t(state, 'policyAllow');
 		if (state.policy.externalDirectory === value) {
 			option.selected = true;
 		}
@@ -1099,7 +1099,6 @@ function renderSettingsHeading(parent: HTMLElement, title: string, hint: string)
 }
 
 function renderSettingsGeneral(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState, compact: boolean): void {
-	const dedicated = knoxGuiIsDedicatedEditor(state);
 	if (!compact) {
 		renderSettingsHeading(parent, t(state, 'generalSettings'), t(state, 'generalSettingsHint'));
 	}
@@ -1181,9 +1180,6 @@ function renderSettingsGeneral(widget: KnoxGuiWidget, parent: HTMLElement, state
 		widget.toggle(jev, '', state.jevEnabled, value => {
 			widget.controller.store.patch({ jevEnabled: value });
 			void widget.controller.updateSharedConfig({ jevEnabled: value });
-			if (!dedicated && widget.controller.store.state.toolsSupported && widget.controller.store.state.mode === 'chat') {
-				widget.controller.setMode('agent');
-			}
 		});
 		if (state.jevEnabled) {
 			const modelRow = DOM.append(el, DOM.$('.knox-gui-row.knox-gui-settings-stack'));

@@ -227,7 +227,7 @@ function slotValuesFromEvent(
  * normal agent loop is never affected.
  */
 export async function decideRecipeAtTurnStart(
-  input: { userMessage: string; permissionMode?: "default" | "acceptEdits" | "fullAuto" },
+  input: { userMessage: string; permissionMode?: "acceptEdits" | "fullAuto" },
   workspaceDir: string,
   replayHost?: import("./recipeReplay").RecipeReplayHost,
 ): Promise<{ event: import("core/agent/recipeDecisionTurn").RecipeDecisionEvent; hint?: string } | undefined> {

@@ -55,9 +55,9 @@ suite('Knox agent loop contract (KN-260–267)', () => {
 		assert.ok(repoFile('extensions/knox/src/core/agent/doomLoop.ts').includes('fail_streak'));
 	});
 
-	test('KN-263: permission modes default | acceptEdits | fullAuto', () => {
+	test('KN-263: permission modes acceptEdits | fullAuto', () => {
 		const policy = repoFile('extensions/knox/src/core/tools/toolPolicy.ts');
-		assert.ok(policy.includes('permissionMode: "default" | "acceptEdits" | "fullAuto"'));
+		assert.ok(policy.includes('permissionMode: "acceptEdits" | "fullAuto"'));
 		assert.ok(policy.includes('allowedWithPermission') || policy.includes('fullAuto'));
 	});
 

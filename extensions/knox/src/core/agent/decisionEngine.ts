@@ -60,7 +60,7 @@ export interface Decision {
   /** One line for logs and the GUI (MC-24/25). */
   why: string;
   recipeId?: string;
-  /** Exact/adapt would apply files: ask the user first (autoReplay=ask, or permission mode `default`). */
+  /** Exact/adapt would apply files: ask the user first when autoReplay is `ask`. */
   needsConfirmation: boolean;
 }
 
@@ -170,6 +170,6 @@ export function decide(input: DecisionInput): Decision {
 
   const { stats } = match.recipe;
   const record = `used ${stats.ok}x, ${stats.reverted} reverts`;
-  const needsConfirmation = forceConfirm || setting === "ask" || input.permissionMode === "default";
+  const needsConfirmation = forceConfirm || setting === "ask";
   return done(mode, `${why} (${record})`, match, needsConfirmation);
 }

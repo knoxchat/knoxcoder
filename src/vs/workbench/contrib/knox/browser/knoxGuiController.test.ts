@@ -257,21 +257,21 @@ suite('Knox native GUI controller (GP-084)', () => {
 		const editor = widget.root.querySelector('[data-testid="knox-gui-input"]') as HTMLElement | null;
 		assert.ok(editor);
 		editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
-		// Default is Auto (YOLO). Shift+Tab moves to Ask, then Edits, then back to Auto.
-		assert.strictEqual(store.state.permissionMode, 'default');
-		store.cyclePermissionMode();
+		// Default is Auto (YOLO). Shift+Tab moves to Edits, then back to Auto.
 		assert.strictEqual(store.state.permissionMode, 'acceptEdits');
 		store.cyclePermissionMode();
 		assert.strictEqual(store.state.permissionMode, 'fullAuto');
+		store.cyclePermissionMode();
+		assert.strictEqual(store.state.permissionMode, 'acceptEdits');
 	});
 
-	test('K-090 Core sessionPermission Ask is not a saved workspace mode', async () => {
+	test('Core sessionPermission Edits is not a saved workspace mode', async () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const freshReplies = {
 			'config/getSerializedProfileInfo': {
 				config: {
 					experimental: {
-						sessionPermission: { mode: 'default', reason: 'fresh_clone' },
+						sessionPermission: { mode: 'acceptEdits', reason: 'setting' },
 					},
 				},
 			},
@@ -280,19 +280,19 @@ suite('Knox native GUI controller (GP-084)', () => {
 		};
 		const first = createHarness({ replies: freshReplies, storage });
 		await timeout(0);
-		assert.strictEqual(first.store.state.permissionMode, 'default');
-		assert.strictEqual(first.store.state.permissionDefaultReason, 'fresh_clone');
+		assert.strictEqual(first.store.state.permissionMode, 'acceptEdits');
+		assert.strictEqual(first.store.state.permissionDefaultReason, 'setting');
 		assert.strictEqual(first.controller.workspacePermissionSaved, false);
 		assert.strictEqual(storage.get(WORKSPACE_PERMISSION_KEY, StorageScope.WORKSPACE), undefined);
 
 		first.controller.applyConfig({
 			config: {
 				experimental: {
-					sessionPermission: { mode: 'fullAuto', reason: 'known_project' },
+					sessionPermission: { mode: 'fullAuto', reason: 'default' },
 				},
 			},
 		});
-		assert.strictEqual(first.store.state.permissionMode, 'default', 'config reload must not re-flip this window');
+		assert.strictEqual(first.store.state.permissionMode, 'acceptEdits', 'config reload must not re-flip this window');
 
 		first.controller.setPermissionMode('fullAuto');
 		assert.strictEqual(first.controller.workspacePermissionSaved, true);
@@ -304,14 +304,14 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(second.store.state.permissionDefaultReason, 'saved');
 	});
 
-	test('K-090 second window without a user toggle re-applies Core known_project Auto', async () => {
+	test('second window without a user toggle re-applies Core Auto', async () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const first = createHarness({
 			replies: {
 				'config/getSerializedProfileInfo': {
 					config: {
 						experimental: {
-							sessionPermission: { mode: 'default', reason: 'fresh_clone' },
+							sessionPermission: { mode: 'acceptEdits', reason: 'setting' },
 						},
 					},
 				},
@@ -321,7 +321,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 			storage,
 		});
 		await timeout(0);
-		assert.strictEqual(first.store.state.permissionMode, 'default');
+		assert.strictEqual(first.store.state.permissionMode, 'acceptEdits');
 		assert.strictEqual(storage.get(WORKSPACE_PERMISSION_KEY, StorageScope.WORKSPACE), undefined);
 
 		const second = createHarness({
@@ -329,7 +329,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 				'config/getSerializedProfileInfo': {
 					config: {
 						experimental: {
-							sessionPermission: { mode: 'fullAuto', reason: 'known_project' },
+							sessionPermission: { mode: 'fullAuto', reason: 'default' },
 						},
 					},
 				},
@@ -340,7 +340,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		});
 		await timeout(0);
 		assert.strictEqual(second.store.state.permissionMode, 'fullAuto');
-		assert.strictEqual(second.store.state.permissionDefaultReason, 'known_project');
+		assert.strictEqual(second.store.state.permissionDefaultReason, 'default');
 		assert.strictEqual(second.controller.workspacePermissionSaved, false);
 	});
 
@@ -912,10 +912,10 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(posted.some(message => message.messageType === 'edit/exit'));
 		assert.ok(posted.some(message => message.messageType === 'rejectDiff'));
 
-		store.patch({ mode: 'chat', history: [{ id: 'u2', role: 'user', content: 'ask' }], sessionId: 'chat-prev' });
+		store.patch({ mode: 'agent', history: [{ id: 'u2', role: 'user', content: 'ask' }], sessionId: 'chat-prev' });
 		await controller.handleInbound('focusEdit', undefined, 'fe-2');
 		assert.strictEqual(store.state.mode, 'edit');
-		assert.strictEqual(store.state.editReturnMode, 'chat');
+		assert.strictEqual(store.state.editReturnMode, 'agent');
 		await controller.handleInbound('exitEditMode', undefined, 'ex-2');
 		assert.strictEqual(store.state.mode, 'agent');
 	});
@@ -929,8 +929,8 @@ suite('Knox native GUI controller (GP-084)', () => {
 		});
 		await timeout(0);
 		store.patch({
-			mode: 'chat',
-			editReturnMode: 'chat',
+			mode: 'agent',
+			editReturnMode: 'agent',
 			sessionId: 'edit-session',
 			history: [{ id: 'e', role: 'user', content: 'edit this' }],
 		});
@@ -1195,15 +1195,15 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(!posted.some(message => message.messageType === 'llm/streamChat'));
 	});
 
-	test('KN-350 setMode posts setAgentMode for the Chat/Agent switch', async () => {
+	test('KN-350 setMode posts setAgentMode for Agent vs Edit', async () => {
 		const { controller, store, posted } = createHarness();
 		await timeout(0);
 		assert.strictEqual(store.state.mode, 'agent');
-		controller.setMode('chat');
-		assert.strictEqual(store.state.mode, 'chat');
+		controller.setMode('edit');
+		assert.strictEqual(store.state.mode, 'edit');
 		assert.ok(posted.some(message => message.messageType === 'setAgentMode' && (message.data as { active?: boolean }).active === false));
 		posted.length = 0;
-		controller.setMode('agent');
+		await controller.exitEditMode('agent', { restoreLastSession: false });
 		assert.strictEqual(store.state.mode, 'agent');
 		assert.ok(posted.some(message => message.messageType === 'setAgentMode' && (message.data as { active?: boolean }).active === true));
 		posted.length = 0;
@@ -1217,7 +1217,6 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.mode, 'agent');
 		await controller.handleInbound('agentModeChanged', { active: false }, 'am-off');
 		assert.strictEqual(store.state.mode, 'agent');
-		store.patch({ mode: 'chat' });
 		await controller.handleInbound('agentModeChanged', { active: true }, 'am-on');
 		assert.strictEqual(store.state.mode, 'agent');
 		await controller.handleInbound('setAgentMode', {
@@ -1231,7 +1230,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(store.state.mode, 'edit');
 	});
 
-	test('KN-350 agent tab stays Agent until the model is known not to support tools', async () => {
+	test('KN-350 agent tab stays Agent even when the model cannot call tools', async () => {
 		const { controller, store, posted } = createHarness();
 		await timeout(0);
 		assert.strictEqual(store.state.mode, 'agent');
@@ -1252,8 +1251,8 @@ suite('Knox native GUI controller (GP-084)', () => {
 			},
 		});
 		assert.strictEqual(store.state.toolsSupported, false);
-		assert.strictEqual(store.state.mode, 'chat');
-		assert.ok(posted.some(message => message.messageType === 'setAgentMode' && (message.data as { active?: boolean }).active === false));
+		assert.strictEqual(store.state.mode, 'agent');
+		assert.ok(!posted.some(message => message.messageType === 'setAgentMode' && (message.data as { active?: boolean }).active === false));
 		posted.length = 0;
 		controller.applyConfig({
 			config: {
@@ -1703,13 +1702,13 @@ suite('Knox native GUI controller (GP-084)', () => {
 		await first.controller.saveCurrentSession();
 		const save = first.posted.find(message => message.messageType === 'history/save');
 		assert.strictEqual((save?.data as { workspaceDirectory: string }).workspaceDirectory, 'file:///repo');
-		first.store.patch({ permissionMode: 'default', toolSettings: { builtin_edit_file: 'disabled' } });
+		first.store.patch({ permissionMode: 'acceptEdits', toolSettings: { builtin_edit_file: 'disabled' } });
 
 		const second = createHarness({ replies, storage });
 		await timeout(0);
 		const loads = second.posted.filter(message => message.messageType === 'history/load').map(message => (message.data as { id: string }).id);
 		assert.deepStrictEqual(loads, ['older']);
-		assert.strictEqual(second.store.state.permissionMode, 'default');
+		assert.strictEqual(second.store.state.permissionMode, 'acceptEdits');
 		assert.deepStrictEqual(second.store.state.toolSettings, { builtin_edit_file: 'disabled' });
 
 		second.store.newSession();
@@ -1780,9 +1779,9 @@ suite('Knox native GUI controller (GP-084)', () => {
 	test('A-26 mode switch is ignored while streaming; entering edit saves and opens a new session', async () => {
 		const { controller, store, posted } = createHarness({ replies: { 'history/save': {} } });
 		await timeout(0);
-		store.patch({ mode: 'chat', isStreaming: true });
-		controller.setMode('agent');
-		assert.strictEqual(store.state.mode, 'chat');
+		store.patch({ mode: 'agent', isStreaming: true });
+		controller.setMode('edit');
+		assert.strictEqual(store.state.mode, 'agent');
 		store.patch({ isStreaming: false, sessionId: 'old', history: [{ id: 'u', role: 'user', content: 'hi' }] });
 		controller.setMode('edit');
 		await timeout(0);
@@ -1796,11 +1795,11 @@ suite('Knox native GUI controller (GP-084)', () => {
 	test('I-20 Shift+Tab cycle records a soul event and re-syncs pending tools', async () => {
 		const { controller, store, posted } = createHarness();
 		await timeout(0);
-		store.patch({ mode: 'agent', permissionMode: 'default' });
+		store.patch({ mode: 'agent', permissionMode: 'fullAuto' });
 		controller.cyclePermissionMode();
 		assert.strictEqual(store.state.permissionMode, 'acceptEdits');
 		const soul = posted.find(message => message.messageType === 'brain/recordSoulEvent');
-		assert.strictEqual((soul?.data as { policy?: string; summary?: string }).policy, 'allow');
+		assert.strictEqual((soul?.data as { policy?: string; summary?: string }).policy, 'ask');
 		assert.strictEqual((soul?.data as { summary?: string }).summary, 'Permission mode → acceptEdits');
 	});
 
@@ -2095,7 +2094,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 			},
 		});
 		await timeout(0);
-		store.patch({ mode: 'chat' });
+		store.patch({ toolsSupported: false });
 		store.setInput('hi');
 		await controller.submit();
 		await timeout(0);
@@ -2601,7 +2600,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		const { controller, store, posted } = createHarness();
 		await timeout(0);
 		store.patch({
-			mode: 'chat',
+			mode: 'agent',
 			modelTitle: 'GPT-4o',
 			isStreaming: false,
 			history: [

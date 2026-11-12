@@ -1751,8 +1751,7 @@ class VsCodeIde implements IDE {
       rustAnalyzerAvailable: Boolean(
         vscode.extensions.getExtension("rust-lang.rust-analyzer")?.isActive,
       ),
-      permissionDefault: knox.get<"auto" | "ask" | "edits">("permissionDefault"),
-      trustedGitRemotes: knox.get<string[]>("trustedGitRemotes") ?? [],
+      permissionDefault: knox.get<"auto" | "edits">("permissionDefault"),
       agentVerifyCommand: verifyCommand || undefined,
       agentVerifyMode: knox.get<"diagnostics" | "command" | "off">(
         "verifyMode",

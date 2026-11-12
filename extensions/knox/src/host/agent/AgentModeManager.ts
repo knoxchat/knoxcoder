@@ -22,8 +22,8 @@ export { AgentModeStatus } from './agentModeStatus';
 
 /**
  * KN-350: one host switch for GUI `session.mode === "agent"`.
- * Command palette / KnoxAPI can still force Agent on. Turning Agent off no
- * longer switches the GUI to Chat. The GUI follows `agentModeChanged`.
+ * Command palette / KnoxAPI can still force Agent on. Turning Agent off does
+ * not change the GUI session. The GUI follows `agentModeChanged`.
  * Context key `knoxAgentModeActive` is set only here.
  */
 export class AgentModeManager implements vscode.Disposable {

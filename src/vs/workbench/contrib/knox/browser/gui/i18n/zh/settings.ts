@@ -44,7 +44,7 @@ export const knoxGuiStringsZhSettings: Record<string, unknown> = {
 	"discardChanges": "放弃更改",
 	"noChangesToReview": "没有需要审查的更改",
 	"jevEnabled": "判断层",
-	"jevEnabledHint": "用判断模型做对话/助理路由、技能提示、上下文/工具闸门和引用检查。使用已登录的 Knox Chat 或 OpenRouter 账号。失败时回退到现有启发式。关闭后始终使用助理模式。",
+	"jevEnabledHint": "用判断模型做查看/阅读与主模型路由、技能提示、上下文/工具闸门和引用检查。使用已登录的 Knox Chat 或 OpenRouter 账号。失败时回退到现有启发式。关闭后助理始终使用主模型。",
 	"jevModel": "判断模型",
 	"jevModelHint": "TypeSafe Jev 可用于 Knox Chat 或 OpenRouter。Gemini Decision 1 仅通过 OpenRouter，可读文本、图像、音频、视频和文档。Knox 目前只发送对话中的图片附件。",
 	"jevModelJev": "Jev（TypeSafe）",

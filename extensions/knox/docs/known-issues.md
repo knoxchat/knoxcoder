@@ -1,6 +1,6 @@
 # Known issues in 2.3.2
 
-- **Command guard limits.** One-hop `VAR=cmd; $VAR` / `eval "$VAR"` and “write a script, then run it” (`python evil.py` after a write this turn) are now blocked or prompted (K-091). Encoded scripts, `make` recipes, and deeper indirection are still open. Stay in Edits or Ask for untrusted work. See the [threat model](security/threat-model.md).
+- **Command guard limits.** One-hop `VAR=cmd; $VAR` / `eval "$VAR"` and “write a script, then run it” (`python evil.py` after a write this turn) are now blocked or prompted (K-091). Encoded scripts, `make` recipes, and deeper indirection are still open. Stay in Edits for untrusted work. See the [threat model](security/threat-model.md).
 - **Unsigned installers** may trigger SmartScreen (Windows) until a certificate is available.
 - **Ghost-text inline completion stays off** (no fill-in-the-middle model). Copilot-style next-edit is not planned. In-editor assist is ⌘I, Apply from chat, and review-before-edit; 2.1 adds comment/stub CodeLens and a next related edit after Accept.
 - **Multi-root workspaces:** the folder of the active editor file is the primary root (shell, git, builds, relative paths); search, glob, instruction files, hooks and custom agents cover all roots. Nested `.knoxignore` is honored. Checkpoints are stored per folder.

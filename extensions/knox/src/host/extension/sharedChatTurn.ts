@@ -3,8 +3,7 @@ import { runChatTurn, type ChatTurnEvent } from "core/agent/chatTurn";
 import type { DoomLoopCall } from "core/agent/doomLoop";
 import type { HookRunner } from "core/hooks/hooks";
 import {
-  DEFAULT_PERMISSION_MODE,
-  PERMISSION_MODES,
+  normalizePermissionMode,
   type PermissionMode,
   type ToolSetting,
 } from "core/agent/permissions";
@@ -82,7 +81,6 @@ function isCancelledMessage(message: string): boolean {
   return /cancel+ed|aborted/i.test(message);
 }
 
-const PERMISSION_MODE_SET = new Set<string>(PERMISSION_MODES);
 const active = new Map<string, AbortController>();
 /** Sessions that already ran a turn in this process (for the SessionStart hook). */
 const startedSessions = new Set<string>();
@@ -179,11 +177,7 @@ export async function runSharedChatTurn(
       planMode: input.planMode,
     });
     const policy = await deps.getPolicy();
-    const mode: PermissionMode = PERMISSION_MODE_SET.has(
-      input.permissionMode ?? "",
-    )
-      ? (input.permissionMode as PermissionMode)
-      : DEFAULT_PERMISSION_MODE;
+    const mode: PermissionMode = normalizePermissionMode(input.permissionMode);
     const turnId = input.turnId ?? sessionId;
     const fallback = await deps.resolveFallbackLlm?.().catch(() => null);
     const maxSteps =

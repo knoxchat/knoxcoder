@@ -759,10 +759,8 @@ export interface IdeSettings {
   enableCompositeTools?: boolean;
   /** Live rust-analyzer so Core can use LSP on `.rs` (K-082). */
   rustAnalyzerAvailable?: boolean;
-  /** K-090: overrides the fresh-clone Ask heuristic. */
-  permissionDefault?: "auto" | "ask" | "edits";
-  /** Git remote URL substrings that keep new sessions in Auto. */
-  trustedGitRemotes?: string[];
+  /** `knoxchat.permissionDefault` overlay. Legacy `ask` is ignored (Auto). */
+  permissionDefault?: "auto" | "edits";
 }
 
 export interface FileStats {
@@ -1739,23 +1737,15 @@ export interface ExperimentalConfig {
     baseUrl?: string;
   };
 
-  /** K-090: `knoxchat.permissionDefault` overlay. */
-  permissionDefault?: "auto" | "ask" | "edits";
-  /** K-090: git remote URL substrings that keep new sessions in Auto. */
-  trustedGitRemotes?: string[];
+  /** `knoxchat.permissionDefault` overlay. Legacy `ask` is ignored (Auto). */
+  permissionDefault?: "auto" | "edits";
   /**
-   * Computed default for a new session in this workspace (Core heuristic).
+   * Computed default for a new session in this workspace.
    * GUI applies it unless the user already saved a mode for the folder.
    */
   sessionPermission?: {
-    mode: "default" | "acceptEdits" | "fullAuto";
-    reason:
-      | "saved"
-      | "setting"
-      | "known_project"
-      | "trusted_remote"
-      | "fresh_clone"
-      | "default";
+    mode: "acceptEdits" | "fullAuto";
+    reason: "saved" | "setting" | "default";
   };
 }
 
