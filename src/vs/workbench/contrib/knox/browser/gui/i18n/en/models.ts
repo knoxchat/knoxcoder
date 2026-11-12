@@ -3,8 +3,6 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable */
-
 export const knoxGuiStringsEnModels: Record<string, unknown> = {
 	"addModel": "Add Model",
 	"selectModel": "Select Model",
@@ -77,6 +75,7 @@ export const knoxGuiStringsEnModels: Record<string, unknown> = {
 	"failedToLoadModels": "Failed to load models, please check your network connection",
 	"model": "Model",
 	"connect": "Connect",
+	"alreadyConnected": "Already connected",
 	"realTimeSearchRole": "RealTime Search",
 	"usedForRealTimeSearch": "Used for web search operations, ideal for models like Sonar Pro that excel at real-time web searches",
 	"addUpdateRoleModel": "Add/Update {{role}} model",

@@ -752,10 +752,10 @@ suite('Knox native GUI controller (GP-084)', () => {
 			profileId: 'p1',
 			settingsTab: 'models',
 			modelTitle: 'DeepSeek V4.1 Flash',
-			selectedModelByRole: { chat: 'DeepSeek V4.1 Flash', edit: 'Existing Haiku 5.5' },
+			selectedModelByRole: { chat: 'DeepSeek V4.1 Flash', edit: 'Existing Sonnet 5.5' },
 			models: [
 				{ title: 'DeepSeek V4.1 Flash', provider: 'knoxchat', model: 'deepseek/deepseek-v4.1-flash' },
-				{ title: 'Existing Haiku 5.5', provider: 'knoxchat', model: 'anthropic/claude-haiku-5.5' },
+				{ title: 'Existing Sonnet 5.5', provider: 'knoxchat', model: 'anthropic/claude-sonnet-5.5' },
 			],
 		});
 		settings.posted.length = 0;
@@ -790,6 +790,41 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(chat.store.state.modelTitle, 'Anthropic: Claude Haiku 5.5');
 		assert.strictEqual(chat.store.state.overlay, 'tools');
 		assert.strictEqual(chat.store.state.mode, 'agent');
+	});
+
+	test('Connect does not add a duplicate when the catalog model is already connected', async () => {
+		const { controller, store, posted } = createHarness({
+			lock: KnoxGuiRoute.Config,
+			replies: { 'config/addModel': 'Anthropic: Claude Haiku 5.5' },
+		});
+		await timeout(0);
+		store.patch({
+			settingsTab: 'models',
+			models: [{ title: 'Anthropic: Claude Haiku 5.5', provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' }],
+			modelTitle: 'DeepSeek V4.1 Flash',
+			selectedModelByRole: { chat: 'DeepSeek V4.1 Flash' },
+		});
+		posted.length = 0;
+		await controller.addConfiguredModel('openrouter', {
+			title: 'Anthropic: Claude Haiku 5.5',
+			params: { title: 'Anthropic: Claude Haiku 5.5', model: 'anthropic/claude-haiku-5.5', contextLength: 128000 },
+		});
+		assert.ok(!posted.some(message => message.messageType === 'config/addModel'));
+		assert.strictEqual(store.state.modelTitle, 'Anthropic: Claude Haiku 5.5');
+
+		store.patch({ models: [], modelsByRole: { chat: [], edit: [], apply: [], viewRead: [], realTimeSearch: [] } });
+		posted.length = 0;
+		await controller.addConfiguredModel('openrouter', {
+			title: 'Anthropic: Claude Haiku 5.5',
+			params: { title: 'Anthropic: Claude Haiku 5.5', model: 'anthropic/claude-haiku-5.5', contextLength: 128000 },
+		});
+		assert.ok(posted.some(message => message.messageType === 'config/addModel'));
+		posted.length = 0;
+		await controller.addConfiguredModel('openrouter', {
+			title: 'Anthropic: Claude Haiku 5.5',
+			params: { title: 'Anthropic: Claude Haiku 5.5', model: 'anthropic/claude-haiku-5.5', contextLength: 128000 },
+		});
+		assert.ok(!posted.some(message => message.messageType === 'config/addModel'));
 	});
 
 	test('chat Add Model reaches Settings Connect and selects the composer model', async () => {
@@ -1459,6 +1494,8 @@ suite('Knox native GUI controller (GP-084)', () => {
 
 		store.navigate('/addModel/provider/openrouter');
 		store.patch({
+			models: [],
+			modelsByRole: { chat: [], edit: [], apply: [], viewRead: [], realTimeSearch: [] },
 			openrouterOauthConnected: false,
 			addModelDraft: { apiKey: 'sk-or-v1-paste' },
 		});

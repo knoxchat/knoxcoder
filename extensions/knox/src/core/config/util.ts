@@ -48,6 +48,32 @@ export function uniqueYamlModelName(
   return `${withProvider} (${n})`;
 }
 
+/** YAML name of an already-connected catalog model (same provider + model id). */
+export function existingYamlModelName(
+  models: readonly unknown[],
+  provider: string | undefined,
+  modelId: string | undefined,
+): string | undefined {
+  if (!provider || !modelId) {
+    return undefined;
+  }
+  for (const item of models) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const rec = item as { name?: unknown; provider?: unknown; model?: unknown };
+    if (
+      rec.provider === provider &&
+      rec.model === modelId &&
+      typeof rec.name === "string" &&
+      rec.name.trim()
+    ) {
+      return rec.name;
+    }
+  }
+  return undefined;
+}
+
 /** Connect always selects the composer model; every action uses that model. */
 export function addModelSelectRole(_role?: string): ModelRole {
   return "chat";
@@ -65,6 +91,15 @@ export function addModel(
 
   let yamlTitle = model.title ?? "";
   editConfigFile((config) => {
+    const existingName = existingYamlModelName(
+      config.models ?? [],
+      model.provider,
+      model.model,
+    );
+    if (existingName) {
+      yamlTitle = existingName;
+      return config;
+    }
     const existing = (config.models ?? [])
       .map((m: any) => (typeof m?.name === "string" ? m.name : ""))
       .filter(Boolean);

@@ -23,6 +23,8 @@ All notable changes to KnoxCoder are documented in this file.
 
 ### Fixed
 
+- **Settings > Models Connect stays a one-shot per catalog model.** After a model is connected and selected, Connect is inactive so extra clicks cannot add duplicate picker entries.
+
 - **Windows ARM64 desktop build.** gulp `vscode-win32-arm64-min` typecheck no longer dies because tsrs has no `@tsrs/win32-arm64` binary. That host uses TypeScript 7 Go `tsc` (`@typescript/typescript-win32-arm64`) instead.
 
 ## [2.3.2] - 2026-11-08

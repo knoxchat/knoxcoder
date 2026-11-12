@@ -5,7 +5,7 @@
 
 import type { KnoxGuiController } from '../../knoxGuiController.js';
 import { asRecord, asArray } from './helpers.js';
-import { knoxGuiCatalogEntriesFromOverlayModels, knoxGuiChatPickerModels, knoxGuiGetReasoningModelKeys, knoxGuiModelSupportsImages, knoxGuiModelToolsSupportKnown, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiResolveToolsSupported, knoxGuiSeedModelCatalog, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
+import { knoxGuiCatalogEntriesFromOverlayModels, knoxGuiChatPickerModels, knoxGuiFindConnectedCatalogModel, knoxGuiGetReasoningModelKeys, knoxGuiModelSupportsImages, knoxGuiModelToolsSupportKnown, knoxGuiModelSupportsToolsFromSupportedParameters, knoxGuiModelSupportsWebSearch, knoxGuiNextModelTitle, knoxGuiParseModelCatalog, knoxGuiReasoningEffortConfig, knoxGuiResolveReasoningEffort, knoxGuiResolveToolsSupported, knoxGuiSeedModelCatalog, knoxGuiShowsThinkingPlaceholder } from '../../../common/knoxGuiCapabilities.js';
 import { knoxGuiIsSessionTabMode, knoxGuiResolveSessionMode, knoxGuiSessionModeIsAgent } from '../../../common/knoxGuiAgentMode.js';
 import { addModelProviderById, applyOpenRouterAliasFloorPricing, buildAddModelPayload, categorizeKnoxChatModel, KNOX_CHAT_FALLBACK_MODELS, knoxChatMetadataContextLength, knoxChatModelPricing, knoxChatPricingHasWebSearch, knoxChatRecommendedMaxTokens, knoxGuiUniqueYamlModelName, parseKnoxOAuthStatus, parseOpenRouterOAuthStatus, type IKnoxGuiAddModelPackage } from '../../../common/knoxGuiOverlays.js';
 import { KNOX_OPEN_SETTINGS_COMMAND_ID, knoxGuiSettingsTab, type KnoxGuiSettingsTab } from '../../../common/knoxGuiChrome.js';
@@ -337,6 +337,31 @@ function addModelResponseTitle(returned: unknown, fallback: string): string {
 	return fallback;
 }
 
+const addModelConnecting = new Set<string>();
+
+function catalogConnectKey(provider: string, modelId: string): string {
+	return `${provider}\0${modelId}`;
+}
+
+function rememberConnectedCatalogModel(controller: KnoxGuiController, connected: IKnoxGuiModel): void {
+	if (knoxGuiFindConnectedCatalogModel(controller.store.state, connected.provider, connected.model)) {
+		return;
+	}
+	const next = [...knoxGuiChatPickerModels(controller.store.state), connected];
+	controller.store.patch({
+		models: next,
+		modelsByRole: { ...controller.store.state.modelsByRole, chat: next },
+	});
+}
+
+function finishAddConfiguredModel(controller: KnoxGuiController, title: string): void {
+	controller.selectModel('chat', title);
+	controller.store.patch({ addModelDraft: {}, addModelRole: undefined, addModelSelectedModel: undefined, addModelBulk: false });
+	if (!knoxGuiIsDedicatedEditor(controller.store.state)) {
+		controller.store.navigate('/');
+	}
+}
+
 export async function addConfiguredModel(controller: KnoxGuiController, providerId: string, pack: IKnoxGuiAddModelPackage, extras?: { dimensionChoices?: string[]; selectedProvider?: string }): Promise<void> {
 	const provider = addModelProviderById(providerId);
 	if (!provider) {
@@ -346,23 +371,46 @@ export async function addConfiguredModel(controller: KnoxGuiController, provider
 		...extras,
 		bulk: true,
 	});
-	const fallbackTitle = knoxGuiUniqueYamlModelName(
-		controller.store.state.models.map(item => item.title).filter(Boolean),
-		String(model.title ?? pack.title),
-		String(model.provider ?? provider.provider),
-	);
-	model.title = fallbackTitle;
-	model.name = fallbackTitle;
-	let title = fallbackTitle;
-	try {
-		const returned = await controller.messenger.request<unknown>('config/addModel', { model, role: 'chat' });
-		title = addModelResponseTitle(returned, fallbackTitle);
-	} catch {
-		// Host still received the add. Select locally so the picker switches even without a reply.
+	const catalogProvider = String(model.provider ?? provider.provider);
+	const catalogModelId = String(model.model ?? pack.params.model ?? '');
+	const existing = knoxGuiFindConnectedCatalogModel(controller.store.state, catalogProvider, catalogModelId);
+	if (existing) {
+		controller.selectModel('chat', existing.title);
+		return;
 	}
-	controller.selectModel('chat', title);
-	controller.store.patch({ addModelDraft: {}, addModelRole: undefined, addModelSelectedModel: undefined, addModelBulk: false });
-	if (!knoxGuiIsDedicatedEditor(controller.store.state)) {
-		controller.store.navigate('/');
+	const connectingKey = catalogModelId ? catalogConnectKey(catalogProvider, catalogModelId) : '';
+	if (connectingKey && addModelConnecting.has(connectingKey)) {
+		return;
+	}
+	if (connectingKey) {
+		addModelConnecting.add(connectingKey);
+	}
+	try {
+		const fallbackTitle = knoxGuiUniqueYamlModelName(
+			controller.store.state.models.map(item => item.title).filter(Boolean),
+			String(model.title ?? pack.title),
+			catalogProvider,
+		);
+		model.title = fallbackTitle;
+		model.name = fallbackTitle;
+		if (catalogModelId) {
+			rememberConnectedCatalogModel(controller, {
+				title: fallbackTitle,
+				provider: catalogProvider,
+				model: catalogModelId,
+			});
+		}
+		let title = fallbackTitle;
+		try {
+			const returned = await controller.messenger.request<unknown>('config/addModel', { model, role: 'chat' });
+			title = addModelResponseTitle(returned, fallbackTitle);
+		} catch {
+			// Host still received the add. Select locally so the picker switches even without a reply.
+		}
+		finishAddConfiguredModel(controller, title);
+	} finally {
+		if (connectingKey) {
+			addModelConnecting.delete(connectingKey);
+		}
 	}
 }

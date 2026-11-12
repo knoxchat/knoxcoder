@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { addModelSelectRole, providerDisplayName, uniqueYamlModelName } from "./util";
+import { addModelSelectRole, existingYamlModelName, providerDisplayName, uniqueYamlModelName } from "./util";
 
 describe("addModelSelectRole", () => {
   it("selects the composer model for every add", () => {
@@ -57,5 +57,39 @@ describe("uniqueYamlModelName", () => {
     expect(uniqueYamlModelName(["Local Llama"], "Local Llama")).toBe(
       "Local Llama (1)",
     );
+  });
+});
+
+describe("existingYamlModelName", () => {
+  it("returns the yaml name for the same provider and model id", () => {
+    expect(
+      existingYamlModelName(
+        [
+          {
+            name: "OpenRouter · Anthropic: Claude Haiku 5.5",
+            provider: "openrouter",
+            model: "anthropic/claude-haiku-5.5",
+          },
+        ],
+        "openrouter",
+        "anthropic/claude-haiku-5.5",
+      ),
+    ).toBe("OpenRouter · Anthropic: Claude Haiku 5.5");
+  });
+
+  it("ignores the same catalog id from another provider", () => {
+    expect(
+      existingYamlModelName(
+        [
+          {
+            name: "Anthropic: Claude Haiku 5.5",
+            provider: "knoxchat",
+            model: "anthropic/claude-haiku-5.5",
+          },
+        ],
+        "openrouter",
+        "anthropic/claude-haiku-5.5",
+      ),
+    ).toBeUndefined();
   });
 });

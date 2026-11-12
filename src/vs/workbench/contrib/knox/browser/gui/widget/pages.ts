@@ -8,6 +8,7 @@ import { t } from './t.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { appendKnoxGuiSvg } from '../knoxGuiIcons.js';
+import { knoxGuiFindConnectedCatalogModel } from '../../../common/knoxGuiCapabilities.js';
 import {
 	ADD_MODEL_PROVIDERS,
 	addModelBrowseGroups,
@@ -324,12 +325,14 @@ export function renderConfigureProvider(widget: KnoxGuiWidget, body: HTMLElement
 		widget.renderKnoxChatModelList(body, state, ready, { selectOnly: true, source });
 		const selected = catalogModels(state, source).find(model => model.model === catalogSelectedId(state, source))
 			?? catalogModels(state, source)[0];
+		const alreadyConnected = Boolean(knoxGuiFindConnectedCatalogModel(state, source, selected?.model));
 		formButton(widget, body, {
 			label: t(state, 'connect'),
-			disabled: !ready || !selected,
+			disabled: !ready || !selected || alreadyConnected,
+			title: alreadyConnected ? t(state, 'alreadyConnected') : undefined,
 			testId: source === 'openrouter' ? 'knox-gui-openrouter-connect' : undefined,
 			onClick: () => {
-				if (!selected || !ready) {
+				if (!selected || !ready || knoxGuiFindConnectedCatalogModel(state, source, selected.model)) {
 					return;
 				}
 				void widget.controller.addConfiguredModel(provider.id, knoxChatPack(selected));
@@ -546,6 +549,7 @@ export function renderAddModelForm(widget: KnoxGuiWidget, parent: HTMLElement, s
 	const connected = source === 'openrouter' ? state.openrouterOauthConnected : state.oauthConnected;
 	const selected = catalogModels(state, source).find(model => model.model === catalogSelectedId(state, source))
 		?? catalogModels(state, source)[0];
+	const alreadyConnected = Boolean(knoxGuiFindConnectedCatalogModel(state, source, selected?.model));
 	const toolbar = DOM.append(box, DOM.$('.knox-gui-add-model-toolbar'));
 	const toggle = DOM.append(toolbar, DOM.$('.knox-gui-add-model-toggle.knox-gui-add-model-form-toggle'));
 	toggle.setAttribute('data-testid', 'knox-gui-add-model-provider-toggle');
@@ -577,11 +581,12 @@ export function renderAddModelForm(widget: KnoxGuiWidget, parent: HTMLElement, s
 	widget.renderOAuthRow(end, state, source, { compact: true });
 	formButton(widget, end, {
 		label: t(state, 'connect'),
-		disabled: !connected || !selected,
+		disabled: !connected || !selected || alreadyConnected,
+		title: alreadyConnected ? t(state, 'alreadyConnected') : undefined,
 		testId: 'knox-gui-add-model-connect',
 		extraClass: 'knox-gui-add-model-connect',
 		onClick: () => {
-			if (!selected || !connected) {
+			if (!selected || !connected || knoxGuiFindConnectedCatalogModel(state, source, selected.model)) {
 				return;
 			}
 			void widget.controller.addConfiguredModel(source, knoxChatPack(selected));
@@ -605,11 +610,14 @@ function prependProviderLogo(button: HTMLElement, icon: string | undefined): voi
 }
 
 /** `components/index.tsx` `Button` (primary) and `SecondaryButton`. */
-export function formButton(widget: KnoxGuiWidget, parent: HTMLElement, options: { label: string; secondary?: boolean; disabled?: boolean; testId?: string; extraClass?: string; onClick: () => void }): HTMLButtonElement {
+export function formButton(widget: KnoxGuiWidget, parent: HTMLElement, options: { label: string; secondary?: boolean; disabled?: boolean; title?: string; testId?: string; extraClass?: string; onClick: () => void }): HTMLButtonElement {
 	const button = DOM.append(parent, DOM.$(options.secondary ? 'button.knox-gui-form-button.knox-gui-form-button-secondary' : 'button.knox-gui-form-button.knox-gui-connect')) as HTMLButtonElement;
 	button.type = 'button';
 	button.textContent = options.label;
 	button.disabled = Boolean(options.disabled);
+	if (options.title) {
+		button.title = options.title;
+	}
 	if (options.extraClass) {
 		button.classList.add(...options.extraClass.split(/\s+/).filter(Boolean));
 	}

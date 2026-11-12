@@ -3,8 +3,6 @@
  *  Licensed under the GNU GPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable */
-
 export const knoxGuiStringsZhModels: Record<string, unknown> = {
 	"addModel": "添加模型",
 	"selectModel": "选择模型",
@@ -77,6 +75,7 @@ export const knoxGuiStringsZhModels: Record<string, unknown> = {
 	"failedToLoadModels": "加载模型失败，请检查网络连接",
 	"model": "模型",
 	"connect": "连接",
+	"alreadyConnected": "已连接",
 	"realTimeSearchRole": "实时搜索",
 	"usedForRealTimeSearch": "用于网络搜索操作，适合像 Sonar Pro 这样擅长实时网络搜索的模型",
 	"addUpdateRoleModel": "添加/更新 {{role}} 模型",

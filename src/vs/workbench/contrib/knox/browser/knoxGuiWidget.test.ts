@@ -3844,6 +3844,7 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		const oauthAdd = posted.find(item => item.type === 'config/addModel') as { data?: { model?: Record<string, unknown> } } | undefined;
 		assert.strictEqual(oauthAdd?.data?.model?.provider, 'openrouter');
 		assert.ok(!oauthAdd?.data?.model?.apiKey);
+		assert.ok((widget.root.querySelector('[data-testid="knox-gui-add-model-connect"]') as HTMLButtonElement).disabled);
 		assert.strictEqual(store.state.oauthConnected, false);
 		assert.strictEqual(store.state.addModelModalProvider, 'openrouter');
 		widget.controller.closeAddModelModal();
@@ -3856,6 +3857,41 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.ok(!commands.includes(KNOX_OPEN_SETTINGS_COMMAND_ID));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-openrouter"]')?.classList.contains('selected'));
 		assert.ok(widget.root.textContent?.includes('Connected as KnoxCoder'));
+	});
+
+	test('Settings Models Connect is inactive when the selected catalog model is already connected', async () => {
+		const posted: Array<{ type: string; data: unknown }> = [];
+		const { widget, store } = await mount(message => {
+			posted.push({ type: message.messageType, data: message.data });
+			return {};
+		});
+		store.lockView(KnoxGuiRoute.Config);
+		store.patch({
+			settingsTab: 'models',
+			addModelModalProvider: 'openrouter',
+			openrouterOauthStatus: 'success',
+			openrouterOauthConnected: true,
+			openrouterOauthHandle: 'KnoxCoder',
+			openrouterSelectedModel: 'anthropic/claude-haiku-5.5',
+			openrouterModelsLoading: false,
+			openrouterModels: [
+				{ title: 'Anthropic: Claude Haiku 5.5', model: 'anthropic/claude-haiku-5.5', category: 'Anthropic', contextLength: 128000 },
+				{ title: 'Anthropic: Claude Sonnet 5.5', model: 'anthropic/claude-sonnet-5.5', category: 'Anthropic', contextLength: 200000 },
+			],
+			models: [{ title: 'Anthropic: Claude Haiku 5.5', provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' }],
+			modelTitle: 'Anthropic: Claude Haiku 5.5',
+		});
+		const connect = widget.root.querySelector('[data-testid="knox-gui-add-model-connect"]') as HTMLButtonElement;
+		assert.ok(connect.disabled);
+		assert.strictEqual(connect.title, knoxGuiT('en', 'alreadyConnected'));
+		posted.length = 0;
+		connect.click();
+		assert.ok(!posted.some(item => item.type === 'config/addModel'));
+
+		store.patch({ openrouterSelectedModel: 'anthropic/claude-sonnet-5.5' });
+		const next = widget.root.querySelector('[data-testid="knox-gui-add-model-connect"]') as HTMLButtonElement;
+		assert.ok(!next.disabled);
+		assert.strictEqual(next.title, '');
 	});
 
 	test('search filters KnoxChat models, history, checkpoints, and memories without remounting the input', async () => {

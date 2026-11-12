@@ -416,6 +416,18 @@ export function knoxGuiChatPickerModels(state: { models: readonly IKnoxGuiModel[
 	return (state.models.length ? state.models : state.modelsByRole.chat).slice();
 }
 
+/** Same catalog id from the same provider is already in the connected picker. */
+export function knoxGuiFindConnectedCatalogModel(
+	state: { models: readonly IKnoxGuiModel[]; modelsByRole: { chat: readonly IKnoxGuiModel[] } },
+	provider: string | undefined,
+	catalogModelId: string | undefined,
+): IKnoxGuiModel | undefined {
+	if (!provider || !catalogModelId) {
+		return undefined;
+	}
+	return knoxGuiChatPickerModels(state).find(item => item.provider === provider && item.model === catalogModelId);
+}
+
 /**
  * First-run empty picker: no configured models and no custom config.yaml models.
  * Skip the extra "Add Model" dropdown and open Settings, Models tab.
