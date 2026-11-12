@@ -429,6 +429,13 @@
 	padding: 24px 28px 32px;
 }
 
+.knox-gui-settings-main.knox-gui-settings-main-models {
+	overflow: hidden;
+	padding: 12px 16px 12px;
+	gap: 0;
+	min-height: 0;
+}
+
 .knox-gui-settings-heading h2 {
 	margin: 0;
 	font-size: 20px;

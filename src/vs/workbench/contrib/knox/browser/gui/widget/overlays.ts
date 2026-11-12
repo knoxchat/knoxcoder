@@ -984,7 +984,7 @@ export function renderSettings(widget: KnoxGuiWidget, body: HTMLElement, state: 
 		const main = DOM.append(body, DOM.$('.knox-gui-settings-main'));
 		main.setAttribute('data-testid', `knox-gui-settings-${tab}`);
 		if (tab === 'models') {
-			renderSettingsHeading(main, t(state, 'models'), t(state, 'modelsHint'));
+			main.classList.add('knox-gui-settings-main-models');
 			widget.renderModels(main, state);
 			return;
 		}

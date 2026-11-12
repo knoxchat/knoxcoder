@@ -354,6 +354,8 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(css.includes('.knox-gui-image-viewer-img'));
 		assert.ok(css.includes('.knox-gui-add-model-toggle'));
 		assert.ok(css.includes('.knox-gui-add-model-form-toggle'));
+		assert.ok(css.includes('.knox-gui-add-model-toolbar'));
+		assert.ok(css.includes('.knox-gui-settings-main-models'));
 		assert.ok(css.includes('.knox-gui-settings-add-model'));
 		assert.ok(css.includes('.knox-gui-xs-hide'));
 		assert.ok(css.includes('.knox-gui-page-header-plain'));

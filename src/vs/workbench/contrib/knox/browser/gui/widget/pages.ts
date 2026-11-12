@@ -541,21 +541,24 @@ function knoxChatPack(model: IKnoxGuiState['knoxChatModels'][number]): IKnoxGuiA
 export function renderAddModelForm(widget: KnoxGuiWidget, parent: HTMLElement, state: IKnoxGuiState): void {
 	const box = DOM.append(parent, DOM.$('.knox-gui-settings-add-model.knox-gui-add-model-form'));
 	box.setAttribute('data-testid', 'knox-gui-add-model-catalog');
-	DOM.append(box, DOM.$('h3.knox-gui-add-model-form-title', undefined, t(state, 'addModel')));
-	const form = DOM.append(box, DOM.$('.knox-gui-add-model-form-body'));
+	box.setAttribute('aria-label', t(state, 'models'));
 	const source: CatalogSource = state.addModelModalProvider === 'openrouter' ? 'openrouter' : 'knoxchat';
 	const connected = source === 'openrouter' ? state.openrouterOauthConnected : state.oauthConnected;
-	const providerSection = DOM.append(form, DOM.$('.knox-gui-add-model-section'));
-	DOM.append(providerSection, DOM.$('label.knox-gui-add-model-label', undefined, t(state, 'provider')));
-	const toggle = DOM.append(providerSection, DOM.$('.knox-gui-add-model-toggle.knox-gui-add-model-form-toggle'));
+	const selected = catalogModels(state, source).find(model => model.model === catalogSelectedId(state, source))
+		?? catalogModels(state, source)[0];
+	const toolbar = DOM.append(box, DOM.$('.knox-gui-add-model-toolbar'));
+	const toggle = DOM.append(toolbar, DOM.$('.knox-gui-add-model-toggle.knox-gui-add-model-form-toggle'));
 	toggle.setAttribute('data-testid', 'knox-gui-add-model-provider-toggle');
+	toggle.setAttribute('role', 'tablist');
+	toggle.setAttribute('aria-label', t(state, 'provider'));
 	for (const id of ['knoxchat', 'openrouter'] as const) {
 		const provider = addModelProviderById(id);
-		widget.chromeButton(toggle, {
+		const button = widget.chromeButton(toggle, {
 			label: provider?.title ?? id,
 			selected: source === id,
 			testId: `knox-gui-add-model-provider-${id}`,
 			extraClass: 'knox-gui-add-model-mode',
+			role: 'tab',
 			onClick: () => {
 				if (state.addModelModalProvider === id) {
 					return;
@@ -568,18 +571,15 @@ export function renderAddModelForm(widget: KnoxGuiWidget, parent: HTMLElement, s
 				}
 			},
 		});
+		prependProviderLogo(button, provider?.icon);
 	}
-	widget.renderOAuthRow(form, state, source);
-	const modelSection = DOM.append(form, DOM.$('.knox-gui-add-model-section'));
-	DOM.append(modelSection, DOM.$('label.knox-gui-add-model-label', undefined, t(state, 'model')));
-	widget.renderKnoxChatModelList(modelSection, state, connected, { selectOnly: true, source });
-	const actions = DOM.append(box, DOM.$('.knox-gui-add-model-form-actions'));
-	const selected = catalogModels(state, source).find(model => model.model === catalogSelectedId(state, source))
-		?? catalogModels(state, source)[0];
-	formButton(widget, actions, {
+	const end = DOM.append(toolbar, DOM.$('.knox-gui-add-model-toolbar-end'));
+	widget.renderOAuthRow(end, state, source, { compact: true });
+	formButton(widget, end, {
 		label: t(state, 'connect'),
 		disabled: !connected || !selected,
 		testId: 'knox-gui-add-model-connect',
+		extraClass: 'knox-gui-add-model-connect',
 		onClick: () => {
 			if (!selected || !connected) {
 				return;
@@ -587,14 +587,32 @@ export function renderAddModelForm(widget: KnoxGuiWidget, parent: HTMLElement, s
 			void widget.controller.addConfiguredModel(source, knoxChatPack(selected));
 		},
 	});
+	const catalog = DOM.append(box, DOM.$('.knox-gui-add-model-catalog-body'));
+	widget.renderKnoxChatModelList(catalog, state, connected, { selectOnly: true, source });
+}
+
+function prependProviderLogo(button: HTMLElement, icon: string | undefined): void {
+	const logoSrc = knoxGuiProviderLogoUri(icon);
+	if (!logoSrc) {
+		return;
+	}
+	const img = DOM.$('img.knox-gui-add-model-provider-logo') as HTMLImageElement;
+	img.src = logoSrc;
+	img.alt = '';
+	img.width = 14;
+	img.height = 14;
+	button.insertBefore(img, button.firstChild);
 }
 
 /** `components/index.tsx` `Button` (primary) and `SecondaryButton`. */
-export function formButton(widget: KnoxGuiWidget, parent: HTMLElement, options: { label: string; secondary?: boolean; disabled?: boolean; testId?: string; onClick: () => void }): HTMLButtonElement {
+export function formButton(widget: KnoxGuiWidget, parent: HTMLElement, options: { label: string; secondary?: boolean; disabled?: boolean; testId?: string; extraClass?: string; onClick: () => void }): HTMLButtonElement {
 	const button = DOM.append(parent, DOM.$(options.secondary ? 'button.knox-gui-form-button.knox-gui-form-button-secondary' : 'button.knox-gui-form-button.knox-gui-connect')) as HTMLButtonElement;
 	button.type = 'button';
 	button.textContent = options.label;
 	button.disabled = Boolean(options.disabled);
+	if (options.extraClass) {
+		button.classList.add(...options.extraClass.split(/\s+/).filter(Boolean));
+	}
 	if (options.testId) {
 		button.setAttribute('data-testid', options.testId);
 	}
@@ -605,18 +623,24 @@ export function formButton(widget: KnoxGuiWidget, parent: HTMLElement, options: 
 	return button;
 }
 
-export function renderOAuthRow(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, source: CatalogSource = 'knoxchat'): void {
-	const pane = DOM.append(body, DOM.$('.knox-gui-oauth-pane'));
+export function renderOAuthRow(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, source: CatalogSource = 'knoxchat', options?: { compact?: boolean }): void {
+	const pane = DOM.append(body, DOM.$(options?.compact ? '.knox-gui-oauth-pane.is-compact' : '.knox-gui-oauth-pane'));
 	const connected = source === 'openrouter' ? state.openrouterOauthConnected : state.oauthConnected;
 	const status = source === 'openrouter' ? state.openrouterOauthStatus : state.oauthStatus;
 	const handle = source === 'openrouter' ? state.openrouterOauthHandle : state.oauthHandle;
 	const error = source === 'openrouter' ? state.openrouterOauthError : state.oauthError;
-	DOM.append(pane, DOM.$('label.knox-gui-add-model-label', undefined, t(state, source === 'openrouter' ? 'openrouterAccount' : 'knoxChatAccount')));
+	const accountLabel = t(state, source === 'openrouter' ? 'openrouterAccount' : 'knoxChatAccount');
+	pane.setAttribute('aria-label', accountLabel);
+	if (!options?.compact) {
+		DOM.append(pane, DOM.$('label.knox-gui-add-model-label', undefined, accountLabel));
+	}
 	const view = knoxGuiOAuthPane(status, connected);
 	if (view === 'connected') {
 		const row = DOM.append(pane, DOM.$('.knox-gui-oauth-row'));
 		DOM.append(row, DOM.$('span', undefined, t(state, 'connectedAs', { handle: handle ?? '' })));
-		DOM.append(row, DOM.$('.knox-gui-oauth-row-spacer'));
+		if (!options?.compact) {
+			DOM.append(row, DOM.$('.knox-gui-oauth-row-spacer'));
+		}
 		if (source === 'openrouter' && state.openrouterOauthKeyHash) {
 			const settingsUrl = knoxGuiOpenRouterKeySettingsUrl(state.openrouterOauthKeyHash);
 			formButton(widget, row, {
@@ -640,7 +664,9 @@ export function renderOAuthRow(widget: KnoxGuiWidget, body: HTMLElement, state: 
 	if (view === 'in_progress') {
 		const row = DOM.append(pane, DOM.$('.knox-gui-oauth-row'));
 		DOM.append(row, DOM.$('span', undefined, t(state, 'waitingForBrowser')));
-		DOM.append(row, DOM.$('.knox-gui-oauth-row-spacer'));
+		if (!options?.compact) {
+			DOM.append(row, DOM.$('.knox-gui-oauth-row-spacer'));
+		}
 		formButton(widget, row, {
 			label: t(state, 'cancelSignIn'),
 			secondary: true,
@@ -649,8 +675,20 @@ export function renderOAuthRow(widget: KnoxGuiWidget, body: HTMLElement, state: 
 		});
 		return;
 	}
-	const signedOut = DOM.append(pane, DOM.$('.knox-gui-oauth-signed-out'));
 	const errorKey = knoxGuiOAuthErrorI18nKey(status, error, source);
+	if (options?.compact) {
+		const row = DOM.append(pane, DOM.$('.knox-gui-oauth-row'));
+		if (errorKey) {
+			DOM.append(row, DOM.$('span.knox-gui-oauth-error', undefined, t(state, errorKey)));
+		}
+		formButton(widget, row, {
+			label: t(state, source === 'openrouter' ? 'signInOpenRouter' : 'signInKnoxStudio'),
+			testId: source === 'openrouter' ? 'knox-gui-openrouter-sign-in' : undefined,
+			onClick: () => widget.controller.messenger.post(source === 'openrouter' ? 'openrouter/oauth/start' : 'knoxchat/oauth/start', undefined),
+		});
+		return;
+	}
+	const signedOut = DOM.append(pane, DOM.$('.knox-gui-oauth-signed-out'));
 	if (errorKey) {
 		DOM.append(signedOut, DOM.$('p.knox-gui-oauth-error', undefined, t(state, errorKey)));
 	} else {

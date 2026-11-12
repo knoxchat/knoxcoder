@@ -19,6 +19,8 @@ All notable changes to KnoxCoder are documented in this file.
 
 - **Add Model in Settings > Models.** The KnoxStudio / OpenRouter catalog (sign-in, search, Connect) no longer overlays chat. Empty model picker, first-run Add Model, and quota "Add API key" open Settings on the Models tab. Connect also selects that model in the composer. The configs hint and Open Config File control under Connect are gone.
 
+- **Compact Settings > Models catalog.** The Models tab drops the page heading, hint, and Add Model title. Provider tabs are compact logo pills, account actions sit on the same toolbar as Connect, and the catalog fills the remaining height so only the model list scrolls.
+
 ### Fixed
 
 - **Windows ARM64 desktop build.** gulp `vscode-win32-arm64-min` typecheck no longer dies because tsrs has no `@tsrs/win32-arm64` binary. That host uses TypeScript 7 Go `tsc` (`@typescript/typescript-win32-arm64`) instead.

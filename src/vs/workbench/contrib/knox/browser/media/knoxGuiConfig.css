@@ -179,10 +179,39 @@ img.knox-gui-provider-icon {
 
 .knox-gui-settings-add-model {
 	display: flex;
+	flex: 1 1 auto;
 	flex-direction: column;
-	margin-top: 8px;
-	padding-top: 16px;
-	border-top: 1px solid var(--vscode-widget-border, transparent);
+	gap: 10px;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	border-top: none;
+}
+
+.knox-gui-add-model-toolbar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px 12px;
+	flex: 0 0 auto;
+	min-width: 0;
+}
+
+.knox-gui-add-model-toolbar-end {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-left: auto;
+	min-width: 0;
+}
+
+.knox-gui-add-model-catalog-body {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
 }
 
 .knox-gui-add-model-form-title {
@@ -240,6 +269,21 @@ img.knox-gui-provider-icon {
 	width: 100%;
 }
 
+.knox-gui-add-model-toolbar .knox-gui-form-button {
+	margin: 0;
+	padding: 4px 10px;
+	font-size: 12px;
+	line-height: 18px;
+	border-radius: 6px;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.knox-gui-add-model-toolbar .knox-gui-connect {
+	width: auto;
+	flex: 0 0 auto;
+}
+
 /* components/index.tsx SecondaryButton */
 .knox-gui-form-button.knox-gui-form-button-secondary {
 	margin: 0;
@@ -266,6 +310,15 @@ img.knox-gui-provider-icon {
 	gap: 12px;
 }
 
+.knox-gui-oauth-pane.is-compact {
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+	min-width: 0;
+}
+
 .knox-gui-oauth-row {
 	display: flex;
 	align-items: center;
@@ -274,6 +327,17 @@ img.knox-gui-provider-icon {
 
 .knox-gui-oauth-row > span {
 	font-size: 13px;
+}
+
+.knox-gui-oauth-pane.is-compact .knox-gui-oauth-row {
+	min-width: 0;
+}
+
+.knox-gui-oauth-pane.is-compact .knox-gui-oauth-row > span {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .knox-gui-oauth-row-spacer {
@@ -305,6 +369,50 @@ img.knox-gui-provider-icon {
 .knox-gui-knoxchat-search {
 	position: relative;
 	margin: 8px 0 16px;
+}
+
+.knox-gui-add-model-catalog-body .knox-gui-knoxchat-search {
+	margin: 0 0 8px;
+}
+
+.knox-gui-add-model-catalog-body .knox-gui-knoxchat-search-input {
+	padding: 6px 10px 6px 36px;
+	border-radius: 6px;
+}
+
+.knox-gui-add-model-catalog-body .knox-gui-knoxchat-list {
+	flex: 1 1 auto;
+	min-height: 0;
+	max-height: none;
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
+.knox-gui-add-model-catalog-body .knox-gui-knoxchat-empty {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.knox-gui-add-model-catalog-body .knox-gui-knoxchat-group {
+	margin-bottom: 10px;
+}
+
+.knox-gui .knox-gui-add-model-catalog-body .knox-gui-knoxchat-category {
+	margin: 0 0 4px;
+}
+
+.knox-gui-add-model-catalog-body .knox-gui-knoxchat-item {
+	padding: 6px 8px;
+	margin-bottom: 4px;
+	border-radius: 6px;
+}
+
+.knox-gui-add-model-catalog-body .knox-gui-knoxchat-id {
+	margin-top: 1px;
+}
+
+.knox-gui-add-model-catalog-body .knox-gui-knoxchat-caps {
+	margin-top: 4px;
 }
 
 .knox-gui-knoxchat-search .knox-gui-svg.knox-gui-knoxchat-search-icon {
@@ -460,13 +568,57 @@ img.knox-gui-provider-icon {
 }
 
 .knox-gui-add-model-form .knox-gui-add-model-form-toggle {
-	width: 100%;
-	margin: 8px 0 0;
+	display: inline-flex;
+	flex-shrink: 0;
+	width: auto;
+	margin: 0;
+	padding: 2px;
+	gap: 2px;
+	border: none;
+	border-radius: 8px;
+	background: var(--vscode-input-background, #3c3c3c);
 }
 
 .knox-gui-add-model-form .knox-gui-add-model-form-toggle .knox-gui-add-model-mode {
-	flex: 1;
+	flex: 0 0 auto;
 	justify-content: center;
+	gap: 6px;
+	height: 28px;
+	box-sizing: border-box;
+	padding: 4px 10px;
+	border-radius: 6px !important;
+	color: var(--vscode-descriptionForeground, #9d9d9d);
+	font-size: 12px;
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.knox-gui-add-model-form .knox-gui-add-model-form-toggle .knox-gui-add-model-mode .knox-gui-lump-label {
+	color: inherit;
+	font-size: 12px;
+	max-width: none;
+}
+
+.knox-gui-add-model-form .knox-gui-add-model-form-toggle .knox-gui-add-model-mode:hover:not(.selected):not(:disabled) {
+	filter: none;
+	background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.08));
+}
+
+.knox-gui-add-model-form .knox-gui-add-model-form-toggle .knox-gui-add-model-mode.selected {
+	background: color-mix(in srgb, var(--knox-accent, #159994) 16%, transparent);
+	color: var(--knox-accent, #159994);
+	box-shadow: none;
+}
+
+.knox-gui-add-model-form .knox-gui-add-model-form-toggle .knox-gui-add-model-mode.selected:hover:not(:disabled) {
+	filter: none;
+}
+
+.knox-gui-add-model-provider-logo {
+	width: 14px;
+	height: 14px;
+	object-fit: contain;
+	flex-shrink: 0;
 }
 
 .knox-gui-add-model-mode {

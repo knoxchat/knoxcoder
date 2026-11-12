@@ -436,7 +436,12 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-open-config"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-subtext'), null);
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-catalog"]'));
-		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-form-title')?.textContent, 'Add Model');
+		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-form-title'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-models"] .knox-gui-settings-heading'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-models"] .knox-gui-add-model-label'), null);
+		assert.ok(widget.root.querySelector('.knox-gui-add-model-toolbar'));
+		assert.ok(widget.root.querySelector('.knox-gui-add-model-provider-logo'));
+		assert.ok(!widget.root.textContent?.includes('Add models for this profile'));
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-general"]'), null);
 		store.patch({ settingsTab: 'tools' });
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-tab-tools"]')?.getAttribute('aria-selected'), 'true');
@@ -3799,12 +3804,19 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			openrouterModels: [{ title: 'Claude Sonnet 4.6', model: 'anthropic/claude-sonnet-4.6', category: 'Anthropic', contextLength: 200000, supportsTools: true }],
 		});
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-catalog"]'));
-		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-form-title')?.textContent, 'Add Model');
+		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-form-title'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-models"] .knox-gui-add-model-label'), null);
+		assert.ok(widget.root.querySelector('.knox-gui-add-model-toolbar'));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-connect"]'));
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-open-config"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-subtext'), null);
 		assert.ok(!widget.root.textContent?.includes('This setting will update your'));
+		assert.ok(!widget.root.textContent?.includes('Add models for this profile'));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-toggle"]'));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-toggle"]')?.getAttribute('role'), 'tablist');
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-knoxchat"]')?.getAttribute('role'), 'tab');
+		const tabLogos = widget.root.querySelectorAll('.knox-gui-add-model-provider-logo');
+		assert.strictEqual(tabLogos.length, 2);
 		assert.ok(widget.root.textContent?.includes('KnoxStudio'));
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-provider-knoxchat"]')?.classList.contains('selected'));
 		assert.ok(widget.root.textContent?.includes('Sign in with KnoxStudio'));
