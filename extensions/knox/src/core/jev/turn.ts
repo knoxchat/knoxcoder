@@ -35,7 +35,7 @@ import {
   ROUTE_CONFIDENCE_FLOOR,
   CLARIFY_HINT,
   difficultyQuestion,
-  jevImagePartsFromDataUrls,
+  formatDecisionsTurnState,
   needsMutationQuestion,
   profileQuestion,
   routeQuestion,
@@ -78,7 +78,8 @@ export interface EvaluateAgentTurnInput {
   abortSignal?: AbortSignal;
   /**
    * Optional screenshot/image data URLs from the user message. Jev 1.14 reads
-   * png/jpeg `image_url` parts in state (OpenRouter multimodal Decisions).
+   * nested png/jpeg `image_url` parts. Gemini Decision 1 reads `image_url` only
+   * from the top-level `state` array (any `image/*` data URL or https URL).
    */
   images?: string[];
 }
@@ -254,13 +255,15 @@ export async function evaluateAgentTurn(
   }
 
   const recentContext = input.recentContext ?? [];
-  const images = jevImagePartsFromDataUrls(input.images);
-  const state: JevJson = {
-    user_message: input.userMessage.slice(0, 8_000),
-    recent_context: recentContext,
-    ...(images.length > 0 ? { images } : {}),
-    ...(askProfile ? { workspace_hints: (input.workspaceHints ?? {}) as JevJson } : {}),
-  };
+  const state = formatDecisionsTurnState({
+    model: input.runtime.model,
+    userMessage: input.userMessage,
+    recentContext,
+    images: input.images,
+    ...(askProfile
+      ? { workspaceHints: (input.workspaceHints ?? {}) as JevJson }
+      : {}),
+  });
 
   try {
     const started = Date.now();

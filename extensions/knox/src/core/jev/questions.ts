@@ -5,6 +5,11 @@
  * instructions or cutoffs across call sites.
  */
 
+import {
+  decisionsImageAcceptsUrl,
+  decisionsMaxImages,
+  decisionsModelReadsNestedImages,
+} from "./models";
 import type {
   JevChoiceQuestion,
   JevJson,
@@ -25,6 +30,8 @@ export const JEV_DEFAULT_BASE_URL = "https://api.knoxstudio.ai";
 export const OPENROUTER_JEV_BASE_URL = "https://openrouter.ai/api";
 /** Latest Jev on OpenRouter. IDs with a `typesafe/` prefix are used as-is. */
 export const OPENROUTER_JEV_MODEL = "typesafe/jev-1.14";
+/** Google Gemini Decision 1 on OpenRouter System One. */
+export { OPENROUTER_GEMINI_DECISION_MODEL } from "./models";
 /** Token allowlist / key management (same backend as knox.chat/keys). */
 export const KNOX_KEYS_URL = "https://knoxstudio.ai/keys";
 export const OPENROUTER_KEYS_URL = "https://openrouter.ai/keys";
@@ -33,7 +40,7 @@ export const JEV_MAX_SKILL_OPTIONS = 200;
 /**
  * Jev 1.14 reads image_url parts in `state` (png/jpeg data URLs only; remote
  * http(s) URLs are not fetched). Cap keeps the System One payload inside the
- * harness latency budget.
+ * harness latency budget. Gemini Decision 1 uses `decisionsMaxImages`.
  * @see https://openrouter.ai/docs/guides/community/multimodal-decisions
  */
 export const JEV_MAX_IMAGES = 4;
@@ -581,20 +588,25 @@ export function leakedSecretsQuestion(): JevNoulQuestion {
 export const CJK_SIGNIFICANT_RATIO = 0.2;
 
 /**
- * OpenRouter Decisions / Jev 1.14 image part. Remote http(s) URLs are dropped
- * because Jev does not fetch them. webp is not accepted.
+ * OpenRouter Decisions image part. Jev keeps png/jpeg data URLs only (no
+ * remote fetch, no webp). Gemini Decision 1 accepts any `image/*` data URL
+ * and public `https://` URLs.
  */
-export function jevImagePartsFromDataUrls(urls: string[] | undefined): JevJson[] {
+export function decisionsImagePartsFromDataUrls(
+  urls: string[] | undefined,
+  model?: string,
+): JevJson[] {
   if (!urls?.length) {
     return [];
   }
+  const cap = decisionsMaxImages(model);
   const parts: JevJson[] = [];
   for (const url of urls) {
-    if (parts.length >= JEV_MAX_IMAGES) {
+    if (parts.length >= cap) {
       break;
     }
     const trimmed = url.trim();
-    if (!/^data:image\/(png|jpeg);base64,/i.test(trimmed)) {
+    if (!decisionsImageAcceptsUrl(trimmed, model)) {
       continue;
     }
     parts.push({
@@ -603,4 +615,45 @@ export function jevImagePartsFromDataUrls(urls: string[] | undefined): JevJson[]
     });
   }
   return parts;
+}
+
+/** Jev 1.14 image parts (png/jpeg data URLs only). */
+export function jevImagePartsFromDataUrls(urls: string[] | undefined): JevJson[] {
+  return decisionsImagePartsFromDataUrls(urls, OPENROUTER_JEV_MODEL);
+}
+
+/**
+ * Per-turn System One `state`. Jev accepts a nested object with `images`.
+ * Gemini Decision 1 (and every non-TypeSafe adapter) only reads `image_url`
+ * from the top-level `state` array, so images go next to plain-string items.
+ */
+export function formatDecisionsTurnState(input: {
+  model: string;
+  userMessage: string;
+  recentContext: JevJson;
+  images?: string[];
+  workspaceHints?: JevJson;
+}): JevJson {
+  const imageParts = decisionsImagePartsFromDataUrls(input.images, input.model);
+  const text: { [key: string]: JevJson } = {
+    user_message: input.userMessage.slice(0, 8_000),
+    recent_context: input.recentContext,
+  };
+  if (input.workspaceHints !== undefined) {
+    text.workspace_hints = input.workspaceHints;
+  }
+  if (imageParts.length === 0 || decisionsModelReadsNestedImages(input.model)) {
+    return imageParts.length > 0 ? { ...text, images: imageParts } : text;
+  }
+  const state: JevJson[] = [input.userMessage.slice(0, 8_000), ...imageParts];
+  if (
+    Array.isArray(input.recentContext) &&
+    input.recentContext.length > 0
+  ) {
+    state.push(`Recent turns: ${JSON.stringify(input.recentContext)}`);
+  }
+  if (input.workspaceHints !== undefined) {
+    state.push(`Workspace hints: ${JSON.stringify(input.workspaceHints)}`);
+  }
+  return state;
 }

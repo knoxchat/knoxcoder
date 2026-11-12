@@ -13,7 +13,7 @@ import { knoxGuiResolveProfileId, knoxGuiStartupSession } from '../../../common/
 import { agentProfileDefaults, agentProfileSharedConfig, formatPolicyLines, mergeReasoningEffortPrefs, parseYamlRules } from '../../../common/knoxGuiOverlays.js';
 import { KNOX_GUI_HEARTBEAT_MS, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { mergeContextProvidersWithDefaults, mergeSlashCommandsWithBuiltins } from '../../../common/knoxGuiInput.js';
-import { IKnoxGuiContextProvider, IKnoxGuiModel, IKnoxGuiSlashCommand, IKnoxGuiState, IKnoxGuiTool, KnoxGuiLanguage, KnoxModelRole, KnoxPermissionDefaultReason, KnoxPermissionMode, MODEL_ROLES, knoxGuiIsDedicatedEditor, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiContextProvider, IKnoxGuiModel, IKnoxGuiSlashCommand, IKnoxGuiState, IKnoxGuiTool, KnoxGuiLanguage, KnoxModelRole, KnoxPermissionDefaultReason, KnoxPermissionMode, MODEL_ROLES, knoxGuiIsDedicatedEditor, knoxGuiJevCatalogId, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
 
 export async function setup(controller: KnoxGuiController): Promise<void> {
 	if (controller.store.state.lockedRoute === KnoxGuiRoute.CheckpointGraph) {
@@ -222,6 +222,7 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 		agentDoomLoopThreshold: typeof experimental?.agentDoomLoopThreshold === 'number' ? experimental.agentDoomLoopThreshold : profileDefaults.doomLoopThreshold,
 		agentViewSubdirectoryMaxFiles: typeof experimental?.agentViewSubdirectoryMaxFiles === 'number' ? experimental.agentViewSubdirectoryMaxFiles : controller.store.state.agentViewSubdirectoryMaxFiles,
 		jevEnabled: asRecord(experimental?.jev)?.enabled === true || experimental?.jevEnabled === true,
+		jevModel: knoxGuiJevCatalogId(asRecord(experimental?.jev)?.model ?? experimental?.jevModel),
 		promptPath: typeof experimental?.promptPath === 'string' ? experimental.promptPath : controller.store.state.promptPath,
 		webSearchSupported: knoxGuiModelSupportsWebSearch(selectedModel),
 		imagesSupported: knoxGuiModelSupportsImages(selectedModel),

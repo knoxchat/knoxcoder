@@ -24,6 +24,7 @@ export {
   KNOX_KEYS_URL,
   OPENROUTER_JEV_BASE_URL,
   OPENROUTER_JEV_MODEL,
+  OPENROUTER_GEMINI_DECISION_MODEL,
   OPENROUTER_KEYS_URL,
   GATE_THRESHOLD,
   FITS_THRESHOLD,
@@ -33,8 +34,18 @@ export {
   REPEATING_STRATEGY_HIT,
   ROUTE_CONFIDENCE_FLOOR,
   escalateReasoningEffort,
+  decisionsImagePartsFromDataUrls,
+  formatDecisionsTurnState,
   jevImagePartsFromDataUrls,
 } from "./questions";
+export {
+  DECISIONS_CATALOG_JEV,
+  DECISIONS_MODELS,
+  decisionsCatalogId,
+  decisionsFamily,
+  isGeminiDecisionModel,
+  listDecisionsModels,
+} from "./models";
 export { evaluateAgentTurn, jevTurnUsesAgentTools, recentContextFromTurns } from "./turn";
 export type { AgentTurnJudgment, EvaluateAgentTurnInput } from "./turn";
 export { suggestSkill, rankSkillShortlist } from "./skillSuggest";

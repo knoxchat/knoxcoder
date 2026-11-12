@@ -26,7 +26,7 @@ export function knoxGuiSettingsTab(tab: string | undefined): KnoxGuiSettingsTab 
 	return KNOX_GUI_SETTINGS_NAV.some(item => item.id === tab) ? tab as KnoxGuiSettingsTab : 'general';
 }
 
-/** Session Chat/Agent tabs are gone; Jev (or Agent-only) picks. Edit is Cmd+I only. */
+/** Session Chat/Agent tabs are gone; harness judgments (or Agent-only) pick. Edit is Cmd+I only. */
 export const KNOX_GUI_MODE_TABS: KnoxChatMode[] = [];
 
 export function knoxGuiLumpLabelVisible(overlay: KnoxGuiOverlay, id: string): boolean {

@@ -65,6 +65,18 @@ describe("resolveJevRuntime", () => {
     expect(runtime.model).toBe("typesafe/jev-1.13");
   });
 
+  it("forces OpenRouter for google/gemini-decision-1 and ignores a Knox key", () => {
+    const runtime = resolveJevRuntime({
+      enabled: true,
+      apiKey: "sk-knox",
+      model: "google/gemini-decision-1",
+    });
+    expect(runtime.provider).toBe("openrouter");
+    expect(runtime.baseUrl).toBe("https://openrouter.ai/api");
+    expect(runtime.model).toBe("google/gemini-decision-1");
+    expect(runtime.apiKey).toBe("");
+  });
+
   it("does not read TYPESAFE_* environment variables", () => {
     const previous = process.env.TYPESAFE_API_KEY;
     process.env.TYPESAFE_API_KEY = "env-key";
@@ -295,6 +307,33 @@ describe("createHttpJevClient", () => {
         questions: { a: { type: "noul", instructions: "y" } },
       }),
     ).rejects.toThrow(/allowlist does not include jev-\*/);
+  });
+
+  it("POSTs OpenRouter System One with google/gemini-decision-1", async () => {
+    const payload: JevSystemOneResult = {
+      model: "google/gemini-decision-1",
+      answers: { billing: { type: "noul", noul: 0.91 } },
+    };
+    const fetch = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(_url).toBe("https://openrouter.ai/api/v1/systemone");
+      const body = JSON.parse(String(init?.body));
+      expect(body.model).toBe("google/gemini-decision-1");
+      return new Response(JSON.stringify(payload), { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+
+    const client = createHttpJevClient({
+      apiKey: "sk-or-v1-key",
+      baseUrl: "https://openrouter.ai/api",
+      model: "google/gemini-decision-1",
+      fetch,
+    });
+    const result = await client.systemOne({
+      state: ["I was charged twice"],
+      questions: {
+        billing: { type: "noul", instructions: "Is this about billing?" },
+      },
+    });
+    expect(result.answers.billing).toEqual({ type: "noul", noul: 0.91 });
   });
 
   it("explains an OpenRouter 401 with the OpenRouter key hint", async () => {

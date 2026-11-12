@@ -19,6 +19,7 @@ export const KNOX_CHAT_SETTING_IDS = [
   "knoxchat.enablePostEditVerification",
   "knoxchat.agentProfile",
   "knoxchat.jev.enabled",
+  "knoxchat.jev.model",
   "knoxchat.jev.showStatusBar",
   "knoxchat.memoryBrain.maxBytes",
   "knoxchat.memoryBrain.enabled",

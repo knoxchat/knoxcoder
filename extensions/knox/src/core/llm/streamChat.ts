@@ -131,7 +131,7 @@ export async function* llmStreamChat(
     msg.data;
   let completionOptions = rawCompletionOptions;
 
-  // Cost optimization: Jev (when enabled) or regex heuristics pick View/Read.
+  // Cost optimization: harness judgments (when enabled) or regex heuristics pick View/Read.
   let effectiveTitle = title;
   let turnJudgment: AgentTurnJudgment | undefined;
 

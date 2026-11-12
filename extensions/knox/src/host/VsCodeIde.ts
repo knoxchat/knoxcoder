@@ -1736,6 +1736,7 @@ class VsCodeIde implements IDE {
         "agentProfile",
       ),
       jevEnabled: knox.get<boolean>("jev.enabled") === true,
+      jevModel: knox.get<string>("jev.model")?.trim() || undefined,
       memoryBrainMaxBytes: knox.get<number>("memoryBrain.maxBytes"),
       memoryBrainEnabled: knox.get<boolean>("memoryBrain.enabled") !== false,
       memoryBrainWorkspaceEnabled:

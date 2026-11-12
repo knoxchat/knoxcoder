@@ -31,7 +31,7 @@ export const KNOX_SETTING_GROUPS: KnoxSettingGroup[] = [
   {
     id: "agent",
     label: "Agent and models",
-    description: "Profile, Jev, fallback model, tool loading",
+    description: "Profile, harness judgments, fallback model, tool loading",
     match: [
       "knoxchat.agentProfile",
       "knoxchat.jev.",

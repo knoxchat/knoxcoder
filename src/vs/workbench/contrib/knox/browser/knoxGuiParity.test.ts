@@ -73,7 +73,10 @@ suite('Knox native GUI i18n', () => {
 		assert.strictEqual(knoxGuiT('en', 'send'), 'Send');
 		assert.ok(knoxGuiT('en', 'webSearchTooltipInactive').includes('web search'));
 		assert.ok(knoxGuiT('en', 'permissionModeGroup').length > 0);
-		assert.ok(knoxGuiT('en', 'permissionModeTriggerHint').includes('Jev'));
+		assert.ok(knoxGuiT('en', 'permissionModeTriggerHint').includes('Harness judgments'));
+		assert.strictEqual(knoxGuiT('en', 'jevEnabled'), 'Harness judgments');
+		assert.strictEqual(knoxGuiT('en', 'jevModel'), 'Decisions model');
+		assert.notStrictEqual(knoxGuiT('en', 'jevEnabled'), knoxGuiT('zh', 'jevEnabled'));
 		assert.ok(knoxGuiT('en', 'permissionModeAsk').includes('Ask'));
 		assert.ok(knoxGuiT('en', 'permissionNoticeAsk').includes('Ask'));
 		assert.ok(knoxGuiT('zh', 'permissionNoticeAsk').length > 0);

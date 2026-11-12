@@ -329,6 +329,7 @@ export function ideSettingsToExperimental(ide: {
   agentVerifyMode?: unknown;
   agentVerifyMaxIterations?: unknown;
   jevEnabled?: unknown;
+  jevModel?: unknown;
   networkMode?: unknown;
   networkAllowlist?: unknown;
   compatInstructions?: unknown;
@@ -343,7 +344,7 @@ export function ideSettingsToExperimental(ide: {
   agentVerifyCommand?: string;
   agentVerifyMode?: "diagnostics" | "command" | "off";
   agentVerifyMaxIterations?: number;
-  jev?: { enabled: true };
+  jev?: { enabled?: true; model?: string };
   networkMode?: "allow" | "deny" | "allowlist";
   networkAllowlist?: string[];
   compatInstructions?: Array<"cursor" | "copilot">;
@@ -356,8 +357,13 @@ export function ideSettingsToExperimental(ide: {
   if (isAgentProfileSetting(ide.agentProfile)) {
     out.agentProfile = ide.agentProfile;
   }
-  if (ide.jevEnabled === true) {
-    out.jev = { enabled: true };
+  const jevModel =
+    typeof ide.jevModel === "string" ? ide.jevModel.trim() : "";
+  if (ide.jevEnabled === true || jevModel) {
+    out.jev = {
+      ...(ide.jevEnabled === true ? { enabled: true as const } : {}),
+      ...(jevModel ? { model: jevModel } : {}),
+    };
   }
   if (ide.networkMode === "allow" || ide.networkMode === "deny" || ide.networkMode === "allowlist") {
     out.networkMode = ide.networkMode;

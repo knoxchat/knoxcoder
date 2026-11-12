@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   budgetForPurpose,
+  formatJevLogEntry,
   getJevActivityState,
   getJevLogEntries,
   resetJevGuardForTests,
@@ -62,6 +63,15 @@ describe("jev guard", () => {
     const again = wrapJevClientWithGuard(healthy, { now: () => now });
     await expect(again.systemOne(request)).resolves.toEqual(okResult);
     expect(getJevActivityState().inFlight).toBe(0);
+  });
+
+  it("records the request model on log lines", async () => {
+    const inner: JevClient = { systemOne: async () => okResult };
+    const client = wrapJevClientWithGuard(inner);
+    await client.systemOne({ ...request, model: "google/gemini-decision-1" });
+    const entry = getJevLogEntries()[0];
+    expect(entry.model).toBe("google/gemini-decision-1");
+    expect(formatJevLogEntry(entry)).toContain("google/gemini-decision-1");
   });
 
   it("success resets the failure count; user aborts do not count", async () => {

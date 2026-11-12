@@ -127,12 +127,29 @@
 				"knoxchat.jev.enabled": {
 					"type": "boolean",
 					"default": true,
-					"markdownDescription": "Enable Jev (System One) harness judgments: model routing, skill hints, passage/tool gates, citation checks, and `auto` profile confirm. Uses your KnoxStudio or OpenRouter API key (OAuth session or yaml). Optional `jev.apiKey` override. KnoxStudio calls https://api.knoxstudio.ai/v1/systemone; OpenRouter calls https://openrouter.ai/api/v1/systemone with typesafe/jev-1.14. Fail-open to current heuristics. YAML `jev.enabled` overrides this."
+					"markdownDescription": "Enable harness judgments (System One Decisions models): Chat vs Agent routing, skill hints, passage/tool gates, citation checks, and `auto` profile confirm. Uses your KnoxStudio or OpenRouter API key (OAuth session or yaml). Optional `jev.apiKey` override. KnoxStudio calls https://api.knoxstudio.ai/v1/systemone; OpenRouter calls https://openrouter.ai/api/v1/systemone. Pick the Decisions model with `knoxchat.jev.model` (TypeSafe Jev or Gemini Decision 1). Fail-open to current heuristics. YAML `jev.enabled` overrides this."
+				},
+				"knoxchat.jev.model": {
+					"type": "string",
+					"enum": [
+						"jev",
+						"google/gemini-decision-1"
+					],
+					"enumItemLabels": [
+						"Jev (TypeSafe)",
+						"Gemini Decision 1"
+					],
+					"enumDescriptions": [
+						"TypeSafe Jev on Knox Chat or OpenRouter",
+						"Google Gemini Decision 1 on OpenRouter System One"
+					],
+					"default": "jev",
+					"markdownDescription": "Decisions model for harness judgments. `jev` is TypeSafe Jev on Knox Chat (`jev-1.13.0`) or OpenRouter (`typesafe/jev-1.14`). `google/gemini-decision-1` is Google Gemini Decision 1 on OpenRouter System One (text, images, audio, video, and documents). YAML `jev.model` overrides this."
 				},
 				"knoxchat.jev.showStatusBar": {
 					"type": "boolean",
 					"default": true,
-					"markdownDescription": "Show a status bar indicator when Jev (System One) is enabled. Hidden while Jev harness judgments are off. Click the indicator to open the Jev log. Jev sends only the user message, short recent-turn summaries, tool names/argument previews and truncated assistant text for judgments; never file contents. Each call has a hard latency budget (gates 800 ms, others 2 s) and a circuit breaker (3 consecutive failures skip Jev for 5 minutes)."
+					"markdownDescription": "Show a status bar indicator when harness judgments are enabled. Hidden while the Knox Settings toggle (or YAML `jev.enabled`) is off. Click the indicator to open the judgments log. The chip names the live Decisions model (Jev or Gemini). Calls send only the user message, short recent-turn summaries, tool names/argument previews, truncated assistant text, and attached images; never file contents. Each call has a hard latency budget (gates 800 ms, others 2 s) and a circuit breaker (3 consecutive failures skip judgments for 5 minutes)."
 				},
 				"knoxchat.memoryBrain.maxBytes": {
 					"type": "number",
@@ -672,7 +689,7 @@
 			{
 				"command": "knoxchat.showJevLog",
 				"category": "Knox",
-				"title": "Show Jev Log"
+				"title": "Show Judgments Log"
 			},
 			{
 				"command": "knoxchat.showInlineCompletionStats",

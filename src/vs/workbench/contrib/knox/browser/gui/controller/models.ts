@@ -43,8 +43,8 @@ export function postSetAgentMode(controller: KnoxGuiController): void {
 
 /**
  * Chat vs Agent is not a user tab. Stay on Agent unless the model is known
- * not to support tools (then Chat, no tools). Unknown keeps Agent so Jev
- * can still send candidate tools.
+ * not to support tools (then Chat, no tools). Unknown keeps Agent so harness
+ * judgments can still send candidate tools.
  */
 export function syncAgentTabWithModel(controller: KnoxGuiController): void {
 	if (controller.store.state.mode === 'edit') {

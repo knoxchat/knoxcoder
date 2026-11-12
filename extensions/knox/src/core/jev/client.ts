@@ -202,6 +202,7 @@ function describeJevHttpError(
   status: number,
   text: string,
   openrouter: boolean,
+  model: string,
 ): string {
   const snippet = text.replace(/\s+/g, " ").trim().slice(0, 180);
   const hint =
@@ -215,10 +216,12 @@ function describeJevHttpError(
           : "insufficient Knox credits"
         : status === 403
           ? openrouter
-            ? `this OpenRouter key cannot call typesafe/jev-* (check ${OPENROUTER_KEYS_URL})`
-            : `this key's model allowlist does not include jev-* (allow it on ${KNOX_KEYS_URL})`
+            ? `this OpenRouter key cannot call ${model} (check ${OPENROUTER_KEYS_URL})`
+            : /jev/.test(model)
+              ? `this key's model allowlist does not include jev-* (allow it on ${KNOX_KEYS_URL})`
+              : `this key's model allowlist does not include ${model} (allow it on ${KNOX_KEYS_URL})`
           : status === 404
-            ? "no Jev channel is available"
+            ? "no judgments channel is available"
             : status === 429
               ? "rate limited"
               : status === 529
@@ -355,7 +358,12 @@ export function createHttpJevClient(options: {
         const text = await response.text();
         if (!response.ok) {
           lastError = new JevClientError(
-            describeJevHttpError(response.status, text, openrouter),
+            describeJevHttpError(
+              response.status,
+              text,
+              openrouter,
+              body.model ?? model,
+            ),
           );
           const retryable = shouldRetryStatus(response.status);
           if (!retryable || attempt >= JEV_MAX_RETRIES) {

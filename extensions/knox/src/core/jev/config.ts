@@ -3,6 +3,10 @@ import { resolveKnoxChatApiKey } from "../auth/knoxOAuth/session";
 import { resolveOpenRouterApiKey } from "../auth/openrouterOAuth/session";
 import { isOpenRouterApiUrl } from "../../pkg/fetch/openrouterAttribution";
 import {
+  isGeminiDecisionModel,
+  OPENROUTER_GEMINI_DECISION_MODEL,
+} from "./models";
+import {
   JEV_DEFAULT_BASE_URL,
   JEV_DEFAULT_MODEL,
   JEV_DEFAULT_TIMEOUT_MS,
@@ -84,13 +88,18 @@ export function defaultJevModel(provider: JevProvider): string {
 
 /**
  * Map a configured model id onto the provider's catalog.
- * OpenRouter System One accepts bare `jev-*` ids and `typesafe/` prefixed ids.
+ * OpenRouter System One accepts bare `jev-*` ids, `typesafe/` prefixed ids,
+ * and `google/gemini-decision-1`. Catalog id `jev` is the host default.
  * @see https://openrouter.ai/docs/guides/community/typesafe-sdk
+ * @see https://openrouter.ai/docs/guides/community/multimodal-decisions
  */
 export function mapJevModel(model: string, provider: JevProvider): string {
   const id = model.trim();
-  if (!id) {
+  if (!id || id === "jev") {
     return defaultJevModel(provider);
+  }
+  if (isGeminiDecisionModel(id)) {
+    return OPENROUTER_GEMINI_DECISION_MODEL;
   }
   if (provider === "openrouter") {
     if (id.startsWith("typesafe/") || id.startsWith("~typesafe/")) {
@@ -258,7 +267,8 @@ export function pickKnoxChatJevFallback(
 
 /**
  * Fill a missing `apiKey` from the selected knoxchat/openrouter model so Jev
- * uses the same key as chat. Host follows that provider.
+ * uses the same key as chat. Host follows that provider. Gemini Decision 1
+ * always uses OpenRouter.
  */
 export function mergeJevConfigWithFallback(
   yaml: JevYamlConfig | undefined,
@@ -268,6 +278,19 @@ export function mergeJevConfigWithFallback(
     return undefined;
   }
   const explicitKey = yaml.apiKey?.trim() ?? "";
+  const gemini = isGeminiDecisionModel(yaml.model);
+  if (gemini) {
+    const apiKey = resolveOpenRouterApiKeyForDecisions({
+      apiKey:
+        explicitKey ||
+        (fallback.provider === "openrouter" ? fallback.apiKey : ""),
+    });
+    return {
+      ...yaml,
+      ...(apiKey ? { apiKey } : {}),
+      baseUrl: jevOriginForProvider("openrouter"),
+    };
+  }
   const apiKey = explicitKey || fallback.apiKey || "";
   const provider = detectJevProvider(
     { ...yaml, ...(apiKey ? { apiKey } : {}) },
@@ -280,11 +303,28 @@ export function mergeJevConfigWithFallback(
   };
 }
 
+type JevKeyFields = Pick<JevYamlConfig, "apiKey" | "baseUrl"> & {
+  model?: string;
+};
+
+function resolveOpenRouterApiKeyForDecisions(
+  yamlOrRuntime?: JevKeyFields | null,
+): string {
+  const trimmed = yamlOrRuntime?.apiKey?.trim() ?? "";
+  if (looksLikeOpenRouterApiKey(trimmed)) {
+    return trimmed;
+  }
+  return liveKeyFor("openrouter");
+}
+
 /** Explicit `jev.apiKey`, else the matching KnoxChat or OpenRouter session key. */
 export function resolveJevApiKey(
-  yamlOrRuntime?: Pick<JevYamlConfig, "apiKey" | "baseUrl"> | null,
+  yamlOrRuntime?: JevKeyFields | null,
   fallbackProvider?: JevProvider,
 ): string {
+  if (isGeminiDecisionModel(yamlOrRuntime?.model)) {
+    return resolveOpenRouterApiKeyForDecisions(yamlOrRuntime);
+  }
   const trimmed = yamlOrRuntime?.apiKey?.trim();
   if (trimmed) {
     return trimmed;
@@ -292,12 +332,19 @@ export function resolveJevApiKey(
   return liveKeyFor(detectJevProvider(yamlOrRuntime, fallbackProvider));
 }
 
+function configuredDecisionsModel(
+  yaml?: Pick<JevYamlConfig, "model"> | null,
+): string {
+  return yaml?.model?.trim() ?? "";
+}
+
 /** Map `config.yaml` `jev:` onto a runtime record. Default: disabled. */
 export function resolveJevRuntime(yaml?: JevYamlConfig | null): JevRuntime {
-  const provider = detectJevProvider(yaml);
-  const configured = yaml?.model?.trim();
+  const requested = configuredDecisionsModel(yaml);
+  const gemini = isGeminiDecisionModel(requested);
+  const provider = gemini ? "openrouter" : detectJevProvider(yaml);
   const model = mapJevModel(
-    configured || defaultJevModel(provider),
+    requested || defaultJevModel(provider),
     provider,
   );
   return {
@@ -305,7 +352,9 @@ export function resolveJevRuntime(yaml?: JevYamlConfig | null): JevRuntime {
     model,
     timeoutMs: clampTimeout(yaml?.timeoutMs),
     failOpen: yaml?.failOpen !== false,
-    apiKey: resolveJevApiKey(yaml, provider),
+    apiKey: gemini
+      ? resolveOpenRouterApiKeyForDecisions(yaml)
+      : resolveJevApiKey(yaml, provider),
     baseUrl: jevOriginForProvider(provider),
     provider,
   };

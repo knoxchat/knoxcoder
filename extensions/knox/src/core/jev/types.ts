@@ -4,8 +4,9 @@
  *
  * KnoxStudio: POST https://api.knoxstudio.ai/v1/systemone
  * OpenRouter: POST https://openrouter.ai/api/v1/systemone (TypeSafe System One
- * API; model typesafe/jev-1.14). See
+ * API; models typesafe/jev-1.14 and google/gemini-decision-1). See
  * https://openrouter.ai/docs/guides/community/typesafe-sdk
+ * https://openrouter.ai/docs/guides/community/multimodal-decisions
  */
 
 export type JevProvider = "knoxchat" | "openrouter";

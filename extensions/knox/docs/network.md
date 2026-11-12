@@ -7,7 +7,7 @@ forced false; Knox does not add anonymous stats).
 | Destination | When | What is sent | Off switch |
 |---|---|---|---|
 | Your configured model provider (KnoxChat, OpenRouter, OpenAI-compatible, Anthropic, custom/Ollama) | Chat and agent turns | Prompts, tool results, images you attach | Do not configure a model / go offline |
-| Jev (`https://api.knoxstudio.ai/v1/systemone`, or OpenRouter `https://openrouter.ai/api/v1/systemone` with `typesafe/jev-1.14`) | `knoxchat.jev.enabled` (default on) | User message, short turn summaries, tool name/arg previews, truncated assistant text. Never file contents. | `knoxchat.jev.enabled: false` |
+| Harness judgments (`https://api.knoxstudio.ai/v1/systemone`, or OpenRouter `https://openrouter.ai/api/v1/systemone` with `typesafe/jev-1.14` or `google/gemini-decision-1`) | `knoxchat.jev.enabled` (default on) | User message, short turn summaries, tool name/arg previews, truncated assistant text, attached images. Never file contents. | `knoxchat.jev.enabled: false` |
 | `builtin_fetch_url` | Agent calls the tool | HTTP GET of a public URL | `knoxchat.networkMode: deny` |
 | GitHub Releases | Auto-update check | `latest-*.json` from `/releases/latest/download` (version + package URL); API `/releases/latest` if the JSON is missing | Disable updates in the editor |
 | Open VSX | Extension gallery | Marketplace queries | Do not open the Extensions view / empty gallery |

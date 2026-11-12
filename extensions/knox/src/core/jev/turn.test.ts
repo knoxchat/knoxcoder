@@ -335,6 +335,72 @@ describe("evaluateAgentTurn", () => {
     });
   });
 
+  it("keeps object state for Gemini Decision 1 when there are no images", async () => {
+    let state: unknown;
+    await evaluateAgentTurn({
+      userMessage: "go ahead",
+      hasViewRead: true,
+      runtime: {
+        ...runtime(),
+        model: "google/gemini-decision-1",
+        provider: "openrouter",
+        baseUrl: "https://openrouter.ai/api",
+      },
+      client: {
+        async systemOne(request) {
+          state = request.state;
+          return {
+            model: "google/gemini-decision-1",
+            answers: {
+              route: { type: "choice", choice: "chat", confidence: 0.9 },
+              needs_mutation: { type: "noul", noul: 0.8 },
+              difficulty: { type: "score", score: 0.4, confidence: 0.8 },
+            },
+          };
+        },
+      },
+    });
+    expect(state).toMatchObject({ user_message: "go ahead" });
+    expect(Array.isArray(state)).toBe(false);
+  });
+
+  it("puts Gemini Decision 1 images in the top-level state array", async () => {
+    let state: unknown;
+    const png = "data:image/png;base64,aaa";
+    const webp = "data:image/webp;base64,bbb";
+    const remote = "https://example.com/remote.png";
+    await evaluateAgentTurn({
+      userMessage: "what is in this screenshot?",
+      images: [png, remote, webp],
+      hasViewRead: true,
+      runtime: {
+        ...runtime(),
+        model: "google/gemini-decision-1",
+        provider: "openrouter",
+        baseUrl: "https://openrouter.ai/api",
+      },
+      client: {
+        async systemOne(request) {
+          state = request.state;
+          return {
+            model: "google/gemini-decision-1",
+            answers: {
+              route: { type: "choice", choice: "view_read", confidence: 0.9 },
+              needs_mutation: { type: "noul", noul: 0.1 },
+              difficulty: { type: "score", score: 0.4, confidence: 0.8 },
+            },
+          };
+        },
+      },
+    });
+    expect(state).toEqual([
+      "what is in this screenshot?",
+      { type: "image_url", image_url: { url: png } },
+      { type: "image_url", image_url: { url: remote } },
+      { type: "image_url", image_url: { url: webp } },
+    ]);
+  });
+
   it("keeps a clarify route and hint instead of silently implementing", async () => {
     const judgment = await evaluateAgentTurn({
       userMessage: "do the thing with the file",

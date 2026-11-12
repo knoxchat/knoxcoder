@@ -32,8 +32,10 @@ export const sharedConfigSchema = z
     agentPolicyCommands: z.string(),
     agentPolicyExternalDirectory: z.enum(["deny", "ask", "allow"]),
     agentPolicySandboxDestructive: z.boolean(),
-    /** Enable Jev harness judgments (uses the knoxchat or openrouter API key unless `jev.apiKey` is set). */
+    /** Enable harness judgments (uses the knoxchat or openrouter API key unless `jev.apiKey` is set). */
     jevEnabled: z.boolean(),
+    /** Decisions catalog id: `jev` (TypeSafe) or `google/gemini-decision-1`. */
+    jevModel: z.enum(["jev", "google/gemini-decision-1"]),
 
     // `ui` in `KnoxConfig`
     showSessionTabs: z.boolean(),
@@ -158,10 +160,18 @@ export function modifyAnyConfigWithSharedConfig<
     };
   }
 
-  if (sharedConfig.jevEnabled !== undefined) {
+  if (
+    sharedConfig.jevEnabled !== undefined ||
+    sharedConfig.jevModel !== undefined
+  ) {
     configCopy.experimental.jev = {
       ...configCopy.experimental.jev,
-      enabled: sharedConfig.jevEnabled,
+      ...(sharedConfig.jevEnabled !== undefined
+        ? { enabled: sharedConfig.jevEnabled }
+        : {}),
+      ...(sharedConfig.jevModel !== undefined
+        ? { model: sharedConfig.jevModel }
+        : {}),
     };
   }
 

@@ -350,7 +350,7 @@ declare global {
     completionOptions: CompletionOptions;
     prompt: string;
     completion: string;
-    /** Structured Jev harness answers (routing, guardrails, citations). */
+    /** Structured harness-judgment answers (routing, guardrails, citations). */
     jev?: {
       turn?: {
         source: "jev" | "heuristic";
@@ -545,6 +545,8 @@ declare global {
     agentVerifyMode?: "diagnostics" | "command" | "off";
     agentVerifyMaxIterations?: number;
     jevEnabled?: boolean;
+    /** Decisions catalog id: \`jev\` or \`google/gemini-decision-1\`. */
+    jevModel?: string;
     /** Cap on Memory Brain sqlite+WAL in bytes. 0 disables. */
     memoryBrainMaxBytes?: number;
     memoryBrainEnabled?: boolean;
@@ -1033,9 +1035,10 @@ declare global {
     };
 
     /**
-     * Jev (System One) harness judgments. Default off.
+     * Harness judgments (System One Decisions models). Default off.
      * Uses the selected knoxchat or openrouter API key unless \`jev.apiKey\` is set.
-     * KnoxStudio → api.knoxstudio.ai; OpenRouter → openrouter.ai/api (typesafe/jev-1.14).
+     * KnoxStudio → api.knoxstudio.ai; OpenRouter → openrouter.ai/api
+     * (\`typesafe/jev-1.14\` or \`google/gemini-decision-1\`).
      * Fail-open to regex/token heuristics.
      */
     jev?: {

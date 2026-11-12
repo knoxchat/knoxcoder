@@ -35,11 +35,30 @@ export interface IKnoxGuiVscTheme {
 	colors?: Record<string, string>;
 }
 
-/** Session starts in Agent. Chat vs Agent is not a user tab; Jev picks per turn when enabled. */
+/** Session starts in Agent. Chat vs Agent is not a user tab; harness judgments pick per turn when enabled. */
 export const KNOX_GUI_DEFAULT_SESSION_MODE: KnoxChatMode = 'agent';
 export const DEFAULT_PERMISSION_MODE: KnoxPermissionMode = 'fullAuto';
 export const PERMISSION_MODES: KnoxPermissionMode[] = ['default', 'acceptEdits', 'fullAuto'];
 export const MODEL_ROLES: KnoxModelRole[] = ['chat', 'edit', 'apply', 'viewRead', 'realTimeSearch'];
+
+/** Harness judgments catalog (`jev.model` / `knoxchat.jev.model`). */
+export const KNOX_GUI_JEV_MODEL_JEV = 'jev';
+export const KNOX_GUI_JEV_MODEL_GEMINI = 'google/gemini-decision-1';
+export const KNOX_GUI_JEV_MODELS = [KNOX_GUI_JEV_MODEL_JEV, KNOX_GUI_JEV_MODEL_GEMINI] as const;
+export type KnoxGuiJevModelId = (typeof KNOX_GUI_JEV_MODELS)[number];
+
+export function knoxGuiJevModelLabelKey(id: string): 'jevModelJev' | 'jevModelGemini' {
+	return id === KNOX_GUI_JEV_MODEL_GEMINI ? 'jevModelGemini' : 'jevModelJev';
+}
+
+/** Map a configured System One model id onto the Settings catalog. */
+export function knoxGuiJevCatalogId(model: unknown): KnoxGuiJevModelId {
+	const id = typeof model === 'string' ? model.trim().toLowerCase() : '';
+	if (id.includes('gemini-decision') || id === KNOX_GUI_JEV_MODEL_GEMINI) {
+		return KNOX_GUI_JEV_MODEL_GEMINI;
+	}
+	return KNOX_GUI_JEV_MODEL_JEV;
+}
 
 export function knoxGuiPermissionModeLabelKey(mode: KnoxPermissionMode): 'permissionModeAsk' | 'permissionModeEdits' | 'permissionModeAuto' {
 	if (mode === 'acceptEdits') {
@@ -1051,6 +1070,8 @@ export interface IKnoxGuiState {
 	agentDoomLoopThreshold: number;
 	agentViewSubdirectoryMaxFiles: number;
 	jevEnabled: boolean;
+	/** Catalog id for harness judgments: `jev` or `google/gemini-decision-1`. */
+	jevModel: KnoxGuiJevModelId;
 	/** MC-72: `knoxchat.recipes.*` / `knoxchat.selfImprove.enabled`, read from and written to the host settings. */
 	recipeSettings: IKnoxGuiRecipeSettings;
 	/** `knoxchat.memoryBrain.enabled` / `workspaceEnabled`. */
@@ -1100,7 +1121,7 @@ export interface IKnoxGuiState {
 	editStatus: KnoxGuiEditStatus;
 	editPreviousInputs: string[];
 	editFileAfterEdit?: string;
-	/** Session tab to restore after Cmd+I edit. Never persisted. Chat vs Agent is Jev-picked. */
+	/** Session tab to restore after Cmd+I edit. Never persisted. Chat vs Agent is judgment-picked. */
 	editReturnMode?: KnoxChatMode;
 	images: { name: string; imageUrl: string }[];
 	historicalImages: string[];
@@ -1408,6 +1429,7 @@ export function createInitialKnoxGuiState(): IKnoxGuiState {
 		agentDoomLoopThreshold: 3,
 		agentViewSubdirectoryMaxFiles: 1000,
 		jevEnabled: false,
+		jevModel: KNOX_GUI_JEV_MODEL_JEV,
 		recipeSettings: { enabled: false, autoReplay: 'off', selfImprove: false },
 		memoryBrainSettings: { enabled: true, workspaceEnabled: true },
 		policy: { paths: '', commands: '', externalDirectory: 'ask', sandboxDestructive: true },

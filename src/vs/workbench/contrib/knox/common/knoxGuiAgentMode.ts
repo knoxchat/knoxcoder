@@ -22,7 +22,7 @@ export function knoxGuiIsSessionTabMode(mode: KnoxChatMode): mode is 'chat' | 'a
 
 /**
  * Users do not pick Chat vs Agent. Chat remains only when the model cannot
- * call tools; Cmd+I edit is unchanged. Jev chooses tools per turn when enabled.
+ * call tools; Cmd+I edit is unchanged. Harness judgments choose tools per turn when enabled.
  */
 export function knoxGuiResolveSessionMode(input: { mode: KnoxChatMode; toolsSupported: boolean }): KnoxChatMode {
 	if (input.mode === 'edit') {
@@ -46,7 +46,7 @@ export function knoxGuiModeAfterEditExit(returnMode?: KnoxChatMode, nextMode?: K
 
 /**
  * Host AgentModeManager can force Agent on. Turning the switch off no longer
- * means Chat — Jev picks Chat vs Agent when enabled, otherwise Agent only.
+ * means Chat: harness judgments pick Chat vs Agent when enabled, otherwise Agent only.
  * Cmd+I edit is left only when turning agent on.
  */
 export function knoxGuiModeAfterHostAgentFlag(mode: KnoxChatMode, active: boolean): KnoxChatMode | undefined {

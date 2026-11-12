@@ -38,6 +38,7 @@ export interface JevLogEntry {
   questions: string[];
   outcome: JevLogOutcome;
   ms: number;
+  model?: string;
   error?: string;
 }
 
@@ -103,8 +104,9 @@ export function resetJevGuardForTests(): void {
 
 export function formatJevLogEntry(entry: JevLogEntry): string {
   const time = new Date(entry.at).toISOString();
+  const model = entry.model ? ` ${entry.model}` : "";
   const tail = entry.error ? ` ${entry.error}` : "";
-  return `${time} ${entry.outcome} ${entry.purpose} ${entry.ms}ms [${entry.questions.join(",")}]${tail}`;
+  return `${time} ${entry.outcome} ${entry.purpose} ${entry.ms}ms [${entry.questions.join(",")}]${model}${tail}`;
 }
 
 function emitState(): void {
@@ -156,6 +158,7 @@ export function wrapJevClientWithGuard(
       const base = {
         purpose: purpose ?? ("unspecified" as const),
         questions,
+        ...(request.model ? { model: request.model } : {}),
       };
       const startedAt = now();
 

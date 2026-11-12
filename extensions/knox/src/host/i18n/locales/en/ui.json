@@ -52,6 +52,6 @@
   "memory.view.title": "Memory",
   "memory.view.failedShow": "Failed to show Memory: {{error}}",
   "memory.statusBar.tooltip": "Knox memory — click to open Memory",
-  "jev.statusBar.tooltip": "Jev judgments — click to open the Jev log",
-  "jev.statusBar.paused": "Jev paused (circuit breaker open) — click to open the Jev log"
+  "jev.statusBar.tooltip": "Harness judgments: click to open the log",
+  "jev.statusBar.paused": "Harness judgments paused (circuit breaker open): click to open the log"
 }

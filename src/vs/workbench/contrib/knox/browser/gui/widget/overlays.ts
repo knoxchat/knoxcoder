@@ -44,7 +44,7 @@ import {
 } from '../../../common/knoxGuiOverlays.js';
 import { KnoxGuiOverlay, KnoxGuiRoute } from '../../../common/knoxGuiProtocol.js';
 import { isSlashBookmarked, knoxGuiIsImeComposing, knoxGuiIsMetaEquivalent } from '../../../common/knoxGuiInput.js';
-import { IKnoxGuiHistorySession, IKnoxGuiState, knoxGuiIsDedicatedEditor, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiHistorySession, IKnoxGuiState, KNOX_GUI_JEV_MODELS, KnoxGuiJevModelId, knoxGuiIsDedicatedEditor, knoxGuiJevModelLabelKey, knoxGuiPruneSessionTabsFromState } from '../../../common/knoxGuiState.js';
 import { KNOX_GUI_SETTINGS_NAV, knoxGuiSettingsTab } from '../../../common/knoxGuiChrome.js';
 
 export function renderOverlay(widget: KnoxGuiWidget, body: HTMLElement, state: IKnoxGuiState, overlay: Exclude<KnoxGuiOverlay, null>): void {
@@ -1181,6 +1181,28 @@ function renderSettingsGeneral(widget: KnoxGuiWidget, parent: HTMLElement, state
 				widget.controller.setMode('agent');
 			}
 		});
+		if (state.jevEnabled) {
+			const modelRow = DOM.append(el, DOM.$('.knox-gui-row.knox-gui-settings-stack'));
+			const modelLabels = DOM.append(modelRow, DOM.$('div'));
+			DOM.append(modelLabels, DOM.$('div', undefined, t(state, 'jevModel')));
+			DOM.append(modelLabels, DOM.$('span.knox-gui-muted', undefined, t(state, 'jevModelHint')));
+			const model = DOM.append(modelRow, DOM.$('select.knox-gui-select')) as HTMLSelectElement;
+			model.setAttribute('data-testid', 'knox-gui-jev-model');
+			model.setAttribute('aria-label', t(state, 'jevModel'));
+			for (const value of KNOX_GUI_JEV_MODELS) {
+				const option = DOM.append(model, DOM.$('option')) as HTMLOptionElement;
+				option.value = value;
+				option.textContent = t(state, knoxGuiJevModelLabelKey(value)) || value;
+				if (state.jevModel === value) {
+					option.selected = true;
+				}
+			}
+			widget.renderStore.add(DOM.addDisposableListener(model, 'change', () => {
+				const next = model.value as KnoxGuiJevModelId;
+				widget.controller.store.patch({ jevModel: next });
+				void widget.controller.updateSharedConfig({ jevModel: next });
+			}));
+		}
 		DOM.append(el, DOM.$('p.knox-gui-muted', undefined, t(state, 'agentPolicyHint')));
 	});
 }

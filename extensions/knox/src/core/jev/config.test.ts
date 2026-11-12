@@ -66,6 +66,7 @@ describe("normalizeJevBaseUrl", () => {
 describe("mapJevModel", () => {
   it("defaults OpenRouter to typesafe/jev-1.14", () => {
     expect(mapJevModel("", "openrouter")).toBe("typesafe/jev-1.14");
+    expect(mapJevModel("jev", "openrouter")).toBe("typesafe/jev-1.14");
     expect(mapJevModel("jev-1.14", "openrouter")).toBe("typesafe/jev-1.14");
     expect(mapJevModel("jev-1.14.0", "openrouter")).toBe("typesafe/jev-1.14");
     expect(mapJevModel("jev-latest", "openrouter")).toBe("~typesafe/jev-latest");
@@ -75,7 +76,20 @@ describe("mapJevModel", () => {
     expect(mapJevModel("jev-1.13.0", "openrouter")).toBe("typesafe/jev-1.13");
   });
 
+  it("maps Gemini Decision 1 aliases onto google/gemini-decision-1", () => {
+    expect(mapJevModel("google/gemini-decision-1", "openrouter")).toBe(
+      "google/gemini-decision-1",
+    );
+    expect(mapJevModel("gemini-decision-1", "openrouter")).toBe(
+      "google/gemini-decision-1",
+    );
+    expect(mapJevModel("gemini-decision", "knoxchat")).toBe(
+      "google/gemini-decision-1",
+    );
+  });
+
   it("keeps KnoxStudio bare ids", () => {
+    expect(mapJevModel("jev", "knoxchat")).toBe("jev-1.13.0");
     expect(mapJevModel("jev-1.13.0", "knoxchat")).toBe("jev-1.13.0");
     expect(mapJevModel("typesafe/jev-1.14", "knoxchat")).toBe("jev-1.14");
   });
@@ -251,6 +265,23 @@ describe("mergeJevConfigWithFallback", () => {
     expect(
       mergeJevConfigWithFallback(undefined, { apiKey: "sk-knox" }),
     ).toBeUndefined();
+  });
+
+  it("routes Gemini Decision 1 onto OpenRouter even if chat is Knox", async () => {
+    const { setOpenRouterOAuthApiKey } = await import(
+      "../auth/openrouterOAuth/session"
+    );
+    setOpenRouterOAuthApiKey("sk-or-gemini");
+    const merged = mergeJevConfigWithFallback(
+      { enabled: true, model: "google/gemini-decision-1" },
+      { apiKey: "sk-knox", provider: "knoxchat" },
+    );
+    expect(merged?.baseUrl).toBe("https://openrouter.ai/api");
+    expect(merged?.apiKey).toBe("sk-or-gemini");
+    const runtime = resolveJevRuntime(merged);
+    expect(runtime.provider).toBe("openrouter");
+    expect(runtime.model).toBe("google/gemini-decision-1");
+    expect(runtime.apiKey).toBe("sk-or-gemini");
   });
 });
 

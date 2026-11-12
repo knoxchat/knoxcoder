@@ -230,15 +230,20 @@ patch writes nothing. Graph: Export patch. Palette: Export Checkpoint Patch /
 Apply Checkpoint Patch. Agent `export_patch` is readonly; `apply_patch`
 always asks. Bundles still clone a full reconstructable tree.
 
-## Jev (network calls)
+## Harness judgments (network calls)
 
-Jev routing and gates call `api.knoxstudio.ai` or, when the selected model is
-OpenRouter, `openrouter.ai/api/v1/systemone` (`typesafe/jev-1.14`). Only the
-user message and tool names are sent, never file contents. Every call has a
-hard time budget and a circuit breaker (3 failures, 5 minutes off). Disable
-with `knoxchat.jev.enabled` (or the Knox Settings toggle). The editor status
-bar chip (`knoxchat.jev.showStatusBar`) is hidden while Jev is off; see calls
-in "Knox: Show Jev Log".
+Routing and gates call `api.knoxstudio.ai` or, when the selected model is
+OpenRouter, `openrouter.ai/api/v1/systemone`. The default Decisions model is
+TypeSafe Jev (`typesafe/jev-1.14` on OpenRouter, `jev-1.13.0` on Knox Chat).
+Knox Settings (Harness judgments, then Decisions model) and `knoxchat.jev.model`
+(or YAML `jev.model`: `jev` / `google/gemini-decision-1`) can switch to Google
+Gemini Decision 1 (`google/gemini-decision-1`, OpenRouter-only; text, images,
+audio, video, and documents). Only the user message, short turn summaries, tool
+names, and attached images are sent, never file contents. Every call has a hard
+time budget and a circuit breaker (3 failures, 5 minutes off). Disable with
+`knoxchat.jev.enabled` (or the Knox Settings toggle). The editor status bar
+chip (`knoxchat.jev.showStatusBar`) is hidden while judgments are off; see
+calls in "Knox: Show Judgments Log".
 
 ## Tool loading
 

@@ -3,7 +3,8 @@
  *
  * Mapped onto experimental.jev. Zod on the assistant schema may strip
  * unknown keys, so we also parse the raw YAML here.
- * Host is KnoxStudio or OpenRouter System One (`typesafe/jev-1.14`).
+ * Host is KnoxStudio or OpenRouter System One (`typesafe/jev-1.14` or
+ * `google/gemini-decision-1`).
  */
 
 import * as YAML from "yaml";

@@ -3412,7 +3412,18 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 
 		store.patch({ overlay: 'settings' });
 		assert.ok(widget.root.querySelector('.knox-gui-settings-card h3.knox-gui-cyan'));
+		assert.ok(widget.root.textContent?.includes('Harness judgments'));
 		assert.strictEqual(widget.root.querySelector('[data-testid="memory-recipe-settings"]'), null, 'recipe switches live on Memory Settings, not Agent Settings');
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-jev-model"]'), null);
+		store.patch({ jevEnabled: true, jevModel: 'jev' });
+		const jevModel = widget.root.querySelector('[data-testid="knox-gui-jev-model"]') as HTMLSelectElement;
+		assert.ok(jevModel);
+		assert.deepStrictEqual([...jevModel.options].map(option => option.value), ['jev', 'google/gemini-decision-1']);
+		jevModel.value = 'google/gemini-decision-1';
+		jevModel.dispatchEvent(new Event('change'));
+		assert.strictEqual(store.state.jevModel, 'google/gemini-decision-1');
+		store.patch({ jevEnabled: false });
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-jev-model"]'), null);
 		assert.ok(widget.root.querySelector('.knox-gui-number-step'));
 		const numberInput = widget.root.querySelector('.knox-gui-number-field input') as HTMLInputElement;
 		assert.ok(numberInput);

@@ -5,6 +5,7 @@ import {
     getActiveJevRuntime,
     getJevActivityState,
     getJevLogEntries,
+    isGeminiDecisionModel,
     onJevActivity,
     onJevConfig,
     onJevLog,
@@ -19,21 +20,26 @@ import { onGuiLanguageChanged } from '../i18n/guiLanguage';
 export const JEV_LOG_COMMAND = 'knoxchat.showJevLog';
 const JEV_STATUS_BAR_PRIORITY = 52;
 
+function judgmentsChipLabel(model: string): string {
+    return isGeminiDecisionModel(model) ? 'Gemini' : 'Jev';
+}
+
 /**
- * Status bar indicator for Jev calls (K-007): a spinner while a call is in
- * flight, a warning when the circuit breaker is open, and an output channel
- * with one line per call. Hidden while Jev itself is off (GUI Settings,
- * YAML `jev.enabled`, or `knoxchat.jev.enabled`) even if the vscode setting
- * still defaults on — the GUI toggle writes shared config, not that setting.
+ * Status bar indicator for harness-judgment calls (K-007): a spinner while a
+ * call is in flight, a warning when the circuit breaker is open, and an output
+ * channel with one line per call. The chip names the live Decisions model.
+ * Hidden while judgments are off (GUI Settings, YAML `jev.enabled`, or
+ * `knoxchat.jev.enabled`) even if the vscode setting still defaults on: the
+ * GUI toggle writes shared config, not that setting.
  */
 export function registerJevStatusBar(context: vscode.ExtensionContext): vscode.StatusBarItem {
-    const channel = vscode.window.createOutputChannel('Knox Jev');
+    const channel = vscode.window.createOutputChannel('Knox Judgments');
     const item = vscode.window.createStatusBarItem(
         'knox.jev',
         vscode.StatusBarAlignment.Right,
         JEV_STATUS_BAR_PRIORITY,
     );
-    item.name = 'Knox Jev';
+    item.name = 'Knox Judgments';
     item.command = JEV_LOG_COMMAND;
 
     const visible = () =>
@@ -46,7 +52,12 @@ export function registerJevStatusBar(context: vscode.ExtensionContext): vscode.S
             return;
         }
         const paused = state.breakerOpenUntil > Date.now();
-        item.text = state.inFlight > 0 ? '$(sync~spin) Jev' : paused ? '$(warning) Jev' : '$(pulse) Jev';
+        const label = judgmentsChipLabel(getActiveJevRuntime().model);
+        item.text = state.inFlight > 0
+            ? `$(sync~spin) ${label}`
+            : paused
+                ? `$(warning) ${label}`
+                : `$(pulse) ${label}`;
         item.tooltip = paused ? t('jev.statusBar.paused') : t('jev.statusBar.tooltip');
         item.show();
     };

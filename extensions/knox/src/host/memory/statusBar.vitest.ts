@@ -1,6 +1,6 @@
 /**
- * Jev editor status bar: hidden while harness judgments are off, even if the
- * vscode `jev.enabled` setting still defaults on.
+ * Judgments editor status bar: hidden while harness judgments are off, even if
+ * the vscode `jev.enabled` setting still defaults on.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,17 +18,20 @@ const h = vi.hoisted(() => {
     hide: vi.fn(),
     dispose: vi.fn(),
   };
-  return { settings, item };
+  return { settings, item, channelName: "" };
 });
 
 vi.mock("vscode", () => ({
   StatusBarAlignment: { Left: 1, Right: 2 },
   window: {
-    createOutputChannel: () => ({
-      appendLine: vi.fn(),
-      show: vi.fn(),
-      dispose: vi.fn(),
-    }),
+    createOutputChannel: (name: string) => {
+      h.channelName = name;
+      return {
+        appendLine: vi.fn(),
+        show: vi.fn(),
+        dispose: vi.fn(),
+      };
+    },
     createStatusBarItem: () => h.item,
   },
   workspace: {
@@ -91,6 +94,16 @@ describe("registerJevStatusBar", () => {
     applyJevConfig({ enabled: true });
     expect(h.item.show).toHaveBeenCalled();
     expect(h.item.hide).not.toHaveBeenCalled();
+    expect(h.item.name).toBe("Knox Judgments");
+    expect(h.channelName).toBe("Knox Judgments");
+    expect(h.item.text).toContain("Jev");
+  });
+
+  it("names the chip Gemini when Gemini Decision 1 is selected", () => {
+    applyJevConfig({ enabled: true, model: "google/gemini-decision-1" });
+    registerJevStatusBar(context as never);
+    expect(h.item.show).toHaveBeenCalled();
+    expect(h.item.text).toContain("Gemini");
   });
 
   it("hides when Jev is turned off", () => {
