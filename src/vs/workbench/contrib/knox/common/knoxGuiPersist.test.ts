@@ -117,13 +117,15 @@ suite('Knox native persistence and permission helpers', () => {
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_read_file' }), true);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_ask_user', permissionMode: 'fullAuto' }), false);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_edit_file', toolSettings: { builtin_edit_file: 'disabled' }, permissionMode: 'fullAuto' }), false);
-		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_edit_file', toolSettings: { builtin_edit_file: 'allowedWithPermission' } }), false);
+		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_read_file', toolSettings: { builtin_read_file: 'allowedWithPermission' } }), false);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_edit_file', toolSettings: { builtin_edit_file: 'allowedWithPermission' }, permissionMode: 'acceptEdits' }), true);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_generate_tests', toolSettings: { builtin_generate_tests: 'allowedWithPermission' }, permissionMode: 'acceptEdits' }), true);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_run_terminal_command', toolSettings: { builtin_run_terminal_command: 'allowedWithPermission' }, sessionAllowlist: ['builtin_run_terminal_command'] }), true);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'restore' }, permissionMode: 'fullAuto' }), false);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'stash' }, permissionMode: 'fullAuto' }), false);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'stash_pop' }, permissionMode: 'fullAuto' }), false);
+		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'switch_branch' }, permissionMode: 'fullAuto' }), false);
+		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'checkout' }, permissionMode: 'fullAuto' }), false);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'cherry_pick' }, permissionMode: 'fullAuto' }), false);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'revert' }, permissionMode: 'fullAuto' }), false);
 		assert.strictEqual(knoxGuiLocalAutoApprove({ ...base, name: 'builtin_workspace_checkpoint', args: { action: 'stash_list' } }), true);

@@ -252,7 +252,6 @@ export const KNOX_GUI_HOST_OUTBOUND = [
 	'knox/hydrateAssistant',
 	'knox/runChatTurn',
 	'knox/cancelChatTurn',
-	'devdata/log',
 	'didChangeSelectedProfile',
 	'context/getSymbolsForFiles',
 	'getPreviousCheckpoint',
@@ -352,10 +351,11 @@ export const KNOX_GUI_HOST_OUTBOUND = [
 
 /**
  * KN-378: leftover chrome names that native GUI listed without a caller.
- * Must stay empty — either wire a chrome caller or drop the outbound name.
+ * Must stay empty: either wire a chrome caller or drop the outbound name.
  * Dropped: memory/create|search|delete|list|cleanup (brain/*), overwriteFile
  * (applyToFile / restoreCheckpoint / knox.enhancedUndo), config/reload (configUpdate inbound),
- * brain/forgetMemories (brain/deleteMemory), brain/stats (brain/getConfig + brain/dashboard).
+ * brain/forgetMemories (brain/deleteMemory), brain/stats (brain/getConfig + brain/dashboard),
+ * devdata/log (core still accepts it; native GUI never posts it).
  */
 export const KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME = [] as const;
 

@@ -983,7 +983,7 @@ suite('Knox agent host contract (KN-378)', () => {
 		const messenger = repoFile('extensions/knox/src/host/extension/VsCodeMessenger.ts');
 		assert.ok(protocol.includes('KN-378'));
 		assert.deepStrictEqual([...KNOX_GUI_HOST_OUTBOUND_UNUSED_IN_CHROME], []);
-		for (const dropped of ['config/reload', 'overwriteFile', 'memory/create', 'memory/search', 'memory/delete', 'memory/list', 'memory/cleanup', 'brain/forgetMemories', 'brain/stats'] as const) {
+		for (const dropped of ['config/reload', 'overwriteFile', 'memory/create', 'memory/search', 'memory/delete', 'memory/list', 'memory/cleanup', 'brain/forgetMemories', 'brain/stats', 'devdata/log'] as const) {
 			assert.ok(!(KNOX_GUI_HOST_OUTBOUND as readonly string[]).includes(dropped), dropped);
 			assert.ok(!chrome.includes(`'${dropped}'`) && !chrome.includes(`"${dropped}"`), dropped);
 		}
@@ -1000,6 +1000,7 @@ suite('Knox agent host contract (KN-378)', () => {
 		assert.ok(core.includes('on("memory/cleanup"'));
 		assert.ok(core.includes('on("brain/searchMemories"'));
 		assert.ok(core.includes('on("brain/deleteMemory"'));
+		assert.ok(core.includes('on("devdata/log"'));
 		assert.ok(messenger.includes('"overwriteFile"'));
 		assert.ok(messenger.includes('"applyToFile"'));
 		assert.ok(chrome.includes("config/getSerializedProfileInfo"));
