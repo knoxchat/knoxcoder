@@ -2,6 +2,14 @@
 
 Full detail is in `CHANGELOG.md`; upgrade steps in [upgrade.md](upgrade.md); caveats in [known-issues.md](known-issues.md).
 
+## 2.3.3
+
+- **Agent-only Knox Agent.** Chat session mode and Ask permission are gone. The permission bar is Edits / Auto. The composer model is used for every action.
+- **Add Model in Settings > Models.** The catalog no longer overlays chat. Connect is one-shot per model. The Models tab is a compact catalog.
+- **Harness judgments.** TypeSafe Jev and Google Gemini Decision 1. Settings and the status bar chip describe judgments rather than Jev alone.
+- **tsrs 0.25.0.** Native TypeScript 7 CLI, gulp compile, and the layers checker use [tsrs](https://github.com/oxc-project/tsrs) `0.25.0-ts7.1.0-beta`, which ships `@tsrs/win32-arm64`.
+- **Composer IME and reasoning effort.** Chinese IME composition stays intact. Reasoning effort None is honored; user parts are no longer flattened to `[object Object]`.
+
 ## 2.3.2
 
 - **Memory Brain Rev 2.** Write path, forgetting, calibration, erasure, and a release gate on the 2.3.0 rewrite. Retrieval stays local lexical (no embeddings). Overview shows `ε_Ω` and the five invariant chips.

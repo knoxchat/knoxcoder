@@ -3,6 +3,8 @@
 All notable changes to KnoxCoder are documented in this file.
 ## [Unreleased]
 
+## [2.3.3] - 2026-11-12
+
 ### Removed
 
 - **Chat, Edit, Apply, View/Read, and RealTime Search pickers.** Settings > Models no longer assigns a different model per action. The composer model is used for every action.
@@ -24,6 +26,12 @@ All notable changes to KnoxCoder are documented in this file.
 - **tsrs 0.25.0 with Windows ARM64.** Native TypeScript 7 CLI, gulp compile, and the layers checker use [tsrs](https://github.com/oxc-project/tsrs) `0.25.0-ts7.1.0-beta`, which ships `@tsrs/win32-arm64`. gulp `vscode-win32-arm64-min` typecheck uses tsrs instead of Go `tsc`.
 
 ### Fixed
+
+- **Chinese IME in the Knox composer.** Candidate-confirm Enter, empty-box placeholder layout, and stray compositionend no longer cut or submit half-typed CJK input.
+
+- **Reasoning effort None and user-message parts.** An explicit None stays None (JEV no longer bumps it to high). Consecutive user parts are no longer flattened to `[object Object]`.
+
+- **Darwin ARM64 minify packaging.** Pin `@electron/asar` 3.2.1 so gulp `vscode-darwin-arm64-min` can construct `Filesystem` after a 3.4.x hoist.
 
 - **Knox GUI tests after Ask removal.** Local auto-approve in Edits no longer treats file edits as a deny, checkpoint switch/checkout still prompt, and unused `devdata/log` is off the GUI outbound catalog.
 
