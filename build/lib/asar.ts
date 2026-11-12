@@ -6,7 +6,7 @@
 import path from 'path';
 import es from 'event-stream';
 import pickle from 'chromium-pickle-js';
-import Filesystem from 'asar/lib/filesystem.js';
+import Filesystem from '@electron/asar/lib/filesystem.js';
 import VinylFile from 'vinyl';
 import { minimatch } from 'minimatch';
 
@@ -92,6 +92,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 			.then(() => onFileInserted(), () => onFileInserted());
 	};
 
+	// event-stream's ThroughStream and @types/node ReadWriteStream disagree on `compose`.
 	return es.through(function (file) {
 		if (file.stat.isDirectory()) {
 			return;
@@ -170,5 +171,5 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 				}
 			};
 		}
-	});
+	}) as unknown as NodeJS.ReadWriteStream;
 }

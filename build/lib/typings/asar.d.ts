@@ -1,4 +1,4 @@
-declare module 'asar/lib/filesystem.js' {
+declare module '@electron/asar/lib/filesystem.js' {
 
 	export default class AsarFilesystem {
 		readonly header: unknown;

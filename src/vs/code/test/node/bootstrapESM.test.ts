@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 
 const execFileAsync = promisify(execFile);
 const nodeRequire = createRequire(import.meta.url);
-const { createPackage, uncache } = nodeRequire('asar') as {
+const { createPackage, uncache } = nodeRequire('@electron/asar') as {
 	createPackage(source: string, destination: string): Promise<void>;
 	uncache(archive: string): boolean;
 };
