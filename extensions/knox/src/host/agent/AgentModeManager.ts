@@ -375,45 +375,14 @@ export class AgentModeManager implements vscode.Disposable {
   // Execute a tool call with dynamic model switching support.
   // Undo snapshots + pre-risky checkpoints are handled on Core tools/call
   // (same path as GUI chat) via IDE.captureMutatingToolBefore / recordMutatingToolAfter.
-  public async executeToolCall(toolCall: ToolCall, selectedModelTitle: string, viewReadModelTitle?: string | null, realTimeSearchModelTitle?: string | null, preferredModel?: 'chat' | 'viewRead' | 'realTimeSearch'): Promise<ContextItem[]> {
+  public async executeToolCall(toolCall: ToolCall, selectedModelTitle: string, _viewReadModelTitle?: string | null, _realTimeSearchModelTitle?: string | null, _preferredModel?: 'chat' | 'viewRead' | 'realTimeSearch'): Promise<ContextItem[]> {
     try {
       // Update status to processing
       this.updateStatus(AgentModeStatus.PROCESSING);
-      
-      // If viewReadModelTitle is not provided, get the current one from configuration
-      let effectiveViewReadModelTitle = viewReadModelTitle;
-      if (!effectiveViewReadModelTitle) {
-        try {
-          effectiveViewReadModelTitle = await vscode.commands.executeCommand('knox.getCurrentViewReadModel') as string | null;
-          console.log(`[AgentModeManager] Retrieved View/Read model from config: ${effectiveViewReadModelTitle || 'null'}`);
-        } catch (error) {
-          console.warn('Failed to get current View/Read model:', error);
-          effectiveViewReadModelTitle = null;
-        }
-      } else {
-        console.log(`[AgentModeManager] Using provided View/Read model: ${effectiveViewReadModelTitle}`);
-      }
-      
-      // If realTimeSearchModelTitle is not provided, get the current one from configuration
-      let effectiveRealTimeSearchModelTitle = realTimeSearchModelTitle;
-      if (!effectiveRealTimeSearchModelTitle) {
-        try {
-          effectiveRealTimeSearchModelTitle = await vscode.commands.executeCommand('knox.getCurrentRealTimeSearchModel') as string | null;
-          console.log(`[AgentModeManager] Retrieved RealTimeSearch model from config: ${effectiveRealTimeSearchModelTitle || 'null'}`);
-        } catch (error) {
-          console.warn('Failed to get current RealTimeSearch model:', error);
-          effectiveRealTimeSearchModelTitle = null;
-        }
-      } else {
-        console.log(`[AgentModeManager] Using provided RealTimeSearch model: ${effectiveRealTimeSearchModelTitle}`);
-      }
-      
+
       const result = await vscode.commands.executeCommand("knox.callToolDirect", {
         toolCall,
         selectedModelTitle,
-        viewReadModelTitle: effectiveViewReadModelTitle,
-        realTimeSearchModelTitle: effectiveRealTimeSearchModelTitle,
-        preferredModel,
       });
       if (!Array.isArray(result)) {
         throw new Error(

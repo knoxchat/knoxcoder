@@ -36,9 +36,6 @@ export function registerToolHandlers(core: CoreRuntime): void {
     const {
       toolCall,
       selectedModelTitle,
-      viewReadModelTitle,
-      realTimeSearchModelTitle,
-      preferredModel,
       sessionId: requestSessionId,
       turnId,
     } = msg.data;
@@ -53,7 +50,7 @@ export function registerToolHandlers(core: CoreRuntime): void {
       );
     }
     console.log(
-      `[Tools/Call] Executing ${toolName} with Chat: ${selectedModelTitle}, ViewRead: ${viewReadModelTitle || "null"}, RealTimeSearch: ${realTimeSearchModelTitle || "null"}, Preferred: ${preferredModel || "auto"}`,
+      `[Tools/Call] Executing ${toolName} with model: ${selectedModelTitle}`,
     );
 
     if (core.abortedMessageIds.has(msg.messageId)) {
@@ -76,86 +73,7 @@ export function registerToolHandlers(core: CoreRuntime): void {
       throw new Error(formatUnknownToolError(toolName));
     }
 
-    // Import model routing utility
-    const {
-      selectModelForTool,
-      createModelSwitchingContext,
-      isRealTimeSearchTool,
-    } = await import("../tools/modelRouting");
-
-    // Get the chat model
-    const chatModel =
-      await core.configHandler.llmFromTitle(selectedModelTitle);
-
-    // Get the view/read model if specified
-    let viewReadModel = null;
-    if (viewReadModelTitle) {
-      try {
-        viewReadModel =
-          await core.configHandler.llmFromTitle(viewReadModelTitle);
-      } catch (error) {
-        console.warn(
-          `[Tools/Call] Failed to load view/read model '${viewReadModelTitle}', falling back to chat model:`,
-          error,
-        );
-      }
-    }
-
-    // Get the real-time search model if specified
-    let realTimeSearchModel = null;
-    if (realTimeSearchModelTitle) {
-      try {
-        realTimeSearchModel = await core.configHandler.llmFromTitle(
-          realTimeSearchModelTitle,
-        );
-      } catch (error) {
-        console.warn(
-          `[Tools/Call] Failed to load real-time search model '${realTimeSearchModelTitle}', falling back to chat model:`,
-          error,
-        );
-      }
-    }
-
-    if (isRealTimeSearchTool(toolName) && !realTimeSearchModel) {
-      throw new Error(
-        "RealTime Search model is not configured; web search is unavailable.",
-      );
-    }
-
-    // Create model switching context for dynamic switching
-    const modelContext = createModelSwitchingContext(
-      chatModel,
-      viewReadModel,
-      realTimeSearchModel,
-    );
-
-    // Select the appropriate model for this tool with preferred model support
-    const llm = selectModelForTool(
-      toolName,
-      chatModel,
-      viewReadModel,
-      realTimeSearchModel,
-      preferredModel as "chat" | "viewRead" | "realTimeSearch" | undefined,
-    );
-
-    // Log model selection for debugging
-    if (realTimeSearchModel && llm === realTimeSearchModel) {
-      console.log(
-        `[Model Routing] Using RealTimeSearch model '${realTimeSearchModelTitle}' for tool: ${toolName}`,
-      );
-    } else if (viewReadModel && llm === viewReadModel) {
-      console.log(
-        `[Model Routing] Using View/Read model '${viewReadModelTitle}' for tool: ${toolName}`,
-      );
-    } else if (llm === chatModel) {
-      const reason =
-        realTimeSearchModel || viewReadModel
-          ? "specialized model available but not selected"
-          : "no specialized model available";
-      console.log(
-        `[Model Routing] Using Chat model '${selectedModelTitle}' for tool: ${toolName} (${reason})`,
-      );
-    }
+    const llm = await core.configHandler.llmFromTitle(selectedModelTitle);
 
     // ── Argument handling is now delegated to the middleware layer ──
     // The middleware in callTool handles:

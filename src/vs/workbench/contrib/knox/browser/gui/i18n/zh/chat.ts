@@ -10,7 +10,7 @@ export const knoxGuiStringsZhChat: Record<string, unknown> = {
 	"permissionModeAuto": "自动",
 	"permissionModeEditsHint": "自动批准文件编辑；终端仍询问",
 	"permissionModeAutoHint": "自动批准所有已启用工具（默认 YOLO）。检查点可还原工作区。需要先批准终端时切换到编辑。",
-	"permissionModeTriggerHint": "工具如何批准。判断层开启时会选择查看/阅读或主模型。",
+	"permissionModeTriggerHint": "工具如何批准。判断层开启时仍会提示技能并闸门工具。",
 	"permissionModeTriggerHintNoJev": "助理。工具如何批准。",
 	"planMode": "计划",
 	"planModeHint": "只读探索并写出计划。离开计划模式后再执行。",

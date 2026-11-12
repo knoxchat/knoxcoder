@@ -911,39 +911,8 @@
 	gap: 6px;
 }
 
-.knox-gui-model-roles {
-	display: grid;
-	grid-template-columns: auto 1fr;
-	gap: 6px 8px;
-	align-items: center;
-}
-
-@container knox-gui (max-width: 329px) {
-	.knox-gui-model-roles {
-		grid-template-columns: 1fr;
-	}
-
-	.knox-gui-model-role {
-		margin-top: 8px;
-	}
-}
-
-.knox-gui-model-role {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	min-width: 0;
-}
-
-.knox-gui-model-role-label,
 .knox-gui-cyan {
 	color: var(--knox-accent, #159994);
 	font-size: calc(1em - 3px);
-}
-
-.knox-gui-model-role-label {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
 }
 

@@ -195,9 +195,9 @@ suite('Knox native agent stream and retry helpers', () => {
 	});
 
 	test('A-10 preferred model follows the reference tool roles', () => {
-		assert.strictEqual(knoxGuiToolPreferredModel('builtin_search_web', { realTimeSearch: 'r', viewRead: 'v' }), 'realTimeSearch');
-		assert.strictEqual(knoxGuiToolPreferredModel('builtin_run_terminal_command', { viewRead: 'v' }), 'chat');
-		assert.strictEqual(knoxGuiToolPreferredModel('builtin_read_file', { viewRead: 'v' }), 'viewRead');
+		assert.strictEqual(knoxGuiToolPreferredModel('builtin_search_web', { realTimeSearch: 'r', viewRead: 'v' }), undefined);
+		assert.strictEqual(knoxGuiToolPreferredModel('builtin_run_terminal_command', { viewRead: 'v' }), undefined);
+		assert.strictEqual(knoxGuiToolPreferredModel('builtin_read_file', { viewRead: 'v' }), undefined);
 		assert.strictEqual(knoxGuiToolPreferredModel('builtin_read_file', {}), undefined);
 	});
 });

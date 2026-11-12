@@ -349,9 +349,9 @@ suite('Knox native GUI controller (GP-084)', () => {
 		await timeout(0);
 		controller.openAddModel('edit');
 		assert.strictEqual(store.state.settingsTab, 'models');
-		assert.strictEqual(store.state.addModelRole, 'edit');
+		assert.strictEqual(store.state.addModelRole, 'chat');
 		assert.strictEqual(store.state.addModelModalProvider, 'knoxchat');
-		assert.strictEqual(store.state.addModelBulk, false);
+		assert.strictEqual(store.state.addModelBulk, true);
 		assert.strictEqual(store.state.route, KnoxGuiRoute.Chat);
 		assert.ok(commands.includes(KNOX_OPEN_SETTINGS_COMMAND_ID));
 		assert.ok(posted.some(message => message.messageType === 'config/refreshProfiles'));
@@ -706,7 +706,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.ok(settings.posted.some(message => message.messageType === 'openrouter/listModels'));
 		settings.commands.length = 0;
 		settings.controller.openAddModel('edit');
-		assert.strictEqual(settings.store.state.addModelRole, 'edit');
+		assert.strictEqual(settings.store.state.addModelRole, 'chat');
 		assert.ok(!settings.commands.includes(KNOX_OPEN_SETTINGS_COMMAND_ID));
 		const grok = { title: 'Grok', provider: 'knoxchat', model: 'spacexai/grok' };
 		settings.store.patch({
@@ -766,10 +766,10 @@ suite('Knox native GUI controller (GP-084)', () => {
 		const added = settings.posted.find(message => message.messageType === 'config/addModel');
 		const addedModel = (added?.data as { model?: Record<string, unknown> } | undefined)?.model;
 		assert.strictEqual(addedModel?.title, 'Anthropic: Claude Haiku 5.5');
-		assert.deepStrictEqual(addedModel?.roles, ['chat', 'edit', 'apply']);
+		assert.deepStrictEqual(addedModel?.roles, ['chat', 'edit', 'apply', 'summarize', 'viewRead', 'realTimeSearch']);
 		assert.strictEqual(settings.store.state.modelTitle, 'Anthropic: Claude Haiku 5.5');
 		assert.strictEqual(settings.store.state.selectedModelByRole.chat, 'Anthropic: Claude Haiku 5.5');
-		assert.strictEqual(settings.store.state.selectedModelByRole.edit, 'Existing Haiku 5.5');
+		assert.strictEqual(settings.store.state.selectedModelByRole.edit, 'Anthropic: Claude Haiku 5.5');
 		assert.ok(settings.posted.some(message => message.messageType === 'config/updateSelectedModel' && (message.data as { title?: string; role?: string }).title === 'Anthropic: Claude Haiku 5.5' && (message.data as { role?: string }).role === 'chat'));
 		chat.controller.applyConfig({
 			config: {
@@ -792,7 +792,7 @@ suite('Knox native GUI controller (GP-084)', () => {
 		assert.strictEqual(chat.store.state.mode, 'agent');
 	});
 
-	test('chat Add Model for edit reaches Settings Connect and selects edit, not chat', async () => {
+	test('chat Add Model reaches Settings Connect and selects the composer model', async () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const chat = createHarness({ storage });
 		const settings = createHarness({
@@ -804,8 +804,8 @@ suite('Knox native GUI controller (GP-084)', () => {
 		chat.store.patch({ modelTitle: 'DeepSeek V4.1 Flash', selectedModelByRole: { chat: 'DeepSeek V4.1 Flash' } });
 		chat.controller.openAddModel('edit');
 		assert.strictEqual(settings.store.state.settingsTab, 'models');
-		assert.strictEqual(settings.store.state.addModelRole, 'edit');
-		assert.strictEqual(settings.store.state.addModelBulk, false);
+		assert.strictEqual(settings.store.state.addModelRole, 'chat');
+		assert.strictEqual(settings.store.state.addModelBulk, true);
 		settings.store.patch({ profileId: 'p1', modelTitle: 'DeepSeek V4.1 Flash', selectedModelByRole: { chat: 'DeepSeek V4.1 Flash' } });
 		settings.posted.length = 0;
 		await settings.controller.addConfiguredModel('knoxchat', {
@@ -813,10 +813,10 @@ suite('Knox native GUI controller (GP-084)', () => {
 			params: { title: 'Grok', model: 'spacexai/grok' },
 		});
 		assert.strictEqual(settings.store.state.selectedModelByRole.edit, 'Grok');
-		assert.strictEqual(settings.store.state.modelTitle, 'DeepSeek V4.1 Flash');
-		assert.ok(settings.posted.some(message => message.messageType === 'config/updateSelectedModel' && (message.data as { role?: string; title?: string }).role === 'edit' && (message.data as { title?: string }).title === 'Grok'));
+		assert.strictEqual(settings.store.state.modelTitle, 'Grok');
+		assert.ok(settings.posted.some(message => message.messageType === 'config/updateSelectedModel' && (message.data as { role?: string; title?: string }).role === 'chat' && (message.data as { title?: string }).title === 'Grok'));
 		const added = settings.posted.find(message => message.messageType === 'config/addModel');
-		assert.deepStrictEqual((added?.data as { model?: { roles?: string[] } } | undefined)?.model?.roles, ['edit']);
+		assert.deepStrictEqual((added?.data as { model?: { roles?: string[] } } | undefined)?.model?.roles, ['chat', 'edit', 'apply', 'summarize', 'viewRead', 'realTimeSearch']);
 	});
 
 	test('stream response envelopes are not applied as host inbound', async () => {

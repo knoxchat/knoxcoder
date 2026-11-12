@@ -20,8 +20,11 @@ import {
 } from './knoxGuiState.js';
 import { isSlashBookmarked } from './knoxGuiInput.js';
 
-/** ModelsSection roles — not embed/autocomplete. */
+/** ModelsSection roles — not embed/autocomplete. Kept for YAML / persist compatibility. */
 export const MODEL_OVERLAY_ROLES: KnoxModelRole[] = ['chat', 'edit', 'apply', 'viewRead', 'realTimeSearch'];
+
+/** Roles stamped on Connect so one composer model can run every action. */
+export const ADD_MODEL_YAML_ROLES = ['chat', 'edit', 'apply', 'summarize', 'viewRead', 'realTimeSearch'] as const;
 
 export const MODEL_ROLE_LABEL_KEY: Record<KnoxModelRole, string> = {
 	chat: 'chatRole',
@@ -672,10 +675,8 @@ export function buildAddModelPayload(
 		}
 		setPathValue(model, input.key, input.inputType === 'number' ? Number(raw) : raw);
 	}
-	if (role) {
-		model.roles = extras?.bulk && role === 'chat' ? ['chat', 'edit', 'apply'] : [role];
-	}
-	return { model, role };
+	model.roles = [...ADD_MODEL_YAML_ROLES];
+	return { model, role: role ?? 'chat' };
 }
 
 export function categorizeKnoxChatModel(model: { id?: string; name?: string; title?: string; developer?: string; owned_by?: string; tokenizer?: string }): string {

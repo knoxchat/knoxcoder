@@ -1,10 +1,34 @@
-import { ModelRole } from "knoxdev-package/config-yaml";
+import { ALL_MODEL_ROLES, ModelRole } from "knoxdev-package/config-yaml";
 
 import { KnoxConfig, ILLM } from "..";
 import {
   GlobalContext,
   GlobalContextModelSelections,
 } from "../util/GlobalContext";
+
+function resolveUnifiedModel(
+  knoxConfig: KnoxConfig,
+  currentForProfile: GlobalContextModelSelections,
+): ILLM | null {
+  const preferredTitles = [
+    currentForProfile.chat,
+    currentForProfile.edit,
+    currentForProfile.apply,
+    currentForProfile.viewRead,
+    currentForProfile.realTimeSearch,
+    currentForProfile.summarize,
+  ];
+  for (const title of preferredTitles) {
+    if (!title) {
+      continue;
+    }
+    const match = knoxConfig.models.find((model) => model.title === title);
+    if (match) {
+      return match;
+    }
+  }
+  return knoxConfig.models[0] ?? knoxConfig.modelsByRole.chat[0] ?? null;
+}
 
 export function rectifySelectedModelsFromGlobalContext(
   knoxConfig: KnoxConfig,
@@ -20,41 +44,19 @@ export function rectifySelectedModelsFromGlobalContext(
 
   console.log(`[rectifySelectedModels] Current selections for profile:`, currentForProfile);
 
-  let fellBack = false;
+  const unified = resolveUnifiedModel(knoxConfig, currentForProfile);
+  console.log(
+    `[rectifySelectedModels] Unified model: ${unified?.title || "null"}`,
+  );
 
-  const roles: ModelRole[] = [
-    "chat",
-    "summarize",
-    "apply",
-    "edit",
-    "viewRead",
-    "realTimeSearch",
-  ];
+  let fellBack = false;
+  const roles: ModelRole[] = [...ALL_MODEL_ROLES];
   for (const role of roles) {
-    let newModel: ILLM | null = null;
     const currentSelection = currentForProfile[role] ?? null;
-    console.log(`[rectifySelectedModels] Role '${role}': currentSelection = ${currentSelection}`);
-    
-    if (currentSelection) {
-      const match = knoxConfig.modelsByRole[role].find(
-        (m) => m.title === currentSelection,
-      );
-      if (match) {
-        newModel = match;
-        console.log(`[rectifySelectedModels] Role '${role}': Found matching model: ${match.title}`);
-      } else {
-        console.log(`[rectifySelectedModels] Role '${role}': No matching model found for '${currentSelection}'`);
-      }
-    }
-    if (!newModel && knoxConfig.modelsByRole[role].length > 0) {
-      newModel = knoxConfig.modelsByRole[role][0];
-      console.log(`[rectifySelectedModels] Role '${role}': Auto-selected first available model: ${newModel.title}`);
-    }
-    if (!(currentSelection === (newModel?.title ?? null))) {
+    if (currentSelection !== (unified?.title ?? null)) {
       fellBack = true;
     }
-    configCopy.selectedModelByRole[role] = newModel;
-    console.log(`[rectifySelectedModels] Role '${role}': Final selection: ${newModel?.title || 'null'}`);
+    configCopy.selectedModelByRole[role] = unified;
   }
 
   // In the case shared config wasn't respected,

@@ -5,6 +5,8 @@ All notable changes to KnoxCoder are documented in this file.
 
 ### Removed
 
+- **Chat, Edit, Apply, View/Read, and RealTime Search pickers.** Settings > Models no longer assigns a different model per action. The composer model is used for every action.
+
 - **Chat session mode and Ask permission mode.** Knox Agent is Agent-only (plus Cmd+I edit). The permission bar is Edits / Auto. Leftover Chat sessions become Agent; leftover Ask (`default`) becomes Auto. Models without tools still stream a tool-free turn. Checkpoints are the rollback path. `knoxchat.trustedGitRemotes` and the fresh-clone Ask heuristic are gone; `knoxchat.permissionDefault` is `auto` / `edits`.
 
 ### Added
@@ -13,7 +15,9 @@ All notable changes to KnoxCoder are documented in this file.
 
 ### Changed
 
-- **Add Model in Settings > Models.** The KnoxStudio / OpenRouter catalog (sign-in, search, Connect) no longer overlays chat. Empty model picker, first-run Add Model, role gears, and quota "Add API key" open Settings on the Models tab, under the Chat / Edit / Apply / View/Read / RealTime Search pickers. Connect also selects that model for the role. The configs hint and Open Config File control under Connect are gone.
+- **One model for every Knox Agent action.** Chat, edit, apply, View/Read, and RealTime Search no longer have separate pickers. The model you choose in the composer is used for the whole turn (including tools and web search). Settings > Models is Add Model only. Connect stamps that model for every action.
+
+- **Add Model in Settings > Models.** The KnoxStudio / OpenRouter catalog (sign-in, search, Connect) no longer overlays chat. Empty model picker, first-run Add Model, and quota "Add API key" open Settings on the Models tab. Connect also selects that model in the composer. The configs hint and Open Config File control under Connect are gone.
 
 ### Fixed
 

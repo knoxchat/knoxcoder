@@ -484,57 +484,19 @@ export class ChatFlowCoordinator implements vscode.Disposable {
    */
   private async processToolCall(operation: ChatOperation): Promise<void> {
     // The payload should contain the tool call details
-    const { toolCall, selectedModelTitle, viewReadModelTitle, realTimeSearchModelTitle, preferredModel } = operation.payload;
+    const { toolCall, selectedModelTitle } = operation.payload;
     
     if (!toolCall || !selectedModelTitle) {
       throw new Error('Invalid tool call payload: toolCall and selectedModelTitle are required');
     }
 
-    // If viewReadModelTitle is not provided, get the current one from configuration
-    let effectiveViewReadModelTitle = viewReadModelTitle;
-    if (!effectiveViewReadModelTitle) {
-      try {
-        effectiveViewReadModelTitle = await vscode.commands.executeCommand('knox.getCurrentViewReadModel') as string | null;
-        if (effectiveViewReadModelTitle) {
-          console.log(`[Agent Mode] Retrieved View/Read model from config: ${effectiveViewReadModelTitle}`);
-        } else {
-          console.log(`[Agent Mode] No View/Read model configured`);
-        }
-      } catch (error) {
-        console.warn('Failed to get current View/Read model:', error);
-        effectiveViewReadModelTitle = null;
-      }
-    } else {
-      console.log(`[Agent Mode] Using provided View/Read model: ${effectiveViewReadModelTitle}`);
-    }
-    
-    // If realTimeSearchModelTitle is not provided, get the current one from configuration
-    let effectiveRealTimeSearchModelTitle = realTimeSearchModelTitle;
-    if (!effectiveRealTimeSearchModelTitle) {
-      try {
-        effectiveRealTimeSearchModelTitle = await vscode.commands.executeCommand('knox.getCurrentRealTimeSearchModel') as string | null;
-        if (effectiveRealTimeSearchModelTitle) {
-          console.log(`[Agent Mode] Retrieved RealTimeSearch model from config: ${effectiveRealTimeSearchModelTitle}`);
-        } else {
-          console.log(`[Agent Mode] No RealTimeSearch model configured`);
-        }
-      } catch (error) {
-        console.warn('Failed to get current RealTimeSearch model:', error);
-        effectiveRealTimeSearchModelTitle = null;
-      }
-    } else {
-      console.log(`[Agent Mode] Using provided RealTimeSearch model: ${effectiveRealTimeSearchModelTitle}`);
-    }
-    
-    console.log(`[Agent Mode] Processing tool call with preferredModel: ${preferredModel || 'auto'}`);
+    console.log(`[Agent Mode] Processing tool call with model: ${selectedModelTitle}`);
     
     // Execute via Core tools/call (post-edit verification runs on that shared path).
     try {
       const result = await this.agentModeManager!.executeToolCall(
         toolCall,
         selectedModelTitle,
-        effectiveViewReadModelTitle,
-        effectiveRealTimeSearchModelTitle,
       );
 
       operation.result = {

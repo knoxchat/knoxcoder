@@ -110,6 +110,11 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 	if (!modelsByRole.chat.length) {
 		modelsByRole.chat = models;
 	}
+	for (const role of MODEL_ROLES) {
+		if (!modelsByRole[role].length) {
+			modelsByRole[role] = models;
+		}
+	}
 	const errorsSource = asArray(top?.configError ?? result?.errors ?? config.configError);
 	const errors = errorsSource.map(error => {
 		if (typeof error === 'string') {
@@ -176,7 +181,15 @@ export function applyConfig(controller: KnoxGuiController, payload: Record<strin
 		const rec = asRecord(item);
 		return String(rec?.name ?? rec?.title ?? '');
 	}).filter(Boolean);
-	const selectedChat = selectedModelByRole.chat ?? String(config.selectedModelTitle ?? models[0]?.title ?? controller.store.state.modelTitle ?? '');
+	const selectedChat = selectedModelByRole.chat
+		?? selectedModelByRole.edit
+		?? selectedModelByRole.apply
+		?? String(config.selectedModelTitle ?? models[0]?.title ?? controller.store.state.modelTitle ?? '');
+	if (selectedChat) {
+		for (const role of MODEL_ROLES) {
+			selectedModelByRole[role] = selectedChat;
+		}
+	}
 	const selectedModel = [...modelsByRole.chat, ...models].find(model => model.title === selectedChat);
 	const effortConfig = knoxGuiReasoningEffortConfig(selectedModel);
 	const resolvedEffort = knoxGuiResolveReasoningEffort(selectedModel, controller.store.state.reasoningEffortByModel, controller.store.state.reasoningEffort);

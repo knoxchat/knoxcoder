@@ -331,10 +331,11 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-attach-image"]'), null);
 	});
 
-	test('models overlay uses listbox roles and gear opens Settings Models', async () => {
-		const { widget, store, commands } = await mount();
+	test('models overlay has no per-role pickers', async () => {
+		const { widget, store } = await mount();
 		store.patch({
 			overlay: 'models',
+			profileType: 'local',
 			modelsByRole: {
 				chat: [{ title: 'GPT-4o', provider: 'knoxchat', model: 'openai/gpt-4o' }],
 				edit: [],
@@ -345,14 +346,10 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 			selectedModelByRole: { chat: 'GPT-4o' },
 			modelTitle: 'GPT-4o',
 		});
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-role-chat"]'));
-		assert.strictEqual(widget.root.querySelector('.knox-gui-model-roles select'), null);
-		const gear = widget.root.querySelector('.knox-gui-role-gear') as HTMLButtonElement | null;
-		assert.ok(gear);
-		gear.click();
-		assert.strictEqual(store.state.settingsTab, 'models');
-		assert.strictEqual(store.state.addModelRole, 'chat');
-		assert.ok(commands.includes(KNOX_OPEN_SETTINGS_COMMAND_ID));
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-role-chat"]'), null);
+		assert.strictEqual(widget.root.querySelector('.knox-gui-model-roles'), null);
+		assert.strictEqual(widget.root.querySelector('.knox-gui-role-gear'), null);
+		assert.ok(widget.root.querySelector('[data-testid="knox-gui-open-config"]'));
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-add-model-catalog"]'), null);
 		assert.strictEqual(store.state.route, 'chat');
 	});
@@ -433,22 +430,13 @@ suite('Knox native GUI widget chrome (GP-083)', () => {
 		});
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-tab-models"]')?.getAttribute('aria-selected'), 'true');
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-settings-models"]'));
-		const roles = widget.root.querySelector('.knox-gui-model-roles-full') as HTMLElement;
-		assert.ok(roles);
-		assert.ok(roles.style.gridTemplateColumns.includes('ch'));
-		assert.ok(widget.root.querySelector('.knox-gui-listbox-btn-full'));
-		const chatRole = widget.root.querySelector('[data-testid="knox-gui-role-chat"]') as HTMLButtonElement;
-		assert.ok(chatRole);
-		assert.ok(chatRole.textContent?.includes('KnoxStudio · DeepSeek: V3.2'));
-		assert.ok(chatRole.classList.contains('knox-gui-listbox-btn-full'));
-		assert.strictEqual(widget.root.querySelector('.knox-gui-model-roles select'), null);
+		assert.strictEqual(widget.root.querySelector('.knox-gui-model-roles'), null);
+		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-role-chat"]'), null);
+		assert.strictEqual(widget.root.querySelector('.knox-gui-role-gear'), null);
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-open-config"]'), null);
 		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-subtext'), null);
 		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-catalog"]'));
 		assert.strictEqual(widget.root.querySelector('.knox-gui-add-model-form-title')?.textContent, 'Add Model');
-		(widget.root.querySelector('.knox-gui-role-gear') as HTMLButtonElement).click();
-		assert.strictEqual(store.state.addModelRole, 'chat');
-		assert.ok(widget.root.querySelector('[data-testid="knox-gui-add-model-catalog"]'));
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-general"]'), null);
 		store.patch({ settingsTab: 'tools' });
 		assert.strictEqual(widget.root.querySelector('[data-testid="knox-gui-settings-tab-tools"]')?.getAttribute('aria-selected'), 'true');

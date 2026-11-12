@@ -1,4 +1,4 @@
-import { ModelRole } from "knoxdev-package/config-yaml";
+import { ALL_MODEL_ROLES, ModelRole } from "knoxdev-package/config-yaml";
 
 import {
   KnoxConfig,
@@ -48,21 +48,8 @@ export function uniqueYamlModelName(
   return `${withProvider} (${n})`;
 }
 
-/** GUI sends chat/edit/apply; older callers used inlineEdit / applyCodeBlock. */
-export function addModelSelectRole(role?: string): ModelRole {
-  if (role === "inlineEdit" || role === "edit") {
-    return "edit";
-  }
-  if (role === "applyCodeBlock" || role === "apply") {
-    return "apply";
-  }
-  if (
-    role === "summarize" ||
-    role === "viewRead" ||
-    role === "realTimeSearch"
-  ) {
-    return role;
-  }
+/** Connect always selects the composer model; every action uses that model. */
+export function addModelSelectRole(_role?: string): ModelRole {
   return "chat";
 }
 
@@ -151,37 +138,13 @@ export function addModel(
     }
 
     if (model.roles && Array.isArray(model.roles)) {
-      const validRoles: ("chat" | "edit" | "apply" | "summarize" | "viewRead" | "realTimeSearch")[] = [];
+      const validRoles = model.roles.filter((r): r is (typeof ALL_MODEL_ROLES)[number] =>
+        (ALL_MODEL_ROLES as readonly string[]).includes(r),
+      );
 
-      for (const r of model.roles) {
-        if (["chat", "edit", "apply", "summarize", "viewRead", "realTimeSearch"].includes(r)) {
-          validRoles.push(r as any);
-        }
-      }
-
-      if (validRoles.length > 0) {
-        yamlModel.roles = validRoles;
-      }
-    } else if (role) {
-      let modelRole: "chat" | "edit" | "apply" | "summarize" | "viewRead" | "realTimeSearch" | undefined;
-
-      if (role === "inlineEdit") {
-        modelRole = "edit";
-      } else if (role === "applyCodeBlock") {
-        modelRole = "apply";
-      } else if (role === "chat") {
-        modelRole = "chat";
-      } else if (role === "summarize") {
-        modelRole = "summarize";
-      } else if (role === "viewRead") {
-        modelRole = "viewRead";
-      } else if (role === "realTimeSearch") {
-        modelRole = "realTimeSearch";
-      }
-
-      if (modelRole) {
-        yamlModel.roles = [modelRole];
-      }
+      yamlModel.roles = validRoles.length > 0 ? validRoles : [...ALL_MODEL_ROLES];
+    } else {
+      yamlModel.roles = [...ALL_MODEL_ROLES];
     }
 
     config.models.push(yamlModel);

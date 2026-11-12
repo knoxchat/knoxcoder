@@ -342,9 +342,7 @@ suite('Knox native GUI i18n', () => {
 		assert.ok(/\.knox-gui > \.knox-gui-tabs > \.knox-gui-tab \{[^}]*flex:\s*0 0 auto/.test(css));
 		assert.ok(css.includes('.knox-gui-settings-nav'));
 		assert.ok(css.includes('.knox-gui-settings-nav-item.active'));
-		assert.ok(css.includes('.knox-gui-settings-heading + .knox-gui-model-roles'));
-		assert.ok(css.includes('.knox-gui-model-roles-full'));
-		assert.ok(css.includes('.knox-gui-listbox-btn-full .knox-gui-lump-label'));
+		assert.ok(css.includes('.knox-gui-settings-add-model'));
 		assert.ok(css.includes('max-width: none'));
 		assert.ok(css.includes('.knox-gui-settings-heading + .knox-gui-prompt-list'));
 		assert.ok(css.includes('.knox-gui-settings-heading + .knox-gui-rule-list'));

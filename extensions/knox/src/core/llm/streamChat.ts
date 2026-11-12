@@ -131,8 +131,9 @@ export async function* llmStreamChat(
     msg.data;
   let completionOptions = rawCompletionOptions;
 
-  // Cost optimization: harness judgments (when enabled) or regex heuristics pick View/Read.
-  let effectiveTitle = title;
+  // Stay on the composer model. Harness judgments still hint skills, escalate
+  // reasoning, and may drop tools; they do not switch to a second LLM.
+  const effectiveTitle = title;
   let turnJudgment: AgentTurnJudgment | undefined;
 
   if (messages.length > 0) {
@@ -144,7 +145,6 @@ export async function* llmStreamChat(
         messageContent.toLowerCase().includes("file") ||
         messageContent.toLowerCase().includes("code") ||
         (completionOptions?.tools?.length ?? 0) > 0;
-      const viewReadTitle = config.selectedModelByRole.viewRead?.title;
       let skills: SkillInfo[] = [];
       try {
         const manager = getSkillManager();
@@ -167,7 +167,7 @@ export async function* llmStreamChat(
           }),
         ),
         skills,
-        hasViewRead: Boolean(viewReadTitle),
+        hasViewRead: false,
         hasContext,
         agentProfileSetting: parseAgentProfileSetting(
           config.experimental?.agentProfileSetting ??
@@ -179,16 +179,9 @@ export async function* llmStreamChat(
         runtime: jevRuntime,
       });
       setJevUserMessage(messageContent);
-      if (turnJudgment.shouldUseViewRead && viewReadTitle) {
-        effectiveTitle = viewReadTitle;
-        console.log(
-          `[Cost Optimization] Backend: Using View/Read model (${turnJudgment.source}): ${turnJudgment.reason} (confidence: ${turnJudgment.confidence})`,
-        );
-      } else {
-        console.log(
-          `[Cost Optimization] Backend: Using Chat model (${turnJudgment?.source ?? "heuristic"}): ${turnJudgment?.reason ?? "default"}`,
-        );
-      }
+      console.log(
+        `[Turn] Using composer model (${turnJudgment?.source ?? "heuristic"}): ${turnJudgment?.reason ?? "default"}`,
+      );
       if (turnJudgment.route === "chat_high") {
         completionOptions = {
           ...completionOptions,

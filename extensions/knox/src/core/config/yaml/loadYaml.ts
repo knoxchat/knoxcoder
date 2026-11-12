@@ -1,11 +1,11 @@
 import fs from "node:fs";
 
 import {
+  ALL_MODEL_ROLES,
   AssistantUnrolled,
   ConfigResult,
   ConfigValidationError,
   FQSN,
-  ModelRole,
   PlatformClient,
   RegistryClient,
   SecretResult,
@@ -218,9 +218,8 @@ async function configYamlToKnoxConfig(
     }
   });
 
-  const modelsArrayRoles: ModelRole[] = ["chat", "summarize", "apply", "edit", "viewRead", "realTimeSearch"];
   for (const model of config.models ?? []) {
-    model.roles = model.roles ?? modelsArrayRoles;
+    model.roles = [...ALL_MODEL_ROLES];
     try {
       const llms = await llmsFromModelConfig(
         model,
@@ -231,32 +230,9 @@ async function configYamlToKnoxConfig(
         knoxConfig.systemMessage,
       );
 
-      if (modelsArrayRoles.some((role) => model.roles?.includes(role))) {
-        knoxConfig.models.push(...llms);
-      }
-
-      if (model.roles?.includes("chat")) {
-        knoxConfig.modelsByRole.chat.push(...llms);
-      }
-
-      if (model.roles?.includes("summarize")) {
-        knoxConfig.modelsByRole.summarize.push(...llms);
-      }
-
-      if (model.roles?.includes("apply")) {
-        knoxConfig.modelsByRole.apply.push(...llms);
-      }
-
-      if (model.roles?.includes("edit")) {
-        knoxConfig.modelsByRole.edit.push(...llms);
-      }
-
-      if (model.roles?.includes("viewRead")) {
-        knoxConfig.modelsByRole.viewRead.push(...llms);
-      }
-
-      if (model.roles?.includes("realTimeSearch")) {
-        knoxConfig.modelsByRole.realTimeSearch.push(...llms);
+      knoxConfig.models.push(...llms);
+      for (const role of ALL_MODEL_ROLES) {
+        knoxConfig.modelsByRole[role].push(...llms);
       }
 
     } catch (e) {

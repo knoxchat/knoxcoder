@@ -411,9 +411,9 @@ export function knoxGuiSortModelsByApiKey<T extends { apiKey?: string }>(models:
 	return [...models.filter(model => model.apiKey !== ''), ...models.filter(model => model.apiKey === '')];
 }
 
-/** Picker list: role-chat models, else all models (custom config.yaml entries). */
+/** Picker list: every configured model. The composer choice is used for every action. */
 export function knoxGuiChatPickerModels(state: { models: readonly IKnoxGuiModel[]; modelsByRole: { chat: readonly IKnoxGuiModel[] } }): IKnoxGuiModel[] {
-	return (state.modelsByRole.chat.length ? state.modelsByRole.chat : state.models).slice();
+	return (state.models.length ? state.models : state.modelsByRole.chat).slice();
 }
 
 /**

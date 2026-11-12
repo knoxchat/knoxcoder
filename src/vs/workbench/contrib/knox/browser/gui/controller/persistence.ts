@@ -83,7 +83,7 @@ export function applyPersistedSettingsTab(controller: KnoxGuiController): void {
 	controller.store.patch({ settingsTab: knoxGuiSettingsTab(ui.settingsTab) });
 }
 
-/** Chat Add Model (role gear, empty picker) and Settings Connect share the same role/bulk. */
+/** Chat Add Model (empty picker) and Settings Connect share the same Add Model intent. */
 export function applyPersistedAddModelIntent(controller: KnoxGuiController): void {
 	const ui = knoxGuiParsePersistedUi(controller.storageService.get(UI_STATE_KEY, StorageScope.PROFILE));
 	if (!('addModelRole' in ui) && !('addModelBulk' in ui)) {

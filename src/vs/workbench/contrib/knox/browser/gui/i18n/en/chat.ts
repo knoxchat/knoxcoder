@@ -10,7 +10,7 @@ export const knoxGuiStringsEnChat: Record<string, unknown> = {
 	"permissionModeAuto": "Auto",
 	"permissionModeEditsHint": "Auto-approve file edits; ask for terminal",
 	"permissionModeAutoHint": "Auto-approve every enabled tool (YOLO, default). Checkpoints can restore the tree. Switch to Edits to approve the terminal first.",
-	"permissionModeTriggerHint": "How tools are approved. Harness judgments pick View/Read vs the main model when enabled.",
+	"permissionModeTriggerHint": "How tools are approved. Harness judgments can still hint skills and gate tools when enabled.",
 	"permissionModeTriggerHintNoJev": "Agent. How tools are approved.",
 	"planMode": "Plan",
 	"planModeHint": "Read-only explore and write a plan. Leave Plan mode to execute.",

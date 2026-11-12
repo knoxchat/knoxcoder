@@ -93,10 +93,13 @@ suite('Knox LLM stack contract (KN-250–256)', () => {
 		assert.ok(repoFile('extensions/knox/src/core/llm/healToolCallMessages.ts').includes('export function healToolCallMessages'));
 	});
 
-	test('KN-256: role-based model routing + reasoning-effort prefs', () => {
-		const roles = repoFile('extensions/knox/src/core/config/selectedModels.ts');
+	test('KN-256: one composer model for every action + reasoning-effort prefs', () => {
+		const selected = repoFile('extensions/knox/src/core/config/selectedModels.ts');
+		assert.ok(selected.includes('ALL_MODEL_ROLES'));
+		assert.ok(selected.includes('resolveUnifiedModel'));
+		const schema = repoFile('extensions/knox/src/pkg/config-yaml/schemas/models.ts');
 		for (const role of ['chat', 'edit', 'apply', 'summarize', 'viewRead', 'realTimeSearch']) {
-			assert.ok(roles.includes(`"${role}"`), role);
+			assert.ok(schema.includes(`"${role}"`), role);
 		}
 		assert.ok(repoFile('extensions/knox/src/core/llm/reasoningEffortConfig.ts').includes('reasoning'));
 	});

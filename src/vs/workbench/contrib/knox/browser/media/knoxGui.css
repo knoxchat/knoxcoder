@@ -440,43 +440,12 @@
 }
 
 .knox-gui-settings-heading + .knox-gui-settings-card,
-.knox-gui-settings-heading + .knox-gui-model-roles,
 .knox-gui-settings-heading + .knox-gui-tools,
 .knox-gui-settings-heading + .knox-gui-prompt-list,
 .knox-gui-settings-heading + .knox-gui-rule-list {
 	margin-top: 4px;
 	padding-top: 16px;
 	border-top: 1px solid var(--vscode-widget-border, transparent);
-}
-
-.knox-gui-model-roles-full {
-	grid-template-columns: max-content minmax(0, 1fr);
-}
-
-.knox-gui-listbox-btn-full {
-	height: auto;
-	min-height: 28px;
-	align-items: center;
-}
-
-.knox-gui-listbox-btn-full > .knox-gui-svg {
-	flex-shrink: 0;
-}
-
-.knox-gui-listbox-btn-full .knox-gui-lump-label {
-	max-width: none;
-	overflow: visible;
-	white-space: normal;
-	text-align: left;
-	flex: 1 1 auto;
-	font-size: 13px;
-	line-height: 1.35;
-}
-
-.knox-gui-listbox-option-full {
-	overflow: visible;
-	text-overflow: unset;
-	white-space: normal;
 }
 
 .knox-gui-body-spacer {

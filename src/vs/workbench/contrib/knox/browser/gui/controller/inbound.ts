@@ -13,7 +13,7 @@ import { knoxGuiSettingsTab } from '../../../common/knoxGuiChrome.js';
 import { IKnoxGuiMessage, KNOX_GUI_HOST_INBOUND_EMPTY_ACK, KNOX_GUI_PATH_BY_ROUTE, KnoxGuiRoute, isKnoxGuiResponseEnvelope } from '../../../common/knoxGuiProtocol.js';
 import { knoxGuiNextEditStatus, mergeCodeToEdit, parseCodeToEditList } from '../../../common/knoxGuiEdit.js';
 import { knoxGuiHostAgentActiveFromPayload, knoxGuiModeAfterHostAgentFlag } from '../../../common/knoxGuiAgentMode.js';
-import { IKnoxGuiState, KnoxModelRole, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
+import { IKnoxGuiState, knoxGuiIsDedicatedEditor } from '../../../common/knoxGuiState.js';
 import { applyKnoxGuiSetColors, applyKnoxGuiSetTheme } from '../../../common/knoxGuiTheme.js';
 import { insertTextAtCaret } from '../../../common/knoxGuiInput.js';
 import { isAutonomousRunning } from './stream.js';
@@ -165,7 +165,7 @@ export async function handleInbound(controller: KnoxGuiController, type: string,
 			controller.messenger.post(type, { sessionId: controller.store.state.sessionId || null }, messageId);
 			return;
 		case 'addModel':
-			controller.openAddModel(rec?.role ? String(rec.role) as KnoxModelRole : 'chat', { bulk: !rec?.role || rec.role === 'chat' });
+			controller.openAddModel('chat', { bulk: true });
 			return;
 		case 'addApiKey':
 			// Quota notification "Add API Key": route to the same Add Model flow as `addModel`, then answer the host request.

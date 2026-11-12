@@ -89,22 +89,12 @@ export function knoxGuiIsCancelledToolError(message: string | undefined): boolea
 	return msg.includes('cancelled') || msg.includes('canceled') || msg.includes('aborted');
 }
 
-const CHAT_MODEL_TOOL_NAMES = new Set(['builtin_create_new_file', 'builtin_run_terminal_command', 'builtin_task', 'builtin_git_commit', 'builtin_git_bisect']);
-const REAL_TIME_SEARCH_TOOL_NAMES = new Set(['builtin_search_web']);
-
 /**
- * `callTool.ts` preferredModel. `shouldUseViewReadForToolResponse(name, 0)`
- * is always true, so every tool that is not search or chat prefers View/Read
- * when that role has a model.
+ * Tools use the composer model. Kept so callers do not switch Chat / View/Read /
+ * RealTime Search mid-turn.
  */
-export function knoxGuiToolPreferredModel(toolName: string, roles: { viewRead?: string; realTimeSearch?: string }): 'chat' | 'viewRead' | 'realTimeSearch' | undefined {
-	if (REAL_TIME_SEARCH_TOOL_NAMES.has(toolName) && roles.realTimeSearch) {
-		return 'realTimeSearch';
-	}
-	if (CHAT_MODEL_TOOL_NAMES.has(toolName)) {
-		return 'chat';
-	}
-	return roles.viewRead ? 'viewRead' : undefined;
+export function knoxGuiToolPreferredModel(_toolName: string, _roles?: { viewRead?: string; realTimeSearch?: string }): 'chat' | 'viewRead' | 'realTimeSearch' | undefined {
+	return undefined;
 }
 
 /** `callTool.ts` toolFailureOutput; labels are the translated name and description. */

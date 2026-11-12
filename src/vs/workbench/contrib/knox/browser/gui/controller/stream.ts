@@ -354,7 +354,7 @@ async function buildAgentRequest(controller: KnoxGuiController): Promise<{ messa
 			includeTools: false,
 			toolSettings: state.toolSettings,
 			excludedGroups: state.toolGroupExcluded,
-			dropSearchWeb: (state.webSearchSupported && state.webSearchEnabled) || !state.selectedModelByRole.realTimeSearch,
+			dropSearchWeb: (state.webSearchSupported && state.webSearchEnabled) || !state.modelTitle,
 			toolLoopSteps: state.toolLoopSteps,
 			turnToolCalls: knoxGuiExecuteDoomCalls(state.history, seedSessionDoom),
 		});

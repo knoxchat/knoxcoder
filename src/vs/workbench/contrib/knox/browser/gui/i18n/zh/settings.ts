@@ -6,7 +6,7 @@
 export const knoxGuiStringsZhSettings: Record<string, unknown> = {
 	"generalSettings": "常规",
 	"generalSettingsHint": "语言、外观和助理行为。",
-	"modelsHint": "此配置的对话、编辑、应用和搜索模型。",
+	"modelsHint": "为此配置添加模型。对话输入框所选模型会用于全部操作。",
 	"toolsHint": "预设、策略规则和各工具权限。",
 	"promptsHint": "可在对话输入框中用斜杠插入的提示词。",
 	"rulesHint": "应用于助理的工作区和配置规则。",
@@ -44,7 +44,7 @@ export const knoxGuiStringsZhSettings: Record<string, unknown> = {
 	"discardChanges": "放弃更改",
 	"noChangesToReview": "没有需要审查的更改",
 	"jevEnabled": "判断层",
-	"jevEnabledHint": "用判断模型做查看/阅读与主模型路由、技能提示、上下文/工具闸门和引用检查。使用已登录的 Knox Chat 或 OpenRouter 账号。失败时回退到现有启发式。关闭后助理始终使用主模型。",
+	"jevEnabledHint": "用判断模型做技能提示、上下文/工具闸门和引用检查。使用已登录的 Knox Chat 或 OpenRouter 账号。失败时回退到现有启发式。助理始终使用对话中所选模型。",
 	"jevModel": "判断模型",
 	"jevModelHint": "TypeSafe Jev 可用于 Knox Chat 或 OpenRouter。Gemini Decision 1 仅通过 OpenRouter，可读文本、图像、音频、视频和文档。Knox 目前只发送对话中的图片附件。",
 	"jevModelJev": "Jev（TypeSafe）",

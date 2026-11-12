@@ -20,14 +20,15 @@ export const requestOptionsSchema = z.object({
   clientCertificate: clientCertificateOptionsSchema.optional(),
 });
 export type RequestOptions = z.infer<typeof requestOptionsSchema>;
-export const modelRolesSchema = z.enum([
+export const ALL_MODEL_ROLES = [
   "chat",
   "edit",
   "apply",
   "summarize",
   "viewRead",
   "realTimeSearch",
-]);
+] as const;
+export const modelRolesSchema = z.enum(ALL_MODEL_ROLES);
 export type ModelRole = z.infer<typeof modelRolesSchema>;
 
 export const modelCapabilitySchema = z.union([

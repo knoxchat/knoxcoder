@@ -3,14 +3,14 @@ import { describe, expect, it } from "vitest";
 import { addModelSelectRole, providerDisplayName, uniqueYamlModelName } from "./util";
 
 describe("addModelSelectRole", () => {
-  it("maps GUI and legacy role names onto ModelRole", () => {
+  it("selects the composer model for every add", () => {
     expect(addModelSelectRole(undefined)).toBe("chat");
     expect(addModelSelectRole("chat")).toBe("chat");
-    expect(addModelSelectRole("edit")).toBe("edit");
-    expect(addModelSelectRole("inlineEdit")).toBe("edit");
-    expect(addModelSelectRole("apply")).toBe("apply");
-    expect(addModelSelectRole("applyCodeBlock")).toBe("apply");
-    expect(addModelSelectRole("viewRead")).toBe("viewRead");
+    expect(addModelSelectRole("edit")).toBe("chat");
+    expect(addModelSelectRole("inlineEdit")).toBe("chat");
+    expect(addModelSelectRole("apply")).toBe("chat");
+    expect(addModelSelectRole("applyCodeBlock")).toBe("chat");
+    expect(addModelSelectRole("viewRead")).toBe("chat");
   });
 });
 
