@@ -200,4 +200,5 @@ jobs:
         run: npm run transpile-client
 
       - name: Knox GUI tests
+        # Keep this glob in sync with scripts/pre-commit.sh (Knox GUI tests step).
         run: xvfb-run -a ./scripts/test.sh --glob "vs/workbench/contrib/knox/**/*.test.js"

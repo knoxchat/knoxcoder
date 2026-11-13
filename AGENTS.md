@@ -15,3 +15,7 @@ Do **not** add, enable, or depend on:
 If a bench miss has no shared tokens, expand honest synonym groups or accept the miss. RecipeMatcher “rerank by track record” is ordinary score math (success/revert counts) and is allowed. ML rerank is not.
 
 See `extensions/knox/docs/knox-memory-checkpoint.md`.
+
+## Knox GUI tests must pass
+
+Default `./scripts/pre-commit.sh` runs the Knox GUI Electron suite (same glob as `.github/workflows/knox-ci.yml`) when `src/vs/workbench/contrib/knox/` or `extensions/knox/` changed. A green typecheck is not enough; do not pass `--no-tests` to skip it.

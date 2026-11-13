@@ -9,7 +9,7 @@
 #   ./scripts/pre-commit.sh              # staged files (falls back to all local changes)
 #   ./scripts/pre-commit.sh --all        # every check on every area
 #   ./scripts/pre-commit.sh --full       # scoped checks + full gulp compile + tsec
-#   ./scripts/pre-commit.sh --no-tests   # skip unit tests
+#   ./scripts/pre-commit.sh --no-tests   # skip unit tests (also skips Knox GUI Electron tests)
 #   ./scripts/pre-commit.sh --fail-fast  # stop at first failing step
 #   ./scripts/pre-commit.sh --install    # install as .git/hooks/pre-commit
 #   ./scripts/pre-commit.sh --help
@@ -537,12 +537,40 @@ else
 	skip_step "full gulp compile + tsec" "use --full to enable"
 fi
 
+# Same glob as .github/workflows/knox-ci.yml "Knox GUI tests".
+KNOX_GUI_TEST_GLOB='vs/workbench/contrib/knox/**/*.test.js'
+KNOX_GUI_CHANGED='^src/vs/workbench/contrib/knox/|^extensions/knox/|^\.github/workflows/knox-ci\.yml$'
+
+knox_gui_out_stale() {
+	local sentinel="$ROOT/out/vs/workbench/contrib/knox/browser/knoxGuiParity.test.js"
+	local found
+	if [ ! -f "$sentinel" ]; then
+		return 0
+	fi
+	# -print -quit avoids `head` + pipefail SIGPIPE when sources are newer than out/.
+	found="$(find "$ROOT/src/vs/workbench/contrib/knox" -type f -name '*.ts' -newer "$sentinel" -print -quit)"
+	[ -n "$found" ]
+}
+
+run_knox_gui_electron_tests() {
+	if [ "$(uname -s)" = Linux ] && [ -z "${DISPLAY:-}" ]; then
+		if command -v xvfb-run >/dev/null 2>&1; then
+			xvfb-run -a ./scripts/test.sh --glob "$KNOX_GUI_TEST_GLOB"
+			return
+		fi
+		echo "Knox GUI Electron tests need a display. Install xvfb or set DISPLAY."
+		return 1
+	fi
+	./scripts/test.sh --glob "$KNOX_GUI_TEST_GLOB"
+}
+
 # ================================================================= 5. tests ====
 echo
 echo "${BLD}## Tests${RST}"
 
 if [ "$TESTS" -eq 0 ]; then
 	skip_step "unit tests" "--no-tests"
+	skip_step "Knox GUI tests (Electron)" "--no-tests"
 else
 	if [ "$ALL" -eq 1 ]; then
 		skip_step "build scripts tests" "--all skips pre-existing build/next test failures"
@@ -592,6 +620,19 @@ else
 		fi
 	else
 		skip_step "node unit tests" "no node-testable files changed"
+	fi
+
+	# GitHub Actions Knox GUI contract tests (Electron). Do not skip when knox GUI
+	# or extension files changed: typecheck / vitest do not cover this suite.
+	if changed_matches "$KNOX_GUI_CHANGED"; then
+		if knox_gui_out_stale; then
+			run_step "transpile client for Knox GUI tests" npm run --silent transpile-client
+		else
+			skip_step "transpile client for Knox GUI tests" "out/ is current"
+		fi
+		run_step "Knox GUI tests (Electron)" run_knox_gui_electron_tests
+	else
+		skip_step "Knox GUI tests (Electron)" "no knox GUI/extension changes"
 	fi
 fi
 
